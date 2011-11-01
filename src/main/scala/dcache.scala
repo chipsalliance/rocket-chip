@@ -321,9 +321,9 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   when (tag_we && req_flush) {
     vb_array <== vb_array.bitSet(r_cpu_req_addr(indexmsb, indexlsb).toUFix, UFix(0,1));
   }
-          
+
   val tag_valid = vb_rdata.toBool;
-  val tag_match = tag_valid && !req_flush && (tag_rdata === r_cpu_req_addr(tagmsb, taglsb));
+  val tag_match = tag_valid && (tag_rdata === r_cpu_req_addr(tagmsb, taglsb));
     
   when ((state === s_ready) && r_cpu_req_val && req_store) {
     p_store_data  <== r_cpu_req_data;
@@ -333,7 +333,7 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   }
 
   val addr_match    = (r_cpu_req_addr(tagmsb, offsetlsb) === p_store_addr(tagmsb, offsetlsb));
-  val drain_store   = ((state === s_ready) && p_store_valid && (!r_cpu_req_val || !req_load || addr_match))
+  val drain_store   = ((state === s_ready) && p_store_valid && (!r_cpu_req_val || !tag_match || !req_load || addr_match))
   val resolve_store = (state === s_resolve_miss) && req_store;
   val do_store      = drain_store | resolve_store;
 
@@ -389,7 +389,7 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   val ldst_conflict = r_cpu_req_val && req_load && p_store_valid && addr_match;
   
   // output signals
-  io.cpu.req_rdy   := (state === s_ready) && !ldst_conflict && (!r_cpu_req_val || tag_match);
+  io.cpu.req_rdy   := (state === s_ready) && !ldst_conflict && (!r_cpu_req_val || (tag_match && !req_flush));
 
   io.cpu.resp_val  := ((state === s_ready) && r_cpu_req_val && tag_match && req_load && !(p_store_valid && addr_match)) || 
                       ((state === s_resolve_miss) && req_flush);
@@ -400,11 +400,11 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
     Mux(r_cpu_req_addr(offsetlsb).toBool, data_array_rdata(127, 64), 
       data_array_rdata(63,0));
 
-  io.mem.req_val  := (state === s_req_refill) || (state === s_writeback);
-  io.mem.req_rw   := (state === s_writeback);
+  io.mem.req_val   := (state === s_req_refill) || (state === s_writeback);
+  io.mem.req_rw    := (state === s_writeback);
   io.mem.req_wdata := data_array_rdata;
-  io.mem.req_tag  := UFix(0);
-  io.mem.req_addr := 
+  io.mem.req_tag   := UFix(0);
+  io.mem.req_addr  := 
     Mux(state === s_writeback, Cat(tag_rdata, r_cpu_req_addr(indexmsb, indexlsb), rr_count).toUFix, 
       Cat(r_cpu_req_addr(tagmsb, indexlsb), Bits(0,2)).toUFix);
 
