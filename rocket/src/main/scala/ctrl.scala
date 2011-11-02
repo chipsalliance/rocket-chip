@@ -305,6 +305,7 @@ class rocketCtrl extends Component
   val mem_cmd_load = mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD);
   val replay_mem_pc_plus4 = mem_cmd_load && !io.dmem.resp_val;
   val dcache_miss = Reg(replay_mem_pc_plus4);
+  val replay_mem = replay_mem_pc | replay_mem_pc_plus4;
   
   io.dpath.mem_load := mem_cmd_load;
   io.dpath.dcache_miss := dcache_miss;
@@ -318,7 +319,7 @@ class rocketCtrl extends Component
     Mux(jr_taken,                    PC_JR,
     Mux(j_taken,                     PC_J,
     Mux(io.dpath.btb_hit,            PC_BTB,
-        PC_4)))))));
+        PC_4))))))));
 
   io.dpath.wen_btb := ~ex_reg_btb_hit & br_taken;
 
@@ -330,7 +331,8 @@ class rocketCtrl extends Component
     io.dpath.exception |
     ex_reg_privileged |
     ex_reg_eret |
-    replay_mem;
+    replay_mem_pc |
+    replay_mem_pc_plus4;
 
   io.dpath.stallf :=
     ~take_pc &
