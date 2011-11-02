@@ -9,10 +9,10 @@ import scala.math._;
 class ioDmem(view: List[String] = null) extends Bundle(view) {
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
-  val req_op    = Bits(4, 'input);
+  val req_cmd   = Bits(4, 'input);
+  val req_type  = Bits(3, 'input);
   val req_addr  = UFix(32, 'input);
   val req_data  = Bits(64, 'input);
-  val req_wmask = Bits(8, 'input);
   val req_tag   = Bits(12, 'input);
   val resp_val  = Bool('output);
   val resp_data = Bits(64, 'output);
@@ -58,7 +58,7 @@ class rocketDCacheDM_flush(lines: Int, addrbits: Int) extends Component {
   val flush_waiting = Reg(resetVal = Bool(false));
   val r_cpu_req_tag = Reg(resetVal = Bits(0, 12));
 
-  when (io.cpu.req_val && io.cpu.req_rdy && (io.cpu.req_op === M_FLA)) 
+  when (io.cpu.req_val && io.cpu.req_rdy && (io.cpu.req_cmd === M_FLA)) 
   { 
     r_cpu_req_tag <== io.cpu.req_tag;
     flushing <== Bool(true);
@@ -75,12 +75,12 @@ class rocketDCacheDM_flush(lines: Int, addrbits: Int) extends Component {
   when (flush_waiting && dcache.io.cpu.resp_val && (dcache.io.cpu.resp_tag === r_cpu_req_tag))
   { flush_resp_count <== flush_resp_count + UFix(1,1); }
   
-  dcache.io.cpu.req_val   := (io.cpu.req_val && (io.cpu.req_op != M_FLA) && !flush_waiting) || flushing;
-  dcache.io.cpu.req_op    := Mux(flushing, M_FLA, io.cpu.req_op);
+  dcache.io.cpu.req_val   := (io.cpu.req_val && (io.cpu.req_cmd != M_FLA) && !flush_waiting) || flushing;
+  dcache.io.cpu.req_cmd    := Mux(flushing, M_FLA, io.cpu.req_cmd);
   dcache.io.cpu.req_addr  := Mux(flushing, Cat(Bits(0,tagmsb-taglsb+1), flush_count, Bits(0,offsetbits)).toUFix, io.cpu.req_addr);
   dcache.io.cpu.req_tag   := Mux(flushing, r_cpu_req_tag, io.cpu.req_tag);
+  dcache.io.cpu.req_type  := io.cpu.req_type;
   dcache.io.cpu.req_data  ^^ io.cpu.req_data;
-  dcache.io.cpu.req_wmask ^^ io.cpu.req_wmask;
   dcache.io.mem           ^^ io.mem;
 
   io.cpu.req_rdy   := dcache.io.cpu.req_rdy && !flush_waiting;
@@ -96,7 +96,7 @@ class rocketDCacheDM_flush(lines: Int, addrbits: Int) extends Component {
 //    lines = # of cache lines
 //    addr_bits = address width (word addressable) bits
 //    64 bit wide cpu port, 128 bit wide memory port, 64 byte cachelines
-
+/*
 class rocketDCacheDM(lines: Int, addrbits: Int) extends Component {
   val io = new ioDCacheDM();
   
@@ -116,7 +116,7 @@ class rocketDCacheDM(lines: Int, addrbits: Int) extends Component {
   val r_r_cpu_req_addr = Reg(r_cpu_req_addr);
   val r_cpu_req_val    = Reg(Bool(false));
   val r_cpu_req_data   = Reg(Bits(0,64));
-  val r_cpu_req_op     = Reg(Bits(0,4));
+  val r_cpu_req_cmd     = Reg(Bits(0,4));
   val r_cpu_req_wmask  = Reg(Bits(0,8));
   val r_cpu_req_tag    = Reg(Bits(0,12));
   val r_cpu_resp_tag   = Reg(r_cpu_req_tag);
@@ -125,13 +125,13 @@ class rocketDCacheDM(lines: Int, addrbits: Int) extends Component {
   when (io.cpu.req_val && io.cpu.req_rdy) { 
       r_cpu_req_addr  <== io.cpu.req_addr;
       r_cpu_req_data  <== io.cpu.req_data;
-      r_cpu_req_op    <== io.cpu.req_op;
+      r_cpu_req_cmd    <== io.cpu.req_cmd;
       r_cpu_req_wmask <== io.cpu.req_wmask;
       r_cpu_req_tag   <== io.cpu.req_tag; }
       
-  val req_load  = (r_cpu_req_op === M_XRD);
-  val req_store = (r_cpu_req_op === M_XWR);
-  val req_flush = (r_cpu_req_op === M_FLA);
+  val req_load  = (r_cpu_req_cmd === M_XRD);
+  val req_store = (r_cpu_req_cmd === M_XWR);
+  val req_flush = (r_cpu_req_cmd === M_FLA);
       
   when (io.cpu.req_rdy) { r_cpu_req_val <== io.cpu.req_val; }
   otherwise { r_cpu_req_val <== Bool(false); }
@@ -248,6 +248,7 @@ class rocketDCacheDM(lines: Int, addrbits: Int) extends Component {
     }
   }  
 }
+*/
 
 class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   val io = new ioDCacheDM();
@@ -267,24 +268,26 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   val r_cpu_req_addr   = Reg(resetVal = Bits(0, addrbits));
   val r_cpu_req_val    = Reg(resetVal = Bool(false));
   val r_cpu_req_data   = Reg(resetVal = Bits(0,64));
-  val r_cpu_req_op     = Reg(resetVal = Bits(0,4));
-  val r_cpu_req_wmask  = Reg(resetVal = Bits(0,8));
-  val r_cpu_req_tag    = Reg(resetVal = Bits(0,12));
+  val r_cpu_req_cmd    = Reg(resetVal = Bits(0,4));
+  val r_cpu_req_type   = Reg(resetVal = Bits(0,3));
+//   val r_cpu_req_wmask  = Reg(resetVal = Bits(0,8));
+  val r_cpu_req_tag    = Reg(resetVal = Bits(0,5));
 
   val p_store_data   = Reg(resetVal = Bits(0,64));
   val p_store_addr   = Reg(resetVal = Bits(0,64));
   val p_store_wmask  = Reg(resetVal = Bits(0,64));
   val p_store_valid  = Reg(resetVal = Bool(false));
 
-  val req_load  = (r_cpu_req_op === M_XRD);
-  val req_store = (r_cpu_req_op === M_XWR);
-  val req_flush = (r_cpu_req_op === M_FLA);
+  val req_load  = (r_cpu_req_cmd === M_XRD);
+  val req_store = (r_cpu_req_cmd === M_XWR);
+  val req_flush = (r_cpu_req_cmd === M_FLA);
 
   when (io.cpu.req_val && io.cpu.req_rdy) { 
     r_cpu_req_addr  <== io.cpu.req_addr;
     r_cpu_req_data  <== io.cpu.req_data;
-    r_cpu_req_op    <== io.cpu.req_op;
-    r_cpu_req_wmask <== io.cpu.req_wmask;
+    r_cpu_req_cmd   <== io.cpu.req_cmd;
+    r_cpu_req_type  <== io.cpu.req_type;
+//     r_cpu_req_wmask <== io.cpu.req_wmask;
     r_cpu_req_tag   <== io.cpu.req_tag;
   }
       
@@ -325,10 +328,51 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   val tag_valid = vb_rdata.toBool;
   val tag_match = tag_valid && (tag_rdata === r_cpu_req_addr(tagmsb, taglsb));
     
+  // generate write mask and store data signals based on store type and address LSBs
+  val wmask_b =
+    Mux(r_cpu_req_addr(2,0) === UFix(0, 3), Bits("b0000_0001", 8),
+    Mux(r_cpu_req_addr(2,0) === UFix(1, 3), Bits("b0000_0010", 8),
+    Mux(r_cpu_req_addr(2,0) === UFix(2, 3), Bits("b0000_0100", 8),
+    Mux(r_cpu_req_addr(2,0) === UFix(3, 3), Bits("b0000_1000", 8),
+    Mux(r_cpu_req_addr(2,0) === UFix(4, 3), Bits("b0001_0000", 8),
+    Mux(r_cpu_req_addr(2,0) === UFix(5, 3), Bits("b0010_0000", 8),
+    Mux(r_cpu_req_addr(2,0) === UFix(6, 3), Bits("b0100_0000", 8),
+    Mux(r_cpu_req_addr(2,0) === UFix(7, 3), Bits("b1000_0000", 8),
+        UFix(0, 8)))))))));
+
+  val wmask_h =
+    Mux(r_cpu_req_addr(2,1) === UFix(0, 2), Bits("b0000_0011", 8),
+    Mux(r_cpu_req_addr(2,1) === UFix(1, 2), Bits("b0000_1100", 8),
+    Mux(r_cpu_req_addr(2,1) === UFix(2, 2), Bits("b0011_0000", 8),
+    Mux(r_cpu_req_addr(2,1) === UFix(3, 2), Bits("b1100_0000", 8),
+        UFix(0, 8)))));
+
+  val wmask_w =
+    Mux(r_cpu_req_addr(2) === UFix(0, 1), Bits("b0000_1111", 8),
+    Mux(r_cpu_req_addr(2) === UFix(1, 1), Bits("b1111_0000", 8),
+        UFix(0, 8)));
+
+  val wmask_d =
+    Bits("b1111_1111", 8);
+    
+  val store_wmask =
+    Mux(r_cpu_req_type === MT_B, wmask_b,
+    Mux(r_cpu_req_type === MT_H, wmask_h,
+    Mux(r_cpu_req_type === MT_W, wmask_w,
+    Mux(r_cpu_req_type === MT_D, wmask_d,
+        UFix(0, 8)))));
+    
+  val store_data =
+    Mux(r_cpu_req_type === MT_B, Fill(8, r_cpu_req_data( 7,0)),
+    Mux(r_cpu_req_type === MT_H, Fill(4, r_cpu_req_data(15,0)),
+    Mux(r_cpu_req_type === MT_W, Fill(2, r_cpu_req_data(31,0)),
+    Mux(r_cpu_req_type === MT_D, r_cpu_req_data,
+       UFix(0, 64)))));
+    
   when ((state === s_ready) && r_cpu_req_val && req_store) {
-    p_store_data  <== r_cpu_req_data;
+    p_store_data  <== store_data;
     p_store_addr  <== r_cpu_req_addr;
-    p_store_wmask <== r_cpu_req_wmask;
+    p_store_wmask <== store_wmask;
     p_store_valid <== Bool(true);  
   }
 
@@ -370,14 +414,14 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   		Fill(8, p_store_wmask(1)),
   		Fill(8, p_store_wmask(0)));
   							 
-  val store_wmask = 
+  val da_store_wmask = 
     Mux(p_store_addr(offsetlsb).toBool, 
   		Cat(p_wmask_expand, Bits(0,64)),
   		Cat(Bits(0,64), p_wmask_expand));
                                     
   val data_array_wmask = 
     Mux((state === s_refill), ~Bits(0,128),
-      store_wmask);  
+      da_store_wmask);  
   val data_array       = Mem(lines*4, data_array_we, data_array_waddr, data_array_wdata, wrMask = data_array_wmask, resetVal = null);
   val data_array_raddr = 
     Mux((state === s_writeback) && io.mem.req_rdy,                Cat(r_cpu_req_addr(indexmsb, indexlsb), rr_count_next).toUFix,
@@ -394,7 +438,7 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   io.cpu.resp_val  := ((state === s_ready) && r_cpu_req_val && tag_match && req_load && !(p_store_valid && addr_match)) || 
                       ((state === s_resolve_miss) && req_flush);
                       
-  io.cpu.resp_tag  := r_cpu_req_tag;
+  io.cpu.resp_tag  := Cat(Bits(0,1), r_cpu_req_type, r_cpu_req_addr(2,0), r_cpu_req_tag);
   
   io.cpu.resp_data := 
     Mux(r_cpu_req_addr(offsetlsb).toBool, data_array_rdata(127, 64), 

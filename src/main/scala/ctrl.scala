@@ -6,14 +6,17 @@ import Node._;
 import Constants._
 import Instructions._
 
-class ioCtrl extends Bundle()
+class ioCtrlDpath extends Bundle()
 {
+  // outputs to datapath
   val sel_pc   = UFix(3, 'output);
   val wen_btb  = Bool('output);
   val stallf   = Bool('output);
   val stalld   = Bool('output);
   val killf    = Bool('output);
   val killd    = Bool('output);
+  val killx    = Bool('output);
+  val killm    = Bool('output);
   val ren2     = Bool('output);
   val ren1     = Bool('output);
   val sel_alu2 = UFix(2, 'output);
@@ -26,7 +29,6 @@ class ioCtrl extends Bundle()
   val div_val  = Bool('output);
   val div_fn   = UFix(4, 'output);
   val div_wb   = Bool('output);
-  val wen      = Bool('output);
   val sel_wa   = Bool('output);
   val sel_wb   = UFix(3, 'output);
   val ren_pcr  = Bool('output);
@@ -36,56 +38,34 @@ class ioCtrl extends Bundle()
   val xcpt_fpu = Bool('output);
   val xcpt_syscall = Bool('output);
   val eret    = Bool('output);
-}
-
-class ioCtrlDpath extends Bundle()
-{
+  val dcache_miss = Bool('output);
+  val wen     = Bool('output);
+  // inputs from datapath
   val btb_hit = Bool('input);
-  val inst    = UFix(32, 'input);
+  val inst    = Bits(32, 'input);
   val br_eq   = Bool('input);
   val br_lt   = Bool('input);
   val br_ltu  = Bool('input);
   val div_rdy = Bool('input);
   val div_result_val = Bool('input);
   val mul_result_val = Bool('input);
-  val wen     = Bool('input);
-  val waddr   = UFix(5, 'input);
+  val ex_waddr = UFix(5,'input); // write addr from execute stage
   val exception = Bool('input);
   val status  = Bits(8, 'input);
-}
-
-class ioCtrlMem extends Bundle()
-{
-  val mrq_val  = Bool('output);
-  val mrq_cmd  = UFix(4, 'output);
-  val mrq_type = UFix(3, 'output);
-  val mrq_deq  = Bool('input);
-  val xsdq_rdy = Bool('input);
-  val xsdq_val = Bool('output);
-  val dc_busy  = Bool('input);
-}
-
-class ioCtrlImem extends Bundle()
-{
-  val req_val  = Bool('output);
-  val req_rdy  = Bool('input);
-  val resp_val = Bool('input);
-}
-
-class ioCtrlWB extends Bundle()
-{
-  val waddr     = UFix(5, 'input);
-  val wen       = Bool('input);
+  val sboard_set   = Bool('input);
+  val sboard_seta  = UFix(5, 'input);
+  val sboard_clr0  = Bool('input);
+  val sboard_clr0a = UFix(5, 'input);
+  val sboard_clr1  = Bool('input);
+  val sboard_clr1a = UFix(5, 'input);
 }
 
 class ioCtrlAll extends Bundle()
 {
-  val ctrl    = new ioCtrl();
-  val console = new ioConsole(List("rdy", "valid"));
   val dpath   = new ioCtrlDpath();
-  val imem    = new ioCtrlImem();
-  val mem     = new ioCtrlMem();
-  val wb      = new ioCtrlWB();
+  val console = new ioConsole(List("rdy", "valid"));
+  val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
+  val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_val")).flip();
   val host    = new ioHost(List("start"));
 }
 
@@ -219,46 +199,26 @@ class rocketCtrl extends Component
   val id_ren2 = id_renx2;
   val id_ren1 = id_renx1;
 
-  val id_console_out_val = id_wen_pcr & (id_raddr2 === PCR_CONSOLE);
+  val id_console_out_val  = id_wen_pcr & (id_raddr2 === PCR_CONSOLE);
+  val console_out_fire    = id_console_out_val & ~io.dpath.killd;
+  io.console.valid        := console_out_fire.toBool;
 
-  val id_mem_val_masked = id_mem_val;
-
-  val mem_xload_val   = id_mem_val_masked & (id_mem_cmd === M_XRD);
-  val mem_xstore_val  = id_mem_val_masked & (id_mem_cmd === M_XWR);
-
-  val mem_fire        = id_mem_val_masked & ~io.ctrl.killd;
-  val mem_xload_fire  = mem_xload_val & ~io.ctrl.killd;
-  val mem_xstore_fire = mem_xstore_val & ~io.ctrl.killd;
-
-  val console_out_fire = id_console_out_val & ~io.ctrl.killd;
-
-  val div_fire = id_div_val & ~io.ctrl.killd;
-  val mul_fire = id_mul_val & ~io.ctrl.killd;
-
-  val sboard_wen = mem_xload_fire | div_fire | mul_fire;
-  val sboard_waddr = id_waddr;
-  
   val sboard = new rocketCtrlSboard(); 
-  sboard.io.raddra  := id_raddr2;
-  sboard.io.raddrb  := id_raddr1;
-  sboard.io.raddrc  := id_waddr;
-  sboard.io.set   := sboard_wen.toBool;
-  sboard.io.seta  := sboard_waddr;
-  sboard.io.clr0  := io.wb.wen.toBool;
-  sboard.io.clr0a ^^ io.wb.waddr;
-  sboard.io.clr1  := io.dpath.wen.toBool;
-  sboard.io.clr1a := io.dpath.waddr;
+  sboard.io.raddra  := id_raddr2.toUFix;
+  sboard.io.raddrb  := id_raddr1.toUFix;
+  sboard.io.raddrc  := id_waddr.toUFix;
+  
+  sboard.io.set     := io.dpath.sboard_set;
+  sboard.io.seta    := io.dpath.sboard_seta;
+  sboard.io.clr0    := io.dpath.sboard_clr0;
+  sboard.io.clr0a   := io.dpath.sboard_clr0a;
+  sboard.io.clr1    := io.dpath.sboard_clr1;
+  sboard.io.clr1a   := io.dpath.sboard_clr1a;
 
   val id_stall_raddr2 = sboard.io.stalla;
   val id_stall_raddr1 = sboard.io.stallb;
   val id_stall_waddr  = sboard.io.stallc;
   val id_stall_ra     = sboard.io.stallra;
-
-  val mrq = new rocketCtrlCnt(3, 4);   
-  mrq.io.enq   := mem_fire.toBool;
-  mrq.io.deq   ^^ io.mem.mrq_deq;
-  val id_empty_mrq = mrq.io.empty;
-  val id_full_mrq  = mrq.io.full; 
 
   val id_reg_btb_hit    = Reg(width = 1, resetVal = Bool(false));
   val ex_reg_br_type    = Reg(){UFix(width = 4)};
@@ -269,15 +229,16 @@ class rocketCtrl extends Component
   val ex_reg_eret       = Reg(resetVal = Bool(false));
   val ex_reg_privileged = Reg(resetVal = Bool(false));
 
-  when (!io.ctrl.stalld) {
-    when (io.ctrl.killf) {
+  when (!io.dpath.stalld) {
+    when (io.dpath.killf) {
       id_reg_btb_hit <== Bool(false);
     } 
     otherwise{
       id_reg_btb_hit <== io.dpath.btb_hit;
     }
   }
-  when (reset.toBool || io.ctrl.killd) {
+  
+  when (reset.toBool || io.dpath.killd) {
     ex_reg_br_type    <== BR_N;
     ex_reg_btb_hit    <== Bool(false);
     ex_reg_mem_val    <== Bool(false);
@@ -289,7 +250,7 @@ class rocketCtrl extends Component
   otherwise {
     ex_reg_br_type    <== id_br_type;
     ex_reg_btb_hit    <== id_reg_btb_hit;
-    ex_reg_mem_val    <== id_mem_val_masked.toBool;
+    ex_reg_mem_val    <== id_mem_val.toBool;
     ex_reg_mem_cmd    <== id_mem_cmd;
     ex_reg_mem_type   <== id_mem_type;
     ex_reg_eret       <== id_eret.toBool;
@@ -317,22 +278,42 @@ class rocketCtrl extends Component
   io.imem.req_val  := io.host.start;
 //  io.imem.req_val := Bool(true);
 
-  io.mem.mrq_val   := ex_reg_mem_val;
-  io.mem.mrq_cmd   := ex_reg_mem_cmd;
-  io.mem.mrq_type  := ex_reg_mem_type;
-  io.mem.xsdq_val  := mem_xstore_fire.toBool;
-  io.console.valid := console_out_fire.toBool;
+  io.dmem.req_val     := ex_reg_mem_val  && ~io.dpath.killx;
+  io.dmem.req_cmd     := ex_reg_mem_cmd;
+  io.dmem.req_type    := ex_reg_mem_type;
 
-  io.ctrl.sel_pc :=
+  val mem_reg_mem_val    = Reg(){Bool()};
+  val mem_reg_mem_cmd    = Reg(){UFix(width = 4)};
+  val mem_reg_mem_type   = Reg(){UFix(width = 3)};
+
+  when (reset.toBool || io.dpath.killx) {
+    mem_reg_mem_val    <== Bool(false);
+    mem_reg_mem_cmd    <== UFix(0, 4);
+    mem_reg_mem_type   <== UFix(0, 3);
+  }
+  otherwise {
+    mem_reg_mem_val    <== ex_reg_mem_val;
+    mem_reg_mem_cmd    <== ex_reg_mem_cmd;
+    mem_reg_mem_type   <== ex_reg_mem_type;
+  }
+  
+  // replay on a D$ load miss : FIXME - add a miss signal to D$
+  val replay_mem  = mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD) && !io.dmem.resp_val;
+  val dcache_miss = Reg(replay_mem);
+  
+  io.dpath.dcache_miss := dcache_miss;
+  
+  io.dpath.sel_pc :=
+    Mux(replay_mem, PC_MEM,
     Mux(io.dpath.exception || ex_reg_eret, PC_PCR,
     Mux(!ex_reg_btb_hit && br_taken, PC_BR,
     Mux(ex_reg_btb_hit && !br_taken || ex_reg_privileged, PC_EX4,
     Mux(jr_taken,                    PC_JR,
     Mux(j_taken,                     PC_J,
     Mux(io.dpath.btb_hit,            PC_BTB,
-        PC_4))))));
+        PC_4)))))));
 
-  io.ctrl.wen_btb := ~ex_reg_btb_hit & br_taken;
+  io.dpath.wen_btb := ~ex_reg_btb_hit & br_taken;
 
   val take_pc =
     ~ex_reg_btb_hit & br_taken |
@@ -341,65 +322,86 @@ class rocketCtrl extends Component
     j_taken |
     io.dpath.exception |
     ex_reg_privileged |
-    ex_reg_eret; 
+    ex_reg_eret |
+    replay_mem;
 
-  io.ctrl.stallf :=
+  io.dpath.stallf :=
     ~take_pc &
     (
       ~io.imem.req_rdy |
       ~io.imem.resp_val |
-      io.ctrl.stalld
+      io.dpath.stalld
     );
 
-  val ctrl_stalld_wo_fpu_rdy =
+  // check for loads in execute stage to detect load/use hazards
+  val lu_stall_raddr1 = 
+    ex_reg_mem_val &&
+    (ex_reg_mem_cmd === M_XRD) && 
+    id_ren1.toBool &&
+    (id_raddr1 === io.dpath.ex_waddr);
+
+  val lu_stall_raddr2 = 
+    ex_reg_mem_val &&
+    (ex_reg_mem_cmd === M_XRD) && 
+    id_ren2.toBool &&
+    (id_raddr2 === io.dpath.ex_waddr);
+  
+  val ctrl_stalld =
     ~take_pc &
     (
-      id_ren2 & id_stall_raddr2 |
-      id_ren1 & id_stall_raddr1 |
-      (id_sel_wa === WA_RD) & id_stall_waddr |
+      lu_stall_raddr1 |
+      lu_stall_raddr2 |
+      id_ren2 &  id_stall_raddr2 |
+      id_ren1 &  id_stall_raddr1 |
+      (id_sel_wa === WA_RD) && id_stall_waddr |
       (id_sel_wa === WA_RA) & id_stall_ra |
-      id_mem_val_masked & id_full_mrq |
-      id_sync & (~id_empty_mrq | io.mem.dc_busy) |
-      mem_xstore_val & ~io.mem.xsdq_rdy |
+      id_mem_val & ~io.dmem.req_rdy |
+      id_sync & ~io.dmem.req_rdy |
+//       id_mem_val_masked & id_full_mrq |
+//       id_sync & (~id_empty_mrq | io.mem.dc_busy) |
+//       mem_xstore_val & ~io.mem.xsdq_rdy |
       id_console_out_val & ~io.console.rdy |
       id_div_val & ~io.dpath.div_rdy |
       io.dpath.div_result_val |
       io.dpath.mul_result_val
     );
     
+  val ctrl_killd = take_pc | ctrl_stalld;
+      
   // for divider, multiplier writeback
   val mul_wb = io.dpath.mul_result_val;
   val div_wb = io.dpath.div_result_val & !mul_wb;
 
-  io.ctrl.stalld := ctrl_stalld_wo_fpu_rdy.toBool;
+  io.dpath.stalld   := ctrl_stalld.toBool;
 
-  io.ctrl.killf := take_pc | ~io.imem.resp_val;
-  val ctrl_killd_wo_fpu_rdy = take_pc | ctrl_stalld_wo_fpu_rdy;
-  io.ctrl.killd    := ctrl_killd_wo_fpu_rdy.toBool;
+  io.dpath.killf    := take_pc | ~io.imem.resp_val;
+  io.dpath.killd    := ctrl_killd.toBool;
+  io.dpath.killx    := replay_mem.toBool;
+  io.dpath.killm    := replay_mem.toBool;
 
-  io.ctrl.ren2     := id_ren2.toBool;
-  io.ctrl.ren1     := id_ren1.toBool;
-  io.ctrl.sel_alu2 := id_sel_alu2;
-  io.ctrl.sel_alu1 := id_sel_alu1.toBool;
-  io.ctrl.fn_dw    := id_fn_dw.toBool;
-  io.ctrl.fn_alu   := id_fn_alu;
-  io.ctrl.div_fn   := id_div_fn;
-  io.ctrl.div_val  := id_div_val.toBool;
-  io.ctrl.div_wb   := div_wb;
-  io.ctrl.mul_fn   := id_mul_fn;
-  io.ctrl.mul_val  := id_mul_val.toBool;
-  io.ctrl.mul_wb   := mul_wb;
-  io.ctrl.wen      := id_wen.toBool;
-  io.ctrl.sel_wa   := id_sel_wa.toBool;
-  io.ctrl.sel_wb   := id_sel_wb;
-  io.ctrl.ren_pcr  := id_ren_pcr.toBool;
-  io.ctrl.wen_pcr  := id_wen_pcr.toBool;
-  io.ctrl.eret     := id_eret.toBool;
+  io.dpath.ren2     := id_ren2.toBool;
+  io.dpath.ren1     := id_ren1.toBool;
+  io.dpath.sel_alu2 := id_sel_alu2;
+  io.dpath.sel_alu1 := id_sel_alu1.toBool;
+  io.dpath.fn_dw    := id_fn_dw.toBool;
+  io.dpath.fn_alu   := id_fn_alu;
+  io.dpath.div_fn   := id_div_fn;
+  io.dpath.div_val  := id_div_val.toBool;
+  io.dpath.div_wb   := div_wb;
+  io.dpath.mul_fn   := id_mul_fn;
+  io.dpath.mul_val  := id_mul_val.toBool;
+  io.dpath.mul_wb   := mul_wb;
+  io.dpath.wen      := id_wen.toBool;
+  io.dpath.sel_wa   := id_sel_wa.toBool;
+  io.dpath.sel_wb   := id_sel_wb;
+  io.dpath.ren_pcr  := id_ren_pcr.toBool;
+  io.dpath.wen_pcr  := id_wen_pcr.toBool;
+  io.dpath.eret     := id_eret.toBool;
   
-  io.ctrl.xcpt_illegal    := ~id_int_val.toBool;
-  io.ctrl.xcpt_privileged := (id_privileged & ~io.dpath.status(5)).toBool;
-  io.ctrl.xcpt_fpu        := Bool(false); 
-  io.ctrl.xcpt_syscall    := id_syscall.toBool;
+  io.dpath.xcpt_illegal    := ~id_int_val.toBool;
+  io.dpath.xcpt_privileged := (id_privileged & ~io.dpath.status(5)).toBool;
+  io.dpath.xcpt_fpu        := Bool(false); 
+  io.dpath.xcpt_syscall    := id_syscall.toBool;
 }
 
 }
