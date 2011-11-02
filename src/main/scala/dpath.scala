@@ -103,7 +103,7 @@ class rocketDpath extends Component
   val r_dmem_resp_val       = Reg(resetVal = Bool(false));
   val r_dmem_resp_waddr     = Reg(resetVal = UFix(0,5));
   val r_dmem_resp_pos       = Reg(resetVal = UFix(0,3));
-  val r_dmem_resp_type      = Reg(resetVal = UFix(0,3));
+  val r_dmem_resp_type      = Reg(resetVal = Bits(0,3));
   val r_dmem_resp_data      = Reg(resetVal = Bits(0,64));
   
   // instruction fetch stage
@@ -181,22 +181,52 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_wa === WA_RA, RA,
         UFix(0, 5)))));
 
+  // moved this here to avoid having to do forward declaration
+  // TODO: cleanup
+  
+  val dmem_resp_pos   = io.dmem.resp_tag(7,5).toUFix;
+  val dmem_resp_type  = io.dmem.resp_tag(10,8);
+  
+  val mem_dmem_resp_data_w =
+    Mux(dmem_resp_pos(2).toBool, io.dmem.resp_data(63, 32), io.dmem.resp_data(31, 0));
+  
+  val mem_dmem_resp_data =
+    Mux(dmem_resp_type === MT_D,  io.dmem.resp_data, 
+    Mux(dmem_resp_type === MT_W,  Cat(Fill(32, mem_dmem_resp_data_w(31)), mem_dmem_resp_data_w),
+      Cat(UFix(0,32), mem_dmem_resp_data_w)));
+
+  // crossbar/sign extension for 8/16 bit loads (in writeback stage)
+  val dmem_resp_data_h = 
+    Mux(r_dmem_resp_pos(1).toBool, r_dmem_resp_data(31, 16), r_dmem_resp_data(15, 0));
+  val dmem_resp_data_b = 
+    Mux(r_dmem_resp_pos(0).toBool, dmem_resp_data_h(15, 8),   dmem_resp_data_h(7, 0));
+
+  val dmem_resp_data_final =
+    Mux(r_dmem_resp_type === MT_B,  Cat(Fill(56, dmem_resp_data_b(7)), dmem_resp_data_b),
+    Mux(r_dmem_resp_type === MT_BU, Cat(UFix(0, 56), dmem_resp_data_b),
+    Mux(r_dmem_resp_type === MT_H,  Cat(Fill(48, dmem_resp_data_h(15)), dmem_resp_data_h),
+    Mux(r_dmem_resp_type === MT_HU, Cat(UFix(0, 48), dmem_resp_data_h),
+    Mux((r_dmem_resp_type === MT_W) ||
+        (r_dmem_resp_type === MT_WU) || 
+        (r_dmem_resp_type === MT_D), r_dmem_resp_data,
+      UFix(0,64))))));
+
   // bypass muxes
   val id_rs1 =
   	Mux(io.ctrl.div_wb, div_result,
   	Mux(io.ctrl.mul_wb, mul_result,
     Mux(id_raddr1 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr1 === ex_reg_waddr,  ex_wdata,
     Mux(id_raddr1 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr1 === mem_reg_waddr, mem_reg_wdata,
-    Mux(id_raddr1 != UFix(0, 5) && io.ctrl.mem_load && id_raddr1 === mem_reg_waddr, io.dmem.resp_data,
-    Mux(id_raddr1 != UFix(0, 5) && r_dmem_resp_val  && id_raddr1 === r_dmem_resp_waddr, r_dmem_resp_data,
+    Mux(id_raddr1 != UFix(0, 5) && io.ctrl.mem_load && id_raddr1 === mem_reg_waddr, mem_dmem_resp_data,
+    Mux(id_raddr1 != UFix(0, 5) && r_dmem_resp_val  && id_raddr1 === r_dmem_resp_waddr, dmem_resp_data_final,
     Mux(id_raddr1 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr1 === wb_reg_waddr,  wb_reg_wdata,
         id_rdata1)))))));
 
   val id_rs2 =
     Mux(id_raddr2 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr2 === ex_reg_waddr,  ex_wdata,
     Mux(id_raddr2 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr2 === mem_reg_waddr, mem_reg_wdata,
-    Mux(id_raddr2 != UFix(0, 5) && io.ctrl.mem_load && id_raddr2 === mem_reg_waddr, io.dmem.resp_data,
-    Mux(id_raddr2 != UFix(0, 5) && r_dmem_resp_val  && id_raddr2 === r_dmem_resp_waddr, r_dmem_resp_data,
+    Mux(id_raddr2 != UFix(0, 5) && io.ctrl.mem_load && id_raddr2 === mem_reg_waddr, mem_dmem_resp_data,
+    Mux(id_raddr2 != UFix(0, 5) && r_dmem_resp_val  && id_raddr2 === r_dmem_resp_waddr, dmem_resp_data_final,
     Mux(id_raddr2 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr2 === wb_reg_waddr,  wb_reg_wdata,
         id_rdata2)))));
         
@@ -210,8 +240,6 @@ class rocketDpath extends Component
 			UFix(0,5)))));
 
   io.ctrl.inst := id_reg_inst;
-//   io.ctrl.rs1  := id_rs1;
-//   io.ctrl.rs2  := id_rs2;
 
   // execute stage
   ex_reg_pc             <== id_reg_pc;
@@ -359,13 +387,24 @@ class rocketDpath extends Component
   
   // exception signal to control (for NPC select)
   io.ctrl.exception := mem_reg_ctrl_exception;
-  
+  // for load/use hazard detection (load byte/halfword)
+  io.ctrl.mem_waddr := mem_reg_waddr;
+
+  // moved to earlier in file
+//   val mem_dmem_resp_data_w =
+//     Mux(io.dmem.resp_pos(2).toBool, io.dmem.resp_data(63, 32), io.dmem.resp_data(31, 0));
+//   
+//   val mem_dmem_resp_data =
+//     Mux(io.dmem.resp_type === MT_D,  io.dmem.resp_data, 
+//     Mux(io.dmem.resp_type === MT_W,  Cat(Fill(32, mem_dmem_resp_data_w(31)), mem_dmem_resp_data_w)),
+//       Cat(UFix(0,32), mem_dmem_resp_data_w));
+      
   // writeback stage
   r_dmem_resp_val     <== io.dmem.resp_val;
   r_dmem_resp_waddr   <== io.dmem.resp_tag(4,0).toUFix;
-  r_dmem_resp_pos     <== io.dmem.resp_tag(7,5).toUFix;
-  r_dmem_resp_type    <== io.dmem.resp_tag(10,8).toUFix;
-  r_dmem_resp_data    <== io.dmem.resp_data;
+  r_dmem_resp_pos     <== dmem_resp_pos;
+  r_dmem_resp_type    <== dmem_resp_type;
+  r_dmem_resp_data    <== mem_dmem_resp_data;
 
   wb_reg_pc           <== mem_reg_pc;
   wb_reg_pc_plus4     <== mem_reg_pc_plus4;
@@ -387,23 +426,21 @@ class rocketDpath extends Component
     wb_reg_ctrl_wen_pcr 	<== mem_reg_ctrl_wen_pcr;
   }
 
-  // crossbar/sign extension for 8/16/32 bit loads
-  val dmem_resp_data_w = 
-    Mux(r_dmem_resp_pos(2).toBool, r_dmem_resp_data(63, 32), r_dmem_resp_data(31, 0));
-  val dmem_resp_data_h = 
-    Mux(r_dmem_resp_pos(1).toBool, dmem_resp_data_w(31, 16),  dmem_resp_data_w(15, 0));
-  val dmem_resp_data_b = 
-    Mux(r_dmem_resp_pos(0).toBool, dmem_resp_data_h(15, 8),   dmem_resp_data_h(7, 0));
-
-  val dmem_resp_data_final =
-    Mux(r_dmem_resp_type === MT_B,  Cat(Fill(56, dmem_resp_data_b(7)), dmem_resp_data_b),
-    Mux(r_dmem_resp_type === MT_BU, Cat(UFix(0, 56), dmem_resp_data_b),
-    Mux(r_dmem_resp_type === MT_H,  Cat(Fill(48, dmem_resp_data_h(15)), dmem_resp_data_h),
-    Mux(r_dmem_resp_type === MT_HU, Cat(UFix(0, 48), dmem_resp_data_h),
-    Mux(r_dmem_resp_type === MT_W,  Cat(Fill(32, dmem_resp_data_w(31)), dmem_resp_data_w),
-    Mux(r_dmem_resp_type === MT_WU, Cat(UFix(0, 32), dmem_resp_data_w),
-    Mux(r_dmem_resp_type === MT_D,  r_dmem_resp_data,
-        UFix(0, 64))))))));
+  // crossbar/sign extension for 8/16 bit loads
+//   val dmem_resp_data_h = 
+//     Mux(r_dmem_resp_pos(1).toBool, r_dmem_resp_data(31, 16), r_dmem_resp_data(15, 0));
+//   val dmem_resp_data_b = 
+//     Mux(r_dmem_resp_pos(0).toBool, dmem_resp_data_h(15, 8),   dmem_resp_data_h(7, 0));
+// 
+//   val dmem_resp_data_final =
+//     Mux(r_dmem_resp_type === MT_B,  Cat(Fill(56, dmem_resp_data_b(7)), dmem_resp_data_b),
+//     Mux(r_dmem_resp_type === MT_BU, Cat(UFix(0, 56), dmem_resp_data_b),
+//     Mux(r_dmem_resp_type === MT_H,  Cat(Fill(48, dmem_resp_data_h(15)), dmem_resp_data_h),
+//     Mux(r_dmem_resp_type === MT_HU, Cat(UFix(0, 48), dmem_resp_data_h),
+//     Mux((r_dmem_resp_type === MT_W) ||
+//         (r_dmem_resp_type === MT_WU) || 
+//         (r_dmem_resp_type === MT_D), r_dmem_resp_data,
+//       UFix(0,64))))));
 
 	// regfile write
   rfile.io.w0.addr := wb_reg_waddr;

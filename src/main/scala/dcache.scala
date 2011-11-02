@@ -306,7 +306,8 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   }
 
   // tag array
-  val tag_we    = (state === s_resolve_miss);
+//   val tag_we    = (state === s_resolve_miss);
+  val tag_we    = (state === s_refill) && io.mem.req_rdy && (rr_count === UFix(3,2));
   val tag_waddr = r_cpu_req_addr(indexmsb, indexlsb).toUFix;
   val tag_wdata = r_cpu_req_addr(tagmsb, taglsb);
   val tag_array = Mem(lines, tag_we, tag_waddr, tag_wdata);
