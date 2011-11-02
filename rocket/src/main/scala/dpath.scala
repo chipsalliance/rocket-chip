@@ -5,46 +5,13 @@ import Node._;
 import Constants._
 import Instructions._
 
-class ioDpath extends Bundle()
-{
-  val btb_hit = Bool('output);
-  val inst    = Bits(32, 'output);
-  val rs2     = Bits(64, 'output);
-  val rs1     = Bits(64, 'output);
-  val br_eq   = Bool('output);
-  val br_lt   = Bool('output);
-  val br_ltu  = Bool('output);
-  val div_result_val = Bool('output);
-  val div_rdy = Bool('output);
-  val mul_result_val = Bool('output);
-  val wen     = Bool('output);
-  val waddr   = UFix(5, 'output);
-  val alu_out = UFix(64, 'output);
-  val exception = Bool('output);
-  val status  = Bits(8, 'output);
-}
-
-class ioDpathImem extends Bundle()
-{
-  val req_addr  = UFix(32, 'output);
-  val resp_data = Bits(32, 'input);
-}
-
-class ioDpathWB extends Bundle()
-{
-  val waddr = UFix(5, 'input);
-  val wen   = Bool('input);
-  val wdata = Bits(64, 'input);
-}
-
 class ioDpathAll extends Bundle()
 {
-  val dpath = new ioDpath();
   val host  = new ioHost();
-  val ctrl  = new ioCtrl().flip();
+  val ctrl  = new ioCtrlDpath().flip();
   val debug = new ioDebug();
-  val wb    = new ioDpathWB();
-  val imem  = new ioDpathImem();
+  val dmem  = new ioDmem(List("req_addr", "req_data", "req_tag", "resp_val", "resp_tag", "resp_data")).flip();
+  val imem  = new ioImem(List("req_addr", "resp_data")).flip();
 }
 
 class rocketDpath extends Component
@@ -77,37 +44,60 @@ class rocketDpath extends Component
   val if_reg_pc     = Reg(width = 32, resetVal = UFix(0, 32));
 
   // instruction decode definitions
-  val id_reg_pc        = Reg(){UFix(width = 32)};
-  val id_reg_pc_plus4  = Reg(){UFix(width = 32)};
-  val id_reg_inst      = Reg(width = 32, resetVal = NOP);
+  val id_reg_pc        = Reg(resetVal = UFix(0,32));
+  val id_reg_pc_plus4  = Reg(resetVal = UFix(0,32));
+  val id_reg_inst      = Reg(resetVal = NOP);
 
   // execute definitions
-  val ex_reg_pc             = Reg(width = 32, resetVal = UFix(0, 32));
-  val ex_reg_pc_plus4       = Reg(width = 32, resetVal = UFix(0, 32));
-  val ex_reg_inst           = Reg(width = 32, resetVal = Bits(0, 32));
-  val ex_reg_raddr2         = Reg(width = 5, resetVal = UFix(0, 5));
-  val ex_reg_raddr1         = Reg(width = 5, resetVal = UFix(0, 5));
-  val ex_reg_rs2            = Reg(width = 64, resetVal = Bits(0, 64));
-  val ex_reg_rs1            = Reg(width = 64, resetVal = Bits(0, 64));
-  val ex_reg_waddr          = Reg(width = 5, resetVal = UFix(0, 5));
-  val ex_reg_ctrl_sel_alu2  = Reg(width = 2, resetVal = A2_X);
-  val ex_reg_ctrl_sel_alu1  = Reg(width = 1, resetVal = A1_X);
-  val ex_reg_ctrl_fn_dw     = Reg(width = 1, resetVal = DW_X);
-  val ex_reg_ctrl_fn_alu    = Reg(width = 4, resetVal = FN_X);
-  val ex_reg_ctrl_ll_wb     = Reg(width = 1, resetVal = Bool(false));
-  val ex_reg_ctrl_mul_val   = Reg(width = 1, resetVal = Bool(false));
-  val ex_reg_ctrl_mul_fn    = Reg(width = 3, resetVal = MUL_X);
-  val ex_reg_ctrl_div_val   = Reg(width = 1, resetVal = Bool(false));
-  val ex_reg_ctrl_div_fn    = Reg(width = 4, resetVal = DIV_X);
-  val ex_reg_ctrl_sel_wb    = Reg(width = 3, resetVal = WB_X);
-  val ex_reg_ctrl_wen       = Reg(width = 1, resetVal = Bool(false));
-  val ex_reg_ctrl_ren_pcr   = Reg(width = 1, resetVal = Bool(false));
-  val ex_reg_ctrl_wen_pcr   = Reg(width = 1, resetVal = Bool(false));
-  val ex_reg_ctrl_eret      = Reg(width = 1, resetVal = Bool(false));
-  val ex_reg_ctrl_exception = Reg(width = 1, resetVal = Bool(false));
-  val ex_reg_ctrl_cause     = Reg(width = 5, resetVal = UFix(0,5));
-	val ex_wdata						  = Wire() { Bits() };
-	
+  val ex_reg_pc             = Reg(resetVal = UFix(0,32));
+  val ex_reg_pc_plus4       = Reg(resetVal = UFix(0,32));
+  val ex_reg_inst           = Reg(resetVal = Bits(0,32));
+  val ex_reg_raddr2         = Reg(resetVal = UFix(0,5));
+  val ex_reg_raddr1         = Reg(resetVal = UFix(0,5));
+  val ex_reg_rs2            = Reg(resetVal = Bits(0,64));
+  val ex_reg_rs1            = Reg(resetVal = Bits(0,64));
+  val ex_reg_waddr          = Reg(resetVal = UFix(0,5));
+  val ex_reg_ctrl_sel_alu2  = Reg(resetVal = A2_X);
+  val ex_reg_ctrl_sel_alu1  = Reg(resetVal = A1_X);
+  val ex_reg_ctrl_fn_dw     = Reg(resetVal = DW_X);
+  val ex_reg_ctrl_fn_alu    = Reg(resetVal = FN_X);
+  val ex_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
+  val ex_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
+  val ex_reg_ctrl_mul_fn    = Reg(resetVal = MUL_X);
+  val ex_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
+  val ex_reg_ctrl_div_fn    = Reg(resetVal = DIV_X);
+  val ex_reg_ctrl_sel_wb    = Reg(resetVal = WB_X);
+  val ex_reg_ctrl_wen       = Reg(resetVal = Bool(false));
+  val ex_reg_ctrl_ren_pcr   = Reg(resetVal = Bool(false));
+  val ex_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
+  val ex_reg_ctrl_eret      = Reg(resetVal = Bool(false));
+  val ex_reg_ctrl_exception = Reg(resetVal = Bool(false));
+  val ex_reg_ctrl_cause     = Reg(resetVal = UFix(0,5));
+ 	val ex_wdata						  = Wire() { Bits() }; 	
+
+  val mem_reg_pc            = Reg(resetVal = UFix(0,32));
+  val mem_reg_pc_plus4      = Reg(resetVal = UFix(0,32));
+  val mem_reg_waddr         = Reg(resetVal = UFix(0,5));
+  val mem_reg_wdata         = Reg(resetVal = Bits(0,64));
+  val mem_reg_raddr2        = Reg(resetVal = UFix(0,5));
+  val mem_reg_ctrl_ll_wb    = Reg(resetVal = Bool(false));
+  val mem_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
+  val mem_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
+  val mem_reg_ctrl_wen       = Reg(resetVal = Bool(false));
+  val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
+  val mem_reg_ctrl_exception = Reg(resetVal = Bool(false));
+  
+  val wb_reg_pc             = Reg(resetVal = UFix(0,32));
+  val wb_reg_pc_plus4       = Reg(resetVal = UFix(0,32));
+  val wb_reg_waddr          = Reg(resetVal = UFix(0,5));
+  val wb_reg_wdata          = Reg(resetVal = Bits(0,64));
+  val wb_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
+  val wb_reg_raddr2         = Reg(resetVal = UFix(0,5));
+  val wb_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
+  val wb_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
+  val wb_reg_ctrl_wen       = Reg(resetVal = Bool(false));
+  val wb_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
+
   // instruction fetch stage
   val if_pc_plus4 = if_reg_pc + UFix(4, 32);
 
@@ -132,7 +122,8 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_J,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,  ex_jr_target.toUFix,
     Mux(io.ctrl.sel_pc === PC_PCR, ex_pcr(31,0).toUFix,
-        UFix(0, 32))))))));
+    Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc, 
+        UFix(0, 32)))))))));
 
   when (!io.host.start){
     if_reg_pc <== UFix(0, 32); //32'hFFFF_FFFC;
@@ -146,7 +137,7 @@ class rocketDpath extends Component
         if_next_pc);
 
   btb.io.current_pc4    := if_pc_plus4;
-  btb.io.hit            ^^ io.dpath.btb_hit;
+  btb.io.hit            ^^ io.ctrl.btb_hit;
   btb.io.wen            ^^ io.ctrl.wen_btb;
   btb.io.correct_pc4    := ex_reg_pc_plus4;
 
@@ -174,6 +165,7 @@ class rocketDpath extends Component
   rfile.io.r1.addr := id_raddr1;
   val id_rdata1 = rfile.io.r1.data;
 
+  // destination register selection
   val id_waddr =
     Mux(io.ctrl.div_wb, div_result_tag,
     Mux(io.ctrl.mul_wb, mul_result_tag,
@@ -181,16 +173,22 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_wa === WA_RA, RA,
         UFix(0, 5)))));
 
+  // bypass muxes
   val id_rs1 =
   	Mux(io.ctrl.div_wb, div_result,
   	Mux(io.ctrl.mul_wb, mul_result,
-    Mux(id_raddr1 != UFix(0, 5) && ex_reg_ctrl_wen && id_raddr1 === ex_reg_waddr, ex_wdata,
-        id_rdata1)));
+    Mux(id_raddr1 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr1 === ex_reg_waddr,  ex_wdata,
+    Mux(id_raddr1 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr1 === mem_reg_waddr, mem_reg_wdata,
+    Mux(id_raddr1 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr1 === wb_reg_waddr,  wb_reg_wdata,
+        id_rdata1)))));
 
   val id_rs2 =
-    Mux(id_raddr2 != UFix(0, 5) && ex_reg_ctrl_wen && id_raddr2 === ex_reg_waddr, ex_wdata,
-        id_rdata2);
+    Mux(id_raddr2 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr2 === ex_reg_waddr,  ex_wdata,
+    Mux(id_raddr2 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr2 === mem_reg_waddr, mem_reg_wdata,
+    Mux(id_raddr2 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr2 === wb_reg_waddr,  wb_reg_wdata,
+        id_rdata2)));
         
+  // write value to cause register based on exception type
 	val id_exception = io.ctrl.xcpt_illegal || io.ctrl.xcpt_privileged || io.ctrl.xcpt_fpu || io.ctrl.xcpt_syscall;
 	val id_cause = 
 		Mux(io.ctrl.xcpt_illegal, UFix(2,5),
@@ -199,9 +197,9 @@ class rocketDpath extends Component
 		Mux(io.ctrl.xcpt_syscall, UFix(6,5), 
 			UFix(0,5)))));
 
-  io.dpath.inst := id_reg_inst;
-  io.dpath.rs1  := id_rs1;
-  io.dpath.rs2  := id_rs2;
+  io.ctrl.inst := id_reg_inst;
+//   io.ctrl.rs1  := id_rs1;
+//   io.ctrl.rs2  := id_rs2;
 
   // execute stage
   ex_reg_pc             <== id_reg_pc;
@@ -269,8 +267,8 @@ class rocketDpath extends Component
   div.io.dpath_rs2 := ex_reg_rs2;
   div.io.div_result_rdy := io.ctrl.div_wb;
   
-  io.dpath.div_rdy 				:= div.io.div_rdy;
-  io.dpath.div_result_val := div.io.div_result_val;
+  io.ctrl.div_rdy 				:= div.io.div_rdy;
+  io.ctrl.div_result_val := div.io.div_result_val;
   
   // multiplier
   mul.io.mul_val := ex_reg_ctrl_mul_val;
@@ -279,66 +277,145 @@ class rocketDpath extends Component
   mul.io.in0		 := ex_reg_rs1;
   mul.io.in1		 := ex_reg_rs2;
   
-  io.dpath.mul_result_val := mul.io.result_val;
+  io.ctrl.mul_result_val := mul.io.result_val;
+  
+  io.ctrl.ex_waddr := ex_reg_waddr; // for load/use hazard detection
 
-	// processor control register i/o
-  pcr.io.host.from_wen ^^ io.host.from_wen;
-  pcr.io.host.from     ^^ io.host.from;
-  pcr.io.host.to       ^^ io.host.to;
+  // D$ request interface (registered inside D$ module)
+  // other signals (req_val, req_rdy) connect to control module  
+  io.dmem.req_addr  := ex_alu_out;
+  io.dmem.req_data  := ex_reg_rs2;
+  io.dmem.req_tag   := ex_reg_waddr;
 
+	// processor control regfile read
   pcr.io.r.en   := ex_reg_ctrl_ren_pcr | ex_reg_ctrl_exception | ex_reg_ctrl_eret;
   pcr.io.r.addr := 
   	Mux(ex_reg_ctrl_exception, PCR_EVEC, 
   	Mux(ex_reg_ctrl_eret, PCR_EPC, 
   		ex_reg_raddr2));
-  
-  pcr.io.w.addr := ex_reg_raddr2;
-  pcr.io.w.en   := ex_reg_ctrl_wen_pcr;
-  pcr.io.w.data := ex_reg_rs1;
-  
+  		
+  pcr.io.host.from_wen ^^ io.host.from_wen;
+  pcr.io.host.from     ^^ io.host.from;
+  pcr.io.host.to       ^^ io.host.to;
+
   pcr.io.eret      	:= ex_reg_ctrl_eret;
   pcr.io.exception 	:= ex_reg_ctrl_exception;
   pcr.io.cause 			:= ex_reg_ctrl_cause;
   pcr.io.pc					:= ex_reg_pc;
   
-  io.dpath.status   := pcr.io.status;
-//  io.debug 					^^ pcr.io.debug;
-  
+  io.ctrl.status   := pcr.io.status;
  	io.debug.error_mode  := pcr.io.debug.error_mode;
  	io.debug.log_control := pcr.io.debug.log_control;
-
+  
 	// branch resolution logic
-  io.dpath.br_eq   := (ex_reg_rs1 === ex_reg_rs2);
-  io.dpath.br_ltu  := (ex_reg_rs1.toUFix < ex_reg_rs2.toUFix);
-  io.dpath.br_lt :=
-    (~(ex_reg_rs1(63) ^ ex_reg_rs2(63)) & io.dpath.br_ltu |
+  io.ctrl.br_eq   := (ex_reg_rs1 === ex_reg_rs2);
+  io.ctrl.br_ltu  := (ex_reg_rs1.toUFix < ex_reg_rs2.toUFix);
+  io.ctrl.br_lt :=
+    (~(ex_reg_rs1(63) ^ ex_reg_rs2(63)) & io.ctrl.br_ltu |
     ex_reg_rs1(63) & ~ex_reg_rs2(63)).toBool;
-
-  io.dpath.alu_out := ex_alu_out;
 
 	// writeback select mux
   ex_wdata :=
-    Mux(ex_reg_ctrl_ll_wb, ex_reg_rs1,
+    Mux(ex_reg_ctrl_ll_wb || ex_reg_ctrl_wen_pcr, ex_reg_rs1,
     Mux(ex_reg_ctrl_sel_wb === WB_PC,  ex_reg_pc_plus4,
     Mux(ex_reg_ctrl_sel_wb === WB_ALU, ex_alu_out,
     Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
         Bits(0, 64))))).toBits;
         
-	// regfile write
-  rfile.io.w0.addr := ex_reg_waddr;
-  rfile.io.w0.en   := ex_reg_ctrl_wen | ex_reg_ctrl_ll_wb;
-  rfile.io.w0.data := ex_wdata; 
-  
-  rfile.io.w1.addr ^^ io.wb.waddr;
-  rfile.io.w1.en   ^^ io.wb.wen;
-  rfile.io.w1.data ^^ io.wb.wdata;
-  
-  // clear scoreboard for "long latency" writebacks
-  io.dpath.wen   := ex_reg_ctrl_ll_wb;
-  io.dpath.waddr := ex_reg_waddr;
+  // memory stage
+  mem_reg_pc                <== ex_reg_pc;
+  mem_reg_pc_plus4          <== ex_reg_pc_plus4;
+  mem_reg_waddr             <== ex_reg_waddr;
+  mem_reg_wdata             <== ex_wdata;
+  mem_reg_ctrl_ll_wb        <== ex_reg_ctrl_ll_wb;
+  mem_reg_raddr2            <== ex_reg_raddr2;
+
+  when (io.ctrl.killx) {
+    mem_reg_ctrl_div_val   <== Bool(false);
+    mem_reg_ctrl_mul_val   <== Bool(false);
+    mem_reg_ctrl_wen     	 <== Bool(false);
+    mem_reg_ctrl_wen_pcr 	 <== Bool(false);
+    mem_reg_ctrl_exception <== Bool(false);
+  }
+  otherwise {
+    mem_reg_ctrl_div_val   <== ex_reg_ctrl_div_val;
+    mem_reg_ctrl_mul_val   <== ex_reg_ctrl_mul_val;
+    mem_reg_ctrl_wen     	 <== ex_reg_ctrl_wen;
+    mem_reg_ctrl_wen_pcr 	 <== ex_reg_ctrl_wen_pcr;
+    mem_reg_ctrl_exception <== ex_reg_ctrl_exception;
+  }
   
   // exception signal to control (for NPC select)
-  io.dpath.exception := ex_reg_ctrl_exception;
+  io.ctrl.exception := mem_reg_ctrl_exception;
+  
+  // writeback stage
+  val r_dmem_resp_val      = Reg(io.dmem.resp_val);
+  val r_dmem_resp_waddr    = Reg(io.dmem.resp_tag(4,0).toUFix);
+  val r_dmem_resp_pos      = Reg(io.dmem.resp_tag(7,5));
+  val r_dmem_resp_type     = Reg(io.dmem.resp_tag(9,8));
+  val r_dmem_resp_data     = Reg(io.dmem.resp_data);
+
+  wb_reg_pc           <== mem_reg_pc;
+  wb_reg_pc_plus4     <== mem_reg_pc_plus4;
+  wb_reg_waddr        <== mem_reg_waddr;
+  wb_reg_wdata        <== mem_reg_wdata;
+  wb_reg_ctrl_ll_wb   <== mem_reg_ctrl_ll_wb;
+  wb_reg_raddr2       <== mem_reg_raddr2;
+
+  when (io.ctrl.killm) {
+    wb_reg_ctrl_div_val   <== Bool(false);
+    wb_reg_ctrl_mul_val   <== Bool(false);
+    wb_reg_ctrl_wen       <== Bool(false);
+    wb_reg_ctrl_wen_pcr 	<== Bool(false);
+  }
+  otherwise {
+    wb_reg_ctrl_div_val   <== mem_reg_ctrl_div_val;
+    wb_reg_ctrl_mul_val   <== mem_reg_ctrl_mul_val;
+    wb_reg_ctrl_wen     	<== mem_reg_ctrl_wen;
+    wb_reg_ctrl_wen_pcr 	<== mem_reg_ctrl_wen_pcr;
+  }
+
+  // crossbar/sign extension for 8/16/32 bit loads
+  val dmem_resp_data_w = 
+    Mux(r_dmem_resp_pos(2).toBool, r_dmem_resp_data(63, 32), r_dmem_resp_data(31, 0));
+  val dmem_resp_data_h = 
+    Mux(r_dmem_resp_pos(1).toBool, dmem_resp_data_w(31, 16),  dmem_resp_data_w(15, 0));
+  val dmem_resp_data_b = 
+    Mux(r_dmem_resp_pos(0).toBool, dmem_resp_data_h(15, 8),   dmem_resp_data_h(7, 0));
+
+  val dmem_resp_data_final =
+    Mux(r_dmem_resp_type === MT_B,  Cat(Fill(56, dmem_resp_data_b(7)), dmem_resp_data_b),
+    Mux(r_dmem_resp_type === MT_BU, Cat(UFix(0, 56), dmem_resp_data_b),
+    Mux(r_dmem_resp_type === MT_H,  Cat(Fill(48, dmem_resp_data_h(15)), dmem_resp_data_h),
+    Mux(r_dmem_resp_type === MT_HU, Cat(UFix(0, 48), dmem_resp_data_h),
+    Mux(r_dmem_resp_type === MT_W,  Cat(Fill(32, dmem_resp_data_w(31)), dmem_resp_data_w),
+    Mux(r_dmem_resp_type === MT_WU, Cat(UFix(0, 32), dmem_resp_data_w),
+    Mux(r_dmem_resp_type === MT_D,  r_dmem_resp_data,
+        UFix(0, 64))))))));
+
+	// regfile write
+  rfile.io.w0.addr := wb_reg_waddr;
+  rfile.io.w0.en   := wb_reg_ctrl_wen | wb_reg_ctrl_ll_wb;
+  rfile.io.w0.data := wb_reg_wdata; 
+  
+  rfile.io.w1.addr := r_dmem_resp_waddr;
+  rfile.io.w1.en   := r_dmem_resp_val;
+  rfile.io.w1.data := dmem_resp_data_final;
+  
+  // scoreboard set (for D$ misses, div, mul)
+  io.ctrl.sboard_set    := wb_reg_ctrl_div_val | wb_reg_ctrl_mul_val | io.ctrl.dcache_miss;
+  io.ctrl.sboard_seta   := wb_reg_waddr;
+  
+  // scoreboard clear (for div/mul and D$ load miss writebacks)
+  io.ctrl.sboard_clr0   := wb_reg_ctrl_ll_wb;
+  io.ctrl.sboard_clr0a  := wb_reg_waddr;
+  io.ctrl.sboard_clr1   := r_dmem_resp_val;
+  io.ctrl.sboard_clr1a  := r_dmem_resp_waddr;  
+
+	// processor control regfile write
+  pcr.io.w.addr := wb_reg_raddr2;
+  pcr.io.w.en   := wb_reg_ctrl_wen_pcr;
+  pcr.io.w.data := wb_reg_wdata;
 
 }
 
