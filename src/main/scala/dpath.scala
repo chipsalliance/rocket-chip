@@ -76,23 +76,28 @@ class rocketDpath extends Component
  	val ex_wdata						  = Wire() { Bits() }; 	
 
   // memory definitions
-  val mem_reg_pc            = Reg(resetVal = UFix(0,32));
-  val mem_reg_pc_plus4      = Reg(resetVal = UFix(0,32));
-  val mem_reg_waddr         = Reg(resetVal = UFix(0,5));
-  val mem_reg_wdata         = Reg(resetVal = Bits(0,64));
-  val mem_reg_raddr2        = Reg(resetVal = UFix(0,5));
-  val mem_reg_ctrl_ll_wb    = Reg(resetVal = Bool(false));
+  val mem_reg_pc             = Reg(resetVal = UFix(0,32));
+  val mem_reg_pc_plus4       = Reg(resetVal = UFix(0,32));
+  val mem_reg_waddr          = Reg(resetVal = UFix(0,5));
+  val mem_reg_wdata          = Reg(resetVal = Bits(0,64));
+  val mem_reg_raddr2         = Reg(resetVal = UFix(0,5));
+  val mem_reg_pcr            = Reg(resetVal = Bits(0,64));
+  val mem_reg_ctrl_cause     = Reg(resetVal = UFix(0,5));
+  val mem_reg_ctrl_eret      = Reg(resetVal = Bool(false));
+  val mem_reg_ctrl_exception = Reg(resetVal = Bool(false));
+  val mem_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
-  val mem_reg_ctrl_exception = Reg(resetVal = Bool(false));
   
   // writeback definitions
   val wb_reg_pc             = Reg(resetVal = UFix(0,32));
-  val wb_reg_pc_plus4       = Reg(resetVal = UFix(0,32));
   val wb_reg_waddr          = Reg(resetVal = UFix(0,5));
   val wb_reg_wdata          = Reg(resetVal = Bits(0,64));
   val wb_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val wb_reg_raddr2         = Reg(resetVal = UFix(0,5));
+  val wb_reg_ctrl_cause     = Reg(resetVal = UFix(0,5));
+  val wb_reg_ctrl_eret      = Reg(resetVal = Bool(false));
+  val wb_reg_ctrl_exception = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
 
@@ -125,7 +130,7 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_BR,  ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_J,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,  ex_jr_target.toUFix,
-    Mux(io.ctrl.sel_pc === PC_PCR, ex_pcr(31,0).toUFix,
+    Mux(io.ctrl.sel_pc === PC_PCR, mem_reg_pcr(31,0).toUFix,
     Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc, 
     Mux(io.ctrl.sel_pc === PC_MEM4, mem_reg_pc_plus4, 
         UFix(0, 32))))))))));
@@ -336,10 +341,10 @@ class rocketDpath extends Component
   pcr.io.host.from     ^^ io.host.from;
   pcr.io.host.to       ^^ io.host.to;
 
-  pcr.io.eret      	:= ex_reg_ctrl_eret;
-  pcr.io.exception 	:= ex_reg_ctrl_exception;
-  pcr.io.cause 			:= ex_reg_ctrl_cause;
-  pcr.io.pc					:= ex_reg_pc;
+//   pcr.io.eret      	:= ex_reg_ctrl_eret;
+//   pcr.io.exception 	:= ex_reg_ctrl_exception;
+//   pcr.io.cause 			:= ex_reg_ctrl_cause;
+//   pcr.io.pc					:= ex_reg_pc;
   
   io.ctrl.status   := pcr.io.status;
  	io.debug.error_mode  := pcr.io.debug.error_mode;
@@ -363,17 +368,21 @@ class rocketDpath extends Component
   // memory stage
   mem_reg_pc                <== ex_reg_pc;
   mem_reg_pc_plus4          <== ex_reg_pc_plus4;
+  mem_reg_pcr               <== ex_pcr;
   mem_reg_waddr             <== ex_reg_waddr;
   mem_reg_wdata             <== ex_wdata;
   mem_reg_ctrl_ll_wb        <== ex_reg_ctrl_ll_wb;
   mem_reg_raddr2            <== ex_reg_raddr2;
+  mem_reg_ctrl_cause        <== ex_reg_ctrl_cause;
 
   when (io.ctrl.killx) {
+    mem_reg_ctrl_eret      <== Bool(false);
     mem_reg_ctrl_wen     	 <== Bool(false);
     mem_reg_ctrl_wen_pcr 	 <== Bool(false);
     mem_reg_ctrl_exception <== Bool(false);
   }
   otherwise {
+    mem_reg_ctrl_eret      <== ex_reg_ctrl_eret;
     mem_reg_ctrl_wen     	 <== ex_reg_ctrl_wen;
     mem_reg_ctrl_wen_pcr 	 <== ex_reg_ctrl_wen_pcr;
     mem_reg_ctrl_exception <== ex_reg_ctrl_exception;
@@ -384,14 +393,7 @@ class rocketDpath extends Component
   // for load/use hazard detection (load byte/halfword)
   io.ctrl.mem_waddr := mem_reg_waddr;
 
-  // moved to earlier in file
-//   val mem_dmem_resp_data_w =
-//     Mux(io.dmem.resp_pos(2).toBool, io.dmem.resp_data(63, 32), io.dmem.resp_data(31, 0));
-//   
-//   val mem_dmem_resp_data =
-//     Mux(io.dmem.resp_type === MT_D,  io.dmem.resp_data, 
-//     Mux(io.dmem.resp_type === MT_W,  Cat(Fill(32, mem_dmem_resp_data_w(31)), mem_dmem_resp_data_w)),
-//       Cat(UFix(0,32), mem_dmem_resp_data_w));
+  // 32/64 bit load handling (moved to earlier in file)
       
   // writeback stage
   r_dmem_resp_val     <== io.dmem.resp_val;
@@ -400,12 +402,14 @@ class rocketDpath extends Component
   r_dmem_resp_type    <== dmem_resp_type;
   r_dmem_resp_data    <== mem_dmem_resp_data;
 
-  wb_reg_pc           <== mem_reg_pc;
-  wb_reg_pc_plus4     <== mem_reg_pc_plus4;
-  wb_reg_waddr        <== mem_reg_waddr;
-  wb_reg_wdata        <== mem_reg_wdata;
-  wb_reg_ctrl_ll_wb   <== mem_reg_ctrl_ll_wb;
-  wb_reg_raddr2       <== mem_reg_raddr2;
+  wb_reg_pc             <== mem_reg_pc;
+  wb_reg_waddr          <== mem_reg_waddr;
+  wb_reg_wdata          <== mem_reg_wdata;
+  wb_reg_ctrl_ll_wb     <== mem_reg_ctrl_ll_wb;
+  wb_reg_raddr2         <== mem_reg_raddr2;
+  wb_reg_ctrl_cause     <== mem_reg_ctrl_cause;
+  wb_reg_ctrl_eret      <== mem_reg_ctrl_eret;
+  wb_reg_ctrl_exception <== mem_reg_ctrl_exception;
 
   when (io.ctrl.killm) {
     wb_reg_ctrl_wen       <== Bool(false);
@@ -416,21 +420,7 @@ class rocketDpath extends Component
     wb_reg_ctrl_wen_pcr 	<== mem_reg_ctrl_wen_pcr;
   }
 
-  // crossbar/sign extension for 8/16 bit loads
-//   val dmem_resp_data_h = 
-//     Mux(r_dmem_resp_pos(1).toBool, r_dmem_resp_data(31, 16), r_dmem_resp_data(15, 0));
-//   val dmem_resp_data_b = 
-//     Mux(r_dmem_resp_pos(0).toBool, dmem_resp_data_h(15, 8),   dmem_resp_data_h(7, 0));
-// 
-//   val dmem_resp_data_final =
-//     Mux(r_dmem_resp_type === MT_B,  Cat(Fill(56, dmem_resp_data_b(7)), dmem_resp_data_b),
-//     Mux(r_dmem_resp_type === MT_BU, Cat(UFix(0, 56), dmem_resp_data_b),
-//     Mux(r_dmem_resp_type === MT_H,  Cat(Fill(48, dmem_resp_data_h(15)), dmem_resp_data_h),
-//     Mux(r_dmem_resp_type === MT_HU, Cat(UFix(0, 48), dmem_resp_data_h),
-//     Mux((r_dmem_resp_type === MT_W) ||
-//         (r_dmem_resp_type === MT_WU) || 
-//         (r_dmem_resp_type === MT_D), r_dmem_resp_data,
-//       UFix(0,64))))));
+  // crossbar/sign extension for 8/16 bit loads (moved to earlier in file)
 
 	// regfile write
   rfile.io.w0.addr := wb_reg_waddr;
@@ -453,6 +443,11 @@ class rocketDpath extends Component
   pcr.io.w.addr := wb_reg_raddr2;
   pcr.io.w.en   := wb_reg_ctrl_wen_pcr;
   pcr.io.w.data := wb_reg_wdata;
+
+  pcr.io.eret      	:= wb_reg_ctrl_eret;
+  pcr.io.exception 	:= wb_reg_ctrl_exception;
+  pcr.io.cause 			:= wb_reg_ctrl_cause;
+  pcr.io.pc					:= wb_reg_pc;
 
 }
 
