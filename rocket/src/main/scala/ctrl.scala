@@ -51,6 +51,7 @@ class ioCtrlDpath extends Bundle()
   val div_result_val = Bool('input);
   val mul_result_val = Bool('input);
   val ex_waddr = UFix(5,'input); // write addr from execute stage
+  val mem_waddr = UFix(5,'input); // write addr from memory stage
   val exception = Bool('input);
   val status  = Bits(8, 'input);
   val sboard_set   = Bool('input);
@@ -337,23 +338,44 @@ class rocketCtrl extends Component
     );
 
   // check for loads in execute stage to detect load/use hazards
-  val lu_stall_raddr1 = 
-    ex_reg_mem_val &&
-    (ex_reg_mem_cmd === M_XRD) && 
+  
+  val ex_mem_cmd_load = ex_reg_mem_val && (ex_reg_mem_cmd  === M_XRD);
+  
+  val lu_stall_raddr1_ex = 
+    ex_mem_cmd_load &&
     id_ren1.toBool &&
     (id_raddr1 === io.dpath.ex_waddr);
 
-  val lu_stall_raddr2 = 
-    ex_reg_mem_val &&
-    (ex_reg_mem_cmd === M_XRD) && 
+  val lu_stall_raddr2_ex = 
+    ex_mem_cmd_load &&
     id_ren2.toBool &&
     (id_raddr2 === io.dpath.ex_waddr);
+    
+  val mem_mem_cmd_load_bh = 
+    mem_reg_mem_val &&
+    (mem_reg_mem_cmd === M_XRD)   &&
+    ((mem_reg_mem_type === MT_B)  ||
+     (mem_reg_mem_type === MT_BU) ||
+     (mem_reg_mem_type === MT_H)  || 
+     (mem_reg_mem_type === MT_HU));
+     
+  val lu_stall_raddr1_mem = 
+    mem_mem_cmd_load_bh &&
+    id_ren1.toBool &&
+    (id_raddr1 === io.dpath.mem_waddr);
+
+  val lu_stall_raddr2_mem = 
+    mem_mem_cmd_load_bh &&
+    id_ren2.toBool &&
+    (id_raddr2 === io.dpath.mem_waddr);
   
   val ctrl_stalld =
     ~take_pc &
     (
-      lu_stall_raddr1 |
-      lu_stall_raddr2 |
+      lu_stall_raddr1_ex |
+      lu_stall_raddr2_ex |
+      lu_stall_raddr1_mem |
+      lu_stall_raddr2_mem |
       id_ren2 &  id_stall_raddr2 |
       id_ren1 &  id_stall_raddr1 |
       (id_sel_wa === WA_RD) && id_stall_waddr |
