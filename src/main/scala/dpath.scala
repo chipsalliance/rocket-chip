@@ -75,6 +75,7 @@ class rocketDpath extends Component
   val ex_reg_ctrl_cause     = Reg(resetVal = UFix(0,5));
  	val ex_wdata						  = Wire() { Bits() }; 	
 
+  // memory definitions
   val mem_reg_pc            = Reg(resetVal = UFix(0,32));
   val mem_reg_pc_plus4      = Reg(resetVal = UFix(0,32));
   val mem_reg_waddr         = Reg(resetVal = UFix(0,5));
@@ -87,6 +88,7 @@ class rocketDpath extends Component
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_exception = Reg(resetVal = Bool(false));
   
+  // writeback definitions
   val wb_reg_pc             = Reg(resetVal = UFix(0,32));
   val wb_reg_pc_plus4       = Reg(resetVal = UFix(0,32));
   val wb_reg_waddr          = Reg(resetVal = UFix(0,5));
@@ -98,6 +100,12 @@ class rocketDpath extends Component
   val wb_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
 
+  val r_dmem_resp_val       = Reg(resetVal = Bool(false));
+  val r_dmem_resp_waddr     = Reg(resetVal = UFix(0,5));
+  val r_dmem_resp_pos       = Reg(resetVal = UFix(0,3));
+  val r_dmem_resp_type      = Reg(resetVal = UFix(0,3));
+  val r_dmem_resp_data      = Reg(resetVal = Bits(0,64));
+  
   // instruction fetch stage
   val if_pc_plus4 = if_reg_pc + UFix(4, 32);
 
@@ -122,7 +130,7 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_J,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,  ex_jr_target.toUFix,
     Mux(io.ctrl.sel_pc === PC_PCR, ex_pcr(31,0).toUFix,
-    Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc, 
+    Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc_plus4, 
         UFix(0, 32)))))))));
 
   when (!io.host.start){
@@ -179,14 +187,18 @@ class rocketDpath extends Component
   	Mux(io.ctrl.mul_wb, mul_result,
     Mux(id_raddr1 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr1 === ex_reg_waddr,  ex_wdata,
     Mux(id_raddr1 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr1 === mem_reg_waddr, mem_reg_wdata,
+    Mux(id_raddr1 != UFix(0, 5) && io.ctrl.mem_load && id_raddr1 === mem_reg_waddr, io.dmem.resp_data,
+    Mux(id_raddr1 != UFix(0, 5) && r_dmem_resp_val  && id_raddr1 === r_dmem_resp_waddr, r_dmem_resp_data,
     Mux(id_raddr1 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr1 === wb_reg_waddr,  wb_reg_wdata,
-        id_rdata1)))));
+        id_rdata1)))))));
 
   val id_rs2 =
     Mux(id_raddr2 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr2 === ex_reg_waddr,  ex_wdata,
     Mux(id_raddr2 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr2 === mem_reg_waddr, mem_reg_wdata,
+    Mux(id_raddr2 != UFix(0, 5) && io.ctrl.mem_load && id_raddr2 === mem_reg_waddr, io.dmem.resp_data,
+    Mux(id_raddr2 != UFix(0, 5) && r_dmem_resp_val  && id_raddr2 === r_dmem_resp_waddr, r_dmem_resp_data,
     Mux(id_raddr2 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr2 === wb_reg_waddr,  wb_reg_wdata,
-        id_rdata2)));
+        id_rdata2)))));
         
   // write value to cause register based on exception type
 	val id_exception = io.ctrl.xcpt_illegal || io.ctrl.xcpt_privileged || io.ctrl.xcpt_fpu || io.ctrl.xcpt_syscall;
@@ -349,11 +361,11 @@ class rocketDpath extends Component
   io.ctrl.exception := mem_reg_ctrl_exception;
   
   // writeback stage
-  val r_dmem_resp_val      = Reg(io.dmem.resp_val);
-  val r_dmem_resp_waddr    = Reg(io.dmem.resp_tag(4,0).toUFix);
-  val r_dmem_resp_pos      = Reg(io.dmem.resp_tag(7,5));
-  val r_dmem_resp_type     = Reg(io.dmem.resp_tag(9,8));
-  val r_dmem_resp_data     = Reg(io.dmem.resp_data);
+  r_dmem_resp_val     <== io.dmem.resp_val;
+  r_dmem_resp_waddr   <== io.dmem.resp_tag(4,0).toUFix;
+  r_dmem_resp_pos     <== io.dmem.resp_tag(7,5).toUFix;
+  r_dmem_resp_type    <== io.dmem.resp_tag(10,8).toUFix;
+  r_dmem_resp_data    <== io.dmem.resp_data;
 
   wb_reg_pc           <== mem_reg_pc;
   wb_reg_pc_plus4     <== mem_reg_pc_plus4;
