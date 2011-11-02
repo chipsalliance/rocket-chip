@@ -14,14 +14,15 @@ object Constants
   val BR_J    = UFix(7, 4);
   val BR_JR   = UFix(8, 4);
 
-  val PC_4   = UFix(0, 3);
-  val PC_BTB = UFix(1, 3);
-  val PC_EX4 = UFix(2, 3);
-  val PC_BR  = UFix(3, 3);
-  val PC_J   = UFix(4, 3);
-  val PC_JR  = UFix(5, 3);
-  val PC_PCR = UFix(6, 3);
-  val PC_MEM = UFix(7, 3);
+  val PC_4    = UFix(0, 4);
+  val PC_BTB  = UFix(1, 4);
+  val PC_EX4  = UFix(2, 4);
+  val PC_BR   = UFix(3, 4);
+  val PC_J    = UFix(4, 4);
+  val PC_JR   = UFix(5, 4);
+  val PC_PCR  = UFix(6, 4);
+  val PC_MEM  = UFix(7, 4);
+  val PC_MEM4 = UFix(8, 4);
 
   val KF_Y  = UFix(1, 1);
   val KF_N  = UFix(0, 1);

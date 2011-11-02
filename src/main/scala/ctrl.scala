@@ -9,7 +9,7 @@ import Instructions._
 class ioCtrlDpath extends Bundle()
 {
   // outputs to datapath
-  val sel_pc   = UFix(3, 'output);
+  val sel_pc   = UFix(4, 'output);
   val wen_btb  = Bool('output);
   val stallf   = Bool('output);
   val stalld   = Bool('output);
@@ -299,16 +299,19 @@ class rocketCtrl extends Component
     mem_reg_mem_type   <== ex_reg_mem_type;
   }
   
-  // replay on a D$ load miss : FIXME - add a miss signal to D$
+  // replay PC when the D$ is blocked
+  val replay_mem_pc = mem_reg_mem_val && !io.dmem.req_rdy;
+  // replay PC+4 on a D$ load miss
   val mem_cmd_load = mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD);
-  val replay_mem  = mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD) && !io.dmem.resp_val;
-  val dcache_miss = Reg(replay_mem);
+  val replay_mem_pc_plus4 = mem_cmd_load && !io.dmem.resp_val;
+  val dcache_miss = Reg(replay_mem_pc_plus4);
   
   io.dpath.mem_load := mem_cmd_load;
   io.dpath.dcache_miss := dcache_miss;
   
   io.dpath.sel_pc :=
-    Mux(replay_mem, PC_MEM,
+    Mux(replay_mem_pc, PC_MEM,
+    Mux(replay_mem_pc_plus4, PC_MEM4,
     Mux(io.dpath.exception || ex_reg_eret, PC_PCR,
     Mux(!ex_reg_btb_hit && br_taken, PC_BR,
     Mux(ex_reg_btb_hit && !br_taken || ex_reg_privileged, PC_EX4,
