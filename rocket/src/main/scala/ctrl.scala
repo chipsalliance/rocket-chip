@@ -37,7 +37,8 @@ class ioCtrlDpath extends Bundle()
   val xcpt_privileged = Bool('output);
   val xcpt_fpu = Bool('output);
   val xcpt_syscall = Bool('output);
-  val eret    = Bool('output);
+  val eret     = Bool('output);
+  val mem_load = Bool('output);
   val dcache_miss = Bool('output);
   val wen     = Bool('output);
   // inputs from datapath
@@ -298,9 +299,11 @@ class rocketCtrl extends Component
   }
   
   // replay on a D$ load miss : FIXME - add a miss signal to D$
+  val mem_cmd_load = mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD);
   val replay_mem  = mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD) && !io.dmem.resp_val;
   val dcache_miss = Reg(replay_mem);
   
+  io.dpath.mem_load := mem_cmd_load;
   io.dpath.dcache_miss := dcache_miss;
   
   io.dpath.sel_pc :=
