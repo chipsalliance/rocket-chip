@@ -130,7 +130,8 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_J,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,  ex_jr_target.toUFix,
     Mux(io.ctrl.sel_pc === PC_PCR, ex_pcr(31,0).toUFix,
-    Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc_plus4, 
+    Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc, 
+    Mux(io.ctrl.sel_pc === PC_MEM4, mem_reg_pc_plus4, 
         UFix(0, 32)))))))));
 
   when (!io.host.start){
@@ -184,6 +185,7 @@ class rocketDpath extends Component
   // moved this here to avoid having to do forward declaration
   // TODO: cleanup
   
+  // 64/32 bit load handling (in mem stage)
   val dmem_resp_pos   = io.dmem.resp_tag(7,5).toUFix;
   val dmem_resp_type  = io.dmem.resp_tag(10,8);
   
