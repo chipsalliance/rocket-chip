@@ -82,8 +82,6 @@ class rocketDpath extends Component
   val mem_reg_wdata         = Reg(resetVal = Bits(0,64));
   val mem_reg_raddr2        = Reg(resetVal = UFix(0,5));
   val mem_reg_ctrl_ll_wb    = Reg(resetVal = Bool(false));
-  val mem_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
-  val mem_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_exception = Reg(resetVal = Bool(false));
@@ -95,8 +93,6 @@ class rocketDpath extends Component
   val wb_reg_wdata          = Reg(resetVal = Bits(0,64));
   val wb_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val wb_reg_raddr2         = Reg(resetVal = UFix(0,5));
-  val wb_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
-  val wb_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
 
@@ -373,15 +369,11 @@ class rocketDpath extends Component
   mem_reg_raddr2            <== ex_reg_raddr2;
 
   when (io.ctrl.killx) {
-    mem_reg_ctrl_div_val   <== Bool(false);
-    mem_reg_ctrl_mul_val   <== Bool(false);
     mem_reg_ctrl_wen     	 <== Bool(false);
     mem_reg_ctrl_wen_pcr 	 <== Bool(false);
     mem_reg_ctrl_exception <== Bool(false);
   }
   otherwise {
-    mem_reg_ctrl_div_val   <== ex_reg_ctrl_div_val;
-    mem_reg_ctrl_mul_val   <== ex_reg_ctrl_mul_val;
     mem_reg_ctrl_wen     	 <== ex_reg_ctrl_wen;
     mem_reg_ctrl_wen_pcr 	 <== ex_reg_ctrl_wen_pcr;
     mem_reg_ctrl_exception <== ex_reg_ctrl_exception;
@@ -416,14 +408,10 @@ class rocketDpath extends Component
   wb_reg_raddr2       <== mem_reg_raddr2;
 
   when (io.ctrl.killm) {
-    wb_reg_ctrl_div_val   <== Bool(false);
-    wb_reg_ctrl_mul_val   <== Bool(false);
     wb_reg_ctrl_wen       <== Bool(false);
     wb_reg_ctrl_wen_pcr 	<== Bool(false);
   }
   otherwise {
-    wb_reg_ctrl_div_val   <== mem_reg_ctrl_div_val;
-    wb_reg_ctrl_mul_val   <== mem_reg_ctrl_mul_val;
     wb_reg_ctrl_wen     	<== mem_reg_ctrl_wen;
     wb_reg_ctrl_wen_pcr 	<== mem_reg_ctrl_wen_pcr;
   }
@@ -453,9 +441,7 @@ class rocketDpath extends Component
   rfile.io.w1.en   := r_dmem_resp_val;
   rfile.io.w1.data := dmem_resp_data_final;
   
-  // scoreboard set (for D$ misses, div, mul)
-  io.ctrl.sboard_set    := wb_reg_ctrl_div_val | wb_reg_ctrl_mul_val | io.ctrl.dcache_miss;
-  io.ctrl.sboard_seta   := wb_reg_waddr;
+  io.ctrl.wb_waddr := wb_reg_waddr;
   
   // scoreboard clear (for div/mul and D$ load miss writebacks)
   io.ctrl.sboard_clr0   := wb_reg_ctrl_ll_wb;
