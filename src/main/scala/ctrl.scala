@@ -39,9 +39,7 @@ class ioCtrlDpath extends Bundle()
   val xcpt_syscall = Bool('output);
   val eret     = Bool('output);
   val mem_load = Bool('output);
-  val dcache_miss = Bool('output);
   val wen     = Bool('output);
-  val wb_div_mul = Bool('output);
   // inputs from datapath
   val btb_hit = Bool('input);
   val inst    = Bits(32, 'input);
@@ -67,7 +65,7 @@ class ioCtrlAll extends Bundle()
   val dpath   = new ioCtrlDpath();
   val console = new ioConsole(List("rdy", "valid"));
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
-  val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_val")).flip();
+  val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_val")).flip();
   val host    = new ioHost(List("start"));
 }
 
@@ -323,33 +321,34 @@ class rocketCtrl extends Component
     wb_reg_div_mul_val <== mem_reg_div_mul_val;
   }
 
-  // replay PC when the D$ is blocked
-  val replay_mem_pc = mem_reg_mem_val && !io.dmem.req_rdy;
-  // replay PC+4 on a D$ load miss
+  // replay execute stage PC when the D$ is blocked
+//   val replay_mem_pc = mem_reg_mem_val && (mem_reg_mem_cmd != M_FLA) && !io.dmem.req_rdy;
+  val replay_ex = ex_reg_mem_val && !io.dmem.req_rdy;
+  // replay memory stage PC+4 on a D$ load miss
   val mem_cmd_load = mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD);
-  val replay_mem_pc_plus4 = mem_cmd_load && !io.dmem.resp_val;
+//   val replay_mem_pc_plus4 = mem_cmd_load && !io.dmem.resp_val;
+  val replay_mem = io.dmem.resp_miss;
   
-  val kill_ex  = replay_mem_pc | replay_mem_pc_plus4 | mem_reg_privileged | io.dpath.exception;
+//   val kill_ex  = replay_mem_pc | replay_mem_pc_plus4 | mem_reg_privileged;
+  val kill_ex  = replay_ex | replay_mem | mem_reg_privileged;
   val kill_mem = io.dpath.exception;
 
-  dcache_miss <== replay_mem_pc_plus4;
+  dcache_miss <== io.dmem.resp_miss;
   
   io.dpath.mem_load    := mem_cmd_load;
-  io.dpath.dcache_miss := dcache_miss;
   
   io.dpath.sel_pc :=
-    Mux(replay_mem_pc, PC_MEM,
-    Mux(replay_mem_pc_plus4 || mem_reg_privileged, PC_MEM4,
+    Mux(replay_mem || mem_reg_privileged, PC_MEM4,
     Mux(io.dpath.exception || mem_reg_eret, PC_PCR,
+    Mux(replay_ex, PC_EX,
     Mux(!ex_reg_btb_hit && br_taken, PC_BR,
     Mux(ex_reg_btb_hit && !br_taken, PC_EX4,
-//     Mux(ex_reg_btb_hit && !br_taken || ex_reg_privileged, PC_EX4,
     Mux(jr_taken,                    PC_JR,
     Mux(j_taken,                     PC_J,
     Mux(io.dpath.btb_hit,            PC_BTB,
         PC_4))))))));
 
-  io.dpath.wen_btb := ~ex_reg_btb_hit & br_taken;
+  io.dpath.wen_btb := ~ex_reg_btb_hit & br_taken & ~kill_ex & ~kill_mem;
 
   val take_pc =
     ~ex_reg_btb_hit & br_taken |
@@ -359,8 +358,8 @@ class rocketCtrl extends Component
     io.dpath.exception |
     mem_reg_privileged |
     mem_reg_eret |
-    replay_mem_pc |
-    replay_mem_pc_plus4;
+    replay_ex |
+    replay_mem;
 
   io.dpath.stallf :=
     ~take_pc &
@@ -428,7 +427,7 @@ class rocketCtrl extends Component
       io.dpath.mul_result_val
     );
     
-  val ctrl_killd = take_pc | ctrl_stalld | io.dpath.killx;
+  val ctrl_killd = take_pc | ctrl_stalld;
       
   // for divider, multiplier writeback
   val mul_wb = io.dpath.mul_result_val;
@@ -438,7 +437,7 @@ class rocketCtrl extends Component
 
   io.dpath.killf    := take_pc | ~io.imem.resp_val;
   io.dpath.killd    := ctrl_killd.toBool;
-  io.dpath.killx    := kill_ex.toBool;
+  io.dpath.killx    := kill_ex.toBool || kill_mem.toBool;
   io.dpath.killm    := kill_mem.toBool;
 
   io.dpath.ren2     := id_ren2.toBool;

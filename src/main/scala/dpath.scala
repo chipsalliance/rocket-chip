@@ -44,11 +44,13 @@ class rocketDpath extends Component
   val if_reg_pc     = Reg(width = 32, resetVal = UFix(0, 32));
 
   // instruction decode definitions
+  val id_reg_valid          = Reg(resetVal = Bool(false));
   val id_reg_pc        = Reg(resetVal = UFix(0,32));
   val id_reg_pc_plus4  = Reg(resetVal = UFix(0,32));
   val id_reg_inst      = Reg(resetVal = NOP);
 
   // execute definitions
+  val ex_reg_valid          = Reg(resetVal = Bool(false));
   val ex_reg_pc             = Reg(resetVal = UFix(0,32));
   val ex_reg_pc_plus4       = Reg(resetVal = UFix(0,32));
   val ex_reg_inst           = Reg(resetVal = Bits(0,32));
@@ -76,6 +78,7 @@ class rocketDpath extends Component
  	val ex_wdata						  = Wire() { Bits() }; 	
 
   // memory definitions
+  val mem_reg_valid          = Reg(resetVal = Bool(false));
   val mem_reg_pc             = Reg(resetVal = UFix(0,32));
   val mem_reg_pc_plus4       = Reg(resetVal = UFix(0,32));
   val mem_reg_waddr          = Reg(resetVal = UFix(0,5));
@@ -90,6 +93,7 @@ class rocketDpath extends Component
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
   
   // writeback definitions
+  val wb_reg_valid          = Reg(resetVal = Bool(false));
   val wb_reg_pc             = Reg(resetVal = UFix(0,32));
   val wb_reg_waddr          = Reg(resetVal = UFix(0,5));
   val wb_reg_wdata          = Reg(resetVal = Bits(0,64));
@@ -126,6 +130,7 @@ class rocketDpath extends Component
   val if_next_pc =
     Mux(io.ctrl.sel_pc === PC_4,   if_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_BTB, if_btb_target,
+    Mux(io.ctrl.sel_pc === PC_EX,  ex_reg_pc,
     Mux(io.ctrl.sel_pc === PC_EX4, ex_reg_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_BR,  ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_J,   ex_branch_target,
@@ -133,7 +138,7 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_PCR, mem_reg_pcr(31,0).toUFix,
     Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc, 
     Mux(io.ctrl.sel_pc === PC_MEM4, mem_reg_pc_plus4, 
-        UFix(0, 32))))))))));
+        UFix(0, 32)))))))))));
 
   when (!io.host.start){
     if_reg_pc <== UFix(0, 32); //32'hFFFF_FFFC;
@@ -156,10 +161,12 @@ class rocketDpath extends Component
     id_reg_pc <== if_reg_pc;
     id_reg_pc_plus4 <== if_pc_plus4; 
     when(io.ctrl.killf) {
-      id_reg_inst <== NOP;
+      id_reg_inst  <== NOP;
+      id_reg_valid <== Bool(false);
     }
     otherwise {
-      id_reg_inst <== io.imem.resp_data;
+      id_reg_inst  <== io.imem.resp_data;
+      id_reg_valid <== Bool(true);
     }
   }
 
@@ -265,6 +272,7 @@ class rocketDpath extends Component
   ex_reg_ctrl_cause     <== id_cause;
 
   when(io.ctrl.killd) {
+    ex_reg_valid          <== Bool(false);
     ex_reg_ctrl_div_val 	<== Bool(false);
     ex_reg_ctrl_mul_val   <== Bool(false);
     ex_reg_ctrl_wen     	<== Bool(false);
@@ -273,6 +281,7 @@ class rocketDpath extends Component
   	ex_reg_ctrl_exception <== Bool(false);
   } 
   otherwise {
+    ex_reg_valid          <== id_reg_valid;
     ex_reg_ctrl_div_val 	<== io.ctrl.div_val;
   	ex_reg_ctrl_mul_val   <== io.ctrl.mul_val;
     ex_reg_ctrl_wen     	<== io.ctrl.wen;
@@ -376,12 +385,14 @@ class rocketDpath extends Component
   mem_reg_ctrl_cause        <== ex_reg_ctrl_cause;
 
   when (io.ctrl.killx) {
+    mem_reg_valid          <== Bool(false);
     mem_reg_ctrl_eret      <== Bool(false);
     mem_reg_ctrl_wen     	 <== Bool(false);
     mem_reg_ctrl_wen_pcr 	 <== Bool(false);
     mem_reg_ctrl_exception <== Bool(false);
   }
   otherwise {
+    mem_reg_valid          <== ex_reg_valid;
     mem_reg_ctrl_eret      <== ex_reg_ctrl_eret;
     mem_reg_ctrl_wen     	 <== ex_reg_ctrl_wen;
     mem_reg_ctrl_wen_pcr 	 <== ex_reg_ctrl_wen_pcr;
@@ -412,10 +423,12 @@ class rocketDpath extends Component
   wb_reg_ctrl_exception <== mem_reg_ctrl_exception;
 
   when (io.ctrl.killm) {
+    wb_reg_valid          <== Bool(false);
     wb_reg_ctrl_wen       <== Bool(false);
     wb_reg_ctrl_wen_pcr 	<== Bool(false);
   }
   otherwise {
+    wb_reg_valid          <== mem_reg_valid;
     wb_reg_ctrl_wen     	<== mem_reg_ctrl_wen;
     wb_reg_ctrl_wen_pcr 	<== mem_reg_ctrl_wen_pcr;
   }
@@ -448,6 +461,12 @@ class rocketDpath extends Component
   pcr.io.exception 	:= wb_reg_ctrl_exception;
   pcr.io.cause 			:= wb_reg_ctrl_cause;
   pcr.io.pc					:= wb_reg_pc;
+  
+  // temporary debug outputs so things don't get optimized away
+  io.debug.id_valid  := id_reg_valid;
+  io.debug.ex_valid  := ex_reg_valid;
+  io.debug.mem_valid := mem_reg_valid;
+  io.debug.wb_valid  := wb_reg_valid;
 
 }
 
