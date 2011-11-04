@@ -338,8 +338,8 @@ class rocketCtrl extends Component
   io.dpath.mem_load    := mem_cmd_load;
   
   io.dpath.sel_pc :=
-    Mux(replay_mem || mem_reg_privileged, PC_MEM4,
     Mux(io.dpath.exception || mem_reg_eret, PC_PCR,
+    Mux(replay_mem || mem_reg_privileged, PC_MEM4,
     Mux(replay_ex, PC_EX,
     Mux(!ex_reg_btb_hit && br_taken, PC_BR,
     Mux(ex_reg_btb_hit && !br_taken, PC_EX4,
