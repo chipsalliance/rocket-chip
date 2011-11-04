@@ -8,6 +8,10 @@ class ioDebug extends Bundle()
 {
   val error_mode  = Bool('output);
   val log_control = Bool('output);
+  val id_valid    = Bool('output);
+  val ex_valid    = Bool('output);
+  val mem_valid   = Bool('output);
+  val wb_valid    = Bool('output);
 }
 
 class ioHost(view: List[String] = null) extends Bundle(view)
