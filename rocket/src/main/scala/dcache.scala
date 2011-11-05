@@ -110,7 +110,6 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   
   val r_cpu_req_addr   = Reg(resetVal = Bits(0, addrbits));
   val r_cpu_req_val    = Reg(resetVal = Bool(false));
-//   val r_cpu_req_data   = Reg(resetVal = Bits(0,64));
   val r_cpu_req_cmd    = Reg(resetVal = Bits(0,4));
   val r_cpu_req_type   = Reg(resetVal = Bits(0,3));
   val r_cpu_req_tag    = Reg(resetVal = Bits(0,5));
@@ -119,7 +118,6 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
   val p_store_addr   = Reg(resetVal = Bits(0,64));
   val p_store_cmd    = Reg(resetVal = Bits(0,4));
   val p_store_type   = Reg(resetVal = Bits(0,3));
-//   val p_store_wmask  = Reg(resetVal = Bits(0,64));
   val p_store_valid  = Reg(resetVal = Bool(false));
 
   val req_load  = (r_cpu_req_cmd === M_XRD);
@@ -222,7 +220,6 @@ class rocketDCacheDM_1C(lines: Int, addrbits: Int) extends Component {
 
   val addr_match    = (r_cpu_req_addr(tagmsb, offsetlsb) === p_store_addr(tagmsb, offsetlsb));
   val ldst_conflict = r_cpu_req_val && req_load && p_store_valid && addr_match;
-//   val drain_store   = ((state === s_ready) && p_store_valid && (!r_cpu_req_val || !tag_match || !req_load || addr_match))
   val drain_store   = 
     (state === s_ready) && p_store_valid &&
     (!(io.cpu.req_val && (io.cpu.req_cmd === M_XRD)) ||

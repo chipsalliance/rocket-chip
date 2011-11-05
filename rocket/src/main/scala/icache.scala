@@ -24,7 +24,8 @@ class ioIcache(view: List[String] = null) extends Bundle (view)
   val resp_val  = Bool('output);
 }
 
-class ioICacheDM extends Bundle() {
+class ioICacheDM extends Bundle()
+{
   val cpu = new ioImem();
   val mem = new ioIcache().flip();
 }
@@ -51,14 +52,22 @@ class rocketICacheDM(lines: Int, addrbits : Int) extends Component {
   val state = Reg(resetVal = s_reset);
   
   val r_cpu_req_addr = Reg(Bits(0, addrbits));
-  when (io.cpu.req_val && ((state === s_ready) || (state === s_resolve_miss))) { r_cpu_req_addr <== io.cpu.req_addr; }
+  when (io.cpu.req_val && ((state === s_ready) || (state === s_resolve_miss))) {
+    r_cpu_req_addr <== io.cpu.req_addr;
+  }
   
   val r_cpu_req_val = Reg(Bool(false));
-  when ((state === s_ready) || (state === s_resolve_miss)) { r_cpu_req_val <== io.cpu.req_val; }
-  otherwise { r_cpu_req_val <== Bool(false); }
+  when ((state === s_ready) || (state === s_resolve_miss)) {
+    r_cpu_req_val <== io.cpu.req_val;
+  }
+  otherwise {
+    r_cpu_req_val <== Bool(false);
+  }
 
   val refill_count = Reg(resetVal = UFix(0,2));
-  when (io.mem.resp_val) { refill_count <== refill_count + UFix(1); }
+  when (io.mem.resp_val) {
+    refill_count <== refill_count + UFix(1);
+  }
   
   // tag array
   val tag_wdata = r_cpu_req_addr(tagmsb, taglsb);
@@ -72,7 +81,9 @@ class rocketICacheDM(lines: Int, addrbits : Int) extends Component {
   val vb_array = Reg(resetVal = Bits(0, lines));
   val vb_rdata = Reg(vb_array(io.cpu.req_addr(indexmsb, indexlsb)));
   
-  when ((state === s_refill_wait) && io.mem.resp_val) { vb_array <== vb_array.bitSet(r_cpu_req_addr(indexmsb, indexlsb).toUFix, UFix(1,1)); }
+  when ((state === s_refill_wait) && io.mem.resp_val) {
+    vb_array <== vb_array.bitSet(r_cpu_req_addr(indexmsb, indexlsb).toUFix, UFix(1,1));
+  }
 
   val tag_match = vb_rdata.toBool && (tag_lookup === r_cpu_req_addr(tagmsb, taglsb));
 
