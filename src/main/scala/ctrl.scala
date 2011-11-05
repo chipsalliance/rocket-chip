@@ -322,14 +322,12 @@ class rocketCtrl extends Component
   }
 
   // replay execute stage PC when the D$ is blocked
-//   val replay_mem_pc = mem_reg_mem_val && (mem_reg_mem_cmd != M_FLA) && !io.dmem.req_rdy;
   val replay_ex = ex_reg_mem_val && !io.dmem.req_rdy;
-  // replay memory stage PC+4 on a D$ load miss
+  
+  // replay execute stage PC on a D$ load miss
   val mem_cmd_load = mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD);
-//   val replay_mem_pc_plus4 = mem_cmd_load && !io.dmem.resp_val;
   val replay_mem = io.dmem.resp_miss;
   
-//   val kill_ex  = replay_mem_pc | replay_mem_pc_plus4 | mem_reg_privileged;
   val kill_ex  = replay_ex | replay_mem | mem_reg_privileged;
   val kill_mem = io.dpath.exception;
 
@@ -339,14 +337,13 @@ class rocketCtrl extends Component
   
   io.dpath.sel_pc :=
     Mux(io.dpath.exception || mem_reg_eret, PC_PCR,
-    Mux(replay_mem || mem_reg_privileged, PC_MEM4,
-    Mux(replay_ex, PC_EX,
+    Mux(replay_ex || replay_mem || mem_reg_privileged, PC_EX,
     Mux(!ex_reg_btb_hit && br_taken, PC_BR,
     Mux(ex_reg_btb_hit && !br_taken, PC_EX4,
     Mux(jr_taken,                    PC_JR,
     Mux(j_taken,                     PC_J,
     Mux(io.dpath.btb_hit,            PC_BTB,
-        PC_4))))))));
+        PC_4)))))));
 
   io.dpath.wen_btb := ~ex_reg_btb_hit & br_taken & ~kill_ex & ~kill_mem;
 

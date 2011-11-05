@@ -137,8 +137,7 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_JR,  ex_jr_target.toUFix,
     Mux(io.ctrl.sel_pc === PC_PCR, mem_reg_pcr(31,0).toUFix,
     Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc, 
-    Mux(io.ctrl.sel_pc === PC_MEM4, mem_reg_pc_plus4, 
-        UFix(0, 32)))))))))));
+        UFix(0, 32))))))))));
 
   when (!io.host.start){
     if_reg_pc <== UFix(0, 32); //32'hFFFF_FFFC;
