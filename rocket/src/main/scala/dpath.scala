@@ -312,7 +312,7 @@ class rocketDpath extends Component
   
   // divider
   div.io.div_fn    := ex_reg_ctrl_div_fn;
-  div.io.div_val   := ex_reg_ctrl_div_val;
+  div.io.div_val   := ex_reg_ctrl_div_val && !io.ctrl.killx;
   div.io.div_waddr := ex_reg_waddr;
   div.io.dpath_rs1 := ex_reg_rs1;
   div.io.dpath_rs2 := ex_reg_rs2;
@@ -322,7 +322,7 @@ class rocketDpath extends Component
   io.ctrl.div_result_val := div.io.div_result_val;
   
   // multiplier
-  mul.io.mul_val := ex_reg_ctrl_mul_val;
+  mul.io.mul_val := ex_reg_ctrl_mul_val && !io.ctrl.killx;
   mul.io.mul_fn	 := ex_reg_ctrl_mul_fn;
   mul.io.mul_tag := ex_reg_waddr;
   mul.io.in0		 := ex_reg_rs1;
