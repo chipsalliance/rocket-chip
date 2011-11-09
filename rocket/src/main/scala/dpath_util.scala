@@ -1,19 +1,18 @@
 package Top
 {
 
-import Chisel._
+import Chisel._;
 import Node._;
-
 import Constants._;
 
 class ioDpathBTB extends Bundle()
 {
-  val current_pc4    = UFix(32, 'input);
+  val current_pc4    = UFix(VADDR_BITS, 'input);
   val hit            = Bool('output);
-  val target         = UFix(32, 'output);
+  val target         = UFix(VADDR_BITS, 'output);
   val wen            = Bool('input);
-  val correct_pc4    = UFix(32, 'input);
-  val correct_target = UFix(32, 'input);
+  val correct_pc4    = UFix(VADDR_BITS, 'input);
+  val correct_target = UFix(VADDR_BITS, 'input);
 }
 
 class rocketDpathBTB extends Component
@@ -21,11 +20,15 @@ class rocketDpathBTB extends Component
   override val io = new ioDpathBTB();
   val rst_lwlr_pf  = Mem(4, io.wen, io.correct_pc4(3, 2), UFix(1, 1), resetVal = UFix(0, 1)); 
   val lwlr_pf      = Mem(4, io.wen, io.correct_pc4(3, 2), 
-                         Cat(io.correct_pc4(31,4), io.correct_target(31,2)), resetVal = UFix(0, 1));
+                         Cat(io.correct_pc4(VADDR_BITS-1,4), io.correct_target(VADDR_BITS-1,2)), resetVal = UFix(0, 1));
+//                          Cat(io.correct_pc4(31,4), io.correct_target(31,2)), resetVal = UFix(0, 1));
   val is_val       = rst_lwlr_pf(io.current_pc4(3, 2));
   val tag_target   = lwlr_pf(io.current_pc4(3, 2));
-  io.hit    := (is_val & (tag_target(57,30) === io.current_pc4(31, 4))).toBool;
-  io.target := Cat(tag_target(29, 0), Bits(0,2)).toUFix;
+  io.hit    := (is_val & (tag_target(2*VADDR_BITS-7,VADDR_BITS-2) === io.current_pc4(VADDR_BITS-1, 4))).toBool;
+  io.target := Cat(tag_target(VADDR_BITS-3, 0), Bits(0,2)).toUFix;
+  
+//   io.hit    := (is_val & (tag_target(57,30) === io.current_pc4(31, 4))).toBool;
+//   io.target := Cat(tag_target(29, 0), Bits(0,2)).toUFix;
 }
 
 class ioDpathPCR extends Bundle()
@@ -35,20 +38,19 @@ class ioDpathPCR extends Bundle()
   val r     = new ioReadPort();
   val w     = new ioWritePort();
   
-  val status 		= Bits(8, 'output);
+  val status 		= Bits(17, 'output);
+  val ptbr      = UFix(PADDR_BITS, 'output);
   val exception = Bool('input);
   val cause 		= UFix(5, 'input);
-  val pc    		= UFix(32, 'input);
+  val pc    		= UFix(VADDR_BITS, 'input);
   val eret  		= Bool('input);
 }
 
 class rocketDpathPCR extends Component
 {
-  override val io = new ioDpathPCR();
-  
-  val HAVE_FPU = Bool(false);
-  val HAVE_VEC = Bool(false);
+  val io = new ioDpathPCR();
   val w = 32;
+  
   val reg_epc      = Reg(resetVal = Bits(0, w)); 
   val reg_badvaddr = Reg(resetVal = Bits(0, w)); 
   val reg_ebase    = Reg(resetVal = Bits(0, w)); 
@@ -59,9 +61,11 @@ class rocketDpathPCR extends Component
   val reg_fromhost = Reg(resetVal = Bits(0, w));
   val reg_k0       = Reg(resetVal = Bits(0, 2*w));
   val reg_k1       = Reg(resetVal = Bits(0, 2*w));
+  val reg_ptbr     = Reg(resetVal = UFix(0, PADDR_BITS));
   
   val reg_error_mode  = Reg(resetVal = Bool(false));
   val reg_log_control = Reg(resetVal = Bool(false));
+  val reg_status_vm   = Reg(resetVal = Bool(false));
   val reg_status_im   = Reg(resetVal = Bits(0,8));
   val reg_status_sx   = Reg(resetVal = Bool(true));
   val reg_status_ux   = Reg(resetVal = Bool(true));
@@ -74,7 +78,8 @@ class rocketDpathPCR extends Component
   val reg_status = Cat(reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, Bits(0,1), reg_status_ev, reg_status_ef, reg_status_et);
   val rdata = Wire() { Bits() };
 
-  io.status  						:= reg_status;
+  io.status  						:= Cat(reg_status_vm, reg_status_im, reg_status);
+  io.ptbr               := reg_ptbr;
   io.host.to 						:= Mux(io.host.from_wen, Bits(0, w), reg_tohost);
   io.debug.error_mode  	:= reg_error_mode;
   io.debug.log_control 	:= reg_log_control;
@@ -110,6 +115,7 @@ class rocketDpathPCR extends Component
 
   when (!io.exception && !io.eret && io.w.en) {
   	when (io.w.addr === PCR_STATUS) {
+  	  reg_status_vm <== io.w.data(16).toBool;
 	    reg_status_im <== io.w.data(15,8);
       reg_status_sx <== io.w.data(7).toBool;
       reg_status_ux <== io.w.data(6).toBool;
@@ -129,11 +135,12 @@ class rocketDpathPCR extends Component
   	when (io.w.addr === PCR_FROMHOST) { reg_fromhost 		<== io.w.data(w-1,0); }
   	when (io.w.addr === PCR_K0) 			{ reg_k0  				<== io.w.data; }
   	when (io.w.addr === PCR_K1) 			{ reg_k1  				<== io.w.data; }
+  	when (io.w.addr === PCR_PTBR) 		{ reg_ptbr  			<== Cat(io.w.data(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
   }
 
   when (!io.r.en) { rdata <== Bits(0,2*w); }
   switch (io.r.addr) {
-    is (PCR_STATUS) 	{ rdata <== Cat(Bits(0,w+16), reg_status_im, reg_status); }
+    is (PCR_STATUS) 	{ rdata <== Cat(Bits(0,w+15), reg_status_vm, reg_status_im, reg_status); }
     is (PCR_EPC) 			{ rdata <== Cat(Fill(w, reg_epc(w-1)), reg_epc); }
     is (PCR_BADVADDR) { rdata <== Cat(Fill(w, reg_badvaddr(w-1)), reg_badvaddr); }
     is (PCR_EVEC) 		{ rdata <== Cat(Fill(w, reg_ebase(w-1)), reg_ebase); }
@@ -146,6 +153,7 @@ class rocketDpathPCR extends Component
     is (PCR_TOHOST)  	{ rdata <== Cat(Fill(w, reg_tohost(w-1)), reg_tohost); }
     is (PCR_K0) 			{ rdata <== reg_k0; }
     is (PCR_K1) 			{ rdata <== reg_k1; }
+    is (PCR_PTBR) 		{ rdata <== Cat(Bits(0,2*w-PADDR_BITS), reg_ptbr); }
     otherwise					{ rdata <== Bits(0,2*w); }
   }
 }

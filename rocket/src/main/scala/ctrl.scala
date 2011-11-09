@@ -53,7 +53,7 @@ class ioCtrlDpath extends Bundle()
   val mem_waddr = UFix(5,'input); // write addr from memory stage
   val wb_waddr = UFix(5,'input); // write addr from writeback stage
   val exception = Bool('input);
-  val status  = Bits(8, 'input);
+  val status  = Bits(17, 'input);
   val sboard_clr0  = Bool('input);
   val sboard_clr0a = UFix(5, 'input);
   val sboard_clr1  = Bool('input);
@@ -67,6 +67,7 @@ class ioCtrlAll extends Bundle()
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_val")).flip();
   val host    = new ioHost(List("start"));
+//   val itlb_xcpt = Bool('input);
 }
 
 class rocketCtrl extends Component

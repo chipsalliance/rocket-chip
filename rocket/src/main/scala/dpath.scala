@@ -12,6 +12,8 @@ class ioDpathAll extends Bundle()
   val debug = new ioDebug();
   val dmem  = new ioDmem(List("req_addr", "req_data", "req_tag", "resp_val", "resp_tag", "resp_data")).flip();
   val imem  = new ioImem(List("req_addr", "resp_data")).flip();
+  val itlb_xcpt = Bool('input);
+  val ptbr = UFix(PADDR_BITS, 'output);
 }
 
 class rocketDpath extends Component
@@ -44,15 +46,15 @@ class rocketDpath extends Component
   val if_reg_pc     = Reg(width = 32, resetVal = UFix(0, 32));
 
   // instruction decode definitions
-  val id_reg_valid          = Reg(resetVal = Bool(false));
-  val id_reg_pc        = Reg(resetVal = UFix(0,32));
-  val id_reg_pc_plus4  = Reg(resetVal = UFix(0,32));
+  val id_reg_valid     = Reg(resetVal = Bool(false));
+  val id_reg_pc        = Reg(resetVal = UFix(0,VADDR_BITS));
+  val id_reg_pc_plus4  = Reg(resetVal = UFix(0,VADDR_BITS));
   val id_reg_inst      = Reg(resetVal = NOP);
 
   // execute definitions
   val ex_reg_valid          = Reg(resetVal = Bool(false));
-  val ex_reg_pc             = Reg(resetVal = UFix(0,32));
-  val ex_reg_pc_plus4       = Reg(resetVal = UFix(0,32));
+  val ex_reg_pc             = Reg(resetVal = UFix(0,VADDR_BITS));
+  val ex_reg_pc_plus4       = Reg(resetVal = UFix(0,VADDR_BITS));
   val ex_reg_inst           = Reg(resetVal = Bits(0,32));
   val ex_reg_raddr2         = Reg(resetVal = UFix(0,5));
   val ex_reg_raddr1         = Reg(resetVal = UFix(0,5));
@@ -79,8 +81,8 @@ class rocketDpath extends Component
 
   // memory definitions
   val mem_reg_valid          = Reg(resetVal = Bool(false));
-  val mem_reg_pc             = Reg(resetVal = UFix(0,32));
-  val mem_reg_pc_plus4       = Reg(resetVal = UFix(0,32));
+  val mem_reg_pc             = Reg(resetVal = UFix(0,VADDR_BITS));
+  val mem_reg_pc_plus4       = Reg(resetVal = UFix(0,VADDR_BITS));
   val mem_reg_waddr          = Reg(resetVal = UFix(0,5));
   val mem_reg_wdata          = Reg(resetVal = Bits(0,64));
   val mem_reg_raddr2         = Reg(resetVal = UFix(0,5));
@@ -94,7 +96,7 @@ class rocketDpath extends Component
   
   // writeback definitions
   val wb_reg_valid          = Reg(resetVal = Bool(false));
-  val wb_reg_pc             = Reg(resetVal = UFix(0,32));
+  val wb_reg_pc             = Reg(resetVal = UFix(0,VADDR_BITS));
   val wb_reg_waddr          = Reg(resetVal = UFix(0,5));
   val wb_reg_wdata          = Reg(resetVal = Bits(0,64));
   val wb_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
@@ -112,7 +114,7 @@ class rocketDpath extends Component
   val r_dmem_resp_data      = Reg(resetVal = Bits(0,64));
   
   // instruction fetch stage
-  val if_pc_plus4 = if_reg_pc + UFix(4, 32);
+  val if_pc_plus4 = if_reg_pc + UFix(4);
 
   val ex_sign_extend = 
     Cat(Fill(52, ex_reg_inst(21)), ex_reg_inst(21,10));
@@ -135,16 +137,17 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_BR,  ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_J,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,  ex_jr_target.toUFix,
-    Mux(io.ctrl.sel_pc === PC_PCR, mem_reg_pcr(31,0).toUFix,
+    Mux(io.ctrl.sel_pc === PC_PCR, mem_reg_pcr(VADDR_BITS-1,0).toUFix,
     Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc, 
-        UFix(0, 32))))))))));
+        UFix(0, VADDR_BITS))))))))));
 
   when (!io.host.start){
-    if_reg_pc <== UFix(0, 32); //32'hFFFF_FFFC;
+    if_reg_pc <== UFix(0, VADDR_BITS); //32'hFFFF_FFFC;
   }  
   when (!io.ctrl.stallf) {
     if_reg_pc <== if_next_pc;
   }
+ 
 
   io.imem.req_addr :=
     Mux(io.ctrl.stallf, if_reg_pc,
@@ -334,7 +337,7 @@ class rocketDpath extends Component
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req_addr  := ex_alu_out;
+  io.dmem.req_addr  := ex_alu_out(PADDR_BITS-1,0);
   io.dmem.req_data  := ex_reg_rs2;
   io.dmem.req_tag   := ex_reg_waddr;
 
@@ -354,7 +357,8 @@ class rocketDpath extends Component
 //   pcr.io.cause 			:= ex_reg_ctrl_cause;
 //   pcr.io.pc					:= ex_reg_pc;
   
-  io.ctrl.status   := pcr.io.status;
+  io.ctrl.status       := pcr.io.status;
+  io.ptbr              := pcr.io.ptbr;
  	io.debug.error_mode  := pcr.io.debug.error_mode;
  	io.debug.log_control := pcr.io.debug.log_control;
   
