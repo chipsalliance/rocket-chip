@@ -1,7 +1,8 @@
 package Top {
 
-import Chisel._
+import Chisel._;
 import Node._;
+import Constants._;
 import scala.math._;
 
 // interface between I$ and processor (32 bits wide)
@@ -17,7 +18,7 @@ class ioImem(view: List[String] = null) extends Bundle (view)
 // interface between I$ and memory (128 bits wide)
 class ioIcache(view: List[String] = null) extends Bundle (view)
 {
-  val req_addr  = UFix(32, 'input);
+  val req_addr  = UFix(PADDR_BITS, 'input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
   val resp_data = Bits(128, 'output);
@@ -55,9 +56,10 @@ class rocketSRAMsp(entries: Int, width: Int) extends Component {
 //    addr_bits = address width (word addressable) bits
 //    32 bit wide cpu port, 128 bit wide memory port, 64 byte cachelines
 
-class rocketICacheDM(lines: Int, addrbits : Int) extends Component {
+class rocketICacheDM(lines: Int) extends Component {
   val io = new ioICacheDM();
 
+  val addrbits = PADDR_BITS;
   val indexbits = ceil(log10(lines)/log10(2)).toInt;
   val offsetbits = 6;
   val tagmsb    = addrbits - 1;

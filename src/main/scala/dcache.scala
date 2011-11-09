@@ -5,24 +5,24 @@ import Node._;
 import Constants._;
 import scala.math._;
 
-// interface between D$ and processor
+// interface between D$ and processor pipeline
 class ioDmem(view: List[String] = null) extends Bundle(view) {
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
   val req_cmd   = Bits(4, 'input);
   val req_type  = Bits(3, 'input);
-  val req_addr  = UFix(32, 'input);
+  val req_addr  = UFix(PADDR_BITS, 'input);
   val req_data  = Bits(64, 'input);
   val req_tag   = Bits(5, 'input);
   val resp_miss = Bool('output);
   val resp_val  = Bool('output);
   val resp_data = Bits(64, 'output);
-  val resp_tag  = Bits(12, 'output);
+  val resp_tag  = Bits(13, 'output);
 }
 
-// interface between D$ and memory
+// interface between D$ and next level in memory hierarchy
 class ioDcache(view: List[String] = null) extends Bundle(view) {
-  val req_addr  = UFix(32, 'input);
+  val req_addr  = UFix(PADDR_BITS, 'input);
   val req_tag   = UFix(3, 'input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
@@ -39,10 +39,11 @@ class ioDCacheDM extends Bundle() {
 }
 
 // state machine to flush (write back dirty lines, invalidate clean ones) the D$
-class rocketDCacheDM_flush(lines: Int, addrbits: Int) extends Component {
+class rocketDCacheDM_flush(lines: Int) extends Component {
   val io = new ioDCacheDM();
-  val dcache = new rocketDCacheDM(lines, addrbits);
+  val dcache = new rocketDCacheDM(lines);
   
+  val addrbits = PADDR_BITS;
   val indexbits = ceil(log10(lines)/log10(2)).toInt;
   val offsetbits = 6;
   val tagmsb    = addrbits - 1;
@@ -65,18 +66,22 @@ class rocketDCacheDM_flush(lines: Int, addrbits: Int) extends Component {
     flush_waiting <== Bool(true);
   }
   
-  when (dcache.io.cpu.req_rdy && 
-        (flush_count === ~Bits(0, indexbits))) { flushing <== Bool(false); }
-  when (dcache.io.cpu.resp_val && 
-        (dcache.io.cpu.resp_tag === r_cpu_req_tag) &&
-        (flush_resp_count === ~Bits(0, indexbits))) { flush_waiting <== Bool(false); }
+  when (dcache.io.cpu.req_rdy && (flush_count === ~Bits(0, indexbits))) {
+    flushing <== Bool(false);
+  }
+  when (dcache.io.cpu.resp_val && (dcache.io.cpu.resp_tag === r_cpu_req_tag) && (flush_resp_count === ~Bits(0, indexbits))) {
+    flush_waiting <== Bool(false);
+  }
   
-  when (flushing && dcache.io.cpu.req_rdy) { flush_count <== flush_count + UFix(1,1); }
-  when (flush_waiting && dcache.io.cpu.resp_val && (dcache.io.cpu.resp_tag === r_cpu_req_tag))
-  { flush_resp_count <== flush_resp_count + UFix(1,1); }
+  when (flushing && dcache.io.cpu.req_rdy) {
+    flush_count <== flush_count + UFix(1,1);
+  }
+  when (flush_waiting && dcache.io.cpu.resp_val && (dcache.io.cpu.resp_tag(5,0) === r_cpu_req_tag)) {
+    flush_resp_count <== flush_resp_count + UFix(1,1);
+  }
   
   dcache.io.cpu.req_val   := (io.cpu.req_val && (io.cpu.req_cmd != M_FLA) && !flush_waiting) || flushing;
-  dcache.io.cpu.req_cmd    := Mux(flushing, M_FLA, io.cpu.req_cmd);
+  dcache.io.cpu.req_cmd   := Mux(flushing, M_FLA, io.cpu.req_cmd);
   dcache.io.cpu.req_addr  := Mux(flushing, Cat(Bits(0,tagmsb-taglsb+1), flush_count, Bits(0,offsetbits)).toUFix, io.cpu.req_addr);
   dcache.io.cpu.req_tag   := Mux(flushing, r_cpu_req_tag, io.cpu.req_tag);
   dcache.io.cpu.req_type  := io.cpu.req_type;
@@ -92,9 +97,10 @@ class rocketDCacheDM_flush(lines: Int, addrbits: Int) extends Component {
   
 }
 
-class rocketDCacheDM(lines: Int, addrbits: Int) extends Component {
+class rocketDCacheDM(lines: Int) extends Component {
   val io = new ioDCacheDM();
   
+  val addrbits = PADDR_BITS;
   val indexbits = ceil(log10(lines)/log10(2)).toInt;
   val offsetbits = 6;
   val tagmsb    = addrbits - 1;
@@ -119,9 +125,10 @@ class rocketDCacheDM(lines: Int, addrbits: Int) extends Component {
   val p_store_type   = Reg(resetVal = Bits(0,3));
   val p_store_valid  = Reg(resetVal = Bool(false));
 
-  val req_load  = (r_cpu_req_cmd === M_XRD);
+  val req_load  = (r_cpu_req_cmd === M_XRD) || (r_cpu_req_cmd === M_PRD);
   val req_store = (r_cpu_req_cmd === M_XWR);
   val req_flush = (r_cpu_req_cmd === M_FLA);
+  val req_ptw_load = (r_cpu_req_cmd === M_PRD);
 
   when (io.cpu.req_val && io.cpu.req_rdy) { 
     r_cpu_req_addr  <== io.cpu.req_addr;
@@ -288,7 +295,8 @@ class rocketDCacheDM(lines: Int, addrbits: Int) extends Component {
                       ((state === s_resolve_miss) && req_flush);
                       
   io.cpu.resp_miss := miss;
-  io.cpu.resp_tag  := Cat(Bits(0,1), r_cpu_req_type, r_cpu_req_addr(2,0), r_cpu_req_tag);
+//   io.cpu.resp_tag  := Cat(Bits(0,1), r_cpu_req_type, r_cpu_req_addr(2,0), r_cpu_req_tag);
+  io.cpu.resp_tag  := Cat(req_ptw_load, r_cpu_req_type, r_cpu_req_addr(2,0), r_cpu_req_tag);
   io.cpu.resp_data := 
     Mux(r_cpu_req_addr(offsetlsb).toBool, data_array_rdata(127, 64), 
       data_array_rdata(63,0));

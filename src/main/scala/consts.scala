@@ -128,6 +128,7 @@ object Constants
   val M_FRD     = Bits("b0010", 4); // fp load
   val M_FWR     = Bits("b0011", 4); // fp store
   val M_FLA     = Bits("b0100", 4); // flush cache
+  val M_PRD     = Bits("b0101", 4); // PTW load
   val M_XA_ADD  = Bits("b1000", 4);
   val M_XA_SWAP = Bits("b1001", 4);
   val M_XA_AND  = Bits("b1010", 4);
@@ -145,12 +146,26 @@ object Constants
   val PCR_COMPARE  = UFix( 5, 5);
   val PCR_CAUSE    = UFix( 6, 5);
   val PCR_MEMSIZE  = UFix( 8, 5);
+  val PCR_PTBR     = UFix( 9, 5);
   val PCR_LOG      = UFix(10, 5);
   val PCR_TOHOST   = UFix(16, 5);
   val PCR_FROMHOST = UFix(17, 5);
   val PCR_CONSOLE  = UFix(18, 5);
   val PCR_K0       = UFix(24, 5);
   val PCR_K1       = UFix(25, 5);
+  
+  val PADDR_BITS = 40;
+  val VADDR_BITS = 43;
+  val PGIDX_BITS = 13;
+  val PPN_BITS = PADDR_BITS-PGIDX_BITS;
+  val VPN_BITS = VADDR_BITS-PGIDX_BITS;
+  val ASID_BITS = 7;
+  val PERM_BITS = 6;
+  
+  val ITLB_ENTRIES = 8;
+  
+  val HAVE_FPU = Bool(false);
+  val HAVE_VEC = Bool(false);
 }
 
 }
