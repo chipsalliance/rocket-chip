@@ -2,11 +2,12 @@ package Top {
 
 import Chisel._;
 import Node._;
+import Constants._;
 import queues._;
 
 class ioIPrefetcherMem(view: List[String] = null) extends Bundle (view)
 {
-  val req_addr  = UFix(32, 'output);
+  val req_addr  = UFix(PADDR_BITS, 'output);
   val req_val   = Bool('output);
   val req_rdy   = Bool('input);
   val req_tag   = Bits(3, 'output);

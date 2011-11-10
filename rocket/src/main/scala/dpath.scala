@@ -49,7 +49,7 @@ class rocketDpath extends Component
 	val rfile = new rocketDpathRegfile();
 
   // instruction fetch definitions
-  val if_reg_pc     = Reg(width = 32, resetVal = UFix(0, 32));
+  val if_reg_pc     = Reg(resetVal = UFix(0,VADDR_BITS));
 
   // instruction decode definitions
   val id_reg_valid     = Reg(resetVal = Bool(false));
@@ -128,8 +128,8 @@ class rocketDpath extends Component
     Cat(Fill(52, ex_reg_inst(31)), ex_reg_inst(31,27), ex_reg_inst(16,10));
 
   val branch_adder_rhs =
-    Mux(io.ctrl.sel_pc === PC_BR, Cat(ex_sign_extend_split(30,0), UFix(0, 1)),
-        Cat(Fill(6, ex_reg_inst(31)), ex_reg_inst(31,7),          UFix(0, 1)));
+    Mux(io.ctrl.sel_pc === PC_BR, Cat(ex_sign_extend_split(41,0), UFix(0, 1)),
+        Cat(Fill(17, ex_reg_inst(31)), ex_reg_inst(31,7),          UFix(0, 1)));
 
   val ex_branch_target = ex_reg_pc + branch_adder_rhs.toUFix;
 

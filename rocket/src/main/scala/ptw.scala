@@ -83,8 +83,8 @@ class rocketPTW extends Component
   io.itlb.resp_err  := (state === s_error);
   io.itlb.resp_perm := r_resp_perm;
   io.itlb.resp_ppn  :=
-    Mux(state === s_l1_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-7),  r_req_vpn(VPN_BITS-8, 0)),
-    Mux(state === s_l2_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-17), r_req_vpn(VPN_BITS-18, 0)),
+    Mux(state === s_l1_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-7),  r_req_vpn(VPN_BITS-11, 0)),
+    Mux(state === s_l2_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-17), r_req_vpn(VPN_BITS-21, 0)),
       r_resp_ppn));
 
   val resp_ptd = (io.dmem.resp_data(1,0) === Bits(1,2));
