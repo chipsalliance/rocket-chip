@@ -4,6 +4,7 @@ package Top
 import Chisel._;
 import Node._;
 import Constants._;
+import scala.math._;
 
 class ioDpathBTB extends Bundle()
 {
@@ -15,17 +16,34 @@ class ioDpathBTB extends Bundle()
   val correct_target = UFix(VADDR_BITS, 'input);
 }
 
-class rocketDpathBTB extends Component
+// basic direct-mapped branch target buffer
+class rocketDpathBTB(entries: Int) extends Component
 {
-  override val io  = new ioDpathBTB();
-  val rst_lwlr_pf  = Mem(4, io.wen, io.correct_pc4(3, 2), UFix(1, 1), resetVal = UFix(0, 1)); 
-  val lwlr_pf      = Mem(4, io.wen, io.correct_pc4(3, 2), 
-                         Cat(io.correct_pc4(VADDR_BITS-1,4), io.correct_target(VADDR_BITS-1,2)), resetVal = UFix(0, 1));
-  val is_val       = rst_lwlr_pf(io.current_pc4(3, 2));
-  val tag_target   = lwlr_pf(io.current_pc4(3, 2));
+  val io  = new ioDpathBTB();
   
-  io.hit    := (is_val & (tag_target(2*VADDR_BITS-7,VADDR_BITS-2) === io.current_pc4(VADDR_BITS-1, 4))).toBool;
-  io.target := Cat(tag_target(VADDR_BITS-3, 0), Bits(0,2)).toUFix;
+  val addr_bits = ceil(log10(entries)/log10(2)).toInt;
+  val idxlsb = 2;
+  val idxmsb = idxlsb+addr_bits-1;
+  val tagmsb = (VADDR_BITS-idxmsb-1)+(VADDR_BITS-idxlsb)-1;
+  val taglsb = (VADDR_BITS-idxlsb);
+  
+  val rst_lwlr_pf  = Mem(entries, io.wen, io.correct_pc4(idxmsb,idxlsb), UFix(1,1), resetVal = UFix(0,1)); 
+  val lwlr_pf      = Mem(entries, io.wen, io.correct_pc4(idxmsb,idxlsb), 
+                         Cat(io.correct_pc4(VADDR_BITS-1,idxmsb+1), io.correct_target(VADDR_BITS-1,idxlsb)), resetVal = UFix(0,1));
+  val is_val       = rst_lwlr_pf(io.current_pc4(idxmsb,idxlsb));
+  val tag_target   = lwlr_pf(io.current_pc4(idxmsb, idxlsb));
+  
+  io.hit    := (is_val & (tag_target(tagmsb,taglsb) === io.current_pc4(VADDR_BITS-1, idxmsb+1))).toBool;
+  io.target := Cat(tag_target(taglsb-1, 0), Bits(0,idxlsb)).toUFix;
+  
+//   val rst_lwlr_pf  = Mem(entries, io.wen, io.correct_pc4(3, 2), UFix(1, 1), resetVal = UFix(0, 1)); 
+//   val lwlr_pf      = Mem(entries, io.wen, io.correct_pc4(3, 2), 
+//                          Cat(io.correct_pc4(VADDR_BITS-1,4), io.correct_target(VADDR_BITS-1,2)), resetVal = UFix(0, 1));
+//   val is_val       = rst_lwlr_pf(io.current_pc4(3, 2));
+//   val tag_target   = lwlr_pf(io.current_pc4(3, 2));
+//   
+//   io.hit    := (is_val & (tag_target(2*VADDR_BITS-7,VADDR_BITS-2) === io.current_pc4(VADDR_BITS-1, 4))).toBool;
+//   io.target := Cat(tag_target(VADDR_BITS-3, 0), Bits(0,2)).toUFix;
 }
 
 class ioDpathPCR extends Bundle()
@@ -49,22 +67,20 @@ class ioDpathPCR extends Bundle()
 class rocketDpathPCR extends Component
 {
   val io = new ioDpathPCR();
-  val w = 32;
   
   val reg_epc      = Reg(resetVal = UFix(0, VADDR_BITS)); 
   val reg_badvaddr = Reg(resetVal = UFix(0, VADDR_BITS)); 
   val reg_ebase    = Reg(resetVal = UFix(0, VADDR_BITS)); 
-  val reg_count    = Reg(resetVal = Bits(0, w)); 
-  val reg_compare  = Reg(resetVal = Bits(0, w)); 
+  val reg_count    = Reg(resetVal = Bits(0, 32)); 
+  val reg_compare  = Reg(resetVal = Bits(0, 32)); 
   val reg_cause    = Reg(resetVal = Bits(0, 5));
-  val reg_tohost   = Reg(resetVal = Bits(0, w)); 
-  val reg_fromhost = Reg(resetVal = Bits(0, w));
-  val reg_k0       = Reg(resetVal = Bits(0, 2*w));
-  val reg_k1       = Reg(resetVal = Bits(0, 2*w));
+  val reg_tohost   = Reg(resetVal = Bits(0, 32)); 
+  val reg_fromhost = Reg(resetVal = Bits(0, 32));
+  val reg_k0       = Reg(resetVal = Bits(0, 64));
+  val reg_k1       = Reg(resetVal = Bits(0, 64));
   val reg_ptbr     = Reg(resetVal = UFix(0, PADDR_BITS));
   
   val reg_error_mode  = Reg(resetVal = Bool(false));
-  val reg_log_control = Reg(resetVal = Bool(false));
   val reg_status_vm   = Reg(resetVal = Bool(false));
   val reg_status_im   = Reg(resetVal = Bits(0,8));
   val reg_status_sx   = Reg(resetVal = Bool(true));
@@ -81,19 +97,18 @@ class rocketDpathPCR extends Component
   io.status  						:= Cat(reg_status_vm, reg_status_im, reg_status);
   io.evec               := reg_ebase;
   io.ptbr               := reg_ptbr;
-  io.host.to 						:= Mux(io.host.from_wen, Bits(0, w), reg_tohost);
+  io.host.to 						:= Mux(io.host.from_wen, Bits(0,32), reg_tohost);
   io.debug.error_mode  	:= reg_error_mode;
-  io.debug.log_control 	:= reg_log_control;
   io.r.data := rdata;
 
   when (io.host.from_wen) {
-    reg_tohost   <== Bits(0, w);
+    reg_tohost   <== Bits(0,32);
     reg_fromhost <== io.host.from;
   } 
   otherwise {
     when (!io.exception && io.w.en && (io.w.addr === PCR_TOHOST)) {
-      reg_tohost   <== io.w.data(w-1, 0);
-      reg_fromhost <== Bits(0, w);
+      reg_tohost   <== io.w.data(31,0);
+      reg_fromhost <== Bits(0,32);
     }
   }
   
@@ -133,33 +148,33 @@ class rocketDpathPCR extends Component
   	when (io.w.addr === PCR_EPC) 			{ reg_epc      		<== io.w.data(VADDR_BITS-1,0).toUFix; }
   	when (io.w.addr === PCR_BADVADDR) { reg_badvaddr 		<== io.w.data(VADDR_BITS-1,0).toUFix; }
   	when (io.w.addr === PCR_EVEC) 		{ reg_ebase 			<== io.w.data(VADDR_BITS-1,0).toUFix; }
-  	when (io.w.addr === PCR_COUNT) 		{ reg_count 			<== io.w.data(w-1,0); }
-  	when (io.w.addr === PCR_COMPARE) 	{ reg_compare 		<== io.w.data(w-1,0); }
+  	when (io.w.addr === PCR_COUNT) 		{ reg_count 			<== io.w.data(31,0); }
+  	when (io.w.addr === PCR_COMPARE) 	{ reg_compare 		<== io.w.data(31,0); }
   	when (io.w.addr === PCR_CAUSE) 		{ reg_cause 			<== io.w.data(4,0); }
-  	when (io.w.addr === PCR_LOG) 			{ reg_log_control	<== io.w.data(0).toBool; }
-  	when (io.w.addr === PCR_FROMHOST) { reg_fromhost 		<== io.w.data(w-1,0); }
+  	when (io.w.addr === PCR_FROMHOST) { reg_fromhost 		<== io.w.data(31,0); }
   	when (io.w.addr === PCR_K0) 			{ reg_k0  				<== io.w.data; }
   	when (io.w.addr === PCR_K1) 			{ reg_k1  				<== io.w.data; }
   	when (io.w.addr === PCR_PTBR) 		{ reg_ptbr  			<== Cat(io.w.data(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
   }
 
-  when (!io.r.en) { rdata <== Bits(0,2*w); }
+  when (!io.r.en) { rdata <== Bits(0,64); }
   switch (io.r.addr) {
-    is (PCR_STATUS) 	{ rdata <== Cat(Bits(0,w+15), reg_status_vm, reg_status_im, reg_status); }
-    is (PCR_EPC) 			{ rdata <== Cat(Fill(2*w-VADDR_BITS, reg_epc(VADDR_BITS-1)), reg_epc); }
-    is (PCR_BADVADDR) { rdata <== Cat(Fill(2*w-VADDR_BITS, reg_badvaddr(VADDR_BITS-1)), reg_badvaddr); }
-    is (PCR_EVEC) 		{ rdata <== Cat(Fill(2*w-VADDR_BITS, reg_ebase(VADDR_BITS-1)), reg_ebase); }
-    is (PCR_COUNT) 		{ rdata <== Cat(Fill(w, reg_count(w-1)), reg_count); }
-    is (PCR_COMPARE) 	{ rdata <== Cat(Fill(w, reg_compare(w-1)), reg_compare); }
-    is (PCR_CAUSE) 		{ rdata <== Cat(Bits(0,w+27), reg_cause); }
-    is (PCR_MEMSIZE) 	{ rdata <== Bits(MEMSIZE_PAGES, 64); }
-    is (PCR_LOG) 	    { rdata <== Cat(Bits(0,63), reg_log_control); }
-    is (PCR_FROMHOST) { rdata <== Cat(Fill(w, reg_fromhost(w-1)), reg_fromhost); }
-    is (PCR_TOHOST)  	{ rdata <== Cat(Fill(w, reg_tohost(w-1)), reg_tohost); }
+    is (PCR_STATUS) 	{ rdata <== Cat(Bits(0,47), reg_status_vm, reg_status_im, reg_status); }
+    is (PCR_EPC) 			{ rdata <== Cat(Fill(64-VADDR_BITS, reg_epc(VADDR_BITS-1)), reg_epc); }
+    is (PCR_BADVADDR) { rdata <== Cat(Fill(64-VADDR_BITS, reg_badvaddr(VADDR_BITS-1)), reg_badvaddr); }
+    is (PCR_EVEC) 		{ rdata <== Cat(Fill(64-VADDR_BITS, reg_ebase(VADDR_BITS-1)), reg_ebase); }
+    is (PCR_COUNT) 		{ rdata <== Cat(Fill(32, reg_count(31)), reg_count); }
+    is (PCR_COMPARE) 	{ rdata <== Cat(Fill(32, reg_compare(31)), reg_compare); }
+    is (PCR_CAUSE) 		{ rdata <== Cat(Bits(0,59), reg_cause); }
+    is (PCR_MEMSIZE) 	{ rdata <== Bits(MEMSIZE_PAGES,64); }
+    is (PCR_COREID) 	{ rdata <== Bits(COREID,64); }
+    is (PCR_NUMCORES) { rdata <== Bits(NUMCORES,64); }
+    is (PCR_FROMHOST) { rdata <== Cat(Fill(32, reg_fromhost(31)), reg_fromhost); }
+    is (PCR_TOHOST)  	{ rdata <== Cat(Fill(32, reg_tohost(31)), reg_tohost); }
     is (PCR_K0) 			{ rdata <== reg_k0; }
     is (PCR_K1) 			{ rdata <== reg_k1; }
-    is (PCR_PTBR) 		{ rdata <== Cat(Bits(0,2*w-PADDR_BITS), reg_ptbr); }
-    otherwise					{ rdata <== Bits(0,2*w); }
+    is (PCR_PTBR) 		{ rdata <== Cat(Bits(0,64-PADDR_BITS), reg_ptbr); }
+    otherwise					{ rdata <== Bits(0,64); }
   }
 }
 

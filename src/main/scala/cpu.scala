@@ -7,7 +7,6 @@ import Constants._;
 class ioDebug(view: List[String] = null) extends Bundle(view)
 {
   val error_mode  = Bool('output);
-  val log_control = Bool('output);
   val id_valid    = Bool('output);
   val ex_valid    = Bool('output);
   val mem_valid   = Bool('output);

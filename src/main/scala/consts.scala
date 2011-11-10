@@ -146,15 +146,19 @@ object Constants
   val PCR_COUNT    = UFix( 4, 5);
   val PCR_COMPARE  = UFix( 5, 5);
   val PCR_CAUSE    = UFix( 6, 5);
+  val PCR_IPI      = UFix( 7, 5);
   val PCR_MEMSIZE  = UFix( 8, 5);
   val PCR_PTBR     = UFix( 9, 5);
-  val PCR_LOG      = UFix(10, 5);
+  val PCR_COREID   = UFix(10, 5);
+  val PCR_NUMCORES = UFix(12, 5);
   val PCR_TOHOST   = UFix(16, 5);
   val PCR_FROMHOST = UFix(17, 5);
   val PCR_CONSOLE  = UFix(18, 5);
   val PCR_K0       = UFix(24, 5);
   val PCR_K1       = UFix(25, 5);
   
+  val COREID = 0;
+  val NUMCORES = 1;
   val PADDR_BITS = 40;
   val VADDR_BITS = 43;
   val PGIDX_BITS = 13;

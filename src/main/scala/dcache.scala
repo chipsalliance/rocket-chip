@@ -17,7 +17,7 @@ class ioDmem(view: List[String] = null) extends Bundle(view) {
   val resp_miss = Bool('output);
   val resp_val  = Bool('output);
   val resp_data = Bits(64, 'output);
-  val resp_tag  = Bits(13, 'output);
+  val resp_tag  = Bits(12, 'output);
 }
 
 // interface between D$ and next level in memory hierarchy

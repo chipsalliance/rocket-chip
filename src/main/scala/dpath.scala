@@ -11,7 +11,7 @@ class ioDpathDmem extends Bundle()
   val req_tag   = UFix(5, 'output);
   val req_data  = Bits(64, 'output);
   val resp_val  = Bool('input);
-  val resp_tag  = Bits(13, 'input); // FIXME: MSB is ignored
+  val resp_tag  = Bits(12, 'input); // FIXME: MSB is ignored
   val resp_data = Bits(64, 'input);
 }
 
@@ -35,7 +35,8 @@ class rocketDpath extends Component
 {
   val io  = new ioDpathAll();
   
-  val btb = new rocketDpathBTB(); 
+  val btb = new rocketDpathBTB(8); // # of entries in BTB
+  
   val if_btb_target = btb.io.target;
 
   val pcr = new rocketDpathPCR(); 
@@ -357,7 +358,6 @@ class rocketDpath extends Component
   io.ctrl.status       := pcr.io.status;
   io.ptbr              := pcr.io.ptbr;
  	io.debug.error_mode  := pcr.io.debug.error_mode;
- 	io.debug.log_control := pcr.io.debug.log_control;
   
 	// branch resolution logic
   io.ctrl.br_eq   := (ex_reg_rs1 === ex_reg_rs2);
