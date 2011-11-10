@@ -33,11 +33,14 @@ class ioCtrlDpath extends Bundle()
   val sel_wb   = UFix(3, 'output);
   val ren_pcr  = Bool('output);
   val wen_pcr  = Bool('output);
-  val exception = Bool('output);
-  val cause    = UFix(5,'output);
   val eret     = Bool('output);
   val mem_load = Bool('output);
   val wen      = Bool('output);
+  // exception handling
+  val exception = Bool('output);
+  val cause    = UFix(5,'output);
+  val badvaddr_wen = Bool('output); // high for any access fault
+  val badvaddr_sel = Bool('output); // select between instruction PC or load/store addr
   // inputs from datapath
   val btb_hit = Bool('input);
   val inst    = Bits(32, 'input);
@@ -389,7 +392,9 @@ class rocketCtrl extends Component
 	// write cause to PCR on an exception
 	io.dpath.exception := mem_exception;
 	io.dpath.cause     := mem_cause;
-
+	io.dpath.badvaddr_wen := io.xcpt_dtlb_ld || io.xcpt_dtlb_st || mem_reg_xcpt_itlb;
+	io.dpath.badvaddr_sel := mem_reg_xcpt_itlb;
+	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, and for privileged instructions
   val replay_ex = (ex_reg_mem_val && !io.dmem.req_rdy) || io.dmem.resp_miss || mem_reg_privileged;
   

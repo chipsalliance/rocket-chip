@@ -40,7 +40,10 @@ class ioDpathPCR extends Bundle()
   val evec      = UFix(VADDR_BITS, 'output);
   val exception = Bool('input);
   val cause 		= UFix(5, 'input);
+  val badvaddr_wen = Bool('input);
+  val badvaddr_sel = Bool('input);
   val pc    		= UFix(VADDR_BITS, 'input);
+  val ldst_addr = UFix(VADDR_BITS, 'input);
   val eret  		= Bool('input);
 }
 
@@ -95,6 +98,10 @@ class rocketDpathPCR extends Component
     }
   }
   
+  when (io.badvaddr_wen) {
+    reg_badvaddr 		<== Mux(io.badvaddr_sel, io.pc, io.ldst_addr);
+  }
+  
   when (io.exception && !reg_status_et) {
   	reg_error_mode <== Bool(true);
   }
@@ -106,7 +113,7 @@ class rocketDpathPCR extends Component
   	reg_epc       <== io.pc;
   	reg_cause     <== io.cause;
   }
-  
+    
   when (!io.exception && io.eret) {
   	reg_status_s  <== reg_status_ps;
   	reg_status_et <== Bool(true);
