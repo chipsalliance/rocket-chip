@@ -350,7 +350,7 @@ class rocketCtrl extends Component
   // FIXME: dtlb exception handling broken, need to move cause value generation
   // to mem stage.  also should probably move it from dpath to ctrl
   io.dpath.sel_pc :=
-    Mux(io.dpath.exception || io.dtlb_xcpt, PC_PCR,
+    Mux(io.dpath.exception || io.dtlb_xcpt || mem_reg_eret, PC_PCR,
     Mux(replay_ex || replay_mem || mem_reg_privileged, PC_EX,
     Mux(!ex_reg_btb_hit && br_taken, PC_BR,
     Mux(ex_reg_btb_hit && !br_taken, PC_EX4,
