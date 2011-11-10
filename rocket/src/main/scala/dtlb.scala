@@ -56,6 +56,7 @@ class rocketDTLB(entries: Int) extends Component
   
   val tag_ram = Mem(entries, io.ptw.resp_val, r_refill_waddr.toUFix, io.ptw.resp_ppn);
   
+  tag_cam.io.clear      := io.cpu.invalidate;
   tag_cam.io.tag        := lookup_tag;
   tag_cam.io.write      := io.ptw.resp_val;
   tag_cam.io.write_tag  := r_refill_tag;
@@ -71,15 +72,6 @@ class rocketDTLB(entries: Int) extends Component
   val ptw_perm_uw = io.ptw.resp_perm(2);
   val ptw_perm_sr = io.ptw.resp_perm(4);
   val ptw_perm_sw = io.ptw.resp_perm(5);
-  
-  // valid bit array
-  val vb_array = Reg(resetVal = Bits(0, entries));
-  when (io.cpu.invalidate) {
-    vb_array <== Bits(0, entries);
-  }
-  when (io.ptw.resp_val) {
-    vb_array <== vb_array.bitSet(r_refill_waddr, Bool(true));
-  }
   
   // permission bit arrays
   val ur_array = Reg(resetVal = Bits(0, entries)); // user execute permission
@@ -103,15 +95,15 @@ class rocketDTLB(entries: Int) extends Component
   }
  
   // high if there are any unused (invalid) entries in the TLB
-  val invalid_entry = ~vb_array.toUFix.orR();
+  val invalid_entry = (tag_cam.io.valid_bits != ~Bits(0,entries));
   val ie_enc = new priorityEncoder(entries);
-  ie_enc.io.in := vb_array.toUFix;
+  ie_enc.io.in := ~tag_cam.io.valid_bits.toUFix;
   val ie_addr = ie_enc.io.out;
   
   val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
   
-  val tag_hit = tag_cam.io.hit && vb_array(tag_hit_addr).toBool;
-  val lookup_miss = (state === s_ready) && status_vm && io.cpu.req_val && !tag_hit;
+  val tag_hit = io.cpu.req_val && tag_cam.io.hit;
+  val lookup_miss = (state === s_ready) && status_vm && !tag_hit;
 
   when (lookup_miss) {
     r_refill_tag <== lookup_tag;
@@ -123,13 +115,13 @@ class rocketDTLB(entries: Int) extends Component
 
   io.cpu.xcpt_ld :=
     status_vm && tag_hit && req_load &&
-    ((status_mode && !sw_array(tag_hit_addr).toBool) ||
-    (!status_mode && !uw_array(tag_hit_addr).toBool));
+    !((status_mode && sw_array(tag_hit_addr).toBool) ||
+     (!status_mode && uw_array(tag_hit_addr).toBool));
 
   io.cpu.xcpt_st :=
     status_vm && tag_hit && req_store &&
-    ((status_mode && !sr_array(tag_hit_addr).toBool) ||
-    (!status_mode && !ur_array(tag_hit_addr).toBool));
+    !((status_mode && sr_array(tag_hit_addr).toBool) ||
+     (!status_mode && ur_array(tag_hit_addr).toBool));
 
   io.cpu.req_rdy   := (state === s_ready);
   io.cpu.resp_miss := lookup_miss;

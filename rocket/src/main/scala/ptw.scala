@@ -27,14 +27,13 @@ class rocketDmemArbiter extends Component
   io.cpu.req_rdy   := io.mem.req_rdy && !io.ptw.req_val;  
   io.cpu.resp_miss := io.mem.resp_miss; // FIXME
 
-  io.cpu.resp_val  := io.mem.resp_val && !io.mem.resp_tag(12).toBool;
-  io.ptw.resp_val  := io.mem.resp_val &&  io.mem.resp_tag(12).toBool; 
+  io.cpu.resp_val  := io.mem.resp_val && !io.mem.resp_tag(11).toBool;
+  io.ptw.resp_val  := io.mem.resp_val &&  io.mem.resp_tag(11).toBool; 
 
   io.ptw.resp_data := io.mem.resp_data;
   io.cpu.resp_data := io.mem.resp_data;
-//   io.cpu.resp_tag  := io.mem.resp_tag(11,0);
-  io.cpu.resp_tag  := io.mem.resp_tag; // to get rid of warning, MSB of tag is ignored in dpath
-  
+//   io.cpu.resp_tag  := io.mem.resp_tag(10,0);
+  io.cpu.resp_tag  := io.mem.resp_tag;
 }
 
 class ioPTW extends Bundle
@@ -55,7 +54,7 @@ class rocketPTW extends Component
   val r_req_vpn = Reg(resetVal = Bits(0,VPN_BITS));
   val r_req_dest = Reg(resetVal = Bool(false)); // 0 = ITLB, 1 = DTLB
   
-  val req_addr = Reg(resetVal = UFix(0,PPN_BITS+PGIDX_BITS));
+  val req_addr = Reg(resetVal = UFix(0,PADDR_BITS));
   val r_resp_ppn = Reg(resetVal = Bits(0,PPN_BITS));
   val r_resp_perm = Reg(resetVal = Bits(0,PERM_BITS));
   
@@ -69,17 +68,17 @@ class rocketPTW extends Component
   when ((state === s_ready) && req_itlb_val) {
     r_req_vpn  <== io.itlb.req_vpn;
     r_req_dest <== Bool(false);
-    req_addr <== Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.itlb.req_vpn(VPN_BITS-1,VPN_BITS-10)).toUFix;
+    req_addr <== Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.itlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
   }
   
   when ((state === s_ready) && req_dtlb_val) {
     r_req_vpn  <== io.dtlb.req_vpn;
     r_req_dest <== Bool(true);
-    req_addr <== Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.dtlb.req_vpn(VPN_BITS-1,VPN_BITS-10)).toUFix;
+    req_addr <== Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.dtlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
   }
   
   when (io.dmem.resp_val) {
-    req_addr <== Cat(io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS), vpn_idx).toUFix;
+    req_addr <== Cat(io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS), vpn_idx, Bits(0,3)).toUFix;
     r_resp_perm <== io.dmem.resp_data(9,4);
     r_resp_ppn  <== io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS);
   }

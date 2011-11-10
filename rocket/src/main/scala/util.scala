@@ -29,7 +29,7 @@ class priorityDecoder(width: Int) extends Component
 
 class ioPriorityEncoder(in_width: Int, out_width: Int) extends Bundle
 {
-  val in = Bits(in_width, 'input);
+  val in  = Bits(in_width, 'input);
   val out = UFix(out_width, 'output);
 }
 
