@@ -5,6 +5,16 @@ import Node._;
 import Constants._
 import Instructions._
 
+class ioDpathDmem extends Bundle()
+{
+  val req_addr  = UFix(VADDR_BITS, 'output);
+  val req_tag   = UFix(5, 'output);
+  val req_data  = Bits(64, 'output);
+  val resp_val  = Bool('input);
+  val resp_tag  = Bits(13, 'input); // FIXME: MSB is ignored
+  val resp_data = Bits(64, 'input);
+}
+
 class ioDpathImem extends Bundle()
 {
   val req_addr  = UFix(VADDR_BITS, 'output);
@@ -16,7 +26,8 @@ class ioDpathAll extends Bundle()
   val host  = new ioHost();
   val ctrl  = new ioCtrlDpath().flip();
   val debug = new ioDebug();
-  val dmem  = new ioDmem(List("req_addr", "req_data", "req_tag", "resp_val", "resp_tag", "resp_data")).flip();
+//   val dmem  = new ioDmem(List("req_addr", "req_data", "req_tag", "resp_val", "resp_tag", "resp_data")).flip();
+  val dmem  = new ioDpathDmem();
   val imem  = new ioDpathImem();
   val ptbr = UFix(PADDR_BITS, 'output);
 }

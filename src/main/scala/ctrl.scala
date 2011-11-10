@@ -33,10 +33,13 @@ class ioCtrlDpath extends Bundle()
   val sel_wb   = UFix(3, 'output);
   val ren_pcr  = Bool('output);
   val wen_pcr  = Bool('output);
+  // FIXME: move exception handling stuff (generating cause value, etc)
+  // from EX stage of dpath to MEM stage of control
   val xcpt_illegal = Bool('output);
   val xcpt_privileged = Bool('output);
   val xcpt_fpu = Bool('output);
   val xcpt_syscall = Bool('output);
+//   val xcpt_dtlb = Bool('output);
   val xcpt_itlb = Bool('output);
   val eret     = Bool('output);
   val mem_load = Bool('output);
@@ -68,6 +71,7 @@ class ioCtrlAll extends Bundle()
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss")).flip();
   val host    = new ioHost(List("start"));
+  val dtlb_xcpt = Bool('input);
   val itlb_xcpt = Bool('input);
 }
 
@@ -237,7 +241,7 @@ class rocketCtrl extends Component
   val ex_reg_mem_type    = Reg(){UFix(width = 3)};
   val ex_reg_eret        = Reg(resetVal = Bool(false));
   val ex_reg_privileged  = Reg(resetVal = Bool(false));
-//   val id_reg_itlb_xcpt   = Reg(resetVal = Bool(false));
+//   val ex_reg_itlb_xcpt   = Reg(resetVal = Bool(false));
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
@@ -343,8 +347,10 @@ class rocketCtrl extends Component
   
   io.dpath.mem_load    := mem_cmd_load;
   
+  // FIXME: dtlb exception handling broken, need to move cause value generation
+  // to mem stage.  also should probably move it from dpath to ctrl
   io.dpath.sel_pc :=
-    Mux(io.dpath.exception || mem_reg_eret, PC_PCR,
+    Mux(io.dpath.exception || io.dtlb_xcpt, PC_PCR,
     Mux(replay_ex || replay_mem || mem_reg_privileged, PC_EX,
     Mux(!ex_reg_btb_hit && br_taken, PC_BR,
     Mux(ex_reg_btb_hit && !br_taken, PC_EX4,
