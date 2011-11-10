@@ -108,6 +108,7 @@ class rocketDpath extends Component
   // writeback definitions
   val wb_reg_valid          = Reg(resetVal = Bool(false));
   val wb_reg_pc             = Reg(resetVal = UFix(0,VADDR_BITS));
+  val wb_reg_mem_req_addr   = Reg(resetVal = UFix(0,VADDR_BITS));
   val wb_reg_waddr          = Reg(resetVal = UFix(0,5));
   val wb_reg_wdata          = Reg(resetVal = Bits(0,64));
   val wb_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
@@ -117,6 +118,8 @@ class rocketDpath extends Component
   val wb_reg_ctrl_exception = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
+  val wb_reg_badvaddr_sel   = Reg(resetVal = Bool(false));
+  val wb_reg_badvaddr_wen   = Reg(resetVal = Bool(false));
 
   val r_dmem_resp_val       = Reg(resetVal = Bool(false));
   val r_dmem_resp_waddr     = Reg(resetVal = UFix(0,5));
@@ -412,6 +415,9 @@ class rocketDpath extends Component
   wb_reg_ctrl_eret      <== mem_reg_ctrl_eret;
   wb_reg_ctrl_exception <== io.ctrl.exception;
   wb_reg_ctrl_cause     <== io.ctrl.cause;
+  wb_reg_mem_req_addr   <== io.dmem.req_addr;
+  wb_reg_badvaddr_wen   <== io.ctrl.badvaddr_wen;
+  wb_reg_badvaddr_sel   <== io.ctrl.badvaddr_sel;
 
   when (io.ctrl.killm) {
     wb_reg_valid          <== Bool(false);
@@ -448,10 +454,13 @@ class rocketDpath extends Component
   pcr.io.w.en   := wb_reg_ctrl_wen_pcr;
   pcr.io.w.data := wb_reg_wdata;
 
-  pcr.io.eret      	:= wb_reg_ctrl_eret;
-  pcr.io.exception 	:= wb_reg_ctrl_exception;
-  pcr.io.cause 			:= wb_reg_ctrl_cause;
-  pcr.io.pc					:= wb_reg_pc;
+  pcr.io.eret      	  := wb_reg_ctrl_eret;
+  pcr.io.exception 	  := wb_reg_ctrl_exception;
+  pcr.io.cause 			  := wb_reg_ctrl_cause;
+  pcr.io.pc					  := wb_reg_pc;
+  pcr.io.ldst_addr    := wb_reg_mem_req_addr;
+  pcr.io.badvaddr_wen := wb_reg_badvaddr_wen;
+  pcr.io.badvaddr_sel := wb_reg_badvaddr_sel;
   
   // temporary debug outputs so things don't get optimized away
   io.debug.id_valid  := id_reg_valid;
