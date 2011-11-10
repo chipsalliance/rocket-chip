@@ -118,7 +118,6 @@ class rocketDpath extends Component
   val wb_reg_ctrl_exception = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
-  val wb_reg_badvaddr_sel   = Reg(resetVal = Bool(false));
   val wb_reg_badvaddr_wen   = Reg(resetVal = Bool(false));
 
   val r_dmem_resp_val       = Reg(resetVal = Bool(false));
@@ -156,13 +155,15 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_EVEC, pcr.io.evec,
     Mux(io.ctrl.sel_pc === PC_MEM,  mem_reg_pc,
         UFix(0, VADDR_BITS)))))))))));
-
+        
   when (!io.host.start){
     if_reg_pc <== UFix(0, VADDR_BITS); //32'hFFFF_FFFC;
   }  
   when (!io.ctrl.stallf) {
     if_reg_pc <== if_next_pc;
   }
+
+  io.ctrl.xcpt_ma_inst := if_next_pc(1,0) != Bits(0,2)
 
   io.imem.req_addr :=
     Mux(io.ctrl.stallf, if_reg_pc,
@@ -417,7 +418,6 @@ class rocketDpath extends Component
   wb_reg_ctrl_cause     <== io.ctrl.cause;
   wb_reg_mem_req_addr   <== io.dmem.req_addr;
   wb_reg_badvaddr_wen   <== io.ctrl.badvaddr_wen;
-  wb_reg_badvaddr_sel   <== io.ctrl.badvaddr_sel;
 
   when (io.ctrl.killm) {
     wb_reg_valid          <== Bool(false);
@@ -458,9 +458,8 @@ class rocketDpath extends Component
   pcr.io.exception 	  := wb_reg_ctrl_exception;
   pcr.io.cause 			  := wb_reg_ctrl_cause;
   pcr.io.pc					  := wb_reg_pc;
-  pcr.io.ldst_addr    := wb_reg_mem_req_addr;
+  pcr.io.badvaddr     := wb_reg_mem_req_addr;
   pcr.io.badvaddr_wen := wb_reg_badvaddr_wen;
-  pcr.io.badvaddr_sel := wb_reg_badvaddr_sel;
   
   // temporary debug outputs so things don't get optimized away
   io.debug.id_valid  := id_reg_valid;
