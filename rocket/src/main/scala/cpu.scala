@@ -45,6 +45,7 @@ class rocketProc extends Component
   val ctrl  = new rocketCtrl();      
   val dpath = new rocketDpath();
 
+  val dtlb  = new rocketDTLB(ITLB_ENTRIES);
   val itlb  = new rocketITLB(ITLB_ENTRIES);
   val ptw   = new rocketPTW();
   val arb   = new rocketDmemArbiter();
@@ -60,38 +61,38 @@ class rocketProc extends Component
   dpath.io.host             ^^ io.host;
   dpath.io.debug            ^^ io.debug;
 
+  // FIXME: make this less verbose
+  // connect ITLB to I$, ctrl, dpath
   itlb.io.cpu.invalidate  := Bool(false);
   itlb.io.cpu.status      := dpath.io.ctrl.status;
-  itlb.io.cpu.req_val     := ctrl.io.imem.req_val;
-  ctrl.io.imem.req_rdy    := itlb.io.cpu.req_rdy && io.imem.req_rdy;
-  
+  itlb.io.cpu.req_val     := ctrl.io.imem.req_val;  
   itlb.io.cpu.req_asid    := Bits(0,ASID_BITS); // FIXME: connect to PCR
-//  itlb.io.cpu.req_vpn     := dpath.io.imem.req_addr(VADDR_BITS-1,PGIDX_BITS);
   itlb.io.cpu.req_addr    := dpath.io.imem.req_addr;
-  
   io.imem.req_val         := itlb.io.cpu.resp_val;
   io.imem.req_addr        := itlb.io.cpu.resp_addr;
-  
+  ctrl.io.imem.req_rdy    := itlb.io.cpu.req_rdy && io.imem.req_rdy;  
   ctrl.io.imem.resp_val   := io.imem.resp_val;
   ctrl.io.itlb_xcpt       := itlb.io.cpu.exception;
   
+  // connect page table walker to TLBs, page table base register (from PCR)
+  // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
+  
   ptw.io.itlb             <> itlb.io.ptw;
   ptw.io.ptbr             := dpath.io.ptbr;
-  
   arb.io.ptw              <> ptw.io.dmem;
   arb.io.mem              ^^ io.dmem
   
+  // FIXME: make this less verbose
+  // connect arbiter to ctrl+dpath
   arb.io.cpu.req_val      := ctrl.io.dmem.req_val;
   arb.io.cpu.req_cmd      := ctrl.io.dmem.req_cmd;
   arb.io.cpu.req_type     := ctrl.io.dmem.req_type;
   arb.io.cpu.req_addr     := dpath.io.dmem.req_addr;
   arb.io.cpu.req_data     := dpath.io.dmem.req_data;
   arb.io.cpu.req_tag      := dpath.io.dmem.req_tag;
-  
   ctrl.io.dmem.req_rdy    := arb.io.cpu.req_rdy;
   ctrl.io.dmem.resp_miss  := arb.io.cpu.resp_miss;
   ctrl.io.dmem.resp_val   := arb.io.cpu.resp_val;
-  
   dpath.io.dmem.resp_val  := arb.io.cpu.resp_val;
   dpath.io.dmem.resp_tag  := arb.io.cpu.resp_tag;
   dpath.io.dmem.resp_data := arb.io.cpu.resp_data;
