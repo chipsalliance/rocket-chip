@@ -66,7 +66,7 @@ class rocketPTW extends Component
   when (io.dmem.resp_val) {
     req_addr <== Cat(io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS), vpn_idx).toUFix;
     r_resp_perm <== io.dmem.resp_data(9,4);
-    r_resp_ppn <== io.dmem.resp_data(PPN_BITS-1, PGIDX_BITS);
+    r_resp_ppn  <== io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS);
   }
   
   io.dmem.req_val :=
@@ -77,13 +77,14 @@ class rocketPTW extends Component
   io.dmem.req_cmd  := M_PRD;
   io.dmem.req_type := MT_D;
   io.dmem.req_addr := req_addr;
-    
+  
+  io.itlb.req_rdy   := (state === s_ready);
   io.itlb.resp_val  := (state === s_done) || (state === s_l1_fake) || (state === s_l2_fake);
   io.itlb.resp_err  := (state === s_error);
   io.itlb.resp_perm := r_resp_perm;
   io.itlb.resp_ppn  :=
-    Mux(state === s_l1_fake, Cat(r_resp_ppn(PADDR_BITS-1, PADDR_BITS-7),  r_req_vpn(VPN_BITS-8, 0)),
-    Mux(state === s_l2_fake, Cat(r_resp_ppn(PADDR_BITS-1, PADDR_BITS-17), r_req_vpn(VPN_BITS-18, 0)),
+    Mux(state === s_l1_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-7),  r_req_vpn(VPN_BITS-8, 0)),
+    Mux(state === s_l2_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-17), r_req_vpn(VPN_BITS-18, 0)),
       r_resp_ppn));
 
   val resp_ptd = (io.dmem.resp_data(1,0) === Bits(1,2));
