@@ -51,11 +51,9 @@ class rocketSRAMsp(entries: Int, width: Int) extends Component {
 }
 
 // basic direct mapped instruction cache
+// 32 bit wide cpu port, 128 bit wide memory port, 64 byte cachelines
 // parameters :
 //    lines = # cache lines
-//    addr_bits = address width (word addressable) bits
-//    32 bit wide cpu port, 128 bit wide memory port, 64 byte cachelines
-
 class rocketICacheDM(lines: Int) extends Component {
   val io = new ioICacheDM();
 

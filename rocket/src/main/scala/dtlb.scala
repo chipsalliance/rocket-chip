@@ -6,7 +6,7 @@ import Node._;
 import Constants._;
 import scala.math._;
 
-// interface between DTLB and fetch stage of pipeline
+// interface between DTLB and pipeline
 class ioDTLB_CPU(view: List[String] = null) extends Bundle(view)
 {
   // status bits (from PCR), to check current permission and whether VM is enabled
@@ -20,9 +20,11 @@ class ioDTLB_CPU(view: List[String] = null) extends Bundle(view)
   val req_asid = Bits(ASID_BITS, 'input);
   val req_addr  = UFix(VADDR_BITS, 'input);
   // lookup responses
+  val resp_miss = Bool('output);
   val resp_val = Bool('output);
   val resp_addr = UFix(PADDR_BITS, 'output);
-  val exception = Bool('output);
+  val xcpt_ld = Bool('output);
+  val xcpt_st = Bool('output);
 }
 
 class ioDTLB extends Bundle
@@ -119,24 +121,22 @@ class rocketDTLB(entries: Int) extends Component
     }
   }
 
-  val dtlb_st_xcpt =
-    tag_hit && req_load &&
+  io.cpu.xcpt_ld :=
+    status_vm && tag_hit && req_load &&
     ((status_mode && !sw_array(tag_hit_addr).toBool) ||
     (!status_mode && !uw_array(tag_hit_addr).toBool));
 
-  val dtlb_ld_xcpt =
-    tag_hit && req_store &&
+  io.cpu.xcpt_st :=
+    status_vm && tag_hit && req_store &&
     ((status_mode && !sr_array(tag_hit_addr).toBool) ||
     (!status_mode && !ur_array(tag_hit_addr).toBool));
 
-  val dtlb_exception = dtlb_st_xcpt || dtlb_ld_xcpt;
-  
   io.cpu.req_rdy   := (state === s_ready);
+  io.cpu.resp_miss := lookup_miss;
   io.cpu.resp_val  := Mux(status_vm, tag_hit, io.cpu.req_val);
   io.cpu.resp_addr  := 
     Mux(status_vm, Cat(tag_ram(tag_hit_addr), req_idx),
       io.cpu.req_addr(PADDR_BITS-1,0)).toUFix;
-  io.cpu.exception := status_vm && dtlb_exception;
   
   io.ptw.req_val := (state === s_request);
   io.ptw.req_vpn := r_refill_tag(VPN_BITS-1,0);
