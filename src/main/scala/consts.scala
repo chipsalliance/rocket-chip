@@ -24,6 +24,7 @@ object Constants
   val PC_MEM  = UFix(7, 4);
   val PC_MEM4 = UFix(8, 4);
   val PC_EX   = UFix(9, 4);
+  val PC_EVEC = UFix(10, 4);
 
   val KF_Y  = UFix(1, 1);
   val KF_N  = UFix(0, 1);
@@ -164,6 +165,10 @@ object Constants
   
   val DTLB_ENTRIES = 8;
   val ITLB_ENTRIES = 8;
+  
+  // physical memory size (# 4K pages - for proxy kernel at least)
+  // if you change this value, make sure to also change MEMORY_SIZE variable in memif.h
+  val MEMSIZE = Bits("h2000", 64); // 32 megs
   
   val HAVE_FPU = Bool(false);
   val HAVE_VEC = Bool(false);

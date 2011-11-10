@@ -26,7 +26,6 @@ class ioDpathAll extends Bundle()
   val host  = new ioHost();
   val ctrl  = new ioCtrlDpath().flip();
   val debug = new ioDebug();
-//   val dmem  = new ioDmem(List("req_addr", "req_data", "req_tag", "resp_val", "resp_tag", "resp_data")).flip();
   val dmem  = new ioDpathDmem();
   val imem  = new ioDpathImem();
   val ptbr = UFix(PADDR_BITS, 'output);
@@ -91,8 +90,6 @@ class rocketDpath extends Component
   val ex_reg_ctrl_ren_pcr   = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_eret      = Reg(resetVal = Bool(false));
-  val ex_reg_ctrl_exception = Reg(resetVal = Bool(false));
-  val ex_reg_ctrl_cause     = Reg(resetVal = UFix(0,5));
  	val ex_wdata						  = Wire() { Bits() }; 	
 
   // memory definitions
@@ -103,9 +100,7 @@ class rocketDpath extends Component
   val mem_reg_wdata          = Reg(resetVal = Bits(0,64));
   val mem_reg_raddr2         = Reg(resetVal = UFix(0,5));
   val mem_reg_pcr            = Reg(resetVal = Bits(0,64));
-  val mem_reg_ctrl_cause     = Reg(resetVal = UFix(0,5));
   val mem_reg_ctrl_eret      = Reg(resetVal = Bool(false));
-  val mem_reg_ctrl_exception = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
@@ -147,16 +142,17 @@ class rocketDpath extends Component
   btb.io.correct_target := ex_branch_target;
 
   val if_next_pc =
-    Mux(io.ctrl.sel_pc === PC_4,   if_pc_plus4,
-    Mux(io.ctrl.sel_pc === PC_BTB, if_btb_target,
-    Mux(io.ctrl.sel_pc === PC_EX,  ex_reg_pc,
-    Mux(io.ctrl.sel_pc === PC_EX4, ex_reg_pc_plus4,
-    Mux(io.ctrl.sel_pc === PC_BR,  ex_branch_target,
-    Mux(io.ctrl.sel_pc === PC_J,   ex_branch_target,
-    Mux(io.ctrl.sel_pc === PC_JR,  ex_jr_target.toUFix,
-    Mux(io.ctrl.sel_pc === PC_PCR, mem_reg_pcr(VADDR_BITS-1,0).toUFix,
-    Mux(io.ctrl.sel_pc === PC_MEM, mem_reg_pc, 
-        UFix(0, VADDR_BITS))))))))));
+    Mux(io.ctrl.sel_pc === PC_4,    if_pc_plus4,
+    Mux(io.ctrl.sel_pc === PC_BTB,  if_btb_target,
+    Mux(io.ctrl.sel_pc === PC_EX,   ex_reg_pc,
+    Mux(io.ctrl.sel_pc === PC_EX4,  ex_reg_pc_plus4,
+    Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
+    Mux(io.ctrl.sel_pc === PC_J,    ex_branch_target,
+    Mux(io.ctrl.sel_pc === PC_JR,   ex_jr_target.toUFix,
+    Mux(io.ctrl.sel_pc === PC_PCR,  mem_reg_pcr(VADDR_BITS-1,0).toUFix, // only used for ERET
+    Mux(io.ctrl.sel_pc === PC_EVEC, pcr.io.evec,
+    Mux(io.ctrl.sel_pc === PC_MEM,  mem_reg_pc,
+        UFix(0, VADDR_BITS)))))))))));
 
   when (!io.host.start){
     if_reg_pc <== UFix(0, VADDR_BITS); //32'hFFFF_FFFC;
@@ -256,16 +252,6 @@ class rocketDpath extends Component
     Mux(id_raddr2 != UFix(0, 5) && r_dmem_resp_val  && id_raddr2 === r_dmem_resp_waddr, dmem_resp_data_final,
     Mux(id_raddr2 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr2 === wb_reg_waddr,  wb_reg_wdata,
         id_rdata2)))));
-        
-  // write value to cause register based on exception type
-	val id_exception = io.ctrl.xcpt_illegal || io.ctrl.xcpt_privileged || io.ctrl.xcpt_fpu || io.ctrl.xcpt_syscall || io.ctrl.xcpt_itlb;
-	val id_cause = 
-	  Mux(io.ctrl.xcpt_itlb, UFix(1,5),
-		Mux(io.ctrl.xcpt_illegal, UFix(2,5),
-		Mux(io.ctrl.xcpt_privileged, UFix(3,5),
-		Mux(io.ctrl.xcpt_fpu, UFix(4,5),
-		Mux(io.ctrl.xcpt_syscall, UFix(6,5), 
-			UFix(0,5))))));
 
   io.ctrl.inst := id_reg_inst;
 
@@ -287,7 +273,6 @@ class rocketDpath extends Component
   ex_reg_ctrl_ll_wb     <== io.ctrl.div_wb | io.ctrl.mul_wb; // TODO: verify
   ex_reg_ctrl_sel_wb    <== io.ctrl.sel_wb;
   ex_reg_ctrl_ren_pcr   <== io.ctrl.ren_pcr;
-  ex_reg_ctrl_cause     <== id_cause;
 
   when(io.ctrl.killd) {
     ex_reg_valid          <== Bool(false);
@@ -296,7 +281,6 @@ class rocketDpath extends Component
     ex_reg_ctrl_wen     	<== Bool(false);
     ex_reg_ctrl_wen_pcr 	<== Bool(false);
     ex_reg_ctrl_eret			<== Bool(false);
-  	ex_reg_ctrl_exception <== Bool(false);
   } 
   otherwise {
     ex_reg_valid          <== id_reg_valid;
@@ -305,7 +289,6 @@ class rocketDpath extends Component
     ex_reg_ctrl_wen     	<== io.ctrl.wen;
     ex_reg_ctrl_wen_pcr		<== io.ctrl.wen_pcr;
     ex_reg_ctrl_eret			<== io.ctrl.eret;
-    ex_reg_ctrl_exception <== id_exception;
   }
 
   val ex_alu_in2 =
@@ -358,12 +341,11 @@ class rocketDpath extends Component
   io.dmem.req_tag   := ex_reg_waddr;
 
 	// processor control regfile read
-  pcr.io.r.en   := ex_reg_ctrl_ren_pcr | ex_reg_ctrl_exception | ex_reg_ctrl_eret;
+  pcr.io.r.en   := ex_reg_ctrl_ren_pcr | ex_reg_ctrl_eret;
   pcr.io.r.addr := 
-  	Mux(ex_reg_ctrl_exception, PCR_EVEC, 
   	Mux(ex_reg_ctrl_eret, PCR_EPC, 
-  		ex_reg_raddr2));
-  		
+  		ex_reg_raddr2);
+
   pcr.io.host.from_wen ^^ io.host.from_wen;
   pcr.io.host.from     ^^ io.host.from;
   pcr.io.host.to       ^^ io.host.to;
@@ -396,25 +378,20 @@ class rocketDpath extends Component
   mem_reg_wdata             <== ex_wdata;
   mem_reg_ctrl_ll_wb        <== ex_reg_ctrl_ll_wb;
   mem_reg_raddr2            <== ex_reg_raddr2;
-  mem_reg_ctrl_cause        <== ex_reg_ctrl_cause;
 
   when (io.ctrl.killx) {
     mem_reg_valid          <== Bool(false);
     mem_reg_ctrl_eret      <== Bool(false);
     mem_reg_ctrl_wen     	 <== Bool(false);
     mem_reg_ctrl_wen_pcr 	 <== Bool(false);
-    mem_reg_ctrl_exception <== Bool(false);
   }
   otherwise {
     mem_reg_valid          <== ex_reg_valid;
     mem_reg_ctrl_eret      <== ex_reg_ctrl_eret;
     mem_reg_ctrl_wen     	 <== ex_reg_ctrl_wen;
     mem_reg_ctrl_wen_pcr 	 <== ex_reg_ctrl_wen_pcr;
-    mem_reg_ctrl_exception <== ex_reg_ctrl_exception;
   }
   
-  // exception signal to control (for NPC select)
-  io.ctrl.exception := mem_reg_ctrl_exception;
   // for load/use hazard detection (load byte/halfword)
   io.ctrl.mem_waddr := mem_reg_waddr;
 
@@ -432,9 +409,9 @@ class rocketDpath extends Component
   wb_reg_wdata          <== mem_reg_wdata;
   wb_reg_ctrl_ll_wb     <== mem_reg_ctrl_ll_wb;
   wb_reg_raddr2         <== mem_reg_raddr2;
-  wb_reg_ctrl_cause     <== mem_reg_ctrl_cause;
   wb_reg_ctrl_eret      <== mem_reg_ctrl_eret;
-  wb_reg_ctrl_exception <== mem_reg_ctrl_exception;
+  wb_reg_ctrl_exception <== io.ctrl.exception;
+  wb_reg_ctrl_cause     <== io.ctrl.cause;
 
   when (io.ctrl.killm) {
     wb_reg_valid          <== Bool(false);
