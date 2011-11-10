@@ -155,7 +155,8 @@ class rocketITLB(entries: Int) extends Component
   val itlb_exception = 
     io.cpu.req_val && tag_hit && 
     ((status_mode && !sx_array(tag_hit_addr).toBool) ||
-    (!status_mode && !ux_array(tag_hit_addr).toBool));
+    (!status_mode && !ux_array(tag_hit_addr).toBool) ||
+    (io.cpu.resp_addr >= MEMSIZE));
   
   io.cpu.req_rdy   := (state === s_ready);
   io.cpu.resp_val  := Mux(status_vm, tag_hit, io.cpu.req_val);

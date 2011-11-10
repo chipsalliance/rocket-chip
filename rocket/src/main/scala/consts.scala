@@ -168,7 +168,8 @@ object Constants
   
   // physical memory size (# 4K pages - for proxy kernel at least)
   // if you change this value, make sure to also change MEMORY_SIZE variable in memif.h
-  val MEMSIZE = Bits("h2000", 64); // 32 megs
+  val MEMSIZE_PAGES = 8192; // 32 megs
+  val MEMSIZE = MEMSIZE_PAGES*4096;
   
   val HAVE_FPU = Bool(false);
   val HAVE_VEC = Bool(false);

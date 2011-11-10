@@ -39,9 +39,9 @@ class ioCtrlDpath extends Bundle()
   // exception handling
   val exception = Bool('output);
   val cause    = UFix(5,'output);
-  val badvaddr_wen = Bool('output); // high for any access fault
-  val badvaddr_sel = Bool('output); // select between instruction PC or load/store addr
+  val badvaddr_wen = Bool('output); // high for a load/store access fault
   // inputs from datapath
+  val xcpt_ma_inst = Bool('input);  // high on a misaligned/illegal virtual PC
   val btb_hit = Bool('input);
   val inst    = Bits(32, 'input);
   val br_eq   = Bool('input);
@@ -76,7 +76,7 @@ class ioCtrlAll extends Bundle()
 class rocketCtrl extends Component
 {
   val io = new ioCtrlAll();
-  
+    
   val xpr64 = Y;
   val cs =   
   ListLookup(io.dpath.inst,
@@ -191,6 +191,11 @@ class rocketCtrl extends Component
 */
      ));
 
+  val if_reg_xcpt_ma_inst = Reg(io.dpath.xcpt_ma_inst);
+  
+  // FIXME
+  io.imem.req_val  := io.host.start && !io.dpath.xcpt_ma_inst; 
+
   val id_int_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_sel_alu1 :: id_fn_dw :: id_fn_alu :: csremainder = cs; 
   val id_mem_val :: id_mem_cmd :: id_mem_type :: id_mul_val :: id_mul_fn :: id_div_val :: id_div_fn :: id_wen :: id_sel_wa :: id_sel_wb :: id_ren_pcr :: id_wen_pcr :: id_sync :: id_eret :: id_syscall :: id_privileged :: Nil = csremainder;
 
@@ -227,8 +232,9 @@ class rocketCtrl extends Component
   val id_stall_waddr  = sboard.io.stallc;
   val id_stall_ra     = sboard.io.stallra;
 
-  val id_reg_btb_hit     = Reg(resetVal = Bool(false));
-  val id_reg_xcpt_itlb   = Reg(resetVal = Bool(false));
+  val id_reg_btb_hit      = Reg(resetVal = Bool(false));
+  val id_reg_xcpt_itlb    = Reg(resetVal = Bool(false));
+  val id_reg_xcpt_ma_inst = Reg(resetVal = Bool(false));
   
   val ex_reg_br_type     = Reg(){UFix(width = 4)};
   val ex_reg_btb_hit     = Reg(){Bool()};
@@ -239,12 +245,14 @@ class rocketCtrl extends Component
   val ex_reg_eret        = Reg(resetVal = Bool(false));
   val ex_reg_privileged  = Reg(resetVal = Bool(false));
   
+  val ex_reg_xcpt_ma_inst    = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_itlb       = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_illegal    = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_privileged = Reg(resetVal = Bool(false));
 //   val ex_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
-  
+
+  val mem_reg_xcpt_ma_inst    = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_itlb       = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_illegal    = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_privileged = Reg(resetVal = Bool(false));
@@ -254,10 +262,12 @@ class rocketCtrl extends Component
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
+      id_reg_xcpt_ma_inst <== Bool(false);   
       id_reg_xcpt_itlb <== Bool(false);
       id_reg_btb_hit <== Bool(false);
     } 
     otherwise{
+      id_reg_xcpt_ma_inst <== if_reg_xcpt_ma_inst;
       id_reg_xcpt_itlb <== io.xcpt_itlb;
       id_reg_btb_hit <== io.dpath.btb_hit;
     }
@@ -272,7 +282,8 @@ class rocketCtrl extends Component
     ex_reg_mem_type    <== UFix(0, 3);
     ex_reg_eret        <== Bool(false);
     ex_reg_privileged  <== Bool(false);
-    
+  
+    ex_reg_xcpt_ma_inst     <== Bool(false);
     ex_reg_xcpt_itlb        <== Bool(false);
     ex_reg_xcpt_illegal     <== Bool(false);
     ex_reg_xcpt_privileged  <== Bool(false);
@@ -289,6 +300,7 @@ class rocketCtrl extends Component
     ex_reg_eret        <== id_eret.toBool;
     ex_reg_privileged  <== id_privileged.toBool;
     
+    ex_reg_xcpt_ma_inst     <== id_reg_xcpt_ma_inst;
     ex_reg_xcpt_itlb        <== id_reg_xcpt_itlb;
     ex_reg_xcpt_illegal     <== ~id_int_val.toBool;
     ex_reg_xcpt_privileged  <== (id_privileged & ~io.dpath.status(5)).toBool;
@@ -314,9 +326,6 @@ class rocketCtrl extends Component
   val jr_taken = (ex_reg_br_type === BR_JR);
   val j_taken  = (ex_reg_br_type === BR_J);
 
-  io.imem.req_val  := io.host.start; // FIXME
-//  io.imem.req_val := Bool(true);
-
   io.dmem.req_val     := ex_reg_mem_val  && ~io.dpath.killx;
   io.dmem.req_cmd     := ex_reg_mem_cmd;
   io.dmem.req_type    := ex_reg_mem_type;
@@ -336,6 +345,7 @@ class rocketCtrl extends Component
     mem_reg_mem_type    <== UFix(0, 3);
     mem_reg_privileged  <== Bool(false);
     
+    mem_reg_xcpt_ma_inst     <== Bool(false);
     mem_reg_xcpt_itlb        <== Bool(false);
     mem_reg_xcpt_illegal     <== Bool(false);
     mem_reg_xcpt_privileged  <== Bool(false);
@@ -350,6 +360,7 @@ class rocketCtrl extends Component
     mem_reg_mem_type    <== ex_reg_mem_type;
     mem_reg_privileged  <== ex_reg_privileged;
     
+    mem_reg_xcpt_ma_inst     <== ex_reg_xcpt_ma_inst;
     mem_reg_xcpt_itlb        <== ex_reg_xcpt_itlb;
     mem_reg_xcpt_illegal     <== mem_reg_xcpt_illegal;
     mem_reg_xcpt_privileged  <== ex_reg_xcpt_privileged;
@@ -372,10 +383,10 @@ class rocketCtrl extends Component
 	  mem_reg_xcpt_privileged || 
 	  mem_reg_xcpt_fpu || 
 	  mem_reg_xcpt_syscall || 
-	  mem_reg_xcpt_itlb;
+	  mem_reg_xcpt_itlb ||
+	  mem_reg_xcpt_ma_inst;
 	
 	val mem_cause = 
-	  // instruction address misaligned
 	  Mux(mem_reg_xcpt_itlb,        UFix(1,5), // instruction access fault
 		Mux(mem_reg_xcpt_illegal,     UFix(2,5), // illegal instruction
 		Mux(mem_reg_xcpt_privileged,  UFix(3,5), // privileged instruction
@@ -387,13 +398,12 @@ class rocketCtrl extends Component
 		// misaligned store
 		Mux(io.xcpt_dtlb_ld,          UFix(8,5), // load fault
 		Mux(io.xcpt_dtlb_st,          UFix(9,5), // store fault
-			UFix(0,5))))))));
-			
+			UFix(0,5))))))));  // instruction address misaligned
+
 	// write cause to PCR on an exception
 	io.dpath.exception := mem_exception;
 	io.dpath.cause     := mem_cause;
-	io.dpath.badvaddr_wen := io.xcpt_dtlb_ld || io.xcpt_dtlb_st || mem_reg_xcpt_itlb;
-	io.dpath.badvaddr_sel := mem_reg_xcpt_itlb;
+	io.dpath.badvaddr_wen := io.xcpt_dtlb_ld || io.xcpt_dtlb_st;
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, and for privileged instructions
   val replay_ex = (ex_reg_mem_val && !io.dmem.req_rdy) || io.dmem.resp_miss || mem_reg_privileged;
