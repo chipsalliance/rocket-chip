@@ -17,7 +17,6 @@ class ioDpathAll extends Bundle()
   val ctrl  = new ioCtrlDpath().flip();
   val debug = new ioDebug();
   val dmem  = new ioDmem(List("req_addr", "req_data", "req_tag", "resp_val", "resp_tag", "resp_data")).flip();
-//   val imem  = new ioImem(List("req_addr", "resp_data")).flip();
   val imem  = new ioDpathImem();
   val ptbr = UFix(PADDR_BITS, 'output);
 }
@@ -127,6 +126,7 @@ class rocketDpath extends Component
   val ex_sign_extend_split = 
     Cat(Fill(52, ex_reg_inst(31)), ex_reg_inst(31,27), ex_reg_inst(16,10));
 
+  // FIXME: which bits to extract should be calculated based on VADDR_BITS
   val branch_adder_rhs =
     Mux(io.ctrl.sel_pc === PC_BR, Cat(ex_sign_extend_split(41,0), UFix(0, 1)),
         Cat(Fill(17, ex_reg_inst(31)), ex_reg_inst(31,7),          UFix(0, 1)));
@@ -153,7 +153,6 @@ class rocketDpath extends Component
   when (!io.ctrl.stallf) {
     if_reg_pc <== if_next_pc;
   }
- 
 
   io.imem.req_addr :=
     Mux(io.ctrl.stallf, if_reg_pc,
@@ -199,8 +198,7 @@ class rocketDpath extends Component
         UFix(0, 5)))));
 
   // moved this here to avoid having to do forward declaration
-  // TODO: cleanup
-  
+  // FIXME: cleanup
   // 64/32 bit load handling (in mem stage)
   val dmem_resp_pos   = io.dmem.resp_tag(7,5).toUFix;
   val dmem_resp_type  = io.dmem.resp_tag(10,8);
@@ -358,11 +356,6 @@ class rocketDpath extends Component
   pcr.io.host.from_wen ^^ io.host.from_wen;
   pcr.io.host.from     ^^ io.host.from;
   pcr.io.host.to       ^^ io.host.to;
-
-//   pcr.io.eret      	:= ex_reg_ctrl_eret;
-//   pcr.io.exception 	:= ex_reg_ctrl_exception;
-//   pcr.io.cause 			:= ex_reg_ctrl_cause;
-//   pcr.io.pc					:= ex_reg_pc;
   
   io.ctrl.status       := pcr.io.status;
   io.ptbr              := pcr.io.ptbr;

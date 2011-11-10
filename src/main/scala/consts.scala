@@ -162,6 +162,7 @@ object Constants
   val ASID_BITS = 7;
   val PERM_BITS = 6;
   
+  val DTLB_ENTRIES = 8;
   val ITLB_ENTRIES = 8;
   
   val HAVE_FPU = Bool(false);
