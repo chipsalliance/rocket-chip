@@ -5,14 +5,20 @@ import Node._;
 import Constants._
 import Instructions._
 
+class ioDpathImem extends Bundle()
+{
+  val req_addr  = UFix(VADDR_BITS, 'output);
+  val resp_data = Bits(32, 'input);
+}
+
 class ioDpathAll extends Bundle()
 {
   val host  = new ioHost();
   val ctrl  = new ioCtrlDpath().flip();
   val debug = new ioDebug();
   val dmem  = new ioDmem(List("req_addr", "req_data", "req_tag", "resp_val", "resp_tag", "resp_data")).flip();
-  val imem  = new ioImem(List("req_addr", "resp_data")).flip();
-  val itlb_xcpt = Bool('input);
+//   val imem  = new ioImem(List("req_addr", "resp_data")).flip();
+  val imem  = new ioDpathImem();
   val ptbr = UFix(PADDR_BITS, 'output);
 }
 
@@ -243,13 +249,14 @@ class rocketDpath extends Component
         id_rdata2)))));
         
   // write value to cause register based on exception type
-	val id_exception = io.ctrl.xcpt_illegal || io.ctrl.xcpt_privileged || io.ctrl.xcpt_fpu || io.ctrl.xcpt_syscall;
+	val id_exception = io.ctrl.xcpt_illegal || io.ctrl.xcpt_privileged || io.ctrl.xcpt_fpu || io.ctrl.xcpt_syscall || io.ctrl.xcpt_itlb;
 	val id_cause = 
+	  Mux(io.ctrl.xcpt_itlb, UFix(1,5),
 		Mux(io.ctrl.xcpt_illegal, UFix(2,5),
 		Mux(io.ctrl.xcpt_privileged, UFix(3,5),
 		Mux(io.ctrl.xcpt_fpu, UFix(4,5),
 		Mux(io.ctrl.xcpt_syscall, UFix(6,5), 
-			UFix(0,5)))));
+			UFix(0,5))))));
 
   io.ctrl.inst := id_reg_inst;
 

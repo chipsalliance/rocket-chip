@@ -5,10 +5,10 @@ import Node._;
 import Constants._;
 import scala.math._;
 
-// interface between I$ and processor (32 bits wide)
+// interface between I$ and pipeline/ITLB (32 bits wide)
 class ioImem(view: List[String] = null) extends Bundle (view)
 {
-  val req_addr  = UFix(32, 'input);
+  val req_addr  = UFix(PADDR_BITS, 'input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
   val resp_data = Bits(32, 'output);

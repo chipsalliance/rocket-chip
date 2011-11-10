@@ -37,6 +37,7 @@ class ioCtrlDpath extends Bundle()
   val xcpt_privileged = Bool('output);
   val xcpt_fpu = Bool('output);
   val xcpt_syscall = Bool('output);
+  val xcpt_itlb = Bool('output);
   val eret     = Bool('output);
   val mem_load = Bool('output);
   val wen     = Bool('output);
@@ -65,9 +66,9 @@ class ioCtrlAll extends Bundle()
   val dpath   = new ioCtrlDpath();
   val console = new ioConsole(List("rdy", "valid"));
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
-  val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_val")).flip();
+  val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss")).flip();
   val host    = new ioHost(List("start"));
-//   val itlb_xcpt = Bool('input);
+  val itlb_xcpt = Bool('input);
 }
 
 class rocketCtrl extends Component
@@ -226,7 +227,8 @@ class rocketCtrl extends Component
   val id_stall_waddr  = sboard.io.stallc;
   val id_stall_ra     = sboard.io.stallra;
 
-  val id_reg_btb_hit     = Reg(width = 1, resetVal = Bool(false));
+  val id_reg_btb_hit     = Reg(resetVal = Bool(false));
+  val id_reg_itlb_xcpt   = Reg(resetVal = Bool(false));
   val ex_reg_br_type     = Reg(){UFix(width = 4)};
   val ex_reg_btb_hit     = Reg(){Bool()};
   val ex_reg_div_mul_val = Reg(){Bool()};
@@ -235,12 +237,15 @@ class rocketCtrl extends Component
   val ex_reg_mem_type    = Reg(){UFix(width = 3)};
   val ex_reg_eret        = Reg(resetVal = Bool(false));
   val ex_reg_privileged  = Reg(resetVal = Bool(false));
+//   val id_reg_itlb_xcpt   = Reg(resetVal = Bool(false));
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
+      id_reg_itlb_xcpt <== Bool(false);
       id_reg_btb_hit <== Bool(false);
     } 
     otherwise{
+      id_reg_itlb_xcpt <== io.itlb_xcpt;
       id_reg_btb_hit <== io.dpath.btb_hit;
     }
   }
@@ -254,6 +259,7 @@ class rocketCtrl extends Component
     ex_reg_mem_type    <== UFix(0, 3);
     ex_reg_eret        <== Bool(false);
     ex_reg_privileged  <== Bool(false);
+//     ex_reg_itlb_xcpt   <== Bool(false);
   } 
   otherwise {
     ex_reg_br_type     <== id_br_type;
@@ -264,6 +270,7 @@ class rocketCtrl extends Component
     ex_reg_mem_type    <== id_mem_type;
     ex_reg_eret        <== id_eret.toBool;
     ex_reg_privileged  <== id_privileged.toBool;
+//     ex_reg_itlb_xcpt   <== id_reg_itlb_xcpt;
   }
 
   val beq  =  io.dpath.br_eq;
@@ -284,7 +291,7 @@ class rocketCtrl extends Component
   val jr_taken = (ex_reg_br_type === BR_JR);
   val j_taken  = (ex_reg_br_type === BR_J);
 
-  io.imem.req_val  := io.host.start;
+  io.imem.req_val  := io.host.start; // FIXME
 //  io.imem.req_val := Bool(true);
 
   io.dmem.req_val     := ex_reg_mem_val  && ~io.dpath.killx;
@@ -330,7 +337,7 @@ class rocketCtrl extends Component
   val replay_mem = io.dmem.resp_miss;
   
   val kill_ex  = replay_ex | replay_mem | mem_reg_privileged;
-  val kill_mem = io.dpath.exception;
+  val kill_mem = io.dpath.exception; // TODO: add load/store related exceptions
 
   dcache_miss <== io.dmem.resp_miss;
   
@@ -461,6 +468,7 @@ class rocketCtrl extends Component
   io.dpath.xcpt_privileged := (id_privileged & ~io.dpath.status(5)).toBool;
   io.dpath.xcpt_fpu        := Bool(false); 
   io.dpath.xcpt_syscall    := id_syscall.toBool;
+  io.dpath.xcpt_itlb       := id_reg_itlb_xcpt;
 }
 
 }

@@ -4,7 +4,7 @@ import Chisel._;
 import Node._;
 import Constants._;
 
-class ioDebug extends Bundle()
+class ioDebug(view: List[String] = null) extends Bundle(view)
 {
   val error_mode  = Bool('output);
   val log_control = Bool('output);
@@ -66,13 +66,14 @@ class rocketProc extends Component
   ctrl.io.imem.req_rdy    := itlb.io.cpu.req_rdy && io.imem.req_rdy;
   
   itlb.io.cpu.req_asid    := Bits(0,ASID_BITS); // FIXME: connect to PCR
-  itlb.io.cpu.req_vpn     := dpath.io.imem.req_addr(VADDR_BITS-1,PGIDX_BITS);
+//  itlb.io.cpu.req_vpn     := dpath.io.imem.req_addr(VADDR_BITS-1,PGIDX_BITS);
+  itlb.io.cpu.req_addr    := dpath.io.imem.req_addr;
   
   io.imem.req_val         := itlb.io.cpu.resp_val;
-  io.imem.req_addr        := Cat(itlb.io.cpu.resp_ppn, dpath.io.imem.req_addr(PGIDX_BITS-1,0)).toUFix;
+  io.imem.req_addr        := itlb.io.cpu.resp_addr;
   
   ctrl.io.imem.resp_val   := io.imem.resp_val;
-  dpath.io.itlb_xcpt      := itlb.io.cpu.exception;
+  ctrl.io.itlb_xcpt       := itlb.io.cpu.exception;
   
   ptw.io.itlb             <> itlb.io.ptw;
   ptw.io.ptbr             := dpath.io.ptbr;

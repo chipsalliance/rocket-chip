@@ -34,7 +34,7 @@ class rocketDpathBTB extends Component
 class ioDpathPCR extends Bundle()
 {
   val host  = new ioHost(List("from", "from_wen", "to"));
-  val debug = new ioDebug();
+  val debug = new ioDebug(List("error_mode", "log_control"));
   val r     = new ioReadPort();
   val w     = new ioWritePort();
   
