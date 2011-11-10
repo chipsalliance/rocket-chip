@@ -43,8 +43,8 @@ class rocketDTLB(entries: Int) extends Component
   
   val req_vpn = io.cpu.req_addr(VADDR_BITS-1,PGIDX_BITS);
   val req_idx = io.cpu.req_addr(PGIDX_BITS-1,0);
-  val req_load  = (io.cpu.req_cmd === M_XRD);
-  val req_store = (io.cpu.req_cmd === M_XWR);
+  val req_load  = io.cpu.req_val && (io.cpu.req_cmd === M_XRD);
+  val req_store = io.cpu.req_val && (io.cpu.req_cmd === M_XWR);
 //   val req_amo   = io.cpu.req_cmd(3).toBool;
   
   val lookup_tag = Cat(io.cpu.req_asid, req_vpn);
@@ -65,10 +65,8 @@ class rocketDTLB(entries: Int) extends Component
   val status_vm   = io.cpu.status(16).toBool // virtual memory enable
   
   // extract fields from PT permission bits
-//   val ptw_perm_ux = io.ptw.resp_perm(0);
   val ptw_perm_ur = io.ptw.resp_perm(1);
   val ptw_perm_uw = io.ptw.resp_perm(2);
-//   val ptw_perm_sx = io.ptw.resp_perm(3);
   val ptw_perm_sr = io.ptw.resp_perm(4);
   val ptw_perm_sw = io.ptw.resp_perm(5);
   
@@ -135,11 +133,10 @@ class rocketDTLB(entries: Int) extends Component
   
   io.cpu.req_rdy   := (state === s_ready);
   io.cpu.resp_val  := Mux(status_vm, tag_hit, io.cpu.req_val);
-//   io.cpu.resp_ppn  := Mux(status_vm, io.cpu.req_vpn(PPN_BITS-1, 0), tag_ram(tag_hit_addr));
   io.cpu.resp_addr  := 
     Mux(status_vm, Cat(tag_ram(tag_hit_addr), req_idx),
       io.cpu.req_addr(PADDR_BITS-1,0)).toUFix;
-  io.cpu.exception := dtlb_exception;
+  io.cpu.exception := status_vm && dtlb_exception;
   
   io.ptw.req_val := (state === s_request);
   io.ptw.req_vpn := r_refill_tag(VPN_BITS-1,0);

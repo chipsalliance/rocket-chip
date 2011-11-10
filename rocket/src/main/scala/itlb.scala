@@ -62,11 +62,9 @@ class ioITLB_CPU(view: List[String] = null) extends Bundle(view)
   val req_val  = Bool('input);
   val req_rdy  = Bool('output);
   val req_asid = Bits(ASID_BITS, 'input);
-//   val req_vpn  = Bits(VPN_BITS, 'input);
   val req_addr  = UFix(VADDR_BITS, 'input);
   // lookup responses
   val resp_val = Bool('output);
-//   val resp_ppn = Bits(PPN_BITS, 'output);
   val resp_addr = UFix(PADDR_BITS, 'output);
   val exception = Bool('output);
 }
@@ -155,13 +153,12 @@ class rocketITLB(entries: Int) extends Component
   }
 
   val itlb_exception = 
-    tag_hit && 
+    io.cpu.req_val && tag_hit && 
     ((status_mode && !sx_array(tag_hit_addr).toBool) ||
     (!status_mode && !ux_array(tag_hit_addr).toBool));
   
   io.cpu.req_rdy   := (state === s_ready);
   io.cpu.resp_val  := Mux(status_vm, tag_hit, io.cpu.req_val);
-//   io.cpu.resp_ppn  := Mux(status_vm, io.cpu.req_vpn(PPN_BITS-1, 0), tag_ram(tag_hit_addr));
   io.cpu.resp_addr  := 
     Mux(status_vm, Cat(tag_ram(tag_hit_addr), req_idx),
       io.cpu.req_addr(PADDR_BITS-1,0)).toUFix;
