@@ -18,7 +18,8 @@ class ioALU extends Bundle(){
 
 class rocketDpathALU extends Component
 {
-  override val io = new ioALU();
+  val io = new ioALU();
+  
   val out64 =
     MuxCase(Fix(0, 64), Array(
       (io.fn === FN_ADD) ->                   (io.in1 + io.in2).toFix,
@@ -34,7 +35,7 @@ class rocketDpathALU extends Component
       (io.fn === FN_SRA) ->                   (io.in1.toFix >>> io.shamt)));
       
   io.out := MuxLookup(io.dw, Fix(0, 64), Array(
-              DW_64 -> out64,
+              DW_64 -> out64(63,0),
               DW_32 -> Cat(Fill(32, out64(31)), out64(31,0)).toFix)).toUFix;
 
 }

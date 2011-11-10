@@ -29,7 +29,7 @@ class ioDcache(view: List[String] = null) extends Bundle(view) {
   val req_wdata = Bits(128, 'input);
   val req_rw    = Bool('input);
   val resp_data = Bits(128, 'output);
-  val resp_tag  = Bits(3, 'output);
+//   val resp_tag  = Bits(3, 'output);
   val resp_val  = Bool('output);
 }
 

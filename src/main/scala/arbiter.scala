@@ -9,7 +9,7 @@ class ioMem() extends Bundle
   val req_val = Bool('output);
   val req_rdy = Bool('input);
   val req_rw  = Bool('output);
-  val req_addr = UFix(32, 'output);
+  val req_addr = UFix(PADDR_BITS, 'output);
   val req_wdata = Bits(128, 'output);
   val req_tag = Bits(4, 'output);
   
@@ -67,7 +67,7 @@ class rocketMemArbiter extends Component {
   io.dcache.resp_data := io.mem.resp_data;
   
   io.icache.resp_tag := io.mem.resp_tag(2,0);
-  io.dcache.resp_tag := io.mem.resp_tag(2,0);
+//   io.dcache.resp_tag := io.mem.resp_tag(2,0);
 
 }
 
