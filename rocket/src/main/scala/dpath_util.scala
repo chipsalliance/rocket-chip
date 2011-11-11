@@ -135,15 +135,15 @@ class rocketDpathPCR extends Component
 
   when (!io.exception && !io.eret && io.w.en) {
   	when (io.w.addr === PCR_STATUS) {
-  	  reg_status_vm <== io.w.data(16).toBool;
+  	  reg_status_vm <== io.w.data(SR_VM).toBool;
 	    reg_status_im <== io.w.data(15,8);
-      reg_status_sx <== io.w.data(7).toBool;
-      reg_status_ux <== io.w.data(6).toBool;
-      reg_status_s  <== io.w.data(5).toBool;
-      reg_status_ps <== io.w.data(4).toBool;
-      reg_status_ev <== HAVE_VEC && io.w.data(2).toBool;
-      reg_status_ef <== HAVE_FPU && io.w.data(1).toBool;
-      reg_status_et <== io.w.data(0).toBool;
+      reg_status_sx <== io.w.data(SR_SX).toBool;
+      reg_status_ux <== io.w.data(SR_UX).toBool;
+      reg_status_s  <== io.w.data(SR_S).toBool;
+      reg_status_ps <== io.w.data(SR_PS).toBool;
+      reg_status_ev <== HAVE_VEC && io.w.data(SR_EV).toBool;
+      reg_status_ef <== HAVE_FPU && io.w.data(SR_EF).toBool;
+      reg_status_et <== io.w.data(SR_ET).toBool;
   	}
   	when (io.w.addr === PCR_EPC) 			{ reg_epc      		<== io.w.data(VADDR_BITS-1,0).toUFix; }
   	when (io.w.addr === PCR_BADVADDR) { reg_badvaddr 		<== io.w.data(VADDR_BITS-1,0).toUFix; }

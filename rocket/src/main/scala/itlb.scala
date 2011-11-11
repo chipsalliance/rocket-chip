@@ -113,8 +113,9 @@ class rocketITLB(entries: Int) extends Component
   val tag_hit_addr = tag_cam.io.hit_addr;
   
   // extract fields from status register
-  val status_mode = io.cpu.status(6).toBool; // user/supervisor mode
-  val status_vm   = io.cpu.status(16).toBool // virtual memory enable
+  val status_s  = io.cpu.status(SR_S).toBool; // user/supervisor mode
+  val status_u  = !status_s;
+  val status_vm = io.cpu.status(SR_VM).toBool // virtual memory enable
   
   // extract fields from PT permission bits
   val ptw_perm_ux = io.ptw.resp_perm(0);
@@ -143,10 +144,13 @@ class rocketITLB(entries: Int) extends Component
   
   val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
   
-  val tag_hit = io.cpu.req_val && tag_cam.io.hit;
-  val lookup_miss = (state === s_ready) && status_vm && !tag_hit;
+  val lookup_hit  = (state === s_ready) && io.cpu.req_val && tag_cam.io.hit;
+  val lookup_miss = (state === s_ready) && io.cpu.req_val && !tag_cam.io.hit;
+  
+  val tlb_hit  = status_vm && lookup_hit;
+  val tlb_miss = status_vm && lookup_miss;
 
-  when (lookup_miss) {
+  when (tlb_miss) {
     r_refill_tag <== lookup_tag;
     r_refill_waddr <== repl_waddr;
     when (!invalid_entry) {
@@ -154,25 +158,25 @@ class rocketITLB(entries: Int) extends Component
     }
   }
 
-  val itlb_exception = 
-    tag_hit && 
-    !((status_mode && sx_array(tag_hit_addr).toBool) ||
-     (!status_mode && ux_array(tag_hit_addr).toBool));
+  // FIXME: add test for out of range physical addresses (> MEMSIZE)
+  io.cpu.exception :=
+    tlb_hit &&
+    ((status_s && !sx_array(tag_hit_addr).toBool) ||
+     (status_u && !ux_array(tag_hit_addr).toBool));
   
   io.cpu.req_rdy   := (state === s_ready);
-  io.cpu.resp_val  := Mux(status_vm, tag_hit, io.cpu.req_val);
+  io.cpu.resp_val  := Mux(status_vm, lookup_hit, io.cpu.req_val);
   io.cpu.resp_addr  := 
     Mux(status_vm, Cat(tag_ram(tag_hit_addr), req_idx),
       io.cpu.req_addr(PADDR_BITS-1,0)).toUFix;
-  io.cpu.exception := status_vm && itlb_exception;
   
   io.ptw.req_val := (state === s_request);
   io.ptw.req_vpn := r_refill_tag(VPN_BITS-1,0);
-  
+
   // control state machine
   switch (state) {
     is (s_ready) {
-      when (status_vm && !tag_hit) {
+      when (tlb_miss) {
         state <== s_request;
       }
     }

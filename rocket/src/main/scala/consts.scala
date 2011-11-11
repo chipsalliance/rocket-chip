@@ -157,6 +157,16 @@ object Constants
   val PCR_K0       = UFix(24, 5);
   val PCR_K1       = UFix(25, 5);
   
+  // definition of bits in PCR status reg
+  val SR_ET   = 0;  // enable traps
+  val SR_EF   = 1;  // enable floating point
+  val SR_EV   = 2;  // enable vector unit
+  val SR_PS   = 4;  // mode stack bit
+  val SR_S    = 5;  // user/supervisor mode
+  val SR_UX   = 6;  // 64 bit user mode
+  val SR_SX   = 7;  // 64 bit supervisor mode
+  val SR_VM   = 16; // VM enable
+  
   val COREID = 0;
   val NUMCORES = 1;
   val PADDR_BITS = 40;

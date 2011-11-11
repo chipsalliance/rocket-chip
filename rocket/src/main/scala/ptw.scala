@@ -25,7 +25,7 @@ class rocketDmemArbiter extends Component
   
   io.ptw.req_rdy   := io.mem.req_rdy;
   io.cpu.req_rdy   := io.mem.req_rdy && !io.ptw.req_val;  
-  io.cpu.resp_miss := io.mem.resp_miss; // FIXME
+  io.cpu.resp_miss := io.mem.resp_miss && !io.mem.resp_tag(11).toBool;
 
   io.cpu.resp_val  := io.mem.resp_val && !io.mem.resp_tag(11).toBool;
   io.ptw.resp_val  := io.mem.resp_val &&  io.mem.resp_tag(11).toBool; 

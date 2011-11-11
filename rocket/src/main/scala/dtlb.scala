@@ -45,8 +45,8 @@ class rocketDTLB(entries: Int) extends Component
   
   val req_vpn = io.cpu.req_addr(VADDR_BITS-1,PGIDX_BITS);
   val req_idx = io.cpu.req_addr(PGIDX_BITS-1,0);
-  val req_load  = io.cpu.req_val && (io.cpu.req_cmd === M_XRD);
-  val req_store = io.cpu.req_val && (io.cpu.req_cmd === M_XWR);
+  val req_load  = (io.cpu.req_cmd === M_XRD);
+  val req_store = (io.cpu.req_cmd === M_XWR);
 //   val req_amo   = io.cpu.req_cmd(3).toBool;
   
   val lookup_tag = Cat(io.cpu.req_asid, req_vpn);
@@ -61,11 +61,12 @@ class rocketDTLB(entries: Int) extends Component
   tag_cam.io.write      := io.ptw.resp_val;
   tag_cam.io.write_tag  := r_refill_tag;
   tag_cam.io.write_addr := r_refill_waddr;
-  val tag_hit_addr = tag_cam.io.hit_addr;
+  val tag_hit_addr       = tag_cam.io.hit_addr;
   
   // extract fields from status register
-  val status_mode = io.cpu.status(6).toBool; // user/supervisor mode
-  val status_vm   = io.cpu.status(16).toBool // virtual memory enable
+  val status_s  = io.cpu.status(SR_S).toBool; // user/supervisor mode
+  val status_u  = !status_s;
+  val status_vm = io.cpu.status(SR_VM).toBool // virtual memory enable
   
   // extract fields from PT permission bits
   val ptw_perm_ur = io.ptw.resp_perm(1);
@@ -80,7 +81,7 @@ class rocketDTLB(entries: Int) extends Component
   val sw_array = Reg(resetVal = Bits(0, entries)); // supervisor execute permission
   when (io.ptw.resp_val) {
     ur_array <== ur_array.bitSet(r_refill_waddr, ptw_perm_ur);
-    uw_array <== ur_array.bitSet(r_refill_waddr, ptw_perm_uw);
+    uw_array <== uw_array.bitSet(r_refill_waddr, ptw_perm_uw);
     sr_array <== sr_array.bitSet(r_refill_waddr, ptw_perm_sr);
     sw_array <== sw_array.bitSet(r_refill_waddr, ptw_perm_sw);
   }
@@ -89,7 +90,7 @@ class rocketDTLB(entries: Int) extends Component
   // bits to 0 so the next access will cause an exception
   when (io.ptw.resp_err) {
     ur_array <== ur_array.bitSet(r_refill_waddr, Bool(false));
-    uw_array <== ur_array.bitSet(r_refill_waddr, Bool(false));
+    uw_array <== uw_array.bitSet(r_refill_waddr, Bool(false));
     sr_array <== sr_array.bitSet(r_refill_waddr, Bool(false));
     sw_array <== sw_array.bitSet(r_refill_waddr, Bool(false));
   }
@@ -102,10 +103,13 @@ class rocketDTLB(entries: Int) extends Component
   
   val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
   
-  val tag_hit = io.cpu.req_val && tag_cam.io.hit;
-  val lookup_miss = (state === s_ready) && status_vm && !tag_hit;
-
-  when (lookup_miss) {
+  val lookup_hit  = (state === s_ready) && io.cpu.req_val && tag_cam.io.hit;
+  val lookup_miss = (state === s_ready) && io.cpu.req_val && !tag_cam.io.hit;
+  
+  val tlb_hit  = status_vm && lookup_hit;
+  val tlb_miss = status_vm && lookup_miss;
+  
+  when (tlb_miss) {
     r_refill_tag <== lookup_tag;
     r_refill_waddr <== repl_waddr;
     when (!invalid_entry) {
@@ -113,19 +117,20 @@ class rocketDTLB(entries: Int) extends Component
     }
   }
 
+  // FIXME: add check for out of range physical addresses (>MEMSIZE)
   io.cpu.xcpt_ld :=
-    status_vm && tag_hit && req_load &&
-    !((status_mode && sw_array(tag_hit_addr).toBool) ||
-     (!status_mode && uw_array(tag_hit_addr).toBool));
+    tlb_hit && req_load &&
+    ((status_s && !sr_array(tag_hit_addr).toBool) ||
+     (status_u && !ur_array(tag_hit_addr).toBool));
 
   io.cpu.xcpt_st :=
-    status_vm && tag_hit && req_store &&
-    !((status_mode && sr_array(tag_hit_addr).toBool) ||
-     (!status_mode && ur_array(tag_hit_addr).toBool));
+    tlb_hit && req_store &&
+    ((status_s && !sw_array(tag_hit_addr).toBool) ||
+     (status_u && !uw_array(tag_hit_addr).toBool));
 
   io.cpu.req_rdy   := (state === s_ready);
-  io.cpu.resp_miss := lookup_miss;
-  io.cpu.resp_val  := Mux(status_vm, tag_hit, io.cpu.req_val);
+  io.cpu.resp_miss := tlb_miss;
+  io.cpu.resp_val  := Mux(status_vm, lookup_hit, io.cpu.req_val);
   io.cpu.resp_addr  := 
     Mux(status_vm, Cat(tag_ram(tag_hit_addr), req_idx),
       io.cpu.req_addr(PADDR_BITS-1,0)).toUFix;
@@ -136,7 +141,7 @@ class rocketDTLB(entries: Int) extends Component
   // control state machine
   switch (state) {
     is (s_ready) {
-      when (status_vm && io.cpu.req_val && !tag_hit) {
+      when (tlb_miss) {
         state <== s_request;
       }
     }
