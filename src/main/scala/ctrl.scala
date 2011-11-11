@@ -326,7 +326,7 @@ class rocketCtrl extends Component
   val jr_taken = (ex_reg_br_type === BR_JR);
   val j_taken  = (ex_reg_br_type === BR_J);
 
-  io.dmem.req_val     := ex_reg_mem_val  && ~io.dpath.killx;
+  io.dmem.req_val     := ex_reg_mem_val; //  && ~io.dpath.killx;
   io.dmem.req_cmd     := ex_reg_mem_cmd;
   io.dmem.req_type    := ex_reg_mem_type;
   
@@ -407,15 +407,15 @@ class rocketCtrl extends Component
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, and for privileged instructions
   val replay_ex = (ex_reg_mem_val && !io.dmem.req_rdy) || io.dmem.resp_miss || mem_reg_privileged;
-  
   // replay mem stage PC on a DTLB miss
   val replay_mem = io.dtlb_miss;
+//   val replay_mem = Bool(false);
   val kill_ex    = replay_ex || replay_mem;
-  val kill_mem   = mem_exception || io.dtlb_miss;
+  val kill_mem   = mem_exception || replay_mem;
 
   io.dpath.sel_pc :=
-    Mux(mem_exception,                PC_EVEC, // exception
     Mux(replay_mem,                   PC_MEM,  // dtlb miss
+    Mux(mem_exception,                PC_EVEC, // exception
     Mux(mem_reg_eret,                 PC_PCR,  // eret instruction
     Mux(replay_ex,                    PC_EX,   // D$ blocked, D$ miss, privileged inst
     Mux(!ex_reg_btb_hit && br_taken,  PC_BR,   // mispredicted taken branch
@@ -513,7 +513,7 @@ class rocketCtrl extends Component
 
   io.dpath.killf    := take_pc | ~io.imem.resp_val;
   io.dpath.killd    := ctrl_killd.toBool;
-  io.dpath.killx    := kill_ex.toBool || kill_mem.toBool;
+  io.dpath.killx    := kill_ex.toBool;
   io.dpath.killm    := kill_mem.toBool;
 
   io.dpath.mem_load := mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD);
