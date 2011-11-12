@@ -202,6 +202,7 @@ class rocketDCacheDM(lines: Int) extends Component {
   val p_store_valid     = Reg(resetVal = Bool(false));
 
   val req_store   = (io.cpu.req_cmd === M_XWR);
+  val req_load    = (io.cpu.req_cmd === M_XRD) || (io.cpu.req_cmd === M_PRD);
   val r_req_load  = (r_cpu_req_cmd === M_XRD) || (r_cpu_req_cmd === M_PRD);
   val r_req_store = (r_cpu_req_cmd === M_XWR);
   val r_req_flush = (r_cpu_req_cmd === M_FLA);
@@ -327,7 +328,14 @@ class rocketDCacheDM(lines: Int) extends Component {
   data_array.io.d :=  Mux((state === s_refill), io.mem.resp_data, store_data);
   data_array.io.we := ((state === s_refill) && io.mem.resp_val) || drain_store || resolve_store;
   data_array.io.bweb := Mux((state === s_refill), ~Bits(0,128), store_wmask);
-  data_array.io.ce := Bool(true); // FIXME
+//   data_array.io.ce := Bool(true); // FIXME
+  data_array.io.ce := 
+    (io.cpu.req_val && io.cpu.req_rdy && req_load) ||
+    (state === s_start_writeback) ||
+    (state === s_writeback) ||
+    ((state === s_resolve_miss) && r_req_load) ||
+    (state === s_replay_load);
+  
   val data_array_rdata = data_array.io.q;
 
   // signal a load miss when the data isn't present in the cache and when it's in the pending store data register

@@ -117,7 +117,7 @@ class rocketITLB(entries: Int) extends Component
   
   tag_cam.io.clear      := io.cpu.invalidate;
   tag_cam.io.tag        := lookup_tag;
-  tag_cam.io.write      := io.ptw.resp_val;
+  tag_cam.io.write      := io.ptw.resp_val || io.ptw.resp_err;
   tag_cam.io.write_tag  := r_refill_tag;
   tag_cam.io.write_addr := r_refill_waddr;
   val tag_hit            = tag_cam.io.hit;
