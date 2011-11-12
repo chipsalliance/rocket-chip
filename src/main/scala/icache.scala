@@ -81,7 +81,7 @@ class rocketICacheDM(lines: Int) extends Component {
   when (io.cpu.req_val && io.cpu.req_rdy) {
     r_cpu_req_idx   <== io.cpu.req_idx;
   }
-  when (state === s_ready) {
+  when (state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss) {
     r_cpu_req_ppn <== io.cpu.req_ppn;
   }
   when (io.cpu.req_rdy) {
@@ -140,7 +140,9 @@ class rocketICacheDM(lines: Int) extends Component {
   data_array.io.d    := io.mem.resp_data;
   data_array.io.we   := io.mem.resp_val;
   data_array.io.bweb := ~Bits(0,128);
-  data_array.io.ce   := Bool(true); // FIXME
+//   data_array.io.ce   := Bool(true); // FIXME
+  data_array.io.ce   := (io.cpu.req_rdy && io.cpu.req_val) || (state === s_resolve_miss);
+    
   val data_array_rdata = data_array.io.q;
    
   // output signals
@@ -162,7 +164,12 @@ class rocketICacheDM(lines: Int) extends Component {
       state <== s_ready;
     }
     is (s_ready) {
-      when (!io.cpu.itlb_miss && r_cpu_req_val && !(tag_valid && tag_match)) { state <== s_request; }
+      when (io.cpu.itlb_miss) {
+        state <== s_ready;
+      }
+      when (r_cpu_req_val && !(tag_valid && tag_match)) {
+        state <== s_request;
+      }
     }
     is (s_request)
     {

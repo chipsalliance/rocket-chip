@@ -70,7 +70,7 @@ class rocketProc extends Component
   ctrl.io.imem.resp_val   := io.imem.resp_val;
   dpath.io.imem.resp_data := io.imem.resp_data;
   ctrl.io.xcpt_itlb       := itlb.io.cpu.exception;
-  ctrl.io.itlb_miss       := itlb.io.cpu.resp_miss;
+//   ctrl.io.itlb_miss       := itlb.io.cpu.resp_miss;
   io.imem.itlb_miss       := itlb.io.cpu.resp_miss;
 
   
@@ -83,7 +83,9 @@ class rocketProc extends Component
   dtlb.io.cpu.req_vpn     := dpath.io.dmem.req_addr(VADDR_BITS-1,PGIDX_BITS);
   ctrl.io.xcpt_dtlb_ld    := dtlb.io.cpu.xcpt_ld; 
   ctrl.io.xcpt_dtlb_st    := dtlb.io.cpu.xcpt_st; 
+  ctrl.io.dtlb_busy       := dtlb.io.cpu.resp_busy;
   ctrl.io.dtlb_miss       := dtlb.io.cpu.resp_miss;
+//   io.dmem.dtlb_miss       := dtlb.io.cpu.resp_miss;
   
   // connect page table walker to TLBs, page table base register (from PCR)
   // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
@@ -98,6 +100,9 @@ class rocketProc extends Component
   arb.io.cpu.req_val      := ctrl.io.dmem.req_val;
   arb.io.cpu.req_cmd      := ctrl.io.dmem.req_cmd;
   arb.io.cpu.req_type     := ctrl.io.dmem.req_type;
+//   arb.io.cpu.dtlb_busy    := dtlb.io.cpu.resp_busy;
+  arb.io.cpu.dtlb_miss    := dtlb.io.cpu.resp_miss;
+
 //   arb.io.cpu.req_addr     := dtlb.io.cpu.resp_addr;
   arb.io.cpu.req_idx      := dpath.io.dmem.req_addr(PGIDX_BITS-1,0);
   arb.io.cpu.req_ppn      := dtlb.io.cpu.resp_ppn;

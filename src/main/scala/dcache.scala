@@ -7,6 +7,8 @@ import scala.math._;
 
 // interface between D$ and processor/DTLB
 class ioDmem(view: List[String] = null) extends Bundle(view) {
+//   val dtlb_busy  = Bool('input);
+  val dtlb_miss  = Bool('input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
   val req_cmd   = Bits(4, 'input);
@@ -155,6 +157,8 @@ class rocketDCacheDM_flush(lines: Int) extends Component {
   dcache.io.cpu.req_tag   := Mux(flushing, r_cpu_req_tag, io.cpu.req_tag);
   dcache.io.cpu.req_type  := io.cpu.req_type;
   dcache.io.cpu.req_data  ^^ io.cpu.req_data;
+//   dcache.io.cpu.dtlb_busy := io.cpu.dtlb_busy;
+  dcache.io.cpu.dtlb_miss := io.cpu.dtlb_miss;
   dcache.io.mem           ^^ io.mem;
 
   io.cpu.req_rdy   := dcache.io.cpu.req_rdy && !flush_waiting;
@@ -210,20 +214,22 @@ class rocketDCacheDM(lines: Int) extends Component {
     r_cpu_req_tag   <== io.cpu.req_tag;
   }
   
-  when ((state === s_ready) && r_cpu_req_val) {
+  when ((state === s_ready) && r_cpu_req_val && !io.cpu.dtlb_miss) {
     r_cpu_req_ppn <== io.cpu.req_ppn;
   }
   when (io.cpu.req_rdy) {
     r_cpu_req_val <== io.cpu.req_val; 
-  }  
-  when (state === s_resolve_miss) {
-    r_cpu_req_val <== Bool(false);
-    when (r_req_load) {
-      r_cpu_resp_val <== Bool(true);
-    }
   }
-  r_cpu_resp_val <== Bool(false);
-        
+  otherwise {
+    r_cpu_req_val <== Bool(false);
+  }
+  when (((state === s_resolve_miss) && r_req_load) || (state === s_replay_load)) {
+    r_cpu_resp_val <== Bool(true);
+  }
+  otherwise {
+    r_cpu_resp_val <== Bool(false);
+  }
+  
   // refill counter
   val rr_count = Reg(resetVal = UFix(0,2));
   val rr_count_next = rr_count + UFix(1);
@@ -244,7 +250,7 @@ class rocketDCacheDM(lines: Int) extends Component {
   tag_array.io.d    := r_cpu_req_ppn;
   tag_array.io.we   := tag_we;
   tag_array.io.bweb := ~Bits(0,tagbits);
-  tag_array.io.ce   := (state === s_ready) && io.cpu.req_val;
+  tag_array.io.ce   := (state === s_ready) || (state === s_start_writeback) || (state === s_writeback);
   val tag_rdata      = tag_array.io.q;
 
   // valid bit array
@@ -256,8 +262,9 @@ class rocketDCacheDM(lines: Int) extends Component {
   when (tag_we && r_req_flush) {
     vb_array <== vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(0,1));
   }
-
-  val tag_valid = Reg(vb_array(tag_addr)).toBool;
+  val vb_rdata = Reg(vb_array(tag_addr).toBool);
+  val tag_valid = r_cpu_req_val && vb_rdata;
+//   val tag_valid = Reg(vb_array(tag_addr)).toBool;
   val tag_match = (tag_rdata === io.cpu.req_ppn);
   val addr_match    = (r_cpu_req_idx(PGIDX_BITS-1,offsetbits) === p_store_idx(PGIDX_BITS-1,offsetbits));
   val ldst_conflict = r_cpu_req_val && r_req_load && p_store_valid && addr_match;
@@ -265,7 +272,7 @@ class rocketDCacheDM(lines: Int) extends Component {
   // write the pending store data when the cache is idle, when the next command isn't a load
   // or when there's a load to the same address (in which case there's a 2 cycle delay:
   // once cycle to write the store data and another to read the data back) 
-  val drain_store = p_store_valid && (!io.cpu.req_val || req_store || ldst_conflict);
+  val drain_store = !io.cpu.dtlb_miss && p_store_valid && (!io.cpu.req_val || req_store || ldst_conflict);
 
   // write pending store data from a store which missed
   // after the cache line refill has completed
@@ -281,6 +288,11 @@ class rocketDCacheDM(lines: Int) extends Component {
     p_store_data  <== io.cpu.req_data;
     p_store_type  <== io.cpu.req_type;
     p_store_valid <== Bool(true);  
+  }
+  // cancel store if there's a DTLB miss
+  when (r_cpu_req_val && r_req_store && io.cpu.dtlb_miss)
+  {
+    p_store_valid <== Bool(false);
   }
   when (drain_store)  {
     p_store_valid <== Bool(false);
@@ -321,12 +333,12 @@ class rocketDCacheDM(lines: Int) extends Component {
   // signal a load miss when the data isn't present in the cache and when it's in the pending store data register
   // (causes the cache to block for 2 cycles and the load instruction is replayed)
   val hit  = tag_valid && tag_match;
-  val load_miss = (state === s_ready) && r_cpu_req_val && r_req_load && (!hit || (p_store_valid && addr_match));
+  val load_miss = !io.cpu.dtlb_miss && (state === s_ready) && r_cpu_req_val && r_req_load && (!hit || (p_store_valid && addr_match));
 
   // output signals
   // busy when there's a load to the same address as a pending store, or on a cache miss, or when executing a flush
-  io.cpu.req_rdy   := (state === s_ready) && !ldst_conflict && (!r_cpu_req_val || (hit && !r_req_flush));
-  io.cpu.resp_val  := ((state === s_ready) && r_cpu_req_val && r_req_load && hit && !(p_store_valid && addr_match)) || 
+  io.cpu.req_rdy   := !io.cpu.dtlb_miss && (state === s_ready) && !ldst_conflict && (!r_cpu_req_val || (hit && !r_req_flush));
+  io.cpu.resp_val  := !io.cpu.dtlb_miss && ((state === s_ready) &&  hit && r_req_load && !(p_store_valid && addr_match)) || 
                       ((state === s_resolve_miss) && r_req_flush) ||
                       r_cpu_resp_val;
                       
@@ -351,6 +363,9 @@ class rocketDCacheDM(lines: Int) extends Component {
       state <== s_ready;
     }
     is (s_ready) {
+      when (io.cpu.dtlb_miss) {
+        state <== s_ready;
+      }
       when (ldst_conflict) {
         state <== s_replay_load;
       }
