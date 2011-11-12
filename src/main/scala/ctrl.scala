@@ -68,6 +68,7 @@ class ioCtrlAll extends Bundle()
   val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss")).flip();
   val host    = new ioHost(List("start"));
   val dtlb_miss = Bool('input);
+  val itlb_miss = Bool('input);
   val xcpt_dtlb_ld = Bool('input);
   val xcpt_dtlb_st = Bool('input);
   val xcpt_itlb = Bool('input);
@@ -512,7 +513,7 @@ class rocketCtrl extends Component
 
   io.dpath.stalld   := ctrl_stalld.toBool;
 
-  io.dpath.killf    := take_pc | ~io.imem.resp_val;
+  io.dpath.killf    := take_pc | io.itlb_miss | ~io.imem.resp_val;
   io.dpath.killd    := ctrl_killd.toBool;
   io.dpath.killx    := kill_ex.toBool;
   io.dpath.killm    := kill_mem.toBool;
