@@ -97,7 +97,6 @@ class rocketITLB(entries: Int) extends Component
   
   val r_cpu_req_vpn     = Reg(resetVal = Bits(0, VPN_BITS));
   val r_cpu_req_val     = Reg(resetVal = Bool(false));
-  val r_cpu_req_cmd     = Reg(resetVal = Bits(0,4));
   val r_cpu_req_asid    = Reg(resetVal = Bits(0,ASID_BITS));
   val r_refill_tag   = Reg(resetVal = Bits(0, ASID_BITS+VPN_BITS));
   val r_refill_waddr = Reg(resetVal = UFix(0, addr_bits));
@@ -175,8 +174,8 @@ class rocketITLB(entries: Int) extends Component
     ((status_s && !sx_array(tag_hit_addr).toBool) ||
      (status_u && !ux_array(tag_hit_addr).toBool));
   
-  io.cpu.req_rdy   := (state === s_ready);
-  io.cpu.resp_miss := tlb_miss;
+  io.cpu.req_rdy   := Mux(status_vm, (state === s_ready) && (!r_cpu_req_val || tag_hit), Bool(true));
+  io.cpu.resp_miss := tlb_miss || (state != s_ready);
   io.cpu.resp_ppn := Mux(status_vm, tag_ram(tag_hit_addr), r_cpu_req_vpn(PPN_BITS-1,0)).toUFix;
   
   io.ptw.req_val := (state === s_request);
