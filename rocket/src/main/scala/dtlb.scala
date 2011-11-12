@@ -18,11 +18,11 @@ class ioDTLB_CPU(view: List[String] = null) extends Bundle(view)
   val req_cmd  = Bits(4, 'input); // load/store/amo
   val req_rdy  = Bool('output);
   val req_asid = Bits(ASID_BITS, 'input);
-  val req_addr  = UFix(VADDR_BITS, 'input);
+  val req_vpn  = UFix(VPN_BITS, 'input);
   // lookup responses
   val resp_miss = Bool('output);
-  val resp_val = Bool('output);
-  val resp_addr = UFix(PADDR_BITS, 'output);
+//   val resp_val = Bool('output);
+  val resp_ppn = UFix(PPN_BITS, 'output);
   val xcpt_ld = Bool('output);
   val xcpt_st = Bool('output);
 }
@@ -35,25 +35,40 @@ class ioDTLB extends Bundle
 
 class rocketDTLB(entries: Int) extends Component
 {
-  val addr_bits = ceil(log10(entries)/log10(2)).toInt;  
   val io = new ioDTLB();
+
+  val addr_bits = ceil(log10(entries)/log10(2)).toInt;  
 
   val s_ready :: s_request :: s_wait :: Nil = Enum(3) { UFix() };
   val state = Reg(resetVal = s_ready);
-
-  val tag_cam = new rocketCAM(entries, addr_bits, ASID_BITS+VPN_BITS);
   
-  val req_vpn = io.cpu.req_addr(VADDR_BITS-1,PGIDX_BITS);
-  val req_idx = io.cpu.req_addr(PGIDX_BITS-1,0);
-  val req_load  = (io.cpu.req_cmd === M_XRD);
-  val req_store = (io.cpu.req_cmd === M_XWR);
+  val r_cpu_req_vpn     = Reg(resetVal = Bits(0, VPN_BITS));
+  val r_cpu_req_val     = Reg(resetVal = Bool(false));
+  val r_cpu_req_cmd     = Reg(resetVal = Bits(0,4));
+  val r_cpu_req_asid    = Reg(resetVal = Bits(0,ASID_BITS));
+  val r_refill_tag      = Reg(resetVal = Bits(0,ASID_BITS+VPN_BITS));
+  val r_refill_waddr    = Reg(resetVal = UFix(0,addr_bits));
+  val repl_count        = Reg(resetVal = UFix(0,addr_bits));
+  
+  when (io.cpu.req_val && io.cpu.req_rdy) { 
+    r_cpu_req_vpn   <== io.cpu.req_vpn;
+    r_cpu_req_cmd   <== io.cpu.req_cmd;
+    r_cpu_req_asid  <== io.cpu.req_asid;
+  }
+  
+  when (io.cpu.req_rdy) {
+    r_cpu_req_val <== io.cpu.req_val; 
+  }
+  
+//   val req_vpn = r_cpu_req_addr(VADDR_BITS-1,PGIDX_BITS);
+//   val req_idx = io.cpu.req_addr(PGIDX_BITS-1,0);
+  val req_load  = (r_cpu_req_cmd === M_XRD);
+  val req_store = (r_cpu_req_cmd === M_XWR);
 //   val req_amo   = io.cpu.req_cmd(3).toBool;
   
-  val lookup_tag = Cat(io.cpu.req_asid, req_vpn);
-  val r_refill_tag   = Reg(resetVal = Bits(0, ASID_BITS+VPN_BITS));
-  val r_refill_waddr = Reg(resetVal = UFix(0, addr_bits));
-  val repl_count = Reg(resetVal = UFix(0, addr_bits));
-  
+  val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
+
+  val tag_cam = new rocketCAM(entries, addr_bits, ASID_BITS+VPN_BITS);  
   val tag_ram = Mem(entries, io.ptw.resp_val, r_refill_waddr.toUFix, io.ptw.resp_ppn);
   
   tag_cam.io.clear      := io.cpu.invalidate;
@@ -61,6 +76,7 @@ class rocketDTLB(entries: Int) extends Component
   tag_cam.io.write      := io.ptw.resp_val;
   tag_cam.io.write_tag  := r_refill_tag;
   tag_cam.io.write_addr := r_refill_waddr;
+  val tag_hit            = tag_cam.io.hit;
   val tag_hit_addr       = tag_cam.io.hit_addr;
   
   // extract fields from status register
@@ -75,10 +91,10 @@ class rocketDTLB(entries: Int) extends Component
   val ptw_perm_sw = io.ptw.resp_perm(5);
   
   // permission bit arrays
-  val ur_array = Reg(resetVal = Bits(0, entries)); // user execute permission
-  val uw_array = Reg(resetVal = Bits(0, entries)); // user execute permission
-  val sr_array = Reg(resetVal = Bits(0, entries)); // supervisor execute permission
-  val sw_array = Reg(resetVal = Bits(0, entries)); // supervisor execute permission
+  val ur_array = Reg(resetVal = Bits(0, entries)); // user read permission
+  val uw_array = Reg(resetVal = Bits(0, entries)); // user write permission
+  val sr_array = Reg(resetVal = Bits(0, entries)); // supervisor read permission
+  val sw_array = Reg(resetVal = Bits(0, entries)); // supervisor write permission
   when (io.ptw.resp_val) {
     ur_array <== ur_array.bitSet(r_refill_waddr, ptw_perm_ur);
     uw_array <== uw_array.bitSet(r_refill_waddr, ptw_perm_uw);
@@ -103,12 +119,13 @@ class rocketDTLB(entries: Int) extends Component
   
   val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
   
-  val lookup_hit  = (state === s_ready) && io.cpu.req_val && tag_cam.io.hit;
-  val lookup_miss = (state === s_ready) && io.cpu.req_val && !tag_cam.io.hit;
-  
+  val lookup_hit  = (state === s_ready) && r_cpu_req_val && tag_hit;
+  val lookup_miss = (state === s_ready) && r_cpu_req_val && !tag_hit;
   val tlb_hit  = status_vm && lookup_hit;
   val tlb_miss = status_vm && lookup_miss;
   
+  // currently replace TLB entries in LIFO order
+  // TODO: implement LRU replacement policy
   when (tlb_miss) {
     r_refill_tag <== lookup_tag;
     r_refill_waddr <== repl_waddr;
@@ -130,10 +147,7 @@ class rocketDTLB(entries: Int) extends Component
 
   io.cpu.req_rdy   := (state === s_ready);
   io.cpu.resp_miss := tlb_miss;
-  io.cpu.resp_val  := Mux(status_vm, lookup_hit, io.cpu.req_val);
-  io.cpu.resp_addr  := 
-    Mux(status_vm, Cat(tag_ram(tag_hit_addr), req_idx),
-      io.cpu.req_addr(PADDR_BITS-1,0)).toUFix;
+  io.cpu.resp_ppn := Mux(status_vm, tag_ram(tag_hit_addr), r_cpu_req_vpn(PPN_BITS-1,0)).toUFix;
   
   io.ptw.req_val := (state === s_request);
   io.ptw.req_vpn := r_refill_tag(VPN_BITS-1,0);

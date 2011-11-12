@@ -7,7 +7,7 @@ import scala.math._;
 
 class ioDmemArbiter extends Bundle
 {
-  val ptw = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_addr", "resp_data", "resp_val"));
+  val ptw = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_idx", "req_ppn", "resp_data", "resp_val"));
   val cpu = new ioDmem();
   val mem = new ioDmem().flip();
 }
@@ -19,7 +19,8 @@ class rocketDmemArbiter extends Component
   io.mem.req_val  := io.ptw.req_val || io.cpu.req_val;
   io.mem.req_cmd  := Mux(io.ptw.req_val, io.ptw.req_cmd,  io.cpu.req_cmd);
   io.mem.req_type := Mux(io.ptw.req_val, io.ptw.req_type, io.cpu.req_type);
-  io.mem.req_addr := Mux(io.ptw.req_val, io.ptw.req_addr, io.cpu.req_addr);
+  io.mem.req_idx  := Mux(io.ptw.req_val, io.ptw.req_idx, io.cpu.req_idx);
+  io.mem.req_ppn  := Mux(io.ptw.req_val, io.ptw.req_ppn, io.cpu.req_ppn);
   io.mem.req_data := io.cpu.req_data;
   io.mem.req_tag  := Mux(io.ptw.req_val, Bits(0,5), io.cpu.req_tag);
   
@@ -40,7 +41,7 @@ class ioPTW extends Bundle
 {
   val itlb = new ioTLB_PTW().flip();
   val dtlb = new ioTLB_PTW().flip();
-  val dmem = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_addr", "resp_data", "resp_val")).flip();
+  val dmem = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_ppn", "req_idx", "resp_data", "resp_val")).flip();
   val ptbr = UFix(PADDR_BITS, 'input);
 }
 
@@ -90,7 +91,9 @@ class rocketPTW extends Component
     
   io.dmem.req_cmd  := M_PRD;
   io.dmem.req_type := MT_D;
-  io.dmem.req_addr := req_addr;
+//   io.dmem.req_addr := req_addr;
+  io.dmem.req_idx := req_addr(PGIDX_BITS-1,0);
+  io.dmem.req_ppn := req_addr(PADDR_BITS-1,PGIDX_BITS);
   
   val resp_val = (state === s_done) || (state === s_l1_fake) || (state === s_l2_fake);
   val resp_err = (state === s_error);

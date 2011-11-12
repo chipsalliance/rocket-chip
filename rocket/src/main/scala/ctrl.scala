@@ -326,7 +326,8 @@ class rocketCtrl extends Component
   val jr_taken = (ex_reg_br_type === BR_JR);
   val j_taken  = (ex_reg_br_type === BR_J);
 
-  io.dmem.req_val     := ex_reg_mem_val; //  && ~io.dpath.killx;
+//   io.dmem.req_val     := ex_reg_mem_val;
+  io.dmem.req_val     := ex_reg_mem_val && ~io.dpath.killx;
   io.dmem.req_cmd     := ex_reg_mem_cmd;
   io.dmem.req_type    := ex_reg_mem_type;
   
