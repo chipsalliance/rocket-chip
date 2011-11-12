@@ -60,8 +60,6 @@ class rocketDTLB(entries: Int) extends Component
     r_cpu_req_val <== io.cpu.req_val; 
   }
   
-//   val req_vpn = r_cpu_req_addr(VADDR_BITS-1,PGIDX_BITS);
-//   val req_idx = io.cpu.req_addr(PGIDX_BITS-1,0);
   val req_load  = (r_cpu_req_cmd === M_XRD);
   val req_store = (r_cpu_req_cmd === M_XWR);
 //   val req_amo   = io.cpu.req_cmd(3).toBool;
