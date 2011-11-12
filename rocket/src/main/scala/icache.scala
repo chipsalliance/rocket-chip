@@ -8,9 +8,11 @@ import scala.math._;
 // interface between I$ and pipeline/ITLB (32 bits wide)
 class ioImem(view: List[String] = null) extends Bundle (view)
 {
-  val req_addr  = UFix(PADDR_BITS, 'input);
+  val itlb_miss  = Bool('input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
+  val req_idx   = Bits(PGIDX_BITS, 'input);
+  val req_ppn   = Bits(PPN_BITS, 'input);
   val resp_data = Bits(32, 'output);
   val resp_val  = Bool('output);
 }
@@ -45,8 +47,8 @@ class ioSRAMsp (width: Int, addrbits: Int) extends Bundle {
 class rocketSRAMsp(entries: Int, width: Int) extends Component {
   val addrbits = ceil(log10(entries)/log10(2)).toInt;
   val io = new ioSRAMsp(width, addrbits);
-  val sram = Mem(entries, io.we && io.ce, io.a, io.d, wrMask = io.bweb, resetVal = null);
-  val rdata = Reg(sram.read(io.a));
+  val sram = Mem(entries, io.we, io.a, io.d, wrMask = io.bweb, resetVal = null);
+  val rdata = Reg(Mux(io.ce, sram.read(io.a), Bits(0,width)));
   io.q := rdata;
 }
 
@@ -62,6 +64,7 @@ class rocketICacheDM(lines: Int) extends Component {
   val offsetbits = 6;
   val tagmsb    = addrbits - 1;
   val taglsb    = indexbits+offsetbits;
+  val tagbits   = addrbits-taglsb;
   val indexmsb  = taglsb-1;
   val indexlsb  = offsetbits;
   val offsetmsb = indexlsb-1;
@@ -71,18 +74,35 @@ class rocketICacheDM(lines: Int) extends Component {
   val s_reset :: s_ready :: s_request :: s_refill_wait :: s_refill :: s_resolve_miss :: Nil = Enum(6) { UFix() };
   val state = Reg(resetVal = s_reset);
   
-  val r_cpu_req_addr = Reg(Bits(0, addrbits));
-  when (io.cpu.req_val && ((state === s_ready) || (state === s_resolve_miss))) {
-    r_cpu_req_addr <== io.cpu.req_addr;
-  }
+  val r_cpu_req_idx    = Reg(resetVal = Bits(0, PGIDX_BITS)); 
+  val r_cpu_req_ppn    = Reg(resetVal = Bits(0, PPN_BITS)); 
+  val r_cpu_req_val    = Reg(resetVal = Bool(false));
   
-  val r_cpu_req_val = Reg(Bool(false));
-  when ((state === s_ready) || (state === s_resolve_miss)) {
-    r_cpu_req_val <== io.cpu.req_val;
+  when (io.cpu.req_val && io.cpu.req_rdy) {
+    r_cpu_req_idx   <== io.cpu.req_idx;
+  }
+  when (state === s_ready) {
+    r_cpu_req_ppn <== io.cpu.req_ppn;
+  }
+  when (io.cpu.req_rdy) {
+    r_cpu_req_val <== io.cpu.req_val; 
   }
   otherwise {
     r_cpu_req_val <== Bool(false);
   }
+  
+//   val r_cpu_req_addr = Reg(Bits(0, addrbits));
+//   when (io.cpu.req_val && ((state === s_ready) || (state === s_resolve_miss))) {
+//     r_cpu_req_addr <== io.cpu.req_addr;
+//   }
+  
+//   val r_cpu_req_val = Reg(Bool(false));
+//   when ((state === s_ready) || (state === s_resolve_miss)) {
+//     r_cpu_req_val <== io.cpu.req_val;
+//   }
+//   otherwise {
+//     r_cpu_req_val <== Bool(false);
+//   }
 
   val refill_count = Reg(resetVal = UFix(0,2));
   when (io.mem.resp_val) {
@@ -90,30 +110,33 @@ class rocketICacheDM(lines: Int) extends Component {
   }
   
   // tag array
-  val tagbits = addrbits-(indexbits+offsetbits);
   val tag_array = new rocketSRAMsp(lines, tagbits);
-  tag_array.io.a := 
-    Mux((state === s_refill_wait), r_cpu_req_addr(indexmsb, indexlsb).toUFix, io.cpu.req_addr(indexmsb, indexlsb));
-  tag_array.io.d    := r_cpu_req_addr(tagmsb, taglsb);
-  tag_array.io.we   := (state === s_refill_wait) && io.mem.resp_val;
+  val tag_addr = 
+    Mux((state === s_refill_wait), r_cpu_req_idx(PGIDX_BITS-1,offsetbits),
+      io.cpu.req_idx(PGIDX_BITS-1,offsetbits)).toUFix;
+  val tag_we = (state === s_refill_wait) && io.mem.resp_val;
+  tag_array.io.a := tag_addr;
+  tag_array.io.d    := r_cpu_req_ppn;
+  tag_array.io.we   := tag_we;
   tag_array.io.bweb := ~Bits(0,tagbits);
-  tag_array.io.ce   := Bool(true); // FIXME
-  val tag_lookup = tag_array.io.q;
+  tag_array.io.ce   := (state === s_ready) && io.cpu.req_val;
+  val tag_rdata = tag_array.io.q;
   
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
-  val vb_rdata = Reg(vb_array(io.cpu.req_addr(indexmsb, indexlsb)));
-  when ((state === s_refill_wait) && io.mem.resp_val) {
-    vb_array <== vb_array.bitSet(r_cpu_req_addr(indexmsb, indexlsb).toUFix, UFix(1,1));
+//   val vb_rdata = Reg(vb_array(io.cpu.req_addr(indexmsb, indexlsb)));
+  when (tag_we) {
+    vb_array <== vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
 
-  val tag_match = vb_rdata.toBool && (tag_lookup === r_cpu_req_addr(tagmsb, taglsb));
-
+  val tag_valid = Reg(vb_array(tag_addr)).toBool;
+  val tag_match = (tag_rdata === io.cpu.req_ppn);
+  
   // data array
   val data_array = new rocketSRAMsp(lines*4, 128);
   data_array.io.a := 
-    Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_addr(indexmsb, indexlsb), refill_count),
-      io.cpu.req_addr(indexmsb, offsetmsb-1)).toUFix;
+    Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(PGIDX_BITS-1, offsetbits), refill_count),
+      io.cpu.req_idx(PGIDX_BITS-1, offsetmsb-1)).toUFix;
   data_array.io.d    := io.mem.resp_data;
   data_array.io.we   := io.mem.resp_val;
   data_array.io.bweb := ~Bits(0,128);
@@ -121,16 +144,17 @@ class rocketICacheDM(lines: Int) extends Component {
   val data_array_rdata = data_array.io.q;
    
   // output signals
-  io.cpu.resp_val := (r_cpu_req_val && tag_match && (state === s_ready)); //  || (state === s_resolve_miss);
-  io.cpu.req_rdy  := ((state === s_ready) && (!r_cpu_req_val || (r_cpu_req_val && tag_match))); // || (state === s_resolve_miss);
-  io.cpu.resp_data := 
-    MuxLookup(r_cpu_req_addr(offsetmsb-2, offsetlsb).toUFix, data_array_rdata(127, 96), 
+  io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_valid && tag_match; 
+  io.cpu.req_rdy  := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || (tag_valid && tag_match));
+  io.cpu.resp_data :=
+    MuxLookup(r_cpu_req_idx(offsetmsb-2, offsetlsb).toUFix, data_array_rdata(127, 96), 
       Array(UFix(2) -> data_array_rdata(95,64),
       UFix(1) -> data_array_rdata(63,32),
       UFix(0) -> data_array_rdata(31,0)));
 
   io.mem.req_val := (state === s_request);
-  io.mem.req_addr := Cat(r_cpu_req_addr(tagmsb, indexlsb), Bits(0,2)).toUFix;  
+  io.mem.req_addr := Cat(r_cpu_req_ppn, r_cpu_req_idx(PGIDX_BITS-1, offsetbits), Bits(0,2)).toUFix;
+  // Cat(r_cpu_req_addr(tagmsb, indexlsb), Bits(0,2)).toUFix;  
 
   // control state machine
   switch (state) {
@@ -138,17 +162,23 @@ class rocketICacheDM(lines: Int) extends Component {
       state <== s_ready;
     }
     is (s_ready) {
-      when (r_cpu_req_val && !tag_match) { state <== s_request; }
+      when (!io.cpu.itlb_miss && r_cpu_req_val && !(tag_valid && tag_match)) { state <== s_request; }
     }
     is (s_request)
     {
-      when (io.mem.req_rdy) { state <== s_refill_wait; }
+      when (io.mem.req_rdy) {
+        state <== s_refill_wait;
+      }
     }
     is (s_refill_wait) {
-      when (io.mem.resp_val)  { state <== s_refill; }
+      when (io.mem.resp_val) {
+        state <== s_refill;
+      }
     }
     is (s_refill) {
-      when (io.mem.resp_val && (refill_count === UFix(3,2))) { state <== s_resolve_miss; }
+      when (io.mem.resp_val && (refill_count === UFix(3,2))) {
+        state <== s_resolve_miss;
+      }
     }
     is (s_resolve_miss) {
       state <== s_ready;

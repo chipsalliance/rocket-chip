@@ -102,8 +102,6 @@ class rocketDCacheStoreGen extends Component {
   
 }
  
-
- 
 // state machine to flush (write back dirty lines, invalidate clean ones) the D$
 class rocketDCacheDM_flush(lines: Int) extends Component {
   val io = new ioDCacheDM();
@@ -212,7 +210,7 @@ class rocketDCacheDM(lines: Int) extends Component {
     r_cpu_req_tag   <== io.cpu.req_tag;
   }
   
-  when (state === s_ready) {
+  when ((state === s_ready) && r_cpu_req_val) {
     r_cpu_req_ppn <== io.cpu.req_ppn;
   }
   when (io.cpu.req_rdy) {
@@ -240,13 +238,13 @@ class rocketDCacheDM(lines: Int) extends Component {
   val tag_we = 
     ((state === s_refill) && io.mem.req_rdy && (rr_count === UFix(3,2))) ||
     ((state === s_resolve_miss) && r_req_flush);
-    
+
   val tag_array = new rocketSRAMsp(lines, tagbits);  
   tag_array.io.a    := tag_addr;
   tag_array.io.d    := r_cpu_req_ppn;
   tag_array.io.we   := tag_we;
   tag_array.io.bweb := ~Bits(0,tagbits);
-  tag_array.io.ce   := Bool(true); // FIXME
+  tag_array.io.ce   := (state === s_ready) && io.cpu.req_val;
   val tag_rdata      = tag_array.io.q;
 
   // valid bit array
@@ -303,10 +301,7 @@ class rocketDCacheDM(lines: Int) extends Component {
   val store_data = Fill(2, storegen.io.store_data);
   val store_wmask_d = storegen.io.store_wmask;
   val store_idx_sel = p_store_idx(offsetlsb).toBool;
-  val store_wmask = 
-    Mux(store_idx_sel, 
-  		Cat(store_wmask_d, Bits(0,64)),
-  		Cat(Bits(0,64), store_wmask_d)); 
+  val store_wmask = Mux(store_idx_sel, Cat(store_wmask_d, Bits(0,64)), Cat(Bits(0,64), store_wmask_d)); 
 
   // data array
   val data_array = new rocketSRAMsp(lines*4, 128);
@@ -317,10 +312,7 @@ class rocketDCacheDM(lines: Int) extends Component {
     Mux((state === s_resolve_miss) || (state === s_replay_load),  r_cpu_req_idx(PGIDX_BITS-1, offsetmsb-1),
       io.cpu.req_idx(PGIDX_BITS-1, offsetmsb-1))))).toUFix;
       
-  data_array.io.d := 
-    Mux((state === s_refill), io.mem.resp_data, 
-    Mux((state === s_resolve_miss), Fill(2, p_store_data),
-      store_data));
+  data_array.io.d :=  Mux((state === s_refill), io.mem.resp_data, store_data);
   data_array.io.we := ((state === s_refill) && io.mem.resp_val) || drain_store || resolve_store;
   data_array.io.bweb := Mux((state === s_refill), ~Bits(0,128), store_wmask);
   data_array.io.ce := Bool(true); // FIXME

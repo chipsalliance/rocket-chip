@@ -16,11 +16,16 @@ class rocketDmemArbiter extends Component
 {
   val io = new ioDmemArbiter();
   
+  // must delay ppn part of address from PTW by 1 cycle (to match TLB behavior)
+  val r_ptw_req_val = Reg(io.ptw.req_val);
+  val r_ptw_req_ppn = Reg(io.ptw.req_ppn);
+  
   io.mem.req_val  := io.ptw.req_val || io.cpu.req_val;
   io.mem.req_cmd  := Mux(io.ptw.req_val, io.ptw.req_cmd,  io.cpu.req_cmd);
   io.mem.req_type := Mux(io.ptw.req_val, io.ptw.req_type, io.cpu.req_type);
   io.mem.req_idx  := Mux(io.ptw.req_val, io.ptw.req_idx, io.cpu.req_idx);
-  io.mem.req_ppn  := Mux(io.ptw.req_val, io.ptw.req_ppn, io.cpu.req_ppn);
+//   io.mem.req_ppn  := Mux(io.ptw.req_val, io.ptw.req_ppn, io.cpu.req_ppn);
+  io.mem.req_ppn  := Mux(r_ptw_req_val, r_ptw_req_ppn, io.cpu.req_ppn);
   io.mem.req_data := io.cpu.req_data;
   io.mem.req_tag  := Mux(io.ptw.req_val, Bits(0,5), io.cpu.req_tag);
   
