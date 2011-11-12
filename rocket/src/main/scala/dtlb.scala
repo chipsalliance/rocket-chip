@@ -20,6 +20,7 @@ class ioDTLB_CPU(view: List[String] = null) extends Bundle(view)
   val req_asid = Bits(ASID_BITS, 'input);
   val req_vpn  = UFix(VPN_BITS, 'input);
   // lookup responses
+  val resp_busy = Bool('output);
   val resp_miss = Bool('output);
 //   val resp_val = Bool('output);
   val resp_ppn = UFix(PPN_BITS, 'output);
@@ -62,6 +63,7 @@ class rocketDTLB(entries: Int) extends Component
   
   val req_load  = (r_cpu_req_cmd === M_XRD);
   val req_store = (r_cpu_req_cmd === M_XWR);
+  val req_flush = (r_cpu_req_cmd === M_FLA);
 //   val req_amo   = io.cpu.req_cmd(3).toBool;
   
   val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
@@ -117,8 +119,8 @@ class rocketDTLB(entries: Int) extends Component
   
   val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
   
-  val lookup_hit  = (state === s_ready) && r_cpu_req_val && tag_hit;
-  val lookup_miss = (state === s_ready) && r_cpu_req_val && !tag_hit;
+  val lookup_hit  = (state === s_ready) && r_cpu_req_val && !req_flush && tag_hit;
+  val lookup_miss = (state === s_ready) && r_cpu_req_val && !req_flush && !tag_hit;
   val tlb_hit  = status_vm && lookup_hit;
   val tlb_miss = status_vm && lookup_miss;
   
@@ -143,9 +145,12 @@ class rocketDTLB(entries: Int) extends Component
     ((status_s && !sw_array(tag_hit_addr).toBool) ||
      (status_u && !uw_array(tag_hit_addr).toBool));
 
-  io.cpu.req_rdy   := (state === s_ready);
+  io.cpu.req_rdy   := Mux(status_vm, (state === s_ready) && !tlb_miss, Bool(true));
+  io.cpu.resp_busy := tlb_miss || (state != s_ready);
   io.cpu.resp_miss := tlb_miss;
-  io.cpu.resp_ppn := Mux(status_vm, tag_ram(tag_hit_addr), r_cpu_req_vpn(PPN_BITS-1,0)).toUFix;
+  io.cpu.resp_ppn  := 
+    Mux(status_vm, Mux(req_flush, Bits(0,PPN_BITS), tag_ram(tag_hit_addr)), 
+      r_cpu_req_vpn(PPN_BITS-1,0)).toUFix;
   
   io.ptw.req_val := (state === s_request);
   io.ptw.req_vpn := r_refill_tag(VPN_BITS-1,0);

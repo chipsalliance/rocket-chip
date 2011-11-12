@@ -28,6 +28,8 @@ class rocketDmemArbiter extends Component
   io.mem.req_ppn  := Mux(r_ptw_req_val, r_ptw_req_ppn, io.cpu.req_ppn);
   io.mem.req_data := io.cpu.req_data;
   io.mem.req_tag  := Mux(io.ptw.req_val, Bits(0,5), io.cpu.req_tag);
+//   io.mem.dtlb_busy := io.cpu.dtlb_busy;
+  io.mem.dtlb_miss := io.cpu.dtlb_miss;
   
   io.ptw.req_rdy   := io.mem.req_rdy;
   io.cpu.req_rdy   := io.mem.req_rdy && !io.ptw.req_val;  
