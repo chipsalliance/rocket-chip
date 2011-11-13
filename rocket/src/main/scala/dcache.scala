@@ -352,8 +352,8 @@ class rocketDCacheDM(lines: Int) extends Component {
                       r_cpu_resp_val;
                       
   val misaligned =
-    ((r_cpu_req_type === MT_H) && r_cpu_req_idx(0).toBool) ||
-    ((r_cpu_req_type === MT_W) && (r_cpu_req_idx(1,0) != Bits(0,2))) ||
+    (((r_cpu_req_type === MT_H) || (r_cpu_req_type === MT_HU)) && r_cpu_req_idx(0).toBool) ||
+    (((r_cpu_req_type === MT_W) || (r_cpu_req_type === MT_WU)) && (r_cpu_req_idx(1,0) != Bits(0,2))) ||
     ((r_cpu_req_type === MT_D) && (r_cpu_req_idx(2,0) != Bits(0,3)));
     
   io.cpu.xcpt_ma_ld := r_cpu_req_val && r_req_load && misaligned;

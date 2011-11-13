@@ -182,7 +182,7 @@ object Constants
   
   // physical memory size (# 8K pages)
   // if you change this value, make sure to also change MEMORY_SIZE variable in memif.h
-  val MEMSIZE_PAGES = 8192; // 64 megs
+  val MEMSIZE_PAGES = 0x8000; // 256 megs
   val MEMSIZE_BYTES = MEMSIZE_PAGES*8192;
   
   val HAVE_FPU = Bool(false);

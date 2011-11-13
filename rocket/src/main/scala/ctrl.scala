@@ -422,8 +422,8 @@ class rocketCtrl extends Component
   
   // replay mem stage PC on a DTLB miss
   val replay_mem = io.dtlb_miss;
-  val kill_ex    = replay_ex || replay_mem;
   val kill_mem   = mem_exception || replay_mem;
+  val kill_ex    = replay_ex || kill_mem;
 
   io.dpath.sel_pc :=
     Mux(replay_mem,                   PC_MEM,  // dtlb miss
