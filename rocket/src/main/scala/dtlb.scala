@@ -119,8 +119,9 @@ class rocketDTLB(entries: Int) extends Component
   
   val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
   
-  val lookup_hit  = (state === s_ready) && r_cpu_req_val && !req_flush && tag_hit;
-  val lookup_miss = (state === s_ready) && r_cpu_req_val && !req_flush && !tag_hit;
+  val lookup = (state === s_ready) && r_cpu_req_val && !req_flush;
+  val lookup_hit  = lookup && tag_hit;
+  val lookup_miss = lookup && !tag_hit;
   val tlb_hit  = status_vm && lookup_hit;
   val tlb_miss = status_vm && lookup_miss;
   
@@ -134,16 +135,24 @@ class rocketDTLB(entries: Int) extends Component
     }
   }
 
-  // FIXME: add check for out of range physical addresses (>MEMSIZE)
-  io.cpu.xcpt_ld :=
+  // exception check
+  val outofrange = (io.cpu.resp_ppn > UFix(MEMSIZE_PAGES, PPN_BITS));
+
+   val access_fault_ld =
     tlb_hit && req_load &&
     ((status_s && !sr_array(tag_hit_addr).toBool) ||
      (status_u && !ur_array(tag_hit_addr).toBool));
 
-  io.cpu.xcpt_st :=
+  io.cpu.xcpt_ld := 
+    (lookup && req_load && outofrange) || access_fault_ld;
+
+  val access_fault_st =
     tlb_hit && req_store &&
     ((status_s && !sw_array(tag_hit_addr).toBool) ||
      (status_u && !uw_array(tag_hit_addr).toBool));
+
+  io.cpu.xcpt_st := 
+    (lookup && req_store && outofrange) || access_fault_st;
 
   io.cpu.req_rdy   := Mux(status_vm, (state === s_ready) && !tlb_miss, Bool(true));
   io.cpu.resp_busy := tlb_miss || (state != s_ready);

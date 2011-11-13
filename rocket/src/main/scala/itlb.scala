@@ -155,8 +155,9 @@ class rocketITLB(entries: Int) extends Component
   
   val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
   
-  val lookup_hit  = (state === s_ready) && r_cpu_req_val && tag_hit;
-  val lookup_miss = (state === s_ready) && r_cpu_req_val && !tag_hit;
+  val lookup = (state === s_ready) && r_cpu_req_val;
+  val lookup_hit  = lookup && tag_hit;
+  val lookup_miss = lookup && !tag_hit;
   val tlb_hit  = status_vm && lookup_hit;
   val tlb_miss = status_vm && lookup_miss;
 
@@ -168,12 +169,15 @@ class rocketITLB(entries: Int) extends Component
     }
   }
 
-  // FIXME: add test for out of range physical addresses (> MEMSIZE)
-  io.cpu.exception :=
+  // exception check
+  val outofrange = (io.cpu.resp_ppn > UFix(MEMSIZE_PAGES, PPN_BITS));
+  
+  val access_fault = 
     tlb_hit &&
     ((status_s && !sx_array(tag_hit_addr).toBool) ||
      (status_u && !ux_array(tag_hit_addr).toBool));
-  
+
+  io.cpu.exception := access_fault || outofrange;
   io.cpu.req_rdy   := Mux(status_vm, (state === s_ready) && (!r_cpu_req_val || tag_hit), Bool(true));
   io.cpu.resp_miss := tlb_miss || (state != s_ready);
   io.cpu.resp_ppn := Mux(status_vm, tag_ram(tag_hit_addr), r_cpu_req_vpn(PPN_BITS-1,0)).toUFix;
