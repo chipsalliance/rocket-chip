@@ -18,6 +18,8 @@ class ioDmem(view: List[String] = null) extends Bundle(view) {
 //   val req_addr  = UFix(PADDR_BITS, 'input);
   val req_data  = Bits(64, 'input);
   val req_tag   = Bits(5, 'input);
+  val xcpt_ma_ld  = Bool('output); // misaligned load
+  val xcpt_ma_st = Bool('output); // misaligned store
   val resp_miss = Bool('output);
   val resp_val  = Bool('output);
   val resp_data = Bits(64, 'output);
@@ -151,16 +153,14 @@ class rocketDCacheDM_flush(lines: Int) extends Component {
   dcache.io.cpu.req_cmd   := Mux(flushing, M_FLA, io.cpu.req_cmd);
   dcache.io.cpu.req_idx   := Mux(flushing, Cat(flush_count, Bits(0,offsetbits)), io.cpu.req_idx);
   dcache.io.cpu.req_ppn   := Mux(flushing, UFix(0,PPN_BITS), io.cpu.req_ppn);
-//   dcache.io.cpu.req_addr  := 
-//     Mux(flushing, Cat(Bits(0,tagmsb-taglsb+1), flush_count, Bits(0,offsetbits)).toUFix, 
-//       io.cpu.req_addr);
   dcache.io.cpu.req_tag   := Mux(flushing, r_cpu_req_tag, io.cpu.req_tag);
   dcache.io.cpu.req_type  := io.cpu.req_type;
   dcache.io.cpu.req_data  ^^ io.cpu.req_data;
-//   dcache.io.cpu.dtlb_busy := io.cpu.dtlb_busy;
   dcache.io.cpu.dtlb_miss := io.cpu.dtlb_miss;
   dcache.io.mem           ^^ io.mem;
 
+  io.cpu.xcpt_ma_ld   := dcache.io.cpu.xcpt_ma_ld;
+  io.cpu.xcpt_ma_st   := dcache.io.cpu.xcpt_ma_st;
   io.cpu.req_rdy   := dcache.io.cpu.req_rdy && !flush_waiting;
   io.cpu.resp_miss := dcache.io.cpu.resp_miss;
   io.cpu.resp_data := dcache.io.cpu.resp_data;
@@ -351,6 +351,14 @@ class rocketDCacheDM(lines: Int) extends Component {
                       ((state === s_resolve_miss) && r_req_flush) ||
                       r_cpu_resp_val;
                       
+  val misaligned =
+    ((r_cpu_req_type === MT_H) && r_cpu_req_idx(0).toBool) ||
+    ((r_cpu_req_type === MT_W) && (r_cpu_req_idx(1,0) != Bits(0,2))) ||
+    ((r_cpu_req_type === MT_D) && (r_cpu_req_idx(2,0) != Bits(0,3)));
+    
+  io.cpu.xcpt_ma_ld := r_cpu_req_val && r_req_load && misaligned;
+  io.cpu.xcpt_ma_st := r_cpu_req_val && r_req_store && misaligned;
+    
   io.cpu.resp_miss := load_miss;
   // tag MSB distinguishes between loads destined for the PTW and CPU
   io.cpu.resp_tag  := Cat(r_req_ptw_load, r_cpu_req_type, r_cpu_req_idx(2,0), r_cpu_req_tag);

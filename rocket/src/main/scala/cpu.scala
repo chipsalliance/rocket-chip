@@ -85,7 +85,8 @@ class rocketProc extends Component
   ctrl.io.xcpt_dtlb_st    := dtlb.io.cpu.xcpt_st; 
   ctrl.io.dtlb_busy       := dtlb.io.cpu.resp_busy;
   ctrl.io.dtlb_miss       := dtlb.io.cpu.resp_miss;
-//   io.dmem.dtlb_miss       := dtlb.io.cpu.resp_miss;
+  ctrl.io.xcpt_ma_ld      := io.dmem.xcpt_ma_ld;  
+  ctrl.io.xcpt_ma_st      := io.dmem.xcpt_ma_st;
   
   // connect page table walker to TLBs, page table base register (from PCR)
   // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
