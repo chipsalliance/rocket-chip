@@ -367,7 +367,7 @@ class rocketCtrl extends Component
     
     mem_reg_xcpt_ma_inst     <== ex_reg_xcpt_ma_inst;
     mem_reg_xcpt_itlb        <== ex_reg_xcpt_itlb;
-    mem_reg_xcpt_illegal     <== mem_reg_xcpt_illegal;
+    mem_reg_xcpt_illegal     <== ex_reg_xcpt_illegal;
     mem_reg_xcpt_privileged  <== ex_reg_xcpt_privileged;
 //     mem_reg_xcpt_fpu         <== Bool(false);
     mem_reg_xcpt_syscall     <== ex_reg_xcpt_syscall;
