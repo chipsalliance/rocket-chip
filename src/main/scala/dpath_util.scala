@@ -35,15 +35,6 @@ class rocketDpathBTB(entries: Int) extends Component
   
   io.hit    := (is_val & (tag_target(tagmsb,taglsb) === io.current_pc4(VADDR_BITS-1, idxmsb+1))).toBool;
   io.target := Cat(tag_target(taglsb-1, 0), Bits(0,idxlsb)).toUFix;
-  
-//   val rst_lwlr_pf  = Mem(entries, io.wen, io.correct_pc4(3, 2), UFix(1, 1), resetVal = UFix(0, 1)); 
-//   val lwlr_pf      = Mem(entries, io.wen, io.correct_pc4(3, 2), 
-//                          Cat(io.correct_pc4(VADDR_BITS-1,4), io.correct_target(VADDR_BITS-1,2)), resetVal = UFix(0, 1));
-//   val is_val       = rst_lwlr_pf(io.current_pc4(3, 2));
-//   val tag_target   = lwlr_pf(io.current_pc4(3, 2));
-//   
-//   io.hit    := (is_val & (tag_target(2*VADDR_BITS-7,VADDR_BITS-2) === io.current_pc4(VADDR_BITS-1, 4))).toBool;
-//   io.target := Cat(tag_target(VADDR_BITS-3, 0), Bits(0,2)).toUFix;
 }
 
 class ioDpathPCR extends Bundle()
@@ -62,6 +53,7 @@ class ioDpathPCR extends Bundle()
   val pc    		= UFix(VADDR_BITS, 'input);
   val badvaddr  = UFix(VADDR_BITS, 'input);
   val eret  		= Bool('input);
+  val timer_int = Bool('output);
 }
 
 class rocketDpathPCR extends Component
@@ -71,8 +63,8 @@ class rocketDpathPCR extends Component
   val reg_epc      = Reg(resetVal = UFix(0, VADDR_BITS)); 
   val reg_badvaddr = Reg(resetVal = UFix(0, VADDR_BITS)); 
   val reg_ebase    = Reg(resetVal = UFix(0, VADDR_BITS)); 
-  val reg_count    = Reg(resetVal = Bits(0, 32)); 
-  val reg_compare  = Reg(resetVal = Bits(0, 32)); 
+  val reg_count    = Reg(resetVal = UFix(0, 32)); 
+  val reg_compare  = Reg(resetVal = UFix(0, 32)); 
   val reg_cause    = Reg(resetVal = Bits(0, 5));
   val reg_tohost   = Reg(resetVal = Bits(0, 32)); 
   val reg_fromhost = Reg(resetVal = Bits(0, 32));
@@ -90,6 +82,8 @@ class rocketDpathPCR extends Component
   val reg_status_s    = Reg(resetVal = Bool(true));
   val reg_status_ps   = Reg(resetVal = Bool(false));
   val reg_status_et   = Reg(resetVal = Bool(false));
+  
+  val timer_interrupt = Reg(resetVal = Bool(false));
   
   val reg_status = Cat(reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, Bits(0,1), reg_status_ev, reg_status_ef, reg_status_et);
   val rdata = Wire() { Bits() };
@@ -148,14 +142,20 @@ class rocketDpathPCR extends Component
   	when (io.w.addr === PCR_EPC) 			{ reg_epc      		<== io.w.data(VADDR_BITS-1,0).toUFix; }
   	when (io.w.addr === PCR_BADVADDR) { reg_badvaddr 		<== io.w.data(VADDR_BITS-1,0).toUFix; }
   	when (io.w.addr === PCR_EVEC) 		{ reg_ebase 			<== io.w.data(VADDR_BITS-1,0).toUFix; }
-  	when (io.w.addr === PCR_COUNT) 		{ reg_count 			<== io.w.data(31,0); }
-  	when (io.w.addr === PCR_COMPARE) 	{ reg_compare 		<== io.w.data(31,0); }
+  	when (io.w.addr === PCR_COUNT) 		{ reg_count 			<== io.w.data(31,0).toUFix; }
+  	when (io.w.addr === PCR_COMPARE) 	{ reg_compare 		<== io.w.data(31,0).toUFix; timer_interrupt <== Bool(false); }
   	when (io.w.addr === PCR_CAUSE) 		{ reg_cause 			<== io.w.data(4,0); }
   	when (io.w.addr === PCR_FROMHOST) { reg_fromhost 		<== io.w.data(31,0); }
   	when (io.w.addr === PCR_K0) 			{ reg_k0  				<== io.w.data; }
   	when (io.w.addr === PCR_K1) 			{ reg_k1  				<== io.w.data; }
   	when (io.w.addr === PCR_PTBR) 		{ reg_ptbr  			<== Cat(io.w.data(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
   }
+
+  reg_count <== reg_count + UFix(1);
+  when (reg_count === reg_compare) {
+    timer_interrupt <== Bool(true);
+  }
+  io.timer_int := timer_interrupt;
 
   when (!io.r.en) { rdata <== Bits(0,64); }
   switch (io.r.addr) {

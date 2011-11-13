@@ -75,6 +75,7 @@ class ioCtrlAll extends Bundle()
   val xcpt_itlb = Bool('input);
   val xcpt_ma_ld = Bool('input);
   val xcpt_ma_st = Bool('input);
+  val timer_int = Bool('input);
 }
 
 class rocketCtrl extends Component
@@ -382,7 +383,12 @@ class rocketCtrl extends Component
   }
 
   // exception handling
+  // FIXME: verify PC in MEM stage points to valid, restartable instruction
+  val interrupt = io.dpath.status(SR_ET).toBool && io.dpath.status(15).toBool && io.timer_int;
+  val interrupt_cause = UFix(0x17, 5);
+  
 	val mem_exception = 
+	  interrupt ||
 	  io.xcpt_ma_ld ||
 	  io.xcpt_ma_st ||
 	  io.xcpt_dtlb_ld ||
@@ -395,18 +401,18 @@ class rocketCtrl extends Component
 	  mem_reg_xcpt_ma_inst;
 	
 	val mem_cause = 
+		Mux(interrupt,                interrupt_cause, // asynchronous interrupt
 	  Mux(mem_reg_xcpt_itlb,        UFix(1,5), // instruction access fault
 		Mux(mem_reg_xcpt_illegal,     UFix(2,5), // illegal instruction
 		Mux(mem_reg_xcpt_privileged,  UFix(3,5), // privileged instruction
 		Mux(mem_reg_xcpt_fpu,         UFix(4,5), // FPU disabled
-		// interrupt
 		Mux(mem_reg_xcpt_syscall,     UFix(6,5), // system call
 		// breakpoint
 		Mux(io.xcpt_ma_ld,            UFix(8,5), // misaligned load
 		Mux(io.xcpt_ma_st,            UFix(9,5), // misaligned store
 		Mux(io.xcpt_dtlb_ld,          UFix(10,5), // load fault
 		Mux(io.xcpt_dtlb_st,          UFix(11,5), // store fault
-			UFix(0,5))))))))));  // instruction address misaligned
+			UFix(0,5)))))))))));  // instruction address misaligned
 
 	// write cause to PCR on an exception
 	io.dpath.exception := mem_exception;
