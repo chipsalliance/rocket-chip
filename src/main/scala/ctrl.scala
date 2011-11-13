@@ -196,6 +196,7 @@ class rocketCtrl extends Component
   val if_reg_xcpt_ma_inst = Reg(io.dpath.xcpt_ma_inst);
   
   // FIXME
+//   io.imem.req_val  := io.host.start && !io.dpath.xcpt_ma_inst; 
   io.imem.req_val  := io.host.start && !io.dpath.xcpt_ma_inst; 
 
   val id_int_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_sel_alu1 :: id_fn_dw :: id_fn_alu :: csremainder = cs; 

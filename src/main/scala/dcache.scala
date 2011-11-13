@@ -251,12 +251,14 @@ class rocketDCacheDM(lines: Int) extends Component {
   tag_array.io.d    := r_cpu_req_ppn;
   tag_array.io.we   := tag_we;
   tag_array.io.bweb := ~Bits(0,tagbits);
-  tag_array.io.ce   := (state === s_ready) || (state === s_start_writeback) || (state === s_writeback);
+  tag_array.io.ce   := 
+    (io.cpu.req_val && io.cpu.req_rdy) || 
+    (state === s_start_writeback) ||
+    (state === s_writeback);
   val tag_rdata      = tag_array.io.q;
 
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
-//   val vb_rdata = Reg(vb_array(tag_raddr));
   when (tag_we && !r_req_flush) { 
     vb_array <== vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
@@ -265,9 +267,10 @@ class rocketDCacheDM(lines: Int) extends Component {
   }
   val vb_rdata = Reg(vb_array(tag_addr).toBool);
   val tag_valid = r_cpu_req_val && vb_rdata;
-//   val tag_valid = Reg(vb_array(tag_addr)).toBool;
   val tag_match = (tag_rdata === io.cpu.req_ppn);
-  val addr_match    = (r_cpu_req_idx(PGIDX_BITS-1,offsetbits) === p_store_idx(PGIDX_BITS-1,offsetbits));
+  
+  // load/store addresses conflict if they are to any part of the same 64 bit word
+  val addr_match    = (r_cpu_req_idx(PGIDX_BITS-1,offsetlsb) === p_store_idx(PGIDX_BITS-1,offsetlsb));
   val ldst_conflict = r_cpu_req_val && r_req_load && p_store_valid && addr_match;
 
   // write the pending store data when the cache is idle, when the next command isn't a load
@@ -281,7 +284,6 @@ class rocketDCacheDM(lines: Int) extends Component {
   
   // dirty bit array
   val db_array  = Reg(resetVal = Bits(0, lines));
-//   val db_rdata  = Reg(db_array(tag_raddr));
   val tag_dirty = Reg(db_array(tag_addr)).toBool;
   
   when (io.cpu.req_val && io.cpu.req_rdy && req_store) { 
@@ -328,7 +330,6 @@ class rocketDCacheDM(lines: Int) extends Component {
   data_array.io.d :=  Mux((state === s_refill), io.mem.resp_data, store_data);
   data_array.io.we := ((state === s_refill) && io.mem.resp_val) || drain_store || resolve_store;
   data_array.io.bweb := Mux((state === s_refill), ~Bits(0,128), store_wmask);
-//   data_array.io.ce := Bool(true); // FIXME
   data_array.io.ce := 
     (io.cpu.req_val && io.cpu.req_rdy && req_load) ||
     (state === s_start_writeback) ||
