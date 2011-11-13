@@ -180,10 +180,10 @@ object Constants
   val DTLB_ENTRIES = 8;
   val ITLB_ENTRIES = 8;
   
-  // physical memory size (# 4K pages - for proxy kernel at least)
+  // physical memory size (# 8K pages)
   // if you change this value, make sure to also change MEMORY_SIZE variable in memif.h
-  val MEMSIZE_PAGES = 8192; // 32 megs
-  val MEMSIZE = MEMSIZE_PAGES*4096;
+  val MEMSIZE_PAGES = 8192; // 64 megs
+  val MEMSIZE_BYTES = MEMSIZE_PAGES*8192;
   
   val HAVE_FPU = Bool(false);
   val HAVE_VEC = Bool(false);
