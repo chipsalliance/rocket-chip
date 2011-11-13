@@ -355,6 +355,7 @@ class rocketDpath extends Component
   pcr.io.host.from     ^^ io.host.from;
   pcr.io.host.to       ^^ io.host.to;
   
+  io.ctrl.timer_int    := pcr.io.timer_int;
   io.ctrl.status       := pcr.io.status;
   io.ptbr              := pcr.io.ptbr;
  	io.debug.error_mode  := pcr.io.debug.error_mode;

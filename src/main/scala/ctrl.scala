@@ -58,6 +58,7 @@ class ioCtrlDpath extends Bundle()
   val sboard_clr0a = UFix(5, 'input);
   val sboard_clr1  = Bool('input);
   val sboard_clr1a = UFix(5, 'input);
+  val timer_int = Bool('input);
 }
 
 class ioCtrlAll extends Bundle()
@@ -69,13 +70,11 @@ class ioCtrlAll extends Bundle()
   val host    = new ioHost(List("start"));
   val dtlb_busy = Bool('input);
   val dtlb_miss = Bool('input);
-//   val itlb_miss = Bool('input);
   val xcpt_dtlb_ld = Bool('input);
   val xcpt_dtlb_st = Bool('input);
   val xcpt_itlb = Bool('input);
   val xcpt_ma_ld = Bool('input);
   val xcpt_ma_st = Bool('input);
-  val timer_int = Bool('input);
 }
 
 class rocketCtrl extends Component
@@ -332,7 +331,6 @@ class rocketCtrl extends Component
   val jr_taken = (ex_reg_br_type === BR_JR);
   val j_taken  = (ex_reg_br_type === BR_J);
 
-//   io.dmem.req_val     := ex_reg_mem_val;
   io.dmem.req_val     := ex_reg_mem_val && ~io.dpath.killx;
   io.dmem.req_cmd     := ex_reg_mem_cmd;
   io.dmem.req_type    := ex_reg_mem_type;
@@ -384,7 +382,7 @@ class rocketCtrl extends Component
 
   // exception handling
   // FIXME: verify PC in MEM stage points to valid, restartable instruction
-  val interrupt = io.dpath.status(SR_ET).toBool && io.dpath.status(15).toBool && io.timer_int;
+  val interrupt = io.dpath.status(SR_ET).toBool && io.dpath.status(15).toBool && io.dpath.timer_int;
   val interrupt_cause = UFix(0x17, 5);
   
 	val mem_exception = 
@@ -421,9 +419,9 @@ class rocketCtrl extends Component
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, and for privileged instructions
   val replay_ex = (ex_reg_mem_val && !io.dmem.req_rdy) || io.dmem.resp_miss || mem_reg_privileged;
+  
   // replay mem stage PC on a DTLB miss
   val replay_mem = io.dtlb_miss;
-//   val replay_mem = Bool(false);
   val kill_ex    = replay_ex || replay_mem;
   val kill_mem   = mem_exception || replay_mem;
 
@@ -525,7 +523,6 @@ class rocketCtrl extends Component
 
   io.dpath.stalld   := ctrl_stalld.toBool;
 
-//   io.dpath.killf    := take_pc | io.itlb_miss | ~io.imem.resp_val;
   io.dpath.killf    := take_pc | ~io.imem.resp_val;
   io.dpath.killd    := ctrl_killd.toBool;
   io.dpath.killx    := kill_ex.toBool;
