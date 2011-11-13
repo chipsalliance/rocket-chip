@@ -90,20 +90,8 @@ class rocketICacheDM(lines: Int) extends Component {
   otherwise {
     r_cpu_req_val <== Bool(false);
   }
-  
-//   val r_cpu_req_addr = Reg(Bits(0, addrbits));
-//   when (io.cpu.req_val && ((state === s_ready) || (state === s_resolve_miss))) {
-//     r_cpu_req_addr <== io.cpu.req_addr;
-//   }
-  
-//   val r_cpu_req_val = Reg(Bool(false));
-//   when ((state === s_ready) || (state === s_resolve_miss)) {
-//     r_cpu_req_val <== io.cpu.req_val;
-//   }
-//   otherwise {
-//     r_cpu_req_val <== Bool(false);
-//   }
 
+  // refill counter
   val refill_count = Reg(resetVal = UFix(0,2));
   when (io.mem.resp_val) {
     refill_count <== refill_count + UFix(1);
@@ -119,12 +107,11 @@ class rocketICacheDM(lines: Int) extends Component {
   tag_array.io.d    := r_cpu_req_ppn;
   tag_array.io.we   := tag_we;
   tag_array.io.bweb := ~Bits(0,tagbits);
-  tag_array.io.ce   := (state === s_ready) && io.cpu.req_val;
+  tag_array.io.ce   := (io.cpu.req_val && io.cpu.req_rdy);
   val tag_rdata = tag_array.io.q;
   
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
-//   val vb_rdata = Reg(vb_array(io.cpu.req_addr(indexmsb, indexlsb)));
   when (tag_we) {
     vb_array <== vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
@@ -140,7 +127,6 @@ class rocketICacheDM(lines: Int) extends Component {
   data_array.io.d    := io.mem.resp_data;
   data_array.io.we   := io.mem.resp_val;
   data_array.io.bweb := ~Bits(0,128);
-//   data_array.io.ce   := Bool(true); // FIXME
   data_array.io.ce   := (io.cpu.req_rdy && io.cpu.req_val) || (state === s_resolve_miss);
     
   val data_array_rdata = data_array.io.q;
@@ -156,7 +142,6 @@ class rocketICacheDM(lines: Int) extends Component {
 
   io.mem.req_val := (state === s_request);
   io.mem.req_addr := Cat(r_cpu_req_ppn, r_cpu_req_idx(PGIDX_BITS-1, offsetbits), Bits(0,2)).toUFix;
-  // Cat(r_cpu_req_addr(tagmsb, indexlsb), Bits(0,2)).toUFix;  
 
   // control state machine
   switch (state) {
