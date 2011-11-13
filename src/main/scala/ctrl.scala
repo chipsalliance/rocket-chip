@@ -73,6 +73,8 @@ class ioCtrlAll extends Bundle()
   val xcpt_dtlb_ld = Bool('input);
   val xcpt_dtlb_st = Bool('input);
   val xcpt_itlb = Bool('input);
+  val xcpt_ma_ld = Bool('input);
+  val xcpt_ma_st = Bool('input);
 }
 
 class rocketCtrl extends Component
@@ -381,6 +383,8 @@ class rocketCtrl extends Component
 
   // exception handling
 	val mem_exception = 
+	  io.xcpt_ma_ld ||
+	  io.xcpt_ma_st ||
 	  io.xcpt_dtlb_ld ||
 	  io.xcpt_dtlb_st ||
 	  mem_reg_xcpt_illegal || 
@@ -398,11 +402,11 @@ class rocketCtrl extends Component
 		// interrupt
 		Mux(mem_reg_xcpt_syscall,     UFix(6,5), // system call
 		// breakpoint
-		// misaligned load
-		// misaligned store
-		Mux(io.xcpt_dtlb_ld,          UFix(8,5), // load fault
-		Mux(io.xcpt_dtlb_st,          UFix(9,5), // store fault
-			UFix(0,5))))))));  // instruction address misaligned
+		Mux(io.xcpt_ma_ld,            UFix(8,5), // misaligned load
+		Mux(io.xcpt_ma_st,            UFix(9,5), // misaligned store
+		Mux(io.xcpt_dtlb_ld,          UFix(10,5), // load fault
+		Mux(io.xcpt_dtlb_st,          UFix(11,5), // store fault
+			UFix(0,5))))))))));  // instruction address misaligned
 
 	// write cause to PCR on an exception
 	io.dpath.exception := mem_exception;
