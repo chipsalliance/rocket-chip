@@ -177,7 +177,7 @@ class rocketITLB(entries: Int) extends Component
     ((status_s && !sx_array(tag_hit_addr).toBool) ||
      (status_u && !ux_array(tag_hit_addr).toBool));
 
-  io.cpu.exception := access_fault || outofrange;
+  io.cpu.exception := access_fault; //|| outofrange;
   io.cpu.req_rdy   := Mux(status_vm, (state === s_ready) && (!r_cpu_req_val || tag_hit), Bool(true));
   io.cpu.resp_miss := tlb_miss || (state != s_ready);
   io.cpu.resp_ppn := Mux(status_vm, tag_ram(tag_hit_addr), r_cpu_req_vpn(PPN_BITS-1,0)).toUFix;
