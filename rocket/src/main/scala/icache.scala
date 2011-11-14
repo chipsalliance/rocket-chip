@@ -8,6 +8,7 @@ import scala.math._;
 // interface between I$ and pipeline/ITLB (32 bits wide)
 class ioImem(view: List[String] = null) extends Bundle (view)
 {
+  val invalidate = Bool('input);
   val itlb_miss  = Bool('input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
@@ -112,6 +113,9 @@ class rocketICacheDM(lines: Int) extends Component {
   
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
+  when (io.cpu.invalidate) {
+    vb_array <== Bits(0,lines);
+  }
   when (tag_we) {
     vb_array <== vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }

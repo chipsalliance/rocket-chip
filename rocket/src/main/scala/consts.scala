@@ -138,6 +138,10 @@ object Constants
   val M_XA_MAX  = Bits("b1101", 4);
   val M_XA_MINU = Bits("b1110", 4);
   val M_XA_MAXU = Bits("b1111", 4);
+  
+  val SYNC_N    = Bits(0,2);
+  val SYNC_D    = Bits(1,2);
+  val SYNC_I    = Bits(2,2);
 
   val PCR_STATUS   = UFix( 0, 5);
   val PCR_EPC      = UFix( 1, 5);
