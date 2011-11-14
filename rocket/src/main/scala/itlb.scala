@@ -170,7 +170,7 @@ class rocketITLB(entries: Int) extends Component
   }
 
   // exception check
-  val outofrange = (io.cpu.resp_ppn > UFix(MEMSIZE_PAGES, PPN_BITS));
+  val outofrange = !tlb_miss && (io.cpu.resp_ppn > UFix(MEMSIZE_PAGES, PPN_BITS));
   
   val access_fault = 
     tlb_hit &&
