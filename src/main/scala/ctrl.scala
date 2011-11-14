@@ -81,6 +81,77 @@ class rocketCtrl extends Component
 {
   val io = new ioCtrlAll();
     
+  val fp =
+  ListLookup(io.dpath.inst,
+    List(Bool(false)),
+     Array(
+       FMOVZ -> List(Bool(true)),
+       FMOVN -> List(Bool(true)),
+       FADD_S -> List(Bool(true)),
+       FSUB_S -> List(Bool(true)),
+       FMUL_S -> List(Bool(true)),
+       FDIV_S -> List(Bool(true)),
+       FSQRT_S -> List(Bool(true)),
+       FSGNJ_S -> List(Bool(true)),
+       FSGNJN_S -> List(Bool(true)),
+       FSGNJX_S -> List(Bool(true)),
+       FADD_D -> List(Bool(true)),
+       FSUB_D -> List(Bool(true)),
+       FMUL_D -> List(Bool(true)),
+       FDIV_D -> List(Bool(true)),
+       FSQRT_D -> List(Bool(true)),
+       FSGNJ_D -> List(Bool(true)),
+       FSGNJN_D -> List(Bool(true)),
+       FSGNJX_D -> List(Bool(true)),
+       FCVT_L_S -> List(Bool(true)),
+       FCVT_LU_S -> List(Bool(true)),
+       FCVT_W_S -> List(Bool(true)),
+       FCVT_WU_S -> List(Bool(true)),
+       FCVT_L_D -> List(Bool(true)),
+       FCVT_LU_D -> List(Bool(true)),
+       FCVT_W_D -> List(Bool(true)),
+       FCVT_WU_D -> List(Bool(true)),
+       FCVT_S_L -> List(Bool(true)),
+       FCVT_S_LU -> List(Bool(true)),
+       FCVT_S_W -> List(Bool(true)),
+       FCVT_S_WU -> List(Bool(true)),
+       FCVT_D_L -> List(Bool(true)),
+       FCVT_D_LU -> List(Bool(true)),
+       FCVT_D_W -> List(Bool(true)),
+       FCVT_D_WU -> List(Bool(true)),
+       FCVT_S_D -> List(Bool(true)),
+       FCVT_D_S -> List(Bool(true)),
+       FEQ_S -> List(Bool(true)),
+       FLT_S -> List(Bool(true)),
+       FLE_S -> List(Bool(true)),
+       FEQ_D -> List(Bool(true)),
+       FLT_D -> List(Bool(true)),
+       FLE_D -> List(Bool(true)),
+       FMIN_S -> List(Bool(true)),
+       FMAX_S -> List(Bool(true)),
+       FMIN_D -> List(Bool(true)),
+       FMAX_D -> List(Bool(true)),
+       MFTX_S -> List(Bool(true)),
+       MFTX_D -> List(Bool(true)),
+       MFFSR -> List(Bool(true)),
+       MXTF_S -> List(Bool(true)),
+       MXTF_D -> List(Bool(true)),
+       MTFSR -> List(Bool(true)),
+       FLW -> List(Bool(true)),
+       FLD -> List(Bool(true)),
+       FSW -> List(Bool(true)),
+       FSD -> List(Bool(true)),
+       FMADD_S -> List(Bool(true)),
+       FMSUB_S -> List(Bool(true)),
+       FNMSUB_S -> List(Bool(true)),
+       FNMADD_S -> List(Bool(true)),
+       FMADD_D -> List(Bool(true)),
+       FMSUB_D -> List(Bool(true)),
+       FNMSUB_D -> List(Bool(true)),
+       FNMADD_D -> List(Bool(true))
+     ));
+  val id_fp_val :: Nil = fp;
+  
   val xpr64 = Y;
   val cs =   
   ListLookup(io.dpath.inst,
@@ -198,7 +269,6 @@ class rocketCtrl extends Component
   val if_reg_xcpt_ma_inst = Reg(io.dpath.xcpt_ma_inst);
   
   // FIXME
-//   io.imem.req_val  := io.host.start && !io.dpath.xcpt_ma_inst; 
   io.imem.req_val  := io.host.start && !io.dpath.xcpt_ma_inst; 
 
   val id_int_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_sel_alu1 :: id_fn_dw :: id_fn_alu :: csremainder = cs; 
@@ -254,15 +324,14 @@ class rocketCtrl extends Component
   val ex_reg_xcpt_itlb       = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_illegal    = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_privileged = Reg(resetVal = Bool(false));
-//   val ex_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
+  val ex_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
 
   val mem_reg_xcpt_ma_inst    = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_itlb       = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_illegal    = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_privileged = Reg(resetVal = Bool(false));
-//   val mem_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
-  val mem_reg_xcpt_fpu        = Bool(false); // FIXME: trap on unimplemented FPU instructions
+  val mem_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
 
   when (!io.dpath.stalld) {
@@ -278,6 +347,8 @@ class rocketCtrl extends Component
     }
   }
   
+  val illegal_inst = !id_int_val.toBool && !id_fp_val.toBool;
+  
   when (reset.toBool || io.dpath.killd) {
     ex_reg_br_type     <== BR_N;
     ex_reg_btb_hit     <== Bool(false);
@@ -292,7 +363,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_itlb        <== Bool(false);
     ex_reg_xcpt_illegal     <== Bool(false);
     ex_reg_xcpt_privileged  <== Bool(false);
-//     ex_reg_xcpt_fpu         <== Bool(false);
+    ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== Bool(false);
   } 
   otherwise {
@@ -307,9 +378,9 @@ class rocketCtrl extends Component
     
     ex_reg_xcpt_ma_inst     <== id_reg_xcpt_ma_inst;
     ex_reg_xcpt_itlb        <== id_reg_xcpt_itlb;
-    ex_reg_xcpt_illegal     <== ~id_int_val.toBool;
+    ex_reg_xcpt_illegal     <== illegal_inst;
     ex_reg_xcpt_privileged  <== (id_privileged & ~io.dpath.status(5)).toBool;
-//     ex_reg_xcpt_fpu         <== Bool(false);
+    ex_reg_xcpt_fpu         <== id_fp_val.toBool;
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
   }
 
@@ -354,7 +425,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_itlb        <== Bool(false);
     mem_reg_xcpt_illegal     <== Bool(false);
     mem_reg_xcpt_privileged  <== Bool(false);
-//     mem_reg_xcpt_fpu         <== Bool(false);
+    mem_reg_xcpt_fpu         <== Bool(false);
     mem_reg_xcpt_syscall     <== Bool(false);
   }
   otherwise {
@@ -369,7 +440,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_itlb        <== ex_reg_xcpt_itlb;
     mem_reg_xcpt_illegal     <== ex_reg_xcpt_illegal;
     mem_reg_xcpt_privileged  <== ex_reg_xcpt_privileged;
-//     mem_reg_xcpt_fpu         <== Bool(false);
+    mem_reg_xcpt_fpu         <== ex_reg_xcpt_fpu;
     mem_reg_xcpt_syscall     <== ex_reg_xcpt_syscall;
   }
     

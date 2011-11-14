@@ -15,7 +15,6 @@ class ioDmem(view: List[String] = null) extends Bundle(view) {
   val req_type  = Bits(3, 'input);
   val req_idx   = Bits(PGIDX_BITS, 'input);
   val req_ppn   = Bits(PPN_BITS, 'input);
-//   val req_addr  = UFix(PADDR_BITS, 'input);
   val req_data  = Bits(64, 'input);
   val req_tag   = Bits(5, 'input);
   val xcpt_ma_ld  = Bool('output); // misaligned load
@@ -203,6 +202,7 @@ class rocketDCacheDM(lines: Int) extends Component {
 
   val req_store   = (io.cpu.req_cmd === M_XWR);
   val req_load    = (io.cpu.req_cmd === M_XRD) || (io.cpu.req_cmd === M_PRD);
+  val req_flush   = (io.cpu.req_cmd === M_FLA);
   val r_req_load  = (r_cpu_req_cmd === M_XRD) || (r_cpu_req_cmd === M_PRD);
   val r_req_store = (r_cpu_req_cmd === M_XWR);
   val r_req_flush = (r_cpu_req_cmd === M_FLA);
@@ -243,7 +243,7 @@ class rocketDCacheDM(lines: Int) extends Component {
     Mux((state === s_ready), io.cpu.req_idx(PGIDX_BITS-1,offsetbits),
       r_cpu_req_idx(PGIDX_BITS-1,offsetbits)).toUFix;  
   val tag_we = 
-    ((state === s_refill) && io.mem.req_rdy && (rr_count === UFix(3,2))) ||
+    ((state === s_refill) && io.mem.resp_val && (rr_count === UFix(3,2))) ||
     ((state === s_resolve_miss) && r_req_flush);
 
   val tag_array = new rocketSRAMsp(lines, tagbits);  
@@ -268,15 +268,20 @@ class rocketDCacheDM(lines: Int) extends Component {
   val vb_rdata = Reg(vb_array(tag_addr).toBool);
   val tag_valid = r_cpu_req_val && vb_rdata;
   val tag_match = (tag_rdata === io.cpu.req_ppn);
-  
+  val tag_hit  = tag_valid && tag_match;
+  val miss = r_cpu_req_val && (!vb_rdata || !tag_match);
+
   // load/store addresses conflict if they are to any part of the same 64 bit word
   val addr_match    = (r_cpu_req_idx(PGIDX_BITS-1,offsetlsb) === p_store_idx(PGIDX_BITS-1,offsetlsb));
-  val ldst_conflict = r_cpu_req_val && r_req_load && p_store_valid && addr_match;
+  val ldst_conflict = tag_valid && tag_match && r_req_load && p_store_valid && addr_match;
+  val store_hit = r_cpu_req_val && !io.cpu.dtlb_miss && tag_hit && r_req_store ;
 
   // write the pending store data when the cache is idle, when the next command isn't a load
   // or when there's a load to the same address (in which case there's a 2 cycle delay:
-  // once cycle to write the store data and another to read the data back) 
-  val drain_store = !io.cpu.dtlb_miss && p_store_valid && (!io.cpu.req_val || req_store || ldst_conflict);
+  // once cycle to write the store data and another to read the data back)
+  val drain_store = 
+    ((store_hit || p_store_valid) && (!io.cpu.req_val || req_store || req_flush)) ||
+    (p_store_valid && (miss || ldst_conflict));
 
   // write pending store data from a store which missed
   // after the cache line refill has completed
@@ -290,12 +295,10 @@ class rocketDCacheDM(lines: Int) extends Component {
     p_store_idx   <== io.cpu.req_idx;
     p_store_data  <== io.cpu.req_data;
     p_store_type  <== io.cpu.req_type;
-    p_store_valid <== Bool(true);  
   }
-  // cancel store if there's a DTLB miss
-  when (r_cpu_req_val && r_req_store && io.cpu.dtlb_miss)
-  {
-    p_store_valid <== Bool(false);
+    
+  when (store_hit && !drain_store) {
+    p_store_valid <== Bool(true);
   }
   when (drain_store)  {
     p_store_valid <== Bool(false);
@@ -341,13 +344,12 @@ class rocketDCacheDM(lines: Int) extends Component {
 
   // signal a load miss when the data isn't present in the cache and when it's in the pending store data register
   // (causes the cache to block for 2 cycles and the load instruction is replayed)
-  val hit  = tag_valid && tag_match;
-  val load_miss = !io.cpu.dtlb_miss && (state === s_ready) && r_cpu_req_val && r_req_load && (!hit || (p_store_valid && addr_match));
+  val load_miss = !io.cpu.dtlb_miss && (state === s_ready) && r_cpu_req_val && r_req_load && (!tag_hit || (p_store_valid && addr_match));
 
   // output signals
   // busy when there's a load to the same address as a pending store, or on a cache miss, or when executing a flush
-  io.cpu.req_rdy   := !io.cpu.dtlb_miss && (state === s_ready) && !ldst_conflict && (!r_cpu_req_val || (hit && !r_req_flush));
-  io.cpu.resp_val  := !io.cpu.dtlb_miss && ((state === s_ready) &&  hit && r_req_load && !(p_store_valid && addr_match)) || 
+  io.cpu.req_rdy   := (state === s_ready) && !io.cpu.dtlb_miss && !ldst_conflict && (!r_cpu_req_val || (tag_hit && !r_req_flush));
+  io.cpu.resp_val  := !io.cpu.dtlb_miss && ((state === s_ready) &&  tag_hit && r_req_load && !(p_store_valid && addr_match)) || 
                       ((state === s_resolve_miss) && r_req_flush) ||
                       r_cpu_resp_val;
                       
@@ -386,7 +388,7 @@ class rocketDCacheDM(lines: Int) extends Component {
       when (ldst_conflict) {
         state <== s_replay_load;
       }
-      when (!r_cpu_req_val || (hit && !r_req_flush)) {
+      when (!r_cpu_req_val || (tag_hit && !r_req_flush)) {
         state <== s_ready;
       }
       when (tag_valid & tag_dirty) {
