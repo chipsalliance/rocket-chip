@@ -363,7 +363,8 @@ class rocketCtrl extends Component
     }
   }
   
-  val illegal_inst = !id_int_val.toBool && !id_fp_val.toBool;
+  // executing ERET when traps are enabled causes an illegal instruction exception (as per ISA sim)
+  val illegal_inst = !(id_int_val.toBool || id_fp_val.toBool) || (id_eret.toBool && io.dpath.status(SR_ET).toBool);
   
   when (reset.toBool || io.dpath.killd) {
     ex_reg_br_type     <== BR_N;
@@ -399,7 +400,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_ma_inst     <== id_reg_xcpt_ma_inst;
     ex_reg_xcpt_itlb        <== id_reg_xcpt_itlb;
     ex_reg_xcpt_illegal     <== illegal_inst;
-    ex_reg_xcpt_privileged  <== (id_privileged & ~io.dpath.status(5)).toBool;
+    ex_reg_xcpt_privileged  <== (id_privileged & ~io.dpath.status(SR_S)).toBool;
     ex_reg_xcpt_fpu         <== id_fp_val.toBool;
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
   }

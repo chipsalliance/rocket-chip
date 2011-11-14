@@ -155,8 +155,8 @@ object Constants
   val PCR_COMPARE  = UFix( 5, 5);
   val PCR_CAUSE    = UFix( 6, 5);
   val PCR_PTBR     = UFix( 7, 5);
-  val PCR_SENDIPI  = UFix( 8, 5);
-  val PCR_CLEARIPI = UFix( 9, 5);
+  val PCR_SEND_IPI = UFix( 8, 5);
+  val PCR_CLR_IPI  = UFix( 9, 5);
   val PCR_COREID   = UFix(10, 5);
   val PCR_K0       = UFix(12, 5);
   val PCR_K1       = UFix(13, 5);
@@ -169,6 +169,7 @@ object Constants
   val SR_ET   = 0;  // enable traps
   val SR_EF   = 1;  // enable floating point
   val SR_EV   = 2;  // enable vector unit
+  val SR_EC   = 3;  // enable compressed instruction encoding
   val SR_PS   = 4;  // mode stack bit
   val SR_S    = 5;  // user/supervisor mode
   val SR_UX   = 6;  // 64 bit user mode
@@ -176,7 +177,6 @@ object Constants
   val SR_VM   = 16; // VM enable
   
   val COREID = 0;
-  val NUMCORES = 1;
   val PADDR_BITS = 40;
   val VADDR_BITS = 43;
   val PGIDX_BITS = 13;
@@ -195,6 +195,7 @@ object Constants
   
   val START_ADDR = 0x2000;
   
+  val HAVE_RVC = Bool(false);
   val HAVE_FPU = Bool(false);
   val HAVE_VEC = Bool(false);
 }

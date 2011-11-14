@@ -81,6 +81,7 @@ class rocketDpathPCR extends Component
   val reg_status_im   = Reg(resetVal = Bits(0,8));
   val reg_status_sx   = Reg(resetVal = Bool(true));
   val reg_status_ux   = Reg(resetVal = Bool(true));
+  val reg_status_ec   = Reg(resetVal = Bool(false));
   val reg_status_ef   = Reg(resetVal = Bool(false));
   val reg_status_ev   = Reg(resetVal = Bool(false));
   val reg_status_s    = Reg(resetVal = Bool(true));
@@ -90,7 +91,7 @@ class rocketDpathPCR extends Component
   val r_irq_timer = Reg(resetVal = Bool(false));
   val r_irq_ipi   = Reg(resetVal = Bool(false));
   
-  val reg_status = Cat(reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, Bits(0,1), reg_status_ev, reg_status_ef, reg_status_et);
+  val reg_status = Cat(reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, reg_status_ec, reg_status_ev, reg_status_ef, reg_status_et);
   val rdata = Wire() { Bits() };
 
   io.ptbr_wen           := reg_status_vm.toBool && !io.exception && io.w.en && (io.w.addr === PCR_PTBR);
@@ -151,6 +152,7 @@ class rocketDpathPCR extends Component
       reg_status_ps <== io.w.data(SR_PS).toBool;
       reg_status_ev <== HAVE_VEC && io.w.data(SR_EV).toBool;
       reg_status_ef <== HAVE_FPU && io.w.data(SR_EF).toBool;
+      reg_status_ec <== HAVE_RVC && io.w.data(SR_EC).toBool;
       reg_status_et <== io.w.data(SR_ET).toBool;
   	}
   	when (io.w.addr === PCR_EPC) 			{ reg_epc      		<== io.w.data(VADDR_BITS-1,0).toUFix; }
@@ -160,8 +162,8 @@ class rocketDpathPCR extends Component
   	when (io.w.addr === PCR_COMPARE) 	{ reg_compare 		<== io.w.data(31,0).toUFix; r_irq_timer <== Bool(false); }
   	when (io.w.addr === PCR_CAUSE) 		{ reg_cause 			<== io.w.data(4,0); }
   	when (io.w.addr === PCR_FROMHOST) { reg_fromhost 		<== io.w.data(31,0); }
-  	when (io.w.addr === PCR_SENDIPI) 	{ r_irq_ipi  			<== Bool(true); }
-  	when (io.w.addr === PCR_CLEARIPI) { r_irq_ipi  			<== Bool(false); }
+  	when (io.w.addr === PCR_SEND_IPI) { r_irq_ipi  			<== Bool(true); }
+  	when (io.w.addr === PCR_CLR_IPI)  { r_irq_ipi  			<== Bool(false); }
   	when (io.w.addr === PCR_K0) 			{ reg_k0  				<== io.w.data; }
   	when (io.w.addr === PCR_K1) 			{ reg_k1  				<== io.w.data; }
   	when (io.w.addr === PCR_PTBR) 		{ reg_ptbr  			<== Cat(io.w.data(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
