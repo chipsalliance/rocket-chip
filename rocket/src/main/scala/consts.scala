@@ -139,6 +139,10 @@ object Constants
   val M_XA_MINU = Bits("b1110", 4);
   val M_XA_MAXU = Bits("b1111", 4);
   
+  val I_X  = Bits(0,2);
+  val I_DI = Bits(1,2);
+  val I_EI = Bits(2,2);
+  
   val SYNC_N    = Bits(0,2);
   val SYNC_D    = Bits(1,2);
   val SYNC_I    = Bits(2,2);

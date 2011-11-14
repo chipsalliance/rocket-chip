@@ -53,6 +53,8 @@ class ioDpathPCR extends Bundle()
   val pc    		= UFix(VADDR_BITS, 'input);
   val badvaddr  = UFix(VADDR_BITS, 'input);
   val eret  		= Bool('input);
+  val ei        = Bool('input);
+  val di        = Bool('input);
   val ptbr_wen  = Bool('output);
   val irq_timer = Bool('output);
   val irq_ipi   = Bool('output);
@@ -125,7 +127,15 @@ class rocketDpathPCR extends Component
   	reg_epc       <== io.pc;
   	reg_cause     <== io.cause;
   }
-    
+  
+  when (!io.exception && io.di) {
+  	reg_status_et <== Bool(false);
+  }    
+  
+  when (!io.exception && io.ei) {
+  	reg_status_et <== Bool(true);
+  }    
+  
   when (!io.exception && io.eret) {
   	reg_status_s  <== reg_status_ps;
   	reg_status_et <== Bool(true);
