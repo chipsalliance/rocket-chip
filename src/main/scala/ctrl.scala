@@ -58,7 +58,9 @@ class ioCtrlDpath extends Bundle()
   val sboard_clr0a = UFix(5, 'input);
   val sboard_clr1  = Bool('input);
   val sboard_clr1a = UFix(5, 'input);
-  val timer_int = Bool('input);
+  val mem_valid = Bool('input); // high if there's a valid (not flushed) instruction in mem stage
+  val irq_timer = Bool('input);
+  val irq_ipi   = Bool('input);
 }
 
 class ioCtrlAll extends Bundle()
@@ -234,6 +236,7 @@ class rocketCtrl extends Component
       DI->       List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,N,N,N,Y),
       ERET->     List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,N,Y,N,Y),
       FENCE->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,Y,N,N,N),
+      FENCE_I->  List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,Y,N,N,N), //FIXME
       CFLUSH->   List(Y,     BR_N,  REN_Y,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,N,N,N,Y),
       MFPCR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_PCR,REN_Y,WEN_N,N,N,N,Y),
       MTPCR->    List(Y,     BR_N,  REN_N,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_Y,N,N,N,Y)
@@ -453,8 +456,17 @@ class rocketCtrl extends Component
 
   // exception handling
   // FIXME: verify PC in MEM stage points to valid, restartable instruction
-  val interrupt = io.dpath.status(SR_ET).toBool && io.dpath.status(15).toBool && io.dpath.timer_int;
-  val interrupt_cause = UFix(0x17, 5);
+  val p_irq_timer = (io.dpath.status(15).toBool && io.dpath.irq_timer);
+  val p_irq_ipi   = (io.dpath.status(13).toBool && io.dpath.irq_ipi);
+  val interrupt = 
+    io.dpath.status(SR_ET).toBool && io.dpath.mem_valid && 
+    ((io.dpath.status(15).toBool && io.dpath.irq_timer) ||
+     (io.dpath.status(13).toBool && io.dpath.irq_ipi));
+     
+  val interrupt_cause = 
+    Mux(p_irq_ipi, UFix(21,5),
+    Mux(p_irq_timer, UFix(23,5),
+      UFix(0,5)));
   
 	val mem_exception = 
 	  interrupt ||

@@ -354,8 +354,9 @@ class rocketDpath extends Component
   pcr.io.host.from_wen ^^ io.host.from_wen;
   pcr.io.host.from     ^^ io.host.from;
   pcr.io.host.to       ^^ io.host.to;
-  
-  io.ctrl.timer_int    := pcr.io.timer_int;
+
+  io.ctrl.irq_timer    := pcr.io.irq_timer;
+  io.ctrl.irq_ipi      := pcr.io.irq_ipi;  
   io.ctrl.status       := pcr.io.status;
   io.ptbr              := pcr.io.ptbr;
  	io.debug.error_mode  := pcr.io.debug.error_mode;
@@ -399,6 +400,7 @@ class rocketDpath extends Component
   
   // for load/use hazard detection (load byte/halfword)
   io.ctrl.mem_waddr := mem_reg_waddr;
+  io.ctrl.mem_valid := mem_reg_valid;
 
   // 32/64 bit load handling (moved to earlier in file)
       
