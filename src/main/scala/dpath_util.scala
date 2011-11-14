@@ -53,6 +53,7 @@ class ioDpathPCR extends Bundle()
   val pc    		= UFix(VADDR_BITS, 'input);
   val badvaddr  = UFix(VADDR_BITS, 'input);
   val eret  		= Bool('input);
+  val ptbr_wen  = Bool('output);
   val irq_timer = Bool('output);
   val irq_ipi   = Bool('output);
 }
@@ -90,6 +91,7 @@ class rocketDpathPCR extends Component
   val reg_status = Cat(reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, Bits(0,1), reg_status_ev, reg_status_ef, reg_status_et);
   val rdata = Wire() { Bits() };
 
+  io.ptbr_wen           := reg_status_vm.toBool && !io.exception && io.w.en && (io.w.addr === PCR_PTBR);
   io.status  						:= Cat(reg_status_vm, reg_status_im, reg_status);
   io.evec               := reg_ebase;
   io.ptbr               := reg_ptbr;

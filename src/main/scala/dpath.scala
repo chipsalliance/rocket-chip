@@ -28,6 +28,7 @@ class ioDpathAll extends Bundle()
   val debug = new ioDebug();
   val dmem  = new ioDpathDmem();
   val imem  = new ioDpathImem();
+  val ptbr_wen = Bool('output);
   val ptbr = UFix(PADDR_BITS, 'output);
 }
 
@@ -359,6 +360,7 @@ class rocketDpath extends Component
   io.ctrl.irq_ipi      := pcr.io.irq_ipi;  
   io.ctrl.status       := pcr.io.status;
   io.ptbr              := pcr.io.ptbr;
+  io.ptbr_wen          := pcr.io.ptbr_wen;
  	io.debug.error_mode  := pcr.io.debug.error_mode;
   
 	// branch resolution logic
