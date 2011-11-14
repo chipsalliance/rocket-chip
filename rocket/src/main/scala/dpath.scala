@@ -158,7 +158,7 @@ class rocketDpath extends Component
         UFix(0, VADDR_BITS)))))))))));
         
   when (!io.host.start){
-    if_reg_pc <== UFix(0, VADDR_BITS); //32'hFFFF_FFFC;
+    if_reg_pc <== UFix(START_ADDR, VADDR_BITS);
   }  
   when (!io.ctrl.stallf) {
     if_reg_pc <== if_next_pc;
