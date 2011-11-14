@@ -459,6 +459,8 @@ class rocketDpath extends Component
   pcr.io.w.en   := wb_reg_ctrl_wen_pcr;
   pcr.io.w.data := wb_reg_wdata;
 
+  pcr.io.di           := io.ctrl.irq_disable;
+  pcr.io.ei           := io.ctrl.irq_enable;
   pcr.io.eret      	  := wb_reg_ctrl_eret;
   pcr.io.exception 	  := wb_reg_ctrl_exception;
   pcr.io.cause 			  := wb_reg_ctrl_cause;
