@@ -146,17 +146,17 @@ object Constants
   val PCR_COUNT    = UFix( 4, 5);
   val PCR_COMPARE  = UFix( 5, 5);
   val PCR_CAUSE    = UFix( 6, 5);
-  val PCR_IPI      = UFix( 7, 5);
-  val PCR_MEMSIZE  = UFix( 8, 5);
-  val PCR_PTBR     = UFix( 9, 5);
+  val PCR_PTBR     = UFix( 7, 5);
+  val PCR_SENDIPI  = UFix( 8, 5);
+  val PCR_CLEARIPI = UFix( 9, 5);
   val PCR_COREID   = UFix(10, 5);
-  val PCR_NUMCORES = UFix(12, 5);
+  val PCR_K0       = UFix(12, 5);
+  val PCR_K1       = UFix(13, 5);
   val PCR_TOHOST   = UFix(16, 5);
   val PCR_FROMHOST = UFix(17, 5);
   val PCR_CONSOLE  = UFix(18, 5);
-  val PCR_K0       = UFix(24, 5);
-  val PCR_K1       = UFix(25, 5);
-  
+
+
   // definition of bits in PCR status reg
   val SR_ET   = 0;  // enable traps
   val SR_EF   = 1;  // enable floating point
@@ -184,6 +184,8 @@ object Constants
   // if you change this value, make sure to also change MEMORY_SIZE variable in memif.h
   val MEMSIZE_PAGES = 0x8000; // 256 megs
   val MEMSIZE_BYTES = MEMSIZE_PAGES*8192;
+  
+  val START_ADDR = 0x2000;
   
   val HAVE_FPU = Bool(false);
   val HAVE_VEC = Bool(false);

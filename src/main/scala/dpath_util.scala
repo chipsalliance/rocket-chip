@@ -166,9 +166,7 @@ class rocketDpathPCR extends Component
     is (PCR_COUNT) 		{ rdata <== Cat(Fill(32, reg_count(31)), reg_count); }
     is (PCR_COMPARE) 	{ rdata <== Cat(Fill(32, reg_compare(31)), reg_compare); }
     is (PCR_CAUSE) 		{ rdata <== Cat(Bits(0,59), reg_cause); }
-    is (PCR_MEMSIZE) 	{ rdata <== Bits(MEMSIZE_PAGES,64); }
     is (PCR_COREID) 	{ rdata <== Bits(COREID,64); }
-    is (PCR_NUMCORES) { rdata <== Bits(NUMCORES,64); }
     is (PCR_FROMHOST) { rdata <== Cat(Fill(32, reg_fromhost(31)), reg_fromhost); }
     is (PCR_TOHOST)  	{ rdata <== Cat(Fill(32, reg_tohost(31)), reg_tohost); }
     is (PCR_K0) 			{ rdata <== reg_k0; }
