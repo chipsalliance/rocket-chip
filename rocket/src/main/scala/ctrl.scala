@@ -570,8 +570,9 @@ class rocketCtrl extends Component
       io.dpath.stalld
     );
 
-  // check for loads in execute and mem stages to detect load/use hazards
-  val ex_mem_cmd_load = ex_reg_mem_val && (ex_reg_mem_cmd  === M_XRD);
+  // check for loads and amos in execute and mem stages to detect load/use hazards
+  val ex_mem_cmd_load = 
+    ex_reg_mem_val && ((ex_reg_mem_cmd === M_XRD) || ex_reg_mem_cmd(3).toBool);
   
   val lu_stall_ex = 
     ex_mem_cmd_load &&
@@ -643,7 +644,7 @@ class rocketCtrl extends Component
   io.dpath.killx    := kill_ex.toBool;
   io.dpath.killm    := kill_mem.toBool;
 
-  io.dpath.mem_load := mem_reg_mem_val && (mem_reg_mem_cmd === M_XRD);
+  io.dpath.mem_load := mem_reg_mem_val && ((mem_reg_mem_cmd === M_XRD) || mem_reg_mem_cmd(3).toBool);
   io.dpath.ren2     := id_ren2.toBool;
   io.dpath.ren1     := id_ren1.toBool;
   io.dpath.sel_alu2 := id_sel_alu2;

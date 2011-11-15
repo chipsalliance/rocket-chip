@@ -64,7 +64,7 @@ class rocketDTLB(entries: Int) extends Component
   val req_load  = (r_cpu_req_cmd === M_XRD);
   val req_store = (r_cpu_req_cmd === M_XWR);
   val req_flush = (r_cpu_req_cmd === M_FLA);
-//   val req_amo   = io.cpu.req_cmd(3).toBool;
+  val req_amo   = io.cpu.req_cmd(3).toBool;
   
   val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
 
@@ -139,20 +139,20 @@ class rocketDTLB(entries: Int) extends Component
   val outofrange = !tlb_miss && (io.cpu.resp_ppn > UFix(MEMSIZE_PAGES, PPN_BITS));
 
    val access_fault_ld =
-    tlb_hit && req_load &&
+    tlb_hit && (req_load || req_amo) &&
     ((status_s && !sr_array(tag_hit_addr).toBool) ||
      (status_u && !ur_array(tag_hit_addr).toBool));
 
   io.cpu.xcpt_ld := 
-    (lookup && req_load && outofrange) || access_fault_ld;
+    (lookup && (req_load || req_amo) && outofrange) || access_fault_ld;
 
   val access_fault_st =
-    tlb_hit && req_store &&
+    tlb_hit && (req_store || req_amo) &&
     ((status_s && !sw_array(tag_hit_addr).toBool) ||
      (status_u && !uw_array(tag_hit_addr).toBool));
 
   io.cpu.xcpt_st := 
-    (lookup && req_store && outofrange) || access_fault_st;
+    (lookup && (req_store || req_amo) && outofrange) || access_fault_st;
 
   io.cpu.req_rdy   := Mux(status_vm, (state === s_ready) && !tlb_miss, Bool(true));
   io.cpu.resp_busy := tlb_miss || (state != s_ready);
