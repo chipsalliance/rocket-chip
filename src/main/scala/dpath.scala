@@ -45,7 +45,7 @@ class rocketDpath extends Component
 
   val alu = new rocketDpathALU(); 
   val ex_alu_out = alu.io.out; 
-  val ex_jr_target = ex_alu_out(31,0);
+  val ex_jr_target = ex_alu_out(VADDR_BITS,0);
 
   val div = new rocketDivider(64);
   val div_result = div.io.div_result_bits;
@@ -342,7 +342,7 @@ class rocketDpath extends Component
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req_addr  := ex_alu_out(PADDR_BITS-1,0);
+  io.dmem.req_addr  := ex_alu_out(VADDR_BITS-1,0);
   io.dmem.req_data  := ex_reg_rs2;
   io.dmem.req_tag   := ex_reg_waddr;
 
