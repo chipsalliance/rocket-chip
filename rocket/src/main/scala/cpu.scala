@@ -53,12 +53,11 @@ class rocketProc extends Component
   dpath.io.host             ^^ io.host;
   ctrl.io.host.start        := io.host.start;
   dpath.io.debug            ^^ io.debug;
-//   dpath.io.imem.resp_data   ^^ io.imem.resp_data;
 
-
-  // FIXME: make this less verbose
+  // FIXME: try to make this more compact
+  
   // connect ITLB to I$, ctrl, dpath
-  itlb.io.cpu.invalidate  := dpath.io.ptbr_wen || ctrl.io.flush_inst;
+  itlb.io.cpu.invalidate  := dpath.io.ptbr_wen;
   itlb.io.cpu.status      := dpath.io.ctrl.status;
   itlb.io.cpu.req_val     := ctrl.io.imem.req_val;  
   itlb.io.cpu.req_asid    := Bits(0,ASID_BITS); // FIXME: connect to PCR
@@ -76,7 +75,6 @@ class rocketProc extends Component
 
   
   // connect DTLB to D$ arbiter, ctrl+dpath
-//   dtlb.io.cpu.invalidate  := Bool(false); // FIXME
   dtlb.io.cpu.invalidate  := dpath.io.ptbr_wen;
   dtlb.io.cpu.status      := dpath.io.ctrl.status;
   dtlb.io.cpu.req_val     := ctrl.io.dmem.req_val;  
@@ -99,14 +97,10 @@ class rocketProc extends Component
   arb.io.mem              ^^ io.dmem
   
   // connect arbiter to ctrl+dpath+DTLB
-//   arb.io.cpu.req_val      := dtlb.io.cpu.resp_val;
   arb.io.cpu.req_val      := ctrl.io.dmem.req_val;
   arb.io.cpu.req_cmd      := ctrl.io.dmem.req_cmd;
   arb.io.cpu.req_type     := ctrl.io.dmem.req_type;
-//   arb.io.cpu.dtlb_busy    := dtlb.io.cpu.resp_busy;
   arb.io.cpu.dtlb_miss    := dtlb.io.cpu.resp_miss;
-
-//   arb.io.cpu.req_addr     := dtlb.io.cpu.resp_addr;
   arb.io.cpu.req_idx      := dpath.io.dmem.req_addr(PGIDX_BITS-1,0);
   arb.io.cpu.req_ppn      := dtlb.io.cpu.resp_ppn;
   arb.io.cpu.req_data     := dpath.io.dmem.req_data;
