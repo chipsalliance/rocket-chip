@@ -219,7 +219,7 @@ class rocketDCacheDM(lines: Int) extends Component {
   otherwise {
     r_cpu_req_val <== Bool(false);
   }
-  when (((state === s_resolve_miss) && r_req_load) || (state === s_replay_load)) {
+  when (((state === s_resolve_miss) && (r_req_load || r_req_amo)) || (state === s_replay_load)) {
     r_cpu_resp_val <== Bool(true);
   }
   otherwise {
@@ -339,11 +339,23 @@ class rocketDCacheDM(lines: Int) extends Component {
     Mux(r_cpu_req_type === MT_D, ~Bits(0,8),
     Mux(r_cpu_req_idx(2).toBool, Cat(~Bits(0,4), Bits(0,4)),
       Cat(Bits(0,4), ~Bits(0,4))));
-        
+
+  val amo_store_wmask_d = Cat(Fill(8, amo_wmask(7)),
+  		Fill(8, amo_wmask(6)),
+  		Fill(8, amo_wmask(5)),
+  		Fill(8, amo_wmask(4)),
+  		Fill(8, amo_wmask(3)),
+  		Fill(8, amo_wmask(2)),
+  		Fill(8, amo_wmask(1)),
+  		Fill(8, amo_wmask(0)));
+  		
+  val amo_store_idx_sel = r_cpu_req_idx(offsetlsb).toBool;
+  val amo_store_wmask = Mux(amo_store_idx_sel, Cat(amo_store_wmask_d, Bits(0,64)), Cat(Bits(0,64), amo_store_wmask_d)); 
+  
   val amo_alu = new rocketDCacheAmoALU();
   amo_alu.io.cmd := r_cpu_req_cmd;
   amo_alu.io.wmask := amo_wmask;
-  amo_alu.io.lhs := r_resp_data.toUFix;
+  amo_alu.io.lhs := Mux(r_cpu_resp_val, resp_data, r_resp_data).toUFix;
   amo_alu.io.rhs := r_amo_data.toUFix;
   val amo_alu_out = amo_alu.io.result;
   
@@ -363,7 +375,11 @@ class rocketDCacheDM(lines: Int) extends Component {
     (state === s_write_amo) ||
      drain_store || resolve_store;
      
-  data_array.io.bweb := Mux((state === s_refill), ~Bits(0,128), store_wmask);
+  data_array.io.bweb := 
+    Mux((state === s_refill), ~Bits(0,128),
+    Mux((state === s_write_amo), amo_store_wmask,
+      store_wmask));
+      
   data_array.io.ce := 
     (io.cpu.req_val && io.cpu.req_rdy && (req_load || req_amo)) ||
     (state === s_start_writeback) ||
