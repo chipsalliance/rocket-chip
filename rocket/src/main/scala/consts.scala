@@ -79,8 +79,7 @@ object Constants
   val WB_PC  = UFix(0, 3);
   val WB_ALU = UFix(1, 3);
   val WB_PCR = UFix(2, 3);
-  val WB_CR  = UFix(3, 3);
-  val WB_MUL = UFix(4, 3);
+  val WB_TSC = UFix(3, 3);
 
   val N = UFix(0, 1);
   val Y = UFix(1, 1);
