@@ -373,7 +373,7 @@ class rocketDpath extends Component
 	// writeback select mux
   ex_wdata :=
     Mux(ex_reg_ctrl_ll_wb || ex_reg_ctrl_wen_pcr, ex_reg_rs1,
-    Mux(ex_reg_ctrl_sel_wb === WB_PC,  ex_reg_pc_plus4,
+    Mux(ex_reg_ctrl_sel_wb === WB_PC,  Cat(Fill(64-VADDR_BITS, ex_reg_pc_plus4(VADDR_BITS-1)), ex_reg_pc_plus4),
     Mux(ex_reg_ctrl_sel_wb === WB_ALU, ex_alu_out,
     Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
         Bits(0, 64))))).toBits;
