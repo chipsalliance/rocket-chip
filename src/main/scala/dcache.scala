@@ -303,8 +303,11 @@ class rocketDCacheDM(lines: Int) extends Component {
     p_store_valid <== Bool(false);
     db_array <== db_array.bitSet(p_store_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
-  when (resolve_store || (state === s_write_amo)) {
+  when (resolve_store) {
     db_array <== db_array.bitSet(p_store_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
+  }
+  when (state === s_write_amo) {
+    db_array <== db_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
   when (tag_we) {
     db_array <== db_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(0,1));
@@ -357,7 +360,7 @@ class rocketDCacheDM(lines: Int) extends Component {
   amo_alu.io.wmask := amo_wmask;
   amo_alu.io.lhs := Mux(r_cpu_resp_val, resp_data, r_resp_data).toUFix;
   amo_alu.io.rhs := r_amo_data.toUFix;
-  val amo_alu_out = amo_alu.io.result;
+  val amo_alu_out = Cat(amo_alu.io.result,amo_alu.io.result);
   
   data_array.io.a := 
     Mux(drain_store || resolve_store, p_store_idx(PGIDX_BITS-1, offsetmsb-1),

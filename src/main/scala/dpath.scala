@@ -370,13 +370,18 @@ class rocketDpath extends Component
     (~(ex_reg_rs1(63) ^ ex_reg_rs2(63)) & io.ctrl.br_ltu |
     ex_reg_rs1(63) & ~ex_reg_rs2(63)).toBool;
 
+  // time stamp counter
+  val tsc_reg = Reg(resetVal = UFix(0,64));
+  tsc_reg <== tsc_reg + UFix(1);
+  
 	// writeback select mux
   ex_wdata :=
     Mux(ex_reg_ctrl_ll_wb || ex_reg_ctrl_wen_pcr, ex_reg_rs1,
     Mux(ex_reg_ctrl_sel_wb === WB_PC,  Cat(Fill(64-VADDR_BITS, ex_reg_pc_plus4(VADDR_BITS-1)), ex_reg_pc_plus4),
     Mux(ex_reg_ctrl_sel_wb === WB_ALU, ex_alu_out,
     Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
-        Bits(0, 64))))).toBits;
+    Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
+        Bits(0, 64)))))).toBits;
         
   // memory stage
   mem_reg_pc                <== ex_reg_pc;
