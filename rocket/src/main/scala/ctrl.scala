@@ -87,76 +87,76 @@ class rocketCtrl extends Component
 {
   val io = new ioCtrlAll();
     
-  val fp =
-  ListLookup(io.dpath.inst,
-    List(Bool(false)),
-     Array(
-       FMOVZ -> List(Bool(true)),
-       FMOVN -> List(Bool(true)),
-       FADD_S -> List(Bool(true)),
-       FSUB_S -> List(Bool(true)),
-       FMUL_S -> List(Bool(true)),
-       FDIV_S -> List(Bool(true)),
-       FSQRT_S -> List(Bool(true)),
-       FSGNJ_S -> List(Bool(true)),
-       FSGNJN_S -> List(Bool(true)),
-       FSGNJX_S -> List(Bool(true)),
-       FADD_D -> List(Bool(true)),
-       FSUB_D -> List(Bool(true)),
-       FMUL_D -> List(Bool(true)),
-       FDIV_D -> List(Bool(true)),
-       FSQRT_D -> List(Bool(true)),
-       FSGNJ_D -> List(Bool(true)),
-       FSGNJN_D -> List(Bool(true)),
-       FSGNJX_D -> List(Bool(true)),
-       FCVT_L_S -> List(Bool(true)),
-       FCVT_LU_S -> List(Bool(true)),
-       FCVT_W_S -> List(Bool(true)),
-       FCVT_WU_S -> List(Bool(true)),
-       FCVT_L_D -> List(Bool(true)),
-       FCVT_LU_D -> List(Bool(true)),
-       FCVT_W_D -> List(Bool(true)),
-       FCVT_WU_D -> List(Bool(true)),
-       FCVT_S_L -> List(Bool(true)),
-       FCVT_S_LU -> List(Bool(true)),
-       FCVT_S_W -> List(Bool(true)),
-       FCVT_S_WU -> List(Bool(true)),
-       FCVT_D_L -> List(Bool(true)),
-       FCVT_D_LU -> List(Bool(true)),
-       FCVT_D_W -> List(Bool(true)),
-       FCVT_D_WU -> List(Bool(true)),
-       FCVT_S_D -> List(Bool(true)),
-       FCVT_D_S -> List(Bool(true)),
-       FEQ_S -> List(Bool(true)),
-       FLT_S -> List(Bool(true)),
-       FLE_S -> List(Bool(true)),
-       FEQ_D -> List(Bool(true)),
-       FLT_D -> List(Bool(true)),
-       FLE_D -> List(Bool(true)),
-       FMIN_S -> List(Bool(true)),
-       FMAX_S -> List(Bool(true)),
-       FMIN_D -> List(Bool(true)),
-       FMAX_D -> List(Bool(true)),
-       MFTX_S -> List(Bool(true)),
-       MFTX_D -> List(Bool(true)),
-       MFFSR -> List(Bool(true)),
-       MXTF_S -> List(Bool(true)),
-       MXTF_D -> List(Bool(true)),
-       MTFSR -> List(Bool(true)),
-       FLW -> List(Bool(true)),
-       FLD -> List(Bool(true)),
-       FSW -> List(Bool(true)),
-       FSD -> List(Bool(true)),
-       FMADD_S -> List(Bool(true)),
-       FMSUB_S -> List(Bool(true)),
-       FNMSUB_S -> List(Bool(true)),
-       FNMADD_S -> List(Bool(true)),
-       FMADD_D -> List(Bool(true)),
-       FMSUB_D -> List(Bool(true)),
-       FNMSUB_D -> List(Bool(true)),
-       FNMADD_D -> List(Bool(true))
-     ));
-  val id_fp_val :: Nil = fp;
+//   val fp =
+//   ListLookup(io.dpath.inst,
+//     List(Bool(false)),
+//      Array(
+//        FMOVZ -> List(Bool(true)),
+//        FMOVN -> List(Bool(true)),
+//        FADD_S -> List(Bool(true)),
+//        FSUB_S -> List(Bool(true)),
+//        FMUL_S -> List(Bool(true)),
+//        FDIV_S -> List(Bool(true)),
+//        FSQRT_S -> List(Bool(true)),
+//        FSGNJ_S -> List(Bool(true)),
+//        FSGNJN_S -> List(Bool(true)),
+//        FSGNJX_S -> List(Bool(true)),
+//        FADD_D -> List(Bool(true)),
+//        FSUB_D -> List(Bool(true)),
+//        FMUL_D -> List(Bool(true)),
+//        FDIV_D -> List(Bool(true)),
+//        FSQRT_D -> List(Bool(true)),
+//        FSGNJ_D -> List(Bool(true)),
+//        FSGNJN_D -> List(Bool(true)),
+//        FSGNJX_D -> List(Bool(true)),
+//        FCVT_L_S -> List(Bool(true)),
+//        FCVT_LU_S -> List(Bool(true)),
+//        FCVT_W_S -> List(Bool(true)),
+//        FCVT_WU_S -> List(Bool(true)),
+//        FCVT_L_D -> List(Bool(true)),
+//        FCVT_LU_D -> List(Bool(true)),
+//        FCVT_W_D -> List(Bool(true)),
+//        FCVT_WU_D -> List(Bool(true)),
+//        FCVT_S_L -> List(Bool(true)),
+//        FCVT_S_LU -> List(Bool(true)),
+//        FCVT_S_W -> List(Bool(true)),
+//        FCVT_S_WU -> List(Bool(true)),
+//        FCVT_D_L -> List(Bool(true)),
+//        FCVT_D_LU -> List(Bool(true)),
+//        FCVT_D_W -> List(Bool(true)),
+//        FCVT_D_WU -> List(Bool(true)),
+//        FCVT_S_D -> List(Bool(true)),
+//        FCVT_D_S -> List(Bool(true)),
+//        FEQ_S -> List(Bool(true)),
+//        FLT_S -> List(Bool(true)),
+//        FLE_S -> List(Bool(true)),
+//        FEQ_D -> List(Bool(true)),
+//        FLT_D -> List(Bool(true)),
+//        FLE_D -> List(Bool(true)),
+//        FMIN_S -> List(Bool(true)),
+//        FMAX_S -> List(Bool(true)),
+//        FMIN_D -> List(Bool(true)),
+//        FMAX_D -> List(Bool(true)),
+//        MFTX_S -> List(Bool(true)),
+//        MFTX_D -> List(Bool(true)),
+//        MFFSR -> List(Bool(true)),
+//        MXTF_S -> List(Bool(true)),
+//        MXTF_D -> List(Bool(true)),
+//        MTFSR -> List(Bool(true)),
+//        FLW -> List(Bool(true)),
+//        FLD -> List(Bool(true)),
+//        FSW -> List(Bool(true)),
+//        FSD -> List(Bool(true)),
+//        FMADD_S -> List(Bool(true)),
+//        FMSUB_S -> List(Bool(true)),
+//        FNMSUB_S -> List(Bool(true)),
+//        FNMADD_S -> List(Bool(true)),
+//        FMADD_D -> List(Bool(true)),
+//        FMSUB_D -> List(Bool(true)),
+//        FNMSUB_D -> List(Bool(true)),
+//        FNMADD_D -> List(Bool(true))
+//      ));
+//   val id_fp_val :: Nil = fp;
   
   val xpr64 = Y;
   val cs =   
@@ -253,9 +253,16 @@ class rocketCtrl extends Component
       CFLUSH->   List(Y,     BR_N,  REN_Y,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,Y),
       MFPCR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_PCR,REN_Y,WEN_N,I_X ,SYNC_N,N,N,Y),
       MTPCR->    List(Y,     BR_N,  REN_N,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_Y,I_X ,SYNC_N,N,N,Y),
-      RDTIME->   List(Y,     BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_TSC,REN_N,WEN_N,I_X ,SYNC_N,N,N,N)
+      RDTIME->   List(Y,     BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_TSC,REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
       
       // Instructions that have not yet been implemented
+      // Faking these for now so akaros will boot    
+      MFFSR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      MTFSR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      FLW->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      FLD->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      FSW->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      FSD->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N)
 /*  
       // floating point
       FLW->      List(FPU_Y, BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_Y,M_FRD,    MT_WU,N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
@@ -366,7 +373,8 @@ class rocketCtrl extends Component
   }
   
   // executing ERET when traps are enabled causes an illegal instruction exception (as per ISA sim)
-  val illegal_inst = !(id_int_val.toBool || id_fp_val.toBool) || (id_eret.toBool && io.dpath.status(SR_ET).toBool);
+//   val illegal_inst = !(id_int_val.toBool || id_fp_val.toBool) || (id_eret.toBool && io.dpath.status(SR_ET).toBool);
+  val illegal_inst = !id_int_val.toBool || (id_eret.toBool && io.dpath.status(SR_ET).toBool);
   
   when (reset.toBool || io.dpath.killd) {
     ex_reg_br_type     <== BR_N;
@@ -403,7 +411,8 @@ class rocketCtrl extends Component
     ex_reg_xcpt_itlb        <== id_reg_xcpt_itlb;
     ex_reg_xcpt_illegal     <== illegal_inst;
     ex_reg_xcpt_privileged  <== (id_privileged & ~io.dpath.status(SR_S)).toBool;
-    ex_reg_xcpt_fpu         <== id_fp_val.toBool;
+//     ex_reg_xcpt_fpu         <== id_fp_val.toBool;
+    ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
   }
 

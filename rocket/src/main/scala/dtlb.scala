@@ -85,10 +85,10 @@ class rocketDTLB(entries: Int) extends Component
   val status_vm = io.cpu.status(SR_VM).toBool // virtual memory enable
   
   // extract fields from PT permission bits
-  val ptw_perm_ur = io.ptw.resp_perm(1);
-  val ptw_perm_uw = io.ptw.resp_perm(2);
-  val ptw_perm_sr = io.ptw.resp_perm(4);
-  val ptw_perm_sw = io.ptw.resp_perm(5);
+  val ptw_perm_ur = io.ptw.resp_perm(2);
+  val ptw_perm_uw = io.ptw.resp_perm(1);
+  val ptw_perm_sr = io.ptw.resp_perm(5);
+  val ptw_perm_sw = io.ptw.resp_perm(4);
   
   // permission bit arrays
   val ur_array = Reg(resetVal = Bits(0, entries)); // user read permission
@@ -143,16 +143,16 @@ class rocketDTLB(entries: Int) extends Component
     ((status_s && !sr_array(tag_hit_addr).toBool) ||
      (status_u && !ur_array(tag_hit_addr).toBool));
 
-  io.cpu.xcpt_ld := 
-    (lookup && (req_load || req_amo) && outofrange) || access_fault_ld;
+  io.cpu.xcpt_ld := access_fault_ld;
+//     (lookup && (req_load || req_amo) && outofrange) || access_fault_ld;
 
   val access_fault_st =
     tlb_hit && (req_store || req_amo) &&
     ((status_s && !sw_array(tag_hit_addr).toBool) ||
      (status_u && !uw_array(tag_hit_addr).toBool));
 
-  io.cpu.xcpt_st := 
-    (lookup && (req_store || req_amo) && outofrange) || access_fault_st;
+  io.cpu.xcpt_st := access_fault_st;
+//     (lookup && (req_store || req_amo) && outofrange) || access_fault_st;
 
   io.cpu.req_rdy   := Mux(status_vm, (state === s_ready) && !tlb_miss, Bool(true));
   io.cpu.resp_busy := tlb_miss || (state != s_ready);
