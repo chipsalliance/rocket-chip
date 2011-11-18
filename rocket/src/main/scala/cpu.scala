@@ -10,7 +10,6 @@ class ioDebug(view: List[String] = null) extends Bundle(view)
   val id_valid    = Bool('output);
   val ex_valid    = Bool('output);
   val mem_valid   = Bool('output);
-  val wb_valid    = Bool('output);
 }
 
 class ioHost(view: List[String] = null) extends Bundle(view)
@@ -73,7 +72,6 @@ class rocketProc extends Component
 //   ctrl.io.itlb_miss       := itlb.io.cpu.resp_miss;
   io.imem.itlb_miss       := itlb.io.cpu.resp_miss;
 
-  
   // connect DTLB to D$ arbiter, ctrl+dpath
   dtlb.io.cpu.invalidate  := dpath.io.ptbr_wen;
   dtlb.io.cpu.status      := dpath.io.ctrl.status;
