@@ -445,12 +445,6 @@ class rocketDpath extends Component
   pcr.io.cause 			  := io.ctrl.cause;
   pcr.io.pc					  := mem_reg_pc;
   pcr.io.badvaddr_wen := io.ctrl.badvaddr_wen;
-  
-  // temporary debug outputs so things don't get optimized away
-  io.debug.id_valid  := id_reg_valid;
-  io.debug.ex_valid  := ex_reg_valid;
-  io.debug.mem_valid := mem_reg_valid;
-
 }
 
 }
