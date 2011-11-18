@@ -330,7 +330,7 @@ class rocketCtrl extends Component
   
   val ex_reg_br_type     = Reg(){UFix(width = 4)};
   val ex_reg_btb_hit     = Reg(){Bool()};
-  val ex_reg_inst_div_mul_val = Reg(){Bool()};
+  val ex_reg_div_mul_val = Reg(){Bool()};
   val ex_reg_mem_val     = Reg(){Bool()};
   val ex_reg_mem_cmd     = Reg(){UFix(width = 4)};
   val ex_reg_mem_type    = Reg(){UFix(width = 3)};
@@ -376,7 +376,7 @@ class rocketCtrl extends Component
   when (reset.toBool || io.dpath.killd) {
     ex_reg_br_type     <== BR_N;
     ex_reg_btb_hit     <== Bool(false);
-    ex_reg_inst_div_mul_val <== Bool(false);
+    ex_reg_div_mul_val <== Bool(false);
     ex_reg_mem_val     <== Bool(false);
     ex_reg_mem_cmd     <== UFix(0, 4);
     ex_reg_mem_type    <== UFix(0, 3);
@@ -395,7 +395,7 @@ class rocketCtrl extends Component
   otherwise {
     ex_reg_br_type     <== id_br_type;
     ex_reg_btb_hit     <== id_reg_btb_hit;
-    ex_reg_inst_div_mul_val <== id_div_val.toBool || id_mul_val.toBool;
+    ex_reg_div_mul_val <== id_div_val.toBool || id_mul_val.toBool;
     ex_reg_mem_val     <== id_mem_val.toBool;
     ex_reg_mem_cmd     <== id_mem_cmd;
     ex_reg_mem_type    <== id_mem_type;
@@ -460,7 +460,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_syscall     <== Bool(false);
   }
   otherwise {
-    mem_reg_div_mul_val <== ex_reg_inst_div_mul_val;
+    mem_reg_div_mul_val <== ex_reg_div_mul_val;
     mem_reg_eret        <== ex_reg_eret;
     mem_reg_mem_val     <== ex_reg_mem_val;
     mem_reg_mem_cmd     <== ex_reg_mem_cmd;
@@ -592,7 +592,7 @@ class rocketCtrl extends Component
   
   // check for divide and multiply instructions in ex,mem,wb stages
   val dm_stall_ex = 
-    ex_reg_inst_div_mul_val &&
+    ex_reg_div_mul_val &&
     ((id_ren1.toBool && (id_raddr1 === io.dpath.ex_waddr)) ||
      (id_ren2.toBool && (id_raddr2 === io.dpath.ex_waddr)));
 
