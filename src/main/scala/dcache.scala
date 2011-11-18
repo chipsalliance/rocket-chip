@@ -7,7 +7,6 @@ import scala.math._;
 
 // interface between D$ and processor/DTLB
 class ioDmem(view: List[String] = null) extends Bundle(view) {
-//   val dtlb_busy  = Bool('input);
   val dtlb_miss  = Bool('input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
@@ -48,7 +47,7 @@ class rocketDCacheStoreGen extends Component {
     val req_type      = Bits(3, 'input);
     val req_addr_lsb  = Bits(3, 'input);
     val req_data      = Bits(64, 'input);
-    val store_wmask   = Bits(8, 'output);
+    val store_wmask   = Bits(64, 'output);
     val store_data    = Bits(64, 'output);
   }
   
@@ -86,7 +85,16 @@ class rocketDCacheStoreGen extends Component {
     Mux(io.req_type === MT_D, wmask_d,
         UFix(0, 8)))));
   
-  io.store_wmask := store_wmask_byte;
+  val store_wmask_d = Cat(Fill(8, store_wmask_byte(7)),
+  		Fill(8, store_wmask_byte(6)),
+  		Fill(8, store_wmask_byte(5)),
+  		Fill(8, store_wmask_byte(4)),
+  		Fill(8, store_wmask_byte(3)),
+  		Fill(8, store_wmask_byte(2)),
+  		Fill(8, store_wmask_byte(1)),
+  		Fill(8, store_wmask_byte(0)));
+  
+  io.store_wmask := store_wmask_d;
   
   io.store_data :=
     Mux(io.req_type === MT_B, Fill(8, io.req_data( 7,0)),
@@ -260,7 +268,7 @@ class rocketDCacheDM(lines: Int) extends Component {
   when (tag_we && r_req_flush) {
     vb_array <== vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(0,1));
   }
-  val vb_rdata = Reg(vb_array(tag_addr).toBool);
+  val vb_rdata = vb_array(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix).toBool;
   val tag_valid = r_cpu_req_val && vb_rdata;
   val tag_match = (tag_rdata === io.cpu.req_ppn);
   val tag_hit  = tag_valid && tag_match;
@@ -282,28 +290,28 @@ class rocketDCacheDM(lines: Int) extends Component {
   // after the cache line refill has completed
   val resolve_store = (state === s_resolve_miss) && r_req_store;
   
-  // dirty bit array
-  val db_array  = Reg(resetVal = Bits(0, lines));
-  val tag_dirty = Reg(db_array(tag_addr)).toBool;
-  
+  // pending store data
   when (io.cpu.req_val && io.cpu.req_rdy && req_store) { 
     p_store_idx   <== io.cpu.req_idx;
     p_store_data  <== io.cpu.req_data;
     p_store_type  <== io.cpu.req_type;
   }
-    
-  when (io.cpu.req_val && io.cpu.req_rdy && req_amo) {
-    r_amo_data <== io.cpu.req_data;
-  }
-
   when (store_hit && !drain_store) {
     p_store_valid <== Bool(true);
   }
   when (drain_store)  {
     p_store_valid <== Bool(false);
-    db_array <== db_array.bitSet(p_store_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
-  when (resolve_store) {
+  
+  // AMO operand
+  when (io.cpu.req_val && io.cpu.req_rdy && req_amo) {
+    r_amo_data <== io.cpu.req_data;
+  }
+
+  // dirty bit array
+  val db_array  = Reg(resetVal = Bits(0, lines));
+  val tag_dirty = db_array(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix).toBool;  
+  when ((r_cpu_req_val && !io.cpu.dtlb_miss && tag_hit && r_req_store) || resolve_store)  {
     db_array <== db_array.bitSet(p_store_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
   when (state === s_write_amo) {
@@ -319,17 +327,8 @@ class rocketDCacheDM(lines: Int) extends Component {
   storegen.io.req_data := p_store_data;
   storegen.io.req_type := p_store_type;
   val store_data = Fill(2, storegen.io.store_data);
-  val store_wmask_b = storegen.io.store_wmask;
-  val store_wmask_d = Cat(Fill(8, store_wmask_b(7)),
-  		Fill(8, store_wmask_b(6)),
-  		Fill(8, store_wmask_b(5)),
-  		Fill(8, store_wmask_b(4)),
-  		Fill(8, store_wmask_b(3)),
-  		Fill(8, store_wmask_b(2)),
-  		Fill(8, store_wmask_b(1)),
-  		Fill(8, store_wmask_b(0)));
-  val store_idx_sel = p_store_idx(offsetlsb).toBool;
-  val store_wmask = Mux(store_idx_sel, Cat(store_wmask_d, Bits(0,64)), Cat(Bits(0,64), store_wmask_d)); 
+  val store_wmask_d = storegen.io.store_wmask;
+  val store_wmask = Mux(p_store_idx(offsetlsb).toBool, Cat(store_wmask_d, Bits(0,64)), Cat(Bits(0,64), store_wmask_d)); 
 
   // data array
   val data_array = new rocketSRAMsp(lines*4, 128);
@@ -351,9 +350,8 @@ class rocketDCacheDM(lines: Int) extends Component {
   		Fill(8, amo_wmask(2)),
   		Fill(8, amo_wmask(1)),
   		Fill(8, amo_wmask(0)));
-  		
-  val amo_store_idx_sel = r_cpu_req_idx(offsetlsb).toBool;
-  val amo_store_wmask = Mux(amo_store_idx_sel, Cat(amo_store_wmask_d, Bits(0,64)), Cat(Bits(0,64), amo_store_wmask_d)); 
+
+  val amo_store_wmask = Mux(r_cpu_req_idx(offsetlsb).toBool, Cat(amo_store_wmask_d, Bits(0,64)), Cat(Bits(0,64), amo_store_wmask_d)); 
   
   val amo_alu = new rocketDCacheAmoALU();
   amo_alu.io.cmd := r_cpu_req_cmd;
@@ -373,6 +371,7 @@ class rocketDCacheDM(lines: Int) extends Component {
     Mux((state === s_refill), io.mem.resp_data, 
     Mux((state === s_write_amo), amo_alu_out,
       store_data));
+      
   data_array.io.we := 
     ((state === s_refill) && io.mem.resp_val) ||
     (state === s_write_amo) ||

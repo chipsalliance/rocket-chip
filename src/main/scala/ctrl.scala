@@ -33,7 +33,8 @@ class ioCtrlDpath extends Bundle()
   val sel_wb   = UFix(3, 'output);
   val ren_pcr  = Bool('output);
   val wen_pcr  = Bool('output);
-  val eret     = Bool('output);
+  val id_eret  = Bool('output);
+  val mem_eret = Bool('output);
   val mem_load = Bool('output);
   val wen      = Bool('output);
   // enable/disable interrupts
@@ -247,7 +248,7 @@ class rocketCtrl extends Component
       SYSCALL->  List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,Y,N),
       EI->       List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_EI,SYNC_N,N,N,Y),
       DI->       List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_DI,SYNC_N,N,N,Y),
-      ERET->     List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,Y,N,Y),
+      ERET->     List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_PCR,REN_N,WEN_N,I_X ,SYNC_N,Y,N,Y),
       FENCE->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_D,N,N,N),
       FENCE_I->  List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_I,N,N,N),
       CFLUSH->   List(Y,     BR_N,  REN_Y,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,Y),
@@ -354,10 +355,6 @@ class rocketCtrl extends Component
   val mem_reg_xcpt_privileged = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
-  
-  val wb_reg_inst_di          = Reg(resetVal = Bool(false));
-  val wb_reg_inst_ei          = Reg(resetVal = Bool(false));
-  val wb_reg_flush_inst       = Reg(resetVal = Bool(false));
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
@@ -479,19 +476,8 @@ class rocketCtrl extends Component
     mem_reg_xcpt_fpu         <== ex_reg_xcpt_fpu;
     mem_reg_xcpt_syscall     <== ex_reg_xcpt_syscall;
   }
-    
-  when (reset.toBool || io.dpath.killm) {
-    wb_reg_div_mul_val <== Bool(false);
-    wb_reg_inst_di     <== Bool(false);
-    wb_reg_inst_ei     <== Bool(false);
-    wb_reg_flush_inst  <== Bool(false);
-  }
-  otherwise {
-    wb_reg_div_mul_val <== mem_reg_div_mul_val;
-    wb_reg_inst_di     <== mem_reg_inst_di;
-    wb_reg_inst_ei     <== mem_reg_inst_ei;
-    wb_reg_flush_inst  <== mem_reg_flush_inst;
-  }
+  
+  wb_reg_div_mul_val <== mem_reg_div_mul_val;
 
   // exception handling
   // FIXME: verify PC in MEM stage points to valid, restartable instruction
@@ -644,9 +630,8 @@ class rocketCtrl extends Component
   // for divider, multiplier writeback
   val mul_wb = io.dpath.mul_result_val;
   val div_wb = io.dpath.div_result_val & !mul_wb;
-
-
-  io.flush_inst        := wb_reg_flush_inst;
+  
+  io.flush_inst     := mem_reg_flush_inst;
 
   io.dpath.stalld   := ctrl_stalld.toBool;
   io.dpath.killf    := take_pc | ~io.imem.resp_val;
@@ -672,9 +657,10 @@ class rocketCtrl extends Component
   io.dpath.sel_wb   := id_sel_wb;
   io.dpath.ren_pcr  := id_ren_pcr.toBool;
   io.dpath.wen_pcr  := id_wen_pcr.toBool;
-  io.dpath.eret     := id_eret.toBool;
-  io.dpath.irq_disable := wb_reg_inst_di;
-  io.dpath.irq_enable  := wb_reg_inst_ei;
+  io.dpath.id_eret  := id_eret.toBool;
+  io.dpath.mem_eret := mem_reg_eret;  
+  io.dpath.irq_disable := mem_reg_inst_di && !kill_mem;
+  io.dpath.irq_enable  := mem_reg_inst_ei && !kill_mem;
 }
 
 }
