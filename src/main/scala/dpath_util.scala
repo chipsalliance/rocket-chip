@@ -57,6 +57,8 @@ class ioDpathPCR extends Bundle()
   val ptbr_wen  = Bool('output);
   val irq_timer = Bool('output);
   val irq_ipi   = Bool('output);
+  val console_data = Bits(8, 'output);
+  val console_val  = Bool('output);
 }
 
 class rocketDpathPCR extends Component
@@ -100,6 +102,10 @@ class rocketDpathPCR extends Component
   io.host.to 						:= Mux(io.host.from_wen, Bits(0,32), reg_tohost);
   io.debug.error_mode  	:= reg_error_mode;
   io.r.data := rdata;
+
+  val console_wen = !io.exception && io.w.en && (io.w.addr === PCR_CONSOLE);
+  io.console_data := Mux(console_wen, io.w.data(7,0), Bits(0,8));
+  io.console_val := console_wen;
 
   when (io.host.from_wen) {
     reg_tohost   <== Bits(0,32);

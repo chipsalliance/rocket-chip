@@ -25,6 +25,7 @@ class ioDpathAll extends Bundle()
 {
   val host  = new ioHost();
   val ctrl  = new ioCtrlDpath().flip();
+  val console = new ioConsole(List("valid","bits"));
   val debug = new ioDebug();
   val dmem  = new ioDpathDmem();
   val imem  = new ioDpathImem();
@@ -442,6 +443,8 @@ class rocketDpath extends Component
   pcr.io.cause 			  := io.ctrl.cause;
   pcr.io.pc					  := mem_reg_pc;
   pcr.io.badvaddr_wen := io.ctrl.badvaddr_wen;
+  io.console.bits := pcr.io.console_data;
+  io.console.valid := pcr.io.console_val;
 }
 
 }
