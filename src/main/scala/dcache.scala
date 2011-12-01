@@ -249,16 +249,18 @@ class rocketDCacheDM(lines: Int) extends Component {
     ((state === s_refill) && io.mem.resp_val && (rr_count === UFix(3,2))) ||
     ((state === s_resolve_miss) && r_req_flush);
 
-  val tag_array = new rocketSRAMsp(lines, tagbits);  
+//  val tag_array = new rocketSRAMsp(lines, tagbits);  
+  val tag_array = new TS1N65LPA128X27M4;
   tag_array.io.a    := tag_addr;
   tag_array.io.d    := r_cpu_req_ppn;
-  tag_array.io.we   := tag_we;
-  tag_array.io.bweb := ~Bits(0,tagbits);
-  tag_array.io.ce   := 
+  tag_array.io.web  := ~tag_we;
+  tag_array.io.bweb := Bits(0,tagbits);
+  tag_array.io.ceb  := !(
     (io.cpu.req_val && io.cpu.req_rdy) || 
     (state === s_start_writeback) ||
-    (state === s_writeback);
+    (state === s_writeback));
   val tag_rdata      = tag_array.io.q;
+  tag_array.io.tsel := Bits(1,2);
 
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
@@ -331,7 +333,8 @@ class rocketDCacheDM(lines: Int) extends Component {
   val store_wmask = Mux(p_store_idx(offsetlsb).toBool, Cat(store_wmask_d, Bits(0,64)), Cat(Bits(0,64), store_wmask_d)); 
 
   // data array
-  val data_array = new rocketSRAMsp(lines*4, 128);
+//  val data_array = new rocketSRAMsp(lines*4, 128);
+  val data_array = new TS1N65LPA512X128M4;
   val data_array_rdata = data_array.io.q; 
   val resp_data = Mux(r_cpu_req_idx(offsetlsb).toBool, data_array_rdata(127, 64), data_array_rdata(63,0));
   val r_resp_data = Reg(resp_data);
@@ -372,23 +375,24 @@ class rocketDCacheDM(lines: Int) extends Component {
     Mux((state === s_write_amo), amo_alu_out,
       store_data));
       
-  data_array.io.we := 
+  data_array.io.web := !(
     ((state === s_refill) && io.mem.resp_val) ||
     (state === s_write_amo) ||
-     drain_store || resolve_store;
+     drain_store || resolve_store);
      
-  data_array.io.bweb := 
+  data_array.io.bweb := ~(
     Mux((state === s_refill), ~Bits(0,128),
     Mux((state === s_write_amo), amo_store_wmask,
-      store_wmask));
+      store_wmask)));
       
-  data_array.io.ce := 
+  data_array.io.ceb := !(
     (io.cpu.req_val && io.cpu.req_rdy && (req_load || req_amo)) ||
     (state === s_start_writeback) ||
     (state === s_writeback) ||
     ((state === s_resolve_miss) && (r_req_load || r_req_amo)) ||
-    (state === s_replay_load);
+    (state === s_replay_load));
 
+  data_array.io.tsel := Bits(1,2);
   // signal a load miss when the data isn't present in the cache and when it's in the pending store data register
   // (causes the cache to block for 2 cycles and the load or amo instruction is replayed)
   val load_miss = 
