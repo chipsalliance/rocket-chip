@@ -23,7 +23,7 @@ class ioIPrefetcher extends Bundle() {
 
 class rocketIPrefetcher extends Component() {
   val io = new ioIPrefetcher();
-  val pdq = new queueSimplePF(128, 4, 2);
+  val pdq = (new queueSimplePF(4)) { Bits(width = 128) };
 
   val s_invalid :: s_valid :: s_refilling :: s_req_wait :: s_resp_wait :: s_bad_resp_wait :: Nil = Enum(6) { UFix() };
   val state = Reg(resetVal = s_invalid);

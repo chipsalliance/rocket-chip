@@ -3,6 +3,7 @@ package queues
 
 import Chisel._
 import Node._;
+import scala.math._;
 
 class ioQueueCtrl(addr_sz: Int) extends Bundle()
 {
@@ -16,8 +17,9 @@ class ioQueueCtrl(addr_sz: Int) extends Bundle()
   val raddr   = UFix(addr_sz, 'output);
 }
 
-class queueCtrl(entries: Int, addr_sz: Int) extends Component
+class queueCtrl(entries: Int) extends Component
 {
+  val addr_sz = ceil(log(entries)/log(2)).toInt
   override val io = new ioQueueCtrl(addr_sz);
 
   // Enqueue and dequeue pointers
@@ -79,28 +81,28 @@ class queueCtrl(entries: Int, addr_sz: Int) extends Component
   full    <== full_next;
 }
 
-class ioQueueSimplePF(data_sz: Int) extends Bundle()
+class ioQueueSimplePF[T <: Data]()(data: => T) extends Bundle()
 {
   val q_reset  = Bool('input);
   val enq_val  = Bool('input);
   val enq_rdy  = Bool('output);
   val deq_val  = Bool('output);
   val deq_rdy  = Bool('input);
-  val enq_bits = Bits(data_sz, 'input);
-  val deq_bits = Bits(data_sz, 'output);
+  val enq_bits = data.asInput;
+  val deq_bits = data.asOutput;
 }
 
-class queueSimplePF(data_sz: Int, entries: Int, addr_sz: Int) extends Component
+class queueSimplePF[T <: Data](entries: Int)(data: => T) extends Component
 {
-  override val io = new ioQueueSimplePF(data_sz);
-  val ctrl = new queueCtrl(entries, addr_sz);
+  override val io = new ioQueueSimplePF()(data);
+  val ctrl = new queueCtrl(entries);
   ctrl.io.q_reset ^^ io.q_reset;
   ctrl.io.deq_val ^^ io.deq_val;
   ctrl.io.enq_rdy ^^ io.enq_rdy;
   ctrl.io.enq_val ^^ io.enq_val;     
   ctrl.io.deq_rdy ^^ io.deq_rdy;
   val ram = Mem(entries, ctrl.io.wen, ctrl.io.waddr, io.enq_bits);
-  io.deq_bits := ram(ctrl.io.raddr);
+  ram.read(ctrl.io.raddr) ^^ io.deq_bits;
 }
 
 // TODO: SHOULD USE INHERITANCE BUT BREAKS INTROSPECTION CODE
@@ -117,8 +119,9 @@ class ioQueueCtrlFlow(addr_sz: Int) extends Bundle() /* IOqueueCtrl */
   val flowthru = Bool('output);
 }
 
-class queueCtrlFlow(entries: Int, addr_sz: Int) extends Component
+class queueCtrlFlow(entries: Int) extends Component
 {
+  val addr_sz = ceil(log(entries)/log(2)).toInt
   override val io = new ioQueueCtrlFlow(addr_sz);
   // Enqueue and dequeue pointers
 
@@ -175,39 +178,40 @@ class queueCtrlFlow(entries: Int, addr_sz: Int) extends Component
   full    <== full_next;
 }
 
-class ioQueueDpathFlow(data_sz: Int, addr_sz: Int) extends Bundle()
+class ioQueueDpathFlow[T <: Data](addr_sz: Int)(data: => T) extends Bundle()
 {
   val wen         = Bool('input);
   val flowthru    = Bool('input);
-  val deq_bits    = Bits(data_sz, 'output);
-  val enq_bits    = Bits(data_sz, 'input);
+  val deq_bits    = data.asOutput;
+  val enq_bits    = data.asInput;
   val waddr       = UFix(addr_sz, 'input);
   val raddr       = UFix(addr_sz, 'input);
 }
 
-class queueDpathFlow(data_sz: Int, entries: Int, addr_sz: Int) extends Component
+class queueDpathFlow[T <: Data](entries: Int)(data: => T) extends Component
 {
-  override val io = new ioQueueDpathFlow(data_sz, addr_sz);
+  val addr_sz = ceil(log(entries)/log(2)).toInt
+  override val io = new ioQueueDpathFlow(addr_sz)(data);
   val ram  = Mem(entries, io.wen, io.waddr, io.enq_bits);
   val rout = ram(io.raddr);
-  io.deq_bits := Mux(io.flowthru, io.enq_bits, rout);
+  Mux(io.flowthru, io.enq_bits, rout) ^^ io.deq_bits;
 }
 
-class ioQueueFlowPF(data_sz: Int) extends Bundle()
+class ioQueueFlowPF[T <: Data](data: => T) extends Bundle()
 {
   val enq_val     = Bool('input);
   val enq_rdy     = Bool('output);
-  val enq_bits    = Bits(data_sz, 'input);
+  val enq_bits    = data.asInput;
   val deq_val     = Bool('output);
   val deq_rdy     = Bool('input);
-  val deq_bits    = Bits(data_sz, 'output);
+  val deq_bits    = data.asOutput;
 }
 
-class queueFlowPF(data_sz: Int, entries: Int, addr_sz: Int) extends Component
+class queueFlowPF[T <: Data](entries: Int)(data: => T) extends Component
 {
-  override val io = new ioQueueFlowPF(data_sz);
-  val ctrl  = new queueCtrlFlow(entries, addr_sz);
-  val dpath = new queueDpathFlow(data_sz, entries, addr_sz);
+  override val io = new ioQueueFlowPF(data);
+  val ctrl  = new queueCtrlFlow(entries);
+  val dpath = new queueDpathFlow(entries)(data);
   
   ctrl.io.deq_rdy   ^^ io.deq_rdy;
   ctrl.io.wen       <> dpath.io.wen;
