@@ -106,10 +106,8 @@ class rocketProc extends Component
   dpath.io.dmem.resp_tag  := arb.io.cpu.resp_tag;
   dpath.io.dmem.resp_data := arb.io.cpu.resp_data;  
 
-  // FIXME: console disconnected
-//   io.console.bits     := dpath.io.dpath.rs1(7,0);
-  io.console.bits     := Bits(0,8);
-  io.console.valid    := ctrl.io.console.valid;
+  io.console.bits     := dpath.io.console.bits;
+  io.console.valid    := dpath.io.console.valid;
   ctrl.io.console.rdy := io.console.rdy;
 }
 

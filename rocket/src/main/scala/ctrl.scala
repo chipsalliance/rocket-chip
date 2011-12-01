@@ -70,7 +70,7 @@ class ioCtrlDpath extends Bundle()
 class ioCtrlAll extends Bundle()
 {
   val dpath   = new ioCtrlDpath();
-  val console = new ioConsole(List("rdy", "valid"));
+  val console = new ioConsole(List("rdy"));
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss")).flip();
   val host    = new ioHost(List("start"));
@@ -299,8 +299,6 @@ class rocketCtrl extends Component
   val id_ren1 = id_renx1;
 
   val id_console_out_val  = id_wen_pcr & (id_raddr2 === PCR_CONSOLE);
-  val console_out_fire    = id_console_out_val & ~io.dpath.killd;
-  io.console.valid        := console_out_fire.toBool;
 
   val wb_reg_div_mul_val = Reg(){Bool()};
   val dcache_miss =   Reg(io.dmem.resp_miss);
