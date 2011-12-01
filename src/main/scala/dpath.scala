@@ -45,7 +45,7 @@ class rocketDpath extends Component
 
   val alu = new rocketDpathALU(); 
   val ex_alu_out = alu.io.out; 
-  val ex_jr_target = ex_alu_out(VADDR_BITS,0);
+  val ex_jr_target = ex_alu_out(VADDR_BITS-1,0);
 
   val div = new rocketDivider(64);
   val div_result = div.io.div_result_bits;
@@ -57,10 +57,10 @@ class rocketDpath extends Component
   val mul_result_tag = mul.io.result_tag; 
   val mul_result_val = mul.io.result_val;
   
-	val rfile = new rocketDpathRegfile();
+  val rfile = new rocketDpathRegfile();
 
   // instruction fetch definitions
-  val if_reg_pc         = Reg(resetVal = UFix(0,VADDR_BITS));
+  val if_reg_pc         = Reg(resetVal = UFix(START_ADDR,VADDR_BITS));
 
   // instruction decode definitions
   val id_reg_valid     = Reg(resetVal = Bool(false));
@@ -141,15 +141,12 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_J,    ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,   ex_jr_target.toUFix,
-    Mux(io.ctrl.sel_pc === PC_PCR,  mem_reg_wdata, // only used for ERET
+    Mux(io.ctrl.sel_pc === PC_PCR,  mem_reg_wdata(VADDR_BITS-1,0), // only used for ERET
     Mux(io.ctrl.sel_pc === PC_EVEC, pcr.io.evec,
     Mux(io.ctrl.sel_pc === PC_MEM,  mem_reg_pc,
         UFix(0, VADDR_BITS)))))))))));
         
-  when (!io.host.start){
-    if_reg_pc <== UFix(START_ADDR, VADDR_BITS);
-  }  
-  when (!io.ctrl.stallf) {
+  when (!io.ctrl.stallf && io.host.start) {
     if_reg_pc <== if_next_pc.toUFix;
   }
   

@@ -40,23 +40,23 @@ class rocketIPrefetcher extends Component() {
   val ip_mem_resp_val = io.mem.resp_val && io.mem.resp_tag(0).toBool; 
   
   io.mem.req_val  := io.icache.req_val & ~hit | (state === s_req_wait);
-  io.mem.req_tag  := !(io.icache.req_val && !hit);
-  io.mem.req_addr := Mux(io.mem.req_tag.toBool, prefetch_addr, io.icache.req_addr);
+  io.mem.req_tag  := Cat(Bits(0,2), !(io.icache.req_val && !hit));
+  io.mem.req_addr := Mux(io.mem.req_tag(0).toBool, prefetch_addr, io.icache.req_addr);
   
   val pdq_reset = Reg(resetVal = Bool(true));
   pdq_reset <== demand_miss & ~hit | (state === s_bad_resp_wait);
   
-  val fill_cnt = Reg(resetVal = UFix(0, 2));
+  val fill_cnt = Reg(resetVal = UFix(0,2));
   when (ip_mem_resp_val.toBool) { fill_cnt <== fill_cnt + UFix(1,1); }
   val fill_done = (fill_cnt === UFix(3,2)) & ip_mem_resp_val;
   
   val forward = Reg(resetVal = Bool(false));
-  val forward_cnt = Reg(resetVal = UFix(0, 2));
+  val forward_cnt = Reg(resetVal = UFix(0,2));
   when (forward & pdq.io.deq_val) { forward_cnt <== forward_cnt + UFix(1,1); }
-  val forward_done = (forward_cnt === UFix(3, 2)) & pdq.io.deq_val;
+  val forward_done = (forward_cnt === UFix(3,2)) & pdq.io.deq_val;
   forward <== (demand_miss & hit | forward & ~forward_done);  
 
-  io.icache.resp_val  := (io.mem.resp_val && !io.mem.resp_tag.toBool) || (forward && pdq.io.deq_val);
+  io.icache.resp_val  := (io.mem.resp_val && !io.mem.resp_tag(0).toBool) || (forward && pdq.io.deq_val);
   io.icache.resp_data := Mux(forward, pdq.io.deq_bits, io.mem.resp_data);
   
   pdq.io.q_reset  := pdq_reset;
