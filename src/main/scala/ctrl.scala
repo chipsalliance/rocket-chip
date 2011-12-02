@@ -37,6 +37,8 @@ class ioCtrlDpath extends Bundle()
   val mem_eret = Bool('output);
   val mem_load = Bool('output);
   val wen      = Bool('output);
+  // instruction in execute is an unconditional jump
+  val ex_jmp   = Bool('output); 
   // enable/disable interrupts
   val irq_enable   = Bool('output);
   val irq_disable   = Bool('output);
@@ -411,6 +413,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
   }
 
+
   val beq  =  io.dpath.br_eq;
   val bne  = ~io.dpath.br_eq;
   val blt  =  io.dpath.br_lt;
@@ -428,6 +431,7 @@ class rocketCtrl extends Component
 
   val jr_taken = (ex_reg_br_type === BR_JR);
   val j_taken  = (ex_reg_br_type === BR_J);
+  io.dpath.ex_jmp := j_taken;
 
   io.dmem.req_val     := ex_reg_mem_val && ~io.dpath.killx;
   io.dmem.req_cmd     := ex_reg_mem_cmd;
@@ -538,9 +542,9 @@ class rocketCtrl extends Component
     Mux(mem_reg_eret,                 PC_PCR,  // eret instruction
     Mux(replay_ex,                    PC_EX,   // D$ blocked, D$ miss, privileged inst
     Mux(!ex_reg_btb_hit && br_taken,  PC_BR,   // mispredicted taken branch
+    Mux(j_taken,                      PC_BR,   // jump
     Mux(ex_reg_btb_hit && !br_taken,  PC_EX4,  // mispredicted not taken branch
     Mux(jr_taken,                     PC_JR,   // jump register
-    Mux(j_taken,                      PC_J,    // jump
     Mux(io.dpath.btb_hit,             PC_BTB,  // predicted PC from BTB
         PC_4))))))))); // PC+4
 

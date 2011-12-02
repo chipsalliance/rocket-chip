@@ -127,8 +127,8 @@ class rocketDpath extends Component
 
   // FIXME: which bits to extract should be calculated based on VADDR_BITS
   val branch_adder_rhs =
-    Mux(io.ctrl.sel_pc === PC_BR, Cat(ex_sign_extend_split(41,0), UFix(0, 1)),
-        Cat(Fill(17, ex_reg_inst(31)), ex_reg_inst(31,7),          UFix(0, 1)));
+    Mux(io.ctrl.ex_jmp, Cat(Fill(17, ex_reg_inst(31)), ex_reg_inst(31,7), UFix(0,1)),
+      Cat(ex_sign_extend_split(41,0), UFix(0, 1)));
 
   val ex_branch_target = ex_reg_pc + branch_adder_rhs.toUFix;
 
@@ -140,12 +140,11 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_EX,   ex_reg_pc,
     Mux(io.ctrl.sel_pc === PC_EX4,  ex_reg_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
-    Mux(io.ctrl.sel_pc === PC_J,    ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,   ex_jr_target.toUFix,
     Mux(io.ctrl.sel_pc === PC_PCR,  mem_reg_wdata(VADDR_BITS-1,0), // only used for ERET
     Mux(io.ctrl.sel_pc === PC_EVEC, pcr.io.evec,
     Mux(io.ctrl.sel_pc === PC_MEM,  mem_reg_pc,
-        UFix(0, VADDR_BITS)))))))))));
+        UFix(0, VADDR_BITS))))))))));
         
   when (!io.ctrl.stallf && io.host.start) {
     if_reg_pc <== if_next_pc.toUFix;
