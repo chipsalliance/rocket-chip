@@ -36,13 +36,13 @@ class ioICacheDM extends Bundle()
 
 // single port SRAM i/o
 class ioSRAMsp (width: Int, addrbits: Int) extends Bundle {
-  val a  = UFix(addrbits, 'input);  // address
-  val d  = Bits(width, 'input);     // data input
-  val bweb = Bits(width, 'input);   // bit write enable mask
-  val ceb = Bool('input);            // chip enable
-  val web = Bool('input);            // write enable
-  val q  = Bits(width, 'output);    // data out
-  val tsel = Bits(2, 'input); 
+  val A  = UFix(addrbits, 'input);  // address
+  val D  = Bits(width, 'input);     // data input
+  val BWEB = Bits(width, 'input);   // bit write enable mask
+  val CEB = Bool('input);            // chip enable
+  val WEB = Bool('input);            // write enable
+  val Q  = Bits(width, 'output);    // data out
+  val TSEL = Bits(2, 'input); 
 }
 
 // single ported SRAM
@@ -51,9 +51,10 @@ class TS1N65LPA128X27M4 extends Component {
   val width = 27; 
   val entries = 128;
   val io = new ioSRAMsp(width, addrbits);
-  val sram = Mem(entries, ~io.web, io.a, io.d, wrMask = ~io.bweb, resetVal = null);
-  val rdata = Reg(Mux(~io.ceb, sram.read(io.a), Bits(0,width)));
-  io.q := rdata;
+  val wmask = ~io.BWEB;
+  val sram = Mem(entries, !io.WEB, io.A, io.D, wrMask = wmask, resetVal = null);
+  val rdata = Reg(Mux(!io.CEB, sram.read(io.A), Bits(0,width)));
+  io.Q := rdata;
 }
 
 class TS1N65LPA512X128M4 extends Component {
@@ -61,9 +62,10 @@ class TS1N65LPA512X128M4 extends Component {
   val width = 128;
   val entries  = 512;
   val io = new ioSRAMsp(width, addrbits);
-  val sram = Mem(entries, ~io.web, io.a, io.d, wrMask = ~io.bweb, resetVal = null);
-  val rdata = Reg(Mux(~io.ceb, sram.read(io.a), Bits(0,width)));
-  io.q := rdata;
+  val wmask = ~io.BWEB;
+  val sram = Mem(entries, !io.WEB, io.A, io.D, wrMask = wmask, resetVal = null);
+  val rdata = Reg(Mux(!io.CEB, sram.read(io.A), Bits(0,width)));
+  io.Q := rdata;
 }
 /*
 class rocketSRAMsp(entries: Int, width: Int) extends Component {
@@ -127,13 +129,15 @@ class rocketICacheDM(lines: Int) extends Component {
     Mux((state === s_refill_wait), r_cpu_req_idx(PGIDX_BITS-1,offsetbits),
       io.cpu.req_idx(PGIDX_BITS-1,offsetbits)).toUFix;
   val tag_we = (state === s_refill_wait) && io.mem.resp_val;
-  tag_array.io.a := tag_addr;
-  tag_array.io.d    := r_cpu_req_ppn;
-  tag_array.io.web  := ~tag_we;
-  tag_array.io.tsel := Bits(1,2);
-  tag_array.io.bweb := Bits(0,tagbits);
-  tag_array.io.ceb  := !(io.cpu.req_val && io.cpu.req_rdy);
-  val tag_rdata = tag_array.io.q;
+  val tag_array_ceb = Mux(reset, Bool(true), !(io.cpu.req_val && io.cpu.req_rdy));
+  val tag_array_web = Mux(reset, Bool(true), !tag_we);
+  tag_array.io.A := tag_addr;
+  tag_array.io.D    := r_cpu_req_ppn;
+  tag_array.io.CEB  := tag_array_ceb && tag_array_web;
+  tag_array.io.WEB  := tag_array_web;
+  tag_array.io.TSEL := Bits(1,2);
+  tag_array.io.BWEB := Bits(0,tagbits);
+  val tag_rdata = tag_array.io.Q;
   
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
@@ -150,16 +154,18 @@ class rocketICacheDM(lines: Int) extends Component {
   // data array
 //  val data_array = new rocketSRAMsp(lines*4, 128);
   val data_array = new TS1N65LPA512X128M4;
-  data_array.io.a := 
+  val data_array_ceb = Mux(reset, Bool(true), !((io.cpu.req_rdy && io.cpu.req_val) || (state === s_resolve_miss)));
+  val data_array_web = Mux(reset, Bool(true), ~io.mem.resp_val);
+  data_array.io.A := 
     Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(PGIDX_BITS-1, offsetbits), refill_count),
       io.cpu.req_idx(PGIDX_BITS-1, offsetmsb-1)).toUFix;
-  data_array.io.d    := io.mem.resp_data;
-  data_array.io.web   := ~io.mem.resp_val;
-  data_array.io.bweb := Bits(0,128);
-  data_array.io.tsel := Bits(1,2);
-  data_array.io.ceb   := !((io.cpu.req_rdy && io.cpu.req_val) || (state === s_resolve_miss));
+  data_array.io.D    := io.mem.resp_data;
+  data_array.io.CEB  := data_array_ceb && data_array_web;
+  data_array.io.WEB  := data_array_web;
+  data_array.io.BWEB := Bits(0,128);
+  data_array.io.TSEL := Bits(1,2);
     
-  val data_array_rdata = data_array.io.q;
+  val data_array_rdata = data_array.io.Q;
    
   // output signals
   io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_valid && tag_match; 
