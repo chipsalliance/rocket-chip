@@ -252,8 +252,6 @@ class rocketDCacheDM(lines: Int) extends Component {
   val tag_array = Mem4(lines, r_cpu_req_ppn);
   tag_array.setReadLatency(0);
   val tag_rdata = tag_array.rw(tag_addr, r_cpu_req_ppn, tag_we);
-//   tag_array.write(tag_addr, r_cpu_req_ppn, tag_we);
-//   val tag_rdata = tag_array(tag_addr);
 
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
@@ -370,8 +368,6 @@ class rocketDCacheDM(lines: Int) extends Component {
   val data_array = Mem4(lines*4, data_wdata);
   data_array.setReadLatency(0);
   val data_array_rdata = data_array.rw(data_addr, data_wdata, data_we, data_wmask);
-//   data_array.write(data_addr, data_wdata, data_we, data_wmask);
-//   val data_array_rdata = data_array(data_addr);
   val resp_data = Mux(r_cpu_req_idx(offsetlsb).toBool, data_array_rdata(127, 64), data_array_rdata(63,0));
   val r_resp_data = Reg(resp_data);
 
