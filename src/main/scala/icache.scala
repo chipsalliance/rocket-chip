@@ -34,49 +34,6 @@ class ioICacheDM extends Bundle()
   val mem = new ioIcache().flip();
 }
 
-// single port SRAM i/o
-class ioSRAMsp (width: Int, addrbits: Int) extends Bundle {
-  val A  = UFix(addrbits, 'input);  // address
-  val D  = Bits(width, 'input);     // data input
-  val BWEB = Bits(width, 'input);   // bit write enable mask
-  val CEB = Bool('input);            // chip enable
-  val WEB = Bool('input);            // write enable
-  val Q  = Bits(width, 'output);    // data out
-  val TSEL = Bits(2, 'input); 
-}
-
-// single ported SRAM
-class TS1N65LPA128X27M4 extends Component {
-  val addrbits = 7;
-  val width = 27; 
-  val entries = 128;
-  val io = new ioSRAMsp(width, addrbits);
-  val wmask = ~io.BWEB;
-  val sram = Mem(entries, !io.WEB, io.A, io.D, wrMask = wmask, resetVal = null);
-  val rdata = Reg(Mux(!io.CEB, sram.read(io.A), Bits(0,width)));
-  io.Q := rdata;
-}
-
-class TS1N65LPA512X128M4 extends Component {
-  val addrbits = 9;
-  val width = 128;
-  val entries  = 512;
-  val io = new ioSRAMsp(width, addrbits);
-  val wmask = ~io.BWEB;
-  val sram = Mem(entries, !io.WEB, io.A, io.D, wrMask = wmask, resetVal = null);
-  val rdata = Reg(Mux(!io.CEB, sram.read(io.A), Bits(0,width)));
-  io.Q := rdata;
-}
-/*
-class rocketSRAMsp(entries: Int, width: Int) extends Component {
-  val addrbits = ceil(log10(entries)/log10(2)).toInt;
-  val io = new ioSRAMsp(width, addrbits);
-  val sram = Mem(entries, io.we, io.a, io.d, wrMask = io.bweb, resetVal = null);
-  val rdata = Reg(Mux(io.ce, sram.read(io.a), Bits(0,width)));
-  io.q := rdata;
-} 
-*/
-
 // basic direct mapped instruction cache
 // 32 bit wide cpu port, 128 bit wide memory port, 64 byte cachelines
 // parameters :
@@ -121,23 +78,17 @@ class rocketICacheDM(lines: Int) extends Component {
   when (io.mem.resp_val) {
     refill_count <== refill_count + UFix(1);
   }
-  
-  // tag array
-//  val tag_array = new rocketSRAMsp(lines, tagbits);
-  val tag_array = new TS1N65LPA128X27M4;
   val tag_addr = 
     Mux((state === s_refill_wait), r_cpu_req_idx(PGIDX_BITS-1,offsetbits),
       io.cpu.req_idx(PGIDX_BITS-1,offsetbits)).toUFix;
   val tag_we = (state === s_refill_wait) && io.mem.resp_val;
-  val tag_array_ceb = Mux(reset, Bool(true), !(io.cpu.req_val && io.cpu.req_rdy));
-  val tag_array_web = Mux(reset, Bool(true), !tag_we);
-  tag_array.io.A := tag_addr;
-  tag_array.io.D    := r_cpu_req_ppn;
-  tag_array.io.CEB  := tag_array_ceb && tag_array_web;
-  tag_array.io.WEB  := tag_array_web;
-  tag_array.io.TSEL := Bits(1,2);
-  tag_array.io.BWEB := Bits(0,tagbits);
-  val tag_rdata = tag_array.io.Q;
+
+  val tag_array = Mem4(lines, r_cpu_req_ppn);
+  tag_array.setReadLatency(0);
+  val tag_rdata = tag_array.rw(tag_addr, r_cpu_req_ppn, tag_we);
+  
+//   tag_array.write(tag_addr, r_cpu_req_ppn, tag_we);
+//   val tag_rdata = tag_array.read(tag_addr);
   
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
@@ -152,21 +103,15 @@ class rocketICacheDM(lines: Int) extends Component {
   val tag_match = (tag_rdata === io.cpu.req_ppn);
   
   // data array
-//  val data_array = new rocketSRAMsp(lines*4, 128);
-  val data_array = new TS1N65LPA512X128M4;
-  val data_array_ceb = Mux(reset, Bool(true), !((io.cpu.req_rdy && io.cpu.req_val) || (state === s_resolve_miss)));
-  val data_array_web = Mux(reset, Bool(true), ~io.mem.resp_val);
-  data_array.io.A := 
+  val data_addr = 
     Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(PGIDX_BITS-1, offsetbits), refill_count),
       io.cpu.req_idx(PGIDX_BITS-1, offsetmsb-1)).toUFix;
-  data_array.io.D    := io.mem.resp_data;
-  data_array.io.CEB  := data_array_ceb && data_array_web;
-  data_array.io.WEB  := data_array_web;
-  data_array.io.BWEB := Bits(0,128);
-  data_array.io.TSEL := Bits(1,2);
-    
-  val data_array_rdata = data_array.io.Q;
-   
+  val data_array = Mem4(lines*4, io.mem.resp_data);
+  data_array.setReadLatency(0);
+  val data_array_rdata = data_array.rw(data_addr, io.mem.resp_data, io.mem.resp_val);
+//   data_array.write(data_addr, io.mem.resp_data, io.mem.resp_val);
+//   val data_array_rdata = data_array.read(data_addr);
+
   // output signals
   io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_valid && tag_match; 
   io.cpu.req_rdy  := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || (tag_valid && tag_match));
