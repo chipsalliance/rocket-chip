@@ -38,7 +38,8 @@ object top_main {
   def main(args: Array[String]) = { 
     // Can turn off --debug and --vcd when done with debugging to improve emulator performance
 //    val cpu_args = args ++ Array("--target-dir", "generated-src","--debug","--vcd");
-    val cpu_args = args ++ Array("--target-dir", "generated-src","--debug");
+//    val cpu_args = args ++ Array("--target-dir", "generated-src", "--debug");
+    val cpu_args = args ++ Array("--target-dir", "generated-src");
     // Set variables based off of command flags
 //     for(a <- args) {
 //         a match {

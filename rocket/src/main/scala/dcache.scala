@@ -249,20 +249,11 @@ class rocketDCacheDM(lines: Int) extends Component {
     ((state === s_refill) && io.mem.resp_val && (rr_count === UFix(3,2))) ||
     ((state === s_resolve_miss) && r_req_flush);
 
-//  val tag_array = new rocketSRAMsp(lines, tagbits);  
-  val tag_array = new TS1N65LPA128X27M4;
-  val tag_array_ceb = Mux(reset, Bool(true), !(
-    (io.cpu.req_val && io.cpu.req_rdy) ||
-    (state === s_start_writeback) ||
-    (state === s_writeback)));
-  val tag_array_web = Mux(reset, Bool(true), !tag_we);
-  tag_array.io.A    := tag_addr;
-  tag_array.io.D    := r_cpu_req_ppn;
-  tag_array.io.CEB  := tag_array_ceb && tag_array_web;
-  tag_array.io.WEB  := tag_array_web;
-  tag_array.io.BWEB := Bits(0,tagbits);
-  val tag_rdata      = tag_array.io.Q;
-  tag_array.io.TSEL := Bits(1,2);
+  val tag_array = Mem4(lines, r_cpu_req_ppn);
+  tag_array.setReadLatency(0);
+  val tag_rdata = tag_array.rw(tag_addr, r_cpu_req_ppn, tag_we);
+//   tag_array.write(tag_addr, r_cpu_req_ppn, tag_we);
+//   val tag_rdata = tag_array(tag_addr);
 
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
@@ -334,14 +325,9 @@ class rocketDCacheDM(lines: Int) extends Component {
   val store_wmask_d = storegen.io.store_wmask;
   val store_wmask = Mux(p_store_idx(offsetlsb).toBool, Cat(store_wmask_d, Bits(0,64)), Cat(Bits(0,64), store_wmask_d)); 
 
-  // data array
-//  val data_array = new rocketSRAMsp(lines*4, 128);
-  val data_array = new TS1N65LPA512X128M4;
-  val data_array_rdata = data_array.io.Q; 
-  val resp_data = Mux(r_cpu_req_idx(offsetlsb).toBool, data_array_rdata(127, 64), data_array_rdata(63,0));
-  val r_resp_data = Reg(resp_data);
-  
   // ALU for AMOs
+  val amo_alu = new rocketDCacheAmoALU();
+  val amo_alu_out = Cat(amo_alu.io.result,amo_alu.io.result);
   val amo_wmask = 
     Mux(r_cpu_req_type === MT_D, ~Bits(0,8),
     Mux(r_cpu_req_idx(2).toBool, Cat(~Bits(0,4), Bits(0,4)),
@@ -358,47 +344,42 @@ class rocketDCacheDM(lines: Int) extends Component {
 
   val amo_store_wmask = Mux(r_cpu_req_idx(offsetlsb).toBool, Cat(amo_store_wmask_d, Bits(0,64)), Cat(Bits(0,64), amo_store_wmask_d)); 
   
-  val amo_alu = new rocketDCacheAmoALU();
-  amo_alu.io.cmd := r_cpu_req_cmd;
-  amo_alu.io.wmask := amo_wmask;
-  amo_alu.io.lhs := Mux(r_cpu_resp_val, resp_data, r_resp_data).toUFix;
-  amo_alu.io.rhs := r_amo_data.toUFix;
-  val amo_alu_out = Cat(amo_alu.io.result,amo_alu.io.result);
-  
-  data_array.io.A := 
+  // data array
+  val data_addr = 
     Mux(drain_store || resolve_store, p_store_idx(PGIDX_BITS-1, offsetmsb-1),
     Mux((state === s_writeback) && io.mem.req_rdy, Cat(r_cpu_req_idx(PGIDX_BITS-1, offsetbits), rr_count_next),
     Mux((state === s_start_writeback) || (state === s_writeback) || (state === s_refill), Cat(r_cpu_req_idx(PGIDX_BITS-1, offsetbits), rr_count),
     Mux((state === s_resolve_miss) || (state === s_replay_load) || (state === s_write_amo),  r_cpu_req_idx(PGIDX_BITS-1, offsetmsb-1),
       io.cpu.req_idx(PGIDX_BITS-1, offsetmsb-1))))).toUFix;
       
-  data_array.io.D := 
+  val data_wdata = 
     Mux((state === s_refill), io.mem.resp_data, 
     Mux((state === s_write_amo), amo_alu_out,
       store_data));
      
-  val data_array_web = Mux(reset, Bool(true), !(
+  val data_we =
     ((state === s_refill) && io.mem.resp_val) ||
     (state === s_write_amo) ||
-     drain_store || resolve_store));
-
-  data_array.io.WEB := data_array_web;
+     drain_store || resolve_store;
      
-  data_array.io.BWEB := ~(
+  val data_wmask =
     Mux((state === s_refill), ~Bits(0,128),
     Mux((state === s_write_amo), amo_store_wmask,
-      store_wmask)));
-      
-  val data_array_ceb = Mux(reset, Bool(true), !(
-    (io.cpu.req_val && io.cpu.req_rdy && (req_load || req_amo)) ||
-    (state === s_start_writeback) ||
-    (state === s_writeback) ||
-    ((state === s_resolve_miss) && (r_req_load || r_req_amo)) ||
-    (state === s_replay_load)));
+      store_wmask));
 
-  data_array.io.CEB := data_array_ceb && data_array_web;
+  val data_array = Mem4(lines*4, data_wdata);
+  data_array.setReadLatency(0);
+  val data_array_rdata = data_array.rw(data_addr, data_wdata, data_we, data_wmask);
+//   data_array.write(data_addr, data_wdata, data_we, data_wmask);
+//   val data_array_rdata = data_array(data_addr);
+  val resp_data = Mux(r_cpu_req_idx(offsetlsb).toBool, data_array_rdata(127, 64), data_array_rdata(63,0));
+  val r_resp_data = Reg(resp_data);
 
-  data_array.io.TSEL := Bits(1,2);
+  amo_alu.io.cmd := r_cpu_req_cmd;
+  amo_alu.io.wmask := amo_wmask;
+  amo_alu.io.lhs := Mux(r_cpu_resp_val, resp_data, r_resp_data).toUFix;
+  amo_alu.io.rhs := r_amo_data.toUFix;
+
   // signal a load miss when the data isn't present in the cache and when it's in the pending store data register
   // (causes the cache to block for 2 cycles and the load or amo instruction is replayed)
   val load_miss = 
