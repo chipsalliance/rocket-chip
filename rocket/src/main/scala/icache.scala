@@ -86,10 +86,7 @@ class rocketICacheDM(lines: Int) extends Component {
   val tag_array = Mem4(lines, r_cpu_req_ppn);
   tag_array.setReadLatency(0);
   val tag_rdata = tag_array.rw(tag_addr, r_cpu_req_ppn, tag_we);
-  
-//   tag_array.write(tag_addr, r_cpu_req_ppn, tag_we);
-//   val tag_rdata = tag_array.read(tag_addr);
-  
+
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
   when (io.cpu.invalidate) {
@@ -109,8 +106,6 @@ class rocketICacheDM(lines: Int) extends Component {
   val data_array = Mem4(lines*4, io.mem.resp_data);
   data_array.setReadLatency(0);
   val data_array_rdata = data_array.rw(data_addr, io.mem.resp_data, io.mem.resp_val);
-//   data_array.write(data_addr, io.mem.resp_data, io.mem.resp_val);
-//   val data_array_rdata = data_array.read(data_addr);
 
   // output signals
   io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_valid && tag_match; 
