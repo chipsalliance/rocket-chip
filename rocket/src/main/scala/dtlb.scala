@@ -68,7 +68,7 @@ class rocketDTLB(entries: Int) extends Component
   
   val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
 
-  val tag_cam = new rocketCAM(entries, addr_bits, ASID_BITS+VPN_BITS);  
+  val tag_cam = new rocketCAM(entries, ASID_BITS+VPN_BITS);
   val tag_ram = Mem(entries, io.ptw.resp_val, r_refill_waddr.toUFix, io.ptw.resp_ppn);
   
   tag_cam.io.clear      := io.cpu.invalidate;
