@@ -18,7 +18,8 @@ class ioCAM(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
     val write_addr    = UFix(addr_bits, 'input);
 }
 
-class rocketCAM(entries: Int, addr_bits: Int, tag_bits: Int) extends Component {
+class rocketCAM(entries: Int, tag_bits: Int) extends Component {
+  val addr_bits = ceil(log(entries)/log(2)).toInt;
   val io = new ioCAM(entries, addr_bits, tag_bits);
   val cam_tags = Mem(entries, io.write, io.write_addr, io.write_tag);
 
@@ -112,7 +113,7 @@ class rocketITLB(entries: Int) extends Component
   
   val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
   
-  val tag_cam = new rocketCAM(entries, addr_bits, ASID_BITS+VPN_BITS);
+  val tag_cam = new rocketCAM(entries, ASID_BITS+VPN_BITS);
   val tag_ram = Mem(entries, io.ptw.resp_val, r_refill_waddr.toUFix, io.ptw.resp_ppn);
   
   tag_cam.io.clear      := io.cpu.invalidate;
