@@ -1,6 +1,7 @@
 package Top {
 
 import Chisel._
+import scala.math._
 
 object Constants
 {
@@ -125,10 +126,12 @@ object Constants
   val M_X       = UFix(0, 4);
   val M_XRD     = Bits("b0000", 4); // int load
   val M_XWR     = Bits("b0001", 4); // int store
-  val M_FRD     = Bits("b0010", 4); // fp load
-  val M_FWR     = Bits("b0011", 4); // fp store
-  val M_FLA     = Bits("b0100", 4); // flush cache
+  val M_PFR     = Bits("b0010", 4); // prefetch with intent to read
+  val M_PFW     = Bits("b0011", 4); // prefetch with intent to write
+  val M_FLA     = Bits("b0100", 4); // write back and invlaidate all lines
   val M_PRD     = Bits("b0101", 4); // PTW load
+  val M_INV     = Bits("b0110", 4); // write back and invalidate line
+  val M_CLN     = Bits("b0111", 4); // write back line
   val M_XA_ADD  = Bits("b1000", 4);
   val M_XA_SWAP = Bits("b1001", 4);
   val M_XA_AND  = Bits("b1010", 4);
@@ -183,6 +186,23 @@ object Constants
   val VPN_BITS = VADDR_BITS-PGIDX_BITS;
   val ASID_BITS = 7;
   val PERM_BITS = 6;
+
+  // rocketNBDCacheDM parameters
+  val CPU_DATA_BITS = 64;
+  val CPU_TAG_BITS = 5;
+  val OFFSET_BITS = 6; // log2(cache line size in bytes)
+  val NMSHR = 2; // number of primary misses
+  val NRPQ = 16; // number of secondary misses
+  val NSDQ = 10; // number of secondary stores/AMOs
+  val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
+  val IDX_BITS = PGIDX_BITS - OFFSET_BITS;
+
+  // external memory interface
+  val IMEM_TAG_BITS = 1;
+  val DMEM_TAG_BITS = ceil(log(NMSHR)/log(2)).toInt;
+  val MEM_TAG_BITS = 1 + max(IMEM_TAG_BITS, DMEM_TAG_BITS);
+  val MEM_DATA_BITS = 128;
+  val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS;
   
   val DTLB_ENTRIES = 8;
   val ITLB_ENTRIES = 8;
