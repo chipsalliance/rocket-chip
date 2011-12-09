@@ -1,4 +1,4 @@
-package queues
+package Top
 {
 
 import Chisel._
@@ -81,15 +81,11 @@ class queueCtrl(entries: Int) extends Component
   full    <== full_next;
 }
 
-class ioQueueSimplePF[T <: Data]()(data: => T) extends Bundle()
+class ioQueueSimplePF[T <: Data]()(data: => T) extends Bundle
 {
-  val q_reset  = Bool('input);
-  val enq_val  = Bool('input);
-  val enq_rdy  = Bool('output);
-  val deq_val  = Bool('output);
-  val deq_rdy  = Bool('input);
-  val enq_bits = data.asInput;
-  val deq_bits = data.asOutput;
+  val q_reset = Bool('input);
+  val enq     = new ioDecoupled()(data)
+  val deq     = new ioDecoupled()(data).flip
 }
 
 class queueSimplePF[T <: Data](entries: Int)(data: => T) extends Component
@@ -97,12 +93,12 @@ class queueSimplePF[T <: Data](entries: Int)(data: => T) extends Component
   override val io = new ioQueueSimplePF()(data);
   val ctrl = new queueCtrl(entries);
   ctrl.io.q_reset ^^ io.q_reset;
-  ctrl.io.deq_val ^^ io.deq_val;
-  ctrl.io.enq_rdy ^^ io.enq_rdy;
-  ctrl.io.enq_val ^^ io.enq_val;     
-  ctrl.io.deq_rdy ^^ io.deq_rdy;
-  val ram = Mem(entries, ctrl.io.wen, ctrl.io.waddr, io.enq_bits);
-  ram.read(ctrl.io.raddr) ^^ io.deq_bits;
+  ctrl.io.deq_val ^^ io.deq.valid;
+  ctrl.io.enq_rdy ^^ io.enq.ready;
+  ctrl.io.enq_val ^^ io.enq.valid;     
+  ctrl.io.deq_rdy ^^ io.deq.ready;
+  val ram = Mem(entries, ctrl.io.wen, ctrl.io.waddr, io.enq.bits);
+  ram.read(ctrl.io.raddr) ^^ io.deq.bits;
 }
 
 // TODO: SHOULD USE INHERITANCE BUT BREAKS INTROSPECTION CODE

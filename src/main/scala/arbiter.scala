@@ -10,15 +10,15 @@ class ioMem() extends Bundle
   val req_rdy = Bool('input);
   val req_rw  = Bool('output);
   val req_addr = UFix(PADDR_BITS, 'output);
-  val req_wdata = Bits(128, 'output);
-  val req_tag = Bits(4, 'output);
+  val req_wdata = Bits(MEM_DATA_BITS, 'output);
+  val req_tag = Bits(MEM_TAG_BITS, 'output);
   
   val resp_val = Bool('input);
-  val resp_tag = Bits(4, 'input);
-  val resp_data = Bits(128, 'input);
+  val resp_tag = Bits(MEM_TAG_BITS, 'input);
+  val resp_data = Bits(MEM_DATA_BITS, 'input);
 }
 
-class ioArbiter extends Bundle() {
+class ioMemArbiter extends Bundle() {
   val mem = new ioMem();
   val dcache = new ioDcache();
 //   val icache = new ioIcache();
@@ -26,7 +26,7 @@ class ioArbiter extends Bundle() {
 }
 
 class rocketMemArbiter extends Component {
-  val io = new ioArbiter();
+  val io = new ioMemArbiter();
 
   // *****************************
   // Interface to memory
@@ -41,11 +41,8 @@ class rocketMemArbiter extends Component {
   // Give priority to Icache
   io.mem.req_addr := Mux(io.icache.req_val,io.icache.req_addr,io.dcache.req_addr);
 
-  // high bit of tag=0 for I$, tag=0 for D$
-//   io.mem.req_tag := Mux(io.icache.req_val,Bits(0,4),Bits(1,4));
-  io.mem.req_tag := Mux(io.icache.req_val, 
-                        Cat(Bits(0,1), io.icache.req_tag),
-                        Cat(Bits(1,1), io.dcache.req_tag));
+  // low bit of tag=0 for I$, 1 for D$
+  io.mem.req_tag := Cat(Mux(io.icache.req_val, io.icache.req_tag, io.dcache.req_tag), !io.icache.req_val)
 
   // Just pass through write data (only D$ will write)
   io.mem.req_wdata := io.dcache.req_wdata;
@@ -59,15 +56,15 @@ class rocketMemArbiter extends Component {
   io.dcache.req_rdy := io.mem.req_rdy && !io.icache.req_val;
 
   // Response will only be valid for D$ or I$ not both because of tag bits
-  io.icache.resp_val := io.mem.resp_val && !io.mem.resp_tag(3).toBool;
-  io.dcache.resp_val := io.mem.resp_val &&  io.mem.resp_tag(3).toBool;
+  io.icache.resp_val := io.mem.resp_val && !io.mem.resp_tag(0).toBool;
+  io.dcache.resp_val := io.mem.resp_val &&  io.mem.resp_tag(0).toBool;
 
   // Feed through data to both 
   io.icache.resp_data := io.mem.resp_data;
   io.dcache.resp_data := io.mem.resp_data;
   
-  io.icache.resp_tag := io.mem.resp_tag(2,0);
-//   io.dcache.resp_tag := io.mem.resp_tag(2,0);
+  io.icache.resp_tag := io.mem.resp_tag >> UFix(1)
+  io.dcache.resp_tag := io.mem.resp_tag >> UFix(1)
 
 }
 

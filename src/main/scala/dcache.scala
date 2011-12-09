@@ -27,13 +27,13 @@ class ioDmem(view: List[String] = null) extends Bundle(view) {
 // interface between D$ and next level in memory hierarchy
 class ioDcache(view: List[String] = null) extends Bundle(view) {
   val req_addr  = UFix(PADDR_BITS, 'input);
-  val req_tag   = UFix(3, 'input);
+  val req_tag   = UFix(DMEM_TAG_BITS, 'input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
   val req_wdata = Bits(128, 'input);
   val req_rw    = Bool('input);
   val resp_data = Bits(128, 'output);
-//   val resp_tag  = Bits(3, 'output);
+  val resp_tag  = Bits(DMEM_TAG_BITS, 'output);
   val resp_val  = Bool('output);
 }
 

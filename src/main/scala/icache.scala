@@ -24,7 +24,7 @@ class ioIcache(view: List[String] = null) extends Bundle (view)
   val req_addr  = UFix(PADDR_BITS, 'input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
-  val resp_data = Bits(128, 'output);
+  val resp_data = Bits(MEM_DATA_BITS, 'output);
   val resp_val  = Bool('output);
 }
 
@@ -50,8 +50,9 @@ class rocketICacheDM(lines: Int) extends Component {
   val indexmsb  = taglsb-1;
   val indexlsb  = offsetbits;
   val offsetmsb = indexlsb-1;
-  val offsetlsb = 2;
   val databits = 32;
+  val offsetlsb = ceil(log(databits/8)/log(2)).toInt;
+  val rf_cnt_bits = ceil(log(REFILL_CYCLES)/log(2)).toInt;
   
   val s_reset :: s_ready :: s_request :: s_refill_wait :: s_refill :: s_resolve_miss :: Nil = Enum(6) { UFix() };
   val state = Reg(resetVal = s_reset);
@@ -74,7 +75,7 @@ class rocketICacheDM(lines: Int) extends Component {
   }
 
   // refill counter
-  val refill_count = Reg(resetVal = UFix(0,2));
+  val refill_count = Reg(resetVal = UFix(0, rf_cnt_bits));
   when (io.mem.resp_val) {
     refill_count <== refill_count + UFix(1);
   }
@@ -104,7 +105,7 @@ class rocketICacheDM(lines: Int) extends Component {
   val data_addr = 
     Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(PGIDX_BITS-1, offsetbits), refill_count),
       io.cpu.req_idx(PGIDX_BITS-1, offsetmsb-1)).toUFix;
-  val data_array = Mem4(lines*4, io.mem.resp_data);
+  val data_array = Mem4(lines*REFILL_CYCLES, io.mem.resp_data);
   data_array.setReadLatency(SRAM_READ_LATENCY);
 //   data_array.setTarget('inst);
   val data_array_rdata = data_array.rw(data_addr, io.mem.resp_data, io.mem.resp_val);
@@ -112,14 +113,14 @@ class rocketICacheDM(lines: Int) extends Component {
   // output signals
   io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_valid && tag_match; 
   io.cpu.req_rdy  := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || (tag_valid && tag_match));
-  io.cpu.resp_data :=
-    MuxLookup(r_cpu_req_idx(offsetmsb-2, offsetlsb).toUFix, data_array_rdata(127, 96), 
-      Array(UFix(2) -> data_array_rdata(95,64),
-      UFix(1) -> data_array_rdata(63,32),
-      UFix(0) -> data_array_rdata(31,0)));
+
+  val word_mux = (new MuxN(REFILL_CYCLES)) { Bits(width = databits) }
+  word_mux.io.sel := r_cpu_req_idx(offsetmsb - rf_cnt_bits, offsetlsb).toUFix
+  for (i <- 0 to MEM_DATA_BITS/databits-1) { word_mux.io.in(i) := data_array_rdata((i+1)*databits-1, i*databits) }
+  io.cpu.resp_data := word_mux.io.out
 
   io.mem.req_val := (state === s_request);
-  io.mem.req_addr := Cat(r_cpu_req_ppn, r_cpu_req_idx(PGIDX_BITS-1, offsetbits), Bits(0,2)).toUFix;
+  io.mem.req_addr := Cat(r_cpu_req_ppn, r_cpu_req_idx(PGIDX_BITS-1, offsetbits), Bits(0, rf_cnt_bits)).toUFix;
 
   // control state machine
   switch (state) {
@@ -146,7 +147,7 @@ class rocketICacheDM(lines: Int) extends Component {
       }
     }
     is (s_refill) {
-      when (io.mem.resp_val && (refill_count === UFix(3,2))) {
+      when (io.mem.resp_val && (~refill_count === UFix(0))) {
         state <== s_resolve_miss;
       }
     }
