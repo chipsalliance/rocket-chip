@@ -7,7 +7,7 @@ import scala.math._;
 
 class ioDmemArbiter extends Bundle
 {
-  val ptw = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_idx", "req_ppn", "resp_data", "resp_val"));
+  val ptw = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_idx", "req_ppn", "resp_data", "resp_val", "resp_nack"));
   val cpu = new ioDmem();
   val mem = new ioDmem().flip();
 }
@@ -24,31 +24,31 @@ class rocketDmemArbiter extends Component
   io.mem.req_cmd  := Mux(io.ptw.req_val, io.ptw.req_cmd,  io.cpu.req_cmd);
   io.mem.req_type := Mux(io.ptw.req_val, io.ptw.req_type, io.cpu.req_type);
   io.mem.req_idx  := Mux(io.ptw.req_val, io.ptw.req_idx, io.cpu.req_idx);
-//   io.mem.req_ppn  := Mux(io.ptw.req_val, io.ptw.req_ppn, io.cpu.req_ppn);
   io.mem.req_ppn  := Mux(r_ptw_req_val, r_ptw_req_ppn, io.cpu.req_ppn);
   io.mem.req_data := io.cpu.req_data;
-  io.mem.req_tag  := Mux(io.ptw.req_val, Bits(0,5), io.cpu.req_tag);
-//   io.mem.dtlb_busy := io.cpu.dtlb_busy;
-  io.mem.dtlb_miss := io.cpu.dtlb_miss;
+  io.mem.req_tag  := Cat(io.cpu.req_tag, io.ptw.req_val);
+  io.mem.req_nack := io.cpu.req_nack;
   
   io.ptw.req_rdy   := io.mem.req_rdy;
   io.cpu.req_rdy   := io.mem.req_rdy && !io.ptw.req_val;  
-  io.cpu.resp_miss := io.mem.resp_miss && !io.mem.resp_tag(11).toBool;
+  io.cpu.resp_miss := io.mem.resp_miss && !io.mem.resp_tag(0).toBool;
 
-  io.cpu.resp_val  := io.mem.resp_val && !io.mem.resp_tag(11).toBool;
-  io.ptw.resp_val  := io.mem.resp_val &&  io.mem.resp_tag(11).toBool; 
+  io.cpu.resp_nack := io.mem.resp_nack && !r_ptw_req_val
+  io.ptw.resp_nack := io.mem.resp_nack &&  r_ptw_req_val
+
+  io.cpu.resp_val  := io.mem.resp_val && !io.mem.resp_tag(0).toBool;
+  io.ptw.resp_val  := io.mem.resp_val &&  io.mem.resp_tag(0).toBool; 
 
   io.ptw.resp_data := io.mem.resp_data;
   io.cpu.resp_data := io.mem.resp_data;
-//   io.cpu.resp_tag  := io.mem.resp_tag(10,0);
-  io.cpu.resp_tag  := io.mem.resp_tag;
+  io.cpu.resp_tag  := io.mem.resp_tag >> UFix(1);
 }
 
 class ioPTW extends Bundle
 {
   val itlb = new ioTLB_PTW().flip();
   val dtlb = new ioTLB_PTW().flip();
-  val dmem = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_ppn", "req_idx", "resp_data", "resp_val")).flip();
+  val dmem = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_ppn", "req_idx", "resp_data", "resp_val", "resp_nack")).flip();
   val ptbr = UFix(PADDR_BITS, 'input);
 }
 
@@ -139,6 +139,9 @@ class rocketPTW extends Component
       }
     }
     is (s_l1_wait) {
+      when (io.dmem.resp_nack) {
+        state <== s_l1_req
+      }
       when (io.dmem.resp_val) {
         when (resp_ptd) { // page table descriptor
           state <== s_l2_req;
@@ -161,6 +164,9 @@ class rocketPTW extends Component
       }
     }
     is (s_l2_wait) {
+      when (io.dmem.resp_nack) {
+        state <== s_l2_req
+      }
       when (io.dmem.resp_val) {
         when (resp_ptd) { // page table descriptor
           state <== s_l3_req;
@@ -183,6 +189,9 @@ class rocketPTW extends Component
       }
     }
     is (s_l3_wait) {
+      when (io.dmem.resp_nack) {
+        state <== s_l3_req
+      }
       when (io.dmem.resp_val) {
         when (resp_pte) { // page table entry
           state <== s_done;

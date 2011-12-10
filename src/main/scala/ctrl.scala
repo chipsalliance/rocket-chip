@@ -37,6 +37,7 @@ class ioCtrlDpath extends Bundle()
   val mem_eret = Bool('output);
   val mem_load = Bool('output);
   val wen      = Bool('output);
+  val ex_mem_type = UFix(3, 'output)
   // instruction in execute is an unconditional jump
   val ex_jmp   = Bool('output); 
   // enable/disable interrupts
@@ -74,7 +75,7 @@ class ioCtrlAll extends Bundle()
   val dpath   = new ioCtrlDpath();
   val console = new ioConsole(List("rdy"));
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
-  val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss")).flip();
+  val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_nack")).flip();
   val host    = new ioHost(List("start"));
   val dtlb_val = Bool('output)
   val dtlb_rdy = Bool('input);
@@ -303,8 +304,8 @@ class rocketCtrl extends Component
 
   val id_console_out_val  = id_wen_pcr.toBool && (id_raddr2 === PCR_CONSOLE);
 
-  val wb_reg_div_mul_val = Reg(){Bool()};
-  val dcache_miss =   Reg(io.dmem.resp_miss);
+  val wb_reg_div_mul_val = Reg(resetVal = Bool(false))
+  val dcache_miss =   Reg(io.dmem.resp_miss, resetVal = Bool(false));
 
   val sboard = new rocketCtrlSboard(); 
   sboard.io.raddra  := id_raddr2.toUFix;
@@ -526,7 +527,7 @@ class rocketCtrl extends Component
 	io.dpath.badvaddr_wen := io.xcpt_dtlb_ld || io.xcpt_dtlb_st;
 
   // replay mem stage PC on a DTLB miss
-  val mem_hazard = io.dtlb_miss
+  val mem_hazard = io.dtlb_miss || io.dmem.resp_nack
   val replay_mem = mem_hazard || mem_reg_replay;
   val kill_mem   = mem_hazard || mem_exception;
 
@@ -667,6 +668,7 @@ class rocketCtrl extends Component
   io.dmem.req_val     := ex_reg_mem_val && !kill_dmem;
   io.dmem.req_cmd     := ex_reg_mem_cmd;
   io.dmem.req_type    := ex_reg_mem_type;
+  io.dpath.ex_mem_type:= ex_reg_mem_type
 }
 
 }
