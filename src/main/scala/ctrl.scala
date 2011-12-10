@@ -76,7 +76,8 @@ class ioCtrlAll extends Bundle()
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss")).flip();
   val host    = new ioHost(List("start"));
-  val dtlb_busy = Bool('input);
+  val dtlb_val = Bool('output)
+  val dtlb_rdy = Bool('input);
   val dtlb_miss = Bool('input);
   val flush_inst = Bool('output);
   val xcpt_dtlb_ld = Bool('input);
@@ -297,10 +298,10 @@ class rocketCtrl extends Component
   val id_raddr1 = io.dpath.inst(26,22);
   val id_waddr  = io.dpath.inst(31,27);
 
-  val id_ren2 = id_renx2;
-  val id_ren1 = id_renx1;
+  val id_ren2 = id_renx2.toBool;
+  val id_ren1 = id_renx1.toBool;
 
-  val id_console_out_val  = id_wen_pcr & (id_raddr2 === PCR_CONSOLE);
+  val id_console_out_val  = id_wen_pcr.toBool && (id_raddr2 === PCR_CONSOLE);
 
   val wb_reg_div_mul_val = Reg(){Bool()};
   val dcache_miss =   Reg(io.dmem.resp_miss);
@@ -355,6 +356,7 @@ class rocketCtrl extends Component
   val mem_reg_xcpt_privileged = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
+  val mem_reg_replay          = Reg(resetVal = Bool(false));
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
@@ -432,10 +434,6 @@ class rocketCtrl extends Component
   val jr_taken = (ex_reg_br_type === BR_JR);
   val j_taken  = (ex_reg_br_type === BR_J);
   io.dpath.ex_jmp := j_taken;
-
-  io.dmem.req_val     := ex_reg_mem_val && ~io.dpath.killx;
-  io.dmem.req_cmd     := ex_reg_mem_cmd;
-  io.dmem.req_type    := ex_reg_mem_type;
   
   val mem_reg_div_mul_val = Reg(){Bool()};
   val mem_reg_eret        = Reg(){Bool()};
@@ -526,39 +524,39 @@ class rocketCtrl extends Component
 	io.dpath.exception := mem_exception;
 	io.dpath.cause     := mem_cause;
 	io.dpath.badvaddr_wen := io.xcpt_dtlb_ld || io.xcpt_dtlb_st;
+
+  // replay mem stage PC on a DTLB miss
+  val mem_hazard = io.dtlb_miss
+  val replay_mem = mem_hazard || mem_reg_replay;
+  val kill_mem   = mem_hazard || mem_exception;
+
+  // control transfer from ex/mem
+  val take_pc_ex = (ex_reg_btb_hit != br_taken) || jr_taken || j_taken
+  val take_pc_mem = mem_exception || mem_reg_eret || replay_mem
+  val take_pc = take_pc_ex || take_pc_mem
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
-  val replay_ex = (ex_reg_mem_val && !io.dmem.req_rdy) || io.dmem.resp_miss || mem_reg_flush_inst || mem_reg_privileged;
-  
-  // replay mem stage PC on a DTLB miss
-  val replay_mem = io.dtlb_miss;
-  val kill_mem   = mem_exception || replay_mem;
-  val kill_ex    = replay_ex || kill_mem;
+  val ex_hazard    = io.dmem.resp_miss || mem_reg_privileged || mem_reg_flush_inst
+  val mem_kill_ex  = kill_mem || take_pc_mem
+  val kill_ex      = mem_kill_ex || ex_hazard || !(io.dmem.req_rdy && io.dtlb_rdy) && ex_reg_mem_val
+  val kill_dtlb    = mem_kill_ex || ex_hazard || !io.dmem.req_rdy
+  val kill_dmem    = mem_kill_ex || ex_hazard || !io.dtlb_rdy
+
+  mem_reg_replay <== kill_ex && !mem_kill_ex
 
   io.dpath.sel_pc :=
     Mux(replay_mem,                   PC_MEM,  // dtlb miss
     Mux(mem_exception,                PC_EVEC, // exception
     Mux(mem_reg_eret,                 PC_PCR,  // eret instruction
-    Mux(replay_ex,                    PC_EX,   // D$ blocked, D$ miss, privileged inst
     Mux(!ex_reg_btb_hit && br_taken,  PC_BR,   // mispredicted taken branch
     Mux(j_taken,                      PC_BR,   // jump
     Mux(ex_reg_btb_hit && !br_taken,  PC_EX4,  // mispredicted not taken branch
     Mux(jr_taken,                     PC_JR,   // jump register
     Mux(io.dpath.btb_hit,             PC_BTB,  // predicted PC from BTB
-        PC_4))))))))); // PC+4
+        PC_4)))))))); // PC+4
 
   io.dpath.wen_btb := ~ex_reg_btb_hit & br_taken & ~kill_ex & ~kill_mem;
-
-  val take_pc =
-    ~ex_reg_btb_hit & br_taken |
-    ex_reg_btb_hit & ~br_taken |
-    jr_taken |
-    j_taken |
-    mem_exception |
-    mem_reg_eret |
-    replay_ex |
-    replay_mem;
 
   io.dpath.stallf :=
     ~take_pc &
@@ -574,8 +572,8 @@ class rocketCtrl extends Component
   
   val lu_stall_ex = 
     ex_mem_cmd_load &&
-    ((id_ren1.toBool && (id_raddr1 === io.dpath.ex_waddr)) ||
-     (id_ren2.toBool && (id_raddr2 === io.dpath.ex_waddr)));
+    ((id_ren1 && (id_raddr1 === io.dpath.ex_waddr)) ||
+     (id_ren2 && (id_raddr2 === io.dpath.ex_waddr)));
     
   val mem_mem_cmd_load_bh = 
     mem_reg_mem_val &&
@@ -587,47 +585,48 @@ class rocketCtrl extends Component
      
   val lu_stall_mem = 
     mem_mem_cmd_load_bh &&
-    ((id_ren1.toBool && (id_raddr1 === io.dpath.mem_waddr)) ||
-     (id_ren2.toBool && (id_raddr2 === io.dpath.mem_waddr)));
+    ((id_ren1 && (id_raddr1 === io.dpath.mem_waddr)) ||
+     (id_ren2 && (id_raddr2 === io.dpath.mem_waddr)));
 
   val lu_stall = lu_stall_ex || lu_stall_mem;
   
   // check for divide and multiply instructions in ex,mem,wb stages
   val dm_stall_ex = 
     ex_reg_div_mul_val &&
-    ((id_ren1.toBool && (id_raddr1 === io.dpath.ex_waddr)) ||
-     (id_ren2.toBool && (id_raddr2 === io.dpath.ex_waddr)));
+    ((id_ren1 && (id_raddr1 === io.dpath.ex_waddr)) ||
+     (id_ren2 && (id_raddr2 === io.dpath.ex_waddr)));
 
   val dm_stall_mem = 
     mem_reg_div_mul_val &&
-    ((id_ren1.toBool && (id_raddr1 === io.dpath.mem_waddr)) ||
-     (id_ren2.toBool && (id_raddr2 === io.dpath.mem_waddr)));
+    ((id_ren1 && (id_raddr1 === io.dpath.mem_waddr)) ||
+     (id_ren2 && (id_raddr2 === io.dpath.mem_waddr)));
      
   val dm_stall_wb = 
     wb_reg_div_mul_val &&
-    ((id_ren1.toBool && (id_raddr1 === io.dpath.wb_waddr)) ||
-     (id_ren2.toBool && (id_raddr2 === io.dpath.wb_waddr)));
+    ((id_ren1 && (id_raddr1 === io.dpath.wb_waddr)) ||
+     (id_ren2 && (id_raddr2 === io.dpath.wb_waddr)));
      
   val dm_stall = dm_stall_ex || dm_stall_mem || dm_stall_wb;
 
   val ctrl_stalld =
-    ~take_pc &
+    !take_pc &&
     (
-      dm_stall |
-      lu_stall | 
-      id_ren2 &  id_stall_raddr2 |
-      id_ren1 &  id_stall_raddr1 |
-      (id_sel_wa === WA_RD) & id_stall_waddr |
-      (id_sel_wa === WA_RA) & id_stall_ra |
-      id_mem_val & (~io.dmem.req_rdy | io.dtlb_busy) |
-      (id_sync === SYNC_D) & ~io.dmem.req_rdy |
-      id_console_out_val & ~io.console.rdy |
-      id_div_val & ~io.dpath.div_rdy |
-      io.dpath.div_result_val |
+      dm_stall ||
+      lu_stall || 
+      id_ren2 && id_stall_raddr2 ||
+      id_ren1 && id_stall_raddr1 ||
+      (id_sel_wa === WA_RD) && id_stall_waddr ||
+      (id_sel_wa === WA_RA) && id_stall_ra ||
+      id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
+      (id_sync === SYNC_D) && !io.dmem.req_rdy ||
+      id_console_out_val && !io.console.rdy ||
+      id_div_val.toBool && !io.dpath.div_rdy ||
+      io.dpath.div_result_val ||
       io.dpath.mul_result_val
     );
     
-  val ctrl_killd = take_pc | ctrl_stalld;
+  val ctrl_killd = take_pc || ctrl_stalld;
+  val ctrl_killf = take_pc || !io.imem.resp_val;
       
   // for divider, multiplier writeback
   val mul_wb = io.dpath.mul_result_val;
@@ -635,15 +634,15 @@ class rocketCtrl extends Component
   
   io.flush_inst     := mem_reg_flush_inst;
 
-  io.dpath.stalld   := ctrl_stalld.toBool;
-  io.dpath.killf    := take_pc | ~io.imem.resp_val;
-  io.dpath.killd    := ctrl_killd.toBool;
-  io.dpath.killx    := kill_ex.toBool;
-  io.dpath.killm    := kill_mem.toBool;
+  io.dpath.stalld   := ctrl_stalld;
+  io.dpath.killf    := ctrl_killf;
+  io.dpath.killd    := ctrl_killd;
+  io.dpath.killx    := kill_ex;
+  io.dpath.killm    := kill_mem;
 
   io.dpath.mem_load := mem_reg_mem_val && ((mem_reg_mem_cmd === M_XRD) || mem_reg_mem_cmd(3).toBool);
-  io.dpath.ren2     := id_ren2.toBool;
-  io.dpath.ren1     := id_ren1.toBool;
+  io.dpath.ren2     := id_ren2;
+  io.dpath.ren1     := id_ren1;
   io.dpath.sel_alu2 := id_sel_alu2;
   io.dpath.sel_alu1 := id_sel_alu1.toBool;
   io.dpath.fn_dw    := id_fn_dw.toBool;
@@ -663,6 +662,11 @@ class rocketCtrl extends Component
   io.dpath.mem_eret := mem_reg_eret;  
   io.dpath.irq_disable := mem_reg_inst_di && !kill_mem;
   io.dpath.irq_enable  := mem_reg_inst_ei && !kill_mem;
+
+  io.dtlb_val         := ex_reg_mem_val && !kill_dtlb;
+  io.dmem.req_val     := ex_reg_mem_val && !kill_dmem;
+  io.dmem.req_cmd     := ex_reg_mem_cmd;
+  io.dmem.req_type    := ex_reg_mem_type;
 }
 
 }

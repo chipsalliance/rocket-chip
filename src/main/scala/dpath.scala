@@ -135,16 +135,14 @@ class rocketDpath extends Component
   btb.io.correct_target := ex_branch_target;
 
   val if_next_pc =
-    Mux(io.ctrl.sel_pc === PC_4,    if_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_BTB,  if_btb_target,
-    Mux(io.ctrl.sel_pc === PC_EX,   ex_reg_pc,
     Mux(io.ctrl.sel_pc === PC_EX4,  ex_reg_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,   ex_jr_target.toUFix,
     Mux(io.ctrl.sel_pc === PC_PCR,  mem_reg_wdata(VADDR_BITS-1,0), // only used for ERET
     Mux(io.ctrl.sel_pc === PC_EVEC, pcr.io.evec,
     Mux(io.ctrl.sel_pc === PC_MEM,  mem_reg_pc,
-        UFix(0, VADDR_BITS))))))))));
+        if_pc_plus4))))))); // PC_4
         
   when (!io.ctrl.stallf && io.host.start) {
     if_reg_pc <== if_next_pc.toUFix;

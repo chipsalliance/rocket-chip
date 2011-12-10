@@ -155,7 +155,7 @@ class rocketDCacheDM_flush(lines: Int) extends Component {
   dcache.io.cpu.req_tag   := Mux(flushing, r_cpu_req_tag, io.cpu.req_tag);
   dcache.io.cpu.req_type  := io.cpu.req_type;
   dcache.io.cpu.req_data  ^^ io.cpu.req_data;
-  dcache.io.cpu.dtlb_miss := io.cpu.dtlb_miss;
+  dcache.io.cpu.dtlb_miss := io.cpu.dtlb_miss && !flush_waiting;
   dcache.io.mem           ^^ io.mem;
 
   io.cpu.xcpt_ma_ld   := dcache.io.cpu.xcpt_ma_ld;
