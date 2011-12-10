@@ -64,9 +64,9 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
     io.in(i).ready := !io.in(i-1).valid && io.in(i-1).ready
   }
 
-  dout(n-1) <== io.in(n-1).bits
-  for (i <- n-2 to 0) {
-    dout(i) <== Mux(io.in(i).valid, io.in(i).bits, dout(i+1))
+  dout(0) <== io.in(n-1).bits
+  for (i <- 1 to n-1) {
+    dout(i) <== Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout(i-1))
   }
 
   for (i <- 0 to n-2) {
@@ -74,8 +74,8 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   }
   vout <== io.in(n-1).valid
 
-  vout    ^^ io.out.valid
-  dout(0) ^^ io.out.bits
+  vout      ^^ io.out.valid
+  dout(n-1) ^^ io.out.bits
 }
 
 class ioPriorityDecoder(in_width: Int, out_width: Int) extends Bundle
