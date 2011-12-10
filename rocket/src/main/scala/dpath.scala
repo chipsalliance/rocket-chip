@@ -8,10 +8,10 @@ import Instructions._
 class ioDpathDmem extends Bundle()
 {
   val req_addr  = UFix(VADDR_BITS, 'output);
-  val req_tag   = UFix(5, 'output);
+  val req_tag   = UFix(CPU_TAG_BITS, 'output);
   val req_data  = Bits(64, 'output);
   val resp_val  = Bool('input);
-  val resp_tag  = Bits(12, 'input); // FIXME: MSB is ignored
+  val resp_tag  = Bits(CPU_TAG_BITS, 'input);
   val resp_data = Bits(64, 'input);
 }
 
@@ -328,7 +328,7 @@ class rocketDpath extends Component
   // other signals (req_val, req_rdy) connect to control module  
   io.dmem.req_addr  := ex_alu_out(VADDR_BITS-1,0);
   io.dmem.req_data  := ex_reg_rs2;
-  io.dmem.req_tag   := ex_reg_waddr;
+  io.dmem.req_tag   := Cat(io.ctrl.ex_mem_type, io.dmem.req_addr(2,0), ex_reg_waddr).toUFix;
 
 	// processor control regfile read
   pcr.io.r.en   := ex_reg_ctrl_ren_pcr | ex_reg_ctrl_eret;

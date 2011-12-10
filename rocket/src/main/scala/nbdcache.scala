@@ -440,7 +440,7 @@ class rocketNBDCacheDM_flush(lines: Int) extends Component {
   dcache.io.cpu.req_tag   := Mux(flushing, r_cpu_req_tag, io.cpu.req_tag);
   dcache.io.cpu.req_type  := io.cpu.req_type;
   dcache.io.cpu.req_data  ^^ io.cpu.req_data;
-  dcache.io.cpu.dtlb_miss := io.cpu.dtlb_miss;
+  dcache.io.cpu.req_nack := io.cpu.req_nack;
   dcache.io.mem           ^^ io.mem;
 
   io.cpu.xcpt_ma_ld   := dcache.io.cpu.xcpt_ma_ld;
@@ -580,7 +580,7 @@ class rocketNBDCacheDM(lines: Int) extends Component {
     r_cpu_req_tag   <== io.cpu.req_tag;
   }
   
-  when ((state === s_ready) && r_cpu_req_val && !io.cpu.dtlb_miss) {
+  when ((state === s_ready) && r_cpu_req_val && !io.cpu.req_nack) {
     r_cpu_req_ppn <== io.cpu.req_ppn;
   }
   when (io.cpu.req_rdy) {
@@ -633,7 +633,7 @@ class rocketNBDCacheDM(lines: Int) extends Component {
   // load/store addresses conflict if they are to any part of the same 64 bit word
   val addr_match    = (r_cpu_req_idx(PGIDX_BITS-1,offsetlsb) === p_store_idx(PGIDX_BITS-1,offsetlsb));
   val ldst_conflict = tag_valid && tag_match && (r_req_load || r_req_amo) && p_store_valid && addr_match;
-  val store_hit = r_cpu_req_val && !io.cpu.dtlb_miss && tag_hit && r_req_store ;
+  val store_hit = r_cpu_req_val && !io.cpu.req_nack && tag_hit && r_req_store ;
 
   // write the pending store data when the cache is idle, when the next command isn't a load
   // or when there's a load to the same address (in which case there's a 2 cycle delay:
@@ -667,7 +667,7 @@ class rocketNBDCacheDM(lines: Int) extends Component {
   // dirty bit array
   val db_array  = Reg(resetVal = Bits(0, lines));
   val tag_dirty = db_array(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix).toBool;  
-  when ((r_cpu_req_val && !io.cpu.dtlb_miss && tag_hit && r_req_store) || resolve_store)  {
+  when ((r_cpu_req_val && !io.cpu.req_nack && tag_hit && r_req_store) || resolve_store)  {
     db_array <== db_array.bitSet(p_store_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
   when (state === s_write_amo) {
@@ -751,13 +751,13 @@ class rocketNBDCacheDM(lines: Int) extends Component {
   // signal a load miss when the data isn't present in the cache and when it's in the pending store data register
   // (causes the cache to block for 2 cycles and the load or amo instruction is replayed)
   val load_miss = 
-    !io.cpu.dtlb_miss && 
+    !io.cpu.req_nack && 
     (state === s_ready) && r_cpu_req_val && (r_req_load || r_req_amo) && (!tag_hit || (p_store_valid && addr_match));
 
   // output signals
   // busy when there's a load to the same address as a pending store, or on a cache miss, or when executing a flush
-  io.cpu.req_rdy   := mshr.io.req_rdy && (state === s_ready) && !io.cpu.dtlb_miss && !ldst_conflict && (!r_cpu_req_val || (tag_hit && !(r_req_flush || r_req_amo)));
-  io.cpu.resp_val  := !io.cpu.dtlb_miss && 
+  io.cpu.req_rdy   := mshr.io.req_rdy && (state === s_ready) && !io.cpu.req_nack && !ldst_conflict && (!r_cpu_req_val || (tag_hit && !(r_req_flush || r_req_amo)));
+  io.cpu.resp_val  := !io.cpu.req_nack && 
                       ((state === s_ready) &&  tag_hit && (r_req_load || r_req_amo) && !(p_store_valid && addr_match)) || 
                       ((state === s_resolve_miss) && r_req_flush) ||
                       r_cpu_resp_val;
@@ -789,7 +789,7 @@ class rocketNBDCacheDM(lines: Int) extends Component {
       state <== s_ready;
     }
     is (s_ready) {
-      when (io.cpu.dtlb_miss) {
+      when (io.cpu.req_nack) {
         state <== s_ready;
       }
       when (ldst_conflict) {

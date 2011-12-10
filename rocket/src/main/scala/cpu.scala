@@ -95,13 +95,14 @@ class rocketProc extends Component
   arb.io.cpu.req_val      := ctrl.io.dmem.req_val;
   arb.io.cpu.req_cmd      := ctrl.io.dmem.req_cmd;
   arb.io.cpu.req_type     := ctrl.io.dmem.req_type;
-  arb.io.cpu.dtlb_miss    := ctrl.io.dpath.killm;
+  arb.io.cpu.req_nack     := ctrl.io.dpath.killm;
   arb.io.cpu.req_idx      := dpath.io.dmem.req_addr(PGIDX_BITS-1,0);
   arb.io.cpu.req_ppn      := dtlb.io.cpu.resp_ppn;
   arb.io.cpu.req_data     := dpath.io.dmem.req_data;
   arb.io.cpu.req_tag      := dpath.io.dmem.req_tag;
   ctrl.io.dmem.req_rdy    := dtlb.io.cpu.req_rdy && arb.io.cpu.req_rdy;
   ctrl.io.dmem.resp_miss  := arb.io.cpu.resp_miss;
+  ctrl.io.dmem.resp_nack  := arb.io.cpu.resp_nack;
   dpath.io.dmem.resp_val  := arb.io.cpu.resp_val;
   dpath.io.dmem.resp_tag  := arb.io.cpu.resp_tag;
   dpath.io.dmem.resp_data := arb.io.cpu.resp_data;  
