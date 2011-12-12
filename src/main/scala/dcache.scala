@@ -7,7 +7,7 @@ import scala.math._;
 
 // interface between D$ and processor/DTLB
 class ioDmem(view: List[String] = null) extends Bundle(view) {
-  val req_nack  = Bool('input);
+  val req_kill  = Bool('input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
   val req_cmd   = Bits(4, 'input);
@@ -22,12 +22,13 @@ class ioDmem(view: List[String] = null) extends Bundle(view) {
   val resp_nack = Bool('output);
   val resp_val  = Bool('output);
   val resp_data = Bits(64, 'output);
+  val resp_data_subword = Bits(64, 'output);
   val resp_tag  = Bits(DCACHE_TAG_BITS, 'output);
 }
 
 // interface between D$ and next level in memory hierarchy
 class ioDcache(view: List[String] = null) extends Bundle(view) {
-  val req_addr  = UFix(PADDR_BITS, 'input);
+  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, 'input);
   val req_tag   = UFix(DMEM_TAG_BITS, 'input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
@@ -156,7 +157,7 @@ class rocketDCacheDM_flush(lines: Int) extends Component {
   dcache.io.cpu.req_tag   := Mux(flushing, r_cpu_req_tag, io.cpu.req_tag);
   dcache.io.cpu.req_type  := io.cpu.req_type;
   dcache.io.cpu.req_data  ^^ io.cpu.req_data;
-  dcache.io.cpu.req_nack  := io.cpu.req_nack && !flush_waiting;
+  dcache.io.cpu.req_kill  := io.cpu.req_kill && !flush_waiting;
   dcache.io.mem           ^^ io.mem;
 
   io.cpu.xcpt_ma_ld   := dcache.io.cpu.xcpt_ma_ld;
@@ -220,7 +221,7 @@ class rocketDCacheDM(lines: Int) extends Component {
     r_cpu_req_tag   <== io.cpu.req_tag;
   }
   
-  when ((state === s_ready) && r_cpu_req_val && !io.cpu.req_nack) {
+  when ((state === s_ready) && r_cpu_req_val && !io.cpu.req_kill) {
     r_cpu_req_ppn <== io.cpu.req_ppn;
   }
   when (io.cpu.req_rdy) {
@@ -273,7 +274,7 @@ class rocketDCacheDM(lines: Int) extends Component {
   // load/store addresses conflict if they are to any part of the same 64 bit word
   val addr_match    = (r_cpu_req_idx(PGIDX_BITS-1,offsetlsb) === p_store_idx(PGIDX_BITS-1,offsetlsb));
   val ldst_conflict = tag_valid && tag_match && (r_req_load || r_req_amo) && p_store_valid && addr_match;
-  val store_hit = r_cpu_req_val && !io.cpu.req_nack && tag_hit && r_req_store ;
+  val store_hit = r_cpu_req_val && !io.cpu.req_kill && tag_hit && r_req_store ;
 
   // write the pending store data when the cache is idle, when the next command isn't a load
   // or when there's a load to the same address (in which case there's a 2 cycle delay:
@@ -307,7 +308,7 @@ class rocketDCacheDM(lines: Int) extends Component {
   // dirty bit array
   val db_array  = Reg(resetVal = Bits(0, lines));
   val tag_dirty = db_array(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix).toBool;  
-  when ((r_cpu_req_val && !io.cpu.req_nack && tag_hit && r_req_store) || resolve_store)  {
+  when ((r_cpu_req_val && !io.cpu.req_kill && tag_hit && r_req_store) || resolve_store)  {
     db_array <== db_array.bitSet(p_store_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
   when (state === s_write_amo) {
@@ -383,13 +384,13 @@ class rocketDCacheDM(lines: Int) extends Component {
   // signal a load miss when the data isn't present in the cache and when it's in the pending store data register
   // (causes the cache to block for 2 cycles and the load or amo instruction is replayed)
   val load_miss = 
-    !io.cpu.req_nack && 
+    !io.cpu.req_kill && 
     (state === s_ready) && r_cpu_req_val && (r_req_load || r_req_amo) && (!tag_hit || (p_store_valid && addr_match));
 
   // output signals
   // busy when there's a load to the same address as a pending store, or on a cache miss, or when executing a flush
-  io.cpu.req_rdy   := (state === s_ready) && !io.cpu.req_nack && !ldst_conflict && (!r_cpu_req_val || (tag_hit && !(r_req_flush || r_req_amo)));
-  io.cpu.resp_val  := !io.cpu.req_nack && 
+  io.cpu.req_rdy   := (state === s_ready) && !io.cpu.req_kill && !ldst_conflict && (!r_cpu_req_val || (tag_hit && !(r_req_flush || r_req_amo)));
+  io.cpu.resp_val  := !io.cpu.req_kill && 
                       ((state === s_ready) &&  tag_hit && (r_req_load || r_req_amo) && !(p_store_valid && addr_match)) || 
                       ((state === s_resolve_miss) && r_req_flush) ||
                       r_cpu_resp_val;
@@ -412,8 +413,8 @@ class rocketDCacheDM(lines: Int) extends Component {
   io.mem.req_wdata := data_array_rdata;
   io.mem.req_tag   := UFix(0);
   io.mem.req_addr  := 
-    Mux(state === s_writeback, Cat(tag_rdata, r_cpu_req_idx(PGIDX_BITS-1, offsetbits), rr_count), 
-      Cat(r_cpu_req_ppn, r_cpu_req_idx(PGIDX_BITS-1, offsetbits), Bits(0,2))).toUFix;
+    Mux(state === s_writeback, Cat(tag_rdata, r_cpu_req_idx(PGIDX_BITS-1, offsetbits)), 
+      Cat(r_cpu_req_ppn, r_cpu_req_idx(PGIDX_BITS-1, offsetbits))).toUFix;
 
   // control state machine
   switch (state) {
@@ -421,7 +422,7 @@ class rocketDCacheDM(lines: Int) extends Component {
       state <== s_ready;
     }
     is (s_ready) {
-      when (io.cpu.req_nack) {
+      when (io.cpu.req_kill) {
         state <== s_ready;
       }
       when (ldst_conflict) {

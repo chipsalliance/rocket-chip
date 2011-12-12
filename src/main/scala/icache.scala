@@ -21,7 +21,7 @@ class ioImem(view: List[String] = null) extends Bundle (view)
 // interface between I$ and memory (128 bits wide)
 class ioIcache(view: List[String] = null) extends Bundle (view)
 {
-  val req_addr  = UFix(PADDR_BITS, 'input);
+  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, 'input);
   val req_val   = Bool('input);
   val req_rdy   = Bool('output);
   val resp_data = Bits(MEM_DATA_BITS, 'output);
@@ -43,7 +43,7 @@ class rocketICacheDM(lines: Int) extends Component {
 
   val addrbits = PADDR_BITS;
   val indexbits = ceil(log10(lines)/log10(2)).toInt;
-  val offsetbits = 6;
+  val offsetbits = OFFSET_BITS;
   val tagmsb    = addrbits - 1;
   val taglsb    = indexbits+offsetbits;
   val tagbits   = addrbits-taglsb;
@@ -57,8 +57,8 @@ class rocketICacheDM(lines: Int) extends Component {
   val s_reset :: s_ready :: s_request :: s_refill_wait :: s_refill :: s_resolve_miss :: Nil = Enum(6) { UFix() };
   val state = Reg(resetVal = s_reset);
   
-  val r_cpu_req_idx    = Reg(resetVal = Bits(0, PGIDX_BITS)); 
-  val r_cpu_req_ppn    = Reg(resetVal = Bits(0, PPN_BITS)); 
+  val r_cpu_req_idx    = Reg { Bits(width = PGIDX_BITS) }
+  val r_cpu_req_ppn    = Reg { Bits(width = PPN_BITS) }
   val r_cpu_req_val    = Reg(resetVal = Bool(false));
   
   when (io.cpu.req_val && io.cpu.req_rdy) {
@@ -114,13 +114,11 @@ class rocketICacheDM(lines: Int) extends Component {
   io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_valid && tag_match; 
   io.cpu.req_rdy  := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || (tag_valid && tag_match));
 
-  val word_mux = (new MuxN(REFILL_CYCLES)) { Bits(width = databits) }
-  word_mux.io.sel := r_cpu_req_idx(offsetmsb - rf_cnt_bits, offsetlsb).toUFix
-  for (i <- 0 to MEM_DATA_BITS/databits-1) { word_mux.io.in(i) := data_array_rdata((i+1)*databits-1, i*databits) }
-  io.cpu.resp_data := word_mux.io.out
-
+  val test = Wire { Bits(width = MEM_DATA_BITS) }
+  test <== data_array_rdata
+  io.cpu.resp_data := Slice(MEM_DATA_BITS/databits, test, r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb))
   io.mem.req_val := (state === s_request);
-  io.mem.req_addr := Cat(r_cpu_req_ppn, r_cpu_req_idx(PGIDX_BITS-1, offsetbits), Bits(0, rf_cnt_bits)).toUFix;
+  io.mem.req_addr := Cat(r_cpu_req_ppn, r_cpu_req_idx(indexmsb,indexlsb)).toUFix
 
   // control state machine
   switch (state) {

@@ -19,7 +19,7 @@ class ioQueueCtrl(addr_sz: Int) extends Bundle()
 
 class queueCtrl(entries: Int) extends Component
 {
-  val addr_sz = ceil(log(entries)/log(2)).toInt
+  val addr_sz = log2up(entries)
   override val io = new ioQueueCtrl(addr_sz);
 
   // Enqueue and dequeue pointers
@@ -117,7 +117,7 @@ class ioQueueCtrlFlow(addr_sz: Int) extends Bundle() /* IOqueueCtrl */
 
 class queueCtrlFlow(entries: Int) extends Component
 {
-  val addr_sz = ceil(log(entries)/log(2)).toInt
+  val addr_sz = log2up(entries)
   override val io = new ioQueueCtrlFlow(addr_sz);
   // Enqueue and dequeue pointers
 
@@ -186,7 +186,7 @@ class ioQueueDpathFlow[T <: Data](addr_sz: Int)(data: => T) extends Bundle()
 
 class queueDpathFlow[T <: Data](entries: Int)(data: => T) extends Component
 {
-  val addr_sz = ceil(log(entries)/log(2)).toInt
+  val addr_sz = log2up(entries)
   override val io = new ioQueueDpathFlow(addr_sz)(data);
   val ram  = Mem(entries, io.wen, io.waddr, io.enq_bits);
   val rout = ram(io.raddr);

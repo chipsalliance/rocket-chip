@@ -7,7 +7,7 @@ import scala.math._;
 
 class ioIPrefetcherMem(view: List[String] = null) extends Bundle (view)
 {
-  val req_addr  = UFix(PADDR_BITS, 'output);
+  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, 'output);
   val req_val   = Bool('output);
   val req_rdy   = Bool('input);
   val req_tag   = Bits(IMEM_TAG_BITS, 'output);
@@ -29,8 +29,8 @@ class rocketIPrefetcher extends Component() {
   val state = Reg(resetVal = s_invalid);
 
   val demand_miss = io.icache.req_val & io.icache.req_rdy;
-  val prefetch_addr = Reg() { UFix(width = PADDR_BITS) };
-  when (demand_miss) { prefetch_addr <== io.icache.req_addr + UFix(REFILL_CYCLES); }
+  val prefetch_addr = Reg() { UFix(width = io.icache.req_addr.width) };
+  when (demand_miss) { prefetch_addr <== io.icache.req_addr + UFix(1); }
   
   val addr_match = (prefetch_addr === io.icache.req_addr);
   val hit = (state != s_invalid) & (state != s_req_wait) & addr_match;

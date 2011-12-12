@@ -75,7 +75,7 @@ class ioCtrlAll extends Bundle()
   val dpath   = new ioCtrlDpath();
   val console = new ioConsole(List("rdy"));
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
-  val dmem    = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_nack")).flip();
+  val dmem    = new ioDmem(List("req_val", "req_kill", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_nack")).flip();
   val host    = new ioHost(List("start"));
   val dtlb_val = Bool('output)
   val dtlb_rdy = Bool('input);
@@ -358,6 +358,7 @@ class rocketCtrl extends Component
   val mem_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
   val mem_reg_replay          = Reg(resetVal = Bool(false));
+  val mem_reg_kill_dmem       = Reg(resetVal = Bool(false));
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
@@ -527,7 +528,8 @@ class rocketCtrl extends Component
 	io.dpath.badvaddr_wen := io.xcpt_dtlb_ld || io.xcpt_dtlb_st;
 
   // replay mem stage PC on a DTLB miss
-  val mem_hazard = io.dtlb_miss || io.dmem.resp_nack
+  val mem_hazard    = io.dtlb_miss || io.dmem.resp_nack;
+  val mem_kill_dmem = io.dtlb_miss || mem_exception || mem_reg_kill_dmem;
   val replay_mem = mem_hazard || mem_reg_replay;
   val kill_mem   = mem_hazard || mem_exception;
 
@@ -541,10 +543,11 @@ class rocketCtrl extends Component
   val ex_hazard    = io.dmem.resp_miss || mem_reg_privileged || mem_reg_flush_inst
   val mem_kill_ex  = kill_mem || take_pc_mem
   val kill_ex      = mem_kill_ex || ex_hazard || !(io.dmem.req_rdy && io.dtlb_rdy) && ex_reg_mem_val
-  val kill_dtlb    = mem_kill_ex || ex_hazard || !io.dmem.req_rdy
-  val kill_dmem    = mem_kill_ex || ex_hazard || !io.dtlb_rdy
+  val ex_kill_dtlb = mem_kill_ex || ex_hazard || !io.dmem.req_rdy
+  val ex_kill_dmem = mem_kill_ex || ex_hazard || !io.dtlb_rdy
 
   mem_reg_replay <== kill_ex && !mem_kill_ex
+  mem_reg_kill_dmem <== ex_kill_dmem
 
   io.dpath.sel_pc :=
     Mux(replay_mem,                   PC_MEM,  // dtlb miss
@@ -664,8 +667,9 @@ class rocketCtrl extends Component
   io.dpath.irq_disable := mem_reg_inst_di && !kill_mem;
   io.dpath.irq_enable  := mem_reg_inst_ei && !kill_mem;
 
-  io.dtlb_val         := ex_reg_mem_val && !kill_dtlb;
-  io.dmem.req_val     := ex_reg_mem_val && !kill_dmem;
+  io.dtlb_val         := ex_reg_mem_val && !ex_kill_dtlb;
+  io.dmem.req_val     := ex_reg_mem_val;
+  io.dmem.req_kill    := mem_kill_dmem;
   io.dmem.req_cmd     := ex_reg_mem_cmd;
   io.dmem.req_type    := ex_reg_mem_type;
   io.dpath.ex_mem_type:= ex_reg_mem_type
