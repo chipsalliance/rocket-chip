@@ -66,7 +66,6 @@ class rocketProc extends Component
   ctrl.io.imem.resp_val   := io.imem.resp_val;
   dpath.io.imem.resp_data := io.imem.resp_data;
   ctrl.io.xcpt_itlb       := itlb.io.cpu.exception;
-//   ctrl.io.itlb_miss       := itlb.io.cpu.resp_miss;
   io.imem.itlb_miss       := itlb.io.cpu.resp_miss;
 
   // connect DTLB to D$ arbiter, ctrl+dpath
@@ -95,7 +94,7 @@ class rocketProc extends Component
   arb.io.cpu.req_val      := ctrl.io.dmem.req_val;
   arb.io.cpu.req_cmd      := ctrl.io.dmem.req_cmd;
   arb.io.cpu.req_type     := ctrl.io.dmem.req_type;
-  arb.io.cpu.req_nack     := ctrl.io.dpath.killm;
+  arb.io.cpu.req_kill     := ctrl.io.dmem.req_kill;
   arb.io.cpu.req_idx      := dpath.io.dmem.req_addr(PGIDX_BITS-1,0);
   arb.io.cpu.req_ppn      := dtlb.io.cpu.resp_ppn;
   arb.io.cpu.req_data     := dpath.io.dmem.req_data;
@@ -106,6 +105,7 @@ class rocketProc extends Component
   dpath.io.dmem.resp_val  := arb.io.cpu.resp_val;
   dpath.io.dmem.resp_tag  := arb.io.cpu.resp_tag;
   dpath.io.dmem.resp_data := arb.io.cpu.resp_data;  
+  dpath.io.dmem.resp_data_subword := io.dmem.resp_data_subword;
 
   io.console.bits     := dpath.io.console.bits;
   io.console.valid    := dpath.io.console.valid;

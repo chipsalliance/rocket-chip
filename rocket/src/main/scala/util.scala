@@ -5,20 +5,32 @@ import Chisel._
 import Node._;
 import scala.math._;
 
-class MuxN[T <: Data](n: Int)(data: => T) extends Component {
-  val io = new Bundle {
-    val sel = Bits(width = ceil(log(n)/log(2)).toInt)
-    val in  = Vec(n) { data }.asInput()
-    val out = data.asOutput()
-  }
+object log2up
+{
+  def apply(in: Int) = ceil(log(in)/log(2)).toInt
+}
 
-  val out = Vec(n) { Wire() { data } }
-  out(0) <== io.in(0)
-  for (i <- 1 to n-1) {
-    out(i) <== Mux(io.sel === UFix(i), io.in(i), out(i-1))
+object Slice
+{
+  def apply(n: Int, in: Bits, sel: Bits) =
+  {
+    val w = in.width / n
+    var out = in(w-1, 0) & Fill(w, sel === UFix(0))
+    for (i <- 1 until n)
+      out = out | (in((i+1)*w-1, i*w) & Fill(w, sel === Bits(i)))
+    if (n > 1) out else in
   }
+}
 
-  out(n-1) ^^ io.out
+object FillInterleaved
+{
+  def apply(n: Int, in: Bits) =
+  {
+    var out = Fill(n, in(0))
+    for (i <- 1 until in.width)
+      out = Cat(Fill(n, in(i)), out)
+    out
+  }
 }
 
 class Mux1H(n: Int, w: Int) extends Component
@@ -30,13 +42,10 @@ class Mux1H(n: Int, w: Int) extends Component
   }
 
   if (n > 1) {
-    val out = Vec(n) { Wire() { Bits(width = w) } }
-    out(0) <== io.in(0) & Fill(w, io.sel(0))
-    for (i <- 1 to n-1) {
-      out(i) <== out(i-1) | (io.in(i) & Fill(w, io.sel(i)))
-    }
-
-    io.out := out(n-1)
+    var out = io.in(0) & Fill(w, io.sel(0))
+    for (i <- 1 to n-1)
+      out = out | (io.in(i) & Fill(w, io.sel(i)))
+    io.out := out
   } else {
     io.out := io.in(0)
   }
@@ -56,7 +65,6 @@ class ioArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
 
 class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   val io = new ioArbiter(n)(data)
-  val dout = Vec(n) { Wire() { data } }
   val vout = Wire { Bool() }
 
   io.in(0).ready := io.out.ready
@@ -64,18 +72,17 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
     io.in(i).ready := !io.in(i-1).valid && io.in(i-1).ready
   }
 
-  dout(0) <== io.in(n-1).bits
-  for (i <- 1 to n-1) {
-    dout(i) <== Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout(i-1))
-  }
+  var dout = io.in(n-1).bits
+  for (i <- 1 to n-1)
+    dout = Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout)
 
   for (i <- 0 to n-2) {
     when (io.in(i).valid) { vout <== Bool(true) }
   }
   vout <== io.in(n-1).valid
 
-  vout      ^^ io.out.valid
-  dout(n-1) ^^ io.out.bits
+  vout ^^ io.out.valid
+  dout ^^ io.out.bits
 }
 
 class ioPriorityDecoder(in_width: Int, out_width: Int) extends Bundle

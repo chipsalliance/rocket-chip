@@ -9,7 +9,7 @@ class ioMem() extends Bundle
   val req_val = Bool('output);
   val req_rdy = Bool('input);
   val req_rw  = Bool('output);
-  val req_addr = UFix(PADDR_BITS, 'output);
+  val req_addr = UFix(PADDR_BITS - OFFSET_BITS, 'output);
   val req_wdata = Bits(MEM_DATA_BITS, 'output);
   val req_tag = Bits(MEM_TAG_BITS, 'output);
   
