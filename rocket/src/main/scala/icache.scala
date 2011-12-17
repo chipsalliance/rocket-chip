@@ -113,10 +113,7 @@ class rocketICacheDM(lines: Int) extends Component {
   // output signals
   io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_valid && tag_match; 
   io.cpu.req_rdy  := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || (tag_valid && tag_match));
-
-  val test = Wire { Bits(width = MEM_DATA_BITS) }
-  test <== data_array_rdata
-  io.cpu.resp_data := Slice(MEM_DATA_BITS/databits, test, r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb))
+  io.cpu.resp_data := data_array_rdata >> Cat(r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb), UFix(0, log2up(databits))).toUFix
   io.mem.req_val := (state === s_request);
   io.mem.req_addr := Cat(r_cpu_req_ppn, r_cpu_req_idx(indexmsb,indexlsb)).toUFix
 

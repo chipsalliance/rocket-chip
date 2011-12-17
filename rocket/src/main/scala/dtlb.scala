@@ -62,8 +62,7 @@ class rocketDTLB(entries: Int) extends Component
   
   val req_load  = (r_cpu_req_cmd === M_XRD);
   val req_store = (r_cpu_req_cmd === M_XWR);
-  val req_flush = (r_cpu_req_cmd === M_FLA);
-  val req_amo   = io.cpu.req_cmd(3).toBool;
+  val req_amo   = r_cpu_req_cmd(3).toBool;
   
   val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
 
@@ -118,7 +117,7 @@ class rocketDTLB(entries: Int) extends Component
   
   val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
   
-  val lookup = (state === s_ready) && r_cpu_req_val && !req_flush;
+  val lookup = (state === s_ready) && r_cpu_req_val && (req_load || req_store || req_amo);
   val lookup_hit  = lookup && tag_hit;
   val lookup_miss = lookup && !tag_hit;
   val tlb_hit  = status_vm && lookup_hit;
@@ -143,7 +142,6 @@ class rocketDTLB(entries: Int) extends Component
      (status_u && !ur_array(tag_hit_addr).toBool));
 
   io.cpu.xcpt_ld := access_fault_ld;
-//     (lookup && (req_load || req_amo) && outofrange) || access_fault_ld;
 
   val access_fault_st =
     tlb_hit && (req_store || req_amo) &&
@@ -151,7 +149,6 @@ class rocketDTLB(entries: Int) extends Component
      (status_u && !uw_array(tag_hit_addr).toBool));
 
   io.cpu.xcpt_st := access_fault_st;
-//     (lookup && (req_store || req_amo) && outofrange) || access_fault_st;
 
   io.cpu.req_rdy   := (state === s_ready) && !tlb_miss;
   io.cpu.resp_miss := tlb_miss;

@@ -19,6 +19,7 @@ class rocketDmemArbiter extends Component
   // must delay ppn part of address from PTW by 1 cycle (to match TLB behavior)
   val r_ptw_req_val = Reg(io.ptw.req_val);
   val r_ptw_req_ppn = Reg(io.ptw.req_ppn);
+  val r_cpu_req_val = Reg(io.cpu.req_val && io.cpu.req_rdy);
   
   io.mem.req_val  := io.ptw.req_val || io.cpu.req_val;
   io.mem.req_cmd  := Mux(io.ptw.req_val, io.ptw.req_cmd,  io.cpu.req_cmd);
@@ -27,7 +28,7 @@ class rocketDmemArbiter extends Component
   io.mem.req_ppn  := Mux(r_ptw_req_val, r_ptw_req_ppn, io.cpu.req_ppn);
   io.mem.req_data := io.cpu.req_data;
   io.mem.req_tag  := Cat(io.cpu.req_tag, io.ptw.req_val);
-  io.mem.req_kill := io.cpu.req_kill;
+  io.mem.req_kill := io.cpu.req_kill && r_cpu_req_val;
   
   io.ptw.req_rdy   := io.mem.req_rdy;
   io.cpu.req_rdy   := io.mem.req_rdy && !io.ptw.req_val;  
@@ -96,7 +97,7 @@ class rocketPTW extends Component
     (state === s_l2_req) ||
     (state === s_l3_req);
     
-  io.dmem.req_cmd  := M_PRD;
+  io.dmem.req_cmd  := M_XRD;
   io.dmem.req_type := MT_D;
 //   io.dmem.req_addr := req_addr;
   io.dmem.req_idx := req_addr(PGIDX_BITS-1,0);
