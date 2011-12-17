@@ -126,7 +126,7 @@ object Constants
   val M_PFR     = Bits("b0010", 4); // prefetch with intent to read
   val M_PFW     = Bits("b0011", 4); // prefetch with intent to write
   val M_FLA     = Bits("b0100", 4); // write back and invlaidate all lines
-  val M_PRD     = Bits("b0101", 4); // PTW load
+  val M_FENCE   = Bits("b0101", 4); // memory fence
   val M_INV     = Bits("b0110", 4); // write back and invalidate line
   val M_CLN     = Bits("b0111", 4); // write back line
   val M_XA_ADD  = Bits("b1000", 4);
@@ -191,7 +191,7 @@ object Constants
   val OFFSET_BITS = 6; // log2(cache line size in bytes)
   val NMSHR = 2; // number of primary misses
   val NRPQ = 16; // number of secondary misses
-  val NSDQ = 10; // number of secondary stores/AMOs
+  val NSDQ = 17; // number of secondary stores/AMOs
   val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
   val IDX_BITS = PGIDX_BITS - OFFSET_BITS;
 

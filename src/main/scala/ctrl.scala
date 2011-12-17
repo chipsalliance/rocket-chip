@@ -253,8 +253,8 @@ class rocketCtrl extends Component
       EI->       List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_EI,SYNC_N,N,N,Y),
       DI->       List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_DI,SYNC_N,N,N,Y),
       ERET->     List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_PCR,REN_N,WEN_N,I_X ,SYNC_N,Y,N,Y),
-      FENCE->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_D,N,N,N),
-      FENCE_I->  List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_I,N,N,N),
+      FENCE->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_Y,M_FENCE,  MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_D,N,N,N),
+      FENCE_I->  List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_I,N,N,N),
       CFLUSH->   List(Y,     BR_N,  REN_Y,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,Y),
       MFPCR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_PCR,REN_Y,WEN_N,I_X ,SYNC_N,N,N,Y),
       MTPCR->    List(Y,     BR_N,  REN_N,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_Y,I_X ,SYNC_N,N,N,Y),
@@ -494,11 +494,14 @@ class rocketCtrl extends Component
     Mux(p_irq_ipi, UFix(21,5),
     Mux(p_irq_timer, UFix(23,5),
       UFix(0,5)));
+
+  val mem_xcpt_ma_ld = io.xcpt_ma_ld && !mem_reg_kill_dmem
+  val mem_xcpt_ma_st = io.xcpt_ma_st && !mem_reg_kill_dmem
   
 	val mem_exception = 
 	  interrupt ||
-	  io.xcpt_ma_ld ||
-	  io.xcpt_ma_st ||
+	  mem_xcpt_ma_ld ||
+	  mem_xcpt_ma_st ||
 	  io.xcpt_dtlb_ld ||
 	  io.xcpt_dtlb_st ||
 	  mem_reg_xcpt_illegal || 
@@ -516,8 +519,8 @@ class rocketCtrl extends Component
 		Mux(mem_reg_xcpt_fpu,         UFix(4,5), // FPU disabled
 		Mux(mem_reg_xcpt_syscall,     UFix(6,5), // system call
 		// breakpoint
-		Mux(io.xcpt_ma_ld,            UFix(8,5), // misaligned load
-		Mux(io.xcpt_ma_st,            UFix(9,5), // misaligned store
+		Mux(mem_xcpt_ma_ld,            UFix(8,5), // misaligned load
+		Mux(mem_xcpt_ma_st,            UFix(9,5), // misaligned store
 		Mux(io.xcpt_dtlb_ld,          UFix(10,5), // load fault
 		Mux(io.xcpt_dtlb_st,          UFix(11,5), // store fault
 			UFix(0,5)))))))))));  // instruction address misaligned
@@ -622,7 +625,7 @@ class rocketCtrl extends Component
       (id_sel_wa === WA_RD) && id_stall_waddr ||
       (id_sel_wa === WA_RA) && id_stall_ra ||
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
-      (id_sync === SYNC_D) && !io.dmem.req_rdy ||
+      ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
       id_console_out_val && !io.console.rdy ||
       id_div_val.toBool && !io.dpath.div_rdy ||
       io.dpath.div_result_val ||

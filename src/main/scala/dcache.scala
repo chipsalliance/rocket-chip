@@ -205,13 +205,12 @@ class rocketDCacheDM(lines: Int) extends Component {
   val p_store_valid     = Reg(resetVal = Bool(false));
 
   val req_store   = (io.cpu.req_cmd === M_XWR);
-  val req_load    = (io.cpu.req_cmd === M_XRD) || (io.cpu.req_cmd === M_PRD);
+  val req_load    = (io.cpu.req_cmd === M_XRD);
   val req_flush   = (io.cpu.req_cmd === M_FLA);
   val req_amo     = io.cpu.req_cmd(3).toBool;
-  val r_req_load  = (r_cpu_req_cmd === M_XRD) || (r_cpu_req_cmd === M_PRD);
+  val r_req_load  = (r_cpu_req_cmd === M_XRD);
   val r_req_store = (r_cpu_req_cmd === M_XWR);
   val r_req_flush = (r_cpu_req_cmd === M_FLA);
-  val r_req_ptw_load = (r_cpu_req_cmd === M_PRD);
   val r_req_amo     = r_cpu_req_cmd(3).toBool;
   
   when (io.cpu.req_val && io.cpu.req_rdy) {

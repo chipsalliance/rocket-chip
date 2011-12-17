@@ -10,18 +10,6 @@ object log2up
   def apply(in: Int) = ceil(log(in)/log(2)).toInt
 }
 
-object Slice
-{
-  def apply(n: Int, in: Bits, sel: Bits) =
-  {
-    val w = in.width / n
-    var out = in(w-1, 0) & Fill(w, sel === UFix(0))
-    for (i <- 1 until n)
-      out = out | (in((i+1)*w-1, i*w) & Fill(w, sel === Bits(i)))
-    if (n > 1) out else in
-  }
-}
-
 object FillInterleaved
 {
   def apply(n: Int, in: Bits) =
