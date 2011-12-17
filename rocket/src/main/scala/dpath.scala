@@ -283,6 +283,7 @@ class rocketDpath extends Component
   
   // multiplier
   mul.io.mul_val := ex_reg_ctrl_mul_val && !io.ctrl.killx;
+  mul.io.dw      := ex_reg_ctrl_fn_dw;
   mul.io.mul_fn	 := ex_reg_ctrl_mul_fn;
   mul.io.mul_tag := ex_reg_waddr;
   mul.io.in0		 := ex_reg_rs1;

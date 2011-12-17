@@ -44,13 +44,11 @@ object Constants
   val A1_RS1  = UFix(0, 1);
   val A1_LUI  = UFix(1, 1);
 
-  val MUL_X     = UFix(0, 3);
-  val MUL_NO    = UFix(0, 3);
-  val MUL_64    = UFix(1, 3);
-  val MUL_64H   = UFix(2, 3);
-  val MUL_64HU  = UFix(3, 3);
-  val MUL_64HSU = UFix(4, 3);
-  val MUL_32    = UFix(5, 3);
+  val MUL_X   = UFix(0, 2);
+  val MUL_LO  = UFix(0, 2);
+  val MUL_HU  = UFix(1, 2);
+  val MUL_HS  = UFix(2, 2);
+  val MUL_HSU = UFix(3, 2);
 
   val DIV_X    = UFix(0, 4);
   val DIV_NO   = UFix(0, 4);

@@ -24,7 +24,7 @@ class ioCtrlDpath extends Bundle()
   val fn_dw    = Bool('output);
   val fn_alu   = UFix(4, 'output);
   val mul_val  = Bool('output);
-  val mul_fn   = UFix(3, 'output);
+  val mul_fn   = UFix(2, 'output);
   val mul_wb   = Bool('output);
   val div_val  = Bool('output);
   val div_fn   = UFix(4, 'output);
@@ -234,11 +234,11 @@ class rocketCtrl extends Component
       SRLW->     List(xpr64, BR_N,  REN_Y,REN_Y,A2_RS2,  A1_RS1,DW_32,FN_SR,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
       SRAW->     List(xpr64, BR_N,  REN_Y,REN_Y,A2_RS2,  A1_RS1,DW_32,FN_SRA,  M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
 
-      MUL->      List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, Y,MUL_64,    N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
-      MULH->     List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, Y,MUL_64H,   N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
-      MULHU->    List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, Y,MUL_64HU,  N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
-      MULHSU->   List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, Y,MUL_64HSU, N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
-      MULW->     List(xpr64, BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, Y,MUL_32,    N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      MUL->      List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_LO,    N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      MULH->     List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HS,    N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      MULHU->    List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HU,    N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      MULHSU->   List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HSU,   N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      MULW->     List(xpr64, BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_32, FN_X,   M_N,M_X,      MT_X, Y,MUL_LO,    N,DIV_X,    WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
 
       DIV->      List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     Y,DIV_64D,  WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
       DIVU->     List(Y,     BR_N,  REN_Y,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     Y,DIV_64DU, WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
