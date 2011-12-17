@@ -15,8 +15,19 @@ object FillInterleaved
   def apply(n: Int, in: Bits) =
   {
     var out = Fill(n, in(0))
-    for (i <- 1 until in.width)
+    for (i <- 1 until in.getWidth)
       out = Cat(Fill(n, in(i)), out)
+    out
+  }
+}
+
+object Reverse
+{
+  def apply(in: Bits) =
+  {
+    var out = in(in.getWidth-1)
+    for (i <- 1 until in.getWidth)
+      out = Cat(in(in.getWidth-i-1), out)
     out
   }
 }
