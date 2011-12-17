@@ -56,6 +56,7 @@ class ioCtrlDpath extends Bundle()
   val br_ltu  = Bool('input);
   val div_rdy = Bool('input);
   val div_result_val = Bool('input);
+  val mul_rdy = Bool('input);
   val mul_result_val = Bool('input);
   val ex_waddr = UFix(5,'input);  // write addr from execute stage
   val mem_waddr = UFix(5,'input); // write addr from memory stage
@@ -628,6 +629,7 @@ class rocketCtrl extends Component
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
       id_console_out_val && !io.console.rdy ||
       id_div_val.toBool && !io.dpath.div_rdy ||
+      id_mul_val.toBool && !io.dpath.mul_rdy ||
       io.dpath.div_result_val ||
       io.dpath.mul_result_val
     );

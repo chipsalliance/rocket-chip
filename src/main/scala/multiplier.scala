@@ -7,6 +7,7 @@ import Constants._;
 class ioMultiplier(width: Int) extends Bundle {
   // requests
   val mul_val = Bool('input);
+  val mul_rdy = Bool('output);
   val dw      = UFix(1, 'input);
   val mul_fn  = UFix(2, 'input);
   val mul_tag = UFix(5, 'input);
@@ -60,7 +61,8 @@ class rocketMultiplier extends Component {
   val r_result     = Reg(Reg(Reg(mul_output)));
   val r_result_tag = Reg(Reg(Reg(r_tag))); 
   val r_result_val = Reg(Reg(Reg(r_val)));
-  
+ 
+  io.mul_rdy := Bool(true)
   io.result := r_result;
   io.result_tag := r_result_tag;
   io.result_val := r_result_val;
