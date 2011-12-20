@@ -23,8 +23,14 @@ class ioMultiplier(width: Int) extends Bundle {
 
 class rocketMultiplier extends Component {
   val io = new ioMultiplier(64);
+  // width must be even (booth).
+  // we need an extra bit to handle signed vs. unsigned,
+  // so we need to add a second to keep width even.
   val width = 64 + 2
-  val cycles = width/2
+  // unroll must divide width/2
+  val unroll = 3
+
+  val cycles = width/unroll/2
   
   val r_val = Reg(resetVal = Bool(false));
   val r_dw  = Reg { UFix() }
@@ -62,17 +68,25 @@ class rocketMultiplier extends Component {
   val lhs_sext = Cat(r_lhs(width-2), r_lhs(width-2), r_lhs).toUFix
   val lhs_twice = Cat(r_lhs(width-2), r_lhs, Bits(0,1)).toUFix
 
-  val addend = Mux(r_prod(0) != r_lsb,     lhs_sext,
-               Mux(r_prod(0) != r_prod(1), lhs_twice,
-                                           UFix(0)));
-  val sub = r_prod(1)
-  val adder_lhs = Cat(r_prod(width*2-1), r_prod(width*2-1,width)).toUFix
-  val adder_rhs = Mux(sub, ~addend, addend)
-  val adder_out = (adder_lhs + adder_rhs + sub.toUFix)(width,0)
+  var prod = r_prod
+  var lsb = r_lsb
+
+  for (i <- 0 until unroll) {
+    val addend = Mux(prod(0) != lsb,     lhs_sext,
+                 Mux(prod(0) != prod(1), lhs_twice,
+                                             UFix(0)));
+    val sub = prod(1)
+    val adder_lhs = Cat(prod(width*2-1), prod(width*2-1,width)).toUFix
+    val adder_rhs = Mux(sub, ~addend, addend)
+    val adder_out = (adder_lhs + adder_rhs + sub.toUFix)(width,0)
+
+    lsb = prod(1)
+    prod = Cat(adder_out(width), adder_out, prod(width-1,2))
+  }
 
   when (r_val && (r_cnt != UFix(cycles))) {
-    r_lsb  <== r_prod(1)
-    r_prod <== Cat(adder_out(width), adder_out, r_prod(width-1,2))
+    r_lsb  <== lsb
+    r_prod <== prod
     r_cnt <== r_cnt + UFix(1)
   }
 
