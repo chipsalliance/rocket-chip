@@ -271,6 +271,7 @@ class rocketDpath extends Component
   alu.io.in1   := ex_alu_in1.toUFix;
   
   // divider
+  div.io.dw        := ex_reg_ctrl_fn_dw;
   div.io.div_fn    := ex_reg_ctrl_div_fn;
   div.io.div_val   := ex_reg_ctrl_div_val && !io.ctrl.killx;
   div.io.div_waddr := ex_reg_waddr;
