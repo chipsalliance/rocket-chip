@@ -292,6 +292,7 @@ class rocketDpath extends Component
  
   io.ctrl.mul_rdy        := mul.io.mul_rdy
   io.ctrl.mul_result_val := mul.io.result_val;
+  mul.io.result_rdy      := io.ctrl.mul_wb
   
   io.ctrl.ex_waddr := ex_reg_waddr; // for load/use hazard detection & bypass control
 
