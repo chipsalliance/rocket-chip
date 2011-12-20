@@ -8,7 +8,8 @@ class ioDivider(width: Int) extends Bundle {
   // requests
   val div_val   = Bool('input);
   val div_rdy   = Bool('output);
-  val div_fn    = UFix(4, 'input);
+  val dw        = UFix(1, 'input);
+  val div_fn    = UFix(2, 'input);
   val div_waddr = UFix(5, 'input);
   val dpath_rs1 = Bits(width, 'input);
   val dpath_rs2 = Bits(width, 'input);
@@ -47,26 +48,18 @@ class rocketDivider(width : Int) extends Component {
   val reg_waddr   = Reg(resetVal = UFix(0, 5));
   val rem         = Reg(resetVal = Bool(false));
   val half        = Reg(resetVal = Bool(false));
-  val tc          = Reg(resetVal = Bool(false));
   
   val divisor     = Reg(resetVal = UFix(0, width));
   val remainder   = Reg(resetVal = UFix(0, 2*width+1));
   val subtractor  = remainder(2*width, width).toUFix - divisor;
   
-  val v_tc   = ((io.div_fn === DIV_64D) || (io.div_fn === DIV_64R)) ||
-               ((io.div_fn === DIV_32D) || (io.div_fn === DIV_32R));
-
-  val v_rem  = ((io.div_fn === DIV_32R) || (io.div_fn === DIV_32RU)) ||
-               ((io.div_fn === DIV_64R) || (io.div_fn === DIV_64RU));
-             
-  val v_half = ((io.div_fn === DIV_32R) || (io.div_fn === DIV_32RU)) ||
-               ((io.div_fn === DIV_32D) || (io.div_fn === DIV_32DU));
+  val tc = (io.div_fn === DIV_D) || (io.div_fn === DIV_R);
   
   // state machine
   switch (state) {
     is (s_ready) {
       when (!io.div_val)  { state <== s_ready; }
-      when (v_tc)         { state <== s_neg_inputs };
+      when (tc)         { state <== s_neg_inputs };
       otherwise           { state <== s_busy; }
     }
     is (s_neg_inputs)     { state <== s_busy; }
@@ -83,21 +76,20 @@ class rocketDivider(width : Int) extends Component {
 
   // if we're doing 32-bit unsigned division, then we don't want the 32-bit
   // inputs to be sign-extended.
-  val in_lhs = Mux((v_half && !v_tc), 
+  val in_lhs = Mux(((io.dw === DW_32) && !tc), 
                    Cat(Fill(width/2, UFix(0,1)), io.dpath_rs1(width/2-1, 0)),
                    io.dpath_rs1).toUFix;
 
-  val in_rhs = Mux((v_half && !v_tc), 
+  val in_rhs = Mux(((io.dw === DW_32) && !tc), 
                    Cat(Fill(width/2, UFix(0,1)), io.dpath_rs2(width/2-1, 0)),
                    io.dpath_rs2).toUFix;                   
         
   when ((state === s_ready) && io.div_val) {
     count <== UFix(0, count_bits);
-    half <== v_half;
+    half <== (io.dw === DW_32);
     neg_quo <== Bool(false);
     neg_rem <== Bool(false);
-    rem <== v_rem;
-    tc <== v_tc;
+    rem <== (io.div_fn === DIV_R) || (io.div_fn === DIV_RU);
     reg_waddr <== io.div_waddr;
     divby0 <== Bool(true);
     divisor <== in_rhs;
