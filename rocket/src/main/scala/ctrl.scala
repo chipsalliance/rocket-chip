@@ -37,7 +37,6 @@ class ioCtrlDpath extends Bundle()
   val mem_eret = Bool('output);
   val mem_load = Bool('output);
   val wen      = Bool('output);
-  val ex_mem_type = UFix(3, 'output)
   // instruction in execute is an unconditional jump
   val ex_jmp   = Bool('output); 
   // enable/disable interrupts
@@ -677,7 +676,6 @@ class rocketCtrl extends Component
   io.dmem.req_kill    := mem_kill_dmem;
   io.dmem.req_cmd     := ex_reg_mem_cmd;
   io.dmem.req_type    := ex_reg_mem_type;
-  io.dpath.ex_mem_type:= ex_reg_mem_type
 }
 
 }
