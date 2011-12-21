@@ -64,7 +64,6 @@ class ioArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
 
 class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   val io = new ioArbiter(n)(data)
-  val vout = Wire { Bool() }
 
   io.in(0).ready := io.out.ready
   for (i <- 1 to n-1) {
@@ -75,10 +74,9 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   for (i <- 1 to n-1)
     dout = Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout)
 
-  for (i <- 0 to n-2) {
-    when (io.in(i).valid) { vout <== Bool(true) }
-  }
-  vout <== io.in(n-1).valid
+  var vout = io.in(0).valid
+  for (i <- 1 to n-1)
+    vout = vout || io.in(i).valid
 
   vout ^^ io.out.valid
   dout ^^ io.out.bits
