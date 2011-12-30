@@ -141,10 +141,10 @@ class MSHR(id: Int) extends Component {
     val req_sec_rdy    = Bool('output)
     val req_ppn        = Bits(PPN_BITS, 'input)
     val req_idx        = Bits(IDX_BITS, 'input)
-    val req_offset     = Bits(width = OFFSET_BITS)
-    val req_cmd        = Bits(width = 4)
-    val req_type       = Bits(width = 3)
-    val req_sdq_id     = UFix(width = log2up(NSDQ))
+    val req_offset     = Bits(OFFSET_BITS, 'input)
+    val req_cmd        = Bits(4, 'input)
+    val req_type       = Bits(3, 'input)
+    val req_sdq_id     = UFix(log2up(NSDQ), 'input)
     val req_tag        = Bits(DCACHE_TAG_BITS, 'input)
 
     val idx_match      = Bool('output)
@@ -343,7 +343,7 @@ class ReplayUnit extends Component {
   val sdq_addr = Mux(sdq_ren_retry, rp.sdq_id, Mux(sdq_ren_new, io.replay.bits.sdq_id, sdq_alloc_id))
 
   val sdq = Mem4(NSDQ, io.sdq_enq.bits)
-  sdq.setReadLatency(0)
+  sdq.setReadLatency(SRAM_READ_LATENCY)
 //  sdq.setTarget('inst)
   val sdq_dout = sdq.rw(sdq_addr, io.sdq_enq.bits, sdq_wen, cs = sdq_ren || sdq_wen)
 
@@ -458,21 +458,25 @@ class MetaDataArray(lines: Int) extends Component {
   }
 
   val vd_array = Mem4(lines, Bits(width = 2))
-  vd_array.setReadLatency(0)
+  vd_array.setReadLatency(SRAM_READ_LATENCY)
   val vd_wdata2 = Cat(io.state_req.bits.data.valid, io.state_req.bits.data.dirty)
   vd_array.write(io.state_req.bits.idx, vd_wdata2, io.state_req.valid && io.state_req.bits.rw)
   val vd_wdata1 = Cat(io.req.bits.data.valid, io.req.bits.data.dirty)
   val vd_rdata1 = vd_array.rw(io.req.bits.idx, vd_wdata1, io.req.valid && io.req.bits.rw)
 
+  // don't allow reading and writing of vd_array in same cycle.
+  // this could be eliminated if the read port were combinational.
+  val vd_conflict = io.state_req.valid && (io.req.bits.idx === io.state_req.bits.idx)
+
   val tag_array = Mem4(lines, io.resp.tag)
-  tag_array.setReadLatency(0)
+  tag_array.setReadLatency(SRAM_READ_LATENCY)
 //  tag_array.setTarget('inst)
   val tag_rdata = tag_array.rw(io.req.bits.idx, io.req.bits.data.tag, io.req.valid && io.req.bits.rw, cs = io.req.valid)
 
   io.resp.valid := vd_rdata1(1).toBool
   io.resp.dirty := vd_rdata1(0).toBool
   io.resp.tag   := tag_rdata
-  io.req.ready  := Bool(true)
+  io.req.ready  := !vd_conflict
 }
 
 class DataArray(lines: Int) extends Component {
@@ -484,7 +488,7 @@ class DataArray(lines: Int) extends Component {
   val wmask = FillInterleaved(8, io.req.bits.wmask)
 
   val array = Mem4(lines*REFILL_CYCLES, io.resp)
-  array.setReadLatency(0)
+  array.setReadLatency(SRAM_READ_LATENCY)
 //  array.setTarget('inst)
   val addr = Cat(io.req.bits.idx, io.req.bits.offset)
   val rdata = array.rw(addr, io.req.bits.data, io.req.valid && io.req.bits.rw, wmask, cs = io.req.valid)
