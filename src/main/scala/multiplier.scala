@@ -91,7 +91,7 @@ class rocketMultiplier extends Component {
   }
 
   val mul_output64 = Mux(r_fn === MUL_LO, r_prod(63,0), r_prod(127,64))
-  val mul_output32 = Mux(r_fn === MUL_LO, r_prod(31,0), r_prod(63,31))
+  val mul_output32 = Mux(r_fn === MUL_LO, r_prod(31,0), r_prod(63,32))
   val mul_output32_ext = Cat(Fill(32, mul_output32(31)), mul_output32)
   
   val mul_output = Mux(r_dw === DW_64, mul_output64, mul_output32_ext)
