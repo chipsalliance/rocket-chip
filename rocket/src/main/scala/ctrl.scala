@@ -302,10 +302,7 @@ class rocketCtrl extends Component
 
   val id_raddr2 = io.dpath.inst(21,17);
   val id_raddr1 = io.dpath.inst(26,22);
-  val id_waddr  = io.dpath.inst(31,27);
-
-  val id_ren2 = id_renx2.toBool;
-  val id_ren1 = id_renx1.toBool;
+  val id_waddr  = Mux(id_sel_wa === WA_RA, RA, io.dpath.inst(31,27));
 
   val id_console_out_val  = id_wen_pcr.toBool && (id_raddr2 === PCR_CONSOLE);
 
@@ -329,7 +326,6 @@ class rocketCtrl extends Component
   val id_stall_raddr2 = sboard.io.stalla;
   val id_stall_raddr1 = sboard.io.stallb;
   val id_stall_waddr  = sboard.io.stallc;
-  val id_stall_ra     = sboard.io.stallra;
 
   val id_reg_btb_hit      = Reg(resetVal = Bool(false));
   val id_reg_xcpt_itlb    = Reg(resetVal = Bool(false));
@@ -581,62 +577,50 @@ class rocketCtrl extends Component
       io.dpath.stalld
     );
 
-  // check for loads and amos in execute and mem stages to detect load/use hazards
+  // stall for RAW/WAW hazards on loads, AMOs, and mul/div in execute stage.
   val ex_mem_cmd_load = 
     ex_reg_mem_val && ((ex_reg_mem_cmd === M_XRD) || ex_reg_mem_cmd(3).toBool);
-  
-  val lu_stall_ex = 
-    ex_mem_cmd_load &&
-    ((id_ren1 && (id_raddr1 === io.dpath.ex_waddr)) ||
-     (id_ren2 && (id_raddr2 === io.dpath.ex_waddr)));
+  val data_hazard_ex =
+    (ex_mem_cmd_load || ex_reg_div_mul_val) &&
+    ((id_renx1.toBool && (id_raddr1 === io.dpath.ex_waddr)) ||
+     (id_renx2.toBool && (id_raddr2 === io.dpath.ex_waddr)) ||
+     (id_wen.toBool   && (id_waddr  === io.dpath.ex_waddr)));
     
+  // stall for RAW/WAW hazards on LB/LH and mul/div in memory stage.
+  // stall for WAW-but-not-RAW hazards on LW/LD/AMO.
+  val mem_mem_cmd_load =
+    mem_reg_mem_val && ((mem_reg_mem_cmd === M_XRD) || mem_reg_mem_cmd(3).toBool);
   val mem_mem_cmd_load_bh = 
-    mem_reg_mem_val &&
-    (mem_reg_mem_cmd === M_XRD)   &&
+    mem_mem_cmd_load &&
     ((mem_reg_mem_type === MT_B)  ||
      (mem_reg_mem_type === MT_BU) ||
      (mem_reg_mem_type === MT_H)  || 
      (mem_reg_mem_type === MT_HU));
-     
-  val lu_stall_mem = 
-    mem_mem_cmd_load_bh &&
-    ((id_ren1 && (id_raddr1 === io.dpath.mem_waddr)) ||
-     (id_ren2 && (id_raddr2 === io.dpath.mem_waddr)));
+  val raw_hazard_mem =
+    (id_renx1.toBool && (id_raddr1 === io.dpath.mem_waddr)) ||
+    (id_renx2.toBool && (id_raddr2 === io.dpath.mem_waddr));
+  val waw_hazard_mem =
+    (id_wen.toBool   && (id_waddr  === io.dpath.mem_waddr));
+  val data_hazard_mem =
+    (mem_mem_cmd_load_bh || mem_reg_div_mul_val) && (raw_hazard_mem || waw_hazard_mem) ||
+    mem_mem_cmd_load && (!raw_hazard_mem && waw_hazard_mem)
 
-  val lu_stall_wb =
-    dcache_miss &&
-    ((id_ren1 && (id_raddr1 === io.dpath.wb_waddr)) ||
-     (id_ren2 && (id_raddr2 === io.dpath.wb_waddr)));
+  // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
+  val data_hazard_wb =
+    (dcache_miss || wb_reg_div_mul_val) &&
+    ((id_renx1.toBool && (id_raddr1 === io.dpath.wb_waddr)) ||
+     (id_renx2.toBool && (id_raddr2 === io.dpath.wb_waddr)) ||
+     (id_wen.toBool   && (id_waddr  === io.dpath.wb_waddr)));
 
-  val lu_stall = lu_stall_ex || lu_stall_mem || lu_stall_wb;
-  
-  // check for divide and multiply instructions in ex,mem,wb stages
-  val dm_stall_ex = 
-    ex_reg_div_mul_val &&
-    ((id_ren1 && (id_raddr1 === io.dpath.ex_waddr)) ||
-     (id_ren2 && (id_raddr2 === io.dpath.ex_waddr)));
-
-  val dm_stall_mem = 
-    mem_reg_div_mul_val &&
-    ((id_ren1 && (id_raddr1 === io.dpath.mem_waddr)) ||
-     (id_ren2 && (id_raddr2 === io.dpath.mem_waddr)));
-     
-  val dm_stall_wb = 
-    wb_reg_div_mul_val &&
-    ((id_ren1 && (id_raddr1 === io.dpath.wb_waddr)) ||
-     (id_ren2 && (id_raddr2 === io.dpath.wb_waddr)));
-     
-  val dm_stall = dm_stall_ex || dm_stall_mem || dm_stall_wb;
+  val data_hazard = data_hazard_ex || data_hazard_mem || data_hazard_wb;
 
   val ctrl_stalld =
     !take_pc &&
     (
-      dm_stall ||
-      lu_stall || 
-      id_ren2 && id_stall_raddr2 ||
-      id_ren1 && id_stall_raddr1 ||
-      (id_sel_wa === WA_RD) && id_stall_waddr ||
-      (id_sel_wa === WA_RA) && id_stall_ra ||
+      data_hazard ||
+      id_renx2.toBool && id_stall_raddr2 ||
+      id_renx1.toBool && id_stall_raddr1 ||
+      id_wen.toBool   && id_stall_waddr  ||
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
       id_console_out_val && !io.console.rdy ||
@@ -662,8 +646,8 @@ class rocketCtrl extends Component
   io.dpath.killm    := kill_mem;
 
   io.dpath.mem_load := mem_reg_mem_val && ((mem_reg_mem_cmd === M_XRD) || mem_reg_mem_cmd(3).toBool);
-  io.dpath.ren2     := id_ren2;
-  io.dpath.ren1     := id_ren1;
+  io.dpath.ren2     := id_renx2.toBool;
+  io.dpath.ren1     := id_renx1.toBool;
   io.dpath.sel_alu2 := id_sel_alu2;
   io.dpath.sel_alu1 := id_sel_alu1.toBool;
   io.dpath.fn_dw    := id_fn_dw.toBool;

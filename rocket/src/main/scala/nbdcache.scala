@@ -770,6 +770,7 @@ class HellaCache(lines: Int) extends Component {
   io.cpu.req_rdy   := flusher.io.req.ready && !(r_cpu_req_val_ && r_req_flush) && !pending_fence
   io.cpu.resp_nack := r_cpu_req_val_ && !io.cpu.req_kill && nack
   io.cpu.resp_val  := (tag_hit && !nack_hit && r_req_read) || replayer.io.cpu_resp_val
+  io.cpu.resp_replay := replayer.io.cpu_resp_val
   io.cpu.resp_miss := tag_miss && !nack_miss && r_req_read
   io.cpu.resp_tag  := Mux(replayer.io.cpu_resp_val, replayer.io.cpu_resp_tag, r_cpu_req_tag)
   io.cpu.resp_data := loadgen.io.dout
