@@ -65,17 +65,17 @@ class rocketDpathPCR extends Component
 {
   val io = new ioDpathPCR();
   
-  val reg_epc      = Reg(resetVal = UFix(0, VADDR_BITS)); 
-  val reg_badvaddr = Reg(resetVal = UFix(0, VADDR_BITS)); 
-  val reg_ebase    = Reg(resetVal = UFix(0, VADDR_BITS)); 
-  val reg_count    = Reg(resetVal = UFix(0, 32)); 
-  val reg_compare  = Reg(resetVal = UFix(0, 32)); 
-  val reg_cause    = Reg(resetVal = Bits(0, 5));
+  val reg_epc      = Reg() { UFix() };
+  val reg_badvaddr = Reg() { UFix() };
+  val reg_ebase    = Reg() { UFix() };
+  val reg_count    = Reg() { UFix() };
+  val reg_compare  = Reg() { UFix() };
+  val reg_cause    = Reg() { Bits() };
   val reg_tohost   = Reg(resetVal = Bits(0, 32)); 
   val reg_fromhost = Reg(resetVal = Bits(0, 32));
-  val reg_k0       = Reg(resetVal = Bits(0, 64));
-  val reg_k1       = Reg(resetVal = Bits(0, 64));
-  val reg_ptbr     = Reg(resetVal = UFix(0, PADDR_BITS));
+  val reg_k0       = Reg() { Bits() };
+  val reg_k1       = Reg() { Bits() };
+  val reg_ptbr     = Reg() { UFix() };
   
   val reg_error_mode  = Reg(resetVal = Bool(false));
   val reg_status_vm   = Reg(resetVal = Bool(false));
