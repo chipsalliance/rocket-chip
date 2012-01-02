@@ -47,7 +47,8 @@ class rocketDpath extends Component
 
   val alu = new rocketDpathALU(); 
   val ex_alu_out = alu.io.out; 
-  val ex_jr_target = ex_alu_out(VADDR_BITS-1,0);
+  val ex_alu_adder_out = alu.io.adder_out; 
+  val ex_jr_target = ex_alu_adder_out(VADDR_BITS-1,0);
 
   val div = new rocketDivider(64);
   val div_result = div.io.div_result_bits;
@@ -129,7 +130,7 @@ class rocketDpath extends Component
 
   val ex_branch_target = ex_reg_pc + branch_adder_rhs.toUFix;
 
-  btb.io.correct_target := ex_branch_target;
+  btb.io.correct_target := Mux(io.ctrl.ex_jr, ex_jr_target, ex_branch_target);
 
   val if_next_pc =
     Mux(io.ctrl.sel_pc === PC_BTB,  if_btb_target,
@@ -156,6 +157,7 @@ class rocketDpath extends Component
   btb.io.hit            ^^ io.ctrl.btb_hit;
   btb.io.wen            ^^ io.ctrl.wen_btb;
   btb.io.correct_pc4    := ex_reg_pc_plus4;
+  io.ctrl.btb_match     := id_reg_pc === btb.io.correct_target;
 
   // instruction decode stage
   when (!io.ctrl.stalld) {
@@ -297,7 +299,7 @@ class rocketDpath extends Component
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req_addr  := ex_alu_out(VADDR_BITS-1,0);
+  io.dmem.req_addr  := ex_alu_adder_out(VADDR_BITS-1,0);
   io.dmem.req_data  := ex_reg_rs2;
   io.dmem.req_tag   := ex_reg_waddr;
 
