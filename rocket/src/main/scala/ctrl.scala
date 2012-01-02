@@ -34,7 +34,7 @@ class ioCtrlDpath extends Bundle()
   val ren_pcr  = Bool('output);
   val wen_pcr  = Bool('output);
   val id_eret  = Bool('output);
-  val mem_eret = Bool('output);
+  val wb_eret  = Bool('output);
   val mem_load = Bool('output);
   val wen      = Bool('output);
   // instruction in execute is an unconditional jump
@@ -357,6 +357,13 @@ class rocketCtrl extends Component
   val mem_reg_replay          = Reg(resetVal = Bool(false));
   val mem_reg_kill_dmem       = Reg(resetVal = Bool(false));
 
+  val wb_reg_inst_di         = Reg(resetVal = Bool(false));
+  val wb_reg_inst_ei         = Reg(resetVal = Bool(false));
+  val wb_reg_eret            = Reg(resetVal = Bool(false));
+  val wb_reg_exception       = Reg(resetVal = Bool(false));
+  val wb_reg_badvaddr_wen    = Reg(resetVal = Bool(false));
+  val wb_reg_cause           = Reg(){UFix()};
+
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
       id_reg_xcpt_ma_inst <== Bool(false);   
@@ -477,6 +484,17 @@ class rocketCtrl extends Component
     mem_reg_xcpt_fpu         <== ex_reg_xcpt_fpu;
     mem_reg_xcpt_syscall     <== ex_reg_xcpt_syscall;
   }
+
+  when (io.dpath.killm) {
+    wb_reg_eret        <== Bool(false);
+    wb_reg_inst_di     <== Bool(false);
+    wb_reg_inst_ei     <== Bool(false);
+  }
+  otherwise {
+    wb_reg_eret        <== mem_reg_eret;
+    wb_reg_inst_di     <== mem_reg_inst_di;
+    wb_reg_inst_ei     <== mem_reg_inst_ei;
+  }
   
   wb_reg_div_mul_val <== mem_reg_div_mul_val;
 
@@ -524,10 +542,14 @@ class rocketCtrl extends Component
 		Mux(io.xcpt_dtlb_st,          UFix(11,5), // store fault
 			UFix(0,5)))))))))));  // instruction address misaligned
 
+  wb_reg_exception    <== mem_exception;
+  wb_reg_badvaddr_wen <== io.xcpt_dtlb_ld || io.xcpt_dtlb_st;
+  wb_reg_cause        <== mem_cause;
+
 	// write cause to PCR on an exception
-	io.dpath.exception := mem_exception;
-	io.dpath.cause     := mem_cause;
-	io.dpath.badvaddr_wen := io.xcpt_dtlb_ld || io.xcpt_dtlb_st;
+	io.dpath.exception    := wb_reg_exception;
+	io.dpath.cause        := wb_reg_cause;
+	io.dpath.badvaddr_wen := wb_reg_badvaddr_wen;
 
   // replay mem stage PC on a DTLB miss
   val mem_hazard    = io.dtlb_miss || io.dmem.resp_nack;
@@ -662,9 +684,9 @@ class rocketCtrl extends Component
   io.dpath.ren_pcr  := id_ren_pcr.toBool;
   io.dpath.wen_pcr  := id_wen_pcr.toBool;
   io.dpath.id_eret  := id_eret.toBool;
-  io.dpath.mem_eret := mem_reg_eret;  
-  io.dpath.irq_disable := mem_reg_inst_di && !kill_mem;
-  io.dpath.irq_enable  := mem_reg_inst_ei && !kill_mem;
+  io.dpath.wb_eret  := wb_reg_eret;  
+  io.dpath.irq_disable := wb_reg_inst_di;
+  io.dpath.irq_enable  := wb_reg_inst_ei;
 
   io.dtlb_val         := ex_reg_mem_val && !ex_kill_dtlb;
   io.dmem.req_val     := ex_reg_mem_val;

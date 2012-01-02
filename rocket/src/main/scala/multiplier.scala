@@ -7,6 +7,7 @@ import Constants._;
 class ioMultiplier(width: Int) extends Bundle {
   // requests
   val mul_val = Bool('input);
+  val mul_kill= Bool('input);
   val mul_rdy = Bool('output);
   val dw      = UFix(1, 'input);
   val mul_fn  = UFix(2, 'input);
@@ -61,7 +62,7 @@ class rocketMultiplier extends Component {
     r_prod<== rhs_in
     r_lsb <== Bool(false)
   }
-  when (io.result_val && io.result_rdy) {
+  when (io.result_val && io.result_rdy || io.mul_kill) {
     r_val <== Bool(false)
   }
 

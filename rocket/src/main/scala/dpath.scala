@@ -105,14 +105,19 @@ class rocketDpath extends Component
   val mem_reg_wdata          = Reg() { Bits() };
   val mem_reg_raddr2         = Reg() { UFix() };
   val mem_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
+  val mem_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
+  val mem_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
   
   // writeback definitions
+  val wb_reg_pc             = Reg() { UFix() };
   val wb_reg_waddr          = Reg() { UFix() };
   val wb_reg_wdata          = Reg() { Bits() };
+  val wb_reg_raddr2         = Reg() { UFix() };
   val wb_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen       = Reg(resetVal = Bool(false));
+  val wb_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
 
   val r_dmem_resp_val       = Reg(resetVal = Bool(false));
   val r_dmem_resp_replay    = Reg(resetVal = Bool(false));
@@ -280,7 +285,8 @@ class rocketDpath extends Component
   // divider
   div.io.dw        := ex_reg_ctrl_fn_dw;
   div.io.div_fn    := ex_reg_ctrl_div_fn;
-  div.io.div_val   := ex_reg_ctrl_div_val && !io.ctrl.killx;
+  div.io.div_val   := ex_reg_ctrl_div_val;
+  div.io.div_kill  := mem_reg_ctrl_div_val && io.ctrl.killm;
   div.io.div_waddr := ex_reg_waddr;
   div.io.dpath_rs1 := ex_reg_rs1;
   div.io.dpath_rs2 := ex_reg_rs2;
@@ -290,7 +296,8 @@ class rocketDpath extends Component
   io.ctrl.div_result_val := div.io.div_result_val;
   
   // multiplier
-  mul.io.mul_val := ex_reg_ctrl_mul_val && !io.ctrl.killx;
+  mul.io.mul_val := ex_reg_ctrl_mul_val;
+  mul.io.mul_kill:= mem_reg_ctrl_mul_val && io.ctrl.killm;
   mul.io.dw      := ex_reg_ctrl_fn_dw;
   mul.io.mul_fn	 := ex_reg_ctrl_mul_fn;
   mul.io.mul_tag := ex_reg_waddr;
@@ -355,6 +362,8 @@ class rocketDpath extends Component
   mem_reg_wdata             <== ex_wdata;
   mem_reg_ctrl_ll_wb        <== ex_reg_ctrl_ll_wb;
   mem_reg_raddr2            <== ex_reg_raddr2;
+  mem_reg_ctrl_mul_val      <== ex_reg_ctrl_mul_val;
+  mem_reg_ctrl_div_val      <== ex_reg_ctrl_div_val;
   
   when (io.ctrl.killx) {
     mem_reg_valid          <== Bool(false);
@@ -378,15 +387,19 @@ class rocketDpath extends Component
   r_dmem_resp_replay  <== io.dmem.resp_replay;
   r_dmem_resp_waddr   <== io.dmem.resp_tag.toUFix
 
+  wb_reg_pc             <== mem_reg_pc;
   wb_reg_waddr          <== mem_reg_waddr;
   wb_reg_wdata          <== mem_reg_wdata;
   wb_reg_ctrl_ll_wb     <== mem_reg_ctrl_ll_wb;
+  wb_reg_raddr2         <== mem_reg_raddr2;
 
   when (io.ctrl.killm) {
     wb_reg_ctrl_wen       <== Bool(false);
+    wb_reg_ctrl_wen_pcr 	<== Bool(false);
   }
   otherwise {
     wb_reg_ctrl_wen     	<== mem_reg_ctrl_wen && !io.dmem.resp_miss;
+    wb_reg_ctrl_wen_pcr 	<== mem_reg_ctrl_wen_pcr;
   }
 
   // crossbar/sign extension for 8/16 bit loads (moved to earlier in file)
@@ -403,16 +416,16 @@ class rocketDpath extends Component
   io.ctrl.sboard_clra  := id_waddr;
 
 	// processor control regfile write
-  pcr.io.w.addr := mem_reg_raddr2;
-  pcr.io.w.en   := mem_reg_ctrl_wen_pcr && !io.ctrl.killm;
-  pcr.io.w.data := mem_reg_wdata;
+  pcr.io.w.addr := wb_reg_raddr2;
+  pcr.io.w.en   := wb_reg_ctrl_wen_pcr;
+  pcr.io.w.data := wb_reg_wdata;
 
   pcr.io.di           := io.ctrl.irq_disable;
   pcr.io.ei           := io.ctrl.irq_enable;
-  pcr.io.eret      	  := io.ctrl.mem_eret;
+  pcr.io.eret      	  := io.ctrl.wb_eret;
   pcr.io.exception 	  := io.ctrl.exception;
   pcr.io.cause 			  := io.ctrl.cause;
-  pcr.io.pc					  := mem_reg_pc;
+  pcr.io.pc					  := wb_reg_pc;
   pcr.io.badvaddr_wen := io.ctrl.badvaddr_wen;
   io.console.bits := pcr.io.console_data;
   io.console.valid := pcr.io.console_val;
