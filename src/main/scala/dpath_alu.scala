@@ -24,11 +24,11 @@ class rocketDpathALU extends Component
   // ADD, SUB
   val sub = (io.fn === FN_SUB) || (io.fn === FN_SLT) || (io.fn === FN_SLTU)
   val adder_rhs = Mux(sub, ~io.in2, io.in2)
-  val adder_out = (io.in1 + adder_rhs + sub.toUFix)(63,0)
+  val sum = (io.in1 + adder_rhs + sub.toUFix)(63,0)
 
   // SLT, SLTU
-  val less  = Mux(io.in1(63) === io.in2(63), adder_out(63), io.in1(63))
-  val lessu = Mux(io.in1(63) === io.in2(63), adder_out(63), io.in2(63))
+  val less  = Mux(io.in1(63) === io.in2(63), sum(63), io.in1(63))
+  val lessu = Mux(io.in1(63) === io.in2(63), sum(63), io.in2(63))
 
   // SLL, SRL, SRA
   val sra = (io.fn === FN_SRA)
@@ -42,8 +42,8 @@ class rocketDpathALU extends Component
   val out64 = Wire { Bits(64) }
   switch(io.fn)
   {
-    is(FN_ADD)  { out64 <== adder_out }
-    is(FN_SUB)  { out64 <== adder_out }
+    is(FN_ADD)  { out64 <== sum }
+    is(FN_SUB)  { out64 <== sum }
     is(FN_SLT)  { out64 <== less }
     is(FN_SLTU) { out64 <== lessu }
     is(FN_AND)  { out64 <== io.in1 & io.in2 }
@@ -55,7 +55,7 @@ class rocketDpathALU extends Component
 
   val out_hi = Mux(io.dw === DW_64, out64(63,32), Fill(32, out64(31)))
   io.out := Cat(out_hi, out64(31,0)).toUFix
-  io.adder_out := adder_out
+  io.adder_out := sum
 }
 
 }

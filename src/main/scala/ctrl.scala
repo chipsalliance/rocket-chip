@@ -59,6 +59,7 @@ class ioCtrlDpath extends Bundle()
   val div_result_val = Bool('input);
   val mul_rdy = Bool('input);
   val mul_result_val = Bool('input);
+  val mem_lu_bypass = Bool('input);
   val ex_waddr = UFix(5,'input);  // write addr from execute stage
   val mem_waddr = UFix(5,'input); // write addr from memory stage
   val wb_waddr = UFix(5,'input);  // write addr from writeback stage
@@ -261,6 +262,8 @@ class rocketCtrl extends Component
       MFPCR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_PCR,REN_Y,WEN_N,I_X ,SYNC_N,N,N,Y),
       MTPCR->    List(Y,     BR_N,  REN_N,REN_Y,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_Y,I_X ,SYNC_N,N,N,Y),
       RDTIME->   List(Y,     BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_TSC,REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      RDCYCLE->  List(Y,     BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_TSC,REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
+      RDINSTRET->List(Y,     BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_Y,WA_RD,WB_IRT,REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
       
       // Instructions that have not yet been implemented
       // Faking these for now so akaros will boot    
@@ -549,7 +552,7 @@ class rocketCtrl extends Component
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
-  val ex_hazard    = io.dmem.resp_miss || mem_reg_privileged || mem_reg_flush_inst
+  val ex_hazard    = dcache_miss && Reg(io.dpath.mem_lu_bypass) || mem_reg_privileged || mem_reg_flush_inst
   val mem_kill_ex  = kill_mem || take_pc_mem
   val kill_ex      = mem_kill_ex || ex_hazard || !(io.dmem.req_rdy && io.dtlb_rdy) && ex_reg_mem_val
   val ex_kill_dtlb = mem_kill_ex || ex_hazard || !io.dmem.req_rdy
@@ -600,7 +603,12 @@ class rocketCtrl extends Component
     ((id_ren1 && (id_raddr1 === io.dpath.mem_waddr)) ||
      (id_ren2 && (id_raddr2 === io.dpath.mem_waddr)));
 
-  val lu_stall = lu_stall_ex || lu_stall_mem;
+  val lu_stall_wb =
+    dcache_miss &&
+    ((id_ren1 && (id_raddr1 === io.dpath.wb_waddr)) ||
+     (id_ren2 && (id_raddr2 === io.dpath.wb_waddr)));
+
+  val lu_stall = lu_stall_ex || lu_stall_mem || lu_stall_wb;
   
   // check for divide and multiply instructions in ex,mem,wb stages
   val dm_stall_ex = 
