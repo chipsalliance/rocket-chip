@@ -11,6 +11,7 @@ class ioDpathDmem extends Bundle()
   val req_tag   = UFix(CPU_TAG_BITS, 'output);
   val req_data  = Bits(64, 'output);
   val resp_val  = Bool('input);
+  val resp_replay = Bool('input);
   val resp_tag  = Bits(CPU_TAG_BITS, 'input);
   val resp_data = Bits(64, 'input);
   val resp_data_subword = Bits(64, 'input);

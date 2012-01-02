@@ -18,7 +18,6 @@ class ioCtrlSboard extends Bundle()
   val stalla  = Bool('output);
   val stallb  = Bool('output);
   val stallc  = Bool('output);
-  val stallra = Bool('output);
 }
 
 class rocketCtrlSboard extends Component
@@ -34,7 +33,6 @@ class rocketCtrlSboard extends Component
   io.stalla  := reg_busy(io.raddra).toBool;
   io.stallb  := reg_busy(io.raddrb).toBool;
   io.stallc  := reg_busy(io.raddrc).toBool;
-  io.stallra := reg_busy(RA).toBool;
 }
 
 class ioCtrlCnt extends Bundle()
