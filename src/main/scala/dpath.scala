@@ -11,6 +11,7 @@ class ioDpathDmem extends Bundle()
   val req_tag   = UFix(CPU_TAG_BITS, 'output);
   val req_data  = Bits(64, 'output);
   val resp_val  = Bool('input);
+  val resp_miss = Bool('input);
   val resp_replay = Bool('input);
   val resp_tag  = Bits(CPU_TAG_BITS, 'input);
   val resp_data = Bits(64, 'input);
@@ -78,7 +79,6 @@ class rocketDpath extends Component
   val ex_reg_pc_plus4       = Reg() { UFix() };
   val ex_reg_inst           = Reg() { Bits() };
   val ex_reg_raddr2         = Reg() { UFix() };
-  val ex_reg_raddr1         = Reg() { UFix() };
   val ex_reg_rs2            = Reg() { Bits() };
   val ex_reg_rs1            = Reg() { Bits() };
   val ex_reg_waddr          = Reg() { UFix() };
@@ -115,6 +115,7 @@ class rocketDpath extends Component
   val wb_reg_ctrl_wen       = Reg(resetVal = Bool(false));
 
   val r_dmem_resp_val       = Reg(resetVal = Bool(false));
+  val r_dmem_resp_replay    = Reg(resetVal = Bool(false));
   val r_dmem_resp_waddr     = Reg() { UFix() };
   
   // instruction fetch stage
@@ -131,7 +132,8 @@ class rocketDpath extends Component
 
   val ex_branch_target = ex_reg_pc + branch_adder_rhs.toUFix;
 
-  btb.io.correct_target := Mux(io.ctrl.ex_jr, ex_jr_target, ex_branch_target);
+  val jr_br_target = Mux(io.ctrl.ex_jr, ex_jr_target, ex_branch_target);
+  btb.io.correct_target := jr_br_target
 
   val if_next_pc =
     Mux(io.ctrl.sel_pc === PC_BTB,  if_btb_target,
@@ -158,7 +160,7 @@ class rocketDpath extends Component
   btb.io.hit            ^^ io.ctrl.btb_hit;
   btb.io.wen            ^^ io.ctrl.wen_btb;
   btb.io.correct_pc4    := ex_reg_pc_plus4;
-  io.ctrl.btb_match     := id_reg_pc === btb.io.correct_target;
+  io.ctrl.btb_match     := id_reg_pc === jr_br_target;
 
   // instruction decode stage
   when (!io.ctrl.stalld) {
@@ -187,32 +189,35 @@ class rocketDpath extends Component
   val id_rdata1 = rfile.io.r1.data;
 
   // destination register selection
+  val id_ctrl_ll_wb = io.ctrl.div_wb || io.ctrl.mul_wb || r_dmem_resp_replay;
   val id_waddr =
-    Mux(io.ctrl.div_wb, div_result_tag,
+    Mux(r_dmem_resp_replay, r_dmem_resp_waddr,
     Mux(io.ctrl.mul_wb, mul_result_tag,
+    Mux(io.ctrl.div_wb, div_result_tag,
     Mux(io.ctrl.sel_wa === WA_RD, id_reg_inst(31,27).toUFix,
     Mux(io.ctrl.sel_wa === WA_RA, RA,
-        UFix(0, 5)))));
+        UFix(0, 5))))));
 
   // bypass muxes
   val rs1_mem_lu_bypass = id_raddr1 != UFix(0, 5) && io.ctrl.mem_load && id_raddr1 === mem_reg_waddr;
   val id_rs1 =
+    Mux(r_dmem_resp_replay, io.dmem.resp_data_subword,
   	Mux(io.ctrl.div_wb, div_result,
   	Mux(io.ctrl.mul_wb, mul_result,
-    Mux(id_raddr1 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr1 === ex_reg_waddr,  ex_wdata,
-    Mux(id_raddr1 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr1 === mem_reg_waddr, mem_reg_wdata,
+    Mux(id_raddr1 != UFix(0, 5) && (ex_reg_ctrl_wen || ex_reg_ctrl_ll_wb)   && id_raddr1 === ex_reg_waddr,  ex_wdata,
     Mux(rs1_mem_lu_bypass, io.dmem.resp_data,
+    Mux(id_raddr1 != UFix(0, 5) && (mem_reg_ctrl_wen || mem_reg_ctrl_ll_wb) && id_raddr1 === mem_reg_waddr, mem_reg_wdata,
     Mux(id_raddr1 != UFix(0, 5) && r_dmem_resp_val  && id_raddr1 === r_dmem_resp_waddr, io.dmem.resp_data_subword,
-    Mux(id_raddr1 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr1 === wb_reg_waddr,  wb_reg_wdata,
-        id_rdata1)))))));
+    Mux(id_raddr1 != UFix(0, 5) && (wb_reg_ctrl_wen || wb_reg_ctrl_ll_wb)   && id_raddr1 === wb_reg_waddr,  wb_reg_wdata,
+        id_rdata1))))))));
 
   val rs2_mem_lu_bypass = id_raddr2 != UFix(0, 5) && io.ctrl.mem_load && id_raddr2 === mem_reg_waddr;
   val id_rs2 =
-    Mux(id_raddr2 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr2 === ex_reg_waddr,  ex_wdata,
-    Mux(id_raddr2 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr2 === mem_reg_waddr, mem_reg_wdata,
+    Mux(id_raddr2 != UFix(0, 5) && (ex_reg_ctrl_wen || ex_reg_ctrl_ll_wb)   && id_raddr2 === ex_reg_waddr,  ex_wdata,
     Mux(rs2_mem_lu_bypass, io.dmem.resp_data,
+    Mux(id_raddr2 != UFix(0, 5) && (mem_reg_ctrl_wen || mem_reg_ctrl_ll_wb) && id_raddr2 === mem_reg_waddr, mem_reg_wdata,
     Mux(id_raddr2 != UFix(0, 5) && r_dmem_resp_val  && id_raddr2 === r_dmem_resp_waddr, io.dmem.resp_data_subword,
-    Mux(id_raddr2 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr2 === wb_reg_waddr,  wb_reg_wdata,
+    Mux(id_raddr2 != UFix(0, 5) && (wb_reg_ctrl_wen || wb_reg_ctrl_ll_wb)   && id_raddr2 === wb_reg_waddr,  wb_reg_wdata,
         id_rdata2)))));
 
   io.ctrl.mem_lu_bypass := rs1_mem_lu_bypass || rs2_mem_lu_bypass;
@@ -223,7 +228,6 @@ class rocketDpath extends Component
   ex_reg_pc_plus4       <== id_reg_pc_plus4;
   ex_reg_inst           <== id_reg_inst;
   ex_reg_raddr2         <== id_raddr2;
-  ex_reg_raddr1         <== id_raddr1;
   ex_reg_rs2            <== id_rs2;
   ex_reg_rs1            <== id_rs1;
   ex_reg_waddr          <== id_waddr;
@@ -233,7 +237,7 @@ class rocketDpath extends Component
   ex_reg_ctrl_fn_alu    <== io.ctrl.fn_alu;
   ex_reg_ctrl_mul_fn    <== io.ctrl.mul_fn;
   ex_reg_ctrl_div_fn    <== io.ctrl.div_fn;
-  ex_reg_ctrl_ll_wb     <== io.ctrl.div_wb | io.ctrl.mul_wb; // TODO: verify
+  ex_reg_ctrl_ll_wb     <== id_ctrl_ll_wb;
   ex_reg_ctrl_sel_wb    <== io.ctrl.sel_wb;
   ex_reg_ctrl_ren_pcr   <== io.ctrl.ren_pcr;
 
@@ -371,6 +375,7 @@ class rocketDpath extends Component
       
   // writeback stage
   r_dmem_resp_val     <== io.dmem.resp_val;
+  r_dmem_resp_replay  <== io.dmem.resp_replay;
   r_dmem_resp_waddr   <== io.dmem.resp_tag.toUFix
 
   wb_reg_waddr          <== mem_reg_waddr;
@@ -381,27 +386,21 @@ class rocketDpath extends Component
     wb_reg_ctrl_wen       <== Bool(false);
   }
   otherwise {
-    wb_reg_ctrl_wen     	<== mem_reg_ctrl_wen;
+    wb_reg_ctrl_wen     	<== mem_reg_ctrl_wen && !io.dmem.resp_miss;
   }
 
   // crossbar/sign extension for 8/16 bit loads (moved to earlier in file)
 
 	// regfile write
   rfile.io.w0.addr := wb_reg_waddr;
-  rfile.io.w0.en   := wb_reg_ctrl_wen | wb_reg_ctrl_ll_wb;
-  rfile.io.w0.data := wb_reg_wdata; 
-  
-  rfile.io.w1.addr := r_dmem_resp_waddr;
-  rfile.io.w1.en   := r_dmem_resp_val;
-  rfile.io.w1.data := io.dmem.resp_data_subword;
+  rfile.io.w0.en   := wb_reg_ctrl_wen || wb_reg_ctrl_ll_wb;
+  rfile.io.w0.data := Mux(Reg(io.ctrl.mem_load), io.dmem.resp_data_subword, wb_reg_wdata);
   
   io.ctrl.wb_waddr := wb_reg_waddr;
   
   // scoreboard clear (for div/mul and D$ load miss writebacks)
-  io.ctrl.sboard_clr0   := wb_reg_ctrl_ll_wb;
-  io.ctrl.sboard_clr0a  := wb_reg_waddr;
-  io.ctrl.sboard_clr1   := r_dmem_resp_val;
-  io.ctrl.sboard_clr1a  := r_dmem_resp_waddr;  
+  io.ctrl.sboard_clr   := id_ctrl_ll_wb;
+  io.ctrl.sboard_clra  := id_waddr;
 
 	// processor control regfile write
   pcr.io.w.addr := mem_reg_raddr2;

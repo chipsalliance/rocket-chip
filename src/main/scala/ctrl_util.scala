@@ -6,10 +6,8 @@ import Constants._;
 
 class ioCtrlSboard extends Bundle()
 {
-  val clr0    = Bool('input);
-  val clr0a   = UFix(5, 'input);
-  val clr1    = Bool('input);
-  val clr1a   = UFix(5, 'input);
+  val clr    = Bool('input);
+  val clra   = UFix(5, 'input);
   val set     = Bool('input);
   val seta    = UFix(5, 'input);
   val raddra  = UFix(5, 'input);
@@ -25,10 +23,9 @@ class rocketCtrlSboard extends Component
   override val io = new ioCtrlSboard();
   val reg_busy = Reg(width = 32, resetVal = Bits(0, 32));
   
-  val set_mask  = Mux(io.set, UFix(1,1) << io.seta, UFix(0,32));
-  val clr0_mask = Mux(io.clr0, ~(UFix(1,1) << io.clr0a), ~UFix(0,32));
-  val clr1_mask = Mux(io.clr1, ~(UFix(1,1) << io.clr1a), ~UFix(0,32));
-  reg_busy <== ((reg_busy | set_mask) & clr0_mask) & clr1_mask;
+  val set_mask =   io.set.toUFix << io.seta;
+  val clr_mask = ~(io.clr.toUFix << io.clra);
+  reg_busy <== (reg_busy | set_mask) & clr_mask
   
   io.stalla  := reg_busy(io.raddra).toBool;
   io.stallb  := reg_busy(io.raddrb).toBool;
