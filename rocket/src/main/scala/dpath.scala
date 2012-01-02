@@ -194,24 +194,27 @@ class rocketDpath extends Component
         UFix(0, 5)))));
 
   // bypass muxes
+  val rs1_mem_lu_bypass = id_raddr1 != UFix(0, 5) && io.ctrl.mem_load && id_raddr1 === mem_reg_waddr;
   val id_rs1 =
   	Mux(io.ctrl.div_wb, div_result,
   	Mux(io.ctrl.mul_wb, mul_result,
     Mux(id_raddr1 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr1 === ex_reg_waddr,  ex_wdata,
     Mux(id_raddr1 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr1 === mem_reg_waddr, mem_reg_wdata,
-    Mux(id_raddr1 != UFix(0, 5) && io.ctrl.mem_load && id_raddr1 === mem_reg_waddr, io.dmem.resp_data,
+    Mux(rs1_mem_lu_bypass, io.dmem.resp_data,
     Mux(id_raddr1 != UFix(0, 5) && r_dmem_resp_val  && id_raddr1 === r_dmem_resp_waddr, io.dmem.resp_data_subword,
     Mux(id_raddr1 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr1 === wb_reg_waddr,  wb_reg_wdata,
         id_rdata1)))))));
 
+  val rs2_mem_lu_bypass = id_raddr2 != UFix(0, 5) && io.ctrl.mem_load && id_raddr2 === mem_reg_waddr;
   val id_rs2 =
     Mux(id_raddr2 != UFix(0, 5) && ex_reg_ctrl_wen  && id_raddr2 === ex_reg_waddr,  ex_wdata,
     Mux(id_raddr2 != UFix(0, 5) && mem_reg_ctrl_wen && id_raddr2 === mem_reg_waddr, mem_reg_wdata,
-    Mux(id_raddr2 != UFix(0, 5) && io.ctrl.mem_load && id_raddr2 === mem_reg_waddr, io.dmem.resp_data,
+    Mux(rs2_mem_lu_bypass, io.dmem.resp_data,
     Mux(id_raddr2 != UFix(0, 5) && r_dmem_resp_val  && id_raddr2 === r_dmem_resp_waddr, io.dmem.resp_data_subword,
     Mux(id_raddr2 != UFix(0, 5) && wb_reg_ctrl_wen  && id_raddr2 === wb_reg_waddr,  wb_reg_wdata,
         id_rdata2)))));
 
+  io.ctrl.mem_lu_bypass := rs1_mem_lu_bypass || rs2_mem_lu_bypass;
   io.ctrl.inst := id_reg_inst;
 
   // execute stage
@@ -251,16 +254,14 @@ class rocketDpath extends Component
   }
 
   val ex_alu_in2 =
-    Mux(ex_reg_ctrl_sel_alu2 === A2_0,     UFix(0, 64),
     Mux(ex_reg_ctrl_sel_alu2 === A2_SEXT,  ex_sign_extend,
     Mux(ex_reg_ctrl_sel_alu2 === A2_SPLIT, ex_sign_extend_split,
     Mux(ex_reg_ctrl_sel_alu2 === A2_RS2,   ex_reg_rs2,
-        UFix(0, 64)))));
+        UFix(0, 64)))); // A2_0
 
   val ex_alu_in1 =
     Mux(ex_reg_ctrl_sel_alu1 === A1_RS1, ex_reg_rs1,
-    Mux(ex_reg_ctrl_sel_alu1 === A1_LUI, Cat(Fill(32, ex_reg_inst(26)),ex_reg_inst(26,7),UFix(0, 12)),
-        UFix(0, 64)));
+        Cat(Fill(32, ex_reg_inst(26)),ex_reg_inst(26,7),UFix(0, 12))); // A1_LUI
 
   val ex_alu_shamt =
     Cat(ex_alu_in2(5) & ex_reg_ctrl_fn_dw === DW_64, ex_alu_in2(4,0)).toUFix;
@@ -330,15 +331,18 @@ class rocketDpath extends Component
   // time stamp counter
   val tsc_reg = Reg(resetVal = UFix(0,64));
   tsc_reg <== tsc_reg + UFix(1);
+  // instructions retired counter
+  val irt_reg = Reg(resetVal = UFix(0,64));
+  when (mem_reg_valid) { irt_reg <== irt_reg + UFix(1); }
   
 	// writeback select mux
   ex_wdata :=
     Mux(ex_reg_ctrl_ll_wb || ex_reg_ctrl_wen_pcr, ex_reg_rs1,
     Mux(ex_reg_ctrl_sel_wb === WB_PC,  Cat(Fill(64-VADDR_BITS, ex_reg_pc_plus4(VADDR_BITS-1)), ex_reg_pc_plus4),
-    Mux(ex_reg_ctrl_sel_wb === WB_ALU, ex_alu_out,
     Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
-        Bits(0, 64)))))).toBits;
+    Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg,
+        ex_alu_out))))).toBits; // WB_ALU
         
   // memory stage
   mem_reg_pc                <== ex_reg_pc;
