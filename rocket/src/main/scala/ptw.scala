@@ -7,7 +7,7 @@ import scala.math._;
 
 class ioDmemArbiter extends Bundle
 {
-  val ptw = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_idx", "req_ppn", "resp_data", "resp_val", "resp_nack"));
+  val ptw = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_idx", "req_ppn", "resp_data", "resp_val", "resp_replay", "resp_nack"));
   val cpu = new ioDmem();
   val mem = new ioDmem().flip();
 }
@@ -39,6 +39,9 @@ class rocketDmemArbiter extends Component
 
   io.cpu.resp_val  := io.mem.resp_val && !io.mem.resp_tag(0).toBool;
   io.ptw.resp_val  := io.mem.resp_val &&  io.mem.resp_tag(0).toBool; 
+
+  io.cpu.resp_replay  := io.mem.resp_replay && !io.mem.resp_tag(0).toBool;
+  io.ptw.resp_replay  := io.mem.resp_replay &&  io.mem.resp_tag(0).toBool; 
 
   io.ptw.resp_data := io.mem.resp_data;
   io.cpu.resp_data := io.mem.resp_data;

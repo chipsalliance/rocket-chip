@@ -219,14 +219,12 @@ class ioRegfile extends Bundle()
   val r0 = new ioReadPort();
   val r1 = new ioReadPort();
   val w0 = new ioWritePort();
-  val w1 = new ioWritePort();
 }
 
 class rocketDpathRegfile extends Component
 {
   override val io = new ioRegfile();
   val regfile = Mem(32, io.w0.en && (io.w0.addr != UFix(0,5)), io.w0.addr, io.w0.data);  
-  regfile.write(io.w1.en && (io.w1.addr != UFix(0,5)), io.w1.addr, io.w1.data); 
   io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
   io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
 }
