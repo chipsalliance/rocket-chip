@@ -39,6 +39,7 @@ class ioCtrlDpath extends Bundle()
   val wen      = Bool('output);
   // instruction in execute is an unconditional jump
   val ex_jmp   = Bool('output); 
+  val ex_jr    = Bool('output);
   // enable/disable interrupts
   val irq_enable   = Bool('output);
   val irq_disable   = Bool('output);
@@ -49,6 +50,7 @@ class ioCtrlDpath extends Bundle()
   // inputs from datapath
   val xcpt_ma_inst = Bool('input);  // high on a misaligned/illegal virtual PC
   val btb_hit = Bool('input);
+  val btb_match = Bool('input);
   val inst    = Bits(32, 'input);
   val br_eq   = Bool('input);
   val br_lt   = Bool('input);
@@ -418,6 +420,11 @@ class rocketCtrl extends Component
   }
 
 
+  val jr_taken = (ex_reg_br_type === BR_JR);
+  val j_taken  = (ex_reg_br_type === BR_J);
+  io.dpath.ex_jmp := j_taken;
+  io.dpath.ex_jr  := jr_taken;
+
   val beq  =  io.dpath.br_eq;
   val bne  = ~io.dpath.br_eq;
   val blt  =  io.dpath.br_lt;
@@ -431,11 +438,8 @@ class rocketCtrl extends Component
     (ex_reg_br_type === BR_LT) & blt |
     (ex_reg_br_type === BR_LTU) & bltu |
     (ex_reg_br_type === BR_GE) & bge |
-    (ex_reg_br_type === BR_GEU) & bgeu;
-
-  val jr_taken = (ex_reg_br_type === BR_JR);
-  val j_taken  = (ex_reg_br_type === BR_J);
-  io.dpath.ex_jmp := j_taken;
+    (ex_reg_br_type === BR_GEU) & bgeu |
+    j_taken; // treat J/JAL like a taken branch
   
   val mem_reg_div_mul_val = Reg(){Bool()};
   val mem_reg_eret        = Reg(){Bool()};
@@ -537,7 +541,9 @@ class rocketCtrl extends Component
   val kill_mem   = mem_hazard || mem_exception;
 
   // control transfer from ex/mem
-  val take_pc_ex = (ex_reg_btb_hit != br_taken) || jr_taken || j_taken
+  val ex_btb_match = ex_reg_btb_hit && io.dpath.btb_match
+  val br_jr_taken = br_taken || jr_taken
+  val take_pc_ex = !ex_btb_match && br_jr_taken || ex_reg_btb_hit && !br_jr_taken
   val take_pc_mem = mem_exception || mem_reg_eret || replay_mem
   val take_pc = take_pc_ex || take_pc_mem
 	
@@ -553,17 +559,16 @@ class rocketCtrl extends Component
   mem_reg_kill_dmem <== ex_kill_dmem
 
   io.dpath.sel_pc :=
-    Mux(replay_mem,                   PC_MEM,  // dtlb miss
-    Mux(mem_exception,                PC_EVEC, // exception
-    Mux(mem_reg_eret,                 PC_PCR,  // eret instruction
-    Mux(!ex_reg_btb_hit && br_taken,  PC_BR,   // mispredicted taken branch
-    Mux(j_taken,                      PC_BR,   // jump
-    Mux(ex_reg_btb_hit && !br_taken,  PC_EX4,  // mispredicted not taken branch
-    Mux(jr_taken,                     PC_JR,   // jump register
-    Mux(io.dpath.btb_hit,             PC_BTB,  // predicted PC from BTB
-        PC_4)))))))); // PC+4
+    Mux(replay_mem,                     PC_MEM,  // dtlb miss
+    Mux(mem_exception,                  PC_EVEC, // exception
+    Mux(mem_reg_eret,                   PC_PCR,  // eret instruction
+    Mux(ex_reg_btb_hit && !br_jr_taken, PC_EX4,  // mispredicted not taken branch
+    Mux(!ex_btb_match && br_taken,      PC_BR,   // mispredicted taken branch
+    Mux(!ex_btb_match && jr_taken,      PC_JR,   // mispredicted jump register
+    Mux(io.dpath.btb_hit,               PC_BTB,  // predicted PC from BTB
+        PC_4))))))); // PC+4
 
-  io.dpath.wen_btb := ~ex_reg_btb_hit & br_taken & ~kill_ex & ~kill_mem;
+  io.dpath.wen_btb := !ex_btb_match && br_jr_taken && !kill_ex;
 
   io.dpath.stallf :=
     ~take_pc &

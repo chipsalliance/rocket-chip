@@ -14,6 +14,7 @@ class ioALU extends Bundle(){
   val in2   = UFix(64, 'input);
   val in1   = UFix(64, 'input);
   val out   = UFix(64, 'output);
+  val adder_out = UFix(64, 'output);
 }
 
 class rocketDpathALU extends Component
@@ -54,6 +55,7 @@ class rocketDpathALU extends Component
 
   val out_hi = Mux(io.dw === DW_64, out64(63,32), Fill(32, out64(31)))
   io.out := Cat(out_hi, out64(31,0)).toUFix
+  io.adder_out := adder_out
 }
 
 }
