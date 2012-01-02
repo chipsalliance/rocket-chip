@@ -7,6 +7,7 @@ import Constants._;
 class ioDivider(width: Int) extends Bundle {
   // requests
   val div_val   = Bool('input);
+  val div_kill  = Bool('input);
   val div_rdy   = Bool('output);
   val dw        = UFix(1, 'input);
   val div_fn    = UFix(2, 'input);
@@ -54,6 +55,10 @@ class rocketDivider(width : Int) extends Component {
   val subtractor  = remainder(2*width, width).toUFix - divisor;
   
   val tc = (io.div_fn === DIV_D) || (io.div_fn === DIV_R);
+
+  when (io.div_kill) {
+    state <== s_ready;
+  }
   
   // state machine
   switch (state) {
