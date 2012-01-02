@@ -66,31 +66,31 @@ class rocketDpath extends Component
 
   // instruction decode definitions
   val id_reg_valid     = Reg(resetVal = Bool(false));
-  val id_reg_pc        = Reg(resetVal = UFix(0,VADDR_BITS));
-  val id_reg_pc_plus4  = Reg(resetVal = UFix(0,VADDR_BITS));
   val id_reg_inst      = Reg(resetVal = NOP);
+  val id_reg_pc        = Reg() { UFix() };
+  val id_reg_pc_plus4  = Reg() { UFix() };
 
   // execute definitions
   val ex_reg_valid          = Reg(resetVal = Bool(false));
-  val ex_reg_pc             = Reg(resetVal = UFix(0,VADDR_BITS));
-  val ex_reg_pc_plus4       = Reg(resetVal = UFix(0,VADDR_BITS));
-  val ex_reg_inst           = Reg(resetVal = Bits(0,32));
-  val ex_reg_raddr2         = Reg(resetVal = UFix(0,5));
-  val ex_reg_raddr1         = Reg(resetVal = UFix(0,5));
-  val ex_reg_rs2            = Reg(resetVal = Bits(0,64));
-  val ex_reg_rs1            = Reg(resetVal = Bits(0,64));
-  val ex_reg_waddr          = Reg(resetVal = UFix(0,5));
-  val ex_reg_ctrl_sel_alu2  = Reg(resetVal = A2_X);
-  val ex_reg_ctrl_sel_alu1  = Reg(resetVal = A1_X);
+  val ex_reg_pc             = Reg() { UFix() };
+  val ex_reg_pc_plus4       = Reg() { UFix() };
+  val ex_reg_inst           = Reg() { Bits() };
+  val ex_reg_raddr2         = Reg() { UFix() };
+  val ex_reg_raddr1         = Reg() { UFix() };
+  val ex_reg_rs2            = Reg() { Bits() };
+  val ex_reg_rs1            = Reg() { Bits() };
+  val ex_reg_waddr          = Reg() { UFix() };
+  val ex_reg_ctrl_sel_alu2  = Reg() { UFix() };
+  val ex_reg_ctrl_sel_alu1  = Reg() { UFix() };
   val ex_reg_ctrl_eret      = Reg(resetVal = Bool(false));
-  val ex_reg_ctrl_fn_dw     = Reg(resetVal = DW_X);
-  val ex_reg_ctrl_fn_alu    = Reg(resetVal = FN_X);
+  val ex_reg_ctrl_fn_dw     = Reg() { UFix() };
+  val ex_reg_ctrl_fn_alu    = Reg() { UFix() };
   val ex_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
-  val ex_reg_ctrl_mul_fn    = Reg(resetVal = MUL_X);
+  val ex_reg_ctrl_mul_fn    = Reg() { UFix() };
   val ex_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
-  val ex_reg_ctrl_div_fn    = Reg(resetVal = DIV_X);
-  val ex_reg_ctrl_sel_wb    = Reg(resetVal = WB_X);
+  val ex_reg_ctrl_div_fn    = Reg() { UFix() };
+  val ex_reg_ctrl_sel_wb    = Reg() { UFix() };
   val ex_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_ren_pcr   = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
@@ -98,22 +98,22 @@ class rocketDpath extends Component
 
   // memory definitions
   val mem_reg_valid          = Reg(resetVal = Bool(false));
-  val mem_reg_pc             = Reg(resetVal = UFix(0,VADDR_BITS));
-  val mem_reg_waddr          = Reg(resetVal = UFix(0,5));
-  val mem_reg_wdata          = Reg(resetVal = Bits(0,64));
-  val mem_reg_raddr2         = Reg(resetVal = UFix(0,5));
+  val mem_reg_pc             = Reg() { UFix() };
+  val mem_reg_waddr          = Reg() { UFix() };
+  val mem_reg_wdata          = Reg() { Bits() };
+  val mem_reg_raddr2         = Reg() { UFix() };
   val mem_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
   
   // writeback definitions
-  val wb_reg_waddr          = Reg(resetVal = UFix(0,5));
-  val wb_reg_wdata          = Reg(resetVal = Bits(0,64));
+  val wb_reg_waddr          = Reg() { UFix() };
+  val wb_reg_wdata          = Reg() { Bits() };
   val wb_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen       = Reg(resetVal = Bool(false));
 
   val r_dmem_resp_val       = Reg(resetVal = Bool(false));
-  val r_dmem_resp_waddr     = Reg(resetVal = UFix(0,5));
+  val r_dmem_resp_waddr     = Reg() { UFix() };
   
   // instruction fetch stage
   val if_pc_plus4 = if_reg_pc + UFix(4);
@@ -123,10 +123,9 @@ class rocketDpath extends Component
   val ex_sign_extend_split = 
     Cat(Fill(52, ex_reg_inst(31)), ex_reg_inst(31,27), ex_reg_inst(16,10));
 
-  // FIXME: which bits to extract should be calculated based on VADDR_BITS
   val branch_adder_rhs =
-    Mux(io.ctrl.ex_jmp, Cat(Fill(17, ex_reg_inst(31)), ex_reg_inst(31,7), UFix(0,1)),
-      Cat(ex_sign_extend_split(41,0), UFix(0, 1)));
+    Mux(io.ctrl.ex_jmp, Cat(Fill(VADDR_BITS-26, ex_reg_inst(31)), ex_reg_inst(31,7), UFix(0,1)),
+      Cat(ex_sign_extend_split(VADDR_BITS-2,0), UFix(0, 1)));
 
   val ex_branch_target = ex_reg_pc + branch_adder_rhs.toUFix;
 

@@ -41,16 +41,16 @@ class rocketDivider(width : Int) extends Component {
   val state = Reg(resetVal = s_ready);
   
   val count_bits  = java.math.BigInteger.valueOf(width).bitLength();
-  val count       = Reg(resetVal = UFix(0, count_bits));
-  val divby0      = Reg(resetVal = Bool(false));
-  val neg_quo     = Reg(resetVal = Bool(false));
-  val neg_rem     = Reg(resetVal = Bool(false));
-  val reg_waddr   = Reg(resetVal = UFix(0, 5));
-  val rem         = Reg(resetVal = Bool(false));
-  val half        = Reg(resetVal = Bool(false));
+  val count       = Reg() { UFix() };
+  val divby0      = Reg() { Bool() };
+  val neg_quo     = Reg() { Bool() };
+  val neg_rem     = Reg() { Bool() };
+  val reg_waddr   = Reg() { UFix() };
+  val rem         = Reg() { Bool() };
+  val half        = Reg() { Bool() };
   
-  val divisor     = Reg(resetVal = UFix(0, width));
-  val remainder   = Reg(resetVal = UFix(0, 2*width+1));
+  val divisor     = Reg() { UFix() };
+  val remainder   = Reg() { UFix() };
   val subtractor  = remainder(2*width, width).toUFix - divisor;
   
   val tc = (io.div_fn === DIV_D) || (io.div_fn === DIV_R);

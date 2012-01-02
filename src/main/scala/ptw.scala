@@ -60,12 +60,12 @@ class rocketPTW extends Component
   val s_ready :: s_l1_req :: s_l1_wait :: s_l1_fake :: s_l2_req :: s_l2_wait :: s_l2_fake:: s_l3_req :: s_l3_wait :: s_done :: s_error :: Nil = Enum(11) { UFix() };
   val state = Reg(resetVal = s_ready);
   
-  val r_req_vpn = Reg(resetVal = Bits(0,VPN_BITS));
-  val r_req_dest = Reg(resetVal = Bool(false)); // 0 = ITLB, 1 = DTLB
+  val r_req_vpn = Reg() { Bits() }
+  val r_req_dest = Reg() { Bool() }
   
-  val req_addr = Reg(resetVal = UFix(0,PADDR_BITS));
-  val r_resp_ppn = Reg(resetVal = Bits(0,PPN_BITS));
-  val r_resp_perm = Reg(resetVal = Bits(0,PERM_BITS));
+  val req_addr = Reg() { UFix() };
+  val r_resp_ppn = Reg() { Bits() };
+  val r_resp_perm = Reg() { Bits() };
   
   val vpn_idx = Mux(state === s_l2_wait, r_req_vpn(9,0), r_req_vpn(19,10)); 
   val req_val = io.itlb.req_val || io.dtlb.req_val;

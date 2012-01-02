@@ -96,11 +96,11 @@ class rocketITLB(entries: Int) extends Component
   val s_ready :: s_request :: s_wait :: Nil = Enum(3) { UFix() };
   val state = Reg(resetVal = s_ready);
   
-  val r_cpu_req_vpn     = Reg(resetVal = Bits(0, VPN_BITS));
   val r_cpu_req_val     = Reg(resetVal = Bool(false));
-  val r_cpu_req_asid    = Reg(resetVal = Bits(0,ASID_BITS));
-  val r_refill_tag   = Reg(resetVal = Bits(0, ASID_BITS+VPN_BITS));
-  val r_refill_waddr = Reg(resetVal = UFix(0, addr_bits));
+  val r_cpu_req_vpn     = Reg() { Bits() };
+  val r_cpu_req_asid    = Reg() { Bits() };
+  val r_refill_tag   = Reg() { Bits() };
+  val r_refill_waddr = Reg() { UFix() };
   val repl_count = Reg(resetVal = UFix(0, addr_bits));
   
   when (io.cpu.req_val && io.cpu.req_rdy) { 
