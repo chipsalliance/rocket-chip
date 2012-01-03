@@ -71,8 +71,8 @@ class rocketDpathPCR extends Component
   val reg_count    = Reg() { UFix() };
   val reg_compare  = Reg() { UFix() };
   val reg_cause    = Reg() { Bits() };
-  val reg_tohost   = Reg(resetVal = Bits(0, 32)); 
-  val reg_fromhost = Reg(resetVal = Bits(0, 32));
+  val reg_tohost   = Reg(resetVal = Bits(0, 64)); 
+  val reg_fromhost = Reg(resetVal = Bits(0, 64));
   val reg_k0       = Reg() { Bits() };
   val reg_k1       = Reg() { Bits() };
   val reg_ptbr     = Reg() { UFix() };
@@ -99,7 +99,7 @@ class rocketDpathPCR extends Component
   io.status  						:= Cat(reg_status_vm, reg_status_im, reg_status);
   io.evec               := reg_ebase;
   io.ptbr               := reg_ptbr;
-  io.host.to 						:= Mux(io.host.from_wen, Bits(0,32), reg_tohost);
+  io.host.to 						:= Mux(io.host.from_wen, Bits(0), reg_tohost);
   io.debug.error_mode  	:= reg_error_mode;
   io.r.data := rdata;
 
@@ -108,13 +108,13 @@ class rocketDpathPCR extends Component
   io.console_val := console_wen;
 
   when (io.host.from_wen) {
-    reg_tohost   <== Bits(0,32);
+    reg_tohost   <== Bits(0);
     reg_fromhost <== io.host.from;
   } 
   otherwise {
     when (!io.exception && io.w.en && (io.w.addr === PCR_TOHOST)) {
-      reg_tohost   <== io.w.data(31,0);
-      reg_fromhost <== Bits(0,32);
+      reg_tohost   <== io.w.data;
+      reg_fromhost <== Bits(0);
     }
   }
 
@@ -166,7 +166,7 @@ class rocketDpathPCR extends Component
   	when (io.w.addr === PCR_COUNT) 		{ reg_count 			<== io.w.data(31,0).toUFix; }
   	when (io.w.addr === PCR_COMPARE) 	{ reg_compare 		<== io.w.data(31,0).toUFix; r_irq_timer <== Bool(false); }
   	when (io.w.addr === PCR_CAUSE) 		{ reg_cause 			<== io.w.data(4,0); }
-  	when (io.w.addr === PCR_FROMHOST) { reg_fromhost 		<== io.w.data(31,0); }
+  	when (io.w.addr === PCR_FROMHOST) { reg_fromhost 		<== io.w.data; }
   	when (io.w.addr === PCR_SEND_IPI) { r_irq_ipi  			<== Bool(true); }
   	when (io.w.addr === PCR_CLR_IPI)  { r_irq_ipi  			<== Bool(false); }
   	when (io.w.addr === PCR_K0) 			{ reg_k0  				<== io.w.data; }
@@ -191,8 +191,8 @@ class rocketDpathPCR extends Component
     is (PCR_COMPARE) 	{ rdata <== Cat(Fill(32, reg_compare(31)), reg_compare); }
     is (PCR_CAUSE) 		{ rdata <== Cat(Bits(0,59), reg_cause); }
     is (PCR_COREID) 	{ rdata <== Bits(COREID,64); }
-    is (PCR_FROMHOST) { rdata <== Cat(Fill(32, reg_fromhost(31)), reg_fromhost); }
-    is (PCR_TOHOST)  	{ rdata <== Cat(Fill(32, reg_tohost(31)), reg_tohost); }
+    is (PCR_FROMHOST) { rdata <== reg_fromhost; }
+    is (PCR_TOHOST)  	{ rdata <== reg_tohost; }
     is (PCR_K0) 			{ rdata <== reg_k0; }
     is (PCR_K1) 			{ rdata <== reg_k1; }
     is (PCR_PTBR) 		{ rdata <== Cat(Bits(0,64-PADDR_BITS), reg_ptbr); }

@@ -13,8 +13,8 @@ class ioHost(view: List[String] = null) extends Bundle(view)
 {
   val start      = Bool('input);
   val from_wen   = Bool('input);
-  val from       = Bits(32, 'input);
-  val to         = Bits(32, 'output);
+  val from       = Bits(64, 'input);
+  val to         = Bits(64, 'output);
 }
 
 class ioConsole(view: List[String] = null) extends Bundle(view)
