@@ -36,13 +36,13 @@ class rocketMemArbiter extends Component {
   io.mem.req_val := (io.icache.req_val || io.dcache.req_val);
 
   // Set read/write bit.  Icache always reads
-  io.mem.req_rw := Mux(io.icache.req_val,Bool(false),io.dcache.req_rw);
+  io.mem.req_rw := Mux(io.dcache.req_val, io.dcache.req_rw, Bool(false));
 
   // Give priority to Icache
-  io.mem.req_addr := Mux(io.icache.req_val,io.icache.req_addr,io.dcache.req_addr);
+  io.mem.req_addr := Mux(io.dcache.req_val, io.dcache.req_addr, io.icache.req_addr);
 
   // low bit of tag=0 for I$, 1 for D$
-  io.mem.req_tag := Cat(Mux(io.icache.req_val, io.icache.req_tag, io.dcache.req_tag), !io.icache.req_val)
+  io.mem.req_tag := Cat(Mux(io.dcache.req_val, io.dcache.req_tag, io.icache.req_tag), io.dcache.req_val)
 
   // Just pass through write data (only D$ will write)
   io.mem.req_wdata := io.dcache.req_wdata;
@@ -51,9 +51,10 @@ class rocketMemArbiter extends Component {
   // Interface to caches
   // *****************************
 
-  // Read for request from cache if the memory is ready.  Give priority to I$
-  io.icache.req_rdy := io.mem.req_rdy;
-  io.dcache.req_rdy := io.mem.req_rdy && !io.icache.req_val;
+  // Read for request from cache if the memory is ready.  Give priority to D$.
+  // This way, writebacks will never be interrupted by I$ refills.
+  io.dcache.req_rdy := io.mem.req_rdy;
+  io.icache.req_rdy := io.mem.req_rdy && !io.dcache.req_val;
 
   // Response will only be valid for D$ or I$ not both because of tag bits
   io.icache.resp_val := io.mem.resp_val && !io.mem.resp_tag(0).toBool;

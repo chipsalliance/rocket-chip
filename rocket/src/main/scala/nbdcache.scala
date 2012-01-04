@@ -382,8 +382,9 @@ class WritebackUnit extends Component {
   val addr = Reg() { new WritebackReq() }
 
   // don't allow memory requests to bypass conflicting writebacks.
+  // also don't allow a refill request once a writeback has started.
   // TODO: turn this into a victim buffer.
-  val block_refill = valid && (io.refill_req.bits.addr(IDX_BITS-1,0) === addr.idx)
+  val block_refill = valid && ((io.refill_req.bits.addr(IDX_BITS-1,0) === addr.idx) || (cnt === UFix(REFILL_CYCLES)))
   val refill_val = io.refill_req.valid && !block_refill
 
   wbq.io.q_reset := Bool(false)
