@@ -77,7 +77,6 @@ class ioCtrlAll extends Bundle()
   val console = new ioConsole(List("rdy"));
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_kill", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_replay", "resp_nack")).flip();
-  val host    = new ioHost(List("start"));
   val dtlb_val = Bool('output);
   val dtlb_kill = Bool('output);
   val dtlb_rdy = Bool('input);
@@ -294,7 +293,7 @@ class rocketCtrl extends Component
   val if_reg_xcpt_ma_inst = Reg(io.dpath.xcpt_ma_inst);
   
   // FIXME
-  io.imem.req_val  := io.host.start && !io.dpath.xcpt_ma_inst; 
+  io.imem.req_val  := !io.dpath.xcpt_ma_inst; 
 
   val id_int_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_sel_alu1 :: id_fn_dw :: id_fn_alu :: csremainder = cs; 
   val id_mem_val :: id_mem_cmd :: id_mem_type :: id_mul_val :: id_mul_fn :: id_div_val :: id_div_fn :: id_wen :: id_sel_wa :: id_sel_wb :: id_ren_pcr :: id_wen_pcr :: id_irq :: id_sync :: id_eret :: id_syscall :: id_privileged :: Nil = csremainder;
