@@ -11,7 +11,6 @@ class ioImem(view: List[String] = null) extends Bundle (view)
   val invalidate = Bool('input);
   val itlb_miss  = Bool('input);
   val req_val   = Bool('input);
-  val req_rdy   = Bool('output);
   val req_idx   = Bits(PGIDX_BITS, 'input);
   val req_ppn   = Bits(PPN_BITS, 'input);
   val resp_data = Bits(32, 'output);
@@ -60,15 +59,16 @@ class rocketICacheDM(lines: Int) extends Component {
   val r_cpu_req_idx    = Reg { Bits(width = PGIDX_BITS) }
   val r_cpu_req_ppn    = Reg { Bits(width = PPN_BITS) }
   val r_cpu_req_val    = Reg(resetVal = Bool(false));
-  val r_rdy = Reg(io.cpu.req_rdy)
+
+  val rdy = Wire() { Bool() }
   
-  when (io.cpu.req_val && io.cpu.req_rdy) {
+  when (io.cpu.req_val && rdy) {
     r_cpu_req_idx   <== io.cpu.req_idx;
   }
   when (state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss) {
     r_cpu_req_ppn <== io.cpu.req_ppn;
   }
-  when (io.cpu.req_rdy) {
+  when (rdy) {
     r_cpu_req_val <== io.cpu.req_val; 
   }
   otherwise {
@@ -112,8 +112,8 @@ class rocketICacheDM(lines: Int) extends Component {
   val data_array_rdata = data_array.rw(data_addr, io.mem.resp_data, io.mem.resp_val);
 
   // output signals
-  io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_rdy && r_cpu_req_val && tag_valid && tag_match; 
-  io.cpu.req_rdy  := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || (tag_valid && tag_match));
+  io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && Reg(rdy) && r_cpu_req_val && tag_valid && tag_match; 
+  rdy <== !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || (tag_valid && tag_match));
   io.cpu.resp_data := data_array_rdata >> Cat(r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb), UFix(0, log2up(databits))).toUFix
   io.mem.req_val := (state === s_request);
   io.mem.req_addr := Cat(r_cpu_req_ppn, r_cpu_req_idx(indexmsb,indexlsb)).toUFix

@@ -290,10 +290,10 @@ class rocketCtrl extends Component
 */
      ));
 
-  val if_reg_xcpt_ma_inst = Reg(io.dpath.xcpt_ma_inst);
+  val if_reg_xcpt_ma_inst = Reg(io.dpath.xcpt_ma_inst, resetVal = Bool(false));
   
   // FIXME
-  io.imem.req_val  := !io.dpath.xcpt_ma_inst; 
+  io.imem.req_val  := Bool(true)
 
   val id_int_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_sel_alu1 :: id_fn_dw :: id_fn_alu :: csremainder = cs; 
   val id_mem_val :: id_mem_cmd :: id_mem_type :: id_mul_val :: id_mul_fn :: id_div_val :: id_div_fn :: id_wen :: id_sel_wa :: id_sel_wb :: id_ren_pcr :: id_wen_pcr :: id_irq :: id_sync :: id_eret :: id_syscall :: id_privileged :: Nil = csremainder;
@@ -326,6 +326,7 @@ class rocketCtrl extends Component
   val id_reg_btb_hit      = Reg(resetVal = Bool(false));
   val id_reg_xcpt_itlb    = Reg(resetVal = Bool(false));
   val id_reg_xcpt_ma_inst = Reg(resetVal = Bool(false));
+  val id_reg_icmiss       = Reg(resetVal = Bool(false));
   
   val ex_reg_br_type     = Reg(){UFix(width = 4)};
   val ex_reg_btb_hit     = Reg(){Bool()};
@@ -344,6 +345,7 @@ class rocketCtrl extends Component
   val ex_reg_xcpt_privileged = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
+  val ex_reg_icmiss          = Reg(resetVal = Bool(false));
 
   val mem_reg_inst_di         = Reg(resetVal = Bool(false));
   val mem_reg_inst_ei         = Reg(resetVal = Bool(false));
@@ -356,6 +358,7 @@ class rocketCtrl extends Component
   val mem_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
   val mem_reg_replay          = Reg(resetVal = Bool(false));
   val mem_reg_kill_dmem       = Reg(resetVal = Bool(false));
+  val mem_reg_icmiss          = Reg(resetVal = Bool(false));
 
   val wb_reg_inst_di         = Reg(resetVal = Bool(false));
   val wb_reg_inst_ei         = Reg(resetVal = Bool(false));
@@ -363,6 +366,8 @@ class rocketCtrl extends Component
   val wb_reg_exception       = Reg(resetVal = Bool(false));
   val wb_reg_badvaddr_wen    = Reg(resetVal = Bool(false));
   val wb_reg_cause           = Reg(){UFix()};
+
+  val take_pc = Wire() { Bool() };
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
@@ -375,6 +380,7 @@ class rocketCtrl extends Component
       id_reg_xcpt_itlb <== io.xcpt_itlb;
       id_reg_btb_hit <== io.dpath.btb_hit;
     }
+    id_reg_icmiss <== !take_pc && !io.imem.resp_val;
   }
   
   // executing ERET when traps are enabled causes an illegal instruction exception (as per ISA sim)
@@ -397,6 +403,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_privileged  <== Bool(false);
     ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== Bool(false);
+    ex_reg_icmiss           <== Bool(false);
   } 
   otherwise {
     ex_reg_br_type     <== id_br_type;
@@ -415,6 +422,7 @@ class rocketCtrl extends Component
 //     ex_reg_xcpt_fpu         <== id_fp_val.toBool;
     ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
+    ex_reg_icmiss           <== id_reg_icmiss;
   }
   ex_reg_mem_cmd     <== id_mem_cmd;
   ex_reg_mem_type    <== id_mem_type;
@@ -462,6 +470,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_privileged  <== Bool(false);
     mem_reg_xcpt_fpu         <== Bool(false);
     mem_reg_xcpt_syscall     <== Bool(false);
+    mem_reg_icmiss           <== Bool(false);
   }
   otherwise {
     mem_reg_div_mul_val <== ex_reg_div_mul_val;
@@ -477,6 +486,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_privileged  <== ex_reg_xcpt_privileged;
     mem_reg_xcpt_fpu         <== ex_reg_xcpt_fpu;
     mem_reg_xcpt_syscall     <== ex_reg_xcpt_syscall;
+    mem_reg_icmiss           <== ex_reg_icmiss;
   }
   mem_reg_mem_cmd     <== ex_reg_mem_cmd;
   mem_reg_mem_type    <== ex_reg_mem_type;
@@ -550,7 +560,7 @@ class rocketCtrl extends Component
 	io.dpath.badvaddr_wen := wb_reg_badvaddr_wen;
 
   // replay mem stage PC on a DTLB miss
-  val mem_hazard    = io.dtlb_miss || io.dmem.resp_nack;
+  val mem_hazard    = io.dtlb_miss || io.dmem.resp_nack || mem_reg_icmiss;
   val mem_kill_dmem = io.dtlb_miss || mem_exception || mem_reg_kill_dmem;
   val replay_mem = mem_hazard || mem_reg_replay;
   val kill_mem   = mem_hazard || mem_exception;
@@ -560,7 +570,7 @@ class rocketCtrl extends Component
   val br_jr_taken = br_taken || jr_taken
   val take_pc_ex = !ex_btb_match && br_jr_taken || ex_reg_btb_hit && !br_jr_taken
   val take_pc_mem = mem_exception || mem_reg_eret || replay_mem
-  val take_pc = take_pc_ex || take_pc_mem
+  take_pc <== take_pc_ex || take_pc_mem
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
@@ -583,12 +593,7 @@ class rocketCtrl extends Component
 
   io.dpath.wen_btb := !ex_btb_match && br_jr_taken && !kill_ex;
 
-  io.dpath.stallf :=
-    ~take_pc &
-    (
-      ~io.imem.resp_val |
-      io.dpath.stalld
-    );
+  io.dpath.stallf := io.dpath.stalld;
 
   // stall for RAW/WAW hazards on loads, AMOs, and mul/div in execute stage.
   val ex_mem_cmd_load = 
