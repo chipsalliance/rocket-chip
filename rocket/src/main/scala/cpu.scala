@@ -11,7 +11,6 @@ class ioDebug(view: List[String] = null) extends Bundle(view)
 
 class ioHost(view: List[String] = null) extends Bundle(view)
 {
-  val start      = Bool('input);
   val from_wen   = Bool('input);
   val from       = Bits(64, 'input);
   val to         = Bits(64, 'output);
@@ -47,7 +46,6 @@ class rocketProc extends Component
 
   ctrl.io.dpath             <> dpath.io.ctrl;
   dpath.io.host             ^^ io.host;
-  ctrl.io.host.start        := io.host.start;
   dpath.io.debug            ^^ io.debug;
 
   // FIXME: try to make this more compact

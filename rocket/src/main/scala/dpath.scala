@@ -150,7 +150,7 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_MEM,  mem_reg_pc,
         if_pc_plus4))))))); // PC_4
         
-  when (!io.ctrl.stallf && io.host.start) {
+  when (!io.ctrl.stallf) {
     if_reg_pc <== if_next_pc.toUFix;
   }
   
