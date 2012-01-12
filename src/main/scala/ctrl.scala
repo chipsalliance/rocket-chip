@@ -75,7 +75,7 @@ class ioCtrlAll extends Bundle()
 {
   val dpath   = new ioCtrlDpath();
   val console = new ioConsole(List("rdy"));
-  val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
+  val imem    = new ioImem(List("req_val", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_kill", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_replay", "resp_nack")).flip();
   val dtlb_val = Bool('output);
   val dtlb_kill = Bool('output);
@@ -586,7 +586,6 @@ class rocketCtrl extends Component
   io.dpath.stallf :=
     ~take_pc &
     (
-      ~io.imem.req_rdy |
       ~io.imem.resp_val |
       io.dpath.stalld
     );
