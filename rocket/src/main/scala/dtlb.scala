@@ -15,6 +15,7 @@ class ioDTLB_CPU(view: List[String] = null) extends Bundle(view)
   val invalidate = Bool('input);
   // lookup requests
   val req_val  = Bool('input);
+  val req_kill  = Bool('input);
   val req_cmd  = Bits(4, 'input); // load/store/amo
   val req_rdy  = Bool('output);
   val req_asid = Bits(ASID_BITS, 'input);
@@ -117,7 +118,7 @@ class rocketDTLB(entries: Int) extends Component
   
   val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
   
-  val lookup = (state === s_ready) && r_cpu_req_val && (req_load || req_store || req_amo);
+  val lookup = (state === s_ready) && r_cpu_req_val && !io.cpu.req_kill && (req_load || req_store || req_amo);
   val lookup_hit  = lookup && tag_hit;
   val lookup_miss = lookup && !tag_hit;
   val tlb_hit  = status_vm && lookup_hit;

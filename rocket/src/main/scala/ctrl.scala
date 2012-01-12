@@ -78,7 +78,8 @@ class ioCtrlAll extends Bundle()
   val imem    = new ioImem(List("req_val", "req_rdy", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_kill", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_replay", "resp_nack")).flip();
   val host    = new ioHost(List("start"));
-  val dtlb_val = Bool('output)
+  val dtlb_val = Bool('output);
+  val dtlb_kill = Bool('output);
   val dtlb_rdy = Bool('input);
   val dtlb_miss = Bool('input);
   val flush_inst = Bool('output);
@@ -386,8 +387,6 @@ class rocketCtrl extends Component
     ex_reg_btb_hit     <== Bool(false);
     ex_reg_div_mul_val <== Bool(false);
     ex_reg_mem_val     <== Bool(false);
-    ex_reg_mem_cmd     <== UFix(0, 4);
-    ex_reg_mem_type    <== UFix(0, 3);
     ex_reg_eret        <== Bool(false);
     ex_reg_privileged  <== Bool(false);
     ex_reg_inst_di     <== Bool(false);
@@ -405,8 +404,6 @@ class rocketCtrl extends Component
     ex_reg_btb_hit     <== id_reg_btb_hit;
     ex_reg_div_mul_val <== id_div_val.toBool || id_mul_val.toBool;
     ex_reg_mem_val     <== id_mem_val.toBool;
-    ex_reg_mem_cmd     <== id_mem_cmd;
-    ex_reg_mem_type    <== id_mem_type;
     ex_reg_eret        <== id_eret.toBool;
     ex_reg_privileged  <== id_privileged.toBool;
     ex_reg_inst_di     <== (id_irq === I_DI);
@@ -420,6 +417,8 @@ class rocketCtrl extends Component
     ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
   }
+  ex_reg_mem_cmd     <== id_mem_cmd;
+  ex_reg_mem_type    <== id_mem_type;
 
 
   val jr_taken = (ex_reg_br_type === BR_JR);
@@ -454,8 +453,6 @@ class rocketCtrl extends Component
     mem_reg_div_mul_val <== Bool(false);
     mem_reg_eret        <== Bool(false);
     mem_reg_mem_val     <== Bool(false);
-    mem_reg_mem_cmd     <== UFix(0, 4);
-    mem_reg_mem_type    <== UFix(0, 3);
     mem_reg_privileged  <== Bool(false);
     mem_reg_inst_di     <== Bool(false);
     mem_reg_inst_ei     <== Bool(false);
@@ -471,8 +468,6 @@ class rocketCtrl extends Component
     mem_reg_div_mul_val <== ex_reg_div_mul_val;
     mem_reg_eret        <== ex_reg_eret;
     mem_reg_mem_val     <== ex_reg_mem_val;
-    mem_reg_mem_cmd     <== ex_reg_mem_cmd;
-    mem_reg_mem_type    <== ex_reg_mem_type;
     mem_reg_privileged  <== ex_reg_privileged;
     mem_reg_inst_di     <== ex_reg_inst_di;
     mem_reg_inst_ei     <== ex_reg_inst_ei;
@@ -484,6 +479,8 @@ class rocketCtrl extends Component
     mem_reg_xcpt_fpu         <== ex_reg_xcpt_fpu;
     mem_reg_xcpt_syscall     <== ex_reg_xcpt_syscall;
   }
+  mem_reg_mem_cmd     <== ex_reg_mem_cmd;
+  mem_reg_mem_type    <== ex_reg_mem_type;
 
   when (io.dpath.killm) {
     wb_reg_eret        <== Bool(false);
@@ -514,13 +511,15 @@ class rocketCtrl extends Component
 
   val mem_xcpt_ma_ld = io.xcpt_ma_ld && !mem_reg_kill_dmem
   val mem_xcpt_ma_st = io.xcpt_ma_st && !mem_reg_kill_dmem
+  val mem_xcpt_dtlb_ld = io.xcpt_dtlb_ld && !mem_reg_kill_dmem
+  val mem_xcpt_dtlb_st = io.xcpt_dtlb_st && !mem_reg_kill_dmem
   
 	val mem_exception = 
 	  interrupt ||
 	  mem_xcpt_ma_ld ||
 	  mem_xcpt_ma_st ||
-	  io.xcpt_dtlb_ld ||
-	  io.xcpt_dtlb_st ||
+	  mem_xcpt_dtlb_ld ||
+	  mem_xcpt_dtlb_st ||
 	  mem_reg_xcpt_illegal || 
 	  mem_reg_xcpt_privileged || 
 	  mem_reg_xcpt_fpu || 
@@ -536,14 +535,14 @@ class rocketCtrl extends Component
 		Mux(mem_reg_xcpt_fpu,         UFix(4,5), // FPU disabled
 		Mux(mem_reg_xcpt_syscall,     UFix(6,5), // system call
 		// breakpoint
-		Mux(mem_xcpt_ma_ld,            UFix(8,5), // misaligned load
-		Mux(mem_xcpt_ma_st,            UFix(9,5), // misaligned store
-		Mux(io.xcpt_dtlb_ld,          UFix(10,5), // load fault
-		Mux(io.xcpt_dtlb_st,          UFix(11,5), // store fault
+		Mux(mem_xcpt_ma_ld,           UFix(8,5), // misaligned load
+		Mux(mem_xcpt_ma_st,           UFix(9,5), // misaligned store
+		Mux(mem_xcpt_dtlb_ld,         UFix(10,5), // load fault
+		Mux(mem_xcpt_dtlb_st,         UFix(11,5), // store fault
 			UFix(0,5)))))))))));  // instruction address misaligned
 
   wb_reg_exception    <== mem_exception;
-  wb_reg_badvaddr_wen <== io.xcpt_dtlb_ld || io.xcpt_dtlb_st;
+  wb_reg_badvaddr_wen <== mem_xcpt_dtlb_ld || mem_xcpt_dtlb_st;
   wb_reg_cause        <== mem_cause;
 
 	// write cause to PCR on an exception
@@ -569,11 +568,9 @@ class rocketCtrl extends Component
   val ex_hazard    = dcache_miss && Reg(io.dpath.mem_lu_bypass) || mem_reg_privileged || mem_reg_flush_inst
   val mem_kill_ex  = kill_mem || take_pc_mem
   val kill_ex      = mem_kill_ex || ex_hazard || !(io.dmem.req_rdy && io.dtlb_rdy) && ex_reg_mem_val
-  val ex_kill_dtlb = mem_kill_ex || ex_hazard || !io.dmem.req_rdy
-  val ex_kill_dmem = mem_kill_ex || ex_hazard || !io.dtlb_rdy
 
   mem_reg_replay <== kill_ex && !mem_kill_ex
-  mem_reg_kill_dmem <== ex_kill_dmem
+  mem_reg_kill_dmem <== kill_ex
 
   io.dpath.sel_pc :=
     Mux(replay_mem,                     PC_MEM,  // dtlb miss
@@ -688,7 +685,8 @@ class rocketCtrl extends Component
   io.dpath.irq_disable := wb_reg_inst_di;
   io.dpath.irq_enable  := wb_reg_inst_ei;
 
-  io.dtlb_val         := ex_reg_mem_val && !ex_kill_dtlb;
+  io.dtlb_val         := ex_reg_mem_val;
+  io.dtlb_kill        := mem_reg_kill_dmem;
   io.dmem.req_val     := ex_reg_mem_val;
   io.dmem.req_kill    := mem_kill_dmem;
   io.dmem.req_cmd     := ex_reg_mem_cmd;

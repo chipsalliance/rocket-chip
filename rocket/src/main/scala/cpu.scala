@@ -72,6 +72,7 @@ class rocketProc extends Component
   dtlb.io.cpu.invalidate  := dpath.io.ptbr_wen;
   dtlb.io.cpu.status      := dpath.io.ctrl.status;
   dtlb.io.cpu.req_val     := ctrl.io.dtlb_val;
+  dtlb.io.cpu.req_kill    := ctrl.io.dtlb_kill;
   dtlb.io.cpu.req_cmd     := ctrl.io.dmem.req_cmd;
   dtlb.io.cpu.req_asid    := Bits(0,ASID_BITS); // FIXME: connect to PCR
   dtlb.io.cpu.req_vpn     := dpath.io.dmem.req_addr(VADDR_BITS-1,PGIDX_BITS);
