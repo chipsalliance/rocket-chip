@@ -541,7 +541,7 @@ class AMOALU extends Component {
 }
 
 class HellaCache(lines: Int) extends Component {
-  val io = new ioDCacheDM();
+  val io = new ioDCacheHella();
   
   val addrbits = PADDR_BITS;
   val indexbits = log2up(lines);
@@ -602,6 +602,22 @@ class HellaCache(lines: Int) extends Component {
     }
   }
 
+  // refill counter
+  val rr_count = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
+  val rr_count_next = rr_count + UFix(1)
+  when (io.mem.resp_val) { rr_count <== rr_count_next }
+
+  val misaligned =
+    (((r_cpu_req_type === MT_H) || (r_cpu_req_type === MT_HU)) && (r_cpu_req_idx(0) != Bits(0))) ||
+    (((r_cpu_req_type === MT_W) || (r_cpu_req_type === MT_WU)) && (r_cpu_req_idx(1,0) != Bits(0))) ||
+    ((r_cpu_req_type === MT_D) && (r_cpu_req_idx(2,0) != Bits(0)));
+    
+  io.cpu.xcpt_ma_ld := r_cpu_req_val_ && r_req_read && misaligned
+  io.cpu.xcpt_ma_st := r_cpu_req_val_ && r_req_write && misaligned
+
+}
+
+class HellaCacheDM(lines: Int) extends HellaCache(lines) {
   // tags
   val meta = new MetaDataArray(lines)
   val meta_arb = (new Arbiter(3)) { new MetaArrayReq() }
@@ -631,11 +647,6 @@ class HellaCache(lines: Int) extends Component {
   val tag_hit  = r_cpu_req_val &&  tag_match
   val tag_miss = r_cpu_req_val && !tag_match
   val dirty = meta.io.resp.valid && meta.io.resp.dirty
-
-  // refill counter
-  val rr_count = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
-  val rr_count_next = rr_count + UFix(1)
-  when (io.mem.resp_val) { rr_count <== rr_count_next }
 
   // refill response
   val block_during_refill = !io.mem.resp_val && (rr_count != UFix(0))
@@ -791,14 +802,6 @@ class HellaCache(lines: Int) extends Component {
   io.cpu.resp_data := loadgen.io.dout
   io.cpu.resp_data_subword := loadgen.io.r_dout_subword
                       
-  val misaligned =
-    (((r_cpu_req_type === MT_H) || (r_cpu_req_type === MT_HU)) && (r_cpu_req_idx(0) != Bits(0))) ||
-    (((r_cpu_req_type === MT_W) || (r_cpu_req_type === MT_WU)) && (r_cpu_req_idx(1,0) != Bits(0))) ||
-    ((r_cpu_req_type === MT_D) && (r_cpu_req_idx(2,0) != Bits(0)));
-    
-  io.cpu.xcpt_ma_ld := r_cpu_req_val_ && r_req_read && misaligned
-  io.cpu.xcpt_ma_st := r_cpu_req_val_ && r_req_write && misaligned
-
   wb.io.mem_req.ready := io.mem.req_rdy
   io.mem.req_val   := wb.io.mem_req.valid
   io.mem.req_rw    := wb.io.mem_req.bits.rw
