@@ -45,6 +45,11 @@ class ioDCacheDM extends Bundle() {
   val mem = new ioDcache().flip();
 }
 
+class ioDCacheHella extends Bundle() {
+  val cpu = new ioDmem();
+  val mem = new ioDcache().flip();
+}
+
 class rocketDCacheStoreGen extends Component {
   val io = new Bundle {
     val req_type      = Bits(3, INPUT);
