@@ -224,9 +224,21 @@ class ioRegfile extends Bundle()
 class rocketDpathRegfile extends Component
 {
   override val io = new ioRegfile();
-  val regfile = Mem(32, io.w0.en && (io.w0.addr != UFix(0,5)), io.w0.addr, io.w0.data);  
-  io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
-  io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
+
+  // FIXME: remove the first "if" case once Mem4 C backend bug is fixed
+  if (SRAM_READ_LATENCY == 0) {
+    val regfile = Mem(32, io.w0.en && (io.w0.addr != UFix(0,5)), io.w0.addr, io.w0.data);  
+    io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
+    io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
+  }
+  else {
+    val regfile = Mem4(32, io.w0.data);
+    regfile.setReadLatency(0);
+    regfile.setTarget('inst);
+    regfile.write(io.w0.addr, io.w0.data, io.w0.en);
+    io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
+    io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
+  }
 }
 
 }

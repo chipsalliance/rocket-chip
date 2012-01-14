@@ -589,8 +589,6 @@ class rocketCtrl extends Component
 
   io.dpath.wen_btb := !ex_btb_match && br_jr_taken && !kill_ex;
 
-  io.dpath.stallf := io.dpath.stalld;
-
   // stall for RAW/WAW hazards on loads, AMOs, and mul/div in execute stage.
   val ex_mem_cmd_load = 
     ex_reg_mem_val && ((ex_reg_mem_cmd === M_XRD) || ex_reg_mem_cmd(3).toBool);
@@ -649,12 +647,15 @@ class rocketCtrl extends Component
       io.dpath.mul_result_val ||
       mem_wb
     );
+  val ctrl_stallf = ctrl_stalld;
     
   val ctrl_killd = take_pc || ctrl_stalld;
   val ctrl_killf = take_pc || !io.imem.resp_val;
   
   io.flush_inst     := mem_reg_flush_inst;
 
+
+  io.dpath.stallf   := ctrl_stallf;
   io.dpath.stalld   := ctrl_stalld;
   io.dpath.killf    := ctrl_killf;
   io.dpath.killd    := ctrl_killd;
