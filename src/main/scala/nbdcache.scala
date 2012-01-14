@@ -344,7 +344,7 @@ class ReplayUnit extends Component {
 
   val sdq = Mem4(NSDQ, io.sdq_enq.bits)
   sdq.setReadLatency(SRAM_READ_LATENCY)
-//  sdq.setTarget('inst)
+  sdq.setTarget('inst)
   val sdq_dout = sdq.rw(sdq_addr, io.sdq_enq.bits, sdq_wen, cs = sdq_ren || sdq_wen)
 
   val sdq_free = replay_val && !replay_retry && rp_write
@@ -471,7 +471,7 @@ class MetaDataArray(lines: Int) extends Component {
 
   val tag_array = Mem4(lines, io.resp.tag)
   tag_array.setReadLatency(SRAM_READ_LATENCY)
-//  tag_array.setTarget('inst)
+  tag_array.setTarget('inst)
   val tag_rdata = tag_array.rw(io.req.bits.idx, io.req.bits.data.tag, io.req.valid && io.req.bits.rw, cs = io.req.valid)
 
   io.resp.valid := vd_rdata1(1).toBool
@@ -490,7 +490,7 @@ class DataArray(lines: Int) extends Component {
 
   val array = Mem4(lines*REFILL_CYCLES, io.resp)
   array.setReadLatency(SRAM_READ_LATENCY)
-//  array.setTarget('inst)
+  array.setTarget('inst)
   val addr = Cat(io.req.bits.idx, io.req.bits.offset)
   val rdata = array.rw(addr, io.req.bits.data, io.req.valid && io.req.bits.rw, wmask, cs = io.req.valid)
   io.resp := rdata
