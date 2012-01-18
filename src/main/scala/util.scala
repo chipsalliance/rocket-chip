@@ -13,7 +13,7 @@ object foldR
 
 object log2up
 {
-  def apply(in: Int) = ceil(log(in)/log(2)).toInt
+  def apply(in: Int) = if (in == 1) 1 else ceil(log(in)/log(2)).toInt
 }
 
 object FillInterleaved
@@ -35,6 +35,27 @@ object Reverse
     for (i <- 1 until in.getWidth)
       out = Cat(in(in.getWidth-i-1), out)
     out
+  }
+}
+
+object OHToUFix
+{
+  def apply(in: Bits): UFix = 
+  {
+    var out = UFix(0)
+    for(i <- 0 until in.getWidth)
+      if(in(i) == Bits(1))
+        out = UFix(i)
+    out
+  }
+}
+
+object UFixToOH
+{
+  def apply(in: UFix, width: Int): Bits =
+  {
+    val out = Bits(1, width)
+    out << in
   }
 }
 
