@@ -55,10 +55,10 @@ class rocketDTLB(entries: Int) extends Component
     r_cpu_req_vpn   <== io.cpu.req_vpn;
     r_cpu_req_cmd   <== io.cpu.req_cmd;
     r_cpu_req_asid  <== io.cpu.req_asid;
+    r_cpu_req_val   <== Bool(true);
   }
-  
-  when (io.cpu.req_rdy) {
-    r_cpu_req_val <== io.cpu.req_val; 
+  otherwise {
+    r_cpu_req_val   <== Bool(false);
   }
   
   val req_load  = (r_cpu_req_cmd === M_XRD);

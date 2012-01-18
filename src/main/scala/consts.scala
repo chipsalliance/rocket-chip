@@ -21,7 +21,7 @@ object Constants
   val PC_BR   = UFix(3, 4);
   val PC_JR   = UFix(4, 4);
   val PC_PCR  = UFix(5, 4);
-  val PC_MEM  = UFix(6, 4);
+  val PC_WB   = UFix(6, 4);
   val PC_EVEC = UFix(7, 4);
 
   val KF_Y  = UFix(1, 1);
