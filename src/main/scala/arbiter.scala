@@ -6,16 +6,16 @@ import Constants._;
 
 class ioMem() extends Bundle
 {
-  val req_val = Bool('output);
-  val req_rdy = Bool('input);
-  val req_rw  = Bool('output);
-  val req_addr = UFix(PADDR_BITS - OFFSET_BITS, 'output);
-  val req_wdata = Bits(MEM_DATA_BITS, 'output);
-  val req_tag = Bits(MEM_TAG_BITS, 'output);
+  val req_val = Bool(OUTPUT);
+  val req_rdy = Bool(INPUT);
+  val req_rw  = Bool(OUTPUT);
+  val req_addr = UFix(PADDR_BITS - OFFSET_BITS, OUTPUT);
+  val req_wdata = Bits(MEM_DATA_BITS, OUTPUT);
+  val req_tag = Bits(MEM_TAG_BITS, OUTPUT);
   
-  val resp_val = Bool('input);
-  val resp_tag = Bits(MEM_TAG_BITS, 'input);
-  val resp_data = Bits(MEM_DATA_BITS, 'input);
+  val resp_val = Bool(INPUT);
+  val resp_tag = Bits(MEM_TAG_BITS, INPUT);
+  val resp_data = Bits(MEM_DATA_BITS, INPUT);
 }
 
 class ioMemArbiter extends Bundle() {

@@ -8,23 +8,23 @@ import scala.math._;
 // interface between I$ and pipeline/ITLB (32 bits wide)
 class ioImem(view: List[String] = null) extends Bundle (view)
 {
-  val invalidate = Bool('input);
-  val itlb_miss  = Bool('input);
-  val req_val   = Bool('input);
-  val req_idx   = Bits(PGIDX_BITS, 'input);
-  val req_ppn   = Bits(PPN_BITS, 'input);
-  val resp_data = Bits(32, 'output);
-  val resp_val  = Bool('output);
+  val invalidate = Bool(INPUT);
+  val itlb_miss  = Bool(INPUT);
+  val req_val   = Bool(INPUT);
+  val req_idx   = Bits(PGIDX_BITS, INPUT);
+  val req_ppn   = Bits(PPN_BITS, INPUT);
+  val resp_data = Bits(32, OUTPUT);
+  val resp_val  = Bool(OUTPUT);
 }
 
 // interface between I$ and memory (128 bits wide)
 class ioIcache(view: List[String] = null) extends Bundle (view)
 {
-  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, 'input);
-  val req_val   = Bool('input);
-  val req_rdy   = Bool('output);
-  val resp_data = Bits(MEM_DATA_BITS, 'output);
-  val resp_val  = Bool('output);
+  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, INPUT);
+  val req_val   = Bool(INPUT);
+  val req_rdy   = Bool(OUTPUT);
+  val resp_data = Bits(MEM_DATA_BITS, OUTPUT);
+  val resp_val  = Bool(OUTPUT);
 }
 
 class ioICacheDM extends Bundle()

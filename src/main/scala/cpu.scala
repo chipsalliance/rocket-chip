@@ -6,21 +6,21 @@ import Constants._;
 
 class ioDebug(view: List[String] = null) extends Bundle(view)
 {
-  val error_mode  = Bool('output);
+  val error_mode  = Bool(OUTPUT);
 }
 
 class ioHost(view: List[String] = null) extends Bundle(view)
 {
-  val from_wen   = Bool('input);
-  val from       = Bits(64, 'input);
-  val to         = Bits(64, 'output);
+  val from_wen   = Bool(INPUT);
+  val from       = Bits(64, INPUT);
+  val to         = Bits(64, OUTPUT);
 }
 
 class ioConsole(view: List[String] = null) extends Bundle(view)
 {
-  val rdy   = Bool('input);
-  val valid = Bool('output);
-  val bits  = Bits(8, 'output);
+  val rdy   = Bool(INPUT);
+  val valid = Bool(OUTPUT);
+  val bits  = Bits(8, OUTPUT);
 }
 
 class ioRocket extends Bundle()

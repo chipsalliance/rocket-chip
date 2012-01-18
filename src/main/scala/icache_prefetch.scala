@@ -7,13 +7,13 @@ import scala.math._;
 
 class ioIPrefetcherMem(view: List[String] = null) extends Bundle (view)
 {
-  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, 'output);
-  val req_val   = Bool('output);
-  val req_rdy   = Bool('input);
-  val req_tag   = Bits(IMEM_TAG_BITS, 'output);
-  val resp_data = Bits(MEM_DATA_BITS, 'input);
-  val resp_val  = Bool('input);
-  val resp_tag  = Bits(IMEM_TAG_BITS, 'input);
+  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, OUTPUT);
+  val req_val   = Bool(OUTPUT);
+  val req_rdy   = Bool(INPUT);
+  val req_tag   = Bits(IMEM_TAG_BITS, OUTPUT);
+  val resp_data = Bits(MEM_DATA_BITS, INPUT);
+  val resp_val  = Bool(INPUT);
+  val resp_tag  = Bits(IMEM_TAG_BITS, INPUT);
 }
 
 class ioIPrefetcher extends Bundle() {

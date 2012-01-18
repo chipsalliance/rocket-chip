@@ -7,37 +7,37 @@ import scala.math._;
 
 // interface between D$ and processor/DTLB
 class ioDmem(view: List[String] = null) extends Bundle(view) {
-  val req_kill  = Bool('input);
-  val req_val   = Bool('input);
-  val req_rdy   = Bool('output);
-  val req_cmd   = Bits(4, 'input);
-  val req_type  = Bits(3, 'input);
-  val req_idx   = Bits(PGIDX_BITS, 'input);
-  val req_ppn   = Bits(PPN_BITS, 'input);
-  val req_data  = Bits(64, 'input);
-  val req_tag   = Bits(DCACHE_TAG_BITS, 'input);
-  val xcpt_ma_ld  = Bool('output); // misaligned load
-  val xcpt_ma_st = Bool('output); // misaligned store
-  val resp_miss = Bool('output);
-  val resp_nack = Bool('output);
-  val resp_val  = Bool('output);
-  val resp_replay = Bool('output);
-  val resp_data = Bits(64, 'output);
-  val resp_data_subword = Bits(64, 'output);
-  val resp_tag  = Bits(DCACHE_TAG_BITS, 'output);
+  val req_kill  = Bool(INPUT);
+  val req_val   = Bool(INPUT);
+  val req_rdy   = Bool(OUTPUT);
+  val req_cmd   = Bits(4, INPUT);
+  val req_type  = Bits(3, INPUT);
+  val req_idx   = Bits(PGIDX_BITS, INPUT);
+  val req_ppn   = Bits(PPN_BITS, INPUT);
+  val req_data  = Bits(64, INPUT);
+  val req_tag   = Bits(DCACHE_TAG_BITS, INPUT);
+  val xcpt_ma_ld  = Bool(OUTPUT); // misaligned load
+  val xcpt_ma_st = Bool(OUTPUT); // misaligned store
+  val resp_miss = Bool(OUTPUT);
+  val resp_nack = Bool(OUTPUT);
+  val resp_val  = Bool(OUTPUT);
+  val resp_replay = Bool(OUTPUT);
+  val resp_data = Bits(64, OUTPUT);
+  val resp_data_subword = Bits(64, OUTPUT);
+  val resp_tag  = Bits(DCACHE_TAG_BITS, OUTPUT);
 }
 
 // interface between D$ and next level in memory hierarchy
 class ioDcache(view: List[String] = null) extends Bundle(view) {
-  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, 'input);
-  val req_tag   = UFix(DMEM_TAG_BITS, 'input);
-  val req_val   = Bool('input);
-  val req_rdy   = Bool('output);
-  val req_wdata = Bits(MEM_DATA_BITS, 'input);
-  val req_rw    = Bool('input);
-  val resp_data = Bits(MEM_DATA_BITS, 'output);
-  val resp_tag  = Bits(DMEM_TAG_BITS, 'output);
-  val resp_val  = Bool('output);
+  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, INPUT);
+  val req_tag   = UFix(DMEM_TAG_BITS, INPUT);
+  val req_val   = Bool(INPUT);
+  val req_rdy   = Bool(OUTPUT);
+  val req_wdata = Bits(MEM_DATA_BITS, INPUT);
+  val req_rw    = Bool(INPUT);
+  val resp_data = Bits(MEM_DATA_BITS, OUTPUT);
+  val resp_tag  = Bits(DMEM_TAG_BITS, OUTPUT);
+  val resp_val  = Bool(OUTPUT);
 }
 
 class ioDCacheDM extends Bundle() {
@@ -47,11 +47,11 @@ class ioDCacheDM extends Bundle() {
 
 class rocketDCacheStoreGen extends Component {
   val io = new Bundle {
-    val req_type      = Bits(3, 'input);
-    val req_addr_lsb  = Bits(3, 'input);
-    val req_data      = Bits(64, 'input);
-    val store_wmask   = Bits(64, 'output);
-    val store_data    = Bits(64, 'output);
+    val req_type      = Bits(3, INPUT);
+    val req_addr_lsb  = Bits(3, INPUT);
+    val req_data      = Bits(64, INPUT);
+    val store_wmask   = Bits(64, OUTPUT);
+    val store_data    = Bits(64, OUTPUT);
   }
   
   // generate write mask and store data signals based on store type and address LSBs
@@ -481,11 +481,11 @@ class rocketDCacheDM(lines: Int) extends Component {
 
 class rocketDCacheAmoALU extends Component {
   val io = new Bundle {
-    val cmd  = Bits(4, 'input);
-    val wmask = Bits(8, 'input);
-    val lhs   = UFix(64, 'input);
-    val rhs   = UFix(64, 'input);
-    val result    = UFix(64, 'output);
+    val cmd  = Bits(4, INPUT);
+    val wmask = Bits(8, INPUT);
+    val lhs   = UFix(64, INPUT);
+    val rhs   = UFix(64, INPUT);
+    val result    = UFix(64, OUTPUT);
   }
   
 //   val signed_cmp = (op === M_XA_MIN) || (op === M_XA_MAX);

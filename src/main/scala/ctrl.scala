@@ -9,67 +9,67 @@ import Instructions._
 class ioCtrlDpath extends Bundle()
 {
   // outputs to datapath
-  val sel_pc   = UFix(4, 'output);
-  val wen_btb  = Bool('output);
-  val clr_btb  = Bool('output);
-  val stallf   = Bool('output);
-  val stalld   = Bool('output);
-  val killf    = Bool('output);
-  val killd    = Bool('output);
-  val killx    = Bool('output);
-  val killm    = Bool('output);
-  val ren2     = Bool('output);
-  val ren1     = Bool('output);
-  val sel_alu2 = UFix(2, 'output);
-  val sel_alu1 = Bool('output);
-  val fn_dw    = Bool('output);
-  val fn_alu   = UFix(4, 'output);
-  val mul_val  = Bool('output);
-  val mul_fn   = UFix(2, 'output);
-  val mul_wb   = Bool('output);
-  val div_val  = Bool('output);
-  val div_fn   = UFix(2, 'output);
-  val div_wb   = Bool('output);
-  val sel_wa   = Bool('output);
-  val sel_wb   = UFix(3, 'output);
-  val ren_pcr  = Bool('output);
-  val wen_pcr  = Bool('output);
-  val id_eret  = Bool('output);
-  val wb_eret  = Bool('output);
-  val mem_load = Bool('output);
-  val wen      = Bool('output);
+  val sel_pc   = UFix(4, OUTPUT);
+  val wen_btb  = Bool(OUTPUT);
+  val clr_btb  = Bool(OUTPUT);
+  val stallf   = Bool(OUTPUT);
+  val stalld   = Bool(OUTPUT);
+  val killf    = Bool(OUTPUT);
+  val killd    = Bool(OUTPUT);
+  val killx    = Bool(OUTPUT);
+  val killm    = Bool(OUTPUT);
+  val ren2     = Bool(OUTPUT);
+  val ren1     = Bool(OUTPUT);
+  val sel_alu2 = UFix(2, OUTPUT);
+  val sel_alu1 = Bool(OUTPUT);
+  val fn_dw    = Bool(OUTPUT);
+  val fn_alu   = UFix(4, OUTPUT);
+  val mul_val  = Bool(OUTPUT);
+  val mul_fn   = UFix(2, OUTPUT);
+  val mul_wb   = Bool(OUTPUT);
+  val div_val  = Bool(OUTPUT);
+  val div_fn   = UFix(2, OUTPUT);
+  val div_wb   = Bool(OUTPUT);
+  val sel_wa   = Bool(OUTPUT);
+  val sel_wb   = UFix(3, OUTPUT);
+  val ren_pcr  = Bool(OUTPUT);
+  val wen_pcr  = Bool(OUTPUT);
+  val id_eret  = Bool(OUTPUT);
+  val wb_eret  = Bool(OUTPUT);
+  val mem_load = Bool(OUTPUT);
+  val wen      = Bool(OUTPUT);
   // instruction in execute is an unconditional jump
-  val ex_jmp   = Bool('output); 
-  val ex_jr    = Bool('output);
+  val ex_jmp   = Bool(OUTPUT); 
+  val ex_jr    = Bool(OUTPUT);
   // enable/disable interrupts
-  val irq_enable   = Bool('output);
-  val irq_disable   = Bool('output);
+  val irq_enable   = Bool(OUTPUT);
+  val irq_disable   = Bool(OUTPUT);
   // exception handling
-  val exception = Bool('output);
-  val cause    = UFix(5,'output);
-  val badvaddr_wen = Bool('output); // high for a load/store access fault
+  val exception = Bool(OUTPUT);
+  val cause    = UFix(5,OUTPUT);
+  val badvaddr_wen = Bool(OUTPUT); // high for a load/store access fault
   // inputs from datapath
-  val xcpt_ma_inst = Bool('input);  // high on a misaligned/illegal virtual PC
-  val btb_hit = Bool('input);
-  val btb_match = Bool('input);
-  val inst    = Bits(32, 'input);
-  val br_eq   = Bool('input);
-  val br_lt   = Bool('input);
-  val br_ltu  = Bool('input);
-  val div_rdy = Bool('input);
-  val div_result_val = Bool('input);
-  val mul_rdy = Bool('input);
-  val mul_result_val = Bool('input);
-  val mem_lu_bypass = Bool('input);
-  val ex_waddr = UFix(5,'input);  // write addr from execute stage
-  val mem_waddr = UFix(5,'input); // write addr from memory stage
-  val wb_waddr = UFix(5,'input);  // write addr from writeback stage
-  val status  = Bits(17, 'input);
-  val sboard_clr  = Bool('input);
-  val sboard_clra = UFix(5, 'input);
-  val mem_valid = Bool('input); // high if there's a valid (not flushed) instruction in mem stage
-  val irq_timer = Bool('input);
-  val irq_ipi   = Bool('input);
+  val xcpt_ma_inst = Bool(INPUT);  // high on a misaligned/illegal virtual PC
+  val btb_hit = Bool(INPUT);
+  val btb_match = Bool(INPUT);
+  val inst    = Bits(32, INPUT);
+  val br_eq   = Bool(INPUT);
+  val br_lt   = Bool(INPUT);
+  val br_ltu  = Bool(INPUT);
+  val div_rdy = Bool(INPUT);
+  val div_result_val = Bool(INPUT);
+  val mul_rdy = Bool(INPUT);
+  val mul_result_val = Bool(INPUT);
+  val mem_lu_bypass = Bool(INPUT);
+  val ex_waddr = UFix(5,INPUT);  // write addr from execute stage
+  val mem_waddr = UFix(5,INPUT); // write addr from memory stage
+  val wb_waddr = UFix(5,INPUT);  // write addr from writeback stage
+  val status  = Bits(17, INPUT);
+  val sboard_clr  = Bool(INPUT);
+  val sboard_clra = UFix(5, INPUT);
+  val mem_valid = Bool(INPUT); // high if there's a valid (not flushed) instruction in mem stage
+  val irq_timer = Bool(INPUT);
+  val irq_ipi   = Bool(INPUT);
 }
 
 class ioCtrlAll extends Bundle()
@@ -78,16 +78,16 @@ class ioCtrlAll extends Bundle()
   val console = new ioConsole(List("rdy"));
   val imem    = new ioImem(List("req_val", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_kill", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_replay", "resp_nack")).flip();
-  val dtlb_val = Bool('output);
-  val dtlb_kill = Bool('output);
-  val dtlb_rdy = Bool('input);
-  val dtlb_miss = Bool('input);
-  val flush_inst = Bool('output);
-  val xcpt_dtlb_ld = Bool('input);
-  val xcpt_dtlb_st = Bool('input);
-  val xcpt_itlb = Bool('input);
-  val xcpt_ma_ld = Bool('input);
-  val xcpt_ma_st = Bool('input);
+  val dtlb_val = Bool(OUTPUT);
+  val dtlb_kill = Bool(OUTPUT);
+  val dtlb_rdy = Bool(INPUT);
+  val dtlb_miss = Bool(INPUT);
+  val flush_inst = Bool(OUTPUT);
+  val xcpt_dtlb_ld = Bool(INPUT);
+  val xcpt_dtlb_st = Bool(INPUT);
+  val xcpt_itlb = Bool(INPUT);
+  val xcpt_ma_ld = Bool(INPUT);
+  val xcpt_ma_st = Bool(INPUT);
 }
 
 class rocketCtrl extends Component

@@ -7,21 +7,21 @@ import Instructions._
 
 class ioDpathDmem extends Bundle()
 {
-  val req_addr  = UFix(VADDR_BITS, 'output);
-  val req_tag   = UFix(CPU_TAG_BITS, 'output);
-  val req_data  = Bits(64, 'output);
-  val resp_val  = Bool('input);
-  val resp_miss = Bool('input);
-  val resp_replay = Bool('input);
-  val resp_tag  = Bits(CPU_TAG_BITS, 'input);
-  val resp_data = Bits(64, 'input);
-  val resp_data_subword = Bits(64, 'input);
+  val req_addr  = UFix(VADDR_BITS, OUTPUT);
+  val req_tag   = UFix(CPU_TAG_BITS, OUTPUT);
+  val req_data  = Bits(64, OUTPUT);
+  val resp_val  = Bool(INPUT);
+  val resp_miss = Bool(INPUT);
+  val resp_replay = Bool(INPUT);
+  val resp_tag  = Bits(CPU_TAG_BITS, INPUT);
+  val resp_data = Bits(64, INPUT);
+  val resp_data_subword = Bits(64, INPUT);
 }
 
 class ioDpathImem extends Bundle()
 {
-  val req_addr  = UFix(VADDR_BITS, 'output);
-  val resp_data = Bits(32, 'input);
+  val req_addr  = UFix(VADDR_BITS, OUTPUT);
+  val resp_data = Bits(32, INPUT);
 }
 
 class ioDpathAll extends Bundle()
@@ -32,8 +32,8 @@ class ioDpathAll extends Bundle()
   val debug = new ioDebug();
   val dmem  = new ioDpathDmem();
   val imem  = new ioDpathImem();
-  val ptbr_wen = Bool('output);
-  val ptbr = UFix(PADDR_BITS, 'output);
+  val ptbr_wen = Bool(OUTPUT);
+  val ptbr = UFix(PADDR_BITS, OUTPUT);
 }
 
 class rocketDpath extends Component

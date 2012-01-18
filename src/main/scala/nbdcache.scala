@@ -5,11 +5,25 @@ import Node._;
 import Constants._;
 import scala.math._;
 
+class ReplacementWayGen (width: Int, ways: Int) extends Component {
+  val io = new Bundle {
+    val ways_en = Bits(width = width, dir = INPUT)
+    val way_id = UFix(width = log2up(ways), dir = OUTPUT)
+  }
+}
+
+class RandomReplacementWayGen (width: Int, ways: Int) extends ReplacementWayGen(width, ways) {
+  val lfsr = Reg(resetVal = UFix(1, width)) 
+  when (io.ways_en.orR) { lfsr <== Cat(lfsr(0)^lfsr(2)^lfsr(3)^lfsr(5), lfsr(width-1,1)) }
+  //TODO: Actually limit selection based on which ways are available (io.ways_en)
+  io.way_id := lfsr(log2up(ways)-1,0).toUFix
+}
+
 class StoreMaskGen extends Component {
   val io = new Bundle {
-    val typ   = Bits(3, 'input)
-    val addr  = Bits(3, 'input)
-    val wmask = Bits(8, 'output)
+    val typ   = Bits(3, INPUT)
+    val addr  = Bits(3, INPUT)
+    val wmask = Bits(8, OUTPUT)
   }
 
   val word = (io.typ === MT_W) || (io.typ === MT_WU)
@@ -24,9 +38,9 @@ class StoreMaskGen extends Component {
 
 class StoreDataGen extends Component {
   val io = new Bundle {
-    val typ  = Bits(3, 'input)
-    val din  = Bits(64, 'input)
-    val dout = Bits(64, 'output)
+    val typ  = Bits(3, INPUT)
+    val din  = Bits(64, INPUT)
+    val dout = Bits(64, OUTPUT)
   }
 
   val word = (io.typ === MT_W) || (io.typ === MT_WU)
@@ -42,12 +56,12 @@ class StoreDataGen extends Component {
 // this currently requires that CPU_DATA_BITS == 64
 class LoadDataGen extends Component {
   val io = new Bundle {
-    val typ  = Bits(3, 'input)
-    val addr = Bits(log2up(MEM_DATA_BITS/8), 'input)
-    val din  = Bits(MEM_DATA_BITS, 'input)
-    val dout = Bits(64, 'output)
-    val r_dout = Bits(64, 'output)
-    val r_dout_subword = Bits(64, 'output)
+    val typ  = Bits(3, INPUT)
+    val addr = Bits(log2up(MEM_DATA_BITS/8), INPUT)
+    val din  = Bits(MEM_DATA_BITS, INPUT)
+    val dout = Bits(64, OUTPUT)
+    val r_dout = Bits(64, OUTPUT)
+    val r_dout_subword = Bits(64, OUTPUT)
   }
 
   val sext = (io.typ === MT_B) || (io.typ === MT_H) ||
@@ -135,23 +149,23 @@ class MetaArrayReq extends Bundle {
 
 class MSHR(id: Int) extends Component {
   val io = new Bundle {
-    val req_pri_val    = Bool('input)
-    val req_pri_rdy    = Bool('output)
-    val req_sec_val    = Bool('input)
-    val req_sec_rdy    = Bool('output)
-    val req_ppn        = Bits(PPN_BITS, 'input)
-    val req_idx        = Bits(IDX_BITS, 'input)
-    val req_offset     = Bits(OFFSET_BITS, 'input)
-    val req_cmd        = Bits(4, 'input)
-    val req_type       = Bits(3, 'input)
-    val req_sdq_id     = UFix(log2up(NSDQ), 'input)
-    val req_tag        = Bits(DCACHE_TAG_BITS, 'input)
+    val req_pri_val    = Bool(INPUT)
+    val req_pri_rdy    = Bool(OUTPUT)
+    val req_sec_val    = Bool(INPUT)
+    val req_sec_rdy    = Bool(OUTPUT)
+    val req_ppn        = Bits(PPN_BITS, INPUT)
+    val req_idx        = Bits(IDX_BITS, INPUT)
+    val req_offset     = Bits(OFFSET_BITS, INPUT)
+    val req_cmd        = Bits(4, INPUT)
+    val req_type       = Bits(3, INPUT)
+    val req_sdq_id     = UFix(log2up(NSDQ), INPUT)
+    val req_tag        = Bits(DCACHE_TAG_BITS, INPUT)
 
-    val idx_match      = Bool('output)
-    val idx            = Bits(IDX_BITS, 'output)
-    val tag            = Bits(PPN_BITS, 'output)
+    val idx_match      = Bool(OUTPUT)
+    val idx            = Bits(IDX_BITS, OUTPUT)
+    val tag            = Bits(PPN_BITS, OUTPUT)
 
-    val mem_resp_val = Bool('input)
+    val mem_resp_val = Bool(INPUT)
     val mem_req  = (new ioDecoupled) { new MemReq()  }.flip
     val meta_req = (new ioDecoupled) { new MetaArrayReq() }.flip
     val replay   = (new ioDecoupled) { new Replay()   }.flip
@@ -228,21 +242,21 @@ class MSHR(id: Int) extends Component {
 
 class MSHRFile extends Component {
   val io = new Bundle {
-    val req_val    = Bool('input)
-    val req_rdy    = Bool('output)
-    val req_ppn    = Bits(PPN_BITS, 'input)
-    val req_idx    = Bits(IDX_BITS, 'input)
-    val req_offset = Bits(OFFSET_BITS, 'input)
-    val req_cmd    = Bits(4, 'input)
-    val req_type   = Bits(3, 'input)
-    val req_tag    = Bits(DCACHE_TAG_BITS, 'input)
-    val req_sdq_id = UFix(log2up(NSDQ), 'input)
+    val req_val    = Bool(INPUT)
+    val req_rdy    = Bool(OUTPUT)
+    val req_ppn    = Bits(PPN_BITS, INPUT)
+    val req_idx    = Bits(IDX_BITS, INPUT)
+    val req_offset = Bits(OFFSET_BITS, INPUT)
+    val req_cmd    = Bits(4, INPUT)
+    val req_type   = Bits(3, INPUT)
+    val req_tag    = Bits(DCACHE_TAG_BITS, INPUT)
+    val req_sdq_id = UFix(log2up(NSDQ), INPUT)
 
-    val mem_resp_val = Bool('input)
-    val mem_resp_tag = Bits(DMEM_TAG_BITS, 'input)
-    val mem_resp_idx = Bits(IDX_BITS, 'output)
+    val mem_resp_val = Bool(INPUT)
+    val mem_resp_tag = Bits(DMEM_TAG_BITS, INPUT)
+    val mem_resp_idx = Bits(IDX_BITS, OUTPUT)
 
-    val fence_rdy = Bool('output)
+    val fence_rdy = Bool(OUTPUT)
 
     val mem_req  = (new ioDecoupled) { new MemReq()  }.flip()
     val meta_req = (new ioDecoupled) { new MetaArrayReq() }.flip()
@@ -311,11 +325,11 @@ class MSHRFile extends Component {
 class ReplayUnit extends Component {
   val io = new Bundle {
     val sdq_enq    = (new ioDecoupled) { Bits(width = CPU_DATA_BITS) }
-    val sdq_id     = UFix(log2up(NSDQ), 'output)
+    val sdq_id     = UFix(log2up(NSDQ), OUTPUT)
     val replay     = (new ioDecoupled) { new Replay() }
     val data_req   = (new ioDecoupled) { new DataReq() }.flip()
-    val cpu_resp_val = Bool('output)
-    val cpu_resp_tag = Bits(DCACHE_TAG_BITS, 'output)
+    val cpu_resp_val = Bool(OUTPUT)
+    val cpu_resp_tag = Bits(DCACHE_TAG_BITS, OUTPUT)
   }
 
   val sdq_val = Reg(resetVal = UFix(0, NSDQ))
@@ -370,10 +384,10 @@ class WritebackUnit extends Component {
   val io = new Bundle {
     val req    = (new ioDecoupled) { new WritebackReq() }
     val data_req  = (new ioDecoupled) { new DataArrayReq() }.flip()
-    val data_resp = Bits(MEM_DATA_BITS, 'input)
+    val data_resp = Bits(MEM_DATA_BITS, INPUT)
     val refill_req = (new ioDecoupled) { new MemReq() }
     val mem_req   = (new ioDecoupled) { new MemReq() }.flip()
-    val mem_req_data = Bits(MEM_DATA_BITS, 'output)
+    val mem_req_data = Bits(MEM_DATA_BITS, OUTPUT)
   }
 
   val wbq = (new queueSimplePF(REFILL_CYCLES)) { Bits(width = MEM_DATA_BITS) }
@@ -483,7 +497,7 @@ class MetaDataArray(lines: Int) extends Component {
 class DataArray(lines: Int) extends Component {
   val io = new Bundle {
     val req  = (new ioDecoupled) { new DataArrayReq() }
-    val resp = Bits(width = MEM_DATA_BITS, dir = 'output)
+    val resp = Bits(width = MEM_DATA_BITS, dir = OUTPUT)
   }
 
   val wmask = FillInterleaved(8, io.req.bits.wmask)
@@ -499,11 +513,11 @@ class DataArray(lines: Int) extends Component {
 
 class AMOALU extends Component {
   val io = new Bundle {
-    val cmd = Bits(4, 'input)
-    val typ = Bits(3, 'input)
-    val lhs = UFix(64, 'input)
-    val rhs = UFix(64, 'input)
-    val out = UFix(64, 'output)
+    val cmd = Bits(4, INPUT)
+    val typ = Bits(3, INPUT)
+    val lhs = UFix(64, INPUT)
+    val rhs = UFix(64, INPUT)
+    val out = UFix(64, OUTPUT)
   }
   
   val sgned = (io.cmd === M_XA_MIN) || (io.cmd === M_XA_MAX)

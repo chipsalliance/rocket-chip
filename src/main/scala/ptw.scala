@@ -53,7 +53,7 @@ class ioPTW extends Bundle
   val itlb = new ioTLB_PTW().flip();
   val dtlb = new ioTLB_PTW().flip();
   val dmem = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_ppn", "req_idx", "resp_data", "resp_val", "resp_nack")).flip();
-  val ptbr = UFix(PADDR_BITS, 'input);
+  val ptbr = UFix(PADDR_BITS, INPUT);
 }
 
 class rocketPTW extends Component
