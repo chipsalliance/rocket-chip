@@ -111,6 +111,7 @@ class rocketDpath extends Component
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
   
   // writeback definitions
+  val wb_reg_valid          = Reg(resetVal = Bool(false));
   val wb_reg_pc             = Reg() { UFix() };
   val wb_reg_waddr          = Reg() { UFix() };
   val wb_reg_wdata          = Reg() { Bits() };
@@ -145,9 +146,9 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_EX4,  ex_reg_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,   ex_jr_target.toUFix,
-    Mux(io.ctrl.sel_pc === PC_PCR,  mem_reg_wdata(VADDR_BITS-1,0), // only used for ERET
+    Mux(io.ctrl.sel_pc === PC_PCR,  wb_reg_wdata(VADDR_BITS-1,0), // only used for ERET
     Mux(io.ctrl.sel_pc === PC_EVEC, pcr.io.evec,
-    Mux(io.ctrl.sel_pc === PC_MEM,  mem_reg_pc,
+    Mux(io.ctrl.sel_pc === PC_WB,   wb_reg_pc,
         if_pc_plus4))))))); // PC_4
         
   when (!io.ctrl.stallf) {
@@ -164,6 +165,7 @@ class rocketDpath extends Component
   btb.io.current_pc4    := if_pc_plus4;
   btb.io.hit            ^^ io.ctrl.btb_hit;
   btb.io.wen            ^^ io.ctrl.wen_btb;
+  btb.io.clr            ^^ io.ctrl.clr_btb;
   btb.io.correct_pc4    := ex_reg_pc_plus4;
   io.ctrl.btb_match     := id_reg_pc === jr_br_target;
 
@@ -345,7 +347,7 @@ class rocketDpath extends Component
   tsc_reg <== tsc_reg + UFix(1);
   // instructions retired counter
   val irt_reg = Reg(resetVal = UFix(0,64));
-  when (mem_reg_valid) { irt_reg <== irt_reg + UFix(1); }
+  when (wb_reg_valid) { irt_reg <== irt_reg + UFix(1); }
   
 	// writeback select mux
   ex_wdata :=
@@ -394,10 +396,12 @@ class rocketDpath extends Component
   wb_reg_raddr2         <== mem_reg_raddr2;
 
   when (io.ctrl.killm) {
+    wb_reg_valid          <== Bool(false);
     wb_reg_ctrl_wen       <== Bool(false);
     wb_reg_ctrl_wen_pcr 	<== Bool(false);
   }
   otherwise {
+    wb_reg_valid          <== mem_reg_valid;
     wb_reg_ctrl_wen     	<== mem_reg_ctrl_wen && !io.dmem.resp_miss;
     wb_reg_ctrl_wen_pcr 	<== mem_reg_ctrl_wen_pcr;
   }

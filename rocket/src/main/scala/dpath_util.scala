@@ -12,6 +12,7 @@ class ioDpathBTB extends Bundle()
   val hit            = Bool('output);
   val target         = UFix(VADDR_BITS, 'output);
   val wen            = Bool('input);
+  val clr            = Bool('input);
   val correct_pc4    = UFix(VADDR_BITS, 'input);
   val correct_target = UFix(VADDR_BITS, 'input);
 }
@@ -27,13 +28,13 @@ class rocketDpathBTB(entries: Int) extends Component
   val tagmsb = (VADDR_BITS-idxmsb-1)+(VADDR_BITS-idxlsb)-1;
   val taglsb = (VADDR_BITS-idxlsb);
   
-  val rst_lwlr_pf  = Mem(entries, io.wen, io.correct_pc4(idxmsb,idxlsb), UFix(1,1), resetVal = UFix(0,1)); 
-  val lwlr_pf      = Mem(entries, io.wen, io.correct_pc4(idxmsb,idxlsb), 
-                         Cat(io.correct_pc4(VADDR_BITS-1,idxmsb+1), io.correct_target(VADDR_BITS-1,idxlsb)), resetVal = UFix(0,1));
-  val is_val       = rst_lwlr_pf(io.current_pc4(idxmsb,idxlsb));
-  val tag_target   = lwlr_pf(io.current_pc4(idxmsb, idxlsb));
+  val vb_array = Mem(entries, io.wen || io.clr, io.correct_pc4(idxmsb,idxlsb), !io.clr, resetVal = Bool(false)); 
+  val tag_target_array = Mem(entries, io.wen, io.correct_pc4(idxmsb,idxlsb), 
+                             Cat(io.correct_pc4(VADDR_BITS-1,idxmsb+1), io.correct_target(VADDR_BITS-1,idxlsb)))
+  val is_val       = vb_array(io.current_pc4(idxmsb,idxlsb));
+  val tag_target   = tag_target_array(io.current_pc4(idxmsb, idxlsb));
   
-  io.hit    := (is_val & (tag_target(tagmsb,taglsb) === io.current_pc4(VADDR_BITS-1, idxmsb+1))).toBool;
+  io.hit    := is_val && (tag_target(tagmsb,taglsb) === io.current_pc4(VADDR_BITS-1, idxmsb+1));
   io.target := Cat(tag_target(taglsb-1, 0), Bits(0,idxlsb)).toUFix;
 }
 
