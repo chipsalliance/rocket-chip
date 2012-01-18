@@ -35,9 +35,9 @@ object Reverse
 class Mux1H(n: Int, w: Int) extends Component
 {
   val io = new Bundle {
-    val sel = Vec(n) { Bool(dir = 'input) }
-    val in  = Vec(n) { Bits(width = w, dir = 'input) }
-    val out = Bits(width = w, dir = 'output)
+    val sel = Vec(n) { Bool(dir = INPUT) }
+    val in  = Vec(n) { Bits(width = w, dir = INPUT) }
+    val out = Bits(width = w, dir = OUTPUT)
   }
 
   if (n > 1) {
@@ -52,8 +52,8 @@ class Mux1H(n: Int, w: Int) extends Component
 
 class ioDecoupled[T <: Data]()(data: => T) extends Bundle
 {
-  val valid = Bool('input)
-  val ready = Bool('output)
+  val valid = Bool(INPUT)
+  val ready = Bool(OUTPUT)
   val bits  = data.asInput
 }
 
@@ -84,8 +84,8 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
 
 class ioPriorityDecoder(in_width: Int, out_width: Int) extends Bundle
 {
-  val in  = UFix(in_width, 'input);
-  val out = Bits(out_width, 'output);
+  val in  = UFix(in_width, INPUT);
+  val out = Bits(out_width, OUTPUT);
 }
 
 class priorityDecoder(width: Int) extends Component
@@ -106,8 +106,8 @@ class priorityDecoder(width: Int) extends Component
 
 class ioPriorityEncoder(in_width: Int, out_width: Int) extends Bundle
 {
-  val in  = Bits(in_width, 'input);
-  val out = UFix(out_width, 'output);
+  val in  = Bits(in_width, INPUT);
+  val out = UFix(out_width, OUTPUT);
 }
 
 class priorityEncoder(width: Int) extends Component

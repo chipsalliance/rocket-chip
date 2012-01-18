@@ -6,16 +6,16 @@ import Constants._;
 
 class ioCtrlSboard extends Bundle()
 {
-  val clr    = Bool('input);
-  val clra   = UFix(5, 'input);
-  val set     = Bool('input);
-  val seta    = UFix(5, 'input);
-  val raddra  = UFix(5, 'input);
-  val raddrb  = UFix(5, 'input);
-  val raddrc  = UFix(5, 'input);
-  val stalla  = Bool('output);
-  val stallb  = Bool('output);
-  val stallc  = Bool('output);
+  val clr    = Bool(INPUT);
+  val clra   = UFix(5, INPUT);
+  val set     = Bool(INPUT);
+  val seta    = UFix(5, INPUT);
+  val raddra  = UFix(5, INPUT);
+  val raddrb  = UFix(5, INPUT);
+  val raddrc  = UFix(5, INPUT);
+  val stalla  = Bool(OUTPUT);
+  val stallb  = Bool(OUTPUT);
+  val stallc  = Bool(OUTPUT);
 }
 
 class rocketCtrlSboard extends Component
@@ -34,10 +34,10 @@ class rocketCtrlSboard extends Component
 
 class ioCtrlCnt extends Bundle()
 {
-  val enq   = Bool('input);
-  val deq   = Bool('input);
-  val empty = Bool('output);
-  val full  = Bool('output);
+  val enq   = Bool(INPUT);
+  val deq   = Bool(INPUT);
+  val empty = Bool(OUTPUT);
+  val full  = Bool(OUTPUT);
 }
 
 class rocketCtrlCnt(n_bits: Int, limit: Int) extends Component

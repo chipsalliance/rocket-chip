@@ -7,14 +7,14 @@ import scala.math._;
 
 class ioQueueCtrl(addr_sz: Int) extends Bundle()
 {
-  val q_reset = Bool('input);
-  val enq_val = Bool('input);
-  val enq_rdy = Bool('output);
-  val deq_val = Bool('output);
-  val deq_rdy = Bool('input);
-  val wen     = Bool('output);
-  val waddr   = UFix(addr_sz, 'output);
-  val raddr   = UFix(addr_sz, 'output);
+  val q_reset = Bool(INPUT);
+  val enq_val = Bool(INPUT);
+  val enq_rdy = Bool(OUTPUT);
+  val deq_val = Bool(OUTPUT);
+  val deq_rdy = Bool(INPUT);
+  val wen     = Bool(OUTPUT);
+  val waddr   = UFix(addr_sz, OUTPUT);
+  val raddr   = UFix(addr_sz, OUTPUT);
 }
 
 class queueCtrl(entries: Int) extends Component
@@ -83,7 +83,7 @@ class queueCtrl(entries: Int) extends Component
 
 class ioQueueSimplePF[T <: Data]()(data: => T) extends Bundle
 {
-  val q_reset = Bool('input);
+  val q_reset = Bool(INPUT);
   val enq     = new ioDecoupled()(data)
   val deq     = new ioDecoupled()(data).flip
 }
@@ -105,14 +105,14 @@ class queueSimplePF[T <: Data](entries: Int)(data: => T) extends Component
 // class IOqueueCtrlFlow extends IOqueueCtrl 
 class ioQueueCtrlFlow(addr_sz: Int) extends Bundle() /* IOqueueCtrl */
 {
-  val enq_val  = Bool('input);
-  val enq_rdy  = Bool('output);
-  val deq_val  = Bool('output);
-  val deq_rdy  = Bool('input);
-  val wen      = Bool('output);
-  val waddr    = UFix(addr_sz, 'output);
-  val raddr    = UFix(addr_sz, 'output);
-  val flowthru = Bool('output);
+  val enq_val  = Bool(INPUT);
+  val enq_rdy  = Bool(OUTPUT);
+  val deq_val  = Bool(OUTPUT);
+  val deq_rdy  = Bool(INPUT);
+  val wen      = Bool(OUTPUT);
+  val waddr    = UFix(addr_sz, OUTPUT);
+  val raddr    = UFix(addr_sz, OUTPUT);
+  val flowthru = Bool(OUTPUT);
 }
 
 class queueCtrlFlow(entries: Int) extends Component
@@ -176,12 +176,12 @@ class queueCtrlFlow(entries: Int) extends Component
 
 class ioQueueDpathFlow[T <: Data](addr_sz: Int)(data: => T) extends Bundle()
 {
-  val wen         = Bool('input);
-  val flowthru    = Bool('input);
+  val wen         = Bool(INPUT);
+  val flowthru    = Bool(INPUT);
   val deq_bits    = data.asOutput;
   val enq_bits    = data.asInput;
-  val waddr       = UFix(addr_sz, 'input);
-  val raddr       = UFix(addr_sz, 'input);
+  val waddr       = UFix(addr_sz, INPUT);
+  val raddr       = UFix(addr_sz, INPUT);
 }
 
 class queueDpathFlow[T <: Data](entries: Int)(data: => T) extends Component
@@ -195,11 +195,11 @@ class queueDpathFlow[T <: Data](entries: Int)(data: => T) extends Component
 
 class ioQueueFlowPF[T <: Data](data: => T) extends Bundle()
 {
-  val enq_val     = Bool('input);
-  val enq_rdy     = Bool('output);
+  val enq_val     = Bool(INPUT);
+  val enq_rdy     = Bool(OUTPUT);
   val enq_bits    = data.asInput;
-  val deq_val     = Bool('output);
-  val deq_rdy     = Bool('input);
+  val deq_val     = Bool(OUTPUT);
+  val deq_rdy     = Bool(INPUT);
   val deq_bits    = data.asOutput;
 }
 

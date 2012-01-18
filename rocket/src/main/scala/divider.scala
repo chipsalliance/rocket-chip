@@ -6,33 +6,33 @@ import Constants._;
 
 class ioDivider(width: Int) extends Bundle {
   // requests
-  val div_val   = Bool('input);
-  val div_kill  = Bool('input);
-  val div_rdy   = Bool('output);
-  val dw        = UFix(1, 'input);
-  val div_fn    = UFix(2, 'input);
-  val div_waddr = UFix(5, 'input);
-  val dpath_rs1 = Bits(width, 'input);
-  val dpath_rs2 = Bits(width, 'input);
+  val div_val   = Bool(INPUT);
+  val div_kill  = Bool(INPUT);
+  val div_rdy   = Bool(OUTPUT);
+  val dw        = UFix(1, INPUT);
+  val div_fn    = UFix(2, INPUT);
+  val div_waddr = UFix(5, INPUT);
+  val dpath_rs1 = Bits(width, INPUT);
+  val dpath_rs2 = Bits(width, INPUT);
   // responses
-  val div_result_bits = Bits(width, 'output);
-  val div_result_tag  = UFix(5, 'output);
-  val div_result_val  = Bool('output);
-  val div_result_rdy  = Bool('input);
+  val div_result_bits = Bits(width, OUTPUT);
+  val div_result_tag  = UFix(5, OUTPUT);
+  val div_result_val  = Bool(OUTPUT);
+  val div_result_rdy  = Bool(INPUT);
 }
 
 // class ioDivider extends Bundle {
 //   // requests
-//   val req_val   = Bool('input);
-//   val req_rdy   = Bool('output);
-//   val req_fn    = UFix(3, 'input);
-//   val req_tag = UFix(5, 'input);
-//   val req_rs1   = Bits(64, 'input);
-//   val req_rs2   = Bits(64, 'input);
+//   val req_val   = Bool(INPUT);
+//   val req_rdy   = Bool(OUTPUT);
+//   val req_fn    = UFix(3, INPUT);
+//   val req_tag = UFix(5, INPUT);
+//   val req_rs1   = Bits(64, INPUT);
+//   val req_rs2   = Bits(64, INPUT);
 //   // responses
-//   val resp_val  = Bool('output);
-//   val resp_data = Bits(64, 'output);
-//   val resp_tag  = UFix(5, 'output);
+//   val resp_val  = Bool(OUTPUT);
+//   val resp_data = Bits(64, OUTPUT);
+//   val resp_tag  = UFix(5, OUTPUT);
 // }
 
 class rocketDivider(width : Int) extends Component {

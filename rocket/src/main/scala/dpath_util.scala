@@ -8,13 +8,13 @@ import scala.math._;
 
 class ioDpathBTB extends Bundle()
 {
-  val current_pc4    = UFix(VADDR_BITS, 'input);
-  val hit            = Bool('output);
-  val target         = UFix(VADDR_BITS, 'output);
-  val wen            = Bool('input);
-  val clr            = Bool('input);
-  val correct_pc4    = UFix(VADDR_BITS, 'input);
-  val correct_target = UFix(VADDR_BITS, 'input);
+  val current_pc4    = UFix(VADDR_BITS, INPUT);
+  val hit            = Bool(OUTPUT);
+  val target         = UFix(VADDR_BITS, OUTPUT);
+  val wen            = Bool(INPUT);
+  val clr            = Bool(INPUT);
+  val correct_pc4    = UFix(VADDR_BITS, INPUT);
+  val correct_target = UFix(VADDR_BITS, INPUT);
 }
 
 // basic direct-mapped branch target buffer
@@ -45,21 +45,21 @@ class ioDpathPCR extends Bundle()
   val r     = new ioReadPort();
   val w     = new ioWritePort();
   
-  val status 		= Bits(17, 'output);
-  val ptbr      = UFix(PADDR_BITS, 'output);
-  val evec      = UFix(VADDR_BITS, 'output);
-  val exception = Bool('input);
-  val cause 		= UFix(5, 'input);
-  val badvaddr_wen = Bool('input);
-  val pc    		= UFix(VADDR_BITS, 'input);
-  val eret  		= Bool('input);
-  val ei        = Bool('input);
-  val di        = Bool('input);
-  val ptbr_wen  = Bool('output);
-  val irq_timer = Bool('output);
-  val irq_ipi   = Bool('output);
-  val console_data = Bits(8, 'output);
-  val console_val  = Bool('output);
+  val status 		= Bits(17, OUTPUT);
+  val ptbr      = UFix(PADDR_BITS, OUTPUT);
+  val evec      = UFix(VADDR_BITS, OUTPUT);
+  val exception = Bool(INPUT);
+  val cause 		= UFix(5, INPUT);
+  val badvaddr_wen = Bool(INPUT);
+  val pc    		= UFix(VADDR_BITS, INPUT);
+  val eret  		= Bool(INPUT);
+  val ei        = Bool(INPUT);
+  val di        = Bool(INPUT);
+  val ptbr_wen  = Bool(OUTPUT);
+  val irq_timer = Bool(OUTPUT);
+  val irq_ipi   = Bool(OUTPUT);
+  val console_data = Bits(8, OUTPUT);
+  val console_val  = Bool(OUTPUT);
 }
 
 class rocketDpathPCR extends Component
@@ -203,16 +203,16 @@ class rocketDpathPCR extends Component
 
 class ioReadPort extends Bundle()
 {
-  val addr = UFix(5, 'input);
-  val en   = Bool('input);
-  val data = Bits(64, 'output);
+  val addr = UFix(5, INPUT);
+  val en   = Bool(INPUT);
+  val data = Bits(64, OUTPUT);
 }
 
 class ioWritePort extends Bundle()
 {
-  val addr = UFix(5, 'input);
-  val en   = Bool('input);
-  val data = Bits(64, 'input);
+  val addr = UFix(5, INPUT);
+  val en   = Bool(INPUT);
+  val data = Bits(64, INPUT);
 }
 
 class ioRegfile extends Bundle()

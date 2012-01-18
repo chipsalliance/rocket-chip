@@ -6,20 +6,20 @@ import Constants._;
 
 class ioMultiplier(width: Int) extends Bundle {
   // requests
-  val mul_val = Bool('input);
-  val mul_kill= Bool('input);
-  val mul_rdy = Bool('output);
-  val dw      = UFix(1, 'input);
-  val mul_fn  = UFix(2, 'input);
-  val mul_tag = UFix(CPU_TAG_BITS, 'input);
-  val in0     = Bits(width, 'input);
-  val in1     = Bits(width, 'input);
+  val mul_val = Bool(INPUT);
+  val mul_kill= Bool(INPUT);
+  val mul_rdy = Bool(OUTPUT);
+  val dw      = UFix(1, INPUT);
+  val mul_fn  = UFix(2, INPUT);
+  val mul_tag = UFix(CPU_TAG_BITS, INPUT);
+  val in0     = Bits(width, INPUT);
+  val in1     = Bits(width, INPUT);
   
   // responses
-  val result     = Bits(width, 'output);
-  val result_tag = UFix(CPU_TAG_BITS, 'output);
-  val result_val = Bool('output);
-  val result_rdy = Bool('input);
+  val result     = Bits(width, OUTPUT);
+  val result_tag = UFix(CPU_TAG_BITS, OUTPUT);
+  val result_val = Bool(OUTPUT);
+  val result_rdy = Bool(INPUT);
 }
 
 class rocketMultiplier extends Component {

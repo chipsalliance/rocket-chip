@@ -7,15 +7,15 @@ import Constants._;
 import scala.math._;
 
 class ioCAM(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
-    val clear        = Bool('input);
-    val tag          = Bits(tag_bits, 'input);
-    val hit          = Bool('output);
-    val hit_addr     = UFix(addr_bits, 'output);
-    val valid_bits   = Bits(entries, 'output);
+    val clear        = Bool(INPUT);
+    val tag          = Bits(tag_bits, INPUT);
+    val hit          = Bool(OUTPUT);
+    val hit_addr     = UFix(addr_bits, OUTPUT);
+    val valid_bits   = Bits(entries, OUTPUT);
     
-    val write        = Bool('input);
-    val write_tag    = Bits(tag_bits, 'input);
-    val write_addr    = UFix(addr_bits, 'input);
+    val write        = Bool(INPUT);
+    val write_tag    = Bits(tag_bits, INPUT);
+    val write_addr    = UFix(addr_bits, INPUT);
 }
 
 class rocketCAM(entries: Int, tag_bits: Int) extends Component {
@@ -53,33 +53,33 @@ class rocketCAM(entries: Int, tag_bits: Int) extends Component {
 class ioTLB_PTW extends Bundle
 {
   // requests
-  val req_val = Bool('output);
-  val req_rdy = Bool('input);
-  val req_vpn = Bits(VPN_BITS, 'output);
+  val req_val = Bool(OUTPUT);
+  val req_rdy = Bool(INPUT);
+  val req_vpn = Bits(VPN_BITS, OUTPUT);
   // responses
-  val resp_val = Bool('input);
-  val resp_err = Bool('input);
-  val resp_ppn = Bits(PPN_BITS, 'input);
-  val resp_perm = Bits(PERM_BITS, 'input);
+  val resp_val = Bool(INPUT);
+  val resp_err = Bool(INPUT);
+  val resp_ppn = Bits(PPN_BITS, INPUT);
+  val resp_perm = Bits(PERM_BITS, INPUT);
 }
 
 // interface between ITLB and fetch stage of pipeline
 class ioITLB_CPU(view: List[String] = null) extends Bundle(view)
 {
   // status bits (from PCR), to check current permission and whether VM is enabled
-  val status = Bits(17, 'input);
+  val status = Bits(17, INPUT);
   // invalidate all TLB entries
-  val invalidate = Bool('input);
+  val invalidate = Bool(INPUT);
   // lookup requests
-  val req_val  = Bool('input);
-  val req_rdy  = Bool('output);
-  val req_asid = Bits(ASID_BITS, 'input);
-  val req_vpn  = UFix(VPN_BITS, 'input);
+  val req_val  = Bool(INPUT);
+  val req_rdy  = Bool(OUTPUT);
+  val req_asid = Bits(ASID_BITS, INPUT);
+  val req_vpn  = UFix(VPN_BITS, INPUT);
   // lookup responses
-  val resp_miss = Bool('output);
-//   val resp_val = Bool('output);
-  val resp_ppn = UFix(PPN_BITS, 'output);
-  val exception = Bool('output);
+  val resp_miss = Bool(OUTPUT);
+//   val resp_val = Bool(OUTPUT);
+  val resp_ppn = UFix(PPN_BITS, OUTPUT);
+  val exception = Bool(OUTPUT);
 }
 
 class ioITLB extends Bundle

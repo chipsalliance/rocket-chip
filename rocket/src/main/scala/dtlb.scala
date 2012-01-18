@@ -10,22 +10,22 @@ import scala.math._;
 class ioDTLB_CPU(view: List[String] = null) extends Bundle(view)
 {
   // status bits (from PCR), to check current permission and whether VM is enabled
-  val status = Bits(17, 'input);
+  val status = Bits(17, INPUT);
   // invalidate all TLB entries
-  val invalidate = Bool('input);
+  val invalidate = Bool(INPUT);
   // lookup requests
-  val req_val  = Bool('input);
-  val req_kill  = Bool('input);
-  val req_cmd  = Bits(4, 'input); // load/store/amo
-  val req_rdy  = Bool('output);
-  val req_asid = Bits(ASID_BITS, 'input);
-  val req_vpn  = UFix(VPN_BITS, 'input);
+  val req_val  = Bool(INPUT);
+  val req_kill  = Bool(INPUT);
+  val req_cmd  = Bits(4, INPUT); // load/store/amo
+  val req_rdy  = Bool(OUTPUT);
+  val req_asid = Bits(ASID_BITS, INPUT);
+  val req_vpn  = UFix(VPN_BITS, INPUT);
   // lookup responses
-  val resp_miss = Bool('output);
-//   val resp_val = Bool('output);
-  val resp_ppn = UFix(PPN_BITS, 'output);
-  val xcpt_ld = Bool('output);
-  val xcpt_st = Bool('output);
+  val resp_miss = Bool(OUTPUT);
+//   val resp_val = Bool(OUTPUT);
+  val resp_ppn = UFix(PPN_BITS, OUTPUT);
+  val xcpt_ld = Bool(OUTPUT);
+  val xcpt_st = Bool(OUTPUT);
 }
 
 class ioDTLB extends Bundle
