@@ -188,6 +188,7 @@ object Constants
   val NSDQ = 17; // number of secondary stores/AMOs
   val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
   val IDX_BITS = PGIDX_BITS - OFFSET_BITS;
+  val NWAYS = 1;
 
   // external memory interface
   val IMEM_TAG_BITS = 1;
