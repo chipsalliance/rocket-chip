@@ -42,11 +42,8 @@ object OHToUFix
 {
   def apply(in: Bits): UFix = 
   {
-    var out = UFix(0)
-    for(i <- 0 until in.getWidth)
-      if(in(i) == Bits(1))
-        out = UFix(i)
-    out
+    val out = MuxCase( UFix(0), (0 until in.getWidth).map( i => (in(i).toBool, UFix(i))))
+    out.toUFix
   }
 }
 
