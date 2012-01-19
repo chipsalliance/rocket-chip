@@ -725,10 +725,9 @@ class HellaCacheDM(lines: Int) extends Component {
   val wb = new WritebackUnit
   val wb_arb = (new Arbiter(2)) { new WritebackReq() }
   wb_arb.io.out <> wb.io.req
-  wb.io.data_req.bits.inner_req <> data_arb.io.in(3).bits
-  wb.io.data_req.ready <> data_arb.io.in(3).ready
-  wb.io.data_req.valid <> data_arb.io.in(3).valid
-
+  wb.io.data_req.bits.inner_req <> data_arb.io.in(3).bits //TODO
+  wb.io.data_req.ready := data_arb.io.in(3).ready
+  data_arb.io.in(3).valid := wb.io.data_req.valid
   wb.io.data_resp <> data.io.resp
 
   // cpu tag check
@@ -821,7 +820,9 @@ class HellaCacheDM(lines: Int) extends Component {
   mshr.io.mem_resp_val := io.mem.resp_val && (~rr_count === UFix(0))
   mshr.io.mem_resp_tag := io.mem.resp_tag
   mshr.io.mem_req <> wb.io.refill_req
-  mshr.io.meta_req <> meta_arb.io.in(1)
+  mshr.io.meta_req.bits.inner_req <> meta_arb.io.in(1).bits //TODO
+  mshr.io.meta_req.ready := meta_arb.io.in(1).ready
+  meta_arb.io.in(1).valid := mshr.io.meta_req.valid
   mshr.io.replay <> replayer.io.replay
   replayer.io.sdq_enq.valid := tag_miss && r_req_write && (!dirty || wb_rdy) && mshr.io.req_rdy
   replayer.io.sdq_enq.bits := storegen.io.dout
@@ -875,7 +876,9 @@ class HellaCacheDM(lines: Int) extends Component {
   flushed <== flushed && !r_cpu_req_val || r_cpu_req_val && r_req_flush && flush_rdy && flusher.io.req.ready
   flusher.io.req.valid := r_cpu_req_val && r_req_flush && flush_rdy && !flushed
   flusher.io.wb_req <> wb_arb.io.in(0)
-  flusher.io.meta_req <> meta_arb.io.in(0)
+  flusher.io.meta_req.bits.inner_req <> meta_arb.io.in(0).bits //TODO
+  flusher.io.meta_req.ready :=  meta_arb.io.in(0).ready
+  meta_arb.io.in(0).valid := flusher.io.meta_req.valid
   flusher.io.meta_resp <> meta.io.resp
   flusher.io.resp.ready := Bool(true) // we don't respond to flush requests
 
