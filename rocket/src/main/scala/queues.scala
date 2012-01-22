@@ -27,12 +27,6 @@ class queueCtrl(entries: Int) extends Component
   val enq_ptr = Reg(width = addr_sz, resetVal = UFix(0, addr_sz));
   val deq_ptr = Reg(width = addr_sz, resetVal = UFix(0, addr_sz));
   val full    = Reg(width = 1, resetVal = Bool(false));
-  
-  when (io.q_reset) {
-    enq_ptr <== UFix(0, addr_sz);
-    deq_ptr <== UFix(0, addr_sz);
-    full <== Bool(false);
-  }
 
   io.waddr := enq_ptr;
   io.raddr := deq_ptr;
@@ -76,9 +70,16 @@ class queueCtrl(entries: Int) extends Component
     Mux(do_deq && full,                                   Bool(false),
         full));
 
-  enq_ptr <== enq_ptr_next;
-  deq_ptr <== deq_ptr_next;
-  full    <== full_next;
+  when (io.q_reset) {
+    enq_ptr <== UFix(0, addr_sz);
+    deq_ptr <== UFix(0, addr_sz);
+    full <== Bool(false);
+  }
+  otherwise {
+    enq_ptr <== enq_ptr_next;
+    deq_ptr <== deq_ptr_next;
+    full    <== full_next;
+  }
 }
 
 class ioQueueSimplePF[T <: Data]()(data: => T) extends Bundle
