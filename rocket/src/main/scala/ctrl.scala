@@ -592,7 +592,7 @@ class rocketCtrl extends Component
   io.dpath.wen_btb := !ex_btb_match && br_jr_taken;
   io.dpath.clr_btb := ex_reg_btb_hit && !br_jr_taken || id_reg_icmiss;
   
-  io.imem.req_val  := take_pc_wb || !mem_reg_replay && !ex_reg_replay && (take_pc_ex || !id_reg_icmiss)
+  io.imem.req_val  := take_pc_wb || !mem_reg_replay && !ex_reg_replay && (take_pc_ex || !id_reg_replay)
 
   // stall for RAW/WAW hazards on loads, AMOs, and mul/div in execute stage.
   val ex_mem_cmd_load = 
