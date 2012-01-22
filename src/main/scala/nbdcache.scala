@@ -227,7 +227,9 @@ class MSHR(id: Int) extends Component {
   when (io.meta_req.valid && io.meta_req.ready) {
     valid <== Bool(false)
   }
-  dirty <== next_dirty
+  otherwise {
+    dirty <== next_dirty
+  }
 
   io.idx_match := valid && (idx_ === io.req_idx)
   io.idx := idx_
