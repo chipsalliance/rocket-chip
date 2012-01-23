@@ -93,13 +93,13 @@ class queueSimplePF[T <: Data](entries: Int)(data: => T) extends Component
 {
   override val io = new ioQueueSimplePF()(data);
   val ctrl = new queueCtrl(entries);
-  ctrl.io.q_reset ^^ io.q_reset;
-  ctrl.io.deq_val ^^ io.deq.valid;
-  ctrl.io.enq_rdy ^^ io.enq.ready;
-  ctrl.io.enq_val ^^ io.enq.valid;     
-  ctrl.io.deq_rdy ^^ io.deq.ready;
+  ctrl.io.q_reset <> io.q_reset;
+  ctrl.io.deq_val <> io.deq.valid;
+  ctrl.io.enq_rdy <> io.enq.ready;
+  ctrl.io.enq_val <> io.enq.valid;     
+  ctrl.io.deq_rdy <> io.deq.ready;
   val ram = Mem(entries, ctrl.io.wen, ctrl.io.waddr, io.enq.bits);
-  ram.read(ctrl.io.raddr) ^^ io.deq.bits;
+  ram.read(ctrl.io.raddr) <> io.deq.bits;
 }
 
 // TODO: SHOULD USE INHERITANCE BUT BREAKS INTROSPECTION CODE
@@ -191,7 +191,7 @@ class queueDpathFlow[T <: Data](entries: Int)(data: => T) extends Component
   override val io = new ioQueueDpathFlow(addr_sz)(data);
   val ram  = Mem(entries, io.wen, io.waddr, io.enq_bits);
   val rout = ram(io.raddr);
-  Mux(io.flowthru, io.enq_bits, rout) ^^ io.deq_bits;
+  Mux(io.flowthru, io.enq_bits, rout) <> io.deq_bits;
 }
 
 class ioQueueFlowPF[T <: Data](data: => T) extends Bundle()
@@ -210,17 +210,17 @@ class queueFlowPF[T <: Data](entries: Int)(data: => T) extends Component
   val ctrl  = new queueCtrlFlow(entries);
   val dpath = new queueDpathFlow(entries)(data);
   
-  ctrl.io.deq_rdy   ^^ io.deq_rdy;
+  ctrl.io.deq_rdy   <> io.deq_rdy;
   ctrl.io.wen       <> dpath.io.wen;
   ctrl.io.raddr     <> dpath.io.raddr;
   ctrl.io.waddr     <> dpath.io.waddr;
   ctrl.io.flowthru  <> dpath.io.flowthru;
-  ctrl.io.enq_val   ^^ io.enq_val;       
-  dpath.io.enq_bits ^^ io.enq_bits;
+  ctrl.io.enq_val   <> io.enq_val;       
+  dpath.io.enq_bits <> io.enq_bits;
 
-  ctrl.io.deq_val   ^^ io.deq_val;
-  ctrl.io.enq_rdy   ^^ io.enq_rdy;
-  dpath.io.deq_bits ^^ io.deq_bits;
+  ctrl.io.deq_val   <> io.deq_val;
+  ctrl.io.enq_rdy   <> io.enq_rdy;
+  dpath.io.deq_bits <> io.deq_bits;
 }
 
 }

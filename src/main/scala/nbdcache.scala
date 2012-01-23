@@ -341,9 +341,9 @@ class MSHRFile extends Component {
 
   alloc_arb.io.out.ready := io.req_val && !idx_match
 
-  meta_req_arb.io.out ^^ io.meta_req
-  mem_req_arb.io.out ^^ io.mem_req
-  replay_arb.io.out ^^ io.replay
+  meta_req_arb.io.out <> io.meta_req
+  mem_req_arb.io.out <> io.mem_req
+  replay_arb.io.out <> io.replay
 
   io.req_rdy := Mux(idx_match, tag_match && sec_rdy, pri_rdy)
   io.mem_resp_idx := mem_resp_idx_mux.io.out
@@ -810,6 +810,7 @@ class HellaCacheDM(lines: Int) extends Component {
     p_store_type  <== r_cpu_req_type
     p_store_cmd   <== r_cpu_req_cmd
     p_store_data  <== storegen.io.dout
+    p_store_way_id <== UFix(0)
   }
 
   // miss handling

@@ -163,9 +163,9 @@ class rocketDpath extends Component
         if_next_pc.toUFix);
 
   btb.io.current_pc4    := if_pc_plus4;
-  btb.io.hit            ^^ io.ctrl.btb_hit;
-  btb.io.wen            ^^ io.ctrl.wen_btb;
-  btb.io.clr            ^^ io.ctrl.clr_btb;
+  btb.io.hit            <> io.ctrl.btb_hit;
+  btb.io.wen            <> io.ctrl.wen_btb;
+  btb.io.clr            <> io.ctrl.clr_btb;
   btb.io.correct_pc4    := ex_reg_pc_plus4;
   io.ctrl.btb_match     := id_reg_pc === jr_br_target;
 
@@ -187,11 +187,11 @@ class rocketDpath extends Component
   val id_raddr2 = id_reg_inst(21,17).toUFix;
 
 	// regfile read
-  rfile.io.r0.en   ^^ io.ctrl.ren2;
+  rfile.io.r0.en   <> io.ctrl.ren2;
   rfile.io.r0.addr := id_raddr2;
   val id_rdata2 = rfile.io.r0.data;
 
-  rfile.io.r1.en   ^^ io.ctrl.ren1;
+  rfile.io.r1.en   <> io.ctrl.ren1;
   rfile.io.r1.addr := id_raddr1;
   val id_rdata1 = rfile.io.r1.data;
 
@@ -324,9 +324,9 @@ class rocketDpath extends Component
   	Mux(ex_reg_ctrl_eret, PCR_EPC, 
   		ex_reg_raddr2);
 
-  pcr.io.host.from_wen ^^ io.host.from_wen;
-  pcr.io.host.from     ^^ io.host.from;
-  pcr.io.host.to       ^^ io.host.to;
+  pcr.io.host.from_wen <> io.host.from_wen;
+  pcr.io.host.from     <> io.host.from;
+  pcr.io.host.to       <> io.host.to;
 
   io.ctrl.irq_timer    := pcr.io.irq_timer;
   io.ctrl.irq_ipi      := pcr.io.irq_ipi;  

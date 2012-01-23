@@ -102,8 +102,8 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   for (i <- 1 to n-1)
     vout = vout || io.in(i).valid
 
-  vout ^^ io.out.valid
-  dout ^^ io.out.bits
+  vout <> io.out.valid
+  dout <> io.out.bits
 }
 
 class ioPriorityDecoder(in_width: Int, out_width: Int) extends Bundle
