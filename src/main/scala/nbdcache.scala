@@ -688,6 +688,9 @@ class HellaCacheDM(lines: Int) extends Component {
   val replay_amo_val = replayer.io.data_req.valid && replayer.io.data_req.bits.cmd(3).toBool
   
   when (replay_amo_val) {
+    r_cpu_req_idx  <== Cat(replayer.io.data_req.bits.idx, replayer.io.data_req.bits.offset)
+    r_cpu_req_cmd  <== replayer.io.data_req.bits.cmd
+    r_cpu_req_type <== replayer.io.data_req.bits.typ
     r_cpu_req_data <== replayer.io.data_req.bits.data
   }
   when (io.cpu.req_val) {
@@ -803,9 +806,9 @@ class HellaCacheDM(lines: Int) extends Component {
     p_store_data <== amoalu.io.out
   }
   when (tag_hit && r_req_write && p_store_rdy || r_replay_amo) {
-    p_store_idx   <== Mux(r_replay_amo, Reg(Cat(replayer.io.data_req.bits.idx, replayer.io.data_req.bits.offset)), r_cpu_req_idx)
-    p_store_type  <== Mux(r_replay_amo, Reg(replayer.io.data_req.bits.typ), r_cpu_req_type)
-    p_store_cmd   <== Mux(r_replay_amo, Reg(replayer.io.data_req.bits.cmd), r_cpu_req_cmd)
+    p_store_idx   <== r_cpu_req_idx
+    p_store_type  <== r_cpu_req_type
+    p_store_cmd   <== r_cpu_req_cmd
     p_store_data  <== storegen.io.dout
   }
 
