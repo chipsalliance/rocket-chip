@@ -20,13 +20,13 @@ class Top() extends Component {
   val dcache    = new HellaCacheDM(128);
   val arbiter   = new rocketMemArbiter();
 
-  arbiter.io.mem    ^^ io.mem; 
+  arbiter.io.mem    <> io.mem; 
   arbiter.io.dcache <> dcache.io.mem;
   arbiter.io.icache <> icache_pf.io.mem;
 
-  cpu.io.host       ^^ io.host;
-  cpu.io.debug      ^^ io.debug;
-  cpu.io.console    ^^ io.console;
+  cpu.io.host       <> io.host;
+  cpu.io.debug      <> io.debug;
+  cpu.io.console    <> io.console;
 
   icache.io.mem     <> icache_pf.io.icache;
   cpu.io.imem       <> icache.io.cpu;

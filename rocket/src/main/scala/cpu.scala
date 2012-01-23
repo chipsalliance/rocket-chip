@@ -45,8 +45,8 @@ class rocketProc extends Component
   val arb   = new rocketDmemArbiter();
 
   ctrl.io.dpath             <> dpath.io.ctrl;
-  dpath.io.host             ^^ io.host;
-  dpath.io.debug            ^^ io.debug;
+  dpath.io.host             <> io.host;
+  dpath.io.debug            <> io.debug;
 
   // FIXME: try to make this more compact
   
@@ -86,7 +86,7 @@ class rocketProc extends Component
   ptw.io.itlb             <> itlb.io.ptw;
   ptw.io.ptbr             := dpath.io.ptbr;
   arb.io.ptw              <> ptw.io.dmem;
-  arb.io.mem              ^^ io.dmem
+  arb.io.mem              <> io.dmem
   
   // connect arbiter to ctrl+dpath+DTLB
   arb.io.cpu.req_val      := ctrl.io.dmem.req_val;
