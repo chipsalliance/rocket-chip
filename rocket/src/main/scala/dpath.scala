@@ -7,7 +7,7 @@ import Instructions._
 
 class ioDpathDmem extends Bundle()
 {
-  val req_addr  = UFix(VADDR_BITS, OUTPUT);
+  val req_addr  = UFix(VADDR_BITS+1, OUTPUT);
   val req_tag   = UFix(CPU_TAG_BITS, OUTPUT);
   val req_data  = Bits(64, OUTPUT);
   val resp_val  = Bool(INPUT);
@@ -20,7 +20,7 @@ class ioDpathDmem extends Bundle()
 
 class ioDpathImem extends Bundle()
 {
-  val req_addr  = UFix(VADDR_BITS, OUTPUT);
+  val req_addr  = UFix(VADDR_BITS+1, OUTPUT);
   val resp_data = Bits(32, INPUT);
 }
 
@@ -50,7 +50,6 @@ class rocketDpath extends Component
   val alu = new rocketDpathALU(); 
   val ex_alu_out = alu.io.out; 
   val ex_alu_adder_out = alu.io.adder_out; 
-  val ex_jr_target = ex_alu_adder_out(VADDR_BITS-1,0);
 
   val div = new rocketDivider(64);
   val div_result = div.io.div_result_bits;
@@ -65,13 +64,13 @@ class rocketDpath extends Component
   val rfile = new rocketDpathRegfile();
 
   // instruction fetch definitions
-  val if_reg_pc         = Reg(resetVal = UFix(START_ADDR,VADDR_BITS));
+  val if_reg_pc         = Reg(resetVal = UFix(START_ADDR,VADDR_BITS+1));
 
   // instruction decode definitions
   val id_reg_valid     = Reg(resetVal = Bool(false));
   val id_reg_inst      = Reg(resetVal = NOP);
-  val id_reg_pc        = Reg() { UFix() };
-  val id_reg_pc_plus4  = Reg() { UFix() };
+  val id_reg_pc        = Reg() { UFix(width = VADDR_BITS+1) };
+  val id_reg_pc_plus4  = Reg() { UFix(width = VADDR_BITS+1) };
 
   // execute definitions
   val ex_reg_valid          = Reg(resetVal = Bool(false));
@@ -133,21 +132,23 @@ class rocketDpath extends Component
     Cat(Fill(52, ex_reg_inst(31)), ex_reg_inst(31,27), ex_reg_inst(16,10));
 
   val branch_adder_rhs =
-    Mux(io.ctrl.ex_jmp, Cat(Fill(VADDR_BITS-26, ex_reg_inst(31)), ex_reg_inst(31,7), UFix(0,1)),
-      Cat(ex_sign_extend_split(VADDR_BITS-2,0), UFix(0, 1)));
-
+    Mux(io.ctrl.ex_jmp, Cat(Fill(VADDR_BITS-25, ex_reg_inst(31)), ex_reg_inst(31,7), UFix(0,1)),
+      Cat(ex_sign_extend_split(VADDR_BITS-1,0), UFix(0, 1)));
   val ex_branch_target = ex_reg_pc + branch_adder_rhs.toUFix;
 
-  val jr_br_target = Mux(io.ctrl.ex_jr, ex_jr_target, ex_branch_target);
+  val ex_jr_target_sign = Mux(ex_alu_adder_out(VADDR_BITS-1), ~ex_alu_adder_out(63,VADDR_BITS) === UFix(0), ex_alu_adder_out(63,VADDR_BITS) != UFix(0))
+  val ex_jr_target_extended = Cat(ex_jr_target_sign, ex_alu_adder_out(VADDR_BITS-1,0)).toUFix
+
+  val jr_br_target = Mux(io.ctrl.ex_jr, ex_jr_target_extended, ex_branch_target);
   btb.io.correct_target := jr_br_target
 
   val if_next_pc =
-    Mux(io.ctrl.sel_pc === PC_BTB,  if_btb_target,
+    Mux(io.ctrl.sel_pc === PC_BTB,  Cat(if_btb_target(VADDR_BITS-1), if_btb_target),
     Mux(io.ctrl.sel_pc === PC_EX4,  ex_reg_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
-    Mux(io.ctrl.sel_pc === PC_JR,   ex_jr_target.toUFix,
-    Mux(io.ctrl.sel_pc === PC_PCR,  wb_reg_wdata(VADDR_BITS-1,0), // only used for ERET
-    Mux(io.ctrl.sel_pc === PC_EVEC, pcr.io.evec,
+    Mux(io.ctrl.sel_pc === PC_JR,   ex_jr_target_extended,
+    Mux(io.ctrl.sel_pc === PC_PCR,  wb_reg_wdata(VADDR_BITS,0), // only used for ERET
+    Mux(io.ctrl.sel_pc === PC_EVEC, Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec),
     Mux(io.ctrl.sel_pc === PC_WB,   wb_reg_pc,
         if_pc_plus4))))))); // PC_4
         
@@ -155,8 +156,7 @@ class rocketDpath extends Component
     if_reg_pc <== if_next_pc.toUFix;
   }
   
-  // FIXME: make sure PCs are properly sign extended
-  io.ctrl.xcpt_ma_inst := if_next_pc(1,0) != Bits(0,2)
+  io.ctrl.xcpt_ma_inst := if_next_pc(1,0) != Bits(0)
 
   io.imem.req_addr :=
     Mux(io.ctrl.stallf, if_reg_pc,
@@ -172,7 +172,7 @@ class rocketDpath extends Component
   // instruction decode stage
   when (!io.ctrl.stalld) {
     id_reg_pc <== if_reg_pc;
-    id_reg_pc_plus4 <== if_pc_plus4; 
+    id_reg_pc_plus4 <== if_pc_plus4;
     when(io.ctrl.killf) {
       id_reg_inst  <== NOP;
       id_reg_valid <== Bool(false);
@@ -314,7 +314,7 @@ class rocketDpath extends Component
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req_addr  := ex_alu_adder_out(VADDR_BITS-1,0);
+  io.dmem.req_addr  := ex_jr_target_extended.toUFix;
   io.dmem.req_data  := ex_reg_rs2;
   io.dmem.req_tag   := ex_reg_waddr;
 

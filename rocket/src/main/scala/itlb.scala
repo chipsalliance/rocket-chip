@@ -74,7 +74,7 @@ class ioITLB_CPU(view: List[String] = null) extends Bundle(view)
   val req_val  = Bool(INPUT);
   val req_rdy  = Bool(OUTPUT);
   val req_asid = Bits(ASID_BITS, INPUT);
-  val req_vpn  = UFix(VPN_BITS, INPUT);
+  val req_vpn  = UFix(VPN_BITS+1, INPUT);
   // lookup responses
   val resp_miss = Bool(OUTPUT);
 //   val resp_val = Bool(OUTPUT);
@@ -111,18 +111,19 @@ class rocketITLB(entries: Int) extends Component
   otherwise {
     r_cpu_req_val   <== Bool(false);
   }
-  
-  val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
+
+  val bad_va = r_cpu_req_vpn(VPN_BITS) != r_cpu_req_vpn(VPN_BITS-1);
   
   val tag_cam = new rocketCAM(entries, ASID_BITS+VPN_BITS);
   val tag_ram = Mem(entries, io.ptw.resp_val, r_refill_waddr.toUFix, io.ptw.resp_ppn);
   
+  val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
   tag_cam.io.clear      := io.cpu.invalidate;
   tag_cam.io.tag        := lookup_tag;
   tag_cam.io.write      := io.ptw.resp_val || io.ptw.resp_err;
   tag_cam.io.write_tag  := r_refill_tag;
   tag_cam.io.write_addr := r_refill_waddr;
-  val tag_hit            = tag_cam.io.hit;
+  val tag_hit            = tag_cam.io.hit || bad_va;
   val tag_hit_addr       = tag_cam.io.hit_addr;
   
   // extract fields from status register
@@ -171,15 +172,13 @@ class rocketITLB(entries: Int) extends Component
     }
   }
 
-  // exception check
-  val outofrange = !tlb_miss && (io.cpu.resp_ppn > UFix(MEMSIZE_PAGES, PPN_BITS));
-  
   val access_fault = 
     tlb_hit &&
     ((status_s && !sx_array(tag_hit_addr).toBool) ||
-     (status_u && !ux_array(tag_hit_addr).toBool));
+     (status_u && !ux_array(tag_hit_addr).toBool) ||
+     bad_va);
 
-  io.cpu.exception := access_fault; //|| outofrange;
+  io.cpu.exception := access_fault;
   io.cpu.req_rdy   := Mux(status_vm, (state === s_ready) && (!r_cpu_req_val || tag_hit), Bool(true));
   io.cpu.resp_miss := tlb_miss || (state != s_ready);
   io.cpu.resp_ppn := Mux(status_vm, tag_ram(tag_hit_addr), r_cpu_req_vpn(PPN_BITS-1,0)).toUFix;
