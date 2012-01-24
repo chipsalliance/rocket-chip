@@ -345,6 +345,7 @@ class rocketCtrl extends Component
   val ex_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
   val ex_reg_replay          = Reg(resetVal = Bool(false));
+  val ex_reg_lu_bypass       = Reg(resetVal = Bool(false));
 
   val mem_reg_inst_di         = Reg(resetVal = Bool(false));
   val mem_reg_inst_ei         = Reg(resetVal = Bool(false));
@@ -404,6 +405,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== Bool(false);
     ex_reg_replay           <== Bool(false);
+    ex_reg_lu_bypass        <== Bool(false);
   } 
   otherwise {
     ex_reg_br_type     <== id_br_type;
@@ -423,6 +425,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
     ex_reg_replay           <== id_reg_replay;
+    ex_reg_lu_bypass        <== io.dpath.mem_lu_bypass;
   }
   ex_reg_mem_cmd     <== id_mem_cmd;
   ex_reg_mem_type    <== id_mem_type;
@@ -567,7 +570,7 @@ class rocketCtrl extends Component
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
-  val replay_ex    = dcache_miss && Reg(io.dpath.mem_lu_bypass) || mem_reg_privileged || mem_reg_flush_inst || 
+  val replay_ex    = dcache_miss && ex_reg_lu_bypass || mem_reg_privileged || mem_reg_flush_inst || 
                      ex_reg_replay || ex_reg_mem_val && !(io.dmem.req_rdy && io.dtlb_rdy)
   val kill_ex      = take_pc_wb || replay_ex
 
