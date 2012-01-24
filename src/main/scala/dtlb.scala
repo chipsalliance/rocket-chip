@@ -19,7 +19,7 @@ class ioDTLB_CPU(view: List[String] = null) extends Bundle(view)
   val req_cmd  = Bits(4, INPUT); // load/store/amo
   val req_rdy  = Bool(OUTPUT);
   val req_asid = Bits(ASID_BITS, INPUT);
-  val req_vpn  = UFix(VPN_BITS, INPUT);
+  val req_vpn  = UFix(VPN_BITS+1, INPUT);
   // lookup responses
   val resp_miss = Bool(OUTPUT);
 //   val resp_val = Bool(OUTPUT);
@@ -65,17 +65,18 @@ class rocketDTLB(entries: Int) extends Component
   val req_store = (r_cpu_req_cmd === M_XWR);
   val req_amo   = r_cpu_req_cmd(3).toBool;
   
-  val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
+  val bad_va = r_cpu_req_vpn(VPN_BITS) != r_cpu_req_vpn(VPN_BITS-1);
 
   val tag_cam = new rocketCAM(entries, ASID_BITS+VPN_BITS);
   val tag_ram = Mem(entries, io.ptw.resp_val, r_refill_waddr.toUFix, io.ptw.resp_ppn);
   
+  val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
   tag_cam.io.clear      := io.cpu.invalidate;
   tag_cam.io.tag        := lookup_tag;
   tag_cam.io.write      := io.ptw.resp_val || io.ptw.resp_err;
   tag_cam.io.write_tag  := r_refill_tag;
   tag_cam.io.write_addr := r_refill_waddr;
-  val tag_hit            = tag_cam.io.hit;
+  val tag_hit            = tag_cam.io.hit || bad_va;
   val tag_hit_addr       = tag_cam.io.hit_addr;
   
   // extract fields from status register
@@ -140,14 +141,16 @@ class rocketDTLB(entries: Int) extends Component
    val access_fault_ld =
     tlb_hit && (req_load || req_amo) &&
     ((status_s && !sr_array(tag_hit_addr).toBool) ||
-     (status_u && !ur_array(tag_hit_addr).toBool));
+     (status_u && !ur_array(tag_hit_addr).toBool) ||
+     bad_va);
 
   io.cpu.xcpt_ld := access_fault_ld;
 
   val access_fault_st =
     tlb_hit && (req_store || req_amo) &&
     ((status_s && !sw_array(tag_hit_addr).toBool) ||
-     (status_u && !uw_array(tag_hit_addr).toBool));
+     (status_u && !uw_array(tag_hit_addr).toBool) ||
+     bad_va);
 
   io.cpu.xcpt_st := access_fault_st;
 

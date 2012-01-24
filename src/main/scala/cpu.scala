@@ -55,7 +55,7 @@ class rocketProc extends Component
   itlb.io.cpu.status      := dpath.io.ctrl.status;
   itlb.io.cpu.req_val     := ctrl.io.imem.req_val;  
   itlb.io.cpu.req_asid    := Bits(0,ASID_BITS); // FIXME: connect to PCR
-  itlb.io.cpu.req_vpn     := dpath.io.imem.req_addr(VADDR_BITS-1,PGIDX_BITS);
+  itlb.io.cpu.req_vpn     := dpath.io.imem.req_addr(VADDR_BITS,PGIDX_BITS);
   io.imem.req_idx         := dpath.io.imem.req_addr(PGIDX_BITS-1,0);
   io.imem.req_ppn         := itlb.io.cpu.resp_ppn;
   io.imem.req_val         := ctrl.io.imem.req_val;
@@ -72,7 +72,7 @@ class rocketProc extends Component
   dtlb.io.cpu.req_kill    := ctrl.io.dtlb_kill;
   dtlb.io.cpu.req_cmd     := ctrl.io.dmem.req_cmd;
   dtlb.io.cpu.req_asid    := Bits(0,ASID_BITS); // FIXME: connect to PCR
-  dtlb.io.cpu.req_vpn     := dpath.io.dmem.req_addr(VADDR_BITS-1,PGIDX_BITS);
+  dtlb.io.cpu.req_vpn     := dpath.io.dmem.req_addr(VADDR_BITS,PGIDX_BITS);
   ctrl.io.xcpt_dtlb_ld    := dtlb.io.cpu.xcpt_ld; 
   ctrl.io.xcpt_dtlb_st    := dtlb.io.cpu.xcpt_st; 
   ctrl.io.dtlb_rdy        := dtlb.io.cpu.req_rdy;

@@ -53,7 +53,7 @@ class ioDpathPCR extends Bundle()
   val exception = Bool(INPUT);
   val cause 		= UFix(5, INPUT);
   val badvaddr_wen = Bool(INPUT);
-  val pc    		= UFix(VADDR_BITS, INPUT);
+  val pc    		= UFix(VADDR_BITS+1, INPUT);
   val eret  		= Bool(INPUT);
   val ei        = Bool(INPUT);
   val di        = Bool(INPUT);
@@ -121,8 +121,9 @@ class rocketDpathPCR extends Component
     }
   }
 
+  val badvaddr_sign = Mux(io.w.data(VADDR_BITS-1), ~io.w.data(63,VADDR_BITS) === UFix(0), io.w.data(63,VADDR_BITS) != UFix(0))
   when (io.badvaddr_wen) {
-    reg_badvaddr 		<== io.w.data.toUFix;
+    reg_badvaddr 		<== Cat(badvaddr_sign, io.w.data(VADDR_BITS-1,0)).toUFix;
   }
   
   when (io.exception && !reg_status_et) {
@@ -163,8 +164,8 @@ class rocketDpathPCR extends Component
       reg_status_ec <== HAVE_RVC && io.w.data(SR_EC).toBool;
       reg_status_et <== io.w.data(SR_ET).toBool;
   	}
-  	when (io.w.addr === PCR_EPC) 			{ reg_epc      		<== io.w.data(VADDR_BITS-1,0).toUFix; }
-  	when (io.w.addr === PCR_BADVADDR) { reg_badvaddr 		<== io.w.data(VADDR_BITS-1,0).toUFix; }
+  	when (io.w.addr === PCR_EPC) 			{ reg_epc      		<== io.w.data(VADDR_BITS,0).toUFix; }
+  	when (io.w.addr === PCR_BADVADDR) { reg_badvaddr 		<== io.w.data(VADDR_BITS,0).toUFix; }
   	when (io.w.addr === PCR_EVEC) 		{ reg_ebase 			<== io.w.data(VADDR_BITS-1,0).toUFix; }
   	when (io.w.addr === PCR_COUNT) 		{ reg_count 			<== io.w.data(31,0).toUFix; }
   	when (io.w.addr === PCR_COMPARE) 	{ reg_compare 		<== io.w.data(31,0).toUFix; r_irq_timer <== Bool(false); }
@@ -187,8 +188,8 @@ class rocketDpathPCR extends Component
   when (!io.r.en) { rdata <== Bits(0,64); }
   switch (io.r.addr) {
     is (PCR_STATUS) 	{ rdata <== Cat(Bits(0,47), reg_status_vm, reg_status_im, reg_status); }
-    is (PCR_EPC) 			{ rdata <== Cat(Fill(64-VADDR_BITS, reg_epc(VADDR_BITS-1)), reg_epc); }
-    is (PCR_BADVADDR) { rdata <== Cat(Fill(64-VADDR_BITS, reg_badvaddr(VADDR_BITS-1)), reg_badvaddr); }
+    is (PCR_EPC) 			{ rdata <== Cat(Fill(64-VADDR_BITS-1, reg_epc(VADDR_BITS)), reg_epc); }
+    is (PCR_BADVADDR) { rdata <== Cat(Fill(64-VADDR_BITS-1, reg_badvaddr(VADDR_BITS)), reg_badvaddr); }
     is (PCR_EVEC) 		{ rdata <== Cat(Fill(64-VADDR_BITS, reg_ebase(VADDR_BITS-1)), reg_ebase); }
     is (PCR_COUNT) 		{ rdata <== Cat(Fill(32, reg_count(31)), reg_count); }
     is (PCR_COMPARE) 	{ rdata <== Cat(Fill(32, reg_compare(31)), reg_compare); }
