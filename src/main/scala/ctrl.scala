@@ -633,8 +633,8 @@ class rocketCtrl extends Component
       
   // for divider, multiplier, load miss writeback
   val mem_wb = Reg(io.dmem.resp_replay, resetVal = Bool(false)) // delayed for subword extension
-  val mul_wb = io.dpath.mul_result_val && !io.dmem.resp_replay;
-  val div_wb = io.dpath.div_result_val && !io.dpath.mul_result_val && !io.dmem.resp_replay;
+  val mul_wb = io.dpath.mul_result_val && !mem_wb;
+  val div_wb = io.dpath.div_result_val && !io.dpath.mul_result_val && !mem_wb;
 
   val ctrl_stalld =
     !take_pc &&
