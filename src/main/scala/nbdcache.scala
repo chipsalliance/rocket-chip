@@ -17,11 +17,8 @@ class RandomReplacementWayGen extends Component {
     val way_en = Bits(width = NWAYS, dir = INPUT)
     val way_id = UFix(width = log2up(NWAYS), dir = OUTPUT)
   }
-  val width = max(6,log2up(NWAYS))
-  val lfsr = Reg(resetVal = UFix(1, width))
-  when (io.way_en.orR) { lfsr <== Cat(lfsr(0)^lfsr(2)^lfsr(3)^lfsr(5), lfsr(width-1,1)).toUFix }
-  //TODO: Actually limit selection based on which ways are available (io.ways_en)
-  if(NWAYS > 1) io.way_id := lfsr(log2up(NWAYS)-1,0).toUFix 
+  //TODO: Actually limit selection based on which ways are allowed (io.ways_en)
+  if(NWAYS > 1) io.way_id := LFSR16(io.way_en.orR)
   else io.way_id := UFix(0)
 }
 

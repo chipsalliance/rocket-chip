@@ -56,6 +56,17 @@ object UFixToOH
   }
 }
 
+object LFSR16
+{
+  def apply(increment: Bool) =
+  {
+    val width = 16
+    val lfsr = Reg(resetVal = UFix(1, width))
+    when (increment) { lfsr <== Cat(lfsr(0)^lfsr(2)^lfsr(3)^lfsr(5), lfsr(width-1,1)).toUFix }
+    lfsr
+  }
+}
+
 class Mux1H(n: Int, w: Int) extends Component
 {
   val io = new Bundle {
