@@ -41,7 +41,7 @@ class rocketICacheDM(lines: Int) extends Component {
   val io = new ioICacheDM();
 
   val addrbits = PADDR_BITS;
-  val indexbits = ceil(log10(lines)/log10(2)).toInt;
+  val indexbits = log2up(lines);
   val offsetbits = OFFSET_BITS;
   val tagmsb    = addrbits - 1;
   val taglsb    = indexbits+offsetbits;
@@ -50,8 +50,10 @@ class rocketICacheDM(lines: Int) extends Component {
   val indexlsb  = offsetbits;
   val offsetmsb = indexlsb-1;
   val databits = 32;
-  val offsetlsb = ceil(log(databits/8)/log(2)).toInt;
-  val rf_cnt_bits = ceil(log(REFILL_CYCLES)/log(2)).toInt;
+  val offsetlsb = log2up(databits/8);
+  val rf_cnt_bits = log2up(REFILL_CYCLES);
+
+  require(PGIDX_BITS >= taglsb); // virtually-indexed, physically-tagged constraint
   
   val s_reset :: s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(5) { UFix() };
   val state = Reg(resetVal = s_reset);
@@ -63,17 +65,20 @@ class rocketICacheDM(lines: Int) extends Component {
   val rdy = Wire() { Bool() }
   
   when (io.cpu.req_val && rdy) {
-    r_cpu_req_idx   <== io.cpu.req_idx;
-  }
-  when (state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss) {
-    r_cpu_req_ppn <== io.cpu.req_ppn;
-  }
-  when (rdy) {
-    r_cpu_req_val <== io.cpu.req_val; 
+    r_cpu_req_val   <== Bool(true)
+    r_cpu_req_idx   <== io.cpu.req_idx
   }
   otherwise {
-    r_cpu_req_val <== Bool(false);
+    r_cpu_req_val   <== Bool(false)
   }
+  when (state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss) {
+    r_cpu_req_ppn <== io.cpu.req_ppn
+  }
+
+  val r_cpu_hit_addr = Cat(io.cpu.req_ppn, r_cpu_req_idx)
+  val r_cpu_hit_tag = r_cpu_hit_addr(tagmsb,taglsb)
+  val r_cpu_miss_addr = Cat(r_cpu_req_ppn, r_cpu_req_idx)
+  val r_cpu_miss_tag = r_cpu_miss_addr(tagmsb,taglsb)
 
   // refill counter
   val refill_count = Reg(resetVal = UFix(0, rf_cnt_bits));
@@ -81,14 +86,14 @@ class rocketICacheDM(lines: Int) extends Component {
     refill_count <== refill_count + UFix(1);
   }
   val tag_addr = 
-    Mux((state === s_refill_wait), r_cpu_req_idx(PGIDX_BITS-1,offsetbits),
-      io.cpu.req_idx(PGIDX_BITS-1,offsetbits)).toUFix;
+    Mux((state === s_refill_wait), r_cpu_req_idx(indexmsb,indexlsb),
+      io.cpu.req_idx(indexmsb,indexlsb)).toUFix;
   val tag_we = (state === s_refill_wait) && io.mem.resp_val;
 
-  val tag_array = Mem4(lines, r_cpu_req_ppn);
+  val tag_array = Mem4(lines, r_cpu_miss_tag);
   tag_array.setReadLatency(1);
   tag_array.setTarget('inst);
-  val tag_rdata = tag_array.rw(tag_addr, r_cpu_req_ppn, tag_we);
+  val tag_rdata = tag_array.rw(tag_addr, r_cpu_miss_tag, tag_we);
 
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
@@ -96,27 +101,27 @@ class rocketICacheDM(lines: Int) extends Component {
     vb_array <== Bits(0,lines);
   }
   when (tag_we) {
-    vb_array <== vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
+    vb_array <== vb_array.bitSet(r_cpu_req_idx(indexmsb,indexlsb).toUFix, UFix(1,1));
   }
 
-  val tag_valid = Reg(vb_array(tag_addr)).toBool;
-  val tag_match = (tag_rdata === io.cpu.req_ppn);
+  val tag_valid = vb_array(r_cpu_req_idx(indexmsb,indexlsb)).toBool;
+  val tag_hit = tag_valid && (tag_rdata === r_cpu_hit_addr(tagmsb,taglsb))
   
   // data array
   val data_addr = 
-    Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(PGIDX_BITS-1, offsetbits), refill_count),
-      io.cpu.req_idx(PGIDX_BITS-1, offsetmsb-1)).toUFix;
+    Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(indexmsb,offsetbits), refill_count),
+      io.cpu.req_idx(indexmsb, offsetbits-rf_cnt_bits)).toUFix;
   val data_array = Mem4(lines*REFILL_CYCLES, io.mem.resp_data);
   data_array.setReadLatency(1);
   data_array.setTarget('inst);
   val data_array_rdata = data_array.rw(data_addr, io.mem.resp_data, io.mem.resp_val);
 
   // output signals
-  io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && Reg(rdy) && r_cpu_req_val && tag_valid && tag_match; 
-  rdy <== !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || (tag_valid && tag_match));
+  io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_hit;
+  rdy <== !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || tag_hit);
   io.cpu.resp_data := data_array_rdata >> Cat(r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb), UFix(0, log2up(databits))).toUFix
   io.mem.req_val := (state === s_request);
-  io.mem.req_addr := Cat(r_cpu_req_ppn, r_cpu_req_idx(indexmsb,indexlsb)).toUFix
+  io.mem.req_addr := r_cpu_miss_addr(tagmsb,indexlsb).toUFix
 
   // control state machine
   switch (state) {
@@ -127,7 +132,7 @@ class rocketICacheDM(lines: Int) extends Component {
       when (io.cpu.itlb_miss) {
         state <== s_ready;
       }
-      when (r_cpu_req_val && !(tag_valid && tag_match)) {
+      when (r_cpu_req_val && !tag_hit) {
         state <== s_request;
       }
     }
