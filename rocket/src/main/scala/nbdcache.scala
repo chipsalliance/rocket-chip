@@ -7,17 +7,22 @@ import scala.math._;
 
 class ReplacementWayGen extends Component {
   val io = new Bundle {
-    val way_en = Bits(width = width, dir = INPUT)
+    val way_en = Bits(width = NWAYS, dir = INPUT)
     val way_id = UFix(width = log2up(NWAYS), dir = OUTPUT)
   }
 }
 
-class RandomReplacementWayGen extends ReplacementWayGen() {
+class RandomReplacementWayGen extends Component {
+  val io = new Bundle {
+    val way_en = Bits(width = NWAYS, dir = INPUT)
+    val way_id = UFix(width = log2up(NWAYS), dir = OUTPUT)
+  }
   val width = max(6,log2up(NWAYS))
   val lfsr = Reg(resetVal = UFix(1, width))
-  when (io.way_en.orR) { lfsr <== Cat(lfsr(0)^lfsr(2)^lfsr(3)^lfsr(5), lfsr(width-1,1)) }
+  when (io.way_en.orR) { lfsr <== Cat(lfsr(0)^lfsr(2)^lfsr(3)^lfsr(5), lfsr(width-1,1)).toUFix }
   //TODO: Actually limit selection based on which ways are available (io.ways_en)
-  io.way_id := lfsr(log2up(NWAYS)-1,0).toUFix
+  if(NWAYS > 1) io.way_id := lfsr(log2up(NWAYS)-1,0).toUFix 
+  else io.way_id := UFix(0)
 }
 
 class StoreMaskGen extends Component {
@@ -506,32 +511,6 @@ class FlushUnit(lines: Int) extends Component {
   io.wb_req.bits.way_id := way_cnt
 }
 
-class MetaDataArrayArray(lines: Int) extends Component {
-  val io = new Bundle {
-    val req  = (new ioDecoupled) { new MetaArrayArrayReq() }
-    val resp = Vec(NWAYS){ (new MetaData).asOutput }
-    val state_req = (new ioDecoupled) { new MetaArrayArrayReq() }
-  }
-
-  val way_arr = List.fill(NWAYS){ new MetaDataArray(lines) }
-  val tag_ready_arr = Bits(width = NWAYS)
-  val state_ready_arr = Bits(width = NWAYS)
-
-  for(w <- 0 until NWAYS) {
-    way_arr(w).io.req.bits ^^ io.req.bits.inner_req
-    way_arr(w).io.req.ready := tag_ready_arr(w)
-    way_arr(w).io.req.valid := io.req.valid && io.req.bits.way_en(w).toBool
-    way_arr(w).io.state_req.bits ^^ io.req.bits.inner_req
-    way_arr(w).io.state_req.ready := state_ready_arr(w)
-    way_arr(w).io.state_req.valid := io.req.valid && io.req.bits.way_en(w).toBool
-    io.resp(w) ^^ way_arr(w).io.resp
-  }
-
-  io.req.ready := tag_ready_arr.andR.toBool
-  io.state_req.ready := state_ready_arr.andR.toBool
-}
-
-
 class MetaDataArray(lines: Int) extends Component {
   val io = new Bundle {
     val req  = (new ioDecoupled) { new MetaArrayReq() }
@@ -561,30 +540,38 @@ class MetaDataArray(lines: Int) extends Component {
   io.req.ready  := !vd_conflict
 }
 
-class DataArrayArray(lines: Int) extends Component {
+class MetaDataArrayArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new DataArrayArrayReq() }
-    val resp = Vec(NWAYS){ Bits(width = MEM_DATA_BITS, dir = OUTPUT) }
+    val req  = (new ioDecoupled) { new MetaArrayArrayReq() }
+    val resp = Vec(NWAYS){ (new MetaData).asOutput }
+    val state_req = (new ioDecoupled) { new MetaArrayArrayReq() }
     val way_en = Bits(width = NWAYS, dir = OUTPUT)
   }
 
-  val way_en_ = Reg { Bits() }
+  val way_en_ = Reg { Bits(width=NWAYS) }
+  when (io.state_req.valid && io.state_req.ready) {
+    way_en_ <== io.state_req.bits.way_en
+  }
   when (io.req.valid && io.req.ready) {
     way_en_ <== io.req.bits.way_en
   }
 
-  val way_arr = List.fill(NWAYS){ new DataArray(lines) }
-  val data_ready_arr = Bits(width = NWAYS)
-
+  var tag_ready = Bool(true)
+  var state_ready = Bool(true)
   for(w <- 0 until NWAYS) {
-    way_arr(w).io.req.bits ^^ io.req.bits.inner_req
-    way_arr(w).io.req.ready := data_ready_arr(w)
-    way_arr(w).io.req.valid := io.req.valid && io.req.bits.way_en(w).toBool
-    io.resp(w) ^^ way_arr(w).io.resp
+    val way = new MetaDataArray(lines)
+    way.io.req.bits <> io.req.bits.inner_req
+    tag_ready = tag_ready && way.io.req.ready
+    way.io.req.valid := io.req.valid && io.req.bits.way_en(w).toBool
+    way.io.state_req.bits <> io.state_req.bits.inner_req
+    state_ready = state_ready && way.io.state_req.ready
+    way.io.state_req.valid := io.state_req.valid && io.state_req.bits.way_en(w).toBool
+    way.io.resp <> io.resp(w)
   }
 
   io.way_en := way_en_
-  io.req.ready := data_ready_arr.andR.toBool
+  io.req.ready := tag_ready
+  io.state_req.ready := state_ready
 }
 
 class DataArray(lines: Int) extends Component {
@@ -602,6 +589,34 @@ class DataArray(lines: Int) extends Component {
   val rdata = array.rw(addr, io.req.bits.data, io.req.valid && io.req.bits.rw, wmask, cs = io.req.valid)
   io.resp := rdata
   io.req.ready := Bool(true)
+}
+
+class DataArrayArray(lines: Int) extends Component {
+  val io = new Bundle {
+    val req  = (new ioDecoupled) { new DataArrayArrayReq() }
+    val resp = Vec(NWAYS){ Bits(width = MEM_DATA_BITS, dir = OUTPUT) }
+    val way_en = Bits(width = NWAYS, dir = OUTPUT)
+  }
+
+  val way_en_ = Reg { Bits(width=NWAYS) }
+  when (io.req.valid && io.req.ready) {
+    way_en_ <== io.req.bits.way_en
+  }
+
+  //val data_ready_arr = Vec(NWAYS){ Bool() }
+  var data_ready = Bool(true)
+  for(w <- 0 until NWAYS) {
+    val way = new DataArray(lines)
+    way.io.req.bits <> io.req.bits.inner_req
+    //data_ready_arr(w) := way.io.req.ready
+    data_ready = data_ready && way.io.req.ready
+    way.io.req.valid := io.req.valid && io.req.bits.way_en(w).toBool
+    way.io.resp <> io.resp(w)
+  }
+
+  io.way_en := way_en_
+  //io.req.ready := Cat(data_ready_arr).andR.toBool
+  io.req.ready := data_ready
 }
 
 class AMOALU extends Component {
@@ -730,7 +745,7 @@ class HellaCacheDM(lines: Int) extends Component {
   val wb = new WritebackUnit
   val wb_arb = (new Arbiter(2)) { new WritebackReq() }
   wb_arb.io.out <> wb.io.req
-  wb.io.data_req.bits.inner_req <> data_arb.io.in(3).bits //TODO
+  wb.io.data_req.bits.inner_req <> data_arb.io.in(3).bits 
   wb.io.data_req.ready := data_arb.io.in(3).ready
   data_arb.io.in(3).valid := wb.io.data_req.valid
   wb.io.data_resp <> data.io.resp
@@ -794,6 +809,7 @@ class HellaCacheDM(lines: Int) extends Component {
   meta.io.state_req.valid := clear_valid || set_dirty
   meta.io.state_req.bits.rw := Bool(true)
   meta.io.state_req.bits.idx := r_cpu_req_idx(indexmsb,indexlsb)
+  meta.io.state_req.bits.data.tag := UFix(0) // don't care
   meta.io.state_req.bits.data.valid := tag_match
   meta.io.state_req.bits.data.dirty := tag_match
   
@@ -826,7 +842,7 @@ class HellaCacheDM(lines: Int) extends Component {
   mshr.io.mem_resp_val := io.mem.resp_val && (~rr_count === UFix(0))
   mshr.io.mem_resp_tag := io.mem.resp_tag
   mshr.io.mem_req <> wb.io.refill_req
-  mshr.io.meta_req.bits.inner_req <> meta_arb.io.in(1).bits //TODO
+  mshr.io.meta_req.bits.inner_req <> meta_arb.io.in(1).bits 
   mshr.io.meta_req.ready := meta_arb.io.in(1).ready
   meta_arb.io.in(1).valid := mshr.io.meta_req.valid
   mshr.io.replay <> replayer.io.replay
@@ -882,7 +898,7 @@ class HellaCacheDM(lines: Int) extends Component {
   flushed <== flushed && !r_cpu_req_val || r_cpu_req_val && r_req_flush && flush_rdy && flusher.io.req.ready
   flusher.io.req.valid := r_cpu_req_val && r_req_flush && flush_rdy && !flushed
   flusher.io.wb_req <> wb_arb.io.in(0)
-  flusher.io.meta_req.bits.inner_req <> meta_arb.io.in(0).bits //TODO
+  flusher.io.meta_req.bits.inner_req <> meta_arb.io.in(0).bits 
   flusher.io.meta_req.ready :=  meta_arb.io.in(0).ready
   meta_arb.io.in(0).valid := flusher.io.meta_req.valid
   flusher.io.meta_resp <> meta.io.resp
@@ -966,6 +982,9 @@ class HellaCacheAssoc(lines: Int) extends Component {
   val replay_amo_val = replayer.io.data_req.valid && replayer.io.data_req.bits.cmd(3).toBool
   
   when (replay_amo_val) {
+    r_cpu_req_idx  <== Cat(replayer.io.data_req.bits.idx, replayer.io.data_req.bits.offset)
+    r_cpu_req_cmd  <== replayer.io.data_req.bits.cmd
+    r_cpu_req_type <== replayer.io.data_req.bits.typ
     r_cpu_req_data <== replayer.io.data_req.bits.data
   }
   when (io.cpu.req_val) {
@@ -1014,22 +1033,23 @@ class HellaCacheAssoc(lines: Int) extends Component {
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
   val tag_hit  = r_cpu_req_val &&  tag_match
   val tag_miss = r_cpu_req_val && !tag_match
-  val hit_way_id = OHToUFix(Cat(Bits(0),tag_match_arr:_*))
-  val meta_hit_mux = meta.io.resp(hit_way_id)
+  val hit_way_id = OHToUFix(Cat(Bits(0),tag_match_arr.reverse:_*)) //TODO
+  val meta_resp_way_id = Mux(meta.io.way_en === ~UFix(0, NWAYS), hit_way_id, OHToUFix(meta.io.way_en))
+  val meta_resp_mux = meta.io.resp(meta_resp_way_id)
+  val data_resp_way_id = Mux(data.io.way_en === ~UFix(0, NWAYS), hit_way_id, OHToUFix(data.io.way_en))
+  val data_resp_mux = data.io.resp(data_resp_way_id)
 
   // writeback unit
   val wb = new WritebackUnit
   val wb_arb = (new Arbiter(2)) { new WritebackReq() }
   wb_arb.io.out <> wb.io.req
   wb.io.data_req <> data_arb.io.in(3)
-  val data_resp_way_id = Mux(data.io.way_en === ~UFix(0, NWAYS), hit_way_id, OHToUFix(data.io.way_en))
-  val data_resp_mux = data.io.resp(data_resp_way_id)
   wb.io.data_resp <> data_resp_mux
 
   // replacement policy
   val replacer = new RandomReplacementWayGen()
   replacer.io.way_en := tag_miss & ~UFix(0, NWAYS)
-  val replaced_way_id = replacer.io.way_id
+  val replaced_way_id = replacer.io.way_id //TODO
   val meta_wb_mux = meta.io.resp(replaced_way_id)
   val dirty = meta_wb_mux.valid && meta_wb_mux.dirty //TODO: check all dirty uses
 
@@ -1077,8 +1097,8 @@ class HellaCacheAssoc(lines: Int) extends Component {
   wb_arb.io.in(1).bits.way_id := replaced_way_id
 
   // tag update after a miss or a store to an exclusive clean line.
-  val clear_valid = tag_miss && r_req_readwrite && meta_hit_mux.valid && (!dirty || wb_rdy)
-  val set_dirty   = tag_hit && !meta_hit_mux.dirty && r_req_write
+  val clear_valid = tag_miss && r_req_readwrite && meta_resp_mux.valid && (!dirty || wb_rdy)
+  val set_dirty   = tag_hit && !meta_resp_mux.dirty && r_req_write
   meta.io.state_req.bits.inner_req.rw := Bool(true)
   meta.io.state_req.bits.inner_req.idx := r_cpu_req_idx(indexmsb,indexlsb)
   meta.io.state_req.bits.inner_req.data.valid := tag_match
@@ -1095,10 +1115,10 @@ class HellaCacheAssoc(lines: Int) extends Component {
     p_store_data <== amoalu.io.out
   }
   when (tag_hit && r_req_write && p_store_rdy || r_replay_amo) {
-    p_store_idx    <== Mux(r_replay_amo, Reg(Cat(replayer.io.data_req.bits.idx, replayer.io.data_req.bits.offset)), r_cpu_req_idx)
+    p_store_idx    <== r_cpu_req_idx
+    p_store_type   <== r_cpu_req_type
+    p_store_cmd    <== r_cpu_req_cmd
     p_store_way_id <== Mux(r_replay_amo, Reg(replayer.io.replay.bits.way_id), hit_way_id)
-    p_store_type   <== Mux(r_replay_amo, Reg(replayer.io.data_req.bits.typ), r_cpu_req_type)
-    p_store_cmd    <== Mux(r_replay_amo, Reg(replayer.io.data_req.bits.cmd), r_cpu_req_cmd)
     p_store_data   <== storegen.io.dout
   }
 
@@ -1173,7 +1193,7 @@ class HellaCacheAssoc(lines: Int) extends Component {
   flusher.io.req.valid := r_cpu_req_val && r_req_flush && flush_rdy && !flushed
   flusher.io.wb_req <> wb_arb.io.in(0)
   flusher.io.meta_req <> meta_arb.io.in(0)
-  flusher.io.meta_resp <> meta.io.resp
+  flusher.io.meta_resp <> meta_resp_mux
   flusher.io.resp.ready := Bool(true) // we don't respond to flush requests
 
   // we usually nack rather than reporting that the cache is not ready.
