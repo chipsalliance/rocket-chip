@@ -86,7 +86,7 @@ class rocketICacheDM(lines: Int) extends Component {
   val tag_we = (state === s_refill_wait) && io.mem.resp_val;
 
   val tag_array = Mem4(lines, r_cpu_req_ppn);
-  tag_array.setReadLatency(SRAM_READ_LATENCY);
+  tag_array.setReadLatency(1);
   tag_array.setTarget('inst);
   val tag_rdata = tag_array.rw(tag_addr, r_cpu_req_ppn, tag_we);
 
@@ -107,7 +107,7 @@ class rocketICacheDM(lines: Int) extends Component {
     Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(PGIDX_BITS-1, offsetbits), refill_count),
       io.cpu.req_idx(PGIDX_BITS-1, offsetmsb-1)).toUFix;
   val data_array = Mem4(lines*REFILL_CYCLES, io.mem.resp_data);
-  data_array.setReadLatency(SRAM_READ_LATENCY);
+  data_array.setReadLatency(1);
   data_array.setTarget('inst);
   val data_array_rdata = data_array.rw(data_addr, io.mem.resp_data, io.mem.resp_val);
 

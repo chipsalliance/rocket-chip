@@ -29,8 +29,10 @@ class rocketDpathBTB(entries: Int) extends Component
   val taglsb = (VADDR_BITS-idxlsb);
   
   val vb_array = Mem(entries, io.wen || io.clr, io.correct_pc4(idxmsb,idxlsb), !io.clr, resetVal = Bool(false)); 
-  val tag_target_array = Mem(entries, io.wen, io.correct_pc4(idxmsb,idxlsb), 
-                             Cat(io.correct_pc4(VADDR_BITS-1,idxmsb+1), io.correct_target(VADDR_BITS-1,idxlsb)))
+  val tag_target_array = Mem4(entries, io.wen, io.correct_pc4(idxmsb,idxlsb), 
+                              Cat(io.correct_pc4(VADDR_BITS-1,idxmsb+1), io.correct_target(VADDR_BITS-1,idxlsb)))
+  tag_target_array.setReadLatency(0);
+  tag_target_array.setTarget('inst);
   val is_val       = vb_array(io.current_pc4(idxmsb,idxlsb));
   val tag_target   = tag_target_array(io.current_pc4(idxmsb, idxlsb));
   
@@ -226,20 +228,12 @@ class rocketDpathRegfile extends Component
 {
   override val io = new ioRegfile();
 
-  // FIXME: remove the first "if" case once Mem4 C backend bug is fixed
-  if (SRAM_READ_LATENCY == 0) {
-    val regfile = Mem(32, io.w0.en && (io.w0.addr != UFix(0,5)), io.w0.addr, io.w0.data);  
-    io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
-    io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
-  }
-  else {
-    val regfile = Mem4(32, io.w0.data);
-    regfile.setReadLatency(0);
-    regfile.setTarget('inst);
-    regfile.write(io.w0.addr, io.w0.data, io.w0.en);
-    io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
-    io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
-  }
+  val regfile = Mem4(32, io.w0.data);
+  regfile.setReadLatency(0);
+  regfile.setTarget('inst);
+  regfile.write(io.w0.addr, io.w0.data, io.w0.en);
+  io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
+  io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
 }
 
 }

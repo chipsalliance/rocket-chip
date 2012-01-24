@@ -258,8 +258,8 @@ class rocketDCacheDM(lines: Int) extends Component {
     ((state === s_resolve_miss) && r_req_flush);
 
   val tag_array = Mem4(lines, r_cpu_req_ppn);
-  tag_array.setReadLatency(SRAM_READ_LATENCY);
-//   tag_array.setTarget('inst);
+  tag_array.setReadLatency(1);
+  tag_array.setTarget('inst);
   val tag_rdata = tag_array.rw(tag_addr, r_cpu_req_ppn, tag_we);
 
   // valid bit array
@@ -375,8 +375,8 @@ class rocketDCacheDM(lines: Int) extends Component {
       store_wmask));
 
   val data_array = Mem4(lines*4, data_wdata);
-  data_array.setReadLatency(SRAM_READ_LATENCY);
-//   data_array.setTarget('inst);
+  data_array.setReadLatency(1);
+  data_array.setTarget('inst);
   val data_array_rdata = data_array.rw(data_addr, data_wdata, data_we, data_wmask);
   val resp_data = Mux(r_cpu_req_idx(offsetlsb).toBool, data_array_rdata(127, 64), data_array_rdata(63,0));
   val r_resp_data = Reg(resp_data);

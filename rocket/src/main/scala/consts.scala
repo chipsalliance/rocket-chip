@@ -210,8 +210,6 @@ object Constants
   val HAVE_RVC = Bool(false);
   val HAVE_FPU = Bool(false);
   val HAVE_VEC = Bool(false);
-
-  val SRAM_READ_LATENCY = 0;
 }
 
 }
