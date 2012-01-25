@@ -15,7 +15,7 @@ class Top() extends Component {
   val io        = new ioTop();
   
   val cpu       = new rocketProc();
-  val icache    = new rocketICacheDM(128); // # 64 byte cache lines
+  val icache    = new rocketICache(128, 2); // 128 sets x 2 ways
   val icache_pf = new rocketIPrefetcher();
   val dcache    = new HellaCacheDM(128);
   val arbiter   = new rocketMemArbiter();
