@@ -16,6 +16,11 @@ object log2up
   def apply(in: Int) = if (in == 1) 1 else ceil(log(in)/log(2)).toInt
 }
 
+object ispow2
+{
+  def apply(in: Int) = in > 0 && ((in & (in-1)) == 0)
+}
+
 object FillInterleaved
 {
   def apply(n: Int, in: Bits) =
@@ -58,7 +63,7 @@ object UFixToOH
 
 object LFSR16
 {
-  def apply(increment: Bool) =
+  def apply(increment: Bool = Bool(true)) =
   {
     val width = 16
     val lfsr = Reg(resetVal = UFix(1, width))
