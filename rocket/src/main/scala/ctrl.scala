@@ -361,6 +361,7 @@ class rocketCtrl extends Component
 
   val wb_reg_inst_di         = Reg(resetVal = Bool(false));
   val wb_reg_inst_ei         = Reg(resetVal = Bool(false));
+  val wb_reg_flush_inst      = Reg(resetVal = Bool(false));
   val wb_reg_eret            = Reg(resetVal = Bool(false));
   val wb_reg_exception       = Reg(resetVal = Bool(false));
   val wb_reg_badvaddr_wen    = Reg(resetVal = Bool(false));
@@ -493,12 +494,14 @@ class rocketCtrl extends Component
     wb_reg_eret        <== Bool(false);
     wb_reg_inst_di     <== Bool(false);
     wb_reg_inst_ei     <== Bool(false);
+    wb_reg_flush_inst  <== Bool(false);
     wb_reg_div_mul_val <== Bool(false);
   }
   otherwise {
     wb_reg_eret        <== mem_reg_eret;
     wb_reg_inst_di     <== mem_reg_inst_di;
     wb_reg_inst_ei     <== mem_reg_inst_ei;
+    wb_reg_flush_inst  <== mem_reg_flush_inst;
     wb_reg_div_mul_val <== mem_reg_div_mul_val;
   }
 
@@ -657,7 +660,7 @@ class rocketCtrl extends Component
   val ctrl_killd = take_pc || ctrl_stalld;
   val ctrl_killf = take_pc || !io.imem.resp_val;
   
-  io.flush_inst     := mem_reg_flush_inst;
+  io.flush_inst     := wb_reg_flush_inst;
 
 
   io.dpath.stallf   := ctrl_stallf;
