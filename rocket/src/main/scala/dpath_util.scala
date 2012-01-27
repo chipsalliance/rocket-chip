@@ -178,7 +178,9 @@ class rocketDpathPCR extends Component
   	when (io.w.addr === PCR_PTBR) 		{ reg_ptbr  			<== Cat(io.w.data(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
   }
 
-  reg_count <== reg_count + UFix(1);
+  otherwise {
+    reg_count <== reg_count + UFix(1);
+  }
   when (reg_count === reg_compare) {
     r_irq_timer <== Bool(true);
   }
