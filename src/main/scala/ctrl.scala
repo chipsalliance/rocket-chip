@@ -327,7 +327,8 @@ class rocketCtrl extends Component
   
   val ex_reg_br_type     = Reg(){UFix(width = 4)};
   val ex_reg_btb_hit     = Reg(){Bool()};
-  val ex_reg_div_mul_val = Reg(){Bool()};
+  val ex_reg_div_val     = Reg(){Bool()};
+  val ex_reg_mul_val     = Reg(){Bool()};
   val ex_reg_mem_val     = Reg(){Bool()};
   val ex_reg_mem_cmd     = Reg(){UFix(width = 4)};
   val ex_reg_mem_type    = Reg(){UFix(width = 3)};
@@ -389,7 +390,8 @@ class rocketCtrl extends Component
   when (reset.toBool || io.dpath.killd) {
     ex_reg_br_type     <== BR_N;
     ex_reg_btb_hit     <== Bool(false);
-    ex_reg_div_mul_val <== Bool(false);
+    ex_reg_div_val <== Bool(false);
+    ex_reg_mul_val <== Bool(false);
     ex_reg_mem_val     <== Bool(false);
     ex_reg_eret        <== Bool(false);
     ex_reg_replay_next <== Bool(false);
@@ -408,7 +410,8 @@ class rocketCtrl extends Component
   otherwise {
     ex_reg_br_type     <== id_br_type;
     ex_reg_btb_hit     <== id_reg_btb_hit;
-    ex_reg_div_mul_val <== id_div_val.toBool || id_mul_val.toBool;
+    ex_reg_div_val     <== id_div_val.toBool;
+    ex_reg_mul_val     <== id_mul_val.toBool;
     ex_reg_mem_val     <== id_mem_val.toBool;
     ex_reg_eret        <== id_eret.toBool;
     ex_reg_replay_next <== id_replay_next.toBool;
@@ -471,7 +474,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_syscall     <== Bool(false);
   }
   otherwise {
-    mem_reg_div_mul_val <== ex_reg_div_mul_val;
+    mem_reg_div_mul_val <== ex_reg_div_val || ex_reg_mul_val;
     mem_reg_eret        <== ex_reg_eret;
     mem_reg_mem_val     <== ex_reg_mem_val;
     mem_reg_inst_di     <== ex_reg_inst_di;
@@ -563,7 +566,9 @@ class rocketCtrl extends Component
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
   val replay_ex    = dcache_miss && ex_reg_lu_bypass || mem_reg_flush_inst || 
-                     ex_reg_replay || ex_reg_mem_val && !(io.dmem.req_rdy && io.dtlb_rdy)
+                     ex_reg_replay || ex_reg_mem_val && !(io.dmem.req_rdy && io.dtlb_rdy) ||
+                     ex_reg_div_val && !io.dpath.div_rdy ||
+                     ex_reg_mul_val && !io.dpath.mul_rdy
   val kill_ex      = take_pc_wb || replay_ex
 
   mem_reg_replay <== replay_ex && !take_pc_wb;
@@ -599,7 +604,7 @@ class rocketCtrl extends Component
   val ex_mem_cmd_load = 
     ex_reg_mem_val && ((ex_reg_mem_cmd === M_XRD) || ex_reg_mem_cmd(3).toBool);
   val data_hazard_ex =
-    (ex_mem_cmd_load || ex_reg_div_mul_val) &&
+    (ex_mem_cmd_load || ex_reg_div_val || ex_reg_mul_val) &&
     ((id_renx1.toBool && (id_raddr1 === io.dpath.ex_waddr)) ||
      (id_renx2.toBool && (id_raddr2 === io.dpath.ex_waddr)) ||
      (id_wen.toBool   && (id_waddr  === io.dpath.ex_waddr)));
@@ -647,8 +652,8 @@ class rocketCtrl extends Component
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
       id_console_out_val && !io.console.rdy ||
-      id_div_val.toBool && !io.dpath.div_rdy ||
-      id_mul_val.toBool && !io.dpath.mul_rdy ||
+      id_div_val.toBool && (!io.dpath.div_rdy || ex_reg_div_val) ||
+      id_mul_val.toBool && (!io.dpath.mul_rdy || ex_reg_mul_val) ||
       io.dpath.div_result_val ||
       io.dpath.mul_result_val ||
       mem_wb
