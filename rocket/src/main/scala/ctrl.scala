@@ -362,7 +362,6 @@ class rocketCtrl extends Component
   val wb_reg_flush_inst      = Reg(resetVal = Bool(false));
   val wb_reg_eret            = Reg(resetVal = Bool(false));
   val wb_reg_exception       = Reg(resetVal = Bool(false));
-  val wb_reg_badvaddr_wen    = Reg(resetVal = Bool(false));
   val wb_reg_replay          = Reg(resetVal = Bool(false));
   val wb_reg_cause           = Reg(){UFix()};
 
@@ -549,11 +548,6 @@ class rocketCtrl extends Component
 		Mux(mem_xcpt_dtlb_st,         UFix(11,5), // store fault
 			UFix(0,5)))))))))));  // instruction address misaligned
 
-	// write cause to PCR on an exception
-	io.dpath.exception    := wb_reg_exception;
-	io.dpath.cause        := wb_reg_cause;
-	io.dpath.badvaddr_wen := wb_reg_badvaddr_wen;
-
   // control transfer from ex/mem
   val ex_btb_match = ex_reg_btb_hit && io.dpath.btb_match
   val br_jr_taken = br_taken || jr_taken
@@ -577,8 +571,14 @@ class rocketCtrl extends Component
 
   wb_reg_replay       <== replay_mem && !take_pc_wb;
   wb_reg_exception    <== mem_exception && !take_pc_wb;
-  wb_reg_badvaddr_wen <== (mem_xcpt_dtlb_ld || mem_xcpt_dtlb_st) && !take_pc_wb;
   wb_reg_cause        <== mem_cause;
+
+  val wb_badvaddr_wen = wb_reg_exception && ((wb_reg_cause === UFix(10)) || (wb_reg_cause === UFix(11)))
+
+	// write cause to PCR on an exception
+	io.dpath.exception    := wb_reg_exception;
+	io.dpath.cause        := wb_reg_cause;
+	io.dpath.badvaddr_wen := wb_badvaddr_wen;
 
   io.dpath.sel_pc :=
     Mux(wb_reg_exception,               PC_EVEC, // exception
