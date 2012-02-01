@@ -72,23 +72,66 @@ object LFSR16
   }
 }
 
-class Mux1H(n: Int, w: Int) extends Component
+object Mux1H 
+{
+//TODO: cloning in(0) is unsafe if other elements have different widths, but
+//is that even allowable?
+  def apply [T <: Data](n: Int, sel: Vec[Bool], in: Vec[T]): T = {
+    MuxCase(in(0), (0 until n).map( i => (sel(i), in(i))))
+//    val mux = (new Mux1H(n)){ in(0).clone }
+//    mux.io.sel <> sel
+//    mux.io.in <> in
+//    mux.io.out.asInstanceOf[T]
+  }
+
+  def apply [T <: Data](n: Int, sel: Seq[Bool], in: Vec[T]): T = {
+    MuxCase(in(0), (0 until n).map( i => (sel(i), in(i))))
+//    val mux = (new Mux1H(n)){ in(0).clone }
+//    for(i <- 0 until n) {
+//      mux.io.sel(i) := sel(i)
+//    }
+//    mux.io.in <> in.asOutput
+//    mux.io.out.asInstanceOf[T]
+  }
+
+  def apply [T <: Data](n: Int, sel: Bits, in: Vec[T]): T = {
+    MuxCase(in(0), (0 until n).map( i => (sel(i).toBool, in(i))))
+//    val mux = (new Mux1H(n)){ in(0).clone }
+//    for(i <- 0 until n) {
+//      mux.io.sel(i) := sel(i).toBool
+//    }
+//    mux.io.in := in
+//    mux.io.out
+  }
+}
+
+class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
 {
   val io = new Bundle {
     val sel = Vec(n) { Bool(dir = INPUT) }
-    val in  = Vec(n) { Bits(width = w, dir = INPUT) }
-    val out = Bits(width = w, dir = OUTPUT)
+    val in  = Vec(n) { gen }.asInput
+    val out = gen.asOutput
   }
 
-  if (n > 1) {
-    var out = io.in(0) & Fill(w, io.sel(0))
+  if (n > 2) {
+    var out = io.in(0).toBits & Fill(gen.getWidth, io.sel(0))
     for (i <- 1 to n-1)
-      out = out | (io.in(i) & Fill(w, io.sel(i)))
+      out = out | (io.in(i).toBits & Fill(gen.getWidth, io.sel(i)))
     io.out := out
+  } else if (n == 2) {
+    io.out := Mux(io.sel(1), io.in(1), io.in(0))
   } else {
     io.out := io.in(0)
   }
 }
+
+
+
+
+
+
+
+
 
 class ioDecoupled[T <: Data]()(data: => T) extends Bundle
 {

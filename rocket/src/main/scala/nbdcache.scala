@@ -289,9 +289,9 @@ class MSHRFile extends Component {
     val replay   = (new ioDecoupled) { new Replay()   }.flip()
   }
 
-  val tag_mux = new Mux1H(NMSHR, PPN_BITS)
-  val mem_resp_idx_mux = new Mux1H(NMSHR, IDX_BITS)
-  val mem_resp_way_id_mux = new Mux1H(NMSHR, log2up(NWAYS))
+  val tag_mux = (new Mux1H(NMSHR)){ Bits(width = PPN_BITS) }
+  val mem_resp_idx_mux = (new Mux1H(NMSHR)){ Bits(width = IDX_BITS) }
+  val mem_resp_way_oh_mux = (new Mux1H(NMSHR)){ Bits(width =  NWAYS) }
   val meta_req_arb = (new Arbiter(NMSHR)) { new MetaArrayArrayReq() }
   val mem_req_arb = (new Arbiter(NMSHR)) { new MemReq() }
   val replay_arb = (new Arbiter(NMSHR)) { new Replay() }
