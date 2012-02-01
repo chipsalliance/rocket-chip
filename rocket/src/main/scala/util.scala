@@ -56,8 +56,7 @@ object UFixToOH
 {
   def apply(in: UFix, width: Int): Bits =
   {
-    val out = Bits(1, width)
-    out << in
+    (UFix(1) << in(log2up(width)-1,0))
   }
 }
 
