@@ -5,20 +5,16 @@ import Node._;
 import Constants._;
 import scala.math._;
 
-class ReplacementWayGen extends Component {
-  val io = new Bundle {
-    val way_en = Bits(width = NWAYS, dir = INPUT)
-    val way_id = UFix(width = log2up(NWAYS), dir = OUTPUT)
-  }
+class ioReplacementWayGen extends Bundle {
+  val pick_new_way = Bool(dir = INPUT)
+  val way_en = Bits(width = NWAYS, dir = INPUT)
+  val way_id = UFix(width = log2up(NWAYS), dir = OUTPUT)
 }
 
 class RandomReplacementWayGen extends Component {
-  val io = new Bundle {
-    val way_en = Bits(width = NWAYS, dir = INPUT)
-    val way_id = UFix(width = log2up(NWAYS), dir = OUTPUT)
-  }
+  val io = new ioReplacementWayGen()
   //TODO: Actually limit selection based on which ways are allowed (io.ways_en)
-  if(NWAYS > 1) io.way_id := LFSR16(io.way_en.orR)
+  if(NWAYS > 1) io.way_id := LFSR16(io.pick_new_way)
   else io.way_id := UFix(0)
 }
 
@@ -109,7 +105,7 @@ class Replay extends Bundle {
   val typ    = Bits(width = 3)
   val sdq_id = UFix(width = log2up(NSDQ))
   val tag    = Bits(width = DCACHE_TAG_BITS)
-  val way_id = UFix(width = log2up(NWAYS))
+  val way_oh = Bits(width = NWAYS)
 }
 
 class DataReq extends Bundle {
@@ -142,7 +138,7 @@ class MemReq extends Bundle {
 class WritebackReq extends Bundle {
   val ppn = Bits(width = PPN_BITS)
   val idx = Bits(width = IDX_BITS)
-  val way_id = UFix(width = log2up(NWAYS))
+  val way_oh = Bits(width = NWAYS)
 }
 
 class MetaData extends Bundle {
@@ -175,12 +171,12 @@ class MSHR(id: Int) extends Component {
     val req_type       = Bits(3, INPUT)
     val req_sdq_id     = UFix(log2up(NSDQ), INPUT)
     val req_tag        = Bits(DCACHE_TAG_BITS, INPUT)
-    val req_way_id     = UFix(log2up(NWAYS),INPUT)
+    val req_way_oh     = Bits(NWAYS, INPUT)
 
     val idx_match      = Bool(OUTPUT)
     val idx            = Bits(IDX_BITS, OUTPUT)
     val tag            = Bits(PPN_BITS, OUTPUT)
-    val way_id         = Bits(log2up(NWAYS), OUTPUT)
+    val way_oh         = Bits(NWAYS, OUTPUT)
 
     val mem_resp_val = Bool(INPUT)
     val mem_req  = (new ioDecoupled) { new MemReq()  }.flip
@@ -194,7 +190,7 @@ class MSHR(id: Int) extends Component {
   val refilled = Reg { Bool() }
   val ppn = Reg { Bits() }
   val idx_ = Reg { Bits() }
-  val way_id_ = Reg { Bits() }
+  val way_oh_ = Reg { Bits() }
 
   val req_load = (io.req_cmd === M_XRD) || (io.req_cmd === M_PFR)
   val req_use_rpq = (io.req_cmd != M_PFR) && (io.req_cmd != M_PFW)
@@ -218,7 +214,7 @@ class MSHR(id: Int) extends Component {
     refilled <== Bool(false)
     ppn <== io.req_ppn
     idx_ <== io.req_idx
-    way_id_ <== io.req_way_id
+    way_oh_ <== io.req_way_oh
   }
   when (io.mem_req.valid && io.mem_req.ready) {
     requested <== Bool(true)
@@ -236,7 +232,7 @@ class MSHR(id: Int) extends Component {
   io.idx_match := valid && (idx_ === io.req_idx)
   io.idx := idx_
   io.tag := ppn
-  io.way_id := way_id_
+  io.way_oh := way_oh_
   io.req_pri_rdy := !valid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
@@ -246,7 +242,7 @@ class MSHR(id: Int) extends Component {
   io.meta_req.bits.inner_req.data.valid := Bool(true)
   io.meta_req.bits.inner_req.data.dirty := dirty
   io.meta_req.bits.inner_req.data.tag := ppn
-  io.meta_req.bits.way_en := UFixToOH(way_id_.toUFix, NWAYS)
+  io.meta_req.bits.way_en := way_oh_
 
   io.mem_req.valid := valid && !requested
   //io.mem_req.bits.itm := next_dirty
@@ -261,7 +257,7 @@ class MSHR(id: Int) extends Component {
   io.replay.bits.cmd := rpq.io.deq.bits.cmd
   io.replay.bits.typ := rpq.io.deq.bits.typ
   io.replay.bits.sdq_id := rpq.io.deq.bits.sdq_id
-  io.replay.bits.way_id := way_id_.toUFix
+  io.replay.bits.way_oh := way_oh_
 }
 
 class MSHRFile extends Component {
@@ -275,12 +271,12 @@ class MSHRFile extends Component {
     val req_type   = Bits(3, INPUT)
     val req_tag    = Bits(DCACHE_TAG_BITS, INPUT)
     val req_sdq_id = UFix(log2up(NSDQ), INPUT)
-    val req_way_id = UFix(log2up(NWAYS), INPUT)
+    val req_way_oh = Bits(NWAYS, INPUT)
 
     val mem_resp_val = Bool(INPUT)
     val mem_resp_tag = Bits(DMEM_TAG_BITS, INPUT)
     val mem_resp_idx = Bits(IDX_BITS, OUTPUT)
-    val mem_resp_way_id = UFix(log2up(NWAYS), OUTPUT)
+    val mem_resp_way_oh = Bits(NWAYS, OUTPUT)
 
     val fence_rdy = Bool(OUTPUT)
 
@@ -322,7 +318,7 @@ class MSHRFile extends Component {
     mshr.io.req_cmd := io.req_cmd
     mshr.io.req_type := io.req_type
     mshr.io.req_sdq_id := io.req_sdq_id
-    mshr.io.req_way_id := io.req_way_id
+    mshr.io.req_way_oh := io.req_way_oh
 
     mshr.io.meta_req <> meta_req_arb.io.in(i)
     mshr.io.mem_req <> mem_req_arb.io.in(i)
@@ -332,8 +328,8 @@ class MSHRFile extends Component {
     mshr.io.mem_resp_val := mem_resp_val
     mem_resp_idx_mux.io.sel(i) := (UFix(i) === io.mem_resp_tag)
     mem_resp_idx_mux.io.in(i) := mshr.io.idx
-    mem_resp_way_id_mux.io.sel(i) := (UFix(i) === io.mem_resp_tag)
-    mem_resp_way_id_mux.io.in(i) := mshr.io.way_id  
+    mem_resp_way_oh_mux.io.sel(i) := (UFix(i) === io.mem_resp_tag)
+    mem_resp_way_oh_mux.io.in(i) := mshr.io.way_oh
 
     pri_rdy = pri_rdy || mshr.io.req_pri_rdy
     sec_rdy = sec_rdy || mshr.io.req_sec_rdy
@@ -349,7 +345,7 @@ class MSHRFile extends Component {
 
   io.req_rdy := Mux(idx_match, tag_match && sec_rdy, pri_rdy)
   io.mem_resp_idx := mem_resp_idx_mux.io.out
-  io.mem_resp_way_id := mem_resp_way_id_mux.io.out.toUFix
+  io.mem_resp_way_oh := mem_resp_way_oh_mux.io.out
   io.fence_rdy := !fence
 }
 
@@ -357,7 +353,7 @@ class ReplayUnit extends Component {
   val io = new Bundle {
     val sdq_enq    = (new ioDecoupled) { Bits(width = CPU_DATA_BITS) }
     val sdq_id     = UFix(log2up(NSDQ), OUTPUT)
-    val way_id     = UFix(log2up(NWAYS), OUTPUT)
+    val way_oh     = Bits(NWAYS, OUTPUT)
     val replay     = (new ioDecoupled) { new Replay() }
     val data_req   = (new ioDecoupled) { new DataReq() }.flip()
     val cpu_resp_val = Bool(OUTPUT)
@@ -402,7 +398,7 @@ class ReplayUnit extends Component {
   io.replay.ready := !replay_retry
 
   io.data_req.valid := replay_val
-  io.way_id := rp.way_id
+  io.way_oh := rp.way_oh
   io.data_req.bits.idx := rp.idx
   io.data_req.bits.offset := rp.offset
   io.data_req.bits.cmd := rp.cmd
@@ -445,7 +441,7 @@ class WritebackUnit extends Component {
 
   io.req.ready := !valid
   io.data_req.valid := valid && (cnt < UFix(REFILL_CYCLES))
-  io.data_req.bits.way_en := UFixToOH(addr.way_id, NWAYS)
+  io.data_req.bits.way_en := addr.way_oh
   io.data_req.bits.inner_req.idx := addr.idx
   io.data_req.bits.inner_req.offset := cnt
   io.data_req.bits.inner_req.rw := Bool(false)
@@ -488,7 +484,13 @@ class FlushUnit(lines: Int) extends Component {
     is(s_ready) { when (io.req.valid) { state <== s_meta_read; tag <== io.req.bits } }
     is(s_meta_read) { when (io.meta_req.ready) { state <== s_meta_wait } }
     is(s_meta_wait) { state <== Mux(io.meta_resp.valid && io.meta_resp.dirty && !io.wb_req.ready, s_meta_read, s_meta_write) }
-    is(s_meta_write) { when (io.meta_req.ready) { state <== Mux(~idx_cnt === UFix(0), s_done, s_meta_read); idx_cnt <== next_idx_cnt } }
+    is(s_meta_write) {
+      when (io.meta_req.ready) { 
+        state <== Mux(~way_cnt === UFix(0) && ~idx_cnt === UFix(0), s_done, s_meta_read); 
+        when (~way_cnt === UFix(0)) { idx_cnt <== next_idx_cnt };
+        way_cnt <== next_way_cnt;
+      }
+    }
     is(s_done) { when (io.resp.ready) { state <== s_ready } }
   }
 
@@ -505,7 +507,7 @@ class FlushUnit(lines: Int) extends Component {
   io.wb_req.valid := state === s_meta_wait
   io.wb_req.bits.ppn := io.meta_resp.tag
   io.wb_req.bits.idx := idx_cnt
-  io.wb_req.bits.way_id := way_cnt
+  io.wb_req.bits.way_oh := UFixToOH(way_cnt, NWAYS)
 }
 
 class MetaDataArray(lines: Int) extends Component {
@@ -546,9 +548,6 @@ class MetaDataArrayArray(lines: Int) extends Component {
   }
 
   val way_en_ = Reg { Bits(width=NWAYS) }
-  when (io.state_req.valid && io.state_req.ready) {
-    way_en_ <== io.state_req.bits.way_en
-  }
   when (io.req.valid && io.req.ready) {
     way_en_ <== io.req.bits.way_en
   }
@@ -678,7 +677,6 @@ class HellaCacheDM(lines: Int) extends Component {
   val p_store_idx      = Reg() { Bits() }
   val p_store_cmd      = Reg() { Bits() }
   val p_store_type     = Reg() { Bits() }
-  val p_store_way_id   = Reg() { Bits() }
   val r_replay_amo     = Reg(resetVal = Bool(false))
 
   val req_store   = (io.cpu.req_cmd === M_XWR)
@@ -823,7 +821,6 @@ class HellaCacheDM(lines: Int) extends Component {
     p_store_type  <== r_cpu_req_type
     p_store_cmd   <== r_cpu_req_cmd
     p_store_data  <== storegen.io.dout
-    p_store_way_id <== UFix(0)
   }
 
   // miss handling
@@ -957,7 +954,7 @@ class HellaCacheAssoc(lines: Int) extends Component {
   val p_store_idx      = Reg() { Bits() }
   val p_store_cmd      = Reg() { Bits() }
   val p_store_type     = Reg() { Bits() }
-  val p_store_way_id   = Reg() { Bits() }
+  val p_store_way_oh   = Reg() { Bits() }
   val r_replay_amo     = Reg(resetVal = Bool(false))
 
   val req_store   = (io.cpu.req_cmd === M_XWR)
@@ -1030,11 +1027,13 @@ class HellaCacheAssoc(lines: Int) extends Component {
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
   val tag_hit  = r_cpu_req_val &&  tag_match
   val tag_miss = r_cpu_req_val && !tag_match
-  val hit_way_id = OHToUFix(Cat(Bits(0),tag_match_arr.reverse:_*)) //TODO
-  val meta_resp_way_id = Mux(meta.io.way_en === ~UFix(0, NWAYS), hit_way_id, OHToUFix(meta.io.way_en))
-  val meta_resp_mux = meta.io.resp(meta_resp_way_id)
-  val data_resp_way_id = Mux(data.io.way_en === ~UFix(0, NWAYS), hit_way_id, OHToUFix(data.io.way_en))
-  val data_resp_mux = data.io.resp(data_resp_way_id)
+  val hit_way_oh = Cat(Bits(0),tag_match_arr.reverse:_*) //TODO: use GenArray
+  val meta_resp_way_oh = Mux(meta.io.way_en === ~UFix(0, NWAYS), hit_way_oh, meta.io.way_en)
+  val data_resp_way_oh = Mux(data.io.way_en === ~UFix(0, NWAYS), hit_way_oh, data.io.way_en)
+  val meta_resp_mux = Mux1H(NWAYS, meta_resp_way_oh, meta.io.resp)
+  //val meta_resp_mux = MuxCase(meta.io.resp(0), (0 until NWAYS).map(i => (meta_resp_way_oh(i).toBool, meta.io.resp(i))))//
+  val data_resp_mux = Mux1H(NWAYS, data_resp_way_oh, data.io.resp)
+  //val data_resp_mux = MuxCase(data.io.resp(0), (0 until NWAYS).map(i => (data_resp_way_oh(i).toBool, data.io.resp(i))))//
 
   // writeback unit
   val wb = new WritebackUnit
@@ -1045,10 +1044,11 @@ class HellaCacheAssoc(lines: Int) extends Component {
 
   // replacement policy
   val replacer = new RandomReplacementWayGen()
-  replacer.io.way_en := tag_miss & ~UFix(0, NWAYS)
-  val replaced_way_id = replacer.io.way_id //TODO
+  replacer.io.way_en := ~UFix(0, NWAYS)
+  val replaced_way_id = replacer.io.way_id 
+  val replaced_way_oh = UFixToOH(replaced_way_id, NWAYS)
   val meta_wb_mux = meta.io.resp(replaced_way_id)
-  val dirty = meta_wb_mux.valid && meta_wb_mux.dirty //TODO: check all dirty uses
+  val dirty = meta_wb_mux.valid && meta_wb_mux.dirty
 
   // refill response
   val block_during_refill = !io.mem.resp_val && (rr_count != UFix(0))
@@ -1080,7 +1080,7 @@ class HellaCacheAssoc(lines: Int) extends Component {
   data_arb.io.in(2).bits.inner_req.idx := p_store_idx(indexmsb,indexlsb)
   data_arb.io.in(2).bits.inner_req.rw := Bool(true)
   data_arb.io.in(2).valid := drain_store_val
-  data_arb.io.in(2).bits.way_en :=  UFixToOH(p_store_way_id.toUFix, NWAYS)
+  data_arb.io.in(2).bits.way_en :=  p_store_way_oh
   val drain_store = drain_store_val && data_arb.io.in(2).ready
   val p_store_rdy = !p_store_valid || drain_store
   val p_amo = Reg(tag_hit && r_req_amo && p_store_rdy && !p_store_match || r_replay_amo, resetVal = Bool(false))
@@ -1091,17 +1091,17 @@ class HellaCacheAssoc(lines: Int) extends Component {
   wb_arb.io.in(1).valid := tag_miss && r_req_readwrite && dirty && !p_store_idx_match
   wb_arb.io.in(1).bits.ppn := meta_wb_mux.tag
   wb_arb.io.in(1).bits.idx := r_cpu_req_idx(indexmsb,indexlsb)
-  wb_arb.io.in(1).bits.way_id := replaced_way_id
+  wb_arb.io.in(1).bits.way_oh := replaced_way_oh
 
   // tag update after a miss or a store to an exclusive clean line.
-  val clear_valid = tag_miss && r_req_readwrite && meta_resp_mux.valid && (!dirty || wb_rdy)
+  val clear_valid = tag_miss && r_req_readwrite && meta_wb_mux.valid && (!dirty || wb_rdy)
   val set_dirty   = tag_hit && !meta_resp_mux.dirty && r_req_write
   meta.io.state_req.bits.inner_req.rw := Bool(true)
   meta.io.state_req.bits.inner_req.idx := r_cpu_req_idx(indexmsb,indexlsb)
   meta.io.state_req.bits.inner_req.data.valid := tag_match
   meta.io.state_req.bits.inner_req.data.dirty := tag_match
   meta.io.state_req.valid := clear_valid || set_dirty
-  meta.io.state_req.bits.way_en := Cat(Bits(0),tag_match_arr:_*)
+  meta.io.state_req.bits.way_en := Mux(clear_valid, replaced_way_oh, hit_way_oh) 
   
   // pending store data, also used for AMO RHS
   val storegen = new StoreDataGen
@@ -1115,7 +1115,7 @@ class HellaCacheAssoc(lines: Int) extends Component {
     p_store_idx    <== r_cpu_req_idx
     p_store_type   <== r_cpu_req_type
     p_store_cmd    <== r_cpu_req_cmd
-    p_store_way_id <== Mux(r_replay_amo, Reg(replayer.io.replay.bits.way_id), hit_way_id)
+    p_store_way_oh <== Mux(r_replay_amo, replayer.io.way_oh, hit_way_oh)
     p_store_data   <== storegen.io.dout
   }
 
@@ -1129,7 +1129,7 @@ class HellaCacheAssoc(lines: Int) extends Component {
   mshr.io.req_cmd := r_cpu_req_cmd
   mshr.io.req_type := r_cpu_req_type
   mshr.io.req_sdq_id := replayer.io.sdq_id
-  mshr.io.req_way_id := replaced_way_id
+  mshr.io.req_way_oh := replaced_way_oh
   mshr.io.mem_resp_val := io.mem.resp_val && (~rr_count === UFix(0))
   mshr.io.mem_resp_tag := io.mem.resp_tag
   mshr.io.mem_req <> wb.io.refill_req
@@ -1138,7 +1138,8 @@ class HellaCacheAssoc(lines: Int) extends Component {
   replayer.io.sdq_enq.valid := tag_miss && r_req_write && (!dirty || wb_rdy) && mshr.io.req_rdy
   replayer.io.sdq_enq.bits := storegen.io.dout
   data_arb.io.in(0).bits.inner_req.idx := mshr.io.mem_resp_idx
-  data_arb.io.in(0).bits.way_en := UFixToOH(mshr.io.mem_resp_way_id.toUFix, NWAYS)
+  data_arb.io.in(0).bits.way_en := mshr.io.mem_resp_way_oh
+  replacer.io.pick_new_way := !io.cpu.req_kill && mshr.io.req_val && mshr.io.req_rdy 
 
   // replays
   val replay = replayer.io.data_req.bits
@@ -1149,7 +1150,7 @@ class HellaCacheAssoc(lines: Int) extends Component {
   data_arb.io.in(1).bits.inner_req.idx := replay.idx
   data_arb.io.in(1).bits.inner_req.rw := replay.cmd === M_XWR
   data_arb.io.in(1).valid := replay_val
-  data_arb.io.in(1).bits.way_en := UFixToOH(replayer.io.way_id, NWAYS)
+  data_arb.io.in(1).bits.way_en := replayer.io.way_oh
   replayer.io.data_req.ready := replay_rdy && !stall_replay
   r_replay_amo <== replay_amo_val && replay_rdy && !stall_replay
 

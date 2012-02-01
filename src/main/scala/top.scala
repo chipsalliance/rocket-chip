@@ -17,7 +17,7 @@ class Top() extends Component {
   val cpu       = new rocketProc();
   val icache    = new rocketICache(128, 2); // 128 sets x 2 ways
   val icache_pf = new rocketIPrefetcher();
-  val dcache    = new HellaCacheDM(128);
+  val dcache    = new HellaCacheAssoc(128);
   val arbiter   = new rocketMemArbiter();
 
   arbiter.io.mem    <> io.mem; 
@@ -37,9 +37,9 @@ class Top() extends Component {
 object top_main {
   def main(args: Array[String]) = { 
     // Can turn off --debug and --vcd when done with debugging to improve emulator performance
-//    val cpu_args = args ++ Array("--target-dir", "generated-src","--debug","--vcd");
+    val cpu_args = args ++ Array("--target-dir", "generated-src","--debug","--vcd");
 //    val cpu_args = args ++ Array("--target-dir", "generated-src", "--debug");
-    val cpu_args = args ++ Array("--target-dir", "generated-src");
+//    val cpu_args = args ++ Array("--target-dir", "generated-src");
     // Set variables based off of command flags
 //     for(a <- args) {
 //         a match {
