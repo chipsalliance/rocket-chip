@@ -131,12 +131,12 @@ class DataArrayArrayReq extends Bundle {
 
 class MemReq extends Bundle {
   val rw   = Bool()
-  val addr = UFix(width = PPN_BITS+IDX_BITS)
+  val addr = UFix(width = PADDR_BITS-OFFSET_BITS)
   val tag  = Bits(width = DMEM_TAG_BITS)
 }
 
 class WritebackReq extends Bundle {
-  val ppn = Bits(width = PPN_BITS)
+  val ppn = Bits(width = TAG_BITS)
   val idx = Bits(width = IDX_BITS)
   val way_oh = Bits(width = NWAYS)
 }
@@ -144,7 +144,7 @@ class WritebackReq extends Bundle {
 class MetaData extends Bundle {
   val valid = Bool()
   val dirty = Bool()
-  val tag = Bits(width = PPN_BITS)
+  val tag = Bits(width = TAG_BITS)
 }
 
 class MetaArrayReq extends Bundle {
@@ -164,7 +164,7 @@ class MSHR(id: Int) extends Component {
     val req_pri_rdy    = Bool(OUTPUT)
     val req_sec_val    = Bool(INPUT)
     val req_sec_rdy    = Bool(OUTPUT)
-    val req_ppn        = Bits(PPN_BITS, INPUT)
+    val req_ppn        = Bits(TAG_BITS, INPUT)
     val req_idx        = Bits(IDX_BITS, INPUT)
     val req_offset     = Bits(OFFSET_BITS, INPUT)
     val req_cmd        = Bits(4, INPUT)
@@ -175,7 +175,7 @@ class MSHR(id: Int) extends Component {
 
     val idx_match      = Bool(OUTPUT)
     val idx            = Bits(IDX_BITS, OUTPUT)
-    val tag            = Bits(PPN_BITS, OUTPUT)
+    val tag            = Bits(TAG_BITS, OUTPUT)
     val way_oh         = Bits(NWAYS, OUTPUT)
 
     val mem_resp_val = Bool(INPUT)
@@ -264,7 +264,7 @@ class MSHRFile extends Component {
   val io = new Bundle {
     val req_val    = Bool(INPUT)
     val req_rdy    = Bool(OUTPUT)
-    val req_ppn    = Bits(PPN_BITS, INPUT)
+    val req_ppn    = Bits(TAG_BITS, INPUT)
     val req_idx    = Bits(IDX_BITS, INPUT)
     val req_offset = Bits(OFFSET_BITS, INPUT)
     val req_cmd    = Bits(4, INPUT)
@@ -285,7 +285,7 @@ class MSHRFile extends Component {
     val replay   = (new ioDecoupled) { new Replay()   }.flip()
   }
 
-  val tag_mux = (new Mux1H(NMSHR)){ Bits(width = PPN_BITS) }
+  val tag_mux = (new Mux1H(NMSHR)){ Bits(width = TAG_BITS) }
   val mem_resp_idx_mux = (new Mux1H(NMSHR)){ Bits(width = IDX_BITS) }
   val mem_resp_way_oh_mux = (new Mux1H(NMSHR)){ Bits(width =  NWAYS) }
   val meta_req_arb = (new Arbiter(NMSHR)) { new MetaArrayArrayReq() }
@@ -644,13 +644,10 @@ class AMOALU extends Component {
                 /* MIN[U]/MAX[U] */   cmp_out))));
 }
 
-//class HellaCache(lines: Int, ways: Int) extends Component {
-//
-//}
-
-class HellaCacheDM(lines: Int) extends Component {
+class HellaCacheDM extends Component {
   val io = new ioDCacheHella()
-  
+
+  val lines       = 1 << IDX_BITS
   val addrbits    = PADDR_BITS
   val indexbits   = log2up(lines)
   val offsetbits  = OFFSET_BITS
@@ -753,7 +750,8 @@ class HellaCacheDM(lines: Int) extends Component {
   meta_arb.io.in(2).bits.data.dirty := Bool(false) // don't care
   meta_arb.io.in(2).bits.data.tag := UFix(0)       // don't care
   val early_tag_nack = !meta_arb.io.in(2).ready
-  val tag_match = meta.io.resp.valid && (meta.io.resp.tag === io.cpu.req_ppn)
+  val cpu_req_tag = Cat(io.cpu.req_ppn, r_cpu_req_idx)(tagmsb,taglsb)
+  val tag_match = meta.io.resp.valid && (meta.io.resp.tag === cpu_req_tag)
   val tag_hit  = r_cpu_req_val &&  tag_match
   val tag_miss = r_cpu_req_val && !tag_match
   val dirty = meta.io.resp.valid && meta.io.resp.dirty
@@ -826,7 +824,7 @@ class HellaCacheDM(lines: Int) extends Component {
   // miss handling
   val mshr = new MSHRFile()
   mshr.io.req_val := tag_miss && r_req_readwrite && (!dirty || wb_rdy) && (!r_req_write || replayer.io.sdq_enq.ready)
-  mshr.io.req_ppn := io.cpu.req_ppn
+  mshr.io.req_ppn := cpu_req_tag
   mshr.io.req_idx := r_cpu_req_idx(indexmsb,indexlsb)
   mshr.io.req_tag := r_cpu_req_tag
   mshr.io.req_offset := r_cpu_req_idx(offsetmsb,0)
@@ -925,9 +923,10 @@ class HellaCacheDM(lines: Int) extends Component {
   io.mem.req_addr  := wb.io.mem_req.bits.addr
 }
  
-class HellaCacheAssoc(lines: Int) extends Component {
+class HellaCacheAssoc extends Component {
   val io = new ioDCacheHella()
-  
+ 
+  val lines       = 1 << IDX_BITS
   val addrbits    = PADDR_BITS
   val indexbits   = log2up(lines)
   val offsetbits  = OFFSET_BITS
@@ -1022,8 +1021,8 @@ class HellaCacheAssoc(lines: Int) extends Component {
   meta_arb.io.in(2).bits.inner_req.data.tag := UFix(0)       // don't care
   meta_arb.io.in(2).bits.way_en := ~UFix(0, NWAYS)
   val early_tag_nack = !meta_arb.io.in(2).ready
-  //val tag_match_arr = meta.io.resp.map(r => r.valid && (r.tag === io.cpu_req_ppn))
-  val tag_match_arr = (0 until NWAYS).map( w => meta.io.resp(w).valid && (meta.io.resp(w).tag === io.cpu.req_ppn))
+  val cpu_req_tag = Cat(io.cpu.req_ppn, r_cpu_req_idx)(tagmsb,taglsb)
+  val tag_match_arr = (0 until NWAYS).map( w => meta.io.resp(w).valid && (meta.io.resp(w).tag === cpu_req_tag))
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
   val tag_hit  = r_cpu_req_val &&  tag_match
   val tag_miss = r_cpu_req_val && !tag_match
@@ -1122,7 +1121,7 @@ class HellaCacheAssoc(lines: Int) extends Component {
   // miss handling
   val mshr = new MSHRFile()
   mshr.io.req_val := tag_miss && r_req_readwrite && (!dirty || wb_rdy) && (!r_req_write || replayer.io.sdq_enq.ready)
-  mshr.io.req_ppn := io.cpu.req_ppn
+  mshr.io.req_ppn := cpu_req_tag
   mshr.io.req_idx := r_cpu_req_idx(indexmsb,indexlsb)
   mshr.io.req_tag := r_cpu_req_tag
   mshr.io.req_offset := r_cpu_req_idx(offsetmsb,0)

@@ -187,8 +187,10 @@ object Constants
   val NRPQ = 16; // number of secondary misses
   val NSDQ = 17; // number of secondary stores/AMOs
   val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
-  val IDX_BITS = PGIDX_BITS - OFFSET_BITS;
+  val IDX_BITS = 7;
+  val TAG_BITS = PADDR_BITS - OFFSET_BITS - IDX_BITS;
   val NWAYS = 1;
+  require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
 
   // external memory interface
   val IMEM_TAG_BITS = 1;
