@@ -70,12 +70,10 @@ class rocketDpath extends Component
   val id_reg_valid     = Reg(resetVal = Bool(false));
   val id_reg_inst      = Reg(resetVal = NOP);
   val id_reg_pc        = Reg() { UFix(width = VADDR_BITS+1) };
-  val id_reg_pc_plus4  = Reg() { UFix(width = VADDR_BITS+1) };
 
   // execute definitions
   val ex_reg_valid          = Reg(resetVal = Bool(false));
   val ex_reg_pc             = Reg() { UFix() };
-  val ex_reg_pc_plus4       = Reg() { UFix() };
   val ex_reg_inst           = Reg() { Bits() };
   val ex_reg_raddr2         = Reg() { UFix() };
   val ex_reg_rs2            = Reg() { Bits() };
@@ -127,6 +125,7 @@ class rocketDpath extends Component
   // instruction fetch stage
   val if_pc_plus4 = if_reg_pc + UFix(4);
 
+  val ex_pc_plus4 = ex_reg_pc + UFix(4);
   val ex_sign_extend = 
     Cat(Fill(52, ex_reg_inst(21)), ex_reg_inst(21,10));
   val ex_sign_extend_split = 
@@ -145,7 +144,7 @@ class rocketDpath extends Component
 
   val if_next_pc =
     Mux(io.ctrl.sel_pc === PC_BTB,  Cat(if_btb_target(VADDR_BITS-1), if_btb_target),
-    Mux(io.ctrl.sel_pc === PC_EX4,  ex_reg_pc_plus4,
+    Mux(io.ctrl.sel_pc === PC_EX4,  ex_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,   ex_jr_target_extended,
     Mux(io.ctrl.sel_pc === PC_PCR,  wb_reg_wdata(VADDR_BITS,0), // only used for ERET
@@ -167,13 +166,12 @@ class rocketDpath extends Component
   btb.io.hit            <> io.ctrl.btb_hit;
   btb.io.wen            <> io.ctrl.wen_btb;
   btb.io.clr            <> io.ctrl.clr_btb;
-  btb.io.correct_pc4    := ex_reg_pc_plus4;
+  btb.io.correct_pc4    := ex_pc_plus4;
   io.ctrl.btb_match     := id_reg_pc === jr_br_target;
 
   // instruction decode stage
   when (!io.ctrl.stalld) {
     id_reg_pc <== if_reg_pc;
-    id_reg_pc_plus4 <== if_pc_plus4;
     when(io.ctrl.killf) {
       id_reg_inst  <== NOP;
       id_reg_valid <== Bool(false);
@@ -231,7 +229,6 @@ class rocketDpath extends Component
 
   // execute stage
   ex_reg_pc             <== id_reg_pc;
-  ex_reg_pc_plus4       <== id_reg_pc_plus4;
   ex_reg_inst           <== id_reg_inst;
   ex_reg_raddr2         <== id_raddr2;
   ex_reg_rs2            <== id_rs2;
@@ -351,7 +348,7 @@ class rocketDpath extends Component
 	// writeback select mux
   ex_wdata :=
     Mux(ex_reg_ctrl_ll_wb || ex_reg_ctrl_wen_pcr, ex_reg_rs1,
-    Mux(ex_reg_ctrl_sel_wb === WB_PC,  Cat(Fill(64-VADDR_BITS, ex_reg_pc_plus4(VADDR_BITS-1)), ex_reg_pc_plus4),
+    Mux(ex_reg_ctrl_sel_wb === WB_PC,  Cat(Fill(64-VADDR_BITS, ex_pc_plus4(VADDR_BITS-1)), ex_pc_plus4),
     Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
     Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg,
