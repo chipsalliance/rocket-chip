@@ -14,7 +14,7 @@ class ioReplacementWayGen extends Bundle {
 class RandomReplacementWayGen extends Component {
   val io = new ioReplacementWayGen()
   //TODO: Actually limit selection based on which ways are allowed (io.ways_en)
-  if(NWAYS > 1) io.way_id := LFSR16(io.pick_new_way)
+  if(NWAYS > 1) io.way_id := LFSR16(io.pick_new_way)(log2up(NWAYS)-1,0)
   else io.way_id := UFix(0)
 }
 
@@ -928,7 +928,7 @@ class HellaCacheAssoc extends Component {
  
   val lines       = 1 << IDX_BITS
   val addrbits    = PADDR_BITS
-  val indexbits   = log2up(lines)
+  val indexbits   = IDX_BITS
   val offsetbits  = OFFSET_BITS
   val tagmsb      = PADDR_BITS-1
   val taglsb      = indexbits+offsetbits
@@ -1030,9 +1030,7 @@ class HellaCacheAssoc extends Component {
   val meta_resp_way_oh = Mux(meta.io.way_en === ~UFix(0, NWAYS), hit_way_oh, meta.io.way_en)
   val data_resp_way_oh = Mux(data.io.way_en === ~UFix(0, NWAYS), hit_way_oh, data.io.way_en)
   val meta_resp_mux = Mux1H(NWAYS, meta_resp_way_oh, meta.io.resp)
-  //val meta_resp_mux = MuxCase(meta.io.resp(0), (0 until NWAYS).map(i => (meta_resp_way_oh(i).toBool, meta.io.resp(i))))//
   val data_resp_mux = Mux1H(NWAYS, data_resp_way_oh, data.io.resp)
-  //val data_resp_mux = MuxCase(data.io.resp(0), (0 until NWAYS).map(i => (data_resp_way_oh(i).toBool, data.io.resp(i))))//
 
   // writeback unit
   val wb = new WritebackUnit
