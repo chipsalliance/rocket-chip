@@ -20,8 +20,8 @@ class ioMem() extends Bundle
 
 class ioMemArbiter extends Bundle() {
   val mem = new ioMem();
-  val dcache = new ioDcache();
-//   val icache = new ioIcache();
+  val dcache = new ioDCache();
+//   val icache = new ioICache();
   val icache = new ioIPrefetcherMem().flip();
 }
 
@@ -35,10 +35,10 @@ class rocketMemArbiter extends Component {
   // Memory request is valid if either icache or dcache have a valid request
   io.mem.req_val := (io.icache.req_val || io.dcache.req_val);
 
-  // Set read/write bit.  Icache always reads
+  // Set read/write bit.  ICache always reads
   io.mem.req_rw := Mux(io.dcache.req_val, io.dcache.req_rw, Bool(false));
 
-  // Give priority to Icache
+  // Give priority to ICache
   io.mem.req_addr := Mux(io.dcache.req_val, io.dcache.req_addr, io.icache.req_addr);
 
   // low bit of tag=0 for I$, 1 for D$
