@@ -28,7 +28,7 @@ class ioDmem(view: List[String] = null) extends Bundle(view) {
 }
 
 // interface between D$ and next level in memory hierarchy
-class ioDcache(view: List[String] = null) extends Bundle(view) {
+class ioDCache(view: List[String] = null) extends Bundle(view) {
   val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, INPUT);
   val req_tag   = UFix(DMEM_TAG_BITS, INPUT);
   val req_val   = Bool(INPUT);
@@ -42,12 +42,12 @@ class ioDcache(view: List[String] = null) extends Bundle(view) {
 
 class ioDCacheDM extends Bundle() {
   val cpu = new ioDmem();
-  val mem = new ioDcache().flip();
+  val mem = new ioDCache().flip();
 }
 
 class ioDCacheHella extends Bundle() {
   val cpu = new ioDmem();
-  val mem = new ioDcache().flip();
+  val mem = new ioDCache().flip();
 }
 
 class rocketDCacheStoreGen extends Component {

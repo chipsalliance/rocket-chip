@@ -18,7 +18,7 @@ class ioImem(view: List[String] = null) extends Bundle (view)
 }
 
 // interface between I$ and memory (128 bits wide)
-class ioIcache(view: List[String] = null) extends Bundle (view)
+class ioICache(view: List[String] = null) extends Bundle (view)
 {
   val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, INPUT);
   val req_val   = Bool(INPUT);
@@ -27,10 +27,10 @@ class ioIcache(view: List[String] = null) extends Bundle (view)
   val resp_val  = Bool(OUTPUT);
 }
 
-class ioICache extends Bundle()
+class ioRocketICache extends Bundle()
 {
   val cpu = new ioImem();
-  val mem = new ioIcache().flip();
+  val mem = new ioICache().flip();
 }
 
 // basic direct mapped instruction cache
@@ -38,7 +38,7 @@ class ioICache extends Bundle()
 // parameters :
 //    lines = # cache lines
 class rocketICache(sets: Int, assoc: Int) extends Component {
-  val io = new ioICache();
+  val io = new ioRocketICache();
 
   val lines = sets * assoc;
   val addrbits = PADDR_BITS;

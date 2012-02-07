@@ -17,7 +17,7 @@ class ioIPrefetcherMem(view: List[String] = null) extends Bundle (view)
 }
 
 class ioIPrefetcher extends Bundle() {
-  val icache = new ioIcache();
+  val icache = new ioICache();
   val mem = new ioIPrefetcherMem();
 }
 
