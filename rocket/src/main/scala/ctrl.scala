@@ -60,7 +60,6 @@ class ioCtrlDpath extends Bundle()
   val div_result_val = Bool(INPUT);
   val mul_rdy = Bool(INPUT);
   val mul_result_val = Bool(INPUT);
-  val mem_lu_bypass = Bool(INPUT);
   val ex_waddr = UFix(5,INPUT);  // write addr from execute stage
   val mem_waddr = UFix(5,INPUT); // write addr from memory stage
   val wb_waddr = UFix(5,INPUT);  // write addr from writeback stage
@@ -280,7 +279,7 @@ class rocketCtrl extends Component
       FLD->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
       FSW->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
       FSD->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N)
-/*  
+/*
       // floating point
       FLW->      List(FPU_Y, BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_Y,M_FRD,    MT_WU,N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
       FLD->      List(FPU_Y, BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_Y,M_FRD,    MT_D, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
@@ -324,6 +323,7 @@ class rocketCtrl extends Component
   val id_reg_xcpt_ma_inst = Reg(resetVal = Bool(false));
   val id_reg_icmiss       = Reg(resetVal = Bool(false));
   val id_reg_replay       = Reg(resetVal = Bool(false));
+  val id_load_use         = Wire(){Bool()};
   
   val ex_reg_br_type     = Reg(){UFix(width = 4)};
   val ex_reg_btb_hit     = Reg(){Bool()};
@@ -344,7 +344,7 @@ class rocketCtrl extends Component
   val ex_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
   val ex_reg_replay          = Reg(resetVal = Bool(false));
-  val ex_reg_lu_bypass       = Reg(resetVal = Bool(false));
+  val ex_reg_load_use       = Reg(resetVal = Bool(false));
 
   val mem_reg_inst_di         = Reg(resetVal = Bool(false));
   val mem_reg_inst_ei         = Reg(resetVal = Bool(false));
@@ -405,7 +405,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== Bool(false);
     ex_reg_replay           <== Bool(false);
-    ex_reg_lu_bypass        <== Bool(false);
+    ex_reg_load_use         <== Bool(false);
   } 
   otherwise {
     ex_reg_br_type     <== id_br_type;
@@ -426,7 +426,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
     ex_reg_replay           <== id_reg_replay || ex_reg_replay_next;
-    ex_reg_lu_bypass        <== io.dpath.mem_lu_bypass;
+    ex_reg_load_use         <== id_load_use;
   }
   ex_reg_mem_cmd     <== id_mem_cmd;
   ex_reg_mem_type    <== id_mem_type;
@@ -565,7 +565,7 @@ class rocketCtrl extends Component
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
-  val replay_ex    = dcache_miss && ex_reg_lu_bypass || mem_reg_flush_inst || 
+  val replay_ex    = dcache_miss && ex_reg_load_use || mem_reg_flush_inst || 
                      ex_reg_replay || ex_reg_mem_val && !(io.dmem.req_rdy && io.dtlb_rdy) ||
                      ex_reg_div_val && !io.dpath.div_rdy ||
                      ex_reg_mul_val && !io.dpath.mul_rdy
@@ -604,13 +604,12 @@ class rocketCtrl extends Component
   val ex_mem_cmd_load = 
     ex_reg_mem_val && ((ex_reg_mem_cmd === M_XRD) || ex_reg_mem_cmd(3).toBool);
   val data_hazard_ex =
-    (ex_mem_cmd_load || ex_reg_div_val || ex_reg_mul_val) &&
     ((id_renx1.toBool && (id_raddr1 === io.dpath.ex_waddr)) ||
      (id_renx2.toBool && (id_raddr2 === io.dpath.ex_waddr)) ||
      (id_wen.toBool   && (id_waddr  === io.dpath.ex_waddr)));
+  val id_ex_hazard = data_hazard_ex && (ex_mem_cmd_load || ex_reg_div_val || ex_reg_mul_val)
     
   // stall for RAW/WAW hazards on LB/LH and mul/div in memory stage.
-  // stall for WAW-but-not-RAW hazards on LW/LD/AMO.
   val mem_mem_cmd_load =
     mem_reg_mem_val && ((mem_reg_mem_cmd === M_XRD) || mem_reg_mem_cmd(3).toBool);
   val mem_mem_cmd_load_bh = 
@@ -619,24 +618,20 @@ class rocketCtrl extends Component
      (mem_reg_mem_type === MT_BU) ||
      (mem_reg_mem_type === MT_H)  || 
      (mem_reg_mem_type === MT_HU));
-  val raw_hazard_mem =
-    (id_renx1.toBool && (id_raddr1 === io.dpath.mem_waddr)) ||
-    (id_renx2.toBool && (id_raddr2 === io.dpath.mem_waddr));
-  val waw_hazard_mem =
-    (id_wen.toBool   && (id_waddr  === io.dpath.mem_waddr));
   val data_hazard_mem =
-    (mem_mem_cmd_load_bh || mem_reg_div_mul_val) && (raw_hazard_mem || waw_hazard_mem) ||
-    mem_mem_cmd_load && (!raw_hazard_mem && waw_hazard_mem)
+    (id_renx1.toBool && (id_raddr1 === io.dpath.mem_waddr)) ||
+    (id_renx2.toBool && (id_raddr2 === io.dpath.mem_waddr)) ||
+    (id_wen.toBool   && (id_waddr  === io.dpath.mem_waddr));
+  val id_mem_hazard = data_hazard_mem && (mem_mem_cmd_load_bh || mem_reg_div_mul_val)
+  id_load_use := mem_mem_cmd_load && data_hazard_mem
 
   // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
   val data_hazard_wb =
-    (dcache_miss || wb_reg_div_mul_val) &&
     ((id_renx1.toBool && (id_raddr1 === io.dpath.wb_waddr)) ||
      (id_renx2.toBool && (id_raddr2 === io.dpath.wb_waddr)) ||
      (id_wen.toBool   && (id_waddr  === io.dpath.wb_waddr)));
+  val id_wb_hazard = data_hazard_wb && (dcache_miss || wb_reg_div_mul_val)
 
-  val data_hazard = data_hazard_ex || data_hazard_mem || data_hazard_wb;
-      
   // for divider, multiplier, load miss writeback
   val mem_wb = Reg(io.dmem.resp_replay, resetVal = Bool(false)) // delayed for subword extension
   val mul_wb = io.dpath.mul_result_val && !mem_wb;
@@ -645,7 +640,7 @@ class rocketCtrl extends Component
   val ctrl_stalld =
     !take_pc &&
     (
-      data_hazard ||
+      id_ex_hazard || id_mem_hazard || id_wb_hazard ||
       id_renx2.toBool && id_stall_raddr2 ||
       id_renx1.toBool && id_stall_raddr1 ||
       id_wen.toBool   && id_stall_waddr  ||
