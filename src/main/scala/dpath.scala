@@ -106,6 +106,7 @@ class rocketDpath extends Component
   val mem_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen       = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
+  val mem_wdata              = Wire() { Bits() }; 	
   
   // writeback definitions
   val wb_reg_valid          = Reg(resetVal = Bool(false));
@@ -205,26 +206,21 @@ class rocketDpath extends Component
         UFix(0, 5))))));
 
   // bypass muxes
-  val rs1_mem_lu_bypass = id_raddr1 != UFix(0, 5) && io.ctrl.mem_load && id_raddr1 === mem_reg_waddr;
   val id_rs1 =
     Mux(r_dmem_resp_replay, io.dmem.resp_data_subword,
   	Mux(io.ctrl.div_wb, div_result,
   	Mux(io.ctrl.mul_wb, mul_result,
-    Mux(id_raddr1 != UFix(0, 5) && (ex_reg_ctrl_wen || ex_reg_ctrl_ll_wb)   && id_raddr1 === ex_reg_waddr,  ex_wdata,
-    Mux(rs1_mem_lu_bypass, io.dmem.resp_data,
-    Mux(id_raddr1 != UFix(0, 5) && (mem_reg_ctrl_wen || mem_reg_ctrl_ll_wb) && id_raddr1 === mem_reg_waddr, mem_reg_wdata,
+    Mux(id_raddr1 != UFix(0, 5) && (ex_reg_ctrl_wen || ex_reg_ctrl_ll_wb) && id_raddr1 === ex_reg_waddr,  ex_wdata,
+    Mux(id_raddr1 != UFix(0, 5) && (mem_reg_ctrl_wen || mem_reg_ctrl_ll_wb) && id_raddr1 === mem_reg_waddr, mem_wdata,
     Mux(id_raddr1 != UFix(0, 5) && (wb_reg_ctrl_wen || wb_reg_ctrl_ll_wb) && id_raddr1 === wb_reg_waddr, wb_wdata,
-        id_rdata1)))))));
+        id_rdata1))))));
 
-  val rs2_mem_lu_bypass = id_raddr2 != UFix(0, 5) && io.ctrl.mem_load && id_raddr2 === mem_reg_waddr;
   val id_rs2 =
-    Mux(id_raddr2 != UFix(0, 5) && (ex_reg_ctrl_wen || ex_reg_ctrl_ll_wb)   && id_raddr2 === ex_reg_waddr,  ex_wdata,
-    Mux(rs2_mem_lu_bypass, io.dmem.resp_data,
-    Mux(id_raddr2 != UFix(0, 5) && (mem_reg_ctrl_wen || mem_reg_ctrl_ll_wb) && id_raddr2 === mem_reg_waddr, mem_reg_wdata,
+    Mux(id_raddr2 != UFix(0, 5) && (ex_reg_ctrl_wen || ex_reg_ctrl_ll_wb) && id_raddr2 === ex_reg_waddr,  ex_wdata,
+    Mux(id_raddr2 != UFix(0, 5) && (mem_reg_ctrl_wen || mem_reg_ctrl_ll_wb) && id_raddr2 === mem_reg_waddr, mem_wdata,
     Mux(id_raddr2 != UFix(0, 5) && (wb_reg_ctrl_wen || wb_reg_ctrl_ll_wb) && id_raddr2 === wb_reg_waddr, wb_wdata,
-        id_rdata2))));
+        id_rdata2)));
 
-  io.ctrl.mem_lu_bypass := rs1_mem_lu_bypass || rs2_mem_lu_bypass;
   io.ctrl.inst := id_reg_inst;
 
   // execute stage
@@ -377,6 +373,8 @@ class rocketDpath extends Component
   // for load/use hazard detection (load byte/halfword)
   io.ctrl.mem_waddr := mem_reg_waddr;
   io.ctrl.mem_valid := mem_reg_valid;
+
+  mem_wdata := Mux(io.ctrl.mem_load, io.dmem.resp_data, mem_reg_wdata)
 
   // 32/64 bit load handling (moved to earlier in file)
       
