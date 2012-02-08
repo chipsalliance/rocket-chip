@@ -37,7 +37,10 @@ class ioCtrlDpath extends Bundle()
   val id_eret  = Bool(OUTPUT);
   val wb_eret  = Bool(OUTPUT);
   val mem_load = Bool(OUTPUT);
-  val wen      = Bool(OUTPUT);
+  val ex_fp_val= Bool(OUTPUT);
+  val ex_wen   = Bool(OUTPUT);
+  val mem_wen  = Bool(OUTPUT);
+  val wb_wen   = Bool(OUTPUT);
   // instruction in execute is an unconditional jump
   val ex_jmp   = Bool(OUTPUT); 
   val ex_jr    = Bool(OUTPUT);
@@ -60,12 +63,15 @@ class ioCtrlDpath extends Bundle()
   val div_result_val = Bool(INPUT);
   val mul_rdy = Bool(INPUT);
   val mul_result_val = Bool(INPUT);
+  val mem_wb = Bool(INPUT);
   val ex_waddr = UFix(5,INPUT);  // write addr from execute stage
   val mem_waddr = UFix(5,INPUT); // write addr from memory stage
   val wb_waddr = UFix(5,INPUT);  // write addr from writeback stage
   val status  = Bits(17, INPUT);
   val sboard_clr  = Bool(INPUT);
   val sboard_clra = UFix(5, INPUT);
+  val fp_sboard_clr  = Bool(INPUT);
+  val fp_sboard_clra = UFix(5, INPUT);
   val mem_valid = Bool(INPUT); // high if there's a valid (not flushed) instruction in mem stage
   val irq_timer = Bool(INPUT);
   val irq_ipi   = Bool(INPUT);
@@ -76,7 +82,7 @@ class ioCtrlAll extends Bundle()
   val dpath   = new ioCtrlDpath();
   val console = new ioConsole(List("rdy"));
   val imem    = new ioImem(List("req_val", "resp_val")).flip();
-  val dmem    = new ioDmem(List("req_val", "req_kill", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_replay", "resp_nack")).flip();
+  val dmem    = new ioDmem(List("req_val", "req_kill", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_nack")).flip();
   val dtlb_val = Bool(OUTPUT);
   val dtlb_kill = Bool(OUTPUT);
   val dtlb_rdy = Bool(INPUT);
@@ -92,77 +98,9 @@ class ioCtrlAll extends Bundle()
 class rocketCtrl extends Component
 {
   val io = new ioCtrlAll();
-    
-//   val fp =
-//   ListLookup(io.dpath.inst,
-//     List(Bool(false)),
-//      Array(
-//        FMOVZ -> List(Bool(true)),
-//        FMOVN -> List(Bool(true)),
-//        FADD_S -> List(Bool(true)),
-//        FSUB_S -> List(Bool(true)),
-//        FMUL_S -> List(Bool(true)),
-//        FDIV_S -> List(Bool(true)),
-//        FSQRT_S -> List(Bool(true)),
-//        FSGNJ_S -> List(Bool(true)),
-//        FSGNJN_S -> List(Bool(true)),
-//        FSGNJX_S -> List(Bool(true)),
-//        FADD_D -> List(Bool(true)),
-//        FSUB_D -> List(Bool(true)),
-//        FMUL_D -> List(Bool(true)),
-//        FDIV_D -> List(Bool(true)),
-//        FSQRT_D -> List(Bool(true)),
-//        FSGNJ_D -> List(Bool(true)),
-//        FSGNJN_D -> List(Bool(true)),
-//        FSGNJX_D -> List(Bool(true)),
-//        FCVT_L_S -> List(Bool(true)),
-//        FCVT_LU_S -> List(Bool(true)),
-//        FCVT_W_S -> List(Bool(true)),
-//        FCVT_WU_S -> List(Bool(true)),
-//        FCVT_L_D -> List(Bool(true)),
-//        FCVT_LU_D -> List(Bool(true)),
-//        FCVT_W_D -> List(Bool(true)),
-//        FCVT_WU_D -> List(Bool(true)),
-//        FCVT_S_L -> List(Bool(true)),
-//        FCVT_S_LU -> List(Bool(true)),
-//        FCVT_S_W -> List(Bool(true)),
-//        FCVT_S_WU -> List(Bool(true)),
-//        FCVT_D_L -> List(Bool(true)),
-//        FCVT_D_LU -> List(Bool(true)),
-//        FCVT_D_W -> List(Bool(true)),
-//        FCVT_D_WU -> List(Bool(true)),
-//        FCVT_S_D -> List(Bool(true)),
-//        FCVT_D_S -> List(Bool(true)),
-//        FEQ_S -> List(Bool(true)),
-//        FLT_S -> List(Bool(true)),
-//        FLE_S -> List(Bool(true)),
-//        FEQ_D -> List(Bool(true)),
-//        FLT_D -> List(Bool(true)),
-//        FLE_D -> List(Bool(true)),
-//        FMIN_S -> List(Bool(true)),
-//        FMAX_S -> List(Bool(true)),
-//        FMIN_D -> List(Bool(true)),
-//        FMAX_D -> List(Bool(true)),
-//        MFTX_S -> List(Bool(true)),
-//        MFTX_D -> List(Bool(true)),
-//        MFFSR -> List(Bool(true)),
-//        MXTF_S -> List(Bool(true)),
-//        MXTF_D -> List(Bool(true)),
-//        MTFSR -> List(Bool(true)),
-//        FLW -> List(Bool(true)),
-//        FLD -> List(Bool(true)),
-//        FSW -> List(Bool(true)),
-//        FSD -> List(Bool(true)),
-//        FMADD_S -> List(Bool(true)),
-//        FMSUB_S -> List(Bool(true)),
-//        FNMSUB_S -> List(Bool(true)),
-//        FNMADD_S -> List(Bool(true)),
-//        FMADD_D -> List(Bool(true)),
-//        FMSUB_D -> List(Bool(true)),
-//        FNMSUB_D -> List(Bool(true)),
-//        FNMADD_D -> List(Bool(true))
-//      ));
-//   val id_fp_val :: Nil = fp;
+
+  val fpdec = new rocketFPUDecoder
+  fpdec.io.inst := io.dpath.inst
   
   val xpr64 = Y;
   val cs =   
@@ -273,12 +211,12 @@ class rocketCtrl extends Component
       
       // Instructions that have not yet been implemented
       // Faking these for now so akaros will boot    
-      MFFSR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-      MTFSR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-      FLW->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-      FLD->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-      FSW->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-      FSD->      List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N)
+      //MFFSR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+      //MTFSR->    List(Y,     BR_N,  REN_N,REN_N,A2_X,    A1_X,  DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+      FLW->      List(Y,     BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_W, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+      FLD->      List(Y,     BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_D, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+      FSW->      List(Y,     BR_N,  REN_N,REN_Y,A2_SPLIT,A1_RS1,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_W, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+      FSD->      List(Y,     BR_N,  REN_N,REN_Y,A2_SPLIT,A1_RS1,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_D, N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N)
 /*
       // floating point
       FLW->      List(FPU_Y, BR_N,  REN_N,REN_Y,A2_SEXT, A1_RS1,DW_XPR,FN_ADD, M_Y,M_FRD,    MT_WU,N,MUL_X,     N,DIV_X,    WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N),
@@ -293,6 +231,7 @@ class rocketCtrl extends Component
   val id_int_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_sel_alu1 :: id_fn_dw :: id_fn_alu :: csremainder = cs; 
   val id_mem_val :: id_mem_cmd :: id_mem_type :: id_mul_val :: id_mul_fn :: id_div_val :: id_div_fn :: id_wen :: id_sel_wa :: id_sel_wb :: id_ren_pcr :: id_wen_pcr :: id_irq :: id_sync :: id_eret :: id_syscall :: id_privileged :: id_replay_next :: Nil = csremainder;
 
+  val id_raddr3 = io.dpath.inst(16,12);
   val id_raddr2 = io.dpath.inst(21,17);
   val id_raddr1 = io.dpath.inst(26,22);
   val id_waddr  = Mux(id_sel_wa === WA_RA, RA, io.dpath.inst(31,27));
@@ -300,23 +239,7 @@ class rocketCtrl extends Component
   val id_console_out_val  = id_wen_pcr.toBool && (id_raddr2 === PCR_CONSOLE);
 
   val wb_reg_div_mul_val = Reg(resetVal = Bool(false))
-  val dcache_miss =   Reg(io.dmem.resp_miss, resetVal = Bool(false));
-
-  val sboard = new rocketCtrlSboard(); 
-  sboard.io.raddra  := id_raddr2.toUFix;
-  sboard.io.raddrb  := id_raddr1.toUFix;
-  sboard.io.raddrc  := id_waddr.toUFix;
-
-  // scoreboard set (for D$ misses, div, mul)
-  sboard.io.set     := wb_reg_div_mul_val | dcache_miss;
-  sboard.io.seta    := io.dpath.wb_waddr;
-
-  sboard.io.clr    := io.dpath.sboard_clr;
-  sboard.io.clra   := io.dpath.sboard_clra;
-
-  val id_stall_raddr2 = sboard.io.stalla;
-  val id_stall_raddr1 = sboard.io.stallb;
-  val id_stall_waddr  = sboard.io.stallc;
+  val wb_reg_dcache_miss = Reg(io.dmem.resp_miss, resetVal = Bool(false));
 
   val id_reg_btb_hit      = Reg(resetVal = Bool(false));
   val id_reg_xcpt_itlb    = Reg(resetVal = Bool(false));
@@ -332,6 +255,8 @@ class rocketCtrl extends Component
   val ex_reg_mem_val     = Reg(){Bool()};
   val ex_reg_mem_cmd     = Reg(){UFix(width = 4)};
   val ex_reg_mem_type    = Reg(){UFix(width = 3)};
+  val ex_reg_wen         = Reg(resetVal = Bool(false));
+  val ex_reg_fp_wen      = Reg(resetVal = Bool(false));
   val ex_reg_eret        = Reg(resetVal = Bool(false));
   val ex_reg_replay_next = Reg(resetVal = Bool(false));
   val ex_reg_inst_di          = Reg(resetVal = Bool(false));
@@ -341,11 +266,13 @@ class rocketCtrl extends Component
   val ex_reg_xcpt_itlb       = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_illegal    = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_privileged = Reg(resetVal = Bool(false));
-  val ex_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
+  val ex_reg_fp_val          = Reg(resetVal = Bool(false));
   val ex_reg_replay          = Reg(resetVal = Bool(false));
   val ex_reg_load_use       = Reg(resetVal = Bool(false));
 
+  val mem_reg_wen             = Reg(resetVal = Bool(false));
+  val mem_reg_fp_wen          = Reg(resetVal = Bool(false));
   val mem_reg_inst_di         = Reg(resetVal = Bool(false));
   val mem_reg_inst_ei         = Reg(resetVal = Bool(false));
   val mem_reg_flush_inst      = Reg(resetVal = Bool(false));
@@ -358,6 +285,8 @@ class rocketCtrl extends Component
   val mem_reg_replay          = Reg(resetVal = Bool(false));
   val mem_reg_kill            = Reg(resetVal = Bool(false));
 
+  val wb_reg_wen             = Reg(resetVal = Bool(false));
+  val wb_reg_fp_wen          = Reg(resetVal = Bool(false));
   val wb_reg_inst_di         = Reg(resetVal = Bool(false));
   val wb_reg_inst_ei         = Reg(resetVal = Bool(false));
   val wb_reg_flush_inst      = Reg(resetVal = Bool(false));
@@ -384,8 +313,7 @@ class rocketCtrl extends Component
   }
   
   // executing ERET when traps are enabled causes an illegal instruction exception (as per ISA sim)
-//   val illegal_inst = !(id_int_val.toBool || id_fp_val.toBool) || (id_eret.toBool && io.dpath.status(SR_ET).toBool);
-  val illegal_inst = !id_int_val.toBool || (id_eret.toBool && io.dpath.status(SR_ET).toBool);
+   val illegal_inst = !(id_int_val.toBool || fpdec.io.valid) || (id_eret.toBool && io.dpath.status(SR_ET).toBool);
   
   when (reset.toBool || io.dpath.killd) {
     ex_reg_br_type     <== BR_N;
@@ -393,6 +321,8 @@ class rocketCtrl extends Component
     ex_reg_div_val <== Bool(false);
     ex_reg_mul_val <== Bool(false);
     ex_reg_mem_val     <== Bool(false);
+    ex_reg_wen         <== Bool(false);
+    ex_reg_fp_wen      <== Bool(false);
     ex_reg_eret        <== Bool(false);
     ex_reg_replay_next <== Bool(false);
     ex_reg_inst_di     <== Bool(false);
@@ -402,8 +332,8 @@ class rocketCtrl extends Component
     ex_reg_xcpt_itlb        <== Bool(false);
     ex_reg_xcpt_illegal     <== Bool(false);
     ex_reg_xcpt_privileged  <== Bool(false);
-    ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== Bool(false);
+    ex_reg_fp_val           <== Bool(false);
     ex_reg_replay           <== Bool(false);
     ex_reg_load_use         <== Bool(false);
   } 
@@ -413,6 +343,8 @@ class rocketCtrl extends Component
     ex_reg_div_val     <== id_div_val.toBool;
     ex_reg_mul_val     <== id_mul_val.toBool;
     ex_reg_mem_val     <== id_mem_val.toBool;
+    ex_reg_wen         <== id_wen.toBool;
+    ex_reg_fp_wen      <== fpdec.io.wen;
     ex_reg_eret        <== id_eret.toBool;
     ex_reg_replay_next <== id_replay_next.toBool;
     ex_reg_inst_di     <== (id_irq === I_DI);
@@ -422,9 +354,8 @@ class rocketCtrl extends Component
     ex_reg_xcpt_itlb        <== id_reg_xcpt_itlb;
     ex_reg_xcpt_illegal     <== illegal_inst;
     ex_reg_xcpt_privileged  <== (id_privileged & ~io.dpath.status(SR_S)).toBool;
-//     ex_reg_xcpt_fpu         <== id_fp_val.toBool;
-    ex_reg_xcpt_fpu         <== Bool(false);
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
+    ex_reg_fp_val           <== fpdec.io.valid;
     ex_reg_replay           <== id_reg_replay || ex_reg_replay_next;
     ex_reg_load_use         <== id_load_use;
   }
@@ -461,6 +392,8 @@ class rocketCtrl extends Component
 
   when (reset.toBool || io.dpath.killx) {
     mem_reg_div_mul_val <== Bool(false);
+    mem_reg_wen         <== Bool(false);
+    mem_reg_fp_wen      <== Bool(false);
     mem_reg_eret        <== Bool(false);
     mem_reg_mem_val     <== Bool(false);
     mem_reg_inst_di     <== Bool(false);
@@ -475,6 +408,8 @@ class rocketCtrl extends Component
   }
   otherwise {
     mem_reg_div_mul_val <== ex_reg_div_val || ex_reg_mul_val;
+    mem_reg_wen         <== ex_reg_wen;
+    mem_reg_fp_wen      <== ex_reg_fp_wen;
     mem_reg_eret        <== ex_reg_eret;
     mem_reg_mem_val     <== ex_reg_mem_val;
     mem_reg_inst_di     <== ex_reg_inst_di;
@@ -484,13 +419,15 @@ class rocketCtrl extends Component
     mem_reg_xcpt_itlb        <== ex_reg_xcpt_itlb;
     mem_reg_xcpt_illegal     <== ex_reg_xcpt_illegal;
     mem_reg_xcpt_privileged  <== ex_reg_xcpt_privileged;
-    mem_reg_xcpt_fpu         <== ex_reg_xcpt_fpu;
+    mem_reg_xcpt_fpu         <== ex_reg_fp_val && !io.dpath.status(SR_EF).toBool;
     mem_reg_xcpt_syscall     <== ex_reg_xcpt_syscall;
   }
   mem_reg_mem_cmd     <== ex_reg_mem_cmd;
   mem_reg_mem_type    <== ex_reg_mem_type;
 
   when (io.dpath.killm) {
+    wb_reg_wen         <== Bool(false);
+    wb_reg_fp_wen      <== Bool(false);
     wb_reg_eret        <== Bool(false);
     wb_reg_inst_di     <== Bool(false);
     wb_reg_inst_ei     <== Bool(false);
@@ -498,12 +435,50 @@ class rocketCtrl extends Component
     wb_reg_div_mul_val <== Bool(false);
   }
   otherwise {
+    wb_reg_wen         <== mem_reg_wen;
+    wb_reg_fp_wen      <== mem_reg_fp_wen;
     wb_reg_eret        <== mem_reg_eret;
     wb_reg_inst_di     <== mem_reg_inst_di;
     wb_reg_inst_ei     <== mem_reg_inst_ei;
     wb_reg_flush_inst  <== mem_reg_flush_inst;
     wb_reg_div_mul_val <== mem_reg_div_mul_val;
   }
+
+  val sboard = new rocketCtrlSboard(); 
+  sboard.io.raddra  := id_raddr2.toUFix;
+  sboard.io.raddrb  := id_raddr1.toUFix;
+  sboard.io.raddrc  := id_waddr.toUFix;
+
+  // scoreboard set (for D$ misses, div, mul)
+  sboard.io.set     := wb_reg_div_mul_val || wb_reg_dcache_miss && wb_reg_wen;
+  sboard.io.seta    := io.dpath.wb_waddr;
+
+  sboard.io.clr    := io.dpath.sboard_clr;
+  sboard.io.clra   := io.dpath.sboard_clra;
+
+  val id_stall_raddr2 = id_renx2.toBool && sboard.io.stalla;
+  val id_stall_raddr1 = id_renx1.toBool && sboard.io.stallb;
+  val id_stall_waddr  = id_wen.toBool && sboard.io.stallc;
+
+  var id_stall_fpu = Bool(false)
+  if (HAVE_FPU) {
+    val fp_sboard = new rocketCtrlSboard(); 
+    fp_sboard.io.raddra  := id_raddr1.toUFix;
+    fp_sboard.io.raddrb  := id_raddr2.toUFix;
+    fp_sboard.io.raddrc  := id_raddr3.toUFix;
+    fp_sboard.io.raddrd  := id_waddr.toUFix;
+
+    fp_sboard.io.set     := wb_reg_dcache_miss && wb_reg_fp_wen;
+    fp_sboard.io.seta    := io.dpath.wb_waddr;
+
+    fp_sboard.io.clr    := io.dpath.fp_sboard_clr;
+    fp_sboard.io.clra   := io.dpath.fp_sboard_clra;
+
+    id_stall_fpu = fpdec.io.ren1 && fp_sboard.io.stalla ||
+                   fpdec.io.ren2 && fp_sboard.io.stallb ||
+                   fpdec.io.ren3 && fp_sboard.io.stallc ||
+                   fpdec.io.wen  && fp_sboard.io.stalld
+  } 
 
   // exception handling
   // FIXME: verify PC in MEM stage points to valid, restartable instruction
@@ -565,7 +540,7 @@ class rocketCtrl extends Component
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
-  val replay_ex    = dcache_miss && ex_reg_load_use || mem_reg_flush_inst || 
+  val replay_ex    = wb_reg_dcache_miss && ex_reg_load_use || mem_reg_flush_inst || 
                      ex_reg_replay || ex_reg_mem_val && !(io.dmem.req_rdy && io.dtlb_rdy) ||
                      ex_reg_div_val && !io.dpath.div_rdy ||
                      ex_reg_mul_val && !io.dpath.mul_rdy
@@ -601,57 +576,63 @@ class rocketCtrl extends Component
   io.imem.req_val  := take_pc_wb || !mem_reg_replay && !ex_reg_replay && (take_pc_ex || !id_reg_replay)
 
   // stall for RAW/WAW hazards on loads, AMOs, and mul/div in execute stage.
-  val ex_mem_cmd_load = 
-    ex_reg_mem_val && ((ex_reg_mem_cmd === M_XRD) || ex_reg_mem_cmd(3).toBool);
-  val data_hazard_ex =
-    ((id_renx1.toBool && (id_raddr1 === io.dpath.ex_waddr)) ||
-     (id_renx2.toBool && (id_raddr2 === io.dpath.ex_waddr)) ||
-     (id_wen.toBool   && (id_waddr  === io.dpath.ex_waddr)));
-  val id_ex_hazard = data_hazard_ex && (ex_mem_cmd_load || ex_reg_div_val || ex_reg_mul_val)
+  val data_hazard_ex = ex_reg_wen &&
+    (id_renx1.toBool && id_raddr1 === io.dpath.ex_waddr ||
+     id_renx2.toBool && id_raddr2 === io.dpath.ex_waddr ||
+     id_wen.toBool   && id_waddr  === io.dpath.ex_waddr)
+  val fp_data_hazard_ex = ex_reg_fp_wen &&
+    (fpdec.io.ren1 && id_raddr1 === io.dpath.ex_waddr ||
+     fpdec.io.ren2 && id_raddr2 === io.dpath.ex_waddr ||
+     fpdec.io.ren3 && id_raddr3 === io.dpath.ex_waddr ||
+     fpdec.io.wen  && id_waddr  === io.dpath.ex_waddr)
+  val id_ex_hazard = data_hazard_ex && (ex_reg_mem_val || ex_reg_div_val || ex_reg_mul_val) ||
+                     fp_data_hazard_ex && ex_reg_mem_val
     
   // stall for RAW/WAW hazards on LB/LH and mul/div in memory stage.
-  val mem_mem_cmd_load =
-    mem_reg_mem_val && ((mem_reg_mem_cmd === M_XRD) || mem_reg_mem_cmd(3).toBool);
-  val mem_mem_cmd_load_bh = 
-    mem_mem_cmd_load &&
-    ((mem_reg_mem_type === MT_B)  ||
-     (mem_reg_mem_type === MT_BU) ||
-     (mem_reg_mem_type === MT_H)  || 
-     (mem_reg_mem_type === MT_HU));
-  val data_hazard_mem =
-    (id_renx1.toBool && (id_raddr1 === io.dpath.mem_waddr)) ||
-    (id_renx2.toBool && (id_raddr2 === io.dpath.mem_waddr)) ||
-    (id_wen.toBool   && (id_waddr  === io.dpath.mem_waddr));
-  val id_mem_hazard = data_hazard_mem && (mem_mem_cmd_load_bh || mem_reg_div_mul_val)
-  id_load_use := mem_mem_cmd_load && data_hazard_mem
+  val mem_mem_cmd_bh = 
+    (mem_reg_mem_type === MT_B)  || (mem_reg_mem_type === MT_BU) ||
+    (mem_reg_mem_type === MT_H)  || (mem_reg_mem_type === MT_HU)
+  val data_hazard_mem = mem_reg_wen &&
+    (id_renx1.toBool && id_raddr1 === io.dpath.mem_waddr ||
+     id_renx2.toBool && id_raddr2 === io.dpath.mem_waddr ||
+     id_wen.toBool   && id_waddr  === io.dpath.mem_waddr)
+  val fp_data_hazard_mem = mem_reg_fp_wen &&
+    (fpdec.io.ren1 && id_raddr1 === io.dpath.mem_waddr ||
+     fpdec.io.ren2 && id_raddr2 === io.dpath.mem_waddr ||
+     fpdec.io.ren3 && id_raddr3 === io.dpath.mem_waddr ||
+     fpdec.io.wen  && id_waddr  === io.dpath.mem_waddr)
+  val id_mem_hazard = data_hazard_mem && (mem_mem_cmd_bh || mem_reg_div_mul_val)
+  id_load_use := mem_reg_mem_val && (data_hazard_mem || fp_data_hazard_mem)
 
   // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
-  val data_hazard_wb =
-    ((id_renx1.toBool && (id_raddr1 === io.dpath.wb_waddr)) ||
-     (id_renx2.toBool && (id_raddr2 === io.dpath.wb_waddr)) ||
-     (id_wen.toBool   && (id_waddr  === io.dpath.wb_waddr)));
-  val id_wb_hazard = data_hazard_wb && (dcache_miss || wb_reg_div_mul_val)
+  val data_hazard_wb = wb_reg_wen &&
+    (id_renx1.toBool && id_raddr1 === io.dpath.wb_waddr ||
+     id_renx2.toBool && id_raddr2 === io.dpath.wb_waddr ||
+     id_wen.toBool   && id_waddr  === io.dpath.wb_waddr)
+  val fp_data_hazard_wb = wb_reg_fp_wen &&
+    (fpdec.io.ren1 && id_raddr1 === io.dpath.wb_waddr ||
+     fpdec.io.ren2 && id_raddr2 === io.dpath.wb_waddr ||
+     fpdec.io.ren3 && id_raddr3 === io.dpath.wb_waddr ||
+     fpdec.io.wen  && id_waddr  === io.dpath.wb_waddr)
+  val id_wb_hazard = data_hazard_wb && (wb_reg_dcache_miss || wb_reg_div_mul_val) ||
+                     fp_data_hazard_wb && wb_reg_dcache_miss
 
   // for divider, multiplier, load miss writeback
-  val mem_wb = Reg(io.dmem.resp_replay, resetVal = Bool(false)) // delayed for subword extension
-  val mul_wb = io.dpath.mul_result_val && !mem_wb;
-  val div_wb = io.dpath.div_result_val && !io.dpath.mul_result_val && !mem_wb;
+  val mul_wb = io.dpath.mul_result_val && !io.dpath.mem_wb;
+  val div_wb = io.dpath.div_result_val && !io.dpath.mul_result_val && !io.dpath.mem_wb;
 
   val ctrl_stalld =
     !take_pc &&
     (
       id_ex_hazard || id_mem_hazard || id_wb_hazard ||
-      id_renx2.toBool && id_stall_raddr2 ||
-      id_renx1.toBool && id_stall_raddr1 ||
-      id_wen.toBool   && id_stall_waddr  ||
+      id_stall_raddr1 || id_stall_raddr2 || id_stall_waddr ||
+      id_stall_fpu ||
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
       id_console_out_val && !io.console.rdy ||
-      id_div_val.toBool && (!io.dpath.div_rdy || ex_reg_div_val) ||
-      id_mul_val.toBool && (!io.dpath.mul_rdy || ex_reg_mul_val) ||
       io.dpath.div_result_val ||
       io.dpath.mul_result_val ||
-      mem_wb
+      io.dpath.mem_wb
     );
   val ctrl_stallf = ctrl_stalld;
     
@@ -668,7 +649,7 @@ class rocketCtrl extends Component
   io.dpath.killx    := kill_ex;
   io.dpath.killm    := kill_mem;
 
-  io.dpath.mem_load := mem_reg_mem_val && ((mem_reg_mem_cmd === M_XRD) || mem_reg_mem_cmd(3).toBool);
+  io.dpath.mem_load := mem_reg_mem_val && mem_reg_wen
   io.dpath.ren2     := id_renx2.toBool;
   io.dpath.ren1     := id_renx1.toBool;
   io.dpath.sel_alu2 := id_sel_alu2;
@@ -681,7 +662,10 @@ class rocketCtrl extends Component
   io.dpath.mul_fn   := id_mul_fn;
   io.dpath.mul_val  := id_mul_val.toBool;
   io.dpath.mul_wb   := mul_wb;
-  io.dpath.wen      := id_wen.toBool;
+  io.dpath.ex_fp_val:= ex_reg_fp_val;
+  io.dpath.ex_wen   := ex_reg_wen;
+  io.dpath.mem_wen  := mem_reg_wen;
+  io.dpath.wb_wen   := wb_reg_wen;
   io.dpath.sel_wa   := id_sel_wa.toBool;
   io.dpath.sel_wb   := id_sel_wb;
   io.dpath.ren_pcr  := id_ren_pcr.toBool;

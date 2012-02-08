@@ -13,9 +13,11 @@ class ioCtrlSboard extends Bundle()
   val raddra  = UFix(5, INPUT);
   val raddrb  = UFix(5, INPUT);
   val raddrc  = UFix(5, INPUT);
+  val raddrd  = UFix(5, INPUT);
   val stalla  = Bool(OUTPUT);
   val stallb  = Bool(OUTPUT);
   val stallc  = Bool(OUTPUT);
+  val stalld  = Bool(OUTPUT);
 }
 
 class rocketCtrlSboard extends Component
@@ -30,6 +32,7 @@ class rocketCtrlSboard extends Component
   io.stalla  := reg_busy(io.raddra).toBool;
   io.stallb  := reg_busy(io.raddrb).toBool;
   io.stallc  := reg_busy(io.raddrc).toBool;
+  io.stalld  := reg_busy(io.raddrd).toBool;
 }
 
 class ioCtrlCnt extends Bundle()
