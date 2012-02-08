@@ -8,12 +8,12 @@ import scala.math._;
 
 class ioDpathBTB extends Bundle()
 {
-  val current_pc4    = UFix(VADDR_BITS, INPUT);
+  val current_pc     = UFix(VADDR_BITS, INPUT);
   val hit            = Bool(OUTPUT);
   val target         = UFix(VADDR_BITS, OUTPUT);
   val wen            = Bool(INPUT);
   val clr            = Bool(INPUT);
-  val correct_pc4    = UFix(VADDR_BITS, INPUT);
+  val correct_pc     = UFix(VADDR_BITS, INPUT);
   val correct_target = UFix(VADDR_BITS, INPUT);
 }
 
@@ -28,15 +28,15 @@ class rocketDpathBTB(entries: Int) extends Component
   val tagmsb = (VADDR_BITS-idxmsb-1)+(VADDR_BITS-idxlsb)-1;
   val taglsb = (VADDR_BITS-idxlsb);
   
-  val vb_array = Mem(entries, io.wen || io.clr, io.correct_pc4(idxmsb,idxlsb), !io.clr, resetVal = Bool(false)); 
-  val tag_target_array = Mem4(entries, io.wen, io.correct_pc4(idxmsb,idxlsb), 
-                              Cat(io.correct_pc4(VADDR_BITS-1,idxmsb+1), io.correct_target(VADDR_BITS-1,idxlsb)))
+  val vb_array = Mem(entries, io.wen || io.clr, io.correct_pc(idxmsb,idxlsb), !io.clr, resetVal = Bool(false)); 
+  val tag_target_array = Mem4(entries, io.wen, io.correct_pc(idxmsb,idxlsb), 
+                              Cat(io.correct_pc(VADDR_BITS-1,idxmsb+1), io.correct_target(VADDR_BITS-1,idxlsb)))
   tag_target_array.setReadLatency(0);
   tag_target_array.setTarget('inst);
-  val is_val       = vb_array(io.current_pc4(idxmsb,idxlsb));
-  val tag_target   = tag_target_array(io.current_pc4(idxmsb, idxlsb));
+  val is_val       = vb_array(io.current_pc(idxmsb,idxlsb));
+  val tag_target   = tag_target_array(io.current_pc(idxmsb, idxlsb));
   
-  io.hit    := is_val && (tag_target(tagmsb,taglsb) === io.current_pc4(VADDR_BITS-1, idxmsb+1));
+  io.hit    := is_val && (tag_target(tagmsb,taglsb) === io.current_pc(VADDR_BITS-1, idxmsb+1));
   io.target := Cat(tag_target(taglsb-1, 0), Bits(0,idxlsb)).toUFix;
 }
 
