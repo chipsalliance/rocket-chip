@@ -26,10 +26,8 @@ class ioCtrlDpath extends Bundle()
   val fn_alu   = UFix(4, OUTPUT);
   val mul_val  = Bool(OUTPUT);
   val mul_fn   = UFix(2, OUTPUT);
-  val mul_wb   = Bool(OUTPUT);
   val div_val  = Bool(OUTPUT);
   val div_fn   = UFix(2, OUTPUT);
-  val div_wb   = Bool(OUTPUT);
   val sel_wa   = Bool(OUTPUT);
   val sel_wb   = UFix(3, OUTPUT);
   val ren_pcr  = Bool(OUTPUT);
@@ -343,7 +341,7 @@ class rocketCtrl extends Component
     ex_reg_div_val     <== id_div_val.toBool;
     ex_reg_mul_val     <== id_mul_val.toBool;
     ex_reg_mem_val     <== id_mem_val.toBool;
-    ex_reg_wen         <== id_wen.toBool;
+    ex_reg_wen         <== id_wen.toBool && id_waddr != UFix(0);
     ex_reg_fp_wen      <== fpdec.io.wen;
     ex_reg_eret        <== id_eret.toBool;
     ex_reg_replay_next <== id_replay_next.toBool;
@@ -533,10 +531,11 @@ class rocketCtrl extends Component
   val take_pc_wb = wb_reg_replay || wb_reg_exception || wb_reg_eret;
   take_pc <== take_pc_ex || take_pc_wb;
 
-  // replay mem stage PC on a DTLB miss
-  val replay_mem  = io.dtlb_miss || io.dmem.resp_nack || mem_reg_replay;
-  val kill_mem    = io.dtlb_miss || io.dmem.resp_nack || take_pc_wb || mem_exception || mem_reg_kill;
-  val kill_dcache = io.dtlb_miss ||                      take_pc_wb || mem_exception || mem_reg_kill;
+  // replay mem stage PC on a DTLB miss or a long-latency writeback
+  val mem_ll_wb = io.dpath.mem_wb || io.dpath.mul_result_val || io.dpath.div_result_val
+  val replay_mem  = io.dtlb_miss || mem_reg_wen && mem_ll_wb || io.dmem.resp_nack || mem_reg_replay
+  val kill_mem    = io.dtlb_miss || mem_reg_wen && mem_ll_wb || io.dmem.resp_nack || take_pc_wb || mem_exception || mem_reg_kill
+  val kill_dcache = io.dtlb_miss || mem_reg_wen && mem_ll_wb ||                      take_pc_wb || mem_exception || mem_reg_kill
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
@@ -617,10 +616,6 @@ class rocketCtrl extends Component
   val id_wb_hazard = data_hazard_wb && (wb_reg_dcache_miss || wb_reg_div_mul_val) ||
                      fp_data_hazard_wb && wb_reg_dcache_miss
 
-  // for divider, multiplier, load miss writeback
-  val mul_wb = io.dpath.mul_result_val && !io.dpath.mem_wb;
-  val div_wb = io.dpath.div_result_val && !io.dpath.mul_result_val && !io.dpath.mem_wb;
-
   val ctrl_stalld =
     !take_pc &&
     (
@@ -629,10 +624,7 @@ class rocketCtrl extends Component
       id_stall_fpu ||
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
-      id_console_out_val && !io.console.rdy ||
-      io.dpath.div_result_val ||
-      io.dpath.mul_result_val ||
-      io.dpath.mem_wb
+      id_console_out_val && !io.console.rdy
     );
   val ctrl_stallf = ctrl_stalld;
     
@@ -658,10 +650,8 @@ class rocketCtrl extends Component
   io.dpath.fn_alu   := id_fn_alu;
   io.dpath.div_fn   := id_div_fn;
   io.dpath.div_val  := id_div_val.toBool;
-  io.dpath.div_wb   := div_wb;
   io.dpath.mul_fn   := id_mul_fn;
   io.dpath.mul_val  := id_mul_val.toBool;
-  io.dpath.mul_wb   := mul_wb;
   io.dpath.ex_fp_val:= ex_reg_fp_val;
   io.dpath.ex_wen   := ex_reg_wen;
   io.dpath.mem_wen  := mem_reg_wen;
