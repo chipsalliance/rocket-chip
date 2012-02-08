@@ -75,13 +75,11 @@ class rocketDpath extends Component
   // execute definitions
   val ex_reg_valid          = Reg(resetVal = Bool(false));
   val ex_reg_pc             = Reg() { UFix() };
-  val ex_reg_inst           = Reg() { Bits() };
   val ex_reg_raddr2         = Reg() { UFix() };
+  val ex_reg_op2            = Reg() { Bits() };
   val ex_reg_rs2            = Reg() { Bits() };
   val ex_reg_rs1            = Reg() { Bits() };
   val ex_reg_waddr          = Reg() { UFix() };
-  val ex_reg_ctrl_sel_alu2  = Reg() { UFix() };
-  val ex_reg_ctrl_sel_alu1  = Reg() { UFix() };
   val ex_reg_ctrl_eret      = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_fn_dw     = Reg() { UFix() };
   val ex_reg_ctrl_fn_alu    = Reg() { UFix() };
@@ -124,31 +122,23 @@ class rocketDpath extends Component
   val if_pc_plus4 = if_reg_pc + UFix(4);
 
   val ex_pc_plus4 = ex_reg_pc + UFix(4);
-  val ex_sign_extend = 
-    Cat(Fill(52, ex_reg_inst(21)), ex_reg_inst(21,10));
-  val ex_sign_extend_split = 
-    Cat(Fill(52, ex_reg_inst(31)), ex_reg_inst(31,27), ex_reg_inst(16,10));
+  val ex_branch_target = ex_reg_pc + Cat(ex_reg_op2, Bits(0,1)).toUFix
 
-  val branch_adder_rhs =
-    Mux(io.ctrl.ex_jmp, Cat(Fill(VADDR_BITS-25, ex_reg_inst(31)), ex_reg_inst(31,7), UFix(0,1)),
-      Cat(ex_sign_extend_split(VADDR_BITS-1,0), UFix(0, 1)));
-  val ex_branch_target = ex_reg_pc + branch_adder_rhs.toUFix;
-
-  val ex_jr_target_sign = Mux(ex_alu_adder_out(VADDR_BITS-1), ~ex_alu_adder_out(63,VADDR_BITS) === UFix(0), ex_alu_adder_out(63,VADDR_BITS) != UFix(0))
-  val ex_jr_target_extended = Cat(ex_jr_target_sign, ex_alu_adder_out(VADDR_BITS-1,0)).toUFix
-
-  val jr_br_target = Mux(io.ctrl.ex_jr, ex_jr_target_extended, ex_branch_target);
-  btb.io.correct_target := jr_br_target
+  val ex_ea_sign = Mux(ex_alu_adder_out(VADDR_BITS-1), ~ex_alu_adder_out(63,VADDR_BITS) === UFix(0), ex_alu_adder_out(63,VADDR_BITS) != UFix(0))
+  val ex_effective_address = Cat(ex_ea_sign, ex_alu_adder_out(VADDR_BITS-1,0)).toUFix
+  
+  val ex_br_target_sel = Reg(io.ctrl.sel_alu2 === A2_BTYPE || io.ctrl.sel_alu2 === A2_JTYPE)
+  val ex_br_target = Mux(ex_br_target_sel, ex_branch_target, ex_effective_address)
+  btb.io.correct_target := ex_br_target
 
   val if_next_pc =
     Mux(io.ctrl.sel_pc === PC_BTB,  Cat(if_btb_target(VADDR_BITS-1), if_btb_target),
     Mux(io.ctrl.sel_pc === PC_EX4,  ex_pc_plus4,
-    Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
-    Mux(io.ctrl.sel_pc === PC_JR,   ex_jr_target_extended,
+    Mux(io.ctrl.sel_pc === PC_BR,   ex_br_target,
     Mux(io.ctrl.sel_pc === PC_PCR,  wb_reg_wdata(VADDR_BITS,0), // only used for ERET
     Mux(io.ctrl.sel_pc === PC_EVEC, Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec),
     Mux(io.ctrl.sel_pc === PC_WB,   wb_reg_pc,
-        if_pc_plus4))))))); // PC_4
+        if_pc_plus4)))))); // PC_4
         
   when (!io.ctrl.stallf) {
     if_reg_pc <== if_next_pc.toUFix;
@@ -165,7 +155,7 @@ class rocketDpath extends Component
   btb.io.wen            <> io.ctrl.wen_btb;
   btb.io.clr            <> io.ctrl.clr_btb;
   btb.io.correct_pc4    := ex_pc_plus4;
-  io.ctrl.btb_match     := id_reg_pc === jr_br_target;
+  io.ctrl.btb_match     := id_reg_pc === ex_br_target;
 
   // instruction decode stage
   when (!io.ctrl.stalld) {
@@ -210,17 +200,33 @@ class rocketDpath extends Component
     Mux((io.ctrl.wb_wen || wb_reg_ll_wb) && id_raddr2 === wb_reg_waddr, wb_wdata,
         id_rdata2)));
 
+  // immediate generation
+  val id_imm_bj = io.ctrl.sel_alu2 === A2_BTYPE || io.ctrl.sel_alu2 === A2_JTYPE
+  val id_imm_l = io.ctrl.sel_alu2 === A2_LTYPE
+  val id_imm_zero = io.ctrl.sel_alu2 === A2_ZERO || io.ctrl.sel_alu2 === A2_RTYPE
+  val id_imm_ibz = io.ctrl.sel_alu2 === A2_ITYPE || io.ctrl.sel_alu2 === A2_BTYPE || id_imm_zero
+  val id_imm_sign = Mux(id_imm_bj, id_reg_inst(31),
+                    Mux(id_imm_l, id_reg_inst(26),
+                    Mux(id_imm_zero, Bits(0,1),
+                        id_reg_inst(21)))) // IMM_ITYPE
+  val id_imm_small = Mux(id_imm_zero, Bits(0,12),
+                         Cat(Mux(id_imm_bj, id_reg_inst(31,27), id_reg_inst(21,17)), id_reg_inst(16,10)))
+  val id_imm = Cat(Fill(32, id_imm_sign),
+                   Mux(id_imm_l, Cat(id_reg_inst(26,7), Bits(0,12)),
+                   Mux(id_imm_ibz, Cat(Fill(20, id_imm_sign), id_imm_small),
+                       Cat(Fill(7, id_imm_sign), id_reg_inst(31,7))))) // A2_JTYPE
+
+  val id_op2 = Mux(io.ctrl.sel_alu2 === A2_RTYPE, id_rs2, id_imm)
+
   io.ctrl.inst := id_reg_inst;
 
   // execute stage
   ex_reg_pc             <== id_reg_pc;
-  ex_reg_inst           <== id_reg_inst;
   ex_reg_raddr2         <== id_raddr2;
+  ex_reg_op2            <== id_op2;
   ex_reg_rs2            <== id_rs2;
   ex_reg_rs1            <== id_rs1;
   ex_reg_waddr          <== id_waddr;
-  ex_reg_ctrl_sel_alu2  <== io.ctrl.sel_alu2;
-  ex_reg_ctrl_sel_alu1  <== io.ctrl.sel_alu1.toUFix;
   ex_reg_ctrl_fn_dw     <== io.ctrl.fn_dw.toUFix;
   ex_reg_ctrl_fn_alu    <== io.ctrl.fn_alu;
   ex_reg_ctrl_mul_fn    <== io.ctrl.mul_fn;
@@ -243,24 +249,10 @@ class rocketDpath extends Component
     ex_reg_ctrl_eret			<== io.ctrl.id_eret;
   }
 
-  val ex_alu_in2 =
-    Mux(ex_reg_ctrl_sel_alu2 === A2_SEXT,  ex_sign_extend,
-    Mux(ex_reg_ctrl_sel_alu2 === A2_SPLIT, ex_sign_extend_split,
-    Mux(ex_reg_ctrl_sel_alu2 === A2_RS2,   ex_reg_rs2,
-        UFix(0, 64)))); // A2_0
-
-  val ex_alu_in1 =
-    Mux(ex_reg_ctrl_sel_alu1 === A1_RS1, ex_reg_rs1,
-        Cat(Fill(32, ex_reg_inst(26)),ex_reg_inst(26,7),UFix(0, 12))); // A1_LUI
-
-  val ex_alu_shamt =
-    Cat(ex_alu_in2(5) & ex_reg_ctrl_fn_dw === DW_64, ex_alu_in2(4,0)).toUFix;
-
   alu.io.dw    := ex_reg_ctrl_fn_dw;
   alu.io.fn    := ex_reg_ctrl_fn_alu;
-  alu.io.shamt := ex_alu_shamt.toUFix;
-  alu.io.in2   := ex_alu_in2.toUFix;
-  alu.io.in1   := ex_alu_in1.toUFix;
+  alu.io.in2   := ex_reg_op2.toUFix;
+  alu.io.in1   := ex_reg_rs1.toUFix;
   
   // divider
   div.io.dw        := ex_reg_ctrl_fn_dw;
@@ -292,7 +284,7 @@ class rocketDpath extends Component
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req_addr  := ex_jr_target_extended.toUFix;
+  io.dmem.req_addr  := ex_effective_address.toUFix;
   if (HAVE_FPU) {
     io.dmem.req_data := Mux(io.ctrl.ex_fp_val, io.fpu.store_data, ex_reg_rs2)
     io.dmem.req_tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val).toUFix
@@ -335,12 +327,11 @@ class rocketDpath extends Component
   
 	// writeback select mux
   ex_wdata :=
-    Mux(ex_reg_ctrl_wen_pcr, ex_reg_rs1,
     Mux(ex_reg_ctrl_sel_wb === WB_PC,  Cat(Fill(64-VADDR_BITS, ex_pc_plus4(VADDR_BITS-1)), ex_pc_plus4),
     Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
     Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg,
-        ex_alu_out))))).toBits; // WB_ALU
+        ex_alu_out)))).toBits; // WB_ALU
         
   // memory stage
   mem_reg_pc                <== ex_reg_pc;
