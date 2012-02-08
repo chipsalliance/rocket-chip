@@ -122,7 +122,7 @@ class rocketDpath extends Component
   val if_pc_plus4 = if_reg_pc + UFix(4);
 
   val ex_pc_plus4 = ex_reg_pc + UFix(4);
-  val ex_branch_target = ex_reg_pc + Cat(ex_reg_op2, Bits(0,1)).toUFix
+  val ex_branch_target = ex_reg_pc + Cat(ex_reg_op2(VADDR_BITS-1,0), Bits(0,1)).toUFix
 
   val ex_ea_sign = Mux(ex_alu_adder_out(VADDR_BITS-1), ~ex_alu_adder_out(63,VADDR_BITS) === UFix(0), ex_alu_adder_out(63,VADDR_BITS) != UFix(0))
   val ex_effective_address = Cat(ex_ea_sign, ex_alu_adder_out(VADDR_BITS-1,0)).toUFix
@@ -150,11 +150,11 @@ class rocketDpath extends Component
     Mux(io.ctrl.stallf, if_reg_pc,
         if_next_pc.toUFix);
 
-  btb.io.current_pc4    := if_pc_plus4;
+  btb.io.current_pc     := if_reg_pc;
   btb.io.hit            <> io.ctrl.btb_hit;
   btb.io.wen            <> io.ctrl.wen_btb;
   btb.io.clr            <> io.ctrl.clr_btb;
-  btb.io.correct_pc4    := ex_pc_plus4;
+  btb.io.correct_pc     := ex_reg_pc;
   io.ctrl.btb_match     := id_reg_pc === ex_br_target;
 
   // instruction decode stage
