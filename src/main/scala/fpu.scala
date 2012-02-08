@@ -92,7 +92,10 @@ class rocketFPUDecoder extends Component
     Array(FLW      -> List(Y, Y, N, N, N),
           FLD      -> List(Y, Y, N, N, N),
           FSW      -> List(Y, N, N, Y, N),
-          FSD      -> List(Y, N, N, Y, N)))
+          FSD      -> List(Y, N, N, Y, N),
+          MTFSR    -> List(Y, N, N, N, N),
+          MFFSR    -> List(Y, N, N, N, N)
+          ))
   val valid :: wen :: ren1 :: ren2 :: ren3 :: Nil = decoder
 
   io.valid := valid.toBool

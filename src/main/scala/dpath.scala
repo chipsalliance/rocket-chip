@@ -85,7 +85,6 @@ class rocketDpath extends Component
   val ex_reg_ctrl_eret      = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_fn_dw     = Reg() { UFix() };
   val ex_reg_ctrl_fn_alu    = Reg() { UFix() };
-  val ex_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_mul_fn    = Reg() { UFix() };
   val ex_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
@@ -101,7 +100,6 @@ class rocketDpath extends Component
   val mem_reg_waddr          = Reg() { UFix() };
   val mem_reg_wdata          = Reg() { Bits() };
   val mem_reg_raddr2         = Reg() { UFix() };
-  val mem_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
@@ -113,10 +111,11 @@ class rocketDpath extends Component
   val wb_reg_waddr          = Reg() { UFix() };
   val wb_reg_wdata          = Reg() { Bits() };
   val wb_reg_raddr2         = Reg() { UFix() };
-  val wb_reg_ctrl_ll_wb     = Reg(resetVal = Bool(false));
   val wb_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
+  val wb_reg_ll_wb          = Reg(resetVal = Bool(false));
   val wb_wdata              = Wire() { Bits() }; 	
 
+  val dmem_resp_replay      = Wire() { Bool() }
   val r_dmem_resp_replay    = Reg(resetVal = Bool(false));
   val r_dmem_fp_replay      = Reg(resetVal = Bool(false));
   val r_dmem_resp_waddr     = Reg() { UFix() };
@@ -194,29 +193,21 @@ class rocketDpath extends Component
   val id_rdata1 = rfile.io.r1.data;
 
   // destination register selection
-  val id_ctrl_ll_wb = io.ctrl.div_wb || io.ctrl.mul_wb || r_dmem_resp_replay;
   val id_waddr =
-    Mux(r_dmem_resp_replay, r_dmem_resp_waddr,
-    Mux(io.ctrl.mul_wb, mul_result_tag,
-    Mux(io.ctrl.div_wb, div_result_tag,
     Mux(io.ctrl.sel_wa === WA_RD, id_reg_inst(31,27).toUFix,
-    Mux(io.ctrl.sel_wa === WA_RA, RA,
-        UFix(0, 5))))));
+        RA); // WA_RA
 
   // bypass muxes
   val id_rs1 =
-    Mux(r_dmem_resp_replay, io.dmem.resp_data_subword,
-  	Mux(io.ctrl.div_wb, div_result,
-  	Mux(io.ctrl.mul_wb, mul_result,
-    Mux(id_raddr1 != UFix(0, 5) && (io.ctrl.ex_wen || ex_reg_ctrl_ll_wb) && id_raddr1 === ex_reg_waddr,  ex_wdata,
-    Mux(id_raddr1 != UFix(0, 5) && (io.ctrl.mem_wen || mem_reg_ctrl_ll_wb) && id_raddr1 === mem_reg_waddr, mem_wdata,
-    Mux(id_raddr1 != UFix(0, 5) && (io.ctrl.wb_wen || wb_reg_ctrl_ll_wb) && id_raddr1 === wb_reg_waddr, wb_wdata,
-        id_rdata1))))));
+    Mux(io.ctrl.ex_wen && id_raddr1 === ex_reg_waddr,  ex_wdata,
+    Mux(io.ctrl.mem_wen && id_raddr1 === mem_reg_waddr, mem_wdata,
+    Mux((io.ctrl.wb_wen || wb_reg_ll_wb) && id_raddr1 === wb_reg_waddr, wb_wdata,
+        id_rdata1)));
 
   val id_rs2 =
-    Mux(id_raddr2 != UFix(0, 5) && (io.ctrl.ex_wen || ex_reg_ctrl_ll_wb) && id_raddr2 === ex_reg_waddr,  ex_wdata,
-    Mux(id_raddr2 != UFix(0, 5) && (io.ctrl.mem_wen || mem_reg_ctrl_ll_wb) && id_raddr2 === mem_reg_waddr, mem_wdata,
-    Mux(id_raddr2 != UFix(0, 5) && (io.ctrl.wb_wen || wb_reg_ctrl_ll_wb) && id_raddr2 === wb_reg_waddr, wb_wdata,
+    Mux(io.ctrl.ex_wen && id_raddr2 === ex_reg_waddr,  ex_wdata,
+    Mux(io.ctrl.mem_wen && id_raddr2 === mem_reg_waddr, mem_wdata,
+    Mux((io.ctrl.wb_wen || wb_reg_ll_wb) && id_raddr2 === wb_reg_waddr, wb_wdata,
         id_rdata2)));
 
   io.ctrl.inst := id_reg_inst;
@@ -234,7 +225,6 @@ class rocketDpath extends Component
   ex_reg_ctrl_fn_alu    <== io.ctrl.fn_alu;
   ex_reg_ctrl_mul_fn    <== io.ctrl.mul_fn;
   ex_reg_ctrl_div_fn    <== io.ctrl.div_fn;
-  ex_reg_ctrl_ll_wb     <== id_ctrl_ll_wb;
   ex_reg_ctrl_sel_wb    <== io.ctrl.sel_wb;
   ex_reg_ctrl_ren_pcr   <== io.ctrl.ren_pcr;
 
@@ -280,7 +270,7 @@ class rocketDpath extends Component
   div.io.div_waddr := ex_reg_waddr;
   div.io.dpath_rs1 := ex_reg_rs1;
   div.io.dpath_rs2 := ex_reg_rs2;
-  div.io.div_result_rdy := io.ctrl.div_wb;
+  div.io.div_result_rdy := !dmem_resp_replay
   
   io.ctrl.div_rdy 				:= div.io.div_rdy;
   io.ctrl.div_result_val := div.io.div_result_val;
@@ -296,7 +286,7 @@ class rocketDpath extends Component
  
   io.ctrl.mul_rdy        := mul.io.mul_rdy
   io.ctrl.mul_result_val := mul.io.result_val;
-  mul.io.result_rdy      := io.ctrl.mul_wb
+  mul.io.result_rdy      := !dmem_resp_replay && !div.io.div_result_val
   
   io.ctrl.ex_waddr := ex_reg_waddr; // for load/use hazard detection & bypass control
 
@@ -345,7 +335,7 @@ class rocketDpath extends Component
   
 	// writeback select mux
   ex_wdata :=
-    Mux(ex_reg_ctrl_ll_wb || ex_reg_ctrl_wen_pcr, ex_reg_rs1,
+    Mux(ex_reg_ctrl_wen_pcr, ex_reg_rs1,
     Mux(ex_reg_ctrl_sel_wb === WB_PC,  Cat(Fill(64-VADDR_BITS, ex_pc_plus4(VADDR_BITS-1)), ex_pc_plus4),
     Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
@@ -356,7 +346,6 @@ class rocketDpath extends Component
   mem_reg_pc                <== ex_reg_pc;
   mem_reg_waddr             <== ex_reg_waddr;
   mem_reg_wdata             <== ex_wdata;
-  mem_reg_ctrl_ll_wb        <== ex_reg_ctrl_ll_wb;
   mem_reg_raddr2            <== ex_reg_raddr2;
   mem_reg_ctrl_mul_val      <== ex_reg_ctrl_mul_val;
   mem_reg_ctrl_div_val      <== ex_reg_ctrl_div_val;
@@ -380,14 +369,26 @@ class rocketDpath extends Component
       
   // writeback stage
   val dmem_resp_fpu = if (HAVE_FPU) io.dmem.resp_tag(0).toBool else Bool(false)
-  r_dmem_resp_replay  <== io.dmem.resp_replay && !dmem_resp_fpu;
+  val dmem_resp_waddr = io.dmem.resp_tag.toUFix >> UFix(1)
+  dmem_resp_replay := io.dmem.resp_replay && !dmem_resp_fpu;
+  r_dmem_resp_replay  <== dmem_resp_replay
+  r_dmem_resp_waddr   <== dmem_resp_waddr
   r_dmem_fp_replay    <== io.dmem.resp_replay && dmem_resp_fpu;
-  r_dmem_resp_waddr   <== io.dmem.resp_tag.toUFix >> UFix(1)
+
+  val mem_ll_waddr = Mux(dmem_resp_replay, dmem_resp_waddr,
+                     Mux(div_result_val, div_result_tag,
+                     Mux(mul_result_val, mul_result_tag,
+                         mem_reg_waddr)))
+  val mem_ll_wdata = Mux(div_result_val, div_result,
+                     Mux(mul_result_val, mul_result,
+                         mem_reg_wdata))
+  val mem_ll_wb = mem_ll_waddr != UFix(0) &&
+    (dmem_resp_replay || div_result_val || mul_result_val)
 
   wb_reg_pc             <== mem_reg_pc;
-  wb_reg_waddr          <== mem_reg_waddr;
-  wb_reg_wdata          <== mem_reg_wdata;
-  wb_reg_ctrl_ll_wb     <== mem_reg_ctrl_ll_wb;
+  wb_reg_ll_wb          <== mem_ll_wb
+  wb_reg_waddr          <== mem_ll_waddr
+  wb_reg_wdata          <== mem_ll_wdata
   wb_reg_raddr2         <== mem_reg_raddr2;
 
   when (io.ctrl.killm) {
@@ -400,19 +401,20 @@ class rocketDpath extends Component
   }
 
 	// regfile write
-  wb_wdata := Mux(Reg(io.ctrl.mem_load), io.dmem.resp_data_subword, wb_reg_wdata)
-  rfile.io.w0.addr := wb_reg_waddr;
-  rfile.io.w0.en   := io.ctrl.wb_wen || wb_reg_ctrl_ll_wb;
+  val wb_src_dmem = Reg(io.ctrl.mem_load) && wb_reg_valid || r_dmem_resp_replay
+  wb_wdata := Mux(wb_src_dmem, io.dmem.resp_data_subword, wb_reg_wdata)
+  rfile.io.w0.addr := wb_reg_waddr
+  rfile.io.w0.en   := io.ctrl.wb_wen || wb_reg_ll_wb
   rfile.io.w0.data := wb_wdata
   
   io.ctrl.wb_waddr := wb_reg_waddr;
-  io.ctrl.mem_wb := r_dmem_resp_replay;
+  io.ctrl.mem_wb := dmem_resp_replay;
   
   // scoreboard clear (for div/mul and D$ load miss writebacks)
-  io.ctrl.sboard_clr   := id_ctrl_ll_wb;
-  io.ctrl.sboard_clra  := id_waddr;
-  io.ctrl.fp_sboard_clr  := r_dmem_fp_replay;
-  io.ctrl.fp_sboard_clra := r_dmem_resp_waddr;
+  io.ctrl.sboard_clr   := mem_ll_wb
+  io.ctrl.sboard_clra  := mem_ll_waddr
+  io.ctrl.fp_sboard_clr  := r_dmem_fp_replay
+  io.ctrl.fp_sboard_clra := r_dmem_resp_waddr
 
 	// processor control regfile write
   pcr.io.w.addr := wb_reg_raddr2;
