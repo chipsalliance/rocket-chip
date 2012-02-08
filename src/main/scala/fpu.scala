@@ -120,7 +120,7 @@ class rocketFPU extends Component
     val killx = Bool(INPUT)
     val killm = Bool(INPUT)
   
-    val dmem = new ioDmem(List("resp_val", "resp_tag", "resp_data"))
+    val dmem = new ioDmem(List("resp_val", "resp_tag", "resp_data")).flip()
     val dpath = new ioDpathFPU().flip()
   }
 
