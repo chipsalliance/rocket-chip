@@ -77,9 +77,6 @@ object Constants
   val Y = UFix(1, 1);
   val Y_SH = UFix(1, 1);
 
-//  val FPU_N = UFix(0, 1);
-//  val FPU_Y = FPU_N;
-
   val FWBQ_N = UFix(0, 1);
   val FWBQ_Y = UFix(1, 1);
 
@@ -180,7 +177,7 @@ object Constants
 
   // rocketNBDCacheDM parameters
   val CPU_DATA_BITS = 64;
-  val CPU_TAG_BITS = 5;
+  val CPU_TAG_BITS = 6;
   val DCACHE_TAG_BITS = 1 + CPU_TAG_BITS;
   val OFFSET_BITS = 6; // log2(cache line size in bytes)
   val NMSHR = 2; // number of primary misses
@@ -209,9 +206,12 @@ object Constants
   
   val START_ADDR = 0x2000;
   
-  val HAVE_RVC = Bool(false);
-  val HAVE_FPU = Bool(false);
-  val HAVE_VEC = Bool(false);
+  val HAVE_RVC = false
+  val HAVE_FPU = true
+  val HAVE_VEC = false
+
+  val FPU_N = UFix(0, 1);
+  val FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N;
 }
 
 }

@@ -159,9 +159,9 @@ class rocketDpathPCR extends Component
       reg_status_ux <== io.w.data(SR_UX).toBool;
       reg_status_s  <== io.w.data(SR_S).toBool;
       reg_status_ps <== io.w.data(SR_PS).toBool;
-      reg_status_ev <== HAVE_VEC && io.w.data(SR_EV).toBool;
-      reg_status_ef <== HAVE_FPU && io.w.data(SR_EF).toBool;
-      reg_status_ec <== HAVE_RVC && io.w.data(SR_EC).toBool;
+      reg_status_ev <== Bool(HAVE_VEC) && io.w.data(SR_EV).toBool;
+      reg_status_ef <== Bool(HAVE_FPU) && io.w.data(SR_EF).toBool;
+      reg_status_ec <== Bool(HAVE_RVC) && io.w.data(SR_EC).toBool;
       reg_status_et <== io.w.data(SR_ET).toBool;
   	}
   	when (io.w.addr === PCR_EPC) 			{ reg_epc      		<== io.w.data(VADDR_BITS,0).toUFix; }
