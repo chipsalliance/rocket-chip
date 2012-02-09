@@ -171,7 +171,7 @@ object Constants
 
   // rocketNBDCacheDM parameters
   val CPU_DATA_BITS = 64;
-  val CPU_TAG_BITS = 6;
+  val CPU_TAG_BITS = 9;
   val DCACHE_TAG_BITS = 1 + CPU_TAG_BITS;
   val OFFSET_BITS = 6; // log2(cache line size in bytes)
   val NMSHR = 2; // number of primary misses

@@ -122,6 +122,9 @@ class rocketProc extends Component
     dpath.io.fpu <> fpu.io.dpath
   }
 
+  ctrl.io.ext_mem.req_val := Bool(false)
+  dpath.io.ext_mem.req_val := Bool(false)
+
   if (HAVE_VEC)
   {
     val vu = new vu()
