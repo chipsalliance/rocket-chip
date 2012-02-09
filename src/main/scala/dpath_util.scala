@@ -13,31 +13,50 @@ class ioDpathBTB extends Bundle()
   val target         = UFix(VADDR_BITS, OUTPUT);
   val wen            = Bool(INPUT);
   val clr            = Bool(INPUT);
+  val invalidate     = Bool(INPUT);
   val correct_pc     = UFix(VADDR_BITS, INPUT);
   val correct_target = UFix(VADDR_BITS, INPUT);
 }
 
-// basic direct-mapped branch target buffer
+// fully-associative branch target buffer
 class rocketDpathBTB(entries: Int) extends Component
 {
-  val io  = new ioDpathBTB();
-  
-  val addr_bits = ceil(log10(entries)/log10(2)).toInt;
-  val idxlsb = 2;
-  val idxmsb = idxlsb+addr_bits-1;
-  val tagmsb = (VADDR_BITS-idxmsb-1)+(VADDR_BITS-idxlsb)-1;
-  val taglsb = (VADDR_BITS-idxlsb);
-  
-  val vb_array = Mem(entries, io.wen || io.clr, io.correct_pc(idxmsb,idxlsb), !io.clr, resetVal = Bool(false)); 
-  val tag_target_array = Mem4(entries, io.wen, io.correct_pc(idxmsb,idxlsb), 
-                              Cat(io.correct_pc(VADDR_BITS-1,idxmsb+1), io.correct_target(VADDR_BITS-1,idxlsb)))
-  tag_target_array.setReadLatency(0);
-  tag_target_array.setTarget('inst);
-  val is_val       = vb_array(io.current_pc(idxmsb,idxlsb));
-  val tag_target   = tag_target_array(io.current_pc(idxmsb, idxlsb));
-  
-  io.hit    := is_val && (tag_target(tagmsb,taglsb) === io.current_pc(VADDR_BITS-1, idxmsb+1));
-  io.target := Cat(tag_target(taglsb-1, 0), Bits(0,idxlsb)).toUFix;
+  val io = new ioDpathBTB();
+
+  val do_update = io.wen || io.clr
+  val expected_tag = Mux(do_update, io.correct_pc, io.current_pc)
+
+  val repl_way = LFSR16(io.wen)(log2up(entries)-1,0) // TODO: pseudo-LRU
+
+  var hit_reduction = Bool(false)
+  val hit = Wire() { Bool() }
+  val mux = (new Mux1H(entries)) { Bits(width = VADDR_BITS) }
+
+  for (i <- 0 until entries) {
+    val tag = Reg() { UFix() }
+    val target = Reg() { UFix() }
+    val valid = Reg(resetVal = Bool(false))
+    val my_hit = valid && tag === expected_tag
+    val my_clr = io.clr && my_hit || io.invalidate
+    val my_wen = io.wen && (my_hit || !hit && UFix(i) === repl_way)
+
+    when (my_clr) {
+      valid <== Bool(false)
+    }
+    when (my_wen) {
+      valid <== Bool(true)
+      tag <== io.correct_pc
+      target <== io.correct_target
+    }
+
+    hit_reduction = hit_reduction || my_hit
+    mux.io.sel(i) := my_hit
+    mux.io.in(i) := target
+  }
+  hit := hit_reduction
+
+  io.hit    := hit
+  io.target := mux.io.out.toUFix
 }
 
 class ioDpathPCR extends Bundle()

@@ -40,6 +40,7 @@ class ioCtrlDpath extends Bundle()
   val ex_wen   = Bool(OUTPUT);
   val mem_wen  = Bool(OUTPUT);
   val wb_wen   = Bool(OUTPUT);
+  val flush_inst = Bool(OUTPUT);
   // enable/disable interrupts
   val irq_enable   = Bool(OUTPUT);
   val irq_disable   = Bool(OUTPUT);
@@ -50,7 +51,6 @@ class ioCtrlDpath extends Bundle()
   // inputs from datapath
   val xcpt_ma_inst = Bool(INPUT);  // high on a misaligned/illegal virtual PC
   val btb_hit = Bool(INPUT);
-  val btb_match = Bool(INPUT);
   val inst    = Bits(32, INPUT);
   val br_eq   = Bool(INPUT);
   val br_lt   = Bool(INPUT);
@@ -84,7 +84,6 @@ class ioCtrlAll extends Bundle()
   val dtlb_kill = Bool(OUTPUT);
   val dtlb_rdy = Bool(INPUT);
   val dtlb_miss = Bool(INPUT);
-  val flush_inst = Bool(OUTPUT);
   val xcpt_dtlb_ld = Bool(INPUT);
   val xcpt_dtlb_st = Bool(INPUT);
   val xcpt_itlb = Bool(INPUT);
@@ -422,8 +421,8 @@ class rocketCtrl extends Component
     (ex_reg_br_type === BR_LTU) & bltu |
     (ex_reg_br_type === BR_GE) & bge |
     (ex_reg_br_type === BR_GEU) & bgeu |
-    (ex_reg_br_type === BR_J) |
-    (ex_reg_br_type === BR_JR); // treat J/JAL/JALR like a taken branch
+    (ex_reg_br_type === BR_J); // treat J/JAL like taken branches
+  val jr_taken = ex_reg_br_type === BR_JR
   
   val mem_reg_div_mul_val = Reg(){Bool()};
   val mem_reg_eret        = Reg(){Bool()};
@@ -573,8 +572,7 @@ class rocketCtrl extends Component
 			UFix(0,5))))))))))));  // instruction address misaligned
 
   // control transfer from ex/mem
-  val ex_btb_match = ex_reg_btb_hit && io.dpath.btb_match
-  val take_pc_ex = !ex_btb_match && br_taken || ex_reg_btb_hit && !br_taken
+  val take_pc_ex = ex_reg_btb_hit != br_taken || jr_taken
   val take_pc_wb = wb_reg_replay || wb_reg_exception || wb_reg_eret;
   take_pc := take_pc_ex || take_pc_wb;
 
@@ -612,11 +610,12 @@ class rocketCtrl extends Component
     Mux(wb_reg_replay,                  PC_WB,   // replay
     Mux(wb_reg_eret,                    PC_PCR,  // eret instruction
     Mux(ex_reg_btb_hit && !br_taken,    PC_EX4,  // mispredicted not taken branch
-    Mux(!ex_btb_match && br_taken,      PC_BR,   // mispredicted taken branch
+    Mux(!ex_reg_btb_hit && br_taken,    PC_BR,   // mispredicted taken branch
+    Mux(jr_taken,                       PC_JR,   // taken JALR
     Mux(io.dpath.btb_hit,               PC_BTB,  // predicted PC from BTB
-        PC_4)))))); // PC+4
+        PC_4))))))); // PC+4
 
-  io.dpath.wen_btb := !ex_btb_match && br_taken;
+  io.dpath.wen_btb := !ex_reg_btb_hit && br_taken
   io.dpath.clr_btb := ex_reg_btb_hit && !br_taken || id_reg_icmiss;
   
   io.imem.req_val  := take_pc_wb || !mem_reg_replay && !ex_reg_replay && (take_pc_ex || !id_reg_replay)
@@ -678,8 +677,7 @@ class rocketCtrl extends Component
   val ctrl_killd = take_pc || ctrl_stalld;
   val ctrl_killf = take_pc || !io.imem.resp_val;
   
-  io.flush_inst     := wb_reg_flush_inst;
-
+  io.dpath.flush_inst := wb_reg_flush_inst;
   io.dpath.stallf   := ctrl_stallf;
   io.dpath.stalld   := ctrl_stalld;
   io.dpath.killf    := ctrl_killf;
