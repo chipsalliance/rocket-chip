@@ -334,8 +334,8 @@ class rocketCtrl extends Component
   otherwise {
     ex_reg_br_type     <== id_br_type;
     ex_reg_btb_hit     <== id_reg_btb_hit;
-    ex_reg_div_val     <== id_div_val.toBool;
-    ex_reg_mul_val     <== id_mul_val.toBool;
+    ex_reg_div_val     <== id_div_val.toBool && id_waddr != UFix(0);
+    ex_reg_mul_val     <== id_mul_val.toBool && id_waddr != UFix(0);
     ex_reg_mem_val     <== id_mem_val.toBool;
     ex_reg_wen         <== id_wen.toBool && id_waddr != UFix(0);
     ex_reg_fp_wen      <== fpdec.io.wen;
