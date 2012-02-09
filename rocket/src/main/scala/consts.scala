@@ -206,6 +206,26 @@ object Constants
 
   val FPU_N = UFix(0, 1);
   val FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N;
+
+  val VEC_N = UFix(0, 1);
+  val VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N;
+
+  val VEC_X = UFix(0, 1)
+  val VEC_VL = UFix(0, 1)
+  val VEC_CFG = UFix(1, 1)
+
+  val VCMD_I = UFix(0, 3)
+  val VCMD_F = UFix(1, 3)
+  val VCMD_TX = UFix(2, 3)
+  val VCMD_TF = UFix(3, 3)
+  val VCMD_MX = UFix(4, 3)
+  val VCMD_MF = UFix(5, 3)
+  val VCMD_X = UFix(0, 3)
+
+  val VIMM_VLEN = UFix(0, 2)
+  val VIMM_ALU = UFix(1, 2)
+  val VIMM_RS1 = UFix(2, 2)
+  val VIMM_X = UFix(0, 2)
 }
 
 }

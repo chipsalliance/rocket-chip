@@ -2,8 +2,10 @@ package Top {
 
 import Chisel._
 import Node._;
+
 import Constants._
 import Instructions._
+import hwacha._
 
 class ioDpathDmem extends Bundle()
 {
@@ -32,6 +34,9 @@ class ioDpathAll extends Bundle()
   val debug = new ioDebug();
   val dmem  = new ioDpathDmem();
   val imem  = new ioDpathImem();
+  val vcmdq = new io_vec_cmdq(List("bits"))
+  val vximm1q = new io_vec_ximm1q(List("bits"))
+  val vximm2q = new io_vec_ximm2q(List("bits"))
   val ptbr_wen = Bool(OUTPUT);
   val ptbr = UFix(PADDR_BITS, OUTPUT);
   val fpu = new ioDpathFPU();
