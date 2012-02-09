@@ -47,7 +47,7 @@ class rocketDpath extends Component
 {
   val io  = new ioDpathAll();
   
-  val btb = new rocketDpathBTB(8); // # of entries in BTB
+  val btb = new rocketDpathBTB(4); // # of entries in BTB
   
   val if_btb_target = btb.io.target;
 
@@ -142,19 +142,16 @@ class rocketDpath extends Component
 
   val ex_ea_sign = Mux(ex_alu_adder_out(VADDR_BITS-1), ~ex_alu_adder_out(63,VADDR_BITS) === UFix(0), ex_alu_adder_out(63,VADDR_BITS) != UFix(0))
   val ex_effective_address = Cat(ex_ea_sign, ex_alu_adder_out(VADDR_BITS-1,0)).toUFix
-  
-  val ex_br_target_sel = Reg(io.ctrl.sel_alu2 === A2_BTYPE || io.ctrl.sel_alu2 === A2_JTYPE)
-  val ex_br_target = Mux(ex_br_target_sel, ex_branch_target, ex_effective_address)
-  btb.io.correct_target := ex_br_target
 
   val if_next_pc =
     Mux(io.ctrl.sel_pc === PC_BTB,  Cat(if_btb_target(VADDR_BITS-1), if_btb_target),
     Mux(io.ctrl.sel_pc === PC_EX4,  ex_pc_plus4,
-    Mux(io.ctrl.sel_pc === PC_BR,   ex_br_target,
+    Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
+    Mux(io.ctrl.sel_pc === PC_JR,   ex_effective_address,
     Mux(io.ctrl.sel_pc === PC_PCR,  wb_reg_wdata(VADDR_BITS,0), // only used for ERET
     Mux(io.ctrl.sel_pc === PC_EVEC, Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec),
     Mux(io.ctrl.sel_pc === PC_WB,   wb_reg_pc,
-        if_pc_plus4)))))); // PC_4
+        if_pc_plus4))))))); // PC_4
         
   when (!io.ctrl.stallf) {
     if_reg_pc <== if_next_pc.toUFix;
@@ -171,7 +168,8 @@ class rocketDpath extends Component
   btb.io.wen            <> io.ctrl.wen_btb;
   btb.io.clr            <> io.ctrl.clr_btb;
   btb.io.correct_pc     := ex_reg_pc;
-  io.ctrl.btb_match     := id_reg_pc === ex_br_target;
+  btb.io.correct_target := ex_branch_target
+  btb.io.invalidate     := io.ctrl.flush_inst
 
   // instruction decode stage
   when (!io.ctrl.stalld) {

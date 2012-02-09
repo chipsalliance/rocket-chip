@@ -60,7 +60,7 @@ class rocketProc extends Component
   io.imem.req_idx         := dpath.io.imem.req_addr(PGIDX_BITS-1,0);
   io.imem.req_ppn         := itlb.io.cpu.resp_ppn;
   io.imem.req_val         := ctrl.io.imem.req_val;
-  io.imem.invalidate      := ctrl.io.flush_inst;
+  io.imem.invalidate      := ctrl.io.dpath.flush_inst;
   ctrl.io.imem.resp_val   := io.imem.resp_val;
   dpath.io.imem.resp_data := io.imem.resp_data;
   ctrl.io.xcpt_itlb       := itlb.io.cpu.exception;
