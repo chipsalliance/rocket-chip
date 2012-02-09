@@ -62,7 +62,7 @@ class rocketMultiplier extends Component {
     r_prod<== rhs_in
     r_lsb <== Bool(false)
   }
-  when (io.result_val && io.result_rdy || io.mul_kill) {
+  when (io.result_val && io.result_rdy || io.mul_kill && r_cnt === UFix(0)) { // can only kill on first cycle
     r_val <== Bool(false)
   }
 
