@@ -61,9 +61,9 @@ class rocketDpath extends Component
   val ex_alu_adder_out = alu.io.adder_out; 
 
   val div = new rocketDivider(64);
-  val div_result = div.io.div_result_bits;
-  val div_result_tag = div.io.div_result_tag;
-  val div_result_val = div.io.div_result_val;
+  val div_result = div.io.result;
+  val div_result_tag = div.io.result_tag;
+  val div_result_val = div.io.result_val;
   
   val mul = new rocketMultiplier();
   val mul_result = mul.io.result; 
@@ -275,13 +275,13 @@ class rocketDpath extends Component
   div.io.div_fn    := ex_reg_ctrl_div_fn;
   div.io.div_val   := ex_reg_ctrl_div_val;
   div.io.div_kill  := io.ctrl.killm;
-  div.io.div_waddr := ex_reg_waddr;
-  div.io.dpath_rs1 := ex_reg_rs1;
-  div.io.dpath_rs2 := ex_reg_rs2;
-  div.io.div_result_rdy := !dmem_resp_replay
+  div.io.div_tag   := ex_reg_waddr;
+  div.io.in0       := ex_reg_rs1;
+  div.io.in1       := ex_reg_rs2;
+  div.io.result_rdy:= !dmem_resp_replay
   
   io.ctrl.div_rdy 				:= div.io.div_rdy;
-  io.ctrl.div_result_val := div.io.div_result_val;
+  io.ctrl.div_result_val := div.io.result_val;
   
   // multiplier
   mul.io.mul_val := ex_reg_ctrl_mul_val;
@@ -294,7 +294,7 @@ class rocketDpath extends Component
  
   io.ctrl.mul_rdy        := mul.io.mul_rdy
   io.ctrl.mul_result_val := mul.io.result_val;
-  mul.io.result_rdy      := !dmem_resp_replay && !div.io.div_result_val
+  mul.io.result_rdy      := !dmem_resp_replay && !div.io.result_val
   
   io.ctrl.ex_waddr := ex_reg_waddr; // for load/use hazard detection & bypass control
 
