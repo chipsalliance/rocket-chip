@@ -129,7 +129,7 @@ class rocketDpathPCR extends Component
   io.r.data := rdata;
 
   io.vecbank := reg_vecbank
-  var cnt = UFix(0)
+  var cnt = UFix(0,4)
   for (i <- 0 until 8)
     cnt = cnt + reg_vecbank(i)
   io.vecbankcnt := cnt(3,0)

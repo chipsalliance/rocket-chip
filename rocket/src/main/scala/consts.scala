@@ -66,7 +66,6 @@ object Constants
   val WB_ALU = UFix(2, 3);
   val WB_TSC = UFix(4, 3);
   val WB_IRT = UFix(5, 3);
-  val WB_VEC = UFix(6, 3);
 
   val N = UFix(0, 1);
   val Y = UFix(1, 1);

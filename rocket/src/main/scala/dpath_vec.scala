@@ -17,6 +17,7 @@ class ioDpathVec extends Bundle
   val vecbankcnt = UFix(4, INPUT)
   val wdata = Bits(64, INPUT)
   val rs2 = Bits(64, INPUT)
+  val wen = Bool(OUTPUT)
   val appvl = UFix(12, OUTPUT)
   val vcmdq = new io_vec_cmdq()
   val vximm1q = new io_vec_ximm1q()
@@ -80,9 +81,9 @@ class rocketDpathVec extends Component
   val wb_vec_val :: wb_sel_vcmd :: wb_sel_vimm :: wb_vec_wen :: wb_vec_fn :: wb_vec_appvlmask :: veccs0 = veccs
   val wb_vec_cmdq_val :: wb_vec_ximm1q_val :: wb_vec_ximm2q_val :: Nil = veccs0
 
-  val nxregs = io.inst(15,10)
-  val nfregs = io.inst(21,16)
-  val nregs = (nxregs + nfregs)(6,0)
+  val nxregs = Cat(UFix(0,1),io.inst(15,10).toUFix) // FIXME: to make the nregs width 7 bits
+  val nfregs = io.inst(21,16).toUFix
+  val nregs = nxregs + nfregs
 
   val uts_per_bank = MuxLookup(
     nregs, UFix(4,9), Array(
@@ -153,6 +154,7 @@ class rocketDpathVec extends Component
     reg_appvl0 <== !(appvl.orR())
   }
 
+  io.wen := io.valid && wb_vec_wen.toBool
   io.appvl := appvl
   val vlenm1 = appvl - Bits(1,1)
 

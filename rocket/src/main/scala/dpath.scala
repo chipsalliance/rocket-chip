@@ -341,8 +341,7 @@ class rocketDpath extends Component
     Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
     Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg,
-    Mux(ex_reg_ctrl_sel_wb === WB_VEC, vec.io.appvl,
-        ex_alu_out))))).toBits; // WB_ALU
+        ex_alu_out)))).toBits; // WB_ALU
         
   // memory stage
   mem_reg_pc                <== ex_reg_pc;
@@ -408,20 +407,6 @@ class rocketDpath extends Component
     wb_reg_ctrl_wen_pcr 	<== mem_reg_ctrl_wen_pcr;
   }
 
-	// regfile write
-  val wb_src_dmem = Reg(io.ctrl.mem_load) && wb_reg_valid || r_dmem_resp_replay
-  wb_wdata := Mux(wb_src_dmem, io.dmem.resp_data_subword, wb_reg_wdata)
-  rfile.io.w0.addr := wb_reg_waddr
-  rfile.io.w0.en   := io.ctrl.wb_wen || wb_reg_ll_wb
-  rfile.io.w0.data := wb_wdata
-
-  io.ext_mem.resp_val := Reg(io.dmem.resp_val && dmem_resp_ext, resetVal = Bool(false))
-  io.ext_mem.resp_tag := Reg(dmem_resp_ext_tag)
-  io.ext_mem.resp_data := io.dmem.resp_data_subword
-  
-  io.ctrl.wb_waddr := wb_reg_waddr;
-  io.ctrl.mem_wb := dmem_resp_replay;
-
   // vector datapath
   vec.io.valid := wb_reg_valid
   vec.io.sr_ev := pcr.io.status(SR_EV)
@@ -432,6 +417,24 @@ class rocketDpath extends Component
   vec.io.vecbankcnt := pcr.io.vecbankcnt
   vec.io.wdata := wb_reg_wdata
   vec.io.rs2 := wb_reg_rs2
+
+	// regfile write
+  val wb_src_dmem = Reg(io.ctrl.mem_load) && wb_reg_valid || r_dmem_resp_replay
+  wb_wdata :=
+    Mux(vec.io.wen, Cat(Bits(0,52), vec.io.appvl),
+    Mux(wb_src_dmem, io.dmem.resp_data_subword,
+    wb_reg_wdata))
+
+  rfile.io.w0.addr := wb_reg_waddr
+  rfile.io.w0.en   := io.ctrl.wb_wen || wb_reg_ll_wb
+  rfile.io.w0.data := wb_wdata
+
+  io.ext_mem.resp_val := Reg(io.dmem.resp_val && dmem_resp_ext, resetVal = Bool(false))
+  io.ext_mem.resp_tag := Reg(dmem_resp_ext_tag)
+  io.ext_mem.resp_data := io.dmem.resp_data_subword
+  
+  io.ctrl.wb_waddr := wb_reg_waddr;
+  io.ctrl.mem_wb := dmem_resp_replay;
 
   vec.io.vcmdq <> io.vcmdq
   vec.io.vximm1q <> io.vximm1q
