@@ -65,6 +65,7 @@ object Constants
   val WB_ALU = UFix(2, 3);
   val WB_TSC = UFix(4, 3);
   val WB_IRT = UFix(5, 3);
+  val WB_VEC = UFix(6, 3);
 
   val N = UFix(0, 1);
   val Y = UFix(1, 1);
@@ -146,8 +147,8 @@ object Constants
   val PCR_K1       = UFix(13, 5);
   val PCR_TOHOST   = UFix(16, 5);
   val PCR_FROMHOST = UFix(17, 5);
-  val PCR_CONSOLE  = UFix(18, 5);
-
+  val PCR_VECBANK  = UFix(18, 5);
+  val PCR_CONSOLE  = UFix(19, 5);
 
   // definition of bits in PCR status reg
   val SR_ET   = 0;  // enable traps
@@ -222,10 +223,9 @@ object Constants
   val VCMD_MF = UFix(5, 3)
   val VCMD_X = UFix(0, 3)
 
-  val VIMM_VLEN = UFix(0, 2)
-  val VIMM_ALU = UFix(1, 2)
-  val VIMM_RS1 = UFix(2, 2)
-  val VIMM_X = UFix(0, 2)
+  val VIMM_VLEN = UFix(0, 1)
+  val VIMM_ALU = UFix(1, 1)
+  val VIMM_X = UFix(0, 1)
 }
 
 }

@@ -80,9 +80,6 @@ class ioCtrlAll extends Bundle()
   val imem    = new ioImem(List("req_val", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_kill", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_nack")).flip();
   val ext_mem = new ioDmem(List("req_val", "req_cmd", "req_type", "resp_nack"))
-  val vcmdq   = new io_vec_cmdq(List("ready", "valid"))
-  val vximm1q = new io_vec_ximm1q(List("ready", "valid"))
-  val vximm2q = new io_vec_ximm2q(List("ready", "valid"))
   val dtlb_val = Bool(OUTPUT);
   val dtlb_kill = Bool(OUTPUT);
   val dtlb_rdy = Bool(INPUT);
@@ -105,181 +102,169 @@ class rocketCtrl extends Component
   val xpr64 = Y;
   val cs =   
   ListLookup(io.dpath.inst,
-               //                                                                                                                                      eret
-               //                                                                                                                                      | syscall
-               //                                                    mem_val             mul_val   div_val                    renpcr                   | | privileged
-               //   val   brtype renx2 renx1 s_alu2   dw     alu     |   mem_cmd mem_type| mul_fn  | div_fn wen   s_wa  s_wb   |    wenpcr irq  sync   | | | replay_next
-               //   |     |      |     |     |        |      |       |   |         |     | |       | |      |     |     |      |     |     |    |      | | | |
-               List(N,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),Array(
-    BNE->      List(Y,    BR_NE, REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    BEQ->      List(Y,    BR_EQ, REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    BLT->      List(Y,    BR_LT, REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    BLTU->     List(Y,    BR_LTU,REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    BGE->      List(Y,    BR_GE, REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    BGEU->     List(Y,    BR_GEU,REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+                //                                                                                                                                        eret
+                //                                                                                                                                        | syscall
+                //         vec_val                                      mem_val             mul_val   div_val                    renpcr                   | | privileged
+                //   val   | brtype renx2 renx1 s_alu2   dw     alu     |   mem_cmd mem_type| mul_fn  | div_fn wen   s_wa  s_wb   |    wenpcr irq  sync   | | | replay_next
+                //   |     | |      |     |     |        |      |       |   |         |     | |       | |      |     |     |      |     |     |    |      | | | |
+                List(N,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),Array(
+    BNE->       List(Y,    N,BR_NE, REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    BEQ->       List(Y,    N,BR_EQ, REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    BLT->       List(Y,    N,BR_LT, REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    BLTU->      List(Y,    N,BR_LTU,REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    BGE->       List(Y,    N,BR_GE, REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    BGEU->      List(Y,    N,BR_GEU,REN_Y,REN_Y,A2_BTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
 
-    J->        List(Y,    BR_J,  REN_N,REN_N,A2_JTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    JAL->      List(Y,    BR_J,  REN_N,REN_N,A2_JTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RA,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    JALR_C->   List(Y,    BR_JR, REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    JALR_J->   List(Y,    BR_JR, REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    JALR_R->   List(Y,    BR_JR, REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    RDNPC->    List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    J->         List(Y,    N,BR_J,  REN_N,REN_N,A2_JTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    JAL->       List(Y,    N,BR_J,  REN_N,REN_N,A2_JTYPE,DW_X,  FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RA,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    JALR_C->    List(Y,    N,BR_JR, REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    JALR_J->    List(Y,    N,BR_JR, REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    JALR_R->    List(Y,    N,BR_JR, REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    RDNPC->     List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PC, REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
 
-    LB->       List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_B, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    LH->       List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_H, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    LW->       List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    LD->       List(xpr64,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    LBU->      List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_BU,N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    LHU->      List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_HU,N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    LWU->      List(xpr64,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_WU,N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SB->       List(Y,    BR_N,  REN_Y,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_B, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SH->       List(Y,    BR_N,  REN_Y,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_H, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SW->       List(Y,    BR_N,  REN_Y,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_W, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SD->       List(xpr64,BR_N,  REN_Y,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    LB->        List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_B, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    LH->        List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_H, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    LW->        List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    LD->        List(xpr64,N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    LBU->       List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_BU,N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    LHU->       List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_HU,N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    LWU->       List(xpr64,N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_WU,N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SB->        List(Y,    N,BR_N,  REN_Y,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_B, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SH->        List(Y,    N,BR_N,  REN_Y,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_H, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SW->        List(Y,    N,BR_N,  REN_Y,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_W, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SD->        List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
 
-    AMOADD_W-> List(Y,    BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_ADD, MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOSWAP_W->List(Y,    BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_SWAP,MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOAND_W-> List(Y,    BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_AND, MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOOR_W->  List(Y,    BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_OR,  MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOMIN_W-> List(Y,    BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MIN, MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOMINU_W->List(Y,    BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MINU,MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOMAX_W-> List(Y,    BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MAX, MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOMAXU_W->List(Y,    BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MAXU,MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOADD_D-> List(xpr64,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_ADD, MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOSWAP_D->List(xpr64,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_SWAP,MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOAND_D-> List(xpr64,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_AND, MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOOR_D->  List(xpr64,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_OR,  MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOMIN_D-> List(xpr64,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MIN, MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOMINU_D->List(xpr64,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MINU,MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOMAX_D-> List(xpr64,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MAX, MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    AMOMAXU_D->List(xpr64,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MAXU,MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOADD_W->  List(Y,    N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_ADD, MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOSWAP_W-> List(Y,    N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_SWAP,MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOAND_W->  List(Y,    N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_AND, MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOOR_W->   List(Y,    N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_OR,  MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOMIN_W->  List(Y,    N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MIN, MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOMINU_W-> List(Y,    N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MINU,MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOMAX_W->  List(Y,    N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MAX, MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOMAXU_W-> List(Y,    N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MAXU,MT_W, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOADD_D->  List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_ADD, MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOSWAP_D-> List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_SWAP,MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOAND_D->  List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_AND, MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOOR_D->   List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_OR,  MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOMIN_D->  List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MIN, MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOMINU_D-> List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MINU,MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOMAX_D->  List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MAX, MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    AMOMAXU_D-> List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_Y,M_XA_MAXU,MT_D, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
 
-    LUI->      List(Y,    BR_N,  REN_N,REN_N,A2_LTYPE,DW_XPR,FN_OP2, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    ADDI->     List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SLTI ->    List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SLT, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SLTIU->    List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SLTU,M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    ANDI->     List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_AND, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    ORI->      List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_OR,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    XORI->     List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_XOR, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SLLI->     List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SL,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SRLI->     List(Y_SH, BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SR,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SRAI->     List(Y_SH, BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SRA, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    ADD->      List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SUB->      List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SUB, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SLT->      List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SLT, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SLTU->     List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SLTU,M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    riscvAND-> List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_AND, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    riscvOR->  List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_OR,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    riscvXOR-> List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_XOR, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SLL->      List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SL,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SRL->      List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SR,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SRA->      List(Y,    BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SRA, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    LUI->       List(Y,    N,BR_N,  REN_N,REN_N,A2_LTYPE,DW_XPR,FN_OP2, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    ADDI->      List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SLTI ->     List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SLT, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SLTIU->     List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SLTU,M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    ANDI->      List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_AND, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    ORI->       List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_OR,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    XORI->      List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_XOR, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SLLI->      List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SL,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SRLI->      List(Y_SH, N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SR,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SRAI->      List(Y_SH, N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_SRA, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    ADD->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SUB->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SUB, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SLT->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SLT, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SLTU->      List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SLTU,M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    riscvAND->  List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_AND, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    riscvOR->   List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_OR,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    riscvXOR->  List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_XOR, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SLL->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SL,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SRL->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SR,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SRA->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_XPR,FN_SRA, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
 
-    ADDIW->    List(xpr64,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_32,FN_ADD,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),   
-    SLLIW->    List(xpr64,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_32,FN_SL,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SRLIW->    List(xpr64,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_32,FN_SR,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SRAIW->    List(xpr64,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_32,FN_SRA,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    ADDW->     List(xpr64,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_ADD,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SUBW->     List(xpr64,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_SUB,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SLLW->     List(xpr64,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_SL,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SRLW->     List(xpr64,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_SR,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    SRAW->     List(xpr64,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_SRA,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    ADDIW->     List(xpr64,N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_32,FN_ADD,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),   
+    SLLIW->     List(xpr64,N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_32,FN_SL,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SRLIW->     List(xpr64,N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_32,FN_SR,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SRAIW->     List(xpr64,N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_32,FN_SRA,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    ADDW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_ADD,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SUBW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_SUB,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SLLW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_SL,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SRLW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_SR,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SRAW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_SRA,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
 
-    MUL->      List(Y,    BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_LO, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    MULH->     List(Y,    BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HS, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    MULHU->    List(Y,    BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HU, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    MULHSU->   List(Y,    BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HSU,N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    MULW->     List(xpr64,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, Y,MUL_LO, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MUL->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_LO, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MULH->      List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HS, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MULHU->     List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HU, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MULHSU->    List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HSU,N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MULW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, Y,MUL_LO, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
 
-    DIV->      List(Y,    BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_D, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    DIVU->     List(Y,    BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_DU,WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    REM->      List(Y,    BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_R, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    REMU->     List(Y,    BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_RU,WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    DIVW->     List(xpr64,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_D, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    DIVUW->    List(xpr64,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_DU,WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    REMW->     List(xpr64,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_R, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    REMUW->    List(xpr64,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_RU,WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    DIV->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_D, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    DIVU->      List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_DU,WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    REM->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_R, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    REMU->      List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_RU,WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    DIVW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_D, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    DIVUW->     List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_DU,WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    REMW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_R, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    REMUW->     List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, N,MUL_X,  Y,DIV_RU,WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
 
-    SYSCALL->  List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,Y,N,N),
-    EI->       List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_EI,SYNC_N,N,N,Y,Y),
-    DI->       List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_DI,SYNC_N,N,N,Y,Y),
-    ERET->     List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_PCR,REN_N,WEN_N,I_X ,SYNC_N,Y,N,Y,N),
-    FENCE->    List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FENCE,  MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_D,N,N,N,N),
-    FENCE_I->  List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_I,N,N,N,N),
-    CFLUSH->   List(Y,    BR_N,  REN_Y,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,Y,Y),
-    MFPCR->    List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PCR,REN_Y,WEN_N,I_X ,SYNC_N,N,N,Y,N),
-    MTPCR->    List(Y,    BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_Y,I_X ,SYNC_N,N,N,Y,Y),
-    RDTIME->   List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_TSC,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    RDCYCLE->  List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_TSC,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    RDINSTRET->List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_IRT,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    SYSCALL->   List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,Y,N,N),
+    EI->        List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_EI,SYNC_N,N,N,Y,Y),
+    DI->        List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_DI,SYNC_N,N,N,Y,Y),
+    ERET->      List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_PCR,REN_N,WEN_N,I_X ,SYNC_N,Y,N,Y,N),
+    FENCE->     List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FENCE,  MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_D,N,N,N,N),
+    FENCE_I->   List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_I,N,N,N,N),
+    CFLUSH->    List(Y,    N,BR_N,  REN_Y,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,Y,Y),
+    MFPCR->     List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PCR,REN_Y,WEN_N,I_X ,SYNC_N,N,N,Y,N),
+    MTPCR->     List(Y,    N,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_Y,I_X ,SYNC_N,N,N,Y,Y),
+    RDTIME->    List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_TSC,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    RDCYCLE->   List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_TSC,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    RDINSTRET-> List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_IRT,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     
     // Instructions that have not yet been implemented
     // Faking these for now so akaros will boot    
-    //MFFSR->    List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    //MTFSR->    List(Y,    BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    FLW->      List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_W, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    FLD->      List(Y,    BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    FSW->      List(Y,    BR_N,  REN_N,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_W, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    FSD->      List(Y,    BR_N,  REN_N,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N)
+    //MFFSR->     List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    //MTFSR->     List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FLW->       List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_W, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FLD->       List(Y,    N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FSW->       List(Y,    N,BR_N,  REN_N,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_W, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FSD->       List(Y,    N,BR_N,  REN_N,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+
+    // Vector Stuff
+    VVCFGIVL->  List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_VEC,REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y),
+    VSETVL->    List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_VEC,REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y),
+    VF->        List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VMVV->      List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VMSV->      List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VFMVV->     List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    FENCE_L_V-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    FENCE_G_V-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    FENCE_L_CV->List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    FENCE_G_CV->List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLD->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLW->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLWU->      List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLH->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLHU->      List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLB->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLBU->      List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VSD->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VSW->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VSH->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VSB->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VFLD->      List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VFLW->      List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VFSD->      List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VFSW->      List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLSTD->     List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLSTW->     List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLSTWU->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLSTH->     List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLSTHU->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLSTB->     List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VLSTBU->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VSSTD->     List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VSSTW->     List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VSSTH->     List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VSSTB->     List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VFLSTD->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VFLSTW->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VFSSTD->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    VFSSTW->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N)
   ))
 
-  val id_int_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_fn_dw :: id_fn_alu :: cs0 = cs 
+  val id_int_val :: id_vec_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_fn_dw :: id_fn_alu :: cs0 = cs 
   val id_mem_val :: id_mem_cmd :: id_mem_type :: id_mul_val :: id_mul_fn :: id_div_val :: id_div_fn :: id_wen :: id_sel_wa :: id_sel_wb :: cs1 = cs0
   val id_ren_pcr :: id_wen_pcr :: id_irq :: id_sync :: id_eret :: id_syscall :: id_privileged :: id_replay_next :: Nil = cs1
-
-  val veccs =
-  ListLookup(io.dpath.inst,
-                //                                           appvlmask
-                //                                           | vcmdq
-                //                                           | | vximm1q
-                //                                           | | | vximm2q
-                // val ren2  ren1  vcmd    vimm      fn      | | | | vackq
-                //   | |     |     |       |         |       | | | | |
-                List(N,REN_N,REN_N,VCMD_X, VIMM_X,   VEC_X  ,N,N,N,N,N),Array(
-    VVCFGIVL->  List(Y,REN_N,REN_Y,VCMD_I, VIMM_VLEN,VEC_CFG,N,Y,Y,N,N),
-    VSETVL->    List(Y,REN_N,REN_Y,VCMD_I, VIMM_VLEN,VEC_VL ,N,Y,Y,N,N),
-    VF->        List(Y,REN_Y,REN_Y,VCMD_I, VIMM_ALU, VEC_X  ,Y,Y,Y,N,N),
-    VMVV->      List(Y,REN_N,REN_N,VCMD_TX,VIMM_X,   VEC_X  ,Y,Y,N,N,N),
-    VMSV->      List(Y,REN_N,REN_Y,VCMD_TX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VFMVV->     List(Y,REN_N,REN_N,VCMD_TF,VIMM_X,   VEC_X  ,Y,Y,N,N,N),
-    FENCE_L_V-> List(Y,REN_N,REN_N,VCMD_F, VIMM_X,   VEC_X  ,N,Y,N,N,N),
-    FENCE_G_V-> List(Y,REN_N,REN_N,VCMD_F, VIMM_X,   VEC_X  ,N,Y,N,N,N),
-    FENCE_L_CV->List(Y,REN_N,REN_N,VCMD_F, VIMM_X,   VEC_X  ,N,Y,N,N,Y),
-    FENCE_G_CV->List(Y,REN_N,REN_N,VCMD_F, VIMM_X,   VEC_X  ,N,Y,N,N,Y),
-    VLD->       List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VLW->       List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VLWU->      List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VLH->       List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VLHU->      List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VLB->       List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VLBU->      List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VSD->       List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VSW->       List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VSH->       List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VSB->       List(Y,REN_N,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VFLD->      List(Y,REN_N,REN_Y,VCMD_MF,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VFLW->      List(Y,REN_N,REN_Y,VCMD_MF,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VFSD->      List(Y,REN_N,REN_Y,VCMD_MF,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VFSW->      List(Y,REN_N,REN_Y,VCMD_MF,VIMM_RS1, VEC_X  ,Y,Y,Y,N,N),
-    VLSTD->     List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VLSTW->     List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VLSTWU->    List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VLSTH->     List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VLSTHU->    List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VLSTB->     List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VLSTBU->    List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VSSTD->     List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VSSTW->     List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VSSTH->     List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VSSTB->     List(Y,REN_Y,REN_Y,VCMD_MX,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VFLSTD->    List(Y,REN_Y,REN_Y,VCMD_MF,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VFLSTW->    List(Y,REN_Y,REN_Y,VCMD_MF,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VFSSTD->    List(Y,REN_Y,REN_Y,VCMD_MF,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N),
-    VFSSTW->    List(Y,REN_Y,REN_Y,VCMD_MF,VIMM_RS1, VEC_X  ,Y,Y,Y,Y,N)
-  ))
-
-  val id_vec_val :: id_renv2 :: id_renv1 :: id_sel_vcmd :: id_sel_vimm :: id_fn_vec :: id_vec_appvlmask :: veccs0 = veccs
-  val id_vec_cmdq_val :: id_vec_ximm1q_val :: id_vec_ximm2q_val :: id_vec_ackq_wait :: Nil = veccs0
 
   val if_reg_xcpt_ma_inst = Reg(io.dpath.xcpt_ma_inst, resetVal = Bool(false));
 
@@ -320,6 +305,7 @@ class rocketCtrl extends Component
   val ex_reg_xcpt_privileged = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
   val ex_reg_fp_val          = Reg(resetVal = Bool(false));
+  val ex_reg_vec_val         = Reg(resetVal = Bool(false));
   val ex_reg_replay          = Reg(resetVal = Bool(false));
   val ex_reg_load_use        = Reg(resetVal = Bool(false));
   val ex_reg_ext_mem_val     = Reg(resetVal = Bool(false))
@@ -334,6 +320,7 @@ class rocketCtrl extends Component
   val mem_reg_xcpt_illegal    = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_privileged = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_fpu        = Reg(resetVal = Bool(false));
+  val mem_reg_xcpt_vec        = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
   val mem_reg_replay          = Reg(resetVal = Bool(false));
   val mem_reg_kill            = Reg(resetVal = Bool(false));
@@ -367,7 +354,9 @@ class rocketCtrl extends Component
   }
   
   // executing ERET when traps are enabled causes an illegal instruction exception (as per ISA sim)
-   val illegal_inst = !(id_int_val.toBool || fpdec.io.valid) || (id_eret.toBool && io.dpath.status(SR_ET).toBool);
+   val illegal_inst =
+    !(id_int_val.toBool || fpdec.io.valid || id_vec_val.toBool) ||
+    (id_eret.toBool && io.dpath.status(SR_ET).toBool);
   
   when (reset.toBool || io.dpath.killd) {
     ex_reg_br_type     <== BR_N;
@@ -388,6 +377,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_privileged  <== Bool(false);
     ex_reg_xcpt_syscall     <== Bool(false);
     ex_reg_fp_val           <== Bool(false);
+    ex_reg_vec_val          <== Bool(false);
     ex_reg_replay           <== Bool(false);
     ex_reg_load_use         <== Bool(false);
   } 
@@ -410,6 +400,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_privileged  <== (id_privileged & ~io.dpath.status(SR_S)).toBool;
     ex_reg_xcpt_syscall     <== id_syscall.toBool;
     ex_reg_fp_val           <== fpdec.io.valid;
+    ex_reg_vec_val          <== id_vec_val.toBool
     ex_reg_replay           <== id_reg_replay || ex_reg_replay_next;
     ex_reg_load_use         <== id_load_use;
   }
@@ -454,6 +445,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_illegal     <== Bool(false);
     mem_reg_xcpt_privileged  <== Bool(false);
     mem_reg_xcpt_fpu         <== Bool(false);
+    mem_reg_xcpt_vec         <== Bool(false);
     mem_reg_xcpt_syscall     <== Bool(false);
   }
   otherwise {
@@ -470,6 +462,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_illegal     <== ex_reg_xcpt_illegal;
     mem_reg_xcpt_privileged  <== ex_reg_xcpt_privileged;
     mem_reg_xcpt_fpu         <== ex_reg_fp_val && !io.dpath.status(SR_EF).toBool;
+    mem_reg_xcpt_vec         <== ex_reg_vec_val && !io.dpath.status(SR_EV).toBool;
     mem_reg_xcpt_syscall     <== ex_reg_xcpt_syscall;
   }
   mem_reg_ext_mem_val <== ex_reg_ext_mem_val;
@@ -559,6 +552,7 @@ class rocketCtrl extends Component
 	  mem_reg_xcpt_illegal || 
 	  mem_reg_xcpt_privileged || 
 	  mem_reg_xcpt_fpu || 
+	  mem_reg_xcpt_vec || 
 	  mem_reg_xcpt_syscall || 
 	  mem_reg_xcpt_itlb ||
 	  mem_reg_xcpt_ma_inst;
@@ -575,7 +569,8 @@ class rocketCtrl extends Component
 		Mux(mem_xcpt_ma_st,           UFix(9,5), // misaligned store
 		Mux(mem_xcpt_dtlb_ld,         UFix(10,5), // load fault
 		Mux(mem_xcpt_dtlb_st,         UFix(11,5), // store fault
-			UFix(0,5)))))))))));  // instruction address misaligned
+		Mux(mem_reg_xcpt_vec,         UFix(12,5), // vector disabled
+			UFix(0,5))))))))))));  // instruction address misaligned
 
   // control transfer from ex/mem
   val ex_btb_match = ex_reg_btb_hit && io.dpath.btb_match
