@@ -33,6 +33,7 @@ class ioDpathAll extends Bundle()
   val console = new ioConsole(List("valid","bits"));
   val debug = new ioDebug();
   val dmem  = new ioDpathDmem();
+  val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "resp_val", "resp_data", "resp_tag"))
   val imem  = new ioDpathImem();
   val vcmdq = new io_vec_cmdq(List("bits"))
   val vximm1q = new io_vec_ximm1q(List("bits"))
@@ -194,16 +195,18 @@ class rocketDpath extends Component
 
   // bypass muxes
   val id_rs1 =
+    Mux(io.ext_mem.req_val, Cat(io.ext_mem.req_ppn, io.ext_mem.req_idx),
     Mux(io.ctrl.ex_wen && id_raddr1 === ex_reg_waddr,  ex_wdata,
     Mux(io.ctrl.mem_wen && id_raddr1 === mem_reg_waddr, mem_wdata,
     Mux((io.ctrl.wb_wen || wb_reg_ll_wb) && id_raddr1 === wb_reg_waddr, wb_wdata,
-        id_rdata1)));
+        id_rdata1))))
 
   val id_rs2 =
+    Mux(io.ext_mem.req_val, io.ext_mem.req_data,
     Mux(io.ctrl.ex_wen && id_raddr2 === ex_reg_waddr,  ex_wdata,
     Mux(io.ctrl.mem_wen && id_raddr2 === mem_reg_waddr, mem_wdata,
     Mux((io.ctrl.wb_wen || wb_reg_ll_wb) && id_raddr2 === wb_reg_waddr, wb_wdata,
-        id_rdata2)));
+        id_rdata2))))
 
   // immediate generation
   val id_imm_bj = io.ctrl.sel_alu2 === A2_BTYPE || io.ctrl.sel_alu2 === A2_JTYPE
@@ -290,14 +293,8 @@ class rocketDpath extends Component
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
   io.dmem.req_addr  := ex_effective_address.toUFix;
-  if (HAVE_FPU) {
-    io.dmem.req_data := Mux(io.ctrl.ex_fp_val, io.fpu.store_data, ex_reg_rs2)
-    io.dmem.req_tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val).toUFix
-  }
-  else {
-    io.dmem.req_data := ex_reg_rs2
-    io.dmem.req_tag := Cat(ex_reg_waddr, Bool(false)).toUFix
-  }
+  io.dmem.req_data := (if (HAVE_FPU) Mux(io.ctrl.ex_fp_val, io.fpu.store_data, ex_reg_rs2) else ex_reg_rs2)
+  io.dmem.req_tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val, io.ctrl.ex_ext_mem_val).toUFix
 
 	// processor control regfile read
   pcr.io.r.en   := ex_reg_ctrl_ren_pcr | ex_reg_ctrl_eret;
@@ -364,9 +361,12 @@ class rocketDpath extends Component
   // 32/64 bit load handling (moved to earlier in file)
       
   // writeback stage
-  val dmem_resp_fpu = if (HAVE_FPU) io.dmem.resp_tag(0).toBool else Bool(false)
-  val dmem_resp_waddr = io.dmem.resp_tag.toUFix >> UFix(1)
-  dmem_resp_replay := io.dmem.resp_replay && !dmem_resp_fpu;
+  val dmem_resp_ext =  io.dmem.resp_tag(0).toBool
+  val dmem_resp_xpu = !io.dmem.resp_tag(0).toBool && !io.dmem.resp_tag(1).toBool
+  val dmem_resp_fpu = !io.dmem.resp_tag(0).toBool &&  io.dmem.resp_tag(1).toBool
+  val dmem_resp_waddr = io.dmem.resp_tag.toUFix >> UFix(2)
+  val dmem_resp_ext_tag = io.dmem.resp_tag.toUFix >> UFix(1)
+  dmem_resp_replay := io.dmem.resp_replay && dmem_resp_xpu;
   r_dmem_resp_replay  <== dmem_resp_replay
   r_dmem_resp_waddr   <== dmem_resp_waddr
   r_dmem_fp_replay    <== io.dmem.resp_replay && dmem_resp_fpu;
@@ -402,6 +402,10 @@ class rocketDpath extends Component
   rfile.io.w0.addr := wb_reg_waddr
   rfile.io.w0.en   := io.ctrl.wb_wen || wb_reg_ll_wb
   rfile.io.w0.data := wb_wdata
+
+  io.ext_mem.resp_val := Reg(io.dmem.resp_val && dmem_resp_ext, resetVal = Bool(false))
+  io.ext_mem.resp_tag := Reg(dmem_resp_ext_tag)
+  io.ext_mem.resp_data := io.dmem.resp_data_subword
   
   io.ctrl.wb_waddr := wb_reg_waddr;
   io.ctrl.mem_wb := dmem_resp_replay;
