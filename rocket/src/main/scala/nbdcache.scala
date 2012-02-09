@@ -635,11 +635,13 @@ class AMOALU extends Component {
   val less = Mux(cmp_lhs === cmp_rhs, cmp_diff, Mux(sgned, cmp_lhs, cmp_rhs))
   val cmp_out = Mux(min === less, io.lhs, io.rhs)
 
-  io.out := Mux(io.cmd === M_XA_ADD,  adder_out,
+  val out = Mux(io.cmd === M_XA_ADD,  adder_out,
             Mux(io.cmd === M_XA_SWAP, io.rhs,
             Mux(io.cmd === M_XA_AND,  io.lhs & io.rhs,
             Mux(io.cmd === M_XA_OR,   io.lhs | io.rhs,
                 /* MIN[U]/MAX[U] */   cmp_out))));
+
+  io.out := Mux(word, Cat(out(31,0), out(31,0)).toUFix, out)
 }
 
 class HellaCacheDM extends Component {
