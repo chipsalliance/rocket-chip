@@ -129,11 +129,8 @@ class rocketProc extends Component
   {
     val vu = new vu()
 
-    vu.io.vec_cmdq <> ctrl.io.vcmdq
     vu.io.vec_cmdq <> dpath.io.vcmdq
-    vu.io.vec_ximm1q <> ctrl.io.vximm1q
     vu.io.vec_ximm1q <> dpath.io.vximm1q
-    vu.io.vec_ximm2q <> ctrl.io.vximm2q
     vu.io.vec_ximm2q <> dpath.io.vximm2q
   }
 }

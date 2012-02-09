@@ -33,11 +33,11 @@ class ioDpathAll extends Bundle()
   val console = new ioConsole(List("valid","bits"));
   val debug = new ioDebug();
   val dmem  = new ioDpathDmem();
-  val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "resp_val", "resp_data", "resp_tag"))
+  val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "req_data", "resp_val", "resp_data", "resp_tag"))
   val imem  = new ioDpathImem();
-  val vcmdq = new io_vec_cmdq(List("bits"))
-  val vximm1q = new io_vec_ximm1q(List("bits"))
-  val vximm2q = new io_vec_ximm2q(List("bits"))
+  val vcmdq = new io_vec_cmdq()
+  val vximm1q = new io_vec_ximm1q()
+  val vximm2q = new io_vec_ximm2q()
   val ptbr_wen = Bool(OUTPUT);
   val ptbr = UFix(PADDR_BITS, OUTPUT);
   val fpu = new ioDpathFPU();
@@ -53,6 +53,8 @@ class rocketDpath extends Component
 
   val pcr = new rocketDpathPCR(); 
   val ex_pcr = pcr.io.r.data;
+
+  val vec = new rocketDpathVec()
 
   val alu = new rocketDpathALU(); 
   val ex_alu_out = alu.io.out; 
@@ -81,6 +83,8 @@ class rocketDpath extends Component
   // execute definitions
   val ex_reg_valid          = Reg(resetVal = Bool(false));
   val ex_reg_pc             = Reg() { UFix() };
+  val ex_reg_inst           = Reg() { Bits() };
+  val ex_reg_raddr1         = Reg() { UFix() };
   val ex_reg_raddr2         = Reg() { UFix() };
   val ex_reg_op2            = Reg() { Bits() };
   val ex_reg_rs2            = Reg() { Bits() };
@@ -101,8 +105,11 @@ class rocketDpath extends Component
   // memory definitions
   val mem_reg_valid          = Reg(resetVal = Bool(false));
   val mem_reg_pc             = Reg() { UFix() };
+  val mem_reg_inst           = Reg() { Bits() };
+  val mem_reg_rs2            = Reg() { Bits() };
   val mem_reg_waddr          = Reg() { UFix() };
   val mem_reg_wdata          = Reg() { Bits() };
+  val mem_reg_raddr1         = Reg() { UFix() };
   val mem_reg_raddr2         = Reg() { UFix() };
   val mem_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
@@ -112,8 +119,11 @@ class rocketDpath extends Component
   // writeback definitions
   val wb_reg_valid          = Reg(resetVal = Bool(false));
   val wb_reg_pc             = Reg() { UFix() };
+  val wb_reg_inst           = Reg() { Bits() };
+  val wb_reg_rs2            = Reg() { Bits() };
   val wb_reg_waddr          = Reg() { UFix() };
   val wb_reg_wdata          = Reg() { Bits() };
+  val wb_reg_raddr1         = Reg() { UFix() };
   val wb_reg_raddr2         = Reg() { UFix() };
   val wb_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
   val wb_reg_ll_wb          = Reg(resetVal = Bool(false));
@@ -230,6 +240,8 @@ class rocketDpath extends Component
 
   // execute stage
   ex_reg_pc             <== id_reg_pc;
+  ex_reg_inst           <== id_reg_inst
+  ex_reg_raddr1         <== id_raddr1
   ex_reg_raddr2         <== id_raddr2;
   ex_reg_op2            <== id_op2;
   ex_reg_rs2            <== id_rs2;
@@ -333,16 +345,20 @@ class rocketDpath extends Component
     Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
     Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg,
-        ex_alu_out)))).toBits; // WB_ALU
+    Mux(ex_reg_ctrl_sel_wb === WB_VEC, vec.io.appvl,
+        ex_alu_out))))).toBits; // WB_ALU
         
   // memory stage
   mem_reg_pc                <== ex_reg_pc;
+  mem_reg_inst              <== ex_reg_inst
+  mem_reg_rs2               <== ex_reg_rs2
   mem_reg_waddr             <== ex_reg_waddr;
   mem_reg_wdata             <== ex_wdata;
+  mem_reg_raddr1            <== ex_reg_raddr1
   mem_reg_raddr2            <== ex_reg_raddr2;
   mem_reg_ctrl_mul_val      <== ex_reg_ctrl_mul_val;
   mem_reg_ctrl_div_val      <== ex_reg_ctrl_div_val;
-  
+
   when (io.ctrl.killx) {
     mem_reg_valid          <== Bool(false);
     mem_reg_ctrl_wen_pcr 	 <== Bool(false);
@@ -382,9 +398,12 @@ class rocketDpath extends Component
     (dmem_resp_replay || div_result_val || mul_result_val)
 
   wb_reg_pc             <== mem_reg_pc;
+  wb_reg_inst           <== mem_reg_inst
   wb_reg_ll_wb          <== mem_ll_wb
+  wb_reg_rs2            <== mem_reg_rs2
   wb_reg_waddr          <== mem_ll_waddr
   wb_reg_wdata          <== mem_ll_wdata
+  wb_reg_raddr1         <== mem_reg_raddr1
   wb_reg_raddr2         <== mem_reg_raddr2;
 
   when (io.ctrl.killm) {
@@ -409,6 +428,21 @@ class rocketDpath extends Component
   
   io.ctrl.wb_waddr := wb_reg_waddr;
   io.ctrl.mem_wb := dmem_resp_replay;
+
+  // vector datapath
+  vec.io.valid := wb_reg_valid
+  vec.io.sr_ev := pcr.io.status(SR_EV)
+  vec.io.inst := wb_reg_inst
+  vec.io.waddr := wb_reg_waddr
+  vec.io.raddr1 := wb_reg_raddr1
+  vec.io.vecbank := pcr.io.vecbank
+  vec.io.vecbankcnt := pcr.io.vecbankcnt
+  vec.io.wdata := wb_reg_wdata
+  vec.io.rs2 := wb_reg_rs2
+
+  vec.io.vcmdq <> io.vcmdq
+  vec.io.vximm1q <> io.vximm1q
+  vec.io.vximm2q <> io.vximm2q
   
   // scoreboard clear (for div/mul and D$ load miss writebacks)
   io.ctrl.sboard_clr   := mem_ll_wb
