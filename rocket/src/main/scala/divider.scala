@@ -56,7 +56,7 @@ class rocketDivider(width : Int) extends Component {
   
   val tc = (io.div_fn === DIV_D) || (io.div_fn === DIV_R);
 
-  when (io.div_kill) {
+  when (io.div_kill && Reg(state === s_ready)) { // can only kill on first cycle
     state <== s_ready;
   }
   

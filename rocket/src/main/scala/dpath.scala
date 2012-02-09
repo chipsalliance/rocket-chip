@@ -111,8 +111,6 @@ class rocketDpath extends Component
   val mem_reg_wdata          = Reg() { Bits() };
   val mem_reg_raddr1         = Reg() { UFix() };
   val mem_reg_raddr2         = Reg() { UFix() };
-  val mem_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
-  val mem_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
   val mem_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
   val mem_wdata              = Wire() { Bits() }; 	
   
@@ -276,7 +274,7 @@ class rocketDpath extends Component
   div.io.dw        := ex_reg_ctrl_fn_dw;
   div.io.div_fn    := ex_reg_ctrl_div_fn;
   div.io.div_val   := ex_reg_ctrl_div_val;
-  div.io.div_kill  := mem_reg_ctrl_div_val && io.ctrl.killm;
+  div.io.div_kill  := io.ctrl.killm;
   div.io.div_waddr := ex_reg_waddr;
   div.io.dpath_rs1 := ex_reg_rs1;
   div.io.dpath_rs2 := ex_reg_rs2;
@@ -287,7 +285,7 @@ class rocketDpath extends Component
   
   // multiplier
   mul.io.mul_val := ex_reg_ctrl_mul_val;
-  mul.io.mul_kill:= mem_reg_ctrl_mul_val && io.ctrl.killm;
+  mul.io.mul_kill:= io.ctrl.killm;
   mul.io.dw      := ex_reg_ctrl_fn_dw;
   mul.io.mul_fn	 := ex_reg_ctrl_mul_fn;
   mul.io.mul_tag := ex_reg_waddr;
@@ -354,8 +352,6 @@ class rocketDpath extends Component
   mem_reg_wdata             <== ex_wdata;
   mem_reg_raddr1            <== ex_reg_raddr1
   mem_reg_raddr2            <== ex_reg_raddr2;
-  mem_reg_ctrl_mul_val      <== ex_reg_ctrl_mul_val;
-  mem_reg_ctrl_div_val      <== ex_reg_ctrl_div_val;
 
   when (io.ctrl.killx) {
     mem_reg_valid          <== Bool(false);
@@ -392,8 +388,7 @@ class rocketDpath extends Component
   val mem_ll_wdata = Mux(div_result_val, div_result,
                      Mux(mul_result_val, mul_result,
                          mem_reg_wdata))
-  val mem_ll_wb = mem_ll_waddr != UFix(0) &&
-    (dmem_resp_replay || div_result_val || mul_result_val)
+  val mem_ll_wb = dmem_resp_replay || div_result_val || mul_result_val
 
   wb_reg_pc             <== mem_reg_pc;
   wb_reg_inst           <== mem_reg_inst
