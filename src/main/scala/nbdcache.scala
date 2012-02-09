@@ -197,8 +197,7 @@ class MSHR(id: Int) extends Component {
   val next_dirty = dirty || io.req_sec_val && io.req_sec_rdy && !req_load
   val sec_rdy = io.idx_match && !refilled && (dirty || !requested || req_load)
 
-  val rpq = (new queueSimplePF(NRPQ)) { new RPQEntry() }
-  rpq.io.q_reset := Bool(false)
+  val rpq = (new queue(NRPQ)) { new RPQEntry() }
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && req_use_rpq
   rpq.io.enq.bits.offset := io.req_offset
   rpq.io.enq.bits.cmd := io.req_cmd
@@ -419,7 +418,7 @@ class WritebackUnit extends Component {
     val mem_req_data = Bits(MEM_DATA_BITS, OUTPUT)
   }
 
-  val wbq = (new queueSimplePF(REFILL_CYCLES)) { Bits(width = MEM_DATA_BITS) }
+  val wbq = (new queue(REFILL_CYCLES)) { Bits(width = MEM_DATA_BITS) }
   val valid = Reg(resetVal = Bool(false))
   val cnt = Reg() { UFix(width = log2up(REFILL_CYCLES+1)) }
   val addr = Reg() { new WritebackReq() }
@@ -430,7 +429,6 @@ class WritebackUnit extends Component {
   val block_refill = valid && ((io.refill_req.bits.addr(IDX_BITS-1,0) === addr.idx) || (cnt === UFix(REFILL_CYCLES)))
   val refill_val = io.refill_req.valid && !block_refill
 
-  wbq.io.q_reset := Bool(false)
   wbq.io.enq.valid := valid && Reg(io.data_req.valid && io.data_req.ready)
   wbq.io.enq.bits := io.data_resp
   wbq.io.deq.ready := io.mem_req.ready && !refill_val && (cnt === UFix(REFILL_CYCLES))

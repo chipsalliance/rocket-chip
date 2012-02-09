@@ -23,7 +23,7 @@ class ioIPrefetcher extends Bundle() {
 
 class rocketIPrefetcher extends Component() {
   val io = new ioIPrefetcher();
-  val pdq = (new queueSimplePF(REFILL_CYCLES)) { Bits(width = MEM_DATA_BITS) };
+  val pdq = (new queue(REFILL_CYCLES, flushable = true)) { Bits(width = MEM_DATA_BITS) };
 
   val s_invalid :: s_valid :: s_refilling :: s_req_wait :: s_resp_wait :: s_bad_resp_wait :: Nil = Enum(6) { UFix() };
   val state = Reg(resetVal = s_invalid);
@@ -43,9 +43,6 @@ class rocketIPrefetcher extends Component() {
   io.mem.req_tag  := !(io.icache.req_val && !hit);
   io.mem.req_addr := Mux(io.mem.req_tag(0).toBool, prefetch_addr, io.icache.req_addr);
   
-  val pdq_reset = Reg(resetVal = Bool(true));
-  pdq_reset <== demand_miss & ~hit | (state === s_bad_resp_wait);
-  
   val fill_cnt = Reg(resetVal = UFix(0, ceil(log(REFILL_CYCLES)/log(2)).toInt));
   when (ip_mem_resp_val.toBool) { fill_cnt <== fill_cnt + UFix(1); }
   val fill_done = (~fill_cnt === UFix(0)) & ip_mem_resp_val;
@@ -59,7 +56,7 @@ class rocketIPrefetcher extends Component() {
   io.icache.resp_val  := (io.mem.resp_val && !io.mem.resp_tag(0).toBool) || (forward && pdq.io.deq.valid);
   io.icache.resp_data := Mux(forward, pdq.io.deq.bits, io.mem.resp_data);
   
-  pdq.io.q_reset  := pdq_reset;
+  pdq.io.flush := Reg(demand_miss && !hit || (state === s_bad_resp_wait), resetVal = Bool(false))
   pdq.io.enq.bits := io.mem.resp_data;
   pdq.io.enq.valid  := ip_mem_resp_val.toBool;
   pdq.io.deq.ready  := forward;
