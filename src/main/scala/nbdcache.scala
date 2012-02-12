@@ -673,7 +673,7 @@ class HellaCacheDM extends Component {
   val r_cpu_req_cmd    = Reg() { Bits() }
   val r_cpu_req_type   = Reg() { Bits() }
   val r_cpu_req_tag    = Reg() { Bits() }
-  val r_cpu_req_data   = Reg() { Bits() }
+  val r_amo_replay_data = Reg() { Bits() }
 
   val p_store_valid    = Reg(resetVal = Bool(false))
   val p_store_data     = Reg() { Bits() }
@@ -705,16 +705,14 @@ class HellaCacheDM extends Component {
     r_cpu_req_cmd  := io.cpu.req_cmd
     r_cpu_req_type := io.cpu.req_type
     r_cpu_req_tag  := io.cpu.req_tag
-    when (req_write) {
-      r_cpu_req_data := io.cpu.req_data
-    }
   }
   when (replay_amo_val) {
     r_cpu_req_idx  := Cat(replayer.io.data_req.bits.idx, replayer.io.data_req.bits.offset)
     r_cpu_req_cmd  := replayer.io.data_req.bits.cmd
     r_cpu_req_type := replayer.io.data_req.bits.typ
-    r_cpu_req_data := replayer.io.data_req.bits.data
+    r_amo_replay_data := replayer.io.data_req.bits.data
   }
+  val cpu_req_data = Mux(r_replay_amo, r_amo_replay_data, io.cpu.req_data)
 
   // refill counter
   val rr_count = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
@@ -813,15 +811,12 @@ class HellaCacheDM extends Component {
   meta.io.state_req.bits.data.dirty := tag_match
   
   // pending store data, also used for AMO RHS
-  val storegen = new StoreDataGen
   val amoalu = new AMOALU
-  storegen.io.typ := r_cpu_req_type
-  storegen.io.din  := r_cpu_req_data
   when (tag_hit && r_req_write && p_store_rdy || r_replay_amo) {
     p_store_idx   := r_cpu_req_idx
     p_store_type  := r_cpu_req_type
     p_store_cmd   := r_cpu_req_cmd
-    p_store_data  := storegen.io.dout
+    p_store_data  := cpu_req_data
   }
   when (p_amo) {
     p_store_data := amoalu.io.out
@@ -845,7 +840,7 @@ class HellaCacheDM extends Component {
   meta_arb.io.in(1).valid := mshr.io.meta_req.valid
   mshr.io.replay <> replayer.io.replay
   replayer.io.sdq_enq.valid := tag_miss && r_req_write && (!dirty || wb_rdy) && mshr.io.req_rdy
-  replayer.io.sdq_enq.bits := storegen.io.dout
+  replayer.io.sdq_enq.bits := cpu_req_data
   data_arb.io.in(0).bits.idx := mshr.io.mem_resp_idx
 
   // replays
@@ -952,7 +947,7 @@ class HellaCacheAssoc extends Component {
   val r_cpu_req_cmd    = Reg() { Bits() }
   val r_cpu_req_type   = Reg() { Bits() }
   val r_cpu_req_tag    = Reg() { Bits() }
-  val r_cpu_req_data   = Reg() { Bits() }
+  val r_amo_replay_data = Reg() { Bits() }
 
   val p_store_valid    = Reg(resetVal = Bool(false))
   val p_store_data     = Reg() { Bits() }
@@ -985,16 +980,14 @@ class HellaCacheAssoc extends Component {
     r_cpu_req_cmd  := io.cpu.req_cmd
     r_cpu_req_type := io.cpu.req_type
     r_cpu_req_tag  := io.cpu.req_tag
-    when (req_write) {
-      r_cpu_req_data := io.cpu.req_data
-    }
   }
   when (replay_amo_val) {
     r_cpu_req_idx  := Cat(replayer.io.data_req.bits.idx, replayer.io.data_req.bits.offset)
     r_cpu_req_cmd  := replayer.io.data_req.bits.cmd
     r_cpu_req_type := replayer.io.data_req.bits.typ
-    r_cpu_req_data := replayer.io.data_req.bits.data
+    r_amo_replay_data := replayer.io.data_req.bits.data
   }
+  val cpu_req_data = Mux(r_replay_amo, r_amo_replay_data, io.cpu.req_data)
 
   // refill counter
   val rr_count = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
@@ -1107,16 +1100,13 @@ class HellaCacheAssoc extends Component {
   meta.io.state_req.bits.way_en := Mux(clear_valid, replaced_way_oh, hit_way_oh) 
   
   // pending store data, also used for AMO RHS
-  val storegen = new StoreDataGen
   val amoalu = new AMOALU
-  storegen.io.typ := r_cpu_req_type
-  storegen.io.din  := r_cpu_req_data
   when (tag_hit && r_req_write && p_store_rdy || r_replay_amo) {
     p_store_idx    := r_cpu_req_idx
     p_store_type   := r_cpu_req_type
     p_store_cmd    := r_cpu_req_cmd
     p_store_way_oh := Mux(r_replay_amo, replayer.io.way_oh, hit_way_oh)
-    p_store_data   := storegen.io.dout
+    p_store_data   := cpu_req_data
   }
   when (p_amo) {
     p_store_data := amoalu.io.out
@@ -1139,7 +1129,7 @@ class HellaCacheAssoc extends Component {
   mshr.io.meta_req <> meta_arb.io.in(1)
   mshr.io.replay <> replayer.io.replay
   replayer.io.sdq_enq.valid := tag_miss && r_req_write && (!dirty || wb_rdy) && mshr.io.req_rdy
-  replayer.io.sdq_enq.bits := storegen.io.dout
+  replayer.io.sdq_enq.bits := cpu_req_data
   data_arb.io.in(0).bits.inner_req.idx := mshr.io.mem_resp_idx
   data_arb.io.in(0).bits.way_en := mshr.io.mem_resp_way_oh
   replacer.io.pick_new_way := !io.cpu.req_kill && mshr.io.req_val && mshr.io.req_rdy 
