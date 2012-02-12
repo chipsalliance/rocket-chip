@@ -14,6 +14,9 @@ class rocketFPUDecoder extends Component
     val ren1 = Bool(OUTPUT)
     val ren2 = Bool(OUTPUT)
     val ren3 = Bool(OUTPUT)
+    val fromint = Bool(OUTPUT)
+    val toint = Bool(OUTPUT)
+    val store = Bool(OUTPUT)
   }
 //  val fp =
 //  ListLookup(io.dpath.inst,
@@ -87,22 +90,27 @@ class rocketFPUDecoder extends Component
 
   val N = Bool(false)
   val Y = Bool(true)
+  val X = Bool(false)
   val decoder = ListLookup(io.inst,
-    List                  (N, N, N, N, N),
-    Array(FLW      -> List(Y, Y, N, N, N),
-          FLD      -> List(Y, Y, N, N, N),
-          FSW      -> List(Y, N, N, Y, N),
-          FSD      -> List(Y, N, N, Y, N),
-          MTFSR    -> List(Y, N, N, N, N),
-          MFFSR    -> List(Y, N, N, N, N)
+    List                  (N,X,X,X,X,X,X,X,X),
+    Array(FLW      -> List(Y,Y,N,N,N,Y,N,N,N),
+          FLD      -> List(Y,Y,N,N,N,N,N,N,N),
+          FSW      -> List(Y,N,N,Y,N,Y,N,N,Y),
+          FSD      -> List(Y,N,N,Y,N,N,N,N,Y),
+          MTFSR    -> List(Y,N,N,N,N,X,N,Y,N),
+          MFFSR    -> List(Y,N,N,N,N,X,N,Y,N)
           ))
-  val valid :: wen :: ren1 :: ren2 :: ren3 :: Nil = decoder
+  val valid :: wen :: ren1 :: ren2 :: ren3 :: single :: fromint :: toint :: store :: Nil = decoder
 
   io.valid := valid.toBool
   io.wen := wen.toBool
   io.ren1 := ren1.toBool
   io.ren2 := ren2.toBool
   io.ren3 := ren3.toBool
+  io.single := single.toBool
+  io.fromint := fromint.toBool
+  io.toint := toint.toBool
+  io.store := store.toBool
 }
 
 class ioDpathFPU extends Bundle {
@@ -129,6 +137,9 @@ class rocketFPU extends Component
     ex_reg_inst := io.req_inst
   }
 
+  val fpdec = new rocketFPUDecoder
+  fpdec.io.inst := ex_reg_inst
+
   // load response
   val dmem_resp_val_fpu = io.dmem.resp_val && io.dmem.resp_tag(0).toBool
   val load_wb = Reg(dmem_resp_val_fpu, resetVal = Bool(false))
@@ -147,5 +158,18 @@ class rocketFPU extends Component
 
   io.req_ready := Bool(true)
 
-  io.dpath.store_data := regfile(ex_reg_inst(21,17))
+  val ex_rs1 = regfile(ex_reg_inst(16,12))
+  val ex_rs2 = regfile(ex_reg_inst(21,17))
+  val ex_rs3 = regfile(ex_reg_inst(26,22))
+
+  val fp_toint_data = Reg() { Bits() }
+
+  when (fpdec.io.toint) {
+    fp_toint_data := ex_rs1
+  }
+  when (fpdec.io.store) {
+    fp_toint_data := ex_rs2
+  }
+
+  io.dpath.store_data := fp_toint_data
 }

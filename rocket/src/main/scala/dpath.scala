@@ -301,7 +301,7 @@ class rocketDpath extends Component
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
   io.dmem.req_addr  := ex_effective_address.toUFix;
-  io.dmem.req_data := (if (HAVE_FPU) Mux(io.ctrl.ex_fp_val, io.fpu.store_data, ex_reg_rs2) else ex_reg_rs2)
+  io.dmem.req_data := (if (HAVE_FPU) Mux(io.ctrl.ex_fp_val, io.fpu.store_data, mem_reg_rs2) else mem_reg_rs2)
   io.dmem.req_tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val, io.ctrl.ex_ext_mem_val).toUFix
 
 	// processor control regfile read
@@ -342,11 +342,16 @@ class rocketDpath extends Component
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
     Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg,
         ex_alu_out)))).toBits; // WB_ALU
+
+  // subword store data generation
+  val storegen = new StoreDataGen
+  storegen.io.typ := io.ctrl.ex_mem_type
+  storegen.io.din  := ex_reg_rs2
         
   // memory stage
   mem_reg_pc                := ex_reg_pc;
   mem_reg_inst              := ex_reg_inst
-  mem_reg_rs2               := ex_reg_rs2
+  mem_reg_rs2               := storegen.io.dout
   mem_reg_waddr             := ex_reg_waddr;
   mem_reg_wdata             := ex_wdata;
   mem_reg_raddr1            := ex_reg_raddr1
