@@ -116,10 +116,8 @@ class rocketProc extends Component
   if (HAVE_FPU)
   {
     val fpu = new rocketFPU
-    fpu.io.dmem.resp_val := arb.io.cpu.resp_val;
-    fpu.io.dmem.resp_tag := arb.io.cpu.resp_tag;
-    fpu.io.dmem.resp_data := arb.io.cpu.resp_data;
     dpath.io.fpu <> fpu.io.dpath
+    ctrl.io.fpu <> fpu.io.ctrl
   }
 
   ctrl.io.ext_mem.req_val := Bool(false)
