@@ -23,30 +23,26 @@ class rocketCAM(entries: Int, tag_bits: Int) extends Component {
   val io = new ioCAM(entries, addr_bits, tag_bits);
   val cam_tags = Mem(entries, io.write, io.write_addr, io.write_tag);
 
-  val l_hit      = Wire() { Bool() };
-  val l_hit_addr = Wire() { UFix() };
-    
   val vb_array = Reg(resetVal = Bits(0, entries));
   when (io.clear) {
-    vb_array <== Bits(0, entries);
+    vb_array := Bits(0, entries);
   }
-  when (io.write) {
-    vb_array <== vb_array.bitSet(io.write_addr, Bool(true));
-  }
-    
-  for (i <- 0 to entries-1) {
-      when (vb_array(UFix(i)).toBool && (cam_tags(UFix(i)) === io.tag)) {
-          l_hit      <== Bool(true);
-          l_hit_addr <== UFix(i,addr_bits);
-      }
+  .elsewhen (io.write) {
+    vb_array := vb_array.bitSet(io.write_addr, Bool(true));
   }
   
-  l_hit <== Bool(false);
-  l_hit_addr <== UFix(0, addr_bits);
+  var l_hit = Bool(false)
+  val mux = (new Mux1H(entries)) { Bits(width = addr_bits) }
+  for (i <- 0 to entries-1) {
+    val my_hit = vb_array(UFix(i)).toBool && (cam_tags(UFix(i)) === io.tag)
+    l_hit = l_hit || my_hit
+    mux.io.in(i) := Bits(i)
+    mux.io.sel(i) := my_hit
+  }
   
   io.valid_bits := vb_array;
   io.hit := l_hit;
-  io.hit_addr := l_hit_addr;
+  io.hit_addr := mux.io.out.toUFix;
 }
 
 // interface between TLB and PTW
@@ -104,12 +100,12 @@ class rocketITLB(entries: Int) extends Component
   val repl_count = Reg(resetVal = UFix(0, addr_bits));
   
   when (io.cpu.req_val && io.cpu.req_rdy) { 
-    r_cpu_req_vpn   <== io.cpu.req_vpn;
-    r_cpu_req_asid  <== io.cpu.req_asid;
-    r_cpu_req_val   <== Bool(true);
+    r_cpu_req_vpn   := io.cpu.req_vpn;
+    r_cpu_req_asid  := io.cpu.req_asid;
+    r_cpu_req_val   := Bool(true);
   }
-  otherwise {
-    r_cpu_req_val   <== Bool(false);
+  .otherwise {
+    r_cpu_req_val   := Bool(false);
   }
 
   val bad_va = r_cpu_req_vpn(VPN_BITS) != r_cpu_req_vpn(VPN_BITS-1);
@@ -139,15 +135,15 @@ class rocketITLB(entries: Int) extends Component
   val ux_array = Reg(resetVal = Bits(0, entries)); // user execute permission
   val sx_array = Reg(resetVal = Bits(0, entries)); // supervisor execute permission
   when (io.ptw.resp_val) {
-    ux_array <== ux_array.bitSet(r_refill_waddr, ptw_perm_ux);
-    sx_array <== sx_array.bitSet(r_refill_waddr, ptw_perm_sx);
+    ux_array := ux_array.bitSet(r_refill_waddr, ptw_perm_ux);
+    sx_array := sx_array.bitSet(r_refill_waddr, ptw_perm_sx);
   }
  
   // when the page table lookup reports an error, set both execute permission
   // bits to 0 so the next access will cause an exceptions
   when (io.ptw.resp_err) {
-    ux_array <== ux_array.bitSet(r_refill_waddr, Bool(false));
-    sx_array <== sx_array.bitSet(r_refill_waddr, Bool(false));
+    ux_array := ux_array.bitSet(r_refill_waddr, Bool(false));
+    sx_array := sx_array.bitSet(r_refill_waddr, Bool(false));
   }
  
   // high if there are any unused entries in the ITLB
@@ -165,10 +161,10 @@ class rocketITLB(entries: Int) extends Component
   val tlb_miss = status_vm && lookup_miss;
 
   when (tlb_miss) {
-    r_refill_tag <== lookup_tag;
-    r_refill_waddr <== repl_waddr;
+    r_refill_tag := lookup_tag;
+    r_refill_waddr := repl_waddr;
     when (!invalid_entry) {
-      repl_count <== repl_count + UFix(1);
+      repl_count := repl_count + UFix(1);
     }
   }
 
@@ -190,17 +186,17 @@ class rocketITLB(entries: Int) extends Component
   switch (state) {
     is (s_ready) {
       when (tlb_miss) {
-        state <== s_request;
+        state := s_request;
       }
     }
     is (s_request) {
       when (io.ptw.req_rdy) {
-        state <== s_wait;
+        state := s_wait;
       }
     }
     is (s_wait) {
       when (io.ptw.resp_val || io.ptw.resp_err) {
-        state <== s_ready;
+        state := s_ready;
       }
     }
   }  

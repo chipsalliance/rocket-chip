@@ -24,22 +24,22 @@ class queue[T <: Data](entries: Int, flushable: Boolean = false)(data: => T) ext
   val do_enq = io.enq.ready && io.enq.valid
   val do_deq = io.deq.ready && io.deq.valid
 
-  if (flushable) {
-    when (io.flush) {
-      deq_ptr <== UFix(0)
-      enq_ptr <== UFix(0)
-      maybe_full <== Bool(false)
-    }
-  }
   when (do_deq) {
-    deq_ptr <== deq_ptr + UFix(1)
+    deq_ptr := deq_ptr + UFix(1)
   }
   when (do_enq) {
-    enq_ptr <== enq_ptr + UFix(1)
+    enq_ptr := enq_ptr + UFix(1)
   }
   when (do_enq != do_deq) {
-    maybe_full <== do_enq
+    maybe_full := do_enq
+  }
+  if (flushable) {
+    when (io.flush) {
+      deq_ptr := UFix(0)
+      enq_ptr := UFix(0)
+      maybe_full := Bool(false)
+    }
   }
 
-  Mem(entries, do_enq, enq_ptr, io.enq.bits).read(deq_ptr) <> io.deq.bits
+  io.deq.bits <> Mem(entries, do_enq, enq_ptr, io.enq.bits).read(deq_ptr)
 }

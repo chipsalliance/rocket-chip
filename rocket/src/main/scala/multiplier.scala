@@ -51,19 +51,21 @@ class rocketMultiplier extends Component {
   val rhs_sign = (io.mul_fn === MUL_HS) && rhs_msb
   val rhs_hi = Mux(io.dw === DW_64, io.in1(63,32), Fill(32, rhs_sign))
   val rhs_in = Cat(rhs_sign, rhs_sign, rhs_hi, io.in1(31,0))
+
+  val do_kill = io.mul_kill && r_cnt === UFix(0) // can only kill on 1st cycle
   
   when (io.mul_val && io.mul_rdy) {
-    r_val <== Bool(true)
-    r_cnt <== UFix(0, log2up(cycles+1))
-    r_dw  <== io.dw
-    r_fn  <== io.mul_fn
-    r_tag <== io.mul_tag
-    r_lhs <== lhs_in
-    r_prod<== rhs_in
-    r_lsb <== Bool(false)
+    r_val := Bool(true)
+    r_cnt := UFix(0, log2up(cycles+1))
+    r_dw  := io.dw
+    r_fn  := io.mul_fn
+    r_tag := io.mul_tag
+    r_lhs := lhs_in
+    r_prod:= rhs_in
+    r_lsb := Bool(false)
   }
-  when (io.result_val && io.result_rdy || io.mul_kill && r_cnt === UFix(0)) { // can only kill on first cycle
-    r_val <== Bool(false)
+  .elsewhen (io.result_val && io.result_rdy || do_kill) { // can only kill on first cycle
+    r_val := Bool(false)
   }
 
   val lhs_sext = Cat(r_lhs(width-2), r_lhs(width-2), r_lhs).toUFix
@@ -86,9 +88,9 @@ class rocketMultiplier extends Component {
   }
 
   when (r_val && (r_cnt != UFix(cycles))) {
-    r_lsb  <== lsb
-    r_prod <== prod
-    r_cnt <== r_cnt + UFix(1)
+    r_lsb  := lsb
+    r_prod := prod
+    r_cnt := r_cnt + UFix(1)
   }
 
   val mul_output64 = Mux(r_fn === MUL_LO, r_prod(63,0), r_prod(127,64))

@@ -66,7 +66,7 @@ object LFSR16
   {
     val width = 16
     val lfsr = Reg(resetVal = UFix(1, width))
-    when (increment) { lfsr <== Cat(lfsr(0)^lfsr(2)^lfsr(3)^lfsr(5), lfsr(width-1,1)).toUFix }
+    when (increment) { lfsr := Cat(lfsr(0)^lfsr(2)^lfsr(3)^lfsr(5), lfsr(width-1,1)).toUFix }
     lfsr
   }
 }
@@ -176,13 +176,13 @@ class priorityDecoder(width: Int) extends Component
   val io = new ioPriorityEncoder(in_width, width);
   val l_out = Wire() { Bits() };
   
-  for (i <- 0 to width-1) {
+  l_out := Bits(0, width);
+  for (i <- width-1 to 0 by -1) {
     when (io.in === UFix(i, in_width)) {
-      l_out <== Bits(1,1) << UFix(i);
+      l_out := Bits(1,1) << UFix(i);
     }
   }
   
-  l_out <== Bits(0, width);
   io.out := l_out;
 }
 
@@ -198,13 +198,13 @@ class priorityEncoder(width: Int) extends Component
   val io = new ioPriorityDecoder(width, out_width);
   val l_out = Wire() { UFix() };
   
-  for (i <- 0 to width-1) {
+  l_out := UFix(0, out_width);
+  for (i <- width-1 to 1 by -1) {
     when (io.in(i).toBool) {
-      l_out <== UFix(i, out_width);
+      l_out := UFix(i, out_width);
     }
   }
   
-  l_out <== UFix(0, out_width);
   io.out := l_out;
 }
 

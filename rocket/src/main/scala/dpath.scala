@@ -152,7 +152,7 @@ class rocketDpath extends Component
         if_pc_plus4))))))); // PC_4
         
   when (!io.ctrl.stallf) {
-    if_reg_pc <== if_next_pc.toUFix;
+    if_reg_pc := if_next_pc.toUFix;
   }
   
   io.ctrl.xcpt_ma_inst := if_next_pc(1,0) != Bits(0)
@@ -171,14 +171,14 @@ class rocketDpath extends Component
 
   // instruction decode stage
   when (!io.ctrl.stalld) {
-    id_reg_pc <== if_reg_pc;
+    id_reg_pc := if_reg_pc;
     when(io.ctrl.killf) {
-      id_reg_inst  <== NOP;
-      id_reg_valid <== Bool(false);
+      id_reg_inst  := NOP;
+      id_reg_valid := Bool(false);
     }
-    otherwise {
-      id_reg_inst  <== io.imem.resp_data;
-      id_reg_valid <== Bool(true);
+    .otherwise {
+      id_reg_inst  := io.imem.resp_data;
+      id_reg_valid := Bool(true);
     }
   }
 
@@ -235,34 +235,34 @@ class rocketDpath extends Component
   io.ctrl.inst := id_reg_inst;
 
   // execute stage
-  ex_reg_pc             <== id_reg_pc;
-  ex_reg_inst           <== id_reg_inst
-  ex_reg_raddr1         <== id_raddr1
-  ex_reg_raddr2         <== id_raddr2;
-  ex_reg_op2            <== id_op2;
-  ex_reg_rs2            <== id_rs2;
-  ex_reg_rs1            <== id_rs1;
-  ex_reg_waddr          <== id_waddr;
-  ex_reg_ctrl_fn_dw     <== io.ctrl.fn_dw.toUFix;
-  ex_reg_ctrl_fn_alu    <== io.ctrl.fn_alu;
-  ex_reg_ctrl_mul_fn    <== io.ctrl.mul_fn;
-  ex_reg_ctrl_div_fn    <== io.ctrl.div_fn;
-  ex_reg_ctrl_sel_wb    <== io.ctrl.sel_wb;
-  ex_reg_ctrl_ren_pcr   <== io.ctrl.ren_pcr;
+  ex_reg_pc             := id_reg_pc;
+  ex_reg_inst           := id_reg_inst
+  ex_reg_raddr1         := id_raddr1
+  ex_reg_raddr2         := id_raddr2;
+  ex_reg_op2            := id_op2;
+  ex_reg_rs2            := id_rs2;
+  ex_reg_rs1            := id_rs1;
+  ex_reg_waddr          := id_waddr;
+  ex_reg_ctrl_fn_dw     := io.ctrl.fn_dw.toUFix;
+  ex_reg_ctrl_fn_alu    := io.ctrl.fn_alu;
+  ex_reg_ctrl_mul_fn    := io.ctrl.mul_fn;
+  ex_reg_ctrl_div_fn    := io.ctrl.div_fn;
+  ex_reg_ctrl_sel_wb    := io.ctrl.sel_wb;
+  ex_reg_ctrl_ren_pcr   := io.ctrl.ren_pcr;
 
   when(io.ctrl.killd) {
-    ex_reg_valid          <== Bool(false);
-    ex_reg_ctrl_div_val 	<== Bool(false);
-    ex_reg_ctrl_mul_val   <== Bool(false);
-    ex_reg_ctrl_wen_pcr 	<== Bool(false);
-    ex_reg_ctrl_eret			<== Bool(false);
+    ex_reg_valid          := Bool(false);
+    ex_reg_ctrl_div_val 	:= Bool(false);
+    ex_reg_ctrl_mul_val   := Bool(false);
+    ex_reg_ctrl_wen_pcr 	:= Bool(false);
+    ex_reg_ctrl_eret			:= Bool(false);
   } 
-  otherwise {
-    ex_reg_valid          <== id_reg_valid;
-    ex_reg_ctrl_div_val 	<== io.ctrl.div_val;
-  	ex_reg_ctrl_mul_val   <== io.ctrl.mul_val;
-    ex_reg_ctrl_wen_pcr		<== io.ctrl.wen_pcr;
-    ex_reg_ctrl_eret			<== io.ctrl.id_eret;
+  .otherwise {
+    ex_reg_valid          := id_reg_valid;
+    ex_reg_ctrl_div_val 	:= io.ctrl.div_val;
+  	ex_reg_ctrl_mul_val   := io.ctrl.mul_val;
+    ex_reg_ctrl_wen_pcr		:= io.ctrl.wen_pcr;
+    ex_reg_ctrl_eret			:= io.ctrl.id_eret;
   }
 
   alu.io.dw    := ex_reg_ctrl_fn_dw;
@@ -330,10 +330,10 @@ class rocketDpath extends Component
 
   // time stamp counter
   val tsc_reg = Reg(resetVal = UFix(0,64));
-  tsc_reg <== tsc_reg + UFix(1);
+  tsc_reg := tsc_reg + UFix(1);
   // instructions retired counter
   val irt_reg = Reg(resetVal = UFix(0,64));
-  when (wb_reg_valid) { irt_reg <== irt_reg + UFix(1); }
+  when (wb_reg_valid) { irt_reg := irt_reg + UFix(1); }
   
 	// writeback select mux
   ex_wdata :=
@@ -344,21 +344,21 @@ class rocketDpath extends Component
         ex_alu_out)))).toBits; // WB_ALU
         
   // memory stage
-  mem_reg_pc                <== ex_reg_pc;
-  mem_reg_inst              <== ex_reg_inst
-  mem_reg_rs2               <== ex_reg_rs2
-  mem_reg_waddr             <== ex_reg_waddr;
-  mem_reg_wdata             <== ex_wdata;
-  mem_reg_raddr1            <== ex_reg_raddr1
-  mem_reg_raddr2            <== ex_reg_raddr2;
+  mem_reg_pc                := ex_reg_pc;
+  mem_reg_inst              := ex_reg_inst
+  mem_reg_rs2               := ex_reg_rs2
+  mem_reg_waddr             := ex_reg_waddr;
+  mem_reg_wdata             := ex_wdata;
+  mem_reg_raddr1            := ex_reg_raddr1
+  mem_reg_raddr2            := ex_reg_raddr2;
 
   when (io.ctrl.killx) {
-    mem_reg_valid          <== Bool(false);
-    mem_reg_ctrl_wen_pcr 	 <== Bool(false);
+    mem_reg_valid          := Bool(false);
+    mem_reg_ctrl_wen_pcr 	 := Bool(false);
   }
-  otherwise {
-    mem_reg_valid          <== ex_reg_valid;
-    mem_reg_ctrl_wen_pcr 	 <== ex_reg_ctrl_wen_pcr;
+  .otherwise {
+    mem_reg_valid          := ex_reg_valid;
+    mem_reg_ctrl_wen_pcr 	 := ex_reg_ctrl_wen_pcr;
   }
   
   // for load/use hazard detection (load byte/halfword)
@@ -376,9 +376,9 @@ class rocketDpath extends Component
   val dmem_resp_waddr = io.dmem.resp_tag.toUFix >> UFix(2)
   val dmem_resp_ext_tag = io.dmem.resp_tag.toUFix >> UFix(1)
   dmem_resp_replay := io.dmem.resp_replay && dmem_resp_xpu;
-  r_dmem_resp_replay  <== dmem_resp_replay
-  r_dmem_resp_waddr   <== dmem_resp_waddr
-  r_dmem_fp_replay    <== io.dmem.resp_replay && dmem_resp_fpu;
+  r_dmem_resp_replay  := dmem_resp_replay
+  r_dmem_resp_waddr   := dmem_resp_waddr
+  r_dmem_fp_replay    := io.dmem.resp_replay && dmem_resp_fpu;
 
   val mem_ll_waddr = Mux(dmem_resp_replay, dmem_resp_waddr,
                      Mux(div_result_val, div_result_tag,
@@ -389,22 +389,22 @@ class rocketDpath extends Component
                          mem_reg_wdata))
   val mem_ll_wb = dmem_resp_replay || div_result_val || mul_result_val
 
-  wb_reg_pc             <== mem_reg_pc;
-  wb_reg_inst           <== mem_reg_inst
-  wb_reg_ll_wb          <== mem_ll_wb
-  wb_reg_rs2            <== mem_reg_rs2
-  wb_reg_waddr          <== mem_ll_waddr
-  wb_reg_wdata          <== mem_ll_wdata
-  wb_reg_raddr1         <== mem_reg_raddr1
-  wb_reg_raddr2         <== mem_reg_raddr2;
+  wb_reg_pc             := mem_reg_pc;
+  wb_reg_inst           := mem_reg_inst
+  wb_reg_ll_wb          := mem_ll_wb
+  wb_reg_rs2            := mem_reg_rs2
+  wb_reg_waddr          := mem_ll_waddr
+  wb_reg_wdata          := mem_ll_wdata
+  wb_reg_raddr1         := mem_reg_raddr1
+  wb_reg_raddr2         := mem_reg_raddr2;
 
   when (io.ctrl.killm) {
-    wb_reg_valid          <== Bool(false);
-    wb_reg_ctrl_wen_pcr 	<== Bool(false);
+    wb_reg_valid          := Bool(false);
+    wb_reg_ctrl_wen_pcr 	:= Bool(false);
   }
-  otherwise {
-    wb_reg_valid          <== mem_reg_valid;
-    wb_reg_ctrl_wen_pcr 	<== mem_reg_ctrl_wen_pcr;
+  .otherwise {
+    wb_reg_valid          := mem_reg_valid;
+    wb_reg_ctrl_wen_pcr 	:= mem_reg_ctrl_wen_pcr;
   }
 
   // vector datapath

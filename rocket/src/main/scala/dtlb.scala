@@ -52,13 +52,13 @@ class rocketDTLB(entries: Int) extends Component
   val repl_count        = Reg(resetVal = UFix(0,addr_bits));
   
   when (io.cpu.req_val && io.cpu.req_rdy) { 
-    r_cpu_req_vpn   <== io.cpu.req_vpn;
-    r_cpu_req_cmd   <== io.cpu.req_cmd;
-    r_cpu_req_asid  <== io.cpu.req_asid;
-    r_cpu_req_val   <== Bool(true);
+    r_cpu_req_vpn   := io.cpu.req_vpn;
+    r_cpu_req_cmd   := io.cpu.req_cmd;
+    r_cpu_req_asid  := io.cpu.req_asid;
+    r_cpu_req_val   := Bool(true);
   }
-  otherwise {
-    r_cpu_req_val   <== Bool(false);
+  .otherwise {
+    r_cpu_req_val   := Bool(false);
   }
   
   val req_load  = (r_cpu_req_cmd === M_XRD);
@@ -96,19 +96,19 @@ class rocketDTLB(entries: Int) extends Component
   val sr_array = Reg(resetVal = Bits(0, entries)); // supervisor read permission
   val sw_array = Reg(resetVal = Bits(0, entries)); // supervisor write permission
   when (io.ptw.resp_val) {
-    ur_array <== ur_array.bitSet(r_refill_waddr, ptw_perm_ur);
-    uw_array <== uw_array.bitSet(r_refill_waddr, ptw_perm_uw);
-    sr_array <== sr_array.bitSet(r_refill_waddr, ptw_perm_sr);
-    sw_array <== sw_array.bitSet(r_refill_waddr, ptw_perm_sw);
+    ur_array := ur_array.bitSet(r_refill_waddr, ptw_perm_ur);
+    uw_array := uw_array.bitSet(r_refill_waddr, ptw_perm_uw);
+    sr_array := sr_array.bitSet(r_refill_waddr, ptw_perm_sr);
+    sw_array := sw_array.bitSet(r_refill_waddr, ptw_perm_sw);
   }
  
   // when the page table lookup reports an error, set all permission
   // bits to 0 so the next access will cause an exception
   when (io.ptw.resp_err) {
-    ur_array <== ur_array.bitSet(r_refill_waddr, Bool(false));
-    uw_array <== uw_array.bitSet(r_refill_waddr, Bool(false));
-    sr_array <== sr_array.bitSet(r_refill_waddr, Bool(false));
-    sw_array <== sw_array.bitSet(r_refill_waddr, Bool(false));
+    ur_array := ur_array.bitSet(r_refill_waddr, Bool(false));
+    uw_array := uw_array.bitSet(r_refill_waddr, Bool(false));
+    sr_array := sr_array.bitSet(r_refill_waddr, Bool(false));
+    sw_array := sw_array.bitSet(r_refill_waddr, Bool(false));
   }
  
   // high if there are any unused (invalid) entries in the TLB
@@ -128,10 +128,10 @@ class rocketDTLB(entries: Int) extends Component
   // currently replace TLB entries in LIFO order
   // TODO: implement LRU replacement policy
   when (tlb_miss) {
-    r_refill_tag <== lookup_tag;
-    r_refill_waddr <== repl_waddr;
+    r_refill_tag := lookup_tag;
+    r_refill_waddr := repl_waddr;
     when (!invalid_entry) {
-      repl_count <== repl_count + UFix(1);
+      repl_count := repl_count + UFix(1);
     }
   }
 
@@ -166,17 +166,17 @@ class rocketDTLB(entries: Int) extends Component
   switch (state) {
     is (s_ready) {
       when (tlb_miss) {
-        state <== s_request;
+        state := s_request;
       }
     }
     is (s_request) {
       when (io.ptw.req_rdy) {
-        state <== s_wait;
+        state := s_wait;
       }
     }
     is (s_wait) {
       when (io.ptw.resp_val || io.ptw.resp_err) {
-        state <== s_ready;
+        state := s_ready;
       }
     }
   }  
