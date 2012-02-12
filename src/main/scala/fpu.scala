@@ -126,7 +126,7 @@ class rocketFPU extends Component
 
   val ex_reg_inst = Reg() { Bits() }
   when (io.req_valid) {
-    ex_reg_inst <== io.req_inst
+    ex_reg_inst := io.req_inst
   }
 
   // load response
@@ -135,12 +135,12 @@ class rocketFPU extends Component
   val load_wb_data = Reg() { Bits() }
   val load_wb_tag = Reg() { UFix() }
   when (dmem_resp_val_fpu) {
-    load_wb_data <== io.dmem.resp_data
-    load_wb_tag <== io.dmem.resp_tag.toUFix >> UFix(1)
+    load_wb_data := io.dmem.resp_data
+    load_wb_tag := io.dmem.resp_tag.toUFix >> UFix(1)
   }
 
   // regfile
-  val regfile = Mem4(32, load_wb_data);
+  val regfile = Mem(32, load_wb_data);
   regfile.setReadLatency(0);
   regfile.setTarget('inst);
   regfile.write(load_wb_tag, load_wb_data, load_wb);

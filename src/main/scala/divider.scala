@@ -21,20 +21,6 @@ class ioDivider(width: Int) extends Bundle {
   val result_rdy  = Bool(INPUT);
 }
 
-// class ioDivider extends Bundle {
-//   // requests
-//   val req_val   = Bool(INPUT);
-//   val req_rdy   = Bool(OUTPUT);
-//   val req_fn    = UFix(3, INPUT);
-//   val req_tag = UFix(5, INPUT);
-//   val req_rs1   = Bits(64, INPUT);
-//   val req_rs2   = Bits(64, INPUT);
-//   // responses
-//   val resp_val  = Bool(OUTPUT);
-//   val resp_data = Bits(64, OUTPUT);
-//   val resp_tag  = UFix(5, OUTPUT);
-// }
-
 class rocketDivider(width : Int) extends Component {
   val io = new ioDivider(width);
   
@@ -55,28 +41,36 @@ class rocketDivider(width : Int) extends Component {
   
   val tc = (io.div_fn === DIV_D) || (io.div_fn === DIV_R);
 
-  when (io.div_kill && Reg(state === s_ready)) { // can only kill on first cycle
-    state <== s_ready;
+  val do_kill = io.div_kill && Reg(io.div_rdy) // kill on 1st cycle only
+
+  switch (state) {
+    is (s_ready) {
+      when (io.div_val) {
+        state := Mux(tc, s_neg_inputs, s_busy)
+      }
+    }
+    is (s_neg_inputs) {
+      state := Mux(do_kill, s_ready, s_busy)
+    }
+    is (s_busy) {
+      when (do_kill) {
+        state := s_ready
+      }
+      .elsewhen (count === UFix(width)) {
+        state := Mux(neg_quo || neg_rem, s_neg_outputs, s_done)
+      }
+    }
+    is (s_neg_outputs) {
+      state := s_done
+    }
+    is (s_done) {
+      when (io.result_rdy) {
+        state := s_ready
+      }
+    }
   }
   
   // state machine
-  switch (state) {
-    is (s_ready) {
-      when (!io.div_val)  { state <== s_ready; }
-      when (tc)         { state <== s_neg_inputs };
-      otherwise           { state <== s_busy; }
-    }
-    is (s_neg_inputs)     { state <== s_busy; }
-    is (s_busy) {
-      when (count != UFix(width))   { state <== s_busy; }
-      when (!(neg_quo || neg_rem))  { state <== s_done; }
-      otherwise                     { state <== s_neg_outputs; }
-    }
-    is (s_neg_outputs)              { state <== s_done; }
-    is (s_done) {
-      when (io.result_rdy)      { state <== s_ready; }
-    }
-  }
 
   val lhs_sign = tc && Mux(io.dw === DW_64, io.in0(width-1), io.in0(width/2-1)).toBool
   val lhs_hi = Mux(io.dw === DW_64, io.in0(width-1,width/2), Fill(width/2, lhs_sign))
@@ -87,45 +81,45 @@ class rocketDivider(width : Int) extends Component {
   val rhs_in = Cat(rhs_hi, io.in1(width/2-1,0))
         
   when ((state === s_ready) && io.div_val) {
-    count <== UFix(0, log2up(width+1));
-    half <== (io.dw === DW_32);
-    neg_quo <== Bool(false);
-    neg_rem <== Bool(false);
-    rem <== (io.div_fn === DIV_R) || (io.div_fn === DIV_RU);
-    reg_tag <== io.div_tag;
-    divby0 <== Bool(true);
-    divisor <== rhs_in.toUFix;
-    remainder <== Cat(UFix(0,width+1), lhs_in).toUFix;
+    count := UFix(0, log2up(width+1));
+    half := (io.dw === DW_32);
+    neg_quo := Bool(false);
+    neg_rem := Bool(false);
+    rem := (io.div_fn === DIV_R) || (io.div_fn === DIV_RU);
+    reg_tag := io.div_tag;
+    divby0 := Bool(true);
+    divisor := rhs_in.toUFix;
+    remainder := Cat(UFix(0,width+1), lhs_in).toUFix;
   }
-
   when (state === s_neg_inputs) {
-    neg_rem <== remainder(width-1).toBool;
-    neg_quo <== (remainder(width-1) != divisor(width-1));
+    neg_rem := remainder(width-1).toBool;
+    neg_quo := (remainder(width-1) != divisor(width-1));
     when (remainder(width-1).toBool) {
-      remainder <== Cat(remainder(2*width, width), -remainder(width-1,0)).toUFix;
+      remainder := Cat(remainder(2*width, width), -remainder(width-1,0)).toUFix;
     }
     when (divisor(width-1).toBool) {
-      divisor <== subtractor(width-1,0);
+      divisor := subtractor(width-1,0);
     }
   }
   when (state === s_neg_outputs) {
     when (neg_rem && neg_quo && !divby0) {
-      remainder <== Cat(-remainder(2*width, width+1), remainder(width), -remainder(width-1,0)).toUFix;
+      remainder := Cat(-remainder(2*width, width+1), remainder(width), -remainder(width-1,0)).toUFix;
     }
-    when (neg_quo && !divby0) {
-      remainder <== Cat(remainder(2*width, width), -remainder(width-1,0)).toUFix;
+    .elsewhen (neg_quo && !divby0) {
+      remainder := Cat(remainder(2*width, width), -remainder(width-1,0)).toUFix;
     }
-    when (neg_rem) {
-      remainder <== Cat(-remainder(2*width, width+1), remainder(width,0)).toUFix;
+    .elsewhen (neg_rem) {
+      remainder := Cat(-remainder(2*width, width+1), remainder(width,0)).toUFix;
     }
+
     when (divisor(width-1).toBool) {
-      divisor <== subtractor(width-1,0);
+      divisor := subtractor(width-1,0);
     }
   }
   when (state === s_busy) {
-    count <== count + UFix(1);
-    divby0 <== divby0 && !subtractor(width).toBool;
-    remainder <== Mux(subtractor(width).toBool,
+    count := count + UFix(1);
+    divby0 := divby0 && !subtractor(width).toBool;
+    remainder := Mux(subtractor(width).toBool,
                       Cat(remainder(2*width-1, width), remainder(width-1,0), ~subtractor(width)),
                       Cat(subtractor(width-1, 0), remainder(width-1,0), ~subtractor(width))).toUFix;
   }  

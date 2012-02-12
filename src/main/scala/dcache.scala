@@ -137,23 +137,23 @@ class rocketDCacheDM_flush(lines: Int) extends Component {
 
   when (io.cpu.req_val && io.cpu.req_rdy && (io.cpu.req_cmd === M_FLA)) 
   { 
-    r_cpu_req_tag <== io.cpu.req_tag;
-    flushing <== Bool(true);
-    flush_waiting <== Bool(true);
+    r_cpu_req_tag := io.cpu.req_tag;
+    flushing := Bool(true);
+    flush_waiting := Bool(true);
   }
   
   when (dcache.io.cpu.req_rdy && (flush_count === ~Bits(0, indexbits))) {
-    flushing <== Bool(false);
+    flushing := Bool(false);
   }
   when (dcache.io.cpu.resp_val && (dcache.io.cpu.resp_tag === r_cpu_req_tag) && (flush_resp_count === ~Bits(0, indexbits))) {
-    flush_waiting <== Bool(false);
+    flush_waiting := Bool(false);
   }
   
   when (flushing && dcache.io.cpu.req_rdy) {
-    flush_count <== flush_count + UFix(1,1);
+    flush_count := flush_count + UFix(1,1);
   }
   when (flush_waiting && dcache.io.cpu.resp_val && (dcache.io.cpu.resp_tag === r_cpu_req_tag)) {
-    flush_resp_count <== flush_resp_count + UFix(1,1);
+    flush_resp_count := flush_resp_count + UFix(1,1);
   }
   
   dcache.io.cpu.req_val   := (io.cpu.req_val && (io.cpu.req_cmd != M_FLA) && !flush_waiting) || flushing;
@@ -220,33 +220,33 @@ class rocketDCacheDM(lines: Int) extends Component {
   val r_req_amo     = r_cpu_req_cmd(3).toBool;
   
   when (io.cpu.req_val && io.cpu.req_rdy) {
-    r_cpu_req_idx   <== io.cpu.req_idx;
-    r_cpu_req_cmd   <== io.cpu.req_cmd;
-    r_cpu_req_type  <== io.cpu.req_type;
-    r_cpu_req_tag   <== io.cpu.req_tag;
+    r_cpu_req_idx   := io.cpu.req_idx;
+    r_cpu_req_cmd   := io.cpu.req_cmd;
+    r_cpu_req_type  := io.cpu.req_type;
+    r_cpu_req_tag   := io.cpu.req_tag;
   }
   
   when ((state === s_ready) && r_cpu_req_val && !io.cpu.req_kill) {
-    r_cpu_req_ppn <== io.cpu.req_ppn;
+    r_cpu_req_ppn := io.cpu.req_ppn;
   }
   when (io.cpu.req_rdy) {
-    r_cpu_req_val <== io.cpu.req_val; 
+    r_cpu_req_val := io.cpu.req_val; 
   }
   otherwise {
-    r_cpu_req_val <== Bool(false);
+    r_cpu_req_val := Bool(false);
   }
   when (((state === s_resolve_miss) && (r_req_load || r_req_amo)) || (state === s_replay_load)) {
-    r_cpu_resp_val <== Bool(true);
+    r_cpu_resp_val := Bool(true);
   }
   otherwise {
-    r_cpu_resp_val <== Bool(false);
+    r_cpu_resp_val := Bool(false);
   }
   
   // refill counter
   val rr_count = Reg(resetVal = UFix(0,2));
   val rr_count_next = rr_count + UFix(1);
   when (((state === s_refill) && io.mem.resp_val) || ((state === s_writeback) && io.mem.req_rdy)) { 
-    rr_count <== rr_count_next;
+    rr_count := rr_count_next;
   }
 
   // tag array
@@ -257,7 +257,7 @@ class rocketDCacheDM(lines: Int) extends Component {
     ((state === s_refill) && io.mem.resp_val && (rr_count === UFix(3,2))) ||
     ((state === s_resolve_miss) && r_req_flush);
 
-  val tag_array = Mem4(lines, r_cpu_req_ppn);
+  val tag_array = Mem(lines, r_cpu_req_ppn);
   tag_array.setReadLatency(1);
   tag_array.setTarget('inst);
   val tag_rdata = tag_array.rw(tag_addr, r_cpu_req_ppn, tag_we);
@@ -265,10 +265,10 @@ class rocketDCacheDM(lines: Int) extends Component {
   // valid bit array
   val vb_array = Reg(resetVal = Bits(0, lines));
   when (tag_we && !r_req_flush) { 
-    vb_array <== vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
+    vb_array := vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
   when (tag_we && r_req_flush) {
-    vb_array <== vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(0,1));
+    vb_array := vb_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(0,1));
   }
   val vb_rdata = vb_array(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix).toBool;
   val tag_valid = r_cpu_req_val && vb_rdata;
@@ -294,33 +294,33 @@ class rocketDCacheDM(lines: Int) extends Component {
   
   // pending store data
   when (io.cpu.req_val && io.cpu.req_rdy && req_store) { 
-    p_store_idx   <== io.cpu.req_idx;
-    p_store_data  <== io.cpu.req_data;
-    p_store_type  <== io.cpu.req_type;
+    p_store_idx   := io.cpu.req_idx;
+    p_store_data  := io.cpu.req_data;
+    p_store_type  := io.cpu.req_type;
   }
   when (store_hit && !drain_store) {
-    p_store_valid <== Bool(true);
+    p_store_valid := Bool(true);
   }
   when (drain_store)  {
-    p_store_valid <== Bool(false);
+    p_store_valid := Bool(false);
   }
   
   // AMO operand
   when (io.cpu.req_val && io.cpu.req_rdy && req_amo) {
-    r_amo_data <== io.cpu.req_data;
+    r_amo_data := io.cpu.req_data;
   }
 
   // dirty bit array
   val db_array  = Reg(resetVal = Bits(0, lines));
   val tag_dirty = db_array(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix).toBool;  
   when ((r_cpu_req_val && !io.cpu.req_kill && tag_hit && r_req_store) || resolve_store)  {
-    db_array <== db_array.bitSet(p_store_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
+    db_array := db_array.bitSet(p_store_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
   when (state === s_write_amo) {
-    db_array <== db_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
+    db_array := db_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(1,1));
   }
   when (tag_we) {
-    db_array <== db_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(0,1));
+    db_array := db_array.bitSet(r_cpu_req_idx(PGIDX_BITS-1,offsetbits).toUFix, UFix(0,1));
   }
   
   // generate write mask and data signals for stores and amos
@@ -374,7 +374,7 @@ class rocketDCacheDM(lines: Int) extends Component {
     Mux((state === s_write_amo), amo_store_wmask,
       store_wmask));
 
-  val data_array = Mem4(lines*4, data_wdata);
+  val data_array = Mem(lines*4, data_wdata);
   data_array.setReadLatency(1);
   data_array.setTarget('inst);
   val data_array_rdata = data_array.rw(data_addr, data_wdata, data_we, data_wmask);
@@ -424,62 +424,62 @@ class rocketDCacheDM(lines: Int) extends Component {
   // control state machine
   switch (state) {
     is (s_reset) {
-      state <== s_ready;
+      state := s_ready;
     }
     is (s_ready) {
       when (io.cpu.req_kill) {
-        state <== s_ready;
+        state := s_ready;
       }
       when (ldst_conflict) {
-        state <== s_replay_load;
+        state := s_replay_load;
       }
       when (!r_cpu_req_val || (tag_hit && !(r_req_flush || r_req_amo))) {
-        state <== s_ready;
+        state := s_ready;
       }
       when (tag_hit && r_req_amo) {
-        state <== s_write_amo;
+        state := s_write_amo;
       }
       when (tag_valid & tag_dirty) {
-        state <== s_start_writeback; 
+        state := s_start_writeback; 
       }
       when (r_req_flush) {
-        state <== s_resolve_miss;
+        state := s_resolve_miss;
       }
       otherwise {
-        state <== s_req_refill;
+        state := s_req_refill;
       }
     }
     is (s_replay_load) {
-      state <== s_ready;
+      state := s_ready;
     }
     is (s_write_amo) {
-      state <== s_ready;
+      state := s_ready;
     }
     is (s_start_writeback) {
-      state <== s_writeback;
+      state := s_writeback;
     }
     is (s_writeback) {
       when (io.mem.req_rdy && (rr_count === UFix(3,2))) { 
         when (r_req_flush) {
-          state <== s_resolve_miss;
+          state := s_resolve_miss;
         } 
         otherwise {
-          state <== s_req_refill;
+          state := s_req_refill;
         }
       }
     }
     is (s_req_refill)
     {
-      when (io.mem.req_rdy) { state <== s_refill; }
+      when (io.mem.req_rdy) { state := s_refill; }
     }
     is (s_refill) {
-      when (io.mem.resp_val && (rr_count === UFix(3,2))) { state <== s_resolve_miss; }
+      when (io.mem.resp_val && (rr_count === UFix(3,2))) { state := s_resolve_miss; }
     }
     is (s_resolve_miss) {
       when (r_req_amo) {
-        state <== s_write_amo;
+        state := s_write_amo;
       }
-      state <== s_ready;
+      state := s_ready;
     }
   }  
 }
@@ -505,12 +505,12 @@ class rocketDCacheAmoALU extends Component {
   val adder_out = adder_lhs + adder_rhs;
   val alu_out = Wire() { UFix() };
   switch (io.cmd) {
-//     is (M_XA_ADD)  { alu_out <== adder_out; }
-    is (M_XA_SWAP) { alu_out <== io.rhs; }
-    is (M_XA_AND)  { alu_out <== io.lhs & io.rhs; }
-    is (M_XA_OR)   { alu_out <== io.lhs | io.rhs; }
+//     is (M_XA_ADD)  { alu_out := adder_out; }
+    is (M_XA_SWAP) { alu_out := io.rhs; }
+    is (M_XA_AND)  { alu_out := io.lhs & io.rhs; }
+    is (M_XA_OR)   { alu_out := io.lhs | io.rhs; }
   }
-  alu_out <== adder_out;
+  alu_out := adder_out;
   io.result := alu_out;
 }
   

@@ -30,7 +30,7 @@ class rocketIPrefetcher extends Component() {
 
   val demand_miss = io.icache.req_val & io.icache.req_rdy;
   val prefetch_addr = Reg() { UFix(width = io.icache.req_addr.width) };
-  when (demand_miss) { prefetch_addr <== io.icache.req_addr + UFix(1); }
+  when (demand_miss) { prefetch_addr := io.icache.req_addr + UFix(1); }
   
   val addr_match = (prefetch_addr === io.icache.req_addr);
   val hit = (state != s_invalid) & (state != s_req_wait) & addr_match;
@@ -44,14 +44,14 @@ class rocketIPrefetcher extends Component() {
   io.mem.req_addr := Mux(io.mem.req_tag(0).toBool, prefetch_addr, io.icache.req_addr);
   
   val fill_cnt = Reg(resetVal = UFix(0, ceil(log(REFILL_CYCLES)/log(2)).toInt));
-  when (ip_mem_resp_val.toBool) { fill_cnt <== fill_cnt + UFix(1); }
+  when (ip_mem_resp_val.toBool) { fill_cnt := fill_cnt + UFix(1); }
   val fill_done = (~fill_cnt === UFix(0)) & ip_mem_resp_val;
   
   val forward = Reg(resetVal = Bool(false));
   val forward_cnt = Reg(resetVal = UFix(0, ceil(log(REFILL_CYCLES)/log(2)).toInt));
-  when (forward & pdq.io.deq.valid) { forward_cnt <== forward_cnt + UFix(1); }
+  when (forward & pdq.io.deq.valid) { forward_cnt := forward_cnt + UFix(1); }
   val forward_done = (~forward_cnt === UFix(0)) & pdq.io.deq.valid;
-  forward <== (demand_miss & hit | forward & ~forward_done);  
+  forward := (demand_miss & hit | forward & ~forward_done);  
 
   io.icache.resp_val  := (io.mem.resp_val && !io.mem.resp_tag(0).toBool) || (forward && pdq.io.deq.valid);
   io.icache.resp_data := Mux(forward, pdq.io.deq.bits, io.mem.resp_data);
@@ -63,25 +63,25 @@ class rocketIPrefetcher extends Component() {
   
   switch (state) {
     is (s_invalid) {
-      when (demand_miss) { state <== s_req_wait; }
+      when (demand_miss) { state := s_req_wait; }
     }
     is (s_valid) {
-      when (demand_miss | (forward & forward_done)) { state <== s_req_wait; }
+      when (demand_miss | (forward & forward_done)) { state := s_req_wait; }
     }
     is (s_refilling) {
-      when (demand_miss & ~addr_match & fill_done.toBool) { state <== s_req_wait; }
-      when (demand_miss & ~addr_match) { state <== s_bad_resp_wait; }
-      when (fill_done.toBool) { state <== s_valid; }
+      when (demand_miss & ~addr_match & fill_done.toBool) { state := s_req_wait; }
+      .elsewhen (demand_miss & ~addr_match) { state := s_bad_resp_wait; }
+      .elsewhen (fill_done.toBool) { state := s_valid; }
     }
     is (s_req_wait) {
-      when (ip_mem_req_rdy) { state <== s_resp_wait; }
+      when (ip_mem_req_rdy) { state := s_resp_wait; }
     }
     is (s_resp_wait) {
-      when (demand_miss & ~addr_match) { state <== s_bad_resp_wait; }
-      when (ip_mem_resp_val.toBool) { state <== s_refilling; }
+      when (demand_miss & ~addr_match) { state := s_bad_resp_wait; }
+      .elsewhen (ip_mem_resp_val.toBool) { state := s_refilling; }
     }
     is (s_bad_resp_wait) {
-      when (fill_done.toBool & ip_mem_resp_val.toBool) { state <== s_req_wait; }
+      when (fill_done.toBool & ip_mem_resp_val.toBool) { state := s_req_wait; }
     }
   }
 }

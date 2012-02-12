@@ -150,8 +150,8 @@ class rocketDpathVec extends Component
 
   when (io.valid && wb_vec_wen.toBool && wb_vec_fn.toBool)
   {
-    reg_hwvl <== hwvl_vcfg
-    reg_appvl0 <== !(appvl.orR())
+    reg_hwvl := hwvl_vcfg
+    reg_appvl0 := !(appvl.orR())
   }
 
   io.wen := io.valid && wb_vec_wen.toBool

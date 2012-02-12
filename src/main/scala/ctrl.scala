@@ -339,17 +339,17 @@ class rocketCtrl extends Component
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
-      id_reg_btb_hit <== Bool(false);
-      id_reg_xcpt_ma_inst <== Bool(false);   
-      id_reg_xcpt_itlb <== Bool(false);
+      id_reg_btb_hit := Bool(false);
+      id_reg_xcpt_ma_inst := Bool(false);   
+      id_reg_xcpt_itlb := Bool(false);
     } 
-    otherwise{
-      id_reg_btb_hit <== io.dpath.btb_hit;
-      id_reg_xcpt_ma_inst <== if_reg_xcpt_ma_inst;
-      id_reg_xcpt_itlb <== io.xcpt_itlb;
+    .otherwise{
+      id_reg_btb_hit := io.dpath.btb_hit;
+      id_reg_xcpt_ma_inst := if_reg_xcpt_ma_inst;
+      id_reg_xcpt_itlb := io.xcpt_itlb;
     }
-    id_reg_icmiss <== !io.imem.resp_val;
-    id_reg_replay <== !take_pc && !io.imem.resp_val;
+    id_reg_icmiss := !io.imem.resp_val;
+    id_reg_replay := !take_pc && !io.imem.resp_val;
   }
   
   // executing ERET when traps are enabled causes an illegal instruction exception (as per ISA sim)
@@ -358,54 +358,54 @@ class rocketCtrl extends Component
     (id_eret.toBool && io.dpath.status(SR_ET).toBool);
   
   when (reset.toBool || io.dpath.killd) {
-    ex_reg_br_type     <== BR_N;
-    ex_reg_btb_hit     <== Bool(false);
-    ex_reg_div_val <== Bool(false);
-    ex_reg_mul_val <== Bool(false);
-    ex_reg_mem_val     <== Bool(false);
-    ex_reg_wen         <== Bool(false);
-    ex_reg_fp_wen      <== Bool(false);
-    ex_reg_eret        <== Bool(false);
-    ex_reg_replay_next <== Bool(false);
-    ex_reg_inst_di     <== Bool(false);
-    ex_reg_inst_ei     <== Bool(false);
-    ex_reg_flush_inst  <== Bool(false);  
-    ex_reg_xcpt_ma_inst     <== Bool(false);
-    ex_reg_xcpt_itlb        <== Bool(false);
-    ex_reg_xcpt_illegal     <== Bool(false);
-    ex_reg_xcpt_privileged  <== Bool(false);
-    ex_reg_xcpt_syscall     <== Bool(false);
-    ex_reg_fp_val           <== Bool(false);
-    ex_reg_vec_val          <== Bool(false);
-    ex_reg_replay           <== Bool(false);
-    ex_reg_load_use         <== Bool(false);
+    ex_reg_br_type     := BR_N;
+    ex_reg_btb_hit     := Bool(false);
+    ex_reg_div_val := Bool(false);
+    ex_reg_mul_val := Bool(false);
+    ex_reg_mem_val     := Bool(false);
+    ex_reg_wen         := Bool(false);
+    ex_reg_fp_wen      := Bool(false);
+    ex_reg_eret        := Bool(false);
+    ex_reg_replay_next := Bool(false);
+    ex_reg_inst_di     := Bool(false);
+    ex_reg_inst_ei     := Bool(false);
+    ex_reg_flush_inst  := Bool(false);  
+    ex_reg_xcpt_ma_inst     := Bool(false);
+    ex_reg_xcpt_itlb        := Bool(false);
+    ex_reg_xcpt_illegal     := Bool(false);
+    ex_reg_xcpt_privileged  := Bool(false);
+    ex_reg_xcpt_syscall     := Bool(false);
+    ex_reg_fp_val           := Bool(false);
+    ex_reg_vec_val          := Bool(false);
+    ex_reg_replay           := Bool(false);
+    ex_reg_load_use         := Bool(false);
   } 
-  otherwise {
-    ex_reg_br_type     <== id_br_type;
-    ex_reg_btb_hit     <== id_reg_btb_hit;
-    ex_reg_div_val     <== id_div_val.toBool && id_waddr != UFix(0);
-    ex_reg_mul_val     <== id_mul_val.toBool && id_waddr != UFix(0);
-    ex_reg_mem_val     <== id_mem_val.toBool;
-    ex_reg_wen         <== id_wen.toBool && id_waddr != UFix(0);
-    ex_reg_fp_wen      <== fpdec.io.wen;
-    ex_reg_eret        <== id_eret.toBool;
-    ex_reg_replay_next <== id_replay_next.toBool;
-    ex_reg_inst_di     <== (id_irq === I_DI);
-    ex_reg_inst_ei     <== (id_irq === I_EI);
-    ex_reg_flush_inst  <== (id_sync === SYNC_I);
-    ex_reg_xcpt_ma_inst     <== id_reg_xcpt_ma_inst;
-    ex_reg_xcpt_itlb        <== id_reg_xcpt_itlb;
-    ex_reg_xcpt_illegal     <== illegal_inst;
-    ex_reg_xcpt_privileged  <== (id_privileged & ~io.dpath.status(SR_S)).toBool;
-    ex_reg_xcpt_syscall     <== id_syscall.toBool;
-    ex_reg_fp_val           <== fpdec.io.valid;
-    ex_reg_vec_val          <== id_vec_val.toBool
-    ex_reg_replay           <== id_reg_replay || ex_reg_replay_next;
-    ex_reg_load_use         <== id_load_use;
+  .otherwise {
+    ex_reg_br_type     := id_br_type;
+    ex_reg_btb_hit     := id_reg_btb_hit;
+    ex_reg_div_val     := id_div_val.toBool && id_waddr != UFix(0);
+    ex_reg_mul_val     := id_mul_val.toBool && id_waddr != UFix(0);
+    ex_reg_mem_val     := id_mem_val.toBool;
+    ex_reg_wen         := id_wen.toBool && id_waddr != UFix(0);
+    ex_reg_fp_wen      := fpdec.io.wen;
+    ex_reg_eret        := id_eret.toBool;
+    ex_reg_replay_next := id_replay_next.toBool;
+    ex_reg_inst_di     := (id_irq === I_DI);
+    ex_reg_inst_ei     := (id_irq === I_EI);
+    ex_reg_flush_inst  := (id_sync === SYNC_I);
+    ex_reg_xcpt_ma_inst     := id_reg_xcpt_ma_inst;
+    ex_reg_xcpt_itlb        := id_reg_xcpt_itlb;
+    ex_reg_xcpt_illegal     := illegal_inst;
+    ex_reg_xcpt_privileged  := (id_privileged & ~io.dpath.status(SR_S)).toBool;
+    ex_reg_xcpt_syscall     := id_syscall.toBool;
+    ex_reg_fp_val           := fpdec.io.valid;
+    ex_reg_vec_val          := id_vec_val.toBool
+    ex_reg_replay           := id_reg_replay || ex_reg_replay_next;
+    ex_reg_load_use         := id_load_use;
   }
-  ex_reg_ext_mem_val <== io.ext_mem.req_val
-  ex_reg_mem_cmd     <== Mux(io.ext_mem.req_val, io.ext_mem.req_cmd, id_mem_cmd).toUFix
-  ex_reg_mem_type    <== Mux(io.ext_mem.req_val, io.ext_mem.req_type, id_mem_type).toUFix
+  ex_reg_ext_mem_val := io.ext_mem.req_val
+  ex_reg_mem_cmd     := Mux(io.ext_mem.req_val, io.ext_mem.req_cmd, id_mem_cmd).toUFix
+  ex_reg_mem_type    := Mux(io.ext_mem.req_val, io.ext_mem.req_type, id_mem_type).toUFix
 
   val beq  =  io.dpath.br_eq;
   val bne  = ~io.dpath.br_eq;
@@ -431,60 +431,60 @@ class rocketCtrl extends Component
   val mem_reg_mem_type    = Reg(){UFix(width = 3)};
 
   when (reset.toBool || io.dpath.killx) {
-    mem_reg_div_mul_val <== Bool(false);
-    mem_reg_wen         <== Bool(false);
-    mem_reg_fp_wen      <== Bool(false);
-    mem_reg_eret        <== Bool(false);
-    mem_reg_mem_val     <== Bool(false);
-    mem_reg_inst_di     <== Bool(false);
-    mem_reg_inst_ei     <== Bool(false);
-    mem_reg_flush_inst  <== Bool(false);
-    mem_reg_xcpt_ma_inst     <== Bool(false);
-    mem_reg_xcpt_itlb        <== Bool(false);
-    mem_reg_xcpt_illegal     <== Bool(false);
-    mem_reg_xcpt_privileged  <== Bool(false);
-    mem_reg_xcpt_fpu         <== Bool(false);
-    mem_reg_xcpt_vec         <== Bool(false);
-    mem_reg_xcpt_syscall     <== Bool(false);
+    mem_reg_div_mul_val := Bool(false);
+    mem_reg_wen         := Bool(false);
+    mem_reg_fp_wen      := Bool(false);
+    mem_reg_eret        := Bool(false);
+    mem_reg_mem_val     := Bool(false);
+    mem_reg_inst_di     := Bool(false);
+    mem_reg_inst_ei     := Bool(false);
+    mem_reg_flush_inst  := Bool(false);
+    mem_reg_xcpt_ma_inst     := Bool(false);
+    mem_reg_xcpt_itlb        := Bool(false);
+    mem_reg_xcpt_illegal     := Bool(false);
+    mem_reg_xcpt_privileged  := Bool(false);
+    mem_reg_xcpt_fpu         := Bool(false);
+    mem_reg_xcpt_vec         := Bool(false);
+    mem_reg_xcpt_syscall     := Bool(false);
   }
-  otherwise {
-    mem_reg_div_mul_val <== ex_reg_div_val || ex_reg_mul_val;
-    mem_reg_wen         <== ex_reg_wen;
-    mem_reg_fp_wen      <== ex_reg_fp_wen;
-    mem_reg_eret        <== ex_reg_eret;
-    mem_reg_mem_val     <== ex_reg_mem_val;
-    mem_reg_inst_di     <== ex_reg_inst_di;
-    mem_reg_inst_ei     <== ex_reg_inst_ei;
-    mem_reg_flush_inst  <== ex_reg_flush_inst;
-    mem_reg_xcpt_ma_inst     <== ex_reg_xcpt_ma_inst;
-    mem_reg_xcpt_itlb        <== ex_reg_xcpt_itlb;
-    mem_reg_xcpt_illegal     <== ex_reg_xcpt_illegal;
-    mem_reg_xcpt_privileged  <== ex_reg_xcpt_privileged;
-    mem_reg_xcpt_fpu         <== ex_reg_fp_val && !io.dpath.status(SR_EF).toBool;
-    mem_reg_xcpt_vec         <== ex_reg_vec_val && !io.dpath.status(SR_EV).toBool;
-    mem_reg_xcpt_syscall     <== ex_reg_xcpt_syscall;
+  .otherwise {
+    mem_reg_div_mul_val := ex_reg_div_val || ex_reg_mul_val;
+    mem_reg_wen         := ex_reg_wen;
+    mem_reg_fp_wen      := ex_reg_fp_wen;
+    mem_reg_eret        := ex_reg_eret;
+    mem_reg_mem_val     := ex_reg_mem_val;
+    mem_reg_inst_di     := ex_reg_inst_di;
+    mem_reg_inst_ei     := ex_reg_inst_ei;
+    mem_reg_flush_inst  := ex_reg_flush_inst;
+    mem_reg_xcpt_ma_inst     := ex_reg_xcpt_ma_inst;
+    mem_reg_xcpt_itlb        := ex_reg_xcpt_itlb;
+    mem_reg_xcpt_illegal     := ex_reg_xcpt_illegal;
+    mem_reg_xcpt_privileged  := ex_reg_xcpt_privileged;
+    mem_reg_xcpt_fpu         := ex_reg_fp_val && !io.dpath.status(SR_EF).toBool;
+    mem_reg_xcpt_vec         := ex_reg_vec_val && !io.dpath.status(SR_EV).toBool;
+    mem_reg_xcpt_syscall     := ex_reg_xcpt_syscall;
   }
-  mem_reg_ext_mem_val <== ex_reg_ext_mem_val;
-  mem_reg_mem_cmd     <== ex_reg_mem_cmd;
-  mem_reg_mem_type    <== ex_reg_mem_type;
+  mem_reg_ext_mem_val := ex_reg_ext_mem_val;
+  mem_reg_mem_cmd     := ex_reg_mem_cmd;
+  mem_reg_mem_type    := ex_reg_mem_type;
 
   when (io.dpath.killm) {
-    wb_reg_wen         <== Bool(false);
-    wb_reg_fp_wen      <== Bool(false);
-    wb_reg_eret        <== Bool(false);
-    wb_reg_inst_di     <== Bool(false);
-    wb_reg_inst_ei     <== Bool(false);
-    wb_reg_flush_inst  <== Bool(false);
-    wb_reg_div_mul_val <== Bool(false);
+    wb_reg_wen         := Bool(false);
+    wb_reg_fp_wen      := Bool(false);
+    wb_reg_eret        := Bool(false);
+    wb_reg_inst_di     := Bool(false);
+    wb_reg_inst_ei     := Bool(false);
+    wb_reg_flush_inst  := Bool(false);
+    wb_reg_div_mul_val := Bool(false);
   }
-  otherwise {
-    wb_reg_wen         <== mem_reg_wen;
-    wb_reg_fp_wen      <== mem_reg_fp_wen;
-    wb_reg_eret        <== mem_reg_eret;
-    wb_reg_inst_di     <== mem_reg_inst_di;
-    wb_reg_inst_ei     <== mem_reg_inst_ei;
-    wb_reg_flush_inst  <== mem_reg_flush_inst;
-    wb_reg_div_mul_val <== mem_reg_div_mul_val;
+  .otherwise {
+    wb_reg_wen         := mem_reg_wen;
+    wb_reg_fp_wen      := mem_reg_fp_wen;
+    wb_reg_eret        := mem_reg_eret;
+    wb_reg_inst_di     := mem_reg_inst_di;
+    wb_reg_inst_ei     := mem_reg_inst_ei;
+    wb_reg_flush_inst  := mem_reg_flush_inst;
+    wb_reg_div_mul_val := mem_reg_div_mul_val;
   }
 
   val sboard = new rocketCtrlSboard(); 
@@ -591,12 +591,12 @@ class rocketCtrl extends Component
                      ex_reg_mul_val && !io.dpath.mul_rdy
   val kill_ex      = take_pc_wb || replay_ex
 
-  mem_reg_replay <== replay_ex && !take_pc_wb;
-  mem_reg_kill <== kill_ex;
+  mem_reg_replay := replay_ex && !take_pc_wb;
+  mem_reg_kill := kill_ex;
 
-  wb_reg_replay       <== replay_mem && !take_pc_wb;
-  wb_reg_exception    <== mem_exception && !take_pc_wb;
-  wb_reg_cause        <== mem_cause;
+  wb_reg_replay       := replay_mem && !take_pc_wb;
+  wb_reg_exception    := mem_exception && !take_pc_wb;
+  wb_reg_cause        := mem_cause;
 
   val wb_badvaddr_wen = wb_reg_exception && ((wb_reg_cause === UFix(10)) || (wb_reg_cause === UFix(11)))
 

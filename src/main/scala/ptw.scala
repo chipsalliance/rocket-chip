@@ -77,22 +77,22 @@ class rocketPTW extends Component
   val req_itlb_val = io.itlb.req_val;
   val req_dtlb_val = io.dtlb.req_val && !io.itlb.req_val;
   
-  when ((state === s_ready) && req_itlb_val) {
-    r_req_vpn  <== io.itlb.req_vpn;
-    r_req_dest <== Bool(false);
-    req_addr <== Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.itlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
+  when ((state === s_ready) && req_dtlb_val) {
+    r_req_vpn  := io.dtlb.req_vpn;
+    r_req_dest := Bool(true);
+    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.dtlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
   }
   
-  when ((state === s_ready) && req_dtlb_val) {
-    r_req_vpn  <== io.dtlb.req_vpn;
-    r_req_dest <== Bool(true);
-    req_addr <== Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.dtlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
+  when ((state === s_ready) && req_itlb_val) {
+    r_req_vpn  := io.itlb.req_vpn;
+    r_req_dest := Bool(false);
+    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.itlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
   }
   
   when (io.dmem.resp_val) {
-    req_addr <== Cat(io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS), vpn_idx, Bits(0,3)).toUFix;
-    r_resp_perm <== io.dmem.resp_data(9,4);
-    r_resp_ppn  <== io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS);
+    req_addr := Cat(io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS), vpn_idx, Bits(0,3)).toUFix;
+    r_resp_perm := io.dmem.resp_data(9,4);
+    r_resp_ppn  := io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS);
   }
   
   io.dmem.req_val :=
@@ -133,83 +133,83 @@ class rocketPTW extends Component
   switch (state) {
     is (s_ready) {
       when (req_val) {
-        state <== s_l1_req;
+        state := s_l1_req;
       }
     }
     // level 1
     is (s_l1_req) {
       when (io.dmem.req_rdy) {
-        state <== s_l1_wait;
+        state := s_l1_wait;
       }
     }
     is (s_l1_wait) {
       when (io.dmem.resp_nack) {
-        state <== s_l1_req
+        state := s_l1_req
       }
       when (io.dmem.resp_val) {
         when (resp_ptd) { // page table descriptor
-          state <== s_l2_req;
+          state := s_l2_req;
         }
-        when (resp_pte) { // page table entry
-          state <== s_l1_fake;
+        .elsewhen (resp_pte) { // page table entry
+          state := s_l1_fake;
         }
-        otherwise {
-          state <== s_error;
+        .otherwise {
+          state := s_error;
         }
       }
     }
     is (s_l1_fake) {
-      state <== s_ready;
+      state := s_ready;
     }
     // level 2
     is (s_l2_req) {
       when (io.dmem.req_rdy) {
-        state <== s_l2_wait;
+        state := s_l2_wait;
       }
     }
     is (s_l2_wait) {
       when (io.dmem.resp_nack) {
-        state <== s_l2_req
+        state := s_l2_req
       }
       when (io.dmem.resp_val) {
         when (resp_ptd) { // page table descriptor
-          state <== s_l3_req;
+          state := s_l3_req;
         }
-        when (resp_pte) { // page table entry
-          state <== s_l2_fake;
+        .elsewhen (resp_pte) { // page table entry
+          state := s_l2_fake;
         }
-        otherwise {
-          state <== s_error;
+        .otherwise {
+          state := s_error;
         }
       }
     }
     is (s_l2_fake) {
-      state <== s_ready;
+      state := s_ready;
     }
     // level 3
     is (s_l3_req) {
       when (io.dmem.req_rdy) {
-        state <== s_l3_wait;
+        state := s_l3_wait;
       }
     }
     is (s_l3_wait) {
       when (io.dmem.resp_nack) {
-        state <== s_l3_req
+        state := s_l3_req
       }
       when (io.dmem.resp_val) {
         when (resp_pte) { // page table entry
-          state <== s_done;
+          state := s_done;
         }
-        otherwise {
-          state <== s_error;
+        .otherwise {
+          state := s_error;
         }
       }
     }  
     is (s_done) {
-      state <== s_ready;
+      state := s_ready;
     }
     is (s_error) {
-      state <== s_ready;
+      state := s_ready;
     }
   }
 }

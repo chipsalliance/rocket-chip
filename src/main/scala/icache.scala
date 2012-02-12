@@ -68,14 +68,14 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   val tag_hit = Wire() { Bool() }
   
   when (io.cpu.req_val && rdy) {
-    r_cpu_req_val   <== Bool(true)
-    r_cpu_req_idx   <== io.cpu.req_idx
+    r_cpu_req_val   := Bool(true)
+    r_cpu_req_idx   := io.cpu.req_idx
   }
-  otherwise {
-    r_cpu_req_val   <== Bool(false)
+  .otherwise {
+    r_cpu_req_val   := Bool(false)
   }
   when (state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss) {
-    r_cpu_req_ppn <== io.cpu.req_ppn
+    r_cpu_req_ppn := io.cpu.req_ppn
   }
 
   val r_cpu_hit_addr = Cat(io.cpu.req_ppn, r_cpu_req_idx)
@@ -86,7 +86,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   // refill counter
   val refill_count = Reg(resetVal = UFix(0, rf_cnt_bits));
   when (io.mem.resp_val) {
-    refill_count <== refill_count + UFix(1);
+    refill_count := refill_count + UFix(1);
   }
 
   val repl_way = LFSR16(state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss && !tag_hit)(log2up(assoc)-1,0)
@@ -104,7 +104,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   for (i <- 0 until assoc)
   {
     val repl_me = (repl_way === UFix(i))
-    val tag_array = Mem4(lines, r_cpu_miss_tag);
+    val tag_array = Mem(lines, r_cpu_miss_tag);
     tag_array.setReadLatency(1);
     tag_array.setTarget('inst);
     val tag_rdata = tag_array.rw(tag_addr, r_cpu_miss_tag, tag_we && repl_me);
@@ -112,17 +112,17 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
     // valid bit array
     val vb_array = Reg(resetVal = Bits(0, lines));
     when (io.cpu.invalidate) {
-      vb_array <== Bits(0,lines);
+      vb_array := Bits(0,lines);
     }
-    when (tag_we && repl_me) {
-      vb_array <== vb_array.bitSet(r_cpu_req_idx(indexmsb,indexlsb).toUFix, UFix(1,1));
+    .elsewhen (tag_we && repl_me) {
+      vb_array := vb_array.bitSet(r_cpu_req_idx(indexmsb,indexlsb).toUFix, UFix(1,1));
     }
 
     val valid = vb_array(r_cpu_req_idx(indexmsb,indexlsb)).toBool;
     val hit = valid && (tag_rdata === r_cpu_hit_addr(tagmsb,taglsb))
     
     // data array
-    val data_array = Mem4(lines*REFILL_CYCLES, io.mem.resp_data);
+    val data_array = Mem(lines*REFILL_CYCLES, io.mem.resp_data);
     data_array.setReadLatency(1);
     data_array.setTarget('inst);
     val data_out = data_array.rw(data_addr, io.mem.resp_data, io.mem.resp_val && repl_me)
@@ -144,30 +144,30 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   // control state machine
   switch (state) {
     is (s_reset) {
-      state <== s_ready;
+      state := s_ready;
     }
     is (s_ready) {
       when (io.cpu.itlb_miss) {
-        state <== s_ready;
+        state := s_ready;
       }
-      when (r_cpu_req_val && !tag_hit) {
-        state <== s_request;
+      .elsewhen (r_cpu_req_val && !tag_hit) {
+        state := s_request;
       }
     }
     is (s_request)
     {
       when (io.mem.req_rdy) {
-        state <== s_refill_wait;
+        state := s_refill_wait;
       }
     }
     is (s_refill_wait) {
       when (io.mem.resp_val) {
-        state <== s_refill;
+        state := s_refill;
       }
     }
     is (s_refill) {
       when (io.mem.resp_val && (~refill_count === UFix(0))) {
-        state <== s_ready;
+        state := s_ready;
       }
     }
   }  
