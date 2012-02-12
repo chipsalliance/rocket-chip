@@ -232,7 +232,8 @@ class rocketDpath extends Component
 
   val id_op2 = Mux(io.ctrl.sel_alu2 === A2_RTYPE, id_rs2, id_imm)
 
-  io.ctrl.inst := id_reg_inst;
+  io.ctrl.inst := id_reg_inst
+  io.fpu.inst := id_reg_inst
 
   // execute stage
   ex_reg_pc             := id_reg_pc;
@@ -301,7 +302,7 @@ class rocketDpath extends Component
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
   io.dmem.req_addr  := ex_effective_address.toUFix;
-  io.dmem.req_data := (if (HAVE_FPU) Mux(io.ctrl.ex_fp_val, io.fpu.store_data, mem_reg_rs2) else mem_reg_rs2)
+  io.dmem.req_data := (if (HAVE_FPU) Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2) else mem_reg_rs2)
   io.dmem.req_tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val, io.ctrl.ex_ext_mem_val).toUFix
 
 	// processor control regfile read
@@ -374,7 +375,7 @@ class rocketDpath extends Component
 
   // 32/64 bit load handling (moved to earlier in file)
       
-  // writeback stage
+  // writeback arbitration
   val dmem_resp_ext =  io.dmem.resp_tag(0).toBool
   val dmem_resp_xpu = !io.dmem.resp_tag(0).toBool && !io.dmem.resp_tag(1).toBool
   val dmem_resp_fpu = !io.dmem.resp_tag(0).toBool &&  io.dmem.resp_tag(1).toBool
@@ -394,6 +395,11 @@ class rocketDpath extends Component
                          mem_reg_wdata))
   val mem_ll_wb = dmem_resp_replay || div_result_val || mul_result_val
 
+  io.fpu.dmem_resp_val := io.dmem.resp_val && dmem_resp_fpu
+  io.fpu.dmem_resp_data := io.dmem.resp_data
+  io.fpu.dmem_resp_tag := dmem_resp_waddr
+
+  // writeback stage
   wb_reg_pc             := mem_reg_pc;
   wb_reg_inst           := mem_reg_inst
   wb_reg_ll_wb          := mem_ll_wb
