@@ -211,8 +211,30 @@ class rocketCtrl extends Component
     
     MFTX_S->    List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     MFTX_D->    List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_W_S->  List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_W_D->  List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_WU_S-> List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_WU_D-> List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_L_S->  List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_L_D->  List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_LU_S-> List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_LU_D-> List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FEQ_S->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FEQ_D->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FLT_S->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FLT_D->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FLE_S->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FLE_D->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     MXTF_S->    List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     MXTF_D->    List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_S_W->  List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_D_W->  List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_S_WU-> List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_D_WU-> List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_S_L->  List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_D_L->  List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_S_LU-> List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    FCVT_D_LU-> List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     MFFSR->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     MTFSR->     List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     FLW->       List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_W, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
@@ -463,7 +485,7 @@ class rocketCtrl extends Component
     mem_reg_flush_inst  := ex_reg_flush_inst;
     mem_reg_xcpt_ma_inst     := ex_reg_xcpt_ma_inst;
     mem_reg_xcpt_itlb        := ex_reg_xcpt_itlb;
-    mem_reg_xcpt_illegal     := ex_reg_xcpt_illegal;
+    mem_reg_xcpt_illegal     := ex_reg_xcpt_illegal || ex_reg_fp_val && io.fpu.illegal_rm;
     mem_reg_xcpt_privileged  := ex_reg_xcpt_privileged;
     mem_reg_xcpt_fpu         := ex_reg_fp_val && !io.dpath.status(SR_EF).toBool;
     mem_reg_xcpt_vec         := ex_reg_vec_val && !io.dpath.status(SR_EV).toBool;
