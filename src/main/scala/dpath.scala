@@ -15,6 +15,7 @@ class ioDpathDmem extends Bundle()
   val resp_val  = Bool(INPUT);
   val resp_miss = Bool(INPUT);
   val resp_replay = Bool(INPUT);
+  val resp_type = Bits(3, INPUT);
   val resp_tag  = Bits(CPU_TAG_BITS, INPUT);
   val resp_data = Bits(64, INPUT);
   val resp_data_subword = Bits(64, INPUT);
@@ -400,6 +401,7 @@ class rocketDpath extends Component
 
   io.fpu.dmem_resp_val := io.dmem.resp_val && dmem_resp_fpu
   io.fpu.dmem_resp_data := io.dmem.resp_data
+  io.fpu.dmem_resp_type := io.dmem.resp_type
   io.fpu.dmem_resp_tag := dmem_resp_waddr
 
   // writeback stage

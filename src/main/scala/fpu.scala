@@ -176,6 +176,7 @@ class ioDpathFPU extends Bundle {
   val toint_data = Bits(64, INPUT)
 
   val dmem_resp_val = Bool(OUTPUT)
+  val dmem_resp_type = Bits(3, OUTPUT)
   val dmem_resp_tag = UFix(5, OUTPUT)
   val dmem_resp_data = Bits(64, OUTPUT)
 }
@@ -200,10 +201,12 @@ class rocketFPIntUnit extends Component
     val exc = Bits(5, OUTPUT)
   }
 
-  val unrecoded_s = io.in(31,0)
-  val unrecoded_d = io.in
+  val unrec_s = new hardfloat.recodedFloat32ToFloat32
+  val unrec_d = new hardfloat.recodedFloat64ToFloat64
+  unrec_s.io.in := io.in
+  unrec_d.io.in := io.in
 
-  io.store_data := Mux(io.single, Cat(unrecoded_s, unrecoded_s), unrecoded_d)
+  io.store_data := Mux(io.single, Cat(unrec_s.io.out, unrec_s.io.out), unrec_d.io.out)
 
   val scmp = Bool(false)
   val scmp_exc = Bits(0)
@@ -219,10 +222,10 @@ class rocketFPIntUnit extends Component
 
   // output muxing
   val (out_s, exc_s) = (Wire() { Bits() }, Wire() { Bits() })
-  out_s := Cat(Fill(32, unrecoded_s(31)), unrecoded_s)
+  out_s := Cat(Fill(32, unrec_s.io.out(31)), unrec_s.io.out)
   exc_s := Bits(0)
   val (out_d, exc_d) = (Wire() { Bits() }, Wire() { Bits() })
-  out_d := unrecoded_d
+  out_d := unrec_d.io.out
   exc_d := Bits(0)
 
   when (io.cmd === FCMD_MTFSR || io.cmd === FCMD_MFFSR) {
@@ -251,6 +254,51 @@ class rocketFPIntUnit extends Component
   io.exc := Mux(io.single, exc_s, exc_d)
 }
 
+class rocketIntFPUnit extends Component
+{
+  val io = new Bundle {
+    val single = Bool(INPUT)
+    val cmd = Bits(FCMD_WIDTH, INPUT)
+    val fsr = Bits(FSR_WIDTH, INPUT)
+    val in = Bits(64, INPUT)
+    val out = Bits(65, OUTPUT)
+    val exc = Bits(5, OUTPUT)
+  }
+
+  val rec_s = new hardfloat.float32ToRecodedFloat32
+  val rec_d = new hardfloat.float64ToRecodedFloat64
+  rec_s.io.in := io.in
+  rec_d.io.in := io.in
+
+  val i2s = Bits(0)
+  val i2s_exc = Bits(0)
+
+  val i2d = Bits(0)
+  val i2d_exc = Bits(0)
+
+  // output muxing
+  val (out_s, exc_s) = (Wire() { Bits() }, Wire() { Bits() })
+  out_s := rec_s.io.out
+  exc_s := Bits(0)
+  val (out_d, exc_d) = (Wire() { Bits() }, Wire() { Bits() })
+  out_d := rec_d.io.out
+  exc_d := Bits(0)
+
+  when (io.cmd === FCMD_CVT_FMT_W || io.cmd === FCMD_CVT_FMT_WU ||
+        io.cmd === FCMD_CVT_FMT_L || io.cmd === FCMD_CVT_FMT_LU) {
+    out_s := i2s
+    exc_s := i2s_exc
+    out_d := i2d
+    exc_d := i2d_exc
+  }
+  when (io.cmd === FCMD_MTFSR || io.cmd === FCMD_MFFSR) {
+    out_s := Cat(out_s(32,FSR_WIDTH), io.in(FSR_WIDTH-1,0))
+  }
+
+  io.out := Mux(io.single, Cat(Fill(32,UFix(1)), out_s), out_d)
+  io.exc := Mux(io.single, exc_s, exc_d)
+}
+
 class rocketFPU extends Component
 {
   val io = new Bundle {
@@ -274,18 +322,25 @@ class rocketFPU extends Component
 
   // load response
   val load_wb = Reg(io.dpath.dmem_resp_val, resetVal = Bool(false))
+  val load_wb_single = Reg() { Bool() }
   val load_wb_data = Reg() { Bits(width = 64) } // XXX WTF why doesn't bit width inference work for the regfile?!
   val load_wb_tag = Reg() { UFix() }
   when (io.dpath.dmem_resp_val) {
+    load_wb_single := io.dpath.dmem_resp_type === MT_W || io.dpath.dmem_resp_type === MT_WU
     load_wb_data := io.dpath.dmem_resp_data
     load_wb_tag := io.dpath.dmem_resp_tag
   }
+  val rec_s = new hardfloat.float32ToRecodedFloat32
+  val rec_d = new hardfloat.float64ToRecodedFloat64
+  rec_s.io.in := load_wb_data
+  rec_d.io.in := load_wb_data
+  val load_wb_data_recoded = Mux(load_wb_single, Cat(Fill(32,UFix(1)), rec_s.io.out), rec_d.io.out)
 
   val fsr_rm = Reg() { Bits(width = 3) }
   val fsr_exc = Reg() { Bits(width = 5) }
 
   // regfile
-  val regfile = Mem(32, load_wb, load_wb_tag, load_wb_data);
+  val regfile = Mem(32, load_wb, load_wb_tag, load_wb_data_recoded);
   regfile.setReadLatency(0);
   regfile.setTarget('inst);
 
@@ -332,10 +387,15 @@ class rocketFPU extends Component
   io.dpath.store_data := fpiu.io.store_data
   io.dpath.toint_data := fpiu.io.toint_data
 
+  val ifpu = new rocketIntFPUnit
+  ifpu.io.single := ctrl.single
+  ifpu.io.cmd := ctrl.cmd
+  ifpu.io.in := fp_fromint_data
+
   val retire_toint = Reg(!io.ctrl.killm && fp_toint_val, resetVal = Bool(false))
   val retire_toint_exc = Reg(fpiu.io.exc)
   val retire_fromint = Reg(!io.ctrl.killm && fp_fromint_val, resetVal = Bool(false))
-  val retire_fromint_wdata = Reg(fp_fromint_data)
+  val retire_fromint_wdata = Reg(ifpu.io.out)
   val retire_fromint_waddr = Reg(fp_waddr)
 
   when (retire_toint) {
