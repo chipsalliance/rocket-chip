@@ -24,9 +24,6 @@ object Constants
   val PC_EVEC = UFix(6, 3);
   val PC_JR   = UFix(7, 3);
 
-  val KF_Y  = UFix(1, 1);
-  val KF_N  = UFix(0, 1);
-
   val REN_Y = UFix(1, 1);
   val REN_N = UFix(0, 1);
 
@@ -69,13 +66,6 @@ object Constants
 
   val N = UFix(0, 1);
   val Y = UFix(1, 1);
-  val Y_SH = UFix(1, 1);
-
-  val FWBQ_N = UFix(0, 1);
-  val FWBQ_Y = UFix(1, 1);
-
-  val FSDQ_N = UFix(0, 1);
-  val FSDQ_Y = UFix(1, 1);
 
   val FN_X     = UFix(0, 4);
   val FN_ADD   = UFix(0, 4);
