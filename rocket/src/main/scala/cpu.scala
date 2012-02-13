@@ -119,6 +119,8 @@ class rocketProc extends Component
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
   }
+  else
+    ctrl.io.fpu.dec.valid := Bool(false)
 
   ctrl.io.ext_mem.req_val := Bool(false)
   dpath.io.ext_mem.req_val := Bool(false)

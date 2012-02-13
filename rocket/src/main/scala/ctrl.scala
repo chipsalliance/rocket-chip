@@ -209,10 +209,12 @@ class rocketCtrl extends Component
     RDCYCLE->   List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_TSC,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     RDINSTRET-> List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_IRT,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     
-    // Instructions that have not yet been implemented
-    // Faking these for now so akaros will boot    
-    MFFSR->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    MTFSR->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,Y),
+    MFTX_S->    List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MFTX_D->    List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MXTF_S->    List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MXTF_D->    List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MFFSR->     List(FPU_Y,N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MTFSR->     List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     FLW->       List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_W, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     FLD->       List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_Y,M_XRD,    MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     FSW->       List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_W, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
@@ -335,6 +337,7 @@ class rocketCtrl extends Component
   val wb_reg_exception       = Reg(resetVal = Bool(false));
   val wb_reg_replay          = Reg(resetVal = Bool(false));
   val wb_reg_cause           = Reg(){UFix()};
+  val wb_reg_fp_val          = Reg(resetVal = Bool(false));
 
   val take_pc = Wire() { Bool() };
 
@@ -479,6 +482,7 @@ class rocketCtrl extends Component
     wb_reg_inst_ei     := Bool(false);
     wb_reg_flush_inst  := Bool(false);
     wb_reg_div_mul_val := Bool(false);
+    wb_reg_fp_val      := Bool(false)
   }
   .otherwise {
     wb_reg_wen         := mem_reg_wen;
@@ -488,6 +492,7 @@ class rocketCtrl extends Component
     wb_reg_inst_ei     := mem_reg_inst_ei;
     wb_reg_flush_inst  := mem_reg_flush_inst;
     wb_reg_div_mul_val := mem_reg_div_mul_val;
+    wb_reg_fp_val      := mem_reg_fp_val
   }
 
   val sboard = new rocketCtrlSboard(); 
@@ -592,7 +597,7 @@ class rocketCtrl extends Component
                      ex_reg_replay || ex_reg_mem_val && !(io.dmem.req_rdy && io.dtlb_rdy) ||
                      ex_reg_div_val && !io.dpath.div_rdy ||
                      ex_reg_mul_val && !io.dpath.mul_rdy ||
-                     io.fpu.nack
+                     ex_reg_fp_val && io.fpu.nack
   val kill_ex      = take_pc_wb || replay_ex
 
   mem_reg_replay := replay_ex && !take_pc_wb;
@@ -634,8 +639,8 @@ class rocketCtrl extends Component
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.ex_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.ex_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.ex_waddr)
-  val id_ex_hazard = data_hazard_ex && (ex_reg_mem_val || ex_reg_div_val || ex_reg_mul_val) ||
-                     fp_data_hazard_ex && ex_reg_mem_val
+  val id_ex_hazard = data_hazard_ex && (ex_reg_mem_val || ex_reg_div_val || ex_reg_mul_val || ex_reg_fp_val) ||
+                     fp_data_hazard_ex && (ex_reg_mem_val || ex_reg_fp_val)
     
   // stall for RAW/WAW hazards on LB/LH and mul/div in memory stage.
   val mem_mem_cmd_bh = 
@@ -650,7 +655,8 @@ class rocketCtrl extends Component
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.mem_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.mem_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.mem_waddr)
-  val id_mem_hazard = data_hazard_mem && (mem_reg_mem_val && mem_mem_cmd_bh || mem_reg_div_mul_val)
+  val id_mem_hazard = data_hazard_mem && (mem_reg_mem_val && mem_mem_cmd_bh || mem_reg_div_mul_val || mem_reg_fp_val) ||
+                      fp_data_hazard_mem && mem_reg_fp_val
   id_load_use := mem_reg_mem_val && (data_hazard_mem || fp_data_hazard_mem)
 
   // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
@@ -664,7 +670,7 @@ class rocketCtrl extends Component
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.wb_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.wb_waddr)
   val id_wb_hazard = data_hazard_wb && (wb_reg_dcache_miss || wb_reg_div_mul_val) ||
-                     fp_data_hazard_wb && wb_reg_dcache_miss
+                     fp_data_hazard_wb && (wb_reg_dcache_miss || wb_reg_fp_val)
 
   val ctrl_stalld =
     !take_pc &&

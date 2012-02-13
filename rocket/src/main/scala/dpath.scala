@@ -292,6 +292,8 @@ class rocketDpath extends Component
   mul.io.mul_tag := ex_reg_waddr;
   mul.io.in0		 := ex_reg_rs1;
   mul.io.in1		 := ex_reg_rs2;
+
+  io.fpu.fromint_data := ex_reg_rs1
  
   io.ctrl.mul_rdy        := mul.io.mul_rdy
   io.ctrl.mul_result_val := mul.io.result_val;
@@ -302,7 +304,7 @@ class rocketDpath extends Component
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
   io.dmem.req_addr  := ex_effective_address.toUFix;
-  io.dmem.req_data := (if (HAVE_FPU) Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2) else mem_reg_rs2)
+  io.dmem.req_data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
   io.dmem.req_tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val, io.ctrl.ex_ext_mem_val).toUFix
 
 	// processor control regfile read
@@ -392,7 +394,8 @@ class rocketDpath extends Component
                          mem_reg_waddr)))
   val mem_ll_wdata = Mux(div_result_val, div_result,
                      Mux(mul_result_val, mul_result,
-                         mem_reg_wdata))
+                     Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data,
+                         mem_reg_wdata)))
   val mem_ll_wb = dmem_resp_replay || div_result_val || mul_result_val
 
   io.fpu.dmem_resp_val := io.dmem.resp_val && dmem_resp_fpu
