@@ -667,6 +667,7 @@ class ioDmem(view: List[String] = null) extends Bundle(view) {
   val resp_nack = Bool(OUTPUT);
   val resp_val  = Bool(OUTPUT);
   val resp_replay = Bool(OUTPUT);
+  val resp_type = Bits(3, OUTPUT);
   val resp_data = Bits(64, OUTPUT);
   val resp_data_subword = Bits(64, OUTPUT);
   val resp_tag  = Bits(DCACHE_TAG_BITS, OUTPUT);
@@ -967,6 +968,7 @@ class HellaCache extends Component {
   io.cpu.resp_replay := replayer.io.cpu_resp_val
   io.cpu.resp_miss := tag_miss && !nack_miss && r_req_read
   io.cpu.resp_tag  := Mux(replayer.io.cpu_resp_val, replayer.io.cpu_resp_tag, r_cpu_req_tag)
+  io.cpu.resp_type := loadgen.io.typ
   io.cpu.resp_data := loadgen.io.dout
   io.cpu.resp_data_subword := loadgen.io.r_dout_subword
                       
