@@ -508,7 +508,7 @@ class FlushUnit(lines: Int) extends Component {
   io.meta_req.bits.inner_req.data.valid := Bool(false)
   io.meta_req.bits.inner_req.data.dirty := Bool(false)
   io.meta_req.bits.inner_req.data.tag := UFix(0)
-  io.wb_req.valid := state === s_meta_wait
+  io.wb_req.valid := state === s_meta_wait && io.meta_resp.valid && io.meta_resp.dirty
   io.wb_req.bits.ppn := io.meta_resp.tag
   io.wb_req.bits.idx := idx_cnt
   io.wb_req.bits.way_oh := UFixToOH(way_cnt, NWAYS)
@@ -713,6 +713,7 @@ class HellaCache extends Component {
   val r_cpu_req_type   = Reg() { Bits() }
   val r_cpu_req_tag    = Reg() { Bits() }
   val r_amo_replay_data = Reg() { Bits() }
+  val r_way_oh         = Reg() { Bits() }
 
   val p_store_valid    = Reg(resetVal = Bool(false))
   val p_store_data     = Reg() { Bits() }
@@ -751,6 +752,7 @@ class HellaCache extends Component {
     r_cpu_req_cmd  := replayer.io.data_req.bits.cmd
     r_cpu_req_type := replayer.io.data_req.bits.typ
     r_amo_replay_data := replayer.io.data_req.bits.data
+    r_way_oh       := replayer.io.way_oh
   }
   val cpu_req_data = Mux(r_replay_amo, r_amo_replay_data, io.cpu.req_data)
 
@@ -870,7 +872,7 @@ class HellaCache extends Component {
     p_store_idx    := r_cpu_req_idx
     p_store_type   := r_cpu_req_type
     p_store_cmd    := r_cpu_req_cmd
-    p_store_way_oh := Mux(r_replay_amo, replayer.io.way_oh, hit_way_oh)
+    p_store_way_oh := Mux(r_replay_amo, r_way_oh, hit_way_oh)
     p_store_data   := cpu_req_data
   }
   when (p_amo) {
