@@ -148,6 +148,14 @@ class rocketFPUDecoder extends Component
           FSD      -> List(Y,FCMD_STORE,     N,N,Y,N,N,N,N,Y,N),
           MXTF_S   -> List(Y,FCMD_MXTF,      Y,N,N,N,Y,Y,N,N,N),
           MXTF_D   -> List(Y,FCMD_MXTF,      Y,N,N,N,N,Y,N,N,N),
+          FCVT_S_W -> List(Y,FCMD_CVT_FMT_W, Y,N,N,N,Y,Y,N,N,N),
+          FCVT_D_W -> List(Y,FCMD_CVT_FMT_W, Y,N,N,N,N,Y,N,N,N),
+          FCVT_S_WU-> List(Y,FCMD_CVT_FMT_WU,Y,N,N,N,Y,Y,N,N,N),
+          FCVT_D_WU-> List(Y,FCMD_CVT_FMT_WU,Y,N,N,N,N,Y,N,N,N),
+          FCVT_S_L -> List(Y,FCMD_CVT_FMT_L, Y,N,N,N,Y,Y,N,N,N),
+          FCVT_D_L -> List(Y,FCMD_CVT_FMT_L, Y,N,N,N,N,Y,N,N,N),
+          FCVT_S_LU-> List(Y,FCMD_CVT_FMT_LU,Y,N,N,N,Y,Y,N,N,N),
+          FCVT_D_LU-> List(Y,FCMD_CVT_FMT_LU,Y,N,N,N,N,Y,N,N,N),
           MFTX_S   -> List(Y,FCMD_MFTX,      N,Y,N,N,Y,N,Y,N,N),
           MFTX_D   -> List(Y,FCMD_MFTX,      N,Y,N,N,N,N,Y,N,N),
           FCVT_W_S -> List(Y,FCMD_CVT_W_FMT, N,Y,N,N,Y,N,Y,N,N),
@@ -296,11 +304,15 @@ class rocketIntFPUnit extends Component
   rec_s.io.in := io.in
   rec_d.io.in := io.in
 
-  val i2s = Bits(0)
-  val i2s_exc = Bits(0)
+  val i2s = new hardfloat.anyToRecodedFloat32
+  i2s.io.in := io.in
+  i2s.io.roundingMode := io.fsr >> UFix(5)
+  i2s.io.typeOp := ~io.cmd(1,0)
 
-  val i2d = Bits(0)
-  val i2d_exc = Bits(0)
+  val i2d = new hardfloat.anyToRecodedFloat64
+  i2d.io.in := io.in
+  i2d.io.roundingMode := io.fsr >> UFix(5)
+  i2d.io.typeOp := ~io.cmd(1,0)
 
   // output muxing
   val (out_s, exc_s) = (Wire() { Bits() }, Wire() { Bits() })
@@ -312,10 +324,10 @@ class rocketIntFPUnit extends Component
 
   when (io.cmd === FCMD_CVT_FMT_W || io.cmd === FCMD_CVT_FMT_WU ||
         io.cmd === FCMD_CVT_FMT_L || io.cmd === FCMD_CVT_FMT_LU) {
-    out_s := i2s
-    exc_s := i2s_exc
-    out_d := i2d
-    exc_d := i2d_exc
+    out_s := i2s.io.out
+    exc_s := i2s.io.exceptionFlags
+    out_d := i2d.io.out
+    exc_d := i2d.io.exceptionFlags
   }
   when (io.cmd === FCMD_MTFSR || io.cmd === FCMD_MFFSR) {
     out_s := Cat(out_s(32,FSR_WIDTH), io.in(FSR_WIDTH-1,0))
@@ -427,11 +439,14 @@ class rocketFPU extends Component
   val retire_toint = Reg(!io.ctrl.killm && fp_toint_val, resetVal = Bool(false))
   val retire_toint_exc = Reg(fpiu.io.exc)
   val retire_fromint = Reg(!io.ctrl.killm && fp_fromint_val, resetVal = Bool(false))
+  val retire_fromint_exc = Reg(ifpu.io.exc)
   val retire_fromint_wdata = Reg(ifpu.io.out)
   val retire_fromint_waddr = Reg(fp_waddr)
 
-  when (retire_toint) {
-    fsr_exc := fsr_exc | retire_toint_exc
+  when (retire_toint || retire_fromint) {
+    fsr_exc := fsr_exc |
+      Fill(fsr_exc.getWidth, retire_toint) & retire_toint_exc |
+      Fill(fsr_exc.getWidth, retire_fromint) & retire_fromint_exc
   }
   when (retire_toint && retire_fromint) { // MTFSR
     fsr_exc := retire_fromint_wdata(4,0)
