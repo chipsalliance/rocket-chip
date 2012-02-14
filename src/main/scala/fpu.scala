@@ -116,12 +116,14 @@ class rocketFPUDecoder extends Component
           FSGNJX_S -> List(Y,FCMD_SGNJX,     Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
           FSGNJ_D  -> List(Y,FCMD_SGNJ,      Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
           FSGNJN_D -> List(Y,FCMD_SGNJN,     Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FSGNJX_D -> List(Y,FCMD_SGNJX,     Y,N,Y,Y,N,N,N,N,Y,N,N,N,N)
+          FSGNJX_D -> List(Y,FCMD_SGNJX,     Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
+          FMIN_S   -> List(Y,FCMD_MIN,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
+          FMAX_S   -> List(Y,FCMD_MAX,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
+          FMIN_D   -> List(Y,FCMD_MIN,       Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
+          FMAX_D   -> List(Y,FCMD_MAX,       Y,N,Y,Y,N,N,N,N,Y,N,N,N,N)
 //          FADD_S   -> List(Y,FCMD_ADD,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
 //          FSUB_S   -> List(Y,FCMD_SUB,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
 //          FMUL_S   -> List(Y,FCMD_MUL,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
-//          FMIN_S   -> List(Y,FCMD_MIN,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-//          FMAX_S   -> List(Y,FCMD_MAX,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N)
           ))
   val valid :: cmd :: wen :: sboard :: ren1 :: ren2 :: ren3 :: single :: fromint :: toint :: fastpipe :: fma :: store :: rdfsr :: wrfsr :: Nil = decoder
 
@@ -173,6 +175,8 @@ class rocketFPIntUnit extends Component
     val fsr = Bits(FSR_WIDTH, INPUT)
     val in1 = Bits(65, INPUT)
     val in2 = Bits(65, INPUT)
+    val lt_s = Bool(OUTPUT)
+    val lt_d = Bool(OUTPUT)
     val store_data = Bits(64, OUTPUT)
     val toint_data = Bits(64, OUTPUT)
     val exc = Bits(5, OUTPUT)
@@ -239,6 +243,8 @@ class rocketFPIntUnit extends Component
 
   io.toint_data := Mux(io.single, out_s, out_d)
   io.exc := Mux(io.single, exc_s, exc_d)
+  io.lt_s := scmp.io.a_lt_b
+  io.lt_d := dcmp.io.a_lt_b
 }
 
 class rocketFPUFastPipe extends Component
@@ -250,6 +256,8 @@ class rocketFPUFastPipe extends Component
     val fromint = Bits(64, INPUT)
     val in1 = Bits(65, INPUT)
     val in2 = Bits(65, INPUT)
+    val lt_s = Bool(INPUT)
+    val lt_d = Bool(INPUT)
     val out_s = Bits(65, OUTPUT)
     val exc_s = Bits(5, OUTPUT)
     val out_d = Bits(65, OUTPUT)
@@ -289,6 +297,15 @@ class rocketFPUFastPipe extends Component
   d2s.io.in := io.in1
   d2s.io.roundingMode := io.rm
 
+  val isnan1 = Mux(io.single, io.in1(31,29) === Bits("b111"), io.in1(63,61) === Bits("b111"))
+  val isnan2 = Mux(io.single, io.in2(31,29) === Bits("b111"), io.in2(63,61) === Bits("b111"))
+  val issnan1 = isnan1 && ~Mux(io.single, io.in1(22), io.in1(51))
+  val issnan2 = isnan2 && ~Mux(io.single, io.in2(22), io.in2(51))
+  val minmax_exc = Cat(issnan1 || issnan2, Bits(0,4))
+  val min = io.cmd === FCMD_MIN
+  val lt = Mux(io.single, io.lt_s, io.lt_d)
+  val minmax = Mux(isnan2 || !isnan1 && (min === lt), io.in1, io.in2)
+
   // output muxing
   val (out_s, exc_s) = (Wire() { Bits() }, Wire() { Bits() })
   out_s := Reg(rec_s.io.out)
@@ -306,6 +323,14 @@ class rocketFPUFastPipe extends Component
     val r_fsgnj = Reg(fsgnj)
     out_s := r_fsgnj(32,0)
     out_d := r_fsgnj
+  }
+  when (r_cmd === FCMD_MIN || r_cmd === FCMD_MAX) {
+    val r_minmax = Reg(minmax)
+    val r_minmax_exc = Reg(minmax_exc)
+    out_s := r_minmax(32,0)
+    out_d := r_minmax
+    exc_s := r_minmax_exc
+    exc_d := r_minmax_exc
   }
   when (r_cmd === FCMD_CVT_FMT_S || r_cmd === FCMD_CVT_FMT_D) {
     out_s := Reg(d2s.io.out)
@@ -435,6 +460,8 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   fastpipe.io.fromint := mem_fromint_data
   fastpipe.io.in1 := mem_rs1
   fastpipe.io.in2 := mem_rs2
+  fastpipe.io.lt_s := fpiu.io.lt_s
+  fastpipe.io.lt_d := fpiu.io.lt_d
 
   val wb_wrfsr_val = Reg(!io.ctrl.killm && mem_wrfsr_val, resetVal = Bool(false))
   val wb_toint_val = Reg(!io.ctrl.killm && mem_toint_val, resetVal = Bool(false))
