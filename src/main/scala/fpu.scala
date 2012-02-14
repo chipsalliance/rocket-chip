@@ -101,6 +101,8 @@ class rocketFPUDecoder extends Component
           FCVT_WU_D-> List(Y,FCMD_CVT_WU_FMT,N,N,Y,N,N,N,N,Y,N,N,N,N,N),
           FCVT_L_D -> List(Y,FCMD_CVT_L_FMT, N,N,Y,N,N,N,N,Y,N,N,N,N,N),
           FCVT_LU_D-> List(Y,FCMD_CVT_LU_FMT,N,N,Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_S_D -> List(Y,FCMD_CVT_FMT_D, Y,N,Y,N,N,Y,N,N,Y,N,N,N,N),
+          FCVT_D_S -> List(Y,FCMD_CVT_FMT_S, Y,N,Y,N,N,N,N,N,Y,N,N,N,N),
           FEQ_S    -> List(Y,FCMD_EQ,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
           FLT_S    -> List(Y,FCMD_LT,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
           FLE_S    -> List(Y,FCMD_LE,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
@@ -167,6 +169,7 @@ class rocketFPIntUnit extends Component
   val io = new Bundle {
     val single = Bool(INPUT)
     val cmd = Bits(FCMD_WIDTH, INPUT)
+    val rm = Bits(3, INPUT)
     val fsr = Bits(FSR_WIDTH, INPUT)
     val in1 = Bits(65, INPUT)
     val in2 = Bits(65, INPUT)
@@ -190,7 +193,7 @@ class rocketFPIntUnit extends Component
 
   val s2i = new hardfloat.recodedFloat32ToAny
   s2i.io.in := io.in1
-  s2i.io.roundingMode := io.fsr >> UFix(5)
+  s2i.io.roundingMode := io.rm
   s2i.io.typeOp := ~io.cmd(1,0)
 
   val dcmp = new hardfloat.recodedFloat64Compare
@@ -201,7 +204,7 @@ class rocketFPIntUnit extends Component
 
   val d2i = new hardfloat.recodedFloat64ToAny
   d2i.io.in := io.in1
-  d2i.io.roundingMode := io.fsr >> UFix(5)
+  d2i.io.roundingMode := io.rm
   d2i.io.typeOp := ~io.cmd(1,0)
 
   // output muxing
@@ -243,7 +246,7 @@ class rocketFPUFastPipe extends Component
   val io = new Bundle {
     val single = Bool(INPUT)
     val cmd = Bits(FCMD_WIDTH, INPUT)
-    val fsr = Bits(FSR_WIDTH, INPUT)
+    val rm = Bits(3, INPUT)
     val fromint = Bits(64, INPUT)
     val in1 = Bits(65, INPUT)
     val in2 = Bits(65, INPUT)
@@ -261,12 +264,12 @@ class rocketFPUFastPipe extends Component
 
   val i2s = new hardfloat.anyToRecodedFloat32
   i2s.io.in := io.fromint
-  i2s.io.roundingMode := io.fsr >> UFix(5)
+  i2s.io.roundingMode := io.rm
   i2s.io.typeOp := ~io.cmd(1,0)
 
   val i2d = new hardfloat.anyToRecodedFloat64
   i2d.io.in := io.fromint
-  i2d.io.roundingMode := io.fsr >> UFix(5)
+  i2d.io.roundingMode := io.rm
   i2d.io.typeOp := ~io.cmd(1,0)
 
   // fp->fp units
@@ -278,6 +281,13 @@ class rocketFPUFastPipe extends Component
                    io.in1(64) ^ io.in2(64))) // FCMD_SGNJX
   val fsgnj = Cat(Mux(io.single, io.in1(64), sign_d), io.in1(63,33),
                   Mux(io.single, sign_s, io.in1(32)), io.in1(31,0))
+
+  val s2d = new hardfloat.recodedFloat32ToRecodedFloat64
+  s2d.io.in := io.in1
+
+  val d2s = new hardfloat.recodedFloat64ToRecodedFloat32
+  d2s.io.in := io.in1
+  d2s.io.roundingMode := io.rm
 
   // output muxing
   val (out_s, exc_s) = (Wire() { Bits() }, Wire() { Bits() })
@@ -296,6 +306,12 @@ class rocketFPUFastPipe extends Component
     val r_fsgnj = Reg(fsgnj)
     out_s := r_fsgnj(32,0)
     out_d := r_fsgnj
+  }
+  when (r_cmd === FCMD_CVT_FMT_S || r_cmd === FCMD_CVT_FMT_D) {
+    out_s := Reg(d2s.io.out)
+    exc_s := Reg(d2s.io.exceptionFlags)
+    out_d := Reg(s2d.io.out)
+    exc_d := Reg(s2d.io.exceptionFlags)
   }
   when (r_cmd === FCMD_CVT_FMT_W || r_cmd === FCMD_CVT_FMT_WU ||
         r_cmd === FCMD_CVT_FMT_L || r_cmd === FCMD_CVT_FMT_LU) {
@@ -360,6 +376,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val ex_rs1 = regfile.read(reg_inst(26,22))
   val ex_rs2 = regfile.read(reg_inst(21,17))
   val ex_rs3 = regfile.read(reg_inst(16,12))
+  val ex_rm = Mux(reg_inst(11,9) === Bits(7), fsr_rm, reg_inst(11,9))
 
   val mem_fromint_val = Reg(resetVal = Bool(false))
   val mem_fromint_data = Reg() { Bits() }
@@ -367,12 +384,14 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val mem_rs1 = Reg() { Bits() }
   val mem_rs2 = Reg() { Bits() }
   val mem_rs3 = Reg() { Bits() }
+  val mem_rm = Reg() { Bits() }
   val mem_wrfsr_val = Reg(resetVal = Bool(false))
 
   mem_fromint_val := Bool(false)
   mem_toint_val := Bool(false)
   mem_wrfsr_val := Bool(false)
   when (reg_valid) {
+    mem_rm := ex_rm
     when (ctrl.fromint || ctrl.wrfsr) {
       mem_fromint_val := !io.ctrl.killx
       mem_fromint_data := io.dpath.fromint_data
@@ -383,14 +402,11 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
     when (ctrl.toint) {
       mem_toint_val := !io.ctrl.killx
     }
-    when (ctrl.toint || ctrl.fastpipe) {
-      mem_rs1 := ex_rs1
-      when (ctrl.ren2) {
-        mem_rs2 := ex_rs2
-      }
-    }
     when (ctrl.ren1) {
       mem_rs1 := ex_rs1
+    }
+    when (ctrl.store) {
+      mem_rs1 := ex_rs2
     }
     when (ctrl.ren2) {
       mem_rs2 := ex_rs2
@@ -398,15 +414,13 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
     when (ctrl.ren3) {
       mem_rs3 := ex_rs3
     }
-    when (ctrl.store) {
-      mem_rs1 := ex_rs2
-    }
   }
 
   // currently we assume FP stores and FP->int ops take 1 cycle (MEM)
   val fpiu = new rocketFPIntUnit
   fpiu.io.single := mem_ctrl.single
   fpiu.io.cmd := mem_ctrl.cmd
+  fpiu.io.rm := mem_rm
   fpiu.io.fsr := Cat(fsr_rm, fsr_exc)
   fpiu.io.in1 := mem_rs1
   fpiu.io.in2 := mem_rs2
@@ -417,7 +431,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val fastpipe = new rocketFPUFastPipe
   fastpipe.io.single := mem_ctrl.single
   fastpipe.io.cmd := mem_ctrl.cmd
-  fastpipe.io.fsr := Cat(fsr_rm, fsr_exc)
+  fastpipe.io.rm := mem_rm
   fastpipe.io.fromint := mem_fromint_data
   fastpipe.io.in1 := mem_rs1
   fastpipe.io.in2 := mem_rs2
@@ -489,5 +503,5 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   io.ctrl.nack := fsr_busy || units_busy || write_port_busy
   io.ctrl.dec <> fp_decoder.io.sigs
   // we don't currently support round-max-magnitude (rm=4)
-  io.ctrl.illegal_rm := Mux(reg_inst(11,9) === Bits(7), fsr_rm(2), reg_inst(11))
+  io.ctrl.illegal_rm := ex_rm(2)
 }
