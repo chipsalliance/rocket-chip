@@ -328,6 +328,7 @@ class rocketCtrl extends Component
   val ex_reg_xcpt_privileged = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_syscall    = Reg(resetVal = Bool(false));
   val ex_reg_fp_val          = Reg(resetVal = Bool(false));
+  val ex_reg_fp_sboard_set   = Reg(resetVal = Bool(false));
   val ex_reg_vec_val         = Reg(resetVal = Bool(false));
   val ex_reg_replay          = Reg(resetVal = Bool(false));
   val ex_reg_load_use        = Reg(resetVal = Bool(false));
@@ -349,6 +350,7 @@ class rocketCtrl extends Component
   val mem_reg_replay          = Reg(resetVal = Bool(false));
   val mem_reg_kill            = Reg(resetVal = Bool(false));
   val mem_reg_ext_mem_val     = Reg(resetVal = Bool(false))
+  val mem_reg_fp_sboard_set   = Reg(resetVal = Bool(false));
 
   val wb_reg_wen             = Reg(resetVal = Bool(false));
   val wb_reg_fp_wen          = Reg(resetVal = Bool(false));
@@ -360,6 +362,7 @@ class rocketCtrl extends Component
   val wb_reg_replay          = Reg(resetVal = Bool(false));
   val wb_reg_cause           = Reg(){UFix()};
   val wb_reg_fp_val          = Reg(resetVal = Bool(false));
+  val wb_reg_fp_sboard_set   = Reg(resetVal = Bool(false));
 
   val take_pc = Wire() { Bool() };
 
@@ -402,6 +405,7 @@ class rocketCtrl extends Component
     ex_reg_xcpt_privileged  := Bool(false);
     ex_reg_xcpt_syscall     := Bool(false);
     ex_reg_fp_val           := Bool(false);
+    ex_reg_fp_sboard_set    := Bool(false);
     ex_reg_vec_val          := Bool(false);
     ex_reg_replay           := Bool(false);
     ex_reg_load_use         := Bool(false);
@@ -424,7 +428,8 @@ class rocketCtrl extends Component
     ex_reg_xcpt_illegal     := illegal_inst;
     ex_reg_xcpt_privileged  := (id_privileged & ~io.dpath.status(SR_S)).toBool;
     ex_reg_xcpt_syscall     := id_syscall.toBool;
-    ex_reg_fp_val           := io.fpu.dec.valid;
+    ex_reg_fp_val           := io.fpu.dec.valid
+    ex_reg_fp_sboard_set    := io.fpu.dec.sboard
     ex_reg_vec_val          := id_vec_val.toBool
     ex_reg_replay           := id_reg_replay || ex_reg_replay_next;
     ex_reg_load_use         := id_load_use;
@@ -473,6 +478,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_vec         := Bool(false);
     mem_reg_xcpt_syscall     := Bool(false);
     mem_reg_fp_val           := Bool(false);
+    mem_reg_fp_sboard_set    := Bool(false)
   }
   .otherwise {
     mem_reg_div_mul_val := ex_reg_div_val || ex_reg_mul_val;
@@ -491,6 +497,7 @@ class rocketCtrl extends Component
     mem_reg_xcpt_vec         := ex_reg_vec_val && !io.dpath.status(SR_EV).toBool;
     mem_reg_xcpt_syscall     := ex_reg_xcpt_syscall;
     mem_reg_fp_val           := ex_reg_fp_val
+    mem_reg_fp_sboard_set    := ex_reg_fp_sboard_set
   }
   mem_reg_ext_mem_val := ex_reg_ext_mem_val;
   mem_reg_mem_cmd     := ex_reg_mem_cmd;
@@ -505,6 +512,7 @@ class rocketCtrl extends Component
     wb_reg_flush_inst  := Bool(false);
     wb_reg_div_mul_val := Bool(false);
     wb_reg_fp_val      := Bool(false)
+    wb_reg_fp_sboard_set := Bool(false)
   }
   .otherwise {
     wb_reg_wen         := mem_reg_wen;
@@ -515,6 +523,7 @@ class rocketCtrl extends Component
     wb_reg_flush_inst  := mem_reg_flush_inst;
     wb_reg_div_mul_val := mem_reg_div_mul_val;
     wb_reg_fp_val      := mem_reg_fp_val
+    wb_reg_fp_sboard_set := mem_reg_fp_sboard_set
   }
 
   val sboard = new rocketCtrlSboard(32, 3, 2);
@@ -543,7 +552,7 @@ class rocketCtrl extends Component
     fp_sboard.io.r(2).addr := id_raddr3.toUFix
     fp_sboard.io.r(3).addr := id_waddr.toUFix
 
-    fp_sboard.io.w(0).en := wb_reg_dcache_miss && wb_reg_fp_wen
+    fp_sboard.io.w(0).en := wb_reg_dcache_miss && wb_reg_fp_wen || wb_reg_fp_sboard_set
     fp_sboard.io.w(0).data := Bool(true)
     fp_sboard.io.w(0).addr := io.dpath.wb_waddr
 

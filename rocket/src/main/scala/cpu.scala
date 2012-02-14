@@ -116,7 +116,7 @@ class rocketProc extends Component
 
   if (HAVE_FPU)
   {
-    val fpu = new rocketFPU
+    val fpu = new rocketFPU(4,6)
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
   }
