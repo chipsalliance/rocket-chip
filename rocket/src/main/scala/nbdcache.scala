@@ -14,7 +14,13 @@ class ioReplacementWayGen extends Bundle {
 class RandomReplacementWayGen extends Component {
   val io = new ioReplacementWayGen()
   //TODO: Actually limit selection based on which ways are allowed (io.ways_en)
-  if(NWAYS > 1) io.way_id := LFSR16(io.pick_new_way)(log2up(NWAYS)-1,0)
+  if(NWAYS > 1) 
+  {
+    val rand_way_id = UFix(width = log2up(NWAYS))
+    rand_way_id := LFSR16(io.pick_new_way)(log2up(NWAYS)-1,0)
+    when (rand_way_id >= UFix(NWAYS, width = log2up(NWAYS))) { io.way_id := UFix(0, width = log2up(NWAYS)) }
+    .otherwise { io.way_id := rand_way_id }
+  }
   else io.way_id := UFix(0)
 }
 
