@@ -2,35 +2,31 @@ package Top
 
 import Chisel._
 import Node._;
-import Constants._;
 
-class ioCtrlSboard extends Bundle()
+class rocketCtrlSboard(entries: Int, nread: Int, nwrite: Int) extends Component
 {
-  val clr    = Bool(INPUT);
-  val clra   = UFix(5, INPUT);
-  val set     = Bool(INPUT);
-  val seta    = UFix(5, INPUT);
-  val raddra  = UFix(5, INPUT);
-  val raddrb  = UFix(5, INPUT);
-  val raddrc  = UFix(5, INPUT);
-  val raddrd  = UFix(5, INPUT);
-  val stalla  = Bool(OUTPUT);
-  val stallb  = Bool(OUTPUT);
-  val stallc  = Bool(OUTPUT);
-  val stalld  = Bool(OUTPUT);
-}
+  class read_port extends Bundle {
+    val addr = UFix(log2up(entries), INPUT)
+    val data = Bool(OUTPUT)
+  }
+  class write_port extends Bundle {
+    val en = Bool(INPUT)
+    val addr = UFix(log2up(entries), INPUT)
+    val data = Bool(INPUT)
+  }
 
-class rocketCtrlSboard extends Component
-{
-  override val io = new ioCtrlSboard();
-  val reg_busy = Reg(resetVal = Bits(0, 32));
-  
-  val set_mask =   io.set.toUFix << io.seta;
-  val clr_mask = ~(io.clr.toUFix << io.clra);
-  reg_busy := (reg_busy | set_mask) & clr_mask
-  
-  io.stalla  := reg_busy(io.raddra).toBool;
-  io.stallb  := reg_busy(io.raddrb).toBool;
-  io.stallc  := reg_busy(io.raddrc).toBool;
-  io.stalld  := reg_busy(io.raddrd).toBool;
+  val io = new Bundle {
+    val r = Vec(nread) { new read_port() }
+    val w = Vec(nwrite) { new write_port() }
+  }
+
+  val busybits = Reg(resetVal = Bits(0, entries));
+
+  for (i <- 0 until nread)
+    io.r(i).data := busybits(io.r(i).addr)
+
+  var wdata = busybits
+  for (i <- 0 until nwrite)
+    wdata = wdata.bitSet(io.w(i).addr, Mux(io.w(i).en, io.w(i).data, wdata(io.w(i).addr)))
+  busybits := wdata
 }

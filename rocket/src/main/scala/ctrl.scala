@@ -517,40 +517,44 @@ class rocketCtrl extends Component
     wb_reg_fp_val      := mem_reg_fp_val
   }
 
-  val sboard = new rocketCtrlSboard(); 
-  sboard.io.raddra  := id_raddr2.toUFix;
-  sboard.io.raddrb  := id_raddr1.toUFix;
-  sboard.io.raddrc  := id_waddr.toUFix;
+  val sboard = new rocketCtrlSboard(32, 3, 2);
+  sboard.io.r(0).addr := id_raddr2.toUFix;
+  sboard.io.r(1).addr := id_raddr1.toUFix;
+  sboard.io.r(2).addr := id_waddr.toUFix;
 
   // scoreboard set (for D$ misses, div, mul)
-  sboard.io.set     := wb_reg_div_mul_val || wb_reg_dcache_miss && wb_reg_wen;
-  sboard.io.seta    := io.dpath.wb_waddr;
+  sboard.io.w(0).en := wb_reg_div_mul_val || wb_reg_dcache_miss && wb_reg_wen
+  sboard.io.w(0).data := Bool(true)
+  sboard.io.w(0).addr := io.dpath.wb_waddr
 
-  sboard.io.clr    := io.dpath.sboard_clr;
-  sboard.io.clra   := io.dpath.sboard_clra;
+  sboard.io.w(1).en := io.dpath.sboard_clr
+  sboard.io.w(1).data := Bool(false)
+  sboard.io.w(1).addr := io.dpath.sboard_clra
 
-  val id_stall_raddr2 = id_renx2.toBool && sboard.io.stalla;
-  val id_stall_raddr1 = id_renx1.toBool && sboard.io.stallb;
-  val id_stall_waddr  = id_wen.toBool && sboard.io.stallc;
+  val id_stall_raddr2 = id_renx2.toBool && sboard.io.r(0).data
+  val id_stall_raddr1 = id_renx1.toBool && sboard.io.r(1).data
+  val id_stall_waddr  = id_wen.toBool && sboard.io.r(2).data
 
   var id_stall_fpu = Bool(false)
   if (HAVE_FPU) {
-    val fp_sboard = new rocketCtrlSboard(); 
-    fp_sboard.io.raddra  := id_raddr1.toUFix;
-    fp_sboard.io.raddrb  := id_raddr2.toUFix;
-    fp_sboard.io.raddrc  := id_raddr3.toUFix;
-    fp_sboard.io.raddrd  := id_waddr.toUFix;
+    val fp_sboard = new rocketCtrlSboard(32, 4, 2);
+    fp_sboard.io.r(0).addr := id_raddr1.toUFix
+    fp_sboard.io.r(1).addr := id_raddr2.toUFix
+    fp_sboard.io.r(2).addr := id_raddr3.toUFix
+    fp_sboard.io.r(3).addr := id_waddr.toUFix
 
-    fp_sboard.io.set     := wb_reg_dcache_miss && wb_reg_fp_wen;
-    fp_sboard.io.seta    := io.dpath.wb_waddr;
+    fp_sboard.io.w(0).en := wb_reg_dcache_miss && wb_reg_fp_wen
+    fp_sboard.io.w(0).data := Bool(true)
+    fp_sboard.io.w(0).addr := io.dpath.wb_waddr
 
-    fp_sboard.io.clr    := io.dpath.fp_sboard_clr;
-    fp_sboard.io.clra   := io.dpath.fp_sboard_clra;
+    fp_sboard.io.w(1).en := io.dpath.fp_sboard_clr
+    fp_sboard.io.w(1).data := Bool(false)
+    fp_sboard.io.w(1).addr := io.dpath.fp_sboard_clra
 
-    id_stall_fpu = io.fpu.dec.ren1 && fp_sboard.io.stalla ||
-                   io.fpu.dec.ren2 && fp_sboard.io.stallb ||
-                   io.fpu.dec.ren3 && fp_sboard.io.stallc ||
-                   io.fpu.dec.wen  && fp_sboard.io.stalld
+    id_stall_fpu = io.fpu.dec.ren1 && fp_sboard.io.r(0).data ||
+                   io.fpu.dec.ren2 && fp_sboard.io.r(1).data ||
+                   io.fpu.dec.ren3 && fp_sboard.io.r(2).data ||
+                   io.fpu.dec.wen  && fp_sboard.io.r(3).data
   } 
 
   // exception handling
