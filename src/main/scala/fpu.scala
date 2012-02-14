@@ -322,15 +322,15 @@ class rocketIntFPUnit extends Component
   out_d := rec_d.io.out
   exc_d := Bits(0)
 
+  when (io.cmd === FCMD_MTFSR || io.cmd === FCMD_MFFSR) {
+    out_s := io.in(FSR_WIDTH-1,0)
+  }
   when (io.cmd === FCMD_CVT_FMT_W || io.cmd === FCMD_CVT_FMT_WU ||
         io.cmd === FCMD_CVT_FMT_L || io.cmd === FCMD_CVT_FMT_LU) {
     out_s := i2s.io.out
     exc_s := i2s.io.exceptionFlags
     out_d := i2d.io.out
     exc_d := i2d.io.exceptionFlags
-  }
-  when (io.cmd === FCMD_MTFSR || io.cmd === FCMD_MFFSR) {
-    out_s := Cat(out_s(32,FSR_WIDTH), io.in(FSR_WIDTH-1,0))
   }
 
   io.out := Mux(io.single, Cat(Fill(32,UFix(1)), out_s), out_d)
