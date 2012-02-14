@@ -160,7 +160,7 @@ object Constants
   val ASID_BITS = 7;
   val PERM_BITS = 6;
 
-  // rocketNBDCacheDM parameters
+  // rocketNBDCache parameters
   val CPU_DATA_BITS = 64;
   val CPU_TAG_BITS = 9;
   val DCACHE_TAG_BITS = 1 + CPU_TAG_BITS;
@@ -173,6 +173,10 @@ object Constants
   val TAG_BITS = PADDR_BITS - OFFSET_BITS - IDX_BITS;
   val NWAYS = 1;
   require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
+
+  // coherence parameters
+  val TILE_XACT_ID_BITS = 1; // log2(NMSHR)
+  val GLOBAL_XACT_ID_BITS = IDX_BITS; // if one active xact per set
 
   // external memory interface
   val IMEM_TAG_BITS = 1;
