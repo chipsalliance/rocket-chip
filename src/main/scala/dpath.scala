@@ -36,12 +36,11 @@ class ioDpathAll extends Bundle()
   val dmem  = new ioDpathDmem();
   val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "req_data", "req_tag", "resp_val", "resp_data", "resp_tag"))
   val imem  = new ioDpathImem();
-  val vcmdq = new io_vec_cmdq()
-  val vximm1q = new io_vec_ximm1q()
-  val vximm2q = new io_vec_ximm2q()
   val ptbr_wen = Bool(OUTPUT);
   val ptbr = UFix(PADDR_BITS, OUTPUT);
   val fpu = new ioDpathFPU();
+  val vec_ctrl = new ioCtrlDpathVec().flip()
+  val vec_iface = new ioDpathVecInterface()
 }
 
 class rocketDpath extends Component
@@ -54,8 +53,6 @@ class rocketDpath extends Component
 
   val pcr = new rocketDpathPCR(); 
   val ex_pcr = pcr.io.r.data;
-
-  val vec = new rocketDpathVec()
 
   val alu = new rocketDpathALU(); 
   val ex_alu_out = alu.io.out; 
@@ -425,23 +422,37 @@ class rocketDpath extends Component
     wb_reg_ctrl_wen_pcr 	:= mem_reg_ctrl_wen_pcr;
   }
 
-  // vector datapath
-  vec.io.valid := wb_reg_valid
-  vec.io.sr_ev := pcr.io.status(SR_EV)
-  vec.io.inst := wb_reg_inst
-  vec.io.waddr := wb_reg_waddr
-  vec.io.raddr1 := wb_reg_raddr1
-  vec.io.vecbank := pcr.io.vecbank
-  vec.io.vecbankcnt := pcr.io.vecbankcnt
-  vec.io.wdata := wb_reg_wdata
-  vec.io.rs2 := wb_reg_rs2
-
-	// regfile write
+  // regfile write
   val wb_src_dmem = Reg(io.ctrl.mem_load) && wb_reg_valid || r_dmem_resp_replay
-  wb_wdata :=
-    Mux(vec.io.wen, Cat(Bits(0,52), vec.io.appvl),
-    Mux(wb_src_dmem, io.dmem.resp_data_subword,
-    wb_reg_wdata))
+
+  if (HAVE_VEC)
+  {
+    // vector datapath
+    val vec = new rocketDpathVec()
+
+    vec.io.ctrl <> io.vec_ctrl
+    io.vec_iface <> vec.io.iface 
+
+    vec.io.valid := wb_reg_valid
+    vec.io.inst := wb_reg_inst
+    vec.io.waddr := wb_reg_waddr
+    vec.io.raddr1 := wb_reg_raddr1
+    vec.io.vecbank := pcr.io.vecbank
+    vec.io.vecbankcnt := pcr.io.vecbankcnt
+    vec.io.wdata := wb_reg_wdata
+    vec.io.rs2 := wb_reg_rs2
+
+    wb_wdata :=
+      Mux(vec.io.wen, Cat(Bits(0,52), vec.io.appvl),
+      Mux(wb_src_dmem, io.dmem.resp_data_subword,
+      wb_reg_wdata))
+  }
+  else
+  {
+    wb_wdata :=
+      Mux(wb_src_dmem, io.dmem.resp_data_subword,
+      wb_reg_wdata)
+  }
 
   rfile.io.w0.addr := wb_reg_waddr
   rfile.io.w0.en   := io.ctrl.wb_wen || wb_reg_ll_wb
@@ -454,10 +465,6 @@ class rocketDpath extends Component
   io.ctrl.wb_waddr := wb_reg_waddr;
   io.ctrl.mem_wb := dmem_resp_replay;
 
-  vec.io.vcmdq <> io.vcmdq
-  vec.io.vximm1q <> io.vximm1q
-  vec.io.vximm2q <> io.vximm2q
-  
   // scoreboard clear (for div/mul and D$ load miss writebacks)
   io.ctrl.sboard_clr   := mem_ll_wb
   io.ctrl.sboard_clra  := mem_ll_waddr

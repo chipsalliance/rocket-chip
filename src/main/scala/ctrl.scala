@@ -92,6 +92,8 @@ class ioCtrlAll extends Bundle()
   val xcpt_ma_ld = Bool(INPUT);
   val xcpt_ma_st = Bool(INPUT);
   val fpu = new ioCtrlFPU();
+  val vec_dpath = new ioCtrlDpathVec()
+  val vec_iface = new ioCtrlVecInterface()
 }
 
 class rocketCtrl extends Component
@@ -570,6 +572,17 @@ class rocketCtrl extends Component
                    io.fpu.dec.wen  && fp_sboard.io.r(3).data
   } 
 
+  if (HAVE_VEC)
+  {
+    // vector control
+    val vec = new rocketCtrlVec()
+
+    io.vec_dpath <> vec.io.dpath
+    io.vec_iface <> vec.io.iface
+
+    vec.io.sr_ev := io.dpath.status(SR_EV)
+  }
+
   // exception handling
   // FIXME: verify PC in MEM stage points to valid, restartable instruction
   val p_irq_timer = (io.dpath.status(15).toBool && io.dpath.irq_timer);
@@ -718,6 +731,7 @@ class rocketCtrl extends Component
       id_stall_raddr1 || id_stall_raddr2 || id_stall_waddr ||
       id_stall_fpu || io.ext_mem.req_val ||
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
+      id_vec_val.toBool && !(io.vec_iface.vcmdq_ready && io.vec_iface.vximm1q_ready && io.vec_iface.vximm2q_ready) || // being conservative
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
       id_console_out_val && !io.console.rdy
     );

@@ -130,8 +130,11 @@ class rocketProc extends Component
 
   if (HAVE_VEC)
   {
+    dpath.io.vec_ctrl <> ctrl.io.vec_dpath
+
     val vu = new vu()
 
+    // hooking up vector I$
     vitlb.io.cpu.invalidate := dpath.io.ptbr_wen
     vitlb.io.cpu.status     := dpath.io.ctrl.status
     vitlb.io.cpu.req_val    := vu.io.imem_req.valid  
@@ -147,11 +150,20 @@ class rocketProc extends Component
     // handle vitlb.io.cpu.exception
     io.vimem.itlb_miss      := vitlb.io.cpu.resp_miss
 
-    vu.io.vec_cmdq <> dpath.io.vcmdq
-    vu.io.vec_ximm1q <> dpath.io.vximm1q
-    vu.io.vec_ximm2q <> dpath.io.vximm2q
+    // hooking up vector command queues
+    vu.io.vec_cmdq.valid := ctrl.io.vec_iface.vcmdq_valid
+    vu.io.vec_cmdq.bits := dpath.io.vec_iface.vcmdq_bits
+    vu.io.vec_ximm1q.valid := ctrl.io.vec_iface.vximm1q_valid
+    vu.io.vec_ximm1q.bits := dpath.io.vec_iface.vximm1q_bits
+    vu.io.vec_ximm2q.valid := ctrl.io.vec_iface.vximm2q_valid
+    vu.io.vec_ximm2q.bits := dpath.io.vec_iface.vximm2q_bits
+
+    ctrl.io.vec_iface.vcmdq_ready := vu.io.vec_cmdq.ready
+    ctrl.io.vec_iface.vximm1q_ready := vu.io.vec_ximm1q.ready
+    ctrl.io.vec_iface.vximm2q_ready := vu.io.vec_ximm2q.ready
     vu.io.vec_ackq.ready := Bool(true)
 
+    // hooking up vector memory interface
     ctrl.io.ext_mem.req_val := vu.io.dmem_req.valid
     ctrl.io.ext_mem.req_cmd := vu.io.dmem_req.bits.cmd
     ctrl.io.ext_mem.req_type := vu.io.dmem_req.bits.typ
