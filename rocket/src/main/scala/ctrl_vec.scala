@@ -31,6 +31,7 @@ class ioCtrlVec extends Bundle
   val dpath = new ioCtrlDpathVec()
   val iface = new ioCtrlVecInterface()
   val sr_ev = Bool(INPUT)
+  val replay = Bool(OUTPUT)
 }
 
 class rocketCtrlVec extends Component
@@ -88,16 +89,26 @@ class rocketCtrlVec extends Component
   ))
 
   val wb_vec_val :: wb_sel_vcmd :: wb_sel_vimm :: wb_vec_wen :: wb_vec_fn :: wb_vec_appvlmask :: veccs0 = veccs
-  val wb_vec_cmdq_val :: wb_vec_ximm1q_val :: wb_vec_ximm2q_val :: Nil = veccs0
+  val wb_vec_cmdq_enq :: wb_vec_ximm1q_enq :: wb_vec_ximm2q_enq :: Nil = veccs0
 
   val valid_common = io.dpath.valid && io.sr_ev && wb_vec_val.toBool && !(wb_vec_appvlmask.toBool && io.dpath.appvl0)
 
-  io.iface.vcmdq_valid := valid_common && wb_vec_cmdq_val
-  io.iface.vximm1q_valid := valid_common && wb_vec_ximm1q_val
-  io.iface.vximm2q_valid := valid_common && wb_vec_ximm2q_val
+  val mask_wb_vec_cmdq_ready = !wb_vec_cmdq_enq || io.iface.vcmdq_ready
+  val mask_wb_vec_ximm1q_ready = !wb_vec_ximm1q_enq || io.iface.vximm1q_ready
+  val mask_wb_vec_ximm2q_ready = !wb_vec_ximm2q_enq || io.iface.vximm2q_ready
 
   io.dpath.wen := wb_vec_wen.toBool
   io.dpath.fn := wb_vec_fn
   io.dpath.sel_vcmd := wb_sel_vcmd
   io.dpath.sel_vimm := wb_sel_vimm
+
+  io.iface.vcmdq_valid := valid_common && wb_vec_cmdq_enq && mask_wb_vec_ximm1q_ready && mask_wb_vec_ximm2q_ready
+  io.iface.vximm1q_valid := valid_common && mask_wb_vec_cmdq_ready && wb_vec_ximm1q_enq && mask_wb_vec_ximm2q_ready
+  io.iface.vximm2q_valid := valid_common && mask_wb_vec_cmdq_ready && mask_wb_vec_ximm1q_ready && wb_vec_ximm2q_enq
+
+  io.replay := valid_common && (
+    wb_vec_cmdq_enq && !io.iface.vcmdq_ready ||
+    wb_vec_ximm1q_enq && !io.iface.vximm1q_ready ||
+    wb_vec_ximm2q_enq && !io.iface.vximm2q_ready
+  )
 }
