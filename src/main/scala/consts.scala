@@ -177,7 +177,7 @@ object Constants
   // external memory interface
   val IMEM_TAG_BITS = 1;
   val DMEM_TAG_BITS = ceil(log(NMSHR)/log(2)).toInt;
-  val MEM_TAG_BITS = 1 + max(IMEM_TAG_BITS, DMEM_TAG_BITS);
+  val MEM_TAG_BITS = 2 + max(IMEM_TAG_BITS, DMEM_TAG_BITS);
   val MEM_DATA_BITS = 128;
   val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS;
   
