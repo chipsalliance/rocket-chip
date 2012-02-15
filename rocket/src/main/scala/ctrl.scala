@@ -546,7 +546,7 @@ class rocketCtrl extends Component
 
   var id_stall_fpu = Bool(false)
   if (HAVE_FPU) {
-    val fp_sboard = new rocketCtrlSboard(32, 4, 2);
+    val fp_sboard = new rocketCtrlSboard(32, 4, 3);
     fp_sboard.io.r(0).addr := id_raddr1.toUFix
     fp_sboard.io.r(1).addr := id_raddr2.toUFix
     fp_sboard.io.r(2).addr := id_raddr3.toUFix
@@ -559,6 +559,10 @@ class rocketCtrl extends Component
     fp_sboard.io.w(1).en := io.dpath.fp_sboard_clr
     fp_sboard.io.w(1).data := Bool(false)
     fp_sboard.io.w(1).addr := io.dpath.fp_sboard_clra
+
+    fp_sboard.io.w(2).en := io.fpu.sboard_clr
+    fp_sboard.io.w(2).data := Bool(false)
+    fp_sboard.io.w(2).addr := io.fpu.sboard_clra
 
     id_stall_fpu = io.fpu.dec.ren1 && fp_sboard.io.r(0).data ||
                    io.fpu.dec.ren2 && fp_sboard.io.r(1).data ||

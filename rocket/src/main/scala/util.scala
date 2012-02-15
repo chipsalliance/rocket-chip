@@ -71,6 +71,12 @@ object LFSR16
   }
 }
 
+object ShiftRegister
+{
+  def apply [T <: Data](n: Int, in: T): T =
+    if (n > 0) Reg(apply(n-1, in)) else in
+}
+
 object Mux1H 
 {
 //TODO: cloning in(0) is unsafe if other elements have different widths, but
