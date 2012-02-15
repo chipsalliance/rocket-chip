@@ -76,7 +76,7 @@ trait ThreeStateIncoherence {
   def newStateOnFlush() = tileInvalid
   def newState(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, tileDirty, Mux(read, Mux(state === tileDirty, tileDirty, tileClean), tileInvalid))
+    Mux(write, tileDirty, Mux(read, Mux(state === tileDirty, tileDirty, tileClean), state))
   }
   def newStateOnHit(cmd: Bits, state: UFix): UFix = newState(cmd, state)
   def newStateOnPrimaryMiss(cmd: Bits): UFix = newState(cmd, tileInvalid)
