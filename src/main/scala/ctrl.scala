@@ -572,6 +572,8 @@ class rocketCtrl extends Component
                    io.fpu.dec.wen  && fp_sboard.io.r(3).data
   } 
 
+  var vec_replay = Bool(false)
+
   if (HAVE_VEC)
   {
     // vector control
@@ -579,6 +581,7 @@ class rocketCtrl extends Component
 
     io.vec_dpath <> vec.io.dpath
     io.vec_iface <> vec.io.iface
+    vec_replay = vec.io.replay
 
     vec.io.sr_ev := io.dpath.status(SR_EV)
   }
@@ -655,7 +658,7 @@ class rocketCtrl extends Component
   mem_reg_replay := replay_ex && !take_pc_wb;
   mem_reg_kill := kill_ex;
 
-  wb_reg_replay       := replay_mem && !take_pc_wb;
+  wb_reg_replay       := replay_mem && !take_pc_wb || vec_replay;
   wb_reg_exception    := mem_exception && !take_pc_wb;
   wb_reg_cause        := mem_cause;
 
