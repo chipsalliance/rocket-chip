@@ -141,6 +141,7 @@ class rocketProc extends Component
     io.vimem.req_ppn        := vitlb.io.cpu.resp_ppn
     io.vimem.req_val        := vu.io.imem_req.valid
     io.vimem.invalidate     := ctrl.io.dpath.flush_inst
+    vu.io.imem_req.ready    := Bool(true)
     vu.io.imem_resp.valid   := io.vimem.resp_val
     vu.io.imem_resp.bits    := io.vimem.resp_data
     // handle vitlb.io.cpu.exception
@@ -149,6 +150,7 @@ class rocketProc extends Component
     vu.io.vec_cmdq <> dpath.io.vcmdq
     vu.io.vec_ximm1q <> dpath.io.vximm1q
     vu.io.vec_ximm2q <> dpath.io.vximm2q
+    vu.io.vec_ackq.ready := Bool(true)
 
     ctrl.io.ext_mem.req_val := vu.io.dmem_req.valid
     ctrl.io.ext_mem.req_cmd := vu.io.dmem_req.bits.cmd
@@ -158,6 +160,7 @@ class rocketProc extends Component
     dpath.io.ext_mem.req_idx := vu.io.dmem_req.bits.idx
     dpath.io.ext_mem.req_ppn := vu.io.dmem_req.bits.ppn
     dpath.io.ext_mem.req_data := vu.io.dmem_req.bits.data
+    dpath.io.ext_mem.req_tag := vu.io.dmem_req.bits.tag
 
     vu.io.dmem_resp.valid := dpath.io.ext_mem.resp_val
     vu.io.dmem_resp.bits.nack := ctrl.io.ext_mem.resp_nack

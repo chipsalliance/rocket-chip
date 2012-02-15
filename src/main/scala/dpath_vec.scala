@@ -174,7 +174,7 @@ class rocketDpathVec extends Component
     Bits(0,20)))))))
 
   io.vximm1q.bits :=
-    Mux(wb_sel_vimm === VIMM_VLEN, Cat(Bits(0,29), io.vecbankcnt, io.vecbank, io.inst(21,10), vlenm1),
+    Mux(wb_sel_vimm === VIMM_VLEN, Cat(Bits(0,29), io.vecbankcnt, io.vecbank, io.inst(21,10), vlenm1(10,0)),
     io.wdata) // VIMM_ALU
 
   io.vximm2q.bits := io.rs2

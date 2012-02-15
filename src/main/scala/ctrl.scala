@@ -764,7 +764,7 @@ class rocketCtrl extends Component
   io.fpu.killx := kill_ex
   io.fpu.killm := kill_mem
 
-  io.dtlb_val         := ex_reg_mem_val;
+  io.dtlb_val         := ex_reg_mem_val || ex_reg_ext_mem_val;
   io.dtlb_kill        := mem_reg_kill;
   io.dmem.req_val     := ex_reg_mem_val || ex_reg_ext_mem_val;
   io.dmem.req_kill    := kill_dcache;
