@@ -34,7 +34,7 @@ class ioDpathAll extends Bundle()
   val console = new ioConsole(List("valid","bits"));
   val debug = new ioDebug();
   val dmem  = new ioDpathDmem();
-  val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "req_data", "resp_val", "resp_data", "resp_tag"))
+  val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "req_data", "req_tag", "resp_val", "resp_data", "resp_tag"))
   val imem  = new ioDpathImem();
   val vcmdq = new io_vec_cmdq()
   val vximm1q = new io_vec_ximm1q()
@@ -101,6 +101,7 @@ class rocketDpath extends Component
   val ex_reg_ctrl_sel_wb    = Reg() { UFix() };
   val ex_reg_ctrl_ren_pcr   = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_wen_pcr   = Reg(resetVal = Bool(false));
+  val ex_reg_ext_mem_tag    = Reg() { Bits() };
  	val ex_wdata						  = Wire() { Bits() }; 	
 
   // memory definitions
@@ -251,6 +252,7 @@ class rocketDpath extends Component
   ex_reg_ctrl_div_fn    := io.ctrl.div_fn;
   ex_reg_ctrl_sel_wb    := io.ctrl.sel_wb;
   ex_reg_ctrl_ren_pcr   := io.ctrl.ren_pcr;
+  ex_reg_ext_mem_tag    := io.ext_mem.req_tag
 
   when(io.ctrl.killd) {
     ex_reg_valid          := Bool(false);
@@ -306,7 +308,7 @@ class rocketDpath extends Component
   // other signals (req_val, req_rdy) connect to control module  
   io.dmem.req_addr  := ex_effective_address.toUFix;
   io.dmem.req_data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
-  io.dmem.req_tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val, io.ctrl.ex_ext_mem_val).toUFix
+  io.dmem.req_tag := Cat(Mux(io.ctrl.ex_ext_mem_val, ex_reg_ext_mem_tag(CPU_TAG_BITS-2, 0), Cat(ex_reg_waddr, io.ctrl.ex_fp_val)), io.ctrl.ex_ext_mem_val).toUFix
 
 	// processor control regfile read
   pcr.io.r.en   := ex_reg_ctrl_ren_pcr | ex_reg_ctrl_eret;

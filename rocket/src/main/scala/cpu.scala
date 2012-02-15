@@ -30,6 +30,7 @@ class ioRocket extends Bundle()
   val console = new ioConsole();
   val host    = new ioHost();
   val imem    = new ioImem().flip();
+  val vimem   = new ioImem().flip();
   val dmem    = new ioDmem().flip();
 }
 
@@ -42,6 +43,7 @@ class rocketProc extends Component
 
   val dtlb  = new rocketDTLB(DTLB_ENTRIES);
   val itlb  = new rocketITLB(ITLB_ENTRIES);
+  val vitlb = new rocketITLB(ITLB_ENTRIES);
   val ptw   = new rocketPTW();
   val arb   = new rocketDmemArbiter();
 
@@ -130,8 +132,36 @@ class rocketProc extends Component
   {
     val vu = new vu()
 
+    vitlb.io.cpu.invalidate := dpath.io.ptbr_wen
+    vitlb.io.cpu.status     := dpath.io.ctrl.status
+    vitlb.io.cpu.req_val    := vu.io.imem_req.valid  
+    vitlb.io.cpu.req_asid   := Bits(0,ASID_BITS) // FIXME: connect to PCR
+    vitlb.io.cpu.req_vpn    := vu.io.imem_req.bits(VADDR_BITS,PGIDX_BITS).toUFix
+    io.vimem.req_idx        := vu.io.imem_req.bits(PGIDX_BITS-1,0)
+    io.vimem.req_ppn        := vitlb.io.cpu.resp_ppn
+    io.vimem.req_val        := vu.io.imem_req.valid
+    io.vimem.invalidate     := ctrl.io.dpath.flush_inst
+    vu.io.imem_resp.valid   := io.vimem.resp_val
+    vu.io.imem_resp.bits    := io.vimem.resp_data
+    // handle vitlb.io.cpu.exception
+    io.vimem.itlb_miss      := vitlb.io.cpu.resp_miss
+
     vu.io.vec_cmdq <> dpath.io.vcmdq
     vu.io.vec_ximm1q <> dpath.io.vximm1q
     vu.io.vec_ximm2q <> dpath.io.vximm2q
+
+    ctrl.io.ext_mem.req_val := vu.io.dmem_req.valid
+    ctrl.io.ext_mem.req_cmd := vu.io.dmem_req.bits.cmd
+    ctrl.io.ext_mem.req_type := vu.io.dmem_req.bits.typ
+
+    dpath.io.ext_mem.req_val := vu.io.dmem_req.valid
+    dpath.io.ext_mem.req_idx := vu.io.dmem_req.bits.idx
+    dpath.io.ext_mem.req_ppn := vu.io.dmem_req.bits.ppn
+    dpath.io.ext_mem.req_data := vu.io.dmem_req.bits.data
+
+    vu.io.dmem_resp.valid := dpath.io.ext_mem.resp_val
+    vu.io.dmem_resp.bits.nack := ctrl.io.ext_mem.resp_nack
+    vu.io.dmem_resp.bits.data := dpath.io.ext_mem.resp_data
+    vu.io.dmem_resp.bits.tag := dpath.io.ext_mem.resp_tag
   }
 }
