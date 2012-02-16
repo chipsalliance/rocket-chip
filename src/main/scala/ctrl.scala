@@ -253,8 +253,8 @@ class rocketCtrl extends Component
     VFMVV->     List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
     FENCE_L_V-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
     FENCE_G_V-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
-    FENCE_L_CV->List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
-    FENCE_G_CV->List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+    FENCE_L_CV->List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y),
+    FENCE_G_CV->List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y),
     VLD->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
     VLW->       List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
     VLWU->      List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
@@ -573,7 +573,7 @@ class rocketCtrl extends Component
   } 
 
   var vec_replay = Bool(false)
-
+  var vec_cpfence = Bool(false)
   if (HAVE_VEC)
   {
     // vector control
@@ -588,12 +588,16 @@ class rocketCtrl extends Component
     vec.io.iface.vximm1q_ready := io.vec_iface.vximm1q_ready
     vec.io.iface.vximm2q_ready := io.vec_iface.vximm2q_ready
 
-    // FIXME
-    // use io.vec_iface.vackq_valid
-    io.vec_iface.vackq_ready := Bool(true)
-
     vec_replay = vec.io.replay
+    vec_cpfence = Reg(resetVal = Bool(false))
+    when (vec.io.cpfence) {
+      vec_cpfence := Bool(true)
+    }
+    when (io.vec_iface.vackq_valid || wb_reg_exception) {
+      vec_cpfence := Bool(false)
+    }
 
+    io.vec_iface.vackq_ready := Bool(true)
     vec.io.sr_ev := io.dpath.status(SR_EV)
   }
 
@@ -749,6 +753,7 @@ class rocketCtrl extends Component
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
       id_vec_val.toBool && !(io.vec_iface.vcmdq_ready && io.vec_iface.vximm1q_ready && io.vec_iface.vximm2q_ready) || // being conservative
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
+      vec_cpfence ||
       id_console_out_val && !io.console.rdy
     );
   val ctrl_stallf = ctrl_stalld;
