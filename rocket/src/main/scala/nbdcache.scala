@@ -684,7 +684,18 @@ class ioDCache(view: List[String] = null) extends Bundle(view) {
   val resp_val  = Bool(OUTPUT);
 }
  
-class HellaCache extends Component with ThreeStateIncoherence {
+abstract class HellaCache extends Component {
+  def isHit ( cmd: Bits, state: UFix): Bool
+  def isValid (state: UFix): Bool
+  def needsWriteback (state: UFix): Bool
+  def newStateOnWriteback(): UFix
+  def newStateOnFlush(): UFix
+  def newStateOnHit(cmd: Bits, state: UFix): UFix
+  def newStateOnPrimaryMiss(cmd: Bits): UFix
+  def newStateOnSecondaryMiss(cmd: Bits, state: UFix): UFix
+}
+
+class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   val io = new Bundle {
     val cpu = new ioDmem()
     val mem = new ioDCache().flip
