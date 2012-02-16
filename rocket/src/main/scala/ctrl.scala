@@ -580,7 +580,18 @@ class rocketCtrl extends Component
     val vec = new rocketCtrlVec()
 
     io.vec_dpath <> vec.io.dpath
-    io.vec_iface <> vec.io.iface
+
+    io.vec_iface.vcmdq_valid := vec.io.iface.vcmdq_valid
+    io.vec_iface.vximm1q_valid := vec.io.iface.vximm1q_valid
+    io.vec_iface.vximm2q_valid := vec.io.iface.vximm2q_valid
+    vec.io.iface.vcmdq_ready := io.vec_iface.vcmdq_ready
+    vec.io.iface.vximm1q_ready := io.vec_iface.vximm1q_ready
+    vec.io.iface.vximm2q_ready := io.vec_iface.vximm2q_ready
+
+    // FIXME
+    // use io.vec_iface.vackq_valid
+    io.vec_iface.vackq_ready := Bool(true)
+
     vec_replay = vec.io.replay
 
     vec.io.sr_ev := io.dpath.status(SR_EV)

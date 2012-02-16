@@ -24,6 +24,8 @@ class ioCtrlVecInterface extends Bundle
   val vximm1q_ready = Bool(INPUT)
   val vximm2q_valid = Bool(OUTPUT)
   val vximm2q_ready = Bool(INPUT)
+  val vackq_valid = Bool(INPUT)
+  val vackq_ready = Bool(OUTPUT)
 }
 
 class ioCtrlVec extends Bundle
