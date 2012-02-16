@@ -658,9 +658,11 @@ class rocketCtrl extends Component
   mem_reg_replay := replay_ex && !take_pc_wb;
   mem_reg_kill := kill_ex;
 
-  wb_reg_replay       := replay_mem && !take_pc_wb || vec_replay;
+  wb_reg_replay       := replay_mem && !take_pc_wb
   wb_reg_exception    := mem_exception && !take_pc_wb;
   wb_reg_cause        := mem_cause;
+
+  val replay_wb = wb_reg_replay || vec_replay
 
   val wb_badvaddr_wen = wb_reg_exception && ((wb_reg_cause === UFix(10)) || (wb_reg_cause === UFix(11)))
 
@@ -671,7 +673,7 @@ class rocketCtrl extends Component
 
   io.dpath.sel_pc :=
     Mux(wb_reg_exception,               PC_EVEC, // exception
-    Mux(wb_reg_replay,                  PC_WB,   // replay
+    Mux(replay_wb,                      PC_WB,   // replay
     Mux(wb_reg_eret,                    PC_PCR,  // eret instruction
     Mux(ex_reg_btb_hit && !br_taken,    PC_EX4,  // mispredicted not taken branch
     Mux(!ex_reg_btb_hit && br_taken,    PC_BR,   // mispredicted taken branch

@@ -193,7 +193,7 @@ object Constants
   
   val HAVE_RVC = false
   val HAVE_FPU = true
-  val HAVE_VEC = false
+  val HAVE_VEC = true
 
   val FPU_N = UFix(0, 1);
   val FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N;
