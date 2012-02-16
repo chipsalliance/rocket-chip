@@ -161,7 +161,8 @@ class rocketProc extends Component
     ctrl.io.vec_iface.vcmdq_ready := vu.io.vec_cmdq.ready
     ctrl.io.vec_iface.vximm1q_ready := vu.io.vec_ximm1q.ready
     ctrl.io.vec_iface.vximm2q_ready := vu.io.vec_ximm2q.ready
-    vu.io.vec_ackq.ready := Bool(true)
+    ctrl.io.vec_iface.vackq_valid := vu.io.vec_ackq.valid
+    vu.io.vec_ackq.ready := ctrl.io.vec_iface.vackq_ready
 
     // hooking up vector memory interface
     ctrl.io.ext_mem.req_val := vu.io.dmem_req.valid
