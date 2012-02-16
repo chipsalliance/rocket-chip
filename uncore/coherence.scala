@@ -47,9 +47,7 @@ class ioTileLink extends Bundle {
   val xact_finish = new TransactionFinish().asOutput
 }
 
-trait ThreeStateIncoherence {
-  val tileInvalid :: tileClean :: tileDirty :: Nil = Enum(3){ UFix() }
-
+trait CoherencePolicy {
   def cpuCmdToRW( cmd: Bits): (Bool, Bool) = {
     val store   = (cmd === M_XWR)
     val load    = (cmd === M_XRD)
@@ -58,6 +56,10 @@ trait ThreeStateIncoherence {
     val write   = store || amo || (cmd === M_PFW)
     (read, write)
   }
+}
+
+trait ThreeStateIncoherence extends CoherencePolicy {
+  val tileInvalid :: tileClean :: tileDirty :: Nil = Enum(3){ UFix() }
 
   def isHit ( cmd: Bits, state: UFix): Bool = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -87,31 +89,34 @@ trait ThreeStateIncoherence {
 
 }
 
-trait FourStateCoherence {
+trait FourStateCoherence extends CoherencePolicy {
 
   val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(4){ UFix() }
   val globalInvalid :: globalShared :: globalExclusiveClean :: Nil = Enum(3){ UFix() }
   val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(3){ UFix() }
 
   def isHit ( cmd: Bits, state: UFix): Bool = {
-    val is_hit = Bool(false)
-    switch(cmd) {
-      is(M_XRD) {
-        is_hit := state === tileShared || 
-                  state === tileExclusiveClean ||
-                  state === tileExclusiveDirty
-      }
-      is(M_XWR) {
-        is_hit := state === tileExclusiveClean ||
-                  state === tileExclusiveDirty
-      }
-    }
-    is_hit
+    val (read, write) = cpuCmdToRW(cmd)
+    ((read && ( state === tileShared || state === tileExclusiveClean || state === tileExclusiveDirty)) ||
+     (write && (state === tileExclusiveClean || state === tileExclusiveDirty)))
+  }
+
+  def isValid (state: UFix): Bool = {
+    state != tileInvalid
   }
 
   def needsWriteback (state: UFix): Bool = {
     state === tileExclusiveDirty
   }
+
+  def newStateOnWriteback() = tileInvalid
+  def newStateOnFlush() = tileInvalid
+
+  // TODO: New funcs as compared to incoherent protocol:
+  def newState(cmd: Bits, state: UFix): UFix
+  def newStateOnHit(cmd: Bits, state: UFix): UFix 
+  def newStateOnPrimaryMiss(cmd: Bits): UFix 
+  def newStateOnSecondaryMiss(cmd: Bits, state: UFix): UFix 
 
   def needsSecondaryXact (cmd: Bits, outstanding: TransactionInit): Bool
 
