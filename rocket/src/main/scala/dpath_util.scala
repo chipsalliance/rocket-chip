@@ -23,22 +23,22 @@ class rocketDpathBTB(entries: Int) extends Component
 {
   val io = new ioDpathBTB();
 
-  val do_update = io.wen || io.clr
-  val expected_tag = Mux(do_update, io.correct_pc, io.current_pc)
-
   val repl_way = LFSR16(io.wen)(log2up(entries)-1,0) // TODO: pseudo-LRU
 
   var hit_reduction = Bool(false)
   val hit = Wire() { Bool() }
+  val update = Wire() { Bool() }
+  var update_reduction = Bool(false)
   val mux = (new Mux1H(entries)) { Bits(width = VADDR_BITS) }
 
   for (i <- 0 until entries) {
     val tag = Reg() { UFix() }
     val target = Reg() { UFix() }
     val valid = Reg(resetVal = Bool(false))
-    val my_hit = valid && tag === expected_tag
-    val my_clr = io.clr && my_hit || io.invalidate
-    val my_wen = io.wen && (my_hit || !hit && UFix(i) === repl_way)
+    val my_hit = valid && tag === io.current_pc
+    val my_update = valid && tag === io.correct_pc
+    val my_clr = io.clr && my_update || io.invalidate
+    val my_wen = io.wen && (my_update || !update && UFix(i) === repl_way)
 
     valid := !my_clr && (valid || my_wen)
     when (my_wen) {
@@ -47,10 +47,12 @@ class rocketDpathBTB(entries: Int) extends Component
     }
 
     hit_reduction = hit_reduction || my_hit
+    update_reduction = update_reduction || my_update
     mux.io.sel(i) := my_hit
     mux.io.in(i) := target
   }
   hit := hit_reduction
+  update := update_reduction
 
   io.hit    := hit
   io.target := mux.io.out.toUFix
