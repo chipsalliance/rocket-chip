@@ -19,6 +19,7 @@ class ioIPrefetcherMem(view: List[String] = null) extends Bundle (view)
 class ioIPrefetcher extends Bundle() {
   val icache = new ioICache();
   val mem = new ioIPrefetcherMem();
+  val invalidate = Bool(INPUT)
 }
 
 class rocketIPrefetcher extends Component() {
@@ -83,6 +84,10 @@ class rocketIPrefetcher extends Component() {
     is (s_bad_resp_wait) {
       when (fill_done.toBool & ip_mem_resp_val.toBool) { state := s_req_wait; }
     }
+  }
+
+  when (io.invalidate) {
+    state := s_invalid
   }
 }
 

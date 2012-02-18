@@ -30,6 +30,7 @@ class Top() extends Component {
   cpu.io.debug      <> io.debug;
   cpu.io.console    <> io.console;
 
+  icache_pf.io.invalidate := cpu.io.imem.invalidate
   icache.io.mem     <> icache_pf.io.icache;
   cpu.io.imem       <> icache.io.cpu;
   cpu.io.vimem      <> vicache.io.cpu;
