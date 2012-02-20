@@ -10,25 +10,10 @@ class ioDebug(view: List[String] = null) extends Bundle(view)
   val error_mode  = Bool(OUTPUT);
 }
 
-class ioHost(view: List[String] = null) extends Bundle(view)
-{
-  val from_wen   = Bool(INPUT);
-  val from       = Bits(64, INPUT);
-  val to         = Bits(64, OUTPUT);
-}
-
-class ioConsole(view: List[String] = null) extends Bundle(view)
-{
-  val rdy   = Bool(INPUT);
-  val valid = Bool(OUTPUT);
-  val bits  = Bits(8, OUTPUT);
-}
-
 class ioRocket extends Bundle()
 {
   val debug   = new ioDebug();
-  val console = new ioConsole();
-  val host    = new ioHost();
+  val host    = new ioHTIF();
   val imem    = new ioImem().flip();
   val vimem   = new ioImem().flip();
   val dmem    = new ioDmem().flip();
@@ -47,6 +32,7 @@ class rocketProc extends Component
   val ptw   = new rocketPTW();
   val arb   = new rocketDmemArbiter();
 
+  ctrl.io.htif_reset := io.host.reset
   ctrl.io.dpath             <> dpath.io.ctrl;
   dpath.io.host             <> io.host;
   dpath.io.debug            <> io.debug;
@@ -111,10 +97,6 @@ class rocketProc extends Component
   dpath.io.dmem.resp_tag  := arb.io.cpu.resp_tag;
   dpath.io.dmem.resp_data := arb.io.cpu.resp_data;  
   dpath.io.dmem.resp_data_subword := io.dmem.resp_data_subword;
-
-  io.console.bits     := dpath.io.console.bits;
-  io.console.valid    := dpath.io.console.valid;
-  ctrl.io.console.rdy := io.console.rdy;
 
   if (HAVE_FPU)
   {

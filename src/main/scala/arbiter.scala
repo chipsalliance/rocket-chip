@@ -24,6 +24,7 @@ class ioMemArbiter extends Bundle() {
 //   val icache = new ioICache();
   val icache = new ioIPrefetcherMem().flip();
   val vicache = new ioICache();
+  val htif = new ioDCache();
 }
 
 class rocketMemArbiter extends Component {
@@ -34,26 +35,31 @@ class rocketMemArbiter extends Component {
   // *****************************
 
   // Memory request is valid if either icache or dcache have a valid request
-  io.mem.req_val := (io.icache.req_val || io.vicache.req_val || io.dcache.req_val);
+  io.mem.req_val := io.icache.req_val || io.vicache.req_val || io.dcache.req_val || io.htif.req_val
 
-  // Set read/write bit.  ICache always reads
-  io.mem.req_rw := Mux(io.dcache.req_val, io.dcache.req_rw, Bool(false));
+  // Set read/write bit.  I$ always reads
+  io.mem.req_rw :=
+    Mux(io.dcache.req_val, io.dcache.req_rw,
+    Mux(io.icache.req_val, Bool(false),
+    Mux(io.vicache.req_val, Bool(false),
+    io.htif.req_rw)))
 
-  // Give priority to ICache
+  // Give priority to D$
   io.mem.req_addr :=
     Mux(io.dcache.req_val, io.dcache.req_addr,
     Mux(io.icache.req_val, io.icache.req_addr,
-        io.vicache.req_addr))
+    Mux(io.vicache.req_val, io.vicache.req_addr,
+    io.htif.req_addr)))
+
+  io.mem.req_wdata := Mux(io.dcache.req_val, io.dcache.req_wdata, io.htif.req_wdata)
 
   // low bit of tag to indicate D$, I$, and VI$
-  val t_dcache :: t_icache :: t_vicache :: Nil = Enum(3){ UFix() }
+  val t_dcache :: t_icache :: t_vicache :: t_htif :: Nil = Enum(4){ UFix() }
   io.mem.req_tag :=
     Mux(io.dcache.req_val, Cat(io.dcache.req_tag, t_dcache),
     Mux(io.icache.req_val, Cat(io.icache.req_tag, t_icache),
-        Cat(Bits(0, MEM_TAG_BITS-2), t_vicache)))
-
-  // Just pass through write data (only D$ will write)
-  io.mem.req_wdata := io.dcache.req_wdata;
+    Mux(io.vicache.req_val, t_vicache,
+    t_htif)))
 
   // *****************************
   // Interface to caches
@@ -64,16 +70,19 @@ class rocketMemArbiter extends Component {
   io.dcache.req_rdy := io.mem.req_rdy;
   io.icache.req_rdy := io.mem.req_rdy && !io.dcache.req_val;
   io.vicache.req_rdy := io.mem.req_rdy && !io.dcache.req_val && !io.icache.req_val
+  io.htif.req_rdy := io.mem.req_rdy && !io.dcache.req_val && !io.icache.req_val && !io.vicache.req_val
 
   // Response will only be valid for D$ or I$ not both because of tag bits
   io.dcache.resp_val := io.mem.resp_val && (io.mem.resp_tag(1,0) === t_dcache)
   io.icache.resp_val := io.mem.resp_val && (io.mem.resp_tag(1,0) === t_icache)
   io.vicache.resp_val := io.mem.resp_val && (io.mem.resp_tag(1,0) === t_vicache)
+  io.htif.resp_val := io.mem.resp_val && (io.mem.resp_tag(1,0) === t_htif)
 
   // Feed through data to both 
   io.dcache.resp_data := io.mem.resp_data;
   io.icache.resp_data := io.mem.resp_data;
   io.vicache.resp_data := io.mem.resp_data
+  io.htif.resp_data := io.mem.resp_data
   
   io.dcache.resp_tag := io.mem.resp_tag >> UFix(2)
   io.icache.resp_tag := io.mem.resp_tag >> UFix(2)

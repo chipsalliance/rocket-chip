@@ -4,15 +4,17 @@ import Chisel._
 import Node._;
 import Constants._;
 
-class ioTop extends Bundle  {
+class ioTop(htif_width: Int) extends Bundle  {
   val debug   = new ioDebug();
-  val console = new ioConsole();
-  val host    = new ioHost();
+  val host    = new ioHost(htif_width);
   val mem     = new ioMem();
 }
 
 class Top() extends Component {
-  val io        = new ioTop();
+
+  val htif_width = 16
+  val io = new ioTop(htif_width);
+  val htif = new rocketHTIF(htif_width, 1)
   
   val cpu       = new rocketProc();
   val icache    = new rocketICache(128, 2); // 128 sets x 2 ways
@@ -25,10 +27,11 @@ class Top() extends Component {
   arbiter.io.dcache <> dcache.io.mem;
   arbiter.io.icache <> icache_pf.io.mem;
   arbiter.io.vicache <> vicache.io.mem
+  arbiter.io.htif <> htif.io.mem
 
-  cpu.io.host       <> io.host;
+  htif.io.host <> io.host
+  cpu.io.host       <> htif.io.cpu(0);
   cpu.io.debug      <> io.debug;
-  cpu.io.console    <> io.console;
 
   icache_pf.io.invalidate := cpu.io.imem.invalidate
   icache.io.mem     <> icache_pf.io.icache;

@@ -138,7 +138,6 @@ object Constants
   val PCR_TOHOST   = UFix(16, 5);
   val PCR_FROMHOST = UFix(17, 5);
   val PCR_VECBANK  = UFix(18, 5);
-  val PCR_CONSOLE  = UFix(19, 5);
 
   // definition of bits in PCR status reg
   val SR_ET   = 0;  // enable traps
