@@ -18,74 +18,48 @@ class ioMem() extends Bundle
   val resp_data = Bits(MEM_DATA_BITS, INPUT);
 }
 
-class ioMemArbiter extends Bundle() {
+class ioMemArbiter(n: Int) extends Bundle() {
   val mem = new ioMem();
-  val dcache = new ioDCache();
-//   val icache = new ioICache();
-  val icache = new ioIPrefetcherMem().flip();
-  val vicache = new ioICache();
-  val htif = new ioDCache();
+  val requestor = Vec(n) { new ioDCache() }
 }
 
-class rocketMemArbiter extends Component {
-  val io = new ioMemArbiter();
+class rocketMemArbiter(n: Int) extends Component {
+  val io = new ioMemArbiter(n);
+  require(io.mem.req_tag.getWidth >= log2up(n) + io.requestor(0).req_tag.getWidth)
 
-  // *****************************
-  // Interface to memory
-  // *****************************
+  var req_val = Bool(false)
+  var req_rdy = io.mem.req_rdy
+  for (i <- 0 until n)
+  {
+    io.requestor(i).req_rdy := req_rdy
+    req_val = req_val || io.requestor(i).req_val
+    req_rdy = req_rdy && !io.requestor(i).req_val
+  }
 
-  // Memory request is valid if either icache or dcache have a valid request
-  io.mem.req_val := io.icache.req_val || io.vicache.req_val || io.dcache.req_val || io.htif.req_val
+  var req_rw = io.requestor(n-1).req_rw
+  var req_addr = io.requestor(n-1).req_addr
+  var req_wdata = io.requestor(n-1).req_wdata
+  var req_tag = Cat(io.requestor(n-1).req_tag, UFix(n-1, log2up(n)))
+  for (i <- n-1 to 0 by -1)
+  {
+    req_rw = Mux(io.requestor(i).req_val, io.requestor(i).req_rw, req_rw)
+    req_addr = Mux(io.requestor(i).req_val, io.requestor(i).req_addr, req_addr)
+    req_wdata = Mux(io.requestor(i).req_val, io.requestor(i).req_wdata, req_wdata)
+    req_tag = Mux(io.requestor(i).req_val, Cat(io.requestor(i).req_tag, UFix(i, log2up(n))), req_tag)
+  }
 
-  // Set read/write bit.  I$ always reads
-  io.mem.req_rw :=
-    Mux(io.dcache.req_val, io.dcache.req_rw,
-    Mux(io.icache.req_val, Bool(false),
-    Mux(io.vicache.req_val, Bool(false),
-    io.htif.req_rw)))
+  io.mem.req_val := req_val
+  io.mem.req_rw := req_rw
+  io.mem.req_addr := req_addr
+  io.mem.req_wdata := req_wdata
+  io.mem.req_tag := req_tag
 
-  // Give priority to D$
-  io.mem.req_addr :=
-    Mux(io.dcache.req_val, io.dcache.req_addr,
-    Mux(io.icache.req_val, io.icache.req_addr,
-    Mux(io.vicache.req_val, io.vicache.req_addr,
-    io.htif.req_addr)))
-
-  io.mem.req_wdata := Mux(io.dcache.req_val, io.dcache.req_wdata, io.htif.req_wdata)
-
-  // low bit of tag to indicate D$, I$, and VI$
-  val t_dcache :: t_icache :: t_vicache :: t_htif :: Nil = Enum(4){ UFix() }
-  io.mem.req_tag :=
-    Mux(io.dcache.req_val, Cat(io.dcache.req_tag, t_dcache),
-    Mux(io.icache.req_val, Cat(io.icache.req_tag, t_icache),
-    Mux(io.vicache.req_val, t_vicache,
-    t_htif)))
-
-  // *****************************
-  // Interface to caches
-  // *****************************
-
-  // Read for request from cache if the memory is ready.  Give priority to D$.
-  // This way, writebacks will never be interrupted by I$ refills.
-  io.dcache.req_rdy := io.mem.req_rdy;
-  io.icache.req_rdy := io.mem.req_rdy && !io.dcache.req_val;
-  io.vicache.req_rdy := io.mem.req_rdy && !io.dcache.req_val && !io.icache.req_val
-  io.htif.req_rdy := io.mem.req_rdy && !io.dcache.req_val && !io.icache.req_val && !io.vicache.req_val
-
-  // Response will only be valid for D$ or I$ not both because of tag bits
-  io.dcache.resp_val := io.mem.resp_val && (io.mem.resp_tag(1,0) === t_dcache)
-  io.icache.resp_val := io.mem.resp_val && (io.mem.resp_tag(1,0) === t_icache)
-  io.vicache.resp_val := io.mem.resp_val && (io.mem.resp_tag(1,0) === t_vicache)
-  io.htif.resp_val := io.mem.resp_val && (io.mem.resp_tag(1,0) === t_htif)
-
-  // Feed through data to both 
-  io.dcache.resp_data := io.mem.resp_data;
-  io.icache.resp_data := io.mem.resp_data;
-  io.vicache.resp_data := io.mem.resp_data
-  io.htif.resp_data := io.mem.resp_data
-  
-  io.dcache.resp_tag := io.mem.resp_tag >> UFix(2)
-  io.icache.resp_tag := io.mem.resp_tag >> UFix(2)
+  for (i <- 0 until n)
+  {
+    io.requestor(i).resp_val := io.mem.resp_val && io.mem.resp_tag(log2up(n)-1,0) === UFix(i)
+    io.requestor(i).resp_data := io.mem.resp_data
+    io.requestor(i).resp_tag := io.mem.resp_tag >> UFix(log2up(n))
+  }
 }
 
 }

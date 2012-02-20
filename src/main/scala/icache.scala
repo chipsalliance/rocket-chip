@@ -17,20 +17,10 @@ class ioImem(view: List[String] = null) extends Bundle (view)
   val resp_val  = Bool(OUTPUT);
 }
 
-// interface between I$ and memory (128 bits wide)
-class ioICache(view: List[String] = null) extends Bundle (view)
-{
-  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, INPUT);
-  val req_val   = Bool(INPUT);
-  val req_rdy   = Bool(OUTPUT);
-  val resp_data = Bits(MEM_DATA_BITS, OUTPUT);
-  val resp_val  = Bool(OUTPUT);
-}
-
 class ioRocketICache extends Bundle()
 {
   val cpu = new ioImem();
-  val mem = new ioICache().flip();
+  val mem = new ioDCache().flip()
 }
 
 // basic direct mapped instruction cache
@@ -139,6 +129,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   rdy := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || tag_hit);
   io.cpu.resp_data := data_mux.io.out
   io.mem.req_val := (state === s_request);
+  io.mem.req_rw := Bool(false)
   io.mem.req_addr := r_cpu_miss_addr(tagmsb,indexlsb).toUFix
 
   // control state machine
