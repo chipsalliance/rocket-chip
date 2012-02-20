@@ -21,13 +21,13 @@ class Top() extends Component {
   val icache_pf = new rocketIPrefetcher();
   val vicache   = new rocketICache(128, 2); // 128 sets x 2 ways
   val dcache    = new HellaCacheUniproc();
-  val arbiter   = new rocketMemArbiter();
 
-  arbiter.io.mem    <> io.mem; 
-  arbiter.io.dcache <> dcache.io.mem;
-  arbiter.io.icache <> icache_pf.io.mem;
-  arbiter.io.vicache <> vicache.io.mem
-  arbiter.io.htif <> htif.io.mem
+  val arbiter   = new rocketMemArbiter(4);
+  arbiter.io.requestor(0) <> dcache.io.mem
+  arbiter.io.requestor(1) <> icache_pf.io.mem
+  arbiter.io.requestor(2) <> vicache.io.mem
+  arbiter.io.requestor(3) <> htif.io.mem
+  arbiter.io.mem <> io.mem
 
   htif.io.host <> io.host
   cpu.io.host       <> htif.io.cpu(0);

@@ -5,20 +5,9 @@ import Node._;
 import Constants._;
 import scala.math._;
 
-class ioIPrefetcherMem(view: List[String] = null) extends Bundle (view)
-{
-  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, OUTPUT);
-  val req_val   = Bool(OUTPUT);
-  val req_rdy   = Bool(INPUT);
-  val req_tag   = Bits(IMEM_TAG_BITS, OUTPUT);
-  val resp_data = Bits(MEM_DATA_BITS, INPUT);
-  val resp_val  = Bool(INPUT);
-  val resp_tag  = Bits(IMEM_TAG_BITS, INPUT);
-}
-
 class ioIPrefetcher extends Bundle() {
-  val icache = new ioICache();
-  val mem = new ioIPrefetcherMem();
+  val icache = new ioDCache();
+  val mem = new ioDCache().flip()
   val invalidate = Bool(INPUT)
 }
 
@@ -41,7 +30,8 @@ class rocketIPrefetcher extends Component() {
   val ip_mem_resp_val = io.mem.resp_val && io.mem.resp_tag(0).toBool; 
   
   io.mem.req_val  := io.icache.req_val & ~hit | (state === s_req_wait);
-  io.mem.req_tag  := !(io.icache.req_val && !hit);
+  io.mem.req_rw   := Bool(false)
+  io.mem.req_tag  := Mux(io.icache.req_val && !hit, UFix(0), UFix(1))
   io.mem.req_addr := Mux(io.mem.req_tag(0).toBool, prefetch_addr, io.icache.req_addr);
   
   val fill_cnt = Reg(resetVal = UFix(0, ceil(log(REFILL_CYCLES)/log(2)).toInt));
