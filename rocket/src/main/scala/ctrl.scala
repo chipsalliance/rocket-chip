@@ -77,8 +77,8 @@ class ioCtrlDpath extends Bundle()
 
 class ioCtrlAll extends Bundle()
 {
+  val htif_reset = Bool(INPUT)
   val dpath   = new ioCtrlDpath();
-  val console = new ioConsole(List("rdy"));
   val imem    = new ioImem(List("req_val", "resp_val")).flip();
   val dmem    = new ioDmem(List("req_val", "req_kill", "req_rdy", "req_cmd", "req_type", "resp_miss", "resp_nack")).flip();
   val ext_mem = new ioDmem(List("req_val", "req_cmd", "req_type", "resp_nack"))
@@ -297,8 +297,6 @@ class rocketCtrl extends Component
   val id_raddr2 = io.dpath.inst(21,17);
   val id_raddr1 = io.dpath.inst(26,22);
   val id_waddr  = Mux(id_sel_wa === WA_RA, RA, io.dpath.inst(31,27));
-
-  val id_console_out_val  = id_wen_pcr.toBool && (id_raddr2 === PCR_CONSOLE);
 
   val wb_reg_div_mul_val = Reg(resetVal = Bool(false))
   val wb_reg_dcache_miss = Reg(io.dmem.resp_miss, resetVal = Bool(false));
@@ -699,7 +697,7 @@ class rocketCtrl extends Component
   io.dpath.wen_btb := !ex_reg_btb_hit && br_taken
   io.dpath.clr_btb := ex_reg_btb_hit && !br_taken || id_reg_icmiss;
   
-  io.imem.req_val  := take_pc_wb || !mem_reg_replay && !ex_reg_replay && (take_pc_ex || !id_reg_replay)
+  io.imem.req_val  := !io.htif_reset && (take_pc_wb || !mem_reg_replay && !ex_reg_replay && (take_pc_ex || !id_reg_replay))
 
   // stall for RAW/WAW hazards on loads, AMOs, and mul/div in execute stage.
   val data_hazard_ex = ex_reg_wen &&
@@ -753,8 +751,7 @@ class rocketCtrl extends Component
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
       id_vec_val.toBool && !(io.vec_iface.vcmdq_ready && io.vec_iface.vximm1q_ready && io.vec_iface.vximm2q_ready) || // being conservative
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
-      vec_cpfence ||
-      id_console_out_val && !io.console.rdy
+      vec_cpfence
     );
   val ctrl_stallf = ctrl_stalld;
     

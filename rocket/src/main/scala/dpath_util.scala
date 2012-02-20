@@ -60,7 +60,7 @@ class rocketDpathBTB(entries: Int) extends Component
 
 class ioDpathPCR extends Bundle()
 {
-  val host  = new ioHost(List("from", "from_wen", "to"));
+  val host  = new ioHTIF()
   val debug = new ioDebug(List("error_mode", "log_control"));
   val r     = new ioReadPort();
   val w     = new ioWritePort();
@@ -78,8 +78,6 @@ class ioDpathPCR extends Bundle()
   val ptbr_wen  = Bool(OUTPUT);
   val irq_timer = Bool(OUTPUT);
   val irq_ipi   = Bool(OUTPUT);
-  val console_data = Bits(8, OUTPUT);
-  val console_val  = Bool(OUTPUT);
   val vecbank   = Bits(8, OUTPUT)
   val vecbankcnt = UFix(4, OUTPUT)
 }
@@ -119,11 +117,19 @@ class rocketDpathPCR extends Component
   val reg_status = Cat(reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, reg_status_ec, reg_status_ev, reg_status_ef, reg_status_et);
   val rdata = Wire() { Bits() };
 
-  io.ptbr_wen           := reg_status_vm.toBool && io.w.en && (io.w.addr === PCR_PTBR);
+  val ren = io.r.en || io.host.pcr_ren
+  val raddr = Mux(io.r.en, io.r.addr, io.host.pcr_addr)
+  io.host.pcr_rdata := rdata
+
+  val wen = io.w.en || io.host.pcr_wen
+  val waddr = Mux(io.w.en, io.w.addr, io.host.pcr_addr)
+  val wdata = Mux(io.w.en, io.w.data, io.host.pcr_wdata)
+  io.host.pcr_rdy := Mux(io.host.pcr_wen, !io.w.en, !io.r.en)
+
+  io.ptbr_wen           := reg_status_vm.toBool && wen && (waddr === PCR_PTBR);
   io.status              := Cat(reg_status_vm, reg_status_im, reg_status);
   io.evec               := reg_ebase;
   io.ptbr               := reg_ptbr;
-  io.host.to             := Mux(io.host.from_wen, Bits(0), reg_tohost);
   io.debug.error_mode    := reg_error_mode;
   io.r.data := rdata;
 
@@ -132,19 +138,6 @@ class rocketDpathPCR extends Component
   for (i <- 0 until 8)
     cnt = cnt + reg_vecbank(i)
   io.vecbankcnt := cnt(3,0)
-
-  val console_wen = !io.exception && io.w.en && (io.w.addr === PCR_CONSOLE);
-  io.console_data := Mux(console_wen, io.w.data(7,0), Bits(0,8));
-  io.console_val := console_wen;
-
-  when (io.host.from_wen) {
-    reg_tohost   := Bits(0);
-    reg_fromhost := io.host.from;
-  }
-  .elsewhen (io.w.en && (io.w.addr === PCR_TOHOST)) {
-    reg_tohost   := io.w.data;
-    reg_fromhost := Bits(0);
-  }
 
   val badvaddr_sign = Mux(io.w.data(VADDR_BITS-1), ~io.w.data(63,VADDR_BITS) === UFix(0), io.w.data(63,VADDR_BITS) != UFix(0))
   when (io.badvaddr_wen) {
@@ -185,37 +178,38 @@ class rocketDpathPCR extends Component
   io.irq_timer := r_irq_timer;
   io.irq_ipi := r_irq_ipi;
 
-  when (io.w.en) {
-    when (io.w.addr === PCR_STATUS) {
-      reg_status_vm := io.w.data(SR_VM).toBool;
-      reg_status_im := io.w.data(15,8);
-      reg_status_sx := io.w.data(SR_SX).toBool;
-      reg_status_ux := io.w.data(SR_UX).toBool;
-      reg_status_s  := io.w.data(SR_S).toBool;
-      reg_status_ps := io.w.data(SR_PS).toBool;
-      reg_status_ev := Bool(HAVE_VEC) && io.w.data(SR_EV).toBool;
-      reg_status_ef := Bool(HAVE_FPU) && io.w.data(SR_EF).toBool;
-      reg_status_ec := Bool(HAVE_RVC) && io.w.data(SR_EC).toBool;
-      reg_status_et := io.w.data(SR_ET).toBool;
+  when (wen) {
+    when (waddr === PCR_STATUS) {
+      reg_status_vm := wdata(SR_VM).toBool;
+      reg_status_im := wdata(15,8);
+      reg_status_sx := wdata(SR_SX).toBool;
+      reg_status_ux := wdata(SR_UX).toBool;
+      reg_status_s  := wdata(SR_S).toBool;
+      reg_status_ps := wdata(SR_PS).toBool;
+      reg_status_ev := Bool(HAVE_VEC) && wdata(SR_EV).toBool;
+      reg_status_ef := Bool(HAVE_FPU) && wdata(SR_EF).toBool;
+      reg_status_ec := Bool(HAVE_RVC) && wdata(SR_EC).toBool;
+      reg_status_et := wdata(SR_ET).toBool;
     }
-    when (io.w.addr === PCR_EPC)      { reg_epc          := io.w.data(VADDR_BITS,0).toUFix; }
-    when (io.w.addr === PCR_BADVADDR) { reg_badvaddr     := io.w.data(VADDR_BITS,0).toUFix; }
-    when (io.w.addr === PCR_EVEC)     { reg_ebase       := io.w.data(VADDR_BITS-1,0).toUFix; }
-    when (io.w.addr === PCR_COUNT)    { reg_count       := io.w.data(31,0).toUFix; }
-    when (io.w.addr === PCR_COMPARE)  { reg_compare     := io.w.data(31,0).toUFix; r_irq_timer := Bool(false); }
-    when (io.w.addr === PCR_CAUSE)    { reg_cause       := io.w.data(4,0); }
-    when (io.w.addr === PCR_FROMHOST) { reg_fromhost     := io.w.data; }
-    when (io.w.addr === PCR_SEND_IPI) { r_irq_ipi        := Bool(true); }
-    when (io.w.addr === PCR_CLR_IPI)  { r_irq_ipi        := Bool(false); }
-    when (io.w.addr === PCR_K0)       { reg_k0          := io.w.data; }
-    when (io.w.addr === PCR_K1)       { reg_k1          := io.w.data; }
-    when (io.w.addr === PCR_PTBR)     { reg_ptbr        := Cat(io.w.data(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
-    when (io.w.addr === PCR_VECBANK)  { reg_vecbank     := io.w.data(7,0) }
+    when (waddr === PCR_EPC)      { reg_epc          := wdata(VADDR_BITS,0).toUFix; }
+    when (waddr === PCR_BADVADDR) { reg_badvaddr     := wdata(VADDR_BITS,0).toUFix; }
+    when (waddr === PCR_EVEC)     { reg_ebase       := wdata(VADDR_BITS-1,0).toUFix; }
+    when (waddr === PCR_COUNT)    { reg_count       := wdata(31,0).toUFix; }
+    when (waddr === PCR_COMPARE)  { reg_compare     := wdata(31,0).toUFix; r_irq_timer := Bool(false); }
+    when (waddr === PCR_CAUSE)    { reg_cause       := wdata(4,0); }
+    when (waddr === PCR_TOHOST)   { reg_tohost       := wdata; reg_fromhost := Bits(0) }
+    when (waddr === PCR_FROMHOST) { reg_fromhost     := wdata; reg_tohost := Bits(0) }
+    when (waddr === PCR_SEND_IPI) { r_irq_ipi        := Bool(true); }
+    when (waddr === PCR_CLR_IPI)  { r_irq_ipi        := Bool(false); }
+    when (waddr === PCR_K0)       { reg_k0          := wdata; }
+    when (waddr === PCR_K1)       { reg_k1          := wdata; }
+    when (waddr === PCR_PTBR)     { reg_ptbr        := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
+    when (waddr === PCR_VECBANK)  { reg_vecbank     := wdata(7,0) }
   }
 
   rdata := Bits(0, 64)
-  when (io.r.en) {
-    switch (io.r.addr) {
+  when (ren) {
+    switch (raddr) {
       is (PCR_STATUS)   { rdata := Cat(Bits(0,47), reg_status_vm, reg_status_im, reg_status); }
       is (PCR_EPC)      { rdata := Cat(Fill(64-VADDR_BITS-1, reg_epc(VADDR_BITS)), reg_epc); }
       is (PCR_BADVADDR) { rdata := Cat(Fill(64-VADDR_BITS-1, reg_badvaddr(VADDR_BITS)), reg_badvaddr); }

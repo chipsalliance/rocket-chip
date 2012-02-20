@@ -29,9 +29,8 @@ class ioDpathImem extends Bundle()
 
 class ioDpathAll extends Bundle()
 {
-  val host  = new ioHost();
+  val host  = new ioHTIF();
   val ctrl  = new ioCtrlDpath().flip();
-  val console = new ioConsole(List("valid","bits"));
   val debug = new ioDebug();
   val dmem  = new ioDpathDmem();
   val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "req_data", "req_tag", "resp_val", "resp_data", "resp_tag"))
@@ -313,9 +312,7 @@ class rocketDpath extends Component
   	Mux(ex_reg_ctrl_eret, PCR_EPC, 
   		ex_reg_raddr2);
 
-  pcr.io.host.from_wen <> io.host.from_wen;
-  pcr.io.host.from     <> io.host.from;
-  pcr.io.host.to       <> io.host.to;
+  pcr.io.host <> io.host
 
   io.ctrl.irq_timer    := pcr.io.irq_timer;
   io.ctrl.irq_ipi      := pcr.io.irq_ipi;  
@@ -483,8 +480,6 @@ class rocketDpath extends Component
   pcr.io.cause 			  := io.ctrl.cause;
   pcr.io.pc					  := wb_reg_pc;
   pcr.io.badvaddr_wen := io.ctrl.badvaddr_wen;
-  io.console.bits := pcr.io.console_data;
-  io.console.valid := pcr.io.console_val;
 }
 
 }
