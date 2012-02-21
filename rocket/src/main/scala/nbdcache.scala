@@ -846,7 +846,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   // conflictig load, or if the cache is idle, or after a miss.
   val p_store_idx_match = p_store_valid && (r_cpu_req_idx(indexmsb,indexlsb) === p_store_idx(indexmsb,indexlsb))
   val p_store_offset_match = (r_cpu_req_idx(indexlsb-1,offsetlsb) === p_store_idx(indexlsb-1,offsetlsb))
-  val p_store_match = r_cpu_req_val && r_req_read && p_store_idx_match && p_store_offset_match
+  val p_store_match = r_cpu_req_val_ && r_req_read && p_store_idx_match && p_store_offset_match
   val drain_store_val = (p_store_valid && (!io.cpu.req_val || !req_read || Reg(tag_miss))) || p_store_match
   data_arb.io.in(2).bits.inner_req.offset := p_store_idx(offsetmsb,ramindexlsb)
   data_arb.io.in(2).bits.inner_req.idx := p_store_idx(indexmsb,indexlsb)
@@ -913,7 +913,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
 
   // replays
   val replay = replayer.io.data_req.bits
-  val stall_replay = r_cpu_req_val && r_req_amo || r_replay_amo || p_amo || p_store_valid
+  val stall_replay = r_cpu_req_val_ && r_req_store || r_replay_amo || p_amo || p_store_valid
   val replay_val = replayer.io.data_req.valid && !stall_replay
   val replay_rdy = data_arb.io.in(1).ready
   data_arb.io.in(1).bits.inner_req.offset := replay.offset(offsetmsb,ramindexlsb)
@@ -951,14 +951,14 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   amoalu.io.lhs := loadgen.io.r_dout.toUFix
   amoalu.io.rhs := p_store_data.toUFix
 
-  early_nack := early_tag_nack || early_load_nack || r_cpu_req_val && r_req_amo || replay_amo_val || r_replay_amo
+  early_nack := early_tag_nack || early_load_nack || r_cpu_req_val_ && r_req_amo || replay_amo_val || r_replay_amo
 
   // reset and flush unit
   val flusher = new FlushUnit(lines)
   val flushed = Reg(resetVal = Bool(true))
   val flush_rdy = mshr.io.fence_rdy && wb_rdy && !p_store_valid
-  flushed := flushed && !r_cpu_req_val || r_cpu_req_val && r_req_flush && flush_rdy && flusher.io.req.ready
-  flusher.io.req.valid := r_cpu_req_val && r_req_flush && flush_rdy && !flushed
+  flushed := flushed && !r_cpu_req_val_ || r_cpu_req_val_ && r_req_flush && flush_rdy && flusher.io.req.ready
+  flusher.io.req.valid := r_cpu_req_val_ && r_req_flush && flush_rdy && !flushed
   flusher.io.wb_req <> wb_arb.io.in(0)
   flusher.io.meta_req <> meta_arb.io.in(0)
   flusher.io.meta_resp <> meta_resp_mux
@@ -967,7 +967,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   // we usually nack rather than reporting that the cache is not ready.
   // fences and flushes are the exceptions.
   val pending_fence = Reg(resetVal = Bool(false))
-  pending_fence := (r_cpu_req_val && r_req_fence || pending_fence) && !flush_rdy
+  pending_fence := (r_cpu_req_val_ && r_req_fence || pending_fence) && !flush_rdy
   val nack_hit   = p_store_match || r_req_write && !p_store_rdy
   val nack_miss  = needs_writeback && !wb_rdy || !mshr.io.req_rdy || r_req_write && !replayer.io.sdq_enq.ready
   val nack_flush = !flush_rdy && (r_req_fence || r_req_flush) ||
