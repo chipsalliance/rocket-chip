@@ -913,7 +913,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
 
   // replays
   val replay = replayer.io.data_req.bits
-  val stall_replay = r_replay_amo || p_amo || p_store_valid
+  val stall_replay = r_cpu_req_val && r_req_amo || r_replay_amo || p_amo || p_store_valid
   val replay_val = replayer.io.data_req.valid && !stall_replay
   val replay_rdy = data_arb.io.in(1).ready
   data_arb.io.in(1).bits.inner_req.offset := replay.offset(offsetmsb,ramindexlsb)
