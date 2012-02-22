@@ -854,9 +854,10 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   data_arb.io.in(2).valid := drain_store_val
   data_arb.io.in(2).bits.way_en :=  p_store_way_oh
   val drain_store = drain_store_val && data_arb.io.in(2).ready
-  val p_store_rdy = !p_store_valid || drain_store
-  val p_amo = Reg(tag_hit && r_req_amo && p_store_rdy && !p_store_match || r_replay_amo, resetVal = Bool(false))
-  p_store_valid := !p_store_rdy || (tag_hit && r_req_store) || p_amo
+  val p_amo = Reg(resetVal = Bool(false))
+  val p_store_rdy = !(p_store_valid && !drain_store) && !(replayer.io.data_req.valid || r_replay_amo || p_amo)
+  p_amo := tag_hit && r_req_amo && p_store_rdy && !p_store_match || r_replay_amo
+  p_store_valid := p_store_valid && !drain_store || (tag_hit && r_req_store && p_store_rdy) || p_amo
 
   // writeback
   val wb_rdy = wb_arb.io.in(1).ready && !p_store_idx_match
@@ -913,7 +914,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
 
   // replays
   val replay = replayer.io.data_req.bits
-  val stall_replay = r_cpu_req_val_ && r_req_store || r_replay_amo || p_amo || p_store_valid
+  val stall_replay = r_replay_amo || p_amo || p_store_valid
   val replay_val = replayer.io.data_req.valid && !stall_replay
   val replay_rdy = data_arb.io.in(1).ready
   data_arb.io.in(1).bits.inner_req.offset := replay.offset(offsetmsb,ramindexlsb)
