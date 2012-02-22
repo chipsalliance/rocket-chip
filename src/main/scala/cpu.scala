@@ -161,5 +161,6 @@ class rocketProc extends Component
     vu.io.dmem_resp.bits.nack := ctrl.io.ext_mem.resp_nack
     vu.io.dmem_resp.bits.data := dpath.io.ext_mem.resp_data
     vu.io.dmem_resp.bits.tag := dpath.io.ext_mem.resp_tag
+    vu.io.dmem_resp.bits.typ := dpath.io.ext_mem.resp_type
   }
 }
