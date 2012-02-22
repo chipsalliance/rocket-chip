@@ -4,7 +4,7 @@ import Chisel._
 import Constants._
 
 class TransactionInit extends Bundle {
-  val ttype = Bits(width = 2)
+  val ttype = Bits(width = TTYPE_BITS)
   val tileTransactionID = Bits(width = TILE_XACT_ID_BITS)
   val address = Bits(width = PADDR_BITS)
   val data = Bits(width = MEM_DATA_BITS)
@@ -15,20 +15,20 @@ class TransactionAbort extends Bundle {
 }
 
 class ProbeRequest extends Bundle {
-  val ptype = Bits(width = 2)
+  val ptype = Bits(width = PTYPE_BITS)
   val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
   val address = Bits(width = PADDR_BITS)
 }
 
 class ProbeReply extends Bundle {
-  val ptype = Bits(width = 2)
+  val ptype = Bits(width = PTYPE_BITS)
   val hasData = Bool()
   val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
   val data = Bits(width = MEM_DATA_BITS)
 }
 
 class TransactionReply extends Bundle {
-  val ttype = Bits(width = 2)
+  val ttype = Bits(width = TTYPE_BITS)
   val tileTransactionID = Bits(width = TILE_XACT_ID_BITS)
   val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
   val data = Bits(width = MEM_DATA_BITS)

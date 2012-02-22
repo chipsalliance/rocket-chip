@@ -177,6 +177,17 @@ object Constants
   val TILE_XACT_ID_BITS = 1; // log2(NMSHR)
   val GLOBAL_XACT_ID_BITS = IDX_BITS; // if one active xact per set
 
+  val TTYPE_BITS = 2
+  val X_READ_SHARED    = UFix(0, TTYPE_BITS)
+  val X_READ_EXCLUSIVE = UFix(1, TTYPE_BITS)
+  val X_READ_UNCACHED  = UFix(2, TTYPE_BITS)
+  val X_WRITE_UNCACHED = UFix(3, TTYPE_BITS)
+
+  val PTYPE_BITS = 2
+  val P_INVALIDATE = UFix(0, PTYPE_BITS)
+  val P_DOWNGRADE  = UFix(1, PTYPE_BITS)
+  val P_COPY       = UFix(2, PTYPE_BITS)
+
   // external memory interface
   val IMEM_TAG_BITS = 1;
   val DMEM_TAG_BITS = ceil(log(NMSHR)/log(2)).toInt;
