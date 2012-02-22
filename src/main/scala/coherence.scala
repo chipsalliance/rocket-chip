@@ -39,12 +39,12 @@ class TransactionFinish extends Bundle {
 }
 
 class ioTileLink extends Bundle { 
-  val xact_init   = new TransactionInit().asOutput
-  val xact_abort  = new TransactionAbort().asInput
-  val probe_req   = new ProbeRequest().asInput
-  val probe_rep   = new ProbeReply().asOutput
-  val xact_rep    = new TransactionReply().asInput
-  val xact_finish = new TransactionFinish().asOutput
+  val xact_init   = (new ioDecoupled) { new TransactionInit() }.flip
+  val xact_abort  = (new ioDecoupled) { new TransactionAbort() }
+  val probe_req   = (new ioDecoupled) { new ProbeRequest() }
+  val probe_rep   = (new ioDecoupled) { new ProbeReply() }.flip
+  val xact_rep    = (new ioDecoupled) { new TransactionReply() }
+  val xact_finish = (new ioDecoupled) { new TransactionFinish() }.flip
 }
 
 trait CoherencePolicy {
@@ -129,5 +129,7 @@ trait FourStateCoherence extends CoherencePolicy {
     state.toBits
   }
 }
+
+
 
 }
