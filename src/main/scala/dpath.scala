@@ -33,7 +33,7 @@ class ioDpathAll extends Bundle()
   val ctrl  = new ioCtrlDpath().flip();
   val debug = new ioDebug();
   val dmem  = new ioDpathDmem();
-  val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "req_data", "req_tag", "resp_val", "resp_data", "resp_tag"))
+  val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "req_data", "req_tag", "resp_val", "resp_data", "resp_type", "resp_tag"))
   val imem  = new ioDpathImem();
   val ptbr_wen = Bool(OUTPUT);
   val ptbr = UFix(PADDR_BITS, OUTPUT);
@@ -457,6 +457,7 @@ class rocketDpath extends Component
 
   io.ext_mem.resp_val := Reg(io.dmem.resp_val && dmem_resp_ext, resetVal = Bool(false))
   io.ext_mem.resp_tag := Reg(dmem_resp_ext_tag)
+  io.ext_mem.resp_type := Reg(io.dmem.resp_type)
   io.ext_mem.resp_data := io.dmem.resp_data_subword
   
   io.ctrl.wb_waddr := wb_reg_waddr;
