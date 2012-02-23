@@ -41,6 +41,7 @@ class ioCtrlDpath extends Bundle()
   val ex_wen   = Bool(OUTPUT);
   val mem_wen  = Bool(OUTPUT);
   val wb_wen   = Bool(OUTPUT);
+  val wb_valid = Bool(OUTPUT)
   val flush_inst = Bool(OUTPUT);
   val ex_mem_type = UFix(3,OUTPUT)
   // enable/disable interrupts
@@ -70,7 +71,6 @@ class ioCtrlDpath extends Bundle()
   val sboard_clra = UFix(5, INPUT);
   val fp_sboard_clr  = Bool(INPUT);
   val fp_sboard_clra = UFix(5, INPUT);
-  val mem_valid = Bool(INPUT); // high if there's a valid (not flushed) instruction in mem stage
   val irq_timer = Bool(INPUT);
   val irq_ipi   = Bool(INPUT);
 }
@@ -300,6 +300,7 @@ class rocketCtrl extends Component
   val wb_reg_div_mul_val = Reg(resetVal = Bool(false))
   val wb_reg_dcache_miss = Reg(io.dmem.resp_miss, resetVal = Bool(false));
 
+  val id_reg_valid        = Reg(resetVal = Bool(false));
   val id_reg_btb_hit      = Reg(resetVal = Bool(false));
   val id_reg_xcpt_itlb    = Reg(resetVal = Bool(false));
   val id_reg_xcpt_ma_inst = Reg(resetVal = Bool(false));
@@ -314,6 +315,8 @@ class rocketCtrl extends Component
   val ex_reg_mem_val     = Reg(){Bool()};
   val ex_reg_mem_cmd     = Reg(){UFix(width = 4)};
   val ex_reg_mem_type    = Reg(){UFix(width = 3)};
+  val ex_reg_valid       = Reg(resetVal = Bool(false));
+  val ex_reg_wen_pcr     = Reg(resetVal = Bool(false));
   val ex_reg_wen         = Reg(resetVal = Bool(false));
   val ex_reg_fp_wen      = Reg(resetVal = Bool(false));
   val ex_reg_eret        = Reg(resetVal = Bool(false));
@@ -333,6 +336,8 @@ class rocketCtrl extends Component
   val ex_reg_load_use        = Reg(resetVal = Bool(false));
   val ex_reg_ext_mem_val     = Reg(resetVal = Bool(false))
 
+  val mem_reg_valid           = Reg(resetVal = Bool(false));
+  val mem_reg_wen_pcr         = Reg(resetVal = Bool(false));
   val mem_reg_wen             = Reg(resetVal = Bool(false));
   val mem_reg_fp_wen          = Reg(resetVal = Bool(false));
   val mem_reg_replay_next     = Reg(resetVal = Bool(false));
@@ -352,6 +357,8 @@ class rocketCtrl extends Component
   val mem_reg_ext_mem_val     = Reg(resetVal = Bool(false))
   val mem_reg_fp_sboard_set   = Reg(resetVal = Bool(false));
 
+  val wb_reg_valid           = Reg(resetVal = Bool(false));
+  val wb_reg_wen_pcr         = Reg(resetVal = Bool(false));
   val wb_reg_wen             = Reg(resetVal = Bool(false));
   val wb_reg_fp_wen          = Reg(resetVal = Bool(false));
   val wb_reg_replay_next     = Reg(resetVal = Bool(false));
@@ -369,11 +376,13 @@ class rocketCtrl extends Component
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
+      id_reg_valid := Bool(false)
       id_reg_btb_hit := Bool(false);
       id_reg_xcpt_ma_inst := Bool(false);   
       id_reg_xcpt_itlb := Bool(false);
     } 
     .otherwise{
+      id_reg_valid := Bool(true)
       id_reg_btb_hit := io.dpath.btb_hit;
       id_reg_xcpt_ma_inst := if_reg_xcpt_ma_inst;
       id_reg_xcpt_itlb := io.xcpt_itlb;
@@ -393,6 +402,8 @@ class rocketCtrl extends Component
     ex_reg_div_val := Bool(false);
     ex_reg_mul_val := Bool(false);
     ex_reg_mem_val     := Bool(false);
+    ex_reg_valid       := Bool(false);
+    ex_reg_wen_pcr     := Bool(false)
     ex_reg_wen         := Bool(false);
     ex_reg_fp_wen      := Bool(false);
     ex_reg_eret        := Bool(false);
@@ -417,6 +428,8 @@ class rocketCtrl extends Component
     ex_reg_div_val     := id_div_val.toBool && id_waddr != UFix(0);
     ex_reg_mul_val     := id_mul_val.toBool && id_waddr != UFix(0);
     ex_reg_mem_val     := id_mem_val.toBool;
+    ex_reg_valid       := id_reg_valid
+    ex_reg_wen_pcr     := id_wen_pcr
     ex_reg_wen         := id_wen.toBool && id_waddr != UFix(0);
     ex_reg_fp_wen      := io.fpu.dec.wen;
     ex_reg_eret        := id_eret.toBool;
@@ -463,6 +476,8 @@ class rocketCtrl extends Component
   val mem_reg_mem_type    = Reg(){UFix(width = 3)};
 
   when (reset.toBool || io.dpath.killx) {
+    mem_reg_valid       := Bool(false);
+    mem_reg_wen_pcr     := Bool(false)
     mem_reg_div_mul_val := Bool(false);
     mem_reg_wen         := Bool(false);
     mem_reg_fp_wen      := Bool(false);
@@ -483,6 +498,8 @@ class rocketCtrl extends Component
     mem_reg_fp_sboard_set    := Bool(false)
   }
   .otherwise {
+    mem_reg_valid       := ex_reg_valid
+    mem_reg_wen_pcr     := ex_reg_wen_pcr
     mem_reg_div_mul_val := ex_reg_div_val || ex_reg_mul_val;
     mem_reg_wen         := ex_reg_wen;
     mem_reg_fp_wen      := ex_reg_fp_wen;
@@ -507,6 +524,8 @@ class rocketCtrl extends Component
   mem_reg_mem_type    := ex_reg_mem_type;
 
   when (io.dpath.killm) {
+    wb_reg_valid       := Bool(false)
+    wb_reg_wen_pcr     := Bool(false)
     wb_reg_wen         := Bool(false);
     wb_reg_fp_wen      := Bool(false);
     wb_reg_eret        := Bool(false);
@@ -519,6 +538,8 @@ class rocketCtrl extends Component
     wb_reg_fp_sboard_set := Bool(false)
   }
   .otherwise {
+    wb_reg_valid       := mem_reg_valid
+    wb_reg_wen_pcr     := mem_reg_wen_pcr
     wb_reg_wen         := mem_reg_wen;
     wb_reg_fp_wen      := mem_reg_fp_wen;
     wb_reg_eret        := mem_reg_eret;
@@ -609,7 +630,7 @@ class rocketCtrl extends Component
   val p_irq_timer = (io.dpath.status(15).toBool && io.dpath.irq_timer);
   val p_irq_ipi   = (io.dpath.status(13).toBool && io.dpath.irq_ipi);
   val interrupt = 
-    io.dpath.status(SR_ET).toBool && io.dpath.mem_valid && 
+    io.dpath.status(SR_ET).toBool && mem_reg_valid && 
     ((io.dpath.status(15).toBool && io.dpath.irq_timer) ||
      (io.dpath.status(13).toBool && io.dpath.irq_ipi));
      
@@ -659,7 +680,7 @@ class rocketCtrl extends Component
 
   // replay mem stage PC on a DTLB miss or a long-latency writeback
   val mem_ll_wb = io.dpath.mem_wb || io.dpath.mul_result_val || io.dpath.div_result_val
-  val dmem_kill_mem = io.dpath.mem_valid && (io.dtlb_miss || io.dmem.resp_nack)
+  val dmem_kill_mem = mem_reg_valid && (io.dtlb_miss || io.dmem.resp_nack)
   val replay_mem  = dmem_kill_mem || mem_reg_wen && mem_ll_wb || mem_reg_replay
   val kill_mem    = dmem_kill_mem || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill
   val kill_dcache = io.dtlb_miss  || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill || Reg(io.ext_mem.resp_nack)
@@ -787,10 +808,11 @@ class rocketCtrl extends Component
   io.dpath.ex_wen   := ex_reg_wen;
   io.dpath.mem_wen  := mem_reg_wen;
   io.dpath.wb_wen   := wb_reg_wen;
+  io.dpath.wb_valid := wb_reg_valid;
   io.dpath.sel_wa   := id_sel_wa.toBool;
   io.dpath.sel_wb   := id_sel_wb;
   io.dpath.ren_pcr  := id_ren_pcr.toBool;
-  io.dpath.wen_pcr  := id_wen_pcr.toBool;
+  io.dpath.wen_pcr  := wb_reg_wen_pcr
   io.dpath.id_eret  := id_eret.toBool;
   io.dpath.wb_eret  := wb_reg_eret;  
   io.dpath.irq_disable := wb_reg_inst_di;
