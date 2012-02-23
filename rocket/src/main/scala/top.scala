@@ -16,7 +16,7 @@ class Top() extends Component {
   val io = new ioTop(htif_width);
   val htif = new rocketHTIF(htif_width, 1)
   
-  val cpu       = new rocketProc();
+  val cpu       = new rocketProc(resetSignal = htif.io.cpu(0).reset);
   val icache    = new rocketICache(128, 2); // 128 sets x 2 ways
   val icache_pf = new rocketIPrefetcher();
   val dcache    = new HellaCacheUniproc();
