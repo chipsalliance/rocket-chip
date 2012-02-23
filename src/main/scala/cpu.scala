@@ -19,7 +19,7 @@ class ioRocket extends Bundle()
   val dmem    = new ioDmem().flip();
 }
 
-class rocketProc extends Component
+class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
 {
   val io    = new ioRocket();
    
@@ -32,7 +32,6 @@ class rocketProc extends Component
   val ptw   = new rocketPTW();
   val arb   = new rocketDmemArbiter();
 
-  ctrl.io.htif_reset := io.host.reset
   ctrl.io.dpath             <> dpath.io.ctrl;
   dpath.io.host             <> io.host;
   dpath.io.debug            <> io.debug;
