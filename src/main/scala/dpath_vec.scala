@@ -100,9 +100,9 @@ class rocketDpathVec extends Component
   val hwvl = Mux(io.ctrl.fn === VEC_CFG, hwvl_vcfg, reg_hwvl)
   val appvl = Mux(io.wdata(11,0) < hwvl, io.wdata(11,0), hwvl).toUFix
 
-  when (io.valid && io.ctrl.wen && (io.ctrl.fn === VEC_CFG))
+  when (io.valid && io.ctrl.wen)
   {
-    reg_hwvl := hwvl_vcfg
+    when (io.ctrl.fn === VEC_CFG) { reg_hwvl := hwvl_vcfg }
     reg_appvl0 := !(appvl.orR())
   }
 
