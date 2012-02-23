@@ -179,6 +179,7 @@ object Constants
   val TILE_ID_BITS = 1
   val TILE_XACT_ID_BITS = 1 // log2(NMSHR)
   val GLOBAL_XACT_ID_BITS = IDX_BITS // if one active xact per set
+  val NGLOBAL_XACTS = 1 << IDX_BITS
 
   val TTYPE_BITS = 2
   val X_READ_SHARED    = UFix(0, TTYPE_BITS)
