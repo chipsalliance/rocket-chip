@@ -24,6 +24,9 @@ class ProbeReply extends Bundle {
   val ptype = Bits(width = PTYPE_BITS)
   val hasData = Bool()
   val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
+}
+
+class ProbeReplyData extends Bundle {
   val data = Bits(width = MEM_DATA_BITS)
 }
 
@@ -31,6 +34,9 @@ class TransactionReply extends Bundle {
   val ttype = Bits(width = TTYPE_BITS)
   val tileTransactionID = Bits(width = TILE_XACT_ID_BITS)
   val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
+}
+
+class TransactionReplyData extends Bundle {
   val data = Bits(width = MEM_DATA_BITS)
 }
 
@@ -39,12 +45,14 @@ class TransactionFinish extends Bundle {
 }
 
 class ioTileLink extends Bundle { 
-  val xact_init   = (new ioDecoupled) { new TransactionInit() }.flip
-  val xact_abort  = (new ioDecoupled) { new TransactionAbort() }
-  val probe_req   = (new ioDecoupled) { new ProbeRequest() }
-  val probe_rep   = (new ioDecoupled) { new ProbeReply() }.flip
-  val xact_rep    = (new ioDecoupled) { new TransactionReply() }
-  val xact_finish = (new ioDecoupled) { new TransactionFinish() }.flip
+  val xact_init      = (new ioDecoupled) { new TransactionInit() }.flip
+  val xact_abort     = (new ioDecoupled) { new TransactionAbort() }
+  val probe_req      = (new ioDecoupled) { new ProbeRequest() }
+  val probe_rep      = (new ioDecoupled) { new ProbeReply() }.flip
+  val probe_rep_data = (new ioDecoupled) { new ProbeReplyData() }.flip
+  val xact_rep       = (new ioDecoupled) { new TransactionReply() }
+  val xact_rep_data  = (new ioDecoupled) { new TransactionReplyData() }
+  val xact_finish    = (new ioDecoupled) { new TransactionFinish() }.flip
 }
 
 trait CoherencePolicy {
@@ -130,6 +138,78 @@ trait FourStateCoherence extends CoherencePolicy {
   }
 }
 
+class XactTracker(id: Int) extends Component {
+  val io = new Bundle {
+    val xact_init   = (new ioDecoupled) { new TransactionInit() }
+    val probe_rep   = (new ioDecoupled) { new ProbeReply() }
+    val probe_req   = (new ioDecoupled) { new ProbeRequest() }.flip
+    val xact_rep    = (new ioDecoupled) { new TransactionReply() }.flip
+    val mem_req     = (new ioDecoupled) { new MemReq()  }.flip
+    val xact_finish = Bool(INPUT)
+    val tile_id_in  = Bits(TILE_ID_BITS, INPUT)  
+    val tile_id_out = Bits(TILE_ID_BITS, OUTPUT)  
+    val ongoing_addr = Bits(PADDR_BITS, OUTPUT)
+    val busy        = Bool(OUTPUT)
+  }
 
+  val valid = Reg(resetVal = Bool(false))
+  val addr  = Reg{ Bits() }
+  val ttype = Reg{ Bits() }
+  val tile_id = Reg{ Bits() }
+  val tile_xact_id = Reg{ Bits() }
+  val probe_done = Reg{ Bits() }
+  
+}
+
+abstract class CoherenceHub extends Component
+
+class CoherenceHubNoDir extends CoherenceHub {
+  val io = new Bundle {
+    val tiles = Vec(NTILES) { new ioTileLink() }
+    val mem = new ioDCache().flip
+  }
+  
+  val trackerList =  (0 until NGLOBAL_XACTS).map(new XactTracker(_))
+
+  // In parallel, every cycle: nack conflicting transactions, free finished ones
+  for( j <- 0 until NTILES ) {
+    val init   = io.tiles(j).xact_init
+    val abort  = io.tiles(j).xact_abort
+    val conflicts = Bits(width = NGLOBAL_XACTS) 
+    val busys     = Bits(width = NGLOBAL_XACTS) 
+    for( i <- 0 until NGLOBAL_XACTS) {
+      val t = trackerList(i).io
+      busys(i)     := t.busy
+      conflicts(i) := t.busy && init.valid && (t.ongoing_addr === init.bits.address)
+    }
+    abort.valid := conflicts.orR || busys.andR
+    abort.bits.tileTransactionID := init.bits.tileTransactionID
+    //if abort.rdy, init.pop()
+    
+  }
+  for( i <- 0 until NGLOBAL_XACTS) {
+    val t     = trackerList(i).io
+    val freed = Bits(width = NTILES) 
+    for( j <- 0 until NTILES ) {
+      val finish = io.tiles(j).xact_finish
+      freed(j)    := finish.valid && (UFix(i) === finish.bits.globalTransactionID)
+    }
+    t.xact_finish := freed.orR
+    //finish.pop()
+  }
+
+  // Forward memory responses from mem to tile
+  //for( j <- until NTILES ) {
+  //  tiles(j).xact_rep.ttype = 
+  //  tiles(j).xact_rep.tileTransactionID = 
+  //  tiles(j).xact_rep.globalTransactionID = 
+  //  val data = Bits
+  //
+  // Pick a single request of these types to process
+  //val xact_init_arb   = (new Arbiter(NTILES)) { new TransactionInit() }
+  //val probe_reply_arb = (new Arbiter(NTILES)) { new ProbeReply() }
+
+
+}
 
 }
