@@ -205,7 +205,9 @@ class CoherenceHubNoDir extends CoherenceHub {
     trackerList(i).io.xact_finish := free_arr.read(UFix(i))
   }
 
-  // In parallel, every cycle: nack conflicting transactions, free finished ones
+  // Nack conflicting transaction init attempts
+  val aborting   = Wire() { Bits(width = NTILES) } 
+  val initiating = Wire() { Bits(width = NTILES) } 
   for( j <- 0 until NTILES ) {
     val init   = io.tiles(j).xact_init
     val abort  = io.tiles(j).xact_abort
@@ -214,34 +216,16 @@ class CoherenceHubNoDir extends CoherenceHub {
       val t = trackerList(i).io
       conflicts(i) := t.busy(i) && coherenceConflict(t.addr, init.bits.address)
     }
-    abort.valid := init.valid && (conflicts.orR || busy_arr.flatten().andR)
+    aborting(j) := (conflicts.orR || busy_arr.flatten().andR)
+    abort.valid := init.valid && aborting
     abort.bits.tileTransactionID := init.bits.tileTransactionID
-  // TODO: 
-  // Reg(aborted) := (abort.ready && abort.valid)
-  // Reg(allocated) : = had_priority(j) & !(abort.ready && abort.valid)
-  // init.rdy = aborted || allocated
+    init.ready  := aborting(j) || initiating(j)
   }
-
-/*
-// Todo: which implementation is clearer?
-  for( i <- 0 until NGLOBAL_XACTS) {
-    val t     = trackerList(i).io
-    val freed = Bits(width = NTILES) 
-    for( j <- 0 until NTILES ) {
-      val finish = io.tiles(j).xact_finish
-      free(j)     := finish.valid && (UFix(i) === finish.bits.globalTransactionID)
-      finish.ready := Bool(true) // finsh.pop()
-    }
-    t.xact_finish := freed.orR
-  }
-*/
   
-  free_arr := Bits(0, width=NGLOBAL_XACTS)
+  // Free finished transactions
   for( j <- 0 until NTILES ) {
     val finish = io.tiles(j).xact_finish
-    when(finish.valid) {
-      free_arr.write(finish.bits.globalTransactionID, Bool(true))
-    }
+    free_arr.write(finish.bits.globalTransactionID, finish.valid)
     finish.ready := Bool(true)
   }
 
