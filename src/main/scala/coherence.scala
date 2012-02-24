@@ -2,6 +2,7 @@ package Top {
 
 import Chisel._
 import Constants._
+import hwacha.GenArray
 
 class TransactionInit extends Bundle {
   val ttype = Bits(width = TTYPE_BITS)
@@ -146,10 +147,12 @@ class XactTracker(id: Int) extends Component {
     val xact_rep    = (new ioDecoupled) { new TransactionReply() }.flip
     val mem_req     = (new ioDecoupled) { new MemReq()  }.flip
     val xact_finish = Bool(INPUT)
-    val tile_id_in  = Bits(TILE_ID_BITS, INPUT)  
-    val tile_id_out = Bits(TILE_ID_BITS, OUTPUT)  
-    val ongoing_addr = Bits(PADDR_BITS, OUTPUT)
     val busy        = Bool(OUTPUT)
+    val addr         = Bits(PADDR_BITS, OUTPUT)
+    val tile_id      = Bits(TILE_ID_BITS, OUTPUT)
+    val tile_xact_id = Bits(TILE_XACT_ID_BITS, OUTPUT)
+    val sharer_count = Bits(TILE_ID_BITS, OUTPUT)
+    val ttype        = Bits(TTYPE_BITS, OUTPUT)
   }
 
   val valid = Reg(resetVal = Bool(false))
@@ -164,47 +167,104 @@ class XactTracker(id: Int) extends Component {
 abstract class CoherenceHub extends Component
 
 class CoherenceHubNoDir extends CoherenceHub {
+
+  def coherenceConflict(addr1: Bits, addr2: Bits): Bool = {
+    addr1(PADDR_BITS-1, OFFSET_BITS) === addr2(PADDR_BITS-1, OFFSET_BITS)
+  }
+  def getTransactionReplyType(ttype: UFix, count: UFix): Bits = {
+    val ret = Wire() { Bits(width = TTYPE_BITS) }
+    switch (ttype) {
+      is(X_READ_SHARED) { ret := Mux(count > UFix(0), X_READ_SHARED, X_READ_EXCLUSIVE) }
+      is(X_READ_EXCLUSIVE) { ret := X_READ_EXCLUSIVE }
+      is(X_READ_UNCACHED)  { ret := X_READ_UNCACHED  }
+      is(X_WRITE_UNCACHED) { ret := X_WRITE_UNCACHED }
+    }
+    ret 
+  }
+
   val io = new Bundle {
     val tiles = Vec(NTILES) { new ioTileLink() }
     val mem = new ioDCache().flip
   }
   
-  val trackerList =  (0 until NGLOBAL_XACTS).map(new XactTracker(_))
+  val trackerList      = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
+  val busy_arr         = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val addr_arr         = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
+  val tile_id_arr      = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
+  val tile_xact_id_arr = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
+  val sh_count_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
+  val ttype_arr        = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TTYPE_BITS)} }
+  val free_arr         = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
+  for( i <- 0 until NGLOBAL_XACTS) {
+    busy_arr.write(        UFix(i), trackerList(i).io.busy)
+    addr_arr.write(        UFix(i), trackerList(i).io.addr)
+    tile_id_arr.write(     UFix(i), trackerList(i).io.tile_id)
+    tile_xact_id_arr.write(UFix(i), trackerList(i).io.tile_xact_id)
+    ttype_arr.write(        UFix(i), trackerList(i).io.ttype)
+    sh_count_arr.write(        UFix(i), trackerList(i).io.sharer_count)
+    trackerList(i).io.xact_finish := free_arr.read(UFix(i))
+  }
 
   // In parallel, every cycle: nack conflicting transactions, free finished ones
   for( j <- 0 until NTILES ) {
     val init   = io.tiles(j).xact_init
     val abort  = io.tiles(j).xact_abort
     val conflicts = Bits(width = NGLOBAL_XACTS) 
-    val busys     = Bits(width = NGLOBAL_XACTS) 
     for( i <- 0 until NGLOBAL_XACTS) {
       val t = trackerList(i).io
-      busys(i)     := t.busy
-      conflicts(i) := t.busy && init.valid && (t.ongoing_addr === init.bits.address)
+      conflicts(i) := t.busy(i) && coherenceConflict(t.addr, init.bits.address)
     }
-    abort.valid := conflicts.orR || busys.andR
+    abort.valid := init.valid && (conflicts.orR || busy_arr.flatten().andR)
     abort.bits.tileTransactionID := init.bits.tileTransactionID
-    //if abort.rdy, init.pop()
-    
+  // TODO: 
+  // Reg(aborted) := (abort.ready && abort.valid)
+  // Reg(allocated) : = had_priority(j) & !(abort.ready && abort.valid)
+  // init.rdy = aborted || allocated
   }
+
+/*
+// Todo: which implementation is clearer?
   for( i <- 0 until NGLOBAL_XACTS) {
     val t     = trackerList(i).io
     val freed = Bits(width = NTILES) 
     for( j <- 0 until NTILES ) {
       val finish = io.tiles(j).xact_finish
-      freed(j)    := finish.valid && (UFix(i) === finish.bits.globalTransactionID)
+      free(j)     := finish.valid && (UFix(i) === finish.bits.globalTransactionID)
+      finish.ready := Bool(true) // finsh.pop()
     }
     t.xact_finish := freed.orR
-    //finish.pop()
+  }
+*/
+  
+  free_arr := Bits(0, width=NGLOBAL_XACTS)
+  for( j <- 0 until NTILES ) {
+    val finish = io.tiles(j).xact_finish
+    when(finish.valid) {
+      free_arr.write(finish.bits.globalTransactionID, Bool(true))
+    }
+    finish.ready := Bool(true)
   }
 
   // Forward memory responses from mem to tile
-  //for( j <- until NTILES ) {
-  //  tiles(j).xact_rep.ttype = 
-  //  tiles(j).xact_rep.tileTransactionID = 
-  //  tiles(j).xact_rep.globalTransactionID = 
-  //  val data = Bits
-  //
+  val xrep_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
+  val xrep_cnt_next = xrep_cnt + UFix(1)
+  when (io.mem.resp_val) { xrep_cnt := xrep_cnt_next }
+  val idx = io.mem.resp_tag
+  val readys = Bits(width = NTILES) 
+  for( j <- 0 until NTILES ) {
+    io.tiles(j).xact_rep.bits.ttype := getTransactionReplyType(ttype_arr.read(idx), sh_count_arr.read(idx))
+    io.tiles(j).xact_rep.bits.tileTransactionID := tile_xact_id_arr.read(idx)
+    io.tiles(j).xact_rep.bits.globalTransactionID := idx
+    io.tiles(j).xact_rep_data.bits.data := io.mem.resp_data
+    readys := Mux(xrep_cnt === UFix(0), io.tiles(j).xact_rep.ready && io.tiles(j).xact_rep_data.ready, io.tiles(j).xact_rep_data.ready)
+    val this_rep_valid = UFix(j) === tile_id_arr.read(idx) && io.mem.resp_val
+    io.tiles(j).xact_rep.valid      := this_rep_valid && xrep_cnt === UFix(0) 
+    io.tiles(j).xact_rep_data.valid := this_rep_valid
+  }
+  // If there were a ready signal due to e.g. intervening network:
+  //io.mem.resp_rdy := readys(tile_id_arr.read(idx)).xact_rep.ready
+  
+
   // Pick a single request of these types to process
   //val xact_init_arb   = (new Arbiter(NTILES)) { new TransactionInit() }
   //val probe_reply_arb = (new Arbiter(NTILES)) { new ProbeReply() }
