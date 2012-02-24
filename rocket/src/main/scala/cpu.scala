@@ -97,17 +97,15 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   dpath.io.dmem.resp_data := arb.io.cpu.resp_data;  
   dpath.io.dmem.resp_data_subword := io.dmem.resp_data_subword;
 
+  var fpu: rocketFPU = null
   if (HAVE_FPU)
   {
-    val fpu = new rocketFPU(4,6)
+    fpu = new rocketFPU(4,6)
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
   }
   else
     ctrl.io.fpu.dec.valid := Bool(false)
-
-  ctrl.io.ext_mem.req_val := Bool(false)
-  dpath.io.ext_mem.req_val := Bool(false)
 
   if (HAVE_VEC)
   {
@@ -161,5 +159,19 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.dmem_resp.bits.data := dpath.io.ext_mem.resp_data
     vu.io.dmem_resp.bits.tag := dpath.io.ext_mem.resp_tag
     vu.io.dmem_resp.bits.typ := dpath.io.ext_mem.resp_type
+
+    fpu.io.sfma.valid := Bool(false)
+    fpu.io.dfma.valid := Bool(false)
+  }
+  else
+  {
+    ctrl.io.ext_mem.req_val := Bool(false)
+    dpath.io.ext_mem.req_val := Bool(false)
+
+    if (HAVE_FPU)
+    {
+      fpu.io.sfma.valid := Bool(false)
+      fpu.io.dfma.valid := Bool(false)
+    }
   }
 }
