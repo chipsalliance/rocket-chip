@@ -320,7 +320,6 @@ class rocketCtrl extends Component
   val ex_reg_wen         = Reg(resetVal = Bool(false));
   val ex_reg_fp_wen      = Reg(resetVal = Bool(false));
   val ex_reg_eret        = Reg(resetVal = Bool(false));
-  val ex_reg_replay_next = Reg(resetVal = Bool(false));
   val ex_reg_inst_di          = Reg(resetVal = Bool(false));
   val ex_reg_inst_ei          = Reg(resetVal = Bool(false));
   val ex_reg_flush_inst  = Reg(resetVal = Bool(false));
@@ -340,7 +339,6 @@ class rocketCtrl extends Component
   val mem_reg_wen_pcr         = Reg(resetVal = Bool(false));
   val mem_reg_wen             = Reg(resetVal = Bool(false));
   val mem_reg_fp_wen          = Reg(resetVal = Bool(false));
-  val mem_reg_replay_next     = Reg(resetVal = Bool(false));
   val mem_reg_inst_di         = Reg(resetVal = Bool(false));
   val mem_reg_inst_ei         = Reg(resetVal = Bool(false));
   val mem_reg_flush_inst      = Reg(resetVal = Bool(false));
@@ -361,7 +359,6 @@ class rocketCtrl extends Component
   val wb_reg_wen_pcr         = Reg(resetVal = Bool(false));
   val wb_reg_wen             = Reg(resetVal = Bool(false));
   val wb_reg_fp_wen          = Reg(resetVal = Bool(false));
-  val wb_reg_replay_next     = Reg(resetVal = Bool(false));
   val wb_reg_inst_di         = Reg(resetVal = Bool(false));
   val wb_reg_inst_ei         = Reg(resetVal = Bool(false));
   val wb_reg_flush_inst      = Reg(resetVal = Bool(false));
@@ -380,15 +377,16 @@ class rocketCtrl extends Component
       id_reg_btb_hit := Bool(false);
       id_reg_xcpt_ma_inst := Bool(false);   
       id_reg_xcpt_itlb := Bool(false);
+      id_reg_replay := !take_pc; // replay on I$ miss
     } 
     .otherwise{
       id_reg_valid := Bool(true)
       id_reg_btb_hit := io.dpath.btb_hit;
       id_reg_xcpt_ma_inst := if_reg_xcpt_ma_inst;
       id_reg_xcpt_itlb := io.xcpt_itlb;
+      id_reg_replay := id_replay_next
     }
     id_reg_icmiss := !io.imem.resp_val;
-    id_reg_replay := !take_pc && !io.imem.resp_val;
   }
   
   // executing ERET when traps are enabled causes an illegal instruction exception (as per ISA sim)
@@ -407,7 +405,6 @@ class rocketCtrl extends Component
     ex_reg_wen         := Bool(false);
     ex_reg_fp_wen      := Bool(false);
     ex_reg_eret        := Bool(false);
-    ex_reg_replay_next := Bool(false);
     ex_reg_inst_di     := Bool(false);
     ex_reg_inst_ei     := Bool(false);
     ex_reg_flush_inst  := Bool(false);  
@@ -433,7 +430,6 @@ class rocketCtrl extends Component
     ex_reg_wen         := id_wen.toBool && id_waddr != UFix(0);
     ex_reg_fp_wen      := io.fpu.dec.wen;
     ex_reg_eret        := id_eret.toBool;
-    ex_reg_replay_next := id_replay_next.toBool;
     ex_reg_inst_di     := (id_irq === I_DI);
     ex_reg_inst_ei     := (id_irq === I_EI);
     ex_reg_flush_inst  := (id_sync === SYNC_I);
@@ -445,7 +441,7 @@ class rocketCtrl extends Component
     ex_reg_fp_val           := io.fpu.dec.valid
     ex_reg_fp_sboard_set    := io.fpu.dec.sboard
     ex_reg_vec_val          := id_vec_val.toBool
-    ex_reg_replay           := id_reg_replay || ex_reg_replay_next || mem_reg_replay_next || wb_reg_replay_next
+    ex_reg_replay           := id_reg_replay
     ex_reg_load_use         := id_load_use;
   }
   ex_reg_ext_mem_val := io.ext_mem.req_val
@@ -483,7 +479,6 @@ class rocketCtrl extends Component
     mem_reg_fp_wen      := Bool(false);
     mem_reg_eret        := Bool(false);
     mem_reg_mem_val     := Bool(false);
-    mem_reg_replay_next := Bool(false);
     mem_reg_inst_di     := Bool(false);
     mem_reg_inst_ei     := Bool(false);
     mem_reg_flush_inst  := Bool(false);
@@ -505,7 +500,6 @@ class rocketCtrl extends Component
     mem_reg_fp_wen      := ex_reg_fp_wen;
     mem_reg_eret        := ex_reg_eret;
     mem_reg_mem_val     := ex_reg_mem_val;
-    mem_reg_replay_next := ex_reg_replay_next
     mem_reg_inst_di     := ex_reg_inst_di;
     mem_reg_inst_ei     := ex_reg_inst_ei;
     mem_reg_flush_inst  := ex_reg_flush_inst;
@@ -529,7 +523,6 @@ class rocketCtrl extends Component
     wb_reg_wen         := Bool(false);
     wb_reg_fp_wen      := Bool(false);
     wb_reg_eret        := Bool(false);
-    wb_reg_replay_next := Bool(false)
     wb_reg_inst_di     := Bool(false);
     wb_reg_inst_ei     := Bool(false);
     wb_reg_flush_inst  := Bool(false);
@@ -543,7 +536,6 @@ class rocketCtrl extends Component
     wb_reg_wen         := mem_reg_wen;
     wb_reg_fp_wen      := mem_reg_fp_wen;
     wb_reg_eret        := mem_reg_eret;
-    wb_reg_replay_next := mem_reg_replay_next
     wb_reg_inst_di     := mem_reg_inst_di;
     wb_reg_inst_ei     := mem_reg_inst_ei;
     wb_reg_flush_inst  := mem_reg_flush_inst;
