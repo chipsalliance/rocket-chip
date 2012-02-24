@@ -368,6 +368,7 @@ class rocketCtrl extends Component
   val wb_reg_cause           = Reg(){UFix()};
   val wb_reg_fp_val          = Reg(resetVal = Bool(false));
   val wb_reg_fp_sboard_set   = Reg(resetVal = Bool(false));
+  val wb_reg_ext_mem_nack    = Reg(resetVal = Bool(false))
 
   val take_pc = Wire() { Bool() };
 
@@ -448,6 +449,8 @@ class rocketCtrl extends Component
   ex_reg_mem_cmd     := Mux(io.ext_mem.req_val, io.ext_mem.req_cmd, id_mem_cmd).toUFix
   ex_reg_mem_type    := Mux(io.ext_mem.req_val, io.ext_mem.req_type, id_mem_type).toUFix
 
+  val ex_ext_mem_val = ex_reg_ext_mem_val && !wb_reg_ext_mem_nack
+
   val beq  =  io.dpath.br_eq;
   val bne  = ~io.dpath.br_eq;
   val blt  =  io.dpath.br_lt;
@@ -513,7 +516,7 @@ class rocketCtrl extends Component
     mem_reg_fp_val           := ex_reg_fp_val
     mem_reg_fp_sboard_set    := ex_reg_fp_sboard_set
   }
-  mem_reg_ext_mem_val := ex_reg_ext_mem_val;
+  mem_reg_ext_mem_val := ex_ext_mem_val
   mem_reg_mem_cmd     := ex_reg_mem_cmd;
   mem_reg_mem_type    := ex_reg_mem_type;
 
@@ -543,6 +546,7 @@ class rocketCtrl extends Component
     wb_reg_fp_val      := mem_reg_fp_val
     wb_reg_fp_sboard_set := mem_reg_fp_sboard_set
   }
+  wb_reg_ext_mem_nack := io.ext_mem.resp_nack
 
   val sboard = new rocketCtrlSboard(32, 3, 2);
   sboard.io.r(0).addr := id_raddr2.toUFix;
@@ -682,7 +686,7 @@ class rocketCtrl extends Component
   val dmem_kill_mem = mem_reg_valid && (io.dtlb_miss || io.dmem.resp_nack)
   val replay_mem  = dmem_kill_mem || mem_reg_wen && mem_ll_wb || mem_reg_replay
   val kill_mem    = dmem_kill_mem || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill
-  val kill_dcache = io.dtlb_miss  || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill || Reg(io.ext_mem.resp_nack)
+  val kill_dcache = io.dtlb_miss  || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill || mem_reg_ext_mem_val && wb_reg_ext_mem_nack
 	
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
@@ -801,7 +805,7 @@ class rocketCtrl extends Component
   io.dpath.div_val  := id_div_val.toBool;
   io.dpath.mul_fn   := id_mul_fn;
   io.dpath.mul_val  := id_mul_val.toBool;
-  io.dpath.ex_ext_mem_val := ex_reg_ext_mem_val;
+  io.dpath.ex_ext_mem_val := ex_ext_mem_val;
   io.dpath.ex_fp_val:= ex_reg_fp_val;
   io.dpath.mem_fp_val:= mem_reg_fp_val;
   io.dpath.ex_wen   := ex_reg_wen;
@@ -822,14 +826,14 @@ class rocketCtrl extends Component
   io.fpu.killx := kill_ex
   io.fpu.killm := kill_mem
 
-  io.dtlb_val         := ex_reg_mem_val || ex_reg_ext_mem_val;
+  io.dtlb_val         := ex_reg_mem_val || ex_ext_mem_val
   io.dtlb_kill        := mem_reg_kill;
-  io.dmem.req_val     := ex_reg_mem_val || ex_reg_ext_mem_val;
+  io.dmem.req_val     := ex_reg_mem_val || ex_ext_mem_val
   io.dmem.req_kill    := kill_dcache;
   io.dmem.req_cmd     := ex_reg_mem_cmd;
   io.dmem.req_type    := ex_reg_mem_type;
 
-  io.ext_mem.resp_nack:= mem_reg_ext_mem_val && (io.dmem.req_kill || io.dmem.resp_nack || Reg(!io.dmem.req_rdy))
+  io.ext_mem.resp_nack:= mem_reg_ext_mem_val && !wb_reg_ext_mem_nack && (io.dmem.req_kill || io.dmem.resp_nack || Reg(!io.dmem.req_rdy))
 }
 
 }
