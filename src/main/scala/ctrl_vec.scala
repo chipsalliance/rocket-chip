@@ -104,7 +104,7 @@ class rocketCtrlVec extends Component
   ))
 
   val wb_vec_val :: wb_sel_vcmd :: wb_sel_vimm :: wb_vec_wen :: wb_vec_fn :: wb_vec_appvlmask :: veccs0 = veccs
-  val wb_vec_cmdq_enq :: wb_vec_ximm1q_enq :: wb_vec_ximm2q_enq :: veecs1 = veecs0
+  val wb_vec_cmdq_enq :: wb_vec_ximm1q_enq :: wb_vec_ximm2q_enq :: veccs1 = veccs0
   val wb_vec_pfcmdq_enq :: wb_vec_pfximm1q_enq :: wb_vec_pfximm2q_enq :: wb_vec_cpfence :: Nil = veccs1
 
   val valid_common = io.dpath.valid && io.sr_ev && wb_vec_val.toBool && !(wb_vec_appvlmask.toBool && io.dpath.appvl0)
@@ -124,17 +124,17 @@ class rocketCtrlVec extends Component
   io.iface.vcmdq_valid :=
     valid_common &&
     wb_vec_cmdq_enq && mask_wb_vec_ximm1q_ready && mask_wb_vec_ximm2q_ready &&
-    mask_wb_vec_pfcmdq_enq && mask_wb_vec_pfximm1q_ready && mask_wb_vec_pfximm2q_ready
+    mask_wb_vec_pfcmdq_ready && mask_wb_vec_pfximm1q_ready && mask_wb_vec_pfximm2q_ready
 
   io.iface.vximm1q_valid :=
     valid_common &&
     mask_wb_vec_cmdq_ready && wb_vec_ximm1q_enq && mask_wb_vec_ximm2q_ready &&
-    mask_wb_vec_pfcmdq_enq && mask_wb_vec_pfximm1q_ready && mask_wb_vec_pfximm2q_ready
+    mask_wb_vec_pfcmdq_ready && mask_wb_vec_pfximm1q_ready && mask_wb_vec_pfximm2q_ready
 
   io.iface.vximm2q_valid :=
     valid_common &&
     mask_wb_vec_cmdq_ready && mask_wb_vec_ximm1q_ready && wb_vec_ximm2q_enq &&
-    mask_wb_vec_pfcmdq_enq && mask_wb_vec_pfximm1q_ready && mask_wb_vec_pfximm2q_ready
+    mask_wb_vec_pfcmdq_ready && mask_wb_vec_pfximm1q_ready && mask_wb_vec_pfximm2q_ready
 
   io.iface.vpfcmdq_valid :=
     valid_common &&
@@ -144,12 +144,12 @@ class rocketCtrlVec extends Component
   io.iface.vpfximm1q_valid :=
     valid_common &&
     mask_wb_vec_cmdq_ready && mask_wb_vec_ximm1q_ready && mask_wb_vec_ximm2q_ready &&
-    mask_wb_vec_pfcmdq_enq && wb_vec_pfximm1q_ready && mask_wb_vec_pfximm2q_ready
+    mask_wb_vec_pfcmdq_ready && wb_vec_pfximm1q_enq && mask_wb_vec_pfximm2q_ready
 
   io.iface.vpfximm2q_valid :=
     valid_common &&
     mask_wb_vec_cmdq_ready && mask_wb_vec_ximm1q_ready && mask_wb_vec_ximm2q_ready &&
-    mask_wb_vec_pfcmdq_enq && mask_wb_vec_pfximm1q_ready && wb_vec_pfximm2q_ready
+    mask_wb_vec_pfcmdq_ready && mask_wb_vec_pfximm1q_ready && wb_vec_pfximm2q_enq
 
   io.replay := valid_common && (
     wb_vec_cmdq_enq && !io.iface.vcmdq_ready ||
@@ -157,7 +157,7 @@ class rocketCtrlVec extends Component
     wb_vec_ximm2q_enq && !io.iface.vximm2q_ready ||
     wb_vec_pfcmdq_enq && !io.iface.vpfcmdq_ready ||
     wb_vec_pfximm1q_enq && !io.iface.vpfximm1q_ready ||
-    wb_vec_pfximm2q_enq && !io.iface.vpfximm2q_ready ||
+    wb_vec_pfximm2q_enq && !io.iface.vpfximm2q_ready
   )
   io.cpfence := valid_common && wb_vec_cpfence && !io.replay
 }
