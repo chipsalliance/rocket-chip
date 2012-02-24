@@ -125,7 +125,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   }
   io.mem.req_val := state === state_mem_req
   io.mem.req_rw := cmd === cmd_writemem
-  io.mem.req_addr := addr >> UFix(3)
+  io.mem.req_addr := addr >> UFix(OFFSET_BITS-3)
   io.mem.req_wdata := mem_req_data
 
   pcr_done := Bool(false)
