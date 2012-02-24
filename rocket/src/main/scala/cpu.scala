@@ -137,9 +137,22 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.vec_ximm2q.valid := ctrl.io.vec_iface.vximm2q_valid
     vu.io.vec_ximm2q.bits := dpath.io.vec_iface.vximm2q_bits
 
+    // prefetch queues
+    vu.io.vec_pfcmdq.valid := ctrl.io.vec_iface.vpfcmdq_valid
+    vu.io.vec_pfcmdq.bits := dpath.io.vec_iface.vcmdq_bits
+    vu.io.vec_pfximm1q.valid := ctrl.io.vec_iface.vpfximm1q_valid
+    vu.io.vec_pfximm1q.bits := dpath.io.vec_iface.vximm1q_bits
+    vu.io.vec_pfximm2q.valid := ctrl.io.vec_iface.vpfximm2q_valid
+    vu.io.vec_pfximm2q.bits := dpath.io.vec_iface.vximm2q_bits
+
+    // don't have to use pf ready signals
+    // if cmdq is not a load or store
     ctrl.io.vec_iface.vcmdq_ready := vu.io.vec_cmdq.ready
     ctrl.io.vec_iface.vximm1q_ready := vu.io.vec_ximm1q.ready
     ctrl.io.vec_iface.vximm2q_ready := vu.io.vec_ximm2q.ready
+    ctrl.io.vec_iface.vpfcmdq_ready := vu.io.vec_pfcmdq.ready
+    ctrl.io.vec_iface.vpfximm1q_ready := vu.io.vec_pfximm1q.ready
+    ctrl.io.vec_iface.vpfximm2q_ready := vu.io.vec_pfximm2q.ready
     ctrl.io.vec_iface.vackq_valid := vu.io.vec_ackq.valid
     vu.io.vec_ackq.ready := ctrl.io.vec_iface.vackq_ready
 
