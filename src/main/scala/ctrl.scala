@@ -597,7 +597,19 @@ class rocketCtrl extends Component
 
     io.vec_dpath <> vec.io.dpath
 
-    io.vec_iface <> vec.io.iface
+    io.vec_iface.vcmdq_valid := vec.io.iface.vcmdq_valid
+    io.vec_iface.vximm1q_valid := vec.io.iface.vximm1q_valid
+    io.vec_iface.vximm2q_valid := vec.io.iface.vximm2q_valid
+    vec.io.iface.vcmdq_ready := io.vec_iface.vcmdq_ready
+    vec.io.iface.vximm1q_ready := io.vec_iface.vximm1q_ready
+    vec.io.iface.vximm2q_ready := io.vec_iface.vximm2q_ready
+
+    io.vec_iface.vpfcmdq_valid := vec.io.iface.vpfcmdq_valid
+    io.vec_iface.vpfximm1q_valid := vec.io.iface.vpfximm1q_valid
+    io.vec_iface.vpfximm2q_valid := vec.io.iface.vpfximm2q_valid
+    vec.io.iface.vpfcmdq_ready := io.vec_iface.vpfcmdq_ready
+    vec.io.iface.vpfximm1q_ready := io.vec_iface.vpfximm1q_ready
+    vec.io.iface.vpfximm2q_ready := io.vec_iface.vpfximm2q_ready
 
     vec_replay = vec.io.replay
     vec_cpfence = Reg(resetVal = Bool(false))
