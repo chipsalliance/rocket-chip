@@ -741,10 +741,11 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   val r_req_store = (r_cpu_req_cmd === M_XWR)
   val r_req_flush = (r_cpu_req_cmd === M_FLA)
   val r_req_fence = (r_cpu_req_cmd === M_FENCE)
+  val r_req_prefetch = (r_cpu_req_cmd === M_PFR) || (r_cpu_req_cmd === M_PFW)
   val r_req_amo   = r_cpu_req_cmd(3).toBool
   val r_req_read  = r_req_load || r_req_amo
   val r_req_write = r_req_store || r_req_amo
-  val r_req_readwrite = r_req_read || r_req_write
+  val r_req_readwrite = r_req_read || r_req_write || r_req_prefetch
 
   // replay unit
   val replayer = new ReplayUnit()
