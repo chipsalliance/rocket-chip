@@ -18,41 +18,43 @@ class MemData extends Bundle {
 }
 
 class TransactionInit extends Bundle {
-  val ttype = Bits(width = TTYPE_BITS)
-  val tileTransactionID = Bits(width = TILE_XACT_ID_BITS)
+  val t_type = Bits(width = TTYPE_BITS)
+  val has_data = Bool()
+  val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
   val address = Bits(width = PADDR_BITS)
 }
 
 class TransactionInitData extends MemData
 
 class TransactionAbort extends Bundle {
-  val tileTransactionID = Bits(width = TILE_XACT_ID_BITS)
+  val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
 }
 
 class ProbeRequest extends Bundle {
-  val ptype = Bits(width = PTYPE_BITS)
-  val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
+  val p_type = Bits(width = PTYPE_BITS)
+  val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
   val address = Bits(width = PADDR_BITS)
 }
 
 class ProbeReply extends Bundle {
-  val ptype = Bits(width = PTYPE_BITS)
-  val hasData = Bool()
-  val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
+  val p_type = Bits(width = PTYPE_BITS)
+  val has_data = Bool()
+  val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
 }
 
 class ProbeReplyData extends MemData
 
 class TransactionReply extends Bundle {
-  val ttype = Bits(width = TTYPE_BITS)
-  val tileTransactionID = Bits(width = TILE_XACT_ID_BITS)
-  val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
+  val t_type = Bits(width = TTYPE_BITS)
+  val has_data = Bool()
+  val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
+  val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
 }
 
 class TransactionReplyData extends MemData
 
 class TransactionFinish extends Bundle {
-  val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
+  val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
 }
 
 class ioTileLink extends Bundle { 
@@ -142,7 +144,7 @@ trait FourStateCoherence extends CoherencePolicy {
 
   def getMetaUpdateOnProbe (incoming: ProbeRequest): Bits = {
     val state = UFix(0)
-    switch(incoming.ptype) {
+    switch(incoming.p_type) {
       is(probeInvalidate) { state := tileInvalid }
       is(probeDowngrade) { state := tileShared }
     }
