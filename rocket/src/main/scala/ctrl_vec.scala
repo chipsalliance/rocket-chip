@@ -41,6 +41,7 @@ class ioCtrlVec extends Bundle
   val dpath = new ioCtrlDpathVec()
   val iface = new ioCtrlVecInterface()
   val sr_ev = Bool(INPUT)
+  val exception = Bool(INPUT)
   val replay = Bool(OUTPUT)
   val cpfence = Bool(OUTPUT)
 }
@@ -151,6 +152,8 @@ class rocketCtrlVec extends Component
     mask_wb_vec_cmdq_ready && mask_wb_vec_ximm1q_ready && mask_wb_vec_ximm2q_ready &&
     mask_wb_vec_pfcmdq_ready && mask_wb_vec_pfximm1q_ready && wb_vec_pfximm2q_enq
 
+  io.iface.vackq_ready := Bool(true)
+
   io.replay := valid_common && (
     wb_vec_cmdq_enq && !io.iface.vcmdq_ready ||
     wb_vec_ximm1q_enq && !io.iface.vximm1q_ready ||
@@ -159,5 +162,12 @@ class rocketCtrlVec extends Component
     wb_vec_pfximm1q_enq && !io.iface.vpfximm1q_ready ||
     wb_vec_pfximm2q_enq && !io.iface.vpfximm2q_ready
   )
-  io.cpfence := valid_common && wb_vec_cpfence && !io.replay
+
+  val reg_cpfence = Reg(resetVal = Bool(false))
+  val do_cpfence = valid_common && wb_vec_cpfence && !io.replay
+
+  when (do_cpfence) { reg_cpfence := Bool(true) }
+  when (io.iface.vackq_valid || io.exception) { reg_cpfence := Bool(false) }
+
+  io.cpfence := reg_cpfence
 }

@@ -600,32 +600,13 @@ class rocketCtrl extends Component
     val vec = new rocketCtrlVec()
 
     io.vec_dpath <> vec.io.dpath
+    io.vec_iface <> vec.io.iface
 
-    io.vec_iface.vcmdq_valid := vec.io.iface.vcmdq_valid
-    io.vec_iface.vximm1q_valid := vec.io.iface.vximm1q_valid
-    io.vec_iface.vximm2q_valid := vec.io.iface.vximm2q_valid
-    vec.io.iface.vcmdq_ready := io.vec_iface.vcmdq_ready
-    vec.io.iface.vximm1q_ready := io.vec_iface.vximm1q_ready
-    vec.io.iface.vximm2q_ready := io.vec_iface.vximm2q_ready
-
-    io.vec_iface.vpfcmdq_valid := vec.io.iface.vpfcmdq_valid
-    io.vec_iface.vpfximm1q_valid := vec.io.iface.vpfximm1q_valid
-    io.vec_iface.vpfximm2q_valid := vec.io.iface.vpfximm2q_valid
-    vec.io.iface.vpfcmdq_ready := io.vec_iface.vpfcmdq_ready
-    vec.io.iface.vpfximm1q_ready := io.vec_iface.vpfximm1q_ready
-    vec.io.iface.vpfximm2q_ready := io.vec_iface.vpfximm2q_ready
+    vec.io.sr_ev := io.dpath.status(SR_EV)
+    vec.io.exception := wb_reg_exception
 
     vec_replay = vec.io.replay
-    vec_cpfence = Reg(resetVal = Bool(false))
-    when (vec.io.cpfence) {
-      vec_cpfence := Bool(true)
-    }
-    when (io.vec_iface.vackq_valid || wb_reg_exception) {
-      vec_cpfence := Bool(false)
-    }
-
-    io.vec_iface.vackq_ready := Bool(true)
-    vec.io.sr_ev := io.dpath.status(SR_EV)
+    vec_cpfence = vec.io.cpfence
   }
 
   // exception handling
