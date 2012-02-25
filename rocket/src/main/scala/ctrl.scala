@@ -183,7 +183,7 @@ class rocketCtrl extends Component
     SRAW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_RTYPE,DW_32,FN_SRA,  M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
 
     MUL->       List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_LO, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
-    MULH->      List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HS, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
+    MULH->      List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_H,  N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     MULHU->     List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HU, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     MULHSU->    List(Y,    N,BR_N,  REN_Y,REN_Y,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, Y,MUL_HSU,N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
     MULW->      List(xpr64,N,BR_N,  REN_Y,REN_Y,A2_X,    DW_32, FN_X,   M_N,M_X,      MT_X, Y,MUL_LO, N,DIV_X, WEN_Y,WA_RD,WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N),
