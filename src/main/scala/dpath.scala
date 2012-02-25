@@ -103,8 +103,10 @@ class rocketDpath extends Component
   val wb_reg_pc             = Reg() { UFix() };
   val wb_reg_inst           = Reg() { Bits() };
   val wb_reg_rs2            = Reg() { Bits() };
-  val wb_reg_waddr          = Reg() { UFix() };
-  val wb_reg_wdata          = Reg() { Bits() };
+  val wb_reg_waddr          = Reg() { UFix() }
+  val wb_reg_wdata          = Reg() { Bits() }
+  val wb_reg_vec_waddr      = Reg() { UFix() }
+  val wb_reg_vec_wdata      = Reg() { Bits() }
   val wb_reg_raddr1         = Reg() { UFix() };
   val wb_reg_raddr2         = Reg() { UFix() };
   val wb_reg_ll_wb          = Reg(resetVal = Bool(false));
@@ -376,6 +378,8 @@ class rocketDpath extends Component
   wb_reg_rs2            := mem_reg_rs2
   wb_reg_waddr          := mem_ll_waddr
   wb_reg_wdata          := mem_ll_wdata
+  wb_reg_vec_waddr      := mem_reg_waddr
+  wb_reg_vec_wdata      := mem_reg_wdata
   wb_reg_raddr1         := mem_reg_raddr1
   wb_reg_raddr2         := mem_reg_raddr2;
 
@@ -392,23 +396,23 @@ class rocketDpath extends Component
 
     vec.io.valid := io.ctrl.wb_valid
     vec.io.inst := wb_reg_inst
-    vec.io.waddr := wb_reg_waddr
+    vec.io.waddr := wb_reg_vec_waddr
     vec.io.raddr1 := wb_reg_raddr1
     vec.io.vecbank := pcr.io.vecbank
     vec.io.vecbankcnt := pcr.io.vecbankcnt
-    vec.io.wdata := wb_reg_wdata
+    vec.io.wdata := wb_reg_vec_wdata
     vec.io.rs2 := wb_reg_rs2
 
     wb_wdata :=
       Mux(vec.io.wen, Cat(Bits(0,52), vec.io.appvl),
       Mux(wb_src_dmem, io.dmem.resp_data_subword,
-      wb_reg_wdata))
+          wb_reg_wdata))
   }
   else
   {
     wb_wdata :=
       Mux(wb_src_dmem, io.dmem.resp_data_subword,
-      wb_reg_wdata)
+          wb_reg_wdata)
   }
 
   rfile.io.w0.addr := wb_reg_waddr
@@ -420,7 +424,7 @@ class rocketDpath extends Component
   io.ext_mem.resp_type := Reg(io.dmem.resp_type)
   io.ext_mem.resp_data := io.dmem.resp_data_subword
   
-  io.ctrl.wb_waddr := wb_reg_waddr;
+  io.ctrl.wb_waddr := wb_reg_waddr
   io.ctrl.mem_wb := dmem_resp_replay;
 
   // scoreboard clear (for div/mul and D$ load miss writebacks)
@@ -432,7 +436,7 @@ class rocketDpath extends Component
 	// processor control regfile write
   pcr.io.w.addr := wb_reg_raddr2;
   pcr.io.w.en   := io.ctrl.wen_pcr
-  pcr.io.w.data := wb_reg_wdata;
+  pcr.io.w.data := wb_reg_wdata
 
   pcr.io.di           := io.ctrl.irq_disable;
   pcr.io.ei           := io.ctrl.irq_enable;
