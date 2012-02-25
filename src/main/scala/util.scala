@@ -5,10 +5,11 @@ import Chisel._
 import Node._
 import scala.math._
 
+
 object foldR
 {
-  def apply[T <: Bits](x: Seq[T], f: (T, T) => T): T =
-    if (x.length == 1) x(0) else f(x(0), foldR(x.slice(1, x.length), f))
+  def apply[T <: Bits](x: Seq[T])(f: (T, T) => T): T =
+    if (x.length == 1) x(0) else f(x(0), foldR(x.slice(1, x.length))(f))
 }
 
 object log2up
