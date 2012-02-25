@@ -41,7 +41,7 @@ class ioDpathAll extends Bundle()
   val vec_ctrl = new ioCtrlDpathVec().flip()
   val vec_iface = new ioDpathVecInterface()
   val vec_imul_req = new io_imul_req
-  val vec_imul_resp = Bits(hwacha.Config.DEF_XLEN, INPUT)
+  val vec_imul_resp = Bits(hwacha.Constants.SZ_XLEN, INPUT)
 }
 
 class rocketDpath extends Component
