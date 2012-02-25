@@ -37,9 +37,9 @@ object Constants
 
   val MUL_X   = UFix(0, 2);
   val MUL_LO  = UFix(0, 2);
-  val MUL_HU  = UFix(1, 2);
-  val MUL_HS  = UFix(2, 2);
-  val MUL_HSU = UFix(3, 2);
+  val MUL_H   = UFix(1, 2);
+  val MUL_HSU = UFix(2, 2);
+  val MUL_HU  = UFix(3, 2);
 
   val DIV_X  = UFix(0, 2);
   val DIV_D  = UFix(0, 2);

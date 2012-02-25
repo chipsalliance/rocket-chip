@@ -40,6 +40,8 @@ class ioDpathAll extends Bundle()
   val fpu = new ioDpathFPU();
   val vec_ctrl = new ioCtrlDpathVec().flip()
   val vec_iface = new ioDpathVecInterface()
+  val vec_imul_req = new io_imul_req
+  val vec_imul_resp = Bits(hwacha.Config.DEF_XLEN, INPUT)
 }
 
 class rocketDpath extends Component
@@ -56,16 +58,6 @@ class rocketDpath extends Component
   val alu = new rocketDpathALU(); 
   val ex_alu_out = alu.io.out; 
   val ex_alu_adder_out = alu.io.adder_out; 
-
-  val div = new rocketDivider(64);
-  val div_result = div.io.result;
-  val div_result_tag = div.io.result_tag;
-  val div_result_val = div.io.result_val;
-  
-  val mul = new rocketMultiplier();
-  val mul_result = mul.io.result; 
-  val mul_result_tag = mul.io.result_tag; 
-  val mul_result_val = mul.io.result_val;
   
   val rfile = new rocketDpathRegfile();
 
@@ -251,34 +243,39 @@ class rocketDpath extends Component
   alu.io.fn    := ex_reg_ctrl_fn_alu;
   alu.io.in2   := ex_reg_op2.toUFix;
   alu.io.in1   := ex_reg_rs1.toUFix;
-  
-  // divider
-  div.io.dw        := ex_reg_ctrl_fn_dw;
-  div.io.div_fn    := ex_reg_ctrl_div_fn;
-  div.io.div_val   := ex_reg_ctrl_div_val;
-  div.io.div_kill  := io.ctrl.killm;
-  div.io.div_tag   := ex_reg_waddr;
-  div.io.in0       := ex_reg_rs1;
-  div.io.in1       := ex_reg_rs2;
-  div.io.result_rdy:= !dmem_resp_replay
-  
-  io.ctrl.div_rdy 				:= div.io.div_rdy;
-  io.ctrl.div_result_val := div.io.result_val;
-  
-  // multiplier
-  mul.io.mul_val := ex_reg_ctrl_mul_val;
-  mul.io.mul_kill:= io.ctrl.killm;
-  mul.io.dw      := ex_reg_ctrl_fn_dw;
-  mul.io.mul_fn	 := ex_reg_ctrl_mul_fn;
-  mul.io.mul_tag := ex_reg_waddr;
-  mul.io.in0		 := ex_reg_rs1;
-  mul.io.in1		 := ex_reg_rs2;
 
   io.fpu.fromint_data := ex_reg_rs1
- 
-  io.ctrl.mul_rdy        := mul.io.mul_rdy
-  io.ctrl.mul_result_val := mul.io.result_val;
-  mul.io.result_rdy      := !dmem_resp_replay && !div.io.result_val
+  
+  // divider
+  val div = new rocketDivider(64)
+  div.io.req.valid := ex_reg_ctrl_div_val
+  div.io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, ex_reg_ctrl_div_fn)
+  div.io.req.bits.in0 := ex_reg_rs1
+  div.io.req.bits.in1 := ex_reg_rs2
+  div.io.req_tag := ex_reg_waddr
+  div.io.req_kill := io.ctrl.killm
+  div.io.resp_rdy := !dmem_resp_replay
+  io.ctrl.div_rdy := div.io.req.ready
+  io.ctrl.div_result_val := div.io.resp_val
+  
+  // multiplier
+  var mul_io = new rocketMultiplier().io
+  if (HAVE_VEC)
+  {
+    val vu_mul = new rocketVUMultiplier(nwbq = 1)
+    vu_mul.io.vu.req <> io.vec_imul_req
+    vu_mul.io.vu.resp <> io.vec_imul_resp
+    mul_io = vu_mul.io.cpu
+  }
+  mul_io.req.valid := ex_reg_ctrl_mul_val;
+  mul_io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, ex_reg_ctrl_mul_fn)
+  mul_io.req.bits.in0 := ex_reg_rs1
+  mul_io.req.bits.in1 := ex_reg_rs2
+  mul_io.req_tag := ex_reg_waddr
+  mul_io.req_kill := io.ctrl.killm
+  mul_io.resp_rdy := !dmem_resp_replay && !div.io.resp_val
+  io.ctrl.mul_rdy := mul_io.req.ready
+  io.ctrl.mul_result_val := mul_io.resp_val
   
   io.ctrl.ex_waddr := ex_reg_waddr; // for load/use hazard detection & bypass control
 
@@ -358,14 +355,14 @@ class rocketDpath extends Component
   r_dmem_fp_replay    := io.dmem.resp_replay && dmem_resp_fpu;
 
   val mem_ll_waddr = Mux(dmem_resp_replay, dmem_resp_waddr,
-                     Mux(div_result_val, div_result_tag,
-                     Mux(mul_result_val, mul_result_tag,
+                     Mux(div.io.resp_val, div.io.resp_tag,
+                     Mux(mul_io.resp_val, mul_io.resp_tag,
                          mem_reg_waddr)))
-  val mem_ll_wdata = Mux(div_result_val, div_result,
-                     Mux(mul_result_val, mul_result,
+  val mem_ll_wdata = Mux(div.io.resp_val, div.io.resp_bits,
+                     Mux(mul_io.resp_val, mul_io.resp_bits,
                      Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data,
                          mem_reg_wdata)))
-  val mem_ll_wb = dmem_resp_replay || div_result_val || mul_result_val
+  val mem_ll_wb = dmem_resp_replay || div.io.resp_val || mul_io.resp_val
 
   io.fpu.dmem_resp_val := io.dmem.resp_val && dmem_resp_fpu
   io.fpu.dmem_resp_data := io.dmem.resp_data

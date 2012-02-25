@@ -1,28 +1,11 @@
-package Top {
+package Top
 
 import Chisel._
-import Node._;
-import Constants._;
+import Node._
+import Constants._
 
-class ioDivider(width: Int) extends Bundle {
-  // requests
-  val div_val   = Bool(INPUT);
-  val div_kill  = Bool(INPUT);
-  val div_rdy   = Bool(OUTPUT);
-  val dw        = UFix(1, INPUT);
-  val div_fn    = UFix(2, INPUT);
-  val div_tag   = UFix(5, INPUT);
-  val in0       = Bits(width, INPUT);
-  val in1       = Bits(width, INPUT);
-  // responses
-  val result      = Bits(width, OUTPUT);
-  val result_tag  = UFix(5, OUTPUT);
-  val result_val  = Bool(OUTPUT);
-  val result_rdy  = Bool(INPUT);
-}
-
-class rocketDivider(width : Int) extends Component {
-  val io = new ioDivider(width);
+class rocketDivider(width: Int) extends Component {
+  val io = new ioMultiplier
   
   val s_ready :: s_neg_inputs :: s_busy :: s_neg_outputs :: s_done :: Nil = Enum(5) { UFix() };
   val state = Reg(resetVal = s_ready);
@@ -31,21 +14,23 @@ class rocketDivider(width : Int) extends Component {
   val divby0      = Reg() { Bool() };
   val neg_quo     = Reg() { Bool() };
   val neg_rem     = Reg() { Bool() };
-  val reg_tag     = Reg() { UFix() };
+  val reg_tag     = Reg() { Bits() };
   val rem         = Reg() { Bool() };
   val half        = Reg() { Bool() };
   
   val divisor     = Reg() { UFix() };
   val remainder   = Reg() { UFix() };
   val subtractor  = remainder(2*width, width).toUFix - divisor;
-  
-  val tc = (io.div_fn === DIV_D) || (io.div_fn === DIV_R);
+ 
+  val dw = io.req.bits.fn(io.req.bits.fn.width-1)
+  val fn = io.req.bits.fn(io.req.bits.fn.width-2,0)
+  val tc = (fn === DIV_D) || (fn === DIV_R);
 
-  val do_kill = io.div_kill && Reg(io.div_rdy) // kill on 1st cycle only
+  val do_kill = io.req_kill && Reg(io.req.ready) // kill on 1st cycle only
 
   switch (state) {
     is (s_ready) {
-      when (io.div_val) {
+      when (io.req.valid) {
         state := Mux(tc, s_neg_inputs, s_busy)
       }
     }
@@ -64,7 +49,7 @@ class rocketDivider(width : Int) extends Component {
       state := s_done
     }
     is (s_done) {
-      when (io.result_rdy) {
+      when (io.resp_rdy) {
         state := s_ready
       }
     }
@@ -72,21 +57,21 @@ class rocketDivider(width : Int) extends Component {
   
   // state machine
 
-  val lhs_sign = tc && Mux(io.dw === DW_64, io.in0(width-1), io.in0(width/2-1)).toBool
-  val lhs_hi = Mux(io.dw === DW_64, io.in0(width-1,width/2), Fill(width/2, lhs_sign))
-  val lhs_in = Cat(lhs_hi, io.in0(width/2-1,0))
+  val lhs_sign = tc && Mux(dw === DW_64, io.req.bits.in0(width-1), io.req.bits.in0(width/2-1)).toBool
+  val lhs_hi = Mux(dw === DW_64, io.req.bits.in0(width-1,width/2), Fill(width/2, lhs_sign))
+  val lhs_in = Cat(lhs_hi, io.req.bits.in0(width/2-1,0))
 
-  val rhs_sign = tc && Mux(io.dw === DW_64, io.in1(width-1), io.in1(width/2-1)).toBool
-  val rhs_hi = Mux(io.dw === DW_64, io.in1(width-1,width/2), Fill(width/2, rhs_sign))
-  val rhs_in = Cat(rhs_hi, io.in1(width/2-1,0))
+  val rhs_sign = tc && Mux(dw === DW_64, io.req.bits.in1(width-1), io.req.bits.in1(width/2-1)).toBool
+  val rhs_hi = Mux(dw === DW_64, io.req.bits.in1(width-1,width/2), Fill(width/2, rhs_sign))
+  val rhs_in = Cat(rhs_hi, io.req.bits.in1(width/2-1,0))
         
-  when ((state === s_ready) && io.div_val) {
+  when ((state === s_ready) && io.req.valid) {
     count := UFix(0, log2up(width+1));
-    half := (io.dw === DW_32);
+    half := (dw === DW_32);
     neg_quo := Bool(false);
     neg_rem := Bool(false);
-    rem := (io.div_fn === DIV_R) || (io.div_fn === DIV_RU);
-    reg_tag := io.div_tag;
+    rem := (fn === DIV_R) || (fn === DIV_RU);
+    reg_tag := io.req_tag;
     divby0 := Bool(true);
     divisor := rhs_in.toUFix;
     remainder := Cat(UFix(0,width+1), lhs_in).toUFix;
@@ -126,11 +111,9 @@ class rocketDivider(width : Int) extends Component {
 
   val result = Mux(rem, remainder(2*width, width+1), remainder(width-1,0));
   
-  io.result := Mux(half, Cat(Fill(width/2, result(width/2-1)), result(width/2-1,0)), result);
-  io.result_tag := reg_tag;
-  io.result_val := (state === s_done);
+  io.resp_bits := Mux(half, Cat(Fill(width/2, result(width/2-1)), result(width/2-1,0)), result);
+  io.resp_tag := reg_tag;
+  io.resp_val := (state === s_done);
 
-  io.div_rdy := (state === s_ready);
-}
-
+  io.req.ready := (state === s_ready);
 }

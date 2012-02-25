@@ -173,6 +173,10 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.dmem_resp.bits.tag := dpath.io.ext_mem.resp_tag
     vu.io.dmem_resp.bits.typ := dpath.io.ext_mem.resp_type
 
+    // share vector integer multiplier with rocket
+    dpath.io.vec_imul_req <> vu.io.cp_imul_req
+    dpath.io.vec_imul_resp <> vu.io.cp_imul_resp
+
     fpu.io.sfma.valid := Bool(false)
     fpu.io.dfma.valid := Bool(false)
   }
