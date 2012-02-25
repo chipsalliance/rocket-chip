@@ -4,13 +4,13 @@ import Chisel._
 import Node._
 import Constants._
 import Instructions._
-import hwacha.Interface._
+import hwacha.Constants._
 
 class ioDpathVecInterface extends Bundle
 {
-  val vcmdq_bits = Bits(VCMD_SZ, OUTPUT)
-  val vximm1q_bits = Bits(VIMM_SZ, OUTPUT)
-  val vximm2q_bits = Bits(VSTRIDE_SZ, OUTPUT)
+  val vcmdq_bits = Bits(SZ_VCMD, OUTPUT)
+  val vximm1q_bits = Bits(SZ_VIMM, OUTPUT)
+  val vximm2q_bits = Bits(SZ_VSTRIDE, OUTPUT)
 }
 
 class ioDpathVec extends Bundle

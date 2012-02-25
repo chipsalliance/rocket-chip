@@ -4,7 +4,7 @@ import Chisel._
 import Node._
 import Constants._
 import hwacha._
-import hwacha.Config._
+import hwacha.Constants._
 
 class ioMultiplier extends Bundle {
   val req = new io_imul_req().flip()
@@ -13,7 +13,7 @@ class ioMultiplier extends Bundle {
   val resp_val = Bool(OUTPUT)
   val resp_rdy = Bool(INPUT)
   val resp_tag = Bits(5, OUTPUT)
-  val resp_bits = Bits(DEF_XLEN, OUTPUT)
+  val resp_bits = Bits(SZ_XLEN, OUTPUT)
 }
 
 class rocketVUMultiplier(nwbq: Int) extends Component {
@@ -21,7 +21,7 @@ class rocketVUMultiplier(nwbq: Int) extends Component {
     val cpu = new ioMultiplier
     val vu = new Bundle {
       val req = new io_imul_req
-      val resp = Bits(DEF_XLEN, INPUT)
+      val resp = Bits(SZ_XLEN, INPUT)
     }
   }
 
