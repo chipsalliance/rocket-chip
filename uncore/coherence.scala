@@ -4,12 +4,26 @@ import Chisel._
 import Constants._
 import hwacha.GenArray
 
+class HubMemReq extends Bundle {
+  val rw   = Bool()
+  val addr = UFix(width = PADDR_BITS-OFFSET_BITS)
+  val tag  = Bits(width = GLOBAL_XACT_ID_BITS)
+  // Figure out which data-in port to pull from
+  val data_idx = Bits(width = TILE_ID_BITS)
+  val is_probe_rep = Bool()
+}
+
+class MemData extends Bundle {
+  val data = Bits(width = MEM_DATA_BITS)
+}
+
 class TransactionInit extends Bundle {
   val ttype = Bits(width = TTYPE_BITS)
   val tileTransactionID = Bits(width = TILE_XACT_ID_BITS)
   val address = Bits(width = PADDR_BITS)
-  val data = Bits(width = MEM_DATA_BITS)
 }
+
+class TransactionInitData extends MemData
 
 class TransactionAbort extends Bundle {
   val tileTransactionID = Bits(width = TILE_XACT_ID_BITS)
@@ -27,9 +41,7 @@ class ProbeReply extends Bundle {
   val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
 }
 
-class ProbeReplyData extends Bundle {
-  val data = Bits(width = MEM_DATA_BITS)
-}
+class ProbeReplyData extends MemData
 
 class TransactionReply extends Bundle {
   val ttype = Bits(width = TTYPE_BITS)
@@ -37,9 +49,7 @@ class TransactionReply extends Bundle {
   val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
 }
 
-class TransactionReplyData extends Bundle {
-  val data = Bits(width = MEM_DATA_BITS)
-}
+class TransactionReplyData extends MemData
 
 class TransactionFinish extends Bundle {
   val globalTransactionID = Bits(width = GLOBAL_XACT_ID_BITS)
@@ -47,6 +57,7 @@ class TransactionFinish extends Bundle {
 
 class ioTileLink extends Bundle { 
   val xact_init      = (new ioDecoupled) { new TransactionInit() }.flip
+  val xact_init_data = (new ioDecoupled) { new TransactionInitData() }.flip
   val xact_abort     = (new ioDecoupled) { new TransactionAbort() }
   val probe_req      = (new ioDecoupled) { new ProbeRequest() }
   val probe_rep      = (new ioDecoupled) { new ProbeReply() }.flip
