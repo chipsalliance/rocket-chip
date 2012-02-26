@@ -15,7 +15,7 @@ class ioDTLB_CPU_req_bundle extends Bundle
   val kill  = Bool()
   val cmd  = Bits(width=4) // load/store/amo
   val asid = Bits(width=ASID_BITS)
-  val vpn  = UFix(width=VPN_BITS+1)
+  val vpn  = Bits(width=VPN_BITS+1)
 }
 class ioDTLB_CPU_req extends io_ready_valid()( { new ioDTLB_CPU_req_bundle() } )
 
@@ -23,7 +23,7 @@ class ioDTLB_CPU_resp extends Bundle
 {
   // lookup responses
   val miss = Bool(OUTPUT)
-  val ppn = UFix(PPN_BITS, OUTPUT)
+  val ppn = Bits(PPN_BITS, OUTPUT)
   val xcpt_ld = Bool(OUTPUT)
   val xcpt_st = Bool(OUTPUT)
 }
@@ -163,7 +163,7 @@ class rocketDTLB(entries: Int) extends Component
   io.cpu_req.ready   := (state === s_ready) && !tlb_miss;
   io.cpu_resp.miss := tlb_miss;
   io.cpu_resp.ppn  :=
-    Mux(status_vm, tag_ram(tag_hit_addr), r_cpu_req_vpn(PPN_BITS-1,0)).toUFix;
+    Mux(status_vm, tag_ram(tag_hit_addr), r_cpu_req_vpn(PPN_BITS-1,0));
   
   io.ptw.req_val := (state === s_request);
   io.ptw.req_vpn := r_refill_tag(VPN_BITS-1,0);
