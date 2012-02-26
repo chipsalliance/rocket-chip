@@ -32,6 +32,80 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   val ptw   = new rocketPTW();
   val arb   = new rocketDmemArbiter();
 
+  var vu: vu = null
+  if (HAVE_VEC)
+  {
+    vu = new vu()
+    // cpu, vector prefetch, and vector use the DTLB
+    val dtlbarb = new cArbiter(3)({new ioDTLB_CPU_req()})
+    val dtlbchosen = Reg(resetVal=Bits(DTLB_CPU,log2up(3)))
+    when( dtlb.io.cpu_req.ready && dtlbarb.io.out.valid ) { dtlbchosen := dtlbarb.io.chosen }
+
+    val chosen_vec = dtlbchosen === Bits(DTLB_VEC)
+    val chosen_pf = dtlbchosen === Bits(DTLB_VPF)
+    val chosen_cpu = dtlbchosen === Bits(DTLB_CPU)
+
+    // vector prefetch doesn't care about exceptions
+    // and shouldn't cause any anyways
+    vu.io.vec_tlb_resp.xcpt_ld := chosen_vec && dtlb.io.cpu_resp.xcpt_ld
+    vu.io.vec_tlb_resp.xcpt_st := chosen_vec && dtlb.io.cpu_resp.xcpt_st
+    vu.io.vec_tlb_resp.miss := chosen_vec && dtlb.io.cpu_resp.miss
+    vu.io.vec_tlb_resp.ppn := dtlb.io.cpu_resp.ppn
+
+    vu.io.vec_pftlb_resp.xcpt_ld := Bool(false)
+    vu.io.vec_pftlb_resp.xcpt_st := Bool(false)
+    vu.io.vec_pftlb_resp.miss := chosen_pf && dtlb.io.cpu_resp.miss
+    vu.io.vec_pftlb_resp.ppn := dtlb.io.cpu_resp.ppn
+
+    // connect DTLB to ctrl+dpath
+    dtlbarb.io.in(DTLB_CPU).valid := ctrl.io.dtlb_val
+    dtlbarb.io.in(DTLB_CPU).bits.kill := ctrl.io.dtlb_kill
+    dtlbarb.io.in(DTLB_CPU).bits.cmd := ctrl.io.dmem.req_cmd
+    dtlbarb.io.in(DTLB_CPU).bits.asid := Bits(0,ASID_BITS); // FIXME: connect to PCR
+    dtlbarb.io.in(DTLB_CPU).bits.vpn := dpath.io.dmem.req_addr(VADDR_BITS,PGIDX_BITS)
+    ctrl.io.dtlb_rdy := dtlbarb.io.in(DTLB_CPU).ready
+
+    ctrl.io.xcpt_dtlb_ld := chosen_cpu && dtlb.io.cpu_resp.xcpt_ld
+    ctrl.io.xcpt_dtlb_st := chosen_cpu && dtlb.io.cpu_resp.xcpt_st
+    ctrl.io.dtlb_miss := chosen_cpu && dtlb.io.cpu_resp.miss
+
+    dtlbarb.io.in(DTLB_VEC) <> vu.io.vec_tlb_req
+    dtlbarb.io.in(DTLB_VPF) <> vu.io.vec_pftlb_req
+
+
+    dtlb.io.cpu_req <> dtlbarb.io.out
+  }
+  else
+  {
+    // connect DTLB to ctrl+dpath
+    dtlb.io.cpu_req.valid := ctrl.io.dtlb_val
+    dtlb.io.cpu_req.bits.kill := ctrl.io.dtlb_kill
+    dtlb.io.cpu_req.bits.cmd := ctrl.io.dmem.req_cmd
+    dtlb.io.cpu_req.bits.asid := Bits(0,ASID_BITS); // FIXME: connect to PCR
+    dtlb.io.cpu_req.bits.vpn := dpath.io.dmem.req_addr(VADDR_BITS,PGIDX_BITS)
+    ctrl.io.xcpt_dtlb_ld := dtlb.io.cpu_resp.xcpt_ld
+    ctrl.io.xcpt_dtlb_st := dtlb.io.cpu_resp.xcpt_st
+    ctrl.io.dtlb_rdy := dtlb.io.cpu_req.ready
+    ctrl.io.dtlb_miss := dtlb.io.cpu_resp.miss
+  }
+
+  dtlb.io.invalidate := dpath.io.ptbr_wen
+  dtlb.io.status := dpath.io.ctrl.status
+
+  arb.io.cpu.req_ppn := dtlb.io.cpu_resp.ppn;
+  ctrl.io.dmem.req_rdy := dtlb.io.cpu_req.ready && arb.io.cpu.req_rdy;
+
+  // connect DTLB to D$ arbiter
+  ctrl.io.xcpt_ma_ld := io.dmem.xcpt_ma_ld
+  ctrl.io.xcpt_ma_st := io.dmem.xcpt_ma_st
+  // connect page table walker to TLBs, page table base register (from PCR)
+  // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
+  ptw.io.dtlb             <> dtlb.io.ptw;
+  ptw.io.itlb             <> itlb.io.ptw;
+  ptw.io.ptbr             := dpath.io.ptbr;
+  arb.io.ptw              <> ptw.io.dmem;
+  arb.io.mem              <> io.dmem
+
   ctrl.io.dpath             <> dpath.io.ctrl;
   dpath.io.host             <> io.host;
   dpath.io.debug            <> io.debug;
@@ -53,39 +127,14 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   ctrl.io.xcpt_itlb       := itlb.io.cpu.exception;
   io.imem.itlb_miss       := itlb.io.cpu.resp_miss;
 
-  // connect DTLB to D$ arbiter, ctrl+dpath
-  dtlb.io.cpu.invalidate  := dpath.io.ptbr_wen;
-  dtlb.io.cpu.status      := dpath.io.ctrl.status;
-  dtlb.io.cpu.req_val     := ctrl.io.dtlb_val;
-  dtlb.io.cpu.req_kill    := ctrl.io.dtlb_kill;
-  dtlb.io.cpu.req_cmd     := ctrl.io.dmem.req_cmd;
-  dtlb.io.cpu.req_asid    := Bits(0,ASID_BITS); // FIXME: connect to PCR
-  dtlb.io.cpu.req_vpn     := dpath.io.dmem.req_addr(VADDR_BITS,PGIDX_BITS);
-  ctrl.io.xcpt_dtlb_ld    := dtlb.io.cpu.xcpt_ld; 
-  ctrl.io.xcpt_dtlb_st    := dtlb.io.cpu.xcpt_st; 
-  ctrl.io.dtlb_rdy        := dtlb.io.cpu.req_rdy;
-  ctrl.io.dtlb_miss       := dtlb.io.cpu.resp_miss;
-  ctrl.io.xcpt_ma_ld      := io.dmem.xcpt_ma_ld;  
-  ctrl.io.xcpt_ma_st      := io.dmem.xcpt_ma_st;
-  
-  // connect page table walker to TLBs, page table base register (from PCR)
-  // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
-  ptw.io.dtlb             <> dtlb.io.ptw;
-  ptw.io.itlb             <> itlb.io.ptw;
-  ptw.io.ptbr             := dpath.io.ptbr;
-  arb.io.ptw              <> ptw.io.dmem;
-  arb.io.mem              <> io.dmem
-  
   // connect arbiter to ctrl+dpath+DTLB
   arb.io.cpu.req_val      := ctrl.io.dmem.req_val;
   arb.io.cpu.req_cmd      := ctrl.io.dmem.req_cmd;
   arb.io.cpu.req_type     := ctrl.io.dmem.req_type;
   arb.io.cpu.req_kill     := ctrl.io.dmem.req_kill;
   arb.io.cpu.req_idx      := dpath.io.dmem.req_addr(PGIDX_BITS-1,0);
-  arb.io.cpu.req_ppn      := dtlb.io.cpu.resp_ppn;
   arb.io.cpu.req_data     := dpath.io.dmem.req_data;
   arb.io.cpu.req_tag      := dpath.io.dmem.req_tag;
-  ctrl.io.dmem.req_rdy    := dtlb.io.cpu.req_rdy && arb.io.cpu.req_rdy;
   ctrl.io.dmem.resp_miss  := arb.io.cpu.resp_miss;
   ctrl.io.dmem.resp_replay:= arb.io.cpu.resp_replay;
   ctrl.io.dmem.resp_nack  := arb.io.cpu.resp_nack;
@@ -110,8 +159,6 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   if (HAVE_VEC)
   {
     dpath.io.vec_ctrl <> ctrl.io.vec_dpath
-
-    val vu = new vu()
 
     // hooking up vector I$
     vitlb.io.cpu.invalidate := dpath.io.ptbr_wen
