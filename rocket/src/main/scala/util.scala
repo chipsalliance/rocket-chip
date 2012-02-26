@@ -1,5 +1,4 @@
-package Top
-{
+package rocket
 
 import Chisel._
 import Node._
@@ -248,6 +247,4 @@ class priorityEncoder(width: Int) extends Component
   }
   
   io.out := l_out;
-}
-
 }

@@ -1,4 +1,4 @@
-package Top {
+package rocket
 
 import Chisel._
 import scala.math._
@@ -238,6 +238,4 @@ object Constants
   val VIMM_VLEN = UFix(0, 1)
   val VIMM_ALU = UFix(1, 1)
   val VIMM_X = UFix(0, 1)
-}
-
 }

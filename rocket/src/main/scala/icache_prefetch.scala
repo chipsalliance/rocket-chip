@@ -1,4 +1,4 @@
-package Top {
+package rocket
 
 import Chisel._;
 import Node._;
@@ -79,6 +79,4 @@ class rocketIPrefetcher extends Component() {
   when (io.invalidate) {
     state := s_invalid
   }
-}
-
 }

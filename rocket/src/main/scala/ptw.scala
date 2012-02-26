@@ -1,4 +1,4 @@
-package Top {
+package rocket
 
 import Chisel._;
 import Node._;
@@ -212,6 +212,4 @@ class rocketPTW extends Component
       state := s_ready;
     }
   }
-}
-
 }

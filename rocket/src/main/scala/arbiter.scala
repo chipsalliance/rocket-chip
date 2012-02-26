@@ -1,4 +1,4 @@
-package Top {
+package rocket
 
 import Chisel._;
 import Node._;
@@ -60,6 +60,4 @@ class rocketMemArbiter(n: Int) extends Component {
     io.requestor(i).resp_data := io.mem.resp_data
     io.requestor(i).resp_tag := io.mem.resp_tag >> UFix(log2up(n))
   }
-}
-
 }

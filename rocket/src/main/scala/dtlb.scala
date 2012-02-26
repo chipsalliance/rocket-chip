@@ -1,5 +1,4 @@
-package Top
-{
+package rocket
 
 import Chisel._;
 import Node._;
@@ -180,5 +179,4 @@ class rocketDTLB(entries: Int) extends Component
       }
     }
   }  
-}
 }

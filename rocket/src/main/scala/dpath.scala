@@ -1,4 +1,4 @@
-package Top {
+package rocket
 
 import Chisel._
 import Node._;
@@ -447,6 +447,4 @@ class rocketDpath extends Component
   pcr.io.cause 			  := io.ctrl.cause;
   pcr.io.pc					  := wb_reg_pc;
   pcr.io.badvaddr_wen := io.ctrl.badvaddr_wen;
-}
-
 }
