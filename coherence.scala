@@ -161,6 +161,7 @@ class XactTracker(id: Int) extends Component {
   val io = new Bundle {
     val mem_req     = (new ioDecoupled) { new HubMemReq()  }.flip
     val alloc_req = (new ioDecoupled) { new TrackerAllocReq() }
+    val probe_req = (new ioDecoupled) { new ProbeRequest() }.flip
     val can_alloc = Bool(INPUT)
     val xact_finish = Bool(INPUT)
     val p_rep_has_data   =  Bool(INPUT) 
@@ -174,6 +175,7 @@ class XactTracker(id: Int) extends Component {
     val tile_xact_id = Bits(TILE_XACT_ID_BITS, OUTPUT)
     val sharer_count = Bits(TILE_ID_BITS, OUTPUT)
     val t_type        = Bits(TTYPE_BITS, OUTPUT)
+    val push_p_req    = Bits(NTILES, OUTPUT)
     val pop_p_rep    = Bits(NTILES, OUTPUT)
     val pop_p_rep_data = Bits(NTILES, OUTPUT)
     val pop_x_init = Bool(OUTPUT)
@@ -355,5 +357,18 @@ class CoherenceHubNoDir extends CoherenceHub {
   alloc_arb.io.out.ready := init_arb.io.out.valid && !busy_arr.flatten().andR &&
                               !foldR(trackerList.map(t => t.io.busy && coherenceConflict(t.io.addr, init_arb.io.out.bits.xact_init.address)))(_||_)
 
+
+  // Handle probe request generation
+  // Must arbitrate for each request port
+  for( j <- 0 until NTILES ) {
+    val p_req_arb = (new Arbiter(NGLOBAL_XACTS)) { new ProbeRequest() }
+    for( i <- 0 until NGLOBAL_XACTS ) {
+      val t = trackerList(i).io
+      p_req_arb.io.in(i).bits :=  t.probe_req.bits
+      p_req_arb.io.in(i).ready := t.probe_req.ready
+      p_req_arb.io.in(i).valid := t.probe_req.valid && t.push_p_req(j)
+    }
+    p_req_arb.io.out <> io.tiles(j).probe_req
+  }
 
 }
