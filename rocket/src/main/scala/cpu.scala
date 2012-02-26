@@ -37,7 +37,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   {
     vu = new vu()
     // cpu, vector prefetch, and vector use the DTLB
-    val dtlbarb = new cArbiter(3)({new ioDTLB_CPU_req()})
+    val dtlbarb = new rArbiter(3)({new ioDTLB_CPU_req()})
     val dtlbchosen = Reg(resetVal=Bits(DTLB_CPU,log2up(3)))
     when( dtlb.io.cpu_req.ready && dtlbarb.io.out.valid ) { dtlbchosen := dtlbarb.io.chosen }
 
@@ -204,8 +204,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.vec_ackq.ready := ctrl.io.vec_iface.vackq_ready
 
     // exceptions
-    // dpath.io.vec_iface.eaddr
-    // dpath.io.vec_iface.exception
+    vu.io.cpu_exception.addr := dpath.io.vec_iface.eaddr.toUFix
+    vu.io.cpu_exception.exception := dpath.io.vec_iface.exception
 
     // hooking up vector memory interface
     ctrl.io.ext_mem.req_val := vu.io.dmem_req.valid
