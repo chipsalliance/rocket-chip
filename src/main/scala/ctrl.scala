@@ -1,4 +1,4 @@
-package Top {
+package rocket
 
 import Chisel._
 import Node._;
@@ -815,6 +815,4 @@ class rocketCtrl extends Component
   io.dmem.req_type    := ex_reg_mem_type;
 
   io.ext_mem.resp_nack:= mem_reg_ext_mem_val && !wb_reg_ext_mem_nack && (io.dmem.req_kill || io.dmem.resp_nack || Reg(!io.dmem.req_rdy))
-}
-
 }

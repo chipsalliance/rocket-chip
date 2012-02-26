@@ -1,5 +1,4 @@
-package Top {
-
+package rocket
 
 import Chisel._
 import Node._;
@@ -55,6 +54,4 @@ class rocketDpathALU extends Component
   val out_hi = Mux(io.dw === DW_64, out64(63,32), Fill(32, out64(31)))
   io.out := Cat(out_hi, out64(31,0)).toUFix
   io.adder_out := sum
-}
-
 }

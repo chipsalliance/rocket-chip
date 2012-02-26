@@ -1,4 +1,4 @@
-package Top {
+package rocket
 
 import Chisel._
 import Constants._
@@ -992,6 +992,4 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   io.mem.req_wdata := wb.io.mem_req_data
   io.mem.req_tag   := wb.io.mem_req.bits.tag.toUFix
   io.mem.req_addr  := wb.io.mem_req.bits.addr
-}
- 
 }

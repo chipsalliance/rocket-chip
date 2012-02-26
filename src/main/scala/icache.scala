@@ -1,4 +1,4 @@
-package Top {
+package rocket
 
 import Chisel._;
 import Node._;
@@ -162,6 +162,4 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
       }
     }
   }  
-}
-
 }

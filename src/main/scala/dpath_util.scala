@@ -1,5 +1,4 @@
-package Top
-{
+package rocket
 
 import Chisel._;
 import Node._;
@@ -268,6 +267,4 @@ class rocketDpathRegfile extends Component
   regfile.write(io.w0.addr, io.w0.data, io.w0.en);
   io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
   io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
-}
-
 }
