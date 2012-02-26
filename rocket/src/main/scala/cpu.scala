@@ -156,6 +156,10 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     ctrl.io.vec_iface.vackq_valid := vu.io.vec_ackq.valid
     vu.io.vec_ackq.ready := ctrl.io.vec_iface.vackq_ready
 
+    // exceptions
+    // dpath.io.vec_iface.eaddr
+    // dpath.io.vec_iface.exception
+
     // hooking up vector memory interface
     ctrl.io.ext_mem.req_val := vu.io.dmem_req.valid
     ctrl.io.ext_mem.req_cmd := vu.io.dmem_req.bits.cmd

@@ -139,6 +139,10 @@ object Constants
   val PCR_FROMHOST = UFix(17, 5);
   val PCR_VECBANK  = UFix(18, 5);
 
+  // temporaries for vector, these will go away
+  val PCR_VEC_TMP1 = UFix(30, 5)
+  val PCR_VEC_TMP2 = UFix(31, 5)
+
   // definition of bits in PCR status reg
   val SR_ET   = 0;  // enable traps
   val SR_EF   = 1;  // enable floating point
