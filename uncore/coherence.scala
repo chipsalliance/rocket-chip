@@ -1,4 +1,4 @@
-package Top {
+package rocket
 
 import Chisel._
 import Constants._
@@ -317,7 +317,5 @@ class CoherenceHubNoDir extends CoherenceHub {
   //val xact_init_arb   = (new Arbiter(NTILES)) { new TransactionInit() }
   //val probe_reply_arb = (new Arbiter(NTILES)) { new ProbeReply() }
 
-
-}
 
 }
