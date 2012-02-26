@@ -12,6 +12,12 @@ class HubMemReq extends Bundle {
   val is_probe_rep = Bool()
 }
 
+class TrackerAllocReq extends Bundle {
+  val xact_init = new TransactionInit()
+  val init_tile_id = Bits(width = TILE_ID_BITS)
+  val data_valid = Bool()
+}
+
 class MemData extends Bundle {
   val data = Bits(width = MEM_DATA_BITS)
 }
@@ -154,6 +160,8 @@ trait FourStateCoherence extends CoherencePolicy {
 class XactTracker(id: Int) extends Component {
   val io = new Bundle {
     val mem_req     = (new ioDecoupled) { new HubMemReq()  }.flip
+    val alloc_req = (new ioDecoupled) { new TrackerAllocReq() }
+    val can_alloc = Bool(INPUT)
     val xact_finish = Bool(INPUT)
     val p_rep_has_data   =  Bool(INPUT) 
     val x_init_has_data   =  Bool(INPUT) 
@@ -162,22 +170,27 @@ class XactTracker(id: Int) extends Component {
     val rep_cnt_dec  = Bits(NTILES, INPUT)
     val busy        = Bool(OUTPUT)
     val addr         = Bits(PADDR_BITS, OUTPUT)
-    val tile_id      = Bits(TILE_ID_BITS, OUTPUT)
+    val init_tile_id      = Bits(TILE_ID_BITS, OUTPUT)
     val tile_xact_id = Bits(TILE_XACT_ID_BITS, OUTPUT)
     val sharer_count = Bits(TILE_ID_BITS, OUTPUT)
     val t_type        = Bits(TTYPE_BITS, OUTPUT)
-    val pop_p_rep    = Bool(OUTPUT)
-    val pop_p_rep_data = Bool(OUTPUT)
+    val pop_p_rep    = Bits(NTILES, OUTPUT)
+    val pop_p_rep_data = Bits(NTILES, OUTPUT)
+    val pop_x_init = Bool(OUTPUT)
+    val pop_x_init_data = Bool(OUTPUT)
     val send_x_rep_ack = Bool(OUTPUT)
   }
 
   val valid = Reg(resetVal = Bool(false))
   val addr  = Reg{ Bits() }
   val t_type = Reg{ Bits() }
-  val tile_id = Reg{ Bits() }
+  val init_tile_id = Reg{ Bits() }
   val tile_xact_id = Reg{ Bits() }
   val probe_done = Reg{ Bits() }
   
+  //TODO: Decrement the probe count when final data piece is written
+  //      Connent io.mem.ready sig to correct pop* outputs
+  //      P_rep and x_init must be popped on same cycle of receipt
 }
 
 abstract class CoherenceHub extends Component
@@ -204,23 +217,23 @@ class CoherenceHubNoDir extends CoherenceHub {
   }
   
   val trackerList      = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
-  val busy_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val addr_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
-  val tile_id_arr      = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
-  val tile_xact_id_arr = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
-  val t_type_arr        = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TTYPE_BITS)} }
-  val sh_count_arr     = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
-  val send_x_rep_ack_arr    = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val busy_arr         = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val addr_arr         = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
+  val init_tile_id_arr      = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
+  val tile_xact_id_arr = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
+  val t_type_arr        = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TTYPE_BITS)} }
+  val sh_count_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
+  val send_x_rep_ack_arr    = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
 
-  val do_free_arr      = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val p_rep_has_data_arr     = Vec(NGLOBAL_XACTS){ Wire(){Bool()} } 
-  val p_rep_data_idx_arr     = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=log2up(NTILES))} }
-  val rep_cnt_dec_arr  = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=NTILES)} }
+  val do_free_arr      = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val p_rep_has_data_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} } 
+  val p_rep_data_idx_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=log2up(NTILES))} }
+  val rep_cnt_dec_arr  = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=NTILES)} }
 
   for( i <- 0 until NGLOBAL_XACTS) {
     busy_arr.write(         UFix(i), trackerList(i).io.busy)
     addr_arr.write(         UFix(i), trackerList(i).io.addr)
-    tile_id_arr.write(      UFix(i), trackerList(i).io.tile_id)
+    init_tile_id_arr.write(      UFix(i), trackerList(i).io.init_tile_id)
     tile_xact_id_arr.write( UFix(i), trackerList(i).io.tile_xact_id)
     t_type_arr.write(        UFix(i), trackerList(i).io.t_type)
     sh_count_arr.write(     UFix(i), trackerList(i).io.sharer_count)
@@ -231,23 +244,6 @@ class CoherenceHubNoDir extends CoherenceHub {
     trackerList(i).io.rep_cnt_dec := rep_cnt_dec_arr.read(UFix(i))
   }
 
-  // Nack conflicting transaction init attempts
-  val aborting   = Wire() { Bits(width = NTILES) } 
-  val initiating = Wire() { Bits(width = NTILES) } 
-  for( j <- 0 until NTILES ) {
-    val init   = io.tiles(j).xact_init
-    val abort  = io.tiles(j).xact_abort
-    val conflicts = Bits(width = NGLOBAL_XACTS) 
-    for( i <- 0 until NGLOBAL_XACTS) {
-      val t = trackerList(i).io
-      conflicts(i) := t.busy(i) && coherenceConflict(t.addr, init.bits.address)
-    }
-    aborting(j) := (conflicts.orR || busy_arr.toBits().andR)
-    abort.valid := init.valid && aborting
-    abort.bits.tile_xact_id := init.bits.tile_xact_id
-    init.ready  := aborting(j) || initiating(j)
-  }
-  
   // Free finished transactions
   for( j <- 0 until NTILES ) {
     val finish = io.tiles(j).xact_finish
@@ -255,6 +251,7 @@ class CoherenceHubNoDir extends CoherenceHub {
     finish.ready := Bool(true)
   }
 
+  // Reply to initial requestor
   // Forward memory responses from mem to tile
   val xrep_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
   val xrep_cnt_next = xrep_cnt + UFix(1)
@@ -267,11 +264,11 @@ class CoherenceHubNoDir extends CoherenceHub {
     io.tiles(j).xact_rep.bits.global_xact_id := idx
     io.tiles(j).xact_rep_data.bits.data := io.mem.resp_data
     readys := Mux(xrep_cnt === UFix(0), io.tiles(j).xact_rep.ready && io.tiles(j).xact_rep_data.ready, io.tiles(j).xact_rep_data.ready)
-    io.tiles(j).xact_rep.valid      := (UFix(j) === tile_id_arr.read(idx)) && ((io.mem.resp_val && xrep_cnt === UFix(0)) || send_x_rep_ack_arr.read(idx))
-    io.tiles(j).xact_rep_data.valid := (UFix(j) === tile_id_arr.read(idx))
+    io.tiles(j).xact_rep.valid      := (UFix(j) === init_tile_id_arr.read(idx)) && ((io.mem.resp_val && xrep_cnt === UFix(0)) || send_x_rep_ack_arr.read(idx))
+    io.tiles(j).xact_rep_data.valid := (UFix(j) === init_tile_id_arr.read(idx))
   }
   // If there were a ready signal due to e.g. intervening network use:
-  //io.mem.resp_rdy := readys(tile_id_arr.read(idx)).xact_rep.ready
+  //io.mem.resp_rdy := readys(init_tile_id_arr.read(idx)).xact_rep.ready
   
   // Create an arbiter for the one memory port
   // We have to arbitrate between the different trackers' memory requests
@@ -293,28 +290,70 @@ class CoherenceHubNoDir extends CoherenceHub {
                                   io.tiles(j).probe_rep_data.bits.data, 
                                   io.tiles(j).xact_init_data.bits.data)))
   
+  // Handle probe replies, which may or may not have data
   for( j <- 0 until NTILES ) {
     val p_rep = io.tiles(j).probe_rep
     val p_rep_data = io.tiles(j).probe_rep_data
     val idx = p_rep.bits.global_xact_id
-    p_rep_has_data_arr.write(idx, p_rep.valid && p_rep.bits.has_data)
+    p_rep_has_data_arr.write(idx, p_rep.valid && p_rep.bits.has_data && p_rep_data.valid)
     p_rep_data_idx_arr.write(idx, UFix(j))
-    p_rep.ready := foldR(trackerList.map(_.io.pop_p_rep))(_ || _)
-    p_rep_data.ready  := foldR(trackerList.map(_.io.pop_p_rep_data))(_ || _)
+    p_rep.ready := foldR(trackerList.map(_.io.pop_p_rep(j)))(_ || _)
+    p_rep_data.ready  := foldR(trackerList.map(_.io.pop_p_rep_data(j)))(_ || _)
   }
   for( i <- 0 until NGLOBAL_XACTS ) {
     val flags = Bits(width = NTILES)
     for( j <- 0 until NTILES) {
       val p_rep = io.tiles(j).probe_rep
-      flags(j) := p_rep.valid && (p_rep.bits.global_xact_id === UFix(i))
+      flags(j) := p_rep.valid && !p_rep.bits.has_data && (p_rep.bits.global_xact_id === UFix(i))
     }
     rep_cnt_dec_arr.write(UFix(i), flags)
   }
 
+  // Nack conflicting transaction init attempts
+  val aborting   = Wire() { Bits(width = NTILES) } 
+  for( j <- 0 until NTILES ) {
+    val x_init = io.tiles(j).xact_init
+    val x_abort  = io.tiles(j).xact_abort
+    val conflicts = Bits(width = NGLOBAL_XACTS) 
+    for( i <- 0 until NGLOBAL_XACTS) {
+      val t = trackerList(i).io
+      conflicts(i) := t.busy(i) && coherenceConflict(t.addr, x_init.bits.address) && 
+                        !(x_init.bits.has_data && (UFix(j) === t.init_tile_id)) 
+                        // Don't abort writebacks stalled on mem. 
+                        // TODO: This assumes overlapped writeback init reqs to 
+                        // the same addr will never be issued; is this ok?
+    }
+    x_abort.bits.tile_xact_id := x_init.bits.tile_xact_id
+    val want_to_abort = conflicts.orR || busy_arr.flatten().andR
+    x_abort.valid := want_to_abort && x_init.valid
+    aborting(j) := want_to_abort && x_abort.ready
+  }
+  
+  // Handle transaction initiation requests
+  // Only one allocation per cycle
+  // Init requests may or may not have data
+  val alloc_arb = (new Arbiter(NGLOBAL_XACTS)) { Bool() }
+  val init_arb = (new Arbiter(NTILES)) { new TrackerAllocReq() }
+  for( i <- 0 until NGLOBAL_XACTS ) {
+    alloc_arb.io.in(i).valid := !trackerList(i).io.busy
+    trackerList(i).io.can_alloc := alloc_arb.io.in(i).ready
+    trackerList(i).io.alloc_req.bits := init_arb.io.out.bits
+    trackerList(i).io.alloc_req.valid := init_arb.io.out.valid
+  }
 
-  // Pick a single request of these types to process
-  //val xact_init_arb   = (new Arbiter(NTILES)) { new TransactionInit() }
-  //val probe_reply_arb = (new Arbiter(NTILES)) { new ProbeReply() }
+  for( j <- 0 until NTILES ) {
+    val x_init = io.tiles(j).xact_init
+    val x_init_data = io.tiles(j).xact_init_data
+    init_arb.io.in(j).valid := x_init.valid
+    init_arb.io.in(j).bits.xact_init := x_init.bits
+    init_arb.io.in(j).bits.init_tile_id := UFix(j)
+    init_arb.io.in(j).bits.data_valid := x_init_data.valid
+    x_init.ready := aborting(j) || foldR(trackerList.map(_.io.pop_x_init && init_arb.io.out.bits.init_tile_id === UFix(j)))(_||_)
+    x_init_data.ready := aborting(j) || foldR(trackerList.map(_.io.pop_x_init_data && init_arb.io.out.bits.init_tile_id === UFix(j)))(_||_)
+  }
+  
+  alloc_arb.io.out.ready := init_arb.io.out.valid && !busy_arr.flatten().andR &&
+                              !foldR(trackerList.map(t => t.io.busy && coherenceConflict(t.io.addr, init_arb.io.out.bits.xact_init.address)))(_||_)
 
 
 }
