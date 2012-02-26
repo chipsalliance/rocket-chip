@@ -228,8 +228,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     dpath.io.vec_imul_req <> vu.io.cp_imul_req
     dpath.io.vec_imul_resp <> vu.io.cp_imul_resp
 
-    fpu.io.sfma.valid := Bool(false)
-    fpu.io.dfma.valid := Bool(false)
+    fpu.io.sfma <> vu.io.cp_sfma
+    fpu.io.dfma <> vu.io.cp_dfma
   }
   else
   {
