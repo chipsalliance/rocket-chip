@@ -94,15 +94,15 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   for (i <- 0 until assoc)
   {
     val repl_me = (repl_way === UFix(i))
-    val tag_array = Mem(lines){ Bits(width=tagmsb-taglsb+1) }
+    val tag_array = Mem(sets){ r_cpu_miss_tag }
     tag_array.setReadLatency(1);
     tag_array.setTarget('inst);
     val tag_rdata = tag_array.rw(tag_addr, r_cpu_miss_tag, tag_we && repl_me);
 
     // valid bit array
-    val vb_array = Reg(resetVal = Bits(0, lines));
+    val vb_array = Reg(resetVal = Bits(0, sets));
     when (io.cpu.invalidate) {
-      vb_array := Bits(0,lines);
+      vb_array := Bits(0,sets);
     }
     .elsewhen (tag_we && repl_me) {
       vb_array := vb_array.bitSet(r_cpu_req_idx(indexmsb,indexlsb).toUFix, UFix(1,1));
@@ -112,7 +112,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
     val hit = valid && (tag_rdata === r_cpu_hit_addr(tagmsb,taglsb))
     
     // data array
-    val data_array = Mem(lines*REFILL_CYCLES){ Bits(width = MEM_DATA_BITS) }
+    val data_array = Mem(sets*REFILL_CYCLES){ io.mem.resp_data }
     data_array.setReadLatency(1);
     data_array.setTarget('inst);
     val data_out = data_array.rw(data_addr, io.mem.resp_data, io.mem.resp_val && repl_me)
