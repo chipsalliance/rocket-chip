@@ -2,7 +2,6 @@ package rocket
 
 import Chisel._
 import Constants._
-import hwacha.GenArray
 
 class HubMemReq extends Bundle {
   val rw   = Bool()
@@ -205,18 +204,18 @@ class CoherenceHubNoDir extends CoherenceHub {
   }
   
   val trackerList      = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
-  val busy_arr         = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val addr_arr         = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
-  val tile_id_arr      = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
-  val tile_xact_id_arr = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
-  val t_type_arr        = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TTYPE_BITS)} }
-  val sh_count_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
-  val send_x_rep_ack_arr    = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val busy_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val addr_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
+  val tile_id_arr      = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
+  val tile_xact_id_arr = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
+  val t_type_arr        = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TTYPE_BITS)} }
+  val sh_count_arr     = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
+  val send_x_rep_ack_arr    = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
 
-  val do_free_arr      = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val p_rep_has_data_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} } 
-  val p_rep_data_idx_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=log2up(NTILES))} }
-  val rep_cnt_dec_arr  = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=NTILES)} }
+  val do_free_arr      = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val p_rep_has_data_arr     = Vec(NGLOBAL_XACTS){ Wire(){Bool()} } 
+  val p_rep_data_idx_arr     = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=log2up(NTILES))} }
+  val rep_cnt_dec_arr  = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=NTILES)} }
 
   for( i <- 0 until NGLOBAL_XACTS) {
     busy_arr.write(         UFix(i), trackerList(i).io.busy)
@@ -243,7 +242,7 @@ class CoherenceHubNoDir extends CoherenceHub {
       val t = trackerList(i).io
       conflicts(i) := t.busy(i) && coherenceConflict(t.addr, init.bits.address)
     }
-    aborting(j) := (conflicts.orR || busy_arr.flatten().andR)
+    aborting(j) := (conflicts.orR || busy_arr.toBits().andR)
     abort.valid := init.valid && aborting
     abort.bits.tile_xact_id := init.bits.tile_xact_id
     init.ready  := aborting(j) || initiating(j)
