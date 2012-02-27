@@ -168,7 +168,8 @@ class XactTracker(id: Int) extends Component {
     val x_init_has_data   =  Bool(INPUT) 
     val p_rep_data_idx = Bits(log2up(NTILES), INPUT)
     val x_init_data_idx = Bits(log2up(NTILES), INPUT)
-    val rep_cnt_dec  = Bits(NTILES, INPUT)
+    val p_rep_cnt_dec  = Bits(NTILES, INPUT)
+    val p_req_cnt_inc  = Bits(NTILES, INPUT)
     val busy        = Bool(OUTPUT)
     val addr         = Bits(PADDR_BITS, OUTPUT)
     val init_tile_id      = Bits(TILE_ID_BITS, OUTPUT)
@@ -218,32 +219,35 @@ class CoherenceHubNoDir extends CoherenceHub {
     val mem = new ioDCache().flip
   }
   
-  val trackerList      = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
-  val busy_arr         = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val addr_arr         = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
-  val init_tile_id_arr      = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
-  val tile_xact_id_arr = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
-  val t_type_arr        = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TTYPE_BITS)} }
-  val sh_count_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
-  val send_x_rep_ack_arr    = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
 
-  val do_free_arr      = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val p_rep_has_data_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bool()} } 
-  val p_rep_data_idx_arr     = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=log2up(NTILES))} }
-  val rep_cnt_dec_arr  = GenArray(NGLOBAL_XACTS){ Wire(){Bits(width=NTILES)} }
+  val busy_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
+  val init_tile_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
+  val tile_xact_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
+  val t_type_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TTYPE_BITS)} }
+  val sh_count_arr       = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
+  val send_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
+
+  val do_free_arr        = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val p_rep_has_data_arr = Vec(NGLOBAL_XACTS){ Wire(){Bool()} } 
+  val p_rep_data_idx_arr = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=log2up(NTILES))} }
+  val p_rep_cnt_dec_arr  = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=NTILES)} }
+  val p_req_cnt_inc_arr  = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=NTILES)} }
 
   for( i <- 0 until NGLOBAL_XACTS) {
-    busy_arr.write(         UFix(i), trackerList(i).io.busy)
-    addr_arr.write(         UFix(i), trackerList(i).io.addr)
-    init_tile_id_arr.write(      UFix(i), trackerList(i).io.init_tile_id)
-    tile_xact_id_arr.write( UFix(i), trackerList(i).io.tile_xact_id)
+    busy_arr.write(          UFix(i), trackerList(i).io.busy)
+    addr_arr.write(          UFix(i), trackerList(i).io.addr)
+    init_tile_id_arr.write(  UFix(i), trackerList(i).io.init_tile_id)
+    tile_xact_id_arr.write(  UFix(i), trackerList(i).io.tile_xact_id)
     t_type_arr.write(        UFix(i), trackerList(i).io.t_type)
-    sh_count_arr.write(     UFix(i), trackerList(i).io.sharer_count)
-    send_x_rep_ack_arr.write(     UFix(i), trackerList(i).io.send_x_rep_ack)
-    trackerList(i).io.xact_finish := do_free_arr.read(UFix(i))
+    sh_count_arr.write(      UFix(i), trackerList(i).io.sharer_count)
+    send_x_rep_ack_arr.write(UFix(i), trackerList(i).io.send_x_rep_ack)
+    trackerList(i).io.xact_finish    := do_free_arr.read(UFix(i))
     trackerList(i).io.p_rep_has_data := p_rep_has_data_arr.read(UFix(i))
     trackerList(i).io.p_rep_data_idx := p_rep_data_idx_arr.read(UFix(i))
-    trackerList(i).io.rep_cnt_dec := rep_cnt_dec_arr.read(UFix(i))
+    trackerList(i).io.p_rep_cnt_dec  := p_rep_cnt_dec_arr.read(UFix(i))
+    trackerList(i).io.p_req_cnt_inc  := p_req_cnt_inc_arr.read(UFix(i))
   }
 
   // Free finished transactions
@@ -308,7 +312,7 @@ class CoherenceHubNoDir extends CoherenceHub {
       val p_rep = io.tiles(j).probe_rep
       flags(j) := p_rep.valid && !p_rep.bits.has_data && (p_rep.bits.global_xact_id === UFix(i))
     }
-    rep_cnt_dec_arr.write(UFix(i), flags)
+    p_rep_cnt_dec_arr.write(UFix(i), flags)
   }
 
   // Nack conflicting transaction init attempts
@@ -326,7 +330,7 @@ class CoherenceHubNoDir extends CoherenceHub {
                         // the same addr will never be issued; is this ok?
     }
     x_abort.bits.tile_xact_id := x_init.bits.tile_xact_id
-    val want_to_abort = conflicts.orR || busy_arr.flatten().andR
+    val want_to_abort = conflicts.orR || busy_arr.toBits.andR
     x_abort.valid := want_to_abort && x_init.valid
     aborting(j) := want_to_abort && x_abort.ready
   }
@@ -354,21 +358,27 @@ class CoherenceHubNoDir extends CoherenceHub {
     x_init_data.ready := aborting(j) || foldR(trackerList.map(_.io.pop_x_init_data && init_arb.io.out.bits.init_tile_id === UFix(j)))(_||_)
   }
   
-  alloc_arb.io.out.ready := init_arb.io.out.valid && !busy_arr.flatten().andR &&
+  alloc_arb.io.out.ready := init_arb.io.out.valid && !busy_arr.toBits.andR &&
                               !foldR(trackerList.map(t => t.io.busy && coherenceConflict(t.io.addr, init_arb.io.out.bits.xact_init.address)))(_||_)
 
 
   // Handle probe request generation
   // Must arbitrate for each request port
+  val p_req_arb_arr = List.fill(NTILES)((new Arbiter(NGLOBAL_XACTS)) { new ProbeRequest() })
   for( j <- 0 until NTILES ) {
-    val p_req_arb = (new Arbiter(NGLOBAL_XACTS)) { new ProbeRequest() }
     for( i <- 0 until NGLOBAL_XACTS ) {
       val t = trackerList(i).io
-      p_req_arb.io.in(i).bits :=  t.probe_req.bits
-      p_req_arb.io.in(i).ready := t.probe_req.ready
-      p_req_arb.io.in(i).valid := t.probe_req.valid && t.push_p_req(j)
+      p_req_arb_arr(j).io.in(i).bits :=  t.probe_req.bits
+      p_req_arb_arr(j).io.in(i).valid := t.probe_req.valid && t.push_p_req(j)
     }
-    p_req_arb.io.out <> io.tiles(j).probe_req
+    p_req_arb_arr(j).io.out <> io.tiles(j).probe_req
+  }
+  for( i <- 0 until NGLOBAL_XACTS ) {
+    val flags = Bits(width = NTILES)
+    for( j <- 0 until NTILES ) {
+      flags(j) := p_req_arb_arr(j).io.in(i).ready 
+    }
+    p_rep_cnt_dec_arr.write(UFix(i), flags)
   }
 
 }
