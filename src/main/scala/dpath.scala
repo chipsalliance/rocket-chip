@@ -7,20 +7,6 @@ import Constants._
 import Instructions._
 import hwacha._
 
-class ioDpathDmem extends Bundle()
-{
-  val req_addr  = UFix(VADDR_BITS+1, OUTPUT);
-  val req_tag   = UFix(CPU_TAG_BITS, OUTPUT);
-  val req_data  = Bits(64, OUTPUT);
-  val resp_val  = Bool(INPUT);
-  val resp_miss = Bool(INPUT);
-  val resp_replay = Bool(INPUT);
-  val resp_type = Bits(3, INPUT);
-  val resp_tag  = Bits(CPU_TAG_BITS, INPUT);
-  val resp_data = Bits(64, INPUT);
-  val resp_data_subword = Bits(64, INPUT);
-}
-
 class ioDpathImem extends Bundle()
 {
   val req_addr  = UFix(VADDR_BITS+1, OUTPUT);
@@ -32,7 +18,8 @@ class ioDpathAll extends Bundle()
   val host  = new ioHTIF();
   val ctrl  = new ioCtrlDpath().flip();
   val debug = new ioDebug();
-  val dmem  = new ioDpathDmem();
+  val dmem  = new ioDmem(List("req_idx", "req_tag", "req_data", "resp_val", "resp_miss", "resp_replay", "resp_type", "resp_tag", "resp_data", "resp_data_subword")).flip();
+  val dtlb = new ioDTLB_CPU_req_bundle(List("vpn"))
   val ext_mem = new ioDmem(List("req_val", "req_idx", "req_ppn", "req_data", "req_tag", "resp_val", "resp_data", "resp_type", "resp_tag"))
   val imem  = new ioDpathImem();
   val ptbr_wen = Bool(OUTPUT);
@@ -283,9 +270,10 @@ class rocketDpath extends Component
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req_addr  := ex_effective_address.toUFix;
+  io.dmem.req_idx  := ex_effective_address
   io.dmem.req_data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
   io.dmem.req_tag := Cat(Mux(io.ctrl.ex_ext_mem_val, ex_reg_ext_mem_tag(CPU_TAG_BITS-2, 0), Cat(ex_reg_waddr, io.ctrl.ex_fp_val)), io.ctrl.ex_ext_mem_val).toUFix
+  io.dtlb.vpn := ex_effective_address >> UFix(PGIDX_BITS)
 
 	// processor control regfile read
   pcr.io.r.en   := ex_reg_ctrl_ren_pcr | ex_reg_ctrl_eret;

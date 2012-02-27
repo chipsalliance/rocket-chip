@@ -9,7 +9,7 @@ import hwacha._
 // ioDTLB_CPU also located in hwacha/src/vuVXU-Interface.scala
 // should keep them in sync
 
-class ioDTLB_CPU_req_bundle extends Bundle
+class ioDTLB_CPU_req_bundle(view: List[String] = null) extends Bundle(view)
 {
   // lookup requests
   val kill  = Bool()

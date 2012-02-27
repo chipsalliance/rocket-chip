@@ -67,7 +67,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     dtlbarb.io.in(DTLB_CPU).bits.kill := ctrl.io.dtlb_kill
     dtlbarb.io.in(DTLB_CPU).bits.cmd := ctrl.io.dmem.req_cmd
     dtlbarb.io.in(DTLB_CPU).bits.asid := Bits(0,ASID_BITS); // FIXME: connect to PCR
-    dtlbarb.io.in(DTLB_CPU).bits.vpn := dpath.io.dmem.req_addr(VADDR_BITS,PGIDX_BITS)
+    dtlbarb.io.in(DTLB_CPU).bits.vpn := dpath.io.dtlb.vpn
     ctrl.io.dtlb_rdy := dtlbarb.io.in(DTLB_CPU).ready
 
     ctrl.io.xcpt_dtlb_ld := chosen_cpu && dtlb.io.cpu_resp.xcpt_ld
@@ -83,7 +83,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     dtlb.io.cpu_req.bits.kill := ctrl.io.dtlb_kill
     dtlb.io.cpu_req.bits.cmd := ctrl.io.dmem.req_cmd
     dtlb.io.cpu_req.bits.asid := Bits(0,ASID_BITS); // FIXME: connect to PCR
-    dtlb.io.cpu_req.bits.vpn := dpath.io.dmem.req_addr(VADDR_BITS,PGIDX_BITS)
+    dtlb.io.cpu_req.bits.vpn := dpath.io.dtlb.vpn
     ctrl.io.xcpt_dtlb_ld := dtlb.io.cpu_resp.xcpt_ld
     ctrl.io.xcpt_dtlb_st := dtlb.io.cpu_resp.xcpt_st
     ctrl.io.dtlb_rdy := dtlb.io.cpu_req.ready
@@ -129,23 +129,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   io.imem.itlb_miss       := itlb.io.cpu.resp_miss;
 
   // connect arbiter to ctrl+dpath+DTLB
-  arb.io.requestor(0).req_val := ctrl.io.dmem.req_val;
-  arb.io.requestor(0).req_cmd := ctrl.io.dmem.req_cmd;
-  arb.io.requestor(0).req_type := ctrl.io.dmem.req_type;
-  arb.io.requestor(0).req_kill := ctrl.io.dmem.req_kill;
-  arb.io.requestor(0).req_idx := dpath.io.dmem.req_addr(PGIDX_BITS-1,0);
-  arb.io.requestor(0).req_data := dpath.io.dmem.req_data;
-  arb.io.requestor(0).req_tag := dpath.io.dmem.req_tag;
-  ctrl.io.dmem.resp_miss  := arb.io.requestor(0).resp_miss;
-  ctrl.io.dmem.resp_replay:= arb.io.requestor(0).resp_replay;
-  ctrl.io.dmem.resp_nack  := arb.io.requestor(0).resp_nack;
-  dpath.io.dmem.resp_val  := arb.io.requestor(0).resp_val;
-  dpath.io.dmem.resp_miss := arb.io.requestor(0).resp_miss;
-  dpath.io.dmem.resp_replay := arb.io.requestor(0).resp_replay;
-  dpath.io.dmem.resp_type := io.dmem.resp_type;
-  dpath.io.dmem.resp_tag  := arb.io.requestor(0).resp_tag;
-  dpath.io.dmem.resp_data := arb.io.requestor(0).resp_data;  
-  dpath.io.dmem.resp_data_subword := io.dmem.resp_data_subword;
+  arb.io.requestor(0) <> ctrl.io.dmem
+  arb.io.requestor(0) <> dpath.io.dmem
 
   var fpu: rocketFPU = null
   if (HAVE_FPU)
