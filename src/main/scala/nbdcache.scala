@@ -391,7 +391,7 @@ class ReplayUnit extends Component {
   val sdq_wen = io.sdq_enq.valid && io.sdq_enq.ready
   val sdq_addr = Mux(sdq_ren_retry, rp.sdq_id, Mux(sdq_ren_new, io.replay.bits.sdq_id, sdq_alloc_id))
 
-  val sdq = Mem(NSDQ, io.sdq_enq.bits)
+  val sdq = Mem(NSDQ){ Bits(width=CPU_DATA_BITS) }
   sdq.setReadLatency(1);
   sdq.setTarget('inst)
   val sdq_dout = sdq.rw(sdq_addr, io.sdq_enq.bits, sdq_wen, cs = sdq_ren || sdq_wen)
@@ -522,7 +522,7 @@ class MetaDataArray(lines: Int) extends Component {
     val state_req = (new ioDecoupled) { new MetaArrayReq() }
   }
 
-  val permissions_array = Mem(lines, Bits(width = 2))
+  val permissions_array = Mem(lines){ Bits(width = 2) }
   permissions_array.setReadLatency(1);
   permissions_array.write(io.state_req.bits.idx, io.state_req.bits.data.state, io.state_req.valid && io.state_req.bits.rw)
   val permissions_rdata1 = permissions_array.rw(io.req.bits.idx, io.req.bits.data.state, io.req.valid && io.req.bits.rw)
@@ -531,7 +531,7 @@ class MetaDataArray(lines: Int) extends Component {
   // this could be eliminated if the read port were combinational.
   val permissions_conflict = io.state_req.valid && (io.req.bits.idx === io.state_req.bits.idx)
 
-  val tag_array = Mem(lines, io.resp.tag)
+  val tag_array = Mem(lines){ Bits(width=TAG_BITS) }
   tag_array.setReadLatency(1);
   tag_array.setTarget('inst)
   val tag_rdata = tag_array.rw(io.req.bits.idx, io.req.bits.data.tag, io.req.valid && io.req.bits.rw, cs = io.req.valid)
@@ -580,7 +580,7 @@ class DataArray(lines: Int) extends Component {
 
   val wmask = FillInterleaved(8, io.req.bits.wmask)
 
-  val array = Mem(lines*REFILL_CYCLES, io.resp)
+  val array = Mem(lines*REFILL_CYCLES){ Bits(width=MEM_DATA_BITS) }
   array.setReadLatency(1);
   array.setTarget('inst)
   val addr = Cat(io.req.bits.idx, io.req.bits.offset)
@@ -802,7 +802,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
   val tag_hit  = r_cpu_req_val &&  tag_match
   val tag_miss = r_cpu_req_val && !tag_match
-  val hit_way_oh = Cat(Bits(0),tag_match_arr.reverse:_*)(NWAYS-1, 0) //TODO: use GenArray
+  val hit_way_oh = Cat(Bits(0),tag_match_arr.reverse:_*)(NWAYS-1, 0) //TODO: use Vec
   val meta_resp_way_oh = Mux(meta.io.way_en === ~UFix(0, NWAYS), hit_way_oh, meta.io.way_en)
   val data_resp_way_oh = Mux(data.io.way_en === ~UFix(0, NWAYS), hit_way_oh, data.io.way_en)
   val meta_resp_mux = Mux1H(NWAYS, meta_resp_way_oh, meta.io.resp)
