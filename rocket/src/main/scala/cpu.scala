@@ -137,7 +137,10 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     ctrl.io.fpu <> fpu.io.ctrl
   }
   else
+  {
     ctrl.io.fpu.dec.valid := Bool(false)
+    ctrl.io.fpu.dec.wen := Bool(false)
+  }
 
   if (HAVE_VEC)
   {
