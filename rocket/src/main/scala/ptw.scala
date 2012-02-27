@@ -60,6 +60,8 @@ class rocketDmemArbiter(n: Int) extends Component
     io.requestor(i).resp_val := io.dmem.resp_val && tag_hit
     io.requestor(i).resp_replay := io.dmem.resp_replay && tag_hit
     io.requestor(i).resp_data := io.dmem.resp_data
+    io.requestor(i).resp_data_subword := io.dmem.resp_data_subword
+    io.requestor(i).resp_type := io.dmem.resp_type
     io.requestor(i).resp_tag := io.dmem.resp_tag >> UFix(log2up(n))
   }
 }
@@ -68,7 +70,7 @@ class ioPTW extends Bundle
 {
   val itlb = new ioTLB_PTW().flip();
   val dtlb = new ioTLB_PTW().flip();
-  val dmem = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_ppn", "req_idx", "resp_data", "resp_val", "resp_nack")).flip();
+  val dmem = new ioDmem().flip()
   val ptbr = UFix(PADDR_BITS, INPUT);
 }
 
