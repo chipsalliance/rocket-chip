@@ -916,24 +916,25 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   // replays
   val replay = replayer.io.data_req.bits
   val stall_replay = r_replay_amo || p_amo || p_store_valid
-  val replay_val = replayer.io.data_req.valid && !stall_replay
-  val replay_rdy = data_arb.io.in(1).ready
+  val replay_val = replayer.io.data_req.valid
+  val replay_rdy = data_arb.io.in(1).ready && !stall_replay
+  val replay_fire = replay_val && replay_rdy
   data_arb.io.in(1).bits.inner_req.offset := replay.offset(offsetmsb,ramindexlsb)
   data_arb.io.in(1).bits.inner_req.idx := replay.idx
   data_arb.io.in(1).bits.inner_req.rw := replay.cmd === M_XWR
-  data_arb.io.in(1).valid := replay_val
+  data_arb.io.in(1).valid := replay_val && !stall_replay
   data_arb.io.in(1).bits.way_en := replayer.io.way_oh
-  replayer.io.data_req.ready := replay_rdy && !stall_replay
-  r_replay_amo := replay_amo_val && replay_rdy && !stall_replay
+  replayer.io.data_req.ready := replay_rdy
+  r_replay_amo := replay_amo_val && replay_rdy
 
   // store write mask generation.
   // assumes store replays are higher-priority than pending stores.
   val maskgen = new StoreMaskGen
-  val store_offset = Mux(!replay_val, p_store_idx(offsetmsb,0), replay.offset)
-  maskgen.io.typ := Mux(!replay_val, p_store_type, replay.typ)
+  val store_offset = Mux(!replay_fire, p_store_idx(offsetmsb,0), replay.offset)
+  maskgen.io.typ := Mux(!replay_fire, p_store_type, replay.typ)
   maskgen.io.addr := store_offset(offsetlsb-1,0)
   val store_wmask_wide = maskgen.io.wmask << Cat(store_offset(ramindexlsb-1,offsetlsb), Bits(0, log2up(CPU_DATA_BITS/8))).toUFix
-  val store_data = Mux(!replay_val, p_store_data, replay.data)
+  val store_data = Mux(!replay_fire, p_store_data, replay.data)
   val store_data_wide = Fill(MEM_DATA_BITS/CPU_DATA_BITS, store_data)
   data_arb.io.in(1).bits.inner_req.data := store_data_wide
   data_arb.io.in(1).bits.inner_req.wmask := store_wmask_wide
@@ -943,7 +944,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   // load data subword mux/sign extension.
   // subword loads are delayed by one cycle.
   val loadgen = new LoadDataGen
-  val loadgen_use_replay = Reg(replay_val && replay_rdy)
+  val loadgen_use_replay = Reg(replay_fire)
   loadgen.io.typ := Mux(loadgen_use_replay, Reg(replay.typ), r_cpu_req_type)
   loadgen.io.addr := Mux(loadgen_use_replay, Reg(replay.offset), r_cpu_req_idx)(ramindexlsb-1,0)
   loadgen.io.din := data_resp_mux
@@ -970,7 +971,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   // fences and flushes are the exceptions.
   val pending_fence = Reg(resetVal = Bool(false))
   pending_fence := (r_cpu_req_val_ && r_req_fence || pending_fence) && !flush_rdy
-  val nack_hit   = p_store_match || r_req_write && !p_store_rdy
+  val nack_hit   = p_store_match || replay_val || r_req_write && !p_store_rdy
   val nack_miss  = needs_writeback && !wb_rdy || !mshr.io.req_rdy || r_req_write && !replayer.io.sdq_enq.ready
   val nack_flush = !flush_rdy && (r_req_fence || r_req_flush) ||
                    !flushed && r_req_flush
