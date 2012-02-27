@@ -164,7 +164,7 @@ object Constants
   val PERM_BITS = 6;
 
   // rocketNBDCache parameters
-  val DCACHE_PORTS = 2
+  val DCACHE_PORTS = 3
   val CPU_DATA_BITS = 64;
   val CPU_TAG_BITS = 9;
   val DCACHE_TAG_BITS = log2up(DCACHE_PORTS) + CPU_TAG_BITS

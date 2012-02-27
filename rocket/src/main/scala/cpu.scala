@@ -96,9 +96,6 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   arb.io.requestor(0).req_ppn := dtlb.io.cpu_resp.ppn;
   ctrl.io.dmem.req_rdy := dtlb.io.cpu_req.ready && arb.io.requestor(0).req_rdy;
 
-  // connect DTLB to D$ arbiter
-  ctrl.io.xcpt_ma_ld := io.dmem.xcpt_ma_ld
-  ctrl.io.xcpt_ma_st := io.dmem.xcpt_ma_st
   // connect page table walker to TLBs, page table base register (from PCR)
   // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
   ptw.io.dtlb             <> dtlb.io.ptw;
@@ -194,7 +191,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.cpu_exception.exception := dpath.io.vec_iface.exception
 
     // hooking up vector memory interface
-    ctrl.io.ext_mem.req_val := vu.io.dmem_req.valid
+    //arb.io.requestor(2) <> vu.io.dmem_req
+    /*ctrl.io.ext_mem.req_val := vu.io.dmem_req.valid
     ctrl.io.ext_mem.req_cmd := vu.io.dmem_req.bits.cmd
     ctrl.io.ext_mem.req_type := vu.io.dmem_req.bits.typ
 
@@ -208,7 +206,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.dmem_resp.bits.nack := ctrl.io.ext_mem.resp_nack
     vu.io.dmem_resp.bits.data := dpath.io.ext_mem.resp_data
     vu.io.dmem_resp.bits.tag := dpath.io.ext_mem.resp_tag
-    vu.io.dmem_resp.bits.typ := dpath.io.ext_mem.resp_type
+    vu.io.dmem_resp.bits.typ := dpath.io.ext_mem.resp_type*/
 
     // share vector integer multiplier with rocket
     dpath.io.vec_imul_req <> vu.io.cp_imul_req
@@ -219,9 +217,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   }
   else
   {
-    ctrl.io.ext_mem.req_val := Bool(false)
-    dpath.io.ext_mem.req_val := Bool(false)
-
+    arb.io.requestor(2).req_val := Bool(false)
     if (HAVE_FPU)
     {
       fpu.io.sfma.valid := Bool(false)
