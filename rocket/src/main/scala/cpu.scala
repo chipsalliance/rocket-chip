@@ -41,16 +41,21 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     val dtlbchosen = Reg(resetVal=Bits(DTLB_CPU,log2up(3)))
     when( dtlb.io.cpu_req.ready && dtlbarb.io.out.valid ) { dtlbchosen := dtlbarb.io.chosen }
 
+    // tlb respones come out a cycle later
     val chosen_vec = dtlbchosen === Bits(DTLB_VEC)
     val chosen_pf = dtlbchosen === Bits(DTLB_VPF)
     val chosen_cpu = dtlbchosen === Bits(DTLB_CPU)
 
-    // vector prefetch doesn't care about exceptions
-    // and shouldn't cause any anyways
+    dtlbarb.io.in(DTLB_VEC) <> vu.io.vec_tlb_req
+
     vu.io.vec_tlb_resp.xcpt_ld := chosen_vec && dtlb.io.cpu_resp.xcpt_ld
     vu.io.vec_tlb_resp.xcpt_st := chosen_vec && dtlb.io.cpu_resp.xcpt_st
     vu.io.vec_tlb_resp.miss := chosen_vec && dtlb.io.cpu_resp.miss
     vu.io.vec_tlb_resp.ppn := dtlb.io.cpu_resp.ppn
+
+    // vector prefetch doesn't care about exceptions
+    // and shouldn't cause any anyways
+    dtlbarb.io.in(DTLB_VPF) <> vu.io.vec_pftlb_req
 
     vu.io.vec_pftlb_resp.xcpt_ld := Bool(false)
     vu.io.vec_pftlb_resp.xcpt_st := Bool(false)
@@ -68,10 +73,6 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     ctrl.io.xcpt_dtlb_ld := chosen_cpu && dtlb.io.cpu_resp.xcpt_ld
     ctrl.io.xcpt_dtlb_st := chosen_cpu && dtlb.io.cpu_resp.xcpt_st
     ctrl.io.dtlb_miss := chosen_cpu && dtlb.io.cpu_resp.miss
-
-    dtlbarb.io.in(DTLB_VEC) <> vu.io.vec_tlb_req
-    dtlbarb.io.in(DTLB_VPF) <> vu.io.vec_pftlb_req
-
 
     dtlb.io.cpu_req <> dtlbarb.io.out
   }
