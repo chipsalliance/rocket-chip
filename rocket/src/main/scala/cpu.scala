@@ -191,27 +191,32 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.cpu_exception.exception := dpath.io.vec_iface.exception
 
     // hooking up vector memory interface
-    //arb.io.requestor(2) <> vu.io.dmem_req
-    /*ctrl.io.ext_mem.req_val := vu.io.dmem_req.valid
-    ctrl.io.ext_mem.req_cmd := vu.io.dmem_req.bits.cmd
-    ctrl.io.ext_mem.req_type := vu.io.dmem_req.bits.typ
+    val storegen = new StoreDataGen
+    storegen.io.typ := vu.io.dmem_req.bits.typ
+    storegen.io.din := vu.io.dmem_req.bits.data
 
-    dpath.io.ext_mem.req_val := vu.io.dmem_req.valid
-    dpath.io.ext_mem.req_idx := vu.io.dmem_req.bits.idx
-    dpath.io.ext_mem.req_ppn := vu.io.dmem_req.bits.ppn
-    dpath.io.ext_mem.req_data := vu.io.dmem_req.bits.data
-    dpath.io.ext_mem.req_tag := vu.io.dmem_req.bits.tag
+    arb.io.requestor(2).req_val := vu.io.dmem_req.valid
+    arb.io.requestor(2).req_kill := Reg(vu.io.dmem_req.bits.kill)
+    arb.io.requestor(2).req_cmd := vu.io.dmem_req.bits.cmd
+    arb.io.requestor(2).req_type := vu.io.dmem_req.bits.typ
+    arb.io.requestor(2).req_idx := vu.io.dmem_req.bits.idx
+    arb.io.requestor(2).req_ppn := Reg(vu.io.dmem_req.bits.ppn)
+    arb.io.requestor(2).req_data := Reg(storegen.io.dout)
+    arb.io.requestor(2).req_tag := vu.io.dmem_req.bits.tag
 
-    vu.io.dmem_resp.valid := dpath.io.ext_mem.resp_val
-    vu.io.dmem_resp.bits.nack := ctrl.io.ext_mem.resp_nack
-    vu.io.dmem_resp.bits.data := dpath.io.ext_mem.resp_data
-    vu.io.dmem_resp.bits.tag := dpath.io.ext_mem.resp_tag
-    vu.io.dmem_resp.bits.typ := dpath.io.ext_mem.resp_type*/
+    vu.io.dmem_resp.valid := Reg(arb.io.requestor(2).resp_val)
+    // the vu doesn't look at the ready signal, it's simply a nack
+    // but should be delayed one cycle to match the nack semantics
+    vu.io.dmem_resp.bits.nack := arb.io.requestor(2).resp_nack || Reg(!arb.io.requestor(2).req_rdy)
+    vu.io.dmem_resp.bits.data := arb.io.requestor(2).resp_data_subword
+    vu.io.dmem_resp.bits.tag := Reg(arb.io.requestor(2).resp_tag)
+    vu.io.dmem_resp.bits.typ := Reg(arb.io.requestor(2).resp_type)
 
     // share vector integer multiplier with rocket
     dpath.io.vec_imul_req <> vu.io.cp_imul_req
     dpath.io.vec_imul_resp <> vu.io.cp_imul_resp
 
+    // share sfma and dfma pipelines with rocket
     fpu.io.sfma <> vu.io.cp_sfma
     fpu.io.dfma <> vu.io.cp_dfma
   }

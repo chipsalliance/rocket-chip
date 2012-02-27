@@ -19,7 +19,7 @@ class ioDpathAll extends Bundle()
   val ctrl  = new ioCtrlDpath().flip();
   val debug = new ioDebug();
   val dmem  = new ioDmem(List("req_idx", "req_tag", "req_data", "resp_val", "resp_miss", "resp_replay", "resp_type", "resp_tag", "resp_data", "resp_data_subword")).flip();
-  val dtlb = new ioDTLB_CPU_req_bundle(List("vpn"))
+  val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
   val imem  = new ioDpathImem();
   val ptbr_wen = Bool(OUTPUT);
   val ptbr = UFix(PADDR_BITS, OUTPUT);

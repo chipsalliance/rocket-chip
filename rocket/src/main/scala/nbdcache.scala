@@ -954,7 +954,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   amoalu.io.lhs := loadgen.io.r_dout.toUFix
   amoalu.io.rhs := p_store_data.toUFix
 
-  early_nack := early_tag_nack || early_load_nack || r_cpu_req_val_ && r_req_amo || replay_amo_val || r_replay_amo
+  early_nack := early_tag_nack || early_load_nack || r_cpu_req_val && r_req_amo || replay_amo_val || r_replay_amo
 
   // reset and flush unit
   val flusher = new FlushUnit(lines)

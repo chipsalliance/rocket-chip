@@ -55,8 +55,10 @@ class rocketDmemArbiter(n: Int) extends Component
   for (i <- 0 until n)
   {
     val tag_hit = io.dmem.resp_tag(log2up(n)-1,0) === UFix(i)
-    io.requestor(i).resp_miss := io.dmem.resp_miss && tag_hit
+    io.requestor(i).xcpt_ma_ld := io.dmem.xcpt_ma_ld && Reg(io.requestor(i).req_val)
+    io.requestor(i).xcpt_ma_st := io.dmem.xcpt_ma_st && Reg(io.requestor(i).req_val)
     io.requestor(i).resp_nack := io.dmem.resp_nack && Reg(io.requestor(i).req_val)
+    io.requestor(i).resp_miss := io.dmem.resp_miss && tag_hit
     io.requestor(i).resp_val := io.dmem.resp_val && tag_hit
     io.requestor(i).resp_replay := io.dmem.resp_replay && tag_hit
     io.requestor(i).resp_data := io.dmem.resp_data
