@@ -164,9 +164,10 @@ object Constants
   val PERM_BITS = 6;
 
   // rocketNBDCache parameters
+  val DCACHE_PORTS = 2
   val CPU_DATA_BITS = 64;
   val CPU_TAG_BITS = 9;
-  val DCACHE_TAG_BITS = 1 + CPU_TAG_BITS;
+  val DCACHE_TAG_BITS = log2up(DCACHE_PORTS) + CPU_TAG_BITS
   val OFFSET_BITS = 6; // log2(cache line size in bytes)
   val NMSHR = 2; // number of primary misses
   val NRPQ = 16; // number of secondary misses

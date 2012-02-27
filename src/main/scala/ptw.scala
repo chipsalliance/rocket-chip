@@ -5,47 +5,63 @@ import Node._;
 import Constants._;
 import scala.math._;
 
-class ioDmemArbiter extends Bundle
+class ioDmemArbiter(n: Int) extends Bundle
 {
-  val ptw = new ioDmem(List("req_val", "req_rdy", "req_cmd", "req_type", "req_idx", "req_ppn", "resp_data", "resp_val", "resp_replay", "resp_nack"));
-  val cpu = new ioDmem();
-  val mem = new ioDmem().flip();
+  val dmem = new ioDmem().flip()
+  val requestor = Vec(n) { new ioDmem() }
 }
 
-class rocketDmemArbiter extends Component
+class rocketDmemArbiter(n: Int) extends Component
 {
-  val io = new ioDmemArbiter();
-  
-  // must delay ppn part of address from PTW by 1 cycle (to match TLB behavior)
-  val r_ptw_req_val = Reg(io.ptw.req_val);
-  val r_ptw_req_ppn = Reg(io.ptw.req_ppn);
-  val r_cpu_req_val = Reg(io.cpu.req_val && io.cpu.req_rdy);
-  
-  io.mem.req_val  := io.ptw.req_val || io.cpu.req_val;
-  io.mem.req_cmd  := Mux(io.ptw.req_val, io.ptw.req_cmd,  io.cpu.req_cmd);
-  io.mem.req_type := Mux(io.ptw.req_val, io.ptw.req_type, io.cpu.req_type);
-  io.mem.req_idx  := Mux(io.ptw.req_val, io.ptw.req_idx, io.cpu.req_idx);
-  io.mem.req_ppn  := Mux(r_ptw_req_val, r_ptw_req_ppn, io.cpu.req_ppn);
-  io.mem.req_data := io.cpu.req_data;
-  io.mem.req_tag  := Cat(io.cpu.req_tag, io.ptw.req_val);
-  io.mem.req_kill := io.cpu.req_kill && r_cpu_req_val;
-  
-  io.ptw.req_rdy   := io.mem.req_rdy;
-  io.cpu.req_rdy   := io.mem.req_rdy && !io.ptw.req_val;  
-  io.cpu.resp_miss := io.mem.resp_miss && !io.mem.resp_tag(0).toBool;
+  val io = new ioDmemArbiter(n)
+  require(DCACHE_TAG_BITS >= log2up(n) + CPU_TAG_BITS)
 
-  io.cpu.resp_nack := io.mem.resp_nack && !r_ptw_req_val
-  io.ptw.resp_nack := io.mem.resp_nack &&  r_ptw_req_val
+  var req_val = Bool(false)
+  var req_rdy = io.dmem.req_rdy
+  for (i <- 0 until n)
+  {
+    io.requestor(i).req_rdy := req_rdy
+    req_val = req_val || io.requestor(i).req_val
+    req_rdy = req_rdy && !io.requestor(i).req_val
+  }
 
-  io.cpu.resp_val  := io.mem.resp_val && !io.mem.resp_tag(0).toBool;
-  io.ptw.resp_val  := io.mem.resp_val &&  io.mem.resp_tag(0).toBool; 
+  var req_cmd = io.requestor(n-1).req_cmd
+  var req_type = io.requestor(n-1).req_type
+  var req_idx = io.requestor(n-1).req_idx
+  var req_ppn = io.requestor(n-1).req_ppn
+  var req_data = io.requestor(n-1).req_data
+  var req_tag = io.requestor(n-1).req_tag
+  var req_kill = io.requestor(n-1).req_kill
+  for (i <- n-1 to 0 by -1)
+  {
+    req_cmd = Mux(io.requestor(i).req_val, io.requestor(i).req_cmd, req_cmd)
+    req_type = Mux(io.requestor(i).req_val, io.requestor(i).req_type, req_type)
+    req_idx = Mux(io.requestor(i).req_val, io.requestor(i).req_idx, req_idx)
+    req_ppn = Mux(Reg(io.requestor(i).req_val), io.requestor(i).req_ppn, req_ppn)
+    req_data = Mux(Reg(io.requestor(i).req_val), io.requestor(i).req_data, req_data)
+    req_tag = Mux(io.requestor(i).req_val, Cat(io.requestor(i).req_tag, UFix(i, log2up(n))), req_tag)
+    req_kill = Mux(Reg(io.requestor(i).req_val), io.requestor(i).req_kill, req_kill)
+  }
 
-  io.cpu.resp_replay  := io.mem.resp_replay && !io.mem.resp_tag(0).toBool;
-  io.ptw.resp_replay  := io.mem.resp_replay &&  io.mem.resp_tag(0).toBool; 
+  io.dmem.req_val := req_val
+  io.dmem.req_cmd := req_cmd
+  io.dmem.req_type := req_type
+  io.dmem.req_idx := req_idx
+  io.dmem.req_ppn := req_ppn
+  io.dmem.req_data := req_data
+  io.dmem.req_tag := req_tag
+  io.dmem.req_kill := req_kill
 
-  io.ptw.resp_data := io.mem.resp_data;
-  io.cpu.resp_data := io.mem.resp_data;
-  io.cpu.resp_tag  := io.mem.resp_tag >> UFix(1);
+  for (i <- 0 until n)
+  {
+    val tag_hit = io.dmem.resp_tag(log2up(n)-1,0) === UFix(i)
+    io.requestor(i).resp_miss := io.dmem.resp_miss && tag_hit
+    io.requestor(i).resp_nack := io.dmem.resp_nack && Reg(io.requestor(i).req_val)
+    io.requestor(i).resp_val := io.dmem.resp_val && tag_hit
+    io.requestor(i).resp_replay := io.dmem.resp_replay && tag_hit
+    io.requestor(i).resp_data := io.dmem.resp_data
+    io.requestor(i).resp_tag := io.dmem.resp_tag >> UFix(log2up(n))
+  }
 }
 
 class ioPTW extends Bundle
@@ -102,9 +118,9 @@ class rocketPTW extends Component
     
   io.dmem.req_cmd  := M_XRD;
   io.dmem.req_type := MT_D;
-//   io.dmem.req_addr := req_addr;
   io.dmem.req_idx := req_addr(PGIDX_BITS-1,0);
-  io.dmem.req_ppn := req_addr(PADDR_BITS-1,PGIDX_BITS);
+  io.dmem.req_ppn := Reg(req_addr(PADDR_BITS-1,PGIDX_BITS))
+  io.dmem.req_kill := Bool(false)
   
   val resp_val = (state === s_done) || (state === s_l1_fake) || (state === s_l2_fake);
   val resp_err = (state === s_error);

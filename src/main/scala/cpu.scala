@@ -30,7 +30,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   val itlb  = new rocketITLB(ITLB_ENTRIES);
   val vitlb = new rocketITLB(ITLB_ENTRIES);
   val ptw   = new rocketPTW();
-  val arb   = new rocketDmemArbiter();
+  val arb   = new rocketDmemArbiter(DCACHE_PORTS)
 
   var vu: vu = null
   if (HAVE_VEC)
@@ -93,8 +93,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   dtlb.io.invalidate := dpath.io.ptbr_wen
   dtlb.io.status := dpath.io.ctrl.status
 
-  arb.io.cpu.req_ppn := dtlb.io.cpu_resp.ppn;
-  ctrl.io.dmem.req_rdy := dtlb.io.cpu_req.ready && arb.io.cpu.req_rdy;
+  arb.io.requestor(0).req_ppn := dtlb.io.cpu_resp.ppn;
+  ctrl.io.dmem.req_rdy := dtlb.io.cpu_req.ready && arb.io.requestor(0).req_rdy;
 
   // connect DTLB to D$ arbiter
   ctrl.io.xcpt_ma_ld := io.dmem.xcpt_ma_ld
@@ -104,8 +104,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   ptw.io.dtlb             <> dtlb.io.ptw;
   ptw.io.itlb             <> itlb.io.ptw;
   ptw.io.ptbr             := dpath.io.ptbr;
-  arb.io.ptw              <> ptw.io.dmem;
-  arb.io.mem              <> io.dmem
+  arb.io.requestor(1)     <> ptw.io.dmem
+  arb.io.dmem             <> io.dmem
 
   ctrl.io.dpath             <> dpath.io.ctrl;
   dpath.io.host             <> io.host;
@@ -129,22 +129,22 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   io.imem.itlb_miss       := itlb.io.cpu.resp_miss;
 
   // connect arbiter to ctrl+dpath+DTLB
-  arb.io.cpu.req_val      := ctrl.io.dmem.req_val;
-  arb.io.cpu.req_cmd      := ctrl.io.dmem.req_cmd;
-  arb.io.cpu.req_type     := ctrl.io.dmem.req_type;
-  arb.io.cpu.req_kill     := ctrl.io.dmem.req_kill;
-  arb.io.cpu.req_idx      := dpath.io.dmem.req_addr(PGIDX_BITS-1,0);
-  arb.io.cpu.req_data     := dpath.io.dmem.req_data;
-  arb.io.cpu.req_tag      := dpath.io.dmem.req_tag;
-  ctrl.io.dmem.resp_miss  := arb.io.cpu.resp_miss;
-  ctrl.io.dmem.resp_replay:= arb.io.cpu.resp_replay;
-  ctrl.io.dmem.resp_nack  := arb.io.cpu.resp_nack;
-  dpath.io.dmem.resp_val  := arb.io.cpu.resp_val;
-  dpath.io.dmem.resp_miss := arb.io.cpu.resp_miss;
-  dpath.io.dmem.resp_replay := arb.io.cpu.resp_replay;
+  arb.io.requestor(0).req_val := ctrl.io.dmem.req_val;
+  arb.io.requestor(0).req_cmd := ctrl.io.dmem.req_cmd;
+  arb.io.requestor(0).req_type := ctrl.io.dmem.req_type;
+  arb.io.requestor(0).req_kill := ctrl.io.dmem.req_kill;
+  arb.io.requestor(0).req_idx := dpath.io.dmem.req_addr(PGIDX_BITS-1,0);
+  arb.io.requestor(0).req_data := dpath.io.dmem.req_data;
+  arb.io.requestor(0).req_tag := dpath.io.dmem.req_tag;
+  ctrl.io.dmem.resp_miss  := arb.io.requestor(0).resp_miss;
+  ctrl.io.dmem.resp_replay:= arb.io.requestor(0).resp_replay;
+  ctrl.io.dmem.resp_nack  := arb.io.requestor(0).resp_nack;
+  dpath.io.dmem.resp_val  := arb.io.requestor(0).resp_val;
+  dpath.io.dmem.resp_miss := arb.io.requestor(0).resp_miss;
+  dpath.io.dmem.resp_replay := arb.io.requestor(0).resp_replay;
   dpath.io.dmem.resp_type := io.dmem.resp_type;
-  dpath.io.dmem.resp_tag  := arb.io.cpu.resp_tag;
-  dpath.io.dmem.resp_data := arb.io.cpu.resp_data;  
+  dpath.io.dmem.resp_tag  := arb.io.requestor(0).resp_tag;
+  dpath.io.dmem.resp_data := arb.io.requestor(0).resp_data;  
   dpath.io.dmem.resp_data_subword := io.dmem.resp_data_subword;
 
   var fpu: rocketFPU = null
