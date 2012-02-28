@@ -141,9 +141,6 @@ class rocketDTLB(entries: Int) extends Component
     }
   }
 
-  // exception check
-  val outofrange = !tlb_miss && (io.cpu_resp.ppn > UFix(MEMSIZE_PAGES, PPN_BITS));
-
    val access_fault_ld =
     tlb_hit && (req_load || req_amo) &&
     ((status_s && !sr_array(tag_hit_addr).toBool) ||
