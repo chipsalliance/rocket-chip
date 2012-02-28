@@ -183,8 +183,8 @@ object Constants
   val COHERENCE_DATA_BITS = (1 << OFFSET_BITS)*8 
   val TILE_ID_BITS = 1
   val TILE_XACT_ID_BITS = 1 // log2(NMSHR)
-  val GLOBAL_XACT_ID_BITS = IDX_BITS // if one active xact per set
-  val NGLOBAL_XACTS = 1 << IDX_BITS
+  val GLOBAL_XACT_ID_BITS = 4
+  val NGLOBAL_XACTS = 1 << GLOBAL_XACT_ID_BITS
 
   val TTYPE_BITS = 2
   val X_READ_SHARED    = UFix(0, TTYPE_BITS)
@@ -198,11 +198,10 @@ object Constants
   val P_COPY       = UFix(2, PTYPE_BITS)
 
   // external memory interface
-  val IMEM_TAG_BITS = 1;
-  val DMEM_TAG_BITS = ceil(log(NMSHR)/log(2)).toInt;
-  val MEM_TAG_BITS = 2 + max(IMEM_TAG_BITS, DMEM_TAG_BITS);
-  val MEM_DATA_BITS = 128;
-  val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS;
+  val MEM_TAG_BITS = 4
+  val MEM_DATA_BITS = 128
+  val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
+  require(MEM_TAG_BITS >= max(log2up(NMSHR)+1, GLOBAL_XACT_ID_BITS))
   
   val DTLB_ENTRIES = 8;
   val ITLB_ENTRIES = 8;

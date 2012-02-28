@@ -20,12 +20,11 @@ class ioMem() extends Bundle
 
 class ioMemArbiter(n: Int) extends Bundle() {
   val mem = new ioMem();
-  val requestor = Vec(n) { new ioDCache() }
+  val requestor = Vec(n) { new ioMem().flip() }
 }
 
 class rocketMemArbiter(n: Int) extends Component {
   val io = new ioMemArbiter(n);
-  require(io.mem.req_tag.getWidth >= log2up(n) + io.requestor(0).req_tag.getWidth)
 
   var req_val = Bool(false)
   var req_rdy = io.mem.req_rdy

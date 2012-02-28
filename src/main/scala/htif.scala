@@ -26,7 +26,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   val io = new Bundle {
     val host = new ioHost(w)
     val cpu = Vec(ncores) { new ioHTIF().flip() }
-    val mem = new ioDCache().flip()
+    val mem = new ioMem
   }
 
   val short_request_bits = 64
