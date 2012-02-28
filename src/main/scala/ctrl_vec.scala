@@ -62,8 +62,8 @@ class rocketCtrlVec extends Component
                 //   | |       |         | |       | | | | | | | cpfence
                 //   | |       |         | |       | | | | | | | |
                 List(N,VCMD_X, VIMM_X,   N,VEC_X  ,N,N,N,N,N,N,N,N),Array(
-    VVCFGIVL->  List(Y,VCMD_I, VIMM_VLEN,Y,VEC_CFG,N,Y,Y,N,N,N,N,N),
-    VSETVL->    List(Y,VCMD_I, VIMM_VLEN,Y,VEC_VL ,N,Y,Y,N,N,N,N,N),
+    VVCFGIVL->  List(Y,VCMD_I, VIMM_VLEN,Y,VEC_CFG,N,Y,Y,N,Y,Y,N,N),
+    VSETVL->    List(Y,VCMD_I, VIMM_VLEN,Y,VEC_VL ,N,Y,Y,N,Y,Y,N,N),
     VF->        List(Y,VCMD_I, VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,N,N,N,N),
     VMVV->      List(Y,VCMD_TX,VIMM_X,   N,VEC_X  ,Y,Y,N,N,N,N,N,N),
     VMSV->      List(Y,VCMD_TX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,N,N,N,N),
