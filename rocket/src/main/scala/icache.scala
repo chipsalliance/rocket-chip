@@ -20,7 +20,7 @@ class ioImem(view: List[String] = null) extends Bundle (view)
 class ioRocketICache extends Bundle()
 {
   val cpu = new ioImem();
-  val mem = new ioDCache().flip()
+  val mem = new ioMem
 }
 
 // basic direct mapped instruction cache

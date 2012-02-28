@@ -6,8 +6,8 @@ import Constants._;
 import scala.math._;
 
 class ioIPrefetcher extends Bundle() {
-  val icache = new ioDCache();
-  val mem = new ioDCache().flip()
+  val icache = new ioMem().flip
+  val mem = new ioMem
   val invalidate = Bool(INPUT)
 }
 

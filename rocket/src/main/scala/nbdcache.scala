@@ -136,7 +136,7 @@ class DataArrayArrayReq extends Bundle {
 class MemReq extends Bundle {
   val rw   = Bool()
   val addr = UFix(width = PADDR_BITS-OFFSET_BITS)
-  val tag  = Bits(width = DMEM_TAG_BITS)
+  val tag  = Bits(width = MEM_TAG_BITS)
 }
 
 class WritebackReq extends Bundle {
@@ -281,7 +281,7 @@ class MSHRFile extends Component {
     val req_way_oh = Bits(NWAYS, INPUT)
 
     val mem_resp_val = Bool(INPUT)
-    val mem_resp_tag = Bits(DMEM_TAG_BITS, INPUT)
+    val mem_resp_tag = Bits(MEM_TAG_BITS, INPUT)
     val mem_resp_idx = Bits(IDX_BITS, OUTPUT)
     val mem_resp_way_oh = Bits(NWAYS, OUTPUT)
 
@@ -670,19 +670,6 @@ class ioDmem(view: List[String] = null) extends Bundle(view) {
   val resp_data_subword = Bits(64, OUTPUT);
   val resp_tag  = Bits(DCACHE_TAG_BITS, OUTPUT);
 }
-
-// interface between D$ and next level in memory hierarchy
-class ioDCache(view: List[String] = null) extends Bundle(view) {
-  val req_addr  = UFix(PADDR_BITS - OFFSET_BITS, INPUT);
-  val req_tag   = UFix(DMEM_TAG_BITS, INPUT);
-  val req_val   = Bool(INPUT);
-  val req_rdy   = Bool(OUTPUT);
-  val req_wdata = Bits(MEM_DATA_BITS, INPUT);
-  val req_rw    = Bool(INPUT);
-  val resp_data = Bits(MEM_DATA_BITS, OUTPUT);
-  val resp_tag  = Bits(DMEM_TAG_BITS, OUTPUT);
-  val resp_val  = Bool(OUTPUT);
-}
  
 abstract class HellaCache extends Component {
   def isHit ( cmd: Bits, state: UFix): Bool
@@ -698,7 +685,7 @@ abstract class HellaCache extends Component {
 class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   val io = new Bundle {
     val cpu = new ioDmem()
-    val mem = new ioDCache().flip
+    val mem = new ioMem
   }
  
   val lines       = 1 << IDX_BITS
