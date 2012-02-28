@@ -157,46 +157,149 @@ trait FourStateCoherence extends CoherencePolicy {
   }
 }
 
-class XactTracker(id: Int) extends Component {
+class XactTracker(id: Int) extends Component with CoherencePolicy {
   val io = new Bundle {
-    val mem_req     = (new ioDecoupled) { new HubMemReq()  }.flip
-    val alloc_req = (new ioDecoupled) { new TrackerAllocReq() }
-    val probe_req = (new ioDecoupled) { new ProbeRequest() }.flip
-    val can_alloc = Bool(INPUT)
-    val xact_finish = Bool(INPUT)
-    val p_rep_has_data   =  Bool(INPUT) 
-    val x_init_has_data   =  Bool(INPUT) 
-    val p_rep_data_idx = Bits(log2up(NTILES), INPUT)
-    val x_init_data_idx = Bits(log2up(NTILES), INPUT)
-    val p_rep_cnt_dec  = Bits(NTILES, INPUT)
-    val p_req_cnt_inc  = Bits(NTILES, INPUT)
-    val busy        = Bool(OUTPUT)
-    val addr         = Bits(PADDR_BITS, OUTPUT)
-    val init_tile_id      = Bits(TILE_ID_BITS, OUTPUT)
-    val tile_xact_id = Bits(TILE_XACT_ID_BITS, OUTPUT)
-    val sharer_count = Bits(TILE_ID_BITS, OUTPUT)
-    val t_type        = Bits(TTYPE_BITS, OUTPUT)
-    val push_p_req    = Bits(NTILES, OUTPUT)
-    val pop_p_rep    = Bits(NTILES, OUTPUT)
-    val pop_p_rep_data = Bits(NTILES, OUTPUT)
-    val pop_x_init = Bool(OUTPUT)
+    val alloc_req       = (new ioDecoupled) { new TrackerAllocReq() }
+    val can_alloc       = Bool(INPUT)
+    val xact_finish     = Bool(INPUT)
+    val p_rep_has_data  = Bool(INPUT) 
+    val p_rep_data_idx  = Bits(log2up(NTILES), INPUT)
+    val p_rep_cnt_dec   = Bits(NTILES, INPUT)
+    val p_req_cnt_inc   = Bits(NTILES, INPUT)
+
+    val mem_req         = (new ioDecoupled) { new HubMemReq()  }.flip
+    val probe_req       = (new ioDecoupled) { new ProbeRequest() }.flip
+    val busy            = Bool(OUTPUT)
+    val addr            = Bits(PADDR_BITS, OUTPUT)
+    val init_tile_id    = Bits(TILE_ID_BITS, OUTPUT)
+    val tile_xact_id    = Bits(TILE_XACT_ID_BITS, OUTPUT)
+    val sharer_count    = Bits(TILE_ID_BITS, OUTPUT)
+    val t_type          = Bits(TTYPE_BITS, OUTPUT)
+    val push_p_req      = Bits(NTILES, OUTPUT)
+    val pop_p_rep       = Bits(NTILES, OUTPUT)
+    val pop_p_rep_data  = Bits(NTILES, OUTPUT)
+    val pop_x_init      = Bool(OUTPUT)
     val pop_x_init_data = Bool(OUTPUT)
-    val send_x_rep_ack = Bool(OUTPUT)
+    val send_x_rep_ack  = Bool(OUTPUT)
   }
 
-  val valid = Reg(resetVal = Bool(false))
-  val addr  = Reg{ Bits() }
-  val t_type = Reg{ Bits() }
-  val init_tile_id = Reg{ Bits() }
-  val tile_xact_id = Reg{ Bits() }
-  val probe_done = Reg{ Bits() }
   
+  val s_idle :: s_mem_r :: s_mem_w :: mem_wr :: s_probe :: Nil = Enum(5){ UFix() }
+  val state = Reg(resetVal = s_idle)
+  val addr_  = Reg{ Bits() }
+  val t_type_ = Reg{ Bits() }
+  val init_tile_id_ = Reg{ Bits() }
+  val tile_xact_id_ = Reg{ Bits() }
+  val probe_done = Reg{ Bits() }
+  val mem_count = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
+
+  io.addr := addr_
+  io.init_tile_id := init_tile_id_
+  io.tile_xact_id := tile_xact_id_
+  io.sharer_count := UFix(NTILES) // TODO: Broadcast only
+  io.t_type := t_type_
+
+/*
+class HubMemReq extends Bundle {
+  val rw   = Bool()
+  val addr = UFix(width = PADDR_BITS-OFFSET_BITS)
+  val tag  = Bits(width = GLOBAL_XACT_ID_BITS)
+  // Figure out which data-in port to pull from
+  val data_idx = Bits(width = TILE_ID_BITS)
+  val is_probe_rep = Bool()
+}
+
+class TrackerAllocReq extends Bundle {
+  val xact_init = new TransactionInit()
+    val t_type = Bits(width = TTYPE_BITS)
+    val has_data = Bool()
+    val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
+    val address = Bits(width = PADDR_BITS)
+  val init_tile_id = Bits(width = TILE_ID_BITS)
+  val data_valid = Bool()
+*/
+/*
+  when( alloc_req.valid && can_alloc ) {
+    valid := Bool(true)
+    addr := alloc_req.bits.xact_init.address
+    t_type := alloc_req.bits.xact_init.t_type
+    init_tile_id := alloc_req.bits.init_tile_id
+    tile_xact_id := alloc_req.bits.xact_init.tile_xact_id
+    [counter] := REFILL_CYCLES-1 if alloc_req.bits.xact_init.has_data else 0
+  }
+  when ( alloc_req.bits.data_valid ) {
+    io.mem_req.valid :=
+    io.mem_req.bits.rw :=
+    io.mem_req.bits.addr :=
+    io.mem_req.bits.tag :=
+    io.mem_req.bits.data_idx :=
+    io.mem_req.bits.is_probe_rep :=
+     := io.mem.ready
+  }
+  when( p_rep_has_data ) {
+    io.mem_req.valid :=
+    io.mem_req.bits.rw :=
+    io.mem_req.bits.addr :=
+    io.mem_req.bits.tag :=
+    io.mem_req.bits.data_idx :=
+    io.mem_req.bits.is_probe_rep :=
+     := io.mem.ready
+
+  }
+
+  val mem_req         = (new ioDecoupled) { new HubMemReq()  }.flip
+  val probe_req       = (new ioDecoupled) { new ProbeRequest() }.flip
+  push_p_req      = Bits(0, width = NTILES)
+  pop_p_rep       = Bits(0, width = NTILES)
+  pop_p_rep_data  = Bits(0, width = NTILES)
+  pop_x_init      = Bool(false)
+  pop_x_init_data = Bool(false)
+  send_x_rep_ack  = Bool(false)
+  
+
+  }
+*/
   //TODO: Decrement the probe count when final data piece is written
   //      Connent io.mem.ready sig to correct pop* outputs
   //      P_rep and x_init must be popped on same cycle of receipt
 }
 
-abstract class CoherenceHub extends Component
+abstract class CoherenceHub extends Component with CoherencePolicy
+
+class CoherenceHubNull extends Component {
+  val io = new Bundle {
+    val tile = new ioTileLink() 
+    val mem = new ioMem()
+  }
+
+  val x_init = io.tile.xact_init
+  val is_write = x_init.bits.t_type === X_WRITE_UNCACHED
+  x_init.ready := io.mem.req_rdy
+  io.mem.req_val   := x_init.valid
+  io.mem.req_rw    := is_write
+  io.mem.req_tag   := x_init.bits.tile_xact_id
+  io.mem.req_addr  := x_init.bits.address
+
+  val x_rep = io.tile.xact_rep
+  x_rep.bits.t_type := Bits(width = TTYPE_BITS)
+  x_rep.bits.has_data := !is_write
+  x_rep.bits.tile_xact_id := Mux(is_write, x_init.bits.tile_xact_id, io.mem.resp_tag)
+  x_rep.bits.global_xact_id := UFix(0) // don't care
+  x_rep.valid := io.mem.resp_val
+
+  //TODO:
+  val x_init_data = io.tile.xact_init_data
+  val x_rep_data = io.tile.xact_rep_data
+  x_init_data.ready := io.mem.req_rdy
+  io.mem.req_wdata := x_init_data.bits.data
+  x_rep_data.bits.data := io.mem.resp_data
+  x_rep_data.valid := io.mem.resp_val
+  // Should be:
+  //io.mem.req_data <> x_init_data
+  //x_rep_data <>  io.mem.resp_data
+  
+}
+
 
 class CoherenceHubNoDir extends CoherenceHub {
 
