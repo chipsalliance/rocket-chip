@@ -216,7 +216,7 @@ class CoherenceHubNoDir extends CoherenceHub {
 
   val io = new Bundle {
     val tiles = Vec(NTILES) { new ioTileLink() }
-    val mem = new ioDCache().flip
+    val mem = new ioMem
   }
   
   val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
