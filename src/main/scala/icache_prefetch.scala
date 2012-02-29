@@ -33,6 +33,7 @@ class rocketIPrefetcher extends Component() {
   io.mem.req_rw   := Bool(false)
   io.mem.req_tag  := Mux(io.icache.req_val && !hit, UFix(0), UFix(1))
   io.mem.req_addr := Mux(io.mem.req_tag(0).toBool, prefetch_addr, io.icache.req_addr);
+  io.mem.req_data_val := Bool(false)
   
   val fill_cnt = Reg(resetVal = UFix(0, ceil(log(REFILL_CYCLES)/log(2)).toInt));
   when (ip_mem_resp_val.toBool) { fill_cnt := fill_cnt + UFix(1); }
