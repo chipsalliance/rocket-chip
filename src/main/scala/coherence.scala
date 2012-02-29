@@ -33,9 +33,9 @@ class HubMemReq extends Bundle {
   val req_data  = (new ioDecoupled) { new MemData() }
 }
 
-class HubProbeRep extends Bundle {
-  val reply = (new ioDecoupled) { new ProbeReply }
-  val data_idx = Bits(width = log2up(NTILES))
+class TrackerProbeData extends Bundle {
+  val valid = Bool()
+  val data_tile_id = Bits(width = log2up(NTILES))
 }
 
 class TrackerAllocReq extends Bundle {
@@ -180,10 +180,9 @@ trait FourStateCoherence extends CoherencePolicy {
 class XactTracker(id: Int) extends Component with CoherencePolicy {
   val io = new Bundle {
     val alloc_req       = (new ioDecoupled) { new TrackerAllocReq() }
-    val probe_rep       = (new ioDecoupled) { new HubProbeRep() }
+    val probe_data      = (new TrackerProbeData).asInput
     val can_alloc       = Bool(INPUT)
     val xact_finish     = Bool(INPUT)
-    val p_rep_has_data  = Bool(INPUT) 
     val p_rep_cnt_dec   = Bits(NTILES, INPUT)
     val p_req_cnt_inc   = Bits(NTILES, INPUT)
     val p_rep_data      = (new ioDecoupled) { new ProbeReplyData() }
@@ -207,13 +206,21 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
   }
 
   def sendProbeReqType(t_type: UFix, global_state: UFix): UFix = {
-      MuxCase(P_COPY, Array((t_type === X_READ_SHARED) -> P_DOWNGRADE,
+      MuxCase(P_COPY, Array((t_type === X_READ_SHARED)    -> P_DOWNGRADE,
                             (t_type === X_READ_EXCLUSIVE) -> P_INVALIDATE, 
-                            (t_type === X_READ_UNCACHED) -> P_COPY, 
+                            (t_type === X_READ_UNCACHED)  -> P_COPY, 
                             (t_type === X_WRITE_UNCACHED) -> P_INVALIDATE))
   }
 
-  val s_idle :: s_mem_r :: s_mem_w :: s_mem_wr :: s_probe :: s_busy :: Nil = Enum(6){ UFix() }
+  def needsMemRead(t_type: UFix, global_state: UFix): Bool = {
+      (t_type != X_WRITE_UNCACHED)
+  }
+
+  def needsAckRep(t_type: UFix, global_state: UFix): Bool = {
+      (t_type === X_WRITE_UNCACHED)
+  }
+
+  val s_idle :: s_mem :: s_probe :: s_busy :: Nil = Enum(4){ UFix() }
   val state = Reg(resetVal = s_idle)
   val addr_  = Reg{ Bits() }
   val t_type_ = Reg{ Bits() }
@@ -223,9 +230,10 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
   val mem_count = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
   val p_rep_count = Reg(resetVal = UFix(0, width = log2up(NTILES)))
   val p_req_flags = Reg(resetVal = UFix(0, width = NTILES))
-  val p_rep_data_idx_ = Reg{ Bits() }
-  val x_init_data_needs_wb = Reg{ Bool() }
-  val p_rep_data_needs_wb = Reg{ Bool() }
+  val p_rep_tile_id_ = Reg{ Bits() }
+  val x_needs_read = Reg{ Bool() }
+  val x_init_data_needs_write = Reg{ Bool() }
+  val p_rep_data_needs_write = Reg{ Bool() }
 
   io.busy := state != s_idle
   io.addr := addr_
@@ -235,15 +243,17 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
   io.t_type := t_type_
 
   io.mem_req.valid := Bool(false)
-  io.mem_req.bits.req_cmd.bits.rw := state === s_mem_w || state === s_mem_wr
+  io.mem_req.bits.req_cmd.valid := Bool(false)
+  io.mem_req.bits.req_cmd.bits.rw := Bool(false)
   io.mem_req.bits.req_cmd.bits.addr := addr_
   io.mem_req.bits.req_cmd.bits.tag := UFix(id)
+  io.mem_req.bits.req_data.valid := Bool(false)
+  io.mem_req.bits.req_data.bits.data := UFix(0)
   // := io.mem.ready //sent mem req
   io.probe_req.valid := Bool(false)
   io.probe_req.bits.p_type := sendProbeReqType(t_type_, UFix(0))
   io.probe_req.bits.global_xact_id := UFix(id)
   io.probe_req.bits.address := addr_
-  // := io.probe_req.ready //got through arbiter ---- p_rep_dec_arr
   io.push_p_req      := Bits(0, width = NTILES)
   io.pop_p_rep       := Bits(0, width = NTILES)
   io.pop_p_rep_data  := Bits(0, width = NTILES)
@@ -258,31 +268,13 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
         t_type_ := io.alloc_req.bits.xact_init.t_type
         init_tile_id_ := io.alloc_req.bits.init_tile_id
         tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
-        x_init_data_needs_wb := io.alloc_req.bits.xact_init.has_data
+        x_init_data_needs_write := io.alloc_req.bits.xact_init.has_data
+        x_needs_read := needsMemRead(io.alloc_req.bits.xact_init.t_type, UFix(0))
         p_rep_count := UFix(NTILES)
         p_req_flags := ~Bits(0, width = NTILES)
         state := s_probe
         io.pop_x_init := Bool(true)
       }
-    }
-    is(s_mem_r) {
-      io.mem_req.valid := Bool(true)
-      when(io.mem_req.ready) { state := s_busy }
-    }
-    is(s_mem_w) {
-      io.mem_req.valid := Bool(true)
-      when(io.mem_req.ready) { state := s_busy }
-    }
-    is(s_mem_wr) {
-      when(io.probe_rep.bits.reply.bits.has_data) {
-        //io.pop_p_rep(p_rep_data_idx) := io.mem_req_rdy
-        //io.pop_p_rep_data(p_rep_data_idx) := io.mem_req_rdy //TODO
-      } . otherwise {
-        //io.pop_x_init := io.mem_req_rdy
-        //io.pop_x_init_data := io.mem_req_rdy
-      }
-      io.mem_req.valid := Bool(true)
-      when(io.mem_req.ready) { state := s_mem_r }
     }
     is(s_probe) {
       when(p_req_flags.orR) {
@@ -292,22 +284,55 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
       when(io.p_req_cnt_inc.orR) {
         p_req_flags := p_req_flags & ~io.p_req_cnt_inc // unflag sent reqs
       }
-    val p_rep_has_data  = Bool(INPUT) 
-    val p_rep_data_idx  = Bits(log2up(NTILES), INPUT)
-    val p_rep_cnt_dec   = Bits(NTILES, INPUT)
       when(io.p_rep_cnt_dec.orR) {
         val p_rep_count_next = p_rep_count - PopCount(io.p_rep_cnt_dec)
         p_rep_count := p_rep_count_next
         when(p_rep_count_next === UFix(0)) {
-          state := s_busy //TODO: XXXXXXXXXX
+          state := s_mem
         }
       }
-      when(p_rep_has_data) {
-        p_rep_data_needs_wb := Bool(true)
-        p_rep_data_idx_ := p_rep_data_idx
+      when(io.probe_data.valid) {
+        p_rep_data_needs_write := Bool(true)
+        p_rep_tile_id_ := io.p_rep_tile_id
       }
     }
-    is(s_busy) {
+    is(s_mem) {
+      when(x_init_data_needs_write) {
+        //io.mem_req.valid := //?TODO ??? || io.x_init_data.valid
+        //io.mem_req.bits.req_cmd.valid := // TODO ???
+        io.mem_req.bits.req_cmd.bits.rw := Bool(true)
+        io.mem_req.bits.req_data <> io.x_init_data
+        when(io.mem_req.ready && io.mem_req.bits.req_cmd.ready) {
+          //TODO
+        }
+        when(io.mem_req.ready && io.mem_req.bits.req_data.ready) {
+          io.pop_x_init_data := Bool(true)
+          //TODO: count with mem_count somehow
+        }
+      } . elsewhen (p_rep_data_needs_write) {
+        //io.mem_req.valid := //TODO ??? || io.p_rep_data.valid
+        //io.mem_req.bits.req_cmd.valid := //TODO ???
+        io.mem_req.bits.req_cmd.bits.rw := Bool(true)
+        io.mem_req.bits.req_data <> io.p_rep_data
+        when(io.mem_req.ready && io.mem_req.bits.req_cmd.ready) {
+          //TODO
+        }
+        when(io.mem_req.ready && io.mem_req.bits.req_data.ready) {
+          io.pop_p_rep_data := Bool(true)
+          //TODO: count with mem_count somehow
+        }
+      } . elsewhen (x_needs_read) {    
+        io.mem_req.valid := Bool(true)
+        io.mem_req.bits.req_cmd.valid := Bool(true)
+        when(io.mem_req.ready && io.mem_req.bits.req_cmd.ready) {
+          x_needs_read := Bool(false)
+        }
+      } . otherwise { 
+        io.send_x_rep_ack := needsAckRep(t_type_, UFix(0))
+        state := s_busy 
+      }
+    }
+    is(s_busy) { // Nothing left to do but wait for transaction to complete
       when (io.xact_finish) {
         state := s_idle
       }
