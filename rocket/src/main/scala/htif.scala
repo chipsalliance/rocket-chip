@@ -78,7 +78,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
                 Mux(!nack && cmd === cmd_readcr, UFix(1), UFix(0)))
   val tx_done = packet_ram_raddr - UFix(1) === tx_size
 
-  val state_rx :: state_pcr :: state_mem_req :: state_mem_resp :: state_tx :: Nil = Enum(5) { UFix() }
+  val state_rx :: state_pcr :: state_mem_req :: state_mem_wdata :: state_mem_rdata :: state_tx :: Nil = Enum(6) { UFix() }
   val state = Reg(resetVal = state_rx)
 
   when (state === state_rx && rx_done) {
@@ -94,18 +94,11 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
 
   val mem_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
   when (state === state_mem_req && io.mem.req_rdy) {
-    when (cmd === cmd_writemem) {
-      when (mem_cnt.andR)  {
-        state := state_tx
-      }
-      mem_cnt := mem_cnt + UFix(1)
-    }
-    .otherwise {
-      state := state_mem_resp
-    }
+    state := Mux(cmd === cmd_writemem, state_mem_wdata, state_mem_rdata)
   }
-  when (state === state_mem_resp && io.mem.resp_val) {
-    when (mem_cnt.andR) {
+  when (state === state_mem_wdata && io.mem.req_data_rdy || 
+        state === state_mem_rdata && io.mem.resp_val) {
+    when (mem_cnt.andR)  {
       state := state_tx
     }
     mem_cnt := mem_cnt + UFix(1)
@@ -120,13 +113,15 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   for (i <- 0 until MEM_DATA_BITS/short_request_bits) {
     val idx = Cat(mem_cnt, UFix(i, log2up(MEM_DATA_BITS/short_request_bits)))
     packet_ram.write(idx, io.mem.resp_data((i+1)*short_request_bits-1, i*short_request_bits),
-                     state === state_mem_resp && io.mem.resp_val)
+                     state === state_mem_rdata && io.mem.resp_val)
     mem_req_data = Cat(packet_ram.read(idx), mem_req_data)
   }
   io.mem.req_val := state === state_mem_req
   io.mem.req_rw := cmd === cmd_writemem
   io.mem.req_addr := addr >> UFix(OFFSET_BITS-3)
-  io.mem.req_wdata := mem_req_data
+
+  io.mem.req_data_val := state === state_mem_wdata
+  io.mem.req_data_bits := mem_req_data
 
   pcr_done := Bool(false)
   val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }

@@ -423,29 +423,21 @@ class WritebackUnit extends Component {
     val data_resp = Bits(MEM_DATA_BITS, INPUT)
     val refill_req = (new ioDecoupled) { new MemReq() }
     val mem_req   = (new ioDecoupled) { new MemReq() }.flip()
-    val mem_req_data = Bits(MEM_DATA_BITS, OUTPUT)
+    val mem_req_data = (new ioDecoupled) { Bits(width = MEM_DATA_BITS) }.flip()
   }
 
-  val wbq = (new queue(REFILL_CYCLES)) { Bits(width = MEM_DATA_BITS) }
   val valid = Reg(resetVal = Bool(false))
+  val data_req_fired = Reg(resetVal = Bool(false))
   val cnt = Reg() { UFix(width = log2up(REFILL_CYCLES+1)) }
   val addr = Reg() { new WritebackReq() }
 
-  // don't allow memory requests to bypass conflicting writebacks.
-  // also don't allow a refill request once a writeback has started.
-  // TODO: turn this into a victim buffer.
-  val block_refill = valid && ((io.refill_req.bits.addr(IDX_BITS-1,0) === addr.idx) || (cnt === UFix(REFILL_CYCLES)))
-  val refill_val = io.refill_req.valid && !block_refill
-
-  wbq.io.enq.valid := valid && Reg(io.data_req.valid && io.data_req.ready)
-  wbq.io.enq.bits := io.data_resp
-  wbq.io.deq.ready := io.mem_req.ready && !refill_val && (cnt === UFix(REFILL_CYCLES))
-
-  when (io.data_req.valid && io.data_req.ready) { cnt := cnt + UFix(1) }
-  when ((cnt === UFix(REFILL_CYCLES)) && !wbq.io.deq.valid) { valid := Bool(false) }
+  data_req_fired := Bool(false)
+  when (io.data_req.valid && io.data_req.ready) { data_req_fired := Bool(true); cnt := cnt + UFix(1) }
+  when (data_req_fired && !io.mem_req_data.ready) { data_req_fired := Bool(false); cnt := cnt - UFix(1) }
+  when ((cnt === UFix(REFILL_CYCLES)) && io.mem_req_data.ready) { valid := Bool(false) }
   when (io.req.valid && io.req.ready) { valid := Bool(true); cnt := UFix(0); addr := io.req.bits }
 
-  io.req.ready := !valid
+  io.req.ready := !valid && io.mem_req.ready
   io.data_req.valid := valid && (cnt < UFix(REFILL_CYCLES))
   io.data_req.bits.way_en := addr.way_oh
   io.data_req.bits.inner_req.idx := addr.idx
@@ -454,12 +446,15 @@ class WritebackUnit extends Component {
   io.data_req.bits.inner_req.wmask := Bits(0)
   io.data_req.bits.inner_req.data := Bits(0)
 
-  io.refill_req.ready := io.mem_req.ready && !block_refill
-  io.mem_req.valid := refill_val || wbq.io.deq.valid && (cnt === UFix(REFILL_CYCLES))
-  io.mem_req.bits.rw := !refill_val
-  io.mem_req.bits.addr := Mux(refill_val, io.refill_req.bits.addr, Cat(addr.ppn, addr.idx).toUFix)
+  val wb_req_val = io.req.valid && !valid
+  io.refill_req.ready := io.mem_req.ready && !wb_req_val
+  io.mem_req.valid := io.refill_req.valid || wb_req_val
+  io.mem_req.bits.rw := wb_req_val
+  io.mem_req.bits.addr := Mux(wb_req_val, Cat(io.req.bits.ppn, io.req.bits.idx).toUFix, io.refill_req.bits.addr)
   io.mem_req.bits.tag := io.refill_req.bits.tag
-  io.mem_req_data := wbq.io.deq.bits
+
+  io.mem_req_data.valid := data_req_fired
+  io.mem_req_data.bits := io.data_resp
 }
 
 class FlushUnit(lines: Int) extends Component with ThreeStateIncoherence{
@@ -977,7 +972,10 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   wb.io.mem_req.ready := io.mem.req_rdy
   io.mem.req_val   := wb.io.mem_req.valid
   io.mem.req_rw    := wb.io.mem_req.bits.rw
-  io.mem.req_wdata := wb.io.mem_req_data
   io.mem.req_tag   := wb.io.mem_req.bits.tag.toUFix
   io.mem.req_addr  := wb.io.mem_req.bits.addr
+
+  io.mem.req_data_val := wb.io.mem_req_data.valid
+  wb.io.mem_req_data.ready := io.mem.req_data_rdy
+  io.mem.req_data_bits := wb.io.mem_req_data.bits
 }

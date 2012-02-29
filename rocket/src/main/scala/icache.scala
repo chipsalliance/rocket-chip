@@ -131,6 +131,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   io.mem.req_val := (state === s_request);
   io.mem.req_rw := Bool(false)
   io.mem.req_addr := r_cpu_miss_addr(tagmsb,indexlsb).toUFix
+  io.mem.req_data_val := Bool(false)
 
   // control state machine
   switch (state) {

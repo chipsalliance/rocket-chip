@@ -424,12 +424,6 @@ class CoherenceHubNoDir extends CoherenceHub {
   //mem_req_arb.io.out.ready := io.mem.req_cmd.ready || io.mem.req_data.ready
   io.mem.req_cmd  <> mem_req_arb.io.out.bits.req_cmd
   io.mem.req_data <> mem_req_arb.io.out.bits.req_data
-  //io.mem.req_wdata := MuxLookup(mem_req_arb.io.out.bits.data_idx, 
-  //                            Bits(0, width = MEM_DATA_BITS),
-  //                            (0 until NTILES).map( j => 
-  //                              UFix(j) -> Mux(mem_req_arb.io.out.bits.is_probe_rep, 
-  //                                io.tiles(j).probe_rep_data.bits.data, 
-  //                                io.tiles(j).xact_init_data.bits.data)))
   
   // Handle probe replies, which may or may not have data
   for( j <- 0 until NTILES ) {

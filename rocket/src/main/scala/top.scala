@@ -34,7 +34,10 @@ class Top() extends Component {
     cpu.io.vimem <> vicache.io.cpu;
   }
   else
+  {
     arbiter.io.requestor(2).req_val := Bool(false)
+    arbiter.io.requestor(2).req_data_val := Bool(false)
+  }
 
   htif.io.host <> io.host
   cpu.io.host       <> htif.io.cpu(0);
