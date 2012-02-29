@@ -166,14 +166,7 @@ class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
 }
 
 
-
-
-
-
-
-
-
-class ioDecoupled[T <: Data]()(data: => T) extends Bundle
+class ioDecoupled[+T <: Data]()(data: => T) extends Bundle
 {
   val valid = Bool(INPUT)
   val ready = Bool(OUTPUT)
