@@ -10,7 +10,7 @@ class ioQueue[T <: Data](flushable: Boolean)(data: => T) extends Bundle
   val deq   = new ioDecoupled()(data).flip
 }
 
-class queue[T <: Data](entries: Int, flushable: Boolean = false)(data: => T) extends Component
+class queue[T <: Data](entries: Int, pipe: Boolean = false, flushable: Boolean = false)(data: => T) extends Component
 {
   val io = new ioQueue(flushable)(data)
 
@@ -50,6 +50,6 @@ class queue[T <: Data](entries: Int, flushable: Boolean = false)(data: => T) ext
   }
 
   io.deq.valid :=  maybe_full || enq_ptr != deq_ptr
-  io.enq.ready := !maybe_full || enq_ptr != deq_ptr
+  io.enq.ready := !maybe_full || enq_ptr != deq_ptr || (if (pipe) io.deq.ready else Bool(false))
   io.deq.bits <> Mem(entries, do_enq, enq_ptr, io.enq.bits).read(deq_ptr)
 }

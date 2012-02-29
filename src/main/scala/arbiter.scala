@@ -4,75 +4,64 @@ import Chisel._;
 import Node._;
 import Constants._;
 
-class ioMem() extends Bundle
-{
-  val req_val = Bool(OUTPUT);
-  val req_rdy = Bool(INPUT);
-  val req_rw  = Bool(OUTPUT);
-  val req_addr = UFix(PADDR_BITS - OFFSET_BITS, OUTPUT);
-  val req_tag = Bits(MEM_TAG_BITS, OUTPUT);
-
-  val req_data_val = Bool(OUTPUT);
-  val req_data_rdy = Bool(INPUT);
-  val req_data_bits = Bits(MEM_DATA_BITS, OUTPUT);
-  
-  val resp_val = Bool(INPUT);
-  val resp_tag = Bits(MEM_TAG_BITS, INPUT);
-  val resp_data = Bits(MEM_DATA_BITS, INPUT);
-}
-
-class ioMemArbiter(n: Int) extends Bundle() {
-  val mem = new ioMem();
-  val requestor = Vec(n) { new ioMem().flip() }
-}
-
 class rocketMemArbiter(n: Int) extends Component {
-  val io = new ioMemArbiter(n);
+  val io = new Bundle {
+    val mem = new ioTileLink
+    val requestor = Vec(n) { new ioTileLink().flip }
+  }
 
   var req_val = Bool(false)
-  var req_rdy = io.mem.req_rdy
+  var req_rdy = io.mem.xact_init.ready
   for (i <- 0 until n)
   {
-    io.requestor(i).req_rdy := req_rdy
-    req_val = req_val || io.requestor(i).req_val
-    req_rdy = req_rdy && !io.requestor(i).req_val
+    io.requestor(i).xact_init.ready := req_rdy
+    req_val = req_val || io.requestor(i).xact_init.valid
+    req_rdy = req_rdy && !io.requestor(i).xact_init.valid
   }
 
+  // if more than one requestor at a time can write back, the data
+  // arbiter needs to be made stateful: one xact's write data must
+  // be sent to the memory system contiguously.
   var req_data_val = Bool(false)
-  var req_data_rdy = io.mem.req_data_rdy
+  var req_data_rdy = io.mem.xact_init_data.ready
   for (i <- 0 until n)
   {
-    io.requestor(i).req_data_rdy := req_data_rdy
-    req_data_val = req_data_val || io.requestor(i).req_data_val
-    req_data_rdy = req_data_rdy && !io.requestor(i).req_data_val
+    io.requestor(i).xact_init_data.ready := req_data_rdy
+    req_data_val = req_data_val || io.requestor(i).xact_init_data.valid
+    req_data_rdy = req_data_rdy && !io.requestor(i).xact_init_data.valid
   }
 
-  var req_rw = io.requestor(n-1).req_rw
-  var req_addr = io.requestor(n-1).req_addr
-  var req_tag = Cat(io.requestor(n-1).req_tag, UFix(n-1, log2up(n)))
-  for (i <- n-1 to 0 by -1)
+  var req_bits = Wire() { new TransactionInit }
+  req_bits := io.requestor(n-1).xact_init.bits
+  req_bits.tile_xact_id := Cat(io.requestor(n-1).xact_init.bits.tile_xact_id, UFix(n-1, log2up(n)))
+  for (i <- n-2 to 0 by -1)
   {
-    req_rw = Mux(io.requestor(i).req_val, io.requestor(i).req_rw, req_rw)
-    req_addr = Mux(io.requestor(i).req_val, io.requestor(i).req_addr, req_addr)
-    req_tag = Mux(io.requestor(i).req_val, Cat(io.requestor(i).req_tag, UFix(i, log2up(n))), req_tag)
+    var my_req_bits = Wire() { new TransactionInit }
+    my_req_bits := io.requestor(i).xact_init.bits
+    my_req_bits.tile_xact_id := Cat(io.requestor(i).xact_init.bits.tile_xact_id, UFix(i, log2up(n)))
+
+    req_bits = Mux(io.requestor(i).xact_init.valid, my_req_bits, req_bits)
   }
 
-  var req_data_bits = io.requestor(n-1).req_data_bits
-  for (i <- n-1 to 0 by -1)
-    req_data_bits = Mux(io.requestor(i).req_data_val, io.requestor(i).req_data_bits, req_data_bits)
+  var req_data_bits = io.requestor(n-1).xact_init_data.bits
+  for (i <- n-2 to 0 by -1)
+    req_data_bits = Mux(io.requestor(i).xact_init_data.valid, io.requestor(i).xact_init_data.bits, req_data_bits)
 
-  io.mem.req_val := req_val
-  io.mem.req_rw := req_rw
-  io.mem.req_addr := req_addr
-  io.mem.req_tag := req_tag
+  io.mem.xact_init.valid := req_val
+  io.mem.xact_init.bits := req_bits
 
-  io.mem.req_data_val := req_data_val
-  io.mem.req_data_bits := req_data_bits
+  io.mem.xact_init_data.valid := req_data_val
+  io.mem.xact_init_data.bits := req_data_bits
 
   for (i <- 0 until n)
   {
-    io.requestor(i).resp_val := io.mem.resp_val && io.mem.resp_tag(log2up(n)-1,0) === UFix(i)
-    io.requestor(i).resp_data := io.mem.resp_data
-    io.requestor(i).resp_tag := io.mem.resp_tag >> UFix(log2up(n))
+    val tag = io.mem.xact_rep.bits.tile_xact_id
+    io.requestor(i).xact_rep.valid := io.mem.xact_rep.valid && tag(log2up(n)-1,0) === UFix(i)
+    io.requestor(i).xact_rep.bits.data := io.mem.xact_rep.bits.data
+    io.requestor(i).xact_rep.bits.t_type := io.mem.xact_rep.bits.t_type
+    io.requestor(i).xact_rep.bits.has_data := io.mem.xact_rep.bits.has_data
+    io.requestor(i).xact_rep.bits.tile_xact_id := tag >> UFix(log2up(n))
+    io.requestor(i).xact_rep.bits.global_xact_id := io.mem.xact_rep.bits.global_xact_id
   }
+  io.mem.xact_rep.ready := Bool(true) // XXX we shouldn't have xact_rep.ready
 }

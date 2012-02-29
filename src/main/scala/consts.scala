@@ -182,7 +182,7 @@ object Constants
   val NTILES = 1
   val COHERENCE_DATA_BITS = (1 << OFFSET_BITS)*8 
   val TILE_ID_BITS = 1
-  val TILE_XACT_ID_BITS = 1 // log2(NMSHR)
+  val TILE_XACT_ID_BITS = log2up(NMSHR)+2
   val GLOBAL_XACT_ID_BITS = 4
   val NGLOBAL_XACTS = 1 << GLOBAL_XACT_ID_BITS
 
@@ -201,7 +201,7 @@ object Constants
   val MEM_TAG_BITS = 4
   val MEM_DATA_BITS = 128
   val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
-  require(MEM_TAG_BITS >= max(log2up(NMSHR)+1, GLOBAL_XACT_ID_BITS))
+  require(MEM_TAG_BITS >= max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS))
   
   val DTLB_ENTRIES = 8;
   val ITLB_ENTRIES = 8;

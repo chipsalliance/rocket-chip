@@ -20,7 +20,7 @@ class ioImem(view: List[String] = null) extends Bundle (view)
 class ioRocketICache extends Bundle()
 {
   val cpu = new ioImem();
-  val mem = new ioMem
+  val mem = new ioTileLink
 }
 
 // basic direct mapped instruction cache
@@ -75,7 +75,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
 
   // refill counter
   val refill_count = Reg(resetVal = UFix(0, rf_cnt_bits));
-  when (io.mem.resp_val) {
+  when (io.mem.xact_rep.valid) {
     refill_count := refill_count + UFix(1);
   }
 
@@ -84,7 +84,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   val tag_addr = 
     Mux((state === s_refill_wait), r_cpu_req_idx(indexmsb,indexlsb),
       io.cpu.req_idx(indexmsb,indexlsb)).toUFix;
-  val tag_we = (state === s_refill_wait) && io.mem.resp_val;
+  val tag_we = (state === s_refill_wait) && io.mem.xact_rep.valid;
   val data_addr = 
     Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(indexmsb,offsetbits), refill_count),
       io.cpu.req_idx(indexmsb, offsetbits-rf_cnt_bits)).toUFix;
@@ -112,10 +112,10 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
     val hit = valid && (tag_rdata === r_cpu_hit_addr(tagmsb,taglsb))
     
     // data array
-    val data_array = Mem(sets*REFILL_CYCLES){ io.mem.resp_data }
+    val data_array = Mem(sets*REFILL_CYCLES){ io.mem.xact_rep.bits.data }
     data_array.setReadLatency(1);
     data_array.setTarget('inst);
-    val data_out = data_array.rw(data_addr, io.mem.resp_data, io.mem.resp_val && repl_me)
+    val data_out = data_array.rw(data_addr, io.mem.xact_rep.bits.data, io.mem.xact_rep.valid && repl_me)
 
     data_mux.io.sel(i) := hit
     data_mux.io.in(i) := (data_out >> word_shift)(databits-1,0);
@@ -128,10 +128,11 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_hit;
   rdy := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || tag_hit);
   io.cpu.resp_data := data_mux.io.out
-  io.mem.req_val := (state === s_request);
-  io.mem.req_rw := Bool(false)
-  io.mem.req_addr := r_cpu_miss_addr(tagmsb,indexlsb).toUFix
-  io.mem.req_data_val := Bool(false)
+  io.mem.xact_init.valid := (state === s_request)
+  io.mem.xact_init.bits.t_type := X_READ_UNCACHED
+  io.mem.xact_init.bits.has_data := Bool(false)
+  io.mem.xact_init.bits.address := r_cpu_miss_addr(tagmsb,indexlsb).toUFix
+  io.mem.xact_init_data.valid := Bool(false)
 
   // control state machine
   switch (state) {
@@ -148,19 +149,19 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
     }
     is (s_request)
     {
-      when (io.mem.req_rdy) {
+      when (io.mem.xact_init.ready) {
         state := s_refill_wait;
       }
     }
     is (s_refill_wait) {
-      when (io.mem.resp_val) {
+      when (io.mem.xact_rep.valid) {
         state := s_refill;
       }
     }
     is (s_refill) {
-      when (io.mem.resp_val && (~refill_count === UFix(0))) {
+      when (io.mem.xact_rep.valid && refill_count.andR) {
         state := s_ready;
       }
     }
-  }  
+  } 
 }

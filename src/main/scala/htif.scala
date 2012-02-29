@@ -26,7 +26,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   val io = new Bundle {
     val host = new ioHost(w)
     val cpu = Vec(ncores) { new ioHTIF().flip() }
-    val mem = new ioMem
+    val mem = new ioTileLink
   }
 
   val short_request_bits = 64
@@ -93,11 +93,11 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   }
 
   val mem_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
-  when (state === state_mem_req && io.mem.req_rdy) {
+  when (state === state_mem_req && io.mem.xact_init.ready) {
     state := Mux(cmd === cmd_writemem, state_mem_wdata, state_mem_rdata)
   }
-  when (state === state_mem_wdata && io.mem.req_data_rdy || 
-        state === state_mem_rdata && io.mem.resp_val) {
+  when (state === state_mem_wdata && io.mem.xact_init_data.ready || 
+        state === state_mem_rdata && io.mem.xact_rep.valid) {
     when (mem_cnt.andR)  {
       state := state_tx
     }
@@ -112,16 +112,17 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   var mem_req_data: Bits = null
   for (i <- 0 until MEM_DATA_BITS/short_request_bits) {
     val idx = Cat(mem_cnt, UFix(i, log2up(MEM_DATA_BITS/short_request_bits)))
-    packet_ram.write(idx, io.mem.resp_data((i+1)*short_request_bits-1, i*short_request_bits),
-                     state === state_mem_rdata && io.mem.resp_val)
+    packet_ram.write(idx, io.mem.xact_rep.bits.data((i+1)*short_request_bits-1, i*short_request_bits),
+                     state === state_mem_rdata && io.mem.xact_rep.valid)
     mem_req_data = Cat(packet_ram.read(idx), mem_req_data)
   }
-  io.mem.req_val := state === state_mem_req
-  io.mem.req_rw := cmd === cmd_writemem
-  io.mem.req_addr := addr >> UFix(OFFSET_BITS-3)
+  io.mem.xact_init.valid := state === state_mem_req
+  io.mem.xact_init.bits.t_type := Mux(cmd === cmd_writemem, X_WRITE_UNCACHED, X_READ_UNCACHED)
+  io.mem.xact_init.bits.has_data := cmd === cmd_writemem
+  io.mem.xact_init.bits.address := addr >> UFix(OFFSET_BITS-3)
 
-  io.mem.req_data_val := state === state_mem_wdata
-  io.mem.req_data_bits := mem_req_data
+  io.mem.xact_init_data.valid:= state === state_mem_wdata
+  io.mem.xact_init_data.bits.data := mem_req_data
 
   pcr_done := Bool(false)
   val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }
