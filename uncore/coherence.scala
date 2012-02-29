@@ -10,22 +10,21 @@ class MemData extends Bundle {
 class MemReqCmd() extends Bundle 
 {
   val rw = Bool()
-  val addr = UFix(PADDR_BITS - OFFSET_BITS)
-  val tag = Bits(MEM_TAG_BITS)
+  val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
+  val tag = Bits(width = MEM_TAG_BITS)
 }
 
 class MemResp () extends Bundle 
 {
-  val tag = Bits(MEM_TAG_BITS)
+  val tag = Bits(width = MEM_TAG_BITS)
   val data = Bits(width = MEM_DATA_BITS)
-  val valid = Bool()
 }
 
-class ioMemHub() extends Bundle
+class ioMem() extends Bundle
 {
   val req_cmd  = (new ioDecoupled) { new MemReqCmd() }.flip
   val req_data = (new ioDecoupled) { new MemData() }.flip
-  val resp     = new MemResp() 
+  val resp     = (new ioValid) { new MemResp() }
 }
 
 class HubMemReq extends Bundle {
@@ -49,7 +48,7 @@ class TransactionInit extends Bundle {
   val t_type = Bits(width = TTYPE_BITS)
   val has_data = Bool()
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
-  val address = Bits(width = PADDR_BITS)
+  val address = UFix(width = PADDR_BITS)
 }
 
 class TransactionInitData extends MemData
@@ -348,8 +347,8 @@ abstract class CoherenceHub extends Component with CoherencePolicy
 
 class CoherenceHubNull extends Component {
   val io = new Bundle {
-    val tile = new ioTileLink() 
-    val mem = new ioMemHub()
+    val tile = new ioTileLink().flip
+    val mem = new ioMem
   }
 
   val x_init = io.tile.xact_init
@@ -362,11 +361,11 @@ class CoherenceHubNull extends Component {
   io.mem.req_data <> io.tile.xact_init_data
 
   val x_rep = io.tile.xact_rep
-  x_rep.bits.t_type := Mux(is_write, X_WRITE_UNCACHED, X_READ_EXCLUSIVE)
-  x_rep.bits.tile_xact_id := Mux(is_write, x_init.bits.tile_xact_id, io.mem.resp.tag)
+  x_rep.bits.t_type := Mux(io.mem.resp.valid, X_READ_EXCLUSIVE, X_WRITE_UNCACHED)
+  x_rep.bits.tile_xact_id := Mux(io.mem.resp.valid, io.mem.resp.bits.tag, x_init.bits.tile_xact_id)
   x_rep.bits.global_xact_id := UFix(0) // don't care
-  x_rep.bits.data := io.mem.resp.data
-  x_rep.valid := io.mem.resp.valid || is_write
+  x_rep.bits.data := io.mem.resp.bits.data
+  x_rep.valid := io.mem.resp.valid || x_init.valid && is_write
 }
 
 
@@ -388,7 +387,7 @@ class CoherenceHubNoDir extends CoherenceHub {
 
   val io = new Bundle {
     val tiles = Vec(NTILES) { new ioTileLink() }
-    val mem = new ioMemHub
+    val mem = new ioMem
   }
   
   val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
@@ -427,12 +426,12 @@ class CoherenceHubNoDir extends CoherenceHub {
 
   // Reply to initial requestor
   // Forward memory responses from mem to tile
-  val idx = io.mem.resp.tag
+  val idx = io.mem.resp.bits.tag
   for( j <- 0 until NTILES ) {
     io.tiles(j).xact_rep.bits.t_type := getTransactionReplyType(t_type_arr.read(idx), sh_count_arr.read(idx))
     io.tiles(j).xact_rep.bits.tile_xact_id := tile_xact_id_arr.read(idx)
     io.tiles(j).xact_rep.bits.global_xact_id := idx
-    io.tiles(j).xact_rep.bits.data := io.mem.resp.data
+    io.tiles(j).xact_rep.bits.data := io.mem.resp.bits.data
     io.tiles(j).xact_rep.valid := (UFix(j) === init_tile_id_arr.read(idx)) && (io.mem.resp.valid || send_x_rep_ack_arr.read(idx))
   }
   // If there were a ready signal due to e.g. intervening network use:
