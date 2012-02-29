@@ -329,19 +329,19 @@ class CoherenceHubNull extends Component {
 
   val x_init = io.tile.xact_init
   val is_write = x_init.bits.t_type === X_WRITE_UNCACHED
-  x_init.ready := io.mem.req_cmd.ready
-  io.mem.req_cmd.valid   := x_init.valid
+  x_init.ready := io.mem.req_cmd.ready && !(is_write && io.mem.resp.valid) //stall write req/resp to handle previous read resp
+  io.mem.req_cmd.valid   := x_init.valid && !(is_write && io.mem.resp.valid)
   io.mem.req_cmd.bits.rw    := is_write
   io.mem.req_cmd.bits.tag   := x_init.bits.tile_xact_id
   io.mem.req_cmd.bits.addr  := x_init.bits.address
   io.mem.req_data <> io.tile.xact_init_data
 
   val x_rep = io.tile.xact_rep
-  x_rep.bits.t_type := X_READ_EXCLUSIVE
+  x_rep.bits.t_type := Mux(is_write, X_WRITE_UNCACHED, X_READ_EXCLUSIVE)
   x_rep.bits.tile_xact_id := Mux(is_write, x_init.bits.tile_xact_id, io.mem.resp.tag)
   x_rep.bits.global_xact_id := UFix(0) // don't care
   x_rep.bits.data := io.mem.resp.data
-  x_rep.valid := io.mem.resp.valid
+  x_rep.valid := io.mem.resp.valid || is_write
 }
 
 
