@@ -180,6 +180,12 @@ class ioDecoupled[T <: Data]()(data: => T) extends Bundle
   val bits  = data.asInput
 }
 
+class ioValid[T <: Data]()(data: => T) extends Bundle
+{
+  val valid = Bool(INPUT)
+  val bits = data.asInput
+}
+
 class ioArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
   val in  = Vec(n) { (new ioDecoupled()) { data } }
   val out = (new ioDecoupled()) { data }.flip()

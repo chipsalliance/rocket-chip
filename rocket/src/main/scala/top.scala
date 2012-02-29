@@ -7,7 +7,7 @@ import Constants._;
 class ioTop(htif_width: Int) extends Bundle  {
   val debug   = new ioDebug();
   val host    = new ioHost(htif_width);
-  val mem     = new ioMem();
+  val mem     = new ioMem
 }
 
 class Top() extends Component {
@@ -21,22 +21,38 @@ class Top() extends Component {
   val icache_pf = new rocketIPrefetcher();
   val dcache    = new HellaCacheUniproc();
 
-  val arbiter   = new rocketMemArbiter(4);
+  val arbiter   = new rocketMemArbiter(3 + (if (HAVE_VEC) 1 else 0));
   arbiter.io.requestor(0) <> dcache.io.mem
   arbiter.io.requestor(1) <> icache_pf.io.mem
-  arbiter.io.requestor(3) <> htif.io.mem
-  arbiter.io.mem <> io.mem
+  arbiter.io.requestor(2) <> htif.io.mem
+
+  val hub = new CoherenceHubNull
+  // connect tile to hub (figure out how to do this more compactly)
+  val xact_init_q = (new queue(2)) { new TransactionInit }
+  xact_init_q.io.enq <> arbiter.io.mem.xact_init
+  xact_init_q.io.deq <> hub.io.tile.xact_init
+  val xact_init_data_q = (new queue(2)) { new TransactionInitData }
+  xact_init_data_q.io.enq <> arbiter.io.mem.xact_init_data
+  xact_init_data_q.io.deq <> hub.io.tile.xact_init_data
+  val xact_rep_q = (new queue(1, pipe = true)) { new TransactionReply }
+  xact_rep_q.io.enq <> hub.io.tile.xact_rep
+  xact_rep_q.io.deq <> arbiter.io.mem.xact_rep
+  // connect hub to memory
+  val mem_req_q = (new queue(2)) { new MemReqCmd }
+  mem_req_q.io.enq <> hub.io.mem.req_cmd
+  mem_req_q.io.deq <> io.mem.req_cmd
+  val mem_req_data_q = (new queue(2)) { new MemData }
+  mem_req_data_q.io.enq <> hub.io.mem.req_data
+  mem_req_data_q.io.deq <> io.mem.req_data
+  hub.io.mem.resp.valid := Reg(io.mem.resp.valid, resetVal = Bool(false))
+  hub.io.mem.resp.bits := Reg(io.mem.resp.bits)
+
 
   if (HAVE_VEC)
   {
     val vicache = new rocketICache(128, 2); // 128 sets x 2 ways
-    arbiter.io.requestor(2) <> vicache.io.mem
+    arbiter.io.requestor(3) <> vicache.io.mem
     cpu.io.vimem <> vicache.io.cpu;
-  }
-  else
-  {
-    arbiter.io.requestor(2).req_val := Bool(false)
-    arbiter.io.requestor(2).req_data_val := Bool(false)
   }
 
   htif.io.host <> io.host
