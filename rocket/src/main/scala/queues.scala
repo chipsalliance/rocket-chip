@@ -53,3 +53,37 @@ class queue[T <: Data](entries: Int, pipe: Boolean = false, flushable: Boolean =
   io.enq.ready := !maybe_full || enq_ptr != deq_ptr || (if (pipe) io.deq.ready else Bool(false))
   io.deq.bits <> Mem(entries, do_enq, enq_ptr, io.enq.bits).read(deq_ptr)
 }
+
+object Queue
+{
+  def apply[T <: Data](enq: ioDecoupled[T], entries: Int = 2, pipe: Boolean = false) = {
+    val q = (new queue(entries, pipe)) { enq.bits.clone }
+    q.io.enq <> enq
+    q.io.deq
+  }
+}
+
+class pipereg[T <: Data]()(data: => T) extends Component
+{
+  val io = new Bundle {
+    val enq = new ioValid()(data)
+    val deq = new ioValid()(data).flip
+  }
+
+  //val bits = Reg() { io.enq.bits.clone }
+  //when (io.enq.valid) {
+  //  bits := io.enq.bits
+  //}
+
+  io.deq.valid := Reg(io.enq.valid, resetVal = Bool(false))
+  io.deq.bits <> Mem(1, io.enq.valid, UFix(0), io.enq.bits).read(UFix(0))
+}
+
+object PipeReg
+{
+  def apply[T <: Data](enq: ioValid[T]) = {
+    val q = (new pipereg) { enq.bits.clone }
+    q.io.enq <> enq
+    q.io.deq
+  }
+}

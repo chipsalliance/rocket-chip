@@ -166,14 +166,7 @@ class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
 }
 
 
-
-
-
-
-
-
-
-class ioDecoupled[T <: Data]()(data: => T) extends Bundle
+class ioDecoupled[+T <: Data]()(data: => T) extends Bundle
 {
   val valid = Bool(INPUT)
   val ready = Bool(OUTPUT)
@@ -211,46 +204,51 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   dout <> io.out.bits
 }
 
-class ioPriorityDecoder(in_width: Int, out_width: Int) extends Bundle
-{
-  val in  = UFix(in_width, INPUT);
-  val out = Bits(out_width, OUTPUT);
+class ioLockingArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
+  val in   = Vec(n) { (new ioDecoupled()) { data } }
+  val lock = Vec(n) { Bool() }
+  val out  = (new ioDecoupled()) { data }.flip()
 }
 
-class priorityDecoder(width: Int) extends Component
-{
-  val in_width = ceil(log10(width)/log10(2)).toInt;  
-  val io = new ioPriorityEncoder(in_width, width);
-  val l_out = Wire() { Bits() };
-  
-  l_out := Bits(0, width);
-  for (i <- width-1 to 0 by -1) {
-    when (io.in === UFix(i, in_width)) {
-      l_out := Bits(1,1) << UFix(i);
+class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {
+  val io = new ioLockingArbiter(n)(data)
+  val locked = Reg(){ Bits(n) }
+  var dout = Wire(){ data } 
+  var vout = Wire(){ Bool() }
+
+  when((locked && io.lock.toBits).orR) {
+    dout := io.in(0).bits
+    for (i <- 0 until n) {
+      io.in(i).ready := io.out.ready && locked(i)
+      vout := io.in(i).valid && locked(i)
+      dout := Mux(locked(i), io.in(i).bits, dout)
     }
-  }
-  
-  io.out := l_out;
-}
-
-class ioPriorityEncoder(in_width: Int, out_width: Int) extends Bundle
-{
-  val in  = Bits(in_width, INPUT);
-  val out = UFix(out_width, OUTPUT);
-}
-
-class priorityEncoder(width: Int) extends Component
-{
-  val out_width = ceil(log10(width)/log10(2)).toInt;  
-  val io = new ioPriorityDecoder(width, out_width);
-  val l_out = Wire() { UFix() };
-  
-  l_out := UFix(0, out_width);
-  for (i <- width-1 to 1 by -1) {
-    when (io.in(i).toBool) {
-      l_out := UFix(i, out_width);
+  } .otherwise {
+    io.in(0).ready := io.out.ready
+    for (i <- 1 until n) {
+      io.in(i).ready := !io.in(i-1).valid && io.in(i-1).ready
+      locked(i) := !io.in(i-1).valid && io.in(i-1).ready && io.lock(i)
     }
+
+    dout := io.in(n-1).bits
+    for (i <- 1 until n)
+      dout = Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout)
+
+    vout := io.in(0).valid
+    for (i <- 1 until n)
+      vout = vout || io.in(i).valid
   }
-  
-  io.out := l_out;
+
+  vout <> io.out.valid
+  dout <> io.out.bits
+}
+
+object PriorityEncoder
+{
+  def apply(in: Bits, n: Int = 0): UFix = {
+    if (n >= in.getWidth-1)
+      UFix(n)
+    else
+      Mux(in(n), UFix(n), PriorityEncoder(in, n+1))
+  }
 }
