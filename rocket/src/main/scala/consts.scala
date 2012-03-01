@@ -5,6 +5,10 @@ import scala.math._
 
 object Constants
 {
+  val HAVE_RVC = false
+  val HAVE_FPU = true
+  val HAVE_VEC = false
+
   val BR_N    = UFix(0, 4);
   val BR_EQ   = UFix(1, 4);
   val BR_NE   = UFix(2, 4);
@@ -169,7 +173,7 @@ object Constants
   val CPU_TAG_BITS = 9;
   val DCACHE_TAG_BITS = log2up(DCACHE_PORTS) + CPU_TAG_BITS
   val OFFSET_BITS = 6; // log2(cache line size in bytes)
-  val NMSHR = 2; // number of primary misses
+  val NMSHR = if (HAVE_VEC) 4 else 2 // number of primary misses
   val NRPQ = 16; // number of secondary misses
   val NSDQ = 17; // number of secondary stores/AMOs
   val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
@@ -207,10 +211,6 @@ object Constants
   val ITLB_ENTRIES = 8;
   
   val START_ADDR = 0x2000;
-  
-  val HAVE_RVC = false
-  val HAVE_FPU = true
-  val HAVE_VEC = false
 
   val FPU_N = UFix(0, 1);
   val FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N;
