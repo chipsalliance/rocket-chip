@@ -28,9 +28,9 @@ class Top() extends Component {
 
   val hub = new CoherenceHubNull
   // connect tile to hub
-  hub.io.tile.xact_init <> Queue(arbiter.io.mem.xact_init)
-  hub.io.tile.xact_init_data <> Queue(arbiter.io.mem.xact_init_data)
-  arbiter.io.mem.xact_rep <> Queue(hub.io.tile.xact_rep, 1, pipe = true)
+  hub.io.tiles(0).xact_init <> Queue(arbiter.io.mem.xact_init)
+  hub.io.tiles(0).xact_init_data <> Queue(arbiter.io.mem.xact_init_data)
+  arbiter.io.mem.xact_rep <> Queue(hub.io.tiles(0).xact_rep, 1, pipe = true)
   // connect hub to memory
   io.mem.req_cmd <> Queue(hub.io.mem.req_cmd)
   io.mem.req_data <> Queue(hub.io.mem.req_data)

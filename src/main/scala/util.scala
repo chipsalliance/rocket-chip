@@ -212,29 +212,31 @@ class ioLockingArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
 
 class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {
   val io = new ioLockingArbiter(n)(data)
-  val locked = Reg(){ Bits(n) }
-  var dout = Wire(){ data } 
-  var vout = Wire(){ Bool() }
+  val locked = Reg(resetVal = Bits(0, width = n))
+  var dout = io.in(0).bits
+  var vout = Bool(false)
 
-  when((locked && io.lock.toBits).orR) {
-    dout := io.in(0).bits
+  val any_lock_held = (locked & io.lock.toBits).orR
+  when(any_lock_held) {
+    vout = io.in(0).valid && locked(0)
     for (i <- 0 until n) {
       io.in(i).ready := io.out.ready && locked(i)
-      vout := io.in(i).valid && locked(i)
-      dout := Mux(locked(i), io.in(i).bits, dout)
+      dout = Mux(locked(i), io.in(i).bits, dout)
+      vout = vout || io.in(i).valid && locked(i)
     }
   } .otherwise {
     io.in(0).ready := io.out.ready
+    locked.bitSet(UFix(0), io.out.ready && io.lock(0))
     for (i <- 1 until n) {
       io.in(i).ready := !io.in(i-1).valid && io.in(i-1).ready
-      locked(i) := !io.in(i-1).valid && io.in(i-1).ready && io.lock(i)
+      locked.bitSet(UFix(i), !io.in(i-1).valid && io.in(i-1).ready && io.lock(i))
     }
 
-    dout := io.in(n-1).bits
+    dout = io.in(n-1).bits
     for (i <- 1 until n)
       dout = Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout)
 
-    vout := io.in(0).valid
+    vout = io.in(0).valid
     for (i <- 1 until n)
       vout = vout || io.in(i).valid
   }
