@@ -146,12 +146,9 @@ class rocketITLB(entries: Int) extends Component
   }
  
   // high if there are any unused entries in the ITLB
-  val invalid_entry = (tag_cam.io.valid_bits != ~Bits(0,entries));
-  val ie_enc = new priorityEncoder(entries);
-  ie_enc.io.in := ~tag_cam.io.valid_bits.toUFix;
-  val ie_addr = ie_enc.io.out;
-  
-  val repl_waddr = Mux(invalid_entry, ie_addr, repl_count).toUFix;
+  val has_invalid_entry = !tag_cam.io.valid_bits.andR
+  val invalid_entry = PriorityEncoder(~tag_cam.io.valid_bits)
+  val repl_waddr = Mux(has_invalid_entry, invalid_entry, repl_count).toUFix;
   
   val lookup = (state === s_ready) && r_cpu_req_val;
   val lookup_hit  = lookup && tag_hit;
@@ -162,7 +159,7 @@ class rocketITLB(entries: Int) extends Component
   when (tlb_miss) {
     r_refill_tag := lookup_tag;
     r_refill_waddr := repl_waddr;
-    when (!invalid_entry) {
+    when (!has_invalid_entry) {
       repl_count := repl_count + UFix(1);
     }
   }

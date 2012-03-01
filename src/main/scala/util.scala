@@ -211,46 +211,12 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   dout <> io.out.bits
 }
 
-class ioPriorityDecoder(in_width: Int, out_width: Int) extends Bundle
+object PriorityEncoder
 {
-  val in  = UFix(in_width, INPUT);
-  val out = Bits(out_width, OUTPUT);
-}
-
-class priorityDecoder(width: Int) extends Component
-{
-  val in_width = ceil(log10(width)/log10(2)).toInt;  
-  val io = new ioPriorityEncoder(in_width, width);
-  val l_out = Wire() { Bits() };
-  
-  l_out := Bits(0, width);
-  for (i <- width-1 to 0 by -1) {
-    when (io.in === UFix(i, in_width)) {
-      l_out := Bits(1,1) << UFix(i);
-    }
+  def apply(in: Bits, n: Int = 0): UFix = {
+    if (n >= in.getWidth-1)
+      UFix(n)
+    else
+      Mux(in(n), UFix(n), PriorityEncoder(in, n+1))
   }
-  
-  io.out := l_out;
-}
-
-class ioPriorityEncoder(in_width: Int, out_width: Int) extends Bundle
-{
-  val in  = Bits(in_width, INPUT);
-  val out = UFix(out_width, OUTPUT);
-}
-
-class priorityEncoder(width: Int) extends Component
-{
-  val out_width = ceil(log10(width)/log10(2)).toInt;  
-  val io = new ioPriorityDecoder(width, out_width);
-  val l_out = Wire() { UFix() };
-  
-  l_out := UFix(0, out_width);
-  for (i <- width-1 to 1 by -1) {
-    when (io.in(i).toBool) {
-      l_out := UFix(i, out_width);
-    }
-  }
-  
-  io.out := l_out;
 }
