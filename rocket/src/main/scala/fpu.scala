@@ -615,7 +615,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
              Mux(wsrc === UFix(2), fastpipe.io.exc_d,
              fastpipe.io.exc_s)))
   val waddr = winfo(0).toUFix >> UFix(2)
-  regfile.write(waddr, wdata, wen(0))
+  regfile.write(waddr(4,0), wdata, wen(0))
 
   when (wb_reg_valid && wb_ctrl.toint || wen(0)) {
     fsr_exc := fsr_exc |
