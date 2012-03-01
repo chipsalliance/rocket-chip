@@ -37,7 +37,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   {
     vu = new vu()
     // cpu, vector prefetch, and vector use the DTLB
-    val dtlbarb = new rArbiter(3)({new ioDTLB_CPU_req()})
+    val dtlbarb = new hwacha.Arbiter(3)({new ioDTLB_CPU_req()})
     val dtlbchosen = Reg(resetVal=Bits(DTLB_CPU,log2up(3)))
     when( dtlb.io.cpu_req.ready && dtlbarb.io.out.valid ) { dtlbchosen := dtlbarb.io.chosen }
 
