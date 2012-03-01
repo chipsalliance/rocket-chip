@@ -222,12 +222,12 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
 
   val s_idle :: s_mem :: s_probe :: s_busy :: Nil = Enum(4){ UFix() }
   val state = Reg(resetVal = s_idle)
-  val addr_  = Reg{ Bits() }
+  val addr_  = Reg{ UFix() }
   val t_type_ = Reg{ Bits() }
   val init_tile_id_ = Reg{ Bits() }
   val tile_xact_id_ = Reg{ Bits() }
   val p_rep_count = Reg(resetVal = UFix(0, width = log2up(NTILES)))
-  val p_req_flags = Reg(resetVal = UFix(0, width = NTILES))
+  val p_req_flags = Reg(resetVal = Bits(0, width = NTILES))
   val p_rep_tile_id_ = Reg{ Bits() }
   val x_needs_read = Reg(resetVal = Bool(false))
   val x_init_data_needs_write = Reg(resetVal = Bool(false))
@@ -350,24 +350,25 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
   //      P_rep and x_init must be popped on same cycle of receipt
 }
 
-abstract class CoherenceHub extends Component with CoherencePolicy
-
-class CoherenceHubNull extends Component {
+abstract class CoherenceHub extends Component with CoherencePolicy {
   val io = new Bundle {
-    val tile = new ioTileLink().flip
+    val tiles = Vec(NTILES) { new ioTileLink() }.flip
     val mem = new ioMem
   }
+}
 
-  val x_init = io.tile.xact_init
+class CoherenceHubNull extends CoherenceHub {
+
+  val x_init = io.tiles(0).xact_init
   val is_write = x_init.bits.t_type === X_WRITE_UNCACHED
   x_init.ready := io.mem.req_cmd.ready && !(is_write && io.mem.resp.valid) //stall write req/resp to handle previous read resp
   io.mem.req_cmd.valid   := x_init.valid && !(is_write && io.mem.resp.valid)
   io.mem.req_cmd.bits.rw    := is_write
   io.mem.req_cmd.bits.tag   := x_init.bits.tile_xact_id
   io.mem.req_cmd.bits.addr  := x_init.bits.address
-  io.mem.req_data <> io.tile.xact_init_data
+  io.mem.req_data <> io.tiles(0).xact_init_data
 
-  val x_rep = io.tile.xact_rep
+  val x_rep = io.tiles(0).xact_rep
   x_rep.bits.t_type := Mux(io.mem.resp.valid, X_READ_EXCLUSIVE, X_WRITE_UNCACHED)
   x_rep.bits.tile_xact_id := Mux(io.mem.resp.valid, io.mem.resp.bits.tag, x_init.bits.tile_xact_id)
   x_rep.bits.global_xact_id := UFix(0) // don't care
@@ -392,13 +393,9 @@ class CoherenceHubBroadcast extends CoherenceHub {
     ret 
   }
 
-  val io = new Bundle {
-    val tiles = Vec(NTILES) { new ioTileLink() }
-    val mem = new ioMem
-  }
-  
   val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
 
+/*
   val busy_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
   val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
   val init_tile_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
@@ -467,13 +464,12 @@ class CoherenceHubBroadcast extends CoherenceHub {
     p_rep_data.ready  := foldR(trackerList.map(_.io.pop_p_rep_data(j)))(_ || _)
   }
   for( i <- 0 until NGLOBAL_XACTS ) {
-    trackerList(i).io.p_rep_data := MuxLookup(trackerList(i).io.p_rep_tile_id, Bits(0), (0 until NTILES).map { j => UFix(j) -> io.tiles(j).probe_rep_data })
-    val flags = Bits(width = NTILES)
+    trackerList(i).io.p_rep_data <> io.tiles(trackerList(i).io.p_rep_tile_id).probe_rep_data
     for( j <- 0 until NTILES) {
       val p_rep = io.tiles(j).probe_rep
-      flags(j) := p_rep.valid && (p_rep.bits.global_xact_id === UFix(i))
+      val dec = p_rep.valid && (p_rep.bits.global_xact_id === UFix(i))
+      p_rep_cnt_dec_arr(UFix(i)) := p_rep_cnt_dec_arr(UFix(i)).bitSet(UFix(j), dec)
     }
-    p_rep_cnt_dec_arr.write(UFix(i), flags)
   }
 
   // Nack conflicting transaction init attempts
@@ -484,8 +480,8 @@ class CoherenceHubBroadcast extends CoherenceHub {
     val conflicts = Bits(width = NGLOBAL_XACTS) 
     for( i <- 0 until NGLOBAL_XACTS) {
       val t = trackerList(i).io
-      conflicts(i) := t.busy(i) && coherenceConflict(t.addr, x_init.bits.address) && 
-                        !(x_init.bits.has_data && (UFix(j) === t.init_tile_id)) 
+      conflicts(UFix(i), t.busy(i) && coherenceConflict(t.addr, x_init.bits.address) && 
+                        !(x_init.bits.has_data && (UFix(j) === t.init_tile_id)))
                         // Don't abort writebacks stalled on mem. 
                         // TODO: This assumes overlapped writeback init reqs to 
                         // the same addr will never be issued; is this ok?
@@ -493,7 +489,7 @@ class CoherenceHubBroadcast extends CoherenceHub {
     x_abort.bits.tile_xact_id := x_init.bits.tile_xact_id
     val want_to_abort = conflicts.orR || busy_arr.toBits.andR
     x_abort.valid := want_to_abort && x_init.valid
-    aborting(j) := want_to_abort && x_abort.ready
+    aborting.bitSet(UFix(j), want_to_abort && x_abort.ready)
   }
   
   // Handle transaction initiation requests
@@ -504,10 +500,10 @@ class CoherenceHubBroadcast extends CoherenceHub {
   for( i <- 0 until NGLOBAL_XACTS ) {
     alloc_arb.io.in(i).valid := !trackerList(i).io.busy
     trackerList(i).io.can_alloc := alloc_arb.io.in(i).ready
-    trackerList(i).io.alloc_req.bits := init_arb.io.out.bits
+    trackerList(i).io.alloc_req.bits <> init_arb.io.out.bits
     trackerList(i).io.alloc_req.valid := init_arb.io.out.valid
 
-    trackerList(i).io.x_init_data := MuxLookup(trackerList(i).io.init_tile_id, Bits(0), (0 until NTILES).map { j => UFix(j) -> io.tiles(j).xact_init_data })
+    trackerList(i).io.x_init_data <> io.tiles(trackerList(i).io.init_tile_id).xact_init_data
   }
 
   for( j <- 0 until NTILES ) {
@@ -533,15 +529,9 @@ class CoherenceHubBroadcast extends CoherenceHub {
       val t = trackerList(i).io
       p_req_arb_arr(j).io.in(i).bits :=  t.probe_req.bits
       p_req_arb_arr(j).io.in(i).valid := t.probe_req.valid && t.push_p_req(j)
+      p_rep_cnt_dec_arr(i) = p_rep_cnt_dec_arr(i).bitSet(UFix(j), p_req_arb_arr(j).io.in(i).ready)
     }
     p_req_arb_arr(j).io.out <> io.tiles(j).probe_req
   }
-  for( i <- 0 until NGLOBAL_XACTS ) {
-    val flags = Bits(width = NTILES)
-    for( j <- 0 until NTILES ) {
-      flags(j) := p_req_arb_arr(j).io.in(i).ready 
-    }
-    p_rep_cnt_dec_arr.write(UFix(i), flags)
-  }
-
+*/
 }
