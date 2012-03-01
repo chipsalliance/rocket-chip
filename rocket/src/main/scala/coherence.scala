@@ -28,8 +28,7 @@ class ioMem() extends Bundle
 }
 
 class HubMemReq extends Bundle {
-  val req_cmd   = (new ioDecoupled) { new MemReqCmd() }
-  val req_data  = (new ioDecoupled) { new MemData() }
+  val lock   = Bool() 
 }
 
 class TrackerProbeData extends Bundle {
@@ -187,7 +186,9 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
     val p_rep_data      = (new ioDecoupled) { new ProbeReplyData() }
     val x_init_data     = (new ioDecoupled) { new TransactionInitData() }
 
-    val mem_req         = (new ioDecoupled) { new HubMemReq()  }.flip
+    val mem_req_cmd     = (new ioDecoupled) { new MemReqCmd() }
+    val mem_req_data    = (new ioDecoupled) { new MemData() }
+    val mem_req_lock    = Bool(OUTPUT)
     val probe_req       = (new ioDecoupled) { new ProbeRequest() }.flip
     val busy            = Bool(OUTPUT)
     val addr            = Bits(PADDR_BITS, OUTPUT)
@@ -225,14 +226,40 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
   val t_type_ = Reg{ Bits() }
   val init_tile_id_ = Reg{ Bits() }
   val tile_xact_id_ = Reg{ Bits() }
-  val probe_done = Reg{ Bits() }
-  val mem_count = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
   val p_rep_count = Reg(resetVal = UFix(0, width = log2up(NTILES)))
   val p_req_flags = Reg(resetVal = UFix(0, width = NTILES))
   val p_rep_tile_id_ = Reg{ Bits() }
-  val x_needs_read = Reg{ Bool() }
-  val x_init_data_needs_write = Reg{ Bool() }
-  val p_rep_data_needs_write = Reg{ Bool() }
+  val x_needs_read = Reg(resetVal = Bool(false))
+  val x_init_data_needs_write = Reg(resetVal = Bool(false))
+  val p_rep_data_needs_write = Reg(resetVal = Bool(false))
+  val mem_cmd_sent = Reg(resetVal = Bool(false))
+  val mem_cnt = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
+  val mem_cnt_next = mem_cnt + UFix(1)
+
+  def doMemReqWrite(req_cmd: ioDecoupled[MemReqCmd], req_data: ioDecoupled[MemData], lock: Bool,  data: ioDecoupled[MemData], trigger: Bool, pop: Bool) {
+    req_cmd.valid := mem_cmd_sent
+    req_cmd.bits.rw := Bool(true)
+    req_data <> data
+    lock := Bool(true)
+    when(req_cmd.ready && req_cmd.valid) {
+      mem_cmd_sent := Bool(false)
+    }
+    when(req_data.ready && req_data.valid) {
+      pop := Bool(true)
+      mem_cnt := mem_cnt_next
+    }
+    when(mem_cnt === ~UFix(0)) {
+      trigger := Bool(false)
+    }
+  }
+
+  def doMemReqRead(req_cmd: ioDecoupled[MemReqCmd], trigger: Bool) {
+    req_cmd.valid := Bool(true)
+    req_cmd.bits.rw := Bool(false)
+    when(req_cmd.ready ) {
+      trigger := Bool(false)
+    }
+  }
 
   io.busy := state != s_idle
   io.addr := addr_
@@ -241,14 +268,13 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
   io.sharer_count := UFix(NTILES) // TODO: Broadcast only
   io.t_type := t_type_
 
-  io.mem_req.valid := Bool(false)
-  io.mem_req.bits.req_cmd.valid := Bool(false)
-  io.mem_req.bits.req_cmd.bits.rw := Bool(false)
-  io.mem_req.bits.req_cmd.bits.addr := addr_
-  io.mem_req.bits.req_cmd.bits.tag := UFix(id)
-  io.mem_req.bits.req_data.valid := Bool(false)
-  io.mem_req.bits.req_data.bits.data := UFix(0)
-  // := io.mem.ready //sent mem req
+  io.mem_req_cmd.valid := Bool(false)
+  io.mem_req_cmd.bits.rw := Bool(false)
+  io.mem_req_cmd.bits.addr := addr_
+  io.mem_req_cmd.bits.tag := UFix(id)
+  io.mem_req_data.valid := Bool(false)
+  io.mem_req_data.bits.data := UFix(0)
+  io.mem_req_lock := Bool(false)
   io.probe_req.valid := Bool(false)
   io.probe_req.bits.p_type := sendProbeReqType(t_type_, UFix(0))
   io.probe_req.bits.global_xact_id := UFix(id)
@@ -269,9 +295,11 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
         tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
         x_init_data_needs_write := io.alloc_req.bits.xact_init.has_data
         x_needs_read := needsMemRead(io.alloc_req.bits.xact_init.t_type, UFix(0))
-        p_rep_count := UFix(NTILES)
-        p_req_flags := ~Bits(0, width = NTILES)
-        state := s_probe
+        p_rep_count := UFix(NTILES-1)
+        p_req_flags := ~( UFix(1) << io.alloc_req.bits.init_tile_id )
+        state := Mux(p_req_flags.orR, s_probe, s_mem)
+        mem_cnt := UFix(0)
+        mem_cmd_sent := Bool(false)
         io.pop_x_init := Bool(true)
       }
     }
@@ -285,8 +313,11 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
       }
       when(io.p_rep_cnt_dec.orR) {
         val p_rep_count_next = p_rep_count - PopCount(io.p_rep_cnt_dec)
+        io.pop_p_rep := io.p_rep_cnt_dec
         p_rep_count := p_rep_count_next
         when(p_rep_count_next === UFix(0)) {
+          mem_cnt := UFix(0)
+          mem_cmd_sent := Bool(false)
           state := s_mem
         }
       }
@@ -296,36 +327,12 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
       }
     }
     is(s_mem) {
-      when(x_init_data_needs_write) {
-        //io.mem_req.valid := //?TODO ??? || io.x_init_data.valid
-        //io.mem_req.bits.req_cmd.valid := // TODO ???
-        io.mem_req.bits.req_cmd.bits.rw := Bool(true)
-        io.mem_req.bits.req_data <> io.x_init_data
-        when(io.mem_req.ready && io.mem_req.bits.req_cmd.ready) {
-          //TODO
-        }
-        when(io.mem_req.ready && io.mem_req.bits.req_data.ready) {
-          io.pop_x_init_data := Bool(true)
-          //TODO: count with mem_count somehow
-        }
-      } . elsewhen (p_rep_data_needs_write) {
-        //io.mem_req.valid := //TODO ??? || io.p_rep_data.valid
-        //io.mem_req.bits.req_cmd.valid := //TODO ???
-        io.mem_req.bits.req_cmd.bits.rw := Bool(true)
-        io.mem_req.bits.req_data <> io.p_rep_data
-        when(io.mem_req.ready && io.mem_req.bits.req_cmd.ready) {
-          //TODO
-        }
-        when(io.mem_req.ready && io.mem_req.bits.req_data.ready) {
-          io.pop_p_rep_data := Bool(true)
-          //TODO: count with mem_count somehow
-        }
+      when (p_rep_data_needs_write) {
+        doMemReqWrite(io.mem_req_cmd, io.mem_req_data, io.mem_req_lock, io.p_rep_data, p_rep_data_needs_write, io.pop_p_rep_data)
+      } . elsewhen(x_init_data_needs_write) {
+        doMemReqWrite(io.mem_req_cmd, io.mem_req_data, io.mem_req_lock, io.x_init_data, x_init_data_needs_write, io.pop_x_init_data)
       } . elsewhen (x_needs_read) {    
-        io.mem_req.valid := Bool(true)
-        io.mem_req.bits.req_cmd.valid := Bool(true)
-        when(io.mem_req.ready && io.mem_req.bits.req_cmd.ready) {
-          x_needs_read := Bool(false)
-        }
+        doMemReqRead(io.mem_req_cmd, x_needs_read)
       } . otherwise { 
         io.send_x_rep_ack := needsAckRep(t_type_, UFix(0))
         state := s_busy 
@@ -369,7 +376,7 @@ class CoherenceHubNull extends Component {
 }
 
 
-class CoherenceHubNoDir extends CoherenceHub {
+class CoherenceHubBroadcast extends CoherenceHub {
 
   def coherenceConflict(addr1: Bits, addr2: Bits): Bool = {
     addr1(PADDR_BITS-1, OFFSET_BITS) === addr2(PADDR_BITS-1, OFFSET_BITS)
@@ -440,14 +447,16 @@ class CoherenceHubNoDir extends CoherenceHub {
   // Create an arbiter for the one memory port
   // We have to arbitrate between the different trackers' memory requests
   // and once we have picked a request, get the right write data
-
-  val mem_req_arb = (new Arbiter(NGLOBAL_XACTS)) { new HubMemReq() }
+  val mem_req_cmd_arb = (new LockingArbiter(NGLOBAL_XACTS)) { new MemReqCmd() }
+  val mem_req_data_arb = (new LockingArbiter(NGLOBAL_XACTS)) { new MemData() }
   for( i <- 0 until NGLOBAL_XACTS ) {
-    mem_req_arb.io.in(i) <> trackerList(i).io.mem_req
+    mem_req_cmd_arb.io.in(i)    <> trackerList(i).io.mem_req_cmd
+    mem_req_cmd_arb.io.lock(i)  <> trackerList(i).io.mem_req_lock
+    mem_req_data_arb.io.in(i)   <> trackerList(i).io.mem_req_data
+    mem_req_data_arb.io.lock(i) <> trackerList(i).io.mem_req_lock
   }
-  //mem_req_arb.io.out.ready := io.mem.req_cmd.ready || io.mem.req_data.ready
-  io.mem.req_cmd  <> mem_req_arb.io.out.bits.req_cmd
-  io.mem.req_data <> mem_req_arb.io.out.bits.req_data
+  io.mem.req_cmd  <> mem_req_cmd_arb.io.out
+  io.mem.req_data <> mem_req_data_arb.io.out
   
   // Handle probe replies, which may or may not have data
   for( j <- 0 until NTILES ) {
