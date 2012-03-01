@@ -361,10 +361,8 @@ class ReplayUnit extends Component {
     val cpu_resp_tag = Bits(DCACHE_TAG_BITS, OUTPUT)
   }
 
-  val sdq_val = Reg(resetVal = UFix(0, NSDQ))
-  val sdq_allocator = new priorityEncoder(NSDQ)
-  sdq_allocator.io.in := ~sdq_val
-  val sdq_alloc_id = sdq_allocator.io.out.toUFix
+  val sdq_val = Reg(resetVal = UFix(0))
+  val sdq_alloc_id = PriorityEncoder(~sdq_val(NSDQ-1,0))
 
   val replay_val = Reg(resetVal = Bool(false))
   val replay_retry = replay_val && !io.data_req.ready
