@@ -771,9 +771,9 @@ class rocketCtrl extends Component
   io.dpath.fn_dw    := id_fn_dw.toBool;
   io.dpath.fn_alu   := id_fn_alu;
   io.dpath.div_fn   := id_div_fn;
-  io.dpath.div_val  := id_div_val.toBool;
+  io.dpath.div_val  := id_div_val.toBool && id_waddr != UFix(0);
   io.dpath.mul_fn   := id_mul_fn;
-  io.dpath.mul_val  := id_mul_val.toBool;
+  io.dpath.mul_val  := id_mul_val.toBool && id_waddr != UFix(0);
   io.dpath.ex_fp_val:= ex_reg_fp_val;
   io.dpath.mem_fp_val:= mem_reg_fp_val;
   io.dpath.ex_wen   := ex_reg_wen;
