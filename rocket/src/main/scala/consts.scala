@@ -234,7 +234,11 @@ object Constants
   val VIMM_ALU = UFix(1, 1)
   val VIMM_X = UFix(0, 1)
 
-  val DTLB_VEC = 0
-  val DTLB_VPF = 1
-  val DTLB_CPU = 2
+  val DTLB_CPU = 0
+  val DTLB_VEC = 1
+  val DTLB_VPF = 2
+
+  val DMEM_CPU = 0
+  val DMEM_PTW = 1
+  val DMEM_VU = 2
 }

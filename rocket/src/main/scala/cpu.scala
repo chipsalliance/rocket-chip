@@ -93,15 +93,15 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   dtlb.io.invalidate := dpath.io.ptbr_wen
   dtlb.io.status := dpath.io.ctrl.status
 
-  arb.io.requestor(0).req_ppn := dtlb.io.cpu_resp.ppn;
-  ctrl.io.dmem.req_rdy := dtlb.io.cpu_req.ready && arb.io.requestor(0).req_rdy;
+  arb.io.requestor(DMEM_CPU).req_ppn := dtlb.io.cpu_resp.ppn
+  ctrl.io.dmem.req_rdy := dtlb.io.cpu_req.ready && arb.io.requestor(DMEM_CPU).req_rdy
 
   // connect page table walker to TLBs, page table base register (from PCR)
   // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
   ptw.io.dtlb             <> dtlb.io.ptw;
   ptw.io.itlb             <> itlb.io.ptw;
   ptw.io.ptbr             := dpath.io.ptbr;
-  arb.io.requestor(1)     <> ptw.io.dmem
+  arb.io.requestor(DMEM_PTW) <> ptw.io.dmem
   arb.io.dmem             <> io.dmem
 
   ctrl.io.dpath             <> dpath.io.ctrl;
@@ -126,8 +126,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   io.imem.itlb_miss       := itlb.io.cpu.resp_miss;
 
   // connect arbiter to ctrl+dpath+DTLB
-  arb.io.requestor(0) <> ctrl.io.dmem
-  arb.io.requestor(0) <> dpath.io.dmem
+  arb.io.requestor(DMEM_CPU) <> ctrl.io.dmem
+  arb.io.requestor(DMEM_CPU) <> dpath.io.dmem
 
   var fpu: rocketFPU = null
   if (HAVE_FPU)
@@ -198,22 +198,22 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     storegen.io.typ := vu.io.dmem_req.bits.typ
     storegen.io.din := vu.io.dmem_req.bits.data
 
-    arb.io.requestor(2).req_val := vu.io.dmem_req.valid
-    arb.io.requestor(2).req_kill := Reg(vu.io.dmem_req.bits.kill)
-    arb.io.requestor(2).req_cmd := vu.io.dmem_req.bits.cmd
-    arb.io.requestor(2).req_type := vu.io.dmem_req.bits.typ
-    arb.io.requestor(2).req_idx := vu.io.dmem_req.bits.idx
-    arb.io.requestor(2).req_ppn := Reg(vu.io.dmem_req.bits.ppn)
-    arb.io.requestor(2).req_data := Reg(storegen.io.dout)
-    arb.io.requestor(2).req_tag := vu.io.dmem_req.bits.tag
+    arb.io.requestor(DMEM_VU).req_val := vu.io.dmem_req.valid
+    arb.io.requestor(DMEM_VU).req_kill := Reg(vu.io.dmem_req.bits.kill)
+    arb.io.requestor(DMEM_VU).req_cmd := vu.io.dmem_req.bits.cmd
+    arb.io.requestor(DMEM_VU).req_type := vu.io.dmem_req.bits.typ
+    arb.io.requestor(DMEM_VU).req_idx := vu.io.dmem_req.bits.idx
+    arb.io.requestor(DMEM_VU).req_ppn := Reg(vu.io.dmem_req.bits.ppn)
+    arb.io.requestor(DMEM_VU).req_data := Reg(storegen.io.dout)
+    arb.io.requestor(DMEM_VU).req_tag := vu.io.dmem_req.bits.tag
 
-    vu.io.dmem_resp.valid := Reg(arb.io.requestor(2).resp_val)
+    vu.io.dmem_resp.valid := Reg(arb.io.requestor(DMEM_VU).resp_val)
     // the vu doesn't look at the ready signal, it's simply a nack
     // but should be delayed one cycle to match the nack semantics
-    vu.io.dmem_resp.bits.nack := arb.io.requestor(2).resp_nack || Reg(!arb.io.requestor(2).req_rdy)
-    vu.io.dmem_resp.bits.data := arb.io.requestor(2).resp_data_subword
-    vu.io.dmem_resp.bits.tag := Reg(arb.io.requestor(2).resp_tag)
-    vu.io.dmem_resp.bits.typ := Reg(arb.io.requestor(2).resp_type)
+    vu.io.dmem_resp.bits.nack := arb.io.requestor(DMEM_VU).resp_nack || Reg(!arb.io.requestor(DMEM_VU).req_rdy)
+    vu.io.dmem_resp.bits.data := arb.io.requestor(DMEM_VU).resp_data_subword
+    vu.io.dmem_resp.bits.tag := Reg(arb.io.requestor(DMEM_VU).resp_tag)
+    vu.io.dmem_resp.bits.typ := Reg(arb.io.requestor(DMEM_VU).resp_type)
 
     // share vector integer multiplier with rocket
     dpath.io.vec_imul_req <> vu.io.cp_imul_req
@@ -225,7 +225,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   }
   else
   {
-    arb.io.requestor(2).req_val := Bool(false)
+    arb.io.requestor(DMEM_VU).req_val := Bool(false)
     if (HAVE_FPU)
     {
       fpu.io.sfma.valid := Bool(false)
