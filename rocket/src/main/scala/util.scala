@@ -204,6 +204,45 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   dout <> io.out.bits
 }
 
+class ioLockingArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
+  val in   = Vec(n) { (new ioDecoupled()) { data } }
+  val lock = Vec(n) { Bool() }
+  val out  = (new ioDecoupled()) { data }.flip()
+}
+
+class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {
+  val io = new ioLockingArbiter(n)(data)
+  val locked = Reg(){ Bits(n) }
+  var dout = Wire(){ data } 
+  var vout = Wire(){ Bool() }
+
+  when((locked && io.lock.toBits).orR) {
+    dout := io.in(0).bits
+    for (i <- 0 until n) {
+      io.in(i).ready := io.out.ready && locked(i)
+      vout := io.in(i).valid && locked(i)
+      dout := Mux(locked(i), io.in(i).bits, dout)
+    }
+  } .otherwise {
+    io.in(0).ready := io.out.ready
+    for (i <- 1 until n) {
+      io.in(i).ready := !io.in(i-1).valid && io.in(i-1).ready
+      locked(i) := !io.in(i-1).valid && io.in(i-1).ready && io.lock(i)
+    }
+
+    dout := io.in(n-1).bits
+    for (i <- 1 until n)
+      dout = Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout)
+
+    vout := io.in(0).valid
+    for (i <- 1 until n)
+      vout = vout || io.in(i).valid
+  }
+
+  vout <> io.out.valid
+  dout <> io.out.bits
+}
+
 object PriorityEncoder
 {
   def apply(in: Bits, n: Int = 0): UFix = {
