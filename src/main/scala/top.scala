@@ -27,25 +27,14 @@ class Top() extends Component {
   arbiter.io.requestor(2) <> htif.io.mem
 
   val hub = new CoherenceHubNull
-  // connect tile to hub (figure out how to do this more compactly)
-  val xact_init_q = (new queue(2)) { new TransactionInit }
-  xact_init_q.io.enq <> arbiter.io.mem.xact_init
-  xact_init_q.io.deq <> hub.io.tile.xact_init
-  val xact_init_data_q = (new queue(2)) { new TransactionInitData }
-  xact_init_data_q.io.enq <> arbiter.io.mem.xact_init_data
-  xact_init_data_q.io.deq <> hub.io.tile.xact_init_data
-  val xact_rep_q = (new queue(1, pipe = true)) { new TransactionReply }
-  xact_rep_q.io.enq <> hub.io.tile.xact_rep
-  xact_rep_q.io.deq <> arbiter.io.mem.xact_rep
+  // connect tile to hub
+  hub.io.tile.xact_init <> Queue(arbiter.io.mem.xact_init)
+  hub.io.tile.xact_init_data <> Queue(arbiter.io.mem.xact_init_data)
+  arbiter.io.mem.xact_rep <> Queue(hub.io.tile.xact_rep, 1, pipe = true)
   // connect hub to memory
-  val mem_req_q = (new queue(2)) { new MemReqCmd }
-  mem_req_q.io.enq <> hub.io.mem.req_cmd
-  mem_req_q.io.deq <> io.mem.req_cmd
-  val mem_req_data_q = (new queue(2)) { new MemData }
-  mem_req_data_q.io.enq <> hub.io.mem.req_data
-  mem_req_data_q.io.deq <> io.mem.req_data
-  hub.io.mem.resp.valid := Reg(io.mem.resp.valid, resetVal = Bool(false))
-  hub.io.mem.resp.bits := Reg(io.mem.resp.bits)
+  io.mem.req_cmd <> Queue(hub.io.mem.req_cmd)
+  io.mem.req_data <> Queue(hub.io.mem.req_data)
+  hub.io.mem.resp <> PipeReg(io.mem.resp)
 
 
   if (HAVE_VEC)
