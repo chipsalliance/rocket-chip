@@ -14,10 +14,9 @@ class MemReqCmd() extends Bundle
   val tag = Bits(width = MEM_TAG_BITS)
 }
 
-class MemResp () extends Bundle 
+class MemResp () extends MemData
 {
   val tag = Bits(width = MEM_TAG_BITS)
-  val data = Bits(width = MEM_DATA_BITS)
 }
 
 class ioMem() extends Bundle
@@ -72,7 +71,6 @@ class ProbeReplyData extends MemData
 
 class TransactionReply extends MemData {
   val t_type = Bits(width = TTYPE_BITS)
-  val has_data = Bool()
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
 }
@@ -88,7 +86,7 @@ class ioTileLink extends Bundle {
   val probe_req      = (new ioDecoupled) { new ProbeRequest() }
   val probe_rep      = (new ioDecoupled) { new ProbeReply() }.flip
   val probe_rep_data = (new ioDecoupled) { new ProbeReplyData() }.flip
-  val xact_rep       = (new ioDecoupled) { new TransactionReply() }
+  val xact_rep       = (new ioValid)     { new TransactionReply() }
   val xact_finish    = (new ioDecoupled) { new TransactionFinish() }.flip
 }
 
@@ -172,6 +170,10 @@ trait FourStateCoherence extends CoherencePolicy {
       is(probeDowngrade) { state := tileShared }
     }
     state.toBits
+  }
+
+  def replyTypeHasData (reply: TransactionReply): Bool = {
+    (reply.t_type != X_WRITE_UNCACHED)
   }
 }
 
