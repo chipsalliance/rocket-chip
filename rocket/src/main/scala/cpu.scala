@@ -193,6 +193,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     // exceptions
     vu.io.cpu_exception.addr := dpath.io.vec_iface.eaddr.toUFix
     vu.io.cpu_exception.exception := dpath.io.vec_iface.exception
+    ctrl.io.vec_iface.exception_done := vu.io.done
 
     // hooking up vector memory interface
     val storegen = new StoreDataGen

@@ -35,6 +35,8 @@ class ioCtrlVecInterface extends Bundle
 
   val vackq_valid = Bool(INPUT)
   val vackq_ready = Bool(OUTPUT)
+
+  val exception_done = Bool(INPUT)
 }
 
 class ioCtrlVec extends Bundle
@@ -62,52 +64,52 @@ class rocketCtrlVec extends Component
                 // val vcmd    vimm      | fn      | | | | | | vpximm2q
                 //   | |       |         | |       | | | | | | | cpfence
                 //   | |       |         | |       | | | | | | | |
-                List(N,VCMD_X, VIMM_X,   N,VEC_X  ,N,N,N,N,N,N,N,N),Array(
-    VVCFGIVL->  List(Y,VCMD_I, VIMM_VLEN,Y,VEC_CFG,N,Y,Y,N,Y,Y,N,N),
-    VSETVL->    List(Y,VCMD_I, VIMM_VLEN,Y,VEC_VL ,N,Y,Y,N,Y,Y,N,N),
-    VF->        List(Y,VCMD_I, VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,N,N,N,N),
-    VMVV->      List(Y,VCMD_TX,VIMM_X,   N,VEC_X  ,Y,Y,N,N,N,N,N,N),
-    VMSV->      List(Y,VCMD_TX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,N,N,N,N),
-    VFMVV->     List(Y,VCMD_TF,VIMM_X,   N,VEC_X  ,Y,Y,N,N,N,N,N,N),
-    FENCE_L_V-> List(Y,VCMD_F, VIMM_X,   N,VEC_X  ,N,Y,N,N,N,N,N,N),
-    FENCE_G_V-> List(Y,VCMD_F, VIMM_X,   N,VEC_X  ,N,Y,N,N,N,N,N,N),
-    FENCE_L_CV->List(Y,VCMD_F, VIMM_X,   N,VEC_X  ,N,Y,N,N,N,N,N,Y),
-    FENCE_G_CV->List(Y,VCMD_F, VIMM_X,   N,VEC_X  ,N,Y,N,N,N,N,N,Y),
-    VLD->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VLW->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VLWU->      List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VLH->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VLHU->      List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VLB->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VLBU->      List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VSD->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VSW->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VSH->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VSB->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VFLD->      List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VFLW->      List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VFSD->      List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VFSW->      List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N),
-    VLSTD->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VLSTW->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VLSTWU->    List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VLSTH->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VLSTHU->    List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VLSTB->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VLSTBU->    List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VSSTD->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VSSTW->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VSSTH->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VSSTB->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VFLSTD->    List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VFLSTW->    List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VFSSTD->    List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N),
-    VFSSTW->    List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N)
+                List(N,VCMD_X, VIMM_X,   N,VEC_X  ,N,N,N,N,N,N,N,N,N),Array(
+    VVCFGIVL->  List(Y,VCMD_I, VIMM_VLEN,Y,VEC_CFG,N,Y,Y,N,Y,Y,N,N,N),
+    VSETVL->    List(Y,VCMD_I, VIMM_VLEN,Y,VEC_VL ,N,Y,Y,N,Y,Y,N,N,N),
+    VF->        List(Y,VCMD_I, VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,N,N,N,N,N),
+    VMVV->      List(Y,VCMD_TX,VIMM_X,   N,VEC_X  ,Y,Y,N,N,N,N,N,N,N),
+    VMSV->      List(Y,VCMD_TX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,N,N,N,N,N),
+    VFMVV->     List(Y,VCMD_TF,VIMM_X,   N,VEC_X  ,Y,Y,N,N,N,N,N,N,N),
+    FENCE_L_V-> List(Y,VCMD_F, VIMM_X,   N,VEC_X  ,N,Y,N,N,N,N,N,N,N),
+    FENCE_G_V-> List(Y,VCMD_F, VIMM_X,   N,VEC_X  ,N,Y,N,N,N,N,N,N,N),
+    FENCE_L_CV->List(Y,VCMD_F, VIMM_X,   N,VEC_X  ,N,Y,N,N,N,N,N,Y,N),
+    FENCE_G_CV->List(Y,VCMD_F, VIMM_X,   N,VEC_X  ,N,N,N,N,N,N,N,N,Y),
+    VLD->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VLW->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VLWU->      List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VLH->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VLHU->      List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VLB->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VLBU->      List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VSD->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VSW->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VSH->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VSB->       List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VFLD->      List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VFLW->      List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VFSD->      List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VFSW->      List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,N,Y,Y,N,N,N),
+    VLSTD->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VLSTW->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VLSTWU->    List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VLSTH->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VLSTHU->    List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VLSTB->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VLSTBU->    List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VSSTD->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VSSTW->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VSSTH->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VSSTB->     List(Y,VCMD_MX,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VFLSTD->    List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VFLSTW->    List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VFSSTD->    List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N),
+    VFSSTW->    List(Y,VCMD_MF,VIMM_ALU, N,VEC_X  ,Y,Y,Y,Y,Y,Y,Y,N,N)
   ))
 
   val wb_vec_val :: wb_sel_vcmd :: wb_sel_vimm :: wb_vec_wen :: wb_vec_fn :: wb_vec_appvlmask :: veccs0 = veccs
   val wb_vec_cmdq_enq :: wb_vec_ximm1q_enq :: wb_vec_ximm2q_enq :: veccs1 = veccs0
-  val wb_vec_pfcmdq_enq :: wb_vec_pfximm1q_enq :: wb_vec_pfximm2q_enq :: wb_vec_cpfence :: Nil = veccs1
+  val wb_vec_pfcmdq_enq :: wb_vec_pfximm1q_enq :: wb_vec_pfximm2q_enq :: wb_vec_cpfence :: wb_vec_xcptfence :: Nil = veccs1
 
   val valid_common = io.dpath.valid && io.sr_ev && wb_vec_val.toBool && !(wb_vec_appvlmask.toBool && io.dpath.appvl0)
 
@@ -171,5 +173,11 @@ class rocketCtrlVec extends Component
   when (do_cpfence) { reg_cpfence := Bool(true) }
   when (io.iface.vackq_valid || io.exception) { reg_cpfence := Bool(false) }
 
-  io.cpfence := reg_cpfence
+  val reg_xcptfence = Reg(resetVal = Bool(false))
+  val do_xcptfence = valid_common && wb_vec_xcptfence && !io.replay
+
+  when (do_xcptfence) { reg_xcptfence := Bool(true) }
+  when (io.iface.exception_done) { reg_xcptfence := Bool(false) }
+
+  io.cpfence := reg_cpfence || reg_xcptfence
 }
