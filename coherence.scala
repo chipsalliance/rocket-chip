@@ -90,8 +90,8 @@ class ioTileLink extends Bundle {
   val xact_finish    = (new ioDecoupled) { new TransactionFinish() }.flip
 }
 
-trait CoherencePolicy {
-  def cpuCmdToRW( cmd: Bits): (Bool, Bool) = {
+object cpuCmdToRW {
+  def apply(cmd: Bits): (Bool, Bool) = {
     val store   = (cmd === M_XWR)
     val load    = (cmd === M_XRD)
     val amo     = cmd(3).toBool
@@ -99,6 +99,9 @@ trait CoherencePolicy {
     val write   = store || amo || (cmd === M_PFW)
     (read, write)
   }
+}
+
+trait CoherencePolicy {
 }
 
 trait ThreeStateIncoherence extends CoherencePolicy {
