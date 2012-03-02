@@ -21,9 +21,9 @@ class MemResp () extends MemData
 
 class ioMem() extends Bundle
 {
-  val req_cmd  = (new ioDecoupled) { new MemReqCmd() }.flip
-  val req_data = (new ioDecoupled) { new MemData() }.flip
-  val resp     = (new ioValid) { new MemResp() }
+  val req_cmd  = (new ioDecoupled) { new MemReqCmd() }
+  val req_data = (new ioDecoupled) { new MemData() }
+  val resp     = (new ioPipe) { new MemResp() }
 }
 
 class HubMemReq extends Bundle {
@@ -80,14 +80,14 @@ class TransactionFinish extends Bundle {
 }
 
 class ioTileLink extends Bundle { 
-  val xact_init      = (new ioDecoupled) { new TransactionInit() }.flip
-  val xact_init_data = (new ioDecoupled) { new TransactionInitData() }.flip
-  val xact_abort     = (new ioDecoupled) { new TransactionAbort() }
-  val probe_req      = (new ioDecoupled) { new ProbeRequest() }
-  val probe_rep      = (new ioDecoupled) { new ProbeReply() }.flip
-  val probe_rep_data = (new ioDecoupled) { new ProbeReplyData() }.flip
-  val xact_rep       = (new ioValid)     { new TransactionReply() }
-  val xact_finish    = (new ioDecoupled) { new TransactionFinish() }.flip
+  val xact_init      = (new ioDecoupled) { new TransactionInit() }
+  val xact_init_data = (new ioDecoupled) { new TransactionInitData() }
+  val xact_abort     = (new ioDecoupled) { new TransactionAbort() }.flip
+  val probe_req      = (new ioDecoupled) { new ProbeRequest() }.flip
+  val probe_rep      = (new ioDecoupled) { new ProbeReply() }
+  val probe_rep_data = (new ioDecoupled) { new ProbeReplyData() }
+  val xact_rep       = (new ioPipe)     { new TransactionReply() }
+  val xact_finish    = (new ioDecoupled) { new TransactionFinish() }
 }
 
 object cpuCmdToRW {
@@ -181,20 +181,20 @@ trait FourStateCoherence extends CoherencePolicy {
 
 class XactTracker(id: Int) extends Component with CoherencePolicy {
   val io = new Bundle {
-    val alloc_req       = (new ioDecoupled) { new TrackerAllocReq() }
+    val alloc_req       = (new ioDecoupled) { new TrackerAllocReq() }.flip
     val probe_data      = (new TrackerProbeData).asInput
     val can_alloc       = Bool(INPUT)
     val xact_finish     = Bool(INPUT)
     val p_rep_cnt_dec   = Bits(NTILES, INPUT)
     val p_req_cnt_inc   = Bits(NTILES, INPUT)
-    val p_rep_data      = (new ioDecoupled) { new ProbeReplyData() }
-    val x_init_data     = (new ioDecoupled) { new TransactionInitData() }
+    val p_rep_data      = (new ioDecoupled) { new ProbeReplyData() }.flip
+    val x_init_data     = (new ioDecoupled) { new TransactionInitData() }.flip
     val sent_x_rep_ack  = Bool(INPUT)
 
-    val mem_req_cmd     = (new ioDecoupled) { new MemReqCmd() }.flip
-    val mem_req_data    = (new ioDecoupled) { new MemData() }.flip
+    val mem_req_cmd     = (new ioDecoupled) { new MemReqCmd() }
+    val mem_req_data    = (new ioDecoupled) { new MemData() }
     val mem_req_lock    = Bool(OUTPUT)
-    val probe_req       = (new ioDecoupled) { new ProbeRequest() }.flip
+    val probe_req       = (new ioDecoupled) { new ProbeRequest() }
     val busy            = Bool(OUTPUT)
     val addr            = Bits(PADDR_BITS, OUTPUT)
     val init_tile_id    = Bits(TILE_ID_BITS, OUTPUT)

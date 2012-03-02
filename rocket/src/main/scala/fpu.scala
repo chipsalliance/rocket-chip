@@ -445,8 +445,8 @@ class rocketFPUDFMAPipe(latency: Int) extends Component
 class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
 {
   val io = new Bundle {
-    val ctrl = new ioCtrlFPU().flip()
-    val dpath = new ioDpathFPU().flip()
+    val ctrl = new ioCtrlFPU().flip
+    val dpath = new ioDpathFPU().flip
     val sfma = new ioFMA(33)
     val dfma = new ioFMA(65)
   }

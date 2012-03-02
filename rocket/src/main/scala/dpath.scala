@@ -16,15 +16,15 @@ class ioDpathImem extends Bundle()
 class ioDpathAll extends Bundle()
 {
   val host  = new ioHTIF();
-  val ctrl  = new ioCtrlDpath().flip();
+  val ctrl  = new ioCtrlDpath().flip
   val debug = new ioDebug();
-  val dmem  = new ioDmem(List("req_idx", "req_tag", "req_data", "resp_val", "resp_miss", "resp_replay", "resp_type", "resp_tag", "resp_data", "resp_data_subword")).flip();
+  val dmem  = new ioDmem(List("req_idx", "req_tag", "req_data", "resp_val", "resp_miss", "resp_replay", "resp_type", "resp_tag", "resp_data", "resp_data_subword")).flip
   val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
   val imem  = new ioDpathImem();
   val ptbr_wen = Bool(OUTPUT);
   val ptbr = UFix(PADDR_BITS, OUTPUT);
   val fpu = new ioDpathFPU();
-  val vec_ctrl = new ioCtrlDpathVec().flip()
+  val vec_ctrl = new ioCtrlDpathVec().flip
   val vec_iface = new ioDpathVecInterface()
   val vec_imul_req = new io_imul_req
   val vec_imul_resp = Bits(hwacha.Constants.SZ_XLEN, INPUT)

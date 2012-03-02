@@ -6,8 +6,8 @@ import Constants._;
 
 class ioHost(w: Int, view: List[String] = null) extends Bundle(view)
 {
-  val in = new ioDecoupled()(Bits(width = w))
-  val out = new ioDecoupled()(Bits(width = w)).flip()
+  val in = new ioDecoupled()(Bits(width = w)).flip
+  val out = new ioDecoupled()(Bits(width = w))
 }
 
 class ioHTIF extends Bundle
@@ -25,7 +25,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
 {
   val io = new Bundle {
     val host = new ioHost(w)
-    val cpu = Vec(ncores) { new ioHTIF().flip() }
+    val cpu = Vec(ncores) { new ioHTIF().flip }
     val mem = new ioTileLink
   }
 

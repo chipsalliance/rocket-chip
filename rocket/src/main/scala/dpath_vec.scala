@@ -17,7 +17,7 @@ class ioDpathVecInterface extends Bundle
 
 class ioDpathVec extends Bundle
 {
-  val ctrl = new ioCtrlDpathVec().flip()
+  val ctrl = new ioCtrlDpathVec().flip
   val iface = new ioDpathVecInterface()
   val valid = Bool(INPUT)
   val inst = Bits(32, INPUT)

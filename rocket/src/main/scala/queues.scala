@@ -6,8 +6,8 @@ import Node._;
 class ioQueue[T <: Data](flushable: Boolean)(data: => T) extends Bundle
 {
   val flush = if (flushable) Bool(INPUT) else null
-  val enq   = new ioDecoupled()(data)
-  val deq   = new ioDecoupled()(data).flip
+  val enq   = new ioDecoupled()(data).flip
+  val deq   = new ioDecoupled()(data)
 }
 
 class queue[T <: Data](entries: Int, pipe: Boolean = false, flushable: Boolean = false)(data: => T) extends Component
@@ -66,8 +66,8 @@ object Queue
 class pipereg[T <: Data]()(data: => T) extends Component
 {
   val io = new Bundle {
-    val enq = new ioValid()(data)
-    val deq = new ioValid()(data).flip
+    val enq = new ioPipe()(data)
+    val deq = new ioPipe()(data).flip
   }
 
   //val bits = Reg() { io.enq.bits.clone }
@@ -81,7 +81,7 @@ class pipereg[T <: Data]()(data: => T) extends Component
 
 object Pipe
 {
-  def apply[T <: Data](enq: ioValid[T], latency: Int = 1): ioValid[T] = {
+  def apply[T <: Data](enq: ioPipe[T], latency: Int = 1): ioPipe[T] = {
     val q = (new pipereg) { enq.bits.clone }
     q.io.enq <> enq
     q.io.deq
