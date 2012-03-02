@@ -198,9 +198,9 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
     val busy            = Bool(OUTPUT)
     val addr            = Bits(PADDR_BITS, OUTPUT)
     val init_tile_id    = Bits(TILE_ID_BITS, OUTPUT)
-    val p_rep_tile_id   = Bits(log2up(NTILES), INPUT)
+    val p_rep_tile_id   = Bits(TILE_ID_BITS, OUTPUT)
     val tile_xact_id    = Bits(TILE_XACT_ID_BITS, OUTPUT)
-    val sharer_count    = Bits(TILE_ID_BITS, OUTPUT)
+    val sharer_count    = Bits(TILE_ID_BITS+1, OUTPUT)
     val t_type          = Bits(TTYPE_BITS, OUTPUT)
     val push_p_req      = Bits(NTILES, OUTPUT)
     val pop_p_rep       = Bits(NTILES, OUTPUT)
@@ -411,8 +411,8 @@ class CoherenceHubBroadcast extends CoherenceHub {
   val send_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
 
   val do_free_arr        = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val p_rep_cnt_dec_arr  = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=NTILES)} }
-  val p_req_cnt_inc_arr  = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=NTILES)} }
+  val p_rep_cnt_dec_arr  = VecBuf(NGLOBAL_XACTS){ Vec(NTILES){ Wire(){Bool()} } }
+  val p_req_cnt_inc_arr  = VecBuf(NGLOBAL_XACTS){ Vec(NTILES){ Wire(){Bool()} } }
   val sent_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
 
   for( i <- 0 until NGLOBAL_XACTS) {
@@ -424,14 +424,16 @@ class CoherenceHubBroadcast extends CoherenceHub {
     t_type_arr(i)         := t.t_type
     sh_count_arr(i)       := t.sharer_count
     send_x_rep_ack_arr(i) := t.send_x_rep_ack
-    do_free_arr(i)        := Bool(false)
-    p_rep_cnt_dec_arr(i)  := Bits(0)    
-    p_req_cnt_inc_arr(i)  := Bits(0)
-    sent_x_rep_ack_arr(i) := Bool(false)
     t.xact_finish         := do_free_arr(i)
-    t.p_rep_cnt_dec       := p_rep_cnt_dec_arr(i)
-    t.p_req_cnt_inc       := p_req_cnt_inc_arr(i)
+    t.p_rep_cnt_dec       := p_rep_cnt_dec_arr(i).toBits
+    t.p_req_cnt_inc       := p_req_cnt_inc_arr(i).toBits
     t.sent_x_rep_ack      := sent_x_rep_ack_arr(i)
+    do_free_arr(i)        := Bool(false)
+    sent_x_rep_ack_arr(i) := Bool(false)
+    for( j <- 0 until NTILES) {
+      p_rep_cnt_dec_arr(i)(j)  := Bool(false)    
+      p_req_cnt_inc_arr(i)(j)  := Bool(false)
+    }
   }
 
   // Free finished transactions
@@ -495,8 +497,7 @@ class CoherenceHubBroadcast extends CoherenceHub {
     trackerList(i).io.p_rep_data.bits := io.tiles(trackerList(i).io.p_rep_tile_id).probe_rep_data.bits
     for( j <- 0 until NTILES) {
       val p_rep = io.tiles(j).probe_rep
-      val dec = p_rep.valid && (p_rep.bits.global_xact_id === UFix(i))
-      p_rep_cnt_dec_arr(UFix(i)) := p_rep_cnt_dec_arr(UFix(i)).bitSet(UFix(j), dec)
+      p_rep_cnt_dec_arr(i)(j) := p_rep.valid && (p_rep.bits.global_xact_id === UFix(i))
     }
   }
 
@@ -556,7 +557,7 @@ class CoherenceHubBroadcast extends CoherenceHub {
       val t = trackerList(i).io
       p_req_arb_arr(j).io.in(i).bits :=  t.probe_req.bits
       p_req_arb_arr(j).io.in(i).valid := t.probe_req.valid && t.push_p_req(j)
-      p_rep_cnt_dec_arr(i) = p_rep_cnt_dec_arr(i).bitSet(UFix(j), p_req_arb_arr(j).io.in(i).ready)
+      p_req_cnt_inc_arr(i)(j) := p_req_arb_arr(j).io.in(i).ready
     }
     p_req_arb_arr(j).io.out <> io.tiles(j).probe_req
   }
