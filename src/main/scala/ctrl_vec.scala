@@ -10,6 +10,7 @@ class ioCtrlDpathVec extends Bundle
   val valid = Bool(INPUT)
   val inst = Bits(32, INPUT)
   val appvl0 = Bool(INPUT)
+  val replay_cntq = Bool(INPUT)
   val wen = Bool(OUTPUT)
   val fn = Bits(1, OUTPUT)
   val sel_vcmd = Bits(3, OUTPUT)
@@ -160,7 +161,8 @@ class rocketCtrlVec extends Component
     wb_vec_ximm2q_enq && !io.iface.vximm2q_ready ||
     wb_vec_pfcmdq_enq && !io.iface.vpfcmdq_ready ||
     wb_vec_pfximm1q_enq && !io.iface.vpfximm1q_ready ||
-    wb_vec_pfximm2q_enq && !io.iface.vpfximm2q_ready
+    wb_vec_pfximm2q_enq && !io.iface.vpfximm2q_ready ||
+    io.dpath.replay_cntq
   )
 
   val reg_cpfence = Reg(resetVal = Bool(false))

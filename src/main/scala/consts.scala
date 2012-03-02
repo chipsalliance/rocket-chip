@@ -144,8 +144,9 @@ object Constants
   val PCR_VECBANK  = UFix(18, 5);
 
   // temporaries for vector, these will go away
-  val PCR_VEC_TMP1 = UFix(30, 5)
-  val PCR_VEC_TMP2 = UFix(31, 5)
+  val PCR_VEC_CNT = UFix(29, 5)
+  val PCR_VEC_EADDR = UFix(30, 5)
+  val PCR_VEC_XCPT = UFix(31, 5)
 
   // definition of bits in PCR status reg
   val SR_ET   = 0;  // enable traps
