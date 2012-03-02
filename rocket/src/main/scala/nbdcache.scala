@@ -102,13 +102,8 @@ class RPQEntry extends Bundle {
   val tag    = Bits(width = DCACHE_TAG_BITS)
 }
 
-class Replay extends Bundle {
+class Replay extends RPQEntry {
   val idx    = Bits(width = IDX_BITS)
-  val offset = Bits(width = OFFSET_BITS)
-  val cmd    = Bits(width = 4)
-  val typ    = Bits(width = 3)
-  val sdq_id = UFix(width = log2up(NSDQ))
-  val tag    = Bits(width = DCACHE_TAG_BITS)
   val way_oh = Bits(width = NWAYS)
 }
 
@@ -118,6 +113,7 @@ class DataReq extends Bundle {
   val cmd    = Bits(width = 4)
   val typ    = Bits(width = 3)
   val data = Bits(width = CPU_DATA_BITS)
+  val way_oh = Bits(width = NWAYS)
 }
 
 class DataArrayReq extends Bundle {
@@ -271,8 +267,8 @@ class MSHRFile extends Component {
     val req_cmd    = Bits(4, INPUT)
     val req_type   = Bits(3, INPUT)
     val req_tag    = Bits(DCACHE_TAG_BITS, INPUT)
-    val req_sdq_id = UFix(log2up(NSDQ), INPUT)
     val req_way_oh = Bits(NWAYS, INPUT)
+    val req_data   = Bits(CPU_DATA_BITS, INPUT)
 
     val mem_resp_val = Bool(INPUT)
     val mem_resp_tag = Bits(MEM_TAG_BITS, INPUT)
@@ -283,8 +279,20 @@ class MSHRFile extends Component {
 
     val mem_req  = (new ioDecoupled) { new TransactionInit }.flip()
     val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }.flip()
-    val replay   = (new ioDecoupled) { new Replay()   }.flip()
+    val data_req   = (new ioDecoupled) { new DataReq() }.flip()
+
+    val cpu_resp_val = Bool(OUTPUT)
+    val cpu_resp_tag = Bits(DCACHE_TAG_BITS, OUTPUT)
   }
+
+  val sdq_val = Reg(resetVal = Bits(0, NSDQ))
+  val sdq_alloc_id = PriorityEncoder(~sdq_val(NSDQ-1,0))
+  val sdq_rdy = !sdq_val.andR
+  val (req_read, req_write) = cpuCmdToRW(io.req_cmd)
+  val sdq_enq = io.req_val && io.req_rdy && req_write
+  val sdq = Mem(NSDQ, sdq_enq, sdq_alloc_id, io.req_data)
+  sdq.setReadLatency(1);
+  sdq.setTarget('inst)
 
   val tag_mux = (new Mux1H(NMSHR)){ Bits(width = TAG_BITS) }
   val mem_resp_idx_mux = (new Mux1H(NMSHR)){ Bits(width = IDX_BITS) }
@@ -292,7 +300,6 @@ class MSHRFile extends Component {
   val meta_req_arb = (new Arbiter(NMSHR)) { new MetaArrayArrayReq() }
   val mem_req_arb = (new Arbiter(NMSHR)) { new TransactionInit }
   val replay_arb = (new Arbiter(NMSHR)) { new Replay() }
-
   val alloc_arb = (new Arbiter(NMSHR)) { Bool() }
 
   val tag_match = tag_mux.io.out === io.req_ppn
@@ -311,14 +318,14 @@ class MSHRFile extends Component {
     alloc_arb.io.in(i).valid := mshr.io.req_pri_rdy
     mshr.io.req_pri_val := alloc_arb.io.in(i).ready
 
-    mshr.io.req_sec_val := io.req_val && tag_match
+    mshr.io.req_sec_val := io.req_val && sdq_rdy && tag_match
     mshr.io.req_ppn := io.req_ppn
     mshr.io.req_tag := io.req_tag
     mshr.io.req_idx := io.req_idx
     mshr.io.req_offset := io.req_offset
     mshr.io.req_cmd := io.req_cmd
     mshr.io.req_type := io.req_type
-    mshr.io.req_sdq_id := io.req_sdq_id
+    mshr.io.req_sdq_id := sdq_alloc_id
     mshr.io.req_way_oh := io.req_way_oh
 
     mshr.io.meta_req <> meta_req_arb.io.in(i)
@@ -338,57 +345,27 @@ class MSHRFile extends Component {
     idx_match = idx_match || mshr.io.idx_match
   }
 
-  alloc_arb.io.out.ready := io.req_val && !idx_match
+  alloc_arb.io.out.ready := io.req_val && sdq_rdy && !idx_match
 
   meta_req_arb.io.out <> io.meta_req
   mem_req_arb.io.out <> io.mem_req
-  replay_arb.io.out <> io.replay
 
-  io.req_rdy := Mux(idx_match, tag_match && sec_rdy, pri_rdy)
+  io.req_rdy := Mux(idx_match, tag_match && sec_rdy, pri_rdy) && sdq_rdy
   io.mem_resp_idx := mem_resp_idx_mux.io.out
   io.mem_resp_way_oh := mem_resp_way_oh_mux.io.out
   io.fence_rdy := !fence
-}
 
-class ReplayUnit extends Component {
-  val io = new Bundle {
-    val sdq_enq    = (new ioDecoupled) { Bits(width = CPU_DATA_BITS) }
-    val sdq_id     = UFix(log2up(NSDQ), OUTPUT)
-    val way_oh     = Bits(NWAYS, OUTPUT)
-    val replay     = (new ioDecoupled) { new Replay() }
-    val data_req   = (new ioDecoupled) { new DataReq() }.flip()
-    val cpu_resp_val = Bool(OUTPUT)
-    val cpu_resp_tag = Bits(DCACHE_TAG_BITS, OUTPUT)
-  }
+  val replay = Queue(replay_arb.io.out, 1, pipe = true)
+  replay.ready := io.data_req.ready
+  io.data_req <> replay
 
-  val sdq_val = Reg(resetVal = Bits(0, NSDQ))
-  val sdq_alloc_id = PriorityEncoder(~sdq_val(NSDQ-1,0))
+  val (replay_read, replay_write) = cpuCmdToRW(replay.bits.cmd)
+  val sdq_free = replay.valid && replay.ready && replay_write
+  sdq_val := sdq_val & ~(sdq_free.toUFix << replay.bits.sdq_id) | (sdq_enq.toUFix << sdq_alloc_id)
+  io.data_req.bits.data := sdq.read(Mux(replay.valid && !replay.ready, replay.bits.sdq_id, replay_arb.io.out.bits.sdq_id))
 
-  val rpq = Queue(io.replay, 1, pipe = true)
-  rpq.ready := io.data_req.ready
-  val (rp_read, rp_write) = cpuCmdToRW(rpq.bits.cmd)
-
-  val sdq_wen = io.sdq_enq.valid && io.sdq_enq.ready
-  val sdq = Mem(NSDQ, sdq_wen, sdq_alloc_id, io.sdq_enq.bits)
-  sdq.setReadLatency(1);
-  sdq.setTarget('inst)
-
-  val sdq_free = rpq.valid && rpq.ready && rp_write
-  sdq_val := sdq_val & ~(sdq_free.toUFix << rpq.bits.sdq_id) | (sdq_wen.toUFix << sdq_alloc_id)
-
-  io.sdq_enq.ready := !sdq_val.andR
-  io.sdq_id := sdq_alloc_id
-
-  io.data_req.valid := rpq.valid
-  io.way_oh := rpq.bits.way_oh
-  io.data_req.bits.idx := rpq.bits.idx
-  io.data_req.bits.offset := rpq.bits.offset
-  io.data_req.bits.cmd := rpq.bits.cmd
-  io.data_req.bits.typ := rpq.bits.typ
-  io.data_req.bits.data := sdq.read(Mux(rpq.valid && !rpq.ready, rpq.bits.sdq_id, io.replay.bits.sdq_id))
-
-  io.cpu_resp_val := Reg(rpq.valid && rpq.ready && rp_read, resetVal = Bool(false))
-  io.cpu_resp_tag := Reg(rpq.bits.tag)
+  io.cpu_resp_val := Reg(replay.valid && replay.ready && replay_read, resetVal = Bool(false))
+  io.cpu_resp_tag := Reg(replay.bits.tag)
 }
 
 class WritebackUnit extends Component {
@@ -705,9 +682,8 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   val r_req_write = r_req_store || r_req_amo
   val r_req_readwrite = r_req_read || r_req_write || r_req_prefetch
 
-  // replay unit
-  val replayer = new ReplayUnit()
-  val replay_amo_val = replayer.io.data_req.valid && replayer.io.data_req.bits.cmd(3).toBool
+  val mshr = new MSHRFile()
+  val replay_amo_val = mshr.io.data_req.valid && mshr.io.data_req.bits.cmd(3).toBool
   
   when (io.cpu.req_val) {
     r_cpu_req_idx  := io.cpu.req_idx
@@ -716,11 +692,11 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
     r_cpu_req_tag  := io.cpu.req_tag
   }
   when (replay_amo_val) {
-    r_cpu_req_idx  := Cat(replayer.io.data_req.bits.idx, replayer.io.data_req.bits.offset)
-    r_cpu_req_cmd  := replayer.io.data_req.bits.cmd
-    r_cpu_req_type := replayer.io.data_req.bits.typ
-    r_amo_replay_data := replayer.io.data_req.bits.data
-    r_way_oh       := replayer.io.way_oh
+    r_cpu_req_idx  := Cat(mshr.io.data_req.bits.idx, mshr.io.data_req.bits.offset)
+    r_cpu_req_cmd  := mshr.io.data_req.bits.cmd
+    r_cpu_req_type := mshr.io.data_req.bits.typ
+    r_amo_replay_data := mshr.io.data_req.bits.data
+    r_way_oh       := mshr.io.data_req.bits.way_oh
   }
   val cpu_req_data = Mux(r_replay_amo, r_amo_replay_data, io.cpu.req_data)
 
@@ -816,7 +792,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   data_arb.io.in(2).bits.way_en :=  p_store_way_oh
   val drain_store = drain_store_val && data_arb.io.in(2).ready
   val p_amo = Reg(resetVal = Bool(false))
-  val p_store_rdy = !(p_store_valid && !drain_store) && !(replayer.io.data_req.valid || r_replay_amo || p_amo)
+  val p_store_rdy = !(p_store_valid && !drain_store) && !(mshr.io.data_req.valid || r_replay_amo || p_amo)
   p_amo := tag_hit && r_req_amo && p_store_rdy && !p_store_match || r_replay_amo
   p_store_valid := p_store_valid && !drain_store || (tag_hit && r_req_store && p_store_rdy) || p_amo
 
@@ -852,39 +828,35 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   }
 
   // miss handling
-  val mshr = new MSHRFile()
-  mshr.io.req_val := tag_miss && r_req_readwrite && (!needs_writeback || wb_rdy) && (!r_req_write || replayer.io.sdq_enq.ready)
+  mshr.io.req_val := tag_miss && r_req_readwrite && (!needs_writeback || wb_rdy)
   mshr.io.req_ppn := cpu_req_tag
   mshr.io.req_idx := r_cpu_req_idx(indexmsb,indexlsb)
   mshr.io.req_tag := r_cpu_req_tag
   mshr.io.req_offset := r_cpu_req_idx(offsetmsb,0)
   mshr.io.req_cmd := r_cpu_req_cmd
   mshr.io.req_type := r_cpu_req_type
-  mshr.io.req_sdq_id := replayer.io.sdq_id
   mshr.io.req_way_oh := replaced_way_oh
+  mshr.io.req_data := cpu_req_data
   mshr.io.mem_resp_val := refill_val && (~rr_count === UFix(0))
   mshr.io.mem_resp_tag := io.mem.xact_rep.bits.tile_xact_id
   mshr.io.mem_req <> wb.io.refill_req
   mshr.io.meta_req <> meta_arb.io.in(1)
-  mshr.io.replay <> replayer.io.replay
-  replayer.io.sdq_enq.valid := tag_miss && r_req_write && (!needs_writeback || wb_rdy) && mshr.io.req_rdy
-  replayer.io.sdq_enq.bits := cpu_req_data
   data_arb.io.in(0).bits.inner_req.idx := mshr.io.mem_resp_idx
   data_arb.io.in(0).bits.way_en := mshr.io.mem_resp_way_oh
   replacer.io.pick_new_way := !io.cpu.req_kill && mshr.io.req_val && mshr.io.req_rdy 
 
   // replays
-  val replay = replayer.io.data_req.bits
+  val replay = mshr.io.data_req.bits
   val stall_replay = r_replay_amo || p_amo || p_store_valid
-  val replay_val = replayer.io.data_req.valid
+  val replay_val = mshr.io.data_req.valid
   val replay_rdy = data_arb.io.in(1).ready && !stall_replay
   val replay_fire = replay_val && replay_rdy
   data_arb.io.in(1).bits.inner_req.offset := replay.offset(offsetmsb,ramindexlsb)
   data_arb.io.in(1).bits.inner_req.idx := replay.idx
   data_arb.io.in(1).bits.inner_req.rw := replay.cmd === M_XWR
   data_arb.io.in(1).valid := replay_val && !stall_replay
-  data_arb.io.in(1).bits.way_en := replayer.io.way_oh
-  replayer.io.data_req.ready := replay_rdy
+  data_arb.io.in(1).bits.way_en := mshr.io.data_req.bits.way_oh
+  mshr.io.data_req.ready := replay_rdy
   r_replay_amo := replay_amo_val && replay_rdy
 
   // store write mask generation.
@@ -932,17 +904,17 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   val pending_fence = Reg(resetVal = Bool(false))
   pending_fence := (r_cpu_req_val_ && r_req_fence || pending_fence) && !flush_rdy
   val nack_hit   = p_store_match || replay_val || r_req_write && !p_store_rdy
-  val nack_miss  = needs_writeback && !wb_rdy || !mshr.io.req_rdy || r_req_write && !replayer.io.sdq_enq.ready
+  val nack_miss  = needs_writeback && !wb_rdy || !mshr.io.req_rdy
   val nack_flush = !flush_rdy && (r_req_fence || r_req_flush) ||
                    !flushed && r_req_flush
   val nack = early_nack || r_req_readwrite && Mux(tag_match, nack_hit, nack_miss) || nack_flush
 
   io.cpu.req_rdy   := flusher.io.req.ready && !(r_cpu_req_val_ && r_req_flush) && !pending_fence
   io.cpu.resp_nack := r_cpu_req_val_ && !io.cpu.req_kill && nack
-  io.cpu.resp_val  := (tag_hit && !nack_hit && r_req_read) || replayer.io.cpu_resp_val
-  io.cpu.resp_replay := replayer.io.cpu_resp_val
+  io.cpu.resp_val  := (tag_hit && !nack_hit && r_req_read) || mshr.io.cpu_resp_val
+  io.cpu.resp_replay := mshr.io.cpu_resp_val
   io.cpu.resp_miss := tag_miss && !nack_miss && r_req_read
-  io.cpu.resp_tag  := Mux(replayer.io.cpu_resp_val, replayer.io.cpu_resp_tag, r_cpu_req_tag)
+  io.cpu.resp_tag  := Mux(mshr.io.cpu_resp_val, mshr.io.cpu_resp_tag, r_cpu_req_tag)
   io.cpu.resp_type := loadgen.io.typ
   io.cpu.resp_data := loadgen.io.dout
   io.cpu.resp_data_subword := loadgen.io.r_dout_subword
