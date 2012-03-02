@@ -11,6 +11,7 @@ class ioDpathVecInterface extends Bundle
   val vcmdq_bits = Bits(SZ_VCMD, OUTPUT)
   val vximm1q_bits = Bits(SZ_VIMM, OUTPUT)
   val vximm2q_bits = Bits(SZ_VSTRIDE, OUTPUT)
+  val vcntq = (new ioDecoupled()){ Bits(width = 11) }
   val eaddr = Bits(64, OUTPUT)
   val exception = Bool(OUTPUT)
 }
@@ -29,6 +30,7 @@ class ioDpathVec extends Bundle
   val rs2 = Bits(64, INPUT)
   val vec_eaddr = Bits(64, INPUT)
   val vec_exception = Bool(INPUT)
+  val pcr_wport = new ioWritePort()
   val wen = Bool(OUTPUT)
   val appvl = UFix(12, OUTPUT)
 }
@@ -128,6 +130,10 @@ class rocketDpathVec extends Component
     io.wdata) // VIMM_ALU
 
   io.iface.vximm2q_bits := io.rs2
+
+  io.iface.vcntq.bits := io.pcr_wport.data
+  io.iface.vcntq.valid := io.pcr_wport.en && io.pcr_wport.addr === PCR_VEC_CNT
+  io.ctrl.replay_cntq := io.iface.vcntq.valid && !io.iface.vcntq.ready
 
   io.iface.eaddr := io.vec_eaddr
   io.iface.exception := io.vec_exception

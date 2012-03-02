@@ -385,6 +385,9 @@ class rocketDpath extends Component
     vec.io.rs2 := wb_reg_rs2
     vec.io.vec_eaddr := pcr.io.vec_eaddr
     vec.io.vec_exception := pcr.io.vec_exception
+    vec.io.pcr_wport.addr := wb_reg_raddr2
+    vec.io.pcr_wport.en := io.ctrl.wen_pcr
+    vec.io.pcr_wport.data := wb_reg_wdata
 
     wb_wdata :=
       Mux(vec.io.wen, Cat(Bits(0,52), vec.io.appvl),

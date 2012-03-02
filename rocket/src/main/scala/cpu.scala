@@ -169,6 +169,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.vec_ximm1q.bits := dpath.io.vec_iface.vximm1q_bits
     vu.io.vec_ximm2q.valid := ctrl.io.vec_iface.vximm2q_valid
     vu.io.vec_ximm2q.bits := dpath.io.vec_iface.vximm2q_bits
+    vu.io.vec_cntq <> dpath.io.vec_iface.vcntq
 
     // prefetch queues
     vu.io.vec_pfcmdq.valid := ctrl.io.vec_iface.vpfcmdq_valid

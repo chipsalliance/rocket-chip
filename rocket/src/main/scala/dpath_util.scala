@@ -211,8 +211,8 @@ class rocketDpathPCR extends Component
     when (waddr === PCR_K1)       { reg_k1          := wdata; }
     when (waddr === PCR_PTBR)     { reg_ptbr        := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
     when (waddr === PCR_VECBANK)  { reg_vecbank     := wdata(7,0) }
-    when (waddr === PCR_VEC_TMP1) { reg_vec_eaddr    := wdata(VADDR_BITS,0) }
-    when (waddr === PCR_VEC_TMP2) { reg_vec_exception:= wdata(0) }
+    when (waddr === PCR_VEC_EADDR) { reg_vec_eaddr    := wdata(VADDR_BITS,0) }
+    when (waddr === PCR_VEC_XCPT) { reg_vec_exception:= wdata(0) }
   }
 
   rdata := Bits(0, 64)
