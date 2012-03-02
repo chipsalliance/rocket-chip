@@ -17,7 +17,7 @@ class ioDTLB_CPU_req_bundle extends Bundle
   val asid = Bits(width=ASID_BITS)
   val vpn  = Bits(width=VPN_BITS+1)
 }
-class ioDTLB_CPU_req extends io_ready_valid()( { new ioDTLB_CPU_req_bundle() } )
+class ioDTLB_CPU_req extends hwacha.ioDecoupled()( { new ioDTLB_CPU_req_bundle() } )
 
 class ioDTLB_CPU_resp extends Bundle
 {
@@ -34,7 +34,7 @@ class ioDTLB extends Bundle
   val status = Bits(17,INPUT)
   // invalidate all TLB entries
   val invalidate = Bool(INPUT)
-  val cpu_req = new ioDTLB_CPU_req().flip()
+  val cpu_req = new ioDTLB_CPU_req().flip
   val cpu_resp = new ioDTLB_CPU_resp()
   val ptw = new ioTLB_PTW()
 }

@@ -7,7 +7,7 @@ import scala.math._;
 
 class ioDmemArbiter(n: Int) extends Bundle
 {
-  val dmem = new ioDmem().flip()
+  val dmem = new ioDmem().flip
   val requestor = Vec(n) { new ioDmem() }
 }
 
@@ -70,9 +70,9 @@ class rocketDmemArbiter(n: Int) extends Component
 
 class ioPTW extends Bundle
 {
-  val itlb = new ioTLB_PTW().flip();
-  val dtlb = new ioTLB_PTW().flip();
-  val dmem = new ioDmem().flip()
+  val itlb = new ioTLB_PTW().flip
+  val dtlb = new ioTLB_PTW().flip
+  val dmem = new ioDmem().flip
   val ptbr = UFix(PADDR_BITS, INPUT);
 }
 

@@ -178,9 +178,9 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
     val way_oh         = Bits(NWAYS, OUTPUT)
 
     val mem_resp_val = Bool(INPUT)
-    val mem_req  = (new ioDecoupled) { new TransactionInit }.flip
-    val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }.flip
-    val replay   = (new ioDecoupled) { new Replay()   }.flip
+    val mem_req  = (new ioDecoupled) { new TransactionInit }
+    val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }
+    val replay   = (new ioDecoupled) { new Replay()   }
   }
 
   val valid = Reg(resetVal = Bool(false))
@@ -253,7 +253,7 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
 
 class MSHRFile extends Component {
   val io = new Bundle {
-    val req = (new ioDecoupled) { new MSHRReq }
+    val req = (new ioDecoupled) { new MSHRReq }.flip
 
     val mem_resp_val = Bool(INPUT)
     val mem_resp_tag = Bits(MEM_TAG_BITS, INPUT)
@@ -262,9 +262,9 @@ class MSHRFile extends Component {
 
     val fence_rdy = Bool(OUTPUT)
 
-    val mem_req  = (new ioDecoupled) { new TransactionInit }.flip()
-    val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }.flip()
-    val data_req   = (new ioDecoupled) { new DataReq() }.flip()
+    val mem_req  = (new ioDecoupled) { new TransactionInit }
+    val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }
+    val data_req   = (new ioDecoupled) { new DataReq() }
 
     val cpu_resp_val = Bool(OUTPUT)
     val cpu_resp_tag = Bits(DCACHE_TAG_BITS, OUTPUT)
@@ -349,12 +349,12 @@ class MSHRFile extends Component {
 
 class WritebackUnit extends Component {
   val io = new Bundle {
-    val req    = (new ioDecoupled) { new WritebackReq() }
-    val data_req  = (new ioDecoupled) { new DataArrayArrayReq() }.flip()
+    val req    = (new ioDecoupled) { new WritebackReq() }.flip
+    val data_req  = (new ioDecoupled) { new DataArrayArrayReq() }
     val data_resp = Bits(MEM_DATA_BITS, INPUT)
-    val refill_req = (new ioDecoupled) { new TransactionInit }
-    val mem_req   = (new ioDecoupled) { new TransactionInit }.flip
-    val mem_req_data = (new ioDecoupled) { new TransactionInitData }.flip
+    val refill_req = (new ioDecoupled) { new TransactionInit }.flip
+    val mem_req   = (new ioDecoupled) { new TransactionInit }
+    val mem_req_data = (new ioDecoupled) { new TransactionInitData }
   }
 
   val valid = Reg(resetVal = Bool(false))
@@ -391,11 +391,11 @@ class WritebackUnit extends Component {
 
 class FlushUnit(lines: Int) extends Component with ThreeStateIncoherence{
   val io = new Bundle {
-    val req  = (new ioDecoupled) { Bits(width = DCACHE_TAG_BITS) }
-    val resp = (new ioDecoupled) { Bits(width = DCACHE_TAG_BITS) }.flip()
-    val meta_req   = (new ioDecoupled) { new MetaArrayArrayReq() }.flip()
+    val req  = (new ioDecoupled) { Bits(width = DCACHE_TAG_BITS) }.flip
+    val resp = (new ioDecoupled) { Bits(width = DCACHE_TAG_BITS) }
+    val meta_req   = (new ioDecoupled) { new MetaArrayArrayReq() }
     val meta_resp  = (new MetaData).asInput()
-    val wb_req = (new ioDecoupled) { new WritebackReq() }.flip()
+    val wb_req = (new ioDecoupled) { new WritebackReq() }
   }
   
   val s_reset :: s_ready :: s_meta_read :: s_meta_wait :: s_meta_write :: s_done :: Nil = Enum(6) { UFix() }
@@ -444,9 +444,9 @@ class FlushUnit(lines: Int) extends Component with ThreeStateIncoherence{
 
 class MetaDataArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new MetaArrayReq() }
+    val req  = (new ioDecoupled) { new MetaArrayReq() }.flip
     val resp = (new MetaData).asOutput()
-    val state_req = (new ioDecoupled) { new MetaArrayReq() }
+    val state_req = (new ioDecoupled) { new MetaArrayReq() }.flip
   }
 
   val permissions_array = Mem(lines){ Bits(width = 2) }
@@ -470,9 +470,9 @@ class MetaDataArray(lines: Int) extends Component {
 
 class MetaDataArrayArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new MetaArrayArrayReq() }
+    val req  = (new ioDecoupled) { new MetaArrayArrayReq() }.flip
     val resp = Vec(NWAYS){ (new MetaData).asOutput }
-    val state_req = (new ioDecoupled) { new MetaArrayArrayReq() }
+    val state_req = (new ioDecoupled) { new MetaArrayArrayReq() }.flip
     val way_en = Bits(width = NWAYS, dir = OUTPUT)
   }
 
@@ -501,7 +501,7 @@ class MetaDataArrayArray(lines: Int) extends Component {
 
 class DataArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new DataArrayReq() }
+    val req  = (new ioDecoupled) { new DataArrayReq() }.flip
     val resp = Bits(width = MEM_DATA_BITS, dir = OUTPUT)
   }
 
@@ -518,7 +518,7 @@ class DataArray(lines: Int) extends Component {
 
 class DataArrayArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new DataArrayArrayReq() }
+    val req  = (new ioDecoupled) { new DataArrayArrayReq() }.flip
     val resp = Vec(NWAYS){ Bits(width = MEM_DATA_BITS, dir = OUTPUT) }
     val way_en = Bits(width = NWAYS, dir = OUTPUT)
   }

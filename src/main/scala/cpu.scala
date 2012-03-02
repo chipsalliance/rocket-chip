@@ -14,9 +14,9 @@ class ioRocket extends Bundle()
 {
   val debug   = new ioDebug();
   val host    = new ioHTIF();
-  val imem    = new ioImem().flip();
-  val vimem   = new ioImem().flip();
-  val dmem    = new ioDmem().flip();
+  val imem    = new ioImem().flip
+  val vimem   = new ioImem().flip
+  val dmem    = new ioDmem().flip
 }
 
 class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)

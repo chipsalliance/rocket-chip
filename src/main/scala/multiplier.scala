@@ -7,7 +7,7 @@ import hwacha._
 import hwacha.Constants._
 
 class ioMultiplier extends Bundle {
-  val req = new io_imul_req().flip()
+  val req = new io_imul_req().flip
   val req_tag = Bits(5, INPUT)
   val req_kill = Bool(INPUT)
   val resp_val = Bool(OUTPUT)

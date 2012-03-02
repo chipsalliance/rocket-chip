@@ -168,20 +168,20 @@ class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
 
 class ioDecoupled[+T <: Data]()(data: => T) extends Bundle
 {
-  val valid = Bool(INPUT)
-  val ready = Bool(OUTPUT)
-  val bits  = data.asInput
+  val ready = Bool(INPUT)
+  val valid = Bool(OUTPUT)
+  val bits  = data.asOutput
 }
 
-class ioValid[T <: Data]()(data: => T) extends Bundle
+class ioPipe[T <: Data]()(data: => T) extends Bundle
 {
   val valid = Bool(INPUT)
   val bits = data.asInput
 }
 
 class ioArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
-  val in  = Vec(n) { (new ioDecoupled()) { data } }
-  val out = (new ioDecoupled()) { data }.flip()
+  val in  = Vec(n) { (new ioDecoupled()) { data } }.flip
+  val out = (new ioDecoupled()) { data }
 }
 
 class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
@@ -205,9 +205,9 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
 }
 
 class ioLockingArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
-  val in   = Vec(n) { (new ioDecoupled()) { data } }
+  val in   = Vec(n) { (new ioDecoupled()) { data } }.flip
   val lock = Vec(n) { Bool() }.asInput
-  val out  = (new ioDecoupled()) { data }.flip()
+  val out  = (new ioDecoupled()) { data }
 }
 
 class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {
