@@ -31,8 +31,7 @@ class HubMemReq extends Bundle {
 }
 
 class TrackerProbeData extends Bundle {
-  val valid = Bool()
-  val data_tile_id = Bits(width = log2up(NTILES))
+  val tile_id = Bits(width = TILE_ID_BITS)
 }
 
 class TrackerAllocReq extends Bundle {
@@ -182,7 +181,7 @@ trait FourStateCoherence extends CoherencePolicy {
 class XactTracker(id: Int) extends Component with CoherencePolicy {
   val io = new Bundle {
     val alloc_req       = (new ioDecoupled) { new TrackerAllocReq() }.flip
-    val probe_data      = (new TrackerProbeData).asInput
+    val p_data          = (new ioPipe) { new TrackerProbeData() }
     val can_alloc       = Bool(INPUT)
     val xact_finish     = Bool(INPUT)
     val p_rep_cnt_dec   = Bits(NTILES, INPUT)
@@ -331,9 +330,9 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
           state := s_mem
         }
       }
-      when(io.probe_data.valid) {
+      when(io.p_data.valid) {
         p_rep_data_needs_write := Bool(true)
-        p_rep_tile_id_ := io.p_rep_tile_id
+        p_rep_tile_id_ := io.p_data.bits.tile_id
       }
     }
     is(s_mem) {
@@ -413,7 +412,9 @@ class CoherenceHubBroadcast extends CoherenceHub {
   val do_free_arr        = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
   val p_rep_cnt_dec_arr  = VecBuf(NGLOBAL_XACTS){ Vec(NTILES){ Wire(){Bool()} } }
   val p_req_cnt_inc_arr  = VecBuf(NGLOBAL_XACTS){ Vec(NTILES){ Wire(){Bool()} } }
-  val sent_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val sent_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Wire(){ Bool()} }
+  val p_data_tile_id_arr = Vec(NGLOBAL_XACTS){ Wire(){ Bits(width = TILE_ID_BITS)} }
+  val p_data_valid_arr   = Vec(NGLOBAL_XACTS){ Wire(){ Bool()} }
 
   for( i <- 0 until NGLOBAL_XACTS) {
     val t = trackerList(i).io
@@ -425,14 +426,18 @@ class CoherenceHubBroadcast extends CoherenceHub {
     sh_count_arr(i)       := t.sharer_count
     send_x_rep_ack_arr(i) := t.send_x_rep_ack
     t.xact_finish         := do_free_arr(i)
+    t.p_data.bits.tile_id := p_data_tile_id_arr(i)
+    t.p_data.valid        := p_data_valid_arr(i)
     t.p_rep_cnt_dec       := p_rep_cnt_dec_arr(i).toBits
     t.p_req_cnt_inc       := p_req_cnt_inc_arr(i).toBits
     t.sent_x_rep_ack      := sent_x_rep_ack_arr(i)
     do_free_arr(i)        := Bool(false)
     sent_x_rep_ack_arr(i) := Bool(false)
+    p_data_tile_id_arr(i) := Bits(0, width = TILE_ID_BITS)
+    p_data_valid_arr(i)   := Bool(false)
     for( j <- 0 until NTILES) {
-      p_rep_cnt_dec_arr(i)(j)  := Bool(false)    
-      p_req_cnt_inc_arr(i)(j)  := Bool(false)
+      p_rep_cnt_dec_arr(i)(j) := Bool(false)    
+      p_req_cnt_inc_arr(i)(j) := Bool(false)
     }
   }
 
@@ -490,7 +495,9 @@ class CoherenceHubBroadcast extends CoherenceHub {
     val p_rep_data = io.tiles(j).probe_rep_data
     val idx = p_rep.bits.global_xact_id
     p_rep.ready := foldR(trackerList.map(_.io.pop_p_rep(j)))(_ || _)
-    p_rep_data.ready  := foldR(trackerList.map(_.io.pop_p_rep_data(j)))(_ || _)
+    p_rep_data.ready := foldR(trackerList.map(_.io.pop_p_rep_data(j)))(_ || _)
+    p_data_valid_arr(idx) := p_rep.valid && p_rep.bits.has_data
+    p_data_tile_id_arr(idx) := UFix(j)
   }
   for( i <- 0 until NGLOBAL_XACTS ) {
     trackerList(i).io.p_rep_data.valid := io.tiles(trackerList(i).io.p_rep_tile_id).probe_rep_data.valid
