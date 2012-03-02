@@ -59,9 +59,7 @@ class rocketMemArbiter(n: Int) extends Component {
     io.requestor(i).xact_rep.valid := io.mem.xact_rep.valid && tag(log2up(n)-1,0) === UFix(i)
     io.requestor(i).xact_rep.bits.data := io.mem.xact_rep.bits.data
     io.requestor(i).xact_rep.bits.t_type := io.mem.xact_rep.bits.t_type
-    io.requestor(i).xact_rep.bits.has_data := io.mem.xact_rep.bits.has_data
     io.requestor(i).xact_rep.bits.tile_xact_id := tag >> UFix(log2up(n))
     io.requestor(i).xact_rep.bits.global_xact_id := io.mem.xact_rep.bits.global_xact_id
   }
-  io.mem.xact_rep.ready := Bool(true) // XXX we shouldn't have xact_rep.ready
 }
