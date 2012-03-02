@@ -361,51 +361,34 @@ class ReplayUnit extends Component {
     val cpu_resp_tag = Bits(DCACHE_TAG_BITS, OUTPUT)
   }
 
-  val sdq_val = Reg(resetVal = UFix(0))
+  val sdq_val = Reg(resetVal = Bits(0, NSDQ))
   val sdq_alloc_id = PriorityEncoder(~sdq_val(NSDQ-1,0))
 
-  val replay_val = Reg(resetVal = Bool(false))
-  val replay_retry = replay_val && !io.data_req.ready
-  replay_val := io.replay.valid || replay_retry
+  val rpq = Queue(io.replay, 1, pipe = true)
+  rpq.ready := io.data_req.ready
+  val (rp_read, rp_write) = cpuCmdToRW(rpq.bits.cmd)
 
-  val rp = Reg { new Replay() }
-  when (io.replay.valid && io.replay.ready) { rp := io.replay.bits }
-
-  val rp_amo = rp.cmd(3).toBool
-  val rp_store = (rp.cmd === M_XWR)
-  val rp_load = (rp.cmd === M_XRD)
-  val rp_write = rp_store || rp_amo
-  val rp_read = rp_load || rp_amo
-
-  val sdq_ren_new = io.replay.valid && (io.replay.bits.cmd != M_XRD)
-  val sdq_ren_retry = replay_retry && rp_write
-  val sdq_ren = sdq_ren_new || sdq_ren_retry
   val sdq_wen = io.sdq_enq.valid && io.sdq_enq.ready
-  val sdq_addr = Mux(sdq_ren_retry, rp.sdq_id, Mux(sdq_ren_new, io.replay.bits.sdq_id, sdq_alloc_id))
-
-  val sdq = Mem(NSDQ){ Bits(width=CPU_DATA_BITS) }
+  val sdq = Mem(NSDQ, sdq_wen, sdq_alloc_id, io.sdq_enq.bits)
   sdq.setReadLatency(1);
   sdq.setTarget('inst)
-  val sdq_dout = sdq.rw(sdq_addr, io.sdq_enq.bits, sdq_wen, cs = sdq_ren || sdq_wen)
 
-  val sdq_free = replay_val && !replay_retry && rp_write
-  sdq_val := sdq_val & ~(sdq_free.toUFix << rp.sdq_id) | (sdq_wen.toUFix << sdq_alloc_id)
+  val sdq_free = rpq.valid && rpq.ready && rp_write
+  sdq_val := sdq_val & ~(sdq_free.toUFix << rpq.bits.sdq_id) | (sdq_wen.toUFix << sdq_alloc_id)
 
-  io.sdq_enq.ready := (~sdq_val != UFix(0)) && !sdq_ren
+  io.sdq_enq.ready := !sdq_val.andR
   io.sdq_id := sdq_alloc_id
 
-  io.replay.ready := !replay_retry
+  io.data_req.valid := rpq.valid
+  io.way_oh := rpq.bits.way_oh
+  io.data_req.bits.idx := rpq.bits.idx
+  io.data_req.bits.offset := rpq.bits.offset
+  io.data_req.bits.cmd := rpq.bits.cmd
+  io.data_req.bits.typ := rpq.bits.typ
+  io.data_req.bits.data := sdq.read(Mux(rpq.valid && !rpq.ready, rpq.bits.sdq_id, io.replay.bits.sdq_id))
 
-  io.data_req.valid := replay_val
-  io.way_oh := rp.way_oh
-  io.data_req.bits.idx := rp.idx
-  io.data_req.bits.offset := rp.offset
-  io.data_req.bits.cmd := rp.cmd
-  io.data_req.bits.typ := rp.typ
-  io.data_req.bits.data := sdq_dout
-
-  io.cpu_resp_val := Reg(replay_val && !replay_retry && rp_read, resetVal = Bool(false))
-  io.cpu_resp_tag := Reg(rp.tag)
+  io.cpu_resp_val := Reg(rpq.valid && rpq.ready && rp_read, resetVal = Bool(false))
+  io.cpu_resp_tag := Reg(rpq.bits.tag)
 }
 
 class WritebackUnit extends Component {
