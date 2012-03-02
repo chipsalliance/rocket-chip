@@ -34,7 +34,7 @@ class Top() extends Component {
   // connect hub to memory
   io.mem.req_cmd <> Queue(hub.io.mem.req_cmd)
   io.mem.req_data <> Queue(hub.io.mem.req_data)
-  hub.io.mem.resp <> PipeReg(io.mem.resp)
+  hub.io.mem.resp <> Pipe(io.mem.resp)
 
 
   if (HAVE_VEC)

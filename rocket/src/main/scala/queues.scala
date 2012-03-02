@@ -79,11 +79,16 @@ class pipereg[T <: Data]()(data: => T) extends Component
   io.deq.bits <> Mem(1, io.enq.valid, UFix(0), io.enq.bits).read(UFix(0))
 }
 
-object PipeReg
+object Pipe
 {
-  def apply[T <: Data](enq: ioValid[T]) = {
+  def apply[T <: Data](enq: ioValid[T], latency: Int = 1): ioValid[T] = {
     val q = (new pipereg) { enq.bits.clone }
     q.io.enq <> enq
     q.io.deq
+
+    if (latency > 1)
+      Pipe(q.io.deq, latency-1)
+    else
+      q.io.deq
   }
 }
