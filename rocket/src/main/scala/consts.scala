@@ -244,11 +244,16 @@ object Constants
   val VCMD_TF = UFix(3, 3)
   val VCMD_MX = UFix(4, 3)
   val VCMD_MF = UFix(5, 3)
+  val VCMD_A = UFix(6, 3)
   val VCMD_X = UFix(0, 3)
 
   val VIMM_VLEN = UFix(0, 1)
   val VIMM_ALU = UFix(1, 1)
   val VIMM_X = UFix(0, 1)
+
+  val VIMM2_RS2 = UFix(0, 1)
+  val VIMM2_ALU = UFix(1, 1)
+  val VIMM2_X = UFix(0, 1)
 
   val DTLB_CPU = 0
   val DTLB_VEC = 1

@@ -169,7 +169,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.vec_ximm1q.bits := dpath.io.vec_iface.vximm1q_bits
     vu.io.vec_ximm2q.valid := ctrl.io.vec_iface.vximm2q_valid
     vu.io.vec_ximm2q.bits := dpath.io.vec_iface.vximm2q_bits
-    vu.io.vec_cntq <> dpath.io.vec_iface.vcntq
+    vu.io.vec_cntq.valid := ctrl.io.vec_iface.vcntq_valid
+    vu.io.vec_cntq.bits := dpath.io.vec_iface.vcntq_bits
 
     // prefetch queues
     vu.io.vec_pfcmdq.valid := ctrl.io.vec_iface.vpfcmdq_valid
@@ -178,22 +179,31 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.vec_pfximm1q.bits := dpath.io.vec_iface.vximm1q_bits
     vu.io.vec_pfximm2q.valid := ctrl.io.vec_iface.vpfximm2q_valid
     vu.io.vec_pfximm2q.bits := dpath.io.vec_iface.vximm2q_bits
+    // vu.io.vec_pfcntq.valid := ctrl.io.vec_iface.vpfcntq_valid
+    // vu.io.vec_pfcntq.bits := dpath.io.vec_iface.vcntq_bits
 
     // don't have to use pf ready signals
     // if cmdq is not a load or store
     ctrl.io.vec_iface.vcmdq_ready := vu.io.vec_cmdq.ready
     ctrl.io.vec_iface.vximm1q_ready := vu.io.vec_ximm1q.ready
     ctrl.io.vec_iface.vximm2q_ready := vu.io.vec_ximm2q.ready
+    ctrl.io.vec_iface.vcntq_ready := vu.io.vec_cntq.ready
     ctrl.io.vec_iface.vpfcmdq_ready := vu.io.vec_pfcmdq.ready
     ctrl.io.vec_iface.vpfximm1q_ready := vu.io.vec_pfximm1q.ready
     ctrl.io.vec_iface.vpfximm2q_ready := vu.io.vec_pfximm2q.ready
+    // ctrl.io.vec_iface.vpfcntq_ready := vu.io.vec_pfcntq.ready
+    ctrl.io.vec_iface.vpfcntq_ready := Bool(true)
+
     ctrl.io.vec_iface.vackq_valid := vu.io.vec_ackq.valid
     vu.io.vec_ackq.ready := ctrl.io.vec_iface.vackq_ready
 
     // exceptions
     vu.io.cpu_exception.addr := dpath.io.vec_iface.eaddr.toUFix
     vu.io.cpu_exception.exception := dpath.io.vec_iface.exception
-    ctrl.io.vec_iface.exception_done := vu.io.done
+    ctrl.io.vec_iface.exception_ack_valid := vu.io.exception_ack_valid
+    vu.io.exception_ack_ready := ctrl.io.vec_iface.exception_ack_ready
+    ctrl.io.vec_iface.kill_ack_valid := vu.io.kill_ack_valid
+    vu.io.kill_ack_ready := ctrl.io.vec_iface.kill_ack_ready
 
     // hooking up vector memory interface
     val storegen = new StoreDataGen

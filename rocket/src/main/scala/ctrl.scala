@@ -279,7 +279,15 @@ class rocketCtrl extends Component
     VFLSTD->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
     VFLSTW->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
     VFSSTD->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
-    VFSSTW->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N)
+    VFSSTW->    List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N),
+
+    // Vector Supervisor Stuff
+    VENQCMD->   List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,Y,Y),
+    VENQIMM1->  List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,Y,Y),
+    VENQIMM2->  List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,Y,Y),
+    VENQCNT->   List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,Y,Y),
+    VWAITXCPT-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y),
+    VWAITKILL-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y)
   ))
 
   val id_int_val :: id_vec_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_fn_dw :: id_fn_alu :: cs0 = cs 
@@ -581,7 +589,7 @@ class rocketCtrl extends Component
   } 
 
   var vec_replay = Bool(false)
-  var vec_cpfence = Bool(false)
+  var vec_stalld = Bool(false)
   if (HAVE_VEC)
   {
     // vector control
@@ -594,7 +602,7 @@ class rocketCtrl extends Component
     vec.io.exception := wb_reg_exception
 
     vec_replay = vec.io.replay
-    vec_cpfence = vec.io.cpfence
+    vec_stalld = vec.io.stalld
   }
 
   // exception handling
@@ -749,7 +757,7 @@ class rocketCtrl extends Component
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
       id_vec_val.toBool && !(io.vec_iface.vcmdq_ready && io.vec_iface.vximm1q_ready && io.vec_iface.vximm2q_ready) || // being conservative
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
-      vec_cpfence
+      vec_stalld
     );
   val ctrl_stallf = ctrl_stalld;
     
