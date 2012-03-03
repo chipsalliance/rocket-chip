@@ -66,8 +66,8 @@ object Queue
 class pipereg[T <: Data]()(data: => T) extends Component
 {
   val io = new Bundle {
-    val enq = new ioPipe()(data)
-    val deq = new ioPipe()(data).flip
+    val enq = new ioPipe()(data).flip
+    val deq = new ioPipe()(data)
   }
 
   //val bits = Reg() { io.enq.bits.clone }

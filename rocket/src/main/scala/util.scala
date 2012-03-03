@@ -175,8 +175,8 @@ class ioDecoupled[+T <: Data]()(data: => T) extends Bundle
 
 class ioPipe[T <: Data]()(data: => T) extends Bundle
 {
-  val valid = Bool(INPUT)
-  val bits = data.asInput
+  val valid = Bool(OUTPUT)
+  val bits = data.asOutput
 }
 
 class ioArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
