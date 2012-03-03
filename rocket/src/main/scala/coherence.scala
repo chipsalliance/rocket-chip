@@ -92,8 +92,8 @@ object cpuCmdToRW {
     val store   = (cmd === M_XWR)
     val load    = (cmd === M_XRD)
     val amo     = cmd(3).toBool
-    val read    = load  || amo || (cmd === M_PFR)
-    val write   = store || amo || (cmd === M_PFW)
+    val read    = load  || amo || (cmd === M_PFR) || (cmd === M_PFW)
+    val write   = store || amo
     (read, write)
   }
 }
