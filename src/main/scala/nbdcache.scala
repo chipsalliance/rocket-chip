@@ -240,8 +240,7 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
   io.meta_req.bits.way_en := way_oh_
 
   io.mem_req.valid := valid && !requested
-  io.mem_req.bits.t_type := Mux(needsWriteback(next_state), X_READ_EXCLUSIVE, X_READ_SHARED)
-  io.mem_req.bits.has_data := Bool(false)
+  io.mem_req.bits.t_type := Mux(needsWriteback(next_state), X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
   io.mem_req.bits.address := Cat(ppn, idx_).toUFix
   io.mem_req.bits.tile_xact_id := Bits(id)
 
@@ -380,8 +379,7 @@ class WritebackUnit extends Component {
   val wb_req_val = io.req.valid && !valid
   io.refill_req.ready := io.mem_req.ready && !wb_req_val
   io.mem_req.valid := io.refill_req.valid || wb_req_val
-  io.mem_req.bits.t_type := Mux(wb_req_val, X_WRITE_UNCACHED, io.refill_req.bits.t_type)
-  io.mem_req.bits.has_data := wb_req_val
+  io.mem_req.bits.t_type := Mux(wb_req_val, X_INIT_WRITE_UNCACHED, io.refill_req.bits.t_type)
   io.mem_req.bits.address := Mux(wb_req_val, Cat(io.req.bits.ppn, io.req.bits.idx).toUFix, io.refill_req.bits.address)
   io.mem_req.bits.tile_xact_id := Mux(wb_req_val, Bits(NMSHR), io.refill_req.bits.tile_xact_id)
 
@@ -679,7 +677,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
 
   // refill counter
   val mem_resp_type = io.mem.xact_rep.bits.t_type
-  val refill_val = io.mem.xact_rep.valid && (mem_resp_type === X_READ_SHARED || mem_resp_type === X_READ_EXCLUSIVE)
+  val refill_val = io.mem.xact_rep.valid && (mem_resp_type === X_REP_READ_SHARED || mem_resp_type === X_REP_READ_EXCLUSIVE)
   val rr_count = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
   val rr_count_next = rr_count + UFix(1)
   when (refill_val) { rr_count := rr_count_next }

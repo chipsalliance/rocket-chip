@@ -129,8 +129,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   rdy := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || tag_hit);
   io.cpu.resp_data := data_mux.io.out
   io.mem.xact_init.valid := (state === s_request)
-  io.mem.xact_init.bits.t_type := X_READ_UNCACHED
-  io.mem.xact_init.bits.has_data := Bool(false)
+  io.mem.xact_init.bits.t_type := X_INIT_READ_UNCACHED
   io.mem.xact_init.bits.address := r_cpu_miss_addr(tagmsb,indexlsb).toUFix
   io.mem.xact_init_data.valid := Bool(false)
 

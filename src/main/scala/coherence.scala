@@ -42,8 +42,7 @@ class TrackerAllocReq extends Bundle {
 
 
 class TransactionInit extends Bundle {
-  val t_type = Bits(width = TTYPE_BITS)
-  val has_data = Bool()
+  val t_type = Bits(width = X_INIT_TYPE_BITS)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
   val address = UFix(width = PADDR_BITS)
 }
@@ -55,21 +54,20 @@ class TransactionAbort extends Bundle {
 }
 
 class ProbeRequest extends Bundle {
-  val p_type = Bits(width = PTYPE_BITS)
+  val p_type = Bits(width = P_REQ_TYPE_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
   val address = Bits(width = PADDR_BITS)
 }
 
 class ProbeReply extends Bundle {
-  val p_type = Bits(width = PTYPE_BITS)
-  val has_data = Bool()
+  val p_type = Bits(width = P_REP_TYPE_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
 }
 
 class ProbeReplyData extends MemData
 
 class TransactionReply extends MemData {
-  val t_type = Bits(width = TTYPE_BITS)
+  val t_type = Bits(width = X_REP_TYPE_BITS)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
 }
@@ -162,17 +160,17 @@ trait FourStateCoherence extends CoherencePolicy {
   }
   def newStateOnTransactionRep(incoming: TransactionReply, outstanding: TransactionInit): UFix = {
     MuxLookup(incoming.t_type, tileInvalid, Array(
-      X_READ_SHARED -> tileShared,
-      X_READ_EXCLUSIVE  -> Mux(outstanding.t_type === X_READ_EXCLUSIVE, tileExclusiveDirty, tileExclusiveClean),
-      X_READ_EXCLUSIVE_ACK -> tileExclusiveDirty, 
-      X_READ_UNCACHED -> tileInvalid,
-      X_WRITE_UNCACHED -> tileInvalid
+      X_REP_READ_SHARED -> tileShared,
+      X_REP_READ_EXCLUSIVE  -> Mux(outstanding.t_type === X_INIT_READ_EXCLUSIVE, tileExclusiveDirty, tileExclusiveClean),
+      X_REP_READ_EXCLUSIVE_ACK -> tileExclusiveDirty, 
+      X_REP_READ_UNCACHED -> tileInvalid,
+      X_REP_WRITE_UNCACHED -> tileInvalid
     ))
   } 
   def needsSecondaryXact(cmd: Bits, outstanding: TransactionInit): Bool = {
     val (read, write) = cpuCmdToRW(cmd)
-    (read && (outstanding.t_type === X_READ_UNCACHED || outstanding.t_type === X_WRITE_UNCACHED)) ||
-      (write && (outstanding.t_type != X_READ_EXCLUSIVE))
+    (read && (outstanding.t_type === X_INIT_READ_UNCACHED || outstanding.t_type === X_INIT_WRITE_UNCACHED)) ||
+      (write && (outstanding.t_type != X_INIT_READ_EXCLUSIVE))
   }
 
   def newStateOnProbeReq(incoming: ProbeRequest, state: UFix): Bits = {
@@ -183,12 +181,20 @@ trait FourStateCoherence extends CoherencePolicy {
     ))
   }
 
-  def replyTypeHasData (reply: TransactionReply): Bool = {
-    (reply.t_type != X_WRITE_UNCACHED && reply.t_type != X_READ_EXCLUSIVE_ACK)
+  def probeReplyHasData (reply: ProbeReply): Bool = {
+    (reply.p_type === P_REP_INVALIDATE_DATA ||
+     reply.p_type === P_REP_DOWNGRADE_DATA ||
+     reply.p_type === P_REP_COPY_DATA)
+  }
+  def transactionInitHasData (init: TransactionInit): Bool = {
+    (init.t_type != X_INIT_WRITE_UNCACHED)
+  }
+  def transactionReplyHasData (reply: TransactionReply): Bool = {
+    (reply.t_type != X_REP_WRITE_UNCACHED && reply.t_type != X_REP_READ_EXCLUSIVE_ACK)
   }
 }
 
-class XactTracker(id: Int) extends Component with CoherencePolicy {
+class XactTracker(id: Int) extends Component with FourStateCoherence {
   val io = new Bundle {
     val alloc_req       = (new ioDecoupled) { new TrackerAllocReq }.flip
     val p_data          = (new ioPipe) { new TrackerProbeData }
@@ -210,7 +216,7 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
     val p_rep_tile_id   = Bits(TILE_ID_BITS, OUTPUT)
     val tile_xact_id    = Bits(TILE_XACT_ID_BITS, OUTPUT)
     val sharer_count    = Bits(TILE_ID_BITS+1, OUTPUT)
-    val t_type          = Bits(TTYPE_BITS, OUTPUT)
+    val t_type          = Bits(X_INIT_TYPE_BITS, OUTPUT)
     val push_p_req      = Bits(NTILES, OUTPUT)
     val pop_p_rep       = Bits(NTILES, OUTPUT)
     val pop_p_rep_data  = Bits(NTILES, OUTPUT)
@@ -220,18 +226,20 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
   }
 
   def sendProbeReqType(t_type: UFix, global_state: UFix): UFix = {
-      MuxCase(P_COPY, Array((t_type === X_READ_SHARED)    -> P_DOWNGRADE,
-                            (t_type === X_READ_EXCLUSIVE) -> P_INVALIDATE, 
-                            (t_type === X_READ_UNCACHED)  -> P_COPY, 
-                            (t_type === X_WRITE_UNCACHED) -> P_INVALIDATE))
+    MuxLookup(t_type, P_REQ_COPY, Array(
+      X_INIT_READ_SHARED -> P_REQ_DOWNGRADE,
+      X_INIT_READ_EXCLUSIVE -> P_REQ_INVALIDATE, 
+      X_INIT_READ_UNCACHED -> P_REQ_COPY, 
+      X_INIT_WRITE_UNCACHED -> P_REQ_INVALIDATE
+    ))
   }
 
   def needsMemRead(t_type: UFix, global_state: UFix): Bool = {
-      (t_type != X_WRITE_UNCACHED)
+      (t_type != X_INIT_WRITE_UNCACHED)
   }
 
   def needsAckRep(t_type: UFix, global_state: UFix): Bool = {
-      (t_type === X_WRITE_UNCACHED)
+      (t_type === X_INIT_WRITE_UNCACHED)
   }
 
   val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(5){ UFix() }
@@ -312,7 +320,7 @@ class XactTracker(id: Int) extends Component with CoherencePolicy {
         t_type_ := io.alloc_req.bits.xact_init.t_type
         init_tile_id_ := io.alloc_req.bits.init_tile_id
         tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
-        x_init_data_needs_write := io.alloc_req.bits.xact_init.has_data
+        x_init_data_needs_write := transactionInitHasData(io.alloc_req.bits.xact_init)
         x_needs_read := needsMemRead(io.alloc_req.bits.xact_init.t_type, UFix(0))
         p_rep_count := UFix(NTILES-1)
         p_req_flags := ~( UFix(1) << io.alloc_req.bits.init_tile_id )
@@ -378,7 +386,7 @@ abstract class CoherenceHub extends Component with CoherencePolicy {
 class CoherenceHubNull extends CoherenceHub {
 
   val x_init = io.tiles(0).xact_init
-  val is_write = x_init.bits.t_type === X_WRITE_UNCACHED
+  val is_write = x_init.bits.t_type === X_INIT_WRITE_UNCACHED
   x_init.ready := io.mem.req_cmd.ready && !(is_write && io.mem.resp.valid) //stall write req/resp to handle previous read resp
   io.mem.req_cmd.valid   := x_init.valid && !(is_write && io.mem.resp.valid)
   io.mem.req_cmd.bits.rw    := is_write
@@ -387,7 +395,7 @@ class CoherenceHubNull extends CoherenceHub {
   io.mem.req_data <> io.tiles(0).xact_init_data
 
   val x_rep = io.tiles(0).xact_rep
-  x_rep.bits.t_type := Mux(io.mem.resp.valid, X_READ_EXCLUSIVE, X_WRITE_UNCACHED)
+  x_rep.bits.t_type := Mux(io.mem.resp.valid, X_REP_READ_EXCLUSIVE, X_REP_WRITE_UNCACHED)
   x_rep.bits.tile_xact_id := Mux(io.mem.resp.valid, io.mem.resp.bits.tag, x_init.bits.tile_xact_id)
   x_rep.bits.global_xact_id := UFix(0) // don't care
   x_rep.bits.data := io.mem.resp.bits.data
@@ -395,17 +403,17 @@ class CoherenceHubNull extends CoherenceHub {
 }
 
 
-class CoherenceHubBroadcast extends CoherenceHub {
+class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
 
   def coherenceConflict(addr1: Bits, addr2: Bits): Bool = {
     addr1(PADDR_BITS-1, OFFSET_BITS) === addr2(PADDR_BITS-1, OFFSET_BITS)
   }
   def getTransactionReplyType(t_type: UFix, count: UFix): Bits = {
-    MuxLookup(t_type, X_READ_UNCACHED, Array(
-      X_READ_SHARED    -> Mux(count > UFix(0), X_READ_SHARED, X_READ_EXCLUSIVE),
-      X_READ_EXCLUSIVE -> X_READ_EXCLUSIVE,
-      X_READ_UNCACHED  -> X_READ_UNCACHED,
-      X_WRITE_UNCACHED -> X_WRITE_UNCACHED
+    MuxLookup(t_type, X_REP_READ_UNCACHED, Array(
+      X_INIT_READ_SHARED    -> Mux(count > UFix(0), X_REP_READ_SHARED, X_REP_READ_EXCLUSIVE),
+      X_INIT_READ_EXCLUSIVE -> X_REP_READ_EXCLUSIVE,
+      X_INIT_READ_UNCACHED  -> X_REP_READ_UNCACHED,
+      X_INIT_WRITE_UNCACHED -> X_REP_WRITE_UNCACHED
     ))
   }
 
@@ -415,7 +423,7 @@ class CoherenceHubBroadcast extends CoherenceHub {
   val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
   val init_tile_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
   val tile_xact_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
-  val t_type_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TTYPE_BITS)} }
+  val t_type_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=X_INIT_TYPE_BITS)} }
   val sh_count_arr       = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
   val send_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
 
@@ -506,7 +514,7 @@ class CoherenceHubBroadcast extends CoherenceHub {
     val idx = p_rep.bits.global_xact_id
     p_rep.ready := foldR(trackerList.map(_.io.pop_p_rep(j)))(_ || _)
     p_rep_data.ready := foldR(trackerList.map(_.io.pop_p_rep_data(j)))(_ || _)
-    p_data_valid_arr(idx) := p_rep.valid && p_rep.bits.has_data
+    p_data_valid_arr(idx) := p_rep.valid && probeReplyHasData(p_rep.bits)
     p_data_tile_id_arr(idx) := UFix(j)
   }
   for( i <- 0 until NGLOBAL_XACTS ) {
@@ -527,7 +535,7 @@ class CoherenceHubBroadcast extends CoherenceHub {
     for( i <- 0 until NGLOBAL_XACTS) {
       val t = trackerList(i).io
       conflicts(UFix(i), t.busy && coherenceConflict(t.addr, x_init.bits.address) && 
-                        !(x_init.bits.has_data && (UFix(j) === t.init_tile_id)))
+                        !(transactionInitHasData(x_init.bits) && (UFix(j) === t.init_tile_id)))
                         // Don't abort writebacks stalled on mem. 
                         // TODO: This assumes overlapped writeback init reqs to 
                         // the same addr will never be issued; is this ok?

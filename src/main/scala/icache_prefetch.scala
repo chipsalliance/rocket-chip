@@ -30,8 +30,7 @@ class rocketIPrefetcher extends Component() {
   val ip_mem_resp_val = io.mem.xact_rep.valid && io.mem.xact_rep.bits.tile_xact_id(0)
   
   io.mem.xact_init.valid  := prefetch_miss || (state === s_req_wait)
-  io.mem.xact_init.bits.t_type := X_READ_UNCACHED
-  io.mem.xact_init.bits.has_data   := Bool(false)
+  io.mem.xact_init.bits.t_type := X_INIT_READ_UNCACHED
   io.mem.xact_init.bits.tile_xact_id  := Mux(prefetch_miss, UFix(0), UFix(1))
   io.mem.xact_init.bits.address := Mux(prefetch_miss, io.icache.xact_init.bits.address, prefetch_addr);
   io.mem.xact_init_data.valid := Bool(false)
