@@ -117,8 +117,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
     mem_req_data = Cat(packet_ram.read(idx), mem_req_data)
   }
   io.mem.xact_init.valid := state === state_mem_req
-  io.mem.xact_init.bits.t_type := Mux(cmd === cmd_writemem, X_WRITE_UNCACHED, X_READ_UNCACHED)
-  io.mem.xact_init.bits.has_data := cmd === cmd_writemem
+  io.mem.xact_init.bits.t_type := Mux(cmd === cmd_writemem, X_INIT_WRITE_UNCACHED, X_INIT_READ_UNCACHED)
   io.mem.xact_init.bits.address := addr >> UFix(OFFSET_BITS-3)
 
   io.mem.xact_init_data.valid:= state === state_mem_wdata
