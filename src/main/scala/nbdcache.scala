@@ -605,8 +605,6 @@ abstract class HellaCache extends Component {
   def newStateOnWriteback(): UFix
   def newStateOnFlush(): UFix
   def newStateOnHit(cmd: Bits, state: UFix): UFix
-  def newStateOnPrimaryMiss(cmd: Bits): UFix
-  def newStateOnSecondaryMiss(cmd: Bits, state: UFix): UFix
 }
 
 class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
