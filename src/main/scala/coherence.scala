@@ -23,7 +23,7 @@ class ioMem() extends Bundle
 {
   val req_cmd  = (new ioDecoupled) { new MemReqCmd() }
   val req_data = (new ioDecoupled) { new MemData() }
-  val resp     = (new ioPipe) { new MemResp() }
+  val resp     = (new ioPipe) { new MemResp() }.flip
 }
 
 class HubMemReq extends Bundle {
@@ -86,7 +86,7 @@ class ioTileLink extends Bundle {
   val probe_req      = (new ioDecoupled) { new ProbeRequest() }.flip
   val probe_rep      = (new ioDecoupled) { new ProbeReply() }
   val probe_rep_data = (new ioDecoupled) { new ProbeReplyData() }
-  val xact_rep       = (new ioPipe)     { new TransactionReply() }
+  val xact_rep       = (new ioPipe)      { new TransactionReply() }.flip
   val xact_finish    = (new ioDecoupled) { new TransactionFinish() }
 }
 
