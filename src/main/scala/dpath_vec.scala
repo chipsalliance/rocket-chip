@@ -11,7 +11,7 @@ class ioDpathVecInterface extends Bundle
   val vcmdq_bits = Bits(SZ_VCMD, OUTPUT)
   val vximm1q_bits = Bits(SZ_VIMM, OUTPUT)
   val vximm2q_bits = Bits(SZ_VSTRIDE, OUTPUT)
-  val vcntq = (new ioDecoupled()){ Bits(width = 11) }
+  val vcntq_bits = Bits(SZ_VLEN, OUTPUT)
   val eaddr = Bits(64, OUTPUT)
   val exception = Bool(OUTPUT)
 }
@@ -30,7 +30,6 @@ class ioDpathVec extends Bundle
   val rs2 = Bits(64, INPUT)
   val vec_eaddr = Bits(64, INPUT)
   val vec_exception = Bool(INPUT)
-  val pcr_wport = new ioWritePort()
   val wen = Bool(OUTPUT)
   val appvl = UFix(12, OUTPUT)
 }
@@ -123,17 +122,18 @@ class rocketDpathVec extends Component
     Mux(io.ctrl.sel_vcmd === VCMD_TF, Cat(Bits(1,2), io.inst(13,8), Bits(1,1), io.waddr, Bits(1,1), io.raddr1),
     Mux(io.ctrl.sel_vcmd === VCMD_MX, Cat(Bits(1,1), io.inst(13,12), io.inst(2), io.inst(10,7), Bits(0,1), io.waddr, Bits(0,1), io.waddr),
     Mux(io.ctrl.sel_vcmd === VCMD_MF, Cat(Bits(1,1), io.inst(13,12), io.inst(2), io.inst(10,7), Bits(1,1), io.waddr, Bits(1,1), io.waddr),
-    Bits(0,20)))))))
+    Mux(io.ctrl.sel_vcmd === VCMD_A, io.wdata(SZ_VCMD-1, 0),
+        Bits(0,20))))))))
 
   io.iface.vximm1q_bits :=
     Mux(io.ctrl.sel_vimm === VIMM_VLEN, Cat(Bits(0,29), io.vecbankcnt, io.vecbank, io.inst(21,10), vlenm1(10,0)),
-    io.wdata) // VIMM_ALU
+        io.wdata) // VIMM_ALU
 
-  io.iface.vximm2q_bits := io.rs2
+  io.iface.vximm2q_bits :=
+    Mux(io.ctrl.sel_vimm2 === VIMM2_RS2, io.rs2,
+        io.wdata) // VIMM2_ALU
 
-  io.iface.vcntq.bits := io.pcr_wport.data
-  io.iface.vcntq.valid := io.pcr_wport.en && io.pcr_wport.addr === PCR_VEC_CNT
-  io.ctrl.replay_cntq := io.iface.vcntq.valid && !io.iface.vcntq.ready
+  io.iface.vcntq_bits := io.wdata(SZ_VLEN-1, 0)
 
   io.iface.eaddr := io.vec_eaddr
   io.iface.exception := io.vec_exception
