@@ -156,16 +156,26 @@ trait FourStateCoherence extends CoherencePolicy {
 
   def newStateOnWriteback() = tileInvalid
   def newStateOnFlush() = tileInvalid
+  def newStateOnHit(cmd: Bits, state: UFix): UFix = { 
+    val (read, write) = cpuCmdToRW(cmd)
+    Mux(write, tileExclusiveDirty, state)
+  }
+  def newStateOnTransactionRep(incoming: TransactionReply, outstanding: TransactionInit): UFix = {
+    MuxLookup(incoming.t_type, tileInvalid, Array(
+      X_READ_SHARED -> tileShared,
+      X_READ_EXCLUSIVE  -> Mux(outstanding.t_type === X_READ_EXCLUSIVE, tileExclusiveDirty, tileExclusiveClean),
+      X_READ_EXCLUSIVE_ACK -> tileExclusiveDirty, 
+      X_READ_UNCACHED -> tileInvalid,
+      X_WRITE_UNCACHED -> tileInvalid
+    ))
+  } 
+  def needsSecondaryXact(cmd: Bits, outstanding: TransactionInit): Bool = {
+    val (read, write) = cpuCmdToRW(cmd)
+    (read && (outstanding.t_type === X_READ_UNCACHED || outstanding.t_type === X_WRITE_UNCACHED)) ||
+      (write && (outstanding.t_type != X_READ_EXCLUSIVE))
+  }
 
-  // TODO: New funcs as compared to incoherent protocol:
-  def newState(cmd: Bits, state: UFix): UFix
-  def newStateOnHit(cmd: Bits, state: UFix): UFix 
-  def newStateOnPrimaryMiss(cmd: Bits): UFix 
-  def newStateOnSecondaryMiss(cmd: Bits, state: UFix): UFix 
-
-  def needsSecondaryXact (cmd: Bits, outstanding: TransactionInit): Bool
-
-  def newStateOnProbe (incoming: ProbeRequest, state: UFix): Bits = {
+  def newStateOnProbeReq(incoming: ProbeRequest, state: UFix): Bits = {
     MuxLookup(incoming.p_type, state, Array(
       probeInvalidate -> tileInvalid,
       probeDowngrade  -> tileShared,
@@ -174,26 +184,26 @@ trait FourStateCoherence extends CoherencePolicy {
   }
 
   def replyTypeHasData (reply: TransactionReply): Bool = {
-    (reply.t_type != X_WRITE_UNCACHED)
+    (reply.t_type != X_WRITE_UNCACHED && reply.t_type != X_READ_EXCLUSIVE_ACK)
   }
 }
 
 class XactTracker(id: Int) extends Component with CoherencePolicy {
   val io = new Bundle {
-    val alloc_req       = (new ioDecoupled) { new TrackerAllocReq() }.flip
-    val p_data          = (new ioPipe) { new TrackerProbeData() }
+    val alloc_req       = (new ioDecoupled) { new TrackerAllocReq }.flip
+    val p_data          = (new ioPipe) { new TrackerProbeData }
     val can_alloc       = Bool(INPUT)
     val xact_finish     = Bool(INPUT)
     val p_rep_cnt_dec   = Bits(NTILES, INPUT)
     val p_req_cnt_inc   = Bits(NTILES, INPUT)
-    val p_rep_data      = (new ioDecoupled) { new ProbeReplyData() }.flip
-    val x_init_data     = (new ioDecoupled) { new TransactionInitData() }.flip
+    val p_rep_data      = (new ioDecoupled) { new ProbeReplyData }.flip
+    val x_init_data     = (new ioDecoupled) { new TransactionInitData }.flip
     val sent_x_rep_ack  = Bool(INPUT)
 
-    val mem_req_cmd     = (new ioDecoupled) { new MemReqCmd() }
-    val mem_req_data    = (new ioDecoupled) { new MemData() }
+    val mem_req_cmd     = (new ioDecoupled) { new MemReqCmd }
+    val mem_req_data    = (new ioDecoupled) { new MemData }
     val mem_req_lock    = Bool(OUTPUT)
-    val probe_req       = (new ioDecoupled) { new ProbeRequest() }
+    val probe_req       = (new ioDecoupled) { new ProbeRequest }
     val busy            = Bool(OUTPUT)
     val addr            = Bits(PADDR_BITS, OUTPUT)
     val init_tile_id    = Bits(TILE_ID_BITS, OUTPUT)
