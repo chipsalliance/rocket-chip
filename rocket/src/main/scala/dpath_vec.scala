@@ -14,6 +14,8 @@ class ioDpathVecInterface extends Bundle
   val vcntq_bits = Bits(SZ_VLEN, OUTPUT)
   val eaddr = Bits(64, OUTPUT)
   val exception = Bool(OUTPUT)
+  val kill = Bool(OUTPUT)
+  val hold = Bool(OUTPUT)
 }
 
 class ioDpathVec extends Bundle
@@ -29,7 +31,7 @@ class ioDpathVec extends Bundle
   val wdata = Bits(64, INPUT)
   val rs2 = Bits(64, INPUT)
   val vec_eaddr = Bits(64, INPUT)
-  val vec_exception = Bool(INPUT)
+  val vec_xcpt = Bits(3, INPUT)
   val wen = Bool(OUTPUT)
   val appvl = UFix(12, OUTPUT)
 }
@@ -136,7 +138,9 @@ class rocketDpathVec extends Component
   io.iface.vcntq_bits := io.wdata(SZ_VLEN-1, 0)
 
   io.iface.eaddr := io.vec_eaddr
-  io.iface.exception := io.vec_exception
+  io.iface.exception := io.vec_xcpt(0)
+  io.iface.kill := io.vec_xcpt(1)
+  io.iface.hold := io.vec_xcpt(2)
 
   io.ctrl.valid := io.valid
   io.ctrl.inst := io.inst
