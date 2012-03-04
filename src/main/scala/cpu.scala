@@ -200,6 +200,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     // exceptions
     vu.io.cpu_exception.addr := dpath.io.vec_iface.eaddr.toUFix
     vu.io.cpu_exception.exception := dpath.io.vec_iface.exception
+    vu.io.cpu_exception.kill := dpath.io.vec_iface.kill
+    vu.io.cpu_exception.hold := dpath.io.vec_iface.hold
     ctrl.io.vec_iface.exception_ack_valid := vu.io.exception_ack_valid
     vu.io.exception_ack_ready := ctrl.io.vec_iface.exception_ack_ready
     ctrl.io.vec_iface.kill_ack_valid := vu.io.kill_ack_valid
