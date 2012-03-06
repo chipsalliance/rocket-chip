@@ -174,20 +174,23 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
 
     val idx_match      = Bool(OUTPUT)
     val idx            = Bits(IDX_BITS, OUTPUT)
+    val refill_count   = Bits(log2up(REFILL_CYCLES), OUTPUT)
     val tag            = Bits(TAG_BITS, OUTPUT)
     val way_oh         = Bits(NWAYS, OUTPUT)
 
-    val mem_resp_val = Bool(INPUT)
-    val mem_abort_val = Bool(INPUT)
     val mem_req  = (new ioDecoupled) { new TransactionInit }
     val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }
     val replay   = (new ioDecoupled) { new Replay()   }
+    val mem_abort = (new ioPipe) { new TransactionAbort }.flip
+    val mem_rep = (new ioPipe) { new TransactionReply }.flip
+    val mem_finish = (new ioDecoupled) { new TransactionFinish }
   }
 
   val valid = Reg(resetVal = Bool(false))
   val state = Reg { UFix() }
   val requested = Reg { Bool() }
   val refilled = Reg { Bool() }
+  val refill_count = Reg { UFix(width = log2up(REFILL_CYCLES)) }
   val ppn = Reg { Bits() }
   val idx_ = Reg { Bits() }
   val way_oh_ = Reg { Bits() }
@@ -204,11 +207,18 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
   rpq.io.enq.bits.sdq_id := io.req_sdq_id
   rpq.io.deq.ready := io.replay.ready && refilled
 
+  val refill_done = io.mem_rep.valid && io.mem_rep.bits.tile_xact_id === UFix(id) && refill_count.andR
+
+  val finish_q = (new queue(1)) { new TransactionFinish }
+  finish_q.io.enq.valid := refill_done
+  finish_q.io.enq.bits := io.mem_rep.bits.global_xact_id
+
   when (io.req_pri_val && io.req_pri_rdy) {
     valid := Bool(true)
     state := newStateOnPrimaryMiss(req_cmd)
     requested := Bool(false)
     refilled := Bool(false)
+    refill_count := UFix(0)
     ppn := io.req_bits.ppn
     idx_ := io.req_bits.idx
     way_oh_ := io.req_bits.way_oh
@@ -217,10 +227,13 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
     when (io.mem_req.valid && io.mem_req.ready) {
       requested := Bool(true)
     }
-    when (io.mem_abort_val) {
+    when (io.mem_abort.valid && io.mem_abort.bits.tile_xact_id === UFix(id)) {
       requested := Bool(false)
     }
-    when (io.mem_resp_val) {
+    when (io.mem_rep.valid && io.mem_rep.bits.tile_xact_id === UFix(id)) {
+      refill_count := refill_count + UFix(1)
+    }
+    when (refill_done) {
       refilled := Bool(true)
     }
     when (io.meta_req.valid && io.meta_req.ready) {
@@ -233,7 +246,8 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
   io.idx := idx_
   io.tag := ppn
   io.way_oh := way_oh_
-  io.req_pri_rdy := !valid
+  io.refill_count := refill_count
+  io.req_pri_rdy := !valid && finish_q.io.enq.ready
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
   io.meta_req.valid := valid && refilled && !rpq.io.deq.valid
@@ -247,6 +261,7 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
   io.mem_req.bits.t_type := Mux(needsWriteback(next_state), X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
   io.mem_req.bits.address := Cat(ppn, idx_).toUFix
   io.mem_req.bits.tile_xact_id := Bits(id)
+  io.mem_finish <> finish_q.io.deq
 
   io.replay.valid := rpq.io.deq.valid && refilled
   io.replay.bits <> rpq.io.deq.bits
@@ -258,9 +273,8 @@ class MSHRFile extends Component {
   val io = new Bundle {
     val req = (new ioDecoupled) { new MSHRReq }.flip
 
-    val mem_resp_val = Bool(INPUT)
-    val mem_resp_tag = Bits(MEM_TAG_BITS, INPUT)
     val mem_resp_idx = Bits(IDX_BITS, OUTPUT)
+    val mem_resp_offset = Bits(log2up(REFILL_CYCLES), OUTPUT)
     val mem_resp_way_oh = Bits(NWAYS, OUTPUT)
 
     val fence_rdy = Bool(OUTPUT)
@@ -269,6 +283,8 @@ class MSHRFile extends Component {
     val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }
     val data_req   = (new ioDecoupled) { new DataReq() }
     val mem_abort = (new ioPipe) { new TransactionAbort }.flip
+    val mem_rep = (new ioPipe) { new TransactionReply }.flip
+    val mem_finish = (new ioDecoupled) { new TransactionFinish }
 
     val cpu_resp_val = Bool(OUTPUT)
     val cpu_resp_tag = Bits(DCACHE_TAG_BITS, OUTPUT)
@@ -284,10 +300,10 @@ class MSHRFile extends Component {
   sdq.setTarget('inst)
 
   val tag_mux = (new Mux1H(NMSHR)){ Bits(width = TAG_BITS) }
-  val mem_resp_idx_mux = (new Mux1H(NMSHR)){ Bits(width = IDX_BITS) }
-  val mem_resp_way_oh_mux = (new Mux1H(NMSHR)){ Bits(width =  NWAYS) }
+  val mem_resp_mux = (new Mux1H(NMSHR)){ new DataArrayArrayReq }
   val meta_req_arb = (new Arbiter(NMSHR)) { new MetaArrayArrayReq() }
   val mem_req_arb = (new Arbiter(NMSHR)) { new TransactionInit }
+  val mem_finish_arb = (new Arbiter(NMSHR)) { new TransactionFinish }
   val replay_arb = (new Arbiter(NMSHR)) { new Replay() }
   val alloc_arb = (new Arbiter(NMSHR)) { Bool() }
 
@@ -313,14 +329,15 @@ class MSHRFile extends Component {
 
     mshr.io.meta_req <> meta_req_arb.io.in(i)
     mshr.io.mem_req <> mem_req_arb.io.in(i)
+    mshr.io.mem_finish <> mem_finish_arb.io.in(i)
     mshr.io.replay <> replay_arb.io.in(i)
 
-    mshr.io.mem_resp_val := io.mem_resp_val && (UFix(i) === io.mem_resp_tag)
-    mshr.io.mem_abort_val := io.mem_abort.valid && (UFix(i) === io.mem_abort.bits.tile_xact_id)
-    mem_resp_idx_mux.io.sel(i) := (UFix(i) === io.mem_resp_tag)
-    mem_resp_idx_mux.io.in(i) := mshr.io.idx
-    mem_resp_way_oh_mux.io.sel(i) := (UFix(i) === io.mem_resp_tag)
-    mem_resp_way_oh_mux.io.in(i) := mshr.io.way_oh
+    mshr.io.mem_abort <> io.mem_abort
+    mshr.io.mem_rep <> io.mem_rep
+    mem_resp_mux.io.sel(i) := UFix(i) === io.mem_rep.bits.tile_xact_id
+    mem_resp_mux.io.in(i).inner_req.idx := mshr.io.idx
+    mem_resp_mux.io.in(i).inner_req.offset := mshr.io.refill_count
+    mem_resp_mux.io.in(i).way_en := mshr.io.way_oh
 
     pri_rdy = pri_rdy || mshr.io.req_pri_rdy
     sec_rdy = sec_rdy || mshr.io.req_sec_rdy
@@ -332,10 +349,12 @@ class MSHRFile extends Component {
 
   meta_req_arb.io.out <> io.meta_req
   mem_req_arb.io.out <> io.mem_req
+  mem_finish_arb.io.out <> io.mem_finish
 
   io.req.ready := Mux(idx_match, tag_match && sec_rdy, pri_rdy) && sdq_rdy
-  io.mem_resp_idx := mem_resp_idx_mux.io.out
-  io.mem_resp_way_oh := mem_resp_way_oh_mux.io.out
+  io.mem_resp_idx := mem_resp_mux.io.out.inner_req.idx
+  io.mem_resp_offset := mem_resp_mux.io.out.inner_req.offset
+  io.mem_resp_way_oh := mem_resp_mux.io.out.way_en
   io.fence_rdy := !fence
 
   val replay = Queue(replay_arb.io.out, 1, pipe = true)
@@ -361,6 +380,7 @@ class WritebackUnit extends Component {
     val mem_req_data = (new ioDecoupled) { new TransactionInitData }
     val mem_abort = (new ioPipe) { new TransactionAbort }.flip
     val mem_rep = (new ioPipe) { new TransactionReply }.flip
+    val mem_finish = (new ioDecoupled) { new TransactionFinish }
   }
 
   val valid = Reg(resetVal = Bool(false))
@@ -373,6 +393,10 @@ class WritebackUnit extends Component {
   val nacked = Reg() { Bool() }
   when (io.mem_rep.valid && io.mem_rep.bits.tile_xact_id === UFix(NMSHR)) { acked := Bool(true) }
   when (io.mem_abort.valid && io.mem_abort.bits.tile_xact_id === UFix(NMSHR)) { nacked := Bool(true) }
+
+  val finish_q = (new queue(1)) { new TransactionFinish }
+  finish_q.io.enq.valid := io.mem_rep.valid && io.mem_rep.bits.tile_xact_id === UFix(NMSHR)
+  finish_q.io.enq.bits.global_xact_id := io.mem_rep.bits.global_xact_id
 
   data_req_fired := Bool(false)
   when (valid && io.mem_req.ready) {
@@ -405,7 +429,7 @@ class WritebackUnit extends Component {
     addr := io.req.bits
   }
 
-  io.req.ready := !valid
+  io.req.ready := !valid && finish_q.io.enq.ready
   io.data_req.valid := valid && (cnt < UFix(REFILL_CYCLES))
   io.data_req.bits.way_en := addr.way_oh
   io.data_req.bits.inner_req.idx := addr.idx
@@ -420,9 +444,9 @@ class WritebackUnit extends Component {
   io.mem_req.bits.t_type := Mux(wb_req_val, X_INIT_WRITE_UNCACHED, io.refill_req.bits.t_type)
   io.mem_req.bits.address := Mux(wb_req_val, Cat(addr.ppn, addr.idx).toUFix, io.refill_req.bits.address)
   io.mem_req.bits.tile_xact_id := Mux(wb_req_val, Bits(NMSHR), io.refill_req.bits.tile_xact_id)
-
   io.mem_req_data.valid := data_req_fired
   io.mem_req_data.bits.data := io.data_resp
+  io.mem_finish <> finish_q.io.deq
 }
 
 class FlushUnit(lines: Int) extends Component with ThreeStateIncoherence{
@@ -713,12 +737,6 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   }
   val cpu_req_data = Mux(r_replay_amo, r_amo_replay_data, io.cpu.req_data)
 
-  // refill counter
-  val refill_val = io.mem.xact_rep.valid && io.mem.xact_rep.bits.tile_xact_id < UFix(NMSHR)
-  val rr_count = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
-  val rr_count_next = rr_count + UFix(1)
-  when (refill_val) { rr_count := rr_count_next }
-
   val misaligned =
     (((r_cpu_req_type === MT_H) || (r_cpu_req_type === MT_HU)) && (r_cpu_req_idx(0) != Bits(0))) ||
     (((r_cpu_req_type === MT_W) || (r_cpu_req_type === MT_WU)) && (r_cpu_req_idx(1,0) != Bits(0))) ||
@@ -757,12 +775,14 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   val data_resp_mux = Mux1H(NWAYS, data_resp_way_oh, data.io.resp)
 
   // writeback unit
+  val finish_arb = (new Arbiter(2)) { new TransactionFinish }
   val wb = new WritebackUnit
   val wb_arb = (new Arbiter(2)) { new WritebackReq() }
   wb_arb.io.out <> wb.io.req
   wb.io.data_req <> data_arb.io.in(3)
   wb.io.data_resp <> data_resp_mux
   wb.io.mem_rep <> io.mem.xact_rep
+  wb.io.mem_finish <> finish_arb.io.in(0)
   wb.io.mem_abort.valid := io.mem.xact_abort.valid
   wb.io.mem_abort.bits := io.mem.xact_abort.bits
 
@@ -775,14 +795,13 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   val needs_writeback = needsWriteback(meta_wb_mux.state)
 
   // refill response
-  val block_during_refill = !refill_val && (rr_count != UFix(0))
-  data_arb.io.in(0).bits.inner_req.offset := rr_count
+  data_arb.io.in(0).bits.inner_req.offset := mshr.io.mem_resp_offset
   data_arb.io.in(0).bits.inner_req.idx := mshr.io.mem_resp_idx
-  data_arb.io.in(0).bits.inner_req.rw := !block_during_refill
+  data_arb.io.in(0).bits.inner_req.rw := Bool(true)
   data_arb.io.in(0).bits.inner_req.wmask := ~UFix(0, MEM_DATA_BITS/8)
   data_arb.io.in(0).bits.inner_req.data := io.mem.xact_rep.bits.data
   data_arb.io.in(0).bits.way_en := mshr.io.mem_resp_way_oh
-  data_arb.io.in(0).valid := refill_val || block_during_refill
+  data_arb.io.in(0).valid := io.mem.xact_rep.valid && io.mem.xact_rep.bits.tile_xact_id < UFix(NMSHR)
 
   // load hits
   data_arb.io.in(4).bits.inner_req.offset := io.cpu.req_idx(offsetmsb,ramindexlsb)
@@ -855,8 +874,8 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   mshr.io.req.bits.way_oh := replaced_way_oh
   mshr.io.req.bits.data := cpu_req_data
 
-  mshr.io.mem_resp_val := refill_val && (~rr_count === UFix(0))
-  mshr.io.mem_resp_tag := io.mem.xact_rep.bits.tile_xact_id
+  mshr.io.mem_rep <> io.mem.xact_rep
+  mshr.io.mem_finish <> finish_arb.io.in(1)
   mshr.io.mem_abort.valid := io.mem.xact_abort.valid
   mshr.io.mem_abort.bits := io.mem.xact_abort.bits
   mshr.io.mem_req <> wb.io.refill_req
@@ -939,4 +958,5 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   
   io.mem.xact_init <> wb.io.mem_req
   io.mem.xact_init_data <> wb.io.mem_req_data
+  io.mem.xact_finish <> finish_arb.io.out
 }
