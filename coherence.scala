@@ -397,6 +397,7 @@ class CoherenceHubNull extends CoherenceHub {
   x_rep.valid := io.mem.resp.valid || x_init.valid && is_write
 
   io.tiles(0).xact_abort.valid := Bool(false)
+  io.tiles(0).xact_finish.ready := Bool(true)
 }
 
 
