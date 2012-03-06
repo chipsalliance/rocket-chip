@@ -155,6 +155,10 @@ trait FourStateCoherence extends CoherencePolicy {
     val (read, write) = cpuCmdToRW(cmd)
     Mux(write, tileExclusiveDirty, state)
   }
+  def newTransactionOnMiss(cmd: Bits, state: UFix): UFix = {
+    val (read, write) = cpuCmdToRW(cmd)
+    Mux(write, X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
+  }
   def newStateOnTransactionRep(incoming: TransactionReply, outstanding: TransactionInit): UFix = {
     MuxLookup(incoming.t_type, tileInvalid, Array(
       X_REP_READ_SHARED -> tileShared,
