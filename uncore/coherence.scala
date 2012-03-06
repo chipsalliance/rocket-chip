@@ -26,18 +26,13 @@ class ioMem() extends Bundle
   val resp     = (new ioPipe) { new MemResp() }.flip
 }
 
-class HubMemReq extends Bundle {
-  val lock   = Bool() 
-}
-
 class TrackerProbeData extends Bundle {
   val tile_id = Bits(width = TILE_ID_BITS)
 }
 
 class TrackerAllocReq extends Bundle {
   val xact_init = new TransactionInit()
-  val init_tile_id = Bits(width = TILE_ID_BITS)
-  val data_valid = Bool()
+  val tile_id = Bits(width = TILE_ID_BITS)
 }
 
 
@@ -98,8 +93,7 @@ object cpuCmdToRW {
   }
 }
 
-trait CoherencePolicy {
-}
+trait CoherencePolicy { }
 
 trait ThreeStateIncoherence extends CoherencePolicy {
   val tileInvalid :: tileClean :: tileDirty :: Nil = Enum(3){ UFix() }
@@ -242,36 +236,18 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
       (t_type === X_INIT_WRITE_UNCACHED)
   }
 
-  val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(5){ UFix() }
-  val state = Reg(resetVal = s_idle)
-  val addr_  = Reg{ UFix() }
-  val t_type_ = Reg{ Bits() }
-  val init_tile_id_ = Reg{ Bits() }
-  val tile_xact_id_ = Reg{ Bits() }
-  val p_rep_count = Reg(resetVal = UFix(0, width = log2up(NTILES)))
-  val p_req_flags = Reg(resetVal = Bits(0, width = NTILES))
-  val p_rep_tile_id_ = Reg{ Bits() }
-  val x_needs_read = Reg(resetVal = Bool(false))
-  val x_init_data_needs_write = Reg(resetVal = Bool(false))
-  val p_rep_data_needs_write = Reg(resetVal = Bool(false))
-  val mem_cmd_sent = Reg(resetVal = Bool(false))
-  val mem_cnt = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
-  val mem_cnt_next = mem_cnt + UFix(1)
-
-  def doMemReqWrite(req_cmd: ioDecoupled[MemReqCmd], req_data: ioDecoupled[MemData], lock: Bool,  data: ioDecoupled[MemData], trigger: Bool, pop: Bool) {
-    req_cmd.valid := mem_cmd_sent
+  def doMemReqWrite(req_cmd: ioDecoupled[MemReqCmd], req_data: ioDecoupled[MemData], lock: Bool,  data: ioDecoupled[MemData], trigger: Bool, pop_data: Bool, cmd_sent: Bool) {
+    req_cmd.valid := !cmd_sent
     req_cmd.bits.rw := Bool(true)
-    //TODO: why does req_data <> data segfault?
-    req_data.valid := data.valid
-    req_data.bits.data := data.bits.data
     data.ready := req_data.ready
+    req_data <> data
     lock := Bool(true)
     when(req_cmd.ready && req_cmd.valid) {
-      mem_cmd_sent := Bool(false)
+      cmd_sent := Bool(true)
     }
     when(req_data.ready && req_data.valid) {
-      pop := Bool(true)
-      mem_cnt := mem_cnt_next
+      pop_data := Bool(true)
+      mem_cnt  := mem_cnt_next
     }
     when(mem_cnt === ~UFix(0)) {
       trigger := Bool(false)
@@ -285,6 +261,25 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
       trigger := Bool(false)
     }
   }
+
+  val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(5){ UFix() }
+  val state = Reg(resetVal = s_idle)
+  val addr_  = Reg{ UFix() }
+  val t_type_ = Reg{ Bits() }
+  val init_tile_id_ = Reg{ Bits() }
+  val tile_xact_id_ = Reg{ Bits() }
+  val p_rep_count = Reg(resetVal = UFix(0, width = log2up(NTILES)))
+  val p_req_flags = Reg(resetVal = Bits(0, width = NTILES))
+  val p_rep_tile_id_ = Reg{ Bits() }
+  val x_needs_read = Reg(resetVal = Bool(false))
+  val x_init_data_needs_write = Reg(resetVal = Bool(false))
+  val p_rep_data_needs_write = Reg(resetVal = Bool(false))
+  val x_w_mem_cmd_sent = Reg(resetVal = Bool(false))
+  val p_w_mem_cmd_sent = Reg(resetVal = Bool(false))
+  val mem_cmd_sent = Reg(resetVal = Bool(false))
+  val mem_cnt = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
+  val mem_cnt_next = mem_cnt + UFix(1)
+  val mem_cnt_max = ~UFix(0, width = log2up(REFILL_CYCLES))
 
   io.busy := state != s_idle
   io.addr := addr_
@@ -318,16 +313,16 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
       when( io.alloc_req.valid && io.can_alloc ) {
         addr_ := io.alloc_req.bits.xact_init.address
         t_type_ := io.alloc_req.bits.xact_init.t_type
-        init_tile_id_ := io.alloc_req.bits.init_tile_id
+        init_tile_id_ := io.alloc_req.bits.tile_id
         tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
         x_init_data_needs_write := transactionInitHasData(io.alloc_req.bits.xact_init)
         x_needs_read := needsMemRead(io.alloc_req.bits.xact_init.t_type, UFix(0))
         p_rep_count := UFix(NTILES-1)
-        p_req_flags := ~( UFix(1) << io.alloc_req.bits.init_tile_id )
-        state := Mux(p_req_flags.orR, s_probe, s_mem)
+        p_req_flags := ~( UFix(1) << io.alloc_req.bits.tile_id )
         mem_cnt := UFix(0)
         mem_cmd_sent := Bool(false)
         io.pop_x_init := Bool(true)
+        state := Mux(p_req_flags.orR, s_probe, s_mem)
       }
     }
     is(s_probe) {
@@ -342,9 +337,8 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
         val p_rep_count_next = p_rep_count - PopCount(io.p_rep_cnt_dec)
         io.pop_p_rep := io.p_rep_cnt_dec
         p_rep_count := p_rep_count_next
-        when(p_rep_count_next === UFix(0)) {
-          mem_cnt := UFix(0)
-          mem_cmd_sent := Bool(false)
+        when(p_rep_count === UFix(0)) {
+          io.pop_p_rep := Bool(true)
           state := s_mem
         }
       }
@@ -355,9 +349,9 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
     }
     is(s_mem) {
       when (p_rep_data_needs_write) {
-        doMemReqWrite(io.mem_req_cmd, io.mem_req_data, io.mem_req_lock, io.p_rep_data, p_rep_data_needs_write, io.pop_p_rep_data)
+        doMemReqWrite(io.mem_req_cmd, io.mem_req_data, io.mem_req_lock, io.p_rep_data, p_rep_data_needs_write, io.pop_p_rep_data, p_w_mem_cmd_sent)
       } . elsewhen(x_init_data_needs_write) {
-        doMemReqWrite(io.mem_req_cmd, io.mem_req_data, io.mem_req_lock, io.x_init_data, x_init_data_needs_write, io.pop_x_init_data)
+        doMemReqWrite(io.mem_req_cmd, io.mem_req_data, io.mem_req_lock, io.x_init_data, x_init_data_needs_write, io.pop_x_init_data, x_w_mem_cmd_sent)
       } . elsewhen (x_needs_read) {    
         doMemReqRead(io.mem_req_cmd, x_needs_read)
       } . otherwise { 
@@ -565,10 +559,9 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
     val x_init_data = io.tiles(j).xact_init_data
     init_arb.io.in(j).valid := x_init.valid
     init_arb.io.in(j).bits.xact_init := x_init.bits
-    init_arb.io.in(j).bits.init_tile_id := UFix(j)
-    init_arb.io.in(j).bits.data_valid := x_init_data.valid
-    x_init.ready := aborting(j) || foldR(trackerList.map(_.io.pop_x_init && init_arb.io.out.bits.init_tile_id === UFix(j)))(_||_)
-    x_init_data.ready := aborting(j) || foldR(trackerList.map(_.io.pop_x_init_data && init_arb.io.out.bits.init_tile_id === UFix(j)))(_||_)
+    init_arb.io.in(j).bits.tile_id := UFix(j)
+    x_init.ready := aborting(j) || foldR(trackerList.map(_.io.pop_x_init && init_arb.io.out.bits.tile_id === UFix(j)))(_||_)
+    x_init_data.ready := aborting(j) || foldR(trackerList.map(_.io.pop_x_init_data && init_arb.io.out.bits.tile_id === UFix(j)))(_||_)
   }
   
   alloc_arb.io.out.ready := init_arb.io.out.valid && !busy_arr.toBits.andR &&
