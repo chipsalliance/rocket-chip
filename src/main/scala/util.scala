@@ -85,6 +85,11 @@ object OHToUFix
     val out = MuxCase( UFix(0), (0 until in.getWidth).map( i => (in(i).toBool, UFix(i))))
     out.toUFix
   }
+  def apply(in: Seq[Bool]): UFix = 
+  {
+    val out = MuxCase( UFix(0), in.zipWithIndex map {case (b,i) => (b, UFix(i))})
+    out.toUFix
+  }
 }
 
 object UFixToOH
@@ -173,7 +178,7 @@ class ioDecoupled[+T <: Data]()(data: => T) extends Bundle
   val bits  = data.asOutput
 }
 
-class ioPipe[T <: Data]()(data: => T) extends Bundle
+class ioPipe[+T <: Data]()(data: => T) extends Bundle
 {
   val valid = Bool(OUTPUT)
   val bits = data.asOutput
