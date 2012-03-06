@@ -395,6 +395,8 @@ class CoherenceHubNull extends CoherenceHub {
   x_rep.bits.global_xact_id := UFix(0) // don't care
   x_rep.bits.data := io.mem.resp.bits.data
   x_rep.valid := io.mem.resp.valid || x_init.valid && is_write
+
+  io.tiles(0).xact_abort.valid := Bool(false)
 }
 
 

@@ -78,7 +78,12 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
                 Mux(!nack && cmd === cmd_readcr, UFix(1), UFix(0)))
   val tx_done = packet_ram_raddr - UFix(1) === tx_size
 
-  val state_rx :: state_pcr :: state_mem_req :: state_mem_wdata :: state_mem_rdata :: state_tx :: Nil = Enum(6) { UFix() }
+  val mem_acked = Reg(resetVal = Bool(false))
+  val mem_nacked = Reg(resetVal = Bool(false))
+  when (io.mem.xact_rep.valid) { mem_acked := Bool(true) }
+  when (io.mem.xact_abort.valid) { mem_nacked := Bool(true) }
+
+  val state_rx :: state_pcr :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_tx :: Nil = Enum(7) { UFix() }
   val state = Reg(resetVal = state_rx)
 
   when (state === state_rx && rx_done) {
@@ -96,12 +101,34 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   when (state === state_mem_req && io.mem.xact_init.ready) {
     state := Mux(cmd === cmd_writemem, state_mem_wdata, state_mem_rdata)
   }
-  when (state === state_mem_wdata && io.mem.xact_init_data.ready || 
-        state === state_mem_rdata && io.mem.xact_rep.valid) {
+  when (state === state_mem_wdata && io.mem.xact_init_data.ready) {
     when (mem_cnt.andR)  {
-      state := state_tx
+      state := state_mem_wresp
     }
     mem_cnt := mem_cnt + UFix(1)
+  }
+  when (state === state_mem_wresp) {
+    when (mem_nacked) {
+      state := state_mem_req
+      mem_nacked := Bool(false)
+    }
+    when (mem_acked) {
+      state := state_tx
+      mem_acked := Bool(false)
+    }
+  }
+  when (state === state_mem_rdata) {
+    when (mem_nacked) {
+      state := state_mem_req
+      mem_nacked := Bool(false)
+    }
+    when (io.mem.xact_rep.valid) {
+      when (mem_cnt.andR)  {
+        state := state_tx
+      }
+      mem_cnt := mem_cnt + UFix(1)
+    }
+    mem_acked := Bool(false)
   }
   when (state === state_tx && tx_done) {
     rx_count := UFix(0)
