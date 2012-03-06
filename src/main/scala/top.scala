@@ -29,13 +29,18 @@ class Top() extends Component {
   val hub = new CoherenceHubNull
   // connect tile to hub
   hub.io.tiles(0).xact_init <> Queue(arbiter.io.mem.xact_init)
-  hub.io.tiles(0).xact_init_data <> Queue(arbiter.io.mem.xact_init_data)
+  arbiter.io.mem.xact_abort <> Queue(hub.io.tiles(0).xact_abort)
   arbiter.io.mem.xact_rep <> Pipe(hub.io.tiles(0).xact_rep)
   // connect hub to memory
   io.mem.req_cmd <> Queue(hub.io.mem.req_cmd)
   io.mem.req_data <> Queue(hub.io.mem.req_data)
   hub.io.mem.resp <> Pipe(io.mem.resp)
 
+  // temporary HTIF data connection
+  val data_arb = (new Arbiter(2)) { new TransactionInitData }
+  data_arb.io.in(0) <> Queue(dcache.io.mem.xact_init_data)
+  data_arb.io.in(1) <> Queue(htif.io.mem.xact_init_data)
+  hub.io.tiles(0).xact_init_data <> data_arb.io.out
 
   if (HAVE_VEC)
   {

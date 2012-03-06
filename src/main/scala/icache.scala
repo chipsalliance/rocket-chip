@@ -20,7 +20,7 @@ class ioImem(view: List[String] = null) extends Bundle (view)
 class ioRocketICache extends Bundle()
 {
   val cpu = new ioImem();
-  val mem = new ioTileLink
+  val mem = new ioUncachedRequestor
 }
 
 // basic direct mapped instruction cache
@@ -49,6 +49,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   
   val s_reset :: s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(5) { UFix() };
   val state = Reg(resetVal = s_reset);
+  val invalidated = Reg() { Bool() }
   
   val r_cpu_req_idx    = Reg { Bits() }
   val r_cpu_req_ppn    = Reg { Bits() }
@@ -78,13 +79,14 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   when (io.mem.xact_rep.valid) {
     refill_count := refill_count + UFix(1);
   }
+  val refill_done = io.mem.xact_rep.valid && refill_count.andR
 
   val repl_way = LFSR16(state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss && !tag_hit)(log2up(assoc)-1,0)
   val word_shift = Cat(r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb), UFix(0, log2up(databits))).toUFix
+  val tag_we = (state === s_refill) && refill_done
   val tag_addr = 
-    Mux((state === s_refill_wait), r_cpu_req_idx(indexmsb,indexlsb),
+    Mux((state === s_refill), r_cpu_req_idx(indexmsb,indexlsb),
       io.cpu.req_idx(indexmsb,indexlsb)).toUFix;
-  val tag_we = (state === s_refill_wait) && io.mem.xact_rep.valid;
   val data_addr = 
     Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(indexmsb,offsetbits), refill_count),
       io.cpu.req_idx(indexmsb, offsetbits-rf_cnt_bits)).toUFix;
@@ -102,10 +104,10 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
     // valid bit array
     val vb_array = Reg(resetVal = Bits(0, sets));
     when (io.cpu.invalidate) {
-      vb_array := Bits(0,sets);
+      vb_array := Bits(0)
     }
     .elsewhen (tag_we && repl_me) {
-      vb_array := vb_array.bitSet(r_cpu_req_idx(indexmsb,indexlsb).toUFix, UFix(1,1));
+      vb_array := vb_array.bitSet(r_cpu_req_idx(indexmsb,indexlsb).toUFix, !invalidated)
     }
 
     val valid = vb_array(r_cpu_req_idx(indexmsb,indexlsb)).toBool;
@@ -131,20 +133,20 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   io.mem.xact_init.valid := (state === s_request)
   io.mem.xact_init.bits.t_type := X_INIT_READ_UNCACHED
   io.mem.xact_init.bits.address := r_cpu_miss_addr(tagmsb,indexlsb).toUFix
-  io.mem.xact_init_data.valid := Bool(false)
 
   // control state machine
+  when (io.cpu.invalidate) {
+    invalidated := Bool(true)
+  }
   switch (state) {
     is (s_reset) {
       state := s_ready;
     }
     is (s_ready) {
-      when (io.cpu.itlb_miss) {
-        state := s_ready;
-      }
-      .elsewhen (r_cpu_req_val && !tag_hit) {
+      when (r_cpu_req_val && !tag_hit && !io.cpu.itlb_miss) {
         state := s_request;
       }
+      invalidated := Bool(false)
     }
     is (s_request)
     {
@@ -153,12 +155,15 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
       }
     }
     is (s_refill_wait) {
+      when (io.mem.xact_abort.valid) {
+        state := s_request
+      }
       when (io.mem.xact_rep.valid) {
         state := s_refill;
       }
     }
     is (s_refill) {
-      when (io.mem.xact_rep.valid && refill_count.andR) {
+      when (refill_done) {
         state := s_ready;
       }
     }
