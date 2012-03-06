@@ -240,7 +240,8 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
     req_cmd.valid := !cmd_sent
     req_cmd.bits.rw := Bool(true)
     data.ready := req_data.ready
-    req_data <> data
+    req_data.bits := data.bits
+    req_data.valid := data.valid
     lock := Bool(true)
     when(req_cmd.ready && req_cmd.valid) {
       cmd_sent := Bool(true)
@@ -521,23 +522,51 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
   }
 
   // Nack conflicting transaction init attempts
-  val aborting = Bits(0, width = NTILES)
+  val s_idle :: s_abort_drain :: s_abort_send :: s_abort_complete :: Nil = Enum(4){ UFix() }
+  val abort_state_arr = Vec(NTILES) { Reg(resetVal = s_idle) }
+  val want_to_abort_arr = Vec(NTILES) { Wire() { Bool()} }
   for( j <- 0 until NTILES ) {
     val x_init = io.tiles(j).xact_init
+    val x_init_data = io.tiles(j).xact_init_data
     val x_abort  = io.tiles(j).xact_abort
     val conflicts = Bits(width = NGLOBAL_XACTS) 
     for( i <- 0 until NGLOBAL_XACTS) {
       val t = trackerList(i).io
-      conflicts(UFix(i), t.busy && coherenceConflict(t.addr, x_init.bits.address) && 
-                        !(transactionInitHasData(x_init.bits) && (UFix(j) === t.init_tile_id)))
-                        // Don't abort writebacks stalled on mem. 
-                        // TODO: This assumes overlapped writeback init reqs to 
-                        // the same addr will never be issued; is this ok?
+      conflicts(UFix(i), t.busy && x_init.valid && coherenceConflict(t.addr, x_init.bits.address))
     }
     x_abort.bits.tile_xact_id := x_init.bits.tile_xact_id
-    val want_to_abort = conflicts.orR || busy_arr.toBits.andR
-    x_abort.valid := want_to_abort && x_init.valid
-    aborting.bitSet(UFix(j), want_to_abort && x_abort.ready)
+    val abort_cnt = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
+    want_to_abort_arr(j) := conflicts.orR || busy_arr.toBits.andR
+    
+    x_abort.valid := Bool(false)
+    switch(abort_state_arr(j)) {
+      is(s_idle) {
+        when(want_to_abort_arr(j)) {
+          when(transactionInitHasData(x_init.bits)) {
+            abort_state_arr(j) := s_abort_drain
+          } . otherwise {
+            abort_state_arr(j) := s_abort_send
+          }
+        }
+      }
+      is(s_abort_drain) { // raises x_init_data.ready below
+        when(x_init_data.valid) {
+          abort_cnt := abort_cnt + UFix(1)
+        }
+        when(abort_cnt === ~UFix(0, width = log2up(REFILL_CYCLES))) {
+          abort_state_arr(j) := s_abort_send
+        }
+      }
+      is(s_abort_send) { // nothing is dequeued for now
+        x_abort.valid := Bool(true)
+        when(x_abort.ready) {
+          abort_state_arr(j) := s_abort_complete
+        }
+      }
+      is(s_abort_complete) { // raises x_init.ready below
+        abort_state_arr(j) := s_idle 
+      }
+    }
   }
   
   // Handle transaction initiation requests
@@ -557,15 +586,14 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
   for( j <- 0 until NTILES ) {
     val x_init = io.tiles(j).xact_init
     val x_init_data = io.tiles(j).xact_init_data
-    init_arb.io.in(j).valid := x_init.valid
+    init_arb.io.in(j).valid := (abort_state_arr(j) === s_idle) && !want_to_abort_arr(j) && x_init.valid
     init_arb.io.in(j).bits.xact_init := x_init.bits
     init_arb.io.in(j).bits.tile_id := UFix(j)
-    x_init.ready := aborting(j) || foldR(trackerList.map(_.io.pop_x_init && init_arb.io.out.bits.tile_id === UFix(j)))(_||_)
-    x_init_data.ready := aborting(j) || foldR(trackerList.map(_.io.pop_x_init_data && init_arb.io.out.bits.tile_id === UFix(j)))(_||_)
+    x_init.ready := (abort_state_arr(j) === s_abort_complete) || foldR(trackerList.map(_.io.pop_x_init && init_arb.io.out.bits.tile_id === UFix(j)))(_||_)
+    x_init_data.ready := (abort_state_arr(j) === s_abort_drain) || foldR(trackerList.map(_.io.pop_x_init_data && init_arb.io.out.bits.tile_id === UFix(j)))(_||_)
   }
   
-  alloc_arb.io.out.ready := init_arb.io.out.valid && !busy_arr.toBits.andR &&
-                              !foldR(trackerList.map(t => t.io.busy && coherenceConflict(t.io.addr, init_arb.io.out.bits.xact_init.address)))(_||_)
+  alloc_arb.io.out.ready := init_arb.io.out.valid
 
   // Handle probe request generation
   // Must arbitrate for each request port
