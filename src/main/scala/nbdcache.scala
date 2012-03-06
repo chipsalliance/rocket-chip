@@ -418,7 +418,6 @@ class WritebackUnit extends Component {
   io.refill_req.ready := io.mem_req.ready && !(valid && !acked)
   io.mem_req.valid := io.refill_req.valid && !(valid && !acked) || wb_req_val
   io.mem_req.bits.t_type := Mux(wb_req_val, X_INIT_WRITE_UNCACHED, io.refill_req.bits.t_type)
-  io.mem_req.bits.has_data := wb_req_val
   io.mem_req.bits.address := Mux(wb_req_val, Cat(addr.ppn, addr.idx).toUFix, io.refill_req.bits.address)
   io.mem_req.bits.tile_xact_id := Mux(wb_req_val, Bits(NMSHR), io.refill_req.bits.tile_xact_id)
 
@@ -715,12 +714,7 @@ class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
   val cpu_req_data = Mux(r_replay_amo, r_amo_replay_data, io.cpu.req_data)
 
   // refill counter
-<<<<<<< HEAD
-  val mem_resp_type = io.mem.xact_rep.bits.t_type
-  val refill_val = io.mem.xact_rep.valid && (mem_resp_type === X_REP_READ_SHARED || mem_resp_type === X_REP_READ_EXCLUSIVE)
-=======
   val refill_val = io.mem.xact_rep.valid && io.mem.xact_rep.bits.tile_xact_id < UFix(NMSHR)
->>>>>>> support memory transaction aborts
   val rr_count = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
   val rr_count_next = rr_count + UFix(1)
   when (refill_val) { rr_count := rr_count_next }
