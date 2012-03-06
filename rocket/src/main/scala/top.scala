@@ -31,6 +31,7 @@ class Top() extends Component {
   hub.io.tiles(0).xact_init <> Queue(arbiter.io.mem.xact_init)
   arbiter.io.mem.xact_abort <> Queue(hub.io.tiles(0).xact_abort)
   arbiter.io.mem.xact_rep <> Pipe(hub.io.tiles(0).xact_rep)
+  hub.io.tiles(0).xact_finish <> Queue(arbiter.io.mem.xact_finish)
   // connect hub to memory
   io.mem.req_cmd <> Queue(hub.io.mem.req_cmd)
   io.mem.req_data <> Queue(hub.io.mem.req_data)

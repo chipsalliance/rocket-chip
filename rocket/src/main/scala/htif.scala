@@ -79,11 +79,12 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   val tx_done = packet_ram_raddr - UFix(1) === tx_size
 
   val mem_acked = Reg(resetVal = Bool(false))
+  val mem_gxid = Reg() { Bits() }
   val mem_nacked = Reg(resetVal = Bool(false))
-  when (io.mem.xact_rep.valid) { mem_acked := Bool(true) }
+  when (io.mem.xact_rep.valid) { mem_acked := Bool(true); mem_gxid := io.mem.xact_rep.bits.global_xact_id }
   when (io.mem.xact_abort.valid) { mem_nacked := Bool(true) }
 
-  val state_rx :: state_pcr :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_tx :: Nil = Enum(7) { UFix() }
+  val state_rx :: state_pcr :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(8) { UFix() }
   val state = Reg(resetVal = state_rx)
 
   when (state === state_rx && rx_done) {
@@ -113,7 +114,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
       mem_nacked := Bool(false)
     }
     when (mem_acked) {
-      state := state_tx
+      state := state_mem_finish
       mem_acked := Bool(false)
     }
   }
@@ -124,11 +125,14 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
     }
     when (io.mem.xact_rep.valid) {
       when (mem_cnt.andR)  {
-        state := state_tx
+        state := state_mem_finish
       }
       mem_cnt := mem_cnt + UFix(1)
     }
     mem_acked := Bool(false)
+  }
+  when (state === state_mem_finish && io.mem.xact_finish.ready) {
+    state := state_tx
   }
   when (state === state_tx && tx_done) {
     rx_count := UFix(0)
@@ -146,9 +150,10 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   io.mem.xact_init.valid := state === state_mem_req
   io.mem.xact_init.bits.t_type := Mux(cmd === cmd_writemem, X_INIT_WRITE_UNCACHED, X_INIT_READ_UNCACHED)
   io.mem.xact_init.bits.address := addr >> UFix(OFFSET_BITS-3)
-
   io.mem.xact_init_data.valid:= state === state_mem_wdata
   io.mem.xact_init_data.bits.data := mem_req_data
+  io.mem.xact_finish.valid := state === state_mem_finish
+  io.mem.xact_finish.bits.global_xact_id := mem_gxid
 
   pcr_done := Bool(false)
   val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }

@@ -83,7 +83,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
 
   val repl_way = LFSR16(state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss && !tag_hit)(log2up(assoc)-1,0)
   val word_shift = Cat(r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb), UFix(0, log2up(databits))).toUFix
-  val tag_we = (state === s_refill) && refill_done
+  val tag_we = refill_done
   val tag_addr = 
     Mux((state === s_refill), r_cpu_req_idx(indexmsb,indexlsb),
       io.cpu.req_idx(indexmsb,indexlsb)).toUFix;
@@ -126,13 +126,18 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   }
   tag_hit := any_hit
 
+  val finish_q = (new queue(1)) { new TransactionFinish }
+  finish_q.io.enq.valid := refill_done
+  finish_q.io.enq.bits.global_xact_id := io.mem.xact_rep.bits.global_xact_id
+
   // output signals
   io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_hit;
   rdy := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || tag_hit);
   io.cpu.resp_data := data_mux.io.out
-  io.mem.xact_init.valid := (state === s_request)
+  io.mem.xact_init.valid := (state === s_request) && finish_q.io.enq.ready
   io.mem.xact_init.bits.t_type := X_INIT_READ_UNCACHED
   io.mem.xact_init.bits.address := r_cpu_miss_addr(tagmsb,indexlsb).toUFix
+  io.mem.xact_finish <> finish_q.io.deq
 
   // control state machine
   when (io.cpu.invalidate) {
@@ -150,7 +155,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
     }
     is (s_request)
     {
-      when (io.mem.xact_init.ready) {
+      when (io.mem.xact_init.ready && finish_q.io.enq.ready) {
         state := s_refill_wait;
       }
     }
