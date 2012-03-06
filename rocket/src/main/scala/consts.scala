@@ -217,10 +217,9 @@ object Constants
   val P_REP_COPY_ACK        = UFix(5, P_REP_TYPE_BITS)
 
   // external memory interface
-  val MEM_TAG_BITS = if (HAVE_VEC) 5 else 4
+  val MEM_TAG_BITS = max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS)
   val MEM_DATA_BITS = 128
   val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
-  require(MEM_TAG_BITS >= max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS))
   
   val DTLB_ENTRIES = 8;
   val ITLB_ENTRIES = 8;
