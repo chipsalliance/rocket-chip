@@ -121,17 +121,18 @@ trait ThreeStateIncoherence extends CoherencePolicy {
     Mux(write, tileDirty, Mux(read, Mux(state === tileDirty, tileDirty, tileClean), state))
   }
   def newStateOnHit(cmd: Bits, state: UFix): UFix = newState(cmd, state)
-  def newStateOnPrimaryMiss(cmd: Bits): UFix = newState(cmd, tileInvalid)
-  def newStateOnSecondaryMiss(cmd: Bits, state: UFix): UFix = {
+  def newTransactionOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, tileDirty, state)
+    Mux(write, X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
   }
-  def newTransactionOnMiss(cmd: Bits, state: UFix): UFix = X_INIT_READ_EXCLUSIVE
-  def newStateOnTransactionRep(cmd: Bits, incoming: TransactionReply, outstanding: TransactionInit): UFix = {
+  def newTransactionOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: TransactionInit): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, tileDirty, tileClean)
-  } 
+    Mux(write, X_INIT_READ_EXCLUSIVE, outstanding.t_type)
+  }
   def needsSecondaryXact(cmd: Bits, outstanding: TransactionInit): Bool = Bool(false)
+  def newStateOnTransactionRep(incoming: TransactionReply, outstanding: TransactionInit): UFix = {
+    Mux(outstanding.t_type === X_INIT_READ_EXCLUSIVE, tileDirty, tileClean)
+  } 
   def newStateOnProbeReq(incoming: ProbeRequest, state: UFix): Bits = state
   def probeReplyHasData (reply: ProbeReply): Bool = Bool(false)
   def transactionInitHasData (init: TransactionInit): Bool = (init.t_type != X_INIT_WRITE_UNCACHED)
@@ -166,11 +167,20 @@ trait FourStateCoherence extends CoherencePolicy {
     val (read, write) = cpuCmdToRW(cmd)
     Mux(write, tileExclusiveDirty, state)
   }
-  def newTransactionOnMiss(cmd: Bits, state: UFix): UFix = {
+  def newTransactionOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
     Mux(write, X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
   }
-  def newStateOnTransactionRep(cmd: Bits, incoming: TransactionReply, outstanding: TransactionInit): UFix = {
+  def newTransactionOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: TransactionInit): UFix = {
+    val (read, write) = cpuCmdToRW(cmd)
+    Mux(write, X_INIT_READ_EXCLUSIVE, outstanding.t_type)
+  }
+  def needsSecondaryXact(cmd: Bits, outstanding: TransactionInit): Bool = {
+    val (read, write) = cpuCmdToRW(cmd)
+    (read && (outstanding.t_type === X_INIT_READ_UNCACHED || outstanding.t_type === X_INIT_WRITE_UNCACHED)) ||
+      (write && (outstanding.t_type != X_INIT_READ_EXCLUSIVE))
+  }
+  def newStateOnTransactionRep(incoming: TransactionReply, outstanding: TransactionInit): UFix = {
     MuxLookup(incoming.t_type, tileInvalid, Array(
       X_REP_READ_SHARED -> tileShared,
       X_REP_READ_EXCLUSIVE  -> Mux(outstanding.t_type === X_INIT_READ_EXCLUSIVE, tileExclusiveDirty, tileExclusiveClean),
@@ -179,11 +189,6 @@ trait FourStateCoherence extends CoherencePolicy {
       X_REP_WRITE_UNCACHED -> tileInvalid
     ))
   } 
-  def needsSecondaryXact(cmd: Bits, outstanding: TransactionInit): Bool = {
-    val (read, write) = cpuCmdToRW(cmd)
-    (read && (outstanding.t_type === X_INIT_READ_UNCACHED || outstanding.t_type === X_INIT_WRITE_UNCACHED)) ||
-      (write && (outstanding.t_type != X_INIT_READ_EXCLUSIVE))
-  }
 
   def newStateOnProbeReq(incoming: ProbeRequest, state: UFix): Bits = {
     MuxLookup(incoming.p_type, state, Array(
