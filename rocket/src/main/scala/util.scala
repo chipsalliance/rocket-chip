@@ -158,16 +158,19 @@ class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
     val out = gen.asOutput
   }
 
-  if (n > 2) {
-    var out = io.in(0).toBits & Fill(gen.getWidth, io.sel(0))
-    for (i <- 1 to n-1)
-      out = out | (io.in(i).toBits & Fill(gen.getWidth, io.sel(i)))
-    io.out := out
-  } else if (n == 2) {
-    io.out := Mux(io.sel(1), io.in(1), io.in(0))
-  } else {
-    io.out := io.in(0)
+  def buildMux(sel: Bits, in: Vec[T], i: Int, n: Int): T = {
+    if (n == 1)
+      in(i)
+    else
+    {
+      val half_n = (1 << log2up(n))/2
+      val left = buildMux(sel, in, i, half_n)
+      val right = buildMux(sel, in, i + half_n, n - half_n)
+      Mux(sel(i+n-1,i+half_n).orR, right, left)
+    }
   }
+
+  io.out := buildMux(io.sel.toBits, io.in, 0, n)
 }
 
 
