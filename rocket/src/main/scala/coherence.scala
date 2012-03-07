@@ -135,7 +135,7 @@ trait ThreeStateIncoherence extends CoherencePolicy {
   } 
   def newStateOnProbeReq(incoming: ProbeRequest, state: UFix): Bits = state
   def probeReplyHasData (reply: ProbeReply): Bool = Bool(false)
-  def transactionInitHasData (init: TransactionInit): Bool = (init.t_type != X_INIT_WRITE_UNCACHED)
+  def transactionInitHasData (init: TransactionInit): Bool = (init.t_type === X_INIT_WRITE_UNCACHED)
 }
 
 trait FourStateCoherence extends CoherencePolicy {
@@ -204,7 +204,7 @@ trait FourStateCoherence extends CoherencePolicy {
      reply.p_type === P_REP_COPY_DATA)
   }
   def transactionInitHasData (init: TransactionInit): Bool = {
-    (init.t_type != X_INIT_WRITE_UNCACHED)
+    (init.t_type === X_INIT_WRITE_UNCACHED)
   }
   def transactionReplyHasData (reply: TransactionReply): Bool = {
     (reply.t_type != X_REP_WRITE_UNCACHED && reply.t_type != X_REP_READ_EXCLUSIVE_ACK)
@@ -346,7 +346,7 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
         x_init_data_needs_write := transactionInitHasData(io.alloc_req.bits.xact_init)
         x_needs_read := needsMemRead(io.alloc_req.bits.xact_init.t_type, UFix(0))
         p_rep_count := UFix(NTILES-1)
-        p_req_flags := ~( UFix(1) << io.alloc_req.bits.tile_id )
+        p_req_flags := ~( UFix(1) << io.alloc_req.bits.tile_id ) //TODO: Broadcast only
         mem_cnt := UFix(0)
         p_w_mem_cmd_sent := Bool(false)
         x_w_mem_cmd_sent := Bool(false)
@@ -516,12 +516,14 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
   // Reply to initial requestor
   // Forward memory responses from mem to tile or arbitrate to  ack
   val mem_idx = io.mem.resp.bits.tag
-  val ack_idx = PriorityEncoder(send_x_rep_ack_arr.toBits, NGLOBAL_XACTS)
+  val ack_idx = UFix(0)//PriorityEncoder(send_x_rep_ack_arr.toBits, NGLOBAL_XACTS)
+  //val ack_idx_ = Reg(ack_idx)
   for( j <- 0 until NTILES ) {
     val rep = io.tiles(j).xact_rep
     rep.bits.t_type := UFix(0)
     rep.bits.tile_xact_id := UFix(0)
     rep.bits.global_xact_id := UFix(0)
+    rep.bits.data := io.mem.resp.bits.data
     rep.valid := Bool(false)
     when(io.mem.resp.valid) {
       rep.bits.t_type := getTransactionReplyType(t_type_arr(mem_idx), sh_count_arr(mem_idx))
@@ -534,7 +536,6 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
       rep.bits.global_xact_id := ack_idx
       rep.valid := (UFix(j) === init_tile_id_arr(ack_idx)) && send_x_rep_ack_arr(ack_idx)
     }
-    io.tiles(j).xact_rep.bits.data := io.mem.resp.bits.data
   }
   sent_x_rep_ack_arr(ack_idx) := !io.mem.resp.valid && send_x_rep_ack_arr(ack_idx)
   // If there were a ready signal due to e.g. intervening network use:
