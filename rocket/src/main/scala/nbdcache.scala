@@ -163,7 +163,7 @@ class MetaArrayArrayReq extends Bundle {
   val way_en = Bits(width = NWAYS)
 }
 
-class MSHR(id: Int) extends Component with ThreeStateIncoherence {
+class MSHR(id: Int) extends Component with FourStateCoherence {
   val io = new Bundle {
     val req_pri_val    = Bool(INPUT)
     val req_pri_rdy    = Bool(OUTPUT)
@@ -187,6 +187,7 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
   }
 
   val valid = Reg(resetVal = Bool(false))
+  val xact_type = Reg { UFix() }
   val state = Reg { UFix() }
   val requested = Reg { Bool() }
   val refilled = Reg { Bool() }
@@ -196,10 +197,8 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
   val way_oh_ = Reg { Bits() }
 
   val req_cmd = io.req_bits.cmd
-  val req_load = (req_cmd === M_XRD) || (req_cmd === M_PFR)
   val req_use_rpq = (req_cmd != M_PFR) && (req_cmd != M_PFW)
-  val next_state = Mux(io.req_sec_val && io.req_sec_rdy, newStateOnSecondaryMiss(req_cmd, state), state)
-  val sec_rdy = io.idx_match && !refilled && (needsWriteback(state) || !requested || req_load)
+  val sec_rdy = io.idx_match && !refilled && !((requested || io.mem_req.ready) && needsSecondaryXact(req_cmd, io.mem_req.bits))
 
   val rpq = (new queue(NRPQ)) { new RPQEntry }
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && req_use_rpq
@@ -213,33 +212,34 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
   finish_q.io.enq.valid := refill_done
   finish_q.io.enq.bits := io.mem_rep.bits.global_xact_id
 
+  when (io.mem_req.valid && io.mem_req.ready) {
+    requested := Bool(true)
+  }
+  when (io.mem_abort.valid && io.mem_abort.bits.tile_xact_id === UFix(id)) {
+    requested := Bool(false)
+  }
+  when (io.mem_rep.valid && io.mem_rep.bits.tile_xact_id === UFix(id)) {
+    refill_count := refill_count + UFix(1)
+    state := newStateOnTransactionRep(io.mem_rep.bits, io.mem_req.bits)
+  }
+  when (refill_done) {
+    refilled := Bool(true)
+  }
+  when (io.meta_req.valid && io.meta_req.ready) {
+    valid := Bool(false)
+  }
+  when (io.req_sec_val && io.req_sec_rdy) {
+    xact_type := newTransactionOnSecondaryMiss(req_cmd, newStateOnFlush(), io.mem_req.bits)
+  }
   when (io.req_pri_val && io.req_pri_rdy) {
     valid := Bool(true)
-    state := newStateOnPrimaryMiss(req_cmd)
+    xact_type := newTransactionOnPrimaryMiss(req_cmd, newStateOnFlush())
     requested := Bool(false)
     refilled := Bool(false)
     refill_count := UFix(0)
     ppn := io.req_bits.ppn
     idx_ := io.req_bits.idx
     way_oh_ := io.req_bits.way_oh
-  }
-  .otherwise {
-    when (io.mem_req.valid && io.mem_req.ready) {
-      requested := Bool(true)
-    }
-    when (io.mem_abort.valid && io.mem_abort.bits.tile_xact_id === UFix(id)) {
-      requested := Bool(false)
-    }
-    when (io.mem_rep.valid && io.mem_rep.bits.tile_xact_id === UFix(id)) {
-      refill_count := refill_count + UFix(1)
-    }
-    when (refill_done) {
-      refilled := Bool(true)
-    }
-    when (io.meta_req.valid && io.meta_req.ready) {
-      valid := Bool(false)
-    }
-    state := next_state
   }
 
   io.idx_match := valid && (idx_ === io.req_bits.idx)
@@ -258,7 +258,7 @@ class MSHR(id: Int) extends Component with ThreeStateIncoherence {
   io.meta_req.bits.way_en := way_oh_
 
   io.mem_req.valid := valid && !requested
-  io.mem_req.bits.t_type := Mux(needsWriteback(next_state), X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
+  io.mem_req.bits.t_type := xact_type
   io.mem_req.bits.address := Cat(ppn, idx_).toUFix
   io.mem_req.bits.tile_xact_id := Bits(id)
   io.mem_finish <> finish_q.io.deq
@@ -449,7 +449,7 @@ class WritebackUnit extends Component {
   io.mem_finish <> finish_q.io.deq
 }
 
-class FlushUnit(lines: Int) extends Component with ThreeStateIncoherence{
+class FlushUnit(lines: Int) extends Component with FourStateCoherence{
   val io = new Bundle {
     val req  = (new ioDecoupled) { Bits(width = DCACHE_TAG_BITS) }.flip
     val resp = (new ioDecoupled) { Bits(width = DCACHE_TAG_BITS) }
@@ -667,7 +667,7 @@ abstract class HellaCache extends Component {
   def newStateOnHit(cmd: Bits, state: UFix): UFix
 }
 
-class HellaCacheUniproc extends HellaCache with ThreeStateIncoherence {
+class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val io = new Bundle {
     val cpu = new ioDmem()
     val mem = new ioTileLink
