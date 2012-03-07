@@ -197,14 +197,14 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.vec_ackq.ready := ctrl.io.vec_iface.vackq_ready
 
     // exceptions
-    vu.io.cpu_exception.addr := dpath.io.vec_iface.eaddr.toUFix
-    vu.io.cpu_exception.exception := dpath.io.vec_iface.exception
-    vu.io.cpu_exception.kill := dpath.io.vec_iface.kill
-    vu.io.cpu_exception.hold := dpath.io.vec_iface.hold
-    ctrl.io.vec_iface.exception_ack_valid := vu.io.exception_ack_valid
-    vu.io.exception_ack_ready := ctrl.io.vec_iface.exception_ack_ready
-    ctrl.io.vec_iface.kill_ack_valid := vu.io.kill_ack_valid
-    vu.io.kill_ack_ready := ctrl.io.vec_iface.kill_ack_ready
+    vu.io.xcpt_backup.exception := dpath.io.vec_iface.exception
+    vu.io.xcpt_backup.exception_addr := dpath.io.vec_iface.eaddr.toUFix
+    ctrl.io.vec_iface.exception_ack_valid := vu.io.xcpt_backup.exception_ack_valid
+    vu.io.xcpt_backup.exception_ack_ready := ctrl.io.vec_iface.exception_ack_ready
+    vu.io.xcpt_resume.hold := dpath.io.vec_iface.hold
+    vu.io.xcpt_kill.kill := dpath.io.vec_iface.kill
+    ctrl.io.vec_iface.kill_ack_valid := vu.io.xcpt_kill.kill_ack_valid
+    vu.io.xcpt_kill.kill_ack_ready := ctrl.io.vec_iface.kill_ack_ready
 
     // hooking up vector memory interface
     val storegen = new StoreDataGen
