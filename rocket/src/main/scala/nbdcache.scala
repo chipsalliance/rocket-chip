@@ -764,7 +764,7 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   meta_arb.io.in(2).bits.way_en := ~UFix(0, NWAYS)
   val early_tag_nack = !meta_arb.io.in(2).ready
   val cpu_req_tag = Cat(io.cpu.req_ppn, r_cpu_req_idx)(tagmsb,taglsb)
-  val tag_match_arr = (0 until NWAYS).map( w => isHit(io.cpu.req_cmd, meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
+  val tag_match_arr = (0 until NWAYS).map( w => isHit(r_cpu_req_cmd, meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
   val tag_hit  = r_cpu_req_val &&  tag_match
   val tag_miss = r_cpu_req_val && !tag_match
