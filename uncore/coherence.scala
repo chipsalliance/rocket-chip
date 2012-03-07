@@ -141,6 +141,9 @@ trait FourStateCoherence extends CoherencePolicy {
      (write && (state === tileExclusiveClean || state === tileExclusiveDirty)))
   }
 
+  //TODO: do we need isPresent() for determining that a line needs to be
+  //upgraded but that no replacement is needed?
+
   def isValid (state: UFix): Bool = {
     state != tileInvalid
   }
@@ -224,8 +227,8 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
     val pop_p_rep       = Bits(NTILES, OUTPUT)
     val pop_p_rep_data  = Bits(NTILES, OUTPUT)
     val pop_p_rep_dep   = Bits(NTILES, OUTPUT)
-    val pop_x_init      = Bool(OUTPUT)
-    val pop_x_init_data = Bool(OUTPUT)
+    val pop_x_init      = Bits(NTILES, OUTPUT)
+    val pop_x_init_data = Bits(NTILES, OUTPUT)
     val pop_x_init_dep  = Bits(NTILES, OUTPUT)
     val send_x_rep_ack  = Bool(OUTPUT)
   }
@@ -247,7 +250,7 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
       (t_type === X_INIT_WRITE_UNCACHED)
   }
 
-  def doMemReqWrite(req_cmd: ioDecoupled[MemReqCmd], req_data: ioDecoupled[MemData], lock: Bool,  data: ioPipe[MemData], trigger: Bool, pop_data: Bool, cmd_sent: Bool, pop_dep: Bool, at_front_of_dep_queue: Bool) {
+  def doMemReqWrite(req_cmd: ioDecoupled[MemReqCmd], req_data: ioDecoupled[MemData], lock: Bool,  data: ioPipe[MemData], trigger: Bool, cmd_sent: Bool, pop_data: Bits, pop_dep: Bits, at_front_of_dep_queue: Bool, tile_id: UFix) {
     req_cmd.valid := !cmd_sent && at_front_of_dep_queue
     req_cmd.bits.rw := Bool(true)
     req_data.valid := data.valid && at_front_of_dep_queue
@@ -257,11 +260,11 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
       cmd_sent := Bool(true)
     }
     when(req_data.ready && req_data.valid) {
-      pop_data := Bool(true)
+      pop_data := UFix(1) << tile_id 
       mem_cnt  := mem_cnt_next
     }
     when(mem_cnt_next === UFix(0)) {
-      pop_dep := Bool(true)
+      pop_dep := UFix(1) << tile_id
       trigger := Bool(false)
     }
   }
@@ -315,8 +318,8 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
   io.pop_p_rep       := Bits(0, width = NTILES)
   io.pop_p_rep_data  := Bits(0, width = NTILES)
   io.pop_p_rep_dep   := Bits(0, width = NTILES)
-  io.pop_x_init      := Bool(false)
-  io.pop_x_init_data := Bool(false)
+  io.pop_x_init      := Bits(0, width = NTILES)
+  io.pop_x_init_data := Bits(0, width = NTILES)
   io.pop_x_init_dep  := Bits(0, width = NTILES)
   io.send_x_rep_ack  := Bool(false)
 
@@ -334,7 +337,7 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
         mem_cnt := UFix(0)
         p_w_mem_cmd_sent := Bool(false)
         x_w_mem_cmd_sent := Bool(false)
-        io.pop_x_init := Bool(true)
+        io.pop_x_init := UFix(1) << io.alloc_req.bits.tile_id
         state := Mux(p_req_flags.orR, s_probe, s_mem)
       }
     }
@@ -367,20 +370,22 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
                       io.mem_req_lock, 
                       io.p_rep_data, 
                       p_rep_data_needs_write, 
-                      io.pop_p_rep_data, 
                       p_w_mem_cmd_sent, 
+                      io.pop_p_rep_data, 
                       io.pop_p_rep_dep, 
-                      io.p_rep_data_dep.valid && (io.p_rep_data_dep.bits.global_xact_id === UFix(id)))
+                      io.p_rep_data_dep.valid && (io.p_rep_data_dep.bits.global_xact_id === UFix(id)),
+                      p_rep_tile_id_)
       } . elsewhen(x_init_data_needs_write) {
         doMemReqWrite(io.mem_req_cmd, 
                       io.mem_req_data, 
                       io.mem_req_lock, 
                       io.x_init_data, 
                       x_init_data_needs_write, 
-                      io.pop_x_init_data, 
                       x_w_mem_cmd_sent, 
+                      io.pop_x_init_data, 
                       io.pop_x_init_dep,
-                      io.x_init_data_dep.valid && (io.x_init_data_dep.bits.global_xact_id === UFix(id)))
+                      io.x_init_data_dep.valid && (io.x_init_data_dep.bits.global_xact_id === UFix(id)),
+                      init_tile_id_)
       } . elsewhen (x_needs_read) {    
         doMemReqRead(io.mem_req_cmd, x_needs_read)
       } . otherwise { 
@@ -625,23 +630,23 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
 
     trackerList(i).io.x_init_data.bits := io.tiles(trackerList(i).io.init_tile_id).xact_init_data.bits
     trackerList(i).io.x_init_data.valid := io.tiles(trackerList(i).io.init_tile_id).xact_init_data.valid
-    //TODO trackerList(i).io.x_init_data_dep <> x_init_data_dep_arr(trackerList(i).io.init_tile_id)
-    trackerList(i).io.x_init_data_dep.bits <> MuxLookup(trackerList(i).io.init_tile_id, x_init_data_dep_list(0).io.deq.bits, (0 until NTILES).map( j => UFix(j) -> x_init_data_dep_list(j).io.deq.bits))
+    trackerList(i).io.x_init_data_dep.bits := MuxLookup(trackerList(i).io.init_tile_id, x_init_data_dep_list(0).io.deq.bits, (0 until NTILES).map( j => UFix(j) -> x_init_data_dep_list(j).io.deq.bits))
     trackerList(i).io.x_init_data_dep.valid := MuxLookup(trackerList(i).io.init_tile_id, x_init_data_dep_list(0).io.deq.valid, (0 until NTILES).map( j => UFix(j) -> x_init_data_dep_list(j).io.deq.valid))
   }
   for( j <- 0 until NTILES ) {
     val x_init = io.tiles(j).xact_init
     val x_init_data = io.tiles(j).xact_init_data
+    val x_init_data_dep = x_init_data_dep_list(j).io.deq
     init_arb.io.in(j).valid := (abort_state_arr(j) === s_idle) && !want_to_abort_arr(j) && x_init.valid
     init_arb.io.in(j).bits.xact_init := x_init.bits
     init_arb.io.in(j).bits.tile_id := UFix(j)
-    val pop_x_inits = trackerList.map(_.io.pop_x_init && init_arb.io.out.bits.tile_id === UFix(j))
+    val pop_x_inits = trackerList.map(_.io.pop_x_init(j).toBool)
     val do_pop = foldR(pop_x_inits)(_||_)
     x_init_data_dep_list(j).io.enq.valid := do_pop
     x_init_data_dep_list(j).io.enq.bits.global_xact_id := OHToUFix(pop_x_inits)
     x_init.ready := (abort_state_arr(j) === s_abort_complete) || do_pop
-    x_init_data.ready := (abort_state_arr(j) === s_abort_drain) || foldR(trackerList.map(_.io.pop_x_init_data && init_arb.io.out.bits.tile_id === UFix(j)))(_||_)
-    x_init_data_dep_list(j).io.deq.ready := foldR(trackerList.map(_.io.pop_x_init_dep(j).toBool))(_||_)
+    x_init_data.ready := (abort_state_arr(j) === s_abort_drain) || foldR(trackerList.map(_.io.pop_x_init_data(j).toBool))(_||_)
+    x_init_data_dep.ready := foldR(trackerList.map(_.io.pop_x_init_dep(j).toBool))(_||_)
   }
   
   alloc_arb.io.out.ready := init_arb.io.out.valid
