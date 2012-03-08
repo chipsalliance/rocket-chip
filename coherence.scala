@@ -638,7 +638,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
   for( i <- 0 until NGLOBAL_XACTS ) {
     alloc_arb.io.in(i).valid := !trackerList(i).io.busy
     trackerList(i).io.can_alloc := alloc_arb.io.in(i).ready
-    trackerList(i).io.alloc_req.bits <> init_arb.io.out.bits
+    trackerList(i).io.alloc_req.bits := init_arb.io.out.bits
     trackerList(i).io.alloc_req.valid := init_arb.io.out.valid
 
     trackerList(i).io.x_init_data.bits := io.tiles(trackerList(i).io.init_tile_id).xact_init_data.bits
@@ -655,7 +655,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
     init_arb.io.in(j).bits.tile_id := UFix(j)
     val pop_x_inits = trackerList.map(_.io.pop_x_init(j).toBool)
     val do_pop = foldR(pop_x_inits)(_||_)
-    x_init_data_dep_list(j).io.enq.valid := do_pop
+    x_init_data_dep_list(j).io.enq.valid := do_pop && transactionInitHasData(x_init.bits) && (abort_state_arr(j) === s_idle) 
     x_init_data_dep_list(j).io.enq.bits.global_xact_id := OHToUFix(pop_x_inits)
     x_init.ready := (abort_state_arr(j) === s_abort_complete) || do_pop
     x_init_data.ready := (abort_state_arr(j) === s_abort_drain) || foldR(trackerList.map(_.io.pop_x_init_data(j).toBool))(_||_)
