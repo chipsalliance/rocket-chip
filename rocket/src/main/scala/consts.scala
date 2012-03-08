@@ -187,7 +187,7 @@ object Constants
   val COHERENCE_DATA_BITS = (1 << OFFSET_BITS)*8 
   val TILE_ID_BITS = 1
   val TILE_XACT_ID_BITS = log2up(NMSHR)+3
-  val GLOBAL_XACT_ID_BITS = 4
+  val GLOBAL_XACT_ID_BITS = 2
   val NGLOBAL_XACTS = 1 << GLOBAL_XACT_ID_BITS
 
   val X_INIT_TYPE_BITS = 2
