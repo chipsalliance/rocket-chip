@@ -516,8 +516,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
   // Reply to initial requestor
   // Forward memory responses from mem to tile or arbitrate to  ack
   val mem_idx = io.mem.resp.bits.tag
-  val ack_idx = UFix(0)//PriorityEncoder(send_x_rep_ack_arr.toBits, NGLOBAL_XACTS)
-  //val ack_idx_ = Reg(ack_idx)
+  val ack_idx = PriorityEncoder(send_x_rep_ack_arr.toBits)
   for( j <- 0 until NTILES ) {
     val rep = io.tiles(j).xact_rep
     rep.bits.t_type := UFix(0)
@@ -534,10 +533,10 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
       rep.bits.t_type := getTransactionReplyType(t_type_arr(ack_idx), sh_count_arr(ack_idx))
       rep.bits.tile_xact_id := tile_xact_id_arr(ack_idx)
       rep.bits.global_xact_id := ack_idx
-      rep.valid := (UFix(j) === init_tile_id_arr(ack_idx)) && send_x_rep_ack_arr(ack_idx)
+      rep.valid := (UFix(j) === init_tile_id_arr(ack_idx)) && send_x_rep_ack_arr.toBits.orR
     }
   }
-  sent_x_rep_ack_arr(ack_idx) := !io.mem.resp.valid && send_x_rep_ack_arr(ack_idx)
+  sent_x_rep_ack_arr(ack_idx) := !io.mem.resp.valid
   // If there were a ready signal due to e.g. intervening network use:
   //io.mem.resp.ready  := io.tiles(init_tile_id_arr.read(mem_idx)).xact_rep.ready
 
@@ -592,13 +591,13 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
     val x_init_data = io.tiles(j).xact_init_data
     val x_abort  = io.tiles(j).xact_abort
     val abort_cnt = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
-    val conflicts = Bits(width = NGLOBAL_XACTS) 
+    val conflicts = Vec(NGLOBAL_XACTS) { Wire() { Bool() } }
     for( i <- 0 until NGLOBAL_XACTS) {
       val t = trackerList(i).io
-      conflicts(UFix(i), t.busy && x_init.valid && coherenceConflict(t.addr, x_init.bits.address))
+      conflicts(i) := t.busy && x_init.valid && coherenceConflict(t.addr, x_init.bits.address)
     }
     x_abort.bits.tile_xact_id := x_init.bits.tile_xact_id
-    want_to_abort_arr(j) := conflicts.orR || busy_arr.toBits.andR || (!x_init_data_dep_list(j).io.enq.ready && transactionInitHasData(x_init.bits))
+    want_to_abort_arr(j) := conflicts.toBits.orR || busy_arr.toBits.andR || (!x_init_data_dep_list(j).io.enq.ready && transactionInitHasData(x_init.bits))
     
     x_abort.valid := Bool(false)
     switch(abort_state_arr(j)) {
