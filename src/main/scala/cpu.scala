@@ -197,14 +197,13 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     ctrl.io.vec_iface.vfence_ready := vu.io.vec_fence_ready
 
     // exceptions
-    vu.io.xcpt_backup.exception := dpath.io.vec_iface.exception
-    vu.io.xcpt_backup.exception_addr := dpath.io.vec_iface.eaddr.toUFix
-    ctrl.io.vec_iface.exception_ack_valid := vu.io.xcpt_backup.exception_ack_valid
-    vu.io.xcpt_backup.exception_ack_ready := ctrl.io.vec_iface.exception_ack_ready
-    vu.io.xcpt_resume.hold := dpath.io.vec_iface.hold
-    vu.io.xcpt_kill.kill := dpath.io.vec_iface.kill
-    ctrl.io.vec_iface.kill_ack_valid := vu.io.xcpt_kill.kill_ack_valid
-    vu.io.xcpt_kill.kill_ack_ready := ctrl.io.vec_iface.kill_ack_ready
+    vu.io.xcpt.exception := ctrl.io.vec_iface.exception
+    ctrl.io.vec_iface.exception_ack_valid := vu.io.xcpt.exception_ack_valid
+    vu.io.xcpt.exception_ack_ready := ctrl.io.vec_iface.exception_ack_ready
+    vu.io.xcpt.backup := dpath.io.vec_iface.backup
+    vu.io.xcpt.backup_addr := dpath.io.vec_iface.backup_addr.toUFix
+    vu.io.xcpt.kill := dpath.io.vec_iface.kill
+    vu.io.xcpt.hold := dpath.io.vec_iface.hold
 
     // hooking up vector memory interface
     val storegen = new StoreDataGen

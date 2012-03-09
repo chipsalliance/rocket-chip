@@ -383,8 +383,10 @@ class rocketDpath extends Component
     vec.io.vecbankcnt := pcr.io.vecbankcnt
     vec.io.wdata := wb_reg_vec_wdata
     vec.io.rs2 := wb_reg_rs2
-    vec.io.vec_eaddr := pcr.io.vec_eaddr
-    vec.io.vec_xcpt := pcr.io.vec_xcpt
+    vec.io.vechold := pcr.io.vechold
+    vec.io.pcrw.addr := wb_reg_raddr2
+    vec.io.pcrw.en := io.ctrl.wen_pcr
+    vec.io.pcrw.data := wb_reg_wdata
 
     wb_wdata :=
       Mux(vec.io.wen, Cat(Bits(0,52), vec.io.appvl),

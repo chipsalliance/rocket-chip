@@ -39,11 +39,9 @@ class ioCtrlVecInterface extends Bundle
 
   val vfence_ready = Bool(INPUT)
 
+  val exception = Bool(OUTPUT)
   val exception_ack_valid = Bool(INPUT)
   val exception_ack_ready = Bool(OUTPUT)
-
-  val kill_ack_valid = Bool(INPUT)
-  val kill_ack_ready = Bool(OUTPUT)
 }
 
 class ioCtrlVec extends Bundle
@@ -186,9 +184,6 @@ class rocketCtrlVec extends Component
     mask_wb_vec_cmdq_ready && mask_wb_vec_ximm1q_ready && mask_wb_vec_ximm2q_ready && mask_wb_vec_cntq_ready &&
     mask_wb_vec_pfcmdq_ready && mask_wb_vec_pfximm1q_ready && mask_wb_vec_pfximm2q_ready && wb_vec_pfcntq_enq
 
-  io.iface.exception_ack_ready := Bool(true)
-  io.iface.kill_ack_ready := Bool(true)
-
   io.replay := valid_common && (
     wb_vec_cmdq_enq && !io.iface.vcmdq_ready ||
     wb_vec_ximm1q_enq && !io.iface.vximm1q_ready ||
@@ -206,8 +201,10 @@ class rocketCtrlVec extends Component
 
   when (do_waitxcpt) { reg_waitxcpt := Bool(true) }
   when (io.iface.exception_ack_valid) { reg_waitxcpt := Bool(false) }
-  when (io.iface.kill_ack_valid) { reg_waitxcpt := Bool(false) }
+
+  io.iface.exception := io.exception && io.sr_ev
+  io.iface.exception_ack_ready := reg_waitxcpt
 
   io.stalld := reg_waitxcpt
-  io.vfence_ready := io.iface.vfence_ready
+  io.vfence_ready := !io.sr_ev || io.iface.vfence_ready
 }
