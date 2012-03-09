@@ -42,7 +42,7 @@ class TrackerDependency extends Bundle {
 class TransactionInit extends Bundle {
   val t_type = Bits(width = X_INIT_TYPE_BITS)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
-  val address = UFix(width = PADDR_BITS)
+  val address = UFix(width = PADDR_BITS - OFFSET_BITS)
 }
 
 class TransactionInitData extends MemData
@@ -54,7 +54,7 @@ class TransactionAbort extends Bundle {
 class ProbeRequest extends Bundle {
   val p_type = Bits(width = P_REQ_TYPE_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
-  val address = Bits(width = PADDR_BITS)
+  val address = Bits(width = PADDR_BITS - OFFSET_BITS)
 }
 
 class ProbeReply extends Bundle {
@@ -230,7 +230,7 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
     val mem_req_lock    = Bool(OUTPUT)
     val probe_req       = (new ioDecoupled) { new ProbeRequest }
     val busy            = Bool(OUTPUT)
-    val addr            = Bits(PADDR_BITS, OUTPUT)
+    val addr            = Bits(PADDR_BITS - OFFSET_BITS, OUTPUT)
     val init_tile_id    = Bits(TILE_ID_BITS, OUTPUT)
     val p_rep_tile_id   = Bits(TILE_ID_BITS, OUTPUT)
     val tile_xact_id    = Bits(TILE_XACT_ID_BITS, OUTPUT)
@@ -449,9 +449,8 @@ class CoherenceHubNull extends CoherenceHub {
 
 class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
 
-  def coherenceConflict(addr1: Bits, addr2: Bits): Bool = {
-    addr1(PADDR_BITS-1, OFFSET_BITS) === addr2(PADDR_BITS-1, OFFSET_BITS)
-  }
+  def coherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
+
   def getTransactionReplyType(t_type: UFix, count: UFix): Bits = {
     MuxLookup(t_type, X_REP_READ_UNCACHED, Array(
       X_INIT_READ_SHARED    -> Mux(count > UFix(0), X_REP_READ_SHARED, X_REP_READ_EXCLUSIVE),
@@ -464,7 +463,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
   val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
 
   val busy_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
+  val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS-OFFSET_BITS)} }
   val init_tile_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
   val tile_xact_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
   val t_type_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=X_INIT_TYPE_BITS)} }
