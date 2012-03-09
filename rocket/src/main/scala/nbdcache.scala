@@ -216,7 +216,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
 
   val finish_q = (new queue(2 /* wb + refill */)) { new TransactionFinish }
   finish_q.io.enq.valid := wb_done || refill_done
-  finish_q.io.enq.bits := io.mem_rep.bits.global_xact_id
+  finish_q.io.enq.bits.global_xact_id := io.mem_rep.bits.global_xact_id
 
   when (state === s_write_meta && io.meta_req.ready) {
     state := s_invalid
