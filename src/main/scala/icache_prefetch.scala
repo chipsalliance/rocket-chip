@@ -46,7 +46,7 @@ class rocketIPrefetcher extends Component() {
   when (ip_mem_resp_val) { fill_cnt := fill_cnt + UFix(1) }
   val fill_done = fill_cnt.andR && ip_mem_resp_val
 
-  finish_q.io.enq.valid := fill_done
+  finish_q.io.enq.valid := fill_done && io.mem.xact_rep.bits.require_ack
   finish_q.io.enq.bits.global_xact_id := io.mem.xact_rep.bits.global_xact_id
   
   val forward = Reg(resetVal = Bool(false))
@@ -59,6 +59,7 @@ class rocketIPrefetcher extends Component() {
                                 forward && ip_mem_resp_abort
   io.icache.xact_rep.valid  := io.mem.xact_rep.valid && !io.mem.xact_rep.bits.tile_xact_id(0) || (forward && pdq.io.deq.valid)
   io.icache.xact_rep.bits.data := Mux(forward, pdq.io.deq.bits, io.mem.xact_rep.bits.data)
+  io.icache.xact_rep.bits.require_ack := !forward && io.mem.xact_rep.bits.require_ack
   
   pdq.io.flush := Reg(demand_miss && !hit || (state === s_bad_resp_wait), resetVal = Bool(false))
   pdq.io.enq.bits := io.mem.xact_rep.bits.data
