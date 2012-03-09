@@ -13,7 +13,7 @@ object foldR
 
 object log2up
 {
-  def apply(in: Int) = if (in == 1) 1 else ceil(log(in)/log(2)).toInt
+  def apply(in: Int) = ceil(log(in)/log(2)).toInt
 }
 
 object ispow2
