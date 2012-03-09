@@ -127,7 +127,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   tag_hit := any_hit
 
   val finish_q = (new queue(1)) { new TransactionFinish }
-  finish_q.io.enq.valid := refill_done
+  finish_q.io.enq.valid := refill_done && io.mem.xact_rep.bits.require_ack
   finish_q.io.enq.bits.global_xact_id := io.mem.xact_rep.bits.global_xact_id
 
   // output signals
