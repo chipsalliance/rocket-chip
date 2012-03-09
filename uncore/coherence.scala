@@ -42,7 +42,7 @@ class TrackerDependency extends Bundle {
 class TransactionInit extends Bundle {
   val t_type = Bits(width = X_INIT_TYPE_BITS)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
-  val address = UFix(width = PADDR_BITS)
+  val address = UFix(width = PADDR_BITS - OFFSET_BITS)
 }
 
 class TransactionInitData extends MemData
@@ -54,7 +54,7 @@ class TransactionAbort extends Bundle {
 class ProbeRequest extends Bundle {
   val p_type = Bits(width = P_REQ_TYPE_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
-  val address = Bits(width = PADDR_BITS)
+  val address = Bits(width = PADDR_BITS - OFFSET_BITS)
 }
 
 class ProbeReply extends Bundle {
@@ -68,6 +68,7 @@ class TransactionReply extends MemData {
   val t_type = Bits(width = X_REP_TYPE_BITS)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
+  val require_ack = Bool()
 }
 
 class TransactionFinish extends Bundle {
@@ -230,7 +231,7 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
     val mem_req_lock    = Bool(OUTPUT)
     val probe_req       = (new ioDecoupled) { new ProbeRequest }
     val busy            = Bool(OUTPUT)
-    val addr            = Bits(PADDR_BITS, OUTPUT)
+    val addr            = Bits(PADDR_BITS - OFFSET_BITS, OUTPUT)
     val init_tile_id    = Bits(TILE_ID_BITS, OUTPUT)
     val p_rep_tile_id   = Bits(TILE_ID_BITS, OUTPUT)
     val tile_xact_id    = Bits(TILE_XACT_ID_BITS, OUTPUT)
@@ -440,6 +441,7 @@ class CoherenceHubNull extends CoherenceHub {
   x_rep.bits.tile_xact_id := Mux(io.mem.resp.valid, io.mem.resp.bits.tag, x_init.bits.tile_xact_id)
   x_rep.bits.global_xact_id := UFix(0) // don't care
   x_rep.bits.data := io.mem.resp.bits.data
+  x_rep.bits.require_ack := Bool(true)
   x_rep.valid := io.mem.resp.valid || x_init.valid && is_write
 
   io.tiles(0).xact_abort.valid := Bool(false)
@@ -449,9 +451,8 @@ class CoherenceHubNull extends CoherenceHub {
 
 class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
 
-  def coherenceConflict(addr1: Bits, addr2: Bits): Bool = {
-    addr1(PADDR_BITS-1, OFFSET_BITS) === addr2(PADDR_BITS-1, OFFSET_BITS)
-  }
+  def coherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
+
   def getTransactionReplyType(t_type: UFix, count: UFix): Bits = {
     MuxLookup(t_type, X_REP_READ_UNCACHED, Array(
       X_INIT_READ_SHARED    -> Mux(count > UFix(0), X_REP_READ_SHARED, X_REP_READ_EXCLUSIVE),
@@ -464,7 +465,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
   val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
 
   val busy_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS)} }
+  val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS-OFFSET_BITS)} }
   val init_tile_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
   val tile_xact_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
   val t_type_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=X_INIT_TYPE_BITS)} }
@@ -523,6 +524,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
     rep.bits.tile_xact_id := UFix(0)
     rep.bits.global_xact_id := UFix(0)
     rep.bits.data := io.mem.resp.bits.data
+    rep.bits.require_ack := Bool(true)
     rep.valid := Bool(false)
     when(io.mem.resp.valid) {
       rep.bits.t_type := getTransactionReplyType(t_type_arr(mem_idx), sh_count_arr(mem_idx))
@@ -638,7 +640,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
   for( i <- 0 until NGLOBAL_XACTS ) {
     alloc_arb.io.in(i).valid := !trackerList(i).io.busy
     trackerList(i).io.can_alloc := alloc_arb.io.in(i).ready
-    trackerList(i).io.alloc_req.bits <> init_arb.io.out.bits
+    trackerList(i).io.alloc_req.bits := init_arb.io.out.bits
     trackerList(i).io.alloc_req.valid := init_arb.io.out.valid
 
     trackerList(i).io.x_init_data.bits := io.tiles(trackerList(i).io.init_tile_id).xact_init_data.bits
@@ -655,7 +657,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
     init_arb.io.in(j).bits.tile_id := UFix(j)
     val pop_x_inits = trackerList.map(_.io.pop_x_init(j).toBool)
     val do_pop = foldR(pop_x_inits)(_||_)
-    x_init_data_dep_list(j).io.enq.valid := do_pop
+    x_init_data_dep_list(j).io.enq.valid := do_pop && transactionInitHasData(x_init.bits) && (abort_state_arr(j) === s_idle) 
     x_init_data_dep_list(j).io.enq.bits.global_xact_id := OHToUFix(pop_x_inits)
     x_init.ready := (abort_state_arr(j) === s_abort_complete) || do_pop
     x_init_data.ready := (abort_state_arr(j) === s_abort_drain) || foldR(trackerList.map(_.io.pop_x_init_data(j).toBool))(_||_)
