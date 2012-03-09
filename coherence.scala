@@ -68,6 +68,7 @@ class TransactionReply extends MemData {
   val t_type = Bits(width = X_REP_TYPE_BITS)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
+  val require_ack = Bool()
 }
 
 class TransactionFinish extends Bundle {
@@ -440,6 +441,7 @@ class CoherenceHubNull extends CoherenceHub {
   x_rep.bits.tile_xact_id := Mux(io.mem.resp.valid, io.mem.resp.bits.tag, x_init.bits.tile_xact_id)
   x_rep.bits.global_xact_id := UFix(0) // don't care
   x_rep.bits.data := io.mem.resp.bits.data
+  x_rep.bits.require_ack := Bool(true)
   x_rep.valid := io.mem.resp.valid || x_init.valid && is_write
 
   io.tiles(0).xact_abort.valid := Bool(false)
@@ -522,6 +524,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
     rep.bits.tile_xact_id := UFix(0)
     rep.bits.global_xact_id := UFix(0)
     rep.bits.data := io.mem.resp.bits.data
+    rep.bits.require_ack := Bool(true)
     rep.valid := Bool(false)
     when(io.mem.resp.valid) {
       rep.bits.t_type := getTransactionReplyType(t_type_arr(mem_idx), sh_count_arr(mem_idx))
