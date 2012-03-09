@@ -205,7 +205,7 @@ object rocketCtrlDecode
     DI->        List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_DI,SYNC_N,N,N,N,Y,Y),
     ERET->      List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_PCR,REN_N,WEN_N,I_X ,SYNC_N,N,Y,N,Y,N),
     FENCE->     List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FENCE,  MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_D,N,N,N,N,N),
-    FENCE_I->   List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_I,N,N,N,N,N),
+    FENCE_I->   List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_I,N,N,N,N,Y),
     CFLUSH->    List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_Y,M_FLA,    MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,Y,Y),
     MFPCR->     List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_PCR,REN_Y,WEN_N,I_X ,SYNC_N,N,N,N,Y,N),
     MTPCR->     List(Y,    N,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_Y,I_X ,SYNC_N,N,N,N,Y,Y),
