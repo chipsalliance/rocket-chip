@@ -37,14 +37,11 @@ class ioCtrlVecInterface extends Bundle
   val vpfcntq_valid = Bool(OUTPUT)
   val vpfcntq_ready = Bool(INPUT)
 
-  val vackq_valid = Bool(INPUT)
-  val vackq_ready = Bool(OUTPUT)
+  val vfence_ready = Bool(INPUT)
 
+  val exception = Bool(OUTPUT)
   val exception_ack_valid = Bool(INPUT)
   val exception_ack_ready = Bool(OUTPUT)
-
-  val kill_ack_valid = Bool(INPUT)
-  val kill_ack_ready = Bool(OUTPUT)
 }
 
 class ioCtrlVec extends Bundle
@@ -55,6 +52,7 @@ class ioCtrlVec extends Bundle
   val exception = Bool(INPUT)
   val replay = Bool(OUTPUT)
   val stalld = Bool(OUTPUT)
+  val vfence_ready = Bool(OUTPUT)
 }
 
 class rocketCtrlVec extends Component
@@ -72,7 +70,7 @@ class rocketCtrlVec extends Component
                 //                                           | | | | | | vpfximm1q
                 //                                           | | | | | | | vpfximm2q
                 //                                 wen       | | | | | | | | vpfcntq
-                // val vcmd    vimm      vimm2     | fn      | | | | | | | | | stalld
+                // val vcmd    vimm      vimm2     | fn      | | | | | | | | | fence_cv
                 //   | |       |         |         | |       | | | | | | | | | | waitxcpt
                 //   | |       |         |         | |       | | | | | | | | | | |
                 List(N,VCMD_X, VIMM_X,   VIMM2_X,  N,VEC_X,  N,N,N,N,N,N,N,N,N,N,N),Array(
@@ -127,7 +125,7 @@ class rocketCtrlVec extends Component
   val wb_vec_val :: wb_sel_vcmd :: wb_sel_vimm :: wb_sel_vimm2 :: wb_vec_wen :: wb_vec_fn :: wb_vec_appvlmask :: veccs0 = veccs
   val wb_vec_cmdq_enq :: wb_vec_ximm1q_enq :: wb_vec_ximm2q_enq :: wb_vec_cntq_enq :: veccs1 = veccs0
   val wb_vec_pfcmdq_enq :: wb_vec_pfximm1q_enq :: wb_vec_pfximm2q_enq :: wb_vec_pfcntq_enq :: veccs2 = veccs1
-  val wb_vec_stalld :: wb_vec_waitxcpt :: Nil = veccs2
+  val wb_vec_fence_cv :: wb_vec_waitxcpt :: Nil = veccs2
 
   val valid_common = io.dpath.valid && io.sr_ev && wb_vec_val && !(wb_vec_appvlmask && io.dpath.appvl0)
 
@@ -186,10 +184,6 @@ class rocketCtrlVec extends Component
     mask_wb_vec_cmdq_ready && mask_wb_vec_ximm1q_ready && mask_wb_vec_ximm2q_ready && mask_wb_vec_cntq_ready &&
     mask_wb_vec_pfcmdq_ready && mask_wb_vec_pfximm1q_ready && mask_wb_vec_pfximm2q_ready && wb_vec_pfcntq_enq
 
-  io.iface.vackq_ready := Bool(true)
-  io.iface.exception_ack_ready := Bool(true)
-  io.iface.kill_ack_ready := Bool(true)
-
   io.replay := valid_common && (
     wb_vec_cmdq_enq && !io.iface.vcmdq_ready ||
     wb_vec_ximm1q_enq && !io.iface.vximm1q_ready ||
@@ -198,21 +192,19 @@ class rocketCtrlVec extends Component
     wb_vec_pfcmdq_enq && !io.iface.vpfcmdq_ready ||
     wb_vec_pfximm1q_enq && !io.iface.vpfximm1q_ready ||
     wb_vec_pfximm2q_enq && !io.iface.vpfximm2q_ready ||
-    wb_vec_pfcntq_enq && !io.iface.vpfcntq_ready
+    wb_vec_pfcntq_enq && !io.iface.vpfcntq_ready ||
+    wb_vec_fence_cv && !io.iface.vfence_ready
   )
-
-  val reg_stalld = Reg(resetVal = Bool(false))
-  val do_stalld = valid_common && wb_vec_stalld && !io.replay
-
-  when (do_stalld) { reg_stalld := Bool(true) }
-  when (io.iface.vackq_valid || io.exception) { reg_stalld := Bool(false) }
 
   val reg_waitxcpt = Reg(resetVal = Bool(false))
   val do_waitxcpt = valid_common && wb_vec_waitxcpt && !io.replay
 
   when (do_waitxcpt) { reg_waitxcpt := Bool(true) }
   when (io.iface.exception_ack_valid) { reg_waitxcpt := Bool(false) }
-  when (io.iface.kill_ack_valid) { reg_waitxcpt := Bool(false) }
 
-  io.stalld := reg_stalld || reg_waitxcpt
+  io.iface.exception := io.exception && io.sr_ev
+  io.iface.exception_ack_ready := reg_waitxcpt
+
+  io.stalld := reg_waitxcpt
+  io.vfence_ready := !io.sr_ev || io.iface.vfence_ready
 }

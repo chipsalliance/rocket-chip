@@ -80,8 +80,13 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
 
   val mem_acked = Reg(resetVal = Bool(false))
   val mem_gxid = Reg() { Bits() }
+  val mem_needs_ack = Reg() { Bool() }
   val mem_nacked = Reg(resetVal = Bool(false))
-  when (io.mem.xact_rep.valid) { mem_acked := Bool(true); mem_gxid := io.mem.xact_rep.bits.global_xact_id }
+  when (io.mem.xact_rep.valid) { 
+    mem_acked := Bool(true)
+    mem_gxid := io.mem.xact_rep.bits.global_xact_id
+    mem_needs_ack := io.mem.xact_rep.bits.require_ack  
+  }
   when (io.mem.xact_abort.valid) { mem_nacked := Bool(true) }
 
   val state_rx :: state_pcr :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(8) { UFix() }
@@ -152,7 +157,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   io.mem.xact_init.bits.address := addr >> UFix(OFFSET_BITS-3)
   io.mem.xact_init_data.valid:= state === state_mem_wdata
   io.mem.xact_init_data.bits.data := mem_req_data
-  io.mem.xact_finish.valid := state === state_mem_finish
+  io.mem.xact_finish.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.xact_finish.bits.global_xact_id := mem_gxid
 
   pcr_done := Bool(false)
