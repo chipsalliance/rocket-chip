@@ -297,7 +297,7 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
   val t_type_ = Reg{ Bits() }
   val init_tile_id_ = Reg{ Bits() }
   val tile_xact_id_ = Reg{ Bits() }
-  val p_rep_count = Reg(resetVal = UFix(0, width = log2up(NTILES)))
+  val p_rep_count = if (NTILES == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2up(NTILES)))
   val p_req_flags = Reg(resetVal = Bits(0, width = NTILES))
   val p_rep_tile_id_ = Reg{ Bits() }
   val x_needs_read = Reg(resetVal = Bool(false))
@@ -346,7 +346,7 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
         tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
         x_init_data_needs_write := transactionInitHasData(io.alloc_req.bits.xact_init)
         x_needs_read := needsMemRead(io.alloc_req.bits.xact_init.t_type, UFix(0))
-        p_rep_count := UFix(NTILES-1)
+        if(NTILES > 1) p_rep_count := UFix(NTILES-1)
         p_req_flags := ~( UFix(1) << io.alloc_req.bits.tile_id ) //TODO: Broadcast only
         mem_cnt := UFix(0)
         p_w_mem_cmd_sent := Bool(false)
@@ -366,7 +366,7 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
       when(io.p_rep_cnt_dec.orR) {
         val p_rep_count_next = p_rep_count - PopCount(io.p_rep_cnt_dec)
         io.pop_p_rep := io.p_rep_cnt_dec
-        p_rep_count := p_rep_count_next
+        if(NTILES > 1) p_rep_count := p_rep_count_next
         when(p_rep_count === UFix(0)) {
           io.pop_p_rep := Bool(true)
           state := s_mem
