@@ -26,7 +26,7 @@ class Top() extends Component {
   arbiter.io.requestor(1) <> icache_pf.io.mem
   arbiter.io.requestor(2) <> htif.io.mem
 
-  val hub = new CoherenceHubNull
+  val hub = new CoherenceHubBroadcast
   // connect tile to hub
   hub.io.tiles(0).xact_init <> Queue(arbiter.io.mem.xact_init)
   arbiter.io.mem.xact_abort <> Queue(hub.io.tiles(0).xact_abort)

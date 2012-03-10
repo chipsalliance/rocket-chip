@@ -7,7 +7,7 @@ object Constants
 {
   val HAVE_RVC = false
   val HAVE_FPU = true
-  val HAVE_VEC = true
+  val HAVE_VEC = false
 
   val BR_N    = UFix(0, 4);
   val BR_EQ   = UFix(1, 4);
