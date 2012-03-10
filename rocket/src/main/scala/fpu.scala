@@ -390,12 +390,15 @@ class rocketFPUSFMAPipe(latency: Int) extends Component
                 io.cmd === FCMD_NMADD || io.cmd === FCMD_NMSUB
   val cmd_addsub = io.cmd === FCMD_ADD || io.cmd === FCMD_SUB
 
+  val one = Bits("h80000000")
+  val zero = Cat(io.in1(32) ^ io.in2(32), Bits(0, 32))
+
   when (io.valid) {
     cmd := Cat(io.cmd(1) & (cmd_fma || cmd_addsub), io.cmd(0))
     rm := io.rm
     in1 := io.in1
-    in2 := Mux(cmd_addsub, Bits("h80000000"), io.in2)
-    in3 := Mux(cmd_fma, io.in3, Mux(cmd_addsub, io.in2, Bits(0)))
+    in2 := Mux(cmd_addsub, one, io.in2)
+    in3 := Mux(cmd_fma, io.in3, Mux(cmd_addsub, io.in2, zero))
   }
 
   val fma = new hardfloat.mulAddSubRecodedFloat32_1
@@ -423,12 +426,15 @@ class rocketFPUDFMAPipe(latency: Int) extends Component
                 io.cmd === FCMD_NMADD || io.cmd === FCMD_NMSUB
   val cmd_addsub = io.cmd === FCMD_ADD || io.cmd === FCMD_SUB
 
+  val one = Bits("h8000000000000000")
+  val zero = Cat(io.in1(64) ^ io.in2(64), Bits(0, 64))
+
   when (io.valid) {
     cmd := Cat(io.cmd(1) & (cmd_fma || cmd_addsub), io.cmd(0))
     rm := io.rm
     in1 := io.in1
-    in2 := Mux(cmd_addsub, Bits("h8000000000000000"), io.in2)
-    in3 := Mux(cmd_fma, io.in3, Mux(cmd_addsub, io.in2, Bits(0)))
+    in2 := Mux(cmd_addsub, one, io.in2)
+    in3 := Mux(cmd_fma, io.in3, Mux(cmd_addsub, io.in2, zero))
   }
 
   val fma = new hardfloat.mulAddSubRecodedFloat64_1
