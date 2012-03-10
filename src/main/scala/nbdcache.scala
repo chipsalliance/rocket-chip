@@ -292,6 +292,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
 class MSHRFile extends Component {
   val io = new Bundle {
     val req = (new ioDecoupled) { new MSHRReq }.flip
+    val secondary_miss = Bool(OUTPUT)
 
     val mem_resp_idx = Bits(IDX_BITS, OUTPUT)
     val mem_resp_offset = Bits(log2up(REFILL_CYCLES), OUTPUT)
@@ -376,6 +377,7 @@ class MSHRFile extends Component {
   wb_req_arb.io.out <> io.wb_req
 
   io.req.ready := Mux(idx_match, tag_match && sec_rdy, pri_rdy) && sdq_rdy
+  io.secondary_miss := idx_match
   io.mem_resp_idx := mem_resp_mux.io.out.inner_req.idx
   io.mem_resp_offset := mem_resp_mux.io.out.inner_req.offset
   io.mem_resp_way_oh := mem_resp_mux.io.out.way_en
@@ -930,9 +932,9 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
 
   io.cpu.req_rdy   := flusher.io.req.ready && !(r_cpu_req_val_ && r_req_flush) && !pending_fence
   io.cpu.resp_nack := r_cpu_req_val_ && !io.cpu.req_kill && nack
-  io.cpu.resp_val  := (tag_hit && !nack && r_req_read) || mshr.io.cpu_resp_val
+  io.cpu.resp_val  := (tag_hit && !mshr.io.secondary_miss && !nack && r_req_read) || mshr.io.cpu_resp_val
   io.cpu.resp_replay := mshr.io.cpu_resp_val
-  io.cpu.resp_miss := r_cpu_req_val_ && !tag_match && r_req_read
+  io.cpu.resp_miss := r_cpu_req_val_ && (!tag_match || mshr.io.secondary_miss) && r_req_read
   io.cpu.resp_tag  := Mux(mshr.io.cpu_resp_val, mshr.io.cpu_resp_tag, r_cpu_req_tag)
   io.cpu.resp_type := loadgen.io.typ
   io.cpu.resp_data := loadgen.io.dout
