@@ -119,46 +119,7 @@ object ShiftRegister
 
 object Mux1H 
 {
-//TODO: cloning in(0) is unsafe if other elements have different widths, but
-//is that even allowable?
-  def apply [T <: Data](n: Int, sel: Vec[Bool], in: Vec[T]): T = {
-    MuxCase(in(0), (0 until n).map( i => (sel(i), in(i))))
-//    val mux = (new Mux1H(n)){ in(0).clone }
-//    mux.io.sel <> sel
-//    mux.io.in <> in
-//    mux.io.out.asInstanceOf[T]
-  }
-
-  def apply [T <: Data](n: Int, sel: Seq[Bool], in: Vec[T]): T = {
-    MuxCase(in(0), (0 until n).map( i => (sel(i), in(i))))
-//    val mux = (new Mux1H(n)){ in(0).clone }
-//    for(i <- 0 until n) {
-//      mux.io.sel(i) := sel(i)
-//    }
-//    mux.io.in <> in.asOutput
-//    mux.io.out.asInstanceOf[T]
-  }
-
-  def apply [T <: Data](n: Int, sel: Bits, in: Vec[T]): T = {
-    MuxCase(in(0), (0 until n).map( i => (sel(i).toBool, in(i))))
-//    val mux = (new Mux1H(n)){ in(0).clone }
-//    for(i <- 0 until n) {
-//      mux.io.sel(i) := sel(i).toBool
-//    }
-//    mux.io.in := in
-//    mux.io.out
-  }
-}
-
-class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
-{
-  val io = new Bundle {
-    val sel = Vec(n) { Bool(dir = INPUT) }
-    val in  = Vec(n) { gen }.asInput
-    val out = gen.asOutput
-  }
-
-  def buildMux(sel: Bits, in: Vec[T], i: Int, n: Int): T = {
+  def buildMux[T <: Data](sel: Bits, in: Vec[T], i: Int, n: Int): T = {
     if (n == 1)
       in(i)
     else
@@ -170,7 +131,19 @@ class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
     }
   }
 
-  io.out := buildMux(io.sel.toBits, io.in, 0, n)
+  def apply [T <: Data](sel: Bits, in: Vec[T]): T = buildMux(sel, in, 0, sel.getWidth)
+  def apply [T <: Data](sel: Vec[Bool], in: Vec[T]): T = apply(sel.toBits, in)
+}
+
+class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
+{
+  val io = new Bundle {
+    val sel = Vec(n) { Bool(dir = INPUT) }
+    val in  = Vec(n) { gen }.asInput
+    val out = gen.asOutput
+  }
+
+  io.out := Mux1H(io.sel, io.in)
 }
 
 
@@ -265,5 +238,19 @@ object PriorityEncoder
       UFix(n)
     else
       Mux(in(n), UFix(n), doApply(in, n+1))
+  }
+}
+
+object PriorityEncoderOH
+{
+  def apply(in: Bits): UFix = doApply(in, 0)
+  def doApply(in: Bits, n: Int = 0): UFix = {
+    val out = Vec(in.getWidth) { Wire() { Bool() } }
+    var none_hot = Bool(true)
+    for (i <- 0 until in.getWidth) {
+      out(i) := none_hot && in(i)
+      none_hot = none_hot && !in(i)
+    }
+    out.toBits
   }
 }
