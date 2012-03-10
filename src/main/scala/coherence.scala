@@ -124,7 +124,7 @@ trait ThreeStateIncoherence extends CoherencePolicy {
   def newStateOnHit(cmd: Bits, state: UFix): UFix = newState(cmd, state)
   def newTransactionOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
+    Mux(write || cmd === M_PFW, X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
   }
   def newTransactionOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: TransactionInit): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -170,7 +170,7 @@ trait FourStateCoherence extends CoherencePolicy {
   }
   def newTransactionOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
+    Mux(write || cmd === M_PFW, X_INIT_READ_EXCLUSIVE, X_INIT_READ_SHARED)
   }
   def newTransactionOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: TransactionInit): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -442,7 +442,7 @@ class CoherenceHubNull extends CoherenceHub {
   x_rep.bits.global_xact_id := UFix(0) // don't care
   x_rep.bits.data := io.mem.resp.bits.data
   x_rep.bits.require_ack := Bool(true)
-  x_rep.valid := io.mem.resp.valid || x_init.valid && is_write
+  x_rep.valid := io.mem.resp.valid || x_init.valid && is_write && io.mem.req_cmd.ready
 
   io.tiles(0).xact_abort.valid := Bool(false)
   io.tiles(0).xact_finish.ready := Bool(true)
