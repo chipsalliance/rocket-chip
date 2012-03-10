@@ -145,4 +145,5 @@ class rocketDpathVec extends Component
   io.ctrl.valid := io.valid
   io.ctrl.inst := io.inst
   io.ctrl.appvl0 := reg_appvl0
+  io.ctrl.pfq := io.rs2(0)
 }
