@@ -93,6 +93,7 @@ class LoadDataGen extends Component {
 }
 
 class MSHRReq extends Bundle {
+  val tag_miss = Bool()
   val old_state = UFix(width = 2)
   val old_tag = Bits(width = TAG_BITS)
 
@@ -189,7 +190,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
     val wb_req = (new ioDecoupled) { new WritebackReq }
   }
 
-  val s_invalid :: s_meta_invalidate :: s_wb_req :: s_wb_resp :: s_refill_req :: s_refill_resp :: s_drain_rpq :: s_write_meta :: Nil = Enum(8) { UFix() }
+  val s_invalid :: s_wb_req :: s_wb_resp :: s_refill_req :: s_refill_resp :: s_drain_rpq :: Nil = Enum(6) { UFix() }
   val state = Reg(resetVal = s_invalid)
   val flush = Reg { Bool() }
 
@@ -201,13 +202,13 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   val req_cmd = io.req_bits.cmd
   val req_use_rpq = (req_cmd != M_PFR) && (req_cmd != M_PFW) && (req_cmd != M_FLA)
   val idx_match = req.idx === io.req_bits.idx
-  val sec_rdy = idx_match && !flush && (state === s_meta_invalidate || state === s_wb_req || state === s_wb_resp || (state === s_refill_req || state === s_refill_resp) && !needsSecondaryXact(req_cmd, io.mem_req.bits))
+  val sec_rdy = idx_match && !flush && (state === s_wb_req || state === s_wb_resp || (state === s_refill_req || state === s_refill_resp) && !needsSecondaryXact(req_cmd, io.mem_req.bits))
 
   val rpq = (new queue(NRPQ)) { new RPQEntry }
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && req_use_rpq
   rpq.io.enq.bits := io.req_bits
   rpq.io.enq.bits.sdq_id := io.req_sdq_id
-  rpq.io.deq.ready := io.replay.ready && (state === s_drain_rpq)
+  rpq.io.deq.ready := io.replay.ready && (state === s_drain_rpq) || (state === s_invalid)
 
   val abort = io.mem_abort.valid && io.mem_abort.bits.tile_xact_id === UFix(id)
   val reply = io.mem_rep.valid && io.mem_rep.bits.tile_xact_id === UFix(id)
@@ -218,11 +219,8 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   finish_q.io.enq.valid := wb_done || refill_done
   finish_q.io.enq.bits.global_xact_id := io.mem_rep.bits.global_xact_id
 
-  when (state === s_write_meta && io.meta_req.ready) {
+  when (state === s_drain_rpq && !rpq.io.deq.valid && !finish_q.io.deq.valid && io.meta_req.ready) {
     state := s_invalid
-  }
-  when (state === s_drain_rpq && !rpq.io.deq.valid && !finish_q.io.deq.valid) {
-    state := s_write_meta
   }
   when (state === s_refill_resp) {
     when (refill_done) { state := s_drain_rpq }
@@ -233,7 +231,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
     when (abort) { state := s_refill_req }
   }
   when (state === s_refill_req && io.mem_req.ready) {
-    state := Mux(flush, s_write_meta, s_refill_resp)
+    state := Mux(flush, s_drain_rpq, s_refill_resp)
   }
   when (state === s_wb_resp) {
     when (reply) { state := s_refill_req }
@@ -242,20 +240,20 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   when (state === s_wb_req && io.wb_req.ready) {
     state := s_wb_resp
   }
-  when (state === s_meta_invalidate && io.meta_req.ready) {
-    state := Mux(needsWriteback(req.old_state), s_wb_req, s_refill_req)
-  }
 
-  when (io.req_sec_val && io.req_sec_rdy) { // s_meta_invalidate, s_wb_req, s_wb_resp, s_refill_req
+  when (io.req_sec_val && io.req_sec_rdy) { // s_wb_req, s_wb_resp, s_refill_req
     xact_type := newTransactionOnSecondaryMiss(req_cmd, newStateOnFlush(), io.mem_req.bits)
   }
   when ((state === s_invalid) && io.req_pri_val) {
-    state := s_meta_invalidate
     flush := req_cmd === M_FLA
     line_state := newStateOnFlush()
     refill_count := UFix(0)
     xact_type := newTransactionOnPrimaryMiss(req_cmd, newStateOnFlush())
     req := io.req_bits
+
+    when (io.req_bits.tag_miss) {
+      state := Mux(needsWriteback(io.req_bits.old_state), s_wb_req, s_refill_req)
+    }
   }
 
   io.idx_match := (state != s_invalid) && idx_match
@@ -266,7 +264,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   io.req_pri_rdy := (state === s_invalid)
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
-  io.meta_req.valid := (state === s_write_meta) || (state === s_meta_invalidate)
+  io.meta_req.valid := (state === s_drain_rpq) && !rpq.io.deq.valid && !finish_q.io.deq.valid
   io.meta_req.bits.inner_req.rw := Bool(true)
   io.meta_req.bits.inner_req.idx := req.idx
   io.meta_req.bits.inner_req.data.state := line_state
@@ -389,7 +387,8 @@ class MSHRFile extends Component {
 
   val (replay_read, replay_write) = cpuCmdToRW(replay.bits.cmd)
   val sdq_free = replay.valid && replay.ready && replay_write
-  sdq_val := sdq_val & ~(sdq_free.toUFix << replay.bits.sdq_id) | (sdq_enq.toUFix << sdq_alloc_id)
+  sdq_val := sdq_val & ~(sdq_free.toUFix << replay.bits.sdq_id) | 
+             PriorityEncoderOH(~sdq_val(NSDQ-1,0)) & Fill(NSDQ, sdq_enq && io.req.bits.tag_miss)
   io.data_req.bits.data := sdq.read(Mux(replay.valid && !replay.ready, replay.bits.sdq_id, replay_arb.io.out.bits.sdq_id))
 
   io.cpu_resp_val := Reg(replay.valid && replay.ready && replay_read, resetVal = Bool(false))
@@ -454,7 +453,7 @@ class FlushUnit(lines: Int) extends Component with FourStateCoherence{
   val io = new Bundle {
     val req = (new ioDecoupled) { Bool() }.flip
     val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }
-    val mshr_req = (new ioDecoupled) { Bool() }.flip
+    val mshr_req = (new ioDecoupled) { Bool() }
   }
   
   val s_reset :: s_ready :: s_meta_read :: s_meta_wait :: Nil = Enum(4) { UFix() }
@@ -506,14 +505,12 @@ class MetaDataArray(lines: Int) extends Component {
     val state_req = (new ioDecoupled) { new MetaArrayReq() }.flip
   }
 
-  val permissions_array = Mem(lines){ Bits(width = 2) }
-  permissions_array.setReadLatency(1);
+  val permissions_array = Mem(lines){ UFix(width = 2) }
   permissions_array.write(io.state_req.bits.idx, io.state_req.bits.data.state, io.state_req.valid && io.state_req.bits.rw)
-  val permissions_rdata1 = permissions_array.rw(io.req.bits.idx, io.req.bits.data.state, io.req.valid && io.req.bits.rw)
-
-  // don't allow reading and writing of vd_array in same cycle.
-  // this could be eliminated if the read port were combinational.
-  val permissions_conflict = io.state_req.valid && (io.req.bits.idx === io.state_req.bits.idx)
+  permissions_array.write(io.req.bits.idx, io.req.bits.data.state, io.req.valid && io.req.bits.rw)
+  val raddr = Reg() { Bits() }
+  when (io.req.valid && !io.req.bits.rw) { raddr := io.req.bits.idx }
+  val permissions_rdata1 = permissions_array.read(raddr)
 
   val tag_array = Mem(lines){ Bits(width=TAG_BITS) }
   tag_array.setReadLatency(1);
@@ -522,7 +519,7 @@ class MetaDataArray(lines: Int) extends Component {
 
   io.resp.state := permissions_rdata1.toUFix
   io.resp.tag   := tag_rdata
-  io.req.ready  := !permissions_conflict
+  io.req.ready  := Bool(true)
 }
 
 class MetaDataArrayArray(lines: Int) extends Component {
@@ -782,11 +779,10 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val hit_way_oh = Cat(Bits(0),tag_match_arr.reverse:_*)(NWAYS-1, 0) //TODO: use Vec
   val meta_resp_way_oh = Mux(meta.io.way_en === ~UFix(0, NWAYS), hit_way_oh, meta.io.way_en)
   val data_resp_way_oh = Mux(data.io.way_en === ~UFix(0, NWAYS), hit_way_oh, data.io.way_en)
-  val meta_resp_mux = Mux1H(NWAYS, meta_resp_way_oh, meta.io.resp)
-  val data_resp_mux = Mux1H(NWAYS, data_resp_way_oh, data.io.resp)
+  val meta_resp_mux = Mux1H(meta_resp_way_oh, meta.io.resp)
+  val data_resp_mux = Mux1H(data_resp_way_oh, data.io.resp)
 
   // writeback unit
-  val finish_arb = (new Arbiter(2)) { new TransactionFinish }
   val wb = new WritebackUnit
   wb.io.req <> mshr.io.wb_req
   wb.io.data_req <> data_arb.io.in(3)
@@ -796,7 +792,7 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val replacer = new RandomReplacementWayGen()
   replacer.io.way_en := ~UFix(0, NWAYS)
   val replaced_way_oh = Mux(flusher.io.mshr_req.valid, r_way_oh, UFixToOH(replacer.io.way_id, NWAYS))
-  val meta_wb_mux = Mux1H(NWAYS, replaced_way_oh, meta.io.resp)
+  val meta_wb_mux = Mux1H(replaced_way_oh, meta.io.resp)
 
   // refill response
   data_arb.io.in(0).bits.inner_req.offset := mshr.io.mem_resp_offset
@@ -833,17 +829,17 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val drain_store = drain_store_val && data_arb.io.in(2).ready
   val p_amo = Reg(resetVal = Bool(false))
   val p_store_rdy = !(p_store_valid && !drain_store) && !(mshr.io.data_req.valid || r_replay_amo || p_amo)
-  p_amo := tag_hit && mshr.io.req.ready && r_req_amo && p_store_rdy && !p_store_match || r_replay_amo
-  p_store_valid := p_store_valid && !drain_store || (tag_hit && mshr.io.req.ready && r_req_store && p_store_rdy) || p_amo
+  p_amo := tag_hit && r_req_amo && mshr.io.req.ready && !nack_hit || r_replay_amo
+  p_store_valid := p_store_valid && !drain_store || (tag_hit && r_req_store && mshr.io.req.ready && !nack_hit) || p_amo
 
   // tag update after a store to an exclusive clean line.
   val new_hit_state = newStateOnHit(r_cpu_req_cmd, meta_resp_mux.state)
   val set_hit_state  = tag_hit && meta_resp_mux.state != new_hit_state
   meta.io.state_req.bits.inner_req.rw := Bool(true)
-  meta.io.state_req.bits.inner_req.idx := r_cpu_req_idx(indexmsb,indexlsb)
-  meta.io.state_req.bits.inner_req.data.state := new_hit_state
-  meta.io.state_req.bits.way_en := hit_way_oh
-  meta.io.state_req.valid := set_hit_state
+  meta.io.state_req.bits.inner_req.idx := Reg(r_cpu_req_idx(indexmsb,indexlsb))
+  meta.io.state_req.bits.inner_req.data.state := Reg(new_hit_state)
+  meta.io.state_req.bits.way_en := Reg(hit_way_oh)
+  meta.io.state_req.valid := Reg(set_hit_state, resetVal = Bool(false))
   
   // pending store data, also used for AMO RHS
   val amoalu = new AMOALU
@@ -859,7 +855,8 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   }
 
   // miss handling
-  mshr.io.req.valid := tag_miss && r_req_readwrite && !nack_hit || flusher.io.mshr_req.valid
+  mshr.io.req.valid := r_cpu_req_val && r_req_readwrite && !nack_hit || flusher.io.mshr_req.valid
+  mshr.io.req.bits.tag_miss := tag_miss || flusher.io.mshr_req.valid
   mshr.io.req.bits.old_state := meta_wb_mux.state
   mshr.io.req.bits.old_tag := meta_wb_mux.tag
   mshr.io.req.bits.tag := cpu_req_tag
@@ -872,7 +869,6 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   mshr.io.req.bits.data := cpu_req_data
 
   mshr.io.mem_rep <> io.mem.xact_rep
-  mshr.io.mem_finish <> finish_arb.io.in(1)
   mshr.io.mem_abort.valid := io.mem.xact_abort.valid
   mshr.io.mem_abort.bits := io.mem.xact_abort.bits
   mshr.io.meta_req <> meta_arb.io.in(1)
@@ -925,7 +921,8 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   // fences and flushes are the exceptions.
   val pending_fence = Reg(resetVal = Bool(false))
   pending_fence := (r_cpu_req_val_ && r_req_fence || pending_fence) && !mshr.io.fence_rdy
-  nack_hit := p_store_match || replay_val || r_req_write && !p_store_rdy
+  nack_hit := p_store_match || replay_val || r_req_write && !p_store_rdy ||
+              p_store_idx_match && meta.io.state_req.valid
   val nack_miss  = !mshr.io.req.ready
   val nack_flush = !mshr.io.fence_rdy && (r_req_fence || r_req_flush) ||
                    !flushed && r_req_flush
@@ -947,5 +944,5 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   io.mem.xact_init <> xact_init_arb.io.out
 
   io.mem.xact_init_data <> wb.io.mem_req_data
-  io.mem.xact_finish <> finish_arb.io.out
+  io.mem.xact_finish <> mshr.io.mem_finish
 }
