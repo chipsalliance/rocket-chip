@@ -60,11 +60,12 @@ class rocketIPrefetcher extends Component() {
   io.icache.xact_rep.valid  := io.mem.xact_rep.valid && !io.mem.xact_rep.bits.tile_xact_id(0) || (forward && pdq.io.deq.valid)
   io.icache.xact_rep.bits.data := Mux(forward, pdq.io.deq.bits, io.mem.xact_rep.bits.data)
   io.icache.xact_rep.bits.require_ack := !forward && io.mem.xact_rep.bits.require_ack
-  
+  io.icache.xact_rep.bits.global_xact_id := io.mem.xact_rep.bits.global_xact_id  
+
   pdq.io.flush := Reg(demand_miss && !hit || (state === s_bad_resp_wait), resetVal = Bool(false))
   pdq.io.enq.bits := io.mem.xact_rep.bits.data
-  pdq.io.enq.valid  := ip_mem_resp_val.toBool;
-  pdq.io.deq.ready  := forward;
+  pdq.io.enq.valid  := ip_mem_resp_val
+  pdq.io.deq.ready  := forward
   
   switch (state) {
     is (s_invalid) {
