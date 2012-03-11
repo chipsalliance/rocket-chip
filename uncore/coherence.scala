@@ -276,17 +276,17 @@ class XactTracker(id: Int) extends Component with FourStateCoherence {
     when(req_data.ready && req_data.valid) {
       pop_data := UFix(1) << tile_id 
       mem_cnt  := mem_cnt_next
-    }
-    when(mem_cnt_next === UFix(0)) {
-      pop_dep := UFix(1) << tile_id
-      trigger := Bool(false)
+      when(mem_cnt_next === UFix(0)) {
+        pop_dep := UFix(1) << tile_id
+        trigger := Bool(false)
+      }
     }
   }
 
   def doMemReqRead(req_cmd: ioDecoupled[MemReqCmd], trigger: Bool) {
     req_cmd.valid := Bool(true)
     req_cmd.bits.rw := Bool(false)
-    when(req_cmd.ready ) {
+    when(req_cmd.ready) {
       trigger := Bool(false)
     }
   }
@@ -535,10 +535,11 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
       rep.bits.t_type := getTransactionReplyType(t_type_arr(ack_idx), sh_count_arr(ack_idx))
       rep.bits.tile_xact_id := tile_xact_id_arr(ack_idx)
       rep.bits.global_xact_id := ack_idx
-      rep.valid := (UFix(j) === init_tile_id_arr(ack_idx)) && send_x_rep_ack_arr.toBits.orR
+      val do_send_ack = (UFix(j) === init_tile_id_arr(ack_idx)) && send_x_rep_ack_arr.toBits.orR
+      rep.valid := do_send_ack
+      sent_x_rep_ack_arr(ack_idx) := do_send_ack
     }
   }
-  sent_x_rep_ack_arr(ack_idx) := !io.mem.resp.valid
   // If there were a ready signal due to e.g. intervening network use:
   //io.mem.resp.ready  := io.tiles(init_tile_id_arr.read(mem_idx)).xact_rep.ready
 
