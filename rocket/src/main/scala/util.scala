@@ -194,40 +194,33 @@ class ioLockingArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
 class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {
   val io = new ioLockingArbiter(n)(data)
   val locked = Vec(n) { Reg(resetVal = Bool(false)) }
-  var dout = io.in(0).bits
-  var vout = Bool(false)
-
-  for (i <- 0 until n) {
-    io.in(i).ready := io.out.ready
-  }
-
   val any_lock_held = (locked.toBits & io.lock.toBits).orR
-  when(any_lock_held) {
-    vout = io.in(0).valid && locked(0)
-    for (i <- 0 until n) {
-      io.in(i).ready := io.out.ready && locked(i)
-      dout = Mux(locked(i), io.in(i).bits, dout)
-      vout = vout || io.in(i).valid && locked(i)
-    }
-  } .otherwise {
-    io.in(0).ready := io.out.ready
-    locked(0) := io.out.ready && io.lock(0)
-    for (i <- 1 until n) {
-      io.in(i).ready := !io.in(i-1).valid && io.in(i-1).ready
-      locked(i) := !io.in(i-1).valid && io.in(i-1).ready && io.lock(i)
-    }
-
-    dout = io.in(n-1).bits
-    for (i <- 1 until n)
-      dout = Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout)
-
-    vout = io.in(0).valid
-    for (i <- 1 until n)
-      vout = vout || io.in(i).valid
+  val valid_arr = Vec(n) { Wire() { Bool() } }
+  val bits_arr = Vec(n) { Wire() { data } }
+  for(i <- 0 until n) {
+    valid_arr(i) := io.in(i).valid
+    bits_arr(i) := io.in(i).bits
   }
 
-  vout <> io.out.valid
-  dout <> io.out.bits
+  io.in(0).ready := Mux(any_lock_held, io.out.ready && locked(0), io.out.ready)
+  locked(0) := Mux(any_lock_held, locked(0), io.in(0).ready && io.lock(0))
+  for (i <- 1 until n) {
+    io.in(i).ready := Mux(any_lock_held, io.out.ready && locked(i), 
+                          !io.in(i-1).valid && io.in(i-1).ready)
+    locked(i) := Mux(any_lock_held, locked(i), io.in(i).ready)
+  }
+
+  var dout = io.in(n-1).bits
+  for (i <- 1 until n)
+    dout = Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout)
+
+  var vout = io.in(0).valid
+  for (i <- 1 until n)
+    vout = vout || io.in(i).valid
+
+  val lock_idx = PriorityEncoder(locked.toBits)
+  io.out.valid := Mux(any_lock_held, valid_arr(lock_idx), vout)
+  io.out.bits  := Mux(any_lock_held, bits_arr(lock_idx), dout)
 }
 
 object PriorityEncoder
