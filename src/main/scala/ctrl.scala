@@ -631,7 +631,7 @@ class rocketCtrl extends Component
     vec.io.exception := wb_reg_exception
 
     vec_replay = vec.io.replay
-    vec_stalld = vec.io.stalld || id_vfence_cv && !vec.io.vfence_ready
+    vec_stalld = vec.io.stalld // || id_vfence_cv && !vec.io.vfence_ready
   }
 
   // exception handling
