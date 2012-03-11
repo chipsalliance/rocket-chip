@@ -207,7 +207,7 @@ class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {
   for (i <- 1 until n) {
     io.in(i).ready := Mux(any_lock_held, io.out.ready && locked(i), 
                           !io.in(i-1).valid && io.in(i-1).ready)
-    locked(i) := Mux(any_lock_held, locked(i), io.in(i).ready)
+    locked(i) := Mux(any_lock_held, locked(i), io.in(i).ready && io.lock(i))
   }
 
   var dout = io.in(n-1).bits
