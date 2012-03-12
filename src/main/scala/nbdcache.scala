@@ -722,8 +722,8 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   // reset and flush unit
   val flusher = new FlushUnit(lines)
   val flushed = Reg(resetVal = Bool(true))
-  flushed := flushed && (!r_cpu_req_val_ || r_req_flush) || r_cpu_req_val_ && r_req_flush && mshr.io.fence_rdy && flusher.io.req.ready
-  flusher.io.req.valid := r_cpu_req_val_ && r_req_flush && mshr.io.fence_rdy && !flushed
+  flushed := flushed && (!r_cpu_req_val || r_req_flush) || r_cpu_req_val && r_req_flush && mshr.io.fence_rdy && flusher.io.req.ready
+  flusher.io.req.valid := r_cpu_req_val && r_req_flush && mshr.io.fence_rdy && !flushed
   flusher.io.mshr_req.ready := mshr.io.req.ready
   
   when (io.cpu.req_val) {
