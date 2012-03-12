@@ -627,6 +627,7 @@ class rocketCtrl extends Component
     io.vec_dpath <> vec.io.dpath
     io.vec_iface <> vec.io.iface
 
+    vec.io.s := io.dpath.status(SR_S)
     vec.io.sr_ev := io.dpath.status(SR_EV)
     vec.io.exception := wb_reg_exception
 

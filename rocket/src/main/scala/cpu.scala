@@ -193,9 +193,13 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     ctrl.io.vec_iface.vpfximm2q_ready := vu.io.vec_pfximm2q.ready
     ctrl.io.vec_iface.vpfcntq_ready := vu.io.vec_pfcntq.ready
 
+    // user level vector command queue ready signals
+    ctrl.io.vec_iface.vcmdq_user_ready := vu.io.vec_cmdq_user_ready
+    ctrl.io.vec_iface.vximm1q_user_ready := vu.io.vec_ximm1q_user_ready
+    ctrl.io.vec_iface.vximm2q_user_ready := vu.io.vec_ximm2q_user_ready
+
     // fences
     ctrl.io.vec_iface.vfence_ready := vu.io.vec_fence_ready
-    ctrl.io.vec_iface.vhold_ready := vu.io.vec_hold_ready
 
     // exceptions
     vu.io.xcpt.exception := ctrl.io.vec_iface.exception
