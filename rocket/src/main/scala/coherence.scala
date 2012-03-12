@@ -600,7 +600,7 @@ class CoherenceHubBroadcast extends CoherenceHub  with FourStateCoherence{
       conflicts(i) := t.busy && x_init.valid && coherenceConflict(t.addr, x_init.bits.address)
     }
     x_abort.bits.tile_xact_id := x_init.bits.tile_xact_id
-    want_to_abort_arr(j) := conflicts.toBits.orR || busy_arr.toBits.andR || (!x_init_data_dep_list(j).io.enq.ready && transactionInitHasData(x_init.bits))
+    want_to_abort_arr(j) := x_init.valid && (conflicts.toBits.orR || busy_arr.toBits.andR || (!x_init_data_dep_list(j).io.enq.ready && transactionInitHasData(x_init.bits)))
     
     x_abort.valid := Bool(false)
     switch(abort_state_arr(j)) {
