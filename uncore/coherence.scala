@@ -147,8 +147,8 @@ trait FourStateCoherence extends CoherencePolicy {
 
   def isHit ( cmd: Bits, state: UFix): Bool = {
     val (read, write) = cpuCmdToRW(cmd)
-    ((read && ( state === tileShared || state === tileExclusiveClean || state === tileExclusiveDirty)) ||
-     (write && (state === tileExclusiveClean || state === tileExclusiveDirty)))
+    Mux(write, (state === tileExclusiveClean || state === tileExclusiveDirty),
+        (state === tileShared || state === tileExclusiveClean || state === tileExclusiveDirty))
   }
 
   //TODO: do we need isPresent() for determining that a line needs to be
