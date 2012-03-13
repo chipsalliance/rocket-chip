@@ -32,6 +32,9 @@ class Top() extends Component {
   arbiter.io.mem.xact_abort <> Queue(hub.io.tiles(0).xact_abort)
   arbiter.io.mem.xact_rep <> Pipe(hub.io.tiles(0).xact_rep)
   hub.io.tiles(0).xact_finish <> Queue(arbiter.io.mem.xact_finish)
+  dcache.io.mem.probe_req <> Queue(hub.io.tiles(0).probe_req)
+  hub.io.tiles(0).probe_rep <> Queue(dcache.io.mem.probe_rep, 1)
+  hub.io.tiles(0).probe_rep_data <> Queue(dcache.io.mem.probe_rep_data)
   // connect hub to memory
   io.mem.req_cmd <> Queue(hub.io.mem.req_cmd)
   io.mem.req_data <> Queue(hub.io.mem.req_data)
