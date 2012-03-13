@@ -21,7 +21,7 @@ class ioHTIF extends Bundle
   val pcr_rdata = Bits(64, OUTPUT)
 }
 
-class rocketHTIF(w: Int, ncores: Int) extends Component
+class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
 {
   val io = new Bundle {
     val host = new ioHost(w)
@@ -159,6 +159,13 @@ class rocketHTIF(w: Int, ncores: Int) extends Component
   io.mem.xact_init_data.bits.data := mem_req_data
   io.mem.xact_finish.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.xact_finish.bits.global_xact_id := mem_gxid
+
+  val probe_q = (new queue(1, pipe=true)) { new TransactionReply }
+  probe_q.io.enq.valid := io.mem.probe_req.valid
+  io.mem.probe_req.ready := probe_q.io.enq.ready
+  probe_q.io.enq.bits := newProbeReply(io.mem.probe_req.bits, newStateOnFlush())
+  io.mem.probe_rep <> probe_q.io.deq
+  io.mem.probe_rep_data.valid := Bool(false)
 
   pcr_done := Bool(false)
   val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }

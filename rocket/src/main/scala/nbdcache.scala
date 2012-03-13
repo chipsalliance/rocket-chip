@@ -492,7 +492,7 @@ class ProbeUnit extends Component with FourStateCoherence {
     val meta_req = (new ioDecoupled) { new MetaArrayArrayReq }
     val mshr_req = (new ioDecoupled) { Bool() }
     val wb_req = (new ioDecoupled) { new WritebackReq }
-    val hit_way_oh = Bits(NWAYS, INPUT)
+    val tag_match_way_oh = Bits(NWAYS, INPUT)
     val line_state = UFix(2, INPUT)
     val address = Bits(PADDR_BITS-OFFSET_BITS, OUTPUT)
   }
@@ -513,7 +513,7 @@ class ProbeUnit extends Component with FourStateCoherence {
     state := Mux(way_oh.orR && needsWriteback(line_state), s_writeback_req, s_invalid)
   }
   when (state === s_meta_resp) {
-    way_oh := io.hit_way_oh
+    way_oh := io.tag_match_way_oh
     line_state := io.line_state
     state := Mux(!io.mshr_req.ready, s_meta_req, s_probe_rep)
   }
@@ -891,7 +891,7 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   prober.io.meta_req <> meta_arb.io.in(2)
   prober.io.mshr_req <> mshr.io.probe
   prober.io.wb_req <> wb.io.probe
-  prober.io.hit_way_oh := hit_way_oh
+  prober.io.tag_match_way_oh := tag_match_way_oh
   prober.io.line_state := meta_resp_mux.state
 
   // replacement policy
