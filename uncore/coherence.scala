@@ -135,6 +135,12 @@ trait ThreeStateIncoherence extends CoherencePolicy {
     Mux(outstanding.t_type === X_INIT_READ_EXCLUSIVE, tileDirty, tileClean)
   } 
   def newStateOnProbeReq(incoming: ProbeRequest, state: UFix): Bits = state
+  def newProbeReply (incoming: ProbeRequest, has_data: Bool): ProbeReply = {
+    val reply = Wire() { new ProbeReply() }
+    reply.p_type := P_REP_INVALIDATE_ACK
+    reply.global_xact_id := UFix(0)
+    reply
+  }
   def probeReplyHasData (reply: ProbeReply): Bool = Bool(false)
   def transactionInitHasData (init: TransactionInit): Bool = (init.t_type === X_INIT_WRITE_UNCACHED)
 }
@@ -199,6 +205,22 @@ trait FourStateCoherence extends CoherencePolicy {
     ))
   }
 
+  def newProbeReply (incoming: ProbeRequest, state: UFix): ProbeReply = {
+    val reply = Wire() { new ProbeReply() }
+    val with_data = MuxLookup(incoming.p_type, state, Array(
+      probeInvalidate -> P_REP_INVALIDATE_DATA,
+      probeDowngrade  -> P_REP_DOWNGRADE_DATA,
+      probeCopy       -> P_REP_COPY_DATA
+    ))
+    val without_data = MuxLookup(incoming.p_type, state, Array(
+      probeInvalidate -> P_REP_INVALIDATE_ACK,
+      probeDowngrade  -> P_REP_DOWNGRADE_ACK,
+      probeCopy       -> P_REP_COPY_ACK
+    ))
+    reply.p_type := Mux(needsWriteback(state), with_data, without_data)
+    reply.global_xact_id := incoming.global_xact_id
+    reply
+  }
   def probeReplyHasData (reply: ProbeReply): Bool = {
     (reply.p_type === P_REP_INVALIDATE_DATA ||
      reply.p_type === P_REP_DOWNGRADE_DATA ||
@@ -446,6 +468,9 @@ class CoherenceHubNull extends CoherenceHub {
 
   io.tiles(0).xact_abort.valid := Bool(false)
   io.tiles(0).xact_finish.ready := Bool(true)
+  io.tiles(0).probe_req.valid := Bool(false)
+  io.tiles(0).probe_rep.ready := Bool(true)
+  io.tiles(0).probe_rep_data.ready := Bool(true)
 }
 
 
