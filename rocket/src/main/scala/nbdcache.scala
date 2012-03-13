@@ -94,7 +94,7 @@ class LoadDataGen extends Component {
 
 class MSHRReq extends Bundle {
   val tag_miss = Bool()
-  val old_state = UFix(width = 2)
+  val old_dirty = Bool()
   val old_tag = Bits(width = TAG_BITS)
 
   val tag = Bits(width = TAG_BITS)
@@ -252,7 +252,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
     req := io.req_bits
 
     when (io.req_bits.tag_miss) {
-      state := Mux(needsWriteback(io.req_bits.old_state), s_wb_req, s_refill_req)
+      state := Mux(io.req_bits.old_dirty, s_wb_req, s_refill_req)
     }
   }
 
@@ -722,8 +722,8 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   // reset and flush unit
   val flusher = new FlushUnit(lines)
   val flushed = Reg(resetVal = Bool(true))
-  flushed := flushed && (!r_cpu_req_val_ || r_req_flush) || r_cpu_req_val_ && r_req_flush && mshr.io.fence_rdy && flusher.io.req.ready
-  flusher.io.req.valid := r_cpu_req_val_ && r_req_flush && mshr.io.fence_rdy && !flushed
+  flushed := flushed && (!r_cpu_req_val || r_req_flush) || r_cpu_req_val && r_req_flush && mshr.io.fence_rdy && flusher.io.req.ready
+  flusher.io.req.valid := r_cpu_req_val && r_req_flush && mshr.io.fence_rdy && !flushed
   flusher.io.mshr_req.ready := mshr.io.req.ready
   
   when (io.cpu.req_val) {
@@ -774,13 +774,13 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   meta_arb.io.in(2).bits.way_en := ~UFix(0, NWAYS)
   val early_tag_nack = !meta_arb.io.in(2).ready
   val cpu_req_tag = Cat(io.cpu.req_ppn, r_cpu_req_idx)(tagmsb,taglsb)
-  val tag_match_arr = (0 until NWAYS).map( w => isHit(r_cpu_req_cmd, meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
+  val tag_match_arr = (0 until NWAYS).map( w => isValid(meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
-  val tag_hit  = r_cpu_req_val &&  tag_match
-  val tag_miss = r_cpu_req_val && !tag_match
-  val hit_way_oh = Cat(Bits(0),tag_match_arr.reverse:_*)(NWAYS-1, 0) //TODO: use Vec
-  val meta_resp_way_oh = Mux(meta.io.way_en === ~UFix(0, NWAYS), hit_way_oh, meta.io.way_en)
-  val data_resp_way_oh = Mux(data.io.way_en === ~UFix(0, NWAYS), hit_way_oh, data.io.way_en)
+  val tag_match_way_oh = Cat(Bits(0),tag_match_arr.reverse:_*)(NWAYS-1, 0) //TODO: use Vec
+  val tag_hit_arr = (0 until NWAYS).map( w => isHit(r_cpu_req_cmd, meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
+  val tag_hit = Cat(Bits(0),tag_hit_arr:_*).orR
+  val meta_resp_way_oh = Mux(meta.io.way_en === ~UFix(0, NWAYS), tag_match_way_oh, meta.io.way_en)
+  val data_resp_way_oh = Mux(data.io.way_en === ~UFix(0, NWAYS), tag_match_way_oh, data.io.way_en)
   val meta_resp_mux = Mux1H(meta_resp_way_oh, meta.io.resp)
   val data_resp_mux = Mux1H(data_resp_way_oh, data.io.resp)
 
@@ -809,8 +809,6 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   data_arb.io.in(4).bits.inner_req.offset := io.cpu.req_idx(offsetmsb,ramindexlsb)
   data_arb.io.in(4).bits.inner_req.idx := io.cpu.req_idx(indexmsb,indexlsb)
   data_arb.io.in(4).bits.inner_req.rw := Bool(false)
-  data_arb.io.in(4).bits.inner_req.wmask := UFix(0) // don't care
-  data_arb.io.in(4).bits.inner_req.data := io.mem.xact_rep.bits.data // don't care
   data_arb.io.in(4).valid := io.cpu.req_val && req_read
   data_arb.io.in(4).bits.way_en := ~UFix(0, NWAYS) // intiate load on all ways, mux after tag check
   val early_load_nack = req_read && !data_arb.io.in(4).ready
@@ -831,16 +829,16 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val drain_store = drain_store_val && data_arb.io.in(2).ready
   val p_amo = Reg(resetVal = Bool(false))
   val p_store_rdy = !(p_store_valid && !drain_store) && !(mshr.io.data_req.valid || r_replay_amo || p_amo)
-  p_amo := tag_hit && r_req_amo && mshr.io.req.ready && !nack_hit || r_replay_amo
-  p_store_valid := p_store_valid && !drain_store || (tag_hit && r_req_store && mshr.io.req.ready && !nack_hit) || p_amo
+  p_amo := r_cpu_req_val && tag_hit && r_req_amo && mshr.io.req.ready && !nack_hit || r_replay_amo
+  p_store_valid := p_store_valid && !drain_store || (r_cpu_req_val && tag_hit && r_req_store && mshr.io.req.ready && !nack_hit) || p_amo
 
   // tag update after a store to an exclusive clean line.
   val new_hit_state = newStateOnHit(r_cpu_req_cmd, meta_resp_mux.state)
-  val set_hit_state  = tag_hit && meta_resp_mux.state != new_hit_state
+  val set_hit_state  = r_cpu_req_val && tag_hit && meta_resp_mux.state != new_hit_state
   meta.io.state_req.bits.inner_req.rw := Bool(true)
   meta.io.state_req.bits.inner_req.idx := Reg(r_cpu_req_idx(indexmsb,indexlsb))
   meta.io.state_req.bits.inner_req.data.state := Reg(new_hit_state)
-  meta.io.state_req.bits.way_en := Reg(hit_way_oh)
+  meta.io.state_req.bits.way_en := Reg(tag_match_way_oh)
   meta.io.state_req.valid := Reg(set_hit_state, resetVal = Bool(false))
   
   // pending store data, also used for AMO RHS
@@ -849,7 +847,7 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
     p_store_idx    := r_cpu_req_idx
     p_store_type   := r_cpu_req_type
     p_store_cmd    := r_cpu_req_cmd
-    p_store_way_oh := Mux(r_replay_amo, r_way_oh, hit_way_oh)
+    p_store_way_oh := Mux(r_replay_amo, r_way_oh, tag_match_way_oh)
     p_store_data   := cpu_req_data
   }
   when (p_amo) {
@@ -858,8 +856,8 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
 
   // miss handling
   mshr.io.req.valid := r_cpu_req_val && r_req_readwrite && !nack_hit || flusher.io.mshr_req.valid
-  mshr.io.req.bits.tag_miss := tag_miss || flusher.io.mshr_req.valid
-  mshr.io.req.bits.old_state := meta_wb_mux.state
+  mshr.io.req.bits.tag_miss := !tag_hit || flusher.io.mshr_req.valid
+  mshr.io.req.bits.old_dirty := needsWriteback(meta_wb_mux.state) && !tag_match // don't wb upgrades
   mshr.io.req.bits.old_tag := meta_wb_mux.tag
   mshr.io.req.bits.tag := cpu_req_tag
   mshr.io.req.bits.idx := r_cpu_req_idx(indexmsb,indexlsb)
@@ -867,7 +865,7 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   mshr.io.req.bits.offset := r_cpu_req_idx(offsetmsb,0)
   mshr.io.req.bits.cmd := r_cpu_req_cmd
   mshr.io.req.bits.typ := r_cpu_req_type
-  mshr.io.req.bits.way_oh := replaced_way_oh
+  mshr.io.req.bits.way_oh := Mux(tag_match, tag_match_way_oh, replaced_way_oh)
   mshr.io.req.bits.data := cpu_req_data
 
   mshr.io.mem_rep <> io.mem.xact_rep
@@ -932,9 +930,9 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
 
   io.cpu.req_rdy   := flusher.io.req.ready && !(r_cpu_req_val_ && r_req_flush) && !pending_fence
   io.cpu.resp_nack := r_cpu_req_val_ && !io.cpu.req_kill && nack
-  io.cpu.resp_val  := (tag_hit && !mshr.io.secondary_miss && !nack && r_req_read) || mshr.io.cpu_resp_val
+  io.cpu.resp_val  := (r_cpu_req_val && tag_hit && !mshr.io.secondary_miss && !nack && r_req_read) || mshr.io.cpu_resp_val
   io.cpu.resp_replay := mshr.io.cpu_resp_val
-  io.cpu.resp_miss := r_cpu_req_val_ && (!tag_match || mshr.io.secondary_miss) && r_req_read
+  io.cpu.resp_miss := r_cpu_req_val_ && (!tag_hit || mshr.io.secondary_miss) && r_req_read
   io.cpu.resp_tag  := Mux(mshr.io.cpu_resp_val, mshr.io.cpu_resp_tag, r_cpu_req_tag)
   io.cpu.resp_type := loadgen.io.typ
   io.cpu.resp_data := loadgen.io.dout
