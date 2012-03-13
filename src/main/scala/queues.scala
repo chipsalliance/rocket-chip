@@ -24,12 +24,13 @@ class queue[T <: Data](entries: Int, pipe: Boolean = false, flushable: Boolean =
   {
     enq_ptr = Reg(resetVal = UFix(0, log2up(entries)))
     deq_ptr = Reg(resetVal = UFix(0, log2up(entries)))
+    val pow2 = Bool((entries & (entries-1)) == 0)
 
     when (do_deq) {
-      deq_ptr := deq_ptr + UFix(1)
+      deq_ptr := Mux(!pow2 && deq_ptr === UFix(entries-1), UFix(0), deq_ptr + UFix(1))
     }
     when (do_enq) {
-      enq_ptr := enq_ptr + UFix(1)
+      enq_ptr := Mux(!pow2 && enq_ptr === UFix(entries-1), UFix(0), enq_ptr + UFix(1))
     }
     if (flushable) {
       when (io.flush) {
