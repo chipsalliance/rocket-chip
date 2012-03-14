@@ -237,7 +237,7 @@ trait FourStateCoherence extends CoherencePolicy {
 class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherence {
   val io = new Bundle {
     val alloc_req       = (new ioDecoupled) { new TrackerAllocReq }.flip
-    val p_data          = (new ioPipe) { new TrackerProbeData }
+    val p_data          = (new ioPipe) { new TrackerProbeData }.flip
     val can_alloc       = Bool(INPUT)
     val xact_finish     = Bool(INPUT)
     val p_rep_cnt_dec   = Bits(ntiles, INPUT)
@@ -387,10 +387,10 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
         p_req_flags := p_req_flags & ~io.p_req_cnt_inc // unflag sent reqs
       }
       when(io.p_rep_cnt_dec.orR) {
-        val p_rep_count_next = p_rep_count - PopCount(io.p_rep_cnt_dec)
+        val dec = PopCount(io.p_rep_cnt_dec)
         io.pop_p_rep := io.p_rep_cnt_dec
-        if(ntiles > 1) p_rep_count := p_rep_count_next
-        when(p_rep_count === UFix(1)) {
+        if(ntiles > 1) p_rep_count := p_rep_count - dec
+        when(p_rep_count === dec) {
           io.pop_p_rep := Bool(true)
           state := s_mem
         }
@@ -536,7 +536,9 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
   // Free finished transactions
   for( j <- 0 until ntiles ) {
     val finish = io.tiles(j).xact_finish
-    do_free_arr(finish.bits.global_xact_id) := finish.valid
+    when (finish.valid) {
+      do_free_arr(finish.bits.global_xact_id) := Bool(true)
+    }
     finish.ready := Bool(true)
   }
 
@@ -552,18 +554,19 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
     rep.bits.data := io.mem.resp.bits.data
     rep.bits.require_ack := Bool(true)
     rep.valid := Bool(false)
-    when(io.mem.resp.valid) {
+    when(io.mem.resp.valid && (UFix(j) === init_tile_id_arr(mem_idx))) {
       rep.bits.t_type := getTransactionReplyType(t_type_arr(mem_idx), sh_count_arr(mem_idx))
       rep.bits.tile_xact_id := tile_xact_id_arr(mem_idx)
       rep.bits.global_xact_id := mem_idx
-      rep.valid := (UFix(j) === init_tile_id_arr(mem_idx))
+      rep.valid := Bool(true)
     } . otherwise {
       rep.bits.t_type := getTransactionReplyType(t_type_arr(ack_idx), sh_count_arr(ack_idx))
       rep.bits.tile_xact_id := tile_xact_id_arr(ack_idx)
       rep.bits.global_xact_id := ack_idx
-      val do_send_ack = (UFix(j) === init_tile_id_arr(ack_idx)) && send_x_rep_ack_arr.toBits.orR
-      rep.valid := do_send_ack
-      sent_x_rep_ack_arr(ack_idx) := do_send_ack
+      when (UFix(j) === init_tile_id_arr(ack_idx)) {
+        rep.valid := send_x_rep_ack_arr.toBits.orR
+        sent_x_rep_ack_arr(ack_idx) := Bool(true)
+      }
     }
   }
   // If there were a ready signal due to e.g. intervening network use:
@@ -594,8 +597,10 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
     p_rep_data_dep_list(j).io.enq.valid := do_pop
     p_rep_data_dep_list(j).io.enq.bits.global_xact_id := OHToUFix(pop_p_reps)
     p_rep_data.ready := foldR(trackerList.map(_.io.pop_p_rep_data(j)))(_ || _)
-    p_data_valid_arr(idx) := p_rep.valid && probeReplyHasData(p_rep.bits)
-    p_data_tile_id_arr(idx) := UFix(j)
+    when (p_rep.valid) {
+      p_data_valid_arr(idx) := probeReplyHasData(p_rep.bits)
+      p_data_tile_id_arr(idx) := UFix(j)
+    }
     p_rep_data_dep_list(j).io.deq.ready := foldR(trackerList.map(_.io.pop_p_rep_dep(j).toBool))(_||_)
   }
   for( i <- 0 until NGLOBAL_XACTS ) {
