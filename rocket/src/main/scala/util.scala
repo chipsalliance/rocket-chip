@@ -185,6 +185,33 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   dout <> io.out.bits
 }
 
+class RRArbiter[T <: Data](n: Int)(data: => T) extends Component {
+  val io = new ioArbiter(n)(data)
+
+  val last_grant = Reg(resetVal = UFix(0, log2up(n)))
+  var valid = io.in(n-1).valid
+  var next_grant = UFix(n-1)
+  var mux = (new Mux1H(n)) { data }
+
+  for (i <- n-2 to 0 by -1) {
+    valid = valid || io.in(i).valid
+    next_grant = Mux(io.in(i).valid, UFix(i), next_grant)
+  }
+  for (i <- n-1 to 1 by -1)
+    next_grant = Mux(last_grant < UFix(i) && io.in(i).valid, UFix(i), next_grant)
+  for (i <- 0 until n) {
+    mux.io.sel(i) := next_grant === UFix(i)
+    mux.io.in(i) := io.in(i).bits
+    io.in(i).ready := io.out.ready && next_grant === UFix(i)
+  }
+  when (valid && io.out.ready) {
+    last_grant := next_grant
+  }
+
+  io.out.valid := valid
+  io.out.bits := mux.io.out
+}
+
 class ioLockingArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
   val in   = Vec(n) { (new ioDecoupled()) { data } }.flip
   val lock = Vec(n) { Bool() }.asInput
