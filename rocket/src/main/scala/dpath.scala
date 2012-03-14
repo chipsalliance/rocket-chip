@@ -388,6 +388,10 @@ class rocketDpath extends Component
     vec.io.pcrw.en := io.ctrl.wen_pcr
     vec.io.pcrw.data := wb_reg_wdata
 
+    pcr.io.vec_appvl := vec.io.appvl
+    pcr.io.vec_nxregs := vec.io.nxregs
+    pcr.io.vec_nfregs := vec.io.nfregs
+
     wb_wdata :=
       Mux(vec.io.wen, Cat(Bits(0,52), vec.io.appvl),
       Mux(wb_src_dmem, io.dmem.resp_data_subword,
@@ -395,6 +399,10 @@ class rocketDpath extends Component
   }
   else
   {
+    pcr.io.vec_appvl := UFix(0)
+    pcr.io.vec_nxregs := UFix(0)
+    pcr.io.vec_nfregs := UFix(0)
+
     wb_wdata :=
       Mux(wb_src_dmem, io.dmem.resp_data_subword,
           wb_reg_wdata)

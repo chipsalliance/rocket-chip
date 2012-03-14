@@ -80,6 +80,9 @@ class ioDpathPCR extends Bundle()
   val vecbank   = Bits(8, OUTPUT)
   val vecbankcnt = UFix(4, OUTPUT)
   val vechold = Bool(OUTPUT)
+  val vec_appvl = UFix(12, INPUT)
+  val vec_nxregs = UFix(6, INPUT)
+  val vec_nfregs = UFix(6, INPUT)
 }
 
 class rocketDpathPCR extends Component
@@ -229,6 +232,7 @@ class rocketDpathPCR extends Component
       is (PCR_K1)       { rdata := reg_k1; }
       is (PCR_PTBR)     { rdata := Cat(Bits(0,64-PADDR_BITS), reg_ptbr); }
       is (PCR_VECBANK)  { rdata := Cat(Bits(0, 56), reg_vecbank) }
+      is (PCR_VECCFG)   { rdata := Cat(Bits(0, 40), io.vec_nfregs, io.vec_nxregs, io.vec_appvl) }
     }
   }
 }
