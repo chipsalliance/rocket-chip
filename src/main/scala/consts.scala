@@ -184,7 +184,6 @@ object Constants
   require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
 
   // coherence parameters
-  val NTILES = 1
   val COHERENCE_DATA_BITS = (1 << OFFSET_BITS)*8 
   val TILE_ID_BITS = 1
   val TILE_XACT_ID_BITS = log2up(NMSHR)+3
