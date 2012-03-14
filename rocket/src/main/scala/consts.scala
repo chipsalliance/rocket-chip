@@ -7,7 +7,7 @@ object Constants
 {
   val HAVE_RVC = false
   val HAVE_FPU = true
-  val HAVE_VEC = false
+  val HAVE_VEC = true
 
   val BR_N    = UFix(0, 4);
   val BR_EQ   = UFix(1, 4);
@@ -142,6 +142,7 @@ object Constants
   val PCR_TOHOST   = UFix(16, 5);
   val PCR_FROMHOST = UFix(17, 5);
   val PCR_VECBANK  = UFix(18, 5);
+  val PCR_VECCFG   = UFix(19, 5);
 
   // temporaries for vector, these will go away
   val PCR_VEC_BACKUP = UFix(29, 5)
@@ -232,9 +233,11 @@ object Constants
   val VEC_N = UFix(0, 1);
   val VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N;
 
-  val VEC_X = UFix(0, 1)
-  val VEC_VL = UFix(0, 1)
-  val VEC_CFG = UFix(1, 1)
+  val VEC_X = UFix(0, 2)
+  val VEC_FN_N = UFix(0, 2)
+  val VEC_VL = UFix(1, 2)
+  val VEC_CFG = UFix(2, 2)
+  val VEC_CFGVL = UFix(3, 2)
 
   val VCMD_I = UFix(0, 3)
   val VCMD_F = UFix(1, 3)

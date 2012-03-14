@@ -261,6 +261,7 @@ object rocketCtrlDecode
                 //   val   | brtype renx2 renx1 s_alu2   dw     alu     |   mem_cmd mem_type| mul_fn  | div_fn wen   s_wa  s_wb   |    wenpcr irq  sync   | | | | replay_next
                 //   |     | |      |     |     |        |      |       |   |         |     | |       | |      |     |     |      |     |     |    |      | | | | |
     VVCFGIVL->  List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N,Y),
+    VVCFG->     List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N,Y),
     VSETVL->    List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N,Y),
     VF->        List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ITYPE,DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,N,N),
     VMVV->      List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N,N),
@@ -305,8 +306,7 @@ object rocketCtrlDecode
     VENQIMM1->  List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y,N),
     VENQIMM2->  List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y,N),
     VENQCNT->   List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y,N),
-    VWAITXCPT-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N,Y),
-    VWAITKILL-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N,Y))
+    VWAITXCPT-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,N,Y))
 }
 
 class rocketCtrl extends Component
