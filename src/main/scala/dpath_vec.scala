@@ -12,10 +12,7 @@ class ioDpathVecInterface extends Bundle
   val vximm1q_bits = Bits(SZ_VIMM, OUTPUT)
   val vximm2q_bits = Bits(SZ_VSTRIDE, OUTPUT)
   val vcntq_bits = Bits(SZ_VLEN, OUTPUT)
-  val backup = Bool(OUTPUT)
-  val backup_addr = Bits(64, OUTPUT)
-  val kill = Bool(OUTPUT)
-  val hold = Bool(OUTPUT)
+  val evac_addr = Bits(64, OUTPUT)
 }
 
 class ioDpathVec extends Bundle
@@ -30,8 +27,6 @@ class ioDpathVec extends Bundle
   val vecbankcnt = UFix(4, INPUT)
   val wdata = Bits(64, INPUT)
   val rs2 = Bits(64, INPUT)
-  val vechold = Bool(INPUT)
-  val pcrw = new ioWritePort()
   val wen = Bool(OUTPUT)
   val appvl = UFix(12, OUTPUT)
   val nxregs = UFix(6, OUTPUT)
@@ -162,10 +157,7 @@ class rocketDpathVec extends Component
 
   io.iface.vcntq_bits := io.wdata(SZ_VLEN-1, 0)
 
-  io.iface.backup := io.pcrw.en && (io.pcrw.addr === PCR_VEC_BACKUP)
-  io.iface.backup_addr := io.pcrw.data
-  io.iface.kill := io.pcrw.en && (io.pcrw.addr === PCR_VEC_KILL)
-  io.iface.hold := io.vechold
+  io.iface.evac_addr := io.wdata
 
   io.ctrl.valid := io.valid
   io.ctrl.inst := io.inst

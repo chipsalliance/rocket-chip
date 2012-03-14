@@ -7,7 +7,7 @@ object Constants
 {
   val HAVE_RVC = false
   val HAVE_FPU = true
-  val HAVE_VEC = true
+  val HAVE_VEC = false
 
   val BR_N    = UFix(0, 4);
   val BR_EQ   = UFix(1, 4);
@@ -143,11 +143,6 @@ object Constants
   val PCR_FROMHOST = UFix(17, 5);
   val PCR_VECBANK  = UFix(18, 5);
   val PCR_VECCFG   = UFix(19, 5);
-
-  // temporaries for vector, these will go away
-  val PCR_VEC_BACKUP = UFix(29, 5)
-  val PCR_VEC_KILL = UFix(30, 5)
-  val PCR_VEC_HOLD = UFix(31, 5)
 
   // definition of bits in PCR status reg
   val SR_ET   = 0;  // enable traps
