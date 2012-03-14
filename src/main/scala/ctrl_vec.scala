@@ -43,6 +43,9 @@ class ioCtrlVecInterface extends Bundle
   val vximm2q_user_ready = Bool(INPUT)
   val vfence_ready = Bool(INPUT)
 
+  val irq = Bool(INPUT)
+  val irq_cause = UFix(5, INPUT)
+
   val exception = Bool(OUTPUT)
   val exception_ack_valid = Bool(INPUT)
   val exception_ack_ready = Bool(OUTPUT)
@@ -63,6 +66,8 @@ class ioCtrlVec extends Bundle
   val replay = Bool(OUTPUT)
   val stalld = Bool(OUTPUT)
   val vfence_ready = Bool(OUTPUT)
+  val irq = Bool(OUTPUT)
+  val irq_cause = UFix(5, OUTPUT)
 }
 
 class rocketCtrlVec extends Component
@@ -235,4 +240,6 @@ class rocketCtrlVec extends Component
 
   io.stalld := reg_xcptwait
   io.vfence_ready := !io.sr_ev || io.iface.vfence_ready
+  io.irq := io.iface.irq
+  io.irq_cause := io.iface.irq_cause
 }

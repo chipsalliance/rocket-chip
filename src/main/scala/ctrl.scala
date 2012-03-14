@@ -50,6 +50,7 @@ class ioCtrlDpath extends Bundle()
   val exception = Bool(OUTPUT);
   val cause    = UFix(5,OUTPUT);
   val badvaddr_wen = Bool(OUTPUT); // high for a load/store access fault
+  val vec_irq_aux_wen = Bool(OUTPUT)
   // inputs from datapath
   val xcpt_ma_inst = Bool(INPUT);  // high on a misaligned/illegal virtual PC
   val btb_hit = Bool(INPUT);
@@ -622,6 +623,8 @@ class rocketCtrl extends Component
 
   var vec_replay = Bool(false)
   var vec_stalld = Bool(false)
+  var vec_irq = Bool(false)
+  var vec_irq_cause = UFix(0,5)
   if (HAVE_VEC)
   {
     // vector control
@@ -637,21 +640,26 @@ class rocketCtrl extends Component
 
     vec_replay = vec.io.replay
     vec_stalld = vec.io.stalld // || id_vfence_cv && !vec.io.vfence_ready
+    vec_irq = vec.io.irq
+    vec_irq_cause = vec.io.irq_cause
   }
 
   // exception handling
   // FIXME: verify PC in MEM stage points to valid, restartable instruction
   val p_irq_timer = (io.dpath.status(15).toBool && io.dpath.irq_timer);
   val p_irq_ipi   = (io.dpath.status(13).toBool && io.dpath.irq_ipi);
+  val p_irq_vec   = (io.dpath.status(8) && vec_irq)
   val interrupt = 
     io.dpath.status(SR_ET).toBool && mem_reg_valid && 
     ((io.dpath.status(15).toBool && io.dpath.irq_timer) ||
-     (io.dpath.status(13).toBool && io.dpath.irq_ipi));
+     (io.dpath.status(13).toBool && io.dpath.irq_ipi) ||
+     p_irq_vec);
      
   val interrupt_cause = 
     Mux(p_irq_ipi, UFix(21,5),
     Mux(p_irq_timer, UFix(23,5),
-      UFix(0,5)));
+    Mux(p_irq_vec, vec_irq_cause,
+        UFix(0,5))))
 
   val mem_xcpt_ma_ld = io.dmem.xcpt_ma_ld && !mem_reg_kill
   val mem_xcpt_ma_st = io.dmem.xcpt_ma_st && !mem_reg_kill
@@ -723,6 +731,7 @@ class rocketCtrl extends Component
 	io.dpath.exception    := wb_reg_exception;
 	io.dpath.cause        := wb_reg_cause;
 	io.dpath.badvaddr_wen := wb_badvaddr_wen;
+  io.dpath.vec_irq_aux_wen := wb_reg_exception && wb_reg_cause >= UFix(24)
 
   io.dpath.sel_pc :=
     Mux(wb_reg_exception,               PC_EVEC, // exception

@@ -70,6 +70,8 @@ class ioDpathPCR extends Bundle()
   val exception = Bool(INPUT);
   val cause     = UFix(5, INPUT);
   val badvaddr_wen = Bool(INPUT);
+  val vec_irq_aux = Bits(64, INPUT)
+  val vec_irq_aux_wen = Bool(INPUT)
   val pc        = UFix(VADDR_BITS+1, INPUT);
   val eret      = Bool(INPUT);
   val ei        = Bool(INPUT);
@@ -100,6 +102,7 @@ class rocketDpathPCR extends Component
   val reg_k1       = Reg() { Bits() };
   val reg_ptbr     = Reg() { UFix() };
   val reg_vecbank  = Reg(resetVal = Bits("b1111_1111", 8))
+  val reg_vec_irq_aux = Reg() { Bits() }
   
   val reg_error_mode  = Reg(resetVal = Bool(false));
   val reg_status_vm   = Reg(resetVal = Bool(false));
@@ -144,6 +147,9 @@ class rocketDpathPCR extends Component
   val badvaddr_sign = Mux(io.w.data(VADDR_BITS-1), ~io.w.data(63,VADDR_BITS) === UFix(0), io.w.data(63,VADDR_BITS) != UFix(0))
   when (io.badvaddr_wen) {
     reg_badvaddr     := Cat(badvaddr_sign, io.w.data(VADDR_BITS-1,0)).toUFix;
+  }
+  when (io.vec_irq_aux_wen) {
+    reg_vec_irq_aux := io.vec_irq_aux
   }
 
   when (io.exception) {
@@ -207,6 +213,7 @@ class rocketDpathPCR extends Component
     when (waddr === PCR_K1)       { reg_k1          := wdata; }
     when (waddr === PCR_PTBR)     { reg_ptbr        := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
     when (waddr === PCR_VECBANK)  { reg_vecbank     := wdata(7,0) }
+    when (waddr === PCR_VECIRQAUX) { reg_vec_irq_aux := wdata }
   }
 
   rdata := Bits(0, 64)
@@ -227,6 +234,7 @@ class rocketDpathPCR extends Component
       is (PCR_PTBR)     { rdata := Cat(Bits(0,64-PADDR_BITS), reg_ptbr); }
       is (PCR_VECBANK)  { rdata := Cat(Bits(0, 56), reg_vecbank) }
       is (PCR_VECCFG)   { rdata := Cat(Bits(0, 40), io.vec_nfregs, io.vec_nxregs, io.vec_appvl) }
+      is (PCR_VECIRQAUX){ rdata := reg_vec_irq_aux }
     }
   }
 }

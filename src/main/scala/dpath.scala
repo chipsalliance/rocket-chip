@@ -384,6 +384,7 @@ class rocketDpath extends Component
     vec.io.wdata := wb_reg_vec_wdata
     vec.io.rs2 := wb_reg_rs2
 
+    pcr.io.vec_irq_aux := vec.io.irq_aux
     pcr.io.vec_appvl := vec.io.appvl
     pcr.io.vec_nxregs := vec.io.nxregs
     pcr.io.vec_nfregs := vec.io.nfregs
@@ -395,6 +396,7 @@ class rocketDpath extends Component
   }
   else
   {
+    pcr.io.vec_irq_aux := UFix(0)
     pcr.io.vec_appvl := UFix(0)
     pcr.io.vec_nxregs := UFix(0)
     pcr.io.vec_nfregs := UFix(0)
@@ -429,4 +431,5 @@ class rocketDpath extends Component
   pcr.io.cause 			  := io.ctrl.cause;
   pcr.io.pc					  := wb_reg_pc;
   pcr.io.badvaddr_wen := io.ctrl.badvaddr_wen;
+  pcr.io.vec_irq_aux_wen := io.ctrl.vec_irq_aux_wen
 }

@@ -13,6 +13,7 @@ class ioDpathVecInterface extends Bundle
   val vximm2q_bits = Bits(SZ_VSTRIDE, OUTPUT)
   val vcntq_bits = Bits(SZ_VLEN, OUTPUT)
   val evac_addr = Bits(64, OUTPUT)
+  val irq_aux = Bits(64, INPUT)
 }
 
 class ioDpathVec extends Bundle
@@ -28,6 +29,7 @@ class ioDpathVec extends Bundle
   val wdata = Bits(64, INPUT)
   val rs2 = Bits(64, INPUT)
   val wen = Bool(OUTPUT)
+  val irq_aux = Bits(64, OUTPUT)
   val appvl = UFix(12, OUTPUT)
   val nxregs = UFix(6, OUTPUT)
   val nfregs = UFix(6, OUTPUT)
@@ -131,6 +133,7 @@ class rocketDpathVec extends Component
   }
 
   io.wen := io.valid && io.ctrl.wen
+  io.irq_aux := io.iface.irq_aux
   io.appvl := Mux(io.ctrl.fn === VEC_VL || io.ctrl.fn === VEC_CFGVL, appvl, reg_appvl)
   io.nxregs := reg_nxregs
   io.nfregs := reg_nfregs
