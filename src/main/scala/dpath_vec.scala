@@ -34,6 +34,8 @@ class ioDpathVec extends Bundle
   val pcrw = new ioWritePort()
   val wen = Bool(OUTPUT)
   val appvl = UFix(12, OUTPUT)
+  val nxregs = UFix(6, OUTPUT)
+  val nfregs = UFix(6, OUTPUT)
 }
 
 class rocketDpathVec extends Component
@@ -134,7 +136,10 @@ class rocketDpathVec extends Component
   }
 
   io.wen := io.valid && io.ctrl.wen
-  io.appvl := appvl
+  io.appvl := Mux(io.ctrl.fn === VEC_VL || io.ctrl.fn === VEC_CFGVL, appvl, reg_appvl)
+  io.nxregs := reg_nxregs
+  io.nfregs := reg_nfregs
+
   val appvlm1 = appvl - UFix(1)
 
   io.iface.vcmdq_bits :=
@@ -148,7 +153,7 @@ class rocketDpathVec extends Component
         Bits(0,20))))))))
 
   io.iface.vximm1q_bits :=
-    Mux(io.ctrl.sel_vimm === VIMM_VLEN, Cat(Bits(0,29), io.vecbankcnt, io.vecbank, nfregs, nxregs, appvlm1(10,0)),
+    Mux(io.ctrl.sel_vimm === VIMM_VLEN, Cat(Bits(0,29), io.vecbankcnt, io.vecbank, nfregs(5,0), nxregs(5,0), appvlm1(10,0)),
         io.wdata) // VIMM_ALU
 
   io.iface.vximm2q_bits :=
