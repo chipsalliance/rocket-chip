@@ -232,8 +232,9 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
     }
     when (abort) { state := s_refill_req }
   }
-  when (state === s_refill_req && io.mem_req.ready) {
-    state := Mux(flush, s_drain_rpq, s_refill_resp)
+  when (state === s_refill_req) {
+    when (flush) { state := s_drain_rpq }
+    .elsewhen (io.mem_req.ready) { state := s_refill_resp }
   }
   when (state === s_wb_resp) {
     when (reply) { state := s_refill_req }
@@ -502,6 +503,7 @@ class ProbeUnit extends Component with FourStateCoherence {
   val line_state = Reg() { UFix() }
   val way_oh = Reg() { Bits() }
   val req = Reg() { new ProbeRequest() }
+  val hit = way_oh.orR
 
   when ((state === s_writeback_resp) && io.wb_req.ready) {
     state := s_invalid
@@ -510,7 +512,7 @@ class ProbeUnit extends Component with FourStateCoherence {
     state := s_writeback_resp
   }
   when ((state === s_probe_rep) && io.meta_req.ready && io.rep.ready) {
-    state := Mux(way_oh.orR && needsWriteback(line_state), s_writeback_req, s_invalid)
+    state := Mux(hit && needsWriteback(line_state), s_writeback_req, s_invalid)
   }
   when (state === s_meta_resp) {
     way_oh := io.tag_match_way_oh
@@ -527,22 +529,21 @@ class ProbeUnit extends Component with FourStateCoherence {
 
   io.req.ready := state === s_invalid
   io.rep.valid := state === s_probe_rep && io.meta_req.ready
-  io.rep.bits := newProbeReply(req, line_state)
+  io.rep.bits := newProbeReply(req, Mux(hit, line_state, newStateOnFlush()))
 
-  val new_state = newStateOnProbeReq(req, line_state)
-  io.meta_req.valid := state === s_meta_req || state === s_meta_resp || state === s_probe_rep && new_state != line_state
+  io.meta_req.valid := state === s_meta_req || state === s_meta_resp || state === s_probe_rep && hit
   io.meta_req.bits.way_en := Mux(state === s_probe_rep, way_oh, ~UFix(0, NWAYS))
   io.meta_req.bits.inner_req.rw := state === s_probe_rep
   io.meta_req.bits.inner_req.idx := req.address
-  io.meta_req.bits.inner_req.data.state := new_state 
-  io.meta_req.bits.inner_req.data.tag := req.address >> UFix(OFFSET_BITS)
+  io.meta_req.bits.inner_req.data.state := newStateOnProbeReq(req, line_state)
+  io.meta_req.bits.inner_req.data.tag := req.address >> UFix(IDX_BITS)
   io.mshr_req.valid := state === s_meta_resp
   io.address := req.address
 
   io.wb_req.valid := state === s_writeback_req
   io.wb_req.bits.way_oh := way_oh
   io.wb_req.bits.idx := req.address
-  io.wb_req.bits.tag := req.address >> UFix(OFFSET_BITS)
+  io.wb_req.bits.tag := req.address >> UFix(IDX_BITS)
 }
 
 class FlushUnit(lines: Int) extends Component with FourStateCoherence{
