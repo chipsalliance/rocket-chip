@@ -160,7 +160,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
   io.mem.xact_finish.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.xact_finish.bits.global_xact_id := mem_gxid
 
-  val probe_q = (new queue(1, pipe=true)) { new TransactionReply }
+  val probe_q = (new queue(1)) { new ProbeReply }
   probe_q.io.enq.valid := io.mem.probe_req.valid
   io.mem.probe_req.ready := probe_q.io.enq.ready
   probe_q.io.enq.bits := newProbeReply(io.mem.probe_req.bits, newStateOnFlush())
