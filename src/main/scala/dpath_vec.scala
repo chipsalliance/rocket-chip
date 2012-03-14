@@ -40,8 +40,8 @@ class rocketDpathVec extends Component
 {
   val io = new ioDpathVec()
 
-  val nxregs = Cat(UFix(0,1),io.inst(15,10).toUFix) // FIXME: to make the nregs width 7 bits
-  val nfregs = io.inst(21,16).toUFix
+  val nxregs = Mux(io.ctrl.fn === VEC_CFG, io.wdata(5,0), io.inst(15,10)).toUFix + UFix(0,7)
+  val nfregs = Mux(io.ctrl.fn === VEC_CFG, io.rs2(5,0), io.inst(21,16)).toUFix + UFix(0,7)
   val nregs = nxregs + nfregs
 
   val uts_per_bank = MuxLookup(
@@ -104,18 +104,38 @@ class rocketDpathVec extends Component
   val reg_hwvl = Reg(resetVal = UFix(32, 12))
   val reg_appvl0 = Reg(resetVal = Bool(true))
   val hwvl_vcfg = (uts_per_bank * io.vecbankcnt)(11,0)
-  val hwvl = Mux(io.ctrl.fn === VEC_CFG, hwvl_vcfg, reg_hwvl)
-  val appvl = Mux(io.wdata(11,0) < hwvl, io.wdata(11,0), hwvl).toUFix
 
-  when (io.valid && io.ctrl.wen)
+  val hwvl =
+    Mux(io.ctrl.fn === VEC_CFG || io.ctrl.fn === VEC_CFGVL, hwvl_vcfg,
+        reg_hwvl)
+
+  val appvl =
+    Mux(io.ctrl.fn === VEC_CFG, UFix(0),
+    Mux(io.wdata(11,0) < hwvl, io.wdata(11,0).toUFix,
+        hwvl.toUFix))
+
+  val reg_nxregs = Reg(resetVal = UFix(32, 6))
+  val reg_nfregs = Reg(resetVal = UFix(32, 6))
+  val reg_appvl = Reg(resetVal = UFix(32, 12))
+
+  when (io.valid)
   {
-    when (io.ctrl.fn === VEC_CFG) { reg_hwvl := hwvl_vcfg }
-    reg_appvl0 := !(appvl.orR())
+    when (io.ctrl.fn === VEC_CFG || io.ctrl.fn === VEC_CFGVL)
+    {
+      reg_hwvl := hwvl_vcfg
+      reg_nxregs := nxregs
+      reg_nfregs := nfregs
+    }
+    when (io.ctrl.fn === VEC_VL || io.ctrl.fn === VEC_CFGVL)
+    {
+      reg_appvl0 := !(appvl.orR())
+      reg_appvl := appvl
+    }
   }
 
   io.wen := io.valid && io.ctrl.wen
   io.appvl := appvl
-  val vlenm1 = appvl - Bits(1,1)
+  val appvlm1 = appvl - UFix(1)
 
   io.iface.vcmdq_bits :=
     Mux(io.ctrl.sel_vcmd === VCMD_I, Cat(Bits(0,2), Bits(0,4), io.inst(9,8), Bits(0,6), Bits(0,6)),
@@ -128,7 +148,7 @@ class rocketDpathVec extends Component
         Bits(0,20))))))))
 
   io.iface.vximm1q_bits :=
-    Mux(io.ctrl.sel_vimm === VIMM_VLEN, Cat(Bits(0,29), io.vecbankcnt, io.vecbank, io.inst(21,10), vlenm1(10,0)),
+    Mux(io.ctrl.sel_vimm === VIMM_VLEN, Cat(Bits(0,29), io.vecbankcnt, io.vecbank, nfregs, nxregs, appvlm1(10,0)),
         io.wdata) // VIMM_ALU
 
   io.iface.vximm2q_bits :=
