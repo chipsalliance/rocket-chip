@@ -207,12 +207,12 @@ trait FourStateCoherence extends CoherencePolicy {
 
   def newProbeReply (incoming: ProbeRequest, state: UFix): ProbeReply = {
     val reply = Wire() { new ProbeReply() }
-    val with_data = MuxLookup(incoming.p_type, state, Array(
+    val with_data = MuxLookup(incoming.p_type, P_REP_INVALIDATE_DATA, Array(
       probeInvalidate -> P_REP_INVALIDATE_DATA,
       probeDowngrade  -> P_REP_DOWNGRADE_DATA,
       probeCopy       -> P_REP_COPY_DATA
     ))
-    val without_data = MuxLookup(incoming.p_type, state, Array(
+    val without_data = MuxLookup(incoming.p_type, P_REP_INVALIDATE_ACK, Array(
       probeInvalidate -> P_REP_INVALIDATE_ACK,
       probeDowngrade  -> P_REP_DOWNGRADE_ACK,
       probeCopy       -> P_REP_COPY_ACK
@@ -369,12 +369,13 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
         x_init_data_needs_write := transactionInitHasData(io.alloc_req.bits.xact_init)
         x_needs_read := needsMemRead(io.alloc_req.bits.xact_init.t_type, UFix(0))
         if(ntiles > 1) p_rep_count := UFix(ntiles-1)
-        p_req_flags := ~( UFix(1) << io.alloc_req.bits.tile_id ) //TODO: Broadcast only
+        val p_req_initial_flags = ~( UFix(1) << io.alloc_req.bits.tile_id ) //TODO: Broadcast only
+        p_req_flags := p_req_initial_flags
         mem_cnt := UFix(0)
         p_w_mem_cmd_sent := Bool(false)
         x_w_mem_cmd_sent := Bool(false)
         io.pop_x_init := UFix(1) << io.alloc_req.bits.tile_id
-        state := Mux(p_req_flags.orR, s_probe, s_mem)
+        state := Mux(p_req_initial_flags.orR, s_probe, s_mem)
       }
     }
     is(s_probe) {
@@ -389,7 +390,7 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
         val p_rep_count_next = p_rep_count - PopCount(io.p_rep_cnt_dec)
         io.pop_p_rep := io.p_rep_cnt_dec
         if(ntiles > 1) p_rep_count := p_rep_count_next
-        when(p_rep_count === UFix(0)) {
+        when(p_rep_count === UFix(1)) {
           io.pop_p_rep := Bool(true)
           state := s_mem
         }
@@ -529,8 +530,8 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
     }
   }
 
-  val p_rep_data_dep_list = List.fill(ntiles)((new queue(NGLOBAL_XACTS, true)){new TrackerDependency}) // depth must >= NPRIMARY
-  val x_init_data_dep_list = List.fill(ntiles)((new queue(NGLOBAL_XACTS, true)){new TrackerDependency}) // depth should >= NPRIMARY
+  val p_rep_data_dep_list = List.fill(ntiles)((new queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth must >= NPRIMARY
+  val x_init_data_dep_list = List.fill(ntiles)((new queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth should >= NPRIMARY
 
   // Free finished transactions
   for( j <- 0 until ntiles ) {
@@ -589,7 +590,7 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
     val idx = p_rep.bits.global_xact_id
     val pop_p_reps = trackerList.map(_.io.pop_p_rep(j).toBool)
     val do_pop = foldR(pop_p_reps)(_ || _)
-    p_rep.ready := do_pop
+    p_rep.ready := Bool(true)
     p_rep_data_dep_list(j).io.enq.valid := do_pop
     p_rep_data_dep_list(j).io.enq.bits.global_xact_id := OHToUFix(pop_p_reps)
     p_rep_data.ready := foldR(trackerList.map(_.io.pop_p_rep_data(j)))(_ || _)
