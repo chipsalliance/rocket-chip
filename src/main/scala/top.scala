@@ -17,7 +17,7 @@ class Top() extends Component {
   val htif = new rocketHTIF(htif_width, 1)
   
   val cpu       = new rocketProc(resetSignal = htif.io.cpu(0).reset);
-  val icache    = new rocketICache(128, 2); // 128 sets x 2 ways
+  val icache    = new rocketICache(128, 4) // 128 sets x 4 ways (32KB)
   val icache_pf = new rocketIPrefetcher();
   val dcache    = new HellaCacheUniproc();
 
@@ -44,7 +44,7 @@ class Top() extends Component {
 
   if (HAVE_VEC)
   {
-    val vicache = new rocketICache(128, 2); // 128 sets x 2 ways
+    val vicache = new rocketICache(128, 1); // 128 sets x 1 ways (8KB)
     arbiter.io.requestor(2) <> vicache.io.mem
     cpu.io.vimem <> vicache.io.cpu;
   }
