@@ -221,7 +221,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     storegen.io.din := vu.io.dmem_req.bits.data
 
     arb.io.requestor(DMEM_VU).req_val := vu.io.dmem_req.valid
-    arb.io.requestor(DMEM_VU).req_kill := Reg(vu.io.dmem_req.bits.kill)
+    arb.io.requestor(DMEM_VU).req_kill := vu.io.dmem_req.bits.kill
     arb.io.requestor(DMEM_VU).req_cmd := vu.io.dmem_req.bits.cmd
     arb.io.requestor(DMEM_VU).req_type := vu.io.dmem_req.bits.typ
     arb.io.requestor(DMEM_VU).req_idx := vu.io.dmem_req.bits.idx
@@ -229,10 +229,9 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     arb.io.requestor(DMEM_VU).req_data := Reg(storegen.io.dout)
     arb.io.requestor(DMEM_VU).req_tag := vu.io.dmem_req.bits.tag
 
+    vu.io.dmem_req.ready := arb.io.requestor(DMEM_VU).req_rdy
     vu.io.dmem_resp.valid := Reg(arb.io.requestor(DMEM_VU).resp_val)
-    // the vu doesn't look at the ready signal, it's simply a nack
-    // but should be delayed one cycle to match the nack semantics
-    vu.io.dmem_resp.bits.nack := arb.io.requestor(DMEM_VU).resp_nack || Reg(!arb.io.requestor(DMEM_VU).req_rdy)
+    vu.io.dmem_resp.bits.nack := arb.io.requestor(DMEM_VU).resp_nack
     vu.io.dmem_resp.bits.data := arb.io.requestor(DMEM_VU).resp_data_subword
     vu.io.dmem_resp.bits.tag := Reg(arb.io.requestor(DMEM_VU).resp_tag)
     vu.io.dmem_resp.bits.typ := Reg(arb.io.requestor(DMEM_VU).resp_type)
