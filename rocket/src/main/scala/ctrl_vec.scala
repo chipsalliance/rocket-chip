@@ -223,8 +223,8 @@ class rocketCtrlVec extends Component
   val reg_xcptwait = Reg(resetVal = Bool(false))
   val do_xcptwait = valid_common && wb_vec_xcptwait && !io.replay
 
-  when (do_xcptwait) { reg_xcptwait := Bool(true) }
   when (io.iface.exception_ack_valid) { reg_xcptwait := Bool(false) }
+  when (do_xcptwait) { reg_xcptwait := Bool(true) }
 
   io.iface.exception := io.exception && io.sr_ev
   io.iface.exception_ack_ready := reg_xcptwait
