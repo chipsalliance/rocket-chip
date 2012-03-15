@@ -177,7 +177,7 @@ object Constants
   val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
   val IDX_BITS = 7;
   val TAG_BITS = PADDR_BITS - OFFSET_BITS - IDX_BITS;
-  val NWAYS = 1;
+  val NWAYS = 4
   require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
 
   // coherence parameters
