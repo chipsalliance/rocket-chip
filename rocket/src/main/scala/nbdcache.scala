@@ -836,6 +836,9 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
     r_amo_replay_data := mshr.io.data_req.bits.data
     r_way_oh       := mshr.io.data_req.bits.way_oh
   }
+  when (prober.io.meta_req.valid) {
+    r_cpu_req_idx := Cat(prober.io.meta_req.bits.inner_req.data.tag, prober.io.meta_req.bits.inner_req.idx, mshr.io.data_req.bits.offset)(PGIDX_BITS-1,0)
+  }
   when (flusher.io.meta_req.valid) {
     r_cpu_req_idx := Cat(flusher.io.meta_req.bits.inner_req.idx, mshr.io.data_req.bits.offset)
     r_cpu_req_cmd := M_FLA
@@ -981,7 +984,7 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
 
   // replays
   val replay = mshr.io.data_req.bits
-  val stall_replay = r_replay_amo || p_amo || flusher.io.meta_req.valid || p_store_valid
+  val stall_replay = r_replay_amo || p_amo || flusher.io.meta_req.valid || prober.io.meta_req.valid || p_store_valid
   val replay_val = mshr.io.data_req.valid
   val replay_fire = replay_val && !stall_replay
   val replay_rdy = data_arb.io.in(1).ready && !stall_replay
