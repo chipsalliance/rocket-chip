@@ -970,7 +970,7 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   mshr.io.req.bits.offset := r_cpu_req_idx(offsetmsb,0)
   mshr.io.req.bits.cmd := r_cpu_req_cmd
   mshr.io.req.bits.typ := r_cpu_req_type
-  mshr.io.req.bits.way_oh := Mux(tag_match, tag_match_way_oh, replaced_way_oh)
+  mshr.io.req.bits.way_oh := Mux(tag_match && !flusher.io.mshr_req.valid, tag_match_way_oh, replaced_way_oh)
   mshr.io.req.bits.data := cpu_req_data
 
   mshr.io.mem_rep <> io.mem.xact_rep
