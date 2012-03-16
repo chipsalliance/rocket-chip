@@ -38,7 +38,7 @@ class rocketDpathALU extends Component
   val shin = Mux(shright, shin_r, Reverse(shin_r))
   val shout_r = (Cat(sra & shin_r(63), shin).toFix >> shamt)(63,0)
 
-  val logic =
+  val bitwise_logic =
     Mux(io.fn === FN_AND, io.in1 & io.in2,
     Mux(io.fn === FN_OR,  io.in1 | io.in2,
     Mux(io.fn === FN_XOR, io.in1 ^ io.in2,
@@ -49,7 +49,7 @@ class rocketDpathALU extends Component
     Mux(io.fn === FN_SLT || io.fn === FN_SLTU, less,
     Mux(io.fn === FN_SR  || io.fn === FN_SRA,  shout_r,
     Mux(io.fn === FN_SL,                       Reverse(shout_r),
-        logic))))
+        bitwise_logic))))
 
   val out_hi = Mux(io.dw === DW_64, out64(63,32), Fill(32, out64(31)))
   io.out := Cat(out_hi, out64(31,0)).toUFix
