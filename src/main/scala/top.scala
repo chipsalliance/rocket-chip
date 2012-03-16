@@ -7,6 +7,7 @@ import Constants._;
 class ioTop(htif_width: Int) extends Bundle  {
   val debug   = new ioDebug();
   val host    = new ioHost(htif_width);
+  val host_clk = Bool(OUTPUT)
   val mem     = new ioMem
 }
 
@@ -49,7 +50,14 @@ class Top() extends Component {
     cpu.io.vimem <> vicache.io.cpu;
   }
 
-  htif.io.host <> io.host
+  // pad out the HTIF using a divided clock
+  val slow_io = (new slowIO(64, 16)) { Bits(width = htif_width) }
+  htif.io.host.out <> slow_io.io.out_fast
+  io.host.out <> slow_io.io.out_slow
+  htif.io.host.in <> slow_io.io.in_fast
+  io.host.in <> slow_io.io.in_slow
+  io.host_clk := slow_io.io.clk_slow
+
   cpu.io.host       <> htif.io.cpu(0);
   cpu.io.debug      <> io.debug;
 
