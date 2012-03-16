@@ -29,9 +29,9 @@ class StoreMaskGen extends Component {
 
   val word = (io.typ === MT_W) || (io.typ === MT_WU)
   val half = (io.typ === MT_H) || (io.typ === MT_HU)
-  val byte = (io.typ === MT_B) || (io.typ === MT_BU)
+  val byte_ = (io.typ === MT_B) || (io.typ === MT_BU)
 
-  io.wmask := Mux(byte, Bits(  1,1) <<     io.addr(2,0).toUFix,
+  io.wmask := Mux(byte_, Bits(  1,1) <<     io.addr(2,0).toUFix,
               Mux(half, Bits(  3,2) << Cat(io.addr(2,1), Bits(0,1)).toUFix,
               Mux(word, Bits( 15,4) << Cat(io.addr(2),   Bits(0,2)).toUFix,
                         Bits(255,8))));
@@ -46,9 +46,9 @@ class StoreDataGen extends Component {
 
   val word = (io.typ === MT_W) || (io.typ === MT_WU)
   val half = (io.typ === MT_H) || (io.typ === MT_HU)
-  val byte = (io.typ === MT_B) || (io.typ === MT_BU)
+  val byte_ = (io.typ === MT_B) || (io.typ === MT_BU)
 
-  io.dout := Mux(byte, Fill(8, io.din( 7,0)),
+  io.dout := Mux(byte_, Fill(8, io.din( 7,0)),
              Mux(half, Fill(4, io.din(15,0)),
              Mux(word, Fill(2, io.din(31,0)),
                        io.din)))
@@ -69,7 +69,7 @@ class LoadDataGen extends Component {
              (io.typ === MT_W) || (io.typ === MT_D)
   val word = (io.typ === MT_W) || (io.typ === MT_WU)
   val half = (io.typ === MT_H) || (io.typ === MT_HU)
-  val byte = (io.typ === MT_B) || (io.typ === MT_BU)
+  val byte_ = (io.typ === MT_B) || (io.typ === MT_BU)
 
   val shifted = io.din >> Cat(io.addr(io.addr.width-1,2), Bits(0, 5)).toUFix
   val extended =
@@ -78,7 +78,7 @@ class LoadDataGen extends Component {
   val r_extended = Reg(extended)
   val r_sext = Reg(sext)
   val r_half = Reg(half)
-  val r_byte = Reg(byte)
+  val r_byte = Reg(byte_)
   val r_addr = Reg(io.addr)
 
   val shifted_subword = r_extended >> Cat(r_addr(1,0), Bits(0, 3)).toUFix
@@ -131,16 +131,12 @@ class DataReq extends Bundle {
 }
 
 class DataArrayReq extends Bundle {
+  val way_en = Bits(width = NWAYS)
   val idx    = Bits(width = IDX_BITS)
   val offset = Bits(width = log2up(REFILL_CYCLES))
   val rw     = Bool()
   val wmask  = Bits(width = MEM_DATA_BITS/8)
   val data   = Bits(width = MEM_DATA_BITS)
-}
-
-class DataArrayArrayReq extends Bundle {
-  val inner_req = new DataArrayReq()
-  val way_en = Bits(width = NWAYS)
 }
 
 class WritebackReq extends Bundle {
@@ -156,14 +152,10 @@ class MetaData extends Bundle {
 }
 
 class MetaArrayReq extends Bundle {
+  val way_en = Bits(width = NWAYS)
   val idx  = Bits(width = IDX_BITS)
   val rw  = Bool()
   val data = new MetaData()
-}
-
-class MetaArrayArrayReq extends Bundle {
-  val inner_req = new MetaArrayReq()
-  val way_en = Bits(width = NWAYS)
 }
 
 class MSHR(id: Int) extends Component with FourStateCoherence {
@@ -182,7 +174,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
     val way_oh         = Bits(NWAYS, OUTPUT)
 
     val mem_req  = (new ioDecoupled) { new TransactionInit }
-    val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }
+    val meta_req = (new ioDecoupled) { new MetaArrayReq() }
     val replay   = (new ioDecoupled) { new Replay()   }
     val mem_abort = (new ioPipe) { new TransactionAbort }.flip
     val mem_rep = (new ioPipe) { new TransactionReply }.flip
@@ -270,10 +262,10 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
   io.meta_req.valid := (state === s_drain_rpq) && !rpq.io.deq.valid && !finish_q.io.deq.valid
-  io.meta_req.bits.inner_req.rw := Bool(true)
-  io.meta_req.bits.inner_req.idx := req.idx
-  io.meta_req.bits.inner_req.data.state := line_state
-  io.meta_req.bits.inner_req.data.tag := req.tag
+  io.meta_req.bits.rw := Bool(true)
+  io.meta_req.bits.idx := req.idx
+  io.meta_req.bits.data.state := line_state
+  io.meta_req.bits.data.tag := req.tag
   io.meta_req.bits.way_en := req.way_oh
 
   io.wb_req.valid := (state === s_wb_req)
@@ -309,7 +301,7 @@ class MSHRFile extends Component {
     val fence_rdy = Bool(OUTPUT)
 
     val mem_req  = (new ioDecoupled) { new TransactionInit }
-    val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }
+    val meta_req = (new ioDecoupled) { new MetaArrayReq() }
     val data_req   = (new ioDecoupled) { new DataReq() }
     val mem_abort = (new ioPipe) { new TransactionAbort }.flip
     val mem_rep = (new ioPipe) { new TransactionReply }.flip
@@ -332,8 +324,8 @@ class MSHRFile extends Component {
 
   val tag_mux = (new Mux1H(NMSHR)){ Bits(width = TAG_BITS) }
   val wb_probe_mux = (new Mux1H(NMSHR)) { new WritebackReq }
-  val mem_resp_mux = (new Mux1H(NMSHR)){ new DataArrayArrayReq }
-  val meta_req_arb = (new Arbiter(NMSHR)) { new MetaArrayArrayReq() }
+  val mem_resp_mux = (new Mux1H(NMSHR)){ new DataArrayReq }
+  val meta_req_arb = (new Arbiter(NMSHR)) { new MetaArrayReq() }
   val mem_req_arb = (new Arbiter(NMSHR)) { new TransactionInit }
   val mem_finish_arb = (new Arbiter(NMSHR)) { new TransactionFinish }
   val wb_req_arb = (new Arbiter(NMSHR)) { new WritebackReq }
@@ -376,8 +368,8 @@ class MSHRFile extends Component {
     mshr.io.mem_abort <> io.mem_abort
     mshr.io.mem_rep <> io.mem_rep
     mem_resp_mux.io.sel(i) := UFix(i) === io.mem_rep.bits.tile_xact_id
-    mem_resp_mux.io.in(i).inner_req.idx := mshr.io.idx
-    mem_resp_mux.io.in(i).inner_req.offset := mshr.io.refill_count
+    mem_resp_mux.io.in(i).idx := mshr.io.idx
+    mem_resp_mux.io.in(i).offset := mshr.io.refill_count
     mem_resp_mux.io.in(i).way_en := mshr.io.way_oh
 
     pri_rdy = pri_rdy || mshr.io.req_pri_rdy
@@ -397,8 +389,8 @@ class MSHRFile extends Component {
 
   io.req.ready := Mux(idx_match, tag_match && sec_rdy, pri_rdy) && sdq_rdy
   io.secondary_miss := idx_match
-  io.mem_resp_idx := mem_resp_mux.io.out.inner_req.idx
-  io.mem_resp_offset := mem_resp_mux.io.out.inner_req.offset
+  io.mem_resp_idx := mem_resp_mux.io.out.idx
+  io.mem_resp_offset := mem_resp_mux.io.out.offset
   io.mem_resp_way_oh := mem_resp_mux.io.out.way_en
   io.fence_rdy := !fence
   io.probe.ready := (refill_probe_rdy || !tag_match) && (writeback_probe_rdy || !wb_probe_match)
@@ -421,7 +413,7 @@ class WritebackUnit extends Component {
   val io = new Bundle {
     val req = (new ioDecoupled) { new WritebackReq() }.flip
     val probe = (new ioDecoupled) { new WritebackReq() }.flip
-    val data_req = (new ioDecoupled) { new DataArrayArrayReq() }
+    val data_req = (new ioDecoupled) { new DataArrayReq() }
     val data_resp = Bits(MEM_DATA_BITS, INPUT)
     val mem_req = (new ioDecoupled) { new TransactionInit }
     val mem_req_data = (new ioDecoupled) { new TransactionInitData }
@@ -470,11 +462,11 @@ class WritebackUnit extends Component {
   io.probe.ready := !valid
   io.data_req.valid := valid && (cnt < UFix(REFILL_CYCLES))
   io.data_req.bits.way_en := req.way_oh
-  io.data_req.bits.inner_req.idx := req.idx
-  io.data_req.bits.inner_req.offset := cnt
-  io.data_req.bits.inner_req.rw := Bool(false)
-  io.data_req.bits.inner_req.wmask := Bits(0)
-  io.data_req.bits.inner_req.data := Bits(0)
+  io.data_req.bits.idx := req.idx
+  io.data_req.bits.offset := cnt
+  io.data_req.bits.rw := Bool(false)
+  io.data_req.bits.wmask := Bits(0)
+  io.data_req.bits.data := Bits(0)
 
   io.mem_req.valid := valid && !cmd_sent
   io.mem_req.bits.t_type := X_INIT_WRITE_UNCACHED
@@ -490,7 +482,7 @@ class ProbeUnit extends Component with FourStateCoherence {
   val io = new Bundle {
     val req = (new ioDecoupled) { new ProbeRequest }.flip
     val rep = (new ioDecoupled) { new ProbeReply }
-    val meta_req = (new ioDecoupled) { new MetaArrayArrayReq }
+    val meta_req = (new ioDecoupled) { new MetaArrayReq }
     val mshr_req = (new ioDecoupled) { Bool() }
     val wb_req = (new ioDecoupled) { new WritebackReq }
     val tag_match_way_oh = Bits(NWAYS, INPUT)
@@ -533,10 +525,10 @@ class ProbeUnit extends Component with FourStateCoherence {
 
   io.meta_req.valid := state === s_meta_req || state === s_meta_resp || state === s_probe_rep && hit
   io.meta_req.bits.way_en := Mux(state === s_probe_rep, way_oh, ~UFix(0, NWAYS))
-  io.meta_req.bits.inner_req.rw := state === s_probe_rep
-  io.meta_req.bits.inner_req.idx := req.address
-  io.meta_req.bits.inner_req.data.state := newStateOnProbeReq(req, line_state)
-  io.meta_req.bits.inner_req.data.tag := req.address >> UFix(IDX_BITS)
+  io.meta_req.bits.rw := state === s_probe_rep
+  io.meta_req.bits.idx := req.address
+  io.meta_req.bits.data.state := newStateOnProbeReq(req, line_state)
+  io.meta_req.bits.data.tag := req.address >> UFix(IDX_BITS)
   io.mshr_req.valid := state === s_meta_resp
   io.address := req.address
 
@@ -549,7 +541,7 @@ class ProbeUnit extends Component with FourStateCoherence {
 class FlushUnit(lines: Int) extends Component with FourStateCoherence{
   val io = new Bundle {
     val req = (new ioDecoupled) { Bool() }.flip
-    val meta_req = (new ioDecoupled) { new MetaArrayArrayReq() }
+    val meta_req = (new ioDecoupled) { new MetaArrayReq() }
     val mshr_req = (new ioDecoupled) { Bool() }
   }
   
@@ -589,10 +581,10 @@ class FlushUnit(lines: Int) extends Component with FourStateCoherence{
   io.mshr_req.valid := state === s_meta_wait
   io.meta_req.valid := (state === s_meta_read) || (state === s_reset)
   io.meta_req.bits.way_en := UFixToOH(way_cnt, NWAYS)
-  io.meta_req.bits.inner_req.idx := idx_cnt
-  io.meta_req.bits.inner_req.rw := (state === s_reset)
-  io.meta_req.bits.inner_req.data.state := newStateOnFlush()
-  io.meta_req.bits.inner_req.data.tag := UFix(0)
+  io.meta_req.bits.idx := idx_cnt
+  io.meta_req.bits.rw := (state === s_reset)
+  io.meta_req.bits.data.state := newStateOnFlush()
+  io.meta_req.bits.data.tag := UFix(0)
 }
 
 class MetaDataArray(lines: Int) extends Component {
@@ -621,9 +613,9 @@ class MetaDataArray(lines: Int) extends Component {
 
 class MetaDataArrayArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new MetaArrayArrayReq() }.flip
+    val req  = (new ioDecoupled) { new MetaArrayReq() }.flip
     val resp = Vec(NWAYS){ (new MetaData).asOutput }
-    val state_req = (new ioDecoupled) { new MetaArrayArrayReq() }.flip
+    val state_req = (new ioDecoupled) { new MetaArrayReq() }.flip
     val way_en = Bits(width = NWAYS, dir = OUTPUT)
   }
 
@@ -632,22 +624,18 @@ class MetaDataArrayArray(lines: Int) extends Component {
     way_en_ := io.req.bits.way_en
   }
 
-  var tag_ready = Bool(true)
-  var state_ready = Bool(true)
   for(w <- 0 until NWAYS) {
     val way = new MetaDataArray(lines)
-    way.io.req.bits <> io.req.bits.inner_req
-    tag_ready = tag_ready && way.io.req.ready
+    way.io.req.bits <> io.req.bits
     way.io.req.valid := io.req.valid && io.req.bits.way_en(w).toBool
-    way.io.state_req.bits <> io.state_req.bits.inner_req
-    state_ready = state_ready && way.io.state_req.ready
+    way.io.state_req.bits <> io.state_req.bits
     way.io.state_req.valid := io.state_req.valid && io.state_req.bits.way_en(w).toBool
     way.io.resp <> io.resp(w)
   }
 
   io.way_en := way_en_
-  io.req.ready := tag_ready
-  io.state_req.ready := state_ready
+  io.req.ready := Bool(true)
+  io.state_req.ready := Bool(true)
 }
 
 class DataArray(lines: Int) extends Component {
@@ -669,7 +657,7 @@ class DataArray(lines: Int) extends Component {
 
 class DataArrayArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new DataArrayArrayReq() }.flip
+    val req  = (new ioDecoupled) { new DataArrayReq() }.flip
     val resp = Vec(NWAYS){ Bits(width = MEM_DATA_BITS, dir = OUTPUT) }
     val way_en = Bits(width = NWAYS, dir = OUTPUT)
   }
@@ -679,20 +667,15 @@ class DataArrayArray(lines: Int) extends Component {
     way_en_ := io.req.bits.way_en
   }
 
-  //val data_ready_arr = Vec(NWAYS){ Bool() }
-  var data_ready = Bool(true)
   for(w <- 0 until NWAYS) {
     val way = new DataArray(lines)
-    way.io.req.bits <> io.req.bits.inner_req
-    //data_ready_arr(w) := way.io.req.ready
-    data_ready = data_ready && way.io.req.ready
+    way.io.req.bits <> io.req.bits
     way.io.req.valid := io.req.valid && io.req.bits.way_en(w).toBool
     way.io.resp <> io.resp(w)
   }
 
   io.way_en := way_en_
-  //io.req.ready := Cat(data_ready_arr).andR.toBool
-  io.req.ready := data_ready
+  io.req.ready := Bool(true)
 }
 
 class AMOALU extends Component {
@@ -837,10 +820,10 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
     r_way_oh       := mshr.io.data_req.bits.way_oh
   }
   when (prober.io.meta_req.valid) {
-    r_cpu_req_idx := Cat(prober.io.meta_req.bits.inner_req.data.tag, prober.io.meta_req.bits.inner_req.idx, mshr.io.data_req.bits.offset)(PGIDX_BITS-1,0)
+    r_cpu_req_idx := Cat(prober.io.meta_req.bits.data.tag, prober.io.meta_req.bits.idx, mshr.io.data_req.bits.offset)(PGIDX_BITS-1,0)
   }
   when (flusher.io.meta_req.valid) {
-    r_cpu_req_idx := Cat(flusher.io.meta_req.bits.inner_req.idx, mshr.io.data_req.bits.offset)
+    r_cpu_req_idx := Cat(flusher.io.meta_req.bits.idx, mshr.io.data_req.bits.offset)
     r_cpu_req_cmd := M_FLA
     r_way_oh := flusher.io.meta_req.bits.way_en
   }
@@ -856,19 +839,19 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
 
   // tags
   val meta = new MetaDataArrayArray(lines)
-  val meta_arb = (new Arbiter(4)) { new MetaArrayArrayReq() }
+  val meta_arb = (new Arbiter(4)) { new MetaArrayReq() }
   flusher.io.meta_req <> meta_arb.io.in(0)
   meta_arb.io.out <> meta.io.req
 
   // data
   val data = new DataArrayArray(lines)
-  val data_arb = (new Arbiter(5)) { new DataArrayArrayReq() }
+  val data_arb = (new Arbiter(5)) { new DataArrayReq() }
   data_arb.io.out <> data.io.req
 
   // cpu tag check
   meta_arb.io.in(3).valid := io.cpu.req_val
-  meta_arb.io.in(3).bits.inner_req.idx := io.cpu.req_idx(indexmsb,indexlsb)
-  meta_arb.io.in(3).bits.inner_req.rw := Bool(false)
+  meta_arb.io.in(3).bits.idx := io.cpu.req_idx(indexmsb,indexlsb)
+  meta_arb.io.in(3).bits.rw := Bool(false)
   meta_arb.io.in(3).bits.way_en := ~UFix(0, NWAYS)
   val early_tag_nack = !meta_arb.io.in(3).ready
   val cpu_req_ppn = Mux(prober.io.mshr_req.valid, prober.io.address >> UFix(PGIDX_BITS-OFFSET_BITS), io.cpu.req_ppn)
@@ -905,18 +888,18 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val meta_wb_mux = Mux1H(replaced_way_oh, meta.io.resp)
 
   // refill response
-  data_arb.io.in(0).bits.inner_req.offset := mshr.io.mem_resp_offset
-  data_arb.io.in(0).bits.inner_req.idx := mshr.io.mem_resp_idx
-  data_arb.io.in(0).bits.inner_req.rw := Bool(true)
-  data_arb.io.in(0).bits.inner_req.wmask := ~UFix(0, MEM_DATA_BITS/8)
-  data_arb.io.in(0).bits.inner_req.data := io.mem.xact_rep.bits.data
+  data_arb.io.in(0).bits.offset := mshr.io.mem_resp_offset
+  data_arb.io.in(0).bits.idx := mshr.io.mem_resp_idx
+  data_arb.io.in(0).bits.rw := Bool(true)
+  data_arb.io.in(0).bits.wmask := ~UFix(0, MEM_DATA_BITS/8)
+  data_arb.io.in(0).bits.data := io.mem.xact_rep.bits.data
   data_arb.io.in(0).bits.way_en := mshr.io.mem_resp_way_oh
   data_arb.io.in(0).valid := io.mem.xact_rep.valid && (io.mem.xact_rep.bits.t_type === X_REP_READ_SHARED || io.mem.xact_rep.bits.t_type === X_REP_READ_EXCLUSIVE)
 
   // load hits
-  data_arb.io.in(4).bits.inner_req.offset := io.cpu.req_idx(offsetmsb,ramindexlsb)
-  data_arb.io.in(4).bits.inner_req.idx := io.cpu.req_idx(indexmsb,indexlsb)
-  data_arb.io.in(4).bits.inner_req.rw := Bool(false)
+  data_arb.io.in(4).bits.offset := io.cpu.req_idx(offsetmsb,ramindexlsb)
+  data_arb.io.in(4).bits.idx := io.cpu.req_idx(indexmsb,indexlsb)
+  data_arb.io.in(4).bits.rw := Bool(false)
   data_arb.io.in(4).valid := io.cpu.req_val && req_read
   data_arb.io.in(4).bits.way_en := ~UFix(0, NWAYS) // intiate load on all ways, mux after tag check
   val early_load_nack = req_read && !data_arb.io.in(4).ready
@@ -929,9 +912,9 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val p_store_offset_match = (r_cpu_req_idx(indexlsb-1,offsetlsb) === p_store_idx(indexlsb-1,offsetlsb))
   val p_store_match = r_cpu_req_val_ && r_req_read && p_store_idx_match && p_store_offset_match
   val drain_store_val = (p_store_valid && (!io.cpu.req_val || !req_read || wb.io.data_req.valid || mshr.io.data_req.valid)) || p_store_match
-  data_arb.io.in(2).bits.inner_req.offset := p_store_idx(offsetmsb,ramindexlsb)
-  data_arb.io.in(2).bits.inner_req.idx := p_store_idx(indexmsb,indexlsb)
-  data_arb.io.in(2).bits.inner_req.rw := Bool(true)
+  data_arb.io.in(2).bits.offset := p_store_idx(offsetmsb,ramindexlsb)
+  data_arb.io.in(2).bits.idx := p_store_idx(indexmsb,indexlsb)
+  data_arb.io.in(2).bits.rw := Bool(true)
   data_arb.io.in(2).valid := drain_store_val
   data_arb.io.in(2).bits.way_en :=  p_store_way_oh
   val drain_store = drain_store_val && data_arb.io.in(2).ready
@@ -943,9 +926,9 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   // tag update after a store to an exclusive clean line.
   val new_hit_state = newStateOnHit(r_cpu_req_cmd, meta_resp_mux.state)
   val set_hit_state  = r_cpu_req_val && tag_hit && meta_resp_mux.state != new_hit_state
-  meta.io.state_req.bits.inner_req.rw := Bool(true)
-  meta.io.state_req.bits.inner_req.idx := Reg(r_cpu_req_idx(indexmsb,indexlsb))
-  meta.io.state_req.bits.inner_req.data.state := Reg(new_hit_state)
+  meta.io.state_req.bits.rw := Bool(true)
+  meta.io.state_req.bits.idx := Reg(r_cpu_req_idx(indexmsb,indexlsb))
+  meta.io.state_req.bits.data.state := Reg(new_hit_state)
   meta.io.state_req.bits.way_en := Reg(tag_match_way_oh)
   meta.io.state_req.valid := Reg(set_hit_state, resetVal = Bool(false))
   
@@ -988,9 +971,9 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val replay_val = mshr.io.data_req.valid
   val replay_fire = replay_val && !stall_replay
   val replay_rdy = data_arb.io.in(1).ready && !stall_replay
-  data_arb.io.in(1).bits.inner_req.offset := replay.offset(offsetmsb,ramindexlsb)
-  data_arb.io.in(1).bits.inner_req.idx := replay.idx
-  data_arb.io.in(1).bits.inner_req.rw := replay.cmd === M_XWR
+  data_arb.io.in(1).bits.offset := replay.offset(offsetmsb,ramindexlsb)
+  data_arb.io.in(1).bits.idx := replay.idx
+  data_arb.io.in(1).bits.rw := replay.cmd === M_XWR
   data_arb.io.in(1).valid := replay_fire
   data_arb.io.in(1).bits.way_en := mshr.io.data_req.bits.way_oh
   mshr.io.data_req.ready := replay_rdy
@@ -1005,10 +988,10 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val store_wmask_wide = maskgen.io.wmask << Cat(store_offset(ramindexlsb-1,offsetlsb), Bits(0, log2up(CPU_DATA_BITS/8))).toUFix
   val store_data = Mux(!replay_fire, p_store_data, replay.data)
   val store_data_wide = Fill(MEM_DATA_BITS/CPU_DATA_BITS, store_data)
-  data_arb.io.in(1).bits.inner_req.data := store_data_wide
-  data_arb.io.in(1).bits.inner_req.wmask := store_wmask_wide
-  data_arb.io.in(2).bits.inner_req.data := store_data_wide
-  data_arb.io.in(2).bits.inner_req.wmask := store_wmask_wide
+  data_arb.io.in(1).bits.data := store_data_wide
+  data_arb.io.in(1).bits.wmask := store_wmask_wide
+  data_arb.io.in(2).bits.data := store_data_wide
+  data_arb.io.in(2).bits.wmask := store_wmask_wide
 
   // load data subword mux/sign extension.
   // subword loads are delayed by one cycle.
