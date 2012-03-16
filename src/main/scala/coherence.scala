@@ -295,12 +295,14 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
     when(req_cmd.ready && req_cmd.valid) {
       cmd_sent := Bool(true)
     }
-    when(req_data.ready && req_data.valid) {
-      pop_data := UFix(1) << tile_id 
-      mem_cnt  := mem_cnt_next
-      when(mem_cnt_next === UFix(0)) {
-        pop_dep := UFix(1) << tile_id
-        trigger := Bool(false)
+    when(req_data.ready && at_front_of_dep_queue) {
+      pop_data := UFix(1) << tile_id
+      when (data.valid) {
+        mem_cnt  := mem_cnt_next
+        when(mem_cnt_next === UFix(0)) {
+          pop_dep := UFix(1) << tile_id
+          trigger := Bool(false)
+        }
       }
     }
   }
@@ -391,7 +393,6 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
         io.pop_p_rep := io.p_rep_cnt_dec
         if(ntiles > 1) p_rep_count := p_rep_count - dec
         when(p_rep_count === dec) {
-          io.pop_p_rep := Bool(true)
           state := s_mem
         }
       }
