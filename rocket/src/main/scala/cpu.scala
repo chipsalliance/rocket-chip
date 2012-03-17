@@ -28,7 +28,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
 
   val dtlb  = new rocketDTLB(DTLB_ENTRIES);
   val itlb  = new rocketITLB(ITLB_ENTRIES);
-  val vitlb = new rocketITLB(ITLB_ENTRIES);
+  val vitlb = new rocketITLB(VITLB_ENTRIES)
   val ptw   = new rocketPTW();
   val arb   = new rocketDmemArbiter(DCACHE_PORTS)
 

@@ -218,8 +218,9 @@ object Constants
   val MEM_DATA_BITS = 128
   val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
   
-  val DTLB_ENTRIES = 8;
+  val DTLB_ENTRIES = 16
   val ITLB_ENTRIES = 8;
+  val VITLB_ENTRIES = 4
   
   val START_ADDR = 0x2000;
 
