@@ -108,11 +108,12 @@ class rocketPTW extends Component
     r_req_dest := Bool(false);
     req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.itlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
   }
-  
-  when (io.dmem.resp_val) {
-    req_addr := Cat(io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS), vpn_idx, Bits(0,3)).toUFix;
-    r_resp_perm := io.dmem.resp_data(9,4);
-    r_resp_ppn  := io.dmem.resp_data(PADDR_BITS-1, PGIDX_BITS);
+
+  val dmem_resp_val = Reg(io.dmem.resp_val, resetVal = Bool(false))
+  when (dmem_resp_val) {
+    req_addr := Cat(io.dmem.resp_data_subword(PADDR_BITS-1, PGIDX_BITS), vpn_idx, Bits(0,3)).toUFix;
+    r_resp_perm := io.dmem.resp_data_subword(9,4);
+    r_resp_ppn  := io.dmem.resp_data_subword(PADDR_BITS-1, PGIDX_BITS);
   }
   
   io.dmem.req_val :=
@@ -129,8 +130,8 @@ class rocketPTW extends Component
   val resp_val = (state === s_done) || (state === s_l1_fake) || (state === s_l2_fake);
   val resp_err = (state === s_error);
   
-  val resp_ptd = (io.dmem.resp_data(1,0) === Bits(1,2));
-  val resp_pte = (io.dmem.resp_data(1,0) === Bits(2,2));
+  val resp_ptd = (io.dmem.resp_data_subword(1,0) === Bits(1,2));
+  val resp_pte = (io.dmem.resp_data_subword(1,0) === Bits(2,2));
   
   io.dtlb.req_rdy   := (state === s_ready) && !io.itlb.req_val;
   io.itlb.req_rdy   := (state === s_ready);
@@ -166,7 +167,7 @@ class rocketPTW extends Component
       when (io.dmem.resp_nack) {
         state := s_l1_req
       }
-      when (io.dmem.resp_val) {
+      when (dmem_resp_val) {
         when (resp_ptd) { // page table descriptor
           state := s_l2_req;
         }
@@ -191,7 +192,7 @@ class rocketPTW extends Component
       when (io.dmem.resp_nack) {
         state := s_l2_req
       }
-      when (io.dmem.resp_val) {
+      when (dmem_resp_val) {
         when (resp_ptd) { // page table descriptor
           state := s_l3_req;
         }
@@ -216,7 +217,7 @@ class rocketPTW extends Component
       when (io.dmem.resp_nack) {
         state := s_l3_req
       }
-      when (io.dmem.resp_val) {
+      when (dmem_resp_val) {
         when (resp_pte) { // page table entry
           state := s_done;
         }
