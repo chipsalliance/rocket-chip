@@ -82,7 +82,6 @@ class rocketDpath extends Component
   val mem_reg_wdata          = Reg() { Bits() };
   val mem_reg_raddr1         = Reg() { UFix() };
   val mem_reg_raddr2         = Reg() { UFix() };
-  val mem_wdata              = Wire() { Bits() }; 	
   
   // writeback definitions
   val wb_reg_pc             = Reg() { UFix() };
@@ -90,6 +89,7 @@ class rocketDpath extends Component
   val wb_reg_rs2            = Reg() { Bits() };
   val wb_reg_waddr          = Reg() { UFix() }
   val wb_reg_wdata          = Reg() { Bits() }
+  val wb_reg_dmem_wdata     = Reg() { Bits() }
   val wb_reg_vec_waddr      = Reg() { UFix() }
   val wb_reg_vec_wdata      = Reg() { Bits() }
   val wb_reg_raddr1         = Reg() { UFix() };
@@ -163,15 +163,23 @@ class rocketDpath extends Component
         RA); // WA_RA
 
   // bypass muxes
+  val id_rs1_dmem_bypass =
+    Mux(io.ctrl.ex_wen && id_raddr1 === ex_reg_waddr, Bool(false),
+    Mux(io.ctrl.mem_wen && id_raddr1 === mem_reg_waddr, io.ctrl.mem_load,
+        Bool(false)))
   val id_rs1 =
     Mux(io.ctrl.ex_wen && id_raddr1 === ex_reg_waddr,  ex_wdata,
-    Mux(io.ctrl.mem_wen && id_raddr1 === mem_reg_waddr, mem_wdata,
+    Mux(io.ctrl.mem_wen && id_raddr1 === mem_reg_waddr, mem_reg_wdata,
     Mux((io.ctrl.wb_wen || wb_reg_ll_wb) && id_raddr1 === wb_reg_waddr, wb_wdata,
         id_rdata1)))
 
+  val id_rs2_dmem_bypass =
+    Mux(io.ctrl.ex_wen && id_raddr2 === ex_reg_waddr, Bool(false),
+    Mux(io.ctrl.mem_wen && id_raddr2 === mem_reg_waddr, io.ctrl.mem_load,
+        Bool(false)))
   val id_rs2 =
     Mux(io.ctrl.ex_wen && id_raddr2 === ex_reg_waddr,  ex_wdata,
-    Mux(io.ctrl.mem_wen && id_raddr2 === mem_reg_waddr, mem_wdata,
+    Mux(io.ctrl.mem_wen && id_raddr2 === mem_reg_waddr, mem_reg_wdata,
     Mux((io.ctrl.wb_wen || wb_reg_ll_wb) && id_raddr2 === wb_reg_waddr, wb_wdata,
         id_rdata2)))
 
@@ -191,6 +199,7 @@ class rocketDpath extends Component
                    Mux(id_imm_ibz, Cat(Fill(20, id_imm_sign), id_imm_small),
                        Cat(Fill(7, id_imm_sign), id_reg_inst(31,7))))) // A2_JTYPE
 
+  val id_op2_dmem_bypass = id_rs2_dmem_bypass && io.ctrl.sel_alu2 === A2_RTYPE
   val id_op2 = Mux(io.ctrl.sel_alu2 === A2_RTYPE, id_rs2, id_imm)
 
   io.ctrl.inst := id_reg_inst
@@ -223,19 +232,23 @@ class rocketDpath extends Component
     ex_reg_ctrl_eret			:= io.ctrl.id_eret;
   }
 
+  val ex_rs1 = Mux(Reg(id_rs1_dmem_bypass), wb_reg_dmem_wdata, ex_reg_rs1)
+  val ex_rs2 = Mux(Reg(id_rs2_dmem_bypass), wb_reg_dmem_wdata, ex_reg_rs2)
+  val ex_op2 = Mux(Reg(id_op2_dmem_bypass), wb_reg_dmem_wdata, ex_reg_op2)
+
   alu.io.dw    := ex_reg_ctrl_fn_dw;
   alu.io.fn    := ex_reg_ctrl_fn_alu;
-  alu.io.in2   := ex_reg_op2.toUFix;
-  alu.io.in1   := ex_reg_rs1.toUFix;
+  alu.io.in2   := ex_op2.toUFix
+  alu.io.in1   := ex_rs1.toUFix
 
-  io.fpu.fromint_data := ex_reg_rs1
+  io.fpu.fromint_data := ex_rs1
   
   // divider
   val div = new rocketDivider(64)
   div.io.req.valid := ex_reg_ctrl_div_val
   div.io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, ex_reg_ctrl_div_fn)
-  div.io.req.bits.in0 := ex_reg_rs1
-  div.io.req.bits.in1 := ex_reg_rs2
+  div.io.req.bits.in0 := ex_rs1
+  div.io.req.bits.in1 := ex_rs2
   div.io.req_tag := ex_reg_waddr
   div.io.req_kill := io.ctrl.killm
   div.io.resp_rdy := !dmem_resp_replay
@@ -253,8 +266,8 @@ class rocketDpath extends Component
   }
   mul_io.req.valid := ex_reg_ctrl_mul_val;
   mul_io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, ex_reg_ctrl_mul_fn)
-  mul_io.req.bits.in0 := ex_reg_rs1
-  mul_io.req.bits.in1 := ex_reg_rs2
+  mul_io.req.bits.in0 := ex_rs1
+  mul_io.req.bits.in1 := ex_rs2
   mul_io.req_tag := ex_reg_waddr
   mul_io.req_kill := io.ctrl.killm
   mul_io.resp_rdy := !dmem_resp_replay && !div.io.resp_val
@@ -286,11 +299,11 @@ class rocketDpath extends Component
  	io.debug.error_mode  := pcr.io.debug.error_mode;
   
 	// branch resolution logic
-  io.ctrl.br_eq   := (ex_reg_rs1 === ex_reg_rs2);
-  io.ctrl.br_ltu  := (ex_reg_rs1.toUFix < ex_reg_rs2.toUFix);
+  io.ctrl.br_eq   := (ex_rs1 === ex_rs2)
+  io.ctrl.br_ltu  := (ex_rs1.toUFix < ex_rs2.toUFix)
   io.ctrl.br_lt :=
-    (~(ex_reg_rs1(63) ^ ex_reg_rs2(63)) & io.ctrl.br_ltu |
-    ex_reg_rs1(63) & ~ex_reg_rs2(63)).toBool;
+    (~(ex_rs1(63) ^ ex_rs2(63)) & io.ctrl.br_ltu |
+    ex_rs1(63) & ~ex_rs2(63)).toBool
 
   // time stamp counter
   val tsc_reg = Reg(resetVal = UFix(0,64));
@@ -310,7 +323,7 @@ class rocketDpath extends Component
   // subword store data generation
   val storegen = new StoreDataGen
   storegen.io.typ := io.ctrl.ex_mem_type
-  storegen.io.din  := ex_reg_rs2
+  storegen.io.din  := ex_rs2
         
   // memory stage
   mem_reg_pc                := ex_reg_pc;
@@ -323,8 +336,6 @@ class rocketDpath extends Component
   
   // for load/use hazard detection (load byte/halfword)
   io.ctrl.mem_waddr := mem_reg_waddr;
-
-  mem_wdata := Mux(io.ctrl.mem_load, io.dmem.resp_data, mem_reg_wdata)
 
   // 32/64 bit load handling (moved to earlier in file)
       
@@ -359,6 +370,7 @@ class rocketDpath extends Component
   wb_reg_rs2            := mem_reg_rs2
   wb_reg_waddr          := mem_ll_waddr
   wb_reg_wdata          := mem_ll_wdata
+  wb_reg_dmem_wdata     := io.dmem.resp_data
   wb_reg_vec_waddr      := mem_reg_waddr
   wb_reg_vec_wdata      := mem_reg_wdata
   wb_reg_raddr1         := mem_reg_raddr1
