@@ -159,7 +159,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu.io.imem_req.ready    := Bool(true)
     vu.io.imem_resp.valid   := io.vimem.resp_val
     vu.io.imem_resp.bits    := io.vimem.resp_data
-    // handle vitlb.io.cpu.exception
+    vu.io.vitlb_exception   := vitlb.io.cpu.exception
     io.vimem.itlb_miss      := vitlb.io.cpu.resp_miss
 
     // hooking up vector command queues
