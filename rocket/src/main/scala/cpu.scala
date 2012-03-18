@@ -100,6 +100,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
   ptw.io.dtlb             <> dtlb.io.ptw;
   ptw.io.itlb             <> itlb.io.ptw;
+  ptw.io.vitlb            <> vitlb.io.ptw
   ptw.io.ptbr             := dpath.io.ptbr;
   arb.io.requestor(DMEM_PTW) <> ptw.io.dmem
   arb.io.dmem             <> io.dmem

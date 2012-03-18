@@ -72,6 +72,7 @@ class ioPTW extends Bundle
 {
   val itlb = new ioTLB_PTW().flip
   val dtlb = new ioTLB_PTW().flip
+  val vitlb = new ioTLB_PTW().flip
   val dmem = new ioDmem().flip
   val ptbr = UFix(PADDR_BITS, INPUT);
 }
@@ -84,29 +85,36 @@ class rocketPTW extends Component
   val state = Reg(resetVal = s_ready);
   
   val r_req_vpn = Reg() { Bits() }
-  val r_req_dest = Reg() { Bool() }
+  val r_req_dest = Reg() { Bits() }
   
   val req_addr = Reg() { UFix() };
   val r_resp_ppn = Reg() { Bits() };
   val r_resp_perm = Reg() { Bits() };
   
   val vpn_idx = Mux(state === s_l2_wait, r_req_vpn(9,0), r_req_vpn(19,10)); 
-  val req_val = io.itlb.req_val || io.dtlb.req_val;
+  val req_val = io.itlb.req_val || io.dtlb.req_val || io.vitlb.req_val
   
   // give ITLB requests priority over DTLB requests
   val req_itlb_val = io.itlb.req_val;
   val req_dtlb_val = io.dtlb.req_val && !io.itlb.req_val;
-  
-  when ((state === s_ready) && req_dtlb_val) {
-    r_req_vpn  := io.dtlb.req_vpn;
-    r_req_dest := Bool(true);
-    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.dtlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
-  }
+  val req_vitlb_val = io.vitlb.req_val && !io.itlb.req_val && !io.dtlb.req_val
   
   when ((state === s_ready) && req_itlb_val) {
     r_req_vpn  := io.itlb.req_vpn;
-    r_req_dest := Bool(false);
+    r_req_dest := Bits(0)
     req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.itlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
+  }
+
+  when ((state === s_ready) && req_dtlb_val) {
+    r_req_vpn  := io.dtlb.req_vpn;
+    r_req_dest := Bits(1)
+    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.dtlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
+  }
+  
+  when ((state === s_ready) && req_vitlb_val) {
+    r_req_vpn  := io.vitlb.req_vpn;
+    r_req_dest := Bits(2)
+    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.vitlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
   }
 
   val dmem_resp_val = Reg(io.dmem.resp_val, resetVal = Bool(false))
@@ -133,22 +141,27 @@ class rocketPTW extends Component
   val resp_ptd = (io.dmem.resp_data_subword(1,0) === Bits(1,2));
   val resp_pte = (io.dmem.resp_data_subword(1,0) === Bits(2,2));
   
-  io.dtlb.req_rdy   := (state === s_ready) && !io.itlb.req_val;
-  io.itlb.req_rdy   := (state === s_ready);
-  io.dtlb.resp_val  :=  r_req_dest && resp_val;
-  io.itlb.resp_val  := !r_req_dest && resp_val;
-  io.dtlb.resp_err  :=  r_req_dest && resp_err;
-  io.itlb.resp_err  := !r_req_dest && resp_err;
-  io.dtlb.resp_perm := r_resp_perm;
-  io.itlb.resp_perm := r_resp_perm;
+  io.itlb.req_rdy   := (state === s_ready)
+  io.dtlb.req_rdy   := (state === s_ready) && !io.itlb.req_val
+  io.vitlb.req_rdy  := (state === s_ready) && !io.itlb.req_val && !io.dtlb.req_val
+  io.itlb.resp_val  := r_req_dest === Bits(0) && resp_val
+  io.dtlb.resp_val  := r_req_dest === Bits(1) && resp_val
+  io.vitlb.resp_val := r_req_dest === Bits(2) && resp_val
+  io.itlb.resp_err  := r_req_dest === Bits(0) && resp_err
+  io.dtlb.resp_err  := r_req_dest === Bits(1) && resp_err
+  io.vitlb.resp_err := r_req_dest === Bits(2) && resp_err
+  io.itlb.resp_perm := r_resp_perm
+  io.dtlb.resp_perm := r_resp_perm
+  io.vitlb.resp_perm:= r_resp_perm
   
   val resp_ppn =
     Mux(state === s_l1_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-7),  r_req_vpn(VPN_BITS-11, 0)),
     Mux(state === s_l2_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-17), r_req_vpn(VPN_BITS-21, 0)),
       r_resp_ppn));
       
-  io.dtlb.resp_ppn  := resp_ppn;
   io.itlb.resp_ppn  := resp_ppn;
+  io.dtlb.resp_ppn  := resp_ppn;
+  io.vitlb.resp_ppn := resp_ppn;
 
   // control state machine
   switch (state) {
