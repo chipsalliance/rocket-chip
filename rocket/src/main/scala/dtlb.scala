@@ -26,6 +26,7 @@ class ioDTLB_CPU_resp extends Bundle
   val ppn = Bits(PPN_BITS, OUTPUT)
   val xcpt_ld = Bool(OUTPUT)
   val xcpt_st = Bool(OUTPUT)
+  val xcpt_pf = Bool(OUTPUT)
 }
 
 class ioDTLB extends Bundle
@@ -138,21 +139,15 @@ class rocketDTLB(entries: Int) extends Component
     }
   }
 
-   val access_fault_ld =
-    tlb_hit && (req_load || req_amo) &&
-    ((status_s && !sr_array(tag_hit_addr).toBool) ||
-     (status_u && !ur_array(tag_hit_addr).toBool) ||
-     bad_va);
+  val access_fault_common = 
+    tlb_hit &&
+    ((status_s && !sr_array(tag_hit_addr)) ||
+     (status_u && !ur_array(tag_hit_addr)) ||
+     bad_va)
 
-  io.cpu_resp.xcpt_ld := access_fault_ld;
-
-  val access_fault_st =
-    tlb_hit && (req_store || req_amo) &&
-    ((status_s && !sw_array(tag_hit_addr).toBool) ||
-     (status_u && !uw_array(tag_hit_addr).toBool) ||
-     bad_va);
-
-  io.cpu_resp.xcpt_st := access_fault_st;
+  io.cpu_resp.xcpt_ld := access_fault_common && (req_load || req_amo)
+  io.cpu_resp.xcpt_st := access_fault_common && (req_store || req_amo)
+  io.cpu_resp.xcpt_pf := access_fault_common && req_pf
 
   io.cpu_req.ready   := (state === s_ready) && !tlb_miss;
   io.cpu_resp.miss := tlb_miss;
