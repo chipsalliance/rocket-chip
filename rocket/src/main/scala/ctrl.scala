@@ -648,17 +648,16 @@ class rocketCtrl extends Component
   // FIXME: verify PC in MEM stage points to valid, restartable instruction
   val p_irq_timer = (io.dpath.status(15).toBool && io.dpath.irq_timer);
   val p_irq_ipi   = (io.dpath.status(13).toBool && io.dpath.irq_ipi);
-  val p_irq_vec   = (io.dpath.status(8) && vec_irq)
   val interrupt = 
     io.dpath.status(SR_ET).toBool && mem_reg_valid && 
     ((io.dpath.status(15).toBool && io.dpath.irq_timer) ||
      (io.dpath.status(13).toBool && io.dpath.irq_ipi) ||
-     p_irq_vec);
+     vec_irq);
      
   val interrupt_cause = 
     Mux(p_irq_ipi, UFix(21,5),
     Mux(p_irq_timer, UFix(23,5),
-    Mux(p_irq_vec, vec_irq_cause,
+    Mux(vec_irq, vec_irq_cause,
         UFix(0,5))))
 
   val mem_xcpt_ma_ld = io.dmem.xcpt_ma_ld && !mem_reg_kill
