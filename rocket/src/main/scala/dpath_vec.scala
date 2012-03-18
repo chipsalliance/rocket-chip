@@ -12,6 +12,7 @@ class ioDpathVecInterface extends Bundle
   val vximm1q_bits = Bits(SZ_VIMM, OUTPUT)
   val vximm2q_bits = Bits(SZ_VSTRIDE, OUTPUT)
   val vcntq_bits = Bits(SZ_VLEN, OUTPUT)
+  val vcntq_last = Bool(OUTPUT)
   val evac_addr = Bits(64, OUTPUT)
   val irq_aux = Bits(64, INPUT)
 }
@@ -159,6 +160,7 @@ class rocketDpathVec extends Component
         io.wdata) // VIMM2_ALU
 
   io.iface.vcntq_bits := io.wdata(SZ_VLEN-1, 0)
+  io.iface.vcntq_last := io.rs2(1)
 
   io.iface.evac_addr := io.wdata
 
