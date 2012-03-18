@@ -50,15 +50,15 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
 
     vu.io.vec_tlb_resp.xcpt_ld := chosen_vec && dtlb.io.cpu_resp.xcpt_ld
     vu.io.vec_tlb_resp.xcpt_st := chosen_vec && dtlb.io.cpu_resp.xcpt_st
+    vu.io.vec_tlb_resp.xcpt_pf := Bool(false)
     vu.io.vec_tlb_resp.miss := chosen_vec && dtlb.io.cpu_resp.miss
     vu.io.vec_tlb_resp.ppn := dtlb.io.cpu_resp.ppn
 
-    // vector prefetch doesn't care about exceptions
-    // and shouldn't cause any anyways
     dtlbarb.io.in(DTLB_VPF) <> vu.io.vec_pftlb_req
 
     vu.io.vec_pftlb_resp.xcpt_ld := Bool(false)
     vu.io.vec_pftlb_resp.xcpt_st := Bool(false)
+    vu.io.vec_pftlb_resp.xcpt_pf := chosen_pf && dtlb.io.cpu_resp.xcpt_pf
     vu.io.vec_pftlb_resp.miss := chosen_pf && dtlb.io.cpu_resp.miss
     vu.io.vec_pftlb_resp.ppn := dtlb.io.cpu_resp.ppn
 
