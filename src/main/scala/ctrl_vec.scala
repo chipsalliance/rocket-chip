@@ -231,11 +231,11 @@ class rocketCtrlVec extends Component
 
   val reg_hold = Reg(resetVal = Bool(false))
 
-  when (wb_vec_xcpthold) { reg_hold := Bool(true) }
+  when (valid_common && wb_vec_xcpthold) { reg_hold := Bool(true) }
   when (io.eret) { reg_hold := Bool(false) }
 
-  io.iface.evac := wb_vec_xcptevac.toBool
-  io.iface.kill := wb_vec_xcptkill.toBool
+  io.iface.evac := valid_common && wb_vec_xcptevac.toBool
+  io.iface.kill := valid_common && wb_vec_xcptkill.toBool
   io.iface.hold := reg_hold
 
   io.stalld := reg_xcptwait
