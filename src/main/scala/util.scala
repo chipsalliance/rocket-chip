@@ -163,6 +163,7 @@ class ioPipe[+T <: Data]()(data: => T) extends Bundle
 class ioArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
   val in  = Vec(n) { (new ioDecoupled()) { data } }.flip
   val out = (new ioDecoupled()) { data }
+  val chosen = Bits(log2up(n), OUTPUT)
 }
 
 class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
@@ -174,8 +175,11 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   }
 
   var dout = io.in(n-1).bits
-  for (i <- 1 to n-1)
+  var choose = Bits(n-1)
+  for (i <- 1 to n-1) {
     dout = Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout)
+    choose = Mux(io.in(n-1-i).valid, Bits(n-1-i), choose)
+  }
 
   var vout = io.in(0).valid
   for (i <- 1 to n-1)
@@ -183,6 +187,7 @@ class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
 
   vout <> io.out.valid
   dout <> io.out.bits
+  choose <> io.chosen
 }
 
 class RRArbiter[T <: Data](n: Int)(data: => T) extends Component {
