@@ -401,7 +401,7 @@ class MSHRFile extends Component {
 
   val (replay_read, replay_write) = cpuCmdToRW(replay.bits.cmd)
   val sdq_free = replay.valid && replay.ready && replay_write
-  sdq_val := sdq_val & ~(sdq_free.toUFix << replay.bits.sdq_id) | 
+  sdq_val := sdq_val & ~((UFix(1) << replay.bits.sdq_id) & Fill(sdq_free, NSDQ)) | 
              PriorityEncoderOH(~sdq_val(NSDQ-1,0)) & Fill(NSDQ, sdq_enq && io.req.bits.tag_miss)
   io.data_req.bits.data := sdq.read(Mux(replay.valid && !replay.ready, replay.bits.sdq_id, replay_arb.io.out.bits.sdq_id))
 

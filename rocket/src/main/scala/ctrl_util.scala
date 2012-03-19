@@ -20,13 +20,14 @@ class rocketCtrlSboard(entries: Int, nread: Int, nwrite: Int) extends Component
     val w = Vec(nwrite) { new write_port() }
   }
 
-  val busybits = Reg(resetVal = Bits(0, entries));
+  val busybits = Vec(entries) { Reg(resetVal = Bool(false)) }
 
   for (i <- 0 until nread)
     io.r(i).data := busybits(io.r(i).addr)
 
-  var wdata = busybits
-  for (i <- 0 until nwrite)
-    wdata = wdata.bitSet(io.w(i).addr, Mux(io.w(i).en, io.w(i).data, wdata(io.w(i).addr)))
-  busybits := wdata
+  for (i <- 0 until nwrite) {
+    when (io.w(i).en) {
+      busybits(io.w(i).addr) := io.w(i).data
+    }
+  }
 }
