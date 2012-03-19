@@ -458,7 +458,7 @@ class rocketCtrl extends Component
   val p_irq_timer = (io.dpath.status(15).toBool && io.dpath.irq_timer);
   val p_irq_ipi   = (io.dpath.status(13).toBool && io.dpath.irq_ipi);
   val id_interrupt =
-    io.dpath.status(SR_ET).toBool && mem_reg_valid &&
+    io.dpath.status(SR_ET).toBool &&
     ((io.dpath.status(15).toBool && io.dpath.irq_timer) ||
      (io.dpath.status(13).toBool && io.dpath.irq_ipi) ||
      vec_irq);
