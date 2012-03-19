@@ -358,6 +358,8 @@ class rocketCtrl extends Component
   val ex_reg_inst_di          = Reg(resetVal = Bool(false));
   val ex_reg_inst_ei          = Reg(resetVal = Bool(false));
   val ex_reg_flush_inst  = Reg(resetVal = Bool(false));
+  val ex_reg_xcpt_interrupt  = Reg(resetVal = Bool(false));
+  val ex_reg_cause           = Reg(){UFix()}
   val ex_reg_xcpt_ma_inst    = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_itlb       = Reg(resetVal = Bool(false));
   val ex_reg_xcpt_illegal    = Reg(resetVal = Bool(false));
@@ -376,6 +378,8 @@ class rocketCtrl extends Component
   val mem_reg_inst_di         = Reg(resetVal = Bool(false));
   val mem_reg_inst_ei         = Reg(resetVal = Bool(false));
   val mem_reg_flush_inst      = Reg(resetVal = Bool(false));
+  val mem_reg_xcpt_interrupt  = Reg(resetVal = Bool(false));
+  val mem_reg_cause           = Reg(){UFix()}
   val mem_reg_xcpt_ma_inst    = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_itlb       = Reg(resetVal = Bool(false));
   val mem_reg_xcpt_illegal    = Reg(resetVal = Bool(false));
@@ -402,7 +406,8 @@ class rocketCtrl extends Component
   val wb_reg_fp_val          = Reg(resetVal = Bool(false));
   val wb_reg_fp_sboard_set   = Reg(resetVal = Bool(false));
 
-  val take_pc = Wire() { Bool() };
+  val take_pc = Wire(){Bool()}
+  val take_pc_wb = Wire(){Bool()}
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {
@@ -421,12 +426,47 @@ class rocketCtrl extends Component
     }
     id_reg_icmiss := !io.imem.resp_val;
   }
+
+  var vec_replay = Bool(false)
+  var vec_stalld = Bool(false)
+  var vec_irq = Bool(false)
+  var vec_irq_cause = UFix(23,5) // don't care
+  if (HAVE_VEC)
+  {
+    // vector control
+    val vec = new rocketCtrlVec()
+
+    io.vec_dpath <> vec.io.dpath
+    io.vec_iface <> vec.io.iface
+
+    vec.io.s := io.dpath.status(SR_S)
+    vec.io.sr_ev := io.dpath.status(SR_EV)
+    vec.io.exception := wb_reg_exception
+    vec.io.eret := wb_reg_eret
+
+    vec_replay = vec.io.replay
+    vec_stalld = vec.io.stalld // || id_vfence_cv && !vec.io.vfence_ready
+    vec_irq = vec.io.irq
+    vec_irq_cause = vec.io.irq_cause
+  }
   
   // executing ERET when traps are enabled causes an illegal instruction exception (as per ISA sim)
    val illegal_inst =
     !(id_int_val.toBool || io.fpu.dec.valid || id_vec_val.toBool) ||
     (id_eret.toBool && io.dpath.status(SR_ET).toBool);
-  
+
+  val p_irq_timer = (io.dpath.status(15).toBool && io.dpath.irq_timer);
+  val p_irq_ipi   = (io.dpath.status(13).toBool && io.dpath.irq_ipi);
+  val id_interrupt =
+    io.dpath.status(SR_ET).toBool && mem_reg_valid &&
+    ((io.dpath.status(15).toBool && io.dpath.irq_timer) ||
+     (io.dpath.status(13).toBool && io.dpath.irq_ipi) ||
+     vec_irq);
+  val id_cause =
+    Mux(p_irq_ipi, UFix(21,5),
+    Mux(p_irq_timer, UFix(23,5),
+    vec_irq_cause))
+
   when (reset.toBool || io.dpath.killd) {
     ex_reg_br_type     := BR_N;
     ex_reg_btb_hit     := Bool(false);
@@ -479,6 +519,8 @@ class rocketCtrl extends Component
   }
   ex_reg_mem_cmd := id_mem_cmd
   ex_reg_mem_type := id_mem_type.toUFix
+  ex_reg_xcpt_interrupt := id_reg_valid && id_interrupt && !take_pc
+  ex_reg_cause := id_cause
 
   val beq  =  io.dpath.br_eq;
   val bne  = ~io.dpath.br_eq;
@@ -547,6 +589,8 @@ class rocketCtrl extends Component
   }
   mem_reg_mem_cmd     := ex_reg_mem_cmd;
   mem_reg_mem_type    := ex_reg_mem_type;
+  mem_reg_xcpt_interrupt := ex_reg_xcpt_interrupt && !take_pc_wb
+  mem_reg_cause := ex_reg_cause
 
   when (io.dpath.killm) {
     wb_reg_valid       := Bool(false)
@@ -619,82 +663,44 @@ class rocketCtrl extends Component
                    io.fpu.dec.wen  && fp_sboard.io.r(3).data
   } 
 
-  var vec_replay = Bool(false)
-  var vec_stalld = Bool(false)
-  var vec_irq = Bool(false)
-  var vec_irq_cause = UFix(0,5)
-  if (HAVE_VEC)
-  {
-    // vector control
-    val vec = new rocketCtrlVec()
-
-    io.vec_dpath <> vec.io.dpath
-    io.vec_iface <> vec.io.iface
-
-    vec.io.s := io.dpath.status(SR_S)
-    vec.io.sr_ev := io.dpath.status(SR_EV)
-    vec.io.exception := wb_reg_exception
-    vec.io.eret := wb_reg_eret
-
-    vec_replay = vec.io.replay
-    vec_stalld = vec.io.stalld // || id_vfence_cv && !vec.io.vfence_ready
-    vec_irq = vec.io.irq
-    vec_irq_cause = vec.io.irq_cause
-  }
-
   // exception handling
-  // FIXME: verify PC in MEM stage points to valid, restartable instruction
-  val p_irq_timer = (io.dpath.status(15).toBool && io.dpath.irq_timer);
-  val p_irq_ipi   = (io.dpath.status(13).toBool && io.dpath.irq_ipi);
-  val interrupt = 
-    io.dpath.status(SR_ET).toBool && mem_reg_valid && 
-    ((io.dpath.status(15).toBool && io.dpath.irq_timer) ||
-     (io.dpath.status(13).toBool && io.dpath.irq_ipi) ||
-     vec_irq);
-     
-  val interrupt_cause = 
-    Mux(p_irq_ipi, UFix(21,5),
-    Mux(p_irq_timer, UFix(23,5),
-    Mux(vec_irq, vec_irq_cause,
-        UFix(0,5))))
-
   val mem_xcpt_ma_ld = io.dmem.xcpt_ma_ld && !mem_reg_kill
   val mem_xcpt_ma_st = io.dmem.xcpt_ma_st && !mem_reg_kill
   val mem_xcpt_dtlb_ld = io.xcpt_dtlb_ld && !mem_reg_kill
   val mem_xcpt_dtlb_st = io.xcpt_dtlb_st && !mem_reg_kill
   
-	val mem_exception = 
-	  interrupt ||
-	  mem_xcpt_ma_ld ||
-	  mem_xcpt_ma_st ||
-	  mem_xcpt_dtlb_ld ||
-	  mem_xcpt_dtlb_st ||
-	  mem_reg_xcpt_illegal || 
-	  mem_reg_xcpt_privileged || 
-	  mem_reg_xcpt_fpu || 
-	  mem_reg_xcpt_vec || 
-	  mem_reg_xcpt_syscall || 
-	  mem_reg_xcpt_itlb ||
-	  mem_reg_xcpt_ma_inst;
-	
-	val mem_cause = 
-		Mux(interrupt,                interrupt_cause, // asynchronous interrupt
-	  Mux(mem_reg_xcpt_itlb,        UFix(1,5), // instruction access fault
-		Mux(mem_reg_xcpt_illegal,     UFix(2,5), // illegal instruction
-		Mux(mem_reg_xcpt_privileged,  UFix(3,5), // privileged instruction
-		Mux(mem_reg_xcpt_fpu,         UFix(4,5), // FPU disabled
-		Mux(mem_reg_xcpt_syscall,     UFix(6,5), // system call
-		// breakpoint
-		Mux(mem_xcpt_ma_ld,           UFix(8,5), // misaligned load
-		Mux(mem_xcpt_ma_st,           UFix(9,5), // misaligned store
-		Mux(mem_xcpt_dtlb_ld,         UFix(10,5), // load fault
-		Mux(mem_xcpt_dtlb_st,         UFix(11,5), // store fault
-		Mux(mem_reg_xcpt_vec,         UFix(12,5), // vector disabled
-			UFix(0,5))))))))))));  // instruction address misaligned
+  val mem_exception =
+    mem_reg_xcpt_interrupt ||
+    mem_xcpt_ma_ld ||
+    mem_xcpt_ma_st ||
+    mem_xcpt_dtlb_ld ||
+    mem_xcpt_dtlb_st ||
+    mem_reg_xcpt_illegal ||
+    mem_reg_xcpt_privileged ||
+    mem_reg_xcpt_fpu ||
+    mem_reg_xcpt_vec ||
+    mem_reg_xcpt_syscall ||
+    mem_reg_xcpt_itlb ||
+    mem_reg_xcpt_ma_inst;
+
+  val mem_cause = 
+    Mux(mem_reg_xcpt_interrupt,   mem_reg_cause, // asynchronous interrupt
+    Mux(mem_reg_xcpt_itlb,        UFix(1,5), // instruction access fault
+    Mux(mem_reg_xcpt_illegal,     UFix(2,5), // illegal instruction
+    Mux(mem_reg_xcpt_privileged,  UFix(3,5), // privileged instruction
+    Mux(mem_reg_xcpt_fpu,         UFix(4,5), // FPU disabled
+    Mux(mem_reg_xcpt_syscall,     UFix(6,5), // system call
+    // breakpoint
+    Mux(mem_xcpt_ma_ld,           UFix(8,5), // misaligned load
+    Mux(mem_xcpt_ma_st,           UFix(9,5), // misaligned store
+    Mux(mem_xcpt_dtlb_ld,         UFix(10,5), // load fault
+    Mux(mem_xcpt_dtlb_st,         UFix(11,5), // store fault
+    Mux(mem_reg_xcpt_vec,         UFix(12,5), // vector disabled
+      UFix(0,5))))))))))));  // instruction address misaligned
 
   // control transfer from ex/mem
   val take_pc_ex = ex_reg_btb_hit != br_taken || jr_taken
-  val take_pc_wb = wb_reg_replay || vec_replay || wb_reg_exception || wb_reg_eret
+  take_pc_wb := wb_reg_replay || vec_replay || wb_reg_exception || wb_reg_eret
   take_pc := take_pc_ex || take_pc_wb;
 
   // replay mem stage PC on a DTLB miss or a long-latency writeback
@@ -703,7 +709,7 @@ class rocketCtrl extends Component
   val replay_mem  = dmem_kill_mem || mem_reg_wen && mem_ll_wb || mem_reg_replay
   val kill_mem    = dmem_kill_mem || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill
   val kill_dcache = io.dtlb_miss  || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill
-	
+
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
   // for privileged instructions, and for fence.i instructions
   val replay_ex    = wb_reg_dcache_miss && ex_reg_load_use || mem_reg_flush_inst || 
