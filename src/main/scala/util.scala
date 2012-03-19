@@ -166,55 +166,54 @@ class ioArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
   val chosen = Bits(log2up(n), OUTPUT)
 }
 
+object ArbiterCtrl
+{
+  def apply(request: Seq[Bool]) = {
+    Bool(true) +: (1 until request.length).map(i => !foldR(request.slice(0, i))(_||_))
+  }
+}
+
 class Arbiter[T <: Data](n: Int)(data: => T) extends Component {
   val io = new ioArbiter(n)(data)
 
-  io.in(0).ready := io.out.ready
-  for (i <- 1 to n-1) {
-    io.in(i).ready := !io.in(i-1).valid && io.in(i-1).ready
-  }
+  val grant = ArbiterCtrl(io.in.map(_.valid))
+  (0 until n).map(i => io.in(i).ready := grant(i) && io.out.ready)
 
   var dout = io.in(n-1).bits
   var choose = Bits(n-1)
-  for (i <- 1 to n-1) {
-    dout = Mux(io.in(n-1-i).valid, io.in(n-1-i).bits, dout)
-    choose = Mux(io.in(n-1-i).valid, Bits(n-1-i), choose)
+  for (i <- n-2 to 0 by -1) {
+    dout = Mux(io.in(i).valid, io.in(i).bits, dout)
+    choose = Mux(io.in(i).valid, Bits(i), choose)
   }
 
-  var vout = io.in(0).valid
-  for (i <- 1 to n-1)
-    vout = vout || io.in(i).valid
-
-  vout <> io.out.valid
-  dout <> io.out.bits
-  choose <> io.chosen
+  io.out.valid := foldR(io.in.map(_.valid))(_||_)
+  io.out.bits <> dout
+  io.chosen := choose
 }
 
 class RRArbiter[T <: Data](n: Int)(data: => T) extends Component {
   val io = new ioArbiter(n)(data)
 
-  val last_grant = Reg(resetVal = UFix(0, log2up(n)))
-  var valid = io.in(n-1).valid
-  var next_grant = UFix(n-1)
-  var mux = (new Mux1H(n)) { data }
+  val last_grant = Reg(resetVal = Bits(0, log2up(n)))
+  val g = ArbiterCtrl((0 until n).map(i => io.in(i).valid && UFix(i) > last_grant) ++ io.in.map(_.valid))
+  val grant = (0 until n).map(i => g(i) && UFix(i) > last_grant || g(i+n))
+  (0 until n).map(i => io.in(i).ready := grant(i) && io.out.ready)
 
-  for (i <- n-2 to 0 by -1) {
-    valid = valid || io.in(i).valid
-    next_grant = Mux(io.in(i).valid, UFix(i), next_grant)
-  }
+  var choose = Bits(n-1)
+  for (i <- n-2 to 0 by -1)
+    choose = Mux(io.in(i).valid, Bits(i), choose)
   for (i <- n-1 to 1 by -1)
-    next_grant = Mux(last_grant < UFix(i) && io.in(i).valid, UFix(i), next_grant)
-  for (i <- 0 until n) {
-    mux.io.sel(i) := next_grant === UFix(i)
-    mux.io.in(i) := io.in(i).bits
-    io.in(i).ready := io.out.ready && next_grant === UFix(i)
-  }
-  when (valid && io.out.ready) {
-    last_grant := next_grant
+    choose = Mux(io.in(i).valid && UFix(i) > last_grant, Bits(i), choose)
+  when (io.out.valid && io.out.ready) {
+    last_grant := choose
   }
 
-  io.out.valid := valid
-  io.out.bits := mux.io.out
+  val dvec = Vec(n) { Wire() { data } }
+  (0 until n).map(i => dvec(i) := io.in(i).bits )
+
+  io.out.valid := foldR(io.in.map(_.valid))(_||_)
+  io.out.bits := dvec(choose)
+  io.chosen := choose
 }
 
 class ioLockingArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
