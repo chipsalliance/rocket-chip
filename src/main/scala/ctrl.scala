@@ -333,7 +333,7 @@ class rocketCtrl extends Component
   val id_waddr  = Mux(id_sel_wa === WA_RA, RA, io.dpath.inst(31,27));
 
   val wb_reg_div_mul_val = Reg(resetVal = Bool(false))
-  val wb_reg_dcache_miss = Reg(io.dmem.resp_miss, resetVal = Bool(false));
+  val wb_reg_dcache_miss = Reg(io.dmem.resp_miss || io.dmem.resp_nack, resetVal = Bool(false));
 
   val id_reg_valid        = Reg(resetVal = Bool(false));
   val id_reg_btb_hit      = Reg(resetVal = Bool(false));
@@ -529,15 +529,15 @@ class rocketCtrl extends Component
   val bge  = ~io.dpath.br_lt;
   val bgeu = ~io.dpath.br_ltu;
 
-  val br_taken =
-    (ex_reg_br_type === BR_EQ) & beq |
-    (ex_reg_br_type === BR_NE) & bne |
-    (ex_reg_br_type === BR_LT) & blt |
-    (ex_reg_br_type === BR_LTU) & bltu |
-    (ex_reg_br_type === BR_GE) & bge |
-    (ex_reg_br_type === BR_GEU) & bgeu |
-    (ex_reg_br_type === BR_J); // treat J/JAL like taken branches
-  val jr_taken = ex_reg_br_type === BR_JR
+  val br_taken = !(wb_reg_dcache_miss && ex_reg_load_use) &&
+    ((ex_reg_br_type === BR_EQ) && beq ||
+     (ex_reg_br_type === BR_NE) && bne ||
+     (ex_reg_br_type === BR_LT) && blt ||
+     (ex_reg_br_type === BR_LTU) && bltu ||
+     (ex_reg_br_type === BR_GE) && bge ||
+     (ex_reg_br_type === BR_GEU) && bgeu ||
+     (ex_reg_br_type === BR_J)) // treat J/JAL like taken branches
+  val jr_taken = !(wb_reg_dcache_miss && ex_reg_load_use) && ex_reg_br_type === BR_JR
   
   val mem_reg_div_mul_val = Reg(){Bool()};
   val mem_reg_eret        = Reg(){Bool()};
