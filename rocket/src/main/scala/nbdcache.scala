@@ -911,7 +911,7 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   val p_store_idx_match = p_store_valid && (r_cpu_req_idx(indexmsb,indexlsb) === p_store_idx(indexmsb,indexlsb))
   val p_store_offset_match = (r_cpu_req_idx(indexlsb-1,offsetlsb) === p_store_idx(indexlsb-1,offsetlsb))
   val p_store_match = r_cpu_req_val_ && r_req_read && p_store_idx_match && p_store_offset_match
-  val drain_store_val = (p_store_valid && (!io.cpu.req_val || !req_read || wb.io.data_req.valid || mshr.io.data_req.valid)) || p_store_match
+  val drain_store_val = (p_store_valid && (!io.cpu.req_val || req_write || wb.io.data_req.valid || mshr.io.data_req.valid)) || p_store_match
   data_arb.io.in(2).bits.offset := p_store_idx(offsetmsb,ramindexlsb)
   data_arb.io.in(2).bits.idx := p_store_idx(indexmsb,indexlsb)
   data_arb.io.in(2).bits.rw := Bool(true)
