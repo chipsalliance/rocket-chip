@@ -648,9 +648,9 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
       is(s_abort_drain) { // raises x_init_data.ready below
         when(x_init_data.valid) {
           abort_cnt := abort_cnt + UFix(1)
-        }
-        when(abort_cnt === ~UFix(0, width = log2up(REFILL_CYCLES))) {
-          abort_state_arr(j) := s_abort_send
+          when(abort_cnt === ~UFix(0, width = log2up(REFILL_CYCLES))) {
+            abort_state_arr(j) := s_abort_send
+          }
         }
       }
       is(s_abort_send) { // nothing is dequeued for now
