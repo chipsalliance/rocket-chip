@@ -387,7 +387,7 @@ class rocketDpath extends Component
     vec.io.ctrl <> io.vec_ctrl
     io.vec_iface <> vec.io.iface 
 
-    vec.io.valid := io.ctrl.wb_valid
+    vec.io.valid := io.ctrl.wb_valid && pcr.io.status(SR_EV)
     vec.io.inst := wb_reg_inst
     vec.io.waddr := wb_reg_vec_waddr
     vec.io.raddr1 := wb_reg_raddr1

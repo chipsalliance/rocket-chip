@@ -97,7 +97,7 @@ object rocketCtrlDecode
   val xpr64 = Y;
 
   val decode_default =
-                //                                                                                                                                        vfence_cv
+                //                                                                                                                                        vfence
                 //                                                                                                                                        | eret
                 //                                                                                                                                        | | syscall
                 //         vec_val                                      mem_val             mul_val   div_val                    renpcr                   | | | privileged
@@ -106,7 +106,7 @@ object rocketCtrlDecode
                 List(N,    N,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N,N)
 
   val xdecode = Array(
-                //                                                                                                                                        vfence_cv
+                //                                                                                                                                        vfence
                 //                                                                                                                                        | eret
                 //                                                                                                                                        | | syscall
                 //         vec_val                                      mem_val             mul_val   div_val                    renpcr                   | | | privileged
@@ -215,7 +215,7 @@ object rocketCtrlDecode
     RDINSTRET-> List(Y,    N,BR_N,  REN_N,REN_N,A2_X,    DW_XPR,FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_Y,WA_RD,WB_IRT,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N,N))
  
   val fdecode = Array(
-                //                                                                                                                                        vfence_cv
+                //                                                                                                                                        vfence
                 //                                                                                                                                        | eret
                 //                                                                                                                                        | | syscall
                 //         vec_val                                      mem_val             mul_val   div_val                    renpcr                   | | | privileged
@@ -255,7 +255,7 @@ object rocketCtrlDecode
     FSD->       List(FPU_Y,N,BR_N,  REN_N,REN_Y,A2_BTYPE,DW_XPR,FN_ADD, M_Y,M_XWR,    MT_D, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_ALU,REN_N,WEN_N,I_X ,SYNC_N,N,N,N,N,N))
 
   val vdecode = Array(
-                //                                                                                                                                        vfence_cv
+                //                                                                                                                                        vfence
                 //                                                                                                                                        | eret
                 //                                                                                                                                        | | syscall
                 //         vec_val                                      mem_val             mul_val   div_val                    renpcr                   | | | privileged
@@ -307,7 +307,6 @@ object rocketCtrlDecode
     VENQCNT->   List(VEC_Y,Y,BR_N,  REN_Y,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y,N),
     VXCPTEVAC-> List(VEC_Y,Y,BR_N,  REN_N,REN_Y,A2_ZERO, DW_XPR,FN_ADD, M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_RD,WB_ALU,REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y,N),
     VXCPTKILL-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y,N),
-    VXCPTWAIT-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y,Y),
     VXCPTHOLD-> List(VEC_Y,Y,BR_N,  REN_N,REN_N,A2_X,    DW_X,  FN_X,   M_N,M_X,      MT_X, N,MUL_X,  N,DIV_X, WEN_N,WA_X, WB_X,  REN_N,WEN_N,I_X, SYNC_N,N,N,N,Y,N))
 }
 
@@ -323,7 +322,7 @@ class rocketCtrl extends Component
 
   val id_int_val :: id_vec_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_fn_dw :: id_fn_alu :: cs0 = cs 
   val id_mem_val :: id_mem_cmd :: id_mem_type :: id_mul_val :: id_mul_fn :: id_div_val :: id_div_fn :: id_wen :: id_sel_wa :: id_sel_wb :: cs1 = cs0
-  val id_ren_pcr :: id_wen_pcr :: id_irq :: id_sync :: id_vfence_cv :: id_eret :: id_syscall :: id_privileged :: id_replay_next :: Nil = cs1
+  val id_ren_pcr :: id_wen_pcr :: id_irq :: id_sync :: id_vfence :: id_eret :: id_syscall :: id_privileged :: id_replay_next :: Nil = cs1
 
   val if_reg_xcpt_ma_inst = Reg(io.dpath.xcpt_ma_inst, resetVal = Bool(false));
 
@@ -445,8 +444,26 @@ class rocketCtrl extends Component
     vec.io.exception := wb_reg_exception
     vec.io.eret := wb_reg_eret
 
+    val vec_dec = new rocketCtrlVecDecoder()
+    vec_dec.io.inst := io.dpath.inst
+
+    val s = io.dpath.status(SR_S)
+    val mask_cmdq_ready = !vec_dec.io.sigs.enq_cmdq || s && io.vec_iface.vcmdq_ready || !s && io.vec_iface.vcmdq_user_ready
+    val mask_ximm1q_ready = !vec_dec.io.sigs.enq_ximm1q || s && io.vec_iface.vximm1q_ready || !s && io.vec_iface.vximm1q_user_ready
+    val mask_ximm2q_ready = !vec_dec.io.sigs.enq_ximm2q || s && io.vec_iface.vximm2q_ready || !s && io.vec_iface.vximm2q_user_ready
+    val mask_cntq_ready = !vec_dec.io.sigs.enq_cntq || io.vec_iface.vcntq_ready
+    val mask_pfcmdq_ready = !vec_dec.io.sigs.enq_pfcmdq || io.vec_iface.vpfcmdq_ready
+    val mask_pfximm1q_ready = !vec_dec.io.sigs.enq_pfximm1q || io.vec_iface.vpfximm1q_ready
+    val mask_pfximm2q_ready = !vec_dec.io.sigs.enq_pfximm2q || io.vec_iface.vpfximm2q_ready
+    val mask_pfcntq_ready = !vec_dec.io.sigs.enq_pfcntq || io.vec_iface.vpfcntq_ready
+
+    vec_stalld =
+      vec_dec.io.sigs.valid && (
+        !mask_cmdq_ready || !mask_ximm1q_ready || !mask_ximm2q_ready || !mask_cntq_ready ||
+        !mask_pfcmdq_ready || !mask_pfximm1q_ready || !mask_pfximm2q_ready || !mask_pfcntq_ready) ||
+      id_vec_val && id_vfence && !vec.io.vfence_ready
+
     vec_replay = vec.io.replay
-    vec_stalld = vec.io.stalld || id_vfence_cv && !vec.io.vfence_ready
     vec_irq = vec.io.irq
     vec_irq_cause = vec.io.irq_cause
   }
@@ -802,7 +819,6 @@ class rocketCtrl extends Component
       id_stall_raddr1 || id_stall_raddr2 || id_stall_waddr ||
       id_stall_fpu ||
       id_mem_val.toBool && !(io.dmem.req_rdy && io.dtlb_rdy) ||
-      id_vec_val.toBool && !(io.vec_iface.vcmdq_ready && io.vec_iface.vximm1q_ready && io.vec_iface.vximm2q_ready) || // being conservative
       ((id_sync === SYNC_D) || (id_sync === SYNC_I)) && !io.dmem.req_rdy ||
       vec_stalld
     );
