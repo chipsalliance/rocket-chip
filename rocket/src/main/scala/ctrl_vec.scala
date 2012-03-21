@@ -7,7 +7,6 @@ import Instructions._
 
 class ioCtrlDpathVec extends Bundle
 {
-  val valid = Bool(INPUT)
   val inst = Bits(32, INPUT)
   val appvl0 = Bool(INPUT)
   val pfq = Bool(INPUT)
@@ -59,6 +58,7 @@ class ioCtrlVec extends Bundle
 {
   val dpath = new ioCtrlDpathVec()
   val iface = new ioCtrlVecInterface()
+  val valid = Bool(INPUT)
   val s = Bool(INPUT)
   val sr_ev = Bool(INPUT)
   val exception = Bool(INPUT)
@@ -144,7 +144,7 @@ class rocketCtrlVec extends Component
   val wb_vec_pfcmdq_enq :: wb_vec_pfximm1q_enq :: wb_vec_pfximm2q_enq :: wb_vec_pfcntq_enq :: veccs2 = veccs1
   val wb_vec_pfaq :: wb_vec_fence_cv :: wb_vec_xcptevac :: wb_vec_xcptkill :: wb_vec_xcptwait :: wb_vec_xcpthold :: Nil = veccs2
 
-  val valid_common = io.dpath.valid && io.sr_ev && wb_vec_val && !(wb_vec_appvlmask && io.dpath.appvl0)
+  val valid_common = io.valid && io.sr_ev && wb_vec_val && !(wb_vec_appvlmask && io.dpath.appvl0)
 
   val wb_vec_pfcmdq_enq_mask_pfq = wb_vec_pfcmdq_enq && (!wb_vec_pfaq || io.dpath.pfq)
   val wb_vec_pfximm1q_enq_mask_pfq = wb_vec_pfximm1q_enq && (!wb_vec_pfaq || io.dpath.pfq)

@@ -164,7 +164,6 @@ class rocketDpathVec extends Component
 
   io.iface.evac_addr := io.wdata
 
-  io.ctrl.valid := io.valid
   io.ctrl.inst := io.inst
   io.ctrl.appvl0 := reg_appvl0
   io.ctrl.pfq := io.rs2(0)
