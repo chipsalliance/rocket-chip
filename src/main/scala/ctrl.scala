@@ -446,7 +446,7 @@ class rocketCtrl extends Component
     vec.io.eret := wb_reg_eret
 
     vec_replay = vec.io.replay
-    vec_stalld = vec.io.stalld // || id_vfence_cv && !vec.io.vfence_ready
+    vec_stalld = vec.io.stalld || id_vfence_cv && !vec.io.vfence_ready
     vec_irq = vec.io.irq
     vec_irq_cause = vec.io.irq_cause
   }
