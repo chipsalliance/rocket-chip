@@ -439,6 +439,7 @@ class rocketCtrl extends Component
     io.vec_dpath <> vec.io.dpath
     io.vec_iface <> vec.io.iface
 
+    vec.io.valid := wb_reg_valid
     vec.io.s := io.dpath.status(SR_S)
     vec.io.sr_ev := io.dpath.status(SR_EV)
     vec.io.exception := wb_reg_exception
@@ -833,7 +834,7 @@ class rocketCtrl extends Component
   io.dpath.ex_wen   := ex_reg_wen;
   io.dpath.mem_wen  := mem_reg_wen;
   io.dpath.wb_wen   := wb_reg_wen;
-  io.dpath.wb_valid := wb_reg_valid;
+  io.dpath.wb_valid := wb_reg_valid && !vec_replay
   io.dpath.sel_wa   := id_sel_wa.toBool;
   io.dpath.sel_wb   := id_sel_wb;
   io.dpath.ren_pcr  := id_ren_pcr.toBool;
