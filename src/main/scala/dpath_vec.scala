@@ -116,7 +116,7 @@ class rocketDpathVec extends Component
 
   val reg_nxregs = Reg(resetVal = UFix(32, 6))
   val reg_nfregs = Reg(resetVal = UFix(32, 6))
-  val reg_appvl = Reg(resetVal = UFix(32, 12))
+  val reg_appvl = Reg(resetVal = UFix(0, 12))
 
   when (io.valid)
   {
