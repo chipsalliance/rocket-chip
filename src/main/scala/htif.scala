@@ -10,15 +10,18 @@ class ioHost(w: Int, view: List[String] = null) extends Bundle(view)
   val out = new ioDecoupled()(Bits(width = w))
 }
 
+class PCRReq extends Bundle
+{
+  val rw = Bool()
+  val addr = Bits(width = 5)
+  val data = Bits(width = 64)
+}
+
 class ioHTIF extends Bundle
 {
   val reset = Bool(INPUT)
-  val pcr_wen = Bool(INPUT)
-  val pcr_ren = Bool(INPUT)
-  val pcr_rdy = Bool(OUTPUT)
-  val pcr_addr = Bits(5, INPUT)
-  val pcr_wdata = Bits(64, INPUT)
-  val pcr_rdata = Bits(64, OUTPUT)
+  val pcr_req = (new ioDecoupled) { new PCRReq }.flip
+  val pcr_rep = (new ioPipe) { Bits(width = 64) }
 }
 
 class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
@@ -170,27 +173,30 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
   pcr_done := Bool(false)
   val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }
   for (i <- 0 until ncores) {
-    val me = pcr_coreid === UFix(i)
-    io.cpu(i).pcr_wen := Reg(state === state_pcr && cmd === cmd_writecr && me, resetVal = Bool(false))
-    io.cpu(i).pcr_addr := Reg(pcr_addr)
-    io.cpu(i).pcr_wdata := Reg(pcr_wdata)
-
     val my_reset = Reg(resetVal = Bool(true))
-    when (io.cpu(i).pcr_wen && io.cpu(i).pcr_rdy) {
-      when (io.cpu(i).pcr_addr === PCR_RESET) { my_reset := io.cpu(i).pcr_wdata(0) }
-      pcr_done := Bool(true)
-    }
-    io.cpu(i).reset := my_reset
-
-    io.cpu(i).pcr_ren := Reg(state === state_pcr && cmd === cmd_readcr && me, resetVal = Bool(false))
     val rdata = Reg() { Bits() }
-    when (io.cpu(i).pcr_ren && io.cpu(i).pcr_rdy) {
-      rdata := io.cpu(i).pcr_rdata
-      when (io.cpu(i).pcr_addr === PCR_RESET) { rdata := my_reset }
+
+    val cpu = io.cpu(i)
+    val me = pcr_coreid === UFix(i)
+    cpu.pcr_req.valid := state === state_pcr && me
+    cpu.pcr_req.bits.rw := cmd === cmd_writecr
+    cpu.pcr_req.bits.addr := pcr_addr
+    cpu.pcr_req.bits.data := pcr_wdata
+    cpu.reset := my_reset
+
+    when (cpu.pcr_req.valid && cpu.pcr_req.ready && cpu.pcr_req.bits.rw) {
       pcr_done := Bool(true)
+      when (cpu.pcr_req.bits.addr === PCR_RESET) {
+        my_reset := cpu.pcr_req.bits.data(0)
+      }
     }
-    pcr_mux.io.sel(i) := Reg(me)
-    pcr_mux.io.in(i) := rdata
+    when (cpu.pcr_rep.valid) {
+      pcr_done := Bool(true)
+      rdata := cpu.pcr_rep.bits
+    }
+
+    pcr_mux.io.sel(i) := me
+    pcr_mux.io.in(i) := Mux(pcr_addr === PCR_RESET, my_reset, rdata)
   }
 
   val tx_cmd = Mux(nack, cmd_nack, cmd_ack)
