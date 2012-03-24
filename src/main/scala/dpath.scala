@@ -17,7 +17,6 @@ class ioDpathAll extends Bundle()
 {
   val host  = new ioHTIF();
   val ctrl  = new ioCtrlDpath().flip
-  val debug = new ioDebug();
   val dmem  = new ioDmem(List("req_idx", "req_tag", "req_data", "resp_val", "resp_miss", "resp_replay", "resp_type", "resp_tag", "resp_data", "resp_data_subword")).flip
   val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
   val imem  = new ioDpathImem();
@@ -291,7 +290,6 @@ class rocketDpath extends Component
   io.ctrl.status       := pcr.io.status;
   io.ptbr              := pcr.io.ptbr;
   io.ptbr_wen          := pcr.io.ptbr_wen;
- 	io.debug.error_mode  := pcr.io.debug.error_mode;
   
 	// branch resolution logic
   io.ctrl.br_eq   := (ex_rs1 === ex_rs2)
