@@ -120,14 +120,14 @@ class rocketDpathPCR extends Component
   
   val rdata = Wire() { Bits() };
 
-  val ren = io.r.en || io.host.pcr_ren
-  val raddr = Mux(io.r.en, io.r.addr, io.host.pcr_addr)
-  io.host.pcr_rdata := rdata
+  val raddr = Mux(io.r.en, io.r.addr, io.host.pcr_req.bits.addr)
+  io.host.pcr_rep.valid := io.host.pcr_req.valid && !io.r.en && !io.host.pcr_req.bits.rw
+  io.host.pcr_rep.bits := rdata
 
-  val wen = io.w.en || io.host.pcr_wen
-  val waddr = Mux(io.w.en, io.w.addr, io.host.pcr_addr)
-  val wdata = Mux(io.w.en, io.w.data, io.host.pcr_wdata)
-  io.host.pcr_rdy := Mux(io.host.pcr_wen, !io.w.en, !io.r.en)
+  val wen = io.w.en || io.host.pcr_req.valid && io.host.pcr_req.bits.rw
+  val waddr = Mux(io.w.en, io.w.addr, io.host.pcr_req.bits.addr)
+  val wdata = Mux(io.w.en, io.w.data, io.host.pcr_req.bits.data)
+  io.host.pcr_req.ready := Mux(io.host.pcr_req.bits.rw, !io.w.en, !io.r.en)
 
   io.ptbr_wen           := reg_status_vm.toBool && wen && (waddr === PCR_PTBR);
   io.status             := Cat(reg_status_im, Bits(0,7), reg_status_vm, reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, reg_status_ec, reg_status_ev, reg_status_ef, reg_status_et);
@@ -203,26 +203,23 @@ class rocketDpathPCR extends Component
     when (waddr === PCR_VECBANK)  { reg_vecbank:= wdata(7,0) }
   }
 
-  rdata := Bits(0, 64)
-  when (ren) {
-    switch (raddr) {
-      is (PCR_STATUS)   { rdata := io.status }
-      is (PCR_EPC)      { rdata := Cat(Fill(64-VADDR_BITS-1, reg_epc(VADDR_BITS)), reg_epc); }
-      is (PCR_BADVADDR) { rdata := Cat(Fill(64-VADDR_BITS-1, reg_badvaddr(VADDR_BITS)), reg_badvaddr); }
-      is (PCR_EVEC)     { rdata := Cat(Fill(64-VADDR_BITS, reg_ebase(VADDR_BITS-1)), reg_ebase); }
-      is (PCR_COUNT)    { rdata := Cat(Fill(32, reg_count(31)), reg_count); }
-      is (PCR_COMPARE)  { rdata := Cat(Fill(32, reg_compare(31)), reg_compare); }
-      is (PCR_CAUSE)    { rdata := Cat(reg_cause(5), Bits(0,58), reg_cause(4,0)); }
-      is (PCR_COREID)   { rdata := Bits(COREID,64); }
-      is (PCR_IMPL)     { rdata := Bits(2) }
-      is (PCR_FROMHOST) { rdata := reg_fromhost; }
-      is (PCR_TOHOST)   { rdata := reg_tohost; }
-      is (PCR_K0)       { rdata := reg_k0; }
-      is (PCR_K1)       { rdata := reg_k1; }
-      is (PCR_PTBR)     { rdata := Cat(Bits(0,64-PADDR_BITS), reg_ptbr); }
-      is (PCR_VECBANK)  { rdata := Cat(Bits(0, 56), reg_vecbank) }
-      is (PCR_VECCFG)   { rdata := Cat(Bits(0, 40), io.vec_nfregs, io.vec_nxregs, io.vec_appvl) }
-    }
+  rdata := io.status // raddr === PCR_STATUS
+  switch (raddr) {
+    is (PCR_EPC)      { rdata := Cat(Fill(64-VADDR_BITS-1, reg_epc(VADDR_BITS)), reg_epc); }
+    is (PCR_BADVADDR) { rdata := Cat(Fill(64-VADDR_BITS-1, reg_badvaddr(VADDR_BITS)), reg_badvaddr); }
+    is (PCR_EVEC)     { rdata := Cat(Fill(64-VADDR_BITS, reg_ebase(VADDR_BITS-1)), reg_ebase); }
+    is (PCR_COUNT)    { rdata := Cat(Fill(32, reg_count(31)), reg_count); }
+    is (PCR_COMPARE)  { rdata := Cat(Fill(32, reg_compare(31)), reg_compare); }
+    is (PCR_CAUSE)    { rdata := Cat(reg_cause(5), Bits(0,58), reg_cause(4,0)); }
+    is (PCR_COREID)   { rdata := Bits(COREID,64); }
+    is (PCR_IMPL)     { rdata := Bits(2) }
+    is (PCR_FROMHOST) { rdata := reg_fromhost; }
+    is (PCR_TOHOST)   { rdata := reg_tohost; }
+    is (PCR_K0)       { rdata := reg_k0; }
+    is (PCR_K1)       { rdata := reg_k1; }
+    is (PCR_PTBR)     { rdata := Cat(Bits(0,64-PADDR_BITS), reg_ptbr); }
+    is (PCR_VECBANK)  { rdata := Cat(Bits(0, 56), reg_vecbank) }
+    is (PCR_VECCFG)   { rdata := Cat(Bits(0, 40), io.vec_nfregs, io.vec_nxregs, io.vec_appvl) }
   }
 }
 
