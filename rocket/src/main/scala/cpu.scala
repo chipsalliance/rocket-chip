@@ -5,14 +5,8 @@ import Node._;
 import Constants._;
 import hwacha._
 
-class ioDebug(view: List[String] = null) extends Bundle(view)
-{
-  val error_mode  = Bool(OUTPUT);
-}
-
 class ioRocket extends Bundle()
 {
-  val debug   = new ioDebug();
   val host    = new ioHTIF();
   val imem    = new ioImem().flip
   val vimem   = new ioImem().flip
@@ -107,7 +101,6 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
 
   ctrl.io.dpath             <> dpath.io.ctrl;
   dpath.io.host             <> io.host;
-  dpath.io.debug            <> io.debug;
 
   // FIXME: try to make this more compact
   

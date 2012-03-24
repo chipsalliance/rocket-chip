@@ -4,6 +4,11 @@ import Chisel._
 import Node._;
 import Constants._;
 
+class ioDebug(view: List[String] = null) extends Bundle(view)
+{
+  val error_mode  = Bool(OUTPUT);
+}
+
 class ioHost(w: Int, view: List[String] = null) extends Bundle(view)
 {
   val in = new ioDecoupled()(Bits(width = w)).flip
@@ -20,6 +25,7 @@ class PCRReq extends Bundle
 class ioHTIF extends Bundle
 {
   val reset = Bool(INPUT)
+  val debug = new ioDebug
   val pcr_req = (new ioDecoupled) { new PCRReq }.flip
   val pcr_rep = (new ioPipe) { Bits(width = 64) }
 }

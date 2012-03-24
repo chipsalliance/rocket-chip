@@ -60,7 +60,6 @@ class rocketDpathBTB(entries: Int) extends Component
 class ioDpathPCR extends Bundle()
 {
   val host  = new ioHTIF()
-  val debug = new ioDebug(List("error_mode", "log_control"));
   val r     = new ioReadPort();
   val w     = new ioWritePort();
   
@@ -133,7 +132,7 @@ class rocketDpathPCR extends Component
   io.status             := Cat(reg_status_im, Bits(0,7), reg_status_vm, reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, reg_status_ec, reg_status_ev, reg_status_ef, reg_status_et);
   io.evec               := Mux(io.exception, reg_ebase, reg_epc)
   io.ptbr               := reg_ptbr;
-  io.debug.error_mode    := reg_error_mode;
+  io.host.debug.error_mode    := reg_error_mode;
   io.r.data := rdata;
 
   io.vecbank := reg_vecbank
