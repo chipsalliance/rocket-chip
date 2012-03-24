@@ -63,7 +63,6 @@ object Constants
 
   val WB_X   = UFix(0, 3);
   val WB_PC  = UFix(0, 3);
-  val WB_PCR = UFix(1, 3);
   val WB_ALU = UFix(2, 3);
   val WB_TSC = UFix(4, 3);
   val WB_IRT = UFix(5, 3);
@@ -117,10 +116,12 @@ object Constants
   val M_XA_MAX  = Bits("b1101", 4);
   val M_XA_MINU = Bits("b1110", 4);
   val M_XA_MAXU = Bits("b1111", 4);
-  
-  val I_X  = Bits(0,2);
-  val I_DI = Bits(1,2);
-  val I_EI = Bits(2,2);
+
+  val PCR_N = Bits(0,3)
+  val PCR_F = Bits(1,3) // mfpcr
+  val PCR_T = Bits(4,3) // mtpcr
+  val PCR_C = Bits(6,3) // clearpcr
+  val PCR_S = Bits(7,3) // setpcr
   
   val SYNC_N    = Bits(0,2);
   val SYNC_D    = Bits(1,2);
@@ -137,12 +138,14 @@ object Constants
   val PCR_SEND_IPI = UFix( 8, 5);
   val PCR_CLR_IPI  = UFix( 9, 5);
   val PCR_COREID   = UFix(10, 5);
+  val PCR_IMPL     = UFix(11, 5);
   val PCR_K0       = UFix(12, 5);
   val PCR_K1       = UFix(13, 5);
-  val PCR_TOHOST   = UFix(16, 5);
-  val PCR_FROMHOST = UFix(17, 5);
   val PCR_VECBANK  = UFix(18, 5);
   val PCR_VECCFG   = UFix(19, 5);
+  val PCR_RESET    = UFix(29, 5);
+  val PCR_TOHOST   = UFix(30, 5);
+  val PCR_FROMHOST = UFix(31, 5);
 
   // definition of bits in PCR status reg
   val SR_ET   = 0;  // enable traps
@@ -151,9 +154,15 @@ object Constants
   val SR_EC   = 3;  // enable compressed instruction encoding
   val SR_PS   = 4;  // mode stack bit
   val SR_S    = 5;  // user/supervisor mode
-  val SR_UX   = 6;  // 64 bit user mode
-  val SR_SX   = 7;  // 64 bit supervisor mode
-  val SR_VM   = 16; // VM enable
+  val SR_U64  = 6;  // 64 bit user mode
+  val SR_S64  = 7;  // 64 bit supervisor mode
+  val SR_VM   = 8   // VM enable
+  val SR_IM   = 16  // interrupt mask
+  val SR_IM_WIDTH = 8
+
+  val CAUSE_INTERRUPT = 32
+  val IRQ_IPI = 5
+  val IRQ_TIMER = 7
   
   val COREID = 0;
   val PADDR_BITS = 40;

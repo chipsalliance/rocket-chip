@@ -32,7 +32,7 @@ class ioDTLB_CPU_resp extends Bundle
 class ioDTLB extends Bundle
 {
   // status bits (from PCR), to check current permission and whether VM is enabled
-  val status = Bits(17,INPUT)
+  val status = Bits(32, INPUT)
   // invalidate all TLB entries
   val invalidate = Bool(INPUT)
   val cpu_req = new ioDTLB_CPU_req().flip

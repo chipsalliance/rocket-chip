@@ -177,7 +177,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
 
     val my_reset = Reg(resetVal = Bool(true))
     when (io.cpu(i).pcr_wen && io.cpu(i).pcr_rdy) {
-      when (io.cpu(i).pcr_addr === UFix(15)) { my_reset := io.cpu(i).pcr_wdata(0) }
+      when (io.cpu(i).pcr_addr === PCR_RESET) { my_reset := io.cpu(i).pcr_wdata(0) }
       pcr_done := Bool(true)
     }
     io.cpu(i).reset := my_reset
@@ -186,7 +186,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
     val rdata = Reg() { Bits() }
     when (io.cpu(i).pcr_ren && io.cpu(i).pcr_rdy) {
       rdata := io.cpu(i).pcr_rdata
-      when (io.cpu(i).pcr_addr === UFix(15)) { rdata := my_reset }
+      when (io.cpu(i).pcr_addr === PCR_RESET) { rdata := my_reset }
       pcr_done := Bool(true)
     }
     pcr_mux.io.sel(i) := Reg(me)

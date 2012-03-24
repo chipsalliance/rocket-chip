@@ -62,7 +62,7 @@ class ioTLB_PTW extends Bundle
 class ioITLB_CPU(view: List[String] = null) extends Bundle(view)
 {
   // status bits (from PCR), to check current permission and whether VM is enabled
-  val status = Bits(17, INPUT);
+  val status = Bits(32, INPUT);
   // invalidate all TLB entries
   val invalidate = Bool(INPUT);
   // lookup requests
