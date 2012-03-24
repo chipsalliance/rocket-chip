@@ -71,7 +71,6 @@ class rocketDpath extends Component
   val ex_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_div_fn    = Reg() { UFix() };
   val ex_reg_ctrl_sel_wb    = Reg() { UFix() };
-  val ex_reg_ctrl_ren_pcr   = Reg(resetVal = Bool(false));
  	val ex_wdata						  = Wire() { Bits() }; 	
 
   // memory definitions
@@ -116,10 +115,9 @@ class rocketDpath extends Component
     Mux(io.ctrl.sel_pc === PC_EX4,  ex_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
     Mux(io.ctrl.sel_pc === PC_JR,   ex_effective_address,
-    Mux(io.ctrl.sel_pc === PC_PCR,  wb_reg_wdata(VADDR_BITS,0), // only used for ERET
-    Mux(io.ctrl.sel_pc === PC_EVEC, Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec),
+    Mux(io.ctrl.sel_pc === PC_PCR,  Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec),
     Mux(io.ctrl.sel_pc === PC_WB,   wb_reg_pc,
-        if_pc_plus4))))))); // PC_4
+        if_pc_plus4)))))) // PC_4
         
   when (!io.ctrl.stallf) {
     if_reg_pc := if_next_pc.toUFix;
@@ -219,7 +217,6 @@ class rocketDpath extends Component
   ex_reg_ctrl_mul_fn    := io.ctrl.mul_fn;
   ex_reg_ctrl_div_fn    := io.ctrl.div_fn;
   ex_reg_ctrl_sel_wb    := io.ctrl.sel_wb;
-  ex_reg_ctrl_ren_pcr   := io.ctrl.ren_pcr;
 
   when(io.ctrl.killd) {
     ex_reg_ctrl_div_val 	:= Bool(false);
@@ -284,10 +281,8 @@ class rocketDpath extends Component
   io.dtlb.vpn := ex_effective_address >> UFix(PGIDX_BITS)
 
 	// processor control regfile read
-  pcr.io.r.en   := ex_reg_ctrl_ren_pcr | ex_reg_ctrl_eret;
-  pcr.io.r.addr := 
-  	Mux(ex_reg_ctrl_eret, PCR_EPC, 
-  		ex_reg_raddr2);
+  pcr.io.r.en   := io.ctrl.pcr != PCR_N
+  pcr.io.r.addr := wb_reg_raddr1
 
   pcr.io.host <> io.host
 
@@ -315,10 +310,9 @@ class rocketDpath extends Component
 	// writeback select mux
   ex_wdata :=
     Mux(ex_reg_ctrl_sel_wb === WB_PC,  Cat(Fill(64-VADDR_BITS, ex_pc_plus4(VADDR_BITS-1)), ex_pc_plus4),
-    Mux(ex_reg_ctrl_sel_wb === WB_PCR, ex_pcr,
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
     Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg,
-        ex_alu_out)))).toBits; // WB_ALU
+        ex_alu_out))).toBits // WB_ALU
 
   // subword store data generation
   val storegen = new StoreDataGen
@@ -420,7 +414,7 @@ class rocketDpath extends Component
 
   rfile.io.w0.addr := wb_reg_waddr
   rfile.io.w0.en   := io.ctrl.wb_wen || wb_reg_ll_wb
-  rfile.io.w0.data := wb_wdata
+  rfile.io.w0.data := Mux(io.ctrl.pcr != PCR_N, pcr.io.r.data, wb_wdata)
 
   io.ctrl.wb_waddr := wb_reg_waddr
   io.ctrl.mem_wb := dmem_resp_replay;
@@ -432,12 +426,12 @@ class rocketDpath extends Component
   io.ctrl.fp_sboard_clra := r_dmem_resp_waddr
 
 	// processor control regfile write
-  pcr.io.w.addr := wb_reg_raddr2;
-  pcr.io.w.en   := io.ctrl.wen_pcr
-  pcr.io.w.data := wb_reg_wdata
+  pcr.io.w.addr := wb_reg_raddr1
+  pcr.io.w.en   := io.ctrl.pcr === PCR_T || io.ctrl.pcr === PCR_S || io.ctrl.pcr === PCR_C
+  pcr.io.w.data := Mux(io.ctrl.pcr === PCR_S, pcr.io.r.data | wb_reg_wdata,
+                   Mux(io.ctrl.pcr === PCR_C, pcr.io.r.data & ~wb_reg_wdata,
+                   wb_reg_wdata))
 
-  pcr.io.di           := io.ctrl.irq_disable;
-  pcr.io.ei           := io.ctrl.irq_enable;
   pcr.io.eret      	  := io.ctrl.wb_eret;
   pcr.io.exception 	  := io.ctrl.exception;
   pcr.io.cause 			  := io.ctrl.cause;
