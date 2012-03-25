@@ -4,17 +4,21 @@ import Chisel._
 import Node._;
 import Constants._;
 
-class ioTop(htif_width: Int) extends Bundle  {
+class ioTop(htif_width: Int, mem_backup_width: Int) extends Bundle  {
   val debug   = new ioDebug();
   val host    = new ioHost(htif_width);
   val host_clk = Bool(OUTPUT)
+  val mem_backup = new ioMemSerialized(mem_backup_width)
+  val mem_backup_en = Bool(INPUT)
   val mem     = new ioMem
 }
 
-class Top() extends Component {
-
+class Top() extends Component
+{
+  val clkdiv = 32
   val htif_width = 16
-  val io = new ioTop(htif_width);
+  val mem_backup_width = 16
+  val io = new ioTop(htif_width, mem_backup_width);
 
   val tile = new Tile
   val htif = new rocketHTIF(htif_width, 1)
@@ -23,17 +27,46 @@ class Top() extends Component {
   hub.io.tiles(0) <> tile.io.tilelink
   hub.io.tiles(1) <> htif.io.mem
 
-  io.mem.req_cmd <> Queue(hub.io.mem.req_cmd)
-  io.mem.req_data <> Queue(hub.io.mem.req_data)
-  hub.io.mem.resp <> Pipe(io.mem.resp)
+  // mux between main and backup memory ports
+  val mem_serdes = new MemSerdes(mem_backup_width)
+  val mem_cmdq = (new queue(1)) { new MemReqCmd }
+  mem_cmdq.io.enq <> hub.io.mem.req_cmd
+  mem_cmdq.io.deq.ready := Mux(io.mem_backup_en, mem_serdes.io.wide.req_cmd.ready, io.mem.req_cmd.ready)
+  io.mem.req_cmd.valid := mem_cmdq.io.deq.valid && !io.mem_backup_en
+  io.mem.req_cmd.bits := mem_cmdq.io.deq.bits
+  mem_serdes.io.wide.req_cmd.valid := mem_cmdq.io.deq.valid && io.mem_backup_en
+  mem_serdes.io.wide.req_cmd.bits := mem_cmdq.io.deq.bits
+
+  val mem_dataq = (new queue(2)) { new MemData }
+  mem_dataq.io.enq <> hub.io.mem.req_data
+  mem_dataq.io.deq.ready := Mux(io.mem_backup_en, mem_serdes.io.wide.req_data.ready, io.mem.req_data.ready)
+  io.mem.req_data.valid := mem_dataq.io.deq.valid && !io.mem_backup_en
+  io.mem.req_data.bits := mem_dataq.io.deq.bits
+  mem_serdes.io.wide.req_data.valid := mem_dataq.io.deq.valid && io.mem_backup_en
+  mem_serdes.io.wide.req_data.bits := mem_dataq.io.deq.bits
+
+  // only the main or backup port may respond at any one time
+  hub.io.mem.resp.valid := io.mem.resp.valid || mem_serdes.io.wide.resp.valid
+  hub.io.mem.resp.bits := Mux(io.mem.resp.valid, io.mem.resp.bits, mem_serdes.io.wide.resp.bits)
 
   // pad out the HTIF using a divided clock
-  val slow_io = (new slowIO(64, 16)) { Bits(width = htif_width) }
-  htif.io.host.out <> slow_io.io.out_fast
-  io.host.out <> slow_io.io.out_slow
-  htif.io.host.in <> slow_io.io.in_fast
-  io.host.in <> slow_io.io.in_slow
-  io.host_clk := slow_io.io.clk_slow
+  val hio = (new slowIO(clkdiv, 4)) { Bits(width = htif_width) }
+  htif.io.host.out <> hio.io.out_fast
+  io.host.out.valid := hio.io.out_slow.valid
+  hio.io.out_slow.ready := io.host.out.ready
+  io.host.out.bits := Mux(reset, io.host.in.bits, hio.io.out_slow.bits)
+  htif.io.host.in <> hio.io.in_fast
+  io.host.in <> hio.io.in_slow
+  io.host_clk := hio.io.clk_slow
+
+  // pad out the backup memory link with the HTIF divided clk
+  val mio = (new slowIO(clkdiv, 4)) { Bits(width = mem_backup_width) }
+  mem_serdes.io.narrow.req <> mio.io.out_fast
+  io.mem_backup.req <> mio.io.out_slow
+  mem_serdes.io.narrow.resp.valid := mio.io.in_fast.valid
+  mio.io.in_fast.ready := Bool(true)
+  mem_serdes.io.narrow.resp.bits := mio.io.in_fast.bits
+  io.mem_backup.resp <> mio.io.in_slow
 
   tile.io.host <> htif.io.cpu(0)
   io.debug <> tile.io.host.debug

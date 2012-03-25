@@ -58,8 +58,10 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
   val rx_count_words = rx_count >> UFix(log2up(short_request_bits/w))
   val packet_ram_wen = rx_count(log2up(short_request_bits/w)-1,0).andR &&
                        io.host.in.valid && io.host.in.ready
-  val packet_ram = Mem(long_request_bits/short_request_bits-1,
-                       packet_ram_wen, rx_count_words - UFix(1), rx_shifter_in)
+  val packet_ram = Vec(long_request_bits/short_request_bits-1) { Reg() { Bits(width = short_request_bits) } }
+  when (packet_ram_wen) {
+    packet_ram(rx_count_words - UFix(1)) := rx_shifter_in
+  }
 
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(6) { UFix() }
   val cmd = header(3,0)
@@ -67,9 +69,9 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
   val seqno = header(23,16)
   val addr = header(63,24).toUFix
 
-  val pcr_addr = addr(19,0)
-  val pcr_coreid = addr(39,20)
-  val pcr_wdata = packet_ram(UFix(0))
+  val pcr_addr = addr(4,0)
+  val pcr_coreid = if (ncores == 1) UFix(0) else addr(20+log2up(ncores),20)
+  val pcr_wdata = packet_ram(0)
 
   val nack = Mux(cmd === cmd_readmem || cmd === cmd_writemem, size != UFix((1 << OFFSET_BITS)/8),
              Mux(cmd === cmd_readcr || cmd === cmd_writecr, size != UFix(1),
@@ -157,9 +159,10 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
   var mem_req_data: Bits = null
   for (i <- 0 until MEM_DATA_BITS/short_request_bits) {
     val idx = Cat(mem_cnt, UFix(i, log2up(MEM_DATA_BITS/short_request_bits)))
-    packet_ram.write(idx, io.mem.xact_rep.bits.data((i+1)*short_request_bits-1, i*short_request_bits),
-                     state === state_mem_rdata && io.mem.xact_rep.valid)
-    mem_req_data = Cat(packet_ram.read(idx), mem_req_data)
+    when (state === state_mem_rdata && io.mem.xact_rep.valid) {
+      packet_ram(idx) := io.mem.xact_rep.bits.data((i+1)*short_request_bits-1, i*short_request_bits)
+    }
+    mem_req_data = Cat(packet_ram(idx), mem_req_data)
   }
   io.mem.xact_init.valid := state === state_mem_req
   io.mem.xact_init.bits.t_type := Mux(cmd === cmd_writemem, X_INIT_WRITE_UNCACHED, X_INIT_READ_UNCACHED)
@@ -190,10 +193,10 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
     cpu.pcr_req.bits.data := pcr_wdata
     cpu.reset := my_reset
 
-    when (cpu.pcr_req.valid && cpu.pcr_req.ready && cpu.pcr_req.bits.rw) {
-      pcr_done := Bool(true)
-      when (cpu.pcr_req.bits.addr === PCR_RESET) {
-        my_reset := cpu.pcr_req.bits.data(0)
+    when (state === state_pcr && me && cmd === cmd_writecr) {
+      pcr_done := cpu.pcr_req.ready
+      when (pcr_addr === PCR_RESET) {
+        my_reset := pcr_wdata(0)
       }
     }
     when (cpu.pcr_rep.valid) {
