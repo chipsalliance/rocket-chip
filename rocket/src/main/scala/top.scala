@@ -52,9 +52,7 @@ class Top() extends Component
   // pad out the HTIF using a divided clock
   val hio = (new slowIO(clkdiv, 4)) { Bits(width = htif_width) }
   htif.io.host.out <> hio.io.out_fast
-  io.host.out.valid := hio.io.out_slow.valid
-  hio.io.out_slow.ready := io.host.out.ready
-  io.host.out.bits := Mux(reset, io.host.in.bits, hio.io.out_slow.bits)
+  io.host.out <> hio.io.out_slow
   htif.io.host.in <> hio.io.in_fast
   io.host.in <> hio.io.in_slow
   io.host_clk := hio.io.clk_slow
