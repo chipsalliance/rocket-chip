@@ -28,7 +28,7 @@ class slowIO[T <: Data](divisor: Int, hold_cycles: Int)(data: => T) extends Comp
   val out_slow_bits = Reg() { data }
 
   val fromhost_q = new queue(1)(data)
-  fromhost_q.io.enq.valid := in_en && io.in_slow.valid && in_slow_rdy
+  fromhost_q.io.enq.valid := in_en && (io.in_slow.valid && in_slow_rdy || reset)
   fromhost_q.io.enq.bits := io.in_slow.bits
   fromhost_q.io.deq <> io.in_fast
 
@@ -39,7 +39,7 @@ class slowIO[T <: Data](divisor: Int, hold_cycles: Int)(data: => T) extends Comp
   when (out_en) {
     in_slow_rdy := fromhost_q.io.enq.ready
     out_slow_val := tohost_q.io.deq.valid
-    out_slow_bits := tohost_q.io.deq.bits
+    out_slow_bits := Mux(reset, fromhost_q.io.deq.bits, tohost_q.io.deq.bits)
   }
 
   io.in_slow.ready := in_slow_rdy
