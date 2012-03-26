@@ -45,9 +45,8 @@ class Top() extends Component
   mem_serdes.io.wide.req_data.valid := mem_dataq.io.deq.valid && io.mem_backup_en
   mem_serdes.io.wide.req_data.bits := mem_dataq.io.deq.bits
 
-  // only the main or backup port may respond at any one time
-  hub.io.mem.resp.valid := io.mem.resp.valid || mem_serdes.io.wide.resp.valid
-  hub.io.mem.resp.bits := Mux(io.mem.resp.valid, io.mem.resp.bits, mem_serdes.io.wide.resp.bits)
+  hub.io.mem.resp.valid := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.valid, io.mem.resp.valid)
+  hub.io.mem.resp.bits := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.bits, io.mem.resp.bits)
 
   // pad out the HTIF using a divided clock
   val hio = (new slowIO(clkdiv, 4)) { Bits(width = htif_width) }
