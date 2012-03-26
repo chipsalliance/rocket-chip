@@ -16,7 +16,7 @@ class ioTop(htif_width: Int, mem_backup_width: Int) extends Bundle  {
 class Top() extends Component
 {
   val clkdiv = 32
-  val htif_width = 16
+  val htif_width = 8
   val mem_backup_width = 16
   val io = new ioTop(htif_width, mem_backup_width);
 
