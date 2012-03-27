@@ -40,8 +40,10 @@ class rocketDpathVec extends Component
 {
   val io = new ioDpathVec()
 
-  val nxregs = Mux(io.ctrl.fn === VEC_CFG, io.wdata(5,0), io.inst(15,10)).toUFix + UFix(0,7)
-  val nfregs = Mux(io.ctrl.fn === VEC_CFG, io.rs2(5,0), io.inst(21,16)).toUFix + UFix(0,7)
+  val nxregs_stage = Mux(io.ctrl.fn === VEC_CFG, io.wdata(5,0), io.inst(15,10))
+  val nfregs_stage = Mux(io.ctrl.fn === VEC_CFG, io.rs2(5,0), io.inst(21,16))
+  val nxregs = Mux(nxregs_stage(5), Bits(32), Mux(nxregs_stage === Bits(0), Bits(1), nxregs_stage)) + UFix(0,7)
+  val nfregs = Mux(nfregs_stage(5), Bits(32), nfregs_stage) + UFix(0,7)
   val nregs = nxregs + nfregs
 
   val uts_per_bank = MuxLookup(
