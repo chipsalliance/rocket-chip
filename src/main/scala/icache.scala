@@ -81,7 +81,7 @@ class rocketICache(sets: Int, assoc: Int) extends Component {
   }
   val refill_done = io.mem.xact_rep.valid && refill_count.andR
 
-  val repl_way = LFSR16(state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss && !tag_hit)(log2up(assoc)-1,0)
+  val repl_way = if (assoc == 1) UFix(0) else LFSR16(state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss && !tag_hit)(log2up(assoc)-1,0)
   val word_shift = Cat(r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb), UFix(0, log2up(databits))).toUFix
   val tag_we = refill_done
   val tag_addr = 
