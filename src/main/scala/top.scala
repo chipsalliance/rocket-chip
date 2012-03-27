@@ -4,21 +4,21 @@ import Chisel._
 import Node._;
 import Constants._;
 
-class ioTop(htif_width: Int, mem_backup_width: Int) extends Bundle  {
+class ioTop(htif_width: Int) extends Bundle  {
   val debug   = new ioDebug();
   val host    = new ioHost(htif_width);
   val host_clk = Bool(OUTPUT)
-  val mem_backup = new ioMemSerialized(mem_backup_width)
+  val mem_backup = new ioMemSerialized
   val mem_backup_en = Bool(INPUT)
+  val mem_backup_clk = Bool(OUTPUT)
   val mem     = new ioMem
 }
 
-class Top() extends Component
+class Top extends Component
 {
   val clkdiv = 32
   val htif_width = 8
-  val mem_backup_width = 16
-  val io = new ioTop(htif_width, mem_backup_width);
+  val io = new ioTop(htif_width)
 
   val tile = new Tile
   val htif = new rocketHTIF(htif_width, 1)
@@ -28,7 +28,7 @@ class Top() extends Component
   hub.io.tiles(1) <> htif.io.mem
 
   // mux between main and backup memory ports
-  val mem_serdes = new MemSerdes(mem_backup_width)
+  val mem_serdes = new MemSerdes
   val mem_cmdq = (new queue(1)) { new MemReqCmd }
   mem_cmdq.io.enq <> hub.io.mem.req_cmd
   mem_cmdq.io.deq.ready := Mux(io.mem_backup_en, mem_serdes.io.wide.req_cmd.ready, io.mem.req_cmd.ready)
@@ -57,13 +57,14 @@ class Top() extends Component
   io.host_clk := hio.io.clk_slow
 
   // pad out the backup memory link with the HTIF divided clk
-  val mio = (new slowIO(clkdiv, 4)) { Bits(width = mem_backup_width) }
+  val mio = (new slowIO(clkdiv, 4)) { Bits(width = MEM_BACKUP_WIDTH) }
   mem_serdes.io.narrow.req <> mio.io.out_fast
   io.mem_backup.req <> mio.io.out_slow
   mem_serdes.io.narrow.resp.valid := mio.io.in_fast.valid
   mio.io.in_fast.ready := Bool(true)
   mem_serdes.io.narrow.resp.bits := mio.io.in_fast.bits
   io.mem_backup.resp <> mio.io.in_slow
+  io.mem_backup_clk := mio.io.clk_slow
 
   tile.io.host <> htif.io.cpu(0)
   io.debug <> tile.io.host.debug
@@ -71,6 +72,6 @@ class Top() extends Component
 
 object top_main {
   def main(args: Array[String]) = { 
-     chiselMain(args, () => new Top());
+     chiselMain(args.drop(1), () => Class.forName(args(0)).newInstance.asInstanceOf[Component])
   }
 }

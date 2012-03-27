@@ -9,6 +9,8 @@ object Constants
   val HAVE_FPU = true
   val HAVE_VEC = true
 
+  val MEM_BACKUP_WIDTH = 16
+
   val BR_N    = UFix(0, 4);
   val BR_EQ   = UFix(1, 4);
   val BR_NE   = UFix(2, 4);
