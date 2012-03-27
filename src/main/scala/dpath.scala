@@ -412,7 +412,7 @@ class rocketDpath extends Component
 
   rfile.io.w0.addr := wb_reg_waddr
   rfile.io.w0.en   := io.ctrl.wb_wen || wb_reg_ll_wb
-  rfile.io.w0.data := Mux(io.ctrl.pcr != PCR_N, pcr.io.r.data, wb_wdata)
+  rfile.io.w0.data := Mux(io.ctrl.pcr != PCR_N && io.ctrl.wb_wen, pcr.io.r.data, wb_wdata)
 
   io.ctrl.wb_waddr := wb_reg_waddr
   io.ctrl.mem_wb := dmem_resp_replay;
