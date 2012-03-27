@@ -5,17 +5,17 @@ import Node._
 import Constants._
 import scala.math._
 
-class ioMemSerialized(w: Int) extends Bundle
+class ioMemSerialized extends Bundle
 {
-  val req = (new ioDecoupled) { Bits(width = w) }
-  val resp = (new ioPipe) { Bits(width = w) }.flip
+  val req = (new ioDecoupled) { Bits(width = MEM_BACKUP_WIDTH) }
+  val resp = (new ioPipe) { Bits(width = MEM_BACKUP_WIDTH) }.flip
 }
 
-class MemSerdes(w: Int) extends Component
+class MemSerdes extends Component
 {
   val io = new Bundle {
     val wide = new ioMem().flip
-    val narrow = new ioMemSerialized(w)
+    val narrow = new ioMemSerialized
   }
   val abits = io.wide.req_cmd.bits.toBits.getWidth
   val dbits = io.wide.req_data.bits.toBits.getWidth
@@ -26,14 +26,14 @@ class MemSerdes(w: Int) extends Component
 
   val s_idle :: s_read_addr :: s_write_addr :: s_write_idle :: s_write_data :: Nil = Enum(5) { UFix() }
   val state = Reg(resetVal = s_idle)
-  val send_cnt = Reg(resetVal = UFix(0, log2up((max(abits, dbits)+w-1)/w)))
+  val send_cnt = Reg(resetVal = UFix(0, log2up((max(abits, dbits)+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)))
   val data_send_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
-  val adone = io.narrow.req.ready && send_cnt === UFix((abits-1)/w)
-  val ddone = io.narrow.req.ready && send_cnt === UFix((dbits-1)/w)
+  val adone = io.narrow.req.ready && send_cnt === UFix((abits-1)/MEM_BACKUP_WIDTH)
+  val ddone = io.narrow.req.ready && send_cnt === UFix((dbits-1)/MEM_BACKUP_WIDTH)
 
   when (io.narrow.req.valid && io.narrow.req.ready) {
     send_cnt := send_cnt + UFix(1)
-    out_buf := out_buf >> UFix(w)
+    out_buf := out_buf >> UFix(MEM_BACKUP_WIDTH)
   }
   when (io.wide.req_cmd.valid && io.wide.req_cmd.ready) {
     out_buf := io.wide.req_cmd.bits.toBits
@@ -67,19 +67,19 @@ class MemSerdes(w: Int) extends Component
     send_cnt := UFix(0)
   }
 
-  val recv_cnt = Reg(resetVal = UFix(0, log2up((rbits+w-1)/w)))
+  val recv_cnt = Reg(resetVal = UFix(0, log2up((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)))
   val data_recv_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
   val resp_val = Reg(resetVal = Bool(false))
 
   resp_val := Bool(false)
   when (io.narrow.resp.valid) {
     recv_cnt := recv_cnt + UFix(1)
-    when (recv_cnt === UFix((rbits-1)/w)) {
+    when (recv_cnt === UFix((rbits-1)/MEM_BACKUP_WIDTH)) {
       recv_cnt := UFix(0)
       data_recv_cnt := data_recv_cnt + UFix(1)
       resp_val := Bool(true)
     }
-    in_buf := Cat(io.narrow.resp.bits, in_buf((rbits+w-1)/w*w-1,w))
+    in_buf := Cat(io.narrow.resp.bits, in_buf((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH*MEM_BACKUP_WIDTH-1,MEM_BACKUP_WIDTH))
   }
 
   io.wide.resp.valid := resp_val
@@ -87,10 +87,10 @@ class MemSerdes(w: Int) extends Component
   io.wide.resp.bits.data := in_buf >> UFix(io.wide.resp.bits.tag.width)
 }
 
-class MemDessert(w: Int) extends Component // test rig side
+class MemDessert extends Component // test rig side
 {
   val io = new Bundle {
-    val narrow = new ioMemSerialized(w).flip
+    val narrow = new ioMemSerialized().flip
     val wide = new ioMem
   }
   val abits = io.wide.req_cmd.bits.toBits.getWidth
@@ -98,11 +98,11 @@ class MemDessert(w: Int) extends Component // test rig side
   val rbits = io.wide.resp.bits.getWidth
 
   require(dbits >= abits && rbits >= dbits)
-  val recv_cnt = Reg(resetVal = UFix(0, log2up((rbits+w-1)/w)))
+  val recv_cnt = Reg(resetVal = UFix(0, log2up((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)))
   val data_recv_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
-  val adone = io.narrow.req.valid && recv_cnt === UFix((abits-1)/w)
-  val ddone = io.narrow.req.valid && recv_cnt === UFix((dbits-1)/w)
-  val rdone = io.narrow.resp.valid && recv_cnt === UFix((rbits-1)/w)
+  val adone = io.narrow.req.valid && recv_cnt === UFix((abits-1)/MEM_BACKUP_WIDTH)
+  val ddone = io.narrow.req.valid && recv_cnt === UFix((dbits-1)/MEM_BACKUP_WIDTH)
+  val rdone = io.narrow.resp.valid && recv_cnt === UFix((rbits-1)/MEM_BACKUP_WIDTH)
 
   val s_cmd_recv :: s_cmd :: s_data_recv :: s_data :: s_reply :: Nil = Enum(5) { UFix() }
   val state = Reg(resetVal = s_cmd_recv)
@@ -110,7 +110,7 @@ class MemDessert(w: Int) extends Component // test rig side
   val in_buf = Reg() { Bits() }
   when (io.narrow.req.valid && io.narrow.req.ready || io.narrow.resp.valid) {
     recv_cnt := recv_cnt + UFix(1)
-    in_buf := Cat(io.narrow.req.bits, in_buf((rbits+w-1)/w*w-1,w))
+    in_buf := Cat(io.narrow.req.bits, in_buf((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH*MEM_BACKUP_WIDTH-1,MEM_BACKUP_WIDTH))
   }
   io.narrow.req.ready := state === s_cmd_recv || state === s_data_recv
 
@@ -140,19 +140,19 @@ class MemDessert(w: Int) extends Component // test rig side
     data_recv_cnt := data_recv_cnt + UFix(1)
   }
 
-  val req_cmd = in_buf >> UFix(((rbits+w-1)/w - (abits+w-1)/w)*w)
+  val req_cmd = in_buf >> UFix(((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH - (abits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)*MEM_BACKUP_WIDTH)
   io.wide.req_cmd.valid := state === s_cmd
   io.wide.req_cmd.bits.tag := req_cmd
   io.wide.req_cmd.bits.addr := req_cmd.toUFix >> UFix(io.wide.req_cmd.bits.tag.width)
   io.wide.req_cmd.bits.rw := req_cmd(io.wide.req_cmd.bits.tag.width + io.wide.req_cmd.bits.addr.width)
 
   io.wide.req_data.valid := state === s_data
-  io.wide.req_data.bits.data := in_buf >> UFix(((rbits+w-1)/w - (dbits+w-1)/w)*w)
+  io.wide.req_data.bits.data := in_buf >> UFix(((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH - (dbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)*MEM_BACKUP_WIDTH)
 
   val dataq = (new queue(REFILL_CYCLES)) { new MemResp }
   dataq.io.enq <> io.wide.resp
-  dataq.io.deq.ready := recv_cnt === UFix((rbits-1)/w)
+  dataq.io.deq.ready := recv_cnt === UFix((rbits-1)/MEM_BACKUP_WIDTH)
 
   io.narrow.resp.valid := dataq.io.deq.valid
-  io.narrow.resp.bits := dataq.io.deq.bits.toBits >> (recv_cnt * UFix(w))
+  io.narrow.resp.bits := dataq.io.deq.bits.toBits >> (recv_cnt * UFix(MEM_BACKUP_WIDTH))
 }
