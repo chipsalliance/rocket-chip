@@ -171,6 +171,7 @@ class ioDpathFPU extends Bundle {
 class ioCtrlFPU extends Bundle {
   val valid = Bool(OUTPUT)
   val nack = Bool(INPUT)
+  val nack_mem = Bool(INPUT)
   val illegal_rm = Bool(INPUT)
   val killx = Bool(OUTPUT)
   val killm = Bool(OUTPUT)
@@ -440,7 +441,7 @@ class rocketFPUDFMAPipe(latency: Int) extends Component
   val fma = new hardfloat.mulAddSubRecodedFloat64_1
   fma.io.op := cmd
   fma.io.roundingMode := rm
-  fma.io.a := in1
+  fma.io.a := in1 
   fma.io.b := in2
   fma.io.c := in3
 
@@ -637,6 +638,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val fsr_busy = ctrl.rdfsr && fp_inflight || mem_reg_valid && mem_ctrl.wrfsr || wb_reg_valid && wb_ctrl.wrfsr
   val units_busy = mem_reg_valid && mem_ctrl.fma && (io.sfma.valid && mem_ctrl.single || io.dfma.valid && !mem_ctrl.single)
   io.ctrl.nack := fsr_busy || units_busy || write_port_busy
+  io.ctrl.nack_mem := units_busy
   io.ctrl.dec <> fp_decoder.io.sigs
   // we don't currently support round-max-magnitude (rm=4)
   io.ctrl.illegal_rm := ex_rm(2)

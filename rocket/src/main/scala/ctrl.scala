@@ -67,6 +67,7 @@ class ioCtrlDpath extends Bundle()
   val sboard_clra = UFix(5, INPUT);
   val fp_sboard_clr  = Bool(INPUT);
   val fp_sboard_clra = UFix(5, INPUT);
+  val fp_sboard_wb_waddr = UFix(5, INPUT);
   val irq_timer = Bool(INPUT);
   val irq_ipi   = Bool(INPUT);
 }
@@ -639,7 +640,8 @@ class rocketCtrl extends Component
 
     fp_sboard.io.w(0).en := wb_reg_dcache_miss && wb_reg_fp_wen || wb_reg_fp_sboard_set
     fp_sboard.io.w(0).data := Bool(true)
-    fp_sboard.io.w(0).addr := io.dpath.wb_waddr
+    //fp_sboard.io.w(0).addr := io.dpath.wb_waddr
+    fp_sboard.io.w(0).addr := io.dpath.fp_sboard_wb_waddr
 
     fp_sboard.io.w(1).en := io.dpath.fp_sboard_clr
     fp_sboard.io.w(1).data := Bool(false)
@@ -698,7 +700,7 @@ class rocketCtrl extends Component
   // replay mem stage PC on a DTLB miss or a long-latency writeback
   val mem_ll_wb = io.dpath.mem_wb || io.dpath.mul_result_val || io.dpath.div_result_val
   val dmem_kill_mem = mem_reg_valid && (io.dtlb_miss || io.dmem.resp_nack)
-  val replay_mem  = dmem_kill_mem || mem_reg_wen && mem_ll_wb || mem_reg_replay
+  val replay_mem  = dmem_kill_mem || mem_reg_wen && mem_ll_wb || mem_reg_replay || mem_reg_fp_val && io.fpu.nack_mem
   val kill_mem    = dmem_kill_mem || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill
   val kill_dcache = io.dtlb_miss  || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill
 
