@@ -422,10 +422,7 @@ class rocketDpath extends Component
   io.ctrl.sboard_clra  := mem_ll_waddr
   io.ctrl.fp_sboard_clr  := r_dmem_fp_replay
   io.ctrl.fp_sboard_clra := r_dmem_resp_waddr
-
-  val r_mem_reg_waddr = Reg(){UFix(width = 5)}
-  r_mem_reg_waddr := mem_reg_waddr
-  io.ctrl.fp_sboard_wb_waddr := r_mem_reg_waddr
+  io.ctrl.fp_sboard_wb_waddr := Reg(mem_reg_waddr)
 
 	// processor control regfile write
   pcr.io.w.addr := wb_reg_raddr1

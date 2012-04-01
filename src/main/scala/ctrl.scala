@@ -640,7 +640,6 @@ class rocketCtrl extends Component
 
     fp_sboard.io.w(0).en := wb_reg_dcache_miss && wb_reg_fp_wen || wb_reg_fp_sboard_set
     fp_sboard.io.w(0).data := Bool(true)
-    //fp_sboard.io.w(0).addr := io.dpath.wb_waddr
     fp_sboard.io.w(0).addr := io.dpath.fp_sboard_wb_waddr
 
     fp_sboard.io.w(1).en := io.dpath.fp_sboard_clr
@@ -709,8 +708,7 @@ class rocketCtrl extends Component
   val replay_ex    = wb_reg_dcache_miss && ex_reg_load_use || mem_reg_flush_inst || 
                      ex_reg_replay || ex_reg_mem_val && !(io.dmem.req_rdy && io.dtlb_rdy) ||
                      ex_reg_div_val && !io.dpath.div_rdy ||
-                     ex_reg_mul_val && !io.dpath.mul_rdy ||
-                     ex_reg_fp_val && io.fpu.nack
+                     ex_reg_mul_val && !io.dpath.mul_rdy
   val kill_ex      = take_pc_wb || replay_ex
 
   mem_reg_replay := replay_ex && !take_pc_wb;
