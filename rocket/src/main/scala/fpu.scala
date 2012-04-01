@@ -170,7 +170,6 @@ class ioDpathFPU extends Bundle {
 
 class ioCtrlFPU extends Bundle {
   val valid = Bool(OUTPUT)
-  val nack = Bool(INPUT)
   val nack_mem = Bool(INPUT)
   val illegal_rm = Bool(INPUT)
   val killx = Bool(OUTPUT)
@@ -441,7 +440,7 @@ class rocketFPUDFMAPipe(latency: Int) extends Component
   val fma = new hardfloat.mulAddSubRecodedFloat64_1
   fma.io.op := cmd
   fma.io.roundingMode := rm
-  fma.io.a := in1 
+  fma.io.a := in1
   fma.io.b := in2
   fma.io.c := in3
 
@@ -590,9 +589,9 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
                             Mux(ctrl.single, UFix(sfma_latency-1),
                                 UFix(dfma_latency-1)))
   val mem_fu_latency = Reg(ex_stage_fu_latency - UFix(1))
-  val write_port_busy = ctrl.fastpipe && wen(fastpipe_latency) ||
+  val write_port_busy = Reg(ctrl.fastpipe && wen(fastpipe_latency) ||
     Bool(sfma_latency < dfma_latency) && ctrl.fma && ctrl.single && wen(sfma_latency) ||
-    mem_wen && mem_fu_latency === ex_stage_fu_latency
+    mem_wen && mem_fu_latency === ex_stage_fu_latency)
   mem_wen := ex_reg_valid && !io.ctrl.killx && (ctrl.fma || ctrl.fastpipe)
   val ex_stage_wsrc = Cat(ctrl.fastpipe, ctrl.single)
   val mem_winfo = Reg(Cat(ex_reg_inst(31,27), ex_stage_wsrc))
@@ -606,7 +605,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
       wen := (wen >> UFix(1)) | (UFix(1) << mem_fu_latency)
     }
     for (i <- 0 until dfma_latency-1) {
-      when (UFix(i) === mem_fu_latency) {
+      when (!write_port_busy && UFix(i) === mem_fu_latency) {
         winfo(i) := mem_winfo
       }
     }
@@ -634,11 +633,10 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
     fsr_rm := fastpipe.io.out_s(7,5)
   }
 
-  val fp_inflight = mem_reg_valid && mem_ctrl.toint || wb_reg_valid && wb_ctrl.toint || mem_wen || wen.orR
-  val fsr_busy = ctrl.rdfsr && fp_inflight || mem_reg_valid && mem_ctrl.wrfsr || wb_reg_valid && wb_ctrl.wrfsr
+  val fp_inflight = wb_reg_valid && wb_ctrl.toint || wen.orR
+  val fsr_busy = mem_ctrl.rdfsr && fp_inflight || wb_reg_valid && wb_ctrl.wrfsr
   val units_busy = mem_reg_valid && mem_ctrl.fma && (io.sfma.valid && mem_ctrl.single || io.dfma.valid && !mem_ctrl.single)
-  io.ctrl.nack := fsr_busy || units_busy || write_port_busy
-  io.ctrl.nack_mem := units_busy
+  io.ctrl.nack_mem := fsr_busy || units_busy || write_port_busy
   io.ctrl.dec <> fp_decoder.io.sigs
   // we don't currently support round-max-magnitude (rm=4)
   io.ctrl.illegal_rm := ex_rm(2)
