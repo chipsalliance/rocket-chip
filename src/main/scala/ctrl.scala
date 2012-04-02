@@ -699,8 +699,9 @@ class rocketCtrl extends Component
   // replay mem stage PC on a DTLB miss or a long-latency writeback
   val mem_ll_wb = io.dpath.mem_wb || io.dpath.mul_result_val || io.dpath.div_result_val
   val dmem_kill_mem = mem_reg_valid && (io.dtlb_miss || io.dmem.resp_nack)
-  val replay_mem  = dmem_kill_mem || mem_reg_wen && mem_ll_wb || mem_reg_replay || mem_reg_fp_val && io.fpu.nack_mem
-  val kill_mem    = dmem_kill_mem || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill
+  val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
+  val replay_mem  = dmem_kill_mem || mem_reg_wen && mem_ll_wb || mem_reg_replay || fpu_kill_mem
+  val kill_mem    = dmem_kill_mem || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill || fpu_kill_mem
   val kill_dcache = io.dtlb_miss  || mem_reg_wen && mem_ll_wb || take_pc_wb || mem_exception || mem_reg_kill
 
   // replay execute stage PC when the D$ is blocked, when the D$ misses, 
