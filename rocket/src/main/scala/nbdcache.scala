@@ -196,7 +196,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   val req_cmd = io.req_bits.cmd
   val req_use_rpq = (req_cmd != M_PFR) && (req_cmd != M_PFW) && (req_cmd != M_FLA)
   val idx_match = req.idx === io.req_bits.idx
-  val sec_rdy = idx_match && !flush && (state === s_wb_req || state === s_wb_resp || (state === s_refill_req || state === s_refill_resp) && !needsSecondaryXact(req_cmd, io.mem_req.bits))
+  val sec_rdy = idx_match && !flush && (state === s_wb_req || state === s_wb_resp || (state === s_refill_req || state === s_refill_resp) && !needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
 
   val rpq = (new queue(NRPQ)) { new RPQEntry }
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && req_use_rpq
@@ -220,7 +220,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
     when (refill_done) { state := s_drain_rpq }
     when (reply) {
       refill_count := refill_count + UFix(1)
-      line_state := newStateOnTransactionRep(io.mem_rep.bits, io.mem_req.bits)
+      line_state := newStateOnTransactionReply(io.mem_rep.bits, io.mem_req.bits)
     }
     when (abort) { state := s_refill_req }
   }
@@ -239,13 +239,13 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   }
 
   when (io.req_sec_val && io.req_sec_rdy) { // s_wb_req, s_wb_resp, s_refill_req
-    xact_type := newTransactionOnSecondaryMiss(req_cmd, newStateOnFlush(), io.mem_req.bits)
+    xact_type := getTransactionInitTypeOnSecondaryMiss(req_cmd, newStateOnFlush(), io.mem_req.bits)
   }
   when ((state === s_invalid) && io.req_pri_val) {
     flush := req_cmd === M_FLA
     line_state := newStateOnFlush()
     refill_count := UFix(0)
-    xact_type := newTransactionOnPrimaryMiss(req_cmd, newStateOnFlush())
+    xact_type := getTransactionInitTypeOnPrimaryMiss(req_cmd, newStateOnFlush())
     req := io.req_bits
 
     when (io.req_bits.tag_miss) {
@@ -409,7 +409,7 @@ class MSHRFile extends Component {
   io.cpu_resp_tag := Reg(replay.bits.cpu_tag)
 }
 
-class WritebackUnit extends Component {
+class WritebackUnit extends Component with FourStateCoherence{
   val io = new Bundle {
     val req = (new ioDecoupled) { new WritebackReq() }.flip
     val probe = (new ioDecoupled) { new WritebackReq() }.flip
@@ -469,7 +469,7 @@ class WritebackUnit extends Component {
   io.data_req.bits.data := Bits(0)
 
   io.mem_req.valid := valid && !cmd_sent
-  io.mem_req.bits.t_type := X_INIT_WRITE_UNCACHED
+  io.mem_req.bits.t_type := getTransactionInitTypeOnWriteback()
   io.mem_req.bits.address := Cat(req.tag, req.idx).toUFix
   io.mem_req.bits.tile_xact_id := req.tile_xact_id
   io.mem_req_data.valid := data_req_fired && !is_probe
@@ -527,7 +527,7 @@ class ProbeUnit extends Component with FourStateCoherence {
   io.meta_req.bits.way_en := Mux(state === s_probe_rep, way_oh, ~UFix(0, NWAYS))
   io.meta_req.bits.rw := state === s_probe_rep
   io.meta_req.bits.idx := req.address
-  io.meta_req.bits.data.state := newStateOnProbeReq(req, line_state)
+  io.meta_req.bits.data.state := newStateOnProbeRequest(req, line_state)
   io.meta_req.bits.data.tag := req.address >> UFix(IDX_BITS)
   io.mshr_req.valid := state === s_meta_resp
   io.address := req.address
