@@ -5,16 +5,16 @@ import Node._;
 import Constants._;
 
 class ioUncachedRequestor extends Bundle {
-  val xact_init      = (new ioDecoupled) { new TransactionInit() }
-  val xact_abort     = (new ioDecoupled) { new TransactionAbort() }.flip
-  val xact_rep       = (new ioPipe)      { new TransactionReply() }.flip
-  val xact_finish    = (new ioDecoupled) { new TransactionFinish() }
+  val xact_init      = (new ioDecoupled) { new TransactionInit }
+  val xact_abort     = (new ioDecoupled) { new TransactionAbort }.flip
+  val xact_rep       = (new ioPipe)      { new TransactionReply }.flip
+  val xact_finish    = (new ioDecoupled) { new TransactionFinish }
 }
 
 class rocketMemArbiter(n: Int) extends Component {
   val io = new Bundle {
     val mem = new ioUncachedRequestor
-    val requestor = Vec(n) { new ioUncachedRequestor().flip }
+    val requestor = Vec(n) { new ioUncachedRequestor }.flip
   }
 
   var xi_val = Bool(false)
