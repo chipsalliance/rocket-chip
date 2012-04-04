@@ -4,7 +4,7 @@ import Chisel._
 import Constants._
 
 class TransactionInit extends Bundle {
-  val x_type = Bits(width = X_INIT_TYPE_BITS)
+  val x_type = Bits(width = X_INIT_TYPE_MAX_BITS)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
   val address = UFix(width = PADDR_BITS - OFFSET_BITS)
 }
@@ -16,20 +16,20 @@ class TransactionAbort extends Bundle {
 }
 
 class ProbeRequest extends Bundle {
-  val p_type = Bits(width = P_REQ_TYPE_BITS)
+  val p_type = Bits(width = P_REQ_TYPE_MAX_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
   val address = Bits(width = PADDR_BITS - OFFSET_BITS)
 }
 
 class ProbeReply extends Bundle {
-  val p_type = Bits(width = P_REP_TYPE_BITS)
+  val p_type = Bits(width = P_REP_TYPE_MAX_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
 }
 
 class ProbeReplyData extends MemData
 
 class TransactionReply extends MemData {
-  val x_type = Bits(width = X_REP_TYPE_BITS)
+  val x_type = Bits(width = X_REP_TYPE_MAX_BITS)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
   val require_ack = Bool()
@@ -57,10 +57,10 @@ trait ThreeStateIncoherence extends CoherencePolicy {
   val xactInitReadShared    = UFix(0, 2)
   val xactInitReadExclusive = UFix(1, 2)
   val xactInitWriteUncached = UFix(3, 2)
-  val xactReplyReadShared    = UFix(0, X_REP_TYPE_BITS)
-  val xactReplyReadExclusive = UFix(1, X_REP_TYPE_BITS)
-  val xactReplyWriteUncached = UFix(3, X_REP_TYPE_BITS)
-  val probeRepInvalidateAck  = UFix(3, P_REP_TYPE_BITS)
+  val xactReplyReadShared    = UFix(0, X_REP_TYPE_MAX_BITS)
+  val xactReplyReadExclusive = UFix(1, X_REP_TYPE_MAX_BITS)
+  val xactReplyWriteUncached = UFix(3, X_REP_TYPE_MAX_BITS)
+  val probeRepInvalidateAck  = UFix(3, P_REP_TYPE_MAX_BITS)
 
   def isHit ( cmd: Bits, state: UFix): Bool = {
     val (read, write) = cpuCmdToRW(cmd)

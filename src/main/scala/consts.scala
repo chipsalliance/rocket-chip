@@ -197,10 +197,10 @@ object Constants
   val GLOBAL_XACT_ID_BITS = 2
   val NGLOBAL_XACTS = 1 << GLOBAL_XACT_ID_BITS
 
-  val X_INIT_TYPE_BITS = 2
-  val X_REP_TYPE_BITS = 3
-  val P_REQ_TYPE_BITS = 2
-  val P_REP_TYPE_BITS = 3
+  val X_INIT_TYPE_MAX_BITS = 2
+  val X_REP_TYPE_MAX_BITS = 3
+  val P_REQ_TYPE_MAX_BITS = 2
+  val P_REP_TYPE_MAX_BITS = 3
 
   // external memory interface
   val MEM_TAG_BITS = max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS)
