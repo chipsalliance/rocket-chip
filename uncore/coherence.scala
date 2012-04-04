@@ -50,59 +50,99 @@ object cpuCmdToRW {
   }
 }
 
-trait CoherencePolicy { }
+trait CoherencePolicy {
+  def isHit (cmd: Bits, state: UFix): Bool
+  def isValid (state: UFix): Bool
 
-trait ThreeStateIncoherence extends CoherencePolicy {
+  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: TransactionInit): Bool
+  def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool
+  def needsWriteback (state: UFix): Bool
+
+  def newStateOnHit(cmd: Bits, state: UFix): UFix
+  def newStateOnCacheControl(cmd: Bits): UFix
+  def newStateOnWriteback(): UFix
+  def newStateOnFlush(): UFix
+  def newStateOnTransactionReply(incoming: TransactionReply, outstanding: TransactionInit): UFix
+  def newStateOnProbeRequest(incoming: ProbeRequest, state: UFix): Bits
+
+  def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix
+  def getTransactionInitTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: TransactionInit): UFix
+  def getTransactionInitTypeOnCacheControl(cmd: Bits): Bits
+  def getTransactionInitTypeOnWriteback(): Bits
+
+  def newProbeReply (incoming: ProbeRequest, state: UFix): ProbeReply
+
+  def hasData (reply: ProbeReply): Bool
+  def hasData (init: TransactionInit): Bool
+  def hasData (reply: TransactionReply): Bool
+
+  def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool
+  def getTransactionReplyType(x_type: UFix, count: UFix): Bits
+  def getProbeRequestType(x_type: UFix, global_state: UFix): UFix
+  def needsMemRead(x_type: UFix, global_state: UFix): Bool
+  def needsMemWrite(x_type: UFix, global_state: UFix): Bool
+  def needsAckReply(x_type: UFix, global_state: UFix): Bool
+}
+
+trait IncoherentPolicy extends CoherencePolicy {
+  // UNIMPLEMENTED
+  def newStateOnProbeRequest(incoming: ProbeRequest, state: UFix): Bits = state
+  def newProbeReply (incoming: ProbeRequest, state: UFix): ProbeReply = { 
+    val reply = Wire() { new ProbeReply() }
+    reply.p_type := UFix(0)
+    reply.global_xact_id := UFix(0)
+    reply
+  }
+  def hasData (reply: ProbeReply) = Bool(false)
+  def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = Bool(false)
+  def getTransactionReplyType(x_type: UFix, count: UFix): Bits = Bits(0)
+  def getProbeRequestType(x_type: UFix, global_state: UFix): UFix = UFix(0)
+  def needsMemRead(x_type: UFix, global_state: UFix): Bool = Bool(false)
+  def needsMemWrite(x_type: UFix, global_state: UFix): Bool = Bool(false)
+  def needsAckReply(x_type: UFix, global_state: UFix): Bool = Bool(false)
+}
+
+trait ThreeStateIncoherence extends IncoherentPolicy {
   val tileInvalid :: tileClean :: tileDirty :: Nil = Enum(3){ UFix() }
-  val xactInitReadShared    = UFix(0, 2)
-  val xactInitReadExclusive = UFix(1, 2)
-  val xactInitWriteUncached = UFix(3, 2)
-  val xactReplyReadShared    = UFix(0, X_REP_TYPE_MAX_BITS)
-  val xactReplyReadExclusive = UFix(1, X_REP_TYPE_MAX_BITS)
-  val xactReplyWriteUncached = UFix(3, X_REP_TYPE_MAX_BITS)
-  val probeRepInvalidateAck  = UFix(3, P_REP_TYPE_MAX_BITS)
+  val xactInitReadClean :: xactInitReadDirty :: xactInitWriteback :: Nil = Enum(3){ UFix() }
+  val xactReplyData :: xactReplyAck :: Nil = Enum(2){ UFix() }
+  val probeRepInvalidateAck :: Nil = Enum(1){ UFix() }
 
-  def isHit ( cmd: Bits, state: UFix): Bool = {
-    val (read, write) = cpuCmdToRW(cmd)
-    ( state === tileClean || state === tileDirty)
-  }
+  def isHit ( cmd: Bits, state: UFix): Bool = (state === tileClean || state === tileDirty)
+  def isValid (state: UFix): Bool = state != tileInvalid
 
-  def isValid (state: UFix): Bool = {
-    state != tileInvalid
-  }
+  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: TransactionInit) = Bool(false)
+  def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = state === tileDirty
+  def needsWriteback (state: UFix): Bool = state === tileDirty
 
-  def needsWriteback (state: UFix): Bool = {
-    state === tileDirty
-  }
-
-  def newStateOnWriteback() = tileInvalid
-  def newStateOnCacheControl(cmd: Bits) = tileInvalid
   def newState(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
     Mux(write, tileDirty, Mux(read, Mux(state === tileDirty, tileDirty, tileClean), state))
   }
   def newStateOnHit(cmd: Bits, state: UFix): UFix = newState(cmd, state)
+  def newStateOnCacheControl(cmd: Bits) = tileInvalid //TODO
+  def newStateOnWriteback() = tileInvalid
+  def newStateOnFlush() = tileInvalid
+  def newStateOnTransactionReply(incoming: TransactionReply, outstanding: TransactionInit) = {
+    MuxLookup(incoming.x_type, tileInvalid, Array(
+      xactReplyData -> Mux(outstanding.x_type === xactInitReadDirty, tileDirty, tileClean),
+      xactReplyAck  -> tileInvalid
+    ))
+  }
+
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
-    Mux(write || cmd === M_PFW, xactInitReadExclusive, xactInitReadShared)
+    Mux(write || cmd === M_PFW, xactInitReadDirty, xactInitReadClean)
   }
   def getTransactionInitTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: TransactionInit): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, xactInitReadExclusive, outstanding.x_type)
+    Mux(write, xactInitReadDirty, outstanding.x_type)
   }
-  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: TransactionInit): Bool = Bool(false)
-  def newStateOnTransactionReply(incoming: TransactionReply, outstanding: TransactionInit): UFix = {
-    Mux(outstanding.x_type === xactInitReadExclusive, tileDirty, tileClean)
-  } 
-  def newStateOnProbeRequest(incoming: ProbeRequest, state: UFix): Bits = state
-  def newProbeReply (incoming: ProbeRequest, has_data: Bool): ProbeReply = {
-    val reply = Wire() { new ProbeReply() }
-    reply.p_type := probeRepInvalidateAck
-    reply.global_xact_id := UFix(0)
-    reply
-  }
-  def probeReplyHasData (reply: ProbeReply): Bool = Bool(false)
-  def transactionInitHasData (init: TransactionInit): Bool = (init.x_type === xactInitWriteUncached)
+  def getTransactionInitTypeOnCacheControl(cmd: Bits): Bits = xactInitWriteback //TODO
+  def getTransactionInitTypeOnWriteback(): Bits = xactInitWriteback
+
+  def hasData (init: TransactionInit): Bool = (init.x_type === xactInitWriteback)
+  def hasData (reply: TransactionReply) = (reply.x_type === xactReplyData)
 }
 
 trait FourStateCoherence extends CoherencePolicy {
