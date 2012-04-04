@@ -251,7 +251,7 @@ abstract class CoherenceHub(ntiles: Int) extends Component with CoherencePolicy 
 class CoherenceHubNull extends CoherenceHub(1) with ThreeStateIncoherence 
 {
   val x_init = io.tiles(0).xact_init
-  val is_write = x_init.bits.x_type === xactInitWriteUncached
+  val is_write = x_init.bits.x_type === xactInitWriteback
   x_init.ready := io.mem.req_cmd.ready && !(is_write && io.mem.resp.valid) //stall write req/resp to handle previous read resp
   io.mem.req_cmd.valid   := x_init.valid && !(is_write && io.mem.resp.valid)
   io.mem.req_cmd.bits.rw    := is_write
@@ -260,7 +260,7 @@ class CoherenceHubNull extends CoherenceHub(1) with ThreeStateIncoherence
   io.mem.req_data <> io.tiles(0).xact_init_data
 
   val x_rep = io.tiles(0).xact_rep
-  x_rep.bits.x_type := Mux(io.mem.resp.valid, xactReplyReadExclusive, xactReplyWriteUncached)
+  x_rep.bits.x_type := Mux(io.mem.resp.valid, xactReplyData, xactReplyAck)
   x_rep.bits.tile_xact_id := Mux(io.mem.resp.valid, io.mem.resp.bits.tag, x_init.bits.tile_xact_id)
   x_rep.bits.global_xact_id := UFix(0) // don't care
   x_rep.bits.data := io.mem.resp.bits.data
