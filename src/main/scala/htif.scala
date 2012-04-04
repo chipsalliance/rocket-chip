@@ -165,7 +165,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
     mem_req_data = Cat(packet_ram(idx), mem_req_data)
   }
   io.mem.xact_init.valid := state === state_mem_req
-  io.mem.xact_init.bits.t_type := Mux(cmd === cmd_writemem, X_INIT_WRITE_UNCACHED, X_INIT_READ_UNCACHED)
+  io.mem.xact_init.bits.x_type := Mux(cmd === cmd_writemem, xactInitWriteUncached, xactInitReadUncached)
   io.mem.xact_init.bits.address := addr >> UFix(OFFSET_BITS-3)
   io.mem.xact_init_data.valid:= state === state_mem_wdata
   io.mem.xact_init_data.bits.data := mem_req_data

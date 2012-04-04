@@ -188,7 +188,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   val state = Reg(resetVal = s_invalid)
   val flush = Reg { Bool() }
 
-  val xact_type = Reg { UFix() }
+  val xacx_type = Reg { UFix() }
   val line_state = Reg { UFix() }
   val refill_count = Reg { UFix(width = log2up(REFILL_CYCLES)) }
   val req = Reg { new MSHRReq() }
@@ -239,13 +239,13 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   }
 
   when (io.req_sec_val && io.req_sec_rdy) { // s_wb_req, s_wb_resp, s_refill_req
-    xact_type := getTransactionInitTypeOnSecondaryMiss(req_cmd, newStateOnFlush(), io.mem_req.bits)
+    xacx_type := getTransactionInitTypeOnSecondaryMiss(req_cmd, newStateOnFlush(), io.mem_req.bits)
   }
   when ((state === s_invalid) && io.req_pri_val) {
     flush := req_cmd === M_FLA
     line_state := newStateOnFlush()
     refill_count := UFix(0)
-    xact_type := getTransactionInitTypeOnPrimaryMiss(req_cmd, newStateOnFlush())
+    xacx_type := getTransactionInitTypeOnPrimaryMiss(req_cmd, newStateOnFlush())
     req := io.req_bits
 
     when (io.req_bits.tag_miss) {
@@ -278,7 +278,7 @@ class MSHR(id: Int) extends Component with FourStateCoherence {
   io.probe_refill.ready := (state != s_refill_resp) || !idx_match
 
   io.mem_req.valid := (state === s_refill_req) && !flush
-  io.mem_req.bits.t_type := xact_type
+  io.mem_req.bits.x_type := xacx_type
   io.mem_req.bits.address := Cat(req.tag, req.idx).toUFix
   io.mem_req.bits.tile_xact_id := Bits(id)
   io.mem_finish <> finish_q.io.deq
@@ -469,7 +469,7 @@ class WritebackUnit extends Component with FourStateCoherence{
   io.data_req.bits.data := Bits(0)
 
   io.mem_req.valid := valid && !cmd_sent
-  io.mem_req.bits.t_type := getTransactionInitTypeOnWriteback()
+  io.mem_req.bits.x_type := getTransactionInitTypeOnWriteback()
   io.mem_req.bits.address := Cat(req.tag, req.idx).toUFix
   io.mem_req.bits.tile_xact_id := req.tile_xact_id
   io.mem_req_data.valid := data_req_fired && !is_probe
@@ -894,7 +894,7 @@ class HellaCacheUniproc extends HellaCache with FourStateCoherence {
   data_arb.io.in(0).bits.wmask := ~UFix(0, MEM_DATA_BITS/8)
   data_arb.io.in(0).bits.data := io.mem.xact_rep.bits.data
   data_arb.io.in(0).bits.way_en := mshr.io.mem_resp_way_oh
-  data_arb.io.in(0).valid := io.mem.xact_rep.valid && (io.mem.xact_rep.bits.t_type === X_REP_READ_SHARED || io.mem.xact_rep.bits.t_type === X_REP_READ_EXCLUSIVE)
+  data_arb.io.in(0).valid := io.mem.xact_rep.valid && (io.mem.xact_rep.bits.x_type === xactReplyReadShared || io.mem.xact_rep.bits.x_type === xactReplyReadExclusive)
 
   // load hits
   data_arb.io.in(4).bits.offset := io.cpu.req_idx(offsetmsb,ramindexlsb)
