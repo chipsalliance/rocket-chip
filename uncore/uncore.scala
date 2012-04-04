@@ -74,7 +74,7 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
     val p_rep_tile_id   = Bits(TILE_ID_BITS, OUTPUT)
     val tile_xact_id    = Bits(TILE_XACT_ID_BITS, OUTPUT)
     val sharer_count    = Bits(TILE_ID_BITS+1, OUTPUT)
-    val x_type          = Bits(X_INIT_TYPE_BITS, OUTPUT)
+    val x_type          = Bits(X_INIT_TYPE_MAX_BITS, OUTPUT)
     val push_p_req      = Bits(ntiles, OUTPUT)
     val pop_p_rep       = Bits(ntiles, OUTPUT)
     val pop_p_rep_data  = Bits(ntiles, OUTPUT)
@@ -283,7 +283,7 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
   val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS-OFFSET_BITS)} }
   val init_tile_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
   val tile_xact_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
-  val x_type_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=X_INIT_TYPE_BITS)} }
+  val x_type_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=X_INIT_TYPE_MAX_BITS)} }
   val sh_count_arr       = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
   val send_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
 
