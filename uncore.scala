@@ -86,11 +86,11 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
   }
 
   def doMemReqWrite(req_cmd: ioDecoupled[MemReqCmd], req_data: ioDecoupled[MemData], lock: Bool,  data: ioPipe[MemData], trigger: Bool, cmd_sent: Bool, pop_data: Bits, pop_dep: Bits, at_front_of_dep_queue: Bool, tile_id: UFix) {
-    req_cmd.valid := !cmd_sent && at_front_of_dep_queue
+    req_cmd.valid := !cmd_sent && data.valid && at_front_of_dep_queue
     req_cmd.bits.rw := Bool(true)
     req_data.valid := data.valid && at_front_of_dep_queue
     req_data.bits := data.bits
-    lock := at_front_of_dep_queue
+    lock := data.valid && at_front_of_dep_queue
     when(req_cmd.ready && req_cmd.valid) {
       cmd_sent := Bool(true)
     }
@@ -383,8 +383,8 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
     val pop_p_reps = trackerList.map(_.io.pop_p_rep(j).toBool)
     val do_pop = foldR(pop_p_reps)(_ || _)
     p_rep.ready := Bool(true)
-    p_rep_data_dep_list(j).io.enq.valid := do_pop
-    p_rep_data_dep_list(j).io.enq.bits.global_xact_id := OHToUFix(pop_p_reps)
+    p_rep_data_dep_list(j).io.enq.valid := p_rep.valid && co.messageHasData(p_rep.bits)
+    p_rep_data_dep_list(j).io.enq.bits.global_xact_id := p_rep.bits.global_xact_id
     p_rep_data.ready := foldR(trackerList.map(_.io.pop_p_rep_data(j)))(_ || _)
     when (p_rep.valid && co.messageHasData(p_rep.bits)) {
       p_data_valid_arr(idx) := Bool(true)
