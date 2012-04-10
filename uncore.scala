@@ -50,7 +50,7 @@ class ioTileLink extends Bundle {
   val xact_finish    = (new ioDecoupled) { new TransactionFinish }
 }
 
-class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherence {
+class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
   val io = new Bundle {
     val alloc_req       = (new ioDecoupled) { new TrackerAllocReq }.flip
     val p_data          = (new ioPipe) { new TrackerProbeData }.flip
@@ -140,7 +140,7 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
   io.sharer_count := UFix(ntiles) // TODO: Broadcast only
   io.x_type := x_type_
 
-  io.mem_req_cmd.valid              := Bool(false)
+  io.mem_req_cmd.valid := Bool(false)
   io.mem_req_cmd.bits.rw := Bool(false)
   io.mem_req_cmd.bits.addr := addr_
   io.mem_req_cmd.bits.tag := UFix(id)
@@ -148,7 +148,7 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
   io.mem_req_data.bits.data := UFix(0)
   io.mem_req_lock := Bool(false)
   io.probe_req.valid := Bool(false)
-  io.probe_req.bits.p_type := getProbeRequestType(x_type_, UFix(0))
+  io.probe_req.bits.p_type := co.getProbeRequestType(x_type_, UFix(0))
   io.probe_req.bits.global_xact_id  := UFix(id)
   io.probe_req.bits.address := addr_
   io.push_p_req      := Bits(0, width = ntiles)
@@ -167,8 +167,8 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
         x_type_ := io.alloc_req.bits.xact_init.x_type
         init_tile_id_ := io.alloc_req.bits.tile_id
         tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
-        x_init_data_needs_write := hasData(io.alloc_req.bits.xact_init)
-        x_needs_read := needsMemRead(io.alloc_req.bits.xact_init.x_type, UFix(0))
+        x_init_data_needs_write := co.messageHasData(io.alloc_req.bits.xact_init)
+        x_needs_read := co.needsMemRead(io.alloc_req.bits.xact_init.x_type, UFix(0))
         if(ntiles > 1) p_rep_count := UFix(ntiles-1)
         val p_req_initial_flags = ~( UFix(1) << io.alloc_req.bits.tile_id ) //TODO: Broadcast only
         p_req_flags := p_req_initial_flags
@@ -226,7 +226,7 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
       } . elsewhen (x_needs_read) {    
         doMemReqRead(io.mem_req_cmd, x_needs_read)
       } . otherwise { 
-        state := Mux(needsAckReply(x_type_, UFix(0)), s_ack, s_busy)
+        state := Mux(co.needsAckReply(x_type_, UFix(0)), s_ack, s_busy)
       }
     }
     is(s_ack) {
@@ -241,17 +241,17 @@ class XactTracker(ntiles: Int, id: Int) extends Component with FourStateCoherenc
   }
 }
 
-abstract class CoherenceHub(ntiles: Int) extends Component with CoherencePolicy {
+abstract class CoherenceHub(ntiles: Int, co: CoherencePolicy) extends Component {
   val io = new Bundle {
     val tiles = Vec(ntiles) { new ioTileLink() }.flip
     val mem = new ioMem
   }
 }
 
-class CoherenceHubNull extends CoherenceHub(1) with ThreeStateIncoherence 
+class CoherenceHubNull(co: ThreeStateIncoherence)  extends CoherenceHub(1, co)
 {
   val x_init = io.tiles(0).xact_init
-  val is_write = x_init.bits.x_type === xactInitWriteback
+  val is_write = x_init.bits.x_type === co.xactInitWriteback
   x_init.ready := io.mem.req_cmd.ready && !(is_write && io.mem.resp.valid) //stall write req/resp to handle previous read resp
   io.mem.req_cmd.valid   := x_init.valid && !(is_write && io.mem.resp.valid)
   io.mem.req_cmd.bits.rw    := is_write
@@ -260,7 +260,7 @@ class CoherenceHubNull extends CoherenceHub(1) with ThreeStateIncoherence
   io.mem.req_data <> io.tiles(0).xact_init_data
 
   val x_rep = io.tiles(0).xact_rep
-  x_rep.bits.x_type := Mux(io.mem.resp.valid, xactReplyData, xactReplyAck)
+  x_rep.bits.x_type := Mux(io.mem.resp.valid, co.xactReplyData, co.xactReplyAck)
   x_rep.bits.tile_xact_id := Mux(io.mem.resp.valid, io.mem.resp.bits.tag, x_init.bits.tile_xact_id)
   x_rep.bits.global_xact_id := UFix(0) // don't care
   x_rep.bits.data := io.mem.resp.bits.data
@@ -275,9 +275,9 @@ class CoherenceHubNull extends CoherenceHub(1) with ThreeStateIncoherence
 }
 
 
-class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourStateCoherence
+class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceHub(ntiles, co)
 {
-  val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(ntiles, _))
+  val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(ntiles, _, co))
 
   val busy_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
   val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS-OFFSET_BITS)} }
@@ -344,12 +344,12 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
     rep.bits.require_ack := Bool(true)
     rep.valid := Bool(false)
     when(io.mem.resp.valid && (UFix(j) === init_tile_id_arr(mem_idx))) {
-      rep.bits.x_type := getTransactionReplyType(x_type_arr(mem_idx), sh_count_arr(mem_idx))
+      rep.bits.x_type := co.getTransactionReplyType(x_type_arr(mem_idx), sh_count_arr(mem_idx))
       rep.bits.tile_xact_id := tile_xact_id_arr(mem_idx)
       rep.bits.global_xact_id := mem_idx
       rep.valid := Bool(true)
     } . otherwise {
-      rep.bits.x_type := getTransactionReplyType(x_type_arr(ack_idx), sh_count_arr(ack_idx))
+      rep.bits.x_type := co.getTransactionReplyType(x_type_arr(ack_idx), sh_count_arr(ack_idx))
       rep.bits.tile_xact_id := tile_xact_id_arr(ack_idx)
       rep.bits.global_xact_id := ack_idx
       when (UFix(j) === init_tile_id_arr(ack_idx)) {
@@ -417,16 +417,16 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
     val conflicts = Vec(NGLOBAL_XACTS) { Wire() { Bool() } }
     for( i <- 0 until NGLOBAL_XACTS) {
       val t = trackerList(i).io
-      conflicts(i) := t.busy && x_init.valid && isCoherenceConflict(t.addr, x_init.bits.address)
+      conflicts(i) := t.busy && x_init.valid && co.isCoherenceConflict(t.addr, x_init.bits.address)
     }
     x_abort.bits.tile_xact_id := x_init.bits.tile_xact_id
-    want_to_abort_arr(j) := x_init.valid && (conflicts.toBits.orR || busy_arr.toBits.andR || (!x_init_data_dep_list(j).io.enq.ready && hasData(x_init.bits)))
+    want_to_abort_arr(j) := x_init.valid && (conflicts.toBits.orR || busy_arr.toBits.andR || (!x_init_data_dep_list(j).io.enq.ready && co.messageHasData(x_init.bits)))
     
     x_abort.valid := Bool(false)
     switch(abort_state_arr(j)) {
       is(s_idle) {
         when(want_to_abort_arr(j)) {
-          when(hasData(x_init.bits)) {
+          when(co.messageHasData(x_init.bits)) {
             abort_state_arr(j) := s_abort_drain
           } . otherwise {
             abort_state_arr(j) := s_abort_send
@@ -478,7 +478,7 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
     init_arb.io.in(j).bits.tile_id := UFix(j)
     val pop_x_inits = trackerList.map(_.io.pop_x_init(j).toBool)
     val do_pop = foldR(pop_x_inits)(_||_)
-    x_init_data_dep_list(j).io.enq.valid := do_pop && hasData(x_init.bits) && (abort_state_arr(j) === s_idle) 
+    x_init_data_dep_list(j).io.enq.valid := do_pop && co.messageHasData(x_init.bits) && (abort_state_arr(j) === s_idle) 
     x_init_data_dep_list(j).io.enq.bits.global_xact_id := OHToUFix(pop_x_inits)
     x_init.ready := (abort_state_arr(j) === s_abort_complete) || do_pop
     x_init_data.ready := (abort_state_arr(j) === s_abort_drain) || foldR(trackerList.map(_.io.pop_x_init_data(j).toBool))(_||_)
