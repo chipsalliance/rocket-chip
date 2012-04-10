@@ -598,8 +598,8 @@ class CoherenceHubBroadcast(ntiles: Int) extends CoherenceHub(ntiles) with FourS
     p_rep_data_dep_list(j).io.enq.valid := do_pop
     p_rep_data_dep_list(j).io.enq.bits.global_xact_id := OHToUFix(pop_p_reps)
     p_rep_data.ready := foldR(trackerList.map(_.io.pop_p_rep_data(j)))(_ || _)
-    when (p_rep.valid) {
-      p_data_valid_arr(idx) := probeReplyHasData(p_rep.bits)
+    when (p_rep.valid && probeReplyHasData(p_rep.bits)) {
+      p_data_valid_arr(idx) := Bool(true)
       p_data_tile_id_arr(idx) := UFix(j)
     }
     p_rep_data_dep_list(j).io.deq.ready := foldR(trackerList.map(_.io.pop_p_rep_dep(j).toBool))(_||_)
