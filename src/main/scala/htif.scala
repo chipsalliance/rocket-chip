@@ -30,7 +30,7 @@ class ioHTIF extends Bundle
   val pcr_rep = (new ioPipe) { Bits(width = 64) }
 }
 
-class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
+class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends Component
 {
   val io = new Bundle {
     val host = new ioHost(w)
@@ -165,7 +165,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
     mem_req_data = Cat(packet_ram(idx), mem_req_data)
   }
   io.mem.xact_init.valid := state === state_mem_req
-  io.mem.xact_init.bits.x_type := Mux(cmd === cmd_writemem, xactInitWriteUncached, xactInitReadUncached)
+  io.mem.xact_init.bits.x_type := Mux(cmd === cmd_writemem, co.getTransactionInitTypeOnUncachedWrite, co.getTransactionInitTypeOnUncachedRead)
   io.mem.xact_init.bits.address := addr >> UFix(OFFSET_BITS-3)
   io.mem.xact_init_data.valid:= state === state_mem_wdata
   io.mem.xact_init_data.bits.data := mem_req_data
@@ -175,7 +175,7 @@ class rocketHTIF(w: Int, ncores: Int) extends Component with FourStateCoherence
   val probe_q = (new queue(1)) { new ProbeReply }
   probe_q.io.enq.valid := io.mem.probe_req.valid
   io.mem.probe_req.ready := probe_q.io.enq.ready
-  probe_q.io.enq.bits := newProbeReply(io.mem.probe_req.bits, newStateOnFlush())
+  probe_q.io.enq.bits := co.newProbeReply(io.mem.probe_req.bits, co.newStateOnFlush())
   io.mem.probe_rep <> probe_q.io.deq
   io.mem.probe_rep_data.valid := Bool(false)
 

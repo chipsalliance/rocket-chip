@@ -4,7 +4,7 @@ import Chisel._
 import Node._
 import Constants._
 
-class Tile extends Component
+class Tile(co: CoherencePolicyWithUncached) extends Component
 {
   val io = new Bundle {
     val tilelink = new ioTileLink
@@ -12,8 +12,8 @@ class Tile extends Component
   }
   
   val cpu       = new rocketProc(resetSignal = io.host.reset)
-  val icache    = new rocketICache(128, 4) // 128 sets x 4 ways (32KB)
-  val dcache    = new HellaCacheUniproc
+  val icache    = new rocketICache(128, 4, co) // 128 sets x 4 ways (32KB)
+  val dcache    = new HellaCache(co)
 
   val arbiter   = new rocketMemArbiter(2 + (if (HAVE_VEC) 1 else 0))
   arbiter.io.requestor(0) <> dcache.io.mem
@@ -30,7 +30,7 @@ class Tile extends Component
 
   if (HAVE_VEC)
   {
-    val vicache = new rocketICache(128, 1) // 128 sets x 1 ways (8KB)
+    val vicache = new rocketICache(128, 1, co) // 128 sets x 1 ways (8KB)
     arbiter.io.requestor(2) <> vicache.io.mem
     cpu.io.vimem <> vicache.io.cpu
   }
