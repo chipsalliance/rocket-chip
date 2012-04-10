@@ -5,6 +5,7 @@ import scala.math._
 
 object Constants
 {
+  val NTILES = 1
   val HAVE_RVC = false
   val HAVE_FPU = true
   val HAVE_VEC = true
