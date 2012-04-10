@@ -11,7 +11,7 @@ class ioIPrefetcher extends Bundle() {
   val invalidate = Bool(INPUT)
 }
 
-class rocketIPrefetcher extends Component with FourStateCoherence
+class rocketIPrefetcher(co: CoherencePolicyWithUncached) extends Component
 {
   val io = new ioIPrefetcher();
   val pdq = (new queue(REFILL_CYCLES, flushable = true)) { Bits(width = MEM_DATA_BITS) };
@@ -34,7 +34,7 @@ class rocketIPrefetcher extends Component with FourStateCoherence
   val finish_q = (new queue(1)) { new TransactionFinish }
   io.mem.xact_abort.ready := Bool(true)
   io.mem.xact_init.valid  := prefetch_miss || (state === s_req_wait) && finish_q.io.enq.ready
-  io.mem.xact_init.bits.x_type := xactInitReadUncached
+  io.mem.xact_init.bits.x_type := co.getTransactionInitTypeOnUncachedRead
   io.mem.xact_init.bits.tile_xact_id  := Mux(prefetch_miss, UFix(0), UFix(1))
   io.mem.xact_init.bits.address := Mux(prefetch_miss, io.icache.xact_init.bits.address, prefetch_addr);
 

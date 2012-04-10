@@ -20,10 +20,11 @@ class Top extends Component
   val htif_width = 8
   val io = new ioTop(htif_width)
 
-  val tile = new Tile
-  val htif = new rocketHTIF(htif_width, 1)
+  val co = new FourStateCoherence
+  val tile = new Tile(co)
+  val htif = new rocketHTIF(htif_width, 1, co)
   
-  val hub = new CoherenceHubBroadcast(2)
+  val hub = new CoherenceHubBroadcast(2, co)
   hub.io.tiles(0) <> tile.io.tilelink
   hub.io.tiles(1) <> htif.io.mem
 
