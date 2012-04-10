@@ -826,8 +826,8 @@ class HellaCache(co: CoherencePolicy) extends Component {
     (((r_cpu_req_type === MT_W) || (r_cpu_req_type === MT_WU)) && (r_cpu_req_idx(1,0) != Bits(0))) ||
     ((r_cpu_req_type === MT_D) && (r_cpu_req_idx(2,0) != Bits(0)));
     
-  io.cpu.xcpt_ma_ld := r_cpu_req_val_ && r_req_read && misaligned
-  io.cpu.xcpt_ma_st := r_cpu_req_val_ && r_req_write && misaligned
+  io.cpu.xcpt_ma_ld := r_cpu_req_val_ && !early_nack && r_req_read && misaligned
+  io.cpu.xcpt_ma_st := r_cpu_req_val_ && !early_nack && r_req_write && misaligned
 
   // tags
   val meta = new MetaDataArrayArray(lines)

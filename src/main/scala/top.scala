@@ -21,12 +21,9 @@ class Top extends Component
   val io = new ioTop(htif_width)
 
   val co = new FourStateCoherence
-  val tile = new Tile(co)
-  val htif = new rocketHTIF(htif_width, 1, co)
-  
-  val hub = new CoherenceHubBroadcast(2, co)
-  hub.io.tiles(0) <> tile.io.tilelink
-  hub.io.tiles(1) <> htif.io.mem
+  val htif = new rocketHTIF(htif_width, NTILES, co)
+  val hub = new CoherenceHubBroadcast(NTILES+1, co)
+  hub.io.tiles(NTILES) <> htif.io.mem
 
   // mux between main and backup memory ports
   val mem_serdes = new MemSerdes
@@ -67,8 +64,14 @@ class Top extends Component
   io.mem_backup.resp <> mio.io.in_slow
   io.mem_backup_clk := mio.io.clk_slow
 
-  tile.io.host <> htif.io.cpu(0)
-  io.debug <> tile.io.host.debug
+  var error_mode = Bool(false)
+  for (i <- 0 until NTILES) {
+    val tile = new Tile(co)
+    tile.io.host <> htif.io.cpu(i)
+    hub.io.tiles(i) <> tile.io.tilelink
+    error_mode = error_mode || tile.io.host.debug.error_mode
+  }
+  io.debug.error_mode := error_mode
 }
 
 object top_main {
