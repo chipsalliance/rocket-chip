@@ -192,10 +192,13 @@ object Constants
   require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
 
   // coherence parameters
+  val ENABLE_SHARING = true
+  val ENABLE_CLEAN_EXCLUSIVE = true
+
   val COHERENCE_DATA_BITS = (1 << OFFSET_BITS)*8 
-  val TILE_ID_BITS = 1
+  val TILE_ID_BITS = log2up(NTILES)+1
   val TILE_XACT_ID_BITS = log2up(NMSHR)+3
-  val GLOBAL_XACT_ID_BITS = 2
+  val GLOBAL_XACT_ID_BITS = log2up(NTILES*NMSHR)+1
   val NGLOBAL_XACTS = 1 << GLOBAL_XACT_ID_BITS
 
   val X_INIT_TYPE_MAX_BITS = 2

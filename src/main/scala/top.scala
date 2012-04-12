@@ -20,7 +20,13 @@ class Top extends Component
   val htif_width = 8
   val io = new ioTop(htif_width)
 
-  val co = new FourStateCoherence
+  val co =  if(ENABLE_SHARING) {
+              if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence
+              else new MSICoherence
+            } else {
+              if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence
+              else new MICoherence
+            }
   val htif = new rocketHTIF(htif_width, NTILES, co)
   val hub = new CoherenceHubBroadcast(NTILES+1, co)
   hub.io.tiles(NTILES) <> htif.io.mem
