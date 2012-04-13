@@ -184,7 +184,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
     val probe_refill = (new ioDecoupled) { Bool() }.flip
   }
 
-  val s_invalid :: s_wb_req :: s_wb_resp :: s_refill_req :: s_refill_resp :: s_drain_rpq :: Nil = Enum(6) { UFix() }
+  val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_drain_rpq :: Nil = Enum(7) { UFix() }
   val state = Reg(resetVal = s_invalid)
   val flush = Reg { Bool() }
 
@@ -196,7 +196,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
   val req_cmd = io.req_bits.cmd
   val req_use_rpq = (req_cmd != M_PFR) && (req_cmd != M_PFW) && (req_cmd != M_FLA)
   val idx_match = req.idx === io.req_bits.idx
-  val sec_rdy = idx_match && !flush && (state === s_wb_req || state === s_wb_resp || (state === s_refill_req || state === s_refill_resp) && !co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
+  val sec_rdy = idx_match && !flush && (state === s_wb_req || state === s_wb_resp || state === s_meta_clear || (state === s_refill_req || state === s_refill_resp) && !co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
 
   val rpq = (new queue(NRPQ)) { new RPQEntry }
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && req_use_rpq
@@ -228,14 +228,16 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
     when (flush) { state := s_drain_rpq }
     .elsewhen (io.mem_req.ready) { state := s_refill_resp }
   }
+  when (state === s_meta_clear && io.meta_req.ready) {
+    state := s_refill_req
+  }
   when (state === s_wb_resp) {
-    when (reply) { state := s_refill_req }
+    when (reply) { state := s_meta_clear }
     when (abort) { state := s_wb_req }
   }
-  when (state === s_wb_req && io.wb_req.ready) {
+  when (state === s_wb_req && io.meta_req.ready) {
     when (io.probe_writeback.valid && idx_match) { state := s_refill_req }
-    when (io.wb_req.ready) { state := s_wb_resp }
-    state := s_wb_resp
+    .elsewhen (io.wb_req.ready) { state := s_wb_resp }
   }
 
   when (io.req_sec_val && io.req_sec_rdy) { // s_wb_req, s_wb_resp, s_refill_req
@@ -261,21 +263,21 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
   io.req_pri_rdy := (state === s_invalid)
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
-  io.meta_req.valid := (state === s_drain_rpq) && !rpq.io.deq.valid && !finish_q.io.deq.valid
+  io.meta_req.valid := (state === s_drain_rpq) && !rpq.io.deq.valid && !finish_q.io.deq.valid || (state === s_meta_clear)
   io.meta_req.bits.rw := Bool(true)
   io.meta_req.bits.idx := req.idx
-  io.meta_req.bits.data.state := line_state
+  io.meta_req.bits.data.state := Mux(state === s_meta_clear, co.newStateOnFlush(), line_state)
   io.meta_req.bits.data.tag := req.tag
   io.meta_req.bits.way_en := req.way_oh
 
-  io.wb_req.valid := (state === s_wb_req)
+  io.wb_req.valid := (state === s_wb_req) && !(io.probe_writeback.valid && idx_match)
   io.wb_req.bits.tag := req.old_tag
   io.wb_req.bits.idx := req.idx
   io.wb_req.bits.way_oh := req.way_oh
   io.wb_req.bits.tile_xact_id := Bits(id)
 
-  io.probe_writeback.ready := (state != s_wb_resp) || !idx_match
-  io.probe_refill.ready := (state != s_refill_resp) || !idx_match
+  io.probe_writeback.ready := (state != s_wb_resp && state != s_meta_clear) || !idx_match
+  io.probe_refill.ready := (state != s_refill_resp && state != s_drain_rpq) || !idx_match
 
   io.mem_req.valid := (state === s_refill_req) && !flush
   io.mem_req.bits.x_type := xacx_type
@@ -491,7 +493,7 @@ class ProbeUnit(co: CoherencePolicy) extends Component {
     val address = Bits(PADDR_BITS-OFFSET_BITS, OUTPUT)
   }
 
-  val s_invalid :: s_meta_req :: s_meta_resp :: s_probe_rep :: s_writeback_req :: s_writeback_resp :: Nil = Enum(6) { UFix() }
+  val s_invalid :: s_meta_req :: s_meta_resp :: s_mshr_req :: s_probe_rep :: s_writeback_req :: s_writeback_resp :: Nil = Enum(7) { UFix() }
   val state = Reg(resetVal = s_invalid)
   val line_state = Reg() { UFix() }
   val way_oh = Reg() { Bits() }
@@ -507,10 +509,13 @@ class ProbeUnit(co: CoherencePolicy) extends Component {
   when ((state === s_probe_rep) && io.meta_req.ready && io.rep.ready) {
     state := Mux(hit && co.needsWriteback(line_state), s_writeback_req, s_invalid)
   }
+  when ((state === s_mshr_req) && io.mshr_req.ready) {
+    state := s_meta_req
+  }
   when (state === s_meta_resp) {
     way_oh := io.tag_match_way_oh
     line_state := io.line_state
-    state := Mux(!io.mshr_req.ready, s_meta_req, s_probe_rep)
+    state := Mux(!io.mshr_req.ready, s_mshr_req, s_probe_rep)
   }
   when ((state === s_meta_req) && io.meta_req.ready) {
     state := s_meta_resp
@@ -524,13 +529,13 @@ class ProbeUnit(co: CoherencePolicy) extends Component {
   io.rep.valid := state === s_probe_rep && io.meta_req.ready
   io.rep.bits := co.newProbeReply(req, Mux(hit, line_state, co.newStateOnFlush()))
 
-  io.meta_req.valid := state === s_meta_req || state === s_meta_resp || state === s_probe_rep && hit
+  io.meta_req.valid := state === s_meta_req || state === s_meta_resp || state === s_mshr_req || state === s_probe_rep && hit
   io.meta_req.bits.way_en := Mux(state === s_probe_rep, way_oh, ~UFix(0, NWAYS))
   io.meta_req.bits.rw := state === s_probe_rep
   io.meta_req.bits.idx := req.address
   io.meta_req.bits.data.state := co.newStateOnProbeRequest(req, line_state)
   io.meta_req.bits.data.tag := req.address >> UFix(IDX_BITS)
-  io.mshr_req.valid := state === s_meta_resp
+  io.mshr_req.valid := state === s_meta_resp || state === s_mshr_req
   io.address := req.address
 
   io.wb_req.valid := state === s_writeback_req
