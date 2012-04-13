@@ -235,7 +235,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
     when (reply) { state := s_meta_clear }
     when (abort) { state := s_wb_req }
   }
-  when (state === s_wb_req && io.meta_req.ready) {
+  when (state === s_wb_req) {
     when (io.probe_writeback.valid && idx_match) { state := s_refill_req }
     .elsewhen (io.wb_req.ready) { state := s_wb_resp }
   }
