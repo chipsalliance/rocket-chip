@@ -809,15 +809,15 @@ class HellaCache(co: CoherencePolicy) extends Component {
     r_cpu_req_type := io.cpu.req_type
     r_cpu_req_tag  := io.cpu.req_tag
   }
+  when (prober.io.meta_req.valid) {
+    r_cpu_req_idx := Cat(prober.io.meta_req.bits.data.tag, prober.io.meta_req.bits.idx, mshr.io.data_req.bits.offset)(PGIDX_BITS-1,0)
+  }
   when (replay_amo_val) {
     r_cpu_req_idx  := Cat(mshr.io.data_req.bits.idx, mshr.io.data_req.bits.offset)
     r_cpu_req_cmd  := mshr.io.data_req.bits.cmd
     r_cpu_req_type := mshr.io.data_req.bits.typ
     r_amo_replay_data := mshr.io.data_req.bits.data
     r_way_oh       := mshr.io.data_req.bits.way_oh
-  }
-  when (prober.io.meta_req.valid) {
-    r_cpu_req_idx := Cat(prober.io.meta_req.bits.data.tag, prober.io.meta_req.bits.idx, mshr.io.data_req.bits.offset)(PGIDX_BITS-1,0)
   }
   when (flusher.io.meta_req.valid) {
     r_cpu_req_idx := Cat(flusher.io.meta_req.bits.idx, mshr.io.data_req.bits.offset)
@@ -868,15 +868,6 @@ class HellaCache(co: CoherencePolicy) extends Component {
   wb.io.data_req <> data_arb.io.in(3)
   wb.io.data_resp <> data_resp_mux
   wb.io.probe_rep_data <> io.mem.probe_rep_data
-
-  // probes
-  prober.io.req <> io.mem.probe_req
-  prober.io.rep <> io.mem.probe_rep
-  prober.io.meta_req <> meta_arb.io.in(2)
-  prober.io.mshr_req <> mshr.io.probe
-  prober.io.wb_req <> wb.io.probe
-  prober.io.tag_match_way_oh := tag_match_way_oh
-  prober.io.line_state := meta_resp_mux.state
 
   // replacement policy
   val replacer = new RandomReplacementWayGen()
@@ -964,7 +955,7 @@ class HellaCache(co: CoherencePolicy) extends Component {
 
   // replays
   val replay = mshr.io.data_req.bits
-  val stall_replay = r_replay_amo || p_amo || flusher.io.meta_req.valid || prober.io.meta_req.valid || p_store_valid
+  val stall_replay = r_replay_amo || p_amo || flusher.io.meta_req.valid || p_store_valid
   val replay_val = mshr.io.data_req.valid
   val replay_fire = replay_val && !stall_replay
   val replay_rdy = data_arb.io.in(1).ready && !stall_replay
@@ -975,6 +966,17 @@ class HellaCache(co: CoherencePolicy) extends Component {
   data_arb.io.in(1).bits.way_en := mshr.io.data_req.bits.way_oh
   mshr.io.data_req.ready := replay_rdy
   r_replay_amo := replay_amo_val && replay_rdy
+
+  // probes
+  prober.io.req <> io.mem.probe_req
+  prober.io.rep <> io.mem.probe_rep
+  prober.io.mshr_req <> mshr.io.probe
+  prober.io.wb_req <> wb.io.probe
+  prober.io.tag_match_way_oh := tag_match_way_oh
+  prober.io.line_state := meta_resp_mux.state
+  prober.io.meta_req.ready := meta_arb.io.in(2).ready && !replay_amo_val
+  meta_arb.io.in(2).valid := prober.io.meta_req.valid
+  meta_arb.io.in(2).bits := prober.io.meta_req.bits
 
   // store write mask generation.
   // assumes store replays are higher-priority than pending stores.
