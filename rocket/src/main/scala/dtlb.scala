@@ -79,6 +79,7 @@ class rocketDTLB(entries: Int) extends Component
   
   val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
   tag_cam.io.clear      := io.invalidate;
+  tag_cam.io.clear_hit  := io.cpu_resp.xcpt_ld || io.cpu_resp.xcpt_st || io.cpu_resp.xcpt_pf
   tag_cam.io.tag        := lookup_tag;
   tag_cam.io.write      := io.ptw.resp_val || io.ptw.resp_err;
   tag_cam.io.write_tag  := r_refill_tag;
