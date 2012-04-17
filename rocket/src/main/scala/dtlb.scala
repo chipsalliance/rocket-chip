@@ -139,15 +139,18 @@ class rocketDTLB(entries: Int) extends Component
     }
   }
 
-  val access_fault_common = 
-    tlb_hit &&
+  val load_fault_common = tlb_hit &&
     ((status_s && !sr_array(tag_hit_addr)) ||
      (status_u && !ur_array(tag_hit_addr)) ||
      bad_va)
+  val store_fault_common = tlb_hit &&
+    ((status_s && !sw_array(tag_hit_addr)) ||
+     (status_u && !uw_array(tag_hit_addr)) ||
+     bad_va)
 
-  io.cpu_resp.xcpt_ld := access_fault_common && (req_load || req_amo)
-  io.cpu_resp.xcpt_st := access_fault_common && (req_store || req_amo)
-  io.cpu_resp.xcpt_pf := access_fault_common && req_pf
+  io.cpu_resp.xcpt_ld := load_fault_common && (req_load || req_amo)
+  io.cpu_resp.xcpt_st := store_fault_common && (req_store || req_amo)
+  io.cpu_resp.xcpt_pf := load_fault_common && req_pf
 
   io.cpu_req.ready   := (state === s_ready) && !tlb_miss;
   io.cpu_resp.miss := tlb_miss;
