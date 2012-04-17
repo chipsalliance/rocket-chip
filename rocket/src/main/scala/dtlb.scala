@@ -55,7 +55,6 @@ class rocketDTLB(entries: Int) extends Component
   val r_cpu_req_asid    = Reg() { Bits() }
   val r_refill_tag      = Reg() { Bits() }
   val r_refill_waddr    = Reg() { UFix() }
-  val repl_count        = Reg(resetVal = UFix(0,addr_bits));
   
   when (io.cpu_req.valid && io.cpu_req.ready) {
     r_cpu_req_vpn   := io.cpu_req.bits.vpn;
@@ -122,7 +121,8 @@ class rocketDTLB(entries: Int) extends Component
   // high if there are any unused (invalid) entries in the TLB
   val has_invalid_entry = !tag_cam.io.valid_bits.andR
   val invalid_entry = PriorityEncoder(~tag_cam.io.valid_bits)
-  val repl_waddr = Mux(has_invalid_entry, invalid_entry, repl_count).toUFix;
+  val plru = new PseudoLRU(entries)
+  val repl_waddr = Mux(has_invalid_entry, invalid_entry, plru.replace).toUFix;
   
   val lookup = (state === s_ready) && r_cpu_req_val && !io.cpu_req.bits.kill && (req_load || req_store || req_amo || req_pf);
   val lookup_hit  = lookup && tag_hit;
@@ -135,9 +135,9 @@ class rocketDTLB(entries: Int) extends Component
   when (tlb_miss) {
     r_refill_tag := lookup_tag;
     r_refill_waddr := repl_waddr;
-    when (!has_invalid_entry) {
-      repl_count := repl_count + UFix(1);
-    }
+  }
+  when (tlb_hit) {
+    plru.access(tag_hit_addr)
   }
 
   val load_fault_common = tlb_hit &&
