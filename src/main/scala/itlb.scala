@@ -48,6 +48,29 @@ class rocketCAM(entries: Int, tag_bits: Int) extends Component {
   io.hit_addr := mux.io.out.toUFix;
 }
 
+class PseudoLRU(n: Int)
+{
+  val state = Reg() { Bits(width = n) }
+  def access(way: UFix) = {
+    var next_state = state
+    var idx = UFix(1,1)
+    for (i <- log2up(n)-1 to 0 by -1) {
+      val bit = way(i)
+      val mask = (UFix(1) << idx)(n-1,0)
+      next_state = next_state & ~mask | Mux(bit, UFix(0), mask)
+      //next_state.bitSet(idx, !bit)
+      idx = Cat(idx, bit)
+    }
+    state := next_state
+  }
+  def replace = {
+    var idx = UFix(1,1)
+    for (i <- 0 until log2up(n))
+      idx = Cat(idx, state(idx))
+    idx(log2up(n)-1,0)
+  }
+}
+
 // interface between TLB and PTW
 class ioTLB_PTW extends Bundle
 {
@@ -100,7 +123,6 @@ class rocketITLB(entries: Int) extends Component
   val r_cpu_req_asid    = Reg() { Bits() };
   val r_refill_tag   = Reg() { Bits() };
   val r_refill_waddr = Reg() { UFix() };
-  val repl_count = Reg(resetVal = UFix(0, addr_bits));
   
   when (io.cpu.req_val && io.cpu.req_rdy) { 
     r_cpu_req_vpn   := io.cpu.req_vpn;
@@ -153,7 +175,8 @@ class rocketITLB(entries: Int) extends Component
   // high if there are any unused entries in the ITLB
   val has_invalid_entry = !tag_cam.io.valid_bits.andR
   val invalid_entry = PriorityEncoder(~tag_cam.io.valid_bits)
-  val repl_waddr = Mux(has_invalid_entry, invalid_entry, repl_count).toUFix;
+  val plru = new PseudoLRU(entries)
+  val repl_waddr = Mux(has_invalid_entry, invalid_entry, plru.replace).toUFix;
   
   val lookup = (state === s_ready) && r_cpu_req_val;
   val lookup_hit  = lookup && tag_hit;
@@ -164,9 +187,9 @@ class rocketITLB(entries: Int) extends Component
   when (tlb_miss) {
     r_refill_tag := lookup_tag;
     r_refill_waddr := repl_waddr;
-    when (!has_invalid_entry) {
-      repl_count := repl_count + UFix(1);
-    }
+  }
+  when (tlb_hit) {
+    plru.access(tag_hit_addr)
   }
 
   val access_fault = 
