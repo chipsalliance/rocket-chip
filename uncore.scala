@@ -169,14 +169,16 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
         tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
         x_init_data_needs_write := co.messageHasData(io.alloc_req.bits.xact_init)
         x_needs_read := co.needsMemRead(io.alloc_req.bits.xact_init.x_type, UFix(0))
-        if(ntiles > 1) p_rep_count := UFix(ntiles-1)
         val p_req_initial_flags = ~( UFix(1) << io.alloc_req.bits.tile_id ) //TODO: Broadcast only
-        p_req_flags := p_req_initial_flags
+        p_req_flags := p_req_initial_flags(ntiles-1,0)
         mem_cnt := UFix(0)
         p_w_mem_cmd_sent := Bool(false)
         x_w_mem_cmd_sent := Bool(false)
         io.pop_x_init := UFix(1) << io.alloc_req.bits.tile_id
-        state := Mux(p_req_initial_flags.orR, s_probe, s_mem)
+        if(ntiles > 1) {
+          p_rep_count := UFix(ntiles-1)
+          state := Mux(p_req_initial_flags(ntiles-1,0).orR, s_probe, s_mem)
+        } else state := s_mem
       }
     }
     is(s_probe) {
