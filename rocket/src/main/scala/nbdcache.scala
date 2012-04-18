@@ -950,6 +950,7 @@ class HellaCache(co: CoherencePolicy) extends Component {
   mshr.io.mem_rep <> io.mem.xact_rep
   mshr.io.mem_abort.valid := io.mem.xact_abort.valid
   mshr.io.mem_abort.bits := io.mem.xact_abort.bits
+  io.mem.xact_abort.ready := Bool(true)
   mshr.io.meta_req <> meta_arb.io.in(1)
   replacer.io.pick_new_way := mshr.io.req.valid && mshr.io.req.ready
 
