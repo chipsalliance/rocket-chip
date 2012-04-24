@@ -408,7 +408,7 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
   }
 
   // Nack conflicting transaction init attempts
-  val s_idle :: s_abort_drain :: s_abort_send :: s_abort_complete :: Nil = Enum(4){ UFix() }
+  val s_idle :: s_abort_drain :: s_abort_send :: Nil = Enum(3){ UFix() }
   val abort_state_arr = Vec(ntiles) { Reg(resetVal = s_idle) }
   val want_to_abort_arr = Vec(ntiles) { Wire() { Bool()} }
   for( j <- 0 until ntiles ) {
@@ -445,12 +445,9 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
       }
       is(s_abort_send) { // nothing is dequeued for now
         x_abort.valid := Bool(true)
-        when(x_abort.ready) {
-          abort_state_arr(j) := s_abort_complete
+        when(x_abort.ready) { // raises x_init.ready below
+          abort_state_arr(j) := s_idle
         }
-      }
-      is(s_abort_complete) { // raises x_init.ready below
-        abort_state_arr(j) := s_idle 
       }
     }
   }
@@ -475,6 +472,7 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
     val x_init = io.tiles(j).xact_init
     val x_init_data = io.tiles(j).xact_init_data
     val x_init_data_dep = x_init_data_dep_list(j).io.deq
+    val x_abort = io.tiles(j).xact_abort
     init_arb.io.in(j).valid := (abort_state_arr(j) === s_idle) && !want_to_abort_arr(j) && x_init.valid
     init_arb.io.in(j).bits.xact_init := x_init.bits
     init_arb.io.in(j).bits.tile_id := UFix(j)
@@ -482,7 +480,7 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
     val do_pop = foldR(pop_x_inits)(_||_)
     x_init_data_dep_list(j).io.enq.valid := do_pop && co.messageHasData(x_init.bits) && (abort_state_arr(j) === s_idle) 
     x_init_data_dep_list(j).io.enq.bits.global_xact_id := OHToUFix(pop_x_inits)
-    x_init.ready := (abort_state_arr(j) === s_abort_complete) || do_pop
+    x_init.ready := (x_abort.valid && x_abort.ready) || do_pop
     x_init_data.ready := (abort_state_arr(j) === s_abort_drain) || foldR(trackerList.map(_.io.pop_x_init_data(j).toBool))(_||_)
     x_init_data_dep.ready := foldR(trackerList.map(_.io.pop_x_init_dep(j).toBool))(_||_)
   }
