@@ -226,6 +226,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
   }
   when (state === s_refill_req) {
     when (flush) { state := s_drain_rpq }
+    .elsewhen (abort) { state := s_refill_req }
     .elsewhen (io.mem_req.ready) { state := s_refill_resp }
   }
   when (state === s_meta_clear && io.meta_req.ready) {
