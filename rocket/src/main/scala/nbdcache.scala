@@ -277,7 +277,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
   io.wb_req.bits.way_oh := req.way_oh
   io.wb_req.bits.tile_xact_id := Bits(id)
 
-  io.probe_writeback.ready := (state != s_wb_resp && state != s_meta_clear) || !idx_match
+  io.probe_writeback.ready := (state != s_wb_resp && state != s_meta_clear && state != s_drain_rpq) || !idx_match
   io.probe_refill.ready := (state != s_refill_resp && state != s_drain_rpq) || !idx_match
 
   io.mem_req.valid := (state === s_refill_req) && !flush
