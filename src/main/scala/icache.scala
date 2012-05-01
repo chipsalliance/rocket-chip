@@ -92,7 +92,7 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
     Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(indexmsb,offsetbits), refill_count),
       io.cpu.req_idx(indexmsb, offsetbits-rf_cnt_bits)).toUFix;
 
-  val data_mux = (new Mux1H(assoc)){Bits(width = MEM_DATA_BITS)}
+  val data_mux = (new Mux1H(assoc)){Bits(width = databits)}
   var any_hit = Bool(false)
   for (i <- 0 until assoc)
   {
