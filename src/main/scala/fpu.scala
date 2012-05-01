@@ -195,57 +195,48 @@ class rocketFPIntUnit extends Component
     val exc = Bits(5, OUTPUT)
   }
 
-  val unrec_s = new hardfloat.recodedFloat32ToFloat32
-  val unrec_d = new hardfloat.recodedFloat64ToFloat64
-  unrec_s.io.in := io.in1
-  unrec_d.io.in := io.in1
+  val unrec_s = hardfloat.recodedFloatNToFloatN(io.in1, 23, 9)
+  val unrec_d = hardfloat.recodedFloatNToFloatN(io.in1, 52, 12)
 
-  io.store_data := Mux(io.single, Cat(unrec_s.io.out, unrec_s.io.out), unrec_d.io.out)
+  io.store_data := Mux(io.single, Cat(unrec_s, unrec_s), unrec_d)
 
-  val scmp = new hardfloat.recodedFloat32Compare
+  val scmp = new hardfloat.recodedFloatNCompare(23, 9)
   scmp.io.a := io.in1
   scmp.io.b := io.in2
   val scmp_out = (io.cmd & Cat(scmp.io.a_lt_b, scmp.io.a_eq_b)).orR
   val scmp_exc = (io.cmd & Cat(scmp.io.a_lt_b_invalid, scmp.io.a_eq_b_invalid)).orR << UFix(4)
 
-  val s2i = new hardfloat.recodedFloat32ToAny
-  s2i.io.in := io.in1
-  s2i.io.roundingMode := io.rm
-  s2i.io.typeOp := ~io.cmd(1,0)
-
-  val dcmp = new hardfloat.recodedFloat64Compare
+  val dcmp = new hardfloat.recodedFloatNCompare(52, 12)
   dcmp.io.a := io.in1
   dcmp.io.b := io.in2
   val dcmp_out = (io.cmd & Cat(dcmp.io.a_lt_b, dcmp.io.a_eq_b)).orR
   val dcmp_exc = (io.cmd & Cat(dcmp.io.a_lt_b_invalid, dcmp.io.a_eq_b_invalid)).orR << UFix(4)
 
-  val d2i = new hardfloat.recodedFloat64ToAny
-  d2i.io.in := io.in1
-  d2i.io.roundingMode := io.rm
-  d2i.io.typeOp := ~io.cmd(1,0)
+  val s2i = hardfloat.recodedFloatNToAny(io.in1, io.rm, ~io.cmd(1,0), 23, 9, 64)
+  val d2i = hardfloat.recodedFloatNToAny(io.in1, io.rm, ~io.cmd(1,0), 52, 12, 64)
 
   // output muxing
   val (out_s, exc_s) = (Wire() { Bits() }, Wire() { Bits() })
-  out_s := Cat(Fill(32, unrec_s.io.out(31)), unrec_s.io.out)
+  out_s := Cat(Fill(32, unrec_s(31)), unrec_s)
   exc_s := Bits(0)
   val (out_d, exc_d) = (Wire() { Bits() }, Wire() { Bits() })
-  out_d := unrec_d.io.out
+  out_d := unrec_d
   exc_d := Bits(0)
 
   when (io.cmd === FCMD_MTFSR || io.cmd === FCMD_MFFSR) {
     out_s := io.fsr
   }
   when (io.cmd === FCMD_CVT_W_FMT || io.cmd === FCMD_CVT_WU_FMT) {
-    out_s := Cat(Fill(32, s2i.io.out(31)), s2i.io.out(31,0))
-    exc_s := s2i.io.exceptionFlags
-    out_d := Cat(Fill(32, d2i.io.out(31)), d2i.io.out(31,0))
-    exc_d := d2i.io.exceptionFlags
+    out_s := Cat(Fill(32, s2i._1(31)), s2i._1(31,0))
+    exc_s := s2i._2
+    out_d := Cat(Fill(32, d2i._1(31)), d2i._1(31,0))
+    exc_d := d2i._2
   }
   when (io.cmd === FCMD_CVT_L_FMT || io.cmd === FCMD_CVT_LU_FMT) {
-    out_s := s2i.io.out
-    exc_s := s2i.io.exceptionFlags
-    out_d := d2i.io.out
-    exc_d := d2i.io.exceptionFlags
+    out_s := s2i._1
+    exc_s := s2i._2
+    out_d := d2i._1
+    exc_d := d2i._2
   }
   when (io.cmd === FCMD_EQ || io.cmd === FCMD_LT || io.cmd === FCMD_LE) {
     out_s := scmp_out
@@ -277,21 +268,8 @@ class rocketFPUFastPipe extends Component
     val exc_d = Bits(5, OUTPUT)
   }
 
-  // int->fp units
-  val rec_s = new hardfloat.float32ToRecodedFloat32
-  val rec_d = new hardfloat.float64ToRecodedFloat64
-  rec_s.io.in := io.fromint
-  rec_d.io.in := io.fromint
-
-  val i2s = new hardfloat.anyToRecodedFloat32
-  i2s.io.in := io.fromint
-  i2s.io.roundingMode := io.rm
-  i2s.io.typeOp := ~io.cmd(1,0)
-
-  val i2d = new hardfloat.anyToRecodedFloat64
-  i2d.io.in := io.fromint
-  i2d.io.roundingMode := io.rm
-  i2d.io.typeOp := ~io.cmd(1,0)
+  val i2s = hardfloat.anyToRecodedFloatN(io.fromint, io.rm, ~io.cmd(1,0), 23, 9, 64)
+  val i2d = hardfloat.anyToRecodedFloatN(io.fromint, io.rm, ~io.cmd(1,0), 52, 12, 64)
 
   // fp->fp units
   val sign_s = Mux(io.cmd === FCMD_SGNJ, io.in2(32),
@@ -303,12 +281,8 @@ class rocketFPUFastPipe extends Component
   val fsgnj = Cat(Mux(io.single, io.in1(64), sign_d), io.in1(63,33),
                   Mux(io.single, sign_s, io.in1(32)), io.in1(31,0))
 
-  val s2d = new hardfloat.recodedFloat32ToRecodedFloat64
-  s2d.io.in := io.in1
-
-  val d2s = new hardfloat.recodedFloat64ToRecodedFloat32
-  d2s.io.in := io.in1
-  d2s.io.roundingMode := io.rm
+  val s2d = hardfloat.recodedFloatNToRecodedFloatM(io.in1, io.rm, 23, 9, 52, 12)
+  val d2s = hardfloat.recodedFloatNToRecodedFloatM(io.in1, io.rm, 52, 12, 23, 9)
 
   val isnan1 = Mux(io.single, io.in1(31,29) === Bits("b111"), io.in1(63,61) === Bits("b111"))
   val isnan2 = Mux(io.single, io.in2(31,29) === Bits("b111"), io.in2(63,61) === Bits("b111"))
@@ -321,10 +295,10 @@ class rocketFPUFastPipe extends Component
 
   // output muxing
   val (out_s, exc_s) = (Wire() { Bits() }, Wire() { Bits() })
-  out_s := Reg(rec_s.io.out)
+  out_s := Reg(hardfloat.floatNToRecodedFloatN(io.fromint, 23, 9))
   exc_s := Bits(0)
   val (out_d, exc_d) = (Wire() { Bits() }, Wire() { Bits() })
-  out_d := Reg(rec_d.io.out)
+  out_d := Reg(hardfloat.floatNToRecodedFloatN(io.fromint, 52, 12))
   exc_d := Bits(0)
 
   val r_cmd = Reg(io.cmd)
@@ -346,17 +320,17 @@ class rocketFPUFastPipe extends Component
     exc_d := r_minmax_exc
   }
   when (r_cmd === FCMD_CVT_FMT_S || r_cmd === FCMD_CVT_FMT_D) {
-    out_s := Reg(d2s.io.out)
-    exc_s := Reg(d2s.io.exceptionFlags)
-    out_d := Reg(s2d.io.out)
-    exc_d := Reg(s2d.io.exceptionFlags)
+    out_s := Reg(d2s._1)
+    exc_s := Reg(d2s._2)
+    out_d := Reg(s2d._1)
+    exc_d := Reg(s2d._2)
   }
   when (r_cmd === FCMD_CVT_FMT_W || r_cmd === FCMD_CVT_FMT_WU ||
         r_cmd === FCMD_CVT_FMT_L || r_cmd === FCMD_CVT_FMT_LU) {
-    out_s := Reg(i2s.io.out)
-    exc_s := Reg(i2s.io.exceptionFlags)
-    out_d := Reg(i2d.io.out)
-    exc_d := Reg(i2d.io.exceptionFlags)
+    out_s := Reg(i2s._1)
+    exc_s := Reg(i2s._2)
+    out_d := Reg(i2d._1)
+    exc_d := Reg(i2d._2)
   }
 
   io.out_s := out_s
@@ -401,7 +375,7 @@ class rocketFPUSFMAPipe(latency: Int) extends Component
     in3 := Mux(cmd_fma, io.in3, Mux(cmd_addsub, io.in2, zero))
   }
 
-  val fma = new hardfloat.mulAddSubRecodedFloat32_1
+  val fma = new hardfloat.mulAddSubRecodedFloatN(23, 9)
   fma.io.op := cmd
   fma.io.roundingMode := rm
   fma.io.a := in1
@@ -437,7 +411,7 @@ class rocketFPUDFMAPipe(latency: Int) extends Component
     in3 := Mux(cmd_fma, io.in3, Mux(cmd_addsub, io.in2, zero))
   }
 
-  val fma = new hardfloat.mulAddSubRecodedFloat64_1
+  val fma = new hardfloat.mulAddSubRecodedFloatN(52, 12)
   fma.io.op := cmd
   fma.io.roundingMode := rm
   fma.io.a := in1
@@ -483,12 +457,10 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
     load_wb_data := io.dpath.dmem_resp_data
     load_wb_tag := io.dpath.dmem_resp_tag
   }
-  val rec_s = new hardfloat.float32ToRecodedFloat32
-  val rec_d = new hardfloat.float64ToRecodedFloat64
-  rec_s.io.in := load_wb_data
-  rec_d.io.in := load_wb_data
+  val rec_s = hardfloat.floatNToRecodedFloatN(load_wb_data, 23, 9)
+  val rec_d = hardfloat.floatNToRecodedFloatN(load_wb_data, 52, 12)
   val sp_msbs = Fill(32, UFix(1,1))
-  val load_wb_data_recoded = Mux(load_wb_single, Cat(sp_msbs, rec_s.io.out), rec_d.io.out)
+  val load_wb_data_recoded = Mux(load_wb_single, Cat(sp_msbs, rec_s), rec_d)
 
   val fsr_rm = Reg() { Bits(width = 3) }
   val fsr_exc = Reg() { Bits(width = 5) }
