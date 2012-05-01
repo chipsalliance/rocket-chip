@@ -81,17 +81,23 @@ class rocketPTW extends Component
 {
   val io = new ioPTW();
   
-  val s_ready :: s_l1_req :: s_l1_wait :: s_l1_fake :: s_l2_req :: s_l2_wait :: s_l2_fake:: s_l3_req :: s_l3_wait :: s_done :: s_error :: Nil = Enum(11) { UFix() };
+  val levels = 3
+  val bitsPerLevel = VPN_BITS/levels
+  require(VPN_BITS == levels * bitsPerLevel)
+
+  val count = Reg() { UFix(width = log2up(levels)) }
+  val s_ready :: s_req :: s_wait :: s_done :: s_error :: Nil = Enum(5) { UFix() };
   val state = Reg(resetVal = s_ready);
   
   val r_req_vpn = Reg() { Bits() }
   val r_req_dest = Reg() { Bits() }
   
-  val req_addr = Reg() { UFix() };
+  val req_addr = Reg() { Bits() }
   val r_resp_ppn = Reg() { Bits() };
   val r_resp_perm = Reg() { Bits() };
   
-  val vpn_idx = Mux(state === s_l2_wait, r_req_vpn(9,0), r_req_vpn(19,10)); 
+  val vpn_idxs = (1 until levels).map(i => r_req_vpn((levels-i)*bitsPerLevel-1, (levels-i-1)*bitsPerLevel))
+  val vpn_idx = (2 until levels).foldRight(vpn_idxs(0))((i,j) => Mux(count === UFix(i-1), vpn_idxs(i-1), j))
   val req_val = io.itlb.req_val || io.dtlb.req_val || io.vitlb.req_val
   
   // give ITLB requests priority over DTLB requests
@@ -102,44 +108,40 @@ class rocketPTW extends Component
   when ((state === s_ready) && req_itlb_val) {
     r_req_vpn  := io.itlb.req_vpn;
     r_req_dest := Bits(0)
-    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.itlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
+    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.itlb.req_vpn(VPN_BITS-1,VPN_BITS-bitsPerLevel), Bits(0,3))
   }
 
   when ((state === s_ready) && req_dtlb_val) {
     r_req_vpn  := io.dtlb.req_vpn;
     r_req_dest := Bits(1)
-    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.dtlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
+    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.dtlb.req_vpn(VPN_BITS-1,VPN_BITS-bitsPerLevel), Bits(0,3))
   }
   
   when ((state === s_ready) && req_vitlb_val) {
     r_req_vpn  := io.vitlb.req_vpn;
     r_req_dest := Bits(2)
-    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.vitlb.req_vpn(VPN_BITS-1,VPN_BITS-10), Bits(0,3)).toUFix;
+    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), io.vitlb.req_vpn(VPN_BITS-1,VPN_BITS-bitsPerLevel), Bits(0,3))
   }
 
   val dmem_resp_val = Reg(io.dmem.resp_val, resetVal = Bool(false))
   when (dmem_resp_val) {
-    req_addr := Cat(io.dmem.resp_data_subword(PADDR_BITS-1, PGIDX_BITS), vpn_idx, Bits(0,3)).toUFix;
+    req_addr := Cat(io.dmem.resp_data_subword(PADDR_BITS-1, PGIDX_BITS), vpn_idx, Bits(0,3))
     r_resp_perm := io.dmem.resp_data_subword(9,4);
     r_resp_ppn  := io.dmem.resp_data_subword(PADDR_BITS-1, PGIDX_BITS);
   }
   
-  io.dmem.req_val :=
-    (state === s_l1_req) ||
-    (state === s_l2_req) ||
-    (state === s_l3_req);
-    
+  io.dmem.req_val := state === s_req
   io.dmem.req_cmd  := M_XRD;
   io.dmem.req_type := MT_D;
   io.dmem.req_idx := req_addr(PGIDX_BITS-1,0);
   io.dmem.req_ppn := Reg(req_addr(PADDR_BITS-1,PGIDX_BITS))
   io.dmem.req_kill := Bool(false)
   
-  val resp_val = (state === s_done) || (state === s_l1_fake) || (state === s_l2_fake);
-  val resp_err = (state === s_error);
+  val resp_val = state === s_done
+  val resp_err = state === s_error
   
-  val resp_ptd = (io.dmem.resp_data_subword(1,0) === Bits(1,2));
-  val resp_pte = (io.dmem.resp_data_subword(1,0) === Bits(2,2));
+  val resp_ptd = io.dmem.resp_data_subword(1,0) === Bits(1)
+  val resp_pte = io.dmem.resp_data_subword(1,0) === Bits(2)
   
   io.itlb.req_rdy   := (state === s_ready)
   io.dtlb.req_rdy   := (state === s_ready) && !io.itlb.req_val
@@ -153,11 +155,9 @@ class rocketPTW extends Component
   io.itlb.resp_perm := r_resp_perm
   io.dtlb.resp_perm := r_resp_perm
   io.vitlb.resp_perm:= r_resp_perm
-  
-  val resp_ppn =
-    Mux(state === s_l1_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-7),  r_req_vpn(VPN_BITS-11, 0)),
-    Mux(state === s_l2_fake, Cat(r_resp_ppn(PPN_BITS-1, PPN_BITS-17), r_req_vpn(VPN_BITS-21, 0)),
-      r_resp_ppn));
+ 
+  val resp_ppns = (0 until levels-1).map(i => Cat(r_resp_ppn(PPN_BITS-1, VPN_BITS-bitsPerLevel*(i+1)), r_req_vpn(VPN_BITS-1-bitsPerLevel*(i+1), 0)))
+  val resp_ppn = (0 until levels-1).foldRight(r_resp_ppn)((i,j) => Mux(count === UFix(i), resp_ppns(i), j))
       
   io.itlb.resp_ppn  := resp_ppn;
   io.dtlb.resp_ppn  := resp_ppn;
@@ -167,78 +167,34 @@ class rocketPTW extends Component
   switch (state) {
     is (s_ready) {
       when (req_val) {
-        state := s_l1_req;
+        state := s_req;
       }
+      count := UFix(0)
     }
-    // level 1
-    is (s_l1_req) {
+    is (s_req) {
       when (io.dmem.req_rdy) {
-        state := s_l1_wait;
+        state := s_wait;
       }
     }
-    is (s_l1_wait) {
+    is (s_wait) {
       when (io.dmem.resp_nack) {
-        state := s_l1_req
-      }
-      when (dmem_resp_val) {
-        when (resp_ptd) { // page table descriptor
-          state := s_l2_req;
-        }
-        .elsewhen (resp_pte) { // page table entry
-          state := s_l1_fake;
-        }
-        .otherwise {
-          state := s_error;
-        }
-      }
-    }
-    is (s_l1_fake) {
-      state := s_ready;
-    }
-    // level 2
-    is (s_l2_req) {
-      when (io.dmem.req_rdy) {
-        state := s_l2_wait;
-      }
-    }
-    is (s_l2_wait) {
-      when (io.dmem.resp_nack) {
-        state := s_l2_req
-      }
-      when (dmem_resp_val) {
-        when (resp_ptd) { // page table descriptor
-          state := s_l3_req;
-        }
-        .elsewhen (resp_pte) { // page table entry
-          state := s_l2_fake;
-        }
-        .otherwise {
-          state := s_error;
-        }
-      }
-    }
-    is (s_l2_fake) {
-      state := s_ready;
-    }
-    // level 3
-    is (s_l3_req) {
-      when (io.dmem.req_rdy) {
-        state := s_l3_wait;
-      }
-    }
-    is (s_l3_wait) {
-      when (io.dmem.resp_nack) {
-        state := s_l3_req
+        state := s_req
       }
       when (dmem_resp_val) {
         when (resp_pte) { // page table entry
-          state := s_done;
+          state := s_done
         }
         .otherwise {
-          state := s_error;
+          count := count + UFix(1)
+          when (resp_ptd && count < UFix(levels-1)) {
+            state := s_req
+          }
+          .otherwise {
+            state := s_error
+          }
         }
       }
-    }  
+    }
     is (s_done) {
       state := s_ready;
     }

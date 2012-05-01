@@ -69,27 +69,27 @@ object PopCount
 
 object Reverse
 {
-  def apply(in: Bits) =
+  def doit(in: Bits, base: Int, length: Int): Bits =
   {
-    var out = in(in.getWidth-1)
-    for (i <- 1 until in.getWidth)
-      out = Cat(in(in.getWidth-i-1), out)
-    out
+    val half = (1 << log2up(length))/2
+    if (length == 1)
+      in(base)
+    else
+      Cat(doit(in, base, half), doit(in, base+half, length-half))
   }
+  def apply(in: Bits) = doit(in, 0, in.getWidth)
 }
 
 object OHToUFix
 {
-  def apply(in: Bits): UFix = 
-  {
-    val out = MuxCase( UFix(0), (0 until in.getWidth).map( i => (in(i).toBool, UFix(i))))
-    out.toUFix
+  def apply(in: Seq[Bits]): UFix = {
+    if (in.size <= 1) return UFix(0)
+    if (in.size == 2) return in(1)
+    val hi = in.slice(in.size/2, in.size)
+    val lo = in.slice(0, in.size/2)
+    Cat(hi.reduceLeft(_||_), apply(hi zip lo map { case (x, y) => x || y }))
   }
-  def apply(in: Seq[Bool]): UFix = 
-  {
-    val out = MuxCase( UFix(0), in.zipWithIndex map {case (b,i) => (b, UFix(i))})
-    out.toUFix
-  }
+  def apply(in: Bits): UFix = apply((0 until in.getWidth).map(in(_)))
 }
 
 object UFixToOH
@@ -119,7 +119,7 @@ object ShiftRegister
 
 object Mux1H 
 {
-  def buildMux[T <: Data](sel: Bits, in: Vec[T], i: Int, n: Int): T = {
+  def buildMux[T <: Data](sel: Bits, in: Seq[T], i: Int, n: Int): T = {
     if (n == 1)
       in(i)
     else
@@ -131,8 +131,8 @@ object Mux1H
     }
   }
 
-  def apply [T <: Data](sel: Bits, in: Vec[T]): T = buildMux(sel, in, 0, sel.getWidth)
-  def apply [T <: Data](sel: Vec[Bool], in: Vec[T]): T = apply(sel.toBits, in)
+  def apply [T <: Data](sel: Bits, in: Seq[T]): T = buildMux(sel, in, 0, sel.getWidth)
+  def apply [T <: Data](sel: Seq[Bool], in: Seq[T]): T = buildMux(Cat(Bits(0),sel.reverse:_*), in, 0, sel.size)
 }
 
 class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
