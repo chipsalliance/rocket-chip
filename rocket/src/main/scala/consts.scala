@@ -12,6 +12,7 @@ object Constants
 
   val MEM_BACKUP_WIDTH = 16
 
+  val BR_X    = Bits("b????", 4)
   val BR_N    = UFix(0, 4);
   val BR_EQ   = UFix(1, 4);
   val BR_NE   = UFix(2, 4);
@@ -31,10 +32,7 @@ object Constants
   val PC_EVEC = UFix(6, 3);
   val PC_JR   = UFix(7, 3);
 
-  val REN_Y = UFix(1, 1);
-  val REN_N = UFix(0, 1);
-
-  val A2_X     = UFix(0, 3);
+  val A2_X     = Bits("b???", 3)
   val A2_BTYPE = UFix(0, 3);
   val A2_LTYPE = UFix(1, 3);
   val A2_ITYPE = UFix(2, 3);
@@ -42,38 +40,33 @@ object Constants
   val A2_JTYPE = UFix(5, 3);
   val A2_RTYPE = UFix(6, 3);
 
-  val MUL_X   = UFix(0, 2);
+  val MUL_X   = Bits("b??", 2)
   val MUL_LO  = UFix(0, 2);
   val MUL_H   = UFix(1, 2);
   val MUL_HSU = UFix(2, 2);
   val MUL_HU  = UFix(3, 2);
 
-  val DIV_X  = UFix(0, 2);
+  val DIV_X  = Bits("b??", 2)
   val DIV_D  = UFix(0, 2);
   val DIV_DU = UFix(1, 2);
   val DIV_R  = UFix(2, 2);
   val DIV_RU = UFix(3, 2);
 
-  val M_N = UFix(0, 1);
-  val M_Y = UFix(1, 1);
+  val X = Bits("b?", 1)
+  val N = UFix(0, 1);
+  val Y = UFix(1, 1);
 
-  val WEN_N = UFix(0, 1);
-  val WEN_Y = UFix(1, 1);
+  val WA_X  = X
+  val WA_RD = N
+  val WA_RA = Y
 
-  val WA_X  = UFix(0, 1);
-  val WA_RD = UFix(0, 1);
-  val WA_RA = UFix(1, 1);
-
-  val WB_X   = UFix(0, 3);
+  val WB_X   = Bits("b???", 3)
   val WB_PC  = UFix(0, 3);
   val WB_ALU = UFix(2, 3);
   val WB_TSC = UFix(4, 3);
   val WB_IRT = UFix(5, 3);
 
-  val N = UFix(0, 1);
-  val Y = UFix(1, 1);
-
-  val FN_X     = UFix(0, 4);
+  val FN_X     = Bits("b????", 4)
   val FN_ADD   = UFix(0, 4);
   val FN_SUB   = UFix(1, 4);
   val FN_SLT   = UFix(2, 4);
@@ -86,14 +79,14 @@ object Constants
   val FN_SRA   = UFix(9, 4);
   val FN_OP2   = UFix(10, 4);
 
-  val DW_X  = UFix(0, 1);
-  val DW_32 = UFix(0, 1);
-  val DW_64 = UFix(1, 1);
-  val DW_XPR = UFix(1, 1);
+  val DW_X  = X
+  val DW_32 = N
+  val DW_64 = Y
+  val DW_XPR = Y
 
   val RA = UFix(1, 5);
 
-  val MT_X  = Bits("b000", 3);
+  val MT_X  = Bits("b???", 3);
   val MT_B  = Bits("b000", 3);
   val MT_H  = Bits("b001", 3);
   val MT_W  = Bits("b010", 3);
@@ -102,7 +95,7 @@ object Constants
   val MT_HU = Bits("b101", 3);
   val MT_WU = Bits("b110", 3);
 
-  val M_X       = UFix(0, 4);
+  val M_X       = Bits("b????", 4);
   val M_XRD     = Bits("b0000", 4); // int load
   val M_XWR     = Bits("b0001", 4); // int store
   val M_PFR     = Bits("b0010", 4); // prefetch with intent to read
@@ -120,12 +113,14 @@ object Constants
   val M_XA_MINU = Bits("b1110", 4);
   val M_XA_MAXU = Bits("b1111", 4);
 
+  val PCR_X = Bits("b???", 3)
   val PCR_N = Bits(0,3)
   val PCR_F = Bits(1,3) // mfpcr
   val PCR_T = Bits(4,3) // mtpcr
   val PCR_C = Bits(6,3) // clearpcr
   val PCR_S = Bits(7,3) // setpcr
   
+  val SYNC_X    = Bits("b??", 2)
   val SYNC_N    = Bits(0,2);
   val SYNC_D    = Bits(1,2);
   val SYNC_I    = Bits(2,2);
@@ -223,7 +218,7 @@ object Constants
   val VEC_N = UFix(0, 1);
   val VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N;
 
-  val VEC_X = UFix(0, 2)
+  val VEC_X = Bits("b??", 2).toUFix
   val VEC_FN_N = UFix(0, 2)
   val VEC_VL = UFix(1, 2)
   val VEC_CFG = UFix(2, 2)
