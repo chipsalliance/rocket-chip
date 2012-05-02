@@ -40,6 +40,7 @@ object rocketFPConstants
   val FCMD_NMADD =      Bits("b100111")
   val FCMD_LOAD =       Bits("b111000")
   val FCMD_STORE =      Bits("b111001")
+  val FCMD_X =          Bits("b??????")
   val FCMD_WIDTH = 6
   val FSR_WIDTH = 8
 }
@@ -48,7 +49,6 @@ import rocketFPConstants._
 class rocketFPUCtrlSigs extends Bundle
 {
   val cmd = Bits(width = FCMD_WIDTH)
-  val valid = Bool()
   val wen = Bool()
   val sboard = Bool()
   val ren1 = Bool()
@@ -74,71 +74,69 @@ class rocketFPUDecoder extends Component
   val N = Bool(false)
   val Y = Bool(true)
   val X = Bool(false)
-  val FCMD_X = FCMD_ADD
   val decoder = ListLookup(io.inst,
-    List                  (N,FCMD_X,         X,X,X,X,X,X,X,X,X,X,X,X,X),
-    Array(FLW      -> List(Y,FCMD_LOAD,      Y,N,N,N,N,Y,N,N,N,N,N,N,N),
-          FLD      -> List(Y,FCMD_LOAD,      Y,N,N,N,N,N,N,N,N,N,N,N,N),
-          FSW      -> List(Y,FCMD_STORE,     N,N,N,Y,N,Y,N,N,N,N,Y,N,N),
-          FSD      -> List(Y,FCMD_STORE,     N,N,N,Y,N,N,N,N,N,N,Y,N,N),
-          MXTF_S   -> List(Y,FCMD_MXTF,      Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          MXTF_D   -> List(Y,FCMD_MXTF,      Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          FCVT_S_W -> List(Y,FCMD_CVT_FMT_W, Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          FCVT_S_WU-> List(Y,FCMD_CVT_FMT_WU,Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          FCVT_S_L -> List(Y,FCMD_CVT_FMT_L, Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          FCVT_S_LU-> List(Y,FCMD_CVT_FMT_LU,Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          FCVT_D_W -> List(Y,FCMD_CVT_FMT_W, Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          FCVT_D_WU-> List(Y,FCMD_CVT_FMT_WU,Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          FCVT_D_L -> List(Y,FCMD_CVT_FMT_L, Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          FCVT_D_LU-> List(Y,FCMD_CVT_FMT_LU,Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          MFTX_S   -> List(Y,FCMD_MFTX,      N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          MFTX_D   -> List(Y,FCMD_MFTX,      N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_W_S -> List(Y,FCMD_CVT_W_FMT, N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          FCVT_WU_S-> List(Y,FCMD_CVT_WU_FMT,N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          FCVT_L_S -> List(Y,FCMD_CVT_L_FMT, N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          FCVT_LU_S-> List(Y,FCMD_CVT_LU_FMT,N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          FCVT_W_D -> List(Y,FCMD_CVT_W_FMT, N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_WU_D-> List(Y,FCMD_CVT_WU_FMT,N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_L_D -> List(Y,FCMD_CVT_L_FMT, N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_LU_D-> List(Y,FCMD_CVT_LU_FMT,N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_S_D -> List(Y,FCMD_CVT_FMT_D, Y,N,Y,N,N,Y,N,N,Y,N,N,N,N),
-          FCVT_D_S -> List(Y,FCMD_CVT_FMT_S, Y,N,Y,N,N,N,N,N,Y,N,N,N,N),
-          FEQ_S    -> List(Y,FCMD_EQ,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
-          FLT_S    -> List(Y,FCMD_LT,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
-          FLE_S    -> List(Y,FCMD_LE,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
-          FEQ_D    -> List(Y,FCMD_EQ,        N,N,Y,Y,N,N,N,Y,N,N,N,N,N),
-          FLT_D    -> List(Y,FCMD_LT,        N,N,Y,Y,N,N,N,Y,N,N,N,N,N),
-          FLE_D    -> List(Y,FCMD_LE,        N,N,Y,Y,N,N,N,Y,N,N,N,N,N),
-          MTFSR    -> List(Y,FCMD_MTFSR,     N,N,N,N,N,Y,N,Y,N,N,N,Y,Y),
-          MFFSR    -> List(Y,FCMD_MFFSR,     N,N,N,N,N,Y,N,Y,N,N,N,Y,N),
-          FSGNJ_S  -> List(Y,FCMD_SGNJ,      Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FSGNJN_S -> List(Y,FCMD_SGNJN,     Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FSGNJX_S -> List(Y,FCMD_SGNJX,     Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FSGNJ_D  -> List(Y,FCMD_SGNJ,      Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FSGNJN_D -> List(Y,FCMD_SGNJN,     Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FSGNJX_D -> List(Y,FCMD_SGNJX,     Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FMIN_S   -> List(Y,FCMD_MIN,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FMAX_S   -> List(Y,FCMD_MAX,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FMIN_D   -> List(Y,FCMD_MIN,       Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FMAX_D   -> List(Y,FCMD_MAX,       Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FADD_S   -> List(Y,FCMD_ADD,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
-          FSUB_S   -> List(Y,FCMD_SUB,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
-          FMUL_S   -> List(Y,FCMD_MUL,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
-          FADD_D   -> List(Y,FCMD_ADD,       Y,Y,Y,Y,N,N,N,N,N,Y,N,N,N),
-          FSUB_D   -> List(Y,FCMD_SUB,       Y,Y,Y,Y,N,N,N,N,N,Y,N,N,N),
-          FMUL_D   -> List(Y,FCMD_MUL,       Y,Y,Y,Y,N,N,N,N,N,Y,N,N,N),
-          FMADD_S  -> List(Y,FCMD_MADD,      Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
-          FMSUB_S  -> List(Y,FCMD_MSUB,      Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
-          FNMADD_S -> List(Y,FCMD_NMADD,     Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
-          FNMSUB_S -> List(Y,FCMD_NMSUB,     Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
-          FMADD_D  -> List(Y,FCMD_MADD,      Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N),
-          FMSUB_D  -> List(Y,FCMD_MSUB,      Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N),
-          FNMADD_D -> List(Y,FCMD_NMADD,     Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N),
-          FNMSUB_D -> List(Y,FCMD_NMSUB,     Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N)
+    List                  (FCMD_X,         X,X,X,X,X,X,X,X,X,X,X,X,X),
+    Array(FLW      -> List(FCMD_LOAD,      Y,N,N,N,N,Y,N,N,N,N,N,N,N),
+          FLD      -> List(FCMD_LOAD,      Y,N,N,N,N,N,N,N,N,N,N,N,N),
+          FSW      -> List(FCMD_STORE,     N,N,N,Y,N,Y,N,N,N,N,Y,N,N),
+          FSD      -> List(FCMD_STORE,     N,N,N,Y,N,N,N,N,N,N,Y,N,N),
+          MXTF_S   -> List(FCMD_MXTF,      Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
+          MXTF_D   -> List(FCMD_MXTF,      Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
+          FCVT_S_W -> List(FCMD_CVT_FMT_W, Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
+          FCVT_S_WU-> List(FCMD_CVT_FMT_WU,Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
+          FCVT_S_L -> List(FCMD_CVT_FMT_L, Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
+          FCVT_S_LU-> List(FCMD_CVT_FMT_LU,Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
+          FCVT_D_W -> List(FCMD_CVT_FMT_W, Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
+          FCVT_D_WU-> List(FCMD_CVT_FMT_WU,Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
+          FCVT_D_L -> List(FCMD_CVT_FMT_L, Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
+          FCVT_D_LU-> List(FCMD_CVT_FMT_LU,Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
+          MFTX_S   -> List(FCMD_MFTX,      N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
+          MFTX_D   -> List(FCMD_MFTX,      N,N,Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_W_S -> List(FCMD_CVT_W_FMT, N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
+          FCVT_WU_S-> List(FCMD_CVT_WU_FMT,N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
+          FCVT_L_S -> List(FCMD_CVT_L_FMT, N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
+          FCVT_LU_S-> List(FCMD_CVT_LU_FMT,N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
+          FCVT_W_D -> List(FCMD_CVT_W_FMT, N,N,Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_WU_D-> List(FCMD_CVT_WU_FMT,N,N,Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_L_D -> List(FCMD_CVT_L_FMT, N,N,Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_LU_D-> List(FCMD_CVT_LU_FMT,N,N,Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_S_D -> List(FCMD_CVT_FMT_D, Y,N,Y,N,N,Y,N,N,Y,N,N,N,N),
+          FCVT_D_S -> List(FCMD_CVT_FMT_S, Y,N,Y,N,N,N,N,N,Y,N,N,N,N),
+          FEQ_S    -> List(FCMD_EQ,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
+          FLT_S    -> List(FCMD_LT,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
+          FLE_S    -> List(FCMD_LE,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
+          FEQ_D    -> List(FCMD_EQ,        N,N,Y,Y,N,N,N,Y,N,N,N,N,N),
+          FLT_D    -> List(FCMD_LT,        N,N,Y,Y,N,N,N,Y,N,N,N,N,N),
+          FLE_D    -> List(FCMD_LE,        N,N,Y,Y,N,N,N,Y,N,N,N,N,N),
+          MTFSR    -> List(FCMD_MTFSR,     N,N,N,N,N,Y,N,Y,N,N,N,Y,Y),
+          MFFSR    -> List(FCMD_MFFSR,     N,N,N,N,N,Y,N,Y,N,N,N,Y,N),
+          FSGNJ_S  -> List(FCMD_SGNJ,      Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
+          FSGNJN_S -> List(FCMD_SGNJN,     Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
+          FSGNJX_S -> List(FCMD_SGNJX,     Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
+          FSGNJ_D  -> List(FCMD_SGNJ,      Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
+          FSGNJN_D -> List(FCMD_SGNJN,     Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
+          FSGNJX_D -> List(FCMD_SGNJX,     Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
+          FMIN_S   -> List(FCMD_MIN,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
+          FMAX_S   -> List(FCMD_MAX,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
+          FMIN_D   -> List(FCMD_MIN,       Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
+          FMAX_D   -> List(FCMD_MAX,       Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
+          FADD_S   -> List(FCMD_ADD,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
+          FSUB_S   -> List(FCMD_SUB,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
+          FMUL_S   -> List(FCMD_MUL,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
+          FADD_D   -> List(FCMD_ADD,       Y,Y,Y,Y,N,N,N,N,N,Y,N,N,N),
+          FSUB_D   -> List(FCMD_SUB,       Y,Y,Y,Y,N,N,N,N,N,Y,N,N,N),
+          FMUL_D   -> List(FCMD_MUL,       Y,Y,Y,Y,N,N,N,N,N,Y,N,N,N),
+          FMADD_S  -> List(FCMD_MADD,      Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
+          FMSUB_S  -> List(FCMD_MSUB,      Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
+          FNMADD_S -> List(FCMD_NMADD,     Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
+          FNMSUB_S -> List(FCMD_NMSUB,     Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
+          FMADD_D  -> List(FCMD_MADD,      Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N),
+          FMSUB_D  -> List(FCMD_MSUB,      Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N),
+          FNMADD_D -> List(FCMD_NMADD,     Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N),
+          FNMSUB_D -> List(FCMD_NMSUB,     Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N)
           ))
-  val valid :: cmd :: wen :: sboard :: ren1 :: ren2 :: ren3 :: single :: fromint :: toint :: fastpipe :: fma :: store :: rdfsr :: wrfsr :: Nil = decoder
+  val cmd :: wen :: sboard :: ren1 :: ren2 :: ren3 :: single :: fromint :: toint :: fastpipe :: fma :: store :: rdfsr :: wrfsr :: Nil = decoder
 
-  io.sigs.valid := valid.toBool
   io.sigs.cmd := cmd
   io.sigs.wen := wen.toBool
   io.sigs.sboard := sboard.toBool
