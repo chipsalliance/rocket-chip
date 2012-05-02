@@ -81,7 +81,7 @@ class Top extends Component
 }
 
 object top_main {
-  def main(args: Array[String]) = { 
+  def main(args: Array[String]): Unit = {
      chiselMain(args.drop(1), () => Class.forName(args(0)).newInstance.asInstanceOf[Component])
   }
 }
