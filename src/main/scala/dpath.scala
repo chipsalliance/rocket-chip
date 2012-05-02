@@ -17,7 +17,7 @@ class ioDpathAll extends Bundle()
 {
   val host  = new ioHTIF();
   val ctrl  = new ioCtrlDpath().flip
-  val dmem  = new ioDmem(List("req_idx", "req_tag", "req_data", "resp_val", "resp_miss", "resp_replay", "resp_type", "resp_tag", "resp_data", "resp_data_subword")).flip
+  val dmem = new ioHellaCache
   val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
   val imem  = new ioDpathImem();
   val ptbr_wen = Bool(OUTPUT);
@@ -274,9 +274,9 @@ class rocketDpath extends Component
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req_idx  := ex_effective_address
-  io.dmem.req_data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
-  io.dmem.req_tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val)
+  io.dmem.req.bits.idx  := ex_effective_address
+  io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
+  io.dmem.req.bits.tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val)
   io.dtlb.vpn := ex_effective_address >> UFix(PGIDX_BITS)
 
 	// processor control regfile read
@@ -332,13 +332,13 @@ class rocketDpath extends Component
   // 32/64 bit load handling (moved to earlier in file)
       
   // writeback arbitration
-  val dmem_resp_xpu = !io.dmem.resp_tag(0).toBool
-  val dmem_resp_fpu =  io.dmem.resp_tag(0).toBool
-  val dmem_resp_waddr = io.dmem.resp_tag.toUFix >> UFix(1)
-  dmem_resp_replay := io.dmem.resp_replay && dmem_resp_xpu;
+  val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
+  val dmem_resp_fpu =  io.dmem.resp.bits.tag(0).toBool
+  val dmem_resp_waddr = io.dmem.resp.bits.tag.toUFix >> UFix(1)
+  dmem_resp_replay := io.dmem.resp.bits.replay && dmem_resp_xpu;
   r_dmem_resp_replay  := dmem_resp_replay
   r_dmem_resp_waddr   := dmem_resp_waddr
-  r_dmem_fp_replay    := io.dmem.resp_replay && dmem_resp_fpu;
+  r_dmem_fp_replay    := io.dmem.resp.bits.replay && dmem_resp_fpu;
 
   val mem_ll_waddr = Mux(dmem_resp_replay, dmem_resp_waddr,
                      Mux(div.io.resp_val, div.io.resp_tag,
@@ -350,9 +350,9 @@ class rocketDpath extends Component
                          mem_reg_wdata)))
   val mem_ll_wb = dmem_resp_replay || div.io.resp_val || mul_io.resp_val
 
-  io.fpu.dmem_resp_val := io.dmem.resp_val && dmem_resp_fpu
-  io.fpu.dmem_resp_data := io.dmem.resp_data
-  io.fpu.dmem_resp_type := io.dmem.resp_type
+  io.fpu.dmem_resp_val := io.dmem.resp.valid && dmem_resp_fpu
+  io.fpu.dmem_resp_data := io.dmem.resp.bits.data
+  io.fpu.dmem_resp_type := io.dmem.resp.bits.typ
   io.fpu.dmem_resp_tag := dmem_resp_waddr
 
   // writeback stage
@@ -362,7 +362,7 @@ class rocketDpath extends Component
   wb_reg_rs2            := mem_reg_rs2
   wb_reg_waddr          := mem_ll_waddr
   wb_reg_wdata          := mem_ll_wdata
-  wb_reg_dmem_wdata     := io.dmem.resp_data
+  wb_reg_dmem_wdata     := io.dmem.resp.bits.data
   wb_reg_vec_waddr      := mem_reg_waddr
   wb_reg_vec_wdata      := mem_reg_wdata
   wb_reg_raddr1         := mem_reg_raddr1
@@ -395,7 +395,7 @@ class rocketDpath extends Component
 
     wb_wdata :=
       Mux(vec.io.wen, Cat(Bits(0,52), vec.io.appvl),
-      Mux(wb_src_dmem, io.dmem.resp_data_subword,
+      Mux(wb_src_dmem, io.dmem.resp.bits.data_subword,
           wb_reg_wdata))
   }
   else
@@ -406,7 +406,7 @@ class rocketDpath extends Component
     pcr.io.vec_nfregs := UFix(0)
 
     wb_wdata :=
-      Mux(wb_src_dmem, io.dmem.resp_data_subword,
+      Mux(wb_src_dmem, io.dmem.resp.bits.data_subword,
           wb_reg_wdata)
   }
 

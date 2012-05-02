@@ -716,6 +716,41 @@ class AMOALU extends Component {
   io.out := Mux(word, Cat(out(31,0), out(31,0)).toUFix, out)
 }
 
+class HellaCacheReq extends Bundle {
+  val cmd  = Bits(width = 4)
+  val typ  = Bits(width = 3)
+  val idx  = Bits(width = PGIDX_BITS)
+  val ppn  = Bits(width = PPN_BITS)
+  val data = Bits(width = 64)
+  val kill = Bool()
+  val tag  = Bits(width = DCACHE_TAG_BITS)
+}
+
+class HellaCacheResp extends Bundle {
+  val miss   = Bool()
+  val nack   = Bool()
+  val replay = Bool()
+  val typ    = Bits(width = 3)
+  val data   = Bits(width = 64)
+  val data_subword = Bits(width = 64)
+  val tag    = Bits(width = DCACHE_TAG_BITS)
+}
+
+class AlignmentExceptions extends Bundle {
+  val ld = Bool()
+  val st = Bool()
+}
+
+class HellaCacheExceptions extends Bundle {
+  val ma = new AlignmentExceptions
+}
+
+class ioHellaCache extends Bundle {
+  val req = (new ioDecoupled){ new HellaCacheReq }
+  val resp = (new ioPipe){ new HellaCacheResp }.flip
+  val xcpt = (new HellaCacheExceptions).asInput
+}
+
 // interface between D$ and processor/DTLB
 class ioDmem(view: List[String] = null) extends Bundle(view) {
   val req_kill  = Bool(INPUT);
@@ -741,7 +776,7 @@ class ioDmem(view: List[String] = null) extends Bundle(view) {
  
 class HellaCache(co: CoherencePolicy) extends Component {
   val io = new Bundle {
-    val cpu = new ioDmem()
+    val cpu = (new ioHellaCache).flip
     val mem = new ioTileLink
   }
  
@@ -759,8 +794,8 @@ class HellaCache(co: CoherencePolicy) extends Component {
   val ramindexlsb = log2up(MEM_DATA_BITS/8)
   
   val early_nack       = Reg { Bool() }
-  val r_cpu_req_val_   = Reg(io.cpu.req_val && io.cpu.req_rdy, resetVal = Bool(false))
-  val r_cpu_req_val    = r_cpu_req_val_ && !io.cpu.req_kill && !early_nack
+  val r_cpu_req_val_   = Reg(io.cpu.req.valid && io.cpu.req.ready, resetVal = Bool(false))
+  val r_cpu_req_val    = r_cpu_req_val_ && !io.cpu.req.bits.kill && !early_nack
   val r_cpu_req_idx    = Reg() { Bits() }
   val r_cpu_req_cmd    = Reg() { Bits() }
   val r_cpu_req_type   = Reg() { Bits() }
@@ -776,9 +811,9 @@ class HellaCache(co: CoherencePolicy) extends Component {
   val p_store_way_oh   = Reg() { Bits() }
   val r_replay_amo     = Reg(resetVal = Bool(false))
 
-  val req_store   = (io.cpu.req_cmd === M_XWR)
-  val req_load    = (io.cpu.req_cmd === M_XRD)
-  val req_amo     = io.cpu.req_cmd(3).toBool
+  val req_store   = (io.cpu.req.bits.cmd === M_XWR)
+  val req_load    = (io.cpu.req.bits.cmd === M_XRD)
+  val req_amo     = io.cpu.req.bits.cmd(3).toBool
   val req_read    = req_load || req_amo
   val req_write   = req_store || req_amo
   val r_req_load  = (r_cpu_req_cmd === M_XRD)
@@ -804,11 +839,11 @@ class HellaCache(co: CoherencePolicy) extends Component {
   flusher.io.req.valid := r_cpu_req_val && r_req_flush && mshr.io.fence_rdy && !flushed
   flusher.io.mshr_req.ready := mshr.io.req.ready
   
-  when (io.cpu.req_val) {
-    r_cpu_req_idx  := io.cpu.req_idx
-    r_cpu_req_cmd  := io.cpu.req_cmd
-    r_cpu_req_type := io.cpu.req_type
-    r_cpu_req_tag  := io.cpu.req_tag
+  when (io.cpu.req.valid) {
+    r_cpu_req_idx  := io.cpu.req.bits.idx
+    r_cpu_req_cmd  := io.cpu.req.bits.cmd
+    r_cpu_req_type := io.cpu.req.bits.typ
+    r_cpu_req_tag  := io.cpu.req.bits.tag
   }
   when (prober.io.meta_req.valid) {
     r_cpu_req_idx := Cat(prober.io.meta_req.bits.data.tag, prober.io.meta_req.bits.idx, mshr.io.data_req.bits.offset)(PGIDX_BITS-1,0)
@@ -825,15 +860,15 @@ class HellaCache(co: CoherencePolicy) extends Component {
     r_cpu_req_cmd := M_FLA
     r_way_oh := flusher.io.meta_req.bits.way_en
   }
-  val cpu_req_data = Mux(r_replay_amo, r_amo_replay_data, io.cpu.req_data)
+  val cpu_req_data = Mux(r_replay_amo, r_amo_replay_data, io.cpu.req.bits.data)
 
   val misaligned =
     (((r_cpu_req_type === MT_H) || (r_cpu_req_type === MT_HU)) && (r_cpu_req_idx(0) != Bits(0))) ||
     (((r_cpu_req_type === MT_W) || (r_cpu_req_type === MT_WU)) && (r_cpu_req_idx(1,0) != Bits(0))) ||
     ((r_cpu_req_type === MT_D) && (r_cpu_req_idx(2,0) != Bits(0)));
     
-  io.cpu.xcpt_ma_ld := r_cpu_req_val_ && !early_nack && r_req_read && misaligned
-  io.cpu.xcpt_ma_st := r_cpu_req_val_ && !early_nack && r_req_write && misaligned
+  io.cpu.xcpt.ma.ld := r_cpu_req_val_ && !early_nack && r_req_read && misaligned
+  io.cpu.xcpt.ma.st := r_cpu_req_val_ && !early_nack && r_req_write && misaligned
 
   // tags
   val meta = new MetaDataArrayArray(lines)
@@ -847,12 +882,12 @@ class HellaCache(co: CoherencePolicy) extends Component {
   data_arb.io.out <> data.io.req
 
   // cpu tag check
-  meta_arb.io.in(3).valid := io.cpu.req_val
-  meta_arb.io.in(3).bits.idx := io.cpu.req_idx(indexmsb,indexlsb)
+  meta_arb.io.in(3).valid := io.cpu.req.valid
+  meta_arb.io.in(3).bits.idx := io.cpu.req.bits.idx(indexmsb,indexlsb)
   meta_arb.io.in(3).bits.rw := Bool(false)
   meta_arb.io.in(3).bits.way_en := ~UFix(0, NWAYS)
   val early_tag_nack = !meta_arb.io.in(3).ready
-  val cpu_req_ppn = Mux(prober.io.mshr_req.valid, prober.io.address >> UFix(PGIDX_BITS-OFFSET_BITS), io.cpu.req_ppn)
+  val cpu_req_ppn = Mux(prober.io.mshr_req.valid, prober.io.address >> UFix(PGIDX_BITS-OFFSET_BITS), io.cpu.req.bits.ppn)
   val cpu_req_tag = Cat(cpu_req_ppn, r_cpu_req_idx)(tagmsb,taglsb)
   val tag_match_arr = (0 until NWAYS).map( w => co.isValid(meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
@@ -886,10 +921,10 @@ class HellaCache(co: CoherencePolicy) extends Component {
   data_arb.io.in(0).valid := io.mem.xact_rep.valid && co.messageUpdatesDataArray(io.mem.xact_rep.bits)
 
   // load hits
-  data_arb.io.in(4).bits.offset := io.cpu.req_idx(offsetmsb,ramindexlsb)
-  data_arb.io.in(4).bits.idx := io.cpu.req_idx(indexmsb,indexlsb)
+  data_arb.io.in(4).bits.offset := io.cpu.req.bits.idx(offsetmsb,ramindexlsb)
+  data_arb.io.in(4).bits.idx := io.cpu.req.bits.idx(indexmsb,indexlsb)
   data_arb.io.in(4).bits.rw := Bool(false)
-  data_arb.io.in(4).valid := io.cpu.req_val && req_read
+  data_arb.io.in(4).valid := io.cpu.req.valid && req_read
   data_arb.io.in(4).bits.way_en := ~UFix(0, NWAYS) // intiate load on all ways, mux after tag check
   val early_load_nack = req_read && !data_arb.io.in(4).ready
 
@@ -900,7 +935,7 @@ class HellaCache(co: CoherencePolicy) extends Component {
   val p_store_idx_match = p_store_valid && (r_cpu_req_idx(indexmsb,indexlsb) === p_store_idx(indexmsb,indexlsb))
   val p_store_offset_match = (r_cpu_req_idx(indexlsb-1,offsetlsb) === p_store_idx(indexlsb-1,offsetlsb))
   val p_store_match = r_cpu_req_val_ && r_req_read && p_store_idx_match && p_store_offset_match
-  val drain_store_val = (p_store_valid && (!io.cpu.req_val || req_write || wb.io.data_req.valid || mshr.io.data_req.valid)) || p_store_match
+  val drain_store_val = (p_store_valid && (!io.cpu.req.valid || req_write || wb.io.data_req.valid || mshr.io.data_req.valid)) || p_store_match
   data_arb.io.in(2).bits.offset := p_store_idx(offsetmsb,ramindexlsb)
   data_arb.io.in(2).bits.idx := p_store_idx(indexmsb,indexlsb)
   data_arb.io.in(2).bits.rw := Bool(true)
@@ -1020,15 +1055,15 @@ class HellaCache(co: CoherencePolicy) extends Component {
                    !flushed && r_req_flush
   val nack = early_nack || r_req_readwrite && (nack_hit || nack_miss) || nack_flush
 
-  io.cpu.req_rdy   := flusher.io.req.ready && !(r_cpu_req_val_ && r_req_flush) && !pending_fence
-  io.cpu.resp_nack := r_cpu_req_val_ && !io.cpu.req_kill && nack
-  io.cpu.resp_val  := (r_cpu_req_val && tag_hit && !mshr.io.secondary_miss && !nack && r_req_read) || mshr.io.cpu_resp_val
-  io.cpu.resp_replay := mshr.io.cpu_resp_val
-  io.cpu.resp_miss := r_cpu_req_val_ && (!tag_hit || mshr.io.secondary_miss) && r_req_read
-  io.cpu.resp_tag  := Mux(mshr.io.cpu_resp_val, mshr.io.cpu_resp_tag, r_cpu_req_tag)
-  io.cpu.resp_type := loadgen.io.typ
-  io.cpu.resp_data := loadgen.io.dout
-  io.cpu.resp_data_subword := loadgen.io.r_dout_subword
+  io.cpu.req.ready   := flusher.io.req.ready && !(r_cpu_req_val_ && r_req_flush) && !pending_fence
+  io.cpu.resp.valid  := (r_cpu_req_val && tag_hit && !mshr.io.secondary_miss && !nack && r_req_read) || mshr.io.cpu_resp_val
+  io.cpu.resp.bits.nack := r_cpu_req_val_ && !io.cpu.req.bits.kill && nack
+  io.cpu.resp.bits.replay := mshr.io.cpu_resp_val
+  io.cpu.resp.bits.miss := r_cpu_req_val_ && (!tag_hit || mshr.io.secondary_miss) && r_req_read
+  io.cpu.resp.bits.tag  := Mux(mshr.io.cpu_resp_val, mshr.io.cpu_resp_tag, r_cpu_req_tag)
+  io.cpu.resp.bits.typ := loadgen.io.typ
+  io.cpu.resp.bits.data := loadgen.io.dout
+  io.cpu.resp.bits.data_subword := loadgen.io.r_dout_subword
   
   val xact_init_arb = (new Arbiter(2)) { new TransactionInit }
   xact_init_arb.io.in(0) <> wb.io.mem_req
