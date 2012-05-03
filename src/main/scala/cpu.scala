@@ -22,8 +22,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
 
   val dtlb  = new rocketDTLB(DTLB_ENTRIES);
   val itlb  = new rocketITLB(ITLB_ENTRIES);
-  val vitlb = new rocketITLB(VITLB_ENTRIES)
-  val ptw   = new rocketPTW();
+  val ptw   = new rocketPTW(if (HAVE_VEC) 3 else 2)
   val arb   = new rocketHellaCacheArbiter(DCACHE_PORTS)
 
   var vu: vu = null
@@ -92,9 +91,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
 
   // connect page table walker to TLBs, page table base register (from PCR)
   // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
-  ptw.io.dtlb             <> dtlb.io.ptw;
-  ptw.io.itlb             <> itlb.io.ptw;
-  ptw.io.vitlb            <> vitlb.io.ptw
+  ptw.io.requestor(0)     <> itlb.io.ptw
+  ptw.io.requestor(1)     <> dtlb.io.ptw
   ptw.io.ptbr             := dpath.io.ptbr;
   arb.io.requestor(DMEM_PTW) <> ptw.io.mem
   arb.io.mem             <> io.dmem
@@ -146,6 +144,8 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     dpath.io.vec_ctrl <> ctrl.io.vec_dpath
 
     // hooking up vector I$
+    val vitlb = new rocketITLB(VITLB_ENTRIES)
+    ptw.io.requestor(2)     <> vitlb.io.ptw
     vitlb.io.cpu.invalidate := dpath.io.ptbr_wen
     vitlb.io.cpu.status     := dpath.io.ctrl.status
     vitlb.io.cpu.req_val    := vu.io.imem_req.valid  

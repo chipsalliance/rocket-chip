@@ -256,13 +256,14 @@ class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {
 
 object PriorityEncoder
 {
-  def apply(in: Bits): UFix = doApply(in, 0)
-  def doApply(in: Bits, n: Int = 0): UFix = {
-    if (n >= in.getWidth-1)
+  def doit(in: Seq[Bits], n: Int): UFix = {
+    if (n >= in.size-1)
       UFix(n)
     else
-      Mux(in(n), UFix(n), doApply(in, n+1))
+      Mux(in(n), UFix(n), doit(in, n+1))
   }
+  def apply(in: Seq[Bits]): UFix = doit(in, 0)
+  def apply(in: Bits): UFix = apply((0 until in.getWidth).map(in(_)))
 }
 
 object PriorityEncoderOH
