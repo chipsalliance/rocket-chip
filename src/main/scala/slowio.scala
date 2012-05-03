@@ -3,7 +3,7 @@ package rocket
 import Chisel._
 import Constants._
 
-class slowIO[T <: Data](divisor: Int, hold_cycles: Int)(data: => T) extends Component
+class slowIO[T <: Data](val divisor: Int, hold_cycles_in: Int = -1)(data: => T) extends Component
 {
   val io = new Bundle {
     val out_fast = new ioDecoupled()(data).flip
@@ -15,8 +15,9 @@ class slowIO[T <: Data](divisor: Int, hold_cycles: Int)(data: => T) extends Comp
     val clk_slow = Bool(OUTPUT)
   }
 
+  val hold_cycles = if (hold_cycles_in == -1) divisor/4 else hold_cycles_in
   require((divisor & (divisor-1)) == 0)
-  require(hold_cycles < divisor/2 && hold_cycles >= 2)
+  require(hold_cycles < divisor/2 && hold_cycles >= 1)
 
   val cnt = Reg() { UFix(width = log2up(divisor)) }
   cnt := cnt + UFix(1)

@@ -16,7 +16,7 @@ class ioTop(htif_width: Int) extends Bundle  {
 
 class Top extends Component
 {
-  val clkdiv = 32
+  val clkdiv = 8
   val htif_width = 8
   val io = new ioTop(htif_width)
 
@@ -53,7 +53,7 @@ class Top extends Component
   hub.io.mem.resp.bits := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.bits, io.mem.resp.bits)
 
   // pad out the HTIF using a divided clock
-  val hio = (new slowIO(clkdiv, 4)) { Bits(width = htif_width) }
+  val hio = (new slowIO(clkdiv)) { Bits(width = htif_width) }
   htif.io.host.out <> hio.io.out_fast
   io.host.out <> hio.io.out_slow
   htif.io.host.in <> hio.io.in_fast
@@ -61,7 +61,7 @@ class Top extends Component
   io.host_clk := hio.io.clk_slow
 
   // pad out the backup memory link with the HTIF divided clk
-  val mio = (new slowIO(clkdiv, 4)) { Bits(width = MEM_BACKUP_WIDTH) }
+  val mio = (new slowIO(clkdiv)) { Bits(width = MEM_BACKUP_WIDTH) }
   mem_serdes.io.narrow.req <> mio.io.out_fast
   io.mem_backup.req <> mio.io.out_slow
   mem_serdes.io.narrow.resp.valid := mio.io.in_fast.valid
