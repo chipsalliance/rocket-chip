@@ -56,7 +56,7 @@ class PseudoLRU(n: Int)
     var idx = UFix(1,1)
     for (i <- log2up(n)-1 to 0 by -1) {
       val bit = way(i)
-      val mask = (UFix(1) << idx)(n-1,0)
+      val mask = (UFix(1,n) << idx)(n-1,0)
       next_state = next_state & ~mask | Mux(bit, UFix(0), mask)
       //next_state.bitSet(idx, !bit)
       idx = Cat(idx, bit)
