@@ -118,10 +118,10 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
   io.imem.itlb_miss       := itlb.io.cpu.resp_miss;
 
   // connect arbiter to ctrl+dpath+DTLB
+  //TODO: views on nested bundles?
   arb.io.requestor(DMEM_CPU).resp <> ctrl.io.dmem.resp
   arb.io.requestor(DMEM_CPU).xcpt <> ctrl.io.dmem.xcpt
   arb.io.requestor(DMEM_CPU).resp <> dpath.io.dmem.resp
-  //TODO: views on nested bundles?
   arb.io.requestor(DMEM_CPU).req.valid     := ctrl.io.dmem.req.valid
   ctrl.io.dmem.req.ready := arb.io.requestor(DMEM_CPU).req.ready
   arb.io.requestor(DMEM_CPU).req.bits.kill := ctrl.io.dmem.req.bits.kill
