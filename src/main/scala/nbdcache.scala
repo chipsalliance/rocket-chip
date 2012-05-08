@@ -717,13 +717,13 @@ class AMOALU extends Component {
 }
 
 class HellaCacheReq extends Bundle {
-  val cmd  = Bits(width = 4)
+  val kill = Bool()
   val typ  = Bits(width = 3)
   val idx  = Bits(width = PGIDX_BITS)
   val ppn  = Bits(width = PPN_BITS)
   val data = Bits(width = 64)
-  val kill = Bool()
   val tag  = Bits(width = DCACHE_TAG_BITS)
+  val cmd  = Bits(width = 4)
 }
 
 class HellaCacheResp extends Bundle {
@@ -745,35 +745,13 @@ class HellaCacheExceptions extends Bundle {
   val ma = new AlignmentExceptions
 }
 
+// interface between D$ and processor/DTLB
 class ioHellaCache extends Bundle {
   val req = (new ioDecoupled){ new HellaCacheReq }
   val resp = (new ioPipe){ new HellaCacheResp }.flip
   val xcpt = (new HellaCacheExceptions).asInput
 }
 
-// interface between D$ and processor/DTLB
-class ioDmem(view: List[String] = null) extends Bundle(view) {
-  val req_kill  = Bool(INPUT);
-  val req_val   = Bool(INPUT);
-  val req_rdy   = Bool(OUTPUT);
-  val req_cmd   = Bits(4, INPUT);
-  val req_type  = Bits(3, INPUT);
-  val req_idx   = Bits(PGIDX_BITS, INPUT);
-  val req_ppn   = Bits(PPN_BITS, INPUT);
-  val req_data  = Bits(64, INPUT);
-  val req_tag   = Bits(DCACHE_TAG_BITS, INPUT);
-  val xcpt_ma_ld  = Bool(OUTPUT); // misaligned load
-  val xcpt_ma_st = Bool(OUTPUT); // misaligned store
-  val resp_miss = Bool(OUTPUT);
-  val resp_nack = Bool(OUTPUT);
-  val resp_val  = Bool(OUTPUT);
-  val resp_replay = Bool(OUTPUT);
-  val resp_type = Bits(3, OUTPUT);
-  val resp_data = Bits(64, OUTPUT);
-  val resp_data_subword = Bits(64, OUTPUT);
-  val resp_tag  = Bits(DCACHE_TAG_BITS, OUTPUT);
-}
- 
 class HellaCache(co: CoherencePolicy) extends Component {
   val io = new Bundle {
     val cpu = (new ioHellaCache).flip
