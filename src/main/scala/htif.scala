@@ -28,6 +28,7 @@ class ioHTIF extends Bundle
   val debug = new ioDebug
   val pcr_req = (new ioDecoupled) { new PCRReq }.flip
   val pcr_rep = (new ioPipe) { Bits(width = 64) }
+  val ipi = (new ioDecoupled) { Bits(width = log2up(NTILES)) }
 }
 
 class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends Component
@@ -194,18 +195,29 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }
   for (i <- 0 until ncores) {
     val my_reset = Reg(resetVal = Bool(true))
+    val my_ipi = Reg(resetVal = Bool(false))
     val rdata = Reg() { Bits() }
 
     val cpu = io.cpu(i)
     val me = pcr_coreid === UFix(i)
-    cpu.pcr_req.valid := state === state_pcr && me
-    cpu.pcr_req.bits.rw := cmd === cmd_writecr
-    cpu.pcr_req.bits.addr := pcr_addr
-    cpu.pcr_req.bits.data := pcr_wdata
+    cpu.pcr_req.valid := my_ipi || state === state_pcr && me
+    cpu.pcr_req.bits.rw := my_ipi || cmd === cmd_writecr
+    cpu.pcr_req.bits.addr := Mux(my_ipi, PCR_CLR_IPI, pcr_addr)
+    cpu.pcr_req.bits.data := my_ipi | pcr_wdata
     cpu.reset := my_reset
 
+    for (j <- 0 until ncores) {
+      when (io.cpu(j).ipi.valid && io.cpu(j).ipi.bits === UFix(i)) {
+        my_ipi := Bool(true)
+        my_reset := Bool(false)
+      }
+    }
+    when (my_ipi) {
+      my_ipi := !cpu.pcr_req.ready
+    }
+
     when (state === state_pcr && me && cmd === cmd_writecr) {
-      pcr_done := cpu.pcr_req.ready
+      pcr_done := cpu.pcr_req.ready && !my_ipi
       when (pcr_addr === PCR_RESET) {
         my_reset := pcr_wdata(0)
       }
