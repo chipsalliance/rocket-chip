@@ -97,6 +97,7 @@ class rocketDpathPCR extends Component
   val reg_cause    = Reg() { Bits() };
   val reg_tohost   = Reg(resetVal = Bits(0, 64)); 
   val reg_fromhost = Reg(resetVal = Bits(0, 64));
+  val reg_coreid   = Reg() { Bits() }
   val reg_k0       = Reg() { Bits() };
   val reg_k1       = Reg() { Bits() };
   val reg_ptbr     = Reg() { UFix() };
@@ -194,6 +195,7 @@ class rocketDpathPCR extends Component
     when (waddr === PCR_EVEC)     { reg_ebase := wdata(VADDR_BITS-1,0).toUFix; }
     when (waddr === PCR_COUNT)    { reg_count := wdata(31,0).toUFix; }
     when (waddr === PCR_COMPARE)  { reg_compare := wdata(31,0).toUFix; r_irq_timer := Bool(false); }
+    when (waddr === PCR_COREID)   { reg_coreid := wdata(15,0) }
     when (waddr === PCR_FROMHOST) { reg_fromhost := wdata; reg_tohost := Bits(0) }
     when (waddr === PCR_TOHOST)   { reg_tohost := wdata; reg_fromhost := Bits(0) }
     when (waddr === PCR_SEND_IPI) { io.host.ipi.valid := Bool(true) }
@@ -212,7 +214,7 @@ class rocketDpathPCR extends Component
     is (PCR_COUNT)    { rdata := Cat(Fill(32, reg_count(31)), reg_count); }
     is (PCR_COMPARE)  { rdata := Cat(Fill(32, reg_compare(31)), reg_compare); }
     is (PCR_CAUSE)    { rdata := Cat(reg_cause(5), Bits(0,58), reg_cause(4,0)); }
-    is (PCR_COREID)   { rdata := Bits(COREID,64); }
+    is (PCR_COREID)   { rdata := reg_coreid }
     is (PCR_IMPL)     { rdata := Bits(2) }
     is (PCR_FROMHOST) { rdata := reg_fromhost; }
     is (PCR_TOHOST)   { rdata := reg_tohost; }

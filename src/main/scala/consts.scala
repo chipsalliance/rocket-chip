@@ -162,7 +162,6 @@ object Constants
   val IRQ_IPI = 5
   val IRQ_TIMER = 7
   
-  val COREID = 0;
   val PADDR_BITS = 40;
   val VADDR_BITS = 43;
   val PGIDX_BITS = 13;
