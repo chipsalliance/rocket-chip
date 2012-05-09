@@ -115,7 +115,7 @@ class rocketDpathPCR extends Component
   val reg_status_et   = Reg(resetVal = Bool(false));
   
   val r_irq_timer = Reg(resetVal = Bool(false));
-  val r_irq_ipi   = Reg(resetVal = Bool(false));
+  val r_irq_ipi   = Reg(resetVal = Bool(true))
   
   val rdata = Wire() { Bits() };
 
@@ -174,6 +174,8 @@ class rocketDpathPCR extends Component
 
   io.irq_timer := r_irq_timer;
   io.irq_ipi := r_irq_ipi;
+  io.host.ipi.valid := Bool(false)
+  io.host.ipi.bits := wdata
 
   when (wen) {
     when (waddr === PCR_STATUS) {
@@ -194,8 +196,8 @@ class rocketDpathPCR extends Component
     when (waddr === PCR_COMPARE)  { reg_compare := wdata(31,0).toUFix; r_irq_timer := Bool(false); }
     when (waddr === PCR_FROMHOST) { reg_fromhost := wdata; reg_tohost := Bits(0) }
     when (waddr === PCR_TOHOST)   { reg_tohost := wdata; reg_fromhost := Bits(0) }
-    when (waddr === PCR_SEND_IPI) { r_irq_ipi := Bool(true); }
-    when (waddr === PCR_CLR_IPI)  { r_irq_ipi := Bool(false); }
+    when (waddr === PCR_SEND_IPI) { io.host.ipi.valid := Bool(true) }
+    when (waddr === PCR_CLR_IPI)  { r_irq_ipi := wdata(0) }
     when (waddr === PCR_K0)       { reg_k0 := wdata; }
     when (waddr === PCR_K1)       { reg_k1 := wdata; }
     when (waddr === PCR_PTBR)     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
