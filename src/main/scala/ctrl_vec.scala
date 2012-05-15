@@ -117,7 +117,7 @@ class rocketCtrlVecDecoder extends Component
                 //                                 wen         | | | | | | | | | | | | | xcpthold
                 // val vcmd    vimm      vimm2     | fn        | | | | | | | | | | | | | |
                 //   | |       |         |         | |         | | | | | | | | | | | | | |
-                List(N,VCMD_X, VIMM_X,   VIMM2_X,  N,VEC_X,    N,N,N,N,N,N,N,N,N,N,N,N,N,N),Array(
+                List(N,VCMD_X, VIMM_X,   VIMM2_X,  N,VEC_FN_N, N,N,N,N,N,N,N,N,N,N,N,N,N,N),Array(
     VVCFGIVL->  List(Y,VCMD_I, VIMM_VLEN,VIMM2_X,  Y,VEC_CFGVL,N,Y,Y,N,N,Y,Y,N,N,N,Y,N,N,N),
     VVCFG->     List(Y,VCMD_I, VIMM_VLEN,VIMM2_X,  N,VEC_CFG,  N,Y,Y,N,N,Y,Y,N,N,N,Y,N,N,N),
     VSETVL->    List(Y,VCMD_I, VIMM_VLEN,VIMM2_X,  Y,VEC_VL,   N,Y,Y,N,N,Y,Y,N,N,N,N,N,N,N),
