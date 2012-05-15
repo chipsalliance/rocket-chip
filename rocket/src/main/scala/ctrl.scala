@@ -493,7 +493,7 @@ class rocketCtrl extends Component
      vec_irq);
   val id_cause =
     Mux(p_irq_ipi, UFix(CAUSE_INTERRUPT+IRQ_IPI,6),
-    Mux(p_irq_timer, UFix(CAUSE_INTERRUPT+IRQ_IPI,6),
+    Mux(p_irq_timer, UFix(CAUSE_INTERRUPT+IRQ_TIMER,6),
     vec_irq_cause))
 
   when (reset.toBool || io.dpath.killd) {
