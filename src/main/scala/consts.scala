@@ -10,6 +10,8 @@ object Constants
   val HAVE_FPU = true
   val HAVE_VEC = true
 
+  val MAX_THREADS = hwacha.Constants.NUM_PVFB * hwacha.Constants.WIDTH_PVFB / hwacha.Constants.SZ_BANK
+
   val MEM_BACKUP_WIDTH = 16
 
   val BR_X    = Bits("b????", 4)
