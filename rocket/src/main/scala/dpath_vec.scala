@@ -46,7 +46,9 @@ class rocketDpathVec extends Component
   val nfregs = Mux(nfregs_stage(5), Bits(32), nfregs_stage) + UFix(0,7)
   val nregs = nxregs + nfregs
 
-  val uts_per_bank = MuxLookup(
+  //val uts_per_bank = UFix(4,9)
+
+  val nreg_mod_bank = MuxLookup(
     nregs, UFix(4,9), Array(
       UFix(0,7) -> UFix(256,9),
       UFix(1,7) -> UFix(256,9),
@@ -102,6 +104,9 @@ class rocketDpathVec extends Component
       UFix(51,7) -> UFix(5,9),
       UFix(52,7) -> UFix(5,9)
     ))
+
+  val uts_per_bank = Mux(nreg_mod_bank > UFix(MAX_THREADS,9), UFix(MAX_THREADS, 9), nreg_mod_bank)
+
 
   val reg_hwvl = Reg(resetVal = UFix(32, 12))
   val reg_appvl0 = Reg(resetVal = Bool(true))
