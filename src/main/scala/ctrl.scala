@@ -197,8 +197,8 @@ object rocketCtrlDecode
     REMUW->     List(xpr64,N,N,BR_N,  Y,Y,A2_X,    DW_32, FN_X,   N,M_X,      MT_X, N,MUL_X,  Y,DIV_RU,Y,WA_RD,WB_X,  PCR_N,SYNC_N,N,N,N,N),
 
     SYSCALL->   List(Y,    N,N,BR_N,  N,N,A2_X,    DW_X,  FN_X,   N,M_X,      MT_X, N,MUL_X,  N,DIV_X, N,WA_X, WB_X,  PCR_N,SYNC_N,N,Y,N,N),
-    SETPCR->    List(Y,    N,N,BR_N,  N,N,A2_ITYPE,DW_XPR,FN_OP2, N,M_X,      MT_X, N,MUL_X,  N,DIV_X, N,WA_X, WB_ALU,PCR_S,SYNC_N,N,N,Y,Y),
-    CLEARPCR->  List(Y,    N,N,BR_N,  N,N,A2_ITYPE,DW_XPR,FN_OP2, N,M_X,      MT_X, N,MUL_X,  N,DIV_X, N,WA_X, WB_ALU,PCR_C,SYNC_N,N,N,Y,Y),
+    SETPCR->    List(Y,    N,N,BR_N,  N,N,A2_ITYPE,DW_XPR,FN_OP2, N,M_X,      MT_X, N,MUL_X,  N,DIV_X, Y,WA_RD,WB_ALU,PCR_S,SYNC_N,N,N,Y,Y),
+    CLEARPCR->  List(Y,    N,N,BR_N,  N,N,A2_ITYPE,DW_XPR,FN_OP2, N,M_X,      MT_X, N,MUL_X,  N,DIV_X, Y,WA_RD,WB_ALU,PCR_C,SYNC_N,N,N,Y,Y),
     ERET->      List(Y,    N,N,BR_N,  N,N,A2_X,    DW_X,  FN_X,   N,M_X,      MT_X, N,MUL_X,  N,DIV_X, N,WA_X, WB_X,  PCR_N,SYNC_N,Y,N,Y,N),
     FENCE->     List(Y,    N,N,BR_N,  N,N,A2_X,    DW_X,  FN_X,   Y,M_FENCE,  MT_X, N,MUL_X,  N,DIV_X, N,WA_X, WB_X,  PCR_N,SYNC_D,N,N,N,N),
     FENCE_I->   List(Y,    N,N,BR_N,  N,N,A2_X,    DW_X,  FN_X,   Y,M_FLA,    MT_X, N,MUL_X,  N,DIV_X, N,WA_X, WB_X,  PCR_N,SYNC_I,N,N,N,Y),
