@@ -359,7 +359,7 @@ class rocketCtrl extends Component
   val id_reg_xcpt_ma_inst = Reg(resetVal = Bool(false));
   val id_reg_icmiss       = Reg(resetVal = Bool(false));
   val id_reg_replay       = Reg(resetVal = Bool(false));
-  val id_load_use         = Wire(){Bool()};
+  val id_load_use         = Bool();
   
   val ex_reg_br_type     = Reg(){Bits()}
   val ex_reg_btb_hit     = Reg(){Bool()};
@@ -418,8 +418,8 @@ class rocketCtrl extends Component
   val wb_reg_fp_val          = Reg(resetVal = Bool(false));
   val wb_reg_fp_sboard_set   = Reg(resetVal = Bool(false));
 
-  val take_pc = Wire(){Bool()}
-  val take_pc_wb = Wire(){Bool()}
+  val take_pc = Bool()
+  val take_pc_wb = Bool()
 
   when (!io.dpath.stalld) {
     when (io.dpath.killf) {

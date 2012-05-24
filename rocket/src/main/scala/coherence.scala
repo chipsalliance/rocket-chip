@@ -96,7 +96,7 @@ abstract class IncoherentPolicy extends CoherencePolicy {
   // UNIMPLEMENTED
   def newStateOnProbeRequest(incoming: ProbeRequest, state: UFix): Bits = state
   def newProbeReply (incoming: ProbeRequest, state: UFix): ProbeReply = { 
-    val reply = Wire() { new ProbeReply() }
+    val reply = new ProbeReply()
     reply.p_type := UFix(0)
     reply.global_xact_id := UFix(0)
     reply
@@ -209,7 +209,7 @@ class MICoherence extends CoherencePolicyWithUncached {
   def getTransactionInitTypeOnWriteback(): Bits = getTransactionInitTypeOnCacheControl(M_INV)
 
   def newProbeReply (incoming: ProbeRequest, state: UFix): ProbeReply = {
-    val reply = Wire() { new ProbeReply() }
+    val reply = new ProbeReply()
     val with_data = MuxLookup(incoming.p_type, probeRepInvalidateData, Array(
       probeReqInvalidate -> probeRepInvalidateData,
       probeReqCopy       -> probeRepCopyData
@@ -336,7 +336,7 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def getTransactionInitTypeOnWriteback(): Bits = getTransactionInitTypeOnCacheControl(M_INV)
 
   def newProbeReply (incoming: ProbeRequest, state: UFix): ProbeReply = {
-    val reply = Wire() { new ProbeReply() }
+    val reply = new ProbeReply()
     val with_data = MuxLookup(incoming.p_type, probeRepInvalidateData, Array(
       probeReqInvalidate -> probeRepInvalidateData,
       probeReqDowngrade  -> probeRepDowngradeData,
@@ -475,7 +475,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
   def getTransactionInitTypeOnWriteback(): Bits = getTransactionInitTypeOnCacheControl(M_INV)
 
   def newProbeReply (incoming: ProbeRequest, state: UFix): ProbeReply = {
-    val reply = Wire() { new ProbeReply() }
+    val reply = new ProbeReply()
     val with_data = MuxLookup(incoming.p_type, probeRepInvalidateData, Array(
       probeReqInvalidate -> probeRepInvalidateData,
       probeReqDowngrade  -> probeRepDowngradeData,
@@ -614,7 +614,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
   def getTransactionInitTypeOnWriteback(): Bits = getTransactionInitTypeOnCacheControl(M_INV)
 
   def newProbeReply (incoming: ProbeRequest, state: UFix): ProbeReply = {
-    val reply = Wire() { new ProbeReply() }
+    val reply = new ProbeReply()
     val with_data = MuxLookup(incoming.p_type, probeRepInvalidateData, Array(
       probeReqInvalidate -> probeRepInvalidateData,
       probeReqDowngrade  -> probeRepDowngradeData,

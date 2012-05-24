@@ -803,7 +803,7 @@ class HellaCache(co: CoherencePolicy) extends Component {
   val r_req_read  = r_req_load || r_req_amo
   val r_req_write = r_req_store || r_req_amo
   val r_req_readwrite = r_req_read || r_req_write || r_req_prefetch
-  val nack_hit = Wire() { Bool() }
+  val nack_hit = Bool()
 
   val wb = new WritebackUnit(co)
   val prober = new ProbeUnit(co)
