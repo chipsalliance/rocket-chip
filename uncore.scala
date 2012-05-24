@@ -281,20 +281,20 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
 {
   val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(ntiles, _, co))
 
-  val busy_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val addr_arr           = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=PADDR_BITS-OFFSET_BITS)} }
-  val init_tile_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
-  val tile_xact_id_arr   = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_XACT_ID_BITS)} }
-  val x_type_arr         = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=X_INIT_TYPE_MAX_BITS)} }
-  val sh_count_arr       = Vec(NGLOBAL_XACTS){ Wire(){Bits(width=TILE_ID_BITS)} }
-  val send_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
+  val busy_arr           = Vec(NGLOBAL_XACTS){ Bool() }
+  val addr_arr           = Vec(NGLOBAL_XACTS){ Bits(width=PADDR_BITS-OFFSET_BITS) }
+  val init_tile_id_arr   = Vec(NGLOBAL_XACTS){ Bits(width=TILE_ID_BITS) }
+  val tile_xact_id_arr   = Vec(NGLOBAL_XACTS){ Bits(width=TILE_XACT_ID_BITS) }
+  val x_type_arr         = Vec(NGLOBAL_XACTS){ Bits(width=X_INIT_TYPE_MAX_BITS) }
+  val sh_count_arr       = Vec(NGLOBAL_XACTS){ Bits(width=TILE_ID_BITS) }
+  val send_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Bool() }
 
-  val do_free_arr        = Vec(NGLOBAL_XACTS){ Wire(){Bool()} }
-  val p_rep_cnt_dec_arr  = VecBuf(NGLOBAL_XACTS){ Vec(ntiles){ Wire(){Bool()} } }
-  val p_req_cnt_inc_arr  = VecBuf(NGLOBAL_XACTS){ Vec(ntiles){ Wire(){Bool()} } }
-  val sent_x_rep_ack_arr = Vec(NGLOBAL_XACTS){ Wire(){ Bool()} }
-  val p_data_tile_id_arr = Vec(NGLOBAL_XACTS){ Wire(){ Bits(width = TILE_ID_BITS)} }
-  val p_data_valid_arr   = Vec(NGLOBAL_XACTS){ Wire(){ Bool()} }
+  val do_free_arr        = Vec(NGLOBAL_XACTS){ Bool() }
+  val p_rep_cnt_dec_arr  = VecBuf(NGLOBAL_XACTS){ Vec(ntiles){ Bool()}  }
+  val p_req_cnt_inc_arr  = VecBuf(NGLOBAL_XACTS){ Vec(ntiles){ Bool()}  }
+  val sent_x_rep_ack_arr = Vec(NGLOBAL_XACTS){  Bool() }
+  val p_data_tile_id_arr = Vec(NGLOBAL_XACTS){  Bits(width = TILE_ID_BITS) }
+  val p_data_valid_arr   = Vec(NGLOBAL_XACTS){  Bool() }
 
   for( i <- 0 until NGLOBAL_XACTS) {
     val t = trackerList(i).io
@@ -410,13 +410,13 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
   // Nack conflicting transaction init attempts
   val s_idle :: s_abort_drain :: s_abort_send :: Nil = Enum(3){ UFix() }
   val abort_state_arr = Vec(ntiles) { Reg(resetVal = s_idle) }
-  val want_to_abort_arr = Vec(ntiles) { Wire() { Bool()} }
+  val want_to_abort_arr = Vec(ntiles) { Bool() }
   for( j <- 0 until ntiles ) {
     val x_init = io.tiles(j).xact_init
     val x_init_data = io.tiles(j).xact_init_data
     val x_abort  = io.tiles(j).xact_abort
     val abort_cnt = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
-    val conflicts = Vec(NGLOBAL_XACTS) { Wire() { Bool() } }
+    val conflicts = Vec(NGLOBAL_XACTS) { Bool() }
     for( i <- 0 until NGLOBAL_XACTS) {
       val t = trackerList(i).io
       conflicts(i) := t.busy && x_init.valid && co.isCoherenceConflict(t.addr, x_init.bits.address)
