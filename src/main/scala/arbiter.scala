@@ -26,12 +26,12 @@ class rocketMemArbiter(n: Int) extends Component {
     xi_rdy = xi_rdy && !io.requestor(i).xact_init.valid
   }
 
-  var xi_bits = Wire() { new TransactionInit }
+  var xi_bits = new TransactionInit
   xi_bits := io.requestor(n-1).xact_init.bits
   xi_bits.tile_xact_id := Cat(io.requestor(n-1).xact_init.bits.tile_xact_id, UFix(n-1, log2up(n)))
   for (i <- n-2 to 0 by -1)
   {
-    var my_xi_bits = Wire() { new TransactionInit }
+    var my_xi_bits = new TransactionInit
     my_xi_bits := io.requestor(i).xact_init.bits
     my_xi_bits.tile_xact_id := Cat(io.requestor(i).xact_init.bits.tile_xact_id, UFix(i, log2up(n)))
 

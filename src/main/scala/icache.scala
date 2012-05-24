@@ -56,8 +56,8 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
   val r_cpu_req_ppn    = Reg { Bits() }
   val r_cpu_req_val    = Reg(resetVal = Bool(false));
 
-  val rdy = Wire() { Bool() }
-  val tag_hit = Wire() { Bool() }
+  val rdy = Bool()
+  val tag_hit = Bool()
   
   when (io.cpu.req_val && rdy) {
     r_cpu_req_val   := Bool(true)

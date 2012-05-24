@@ -25,8 +25,8 @@ class rocketDpathBTB(entries: Int) extends Component
   val repl_way = LFSR16(io.wen)(log2up(entries)-1,0) // TODO: pseudo-LRU
 
   var hit_reduction = Bool(false)
-  val hit = Wire() { Bool() }
-  val update = Wire() { Bool() }
+  val hit = Bool()
+  val update = Bool()
   var update_reduction = Bool(false)
   val mux = (new Mux1H(entries)) { Bits(width = VADDR_BITS) }
 
@@ -118,7 +118,7 @@ class rocketDpathPCR extends Component
   val r_irq_timer = Reg(resetVal = Bool(false));
   val r_irq_ipi   = Reg(resetVal = Bool(true))
   
-  val rdata = Wire() { Bits() };
+  val rdata = Bits();
 
   val raddr = Mux(io.r.en, io.r.addr, io.host.pcr_req.bits.addr)
   io.host.pcr_rep.valid := io.host.pcr_req.valid && !io.r.en && !io.host.pcr_req.bits.rw

@@ -70,7 +70,7 @@ class rocketDpath extends Component
   val ex_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_div_fn    = Reg() { UFix() };
   val ex_reg_ctrl_sel_wb    = Reg() { UFix() };
- 	val ex_wdata						  = Wire() { Bits() }; 	
+ 	val ex_wdata						  = Bits(); 	
 
   // memory definitions
   val mem_reg_pc             = Reg() { UFix() };
@@ -93,9 +93,9 @@ class rocketDpath extends Component
   val wb_reg_raddr1         = Reg() { UFix() };
   val wb_reg_raddr2         = Reg() { UFix() };
   val wb_reg_ll_wb          = Reg(resetVal = Bool(false));
-  val wb_wdata              = Wire() { Bits() }; 	
+  val wb_wdata              = Bits(); 	
 
-  val dmem_resp_replay      = Wire() { Bool() }
+  val dmem_resp_replay      = Bool()
   val r_dmem_resp_replay    = Reg(resetVal = Bool(false));
   val r_dmem_fp_replay      = Reg(resetVal = Bool(false));
   val r_dmem_resp_waddr     = Reg() { UFix() };

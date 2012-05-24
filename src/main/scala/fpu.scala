@@ -214,10 +214,10 @@ class rocketFPIntUnit extends Component
   val d2i = hardfloat.recodedFloatNToAny(io.in1, io.rm, ~io.cmd(1,0), 52, 12, 64)
 
   // output muxing
-  val (out_s, exc_s) = (Wire() { Bits() }, Wire() { Bits() })
+  val (out_s, exc_s) = (Bits(), Bits())
   out_s := Cat(Fill(32, unrec_s(31)), unrec_s)
   exc_s := Bits(0)
-  val (out_d, exc_d) = (Wire() { Bits() }, Wire() { Bits() })
+  val (out_d, exc_d) = (Bits(), Bits())
   out_d := unrec_d
   exc_d := Bits(0)
 
@@ -292,10 +292,10 @@ class rocketFPUFastPipe extends Component
   val minmax = Mux(isnan2 || !isnan1 && (min === lt), io.in1, io.in2)
 
   // output muxing
-  val (out_s, exc_s) = (Wire() { Bits() }, Wire() { Bits() })
+  val (out_s, exc_s) = (Bits(), Bits())
   out_s := Reg(hardfloat.floatNToRecodedFloatN(io.fromint, 23, 9))
   exc_s := Bits(0)
-  val (out_d, exc_d) = (Wire() { Bits() }, Wire() { Bits() })
+  val (out_d, exc_d) = (Bits(), Bits())
   out_d := Reg(hardfloat.floatNToRecodedFloatN(io.fromint, 52, 12))
   exc_d := Bits(0)
 

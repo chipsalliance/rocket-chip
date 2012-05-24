@@ -208,7 +208,7 @@ class RRArbiter[T <: Data](n: Int)(data: => T) extends Component {
     last_grant := choose
   }
 
-  val dvec = Vec(n) { Wire() { data } }
+  val dvec = Vec(n) { data } 
   (0 until n).map(i => dvec(i) := io.in(i).bits )
 
   io.out.valid := foldR(io.in.map(_.valid))(_||_)
@@ -226,8 +226,8 @@ class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {
   val io = new ioLockingArbiter(n)(data)
   val locked = Vec(n) { Reg(resetVal = Bool(false)) }
   val any_lock_held = (locked.toBits & io.lock.toBits).orR
-  val valid_arr = Vec(n) { Wire() { Bool() } }
-  val bits_arr = Vec(n) { Wire() { data } }
+  val valid_arr = Vec(n) { Bool() } 
+  val bits_arr = Vec(n) { data } 
   for(i <- 0 until n) {
     valid_arr(i) := io.in(i).valid
     bits_arr(i) := io.in(i).bits
@@ -270,7 +270,7 @@ object PriorityEncoderOH
 {
   def apply(in: Bits): UFix = doApply(in, 0)
   def doApply(in: Bits, n: Int = 0): UFix = {
-    val out = Vec(in.getWidth) { Wire() { Bool() } }
+    val out = Vec(in.getWidth) { Bool() }
     var none_hot = Bool(true)
     for (i <- 0 until in.getWidth) {
       out(i) := none_hot && in(i)
