@@ -75,7 +75,7 @@ class ioCtrlDpath extends Bundle()
 class ioCtrlAll extends Bundle()
 {
   val dpath   = new ioCtrlDpath();
-  val imem    = new ioImem(List("req_val", "resp_val")).flip
+  val imem    = new ioImem().flip
   val dmem = new ioHellaCache
   val dtlb_val = Bool(OUTPUT);
   val dtlb_kill = Bool(OUTPUT);
