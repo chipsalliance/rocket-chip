@@ -4,12 +4,12 @@ import Chisel._
 import Node._;
 import Constants._;
 
-class ioDebug(view: List[String] = null) extends Bundle(view)
+class ioDebug extends Bundle
 {
   val error_mode  = Bool(OUTPUT);
 }
 
-class ioHost(w: Int, view: List[String] = null) extends Bundle(view)
+class ioHost(w: Int) extends Bundle
 {
   val in = new ioDecoupled()(Bits(width = w)).flip
   val out = new ioDecoupled()(Bits(width = w))

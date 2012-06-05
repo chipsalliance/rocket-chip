@@ -6,7 +6,7 @@ import Constants._;
 import scala.math._;
 
 // interface between I$ and pipeline/ITLB (32 bits wide)
-class ioImem(view: List[String] = null) extends Bundle (view)
+class ioImem extends Bundle
 {
   val invalidate = Bool(INPUT);
   val itlb_miss  = Bool(INPUT);
