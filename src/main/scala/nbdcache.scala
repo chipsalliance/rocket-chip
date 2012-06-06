@@ -321,9 +321,8 @@ class MSHRFile(co: CoherencePolicy) extends Component {
   val sdq_rdy = !sdq_val.andR
   val (req_read, req_write) = cpuCmdToRW(io.req.bits.cmd)
   val sdq_enq = io.req.valid && io.req.ready && req_write
-  val sdq = Mem(NSDQ, sdq_enq, sdq_alloc_id, io.req.bits.data)
-  sdq.setReadLatency(1);
-  sdq.setTarget('inst)
+  val sdq = Mem(NSDQ) { io.req.bits.data.clone }
+  when (sdq_enq) { sdq(sdq_alloc_id) := io.req.bits.data }
 
   val tag_mux = (new Mux1H(NMSHR)){ Bits(width = TAG_BITS) }
   val wb_probe_mux = (new Mux1H(NMSHR)) { new WritebackReq }
@@ -406,7 +405,9 @@ class MSHRFile(co: CoherencePolicy) extends Component {
   val sdq_free = replay.valid && replay.ready && replay_write
   sdq_val := sdq_val & ~((UFix(1) << replay.bits.sdq_id) & Fill(sdq_free, NSDQ)) | 
              PriorityEncoderOH(~sdq_val(NSDQ-1,0)) & Fill(NSDQ, sdq_enq && io.req.bits.tag_miss)
-  io.data_req.bits.data := sdq.read(Mux(replay.valid && !replay.ready, replay.bits.sdq_id, replay_arb.io.out.bits.sdq_id))
+  val sdq_rdata = Reg() { io.req.bits.data.clone }
+  sdq_rdata := sdq(Mux(replay.valid && !replay.ready, replay.bits.sdq_id, replay_arb.io.out.bits.sdq_id))
+  io.data_req.bits.data := sdq_rdata
 
   io.cpu_resp_val := Reg(replay.valid && replay.ready && replay_read, resetVal = Bool(false))
   io.cpu_resp_tag := Reg(replay.bits.cpu_tag)
@@ -602,18 +603,23 @@ class MetaDataArray(lines: Int) extends Component {
   }
 
   val permissions_array = Mem(lines){ UFix(width = 2) }
-  permissions_array.write(io.state_req.bits.idx, io.state_req.bits.data.state, io.state_req.valid && io.state_req.bits.rw)
-  permissions_array.write(io.req.bits.idx, io.req.bits.data.state, io.req.valid && io.req.bits.rw)
   val raddr = Reg() { Bits() }
-  when (io.req.valid && !io.req.bits.rw) { raddr := io.req.bits.idx }
-  val permissions_rdata1 = permissions_array.read(raddr)
+  when (io.state_req.valid && io.state_req.bits.rw) {
+    permissions_array(io.state_req.bits.idx) := io.state_req.bits.data.state
+  }
+  when (io.req.valid) {
+    when (io.req.bits.rw) { permissions_array(io.req.bits.idx) := io.req.bits.data.state }
+    .otherwise { raddr := io.req.bits.idx }
+  }
 
   val tag_array = Mem(lines){ Bits(width=TAG_BITS) }
-  tag_array.setReadLatency(1);
-  tag_array.setTarget('inst)
-  val tag_rdata = tag_array.rw(io.req.bits.idx, io.req.bits.data.tag, io.req.valid && io.req.bits.rw, cs = io.req.valid)
+  val tag_rdata = Reg() { Bits() }
+  when (io.req.valid) {
+    when (io.req.bits.rw) { tag_array(io.req.bits.idx) := io.req.bits.data.tag }
+    .otherwise { tag_rdata := tag_array(io.req.bits.idx) }
+  }
 
-  io.resp.state := permissions_rdata1.toUFix
+  io.resp.state := permissions_array(raddr)
   io.resp.tag   := tag_rdata
   io.req.ready  := Bool(true)
 }
@@ -652,12 +658,15 @@ class DataArray(lines: Int) extends Component {
   }
 
   val wmask = FillInterleaved(8, io.req.bits.wmask)
+  val addr = Cat(io.req.bits.idx, io.req.bits.offset)
+  val rdata = Reg() { Bits() }
 
   val array = Mem(lines*REFILL_CYCLES){ Bits(width=MEM_DATA_BITS) }
-  array.setReadLatency(1);
-  array.setTarget('inst)
-  val addr = Cat(io.req.bits.idx, io.req.bits.offset)
-  val rdata = array.rw(addr, io.req.bits.data, io.req.valid && io.req.bits.rw, wmask, cs = io.req.valid)
+  when (io.req.valid) {
+    when (io.req.bits.rw) { array.write(addr, io.req.bits.data, wmask) }
+    .otherwise { rdata := array(addr) }
+  }
+
   io.resp := rdata
   io.req.ready := Bool(true)
 }
