@@ -33,7 +33,7 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
 
   val lines = sets * assoc;
   val addrbits = PADDR_BITS;
-  val indexbits = log2up(sets);
+  val indexbits = log2Up(sets);
   val offsetbits = OFFSET_BITS;
   val tagmsb    = addrbits - 1;
   val taglsb    = indexbits+offsetbits;
@@ -42,11 +42,11 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
   val indexlsb  = offsetbits;
   val offsetmsb = indexlsb-1;
   val databits = 32;
-  val offsetlsb = log2up(databits/8);
-  val rf_cnt_bits = log2up(REFILL_CYCLES);
+  val offsetlsb = log2Up(databits/8);
+  val rf_cnt_bits = log2Up(REFILL_CYCLES);
 
   require(PGIDX_BITS >= taglsb); // virtually-indexed, physically-tagged constraint
-  require(ispow2(sets) && ispow2(assoc));
+  require(isPow2(sets) && isPow2(assoc));
   
   val s_reset :: s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(5) { UFix() };
   val state = Reg(resetVal = s_reset);
@@ -82,8 +82,8 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
   }
   val refill_done = io.mem.xact_rep.valid && refill_count.andR
 
-  val repl_way = if (assoc == 1) UFix(0) else LFSR16(state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss && !tag_hit)(log2up(assoc)-1,0)
-  val word_shift = Cat(r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb), UFix(0, log2up(databits))).toUFix
+  val repl_way = if (assoc == 1) UFix(0) else LFSR16(state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss && !tag_hit)(log2Up(assoc)-1,0)
+  val word_shift = Cat(r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb), UFix(0, log2Up(databits))).toUFix
   val tag_we = refill_done
   val tag_addr = 
     Mux((state === s_refill), r_cpu_req_idx(indexmsb,indexlsb),

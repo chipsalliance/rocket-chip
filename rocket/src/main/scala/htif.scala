@@ -28,7 +28,7 @@ class ioHTIF extends Bundle
   val debug = new ioDebug
   val pcr_req = (new ioDecoupled) { new PCRReq }.flip
   val pcr_rep = (new ioPipe) { Bits(width = 64) }
-  val ipi = (new ioDecoupled) { Bits(width = log2up(NTILES)) }
+  val ipi = (new ioDecoupled) { Bits(width = log2Up(NTILES)) }
 }
 
 class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends Component
@@ -43,7 +43,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   val long_request_bits = 576
   require(short_request_bits % w == 0)
 
-  val rx_count_w = 13 + log2up(64) - log2up(w) // data size field is 12 bits
+  val rx_count_w = 13 + log2Up(64) - log2Up(w) // data size field is 12 bits
   val rx_count = Reg(resetVal = UFix(0,rx_count_w))
   val rx_shifter = Reg() { Bits(width = short_request_bits) }
   val rx_shifter_in = Cat(io.host.in.bits, rx_shifter(short_request_bits-1,w))
@@ -65,18 +65,18 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
     }
   }
 
-  val rx_word_count = (rx_count >> UFix(log2up(short_request_bits/w)))
-  val rx_word_done = io.host.in.valid && rx_count(log2up(short_request_bits/w)-1,0).andR
+  val rx_word_count = (rx_count >> UFix(log2Up(short_request_bits/w)))
+  val rx_word_done = io.host.in.valid && rx_count(log2Up(short_request_bits/w)-1,0).andR
   val packet_ram_depth = long_request_bits/short_request_bits-1
   val packet_ram = Vec(packet_ram_depth) { Reg() { Bits(width = short_request_bits) } }
   when (rx_word_done && io.host.in.ready) {
-    packet_ram(rx_word_count(log2up(packet_ram_depth)-1,0) - UFix(1)) := rx_shifter_in
+    packet_ram(rx_word_count(log2Up(packet_ram_depth)-1,0) - UFix(1)) := rx_shifter_in
   }
 
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(6) { UFix() }
 
   val pcr_addr = addr(4,0)
-  val pcr_coreid = if (ncores == 1) UFix(0) else addr(20+log2up(ncores),20)
+  val pcr_coreid = if (ncores == 1) UFix(0) else addr(20+log2Up(ncores),20)
   val pcr_wdata = packet_ram(0)
 
   val bad_mem_packet = size(OFFSET_BITS-1-3,0).orR || addr(OFFSET_BITS-1-3,0).orR
@@ -85,14 +85,14 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
              Bool(true)))
 
   val tx_count = Reg(resetVal = UFix(0, rx_count_w))
-  val tx_subword_count = tx_count(log2up(short_request_bits/w)-1,0)
-  val tx_word_count = tx_count(rx_count_w-1, log2up(short_request_bits/w))
-  val packet_ram_raddr = tx_word_count(log2up(packet_ram_depth)-1,0) - UFix(1)
+  val tx_subword_count = tx_count(log2Up(short_request_bits/w)-1,0)
+  val tx_word_count = tx_count(rx_count_w-1, log2Up(short_request_bits/w))
+  val packet_ram_raddr = tx_word_count(log2Up(packet_ram_depth)-1,0) - UFix(1)
   when (io.host.out.valid && io.host.out.ready) {
     tx_count := tx_count + UFix(1)
   }
 
-  val rx_done = rx_word_done && Mux(rx_word_count === UFix(0), next_cmd != cmd_writemem && next_cmd != cmd_writecr, rx_word_count === size || rx_word_count(log2up(packet_ram_depth)-1,0) === UFix(0))
+  val rx_done = rx_word_done && Mux(rx_word_count === UFix(0), next_cmd != cmd_writemem && next_cmd != cmd_writecr, rx_word_count === size || rx_word_count(log2Up(packet_ram_depth)-1,0) === UFix(0))
   val tx_size = Mux(!nack && (cmd === cmd_readmem || cmd === cmd_readcr), size, UFix(0))
   val tx_done = io.host.out.ready && tx_subword_count.andR && (tx_word_count === tx_size || tx_word_count > UFix(0) && packet_ram_raddr.andR)
 
@@ -122,7 +122,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
     state := state_tx
   }
 
-  val mem_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
+  val mem_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
   when (state === state_mem_req && io.mem.xact_init.ready) {
     state := Mux(cmd === cmd_writemem, state_mem_wdata, state_mem_rdata)
   }
@@ -170,7 +170,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
 
   var mem_req_data: Bits = null
   for (i <- 0 until MEM_DATA_BITS/short_request_bits) {
-    val idx = Cat(mem_cnt, UFix(i, log2up(MEM_DATA_BITS/short_request_bits)))
+    val idx = Cat(mem_cnt, UFix(i, log2Up(MEM_DATA_BITS/short_request_bits)))
     when (state === state_mem_rdata && io.mem.xact_rep.valid) {
       packet_ram(idx) := io.mem.xact_rep.bits.data((i+1)*short_request_bits-1, i*short_request_bits)
     }
@@ -240,5 +240,5 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
 
   io.host.in.ready := state === state_rx
   io.host.out.valid := state === state_tx
-  io.host.out.bits := tx_data >> Cat(tx_count(log2up(short_request_bits/w)-1,0), Bits(0, log2up(w)))
+  io.host.out.bits := tx_data >> Cat(tx_count(log2Up(short_request_bits/w)-1,0), Bits(0, log2Up(w)))
 }

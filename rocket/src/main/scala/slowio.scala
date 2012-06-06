@@ -19,7 +19,7 @@ class slowIO[T <: Data](val divisor: Int, hold_cycles_in: Int = -1)(data: => T) 
   require((divisor & (divisor-1)) == 0)
   require(hold_cycles < divisor/2 && hold_cycles >= 1)
 
-  val cnt = Reg() { UFix(width = log2up(divisor)) }
+  val cnt = Reg() { UFix(width = log2Up(divisor)) }
   cnt := cnt + UFix(1)
   val out_en = cnt === UFix(divisor/2+hold_cycles-1) // rising edge + hold time
   val in_en = cnt === UFix(divisor/2-1) // rising edge
@@ -46,5 +46,5 @@ class slowIO[T <: Data](val divisor: Int, hold_cycles_in: Int = -1)(data: => T) 
   io.in_slow.ready := in_slow_rdy
   io.out_slow.valid := out_slow_val
   io.out_slow.bits := out_slow_bits
-  io.clk_slow := cnt(log2up(divisor)-1).toBool
+  io.clk_slow := cnt(log2Up(divisor)-1).toBool
 }

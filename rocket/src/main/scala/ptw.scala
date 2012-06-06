@@ -14,7 +14,7 @@ class ioHellaCacheArbiter(n: Int) extends Bundle
 class rocketHellaCacheArbiter(n: Int) extends Component
 {
   val io = new ioHellaCacheArbiter(n)
-  require(DCACHE_TAG_BITS >= log2up(n) + CPU_TAG_BITS)
+  require(DCACHE_TAG_BITS >= log2Up(n) + CPU_TAG_BITS)
 
   var req_val = Bool(false)
   var req_rdy = io.mem.req.ready
@@ -41,7 +41,7 @@ class rocketHellaCacheArbiter(n: Int) extends Component
     req_ppn  = Mux(Reg(r.valid), r.bits.ppn, req_ppn)
     req_data = Mux(Reg(r.valid), r.bits.data, req_data)
     req_kill = Mux(Reg(r.valid), r.bits.kill, req_kill)
-    req_tag  = Mux(r.valid, Cat(r.bits.tag, UFix(i, log2up(n))), req_tag)
+    req_tag  = Mux(r.valid, Cat(r.bits.tag, UFix(i, log2Up(n))), req_tag)
   }
 
   io.mem.req.valid     := req_val
@@ -57,7 +57,7 @@ class rocketHellaCacheArbiter(n: Int) extends Component
   {
     val r = io.requestor(i).resp
     val x = io.requestor(i).xcpt
-    val tag_hit = io.mem.resp.bits.tag(log2up(n)-1,0) === UFix(i)
+    val tag_hit = io.mem.resp.bits.tag(log2Up(n)-1,0) === UFix(i)
     x.ma.ld := io.mem.xcpt.ma.ld && Reg(io.requestor(i).req.valid)
     x.ma.st := io.mem.xcpt.ma.st && Reg(io.requestor(i).req.valid)
     r.valid             := io.mem.resp.valid && tag_hit
@@ -67,7 +67,7 @@ class rocketHellaCacheArbiter(n: Int) extends Component
     r.bits.data         := io.mem.resp.bits.data
     r.bits.data_subword := io.mem.resp.bits.data_subword
     r.bits.typ          := io.mem.resp.bits.typ
-    r.bits.tag          := io.mem.resp.bits.tag >> UFix(log2up(n))
+    r.bits.tag          := io.mem.resp.bits.tag >> UFix(log2Up(n))
   }
 }
 
@@ -86,7 +86,7 @@ class rocketPTW(n: Int) extends Component
   val bitsPerLevel = VPN_BITS/levels
   require(VPN_BITS == levels * bitsPerLevel)
 
-  val count = Reg() { UFix(width = log2up(levels)) }
+  val count = Reg() { UFix(width = log2Up(levels)) }
   val s_ready :: s_req :: s_wait :: s_done :: s_error :: Nil = Enum(5) { UFix() };
   val state = Reg(resetVal = s_ready);
   

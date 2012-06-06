@@ -66,7 +66,7 @@ class rocketDivider(width: Int) extends Component {
   val rhs_in = Cat(rhs_hi, io.req.bits.in1(width/2-1,0))
         
   when ((state === s_ready) && io.req.valid) {
-    count := UFix(0, log2up(width+1));
+    count := UFix(0, log2Up(width+1));
     half := (dw === DW_32);
     neg_quo := Bool(false);
     neg_rem := Bool(false);

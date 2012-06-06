@@ -26,7 +26,7 @@ class rocketVUMultiplier(nwbq: Int) extends Component {
   }
 
   val valid = Reg(resetVal = Bits(0, IMUL_STAGES))
-  val wbq_cnt = Reg(resetVal = Bits(0, log2up(nwbq+1)))
+  val wbq_cnt = Reg(resetVal = Bits(0, log2Up(nwbq+1)))
   val tag = Vec(IMUL_STAGES) { Reg() { Bits() } }
 
   val fire = io.cpu.req.valid && io.cpu.req.ready
@@ -80,7 +80,7 @@ class rocketMultiplier extends Component {
   val r_lhs = Reg { Bits() }
   val r_prod= Reg { Bits(width = w*2) }
   val r_lsb = Reg { Bits() }
-  val r_cnt = Reg { UFix(width = log2up(cycles+1)) }
+  val r_cnt = Reg { UFix(width = log2Up(cycles+1)) }
 
   val dw = io.req.bits.fn(io.req.bits.fn.width-1)
   val fn = io.req.bits.fn(io.req.bits.fn.width-2,0)
@@ -99,7 +99,7 @@ class rocketMultiplier extends Component {
   
   when (io.req.valid && io.req.ready) {
     r_val := Bool(true)
-    r_cnt := UFix(0, log2up(cycles+1))
+    r_cnt := UFix(0, log2Up(cycles+1))
     r_dw  := dw
     r_fn  := fn
     r_tag := io.req_tag

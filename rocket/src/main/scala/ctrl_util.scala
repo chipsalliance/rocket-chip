@@ -6,12 +6,12 @@ import Node._;
 class rocketCtrlSboard(entries: Int, nread: Int, nwrite: Int) extends Component
 {
   class read_port extends Bundle {
-    val addr = UFix(log2up(entries), INPUT)
+    val addr = UFix(log2Up(entries), INPUT)
     val data = Bool(OUTPUT)
   }
   class write_port extends Bundle {
     val en = Bool(INPUT)
-    val addr = UFix(log2up(entries), INPUT)
+    val addr = UFix(log2Up(entries), INPUT)
     val data = Bool(INPUT)
   }
 

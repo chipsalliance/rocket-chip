@@ -120,7 +120,7 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
   val x_type_ = Reg{ Bits() }
   val init_tile_id_ = Reg{ Bits() }
   val tile_xact_id_ = Reg{ Bits() }
-  val p_rep_count = if (ntiles == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2up(ntiles)))
+  val p_rep_count = if (ntiles == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2Up(ntiles)))
   val p_req_flags = Reg(resetVal = Bits(0, width = ntiles))
   val p_rep_tile_id_ = Reg{ Bits() }
   val x_needs_read = Reg(resetVal = Bool(false))
@@ -128,9 +128,9 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
   val p_rep_data_needs_write = Reg(resetVal = Bool(false))
   val x_w_mem_cmd_sent = Reg(resetVal = Bool(false))
   val p_w_mem_cmd_sent = Reg(resetVal = Bool(false))
-  val mem_cnt = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
+  val mem_cnt = Reg(resetVal = UFix(0, width = log2Up(REFILL_CYCLES)))
   val mem_cnt_next = mem_cnt + UFix(1)
-  val mem_cnt_max = ~UFix(0, width = log2up(REFILL_CYCLES))
+  val mem_cnt_max = ~UFix(0, width = log2Up(REFILL_CYCLES))
 
   io.busy := state != s_idle
   io.addr := addr_
@@ -415,7 +415,7 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
     val x_init = io.tiles(j).xact_init
     val x_init_data = io.tiles(j).xact_init_data
     val x_abort  = io.tiles(j).xact_abort
-    val abort_cnt = Reg(resetVal = UFix(0, width = log2up(REFILL_CYCLES)))
+    val abort_cnt = Reg(resetVal = UFix(0, width = log2Up(REFILL_CYCLES)))
     val conflicts = Vec(NGLOBAL_XACTS) { Bool() }
     for( i <- 0 until NGLOBAL_XACTS) {
       val t = trackerList(i).io
@@ -438,7 +438,7 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
       is(s_abort_drain) { // raises x_init_data.ready below
         when(x_init_data.valid) {
           abort_cnt := abort_cnt + UFix(1)
-          when(abort_cnt === ~UFix(0, width = log2up(REFILL_CYCLES))) {
+          when(abort_cnt === ~UFix(0, width = log2Up(REFILL_CYCLES))) {
             abort_state_arr(j) := s_abort_send
           }
         }

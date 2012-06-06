@@ -22,7 +22,7 @@ class rocketDpathBTB(entries: Int) extends Component
 {
   val io = new ioDpathBTB();
 
-  val repl_way = LFSR16(io.wen)(log2up(entries)-1,0) // TODO: pseudo-LRU
+  val repl_way = LFSR16(io.wen)(log2Up(entries)-1,0) // TODO: pseudo-LRU
 
   var hit_reduction = Bool(false)
   val hit = Bool()

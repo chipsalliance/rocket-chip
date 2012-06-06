@@ -26,8 +26,8 @@ class MemSerdes extends Component
 
   val s_idle :: s_read_addr :: s_write_addr :: s_write_idle :: s_write_data :: Nil = Enum(5) { UFix() }
   val state = Reg(resetVal = s_idle)
-  val send_cnt = Reg(resetVal = UFix(0, log2up((max(abits, dbits)+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)))
-  val data_send_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
+  val send_cnt = Reg(resetVal = UFix(0, log2Up((max(abits, dbits)+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)))
+  val data_send_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
   val adone = io.narrow.req.ready && send_cnt === UFix((abits-1)/MEM_BACKUP_WIDTH)
   val ddone = io.narrow.req.ready && send_cnt === UFix((dbits-1)/MEM_BACKUP_WIDTH)
 
@@ -67,8 +67,8 @@ class MemSerdes extends Component
     send_cnt := UFix(0)
   }
 
-  val recv_cnt = Reg(resetVal = UFix(0, log2up((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)))
-  val data_recv_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
+  val recv_cnt = Reg(resetVal = UFix(0, log2Up((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)))
+  val data_recv_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
   val resp_val = Reg(resetVal = Bool(false))
 
   resp_val := Bool(false)
@@ -98,8 +98,8 @@ class MemDessert extends Component // test rig side
   val rbits = io.wide.resp.bits.getWidth
 
   require(dbits >= abits && rbits >= dbits)
-  val recv_cnt = Reg(resetVal = UFix(0, log2up((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)))
-  val data_recv_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
+  val recv_cnt = Reg(resetVal = UFix(0, log2Up((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)))
+  val data_recv_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
   val adone = io.narrow.req.valid && recv_cnt === UFix((abits-1)/MEM_BACKUP_WIDTH)
   val ddone = io.narrow.req.valid && recv_cnt === UFix((dbits-1)/MEM_BACKUP_WIDTH)
   val rdone = io.narrow.resp.valid && recv_cnt === UFix((rbits-1)/MEM_BACKUP_WIDTH)

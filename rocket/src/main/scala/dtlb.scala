@@ -17,7 +17,7 @@ class ioDTLB_CPU_req_bundle extends Bundle
   val asid = Bits(width=ASID_BITS)
   val vpn  = Bits(width=VPN_BITS+1)
 }
-class ioDTLB_CPU_req extends hwacha.ioDecoupled()( { new ioDTLB_CPU_req_bundle() } )
+class ioDTLB_CPU_req extends ioDecoupled()( { new ioDTLB_CPU_req_bundle() } )
 
 class ioDTLB_CPU_resp extends Bundle
 {

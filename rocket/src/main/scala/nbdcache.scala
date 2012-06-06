@@ -6,7 +6,7 @@ import Constants._
 class ioReplacementWayGen extends Bundle {
   val pick_new_way = Bool(dir = INPUT)
   val way_en = Bits(width = NWAYS, dir = INPUT)
-  val way_id = UFix(width = log2up(NWAYS), dir = OUTPUT)
+  val way_id = UFix(width = log2Up(NWAYS), dir = OUTPUT)
 }
 
 class RandomReplacementWayGen extends Component {
@@ -15,7 +15,7 @@ class RandomReplacementWayGen extends Component {
   io.way_id := UFix(0)
   if(NWAYS > 1) 
   {
-    val rand_way_id = LFSR16(io.pick_new_way)(log2up(NWAYS)-1,0)
+    val rand_way_id = LFSR16(io.pick_new_way)(log2Up(NWAYS)-1,0)
     when (rand_way_id < UFix(NWAYS)) { io.way_id := rand_way_id }
   }
 }
@@ -58,7 +58,7 @@ class StoreDataGen extends Component {
 class LoadDataGen extends Component {
   val io = new Bundle {
     val typ  = Bits(3, INPUT)
-    val addr = Bits(log2up(MEM_DATA_BITS/8), INPUT)
+    val addr = Bits(log2Up(MEM_DATA_BITS/8), INPUT)
     val din  = Bits(MEM_DATA_BITS, INPUT)
     val dout = Bits(64, OUTPUT)
     val r_dout = Bits(64, OUTPUT)
@@ -112,7 +112,7 @@ class RPQEntry extends Bundle {
   val offset = Bits(width = OFFSET_BITS)
   val cmd    = Bits(width = 4)
   val typ    = Bits(width = 3)
-  val sdq_id = UFix(width = log2up(NSDQ))
+  val sdq_id = UFix(width = log2Up(NSDQ))
   val cpu_tag = Bits(width = DCACHE_TAG_BITS)
 }
 
@@ -133,7 +133,7 @@ class DataReq extends Bundle {
 class DataArrayReq extends Bundle {
   val way_en = Bits(width = NWAYS)
   val idx    = Bits(width = IDX_BITS)
-  val offset = Bits(width = log2up(REFILL_CYCLES))
+  val offset = Bits(width = log2Up(REFILL_CYCLES))
   val rw     = Bool()
   val wmask  = Bits(width = MEM_DATA_BITS/8)
   val data   = Bits(width = MEM_DATA_BITS)
@@ -165,11 +165,11 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
     val req_sec_val    = Bool(INPUT)
     val req_sec_rdy    = Bool(OUTPUT)
     val req_bits       = new MSHRReq().asInput
-    val req_sdq_id     = UFix(log2up(NSDQ), INPUT)
+    val req_sdq_id     = UFix(log2Up(NSDQ), INPUT)
 
     val idx_match      = Bool(OUTPUT)
     val idx            = Bits(IDX_BITS, OUTPUT)
-    val refill_count   = Bits(log2up(REFILL_CYCLES), OUTPUT)
+    val refill_count   = Bits(log2Up(REFILL_CYCLES), OUTPUT)
     val tag            = Bits(TAG_BITS, OUTPUT)
     val way_oh         = Bits(NWAYS, OUTPUT)
 
@@ -190,7 +190,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
 
   val xacx_type = Reg { UFix() }
   val line_state = Reg { UFix() }
-  val refill_count = Reg { UFix(width = log2up(REFILL_CYCLES)) }
+  val refill_count = Reg { UFix(width = log2Up(REFILL_CYCLES)) }
   val req = Reg { new MSHRReq() }
 
   val req_cmd = io.req_bits.cmd
@@ -298,7 +298,7 @@ class MSHRFile(co: CoherencePolicy) extends Component {
     val secondary_miss = Bool(OUTPUT)
 
     val mem_resp_idx = Bits(IDX_BITS, OUTPUT)
-    val mem_resp_offset = Bits(log2up(REFILL_CYCLES), OUTPUT)
+    val mem_resp_offset = Bits(log2Up(REFILL_CYCLES), OUTPUT)
     val mem_resp_way_oh = Bits(NWAYS, OUTPUT)
 
     val fence_rdy = Bool(OUTPUT)
@@ -429,7 +429,7 @@ class WritebackUnit(co: CoherencePolicy) extends Component {
   val is_probe = Reg() { Bool() }
   val data_req_fired = Reg(resetVal = Bool(false))
   val cmd_sent = Reg() { Bool() }
-  val cnt = Reg() { UFix(width = log2up(REFILL_CYCLES+1)) }
+  val cnt = Reg() { UFix(width = log2Up(REFILL_CYCLES+1)) }
   val req = Reg() { new WritebackReq() }
 
   val dout_rdy = Mux(is_probe, io.probe_rep_data.ready, io.mem_req_data.ready)
@@ -555,9 +555,9 @@ class FlushUnit(lines: Int, co: CoherencePolicy) extends Component {
   
   val s_reset :: s_ready :: s_meta_read :: s_meta_wait :: Nil = Enum(4) { UFix() }
   val state = Reg(resetVal = s_reset)
-  val idx_cnt = Reg(resetVal = UFix(0, log2up(lines)))
+  val idx_cnt = Reg(resetVal = UFix(0, log2Up(lines)))
   val next_idx_cnt = idx_cnt + UFix(1)
-  val way_cnt = if (NWAYS == 1) UFix(0) else Reg(resetVal = UFix(0, log2up(NWAYS)))
+  val way_cnt = if (NWAYS == 1) UFix(0) else Reg(resetVal = UFix(0, log2Up(NWAYS)))
   val next_way_cnt = way_cnt + UFix(1)
 
   switch (state) {
@@ -777,8 +777,8 @@ class HellaCache(co: CoherencePolicy) extends Component {
   val indexmsb    = taglsb-1
   val indexlsb    = offsetbits
   val offsetmsb   = indexlsb-1
-  val offsetlsb   = log2up(CPU_DATA_BITS/8)
-  val ramindexlsb = log2up(MEM_DATA_BITS/8)
+  val offsetlsb   = log2Up(CPU_DATA_BITS/8)
+  val ramindexlsb = log2Up(MEM_DATA_BITS/8)
   
   val early_nack       = Reg { Bool() }
   val r_cpu_req_val_   = Reg(io.cpu.req.valid && io.cpu.req.ready, resetVal = Bool(false))
@@ -1008,7 +1008,7 @@ class HellaCache(co: CoherencePolicy) extends Component {
   val store_offset = Mux(!replay_fire, p_store_idx(offsetmsb,0), replay.offset)
   maskgen.io.typ := Mux(!replay_fire, p_store_type, replay.typ)
   maskgen.io.addr := store_offset(offsetlsb-1,0)
-  val store_wmask_wide = maskgen.io.wmask << Cat(store_offset(ramindexlsb-1,offsetlsb), Bits(0, log2up(CPU_DATA_BITS/8))).toUFix
+  val store_wmask_wide = maskgen.io.wmask << Cat(store_offset(ramindexlsb-1,offsetlsb), Bits(0, log2Up(CPU_DATA_BITS/8))).toUFix
   val store_data = Mux(!replay_fire, p_store_data, replay.data)
   val store_data_wide = Fill(MEM_DATA_BITS/CPU_DATA_BITS, store_data)
   data_arb.io.in(1).bits.data := store_data_wide
