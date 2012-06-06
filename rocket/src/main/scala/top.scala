@@ -106,7 +106,6 @@ object top_main {
       }
       i += 1
     }
-    println(chiselArgs)
 
     chiselMain(chiselArgs.toArray, () => Class.forName(top).newInstance.asInstanceOf[Component])
   }
