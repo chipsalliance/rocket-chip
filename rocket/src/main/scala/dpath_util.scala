@@ -252,9 +252,7 @@ class rocketDpathRegfile extends Component
   override val io = new ioRegfile();
 
   val regfile = Mem(32){ Bits(width=64) }
-  regfile.setReadLatency(0);
-  regfile.setTarget('inst);
-  regfile.write(io.w0.addr, io.w0.data, io.w0.en);
+  when (io.w0.en) { regfile(io.w0.addr) := io.w0.data }
   io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
   io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
 }

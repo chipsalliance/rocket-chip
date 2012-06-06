@@ -50,9 +50,12 @@ class queue[T <: Data](entries: Int, pipe: Boolean = false, flushable: Boolean =
     }
   }
 
+  val ram = Vec(entries) { Reg() { data } }
+  when (do_enq) { ram(enq_ptr) := io.enq.bits }
+
   io.deq.valid :=  maybe_full || enq_ptr != deq_ptr
   io.enq.ready := !maybe_full || enq_ptr != deq_ptr || (if (pipe) io.deq.ready else Bool(false))
-  io.deq.bits <> Mem(entries, do_enq, enq_ptr, io.enq.bits).read(deq_ptr)
+  io.deq.bits <> ram(deq_ptr)
 }
 
 object Queue
@@ -76,8 +79,11 @@ class pipereg[T <: Data]()(data: => T) extends Component
   //  bits := io.enq.bits
   //}
 
+  val reg = Reg() { io.enq.bits.clone }
+  when (io.enq.valid) { reg := io.enq.bits }
+
   io.deq.valid := Reg(io.enq.valid, resetVal = Bool(false))
-  io.deq.bits <> Mem(1, io.enq.valid, UFix(0), io.enq.bits).read(UFix(0))
+  io.deq.bits <> reg
 }
 
 object Pipe

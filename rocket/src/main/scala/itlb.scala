@@ -21,23 +21,24 @@ class ioCAM(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
 class rocketCAM(entries: Int, tag_bits: Int) extends Component {
   val addr_bits = ceil(log(entries)/log(2)).toInt;
   val io = new ioCAM(entries, addr_bits, tag_bits);
-  val cam_tags = Mem(entries, io.write, io.write_addr, io.write_tag);
+  val cam_tags = Vec(entries) { Reg() { Bits(width = tag_bits) } }
   val mux = (new Mux1H(entries)) { Bits(width = addr_bits) }
 
   val vb_array = Reg(resetVal = Bits(0, entries));
+  when (io.write) {
+    vb_array := vb_array.bitSet(io.write_addr, Bool(true));
+    cam_tags(io.write_addr) := io.write_tag
+  }
   when (io.clear) {
     vb_array := Bits(0, entries);
   }
   .elsewhen (io.clear_hit) {
     vb_array := vb_array & ~mux.io.sel.toBits
   }
-  .elsewhen (io.write) {
-    vb_array := vb_array.bitSet(io.write_addr, Bool(true));
-  }
   
   var l_hit = Bool(false)
   for (i <- 0 to entries-1) {
-    val my_hit = vb_array(UFix(i)).toBool && (cam_tags(UFix(i)) === io.tag)
+    val my_hit = vb_array(UFix(i)).toBool && (cam_tags(i) === io.tag)
     l_hit = l_hit || my_hit
     mux.io.in(i) := Bits(i)
     mux.io.sel(i) := my_hit
@@ -136,7 +137,8 @@ class rocketITLB(entries: Int) extends Component
   val bad_va = r_cpu_req_vpn(VPN_BITS) != r_cpu_req_vpn(VPN_BITS-1);
   
   val tag_cam = new rocketCAM(entries, ASID_BITS+VPN_BITS);
-  val tag_ram = Mem(entries, io.ptw.resp_val, r_refill_waddr.toUFix, io.ptw.resp_ppn);
+  val tag_ram = Mem(entries) { io.ptw.resp_ppn.clone }
+  when (io.ptw.resp_val) { tag_ram(r_refill_waddr) := io.ptw.resp_ppn }
   
   val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
   tag_cam.io.clear      := io.cpu.invalidate;

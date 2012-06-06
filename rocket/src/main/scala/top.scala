@@ -3,6 +3,7 @@ package rocket
 import Chisel._
 import Node._;
 import Constants._;
+import collection.mutable._
 
 class ioTop(htif_width: Int) extends Bundle  {
   val debug   = new ioDebug();
@@ -82,28 +83,31 @@ class Top extends Component
 
 object top_main {
   def main(args: Array[String]): Unit = { 
-    val design_args = args.slice(5, 10)
-    var i = 0
-    while (i < design_args.length) {
-      val arg = design_args(i)
+    val top = args(0)
+    val chiselArgs = ArrayBuffer[String]()
+
+    var i = 1
+    while (i < args.length) {
+      val arg = args(i)
       arg match {
         case "--NUM_PVFB" => {
-          hwacha.Constants.NUM_PVFB = design_args(i+1).toInt
+          hwacha.Constants.NUM_PVFB = args(i+1).toInt
           i += 1
         }
         case "--WIDTH_PVFB" => {
-          hwacha.Constants.WIDTH_PVFB = design_args(i+1).toInt
-          hwacha.Constants.DEPTH_PVFB = design_args(i+1).toInt
+          hwacha.Constants.WIDTH_PVFB = args(i+1).toInt
+          hwacha.Constants.DEPTH_PVFB = args(i+1).toInt
           i += 1
         }
         case "--CG" => {
           hwacha.Constants.coarseGrained = true
         }
-        case any => println("UNKNOWN: " + arg)
+        case any => chiselArgs += arg
       }
-      println(arg)
       i += 1
     }
-    chiselMain(args.slice(1,5), () => Class.forName(args(0)).newInstance.asInstanceOf[Component])
+    println(chiselArgs)
+
+    chiselMain(chiselArgs.toArray, () => Class.forName(top).newInstance.asInstanceOf[Component])
   }
 }

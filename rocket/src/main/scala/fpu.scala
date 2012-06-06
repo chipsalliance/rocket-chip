@@ -464,9 +464,8 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val fsr_exc = Reg() { Bits(width = 5) }
 
   // regfile
-  val regfile = Mem(32, load_wb, load_wb_tag, load_wb_data_recoded);
-  regfile.setReadLatency(0);
-  regfile.setTarget('inst);
+  val regfile = Mem(32) { Bits(width = 65) }
+  when (load_wb) { regfile(load_wb_tag) := load_wb_data_recoded }
 
   val ex_rs1 = regfile.read(ex_reg_inst(26,22))
   val ex_rs2 = regfile.read(ex_reg_inst(21,17))
@@ -591,7 +590,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
              Mux(wsrc === UFix(2), fastpipe.io.exc_d,
              fastpipe.io.exc_s)))
   val waddr = winfo(0).toUFix >> UFix(2)
-  regfile.write(waddr(4,0), wdata, wen(0))
+  when (wen(0)) { regfile(waddr(4,0)) := wdata }
 
   when (wb_reg_valid && wb_ctrl.toint || wen(0)) {
     fsr_exc := fsr_exc |

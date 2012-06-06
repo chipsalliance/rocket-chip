@@ -97,10 +97,10 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
   for (i <- 0 until assoc)
   {
     val repl_me = (repl_way === UFix(i))
-    val tag_array = Mem(sets){ r_cpu_miss_tag }
-    tag_array.setReadLatency(1);
-    tag_array.setTarget('inst);
-    val tag_rdata = tag_array.rw(tag_addr, r_cpu_miss_tag, tag_we && repl_me);
+    val tag_array = Mem(sets){ Bits(width = tagbits) }
+    val tag_rdata = Reg() { Bits(width = tagbits) }
+    when (tag_we && repl_me) { tag_array(tag_addr) := r_cpu_miss_tag }
+    .otherwise { tag_rdata := tag_array(tag_addr) }
 
     // valid bit array
     val vb_array = Reg(resetVal = Bits(0, sets));
@@ -115,10 +115,10 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
     val hit = valid && (tag_rdata === r_cpu_hit_addr(tagmsb,taglsb))
     
     // data array
-    val data_array = Mem(sets*REFILL_CYCLES){ io.mem.xact_rep.bits.data }
-    data_array.setReadLatency(1);
-    data_array.setTarget('inst);
-    val data_out = data_array.rw(data_addr, io.mem.xact_rep.bits.data, io.mem.xact_rep.valid && repl_me)
+    val data_array = Mem(sets*REFILL_CYCLES){ io.mem.xact_rep.bits.data.clone }
+    val data_out = Reg(){ io.mem.xact_rep.bits.data.clone }
+    when (io.mem.xact_rep.valid && repl_me) { data_array(data_addr) := io.mem.xact_rep.bits.data }
+    .otherwise { data_out := data_array(data_addr) }
 
     data_mux.io.sel(i) := hit
     data_mux.io.in(i) := (data_out >> word_shift)(databits-1,0);

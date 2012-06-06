@@ -74,7 +74,8 @@ class rocketDTLB(entries: Int) extends Component
   val bad_va = r_cpu_req_vpn(VPN_BITS) != r_cpu_req_vpn(VPN_BITS-1);
 
   val tag_cam = new rocketCAM(entries, ASID_BITS+VPN_BITS);
-  val tag_ram = Mem(entries, io.ptw.resp_val, r_refill_waddr.toUFix, io.ptw.resp_ppn);
+  val tag_ram = Mem(entries) { io.ptw.resp_ppn.clone }
+  when (io.ptw.resp_val) { tag_ram(r_refill_waddr) := io.ptw.resp_ppn }
   
   val lookup_tag = Cat(r_cpu_req_asid, r_cpu_req_vpn);
   tag_cam.io.clear      := io.invalidate;
