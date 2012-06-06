@@ -22,8 +22,8 @@ class queue[T <: Data](entries: Int, pipe: Boolean = false, flushable: Boolean =
 
   if (entries > 1)
   {
-    enq_ptr = Reg(resetVal = UFix(0, log2up(entries)))
-    deq_ptr = Reg(resetVal = UFix(0, log2up(entries)))
+    enq_ptr = Reg(resetVal = UFix(0, log2Up(entries)))
+    deq_ptr = Reg(resetVal = UFix(0, log2Up(entries)))
     val pow2 = Bool((entries & (entries-1)) == 0)
 
     when (do_deq) {

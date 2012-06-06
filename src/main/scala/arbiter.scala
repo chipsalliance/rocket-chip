@@ -28,12 +28,12 @@ class rocketMemArbiter(n: Int) extends Component {
 
   var xi_bits = new TransactionInit
   xi_bits := io.requestor(n-1).xact_init.bits
-  xi_bits.tile_xact_id := Cat(io.requestor(n-1).xact_init.bits.tile_xact_id, UFix(n-1, log2up(n)))
+  xi_bits.tile_xact_id := Cat(io.requestor(n-1).xact_init.bits.tile_xact_id, UFix(n-1, log2Up(n)))
   for (i <- n-2 to 0 by -1)
   {
     var my_xi_bits = new TransactionInit
     my_xi_bits := io.requestor(i).xact_init.bits
-    my_xi_bits.tile_xact_id := Cat(io.requestor(i).xact_init.bits.tile_xact_id, UFix(i, log2up(n)))
+    my_xi_bits.tile_xact_id := Cat(io.requestor(i).xact_init.bits.tile_xact_id, UFix(i, log2Up(n)))
 
     xi_bits = Mux(io.requestor(i).xact_init.valid, my_xi_bits, xi_bits)
   }
@@ -60,17 +60,17 @@ class rocketMemArbiter(n: Int) extends Component {
   for (i <- 0 until n)
   {
     val tag = io.mem.xact_rep.bits.tile_xact_id
-    io.requestor(i).xact_rep.valid := io.mem.xact_rep.valid && tag(log2up(n)-1,0) === UFix(i)
+    io.requestor(i).xact_rep.valid := io.mem.xact_rep.valid && tag(log2Up(n)-1,0) === UFix(i)
     io.requestor(i).xact_rep.bits := io.mem.xact_rep.bits
-    io.requestor(i).xact_rep.bits.tile_xact_id := tag >> UFix(log2up(n))
+    io.requestor(i).xact_rep.bits.tile_xact_id := tag >> UFix(log2Up(n))
   }
 
   for (i <- 0 until n)
   {
     val tag = io.mem.xact_abort.bits.tile_xact_id
-    io.requestor(i).xact_abort.valid := io.mem.xact_abort.valid && tag(log2up(n)-1,0) === UFix(i)
+    io.requestor(i).xact_abort.valid := io.mem.xact_abort.valid && tag(log2Up(n)-1,0) === UFix(i)
     io.requestor(i).xact_abort.bits := io.mem.xact_abort.bits
-    io.requestor(i).xact_abort.bits.tile_xact_id := tag >> UFix(log2up(n))
+    io.requestor(i).xact_abort.bits.tile_xact_id := tag >> UFix(log2Up(n))
   }
 
   io.mem.xact_abort.ready := Bool(true)

@@ -55,7 +55,7 @@ class PseudoLRU(n: Int)
   def access(way: UFix) = {
     var next_state = state
     var idx = UFix(1,1)
-    for (i <- log2up(n)-1 to 0 by -1) {
+    for (i <- log2Up(n)-1 to 0 by -1) {
       val bit = way(i)
       val mask = (UFix(1,n) << idx)(n-1,0)
       next_state = next_state & ~mask | Mux(bit, UFix(0), mask)
@@ -66,9 +66,9 @@ class PseudoLRU(n: Int)
   }
   def replace = {
     var idx = UFix(1,1)
-    for (i <- 0 until log2up(n))
+    for (i <- 0 until log2Up(n))
       idx = Cat(idx, state(idx))
-    idx(log2up(n)-1,0)
+    idx(log2Up(n)-1,0)
   }
 }
 

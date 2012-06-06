@@ -31,7 +31,7 @@ class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
     vu = new vu()
     // cpu, vector prefetch, and vector use the DTLB
     val dtlbarb = new RRArbiter(3)({new ioDTLB_CPU_req_bundle()})
-    val dtlbchosen = Reg(resetVal=Bits(DTLB_CPU,log2up(3)))
+    val dtlbchosen = Reg(resetVal=Bits(DTLB_CPU,log2Up(3)))
     when( dtlb.io.cpu_req.ready && dtlbarb.io.out.valid ) { dtlbchosen := dtlbarb.io.chosen }
 
     // tlb respones come out a cycle later

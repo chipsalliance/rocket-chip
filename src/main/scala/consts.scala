@@ -176,7 +176,7 @@ object Constants
   val DCACHE_PORTS = 3
   val CPU_DATA_BITS = 64;
   val CPU_TAG_BITS = 9;
-  val DCACHE_TAG_BITS = log2up(DCACHE_PORTS) + CPU_TAG_BITS
+  val DCACHE_TAG_BITS = log2Up(DCACHE_PORTS) + CPU_TAG_BITS
   val OFFSET_BITS = 6; // log2(cache line size in bytes)
   val NMSHR = if (HAVE_VEC) 4 else 2 // number of primary misses
   val NRPQ = 16; // number of secondary misses
@@ -192,9 +192,9 @@ object Constants
   val ENABLE_CLEAN_EXCLUSIVE = true
 
   val COHERENCE_DATA_BITS = (1 << OFFSET_BITS)*8 
-  val TILE_ID_BITS = log2up(NTILES)+1
-  val TILE_XACT_ID_BITS = log2up(NMSHR)+3
-  val GLOBAL_XACT_ID_BITS = log2up(NTILES*NMSHR)+1
+  val TILE_ID_BITS = log2Up(NTILES)+1
+  val TILE_XACT_ID_BITS = log2Up(NMSHR)+3
+  val GLOBAL_XACT_ID_BITS = log2Up(NTILES*NMSHR)+1
   val NGLOBAL_XACTS = 1 << GLOBAL_XACT_ID_BITS
 
   val X_INIT_TYPE_MAX_BITS = 2

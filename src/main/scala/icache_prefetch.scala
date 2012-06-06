@@ -43,7 +43,7 @@ class rocketIPrefetcher(co: CoherencePolicyWithUncached) extends Component
   finish_arb.io.in(1) <> finish_q.io.deq
   io.mem.xact_finish <> finish_arb.io.out
   
-  val fill_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
+  val fill_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
   when (ip_mem_resp_val) { fill_cnt := fill_cnt + UFix(1) }
   val fill_done = fill_cnt.andR && ip_mem_resp_val
 
@@ -51,7 +51,7 @@ class rocketIPrefetcher(co: CoherencePolicyWithUncached) extends Component
   finish_q.io.enq.bits.global_xact_id := io.mem.xact_rep.bits.global_xact_id
   
   val forward = Reg(resetVal = Bool(false))
-  val forward_cnt = Reg(resetVal = UFix(0, log2up(REFILL_CYCLES)))
+  val forward_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
   when (forward && pdq.io.deq.valid) { forward_cnt := forward_cnt + UFix(1) }
   val forward_done = forward_cnt.andR && pdq.io.deq.valid
   forward := demand_miss && hit || forward && !forward_done
