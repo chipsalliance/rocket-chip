@@ -27,9 +27,9 @@ class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
 }
 
 class ioLockingArbiter[T <: Data](n: Int)(data: => T) extends Bundle {
-  val in   = Vec(n) { (new ioDecoupled()) { data } }.flip
+  val in   = Vec(n) { (new FIFOIO()) { data } }.flip
   val lock = Vec(n) { Bool() }.asInput
-  val out  = (new ioDecoupled()) { data }
+  val out  = (new FIFOIO()) { data }
 }
 
 class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {

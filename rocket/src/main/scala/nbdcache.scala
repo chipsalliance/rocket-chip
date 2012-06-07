@@ -173,15 +173,15 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
     val tag            = Bits(TAG_BITS, OUTPUT)
     val way_oh         = Bits(NWAYS, OUTPUT)
 
-    val mem_req  = (new ioDecoupled) { new TransactionInit }
-    val meta_req = (new ioDecoupled) { new MetaArrayReq() }
-    val replay   = (new ioDecoupled) { new Replay()   }
-    val mem_abort = (new ioPipe) { new TransactionAbort }.flip
-    val mem_rep = (new ioPipe) { new TransactionReply }.flip
-    val mem_finish = (new ioDecoupled) { new TransactionFinish }
-    val wb_req = (new ioDecoupled) { new WritebackReq }
-    val probe_writeback = (new ioDecoupled) { Bool() }.flip
-    val probe_refill = (new ioDecoupled) { Bool() }.flip
+    val mem_req  = (new FIFOIO) { new TransactionInit }
+    val meta_req = (new FIFOIO) { new MetaArrayReq() }
+    val replay   = (new FIFOIO) { new Replay()   }
+    val mem_abort = (new PipeIO) { new TransactionAbort }.flip
+    val mem_rep = (new PipeIO) { new TransactionReply }.flip
+    val mem_finish = (new FIFOIO) { new TransactionFinish }
+    val wb_req = (new FIFOIO) { new WritebackReq }
+    val probe_writeback = (new FIFOIO) { Bool() }.flip
+    val probe_refill = (new FIFOIO) { Bool() }.flip
   }
 
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_drain_rpq :: Nil = Enum(7) { UFix() }
@@ -294,7 +294,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
 
 class MSHRFile(co: CoherencePolicy) extends Component {
   val io = new Bundle {
-    val req = (new ioDecoupled) { new MSHRReq }.flip
+    val req = (new FIFOIO) { new MSHRReq }.flip
     val secondary_miss = Bool(OUTPUT)
 
     val mem_resp_idx = Bits(IDX_BITS, OUTPUT)
@@ -303,14 +303,14 @@ class MSHRFile(co: CoherencePolicy) extends Component {
 
     val fence_rdy = Bool(OUTPUT)
 
-    val mem_req  = (new ioDecoupled) { new TransactionInit }
-    val meta_req = (new ioDecoupled) { new MetaArrayReq() }
-    val data_req   = (new ioDecoupled) { new DataReq() }
-    val mem_abort = (new ioPipe) { new TransactionAbort }.flip
-    val mem_rep = (new ioPipe) { new TransactionReply }.flip
-    val mem_finish = (new ioDecoupled) { new TransactionFinish }
-    val wb_req = (new ioDecoupled) { new WritebackReq }
-    val probe = (new ioDecoupled) { Bool() }.flip
+    val mem_req  = (new FIFOIO) { new TransactionInit }
+    val meta_req = (new FIFOIO) { new MetaArrayReq() }
+    val data_req   = (new FIFOIO) { new DataReq() }
+    val mem_abort = (new PipeIO) { new TransactionAbort }.flip
+    val mem_rep = (new PipeIO) { new TransactionReply }.flip
+    val mem_finish = (new FIFOIO) { new TransactionFinish }
+    val wb_req = (new FIFOIO) { new WritebackReq }
+    val probe = (new FIFOIO) { Bool() }.flip
 
     val cpu_resp_val = Bool(OUTPUT)
     val cpu_resp_tag = Bits(DCACHE_TAG_BITS, OUTPUT)
@@ -416,13 +416,13 @@ class MSHRFile(co: CoherencePolicy) extends Component {
 
 class WritebackUnit(co: CoherencePolicy) extends Component {
   val io = new Bundle {
-    val req = (new ioDecoupled) { new WritebackReq() }.flip
-    val probe = (new ioDecoupled) { new WritebackReq() }.flip
-    val data_req = (new ioDecoupled) { new DataArrayReq() }
+    val req = (new FIFOIO) { new WritebackReq() }.flip
+    val probe = (new FIFOIO) { new WritebackReq() }.flip
+    val data_req = (new FIFOIO) { new DataArrayReq() }
     val data_resp = Bits(MEM_DATA_BITS, INPUT)
-    val mem_req = (new ioDecoupled) { new TransactionInit }
-    val mem_req_data = (new ioDecoupled) { new TransactionInitData }
-    val probe_rep_data = (new ioDecoupled) { new ProbeReplyData }
+    val mem_req = (new FIFOIO) { new TransactionInit }
+    val mem_req_data = (new FIFOIO) { new TransactionInitData }
+    val probe_rep_data = (new FIFOIO) { new ProbeReplyData }
   }
 
   val valid = Reg(resetVal = Bool(false))
@@ -485,11 +485,11 @@ class WritebackUnit(co: CoherencePolicy) extends Component {
 
 class ProbeUnit(co: CoherencePolicy) extends Component {
   val io = new Bundle {
-    val req = (new ioDecoupled) { new ProbeRequest }.flip
-    val rep = (new ioDecoupled) { new ProbeReply }
-    val meta_req = (new ioDecoupled) { new MetaArrayReq }
-    val mshr_req = (new ioDecoupled) { Bool() }
-    val wb_req = (new ioDecoupled) { new WritebackReq }
+    val req = (new FIFOIO) { new ProbeRequest }.flip
+    val rep = (new FIFOIO) { new ProbeReply }
+    val meta_req = (new FIFOIO) { new MetaArrayReq }
+    val mshr_req = (new FIFOIO) { Bool() }
+    val wb_req = (new FIFOIO) { new WritebackReq }
     val tag_match_way_oh = Bits(NWAYS, INPUT)
     val line_state = UFix(2, INPUT)
     val address = Bits(PADDR_BITS-OFFSET_BITS, OUTPUT)
@@ -548,9 +548,9 @@ class ProbeUnit(co: CoherencePolicy) extends Component {
 
 class FlushUnit(lines: Int, co: CoherencePolicy) extends Component {
   val io = new Bundle {
-    val req = (new ioDecoupled) { Bool() }.flip
-    val meta_req = (new ioDecoupled) { new MetaArrayReq() }
-    val mshr_req = (new ioDecoupled) { Bool() }
+    val req = (new FIFOIO) { Bool() }.flip
+    val meta_req = (new FIFOIO) { new MetaArrayReq() }
+    val mshr_req = (new FIFOIO) { Bool() }
   }
   
   val s_reset :: s_ready :: s_meta_read :: s_meta_wait :: Nil = Enum(4) { UFix() }
@@ -597,9 +597,9 @@ class FlushUnit(lines: Int, co: CoherencePolicy) extends Component {
 
 class MetaDataArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new MetaArrayReq() }.flip
+    val req  = (new FIFOIO) { new MetaArrayReq() }.flip
     val resp = (new MetaData).asOutput()
-    val state_req = (new ioDecoupled) { new MetaArrayReq() }.flip
+    val state_req = (new FIFOIO) { new MetaArrayReq() }.flip
   }
 
   val permissions_array = Mem(lines){ UFix(width = 2) }
@@ -626,9 +626,9 @@ class MetaDataArray(lines: Int) extends Component {
 
 class MetaDataArrayArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new MetaArrayReq() }.flip
+    val req  = (new FIFOIO) { new MetaArrayReq() }.flip
     val resp = Vec(NWAYS){ (new MetaData).asOutput }
-    val state_req = (new ioDecoupled) { new MetaArrayReq() }.flip
+    val state_req = (new FIFOIO) { new MetaArrayReq() }.flip
     val way_en = Bits(width = NWAYS, dir = OUTPUT)
   }
 
@@ -653,7 +653,7 @@ class MetaDataArrayArray(lines: Int) extends Component {
 
 class DataArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new DataArrayReq() }.flip
+    val req  = (new FIFOIO) { new DataArrayReq() }.flip
     val resp = Bits(width = MEM_DATA_BITS, dir = OUTPUT)
   }
 
@@ -673,7 +673,7 @@ class DataArray(lines: Int) extends Component {
 
 class DataArrayArray(lines: Int) extends Component {
   val io = new Bundle {
-    val req  = (new ioDecoupled) { new DataArrayReq() }.flip
+    val req  = (new FIFOIO) { new DataArrayReq() }.flip
     val resp = Vec(NWAYS){ Bits(width = MEM_DATA_BITS, dir = OUTPUT) }
     val way_en = Bits(width = NWAYS, dir = OUTPUT)
   }
@@ -756,8 +756,8 @@ class HellaCacheExceptions extends Bundle {
 
 // interface between D$ and processor/DTLB
 class ioHellaCache extends Bundle {
-  val req = (new ioDecoupled){ new HellaCacheReq }
-  val resp = (new ioPipe){ new HellaCacheResp }.flip
+  val req = (new FIFOIO){ new HellaCacheReq }
+  val resp = (new PipeIO){ new HellaCacheResp }.flip
   val xcpt = (new HellaCacheExceptions).asInput
 }
 

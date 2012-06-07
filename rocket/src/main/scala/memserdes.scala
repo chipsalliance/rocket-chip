@@ -7,8 +7,8 @@ import scala.math._
 
 class ioMemSerialized extends Bundle
 {
-  val req = (new ioDecoupled) { Bits(width = MEM_BACKUP_WIDTH) }
-  val resp = (new ioPipe) { Bits(width = MEM_BACKUP_WIDTH) }.flip
+  val req = (new FIFOIO) { Bits(width = MEM_BACKUP_WIDTH) }
+  val resp = (new PipeIO) { Bits(width = MEM_BACKUP_WIDTH) }.flip
 }
 
 class MemSerdes extends Component
