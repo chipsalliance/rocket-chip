@@ -11,8 +11,8 @@ class ioDebug extends Bundle
 
 class ioHost(w: Int) extends Bundle
 {
-  val in = new ioDecoupled()(Bits(width = w)).flip
-  val out = new ioDecoupled()(Bits(width = w))
+  val in = new FIFOIO()(Bits(width = w)).flip
+  val out = new FIFOIO()(Bits(width = w))
 }
 
 class PCRReq extends Bundle
@@ -26,9 +26,9 @@ class ioHTIF extends Bundle
 {
   val reset = Bool(INPUT)
   val debug = new ioDebug
-  val pcr_req = (new ioDecoupled) { new PCRReq }.flip
-  val pcr_rep = (new ioPipe) { Bits(width = 64) }
-  val ipi = (new ioDecoupled) { Bits(width = log2Up(NTILES)) }
+  val pcr_req = (new FIFOIO) { new PCRReq }.flip
+  val pcr_rep = (new PipeIO) { Bits(width = 64) }
+  val ipi = (new FIFOIO) { Bits(width = log2Up(NTILES)) }
 }
 
 class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends Component

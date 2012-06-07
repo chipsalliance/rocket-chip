@@ -6,11 +6,11 @@ import Constants._
 class slowIO[T <: Data](val divisor: Int, hold_cycles_in: Int = -1)(data: => T) extends Component
 {
   val io = new Bundle {
-    val out_fast = new ioDecoupled()(data).flip
-    val out_slow = new ioDecoupled()(data)
+    val out_fast = new FIFOIO()(data).flip
+    val out_slow = new FIFOIO()(data)
 
-    val in_fast = new ioDecoupled()(data)
-    val in_slow = new ioDecoupled()(data).flip
+    val in_fast = new FIFOIO()(data)
+    val in_slow = new FIFOIO()(data).flip
 
     val clk_slow = Bool(OUTPUT)
   }
