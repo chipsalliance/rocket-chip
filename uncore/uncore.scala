@@ -21,9 +21,9 @@ class MemResp () extends MemData
 
 class ioMem() extends Bundle
 {
-  val req_cmd  = (new ioDecoupled) { new MemReqCmd() }
-  val req_data = (new ioDecoupled) { new MemData() }
-  val resp     = (new ioPipe) { new MemResp() }.flip
+  val req_cmd  = (new FIFOIO) { new MemReqCmd() }
+  val req_data = (new FIFOIO) { new MemData() }
+  val resp     = (new PipeIO) { new MemResp() }.flip
 }
 
 class TrackerProbeData extends Bundle {
@@ -40,34 +40,34 @@ class TrackerDependency extends Bundle {
 }
 
 class ioTileLink extends Bundle { 
-  val xact_init      = (new ioDecoupled) { new TransactionInit }
-  val xact_init_data = (new ioDecoupled) { new TransactionInitData }
-  val xact_abort     = (new ioDecoupled) { new TransactionAbort }.flip
-  val probe_req      = (new ioDecoupled) { new ProbeRequest }.flip
-  val probe_rep      = (new ioDecoupled) { new ProbeReply }
-  val probe_rep_data = (new ioDecoupled) { new ProbeReplyData }
-  val xact_rep       = (new ioPipe)      { new TransactionReply }.flip
-  val xact_finish    = (new ioDecoupled) { new TransactionFinish }
+  val xact_init      = (new FIFOIO) { new TransactionInit }
+  val xact_init_data = (new FIFOIO) { new TransactionInitData }
+  val xact_abort     = (new FIFOIO) { new TransactionAbort }.flip
+  val probe_req      = (new FIFOIO) { new ProbeRequest }.flip
+  val probe_rep      = (new FIFOIO) { new ProbeReply }
+  val probe_rep_data = (new FIFOIO) { new ProbeReplyData }
+  val xact_rep       = (new PipeIO)      { new TransactionReply }.flip
+  val xact_finish    = (new FIFOIO) { new TransactionFinish }
 }
 
 class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
   val io = new Bundle {
-    val alloc_req       = (new ioDecoupled) { new TrackerAllocReq }.flip
-    val p_data          = (new ioPipe) { new TrackerProbeData }.flip
+    val alloc_req       = (new FIFOIO) { new TrackerAllocReq }.flip
+    val p_data          = (new PipeIO) { new TrackerProbeData }.flip
     val can_alloc       = Bool(INPUT)
     val xact_finish     = Bool(INPUT)
     val p_rep_cnt_dec   = Bits(ntiles, INPUT)
     val p_req_cnt_inc   = Bits(ntiles, INPUT)
-    val p_rep_data      = (new ioPipe) { new ProbeReplyData }.flip
-    val x_init_data     = (new ioPipe) { new TransactionInitData }.flip
+    val p_rep_data      = (new PipeIO) { new ProbeReplyData }.flip
+    val x_init_data     = (new PipeIO) { new TransactionInitData }.flip
     val sent_x_rep_ack  = Bool(INPUT)
-    val p_rep_data_dep  = (new ioPipe) { new TrackerDependency }.flip
-    val x_init_data_dep = (new ioPipe) { new TrackerDependency }.flip
+    val p_rep_data_dep  = (new PipeIO) { new TrackerDependency }.flip
+    val x_init_data_dep = (new PipeIO) { new TrackerDependency }.flip
 
-    val mem_req_cmd     = (new ioDecoupled) { new MemReqCmd }
-    val mem_req_data    = (new ioDecoupled) { new MemData }
+    val mem_req_cmd     = (new FIFOIO) { new MemReqCmd }
+    val mem_req_data    = (new FIFOIO) { new MemData }
     val mem_req_lock    = Bool(OUTPUT)
-    val probe_req       = (new ioDecoupled) { new ProbeRequest }
+    val probe_req       = (new FIFOIO) { new ProbeRequest }
     val busy            = Bool(OUTPUT)
     val addr            = Bits(PADDR_BITS - OFFSET_BITS, OUTPUT)
     val init_tile_id    = Bits(TILE_ID_BITS, OUTPUT)
@@ -85,7 +85,7 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
     val send_x_rep_ack  = Bool(OUTPUT)
   }
 
-  def doMemReqWrite(req_cmd: ioDecoupled[MemReqCmd], req_data: ioDecoupled[MemData], lock: Bool,  data: ioPipe[MemData], trigger: Bool, cmd_sent: Bool, pop_data: Bits, pop_dep: Bits, at_front_of_dep_queue: Bool, tile_id: UFix) {
+  def doMemReqWrite(req_cmd: FIFOIO[MemReqCmd], req_data: FIFOIO[MemData], lock: Bool,  data: PipeIO[MemData], trigger: Bool, cmd_sent: Bool, pop_data: Bits, pop_dep: Bits, at_front_of_dep_queue: Bool, tile_id: UFix) {
     req_cmd.valid := !cmd_sent && data.valid && at_front_of_dep_queue
     req_cmd.bits.rw := Bool(true)
     req_data.valid := data.valid && at_front_of_dep_queue
@@ -106,7 +106,7 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
     }
   }
 
-  def doMemReqRead(req_cmd: ioDecoupled[MemReqCmd], trigger: Bool) {
+  def doMemReqRead(req_cmd: FIFOIO[MemReqCmd], trigger: Bool) {
     req_cmd.valid := Bool(true)
     req_cmd.bits.rw := Bool(false)
     when(req_cmd.ready) {
