@@ -467,9 +467,9 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val regfile = Mem(32) { Bits(width = 65) }
   when (load_wb) { regfile(load_wb_tag) := load_wb_data_recoded }
 
-  val ex_rs1 = regfile.read(ex_reg_inst(26,22))
-  val ex_rs2 = regfile.read(ex_reg_inst(21,17))
-  val ex_rs3 = regfile.read(ex_reg_inst(16,12))
+  val ex_rs1 = regfile(ex_reg_inst(26,22))
+  val ex_rs2 = regfile(ex_reg_inst(21,17))
+  val ex_rs3 = regfile(ex_reg_inst(16,12))
   val ex_rm = Mux(ex_reg_inst(11,9) === Bits(7), fsr_rm, ex_reg_inst(11,9))
 
   val mem_reg_valid = Reg(ex_reg_valid && !io.ctrl.killx, resetVal = Bool(false))

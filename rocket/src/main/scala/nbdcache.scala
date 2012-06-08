@@ -612,7 +612,7 @@ class MetaDataArray(lines: Int) extends Component {
     .otherwise { raddr := io.req.bits.idx }
   }
 
-  val tag_array = Mem(lines){ Bits(width=TAG_BITS) }
+  val tag_array = Mem(lines, seqRead = true){ Bits(width=TAG_BITS) }
   val tag_rdata = Reg() { Bits() }
   when (io.req.valid) {
     when (io.req.bits.rw) { tag_array(io.req.bits.idx) := io.req.bits.data.tag }
@@ -661,7 +661,7 @@ class DataArray(lines: Int) extends Component {
   val addr = Cat(io.req.bits.idx, io.req.bits.offset)
   val rdata = Reg() { Bits() }
 
-  val array = Mem(lines*REFILL_CYCLES){ Bits(width=MEM_DATA_BITS) }
+  val array = Mem(lines*REFILL_CYCLES, seqRead = true){ Bits(width=MEM_DATA_BITS) }
   when (io.req.valid) {
     when (io.req.bits.rw) { array.write(addr, io.req.bits.data, wmask) }
     .otherwise { rdata := array(addr) }
