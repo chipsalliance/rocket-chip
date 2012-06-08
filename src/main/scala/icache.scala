@@ -97,7 +97,7 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
   for (i <- 0 until assoc)
   {
     val repl_me = (repl_way === UFix(i))
-    val tag_array = Mem(sets){ Bits(width = tagbits) }
+    val tag_array = Mem(sets, seqRead = true){ Bits(width = tagbits) }
     val tag_rdata = Reg() { Bits(width = tagbits) }
     when (tag_we && repl_me) { tag_array(tag_addr) := r_cpu_miss_tag }
     .otherwise { tag_rdata := tag_array(tag_addr) }
@@ -115,7 +115,7 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
     val hit = valid && (tag_rdata === r_cpu_hit_addr(tagmsb,taglsb))
     
     // data array
-    val data_array = Mem(sets*REFILL_CYCLES){ io.mem.xact_rep.bits.data.clone }
+    val data_array = Mem(sets*REFILL_CYCLES, seqRead = true){ io.mem.xact_rep.bits.data.clone }
     val data_out = Reg(){ io.mem.xact_rep.bits.data.clone }
     when (io.mem.xact_rep.valid && repl_me) { data_array(data_addr) := io.mem.xact_rep.bits.data }
     .otherwise { data_out := data_array(data_addr) }
