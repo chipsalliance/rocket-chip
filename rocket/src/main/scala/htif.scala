@@ -165,7 +165,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
       rx_count := UFix(0)
       tx_count := UFix(0)
     }
-    state := state_rx
+    state := Mux(cmd === cmd_readmem && pos != UFix(0), state_mem_req, state_rx)
   }
 
   var mem_req_data: Bits = null
