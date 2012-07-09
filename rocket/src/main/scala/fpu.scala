@@ -74,7 +74,7 @@ class rocketFPUDecoder extends Component
   val N = Bool(false)
   val Y = Bool(true)
   val X = Bool(false)
-  val decoder = ListLookup(io.inst,
+  val decoder = DecodeLogic(io.inst,
     List                  (FCMD_X,         X,X,X,X,X,X,X,X,X,X,X,X,X),
     Array(FLW      -> List(FCMD_LOAD,      Y,N,N,N,N,Y,N,N,N,N,N,N,N),
           FLD      -> List(FCMD_LOAD,      Y,N,N,N,N,N,N,N,N,N,N,N,N),
