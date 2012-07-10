@@ -457,7 +457,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   }
   val rec_s = hardfloat.floatNToRecodedFloatN(load_wb_data, 23, 9)
   val rec_d = hardfloat.floatNToRecodedFloatN(load_wb_data, 52, 12)
-  val sp_msbs = Fill(32, UFix(1,1))
+  val sp_msbs = Fix(-1, 32)
   val load_wb_data_recoded = Mux(load_wb_single, Cat(sp_msbs, rec_s), rec_d)
 
   val fsr_rm = Reg() { Bits(width = 3) }

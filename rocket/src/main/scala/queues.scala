@@ -3,35 +3,39 @@ package rocket
 import Chisel._
 import Node._;
 
-class ioQueue[T <: Data](flushable: Boolean)(data: => T) extends Bundle
+class ioQueue[T <: Data](entries: Int, flushable: Boolean)(data: => T) extends Bundle
 {
   val flush = if (flushable) Bool(INPUT) else null
   val enq   = new FIFOIO()(data).flip
   val deq   = new FIFOIO()(data)
+  val count = UFix(log2Up(entries+1), OUTPUT)
 }
 
-class queue[T <: Data](entries: Int, pipe: Boolean = false, flushable: Boolean = false)(data: => T) extends Component
+class queue[T <: Data](val entries: Int, pipe: Boolean = false, flushable: Boolean = false)(data: => T) extends Component
 {
-  val io = new ioQueue(flushable)(data)
+  val io = new ioQueue(entries, flushable)(data)
 
   val do_enq = io.enq.ready && io.enq.valid
   val do_deq = io.deq.ready && io.deq.valid
 
   var enq_ptr = UFix(0)
   var deq_ptr = UFix(0)
+  val pow2 = (entries & (entries-1)) == 0
 
   if (entries > 1)
   {
     enq_ptr = Reg(resetVal = UFix(0, log2Up(entries)))
     deq_ptr = Reg(resetVal = UFix(0, log2Up(entries)))
-    val pow2 = Bool((entries & (entries-1)) == 0)
 
-    when (do_deq) {
-      deq_ptr := Mux(!pow2 && deq_ptr === UFix(entries-1), UFix(0), deq_ptr + UFix(1))
+    var enq_next = enq_ptr + UFix(1)
+    var deq_next = deq_ptr + UFix(1)
+    if (!pow2) {
+      enq_next = Mux(enq_ptr === UFix(entries-1), UFix(0), enq_next)
+      deq_next = Mux(deq_ptr === UFix(entries-1), UFix(0), deq_next)
     }
-    when (do_enq) {
-      enq_ptr := Mux(!pow2 && enq_ptr === UFix(entries-1), UFix(0), enq_ptr + UFix(1))
-    }
+
+    when (do_deq) { deq_ptr := deq_next }
+    when (do_enq) { enq_ptr := enq_next }
     if (flushable) {
       when (io.flush) {
         deq_ptr := UFix(0)
@@ -53,9 +57,16 @@ class queue[T <: Data](entries: Int, pipe: Boolean = false, flushable: Boolean =
   val ram = Vec(entries) { Reg() { data } }
   when (do_enq) { ram(enq_ptr) := io.enq.bits }
 
-  io.deq.valid :=  maybe_full || enq_ptr != deq_ptr
-  io.enq.ready := !maybe_full || enq_ptr != deq_ptr || (if (pipe) io.deq.ready else Bool(false))
+  val ptr_match = enq_ptr === deq_ptr
+  io.deq.valid :=  maybe_full || !ptr_match
+  io.enq.ready := !maybe_full || !ptr_match || (if (pipe) io.deq.ready else Bool(false))
   io.deq.bits <> ram(deq_ptr)
+
+  val ptr_diff = enq_ptr - deq_ptr
+  if (pow2)
+    io.count := Cat(maybe_full && ptr_match, ptr_diff).toUFix
+  else
+    io.count := Mux(ptr_match, Mux(maybe_full, UFix(entries), UFix(0)), Mux(deq_ptr > enq_ptr, UFix(entries) + ptr_diff, ptr_diff))
 }
 
 object Queue
