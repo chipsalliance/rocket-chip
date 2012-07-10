@@ -30,28 +30,34 @@ class Top extends Component
             }
   val htif = new rocketHTIF(htif_width, NTILES, co)
   val hub = new CoherenceHubBroadcast(NTILES+1, co)
+  val llc_leaf = Mem(2048, seqRead = true) { Bits(width = 64) }
+  val llc = new DRAMSideLLC(2048, 8, 4, llc_leaf, llc_leaf)
   hub.io.tiles(NTILES) <> htif.io.mem
+
+  llc.io.cpu.req_cmd <> Queue(hub.io.mem.req_cmd)
+  llc.io.cpu.req_data <> Queue(hub.io.mem.req_data, REFILL_CYCLES)
+  hub.io.mem.resp <> llc.io.cpu.resp
 
   // mux between main and backup memory ports
   val mem_serdes = new MemSerdes
-  val mem_cmdq = (new queue(1)) { new MemReqCmd }
-  mem_cmdq.io.enq <> hub.io.mem.req_cmd
+  val mem_cmdq = (new queue(2)) { new MemReqCmd }
+  mem_cmdq.io.enq <> llc.io.mem.req_cmd
   mem_cmdq.io.deq.ready := Mux(io.mem_backup_en, mem_serdes.io.wide.req_cmd.ready, io.mem.req_cmd.ready)
   io.mem.req_cmd.valid := mem_cmdq.io.deq.valid && !io.mem_backup_en
   io.mem.req_cmd.bits := mem_cmdq.io.deq.bits
   mem_serdes.io.wide.req_cmd.valid := mem_cmdq.io.deq.valid && io.mem_backup_en
   mem_serdes.io.wide.req_cmd.bits := mem_cmdq.io.deq.bits
 
-  val mem_dataq = (new queue(2)) { new MemData }
-  mem_dataq.io.enq <> hub.io.mem.req_data
+  val mem_dataq = (new queue(REFILL_CYCLES)) { new MemData }
+  mem_dataq.io.enq <> llc.io.mem.req_data
   mem_dataq.io.deq.ready := Mux(io.mem_backup_en, mem_serdes.io.wide.req_data.ready, io.mem.req_data.ready)
   io.mem.req_data.valid := mem_dataq.io.deq.valid && !io.mem_backup_en
   io.mem.req_data.bits := mem_dataq.io.deq.bits
   mem_serdes.io.wide.req_data.valid := mem_dataq.io.deq.valid && io.mem_backup_en
   mem_serdes.io.wide.req_data.bits := mem_dataq.io.deq.bits
 
-  hub.io.mem.resp.valid := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.valid, io.mem.resp.valid)
-  hub.io.mem.resp.bits := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.bits, io.mem.resp.bits)
+  llc.io.mem.resp.valid := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.valid, io.mem.resp.valid)
+  llc.io.mem.resp.bits := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.bits, io.mem.resp.bits)
 
   // pad out the HTIF using a divided clock
   val hio = (new slowIO(clkdiv)) { Bits(width = htif_width) }
