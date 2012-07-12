@@ -92,32 +92,32 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
     Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(indexmsb,offsetbits), refill_count),
       io.cpu.req_idx(indexmsb, offsetbits-rf_cnt_bits)).toUFix;
 
+  val tag_array = Mem(sets, seqRead = true) { Bits(width = tagbits*assoc) }
+  val tag_rdata = Reg() { Bits() }
+  when (tag_we) {
+    tag_array.write(tag_addr, Fill(assoc, r_cpu_miss_tag), FillInterleaved(tagbits, if (assoc > 1) UFixToOH(repl_way) else Bits(1)))
+  }.otherwise {
+    tag_rdata := tag_array(tag_addr)
+  }
+
+  val vb_array = Reg(resetVal = Bits(0, lines))
+  when (io.cpu.invalidate) {
+    vb_array := Bits(0)
+  }.elsewhen (tag_we) {
+    vb_array := vb_array.bitSet(Cat(r_cpu_req_idx(indexmsb,indexlsb), if (assoc > 1) repl_way else null), !invalidated)
+  }
+
   val data_mux = (new Mux1H(assoc)){Bits(width = databits)}
   var any_hit = Bool(false)
   for (i <- 0 until assoc)
   {
-    val repl_me = (repl_way === UFix(i))
-    val tag_array = Mem(sets, seqRead = true){ Bits(width = tagbits) }
-    val tag_rdata = Reg() { Bits(width = tagbits) }
-    when (tag_we && repl_me) { tag_array(tag_addr) := r_cpu_miss_tag }
-    .otherwise { tag_rdata := tag_array(tag_addr) }
-
-    // valid bit array
-    val vb_array = Reg(resetVal = Bits(0, sets));
-    when (io.cpu.invalidate) {
-      vb_array := Bits(0)
-    }
-    .elsewhen (tag_we && repl_me) {
-      vb_array := vb_array.bitSet(r_cpu_req_idx(indexmsb,indexlsb).toUFix, !invalidated)
-    }
-
-    val valid = vb_array(r_cpu_req_idx(indexmsb,indexlsb)).toBool;
-    val hit = valid && (tag_rdata === r_cpu_hit_addr(tagmsb,taglsb))
+    val valid = vb_array(Cat(r_cpu_req_idx(indexmsb,indexlsb), if (assoc > 1) UFix(i, log2Up(assoc)) else null))
+    val hit = valid && tag_rdata(tagbits*(i+1)-1, tagbits*i) === r_cpu_hit_addr(tagmsb,taglsb)
     
     // data array
     val data_array = Mem(sets*REFILL_CYCLES, seqRead = true){ io.mem.xact_rep.bits.data.clone }
     val data_out = Reg(){ io.mem.xact_rep.bits.data.clone }
-    when (io.mem.xact_rep.valid && repl_me) { data_array(data_addr) := io.mem.xact_rep.bits.data }
+    when (io.mem.xact_rep.valid && repl_way === UFix(i)) { data_array(data_addr) := io.mem.xact_rep.bits.data }
     .otherwise { data_out := data_array(data_addr) }
 
     data_mux.io.sel(i) := hit
