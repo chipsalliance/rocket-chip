@@ -595,35 +595,6 @@ class FlushUnit(lines: Int, co: CoherencePolicy) extends Component {
   io.meta_req.bits.data.tag := UFix(0)
 }
 
-class MetaDataArray(lines: Int) extends Component {
-  val io = new Bundle {
-    val req  = (new FIFOIO) { new MetaArrayReq() }.flip
-    val resp = (new MetaData).asOutput()
-    val state_req = (new FIFOIO) { new MetaArrayReq() }.flip
-  }
-
-  val permissions_array = Mem(lines){ UFix(width = 2) }
-  val raddr = Reg() { Bits() }
-  when (io.state_req.valid && io.state_req.bits.rw) {
-    permissions_array(io.state_req.bits.idx) := io.state_req.bits.data.state
-  }
-  when (io.req.valid) {
-    when (io.req.bits.rw) { permissions_array(io.req.bits.idx) := io.req.bits.data.state }
-    .otherwise { raddr := io.req.bits.idx }
-  }
-
-  val tag_array = Mem(lines, seqRead = true){ Bits(width=TAG_BITS) }
-  val tag_rdata = Reg() { Bits() }
-  when (io.req.valid) {
-    when (io.req.bits.rw) { tag_array(io.req.bits.idx) := io.req.bits.data.tag }
-    .otherwise { tag_rdata := tag_array(io.req.bits.idx) }
-  }
-
-  io.resp.state := permissions_array(raddr)
-  io.resp.tag   := tag_rdata
-  io.req.ready  := Bool(true)
-}
-
 class MetaDataArrayArray(lines: Int) extends Component {
   val io = new Bundle {
     val req  = (new FIFOIO) { new MetaArrayReq() }.flip
@@ -632,18 +603,32 @@ class MetaDataArrayArray(lines: Int) extends Component {
     val way_en = Bits(width = NWAYS, dir = OUTPUT)
   }
 
+  val permBits = io.req.bits.data.state.width
+  val perms = Mem(lines) { UFix(width = permBits*NWAYS) }
+  val tags = Mem(lines*NWAYS, seqRead = true) { Bits(width = TAG_BITS*NWAYS) }
+  val tag = Reg() { Bits() }
+  val raddr = Reg() { Bits() }
   val way_en_ = Reg { Bits(width=NWAYS) }
-  when (io.req.valid && io.req.ready) {
+
+  when (io.state_req.valid && io.state_req.bits.rw) {
+    perms.write(io.state_req.bits.idx, Fill(NWAYS, io.state_req.bits.data.state), FillInterleaved(permBits, io.state_req.bits.way_en))
+  }
+  when (io.req.valid) {
+    when (io.req.bits.rw) {
+      perms.write(io.req.bits.idx, Fill(NWAYS, io.req.bits.data.state), FillInterleaved(permBits, io.req.bits.way_en))
+      tags.write(io.req.bits.idx, Fill(NWAYS, io.req.bits.data.tag), FillInterleaved(TAG_BITS, io.req.bits.way_en))
+    }
+    .otherwise {
+      raddr := io.req.bits.idx
+      tag := tags(io.req.bits.idx)
+    }
     way_en_ := io.req.bits.way_en
   }
 
+  val perm = perms(raddr)
   for(w <- 0 until NWAYS) {
-    val way = new MetaDataArray(lines)
-    way.io.req.bits <> io.req.bits
-    way.io.req.valid := io.req.valid && io.req.bits.way_en(w).toBool
-    way.io.state_req.bits <> io.state_req.bits
-    way.io.state_req.valid := io.state_req.valid && io.state_req.bits.way_en(w).toBool
-    way.io.resp <> io.resp(w)
+    io.resp(w).state := perm(permBits*(w+1)-1, permBits*w)
+    io.resp(w).tag := tag(TAG_BITS*(w+1)-1, TAG_BITS*w)
   }
 
   io.way_en := way_en_
