@@ -8,7 +8,7 @@ class ioQueue[T <: Data](entries: Int, flushable: Boolean)(data: => T) extends B
   val flush = if (flushable) Bool(INPUT) else null
   val enq   = new FIFOIO()(data).flip
   val deq   = new FIFOIO()(data)
-  val count = UFix(log2Up(entries+1), OUTPUT)
+  val count = UFix(OUTPUT, log2Up(entries+1))
 }
 
 class queue[T <: Data](val entries: Int, pipe: Boolean = false, flushable: Boolean = false)(data: => T) extends Component

@@ -7,14 +7,14 @@ import Instructions._
 
 class ioCtrlDpathVec extends Bundle
 {
-  val inst = Bits(32, INPUT)
+  val inst = Bits(INPUT, 32)
   val appvl0 = Bool(INPUT)
   val pfq = Bool(INPUT)
   val wen = Bool(OUTPUT)
-  val fn = Bits(2, OUTPUT)
-  val sel_vcmd = Bits(3, OUTPUT)
-  val sel_vimm = Bits(1, OUTPUT)
-  val sel_vimm2 = Bits(1, OUTPUT)
+  val fn = Bits(OUTPUT, 2)
+  val sel_vcmd = Bits(OUTPUT, 3)
+  val sel_vimm = Bits(OUTPUT, 1)
+  val sel_vimm2 = Bits(OUTPUT, 1)
 }
 
 class ioCtrlVecInterface extends Bundle
@@ -43,7 +43,7 @@ class ioCtrlVecInterface extends Bundle
   val vfence_ready = Bool(INPUT)
 
   val irq = Bool(INPUT)
-  val irq_cause = UFix(5, INPUT)
+  val irq_cause = UFix(INPUT, 5)
 
   val exception = Bool(OUTPUT)
 
@@ -64,7 +64,7 @@ class ioCtrlVec extends Bundle
   val replay = Bool(OUTPUT)
   val vfence_ready = Bool(OUTPUT)
   val irq = Bool(OUTPUT)
-  val irq_cause = UFix(5, OUTPUT)
+  val irq_cause = UFix(OUTPUT, 5)
 }
 
 class rocketCtrlVecSigs extends Bundle
@@ -95,7 +95,7 @@ class rocketCtrlVecDecoder extends Component
 {
   val io = new Bundle
   {
-    val inst = Bits(32, INPUT)
+    val inst = Bits(INPUT, 32)
     val sigs = new rocketCtrlVecSigs().asOutput
   }
 

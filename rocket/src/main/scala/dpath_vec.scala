@@ -8,13 +8,13 @@ import hwacha.Constants._
 
 class ioDpathVecInterface extends Bundle
 {
-  val vcmdq_bits = Bits(SZ_VCMD, OUTPUT)
-  val vximm1q_bits = Bits(SZ_VIMM, OUTPUT)
-  val vximm2q_bits = Bits(SZ_VSTRIDE, OUTPUT)
-  val vcntq_bits = Bits(SZ_VLEN, OUTPUT)
+  val vcmdq_bits = Bits(OUTPUT, SZ_VCMD)
+  val vximm1q_bits = Bits(OUTPUT, SZ_VIMM)
+  val vximm2q_bits = Bits(OUTPUT, SZ_VSTRIDE)
+  val vcntq_bits = Bits(OUTPUT, SZ_VLEN)
   val vcntq_last = Bool(OUTPUT)
-  val evac_addr = Bits(64, OUTPUT)
-  val irq_aux = Bits(64, INPUT)
+  val evac_addr = Bits(OUTPUT, 64)
+  val irq_aux = Bits(INPUT, 64)
 }
 
 class ioDpathVec extends Bundle
@@ -22,18 +22,18 @@ class ioDpathVec extends Bundle
   val ctrl = new ioCtrlDpathVec().flip
   val iface = new ioDpathVecInterface()
   val valid = Bool(INPUT)
-  val inst = Bits(32, INPUT)
-  val waddr = UFix(5, INPUT)
-  val raddr1 = UFix(5, INPUT)
-  val vecbank = Bits(8, INPUT)
-  val vecbankcnt = UFix(4, INPUT)
-  val wdata = Bits(64, INPUT)
-  val rs2 = Bits(64, INPUT)
+  val inst = Bits(INPUT, 32)
+  val waddr = UFix(INPUT, 5)
+  val raddr1 = UFix(INPUT, 5)
+  val vecbank = Bits(INPUT, 8)
+  val vecbankcnt = UFix(INPUT, 4)
+  val wdata = Bits(INPUT, 64)
+  val rs2 = Bits(INPUT, 64)
   val wen = Bool(OUTPUT)
-  val irq_aux = Bits(64, OUTPUT)
-  val appvl = UFix(12, OUTPUT)
-  val nxregs = UFix(6, OUTPUT)
-  val nfregs = UFix(6, OUTPUT)
+  val irq_aux = Bits(OUTPUT, 64)
+  val appvl = UFix(OUTPUT, 12)
+  val nxregs = UFix(OUTPUT, 6)
+  val nfregs = UFix(OUTPUT, 6)
 }
 
 class rocketDpathVec extends Component

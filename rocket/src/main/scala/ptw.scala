@@ -75,7 +75,7 @@ class ioPTW(n: Int) extends Bundle
 {
   val requestor = Vec(n) { new ioTLB_PTW }.flip
   val mem   = new ioHellaCache
-  val ptbr  = UFix(PADDR_BITS, INPUT)
+  val ptbr  = UFix(INPUT, PADDR_BITS)
 }
 
 class rocketPTW(n: Int) extends Component

@@ -7,12 +7,12 @@ import Constants._
 import Instructions._
 
 class ioALU extends Bundle(){
-  val dw    = UFix(1, INPUT);
-  val fn    = UFix(4, INPUT);
-  val in2   = UFix(64, INPUT);
-  val in1   = UFix(64, INPUT);
-  val out   = UFix(64, OUTPUT);
-  val adder_out = UFix(64, OUTPUT);
+  val dw    = UFix(INPUT, 1);
+  val fn    = UFix(INPUT, 4);
+  val in2   = UFix(INPUT, 64);
+  val in1   = UFix(INPUT, 64);
+  val out   = UFix(OUTPUT, 64);
+  val adder_out = UFix(OUTPUT, 64);
 }
 
 class rocketDpathALU extends Component

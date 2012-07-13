@@ -67,7 +67,7 @@ class rocketFPUCtrlSigs extends Bundle
 class rocketFPUDecoder extends Component
 {
   val io = new Bundle {
-    val inst = Bits(32, INPUT)
+    val inst = Bits(INPUT, 32)
     val sigs = new rocketFPUCtrlSigs().asOutput
   }
 
@@ -154,16 +154,16 @@ class rocketFPUDecoder extends Component
 }
 
 class ioDpathFPU extends Bundle {
-  val inst = Bits(32, OUTPUT)
-  val fromint_data = Bits(64, OUTPUT)
+  val inst = Bits(OUTPUT, 32)
+  val fromint_data = Bits(OUTPUT, 64)
 
-  val store_data = Bits(64, INPUT)
-  val toint_data = Bits(64, INPUT)
+  val store_data = Bits(INPUT, 64)
+  val toint_data = Bits(INPUT, 64)
 
   val dmem_resp_val = Bool(OUTPUT)
-  val dmem_resp_type = Bits(3, OUTPUT)
-  val dmem_resp_tag = UFix(5, OUTPUT)
-  val dmem_resp_data = Bits(64, OUTPUT)
+  val dmem_resp_type = Bits(OUTPUT, 3)
+  val dmem_resp_tag = UFix(OUTPUT, 5)
+  val dmem_resp_data = Bits(OUTPUT, 64)
 }
 
 class ioCtrlFPU extends Bundle {
@@ -174,23 +174,23 @@ class ioCtrlFPU extends Bundle {
   val killm = Bool(OUTPUT)
   val dec = new rocketFPUCtrlSigs().asInput
   val sboard_clr = Bool(INPUT)
-  val sboard_clra = UFix(5, INPUT)
+  val sboard_clra = UFix(INPUT, 5)
 }
 
 class rocketFPIntUnit extends Component
 {
   val io = new Bundle {
     val single = Bool(INPUT)
-    val cmd = Bits(FCMD_WIDTH, INPUT)
-    val rm = Bits(3, INPUT)
-    val fsr = Bits(FSR_WIDTH, INPUT)
-    val in1 = Bits(65, INPUT)
-    val in2 = Bits(65, INPUT)
+    val cmd = Bits(INPUT, FCMD_WIDTH)
+    val rm = Bits(INPUT, 3)
+    val fsr = Bits(INPUT, FSR_WIDTH)
+    val in1 = Bits(INPUT, 65)
+    val in2 = Bits(INPUT, 65)
     val lt_s = Bool(OUTPUT)
     val lt_d = Bool(OUTPUT)
-    val store_data = Bits(64, OUTPUT)
-    val toint_data = Bits(64, OUTPUT)
-    val exc = Bits(5, OUTPUT)
+    val store_data = Bits(OUTPUT, 64)
+    val toint_data = Bits(OUTPUT, 64)
+    val exc = Bits(OUTPUT, 5)
   }
 
   val unrec_s = hardfloat.recodedFloatNToFloatN(io.in1, 23, 9)
@@ -253,17 +253,17 @@ class rocketFPUFastPipe extends Component
 {
   val io = new Bundle {
     val single = Bool(INPUT)
-    val cmd = Bits(FCMD_WIDTH, INPUT)
-    val rm = Bits(3, INPUT)
-    val fromint = Bits(64, INPUT)
-    val in1 = Bits(65, INPUT)
-    val in2 = Bits(65, INPUT)
+    val cmd = Bits(INPUT, FCMD_WIDTH)
+    val rm = Bits(INPUT, 3)
+    val fromint = Bits(INPUT, 64)
+    val in1 = Bits(INPUT, 65)
+    val in2 = Bits(INPUT, 65)
     val lt_s = Bool(INPUT)
     val lt_d = Bool(INPUT)
-    val out_s = Bits(33, OUTPUT)
-    val exc_s = Bits(5, OUTPUT)
-    val out_d = Bits(65, OUTPUT)
-    val exc_d = Bits(5, OUTPUT)
+    val out_s = Bits(OUTPUT, 33)
+    val exc_s = Bits(OUTPUT, 5)
+    val out_d = Bits(OUTPUT, 65)
+    val exc_d = Bits(OUTPUT, 5)
   }
 
   val i2s = hardfloat.anyToRecodedFloatN(io.fromint, io.rm, ~io.cmd(1,0), 23, 9, 64)
@@ -339,13 +339,13 @@ class rocketFPUFastPipe extends Component
 
 class ioFMA(width: Int) extends Bundle {
   val valid = Bool(INPUT)
-  val cmd = Bits(FCMD_WIDTH, INPUT)
-  val rm = Bits(3, INPUT)
-  val in1 = Bits(width, INPUT)
-  val in2 = Bits(width, INPUT)
-  val in3 = Bits(width, INPUT)
-  val out = Bits(width, OUTPUT)
-  val exc = Bits(5, OUTPUT)
+  val cmd = Bits(INPUT, FCMD_WIDTH)
+  val rm = Bits(INPUT, 3)
+  val in1 = Bits(INPUT, width)
+  val in2 = Bits(INPUT, width)
+  val in3 = Bits(INPUT, width)
+  val out = Bits(OUTPUT, width)
+  val exc = Bits(OUTPUT, 5)
 }
 
 class rocketFPUSFMAPipe(latency: Int) extends Component

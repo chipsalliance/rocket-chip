@@ -22,9 +22,9 @@ class RandomReplacementWayGen extends Component {
 
 class StoreMaskGen extends Component {
   val io = new Bundle {
-    val typ   = Bits(3, INPUT)
-    val addr  = Bits(3, INPUT)
-    val wmask = Bits(8, OUTPUT)
+    val typ   = Bits(INPUT, 3)
+    val addr  = Bits(INPUT, 3)
+    val wmask = Bits(OUTPUT, 8)
   }
 
   val word = (io.typ === MT_W) || (io.typ === MT_WU)
@@ -39,9 +39,9 @@ class StoreMaskGen extends Component {
 
 class StoreDataGen extends Component {
   val io = new Bundle {
-    val typ  = Bits(3, INPUT)
-    val din  = Bits(64, INPUT)
-    val dout = Bits(64, OUTPUT)
+    val typ  = Bits(INPUT, 3)
+    val din  = Bits(INPUT, 64)
+    val dout = Bits(OUTPUT, 64)
   }
 
   val word = (io.typ === MT_W) || (io.typ === MT_WU)
@@ -57,12 +57,12 @@ class StoreDataGen extends Component {
 // this currently requires that CPU_DATA_BITS == 64
 class LoadDataGen extends Component {
   val io = new Bundle {
-    val typ  = Bits(3, INPUT)
-    val addr = Bits(log2Up(MEM_DATA_BITS/8), INPUT)
-    val din  = Bits(MEM_DATA_BITS, INPUT)
-    val dout = Bits(64, OUTPUT)
-    val r_dout = Bits(64, OUTPUT)
-    val r_dout_subword = Bits(64, OUTPUT)
+    val typ  = Bits(INPUT, 3)
+    val addr = Bits(INPUT, log2Up(MEM_DATA_BITS/8))
+    val din  = Bits(INPUT, MEM_DATA_BITS)
+    val dout = Bits(OUTPUT, 64)
+    val r_dout = Bits(OUTPUT, 64)
+    val r_dout_subword = Bits(OUTPUT, 64)
   }
 
   val sext = (io.typ === MT_B) || (io.typ === MT_H) ||
@@ -165,13 +165,13 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
     val req_sec_val    = Bool(INPUT)
     val req_sec_rdy    = Bool(OUTPUT)
     val req_bits       = new MSHRReq().asInput
-    val req_sdq_id     = UFix(log2Up(NSDQ), INPUT)
+    val req_sdq_id     = UFix(INPUT, log2Up(NSDQ))
 
     val idx_match      = Bool(OUTPUT)
-    val idx            = Bits(IDX_BITS, OUTPUT)
-    val refill_count   = Bits(log2Up(REFILL_CYCLES), OUTPUT)
-    val tag            = Bits(TAG_BITS, OUTPUT)
-    val way_oh         = Bits(NWAYS, OUTPUT)
+    val idx            = Bits(OUTPUT, IDX_BITS)
+    val refill_count   = Bits(OUTPUT, log2Up(REFILL_CYCLES))
+    val tag            = Bits(OUTPUT, TAG_BITS)
+    val way_oh         = Bits(OUTPUT, NWAYS)
 
     val mem_req  = (new FIFOIO) { new TransactionInit }
     val meta_req = (new FIFOIO) { new MetaArrayReq() }
@@ -297,9 +297,9 @@ class MSHRFile(co: CoherencePolicy) extends Component {
     val req = (new FIFOIO) { new MSHRReq }.flip
     val secondary_miss = Bool(OUTPUT)
 
-    val mem_resp_idx = Bits(IDX_BITS, OUTPUT)
-    val mem_resp_offset = Bits(log2Up(REFILL_CYCLES), OUTPUT)
-    val mem_resp_way_oh = Bits(NWAYS, OUTPUT)
+    val mem_resp_idx = Bits(OUTPUT, IDX_BITS)
+    val mem_resp_offset = Bits(OUTPUT, log2Up(REFILL_CYCLES))
+    val mem_resp_way_oh = Bits(OUTPUT, NWAYS)
 
     val fence_rdy = Bool(OUTPUT)
 
@@ -313,7 +313,7 @@ class MSHRFile(co: CoherencePolicy) extends Component {
     val probe = (new FIFOIO) { Bool() }.flip
 
     val cpu_resp_val = Bool(OUTPUT)
-    val cpu_resp_tag = Bits(DCACHE_TAG_BITS, OUTPUT)
+    val cpu_resp_tag = Bits(OUTPUT, DCACHE_TAG_BITS)
   }
 
   val sdq_val = Reg(resetVal = Bits(0, NSDQ))
@@ -419,7 +419,7 @@ class WritebackUnit(co: CoherencePolicy) extends Component {
     val req = (new FIFOIO) { new WritebackReq() }.flip
     val probe = (new FIFOIO) { new WritebackReq() }.flip
     val data_req = (new FIFOIO) { new DataArrayReq() }
-    val data_resp = Bits(MEM_DATA_BITS, INPUT)
+    val data_resp = Bits(INPUT, MEM_DATA_BITS)
     val mem_req = (new FIFOIO) { new TransactionInit }
     val mem_req_data = (new FIFOIO) { new TransactionInitData }
     val probe_rep_data = (new FIFOIO) { new ProbeReplyData }
@@ -490,9 +490,9 @@ class ProbeUnit(co: CoherencePolicy) extends Component {
     val meta_req = (new FIFOIO) { new MetaArrayReq }
     val mshr_req = (new FIFOIO) { Bool() }
     val wb_req = (new FIFOIO) { new WritebackReq }
-    val tag_match_way_oh = Bits(NWAYS, INPUT)
-    val line_state = UFix(2, INPUT)
-    val address = Bits(PADDR_BITS-OFFSET_BITS, OUTPUT)
+    val tag_match_way_oh = Bits(INPUT, NWAYS)
+    val line_state = UFix(INPUT, 2)
+    val address = Bits(OUTPUT, PADDR_BITS-OFFSET_BITS)
   }
 
   val s_invalid :: s_meta_req :: s_meta_resp :: s_mshr_req :: s_probe_rep :: s_writeback_req :: s_writeback_resp :: Nil = Enum(7) { UFix() }
@@ -659,7 +659,7 @@ class DataArray(lines: Int) extends Component {
 class DataArrayArray(lines: Int) extends Component {
   val io = new Bundle {
     val req  = (new FIFOIO) { new DataArrayReq() }.flip
-    val resp = Vec(NWAYS){ Bits(width = MEM_DATA_BITS, dir = OUTPUT) }
+    val resp = Vec(NWAYS){ Bits(dir = OUTPUT, width = MEM_DATA_BITS) }
     val way_en = Bits(width = NWAYS, dir = OUTPUT)
   }
 
@@ -681,11 +681,11 @@ class DataArrayArray(lines: Int) extends Component {
 
 class AMOALU extends Component {
   val io = new Bundle {
-    val cmd = Bits(4, INPUT)
-    val typ = Bits(3, INPUT)
-    val lhs = UFix(64, INPUT)
-    val rhs = UFix(64, INPUT)
-    val out = UFix(64, OUTPUT)
+    val cmd = Bits(INPUT, 4)
+    val typ = Bits(INPUT, 3)
+    val lhs = UFix(INPUT, 64)
+    val rhs = UFix(INPUT, 64)
+    val out = UFix(OUTPUT, 64)
   }
   
   val sgned = (io.cmd === M_XA_MIN) || (io.cmd === M_XA_MAX)
