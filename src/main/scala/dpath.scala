@@ -9,8 +9,8 @@ import hwacha._
 
 class ioDpathImem extends Bundle()
 {
-  val req_addr  = UFix(VADDR_BITS+1, OUTPUT);
-  val resp_data = Bits(32, INPUT);
+  val req_addr  = UFix(OUTPUT, VADDR_BITS+1);
+  val resp_data = Bits(INPUT, 32);
 }
 
 class ioDpathAll extends Bundle()
@@ -21,12 +21,12 @@ class ioDpathAll extends Bundle()
   val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
   val imem  = new ioDpathImem();
   val ptbr_wen = Bool(OUTPUT);
-  val ptbr = UFix(PADDR_BITS, OUTPUT);
+  val ptbr = UFix(OUTPUT, PADDR_BITS);
   val fpu = new ioDpathFPU();
   val vec_ctrl = new ioCtrlDpathVec().flip
   val vec_iface = new ioDpathVecInterface()
   val vec_imul_req = new io_imul_req
-  val vec_imul_resp = Bits(hwacha.Constants.SZ_XLEN, INPUT)
+  val vec_imul_resp = Bits(INPUT, hwacha.Constants.SZ_XLEN)
 }
 
 class rocketDpath extends Component

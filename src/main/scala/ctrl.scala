@@ -10,7 +10,7 @@ import hwacha._
 class ioCtrlDpath extends Bundle()
 {
   // outputs to datapath
-  val sel_pc   = UFix(3, OUTPUT);
+  val sel_pc   = UFix(OUTPUT, 3);
   val wen_btb  = Bool(OUTPUT);
   val clr_btb  = Bool(OUTPUT);
   val stallf   = Bool(OUTPUT);
@@ -21,16 +21,16 @@ class ioCtrlDpath extends Bundle()
   val killm    = Bool(OUTPUT);
   val ren2     = Bool(OUTPUT);
   val ren1     = Bool(OUTPUT);
-  val sel_alu2 = UFix(3, OUTPUT);
+  val sel_alu2 = UFix(OUTPUT, 3);
   val fn_dw    = Bool(OUTPUT);
-  val fn_alu   = UFix(4, OUTPUT);
+  val fn_alu   = UFix(OUTPUT, 4);
   val mul_val  = Bool(OUTPUT);
-  val mul_fn   = UFix(2, OUTPUT);
+  val mul_fn   = UFix(OUTPUT, 2);
   val div_val  = Bool(OUTPUT);
-  val div_fn   = UFix(2, OUTPUT);
+  val div_fn   = UFix(OUTPUT, 2);
   val sel_wa   = Bool(OUTPUT);
-  val sel_wb   = UFix(3, OUTPUT);
-  val pcr      = UFix(3, OUTPUT)
+  val sel_wb   = UFix(OUTPUT, 3);
+  val pcr      = UFix(OUTPUT, 3)
   val id_eret  = Bool(OUTPUT);
   val wb_eret  = Bool(OUTPUT);
   val mem_load = Bool(OUTPUT);
@@ -41,16 +41,16 @@ class ioCtrlDpath extends Bundle()
   val wb_wen   = Bool(OUTPUT);
   val wb_valid = Bool(OUTPUT)
   val flush_inst = Bool(OUTPUT);
-  val ex_mem_type = UFix(3,OUTPUT)
+  val ex_mem_type = UFix(OUTPUT, 3)
   // exception handling
   val exception = Bool(OUTPUT);
-  val cause    = UFix(6,OUTPUT);
+  val cause    = UFix(OUTPUT, 6);
   val badvaddr_wen = Bool(OUTPUT); // high for a load/store access fault
   val vec_irq_aux_wen = Bool(OUTPUT)
   // inputs from datapath
   val xcpt_ma_inst = Bool(INPUT);  // high on a misaligned/illegal virtual PC
   val btb_hit = Bool(INPUT);
-  val inst    = Bits(32, INPUT);
+  val inst    = Bits(INPUT, 32);
   val br_eq   = Bool(INPUT);
   val br_lt   = Bool(INPUT);
   val br_ltu  = Bool(INPUT);
@@ -59,15 +59,15 @@ class ioCtrlDpath extends Bundle()
   val mul_rdy = Bool(INPUT);
   val mul_result_val = Bool(INPUT);
   val mem_wb = Bool(INPUT);
-  val ex_waddr = UFix(5,INPUT);  // write addr from execute stage
-  val mem_waddr = UFix(5,INPUT); // write addr from memory stage
-  val wb_waddr = UFix(5,INPUT);  // write addr from writeback stage
-  val status  = Bits(32, INPUT);
+  val ex_waddr = UFix(INPUT, 5);  // write addr from execute stage
+  val mem_waddr = UFix(INPUT, 5); // write addr from memory stage
+  val wb_waddr = UFix(INPUT, 5);  // write addr from writeback stage
+  val status  = Bits(INPUT, 32);
   val sboard_clr  = Bool(INPUT);
-  val sboard_clra = UFix(5, INPUT);
+  val sboard_clra = UFix(INPUT, 5);
   val fp_sboard_clr  = Bool(INPUT);
-  val fp_sboard_clra = UFix(5, INPUT);
-  val fp_sboard_wb_waddr = UFix(5, INPUT);
+  val fp_sboard_clra = UFix(INPUT, 5);
+  val fp_sboard_wb_waddr = UFix(INPUT, 5);
   val irq_timer = Bool(INPUT);
   val irq_ipi   = Bool(INPUT);
 }

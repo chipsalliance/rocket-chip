@@ -8,12 +8,12 @@ import hwacha.Constants._
 
 class ioMultiplier extends Bundle {
   val req = new io_imul_req().flip
-  val req_tag = Bits(5, INPUT)
+  val req_tag = Bits(INPUT, 5)
   val req_kill = Bool(INPUT)
   val resp_val = Bool(OUTPUT)
   val resp_rdy = Bool(INPUT)
-  val resp_tag = Bits(5, OUTPUT)
-  val resp_bits = Bits(SZ_XLEN, OUTPUT)
+  val resp_tag = Bits(OUTPUT, 5)
+  val resp_bits = Bits(OUTPUT, SZ_XLEN)
 }
 
 class rocketVUMultiplier(nwbq: Int) extends Component {
@@ -21,7 +21,7 @@ class rocketVUMultiplier(nwbq: Int) extends Component {
     val cpu = new ioMultiplier
     val vu = new Bundle {
       val req = new io_imul_req
-      val resp = Bits(SZ_XLEN, INPUT)
+      val resp = Bits(INPUT, SZ_XLEN)
     }
   }
 

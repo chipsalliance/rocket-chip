@@ -11,9 +11,9 @@ class ioImem extends Bundle
   val invalidate = Bool(INPUT);
   val itlb_miss  = Bool(INPUT);
   val req_val   = Bool(INPUT);
-  val req_idx   = Bits(PGIDX_BITS, INPUT);
-  val req_ppn   = Bits(PPN_BITS, INPUT);
-  val resp_data = Bits(32, OUTPUT);
+  val req_idx   = Bits(INPUT, PGIDX_BITS);
+  val req_ppn   = Bits(INPUT, PPN_BITS);
+  val resp_data = Bits(OUTPUT, 32);
   val resp_val  = Bool(OUTPUT);
 }
 

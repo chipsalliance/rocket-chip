@@ -8,14 +8,14 @@ import scala.math._;
 class ioCAM(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
     val clear        = Bool(INPUT);
     val clear_hit    = Bool(INPUT)
-    val tag          = Bits(tag_bits, INPUT);
+    val tag          = Bits(INPUT, tag_bits);
     val hit          = Bool(OUTPUT);
-    val hit_addr     = UFix(addr_bits, OUTPUT);
-    val valid_bits   = Bits(entries, OUTPUT);
+    val hit_addr     = UFix(OUTPUT, addr_bits);
+    val valid_bits   = Bits(OUTPUT, entries);
     
     val write        = Bool(INPUT);
-    val write_tag    = Bits(tag_bits, INPUT);
-    val write_addr    = UFix(addr_bits, INPUT);
+    val write_tag    = Bits(INPUT, tag_bits);
+    val write_addr    = UFix(INPUT, addr_bits);
 }
 
 class rocketCAM(entries: Int, tag_bits: Int) extends Component {
@@ -78,30 +78,30 @@ class ioTLB_PTW extends Bundle
   // requests
   val req_val = Bool(OUTPUT);
   val req_rdy = Bool(INPUT);
-  val req_vpn = Bits(VPN_BITS, OUTPUT);
+  val req_vpn = Bits(OUTPUT, VPN_BITS);
   // responses
   val resp_val = Bool(INPUT);
   val resp_err = Bool(INPUT);
-  val resp_ppn = Bits(PPN_BITS, INPUT);
-  val resp_perm = Bits(PERM_BITS, INPUT);
+  val resp_ppn = Bits(INPUT, PPN_BITS);
+  val resp_perm = Bits(INPUT, PERM_BITS);
 }
 
 // interface between ITLB and fetch stage of pipeline
 class ioITLB_CPU extends Bundle
 {
   // status bits (from PCR), to check current permission and whether VM is enabled
-  val status = Bits(32, INPUT);
+  val status = Bits(INPUT, 32);
   // invalidate all TLB entries
   val invalidate = Bool(INPUT);
   // lookup requests
   val req_val  = Bool(INPUT);
   val req_rdy  = Bool(OUTPUT);
-  val req_asid = Bits(ASID_BITS, INPUT);
-  val req_vpn  = UFix(VPN_BITS+1, INPUT);
+  val req_asid = Bits(INPUT, ASID_BITS);
+  val req_vpn  = UFix(INPUT, VPN_BITS+1);
   // lookup responses
   val resp_miss = Bool(OUTPUT);
 //   val resp_val = Bool(OUTPUT);
-  val resp_ppn = UFix(PPN_BITS, OUTPUT);
+  val resp_ppn = UFix(OUTPUT, PPN_BITS);
   val exception = Bool(OUTPUT);
 }
 

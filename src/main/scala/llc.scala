@@ -7,7 +7,7 @@ import Constants._
 class BigMem[T <: Data](n: Int, readLatency: Int, leaf: Mem[Bits])(gen: => T) extends Component
 {
   val io = new Bundle {
-    val addr = UFix(log2Up(n), INPUT)
+    val addr = UFix(INPUT, log2Up(n))
     val en = Bool(INPUT)
     val rw = Bool(INPUT)
     val wdata = gen.asInput
@@ -99,17 +99,17 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
 {
   val io = new Bundle {
     val cpu = (new FIFOIO) { new MemReqCmd }.flip
-    val repl_way = UFix(log2Up(ways), INPUT)
+    val repl_way = UFix(INPUT, log2Up(ways))
     val repl_dirty = Bool(INPUT)
-    val repl_tag = UFix(PADDR_BITS - OFFSET_BITS - log2Up(sets), INPUT)
+    val repl_tag = UFix(INPUT, PADDR_BITS - OFFSET_BITS - log2Up(sets))
     val data = (new FIFOIO) { new LLCDataReq(ways) }
     val tag = (new FIFOIO) { new Bundle {
       val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
       val way = UFix(width = log2Up(ways))
     } }
     val mem = new ioMem
-    val mem_resp_set = UFix(log2Up(sets), OUTPUT)
-    val mem_resp_way = UFix(log2Up(ways), OUTPUT)
+    val mem_resp_set = UFix(OUTPUT, log2Up(sets))
+    val mem_resp_way = UFix(OUTPUT, log2Up(ways))
   }
 
   class MSHR extends Bundle {
@@ -247,8 +247,8 @@ class LLCData(sets: Int, ways: Int, leaf: Mem[Bits]) extends Component
     val writeback_data = (new FIFOIO) { new MemData }
     val resp = (new PipeIO) { new MemResp }
     val mem_resp = (new PipeIO) { new MemResp }.flip
-    val mem_resp_set = UFix(log2Up(sets), INPUT)
-    val mem_resp_way = UFix(log2Up(ways), INPUT)
+    val mem_resp_set = UFix(INPUT, log2Up(sets))
+    val mem_resp_way = UFix(INPUT, log2Up(ways))
   }
 
   val data = new BigMem(sets*ways*REFILL_CYCLES, 2, leaf)(Bits(width = MEM_DATA_BITS))

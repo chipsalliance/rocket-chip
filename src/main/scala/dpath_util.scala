@@ -7,14 +7,14 @@ import scala.math._;
 
 class ioDpathBTB extends Bundle()
 {
-  val current_pc     = UFix(VADDR_BITS, INPUT);
+  val current_pc     = UFix(INPUT, VADDR_BITS);
   val hit            = Bool(OUTPUT);
-  val target         = UFix(VADDR_BITS, OUTPUT);
+  val target         = UFix(OUTPUT, VADDR_BITS);
   val wen            = Bool(INPUT);
   val clr            = Bool(INPUT);
   val invalidate     = Bool(INPUT);
-  val correct_pc     = UFix(VADDR_BITS, INPUT);
-  val correct_target = UFix(VADDR_BITS, INPUT);
+  val correct_pc     = UFix(INPUT, VADDR_BITS);
+  val correct_target = UFix(INPUT, VADDR_BITS);
 }
 
 // fully-associative branch target buffer
@@ -63,26 +63,26 @@ class ioDpathPCR extends Bundle()
   val r     = new ioReadPort();
   val w     = new ioWritePort();
   
-  val status     = Bits(32, OUTPUT);
-  val ptbr      = UFix(PADDR_BITS, OUTPUT);
-  val evec      = UFix(VADDR_BITS, OUTPUT);
+  val status     = Bits(OUTPUT, 32);
+  val ptbr      = UFix(OUTPUT, PADDR_BITS);
+  val evec      = UFix(OUTPUT, VADDR_BITS);
   val exception = Bool(INPUT);
-  val cause     = UFix(6, INPUT);
+  val cause     = UFix(INPUT, 6);
   val badvaddr_wen = Bool(INPUT);
-  val vec_irq_aux = Bits(64, INPUT)
+  val vec_irq_aux = Bits(INPUT, 64)
   val vec_irq_aux_wen = Bool(INPUT)
-  val pc        = UFix(VADDR_BITS+1, INPUT);
+  val pc        = UFix(INPUT, VADDR_BITS+1);
   val eret      = Bool(INPUT);
   val ei        = Bool(INPUT);
   val di        = Bool(INPUT);
   val ptbr_wen  = Bool(OUTPUT);
   val irq_timer = Bool(OUTPUT);
   val irq_ipi   = Bool(OUTPUT);
-  val vecbank   = Bits(8, OUTPUT)
-  val vecbankcnt = UFix(4, OUTPUT)
-  val vec_appvl = UFix(12, INPUT)
-  val vec_nxregs = UFix(6, INPUT)
-  val vec_nfregs = UFix(6, INPUT)
+  val vecbank   = Bits(OUTPUT, 8)
+  val vecbankcnt = UFix(OUTPUT, 4)
+  val vec_appvl = UFix(INPUT, 12)
+  val vec_nxregs = UFix(INPUT, 6)
+  val vec_nfregs = UFix(INPUT, 6)
 }
 
 class rocketDpathPCR extends Component
@@ -228,16 +228,16 @@ class rocketDpathPCR extends Component
 
 class ioReadPort extends Bundle()
 {
-  val addr = UFix(5, INPUT);
+  val addr = UFix(INPUT, 5);
   val en   = Bool(INPUT);
-  val data = Bits(64, OUTPUT);
+  val data = Bits(OUTPUT, 64);
 }
 
 class ioWritePort extends Bundle()
 {
-  val addr = UFix(5, INPUT);
+  val addr = UFix(INPUT, 5);
   val en   = Bool(INPUT);
-  val data = Bits(64, INPUT);
+  val data = Bits(INPUT, 64);
 }
 
 class ioRegfile extends Bundle()
