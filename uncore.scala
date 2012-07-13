@@ -56,8 +56,8 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
     val p_data          = (new PipeIO) { new TrackerProbeData }.flip
     val can_alloc       = Bool(INPUT)
     val xact_finish     = Bool(INPUT)
-    val p_rep_cnt_dec   = Bits(ntiles, INPUT)
-    val p_req_cnt_inc   = Bits(ntiles, INPUT)
+    val p_rep_cnt_dec   = Bits(INPUT, ntiles)
+    val p_req_cnt_inc   = Bits(INPUT, ntiles)
     val p_rep_data      = (new PipeIO) { new ProbeReplyData }.flip
     val x_init_data     = (new PipeIO) { new TransactionInitData }.flip
     val sent_x_rep_ack  = Bool(INPUT)
@@ -69,19 +69,19 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
     val mem_req_lock    = Bool(OUTPUT)
     val probe_req       = (new FIFOIO) { new ProbeRequest }
     val busy            = Bool(OUTPUT)
-    val addr            = Bits(PADDR_BITS - OFFSET_BITS, OUTPUT)
-    val init_tile_id    = Bits(TILE_ID_BITS, OUTPUT)
-    val p_rep_tile_id   = Bits(TILE_ID_BITS, OUTPUT)
-    val tile_xact_id    = Bits(TILE_XACT_ID_BITS, OUTPUT)
-    val sharer_count    = Bits(TILE_ID_BITS+1, OUTPUT)
-    val x_type          = Bits(X_INIT_TYPE_MAX_BITS, OUTPUT)
-    val push_p_req      = Bits(ntiles, OUTPUT)
-    val pop_p_rep       = Bits(ntiles, OUTPUT)
-    val pop_p_rep_data  = Bits(ntiles, OUTPUT)
-    val pop_p_rep_dep   = Bits(ntiles, OUTPUT)
-    val pop_x_init      = Bits(ntiles, OUTPUT)
-    val pop_x_init_data = Bits(ntiles, OUTPUT)
-    val pop_x_init_dep  = Bits(ntiles, OUTPUT)
+    val addr            = Bits(OUTPUT, PADDR_BITS - OFFSET_BITS)
+    val init_tile_id    = Bits(OUTPUT, TILE_ID_BITS)
+    val p_rep_tile_id   = Bits(OUTPUT, TILE_ID_BITS)
+    val tile_xact_id    = Bits(OUTPUT, TILE_XACT_ID_BITS)
+    val sharer_count    = Bits(OUTPUT, TILE_ID_BITS+1)
+    val x_type          = Bits(OUTPUT, X_INIT_TYPE_MAX_BITS)
+    val push_p_req      = Bits(OUTPUT, ntiles)
+    val pop_p_rep       = Bits(OUTPUT, ntiles)
+    val pop_p_rep_data  = Bits(OUTPUT, ntiles)
+    val pop_p_rep_dep   = Bits(OUTPUT, ntiles)
+    val pop_x_init      = Bits(OUTPUT, ntiles)
+    val pop_x_init_data = Bits(OUTPUT, ntiles)
+    val pop_x_init_dep  = Bits(OUTPUT, ntiles)
     val send_x_rep_ack  = Bool(OUTPUT)
   }
 
