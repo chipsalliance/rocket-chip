@@ -54,7 +54,7 @@ class queue[T <: Data](val entries: Int, pipe: Boolean = false, flushable: Boole
     }
   }
 
-  val ram = Vec(entries) { Reg() { data } }
+  val ram = Mem(entries) { data }
   when (do_enq) { ram(enq_ptr) := io.enq.bits }
 
   val ptr_match = enq_ptr === deq_ptr
