@@ -605,7 +605,7 @@ class MetaDataArrayArray(lines: Int) extends Component {
 
   val permBits = io.req.bits.data.state.width
   val perms = Mem(lines) { UFix(width = permBits*NWAYS) }
-  val tags = Mem(lines*NWAYS, seqRead = true) { Bits(width = TAG_BITS*NWAYS) }
+  val tags = Mem(lines, seqRead = true) { Bits(width = TAG_BITS*NWAYS) }
   val tag = Reg() { Bits() }
   val raddr = Reg() { Bits() }
   val way_en_ = Reg { Bits(width=NWAYS) }
