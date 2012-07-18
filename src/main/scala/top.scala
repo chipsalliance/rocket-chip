@@ -12,7 +12,7 @@ class ioTop(htif_width: Int) extends Bundle  {
   val mem_backup = new ioMemSerialized
   val mem_backup_en = Bool(INPUT)
   val mem_backup_clk = Bool(OUTPUT)
-  val mem     = new ioMem
+  val mem     = new ioMemPipe
 }
 
 class Top extends Component
@@ -79,9 +79,18 @@ class Top extends Component
 
   var error_mode = Bool(false)
   for (i <- 0 until NTILES) {
-    val tile = new Tile(co)
+    val tile = new Tile(co, resetSignal = htif.io.cpu(i).reset)
+    val h = hub.io.tiles(i)
     tile.io.host <> htif.io.cpu(i)
-    hub.io.tiles(i) <> tile.io.tilelink
+    h.xact_init <> Queue(tile.io.tilelink.xact_init)
+    h.xact_init_data <> Queue(tile.io.tilelink.xact_init_data)
+    tile.io.tilelink.xact_abort <> Queue(h.xact_abort)
+    tile.io.tilelink.xact_rep <> Queue(h.xact_rep, 1, pipe = true)
+    h.xact_finish <> Queue(tile.io.tilelink.xact_finish)
+    tile.io.tilelink.probe_req <> Queue(h.probe_req)
+    h.probe_rep <> Queue(tile.io.tilelink.probe_rep, 1)
+    h.probe_rep_data <> Queue(tile.io.tilelink.probe_rep_data)
+    h.incoherent := htif.io.cpu(i).reset
     error_mode = error_mode || tile.io.host.debug.error_mode
   }
   io.debug.error_mode := error_mode

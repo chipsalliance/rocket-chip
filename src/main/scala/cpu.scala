@@ -13,7 +13,7 @@ class ioRocket extends Bundle()
   val dmem    = new ioHellaCache
 }
 
-class rocketProc(resetSignal: Bool = null) extends Component(resetSignal)
+class rocketProc extends Component
 {
   val io    = new ioRocket
    

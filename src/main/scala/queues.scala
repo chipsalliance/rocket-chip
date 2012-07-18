@@ -73,7 +73,9 @@ object Queue
 {
   def apply[T <: Data](enq: FIFOIO[T], entries: Int = 2, pipe: Boolean = false) = {
     val q = (new queue(entries, pipe)) { enq.bits.clone }
-    q.io.enq <> enq
+    q.io.enq.valid := enq.valid // not using <> so that override is allowed
+    q.io.enq.bits := enq.bits
+    enq.ready := q.io.enq.ready
     q.io.deq
   }
 }

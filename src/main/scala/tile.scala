@@ -4,14 +4,14 @@ import Chisel._
 import Node._
 import Constants._
 
-class Tile(co: CoherencePolicyWithUncached) extends Component
+class Tile(co: CoherencePolicyWithUncached, resetSignal: Bool = null) extends Component(resetSignal)
 {
   val io = new Bundle {
     val tilelink = new ioTileLink
     val host = new ioHTIF
   }
   
-  val cpu       = new rocketProc(resetSignal = io.host.reset)
+  val cpu       = new rocketProc
   val icache    = new rocketICache(128, 4, co) // 128 sets x 4 ways (32KB)
   val dcache    = new HellaCache(co)
 
@@ -19,14 +19,14 @@ class Tile(co: CoherencePolicyWithUncached) extends Component
   arbiter.io.requestor(0) <> dcache.io.mem
   arbiter.io.requestor(1) <> icache.io.mem
 
-  io.tilelink.xact_init <> Queue(arbiter.io.mem.xact_init)
-  io.tilelink.xact_init_data <> Queue(dcache.io.mem.xact_init_data)
-  arbiter.io.mem.xact_abort <> Queue(io.tilelink.xact_abort)
-  arbiter.io.mem.xact_rep <> Pipe(io.tilelink.xact_rep)
-  io.tilelink.xact_finish <> Queue(arbiter.io.mem.xact_finish)
-  dcache.io.mem.probe_req <> Queue(io.tilelink.probe_req)
-  io.tilelink.probe_rep <> Queue(dcache.io.mem.probe_rep, 1)
-  io.tilelink.probe_rep_data <> Queue(dcache.io.mem.probe_rep_data)
+  io.tilelink.xact_init <> arbiter.io.mem.xact_init
+  io.tilelink.xact_init_data <> dcache.io.mem.xact_init_data
+  arbiter.io.mem.xact_abort <> io.tilelink.xact_abort
+  arbiter.io.mem.xact_rep <> io.tilelink.xact_rep
+  io.tilelink.xact_finish <> arbiter.io.mem.xact_finish
+  dcache.io.mem.probe_req <> io.tilelink.probe_req
+  io.tilelink.probe_rep <> dcache.io.mem.probe_rep
+  io.tilelink.probe_rep_data <> dcache.io.mem.probe_rep_data
 
   if (HAVE_VEC)
   {
