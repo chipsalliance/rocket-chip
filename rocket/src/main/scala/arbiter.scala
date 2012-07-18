@@ -7,7 +7,7 @@ import Constants._;
 class ioUncachedRequestor extends Bundle {
   val xact_init      = (new FIFOIO) { new TransactionInit }
   val xact_abort     = (new FIFOIO) { new TransactionAbort }.flip
-  val xact_rep       = (new PipeIO)      { new TransactionReply }.flip
+  val xact_rep       = (new FIFOIO)      { new TransactionReply }.flip
   val xact_finish    = (new FIFOIO) { new TransactionFinish }
 }
 
@@ -74,4 +74,5 @@ class rocketMemArbiter(n: Int) extends Component {
   }
 
   io.mem.xact_abort.ready := Bool(true)
+  io.mem.xact_rep.ready := Bool(true)
 }

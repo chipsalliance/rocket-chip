@@ -105,6 +105,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
     mem_gxid := io.mem.xact_rep.bits.global_xact_id
     mem_needs_ack := io.mem.xact_rep.bits.require_ack  
   }
+  io.mem.xact_rep.ready := Bool(true)
   when (io.mem.xact_abort.valid) { mem_nacked := Bool(true) }
 
   val state_rx :: state_pcr :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(8) { UFix() }
@@ -183,13 +184,10 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   io.mem.xact_init_data.bits.data := mem_req_data
   io.mem.xact_finish.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.xact_finish.bits.global_xact_id := mem_gxid
-
-  val probe_q = (new queue(1)) { new ProbeReply }
-  probe_q.io.enq.valid := io.mem.probe_req.valid
-  io.mem.probe_req.ready := probe_q.io.enq.ready
-  probe_q.io.enq.bits := co.newProbeReply(io.mem.probe_req.bits, co.newStateOnFlush())
-  io.mem.probe_rep <> probe_q.io.deq
+  io.mem.probe_req.ready := Bool(false)
+  io.mem.probe_rep.valid := Bool(false)
   io.mem.probe_rep_data.valid := Bool(false)
+  io.mem.incoherent := Bool(true)
 
   pcr_done := Bool(false)
   val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }
