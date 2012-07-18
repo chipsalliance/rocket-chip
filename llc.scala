@@ -107,7 +107,7 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
       val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
       val way = UFix(width = log2Up(ways))
     } }
-    val mem = new ioMem
+    val mem = new ioMemPipe
     val mem_resp_set = UFix(OUTPUT, log2Up(sets))
     val mem_resp_way = UFix(OUTPUT, log2Up(ways))
   }
@@ -194,7 +194,7 @@ class LLCWriteback(requestors: Int) extends Component
   val io = new Bundle {
     val req = Vec(requestors) { (new FIFOIO) { UFix(width = PADDR_BITS - OFFSET_BITS) }.flip }
     val data = Vec(requestors) { (new FIFOIO) { new MemData }.flip }
-    val mem = new ioMem
+    val mem = new ioMemPipe
   }
 
   val valid = Reg(resetVal = Bool(false))
@@ -245,7 +245,7 @@ class LLCData(sets: Int, ways: Int, leaf: Mem[Bits]) extends Component
     val req_data = (new FIFOIO) { new MemData }.flip
     val writeback = (new FIFOIO) { UFix(width = PADDR_BITS - OFFSET_BITS) }
     val writeback_data = (new FIFOIO) { new MemData }
-    val resp = (new PipeIO) { new MemResp }
+    val resp = (new FIFOIO) { new MemResp }
     val mem_resp = (new PipeIO) { new MemResp }.flip
     val mem_resp_set = UFix(INPUT, log2Up(sets))
     val mem_resp_way = UFix(INPUT, log2Up(ways))
@@ -298,7 +298,7 @@ class LLCData(sets: Int, ways: Int, leaf: Mem[Bits]) extends Component
   io.writeback.valid := io.req.valid && io.req.ready && io.req.bits.isWriteback
   io.writeback.bits := io.req.bits.addr
 
-  q.io.deq.ready := Mux(q.io.deq.bits.isWriteback, io.writeback_data.ready, Bool(true))
+  q.io.deq.ready := Mux(q.io.deq.bits.isWriteback, io.writeback_data.ready, io.resp.ready)
   io.resp.valid := q.io.deq.valid && !q.io.deq.bits.isWriteback
   io.resp.bits := q.io.deq.bits
   io.writeback_data.valid := q.io.deq.valid && q.io.deq.bits.isWriteback
@@ -309,7 +309,7 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
 {
   val io = new Bundle {
     val cpu = new ioMem().flip
-    val mem = new ioMem
+    val mem = new ioMemPipe
   }
 
   val tagWidth = PADDR_BITS - OFFSET_BITS - log2Up(sets)
