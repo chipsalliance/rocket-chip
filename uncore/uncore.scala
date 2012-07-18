@@ -23,6 +23,13 @@ class ioMem() extends Bundle
 {
   val req_cmd  = (new FIFOIO) { new MemReqCmd() }
   val req_data = (new FIFOIO) { new MemData() }
+  val resp     = (new FIFOIO) { new MemResp() }.flip
+}
+
+class ioMemPipe() extends Bundle
+{
+  val req_cmd  = (new FIFOIO) { new MemReqCmd() }
+  val req_data = (new FIFOIO) { new MemData() }
   val resp     = (new PipeIO) { new MemResp() }.flip
 }
 
@@ -46,8 +53,9 @@ class ioTileLink extends Bundle {
   val probe_req      = (new FIFOIO) { new ProbeRequest }.flip
   val probe_rep      = (new FIFOIO) { new ProbeReply }
   val probe_rep_data = (new FIFOIO) { new ProbeReplyData }
-  val xact_rep       = (new PipeIO)      { new TransactionReply }.flip
+  val xact_rep       = (new FIFOIO) { new TransactionReply }.flip
   val xact_finish    = (new FIFOIO) { new TransactionFinish }
+  val incoherent     = Bool(OUTPUT)
 }
 
 class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
@@ -58,6 +66,7 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
     val xact_finish     = Bool(INPUT)
     val p_rep_cnt_dec   = Bits(INPUT, ntiles)
     val p_req_cnt_inc   = Bits(INPUT, ntiles)
+    val tile_incoherent = Bits(INPUT, ntiles)
     val p_rep_data      = (new PipeIO) { new ProbeReplyData }.flip
     val x_init_data     = (new PipeIO) { new TransactionInitData }.flip
     val sent_x_rep_ack  = Bool(INPUT)
@@ -169,7 +178,7 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
         tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
         x_init_data_needs_write := co.messageHasData(io.alloc_req.bits.xact_init)
         x_needs_read := co.needsMemRead(io.alloc_req.bits.xact_init.x_type, UFix(0))
-        val p_req_initial_flags = ~( UFix(1) << io.alloc_req.bits.tile_id ) //TODO: Broadcast only
+        val p_req_initial_flags = ~(io.tile_incoherent | UFixToOH(io.alloc_req.bits.tile_id)) //TODO: Broadcast only
         p_req_flags := p_req_initial_flags(ntiles-1,0)
         mem_cnt := UFix(0)
         p_w_mem_cmd_sent := Bool(false)
@@ -310,6 +319,7 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
     t.p_data.valid        := p_data_valid_arr(i)
     t.p_rep_cnt_dec       := p_rep_cnt_dec_arr(i).toBits
     t.p_req_cnt_inc       := p_req_cnt_inc_arr(i).toBits
+    t.tile_incoherent     := (Vec(io.tiles.map(_.incoherent)) { Bool() }).toBits
     t.sent_x_rep_ack      := sent_x_rep_ack_arr(i)
     do_free_arr(i)        := Bool(false)
     sent_x_rep_ack_arr(i) := Bool(false)
@@ -360,8 +370,7 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
       }
     }
   }
-  // If there were a ready signal due to e.g. intervening network use:
-  //io.mem.resp.ready  := io.tiles(init_tile_id_arr.read(mem_idx)).xact_rep.ready
+  io.mem.resp.ready  := io.tiles(init_tile_id_arr(mem_idx)).xact_rep.ready
 
   // Create an arbiter for the one memory port
   // We have to arbitrate between the different trackers' memory requests
