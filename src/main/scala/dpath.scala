@@ -344,7 +344,7 @@ class rocketDpath extends Component
   val mem_ll_waddr = Mux(dmem_resp_replay, dmem_resp_waddr,
                      Mux(div.io.resp_val, div.io.resp_tag,
                      Mux(mul_io.resp_val, mul_io.resp_tag,
-                         mem_reg_waddr)))
+                         mem_reg_waddr))).toUFix
   val mem_ll_wdata = Mux(div.io.resp_val, div.io.resp_bits,
                      Mux(mul_io.resp_val, mul_io.resp_bits,
                      Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data,
