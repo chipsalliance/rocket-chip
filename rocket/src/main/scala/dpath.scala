@@ -288,6 +288,7 @@ class rocketDpath extends Component
   io.ctrl.irq_timer    := pcr.io.irq_timer;
   io.ctrl.irq_ipi      := pcr.io.irq_ipi;  
   io.ctrl.status       := pcr.io.status;
+  io.ctrl.pcr_replay   := pcr.io.replay
   io.ptbr              := pcr.io.ptbr;
   io.ptbr_wen          := pcr.io.ptbr_wen;
   

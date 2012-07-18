@@ -70,6 +70,7 @@ class ioCtrlDpath extends Bundle()
   val fp_sboard_wb_waddr = UFix(INPUT, 5);
   val irq_timer = Bool(INPUT);
   val irq_ipi   = Bool(INPUT);
+  val pcr_replay = Bool(INPUT)
 }
 
 class ioCtrlAll extends Bundle()
@@ -743,7 +744,7 @@ class rocketCtrl extends Component
   wb_reg_exception    := mem_exception && !take_pc_wb;
   wb_reg_cause        := mem_cause;
 
-  val replay_wb = wb_reg_replay || vec_replay
+  val replay_wb = wb_reg_replay || vec_replay || io.dpath.pcr_replay
 
   val wb_badvaddr_wen = wb_reg_exception && ((wb_reg_cause === UFix(10)) || (wb_reg_cause === UFix(11)))
 

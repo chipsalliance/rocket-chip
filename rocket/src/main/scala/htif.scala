@@ -209,9 +209,9 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
     for (j <- 0 until ncores) {
       when (io.cpu(j).ipi.valid && io.cpu(j).ipi.bits === UFix(i)) {
         my_ipi := Bool(true)
-        my_reset := Bool(false)
       }
     }
+    cpu.ipi.ready := Bool(true)
     when (my_ipi) {
       my_ipi := !cpu.pcr_req.ready
     }
@@ -228,7 +228,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
     }
 
     pcr_mux.io.sel(i) := me
-    pcr_mux.io.in(i) := Mux(pcr_addr === PCR_RESET, my_reset, rdata)
+    pcr_mux.io.in(i) := Mux(pcr_addr === PCR_RESET, Cat(Bits(0, 63), my_reset), rdata)
   }
 
   val tx_cmd = Mux(nack, cmd_nack, cmd_ack)

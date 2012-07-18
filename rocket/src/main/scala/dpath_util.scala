@@ -78,6 +78,7 @@ class ioDpathPCR extends Bundle()
   val ptbr_wen  = Bool(OUTPUT);
   val irq_timer = Bool(OUTPUT);
   val irq_ipi   = Bool(OUTPUT);
+  val replay    = Bool(OUTPUT)
   val vecbank   = Bits(OUTPUT, 8)
   val vecbankcnt = UFix(OUTPUT, 4)
   val vec_appvl = UFix(INPUT, 12)
@@ -175,8 +176,9 @@ class rocketDpathPCR extends Component
 
   io.irq_timer := r_irq_timer;
   io.irq_ipi := r_irq_ipi;
-  io.host.ipi.valid := Bool(false)
-  io.host.ipi.bits := wdata
+  io.host.ipi.valid := io.w.en && io.w.addr === PCR_SEND_IPI
+  io.host.ipi.bits := io.w.data
+  io.replay := io.host.ipi.valid && !io.host.ipi.ready
 
   when (wen) {
     when (waddr === PCR_STATUS) {
