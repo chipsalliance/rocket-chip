@@ -27,7 +27,7 @@ class ioHTIF extends Bundle
   val reset = Bool(INPUT)
   val debug = new ioDebug
   val pcr_req = (new FIFOIO) { new PCRReq }.flip
-  val pcr_rep = (new PipeIO) { Bits(width = 64) }
+  val pcr_rep = (new FIFOIO) { Bits(width = 64) }
   val ipi = (new FIFOIO) { Bits(width = log2Up(NTILES)) }
 }
 
@@ -220,6 +220,8 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
         my_reset := pcr_wdata(0)
       }
     }
+
+    cpu.pcr_rep.ready := Bool(true)
     when (cpu.pcr_rep.valid) {
       pcr_done := Bool(true)
       rdata := cpu.pcr_rep.bits

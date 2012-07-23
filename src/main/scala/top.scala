@@ -107,7 +107,13 @@ class Top extends Component
     val hl = uncore.io.htif(i)
     val tl = uncore.io.tiles(i)
     val tile = new Tile(co, resetSignal = hl.reset)
-    tile.io.host <> hl
+
+    tile.io.host.reset := Reg(Reg(hl.reset))
+    tile.io.host.pcr_req <> Queue(hl.pcr_req)
+    hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
+    hl.ipi <> Queue(tile.io.host.ipi)
+    error_mode = error_mode || Reg(tile.io.host.debug.error_mode)
+
     tl.xact_init <> Queue(tile.io.tilelink.xact_init)
     tl.xact_init_data <> Queue(tile.io.tilelink.xact_init_data)
     tile.io.tilelink.xact_abort <> Queue(tl.xact_abort)
@@ -117,7 +123,6 @@ class Top extends Component
     tl.probe_rep <> Queue(tile.io.tilelink.probe_rep, 1)
     tl.probe_rep_data <> Queue(tile.io.tilelink.probe_rep_data)
     tl.incoherent := hl.reset
-    error_mode = error_mode || tile.io.host.debug.error_mode
   }
   io.debug.error_mode := error_mode
 }
