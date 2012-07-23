@@ -15,23 +15,32 @@ class ioTop(htif_width: Int) extends Bundle  {
   val mem     = new ioMemPipe
 }
 
-class Top extends Component
+class ioUncore(htif_width: Int, ntiles: Int) extends Bundle {
+  val debug = new ioDebug()
+  val host = new ioHost(htif_width)
+  val host_clk = Bool(OUTPUT)
+  val mem_backup = new ioMemSerialized
+  val mem_backup_en = Bool(INPUT)
+  val mem_backup_clk = Bool(OUTPUT)
+  val mem = new ioMemPipe
+  val tiles = Vec(ntiles) { new ioTileLink() }.flip
+  val htif = Vec(ntiles) { new ioHTIF() }.flip
+}
+
+class Uncore(htif_width: Int, ntiles: Int, co: CoherencePolicyWithUncached) extends Component
 {
   val clkdiv = 8
-  val htif_width = 8
-  val io = new ioTop(htif_width)
+  val io = new ioUncore(htif_width, ntiles)
 
-  val co =  if(ENABLE_SHARING) {
-              if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence
-              else new MSICoherence
-            } else {
-              if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence
-              else new MICoherence
-            }
   val htif = new rocketHTIF(htif_width, NTILES, co)
   val hub = new CoherenceHubBroadcast(NTILES+1, co)
   val llc_leaf = Mem(2048, seqRead = true) { Bits(width = 64) }
   val llc = new DRAMSideLLC(2048, 8, 4, llc_leaf, llc_leaf)
+
+  for (i <- 0 until NTILES) {
+    hub.io.tiles(i) <> io.tiles(i)
+    htif.io.cpu(i) <> io.htif(i)
+  }
   hub.io.tiles(NTILES) <> htif.io.mem
 
   llc.io.cpu.req_cmd <> Queue(hub.io.mem.req_cmd)
@@ -76,21 +85,38 @@ class Top extends Component
   mem_serdes.io.narrow.resp.bits := mio.io.in_fast.bits
   io.mem_backup.resp <> mio.io.in_slow
   io.mem_backup_clk := mio.io.clk_slow
+}
+
+class Top extends Component
+{
+  val htif_width = 8
+  val co =  if(ENABLE_SHARING) {
+              if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence
+              else new MSICoherence
+            } else {
+              if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence
+              else new MICoherence
+            }
+  val io = new ioTop(htif_width)
+
+  val uncore = new Uncore(htif_width, NTILES, co)
+  uncore.io <> io
 
   var error_mode = Bool(false)
   for (i <- 0 until NTILES) {
-    val tile = new Tile(co, resetSignal = htif.io.cpu(i).reset)
-    val h = hub.io.tiles(i)
-    tile.io.host <> htif.io.cpu(i)
-    h.xact_init <> Queue(tile.io.tilelink.xact_init)
-    h.xact_init_data <> Queue(tile.io.tilelink.xact_init_data)
-    tile.io.tilelink.xact_abort <> Queue(h.xact_abort)
-    tile.io.tilelink.xact_rep <> Queue(h.xact_rep, 1, pipe = true)
-    h.xact_finish <> Queue(tile.io.tilelink.xact_finish)
-    tile.io.tilelink.probe_req <> Queue(h.probe_req)
-    h.probe_rep <> Queue(tile.io.tilelink.probe_rep, 1)
-    h.probe_rep_data <> Queue(tile.io.tilelink.probe_rep_data)
-    h.incoherent := htif.io.cpu(i).reset
+    val hl = uncore.io.htif(i)
+    val tl = uncore.io.tiles(i)
+    val tile = new Tile(co, resetSignal = hl.reset)
+    tile.io.host <> hl
+    tl.xact_init <> Queue(tile.io.tilelink.xact_init)
+    tl.xact_init_data <> Queue(tile.io.tilelink.xact_init_data)
+    tile.io.tilelink.xact_abort <> Queue(tl.xact_abort)
+    tile.io.tilelink.xact_rep <> Queue(tl.xact_rep, 1, pipe = true)
+    tl.xact_finish <> Queue(tile.io.tilelink.xact_finish)
+    tile.io.tilelink.probe_req <> Queue(tl.probe_req)
+    tl.probe_rep <> Queue(tile.io.tilelink.probe_rep, 1)
+    tl.probe_rep_data <> Queue(tile.io.tilelink.probe_rep_data)
+    tl.incoherent := hl.reset
     error_mode = error_mode || tile.io.host.debug.error_mode
   }
   io.debug.error_mode := error_mode
