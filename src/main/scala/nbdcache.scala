@@ -495,8 +495,8 @@ class ProbeUnit(co: CoherencePolicy) extends Component {
     val address = Bits(OUTPUT, PADDR_BITS-OFFSET_BITS)
   }
 
-  val s_invalid :: s_meta_req :: s_meta_resp :: s_mshr_req :: s_probe_rep :: s_writeback_req :: s_writeback_resp :: Nil = Enum(7) { UFix() }
-  val state = Reg(resetVal = s_invalid)
+  val s_reset :: s_invalid :: s_meta_req :: s_meta_resp :: s_mshr_req :: s_probe_rep :: s_writeback_req :: s_writeback_resp :: Nil = Enum(8) { UFix() }
+  val state = Reg(resetVal = s_reset)
   val line_state = Reg() { UFix() }
   val way_oh = Reg() { Bits() }
   val req = Reg() { new ProbeRequest() }
@@ -526,6 +526,7 @@ class ProbeUnit(co: CoherencePolicy) extends Component {
     state := s_meta_req
     req := io.req.bits
   }
+  when (state === s_reset) { state := s_invalid }
 
   io.req.ready := state === s_invalid
   io.rep.valid := state === s_probe_rep && io.meta_req.ready
