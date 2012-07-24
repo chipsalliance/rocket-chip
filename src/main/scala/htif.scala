@@ -108,19 +108,14 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   io.mem.xact_rep.ready := Bool(true)
   when (io.mem.xact_abort.valid) { mem_nacked := Bool(true) }
 
-  val state_rx :: state_pcr :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(8) { UFix() }
+  val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(9) { UFix() }
   val state = Reg(resetVal = state_rx)
 
   when (state === state_rx && rx_done) {
     val rx_cmd = Mux(rx_word_count === UFix(0), next_cmd, cmd)
     state := Mux(rx_cmd === cmd_readmem || rx_cmd === cmd_writemem, state_mem_req,
-             Mux(rx_cmd === cmd_readcr || rx_cmd === cmd_writecr, state_pcr,
+             Mux(rx_cmd === cmd_readcr || rx_cmd === cmd_writecr, state_pcr_req,
              state_tx))
-  }
-
-  val pcr_done = Reg() { Bool() }
-  when (state === state_pcr && pcr_done) {
-    state := state_tx
   }
 
   val mem_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
@@ -189,7 +184,6 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   io.mem.probe_rep_data.valid := Bool(false)
   io.mem.incoherent := Bool(true)
 
-  pcr_done := Bool(false)
   val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }
   for (i <- 0 until ncores) {
     val my_reset = Reg(resetVal = Bool(true))
@@ -198,7 +192,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
 
     val cpu = io.cpu(i)
     val me = pcr_coreid === UFix(i)
-    cpu.pcr_req.valid := my_ipi || state === state_pcr && me
+    cpu.pcr_req.valid := my_ipi || state === state_pcr_req && me
     cpu.pcr_req.bits.rw := my_ipi || cmd === cmd_writecr
     cpu.pcr_req.bits.addr := Mux(my_ipi, PCR_CLR_IPI, pcr_addr)
     cpu.pcr_req.bits.data := my_ipi | pcr_wdata
@@ -214,17 +208,21 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
       my_ipi := !cpu.pcr_req.ready
     }
 
-    when (state === state_pcr && me && cmd === cmd_writecr) {
-      pcr_done := cpu.pcr_req.ready && !my_ipi
-      when (pcr_addr === PCR_RESET) {
-        my_reset := pcr_wdata(0)
+    when (state === state_pcr_req && me && !my_ipi && cpu.pcr_req.ready) {
+      when (cmd === cmd_writecr) {
+        state := state_tx
+        when (pcr_addr === PCR_RESET) {
+          my_reset := pcr_wdata(0)
+        }
+      }.otherwise {
+        state := state_pcr_resp
       }
     }
 
     cpu.pcr_rep.ready := Bool(true)
     when (cpu.pcr_rep.valid) {
-      pcr_done := Bool(true)
       rdata := cpu.pcr_rep.bits
+      state := state_tx
     }
 
     pcr_mux.io.sel(i) := me
