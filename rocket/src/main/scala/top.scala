@@ -89,7 +89,6 @@ class Uncore(htif_width: Int, ntiles: Int, co: CoherencePolicyWithUncached) exte
 
 class Top extends Component
 {
-  val htif_width = 8
   val co =  if(ENABLE_SHARING) {
               if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence
               else new MSICoherence
@@ -97,9 +96,9 @@ class Top extends Component
               if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence
               else new MICoherence
             }
-  val io = new ioTop(htif_width)
+  val io = new ioTop(HTIF_WIDTH)
 
-  val uncore = new Uncore(htif_width, NTILES, co)
+  val uncore = new Uncore(HTIF_WIDTH, NTILES, co)
   uncore.io <> io
 
   var error_mode = Bool(false)

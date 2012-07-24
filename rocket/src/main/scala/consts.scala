@@ -12,6 +12,7 @@ object Constants
 
   val MAX_THREADS = hwacha.Constants.NUM_PVFB * hwacha.Constants.WIDTH_PVFB / hwacha.Constants.SZ_BANK
 
+  val HTIF_WIDTH = 8
   val MEM_BACKUP_WIDTH = 16
 
   val BR_X    = Bits("b????", 4)
