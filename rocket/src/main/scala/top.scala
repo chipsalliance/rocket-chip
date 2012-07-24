@@ -34,8 +34,9 @@ class Uncore(htif_width: Int, ntiles: Int, co: CoherencePolicyWithUncached) exte
 
   val htif = new rocketHTIF(htif_width, NTILES, co)
   val hub = new CoherenceHubBroadcast(NTILES+1, co)
-  val llc_leaf = Mem(2048, seqRead = true) { Bits(width = 64) }
-  val llc = new DRAMSideLLC(2048, 8, 4, llc_leaf, llc_leaf)
+  val llc_tag_leaf = Mem(1024, seqRead = true) { Bits(width = 72) }
+  val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
+  val llc = new DRAMSideLLC(1024, 8, 4, llc_tag_leaf, llc_data_leaf)
 
   for (i <- 0 until NTILES) {
     hub.io.tiles(i) <> io.tiles(i)
