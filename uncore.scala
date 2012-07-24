@@ -367,7 +367,7 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
       rep.bits.global_xact_id := ack_idx
       when (UFix(j) === init_tile_id_arr(ack_idx)) {
         rep.valid := send_x_rep_ack_arr.toBits.orR
-        sent_x_rep_ack_arr(ack_idx) := Bool(true)
+        sent_x_rep_ack_arr(ack_idx) := rep.ready
       }
     }
   }
