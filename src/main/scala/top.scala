@@ -70,22 +70,26 @@ class Uncore(htif_width: Int, ntiles: Int, co: CoherencePolicyWithUncached) exte
   llc.io.mem.resp.bits := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.bits, io.mem.resp.bits)
 
   // pad out the HTIF using a divided clock
-  val hio = (new slowIO(clkdiv)) { Bits(width = htif_width) }
-  htif.io.host.out <> hio.io.out_fast
-  io.host.out <> hio.io.out_slow
-  htif.io.host.in <> hio.io.in_fast
-  io.host.in <> hio.io.in_slow
-  io.host_clk := hio.io.clk_slow
+  val hio = (new slowIO(clkdiv)) { Bits(width = htif_width+1) }
+  hio.io.out_fast.valid := htif.io.host.out.valid || mem_serdes.io.narrow.req.valid
+  hio.io.out_fast.bits := Cat(htif.io.host.out.valid, Mux(htif.io.host.out.valid, htif.io.host.out.bits, mem_serdes.io.narrow.req.bits))
+  htif.io.host.out.ready := hio.io.out_fast.ready
+  mem_serdes.io.narrow.req.ready := hio.io.out_fast.ready && !htif.io.host.out.valid
+  io.host.out.valid := hio.io.out_slow.valid && hio.io.out_slow.bits(htif_width)
+  io.host.out.bits := hio.io.out_slow.bits
+  io.mem_backup.req.valid := hio.io.out_slow.valid && !hio.io.out_slow.bits(htif_width)
+  hio.io.out_slow.ready := Mux(hio.io.out_slow.bits(htif_width), io.host.out.ready, io.mem_backup.req.ready)
 
-  // pad out the backup memory link with the HTIF divided clk
-  val mio = (new slowIO(clkdiv)) { Bits(width = MEM_BACKUP_WIDTH) }
-  mem_serdes.io.narrow.req <> mio.io.out_fast
-  io.mem_backup.req <> mio.io.out_slow
-  mem_serdes.io.narrow.resp.valid := mio.io.in_fast.valid
-  mio.io.in_fast.ready := Bool(true)
-  mem_serdes.io.narrow.resp.bits := mio.io.in_fast.bits
-  io.mem_backup.resp <> mio.io.in_slow
-  io.mem_backup_clk := mio.io.clk_slow
+  val mem_backup_resp_valid = io.mem_backup_en && io.mem_backup.resp.valid
+  hio.io.in_slow.valid := mem_backup_resp_valid || io.host.in.valid
+  hio.io.in_slow.bits := Cat(mem_backup_resp_valid, io.host.in.bits)
+  io.host.in.ready := hio.io.in_slow.ready
+  mem_serdes.io.narrow.resp.valid := hio.io.in_fast.valid && hio.io.in_fast.bits(htif_width)
+  mem_serdes.io.narrow.resp.bits := hio.io.in_fast.bits
+  htif.io.host.in.valid := hio.io.in_fast.valid && !hio.io.in_fast.bits(htif_width)
+  htif.io.host.in.bits := hio.io.in_fast.bits
+  hio.io.in_fast.ready := Mux(hio.io.in_fast.bits(htif_width), Bool(true), htif.io.host.in.ready)
+  io.host_clk := hio.io.clk_slow
 }
 
 class Top extends Component
