@@ -5,12 +5,16 @@ import scala.math._
 
 object Constants
 {
-  val NTILES = 1
+  val NTILES = 2
   val HAVE_RVC = false
   val HAVE_FPU = true
   val HAVE_VEC = true
 
-  val MAX_THREADS = hwacha.Constants.NUM_PVFB * hwacha.Constants.WIDTH_PVFB / hwacha.Constants.SZ_BANK
+  val MAX_THREADS = 
+    if(hwacha.Constants.HAVE_PVFB)
+      hwacha.Constants.NUM_PVFB * hwacha.Constants.WIDTH_PVFB / hwacha.Constants.SZ_BANK
+    else
+      256
 
   val HTIF_WIDTH = 16
   val MEM_BACKUP_WIDTH = HTIF_WIDTH
