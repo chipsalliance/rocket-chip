@@ -18,7 +18,7 @@ class ioHost(w: Int) extends Bundle
 class PCRReq extends Bundle
 {
   val rw = Bool()
-  val addr = Bits(width = 5)
+  val addr = Bits(width = 6)
   val data = Bits(width = 64)
 }
 
@@ -75,7 +75,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
 
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(6) { UFix() }
 
-  val pcr_addr = addr(4,0)
+  val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.width-1, 0)
   val pcr_coreid = if (ncores == 1) UFix(0) else addr(20+log2Up(ncores),20)
   val pcr_wdata = packet_ram(0)
 

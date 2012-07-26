@@ -121,7 +121,7 @@ class rocketDpathPCR extends Component
   
   val rdata = Bits();
 
-  val raddr = Mux(io.r.en, io.r.addr, io.host.pcr_req.bits.addr)
+  val raddr = Mux(io.r.en, io.r.addr, io.host.pcr_req.bits.addr(4,0))
   io.host.pcr_rep.valid := io.host.pcr_req.valid && !io.r.en && !io.host.pcr_req.bits.rw
   io.host.pcr_rep.bits := rdata
 
@@ -200,7 +200,6 @@ class rocketDpathPCR extends Component
     when (waddr === PCR_COREID)   { reg_coreid := wdata(15,0) }
     when (waddr === PCR_FROMHOST) { reg_fromhost := wdata; reg_tohost := Bits(0) }
     when (waddr === PCR_TOHOST)   { reg_tohost := wdata; reg_fromhost := Bits(0) }
-    when (waddr === PCR_SEND_IPI) { io.host.ipi.valid := Bool(true) }
     when (waddr === PCR_CLR_IPI)  { r_irq_ipi := wdata(0) }
     when (waddr === PCR_K0)       { reg_k0 := wdata; }
     when (waddr === PCR_K1)       { reg_k1 := wdata; }
