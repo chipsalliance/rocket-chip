@@ -107,6 +107,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   }
   io.mem.xact_rep.ready := Bool(true)
   when (io.mem.xact_abort.valid) { mem_nacked := Bool(true) }
+  io.mem.xact_abort.ready := Bool(true)
 
   val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(9) { UFix() }
   val state = Reg(resetVal = state_rx)
@@ -119,7 +120,8 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   }
 
   val mem_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
-  when (state === state_mem_req && io.mem.xact_init.ready) {
+  val x_init = new queue(1)(new TransactionInit)
+  when (state === state_mem_req && x_init.io.enq.ready) {
     state := Mux(cmd === cmd_writemem, state_mem_wdata, state_mem_rdata)
   }
   when (state === state_mem_wdata && io.mem.xact_init_data.ready) {
@@ -172,9 +174,10 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
     }
     mem_req_data = Cat(packet_ram(idx), mem_req_data)
   }
-  io.mem.xact_init.valid := state === state_mem_req
-  io.mem.xact_init.bits.x_type := Mux(cmd === cmd_writemem, co.getTransactionInitTypeOnUncachedWrite, co.getTransactionInitTypeOnUncachedRead)
-  io.mem.xact_init.bits.address := addr.toUFix >> UFix(OFFSET_BITS-3)
+  x_init.io.enq.valid := state === state_mem_req
+  x_init.io.enq.bits.x_type := Mux(cmd === cmd_writemem, co.getTransactionInitTypeOnUncachedWrite, co.getTransactionInitTypeOnUncachedRead)
+  x_init.io.enq.bits.address := addr.toUFix >> UFix(OFFSET_BITS-3)
+  io.mem.xact_init <> x_init.io.deq
   io.mem.xact_init_data.valid:= state === state_mem_wdata
   io.mem.xact_init_data.bits.data := mem_req_data
   io.mem.xact_finish.valid := (state === state_mem_finish) && mem_needs_ack
