@@ -378,7 +378,7 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   writeback.io.req(1).bits := s2.addr
   writeback.io.data(1).valid := io.cpu.req_data.valid
   writeback.io.data(1).bits := io.cpu.req_data.bits
-  data.io.req_data.valid := io.cpu.req_data.valid && !writeback.io.data(1).ready
+  data.io.req_data.valid := io.cpu.req_data.valid && writeback.io.req(1).ready
 
   memCmdArb.io.in(0) <> mshr.io.mem.req_cmd
   memCmdArb.io.in(1) <> writeback.io.mem.req_cmd
@@ -393,7 +393,7 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
 
   io.cpu.resp <> data.io.resp
   io.cpu.req_cmd.ready := !stall_s1 && !replay_s1
-  io.cpu.req_data.ready := writeback.io.data(1).ready || data.io.req_data.ready
+  io.cpu.req_data.ready := writeback.io.data(1).ready || data.io.req_data.ready && writeback.io.req(1).ready
   io.mem.req_cmd <> memCmdArb.io.out
   io.mem.req_data <> writeback.io.mem.req_data
 }
