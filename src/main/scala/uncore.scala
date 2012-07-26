@@ -95,21 +95,25 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
   }
 
   def doMemReqWrite(req_cmd: FIFOIO[MemReqCmd], req_data: FIFOIO[MemData], lock: Bool,  data: PipeIO[MemData], trigger: Bool, cmd_sent: Bool, pop_data: Bits, pop_dep: Bits, at_front_of_dep_queue: Bool, tile_id: UFix) {
-    req_cmd.valid := !cmd_sent && data.valid && at_front_of_dep_queue
     req_cmd.bits.rw := Bool(true)
-    req_data.valid := data.valid && at_front_of_dep_queue
     req_data.bits := data.bits
-    lock := data.valid && at_front_of_dep_queue
     when(req_cmd.ready && req_cmd.valid) {
       cmd_sent := Bool(true)
     }
-    when(req_data.ready && at_front_of_dep_queue) {
-      pop_data := UFix(1) << tile_id
-      when (data.valid) {
-        mem_cnt  := mem_cnt_next
-        when(mem_cnt_next === UFix(0)) {
-          pop_dep := UFix(1) << tile_id
-          trigger := Bool(false)
+    when (at_front_of_dep_queue) {
+      req_cmd.valid := !cmd_sent && req_data.ready
+      lock := Bool(true)
+      when (req_cmd.ready || cmd_sent) {
+        req_data.valid := data.valid
+        when(req_data.ready) {
+          pop_data := UFix(1) << tile_id
+          when (data.valid) {
+            mem_cnt  := mem_cnt_next
+            when(mem_cnt === UFix(REFILL_CYCLES-1)) {
+              pop_dep := UFix(1) << tile_id
+              trigger := Bool(false)
+            }
+          }
         }
       }
     }
@@ -141,7 +145,7 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
   val mem_cnt_next = mem_cnt + UFix(1)
   val mem_cnt_max = ~UFix(0, width = log2Up(REFILL_CYCLES))
   val p_req_initial_flags = Bits(width = ntiles)
-  p_req_initial_flags := ~(io.tile_incoherent | UFixToOH(io.alloc_req.bits.tile_id(log2Up(ntiles)-1,0))) //TODO: Broadcast only
+  p_req_initial_flags := (if (ntiles == 1) Bits(0) else ~(io.tile_incoherent | UFixToOH(io.alloc_req.bits.tile_id(log2Up(ntiles)-1,0)))) //TODO: Broadcast only
 
   io.busy := state != s_idle
   io.addr := addr_
@@ -376,16 +380,15 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
   // Create an arbiter for the one memory port
   // We have to arbitrate between the different trackers' memory requests
   // and once we have picked a request, get the right write data
-  val mem_req_cmd_arb = (new LockingArbiter(NGLOBAL_XACTS)) { new MemReqCmd() }
+  val mem_req_cmd_arb = (new Arbiter(NGLOBAL_XACTS)) { new MemReqCmd() }
   val mem_req_data_arb = (new LockingArbiter(NGLOBAL_XACTS)) { new MemData() }
   for( i <- 0 until NGLOBAL_XACTS ) {
     mem_req_cmd_arb.io.in(i)    <> trackerList(i).io.mem_req_cmd
-    mem_req_cmd_arb.io.lock(i)  <> trackerList(i).io.mem_req_lock
     mem_req_data_arb.io.in(i)   <> trackerList(i).io.mem_req_data
     mem_req_data_arb.io.lock(i) <> trackerList(i).io.mem_req_lock
   }
-  io.mem.req_cmd  <> mem_req_cmd_arb.io.out
-  io.mem.req_data <> mem_req_data_arb.io.out
+  io.mem.req_cmd  <> Queue(mem_req_cmd_arb.io.out)
+  io.mem.req_data <> Queue(mem_req_data_arb.io.out)
   
   // Handle probe replies, which may or may not have data
   for( j <- 0 until ntiles ) {
