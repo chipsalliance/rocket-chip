@@ -305,7 +305,7 @@ class LLCData(sets: Int, ways: Int, leaf: Mem[Bits]) extends Component
   io.writeback_data.bits := q.io.deq.bits
 }
 
-class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], dataLeaf: Mem[Bits], resetSignal: Bool = null) extends Component(resetSignal)
+class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], dataLeaf: Mem[Bits]) extends Component
 {
   val io = new Bundle {
     val cpu = new ioMem().flip
