@@ -78,14 +78,26 @@ object PriorityEncoder
 
 object PriorityEncoderOH
 {
-  def apply(in: Bits): UFix = doApply(in, 0)
-  def doApply(in: Bits, n: Int = 0): UFix = {
-    val out = Vec(in.getWidth) { Bool() }
+  def apply(in: Bits): Bits = Vec(apply((0 until in.getWidth).map(in(_)))){Bits()}.toBits
+  def apply(in: Seq[Bits]): Seq[Bool] = {
     var none_hot = Bool(true)
-    for (i <- 0 until in.getWidth) {
-      out(i) := none_hot && in(i)
+    val out = collection.mutable.ArrayBuffer[Bool]()
+    for (i <- 0 until in.size) {
+      out += none_hot && in(i)
       none_hot = none_hot && !in(i)
     }
-    out.toBits
+    out
+  }
+}
+
+object Counter
+{
+  def apply(cond: Bool, n: Int) = {
+    val c = Reg(resetVal = UFix(0, log2Up(n)))
+    val wrap = c === UFix(n-1)
+    when (cond) {
+      c := Mux(Bool(!isPow2(n)) && wrap, UFix(0), c + UFix(1))
+    }
+    (c, wrap && cond)
   }
 }
