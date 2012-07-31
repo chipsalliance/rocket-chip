@@ -11,31 +11,21 @@ class ioQueue[T <: Data](entries: Int, flushable: Boolean)(data: => T) extends B
   val count = UFix(OUTPUT, log2Up(entries+1))
 }
 
-class queue[T <: Data](val entries: Int, pipe: Boolean = false, flushable: Boolean = false)(data: => T) extends Component
+class queue[T <: Data](val entries: Int, pipe: Boolean = false, flow: Boolean = false, flushable: Boolean = false)(data: => T) extends Component
 {
   val io = new ioQueue(entries, flushable)(data)
 
-  val do_enq = io.enq.ready && io.enq.valid
-  val do_deq = io.deq.ready && io.deq.valid
+  val do_flow = Bool()
+  val do_enq = io.enq.ready && io.enq.valid && !do_flow
+  val do_deq = io.deq.ready && io.deq.valid && !do_flow
 
   var enq_ptr = UFix(0)
   var deq_ptr = UFix(0)
-  val pow2 = (entries & (entries-1)) == 0
 
   if (entries > 1)
   {
-    enq_ptr = Reg(resetVal = UFix(0, log2Up(entries)))
-    deq_ptr = Reg(resetVal = UFix(0, log2Up(entries)))
-
-    var enq_next = enq_ptr + UFix(1)
-    var deq_next = deq_ptr + UFix(1)
-    if (!pow2) {
-      enq_next = Mux(enq_ptr === UFix(entries-1), UFix(0), enq_next)
-      deq_next = Mux(deq_ptr === UFix(entries-1), UFix(0), deq_next)
-    }
-
-    when (do_deq) { deq_ptr := deq_next }
-    when (do_enq) { enq_ptr := enq_next }
+    enq_ptr = Counter(do_enq, entries)._1
+    deq_ptr = Counter(do_deq, entries)._1
     if (flushable) {
       when (io.flush) {
         deq_ptr := UFix(0)
@@ -58,12 +48,16 @@ class queue[T <: Data](val entries: Int, pipe: Boolean = false, flushable: Boole
   when (do_enq) { ram(enq_ptr) := io.enq.bits }
 
   val ptr_match = enq_ptr === deq_ptr
-  io.deq.valid :=  maybe_full || !ptr_match
-  io.enq.ready := !maybe_full || !ptr_match || (if (pipe) io.deq.ready else Bool(false))
-  io.deq.bits <> ram(deq_ptr)
+  val empty = ptr_match && !maybe_full
+  val full = ptr_match && maybe_full
+  val maybe_flow = Bool(flow) && empty
+  do_flow := maybe_flow && io.deq.ready
+  io.deq.valid :=  !empty || Bool(flow) && io.enq.valid
+  io.enq.ready := !full || Bool(pipe) && io.deq.ready
+  io.deq.bits := Mux(maybe_flow, io.enq.bits, ram(deq_ptr))
 
   val ptr_diff = enq_ptr - deq_ptr
-  if (pow2)
+  if (isPow2(entries))
     io.count := Cat(maybe_full && ptr_match, ptr_diff).toUFix
   else
     io.count := Mux(ptr_match, Mux(maybe_full, UFix(entries), UFix(0)), Mux(deq_ptr > enq_ptr, UFix(entries) + ptr_diff, ptr_diff))
@@ -92,11 +86,11 @@ class pipereg[T <: Data]()(data: => T) extends Component
   //  bits := io.enq.bits
   //}
 
-  val reg = Reg() { io.enq.bits.clone }
-  when (io.enq.valid) { reg := io.enq.bits }
+  val r = Reg() { io.enq.bits.clone }
+  when (io.enq.valid) { r := io.enq.bits }
 
   io.deq.valid := Reg(io.enq.valid, resetVal = Bool(false))
-  io.deq.bits <> reg
+  io.deq.bits <> r
 }
 
 object Pipe
@@ -110,5 +104,29 @@ object Pipe
       Pipe(q.io.deq, latency-1)
     else
       q.io.deq
+  }
+}
+
+class SkidBuffer[T <: Data]()(data: => T) extends Component
+{
+  val io = new Bundle {
+    val enq = new FIFOIO()(data).flip
+    val deq = new FIFOIO()(data)
+  }
+
+  val fq = new queue(1, flow = true)(data)
+  val pq = new queue(1, pipe = true)(data)
+
+  fq.io.enq <> io.enq
+  pq.io.enq <> fq.io.deq
+  io.deq <> pq.io.deq
+}
+
+object SkidBuffer
+{
+  def apply[T <: Data](enq: FIFOIO[T]): FIFOIO[T] = {
+    val s = new SkidBuffer()(enq.bits.clone)
+    s.io.enq <> enq
+    s.io.deq
   }
 }
