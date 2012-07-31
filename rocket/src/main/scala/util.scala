@@ -78,7 +78,7 @@ object PriorityEncoder
 
 object PriorityEncoderOH
 {
-  def apply(in: Bits): Bits = Vec(apply((0 until in.getWidth).map(in(_)))){Bits()}.toBits
+  def apply(in: Bits): Bits = Vec(apply((0 until in.getWidth).map(in(_)))){Bool()}.toBits
   def apply(in: Seq[Bits]): Seq[Bool] = {
     var none_hot = Bool(true)
     val out = collection.mutable.ArrayBuffer[Bool]()
