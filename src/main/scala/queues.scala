@@ -95,9 +95,10 @@ class pipereg[T <: Data]()(data: => T) extends Component
 
 object Pipe
 {
-  def apply[T <: Data](enq: PipeIO[T], latency: Int = 1): PipeIO[T] = {
-    val q = (new pipereg) { enq.bits.clone }
-    q.io.enq <> enq
+  def apply[T <: Data](enqValid: Bool, enqBits: T, latency: Int): PipeIO[T] = {
+    val q = (new pipereg) { enqBits.clone }
+    q.io.enq.valid := enqValid
+    q.io.enq.bits := enqBits
     q.io.deq
 
     if (latency > 1)
@@ -105,6 +106,8 @@ object Pipe
     else
       q.io.deq
   }
+  def apply[T <: Data](enqValid: Bool, enqBits: T): PipeIO[T] = apply(enqValid, enqBits, 1)
+  def apply[T <: Data](enq: PipeIO[T], latency: Int = 1): PipeIO[T] = apply(enq.valid, enq.bits, latency)
 }
 
 class SkidBuffer[T <: Data]()(data: => T) extends Component
