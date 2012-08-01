@@ -4,14 +4,17 @@ import Chisel._
 import Node._
 import Constants._
 
-class BigMem[T <: Data](n: Int, readLatency: Int, leaf: Mem[Bits])(gen: => T) extends Component
+class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[Bits])(gen: => T) extends Component
 {
-  val io = new Bundle {
+  class Inputs extends Bundle {
     val addr = UFix(INPUT, log2Up(n))
-    val en = Bool(INPUT)
     val rw = Bool(INPUT)
     val wdata = gen.asInput
     val wmask = gen.asInput
+    override def clone = new Inputs().asInstanceOf[this.type]
+  }
+  val io = new Bundle {
+    val in = new PipeIO()(new Inputs).flip
     val rdata = gen.asOutput
   }
   val data = gen
@@ -21,63 +24,52 @@ class BigMem[T <: Data](n: Int, readLatency: Int, leaf: Mem[Bits])(gen: => T) ex
   if (nDeep > 1 || colMux > 1)
     require(isPow2(n) && isPow2(leaf.n))
 
-  val idx = io.addr(log2Up(n/nDeep/colMux)-1, 0)
   val rdataDeep = Vec(nDeep) { Bits() }
   val rdataSel = Vec(nDeep) { Bool() }
-  val cond = Vec(nDeep) { Bool() }
-  val ren = Vec(nDeep) { Bool() }
-  val reg_ren = Vec(nDeep) { Reg() { Bool() } }
-  val renOut = Vec(nDeep) { Bool() }
-  val raddrOut = Vec(nDeep) { UFix() }
-  val rdata = Vec(nDeep) { Vec(nWide) { Bits() } }
-  val wdata = io.wdata.toBits
-  val wmask = io.wmask.toBits
   for (i <- 0 until nDeep) {
-    cond(i) := (if (nDeep == 1) io.en else io.en && UFix(i) === io.addr(log2Up(n)-1, log2Up(n/nDeep)))
-    ren(i) := cond(i) && !io.rw
-    reg_ren(i) := ren(i)
+    val in = Pipe(io.in.valid && (if (nDeep == 1) Bool(true) else UFix(i) === io.in.bits.addr(log2Up(n)-1, log2Up(n/nDeep))), io.in.bits, preLatency)
+    val idx = in.bits.addr(log2Up(n/nDeep/colMux)-1, 0)
+    val wdata = in.bits.wdata.toBits
+    val wmask = in.bits.wmask.toBits
+    val ren = in.valid && !in.bits.rw
+    val reg_ren = Reg(ren)
+    val rdata = Vec(nWide) { Bits() }
 
-    renOut(i) := ren(i)
-    raddrOut(i) := io.addr
-    if (readLatency > 0) {
-      val r = Pipe(ren(i), io.addr, readLatency)
-      renOut(i) := r.valid
-      raddrOut(i) := r.bits
-    }
+    val r = Pipe(ren, in.bits.addr, postLatency)
 
     for (j <- 0 until nWide) {
       val mem = leaf.clone
       var dout: Bits = null
-      val dout1 = if (readLatency > 0) Reg() { Bits() } else null
+      val dout1 = if (postLatency > 0) Reg() { Bits() } else null
 
       var wmask0 = Fill(colMux, wmask(math.min(wmask.getWidth, leaf.data.width*(j+1))-1, leaf.data.width*j))
       if (colMux > 1)
-        wmask0 = wmask0 & FillInterleaved(gen.width, UFixToOH(io.addr(log2Up(n/nDeep)-1, log2Up(n/nDeep/colMux)), log2Up(colMux)))
+        wmask0 = wmask0 & FillInterleaved(gen.width, UFixToOH(in.bits.addr(log2Up(n/nDeep)-1, log2Up(n/nDeep/colMux)), log2Up(colMux)))
       val wdata0 = Fill(colMux, wdata(math.min(wdata.getWidth, leaf.data.width*(j+1))-1, leaf.data.width*j))
-      when (cond(i)) {
-        when (io.rw) { mem.write(idx, wdata0, wmask0) }
-        .otherwise { if (readLatency > 0) dout1 := mem(idx) }
+      when (in.valid) {
+        when (in.bits.rw) { mem.write(idx, wdata0, wmask0) }
+        .otherwise { if (postLatency > 0) dout1 := mem(idx) }
       }
 
-      if (readLatency == 0) {
+      if (postLatency == 0) {
         dout = mem(idx)
-      } else if (readLatency == 1) {
+      } else if (postLatency == 1) {
         dout = dout1
       } else
-        dout = Pipe(reg_ren(i), dout1, readLatency-1).bits
+        dout = Pipe(reg_ren, dout1, postLatency-1).bits
 
-      rdata(i)(j) := dout
+      rdata(j) := dout
     }
-    val rdataWide = rdata(i).reduceLeft((x, y) => Cat(y, x))
+    val rdataWide = rdata.reduceLeft((x, y) => Cat(y, x))
 
     var colMuxOut = rdataWide
     if (colMux > 1) {
       val colMuxIn = Vec((0 until colMux).map(k => rdataWide(gen.width*(k+1)-1, gen.width*k))) { Bits() }
-      colMuxOut = colMuxIn(raddrOut(i)(log2Up(n/nDeep)-1, log2Up(n/nDeep/colMux)))
+      colMuxOut = colMuxIn(r.bits(log2Up(n/nDeep)-1, log2Up(n/nDeep/colMux)))
     }
 
     rdataDeep(i) := colMuxOut
-    rdataSel(i) := renOut(i)
+    rdataSel(i) := r.valid
   }
 
   io.rdata := Mux1H(rdataSel, rdataDeep)
@@ -247,7 +239,7 @@ class LLCData(latency: Int, sets: Int, ways: Int, leaf: Mem[Bits]) extends Compo
     val mem_resp_way = UFix(INPUT, log2Up(ways))
   }
 
-  val data = new BigMem(sets*ways*REFILL_CYCLES, latency, leaf)(Bits(width = MEM_DATA_BITS))
+  val data = new BigMem(sets*ways*REFILL_CYCLES, 1, latency-1, leaf)(Bits(width = MEM_DATA_BITS))
   class QEntry extends MemResp {
     val isWriteback = Bool()
     override def clone = new QEntry().asInstanceOf[this.type]
@@ -259,31 +251,31 @@ class LLCData(latency: Int, sets: Int, ways: Int, leaf: Mem[Bits]) extends Compo
   val count = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
   val refillCount = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
 
-  when (data.io.en && !io.mem_resp.valid) {
+  when (data.io.in.valid && !io.mem_resp.valid) {
     count := count + UFix(1)
     when (valid && count === UFix(REFILL_CYCLES-1)) { valid := Bool(false) }
   }
   when (io.req.valid && io.req.ready) { valid := Bool(true); req := io.req.bits }
   when (io.mem_resp.valid) { refillCount := refillCount + UFix(1) }
 
-  data.io.en := io.req.valid && io.req.ready && Mux(io.req.bits.rw, io.req_data.valid, qReady)
-  data.io.addr := Cat(io.req.bits.way, io.req.bits.addr(log2Up(sets)-1, 0), count).toUFix
-  data.io.rw := io.req.bits.rw
-  data.io.wdata := io.req_data.bits.data
-  data.io.wmask := Fix(-1, io.req_data.bits.data.width)
+  data.io.in.valid := io.req.valid && io.req.ready && Mux(io.req.bits.rw, io.req_data.valid, qReady)
+  data.io.in.bits.addr := Cat(io.req.bits.way, io.req.bits.addr(log2Up(sets)-1, 0), count).toUFix
+  data.io.in.bits.rw := io.req.bits.rw
+  data.io.in.bits.wdata := io.req_data.bits.data
+  data.io.in.bits.wmask := Fix(-1, io.req_data.bits.data.width)
   when (valid) {
-    data.io.en := Mux(req.rw, io.req_data.valid, qReady)
-    data.io.addr := Cat(req.way, req.addr(log2Up(sets)-1, 0), count).toUFix
-    data.io.rw := req.rw
+    data.io.in.valid := Mux(req.rw, io.req_data.valid, qReady)
+    data.io.in.bits.addr := Cat(req.way, req.addr(log2Up(sets)-1, 0), count).toUFix
+    data.io.in.bits.rw := req.rw
   }
   when (io.mem_resp.valid) {
-    data.io.en := Bool(true)
-    data.io.addr := Cat(io.mem_resp_way, io.mem_resp_set, refillCount).toUFix
-    data.io.rw := Bool(true)
-    data.io.wdata := io.mem_resp.bits.data
+    data.io.in.valid := Bool(true)
+    data.io.in.bits.addr := Cat(io.mem_resp_way, io.mem_resp_set, refillCount).toUFix
+    data.io.in.bits.rw := Bool(true)
+    data.io.in.bits.wdata := io.mem_resp.bits.data
   }
 
-  val tagPipe = Pipe(data.io.en && !data.io.rw, Mux(valid, req.tag, io.req.bits.tag), latency)
+  val tagPipe = Pipe(data.io.in.valid && !data.io.in.bits.rw, Mux(valid, req.tag, io.req.bits.tag), latency)
   q.io.enq.valid := tagPipe.valid
   q.io.enq.bits.tag := tagPipe.bits
   q.io.enq.bits.isWriteback := Pipe(Mux(valid, req.isWriteback, io.req.bits.isWriteback), Bool(false), latency).valid
@@ -358,8 +350,8 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   val memCmdArb = (new Arbiter(2)) { new MemReqCmd }
   val dataArb = (new Arbiter(2)) { new LLCDataReq(ways) }
   val mshr = new LLCMSHRFile(sets, ways, outstanding)
-  val tags = new BigMem(sets, 1, tagLeaf)(Bits(width = metaWidth*ways))
-  val data = new LLCData(3, sets, ways, dataLeaf)
+  val tags = new BigMem(sets, 0, 1, tagLeaf)(Bits(width = metaWidth*ways))
+  val data = new LLCData(4, sets, ways, dataLeaf)
   val writeback = new LLCWriteback(2)
 
   val initCount = Reg(resetVal = UFix(0, log2Up(sets+1)))
@@ -392,11 +384,11 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   val setDirty = s2_valid && s2.rw && s2_hit && !s2_hit_dirty
   stall_s1 := initialize || mshr.io.tag.valid || setDirty || s2_valid && !s2_hit || stall_s2
 
-  tags.io.en := (io.cpu.req_cmd.valid || replay_s1) && !stall_s1 || initialize || setDirty || mshr.io.tag.valid
-  tags.io.addr := Mux(initialize, initCount, Mux(setDirty, s2.addr, Mux(mshr.io.tag.valid, mshr.io.tag.bits.addr, Mux(replay_s1, s1.addr, io.cpu.req_cmd.bits.addr)))(log2Up(sets)-1,0))
-  tags.io.rw := initialize || setDirty || mshr.io.tag.valid
-  tags.io.wdata := Mux(initialize, UFix(0), Fill(ways, Cat(setDirty, Bool(true), Mux(setDirty, s2.addr, mshr.io.tag.bits.addr)(mshr.io.tag.bits.addr.width-1, mshr.io.tag.bits.addr.width-tagWidth))))
-  tags.io.wmask := FillInterleaved(metaWidth, Mux(initialize, Fix(-1, ways), UFixToOH(Mux(setDirty, s2_hit_way, mshr.io.tag.bits.way))))
+  tags.io.in.valid := (io.cpu.req_cmd.valid || replay_s1) && !stall_s1 || initialize || setDirty || mshr.io.tag.valid
+  tags.io.in.bits.addr := Mux(initialize, initCount, Mux(setDirty, s2.addr, Mux(mshr.io.tag.valid, mshr.io.tag.bits.addr, Mux(replay_s1, s1.addr, io.cpu.req_cmd.bits.addr)))(log2Up(sets)-1,0))
+  tags.io.in.bits.rw := initialize || setDirty || mshr.io.tag.valid
+  tags.io.in.bits.wdata := Mux(initialize, UFix(0), Fill(ways, Cat(setDirty, Bool(true), Mux(setDirty, s2.addr, mshr.io.tag.bits.addr)(mshr.io.tag.bits.addr.width-1, mshr.io.tag.bits.addr.width-tagWidth))))
+  tags.io.in.bits.wmask := FillInterleaved(metaWidth, Mux(initialize, Fix(-1, ways), UFixToOH(Mux(setDirty, s2_hit_way, mshr.io.tag.bits.way))))
 
   mshr.io.cpu.valid := s2_valid && !s2_hit && !s2.rw
   mshr.io.cpu.bits := s2
