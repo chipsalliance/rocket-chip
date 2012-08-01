@@ -74,37 +74,35 @@ object Queue
   }
 }
 
-class pipereg[T <: Data]()(data: => T) extends Component
+class pipereg[T <: Data](latency: Int = 1)(data: => T) extends Component
 {
   val io = new Bundle {
     val enq = new PipeIO()(data).flip
     val deq = new PipeIO()(data)
   }
 
-  //val bits = Reg() { io.enq.bits.clone }
-  //when (io.enq.valid) {
-  //  bits := io.enq.bits
-  //}
+  var bits: T = io.enq.bits
+  var valid: Bool = io.enq.valid
 
-  val r = Reg() { io.enq.bits.clone }
-  when (io.enq.valid) { r := io.enq.bits }
+  for (i <- 0 until latency) {
+    val reg_bits = Reg() { io.enq.bits.clone }
+    val reg_valid = Reg(valid, resetVal = Bool(false))
+    when (valid) { reg_bits := bits }
+    valid = reg_valid
+    bits = reg_bits
+  }
 
-  io.deq.valid := Reg(io.enq.valid, resetVal = Bool(false))
-  io.deq.bits <> r
+  io.deq.valid := valid
+  io.deq.bits := bits
 }
 
 object Pipe
 {
   def apply[T <: Data](enqValid: Bool, enqBits: T, latency: Int): PipeIO[T] = {
-    val q = (new pipereg) { enqBits.clone }
+    val q = (new pipereg(latency)) { enqBits.clone }
     q.io.enq.valid := enqValid
     q.io.enq.bits := enqBits
     q.io.deq
-
-    if (latency > 1)
-      Pipe(q.io.deq, latency-1)
-    else
-      q.io.deq
   }
   def apply[T <: Data](enqValid: Bool, enqBits: T): PipeIO[T] = apply(enqValid, enqBits, 1)
   def apply[T <: Data](enq: PipeIO[T], latency: Int = 1): PipeIO[T] = apply(enq.valid, enq.bits, latency)
