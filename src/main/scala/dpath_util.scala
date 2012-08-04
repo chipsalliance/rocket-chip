@@ -122,13 +122,13 @@ class rocketDpathPCR extends Component
   val rdata = Bits();
 
   val raddr = Mux(io.r.en, io.r.addr, io.host.pcr_req.bits.addr(4,0))
-  io.host.pcr_rep.valid := io.host.pcr_req.valid && !io.r.en && !io.host.pcr_req.bits.rw
+  io.host.pcr_rep.valid := io.host.pcr_req.fire()
   io.host.pcr_rep.bits := rdata
 
-  val wen = io.w.en || io.host.pcr_req.valid && io.host.pcr_req.bits.rw
+  val wen = io.w.en || !io.r.en && io.host.pcr_req.valid && io.host.pcr_req.bits.rw
   val waddr = Mux(io.w.en, io.w.addr, io.host.pcr_req.bits.addr)
   val wdata = Mux(io.w.en, io.w.data, io.host.pcr_req.bits.data)
-  io.host.pcr_req.ready := Mux(io.host.pcr_req.bits.rw, !io.w.en, !io.r.en)
+  io.host.pcr_req.ready := !io.w.en && !io.r.en
 
   io.ptbr_wen           := reg_status_vm.toBool && wen && (waddr === PCR_PTBR);
   io.status             := Cat(reg_status_im, Bits(0,7), reg_status_vm, reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, reg_status_ec, reg_status_ev, reg_status_ef, reg_status_et);
@@ -176,9 +176,11 @@ class rocketDpathPCR extends Component
 
   io.irq_timer := r_irq_timer;
   io.irq_ipi := r_irq_ipi;
-  io.host.ipi.valid := io.w.en && io.w.addr === PCR_SEND_IPI
-  io.host.ipi.bits := io.w.data
-  io.replay := io.host.ipi.valid && !io.host.ipi.ready
+  io.host.ipi_req.valid := io.w.en && io.w.addr === PCR_SEND_IPI
+  io.host.ipi_req.bits := io.w.data
+  io.replay := io.host.ipi_req.valid && !io.host.ipi_req.ready
+
+  when (io.host.pcr_req.fire() && !io.host.pcr_req.bits.rw && io.host.pcr_req.bits.addr === PCR_TOHOST) { reg_tohost := UFix(0) }
 
   when (wen) {
     when (waddr === PCR_STATUS) {
@@ -198,14 +200,17 @@ class rocketDpathPCR extends Component
     when (waddr === PCR_COUNT)    { reg_count := wdata(31,0).toUFix; }
     when (waddr === PCR_COMPARE)  { reg_compare := wdata(31,0).toUFix; r_irq_timer := Bool(false); }
     when (waddr === PCR_COREID)   { reg_coreid := wdata(15,0) }
-    when (waddr === PCR_FROMHOST) { reg_fromhost := wdata; reg_tohost := Bits(0) }
-    when (waddr === PCR_TOHOST)   { reg_tohost := wdata; reg_fromhost := Bits(0) }
+    when (waddr === PCR_FROMHOST) { when (reg_fromhost === UFix(0) || io.w.en) { reg_fromhost := wdata } }
+    when (waddr === PCR_TOHOST)   { when (reg_tohost === UFix(0)) { reg_tohost := wdata } }
     when (waddr === PCR_CLR_IPI)  { r_irq_ipi := wdata(0) }
     when (waddr === PCR_K0)       { reg_k0 := wdata; }
     when (waddr === PCR_K1)       { reg_k1 := wdata; }
     when (waddr === PCR_PTBR)     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
     when (waddr === PCR_VECBANK)  { reg_vecbank:= wdata(7,0) }
   }
+
+  io.host.ipi_rep.ready := Bool(true)
+  when (io.host.ipi_rep.valid) { r_irq_ipi := Bool(true) }
 
   rdata := io.status // raddr === PCR_STATUS
   switch (raddr) {

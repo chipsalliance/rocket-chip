@@ -28,7 +28,8 @@ class ioHTIF extends Bundle
   val debug = new ioDebug
   val pcr_req = (new FIFOIO) { new PCRReq }.flip
   val pcr_rep = (new FIFOIO) { Bits(width = 64) }
-  val ipi = (new FIFOIO) { Bits(width = log2Up(NTILES)) }
+  val ipi_req = (new FIFOIO) { Bits(width = log2Up(NTILES)) }
+  val ipi_rep = (new FIFOIO) { Bool() }.flip
 }
 
 class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends Component
@@ -93,7 +94,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   }
 
   val rx_done = rx_word_done && Mux(rx_word_count === UFix(0), next_cmd != cmd_writemem && next_cmd != cmd_writecr, rx_word_count === size || rx_word_count(log2Up(packet_ram_depth)-1,0) === UFix(0))
-  val tx_size = Mux(!nack && (cmd === cmd_readmem || cmd === cmd_readcr), size, UFix(0))
+  val tx_size = Mux(!nack && (cmd === cmd_readmem || cmd === cmd_readcr || cmd === cmd_writecr), size, UFix(0))
   val tx_done = io.host.out.ready && tx_subword_count.andR && (tx_word_count === tx_size || tx_word_count > UFix(0) && packet_ram_raddr.andR)
 
   val mem_acked = Reg(resetVal = Bool(false))
@@ -195,31 +196,32 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
 
     val cpu = io.cpu(i)
     val me = pcr_coreid === UFix(i)
-    cpu.pcr_req.valid := my_ipi || state === state_pcr_req && me
-    cpu.pcr_req.bits.rw := my_ipi || cmd === cmd_writecr
-    cpu.pcr_req.bits.addr := Mux(my_ipi, PCR_CLR_IPI, pcr_addr)
-    cpu.pcr_req.bits.data := my_ipi | pcr_wdata
+    cpu.pcr_req.valid := state === state_pcr_req && me && pcr_addr != PCR_RESET
+    cpu.pcr_req.bits.rw := cmd === cmd_writecr
+    cpu.pcr_req.bits.addr := pcr_addr
+    cpu.pcr_req.bits.data := pcr_wdata
     cpu.reset := my_reset
 
+    when (cpu.ipi_rep.ready) {
+      my_ipi := Bool(false)
+    }
+    cpu.ipi_rep.valid := my_ipi
+    cpu.ipi_req.ready := Bool(true)
     for (j <- 0 until ncores) {
-      when (io.cpu(j).ipi.valid && io.cpu(j).ipi.bits === UFix(i)) {
+      when (io.cpu(j).ipi_req.valid && io.cpu(j).ipi_req.bits === UFix(i)) {
         my_ipi := Bool(true)
       }
     }
-    cpu.ipi.ready := Bool(true)
-    when (my_ipi) {
-      my_ipi := !cpu.pcr_req.ready
-    }
 
-    when (state === state_pcr_req && me && !my_ipi && cpu.pcr_req.ready) {
+    when (cpu.pcr_req.valid && cpu.pcr_req.ready) {
+      state := state_pcr_resp
+    }
+    when (state === state_pcr_req && me && pcr_addr === PCR_RESET) {
       when (cmd === cmd_writecr) {
-        state := state_tx
-        when (pcr_addr === PCR_RESET) {
-          my_reset := pcr_wdata(0)
-        }
-      }.otherwise {
-        state := state_pcr_resp
+        my_reset := pcr_wdata(0)
       }
+      rdata := my_reset.toBits
+      state := state_tx
     }
 
     cpu.pcr_rep.ready := Bool(true)
@@ -229,14 +231,14 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
     }
 
     pcr_mux.io.sel(i) := me
-    pcr_mux.io.in(i) := Mux(pcr_addr === PCR_RESET, Cat(Bits(0, 63), my_reset), rdata)
+    pcr_mux.io.in(i) := rdata
   }
 
   val tx_cmd = Mux(nack, cmd_nack, cmd_ack)
   val tx_cmd_ext = Cat(Bits(0, 4-tx_cmd.getWidth), tx_cmd)
   val tx_header = Cat(addr, seqno, tx_size, tx_cmd_ext)
   val tx_data = Mux(tx_word_count === UFix(0), tx_header,
-                Mux(cmd === cmd_readcr, pcr_mux.io.out,
+                Mux(cmd === cmd_readcr || cmd === cmd_writecr, pcr_mux.io.out,
                 packet_ram(packet_ram_raddr)))
 
   io.host.in.ready := state === state_rx

@@ -40,7 +40,8 @@ class Top extends Component
     tile.io.host.reset := Reg(Reg(hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
     hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
-    hl.ipi <> Queue(tile.io.host.ipi)
+    hl.ipi_req <> Queue(tile.io.host.ipi_req)
+    tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
     error_mode = error_mode || Reg(tile.io.host.debug.error_mode)
 
     tl.xact_init <> Queue(tile.io.tilelink.xact_init)
