@@ -154,13 +154,14 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
   val conflicts = Cat(Bits(0), (0 until outstanding).map(i => valid(i) && io.cpu.bits.addr(log2Up(sets)-1, 0) === mshr(i).addr(log2Up(sets)-1, 0)):_*)
   io.cpu.ready := !conflicts.orR && !validBits.andR
 
-  io.data.valid := replay && io.tag.ready || writeback
+  io.data.valid := writeback
   io.data.bits.rw := Bool(false)
   io.data.bits.tag := mshr(replayId).tag
   io.data.bits.isWriteback := Bool(true)
   io.data.bits.addr := Cat(mshr(writebackId).old_tag, mshr(writebackId).addr(log2Up(sets)-1, 0)).toUFix
   io.data.bits.way := mshr(writebackId).way
   when (replay) {
+    io.data.valid := io.tag.ready
     io.data.bits.isWriteback := Bool(false)
     io.data.bits.addr := mshr(replayId).addr
     io.data.bits.way := mshr(replayId).way
