@@ -101,8 +101,8 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
       cmd_sent := Bool(true)
     }
     when (at_front_of_dep_queue) {
-      req_cmd.valid := !cmd_sent && req_data.ready
-      lock := Bool(true)
+      req_cmd.valid := !cmd_sent && req_data.ready && data.valid
+      lock := data.valid || cmd_sent
       when (req_cmd.ready || cmd_sent) {
         req_data.valid := data.valid
         when(req_data.ready) {
