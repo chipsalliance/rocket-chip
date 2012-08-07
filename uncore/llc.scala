@@ -383,15 +383,20 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   val repl_way = LFSR16(s2_valid)(log2Up(ways)-1, 0)
   val repl_tag = s2_tags(repl_way).toUFix
   val setDirty = s2_valid && s2.rw && s2_hit && !s2_hit_dirty
-  stall_s1 := initialize || mshr.io.tag.valid || setDirty || s2_valid && !s2_hit || stall_s2
+  stall_s1 := initialize || stall_s2
 
-  tags.io.in.valid := (io.cpu.req_cmd.valid || replay_s1) && !stall_s1 || initialize || setDirty || mshr.io.tag.valid
-  tags.io.in.bits.addr := Mux(initialize, initCount, Mux(setDirty, s2.addr, Mux(mshr.io.tag.valid, mshr.io.tag.bits.addr, Mux(replay_s1, s1.addr, io.cpu.req_cmd.bits.addr)))(log2Up(sets)-1,0))
-  tags.io.in.bits.rw := initialize || setDirty || mshr.io.tag.valid
-  tags.io.in.bits.wdata := Mux(initialize, UFix(0), Fill(ways, Cat(setDirty, Bool(true), Mux(setDirty, s2.addr, mshr.io.tag.bits.addr)(mshr.io.tag.bits.addr.width-1, mshr.io.tag.bits.addr.width-tagWidth))))
-  tags.io.in.bits.wmask := FillInterleaved(metaWidth, Mux(initialize, Fix(-1, ways), UFixToOH(Mux(setDirty, s2_hit_way, mshr.io.tag.bits.way))))
+  val tag_we = setDirty || mshr.io.tag.valid
+  val tag_waddr = Mux(setDirty, s2.addr, mshr.io.tag.bits.addr)(log2Up(sets)-1,0)
+  val tag_wdata = Cat(setDirty, Bool(true), Mux(setDirty, s2.addr, mshr.io.tag.bits.addr)(mshr.io.tag.bits.addr.width-1, mshr.io.tag.bits.addr.width-tagWidth))
+  val tag_wway = Mux(setDirty, s2_hit_way, mshr.io.tag.bits.way)
+  tags.io.in.valid := (io.cpu.req_cmd.valid || replay_s1) && !stall_s1 || initialize || tag_we
+  tags.io.in.bits.addr := Mux(initialize, initCount, Mux(tag_we, tag_waddr, Mux(replay_s1, s1.addr, io.cpu.req_cmd.bits.addr)(log2Up(sets)-1,0)))
+  tags.io.in.bits.rw := initialize || tag_we
+  tags.io.in.bits.wdata := Mux(initialize, UFix(0), Fill(ways, tag_wdata))
+  tags.io.in.bits.wmask := FillInterleaved(metaWidth, Mux(initialize, Fix(-1, ways), UFixToOH(tag_wway)))
+  when (tag_we && Mux(stall_s2, s2.addr, s1.addr)(log2Up(sets)-1,0) === tag_waddr) { s2_tags(tag_wway) := tag_wdata }
 
-  mshr.io.cpu.valid := s2_valid && !s2_hit && !s2.rw
+  mshr.io.cpu.valid := s2_valid && !s2_hit && !s2.rw && dataArb.io.in(1).ready && writeback.io.req(0).ready // stall_s2
   mshr.io.cpu.bits := s2
   mshr.io.repl_way := repl_way
   mshr.io.repl_dirty := repl_tag(tagWidth+1, tagWidth).andR
@@ -404,29 +409,29 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   data.io.mem_resp_set := mshr.io.mem_resp_set
   data.io.mem_resp_way := mshr.io.mem_resp_way
   data.io.req_data.bits := io.cpu.req_data.bits
+  data.io.req_data.valid := io.cpu.req_data.valid
 
   writeback.io.req(0) <> data.io.writeback
   writeback.io.data(0) <> data.io.writeback_data
-  writeback.io.req(1).valid := s2_valid && !s2_hit && s2.rw
+  writeback.io.req(1).valid := s2_valid && !s2_hit && s2.rw && dataArb.io.in(1).ready && mshr.io.cpu.ready // stall_s2
   writeback.io.req(1).bits := s2.addr
   writeback.io.data(1).valid := io.cpu.req_data.valid
   writeback.io.data(1).bits := io.cpu.req_data.bits
-  data.io.req_data.valid := io.cpu.req_data.valid && writeback.io.req(1).ready
 
   memCmdArb.io.in(0) <> mshr.io.mem.req_cmd
   memCmdArb.io.in(1) <> writeback.io.mem.req_cmd
 
   dataArb.io.in(0) <> mshr.io.data
-  dataArb.io.in(1).valid := s2_valid && s2_hit
+  dataArb.io.in(1).valid := s2_valid && s2_hit && writeback.io.req(0).ready && mshr.io.cpu.ready // stall_s2
   dataArb.io.in(1).bits := s2
   dataArb.io.in(1).bits.way := s2_hit_way
   dataArb.io.in(1).bits.isWriteback := Bool(false)
 
-  stall_s2 := s2_valid && !Mux(s2_hit, dataArb.io.in(1).ready, Mux(s2.rw, writeback.io.req(1).ready, mshr.io.cpu.ready))
+  stall_s2 := s2_valid && !(dataArb.io.in(1).ready && writeback.io.req(0).ready && mshr.io.cpu.ready)
 
   io.cpu.resp <> data.io.resp
   io.cpu.req_cmd.ready := !stall_s1 && !replay_s1
-  io.cpu.req_data.ready := writeback.io.data(1).ready || data.io.req_data.ready && writeback.io.req(1).ready
+  io.cpu.req_data.ready := writeback.io.data(1).ready || data.io.req_data.ready
   io.mem.req_cmd <> memCmdArb.io.out
   io.mem.req_data <> writeback.io.mem.req_data
 }
