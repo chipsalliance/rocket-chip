@@ -125,11 +125,11 @@ class rocketDTLB(entries: Int) extends Component
   val plru = new PseudoLRU(entries)
   val repl_waddr = Mux(has_invalid_entry, invalid_entry, plru.replace).toUFix;
   
-  val lookup = (state === s_ready) && r_cpu_req_val && !io.cpu_req.bits.kill && (req_load || req_store || req_amo || req_pf);
+  val lookup = (state === s_ready) && status_vm && r_cpu_req_val && (req_load || req_store || req_amo || req_pf);
   val lookup_hit  = lookup && tag_hit;
   val lookup_miss = lookup && !tag_hit;
-  val tlb_hit  = status_vm && lookup_hit;
-  val tlb_miss = status_vm && lookup_miss;
+  val tlb_hit  = !io.cpu_req.bits.kill && lookup_hit;
+  val tlb_miss = !io.cpu_req.bits.kill && lookup_miss;
   
   // currently replace TLB entries in LIFO order
   // TODO: implement LRU replacement policy
@@ -154,7 +154,7 @@ class rocketDTLB(entries: Int) extends Component
   io.cpu_resp.xcpt_st := store_fault_common && (req_store || req_amo)
   io.cpu_resp.xcpt_pf := load_fault_common && req_pf
 
-  io.cpu_req.ready   := (state === s_ready) && !tlb_miss;
+  io.cpu_req.ready   := (state === s_ready) && !lookup_miss;
   io.cpu_resp.miss := tlb_miss;
   io.cpu_resp.ppn  :=
     Mux(status_vm, tag_ram(tag_hit_addr), r_cpu_req_vpn(PPN_BITS-1,0));
