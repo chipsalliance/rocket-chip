@@ -11,7 +11,7 @@ class ioQueue[T <: Data](entries: Int, flushable: Boolean)(data: => T) extends B
   val count = UFix(OUTPUT, log2Up(entries+1))
 }
 
-class queue[T <: Data](val entries: Int, pipe: Boolean = false, flow: Boolean = false, flushable: Boolean = false)(data: => T) extends Component
+class Queue[T <: Data](val entries: Int, pipe: Boolean = false, flow: Boolean = false, flushable: Boolean = false)(data: => T) extends Component
 {
   val io = new ioQueue(entries, flushable)(data)
 
@@ -66,7 +66,7 @@ class queue[T <: Data](val entries: Int, pipe: Boolean = false, flow: Boolean = 
 object Queue
 {
   def apply[T <: Data](enq: FIFOIO[T], entries: Int = 2, pipe: Boolean = false) = {
-    val q = (new queue(entries, pipe)) { enq.bits.clone }
+    val q = (new Queue(entries, pipe)) { enq.bits.clone }
     q.io.enq.valid := enq.valid // not using <> so that override is allowed
     q.io.enq.bits := enq.bits
     enq.ready := q.io.enq.ready
@@ -115,8 +115,8 @@ class SkidBuffer[T <: Data]()(data: => T) extends Component
     val deq = new FIFOIO()(data)
   }
 
-  val fq = new queue(1, flow = true)(data)
-  val pq = new queue(1, pipe = true)(data)
+  val fq = new Queue(1, flow = true)(data)
+  val pq = new Queue(1, pipe = true)(data)
 
   fq.io.enq <> io.enq
   pq.io.enq <> fq.io.deq

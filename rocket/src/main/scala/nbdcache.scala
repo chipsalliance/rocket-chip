@@ -198,7 +198,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
   val idx_match = req.idx === io.req_bits.idx
   val sec_rdy = idx_match && !flush && (state === s_wb_req || state === s_wb_resp || state === s_meta_clear || (state === s_refill_req || state === s_refill_resp) && !co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
 
-  val rpq = (new queue(NRPQ)) { new RPQEntry }
+  val rpq = (new Queue(NRPQ)) { new RPQEntry }
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && req_use_rpq
   rpq.io.enq.bits := io.req_bits
   rpq.io.enq.bits.sdq_id := io.req_sdq_id
@@ -209,7 +209,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
   val refill_done = reply && refill_count.andR
   val wb_done = reply && (state === s_wb_resp)
 
-  val finish_q = (new queue(2 /* wb + refill */)) { new TransactionFinish }
+  val finish_q = (new Queue(2 /* wb + refill */)) { new TransactionFinish }
   finish_q.io.enq.valid := wb_done || refill_done
   finish_q.io.enq.bits.global_xact_id := io.mem_rep.bits.global_xact_id
 

@@ -336,8 +336,8 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
     }
   }
 
-  val p_rep_data_dep_list = List.fill(ntiles)((new queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth must >= NPRIMARY
-  val x_init_data_dep_list = List.fill(ntiles)((new queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth should >= NPRIMARY
+  val p_rep_data_dep_list = List.fill(ntiles)((new Queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth must >= NPRIMARY
+  val x_init_data_dep_list = List.fill(ntiles)((new Queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth should >= NPRIMARY
 
   // Free finished transactions
   for( j <- 0 until ntiles ) {

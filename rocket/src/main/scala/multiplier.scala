@@ -48,7 +48,7 @@ class rocketVUMultiplier(nwbq: Int) extends Component {
   inflight_cnt = inflight_cnt + wbq_cnt
   val wbq_rdy = inflight_cnt < UFix(nwbq)
 
-  val wbq = (new queue(nwbq)) { Bits(width = io.cpu.resp_bits.width + io.cpu.resp_tag.width) }
+  val wbq = (new Queue(nwbq)) { Bits(width = io.cpu.resp_bits.width + io.cpu.resp_tag.width) }
   wbq.io.enq.valid := valid(0)
   wbq.io.enq.bits := Cat(io.vu.resp, tag(0))
   wbq.io.deq.ready := io.cpu.resp_rdy
