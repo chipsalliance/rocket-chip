@@ -149,7 +149,7 @@ class MemDessert extends Component // test rig side
   io.wide.req_data.valid := state === s_data
   io.wide.req_data.bits.data := in_buf >> UFix(((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH - (dbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)*MEM_BACKUP_WIDTH)
 
-  val dataq = (new queue(REFILL_CYCLES)) { new MemResp }
+  val dataq = (new Queue(REFILL_CYCLES)) { new MemResp }
   dataq.io.enq <> io.wide.resp
   dataq.io.deq.ready := recv_cnt === UFix((rbits-1)/MEM_BACKUP_WIDTH)
 

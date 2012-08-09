@@ -121,7 +121,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   }
 
   val mem_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
-  val x_init = new queue(1)(new TransactionInit)
+  val x_init = new Queue(1)(new TransactionInit)
   when (state === state_mem_req && x_init.io.enq.ready) {
     state := Mux(cmd === cmd_writemem, state_mem_wdata, state_mem_rdata)
   }
