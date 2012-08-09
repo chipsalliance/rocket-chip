@@ -28,12 +28,12 @@ class slowIO[T <: Data](val divisor: Int, hold_cycles_in: Int = -1)(data: => T) 
   val out_slow_val = Reg(resetVal = Bool(false))
   val out_slow_bits = Reg() { data }
 
-  val fromhost_q = new queue(1)(data)
+  val fromhost_q = new Queue(1)(data)
   fromhost_q.io.enq.valid := in_en && (io.in_slow.valid && in_slow_rdy || reset)
   fromhost_q.io.enq.bits := io.in_slow.bits
   fromhost_q.io.deq <> io.in_fast
 
-  val tohost_q = new queue(1)(data)
+  val tohost_q = new Queue(1)(data)
   tohost_q.io.enq <> io.out_fast
   tohost_q.io.deq.ready := in_en && io.out_slow.ready && out_slow_val
 
