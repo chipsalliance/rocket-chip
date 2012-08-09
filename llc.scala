@@ -245,7 +245,7 @@ class LLCData(latency: Int, sets: Int, ways: Int, leaf: Mem[Bits]) extends Compo
     val isWriteback = Bool()
     override def clone = new QEntry().asInstanceOf[this.type]
   }
-  val q = (new queue(latency+2)) { new QEntry }
+  val q = (new Queue(latency+2)) { new QEntry }
   val qReady = q.io.count <= UFix(q.entries-latency-1)
   val valid = Reg(resetVal = Bool(false))
   val req = Reg() { io.req.bits.clone }
