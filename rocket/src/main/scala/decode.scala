@@ -13,32 +13,32 @@ object DecodeLogic
       new Term(b.value)
     }
   }
-  def logic(addr: Bits, keys: Seq[Bits], cache: scala.collection.mutable.Map[Term,Bits], terms: Set[Term]) = {
+  def logic(addr: Bits, cache: scala.collection.mutable.Map[Term,Bits], terms: Set[Term]) = {
     terms.map { t =>
       if (!cache.contains(t))
         cache += t -> ((if (t.mask == 0) addr else addr & Lit(BigInt(2).pow(addr.width)-(t.mask+1), addr.width){Bits()}) === Lit(t.value, addr.width){Bits()})
       cache(t)
     }.foldLeft(Bool(false))(_||_)
   }
-  def apply(addr: Bits, default: List[Bits], mapping: Array[(Bits, List[Bits])]) = {
+  def apply(addr: Bits, default: Iterable[Bits], mapping: Iterable[(Bits, Iterable[Bits])]) = {
     var map = mapping
     var cache = scala.collection.mutable.Map[Term,Bits]()
     default map { d =>
       val dlit = d.litOf
       val dterm = term(dlit)
       val (keys, values) = map.unzip
-      val keysterms = keys.map(k => term(k.litOf)) zip values.map(v => term(v.head.litOf))
+      val keysterms = keys.toList.map(k => term(k.litOf)) zip values.toList.map(v => term(v.head.litOf))
 
       val result = (0 until math.max(dlit.width, values.map(_.head.litOf.width).max)).map({ case (i: Int) =>
         if (((dterm.mask >> i) & 1) != 0) {
           var mint = keysterms.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 1 }.map(_._1).toSet
           var maxt = keysterms.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 0 }.map(_._1).toSet
-          logic(addr, keys, cache, SimplifyDC(mint, maxt, addr.width)).toBits
+          logic(addr, cache, SimplifyDC(mint, maxt, addr.width)).toBits
         } else {
           val want = 1 - ((dterm.value.toInt >> i) & 1)
           val mint = keysterms.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == want }.map(_._1).toSet
           val dc = keysterms.filter { case (k,t) => ((t.mask >> i) & 1) == 1 }.map(_._1).toSet
-          val bit = logic(addr, keys, cache, Simplify(mint, dc, addr.width)).toBits
+          val bit = logic(addr, cache, Simplify(mint, dc, addr.width)).toBits
           if (want == 1) bit else ~bit
         }
       }).reverse.reduceRight(Cat(_,_))
