@@ -64,15 +64,20 @@ class LockingArbiter[T <: Data](n: Int)(data: => T) extends Component {
   io.out.bits  := Mux(any_lock_held, bits_arr(lock_idx), dout)
 }
 
+object PriorityMux
+{
+  def apply[T <: Data](sel: Seq[Bits], in: Seq[T]): T = {
+    if (in.size == 1)
+      in.head
+    else
+      Mux(sel.head, in.head, apply(sel.tail, in.tail))
+  }
+  def apply[T <: Data](sel: Bits, in: Seq[T]): T = apply((0 until in.size).map(sel(_)), in)
+}
+
 object PriorityEncoder
 {
-  def doit(in: Seq[Bits], n: Int): UFix = {
-    if (n >= in.size-1)
-      UFix(n)
-    else
-      Mux(in(n), UFix(n), doit(in, n+1))
-  }
-  def apply(in: Seq[Bits]): UFix = doit(in, 0)
+  def apply(in: Seq[Bits]): UFix = PriorityMux(in, (0 until in.size).map(UFix(_)))
   def apply(in: Bits): UFix = apply((0 until in.getWidth).map(in(_)))
 }
 
