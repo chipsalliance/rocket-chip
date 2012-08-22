@@ -3,17 +3,16 @@ package rocket
 import Chisel._
 import Node._;
 
-class ioQueue[T <: Data](entries: Int, flushable: Boolean)(data: => T) extends Bundle
+class ioQueue[T <: Data](entries: Int)(data: => T) extends Bundle
 {
-  val flush = if (flushable) Bool(INPUT) else null
   val enq   = new FIFOIO()(data).flip
   val deq   = new FIFOIO()(data)
   val count = UFix(OUTPUT, log2Up(entries+1))
 }
 
-class Queue[T <: Data](val entries: Int, pipe: Boolean = false, flow: Boolean = false, flushable: Boolean = false)(data: => T) extends Component
+class Queue[T <: Data](val entries: Int, pipe: Boolean = false, flow: Boolean = false, resetSignal: Bool = null)(data: => T) extends Component(resetSignal)
 {
-  val io = new ioQueue(entries, flushable)(data)
+  val io = new ioQueue(entries)(data)
 
   val do_flow = Bool()
   val do_enq = io.enq.ready && io.enq.valid && !do_flow
@@ -26,22 +25,11 @@ class Queue[T <: Data](val entries: Int, pipe: Boolean = false, flow: Boolean = 
   {
     enq_ptr = Counter(do_enq, entries)._1
     deq_ptr = Counter(do_deq, entries)._1
-    if (flushable) {
-      when (io.flush) {
-        deq_ptr := UFix(0)
-        enq_ptr := UFix(0)
-      }
-    }
   }
 
   val maybe_full = Reg(resetVal = Bool(false))
   when (do_enq != do_deq) {
     maybe_full := do_enq
-  }
-  if (flushable) {
-    when (io.flush) {
-      maybe_full := Bool(false)
-    }
   }
 
   val ram = Mem(entries) { data }
@@ -74,7 +62,7 @@ object Queue
   }
 }
 
-class pipereg[T <: Data](latency: Int = 1)(data: => T) extends Component
+class Pipe[T <: Data](latency: Int = 1)(data: => T) extends Component
 {
   val io = new Bundle {
     val enq = new PipeIO()(data).flip
@@ -99,7 +87,7 @@ class pipereg[T <: Data](latency: Int = 1)(data: => T) extends Component
 object Pipe
 {
   def apply[T <: Data](enqValid: Bool, enqBits: T, latency: Int): PipeIO[T] = {
-    val q = (new pipereg(latency)) { enqBits.clone }
+    val q = (new Pipe(latency)) { enqBits.clone }
     q.io.enq.valid := enqValid
     q.io.enq.bits := enqBits
     q.io.deq
@@ -108,7 +96,7 @@ object Pipe
   def apply[T <: Data](enq: PipeIO[T], latency: Int = 1): PipeIO[T] = apply(enq.valid, enq.bits, latency)
 }
 
-class SkidBuffer[T <: Data]()(data: => T) extends Component
+class SkidBuffer[T <: Data](resetSignal: Bool = null)(data: => T) extends Component(resetSignal)
 {
   val io = new Bundle {
     val enq = new FIFOIO()(data).flip
