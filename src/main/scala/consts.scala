@@ -57,8 +57,8 @@ object Constants
   val DIV_RU = UFix(3, 2);
 
   val X = Bits("b?", 1)
-  val N = UFix(0, 1);
-  val Y = UFix(1, 1);
+  val N = Bits(0, 1);
+  val Y = Bits(1, 1);
 
   val WA_X  = X
   val WA_RD = N
