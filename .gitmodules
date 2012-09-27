@@ -1,0 +1,12 @@
+[submodule "hardfloat"]
+	path = hardfloat
+	url = git@github.com:ucb-bar/hardfloat.git
+[submodule "chisel"]
+	path = chisel
+	url = git@github.com:ucb-bar/chisel.git
+[submodule "riscv-rocket"]
+	path = riscv-rocket
+	url = git@github.com:ucb-bar/riscv-rocket.git
+[submodule "uncore"]
+	path = uncore
+	url = git@github.com:ucb-bar/uncore.git
