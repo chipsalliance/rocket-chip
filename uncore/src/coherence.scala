@@ -1,4 +1,4 @@
-package rocket
+package uncore
 
 import Chisel._
 import Constants._
