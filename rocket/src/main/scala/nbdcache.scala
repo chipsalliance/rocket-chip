@@ -282,7 +282,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
 
   io.mem_req.valid := (state === s_refill_req) && !flush
   io.mem_req.bits.x_type := xacx_type
-  io.mem_req.bits.address := Cat(req.tag, req.idx).toUFix
+  io.mem_req.bits.addr := Cat(req.tag, req.idx).toUFix
   io.mem_req.bits.tile_xact_id := Bits(id)
   io.mem_finish <> finish_q.io.deq
 
@@ -475,7 +475,7 @@ class WritebackUnit(co: CoherencePolicy) extends Component {
 
   io.mem_req.valid := valid && !cmd_sent
   io.mem_req.bits.x_type := co.getTransactionInitTypeOnWriteback()
-  io.mem_req.bits.address := Cat(req.tag, req.idx).toUFix
+  io.mem_req.bits.addr := Cat(req.tag, req.idx).toUFix
   io.mem_req.bits.tile_xact_id := req.tile_xact_id
   io.mem_req_data.valid := data_req_fired && !is_probe
   io.mem_req_data.bits.data := io.data_resp
@@ -492,7 +492,7 @@ class ProbeUnit(co: CoherencePolicy) extends Component {
     val wb_req = (new FIFOIO) { new WritebackReq }
     val tag_match_way_oh = Bits(INPUT, NWAYS)
     val line_state = UFix(INPUT, 2)
-    val address = Bits(OUTPUT, PADDR_BITS-OFFSET_BITS)
+    val addr = Bits(OUTPUT, PADDR_BITS-OFFSET_BITS)
   }
 
   val s_reset :: s_invalid :: s_meta_req :: s_meta_resp :: s_mshr_req :: s_probe_rep :: s_writeback_req :: s_writeback_resp :: Nil = Enum(8) { UFix() }
@@ -535,16 +535,16 @@ class ProbeUnit(co: CoherencePolicy) extends Component {
   io.meta_req.valid := state === s_meta_req || state === s_meta_resp || state === s_mshr_req || state === s_probe_rep && hit
   io.meta_req.bits.way_en := Mux(state === s_probe_rep, way_oh, ~UFix(0, NWAYS))
   io.meta_req.bits.rw := state === s_probe_rep
-  io.meta_req.bits.idx := req.address
+  io.meta_req.bits.idx := req.addr
   io.meta_req.bits.data.state := co.newStateOnProbeRequest(req, line_state)
-  io.meta_req.bits.data.tag := req.address >> UFix(IDX_BITS)
+  io.meta_req.bits.data.tag := req.addr >> UFix(IDX_BITS)
   io.mshr_req.valid := state === s_meta_resp || state === s_mshr_req
-  io.address := req.address
+  io.addr := req.addr
 
   io.wb_req.valid := state === s_writeback_req
   io.wb_req.bits.way_oh := way_oh
-  io.wb_req.bits.idx := req.address
-  io.wb_req.bits.tag := req.address >> UFix(IDX_BITS)
+  io.wb_req.bits.idx := req.addr
+  io.wb_req.bits.tag := req.addr >> UFix(IDX_BITS)
 }
 
 class FlushUnit(lines: Int, co: CoherencePolicy) extends Component {
@@ -860,7 +860,7 @@ class HellaCache(co: CoherencePolicy) extends Component {
   meta_arb.io.in(3).bits.rw := Bool(false)
   meta_arb.io.in(3).bits.way_en := ~UFix(0, NWAYS)
   val early_tag_nack = !meta_arb.io.in(3).ready
-  val cpu_req_ppn = Mux(prober.io.mshr_req.valid, prober.io.address >> UFix(PGIDX_BITS-OFFSET_BITS), io.cpu.req.bits.ppn)
+  val cpu_req_ppn = Mux(prober.io.mshr_req.valid, prober.io.addr >> UFix(PGIDX_BITS-OFFSET_BITS), io.cpu.req.bits.ppn)
   val cpu_req_tag = Cat(cpu_req_ppn, r_cpu_req_idx)(tagmsb,taglsb)
   val tag_match_arr = (0 until NWAYS).map( w => co.isValid(meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
