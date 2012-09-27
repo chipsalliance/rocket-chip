@@ -176,8 +176,8 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
     mem_req_data = Cat(packet_ram(idx), mem_req_data)
   }
   x_init.io.enq.valid := state === state_mem_req
-  x_init.io.enq.bits.x_type := Mux(cmd === cmd_writemem, co.getTransactionInitTypeOnUncachedWrite, co.getTransactionInitTypeOnUncachedRead)
-  x_init.io.enq.bits.address := addr.toUFix >> UFix(OFFSET_BITS-3)
+  val init_addr = addr.toUFix >> UFix(OFFSET_BITS-3)
+  x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteTransactionInit(init_addr, UFix(0)), co.getUncachedReadTransactionInit(init_addr, UFix(0)))
   io.mem.xact_init <> x_init.io.deq
   io.mem.xact_init_data.valid:= state === state_mem_wdata
   io.mem.xact_init_data.bits.data := mem_req_data

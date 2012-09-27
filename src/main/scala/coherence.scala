@@ -3,10 +3,39 @@ package rocket
 import Chisel._
 import Constants._
 
-class TransactionInit extends Bundle {
+object TransactionInit 
+{
+  def apply(x_type: Bits, addr: UFix, tile_xact_id: UFix) = {
+    val init = new TransactionInit
+    init.x_type := x_type
+    init.addr := addr
+    init.tile_xact_id := tile_xact_id
+    init
+  }
+  def apply(x_type: Bits, addr: UFix, tile_xact_id: UFix, write_mask: Bits) = {
+    val init = new TransactionInit
+    init.x_type := x_type
+    init.addr := addr
+    init.tile_xact_id := tile_xact_id
+    init.write_mask := write_mask
+    init
+  }
+  def apply(x_type: Bits, addr: UFix, tile_xact_id: UFix, subword_addr: UFix, atomic_opcode: UFix) = {
+    val init = new TransactionInit
+    init.x_type := x_type
+    init.addr := addr
+    init.tile_xact_id := tile_xact_id
+    init.subword_addr := subword_addr
+    init.atomic_opcode := atomic_opcode
+    init
+  }
+}
+class TransactionInit extends PhysicalAddress {
   val x_type = Bits(width = X_INIT_TYPE_MAX_BITS)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
-  val address = UFix(width = PADDR_BITS - OFFSET_BITS)
+  val write_mask = Bits(width = X_INIT_WRITE_MASK_BITS)
+  val subword_addr = Bits(width = X_INIT_SUBWORD_ADDR_BITS)
+  val atomic_opcode = Bits(width = X_INIT_ATOMIC_OP_BITS)
 }
 
 class TransactionInitData extends MemData
@@ -15,10 +44,9 @@ class TransactionAbort extends Bundle {
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
 }
 
-class ProbeRequest extends Bundle {
+class ProbeRequest extends PhysicalAddress {
   val p_type = Bits(width = P_REQ_TYPE_MAX_BITS)
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
-  val address = Bits(width = PADDR_BITS - OFFSET_BITS)
 }
 
 class ProbeReply extends Bundle {
@@ -76,6 +104,7 @@ abstract class CoherencePolicy {
   def messageHasData (init: TransactionInit): Bool
   def messageHasData (reply: TransactionReply): Bool
   def messageUpdatesDataArray (reply: TransactionReply): Bool
+  def messageIsUncached(init: TransactionInit): Bool
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool
   def getTransactionReplyType(x_type: UFix, count: UFix): Bits
@@ -86,8 +115,11 @@ abstract class CoherencePolicy {
 }
 
 trait UncachedTransactions {
-  def getTransactionInitTypeOnUncachedRead(): UFix
-  def getTransactionInitTypeOnUncachedWrite(): UFix
+  def getUncachedReadTransactionInit(addr: UFix, id: UFix): TransactionInit
+  def getUncachedWriteTransactionInit(addr: UFix, id: UFix): TransactionInit
+  def getUncachedReadWordTransactionInit(addr: UFix, id: UFix): TransactionInit
+  def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits): TransactionInit
+  def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix): TransactionInit
 }
 
 abstract class CoherencePolicyWithUncached extends CoherencePolicy with UncachedTransactions
@@ -115,6 +147,8 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   val xactInitReadClean :: xactInitReadDirty :: xactInitWriteback :: Nil = Enum(3){ UFix() }
   val xactReplyData :: xactReplyAck :: Nil = Enum(2){ UFix() }
   val probeRepInvalidateAck :: Nil = Enum(1){ UFix() }
+  val uncachedTypeList = List() 
+  val hasDataTypeList = List(xactInitWriteback)
 
   def isHit ( cmd: Bits, state: UFix): Bool = (state === tileClean || state === tileDirty)
   def isValid (state: UFix): Bool = state != tileInvalid
@@ -149,9 +183,10 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   def getTransactionInitTypeOnCacheControl(cmd: Bits): Bits = xactInitWriteback //TODO
   def getTransactionInitTypeOnWriteback(): Bits = xactInitWriteback
 
-  def messageHasData (init: TransactionInit): Bool = (init.x_type === xactInitWriteback)
+  def messageHasData (init: TransactionInit): Bool = hasDataTypeList.map(t => init.x_type === t).reduceLeft(_||_)
   def messageHasData (reply: TransactionReply) = (reply.x_type === xactReplyData)
   def messageUpdatesDataArray (reply: TransactionReply) = (reply.x_type === xactReplyData)
+  def messageIsUncached(init: TransactionInit): Bool = uncachedTypeList.map(t => init.x_type === t).reduceLeft(_||_)
 }
 
 class MICoherence extends CoherencePolicyWithUncached {
@@ -159,10 +194,12 @@ class MICoherence extends CoherencePolicyWithUncached {
   val tileInvalid :: tileValid :: Nil = Enum(2){ UFix() }
   val globalInvalid :: globalValid :: Nil = Enum(2){ UFix() }
 
-  val xactInitReadExclusive :: xactInitReadUncached :: xactInitWriteUncached :: Nil = Enum(3){ UFix() }
-  val xactReplyReadExclusive :: xactReplyReadUncached :: xactReplyWriteUncached :: Nil = Enum(3){ UFix() } 
+  val xactInitReadExclusive :: xactInitReadUncached :: xactInitWriteUncached :: xactInitReadWordUncached :: xactInitWriteWordUncached :: xactInitAtomicUncached :: Nil = Enum(6){ UFix() }
+  val xactReplyReadExclusive :: xactReplyReadUncached :: xactReplyWriteUncached :: xactReplyReadWordUncached :: xactReplyWriteWordUncached :: xactReplyAtomicUncached :: Nil = Enum(6){ UFix() }
   val probeReqInvalidate :: probeReqCopy :: Nil = Enum(2){ UFix() }
   val probeRepInvalidateData :: probeRepCopyData :: probeRepInvalidateAck :: probeRepCopyAck :: Nil = Enum(4){ UFix() }
+  val uncachedTypeList = List(xactInitReadUncached, xactInitWriteUncached, xactReplyReadWordUncached, xactInitWriteWordUncached, xactInitAtomicUncached) 
+  val hasDataTypeList = List(xactInitWriteUncached, xactInitWriteWordUncached, xactInitAtomicUncached) 
 
   def isHit (cmd: Bits, state: UFix): Bool = state != tileInvalid
   def isValid (state: UFix): Bool = state != tileInvalid
@@ -191,7 +228,10 @@ class MICoherence extends CoherencePolicyWithUncached {
     MuxLookup(incoming.x_type, tileInvalid, Array(
       xactReplyReadExclusive -> tileValid,
       xactReplyReadUncached  -> tileInvalid,
-      xactReplyWriteUncached -> tileInvalid
+      xactReplyWriteUncached -> tileInvalid,
+      xactReplyReadWordUncached -> tileInvalid,
+      xactReplyWriteWordUncached -> tileInvalid,
+      xactReplyAtomicUncached -> tileInvalid
     ))
   } 
   def newStateOnProbeRequest(incoming: ProbeRequest, state: UFix): Bits = {
@@ -201,8 +241,12 @@ class MICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def getTransactionInitTypeOnUncachedRead() = xactInitReadUncached 
-  def getTransactionInitTypeOnUncachedWrite() = xactInitWriteUncached 
+  def getUncachedReadTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadUncached, addr, id)
+  def getUncachedWriteTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitWriteUncached, addr, id)
+  def getUncachedReadWordTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadWordUncached, addr, id)
+  def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits) = TransactionInit(xactInitWriteWordUncached, addr, id, write_mask)
+  def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = TransactionInit(xactInitAtomicUncached, addr, id, subword_addr, atomic_op)
+
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = xactInitReadExclusive
   def getTransactionInitTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: TransactionInit): UFix = xactInitReadExclusive
   def getTransactionInitTypeOnCacheControl(cmd: Bits): Bits = xactInitWriteUncached
@@ -227,15 +271,14 @@ class MICoherence extends CoherencePolicyWithUncached {
     (reply.p_type === probeRepInvalidateData ||
      reply.p_type === probeRepCopyData)
   }
-  def messageHasData (init: TransactionInit): Bool = {
-    (init.x_type === xactInitWriteUncached)
-  }
+  def messageHasData (init: TransactionInit): Bool = hasDataTypeList.map(t => init.x_type === t).reduceLeft(_||_)
   def messageHasData (reply: TransactionReply): Bool = {
-    (reply.x_type != xactReplyWriteUncached)
+    (reply.x_type != xactReplyWriteUncached && reply.x_type != xactReplyWriteWordUncached)
   }
   def messageUpdatesDataArray (reply: TransactionReply): Bool = {
     (reply.x_type === xactReplyReadExclusive)
   }
+  def messageIsUncached(init: TransactionInit): Bool = uncachedTypeList.map(t => init.x_type === t).reduceLeft(_||_)
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
 
@@ -243,7 +286,10 @@ class MICoherence extends CoherencePolicyWithUncached {
     MuxLookup(x_type, xactReplyReadUncached, Array(
       xactInitReadExclusive -> xactReplyReadExclusive,
       xactInitReadUncached  -> xactReplyReadUncached,
-      xactInitWriteUncached -> xactReplyWriteUncached
+      xactInitWriteUncached -> xactReplyWriteUncached,
+      xactInitReadWordUncached  -> xactReplyReadWordUncached,
+      xactInitWriteWordUncached -> xactReplyWriteWordUncached,
+      xactInitAtomicUncached -> xactReplyAtomicUncached
     ))
   }
 
@@ -251,7 +297,10 @@ class MICoherence extends CoherencePolicyWithUncached {
     MuxLookup(x_type, probeReqCopy, Array(
       xactInitReadExclusive -> probeReqInvalidate, 
       xactInitReadUncached -> probeReqCopy, 
-      xactInitWriteUncached -> probeReqInvalidate
+      xactInitWriteUncached -> probeReqInvalidate,
+      xactInitReadWordUncached -> probeReqCopy, 
+      xactInitWriteWordUncached -> probeReqInvalidate,
+      xactInitAtomicUncached -> probeReqInvalidate
     ))
   }
 
@@ -271,17 +320,19 @@ class MEICoherence extends CoherencePolicyWithUncached {
   val tileInvalid :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(3){ UFix() }
   val globalInvalid :: globalExclusiveClean :: Nil = Enum(2){ UFix() }
 
-  val xactInitReadExclusiveClean :: xactInitReadExclusiveDirty :: xactInitReadUncached :: xactInitWriteUncached :: Nil = Enum(4){ UFix() }
-  val xactReplyReadExclusive :: xactReplyReadUncached :: xactReplyWriteUncached :: xactReplyReadExclusiveAck :: Nil = Enum(4){ UFix() } 
+  val xactInitReadExclusiveClean :: xactInitReadExclusiveDirty :: xactInitReadUncached :: xactInitWriteUncached :: xactInitReadWordUncached :: xactInitWriteWordUncached :: xactInitAtomicUncached :: Nil = Enum(7){ UFix() }
+  val xactReplyReadExclusive :: xactReplyReadUncached :: xactReplyWriteUncached :: xactReplyReadExclusiveAck :: xactReplyReadWordUncached :: xactReplyWriteWordUncached :: xactReplyAtomicUncached :: Nil = Enum(7){ UFix() }
   val probeReqInvalidate :: probeReqDowngrade :: probeReqCopy :: Nil = Enum(3){ UFix() }
   val probeRepInvalidateData :: probeRepDowngradeData :: probeRepCopyData :: probeRepInvalidateAck :: probeRepDowngradeAck :: probeRepCopyAck :: Nil = Enum(6){ UFix() }
+  val uncachedTypeList = List(xactInitReadUncached, xactInitWriteUncached, xactReplyReadWordUncached, xactInitWriteWordUncached, xactInitAtomicUncached) 
+  val hasDataTypeList = List(xactInitWriteUncached, xactInitWriteWordUncached, xactInitAtomicUncached) 
 
   def isHit (cmd: Bits, state: UFix): Bool = state != tileInvalid
   def isValid (state: UFix): Bool = state != tileInvalid
 
   def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: TransactionInit): Bool = {
     val (read, write) = cpuCmdToRW(cmd)
-    (read && (outstanding.x_type === xactInitReadUncached || outstanding.x_type === xactInitWriteUncached)) ||
+    (read && messageIsUncached(outstanding)) ||
       (write && (outstanding.x_type != xactInitReadExclusiveDirty))
   }
   def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
@@ -311,7 +362,10 @@ class MEICoherence extends CoherencePolicyWithUncached {
       xactReplyReadExclusive  -> Mux(outstanding.x_type === xactInitReadExclusiveDirty, tileExclusiveDirty, tileExclusiveClean),
       xactReplyReadExclusiveAck -> tileExclusiveDirty, 
       xactReplyReadUncached -> tileInvalid,
-      xactReplyWriteUncached -> tileInvalid
+      xactReplyWriteUncached -> tileInvalid,
+      xactReplyReadWordUncached -> tileInvalid,
+      xactReplyWriteWordUncached -> tileInvalid,
+      xactReplyAtomicUncached -> tileInvalid
     ))
   } 
   def newStateOnProbeRequest(incoming: ProbeRequest, state: UFix): Bits = {
@@ -322,8 +376,12 @@ class MEICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def getTransactionInitTypeOnUncachedRead() = xactInitReadUncached 
-  def getTransactionInitTypeOnUncachedWrite() = xactInitWriteUncached 
+  def getUncachedReadTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadUncached, addr, id)
+  def getUncachedWriteTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitWriteUncached, addr, id)
+  def getUncachedReadWordTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadWordUncached, addr, id)
+  def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits) = TransactionInit(xactInitWriteWordUncached, addr, id, write_mask)
+  def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = TransactionInit(xactInitAtomicUncached, addr, id, subword_addr, atomic_op)
+
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
     Mux(write, xactInitReadExclusiveDirty, xactInitReadExclusiveClean)
@@ -357,15 +415,14 @@ class MEICoherence extends CoherencePolicyWithUncached {
      reply.p_type === probeRepDowngradeData ||
      reply.p_type === probeRepCopyData)
   }
-  def messageHasData (init: TransactionInit): Bool = {
-    (init.x_type === xactInitWriteUncached)
-  }
+  def messageHasData (init: TransactionInit): Bool = hasDataTypeList.map(t => init.x_type === t).reduceLeft(_||_)
   def messageHasData (reply: TransactionReply): Bool = {
-    (reply.x_type != xactReplyWriteUncached && reply.x_type != xactReplyReadExclusiveAck)
+    (reply.x_type != xactReplyWriteUncached && reply.x_type != xactReplyReadExclusiveAck && reply.x_type != xactReplyWriteWordUncached)
   }
   def messageUpdatesDataArray (reply: TransactionReply): Bool = {
     (reply.x_type === xactReplyReadExclusive)
   }
+  def messageIsUncached(init: TransactionInit): Bool = uncachedTypeList.map(t => init.x_type === t).reduceLeft(_||_)
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
 
@@ -374,7 +431,10 @@ class MEICoherence extends CoherencePolicyWithUncached {
       xactInitReadExclusiveClean -> xactReplyReadExclusive,
       xactInitReadExclusiveDirty -> xactReplyReadExclusive,
       xactInitReadUncached  -> xactReplyReadUncached,
-      xactInitWriteUncached -> xactReplyWriteUncached
+      xactInitWriteUncached -> xactReplyWriteUncached,
+      xactInitReadWordUncached  -> xactReplyReadWordUncached,
+      xactInitWriteWordUncached -> xactReplyWriteWordUncached,
+      xactInitAtomicUncached -> xactReplyAtomicUncached
     ))
   }
 
@@ -383,7 +443,10 @@ class MEICoherence extends CoherencePolicyWithUncached {
       xactInitReadExclusiveClean -> probeReqInvalidate,
       xactInitReadExclusiveDirty -> probeReqInvalidate, 
       xactInitReadUncached -> probeReqCopy, 
-      xactInitWriteUncached -> probeReqInvalidate
+      xactInitWriteUncached -> probeReqInvalidate,
+      xactInitReadWordUncached -> probeReqCopy, 
+      xactInitWriteWordUncached -> probeReqInvalidate,
+      xactInitAtomicUncached -> probeReqInvalidate
     ))
   }
 
@@ -403,10 +466,12 @@ class MSICoherence extends CoherencePolicyWithUncached {
   val tileInvalid :: tileShared :: tileExclusiveDirty :: Nil = Enum(3){ UFix() }
   val globalInvalid :: globalShared :: globalExclusive :: Nil = Enum(3){ UFix() }
 
-  val xactInitReadShared :: xactInitReadExclusive :: xactInitReadUncached :: xactInitWriteUncached :: Nil = Enum(4){ UFix() }
-  val xactReplyReadShared :: xactReplyReadExclusive :: xactReplyReadUncached :: xactReplyWriteUncached :: xactReplyReadExclusiveAck :: Nil = Enum(5){ UFix() } 
+  val xactInitReadShared :: xactInitReadExclusive :: xactInitReadUncached :: xactInitWriteUncached :: xactInitReadWordUncached :: xactInitWriteWordUncached :: xactInitAtomicUncached :: Nil = Enum(7){ UFix() }
+  val xactReplyReadShared :: xactReplyReadExclusive :: xactReplyReadUncached :: xactReplyWriteUncached :: xactReplyReadExclusiveAck :: xactReplyReadWordUncached :: xactReplyWriteWordUncached :: xactReplyAtomicUncached :: Nil = Enum(8){ UFix() }
   val probeReqInvalidate :: probeReqDowngrade :: probeReqCopy :: Nil = Enum(3){ UFix() }
   val probeRepInvalidateData :: probeRepDowngradeData :: probeRepCopyData :: probeRepInvalidateAck :: probeRepDowngradeAck :: probeRepCopyAck :: Nil = Enum(6){ UFix() }
+  val uncachedTypeList = List(xactInitReadUncached, xactInitWriteUncached, xactReplyReadWordUncached, xactInitWriteWordUncached, xactInitAtomicUncached) 
+  val hasDataTypeList = List(xactInitWriteUncached, xactInitWriteWordUncached, xactInitAtomicUncached) 
 
   def isHit (cmd: Bits, state: UFix): Bool = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -419,7 +484,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
 
   def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: TransactionInit): Bool = {
     val (read, write) = cpuCmdToRW(cmd)
-    (read && (outstanding.x_type === xactInitReadUncached || outstanding.x_type === xactInitWriteUncached)) ||
+    (read && messageIsUncached(outstanding)) || 
       (write && (outstanding.x_type != xactInitReadExclusive))
   }
   def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
@@ -450,7 +515,10 @@ class MSICoherence extends CoherencePolicyWithUncached {
       xactReplyReadExclusive  -> tileExclusiveDirty,
       xactReplyReadExclusiveAck -> tileExclusiveDirty, 
       xactReplyReadUncached -> tileInvalid,
-      xactReplyWriteUncached -> tileInvalid
+      xactReplyWriteUncached -> tileInvalid,
+      xactReplyReadWordUncached -> tileInvalid,
+      xactReplyWriteWordUncached -> tileInvalid,
+      xactReplyAtomicUncached -> tileInvalid
     ))
   } 
   def newStateOnProbeRequest(incoming: ProbeRequest, state: UFix): Bits = {
@@ -461,8 +529,12 @@ class MSICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def getTransactionInitTypeOnUncachedRead() = xactInitReadUncached 
-  def getTransactionInitTypeOnUncachedWrite() = xactInitWriteUncached 
+  def getUncachedReadTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadUncached, addr, id)
+  def getUncachedWriteTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitWriteUncached, addr, id)
+  def getUncachedReadWordTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadWordUncached, addr, id)
+  def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits) = TransactionInit(xactInitWriteWordUncached, addr, id, write_mask)
+  def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = TransactionInit(xactInitAtomicUncached, addr, id, subword_addr, atomic_op)
+
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
     Mux(write || cmd === M_PFW, xactInitReadExclusive, xactInitReadShared)
@@ -496,15 +568,14 @@ class MSICoherence extends CoherencePolicyWithUncached {
      reply.p_type === probeRepDowngradeData ||
      reply.p_type === probeRepCopyData)
   }
-  def messageHasData (init: TransactionInit): Bool = {
-    (init.x_type === xactInitWriteUncached)
-  }
+  def messageHasData (init: TransactionInit): Bool = hasDataTypeList.map(t => init.x_type === t).reduceLeft(_||_)
   def messageHasData (reply: TransactionReply): Bool = {
-    (reply.x_type != xactReplyWriteUncached && reply.x_type != xactReplyReadExclusiveAck)
+    (reply.x_type != xactReplyWriteUncached && reply.x_type != xactReplyReadExclusiveAck && reply.x_type != xactReplyWriteWordUncached)
   }
   def messageUpdatesDataArray (reply: TransactionReply): Bool = {
     (reply.x_type === xactReplyReadShared || reply.x_type === xactReplyReadExclusive)
   }
+  def messageIsUncached(init: TransactionInit): Bool = uncachedTypeList.map(t => init.x_type === t).reduceLeft(_||_)
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
 
@@ -513,7 +584,10 @@ class MSICoherence extends CoherencePolicyWithUncached {
       xactInitReadShared    -> Mux(count > UFix(0), xactReplyReadShared, xactReplyReadExclusive),
       xactInitReadExclusive -> xactReplyReadExclusive,
       xactInitReadUncached  -> xactReplyReadUncached,
-      xactInitWriteUncached -> xactReplyWriteUncached
+      xactInitWriteUncached -> xactReplyWriteUncached,
+      xactInitReadWordUncached  -> xactReplyReadWordUncached,
+      xactInitWriteWordUncached -> xactReplyWriteWordUncached,
+      xactInitAtomicUncached -> xactReplyAtomicUncached
     ))
   }
 
@@ -542,10 +616,12 @@ class MESICoherence extends CoherencePolicyWithUncached {
   val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(4){ UFix() }
   val globalInvalid :: globalShared :: globalExclusiveClean :: Nil = Enum(3){ UFix() }
 
-  val xactInitReadShared :: xactInitReadExclusive :: xactInitReadUncached :: xactInitWriteUncached :: Nil = Enum(4){ UFix() }
-  val xactReplyReadShared :: xactReplyReadExclusive :: xactReplyReadUncached :: xactReplyWriteUncached :: xactReplyReadExclusiveAck :: Nil = Enum(5){ UFix() } 
+  val xactInitReadShared :: xactInitReadExclusive :: xactInitReadUncached :: xactInitWriteUncached :: xactInitReadWordUncached :: xactInitWriteWordUncached :: xactInitAtomicUncached :: Nil = Enum(7){ UFix() }
+  val xactReplyReadShared :: xactReplyReadExclusive :: xactReplyReadUncached :: xactReplyWriteUncached :: xactReplyReadExclusiveAck :: xactReplyReadWordUncached :: xactReplyWriteWordUncached :: xactReplyAtomicUncached :: Nil = Enum(8){ UFix() }
   val probeReqInvalidate :: probeReqDowngrade :: probeReqCopy :: Nil = Enum(3){ UFix() }
   val probeRepInvalidateData :: probeRepDowngradeData :: probeRepCopyData :: probeRepInvalidateAck :: probeRepDowngradeAck :: probeRepCopyAck :: Nil = Enum(6){ UFix() }
+  val uncachedTypeList = List(xactInitReadUncached, xactInitWriteUncached, xactReplyReadWordUncached, xactInitWriteWordUncached, xactInitAtomicUncached) 
+  val hasDataTypeList = List(xactInitWriteUncached, xactInitWriteWordUncached, xactInitAtomicUncached) 
 
   def isHit (cmd: Bits, state: UFix): Bool = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -558,7 +634,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
 
   def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: TransactionInit): Bool = {
     val (read, write) = cpuCmdToRW(cmd)
-    (read && (outstanding.x_type === xactInitReadUncached || outstanding.x_type === xactInitWriteUncached)) ||
+    (read && messageIsUncached(outstanding)) ||
       (write && (outstanding.x_type != xactInitReadExclusive))
   }
   def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
@@ -589,7 +665,10 @@ class MESICoherence extends CoherencePolicyWithUncached {
       xactReplyReadExclusive  -> Mux(outstanding.x_type === xactInitReadExclusive, tileExclusiveDirty, tileExclusiveClean),
       xactReplyReadExclusiveAck -> tileExclusiveDirty, 
       xactReplyReadUncached -> tileInvalid,
-      xactReplyWriteUncached -> tileInvalid
+      xactReplyWriteUncached -> tileInvalid,
+      xactReplyReadWordUncached -> tileInvalid,
+      xactReplyWriteWordUncached -> tileInvalid,
+      xactReplyAtomicUncached -> tileInvalid
     ))
   } 
   def newStateOnProbeRequest(incoming: ProbeRequest, state: UFix): Bits = {
@@ -600,8 +679,12 @@ class MESICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def getTransactionInitTypeOnUncachedRead() = xactInitReadUncached 
-  def getTransactionInitTypeOnUncachedWrite() = xactInitWriteUncached 
+  def getUncachedReadTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadUncached, addr, id)
+  def getUncachedWriteTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitWriteUncached, addr, id)
+  def getUncachedReadWordTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadWordUncached, addr, id)
+  def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits) = TransactionInit(xactInitWriteWordUncached, addr, id, write_mask)
+  def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = TransactionInit(xactInitAtomicUncached, addr, id, subword_addr, atomic_op)
+
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
     Mux(write || cmd === M_PFW, xactInitReadExclusive, xactInitReadShared)
@@ -635,15 +718,14 @@ class MESICoherence extends CoherencePolicyWithUncached {
      reply.p_type === probeRepDowngradeData ||
      reply.p_type === probeRepCopyData)
   }
-  def messageHasData (init: TransactionInit): Bool = {
-    (init.x_type === xactInitWriteUncached)
-  }
+  def messageHasData (init: TransactionInit): Bool = hasDataTypeList.map(t => init.x_type === t).reduceLeft(_||_)
   def messageHasData (reply: TransactionReply): Bool = {
-    (reply.x_type != xactReplyWriteUncached && reply.x_type != xactReplyReadExclusiveAck)
+    (reply.x_type != xactReplyWriteUncached && reply.x_type != xactReplyReadExclusiveAck && reply.x_type != xactReplyWriteWordUncached)
   }
   def messageUpdatesDataArray (reply: TransactionReply): Bool = {
     (reply.x_type === xactReplyReadShared || reply.x_type === xactReplyReadExclusive)
   }
+  def messageIsUncached(init: TransactionInit): Bool = uncachedTypeList.map(t => init.x_type === t).reduceLeft(_||_)
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
 
@@ -652,7 +734,10 @@ class MESICoherence extends CoherencePolicyWithUncached {
       xactInitReadShared    -> Mux(count > UFix(0), xactReplyReadShared, xactReplyReadExclusive),
       xactInitReadExclusive -> xactReplyReadExclusive,
       xactInitReadUncached  -> xactReplyReadUncached,
-      xactInitWriteUncached -> xactReplyWriteUncached
+      xactInitWriteUncached -> xactReplyWriteUncached,
+      xactInitReadWordUncached  -> xactReplyReadWordUncached,
+      xactInitWriteWordUncached -> xactReplyWriteWordUncached,
+      xactInitAtomicUncached -> xactReplyAtomicUncached
     ))
   }
 
@@ -661,7 +746,10 @@ class MESICoherence extends CoherencePolicyWithUncached {
       xactInitReadShared -> probeReqDowngrade,
       xactInitReadExclusive -> probeReqInvalidate, 
       xactInitReadUncached -> probeReqCopy, 
-      xactInitWriteUncached -> probeReqInvalidate
+      xactInitWriteUncached -> probeReqInvalidate,
+      xactInitReadWordUncached -> probeReqCopy, 
+      xactInitWriteWordUncached -> probeReqInvalidate,
+      xactInitAtomicUncached -> probeReqInvalidate
     ))
   }
 
