@@ -3,7 +3,7 @@ package rocket
 import Chisel._
 import Node._;
 import Constants._;
-import collection.mutable._
+import collection.mutable.ArrayBuffer
 
 class Top extends Component
 {
