@@ -2,6 +2,7 @@ package rocket
 
 import Chisel._
 import Node._;
+import uncore._
 import Constants._;
 import collection.mutable.ArrayBuffer
 

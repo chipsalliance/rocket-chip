@@ -3,6 +3,7 @@ package rocket
 import Chisel._
 import Node._
 import Constants._
+import uncore._
 
 class Tile(co: CoherencePolicyWithUncached, resetSignal: Bool = null) extends Component(resetSignal)
 {

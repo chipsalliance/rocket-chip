@@ -2,6 +2,7 @@ package rocket
 
 import Chisel._
 import Constants._
+import uncore._
 
 class ioReplacementWayGen extends Bundle {
   val pick_new_way = Bool(dir = INPUT)

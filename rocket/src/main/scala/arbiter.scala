@@ -3,6 +3,7 @@ package rocket
 import Chisel._;
 import Node._;
 import Constants._;
+import uncore._
 
 class ioUncachedRequestor extends Bundle {
   val xact_init      = (new FIFOIO) { new TransactionInit }

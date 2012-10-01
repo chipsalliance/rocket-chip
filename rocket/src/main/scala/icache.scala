@@ -4,6 +4,7 @@ import Chisel._;
 import Node._;
 import Constants._;
 import scala.math._;
+import uncore._
 
 // interface between I$ and pipeline/ITLB (32 bits wide)
 class ioImem extends Bundle
