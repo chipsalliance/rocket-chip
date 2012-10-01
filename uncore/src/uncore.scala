@@ -3,14 +3,17 @@ package uncore
 import Chisel._
 import Constants._
 
+class PhysicalAddress extends Bundle {
+  val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
+}
+
 class MemData extends Bundle {
   val data = Bits(width = MEM_DATA_BITS)
 }
 
-class MemReqCmd() extends Bundle 
+class MemReqCmd() extends PhysicalAddress
 {
   val rw = Bool()
-  val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
   val tag = Bits(width = MEM_TAG_BITS)
 }
 
@@ -165,7 +168,7 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
   io.probe_req.valid := Bool(false)
   io.probe_req.bits.p_type := co.getProbeRequestType(x_type_, UFix(0))
   io.probe_req.bits.global_xact_id  := UFix(id)
-  io.probe_req.bits.address := addr_
+  io.probe_req.bits.addr := addr_
   io.push_p_req      := Bits(0, width = ntiles)
   io.pop_p_rep       := Bits(0, width = ntiles)
   io.pop_p_rep_data  := Bits(0, width = ntiles)
@@ -178,7 +181,7 @@ class XactTracker(ntiles: Int, id: Int, co: CoherencePolicy) extends Component {
   switch (state) {
     is(s_idle) {
       when( io.alloc_req.valid && io.can_alloc ) {
-        addr_ := io.alloc_req.bits.xact_init.address
+        addr_ := io.alloc_req.bits.xact_init.addr
         x_type_ := io.alloc_req.bits.xact_init.x_type
         init_tile_id_ := io.alloc_req.bits.tile_id
         tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
@@ -272,7 +275,7 @@ class CoherenceHubNull(co: ThreeStateIncoherence)  extends CoherenceHub(1, co)
   io.mem.req_cmd.valid   := x_init.valid && !(is_write && io.mem.resp.valid)
   io.mem.req_cmd.bits.rw    := is_write
   io.mem.req_cmd.bits.tag   := x_init.bits.tile_xact_id
-  io.mem.req_cmd.bits.addr  := x_init.bits.address
+  io.mem.req_cmd.bits.addr  := x_init.bits.addr
   io.mem.req_data <> io.tiles(0).xact_init_data
 
   val x_rep = io.tiles(0).xact_rep
@@ -432,7 +435,7 @@ class CoherenceHubBroadcast(ntiles: Int, co: CoherencePolicy) extends CoherenceH
     val conflicts = Vec(NGLOBAL_XACTS) { Bool() }
     for( i <- 0 until NGLOBAL_XACTS) {
       val t = trackerList(i).io
-      conflicts(i) := t.busy && x_init.valid && co.isCoherenceConflict(t.addr, x_init.bits.address)
+      conflicts(i) := t.busy && x_init.valid && co.isCoherenceConflict(t.addr, x_init.bits.addr)
     }
     x_abort.bits.tile_xact_id := x_init.bits.tile_xact_id
     want_to_abort_arr(j) := x_init.valid && (conflicts.toBits.orR || busy_arr.toBits.andR || (!x_init_data_dep_list(j).io.enq.ready && co.messageHasData(x_init.bits)))
