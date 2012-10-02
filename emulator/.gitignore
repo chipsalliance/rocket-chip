@@ -1,0 +1,11 @@
+*~
+*.o
+*.out
+*.vcd
+*.vpd
+*.log
+emulator
+generated-src
+emulator-debug
+generated-src-debug
+kernel
