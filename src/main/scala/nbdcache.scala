@@ -238,7 +238,7 @@ class MSHR(id: Int, co: CoherencePolicy) extends Component {
     when (abort) { state := s_wb_req }
   }
   when (state === s_wb_req) {
-    when (io.probe_writeback.valid && idx_match) { state := s_refill_req }
+    when (io.probe_writeback.valid && io.probe_writeback.bits && idx_match) { state := s_refill_req }
     .elsewhen (io.wb_req.ready) { state := s_wb_resp }
   }
 
@@ -366,7 +366,8 @@ class MSHRFile(co: CoherencePolicy) extends Component {
     mshr.io.wb_req <> wb_req_arb.io.in(i)
     mshr.io.replay <> replay_arb.io.in(i)
     mshr.io.probe_refill.valid := io.probe.valid && tag_match
-    mshr.io.probe_writeback.valid := io.probe.valid && wb_probe_match
+    mshr.io.probe_writeback.valid := io.probe.valid
+    mshr.io.probe_writeback.bits := wb_probe_match
 
     mshr.io.mem_abort <> io.mem_abort
     mshr.io.mem_rep <> io.mem_rep
