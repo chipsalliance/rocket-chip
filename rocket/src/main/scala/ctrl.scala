@@ -90,7 +90,7 @@ class ioCtrlAll extends Bundle()
   val vec_iface = new ioCtrlVecInterface()
 }
 
-object rocketCtrlDecode
+abstract trait rocketCtrlDecodeConstants
 {
   val xpr64 = Y;
 
@@ -102,7 +102,12 @@ object rocketCtrlDecode
                 //   |     | | |      | | |        |      |       | |         |     | |       | |      | |     |      |     |      | | | |
                 List(N,    X,X,BR_X,  X,X,A2_X,    DW_X,  FN_X,   N,M_X,      MT_X, X,MUL_X,  X,DIV_X, X,WA_X, WB_X,  PCR_X,SYNC_X,X,X,X,X)
 
-  val xdecode = Array(
+  val table: Array[(Bits, List[Bits])]
+}
+
+object rocketCtrlXDecode extends rocketCtrlDecodeConstants
+{
+  val table = Array(
                 //                                                                                                                 eret
                 //         fp_val     renx2                                                                                        | syscall
                 //         | vec_val  | renx1                     mem_val           mul_val   div_val  wen            pcr          | | privileged
@@ -209,8 +214,11 @@ object rocketCtrlDecode
     RDTIME->    List(Y,    N,N,BR_N,  N,N,A2_X,    DW_XPR,FN_X,   N,M_X,      MT_X, N,MUL_X,  N,DIV_X, Y,WA_RD,WB_TSC,PCR_N,SYNC_N,N,N,N,N),
     RDCYCLE->   List(Y,    N,N,BR_N,  N,N,A2_X,    DW_XPR,FN_X,   N,M_X,      MT_X, N,MUL_X,  N,DIV_X, Y,WA_RD,WB_TSC,PCR_N,SYNC_N,N,N,N,N),
     RDINSTRET-> List(Y,    N,N,BR_N,  N,N,A2_X,    DW_XPR,FN_X,   N,M_X,      MT_X, N,MUL_X,  N,DIV_X, Y,WA_RD,WB_IRT,PCR_N,SYNC_N,N,N,N,N))
- 
-  val fdecode = Array(
+}
+
+object rocketCtrlFDecode extends rocketCtrlDecodeConstants
+{
+  val table = Array(
                 //                                                                                                                 eret
                 //         fp_val     renx2                                                                                        | syscall
                 //         | vec_val  | renx1                     mem_val           mul_val   div_val  wen            pcr          | | privileged
@@ -274,8 +282,11 @@ object rocketCtrlDecode
     FLD->       List(FPU_Y,Y,N,BR_N,  N,Y,A2_ITYPE,DW_XPR,FN_ADD, Y,M_XRD,    MT_D, N,MUL_X,  N,DIV_X, N,WA_RD,WB_ALU,PCR_N,SYNC_N,N,N,N,N),
     FSW->       List(FPU_Y,Y,N,BR_N,  N,Y,A2_BTYPE,DW_XPR,FN_ADD, Y,M_XWR,    MT_W, N,MUL_X,  N,DIV_X, N,WA_X, WB_ALU,PCR_N,SYNC_N,N,N,N,N),
     FSD->       List(FPU_Y,Y,N,BR_N,  N,Y,A2_BTYPE,DW_XPR,FN_ADD, Y,M_XWR,    MT_D, N,MUL_X,  N,DIV_X, N,WA_X, WB_ALU,PCR_N,SYNC_N,N,N,N,N))
+}
 
-  val vdecode = Array(
+object rocketCtrlVDecode extends rocketCtrlDecodeConstants
+{
+  val table = Array(
                 //                                                                                                                 eret
                 //         fp_val     renx2                                                                                        | syscall
                 //         | vec_val  | renx1                     mem_val           mul_val   div_val  wen            pcr          | | privileged
@@ -334,11 +345,11 @@ class rocketCtrl extends Component
 {
   val io = new ioCtrlAll();
 
-  var decode_table = rocketCtrlDecode.xdecode
-  if (HAVE_FPU) decode_table ++= rocketCtrlDecode.fdecode
-  if (HAVE_VEC) decode_table ++= rocketCtrlDecode.vdecode
+  var decode_table = rocketCtrlXDecode.table
+  if (HAVE_FPU) decode_table ++= rocketCtrlFDecode.table
+  if (HAVE_VEC) decode_table ++= rocketCtrlVDecode.table
 
-  val cs = DecodeLogic(io.dpath.inst, rocketCtrlDecode.decode_default, decode_table)
+  val cs = DecodeLogic(io.dpath.inst, rocketCtrlXDecode.decode_default, decode_table)
 
   val id_int_val :: id_fp_val :: id_vec_val :: id_br_type :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_fn_dw :: id_fn_alu :: cs0 = cs 
   val id_mem_val :: id_mem_cmd :: id_mem_type :: id_mul_val :: id_mul_fn :: id_div_val :: id_div_fn :: id_wen :: id_sel_wa :: id_sel_wb :: cs1 = cs0
