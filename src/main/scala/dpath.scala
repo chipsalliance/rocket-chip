@@ -252,7 +252,7 @@ class rocketDpath extends Component
   io.ctrl.div_result_val := div.io.resp_val
   
   // multiplier
-  var mul_io = new rocketMultiplier().io
+  var mul_io = new rocketMultiplier(unroll = 6).io
   if (HAVE_VEC)
   {
     val vu_mul = new rocketVUMultiplier(nwbq = 1)
