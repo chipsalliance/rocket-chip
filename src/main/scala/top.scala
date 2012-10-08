@@ -6,8 +6,8 @@ import Constants._
 import uncore._
 import collection.mutable.ArrayBuffer
 
-object DummyTopLevelConstants extends rocket.constants.CoherenceConfigConstants {
-//  val NTILES = 1
+object DummyTopLevelConstants extends rocket.constants.CoherenceConfigConstants with rocket.constants.MulticoreConstants {
+  val NTILES = 1
   val ENABLE_SHARING = true
   val ENABLE_CLEAN_EXCLUSIVE = true
 }

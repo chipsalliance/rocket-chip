@@ -5,7 +5,7 @@ import Chisel._
 import scala.math._
 
 abstract trait MulticoreConstants {
-  val NTILES: Int = 1
+  val NTILES: Int
   val TILE_ID_BITS = log2Up(NTILES)+1
 }
 
@@ -19,19 +19,46 @@ trait UncoreConstants {
   val GLOBAL_XACT_ID_BITS = log2Up(NGLOBAL_XACTS)
 }
 
-trait HTIFConstants {
-  val HTIF_WIDTH = 16
-  val MEM_BACKUP_WIDTH = HTIF_WIDTH
+trait TileLinkTypeConstants {
+  val X_INIT_TYPE_MAX_BITS = 2
+  val X_REP_TYPE_MAX_BITS = 3
+  val P_REQ_TYPE_MAX_BITS = 2
+  val P_REP_TYPE_MAX_BITS = 3
 }
 
-abstract trait TileConfigConstants extends UncoreConstants with MulticoreConstants {
-  val HAVE_RVC: Boolean
-  val HAVE_FPU: Boolean
-  val HAVE_VEC: Boolean
-  def FPU_N = UFix(0, 1)
-  def FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N
-  def VEC_N = UFix(0, 1);
-  def VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N
+trait TileLinkSizeConstants extends 
+  RocketDcacheConstants with 
+  TileLinkTypeConstants
+{
+  val TILE_XACT_ID_BITS = log2Up(NMSHR)+3
+  val X_INIT_WRITE_MASK_BITS = OFFSET_BITS
+  val X_INIT_SUBWORD_ADDR_BITS = log2Up(OFFSET_BITS)
+  val X_INIT_ATOMIC_OP_BITS = 4
+}
+
+trait HTIFConstants {
+  val HTIF_WIDTH = 16
+}
+
+trait MemoryInterfaceConstants extends 
+  HTIFConstants with 
+  UncoreConstants with 
+  TileLinkSizeConstants 
+{
+  val MEM_TAG_BITS = max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS)
+  val MEM_DATA_BITS = 128
+  val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
+  val MEM_BACKUP_WIDTH = HTIF_WIDTH
+}  
+
+abstract trait TileConfigConstants {
+  def HAVE_RVC: Boolean
+  def HAVE_FPU: Boolean
+  def HAVE_VEC: Boolean
+  val FPU_N = UFix(0, 1)
+  val FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N
+  val VEC_N = UFix(0, 1);
+  val VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N
 }
 
 trait ScalarOpConstants {
@@ -202,38 +229,20 @@ trait AddressConstants {
   val PERM_BITS = 6;
 }
 
-abstract trait RocketDcacheConstants extends TileConfigConstants with AddressConstants {
-  val DCACHE_PORTS = 3
+abstract trait RocketDcacheConstants extends ArbiterConstants with AddressConstants {
   val CPU_DATA_BITS = 64;
   val CPU_TAG_BITS = 9;
   val DCACHE_TAG_BITS = log2Up(DCACHE_PORTS) + CPU_TAG_BITS
-  val OFFSET_BITS = 6; // log2(cache line size in bytes)
+  val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
   val NMSHR = if (HAVE_VEC) 4 else 2 // number of primary misses
   val NRPQ = 16; // number of secondary misses
   val NSDQ = 17; // number of secondary stores/AMOs
-  val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
+  val OFFSET_BITS = 6; // log2(cache line size in bytes)
   val IDX_BITS = 7;
   val TAG_BITS = PADDR_BITS - OFFSET_BITS - IDX_BITS;
   val NWAYS = 4
   require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
 }
-
-trait TileLinkSizeConstants extends RocketDcacheConstants {
-  val TILE_XACT_ID_BITS = log2Up(NMSHR)+3
-  val X_INIT_TYPE_MAX_BITS = 2
-  val X_INIT_WRITE_MASK_BITS = OFFSET_BITS
-  val X_INIT_SUBWORD_ADDR_BITS = log2Up(OFFSET_BITS)
-  val X_INIT_ATOMIC_OP_BITS = 4
-  val X_REP_TYPE_MAX_BITS = 3
-  val P_REQ_TYPE_MAX_BITS = 2
-  val P_REP_TYPE_MAX_BITS = 3
-}
-
-trait MemoryInterfaceConstants extends UncoreConstants with TileLinkSizeConstants {
-  val MEM_TAG_BITS = max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS)
-  val MEM_DATA_BITS = 128
-  val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
-}  
 
 trait TLBConstants {
   val DTLB_ENTRIES = 16
@@ -266,12 +275,19 @@ trait VectorOpConstants {
   val VIMM2_X = UFix(0, 1)
 }
 
-trait ArbiterConstants {
+abstract trait ArbiterConstants extends TileConfigConstants {
+  val DTLB_PORTS = 3
   val DTLB_CPU = 0
   val DTLB_VEC = 1
   val DTLB_VPF = 2
 
-  val DMEM_CPU = 0
-  val DMEM_PTW = 1
-  val DMEM_VU = 2
+  val DCACHE_PORTS = 3
+  val DCACHE_CPU = 0
+  val DCACHE_PTW = 1
+  val DCACHE_VU = 2
+
+  val DMEM_PORTS = if (HAVE_VEC) 3 else 2
+  val DMEM_DCACHE = 0
+  val DMEM_ICACHE = 1
+  val DMEM_VICACHE = 2
 }
