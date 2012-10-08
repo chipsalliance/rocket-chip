@@ -1,8 +1,6 @@
 package rocket
 
 import Chisel._
-import Node._
-import scala.math._
 
 class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
 {

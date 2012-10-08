@@ -1,8 +1,8 @@
 package rocket
 
 import Chisel._
-import Node._;
-import Constants._;
+import Node._
+import Constants._
 import uncore._
 
 class ioDebug extends Bundle

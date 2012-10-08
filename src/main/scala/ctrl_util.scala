@@ -1,7 +1,7 @@
 package rocket
 
 import Chisel._
-import Node._;
+import Node._
 
 class rocketCtrlSboard(entries: Int, nread: Int, nwrite: Int) extends Component
 {

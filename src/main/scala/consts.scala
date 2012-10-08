@@ -1,21 +1,40 @@
 package rocket
+package constants
 
 import Chisel._
 import scala.math._
 
-object Constants
-{
-  val NTILES = 1
-  val HAVE_RVC = false
-  val HAVE_FPU = true
-  val HAVE_VEC = true
+abstract trait MulticoreConstants {
+  val NTILES: Int = 1
+  val TILE_ID_BITS = log2Up(NTILES)+1
+}
 
-  val MAX_THREADS = 
-      hwacha.Constants.NUM_PVFB * hwacha.Constants.WIDTH_PVFB / hwacha.Constants.SZ_BANK
+abstract trait CoherenceConfigConstants {
+  val ENABLE_SHARING: Boolean
+  val ENABLE_CLEAN_EXCLUSIVE: Boolean
+}
 
+trait UncoreConstants {
+  val NGLOBAL_XACTS = 8
+  val GLOBAL_XACT_ID_BITS = log2Up(NGLOBAL_XACTS)
+}
+
+trait HTIFConstants {
   val HTIF_WIDTH = 16
   val MEM_BACKUP_WIDTH = HTIF_WIDTH
+}
 
+abstract trait TileConfigConstants extends UncoreConstants with MulticoreConstants {
+  val HAVE_RVC: Boolean
+  val HAVE_FPU: Boolean
+  val HAVE_VEC: Boolean
+  def FPU_N = UFix(0, 1)
+  def FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N
+  def VEC_N = UFix(0, 1);
+  def VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N
+}
+
+trait ScalarOpConstants {
   val BR_X    = Bits("b????", 4)
   val BR_N    = UFix(0, 4);
   val BR_EQ   = UFix(1, 4);
@@ -89,7 +108,9 @@ object Constants
   val DW_XPR = Y
 
   val RA = UFix(1, 5);
+}
 
+trait MemoryOpConstants {
   val MT_X  = Bits("b???", 3);
   val MT_B  = Bits("b000", 3);
   val MT_H  = Bits("b001", 3);
@@ -116,7 +137,9 @@ object Constants
   val M_XA_MAX  = Bits("b1101", 4);
   val M_XA_MINU = Bits("b1110", 4);
   val M_XA_MAXU = Bits("b1111", 4);
+}
 
+trait PCRConstants {
   val PCR_X = Bits("b???", 3)
   val PCR_N = Bits(0,3)
   val PCR_F = Bits(1,3) // mfpcr
@@ -161,11 +184,15 @@ object Constants
   val SR_VM   = 8   // VM enable
   val SR_IM   = 16  // interrupt mask
   val SR_IM_WIDTH = 8
+}
 
+trait InterruptConstants {
   val CAUSE_INTERRUPT = 32
   val IRQ_IPI = 5
   val IRQ_TIMER = 7
-  
+}
+ 
+trait AddressConstants { 
   val PADDR_BITS = 40;
   val VADDR_BITS = 43;
   val PGIDX_BITS = 13;
@@ -173,8 +200,9 @@ object Constants
   val VPN_BITS = VADDR_BITS-PGIDX_BITS;
   val ASID_BITS = 7;
   val PERM_BITS = 6;
+}
 
-  // rocketNBDCache parameters
+abstract trait RocketDcacheConstants extends TileConfigConstants with AddressConstants {
   val DCACHE_PORTS = 3
   val CPU_DATA_BITS = 64;
   val CPU_TAG_BITS = 9;
@@ -188,17 +216,10 @@ object Constants
   val TAG_BITS = PADDR_BITS - OFFSET_BITS - IDX_BITS;
   val NWAYS = 4
   require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
+}
 
-  // coherence parameters
-  val ENABLE_SHARING = true
-  val ENABLE_CLEAN_EXCLUSIVE = true
-
-  val COHERENCE_DATA_BITS = (1 << OFFSET_BITS)*8 
-  val TILE_ID_BITS = log2Up(NTILES)+1
+trait TileLinkSizeConstants extends RocketDcacheConstants {
   val TILE_XACT_ID_BITS = log2Up(NMSHR)+3
-  val NGLOBAL_XACTS = 8
-  val GLOBAL_XACT_ID_BITS = log2Up(NGLOBAL_XACTS)
-
   val X_INIT_TYPE_MAX_BITS = 2
   val X_INIT_WRITE_MASK_BITS = OFFSET_BITS
   val X_INIT_SUBWORD_ADDR_BITS = log2Up(OFFSET_BITS)
@@ -206,24 +227,21 @@ object Constants
   val X_REP_TYPE_MAX_BITS = 3
   val P_REQ_TYPE_MAX_BITS = 2
   val P_REP_TYPE_MAX_BITS = 3
+}
 
-  // external memory interface
+trait MemoryInterfaceConstants extends UncoreConstants with TileLinkSizeConstants {
   val MEM_TAG_BITS = max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS)
   val MEM_DATA_BITS = 128
   val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
-  
+}  
+
+trait TLBConstants {
   val DTLB_ENTRIES = 16
   val ITLB_ENTRIES = 8;
   val VITLB_ENTRIES = 4
-  
-  val START_ADDR = 0x2000;
+}
 
-  val FPU_N = UFix(0, 1);
-  val FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N;
-
-  val VEC_N = UFix(0, 1);
-  val VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N;
-
+trait VectorOpConstants {
   val VEC_X = Bits("b??", 2).toUFix
   val VEC_FN_N = UFix(0, 2)
   val VEC_VL = UFix(1, 2)
@@ -246,7 +264,9 @@ object Constants
   val VIMM2_RS2 = UFix(0, 1)
   val VIMM2_ALU = UFix(1, 1)
   val VIMM2_X = UFix(0, 1)
+}
 
+trait ArbiterConstants {
   val DTLB_CPU = 0
   val DTLB_VEC = 1
   val DTLB_VPF = 2

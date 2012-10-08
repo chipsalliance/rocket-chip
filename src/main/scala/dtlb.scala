@@ -1,10 +1,10 @@
 package rocket
 
-import Chisel._;
-import Node._;
-import Constants._;
-import scala.math._;
+import Chisel._
+import Node._
+import Constants._
 import hwacha._
+import scala.math._
 
 // ioDTLB_CPU also located in hwacha/src/vuVXU-Interface.scala
 // should keep them in sync

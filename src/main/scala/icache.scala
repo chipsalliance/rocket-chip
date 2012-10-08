@@ -1,10 +1,10 @@
 package rocket
 
-import Chisel._;
-import Node._;
-import Constants._;
-import scala.math._;
+import Chisel._
+import Node._
+import Constants._
 import uncore._
+import scala.math._
 
 // interface between I$ and pipeline/ITLB (32 bits wide)
 class ioImem extends Bundle
