@@ -1,7 +1,8 @@
 package rocket
 
 import Chisel._
-import Node._;
+import Node._
+import Constants._
 
 class SkidBuffer[T <: Data](resetSignal: Bool = null)(data: => T) extends Component(resetSignal)
 {

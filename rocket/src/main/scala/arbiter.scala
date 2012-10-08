@@ -1,8 +1,7 @@
 package rocket
 
-import Chisel._;
-import Node._;
-import Constants._;
+import Chisel._
+import Node._
 import uncore._
 
 class ioUncachedRequestor extends Bundle {

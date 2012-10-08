@@ -1,9 +1,9 @@
 package rocket
 
-import Chisel._;
-import Node._;
-import Constants._;
-import scala.math._;
+import Chisel._
+import Node._
+import Constants._
+import scala.math._
 
 class ioHellaCacheArbiter(n: Int) extends Bundle
 {

@@ -1,19 +1,21 @@
 package rocket
 
 import Chisel._
-import Node._;
+import Node._
+import Constants._
 import uncore._
-import Constants._;
 import collection.mutable.ArrayBuffer
 
-class Top extends Component
-{
-  val io = new Bundle  {
-    val debug   = new ioDebug
-    val host    = new ioHost(HTIF_WIDTH)
-    val mem     = new ioMemPipe
-  }
+object DummyTopLevelConstants extends rocket.constants.CoherenceConfigConstants {
+//  val NTILES = 1
+  val ENABLE_SHARING = true
+  val ENABLE_CLEAN_EXCLUSIVE = true
+}
+import DummyTopLevelConstants._
 
+
+class Top extends Component 
+{
   val co =  if(ENABLE_SHARING) {
               if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence
               else new MSICoherence
@@ -21,6 +23,12 @@ class Top extends Component
               if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence
               else new MICoherence
             }
+
+  val io = new Bundle  {
+    val debug   = new ioDebug
+    val host    = new ioHost(HTIF_WIDTH)
+    val mem     = new ioMemPipe
+  }
 
   val htif = new rocketHTIF(HTIF_WIDTH, NTILES, co)
   val hub = new CoherenceHubBroadcast(NTILES+1, co)

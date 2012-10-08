@@ -3,8 +3,8 @@ package rocket
 import Chisel._
 import Node._
 import Constants._
-import scala.math._
 import uncore._
+import scala.math._
 
 class ioMemSerialized extends Bundle
 {
