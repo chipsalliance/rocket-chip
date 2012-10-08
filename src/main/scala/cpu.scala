@@ -1,19 +1,19 @@
 package rocket
 
-import Chisel._;
-import Node._;
-import Constants._;
+import Chisel._
+import Node._
+import Constants._
 import hwacha._
 
-class ioRocket extends Bundle()
+class ioRocket()(implicit conf: Configuration) extends Bundle
 {
-  val host    = new ioHTIF
+  val host    = new ioHTIF()
   val imem    = (new ioImem).flip
   val vimem   = (new ioImem).flip
   val dmem    = new ioHellaCache
 }
 
-class rocketProc extends Component
+class rocketProc()(implicit conf: Configuration) extends Component
 {
   val io    = new ioRocket
    

@@ -28,7 +28,7 @@ class ioRocketICache extends Bundle()
 // 32 bit wide cpu port, 128 bit wide memory port, 64 byte cachelines
 // parameters :
 //    lines = # cache lines
-class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) extends Component
+class rocketICache(sets: Int, assoc: Int)(implicit conf: Configuration)  extends Component
 {
   val io = new ioRocketICache();
 
@@ -137,7 +137,7 @@ class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) exten
   rdy := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || tag_hit);
   io.cpu.resp_data := data_mux.io.out
   io.mem.xact_init.valid := (state === s_request) && finish_q.io.enq.ready
-  io.mem.xact_init.bits := co.getUncachedReadTransactionInit(r_cpu_miss_addr(tagmsb,indexlsb).toUFix, UFix(0))
+  io.mem.xact_init.bits := conf.co.getUncachedReadTransactionInit(r_cpu_miss_addr(tagmsb,indexlsb).toUFix, UFix(0))
   io.mem.xact_finish <> finish_q.io.deq
 
   // control state machine

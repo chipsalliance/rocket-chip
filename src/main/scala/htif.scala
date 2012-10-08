@@ -23,21 +23,21 @@ class PCRReq extends Bundle
   val data = Bits(width = 64)
 }
 
-class ioHTIF extends Bundle
+class ioHTIF()(implicit conf: Configuration) extends Bundle
 {
   val reset = Bool(INPUT)
   val debug = new ioDebug
   val pcr_req = (new FIFOIO) { new PCRReq }.flip
   val pcr_rep = (new FIFOIO) { Bits(width = 64) }
-  val ipi_req = (new FIFOIO) { Bits(width = log2Up(NTILES)) }
+  val ipi_req = (new FIFOIO) { Bits(width = log2Up(conf.ntiles)) }
   val ipi_rep = (new FIFOIO) { Bool() }.flip
 }
 
-class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends Component
+class rocketHTIF(w: Int)(implicit conf: Configuration) extends Component
 {
   val io = new Bundle {
     val host = new ioHost(w)
-    val cpu = Vec(ncores) { new ioHTIF().flip }
+    val cpu = Vec(conf.ntiles) { new ioHTIF().flip }
     val mem = new ioTileLink
   }
 
@@ -78,7 +78,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(6) { UFix() }
 
   val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.width-1, 0)
-  val pcr_coreid = if (ncores == 1) UFix(0) else addr(20+log2Up(ncores),20)
+  val pcr_coreid = if (conf.ntiles == 1) UFix(0) else addr(20+log2Up(conf.ntiles),20)
   val pcr_wdata = packet_ram(0)
 
   val bad_mem_packet = size(OFFSET_BITS-1-3,0).orR || addr(OFFSET_BITS-1-3,0).orR
@@ -178,7 +178,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   }
   x_init.io.enq.valid := state === state_mem_req
   val init_addr = addr.toUFix >> UFix(OFFSET_BITS-3)
-  x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteTransactionInit(init_addr, UFix(0)), co.getUncachedReadTransactionInit(init_addr, UFix(0)))
+  x_init.io.enq.bits := Mux(cmd === cmd_writemem, conf.co.getUncachedWriteTransactionInit(init_addr, UFix(0)), conf.co.getUncachedReadTransactionInit(init_addr, UFix(0)))
   io.mem.xact_init <> x_init.io.deq
   io.mem.xact_init_data.valid:= state === state_mem_wdata
   io.mem.xact_init_data.bits.data := mem_req_data
@@ -189,8 +189,8 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   io.mem.probe_rep_data.valid := Bool(false)
   io.mem.incoherent := Bool(true)
 
-  val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }
-  for (i <- 0 until ncores) {
+  val pcr_mux = (new Mux1H(conf.ntiles)) { Bits(width = 64) }
+  for (i <- 0 until conf.ntiles) {
     val my_reset = Reg(resetVal = Bool(true))
     val my_ipi = Reg(resetVal = Bool(false))
     val rdata = Reg() { Bits() }
@@ -208,7 +208,7 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
     }
     cpu.ipi_rep.valid := my_ipi
     cpu.ipi_req.ready := Bool(true)
-    for (j <- 0 until ncores) {
+    for (j <- 0 until conf.ntiles) {
       when (io.cpu(j).ipi_req.valid && io.cpu(j).ipi_req.bits === UFix(i)) {
         my_ipi := Bool(true)
       }
