@@ -57,7 +57,7 @@ class rocketDpathBTB(entries: Int) extends Component
   io.target := mux.io.out.toUFix
 }
 
-class ioDpathPCR extends Bundle()
+class ioDpathPCR()(implicit conf: Configuration) extends Bundle()
 {
   val host  = new ioHTIF()
   val r     = new ioReadPort();
@@ -86,7 +86,7 @@ class ioDpathPCR extends Bundle()
   val vec_nfregs = UFix(INPUT, 6)
 }
 
-class rocketDpathPCR extends Component
+class rocketDpathPCR()(implicit conf: Configuration) extends Component
 {
   val io = new ioDpathPCR();
   

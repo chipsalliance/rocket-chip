@@ -13,6 +13,7 @@ object DummyTopLevelConstants extends rocket.constants.CoherenceConfigConstants 
 }
 import DummyTopLevelConstants._
 
+case class Configuration(ntiles: Int, co: CoherencePolicyWithUncached)
 
 class Top extends Component 
 {
@@ -23,6 +24,7 @@ class Top extends Component
               if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence
               else new MICoherence
             }
+  implicit val conf = Configuration(NTILES, co)
 
   val io = new Bundle  {
     val debug   = new ioDebug
@@ -30,7 +32,7 @@ class Top extends Component
     val mem     = new ioMemPipe
   }
 
-  val htif = new rocketHTIF(HTIF_WIDTH, NTILES, co)
+  val htif = new rocketHTIF(HTIF_WIDTH)
   val hub = new CoherenceHubBroadcast(NTILES+1, co)
   hub.io.tiles(NTILES) <> htif.io.mem
   io.host <> htif.io.host
@@ -44,7 +46,7 @@ class Top extends Component
   for (i <- 0 until NTILES) {
     val hl = htif.io.cpu(i)
     val tl = hub.io.tiles(i)
-    val tile = new Tile(co, resetSignal = hl.reset)
+    val tile = new Tile(resetSignal = hl.reset)
 
     tile.io.host.reset := Reg(Reg(hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
