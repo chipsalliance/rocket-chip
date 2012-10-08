@@ -16,9 +16,9 @@ class Tile(resetSignal: Bool = null)(implicit conf: Configuration) extends Compo
   val icache    = new rocketICache(128, 4) // 128 sets x 4 ways (32KB)
   val dcache    = new HellaCache
 
-  val arbiter   = new rocketMemArbiter(2 + (if (HAVE_VEC) 1 else 0))
-  arbiter.io.requestor(0) <> dcache.io.mem
-  arbiter.io.requestor(1) <> icache.io.mem
+  val arbiter   = new rocketMemArbiter(DMEM_PORTS)
+  arbiter.io.requestor(DMEM_DCACHE) <> dcache.io.mem
+  arbiter.io.requestor(DMEM_ICACHE) <> icache.io.mem
 
   io.tilelink.xact_init <> arbiter.io.mem.xact_init
   io.tilelink.xact_init_data <> dcache.io.mem.xact_init_data
@@ -32,7 +32,7 @@ class Tile(resetSignal: Bool = null)(implicit conf: Configuration) extends Compo
   if (HAVE_VEC)
   {
     val vicache = new rocketICache(128, 1) // 128 sets x 1 ways (8KB)
-    arbiter.io.requestor(2) <> vicache.io.mem
+    arbiter.io.requestor(DMEM_VICACHE) <> vicache.io.mem
     cpu.io.vimem <> vicache.io.cpu
   }
 
