@@ -22,4 +22,5 @@ object ChiselBuild extends Build{
   lazy val hwacha = Project("hwacha", file("hwacha"), settings = buildSettings) dependsOn(hardfloat,chisel)
   lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(chisel)
   lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore,hwacha,hardfloat,chisel)
+  lazy val referencechip = Project("referencechip", file("referencechip"), settings = buildSettings) dependsOn(chisel,rocket)
 }
