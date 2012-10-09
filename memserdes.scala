@@ -144,8 +144,8 @@ class MemDessert extends Component // test rig side
   val req_cmd = in_buf >> UFix(((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH - (abits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)*MEM_BACKUP_WIDTH)
   io.wide.req_cmd.valid := state === s_cmd
   io.wide.req_cmd.bits.tag := req_cmd
-  io.wide.req_cmd.bits.addr := req_cmd.toUFix >> UFix(io.wide.req_cmd.bits.tag.width)
-  io.wide.req_cmd.bits.rw := req_cmd(io.wide.req_cmd.bits.tag.width + io.wide.req_cmd.bits.addr.width)
+  io.wide.req_cmd.bits.addr := req_cmd.toUFix >> UFix(io.wide.req_cmd.bits.tag.width + io.wide.req_cmd.bits.rw.width)
+  io.wide.req_cmd.bits.rw := req_cmd(io.wide.req_cmd.bits.tag.width)
 
   io.wide.req_data.valid := state === s_data
   io.wide.req_data.bits.data := in_buf >> UFix(((rbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH - (dbits+MEM_BACKUP_WIDTH-1)/MEM_BACKUP_WIDTH)*MEM_BACKUP_WIDTH)
