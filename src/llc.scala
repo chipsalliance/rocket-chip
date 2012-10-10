@@ -361,10 +361,10 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
 
   val stall_s1 = Bool()
   val replay_s1 = Reg(resetVal = Bool(false))
-  val s1_valid = Reg(io.cpu.req_cmd.valid && !stall_s1 || replay_s1, resetVal = Bool(false))
+  val s1_valid = Reg(io.cpu.req_cmd.fire() || replay_s1, resetVal = Bool(false))
   replay_s1 := s1_valid && stall_s1
   val s1 = Reg() { new MemReqCmd }
-  when (io.cpu.req_cmd.valid && io.cpu.req_cmd.ready) { s1 := io.cpu.req_cmd.bits }
+  when (io.cpu.req_cmd.fire()) { s1 := io.cpu.req_cmd.bits }
 
   val stall_s2 = Bool()
   val s2_valid = Reg(resetVal = Bool(false))
@@ -430,7 +430,7 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   stall_s2 := s2_valid && !(dataArb.io.in(1).ready && writeback.io.req(0).ready && mshr.io.cpu.ready)
 
   io.cpu.resp <> data.io.resp
-  io.cpu.req_cmd.ready := !stall_s1 && !replay_s1
+  io.cpu.req_cmd.ready := !stall_s1 && !replay_s1 && !tag_we
   io.cpu.req_data.ready := writeback.io.data(1).ready || data.io.req_data.ready
   io.mem.req_cmd <> memCmdArb.io.out
   io.mem.req_data <> writeback.io.mem.req_data
