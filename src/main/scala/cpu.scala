@@ -8,8 +8,8 @@ import hwacha._
 class ioRocket extends Bundle()
 {
   val host    = new ioHTIF
-  val imem    = (new ioImem).flip
-  val vimem   = (new ioImem).flip
+  val imem    = new IOCPUFrontend
+  val vimem   = new IOCPUFrontend
   val dmem    = new ioHellaCache
 }
 
@@ -20,8 +20,7 @@ class rocketProc extends Component
   val ctrl  = new rocketCtrl();      
   val dpath = new rocketDpath();
 
-  val dtlb  = new rocketDTLB(DTLB_ENTRIES);
-  val itlb  = new rocketITLB(ITLB_ENTRIES);
+  val dtlb  = new rocketTLB(DTLB_ENTRIES);
   val ptw   = new rocketPTW(if (HAVE_VEC) 3 else 2)
   val arb   = new rocketHellaCacheArbiter(DCACHE_PORTS)
 
@@ -59,7 +58,7 @@ class rocketProc extends Component
     dtlbarb.io.in(DTLB_CPU).valid := ctrl.io.dtlb_val
     dtlbarb.io.in(DTLB_CPU).bits.kill := ctrl.io.dtlb_kill
     dtlbarb.io.in(DTLB_CPU).bits.cmd := ctrl.io.dmem.req.bits.cmd
-    dtlbarb.io.in(DTLB_CPU).bits.asid := Bits(0,ASID_BITS); // FIXME: connect to PCR
+    dtlbarb.io.in(DTLB_CPU).bits.asid := UFix(0)
     dtlbarb.io.in(DTLB_CPU).bits.vpn := dpath.io.dtlb.vpn
     ctrl.io.dtlb_rdy := dtlbarb.io.in(DTLB_CPU).ready
 
@@ -75,7 +74,7 @@ class rocketProc extends Component
     dtlb.io.cpu_req.valid := ctrl.io.dtlb_val
     dtlb.io.cpu_req.bits.kill := ctrl.io.dtlb_kill
     dtlb.io.cpu_req.bits.cmd := ctrl.io.dmem.req.bits.cmd
-    dtlb.io.cpu_req.bits.asid := Bits(0,ASID_BITS); // FIXME: connect to PCR
+    dtlb.io.cpu_req.bits.asid := UFix(0)
     dtlb.io.cpu_req.bits.vpn := dpath.io.dtlb.vpn
     ctrl.io.xcpt_dtlb_ld := dtlb.io.cpu_resp.xcpt_ld
     ctrl.io.xcpt_dtlb_st := dtlb.io.cpu_resp.xcpt_st
@@ -91,7 +90,7 @@ class rocketProc extends Component
 
   // connect page table walker to TLBs, page table base register (from PCR)
   // and D$ arbiter (selects between requests from pipeline and PTW, PTW has priority)
-  ptw.io.requestor(0)     <> itlb.io.ptw
+  ptw.io.requestor(0)     <> io.imem.ptw
   ptw.io.requestor(1)     <> dtlb.io.ptw
   ptw.io.ptbr             := dpath.io.ptbr;
   arb.io.requestor(DMEM_PTW) <> ptw.io.mem
@@ -102,20 +101,9 @@ class rocketProc extends Component
 
   // FIXME: try to make this more compact
   
-  // connect ITLB to I$, ctrl, dpath
-  itlb.io.cpu.invalidate  := dpath.io.ptbr_wen;
-  itlb.io.cpu.status      := dpath.io.ctrl.status;
-  itlb.io.cpu.req_val     := ctrl.io.imem.req_val;  
-  itlb.io.cpu.req_asid    := Bits(0,ASID_BITS); // FIXME: connect to PCR
-  itlb.io.cpu.req_vpn     := dpath.io.imem.req_addr(VADDR_BITS,PGIDX_BITS);
-  io.imem.req_idx         := dpath.io.imem.req_addr(PGIDX_BITS-1,0);
-  io.imem.req_ppn         := itlb.io.cpu.resp_ppn;
-  io.imem.req_val         := ctrl.io.imem.req_val;
-  io.imem.invalidate      := ctrl.io.dpath.flush_inst;
-  ctrl.io.imem.resp_val   := io.imem.resp_val;
-  dpath.io.imem.resp_data := io.imem.resp_data;
-  ctrl.io.xcpt_itlb       := itlb.io.cpu.exception;
-  io.imem.itlb_miss       := itlb.io.cpu.resp_miss;
+  // connect I$
+  ctrl.io.imem <> io.imem
+  dpath.io.imem <> io.imem
 
   // connect arbiter to ctrl+dpath+DTLB
   //TODO: views on nested bundles?
@@ -144,22 +132,19 @@ class rocketProc extends Component
     dpath.io.vec_ctrl <> ctrl.io.vec_dpath
 
     // hooking up vector I$
-    val vitlb = new rocketITLB(VITLB_ENTRIES)
-    ptw.io.requestor(2)     <> vitlb.io.ptw
-    vitlb.io.cpu.invalidate := dpath.io.ptbr_wen
-    vitlb.io.cpu.status     := dpath.io.ctrl.status
-    vitlb.io.cpu.req_val    := vu.io.imem_req.valid  
-    vitlb.io.cpu.req_asid   := Bits(0,ASID_BITS) // FIXME: connect to PCR
-    vitlb.io.cpu.req_vpn    := vu.io.imem_req.bits(VADDR_BITS,PGIDX_BITS).toUFix
-    io.vimem.req_idx        := vu.io.imem_req.bits(PGIDX_BITS-1,0)
-    io.vimem.req_ppn        := vitlb.io.cpu.resp_ppn
-    io.vimem.req_val        := vu.io.imem_req.valid
-    io.vimem.invalidate     := ctrl.io.dpath.flush_inst
-    vu.io.imem_req.ready    := Bool(true)
-    vu.io.imem_resp.valid   := io.vimem.resp_val
-    vu.io.imem_resp.bits    := io.vimem.resp_data
-    vu.io.vitlb_exception   := vitlb.io.cpu.exception
-    io.vimem.itlb_miss      := vitlb.io.cpu.resp_miss
+    ptw.io.requestor(2) <> io.vimem.ptw
+    io.vimem.req.bits.status := dpath.io.ctrl.status
+    io.vimem.req.bits.pc := vu.io.imem_req.bits.toUFix
+    io.vimem.req.valid := vu.io.imem_req.valid
+    io.vimem.req.bits.invalidate := ctrl.io.dpath.flush_inst
+    io.vimem.req.bits.invalidateTLB := dpath.io.ptbr_wen
+    vu.io.imem_req.ready := Bool(true)
+    vu.io.imem_resp.valid := io.vimem.resp.valid
+    vu.io.imem_resp.bits := io.vimem.resp.bits.data
+    vu.io.vitlb_exception   := io.vimem.resp.bits.xcpt_if
+    io.vimem.resp.ready := Bool(true)
+    io.vimem.req.bits.mispredict := Bool(false)
+    io.vimem.req.bits.taken := Bool(false)
 
     // hooking up vector command queues
     vu.io.vec_cmdq.valid := ctrl.io.vec_iface.vcmdq_valid

@@ -6,172 +6,249 @@ import Constants._;
 import scala.math._;
 import uncore._
 
-// interface between I$ and pipeline/ITLB (32 bits wide)
-class ioImem extends Bundle
+case class ICacheConfig(co: CoherencePolicyWithUncached, sets: Int, assoc: Int, parity: Boolean = false)
 {
-  val invalidate = Bool(INPUT);
-  val itlb_miss  = Bool(INPUT);
-  val req_val   = Bool(INPUT);
-  val req_idx   = Bits(INPUT, PGIDX_BITS);
-  val req_ppn   = Bits(INPUT, PPN_BITS);
-  val resp_data = Bits(OUTPUT, 32);
-  val resp_val  = Bool(OUTPUT);
+  val w = 1
+  val ibytes = INST_BITS/8
+
+  val dm = assoc == 1
+  val lines = sets * assoc
+  val databits = MEM_DATA_BITS
+  val datawidth = databits + (if (parity) 1 else 0)
+  val idxbits = log2Up(sets)
+  val offbits = OFFSET_BITS
+  val untagbits = idxbits + offbits
+  val tagbits = PADDR_BITS - untagbits
+  val tagwidth = tagbits + (if (parity) 1 else 0)
+
+  require(isPow2(sets) && isPow2(assoc))
+  require(isPow2(w) && isPow2(ibytes))
+  require(PGIDX_BITS >= untagbits)
 }
 
-class ioRocketICache extends Bundle()
-{
-  val cpu = new ioImem();
-  val mem = new ioUncachedRequestor
+class FrontendReq extends Bundle {
+  val pc = UFix(width = VADDR_BITS+1)
+  val status = Bits(width = 32)
+  val invalidate = Bool()
+  val invalidateTLB = Bool()
+  val mispredict = Bool()
+  val taken = Bool()
+  val currentpc = UFix(width = VADDR_BITS+1)
 }
 
-// basic direct mapped instruction cache
-// 32 bit wide cpu port, 128 bit wide memory port, 64 byte cachelines
-// parameters :
-//    lines = # cache lines
-class rocketICache(sets: Int, assoc: Int, co: CoherencePolicyWithUncached) extends Component
+class FrontendResp extends Bundle {
+  val pc = UFix(width = VADDR_BITS+1)  // ID stage PC
+  val data = Bits(width = INST_BITS)
+  val taken = Bool()
+  val xcpt_ma = Bool()
+  val xcpt_if = Bool()
+}
+
+class IOCPUFrontend extends Bundle {
+  val req = new PipeIO()(new FrontendReq)
+  val resp = new FIFOIO()(new FrontendResp).flip
+  val ptw = new IOTLBPTW().flip
+}
+
+class Frontend(c: ICacheConfig) extends Component
 {
-  val io = new ioRocketICache();
-
-  val lines = sets * assoc;
-  val addrbits = PADDR_BITS;
-  val indexbits = log2Up(sets);
-  val offsetbits = OFFSET_BITS;
-  val tagmsb    = addrbits - 1;
-  val taglsb    = indexbits+offsetbits;
-  val tagbits   = addrbits-taglsb;
-  val indexmsb  = taglsb-1;
-  val indexlsb  = offsetbits;
-  val offsetmsb = indexlsb-1;
-  val databits = 32;
-  val offsetlsb = log2Up(databits/8);
-  val rf_cnt_bits = log2Up(REFILL_CYCLES);
-
-  require(PGIDX_BITS >= taglsb); // virtually-indexed, physically-tagged constraint
-  require(isPow2(sets) && isPow2(assoc));
+  val io = new Bundle {
+    val cpu = new IOCPUFrontend().flip
+    val mem = new ioUncachedRequestor
+  }
   
-  val s_reset :: s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(5) { UFix() };
-  val state = Reg(resetVal = s_reset);
+  val btb = new rocketDpathBTB(BTB_ENTRIES)
+  val icache = new ICache(c)
+  val tlb = new TLB(ITLB_ENTRIES)
+
+  val s1_pc = Reg() { UFix() }
+  val s2_valid = Reg(resetVal = Bool(true))
+  val s2_pc = Reg(resetVal = UFix(START_ADDR))
+  val s2_btb_hit = Reg(resetVal = Bool(false))
+  val s2_xcpt_if = Reg(resetVal = Bool(false))
+
+  val btbTarget = Cat(btb.io.target(VADDR_BITS-1), btb.io.target)
+  val pcp4_0 = s1_pc + UFix(c.ibytes)
+  val pcp4 = Cat(s1_pc(VADDR_BITS-1) & pcp4_0(VADDR_BITS-1), pcp4_0(VADDR_BITS-1,0))
+  val icmiss = s2_valid && !icache.io.resp.valid
+  val npc = Mux(icmiss, s2_pc, Mux(btb.io.hit, btbTarget, pcp4)).toUFix
+
+  val stall = !io.cpu.resp.ready
+  when (!stall) {
+    s1_pc := npc
+    s2_valid := !icmiss
+    s2_pc := s1_pc
+    s2_btb_hit := btb.io.hit
+    s2_xcpt_if := tlb.io.resp.xcpt_if
+  }
+  when (io.cpu.req.valid) {
+    s1_pc := io.cpu.req.bits.pc
+    s2_valid := Bool(false)
+  }
+
+  btb.io.current_pc := s1_pc
+  btb.io.wen := io.cpu.req.bits.mispredict
+  btb.io.clr := !io.cpu.req.bits.taken
+  btb.io.correct_pc := io.cpu.req.bits.currentpc
+  btb.io.correct_target := io.cpu.req.bits.pc
+  btb.io.invalidate := io.cpu.req.bits.invalidate || io.cpu.req.bits.invalidateTLB
+
+  tlb.io.ptw <> io.cpu.ptw
+  tlb.io.req.valid := !stall && !icmiss
+  tlb.io.req.bits.vpn := s1_pc >> UFix(PGIDX_BITS)
+  tlb.io.req.bits.status := io.cpu.req.bits.status
+  tlb.io.req.bits.asid := UFix(0)
+  tlb.io.req.bits.invalidate := io.cpu.req.bits.invalidateTLB
+  tlb.io.req.bits.instruction := Bool(true)
+
+  icache.io.mem <> io.mem
+  icache.io.req.valid := !stall
+  icache.io.req.bits.idx := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
+  icache.io.req.bits.invalidate := io.cpu.req.bits.invalidate
+  icache.io.req.bits.ppn := tlb.io.resp.ppn
+  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss
+  icache.io.resp.ready := io.cpu.resp.ready
+
+  io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
+  io.cpu.resp.bits.pc := s2_pc
+  io.cpu.resp.bits.data := icache.io.resp.bits.data
+  io.cpu.resp.bits.taken := s2_btb_hit
+  io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(c.ibytes)-1,0) != UFix(0)
+  io.cpu.resp.bits.xcpt_if := s2_xcpt_if
+}
+
+class ICache(c: ICacheConfig) extends Component
+{
+  val io = new Bundle {
+    val req = new PipeIO()(new Bundle {
+      val idx = UFix(width = PGIDX_BITS)
+      val invalidate = Bool()
+      val ppn = UFix(width = PPN_BITS) // delayed one cycle
+      val kill = Bool() // delayed one cycle
+    }).flip
+    val resp = new FIFOIO()(new Bundle {
+      val data = Bits(width = INST_BITS)
+      val datablock = Bits(width = c.databits)
+    })
+    val mem = new ioUncachedRequestor
+  }
+
+  val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(4) { UFix() }
+  val state = Reg(resetVal = s_ready)
   val invalidated = Reg() { Bool() }
-  
-  val r_cpu_req_idx    = Reg { Bits() }
-  val r_cpu_req_ppn    = Reg { Bits() }
-  val r_cpu_req_val    = Reg(resetVal = Bool(false));
-
+  val stall = !io.resp.ready
   val rdy = Bool()
-  val tag_hit = Bool()
-  
-  when (io.cpu.req_val && rdy) {
-    r_cpu_req_val   := Bool(true)
-    r_cpu_req_idx   := io.cpu.req_idx
-  }
-  .otherwise {
-    r_cpu_req_val   := Bool(false)
-  }
-  when (state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss) {
-    r_cpu_req_ppn := io.cpu.req_ppn
+
+  val s2_valid = Reg(resetVal = Bool(false))
+  val s2_addr = Reg { UFix(width = PADDR_BITS) }
+
+  val s1_valid = Reg(resetVal = Bool(false))
+  val s1_pgoff = Reg() { UFix(width = PGIDX_BITS) }
+
+  val s0_valid = io.req.valid && rdy || s1_valid && stall && !io.req.bits.kill
+  val s0_pgoff = Mux(io.req.valid, io.req.bits.idx, s1_pgoff)
+
+  s1_valid := s0_valid
+  when (io.req.valid && rdy) {
+    s1_pgoff := s0_pgoff
   }
 
-  val r_cpu_hit_addr = Cat(io.cpu.req_ppn, r_cpu_req_idx)
-  val r_cpu_hit_tag = r_cpu_hit_addr(tagmsb,taglsb)
-  val r_cpu_miss_addr = Cat(r_cpu_req_ppn, r_cpu_req_idx)
-  val r_cpu_miss_tag = r_cpu_miss_addr(tagmsb,taglsb)
-
-  // refill counter
-  val refill_count = Reg(resetVal = UFix(0, rf_cnt_bits));
-  when (io.mem.xact_rep.valid) {
-    refill_count := refill_count + UFix(1);
+  s2_valid := s1_valid && rdy && !io.req.bits.kill || stall
+  when (s1_valid && rdy && !stall) {
+    s2_addr := Cat(io.req.bits.ppn, s1_pgoff).toUFix
   }
-  val refill_done = io.mem.xact_rep.valid && refill_count.andR
 
-  val repl_way = if (assoc == 1) UFix(0) else LFSR16(state === s_ready && r_cpu_req_val && !io.cpu.itlb_miss && !tag_hit)(log2Up(assoc)-1,0)
-  val word_shift = Cat(r_cpu_req_idx(offsetmsb-rf_cnt_bits,offsetlsb), UFix(0, log2Up(databits))).toUFix
-  val tag_we = refill_done
-  val tag_addr = 
-    Mux((state === s_refill), r_cpu_req_idx(indexmsb,indexlsb),
-      io.cpu.req_idx(indexmsb,indexlsb)).toUFix;
-  val data_addr = 
-    Mux((state === s_refill_wait) || (state === s_refill),  Cat(r_cpu_req_idx(indexmsb,offsetbits), refill_count),
-      io.cpu.req_idx(indexmsb, offsetbits-rf_cnt_bits)).toUFix;
+  val s2_tag = s2_addr(c.tagbits+c.untagbits-1,c.untagbits)
+  val s2_idx = s2_addr(c.untagbits-1,c.offbits)
+  val s2_offset = s2_addr(c.offbits-1,0)
+  val s2_any_tag_hit = Bool()
+  val s2_hit = s2_valid && s2_any_tag_hit
+  val s2_miss = s2_valid && !s2_any_tag_hit
+  rdy := state === s_ready && !s2_miss
 
-  val tag_array = Mem(sets, seqRead = true) { Bits(width = tagbits*assoc) }
+  val (rf_cnt, refill_done) = Counter(io.mem.xact_rep.valid, REFILL_CYCLES)
+  val repl_way = if (c.dm) UFix(0) else LFSR16(s2_miss)(log2Up(c.assoc)-1,0)
+
+  val tag_array = Mem(c.sets, seqRead = true) { Bits(width = c.tagwidth*c.assoc) }
   val tag_rdata = Reg() { Bits() }
-  when (tag_we) {
-    tag_array.write(tag_addr, Fill(assoc, r_cpu_miss_tag), FillInterleaved(tagbits, if (assoc > 1) UFixToOH(repl_way) else Bits(1)))
-  }.otherwise {
-    tag_rdata := tag_array(tag_addr)
+  when (refill_done) {
+    val wmask = FillInterleaved(c.tagwidth, if (c.dm) Bits(1) else UFixToOH(repl_way))
+    val tag = Cat(if (c.parity) s2_tag.xorR else null, s2_tag)
+    tag_array.write(s2_idx, Fill(c.assoc, tag), wmask)
+  }.elsewhen (s0_valid) {
+    tag_rdata := tag_array(s0_pgoff(c.untagbits-1,c.offbits))
   }
 
-  val vb_array = Reg(resetVal = Bits(0, lines))
-  when (io.cpu.invalidate) {
+  val vb_array = Reg(resetVal = Bits(0, c.lines))
+  when (refill_done && !invalidated) {
+    vb_array := vb_array.bitSet(Cat(repl_way, s2_idx), Bool(true))
+  }
+  when (io.req.bits.invalidate) {
     vb_array := Bits(0)
-  }.elsewhen (tag_we) {
-    vb_array := vb_array.bitSet(Cat(r_cpu_req_idx(indexmsb,indexlsb), if (assoc > 1) repl_way else null), !invalidated)
+    invalidated := Bool(true)
   }
+  val s2_disparity = Vec(c.assoc) { Bool() }
+  for (i <- 0 until c.assoc)
+    when (s2_valid && s2_disparity(i)) { vb_array := vb_array.bitSet(Cat(UFix(i), s2_idx), Bool(false)) }
 
-  val data_mux = (new Mux1H(assoc)){Bits(width = databits)}
-  var any_hit = Bool(false)
-  for (i <- 0 until assoc)
-  {
-    val valid = vb_array(Cat(r_cpu_req_idx(indexmsb,indexlsb), if (assoc > 1) UFix(i, log2Up(assoc)) else null))
-    val hit = valid && tag_rdata(tagbits*(i+1)-1, tagbits*i) === r_cpu_hit_addr(tagmsb,taglsb)
-    
-    // data array
-    val data_array = Mem(sets*REFILL_CYCLES, seqRead = true){ io.mem.xact_rep.bits.data.clone }
-    val data_out = Reg(){ io.mem.xact_rep.bits.data.clone }
-    when (io.mem.xact_rep.valid && repl_way === UFix(i)) { data_array(data_addr) := io.mem.xact_rep.bits.data }
-    .otherwise { data_out := data_array(data_addr) }
-
-    data_mux.io.sel(i) := hit
-    data_mux.io.in(i) := (data_out >> word_shift)(databits-1,0);
-
-    any_hit = any_hit || hit
+  val s2_tag_hit = Vec(c.assoc) { Bool() }
+  val s2_data_disparity = Vec(c.assoc) { Bool() }
+  for (i <- 0 until c.assoc) {
+    val s1_vb = vb_array(Cat(UFix(i), s1_pgoff(c.untagbits-1,c.offbits))).toBool
+    val s2_vb = Reg() { Bool() }
+    val s2_tag_out = Reg() { Bits() }
+    when (s1_valid && rdy && !stall) {
+      s2_vb := s1_vb
+      s2_tag_out := tag_rdata(c.tagwidth*(i+1)-1, c.tagwidth*i)
+    }
+    s2_tag_hit(i) := s2_vb && s2_tag_out(c.tagbits-1,0) === s2_tag
+    s2_disparity(i) := Bool(c.parity) && s2_vb && (s2_tag_out.xorR || s2_data_disparity(i))
   }
-  tag_hit := any_hit
+  s2_any_tag_hit := s2_tag_hit.reduceLeft(_||_) && !s2_disparity.reduceLeft(_||_)
+
+  val s2_dout = Vec(c.assoc) { Reg() { Bits(width = c.databits) } }
+  for (i <- 0 until c.assoc) {
+    val data_array = Mem(c.sets*REFILL_CYCLES, seqRead = true){ Bits(width = c.datawidth) }
+    val s1_dout = Reg(){ Bits() }
+    when (io.mem.xact_rep.valid && repl_way === UFix(i)) {
+      val d = io.mem.xact_rep.bits.data
+      val wdata = if (c.parity) Cat(d.xorR, d) else d
+      data_array(Cat(s2_idx,rf_cnt)) := wdata
+    }.elsewhen (s0_valid) {
+      s1_dout := data_array(s0_pgoff(c.untagbits-1,c.offbits-rf_cnt.getWidth))
+    }
+    when (s1_valid && rdy && !stall) { s2_dout(i) := s1_dout }
+    s2_data_disparity(i) := s2_dout(i).xorR
+  }
+  val s2_dout_word = s2_dout.map(x => (x >> Cat(s2_offset(log2Up(c.databits/8)-1,log2Up(c.ibytes)), Bits(0,log2Up(c.ibytes*8))))(c.ibytes*8-1,0))
+  io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
+  io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
   val finish_q = (new Queue(1)) { new TransactionFinish }
   finish_q.io.enq.valid := refill_done && io.mem.xact_rep.bits.require_ack
   finish_q.io.enq.bits.global_xact_id := io.mem.xact_rep.bits.global_xact_id
 
   // output signals
-  io.cpu.resp_val := !io.cpu.itlb_miss && (state === s_ready) && r_cpu_req_val && tag_hit;
-  rdy := !io.cpu.itlb_miss && (state === s_ready) && (!r_cpu_req_val || tag_hit);
-  io.cpu.resp_data := data_mux.io.out
+  io.resp.valid := s2_hit
   io.mem.xact_init.valid := (state === s_request) && finish_q.io.enq.ready
-  io.mem.xact_init.bits := co.getUncachedReadTransactionInit(r_cpu_miss_addr(tagmsb,indexlsb).toUFix, UFix(0))
+  io.mem.xact_init.bits := c.co.getUncachedReadTransactionInit(s2_addr >> UFix(c.offbits), UFix(0))
   io.mem.xact_finish <> finish_q.io.deq
 
   // control state machine
-  when (io.cpu.invalidate) {
-    invalidated := Bool(true)
-  }
   switch (state) {
-    is (s_reset) {
-      state := s_ready;
-    }
     is (s_ready) {
-      when (r_cpu_req_val && !tag_hit && !io.cpu.itlb_miss) {
-        state := s_request;
-      }
+      when (s2_miss) { state := s_request }
       invalidated := Bool(false)
     }
-    is (s_request)
-    {
-      when (io.mem.xact_init.ready && finish_q.io.enq.ready) {
-        state := s_refill_wait;
-      }
+    is (s_request) {
+      when (io.mem.xact_init.ready && finish_q.io.enq.ready) { state := s_refill_wait }
     }
     is (s_refill_wait) {
-      when (io.mem.xact_abort.valid) {
-        state := s_request
-      }
-      when (io.mem.xact_rep.valid) {
-        state := s_refill;
-      }
+      when (io.mem.xact_abort.valid) { state := s_request }
+      when (io.mem.xact_rep.valid) { state := s_refill }
     }
     is (s_refill) {
-      when (refill_done) {
-        state := s_ready;
-      }
+      when (refill_done) { state := s_ready }
     }
-  } 
+  }
 }
