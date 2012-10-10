@@ -61,7 +61,7 @@ class rocketVUMultiplier(nwbq: Int) extends Component {
   io.vu.req <> io.cpu.req
 }
 
-class rocketMultiplier(unroll: Int = 1) extends Component {
+class rocketMultiplier(unroll: Int = 1, earlyOut: Boolean = false) extends Component {
   val io = new ioMultiplier
 
   val w0 = io.req.bits.in0.getWidth
@@ -89,8 +89,6 @@ class rocketMultiplier(unroll: Int = 1) extends Component {
   val rhs_sign = (fn === MUL_H) && rhs_msb
   val rhs_hi = Mux(dw === DW_64, io.req.bits.in1(w0-1,w0/2), Fill(w0/2, rhs_sign))
   val rhs_in = Cat(Fill(w-w0, rhs_sign), rhs_hi, io.req.bits.in1(w0/2-1,0))
-
-  val do_kill = io.req_kill && r_cnt === UFix(0) // can only kill on 1st cycle
   
   when (io.req.valid && io.req.ready) {
     r_val := Bool(true)
@@ -102,25 +100,33 @@ class rocketMultiplier(unroll: Int = 1) extends Component {
     r_prod:= rhs_in
     r_lsb := Bool(false)
   }
-  .elsewhen (io.resp_val && io.resp_rdy || do_kill) { // can only kill on first cycle
+  .elsewhen (io.resp_val && io.resp_rdy || io.req_kill && r_cnt === UFix(0)) { // can only kill on first cycle
     r_val := Bool(false)
   }
+
+  val eOutDist = (UFix(cycles)-r_cnt)*UFix(unroll)
+  val outShift = Mux(r_fn === MUL_LO, UFix(0), Mux(r_dw === DW_64, UFix(64), UFix(32)))
+  val shiftDist = Mux(r_cnt === UFix(cycles), outShift, eOutDist)
+  val eOutMask = (UFix(1) << eOutDist) - UFix(1)
+  val eOut = r_cnt != UFix(0) && Bool(earlyOut) && !((r_prod(w-1,0) ^ r_lsb.toFix) & eOutMask).orR
+  val shift = r_prod.toFix >> shiftDist
 
   val sum = r_prod(2*w-1,w).toFix + r_prod(unroll-1,0).toFix * r_lhs.toFix + Mux(r_lsb, r_lhs.toFix, Fix(0))
   when (r_val && (r_cnt != UFix(cycles))) {
     r_lsb  := r_prod(unroll-1)
     r_prod := Cat(sum, r_prod(w-1,unroll)).toFix
     r_cnt := r_cnt + UFix(1)
+    when (eOut) {
+      r_prod := shift
+      r_cnt := UFix(cycles)
+    }
   }
 
-  val mul_output64 = Mux(r_fn === MUL_LO, r_prod(w0-1,0), r_prod(2*w0-1,w0))
-  val mul_output32 = Mux(r_fn === MUL_LO, r_prod(w0/2-1,0), r_prod(w0-1,w0/2))
-  val mul_output32_ext = Cat(Fill(32, mul_output32(w0/2-1)), mul_output32)
-  
-  val mul_output = Mux(r_dw === DW_64, mul_output64, mul_output32_ext)
+  val out32 = Cat(Fill(w0/2, shift(w0/2-1)), shift(w0/2-1,0))
+  val out64 = shift(w0-1,0)
  
   io.req.ready := !r_val
-  io.resp_bits := mul_output;
+  io.resp_bits := Mux(r_dw === DW_64, out64, out32)
   io.resp_tag := r_tag;
   io.resp_val := r_val && (r_cnt === UFix(cycles))
 }
