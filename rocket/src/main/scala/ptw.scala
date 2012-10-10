@@ -73,7 +73,7 @@ class rocketHellaCacheArbiter(n: Int) extends Component
 
 class ioPTW(n: Int) extends Bundle
 {
-  val requestor = Vec(n) { new ioTLB_PTW }.flip
+  val requestor = Vec(n) { new IOTLBPTW }.flip
   val mem   = new ioHellaCache
   val ptbr  = UFix(INPUT, PADDR_BITS)
 }
@@ -99,20 +99,15 @@ class rocketPTW(n: Int) extends Component
   
   val vpn_idxs = (1 until levels).map(i => r_req_vpn((levels-i)*bitsPerLevel-1, (levels-i-1)*bitsPerLevel))
   val vpn_idx = (2 until levels).foldRight(vpn_idxs(0))((i,j) => Mux(count === UFix(i-1), vpn_idxs(i-1), j))
- 
-  val req_rdy = state === s_ready
-  var req_val = Bool(false)
-  for (r <- io.requestor) {
-    r.req_rdy := req_rdy && !req_val
-    req_val = req_val || r.req_val
-  }
-  val req_dest = PriorityEncoder(io.requestor.map(_.req_val))
-  val req_vpn = io.requestor.slice(0, n-1).foldRight(io.requestor(n-1).req_vpn)((r, v) => Mux(r.req_val, r.req_vpn, v))
 
-  when (state === s_ready && req_val) {
-    r_req_vpn := req_vpn
-    r_req_dest := req_dest
-    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), req_vpn(VPN_BITS-1,VPN_BITS-bitsPerLevel), Bits(0,3))
+  val arb = new Arbiter(n)(UFix(width = VPN_BITS))
+  arb.io.in <> io.requestor.map(_.req)
+  arb.io.out.ready := state === s_ready
+
+  when (arb.io.out.fire()) {
+    r_req_vpn := arb.io.out.bits
+    r_req_dest := arb.io.chosen
+    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), arb.io.out.bits(VPN_BITS-1,VPN_BITS-bitsPerLevel), Bits(0,3))
   }
 
   val dmem_resp_val = Reg(io.mem.resp.valid, resetVal = Bool(false))
@@ -129,8 +124,8 @@ class rocketPTW(n: Int) extends Component
   io.mem.req.bits.ppn  := Reg(req_addr(PADDR_BITS-1,PGIDX_BITS))
   io.mem.req.bits.kill := Bool(false)
   
-  val resp_val = state === s_done
-  val resp_err = state === s_error
+  val resp_val = state === s_done || state === s_error
+  val resp_err = state === s_error || state === s_wait
   
   val resp_ptd = io.mem.resp.bits.data_subword(1,0) === Bits(1)
   val resp_pte = io.mem.resp.bits.data_subword(1,0) === Bits(2)
@@ -140,16 +135,16 @@ class rocketPTW(n: Int) extends Component
 
   for (i <- 0 until io.requestor.size) {
     val me = r_req_dest === UFix(i)
-    io.requestor(i).resp_val := resp_val && me
-    io.requestor(i).resp_err := resp_err && me
-    io.requestor(i).resp_perm := r_resp_perm
-    io.requestor(i).resp_ppn := resp_ppn
+    io.requestor(i).resp.valid := resp_val && me
+    io.requestor(i).resp.bits.error := resp_err
+    io.requestor(i).resp.bits.perm := r_resp_perm
+    io.requestor(i).resp.bits.ppn := resp_ppn.toUFix
   }
 
   // control state machine
   switch (state) {
     is (s_ready) {
-      when (req_val) {
+      when (arb.io.out.valid) {
         state := s_req;
       }
       count := UFix(0)

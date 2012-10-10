@@ -16,25 +16,20 @@ object Constants
   val HTIF_WIDTH = 16
   val MEM_BACKUP_WIDTH = HTIF_WIDTH
 
-  val BR_X    = Bits("b????", 4)
-  val BR_N    = UFix(0, 4);
-  val BR_EQ   = UFix(1, 4);
-  val BR_NE   = UFix(2, 4);
-  val BR_LT   = UFix(3, 4);
-  val BR_LTU  = UFix(4, 4);
-  val BR_GE   = UFix(5, 4);
-  val BR_GEU  = UFix(6, 4);
-  val BR_J    = UFix(7, 4);
-  val BR_JR   = UFix(8, 4);
+  val BR_X    = Bits("b???", 3)
+  val BR_EQ   = UFix(0, 3)
+  val BR_NE   = UFix(1, 3)
+  val BR_J    = UFix(2, 3)
+  val BR_N    = UFix(3, 3)
+  val BR_LT   = UFix(4, 3)
+  val BR_GE   = UFix(5, 3)
+  val BR_LTU  = UFix(6, 3)
+  val BR_GEU  = UFix(7, 3)
 
-  val PC_4    = UFix(0, 3);
-  val PC_BTB  = UFix(1, 3);
-  val PC_EX4  = UFix(2, 3);
-  val PC_BR   = UFix(3, 3);
-  val PC_PCR  = UFix(4, 3);
-  val PC_WB   = UFix(5, 3);
-  val PC_EVEC = UFix(6, 3);
-  val PC_JR   = UFix(7, 3);
+  val PC_EX4 = UFix(0, 2)
+  val PC_EX  = UFix(1, 2)
+  val PC_WB  = UFix(2, 2)
+  val PC_PCR = UFix(3, 2)
 
   val A2_X     = Bits("b???", 3)
   val A2_BTYPE = UFix(0, 3);
@@ -69,19 +64,6 @@ object Constants
   val WB_ALU = UFix(2, 3);
   val WB_TSC = UFix(4, 3);
   val WB_IRT = UFix(5, 3);
-
-  val FN_X     = Bits("b????", 4)
-  val FN_ADD   = UFix(0, 4);
-  val FN_SUB   = UFix(1, 4);
-  val FN_SLT   = UFix(2, 4);
-  val FN_SLTU  = UFix(3, 4);
-  val FN_AND   = UFix(4, 4);
-  val FN_OR    = UFix(5, 4);
-  val FN_XOR   = UFix(6, 4);
-  val FN_SL    = UFix(7, 4);
-  val FN_SR    = UFix(8, 4);
-  val FN_SRA   = UFix(9, 4);
-  val FN_OP2   = UFix(10, 4);
 
   val DW_X  = X
   val DW_32 = N
@@ -175,6 +157,7 @@ object Constants
   val PERM_BITS = 6;
 
   // rocketNBDCache parameters
+  val INST_BITS = 32
   val DCACHE_PORTS = 3
   val CPU_DATA_BITS = 64;
   val CPU_TAG_BITS = 9;
@@ -212,8 +195,9 @@ object Constants
   val MEM_DATA_BITS = 128
   val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
   
+  val BTB_ENTRIES = 8
+  val ITLB_ENTRIES = 8
   val DTLB_ENTRIES = 16
-  val ITLB_ENTRIES = 8;
   val VITLB_ENTRIES = 4
   
   val START_ADDR = 0x2000;

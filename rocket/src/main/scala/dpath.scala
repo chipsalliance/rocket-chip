@@ -7,19 +7,13 @@ import Constants._
 import Instructions._
 import hwacha._
 
-class ioDpathImem extends Bundle()
-{
-  val req_addr  = UFix(OUTPUT, VADDR_BITS+1);
-  val resp_data = Bits(INPUT, 32);
-}
-
 class ioDpathAll extends Bundle()
 {
   val host  = new ioHTIF();
   val ctrl  = new ioCtrlDpath().flip
   val dmem = new ioHellaCache
   val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
-  val imem  = new ioDpathImem();
+  val imem  = new IOCPUFrontend
   val ptbr_wen = Bool(OUTPUT);
   val ptbr = UFix(OUTPUT, PADDR_BITS);
   val fpu = new ioDpathFPU();
@@ -32,26 +26,15 @@ class ioDpathAll extends Bundle()
 class rocketDpath extends Component
 {
   val io  = new ioDpathAll();
-  
-  val btb = new rocketDpathBTB(4); // # of entries in BTB
-  
-  val if_btb_target = btb.io.target;
 
   val pcr = new rocketDpathPCR(); 
   val ex_pcr = pcr.io.r.data;
 
-  val alu = new rocketDpathALU(); 
+  val alu = new ALU
   val ex_alu_out = alu.io.out; 
   val ex_alu_adder_out = alu.io.adder_out; 
   
   val rfile = new rocketDpathRegfile();
-
-  // instruction fetch definitions
-  val if_reg_pc         = Reg(resetVal = UFix(START_ADDR,VADDR_BITS+1));
-
-  // instruction decode definitions
-  val id_reg_inst      = Reg(resetVal = NOP);
-  val id_reg_pc        = Reg() { UFix(width = VADDR_BITS+1) };
 
   // execute definitions
   val ex_reg_pc             = Reg() { UFix() };
@@ -62,13 +45,8 @@ class rocketDpath extends Component
   val ex_reg_rs2            = Reg() { Bits() };
   val ex_reg_rs1            = Reg() { Bits() };
   val ex_reg_waddr          = Reg() { UFix() };
-  val ex_reg_ctrl_eret      = Reg(resetVal = Bool(false));
   val ex_reg_ctrl_fn_dw     = Reg() { UFix() };
   val ex_reg_ctrl_fn_alu    = Reg() { UFix() };
-  val ex_reg_ctrl_mul_val   = Reg(resetVal = Bool(false));
-  val ex_reg_ctrl_mul_fn    = Reg() { UFix() };
-  val ex_reg_ctrl_div_val   = Reg(resetVal = Bool(false));
-  val ex_reg_ctrl_div_fn    = Reg() { UFix() };
   val ex_reg_ctrl_sel_wb    = Reg() { UFix() };
  	val ex_wdata						  = Bits(); 	
 
@@ -99,9 +77,6 @@ class rocketDpath extends Component
   val r_dmem_resp_replay    = Reg(resetVal = Bool(false));
   val r_dmem_fp_replay      = Reg(resetVal = Bool(false));
   val r_dmem_resp_waddr     = Reg() { UFix() };
-  
-  // instruction fetch stage
-  val if_pc_plus4 = if_reg_pc + UFix(4);
 
   val ex_pc_plus4 = ex_reg_pc + UFix(4);
   val ex_branch_target = ex_reg_pc + Cat(ex_reg_op2(VADDR_BITS-1,0), Bits(0,1)).toUFix
@@ -109,41 +84,24 @@ class rocketDpath extends Component
   val ex_ea_sign = Mux(ex_alu_adder_out(VADDR_BITS-1), ~ex_alu_adder_out(63,VADDR_BITS) === UFix(0), ex_alu_adder_out(63,VADDR_BITS) != UFix(0))
   val ex_effective_address = Cat(ex_ea_sign, ex_alu_adder_out(VADDR_BITS-1,0)).toUFix
 
-  val if_next_pc =
-    Mux(io.ctrl.sel_pc === PC_BTB,  Cat(if_btb_target(VADDR_BITS-1), if_btb_target),
-    Mux(io.ctrl.sel_pc === PC_EX4,  ex_pc_plus4,
-    Mux(io.ctrl.sel_pc === PC_BR,   ex_branch_target,
-    Mux(io.ctrl.sel_pc === PC_JR,   ex_effective_address,
-    Mux(io.ctrl.sel_pc === PC_PCR,  Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec),
-    Mux(io.ctrl.sel_pc === PC_WB,   wb_reg_pc,
-        if_pc_plus4)))))) // PC_4
-        
-  when (!io.ctrl.stallf) {
-    if_reg_pc := if_next_pc.toUFix;
-  }
-  
-  io.ctrl.xcpt_ma_inst := if_next_pc(1,0) != Bits(0)
-
-  io.imem.req_addr :=
-    Mux(io.ctrl.stallf, if_reg_pc,
-        if_next_pc.toUFix);
-
-  btb.io.current_pc     := if_reg_pc;
-  btb.io.hit            <> io.ctrl.btb_hit;
-  btb.io.wen            <> io.ctrl.wen_btb;
-  btb.io.clr            <> io.ctrl.clr_btb;
-  btb.io.correct_pc     := ex_reg_pc;
-  btb.io.correct_target := ex_branch_target
-  btb.io.invalidate     := io.ctrl.flush_inst
+  // hook up I$
+  io.imem.req.bits.invalidateTLB := pcr.io.ptbr_wen
+  io.imem.req.bits.currentpc := ex_reg_pc
+  io.imem.req.bits.status := pcr.io.status
+  io.imem.req.bits.pc :=
+    Mux(io.ctrl.sel_pc === PC_EX4, ex_pc_plus4,
+    Mux(io.ctrl.sel_pc === PC_EX,  Mux(io.ctrl.ex_jalr, ex_effective_address, ex_branch_target),
+    Mux(io.ctrl.sel_pc === PC_PCR, Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec).toUFix,
+        wb_reg_pc))) // PC_WB
 
   // instruction decode stage
-  when (!io.ctrl.stalld) {
-    id_reg_pc := if_reg_pc;
-    id_reg_inst := Mux(io.ctrl.killf, NOP, io.imem.resp_data)
-  }
+  val id_inst = io.imem.resp.bits.data
+  val id_pc = io.imem.resp.bits.pc
+  debug(id_inst)
+  debug(id_pc)
 
-  val id_raddr1 = id_reg_inst(26,22).toUFix;
-  val id_raddr2 = id_reg_inst(21,17).toUFix;
+  val id_raddr1 = id_inst(26,22).toUFix;
+  val id_raddr2 = id_inst(21,17).toUFix;
 
 	// regfile read
   rfile.io.r0.en   <> io.ctrl.ren2;
@@ -156,7 +114,7 @@ class rocketDpath extends Component
 
   // destination register selection
   val id_waddr =
-    Mux(io.ctrl.sel_wa === WA_RD, id_reg_inst(31,27).toUFix,
+    Mux(io.ctrl.sel_wa === WA_RD, id_inst(31,27).toUFix,
         RA); // WA_RA
 
   // bypass muxes
@@ -185,26 +143,26 @@ class rocketDpath extends Component
   val id_imm_l = io.ctrl.sel_alu2 === A2_LTYPE
   val id_imm_zero = io.ctrl.sel_alu2 === A2_ZERO || io.ctrl.sel_alu2 === A2_RTYPE
   val id_imm_ibz = io.ctrl.sel_alu2 === A2_ITYPE || io.ctrl.sel_alu2 === A2_BTYPE || id_imm_zero
-  val id_imm_sign = Mux(id_imm_bj, id_reg_inst(31),
-                    Mux(id_imm_l, id_reg_inst(26),
+  val id_imm_sign = Mux(id_imm_bj, id_inst(31),
+                    Mux(id_imm_l, id_inst(26),
                     Mux(id_imm_zero, Bits(0,1),
-                        id_reg_inst(21)))) // IMM_ITYPE
+                        id_inst(21)))) // IMM_ITYPE
   val id_imm_small = Mux(id_imm_zero, Bits(0,12),
-                         Cat(Mux(id_imm_bj, id_reg_inst(31,27), id_reg_inst(21,17)), id_reg_inst(16,10)))
+                         Cat(Mux(id_imm_bj, id_inst(31,27), id_inst(21,17)), id_inst(16,10)))
   val id_imm = Cat(Fill(32, id_imm_sign),
-                   Mux(id_imm_l, Cat(id_reg_inst(26,7), Bits(0,12)),
+                   Mux(id_imm_l, Cat(id_inst(26,7), Bits(0,12)),
                    Mux(id_imm_ibz, Cat(Fill(20, id_imm_sign), id_imm_small),
-                       Cat(Fill(7, id_imm_sign), id_reg_inst(31,7))))) // A2_JTYPE
+                       Cat(Fill(7, id_imm_sign), id_inst(31,7))))) // A2_JTYPE
 
   val id_op2_dmem_bypass = id_rs2_dmem_bypass && io.ctrl.sel_alu2 === A2_RTYPE
   val id_op2 = Mux(io.ctrl.sel_alu2 === A2_RTYPE, id_rs2, id_imm)
 
-  io.ctrl.inst := id_reg_inst
-  io.fpu.inst := id_reg_inst
+  io.ctrl.inst := id_inst
+  io.fpu.inst := id_inst
 
   // execute stage
-  ex_reg_pc             := id_reg_pc;
-  ex_reg_inst           := id_reg_inst
+  ex_reg_pc             := id_pc
+  ex_reg_inst           := id_inst
   ex_reg_raddr1         := id_raddr1
   ex_reg_raddr2         := id_raddr2;
   ex_reg_op2            := id_op2;
@@ -213,20 +171,7 @@ class rocketDpath extends Component
   ex_reg_waddr          := id_waddr;
   ex_reg_ctrl_fn_dw     := io.ctrl.fn_dw.toUFix;
   ex_reg_ctrl_fn_alu    := io.ctrl.fn_alu;
-  ex_reg_ctrl_mul_fn    := io.ctrl.mul_fn;
-  ex_reg_ctrl_div_fn    := io.ctrl.div_fn;
   ex_reg_ctrl_sel_wb    := io.ctrl.sel_wb;
-
-  when(io.ctrl.killd) {
-    ex_reg_ctrl_div_val 	:= Bool(false);
-    ex_reg_ctrl_mul_val   := Bool(false);
-    ex_reg_ctrl_eret			:= Bool(false);
-  } 
-  .otherwise {
-    ex_reg_ctrl_div_val 	:= io.ctrl.div_val;
-  	ex_reg_ctrl_mul_val   := io.ctrl.mul_val;
-    ex_reg_ctrl_eret			:= io.ctrl.id_eret;
-  }
 
   val ex_rs1 = Mux(Reg(id_rs1_dmem_bypass), wb_reg_dmem_wdata, ex_reg_rs1)
   val ex_rs2 = Mux(Reg(id_rs2_dmem_bypass), wb_reg_dmem_wdata, ex_reg_rs2)
@@ -240,19 +185,19 @@ class rocketDpath extends Component
   io.fpu.fromint_data := ex_rs1
   
   // divider
-  val div = new rocketDivider(64)
-  div.io.req.valid := ex_reg_ctrl_div_val
-  div.io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, ex_reg_ctrl_div_fn)
+  val div = new rocketDivider(earlyOut = true)
+  div.io.req.valid := io.ctrl.div_val
+  div.io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, io.ctrl.div_fn)
   div.io.req.bits.in0 := ex_rs1
   div.io.req.bits.in1 := ex_rs2
   div.io.req_tag := ex_reg_waddr
-  div.io.req_kill := io.ctrl.killm
+  div.io.req_kill := io.ctrl.div_kill
   div.io.resp_rdy := !dmem_resp_replay
   io.ctrl.div_rdy := div.io.req.ready
   io.ctrl.div_result_val := div.io.resp_val
   
   // multiplier
-  var mul_io = new rocketMultiplier(unroll = 6).io
+  var mul_io = new rocketMultiplier(unroll = 4, earlyOut = true).io
   if (HAVE_VEC)
   {
     val vu_mul = new rocketVUMultiplier(nwbq = 1)
@@ -260,12 +205,12 @@ class rocketDpath extends Component
     vu_mul.io.vu.resp <> io.vec_imul_resp
     mul_io = vu_mul.io.cpu
   }
-  mul_io.req.valid := ex_reg_ctrl_mul_val;
-  mul_io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, ex_reg_ctrl_mul_fn)
+  mul_io.req.valid := io.ctrl.mul_val
+  mul_io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, io.ctrl.mul_fn)
   mul_io.req.bits.in0 := ex_rs1
   mul_io.req.bits.in1 := ex_rs2
   mul_io.req_tag := ex_reg_waddr
-  mul_io.req_kill := io.ctrl.killm
+  mul_io.req_kill := io.ctrl.mul_kill
   mul_io.resp_rdy := !dmem_resp_replay && !div.io.resp_val
   io.ctrl.mul_rdy := mul_io.req.ready
   io.ctrl.mul_result_val := mul_io.resp_val

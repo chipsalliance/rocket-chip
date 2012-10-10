@@ -15,27 +15,45 @@ class ioALU extends Bundle(){
   val adder_out = UFix(OUTPUT, 64);
 }
 
-class rocketDpathALU extends Component
+object ALU
 {
+  val FN_X    = Bits("b????")
+  val FN_ADD  = UFix(0)
+  val FN_SL   = UFix(1)
+  val FN_XOR  = UFix(4)
+  val FN_OR   = UFix(6)
+  val FN_AND  = UFix(7)
+  val FN_SR   = UFix(5)
+  val FN_SUB  = UFix(8)
+  val FN_SLT  = UFix(10)
+  val FN_SLTU = UFix(11)
+  val FN_SRA  = UFix(13)
+  val FN_OP2  = UFix(15)
+
+  def isSub(cmd: Bits) = cmd(3)
+  def isSLTU(cmd: Bits) = cmd(0)
+}
+
+class ALU extends Component
+{
+  import ALU._
   val io = new ioALU();
 
   // ADD, SUB
-  val sub = (io.fn === FN_SUB) || (io.fn === FN_SLT) || (io.fn === FN_SLTU)
+  val sub = isSub(io.fn)
   val adder_rhs = Mux(sub, ~io.in2, io.in2)
   val sum = (io.in1 + adder_rhs + sub.toUFix)(63,0)
 
   // SLT, SLTU
   val less  = Mux(io.in1(63) === io.in2(63), sum(63),
-              Mux(io.fn === FN_SLT, io.in1(63), io.in2(63)))
+              Mux(isSLTU(io.fn), io.in2(63), io.in1(63)))
 
   // SLL, SRL, SRA
-  val sra = (io.fn === FN_SRA)
   val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0)).toUFix
-  val shright = sra || (io.fn === FN_SR)
-  val shin_hi_32 = Mux(sra, Fill(32, io.in1(31)), UFix(0,32))
+  val shin_hi_32 = Mux(isSub(io.fn), Fill(32, io.in1(31)), UFix(0,32))
   val shin_hi = Mux(io.dw === DW_64, io.in1(63,32), shin_hi_32)
   val shin = Cat(shin_hi, io.in1(31,0))
-  val shout_r = (Cat(sra & shin(63), shin).toFix >> shamt)(63,0)
+  val shout_r = (Cat(isSub(io.fn) & shin(63), shin).toFix >> shamt)(63,0)
   val shout_l = (shin << shamt)(63,0)
 
   val bitwise_logic =

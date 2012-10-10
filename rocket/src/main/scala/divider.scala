@@ -4,8 +4,10 @@ import Chisel._
 import Node._
 import Constants._
 
-class rocketDivider(w: Int, earlyOut: Boolean = false) extends Component {
+class rocketDivider(earlyOut: Boolean = false) extends Component {
   val io = new ioMultiplier
+  val w0 = io.req.bits.in0.getWidth
+  val w = w0+1 // sign bit
   
   val s_ready :: s_neg_inputs :: s_busy :: s_neg_outputs :: s_done :: Nil = Enum(5) { UFix() };
   val state = Reg(resetVal = s_ready);
@@ -26,57 +28,16 @@ class rocketDivider(w: Int, earlyOut: Boolean = false) extends Component {
   val fn = io.req.bits.fn(io.req.bits.fn.width-2,0)
   val tc = (fn === DIV_D) || (fn === DIV_R);
 
-  switch (state) {
-    is (s_ready) {
-      when (io.req.valid) {
-        state := Mux(tc, s_neg_inputs, s_busy)
-      }
-    }
-    is (s_neg_inputs) {
-      state := Mux(io.req_kill, s_ready, s_busy)
-    }
-    is (s_busy) {
-      when (io.req_kill && Reg(io.req.ready)) {
-        state := s_ready
-      }
-      .elsewhen (count === UFix(w)) {
-        state := Mux(neg_quo || neg_rem, s_neg_outputs, s_done)
-      }
-    }
-    is (s_neg_outputs) {
-      state := s_done
-    }
-    is (s_done) {
-      when (io.resp_rdy) {
-        state := s_ready
-      }
-    }
-  }
-  
-  // state machine
+  val lhs_sign = tc && Mux(dw === DW_64, io.req.bits.in0(w0-1), io.req.bits.in0(w0/2-1))
+  val lhs_hi = Mux(dw === DW_64, io.req.bits.in0(w0-1,w0/2), Fill(w0/2, lhs_sign))
+  val lhs_in = Cat(lhs_sign, lhs_hi, io.req.bits.in0(w0/2-1,0))
 
-  val lhs_sign = tc && Mux(dw === DW_64, io.req.bits.in0(w-1), io.req.bits.in0(w/2-1))
-  val lhs_hi = Mux(dw === DW_64, io.req.bits.in0(w-1,w/2), Fill(w/2, lhs_sign))
-  val lhs_in = Cat(lhs_hi, io.req.bits.in0(w/2-1,0))
-
-  val rhs_sign = tc && Mux(dw === DW_64, io.req.bits.in1(w-1), io.req.bits.in1(w/2-1))
-  val rhs_hi = Mux(dw === DW_64, io.req.bits.in1(w-1,w/2), Fill(w/2, rhs_sign))
-  val rhs_in = Cat(rhs_hi, io.req.bits.in1(w/2-1,0))
+  val rhs_sign = tc && Mux(dw === DW_64, io.req.bits.in1(w0-1), io.req.bits.in1(w0/2-1))
+  val rhs_hi = Mux(dw === DW_64, io.req.bits.in1(w0-1,w0/2), Fill(w0/2, rhs_sign))
+  val rhs_in = Cat(rhs_sign, rhs_hi, io.req.bits.in1(w0/2-1,0))
         
-  when (io.req.fire()) {
-    count := UFix(0)
-    half := (dw === DW_32);
-    neg_quo := Bool(false);
-    neg_rem := Bool(false);
-    rem := (fn === DIV_R) || (fn === DIV_RU);
-    reg_tag := io.req_tag;
-    divby0 := Bool(true);
-    divisor := rhs_in
-    remainder := lhs_in
-  }
   when (state === s_neg_inputs) {
-    neg_rem := remainder(w-1)
-    neg_quo := (remainder(w-1) != divisor(w-1))
+    state := s_busy
     when (remainder(w-1)) {
       remainder := Cat(remainder(2*w, w), -remainder(w-1,0))
     }
@@ -85,6 +46,7 @@ class rocketDivider(w: Int, earlyOut: Boolean = false) extends Component {
     }
   }
   when (state === s_neg_outputs) {
+    state := s_done
     when (neg_rem && neg_quo && !divby0) {
       remainder := Cat(-remainder(2*w, w+1), remainder(w), -remainder(w-1,0))
     }
@@ -96,6 +58,9 @@ class rocketDivider(w: Int, earlyOut: Boolean = false) extends Component {
     }
   }
   when (state === s_busy) {
+    when (count === UFix(w)) {
+      state := Mux(neg_quo || neg_rem, s_neg_outputs, s_done)
+    }
     count := count + UFix(1)
 
     val msb = subtractor(w)
@@ -112,11 +77,26 @@ class rocketDivider(w: Int, earlyOut: Boolean = false) extends Component {
       remainder := remainder << shift
       count := shift
     }
-  }  
+  }
+  when (state === s_done && io.resp_rdy || io.req_kill) {
+    state := s_ready
+  }
+  when (io.req.fire()) {
+    state := Mux(lhs_sign || rhs_sign, s_neg_inputs, s_busy)
+    count := UFix(0)
+    half := (dw === DW_32);
+    neg_quo := lhs_sign != rhs_sign
+    neg_rem := lhs_sign
+    rem := (fn === DIV_R) || (fn === DIV_RU);
+    reg_tag := io.req_tag;
+    divby0 := Bool(true);
+    divisor := rhs_in
+    remainder := lhs_in
+  }
 
-  val result = Mux(rem, remainder(2*w, w+1), remainder(w-1,0))
+  val result = Mux(rem, remainder(w+w0, w+1), remainder(w0-1,0))
   
-  io.resp_bits := Mux(half, Cat(Fill(w/2, result(w/2-1)), result(w/2-1,0)), result)
+  io.resp_bits := Mux(half, Cat(Fill(w0/2, result(w0/2-1)), result(w0/2-1,0)), result)
   io.resp_tag := reg_tag
   io.resp_val := state === s_done
   io.req.ready := state === s_ready

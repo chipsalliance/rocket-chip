@@ -100,7 +100,7 @@ class rocketMultiplier(unroll: Int = 1, earlyOut: Boolean = false) extends Compo
     r_prod:= rhs_in
     r_lsb := Bool(false)
   }
-  .elsewhen (io.resp_val && io.resp_rdy || io.req_kill && r_cnt === UFix(0)) { // can only kill on first cycle
+  .elsewhen (io.resp_val && io.resp_rdy || io.req_kill) {
     r_val := Bool(false)
   }
 

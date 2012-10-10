@@ -36,13 +36,14 @@ class rocketDpathBTB(entries: Int) extends Component
     val valid = Reg(resetVal = Bool(false))
     val my_hit = valid && tag === io.current_pc
     val my_update = valid && tag === io.correct_pc
-    val my_clr = io.clr && my_update || io.invalidate
-    val my_wen = io.wen && (my_update || !update && UFix(i) === repl_way)
 
-    valid := !my_clr && (valid || my_wen)
-    when (my_wen) {
-      tag := io.correct_pc
-      target := io.correct_target
+    when (io.wen && (my_update || !update && UFix(i) === repl_way)) {
+      valid := Bool(false)
+      when (!io.clr) {
+        valid := Bool(true)
+        tag := io.correct_pc
+        target := io.correct_target
+      }
     }
 
     hit_reduction = hit_reduction || my_hit
