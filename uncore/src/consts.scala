@@ -10,6 +10,9 @@ object Constants
   val HAVE_FPU = true
   val HAVE_VEC = true
 
+  val HTIF_WIDTH = 16
+  val MEM_BACKUP_WIDTH = HTIF_WIDTH
+
   val M_X       = Bits("b????", 4);
   val M_XRD     = Bits("b0000", 4); // int load
   val M_XWR     = Bits("b0001", 4); // int store
