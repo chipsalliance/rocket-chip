@@ -49,6 +49,7 @@ class ioCtrlDpath extends Bundle()
   val vec_irq_aux_wen = Bool(OUTPUT)
   // inputs from datapath
   val inst    = Bits(INPUT, 32);
+  val jalr_eq = Bool(INPUT)
   val br_eq   = Bool(INPUT);
   val br_lt   = Bool(INPUT);
   val br_ltu  = Bool(INPUT);
@@ -534,8 +535,8 @@ class rocketCtrl extends Component
     Mux(ex_reg_br_type === BR_GEU, ~io.dpath.br_ltu,
         ex_reg_br_type === BR_J))))))
   
-  val mem_reg_div_val     = Reg(){Bool()}
-  val mem_reg_mul_val     = Reg(){Bool()}
+  val mem_reg_div_val     = Reg(resetVal = Bool(false))
+  val mem_reg_mul_val     = Reg(resetVal = Bool(false))
   val mem_reg_eret        = Reg(){Bool()};
   val mem_reg_mem_val     = Reg(){Bool()};
   val mem_reg_mem_cmd     = Reg(){Bits()}
@@ -544,8 +545,6 @@ class rocketCtrl extends Component
   when (reset.toBool || io.dpath.killx) {
     mem_reg_valid       := Bool(false);
     mem_reg_pcr         := PCR_N
-    mem_reg_div_val     := Bool(false)
-    mem_reg_mul_val     := Bool(false)
     mem_reg_wen         := Bool(false);
     mem_reg_fp_wen      := Bool(false);
     mem_reg_eret        := Bool(false);
@@ -565,8 +564,6 @@ class rocketCtrl extends Component
   .otherwise {
     mem_reg_valid       := ex_reg_valid
     mem_reg_pcr         := ex_reg_pcr
-    mem_reg_div_val     := ex_reg_div_val && io.dpath.div_rdy
-    mem_reg_mul_val     := ex_reg_mul_val && io.dpath.mul_rdy
     mem_reg_wen         := ex_reg_wen;
     mem_reg_fp_wen      := ex_reg_fp_wen;
     mem_reg_eret        := ex_reg_eret;
@@ -583,6 +580,8 @@ class rocketCtrl extends Component
     mem_reg_fp_sboard_set    := ex_reg_fp_sboard_set
     mem_reg_replay_next      := ex_reg_replay_next
   }
+  mem_reg_div_val     := ex_reg_div_val && io.dpath.div_rdy
+  mem_reg_mul_val     := ex_reg_mul_val && io.dpath.mul_rdy
   mem_reg_mem_cmd     := ex_reg_mem_cmd;
   mem_reg_mem_type    := ex_reg_mem_type;
   mem_reg_xcpt_interrupt := ex_reg_xcpt_interrupt && !take_pc_wb
@@ -693,7 +692,7 @@ class rocketCtrl extends Component
       UFix(0,5))))))))))));  // instruction address misaligned
 
   // control transfer from ex/mem
-  val take_pc_ex = ex_reg_btb_hit != br_taken || ex_reg_jalr
+  val take_pc_ex = !Mux(ex_reg_jalr, ex_reg_btb_hit && io.dpath.jalr_eq, ex_reg_btb_hit === br_taken)
   take_pc_wb := wb_reg_replay || vec_replay || wb_reg_exception || wb_reg_eret
   take_pc := take_pc_ex || take_pc_wb;
 
@@ -739,8 +738,8 @@ class rocketCtrl extends Component
     Mux(!ex_reg_btb_hit,  PC_EX,  // mispredicted taken branch
         PC_EX4)))))               // mispredicted not taken branch
 
-  io.imem.req.bits.mispredict := !take_pc_wb && !ex_reg_jalr && ex_reg_btb_hit != br_taken
-  io.imem.req.bits.taken := !ex_reg_btb_hit
+  io.imem.req.bits.mispredict := !take_pc_wb && take_pc_ex
+  io.imem.req.bits.taken := !ex_reg_btb_hit || ex_reg_jalr
   io.imem.req.valid  := take_pc
 
   // stall for RAW/WAW hazards on loads, AMOs, and mul/div in execute stage.

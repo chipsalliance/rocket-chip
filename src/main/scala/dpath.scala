@@ -238,6 +238,7 @@ class rocketDpath extends Component
   io.ptbr_wen          := pcr.io.ptbr_wen;
   
 	// branch resolution logic
+  io.ctrl.jalr_eq := ex_reg_rs1 === id_pc.toFix && ex_reg_op2(id_imm_small.getWidth-1,0) === UFix(0)
   io.ctrl.br_eq   := (ex_rs1 === ex_rs2)
   io.ctrl.br_ltu  := (ex_rs1.toUFix < ex_rs2.toUFix)
   io.ctrl.br_lt :=
@@ -253,7 +254,7 @@ class rocketDpath extends Component
   
 	// writeback select mux
   ex_wdata :=
-    Mux(ex_reg_ctrl_sel_wb === WB_PC,  Cat(Fill(64-VADDR_BITS, ex_pc_plus4(VADDR_BITS-1)), ex_pc_plus4),
+    Mux(ex_reg_ctrl_sel_wb === WB_PC,  ex_pc_plus4.toFix,
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg,
     Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg,
         ex_alu_out))).toBits // WB_ALU
