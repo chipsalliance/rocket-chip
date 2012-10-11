@@ -28,34 +28,29 @@ class rocketDpathBTB(entries: Int) extends Component
   val hit = Bool()
   val update = Bool()
   var update_reduction = Bool(false)
-  val mux = (new Mux1H(entries)) { Bits(width = VADDR_BITS) }
+  val hits = Vec(entries) { Bool() }
+  val updates = Vec(entries) { Bool() }
+  val targets = Vec(entries) { Reg() { UFix() } }
+  val anyUpdate = updates.toBits.orR
 
   for (i <- 0 until entries) {
     val tag = Reg() { UFix() }
-    val target = Reg() { UFix() }
     val valid = Reg(resetVal = Bool(false))
-    val my_hit = valid && tag === io.current_pc
-    val my_update = valid && tag === io.correct_pc
+    hits(i) := valid && tag === io.current_pc
+    updates(i) := valid && tag === io.correct_pc
 
-    when (io.wen && (my_update || !update && UFix(i) === repl_way)) {
+    when (io.wen && (updates(i) || !anyUpdate && UFix(i) === repl_way)) {
       valid := Bool(false)
       when (!io.clr) {
         valid := Bool(true)
         tag := io.correct_pc
-        target := io.correct_target
+        targets(i) := io.correct_target
       }
     }
-
-    hit_reduction = hit_reduction || my_hit
-    update_reduction = update_reduction || my_update
-    mux.io.sel(i) := my_hit
-    mux.io.in(i) := target
   }
-  hit := hit_reduction
-  update := update_reduction
 
-  io.hit    := hit
-  io.target := mux.io.out.toUFix
+  io.hit    := hits.toBits.orR
+  io.target := Mux1H(hits, targets)
 }
 
 class ioDpathPCR extends Bundle()
