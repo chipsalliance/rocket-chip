@@ -6,8 +6,7 @@ import Constants._
 
 class rocketDivider(earlyOut: Boolean = false) extends Component {
   val io = new ioMultiplier
-  val w0 = io.req.bits.in0.getWidth
-  val w = w0+1 // sign bit
+  val w = io.req.bits.in0.getWidth
   
   val s_ready :: s_neg_inputs :: s_busy :: s_neg_outputs :: s_done :: Nil = Enum(5) { UFix() };
   val state = Reg(resetVal = s_ready);
@@ -28,13 +27,13 @@ class rocketDivider(earlyOut: Boolean = false) extends Component {
   val fn = io.req.bits.fn(io.req.bits.fn.width-2,0)
   val tc = (fn === DIV_D) || (fn === DIV_R);
 
-  val lhs_sign = tc && Mux(dw === DW_64, io.req.bits.in0(w0-1), io.req.bits.in0(w0/2-1))
-  val lhs_hi = Mux(dw === DW_64, io.req.bits.in0(w0-1,w0/2), Fill(w0/2, lhs_sign))
-  val lhs_in = Cat(lhs_sign, lhs_hi, io.req.bits.in0(w0/2-1,0))
+  val lhs_sign = tc && Mux(dw === DW_64, io.req.bits.in0(w-1), io.req.bits.in0(w/2-1))
+  val lhs_hi = Mux(dw === DW_64, io.req.bits.in0(w-1,w/2), Fill(w/2, lhs_sign))
+  val lhs_in = Cat(lhs_hi, io.req.bits.in0(w/2-1,0))
 
-  val rhs_sign = tc && Mux(dw === DW_64, io.req.bits.in1(w0-1), io.req.bits.in1(w0/2-1))
-  val rhs_hi = Mux(dw === DW_64, io.req.bits.in1(w0-1,w0/2), Fill(w0/2, rhs_sign))
-  val rhs_in = Cat(rhs_sign, rhs_hi, io.req.bits.in1(w0/2-1,0))
+  val rhs_sign = tc && Mux(dw === DW_64, io.req.bits.in1(w-1), io.req.bits.in1(w/2-1))
+  val rhs_hi = Mux(dw === DW_64, io.req.bits.in1(w-1,w/2), Fill(w/2, rhs_sign))
+  val rhs_in = Cat(rhs_hi, io.req.bits.in1(w/2-1,0))
         
   when (state === s_neg_inputs) {
     state := s_busy
@@ -73,8 +72,8 @@ class rocketDivider(earlyOut: Boolean = false) extends Component {
     val eOut = count === UFix(0) && eOutPos > dividendMSB && (divisorMSB != UFix(0) || divisor(0))
     when (Bool(earlyOut) && eOut) {
       val eOutDist = eOutPos - dividendMSB
-      val shift = Mux(eOutDist >= UFix(w-1), UFix(w-1), eOutDist(log2Up(w)-1,0))
-      remainder := remainder << shift
+      val shift = Mux(divisorMSB >= dividendMSB, UFix(w-1), eOutDist(log2Up(w)-1,0))
+      remainder := remainder(w-1,0) << shift
       count := shift
     }
   }
@@ -94,9 +93,9 @@ class rocketDivider(earlyOut: Boolean = false) extends Component {
     remainder := lhs_in
   }
 
-  val result = Mux(rem, remainder(w+w0, w+1), remainder(w0-1,0))
+  val result = Mux(rem, remainder(w+w, w+1), remainder(w-1,0))
   
-  io.resp_bits := Mux(half, Cat(Fill(w0/2, result(w0/2-1)), result(w0/2-1,0)), result)
+  io.resp_bits := Mux(half, Cat(Fill(w/2, result(w/2-1)), result(w/2-1,0)), result)
   io.resp_tag := reg_tag
   io.resp_val := state === s_done
   io.req.ready := state === s_ready
