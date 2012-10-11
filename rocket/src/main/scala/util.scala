@@ -4,13 +4,9 @@ import Chisel._
 import Node._
 import scala.math._
 
-class Mux1H [T <: Data](n: Int)(gen: => T) extends Component
+object Util
 {
-  val io = new Bundle {
-    val sel = Vec(n) { Bool(dir = INPUT) }
-    val in  = Vec(n) { gen }.asInput
-    val out = gen.asOutput
-  }
-
-  io.out := Mux1H(io.sel, io.in)
+  implicit def intToUFix(x: Int): UFix = UFix(x)
+  implicit def intToBoolean(x: Int): Boolean = if (x != 0) true else false
+  implicit def booleanToInt(x: Boolean): Int = if (x) 1 else 0
 }

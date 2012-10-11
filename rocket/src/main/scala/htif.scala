@@ -189,11 +189,10 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
   io.mem.probe_rep_data.valid := Bool(false)
   io.mem.incoherent := Bool(true)
 
-  val pcr_mux = (new Mux1H(ncores)) { Bits(width = 64) }
+  val pcrReadData = Vec(ncores) { Reg() { Bits(width = io.cpu(0).pcr_rep.bits.getWidth) } }
   for (i <- 0 until ncores) {
     val my_reset = Reg(resetVal = Bool(true))
     val my_ipi = Reg(resetVal = Bool(false))
-    val rdata = Reg() { Bits() }
 
     val cpu = io.cpu(i)
     val me = pcr_coreid === UFix(i)
@@ -221,25 +220,22 @@ class rocketHTIF(w: Int, ncores: Int, co: CoherencePolicyWithUncached) extends C
       when (cmd === cmd_writecr) {
         my_reset := pcr_wdata(0)
       }
-      rdata := my_reset.toBits
+      pcrReadData(i) := my_reset.toBits
       state := state_tx
     }
 
     cpu.pcr_rep.ready := Bool(true)
     when (cpu.pcr_rep.valid) {
-      rdata := cpu.pcr_rep.bits
+      pcrReadData(i) := cpu.pcr_rep.bits
       state := state_tx
     }
-
-    pcr_mux.io.sel(i) := me
-    pcr_mux.io.in(i) := rdata
   }
 
   val tx_cmd = Mux(nack, cmd_nack, cmd_ack)
   val tx_cmd_ext = Cat(Bits(0, 4-tx_cmd.getWidth), tx_cmd)
   val tx_header = Cat(addr, seqno, tx_size, tx_cmd_ext)
   val tx_data = Mux(tx_word_count === UFix(0), tx_header,
-                Mux(cmd === cmd_readcr || cmd === cmd_writecr, pcr_mux.io.out,
+                Mux(cmd === cmd_readcr || cmd === cmd_writecr, pcrReadData(pcr_coreid),
                 packet_ram(packet_ram_raddr)))
 
   io.host.in.ready := state === state_rx

@@ -325,9 +325,10 @@ class MSHRFile(co: CoherencePolicy) extends Component {
   val sdq = Mem(NSDQ) { io.req.bits.data.clone }
   when (sdq_enq) { sdq(sdq_alloc_id) := io.req.bits.data }
 
-  val tag_mux = (new Mux1H(NMSHR)){ Bits(width = TAG_BITS) }
-  val wb_probe_mux = (new Mux1H(NMSHR)) { new WritebackReq }
-  val mem_resp_mux = (new Mux1H(NMSHR)){ new DataArrayReq }
+  val idxMatch = Vec(NMSHR) { Bool() }
+  val tagList = Vec(NMSHR) { Bits() }
+  val wbTagList = Vec(NMSHR) { Bits() }
+  val memRespMux = Vec(NMSHR) { new DataArrayReq }
   val meta_req_arb = (new Arbiter(NMSHR)) { new MetaArrayReq() }
   val mem_req_arb = (new Arbiter(NMSHR)) { new TransactionInit }
   val mem_finish_arb = (new Arbiter(NMSHR)) { new TransactionFinish }
@@ -335,8 +336,8 @@ class MSHRFile(co: CoherencePolicy) extends Component {
   val replay_arb = (new Arbiter(NMSHR)) { new Replay() }
   val alloc_arb = (new Arbiter(NMSHR)) { Bool() }
 
-  val tag_match = tag_mux.io.out === io.req.bits.tag
-  val wb_probe_match = wb_probe_mux.io.out.tag === io.req.bits.tag
+  val tag_match = Mux1H(idxMatch, tagList) === io.req.bits.tag
+  val wb_probe_match = Mux1H(idxMatch, wbTagList) === io.req.bits.tag
 
   var idx_match = Bool(false)
   var pri_rdy = Bool(false)
@@ -348,10 +349,9 @@ class MSHRFile(co: CoherencePolicy) extends Component {
   for (i <- 0 to NMSHR-1) {
     val mshr = new MSHR(i, co)
 
-    tag_mux.io.sel(i) := mshr.io.idx_match
-    tag_mux.io.in(i) := mshr.io.tag
-    wb_probe_mux.io.sel(i) := mshr.io.idx_match
-    wb_probe_mux.io.in(i) := mshr.io.wb_req.bits
+    idxMatch(i) := mshr.io.idx_match
+    tagList(i) := mshr.io.tag
+    wbTagList(i) := mshr.io.wb_req.bits.tag
 
     alloc_arb.io.in(i).valid := mshr.io.req_pri_rdy
     mshr.io.req_pri_val := alloc_arb.io.in(i).ready
@@ -371,10 +371,9 @@ class MSHRFile(co: CoherencePolicy) extends Component {
 
     mshr.io.mem_abort <> io.mem_abort
     mshr.io.mem_rep <> io.mem_rep
-    mem_resp_mux.io.sel(i) := UFix(i) === io.mem_rep.bits.tile_xact_id
-    mem_resp_mux.io.in(i).idx := mshr.io.idx
-    mem_resp_mux.io.in(i).offset := mshr.io.refill_count
-    mem_resp_mux.io.in(i).way_en := mshr.io.way_oh
+    memRespMux(i).idx := mshr.io.idx
+    memRespMux(i).offset := mshr.io.refill_count
+    memRespMux(i).way_en := mshr.io.way_oh
 
     pri_rdy = pri_rdy || mshr.io.req_pri_rdy
     sec_rdy = sec_rdy || mshr.io.req_sec_rdy
@@ -393,9 +392,10 @@ class MSHRFile(co: CoherencePolicy) extends Component {
 
   io.req.ready := Mux(idx_match, tag_match && sec_rdy, pri_rdy) && sdq_rdy
   io.secondary_miss := idx_match
-  io.mem_resp_idx := mem_resp_mux.io.out.idx
-  io.mem_resp_offset := mem_resp_mux.io.out.offset
-  io.mem_resp_way_oh := mem_resp_mux.io.out.way_en
+  val memResp = memRespMux(io.mem_rep.bits.tile_xact_id)
+  io.mem_resp_idx := memResp.idx
+  io.mem_resp_offset := memResp.offset
+  io.mem_resp_way_oh := memResp.way_en
   io.fence_rdy := !fence
   io.probe.ready := (refill_probe_rdy || !tag_match) && (writeback_probe_rdy || !wb_probe_match)
 
