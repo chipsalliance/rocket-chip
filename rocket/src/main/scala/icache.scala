@@ -5,6 +5,7 @@ import Node._;
 import Constants._;
 import scala.math._;
 import uncore._
+import Util._
 
 case class ICacheConfig(co: CoherencePolicyWithUncached, sets: Int, assoc: Int, parity: Boolean = false)
 {
@@ -62,6 +63,7 @@ class Frontend(c: ICacheConfig) extends Component
   val tlb = new TLB(ITLB_ENTRIES)
 
   val s1_pc = Reg() { UFix() }
+  val s1_same_block = Reg() { Bool() }
   val s2_valid = Reg(resetVal = Bool(true))
   val s2_pc = Reg(resetVal = UFix(START_ADDR))
   val s2_btb_hit = Reg(resetVal = Bool(false))
@@ -71,10 +73,13 @@ class Frontend(c: ICacheConfig) extends Component
   val pcp4_0 = s1_pc + UFix(c.ibytes)
   val pcp4 = Cat(s1_pc(VADDR_BITS-1) & pcp4_0(VADDR_BITS-1), pcp4_0(VADDR_BITS-1,0))
   val icmiss = s2_valid && !icache.io.resp.valid
-  val npc = Mux(icmiss, s2_pc, Mux(btb.io.hit, btbTarget, pcp4)).toUFix
+  val predicted_npc = Mux(btb.io.hit, btbTarget, pcp4)
+  val npc = Mux(icmiss, s2_pc, predicted_npc).toUFix
+  val s0_same_block = !icmiss && !io.cpu.req.valid && (predicted_npc >> log2Up(c.databits/8)) === (s1_pc >> log2Up(c.databits/8))
 
-  val stall = !io.cpu.resp.ready
+  val stall = io.cpu.resp.valid && !io.cpu.resp.ready
   when (!stall) {
+    s1_same_block := s0_same_block && !tlb.io.resp.miss
     s1_pc := npc
     s2_valid := !icmiss
     s2_pc := s1_pc
@@ -82,6 +87,7 @@ class Frontend(c: ICacheConfig) extends Component
     s2_xcpt_if := tlb.io.resp.xcpt_if
   }
   when (io.cpu.req.valid) {
+    s1_same_block := Bool(false)
     s1_pc := io.cpu.req.bits.pc
     s2_valid := Bool(false)
   }
@@ -102,16 +108,16 @@ class Frontend(c: ICacheConfig) extends Component
   tlb.io.req.bits.instruction := Bool(true)
 
   icache.io.mem <> io.mem
-  icache.io.req.valid := !stall
+  icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.idx := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
   icache.io.req.bits.invalidate := io.cpu.req.bits.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
   icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss
-  icache.io.resp.ready := io.cpu.resp.ready
+  icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
   io.cpu.resp.bits.pc := s2_pc
-  io.cpu.resp.bits.data := icache.io.resp.bits.data
+  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc(log2Up(c.databits/8)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8))
   io.cpu.resp.bits.taken := s2_btb_hit
   io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(c.ibytes)-1,0) != UFix(0)
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
@@ -141,6 +147,7 @@ class ICache(c: ICacheConfig) extends Component
 
   val s2_valid = Reg(resetVal = Bool(false))
   val s2_addr = Reg { UFix(width = PADDR_BITS) }
+  val s2_any_tag_hit = Bool()
 
   val s1_valid = Reg(resetVal = Bool(false))
   val s1_pgoff = Reg() { UFix(width = PGIDX_BITS) }
@@ -153,7 +160,7 @@ class ICache(c: ICacheConfig) extends Component
     s1_pgoff := s0_pgoff
   }
 
-  s2_valid := s1_valid && rdy && !io.req.bits.kill || stall
+  s2_valid := s1_valid && rdy && !io.req.bits.kill || io.resp.valid && stall
   when (s1_valid && rdy && !stall) {
     s2_addr := Cat(io.req.bits.ppn, s1_pgoff).toUFix
   }
@@ -161,7 +168,6 @@ class ICache(c: ICacheConfig) extends Component
   val s2_tag = s2_addr(c.tagbits+c.untagbits-1,c.untagbits)
   val s2_idx = s2_addr(c.untagbits-1,c.offbits)
   val s2_offset = s2_addr(c.offbits-1,0)
-  val s2_any_tag_hit = Bool()
   val s2_hit = s2_valid && s2_any_tag_hit
   val s2_miss = s2_valid && !s2_any_tag_hit
   rdy := state === s_ready && !s2_miss
@@ -220,7 +226,7 @@ class ICache(c: ICacheConfig) extends Component
     when (s1_valid && rdy && !stall) { s2_dout(i) := s1_dout }
     s2_data_disparity(i) := s2_dout(i).xorR
   }
-  val s2_dout_word = s2_dout.map(x => (x >> Cat(s2_offset(log2Up(c.databits/8)-1,log2Up(c.ibytes)), Bits(0,log2Up(c.ibytes*8))))(c.ibytes*8-1,0))
+  val s2_dout_word = s2_dout.map(x => (x >> (s2_offset(log2Up(c.databits/8)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8)))(c.ibytes*8-1,0))
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
