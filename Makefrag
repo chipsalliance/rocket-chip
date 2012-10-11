@@ -1,6 +1,6 @@
 # Makefile snippet used by emulator/vlsi/fpga backends
 
-MODEL := Top
+MODEL := ReferenceChipTop
 CXX := g++
 CXXFLAGS := -O2
 
@@ -291,8 +291,8 @@ global_vecasm_tests = \
 	riscv_fcmp_vec \
 	riscv_vec_xcpt_ma_inst \
 	riscv_vec_xcpt_illegal \
-        riscv_vec_xcpt_illegal_vt_regid \
-        riscv_vec_xcpt_illegal_tvec_regid \
+	riscv_vec_xcpt_illegal_vt_regid \
+	riscv_vec_xcpt_illegal_tvec_regid \
 	riscv_vec_ma_vld \
 	riscv_vec_ma_vsd \
 	riscv_vec_ma_utld \
@@ -496,7 +496,7 @@ global_bmarks = \
 
 global_vec_bmarkdir = $(basedir)/../../riscv-app/misc/build
 global_vec_bmarks = \
-                  ubmark-vvadd \
-                  ubmark-bin-search \
-                  ubmark-cmplx-mult \
-                  ubmark-masked-filter \
+	ubmark-vvadd \
+	ubmark-bin-search \
+	ubmark-cmplx-mult \
+	ubmark-masked-filter \
