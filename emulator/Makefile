@@ -9,6 +9,10 @@ all: emulator
 CXXSRCS := emulator disasm
 CXXFLAGS := $(CXXFLAGS) -Itestbench -I$(basedir)/chisel/csrc
 
+DRAMSIM2_PATH := ../dramsim2/
+CXXFLAGS := $(CXXFLAGS) -I$(DRAMSIM2_PATH) -L$(DRAMSIM2_PATH) -ldramsim
+DRAMSIM2_LIB := libdramsim.so
+
 generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
 	cd $(basedir)/sbt && $(SBT) "project rocket" "run rocket.Top --backend c --noIoDebug --targetDir ../emulator/generated-src"
 
@@ -33,6 +37,9 @@ emulator: $(addsuffix .o,$(CXXSRCS)) $(MODEL).o
 emulator-debug: $(addsuffix -debug.o,$(CXXSRCS)) $(MODEL)-debug.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
+dramsim2:
+	cd $(DRAMSIM2_PATH) ; make $(DRAMSIM2_LIB)
+
 all: emulator
  
 clean:
@@ -52,10 +59,10 @@ global_vecasm_timer_tests_vpd = $(addsuffix .vpd, $(global_vecasm_timer_tests))
 global_bmarks_vpd = $(addsuffix .vpd, $(global_bmarks))
 
 $(global_asm_tests_out): %.out: $(global_tstdir)/%.hex emulator
-	fesvr -c -testrun -m1000000 -l +loadmem=$< none 2> $@
+	fesvr -c -testrun -m2000000 -l +loadmem=$< none 2> $@
 
 $(global_vecasm_tests_out): %.out: $(global_tstdir)/%.hex emulator
-	fesvr -c -testrun -m1000000 -l +loadmem=$< none 2> $@
+	fesvr -c -testrun -m2000000 -l +loadmem=$< none 2> $@
 
 $(global_vecasm_timer_tests_out): %.out: $(global_tstdir)/%.hex emulator
 	fesvr -c -testrun -m3000000 -l +loadmem=$< none 2> $@

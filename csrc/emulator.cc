@@ -5,7 +5,8 @@
 #include <map>
 #include "common.h"
 #include "emulator.h"
-#include "mm_emulator.cc"
+//#include "mm_emulator.cc"
+#include "mm_emulator_dramsim2.cc"
 #include "Top.h" // chisel-generated code...
 #include "disasm.h"
 
@@ -82,9 +83,11 @@ int main(int argc, char** argv)
   }
 
   // basic fixed latency memory model
-  uint64_t* mem = mm_init();
+  /*uint64_t* mem = mm_init();*/
+  uint64_t* mm_mem = dramsim2_init();
   if (loadmem != NULL)
-    load_mem(mem, loadmem);
+    load_mem(mm_mem, loadmem);
+
 
   // The chisel generated code
   Top_t tile;
@@ -104,8 +107,10 @@ int main(int argc, char** argv)
 
   while (max_cycles == 0 || trace_count < max_cycles)
   {
+//    fprintf(stderr, "trace count: %ld\n", trace_count);
     // memory model
-    mm_tick_emulator (
+//    mm_tick_emulator(
+    dramsim2_tick_emulator (
       tile.Top__io_mem_req_cmd_valid.lo_word(),
       &tile.Top__io_mem_req_cmd_ready.values[0],
       tile.Top__io_mem_req_cmd_bits_rw.lo_word(),
@@ -120,6 +125,7 @@ int main(int argc, char** argv)
       &tile.Top__io_mem_resp_bits_tag.values[0],
       &tile.Top__io_mem_resp_bits_data.values[0]
     );
+//    fprintf(stderr, "trace count: %ld (after dramsim2_tick_emulator)\n", trace_count);
 
     tile.Top__io_host_in_valid = LIT<1>(htif_phy.in_valid());
     tile.Top__io_host_in_bits = LIT<64>(htif_phy.in_bits());
