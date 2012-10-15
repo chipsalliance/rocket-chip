@@ -5,7 +5,7 @@ import Node._
 import Constants._
 import uncore._
 
-class Tile(resetSignal: Bool = null)(implicit conf: Configuration) extends Component(resetSignal)
+class Tile(resetSignal: Bool = null)(implicit conf: RocketConfiguration) extends Component(resetSignal)
 {
   val io = new Bundle {
     val tilelink = new ioTileLink

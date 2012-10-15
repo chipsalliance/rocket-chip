@@ -5,7 +5,7 @@ import Node._
 import Constants._
 import hwacha._
 
-class ioRocket()(implicit conf: Configuration) extends Bundle
+class ioRocket(implicit conf: RocketConfiguration) extends Bundle
 {
   val host    = new ioHTIF()
   val imem    = (new ioImem).flip
@@ -13,12 +13,12 @@ class ioRocket()(implicit conf: Configuration) extends Bundle
   val dmem    = new ioHellaCache
 }
 
-class rocketProc()(implicit conf: Configuration) extends Component
+class rocketProc(implicit conf: RocketConfiguration) extends Component
 {
   val io    = new ioRocket
    
-  val ctrl  = new rocketCtrl();      
-  val dpath = new rocketDpath();
+  val ctrl  = new rocketCtrl
+  val dpath = new rocketDpath
 
   val dtlb  = new rocketDTLB(DTLB_ENTRIES);
   val itlb  = new rocketITLB(ITLB_ENTRIES);
