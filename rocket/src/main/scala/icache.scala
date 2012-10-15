@@ -28,7 +28,7 @@ class ioRocketICache extends Bundle()
 // 32 bit wide cpu port, 128 bit wide memory port, 64 byte cachelines
 // parameters :
 //    lines = # cache lines
-class rocketICache(sets: Int, assoc: Int)(implicit conf: Configuration)  extends Component
+class rocketICache(sets: Int, assoc: Int)(implicit conf: RocketConfiguration)  extends Component
 {
   val io = new ioRocketICache();
 

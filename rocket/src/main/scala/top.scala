@@ -13,7 +13,7 @@ object DummyTopLevelConstants extends rocket.constants.CoherenceConfigConstants 
 }
 import DummyTopLevelConstants._
 
-case class Configuration(ntiles: Int, co: CoherencePolicyWithUncached)
+case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached)
 
 class Top extends Component 
 {
@@ -24,7 +24,7 @@ class Top extends Component
               if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence
               else new MICoherence
             }
-  implicit val conf = Configuration(NTILES, co)
+  implicit val conf = RocketConfiguration(NTILES, co)
 
   val io = new Bundle  {
     val debug   = new ioDebug

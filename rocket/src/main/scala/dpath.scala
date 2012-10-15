@@ -12,9 +12,9 @@ class ioDpathImem extends Bundle()
   val resp_data = Bits(INPUT, 32);
 }
 
-class ioDpathAll()(implicit conf: Configuration) extends Bundle()
+class ioDpathAll(implicit conf: RocketConfiguration) extends Bundle
 {
-  val host  = new ioHTIF()
+  val host  = new ioHTIF
   val ctrl  = new ioCtrlDpath().flip
   val dmem = new ioHellaCache
   val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
@@ -28,7 +28,7 @@ class ioDpathAll()(implicit conf: Configuration) extends Bundle()
   val vec_imul_resp = Bits(INPUT, hwacha.Constants.SZ_XLEN)
 }
 
-class rocketDpath()(implicit conf: Configuration) extends Component
+class rocketDpath(implicit conf: RocketConfiguration) extends Component
 {
   val io  = new ioDpathAll();
   

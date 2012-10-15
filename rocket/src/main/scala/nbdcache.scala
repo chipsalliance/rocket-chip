@@ -159,7 +159,7 @@ class MetaArrayReq extends Bundle {
   val data = new MetaData()
 }
 
-class MSHR(id: Int)(implicit conf: Configuration) extends Component {
+class MSHR(id: Int)(implicit conf: RocketConfiguration) extends Component {
   val io = new Bundle {
     val req_pri_val    = Bool(INPUT)
     val req_pri_rdy    = Bool(OUTPUT)
@@ -293,7 +293,7 @@ class MSHR(id: Int)(implicit conf: Configuration) extends Component {
   io.replay.bits.way_oh := req.way_oh
 }
 
-class MSHRFile()(implicit conf: Configuration) extends Component {
+class MSHRFile(implicit conf: RocketConfiguration) extends Component {
   val io = new Bundle {
     val req = (new FIFOIO) { new MSHRReq }.flip
     val secondary_miss = Bool(OUTPUT)
@@ -415,7 +415,7 @@ class MSHRFile()(implicit conf: Configuration) extends Component {
 }
 
 
-class WritebackUnit()(implicit conf: Configuration) extends Component {
+class WritebackUnit(implicit conf: RocketConfiguration) extends Component {
   val io = new Bundle {
     val req = (new FIFOIO) { new WritebackReq() }.flip
     val probe = (new FIFOIO) { new WritebackReq() }.flip
@@ -484,7 +484,7 @@ class WritebackUnit()(implicit conf: Configuration) extends Component {
   io.probe_rep_data.bits.data := io.data_resp
 }
 
-class ProbeUnit()(implicit conf: Configuration)  extends Component {
+class ProbeUnit(implicit conf: RocketConfiguration)  extends Component {
   val io = new Bundle {
     val req = (new FIFOIO) { new ProbeRequest }.flip
     val rep = (new FIFOIO) { new ProbeReply }
@@ -548,7 +548,7 @@ class ProbeUnit()(implicit conf: Configuration)  extends Component {
   io.wb_req.bits.tag := req.addr >> UFix(IDX_BITS)
 }
 
-class FlushUnit(lines: Int)(implicit conf: Configuration) extends Component {
+class FlushUnit(lines: Int)(implicit conf: RocketConfiguration) extends Component {
   val io = new Bundle {
     val req = (new FIFOIO) { Bool() }.flip
     val meta_req = (new FIFOIO) { new MetaArrayReq() }
@@ -748,7 +748,7 @@ class ioHellaCache extends Bundle {
   val xcpt = (new HellaCacheExceptions).asInput
 }
 
-class HellaCache()(implicit conf: Configuration) extends Component {
+class HellaCache(implicit conf: RocketConfiguration) extends Component {
   val io = new Bundle {
     val cpu = (new ioHellaCache).flip
     val mem = new ioTileLink

@@ -23,7 +23,7 @@ class PCRReq extends Bundle
   val data = Bits(width = 64)
 }
 
-class ioHTIF()(implicit conf: Configuration) extends Bundle
+class ioHTIF(implicit conf: RocketConfiguration) extends Bundle
 {
   val reset = Bool(INPUT)
   val debug = new ioDebug
@@ -33,7 +33,7 @@ class ioHTIF()(implicit conf: Configuration) extends Bundle
   val ipi_rep = (new FIFOIO) { Bool() }.flip
 }
 
-class rocketHTIF(w: Int)(implicit conf: Configuration) extends Component
+class rocketHTIF(w: Int)(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
     val host = new ioHost(w)
