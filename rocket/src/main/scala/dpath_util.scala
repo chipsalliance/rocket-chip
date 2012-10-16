@@ -1,9 +1,9 @@
 package rocket
 
-import Chisel._;
-import Node._;
-import Constants._;
-import scala.math._;
+import Chisel._
+import Node._
+import Constants._
+import scala.math._
 
 class ioDpathBTB extends Bundle()
 {
@@ -53,9 +53,9 @@ class rocketDpathBTB(entries: Int) extends Component
   io.target := Mux1H(hits, targets)
 }
 
-class ioDpathPCR extends Bundle()
+class ioDpathPCR(implicit conf: RocketConfiguration) extends Bundle
 {
-  val host  = new ioHTIF()
+  val host  = new ioHTIF
   val r     = new ioReadPort();
   val w     = new ioWritePort();
   
@@ -82,9 +82,9 @@ class ioDpathPCR extends Bundle()
   val vec_nfregs = UFix(INPUT, 6)
 }
 
-class rocketDpathPCR extends Component
+class rocketDpathPCR(implicit conf: RocketConfiguration) extends Component
 {
-  val io = new ioDpathPCR();
+  val io = new ioDpathPCR
   
   val reg_epc      = Reg() { UFix() };
   val reg_badvaddr = Reg() { UFix() };

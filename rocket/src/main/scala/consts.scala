@@ -1,21 +1,20 @@
 package rocket
+package constants
 
 import Chisel._
 import scala.math._
 
-object Constants
-{
-  val NTILES = 1
-  val HAVE_RVC = false
-  val HAVE_FPU = true
-  val HAVE_VEC = false
+abstract trait TileConfigConstants {
+  def HAVE_RVC: Boolean
+  def HAVE_FPU: Boolean
+  def HAVE_VEC: Boolean
+  val FPU_N = UFix(0, 1)
+  val FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N
+  val VEC_N = UFix(0, 1);
+  val VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N
+}
 
-  val MAX_THREADS = 
-      hwacha.Constants.NUM_PVFB * hwacha.Constants.WIDTH_PVFB / hwacha.Constants.SZ_BANK
-
-  val HTIF_WIDTH = 16
-  val MEM_BACKUP_WIDTH = HTIF_WIDTH
-
+trait ScalarOpConstants {
   val BR_X    = Bits("b???", 3)
   val BR_EQ   = UFix(0, 3)
   val BR_NE   = UFix(1, 3)
@@ -71,7 +70,9 @@ object Constants
   val DW_XPR = Y
 
   val RA = UFix(1, 5);
+}
 
+trait MemoryOpConstants {
   val MT_X  = Bits("b???", 3);
   val MT_B  = Bits("b000", 3);
   val MT_H  = Bits("b001", 3);
@@ -98,7 +99,9 @@ object Constants
   val M_XA_MAX  = Bits("b1101", 4);
   val M_XA_MINU = Bits("b1110", 4);
   val M_XA_MAXU = Bits("b1111", 4);
+}
 
+trait PCRConstants {
   val PCR_X = Bits("b???", 3)
   val PCR_N = Bits(0,3)
   val PCR_F = Bits(1,3) // mfpcr
@@ -143,71 +146,42 @@ object Constants
   val SR_VM   = 8   // VM enable
   val SR_IM   = 16  // interrupt mask
   val SR_IM_WIDTH = 8
+}
 
+trait InterruptConstants {
   val CAUSE_INTERRUPT = 32
   val IRQ_IPI = 5
   val IRQ_TIMER = 7
-  
-  val PADDR_BITS = 40;
-  val VADDR_BITS = 43;
-  val PGIDX_BITS = 13;
-  val PPN_BITS = PADDR_BITS-PGIDX_BITS;
-  val VPN_BITS = VADDR_BITS-PGIDX_BITS;
-  val ASID_BITS = 7;
-  val PERM_BITS = 6;
-
-  // rocketNBDCache parameters
+}
+ 
+abstract trait RocketDcacheConstants extends ArbiterConstants with uncore.constants.AddressConstants {
   val INST_BITS = 32
-  val DCACHE_PORTS = 3
   val CPU_DATA_BITS = 64;
   val CPU_TAG_BITS = 9;
   val DCACHE_TAG_BITS = log2Up(DCACHE_PORTS) + CPU_TAG_BITS
-  val OFFSET_BITS = 6; // log2(cache line size in bytes)
+  val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
   val NMSHR = if (HAVE_VEC) 4 else 2 // number of primary misses
+  require(log2Up(NMSHR)+3 <= uncore.Constants.TILE_XACT_ID_BITS)
   val NRPQ = 16; // number of secondary misses
   val NSDQ = 17; // number of secondary stores/AMOs
-  val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
+  val OFFSET_BITS = 6; // log2(cache line size in bytes)
+  require(OFFSET_BITS == log2Up(uncore.Constants.CACHE_DATA_SIZE_IN_BYTES))
+  require(OFFSET_BITS <= uncore.Constants.X_INIT_WRITE_MASK_BITS)
+  require(log2Up(OFFSET_BITS) <= uncore.Constants.X_INIT_SUBWORD_ADDR_BITS)
   val IDX_BITS = 7;
   val TAG_BITS = PADDR_BITS - OFFSET_BITS - IDX_BITS;
   val NWAYS = 4
   require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
+}
 
-  // coherence parameters
-  val ENABLE_SHARING = true
-  val ENABLE_CLEAN_EXCLUSIVE = true
-
-  val COHERENCE_DATA_BITS = (1 << OFFSET_BITS)*8 
-  val TILE_ID_BITS = log2Up(NTILES)+1
-  val TILE_XACT_ID_BITS = log2Up(NMSHR)+3
-  val NGLOBAL_XACTS = 8
-  val GLOBAL_XACT_ID_BITS = log2Up(NGLOBAL_XACTS)
-
-  val X_INIT_TYPE_MAX_BITS = 2
-  val X_INIT_WRITE_MASK_BITS = OFFSET_BITS
-  val X_INIT_SUBWORD_ADDR_BITS = log2Up(OFFSET_BITS)
-  val X_INIT_ATOMIC_OP_BITS = 4
-  val X_REP_TYPE_MAX_BITS = 3
-  val P_REQ_TYPE_MAX_BITS = 2
-  val P_REP_TYPE_MAX_BITS = 3
-
-  // external memory interface
-  val MEM_TAG_BITS = max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS)
-  val MEM_DATA_BITS = 128
-  val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
-  
+trait TLBConstants {
   val BTB_ENTRIES = 8
   val ITLB_ENTRIES = 8
   val DTLB_ENTRIES = 16
   val VITLB_ENTRIES = 4
-  
-  val START_ADDR = 0x2000;
+}
 
-  val FPU_N = UFix(0, 1);
-  val FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N;
-
-  val VEC_N = UFix(0, 1);
-  val VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N;
-
+trait VectorOpConstants {
   val VEC_X = Bits("b??", 2).toUFix
   val VEC_FN_N = UFix(0, 2)
   val VEC_VL = UFix(1, 2)
@@ -230,12 +204,21 @@ object Constants
   val VIMM2_RS2 = UFix(0, 1)
   val VIMM2_ALU = UFix(1, 1)
   val VIMM2_X = UFix(0, 1)
+}
 
+abstract trait ArbiterConstants extends TileConfigConstants {
+  val DTLB_PORTS = 3
   val DTLB_CPU = 0
   val DTLB_VEC = 1
   val DTLB_VPF = 2
 
-  val DMEM_CPU = 0
-  val DMEM_PTW = 1
-  val DMEM_VU = 2
+  val DCACHE_PORTS = 3
+  val DCACHE_CPU = 0
+  val DCACHE_PTW = 1
+  val DCACHE_VU = 2
+
+  val DMEM_PORTS = if (HAVE_VEC) 3 else 2
+  val DMEM_DCACHE = 0
+  val DMEM_ICACHE = 1
+  val DMEM_VICACHE = 2
 }

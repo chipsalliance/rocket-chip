@@ -1,7 +1,8 @@
 package rocket
 
 import Chisel._
-import Node._;
+import Node._
+import Constants._
 
 class SkidBuffer[T <: Data](entries: Int, lateEnq: Boolean = false)(data: => T) extends Component
 {

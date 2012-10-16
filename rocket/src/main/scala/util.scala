@@ -1,8 +1,6 @@
 package rocket
 
 import Chisel._
-import Node._
-import scala.math._
 
 object Util
 {
