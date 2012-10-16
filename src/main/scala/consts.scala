@@ -4,53 +4,6 @@ package constants
 import Chisel._
 import scala.math._
 
-abstract trait MulticoreConstants {
-  val NTILES: Int
-  val TILE_ID_BITS = log2Up(NTILES)+1
-}
-
-abstract trait CoherenceConfigConstants {
-  val ENABLE_SHARING: Boolean
-  val ENABLE_CLEAN_EXCLUSIVE: Boolean
-}
-
-trait UncoreConstants {
-  val NGLOBAL_XACTS = 8
-  val GLOBAL_XACT_ID_BITS = log2Up(NGLOBAL_XACTS)
-}
-
-trait TileLinkTypeConstants {
-  val X_INIT_TYPE_MAX_BITS = 2
-  val X_REP_TYPE_MAX_BITS = 3
-  val P_REQ_TYPE_MAX_BITS = 2
-  val P_REP_TYPE_MAX_BITS = 3
-}
-
-trait TileLinkSizeConstants extends 
-  RocketDcacheConstants with 
-  TileLinkTypeConstants
-{
-  val TILE_XACT_ID_BITS = log2Up(NMSHR)+3
-  val X_INIT_WRITE_MASK_BITS = OFFSET_BITS
-  val X_INIT_SUBWORD_ADDR_BITS = log2Up(OFFSET_BITS)
-  val X_INIT_ATOMIC_OP_BITS = 4
-}
-
-trait HTIFConstants {
-  val HTIF_WIDTH = 16
-}
-
-trait MemoryInterfaceConstants extends 
-  HTIFConstants with 
-  UncoreConstants with 
-  TileLinkSizeConstants 
-{
-  val MEM_TAG_BITS = max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS)
-  val MEM_DATA_BITS = 128
-  val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
-  val MEM_BACKUP_WIDTH = HTIF_WIDTH
-}  
-
 abstract trait TileConfigConstants {
   def HAVE_RVC: Boolean
   def HAVE_FPU: Boolean
@@ -219,25 +172,19 @@ trait InterruptConstants {
   val IRQ_TIMER = 7
 }
  
-trait AddressConstants { 
-  val PADDR_BITS = 40;
-  val VADDR_BITS = 43;
-  val PGIDX_BITS = 13;
-  val PPN_BITS = PADDR_BITS-PGIDX_BITS;
-  val VPN_BITS = VADDR_BITS-PGIDX_BITS;
-  val ASID_BITS = 7;
-  val PERM_BITS = 6;
-}
-
-abstract trait RocketDcacheConstants extends ArbiterConstants with AddressConstants {
+abstract trait RocketDcacheConstants extends ArbiterConstants with uncore.constants.AddressConstants {
   val CPU_DATA_BITS = 64;
   val CPU_TAG_BITS = 9;
   val DCACHE_TAG_BITS = log2Up(DCACHE_PORTS) + CPU_TAG_BITS
   val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
   val NMSHR = if (HAVE_VEC) 4 else 2 // number of primary misses
+  require(log2Up(NMSHR)+3 <= uncore.Constants.TILE_XACT_ID_BITS)
   val NRPQ = 16; // number of secondary misses
   val NSDQ = 17; // number of secondary stores/AMOs
   val OFFSET_BITS = 6; // log2(cache line size in bytes)
+  require(OFFSET_BITS == log2Up(uncore.Constants.CACHE_DATA_SIZE_IN_BYTES))
+  require(OFFSET_BITS <= uncore.Constants.X_INIT_WRITE_MASK_BITS)
+  require(log2Up(OFFSET_BITS) <= uncore.Constants.X_INIT_SUBWORD_ADDR_BITS)
   val IDX_BITS = 7;
   val TAG_BITS = PADDR_BITS - OFFSET_BITS - IDX_BITS;
   val NWAYS = 4

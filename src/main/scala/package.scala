@@ -8,13 +8,13 @@ import scala.math._
 //      package object rocket and remove import Constants._'s from other files
 object Constants extends 
   ScalarOpConstants with
-  MemoryOpConstants with
+  uncore.constants.MemoryOpConstants with
   PCRConstants with 
   InterruptConstants with 
-  AddressConstants with
+  RocketDcacheConstants with
   VectorOpConstants with 
   TLBConstants with 
-  MemoryInterfaceConstants
+  uncore.constants.MemoryInterfaceConstants
 {
   def HAVE_RVC = false
   def HAVE_FPU = true
