@@ -6,7 +6,7 @@ import Constants._
 import uncore._
 import collection.mutable.ArrayBuffer
 
-object DummyTopLevelConstants extends rocket.constants.CoherenceConfigConstants with rocket.constants.MulticoreConstants {
+object DummyTopLevelConstants extends uncore.constants.CoherenceConfigConstants {
   val NTILES = 1
   val ENABLE_SHARING = true
   val ENABLE_CLEAN_EXCLUSIVE = true
@@ -24,7 +24,8 @@ class Top extends Component
               if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence
               else new MICoherence
             }
-  implicit val conf = RocketConfiguration(NTILES, co)
+  implicit val rconf = RocketConfiguration(NTILES, co)
+  implicit val uconf = UncoreConfiguration(NTILES+1, log2Up(NTILES)+1)
 
   val io = new Bundle  {
     val debug   = new ioDebug
@@ -33,7 +34,7 @@ class Top extends Component
   }
 
   val htif = new rocketHTIF(HTIF_WIDTH)
-  val hub = new CoherenceHubBroadcast(NTILES+1, co)
+  val hub = new CoherenceHubBroadcast(co)
   hub.io.tiles(NTILES) <> htif.io.mem
   io.host <> htif.io.host
 
