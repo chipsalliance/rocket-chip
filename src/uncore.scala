@@ -3,39 +3,6 @@ package uncore
 import Chisel._
 import Constants._
 
-class PhysicalAddress extends Bundle {
-  val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
-}
-
-class MemData extends Bundle {
-  val data = Bits(width = MEM_DATA_BITS)
-}
-
-class MemReqCmd() extends PhysicalAddress
-{
-  val rw = Bool()
-  val tag = Bits(width = MEM_TAG_BITS)
-}
-
-class MemResp () extends MemData
-{
-  val tag = Bits(width = MEM_TAG_BITS)
-}
-
-class ioMem() extends Bundle
-{
-  val req_cmd  = (new FIFOIO) { new MemReqCmd() }
-  val req_data = (new FIFOIO) { new MemData() }
-  val resp     = (new FIFOIO) { new MemResp() }.flip
-}
-
-class ioMemPipe() extends Bundle
-{
-  val req_cmd  = (new FIFOIO) { new MemReqCmd() }
-  val req_data = (new FIFOIO) { new MemData() }
-  val resp     = (new PipeIO) { new MemResp() }.flip
-}
-
 class TrackerProbeData(implicit conf: UncoreConfiguration) extends Bundle {
   val tile_id = Bits(width = conf.tile_id_bits)
 }
@@ -48,18 +15,6 @@ class TrackerAllocReq(implicit conf: UncoreConfiguration) extends Bundle {
 
 class TrackerDependency extends Bundle {
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
-}
-
-class ioTileLink extends Bundle { 
-  val xact_init      = (new FIFOIO) { new TransactionInit }
-  val xact_init_data = (new FIFOIO) { new TransactionInitData }
-  val xact_abort     = (new FIFOIO) { new TransactionAbort }.flip
-  val probe_req      = (new FIFOIO) { new ProbeRequest }.flip
-  val probe_rep      = (new FIFOIO) { new ProbeReply }
-  val probe_rep_data = (new FIFOIO) { new ProbeReplyData }
-  val xact_rep       = (new FIFOIO) { new TransactionReply }.flip
-  val xact_finish    = (new FIFOIO) { new TransactionFinish }
-  val incoherent     = Bool(OUTPUT)
 }
 
 class XactTracker(id: Int, co: CoherencePolicy)(implicit conf: UncoreConfiguration) extends Component {
