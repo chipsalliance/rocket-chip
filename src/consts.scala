@@ -1,17 +1,49 @@
 package uncore
+package constants
 
 import Chisel._
-import scala.math._
 
-object Constants
+abstract trait MulticoreConstants {
+  val NTILES: Int
+  val TILE_ID_BITS = log2Up(NTILES)+1
+}
+
+abstract trait CoherenceConfigConstants {
+  val ENABLE_SHARING: Boolean
+  val ENABLE_CLEAN_EXCLUSIVE: Boolean
+}
+
+trait UncoreConstants {
+  val NGLOBAL_XACTS = 8
+  val GLOBAL_XACT_ID_BITS = log2Up(NGLOBAL_XACTS)
+  val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 
+}
+
+trait TileLinkTypeConstants {
+  val X_INIT_TYPE_MAX_BITS = 2
+  val X_REP_TYPE_MAX_BITS = 3
+  val P_REQ_TYPE_MAX_BITS = 2
+  val P_REP_TYPE_MAX_BITS = 3
+}
+
+trait TileLinkSizeConstants extends 
+  TileLinkTypeConstants
 {
-  val NTILES = 1
-  val HAVE_RVC = false
-  val HAVE_FPU = true
-  val HAVE_VEC = true
+  val TILE_XACT_ID_BITS = 5
+  val X_INIT_WRITE_MASK_BITS = 6
+  val X_INIT_SUBWORD_ADDR_BITS = 3
+  val X_INIT_ATOMIC_OP_BITS = 4
+}
 
-  val HTIF_WIDTH = 16
-  val MEM_BACKUP_WIDTH = HTIF_WIDTH
+trait MemoryOpConstants {
+  val MT_X  = Bits("b???", 3);
+  val MT_B  = Bits("b000", 3);
+  val MT_H  = Bits("b001", 3);
+  val MT_W  = Bits("b010", 3);
+  val MT_D  = Bits("b011", 3);
+  val MT_BU = Bits("b100", 3);
+  val MT_HU = Bits("b101", 3);
+  val MT_WU = Bits("b110", 3);
 
   val M_X       = Bits("b????", 4);
   val M_XRD     = Bits("b0000", 4); // int load
@@ -30,52 +62,19 @@ object Constants
   val M_XA_MAX  = Bits("b1101", 4);
   val M_XA_MINU = Bits("b1110", 4);
   val M_XA_MAXU = Bits("b1111", 4);
-  
-  val PADDR_BITS = 40;
-  val VADDR_BITS = 43;
-  val PGIDX_BITS = 13;
-  val PPN_BITS = PADDR_BITS-PGIDX_BITS;
-  val VPN_BITS = VADDR_BITS-PGIDX_BITS;
-  val ASID_BITS = 7;
-  val PERM_BITS = 6;
+}
 
-  // rocketNBDCache parameters
-  val DCACHE_PORTS = 3
-  val CPU_DATA_BITS = 64;
-  val CPU_TAG_BITS = 9;
-  val DCACHE_TAG_BITS = log2Up(DCACHE_PORTS) + CPU_TAG_BITS
-  val OFFSET_BITS = 6; // log2(cache line size in bytes)
-  val NMSHR = if (HAVE_VEC) 4 else 2 // number of primary misses
-  val NRPQ = 16; // number of secondary misses
-  val NSDQ = 17; // number of secondary stores/AMOs
-  val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
-  val IDX_BITS = 7;
-  val TAG_BITS = PADDR_BITS - OFFSET_BITS - IDX_BITS;
-  val NWAYS = 4
-  require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
+trait HTIFConstants {
+  val HTIF_WIDTH = 16
+}
 
-  // coherence parameters
-  val ENABLE_SHARING = true
-  val ENABLE_CLEAN_EXCLUSIVE = true
-
-
-  val COHERENCE_DATA_BITS = (1 << OFFSET_BITS)*8 
-  val TILE_ID_BITS = log2Up(NTILES)+1
-  val TILE_XACT_ID_BITS = log2Up(NMSHR)+3
-  val NGLOBAL_XACTS = 8
-  val GLOBAL_XACT_ID_BITS = log2Up(NGLOBAL_XACTS)
-
-  val X_INIT_TYPE_MAX_BITS = 2
-  val X_INIT_WRITE_MASK_BITS = OFFSET_BITS
-  val X_INIT_SUBWORD_ADDR_BITS = log2Up(OFFSET_BITS)
-  val X_INIT_ATOMIC_OP_BITS = 4
-  val X_REP_TYPE_MAX_BITS = 3
-  val P_REQ_TYPE_MAX_BITS = 2
-  val P_REP_TYPE_MAX_BITS = 3
-
-  // external memory interface
+trait MemoryInterfaceConstants extends 
+  HTIFConstants with 
+  UncoreConstants with 
+  TileLinkSizeConstants 
+{
   val MEM_TAG_BITS = max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS)
   val MEM_DATA_BITS = 128
-  val REFILL_CYCLES = (1 << OFFSET_BITS)*8/MEM_DATA_BITS
-
+  val REFILL_CYCLES = CACHE_DATA_SIZE_IN_BYTES*8/MEM_DATA_BITS
+  val MEM_BACKUP_WIDTH = HTIF_WIDTH
 }
