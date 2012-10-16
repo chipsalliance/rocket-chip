@@ -10,7 +10,7 @@ CXXSRCS := emulator disasm
 CXXFLAGS := $(CXXFLAGS) -Itestbench -I$(basedir)/chisel/csrc
 
 DRAMSIM2_PATH := ../dramsim2/
-CXXFLAGS := $(CXXFLAGS) -I$(DRAMSIM2_PATH) -L$(DRAMSIM2_PATH) -ldramsim
+CXXFLAGS := $(CXXFLAGS) -I$(DRAMSIM2_PATH) -L$(DRAMSIM2_PATH) -ldramsim -Wl,-rpath=$(DRAMSIM2_PATH) 
 DRAMSIM2_LIB := libdramsim.so
 
 generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
