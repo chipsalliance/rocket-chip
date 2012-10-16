@@ -1,7 +1,8 @@
 package rocket
 
 import Chisel._
-import Node._;
+import Node._
+import Constants._
 
 object Instructions
 {

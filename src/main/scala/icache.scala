@@ -1,13 +1,12 @@
 package rocket
 
-import Chisel._;
-import Node._;
-import Constants._;
-import scala.math._;
+import Chisel._
+import Node._
+import Constants._
 import uncore._
 import Util._
 
-case class ICacheConfig(co: CoherencePolicyWithUncached, sets: Int, assoc: Int, parity: Boolean = false)
+case class ICacheConfig(sets: Int, assoc: Int, parity: Boolean = false)
 {
   val w = 1
   val ibytes = INST_BITS/8
@@ -51,7 +50,7 @@ class IOCPUFrontend extends Bundle {
   val ptw = new IOTLBPTW().flip
 }
 
-class Frontend(c: ICacheConfig) extends Component
+class Frontend(c: ICacheConfig)(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
     val cpu = new IOCPUFrontend().flip
@@ -123,7 +122,7 @@ class Frontend(c: ICacheConfig) extends Component
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
 }
 
-class ICache(c: ICacheConfig) extends Component
+class ICache(c: ICacheConfig)(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
     val req = new PipeIO()(new Bundle {
@@ -237,7 +236,7 @@ class ICache(c: ICacheConfig) extends Component
   // output signals
   io.resp.valid := s2_hit
   io.mem.xact_init.valid := (state === s_request) && finish_q.io.enq.ready
-  io.mem.xact_init.bits := c.co.getUncachedReadTransactionInit(s2_addr >> UFix(c.offbits), UFix(0))
+  io.mem.xact_init.bits := conf.co.getUncachedReadTransactionInit(s2_addr >> UFix(c.offbits), UFix(0))
   io.mem.xact_finish <> finish_q.io.deq
 
   // control state machine

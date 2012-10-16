@@ -1,75 +1,9 @@
 package rocket
 
-import Chisel._;
-import Node._;
-import Constants._;
-import scala.math._;
-
-class ioHellaCacheArbiter(n: Int) extends Bundle
-{
-  val requestor = Vec(n) { new ioHellaCache() }.flip
-  val mem = new ioHellaCache
-}
-
-class rocketHellaCacheArbiter(n: Int) extends Component
-{
-  val io = new ioHellaCacheArbiter(n)
-  require(DCACHE_TAG_BITS >= log2Up(n) + CPU_TAG_BITS)
-
-  var req_val = Bool(false)
-  var req_rdy = io.mem.req.ready
-  for (i <- 0 until n)
-  {
-    io.requestor(i).req.ready := req_rdy
-    req_val = req_val || io.requestor(i).req.valid
-    req_rdy = req_rdy && !io.requestor(i).req.valid
-  }
-
-  var req_cmd  = io.requestor(n-1).req.bits.cmd
-  var req_type = io.requestor(n-1).req.bits.typ
-  var req_idx  = io.requestor(n-1).req.bits.idx
-  var req_ppn  = io.requestor(n-1).req.bits.ppn
-  var req_data = io.requestor(n-1).req.bits.data
-  var req_kill = io.requestor(n-1).req.bits.kill
-  var req_tag  = io.requestor(n-1).req.bits.tag
-  for (i <- n-1 to 0 by -1)
-  {
-    val r = io.requestor(i).req
-    req_cmd  = Mux(r.valid, r.bits.cmd, req_cmd)
-    req_type = Mux(r.valid, r.bits.typ, req_type)
-    req_idx  = Mux(r.valid, r.bits.idx, req_idx)
-    req_ppn  = Mux(Reg(r.valid), r.bits.ppn, req_ppn)
-    req_data = Mux(Reg(r.valid), r.bits.data, req_data)
-    req_kill = Mux(Reg(r.valid), r.bits.kill, req_kill)
-    req_tag  = Mux(r.valid, Cat(r.bits.tag, UFix(i, log2Up(n))), req_tag)
-  }
-
-  io.mem.req.valid     := req_val
-  io.mem.req.bits.cmd  := req_cmd
-  io.mem.req.bits.typ  := req_type
-  io.mem.req.bits.idx  := req_idx
-  io.mem.req.bits.ppn  := req_ppn
-  io.mem.req.bits.data := req_data
-  io.mem.req.bits.kill := req_kill
-  io.mem.req.bits.tag  := req_tag
-
-  for (i <- 0 until n)
-  {
-    val r = io.requestor(i).resp
-    val x = io.requestor(i).xcpt
-    val tag_hit = io.mem.resp.bits.tag(log2Up(n)-1,0) === UFix(i)
-    x.ma.ld := io.mem.xcpt.ma.ld && Reg(io.requestor(i).req.valid)
-    x.ma.st := io.mem.xcpt.ma.st && Reg(io.requestor(i).req.valid)
-    r.valid             := io.mem.resp.valid && tag_hit
-    r.bits.miss         := io.mem.resp.bits.miss && tag_hit
-    r.bits.nack         := io.mem.resp.bits.nack && Reg(io.requestor(i).req.valid)
-    r.bits.replay       := io.mem.resp.bits.replay && tag_hit
-    r.bits.data         := io.mem.resp.bits.data
-    r.bits.data_subword := io.mem.resp.bits.data_subword
-    r.bits.typ          := io.mem.resp.bits.typ
-    r.bits.tag          := io.mem.resp.bits.tag >> UFix(log2Up(n))
-  }
-}
+import Chisel._
+import Node._
+import Constants._
+import scala.math._
 
 class ioPTW(n: Int) extends Bundle
 {

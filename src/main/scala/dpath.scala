@@ -1,15 +1,14 @@
 package rocket
 
 import Chisel._
-import Node._;
-
+import Node._
 import Constants._
 import Instructions._
 import hwacha._
 
-class ioDpathAll extends Bundle()
+class ioDpathAll(implicit conf: RocketConfiguration) extends Bundle
 {
-  val host  = new ioHTIF();
+  val host  = new ioHTIF
   val ctrl  = new ioCtrlDpath().flip
   val dmem = new ioHellaCache
   val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
@@ -23,7 +22,7 @@ class ioDpathAll extends Bundle()
   val vec_imul_resp = Bits(INPUT, hwacha.Constants.SZ_XLEN)
 }
 
-class rocketDpath extends Component
+class rocketDpath(implicit conf: RocketConfiguration) extends Component
 {
   val io  = new ioDpathAll();
 
@@ -48,7 +47,7 @@ class rocketDpath extends Component
   val ex_reg_ctrl_fn_dw     = Reg() { UFix() };
   val ex_reg_ctrl_fn_alu    = Reg() { UFix() };
   val ex_reg_ctrl_sel_wb    = Reg() { UFix() };
- 	val ex_wdata						  = Bits(); 	
+  val ex_wdata		    = Bits()
 
   // memory definitions
   val mem_reg_pc             = Reg() { UFix() };
