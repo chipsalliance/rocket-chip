@@ -8,7 +8,7 @@ object Constants
   val NTILES = 1
   val HAVE_RVC = false
   val HAVE_FPU = true
-  val HAVE_VEC = true
+  val HAVE_VEC = false
 
   val MAX_THREADS = 
       hwacha.Constants.NUM_PVFB * hwacha.Constants.WIDTH_PVFB / hwacha.Constants.SZ_BANK
