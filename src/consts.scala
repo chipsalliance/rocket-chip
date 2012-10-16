@@ -2,11 +2,7 @@ package uncore
 package constants
 
 import Chisel._
-
-abstract trait MulticoreConstants {
-  val NTILES: Int
-  val TILE_ID_BITS = log2Up(NTILES)+1
-}
+import scala.math.max
 
 abstract trait CoherenceConfigConstants {
   val ENABLE_SHARING: Boolean
@@ -17,6 +13,10 @@ trait UncoreConstants {
   val NGLOBAL_XACTS = 8
   val GLOBAL_XACT_ID_BITS = log2Up(NGLOBAL_XACTS)
   val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 
+}
+
+trait CacheConstants extends UncoreConstants {
+  val OFFSET_BITS = log2Up(CACHE_DATA_SIZE_IN_BYTES)
 }
 
 trait TileLinkTypeConstants {
@@ -78,3 +78,14 @@ trait MemoryInterfaceConstants extends
   val REFILL_CYCLES = CACHE_DATA_SIZE_IN_BYTES*8/MEM_DATA_BITS
   val MEM_BACKUP_WIDTH = HTIF_WIDTH
 }
+
+trait AddressConstants { 
+  val PADDR_BITS = 40;
+  val VADDR_BITS = 43;
+  val PGIDX_BITS = 13;
+  val PPN_BITS = PADDR_BITS-PGIDX_BITS;
+  val VPN_BITS = VADDR_BITS-PGIDX_BITS;
+  val ASID_BITS = 7;
+  val PERM_BITS = 6;
+}
+
