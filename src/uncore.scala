@@ -17,7 +17,8 @@ class TrackerDependency extends Bundle {
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
 }
 
-class XactTracker(id: Int, co: CoherencePolicy)(implicit conf: UncoreConfiguration) extends Component {
+class XactTracker(id: Int)(implicit conf: UncoreConfiguration) extends Component {
+  val co = conf.co
   val io = new Bundle {
     val alloc_req       = (new FIFOIO) { new TrackerAllocReq }.flip
     val p_data          = (new PipeIO) { new TrackerProbeData }.flip
@@ -216,17 +217,19 @@ class XactTracker(id: Int, co: CoherencePolicy)(implicit conf: UncoreConfigurati
   }
 }
 
-case class UncoreConfiguration(ntiles: Int, tile_id_bits: Int)
+case class UncoreConfiguration(ntiles: Int, tile_id_bits: Int, co: CoherencePolicy)
 
-abstract class CoherenceHub(co: CoherencePolicy)(implicit conf: UncoreConfiguration) extends Component {
+abstract class CoherenceHub(implicit conf: UncoreConfiguration) extends Component {
   val io = new Bundle {
     val tiles = Vec(conf.ntiles) { new ioTileLink }.flip
     val mem = new ioMem
   }
 }
 
-class CoherenceHubNull(co: ThreeStateIncoherence)(implicit conf: UncoreConfiguration) extends CoherenceHub(co)(conf)
+class CoherenceHubNull(implicit conf: UncoreConfiguration) extends CoherenceHub
 {
+  val co = conf.co.asInstanceOf[ThreeStateIncoherence]
+
   val x_init = io.tiles(0).xact_init
   val is_write = x_init.bits.x_type === co.xactInitWriteback
   x_init.ready := io.mem.req_cmd.ready && !(is_write && io.mem.resp.valid) //stall write req/resp to handle previous read resp
@@ -252,9 +255,10 @@ class CoherenceHubNull(co: ThreeStateIncoherence)(implicit conf: UncoreConfigura
 }
 
 
-class CoherenceHubBroadcast(co: CoherencePolicy)(implicit conf: UncoreConfiguration) extends CoherenceHub(co)(conf)
+class CoherenceHubBroadcast(implicit conf: UncoreConfiguration) extends CoherenceHub
 {
-  val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(_, co))
+  val co = conf.co
+  val trackerList = (0 until NGLOBAL_XACTS).map(new XactTracker(_))
 
   val busy_arr           = Vec(NGLOBAL_XACTS){ Bool() }
   val addr_arr           = Vec(NGLOBAL_XACTS){ Bits(width=PADDR_BITS-OFFSET_BITS) }
