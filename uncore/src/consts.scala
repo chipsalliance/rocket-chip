@@ -64,19 +64,13 @@ trait MemoryOpConstants {
   val M_XA_MAXU = Bits("b1111", 4);
 }
 
-trait HTIFConstants {
-  val HTIF_WIDTH = 16
-}
-
 trait MemoryInterfaceConstants extends 
-  HTIFConstants with 
   UncoreConstants with 
   TileLinkSizeConstants 
 {
   val MEM_TAG_BITS = max(TILE_XACT_ID_BITS, GLOBAL_XACT_ID_BITS)
   val MEM_DATA_BITS = 128
   val REFILL_CYCLES = CACHE_DATA_SIZE_IN_BYTES*8/MEM_DATA_BITS
-  val MEM_BACKUP_WIDTH = HTIF_WIDTH
 }
 
 trait AddressConstants { 
