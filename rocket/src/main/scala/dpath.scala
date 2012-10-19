@@ -8,7 +8,7 @@ import hwacha._
 
 class ioDpathAll(implicit conf: RocketConfiguration) extends Bundle
 {
-  val host  = new ioHTIF
+  val host  = new ioHTIF(conf.ntiles)
   val ctrl  = new ioCtrlDpath().flip
   val dmem = new ioHellaCache
   val dtlb = new ioDTLB_CPU_req_bundle().asOutput()

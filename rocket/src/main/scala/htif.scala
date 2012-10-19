@@ -10,8 +10,10 @@ class ioDebug extends Bundle
   val error_mode  = Bool(OUTPUT);
 }
 
-class ioHost(w: Int) extends Bundle
+class ioHost(val w: Int) extends Bundle
 {
+  val clk = Bool(OUTPUT)
+  val clk_edge = Bool(OUTPUT)
   val in = new FIFOIO()(Bits(width = w)).flip
   val out = new FIFOIO()(Bits(width = w))
 }
@@ -23,21 +25,21 @@ class PCRReq extends Bundle
   val data = Bits(width = 64)
 }
 
-class ioHTIF(implicit conf: RocketConfiguration) extends Bundle
+class ioHTIF(ntiles: Int) extends Bundle
 {
   val reset = Bool(INPUT)
   val debug = new ioDebug
   val pcr_req = (new FIFOIO) { new PCRReq }.flip
   val pcr_rep = (new FIFOIO) { Bits(width = 64) }
-  val ipi_req = (new FIFOIO) { Bits(width = log2Up(conf.ntiles)) }
+  val ipi_req = (new FIFOIO) { Bits(width = log2Up(ntiles)) }
   val ipi_rep = (new FIFOIO) { Bool() }.flip
 }
 
-class rocketHTIF(w: Int)(implicit conf: RocketConfiguration) extends Component
+class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component
 {
   val io = new Bundle {
     val host = new ioHost(w)
-    val cpu = Vec(conf.ntiles) { new ioHTIF().flip }
+    val cpu = Vec(conf.ntiles) { new ioHTIF(conf.ntiles).flip }
     val mem = new ioTileLink
   }
 
@@ -178,7 +180,8 @@ class rocketHTIF(w: Int)(implicit conf: RocketConfiguration) extends Component
   }
   x_init.io.enq.valid := state === state_mem_req
   val init_addr = addr.toUFix >> UFix(OFFSET_BITS-3)
-  x_init.io.enq.bits := Mux(cmd === cmd_writemem, conf.co.getUncachedWriteTransactionInit(init_addr, UFix(0)), conf.co.getUncachedReadTransactionInit(init_addr, UFix(0)))
+  val co = conf.co.asInstanceOf[CoherencePolicyWithUncached]
+  x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteTransactionInit(init_addr, UFix(0)), co.getUncachedReadTransactionInit(init_addr, UFix(0)))
   io.mem.xact_init <> x_init.io.deq
   io.mem.xact_init_data.valid:= state === state_mem_wdata
   io.mem.xact_init_data.bits.data := mem_req_data
