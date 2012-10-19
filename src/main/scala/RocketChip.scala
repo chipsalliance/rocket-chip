@@ -239,20 +239,3 @@ class Top extends Component {
   io.mem <> uncore.io.mem
   io.debug.error_mode := error_mode
 }
-
-object top_main {
-  def main(args: Array[String]): Unit = { 
-    val top = args(0)
-    val chiselArgs = ArrayBuffer[String]()
-
-    var i = 1
-    while (i < args.length) {
-      val arg = args(i)
-      chiselArgs += arg
-      i += 1
-    }
-
-    chiselMain(chiselArgs.toArray, () => Class.forName(top).newInstance.asInstanceOf[Component])
-  }
-}
-

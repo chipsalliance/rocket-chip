@@ -493,6 +493,7 @@ global_bmarks = \
 	towers.riscv \
 	vvadd.riscv \
 	dgemm.riscv \
+	dhrystone.riscv \
 
 global_vec_bmarkdir = $(basedir)/../../riscv-app/misc/build
 global_vec_bmarks = \
