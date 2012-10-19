@@ -25,16 +25,16 @@ class Top extends Component
               else new MICoherence
             }
   implicit val rconf = RocketConfiguration(NTILES, co)
-  implicit val uconf = UncoreConfiguration(NTILES+1, log2Up(NTILES)+1)
+  implicit val uconf = UncoreConfiguration(NTILES+1, log2Up(NTILES)+1, co)
 
   val io = new Bundle  {
     val debug   = new ioDebug
-    val host    = new ioHost(HTIF_WIDTH)
+    val host    = new ioHost(16)
     val mem     = new ioMemPipe
   }
 
-  val htif = new rocketHTIF(HTIF_WIDTH)
-  val hub = new CoherenceHubBroadcast(co)
+  val htif = new rocketHTIF(io.host.w)
+  val hub = new CoherenceHubBroadcast
   hub.io.tiles(NTILES) <> htif.io.mem
   io.host <> htif.io.host
 

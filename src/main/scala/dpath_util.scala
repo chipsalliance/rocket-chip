@@ -55,7 +55,7 @@ class rocketDpathBTB(entries: Int) extends Component
 
 class ioDpathPCR(implicit conf: RocketConfiguration) extends Bundle
 {
-  val host  = new ioHTIF
+  val host  = new ioHTIF(conf.ntiles)
   val r     = new ioReadPort();
   val w     = new ioWritePort();
   

@@ -9,7 +9,7 @@ class Tile(resetSignal: Bool = null)(implicit conf: RocketConfiguration) extends
 {
   val io = new Bundle {
     val tilelink = new ioTileLink
-    val host = new ioHTIF
+    val host = new ioHTIF(conf.ntiles)
   }
   
   val cpu       = new rocketProc

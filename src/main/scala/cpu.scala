@@ -7,7 +7,7 @@ import hwacha._
 
 class ioRocket(implicit conf: RocketConfiguration) extends Bundle
 {
-  val host    = new ioHTIF
+  val host    = new ioHTIF(conf.ntiles)
   val imem    = new IOCPUFrontend
   val vimem   = new IOCPUFrontend
   val dmem    = new ioHellaCache
