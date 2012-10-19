@@ -25,7 +25,7 @@ class ReferenceChipBackend extends VerilogBackend
 
   def addMemPin(c: Component) = {
     for (node <- Component.nodes) {
-      if (node.isInstanceOf[Mem[ _ ]] && node.component != null && node.asInstanceOf[Mem[_]].inferSeqRead) {
+      if (node.isInstanceOf[Mem[ _ ]] && node.component != null && node.asInstanceOf[Mem[_]].seqRead) {
         val init = Bool(INPUT)
         init.setName("init")
         node.inputs += init
@@ -67,27 +67,27 @@ class ReferenceChipBackend extends VerilogBackend
   transforms += ((c: Component) => addMemPin(c))
 }
 
-class OuterMemorySystem(ntiles: Int, co: CoherencePolicyWithUncached, resetSignal: Bool = null) extends Component(resetSignal)
+class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) extends Component
 {
   val io = new Bundle {
-    val tiles = Vec(ntiles) { new ioTileLink() }.flip
+    val tiles = Vec(conf.ntiles) { new ioTileLink() }.flip
     val htif = new ioTileLink().flip
-    val mem_backup = new ioMemSerialized
+    val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
     val mem = new ioMemPipe
   }
 
   import rocket.Constants._
-  val hub = new CoherenceHubBroadcast(NTILES+1, co)
+  val hub = new CoherenceHubBroadcast()(conf.copy(ntiles = conf.ntiles+1))
   val llc_tag_leaf = Mem(1024, seqRead = true) { Bits(width = 72) }
   val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
   val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
-  val mem_serdes = new MemSerdes
+  val mem_serdes = new MemSerdes(htif_width)
 
-  for (i <- 0 until NTILES) {
+  for (i <- 0 until conf.ntiles) {
     hub.io.tiles(i) <> io.tiles(i)
   }
-  hub.io.tiles(NTILES) <> io.htif
+  hub.io.tiles(conf.ntiles) <> io.htif
 
   llc.io.cpu.req_cmd <> Queue(hub.io.mem.req_cmd)
   llc.io.cpu.req_data <> Queue(hub.io.mem.req_data, REFILL_CYCLES)
@@ -116,34 +116,26 @@ class OuterMemorySystem(ntiles: Int, co: CoherencePolicyWithUncached, resetSigna
   io.mem_backup <> mem_serdes.io.narrow
 }
 
-class Uncore(htif_width: Int, ntiles: Int, co: CoherencePolicyWithUncached) extends Component
+class Uncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Component
 {
   val io = new Bundle {
     val debug = new ioDebug()
     val host = new ioHost(htif_width)
-    val host_clk = Bool(OUTPUT)
-    val mem_backup = new ioMemSerialized
+    val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
-    val mem_backup_clk = Bool(OUTPUT)
     val mem = new ioMemPipe
-    val tiles = Vec(ntiles) { new ioTileLink() }.flip
-    val htif = Vec(ntiles) { new ioHTIF() }.flip
-    val uncore_reset = Bool(OUTPUT)
+    val tiles = Vec(conf.ntiles) { new ioTileLink() }.flip
+    val htif = Vec(conf.ntiles) { new ioHTIF(conf.ntiles) }.flip
   }
 
-  import rocket.Constants._
-  val htif = new rocketHTIF(htif_width, NTILES, co)
+  val htif = new rocketHTIF(htif_width)
+  htif.io.cpu <> io.htif
 
-  for (i <- 0 until NTILES) {
-    htif.io.cpu(i) <> io.htif(i)
-  }
-
-  val outmemsys = new OuterMemorySystem(ntiles, co)
+  val outmemsys = new OuterMemorySystem(htif_width)
   outmemsys.io.tiles <> io.tiles
   outmemsys.io.htif <> htif.io.mem
   io.mem <> outmemsys.io.mem
   outmemsys.io.mem_backup_en <> io.mem_backup_en
-  io.uncore_reset := htif.io.cpu(NTILES-1).reset
 
   // pad out the HTIF using a divided clock
   val hio = (new slowIO(8)) { Bits(width = htif_width+1) }
@@ -165,13 +157,13 @@ class Uncore(htif_width: Int, ntiles: Int, co: CoherencePolicyWithUncached) exte
   htif.io.host.in.valid := hio.io.in_fast.valid && !hio.io.in_fast.bits(htif_width)
   htif.io.host.in.bits := hio.io.in_fast.bits
   hio.io.in_fast.ready := Mux(hio.io.in_fast.bits(htif_width), Bool(true), htif.io.host.in.ready)
-  io.host_clk := hio.io.clk_slow
+  io.host.clk := hio.io.clk_slow
+  io.host.clk_edge := Reg(io.host.clk && !Reg(io.host.clk))
 }
 
 class ioTop(htif_width: Int) extends Bundle  {
   val debug   = new rocket.ioDebug();
   val host    = new rocket.ioHost(htif_width);
-  val host_clk = Bool(OUTPUT)
   val mem_backup_en = Bool(INPUT)
   val in_mem_rdy = Bool(OUTPUT)
   val in_mem_val = Bool(INPUT)
@@ -180,10 +172,22 @@ class ioTop(htif_width: Int) extends Bundle  {
   val mem     = new uncore.ioMem
 }
 
-class ReferenceChipTop extends Component {
-  val clkdiv = 8
-  import rocket.Constants._
+object DummyTopLevelConstants extends uncore.constants.CoherenceConfigConstants {
+  val NTILES = 1
+  val HTIF_WIDTH = 16
+  val ENABLE_SHARING = true
+  val ENABLE_CLEAN_EXCLUSIVE = true
+}
+import DummyTopLevelConstants._
 
+class MemDessert extends Component {
+  val io = new MemDesserIO(HTIF_WIDTH)
+  val x = new MemDesser(HTIF_WIDTH)
+  io.narrow <> x.io.narrow
+  io.wide <> x.io.wide
+}
+
+class Top extends Component {
   val co =  if(ENABLE_SHARING) {
               if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence
               else new MSICoherence
@@ -192,15 +196,19 @@ class ReferenceChipTop extends Component {
               else new MICoherence
             }
 
+  implicit val uconf = UncoreConfiguration(NTILES, log2Up(NTILES)+1, co)
+
   val io = new ioTop(HTIF_WIDTH)
 
-  val uncore = new Uncore(HTIF_WIDTH, NTILES, co)
+  val uncore = new Uncore(HTIF_WIDTH)
 
   var error_mode = Bool(false)
-  for (i <-0 until NTILES) {
+  for (i <- 0 until uconf.ntiles) {
     val hl = uncore.io.htif(i)
     val tl = uncore.io.tiles(i)
-    val tile = new Tile(co, resetSignal = hl.reset)
+
+    implicit val rconf = RocketConfiguration(NTILES, co)
+    val tile = new Tile(resetSignal = hl.reset)
 
     tile.io.host.reset := Reg(Reg(hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
@@ -221,7 +229,6 @@ class ReferenceChipTop extends Component {
   }
 
   io.host <> uncore.io.host
-  io.host_clk := uncore.io.host_clk
 
   uncore.io.mem_backup.resp.valid := io.in_mem_val
 

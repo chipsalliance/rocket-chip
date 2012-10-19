@@ -14,10 +14,10 @@ CXXFLAGS := $(CXXFLAGS) -I$(DRAMSIM2_PATH) -L$(DRAMSIM2_PATH) -ldramsim -Wl,-rpa
 DRAMSIM2_LIB := libdramsim.so
 
 generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project rocket" "run rocket.Top --backend c --noIoDebug --targetDir ../emulator/generated-src"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "run ReferenceChip.Top --backend c --noIoDebug --targetDir ../emulator/generated-src"
 
 generated-src-debug/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project rocket" "run rocket.Top --backend c --debug --vcd --targetDir ../emulator/generated-src-debug"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "run ReferenceChip.Top --backend c --debug --vcd --targetDir ../emulator/generated-src-debug"
 
 $(MODEL).o: %.o: generated-src/%.cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<

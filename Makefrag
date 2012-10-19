@@ -1,6 +1,6 @@
 # Makefile snippet used by emulator/vlsi/fpga backends
 
-MODEL := ReferenceChipTop
+MODEL := Top
 CXX := g++
 CXXFLAGS := -O2
 

@@ -97,6 +97,7 @@ int main(int argc, char** argv)
   // reset for a few cycles to support pipelined reset
   tile.Top__io_host_in_valid = LIT<1>(0);
   tile.Top__io_host_out_ready = LIT<1>(0);
+  tile.Top__io_mem_backup_en = LIT<1>(0);
   for (int i = 0; i < 10; i++)
   {
     tile.clock_lo(LIT<1>(1));
@@ -133,9 +134,12 @@ int main(int argc, char** argv)
 
     tile.clock_lo(LIT<1>(0));
 
-    htif_phy.tick(tile.Top__io_host_in_ready.lo_word(),
-                  tile.Top__io_host_out_valid.lo_word(),
-                  tile.Top__io_host_out_bits.lo_word());
+    if (tile.Top__io_host_clk_edge.to_bool())
+    {
+      htif_phy.tick(tile.Top__io_host_in_ready.lo_word(),
+                    tile.Top__io_host_out_valid.lo_word(),
+                    tile.Top__io_host_out_bits.lo_word());
+    }
 
   
     if (tile.Top__io_debug_error_mode.lo_word())
@@ -175,8 +179,7 @@ int main(int argc, char** argv)
         str[pos] = 0; \
         fputs(str, vcdfile); \
       } while(0)
-      dump_disasm(tile.Top_Tile_cpu_dpath__id_reg_inst_shadow.lo_word(), "NDISASM_IF");
-      dump_disasm(tile.Top_Tile_cpu_dpath__id_reg_inst.lo_word(), "NDISASM_ID");
+      dump_disasm(tile.Top_Tile_cpu_dpath__id_inst.lo_word(), "NDISASM_ID");
       dump_disasm(ex_reg_inst, "NDISASM_EX");
       dump_disasm(mem_reg_inst, "NDISASM_MEM");
 
@@ -196,7 +199,7 @@ int main(int argc, char** argv)
     mem_reg_rs1 = tile.Top_Tile_cpu_dpath__ex_reg_rs1.lo_word();
     mem_reg_rs2 = tile.Top_Tile_cpu_dpath__ex_reg_rs2.lo_word();
 
-    ex_reg_inst = tile.Top_Tile_cpu_dpath__id_reg_inst.lo_word();
+    ex_reg_inst = tile.Top_Tile_cpu_dpath__id_inst.lo_word();
 
     tile.clock_hi(LIT<1>(0));
     trace_count++;
