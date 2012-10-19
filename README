@@ -26,19 +26,11 @@ BUILDING THE TOOLCHAIN:
     cd riscv-asmtests-bmarks/riscv-bmarks/
     make
 
-  To build dramsim2 (tagged version 2.1):
-
-    cd dramsim2/
-    git checkout v2.1
-    make libdramsim.so
-
-
 BUILDING THE PROJECT:
 
   To build the C simulator:
 
     cd emulator
-    make dramsim2 (if DRAMSim2 is not installed and in your path)
     make
 
   To build the VCS simulator:

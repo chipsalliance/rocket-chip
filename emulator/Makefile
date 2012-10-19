@@ -7,17 +7,16 @@ CXXFLAGS := -O1
 all: emulator
 
 CXXSRCS := emulator disasm
-CXXFLAGS := $(CXXFLAGS) -Itestbench -I$(basedir)/chisel/csrc
+CXXFLAGS := $(CXXFLAGS) -Itestbench -I$(basedir)/chisel/csrc -I../dramsim2
 
-DRAMSIM2_PATH := ../dramsim2/
-CXXFLAGS := $(CXXFLAGS) -I$(DRAMSIM2_PATH) -L$(DRAMSIM2_PATH) -ldramsim -Wl,-rpath=$(DRAMSIM2_PATH) 
-DRAMSIM2_LIB := libdramsim.so
+OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
+DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 
 generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "run ReferenceChip.Top --backend c --noIoDebug --targetDir ../emulator/generated-src"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "run ReferenceChip.$(MODEL) --backend c --noIoDebug --targetDir ../emulator/generated-src"
 
 generated-src-debug/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "run ReferenceChip.Top --backend c --debug --vcd --targetDir ../emulator/generated-src-debug"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "run ReferenceChip.$(MODEL) --backend c --debug --vcd --targetDir ../emulator/generated-src-debug"
 
 $(MODEL).o: %.o: generated-src/%.cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
@@ -31,14 +30,17 @@ $(addsuffix .o,$(CXXSRCS)): %.o: testbench/%.cc testbench/* generated-src/$(MODE
 $(addsuffix -debug.o,$(CXXSRCS)): %-debug.o: testbench/%.cc testbench/* generated-src-debug/$(MODEL).cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src-debug -c -o $@ $<
 
-emulator: $(addsuffix .o,$(CXXSRCS)) $(MODEL).o
-	$(CXX) $(CXXFLAGS) -o $@ $^
+DRAMSIM_OBJS := $(patsubst %.cpp,%.o,$(wildcard ../dramsim2/*.cpp))
+$(DRAMSIM_OBJS): %.o: %.cpp
+	$(CXX) $(CXXFLAGS) -DNO_STORAGE -Dmain=nomain -c -o $@ $<
+libdramsim.a: $(DRAMSIM_OBJS)
+	ar rcs $@ $^
 
-emulator-debug: $(addsuffix -debug.o,$(CXXSRCS)) $(MODEL)-debug.o
-	$(CXX) $(CXXFLAGS) -o $@ $^
+emulator: $(OBJS) libdramsim.a
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) -L. -ldramsim
 
-dramsim2:
-	cd $(DRAMSIM2_PATH) ; make $(DRAMSIM2_LIB)
+emulator-debug: $(DEBUG_OBJS) libdramsim.a
+	$(CXX) $(CXXFLAGS) -o $@ $(DEBUG_OBJS) -L. -ldramsim
 
 all: emulator
  
