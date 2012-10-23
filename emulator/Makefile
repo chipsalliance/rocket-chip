@@ -13,10 +13,10 @@ OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
 DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 
 generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "run elaborate $(MODEL) c ../emulator/generated-src"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(MODEL) --backend c --targetDir ../emulator/generated-src"
 
 generated-src-debug/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "run elaborate $(MODEL) c ../emulator/generated-src-debug --debug --vcd"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(MODEL) --backend c --targetDir ../emulator/generated-src-debug --debug --vcd"
 
 $(MODEL).o: %.o: generated-src/%.cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
@@ -46,7 +46,7 @@ clean:
 	rm -rf *.o emulator emulator-debug generated-src generated-src-debug DVEfiles output
 
 test:
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "~run test $(MODEL) c ../emulator/generated-src"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "~make ../emulator run-fast"
 
 #--------------------------------------------------------------------
 # Run assembly tests and benchmarks

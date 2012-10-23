@@ -1,4 +1,4 @@
-package ReferenceChip
+package referencechip
 
 import Chisel._
 import Node._
