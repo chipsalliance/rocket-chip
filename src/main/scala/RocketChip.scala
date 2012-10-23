@@ -165,10 +165,10 @@ class ioTop(htif_width: Int) extends Bundle  {
   val debug   = new rocket.ioDebug();
   val host    = new rocket.ioHost(htif_width);
   val mem_backup_en = Bool(INPUT)
-  val in_mem_rdy = Bool(OUTPUT)
-  val in_mem_val = Bool(INPUT)
-  val out_mem_rdy = Bool(INPUT)
-  val out_mem_val = Bool(OUTPUT)
+  val in_mem_ready = Bool(OUTPUT)
+  val in_mem_valid = Bool(INPUT)
+  val out_mem_ready = Bool(INPUT)
+  val out_mem_valid = Bool(OUTPUT)
   val mem     = new uncore.ioMem
 }
 
@@ -230,10 +230,10 @@ class Top extends Component {
 
   io.host <> uncore.io.host
 
-  uncore.io.mem_backup.resp.valid := io.in_mem_val
+  uncore.io.mem_backup.resp.valid := io.in_mem_valid
 
-  io.out_mem_val := uncore.io.mem_backup.req.valid
-  uncore.io.mem_backup.req.ready := io.out_mem_rdy
+  io.out_mem_valid := uncore.io.mem_backup.req.valid
+  uncore.io.mem_backup.req.ready := io.out_mem_ready
 
   io.mem_backup_en <> uncore.io.mem_backup_en
   io.mem <> uncore.io.mem
