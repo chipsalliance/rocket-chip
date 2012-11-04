@@ -134,15 +134,16 @@ class rocketProc(implicit conf: RocketConfiguration) extends Component
     // hooking up vector I$
     ptw.io.requestor(2) <> io.vimem.ptw
     io.vimem.req.bits.status := dpath.io.ctrl.status
-    io.vimem.req.bits.pc := vu.io.imem_req.bits.toUFix
+    io.vimem.req.bits.pc := vu.io.imem_req.bits
     io.vimem.req.valid := vu.io.imem_req.valid
     io.vimem.req.bits.invalidate := ctrl.io.dpath.flush_inst
     io.vimem.req.bits.invalidateTLB := dpath.io.ptbr_wen
-    vu.io.imem_req.ready := Bool(true)
     vu.io.imem_resp.valid := io.vimem.resp.valid
-    vu.io.imem_resp.bits := io.vimem.resp.bits.data
-    vu.io.vitlb_exception   := io.vimem.resp.bits.xcpt_if
-    io.vimem.resp.ready := Bool(true)
+    vu.io.imem_resp.bits.pc := io.vimem.resp.bits.pc
+    vu.io.imem_resp.bits.data := io.vimem.resp.bits.data
+    vu.io.imem_resp.bits.xcpt_ma := io.vimem.resp.bits.xcpt_ma
+    vu.io.imem_resp.bits.xcpt_if := io.vimem.resp.bits.xcpt_if
+    io.vimem.resp.ready := vu.io.imem_resp.ready
     io.vimem.req.bits.mispredict := Bool(false)
     io.vimem.req.bits.taken := Bool(false)
 

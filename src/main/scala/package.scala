@@ -18,7 +18,7 @@ object Constants extends
 {
   def HAVE_RVC = false
   def HAVE_FPU = true
-  def HAVE_VEC = false
+  def HAVE_VEC = true
 
   val MAX_THREADS = 
       hwacha.Constants.NUM_PVFB * hwacha.Constants.WIDTH_PVFB / hwacha.Constants.SZ_BANK
