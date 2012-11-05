@@ -52,7 +52,7 @@ class Term(val value: BigInt, val mask: BigInt = 0)
 {
   var prime = true
 
-  def covers(x: Term) = ((value ^ x.value) &~ mask) == 0
+  def covers(x: Term) = ((value ^ x.value) &~ mask | x.mask &~ mask) == 0
   def intersects(x: Term) = ((value ^ x.value) &~ mask &~ x.mask) == 0
   override def equals(that: Any) = that match {
     case x: Term => x.value == value && x.mask == mask
@@ -182,14 +182,15 @@ object SimplifyDC
     prime.sort(_<_)
   }
 
+  def verify(cover: Seq[Term], minterms: Seq[Term], maxterms: Seq[Term]) = {
+    assert(minterms.forall(t => cover.exists(_ covers t)))
+    assert(maxterms.forall(t => !cover.exists(_ intersects t)))
+  }
   def apply(minterms: Seq[Term], maxterms: Seq[Term], bits: Int) = {
     val prime = getPrimeImplicants(minterms, maxterms, bits)
-    assert(minterms.forall(t => prime.exists(_ covers t)))
     val (eprime, prime2, uncovered) = Simplify.getEssentialPrimeImplicants(prime, minterms)
-    assert(uncovered.forall(t => prime2.exists(_ covers t)))
     val cover = eprime ++ Simplify.getCover(prime2, uncovered, bits)
-    minterms.foreach(t => assert(cover.exists(_.covers(t)))) // sanity check
-    maxterms.foreach(t => assert(!cover.exists(_.intersects(t)))) // sanity check
+    verify(cover, minterms, maxterms)
     cover
   }
 }
