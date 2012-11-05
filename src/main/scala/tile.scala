@@ -13,7 +13,7 @@ class Tile(resetSignal: Bool = null)(implicit conf: RocketConfiguration) extends
   }
   
   val cpu       = new rocketProc
-  val icache    = new Frontend(ICacheConfig(128, 4)) // 128 sets x 4 ways (32KB)
+  val icache    = new Frontend(ICacheConfig(4, 1)) // 128 sets x 4 ways (32KB)
   val dcache    = new HellaCache
 
   val arbiter   = new rocketMemArbiter(DMEM_PORTS)

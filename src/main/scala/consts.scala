@@ -16,14 +16,14 @@ abstract trait TileConfigConstants {
 
 trait ScalarOpConstants {
   val BR_X    = Bits("b???", 3)
-  val BR_EQ   = UFix(0, 3)
-  val BR_NE   = UFix(1, 3)
-  val BR_J    = UFix(2, 3)
-  val BR_N    = UFix(3, 3)
-  val BR_LT   = UFix(4, 3)
-  val BR_GE   = UFix(5, 3)
-  val BR_LTU  = UFix(6, 3)
-  val BR_GEU  = UFix(7, 3)
+  val BR_EQ   = Bits(0, 3)
+  val BR_NE   = Bits(1, 3)
+  val BR_J    = Bits(2, 3)
+  val BR_N    = Bits(3, 3)
+  val BR_LT   = Bits(4, 3)
+  val BR_GE   = Bits(5, 3)
+  val BR_LTU  = Bits(6, 3)
+  val BR_GEU  = Bits(7, 3)
 
   val PC_EX4 = UFix(0, 2)
   val PC_EX  = UFix(1, 2)

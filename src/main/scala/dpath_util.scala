@@ -56,8 +56,8 @@ class rocketDpathBTB(entries: Int) extends Component
 class ioDpathPCR(implicit conf: RocketConfiguration) extends Bundle
 {
   val host  = new ioHTIF(conf.ntiles)
-  val r     = new ioReadPort();
-  val w     = new ioWritePort();
+  val r     = new ioReadPort(32, 64)
+  val w     = new ioWritePort(32, 64)
   
   val status     = Bits(OUTPUT, 32);
   val ptbr      = UFix(OUTPUT, PADDR_BITS);
@@ -228,33 +228,18 @@ class rocketDpathPCR(implicit conf: RocketConfiguration) extends Component
   }
 }
 
-class ioReadPort extends Bundle()
+class ioReadPort(d: Int, w: Int) extends Bundle
 {
-  val addr = UFix(INPUT, 5);
-  val en   = Bool(INPUT);
-  val data = Bits(OUTPUT, 64);
+  val addr = UFix(INPUT, log2Up(d))
+  val en   = Bool(INPUT)
+  val data = Bits(OUTPUT, w)
+  override def clone = new ioReadPort(d, w).asInstanceOf[this.type]
 }
 
-class ioWritePort extends Bundle()
+class ioWritePort(d: Int, w: Int) extends Bundle
 {
-  val addr = UFix(INPUT, 5);
-  val en   = Bool(INPUT);
-  val data = Bits(INPUT, 64);
-}
-
-class ioRegfile extends Bundle()
-{
-  val r0 = new ioReadPort();
-  val r1 = new ioReadPort();
-  val w0 = new ioWritePort();
-}
-
-class rocketDpathRegfile extends Component
-{
-  override val io = new ioRegfile();
-
-  val regfile = Mem(32){ Bits(width=64) }
-  when (io.w0.en) { regfile(io.w0.addr) := io.w0.data }
-  io.r0.data := Mux((io.r0.addr === UFix(0, 5)) || !io.r0.en, Bits(0, 64), regfile(io.r0.addr));
-  io.r1.data := Mux((io.r1.addr === UFix(0, 5)) || !io.r1.en, Bits(0, 64), regfile(io.r1.addr));
+  val addr = UFix(INPUT, log2Up(d))
+  val en   = Bool(INPUT)
+  val data = Bits(INPUT, w)
+  override def clone = new ioWritePort(d, w).asInstanceOf[this.type]
 }

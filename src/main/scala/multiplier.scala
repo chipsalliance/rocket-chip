@@ -8,11 +8,11 @@ import hwacha.Constants._
 
 class ioMultiplier extends Bundle {
   val req = new io_imul_req().flip
-  val req_tag = Bits(INPUT, 5)
+  val req_tag = UFix(INPUT, 5)
   val req_kill = Bool(INPUT)
   val resp_val = Bool(OUTPUT)
   val resp_rdy = Bool(INPUT)
-  val resp_tag = Bits(OUTPUT, 5)
+  val resp_tag = UFix(OUTPUT, 5)
   val resp_bits = Bits(OUTPUT, SZ_XLEN)
 }
 
@@ -71,7 +71,7 @@ class rocketMultiplier(unroll: Int = 1, earlyOut: Boolean = false) extends Compo
   val r_val = Reg(resetVal = Bool(false));
   val r_dw  = Reg { Bits() }
   val r_fn  = Reg { Bits() }
-  val r_tag = Reg { Bits() }
+  val r_tag = Reg { UFix() }
   val r_lhs = Reg { Bits() }
   val r_prod= Reg { Bits(width = w*2) }
   val r_lsb = Reg { Bits() }

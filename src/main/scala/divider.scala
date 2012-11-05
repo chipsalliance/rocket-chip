@@ -15,7 +15,7 @@ class rocketDivider(earlyOut: Boolean = false) extends Component {
   val divby0      = Reg() { Bool() };
   val neg_quo     = Reg() { Bool() };
   val neg_rem     = Reg() { Bool() };
-  val reg_tag     = Reg() { Bits() };
+  val reg_tag     = Reg() { UFix() };
   val rem         = Reg() { Bool() };
   val half        = Reg() { Bool() };
   
