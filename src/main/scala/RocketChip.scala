@@ -207,7 +207,8 @@ class Top extends Component {
     val hl = uncore.io.htif(i)
     val tl = uncore.io.tiles(i)
 
-    implicit val rconf = RocketConfiguration(NTILES, co)
+    val ic = ICacheConfig(128, 2, co)
+    implicit val rconf = RocketConfiguration(NTILES, co, ic)
     val tile = new Tile(resetSignal = hl.reset)
 
     tile.io.host.reset := Reg(Reg(hl.reset))
