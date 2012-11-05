@@ -150,6 +150,8 @@ class ICache(c: ICacheConfig)(implicit conf: RocketConfiguration) extends Compon
 
   val s1_valid = Reg(resetVal = Bool(false))
   val s1_pgoff = Reg() { UFix(width = PGIDX_BITS) }
+  val s1_addr = Cat(io.req.bits.ppn, s1_pgoff).toUFix
+  val s1_tag = s1_addr(c.tagbits+c.untagbits-1,c.untagbits)
 
   val s0_valid = io.req.valid && rdy || s1_valid && stall && !io.req.bits.kill
   val s0_pgoff = Mux(io.req.valid, io.req.bits.idx, s1_pgoff)
@@ -161,7 +163,7 @@ class ICache(c: ICacheConfig)(implicit conf: RocketConfiguration) extends Compon
 
   s2_valid := s1_valid && rdy && !io.req.bits.kill || io.resp.valid && stall
   when (s1_valid && rdy && !stall) {
-    s2_addr := Cat(io.req.bits.ppn, s1_pgoff).toUFix
+    s2_addr := s1_addr
   }
 
   val s2_tag = s2_addr(c.tagbits+c.untagbits-1,c.untagbits)
@@ -180,7 +182,8 @@ class ICache(c: ICacheConfig)(implicit conf: RocketConfiguration) extends Compon
     val wmask = FillInterleaved(c.tagwidth, if (c.dm) Bits(1) else UFixToOH(repl_way))
     val tag = Cat(if (c.parity) s2_tag.xorR else null, s2_tag)
     tag_array.write(s2_idx, Fill(c.assoc, tag), wmask)
-  }.elsewhen (s0_valid) {
+  }
+  /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
     tag_rdata := tag_array(s0_pgoff(c.untagbits-1,c.offbits))
   }
 
@@ -196,18 +199,23 @@ class ICache(c: ICacheConfig)(implicit conf: RocketConfiguration) extends Compon
   for (i <- 0 until c.assoc)
     when (s2_valid && s2_disparity(i)) { vb_array := vb_array.bitSet(Cat(UFix(i), s2_idx), Bool(false)) }
 
+  val s1_tag_match = Vec(c.assoc) { Bool() }
   val s2_tag_hit = Vec(c.assoc) { Bool() }
   val s2_data_disparity = Vec(c.assoc) { Bool() }
   for (i <- 0 until c.assoc) {
     val s1_vb = vb_array(Cat(UFix(i), s1_pgoff(c.untagbits-1,c.offbits))).toBool
     val s2_vb = Reg() { Bool() }
-    val s2_tag_out = Reg() { Bits() }
+    val s2_tag_disparity = Reg() { Bool() }
+    val s2_tag_match = Reg() { Bool() }
+    val tag_out = tag_rdata(c.tagwidth*(i+1)-1, c.tagwidth*i)
     when (s1_valid && rdy && !stall) {
       s2_vb := s1_vb
-      s2_tag_out := tag_rdata(c.tagwidth*(i+1)-1, c.tagwidth*i)
+      s2_tag_disparity := tag_out.xorR
+      s2_tag_match := s1_tag_match(i)
     }
-    s2_tag_hit(i) := s2_vb && s2_tag_out(c.tagbits-1,0) === s2_tag
-    s2_disparity(i) := Bool(c.parity) && s2_vb && (s2_tag_out.xorR || s2_data_disparity(i))
+    s1_tag_match(i) := tag_out(c.tagbits-1,0) === s1_tag
+    s2_tag_hit(i) := s2_vb && s2_tag_match
+    s2_disparity(i) := Bool(c.parity) && s2_vb && (s2_tag_disparity || s2_data_disparity(i))
   }
   s2_any_tag_hit := s2_tag_hit.reduceLeft(_||_) && !s2_disparity.reduceLeft(_||_)
 
@@ -219,10 +227,12 @@ class ICache(c: ICacheConfig)(implicit conf: RocketConfiguration) extends Compon
       val d = io.mem.xact_rep.bits.data
       val wdata = if (c.parity) Cat(d.xorR, d) else d
       data_array(Cat(s2_idx,rf_cnt)) := wdata
-    }.elsewhen (s0_valid) {
+    }
+    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
       s1_dout := data_array(s0_pgoff(c.untagbits-1,c.offbits-rf_cnt.getWidth))
     }
-    when (s1_valid && rdy && !stall) { s2_dout(i) := s1_dout }
+    // if s1_tag_match is critical, replace with partial tag check
+    when (s1_valid && rdy && !stall && (Bool(c.dm) || s1_tag_match(i))) { s2_dout(i) := s1_dout }
     s2_data_disparity(i) := s2_dout(i).xorR
   }
   val s2_dout_word = s2_dout.map(x => (x >> (s2_offset(log2Up(c.databits/8)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8)))(c.ibytes*8-1,0))
