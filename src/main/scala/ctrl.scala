@@ -504,13 +504,13 @@ class rocketCtrl extends Component
     ex_reg_br_type     := id_br_type;
     ex_reg_jalr        := id_jalr
     ex_reg_btb_hit     := io.imem.resp.bits.taken
-    ex_reg_div_val     := id_div_val.toBool && id_waddr != UFix(0);
-    ex_reg_mul_val     := id_mul_val.toBool && id_waddr != UFix(0);
+    ex_reg_div_val     := id_div_val
+    ex_reg_mul_val     := id_mul_val
     ex_reg_mul_fn      := id_mul_fn.toUFix
     ex_reg_mem_val     := id_mem_val.toBool;
     ex_reg_valid       := Bool(true)
     ex_reg_pcr         := id_pcr
-    ex_reg_wen         := id_wen.toBool && id_waddr != UFix(0);
+    ex_reg_wen         := id_wen
     ex_reg_fp_wen      := id_fp_val && io.fpu.dec.wen
     ex_reg_eret        := id_eret.toBool;
     ex_reg_flush_inst  := (id_sync === SYNC_I);
@@ -708,9 +708,9 @@ class rocketCtrl extends Component
     (mem_reg_mem_type === MT_B)  || (mem_reg_mem_type === MT_BU) ||
     (mem_reg_mem_type === MT_H)  || (mem_reg_mem_type === MT_HU)
   val data_hazard_mem = mem_reg_wen &&
-    (id_renx1.toBool && id_raddr1 === io.dpath.mem_waddr ||
-     id_renx2.toBool && id_raddr2 === io.dpath.mem_waddr ||
-     id_wen.toBool   && id_waddr  === io.dpath.mem_waddr)
+    (id_raddr1 != UFix(0) && id_renx1 && id_raddr1 === io.dpath.mem_waddr ||
+     id_raddr2 != UFix(0) && id_renx2 && id_raddr2 === io.dpath.mem_waddr ||
+     id_waddr  != UFix(0) && id_wen   && id_waddr  === io.dpath.mem_waddr)
   val fp_data_hazard_mem = mem_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.mem_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.mem_waddr ||
@@ -722,9 +722,9 @@ class rocketCtrl extends Component
 
   // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
   val data_hazard_wb = wb_reg_wen &&
-    (id_renx1.toBool && id_raddr1 === io.dpath.wb_waddr ||
-     id_renx2.toBool && id_raddr2 === io.dpath.wb_waddr ||
-     id_wen.toBool   && id_waddr  === io.dpath.wb_waddr)
+    (id_raddr1 != UFix(0) && id_renx1 && id_raddr1 === io.dpath.wb_waddr ||
+     id_raddr2 != UFix(0) && id_renx2 && id_raddr2 === io.dpath.wb_waddr ||
+     id_waddr  != UFix(0) && id_wen   && id_waddr  === io.dpath.wb_waddr)
   val fp_data_hazard_wb = wb_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.wb_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.wb_waddr ||
