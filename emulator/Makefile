@@ -58,7 +58,7 @@ test:
 %.riscv.hex: %
 	$(MAKE) -C $(dir $@) $(notdir $@)
 
-$(addprefix output/, $(addsuffix .hex, $(global_asm_tests) $(global_asm_vm_tests) $(global_vecasm_tests) $(global_vecasm_timer_tests))): output/%.hex: $(global_tstdir)/%.hex
+$(addprefix output/, $(addsuffix .hex, $(global_asm_tests) $(global_asm_vm_tests) $(global_vecasm_tests) $(global_vecasm_vm_tests) $(global_vecasm_timer_tests))): output/%.hex: $(global_tstdir)/%.hex
 	mkdir -p output
 	ln -fs ../$< $@
 
@@ -80,7 +80,7 @@ output/%.vpd: output/%.hex emulator-debug
 
 run-asm-tests: $(addprefix output/, $(addsuffix .out, $(global_asm_tests) $(global_asm_vm_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
-run-vecasm-tests: $(addprefix output/, $(addsuffix .out, $(global_vecasm_tests)))
+run-vecasm-tests: $(addprefix output/, $(addsuffix .out, $(global_vecasm_tests) $(global_vecasm_vm_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
 run-vecasm-timer-tests: $(addprefix output/, $(addsuffix .out, $(global_vecasm_timer_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
@@ -89,7 +89,7 @@ run-bmarks-test: $(addprefix output/, $(addsuffix .out, $(global_bmarks)))
 
 run-asm-tests-debug: $(addprefix output/, $(addsuffix .vpd, $(global_asm_tests) $(global_asm_vm_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
-run-vecasm-tests-debug: $(addprefix output/, $(addsuffix .vpd, $(global_vecasm_tests)))
+run-vecasm-tests-debug: $(addprefix output/, $(addsuffix .vpd, $(global_vecasm_tests) $(global_vecasm_vm_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
 run-vecasm-timer-tests-debug: $(addprefix output/, $(addsuffix .vpd, $(global_vecasm_timer_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
