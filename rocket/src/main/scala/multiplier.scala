@@ -56,7 +56,7 @@ class rocketVUMultiplier(nwbq: Int) extends Component {
   io.cpu.req.ready := io.vu.req.ready && wbq_rdy
   io.cpu.resp_val := wbq.io.deq.valid
   io.cpu.resp_bits := wbq.io.deq.bits >> UFix(io.cpu.resp_tag.width)
-  io.cpu.resp_tag := wbq.io.deq.bits(io.cpu.resp_tag.width-1,0)
+  io.cpu.resp_tag := wbq.io.deq.bits(io.cpu.resp_tag.width-1,0).toUFix
 
   io.vu.req <> io.cpu.req
 }
