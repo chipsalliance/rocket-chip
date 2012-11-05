@@ -32,7 +32,7 @@ $(addsuffix -debug.o,$(CXXSRCS)): %-debug.o: testbench/%.cc testbench/* generate
 
 DRAMSIM_OBJS := $(patsubst %.cpp,%.o,$(wildcard ../dramsim2/*.cpp))
 $(DRAMSIM_OBJS): %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -DNO_STORAGE -Dmain=nomain -c -o $@ $<
+	$(CXX) $(CXXFLAGS) -DNO_STORAGE -DNO_OUTPUT -Dmain=nomain -c -o $@ $<
 libdramsim.a: $(DRAMSIM_OBJS)
 	ar rcs $@ $^
 
@@ -43,7 +43,7 @@ emulator-debug: $(DEBUG_OBJS) libdramsim.a
 	$(CXX) $(CXXFLAGS) -o $@ $(DEBUG_OBJS) -L. -ldramsim
  
 clean:
-	rm -rf *.o emulator emulator-debug generated-src generated-src-debug DVEfiles output
+	rm -rf *.o *.a emulator emulator-debug generated-src generated-src-debug DVEfiles output
 
 test:
 	cd $(basedir)/sbt && $(SBT) "project referencechip" "~make ../emulator run-fast"

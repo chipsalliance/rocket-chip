@@ -156,7 +156,7 @@ int main(int argc, char** argv)
 
       fprintf(logfile, "C: %10lld [%ld] pc=[%011lx] W[r%2ld=%016lx][%ld] R[r%2ld=%016lx] R[r%2ld=%016lx] inst=[%08lx] %-32s\n", \
               (long long)trace_count, tile.Top_Tile_cpu_ctrl__wb_reg_valid.lo_word(), tile.Top_Tile_cpu_dpath__wb_reg_pc.lo_word(), \
-              tile.Top_Tile_cpu_dpath_rfile__io_w0_addr.lo_word(), tile.Top_Tile_cpu_dpath_rfile__io_w0_data.lo_word(), tile.Top_Tile_cpu_dpath_rfile__io_w0_en.lo_word(),
+              tile.Top_Tile_cpu_dpath__rf_waddr.lo_word(), tile.Top_Tile_cpu_dpath__rf_wdata.lo_word(), tile.Top_Tile_cpu_dpath__rf_wen.lo_word(),
               wb_reg_raddr1, wb_reg_rs1, wb_reg_raddr2, wb_reg_rs2, wb_reg_inst, wb_inst_str);
     }
 
