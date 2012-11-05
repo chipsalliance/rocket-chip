@@ -4,6 +4,7 @@ import Chisel._
 import Node._
 import Constants._
 import Instructions._
+import Util._
 
 object rocketFPConstants
 {
@@ -46,11 +47,10 @@ object rocketFPConstants
 }
 import rocketFPConstants._
 
-class rocketFPUCtrlSigs extends Bundle
+class FPUCtrlSigs extends Bundle
 {
   val cmd = Bits(width = FCMD_WIDTH)
   val wen = Bool()
-  val sboard = Bool()
   val ren1 = Bool()
   val ren2 = Bool()
   val ren3 = Bool()
@@ -68,78 +68,77 @@ class rocketFPUDecoder extends Component
 {
   val io = new Bundle {
     val inst = Bits(INPUT, 32)
-    val sigs = new rocketFPUCtrlSigs().asOutput
+    val sigs = new FPUCtrlSigs().asOutput
   }
 
   val N = Bool(false)
   val Y = Bool(true)
   val X = Bool(false)
   val decoder = DecodeLogic(io.inst,
-    List                  (FCMD_X,         X,X,X,X,X,X,X,X,X,X,X,X,X),
-    Array(FLW      -> List(FCMD_LOAD,      Y,N,N,N,N,Y,N,N,N,N,N,N,N),
-          FLD      -> List(FCMD_LOAD,      Y,N,N,N,N,N,N,N,N,N,N,N,N),
-          FSW      -> List(FCMD_STORE,     N,N,N,Y,N,Y,N,N,N,N,Y,N,N),
-          FSD      -> List(FCMD_STORE,     N,N,N,Y,N,N,N,N,N,N,Y,N,N),
-          MXTF_S   -> List(FCMD_MXTF,      Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          MXTF_D   -> List(FCMD_MXTF,      Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          FCVT_S_W -> List(FCMD_CVT_FMT_W, Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          FCVT_S_WU-> List(FCMD_CVT_FMT_WU,Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          FCVT_S_L -> List(FCMD_CVT_FMT_L, Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          FCVT_S_LU-> List(FCMD_CVT_FMT_LU,Y,N,N,N,N,Y,Y,N,Y,N,N,N,N),
-          FCVT_D_W -> List(FCMD_CVT_FMT_W, Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          FCVT_D_WU-> List(FCMD_CVT_FMT_WU,Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          FCVT_D_L -> List(FCMD_CVT_FMT_L, Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          FCVT_D_LU-> List(FCMD_CVT_FMT_LU,Y,N,N,N,N,N,Y,N,Y,N,N,N,N),
-          MFTX_S   -> List(FCMD_MFTX,      N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          MFTX_D   -> List(FCMD_MFTX,      N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_W_S -> List(FCMD_CVT_W_FMT, N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          FCVT_WU_S-> List(FCMD_CVT_WU_FMT,N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          FCVT_L_S -> List(FCMD_CVT_L_FMT, N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          FCVT_LU_S-> List(FCMD_CVT_LU_FMT,N,N,Y,N,N,Y,N,Y,N,N,N,N,N),
-          FCVT_W_D -> List(FCMD_CVT_W_FMT, N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_WU_D-> List(FCMD_CVT_WU_FMT,N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_L_D -> List(FCMD_CVT_L_FMT, N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_LU_D-> List(FCMD_CVT_LU_FMT,N,N,Y,N,N,N,N,Y,N,N,N,N,N),
-          FCVT_S_D -> List(FCMD_CVT_FMT_D, Y,N,Y,N,N,Y,N,N,Y,N,N,N,N),
-          FCVT_D_S -> List(FCMD_CVT_FMT_S, Y,N,Y,N,N,N,N,N,Y,N,N,N,N),
-          FEQ_S    -> List(FCMD_EQ,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
-          FLT_S    -> List(FCMD_LT,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
-          FLE_S    -> List(FCMD_LE,        N,N,Y,Y,N,Y,N,Y,N,N,N,N,N),
-          FEQ_D    -> List(FCMD_EQ,        N,N,Y,Y,N,N,N,Y,N,N,N,N,N),
-          FLT_D    -> List(FCMD_LT,        N,N,Y,Y,N,N,N,Y,N,N,N,N,N),
-          FLE_D    -> List(FCMD_LE,        N,N,Y,Y,N,N,N,Y,N,N,N,N,N),
-          MTFSR    -> List(FCMD_MTFSR,     N,N,N,N,N,Y,N,Y,N,N,N,Y,Y),
-          MFFSR    -> List(FCMD_MFFSR,     N,N,N,N,N,Y,N,Y,N,N,N,Y,N),
-          FSGNJ_S  -> List(FCMD_SGNJ,      Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FSGNJN_S -> List(FCMD_SGNJN,     Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FSGNJX_S -> List(FCMD_SGNJX,     Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FSGNJ_D  -> List(FCMD_SGNJ,      Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FSGNJN_D -> List(FCMD_SGNJN,     Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FSGNJX_D -> List(FCMD_SGNJX,     Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FMIN_S   -> List(FCMD_MIN,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FMAX_S   -> List(FCMD_MAX,       Y,N,Y,Y,N,Y,N,N,Y,N,N,N,N),
-          FMIN_D   -> List(FCMD_MIN,       Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FMAX_D   -> List(FCMD_MAX,       Y,N,Y,Y,N,N,N,N,Y,N,N,N,N),
-          FADD_S   -> List(FCMD_ADD,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
-          FSUB_S   -> List(FCMD_SUB,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
-          FMUL_S   -> List(FCMD_MUL,       Y,Y,Y,Y,N,Y,N,N,N,Y,N,N,N),
-          FADD_D   -> List(FCMD_ADD,       Y,Y,Y,Y,N,N,N,N,N,Y,N,N,N),
-          FSUB_D   -> List(FCMD_SUB,       Y,Y,Y,Y,N,N,N,N,N,Y,N,N,N),
-          FMUL_D   -> List(FCMD_MUL,       Y,Y,Y,Y,N,N,N,N,N,Y,N,N,N),
-          FMADD_S  -> List(FCMD_MADD,      Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
-          FMSUB_S  -> List(FCMD_MSUB,      Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
-          FNMADD_S -> List(FCMD_NMADD,     Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
-          FNMSUB_S -> List(FCMD_NMSUB,     Y,Y,Y,Y,Y,Y,N,N,N,Y,N,N,N),
-          FMADD_D  -> List(FCMD_MADD,      Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N),
-          FMSUB_D  -> List(FCMD_MSUB,      Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N),
-          FNMADD_D -> List(FCMD_NMADD,     Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N),
-          FNMSUB_D -> List(FCMD_NMSUB,     Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,N)
+    List                  (FCMD_X,         X,X,X,X,X,X,X,X,X,X,X),
+    Array(FLW      -> List(FCMD_LOAD,      Y,N,N,N,Y,N,N,N,N,N,N),
+          FLD      -> List(FCMD_LOAD,      Y,N,N,N,N,N,N,N,N,N,N),
+          FSW      -> List(FCMD_STORE,     N,N,Y,N,Y,N,Y,N,N,N,N),
+          FSD      -> List(FCMD_STORE,     N,N,Y,N,N,N,Y,N,N,N,N),
+          MXTF_S   -> List(FCMD_MXTF,      Y,N,N,N,Y,Y,N,N,N,N,N),
+          MXTF_D   -> List(FCMD_MXTF,      Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_S_W -> List(FCMD_CVT_FMT_W, Y,N,N,N,Y,Y,N,N,N,N,N),
+          FCVT_S_WU-> List(FCMD_CVT_FMT_WU,Y,N,N,N,Y,Y,N,N,N,N,N),
+          FCVT_S_L -> List(FCMD_CVT_FMT_L, Y,N,N,N,Y,Y,N,N,N,N,N),
+          FCVT_S_LU-> List(FCMD_CVT_FMT_LU,Y,N,N,N,Y,Y,N,N,N,N,N),
+          FCVT_D_W -> List(FCMD_CVT_FMT_W, Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_D_WU-> List(FCMD_CVT_FMT_WU,Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_D_L -> List(FCMD_CVT_FMT_L, Y,N,N,N,N,Y,N,N,N,N,N),
+          FCVT_D_LU-> List(FCMD_CVT_FMT_LU,Y,N,N,N,N,Y,N,N,N,N,N),
+          MFTX_S   -> List(FCMD_MFTX,      N,Y,N,N,Y,N,Y,N,N,N,N),
+          MFTX_D   -> List(FCMD_MFTX,      N,Y,N,N,N,N,Y,N,N,N,N),
+          FCVT_W_S -> List(FCMD_CVT_W_FMT, N,Y,N,N,Y,N,Y,N,N,N,N),
+          FCVT_WU_S-> List(FCMD_CVT_WU_FMT,N,Y,N,N,Y,N,Y,N,N,N,N),
+          FCVT_L_S -> List(FCMD_CVT_L_FMT, N,Y,N,N,Y,N,Y,N,N,N,N),
+          FCVT_LU_S-> List(FCMD_CVT_LU_FMT,N,Y,N,N,Y,N,Y,N,N,N,N),
+          FCVT_W_D -> List(FCMD_CVT_W_FMT, N,Y,N,N,N,N,Y,N,N,N,N),
+          FCVT_WU_D-> List(FCMD_CVT_WU_FMT,N,Y,N,N,N,N,Y,N,N,N,N),
+          FCVT_L_D -> List(FCMD_CVT_L_FMT, N,Y,N,N,N,N,Y,N,N,N,N),
+          FCVT_LU_D-> List(FCMD_CVT_LU_FMT,N,Y,N,N,N,N,Y,N,N,N,N),
+          FCVT_S_D -> List(FCMD_CVT_FMT_D, Y,Y,N,N,Y,N,N,Y,N,N,N),
+          FCVT_D_S -> List(FCMD_CVT_FMT_S, Y,Y,N,N,N,N,N,Y,N,N,N),
+          FEQ_S    -> List(FCMD_EQ,        N,Y,Y,N,Y,N,Y,N,N,N,N),
+          FLT_S    -> List(FCMD_LT,        N,Y,Y,N,Y,N,Y,N,N,N,N),
+          FLE_S    -> List(FCMD_LE,        N,Y,Y,N,Y,N,Y,N,N,N,N),
+          FEQ_D    -> List(FCMD_EQ,        N,Y,Y,N,N,N,Y,N,N,N,N),
+          FLT_D    -> List(FCMD_LT,        N,Y,Y,N,N,N,Y,N,N,N,N),
+          FLE_D    -> List(FCMD_LE,        N,Y,Y,N,N,N,Y,N,N,N,N),
+          MTFSR    -> List(FCMD_MTFSR,     N,N,N,N,Y,N,Y,N,N,Y,Y),
+          MFFSR    -> List(FCMD_MFFSR,     N,N,N,N,Y,N,Y,N,N,Y,N),
+          FSGNJ_S  -> List(FCMD_SGNJ,      Y,Y,Y,N,Y,N,N,Y,N,N,N),
+          FSGNJN_S -> List(FCMD_SGNJN,     Y,Y,Y,N,Y,N,N,Y,N,N,N),
+          FSGNJX_S -> List(FCMD_SGNJX,     Y,Y,Y,N,Y,N,N,Y,N,N,N),
+          FSGNJ_D  -> List(FCMD_SGNJ,      Y,Y,Y,N,N,N,N,Y,N,N,N),
+          FSGNJN_D -> List(FCMD_SGNJN,     Y,Y,Y,N,N,N,N,Y,N,N,N),
+          FSGNJX_D -> List(FCMD_SGNJX,     Y,Y,Y,N,N,N,N,Y,N,N,N),
+          FMIN_S   -> List(FCMD_MIN,       Y,Y,Y,N,Y,N,Y,Y,N,N,N),
+          FMAX_S   -> List(FCMD_MAX,       Y,Y,Y,N,Y,N,Y,Y,N,N,N),
+          FMIN_D   -> List(FCMD_MIN,       Y,Y,Y,N,N,N,Y,Y,N,N,N),
+          FMAX_D   -> List(FCMD_MAX,       Y,Y,Y,N,N,N,Y,Y,N,N,N),
+          FADD_S   -> List(FCMD_ADD,       Y,Y,Y,N,Y,N,N,N,Y,N,N),
+          FSUB_S   -> List(FCMD_SUB,       Y,Y,Y,N,Y,N,N,N,Y,N,N),
+          FMUL_S   -> List(FCMD_MUL,       Y,Y,Y,N,Y,N,N,N,Y,N,N),
+          FADD_D   -> List(FCMD_ADD,       Y,Y,Y,N,N,N,N,N,Y,N,N),
+          FSUB_D   -> List(FCMD_SUB,       Y,Y,Y,N,N,N,N,N,Y,N,N),
+          FMUL_D   -> List(FCMD_MUL,       Y,Y,Y,N,N,N,N,N,Y,N,N),
+          FMADD_S  -> List(FCMD_MADD,      Y,Y,Y,Y,Y,N,N,N,Y,N,N),
+          FMSUB_S  -> List(FCMD_MSUB,      Y,Y,Y,Y,Y,N,N,N,Y,N,N),
+          FNMADD_S -> List(FCMD_NMADD,     Y,Y,Y,Y,Y,N,N,N,Y,N,N),
+          FNMSUB_S -> List(FCMD_NMSUB,     Y,Y,Y,Y,Y,N,N,N,Y,N,N),
+          FMADD_D  -> List(FCMD_MADD,      Y,Y,Y,Y,N,N,N,N,Y,N,N),
+          FMSUB_D  -> List(FCMD_MSUB,      Y,Y,Y,Y,N,N,N,N,Y,N,N),
+          FNMADD_D -> List(FCMD_NMADD,     Y,Y,Y,Y,N,N,N,N,Y,N,N),
+          FNMSUB_D -> List(FCMD_NMSUB,     Y,Y,Y,Y,N,N,N,N,Y,N,N)
           ))
-  val cmd :: wen :: sboard :: ren1 :: ren2 :: ren3 :: single :: fromint :: toint :: fastpipe :: fma :: store :: rdfsr :: wrfsr :: Nil = decoder
+  val cmd :: wen :: ren1 :: ren2 :: ren3 :: single :: fromint :: toint :: fastpipe :: fma :: rdfsr :: wrfsr :: Nil = decoder
 
   io.sigs.cmd := cmd
   io.sigs.wen := wen.toBool
-  io.sigs.sboard := sboard.toBool
   io.sigs.ren1 := ren1.toBool
   io.sigs.ren2 := ren2.toBool
   io.sigs.ren3 := ren3.toBool
@@ -148,7 +147,6 @@ class rocketFPUDecoder extends Component
   io.sigs.toint := toint.toBool
   io.sigs.fastpipe := fastpipe.toBool
   io.sigs.fma := fma.toBool
-  io.sigs.store := store.toBool
   io.sigs.rdfsr := rdfsr.toBool
   io.sigs.wrfsr := wrfsr.toBool
 }
@@ -172,169 +170,201 @@ class ioCtrlFPU extends Bundle {
   val illegal_rm = Bool(INPUT)
   val killx = Bool(OUTPUT)
   val killm = Bool(OUTPUT)
-  val dec = new rocketFPUCtrlSigs().asInput
+  val dec = new FPUCtrlSigs().asInput
+  val sboard_set = Bool(INPUT)
   val sboard_clr = Bool(INPUT)
   val sboard_clra = UFix(INPUT, 5)
 }
 
-class rocketFPIntUnit extends Component
+object RegEn
 {
-  val io = new Bundle {
-    val single = Bool(INPUT)
-    val cmd = Bits(INPUT, FCMD_WIDTH)
-    val rm = Bits(INPUT, 3)
-    val fsr = Bits(INPUT, FSR_WIDTH)
-    val in1 = Bits(INPUT, 65)
-    val in2 = Bits(INPUT, 65)
-    val lt_s = Bool(OUTPUT)
-    val lt_d = Bool(OUTPUT)
-    val store_data = Bits(OUTPUT, 64)
-    val toint_data = Bits(OUTPUT, 64)
-    val exc = Bits(OUTPUT, 5)
+  def apply[T <: Data](data: T, en: Bool) = {
+    val r = Reg() { data.clone }
+    when (en) { r := data }
+    r
   }
-
-  val unrec_s = hardfloat.recodedFloatNToFloatN(io.in1, 23, 9)
-  val unrec_d = hardfloat.recodedFloatNToFloatN(io.in1, 52, 12)
-
-  io.store_data := Mux(io.single, Cat(unrec_s, unrec_s), unrec_d)
-
-  val scmp = new hardfloat.recodedFloatNCompare(23, 9)
-  scmp.io.a := io.in1
-  scmp.io.b := io.in2
-  val scmp_out = (io.cmd & Cat(scmp.io.a_lt_b, scmp.io.a_eq_b)).orR
-  val scmp_exc = (io.cmd & Cat(scmp.io.a_lt_b_invalid, scmp.io.a_eq_b_invalid)).orR << UFix(4)
-
-  val dcmp = new hardfloat.recodedFloatNCompare(52, 12)
-  dcmp.io.a := io.in1
-  dcmp.io.b := io.in2
-  val dcmp_out = (io.cmd & Cat(dcmp.io.a_lt_b, dcmp.io.a_eq_b)).orR
-  val dcmp_exc = (io.cmd & Cat(dcmp.io.a_lt_b_invalid, dcmp.io.a_eq_b_invalid)).orR << UFix(4)
-
-  val s2i = hardfloat.recodedFloatNToAny(io.in1, io.rm, ~io.cmd(1,0), 23, 9, 64)
-  val d2i = hardfloat.recodedFloatNToAny(io.in1, io.rm, ~io.cmd(1,0), 52, 12, 64)
-
-  // output muxing
-  val (out_s, exc_s) = (Bits(), Bits())
-  out_s := Cat(Fill(32, unrec_s(31)), unrec_s)
-  exc_s := Bits(0)
-  val (out_d, exc_d) = (Bits(), Bits())
-  out_d := unrec_d
-  exc_d := Bits(0)
-
-  when (io.cmd === FCMD_MTFSR || io.cmd === FCMD_MFFSR) {
-    out_s := io.fsr
+  def apply[T <: Bits](data: T, en: Bool, resetVal: Bool) = {
+    val r = Reg(resetVal = resetVal) { data.clone }
+    when (en) { r := data }
+    r
   }
-  when (io.cmd === FCMD_CVT_W_FMT || io.cmd === FCMD_CVT_WU_FMT) {
-    out_s := Cat(Fill(32, s2i._1(31)), s2i._1(31,0))
-    exc_s := s2i._2
-    out_d := Cat(Fill(32, d2i._1(31)), d2i._1(31,0))
-    exc_d := d2i._2
-  }
-  when (io.cmd === FCMD_CVT_L_FMT || io.cmd === FCMD_CVT_LU_FMT) {
-    out_s := s2i._1
-    exc_s := s2i._2
-    out_d := d2i._1
-    exc_d := d2i._2
-  }
-  when (io.cmd === FCMD_EQ || io.cmd === FCMD_LT || io.cmd === FCMD_LE) {
-    out_s := scmp_out
-    exc_s := scmp_exc
-    out_d := dcmp_out
-    exc_d := dcmp_exc
-  }
-
-  io.toint_data := Mux(io.single, out_s, out_d)
-  io.exc := Mux(io.single, exc_s, exc_d)
-  io.lt_s := scmp.io.a_lt_b
-  io.lt_d := dcmp.io.a_lt_b
 }
 
-class rocketFPUFastPipe extends Component
+class FPToInt extends Component
 {
+  class Input extends Bundle {
+    val single = Bool()
+    val cmd = Bits(width = FCMD_WIDTH)
+    val rm = Bits(width = 3)
+    val fsr = Bits(width = FSR_WIDTH)
+    val in1 = Bits(width = 65)
+    val in2 = Bits(width = 65)
+    override def clone = new Input().asInstanceOf[this.type]
+  }
   val io = new Bundle {
-    val single = Bool(INPUT)
-    val cmd = Bits(INPUT, FCMD_WIDTH)
-    val rm = Bits(INPUT, 3)
-    val fromint = Bits(INPUT, 64)
-    val in1 = Bits(INPUT, 65)
-    val in2 = Bits(INPUT, 65)
-    val lt_s = Bool(INPUT)
-    val lt_d = Bool(INPUT)
-    val out_s = Bits(OUTPUT, 33)
-    val exc_s = Bits(OUTPUT, 5)
-    val out_d = Bits(OUTPUT, 65)
-    val exc_d = Bits(OUTPUT, 5)
+    val in = new PipeIO()(new Input).flip
+    val out = new PipeIO()(new Bundle {
+      val lt = Bool()
+      val store = Bits(width = 64)
+      val toint = Bits(width = 64)
+      val exc = Bits(width = 5)
+    })
   }
 
-  val i2s = hardfloat.anyToRecodedFloatN(io.fromint, io.rm, ~io.cmd(1,0), 23, 9, 64)
-  val i2d = hardfloat.anyToRecodedFloatN(io.fromint, io.rm, ~io.cmd(1,0), 52, 12, 64)
+  val in = Reg() { new Input }
+  val valid = Reg(io.in.valid)
+  when (io.in.valid) {
+    def upconvert(x: Bits) = hardfloat.recodedFloatNToRecodedFloatM(x, Bits(0), 23, 9, 52, 12)._1
+    when (io.in.bits.cmd === FCMD_STORE) {
+      in.in1 := io.in.bits.in2
+    }.otherwise {
+      val doUpconvert = io.in.bits.single && io.in.bits.cmd != FCMD_MFTX
+      in.in1 := Mux(doUpconvert, upconvert(io.in.bits.in1), io.in.bits.in1)
+      in.in2 := Mux(doUpconvert, upconvert(io.in.bits.in2), io.in.bits.in2)
+    }
+    in.single := io.in.bits.single
+    in.cmd := io.in.bits.cmd
+    in.rm := io.in.bits.rm
+    in.fsr := io.in.bits.fsr
+  }
+
+  val unrec_s = hardfloat.recodedFloatNToFloatN(in.in1, 23, 9)
+  val unrec_d = hardfloat.recodedFloatNToFloatN(in.in1, 52, 12)
+
+  val dcmp = new hardfloat.recodedFloatNCompare(52, 12)
+  dcmp.io.a := in.in1
+  dcmp.io.b := in.in2
+  val dcmp_out = (in.cmd & Cat(dcmp.io.a_lt_b, dcmp.io.a_eq_b)).orR
+  val dcmp_exc = (in.cmd & Cat(dcmp.io.a_lt_b_invalid, dcmp.io.a_eq_b_invalid)).orR << UFix(4)
+
+  val d2i = hardfloat.recodedFloatNToAny(in.in1, in.rm, ~in.cmd(1,0), 52, 12, 64)
+
+  io.out.bits.toint := Mux(in.single, Cat(Fill(32, unrec_s(31)), unrec_s), unrec_d)
+  io.out.bits.exc := Bits(0)
+
+  when (in.cmd === FCMD_MTFSR || in.cmd === FCMD_MFFSR) {
+    io.out.bits.toint := io.in.bits.fsr
+  }
+  when (in.cmd === FCMD_CVT_W_FMT || in.cmd === FCMD_CVT_WU_FMT) {
+    io.out.bits.toint := Cat(Fill(32, d2i._1(31)), d2i._1(31,0))
+    io.out.bits.exc := d2i._2
+  }
+  when (in.cmd === FCMD_CVT_L_FMT || in.cmd === FCMD_CVT_LU_FMT) {
+    io.out.bits.toint := d2i._1
+    io.out.bits.exc := d2i._2
+  }
+  when (in.cmd === FCMD_EQ || in.cmd === FCMD_LT || in.cmd === FCMD_LE) {
+    io.out.bits.toint := dcmp_out
+    io.out.bits.exc := dcmp_exc
+  }
+
+  io.out.valid := valid
+  io.out.bits.store := Mux(in.single, Cat(unrec_s, unrec_s), unrec_d)
+  io.out.bits.lt := dcmp.io.a_lt_b
+}
+
+class FPResult extends Bundle
+{
+  val data = Bits(width = 65)
+  val exc = Bits(width = 5)
+}
+
+class IntToFP(val latency: Int) extends Component
+{
+  class Input extends Bundle {
+    val single = Bool()
+    val cmd = Bits(width = FCMD_WIDTH)
+    val rm = Bits(width = 3)
+    val data = Bits(width = 64)
+    override def clone = new Input().asInstanceOf[this.type]
+  }
+  val io = new Bundle {
+    val in = new PipeIO()(new Input).flip
+    val out = new PipeIO()(new FPResult)
+  }
+
+  val in = Pipe(io.in)
+
+  val mux = new FPResult
+  mux.exc := Bits(0)
+  mux.data := hardfloat.floatNToRecodedFloatN(in.bits.data, 52, 12)
+  when (in.bits.single) {
+    mux.data := hardfloat.floatNToRecodedFloatN(in.bits.data, 23, 9)
+  }
+
+  when (in.bits.cmd === FCMD_CVT_FMT_W || in.bits.cmd === FCMD_CVT_FMT_WU ||
+        in.bits.cmd === FCMD_CVT_FMT_L || in.bits.cmd === FCMD_CVT_FMT_LU) {
+    when (in.bits.single) {
+      val u = hardfloat.anyToRecodedFloatN(in.bits.data, in.bits.rm, ~in.bits.cmd(1,0), 23, 9, 64)
+      mux.data := Cat(Fix(-1, 32), u._1)
+      mux.exc := u._2
+    }.otherwise {
+      val u = hardfloat.anyToRecodedFloatN(in.bits.data, in.bits.rm, ~in.bits.cmd(1,0), 52, 12, 64)
+      mux.data := u._1
+      mux.exc := u._2
+    }
+  }
+
+  io.out <> Pipe(in.valid, mux, latency-1)
+}
+
+class FPToFP(val latency: Int) extends Component
+{
+  class Input extends Bundle {
+    val single = Bool()
+    val cmd = Bits(width = FCMD_WIDTH)
+    val rm = Bits(width = 3)
+    val in1 = Bits(width = 65)
+    val in2 = Bits(width = 65)
+    override def clone = new Input().asInstanceOf[this.type]
+  }
+  val io = new Bundle {
+    val in = new PipeIO()(new Input).flip
+    val out = new PipeIO()(new FPResult)
+    val lt = Bool(INPUT) // from FPToInt
+  }
+
+  val in = Pipe(io.in)
 
   // fp->fp units
-  val sign_s = Mux(io.cmd === FCMD_SGNJ, io.in2(32),
-               Mux(io.cmd === FCMD_SGNJN, ~io.in2(32),
-                   io.in1(32) ^ io.in2(32))) // FCMD_SGNJX
-  val sign_d = Mux(io.cmd === FCMD_SGNJ, io.in2(64),
-               Mux(io.cmd === FCMD_SGNJN, ~io.in2(64),
-                   io.in1(64) ^ io.in2(64))) // FCMD_SGNJX
-  val fsgnj = Cat(Mux(io.single, io.in1(64), sign_d), io.in1(63,33),
-                  Mux(io.single, sign_s, io.in1(32)), io.in1(31,0))
+  val sign_s = Mux(in.bits.cmd === FCMD_SGNJ, in.bits.in2(32),
+               Mux(in.bits.cmd === FCMD_SGNJN, ~in.bits.in2(32),
+                   in.bits.in1(32) ^ in.bits.in2(32))) // FCMD_SGNJX
+  val sign_d = Mux(in.bits.cmd === FCMD_SGNJ, in.bits.in2(64),
+               Mux(in.bits.cmd === FCMD_SGNJN, ~in.bits.in2(64),
+                   in.bits.in1(64) ^ in.bits.in2(64))) // FCMD_SGNJX
+  val fsgnj = Cat(Mux(in.bits.single, in.bits.in1(64), sign_d), in.bits.in1(63,33),
+                  Mux(in.bits.single, sign_s, in.bits.in1(32)), in.bits.in1(31,0))
 
-  val s2d = hardfloat.recodedFloatNToRecodedFloatM(io.in1, io.rm, 23, 9, 52, 12)
-  val d2s = hardfloat.recodedFloatNToRecodedFloatM(io.in1, io.rm, 52, 12, 23, 9)
+  val s2d = hardfloat.recodedFloatNToRecodedFloatM(in.bits.in1, in.bits.rm, 23, 9, 52, 12)
+  val d2s = hardfloat.recodedFloatNToRecodedFloatM(in.bits.in1, in.bits.rm, 52, 12, 23, 9)
 
-  val isnan1 = Mux(io.single, io.in1(31,29) === Bits("b111"), io.in1(63,61) === Bits("b111"))
-  val isnan2 = Mux(io.single, io.in2(31,29) === Bits("b111"), io.in2(63,61) === Bits("b111"))
-  val issnan1 = isnan1 && ~Mux(io.single, io.in1(22), io.in1(51))
-  val issnan2 = isnan2 && ~Mux(io.single, io.in2(22), io.in2(51))
+  val isnan1 = Mux(in.bits.single, in.bits.in1(31,29) === Bits("b111"), in.bits.in1(63,61) === Bits("b111"))
+  val isnan2 = Mux(in.bits.single, in.bits.in2(31,29) === Bits("b111"), in.bits.in2(63,61) === Bits("b111"))
+  val issnan1 = isnan1 && ~Mux(in.bits.single, in.bits.in1(22), in.bits.in1(51))
+  val issnan2 = isnan2 && ~Mux(in.bits.single, in.bits.in2(22), in.bits.in2(51))
   val minmax_exc = Cat(issnan1 || issnan2, Bits(0,4))
-  val min = io.cmd === FCMD_MIN
-  val lt = Mux(io.single, io.lt_s, io.lt_d)
-  val minmax = Mux(isnan2 || !isnan1 && (min === lt), io.in1, io.in2)
+  val min = in.bits.cmd === FCMD_MIN
+  val minmax = Mux(isnan2 || !isnan1 && (min === io.lt), in.bits.in1, in.bits.in2)
 
-  // output muxing
-  val (out_s, exc_s) = (Bits(), Bits())
-  out_s := Reg(hardfloat.floatNToRecodedFloatN(io.fromint, 23, 9))
-  exc_s := Bits(0)
-  val (out_d, exc_d) = (Bits(), Bits())
-  out_d := Reg(hardfloat.floatNToRecodedFloatN(io.fromint, 52, 12))
-  exc_d := Bits(0)
+  val mux = new FPResult
+  mux.data := fsgnj
+  mux.exc := Bits(0)
 
-  val r_cmd = Reg(io.cmd)
-
-  when (r_cmd === FCMD_MTFSR || r_cmd === FCMD_MFFSR) {
-    out_s := Reg(io.fromint(FSR_WIDTH-1,0))
+  when (in.bits.cmd === FCMD_MIN || in.bits.cmd === FCMD_MAX) {
+    mux.data := minmax
   }
-  when (r_cmd === FCMD_SGNJ || r_cmd === FCMD_SGNJN || r_cmd === FCMD_SGNJX) {
-    val r_fsgnj = Reg(fsgnj)
-    out_s := r_fsgnj(32,0)
-    out_d := r_fsgnj
-  }
-  when (r_cmd === FCMD_MIN || r_cmd === FCMD_MAX) {
-    val r_minmax = Reg(minmax)
-    val r_minmax_exc = Reg(minmax_exc)
-    out_s := r_minmax(32,0)
-    out_d := r_minmax
-    exc_s := r_minmax_exc
-    exc_d := r_minmax_exc
-  }
-  when (r_cmd === FCMD_CVT_FMT_S || r_cmd === FCMD_CVT_FMT_D) {
-    out_s := Reg(d2s._1)
-    exc_s := Reg(d2s._2)
-    out_d := Reg(s2d._1)
-    exc_d := Reg(s2d._2)
-  }
-  when (r_cmd === FCMD_CVT_FMT_W || r_cmd === FCMD_CVT_FMT_WU ||
-        r_cmd === FCMD_CVT_FMT_L || r_cmd === FCMD_CVT_FMT_LU) {
-    out_s := Reg(i2s._1)
-    exc_s := Reg(i2s._2)
-    out_d := Reg(i2d._1)
-    exc_d := Reg(i2d._2)
+  when (in.bits.cmd === FCMD_CVT_FMT_S || in.bits.cmd === FCMD_CVT_FMT_D) {
+    when (in.bits.single) {
+      mux.data := Cat(Fix(-1, 32), d2s._1)
+      mux.exc := d2s._2
+    }.otherwise {
+      mux.data := s2d._1
+      mux.exc := s2d._2
+    }
   }
 
-  io.out_s := out_s
-  io.exc_s := exc_s
-  io.out_d := out_d
-  io.exc_d := exc_d
+  io.out <> Pipe(in.valid, mux, latency-1)
 }
 
 class ioFMA(width: Int) extends Bundle {
@@ -348,7 +378,7 @@ class ioFMA(width: Int) extends Bundle {
   val exc = Bits(OUTPUT, 5)
 }
 
-class rocketFPUSFMAPipe(latency: Int) extends Component
+class rocketFPUSFMAPipe(val latency: Int) extends Component
 {
   val io = new ioFMA(33)
   
@@ -365,6 +395,7 @@ class rocketFPUSFMAPipe(latency: Int) extends Component
   val one = Bits("h80000000")
   val zero = Cat(io.in1(32) ^ io.in2(32), Bits(0, 32))
 
+  val valid = Reg(io.valid)
   when (io.valid) {
     cmd := Cat(io.cmd(1) & (cmd_fma || cmd_addsub), io.cmd(0))
     rm := io.rm
@@ -380,11 +411,11 @@ class rocketFPUSFMAPipe(latency: Int) extends Component
   fma.io.b := in2
   fma.io.c := in3
 
-  io.out := ShiftRegister(latency-1, fma.io.out)
-  io.exc := ShiftRegister(latency-1, fma.io.exceptionFlags)
+  io.out := Pipe(valid, fma.io.out, latency-1).bits
+  io.exc := Pipe(valid, fma.io.exceptionFlags, latency-1).bits
 }
 
-class rocketFPUDFMAPipe(latency: Int) extends Component
+class rocketFPUDFMAPipe(val latency: Int) extends Component
 {
   val io = new ioFMA(65)
   
@@ -401,6 +432,7 @@ class rocketFPUDFMAPipe(latency: Int) extends Component
   val one = Bits("h8000000000000000")
   val zero = Cat(io.in1(64) ^ io.in2(64), Bits(0, 64))
 
+  val valid = Reg(io.valid)
   when (io.valid) {
     cmd := Cat(io.cmd(1) & (cmd_fma || cmd_addsub), io.cmd(0))
     rm := io.rm
@@ -416,8 +448,8 @@ class rocketFPUDFMAPipe(latency: Int) extends Component
   fma.io.b := in2
   fma.io.c := in3
 
-  io.out := ShiftRegister(latency-1, fma.io.out)
-  io.exc := ShiftRegister(latency-1, fma.io.exceptionFlags)
+  io.out := Pipe(valid, fma.io.out, latency-1).bits
+  io.exc := Pipe(valid, fma.io.exceptionFlags, latency-1).bits
 }
 
 class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
@@ -434,16 +466,16 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
     ex_reg_inst := io.dpath.inst
   }
   val ex_reg_valid = Reg(io.ctrl.valid, Bool(false))
+  val mem_reg_valid = Reg(ex_reg_valid && !io.ctrl.killx, resetVal = Bool(false))
+  val killm = io.ctrl.killm || io.ctrl.nack_mem
+  val wb_reg_valid = Reg(mem_reg_valid && !killm, resetVal = Bool(false))
 
   val fp_decoder = new rocketFPUDecoder
   fp_decoder.io.inst := io.dpath.inst
 
-  val ctrl = Reg() { new rocketFPUCtrlSigs }
-  when (io.ctrl.valid) {
-    ctrl := fp_decoder.io.sigs
-  }
-  val mem_ctrl = Reg(ctrl)
-  val wb_ctrl = Reg(mem_ctrl)
+  val ctrl = RegEn(fp_decoder.io.sigs, io.ctrl.valid)
+  val mem_ctrl = RegEn(ctrl, ex_reg_valid)
+  val wb_ctrl = RegEn(mem_ctrl, mem_reg_valid)
 
   // load response
   val load_wb = Reg(io.dpath.dmem_resp_val, resetVal = Bool(false))
@@ -457,8 +489,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   }
   val rec_s = hardfloat.floatNToRecodedFloatN(load_wb_data, 23, 9)
   val rec_d = hardfloat.floatNToRecodedFloatN(load_wb_data, 52, 12)
-  val sp_msbs = Fix(-1, 32)
-  val load_wb_data_recoded = Mux(load_wb_single, Cat(sp_msbs, rec_s), rec_d)
+  val load_wb_data_recoded = Mux(load_wb_single, Cat(Fix(-1, 32), rec_s), rec_d)
 
   val fsr_rm = Reg() { Bits(width = 3) }
   val fsr_exc = Reg() { Bits(width = 5) }
@@ -472,143 +503,121 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val ex_rs3 = regfile(ex_reg_inst(16,12))
   val ex_rm = Mux(ex_reg_inst(11,9) === Bits(7), fsr_rm, ex_reg_inst(11,9))
 
-  val mem_reg_valid = Reg(ex_reg_valid && !io.ctrl.killx, resetVal = Bool(false))
-  val mem_fromint_data = Reg() { Bits() }
-  val mem_rs1 = Reg() { Bits() }
-  val mem_rs2 = Reg() { Bits() }
-  val mem_rs3 = Reg() { Bits() }
-  val mem_rm = Reg() { Bits() }
+  val fpiu = new FPToInt
+  fpiu.io.in.valid := ex_reg_valid && ctrl.toint
+  fpiu.io.in.bits := ctrl
+  fpiu.io.in.bits.rm := ex_rm
+  fpiu.io.in.bits.fsr := Cat(fsr_rm, fsr_exc)
+  fpiu.io.in.bits.in1 := ex_rs1
+  fpiu.io.in.bits.in2 := ex_rs2
 
-  when (ex_reg_valid) {
-    mem_rm := ex_rm
-    when (ctrl.fromint || ctrl.wrfsr) {
-      mem_fromint_data := io.dpath.fromint_data
-    }
-    when (ctrl.ren1) {
-      mem_rs1 := ex_rs1
-    }
-    when (ctrl.store) {
-      mem_rs1 := ex_rs2
-    }
-    when (ctrl.ren2) {
-      mem_rs2 := ex_rs2
-    }
-    when (ctrl.ren3) {
-      mem_rs3 := ex_rs3
-    }
-  }
+  io.dpath.store_data := fpiu.io.out.bits.store
+  io.dpath.toint_data := fpiu.io.out.bits.toint
 
-  // currently we assume FP stores and FP->int ops take 1 cycle (MEM)
-  val fpiu = new rocketFPIntUnit
-  fpiu.io.single := mem_ctrl.single
-  fpiu.io.cmd := mem_ctrl.cmd
-  fpiu.io.rm := mem_rm
-  fpiu.io.fsr := Cat(fsr_rm, fsr_exc)
-  fpiu.io.in1 := mem_rs1
-  fpiu.io.in2 := mem_rs2
-
-  io.dpath.store_data := fpiu.io.store_data
-  io.dpath.toint_data := fpiu.io.toint_data
-
-  // 2-cycle pipe for int->FP and non-FMA FP->FP ops
-  val fastpipe = new rocketFPUFastPipe
-  fastpipe.io.single := mem_ctrl.single
-  fastpipe.io.cmd := mem_ctrl.cmd
-  fastpipe.io.rm := mem_rm
-  fastpipe.io.fromint := mem_fromint_data
-  fastpipe.io.in1 := mem_rs1
-  fastpipe.io.in2 := mem_rs2
-  fastpipe.io.lt_s := fpiu.io.lt_s
-  fastpipe.io.lt_d := fpiu.io.lt_d
+  val ifpu = new IntToFP(3)
+  ifpu.io.in.valid := ex_reg_valid && ctrl.fromint
+  ifpu.io.in.bits := ctrl
+  ifpu.io.in.bits.rm := ex_rm
+  ifpu.io.in.bits.data := io.dpath.fromint_data
+  val fpmu = new FPToFP(2)
+  fpmu.io.in.valid := ex_reg_valid && ctrl.fastpipe
+  fpmu.io.in.bits := ctrl
+  fpmu.io.in.bits.rm := ex_rm
+  fpmu.io.in.bits.in1 := ex_rs1
+  fpmu.io.in.bits.in2 := ex_rs2
+  fpmu.io.lt := fpiu.io.out.bits.lt
 
   val cmd_fma = mem_ctrl.cmd === FCMD_MADD  || mem_ctrl.cmd === FCMD_MSUB ||
                 mem_ctrl.cmd === FCMD_NMADD || mem_ctrl.cmd === FCMD_NMSUB
   val cmd_addsub = mem_ctrl.cmd === FCMD_ADD || mem_ctrl.cmd === FCMD_SUB
-  val sfma = new rocketFPUSFMAPipe(sfma_latency-1)
-  sfma.io.valid := io.sfma.valid || mem_reg_valid && mem_ctrl.fma && mem_ctrl.single
-  sfma.io.in1 := Mux(io.sfma.valid, io.sfma.in1, mem_rs1)
-  sfma.io.in2 := Mux(io.sfma.valid, io.sfma.in2, mem_rs2)
-  sfma.io.in3 := Mux(io.sfma.valid, io.sfma.in3, mem_rs3)
-  sfma.io.cmd := Mux(io.sfma.valid, io.sfma.cmd, mem_ctrl.cmd)
-  sfma.io.rm := Mux(io.sfma.valid, io.sfma.rm, mem_rm)
+  val sfma = new rocketFPUSFMAPipe(sfma_latency)
+  sfma.io.valid := io.sfma.valid || ex_reg_valid && ctrl.fma && ctrl.single
+  sfma.io.in1 := Mux(io.sfma.valid, io.sfma.in1, ex_rs1)
+  sfma.io.in2 := Mux(io.sfma.valid, io.sfma.in2, ex_rs2)
+  sfma.io.in3 := Mux(io.sfma.valid, io.sfma.in3, ex_rs3)
+  sfma.io.cmd := Mux(io.sfma.valid, io.sfma.cmd, ctrl.cmd)
+  sfma.io.rm := Mux(io.sfma.valid, io.sfma.rm, ex_rm)
   io.sfma.out := sfma.io.out
   io.sfma.exc := sfma.io.exc
 
-  val dfma = new rocketFPUDFMAPipe(dfma_latency-1)
-  dfma.io.valid := io.dfma.valid || mem_reg_valid && mem_ctrl.fma && !mem_ctrl.single
-  dfma.io.in1 := Mux(io.dfma.valid, io.dfma.in1, mem_rs1)
-  dfma.io.in2 := Mux(io.dfma.valid, io.dfma.in2, mem_rs2)
-  dfma.io.in3 := Mux(io.dfma.valid, io.dfma.in3, mem_rs3)
-  dfma.io.cmd := Mux(io.dfma.valid, io.dfma.cmd, mem_ctrl.cmd)
-  dfma.io.rm := Mux(io.dfma.valid, io.dfma.rm, mem_rm)
+  val dfma = new rocketFPUDFMAPipe(dfma_latency)
+  dfma.io.valid := io.dfma.valid || ex_reg_valid && ctrl.fma && !ctrl.single
+  dfma.io.in1 := Mux(io.dfma.valid, io.dfma.in1, ex_rs1)
+  dfma.io.in2 := Mux(io.dfma.valid, io.dfma.in2, ex_rs2)
+  dfma.io.in3 := Mux(io.dfma.valid, io.dfma.in3, ex_rs3)
+  dfma.io.cmd := Mux(io.dfma.valid, io.dfma.cmd, ctrl.cmd)
+  dfma.io.rm := Mux(io.dfma.valid, io.dfma.rm, ex_rm)
   io.dfma.out := dfma.io.out
   io.dfma.exc := dfma.io.exc
 
-  val wb_reg_valid = Reg(mem_reg_valid && !io.ctrl.killm, resetVal = Bool(false))
-  val wb_toint_exc = Reg(fpiu.io.exc)
-
   // writeback arbitration
-  val wen = Reg(resetVal = Bits(0, dfma_latency))
-  val winfo = Vec(dfma_latency-1) { Reg() { Bits() } }
-  val mem_wen = Reg(resetVal = Bool(false))
-
-  val fastpipe_latency = 2
-  require(fastpipe_latency < sfma_latency && sfma_latency <= dfma_latency)
-  val ex_stage_fu_latency = Mux(ctrl.fastpipe, UFix(fastpipe_latency-1),
-                            Mux(ctrl.single, UFix(sfma_latency-1),
-                                UFix(dfma_latency-1)))
-  val mem_fu_latency = Reg(ex_stage_fu_latency - UFix(1))
-  val write_port_busy = Reg(ctrl.fastpipe && wen(fastpipe_latency) ||
-    Bool(sfma_latency < dfma_latency) && ctrl.fma && ctrl.single && wen(sfma_latency) ||
-    mem_wen && mem_fu_latency === ex_stage_fu_latency)
-  mem_wen := ex_reg_valid && !io.ctrl.killx && (ctrl.fma || ctrl.fastpipe)
-  val ex_stage_wsrc = Cat(ctrl.fastpipe, ctrl.single)
-  val mem_winfo = Reg(Cat(ex_reg_inst(31,27), ex_stage_wsrc))
-
-  for (i <- 0 until dfma_latency-2) {
-    winfo(i) := winfo(i+1)
+  case class Pipe(p: Component, lat: Int, cond: (FPUCtrlSigs) => Bool, wdata: Bits, wexc: Bits)
+  val pipes = List(
+    Pipe(fpmu, fpmu.latency, (c: FPUCtrlSigs) => c.fastpipe, fpmu.io.out.bits.data, fpmu.io.out.bits.exc),
+    Pipe(ifpu, ifpu.latency, (c: FPUCtrlSigs) => c.fromint, ifpu.io.out.bits.data, ifpu.io.out.bits.exc),
+    Pipe(sfma, sfma.latency, (c: FPUCtrlSigs) => c.fma && c.single, sfma.io.out, sfma.io.exc),
+    Pipe(dfma, dfma.latency, (c: FPUCtrlSigs) => c.fma && !c.single, dfma.io.out, dfma.io.exc))
+  def latencyMask(c: FPUCtrlSigs, offset: Int) = {
+    require(pipes.forall(_.lat >= offset))
+    pipes.map(p => Mux(p.cond(c), UFix(1 << p.lat-offset), UFix(0))).reduce(_|_)
   }
-  wen := wen >> UFix(1)
+  def pipeid(c: FPUCtrlSigs) = pipes.zipWithIndex.map(p => Mux(p._1.cond(c), UFix(p._2), UFix(0))).reduce(_|_)
+  val maxLatency = pipes.map(_.lat).max
+  val memLatencyMask = latencyMask(mem_ctrl, 2)
+
+  val wen = Reg(resetVal = Bits(0, maxLatency-1))
+  val winfo = Vec(maxLatency-1) { Reg() { Bits() } }
+  val mem_wen = mem_reg_valid && (mem_ctrl.fma || mem_ctrl.fastpipe || mem_ctrl.fromint)
+  val (write_port_busy, mem_winfo) = (Reg{Bool()}, Reg{Bits()})
+  when (ex_reg_valid) {
+    write_port_busy := mem_wen && (memLatencyMask & latencyMask(ctrl, 1)).orR || (wen & latencyMask(ctrl, 0)).orR
+    mem_winfo := Cat(pipeid(ctrl), ex_reg_inst(31,27))
+  }
+
+  for (i <- 0 until maxLatency-2) {
+    when (wen(i+1)) { winfo(i) := winfo(i+1) }
+  }
+  wen := wen >> 1
   when (mem_wen) {
-    when (!io.ctrl.killm) {
-      wen := (wen >> UFix(1)) | (UFix(1) << mem_fu_latency)
+    when (!killm) {
+      wen := wen >> 1 | memLatencyMask
     }
-    for (i <- 0 until dfma_latency-1) {
-      when (!write_port_busy && UFix(i) === mem_fu_latency) {
+    for (i <- 0 until maxLatency-1) {
+      when (!write_port_busy && memLatencyMask(i)) {
         winfo(i) := mem_winfo
       }
     }
   }
 
-  val wsrc = winfo(0)(1,0)
-  val wdata = Mux(wsrc === UFix(0), dfma.io.out, // DFMA
-              Mux(wsrc === UFix(1), Cat(sp_msbs, sfma.io.out), // SFMA
-              Mux(wsrc === UFix(2), fastpipe.io.out_d,
-              Cat(sp_msbs, fastpipe.io.out_s))))
-  val wexc = Mux(wsrc === UFix(0), dfma.io.exc, // DFMA
-             Mux(wsrc === UFix(1), sfma.io.exc, // SFMA
-             Mux(wsrc === UFix(2), fastpipe.io.exc_d,
-             fastpipe.io.exc_s)))
-  val waddr = winfo(0).toUFix >> UFix(2)
+  val waddr = winfo(0)(4,0).toUFix
+  val wsrc = winfo(0) >> waddr.getWidth
+  val wdata = (Vec(pipes.map(_.wdata)){Bits()})(wsrc)
+  val wexc = (Vec(pipes.map(_.wexc)){Bits()})(wsrc)
   when (wen(0)) { regfile(waddr(4,0)) := wdata }
 
+  val wb_toint_exc = RegEn(fpiu.io.out.bits.exc, mem_ctrl.toint)
   when (wb_reg_valid && wb_ctrl.toint || wen(0)) {
     fsr_exc := fsr_exc |
       Fill(fsr_exc.getWidth, wb_reg_valid && wb_ctrl.toint) & wb_toint_exc |
       Fill(fsr_exc.getWidth, wen(0)) & wexc
   }
+
+  val mem_fsr_wdata = RegEn(io.dpath.fromint_data(FSR_WIDTH-1,0), ex_reg_valid && ctrl.wrfsr)
+  val wb_fsr_wdata = RegEn(mem_fsr_wdata, mem_reg_valid && mem_ctrl.wrfsr)
   when (wb_reg_valid && wb_ctrl.wrfsr) {
-    fsr_exc := fastpipe.io.out_s(4,0)
-    fsr_rm := fastpipe.io.out_s(7,5)
+    fsr_exc := wb_fsr_wdata
+    fsr_rm := wb_fsr_wdata >> fsr_exc.getWidth
   }
 
   val fp_inflight = wb_reg_valid && wb_ctrl.toint || wen.orR
   val fsr_busy = mem_ctrl.rdfsr && fp_inflight || wb_reg_valid && wb_ctrl.wrfsr
-  val units_busy = mem_reg_valid && mem_ctrl.fma && (io.sfma.valid && mem_ctrl.single || io.dfma.valid && !mem_ctrl.single)
+  val units_busy = mem_reg_valid && mem_ctrl.fma && Reg(Mux(ctrl.single, io.sfma.valid, io.dfma.valid))
   io.ctrl.nack_mem := fsr_busy || units_busy || write_port_busy
   io.ctrl.dec <> fp_decoder.io.sigs
+  def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(Bool(false))(_||_)
+  io.ctrl.sboard_set := wb_reg_valid && Reg(useScoreboard(_._1.cond(mem_ctrl)))
+  io.ctrl.sboard_clr := wen(0) && useScoreboard(x => wsrc === UFix(x._2))
+  io.ctrl.sboard_clra := waddr
   // we don't currently support round-max-magnitude (rm=4)
   io.ctrl.illegal_rm := ex_rm(2)
-  io.ctrl.sboard_clr := wen(0) && !wsrc(1).toBool // only for FMA pipes
-  io.ctrl.sboard_clra := waddr
 }
