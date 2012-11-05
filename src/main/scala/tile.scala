@@ -5,6 +5,9 @@ import Node._
 import Constants._
 import uncore._
 
+case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
+                               icache: ICacheConfig)
+
 class Tile(resetSignal: Bool = null)(implicit conf: RocketConfiguration) extends Component(resetSignal)
 {
   val io = new Bundle {
@@ -13,7 +16,7 @@ class Tile(resetSignal: Bool = null)(implicit conf: RocketConfiguration) extends
   }
   
   val cpu       = new rocketProc
-  val icache    = new Frontend(ICacheConfig(4, 1)) // 128 sets x 4 ways (32KB)
+  val icache    = new Frontend(conf.icache)
   val dcache    = new HellaCache
 
   val arbiter   = new rocketMemArbiter(DMEM_PORTS)
@@ -31,7 +34,7 @@ class Tile(resetSignal: Bool = null)(implicit conf: RocketConfiguration) extends
 
   if (HAVE_VEC)
   {
-    val vicache = new Frontend(ICacheConfig(128, 1)) // 128 sets x 1 ways (8KB)
+    val vicache = new Frontend(ICacheConfig(128, 1, conf.co)) // 128 sets x 1 ways (8KB)
     arbiter.io.requestor(DMEM_VICACHE) <> vicache.io.mem
     cpu.io.vimem <> vicache.io.cpu
   }
