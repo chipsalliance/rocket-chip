@@ -100,32 +100,33 @@ class rocketDpath(implicit conf: RocketConfiguration) extends Component
   debug(id_pc)
   
   val regfile_ = Mem(31){Bits(width = 64)}
-  def readRF(a: UFix) = Mux(a === UFix(0), Bits(0), regfile_(~a))
+  def readRF(a: UFix) = regfile_(~a)
   def writeRF(a: UFix, d: Bits) = regfile_(~a) := d
 
   val id_raddr1 = id_inst(26,22).toUFix;
   val id_raddr2 = id_inst(21,17).toUFix;
 
   // bypass muxes
-  val id_rs1_dmem_bypass =
+  val id_rs1_dmem_bypass = id_raddr1 != UFix(0) &&
     Mux(io.ctrl.ex_wen && id_raddr1 === ex_reg_waddr, Bool(false),
     Mux(io.ctrl.mem_wen && id_raddr1 === mem_reg_waddr, io.ctrl.mem_load,
         Bool(false)))
   val id_rs1 =
+    Mux(id_raddr1 === UFix(0), UFix(0),
     Mux(io.ctrl.ex_wen && id_raddr1 === ex_reg_waddr,  ex_wdata,
     Mux(io.ctrl.mem_wen && id_raddr1 === mem_reg_waddr, mem_reg_wdata,
     Mux((io.ctrl.wb_wen || wb_reg_ll_wb) && id_raddr1 === wb_reg_waddr, wb_wdata,
-        readRF(id_raddr1))))
+        readRF(id_raddr1)))))
 
-  val id_rs2_dmem_bypass =
+  val id_rs2_dmem_bypass = id_raddr2 != UFix(0) &&
     Mux(io.ctrl.ex_wen && id_raddr2 === ex_reg_waddr, Bool(false),
     Mux(io.ctrl.mem_wen && id_raddr2 === mem_reg_waddr, io.ctrl.mem_load,
         Bool(false)))
-  val id_rs2 =
+  val id_rs2 = Mux(id_raddr2 === UFix(0), UFix(0),
     Mux(io.ctrl.ex_wen && id_raddr2 === ex_reg_waddr,  ex_wdata,
     Mux(io.ctrl.mem_wen && id_raddr2 === mem_reg_waddr, mem_reg_wdata,
     Mux((io.ctrl.wb_wen || wb_reg_ll_wb) && id_raddr2 === wb_reg_waddr, wb_wdata,
-        readRF(id_raddr2))))
+        readRF(id_raddr2)))))
 
   // immediate generation
   val id_imm_bj = io.ctrl.sel_alu2 === A2_BTYPE || io.ctrl.sel_alu2 === A2_JTYPE
