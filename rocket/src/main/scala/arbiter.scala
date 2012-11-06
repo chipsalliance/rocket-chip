@@ -5,16 +5,12 @@ import Node._
 import Constants._
 import uncore._
 
-class ioHellaCacheArbiter(n: Int) extends Bundle
+class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Component
 {
-  val requestor = Vec(n) { new ioHellaCache() }.flip
-  val mem = new ioHellaCache
-}
-
-class rocketHellaCacheArbiter(n: Int) extends Component
-{
-  val io = new ioHellaCacheArbiter(n)
-  require(DCACHE_TAG_BITS >= log2Up(n) + CPU_TAG_BITS)
+  val io = new Bundle {
+    val requestor = Vec(n) { new ioHellaCache()(conf.dcache) }.flip
+    val mem = new ioHellaCache()(conf.dcache)
+  }
 
   var req_val = Bool(false)
   var req_rdy = io.mem.req.ready
@@ -78,7 +74,7 @@ class ioUncachedRequestor extends Bundle {
   val xact_finish    = (new FIFOIO) { new TransactionFinish }
 }
 
-class rocketMemArbiter(n: Int) extends Component {
+class MemArbiter(n: Int) extends Component {
   val io = new Bundle {
     val mem = new ioUncachedRequestor
     val requestor = Vec(n) { new ioUncachedRequestor }.flip

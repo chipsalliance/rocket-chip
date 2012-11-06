@@ -6,25 +6,22 @@ import Constants._
 import Instructions._
 import hwacha._
 
-class ioDpathAll(implicit conf: RocketConfiguration) extends Bundle
+class Datapath(implicit conf: RocketConfiguration) extends Component
 {
-  val host  = new ioHTIF(conf.ntiles)
-  val ctrl  = new ioCtrlDpath().flip
-  val dmem = new ioHellaCache
-  val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
-  val imem  = new IOCPUFrontend
-  val ptbr_wen = Bool(OUTPUT);
-  val ptbr = UFix(OUTPUT, PADDR_BITS);
-  val fpu = new ioDpathFPU();
-  val vec_ctrl = new ioCtrlDpathVec().flip
-  val vec_iface = new ioDpathVecInterface()
-  val vec_imul_req = new io_imul_req
-  val vec_imul_resp = Bits(INPUT, hwacha.Constants.SZ_XLEN)
-}
-
-class rocketDpath(implicit conf: RocketConfiguration) extends Component
-{
-  val io  = new ioDpathAll();
+  val io = new Bundle {
+    val host  = new ioHTIF(conf.ntiles)
+    val ctrl  = new ioCtrlDpath().flip
+    val dmem = new ioHellaCache()(conf.dcache)
+    val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
+    val imem  = new IOCPUFrontend()(conf.icache)
+    val ptbr_wen = Bool(OUTPUT);
+    val ptbr = UFix(OUTPUT, PADDR_BITS);
+    val fpu = new ioDpathFPU();
+    val vec_ctrl = new ioCtrlDpathVec().flip
+    val vec_iface = new ioDpathVecInterface()
+    val vec_imul_req = new io_imul_req
+    val vec_imul_resp = Bits(INPUT, hwacha.Constants.SZ_XLEN)
+  }
 
   val pcr = new rocketDpathPCR(); 
   val ex_pcr = pcr.io.r.data;
@@ -215,6 +212,7 @@ class rocketDpath(implicit conf: RocketConfiguration) extends Component
   io.dmem.req.bits.idx  := ex_effective_address
   io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
   io.dmem.req.bits.tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val)
+  require(io.dmem.req.bits.tag.getWidth >= 6)
   io.dtlb.vpn := ex_effective_address >> UFix(PGIDX_BITS)
 
 	// processor control regfile read
@@ -252,17 +250,12 @@ class rocketDpath(implicit conf: RocketConfiguration) extends Component
     Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg,
         ex_alu_out))).toBits // WB_ALU
 
-  // subword store data generation
-  val storegen = new StoreDataGen
-  storegen.io.typ := io.ctrl.ex_mem_type
-  storegen.io.din  := ex_rs2
-        
   // memory stage
   mem_reg_kill := ex_reg_kill
   when (!ex_reg_kill) {
     mem_reg_pc := ex_reg_pc
     mem_reg_inst := ex_reg_inst
-    mem_reg_rs2 := storegen.io.dout
+    mem_reg_rs2 := StoreGen(io.ctrl.ex_mem_type, Bits(0), ex_rs2).data
     mem_reg_waddr := ex_reg_waddr
     mem_reg_wdata := ex_wdata
     mem_reg_raddr1 := ex_reg_raddr1

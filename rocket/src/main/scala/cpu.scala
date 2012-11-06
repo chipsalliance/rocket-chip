@@ -8,21 +8,21 @@ import hwacha._
 class ioRocket(implicit conf: RocketConfiguration) extends Bundle
 {
   val host    = new ioHTIF(conf.ntiles)
-  val imem    = new IOCPUFrontend
-  val vimem   = new IOCPUFrontend
-  val dmem    = new ioHellaCache
+  val imem    = new IOCPUFrontend()(conf.icache)
+  val vimem   = new IOCPUFrontend()(conf.icache)
+  val dmem    = new ioHellaCache()(conf.dcache)
 }
 
 class rocketProc(implicit conf: RocketConfiguration) extends Component
 {
   val io    = new ioRocket
    
-  val ctrl  = new rocketCtrl
-  val dpath = new rocketDpath
+  val ctrl  = new Control
+  val dpath = new Datapath
 
   val dtlb  = new rocketTLB(DTLB_ENTRIES);
   val ptw   = new rocketPTW(if (HAVE_VEC) 3 else 2)
-  val arb   = new rocketHellaCacheArbiter(DCACHE_PORTS)
+  val arb   = new HellaCacheArbiter(DCACHE_PORTS)
 
   var vu: vu = null
   if (HAVE_VEC)
@@ -199,17 +199,13 @@ class rocketProc(implicit conf: RocketConfiguration) extends Component
     vu.io.xcpt.hold := ctrl.io.vec_iface.hold
 
     // hooking up vector memory interface
-    val storegen = new StoreDataGen
-    storegen.io.typ := vu.io.dmem_req.bits.typ
-    storegen.io.din := vu.io.dmem_req.bits.data
-
     arb.io.requestor(DCACHE_VU).req.valid := vu.io.dmem_req.valid
     arb.io.requestor(DCACHE_VU).req.bits.kill := vu.io.dmem_req.bits.kill
     arb.io.requestor(DCACHE_VU).req.bits.cmd := vu.io.dmem_req.bits.cmd
     arb.io.requestor(DCACHE_VU).req.bits.typ := vu.io.dmem_req.bits.typ
     arb.io.requestor(DCACHE_VU).req.bits.idx := vu.io.dmem_req.bits.idx
     arb.io.requestor(DCACHE_VU).req.bits.ppn := Reg(vu.io.dmem_req.bits.ppn)
-    arb.io.requestor(DCACHE_VU).req.bits.data := Reg(storegen.io.dout)
+    arb.io.requestor(DCACHE_VU).req.bits.data := Reg(StoreGen(vu.io.dmem_req.bits.typ, Bits(0), vu.io.dmem_req.bits.data).data)
     arb.io.requestor(DCACHE_VU).req.bits.tag := vu.io.dmem_req.bits.tag
 
     vu.io.dmem_req.ready := arb.io.requestor(DCACHE_VU).req.ready
