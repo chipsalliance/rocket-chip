@@ -66,21 +66,11 @@ class PseudoLRU(n: Int)
   }
 }
 
-class IOTLBPTW extends Bundle {
-  val req = new FIFOIO()(UFix(width = VPN_BITS))
-  val resp = new PipeIO()(new Bundle {
-    val error = Bool()
-    val ppn = UFix(width = PPN_BITS)
-    val perm = Bits(width = PERM_BITS)
-  }).flip
-}
-
 class TLBReq extends Bundle
 {
   val asid = UFix(width = ASID_BITS)
   val vpn = UFix(width = VPN_BITS+1)
-  val status = Bits(width = 32)
-  val invalidate = Bool()
+  val passthrough = Bool()
   val instruction = Bool()
 }
 
@@ -116,7 +106,7 @@ class TLB(entries: Int) extends Component
   when (io.ptw.resp.valid) { tag_ram(r_refill_waddr) := io.ptw.resp.bits.ppn }
   
   val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUFix
-  tag_cam.io.clear := io.req.bits.invalidate
+  tag_cam.io.clear := io.ptw.invalidate
   tag_cam.io.clear_hit := io.req.fire() && Mux(io.req.bits.instruction, io.resp.xcpt_if, io.resp.xcpt_ld && io.resp.xcpt_st)
   tag_cam.io.tag := lookup_tag
   tag_cam.io.write := state === s_wait && io.ptw.resp.valid
@@ -148,8 +138,8 @@ class TLB(entries: Int) extends Component
   val plru = new PseudoLRU(entries)
   val repl_waddr = Mux(has_invalid_entry, invalid_entry, plru.replace)
   
-  val status_s  = io.req.bits.status(SR_S)  // user/supervisor mode
-  val status_vm = io.req.bits.status(SR_VM) // virtual memory enable
+  val status_s  = io.ptw.status(SR_S)  // user/supervisor mode
+  val status_vm = io.ptw.status(SR_VM) // virtual memory enable
   val bad_va = io.req.bits.vpn(VPN_BITS) != io.req.bits.vpn(VPN_BITS-1)
   val tlb_hit  = status_vm && tag_hit
   val tlb_miss = status_vm && !tag_hit && !bad_va
@@ -163,7 +153,7 @@ class TLB(entries: Int) extends Component
   io.resp.xcpt_st := bad_va || tlb_hit && !Mux(status_s, sw_array(tag_hit_addr), uw_array(tag_hit_addr))
   io.resp.xcpt_if := bad_va || tlb_hit && !Mux(status_s, sx_array(tag_hit_addr), ux_array(tag_hit_addr))
   io.resp.miss := tlb_miss
-  io.resp.ppn := Mux(status_vm, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(PPN_BITS-1,0))
+  io.resp.ppn := Mux(status_vm && !io.req.bits.passthrough, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(PPN_BITS-1,0))
   io.resp.hit_idx := tag_cam.io.hits
   
   io.ptw.req.valid := state === s_request
@@ -175,15 +165,15 @@ class TLB(entries: Int) extends Component
     r_refill_waddr := repl_waddr
   }
   when (state === s_request) {
-    when (io.req.bits.invalidate) {
+    when (io.ptw.invalidate) {
       state := s_ready
     }
     when (io.ptw.req.ready) {
       state := s_wait
-      when (io.req.bits.invalidate) { state := s_wait_invalidate }
+      when (io.ptw.invalidate) { state := s_wait_invalidate }
     }
   }
-  when (state === s_wait && io.req.bits.invalidate) {
+  when (state === s_wait && io.ptw.invalidate) {
     state := s_wait_invalidate
   }
   when ((state === s_wait || state === s_wait_invalidate) && io.ptw.resp.valid) {
@@ -204,10 +194,6 @@ class ioDTLB_CPU_resp extends TLBResp(1)
 
 class ioDTLB extends Bundle
 {
-  // status bits (from PCR), to check current permission and whether VM is enabled
-  val status = Bits(INPUT, 32)
-  // invalidate all TLB entries
-  val invalidate = Bool(INPUT)
   val cpu_req = new ioDTLB_CPU_req().flip
   val cpu_resp = new ioDTLB_CPU_resp()
   val ptw = new IOTLBPTW
@@ -225,8 +211,7 @@ class rocketTLB(entries: Int) extends Component
   val tlb = new TLB(entries)
   tlb.io.req.valid := r_cpu_req_val && !io.cpu_req.bits.kill
   tlb.io.req.bits.instruction := Bool(false)
-  tlb.io.req.bits.invalidate := io.invalidate
-  tlb.io.req.bits.status := io.status
+  tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.vpn := r_cpu_req_vpn
   tlb.io.req.bits.asid := r_cpu_req_asid
 

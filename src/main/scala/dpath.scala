@@ -13,9 +13,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     val ctrl  = new ioCtrlDpath().flip
     val dmem = new ioHellaCache()(conf.dcache)
     val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
+    val ptw = new IODatapathPTW().flip
     val imem  = new IOCPUFrontend()(conf.icache)
-    val ptbr_wen = Bool(OUTPUT);
-    val ptbr = UFix(OUTPUT, PADDR_BITS);
     val fpu = new ioDpathFPU();
     val vec_ctrl = new ioCtrlDpathVec().flip
     val vec_iface = new ioDpathVecInterface()
@@ -81,9 +80,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   val ex_effective_address = Cat(ex_ea_sign, ex_alu_adder_out(VADDR_BITS-1,0)).toUFix
 
   // hook up I$
-  io.imem.req.bits.invalidateTLB := pcr.io.ptbr_wen
   io.imem.req.bits.currentpc := ex_reg_pc
-  io.imem.req.bits.status := pcr.io.status
   io.imem.req.bits.pc :=
     Mux(io.ctrl.sel_pc === PC_EX4, ex_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_EX,  Mux(io.ctrl.ex_jalr, ex_effective_address, ex_branch_target),
@@ -209,7 +206,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req.bits.idx  := ex_effective_address
+  io.dmem.req.bits.addr := ex_effective_address
   io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
   io.dmem.req.bits.tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val)
   require(io.dmem.req.bits.tag.getWidth >= 6)
@@ -225,8 +222,10 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   io.ctrl.irq_ipi      := pcr.io.irq_ipi;  
   io.ctrl.status       := pcr.io.status;
   io.ctrl.pcr_replay   := pcr.io.replay
-  io.ptbr              := pcr.io.ptbr;
-  io.ptbr_wen          := pcr.io.ptbr_wen;
+
+  io.ptw.ptbr := pcr.io.ptbr
+  io.ptw.invalidate := pcr.io.ptbr_wen
+  io.ptw.status := pcr.io.status
   
 	// branch resolution logic
   io.ctrl.jalr_eq := ex_reg_rs1 === id_pc.toFix && ex_reg_op2(id_imm_small.getWidth-1,0) === UFix(0)

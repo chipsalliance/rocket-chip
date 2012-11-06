@@ -13,7 +13,8 @@ case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
 
 class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Component(resetSignal)
 {
-  implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(DMEM_PORTS))
+  val memPorts = if (HAVE_VEC) 3 else 2
+  implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(memPorts))
   implicit val conf = confIn.copy(dcache = dcConf)
 
   val io = new Bundle {
@@ -21,13 +22,13 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
     val host = new ioHTIF(conf.ntiles)
   }
 
-  val cpu       = new rocketProc
+  val core      = new Core
   val icache    = new Frontend()(confIn.icache)
   val dcache    = new HellaCache
 
-  val arbiter   = new MemArbiter(DMEM_PORTS)
-  arbiter.io.requestor(DMEM_DCACHE) <> dcache.io.mem
-  arbiter.io.requestor(DMEM_ICACHE) <> icache.io.mem
+  val arbiter   = new MemArbiter(memPorts)
+  arbiter.io.requestor(0) <> dcache.io.mem
+  arbiter.io.requestor(1) <> icache.io.mem
 
   io.tilelink.xact_init <> arbiter.io.mem.xact_init
   io.tilelink.xact_init_data <> dcache.io.mem.xact_init_data
@@ -38,14 +39,13 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   io.tilelink.probe_rep <> dcache.io.mem.probe_rep
   io.tilelink.probe_rep_data <> dcache.io.mem.probe_rep_data
 
-  if (HAVE_VEC)
-  {
+  if (HAVE_VEC) {
     val vicache = new Frontend()(ICacheConfig(128, 1, conf.co)) // 128 sets x 1 ways (8KB)
-    arbiter.io.requestor(DMEM_VICACHE) <> vicache.io.mem
-    cpu.io.vimem <> vicache.io.cpu
+    arbiter.io.requestor(2) <> vicache.io.mem
+    core.io.vimem <> vicache.io.cpu
   }
 
-  cpu.io.host       <> io.host
-  cpu.io.imem       <> icache.io.cpu
-  cpu.io.dmem       <> dcache.io.cpu
+  core.io.host <> io.host
+  core.io.imem <> icache.io.cpu
+  core.io.dmem <> dcache.io.cpu
 }

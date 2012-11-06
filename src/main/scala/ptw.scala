@@ -5,16 +5,31 @@ import Node._
 import Constants._
 import scala.math._
 
-class ioPTW(n: Int)(implicit conf: RocketConfiguration) extends Bundle
-{
-  val requestor = Vec(n) { new IOTLBPTW }.flip
-  val mem   = new ioHellaCache()(conf.dcache)
-  val ptbr  = UFix(INPUT, PADDR_BITS)
+class IOTLBPTW extends Bundle {
+  val req = new FIFOIO()(UFix(width = VPN_BITS))
+  val resp = new PipeIO()(new Bundle {
+    val error = Bool()
+    val ppn = UFix(width = PPN_BITS)
+    val perm = Bits(width = PERM_BITS)
+  }).flip
+
+  val status = Bits(INPUT, width = 32)
+  val invalidate = Bool(INPUT)
+}
+
+class IODatapathPTW extends Bundle {
+  val ptbr = UFix(INPUT, PADDR_BITS)
+  val invalidate = Bool(INPUT)
+  val status = Bits(INPUT, 32)
 }
 
 class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
 {
-  val io = new ioPTW(n)
+  val io = new Bundle {
+    val requestor = Vec(n) { new IOTLBPTW }.flip
+    val mem = new ioHellaCache()(conf.dcache)
+    val dpath = new IODatapathPTW
+  }
   
   val levels = 3
   val bitsPerLevel = VPN_BITS/levels
@@ -27,7 +42,7 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
   val r_req_vpn = Reg() { Bits() }
   val r_req_dest = Reg() { Bits() }
   
-  val req_addr = Reg() { Bits() }
+  val req_addr = Reg() { UFix() }
   val r_resp_ppn = Reg() { Bits() };
   val r_resp_perm = Reg() { Bits() };
   
@@ -41,21 +56,21 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
   when (arb.io.out.fire()) {
     r_req_vpn := arb.io.out.bits
     r_req_dest := arb.io.chosen
-    req_addr := Cat(io.ptbr(PADDR_BITS-1,PGIDX_BITS), arb.io.out.bits(VPN_BITS-1,VPN_BITS-bitsPerLevel), Bits(0,3))
+    req_addr := Cat(io.dpath.ptbr(PADDR_BITS-1,PGIDX_BITS), arb.io.out.bits(VPN_BITS-1,VPN_BITS-bitsPerLevel), UFix(0,3))
   }
 
   val dmem_resp_val = Reg(io.mem.resp.valid, resetVal = Bool(false))
   when (dmem_resp_val) {
-    req_addr := Cat(io.mem.resp.bits.data_subword(PADDR_BITS-1, PGIDX_BITS), vpn_idx, Bits(0,3))
+    req_addr := Cat(io.mem.resp.bits.data_subword(PADDR_BITS-1, PGIDX_BITS), vpn_idx, UFix(0,3)).toUFix
     r_resp_perm := io.mem.resp.bits.data_subword(9,4);
     r_resp_ppn  := io.mem.resp.bits.data_subword(PADDR_BITS-1, PGIDX_BITS);
   }
   
   io.mem.req.valid     := state === s_req
+  io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := M_XRD
   io.mem.req.bits.typ  := MT_D
-  io.mem.req.bits.idx  := req_addr(PGIDX_BITS-1,0)
-  io.mem.req.bits.ppn  := Reg(req_addr(PADDR_BITS-1,PGIDX_BITS))
+  io.mem.req.bits.addr := req_addr
   io.mem.req.bits.kill := Bool(false)
   
   val resp_val = state === s_done || state === s_error
@@ -73,6 +88,8 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
     io.requestor(i).resp.bits.error := resp_err
     io.requestor(i).resp.bits.perm := r_resp_perm
     io.requestor(i).resp.bits.ppn := resp_ppn.toUFix
+    io.requestor(i).invalidate := io.dpath.invalidate
+    io.requestor(i).status := io.dpath.status
   }
 
   // control state machine

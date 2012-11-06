@@ -3,16 +3,18 @@ package rocket
 import Chisel._
 import Constants._
 import uncore._
+import Util._
 
 case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
-                        nmshr: Int, nsecondary: Int, nsdq: Int,
+                        nmshr: Int, nrpq: Int, nsdq: Int,
                         reqtagbits: Int = -1)
 {
   require(isPow2(sets))
   require(isPow2(ways)) // TODO: relax this
   def lines = sets*ways
   def dm = ways == 1
-  def ppnbits = PPN_BITS
+  def ppnbits = PADDR_BITS - PGIDX_BITS
+  def vpnbits = VADDR_BITS - PGIDX_BITS
   def pgidxbits = PGIDX_BITS
   def offbits = OFFSET_BITS
   def paddrbits = ppnbits + pgidxbits
@@ -161,7 +163,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
     val req_sec_val    = Bool(INPUT)
     val req_sec_rdy    = Bool(OUTPUT)
     val req_bits       = new MSHRReq().asInput
-    val req_sdq_id     = UFix(INPUT, log2Up(NSDQ))
+    val req_sdq_id     = UFix(INPUT, log2Up(conf.nsdq))
 
     val idx_match      = Bool(OUTPUT)
     val idx            = Bits(OUTPUT, conf.idxbits)
@@ -194,7 +196,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   val idx_match = req.idx === io.req_bits.idx
   val sec_rdy = idx_match && !flush && (state === s_wb_req || state === s_wb_resp || state === s_meta_clear || (state === s_refill_req || state === s_refill_resp) && !conf.co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
 
-  val rpq = (new Queue(NRPQ)) { new RPQEntry }
+  val rpq = (new Queue(conf.nrpq)) { new RPQEntry }
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && req_use_rpq
   rpq.io.enq.bits := io.req_bits
   rpq.io.enq.bits.sdq_id := io.req_sdq_id
@@ -312,24 +314,24 @@ class MSHRFile(implicit conf: DCacheConfig) extends Component {
     val cpu_resp_tag = Bits(OUTPUT, conf.reqtagbits)
   }
 
-  val sdq_val = Reg(resetVal = Bits(0, NSDQ))
-  val sdq_alloc_id = PriorityEncoder(~sdq_val(NSDQ-1,0))
+  val sdq_val = Reg(resetVal = Bits(0, conf.nsdq))
+  val sdq_alloc_id = PriorityEncoder(~sdq_val(conf.nsdq-1,0))
   val sdq_rdy = !sdq_val.andR
   val (req_read, req_write) = cpuCmdToRW(io.req.bits.cmd)
   val sdq_enq = io.req.valid && io.req.ready && req_write
-  val sdq = Mem(NSDQ) { io.req.bits.data.clone }
+  val sdq = Mem(conf.nsdq) { io.req.bits.data.clone }
   when (sdq_enq) { sdq(sdq_alloc_id) := io.req.bits.data }
 
-  val idxMatch = Vec(NMSHR) { Bool() }
-  val tagList = Vec(NMSHR) { Bits() }
-  val wbTagList = Vec(NMSHR) { Bits() }
-  val memRespMux = Vec(NMSHR) { new DataArrayReq }
-  val meta_req_arb = (new Arbiter(NMSHR)) { new MetaArrayReq() }
-  val mem_req_arb = (new Arbiter(NMSHR)) { new TransactionInit }
-  val mem_finish_arb = (new Arbiter(NMSHR)) { new TransactionFinish }
-  val wb_req_arb = (new Arbiter(NMSHR)) { new WritebackReq }
-  val replay_arb = (new Arbiter(NMSHR)) { new Replay() }
-  val alloc_arb = (new Arbiter(NMSHR)) { Bool() }
+  val idxMatch = Vec(conf.nmshr) { Bool() }
+  val tagList = Vec(conf.nmshr) { Bits() }
+  val wbTagList = Vec(conf.nmshr) { Bits() }
+  val memRespMux = Vec(conf.nmshr) { new DataArrayReq }
+  val meta_req_arb = (new Arbiter(conf.nmshr)) { new MetaArrayReq() }
+  val mem_req_arb = (new Arbiter(conf.nmshr)) { new TransactionInit }
+  val mem_finish_arb = (new Arbiter(conf.nmshr)) { new TransactionFinish }
+  val wb_req_arb = (new Arbiter(conf.nmshr)) { new WritebackReq }
+  val replay_arb = (new Arbiter(conf.nmshr)) { new Replay() }
+  val alloc_arb = (new Arbiter(conf.nmshr)) { Bool() }
 
   val tag_match = Mux1H(idxMatch, tagList) === io.req.bits.tag
   val wb_probe_match = Mux1H(idxMatch, wbTagList) === io.req.bits.tag
@@ -341,7 +343,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Component {
   var writeback_probe_rdy = Bool(true)
   var refill_probe_rdy = Bool(true)
 
-  for (i <- 0 to NMSHR-1) {
+  for (i <- 0 to conf.nmshr-1) {
     val mshr = new MSHR(i)
 
     idxMatch(i) := mshr.io.idx_match
@@ -400,8 +402,8 @@ class MSHRFile(implicit conf: DCacheConfig) extends Component {
 
   val (replay_read, replay_write) = cpuCmdToRW(replay.bits.cmd)
   val sdq_free = replay.valid && replay.ready && replay_write
-  sdq_val := sdq_val & ~((UFix(1) << replay.bits.sdq_id) & Fill(sdq_free, NSDQ)) | 
-             PriorityEncoderOH(~sdq_val(NSDQ-1,0)) & Fill(NSDQ, sdq_enq && io.req.bits.tag_miss)
+  sdq_val := sdq_val & ~((UFix(1) << replay.bits.sdq_id) & Fill(sdq_free, conf.nsdq)) | 
+             PriorityEncoderOH(~sdq_val(conf.nsdq-1,0)) & Fill(conf.nsdq, sdq_enq && io.req.bits.tag_miss)
   val sdq_rdata = Reg() { io.req.bits.data.clone }
   sdq_rdata := sdq(Mux(replay.valid && !replay.ready, replay.bits.sdq_id, replay_arb.io.out.bits.sdq_id))
   io.data_req.bits.data := sdq_rdata
@@ -711,8 +713,8 @@ class AMOALU extends Component {
 class HellaCacheReq(implicit conf: DCacheConfig) extends Bundle {
   val kill = Bool()
   val typ  = Bits(width = 3)
-  val idx  = Bits(width = conf.pgidxbits)
-  val ppn  = Bits(width = conf.ppnbits)
+  val phys = Bool()
+  val addr = UFix(width = conf.ppnbits.max(conf.vpnbits+1) + conf.pgidxbits)
   val data = Bits(width = conf.databits)
   val tag  = Bits(width = conf.reqtagbits)
   val cmd  = Bits(width = 4)
@@ -739,6 +741,7 @@ class AlignmentExceptions extends Bundle {
 
 class HellaCacheExceptions extends Bundle {
   val ma = new AlignmentExceptions
+  val pf = new AlignmentExceptions
 }
 
 // interface between D$ and processor/DTLB
@@ -746,6 +749,7 @@ class ioHellaCache(implicit conf: DCacheConfig) extends Bundle {
   val req = (new FIFOIO){ new HellaCacheReq }
   val resp = (new PipeIO){ new HellaCacheResp }.flip
   val xcpt = (new HellaCacheExceptions).asInput
+  val ptw = new IOTLBPTW().flip
 }
 
 class HellaCache(implicit conf: DCacheConfig) extends Component {
@@ -768,6 +772,8 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val early_nack       = Reg { Bool() }
   val r_cpu_req_val_   = Reg(io.cpu.req.valid && io.cpu.req.ready, resetVal = Bool(false))
   val r_cpu_req_val    = r_cpu_req_val_ && !io.cpu.req.bits.kill && !early_nack
+  val r_cpu_req_phys   = Reg() { Bool() }
+  val r_cpu_req_vpn    = Reg() { UFix() }
   val r_cpu_req_idx    = Reg() { Bits() }
   val r_cpu_req_cmd    = Reg() { Bits() }
   val r_cpu_req_type   = Reg() { Bits() }
@@ -799,6 +805,14 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val r_req_readwrite = r_req_read || r_req_write || r_req_prefetch
   val nack_hit = Bool()
 
+  val dtlb = new TLB(8)
+  dtlb.io.ptw <> io.cpu.ptw
+  dtlb.io.req.valid := r_cpu_req_val_ && r_req_readwrite && !r_cpu_req_phys
+  dtlb.io.req.bits.passthrough := r_cpu_req_phys
+  dtlb.io.req.bits.asid := UFix(0)
+  dtlb.io.req.bits.vpn := r_cpu_req_vpn
+  dtlb.io.req.bits.instruction := Bool(false)
+
   val wb = new WritebackUnit
   val prober = new ProbeUnit
   val mshr = new MSHRFile
@@ -812,7 +826,9 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   flusher.io.mshr_req.ready := mshr.io.req.ready
   
   when (io.cpu.req.valid) {
-    r_cpu_req_idx  := io.cpu.req.bits.idx
+    r_cpu_req_phys := io.cpu.req.bits.phys
+    r_cpu_req_vpn  := io.cpu.req.bits.addr >> taglsb
+    r_cpu_req_idx  := io.cpu.req.bits.addr(indexmsb,0)
     r_cpu_req_cmd  := io.cpu.req.bits.cmd
     r_cpu_req_type := io.cpu.req.bits.typ
     r_cpu_req_tag  := io.cpu.req.bits.tag
@@ -839,8 +855,10 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
     (((r_cpu_req_type === MT_W) || (r_cpu_req_type === MT_WU)) && (r_cpu_req_idx(1,0) != Bits(0))) ||
     ((r_cpu_req_type === MT_D) && (r_cpu_req_idx(2,0) != Bits(0)));
     
-  io.cpu.xcpt.ma.ld := r_cpu_req_val_ && !early_nack && r_req_read && misaligned
-  io.cpu.xcpt.ma.st := r_cpu_req_val_ && !early_nack && r_req_write && misaligned
+  io.cpu.xcpt.ma.ld := r_cpu_req_val_ && r_req_read && misaligned
+  io.cpu.xcpt.ma.st := r_cpu_req_val_ && r_req_write && misaligned
+  io.cpu.xcpt.pf.ld := r_cpu_req_val_ && r_req_read && dtlb.io.resp.xcpt_ld
+  io.cpu.xcpt.pf.st := r_cpu_req_val_ && r_req_write && dtlb.io.resp.xcpt_st
 
   // tags
   val meta = new MetaDataArrayArray(lines)
@@ -855,11 +873,11 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
 
   // cpu tag check
   meta_arb.io.in(3).valid := io.cpu.req.valid
-  meta_arb.io.in(3).bits.idx := io.cpu.req.bits.idx(indexmsb,indexlsb)
+  meta_arb.io.in(3).bits.idx := io.cpu.req.bits.addr(indexmsb,indexlsb)
   meta_arb.io.in(3).bits.rw := Bool(false)
   meta_arb.io.in(3).bits.way_en := Fix(-1)
   val early_tag_nack = !meta_arb.io.in(3).ready
-  val cpu_req_ppn = Mux(prober.io.mshr_req.valid, prober.io.addr >> UFix(conf.pgidxbits-conf.offbits), io.cpu.req.bits.ppn)
+  val cpu_req_ppn = Mux(prober.io.mshr_req.valid, prober.io.addr >> UFix(conf.pgidxbits-conf.offbits), dtlb.io.resp.ppn)
   val cpu_req_tag = Cat(cpu_req_ppn, r_cpu_req_idx)(tagmsb,taglsb)
   val tag_match_arr = (0 until conf.ways).map( w => conf.co.isValid(meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
@@ -892,8 +910,8 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   data_arb.io.in(0).valid := io.mem.xact_rep.valid && conf.co.messageUpdatesDataArray(io.mem.xact_rep.bits)
 
   // load hits
-  data_arb.io.in(4).bits.offset := io.cpu.req.bits.idx(offsetmsb,ramindexlsb)
-  data_arb.io.in(4).bits.idx := io.cpu.req.bits.idx(indexmsb,indexlsb)
+  data_arb.io.in(4).bits.offset := io.cpu.req.bits.addr(offsetmsb,ramindexlsb)
+  data_arb.io.in(4).bits.idx := io.cpu.req.bits.addr(indexmsb,indexlsb)
   data_arb.io.in(4).bits.rw := Bool(false)
   data_arb.io.in(4).valid := io.cpu.req.valid && req_read
   data_arb.io.in(4).bits.way_en := Fix(-1) // intiate load on all ways, mux after tag check
@@ -1015,13 +1033,14 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val pending_fence = Reg(resetVal = Bool(false))
   pending_fence := (r_cpu_req_val_ && r_req_fence || pending_fence) && !mshr.io.fence_rdy
   nack_hit := p_store_match || replay_val || r_req_write && !p_store_rdy ||
-              p_store_idx_match && meta.io.state_req.valid
+              p_store_idx_match && meta.io.state_req.valid ||
+              !r_cpu_req_phys && dtlb.io.resp.miss
   val nack_miss  = !mshr.io.req.ready
   val nack_flush = !mshr.io.fence_rdy && (r_req_fence || r_req_flush) ||
                    !flushed && r_req_flush
   val nack = early_nack || r_req_readwrite && (nack_hit || nack_miss) || nack_flush
 
-  io.cpu.req.ready   := flusher.io.req.ready && !(r_cpu_req_val_ && r_req_flush) && !pending_fence
+  io.cpu.req.ready := flusher.io.req.ready && !(r_cpu_req_val_ && r_req_flush) && !pending_fence && (dtlb.io.req.ready || io.cpu.req.bits.phys)
   io.cpu.resp.valid  := (r_cpu_req_val && tag_hit && !mshr.io.secondary_miss && !nack && r_req_read) || mshr.io.cpu_resp_val
   io.cpu.resp.bits.nack := r_cpu_req_val_ && !io.cpu.req.bits.kill && nack
   io.cpu.resp.bits.replay := mshr.io.cpu_resp_val

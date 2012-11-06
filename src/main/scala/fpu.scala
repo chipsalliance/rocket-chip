@@ -5,8 +5,9 @@ import Node._
 import Constants._
 import Instructions._
 import Util._
+import FPConstants._
 
-object rocketFPConstants
+object FPConstants
 {
   val FCMD_ADD =        Bits("b000000")
   val FCMD_SUB =        Bits("b000001")
@@ -45,7 +46,6 @@ object rocketFPConstants
   val FCMD_WIDTH = 6
   val FSR_WIDTH = 8
 }
-import rocketFPConstants._
 
 class FPUCtrlSigs extends Bundle
 {
@@ -64,7 +64,7 @@ class FPUCtrlSigs extends Bundle
   val wrfsr = Bool()
 }
 
-class rocketFPUDecoder extends Component
+class FPUDecoder extends Component
 {
   val io = new Bundle {
     val inst = Bits(INPUT, 32)
@@ -378,7 +378,7 @@ class ioFMA(width: Int) extends Bundle {
   val exc = Bits(OUTPUT, 5)
 }
 
-class rocketFPUSFMAPipe(val latency: Int) extends Component
+class FPUSFMAPipe(val latency: Int) extends Component
 {
   val io = new ioFMA(33)
   
@@ -415,7 +415,7 @@ class rocketFPUSFMAPipe(val latency: Int) extends Component
   io.exc := Pipe(valid, fma.io.exceptionFlags, latency-1).bits
 }
 
-class rocketFPUDFMAPipe(val latency: Int) extends Component
+class FPUDFMAPipe(val latency: Int) extends Component
 {
   val io = new ioFMA(65)
   
@@ -452,7 +452,7 @@ class rocketFPUDFMAPipe(val latency: Int) extends Component
   io.exc := Pipe(valid, fma.io.exceptionFlags, latency-1).bits
 }
 
-class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
+class FPU(sfma_latency: Int, dfma_latency: Int) extends Component
 {
   val io = new Bundle {
     val ctrl = new ioCtrlFPU().flip
@@ -470,7 +470,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val killm = io.ctrl.killm || io.ctrl.nack_mem
   val wb_reg_valid = Reg(mem_reg_valid && !killm, resetVal = Bool(false))
 
-  val fp_decoder = new rocketFPUDecoder
+  val fp_decoder = new FPUDecoder
   fp_decoder.io.inst := io.dpath.inst
 
   val ctrl = RegEn(fp_decoder.io.sigs, io.ctrl.valid)
@@ -530,7 +530,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val cmd_fma = mem_ctrl.cmd === FCMD_MADD  || mem_ctrl.cmd === FCMD_MSUB ||
                 mem_ctrl.cmd === FCMD_NMADD || mem_ctrl.cmd === FCMD_NMSUB
   val cmd_addsub = mem_ctrl.cmd === FCMD_ADD || mem_ctrl.cmd === FCMD_SUB
-  val sfma = new rocketFPUSFMAPipe(sfma_latency)
+  val sfma = new FPUSFMAPipe(sfma_latency)
   sfma.io.valid := io.sfma.valid || ex_reg_valid && ctrl.fma && ctrl.single
   sfma.io.in1 := Mux(io.sfma.valid, io.sfma.in1, ex_rs1)
   sfma.io.in2 := Mux(io.sfma.valid, io.sfma.in2, ex_rs2)
@@ -540,7 +540,7 @@ class rocketFPU(sfma_latency: Int, dfma_latency: Int) extends Component
   io.sfma.out := sfma.io.out
   io.sfma.exc := sfma.io.exc
 
-  val dfma = new rocketFPUDFMAPipe(dfma_latency)
+  val dfma = new FPUDFMAPipe(dfma_latency)
   dfma.io.valid := io.dfma.valid || ex_reg_valid && ctrl.fma && !ctrl.single
   dfma.io.in1 := Mux(io.dfma.valid, io.dfma.in1, ex_rs1)
   dfma.io.in2 := Mux(io.dfma.valid, io.dfma.in2, ex_rs2)

@@ -29,9 +29,7 @@ case class ICacheConfig(sets: Int, assoc: Int, co: CoherencePolicyWithUncached,
 
 class FrontendReq extends Bundle {
   val pc = UFix(width = VADDR_BITS+1)
-  val status = Bits(width = 32)
   val invalidate = Bool()
-  val invalidateTLB = Bool()
   val mispredict = Bool()
   val taken = Bool()
   val currentpc = UFix(width = VADDR_BITS+1)
@@ -99,14 +97,13 @@ class Frontend(implicit c: ICacheConfig) extends Component
   btb.io.clr := !io.cpu.req.bits.taken
   btb.io.correct_pc := io.cpu.req.bits.currentpc
   btb.io.correct_target := io.cpu.req.bits.pc
-  btb.io.invalidate := io.cpu.req.bits.invalidate || io.cpu.req.bits.invalidateTLB
+  btb.io.invalidate := io.cpu.req.bits.invalidate || io.cpu.ptw.invalidate
 
   tlb.io.ptw <> io.cpu.ptw
   tlb.io.req.valid := !stall && !icmiss
   tlb.io.req.bits.vpn := s1_pc >> UFix(PGIDX_BITS)
-  tlb.io.req.bits.status := io.cpu.req.bits.status
   tlb.io.req.bits.asid := UFix(0)
-  tlb.io.req.bits.invalidate := io.cpu.req.bits.invalidateTLB
+  tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.instruction := Bool(true)
 
   icache.io.mem <> io.mem

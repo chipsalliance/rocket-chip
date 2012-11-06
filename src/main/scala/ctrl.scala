@@ -569,8 +569,8 @@ class Control(implicit conf: RocketConfiguration) extends Component
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
     (mem_reg_mem_val && io.dmem.xcpt.ma.ld,  UFix( 8)),
     (mem_reg_mem_val && io.dmem.xcpt.ma.st,  UFix( 9)),
-    (mem_reg_mem_val && io.xcpt_dtlb_ld,     UFix(10)),
-    (mem_reg_mem_val && io.xcpt_dtlb_st,     UFix(11))))
+    (mem_reg_mem_val && io.dmem.xcpt.pf.ld,     UFix(10)),
+    (mem_reg_mem_val && io.dmem.xcpt.pf.st,     UFix(11))))
 
   wb_reg_xcpt := mem_xcpt && !take_pc_wb && !wb_reg_replay_next
   when (mem_xcpt) { wb_reg_cause := mem_cause }
@@ -644,7 +644,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   // replay inst in ex stage
   val replay_ex    = wb_reg_dcache_miss && ex_reg_load_use || mem_reg_flush_inst || 
-                     ex_reg_mem_val && !(io.dmem.req.ready && io.dtlb_rdy) ||
+                     ex_reg_mem_val && !io.dmem.req.ready ||
                      ex_reg_div_val && !io.dpath.div_rdy ||
                      ex_reg_mul_val && !io.dpath.mul_rdy ||
                      mem_reg_replay_next
@@ -652,7 +652,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   // replay inst in mem stage
   val mem_ll_wb = io.dpath.mem_wb || io.dpath.mul_result_val || io.dpath.div_result_val
-  val dmem_kill_mem = mem_reg_valid && (io.dtlb_miss || io.dmem.resp.bits.nack)
+  val dmem_kill_mem = mem_reg_valid && io.dmem.resp.bits.nack
   val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
   val replay_mem  = dmem_kill_mem || mem_reg_wen && mem_ll_wb || mem_reg_replay || fpu_kill_mem
   val killm_common = mem_reg_wen && mem_ll_wb || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
@@ -734,7 +734,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     id_ex_hazard || id_mem_hazard || id_wb_hazard ||
     id_stall_raddr1 || id_stall_raddr2 || id_stall_waddr ||
     id_fp_val && id_stall_fpu ||
-    id_mem_val && !(io.dmem.req.ready && io.dtlb_rdy) ||
+    id_mem_val && !io.dmem.req.ready ||
     vec_stalld
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || id_interrupt
 
@@ -772,10 +772,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
   io.fpu.killx := ctrl_killx
   io.fpu.killm := killm_common
 
-  io.dtlb_val           := ex_reg_mem_val
-  io.dtlb_kill          := !mem_reg_valid
   io.dmem.req.valid     := ex_reg_mem_val
-  io.dmem.req.bits.kill := killm_common || mem_xcpt || io.dtlb_miss
+  io.dmem.req.bits.kill := killm_common || mem_xcpt
   io.dmem.req.bits.cmd  := ex_reg_mem_cmd
   io.dmem.req.bits.typ  := ex_reg_mem_type
+  io.dmem.req.bits.phys := Bool(false)
 }
