@@ -198,11 +198,6 @@ trait VectorOpConstants {
 }
 
 abstract trait ArbiterConstants extends TileConfigConstants {
-  val DTLB_PORTS = 3
-  val DTLB_CPU = 0
-  val DTLB_VEC = 1
-  val DTLB_VPF = 2
-
   val DCACHE_PORTS = 3
   val DCACHE_CPU = 0
   val DCACHE_PTW = 1
