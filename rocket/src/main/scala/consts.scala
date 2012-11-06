@@ -154,12 +154,7 @@ trait InterruptConstants {
   val IRQ_TIMER = 7
 }
  
-abstract trait RocketDcacheConstants extends ArbiterConstants with uncore.constants.AddressConstants {
-  val NMSHR = if (HAVE_VEC) 4 else 2 // number of primary misses
-  require(log2Up(NMSHR)+3 <= uncore.Constants.TILE_XACT_ID_BITS)
-  val NRPQ = 16; // number of secondary misses
-  val NSDQ = 17; // number of secondary stores/AMOs
-  val OFFSET_BITS = 6; // log2(cache line size in bytes)
+abstract trait RocketDcacheConstants extends TileConfigConstants with uncore.constants.CacheConstants with uncore.constants.AddressConstants {
   require(OFFSET_BITS == log2Up(uncore.Constants.CACHE_DATA_SIZE_IN_BYTES))
   require(OFFSET_BITS <= uncore.Constants.X_INIT_WRITE_MASK_BITS)
   require(log2Up(OFFSET_BITS) <= uncore.Constants.X_INIT_SUBWORD_ADDR_BITS)
@@ -195,16 +190,4 @@ trait VectorOpConstants {
   val VIMM2_RS2 = UFix(0, 1)
   val VIMM2_ALU = UFix(1, 1)
   val VIMM2_X = UFix(0, 1)
-}
-
-abstract trait ArbiterConstants extends TileConfigConstants {
-  val DCACHE_PORTS = 3
-  val DCACHE_CPU = 0
-  val DCACHE_PTW = 1
-  val DCACHE_VU = 2
-
-  val DMEM_PORTS = if (HAVE_VEC) 3 else 2
-  val DMEM_DCACHE = 0
-  val DMEM_ICACHE = 1
-  val DMEM_VICACHE = 2
 }

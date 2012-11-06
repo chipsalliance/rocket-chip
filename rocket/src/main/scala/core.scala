@@ -13,58 +13,12 @@ class ioRocket(implicit conf: RocketConfiguration) extends Bundle
   val dmem    = new ioHellaCache()(conf.dcache)
 }
 
-class rocketProc(implicit conf: RocketConfiguration) extends Component
+class Core(implicit conf: RocketConfiguration) extends Component
 {
   val io    = new ioRocket
    
   val ctrl  = new Control
   val dpath = new Datapath
-
-  val ptw = Vec(0) { new IOTLBPTW }
-  val arb = new HellaCacheArbiter(DCACHE_PORTS)
-
-  var vu: vu = null
-  if (HAVE_VEC)
-  {
-    vu = new vu()
-
-    val vdtlb = new rocketTLB(8)
-    vdtlb.io.invalidate := dpath.io.ptbr_wen
-    vdtlb.io.status := dpath.io.ctrl.status
-    ptw += vdtlb.io.ptw
-
-    vdtlb.io.cpu_req <> vu.io.vec_tlb_req
-    vu.io.vec_tlb_resp := vdtlb.io.cpu_resp
-    vu.io.vec_tlb_resp.xcpt_pf := Bool(false)
-
-    val pftlb = new rocketTLB(2)
-    pftlb.io.invalidate := dpath.io.ptbr_wen
-    pftlb.io.status := dpath.io.ctrl.status
-    pftlb.io.cpu_req <> vu.io.vec_pftlb_req
-    ptw += pftlb.io.ptw
-
-    vu.io.vec_pftlb_resp := pftlb.io.cpu_resp
-    vu.io.vec_pftlb_resp.xcpt_ld := Bool(false)
-    vu.io.vec_pftlb_resp.xcpt_st := Bool(false)
-  }
-
-  // connect DTLB to ctrl+dpath
-  val dtlb = new rocketTLB(DTLB_ENTRIES)
-  dtlb.io.invalidate := dpath.io.ptbr_wen
-  dtlb.io.status := dpath.io.ctrl.status
-  ptw += dtlb.io.ptw
-
-  dtlb.io.cpu_req.valid := ctrl.io.dtlb_val
-  dtlb.io.cpu_req.bits.kill := ctrl.io.dtlb_kill
-  dtlb.io.cpu_req.bits.cmd := ctrl.io.dmem.req.bits.cmd
-  dtlb.io.cpu_req.bits.asid := UFix(0)
-  dtlb.io.cpu_req.bits.vpn := dpath.io.dtlb.vpn
-  ctrl.io.xcpt_dtlb_ld := dtlb.io.cpu_resp.xcpt_ld
-  ctrl.io.xcpt_dtlb_st := dtlb.io.cpu_resp.xcpt_st
-  ctrl.io.dtlb_rdy := dtlb.io.cpu_req.ready
-  ctrl.io.dtlb_miss := dtlb.io.cpu_resp.miss
-
-  arb.io.requestor(DCACHE_CPU).req.bits.ppn := dtlb.io.cpu_resp.ppn
 
   ctrl.io.dpath <> dpath.io.ctrl
   dpath.io.host <> io.host
@@ -72,28 +26,44 @@ class rocketProc(implicit conf: RocketConfiguration) extends Component
   ctrl.io.imem <> io.imem
   dpath.io.imem <> io.imem
 
-  ctrl.io.dmem <> arb.io.requestor(DCACHE_CPU)
-  dpath.io.dmem <> arb.io.requestor(DCACHE_CPU)
+  val dmemArb = new HellaCacheArbiter(if (HAVE_VEC) 3 else 2)
+  dmemArb.io.mem <> io.dmem
+  val dmem = dmemArb.io.requestor
+  dmem(1) <> ctrl.io.dmem
+  dmem(1) <> dpath.io.dmem
 
-  var fpu: rocketFPU = null
-  if (HAVE_FPU)
-  {
-    fpu = new rocketFPU(4,6)
+  val ptw = collection.mutable.ArrayBuffer(io.imem.ptw, io.dmem.ptw)
+
+  val fpu: FPU = if (HAVE_FPU) {
+    val fpu = new FPU(4,6)
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
-  }
+    fpu
+  } else null
 
-  if (HAVE_VEC)
-  {
+  if (HAVE_VEC) {
+    val vu = new vu()
+
+    val vdtlb = new rocketTLB(8)
+    ptw += vdtlb.io.ptw
+    vdtlb.io.cpu_req <> vu.io.vec_tlb_req
+    vu.io.vec_tlb_resp := vdtlb.io.cpu_resp
+    vu.io.vec_tlb_resp.xcpt_pf := Bool(false)
+
+    val pftlb = new rocketTLB(2)
+    pftlb.io.cpu_req <> vu.io.vec_pftlb_req
+    ptw += pftlb.io.ptw
+    vu.io.vec_pftlb_resp := pftlb.io.cpu_resp
+    vu.io.vec_pftlb_resp.xcpt_ld := Bool(false)
+    vu.io.vec_pftlb_resp.xcpt_st := Bool(false)
+
     dpath.io.vec_ctrl <> ctrl.io.vec_dpath
 
     // hooking up vector I$
     ptw += io.vimem.ptw
-    io.vimem.req.bits.status := dpath.io.ctrl.status
     io.vimem.req.bits.pc := vu.io.imem_req.bits
     io.vimem.req.valid := vu.io.imem_req.valid
     io.vimem.req.bits.invalidate := ctrl.io.dpath.flush_inst
-    io.vimem.req.bits.invalidateTLB := dpath.io.ptbr_wen
     vu.io.imem_resp.valid := io.vimem.resp.valid
     vu.io.imem_resp.bits.pc := io.vimem.resp.bits.pc
     vu.io.imem_resp.bits.data := io.vimem.resp.bits.data
@@ -155,21 +125,16 @@ class rocketProc(implicit conf: RocketConfiguration) extends Component
     vu.io.xcpt.hold := ctrl.io.vec_iface.hold
 
     // hooking up vector memory interface
-    arb.io.requestor(DCACHE_VU).req.valid := vu.io.dmem_req.valid
-    arb.io.requestor(DCACHE_VU).req.bits.kill := vu.io.dmem_req.bits.kill
-    arb.io.requestor(DCACHE_VU).req.bits.cmd := vu.io.dmem_req.bits.cmd
-    arb.io.requestor(DCACHE_VU).req.bits.typ := vu.io.dmem_req.bits.typ
-    arb.io.requestor(DCACHE_VU).req.bits.idx := vu.io.dmem_req.bits.idx
-    arb.io.requestor(DCACHE_VU).req.bits.ppn := Reg(vu.io.dmem_req.bits.ppn)
-    arb.io.requestor(DCACHE_VU).req.bits.data := Reg(StoreGen(vu.io.dmem_req.bits.typ, Bits(0), vu.io.dmem_req.bits.data).data)
-    arb.io.requestor(DCACHE_VU).req.bits.tag := vu.io.dmem_req.bits.tag
+    dmem(2).req.valid := vu.io.dmem_req.valid
+    dmem(2).req.bits := vu.io.dmem_req.bits
+    dmem(2).req.bits.data := Reg(StoreGen(vu.io.dmem_req.bits.typ, Bits(0), vu.io.dmem_req.bits.data).data)
 
-    vu.io.dmem_req.ready := arb.io.requestor(DCACHE_VU).req.ready
-    vu.io.dmem_resp.valid := Reg(arb.io.requestor(DCACHE_VU).resp.valid)
-    vu.io.dmem_resp.bits.nack := arb.io.requestor(DCACHE_VU).resp.bits.nack
-    vu.io.dmem_resp.bits.data := arb.io.requestor(DCACHE_VU).resp.bits.data_subword
-    vu.io.dmem_resp.bits.tag := Reg(arb.io.requestor(DCACHE_VU).resp.bits.tag)
-    vu.io.dmem_resp.bits.typ := Reg(arb.io.requestor(DCACHE_VU).resp.bits.typ)
+    vu.io.dmem_req.ready := dmem(2).req.ready
+    vu.io.dmem_resp.valid := Reg(dmem(2).resp.valid)
+    vu.io.dmem_resp.bits.nack := dmem(2).resp.bits.nack
+    vu.io.dmem_resp.bits.data := dmem(2).resp.bits.data_subword
+    vu.io.dmem_resp.bits.tag := Reg(dmem(2).resp.bits.tag)
+    vu.io.dmem_resp.bits.typ := Reg(dmem(2).resp.bits.typ)
 
     // share vector integer multiplier with rocket
     dpath.io.vec_imul_req <> vu.io.cp_imul_req
@@ -178,22 +143,13 @@ class rocketProc(implicit conf: RocketConfiguration) extends Component
     // share sfma and dfma pipelines with rocket
     fpu.io.sfma <> vu.io.cp_sfma
     fpu.io.dfma <> vu.io.cp_dfma
-  }
-  else
-  {
-    arb.io.requestor(DCACHE_VU).req.valid := Bool(false)
-    if (HAVE_FPU)
-    {
-      fpu.io.sfma.valid := Bool(false)
-      fpu.io.dfma.valid := Bool(false)
-    }
+  } else if (fpu != null) {
+    fpu.io.sfma.valid := Bool(false)
+    fpu.io.dfma.valid := Bool(false)
   }
 
-  ptw += io.imem.ptw
   val thePTW = new PTW(ptw.length)
-  thePTW.io.requestor <> ptw
-  thePTW.io.ptbr := dpath.io.ptbr;
-  arb.io.requestor(DCACHE_PTW) <> thePTW.io.mem
-
-  arb.io.mem <> io.dmem
+  ptw zip thePTW.io.requestor map { case (a, b) => a <> b }
+  thePTW.io.dpath <> dpath.io.ptw
+  dmem(0) <> thePTW.io.mem
 }
