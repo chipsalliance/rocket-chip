@@ -155,8 +155,8 @@ int main(int argc, char** argv)
       strcpy(wb_inst_str, disasm.disassemble(insn).c_str());
 
       fprintf(logfile, "C: %10lld [%ld] pc=[%011lx] W[r%2ld=%016lx][%ld] R[r%2ld=%016lx] R[r%2ld=%016lx] inst=[%08lx] %-32s\n", \
-              (long long)trace_count, tile.Top_Tile_cpu_ctrl__wb_reg_valid.lo_word(), tile.Top_Tile_cpu_dpath__wb_reg_pc.lo_word(), \
-              tile.Top_Tile_cpu_dpath__rf_waddr.lo_word(), tile.Top_Tile_cpu_dpath__rf_wdata.lo_word(), tile.Top_Tile_cpu_dpath__rf_wen.lo_word(),
+              (long long)trace_count, tile.Top_Tile_core_ctrl__wb_reg_valid.lo_word(), tile.Top_Tile_core_dpath__wb_reg_pc.lo_word(), \
+              tile.Top_Tile_core_dpath__rf_waddr.lo_word(), tile.Top_Tile_core_dpath__rf_wdata.lo_word(), tile.Top_Tile_core_dpath__rf_wen.lo_word(),
               wb_reg_raddr1, wb_reg_rs1, wb_reg_raddr2, wb_reg_rs2, wb_reg_inst, wb_inst_str);
     }
 
@@ -179,7 +179,7 @@ int main(int argc, char** argv)
         str[pos] = 0; \
         fputs(str, vcdfile); \
       } while(0)
-      dump_disasm(tile.Top_Tile_cpu_dpath__id_inst.lo_word(), "NDISASM_ID");
+      dump_disasm(tile.Top_Tile_core_dpath__id_inst.lo_word(), "NDISASM_ID");
       dump_disasm(ex_reg_inst, "NDISASM_EX");
       dump_disasm(mem_reg_inst, "NDISASM_MEM");
 
@@ -196,10 +196,10 @@ int main(int argc, char** argv)
     mem_reg_inst = ex_reg_inst;
     mem_reg_raddr1 = (mem_reg_inst >> 22) & 0x1f;
     mem_reg_raddr2 = (mem_reg_inst >> 17) & 0x1f;
-    mem_reg_rs1 = tile.Top_Tile_cpu_dpath__ex_reg_rs1.lo_word();
-    mem_reg_rs2 = tile.Top_Tile_cpu_dpath__ex_reg_rs2.lo_word();
+    mem_reg_rs1 = tile.Top_Tile_core_dpath__ex_reg_rs1.lo_word();
+    mem_reg_rs2 = tile.Top_Tile_core_dpath__ex_reg_rs2.lo_word();
 
-    ex_reg_inst = tile.Top_Tile_cpu_dpath__id_inst.lo_word();
+    ex_reg_inst = tile.Top_Tile_core_dpath__id_inst.lo_word();
 
     tile.clock_hi(LIT<1>(0));
     trace_count++;

@@ -208,8 +208,10 @@ class Top extends Component {
     val tl = uncore.io.tiles(i)
 
     val ic = ICacheConfig(128, 2, co)
-    implicit val rconf = RocketConfiguration(NTILES, co, ic)
-    val tile = new Tile(resetSignal = hl.reset)
+    val dc = DCacheConfig(128, 4, co,
+                          nmshr = 2, nrpq = 16, nsdq = 17)
+    val rc = RocketConfiguration(NTILES, co, ic, dc)
+    val tile = new Tile(resetSignal = hl.reset)(rc)
 
     tile.io.host.reset := Reg(Reg(hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
