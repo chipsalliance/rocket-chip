@@ -735,7 +735,6 @@ class Control(implicit conf: RocketConfiguration) extends Component
     id_stall_raddr1 || id_stall_raddr2 || id_stall_waddr ||
     id_fp_val && id_stall_fpu ||
     id_mem_val && !(io.dmem.req.ready && io.dtlb_rdy) ||
-    (id_sync === SYNC_D || id_sync === SYNC_I) && !io.dmem.req.ready ||
     vec_stalld
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || id_interrupt
 

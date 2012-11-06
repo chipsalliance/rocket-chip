@@ -12,7 +12,7 @@ class ioPTW(n: Int)(implicit conf: RocketConfiguration) extends Bundle
   val ptbr  = UFix(INPUT, PADDR_BITS)
 }
 
-class rocketPTW(n: Int)(implicit conf: RocketConfiguration) extends Component
+class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
 {
   val io = new ioPTW(n)
   
@@ -34,7 +34,7 @@ class rocketPTW(n: Int)(implicit conf: RocketConfiguration) extends Component
   val vpn_idxs = (1 until levels).map(i => r_req_vpn((levels-i)*bitsPerLevel-1, (levels-i-1)*bitsPerLevel))
   val vpn_idx = (2 until levels).foldRight(vpn_idxs(0))((i,j) => Mux(count === UFix(i-1), vpn_idxs(i-1), j))
 
-  val arb = new Arbiter(n)(UFix(width = VPN_BITS))
+  val arb = new RRArbiter(n)(UFix(width = VPN_BITS))
   arb.io.in <> io.requestor.map(_.req)
   arb.io.out.ready := state === s_ready
 
