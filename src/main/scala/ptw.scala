@@ -5,14 +5,14 @@ import Node._
 import Constants._
 import scala.math._
 
-class ioPTW(n: Int) extends Bundle
+class ioPTW(n: Int)(implicit conf: RocketConfiguration) extends Bundle
 {
   val requestor = Vec(n) { new IOTLBPTW }.flip
-  val mem   = new ioHellaCache
+  val mem   = new ioHellaCache()(conf.dcache)
   val ptbr  = UFix(INPUT, PADDR_BITS)
 }
 
-class rocketPTW(n: Int) extends Component
+class rocketPTW(n: Int)(implicit conf: RocketConfiguration) extends Component
 {
   val io = new ioPTW(n)
   

@@ -4,162 +4,157 @@ import Chisel._
 import Constants._
 import uncore._
 
-class ioReplacementWayGen extends Bundle {
-  val pick_new_way = Bool(dir = INPUT)
-  val way_en = Bits(width = NWAYS, dir = INPUT)
-  val way_id = UFix(width = log2Up(NWAYS), dir = OUTPUT)
+case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
+                        nmshr: Int, nsecondary: Int, nsdq: Int,
+                        reqtagbits: Int = -1)
+{
+  require(isPow2(sets))
+  require(isPow2(ways)) // TODO: relax this
+  def lines = sets*ways
+  def dm = ways == 1
+  def ppnbits = PPN_BITS
+  def pgidxbits = PGIDX_BITS
+  def offbits = OFFSET_BITS
+  def paddrbits = ppnbits + pgidxbits
+  def lineaddrbits = ppnbits - offbits
+  def idxbits = log2Up(sets)
+  def waybits = log2Up(ways)
+  def tagbits = lineaddrbits - idxbits
+  def databytes = 8 // assumed by StoreGen/LoadGen/AMOALU
+  def databits = databytes*8
 }
 
-class RandomReplacementWayGen extends Component {
-  val io = new ioReplacementWayGen()
-  //TODO: Actually limit selection based on which ways are allowed (io.ways_en)
-  io.way_id := UFix(0)
-  if(NWAYS > 1) 
-  {
-    val rand_way_id = LFSR16(io.pick_new_way)(log2Up(NWAYS)-1,0)
-    when (rand_way_id < UFix(NWAYS)) { io.way_id := rand_way_id }
-  }
+abstract class ReplacementPolicy
+{
+  def way: UFix
+  def miss: Unit
+  def hit: Unit
 }
 
-class StoreMaskGen extends Component {
-  val io = new Bundle {
-    val typ   = Bits(INPUT, 3)
-    val addr  = Bits(INPUT, 3)
-    val wmask = Bits(OUTPUT, 8)
-  }
+class RandomReplacement(implicit conf: DCacheConfig) extends ReplacementPolicy
+{
+  private val replace = Bool()
+  replace := Bool(false)
+  val lfsr = LFSR16(replace)
 
-  val word = (io.typ === MT_W) || (io.typ === MT_WU)
-  val half = (io.typ === MT_H) || (io.typ === MT_HU)
-  val byte_ = (io.typ === MT_B) || (io.typ === MT_BU)
-
-  io.wmask := Mux(byte_, Bits(  1,1) <<     io.addr(2,0).toUFix,
-              Mux(half, Bits(  3,2) << Cat(io.addr(2,1), Bits(0,1)).toUFix,
-              Mux(word, Bits( 15,4) << Cat(io.addr(2),   Bits(0,2)).toUFix,
-                        Bits(255,8))));
+  def way = if (conf.dm) UFix(0) else lfsr(conf.waybits-1,0)
+  def miss = replace := Bool(true)
+  def hit = {}
 }
 
-class StoreDataGen extends Component {
-  val io = new Bundle {
-    val typ  = Bits(INPUT, 3)
-    val din  = Bits(INPUT, 64)
-    val dout = Bits(OUTPUT, 64)
-  }
-
-  val word = (io.typ === MT_W) || (io.typ === MT_WU)
-  val half = (io.typ === MT_H) || (io.typ === MT_HU)
-  val byte_ = (io.typ === MT_B) || (io.typ === MT_BU)
-
-  io.dout := Mux(byte_, Fill(8, io.din( 7,0)),
-             Mux(half, Fill(4, io.din(15,0)),
-             Mux(word, Fill(2, io.din(31,0)),
-                       io.din)))
+case class StoreGen(typ: Bits, addr: Bits, dat: Bits)
+{
+  val byte = typ === MT_B || typ === MT_BU
+  val half = typ === MT_H || typ === MT_HU
+  val word = typ === MT_W || typ === MT_WU
+  def mask =
+    Mux(byte, Bits(  1) <<     addr(2,0),
+    Mux(half, Bits(  3) << Cat(addr(2,1), Bits(0,1)),
+    Mux(word, Bits( 15) << Cat(addr(2),   Bits(0,2)),
+              Bits(255))))
+  def data =
+    Mux(byte, Fill(8, dat( 7,0)),
+    Mux(half, Fill(4, dat(15,0)),
+    Mux(word, Fill(2, dat(31,0)),
+                      dat)))
 }
 
-// this currently requires that CPU_DATA_BITS == 64
-class LoadDataGen extends Component {
-  val io = new Bundle {
-    val typ  = Bits(INPUT, 3)
-    val addr = Bits(INPUT, log2Up(MEM_DATA_BITS/8))
-    val din  = Bits(INPUT, MEM_DATA_BITS)
-    val dout = Bits(OUTPUT, 64)
-    val r_dout = Bits(OUTPUT, 64)
-    val r_dout_subword = Bits(OUTPUT, 64)
-  }
+case class LoadGen(typ: Bits, addr: Bits, dat: Bits)
+{
+  val t = StoreGen(typ, addr, dat)
+  val sign = typ === MT_B || typ === MT_H || typ === MT_W || typ === MT_D
 
-  val sext = (io.typ === MT_B) || (io.typ === MT_H) ||
-             (io.typ === MT_W) || (io.typ === MT_D)
-  val word = (io.typ === MT_W) || (io.typ === MT_WU)
-  val half = (io.typ === MT_H) || (io.typ === MT_HU)
-  val byte_ = (io.typ === MT_B) || (io.typ === MT_BU)
-
-  val shifted = io.din >> Cat(io.addr(io.addr.width-1,2), Bits(0, 5)).toUFix
-  val extended =
-    Mux(word, Cat(Fill(32, sext & shifted(31)), shifted(31,0)), shifted)
-
-  val r_extended = Reg(extended)
-  val r_sext = Reg(sext)
-  val r_half = Reg(half)
-  val r_byte = Reg(byte_)
-  val r_addr = Reg(io.addr)
-
-  val shifted_subword = r_extended >> Cat(r_addr(1,0), Bits(0, 3)).toUFix
-  val extended_subword =
-    Mux(r_byte, Cat(Fill(56, r_sext & shifted_subword( 7)), shifted_subword( 7,0)),
-    Mux(r_half, Cat(Fill(48, r_sext & shifted_subword(15)), shifted_subword(15,0)),
-              shifted_subword))
-
-  io.dout := extended
-  io.r_dout := r_extended
-  io.r_dout_subword := extended_subword
+  val wordShift = Mux(addr(2), dat(63,32), dat(31,0))
+  val word = Cat(Mux(t.word, Fill(32, sign && wordShift(31)), dat(63,32)), wordShift)
+  val halfShift = Mux(addr(1), word(31,16), word(15,0))
+  val half = Cat(Mux(t.half, Fill(48, sign && halfShift(15)), word(63,16)), halfShift)
+  val byteShift = Mux(addr(0), half(15,8), half(7,0))
+  val byte = Cat(Mux(t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
 }
 
-class MSHRReq extends Bundle {
+class MSHRReq(implicit conf: DCacheConfig) extends Bundle {
   val tag_miss = Bool()
   val old_dirty = Bool()
-  val old_tag = Bits(width = TAG_BITS)
+  val old_tag = Bits(width = conf.tagbits)
 
-  val tag = Bits(width = TAG_BITS)
-  val idx = Bits(width = IDX_BITS)
-  val way_oh = Bits(width = NWAYS)
+  val tag = Bits(width = conf.tagbits)
+  val idx = Bits(width = conf.idxbits)
+  val way_oh = Bits(width = conf.ways)
 
-  val offset = Bits(width = OFFSET_BITS)
+  val offset = Bits(width = conf.offbits)
   val cmd    = Bits(width = 4)
   val typ    = Bits(width = 3)
-  val cpu_tag = Bits(width = DCACHE_TAG_BITS)
-  val data   = Bits(width = CPU_DATA_BITS)
+  val cpu_tag = Bits(width = conf.reqtagbits)
+  val data   = Bits(width = conf.databits)
+
+  override def clone = new MSHRReq().asInstanceOf[this.type]
 }
 
-class RPQEntry extends Bundle {
-  val offset = Bits(width = OFFSET_BITS)
+class RPQEntry(implicit conf: DCacheConfig) extends Bundle {
+  val offset = Bits(width = conf.offbits)
   val cmd    = Bits(width = 4)
   val typ    = Bits(width = 3)
-  val sdq_id = UFix(width = log2Up(NSDQ))
-  val cpu_tag = Bits(width = DCACHE_TAG_BITS)
+  val sdq_id = UFix(width = log2Up(conf.nsdq))
+  val cpu_tag = Bits(width = conf.reqtagbits)
+
+  override def clone = new RPQEntry().asInstanceOf[this.type]
 }
 
-class Replay extends RPQEntry {
-  val idx    = Bits(width = IDX_BITS)
-  val way_oh = Bits(width = NWAYS)
+class Replay(implicit conf: DCacheConfig) extends RPQEntry {
+  val idx    = Bits(width = conf.idxbits)
+  val way_oh = Bits(width = conf.ways)
+
+  override def clone = new Replay().asInstanceOf[this.type]
 }
 
-class DataReq extends Bundle {
-  val idx    = Bits(width = IDX_BITS)
-  val offset = Bits(width = OFFSET_BITS)
+class DataReq(implicit conf: DCacheConfig) extends Bundle {
+  val idx    = Bits(width = conf.idxbits)
+  val offset = Bits(width = conf.offbits)
   val cmd    = Bits(width = 4)
   val typ    = Bits(width = 3)
-  val data = Bits(width = CPU_DATA_BITS)
-  val way_oh = Bits(width = NWAYS)
+  val data = Bits(width = conf.databits)
+  val way_oh = Bits(width = conf.ways)
+
+  override def clone = new DataReq().asInstanceOf[this.type]
 }
 
-class DataArrayReq extends Bundle {
-  val way_en = Bits(width = NWAYS)
-  val idx    = Bits(width = IDX_BITS)
+class DataArrayReq(implicit conf: DCacheConfig) extends Bundle {
+  val way_en = Bits(width = conf.ways)
+  val idx    = Bits(width = conf.idxbits)
   val offset = Bits(width = log2Up(REFILL_CYCLES))
   val rw     = Bool()
   val wmask  = Bits(width = MEM_DATA_BITS/8)
   val data   = Bits(width = MEM_DATA_BITS)
+
+  override def clone = new DataArrayReq().asInstanceOf[this.type]
 }
 
-class WritebackReq extends Bundle {
-  val tag = Bits(width = TAG_BITS)
-  val idx = Bits(width = IDX_BITS)
-  val way_oh = Bits(width = NWAYS)
+class WritebackReq(implicit conf: DCacheConfig) extends Bundle {
+  val tag = Bits(width = conf.tagbits)
+  val idx = Bits(width = conf.idxbits)
+  val way_oh = Bits(width = conf.ways)
   val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
+
+  override def clone = new WritebackReq().asInstanceOf[this.type]
 }
 
-class MetaData extends Bundle {
+class MetaData(implicit conf: DCacheConfig) extends Bundle {
   val state = UFix(width = 2)
-  val tag = Bits(width = TAG_BITS)
+  val tag = Bits(width = conf.tagbits)
+
+  override def clone = new MetaData().asInstanceOf[this.type]
 }
 
-class MetaArrayReq extends Bundle {
-  val way_en = Bits(width = NWAYS)
-  val idx  = Bits(width = IDX_BITS)
+class MetaArrayReq(implicit conf: DCacheConfig) extends Bundle {
+  val way_en = Bits(width = conf.ways)
+  val idx  = Bits(width = conf.idxbits)
   val rw  = Bool()
   val data = new MetaData()
+
+  override def clone = new MetaArrayReq().asInstanceOf[this.type]
 }
 
-class MSHR(id: Int)(implicit conf: RocketConfiguration) extends Component {
+class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   val io = new Bundle {
     val req_pri_val    = Bool(INPUT)
     val req_pri_rdy    = Bool(OUTPUT)
@@ -169,10 +164,10 @@ class MSHR(id: Int)(implicit conf: RocketConfiguration) extends Component {
     val req_sdq_id     = UFix(INPUT, log2Up(NSDQ))
 
     val idx_match      = Bool(OUTPUT)
-    val idx            = Bits(OUTPUT, IDX_BITS)
+    val idx            = Bits(OUTPUT, conf.idxbits)
     val refill_count   = Bits(OUTPUT, log2Up(REFILL_CYCLES))
-    val tag            = Bits(OUTPUT, TAG_BITS)
-    val way_oh         = Bits(OUTPUT, NWAYS)
+    val tag            = Bits(OUTPUT, conf.tagbits)
+    val way_oh         = Bits(OUTPUT, conf.ways)
 
     val mem_req  = (new FIFOIO) { new TransactionInit }
     val meta_req = (new FIFOIO) { new MetaArrayReq() }
@@ -293,14 +288,14 @@ class MSHR(id: Int)(implicit conf: RocketConfiguration) extends Component {
   io.replay.bits.way_oh := req.way_oh
 }
 
-class MSHRFile(implicit conf: RocketConfiguration) extends Component {
+class MSHRFile(implicit conf: DCacheConfig) extends Component {
   val io = new Bundle {
     val req = (new FIFOIO) { new MSHRReq }.flip
     val secondary_miss = Bool(OUTPUT)
 
-    val mem_resp_idx = Bits(OUTPUT, IDX_BITS)
+    val mem_resp_idx = Bits(OUTPUT, conf.idxbits)
     val mem_resp_offset = Bits(OUTPUT, log2Up(REFILL_CYCLES))
-    val mem_resp_way_oh = Bits(OUTPUT, NWAYS)
+    val mem_resp_way_oh = Bits(OUTPUT, conf.ways)
 
     val fence_rdy = Bool(OUTPUT)
 
@@ -314,7 +309,7 @@ class MSHRFile(implicit conf: RocketConfiguration) extends Component {
     val probe = (new FIFOIO) { Bool() }.flip
 
     val cpu_resp_val = Bool(OUTPUT)
-    val cpu_resp_tag = Bits(OUTPUT, DCACHE_TAG_BITS)
+    val cpu_resp_tag = Bits(OUTPUT, conf.reqtagbits)
   }
 
   val sdq_val = Reg(resetVal = Bits(0, NSDQ))
@@ -416,7 +411,7 @@ class MSHRFile(implicit conf: RocketConfiguration) extends Component {
 }
 
 
-class WritebackUnit(implicit conf: RocketConfiguration) extends Component {
+class WritebackUnit(implicit conf: DCacheConfig) extends Component {
   val io = new Bundle {
     val req = (new FIFOIO) { new WritebackReq() }.flip
     val probe = (new FIFOIO) { new WritebackReq() }.flip
@@ -485,16 +480,16 @@ class WritebackUnit(implicit conf: RocketConfiguration) extends Component {
   io.probe_rep_data.bits.data := io.data_resp
 }
 
-class ProbeUnit(implicit conf: RocketConfiguration)  extends Component {
+class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
   val io = new Bundle {
     val req = (new FIFOIO) { new ProbeRequest }.flip
     val rep = (new FIFOIO) { new ProbeReply }
     val meta_req = (new FIFOIO) { new MetaArrayReq }
     val mshr_req = (new FIFOIO) { Bool() }
     val wb_req = (new FIFOIO) { new WritebackReq }
-    val tag_match_way_oh = Bits(INPUT, NWAYS)
+    val tag_match_way_oh = Bits(INPUT, conf.ways)
     val line_state = UFix(INPUT, 2)
-    val addr = Bits(OUTPUT, PADDR_BITS-OFFSET_BITS)
+    val addr = Bits(OUTPUT, conf.lineaddrbits)
   }
 
   val s_reset :: s_invalid :: s_meta_req :: s_meta_resp :: s_mshr_req :: s_probe_rep :: s_writeback_req :: s_writeback_resp :: Nil = Enum(8) { UFix() }
@@ -535,21 +530,21 @@ class ProbeUnit(implicit conf: RocketConfiguration)  extends Component {
   io.rep.bits := conf.co.newProbeReply(req, Mux(hit, line_state, conf.co.newStateOnFlush))
 
   io.meta_req.valid := state === s_meta_req || state === s_meta_resp || state === s_mshr_req || state === s_probe_rep && hit
-  io.meta_req.bits.way_en := Mux(state === s_probe_rep, way_oh, ~UFix(0, NWAYS))
+  io.meta_req.bits.way_en := Mux(state === s_probe_rep, way_oh, Fix(-1))
   io.meta_req.bits.rw := state === s_probe_rep
   io.meta_req.bits.idx := req.addr
   io.meta_req.bits.data.state := conf.co.newStateOnProbeRequest(req, line_state)
-  io.meta_req.bits.data.tag := req.addr >> UFix(IDX_BITS)
+  io.meta_req.bits.data.tag := req.addr >> UFix(conf.idxbits)
   io.mshr_req.valid := state === s_meta_resp || state === s_mshr_req
   io.addr := req.addr
 
   io.wb_req.valid := state === s_writeback_req
   io.wb_req.bits.way_oh := way_oh
   io.wb_req.bits.idx := req.addr
-  io.wb_req.bits.tag := req.addr >> UFix(IDX_BITS)
+  io.wb_req.bits.tag := req.addr >> UFix(conf.idxbits)
 }
 
-class FlushUnit(lines: Int)(implicit conf: RocketConfiguration) extends Component {
+class FlushUnit(lines: Int)(implicit conf: DCacheConfig) extends Component {
   val io = new Bundle {
     val req = (new FIFOIO) { Bool() }.flip
     val meta_req = (new FIFOIO) { new MetaArrayReq() }
@@ -560,15 +555,15 @@ class FlushUnit(lines: Int)(implicit conf: RocketConfiguration) extends Componen
   val state = Reg(resetVal = s_reset)
   val idx_cnt = Reg(resetVal = UFix(0, log2Up(lines)))
   val next_idx_cnt = idx_cnt + UFix(1)
-  val way_cnt = if (NWAYS == 1) UFix(0) else Reg(resetVal = UFix(0, log2Up(NWAYS)))
+  val way_cnt = if (conf.dm) UFix(0) else Reg(resetVal = UFix(0, conf.waybits))
   val next_way_cnt = way_cnt + UFix(1)
 
   switch (state) {
     is(s_reset) { 
       when (io.meta_req.ready) { 
-        state := Mux(way_cnt === UFix(NWAYS-1) && idx_cnt.andR, s_ready, s_reset); 
-        when (way_cnt === UFix(NWAYS-1)) { idx_cnt := next_idx_cnt };
-        if (NWAYS > 1) way_cnt := next_way_cnt;
+        state := Mux(way_cnt === UFix(conf.ways-1) && idx_cnt.andR, s_ready, s_reset); 
+        when (way_cnt === UFix(conf.ways-1)) { idx_cnt := next_idx_cnt };
+        if (!conf.dm) way_cnt := next_way_cnt;
       } 
     }
     is(s_ready) { when (io.req.valid) { state := s_meta_read } }
@@ -577,13 +572,13 @@ class FlushUnit(lines: Int)(implicit conf: RocketConfiguration) extends Componen
       state := s_meta_read
       when (io.mshr_req.ready) {
         state := s_meta_read
-        when (way_cnt === UFix(NWAYS-1)) {
+        when (way_cnt === UFix(conf.ways-1)) {
           when (idx_cnt.andR) {
             state := s_ready
           }
           idx_cnt := next_idx_cnt
         }
-        if (NWAYS > 1) way_cnt := next_way_cnt;
+        if (!conf.dm) way_cnt := next_way_cnt;
       }
     }
   }
@@ -591,35 +586,35 @@ class FlushUnit(lines: Int)(implicit conf: RocketConfiguration) extends Componen
   io.req.ready := state === s_ready
   io.mshr_req.valid := state === s_meta_wait
   io.meta_req.valid := (state === s_meta_read) || (state === s_reset)
-  io.meta_req.bits.way_en := UFixToOH(way_cnt, NWAYS)
+  io.meta_req.bits.way_en := UFixToOH(way_cnt)
   io.meta_req.bits.idx := idx_cnt
   io.meta_req.bits.rw := (state === s_reset)
   io.meta_req.bits.data.state := conf.co.newStateOnFlush()
   io.meta_req.bits.data.tag := UFix(0)
 }
 
-class MetaDataArrayArray(lines: Int) extends Component {
+class MetaDataArrayArray(lines: Int)(implicit conf: DCacheConfig) extends Component {
   val io = new Bundle {
     val req  = (new FIFOIO) { new MetaArrayReq() }.flip
-    val resp = Vec(NWAYS){ (new MetaData).asOutput }
+    val resp = Vec(conf.ways){ (new MetaData).asOutput }
     val state_req = (new FIFOIO) { new MetaArrayReq() }.flip
-    val way_en = Bits(width = NWAYS, dir = OUTPUT)
+    val way_en = Bits(OUTPUT, conf.ways)
   }
 
   val permBits = io.req.bits.data.state.width
-  val perms = Mem(lines) { UFix(width = permBits*NWAYS) }
-  val tags = Mem(lines, seqRead = true) { Bits(width = TAG_BITS*NWAYS) }
+  val perms = Mem(lines) { UFix(width = permBits*conf.ways) }
+  val tags = Mem(lines, seqRead = true) { Bits(width = conf.tagbits*conf.ways) }
   val tag = Reg() { Bits() }
   val raddr = Reg() { Bits() }
-  val way_en_ = Reg { Bits(width=NWAYS) }
+  val way_en_ = Reg { Bits(width = conf.ways) }
 
   when (io.state_req.valid && io.state_req.bits.rw) {
-    perms.write(io.state_req.bits.idx, Fill(NWAYS, io.state_req.bits.data.state), FillInterleaved(permBits, io.state_req.bits.way_en))
+    perms.write(io.state_req.bits.idx, Fill(conf.ways, io.state_req.bits.data.state), FillInterleaved(permBits, io.state_req.bits.way_en))
   }
   when (io.req.valid) {
     when (io.req.bits.rw) {
-      perms.write(io.req.bits.idx, Fill(NWAYS, io.req.bits.data.state), FillInterleaved(permBits, io.req.bits.way_en))
-      tags.write(io.req.bits.idx, Fill(NWAYS, io.req.bits.data.tag), FillInterleaved(TAG_BITS, io.req.bits.way_en))
+      perms.write(io.req.bits.idx, Fill(conf.ways, io.req.bits.data.state), FillInterleaved(permBits, io.req.bits.way_en))
+      tags.write(io.req.bits.idx, Fill(conf.ways, io.req.bits.data.tag), FillInterleaved(conf.tagbits, io.req.bits.way_en))
     }
     .otherwise {
       raddr := io.req.bits.idx
@@ -629,9 +624,9 @@ class MetaDataArrayArray(lines: Int) extends Component {
   }
 
   val perm = perms(raddr)
-  for(w <- 0 until NWAYS) {
+  for (w <- 0 until conf.ways) {
     io.resp(w).state := perm(permBits*(w+1)-1, permBits*w)
-    io.resp(w).tag := tag(TAG_BITS*(w+1)-1, TAG_BITS*w)
+    io.resp(w).tag := tag(conf.tagbits*(w+1)-1, conf.tagbits*w)
   }
 
   io.way_en := way_en_
@@ -639,7 +634,7 @@ class MetaDataArrayArray(lines: Int) extends Component {
   io.state_req.ready := Bool(true)
 }
 
-class DataArray(lines: Int) extends Component {
+class DataArray(lines: Int)(implicit conf: DCacheConfig) extends Component {
   val io = new Bundle {
     val req  = (new FIFOIO) { new DataArrayReq() }.flip
     val resp = Bits(width = MEM_DATA_BITS, dir = OUTPUT)
@@ -659,19 +654,19 @@ class DataArray(lines: Int) extends Component {
   io.req.ready := Bool(true)
 }
 
-class DataArrayArray(lines: Int) extends Component {
+class DataArrayArray(lines: Int)(implicit conf: DCacheConfig) extends Component {
   val io = new Bundle {
     val req  = (new FIFOIO) { new DataArrayReq() }.flip
-    val resp = Vec(NWAYS){ Bits(dir = OUTPUT, width = MEM_DATA_BITS) }
-    val way_en = Bits(width = NWAYS, dir = OUTPUT)
+    val resp = Vec(conf.ways){ Bits(OUTPUT, MEM_DATA_BITS) }
+    val way_en = Bits(OUTPUT, conf.ways)
   }
 
-  val way_en_ = Reg { Bits(width=NWAYS) }
+  val way_en_ = Reg { Bits(width = conf.ways) }
   when (io.req.valid && io.req.ready) {
     way_en_ := io.req.bits.way_en
   }
 
-  for(w <- 0 until NWAYS) {
+  for (w <- 0 until conf.ways) {
     val way = new DataArray(lines)
     way.io.req.bits <> io.req.bits
     way.io.req.valid := io.req.valid && io.req.bits.way_en(w).toBool
@@ -713,24 +708,28 @@ class AMOALU extends Component {
   io.out := Mux(word, Cat(out(31,0), out(31,0)).toUFix, out)
 }
 
-class HellaCacheReq extends Bundle {
+class HellaCacheReq(implicit conf: DCacheConfig) extends Bundle {
   val kill = Bool()
   val typ  = Bits(width = 3)
-  val idx  = Bits(width = PGIDX_BITS)
-  val ppn  = Bits(width = PPN_BITS)
-  val data = Bits(width = 64)
-  val tag  = Bits(width = DCACHE_TAG_BITS)
+  val idx  = Bits(width = conf.pgidxbits)
+  val ppn  = Bits(width = conf.ppnbits)
+  val data = Bits(width = conf.databits)
+  val tag  = Bits(width = conf.reqtagbits)
   val cmd  = Bits(width = 4)
+
+  override def clone = new HellaCacheReq().asInstanceOf[this.type]
 }
 
-class HellaCacheResp extends Bundle {
+class HellaCacheResp(implicit conf: DCacheConfig) extends Bundle {
   val miss   = Bool()
   val nack   = Bool()
   val replay = Bool()
   val typ    = Bits(width = 3)
-  val data   = Bits(width = 64)
-  val data_subword = Bits(width = 64)
-  val tag    = Bits(width = DCACHE_TAG_BITS)
+  val data   = Bits(width = conf.databits)
+  val data_subword = Bits(width = conf.databits)
+  val tag    = Bits(width = conf.reqtagbits)
+
+  override def clone = new HellaCacheResp().asInstanceOf[this.type]
 }
 
 class AlignmentExceptions extends Bundle {
@@ -743,29 +742,27 @@ class HellaCacheExceptions extends Bundle {
 }
 
 // interface between D$ and processor/DTLB
-class ioHellaCache extends Bundle {
+class ioHellaCache(implicit conf: DCacheConfig) extends Bundle {
   val req = (new FIFOIO){ new HellaCacheReq }
   val resp = (new PipeIO){ new HellaCacheResp }.flip
   val xcpt = (new HellaCacheExceptions).asInput
 }
 
-class HellaCache(implicit conf: RocketConfiguration) extends Component {
+class HellaCache(implicit conf: DCacheConfig) extends Component {
   val io = new Bundle {
     val cpu = (new ioHellaCache).flip
     val mem = new ioTileLink
   }
  
-  val lines       = 1 << IDX_BITS
-  val addrbits    = PADDR_BITS
-  val indexbits   = IDX_BITS
-  val offsetbits  = OFFSET_BITS
-  val tagmsb      = PADDR_BITS-1
-  val taglsb      = indexbits+offsetbits
+  val lines       = 1 << conf.idxbits
+  val indexbits   = conf.idxbits
+  val tagmsb      = conf.paddrbits-1
+  val taglsb      = indexbits+conf.offbits
   val tagbits     = tagmsb-taglsb+1
   val indexmsb    = taglsb-1
-  val indexlsb    = offsetbits
+  val indexlsb    = conf.offbits
   val offsetmsb   = indexlsb-1
-  val offsetlsb   = log2Up(CPU_DATA_BITS/8)
+  val offsetlsb   = log2Up(conf.databytes)
   val ramindexlsb = log2Up(MEM_DATA_BITS/8)
   
   val early_nack       = Reg { Bool() }
@@ -821,9 +818,9 @@ class HellaCache(implicit conf: RocketConfiguration) extends Component {
     r_cpu_req_tag  := io.cpu.req.bits.tag
   }
   when (prober.io.meta_req.valid) {
-    r_cpu_req_idx := Cat(prober.io.meta_req.bits.data.tag, prober.io.meta_req.bits.idx, mshr.io.data_req.bits.offset)(PGIDX_BITS-1,0)
+    r_cpu_req_idx := Cat(prober.io.meta_req.bits.data.tag, prober.io.meta_req.bits.idx, mshr.io.data_req.bits.offset)(conf.pgidxbits-1,0)
   }
-  when (replay_amo_val) {
+  when (mshr.io.data_req.valid) {
     r_cpu_req_idx  := Cat(mshr.io.data_req.bits.idx, mshr.io.data_req.bits.offset)
     r_cpu_req_cmd  := mshr.io.data_req.bits.cmd
     r_cpu_req_type := mshr.io.data_req.bits.typ
@@ -860,17 +857,17 @@ class HellaCache(implicit conf: RocketConfiguration) extends Component {
   meta_arb.io.in(3).valid := io.cpu.req.valid
   meta_arb.io.in(3).bits.idx := io.cpu.req.bits.idx(indexmsb,indexlsb)
   meta_arb.io.in(3).bits.rw := Bool(false)
-  meta_arb.io.in(3).bits.way_en := ~UFix(0, NWAYS)
+  meta_arb.io.in(3).bits.way_en := Fix(-1)
   val early_tag_nack = !meta_arb.io.in(3).ready
-  val cpu_req_ppn = Mux(prober.io.mshr_req.valid, prober.io.addr >> UFix(PGIDX_BITS-OFFSET_BITS), io.cpu.req.bits.ppn)
+  val cpu_req_ppn = Mux(prober.io.mshr_req.valid, prober.io.addr >> UFix(conf.pgidxbits-conf.offbits), io.cpu.req.bits.ppn)
   val cpu_req_tag = Cat(cpu_req_ppn, r_cpu_req_idx)(tagmsb,taglsb)
-  val tag_match_arr = (0 until NWAYS).map( w => conf.co.isValid(meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
+  val tag_match_arr = (0 until conf.ways).map( w => conf.co.isValid(meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
   val tag_match = Cat(Bits(0),tag_match_arr:_*).orR
-  val tag_match_way_oh = Cat(Bits(0),tag_match_arr.reverse:_*)(NWAYS-1, 0) //TODO: use Vec
-  val tag_hit_arr = (0 until NWAYS).map( w => conf.co.isHit(r_cpu_req_cmd, meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
+  val tag_match_way_oh = Cat(Bits(0),tag_match_arr.reverse:_*)(conf.ways-1, 0) //TODO: use Vec
+  val tag_hit_arr = (0 until conf.ways).map( w => conf.co.isHit(r_cpu_req_cmd, meta.io.resp(w).state) && (meta.io.resp(w).tag === cpu_req_tag))
   val tag_hit = Cat(Bits(0),tag_hit_arr:_*).orR
-  val meta_resp_way_oh = Mux(meta.io.way_en === ~UFix(0, NWAYS), tag_match_way_oh, meta.io.way_en)
-  val data_resp_way_oh = Mux(data.io.way_en === ~UFix(0, NWAYS), tag_match_way_oh, data.io.way_en)
+  val meta_resp_way_oh = Mux(meta.io.way_en.andR, tag_match_way_oh, meta.io.way_en)
+  val data_resp_way_oh = Mux(data.io.way_en.andR, tag_match_way_oh, data.io.way_en)
   val meta_resp_mux = Mux1H(meta_resp_way_oh, meta.io.resp)
   val data_resp_mux = Mux1H(data_resp_way_oh, data.io.resp)
 
@@ -881,9 +878,8 @@ class HellaCache(implicit conf: RocketConfiguration) extends Component {
   wb.io.probe_rep_data <> io.mem.probe_rep_data
 
   // replacement policy
-  val replacer = new RandomReplacementWayGen()
-  replacer.io.way_en := ~UFix(0, NWAYS)
-  val replaced_way_oh = Mux(flusher.io.mshr_req.valid, r_way_oh, UFixToOH(replacer.io.way_id, NWAYS))
+  val replacer = new RandomReplacement
+  val replaced_way_oh = Mux(flusher.io.mshr_req.valid, r_way_oh, UFixToOH(replacer.way))
   val meta_wb_mux = Mux1H(replaced_way_oh, meta.io.resp)
 
   // refill response
@@ -900,8 +896,8 @@ class HellaCache(implicit conf: RocketConfiguration) extends Component {
   data_arb.io.in(4).bits.idx := io.cpu.req.bits.idx(indexmsb,indexlsb)
   data_arb.io.in(4).bits.rw := Bool(false)
   data_arb.io.in(4).valid := io.cpu.req.valid && req_read
-  data_arb.io.in(4).bits.way_en := ~UFix(0, NWAYS) // intiate load on all ways, mux after tag check
-  val early_load_nack = req_read && !data_arb.io.in(4).ready
+  data_arb.io.in(4).bits.way_en := Fix(-1) // intiate load on all ways, mux after tag check
+  val early_load_nack = !data_arb.io.in(4).ready
 
   // store hits and AMO hits and misses use a pending store register.
   // we nack new stores if a pending store can't retire for some reason.
@@ -963,7 +959,7 @@ class HellaCache(implicit conf: RocketConfiguration) extends Component {
   mshr.io.mem_abort.bits := io.mem.xact_abort.bits
   io.mem.xact_abort.ready := Bool(true)
   mshr.io.meta_req <> meta_arb.io.in(1)
-  replacer.io.pick_new_way := mshr.io.req.valid && mshr.io.req.ready
+  when (mshr.io.req.fire()) { replacer.miss }
 
   // replays
   val replay = mshr.io.data_req.bits
@@ -992,13 +988,11 @@ class HellaCache(implicit conf: RocketConfiguration) extends Component {
 
   // store write mask generation.
   // assumes store replays are higher-priority than pending stores.
-  val maskgen = new StoreMaskGen
   val store_offset = Mux(!replay_fire, p_store_idx(offsetmsb,0), replay.offset)
-  maskgen.io.typ := Mux(!replay_fire, p_store_type, replay.typ)
-  maskgen.io.addr := store_offset(offsetlsb-1,0)
-  val store_wmask_wide = maskgen.io.wmask << Cat(store_offset(ramindexlsb-1,offsetlsb), Bits(0, log2Up(CPU_DATA_BITS/8))).toUFix
+  val store_type = Mux(!replay_fire, p_store_type, replay.typ)
+  val store_wmask_wide = StoreGen(store_type, store_offset, Bits(0)).mask << Cat(store_offset(ramindexlsb-1,offsetlsb), Bits(0, log2Up(conf.databytes))).toUFix
   val store_data = Mux(!replay_fire, p_store_data, replay.data)
-  val store_data_wide = Fill(MEM_DATA_BITS/CPU_DATA_BITS, store_data)
+  val store_data_wide = Fill(MEM_DATA_BITS/conf.databits, store_data)
   data_arb.io.in(1).bits.data := store_data_wide
   data_arb.io.in(1).bits.wmask := store_wmask_wide
   data_arb.io.in(2).bits.data := store_data_wide
@@ -1006,15 +1000,12 @@ class HellaCache(implicit conf: RocketConfiguration) extends Component {
 
   // load data subword mux/sign extension.
   // subword loads are delayed by one cycle.
-  val loadgen = new LoadDataGen
-  val loadgen_use_replay = Reg(replay_fire)
-  loadgen.io.typ := Mux(loadgen_use_replay, Reg(replay.typ), r_cpu_req_type)
-  loadgen.io.addr := Mux(loadgen_use_replay, Reg(replay.offset), r_cpu_req_idx)(ramindexlsb-1,0)
-  loadgen.io.din := data_resp_mux
+  val loadgen_data = data_resp_mux >> Cat(r_cpu_req_idx(log2Up(MEM_DATA_BITS/8)-1,3), Bits(0,6))
+  val loadgen = LoadGen(r_cpu_req_type, r_cpu_req_idx, loadgen_data)
 
   amoalu.io.cmd := p_store_cmd
   amoalu.io.typ := p_store_type
-  amoalu.io.lhs := loadgen.io.r_dout.toUFix
+  amoalu.io.lhs := Reg(loadgen.word).toUFix
   amoalu.io.rhs := p_store_data.toUFix
 
   early_nack := early_tag_nack || early_load_nack || r_cpu_req_val && r_req_amo || replay_amo_val || r_replay_amo
@@ -1036,9 +1027,9 @@ class HellaCache(implicit conf: RocketConfiguration) extends Component {
   io.cpu.resp.bits.replay := mshr.io.cpu_resp_val
   io.cpu.resp.bits.miss := r_cpu_req_val_ && (!tag_hit || mshr.io.secondary_miss) && r_req_read
   io.cpu.resp.bits.tag  := Mux(mshr.io.cpu_resp_val, mshr.io.cpu_resp_tag, r_cpu_req_tag)
-  io.cpu.resp.bits.typ := loadgen.io.typ
-  io.cpu.resp.bits.data := loadgen.io.dout
-  io.cpu.resp.bits.data_subword := loadgen.io.r_dout_subword
+  io.cpu.resp.bits.typ := r_cpu_req_type
+  io.cpu.resp.bits.data := loadgen.word
+  io.cpu.resp.bits.data_subword := Reg(loadgen.byte)
   
   val xact_init_arb = (new Arbiter(2)) { new TransactionInit }
   xact_init_arb.io.in(0) <> wb.io.mem_req

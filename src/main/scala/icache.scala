@@ -10,7 +10,7 @@ case class ICacheConfig(sets: Int, assoc: Int, co: CoherencePolicyWithUncached,
                         parity: Boolean = false)
 {
   val w = 1
-  val ibytes = INST_BITS/8
+  val ibytes = 4
 
   val dm = assoc == 1
   val lines = sets * assoc
@@ -37,29 +37,31 @@ class FrontendReq extends Bundle {
   val currentpc = UFix(width = VADDR_BITS+1)
 }
 
-class FrontendResp extends Bundle {
+class FrontendResp(implicit conf: ICacheConfig) extends Bundle {
   val pc = UFix(width = VADDR_BITS+1)  // ID stage PC
-  val data = Bits(width = INST_BITS)
+  val data = Bits(width = conf.ibytes*8)
   val taken = Bool()
   val xcpt_ma = Bool()
   val xcpt_if = Bool()
+
+  override def clone = new FrontendResp().asInstanceOf[this.type]
 }
 
-class IOCPUFrontend extends Bundle {
+class IOCPUFrontend(implicit conf: ICacheConfig) extends Bundle {
   val req = new PipeIO()(new FrontendReq)
   val resp = new FIFOIO()(new FrontendResp).flip
   val ptw = new IOTLBPTW().flip
 }
 
-class Frontend(c: ICacheConfig) extends Component
+class Frontend(implicit c: ICacheConfig) extends Component
 {
   val io = new Bundle {
-    val cpu = new IOCPUFrontend().flip
+    val cpu = new IOCPUFrontend()(c).flip
     val mem = new ioUncachedRequestor
   }
   
   val btb = new rocketDpathBTB(BTB_ENTRIES)
-  val icache = new ICache(c)
+  val icache = new ICache
   val tlb = new TLB(ITLB_ENTRIES)
 
   val s1_pc = Reg() { UFix() }
@@ -123,7 +125,7 @@ class Frontend(c: ICacheConfig) extends Component
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
 }
 
-class ICache(c: ICacheConfig) extends Component
+class ICache(implicit c: ICacheConfig) extends Component
 {
   val io = new Bundle {
     val req = new PipeIO()(new Bundle {
@@ -133,7 +135,7 @@ class ICache(c: ICacheConfig) extends Component
       val kill = Bool() // delayed one cycle
     }).flip
     val resp = new FIFOIO()(new Bundle {
-      val data = Bits(width = INST_BITS)
+      val data = Bits(width = c.ibytes*8)
       val datablock = Bits(width = c.databits)
     })
     val mem = new ioUncachedRequestor

@@ -155,11 +155,6 @@ trait InterruptConstants {
 }
  
 abstract trait RocketDcacheConstants extends ArbiterConstants with uncore.constants.AddressConstants {
-  val INST_BITS = 32
-  val CPU_DATA_BITS = 64;
-  val CPU_TAG_BITS = 9;
-  val DCACHE_TAG_BITS = log2Up(DCACHE_PORTS) + CPU_TAG_BITS
-  val LG_REFILL_WIDTH = 4; // log2(cache bus width in bytes)
   val NMSHR = if (HAVE_VEC) 4 else 2 // number of primary misses
   require(log2Up(NMSHR)+3 <= uncore.Constants.TILE_XACT_ID_BITS)
   val NRPQ = 16; // number of secondary misses
@@ -168,10 +163,6 @@ abstract trait RocketDcacheConstants extends ArbiterConstants with uncore.consta
   require(OFFSET_BITS == log2Up(uncore.Constants.CACHE_DATA_SIZE_IN_BYTES))
   require(OFFSET_BITS <= uncore.Constants.X_INIT_WRITE_MASK_BITS)
   require(log2Up(OFFSET_BITS) <= uncore.Constants.X_INIT_SUBWORD_ADDR_BITS)
-  val IDX_BITS = 7;
-  val TAG_BITS = PADDR_BITS - OFFSET_BITS - IDX_BITS;
-  val NWAYS = 4
-  require(IDX_BITS+OFFSET_BITS <= PGIDX_BITS);
 }
 
 trait TLBConstants {

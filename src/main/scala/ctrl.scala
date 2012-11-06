@@ -67,23 +67,7 @@ class ioCtrlDpath extends Bundle()
   val pcr_replay = Bool(INPUT)
 }
 
-class ioCtrlAll extends Bundle()
-{
-  val dpath   = new ioCtrlDpath();
-  val imem = new IOCPUFrontend
-  val dmem = new ioHellaCache
-  val dtlb_val = Bool(OUTPUT);
-  val dtlb_kill = Bool(OUTPUT);
-  val dtlb_rdy = Bool(INPUT);
-  val dtlb_miss = Bool(INPUT);
-  val xcpt_dtlb_ld = Bool(INPUT);
-  val xcpt_dtlb_st = Bool(INPUT);
-  val fpu = new ioCtrlFPU();
-  val vec_dpath = new ioCtrlDpathVec()
-  val vec_iface = new ioCtrlVecInterface()
-}
-
-abstract trait rocketCtrlDecodeConstants
+abstract trait DecodeConstants
 {
   val xpr64 = Y;
 
@@ -98,7 +82,7 @@ abstract trait rocketCtrlDecodeConstants
   val table: Array[(Bits, List[Bits])]
 }
 
-object rocketCtrlXDecode extends rocketCtrlDecodeConstants
+object XDecode extends DecodeConstants
 {
   val table = Array(
                 //                    jalr                                                                                    eret
@@ -209,7 +193,7 @@ object rocketCtrlXDecode extends rocketCtrlDecodeConstants
     RDINSTRET-> List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_XPR,FN_X,   N,M_X,      MT_X, N,MUL_X,  N,Y,WA_RD,WB_IRT,PCR_N,SYNC_N,N,N,N,N))
 }
 
-object rocketCtrlFDecode extends rocketCtrlDecodeConstants
+object FDecode extends DecodeConstants
 {
   val table = Array(
                 //                    jalr                                                                                    eret
@@ -277,7 +261,7 @@ object rocketCtrlFDecode extends rocketCtrlDecodeConstants
     FSD->       List(FPU_Y,Y,N,BR_N,  N,N,Y,A2_BTYPE,DW_XPR,FN_ADD, Y,M_XWR,    MT_D, N,MUL_X,  N,N,WA_X, WB_ALU,PCR_N,SYNC_N,N,N,N,N))
 }
 
-object rocketCtrlVDecode extends rocketCtrlDecodeConstants
+object VDecode extends DecodeConstants
 {
   val table = Array(
                 //                    jalr                                                                                    eret
@@ -334,15 +318,28 @@ object rocketCtrlVDecode extends rocketCtrlDecodeConstants
     VXCPTHOLD-> List(VEC_Y,N,Y,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,   N,M_X,      MT_X, N,MUL_X,  N,N,WA_X, WB_X,  PCR_N,SYNC_N,N,N,Y,N))
 }
 
-class rocketCtrl extends Component
+class Control(implicit conf: RocketConfiguration) extends Component
 {
-  val io = new ioCtrlAll();
+  val io = new Bundle {
+    val dpath   = new ioCtrlDpath
+    val imem = new IOCPUFrontend()(conf.icache)
+    val dmem = new ioHellaCache()(conf.dcache)
+    val dtlb_val = Bool(OUTPUT)
+    val dtlb_kill = Bool(OUTPUT)
+    val dtlb_rdy = Bool(INPUT)
+    val dtlb_miss = Bool(INPUT)
+    val xcpt_dtlb_ld = Bool(INPUT)
+    val xcpt_dtlb_st = Bool(INPUT)
+    val fpu = new ioCtrlFPU
+    val vec_dpath = new ioCtrlDpathVec
+    val vec_iface = new ioCtrlVecInterface
+  }
 
-  var decode_table = rocketCtrlXDecode.table
-  if (HAVE_FPU) decode_table ++= rocketCtrlFDecode.table
-  if (HAVE_VEC) decode_table ++= rocketCtrlVDecode.table
+  var decode_table = XDecode.table
+  if (HAVE_FPU) decode_table ++= FDecode.table
+  if (HAVE_VEC) decode_table ++= VDecode.table
 
-  val cs = DecodeLogic(io.dpath.inst, rocketCtrlXDecode.decode_default, decode_table)
+  val cs = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
 
   val id_int_val :: id_fp_val :: id_vec_val :: id_br_type :: id_jalr :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_fn_dw :: id_fn_alu :: cs0 = cs 
   val id_mem_val :: id_mem_cmd :: id_mem_type :: id_mul_val :: id_mul_fn :: id_div_val :: id_wen :: id_sel_wa :: id_sel_wb :: cs1 = cs0

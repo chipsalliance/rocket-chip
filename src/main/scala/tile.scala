@@ -6,20 +6,26 @@ import Constants._
 import uncore._
 
 case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
-                               icache: ICacheConfig)
-
-class Tile(resetSignal: Bool = null)(implicit conf: RocketConfiguration) extends Component(resetSignal)
+                               icache: ICacheConfig, dcache: DCacheConfig)
 {
+  val dcacheReqTagBits = 9 // enforce compliance with require()
+}
+
+class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Component(resetSignal)
+{
+  implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(DMEM_PORTS))
+  implicit val conf = confIn.copy(dcache = dcConf)
+
   val io = new Bundle {
     val tilelink = new ioTileLink
     val host = new ioHTIF(conf.ntiles)
   }
-  
+
   val cpu       = new rocketProc
-  val icache    = new Frontend(conf.icache)
+  val icache    = new Frontend()(confIn.icache)
   val dcache    = new HellaCache
 
-  val arbiter   = new rocketMemArbiter(DMEM_PORTS)
+  val arbiter   = new MemArbiter(DMEM_PORTS)
   arbiter.io.requestor(DMEM_DCACHE) <> dcache.io.mem
   arbiter.io.requestor(DMEM_ICACHE) <> icache.io.mem
 
@@ -34,7 +40,7 @@ class Tile(resetSignal: Bool = null)(implicit conf: RocketConfiguration) extends
 
   if (HAVE_VEC)
   {
-    val vicache = new Frontend(ICacheConfig(128, 1, conf.co)) // 128 sets x 1 ways (8KB)
+    val vicache = new Frontend()(ICacheConfig(128, 1, conf.co)) // 128 sets x 1 ways (8KB)
     arbiter.io.requestor(DMEM_VICACHE) <> vicache.io.mem
     cpu.io.vimem <> vicache.io.cpu
   }
