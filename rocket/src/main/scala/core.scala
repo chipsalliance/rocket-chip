@@ -46,10 +46,10 @@ class Core(implicit conf: RocketConfiguration) extends Component
 
     val vdtlb = new TLB(8)
     ptw += vdtlb.io.ptw
-    vdtlb.io <> vu.io.vec_tlb
+    vdtlb.io <> vu.io.vtlb
 
     val pftlb = new TLB(2)
-    pftlb.io <> vu.io.vec_pftlb
+    pftlb.io <> vu.io.vpftlb
     ptw += pftlb.io.ptw
 
     dpath.io.vec_ctrl <> ctrl.io.vec_dpath
@@ -68,44 +68,33 @@ class Core(implicit conf: RocketConfiguration) extends Component
     io.vimem.req.bits.mispredict := Bool(false)
     io.vimem.req.bits.taken := Bool(false)
 
-    // hooking up vector command queues
-    vu.io.vec_cmdq.valid := ctrl.io.vec_iface.vcmdq_valid
-    vu.io.vec_cmdq.bits := dpath.io.vec_iface.vcmdq_bits
-    vu.io.vec_ximm1q.valid := ctrl.io.vec_iface.vximm1q_valid
-    vu.io.vec_ximm1q.bits := dpath.io.vec_iface.vximm1q_bits
-    vu.io.vec_ximm2q.valid := ctrl.io.vec_iface.vximm2q_valid
-    vu.io.vec_ximm2q.bits := dpath.io.vec_iface.vximm2q_bits
-    vu.io.vec_cntq.valid := ctrl.io.vec_iface.vcntq_valid
-    vu.io.vec_cntq.bits := Cat(dpath.io.vec_iface.vcntq_last, dpath.io.vec_iface.vcntq_bits)
+    ctrl.io.vec_iface.vcmdq <> vu.io.vcmdq
+    ctrl.io.vec_iface.vximm1q <> vu.io.vximm1q
+    ctrl.io.vec_iface.vximm2q <> vu.io.vximm2q
+    ctrl.io.vec_iface.vcntq <> vu.io.vcntq
 
-    // prefetch queues
-    vu.io.vec_pfcmdq.valid := ctrl.io.vec_iface.vpfcmdq_valid
-    vu.io.vec_pfcmdq.bits := dpath.io.vec_iface.vcmdq_bits
-    vu.io.vec_pfximm1q.valid := ctrl.io.vec_iface.vpfximm1q_valid
-    vu.io.vec_pfximm1q.bits := dpath.io.vec_iface.vximm1q_bits
-    vu.io.vec_pfximm2q.valid := ctrl.io.vec_iface.vpfximm2q_valid
-    vu.io.vec_pfximm2q.bits := dpath.io.vec_iface.vximm2q_bits
-    vu.io.vec_pfcntq.valid := ctrl.io.vec_iface.vpfcntq_valid
-    vu.io.vec_pfcntq.bits := dpath.io.vec_iface.vcntq_bits
+    dpath.io.vec_iface.vcmdq <> vu.io.vcmdq
+    dpath.io.vec_iface.vximm1q <> vu.io.vximm1q
+    dpath.io.vec_iface.vximm2q <> vu.io.vximm2q
+    dpath.io.vec_iface.vcntq <> vu.io.vcntq
 
-    // don't have to use pf ready signals
-    // if cmdq is not a load or store
-    ctrl.io.vec_iface.vcmdq_ready := vu.io.vec_cmdq.ready
-    ctrl.io.vec_iface.vximm1q_ready := vu.io.vec_ximm1q.ready
-    ctrl.io.vec_iface.vximm2q_ready := vu.io.vec_ximm2q.ready
-    ctrl.io.vec_iface.vcntq_ready := vu.io.vec_cntq.ready
-    ctrl.io.vec_iface.vpfcmdq_ready := vu.io.vec_pfcmdq.ready
-    ctrl.io.vec_iface.vpfximm1q_ready := vu.io.vec_pfximm1q.ready
-    ctrl.io.vec_iface.vpfximm2q_ready := vu.io.vec_pfximm2q.ready
-    ctrl.io.vec_iface.vpfcntq_ready := vu.io.vec_pfcntq.ready
+    ctrl.io.vec_iface.vpfcmdq <> vu.io.vpfcmdq
+    ctrl.io.vec_iface.vpfximm1q <> vu.io.vpfximm1q
+    ctrl.io.vec_iface.vpfximm2q <> vu.io.vpfximm2q
+    ctrl.io.vec_iface.vpfcntq <> vu.io.vpfcntq
+
+    dpath.io.vec_iface.vpfcmdq <> vu.io.vpfcmdq
+    dpath.io.vec_iface.vpfximm1q <> vu.io.vpfximm1q
+    dpath.io.vec_iface.vpfximm2q <> vu.io.vpfximm2q
+    dpath.io.vec_iface.vpfcntq <> vu.io.vpfcntq
 
     // user level vector command queue ready signals
-    ctrl.io.vec_iface.vcmdq_user_ready := vu.io.vec_cmdq_user_ready
-    ctrl.io.vec_iface.vximm1q_user_ready := vu.io.vec_ximm1q_user_ready
-    ctrl.io.vec_iface.vximm2q_user_ready := vu.io.vec_ximm2q_user_ready
+    ctrl.io.vec_iface.vcmdq_user_ready := vu.io.vcmdq_user_ready
+    ctrl.io.vec_iface.vximm1q_user_ready := vu.io.vximm1q_user_ready
+    ctrl.io.vec_iface.vximm2q_user_ready := vu.io.vximm2q_user_ready
 
     // fences
-    ctrl.io.vec_iface.vfence_ready := vu.io.vec_fence_ready
+    ctrl.io.vec_iface.vfence_ready := vu.io.vfence_ready
 
     // irqs
     ctrl.io.vec_iface.irq := vu.io.irq

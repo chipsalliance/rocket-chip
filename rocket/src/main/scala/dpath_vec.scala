@@ -8,11 +8,16 @@ import hwacha.Constants._
 
 class ioDpathVecInterface extends Bundle
 {
-  val vcmdq_bits = Bits(OUTPUT, SZ_VCMD)
-  val vximm1q_bits = Bits(OUTPUT, SZ_VIMM)
-  val vximm2q_bits = Bits(OUTPUT, SZ_VSTRIDE)
-  val vcntq_bits = Bits(OUTPUT, SZ_VLEN)
-  val vcntq_last = Bool(OUTPUT)
+  val vcmdq = new FIFOIO()(Bits(width = SZ_VCMD))
+  val vximm1q = new FIFOIO()(Bits(width = SZ_VIMM))
+  val vximm2q = new FIFOIO()(Bits(width = SZ_VSTRIDE))
+  val vcntq = new FIFOIO()(Bits(width = SZ_VLEN+1))
+
+  val vpfcmdq = new FIFOIO()(Bits(width = SZ_VCMD))
+  val vpfximm1q = new FIFOIO()(Bits(width = SZ_VIMM))
+  val vpfximm2q = new FIFOIO()(Bits(width = SZ_VSTRIDE))
+  val vpfcntq = new FIFOIO()(Bits(width = SZ_VLEN))
+
   val evac_addr = Bits(OUTPUT, 64)
   val irq_aux = Bits(INPUT, 64)
 }
@@ -147,7 +152,7 @@ class rocketDpathVec extends Component
 
   val appvlm1 = appvl - UFix(1)
 
-  io.iface.vcmdq_bits :=
+  io.iface.vcmdq.bits :=
     Mux(io.ctrl.sel_vcmd === VCMD_I, Cat(Bits(0,2), Bits(0,4), io.inst(9,8), Bits(0,6), Bits(0,6)),
     Mux(io.ctrl.sel_vcmd === VCMD_F, Cat(Bits(0,2), Bits(1,3), io.inst(9,7), Bits(0,6), Bits(0,6)),
     Mux(io.ctrl.sel_vcmd === VCMD_TX, Cat(Bits(1,2), io.inst(13,8), Bits(0,1), io.waddr, Bits(0,1), io.raddr1),
@@ -157,16 +162,21 @@ class rocketDpathVec extends Component
     Mux(io.ctrl.sel_vcmd === VCMD_A, io.wdata(SZ_VCMD-1, 0),
         Bits(0,20))))))))
 
-  io.iface.vximm1q_bits :=
+  io.iface.vximm1q.bits :=
     Mux(io.ctrl.sel_vimm === VIMM_VLEN, Cat(Bits(0,29), io.vecbankcnt, io.vecbank, nfregs(5,0), nxregs(5,0), appvlm1(10,0)),
         io.wdata) // VIMM_ALU
 
-  io.iface.vximm2q_bits :=
+  io.iface.vximm2q.bits :=
     Mux(io.ctrl.sel_vimm2 === VIMM2_RS2, io.rs2,
         io.wdata) // VIMM2_ALU
 
-  io.iface.vcntq_bits := io.wdata(SZ_VLEN-1, 0)
-  io.iface.vcntq_last := io.rs2(1)
+  val last = io.rs2(1)
+  io.iface.vcntq.bits := Cat(last, io.iface.vpfcntq.bits)
+
+  io.iface.vpfcmdq.bits := io.iface.vcmdq.bits
+  io.iface.vpfximm1q.bits := io.iface.vximm1q.bits
+  io.iface.vpfximm2q.bits := io.iface.vximm2q.bits
+  io.iface.vpfcntq.bits := io.wdata(SZ_VLEN-1, 0)
 
   io.iface.evac_addr := io.wdata
 

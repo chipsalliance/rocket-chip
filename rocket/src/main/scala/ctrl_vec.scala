@@ -4,6 +4,7 @@ import Chisel._
 import Node._
 import Constants._
 import Instructions._
+import hwacha.Constants._
 
 class ioCtrlDpathVec extends Bundle
 {
@@ -19,23 +20,15 @@ class ioCtrlDpathVec extends Bundle
 
 class ioCtrlVecInterface extends Bundle
 {
-  val vcmdq_valid = Bool(OUTPUT)
-  val vcmdq_ready = Bool(INPUT)
-  val vximm1q_valid = Bool(OUTPUT)
-  val vximm1q_ready = Bool(INPUT)
-  val vximm2q_valid = Bool(OUTPUT)
-  val vximm2q_ready = Bool(INPUT)
-  val vcntq_valid = Bool(OUTPUT)
-  val vcntq_ready = Bool(INPUT)
+  val vcmdq = new FIFOIO()(Bits(width = SZ_VCMD))
+  val vximm1q = new FIFOIO()(Bits(width = SZ_VIMM))
+  val vximm2q = new FIFOIO()(Bits(width = SZ_VSTRIDE))
+  val vcntq = new FIFOIO()(Bits(width = SZ_VLEN+1))
 
-  val vpfcmdq_valid = Bool(OUTPUT)
-  val vpfcmdq_ready = Bool(INPUT)
-  val vpfximm1q_valid = Bool(OUTPUT)
-  val vpfximm1q_ready = Bool(INPUT)
-  val vpfximm2q_valid = Bool(OUTPUT)
-  val vpfximm2q_ready = Bool(INPUT)
-  val vpfcntq_valid = Bool(OUTPUT)
-  val vpfcntq_ready = Bool(INPUT)
+  val vpfcmdq = new FIFOIO()(Bits(width = SZ_VCMD))
+  val vpfximm1q = new FIFOIO()(Bits(width = SZ_VIMM))
+  val vpfximm2q = new FIFOIO()(Bits(width = SZ_VSTRIDE))
+  val vpfcntq = new FIFOIO()(Bits(width = SZ_VLEN))
 
   val vcmdq_user_ready = Bool(INPUT)
   val vximm1q_user_ready = Bool(INPUT)
@@ -207,14 +200,14 @@ class rocketCtrlVec extends Component
   val enq_pfximm2q_mask_pfq = dec.io.sigs.enq_pfximm2q && (!dec.io.sigs.pfaq || io.dpath.pfq)
   val enq_pfcntq_mask_pfq = dec.io.sigs.enq_pfcntq && (!dec.io.sigs.pfaq || io.dpath.pfq)
 
-  val mask_cmdq_ready = !dec.io.sigs.enq_cmdq || io.s && io.iface.vcmdq_ready || !io.s && io.iface.vcmdq_user_ready
-  val mask_ximm1q_ready = !dec.io.sigs.enq_ximm1q || io.s && io.iface.vximm1q_ready || !io.s && io.iface.vximm1q_user_ready
-  val mask_ximm2q_ready = !dec.io.sigs.enq_ximm2q || io.s && io.iface.vximm2q_ready || !io.s && io.iface.vximm2q_user_ready
-  val mask_cntq_ready = !dec.io.sigs.enq_cntq || io.iface.vcntq_ready
-  val mask_pfcmdq_ready = !enq_pfcmdq_mask_pfq || io.iface.vpfcmdq_ready
-  val mask_pfximm1q_ready = !enq_pfximm1q_mask_pfq || io.iface.vpfximm1q_ready
-  val mask_pfximm2q_ready = !enq_pfximm2q_mask_pfq || io.iface.vpfximm2q_ready
-  val mask_pfcntq_ready = !enq_pfcntq_mask_pfq || io.iface.vpfcntq_ready
+  val mask_cmdq_ready = !dec.io.sigs.enq_cmdq || io.s && io.iface.vcmdq.ready || !io.s && io.iface.vcmdq_user_ready
+  val mask_ximm1q_ready = !dec.io.sigs.enq_ximm1q || io.s && io.iface.vximm1q.ready || !io.s && io.iface.vximm1q_user_ready
+  val mask_ximm2q_ready = !dec.io.sigs.enq_ximm2q || io.s && io.iface.vximm2q.ready || !io.s && io.iface.vximm2q_user_ready
+  val mask_cntq_ready = !dec.io.sigs.enq_cntq || io.iface.vcntq.ready
+  val mask_pfcmdq_ready = !enq_pfcmdq_mask_pfq || io.iface.vpfcmdq.ready
+  val mask_pfximm1q_ready = !enq_pfximm1q_mask_pfq || io.iface.vpfximm1q.ready
+  val mask_pfximm2q_ready = !enq_pfximm2q_mask_pfq || io.iface.vpfximm2q.ready
+  val mask_pfcntq_ready = !enq_pfcntq_mask_pfq || io.iface.vpfcntq.ready
 
   io.dpath.wen := dec.io.sigs.wen
   io.dpath.fn := dec.io.sigs.fn
@@ -222,42 +215,42 @@ class rocketCtrlVec extends Component
   io.dpath.sel_vimm := dec.io.sigs.sel_vimm
   io.dpath.sel_vimm2 := dec.io.sigs.sel_vimm2
 
-  io.iface.vcmdq_valid :=
+  io.iface.vcmdq.valid :=
     valid_common &&
     dec.io.sigs.enq_cmdq && mask_ximm1q_ready && mask_ximm2q_ready && mask_cntq_ready &&
     mask_pfcmdq_ready && mask_pfximm1q_ready && mask_pfximm2q_ready && mask_pfcntq_ready
 
-  io.iface.vximm1q_valid :=
+  io.iface.vximm1q.valid :=
     valid_common &&
     mask_cmdq_ready && dec.io.sigs.enq_ximm1q && mask_ximm2q_ready && mask_cntq_ready &&
     mask_pfcmdq_ready && mask_pfximm1q_ready && mask_pfximm2q_ready && mask_pfcntq_ready
 
-  io.iface.vximm2q_valid :=
+  io.iface.vximm2q.valid :=
     valid_common &&
     mask_cmdq_ready && mask_ximm1q_ready && dec.io.sigs.enq_ximm2q && mask_cntq_ready &&
     mask_pfcmdq_ready && mask_pfximm1q_ready && mask_pfximm2q_ready && mask_pfcntq_ready
 
-  io.iface.vcntq_valid :=
+  io.iface.vcntq.valid :=
     valid_common &&
     mask_cmdq_ready && mask_ximm1q_ready && mask_ximm2q_ready && dec.io.sigs.enq_cntq &&
     mask_pfcmdq_ready && mask_pfximm1q_ready && mask_pfximm2q_ready && mask_pfcntq_ready
 
-  io.iface.vpfcmdq_valid :=
+  io.iface.vpfcmdq.valid :=
     valid_common &&
     mask_cmdq_ready && mask_ximm1q_ready && mask_ximm2q_ready && mask_cntq_ready &&
     enq_pfcmdq_mask_pfq && mask_pfximm1q_ready && mask_pfximm2q_ready && mask_pfcntq_ready
 
-  io.iface.vpfximm1q_valid :=
+  io.iface.vpfximm1q.valid :=
     valid_common &&
     mask_cmdq_ready && mask_ximm1q_ready && mask_ximm2q_ready && mask_cntq_ready &&
     mask_pfcmdq_ready && enq_pfximm1q_mask_pfq && mask_pfximm2q_ready && mask_pfcntq_ready
 
-  io.iface.vpfximm2q_valid :=
+  io.iface.vpfximm2q.valid :=
     valid_common &&
     mask_cmdq_ready && mask_ximm1q_ready && mask_ximm2q_ready && mask_cntq_ready &&
     mask_pfcmdq_ready && mask_pfximm1q_ready && enq_pfximm2q_mask_pfq && mask_pfcntq_ready
 
-  io.iface.vpfcntq_valid :=
+  io.iface.vpfcntq.valid :=
     valid_common &&
     mask_cmdq_ready && mask_ximm1q_ready && mask_ximm2q_ready && mask_cntq_ready &&
     mask_pfcmdq_ready && mask_pfximm1q_ready && mask_pfximm2q_ready && enq_pfcntq_mask_pfq
