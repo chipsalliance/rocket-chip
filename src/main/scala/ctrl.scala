@@ -437,14 +437,14 @@ class Control(implicit conf: RocketConfiguration) extends Component
     vec_dec.io.inst := io.dpath.inst
 
     val s = io.dpath.status(SR_S)
-    val mask_cmdq_ready = !vec_dec.io.sigs.enq_cmdq || s && io.vec_iface.vcmdq_ready || !s && io.vec_iface.vcmdq_user_ready
-    val mask_ximm1q_ready = !vec_dec.io.sigs.enq_ximm1q || s && io.vec_iface.vximm1q_ready || !s && io.vec_iface.vximm1q_user_ready
-    val mask_ximm2q_ready = !vec_dec.io.sigs.enq_ximm2q || s && io.vec_iface.vximm2q_ready || !s && io.vec_iface.vximm2q_user_ready
-    val mask_cntq_ready = !vec_dec.io.sigs.enq_cntq || io.vec_iface.vcntq_ready
-    val mask_pfcmdq_ready = !vec_dec.io.sigs.enq_pfcmdq || io.vec_iface.vpfcmdq_ready
-    val mask_pfximm1q_ready = !vec_dec.io.sigs.enq_pfximm1q || io.vec_iface.vpfximm1q_ready
-    val mask_pfximm2q_ready = !vec_dec.io.sigs.enq_pfximm2q || io.vec_iface.vpfximm2q_ready
-    val mask_pfcntq_ready = !vec_dec.io.sigs.enq_pfcntq || io.vec_iface.vpfcntq_ready
+    val mask_cmdq_ready = !vec_dec.io.sigs.enq_cmdq || s && io.vec_iface.vcmdq.ready || !s && io.vec_iface.vcmdq_user_ready
+    val mask_ximm1q_ready = !vec_dec.io.sigs.enq_ximm1q || s && io.vec_iface.vximm1q.ready || !s && io.vec_iface.vximm1q_user_ready
+    val mask_ximm2q_ready = !vec_dec.io.sigs.enq_ximm2q || s && io.vec_iface.vximm2q.ready || !s && io.vec_iface.vximm2q_user_ready
+    val mask_cntq_ready = !vec_dec.io.sigs.enq_cntq || io.vec_iface.vcntq.ready
+    val mask_pfcmdq_ready = !vec_dec.io.sigs.enq_pfcmdq || io.vec_iface.vpfcmdq.ready
+    val mask_pfximm1q_ready = !vec_dec.io.sigs.enq_pfximm1q || io.vec_iface.vpfximm1q.ready
+    val mask_pfximm2q_ready = !vec_dec.io.sigs.enq_pfximm2q || io.vec_iface.vpfximm2q.ready
+    val mask_pfcntq_ready = !vec_dec.io.sigs.enq_pfcntq || io.vec_iface.vpfcntq.ready
 
     vec_stalld =
       id_vec_val && (
