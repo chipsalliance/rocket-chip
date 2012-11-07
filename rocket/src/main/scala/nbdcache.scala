@@ -807,7 +807,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
 
   val dtlb = new TLB(8)
   dtlb.io.ptw <> io.cpu.ptw
-  dtlb.io.req.valid := r_cpu_req_val_ && r_req_readwrite && !r_cpu_req_phys
+  dtlb.io.req.valid := r_cpu_req_val && r_req_readwrite && !r_cpu_req_phys
   dtlb.io.req.bits.passthrough := r_cpu_req_phys
   dtlb.io.req.bits.asid := UFix(0)
   dtlb.io.req.bits.vpn := r_cpu_req_vpn
