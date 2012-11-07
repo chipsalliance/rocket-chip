@@ -44,18 +44,13 @@ class Core(implicit conf: RocketConfiguration) extends Component
   if (HAVE_VEC) {
     val vu = new vu()
 
-    val vdtlb = new rocketTLB(8)
+    val vdtlb = new TLB(8)
     ptw += vdtlb.io.ptw
-    vdtlb.io.cpu_req <> vu.io.vec_tlb_req
-    vu.io.vec_tlb_resp := vdtlb.io.cpu_resp
-    vu.io.vec_tlb_resp.xcpt_pf := Bool(false)
+    vdtlb.io <> vu.io.vec_tlb
 
-    val pftlb = new rocketTLB(2)
-    pftlb.io.cpu_req <> vu.io.vec_pftlb_req
+    val pftlb = new TLB(2)
+    pftlb.io <> vu.io.vec_pftlb
     ptw += pftlb.io.ptw
-    vu.io.vec_pftlb_resp := pftlb.io.cpu_resp
-    vu.io.vec_pftlb_resp.xcpt_ld := Bool(false)
-    vu.io.vec_pftlb_resp.xcpt_st := Bool(false)
 
     dpath.io.vec_ctrl <> ctrl.io.vec_dpath
 
