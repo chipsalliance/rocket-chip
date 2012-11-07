@@ -12,7 +12,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     val host  = new ioHTIF(conf.ntiles)
     val ctrl  = new ioCtrlDpath().flip
     val dmem = new ioHellaCache()(conf.dcache)
-    val dtlb = new ioDTLB_CPU_req_bundle().asOutput()
     val ptw = new IODatapathPTW().flip
     val imem  = new IOCPUFrontend()(conf.icache)
     val fpu = new ioDpathFPU();
@@ -210,7 +209,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
   io.dmem.req.bits.tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val)
   require(io.dmem.req.bits.tag.getWidth >= 6)
-  io.dtlb.vpn := ex_effective_address >> UFix(PGIDX_BITS)
 
 	// processor control regfile read
   pcr.io.r.en   := io.ctrl.pcr != PCR_N

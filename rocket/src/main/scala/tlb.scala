@@ -82,7 +82,6 @@ class TLBResp(entries: Int) extends Bundle
   val ppn = UFix(OUTPUT, PPN_BITS)
   val xcpt_ld = Bool(OUTPUT)
   val xcpt_st = Bool(OUTPUT)
-  val xcpt_pf = Bool(OUTPUT)
   val xcpt_if = Bool(OUTPUT)
 
   override def clone = new TLBResp(entries).asInstanceOf[this.type]
@@ -179,62 +178,4 @@ class TLB(entries: Int) extends Component
   when ((state === s_wait || state === s_wait_invalidate) && io.ptw.resp.valid) {
     state := s_ready
   }
-}
-
-// ioDTLB_CPU also located in hwacha/src/vuVXU-Interface.scala
-// should keep them in sync
-
-class ioDTLB_CPU_req_bundle extends TLBReq
-{
-  val kill  = Bool()
-  val cmd  = Bits(width=4) // load/store/amo
-}
-class ioDTLB_CPU_req extends FIFOIO()( { new ioDTLB_CPU_req_bundle() } )
-class ioDTLB_CPU_resp extends TLBResp(1)
-
-class ioDTLB extends Bundle
-{
-  val cpu_req = new ioDTLB_CPU_req().flip
-  val cpu_resp = new ioDTLB_CPU_resp()
-  val ptw = new IOTLBPTW
-}
-
-class rocketTLB(entries: Int) extends Component
-{
-  val io = new ioDTLB();
-  
-  val r_cpu_req_val     = Reg(resetVal = Bool(false));
-  val r_cpu_req_vpn     = Reg() { UFix() }
-  val r_cpu_req_cmd     = Reg() { Bits() }
-  val r_cpu_req_asid    = Reg() { UFix() }
-
-  val tlb = new TLB(entries)
-  tlb.io.req.valid := r_cpu_req_val && !io.cpu_req.bits.kill
-  tlb.io.req.bits.instruction := Bool(false)
-  tlb.io.req.bits.passthrough := Bool(false)
-  tlb.io.req.bits.vpn := r_cpu_req_vpn
-  tlb.io.req.bits.asid := r_cpu_req_asid
-
-  def cmdIsRead(cmd: Bits) = cmd === M_XRD || cmd(3)
-  def cmdIsWrite(cmd: Bits) = cmd === M_XWR || cmd(3)
-  def cmdIsPrefetch(cmd: Bits) = cmd === M_PFR || cmd === M_PFW
-  def cmdNeedsTLB(cmd: Bits) = cmdIsRead(cmd) || cmdIsWrite(cmd) || cmdIsPrefetch(cmd)
-  
-  when (io.cpu_req.fire() && cmdNeedsTLB(io.cpu_req.bits.cmd)) {
-    r_cpu_req_vpn   := io.cpu_req.bits.vpn;
-    r_cpu_req_cmd   := io.cpu_req.bits.cmd;
-    r_cpu_req_asid  := io.cpu_req.bits.asid;
-    r_cpu_req_val   := Bool(true);
-  }
-  .otherwise {
-    r_cpu_req_val   := Bool(false);
-  }
-
-  io.cpu_req.ready := tlb.io.req.ready && !io.cpu_resp.miss
-  io.cpu_resp.ppn := tlb.io.resp.ppn
-  io.cpu_resp.miss := r_cpu_req_val && tlb.io.resp.miss
-  io.cpu_resp.xcpt_ld := r_cpu_req_val && tlb.io.resp.xcpt_ld && cmdIsRead(r_cpu_req_cmd)
-  io.cpu_resp.xcpt_st := r_cpu_req_val && tlb.io.resp.xcpt_st && cmdIsWrite(r_cpu_req_cmd)
-  io.cpu_resp.xcpt_pf := r_cpu_req_val && tlb.io.resp.xcpt_ld && cmdIsPrefetch(r_cpu_req_cmd)
-  io.ptw <> tlb.io.ptw
 }
