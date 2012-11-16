@@ -35,7 +35,6 @@ class ioCtrlDpath extends Bundle()
   val mem_wen  = Bool(OUTPUT);
   val wb_wen   = Bool(OUTPUT);
   val wb_valid = Bool(OUTPUT)
-  val flush_inst = Bool(OUTPUT);
   val ex_mem_type = Bits(OUTPUT, 3)
   // exception handling
   val exception = Bool(OUTPUT);
@@ -391,7 +390,6 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val mem_reg_cause           = Reg(){UFix()}
   val mem_reg_mem_type        = Reg(){Bits()}
 
-
   val wb_reg_valid           = Reg(resetVal = Bool(false))
   val wb_reg_pcr             = Reg(resetVal = PCR_N)
   val wb_reg_wen             = Reg(resetVal = Bool(false))
@@ -407,6 +405,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val wb_reg_div_mul_val = Reg(resetVal = Bool(false))
 
   val take_pc = Bool()
+  val pc_taken = Reg(take_pc, resetVal = Bool(false))
   val take_pc_wb = Bool()
   val ctrl_killd = Bool()
   val ctrl_killx = Bool()
@@ -739,9 +738,8 @@ class Control(implicit conf: RocketConfiguration) extends Component
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || id_interrupt
 
   io.dpath.killd := take_pc || ctrl_stalld && !id_interrupt
-  io.dpath.flush_inst := wb_reg_flush_inst;
-  io.imem.resp.ready := take_pc || !ctrl_stalld
-  io.imem.req.bits.invalidate := wb_reg_flush_inst
+  io.imem.resp.ready := pc_taken || !ctrl_stalld
+  io.imem.invalidate := wb_reg_flush_inst
 
   io.dpath.mem_load := mem_reg_mem_val && mem_reg_wen
   io.dpath.ren2     := id_renx2.toBool;

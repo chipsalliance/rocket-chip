@@ -58,7 +58,7 @@ class Core(implicit conf: RocketConfiguration) extends Component
     ptw += io.vimem.ptw
     io.vimem.req.bits.pc := vu.io.imem_req.bits
     io.vimem.req.valid := vu.io.imem_req.valid
-    io.vimem.req.bits.invalidate := ctrl.io.dpath.flush_inst
+    io.vimem.invalidate := ctrl.io.imem.invalidate
     vu.io.imem_resp.valid := io.vimem.resp.valid
     vu.io.imem_resp.bits.pc := io.vimem.resp.bits.pc
     vu.io.imem_resp.bits.data := io.vimem.resp.bits.data

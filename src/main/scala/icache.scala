@@ -29,7 +29,6 @@ case class ICacheConfig(sets: Int, assoc: Int, co: CoherencePolicyWithUncached,
 
 class FrontendReq extends Bundle {
   val pc = UFix(width = VADDR_BITS+1)
-  val invalidate = Bool()
   val mispredict = Bool()
   val taken = Bool()
   val currentpc = UFix(width = VADDR_BITS+1)
@@ -49,6 +48,7 @@ class IOCPUFrontend(implicit conf: ICacheConfig) extends Bundle {
   val req = new PipeIO()(new FrontendReq)
   val resp = new FIFOIO()(new FrontendResp).flip
   val ptw = new IOTLBPTW().flip
+  val invalidate = Bool(OUTPUT)
 }
 
 class Frontend(implicit c: ICacheConfig) extends Component
@@ -97,7 +97,7 @@ class Frontend(implicit c: ICacheConfig) extends Component
   btb.io.clr := !io.cpu.req.bits.taken
   btb.io.correct_pc := io.cpu.req.bits.currentpc
   btb.io.correct_target := io.cpu.req.bits.pc
-  btb.io.invalidate := io.cpu.req.bits.invalidate || io.cpu.ptw.invalidate
+  btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate
 
   tlb.io.ptw <> io.cpu.ptw
   tlb.io.req.valid := !stall && !icmiss
@@ -109,7 +109,7 @@ class Frontend(implicit c: ICacheConfig) extends Component
   icache.io.mem <> io.mem
   icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.idx := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
-  icache.io.req.bits.invalidate := io.cpu.req.bits.invalidate
+  icache.io.invalidate := io.cpu.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
   icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss
   icache.io.resp.ready := !stall && !s1_same_block
@@ -127,7 +127,6 @@ class ICache(implicit c: ICacheConfig) extends Component
   val io = new Bundle {
     val req = new PipeIO()(new Bundle {
       val idx = UFix(width = PGIDX_BITS)
-      val invalidate = Bool()
       val ppn = UFix(width = PPN_BITS) // delayed one cycle
       val kill = Bool() // delayed one cycle
     }).flip
@@ -135,6 +134,7 @@ class ICache(implicit c: ICacheConfig) extends Component
       val data = Bits(width = c.ibytes*8)
       val datablock = Bits(width = c.databits)
     })
+    val invalidate = Bool(INPUT)
     val mem = new ioUncachedRequestor
   }
 
@@ -153,10 +153,10 @@ class ICache(implicit c: ICacheConfig) extends Component
   val s1_addr = Cat(io.req.bits.ppn, s1_pgoff).toUFix
   val s1_tag = s1_addr(c.tagbits+c.untagbits-1,c.untagbits)
 
-  val s0_valid = io.req.valid && rdy || s1_valid && stall && !io.req.bits.kill
+  val s0_valid = io.req.valid || s1_valid && stall
   val s0_pgoff = Mux(io.req.valid, io.req.bits.idx, s1_pgoff)
 
-  s1_valid := s0_valid
+  s1_valid := io.req.valid && rdy || s1_valid && stall && !io.req.bits.kill
   when (io.req.valid && rdy) {
     s1_pgoff := s0_pgoff
   }
@@ -191,7 +191,7 @@ class ICache(implicit c: ICacheConfig) extends Component
   when (refill_done && !invalidated) {
     vb_array := vb_array.bitSet(Cat(repl_way, s2_idx), Bool(true))
   }
-  when (io.req.bits.invalidate) {
+  when (io.invalidate) {
     vb_array := Bits(0)
     invalidated := Bool(true)
   }
@@ -248,6 +248,7 @@ class ICache(implicit c: ICacheConfig) extends Component
   io.mem.xact_init.valid := (state === s_request) && finish_q.io.enq.ready
   io.mem.xact_init.bits := c.co.getUncachedReadTransactionInit(s2_addr >> UFix(c.offbits), UFix(0))
   io.mem.xact_finish <> finish_q.io.deq
+  io.mem.xact_rep.ready := Bool(true)
 
   // control state machine
   switch (state) {
