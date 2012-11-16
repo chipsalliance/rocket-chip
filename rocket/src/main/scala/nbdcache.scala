@@ -18,12 +18,15 @@ case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
   def pgidxbits = PGIDX_BITS
   def offbits = OFFSET_BITS
   def paddrbits = ppnbits + pgidxbits
-  def lineaddrbits = ppnbits - offbits
+  def lineaddrbits = paddrbits - offbits
   def idxbits = log2Up(sets)
   def waybits = log2Up(ways)
+  def untagbits = offbits + idxbits
   def tagbits = lineaddrbits - idxbits
+  def ramoffbits = log2Up(MEM_DATA_BITS/8)
   def databytes = 8 // assumed by StoreGen/LoadGen/AMOALU
   def databits = databytes*8
+  def wordoffbits = log2Up(databytes)
 }
 
 abstract class ReplacementPolicy
