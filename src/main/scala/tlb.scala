@@ -102,7 +102,6 @@ class TLB(entries: Int) extends Component
 
   val tag_cam = new rocketCAM(entries, ASID_BITS+VPN_BITS);
   val tag_ram = Vec(entries) { Reg() { io.ptw.resp.bits.ppn.clone } }
-  when (io.ptw.resp.valid) { tag_ram(r_refill_waddr) := io.ptw.resp.bits.ppn }
   
   val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUFix
   tag_cam.io.clear := io.ptw.invalidate
@@ -115,13 +114,14 @@ class TLB(entries: Int) extends Component
   val tag_hit_addr = OHToUFix(tag_cam.io.hits)
   
   // permission bit arrays
-  val ur_array = Reg(resetVal = Bits(0, entries)) // user read permission
-  val uw_array = Reg(resetVal = Bits(0, entries)) // user write permission
-  val ux_array = Reg(resetVal = Bits(0, entries)) // user execute permission
-  val sr_array = Reg(resetVal = Bits(0, entries)) // supervisor read permission
-  val sw_array = Reg(resetVal = Bits(0, entries)) // supervisor write permission
-  val sx_array = Reg(resetVal = Bits(0, entries)) // supervisor execute permission
-  when (tag_cam.io.write) {
+  val ur_array = Reg{Bits()} // user read permission
+  val uw_array = Reg{Bits()} // user write permission
+  val ux_array = Reg{Bits()} // user execute permission
+  val sr_array = Reg{Bits()} // supervisor read permission
+  val sw_array = Reg{Bits()} // supervisor write permission
+  val sx_array = Reg{Bits()} // supervisor execute permission
+  when (io.ptw.resp.valid) {
+    tag_ram(r_refill_waddr) := io.ptw.resp.bits.ppn
     val perm = (!io.ptw.resp.bits.error).toFix & io.ptw.resp.bits.perm(5,0)
     ur_array := ur_array.bitSet(r_refill_waddr, perm(2))
     uw_array := uw_array.bitSet(r_refill_waddr, perm(1))
@@ -144,13 +144,13 @@ class TLB(entries: Int) extends Component
   val tlb_miss = status_vm && !tag_hit && !bad_va
   
   when (io.req.valid && tlb_hit) {
-    plru.access(tag_hit_addr)
+    plru.access(OHToUFix(tag_cam.io.hits))
   }
 
   io.req.ready := state === s_ready
-  io.resp.xcpt_ld := bad_va || tlb_hit && !Mux(status_s, sr_array(tag_hit_addr), ur_array(tag_hit_addr))
-  io.resp.xcpt_st := bad_va || tlb_hit && !Mux(status_s, sw_array(tag_hit_addr), uw_array(tag_hit_addr))
-  io.resp.xcpt_if := bad_va || tlb_hit && !Mux(status_s, sx_array(tag_hit_addr), ux_array(tag_hit_addr))
+  io.resp.xcpt_ld := bad_va || tlb_hit && !Mux(status_s, (sr_array & tag_cam.io.hits).orR, (ur_array & tag_cam.io.hits).orR)
+  io.resp.xcpt_st := bad_va || tlb_hit && !Mux(status_s, (sw_array & tag_cam.io.hits).orR, (uw_array & tag_cam.io.hits).orR)
+  io.resp.xcpt_if := bad_va || tlb_hit && !Mux(status_s, (sx_array & tag_cam.io.hits).orR, (ux_array & tag_cam.io.hits).orR)
   io.resp.miss := tlb_miss
   io.resp.ppn := Mux(status_vm && !io.req.bits.passthrough, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(PPN_BITS-1,0))
   io.resp.hit_idx := tag_cam.io.hits
@@ -175,7 +175,7 @@ class TLB(entries: Int) extends Component
   when (state === s_wait && io.ptw.invalidate) {
     state := s_wait_invalidate
   }
-  when ((state === s_wait || state === s_wait_invalidate) && io.ptw.resp.valid) {
+  when (io.ptw.resp.valid) {
     state := s_ready
   }
 }
