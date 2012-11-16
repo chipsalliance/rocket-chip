@@ -4,14 +4,7 @@ import Chisel._
 import Constants._
 
 object cpuCmdToRW {
-  def apply(cmd: Bits): (Bool, Bool) = {
-    val store   = (cmd === M_XWR)
-    val load    = (cmd === M_XRD)
-    val amo     = cmd(3).toBool
-    val read    = load  || amo || (cmd === M_PFR) || (cmd === M_PFW)
-    val write   = store || amo 
-    (read, write)
-  }
+  def apply(cmd: Bits): (Bool, Bool) = (isRead(cmd), isWrite(cmd))
 }
 
 abstract class CoherencePolicy {
@@ -56,6 +49,7 @@ trait UncachedTransactions {
   def getUncachedReadWordTransactionInit(addr: UFix, id: UFix): TransactionInit
   def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits): TransactionInit
   def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix): TransactionInit
+  def isUncachedReadTransaction(xinit: TransactionInit): Bool
 }
 
 abstract class CoherencePolicyWithUncached extends CoherencePolicy with UncachedTransactions
@@ -182,6 +176,7 @@ class MICoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadWordUncached, addr, id)
   def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits) = TransactionInit(xactInitWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = TransactionInit(xactInitAtomicUncached, addr, id, subword_addr, atomic_op)
+  def isUncachedReadTransaction(xinit: TransactionInit) = xinit.x_type === xactInitReadUncached
 
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = xactInitReadExclusive
   def getTransactionInitTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: TransactionInit): UFix = xactInitReadExclusive
@@ -317,6 +312,7 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadWordUncached, addr, id)
   def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits) = TransactionInit(xactInitWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = TransactionInit(xactInitAtomicUncached, addr, id, subword_addr, atomic_op)
+  def isUncachedReadTransaction(xinit: TransactionInit) = xinit.x_type === xactInitReadUncached
 
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -470,6 +466,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadWordUncached, addr, id)
   def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits) = TransactionInit(xactInitWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = TransactionInit(xactInitAtomicUncached, addr, id, subword_addr, atomic_op)
+  def isUncachedReadTransaction(xinit: TransactionInit) = xinit.x_type === xactInitReadUncached
 
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -620,6 +617,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadWordUncached, addr, id)
   def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits) = TransactionInit(xactInitWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = TransactionInit(xactInitAtomicUncached, addr, id, subword_addr, atomic_op)
+  def isUncachedReadTransaction(xinit: TransactionInit) = xinit.x_type === xactInitReadUncached
 
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -787,6 +785,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordTransactionInit(addr: UFix, id: UFix) = TransactionInit(xactInitReadWordUncached, addr, id)
   def getUncachedWriteWordTransactionInit(addr: UFix, id: UFix, write_mask: Bits) = TransactionInit(xactInitWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicTransactionInit(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = TransactionInit(xactInitAtomicUncached, addr, id, subword_addr, atomic_op)
+  def isUncachedReadTransaction(xinit: TransactionInit) = xinit.x_type === xactInitReadUncached
 
   def getTransactionInitTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)

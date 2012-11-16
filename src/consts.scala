@@ -50,7 +50,6 @@ trait MemoryOpConstants {
   val M_XWR     = Bits("b0001", 4); // int store
   val M_PFR     = Bits("b0010", 4); // prefetch with intent to read
   val M_PFW     = Bits("b0011", 4); // prefetch with intent to write
-  val M_FLA     = Bits("b0100", 4); // write back and invlaidate all lines
   val M_FENCE   = Bits("b0101", 4); // memory fence
   val M_INV     = Bits("b0110", 4); // write back and invalidate line
   val M_CLN     = Bits("b0111", 4); // write back line
@@ -62,6 +61,10 @@ trait MemoryOpConstants {
   val M_XA_MAX  = Bits("b1101", 4);
   val M_XA_MINU = Bits("b1110", 4);
   val M_XA_MAXU = Bits("b1111", 4);
+
+  def isAMO(cmd: Bits) = cmd(3)
+  def isRead(cmd: Bits) = cmd === M_XRD || cmd === M_PFR || cmd === M_PFW || isAMO(cmd)
+  def isWrite(cmd: Bits) = cmd === M_XWR || isAMO(cmd)
 }
 
 trait MemoryInterfaceConstants extends 

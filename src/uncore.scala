@@ -89,10 +89,8 @@ class XactTracker(id: Int)(implicit conf: UncoreConfiguration) extends Component
 
   val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(5){ UFix() }
   val state = Reg(resetVal = s_idle)
-  val addr_  = Reg{ UFix() }
-  val x_type_ = Reg{ Bits() }
+  val xact  = Reg{ new TransactionInit }
   val init_tile_id_ = Reg{ Bits() }
-  val tile_xact_id_ = Reg{ Bits() }
   val p_rep_count = if (conf.ntiles == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2Up(conf.ntiles)))
   val p_req_flags = Reg(resetVal = Bits(0, width = conf.ntiles))
   val p_rep_tile_id_ = Reg{ Bits() }
@@ -105,27 +103,37 @@ class XactTracker(id: Int)(implicit conf: UncoreConfiguration) extends Component
   val mem_cnt_next = mem_cnt + UFix(1)
   val mem_cnt_max = ~UFix(0, width = log2Up(REFILL_CYCLES))
   val p_req_initial_flags = Bits(width = conf.ntiles)
-  p_req_initial_flags := (if (conf.ntiles == 1) Bits(0) else ~(io.tile_incoherent | UFixToOH(io.alloc_req.bits.tile_id(log2Up(conf.ntiles)-1,0)))) //TODO: Broadcast only
+  p_req_initial_flags := Bits(0)
+  if (conf.ntiles > 1) {
+    // issue self-probes for uncached read xacts to facilitate I$ coherence
+    // TODO: this is hackish; figure out how to do it more systematically
+    val probe_self = co match {
+      case u: CoherencePolicyWithUncached => u.isUncachedReadTransaction(io.alloc_req.bits.xact_init)
+      case _ => Bool(false)
+    }
+    val myflag = Mux(probe_self, Bits(0), UFixToOH(io.alloc_req.bits.tile_id(log2Up(conf.ntiles)-1,0)))
+    p_req_initial_flags := ~(io.tile_incoherent | myflag)
+  }
 
   io.busy := state != s_idle
-  io.addr := addr_
+  io.addr := xact.addr
   io.init_tile_id := init_tile_id_
   io.p_rep_tile_id := p_rep_tile_id_
-  io.tile_xact_id := tile_xact_id_
+  io.tile_xact_id := xact.tile_xact_id
   io.sharer_count := UFix(conf.ntiles) // TODO: Broadcast only
-  io.x_type := x_type_
+  io.x_type := xact.x_type
 
   io.mem_req_cmd.valid := Bool(false)
   io.mem_req_cmd.bits.rw := Bool(false)
-  io.mem_req_cmd.bits.addr := addr_
+  io.mem_req_cmd.bits.addr := xact.addr
   io.mem_req_cmd.bits.tag := UFix(id)
   io.mem_req_data.valid := Bool(false)
   io.mem_req_data.bits.data := UFix(0)
   io.mem_req_lock := Bool(false)
   io.probe_req.valid := Bool(false)
-  io.probe_req.bits.p_type := co.getProbeRequestType(x_type_, UFix(0))
+  io.probe_req.bits.p_type := co.getProbeRequestType(xact.x_type, UFix(0))
   io.probe_req.bits.global_xact_id  := UFix(id)
-  io.probe_req.bits.addr := addr_
+  io.probe_req.bits.addr := xact.addr
   io.push_p_req      := Bits(0, width = conf.ntiles)
   io.pop_p_rep       := Bits(0, width = conf.ntiles)
   io.pop_p_rep_data  := Bits(0, width = conf.ntiles)
@@ -138,10 +146,8 @@ class XactTracker(id: Int)(implicit conf: UncoreConfiguration) extends Component
   switch (state) {
     is(s_idle) {
       when( io.alloc_req.valid && io.can_alloc ) {
-        addr_ := io.alloc_req.bits.xact_init.addr
-        x_type_ := io.alloc_req.bits.xact_init.x_type
+        xact := io.alloc_req.bits.xact_init
         init_tile_id_ := io.alloc_req.bits.tile_id
-        tile_xact_id_ := io.alloc_req.bits.xact_init.tile_xact_id
         x_init_data_needs_write := co.messageHasData(io.alloc_req.bits.xact_init)
         x_needs_read := co.needsMemRead(io.alloc_req.bits.xact_init.x_type, UFix(0))
         p_req_flags := p_req_initial_flags
@@ -202,7 +208,7 @@ class XactTracker(id: Int)(implicit conf: UncoreConfiguration) extends Component
       } . elsewhen (x_needs_read) {    
         doMemReqRead(io.mem_req_cmd, x_needs_read)
       } . otherwise { 
-        state := Mux(co.needsAckReply(x_type_, UFix(0)), s_ack, s_busy)
+        state := Mux(co.needsAckReply(xact.x_type, UFix(0)), s_ack, s_busy)
       }
     }
     is(s_ack) {
