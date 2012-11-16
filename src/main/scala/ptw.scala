@@ -59,11 +59,10 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
     req_addr := Cat(io.dpath.ptbr(PADDR_BITS-1,PGIDX_BITS), arb.io.out.bits(VPN_BITS-1,VPN_BITS-bitsPerLevel), UFix(0,3))
   }
 
-  val dmem_resp_val = Reg(io.mem.resp.valid, resetVal = Bool(false))
-  when (dmem_resp_val) {
-    req_addr := Cat(io.mem.resp.bits.data_subword(PADDR_BITS-1, PGIDX_BITS), vpn_idx, UFix(0,3)).toUFix
-    r_resp_perm := io.mem.resp.bits.data_subword(9,4);
-    r_resp_ppn  := io.mem.resp.bits.data_subword(PADDR_BITS-1, PGIDX_BITS);
+  when (io.mem.resp.valid) {
+    req_addr := Cat(io.mem.resp.bits.data(PADDR_BITS-1, PGIDX_BITS), vpn_idx, UFix(0,3)).toUFix
+    r_resp_perm := io.mem.resp.bits.data(9,4);
+    r_resp_ppn  := io.mem.resp.bits.data(PADDR_BITS-1, PGIDX_BITS);
   }
   
   io.mem.req.valid     := state === s_req
@@ -76,8 +75,8 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
   val resp_val = state === s_done || state === s_error
   val resp_err = state === s_error || state === s_wait
   
-  val resp_ptd = io.mem.resp.bits.data_subword(1,0) === Bits(1)
-  val resp_pte = io.mem.resp.bits.data_subword(1,0) === Bits(2)
+  val resp_ptd = io.mem.resp.bits.data(1,0) === Bits(1)
+  val resp_pte = io.mem.resp.bits.data(1,0) === Bits(2)
  
   val resp_ppns = (0 until levels-1).map(i => Cat(r_resp_ppn(PPN_BITS-1, VPN_BITS-bitsPerLevel*(i+1)), r_req_vpn(VPN_BITS-1-bitsPerLevel*(i+1), 0)))
   val resp_ppn = (0 until levels-1).foldRight(r_resp_ppn)((i,j) => Mux(count === UFix(i), resp_ppns(i), j))
@@ -109,7 +108,7 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
       when (io.mem.resp.bits.nack) {
         state := s_req
       }
-      when (dmem_resp_val) {
+      when (io.mem.resp.valid) {
         when (resp_pte) { // page table entry
           state := s_done
         }

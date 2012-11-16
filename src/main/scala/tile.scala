@@ -6,7 +6,8 @@ import Constants._
 import uncore._
 
 case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
-                               icache: ICacheConfig, dcache: DCacheConfig)
+                               icache: ICacheConfig, dcache: DCacheConfig,
+                               fastLoadByte: Boolean = false)
 {
   val dcacheReqTagBits = 9 // enforce compliance with require()
 }
