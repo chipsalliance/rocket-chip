@@ -114,11 +114,11 @@ class Core(implicit conf: RocketConfiguration) extends Component
     dmem(2).req.bits.data := Reg(StoreGen(vu.io.dmem_req.bits.typ, Bits(0), vu.io.dmem_req.bits.data).data)
 
     vu.io.dmem_req.ready := dmem(2).req.ready
-    vu.io.dmem_resp.valid := Reg(dmem(2).resp.valid)
+    vu.io.dmem_resp.valid := dmem(2).resp.valid
     vu.io.dmem_resp.bits.nack := dmem(2).resp.bits.nack
     vu.io.dmem_resp.bits.data := dmem(2).resp.bits.data_subword
-    vu.io.dmem_resp.bits.tag := Reg(dmem(2).resp.bits.tag)
-    vu.io.dmem_resp.bits.typ := Reg(dmem(2).resp.bits.typ)
+    vu.io.dmem_resp.bits.tag := dmem(2).resp.bits.tag
+    vu.io.dmem_resp.bits.typ := dmem(2).resp.bits.typ
 
     // share vector integer multiplier with rocket
     dpath.io.vec_imul_req <> vu.io.cp_imul_req

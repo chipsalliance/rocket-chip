@@ -183,7 +183,7 @@ object RegEn
     when (en) { r := data }
     r
   }
-  def apply[T <: Bits](data: T, en: Bool, resetVal: Bool) = {
+  def apply[T <: Bits](data: T, en: Bool, resetVal: T) = {
     val r = Reg(resetVal = resetVal) { data.clone }
     when (en) { r := data }
     r
@@ -478,15 +478,10 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val wb_ctrl = RegEn(mem_ctrl, mem_reg_valid)
 
   // load response
-  val load_wb = Reg(io.dpath.dmem_resp_val, resetVal = Bool(false))
-  val load_wb_single = Reg() { Bool() }
-  val load_wb_data = Reg() { Bits(width = 64) } // XXX WTF why doesn't bit width inference work for the regfile?!
-  val load_wb_tag = Reg() { UFix() }
-  when (io.dpath.dmem_resp_val) {
-    load_wb_single := io.dpath.dmem_resp_type === MT_W || io.dpath.dmem_resp_type === MT_WU
-    load_wb_data := io.dpath.dmem_resp_data
-    load_wb_tag := io.dpath.dmem_resp_tag
-  }
+  val load_wb = io.dpath.dmem_resp_val
+  val load_wb_single = io.dpath.dmem_resp_type === MT_W
+  val load_wb_data = io.dpath.dmem_resp_data
+  val load_wb_tag = io.dpath.dmem_resp_tag
   val rec_s = hardfloat.floatNToRecodedFloatN(load_wb_data, 23, 9)
   val rec_d = hardfloat.floatNToRecodedFloatN(load_wb_data, 52, 12)
   val load_wb_data_recoded = Mux(load_wb_single, Cat(Fix(-1, 32), rec_s), rec_d)

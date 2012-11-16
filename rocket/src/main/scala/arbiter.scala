@@ -43,8 +43,7 @@ class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Comp
     io.requestor(i).xcpt := io.mem.xcpt
     resp.bits := io.mem.resp.bits
     resp.bits.tag := io.mem.resp.bits.tag >> UFix(log2Up(n))
-    resp.bits.miss := io.mem.resp.bits.miss && tag_hit
-    resp.bits.nack := io.mem.resp.bits.nack && r_valid(i)
+    resp.bits.nack := io.mem.resp.bits.nack && tag_hit
     resp.bits.replay := io.mem.resp.bits.replay && tag_hit
   }
 }
@@ -90,10 +89,15 @@ class MemArbiter(n: Int) extends Component {
   for (i <- 1 until n)
     io.requestor(i).xact_finish.ready := io.requestor(i-1).xact_finish.ready && !io.requestor(i-1).xact_finish.valid
 
+  io.mem.xact_rep.ready := Bool(false)
   for (i <- 0 until n)
   {
     val tag = io.mem.xact_rep.bits.tile_xact_id
-    io.requestor(i).xact_rep.valid := io.mem.xact_rep.valid && tag(log2Up(n)-1,0) === UFix(i)
+    io.requestor(i).xact_rep.valid := Bool(false)
+    when (tag(log2Up(n)-1,0) === UFix(i)) {
+      io.requestor(i).xact_rep.valid := io.mem.xact_rep.valid
+      io.mem.xact_rep.ready := io.requestor(i).xact_rep.ready
+    }
     io.requestor(i).xact_rep.bits := io.mem.xact_rep.bits
     io.requestor(i).xact_rep.bits.tile_xact_id := tag >> UFix(log2Up(n))
   }
@@ -107,5 +111,4 @@ class MemArbiter(n: Int) extends Component {
   }
 
   io.mem.xact_abort.ready := Bool(true)
-  io.mem.xact_rep.ready := Bool(true)
 }
