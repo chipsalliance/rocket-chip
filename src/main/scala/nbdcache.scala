@@ -271,9 +271,10 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   // don't issue back-to-back replays with store->load dependence
   val r1_replay_valid = Reg(rpq.io.deq.fire())
   val r2_replay_valid = Reg(r1_replay_valid)
-  val (r1_replay, r2_replay) = (Reg{new Replay}, Reg{new Replay})
-  when (rpq.io.deq.fire()) { r1_replay := rpq.io.deq.bits }
-  when (r1_replay_valid) { r2_replay := r1_replay }
+  val r3_replay_valid = Reg(r2_replay_valid)
+  val r1_replay = RegEn(rpq.io.deq.bits, rpq.io.deq.fire())
+  val r2_replay = RegEn(r1_replay, r1_replay_valid)
+  val r3_replay = RegEn(r2_replay, r2_replay_valid)
   def offsetMatch(dst: HellaCacheReq, src: HellaCacheReq) = {
     def mask(x: HellaCacheReq) = StoreGen(x.typ, x.addr, Bits(0)).mask
     // TODO: this is overly restrictive
@@ -281,7 +282,9 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
     // && (mask(dst) & mask(src)).orR
   }
   when (r1_replay_valid && offsetMatch(io.replay.bits, r1_replay) ||
-        r2_replay_valid && offsetMatch(io.replay.bits, r2_replay)) {
+        r2_replay_valid && offsetMatch(io.replay.bits, r2_replay) ||
+        r3_replay_valid && offsetMatch(io.replay.bits, r3_replay) ||
+        !io.meta_req.ready) {
     rpq.io.deq.ready := Bool(false)
     io.replay.bits.cmd := M_FENCE // NOP
   }
@@ -722,6 +725,9 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val s3_req = Reg{io.cpu.req.bits.clone}
   val s3_way = Reg{Bits()}
 
+  val s4_valid = Reg(s3_valid, resetVal = Bool(false))
+  val s4_req = RegEn(s3_req, s3_valid)
+
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
   val s1_readwrite = s1_read || s1_write
@@ -842,7 +848,8 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   }
   def storeMatch(dst: HellaCacheReq, src: HellaCacheReq) = idxMatch(dst, src) && offsetMatch(dst, src)
   val p_store_match = s2_valid && storeMatch(s1_req, s2_req) ||
-                      s3_valid && storeMatch(s1_req, s3_req)
+                      s3_valid && storeMatch(s1_req, s3_req) ||
+                      s4_valid && storeMatch(s1_req, s4_req)
   writeArb.io.in(0).bits.addr := s3_req.addr
   writeArb.io.in(0).bits.wmask := UFix(1) << s3_req.addr(conf.ramoffbits-1,offsetlsb).toUFix
   writeArb.io.in(0).bits.data := Fill(MEM_DATA_BITS/conf.databits, s3_req.data)
@@ -911,14 +918,15 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val s1_nack = p_store_match || dtlb.io.req.valid && dtlb.io.resp.miss ||
                 idxMatch(s1_req, s2_req) && meta.io.state_req.valid ||
                 s1_req.addr(indexmsb,indexlsb) === prober.io.meta_req.bits.idx && !prober.io.req.ready
-  s2_nack_hit := Reg(s1_nack) || mshr.io.secondary_miss
+  s2_nack_hit := Reg(s1_nack) || s2_hit && mshr.io.secondary_miss
   val s2_nack_miss = !s2_hit && !mshr.io.req.ready
-  val s2_nack = s2_nack_hit || s2_nack_miss
+  val s2_nack_fence = s2_req.cmd === M_FENCE && !mshr.io.fence_rdy
+  val s2_nack = s2_nack_hit || s2_nack_miss || s2_nack_fence
   s2_valid_masked := s2_valid && !s2_nack
 
   // after a nack, block until nack condition resolves (saves energy)
   val block_fence = Reg(resetVal = Bool(false))
-  block_fence := (s1_valid && s1_req.cmd === M_FENCE || block_fence) && !mshr.io.fence_rdy
+  block_fence := (s2_valid && s2_req.cmd === M_FENCE || block_fence) && !mshr.io.fence_rdy
   val block_miss = Reg(resetVal = Bool(false))
   block_miss := (s2_valid || block_miss) && s2_nack_miss
   when (block_fence || block_miss) {
