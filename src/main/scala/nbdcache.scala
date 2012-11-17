@@ -666,6 +666,7 @@ class HellaCacheResp(implicit conf: DCacheConfig) extends Bundle {
   val data = Bits(width = conf.databits)
   val data_subword = Bits(width = conf.databits)
   val tag = Bits(width = conf.reqtagbits)
+  val store_data = Bits(width = conf.databits)
 
   override def clone = new HellaCacheResp().asInstanceOf[this.type]
 }
@@ -930,6 +931,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   io.cpu.resp.bits.typ := s2_req.typ
   io.cpu.resp.bits.data := loadgen.word
   io.cpu.resp.bits.data_subword := loadgen.byte
+  io.cpu.resp.bits.store_data := s2_req.data
   
   val xact_init_arb = (new Arbiter(2)) { new TransactionInit }
   xact_init_arb.io.in(0) <> wb.io.mem_req
