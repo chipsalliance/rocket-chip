@@ -111,7 +111,7 @@ class Core(implicit conf: RocketConfiguration) extends Component
     // hooking up vector memory interface
     dmem(2).req.valid := vu.io.dmem_req.valid
     dmem(2).req.bits := vu.io.dmem_req.bits
-    dmem(2).req.bits.data := Reg(StoreGen(vu.io.dmem_req.bits.typ, Bits(0), vu.io.dmem_req.bits.data).data)
+    dmem(2).req.bits.data := RegEn(StoreGen(vu.io.dmem_req.bits.typ, Bits(0), vu.io.dmem_req.bits.data).data, vu.io.dmem_req.valid && isWrite(vu.io.dmem_req.bits.cmd))
 
     vu.io.dmem_req.ready := dmem(2).req.ready
     vu.io.dmem_resp.valid := dmem(2).resp.valid
