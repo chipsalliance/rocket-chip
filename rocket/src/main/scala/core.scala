@@ -110,16 +110,9 @@ class Core(implicit conf: RocketConfiguration) extends Component
     vu.io.xcpt.hold := ctrl.io.vec_iface.hold
 
     // hooking up vector memory interface
-    dmem(2).req.valid := vu.io.dmem_req.valid
-    dmem(2).req.bits := vu.io.dmem_req.bits
-    dmem(2).req.bits.data := RegEn(StoreGen(vu.io.dmem_req.bits.typ, Bits(0), vu.io.dmem_req.bits.data).data, vu.io.dmem_req.valid && isWrite(vu.io.dmem_req.bits.cmd))
-
-    vu.io.dmem_req.ready := dmem(2).req.ready
-    vu.io.dmem_resp.valid := dmem(2).resp.valid
-    vu.io.dmem_resp.bits.nack := dmem(2).resp.bits.nack
-    vu.io.dmem_resp.bits.data := dmem(2).resp.bits.data_subword
-    vu.io.dmem_resp.bits.tag := dmem(2).resp.bits.tag
-    vu.io.dmem_resp.bits.typ := dmem(2).resp.bits.typ
+    dmem(2).req.bits.data := Reg(StoreGen(vu.io.dmem_req.bits.typ, Bits(0), vu.io.dmem_req.bits.data).data)
+    dmem(2).req <> vu.io.dmem_req
+    dmem(2).resp <> vu.io.dmem_resp
 
     // DON'T share vector integer multiplier with rocket
     vu.io.cp_imul_req.valid := Bool(false)
