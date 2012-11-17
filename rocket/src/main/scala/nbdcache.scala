@@ -816,11 +816,11 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
 
   // refill response
   val refill = conf.co.messageUpdatesDataArray(io.mem.xact_rep.bits)
-  writeArb.io.in(0).valid := io.mem.xact_rep.valid && refill
-  io.mem.xact_rep.ready := writeArb.io.in(0).ready || !refill
-  writeArb.io.in(0).bits := mshr.io.mem_resp
-  writeArb.io.in(0).bits.wmask := Fix(-1)
-  writeArb.io.in(0).bits.data := io.mem.xact_rep.bits.data
+  writeArb.io.in(1).valid := io.mem.xact_rep.valid && refill
+  io.mem.xact_rep.ready := writeArb.io.in(1).ready || !refill
+  writeArb.io.in(1).bits := mshr.io.mem_resp
+  writeArb.io.in(1).bits.wmask := Fix(-1)
+  writeArb.io.in(1).bits.data := io.mem.xact_rep.bits.data
 
   // load hits
   readArb.io.in(2).bits.addr := io.cpu.req.bits.addr
@@ -840,11 +840,11 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   def storeMatch(dst: HellaCacheReq, src: HellaCacheReq) = idxMatch(dst, src) && offsetMatch(dst, src)
   val p_store_match = s2_valid && storeMatch(s1_req, s2_req) ||
                       s3_valid && storeMatch(s1_req, s3_req)
-  writeArb.io.in(1).bits.addr := s3_req.addr
-  writeArb.io.in(1).bits.wmask := UFix(1) << s3_req.addr(conf.ramoffbits-1,offsetlsb).toUFix
-  writeArb.io.in(1).bits.data := Fill(MEM_DATA_BITS/conf.databits, s3_req.data)
-  writeArb.io.in(1).valid := s3_valid
-  writeArb.io.in(1).bits.way_en :=  s3_way
+  writeArb.io.in(0).bits.addr := s3_req.addr
+  writeArb.io.in(0).bits.wmask := UFix(1) << s3_req.addr(conf.ramoffbits-1,offsetlsb).toUFix
+  writeArb.io.in(0).bits.data := Fill(MEM_DATA_BITS/conf.databits, s3_req.data)
+  writeArb.io.in(0).valid := s3_valid
+  writeArb.io.in(0).bits.way_en :=  s3_way
 
   // tag update after a store to an exclusive clean line.
   val new_hit_state = conf.co.newStateOnHit(s2_req.cmd, s2_hit_state)
@@ -871,7 +871,8 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   mshr.io.req.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
   mshr.io.req.bits.data := s2_req.data
 
-  mshr.io.mem_rep <> io.mem.xact_rep
+  mshr.io.mem_rep.valid := io.mem.xact_rep.fire()
+  mshr.io.mem_rep.bits := io.mem.xact_rep.bits
   mshr.io.mem_abort.valid := io.mem.xact_abort.valid
   mshr.io.mem_abort.bits := io.mem.xact_abort.bits
   io.mem.xact_abort.ready := Bool(true)
