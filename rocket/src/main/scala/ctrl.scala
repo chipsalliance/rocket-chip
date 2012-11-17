@@ -385,6 +385,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val mem_reg_mem_val         = Reg(resetVal = Bool(false))
   val mem_reg_xcpt            = Reg(resetVal = Bool(false))
   val mem_reg_fp_val          = Reg(resetVal = Bool(false))
+  val mem_reg_vec_val         = Reg(resetVal = Bool(false))
   val mem_reg_replay          = Reg(resetVal = Bool(false))
   val mem_reg_replay_next     = Reg(resetVal = Bool(false))
   val mem_reg_pcr             = Reg(resetVal = PCR_N)
@@ -507,7 +508,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     ex_reg_mem_val     := id_mem_val.toBool;
     ex_reg_valid       := Bool(true)
     ex_reg_pcr         := id_pcr
-    ex_reg_wen         := id_wen
+    ex_reg_wen         := id_wen && id_waddr != UFix(0)
     ex_reg_fp_wen      := id_fp_val && io.fpu.dec.wen
     ex_reg_eret        := id_eret.toBool;
     ex_reg_flush_inst  := id_fence_i
@@ -521,7 +522,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   }
 
   // replay inst in ex stage
-  val wb_dcache_miss = wb_reg_mem_val && (wb_reg_wen || wb_reg_fp_wen) && !io.dmem.resp.valid
+  val wb_dcache_miss = wb_reg_mem_val && !io.dmem.resp.valid
   val replay_ex    = wb_dcache_miss && ex_reg_load_use || mem_reg_flush_inst || 
                      ex_reg_mem_val && !io.dmem.req.ready ||
                      ex_reg_div_val && !io.dpath.div_rdy ||
@@ -549,8 +550,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
     mem_reg_eret        := Bool(false);
     mem_reg_mem_val     := Bool(false);
     mem_reg_flush_inst  := Bool(false);
-    mem_reg_fp_val           := Bool(false);
-    mem_reg_replay_next      := Bool(false)
+    mem_reg_fp_val := Bool(false)
+    mem_reg_vec_val := Bool(false)
+    mem_reg_replay_next := Bool(false)
     mem_reg_xcpt := Bool(false)
   }
   .otherwise {
@@ -561,9 +563,10 @@ class Control(implicit conf: RocketConfiguration) extends Component
     mem_reg_eret        := ex_reg_eret;
     mem_reg_mem_val     := ex_reg_mem_val;
     mem_reg_flush_inst  := ex_reg_flush_inst;
-    mem_reg_fp_val           := ex_reg_fp_val
-    mem_reg_replay_next      := ex_reg_replay_next
-    mem_reg_mem_type    := ex_reg_mem_type
+    mem_reg_fp_val := ex_reg_fp_val
+    mem_reg_vec_val := ex_reg_vec_val
+    mem_reg_replay_next := ex_reg_replay_next
+    mem_reg_mem_type := ex_reg_mem_type
     mem_reg_xcpt := ex_xcpt
   }
 
@@ -575,7 +578,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UFix(11))))
 
   val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
-  val ll_wb_kill_mem = io.dpath.mem_ll_wb && (mem_reg_wen || mem_reg_fp_wen)
+  val ll_wb_kill_mem = io.dpath.mem_ll_wb && (mem_reg_wen || mem_reg_fp_wen || mem_reg_vec_val || mem_reg_pcr != PCR_N)
   val replay_mem  = ll_wb_kill_mem || mem_reg_replay || fpu_kill_mem
   val killm_common = ll_wb_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
   ctrl_killm := killm_common || mem_xcpt || fpu_kill_mem
@@ -628,12 +631,12 @@ class Control(implicit conf: RocketConfiguration) extends Component
   }
 
   val sboard = new Scoreboard
-  sboard.set(wb_reg_div_mul_val || wb_dcache_miss && io.dpath.wb_wen, io.dpath.wb_waddr)
+  sboard.set((wb_reg_div_mul_val || wb_dcache_miss) && io.dpath.wb_wen, io.dpath.wb_waddr)
   sboard.clear(io.dpath.mem_ll_wb, io.dpath.mem_ll_waddr)
 
   val id_stall_fpu = if (HAVE_FPU) {
     val fp_sboard = new Scoreboard
-    fp_sboard.set(wb_dcache_miss && wb_reg_fp_wen && !replay_wb || io.fpu.sboard_set, io.dpath.wb_waddr)
+    fp_sboard.set((wb_dcache_miss && wb_reg_fp_wen || io.fpu.sboard_set) && !replay_wb, io.dpath.wb_waddr)
     fp_sboard.clear(io.dpath.fp_sboard_clr, io.dpath.fp_sboard_clra)
     fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
 
@@ -725,7 +728,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   io.imem.invalidate := wb_reg_flush_inst
 
   io.dpath.mem_load := mem_reg_mem_val && mem_reg_wen
-  io.dpath.wb_load  := wb_reg_mem_val && io.dpath.wb_wen
+  io.dpath.wb_load  := wb_reg_mem_val && wb_reg_wen
   io.dpath.ren2     := id_renx2.toBool;
   io.dpath.ren1     := id_renx1.toBool;
   io.dpath.sel_alu2 := id_sel_alu2.toUFix

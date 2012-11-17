@@ -4,6 +4,7 @@ import Chisel._
 import Node._
 import Constants._
 import scala.math._
+import Util._
 
 class ioDpathBTB extends Bundle()
 {
@@ -86,10 +87,10 @@ class rocketDpathPCR(implicit conf: RocketConfiguration) extends Component
 {
   val io = new ioDpathPCR
   
-  val reg_epc      = Reg() { UFix() };
-  val reg_badvaddr = Reg() { UFix() };
-  val reg_ebase    = Reg() { UFix() };
-  val reg_count    = Reg() { UFix() };
+  val reg_epc = Reg{Fix()}
+  val reg_badvaddr = Reg{Fix()}
+  val reg_ebase = Reg{Fix()}
+  val reg_count = WideCounter(32)
   val reg_compare  = Reg() { UFix() };
   val reg_cause    = Reg() { Bits() };
   val reg_tohost   = Reg(resetVal = Bits(0, 64)); 
@@ -128,7 +129,7 @@ class rocketDpathPCR(implicit conf: RocketConfiguration) extends Component
 
   io.ptbr_wen           := reg_status_vm.toBool && wen && (waddr === PCR_PTBR);
   io.status             := Cat(reg_status_im, Bits(0,7), reg_status_vm, reg_status_sx, reg_status_ux, reg_status_s, reg_status_ps, reg_status_ec, reg_status_ev, reg_status_ef, reg_status_et);
-  io.evec               := Mux(io.exception, reg_ebase, reg_epc)
+  io.evec               := Mux(io.exception, reg_ebase, reg_epc).toUFix
   io.ptbr               := reg_ptbr;
   io.host.debug.error_mode    := reg_error_mode;
   io.r.data := rdata;
@@ -168,7 +169,6 @@ class rocketDpathPCR(implicit conf: RocketConfiguration) extends Component
   when (reg_count === reg_compare) {
     r_irq_timer := Bool(true);
   }
-  reg_count := reg_count + UFix(1);
 
   io.irq_timer := r_irq_timer;
   io.irq_ipi := r_irq_ipi;
@@ -191,9 +191,9 @@ class rocketDpathPCR(implicit conf: RocketConfiguration) extends Component
       reg_status_ec := Bool(HAVE_RVC) && wdata(SR_EC).toBool;
       reg_status_et := wdata(SR_ET).toBool;
     }
-    when (waddr === PCR_EPC)      { reg_epc := wdata(VADDR_BITS,0).toUFix; }
+    when (waddr === PCR_EPC)      { reg_epc := wdata(VADDR_BITS,0).toFix }
     when (waddr === PCR_EVEC)     { reg_ebase := wdata(VADDR_BITS-1,0).toUFix; }
-    when (waddr === PCR_COUNT)    { reg_count := wdata(31,0).toUFix; }
+    when (waddr === PCR_COUNT)    { reg_count := wdata.toUFix }
     when (waddr === PCR_COMPARE)  { reg_compare := wdata(31,0).toUFix; r_irq_timer := Bool(false); }
     when (waddr === PCR_COREID)   { reg_coreid := wdata(15,0) }
     when (waddr === PCR_FROMHOST) { when (reg_fromhost === UFix(0) || io.w.en) { reg_fromhost := wdata } }
@@ -210,19 +210,19 @@ class rocketDpathPCR(implicit conf: RocketConfiguration) extends Component
 
   rdata := io.status // raddr === PCR_STATUS
   switch (raddr) {
-    is (PCR_EPC)      { rdata := Cat(Fill(64-VADDR_BITS-1, reg_epc(VADDR_BITS)), reg_epc); }
-    is (PCR_BADVADDR) { rdata := Cat(Fill(64-VADDR_BITS-1, reg_badvaddr(VADDR_BITS)), reg_badvaddr); }
-    is (PCR_EVEC)     { rdata := Cat(Fill(64-VADDR_BITS, reg_ebase(VADDR_BITS-1)), reg_ebase); }
-    is (PCR_COUNT)    { rdata := Cat(Fill(32, reg_count(31)), reg_count); }
-    is (PCR_COMPARE)  { rdata := Cat(Fill(32, reg_compare(31)), reg_compare); }
-    is (PCR_CAUSE)    { rdata := Cat(reg_cause(5), Bits(0,58), reg_cause(4,0)); }
+    is (PCR_EPC)      { rdata := reg_epc }
+    is (PCR_BADVADDR) { rdata := reg_badvaddr }
+    is (PCR_EVEC)     { rdata := reg_ebase }
+    is (PCR_COUNT)    { rdata := reg_count }
+    is (PCR_COMPARE)  { rdata := reg_compare }
+    is (PCR_CAUSE)    { rdata := reg_cause(5) << 63 | reg_cause(4,0) }
     is (PCR_COREID)   { rdata := reg_coreid }
     is (PCR_IMPL)     { rdata := Bits(2) }
     is (PCR_FROMHOST) { rdata := reg_fromhost; }
     is (PCR_TOHOST)   { rdata := reg_tohost; }
     is (PCR_K0)       { rdata := reg_k0; }
     is (PCR_K1)       { rdata := reg_k1; }
-    is (PCR_PTBR)     { rdata := Cat(Bits(0,64-PADDR_BITS), reg_ptbr); }
+    is (PCR_PTBR)     { rdata := reg_ptbr }
     is (PCR_VECBANK)  { rdata := Cat(Bits(0, 56), reg_vecbank) }
     is (PCR_VECCFG)   { rdata := Cat(Bits(0, 40), io.vec_nfregs, io.vec_nxregs, io.vec_appvl) }
   }

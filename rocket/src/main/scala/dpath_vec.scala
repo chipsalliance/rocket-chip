@@ -28,8 +28,6 @@ class ioDpathVec extends Bundle
   val iface = new ioDpathVecInterface()
   val valid = Bool(INPUT)
   val inst = Bits(INPUT, 32)
-  val waddr = UFix(INPUT, 5)
-  val raddr1 = UFix(INPUT, 5)
   val vecbank = Bits(INPUT, 8)
   val vecbankcnt = UFix(INPUT, 4)
   val wdata = Bits(INPUT, 64)
@@ -151,14 +149,16 @@ class rocketDpathVec extends Component
   io.nfregs := reg_nfregs
 
   val appvlm1 = appvl - UFix(1)
+  val waddr = io.inst(31,27)
+  val raddr1 = io.inst(26,22)
 
   io.iface.vcmdq.bits :=
     Mux(io.ctrl.sel_vcmd === VCMD_I, Cat(Bits(0,2), Bits(0,4), io.inst(9,8), Bits(0,6), Bits(0,6)),
     Mux(io.ctrl.sel_vcmd === VCMD_F, Cat(Bits(0,2), Bits(1,3), io.inst(9,7), Bits(0,6), Bits(0,6)),
-    Mux(io.ctrl.sel_vcmd === VCMD_TX, Cat(Bits(1,2), io.inst(13,8), Bits(0,1), io.waddr, Bits(0,1), io.raddr1),
-    Mux(io.ctrl.sel_vcmd === VCMD_TF, Cat(Bits(1,2), io.inst(13,8), Bits(1,1), io.waddr, Bits(1,1), io.raddr1),
-    Mux(io.ctrl.sel_vcmd === VCMD_MX, Cat(Bits(1,1), io.inst(13,12), io.inst(2), io.inst(10,7), Bits(0,1), io.waddr, Bits(0,1), io.waddr),
-    Mux(io.ctrl.sel_vcmd === VCMD_MF, Cat(Bits(1,1), io.inst(13,12), io.inst(2), io.inst(10,7), Bits(1,1), io.waddr, Bits(1,1), io.waddr),
+    Mux(io.ctrl.sel_vcmd === VCMD_TX, Cat(Bits(1,2), io.inst(13,8), Bits(0,1), waddr, Bits(0,1), raddr1),
+    Mux(io.ctrl.sel_vcmd === VCMD_TF, Cat(Bits(1,2), io.inst(13,8), Bits(1,1), waddr, Bits(1,1), raddr1),
+    Mux(io.ctrl.sel_vcmd === VCMD_MX, Cat(Bits(1,1), io.inst(13,12), io.inst(2), io.inst(10,7), Bits(0,1), waddr, Bits(0,1), waddr),
+    Mux(io.ctrl.sel_vcmd === VCMD_MF, Cat(Bits(1,1), io.inst(13,12), io.inst(2), io.inst(10,7), Bits(1,1), waddr, Bits(1,1), waddr),
     Mux(io.ctrl.sel_vcmd === VCMD_A, io.wdata(SZ_VCMD-1, 0),
         Bits(0,20))))))))
 
