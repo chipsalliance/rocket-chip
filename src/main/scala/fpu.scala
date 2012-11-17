@@ -478,13 +478,13 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Component
   val wb_ctrl = RegEn(mem_ctrl, mem_reg_valid)
 
   // load response
-  val load_wb = io.dpath.dmem_resp_val
-  val load_wb_single = io.dpath.dmem_resp_type === MT_W
-  val load_wb_data = io.dpath.dmem_resp_data
-  val load_wb_tag = io.dpath.dmem_resp_tag
+  val load_wb = Reg(io.dpath.dmem_resp_val)
+  val load_wb_single = RegEn(io.dpath.dmem_resp_type === MT_W || io.dpath.dmem_resp_type === MT_WU, io.dpath.dmem_resp_val)
+  val load_wb_data = RegEn(io.dpath.dmem_resp_data, io.dpath.dmem_resp_val)
+  val load_wb_tag = RegEn(io.dpath.dmem_resp_tag, io.dpath.dmem_resp_val)
   val rec_s = hardfloat.floatNToRecodedFloatN(load_wb_data, 23, 9)
   val rec_d = hardfloat.floatNToRecodedFloatN(load_wb_data, 52, 12)
-  val load_wb_data_recoded = Mux(load_wb_single, Cat(Fix(-1, 32), rec_s), rec_d)
+  val load_wb_data_recoded = Mux(load_wb_single, Cat(Fix(-1), rec_s), rec_d)
 
   val fsr_rm = Reg() { Bits(width = 3) }
   val fsr_exc = Reg() { Bits(width = 5) }
