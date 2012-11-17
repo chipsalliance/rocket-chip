@@ -172,13 +172,12 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   val req = Reg { new MSHRReq() }
 
   val req_cmd = io.req_bits.cmd
-  val req_use_rpq = req_cmd != M_PFR && req_cmd != M_PFW
   val req_idx = req.addr(conf.untagbits-1,conf.offbits)
   val idx_match = req_idx === io.req_bits.addr(conf.untagbits-1,conf.offbits)
   val sec_rdy = idx_match && (state === s_wb_req || state === s_wb_resp || state === s_meta_clear || (state === s_refill_req || state === s_refill_resp) && !conf.co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
 
   val rpq = (new Queue(conf.nrpq)) { new Replay }
-  rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && req_use_rpq
+  rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && !isPrefetch(req_cmd)
   rpq.io.enq.bits := io.req_bits
   rpq.io.enq.bits.sdq_id := io.req_sdq_id
   rpq.io.deq.ready := io.replay.ready && state === s_drain_rpq || state === s_invalid
@@ -873,7 +872,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   }
 
   // miss handling
-  mshr.io.req.valid := s2_valid_masked && !s2_hit && (isRead(s2_req.cmd) || isWrite(s2_req.cmd)) && !s2_nack_hit
+  mshr.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd)) && !s2_nack_hit
   mshr.io.req.bits := s2_req
   mshr.io.req.bits.old_dirty := conf.co.needsWriteback(s2_repl_state) && !s2_tag_match // don't wb upgrades
   mshr.io.req.bits.old_tag := s2_repl_tag
