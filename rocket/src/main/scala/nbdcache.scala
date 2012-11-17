@@ -666,6 +666,8 @@ class HellaCacheResp(implicit conf: DCacheConfig) extends Bundle {
   val data = Bits(width = conf.databits)
   val data_subword = Bits(width = conf.databits)
   val tag = Bits(width = conf.reqtagbits)
+  val cmd  = Bits(width = 4)
+  val addr = UFix(width = conf.ppnbits.max(conf.vpnbits+1) + conf.pgidxbits)
   val store_data = Bits(width = conf.databits)
 
   override def clone = new HellaCacheResp().asInstanceOf[this.type]
@@ -926,9 +928,8 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val s2_read = isRead(s2_req.cmd)
   io.cpu.resp.valid  := s2_read && (s2_replay || s2_valid_masked && s2_hit)
   io.cpu.resp.bits.nack := s2_valid && s2_nack
+  io.cpu.resp.bits := s2_req
   io.cpu.resp.bits.replay := s2_replay && s2_read
-  io.cpu.resp.bits.tag  := s2_req.tag
-  io.cpu.resp.bits.typ := s2_req.typ
   io.cpu.resp.bits.data := loadgen.word
   io.cpu.resp.bits.data_subword := loadgen.byte
   io.cpu.resp.bits.store_data := s2_req.data
