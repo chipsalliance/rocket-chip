@@ -190,6 +190,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   val finish_q = (new Queue(2 /* wb + refill */)) { new TransactionFinish }
   finish_q.io.enq.valid := wb_done || refill_done
   finish_q.io.enq.bits.global_xact_id := io.mem_rep.bits.global_xact_id
+  io.wb_req.valid := Bool(false)
 
   when (state === s_drain_rpq && !rpq.io.deq.valid && !finish_q.io.deq.valid) {
     state := s_invalid
@@ -217,8 +218,11 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
     when (abort) { state := s_wb_req }
   }
   when (state === s_wb_req) {
-    when (io.probe_writeback.valid && io.probe_writeback.bits && idx_match) { state := s_refill_req }
-    .elsewhen (io.wb_req.ready) { state := s_wb_resp }
+    io.wb_req.valid := Bool(true)
+    when (io.probe_writeback.valid && idx_match) {
+      io.wb_req.valid := Bool(false)
+      when (io.probe_writeback.bits) { state := s_refill_req }
+    }.elsewhen (io.wb_req.ready) { state := s_wb_resp }
   }
 
   when (io.req_sec_val && io.req_sec_rdy) { // s_wb_req, s_wb_resp, s_refill_req
@@ -246,7 +250,6 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   io.meta_req.bits.data.tag := io.tag
   io.meta_req.bits.way_en := req.way_en
 
-  io.wb_req.valid := (state === s_wb_req) && !(io.probe_writeback.valid && idx_match)
   io.wb_req.bits.tag := req.old_tag
   io.wb_req.bits.idx := req_idx
   io.wb_req.bits.way_en := req.way_en
