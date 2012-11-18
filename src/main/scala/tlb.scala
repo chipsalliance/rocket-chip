@@ -4,7 +4,6 @@ import Chisel._;
 import Node._;
 import Constants._;
 import scala.math._;
-import hwacha._
 
 class ioCAM(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
     val clear        = Bool(INPUT);

@@ -5,17 +5,9 @@ import Node._
 import Constants._
 import Instructions._
 
-class ioALU extends Bundle(){
-  val dw    = UFix(INPUT, 1);
-  val fn    = UFix(INPUT, 4);
-  val in2   = UFix(INPUT, 64);
-  val in1   = UFix(INPUT, 64);
-  val out   = UFix(OUTPUT, 64);
-  val adder_out = UFix(OUTPUT, 64);
-}
-
 object ALU
 {
+  val SZ_ALU_FN = 4
   val FN_X    = Bits("b????")
   val FN_ADD  = UFix(0)
   val FN_SL   = UFix(1)
@@ -29,14 +21,34 @@ object ALU
   val FN_SRA  = UFix(13)
   val FN_OP2  = UFix(15)
 
+  val FN_DIV  = FN_XOR
+  val FN_DIVU = FN_SR
+  val FN_REM  = FN_OR
+  val FN_REMU = FN_AND
+
+  val FN_MUL    = FN_ADD
+  val FN_MULH   = FN_SL
+  val FN_MULHSU = FN_SLT
+  val FN_MULHU  = FN_SLTU
+
+  def isMulFN(fn: Bits, cmp: Bits) = fn(1,0) === cmp(1,0)
   def isSub(cmd: Bits) = cmd(3)
   def isSLTU(cmd: Bits) = cmd(0)
 }
+import ALU._
 
-class ALU extends Component
+class ALUIO(implicit conf: RocketConfiguration) extends Bundle {
+  val dw = Bits(INPUT, SZ_DW)
+  val fn = Bits(INPUT, SZ_ALU_FN)
+  val in2 = UFix(INPUT, conf.xprlen)
+  val in1 = UFix(INPUT, conf.xprlen)
+  val out = UFix(OUTPUT, conf.xprlen)
+  val adder_out = UFix(OUTPUT, conf.xprlen)
+}
+
+class ALU(implicit conf: RocketConfiguration) extends Component
 {
-  import ALU._
-  val io = new ioALU();
+  val io = new ALUIO
 
   // ADD, SUB
   val sub = isSub(io.fn)

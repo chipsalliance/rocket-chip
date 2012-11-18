@@ -186,9 +186,9 @@ class rocketDpathPCR(implicit conf: RocketConfiguration) extends Component
       reg_status_ux := wdata(SR_U64).toBool;
       reg_status_s  := wdata(SR_S).toBool;
       reg_status_ps := wdata(SR_PS).toBool;
-      reg_status_ev := Bool(HAVE_VEC) && wdata(SR_EV).toBool;
-      reg_status_ef := Bool(HAVE_FPU) && wdata(SR_EF).toBool;
-      reg_status_ec := Bool(HAVE_RVC) && wdata(SR_EC).toBool;
+      reg_status_ev := Bool(conf.vec) && wdata(SR_EV).toBool;
+      reg_status_ef := Bool(conf.fpu) && wdata(SR_EF).toBool;
+      reg_status_ec := Bool(conf.rvc) && wdata(SR_EC).toBool;
       reg_status_et := wdata(SR_ET).toBool;
     }
     when (waddr === PCR_EPC)      { reg_epc := wdata(VADDR_BITS,0).toFix }

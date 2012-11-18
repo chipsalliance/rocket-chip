@@ -4,16 +4,6 @@ package constants
 import Chisel._
 import scala.math._
 
-abstract trait TileConfigConstants {
-  def HAVE_RVC: Boolean
-  def HAVE_FPU: Boolean
-  def HAVE_VEC: Boolean
-  val FPU_N = UFix(0, 1)
-  val FPU_Y = if (HAVE_FPU) UFix(1, 1) else FPU_N
-  val VEC_N = UFix(0, 1);
-  val VEC_Y = if (HAVE_VEC) UFix(1, 1) else VEC_N
-}
-
 trait ScalarOpConstants {
   val BR_X    = Bits("b???", 3)
   val BR_EQ   = Bits(0, 3)
@@ -38,18 +28,6 @@ trait ScalarOpConstants {
   val A2_JTYPE = UFix(5, 3);
   val A2_RTYPE = UFix(6, 3);
 
-  val MUL_X   = Bits("b??", 2)
-  val MUL_LO  = UFix(0, 2);
-  val MUL_H   = UFix(1, 2);
-  val MUL_HSU = UFix(2, 2);
-  val MUL_HU  = UFix(3, 2);
-
-  val DIV_X  = Bits("b??", 2)
-  val DIV_D  = UFix(0, 2);
-  val DIV_DU = UFix(1, 2);
-  val DIV_R  = UFix(2, 2);
-  val DIV_RU = UFix(3, 2);
-
   val X = Bits("b?", 1)
   val N = Bits(0, 1);
   val Y = Bits(1, 1);
@@ -64,6 +42,7 @@ trait ScalarOpConstants {
   val WB_TSC = UFix(4, 3);
   val WB_IRT = UFix(5, 3);
 
+  val SZ_DW = 1
   val DW_X  = X
   val DW_32 = N
   val DW_64 = Y
@@ -120,7 +99,7 @@ trait InterruptConstants {
   val IRQ_TIMER = 7
 }
  
-abstract trait RocketDcacheConstants extends TileConfigConstants with uncore.constants.CacheConstants with uncore.constants.AddressConstants {
+abstract trait RocketDcacheConstants extends uncore.constants.CacheConstants with uncore.constants.AddressConstants {
   require(OFFSET_BITS == log2Up(uncore.Constants.CACHE_DATA_SIZE_IN_BYTES))
   require(OFFSET_BITS <= uncore.Constants.X_INIT_WRITE_MASK_BITS)
   require(log2Up(OFFSET_BITS) <= uncore.Constants.X_INIT_SUBWORD_ADDR_BITS)

@@ -4,18 +4,24 @@ import Chisel._
 import Node._
 import Constants._
 import uncore._
+import Util._
 
 case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
                                icache: ICacheConfig, dcache: DCacheConfig,
+                               fpu: Boolean, vec: Boolean,
                                fastLoadByte: Boolean = false)
 {
   val dcacheReqTagBits = 9 // enforce compliance with require()
+  val xprlen = 64
+  val nxpr = 32
+  val nxprbits = log2Up(nxpr)
+  val rvc = false
 }
 
 class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Component(resetSignal)
 {
-  val memPorts = if (HAVE_VEC) 3 else 2
-  implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(memPorts))
+  val memPorts = 2 + confIn.vec
+  implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(memPorts), databits = confIn.xprlen)
   implicit val conf = confIn.copy(dcache = dcConf)
 
   val io = new Bundle {
@@ -40,7 +46,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   io.tilelink.probe_rep <> dcache.io.mem.probe_rep
   io.tilelink.probe_rep_data <> dcache.io.mem.probe_rep_data
 
-  if (HAVE_VEC) {
+  if (conf.vec) {
     val vicache = new Frontend()(ICacheConfig(128, 1, conf.co)) // 128 sets x 1 ways (8KB)
     arbiter.io.requestor(2) <> vicache.io.mem
     core.io.vimem <> vicache.io.cpu
