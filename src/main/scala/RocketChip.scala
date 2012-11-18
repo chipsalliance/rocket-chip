@@ -210,7 +210,8 @@ class Top extends Component {
     val ic = ICacheConfig(128, 2, co)
     val dc = DCacheConfig(128, 4, co,
                           nmshr = 2, nrpq = 16, nsdq = 17)
-    val rc = RocketConfiguration(NTILES, co, ic, dc)
+    val rc = RocketConfiguration(NTILES, co, ic, dc,
+                                 fpu = true, vec = false)
     val tile = new Tile(resetSignal = hl.reset)(rc)
 
     tile.io.host.reset := Reg(Reg(hl.reset))

@@ -54,7 +54,7 @@ int main(int argc, char** argv)
   demand(fcntl(fromhost_fd,F_GETFD) >= 0, "fromhost file not open");
   demand(fcntl(tohost_fd,F_GETFD) >= 0, "tohost file not open");
 
-  const size_t disasm_len = 24;
+  const int disasm_len = 24;
   if (vcd)
   {
     // Create a VCD file
@@ -157,7 +157,7 @@ int main(int argc, char** argv)
       {
         wb_disasm.resize(disasm_len, ' ');
         dat_t<disasm_len*8> disasm_dat;
-        for (size_t i = 0; i < disasm_len; i++)
+        for (int i = 0; i < disasm_len; i++)
           disasm_dat = disasm_dat << 8 | LIT<8>(wb_disasm[i]);
 
         tile.dump(vcdfile, trace_count);
