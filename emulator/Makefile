@@ -12,11 +12,14 @@ CXXFLAGS := $(CXXFLAGS) -Itestbench -I$(basedir)/chisel/csrc -I../dramsim2
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
 DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 
+CHISEL_ARGS := $(MODEL) --backend c --targetDir ../emulator/generated-src
+CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd
+
 generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(MODEL) --backend c --targetDir ../emulator/generated-src"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS)"
 
 generated-src-debug/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(MODEL) --backend c --targetDir ../emulator/generated-src-debug --debug --vcd"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS_DEBUG)"
 
 $(MODEL).o: %.o: generated-src/%.cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
@@ -46,7 +49,7 @@ clean:
 	rm -rf *.o *.a emulator emulator-debug generated-src generated-src-debug DVEfiles output
 
 test:
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "~make ../emulator run-fast"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "~make ../emulator run-fast $(CHISEL_ARGS)"
 
 #--------------------------------------------------------------------
 # Run assembly tests and benchmarks
