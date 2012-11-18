@@ -18,8 +18,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     val fpu = new ioDpathFPU();
     val vec_ctrl = new ioCtrlDpathVec().flip
     val vec_iface = new ioDpathVecInterface()
-    val vec_imul_req = new io_imul_req
-    val vec_imul_resp = Bits(INPUT, hwacha.Constants.SZ_XLEN)
   }
 
   // execute definitions
@@ -158,35 +156,30 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   alu.io.in1 := ex_rs1.toUFix
   
   // divider
-  val div = new rocketDivider(earlyOut = true)
+  val div = new Divider(earlyOut = true)
   div.io.req.valid := io.ctrl.div_val
-  div.io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, io.ctrl.div_fn)
-  div.io.req.bits.in0 := ex_rs1
-  div.io.req.bits.in1 := ex_rs2
-  div.io.req_tag := ex_reg_waddr
-  div.io.req_kill := io.ctrl.div_kill
-  div.io.resp_rdy := Bool(true)
+  div.io.req.bits.dw := ex_reg_ctrl_fn_dw
+  div.io.req.bits.fn := ex_reg_ctrl_fn_alu
+  div.io.req.bits.in1 := ex_rs1
+  div.io.req.bits.in2 := ex_rs2
+  div.io.req.bits.tag := ex_reg_waddr
+  div.io.kill := io.ctrl.div_kill
+  div.io.resp.ready := Bool(true)
   io.ctrl.div_rdy := div.io.req.ready
-  io.ctrl.div_result_val := div.io.resp_val
+  io.ctrl.div_result_val := div.io.resp.valid
   
   // multiplier
-  var mul_io = new rocketMultiplier(unroll = 4, earlyOut = true).io
-  if (HAVE_VEC)
-  {
-    val vu_mul = new rocketVUMultiplier(nwbq = 1)
-    vu_mul.io.vu.req <> io.vec_imul_req
-    vu_mul.io.vu.resp <> io.vec_imul_resp
-    mul_io = vu_mul.io.cpu
-  }
-  mul_io.req.valid := io.ctrl.mul_val
-  mul_io.req.bits.fn := Cat(ex_reg_ctrl_fn_dw, io.ctrl.mul_fn)
-  mul_io.req.bits.in0 := ex_rs1
-  mul_io.req.bits.in1 := ex_rs2
-  mul_io.req_tag := ex_reg_waddr
-  mul_io.req_kill := io.ctrl.mul_kill
-  mul_io.resp_rdy := Bool(true)
-  io.ctrl.mul_rdy := mul_io.req.ready
-  io.ctrl.mul_result_val := mul_io.resp_val
+  val mul = new Multiplier(unroll = 4, earlyOut = true)
+  mul.io.req.valid := io.ctrl.mul_val
+  mul.io.req.bits.dw := ex_reg_ctrl_fn_dw
+  mul.io.req.bits.fn := ex_reg_ctrl_fn_alu
+  mul.io.req.bits.in1 := ex_rs1
+  mul.io.req.bits.in2 := ex_rs2
+  mul.io.req.bits.tag := ex_reg_waddr
+  mul.io.kill := io.ctrl.mul_kill
+  mul.io.resp.ready := Bool(true)
+  io.ctrl.mul_rdy := mul.io.req.ready
+  io.ctrl.mul_result_val := mul.io.resp.valid
   
   io.fpu.fromint_data := ex_rs1
   io.ctrl.ex_waddr := ex_reg_waddr
@@ -267,18 +260,18 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   val dmem_resp_replay = io.dmem.resp.bits.replay && dmem_resp_xpu
 
   val mem_ll_wdata = Bits()
-  mem_ll_wdata := mul_io.resp_bits
-  io.ctrl.mem_ll_waddr := mul_io.resp_tag
-  io.ctrl.mem_ll_wb := mul_io.resp_val
-  when (div.io.resp_val) {
-    mul_io.resp_rdy := Bool(false)
-    mem_ll_wdata := div.io.resp_bits
-    io.ctrl.mem_ll_waddr := div.io.resp_tag
+  mem_ll_wdata := mul.io.resp.bits.data
+  io.ctrl.mem_ll_waddr := mul.io.resp.bits.tag
+  io.ctrl.mem_ll_wb := mul.io.resp.valid
+  when (div.io.resp.valid) {
+    mul.io.resp.ready := Bool(false)
+    mem_ll_wdata := div.io.resp.bits.data
+    io.ctrl.mem_ll_waddr := div.io.resp.bits.tag
     io.ctrl.mem_ll_wb := Bool(true)
   }
   when (dmem_resp_replay) {
-    mul_io.resp_rdy := Bool(false)
-    div.io.resp_rdy := Bool(false)
+    mul.io.resp.ready := Bool(false)
+    div.io.resp.ready := Bool(false)
     mem_ll_wdata := io.dmem.resp.bits.data_subword
     io.ctrl.mem_ll_waddr := dmem_resp_waddr
     io.ctrl.mem_ll_wb := Bool(true)
@@ -308,7 +301,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
               Mux(io.ctrl.pcr != PCR_N, pcr.io.r.data,
               wb_reg_wdata))
 
-  if (HAVE_VEC)
+  if (conf.vec)
   {
     // vector datapath
     val vec = new rocketDpathVec()

@@ -4,6 +4,7 @@ import Chisel._
 import Node._
 import Constants._
 import hwacha._
+import Util._
 
 class ioRocket(implicit conf: RocketConfiguration) extends Bundle
 {
@@ -26,7 +27,7 @@ class Core(implicit conf: RocketConfiguration) extends Component
   ctrl.io.imem <> io.imem
   dpath.io.imem <> io.imem
 
-  val dmemArb = new HellaCacheArbiter(if (HAVE_VEC) 3 else 2)
+  val dmemArb = new HellaCacheArbiter(2 + conf.vec)
   dmemArb.io.mem <> io.dmem
   val dmem = dmemArb.io.requestor
   dmem(1) <> ctrl.io.dmem
@@ -34,14 +35,14 @@ class Core(implicit conf: RocketConfiguration) extends Component
 
   val ptw = collection.mutable.ArrayBuffer(io.imem.ptw, io.dmem.ptw)
 
-  val fpu: FPU = if (HAVE_FPU) {
+  val fpu: FPU = if (conf.fpu) {
     val fpu = new FPU(4,6)
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
     fpu
   } else null
 
-  if (HAVE_VEC) {
+  if (conf.vec) {
     val vu = new vu()
 
     val vdtlb = new TLB(8)
@@ -120,14 +121,14 @@ class Core(implicit conf: RocketConfiguration) extends Component
     vu.io.dmem_resp.bits.tag := dmem(2).resp.bits.tag
     vu.io.dmem_resp.bits.typ := dmem(2).resp.bits.typ
 
-    // share vector integer multiplier with rocket
-    dpath.io.vec_imul_req <> vu.io.cp_imul_req
-    dpath.io.vec_imul_resp <> vu.io.cp_imul_resp
+    // DON'T share vector integer multiplier with rocket
+    vu.io.cp_imul_req.valid := Bool(false)
 
     // share sfma and dfma pipelines with rocket
+    require(conf.fpu)
     fpu.io.sfma <> vu.io.cp_sfma
     fpu.io.dfma <> vu.io.cp_dfma
-  } else if (fpu != null) {
+  } else if (conf.fpu) {
     fpu.io.sfma.valid := Bool(false)
     fpu.io.dfma.valid := Bool(false)
   }

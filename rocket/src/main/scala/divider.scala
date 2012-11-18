@@ -3,10 +3,11 @@ package rocket
 import Chisel._
 import Node._
 import Constants._
+import ALU._
 
-class rocketDivider(earlyOut: Boolean = false) extends Component {
-  val io = new ioMultiplier
-  val w = io.req.bits.in0.getWidth
+class Divider(earlyOut: Boolean = false)(implicit conf: RocketConfiguration) extends Component {
+  val io = new MultiplierIO
+  val w = io.req.bits.in1.getWidth
   
   val s_ready :: s_neg_inputs :: s_busy :: s_neg_outputs :: s_done :: Nil = Enum(5) { UFix() };
   val state = Reg(resetVal = s_ready);
@@ -15,25 +16,25 @@ class rocketDivider(earlyOut: Boolean = false) extends Component {
   val divby0      = Reg() { Bool() };
   val neg_quo     = Reg() { Bool() };
   val neg_rem     = Reg() { Bool() };
-  val reg_tag     = Reg() { UFix() };
   val rem         = Reg() { Bool() };
   val half        = Reg() { Bool() };
+  val r_req = Reg{io.req.bits.clone}
   
   val divisor     = Reg() { Bits() }
   val remainder   = Reg() { Bits(width = 2*w+1) }
   val subtractor  = remainder(2*w,w) - divisor
  
-  val dw = io.req.bits.fn(io.req.bits.fn.width-1)
-  val fn = io.req.bits.fn(io.req.bits.fn.width-2,0)
-  val tc = (fn === DIV_D) || (fn === DIV_R);
+  val dw = io.req.bits.dw
+  val fn = io.req.bits.fn
+  val tc = isMulFN(fn, FN_DIV) || isMulFN(fn, FN_REM)
 
-  val lhs_sign = tc && Mux(dw === DW_64, io.req.bits.in0(w-1), io.req.bits.in0(w/2-1))
-  val lhs_hi = Mux(dw === DW_64, io.req.bits.in0(w-1,w/2), Fill(w/2, lhs_sign))
-  val lhs_in = Cat(lhs_hi, io.req.bits.in0(w/2-1,0))
+  val lhs_sign = tc && Mux(dw === DW_64, io.req.bits.in1(w-1), io.req.bits.in1(w/2-1))
+  val lhs_hi = Mux(dw === DW_64, io.req.bits.in1(w-1,w/2), Fill(w/2, lhs_sign))
+  val lhs_in = Cat(lhs_hi, io.req.bits.in1(w/2-1,0))
 
-  val rhs_sign = tc && Mux(dw === DW_64, io.req.bits.in1(w-1), io.req.bits.in1(w/2-1))
-  val rhs_hi = Mux(dw === DW_64, io.req.bits.in1(w-1,w/2), Fill(w/2, rhs_sign))
-  val rhs_in = Cat(rhs_hi, io.req.bits.in1(w/2-1,0))
+  val rhs_sign = tc && Mux(dw === DW_64, io.req.bits.in2(w-1), io.req.bits.in2(w/2-1))
+  val rhs_hi = Mux(dw === DW_64, io.req.bits.in2(w-1,w/2), Fill(w/2, rhs_sign))
+  val rhs_in = Cat(rhs_hi, io.req.bits.in2(w/2-1,0))
         
   when (state === s_neg_inputs) {
     state := s_busy
@@ -77,7 +78,7 @@ class rocketDivider(earlyOut: Boolean = false) extends Component {
       count := shift
     }
   }
-  when (state === s_done && io.resp_rdy || io.req_kill) {
+  when (io.resp.fire() || io.kill) {
     state := s_ready
   }
   when (io.req.fire()) {
@@ -86,17 +87,17 @@ class rocketDivider(earlyOut: Boolean = false) extends Component {
     half := (dw === DW_32);
     neg_quo := lhs_sign != rhs_sign
     neg_rem := lhs_sign
-    rem := (fn === DIV_R) || (fn === DIV_RU);
-    reg_tag := io.req_tag;
+    rem := isMulFN(fn, FN_REM) || isMulFN(fn, FN_REMU)
     divby0 := Bool(true);
     divisor := rhs_in
     remainder := lhs_in
+    r_req := io.req.bits
   }
 
   val result = Mux(rem, remainder(w+w, w+1), remainder(w-1,0))
   
-  io.resp_bits := Mux(half, Cat(Fill(w/2, result(w/2-1)), result(w/2-1,0)), result)
-  io.resp_tag := reg_tag
-  io.resp_val := state === s_done
+  io.resp.bits := r_req
+  io.resp.bits.data := Mux(half, Cat(Fill(w/2, result(w/2-1)), result(w/2-1,0)), result)
+  io.resp.valid := state === s_done
   io.req.ready := state === s_ready
 }

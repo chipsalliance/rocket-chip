@@ -8,7 +8,7 @@ import Util._
 
 case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
                         nmshr: Int, nrpq: Int, nsdq: Int,
-                        reqtagbits: Int = -1)
+                        reqtagbits: Int = -1, databits: Int = -1)
 {
   require(isPow2(sets))
   require(isPow2(ways)) // TODO: relax this
@@ -25,8 +25,7 @@ case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
   def untagbits = offbits + idxbits
   def tagbits = lineaddrbits - idxbits
   def ramoffbits = log2Up(MEM_DATA_BITS/8)
-  def databytes = 8 // assumed by StoreGen/LoadGen/AMOALU
-  def databits = databytes*8
+  def databytes = databits/8
   def wordoffbits = log2Up(databytes)
 }
 
@@ -624,7 +623,7 @@ class AMOALU(implicit conf: DCacheConfig) extends Component {
     val out = Bits(OUTPUT, conf.databits)
   }
 
-  require(conf.databytes == 8)
+  require(conf.databits == 64)
   
   val sgned = (io.cmd === M_XA_MIN) || (io.cmd === M_XA_MAX)
   val minmax = (io.cmd === M_XA_MIN) || (io.cmd === M_XA_MINU) || (io.cmd === M_XA_MAX) || (io.cmd === M_XA_MAXU)

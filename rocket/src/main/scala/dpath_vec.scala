@@ -108,7 +108,8 @@ class rocketDpathVec extends Component
       UFix(52,7) -> UFix(5,9)
     ))
 
-  val uts_per_bank = Mux(Bool(hwacha.Constants.HAVE_PVFB) & nreg_mod_bank > UFix(MAX_THREADS,9), UFix(MAX_THREADS, 9), nreg_mod_bank)
+  val max_threads = UFix(WIDTH_BMASK)
+  val uts_per_bank = Mux(Bool(HAVE_PVFB) & nreg_mod_bank > max_threads, max_threads, nreg_mod_bank)
 
   val reg_hwvl = Reg(resetVal = UFix(32, 12))
   val reg_appvl0 = Reg(resetVal = Bool(true))

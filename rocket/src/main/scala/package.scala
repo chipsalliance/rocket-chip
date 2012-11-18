@@ -16,13 +16,5 @@ object Constants extends
   TLBConstants with 
   uncore.constants.MemoryInterfaceConstants
 {
-  def HAVE_RVC = false
-  def HAVE_FPU = true
-  def HAVE_VEC = false
-
-  val MAX_THREADS = 
-      hwacha.Constants.NUM_PVFB * hwacha.Constants.WIDTH_PVFB / hwacha.Constants.SZ_BANK
-
   val START_ADDR = 0x2000
-
 }
