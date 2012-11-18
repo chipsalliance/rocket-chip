@@ -63,7 +63,8 @@ trait MemoryOpConstants {
   val M_XA_MAXU = Bits("b1111", 4);
 
   def isAMO(cmd: Bits) = cmd(3)
-  def isRead(cmd: Bits) = cmd === M_XRD || cmd === M_PFR || cmd === M_PFW || isAMO(cmd)
+  def isPrefetch(cmd: Bits) = cmd === M_PFR || cmd === M_PFW
+  def isRead(cmd: Bits) = cmd === M_XRD || isAMO(cmd)
   def isWrite(cmd: Bits) = cmd === M_XWR || isAMO(cmd)
 }
 
