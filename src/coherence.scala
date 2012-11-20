@@ -4,7 +4,7 @@ import Chisel._
 import Constants._
 
 object cpuCmdToRW {
-  def apply(cmd: Bits): (Bool, Bool) = (isRead(cmd), isWrite(cmd))
+  def apply(cmd: Bits): (Bool, Bool) = (isRead(cmd) || isPrefetch(cmd), isWrite(cmd))
 }
 
 abstract class CoherencePolicy {
