@@ -12,7 +12,8 @@ object BuildSettings extends Build {
     //unmanagedBase <<= baseDirectory { base => base / ".." / custom_lib" },
     organization := buildOrganization,
     version      := buildVersion,
-    scalaVersion := buildScalaVersion
+    scalaVersion := buildScalaVersion,
+    traceLevel   := 15
   )
 
   lazy val chisel = Project("chisel", file("chisel"), settings = buildSettings)
@@ -61,5 +62,4 @@ object BuildSettings extends Build {
       }
     }
   )
-  
 }
