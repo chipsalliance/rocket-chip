@@ -79,7 +79,7 @@ output/%.out: output/%.hex emulator
 	fesvr -c -testrun -m3000000 -l +loadmem=$< none 2> $@
 
 output/%.vpd: output/%.hex emulator-debug
-	fesvr -c./emulator-debug -testrun -m3000000 -l -v- +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@) | vcd2vpd - $@ > /dev/null
+	fesvr -c./emulator-debug -testrun -m3000000 -l -v- +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@) | vcd2vpd - $@ > /dev/null && [ $$PIPESTATUS -eq 0 ]
 
 run-asm-tests: $(addprefix output/, $(addsuffix .out, $(global_asm_tests) $(global_asm_vm_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;

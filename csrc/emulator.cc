@@ -1,5 +1,6 @@
 #include "htif_phy.h"
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <map>
@@ -9,6 +10,12 @@
 #include "mm_emulator_dramsim2.cc"
 #include "Top.h" // chisel-generated code...
 #include "disasm.h"
+
+static bool exit_now = false;
+void handle_sigterm(int signum)
+{
+  exit_now = true;
+}
 
 int main(int argc, char** argv)
 {
@@ -24,6 +31,8 @@ int main(int argc, char** argv)
   FILE *vcdfile = NULL, *logfile = stderr;
   const char* failure = NULL;
   disassembler disasm;
+
+  signal(SIGTERM, handle_sigterm);
 
   for (int i = 1; i < argc; i++)
   {
@@ -90,7 +99,7 @@ int main(int argc, char** argv)
 
   htif_phy_t htif_phy(tile.Top__io_host_in_bits.width(), fromhost_fd, tohost_fd);
 
-  while (max_cycles == 0 || trace_count < max_cycles)
+  while (!exit_now)
   {
 //    fprintf(stderr, "trace count: %ld\n", trace_count);
     // memory model
@@ -169,7 +178,7 @@ int main(int argc, char** argv)
     tile.clock_hi(LIT<1>(0));
     trace_count++;
 
-    if (trace_count == max_cycles)
+    if (max_cycles != 0 && trace_count == max_cycles)
     {
       failure = "timeout";
       break;
