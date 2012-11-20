@@ -110,7 +110,7 @@ class Core(implicit conf: RocketConfiguration) extends Component
     vu.io.xcpt.hold := ctrl.io.vec_iface.hold
 
     // hooking up vector memory interface
-    dmem(2).req.bits.data := Reg(StoreGen(vu.io.dmem_req.bits.typ, Bits(0), vu.io.dmem_req.bits.data).data)
+    dmem(2).req.bits.data := RegEn(StoreGen(vu.io.dmem_req.bits).data, vu.io.dmem_req.valid && isWrite(vu.io.dmem_req.bits.cmd))
     dmem(2).req <> vu.io.dmem_req
     dmem(2).resp <> vu.io.dmem_resp
 
