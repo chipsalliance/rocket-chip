@@ -191,7 +191,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     val e = ea(VADDR_BITS,VADDR_BITS-1)
     Mux(a === UFix(0) || a === UFix(1), e != UFix(0),
     Mux(a === Fix(-1) || a === Fix(-2), e === Fix(-1),
-    Bool(false)))
+    e(0)))
   }
   val ex_effective_address = Cat(vaSign(ex_rs1, alu.io.adder_out), alu.io.adder_out(VADDR_BITS-1,0)).toUFix
 
