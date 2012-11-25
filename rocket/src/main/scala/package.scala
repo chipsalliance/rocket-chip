@@ -13,7 +13,6 @@ object Constants extends
   InterruptConstants with 
   RocketDcacheConstants with
   VectorOpConstants with 
-  TLBConstants with 
   uncore.constants.MemoryInterfaceConstants
 {
   val START_ADDR = 0x2000

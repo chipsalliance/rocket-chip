@@ -43,7 +43,7 @@ class ioCtrlDpath extends Bundle()
   // inputs from datapath
   val inst    = Bits(INPUT, 32);
   val jalr_eq = Bool(INPUT)
-  val ex_br_type = Bits(OUTPUT, 3)
+  val ex_br_type = Bits(OUTPUT, SZ_BR)
   val ex_br_taken = Bool(INPUT)
   val div_rdy = Bool(INPUT);
   val div_result_val = Bool(INPUT);

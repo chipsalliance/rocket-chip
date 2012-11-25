@@ -7,7 +7,7 @@ import uncore._
 import Util._
 
 case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
-                        nmshr: Int, nrpq: Int, nsdq: Int,
+                        nmshr: Int, nrpq: Int, nsdq: Int, ntlb: Int,
                         reqtagbits: Int = -1, databits: Int = -1)
 {
   require(isPow2(sets))
