@@ -9,6 +9,7 @@ import Util._
 case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
                                icache: ICacheConfig, dcache: DCacheConfig,
                                fpu: Boolean, vec: Boolean,
+                               fastLoadWord: Boolean = true,
                                fastLoadByte: Boolean = false)
 {
   val dcacheReqTagBits = 9 // enforce compliance with require()
@@ -16,6 +17,7 @@ case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
   val nxpr = 32
   val nxprbits = log2Up(nxpr)
   val rvc = false
+  if (fastLoadByte) require(fastLoadWord)
 }
 
 class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Component(resetSignal)

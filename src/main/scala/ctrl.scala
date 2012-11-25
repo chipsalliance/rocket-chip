@@ -676,9 +676,10 @@ class Control(implicit conf: RocketConfiguration) extends Component
                      fp_data_hazard_ex && (ex_reg_mem_val || ex_reg_fp_val)
     
   // stall for RAW/WAW hazards on LB/LH and mul/div in memory stage.
-  val mem_mem_cmd_bh = if (conf.fastLoadByte) Bool(false) else
-    (mem_reg_mem_type === MT_B)  || (mem_reg_mem_type === MT_BU) ||
-    (mem_reg_mem_type === MT_H)  || (mem_reg_mem_type === MT_HU)
+  val mem_mem_cmd_bh =
+    if (!conf.fastLoadWord) Bool(true)
+    else if (conf.fastLoadByte) Bool(false)
+    else AVec(MT_B, MT_BU, MT_H, MT_HU) contains mem_reg_mem_type
   val data_hazard_mem = mem_reg_wen &&
     (id_raddr1 != UFix(0) && id_renx1 && id_raddr1 === io.dpath.mem_waddr ||
      id_raddr2 != UFix(0) && id_renx2 && id_raddr2 === io.dpath.mem_waddr ||
