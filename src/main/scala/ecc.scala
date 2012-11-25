@@ -14,26 +14,38 @@ abstract class Decoding
   def error = correctable || uncorrectable
 }
 
-abstract class Encoding
+abstract class Code
 {
   def width(w0: Int): Int
   def encode(x: Bits): Bits
   def decode(x: Bits): Decoding
 }
 
-class Parity extends Encoding
+class IdentityCode extends Code
+{
+  def width(w0: Int) = w0
+  def encode(x: Bits) = x
+  def decode(y: Bits) = new Decoding {
+    def uncorrected = y
+    def corrected = y
+    def correctable = Bool(false)
+    def uncorrectable = Bool(false)
+  }
+}
+
+class ParityCode extends Code
 {
   def width(w0: Int) = w0+1
   def encode(x: Bits) = Cat(x.xorR, x)
   def decode(y: Bits) = new Decoding {
     def uncorrected = y(y.getWidth-2,0)
     def corrected = uncorrected
-    def correctable = y.xorR
-    def uncorrectable = Bool(false)
+    def correctable = Bool(false)
+    def uncorrectable = y.xorR
   }
 }
 
-class SEC extends Encoding
+class SECCode extends Code
 {
   def width(k: Int) = {
     val m = log2Up(k) + 1 - !isPow2(k)
@@ -75,30 +87,37 @@ class SEC extends Encoding
   private def mapping(i: Int) = i-1-log2Up(i)
 }
 
-class SECDED extends Encoding
+class SECDEDCode extends Code
 {
-  def width(k: Int) = new SEC().width(k)+1
-  def encode(x: Bits) = new Parity().encode(new SEC().encode(x))
+  private val sec = new SECCode
+  private val par = new ParityCode
+
+  def width(k: Int) = sec.width(k)+1
+  def encode(x: Bits) = par.encode(sec.encode(x))
   def decode(x: Bits) = new Decoding {
-    val sec = new SEC().decode(x(x.getWidth-2,0))
-    val par = new Parity().decode(x)
-    def uncorrected = sec.uncorrected
-    def corrected = sec.corrected
-    def correctable = par.correctable
-    def uncorrectable = !par.correctable && sec.correctable
+    val secdec = sec.decode(x(x.getWidth-2,0))
+    val pardec = par.decode(x)
+
+    def uncorrected = secdec.uncorrected
+    def corrected = secdec.corrected
+    def correctable = pardec.uncorrectable
+    def uncorrectable = !pardec.uncorrectable && secdec.correctable
   }
+}
+
+object ErrGen
+{
+  // generate a 1-bit error with approximate probability 2^-f
+  def apply(width: Int, f: Int): Bits = {
+    require(width > 0 && f >= 0 && log2Up(width) + f <= 16)
+    UFixToOH(LFSR16()(log2Up(width)+f-1,0))(width-1,0)
+  }
+  def apply(x: Bits, f: Int): Bits = x ^ apply(x.getWidth, f)
 }
 
 class SECDEDTest extends Component
 {
-  def inject(x: Bits, n: UFix) = {
-    val r = LFSR16()
-    val r1 = UFixToOH(r(log2Up(x.getWidth)-1,0))(x.getWidth-1,0)
-    val r2 = UFixToOH(r(log2Up(x.getWidth)*2-1,log2Up(x.getWidth)))(x.getWidth-1,0)
-    x ^ Mux(n < UFix(1), UFix(0), r1) ^ Mux(n < UFix(2), UFix(0), r2)
-  }
-
-  val code = new SECDED
+  val code = new SECDEDCode
   val k = 4
   val n = code.width(k)
 
@@ -115,7 +134,7 @@ class SECDEDTest extends Component
   val c = Counter(Bool(true), 1 << k)
   val numErrors = Counter(c._2, 3)._1
   val e = code.encode(c._1)
-  val i = inject(e, numErrors)
+  val i = e ^ Mux(numErrors < 1, 0, ErrGen(n, 1)) ^ Mux(numErrors < 2, 0, ErrGen(n, 1))
   val d = code.decode(i)
 
   io.original := c._1
