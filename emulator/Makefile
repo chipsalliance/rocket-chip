@@ -12,8 +12,8 @@ CXXFLAGS := $(CXXFLAGS) -Itestbench -I$(basedir)/chisel/csrc -I../dramsim2
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
 DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 
-CHISEL_ARGS := $(MODEL) --backend c --targetDir ../emulator/generated-src
-CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd
+CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir ../emulator/generated-src
+CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
 generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
 	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS)"

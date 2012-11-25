@@ -207,8 +207,8 @@ class Top extends Component {
     val hl = uncore.io.htif(i)
     val tl = uncore.io.tiles(i)
 
-    val ic = ICacheConfig(128, 2, co)
-    val dc = DCacheConfig(128, 4, co,
+    val ic = ICacheConfig(128, 2, co, ntlb = 8, nbtb = 16)
+    val dc = DCacheConfig(128, 4, co, ntlb = 8,
                           nmshr = 2, nrpq = 16, nsdq = 17)
     val rc = RocketConfiguration(NTILES, co, ic, dc,
                                  fpu = true, vec = true)
