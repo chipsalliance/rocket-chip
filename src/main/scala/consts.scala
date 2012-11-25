@@ -5,6 +5,7 @@ import Chisel._
 import scala.math._
 
 trait ScalarOpConstants {
+  val SZ_BR = 3
   val BR_X    = Bits("b???", 3)
   val BR_EQ   = Bits(0, 3)
   val BR_NE   = Bits(1, 3)
@@ -103,13 +104,6 @@ abstract trait RocketDcacheConstants extends uncore.constants.CacheConstants wit
   require(OFFSET_BITS == log2Up(uncore.Constants.CACHE_DATA_SIZE_IN_BYTES))
   require(OFFSET_BITS <= uncore.Constants.X_INIT_WRITE_MASK_BITS)
   require(log2Up(OFFSET_BITS) <= uncore.Constants.X_INIT_SUBWORD_ADDR_BITS)
-}
-
-trait TLBConstants {
-  val BTB_ENTRIES = 8
-  val ITLB_ENTRIES = 8
-  val DTLB_ENTRIES = 16
-  val VITLB_ENTRIES = 4
 }
 
 trait VectorOpConstants {

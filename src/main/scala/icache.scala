@@ -7,6 +7,7 @@ import uncore._
 import Util._
 
 case class ICacheConfig(sets: Int, assoc: Int, co: CoherencePolicyWithUncached,
+                        ntlb: Int = 8, nbtb: Int = 8,
                         code: Code = new IdentityCode)
 {
   val w = 1
@@ -56,9 +57,9 @@ class Frontend(implicit c: ICacheConfig) extends Component
     val mem = new ioUncachedRequestor
   }
   
-  val btb = new rocketDpathBTB(BTB_ENTRIES)
+  val btb = new rocketDpathBTB(c.nbtb)
   val icache = new ICache
-  val tlb = new TLB(ITLB_ENTRIES)
+  val tlb = new TLB(c.ntlb)
 
   val s1_pc = Reg() { UFix() }
   val s1_same_block = Reg() { Bool() }

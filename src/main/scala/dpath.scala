@@ -216,7 +216,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   io.ptw.status := pcr.io.status
   
 	// branch resolution logic
-  io.ctrl.jalr_eq := ex_rs1 === id_pc.toFix && ex_reg_inst(11,0) === UFix(0)
+  io.ctrl.jalr_eq := ex_rs1 === id_pc.toFix && ex_reg_inst(21,10) === UFix(0)
   io.ctrl.ex_br_taken :=
     Mux(io.ctrl.ex_br_type === BR_EQ,  ex_rs1 === ex_rs2,
     Mux(io.ctrl.ex_br_type === BR_NE,  ex_rs1 !=  ex_rs2,
