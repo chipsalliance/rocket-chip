@@ -728,7 +728,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
 
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
-  val s1_readwrite = s1_read || s1_write
+  val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
   val dtlb = new TLB(8)
   dtlb.io.ptw <> io.cpu.ptw

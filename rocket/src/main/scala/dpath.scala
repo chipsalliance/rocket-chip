@@ -135,13 +135,13 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
 
   val dmem_resp_data = if (conf.fastLoadByte) io.dmem.resp.bits.data_subword else io.dmem.resp.bits.data
   val ex_rs1 =
-    Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UFix(3), dmem_resp_data,
+    Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UFix(3) && Bool(conf.fastLoadWord), dmem_resp_data,
     Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UFix(2), wb_reg_wdata,
     Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UFix(1), mem_reg_wdata,
     Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UFix(0), Bits(0),
     Cat(ex_reg_rs1_msb, ex_reg_rs1_lsb)))))
   val ex_rs2 =
-    Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UFix(3), dmem_resp_data,
+    Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UFix(3) && Bool(conf.fastLoadWord), dmem_resp_data,
     Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UFix(2), wb_reg_wdata,
     Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UFix(1), mem_reg_wdata,
     Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UFix(0), Bits(0),
