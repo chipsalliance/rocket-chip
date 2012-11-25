@@ -11,6 +11,15 @@ object Util
   implicit def wcToUFix(c: WideCounter): UFix = c.value
 }
 
+object AVec
+{
+  def apply[T <: Data](elts: Seq[T]): Vec[T] = {
+    require(elts.tail.forall(elts.head.getClass == _.getClass))
+    Vec(elts) { elts.head.clone }
+  }
+  def apply[T <: Data](elt0: T, elts: T*): Vec[T] = apply(elt0 :: elts.toList)
+}
+
 // a counter that clock gates most of its MSBs using the LSB carry-out
 case class WideCounter(width: Int, inc: Bool = Bool(true))
 {
