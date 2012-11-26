@@ -414,41 +414,47 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Component {
   }
 
   val valid = Reg(resetVal = Bool(false))
-  val is_probe = Reg() { Bool() }
-  val data_req_fired = Reg(resetVal = Bool(false))
-  val r_data_req_fired = Reg(data_req_fired, resetVal = Bool(false))
-  val cmd_sent = Reg() { Bool() }
-  val cnt = Reg() { UFix(width = log2Up(REFILL_CYCLES+1)) }
-  val req = Reg() { new WritebackReq() }
+  val is_probe = Reg{Bool()}
+  val r1_data_req_fired = Reg(resetVal = Bool(false))
+  val r2_data_req_fired = Reg(resetVal = Bool(false))
+  val cmd_sent = Reg{Bool()}
+  val cnt = Reg{UFix(width = log2Up(REFILL_CYCLES+1))}
+  val req = Reg{new WritebackReq}
 
-  val dout_rdy = Mux(is_probe, io.probe_rep_data.ready, io.mem_req_data.ready)
-  data_req_fired := Bool(false)
-  when (valid && io.mem_req.ready) {
-    cmd_sent := Bool(true)
+  when (valid) {
+    r1_data_req_fired := false
+    r2_data_req_fired := r1_data_req_fired
+    when (io.data_req.fire()) {
+      r1_data_req_fired := true
+      cnt := cnt + 1
+    }
+
+    when (r2_data_req_fired && !Mux(is_probe, io.probe_rep_data.ready, io.mem_req_data.ready)) {
+      r1_data_req_fired := false
+      r2_data_req_fired := false
+      cnt := cnt - Mux[UFix](r1_data_req_fired, 2, 1)
+    }
+
+    when (!r1_data_req_fired && !r2_data_req_fired && cmd_sent && cnt === REFILL_CYCLES) {
+      valid := false
+    }
+
+    when (valid && io.mem_req.ready) {
+      cmd_sent := true
+    }
   }
-  when (io.data_req.fire()) {
-    data_req_fired := Bool(true)
-    cnt := cnt + UFix(1)
-  }
-  when (data_req_fired && !dout_rdy) {
-    data_req_fired := Bool(false)
-    cnt := cnt - UFix(1)
-  }
-  .elsewhen (cmd_sent && (cnt === UFix(REFILL_CYCLES))) {
-    valid := Bool(false)
-  }
-  when (io.probe.valid && io.probe.ready) {
-    valid := Bool(true)
-    is_probe := Bool(true)
-    cmd_sent := Bool(true)
-    cnt := UFix(0)
+  when (io.probe.fire()) {
+    valid := true
+    is_probe := true
+    cmd_sent := true
+    cnt := 0
     req := io.probe.bits
   }
-  when (io.req.valid && io.req.ready) {
-    valid := Bool(true)
-    is_probe := Bool(false)
-    cmd_sent := Bool(false)
-    cnt := UFix(0)
+  when (io.req.fire()) {
+    valid := true
+    is_probe := false
+    cmd_sent := false
+    cnt := 0
     req := io.req.bits
   }
 
@@ -463,9 +469,9 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Component {
   io.mem_req.bits.x_type := conf.co.getTransactionInitTypeOnWriteback()
   io.mem_req.bits.addr := Cat(req.tag, req.idx).toUFix
   io.mem_req.bits.tile_xact_id := req.tile_xact_id
-  io.mem_req_data.valid := r_data_req_fired && !is_probe
+  io.mem_req_data.valid := r2_data_req_fired && !is_probe
   io.mem_req_data.bits.data := io.data_resp
-  io.probe_rep_data.valid := r_data_req_fired && is_probe
+  io.probe_rep_data.valid := r2_data_req_fired && is_probe
   io.probe_rep_data.bits.data := io.data_resp
 
   io.meta_read.valid := fire && io.data_req.ready
