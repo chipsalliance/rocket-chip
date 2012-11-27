@@ -39,21 +39,23 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   // memory definitions
   val mem_reg_pc             = Reg() { UFix() };
   val mem_reg_inst           = Reg() { Bits() };
-  val mem_reg_rs1            = Reg() { Bits() };
-  val mem_reg_rs2            = Reg() { Bits() };
   val mem_reg_waddr          = Reg() { UFix() };
   val mem_reg_wdata          = Reg() { Bits() };
   val mem_reg_kill = Reg() { Bool() }
+  val mem_reg_store_data = Reg{Bits()}
+  val mem_reg_rs1 = Reg{Bits()}
+  val mem_reg_rs2 = Reg{Bits()}
   
   // writeback definitions
   val wb_reg_pc             = Reg() { UFix() };
   val wb_reg_inst           = Reg() { Bits() };
-  val wb_reg_rs1            = Reg() { Bits() };
-  val wb_reg_rs2            = Reg() { Bits() };
   val wb_reg_waddr          = Reg() { UFix() }
   val wb_reg_wdata          = Reg() { Bits() }
   val wb_reg_ll_wb          = Reg(resetVal = Bool(false));
   val wb_wdata              = Bits(); 	
+  val wb_reg_store_data = Reg{Bits()}
+  val wb_reg_rs1 = Reg{Bits()}
+  val wb_reg_rs2 = Reg{Bits()}
   val wb_wen = io.ctrl.wb_wen && io.ctrl.wb_valid || wb_reg_ll_wb
 
   // instruction decode stage
@@ -198,7 +200,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
   io.dmem.req.bits.addr := ex_effective_address
-  io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
+  io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_store_data)
   io.dmem.req.bits.tag := Cat(ex_reg_waddr, io.ctrl.ex_fp_val)
   require(io.dmem.req.bits.tag.getWidth >= 6)
 
@@ -244,10 +246,13 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   when (!ex_reg_kill) {
     mem_reg_pc := ex_reg_pc
     mem_reg_inst := ex_reg_inst
-    mem_reg_rs1 := ex_rs1
-    mem_reg_rs2 := StoreGen(io.ctrl.ex_mem_type, Bits(0), ex_rs2).data
     mem_reg_waddr := ex_reg_waddr
     mem_reg_wdata := ex_wdata
+    mem_reg_rs1 := ex_rs1
+    mem_reg_rs2 := ex_rs2
+    when (io.ctrl.ex_rs2_val) {
+      mem_reg_store_data := StoreGen(io.ctrl.ex_mem_type, Bits(0), ex_rs2).data
+    }
   }
   
   // for load/use hazard detection (load byte/halfword)
@@ -287,10 +292,13 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   when (!mem_reg_kill) {
     wb_reg_pc := mem_reg_pc
     wb_reg_inst := mem_reg_inst
-    wb_reg_rs1 := mem_reg_rs1
-    wb_reg_rs2 := mem_reg_rs2
     wb_reg_waddr := mem_reg_waddr
     wb_reg_wdata := Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data, mem_reg_wdata)
+    wb_reg_rs1 := mem_reg_rs1
+    wb_reg_rs2 := mem_reg_rs2
+    when (io.ctrl.mem_rs2_val) {
+      wb_reg_store_data := mem_reg_store_data
+    }
   }
   wb_reg_ll_wb := io.ctrl.mem_ll_wb
   when (io.ctrl.mem_ll_wb) {
@@ -314,7 +322,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     vec.io.vecbank := pcr.io.vecbank
     vec.io.vecbankcnt := pcr.io.vecbankcnt
     vec.io.wdata := wb_reg_wdata
-    vec.io.rs2 := wb_reg_rs2
+    vec.io.rs2 := wb_reg_store_data
 
     pcr.io.vec_irq_aux := vec.io.irq_aux
     pcr.io.vec_appvl := vec.io.appvl
