@@ -78,7 +78,7 @@ trait MemoryInterfaceConstants extends
 }
 
 trait AddressConstants { 
-  val PADDR_BITS = 40;
+  val PADDR_BITS = 32
   val VADDR_BITS = 43;
   val PGIDX_BITS = 13;
   val PPN_BITS = PADDR_BITS-PGIDX_BITS;
