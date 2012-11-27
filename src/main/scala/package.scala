@@ -9,7 +9,6 @@ import scala.math._
 object Constants extends 
   ScalarOpConstants with
   uncore.constants.MemoryOpConstants with
-  PCRConstants with 
   InterruptConstants with 
   RocketDcacheConstants with
   VectorOpConstants with 

@@ -205,8 +205,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   require(io.dmem.req.bits.tag.getWidth >= 6)
 
 	// processor control regfile read
-  val pcr = new rocketDpathPCR()
-  pcr.io.r.en   := io.ctrl.pcr != PCR_N
+  val pcr = new PCR
+  pcr.io.r.en   := io.ctrl.pcr != PCR.N
   pcr.io.r.addr := wb_reg_inst(26,22).toUFix
 
   pcr.io.host <> io.host
@@ -306,7 +306,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     wb_reg_wdata := mem_ll_wdata
   }
   wb_wdata := Mux(io.ctrl.wb_load, io.dmem.resp.bits.data_subword,
-              Mux(io.ctrl.pcr != PCR_N, pcr.io.r.data,
+              Mux(io.ctrl.pcr != PCR.N, pcr.io.r.data,
               wb_reg_wdata))
 
   if (conf.vec)
@@ -317,7 +317,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     vec.io.ctrl <> io.vec_ctrl
     io.vec_iface <> vec.io.iface 
 
-    vec.io.valid := io.ctrl.wb_valid && pcr.io.status(SR_EV)
+    vec.io.valid := io.ctrl.wb_valid && pcr.io.status.ev
     vec.io.inst := wb_reg_inst
     vec.io.vecbank := pcr.io.vecbank
     vec.io.vecbankcnt := pcr.io.vecbankcnt
@@ -341,9 +341,9 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
 
 	// processor control regfile write
   pcr.io.w.addr := wb_reg_inst(26,22).toUFix
-  pcr.io.w.en   := io.ctrl.pcr === PCR_T || io.ctrl.pcr === PCR_S || io.ctrl.pcr === PCR_C
-  pcr.io.w.data := Mux(io.ctrl.pcr === PCR_S, pcr.io.r.data | wb_reg_wdata,
-                   Mux(io.ctrl.pcr === PCR_C, pcr.io.r.data & ~wb_reg_wdata,
+  pcr.io.w.en   := io.ctrl.pcr === PCR.T || io.ctrl.pcr === PCR.S || io.ctrl.pcr === PCR.C
+  pcr.io.w.data := Mux(io.ctrl.pcr === PCR.S, pcr.io.r.data | wb_reg_wdata,
+                   Mux(io.ctrl.pcr === PCR.C, pcr.io.r.data & ~wb_reg_wdata,
                    wb_reg_wdata))
 
   // hook up I$

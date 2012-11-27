@@ -13,14 +13,14 @@ class IOTLBPTW extends Bundle {
     val perm = Bits(width = PERM_BITS)
   }).flip
 
-  val status = Bits(INPUT, width = 32)
+  val status = new Status().asInput
   val invalidate = Bool(INPUT)
 }
 
 class IODatapathPTW extends Bundle {
   val ptbr = UFix(INPUT, PADDR_BITS)
   val invalidate = Bool(INPUT)
-  val status = Bits(INPUT, 32)
+  val status = new Status().asInput
 }
 
 class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
