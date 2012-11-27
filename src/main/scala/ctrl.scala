@@ -35,6 +35,8 @@ class ioCtrlDpath extends Bundle()
   val wb_wen   = Bool(OUTPUT);
   val wb_valid = Bool(OUTPUT)
   val ex_mem_type = Bits(OUTPUT, 3)
+  val ex_rs2_val = Bool(OUTPUT)
+  val mem_rs2_val = Bool(OUTPUT)
   // exception handling
   val exception = Bool(OUTPUT);
   val cause    = UFix(OUTPUT, 6);
@@ -746,6 +748,8 @@ class Control(implicit conf: RocketConfiguration) extends Component
   io.dpath.eret := wb_reg_eret
   io.dpath.ex_mem_type := ex_reg_mem_type
   io.dpath.ex_br_type := ex_reg_br_type
+  io.dpath.ex_rs2_val := ex_reg_mem_val && isWrite(ex_reg_mem_cmd) || ex_reg_vec_val
+  io.dpath.mem_rs2_val := mem_reg_vec_val
 
   io.fpu.valid := !ctrl_killd && id_fp_val
   io.fpu.killx := ctrl_killx
