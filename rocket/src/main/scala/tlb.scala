@@ -136,22 +136,20 @@ class TLB(entries: Int) extends Component
   val plru = new PseudoLRU(entries)
   val repl_waddr = Mux(has_invalid_entry, invalid_entry, plru.replace)
   
-  val status_s  = io.ptw.status(SR_S)  // user/supervisor mode
-  val status_vm = io.ptw.status(SR_VM) // virtual memory enable
   val bad_va = io.req.bits.vpn(VPN_BITS) != io.req.bits.vpn(VPN_BITS-1)
-  val tlb_hit  = status_vm && tag_hit
-  val tlb_miss = status_vm && !tag_hit && !bad_va
+  val tlb_hit  = io.ptw.status.vm && tag_hit
+  val tlb_miss = io.ptw.status.vm && !tag_hit && !bad_va
   
   when (io.req.valid && tlb_hit) {
     plru.access(OHToUFix(tag_cam.io.hits))
   }
 
   io.req.ready := state === s_ready
-  io.resp.xcpt_ld := bad_va || tlb_hit && !Mux(status_s, (sr_array & tag_cam.io.hits).orR, (ur_array & tag_cam.io.hits).orR)
-  io.resp.xcpt_st := bad_va || tlb_hit && !Mux(status_s, (sw_array & tag_cam.io.hits).orR, (uw_array & tag_cam.io.hits).orR)
-  io.resp.xcpt_if := bad_va || tlb_hit && !Mux(status_s, (sx_array & tag_cam.io.hits).orR, (ux_array & tag_cam.io.hits).orR)
+  io.resp.xcpt_ld := bad_va || tlb_hit && !Mux(io.ptw.status.s, (sr_array & tag_cam.io.hits).orR, (ur_array & tag_cam.io.hits).orR)
+  io.resp.xcpt_st := bad_va || tlb_hit && !Mux(io.ptw.status.s, (sw_array & tag_cam.io.hits).orR, (uw_array & tag_cam.io.hits).orR)
+  io.resp.xcpt_if := bad_va || tlb_hit && !Mux(io.ptw.status.s, (sx_array & tag_cam.io.hits).orR, (ux_array & tag_cam.io.hits).orR)
   io.resp.miss := tlb_miss
-  io.resp.ppn := Mux(status_vm && !io.req.bits.passthrough, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(PPN_BITS-1,0))
+  io.resp.ppn := Mux(io.ptw.status.vm && !io.req.bits.passthrough, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(PPN_BITS-1,0))
   io.resp.hit_idx := tag_cam.io.hits
   
   io.ptw.req.valid := state === s_request

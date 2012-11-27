@@ -52,48 +52,6 @@ trait ScalarOpConstants {
   val RA = UFix(1, 5);
 }
 
-trait PCRConstants {
-  val PCR_X = Bits("b???", 3)
-  val PCR_N = Bits(0,3)
-  val PCR_F = Bits(1,3) // mfpcr
-  val PCR_T = Bits(4,3) // mtpcr
-  val PCR_C = Bits(6,3) // clearpcr
-  val PCR_S = Bits(7,3) // setpcr
-  
-  val PCR_STATUS   = UFix( 0, 5);
-  val PCR_EPC      = UFix( 1, 5);
-  val PCR_BADVADDR = UFix( 2, 5);
-  val PCR_EVEC     = UFix( 3, 5);
-  val PCR_COUNT    = UFix( 4, 5);
-  val PCR_COMPARE  = UFix( 5, 5);
-  val PCR_CAUSE    = UFix( 6, 5);
-  val PCR_PTBR     = UFix( 7, 5);
-  val PCR_SEND_IPI = UFix( 8, 5);
-  val PCR_CLR_IPI  = UFix( 9, 5);
-  val PCR_COREID   = UFix(10, 5);
-  val PCR_IMPL     = UFix(11, 5);
-  val PCR_K0       = UFix(12, 5);
-  val PCR_K1       = UFix(13, 5);
-  val PCR_VECBANK  = UFix(18, 5);
-  val PCR_VECCFG   = UFix(19, 5);
-  val PCR_RESET    = UFix(29, 5);
-  val PCR_TOHOST   = UFix(30, 5);
-  val PCR_FROMHOST = UFix(31, 5);
-
-  // definition of bits in PCR status reg
-  val SR_ET   = 0;  // enable traps
-  val SR_EF   = 1;  // enable floating point
-  val SR_EV   = 2;  // enable vector unit
-  val SR_EC   = 3;  // enable compressed instruction encoding
-  val SR_PS   = 4;  // mode stack bit
-  val SR_S    = 5;  // user/supervisor mode
-  val SR_U64  = 6;  // 64 bit user mode
-  val SR_S64  = 7;  // 64 bit supervisor mode
-  val SR_VM   = 8   // VM enable
-  val SR_IM   = 16  // interrupt mask
-  val SR_IM_WIDTH = 8
-}
-
 trait InterruptConstants {
   val CAUSE_INTERRUPT = 32
   val IRQ_IPI = 5

@@ -4,6 +4,7 @@ import Chisel._
 import Node._
 import Constants._
 import uncore._
+import Util._
 
 class ioDebug extends Bundle
 {
@@ -199,7 +200,7 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component
 
     val cpu = io.cpu(i)
     val me = pcr_coreid === UFix(i)
-    cpu.pcr_req.valid := state === state_pcr_req && me && pcr_addr != PCR_RESET
+    cpu.pcr_req.valid := state === state_pcr_req && me && pcr_addr != PCR.RESET
     cpu.pcr_req.bits.rw := cmd === cmd_writecr
     cpu.pcr_req.bits.addr := pcr_addr
     cpu.pcr_req.bits.data := pcr_wdata
@@ -219,7 +220,7 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component
     when (cpu.pcr_req.valid && cpu.pcr_req.ready) {
       state := state_pcr_resp
     }
-    when (state === state_pcr_req && me && pcr_addr === PCR_RESET) {
+    when (state === state_pcr_req && me && pcr_addr === PCR.RESET) {
       when (cmd === cmd_writecr) {
         my_reset := pcr_wdata(0)
       }
