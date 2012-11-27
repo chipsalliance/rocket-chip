@@ -18,6 +18,7 @@ object AVec
     require(elts.tail.forall(elts.head.getClass == _.getClass))
     Vec(elts) { elts.head.clone }
   }
+  def apply[T <: Data](elts: Vec[T]): Vec[T] = apply(elts.toSeq)
   def apply[T <: Data](elt0: T, elts: T*): Vec[T] = apply(elt0 :: elts.toList)
 }
 

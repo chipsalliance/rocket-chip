@@ -8,7 +8,8 @@ import Util._
 
 case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
                         nmshr: Int, nrpq: Int, nsdq: Int, ntlb: Int,
-                        reqtagbits: Int = -1, databits: Int = -1)
+                        reqtagbits: Int = -1, databits: Int = -1,
+                        narrowRead: Boolean = true)
 {
   require(isPow2(sets))
   require(isPow2(ways)) // TODO: relax this
@@ -27,6 +28,7 @@ case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
   def ramoffbits = log2Up(MEM_DATA_BITS/8)
   def databytes = databits/8
   def wordoffbits = log2Up(databytes)
+  def isNarrowRead = narrowRead && databits*ways % MEM_DATA_BITS == 0
 }
 
 abstract class ReplacementPolicy
@@ -595,16 +597,43 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
   val waddr = io.write.bits.addr >> conf.ramoffbits
   val raddr = io.read.bits.addr >> conf.ramoffbits
 
-  for (w <- 0 until conf.ways) {
-    val rdata = Reg() { Bits() }
-    val array = Mem(conf.sets*REFILL_CYCLES, seqRead = true){ Bits(width=MEM_DATA_BITS) }
-    when (io.write.bits.way_en(w) && io.write.valid) {
-      array.write(waddr, io.write.bits.data, wmask)
+  if (conf.isNarrowRead) {
+    val waysPerMem = MEM_DATA_BITS/conf.databits
+    for (w <- 0 until conf.ways by waysPerMem) {
+      val resp = Vec(MEM_DATA_BITS/conf.databits){Reg{Bits(width = MEM_DATA_BITS)}}
+      val r_raddr = RegEn(io.read.bits.addr, io.read.valid)
+      for (p <- 0 until resp.size) {
+        val array = Mem(conf.sets*REFILL_CYCLES, seqRead = true){ Bits(width=MEM_DATA_BITS) }
+        val way_en = io.write.bits.way_en(w+waysPerMem-1,w)
+        when (way_en.orR && io.write.valid && io.write.bits.wmask(p)) {
+          val data = Fill(waysPerMem, io.write.bits.data(conf.databits*(p+1)-1,conf.databits*p))
+          val mask = FillInterleaved(conf.databits, way_en)
+          array.write(waddr, data, mask)
+        }
+        when (way_en.orR && io.read.valid) {
+          resp(p) := array(raddr)
+        }
+      }
+      for (dw <- 0 until waysPerMem) {
+        val r = AVec(resp.map(_(conf.databits*(dw+1)-1,conf.databits*dw)))
+        val resp_mux =
+          if (r.size == 1) r
+          else AVec(r(r_raddr(conf.ramoffbits-1,conf.wordoffbits)), r.tail:_*)
+        io.resp(w+dw) := resp_mux.toBits
+      }
     }
-    when (io.read.bits.way_en(w) && io.read.valid) {
-      rdata := array(raddr)
+  } else {
+    for (w <- 0 until conf.ways) {
+      val rdata = Reg() { Bits() }
+      val array = Mem(conf.sets*REFILL_CYCLES, seqRead = true){ Bits(width=MEM_DATA_BITS) }
+      when (io.write.bits.way_en(w) && io.write.valid) {
+        array.write(waddr, io.write.bits.data, wmask)
+      }
+      when (io.read.bits.way_en(w) && io.read.valid) {
+        rdata := array(raddr)
+      }
+      io.resp(w) := rdata
     }
-    io.resp(w) := rdata
   }
 
   io.read.ready := Bool(true)
@@ -714,23 +743,15 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val s1_req = Reg{io.cpu.req.bits.clone}
   val s1_valid_masked = s1_valid && !io.cpu.req.bits.kill
   val s1_replay = Reg(resetVal = Bool(false))
-  val s1_store_bypass = Bool()
 
   val s2_valid = Reg(s1_valid_masked, resetVal = Bool(false))
   val s2_req = Reg{io.cpu.req.bits.clone}
   val s2_replay = Reg(s1_replay, resetVal = Bool(false))
   val s2_valid_masked = Bool()
-  val s2_nack_hit = Bool()
-  val s2_store_bypass = Reg{Bool()}
-  val s2_store_bypass_data = Reg{Bits(width = conf.databits)}
-  val s2_store_bypass_mask = Reg{Bits(width = conf.databytes)}
 
   val s3_valid = Reg(resetVal = Bool(false))
   val s3_req = Reg{io.cpu.req.bits.clone}
   val s3_way = Reg{Bits()}
-
-  val s4_valid = Reg(s3_valid, resetVal = Bool(false))
-  val s4_req = RegEn(s3_req, s3_valid)
 
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
@@ -766,7 +787,6 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
     s2_req.typ := s1_req.typ
     s2_req.cmd := s1_req.cmd
     s2_req.tag := s1_req.tag
-    s2_store_bypass := s1_store_bypass
     when (s1_write) {
       s2_req.data := Mux(s1_replay, mshr.io.replay.bits.data, io.cpu.req.bits.data)
     }
@@ -813,11 +833,22 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === (s1_addr >> conf.untagbits)){Bits()}.toBits
   val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && conf.co.isValid(meta.io.resp(w).state)){Bits()}.toBits
   val s1_clk_en = Reg(metaReadArb.io.out.valid)
+  val s1_writeback = s1_clk_en && !s1_valid && !s1_replay
   val s2_tag_match_way = RegEn(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
   val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEn(meta.io.resp(w).state, s1_clk_en && s1_tag_eq_way(w))){Bits()})
   val s2_hit = conf.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === conf.co.newStateOnHit(s2_req.cmd, s2_hit_state)
-  val s2_data = wayMap((w: Int) => RegEn(data.io.resp(w), s1_clk_en && s1_tag_eq_way(w))){Bits()}
+
+  val s2_data = Vec(conf.ways){Bits(width = MEM_DATA_BITS)}
+  for (w <- 0 until conf.ways) {
+    val regs = Vec(MEM_DATA_BITS/conf.databits){Reg{Bits(width = conf.databits)}}
+    val en1 = s1_clk_en && s1_tag_eq_way(w)
+    for (i <- 0 until regs.size) {
+      val en = en1 && (Bool(i == 0 || !conf.isNarrowRead) || s1_writeback)
+      when (en) { regs(i) := data.io.resp(w) >> conf.databits*i }
+    }
+    s2_data(w) := Cat(regs.last, regs.init.reverse:_*)
+  }
   val data_resp_mux = Mux1H(s2_tag_match_way, s2_data)
   
   // store/amo hits
@@ -843,7 +874,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val s2_repl_tag = Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegEn(meta.io.resp(w).tag, s1_clk_en && s1_replaced_way_en(w))){Bits()})
 
   // miss handling
-  mshr.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd)) && !s2_nack_hit
+  mshr.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd))
   mshr.io.req.bits := s2_req
   mshr.io.req.bits.tag_match := s2_tag_match
   mshr.io.req.bits.old_meta.state := s2_repl_state
@@ -893,20 +924,29 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   wb.io.probe_rep_data <> io.mem.probe_rep_data
 
   // store->load bypassing
+  val s4_valid = Reg(s3_valid, resetVal = Bool(false))
+  val s4_req = RegEn(s3_req, s3_valid && metaReadArb.io.out.valid)
   val bypasses = List(
     (s2_valid_masked || s2_replay, s2_req, amoalu.io.out),
     (s3_valid, s3_req, s3_req.data),
     (s4_valid, s4_req, s4_req.data)
   ).map(r => (r._1 && (s1_addr >> conf.wordoffbits === r._2.addr >> conf.wordoffbits) && isWrite(r._2.cmd), r._3, StoreGen(r._2).mask))
-  s1_store_bypass := bypasses.map(_._1).reduce(_||_)
-  when (s1_clk_en && s1_store_bypass) {
-    s2_store_bypass_data := PriorityMux(bypasses.map(x => (x._1, x._2)))
-    s2_store_bypass_mask := PriorityMux(bypasses.map(x => (x._1, x._3)))
+  val s2_store_bypass_data = Reg{Bits(width = conf.databits)}
+  val s2_store_bypass_mask = Reg{Bits(width = conf.databytes)}
+  when (s1_clk_en) {
+    when (bypasses.map(_._1).reduce(_||_)) {
+      s2_store_bypass_data := PriorityMux(bypasses.map(x => (x._1, x._2)))
+      s2_store_bypass_mask := PriorityMux(bypasses.map(x => (x._1, x._3)))
+    }.otherwise {
+      s2_store_bypass_mask := Bits(0)
+    }
   }
 
   // load data subword mux/sign extension
-  val s2_data_word_prebypass = data_resp_mux >> Cat(s2_req.addr(log2Up(MEM_DATA_BITS/8)-1,3), Bits(0,log2Up(conf.databits)))
-  val s2_data_word = Cat(null, (0 until conf.databytes).map(i => Mux(s2_store_bypass && s2_store_bypass_mask(i), s2_store_bypass_data, s2_data_word_prebypass)(8*(i+1)-1,8*i)).reverse:_*)
+  val s2_data_word_prebypass =
+    if (conf.isNarrowRead) data_resp_mux(conf.databits-1,0)
+    else data_resp_mux >> Cat(s2_req.addr(log2Up(MEM_DATA_BITS/8)-1,3), Bits(0,log2Up(conf.databits)))
+  val s2_data_word = Cat(null, (0 until conf.databytes).map(i => Mux(s2_store_bypass_mask(i), s2_store_bypass_data, s2_data_word_prebypass)(8*(i+1)-1,8*i)).reverse:_*)
   val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word)
 
   amoalu.io := s2_req
@@ -916,10 +956,12 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   // nack it like it's hot
   val s1_nack = dtlb.io.req.valid && dtlb.io.resp.miss ||
                 s1_req.addr(indexmsb,indexlsb) === prober.io.meta_write.bits.idx && !prober.io.req.ready
-  s2_nack_hit := Reg(s1_nack) || s2_hit && mshr.io.secondary_miss
+  val s2_nack_hit = RegEn(s1_nack, s1_valid || s1_replay)
+  when (s2_nack_hit) { mshr.io.req.valid := Bool(false) }
+  val s2_nack_victim = s2_hit && mshr.io.secondary_miss
   val s2_nack_miss = !s2_hit && !mshr.io.req.ready
   val s2_nack_fence = s2_req.cmd === M_FENCE && !mshr.io.fence_rdy
-  val s2_nack = s2_nack_hit || s2_nack_miss || s2_nack_fence
+  val s2_nack = s2_nack_hit || s2_nack_victim || s2_nack_miss || s2_nack_fence
   s2_valid_masked := s2_valid && !s2_nack
 
   // after a nack, block until nack condition resolves to save energy
