@@ -600,17 +600,18 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
   if (conf.isNarrowRead) {
     val waysPerMem = MEM_DATA_BITS/conf.databits
     for (w <- 0 until conf.ways by waysPerMem) {
+      val wway_en = io.write.bits.way_en(w+waysPerMem-1,w)
+      val rway_en = io.read.bits.way_en(w+waysPerMem-1,w)
       val resp = Vec(MEM_DATA_BITS/conf.databits){Reg{Bits(width = MEM_DATA_BITS)}}
       val r_raddr = RegEn(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
         val array = Mem(conf.sets*REFILL_CYCLES, seqRead = true){ Bits(width=MEM_DATA_BITS) }
-        val way_en = io.write.bits.way_en(w+waysPerMem-1,w)
-        when (way_en.orR && io.write.valid && io.write.bits.wmask(p)) {
+        when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
           val data = Fill(waysPerMem, io.write.bits.data(conf.databits*(p+1)-1,conf.databits*p))
-          val mask = FillInterleaved(conf.databits, way_en)
+          val mask = FillInterleaved(conf.databits, wway_en)
           array.write(waddr, data, mask)
         }
-        when (way_en.orR && io.read.valid) {
+        when (rway_en.orR && io.read.valid) {
           resp(p) := array(raddr)
         }
       }
