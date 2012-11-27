@@ -41,11 +41,9 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
 
   val r_req_vpn = Reg{Bits()}
   val r_req_dest = Reg{Bits()}
-  val r_req_addr = Reg{UFix(width = PADDR_BITS.max(VADDR_BITS))}
-  val r_resp_perm = Reg{Bits()}
+  val r_pte = Reg{Bits()}
   
-  val vpn_idxs = (1 until levels).map(i => r_req_vpn((levels-i)*bitsPerLevel-1, (levels-i-1)*bitsPerLevel))
-  val vpn_idx = (2 until levels).foldRight(vpn_idxs(0))((i,j) => Mux(count === UFix(i-1), vpn_idxs(i-1), j))
+  val vpn_idx = AVec((0 until levels).map(i => (r_req_vpn >> (levels-i-1)*bitsPerLevel)(bitsPerLevel-1,0)))(count)
 
   val arb = new RRArbiter(n)(UFix(width = VPN_BITS))
   arb.io.in <> io.requestor.map(_.req)
@@ -54,19 +52,18 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
   when (arb.io.out.fire()) {
     r_req_vpn := arb.io.out.bits
     r_req_dest := arb.io.chosen
-    r_req_addr := Cat(io.dpath.ptbr(PADDR_BITS-1,PGIDX_BITS), arb.io.out.bits(VPN_BITS-1,VPN_BITS-bitsPerLevel)) << log2Up(conf.xprlen/8)
+    r_pte := Cat(io.dpath.ptbr(PADDR_BITS-1,PGIDX_BITS), io.mem.resp.bits.data(PGIDX_BITS-1,0))
   }
 
   when (io.mem.resp.valid) {
-    r_req_addr := Cat(io.mem.resp.bits.data(PADDR_BITS-1, PGIDX_BITS), vpn_idx).toUFix << log2Up(conf.xprlen/8)
-    r_resp_perm := io.mem.resp.bits.data(9,4);
+    r_pte := io.mem.resp.bits.data
   }
   
   io.mem.req.valid     := state === s_req
   io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := M_XRD
   io.mem.req.bits.typ  := MT_D
-  io.mem.req.bits.addr := r_req_addr
+  io.mem.req.bits.addr := Cat(r_pte(PADDR_BITS-1,PGIDX_BITS), vpn_idx).toUFix << log2Up(conf.xprlen/8)
   io.mem.req.bits.kill := Bool(false)
   
   val resp_val = state === s_done || state === s_error
@@ -75,15 +72,14 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
   val resp_ptd = io.mem.resp.bits.data(1,0) === Bits(1)
   val resp_pte = io.mem.resp.bits.data(1,0) === Bits(2)
 
-  val r_resp_ppn = r_req_addr >> PGIDX_BITS
-  val resp_ppns = (0 until levels-1).map(i => Cat(r_resp_ppn >> VPN_BITS-bitsPerLevel*(i+1), r_req_vpn(VPN_BITS-1-bitsPerLevel*(i+1), 0)))
-  val resp_ppn = (0 until levels-1).foldRight(r_resp_ppn)((i,j) => Mux(count === UFix(i), resp_ppns(i), j))
+  val r_resp_ppn = io.mem.req.bits.addr >> PGIDX_BITS
+  val resp_ppn = AVec((0 until levels-1).map(i => Cat(r_resp_ppn >> bitsPerLevel*(levels-i-1), r_req_vpn(bitsPerLevel*(levels-i-1)-1,0))) :+ r_resp_ppn)(count)
 
   for (i <- 0 until io.requestor.size) {
     val me = r_req_dest === UFix(i)
     io.requestor(i).resp.valid := resp_val && me
     io.requestor(i).resp.bits.error := resp_err
-    io.requestor(i).resp.bits.perm := r_resp_perm
+    io.requestor(i).resp.bits.perm := r_pte(9,4)
     io.requestor(i).resp.bits.ppn := resp_ppn.toUFix
     io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).status := io.dpath.status
