@@ -109,6 +109,7 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
     val requested = Bool()
     val old_dirty = Bool()
     val old_tag = UFix(width = PADDR_BITS - OFFSET_BITS - log2Up(sets))
+    val wb_busy = Bool()
 
     override def clone = new MSHR().asInstanceOf[this.type]
   }
@@ -124,12 +125,13 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
     mshr(freeId).way := io.repl_way
     mshr(freeId).old_dirty := io.repl_dirty
     mshr(freeId).old_tag := io.repl_tag
+    mshr(freeId).wb_busy := Bool(false)
     mshr(freeId).requested := Bool(false)
     mshr(freeId).refillCount := UFix(0)
     mshr(freeId).refilled := Bool(false)
   }
 
-  val requests = Cat(Bits(0), (outstanding-1 to 0 by -1).map(i => valid(i) && !mshr(i).old_dirty && !mshr(i).requested):_*)
+  val requests = Cat(Bits(0), (outstanding-1 to 0 by -1).map(i => valid(i) && !mshr(i).old_dirty && !mshr(i).wb_busy && !mshr(i).requested):_*)
   val request = requests.orR
   val requestId = PriorityEncoder(requests)
   when (io.mem.req_cmd.valid && io.mem.req_cmd.ready) { mshr(requestId).requested := Bool(true) }
@@ -149,7 +151,11 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
   val writebacks = Cat(Bits(0), (outstanding-1 to 0 by -1).map(i => valid(i) && mshr(i).old_dirty):_*)
   val writeback = writebacks.orR
   val writebackId = PriorityEncoder(writebacks)
-  when (writeback && io.data.ready && !replay) { mshr(writebackId).old_dirty := Bool(false) }
+  when (writeback && io.data.ready && !replay) {
+    mshr(writebackId).old_dirty := Bool(false)
+    mshr(writebackId).wb_busy := Bool(true)
+  }
+  mshr.foreach(m => when (m.wb_busy && io.data.ready) { m.wb_busy := Bool(false) })
 
   val conflicts = Cat(Bits(0), (0 until outstanding).map(i => valid(i) && io.cpu.bits.addr(log2Up(sets)-1, 0) === mshr(i).addr(log2Up(sets)-1, 0)):_*)
   io.cpu.ready := !conflicts.orR && !validBits.andR
