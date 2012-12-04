@@ -6,8 +6,8 @@
 #include <map>
 #include "common.h"
 #include "emulator.h"
-//#include "mm_emulator.cc"
-#include "mm_emulator_dramsim2.cc"
+#include "mm.h"
+#include "mm_dramsim2.h"
 #include "Top.h" // chisel-generated code...
 #include "disasm.h"
 
@@ -31,6 +31,7 @@ int main(int argc, char** argv)
   FILE *vcdfile = NULL, *logfile = stderr;
   const char* failure = NULL;
   disassembler disasm;
+  bool dramsim2 = false;
 
   signal(SIGTERM, handle_sigterm);
 
@@ -41,6 +42,8 @@ int main(int argc, char** argv)
       log = true;
     else if (arg == "-q")
       quiet = true;
+    else if (arg == "+dramsim")
+      dramsim2 = true;
     else if (arg.substr(0, 2) == "-v")
       vcd = argv[i]+2;
     else if (arg.substr(0, 2) == "-m")
@@ -75,11 +78,10 @@ int main(int argc, char** argv)
     fprintf(vcdfile, "$upscope $end\n");
   }
 
-  // basic fixed latency memory model
-  /*uint64_t* mem = mm_init();*/
-  uint64_t* mm_mem = dramsim2_init();
-  if (loadmem != NULL)
-    load_mem(mm_mem, loadmem);
+  mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
+  mm->init(MEM_SIZE);
+  if (loadmem)
+    load_mem(mm->get_data(), loadmem);
 
 
   // The chisel generated code
@@ -101,31 +103,27 @@ int main(int argc, char** argv)
 
   while (!exit_now)
   {
-//    fprintf(stderr, "trace count: %ld\n", trace_count);
-    // memory model
-//    mm_tick_emulator(
-    dramsim2_tick_emulator (
-      tile.Top__io_mem_req_cmd_valid.lo_word(),
-      &tile.Top__io_mem_req_cmd_ready.values[0],
-      tile.Top__io_mem_req_cmd_bits_rw.lo_word(),
-      tile.Top__io_mem_req_cmd_bits_addr.lo_word(),
-      tile.Top__io_mem_req_cmd_bits_tag.lo_word(),
-
-      tile.Top__io_mem_req_data_valid.lo_word(),
-      &tile.Top__io_mem_req_data_ready.values[0],
-      &tile.Top__io_mem_req_data_bits_data.values[0],
-
-      &tile.Top__io_mem_resp_valid.values[0],
-      &tile.Top__io_mem_resp_bits_tag.values[0],
-      &tile.Top__io_mem_resp_bits_data.values[0]
-    );
-//    fprintf(stderr, "trace count: %ld (after dramsim2_tick_emulator)\n", trace_count);
+    tile.Top__io_mem_req_cmd_ready = LIT<1>(mm->req_cmd_ready());
+    tile.Top__io_mem_req_data_ready = LIT<1>(mm->req_data_ready());
+    tile.Top__io_mem_resp_valid = LIT<1>(mm->resp_valid());
+    tile.Top__io_mem_resp_bits_tag = LIT<64>(mm->resp_tag());
+    memcpy(&tile.Top__io_mem_resp_bits_data, mm->resp_data(), tile.Top__io_mem_resp_bits_data.width()/8);
 
     tile.Top__io_host_in_valid = LIT<1>(htif_phy.in_valid());
     tile.Top__io_host_in_bits = LIT<64>(htif_phy.in_bits());
     tile.Top__io_host_out_ready = LIT<1>(htif_phy.out_ready());
 
     tile.clock_lo(LIT<1>(0));
+
+    mm->tick(
+      tile.Top__io_mem_req_cmd_valid.lo_word(),
+      tile.Top__io_mem_req_cmd_bits_rw.lo_word(),
+      tile.Top__io_mem_req_cmd_bits_addr.lo_word(),
+      tile.Top__io_mem_req_cmd_bits_tag.lo_word(),
+
+      tile.Top__io_mem_req_data_valid.lo_word(),
+      &tile.Top__io_mem_req_data_bits_data.values[0]
+    );
 
     if (tile.Top__io_host_clk_edge.to_bool())
     {

@@ -2,9 +2,15 @@
 
 MODEL := Top
 CXX := g++
-CXXFLAGS := -O2
+CXXFLAGS := -O2 -g
 
 SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
+
+DRAMSIM_OBJS := $(patsubst %.cpp,%.o,$(wildcard $(basedir)/dramsim2/*.cpp))
+$(DRAMSIM_OBJS): %.o: %.cpp
+	$(CXX) $(CXXFLAGS) -DNO_STORAGE -DNO_OUTPUT -Dmain=nomain -c -o $@ $<
+libdramsim.a: $(DRAMSIM_OBJS)
+	ar rcs $@ $^
 
 #--------------------------------------------------------------------
 # Tests

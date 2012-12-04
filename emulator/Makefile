@@ -1,18 +1,18 @@
+all: emulator
+
 basedir = ..
 include ../Makefrag
 
-all: emulator
-
 CXX := g++
-CXXFLAGS := -O1
+CXXFLAGS := -O1 -std=c++0x
 
-CXXSRCS := emulator disasm
-CXXFLAGS := $(CXXFLAGS) -Itestbench -I$(basedir)/chisel/csrc -I../dramsim2
+CXXSRCS := emulator disasm mm mm_dramsim2
+CXXFLAGS := $(CXXFLAGS) -I$(basedir)/csrc -I$(basedir)/chisel/csrc -I$(basedir)/dramsim2
 
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
 DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 
-CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir ../emulator/generated-src
+CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir $(basedir)/emulator/generated-src
 CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
 generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
@@ -27,17 +27,11 @@ $(MODEL).o: %.o: generated-src/%.cpp
 $(MODEL)-debug.o: %-debug.o: generated-src-debug/%.cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src-debug -c -o $@ $<
 
-$(addsuffix .o,$(CXXSRCS)): %.o: testbench/%.cc testbench/* generated-src/$(MODEL).cpp
+$(addsuffix .o,$(CXXSRCS)): %.o: $(basedir)/csrc/%.cc $(basedir)/csrc/*.h generated-src/$(MODEL).cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
 
-$(addsuffix -debug.o,$(CXXSRCS)): %-debug.o: testbench/%.cc testbench/* generated-src-debug/$(MODEL).cpp
+$(addsuffix -debug.o,$(CXXSRCS)): %-debug.o: $(basedir)/csrc/%.cc $(basedir)/csrc/*.h generated-src-debug/$(MODEL).cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src-debug -c -o $@ $<
-
-DRAMSIM_OBJS := $(patsubst %.cpp,%.o,$(wildcard ../dramsim2/*.cpp))
-$(DRAMSIM_OBJS): %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -DNO_STORAGE -DNO_OUTPUT -Dmain=nomain -c -o $@ $<
-libdramsim.a: $(DRAMSIM_OBJS)
-	ar rcs $@ $^
 
 emulator: $(OBJS) libdramsim.a
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) -L. -ldramsim
@@ -49,7 +43,7 @@ clean:
 	rm -rf *.o *.a emulator emulator-debug generated-src generated-src-debug DVEfiles output
 
 test:
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "~make ../emulator run-fast $(CHISEL_ARGS)"
+	cd $(basedir)/sbt && $(SBT) "project referencechip" "~make $(CURDIR) run-fast $(CHISEL_ARGS)"
 
 #--------------------------------------------------------------------
 # Run assembly tests and benchmarks
@@ -73,13 +67,13 @@ output:
 	mkdir -p $@
 
 output/%.run: output/%.hex emulator
-	fesvr -c -testrun -m3000000 +loadmem=$< none 2> /dev/null
+	fesvr +dramsim -c -testrun -m3000000 +loadmem=$< none 2> /dev/null
 
 output/%.out: output/%.hex emulator
-	fesvr -c -testrun -m3000000 -l +loadmem=$< none 2> $@
+	fesvr +dramsim -c -testrun -m3000000 -l +loadmem=$< none 2> $@
 
 output/%.vpd: output/%.hex emulator-debug
-	fesvr -c./emulator-debug -testrun -m3000000 -l -v- +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@) | vcd2vpd - $@ > /dev/null && [ $$PIPESTATUS -eq 0 ]
+	fesvr +dramsim -c./emulator-debug -testrun -m3000000 -l -v- +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@) | vcd2vpd - $@ > /dev/null && [ $$PIPESTATUS -eq 0 ]
 
 run-asm-tests: $(addprefix output/, $(addsuffix .out, $(global_asm_tests) $(global_asm_vm_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;

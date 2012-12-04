@@ -1,10 +1,10 @@
-#include "mm_model.h"
 #include "htif_phy.h"
-#include "mm_types.h"
-#include "mm_emulator.cc"
+#include "mm.h"
+#include "mm_dramsim2.h"
 #include <DirectC.h>
 
 htif_phy_t* htif_phy = NULL;
+mm_t* mm = NULL;
 
 extern "C" {
 
@@ -23,45 +23,35 @@ void memory_tick(
   vc_handle mem_resp_tag,
   vc_handle mem_resp_data)
 {
-  uint64_t req_data[MM_WORD_SIZE*refill_size/sizeof(uint64_t)];
-  for (size_t i = 0; i < MM_WORD_SIZE*refill_size/sizeof(uint32_t); i++)
-    ((uint32_t*)req_data)[i] = vc_4stVectorRef(mem_req_data_bits)[i].d;
+  uint32_t req_data[MM_WORD_SIZE*REFILL_COUNT/sizeof(uint32_t)];
+  for (size_t i = 0; i < MM_WORD_SIZE*REFILL_COUNT/sizeof(uint32_t); i++)
+    req_data[i] = vc_4stVectorRef(mem_req_data_bits)[i].d;
 
-  uint64_t req_rdy, req_data_rdy, resp_val, resp_tag;
-  uint64_t resp_data[MM_WORD_SIZE*refill_size/sizeof(uint64_t)];
+  vc_putScalar(mem_req_rdy, mm->req_cmd_ready());
+  vc_putScalar(mem_req_data_rdy, mm->req_data_ready());
+  vc_putScalar(mem_resp_val, mm->resp_valid());
 
-  mm_tick_emulator(
+  vec32 d[MM_WORD_SIZE*REFILL_COUNT/sizeof(uint32_t)];
+  d[0].c = 0;
+  d[0].d = mm->resp_tag();
+  vc_put4stVector(mem_resp_tag, d);
+
+  for (size_t i = 0; i < MM_WORD_SIZE*REFILL_COUNT/sizeof(uint32_t); i++)
+  {
+    d[i].c = 0;
+    d[i].d = ((uint32_t*)mm->resp_data())[i];
+  }
+  vc_put4stVector(mem_resp_data, d);
+
+  mm->tick
+  (
     vc_getScalar(mem_req_val),
-    &req_rdy,
     vc_getScalar(mem_req_store),
     vc_4stVectorRef(mem_req_addr)->d,
     vc_4stVectorRef(mem_req_tag)->d,
-
     vc_getScalar(mem_req_data_val),
-    &req_data_rdy,
-    req_data,
-
-    &resp_val,
-    &resp_tag,
-    resp_data
+    req_data
   );
-
-  vc_putScalar(mem_req_rdy, req_rdy);
-  vc_putScalar(mem_req_data_rdy, req_data_rdy);
-  vc_putScalar(mem_resp_val, resp_val);
-
-  vec32 t;
-  t.c = 0;
-  t.d = resp_tag;
-  vc_put4stVector(mem_resp_tag, &t);
-
-  vec32 d[MM_WORD_SIZE*refill_size/sizeof(uint32_t)];
-  for (size_t i = 0; i < MM_WORD_SIZE*refill_size/sizeof(uint32_t); i++)
-  {
-    d[i].c = 0;
-    d[i].d = ((uint32_t*)resp_data)[i];
-  }
-  vc_put4stVector(mem_resp_data, d);
 }
 
 void htif_init
@@ -69,10 +59,12 @@ void htif_init
   vc_handle fromhost,
   vc_handle tohost,
   vc_handle width,
-  vc_handle loadmem
+  vc_handle loadmem,
+  vc_handle dramsim
 )
 {
-  uint64_t* mem = mm_init();
+  mm = vc_getScalar(dramsim) ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
+  mm->init(MEM_SIZE);
 
   vec32* fh = vc_4stVectorRef(fromhost);
   vec32* th = vc_4stVectorRef(tohost);
@@ -81,7 +73,7 @@ void htif_init
   char loadmem_str[1024];
   vc_VectorToString(loadmem, loadmem_str);
   if (*loadmem_str)
-    load_mem(mem, loadmem_str);
+    load_mem(mm->get_data(), loadmem_str);
 
   assert(w->d <= 32); // htif_tick assumes data fits in a vec32
   htif_phy = new htif_phy_t(w->d, fh->d, th->d);

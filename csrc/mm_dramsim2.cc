@@ -1,0 +1,122 @@
+#include "mm_dramsim2.h"
+#include "mm.h"
+#include <DRAMSim.h>
+#include <iostream>
+#include <fstream>
+#include <list>
+#include <queue>
+#include <cstring>
+#include <cstdlib>
+#include <cassert>
+
+//#define DEBUG_DRAMSIM2
+
+using namespace DRAMSim;
+
+void mm_dramsim2_t::read_complete(unsigned id, uint64_t address, uint64_t clock_cycle)
+{
+  assert(req.count(address));
+  auto tag = req[address];
+  req.erase(address);
+
+  for (int i = 0; i < REFILL_COUNT; i++)
+  {
+    auto base = data + address + i*MM_WORD_SIZE;
+    auto dat = std::vector<char>(base, base + MM_WORD_SIZE);
+    resp.push(std::make_pair(tag, dat));
+  }
+
+#ifdef DEBUG_DRAMSIM2
+  fprintf(stderr, "[Callback] read complete: id=%d , addr=0x%lx , cycle=%lu\n", id, address, clock_cycle);
+#endif
+}
+
+void mm_dramsim2_t::write_complete(unsigned id, uint64_t address, uint64_t clock_cycle)
+{
+#ifdef DEBUG_DRAMSIM2
+  fprintf(stderr, "[Callback] write complete: id=%d , addr=0x%lx , cycle=%lu\n", id, address, clock_cycle);
+#endif
+}
+
+void power_callback(double a, double b, double c, double d)
+{
+    //fprintf(stderr, "power callback: %0.3f, %0.3f, %0.3f, %0.3f\n",a,b,c,d);
+}
+
+void mm_dramsim2_t::init(size_t sz)
+{
+  mm_t::init(sz);
+  dummy_data.resize(MM_WORD_SIZE);
+
+  assert(size % (1024*1024) == 0);
+  mem = getMemorySystemInstance("DDR3_micron_64M_8B_x4_sg15.ini", "system.ini", "dramsim2_ini", "results", size/(1024*1024));
+
+  TransactionCompleteCB *read_cb = new Callback<mm_dramsim2_t, void, unsigned, uint64_t, uint64_t>(this, &mm_dramsim2_t::read_complete);
+  TransactionCompleteCB *write_cb = new Callback<mm_dramsim2_t, void, unsigned, uint64_t, uint64_t>(this, &mm_dramsim2_t::write_complete);
+  mem->RegisterCallbacks(read_cb, write_cb, power_callback);
+
+#ifdef DEBUG_DRAMSIM2
+  fprintf(stderr,"Dramsim2 init successful\n");
+#endif
+}
+
+void mm_dramsim2_t::tick
+(
+  bool req_cmd_val,
+  bool req_cmd_store,
+  uint64_t req_cmd_addr,
+  uint64_t req_cmd_tag,
+  bool req_data_val,
+  void* req_data_bits
+)
+{
+  bool req_cmd_fire = req_cmd_val && req_cmd_ready();
+  bool req_data_fire = req_data_val && req_data_ready();
+  assert(!(req_cmd_fire && req_data_fire));
+
+  if (resp_valid())
+    resp.pop();
+
+  if (req_cmd_fire)
+  {
+    auto byte_addr = req_cmd_addr*REFILL_COUNT*MM_WORD_SIZE;
+    assert(byte_addr < size);
+
+    if (req_cmd_store)
+    {
+      store_inflight = 1;
+      store_addr = byte_addr;
+#ifdef DEBUG_DRAMSIM2
+      fprintf(stderr, "Starting store transaction (addr=%lx ; tag=%ld ; cyc=%ld)\n", store_addr, req_cmd_tag, cycle);
+#endif
+    }
+    else
+    {
+      assert(!req.count(byte_addr));
+      req[byte_addr] = req_cmd_tag;
+
+      mem->addTransaction(false, byte_addr);
+#ifdef DEBUG_DRAMSIM2
+      fprintf(stderr, "Adding load transaction (addr=%lx; cyc=%ld)\n", byte_addr, cycle);
+#endif
+    }
+  }
+
+  if (req_data_fire)
+  {
+    memcpy(data + store_addr + store_count*MM_WORD_SIZE, req_data_bits, MM_WORD_SIZE);
+
+    store_count = (store_count + 1) % REFILL_COUNT;
+    if (store_count == 0)
+    { // last chunch of cache line arrived.
+      store_inflight = 0;
+      mem->addTransaction(true, store_addr);
+#ifdef DEBUG_DRAMSIM2
+      fprintf(stderr, "Adding store transaction (addr=%lx; cyc=%ld)\n", store_addr, cycle);
+#endif
+    }
+  }
+
+  mem->update();
+  cycle++;
+}
