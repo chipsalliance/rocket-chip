@@ -214,7 +214,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
 
   val read_impl = Bits(2)
   val read_ptbr = reg_ptbr(PADDR_BITS-1,PGIDX_BITS) << PGIDX_BITS
-  val read_veccfg = Cat(io.vec_nfregs, io.vec_nxregs, io.vec_appvl)
+  val read_veccfg = if (conf.vec) Cat(io.vec_nfregs, io.vec_nxregs, io.vec_appvl) else Bits(0)
   val read_cause = reg_cause(reg_cause.getWidth-1) << conf.xprlen-1 | reg_cause(reg_cause.getWidth-2,0)
   rdata := AVec[Bits](
     reg_status.toBits, reg_epc,          reg_badvaddr,     reg_ebase,

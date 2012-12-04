@@ -593,7 +593,6 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
     val resp = Vec(conf.ways){ Bits(OUTPUT, MEM_DATA_BITS) }
   }
 
-  val wmask = FillInterleaved(conf.databits, io.write.bits.wmask)
   val waddr = io.write.bits.addr >> conf.ramoffbits
   val raddr = io.read.bits.addr >> conf.ramoffbits
 
@@ -624,6 +623,7 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
       }
     }
   } else {
+    val wmask = FillInterleaved(conf.databits, io.write.bits.wmask)
     for (w <- 0 until conf.ways) {
       val rdata = Reg() { Bits() }
       val array = Mem(conf.sets*REFILL_CYCLES, seqRead = true){ Bits(width=MEM_DATA_BITS) }
@@ -837,8 +837,8 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val s1_writeback = s1_clk_en && !s1_valid && !s1_replay
   val s2_tag_match_way = RegEn(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
-  val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEn(meta.io.resp(w).state, s1_clk_en && s1_tag_eq_way(w))){Bits()})
-  val s2_hit = conf.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === conf.co.newStateOnHit(s2_req.cmd, s2_hit_state)
+  val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEn(meta.io.resp(w).state, s1_clk_en)){Bits()})
+  val s2_hit = s2_tag_match && conf.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === conf.co.newStateOnHit(s2_req.cmd, s2_hit_state)
 
   val s2_data = Vec(conf.ways){Bits(width = MEM_DATA_BITS)}
   for (w <- 0 until conf.ways) {
@@ -921,7 +921,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   wb.io.req <> mshr.io.wb_req
   wb.io.meta_read <> metaReadArb.io.in(2)
   wb.io.data_req <> readArb.io.in(1)
-  wb.io.data_resp <> data_resp_mux
+  wb.io.data_resp := data_resp_mux
   wb.io.probe_rep_data <> io.mem.probe_rep_data
 
   // store->load bypassing
