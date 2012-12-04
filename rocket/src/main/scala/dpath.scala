@@ -95,9 +95,10 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
                Mux(sel === A2_BTYPE, Cat(inst(31,27), inst(16,10)),
                Mux(sel === A2_JTYPE, inst(18,7),
                inst(21,10))))
-    val msbs = Mux(sel === A2_LTYPE, inst(26,7),
+    val msbs = Mux(sel === A2_ZERO,  Bits(0),
+               Mux(sel === A2_LTYPE, inst(26,7).toFix,
                Mux(sel === A2_JTYPE, inst(31,19).toFix,
-               Mux(sel === A2_ITYPE, inst(21), inst(31)).toFix))
+               Mux(sel === A2_ITYPE, inst(21), inst(31)).toFix)))
     Cat(msbs, lsbs).toFix
   }
 
