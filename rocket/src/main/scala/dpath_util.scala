@@ -153,14 +153,28 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   
   val rdata = Bits();
 
-  val raddr = Mux(io.r.en, io.r.addr, io.host.pcr_req.bits.addr(4,0))
-  io.host.pcr_rep.valid := io.host.pcr_req.fire()
-  io.host.pcr_rep.bits := rdata
+  val host_pcr_req_valid = Reg{Bool()} // don't reset
+  val host_pcr_req_fire = host_pcr_req_valid && !io.r.en && !io.w.en
+  val host_pcr_rep_valid = Reg{Bool()} // don't reset
+  val host_pcr_bits = Reg{io.host.pcr_req.bits.clone}
+  io.host.pcr_req.ready := !host_pcr_req_valid && !host_pcr_rep_valid
+  io.host.pcr_rep.valid := host_pcr_rep_valid
+  io.host.pcr_rep.bits := host_pcr_bits.data
+  when (io.host.pcr_req.fire()) {
+    host_pcr_req_valid := true
+    host_pcr_bits := io.host.pcr_req.bits
+  }
+  when (host_pcr_req_fire) {
+    host_pcr_req_valid := false
+    host_pcr_rep_valid := true
+    host_pcr_bits.data := rdata
+  }
+  when (io.host.pcr_rep.fire()) { host_pcr_rep_valid := false }
 
-  val wen = io.w.en || !io.r.en && io.host.pcr_req.valid && io.host.pcr_req.bits.rw
-  val waddr = Mux(io.w.en, io.w.addr, io.host.pcr_req.bits.addr)
-  val wdata = Mux(io.w.en, io.w.data, io.host.pcr_req.bits.data)
-  io.host.pcr_req.ready := !io.w.en && !io.r.en
+  val raddr = Mux(io.r.en, io.r.addr, host_pcr_bits.addr)
+  val wen = io.w.en || !io.r.en && host_pcr_req_valid && host_pcr_bits.rw
+  val waddr = Mux(io.w.en, io.w.addr, host_pcr_bits.addr)
+  val wdata = Mux(io.w.en, io.w.data, host_pcr_bits.data)
 
   io.status := reg_status
   io.ptbr_wen := wen && waddr === PTBR
@@ -210,7 +224,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   io.host.ipi_req.bits := io.w.data
   io.replay := io.host.ipi_req.valid && !io.host.ipi_req.ready
 
-  when (io.host.pcr_req.fire() && !io.host.pcr_req.bits.rw && io.host.pcr_req.bits.addr === TOHOST) { reg_tohost := UFix(0) }
+  when (host_pcr_req_fire && !host_pcr_bits.rw && host_pcr_bits.addr === TOHOST) { reg_tohost := UFix(0) }
 
   val read_impl = Bits(2)
   val read_ptbr = reg_ptbr(PADDR_BITS-1,PGIDX_BITS) << PGIDX_BITS
