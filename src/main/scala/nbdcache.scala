@@ -582,7 +582,7 @@ class MetaDataArray(implicit conf: DCacheConfig) extends Component {
     io.resp(w).tag := m
   }
 
-  io.read.ready := Bool(true)
+  io.read.ready := !rst
   io.write.ready := !rst
 }
 
