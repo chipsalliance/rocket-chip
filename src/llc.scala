@@ -132,7 +132,7 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
   }
 
   val requests = Cat(Bits(0), (outstanding-1 to 0 by -1).map(i => valid(i) && !mshr(i).old_dirty && !mshr(i).wb_busy && !mshr(i).requested):_*)
-  val request = requests.orR
+  val request = requests.orR && io.data.ready // allow in-flight hits to drain
   val requestId = PriorityEncoder(requests)
   when (io.mem.req_cmd.valid && io.mem.req_cmd.ready) { mshr(requestId).requested := Bool(true) }
 
@@ -365,19 +365,21 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   val initialize = !initCount(log2Up(sets))
   when (initialize) { initCount := initCount + UFix(1) }
 
-  val stall_s1 = Bool()
-  val replay_s1 = Reg(resetVal = Bool(false))
-  val s1_valid = Reg(io.cpu.req_cmd.fire() || replay_s1, resetVal = Bool(false))
-  replay_s1 := s1_valid && stall_s1
+  val replay_s2 = Reg(resetVal = Bool(false))
+  val s2_valid = Reg(resetVal = Bool(false))
+  val s2 = Reg() { new MemReqCmd }
+  val s3_rdy = Bool()
+  val replay_s2_rdy = Bool()
+
+  val s1_valid = Reg(io.cpu.req_cmd.fire() || replay_s2 && replay_s2_rdy, resetVal = Bool(false))
   val s1 = Reg() { new MemReqCmd }
   when (io.cpu.req_cmd.fire()) { s1 := io.cpu.req_cmd.bits }
+  when (replay_s2 && replay_s2_rdy) { s1 := s2 }
 
-  val stall_s2 = Bool()
-  val s2_valid = Reg(resetVal = Bool(false))
-  s2_valid := s1_valid && !replay_s1 && !stall_s1 || stall_s2
-  val s2 = Reg() { new MemReqCmd }
+  s2_valid := s1_valid
+  replay_s2 := s2_valid && !s3_rdy || replay_s2 && !replay_s2_rdy
   val s2_tags = Vec(ways) { Reg() { Bits(width = metaWidth) } }
-  when (s1_valid && !stall_s1 && !replay_s1) {
+  when (s1_valid) {
     s2 := s1
     for (i <- 0 until ways)
       s2_tags(i) := tags.io.rdata(metaWidth*(i+1)-1, metaWidth*i)
@@ -389,26 +391,24 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   val repl_way = LFSR16(s2_valid)(log2Up(ways)-1, 0)
   val repl_tag = s2_tags(repl_way).toUFix
   val setDirty = s2_valid && s2.rw && s2_hit && !s2_hit_dirty
-  stall_s1 := initialize || stall_s2
 
-  val tag_we = setDirty || mshr.io.tag.valid
-  val tag_waddr = Mux(setDirty, s2.addr, mshr.io.tag.bits.addr)(log2Up(sets)-1,0)
-  val tag_wdata = Cat(setDirty, Bool(true), Mux(setDirty, s2.addr, mshr.io.tag.bits.addr)(mshr.io.tag.bits.addr.width-1, mshr.io.tag.bits.addr.width-tagWidth))
-  val tag_wway = Mux(setDirty, s2_hit_way, mshr.io.tag.bits.way)
-  tags.io.in.valid := (io.cpu.req_cmd.valid || replay_s1) && !stall_s1 || initialize || tag_we
-  tags.io.in.bits.addr := Mux(initialize, initCount, Mux(tag_we, tag_waddr, Mux(replay_s1, s1.addr, io.cpu.req_cmd.bits.addr)(log2Up(sets)-1,0)))
-  tags.io.in.bits.rw := initialize || tag_we
-  tags.io.in.bits.wdata := Mux(initialize, UFix(0), Fill(ways, tag_wdata))
-  tags.io.in.bits.wmask := FillInterleaved(metaWidth, Mux(initialize, Fix(-1, ways), UFixToOH(tag_wway)))
-  when (tag_we && Mux(stall_s2, s2.addr, s1.addr)(log2Up(sets)-1,0) === tag_waddr) { s2_tags(tag_wway) := tag_wdata }
+  val tag_we = initialize || setDirty || mshr.io.tag.fire()
+  val tag_waddr = Mux(initialize, initCount, Mux(setDirty, s2.addr, mshr.io.tag.bits.addr))
+  val tag_wdata = Cat(setDirty, !initialize, Mux(setDirty, s2.addr, mshr.io.tag.bits.addr)(mshr.io.tag.bits.addr.width-1, mshr.io.tag.bits.addr.width-tagWidth))
+  val tag_wmask = Mux(initialize, Fix(-1, ways), UFixToOH(Mux(setDirty, s2_hit_way, mshr.io.tag.bits.way)))
+  tags.io.in.valid := io.cpu.req_cmd.fire() || replay_s2 && replay_s2_rdy || tag_we
+  tags.io.in.bits.addr := Mux(tag_we, tag_waddr, Mux(replay_s2, s2.addr, io.cpu.req_cmd.bits.addr)(log2Up(sets)-1,0))
+  tags.io.in.bits.rw := tag_we
+  tags.io.in.bits.wdata := Fill(ways, tag_wdata)
+  tags.io.in.bits.wmask := FillInterleaved(metaWidth, tag_wmask)
 
-  mshr.io.cpu.valid := s2_valid && !s2_hit && !s2.rw && dataArb.io.in(1).ready && writeback.io.req(0).ready // stall_s2
+  mshr.io.cpu.valid := s2_valid && !s2_hit && !s2.rw
   mshr.io.cpu.bits := s2
   mshr.io.repl_way := repl_way
   mshr.io.repl_dirty := repl_tag(tagWidth+1, tagWidth).andR
   mshr.io.repl_tag := repl_tag
   mshr.io.mem.resp := io.mem.resp
-  mshr.io.tag.ready := !setDirty
+  mshr.io.tag.ready := !s1_valid && !s2_valid
 
   data.io.req <> dataArb.io.out
   data.io.mem_resp := io.mem.resp
@@ -419,7 +419,7 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
 
   writeback.io.req(0) <> data.io.writeback
   writeback.io.data(0) <> data.io.writeback_data
-  writeback.io.req(1).valid := s2_valid && !s2_hit && s2.rw && dataArb.io.in(1).ready && mshr.io.cpu.ready // stall_s2
+  writeback.io.req(1).valid := s2_valid && !s2_hit && s2.rw && mshr.io.cpu.ready
   writeback.io.req(1).bits := s2.addr
   writeback.io.data(1).valid := io.cpu.req_data.valid
   writeback.io.data(1).bits := io.cpu.req_data.bits
@@ -428,15 +428,16 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   memCmdArb.io.in(1) <> writeback.io.mem.req_cmd
 
   dataArb.io.in(0) <> mshr.io.data
-  dataArb.io.in(1).valid := s2_valid && s2_hit && writeback.io.req(0).ready && mshr.io.cpu.ready // stall_s2
+  dataArb.io.in(1).valid := s2_valid && s2_hit && mshr.io.cpu.ready
   dataArb.io.in(1).bits := s2
   dataArb.io.in(1).bits.way := s2_hit_way
   dataArb.io.in(1).bits.isWriteback := Bool(false)
 
-  stall_s2 := s2_valid && !(dataArb.io.in(1).ready && writeback.io.req(0).ready && mshr.io.cpu.ready)
+  s3_rdy := mshr.io.cpu.ready && Mux(s2_hit, dataArb.io.in(1).ready, !s2.rw || writeback.io.req(1).ready)
+  replay_s2_rdy := s3_rdy && !tag_we
 
   io.cpu.resp <> data.io.resp
-  io.cpu.req_cmd.ready := !stall_s1 && !replay_s1 && !tag_we
+  io.cpu.req_cmd.ready := !s1_valid && !s2_valid && !replay_s2 && !tag_we
   io.cpu.req_data.ready := writeback.io.data(1).ready || data.io.req_data.ready
   io.mem.req_cmd <> memCmdArb.io.out
   io.mem.req_data <> writeback.io.mem.req_data
