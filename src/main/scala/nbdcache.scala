@@ -658,7 +658,7 @@ class AMOALU(implicit conf: DCacheConfig) extends Component {
   val min = io.cmd === M_XA_MIN || io.cmd === M_XA_MINU
   val word = io.typ === MT_W || io.typ === MT_WU || io.typ === MT_B || io.typ === MT_BU
 
-  val mask = Fix(-1,64) ^ ((word & io.addr(2)) << 31)
+  val mask = Fix(-1,64) ^ (io.addr(2) << 31)
   val adder_out = (io.lhs & mask) + (io.rhs & mask)
 
   val cmp_lhs  = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
@@ -675,9 +675,8 @@ class AMOALU(implicit conf: DCacheConfig) extends Component {
             Mux(Mux(less, min, max), io.lhs,
             io.rhs))))
 
-  val wdata = Mux(word, Cat(out(31,0), out(31,0)), out)
   val wmask = FillInterleaved(8, StoreGen(io.typ, io.addr).mask)
-  io.out := wmask & wdata | ~wmask & io.lhs
+  io.out := wmask & out | ~wmask & io.lhs
 }
 
 class HellaCacheReq(implicit conf: DCacheConfig) extends Bundle {
@@ -744,6 +743,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val s1_req = Reg{io.cpu.req.bits.clone}
   val s1_valid_masked = s1_valid && !io.cpu.req.bits.kill
   val s1_replay = Reg(resetVal = Bool(false))
+  val s1_clk_en = Reg{Bool()}
 
   val s2_valid = Reg(s1_valid_masked, resetVal = Bool(false))
   val s2_req = Reg{io.cpu.req.bits.clone}
@@ -783,7 +783,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   }
   val s1_addr = Cat(dtlb.io.resp.ppn, s1_req.addr(conf.pgidxbits-1,0))
 
-  when (s1_valid || s1_replay) {
+  when (s1_clk_en) {
     s2_req.addr := s1_addr
     s2_req.typ := s1_req.typ
     s2_req.cmd := s1_req.cmd
@@ -833,7 +833,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   def wayMap[T <: Data](f: Int => T)(gen: => T) = Vec((0 until conf.ways).map(i => f(i))){gen}
   val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === (s1_addr >> conf.untagbits)){Bits()}.toBits
   val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && conf.co.isValid(meta.io.resp(w).state)){Bits()}.toBits
-  val s1_clk_en = Reg(metaReadArb.io.out.valid)
+  s1_clk_en := metaReadArb.io.out.valid
   val s1_writeback = s1_clk_en && !s1_valid && !s1_replay
   val s2_tag_match_way = RegEn(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
@@ -931,15 +931,14 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
     (s2_valid_masked || s2_replay, s2_req, amoalu.io.out),
     (s3_valid, s3_req, s3_req.data),
     (s4_valid, s4_req, s4_req.data)
-  ).map(r => (r._1 && (s1_addr >> conf.wordoffbits === r._2.addr >> conf.wordoffbits) && isWrite(r._2.cmd), r._3, StoreGen(r._2).mask))
+  ).map(r => (r._1 && (s1_addr >> conf.wordoffbits === r._2.addr >> conf.wordoffbits) && isWrite(r._2.cmd), r._3))
   val s2_store_bypass_data = Reg{Bits(width = conf.databits)}
-  val s2_store_bypass_mask = Reg{Bits(width = conf.databytes)}
+  val s2_store_bypass = Reg{Bool()}
   when (s1_clk_en) {
+    s2_store_bypass := false
     when (bypasses.map(_._1).reduce(_||_)) {
       s2_store_bypass_data := PriorityMux(bypasses.map(x => (x._1, x._2)))
-      s2_store_bypass_mask := PriorityMux(bypasses.map(x => (x._1, x._3)))
-    }.otherwise {
-      s2_store_bypass_mask := Bits(0)
+      s2_store_bypass := true
     }
   }
 
@@ -947,7 +946,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   val s2_data_word_prebypass =
     if (conf.isNarrowRead) data_resp_mux(conf.databits-1,0)
     else data_resp_mux >> Cat(s2_req.addr(log2Up(MEM_DATA_BITS/8)-1,3), Bits(0,log2Up(conf.databits)))
-  val s2_data_word = Cat(null, (0 until conf.databytes).map(i => Mux(s2_store_bypass_mask(i), s2_store_bypass_data, s2_data_word_prebypass)(8*(i+1)-1,8*i)).reverse:_*)
+  val s2_data_word = Mux(s2_store_bypass, s2_store_bypass_data, s2_data_word_prebypass)
   val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word)
 
   amoalu.io := s2_req
