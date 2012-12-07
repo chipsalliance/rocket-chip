@@ -171,7 +171,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
     val probe_refill = (new FIFOIO) { Bool() }.flip
   }
 
-  val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write :: s_drain_rpq :: Nil = Enum(8) { UFix() }
+  val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9) { UFix() }
   val state = Reg(resetVal = s_invalid)
 
   val xacx_type = Reg { UFix() }
@@ -203,11 +203,15 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   when (state === s_drain_rpq && !rpq.io.deq.valid && !finish_q.io.deq.valid) {
     state := s_invalid
   }
-  when (state === s_meta_write && io.meta_write.ready) {
+  when (state === s_meta_write_resp) {
+    // this wait state allows us to catch RAW hazards on the tags via nack_victim
     state := s_drain_rpq
   }
+  when (state === s_meta_write_req && io.meta_write.ready) {
+    state := s_meta_write_resp
+  }
   when (state === s_refill_resp) {
-    when (refill_done) { state := s_meta_write }
+    when (refill_done) { state := s_meta_write_req }
     when (reply) {
       refill_count := refill_count + UFix(1)
       line_state := conf.co.newStateOnTransactionReply(io.mem_rep.bits, io.mem_req.bits)
@@ -245,7 +249,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
     state := Mux(conf.co.needsWriteback(io.req_bits.old_meta.state), s_wb_req, s_refill_req)
     when (io.req_bits.tag_match) {
       when (conf.co.isHit(req_cmd, io.req_bits.old_meta.state)) { // set dirty bit
-        state := s_meta_write
+        state := s_meta_write_req
         line_state := conf.co.newStateOnHit(req_cmd, io.req_bits.old_meta.state)
       }.otherwise { // upgrade permissions
         state := s_refill_req
@@ -260,7 +264,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   io.req_pri_rdy := (state === s_invalid)
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
-  io.meta_write.valid := state === s_meta_write || state === s_meta_clear
+  io.meta_write.valid := state === s_meta_write_req || state === s_meta_clear
   io.meta_write.bits.idx := req_idx
   io.meta_write.bits.data.state := Mux(state === s_meta_clear, conf.co.newStateOnFlush(), line_state)
   io.meta_write.bits.data.tag := io.tag
