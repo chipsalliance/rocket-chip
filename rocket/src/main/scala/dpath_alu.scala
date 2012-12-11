@@ -51,9 +51,7 @@ class ALU(implicit conf: RocketConfiguration) extends Component
   val io = new ALUIO
 
   // ADD, SUB
-  val sub = isSub(io.fn)
-  val adder_rhs = Mux(sub, ~io.in2, io.in2)
-  val sum = (io.in1 + adder_rhs + sub.toUFix)(63,0)
+  val sum = io.in1 + Mux(isSub(io.fn), -io.in2, io.in2)
 
   // SLT, SLTU
   val less  = Mux(io.in1(63) === io.in2(63), sum(63),
