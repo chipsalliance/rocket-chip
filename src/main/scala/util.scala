@@ -17,6 +17,11 @@ object AVec
   def apply[T <: Data](elts: Seq[T]): Vec[T] = Vec(elts) { elts.head.clone }
   def apply[T <: Data](elts: Vec[T]): Vec[T] = apply(elts.toSeq)
   def apply[T <: Data](elt0: T, elts: T*): Vec[T] = apply(elt0 :: elts.toList)
+
+  def tabulate[T <: Data](n: Int)(f: Int => T): Vec[T] =
+    apply((0 until n).map(i => f(i)))
+  def tabulate[T <: Data](n1: Int, n2: Int)(f: (Int, Int) => T): Vec[Vec[T]] =
+    tabulate(n1)(i1 => tabulate(n2)(f(i1, _)))
 }
 
 // a counter that clock gates most of its MSBs using the LSB carry-out
