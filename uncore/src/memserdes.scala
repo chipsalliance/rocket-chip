@@ -4,7 +4,6 @@ import Chisel._
 import Node._
 import Constants._
 import scala.math._
-import uncore._
 
 class ioMemSerialized(w: Int) extends Bundle
 {
