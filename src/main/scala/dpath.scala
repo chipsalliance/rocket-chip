@@ -158,31 +158,17 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   alu.io.in2 := ex_op2.toUFix
   alu.io.in1 := ex_rs1.toUFix
   
-  // divider
-  val div = new Divider(earlyOut = true)
-  div.io.req.valid := io.ctrl.div_val
+  // multiplier and divider
+  val div = new MulDiv(mulUnroll = 4, earlyOut = true)
+  div.io.req.valid := io.ctrl.div_mul_val
   div.io.req.bits.dw := ex_reg_ctrl_fn_dw
   div.io.req.bits.fn := ex_reg_ctrl_fn_alu
   div.io.req.bits.in1 := ex_rs1
   div.io.req.bits.in2 := ex_rs2
   div.io.req.bits.tag := ex_reg_waddr
-  div.io.kill := io.ctrl.div_kill
+  div.io.kill := io.ctrl.div_mul_kill
   div.io.resp.ready := Bool(true)
-  io.ctrl.div_rdy := div.io.req.ready
-  io.ctrl.div_result_val := div.io.resp.valid
-  
-  // multiplier
-  val mul = new Multiplier(unroll = 4, earlyOut = true)
-  mul.io.req.valid := io.ctrl.mul_val
-  mul.io.req.bits.dw := ex_reg_ctrl_fn_dw
-  mul.io.req.bits.fn := ex_reg_ctrl_fn_alu
-  mul.io.req.bits.in1 := ex_rs1
-  mul.io.req.bits.in2 := ex_rs2
-  mul.io.req.bits.tag := ex_reg_waddr
-  mul.io.kill := io.ctrl.mul_kill
-  mul.io.resp.ready := Bool(true)
-  io.ctrl.mul_rdy := mul.io.req.ready
-  io.ctrl.mul_result_val := mul.io.resp.valid
+  io.ctrl.div_mul_rdy := div.io.req.ready
   
   io.fpu.fromint_data := ex_rs1
   io.ctrl.ex_waddr := ex_reg_waddr
@@ -266,17 +252,10 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   val dmem_resp_replay = io.dmem.resp.bits.replay && dmem_resp_xpu
 
   val mem_ll_wdata = Bits()
-  mem_ll_wdata := mul.io.resp.bits.data
-  io.ctrl.mem_ll_waddr := mul.io.resp.bits.tag
-  io.ctrl.mem_ll_wb := mul.io.resp.valid
-  when (div.io.resp.valid) {
-    mul.io.resp.ready := Bool(false)
-    mem_ll_wdata := div.io.resp.bits.data
-    io.ctrl.mem_ll_waddr := div.io.resp.bits.tag
-    io.ctrl.mem_ll_wb := Bool(true)
-  }
+  mem_ll_wdata := div.io.resp.bits.data
+  io.ctrl.mem_ll_waddr := div.io.resp.bits.tag
+  io.ctrl.mem_ll_wb := div.io.resp.valid
   when (dmem_resp_replay) {
-    mul.io.resp.ready := Bool(false)
     div.io.resp.ready := Bool(false)
     mem_ll_wdata := io.dmem.resp.bits.data_subword
     io.ctrl.mem_ll_waddr := dmem_resp_waddr

@@ -17,8 +17,8 @@ class ioCtrlDpath extends Bundle()
   val sel_alu2 = UFix(OUTPUT, 3);
   val fn_dw    = Bool(OUTPUT);
   val fn_alu   = UFix(OUTPUT, SZ_ALU_FN);
-  val mul_val  = Bool(OUTPUT);
-  val mul_kill = Bool(OUTPUT)
+  val div_mul_val = Bool(OUTPUT)
+  val div_mul_kill = Bool(OUTPUT)
   val div_val  = Bool(OUTPUT);
   val div_kill = Bool(OUTPUT)
   val sel_wa   = Bool(OUTPUT);
@@ -47,10 +47,7 @@ class ioCtrlDpath extends Bundle()
   val jalr_eq = Bool(INPUT)
   val ex_br_type = Bits(OUTPUT, SZ_BR)
   val ex_br_taken = Bool(INPUT)
-  val div_rdy = Bool(INPUT);
-  val div_result_val = Bool(INPUT);
-  val mul_rdy = Bool(INPUT);
-  val mul_result_val = Bool(INPUT);
+  val div_mul_rdy = Bool(INPUT)
   val mem_ll_wb = Bool(INPUT)
   val mem_ll_waddr = UFix(INPUT, 5)
   val ex_waddr = UFix(INPUT, 5);  // write addr from execute stage
@@ -359,8 +356,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val ex_reg_flush_inst      = Reg(resetVal = Bool(false))
   val ex_reg_jalr            = Reg(resetVal = Bool(false))
   val ex_reg_btb_hit         = Reg(resetVal = Bool(false))
-  val ex_reg_div_val         = Reg(resetVal = Bool(false))
-  val ex_reg_mul_val         = Reg(resetVal = Bool(false))
+  val ex_reg_div_mul_val     = Reg(resetVal = Bool(false))
   val ex_reg_mem_val         = Reg(resetVal = Bool(false))
   val ex_reg_xcpt            = Reg(resetVal = Bool(false))
   val ex_reg_fp_val          = Reg(resetVal = Bool(false))
@@ -379,8 +375,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val mem_reg_wen             = Reg(resetVal = Bool(false))
   val mem_reg_fp_wen          = Reg(resetVal = Bool(false))
   val mem_reg_flush_inst      = Reg(resetVal = Bool(false))
-  val mem_reg_div_val         = Reg(resetVal = Bool(false))
-  val mem_reg_mul_val         = Reg(resetVal = Bool(false))
+  val mem_reg_div_mul_val     = Reg(resetVal = Bool(false))
   val mem_reg_mem_val         = Reg(resetVal = Bool(false))
   val mem_reg_xcpt            = Reg(resetVal = Bool(false))
   val mem_reg_fp_val          = Reg(resetVal = Bool(false))
@@ -479,8 +474,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   when (ctrl_killd) {
     ex_reg_jalr        := Bool(false)
     ex_reg_btb_hit     := Bool(false);
-    ex_reg_div_val := Bool(false);
-    ex_reg_mul_val := Bool(false);
+    ex_reg_div_mul_val := Bool(false)
     ex_reg_mem_val     := Bool(false);
     ex_reg_valid       := Bool(false);
     ex_reg_wen         := Bool(false);
@@ -499,8 +493,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     ex_reg_br_type     := id_br_type;
     ex_reg_jalr        := id_jalr
     ex_reg_btb_hit     := io.imem.resp.bits.taken
-    ex_reg_div_val     := id_div_val
-    ex_reg_mul_val     := id_mul_val
+    ex_reg_div_mul_val := id_mul_val || id_div_val
     ex_reg_mem_val     := id_mem_val.toBool;
     ex_reg_valid       := Bool(true)
     ex_reg_pcr         := id_pcr
@@ -521,8 +514,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val wb_dcache_miss = wb_reg_mem_val && !io.dmem.resp.valid
   val replay_ex    = wb_dcache_miss && ex_reg_load_use || mem_reg_flush_inst || 
                      ex_reg_mem_val && !io.dmem.req.ready ||
-                     ex_reg_div_val && !io.dpath.div_rdy ||
-                     ex_reg_mul_val && !io.dpath.mul_rdy ||
+                     ex_reg_div_mul_val && !io.dpath.div_mul_rdy ||
                      mem_reg_replay_next
   ctrl_killx := take_pc_wb || replay_ex
 
@@ -535,8 +527,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   mem_reg_replay := replay_ex && !take_pc_wb;
   mem_reg_xcpt_interrupt := ex_reg_xcpt_interrupt && !take_pc_wb
   when (ex_xcpt) { mem_reg_cause := ex_cause }
-  mem_reg_div_val := ex_reg_div_val && io.dpath.div_rdy
-  mem_reg_mul_val := ex_reg_mul_val && io.dpath.mul_rdy
+  mem_reg_div_mul_val := ex_reg_div_mul_val && io.dpath.div_mul_rdy
 
   when (ctrl_killx) {
     mem_reg_valid       := Bool(false);
@@ -603,7 +594,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     wb_reg_eret        := mem_reg_eret && !mem_reg_replay
     wb_reg_flush_inst  := mem_reg_flush_inst;
     wb_reg_mem_val     := mem_reg_mem_val
-    wb_reg_div_mul_val := mem_reg_div_val || mem_reg_mul_val
+    wb_reg_div_mul_val := mem_reg_div_mul_val
     wb_reg_fp_val      := mem_reg_fp_val
     wb_reg_replay_next := mem_reg_replay_next
   }
@@ -674,7 +665,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.ex_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.ex_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.ex_waddr)
-  val id_ex_hazard = data_hazard_ex && (ex_reg_mem_val || ex_reg_div_val || ex_reg_mul_val || ex_reg_fp_val) ||
+  val id_ex_hazard = data_hazard_ex && (ex_reg_mem_val || ex_reg_div_mul_val || ex_reg_fp_val) ||
                      fp_data_hazard_ex && (ex_reg_mem_val || ex_reg_fp_val)
     
   // stall for RAW/WAW hazards on LB/LH and mul/div in memory stage.
@@ -691,7 +682,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.mem_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.mem_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.mem_waddr)
-  val id_mem_hazard = data_hazard_mem && (mem_reg_mem_val && mem_mem_cmd_bh || mem_reg_div_val || mem_reg_mul_val || mem_reg_fp_val) ||
+  val id_mem_hazard = data_hazard_mem && (mem_reg_mem_val && mem_mem_cmd_bh || mem_reg_div_mul_val || mem_reg_fp_val) ||
                       fp_data_hazard_mem && mem_reg_fp_val
   id_load_use := mem_reg_mem_val && (data_hazard_mem || fp_data_hazard_mem)
 
@@ -731,10 +722,8 @@ class Control(implicit conf: RocketConfiguration) extends Component
   io.dpath.sel_alu2 := id_sel_alu2.toUFix
   io.dpath.fn_dw    := id_fn_dw.toBool;
   io.dpath.fn_alu   := id_fn_alu.toUFix
-  io.dpath.div_val  := ex_reg_div_val
-  io.dpath.div_kill := mem_reg_div_val && killm_common
-  io.dpath.mul_val  := ex_reg_mul_val
-  io.dpath.mul_kill := mem_reg_mul_val && killm_common
+  io.dpath.div_mul_val  := ex_reg_div_mul_val
+  io.dpath.div_mul_kill := mem_reg_div_mul_val && killm_common
   io.dpath.ex_fp_val:= ex_reg_fp_val;
   io.dpath.mem_fp_val:= mem_reg_fp_val;
   io.dpath.ex_jalr  := ex_reg_jalr

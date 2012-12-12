@@ -9,17 +9,17 @@ object ALU
 {
   val SZ_ALU_FN = 4
   val FN_X    = Bits("b????")
-  val FN_ADD  = UFix(0)
-  val FN_SL   = UFix(1)
-  val FN_XOR  = UFix(4)
-  val FN_OR   = UFix(6)
-  val FN_AND  = UFix(7)
-  val FN_SR   = UFix(5)
-  val FN_SUB  = UFix(8)
-  val FN_SLT  = UFix(10)
-  val FN_SLTU = UFix(11)
-  val FN_SRA  = UFix(13)
-  val FN_OP2  = UFix(15)
+  val FN_ADD  = Bits(0)
+  val FN_SL   = Bits(1)
+  val FN_XOR  = Bits(4)
+  val FN_OR   = Bits(6)
+  val FN_AND  = Bits(7)
+  val FN_SR   = Bits(5)
+  val FN_SUB  = Bits(8)
+  val FN_SLT  = Bits(10)
+  val FN_SLTU = Bits(11)
+  val FN_SRA  = Bits(13)
+  val FN_OP2  = Bits(15)
 
   val FN_DIV  = FN_XOR
   val FN_DIVU = FN_SR
