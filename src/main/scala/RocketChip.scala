@@ -8,6 +8,128 @@ import ReferenceChipBackend._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
+
+object TileToCrossbarShim {
+  def apply[T <: Data](logIO: TileIO[T])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
+    val shim = (new TileToCrossbarShim) { logIO.bits.clone }
+    shim.io.in <> logIO
+    shim.io.out
+  }
+}
+class TileToCrossbarShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) extends Component {
+  val io = new Bundle {
+    val in  = (new TileIO){ data }.flip
+    val out = (new BasicCrossbarIO){ data }
+  }
+  io.out.header.src := io.in.header.src + UFix(lconf.nHubs)
+  io.out.header.dst := io.in.header.dst 
+  io.out.bits := io.in.bits
+  io.out.valid := io.in.valid
+  io.in.ready := io.out.ready
+}
+
+object HubToCrossbarShim {
+  def apply[T <: Data](logIO: HubIO[T])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
+    val shim = (new HubToCrossbarShim) { logIO.bits.clone }
+    shim.io.in <> logIO
+    shim.io.out
+  }
+}
+class HubToCrossbarShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) extends Component {
+  val io = new Bundle {
+    val in  = (new HubIO){ data }
+    val out = (new BasicCrossbarIO){ data }
+  }
+  io.out.header.src := io.in.header.src
+  io.out.header.dst := io.in.header.dst + UFix(lconf.nHubs)
+  io.out.bits := io.in.bits
+  io.out.valid := io.in.valid
+  io.in.ready := io.out.ready
+}
+
+object CrossbarToTileShim {
+  def apply[T <: Data](physIO: BasicCrossbarIO[T])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
+    val shim = (new CrossbarToTileShim) { physIO.bits.clone }
+    shim.io.in <> physIO
+    shim.io.out
+  }
+}
+class CrossbarToTileShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) extends Component {
+  val io = new Bundle {
+    val in  = (new BasicCrossbarIO){ data }.flip
+    val out = (new TileIO){ data }
+  }
+  io.out.header.src := io.in.header.src
+  io.out.header.dst := io.in.header.dst - UFix(lconf.nHubs)
+  io.out.bits := io.in.bits
+  io.out.valid := io.in.valid
+  io.in.ready := io.out.ready
+}
+
+object CrossbarToHubShim {
+  def apply[T <: Data](physIO: BasicCrossbarIO[T])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
+    val shim = (new CrossbarToHubShim) { physIO.bits.clone }
+    shim.io.in <> physIO
+    shim.io.out
+  }
+}
+class CrossbarToHubShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) extends Component {
+  val io = new Bundle {
+    val in  = (new BasicCrossbarIO){ data }.flip
+    val out = (new HubIO){ data }.flip
+  }
+  io.out.header.src := io.in.header.src - UFix(lconf.nHubs)
+  io.out.header.dst := io.in.header.dst
+  io.out.bits := io.in.bits
+  io.out.valid := io.in.valid
+  io.in.ready := io.out.ready
+}
+
+class ReferenceChipCrossbarNetwork(endpoints: Seq[Component])(implicit conf: LogicalNetworkConfiguration) extends LogicalNetwork[TileLink](endpoints)(conf) {
+  type TileLinkType = TileLink
+  val io = Vec(endpoints.map(_ match { case t:Tile => {(new TileLinkType).flip}; case h:CoherenceHub => {new TileLinkType}})){ new TileLinkType }
+
+  //If we allow all physical networks to be identical, we can use
+  //reflection to automatically create enough for any given bundle containing LogicalNetworkIOs
+  val tl = new TileLinkType
+  //val dataTypesPassedThroughEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
+  //    classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).map(
+  //    _.invoke(tl).asInstanceOf[LogicalNetworkIO[Data]].m.erasure)
+  val payloadBitsForEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
+      classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).map(
+      _.invoke(tl).asInstanceOf[LogicalNetworkIO[Data]].bits)
+  implicit val pconf = new PhysicalNetworkConfiguration(conf.nEndpoints, conf.idBits)//same config for all networks
+  val physicalNetworks: Seq[BasicCrossbar[Data]] = payloadBitsForEachPhysicalNetwork.map(d => (new BasicCrossbar){d.clone}) 
+
+  //Use reflection to get the subset of each node's TileLink
+  //corresponding to each direction of dataflow and connect each sub-bundle
+  //to the appropriate port of the physical crossbar network, converting the
+  //headers in the process.
+  //TODO: Introduce SerDes and flit/phit partitoning here
+  endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => {
+    val tileProducedSubBundles = io.getClass.getMethods.zipWithIndex.filter( x =>
+      classOf[TileIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
+        (m.invoke(io).asInstanceOf[TileIO[Data]],i) } 
+    val hubProducedSubBundles  = io.getClass.getMethods.zipWithIndex.filter( x =>
+      classOf[HubIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
+        (m.invoke(io).asInstanceOf[HubIO[Data]],i) }
+    end match {
+      case x:Tile => {
+        tileProducedSubBundles.foreach{ case (sl,i) => 
+          physicalNetworks(i).io.in(id) <> TileToCrossbarShim(sl) }
+        hubProducedSubBundles.foreach{ case (sl,i) => 
+          sl <> CrossbarToHubShim(physicalNetworks(i).io.out(id)) }
+      }
+      case y:CoherenceHub => {
+        hubProducedSubBundles.foreach{ case (sl,i) => 
+          physicalNetworks(i).io.in(id) <> HubToCrossbarShim(sl)}
+        tileProducedSubBundles.foreach{ case (sl,i) => 
+          sl <> CrossbarToTileShim(physicalNetworks(i).io.out(id))}
+      }
+    }
+  }}
+}
+
 object ReferenceChipBackend {
   val initMap = new HashMap[Component, Bool]()
 }
@@ -83,6 +205,14 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
   val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
   val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
   val mem_serdes = new MemSerdes(htif_width)
+
+  val ic = ICacheConfig(128, 2, conf.co.asInstanceOf[CoherencePolicyWithUncached], ntlb = 8, nbtb = 16)
+  val dc = DCacheConfig(128, 4, conf.co.asInstanceOf[CoherencePolicyWithUncached], ntlb = 8,
+                        nmshr = 2, nrpq = 16, nsdq = 17)
+  val rc = RocketConfiguration(2, conf.co.asInstanceOf[CoherencePolicyWithUncached], ic, dc,
+                               fpu = true, vec = true)
+  implicit val logNetConf = new LogicalNetworkConfiguration(3, 4, 1, 2)
+  val testNet = new ReferenceChipCrossbarNetwork(List(hub,new Tile()(rc),new Tile()(rc)))
 
   for (i <- 0 until conf.ntiles) {
     hub.io.tiles(i) <> io.tiles(i)
@@ -169,10 +299,10 @@ class ioTop(htif_width: Int) extends Bundle  {
   val in_mem_valid = Bool(INPUT)
   val out_mem_ready = Bool(INPUT)
   val out_mem_valid = Bool(OUTPUT)
-  val mem     = new uncore.ioMem
+  val mem     = new ioMem
 }
 
-object DummyTopLevelConstants extends uncore.constants.CoherenceConfigConstants {
+object DummyTopLevelConstants extends _root_.uncore.constants.CoherenceConfigConstants {
   val NTILES = 1
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
