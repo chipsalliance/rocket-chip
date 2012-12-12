@@ -61,9 +61,10 @@ class ALU(implicit conf: RocketConfiguration) extends Component
   val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0)).toUFix
   val shin_hi_32 = Mux(isSub(io.fn), Fill(32, io.in1(31)), UFix(0,32))
   val shin_hi = Mux(io.dw === DW_64, io.in1(63,32), shin_hi_32)
-  val shin = Cat(shin_hi, io.in1(31,0))
+  val shin_r = Cat(shin_hi, io.in1(31,0))
+  val shin = Mux(io.fn === FN_SR  || io.fn === FN_SRA, shin_r, Reverse(shin_r))
   val shout_r = (Cat(isSub(io.fn) & shin(63), shin).toFix >> shamt)(63,0)
-  val shout_l = (shin << shamt)(63,0)
+  val shout_l = Reverse(shout_r)
 
   val bitwise_logic =
     Mux(io.fn === FN_AND, io.in1 & io.in2,
