@@ -858,7 +858,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Component {
   readArb.io.in(0).bits.way_en := Fix(-1)
 
   // tag check and way muxing
-  def wayMap[T <: Data](f: Int => T)(gen: => T) = Vec((0 until conf.ways).map(i => f(i))){gen}
+  def wayMap[T <: Data](f: Int => T)(gen: => T) = Vec((0 until conf.ways).map(f)){gen}
   val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === (s1_addr >> conf.untagbits)){Bits()}.toBits
   val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && conf.co.isValid(meta.io.resp(w).state)){Bits()}.toBits
   s1_clk_en := metaReadArb.io.out.valid
