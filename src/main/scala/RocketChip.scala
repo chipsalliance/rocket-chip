@@ -90,9 +90,17 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[Component])(implicit conf: Log
   val io = Vec(endpoints.map(_ match { case t:Tile => {(new TileLinkType).flip}; case h:CoherenceHub => {new TileLinkType}})){ new TileLinkType }
 
   //If we allow all physical networks to be identical, we can use
+<<<<<<< HEAD
   //reflection to automatically create enough networks for any given 
   //bundle containing LogicalNetworkIOs
   val tl = new TileLinkType
+=======
+  //reflection to automatically create enough for any given bundle containing LogicalNetworkIOs
+  val tl = new TileLinkType
+  //val dataTypesPassedThroughEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
+  //    classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).map(
+  //    _.invoke(tl).asInstanceOf[LogicalNetworkIO[Data]].m.erasure)
+>>>>>>> f19fdc1c7d15c6fc9a1fce7cd97619a124ae2c91
   val payloadBitsForEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
       classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).map(
       _.invoke(tl).asInstanceOf[LogicalNetworkIO[Data]].bits)
@@ -101,8 +109,14 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[Component])(implicit conf: Log
 
   //Use reflection to get the subset of each node's TileLink
   //corresponding to each direction of dataflow and connect each sub-bundle
+<<<<<<< HEAD
   //to the appropriate port of the physical crossbar network, inserting
   //shims to convert headers and process flits in the process.
+=======
+  //to the appropriate port of the physical crossbar network, converting the
+  //headers in the process.
+  //TODO: Introduce SerDes and flit/phit partitoning here
+>>>>>>> f19fdc1c7d15c6fc9a1fce7cd97619a124ae2c91
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => {
     val tileProducedSubBundles = io.getClass.getMethods.zipWithIndex.filter( x =>
       classOf[TileIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
@@ -119,9 +133,15 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[Component])(implicit conf: Log
       }
       case y:CoherenceHub => {
         hubProducedSubBundles.foreach{ case (sl,i) => 
+<<<<<<< HEAD
           physicalNetworks(i).io.in(id) <> HubToCrossbarShim(sl) }
         tileProducedSubBundles.foreach{ case (sl,i) => 
           sl <> CrossbarToTileShim(physicalNetworks(i).io.out(id)) }
+=======
+          physicalNetworks(i).io.in(id) <> HubToCrossbarShim(sl)}
+        tileProducedSubBundles.foreach{ case (sl,i) => 
+          sl <> CrossbarToTileShim(physicalNetworks(i).io.out(id))}
+>>>>>>> f19fdc1c7d15c6fc9a1fce7cd97619a124ae2c91
       }
     }
   }}
@@ -204,8 +224,18 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[Tile])(implicit conf
   val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
   val mem_serdes = new MemSerdes(htif_width)
 
+<<<<<<< HEAD
   implicit val logNetConf = new LogicalNetworkConfiguration(conf.ntiles+1, conf.tile_id_bits+1, 1, conf.ntiles)
   val testNet = new ReferenceChipCrossbarNetwork(List(hub)++tileEndpoints)
+=======
+  val ic = ICacheConfig(128, 2, conf.co.asInstanceOf[CoherencePolicyWithUncached], ntlb = 8, nbtb = 16)
+  val dc = DCacheConfig(128, 4, conf.co.asInstanceOf[CoherencePolicyWithUncached], ntlb = 8,
+                        nmshr = 2, nrpq = 16, nsdq = 17)
+  val rc = RocketConfiguration(2, conf.co.asInstanceOf[CoherencePolicyWithUncached], ic, dc,
+                               fpu = true, vec = true)
+  implicit val logNetConf = new LogicalNetworkConfiguration(3, 4, 1, 2)
+  val testNet = new ReferenceChipCrossbarNetwork(List(hub,new Tile()(rc),new Tile()(rc)))
+>>>>>>> f19fdc1c7d15c6fc9a1fce7cd97619a124ae2c91
 
   for (i <- 0 until conf.ntiles) {
     hub.io.tiles(i) <> io.tiles(i)
