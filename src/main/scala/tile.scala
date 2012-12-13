@@ -21,7 +21,7 @@ case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
   if (fastLoadByte) require(fastLoadWord)
 }
 
-class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Component(resetSignal)
+class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Component(resetSignal) with ClientCoherenceAgent
 {
   val memPorts = 2 + confIn.vec
   implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(memPorts), databits = confIn.xprlen)
