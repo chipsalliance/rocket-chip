@@ -3,6 +3,10 @@ package uncore
 import Chisel._
 import Constants._
 
+trait CoherenceAgent
+trait ClientCoherenceAgent extends CoherenceAgent
+trait MasterCoherenceAgent extends CoherenceAgent
+
 object cpuCmdToRW {
   def apply(cmd: Bits): (Bool, Bool) = (isRead(cmd) || isPrefetch(cmd), isWrite(cmd))
 }
