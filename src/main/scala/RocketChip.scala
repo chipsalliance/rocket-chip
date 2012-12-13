@@ -90,11 +90,9 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[Component])(implicit conf: Log
   val io = Vec(endpoints.map(_ match { case t:Tile => {(new TileLinkType).flip}; case h:CoherenceHub => {new TileLinkType}})){ new TileLinkType }
 
   //If we allow all physical networks to be identical, we can use
-  //reflection to automatically create enough for any given bundle containing LogicalNetworkIOs
+  //reflection to automatically create enough networks for any given 
+  //bundle containing LogicalNetworkIOs
   val tl = new TileLinkType
-  //val dataTypesPassedThroughEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
-  //    classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).map(
-  //    _.invoke(tl).asInstanceOf[LogicalNetworkIO[Data]].m.erasure)
   val payloadBitsForEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
       classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).map(
       _.invoke(tl).asInstanceOf[LogicalNetworkIO[Data]].bits)
@@ -103,9 +101,8 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[Component])(implicit conf: Log
 
   //Use reflection to get the subset of each node's TileLink
   //corresponding to each direction of dataflow and connect each sub-bundle
-  //to the appropriate port of the physical crossbar network, converting the
-  //headers in the process.
-  //TODO: Introduce SerDes and flit/phit partitoning here
+  //to the appropriate port of the physical crossbar network, inserting
+  //shims to convert headers and process flits in the process.
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => {
     val tileProducedSubBundles = io.getClass.getMethods.zipWithIndex.filter( x =>
       classOf[TileIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
@@ -122,9 +119,9 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[Component])(implicit conf: Log
       }
       case y:CoherenceHub => {
         hubProducedSubBundles.foreach{ case (sl,i) => 
-          physicalNetworks(i).io.in(id) <> HubToCrossbarShim(sl)}
+          physicalNetworks(i).io.in(id) <> HubToCrossbarShim(sl) }
         tileProducedSubBundles.foreach{ case (sl,i) => 
-          sl <> CrossbarToTileShim(physicalNetworks(i).io.out(id))}
+          sl <> CrossbarToTileShim(physicalNetworks(i).io.out(id)) }
       }
     }
   }}
@@ -189,7 +186,7 @@ class ReferenceChipBackend extends VerilogBackend
   transforms += ((c: Component) => addMemPin(c))
 }
 
-class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) extends Component
+class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[Tile])(implicit conf: UncoreConfiguration) extends Component
 {
   val io = new Bundle {
     val tiles = Vec(conf.ntiles) { new ioTileLink() }.flip
@@ -199,6 +196,7 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
     val mem = new ioMemPipe
   }
 
+  require(tileEndpoints.length == conf.ntiles)
   import rocket.Constants._
   val hub = new CoherenceHubBroadcast()(conf.copy(ntiles = conf.ntiles+1))
   val llc_tag_leaf = Mem(1024, seqRead = true) { Bits(width = 72) }
@@ -206,13 +204,8 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
   val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
   val mem_serdes = new MemSerdes(htif_width)
 
-  val ic = ICacheConfig(128, 2, conf.co.asInstanceOf[CoherencePolicyWithUncached], ntlb = 8, nbtb = 16)
-  val dc = DCacheConfig(128, 4, conf.co.asInstanceOf[CoherencePolicyWithUncached], ntlb = 8,
-                        nmshr = 2, nrpq = 16, nsdq = 17)
-  val rc = RocketConfiguration(2, conf.co.asInstanceOf[CoherencePolicyWithUncached], ic, dc,
-                               fpu = true, vec = true)
-  implicit val logNetConf = new LogicalNetworkConfiguration(3, 4, 1, 2)
-  val testNet = new ReferenceChipCrossbarNetwork(List(hub,new Tile()(rc),new Tile()(rc)))
+  implicit val logNetConf = new LogicalNetworkConfiguration(conf.ntiles+1, conf.tile_id_bits+1, 1, conf.ntiles)
+  val testNet = new ReferenceChipCrossbarNetwork(List(hub)++tileEndpoints)
 
   for (i <- 0 until conf.ntiles) {
     hub.io.tiles(i) <> io.tiles(i)
@@ -246,7 +239,7 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
   io.mem_backup <> mem_serdes.io.narrow
 }
 
-class Uncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Component
+class Uncore(htif_width: Int, tileEndpoints: Seq[Tile])(implicit conf: UncoreConfiguration) extends Component
 {
   val io = new Bundle {
     val debug = new ioDebug()
@@ -261,7 +254,7 @@ class Uncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Compon
   val htif = new rocketHTIF(htif_width)
   htif.io.cpu <> io.htif
 
-  val outmemsys = new OuterMemorySystem(htif_width)
+  val outmemsys = new OuterMemorySystem(htif_width, tileEndpoints)
   outmemsys.io.tiles <> io.tiles
   outmemsys.io.htif <> htif.io.mem
   io.mem <> outmemsys.io.mem
@@ -330,19 +323,22 @@ class Top extends Component {
 
   val io = new ioTop(HTIF_WIDTH)
 
-  val uncore = new Uncore(HTIF_WIDTH)
+  val resetSigs = Vec(NTILES){ Bool() }
+  val ic = ICacheConfig(128, 2, co, ntlb = 8, nbtb = 16)
+  val dc = DCacheConfig(128, 4, co, ntlb = 8,
+                        nmshr = 2, nrpq = 16, nsdq = 17)
+  val rc = RocketConfiguration(NTILES, co, ic, dc,
+                               fpu = true, vec = true)
+  val tileList = (0 until NTILES).map(r => new Tile(resetSignal = resetSigs(r))(rc))
+  val uncore = new Uncore(HTIF_WIDTH, tileList)
 
   var error_mode = Bool(false)
   for (i <- 0 until uconf.ntiles) {
     val hl = uncore.io.htif(i)
     val tl = uncore.io.tiles(i)
 
-    val ic = ICacheConfig(128, 2, co, ntlb = 8, nbtb = 16)
-    val dc = DCacheConfig(128, 4, co, ntlb = 8,
-                          nmshr = 2, nrpq = 16, nsdq = 17)
-    val rc = RocketConfiguration(NTILES, co, ic, dc,
-                                 fpu = true, vec = true)
-    val tile = new Tile(resetSignal = hl.reset)(rc)
+    resetSigs(i) := hl.reset
+    val tile = tileList(i)
 
     tile.io.host.reset := Reg(Reg(hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
