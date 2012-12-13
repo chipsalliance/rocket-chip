@@ -35,7 +35,7 @@ class BasicCrossbar[T <: Data]()(data: => T)(implicit conf: PhysicalNetworkConfi
 
 case class LogicalNetworkConfiguration(nEndpoints: Int, idBits: Int, nHubs: Int, nTiles: Int)
 
-abstract class LogicalNetwork[TileLinkType <: Bundle](endpoints: Seq[Component])(implicit conf: LogicalNetworkConfiguration) extends Component {
+abstract class LogicalNetwork[TileLinkType <: Bundle](endpoints: Seq[CoherenceAgent])(implicit conf: LogicalNetworkConfiguration) extends Component {
   val io: Vec[TileLinkType]
   val physicalNetworks: Seq[PhysicalNetwork]
   require(endpoints.length == conf.nEndpoints)
@@ -63,5 +63,6 @@ class TileLink(implicit conf: LogicalNetworkConfiguration) extends Bundle {
   val xact_rep       = (new HubIO)  { new TransactionReply }
   val xact_finish    = (new TileIO) { new TransactionFinish }
   val incoherent     = Bool(OUTPUT)
+  override def clone = { new TileLink().asInstanceOf[this.type] }
 }
 }
