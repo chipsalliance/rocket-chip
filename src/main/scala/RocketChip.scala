@@ -85,22 +85,14 @@ class CrossbarToHubShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkC
   io.in.ready := io.out.ready
 }
 
-class ReferenceChipCrossbarNetwork(endpoints: Seq[Component])(implicit conf: LogicalNetworkConfiguration) extends LogicalNetwork[TileLink](endpoints)(conf) {
+class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgent])(implicit conf: LogicalNetworkConfiguration) extends LogicalNetwork[TileLink](endpoints)(conf) {
   type TileLinkType = TileLink
-  val io = Vec(endpoints.map(_ match { case t:Tile => {(new TileLinkType).flip}; case h:CoherenceHub => {new TileLinkType}})){ new TileLinkType }
+  val io = Vec(endpoints.map(_ match { case t:ClientCoherenceAgent => {(new TileLinkType).flip}; case h:MasterCoherenceAgent => {new TileLinkType}})){ new TileLinkType }
 
   //If we allow all physical networks to be identical, we can use
-<<<<<<< HEAD
   //reflection to automatically create enough networks for any given 
   //bundle containing LogicalNetworkIOs
   val tl = new TileLinkType
-=======
-  //reflection to automatically create enough for any given bundle containing LogicalNetworkIOs
-  val tl = new TileLinkType
-  //val dataTypesPassedThroughEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
-  //    classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).map(
-  //    _.invoke(tl).asInstanceOf[LogicalNetworkIO[Data]].m.erasure)
->>>>>>> f19fdc1c7d15c6fc9a1fce7cd97619a124ae2c91
   val payloadBitsForEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
       classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).map(
       _.invoke(tl).asInstanceOf[LogicalNetworkIO[Data]].bits)
@@ -109,39 +101,29 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[Component])(implicit conf: Log
 
   //Use reflection to get the subset of each node's TileLink
   //corresponding to each direction of dataflow and connect each sub-bundle
-<<<<<<< HEAD
   //to the appropriate port of the physical crossbar network, inserting
   //shims to convert headers and process flits in the process.
-=======
-  //to the appropriate port of the physical crossbar network, converting the
-  //headers in the process.
-  //TODO: Introduce SerDes and flit/phit partitoning here
->>>>>>> f19fdc1c7d15c6fc9a1fce7cd97619a124ae2c91
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => {
-    val tileProducedSubBundles = io.getClass.getMethods.zipWithIndex.filter( x =>
+    val logNetIOSubBundles = io.getClass.getMethods.filter( x => 
+      classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).zipWithIndex
+    val tileProducedSubBundles = logNetIOSubBundles.filter( x =>
       classOf[TileIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
         (m.invoke(io).asInstanceOf[TileIO[Data]],i) } 
-    val hubProducedSubBundles  = io.getClass.getMethods.zipWithIndex.filter( x =>
+    val hubProducedSubBundles  = logNetIOSubBundles.filter( x =>
       classOf[HubIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
         (m.invoke(io).asInstanceOf[HubIO[Data]],i) }
     end match {
-      case x:Tile => {
+      case x:ClientCoherenceAgent => {
         tileProducedSubBundles.foreach{ case (sl,i) => 
           physicalNetworks(i).io.in(id) <> TileToCrossbarShim(sl) }
         hubProducedSubBundles.foreach{ case (sl,i) => 
           sl <> CrossbarToHubShim(physicalNetworks(i).io.out(id)) }
       }
-      case y:CoherenceHub => {
+      case y:MasterCoherenceAgent => {
         hubProducedSubBundles.foreach{ case (sl,i) => 
-<<<<<<< HEAD
           physicalNetworks(i).io.in(id) <> HubToCrossbarShim(sl) }
         tileProducedSubBundles.foreach{ case (sl,i) => 
           sl <> CrossbarToTileShim(physicalNetworks(i).io.out(id)) }
-=======
-          physicalNetworks(i).io.in(id) <> HubToCrossbarShim(sl)}
-        tileProducedSubBundles.foreach{ case (sl,i) => 
-          sl <> CrossbarToTileShim(physicalNetworks(i).io.out(id))}
->>>>>>> f19fdc1c7d15c6fc9a1fce7cd97619a124ae2c91
       }
     }
   }}
@@ -206,41 +188,36 @@ class ReferenceChipBackend extends VerilogBackend
   transforms += ((c: Component) => addMemPin(c))
 }
 
-class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[Tile])(implicit conf: UncoreConfiguration) extends Component
+class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent])(implicit conf: CoherenceHubConfiguration) extends Component
 {
+  implicit val lnconf = conf.ln
   val io = new Bundle {
-    val tiles = Vec(conf.ntiles) { new ioTileLink() }.flip
-    val htif = new ioTileLink().flip
+    val tiles = Vec(conf.ln.nTiles) { new TileLink }.flip
+    val htif = new TileLink().flip
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
     val mem = new ioMemPipe
   }
 
-  require(tileEndpoints.length == conf.ntiles)
   import rocket.Constants._
-  val hub = new CoherenceHubBroadcast()(conf.copy(ntiles = conf.ntiles+1))
+
+  val lnWithHtifConf = conf.ln.copy(nEndpoints = conf.ln.nEndpoints+1, 
+                                    idBits = log2Up(conf.ln.nEndpoints+1)+1,
+                                    nTiles = conf.ln.nTiles+1)
+  val chWithHtifConf = conf.copy(ln = lnWithHtifConf)
+  require(tileEndpoints.length == lnWithHtifConf.nTiles)
+  val hub = new CoherenceHubBroadcast()(chWithHtifConf)
   val llc_tag_leaf = Mem(1024, seqRead = true) { Bits(width = 72) }
   val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
   val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
   val mem_serdes = new MemSerdes(htif_width)
 
-<<<<<<< HEAD
-  implicit val logNetConf = new LogicalNetworkConfiguration(conf.ntiles+1, conf.tile_id_bits+1, 1, conf.ntiles)
-  val testNet = new ReferenceChipCrossbarNetwork(List(hub)++tileEndpoints)
-=======
-  val ic = ICacheConfig(128, 2, conf.co.asInstanceOf[CoherencePolicyWithUncached], ntlb = 8, nbtb = 16)
-  val dc = DCacheConfig(128, 4, conf.co.asInstanceOf[CoherencePolicyWithUncached], ntlb = 8,
-                        nmshr = 2, nrpq = 16, nsdq = 17)
-  val rc = RocketConfiguration(2, conf.co.asInstanceOf[CoherencePolicyWithUncached], ic, dc,
-                               fpu = true, vec = true)
-  implicit val logNetConf = new LogicalNetworkConfiguration(3, 4, 1, 2)
-  val testNet = new ReferenceChipCrossbarNetwork(List(hub,new Tile()(rc),new Tile()(rc)))
->>>>>>> f19fdc1c7d15c6fc9a1fce7cd97619a124ae2c91
+  val testNet = new ReferenceChipCrossbarNetwork(List(hub)++tileEndpoints)(lnWithHtifConf)
 
-  for (i <- 0 until conf.ntiles) {
+  for (i <- 0 until conf.ln.nTiles) {
     hub.io.tiles(i) <> io.tiles(i)
   }
-  hub.io.tiles(conf.ntiles) <> io.htif
+  hub.io.tiles(conf.ln.nTiles) <> io.htif
 
   llc.io.cpu.req_cmd <> Queue(hub.io.mem.req_cmd)
   llc.io.cpu.req_data <> Queue(hub.io.mem.req_data, REFILL_CYCLES)
@@ -269,22 +246,23 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[Tile])(implicit conf
   io.mem_backup <> mem_serdes.io.narrow
 }
 
-class Uncore(htif_width: Int, tileEndpoints: Seq[Tile])(implicit conf: UncoreConfiguration) extends Component
+class Uncore(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent])(implicit conf: CoherenceHubConfiguration) extends Component
 {
+  implicit val lnconf = conf.ln
   val io = new Bundle {
     val debug = new ioDebug()
     val host = new ioHost(htif_width)
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
     val mem = new ioMemPipe
-    val tiles = Vec(conf.ntiles) { new ioTileLink() }.flip
-    val htif = Vec(conf.ntiles) { new ioHTIF(conf.ntiles) }.flip
+    val tiles = Vec(conf.ln.nTiles) { new TileLink }.flip
+    val htif = Vec(conf.ln.nTiles) { new ioHTIF(conf.ln.nTiles) }.flip
   }
 
   val htif = new rocketHTIF(htif_width)
   htif.io.cpu <> io.htif
 
-  val outmemsys = new OuterMemorySystem(htif_width, tileEndpoints)
+  val outmemsys = new OuterMemorySystem(htif_width, tileEndpoints++List(htif))
   outmemsys.io.tiles <> io.tiles
   outmemsys.io.htif <> htif.io.mem
   io.mem <> outmemsys.io.mem
@@ -349,7 +327,8 @@ class Top extends Component {
               else new MICoherence
             }
 
-  implicit val uconf = UncoreConfiguration(NTILES, log2Up(NTILES)+1, co)
+  implicit val lnConf = LogicalNetworkConfiguration(NTILES+1, log2Up(NTILES)+1, 1, NTILES)
+  implicit val chConf = CoherenceHubConfiguration(co, lnConf)
 
   val io = new ioTop(HTIF_WIDTH)
 
@@ -363,7 +342,7 @@ class Top extends Component {
   val uncore = new Uncore(HTIF_WIDTH, tileList)
 
   var error_mode = Bool(false)
-  for (i <- 0 until uconf.ntiles) {
+  for (i <- 0 until NTILES) {
     val hl = uncore.io.htif(i)
     val tl = uncore.io.tiles(i)
 
