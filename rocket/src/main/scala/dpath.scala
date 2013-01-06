@@ -159,7 +159,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   alu.io.in1 := ex_rs1.toUFix
   
   // multiplier and divider
-  val div = new MulDiv(mulUnroll = 4, earlyOut = true)
+  val div = new MulDiv(mulUnroll = if (conf.fastMulDiv) 8 else 1,
+                       earlyOut = conf.fastMulDiv)
   div.io.req.valid := io.ctrl.div_mul_val
   div.io.req.bits.dw := ex_reg_ctrl_fn_dw
   div.io.req.bits.fn := ex_reg_ctrl_fn_alu
