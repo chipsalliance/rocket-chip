@@ -52,23 +52,16 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
     val carryIn = remainder(w)
     val mplier = Cat(remainder(2*mulw,w+1),remainder(w-1,0)).toFix
     val mpcand = divisor.toFix
-    val prod = mplier(mulUnroll-1,0) * mpcand + Mux(carryIn, mpcand, Fix(0))
-    val sum = Cat(mplier(2*mulw-1,mulw) + prod, mplier(mulw-1,mulUnroll))
+    val prod0 = mplier(2*mulw-1,mulw) +
+      (if (mulUnroll == 1) Mux(mplier(0), -Cat(mpcand < Fix(0), mpcand).toFix, Mux(carryIn, mpcand, Fix(0)))
+      else (mplier(mulUnroll-1,0) + carryIn.toUFix).toFix * mpcand)
+    val prod = Mux(mplier(mulUnroll-1,0).andR && carryIn, mplier(2*mulw-1,mulw), prod0)
+    val sum = Cat(prod, mplier(mulw-1,mulUnroll))
     val carryOut = mplier(mulUnroll-1)
     remainder := Cat(sum(sum.getWidth-1,w), carryOut, sum(w-1,0)).toFix
 
-    val cycles = mulw/mulUnroll
-    val shift1 = (UFix(cycles)-count)*mulUnroll
-    val shift = shift1(log2Up(w)-1,0)
-    val mask = (UFix(1) << shift) - 1
-    val eOut = shift1 < w && !((mplier(w-1,0).toBits ^ carryIn.toFix) & mask).orR
-    val shifted = mplier >> shift
-    when (Bool(earlyOut) && eOut) {
-      remainder := Cat(shifted(sum.getWidth-1,w), carryOut, shifted(w-1,0)).toFix
-    }
-
     count := count + 1
-    when (count === cycles-1 || Bool(earlyOut) && eOut) {
+    when (count === mulw/mulUnroll-1) {
       state := s_done
       when (AVec(FN_MULH, FN_MULHU, FN_MULHSU) contains req.fn) {
         state := s_move_rem
