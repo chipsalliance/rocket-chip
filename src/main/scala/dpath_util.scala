@@ -132,9 +132,9 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   }
   import PCR._
  
-  val reg_epc = Reg{Fix(width = VADDR_BITS+1)}
-  val reg_badvaddr = Reg{Fix(width = VADDR_BITS+1)}
-  val reg_ebase = Reg{Fix(width = VADDR_BITS)}
+  val reg_epc = Reg{Bits(width = conf.xprlen)}
+  val reg_badvaddr = Reg{Bits(width = conf.xprlen)}
+  val reg_ebase = Reg{Bits(width = conf.xprlen)}
   val reg_count = WideCounter(32)
   val reg_compare = Reg{Bits(width = 32)}
   val reg_cause = Reg{Bits(width = io.cause.getWidth)}
@@ -189,24 +189,22 @@ class PCR(implicit conf: RocketConfiguration) extends Component
     cnt = cnt + reg_vecbank(i)
   io.vecbankcnt := cnt(3,0)
 
-  val badvaddr_sign = Mux(io.w.data(VADDR_BITS-1), io.w.data(conf.xprlen-1,VADDR_BITS).andR, io.w.data(conf.xprlen-1,VADDR_BITS).orR)
-  when (io.badvaddr_wen) {
-    reg_badvaddr     := Cat(badvaddr_sign, io.w.data(VADDR_BITS-1,0)).toUFix;
-  }
-  when (io.vec_irq_aux_wen) {
-    reg_badvaddr := io.vec_irq_aux.toUFix
+  when (io.badvaddr_wen || io.vec_irq_aux_wen) {
+    val wdata = Mux(io.badvaddr_wen, io.w.data, io.vec_irq_aux)
+    val (upper, lower) = Split(wdata, VADDR_BITS)
+    val sign = Mux(lower.toFix < Fix(0), upper.andR, upper.orR)
+    reg_badvaddr := Cat(sign, lower).toFix
   }
 
   when (io.exception) {
     when (!reg_status.et) {
       reg_error_mode := true
-    }.otherwise {
-      reg_status.s := true
-      reg_status.ps := reg_status.s
-      reg_status.et := false
-      reg_epc := io.pc
-      reg_cause := io.cause
     }
+    reg_status.s := true
+    reg_status.ps := reg_status.s
+    reg_status.et := false
+    reg_epc := io.pc.toFix
+    reg_cause := io.cause
   }
   
   when (io.eret) {
@@ -250,7 +248,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
       if (!conf.rvc) reg_status.ec := false
     }
     when (waddr === EPC)      { reg_epc := wdata(VADDR_BITS,0).toFix }
-    when (waddr === EVEC)     { reg_ebase := wdata(VADDR_BITS-1,0).toUFix; }
+    when (waddr === EVEC)     { reg_ebase := wdata(VADDR_BITS-1,0).toFix }
     when (waddr === COUNT)    { reg_count := wdata.toUFix }
     when (waddr === COMPARE)  { reg_compare := wdata(31,0).toUFix; r_irq_timer := Bool(false); }
     when (waddr === COREID)   { reg_coreid := wdata(15,0) }
