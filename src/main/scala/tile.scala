@@ -10,7 +10,8 @@ case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
                                icache: ICacheConfig, dcache: DCacheConfig,
                                fpu: Boolean, vec: Boolean,
                                fastLoadWord: Boolean = true,
-                               fastLoadByte: Boolean = false)
+                               fastLoadByte: Boolean = false,
+                               fastMulDiv: Boolean = true)
 {
   val dcacheReqTagBits = 9 // enforce compliance with require()
   val xprlen = 64
