@@ -43,18 +43,18 @@ class FrontendResp(implicit conf: ICacheConfig) extends Bundle {
   override def clone = new FrontendResp().asInstanceOf[this.type]
 }
 
-class IOCPUFrontend(implicit conf: ICacheConfig) extends Bundle {
+class CPUFrontendIO(implicit conf: ICacheConfig) extends Bundle {
   val req = new PipeIO()(new FrontendReq)
   val resp = new FIFOIO()(new FrontendResp).flip
-  val ptw = new IOTLBPTW().flip
+  val ptw = new TLBPTWIO().flip
   val invalidate = Bool(OUTPUT)
 }
 
 class Frontend(implicit c: ICacheConfig) extends Component
 {
   val io = new Bundle {
-    val cpu = new IOCPUFrontend()(c).flip
-    val mem = new ioUncachedRequestor
+    val cpu = new CPUFrontendIO()(c).flip
+    val mem = new UncachedRequestorIO
   }
   
   val btb = new rocketDpathBTB(c.nbtb)
@@ -134,7 +134,7 @@ class ICache(implicit c: ICacheConfig) extends Component
       val datablock = Bits(width = c.databits)
     })
     val invalidate = Bool(INPUT)
-    val mem = new ioUncachedRequestor
+    val mem = new UncachedRequestorIO
   }
 
   val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(4) { UFix() }

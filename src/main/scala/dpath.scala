@@ -10,14 +10,14 @@ import hwacha._
 class Datapath(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
-    val host  = new ioHTIF(conf.ntiles)
-    val ctrl  = new ioCtrlDpath().flip
-    val dmem = new ioHellaCache()(conf.dcache)
-    val ptw = new IODatapathPTW().flip
-    val imem  = new IOCPUFrontend()(conf.icache)
-    val fpu = new ioDpathFPU();
-    val vec_ctrl = new ioCtrlDpathVec().flip
-    val vec_iface = new ioDpathVecInterface()
+    val host  = new HTIFIO(conf.lnConf.nTiles)
+    val ctrl  = (new CtrlDpathIO).flip
+    val dmem = new HellaCacheIO()(conf.dcache)
+    val ptw = (new DatapathPTWIO).flip
+    val imem  = new CPUFrontendIO()(conf.icache)
+    val fpu = new DpathFPUIO
+    val vec_ctrl = (new CtrlDpathVecIO).flip
+    val vec_iface = new DpathVecInterfaceIO
   }
 
   // execute definitions

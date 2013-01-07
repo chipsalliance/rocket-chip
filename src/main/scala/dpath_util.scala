@@ -6,7 +6,7 @@ import Constants._
 import scala.math._
 import Util._
 
-class ioDpathBTB extends Bundle()
+class DpathBTBIO extends Bundle
 {
   val current_pc     = UFix(INPUT, VADDR_BITS);
   val hit            = Bool(OUTPUT);
@@ -21,7 +21,7 @@ class ioDpathBTB extends Bundle()
 // fully-associative branch target buffer
 class rocketDpathBTB(entries: Int) extends Component
 {
-  val io = new ioDpathBTB();
+  val io = new DpathBTBIO
 
   val repl_way = LFSR16(io.wen)(log2Up(entries)-1,0) // TODO: pseudo-LRU
 
@@ -104,7 +104,7 @@ object PCR
 class PCR(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
-    val host = new ioHTIF(conf.ntiles)
+    val host = new HTIFIO(conf.lnConf.nTiles)
     val r = new ioReadPort(conf.nxpr, conf.xprlen)
     val w = new ioWritePort(conf.nxpr, conf.xprlen)
     

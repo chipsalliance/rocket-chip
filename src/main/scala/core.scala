@@ -6,17 +6,17 @@ import Constants._
 import hwacha._
 import Util._
 
-class ioRocket(implicit conf: RocketConfiguration) extends Bundle
+class RocketIO(implicit conf: RocketConfiguration) extends Bundle
 {
-  val host    = new ioHTIF(conf.ntiles)
-  val imem    = new IOCPUFrontend()(conf.icache)
-  val vimem   = new IOCPUFrontend()(conf.icache)
-  val dmem    = new ioHellaCache()(conf.dcache)
+  val host    = new HTIFIO(conf.lnConf.nTiles)
+  val imem    = new CPUFrontendIO()(conf.icache)
+  val vimem   = new CPUFrontendIO()(conf.icache)
+  val dmem    = new HellaCacheIO()(conf.dcache)
 }
 
 class Core(implicit conf: RocketConfiguration) extends Component
 {
-  val io    = new ioRocket
+  val io    = new RocketIO
    
   val ctrl  = new Control
   val dpath = new Datapath

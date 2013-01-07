@@ -91,7 +91,7 @@ class TLB(entries: Int) extends Component
   val io = new Bundle {
     val req = new FIFOIO()(new TLBReq).flip
     val resp = new TLBResp(entries)
-    val ptw = new IOTLBPTW
+    val ptw = new TLBPTWIO
   }
 
   val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(4) { UFix() }

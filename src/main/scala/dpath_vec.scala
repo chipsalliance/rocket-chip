@@ -6,7 +6,7 @@ import Constants._
 import Instructions._
 import hwacha.Constants._
 
-class ioDpathVecInterface extends Bundle
+class DpathVecInterfaceIO extends Bundle
 {
   val vcmdq = new FIFOIO()(Bits(width = SZ_VCMD))
   val vximm1q = new FIFOIO()(Bits(width = SZ_VIMM))
@@ -22,10 +22,10 @@ class ioDpathVecInterface extends Bundle
   val irq_aux = Bits(INPUT, 64)
 }
 
-class ioDpathVec extends Bundle
+class DpathVecIO extends Bundle
 {
-  val ctrl = new ioCtrlDpathVec().flip
-  val iface = new ioDpathVecInterface()
+  val ctrl = (new CtrlDpathVecIO).flip
+  val iface = new DpathVecInterfaceIO
   val valid = Bool(INPUT)
   val inst = Bits(INPUT, 32)
   val vecbank = Bits(INPUT, 8)
@@ -41,7 +41,7 @@ class ioDpathVec extends Bundle
 
 class rocketDpathVec extends Component
 {
-  val io = new ioDpathVec()
+  val io = new DpathVecIO
 
   val nxregs_stage = Mux(io.ctrl.fn === VEC_CFG, io.wdata(5,0), io.inst(15,10))
   val nfregs_stage = Mux(io.ctrl.fn === VEC_CFG, io.rs2(5,0), io.inst(21,16))
