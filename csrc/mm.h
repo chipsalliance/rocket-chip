@@ -3,6 +3,7 @@
 
 #include "mm_param.h"
 #include <stdint.h>
+#include <cstring>
 #include <queue>
 
 class mm_t

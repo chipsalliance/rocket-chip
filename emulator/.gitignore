@@ -1,12 +1,11 @@
 *~
 *.o
 *.a
-*.out
-*.vcd
-*.vpd
 *.log
+output/
 emulator
 generated-src
 emulator-debug
 generated-src-debug
 kernel
+kernel.hex
