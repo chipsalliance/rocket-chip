@@ -6,7 +6,7 @@ import Constants._
 import Instructions._
 import hwacha.Constants._
 
-class ioCtrlDpathVec extends Bundle
+class CtrlDpathVecIO extends Bundle
 {
   val inst = Bits(INPUT, 32)
   val appvl0 = Bool(INPUT)
@@ -18,7 +18,7 @@ class ioCtrlDpathVec extends Bundle
   val sel_vimm2 = Bits(OUTPUT, 1)
 }
 
-class ioCtrlVecInterface extends Bundle
+class CtrlVecInterfaceIO extends Bundle
 {
   val vcmdq = new FIFOIO()(Bits(width = SZ_VCMD))
   val vximm1q = new FIFOIO()(Bits(width = SZ_VIMM))
@@ -45,10 +45,10 @@ class ioCtrlVecInterface extends Bundle
   val hold = Bool(OUTPUT)
 }
 
-class ioCtrlVec extends Bundle
+class CtrlVecIO extends Bundle
 {
-  val dpath = new ioCtrlDpathVec()
-  val iface = new ioCtrlVecInterface()
+  val dpath = new CtrlDpathVecIO
+  val iface = new CtrlVecInterfaceIO
   val valid = Bool(INPUT)
   val s = Bool(INPUT)
   val sr_ev = Bool(INPUT)
@@ -188,7 +188,7 @@ class rocketCtrlVecDecoder extends Component
 
 class rocketCtrlVec extends Component
 {
-  val io = new ioCtrlVec()
+  val io = new CtrlVecIO
 
   val dec = new rocketCtrlVecDecoder()
   dec.io.inst := io.dpath.inst

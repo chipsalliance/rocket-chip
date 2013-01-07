@@ -726,17 +726,17 @@ class HellaCacheExceptions extends Bundle {
 }
 
 // interface between D$ and processor/DTLB
-class ioHellaCache(implicit conf: DCacheConfig) extends Bundle {
+class HellaCacheIO(implicit conf: DCacheConfig) extends Bundle {
   val req = (new FIFOIO){ new HellaCacheReq }
   val resp = (new PipeIO){ new HellaCacheResp }.flip
   val xcpt = (new HellaCacheExceptions).asInput
-  val ptw = new IOTLBPTW().flip
+  val ptw = (new TLBPTWIO).flip
 }
 
-class HellaCache(implicit conf: DCacheConfig) extends Component {
+class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguration) extends Component {
   val io = new Bundle {
-    val cpu = (new ioHellaCache).flip
-    val mem = new ioTileLink
+    val cpu = (new HellaCacheIO).flip
+    val mem = new TileLinkIO
   }
  
   val indexmsb    = conf.untagbits-1

@@ -7,7 +7,7 @@ import Instructions._
 import hwacha._
 import ALU._
 
-class ioCtrlDpath extends Bundle()
+class CtrlDpathIO extends Bundle()
 {
   // outputs to datapath
   val sel_pc   = UFix(OUTPUT, 3);
@@ -318,18 +318,18 @@ object VDecode extends DecodeConstants
 class Control(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
-    val dpath   = new ioCtrlDpath
-    val imem = new IOCPUFrontend()(conf.icache)
-    val dmem = new ioHellaCache()(conf.dcache)
+    val dpath   = new CtrlDpathIO
+    val imem = new CPUFrontendIO()(conf.icache)
+    val dmem = new HellaCacheIO()(conf.dcache)
     val dtlb_val = Bool(OUTPUT)
     val dtlb_kill = Bool(OUTPUT)
     val dtlb_rdy = Bool(INPUT)
     val dtlb_miss = Bool(INPUT)
     val xcpt_dtlb_ld = Bool(INPUT)
     val xcpt_dtlb_st = Bool(INPUT)
-    val fpu = new ioCtrlFPU
-    val vec_dpath = new ioCtrlDpathVec
-    val vec_iface = new ioCtrlVecInterface
+    val fpu = new CtrlFPUIO
+    val vec_dpath = new CtrlDpathVecIO
+    val vec_iface = new CtrlVecInterfaceIO
   }
 
   var decode_table = XDecode.table

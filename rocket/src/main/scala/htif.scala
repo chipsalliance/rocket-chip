@@ -6,12 +6,12 @@ import Constants._
 import uncore._
 import Util._
 
-class ioDebug extends Bundle
+class DebugIO extends Bundle
 {
   val error_mode  = Bool(OUTPUT);
 }
 
-class ioHost(val w: Int) extends Bundle
+class HostIO(val w: Int) extends Bundle
 {
   val clk = Bool(OUTPUT)
   val clk_edge = Bool(OUTPUT)
@@ -26,10 +26,10 @@ class PCRReq extends Bundle
   val data = Bits(width = 64)
 }
 
-class ioHTIF(ntiles: Int) extends Bundle
+class HTIFIO(ntiles: Int) extends Bundle
 {
   val reset = Bool(INPUT)
-  val debug = new ioDebug
+  val debug = new DebugIO
   val pcr_req = (new FIFOIO) { new PCRReq }.flip
   val pcr_rep = (new FIFOIO) { Bits(width = 64) }
   val ipi_req = (new FIFOIO) { Bits(width = log2Up(ntiles)) }
@@ -39,9 +39,9 @@ class ioHTIF(ntiles: Int) extends Bundle
 class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Component with ClientCoherenceAgent
 {
   val io = new Bundle {
-    val host = new ioHost(w)
-    val cpu = Vec(conf.ln.nTiles) { new ioHTIF(conf.ln.nTiles).flip }
-    val mem = new ioTileLink
+    val host = new HostIO(w)
+    val cpu = Vec(conf.ln.nTiles) { new HTIFIO(conf.ln.nTiles).flip }
+    val mem = new TileLinkIO()(conf.ln)
   }
 
   val short_request_bits = 64
@@ -191,7 +191,17 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   io.mem.probe_req.ready := Bool(false)
   io.mem.probe_rep.valid := Bool(false)
   io.mem.probe_rep_data.valid := Bool(false)
-  io.mem.incoherent := Bool(true)
+
+  io.mem.xact_init.header.src := UFix(1)
+  io.mem.xact_init.header.dst := UFix(0)
+  io.mem.xact_init_data.header.src := UFix(1)
+  io.mem.xact_init_data.header.dst := UFix(0)
+  io.mem.probe_rep.header.src := UFix(1)
+  io.mem.probe_rep.header.dst := UFix(0)
+  io.mem.probe_rep_data.header.src := UFix(1)
+  io.mem.probe_rep_data.header.dst := UFix(0)
+  io.mem.xact_finish.header.src := UFix(1)
+  io.mem.xact_finish.header.dst := UFix(0)
 
   val pcrReadData = Vec(conf.ln.nTiles) { Reg() { Bits(width = io.cpu(0).pcr_rep.bits.getWidth) } }
   for (i <- 0 until conf.ln.nTiles) {

@@ -8,8 +8,8 @@ import uncore._
 class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
-    val requestor = Vec(n) { new ioHellaCache()(conf.dcache) }.flip
-    val mem = new ioHellaCache()(conf.dcache)
+    val requestor = Vec(n) { new HellaCacheIO()(conf.dcache) }.flip
+    val mem = new HellaCacheIO()(conf.dcache)
   }
 
   val r_valid = io.requestor.map(r => Reg(r.req.valid))
@@ -48,7 +48,7 @@ class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Comp
   }
 }
 
-class ioUncachedRequestor extends Bundle {
+class UncachedRequestorIO extends Bundle {
   val xact_init      = (new FIFOIO) { new TransactionInit }
   val xact_abort     = (new FIFOIO) { new TransactionAbort }.flip
   val xact_rep       = (new FIFOIO)      { new TransactionReply }.flip
@@ -57,8 +57,8 @@ class ioUncachedRequestor extends Bundle {
 
 class MemArbiter(n: Int) extends Component {
   val io = new Bundle {
-    val mem = new ioUncachedRequestor
-    val requestor = Vec(n) { new ioUncachedRequestor }.flip
+    val mem = new UncachedRequestorIO
+    val requestor = Vec(n) { new UncachedRequestorIO }.flip
   }
 
   var xi_bits = new TransactionInit

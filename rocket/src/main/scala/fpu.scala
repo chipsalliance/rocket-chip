@@ -152,7 +152,7 @@ class FPUDecoder extends Component
   io.sigs.wrfsr := wrfsr.toBool
 }
 
-class ioDpathFPU extends Bundle {
+class DpathFPUIO extends Bundle {
   val inst = Bits(OUTPUT, 32)
   val fromint_data = Bits(OUTPUT, 64)
 
@@ -165,7 +165,7 @@ class ioDpathFPU extends Bundle {
   val dmem_resp_data = Bits(OUTPUT, 64)
 }
 
-class ioCtrlFPU extends Bundle {
+class CtrlFPUIO extends Bundle {
   val valid = Bool(OUTPUT)
   val nack_mem = Bool(INPUT)
   val illegal_rm = Bool(INPUT)
@@ -456,8 +456,8 @@ class FPUDFMAPipe(val latency: Int) extends Component
 class FPU(sfma_latency: Int, dfma_latency: Int) extends Component
 {
   val io = new Bundle {
-    val ctrl = new ioCtrlFPU().flip
-    val dpath = new ioDpathFPU().flip
+    val ctrl = (new CtrlFPUIO).flip
+    val dpath = (new DpathFPUIO).flip
     val sfma = new ioFMA(33)
     val dfma = new ioFMA(65)
   }

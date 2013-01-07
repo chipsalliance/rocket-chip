@@ -5,7 +5,7 @@ import Node._
 import Constants._
 import Util._
 
-class IOTLBPTW extends Bundle {
+class TLBPTWIO extends Bundle {
   val req = new FIFOIO()(UFix(width = VPN_BITS))
   val resp = new PipeIO()(new Bundle {
     val error = Bool()
@@ -17,7 +17,7 @@ class IOTLBPTW extends Bundle {
   val invalidate = Bool(INPUT)
 }
 
-class IODatapathPTW extends Bundle {
+class DatapathPTWIO extends Bundle {
   val ptbr = UFix(INPUT, PADDR_BITS)
   val invalidate = Bool(INPUT)
   val status = new Status().asInput
@@ -26,9 +26,9 @@ class IODatapathPTW extends Bundle {
 class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
-    val requestor = Vec(n) { new IOTLBPTW }.flip
-    val mem = new ioHellaCache()(conf.dcache)
-    val dpath = new IODatapathPTW
+    val requestor = Vec(n) { new TLBPTWIO }.flip
+    val mem = new HellaCacheIO()(conf.dcache)
+    val dpath = new DatapathPTWIO
   }
   
   val levels = 3

@@ -6,7 +6,7 @@ import Constants._
 import uncore._
 import Util._
 
-case class RocketConfiguration(ntiles: Int, co: CoherencePolicyWithUncached,
+case class RocketConfiguration(lnConf: LogicalNetworkConfiguration, co: CoherencePolicyWithUncached,
                                icache: ICacheConfig, dcache: DCacheConfig,
                                fpu: Boolean, vec: Boolean,
                                fastLoadWord: Boolean = true,
@@ -25,11 +25,12 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
 {
   val memPorts = 2 + confIn.vec
   implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(memPorts), databits = confIn.xprlen)
+  implicit val lnConf = confIn.lnConf
   implicit val conf = confIn.copy(dcache = dcConf)
 
   val io = new Bundle {
-    val tilelink = new ioTileLink
-    val host = new ioHTIF(conf.ntiles)
+    val tilelink = new TileLinkIO
+    val host = new HTIFIO(lnConf.nTiles)
   }
 
   val core      = new Core
