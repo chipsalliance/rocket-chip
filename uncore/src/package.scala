@@ -1,6 +1,9 @@
 package object uncore {
 import Chisel._
 
+//TODO: Remove these Networking classes from the package object once Scala bug
+//SI-3439 is resolved.
+
 case class PhysicalNetworkConfiguration(nEndpoints: Int, idBits: Int)
 
 class PhysicalHeader(implicit conf: PhysicalNetworkConfiguration) extends Bundle {
@@ -22,14 +25,21 @@ class BasicCrossbar[T <: Data]()(data: => T)(implicit conf: PhysicalNetworkConfi
     val out = Vec(conf.nEndpoints) { (new BasicCrossbarIO) { data } }
   }
 
-  for(i <- 0 until conf.nEndpoints) {
+  val rdyVecs = List.fill(conf.nEndpoints)(Vec(conf.nEndpoints){Bool()})
+
+  io.out.zip(rdyVecs).zipWithIndex.map{ case ((out, rdys), i) => {
     val rrarb = new RRArbiter(conf.nEndpoints)(data)
-    (rrarb.io.in, io.in).zipped.map( (arb, io) => {
-      arb.valid := io.valid && (io.header.dst === UFix(i)) 
-      arb.bits := io.bits
-      io.ready := arb.ready
-    })
-    io.out(i) <> rrarb.io.out
+    (rrarb.io.in, io.in, rdys).zipped.map{ case (arb, in, rdy) => {
+      arb.valid := in.valid && (in.header.dst === UFix(i)) 
+      arb.bits := in.bits
+      rdy := arb.ready && (in.header.dst === UFix(i))
+    }}
+    out <> rrarb.io.out
+    out.header.src := rrarb.io.chosen.toUFix
+    out.header.dst := UFix(i)
+  }}
+  for(i <- 0 until conf.nEndpoints) {
+    io.in(i).ready := rdyVecs.map(r => r(i)).reduceLeft(_||_)
   }
 }
 
@@ -53,7 +63,7 @@ abstract class LogicalNetworkIO[T <: Data]()(data: => T)(implicit conf: LogicalN
 class TileIO[T <: Data]()(data: => T)(implicit conf: LogicalNetworkConfiguration) extends LogicalNetworkIO()(data)(conf)
 class HubIO[T <: Data]()(data: => T)(implicit conf: LogicalNetworkConfiguration) extends LogicalNetworkIO()(data)(conf){flip()}
 
-class TileLink(implicit conf: LogicalNetworkConfiguration) extends Bundle { 
+class TileLinkIO(implicit conf: LogicalNetworkConfiguration) extends Bundle { 
   val xact_init      = (new TileIO) { new TransactionInit }
   val xact_init_data = (new TileIO) { new TransactionInitData }
   val xact_abort     = (new HubIO)  { new TransactionAbort }
@@ -62,7 +72,6 @@ class TileLink(implicit conf: LogicalNetworkConfiguration) extends Bundle {
   val probe_rep_data = (new TileIO) { new ProbeReplyData }
   val xact_rep       = (new HubIO)  { new TransactionReply }
   val xact_finish    = (new TileIO) { new TransactionFinish }
-  val incoherent     = Bool(OUTPUT)
-  override def clone = { new TileLink().asInstanceOf[this.type] }
+  override def clone = { new TileLinkIO().asInstanceOf[this.type] }
 }
 }

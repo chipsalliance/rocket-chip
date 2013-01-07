@@ -225,9 +225,47 @@ class XactTracker(id: Int)(implicit conf: CoherenceHubConfiguration) extends Com
 
 case class CoherenceHubConfiguration(co: CoherencePolicy, ln: LogicalNetworkConfiguration)
 
+class CoherenceHubAdapter(implicit conf: LogicalNetworkConfiguration) extends Component with MasterCoherenceAgent {
+  val io = new Bundle {
+    val net = (new TileLinkIO).flip
+    val hub = Vec(conf.nTiles) { new TileLinkIO }
+  }
+
+  val netTileProducedSubBundles = io.net.getClass.getMethods.filter( x =>
+    classOf[TileIO[Data]].isAssignableFrom(x.getReturnType)).map{ m =>
+      m.invoke(io.net).asInstanceOf[TileIO[Data]] } 
+  val netHubProducedSubBundles  = io.net.getClass.getMethods.filter( x =>
+    classOf[HubIO[Data]].isAssignableFrom(x.getReturnType)).map{ m =>
+      m.invoke(io.net).asInstanceOf[HubIO[Data]] }
+
+  val hubTileProducedSubBundles = io.hub.map{ io => { 
+    io.getClass.getMethods.filter( x =>
+      classOf[TileIO[Data]].isAssignableFrom(x.getReturnType)).map{ m =>
+        m.invoke(io).asInstanceOf[TileIO[Data]] }}}.transpose
+  val hubHubProducedSubBundles = io.hub.map{ io => {
+    io.getClass.getMethods.filter( x =>
+      classOf[HubIO[Data]].isAssignableFrom(x.getReturnType)).map{ m =>
+        m.invoke(io).asInstanceOf[HubIO[Data]] }}}.transpose
+
+  hubHubProducedSubBundles.zip(netHubProducedSubBundles).foreach{ case(hub, net) => {
+    net.header.src := UFix(0)
+    net.header.dst := Vec(hub.map(_.valid)){Bool()}.indexWhere{s: Bool => s}
+    net.valid := hub.map(_.valid).fold(Bool(false))(_||_)
+    net.bits := hub(0).bits
+    hub.foreach( _.ready := net.ready) 
+  }}
+  hubTileProducedSubBundles.zip(netTileProducedSubBundles).foreach{ case(hub, net) => {
+    hub.foreach(_.header := net.header)
+    hub.zipWithIndex.foreach{ case(h,i) => h.valid := (net.header.src === UFix(i)) && net.valid }
+    hub.foreach(_.bits := net.bits)
+    net.ready := hub.map(_.ready).fold(Bool(false))(_||_)
+  }}
+}
+
 abstract class CoherenceHub(implicit conf: LogicalNetworkConfiguration) extends Component with MasterCoherenceAgent {
   val io = new Bundle {
-    val tiles = Vec(conf.nTiles) { new TileLink }.flip
+    val tiles = Vec(conf.nTiles) { new TileLinkIO }.flip
+    val incoherent = Vec(conf.nTiles) { Bool() }.asInput
     val mem = new ioMem
   }
 }
@@ -295,7 +333,7 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
     t.p_data.valid        := p_data_valid_arr(i)
     t.p_rep_cnt_dec       := p_rep_cnt_dec_arr(i).toBits
     t.p_req_cnt_inc       := p_req_cnt_inc_arr(i).toBits
-    t.tile_incoherent     := (Vec(io.tiles.map(_.incoherent)) { Bool() }).toBits
+    t.tile_incoherent     := io.incoherent.toBits
     t.sent_x_rep_ack      := sent_x_rep_ack_arr(i)
     do_free_arr(i)        := Bool(false)
     sent_x_rep_ack_arr(i) := Bool(false)
