@@ -34,7 +34,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   }
 
   val core      = new Core
-  val icache    = new Frontend()(confIn.icache)
+  val icache    = new Frontend()(confIn.icache, lnConf)
   val dcache    = new HellaCache
 
   val arbiter   = new MemArbiter(memPorts)
@@ -51,7 +51,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   io.tilelink.probe_rep_data <> dcache.io.mem.probe_rep_data
 
   if (conf.vec) {
-    val vicache = new Frontend()(ICacheConfig(128, 1, conf.co)) // 128 sets x 1 ways (8KB)
+    val vicache = new Frontend()(ICacheConfig(128, 1, conf.co), lnConf) // 128 sets x 1 ways (8KB)
     arbiter.io.requestor(2) <> vicache.io.mem
     core.io.vimem <> vicache.io.cpu
   }

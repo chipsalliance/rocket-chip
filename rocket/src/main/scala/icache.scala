@@ -50,7 +50,7 @@ class CPUFrontendIO(implicit conf: ICacheConfig) extends Bundle {
   val invalidate = Bool(OUTPUT)
 }
 
-class Frontend(implicit c: ICacheConfig) extends Component
+class Frontend(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) extends Component
 {
   val io = new Bundle {
     val cpu = new CPUFrontendIO()(c).flip
@@ -121,7 +121,7 @@ class Frontend(implicit c: ICacheConfig) extends Component
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
 }
 
-class ICache(implicit c: ICacheConfig) extends Component
+class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) extends Component
 {
   val io = new Bundle {
     val req = new PipeIO()(new Bundle {
@@ -224,7 +224,7 @@ class ICache(implicit c: ICacheConfig) extends Component
     val data_array = Mem(c.sets*REFILL_CYCLES, seqRead = true){ Bits(width = c.code.width(c.databits)) }
     val s1_dout = Reg(){ Bits() }
     when (io.mem.xact_rep.valid && repl_way === UFix(i)) {
-      val d = io.mem.xact_rep.bits.data
+      val d = io.mem.xact_rep.bits.payload.data
       data_array(Cat(s2_idx,rf_cnt)) := c.code.encode(d)
     }
     /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
@@ -238,14 +238,14 @@ class ICache(implicit c: ICacheConfig) extends Component
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
   val finish_q = (new Queue(1)) { new TransactionFinish }
-  finish_q.io.enq.valid := refill_done && io.mem.xact_rep.bits.require_ack
-  finish_q.io.enq.bits.global_xact_id := io.mem.xact_rep.bits.global_xact_id
+  finish_q.io.enq.valid := refill_done && io.mem.xact_rep.bits.payload.require_ack
+  finish_q.io.enq.bits.global_xact_id := io.mem.xact_rep.bits.payload.global_xact_id
 
   // output signals
   io.resp.valid := s2_hit
   io.mem.xact_init.valid := (state === s_request) && finish_q.io.enq.ready
-  io.mem.xact_init.bits := c.co.getUncachedReadTransactionInit(s2_addr >> UFix(c.offbits), UFix(0))
-  io.mem.xact_finish <> finish_q.io.deq
+  io.mem.xact_init.bits.payload := c.co.getUncachedReadTransactionInit(s2_addr >> UFix(c.offbits), UFix(0))
+  io.mem.xact_finish <> FIFOedLogicalNetworkIOWrapper(finish_q.io.deq)
   io.mem.xact_rep.ready := Bool(true)
 
   // control state machine

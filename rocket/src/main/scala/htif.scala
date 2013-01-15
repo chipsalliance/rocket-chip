@@ -38,6 +38,7 @@ class HTIFIO(ntiles: Int) extends Bundle
 
 class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Component with ClientCoherenceAgent
 {
+  implicit val lnConf = conf.ln
   val io = new Bundle {
     val host = new HostIO(w)
     val cpu = Vec(conf.ln.nTiles) { new HTIFIO(conf.ln.nTiles).flip }
@@ -107,8 +108,8 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   val mem_nacked = Reg(resetVal = Bool(false))
   when (io.mem.xact_rep.valid) { 
     mem_acked := Bool(true)
-    mem_gxid := io.mem.xact_rep.bits.global_xact_id
-    mem_needs_ack := io.mem.xact_rep.bits.require_ack  
+    mem_gxid := io.mem.xact_rep.bits.payload.global_xact_id
+    mem_needs_ack := io.mem.xact_rep.bits.payload.require_ack  
   }
   io.mem.xact_rep.ready := Bool(true)
   when (io.mem.xact_abort.valid) { mem_nacked := Bool(true) }
@@ -175,7 +176,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   for (i <- 0 until MEM_DATA_BITS/short_request_bits) {
     val idx = Cat(mem_cnt, UFix(i, log2Up(MEM_DATA_BITS/short_request_bits)))
     when (state === state_mem_rdata && io.mem.xact_rep.valid) {
-      packet_ram(idx) := io.mem.xact_rep.bits.data((i+1)*short_request_bits-1, i*short_request_bits)
+      packet_ram(idx) := io.mem.xact_rep.bits.payload.data((i+1)*short_request_bits-1, i*short_request_bits)
     }
     mem_req_data = Cat(packet_ram(idx), mem_req_data)
   }
@@ -183,25 +184,25 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   val init_addr = addr.toUFix >> UFix(OFFSET_BITS-3)
   val co = conf.co.asInstanceOf[CoherencePolicyWithUncached]
   x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteTransactionInit(init_addr, UFix(0)), co.getUncachedReadTransactionInit(init_addr, UFix(0)))
-  io.mem.xact_init <> x_init.io.deq
+  io.mem.xact_init <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq)
   io.mem.xact_init_data.valid:= state === state_mem_wdata
-  io.mem.xact_init_data.bits.data := mem_req_data
+  io.mem.xact_init_data.bits.payload.data := mem_req_data
   io.mem.xact_finish.valid := (state === state_mem_finish) && mem_needs_ack
-  io.mem.xact_finish.bits.global_xact_id := mem_gxid
+  io.mem.xact_finish.bits.payload.global_xact_id := mem_gxid
   io.mem.probe_req.ready := Bool(false)
   io.mem.probe_rep.valid := Bool(false)
   io.mem.probe_rep_data.valid := Bool(false)
 
-  io.mem.xact_init.header.src := UFix(1)
-  io.mem.xact_init.header.dst := UFix(0)
-  io.mem.xact_init_data.header.src := UFix(1)
-  io.mem.xact_init_data.header.dst := UFix(0)
-  io.mem.probe_rep.header.src := UFix(1)
-  io.mem.probe_rep.header.dst := UFix(0)
-  io.mem.probe_rep_data.header.src := UFix(1)
-  io.mem.probe_rep_data.header.dst := UFix(0)
-  io.mem.xact_finish.header.src := UFix(1)
-  io.mem.xact_finish.header.dst := UFix(0)
+  io.mem.xact_init.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.xact_init.bits.header.dst := UFix(0)
+  io.mem.xact_init_data.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.xact_init_data.bits.header.dst := UFix(0)
+  io.mem.probe_rep.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.probe_rep.bits.header.dst := UFix(0)
+  io.mem.probe_rep_data.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.probe_rep_data.bits.header.dst := UFix(0)
+  io.mem.xact_finish.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.xact_finish.bits.header.dst := UFix(0)
 
   val pcrReadData = Vec(conf.ln.nTiles) { Reg() { Bits(width = io.cpu(0).pcr_rep.bits.getWidth) } }
   for (i <- 0 until conf.ln.nTiles) {

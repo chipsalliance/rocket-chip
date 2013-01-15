@@ -915,9 +915,9 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   mshr.io.req.bits.data := s2_req.data
 
   mshr.io.mem_rep.valid := io.mem.xact_rep.fire()
-  mshr.io.mem_rep.bits := io.mem.xact_rep.bits
+  mshr.io.mem_rep.bits := io.mem.xact_rep.bits.payload
   mshr.io.mem_abort.valid := io.mem.xact_abort.valid
-  mshr.io.mem_abort.bits := io.mem.xact_abort.bits
+  mshr.io.mem_abort.bits := io.mem.xact_abort.bits.payload
   io.mem.xact_abort.ready := Bool(true)
   when (mshr.io.req.fire()) { replacer.miss }
 
@@ -931,8 +931,8 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   metaWriteArb.io.in(0) <> mshr.io.meta_write
 
   // probes
-  prober.io.req <> io.mem.probe_req
-  prober.io.rep <> io.mem.probe_rep
+  prober.io.req <> FIFOedLogicalNetworkIOUnwrapper(io.mem.probe_req)
+  FIFOedLogicalNetworkIOWrapper(prober.io.rep) <> io.mem.probe_rep
   prober.io.mshr_req <> mshr.io.probe
   prober.io.wb_req <> wb.io.probe
   prober.io.way_en := s2_tag_match_way
@@ -941,19 +941,19 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   prober.io.meta_write <> metaWriteArb.io.in(1)
 
   // refills
-  val refill = conf.co.messageUpdatesDataArray(io.mem.xact_rep.bits)
+  val refill = conf.co.messageUpdatesDataArray(io.mem.xact_rep.bits.payload)
   writeArb.io.in(1).valid := io.mem.xact_rep.valid && refill
   io.mem.xact_rep.ready := writeArb.io.in(1).ready || !refill
   writeArb.io.in(1).bits := mshr.io.mem_resp
   writeArb.io.in(1).bits.wmask := Fix(-1)
-  writeArb.io.in(1).bits.data := io.mem.xact_rep.bits.data
+  writeArb.io.in(1).bits.data := io.mem.xact_rep.bits.payload.data
 
   // writebacks
   wb.io.req <> mshr.io.wb_req
   wb.io.meta_read <> metaReadArb.io.in(3)
   wb.io.data_req <> readArb.io.in(2)
   wb.io.data_resp := s2_data_corrected
-  wb.io.probe_rep_data <> io.mem.probe_rep_data
+  FIFOedLogicalNetworkIOWrapper(wb.io.probe_rep_data) <> io.mem.probe_rep_data
 
   // store->load bypassing
   val s4_valid = Reg(s3_valid, resetVal = Bool(false))
@@ -1021,8 +1021,8 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   xact_init_arb.io.in(1).valid := mshr.io.mem_req.valid && prober.io.req.ready
   mshr.io.mem_req.ready := xact_init_arb.io.in(1).ready && prober.io.req.ready
   xact_init_arb.io.in(1).bits := mshr.io.mem_req.bits
-  io.mem.xact_init <> xact_init_arb.io.out
+  io.mem.xact_init <> FIFOedLogicalNetworkIOWrapper(xact_init_arb.io.out)
 
-  io.mem.xact_init_data <> wb.io.mem_req_data
-  io.mem.xact_finish <> mshr.io.mem_finish
+  io.mem.xact_init_data <> FIFOedLogicalNetworkIOWrapper(wb.io.mem_req_data)
+  io.mem.xact_finish <> FIFOedLogicalNetworkIOWrapper(mshr.io.mem_finish)
 }
