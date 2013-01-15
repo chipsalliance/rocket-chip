@@ -10,82 +10,82 @@ import scala.collection.mutable.HashMap
 
 
 object TileToCrossbarShim {
-  def apply[T <: Data](logIO: TileIO[T])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
-    val shim = (new TileToCrossbarShim) { logIO.bits.clone }
+  def apply[T <: Data](logIO: ClientSourcedIO[LogicalNetworkIO[T]])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
+    val shim = (new TileToCrossbarShim) { logIO.bits.payload.clone }
     shim.io.in <> logIO
     shim.io.out
   }
 }
 class TileToCrossbarShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) extends Component {
   val io = new Bundle {
-    val in  = (new TileIO){ data }.flip
-    val out = (new BasicCrossbarIO){ data }
+    val in  = (new ClientSourcedIO){(new LogicalNetworkIO){ data }}.flip
+    val out = (new FIFOIO){(new BasicCrossbarIO){ data }}
   }
-  io.out.header.src := io.in.header.src + UFix(lconf.nHubs)
-  io.out.header.dst := io.in.header.dst 
-  io.out.bits := io.in.bits
+  io.out.bits.header.src := io.in.bits.header.src + UFix(lconf.nHubs)
+  io.out.bits.header.dst := io.in.bits.header.dst 
+  io.out.bits.payload := io.in.bits.payload
   io.out.valid := io.in.valid
   io.in.ready := io.out.ready
 }
 
 object HubToCrossbarShim {
-  def apply[T <: Data](logIO: HubIO[T])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
-    val shim = (new HubToCrossbarShim) { logIO.bits.clone }
+  def apply[T <: Data](logIO: MasterSourcedIO[LogicalNetworkIO[T]])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
+    val shim = (new HubToCrossbarShim) { logIO.bits.payload.clone }
     shim.io.in <> logIO
     shim.io.out
   }
 }
 class HubToCrossbarShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) extends Component {
   val io = new Bundle {
-    val in  = (new HubIO){ data }
-    val out = (new BasicCrossbarIO){ data }
+    val in  = (new MasterSourcedIO){(new LogicalNetworkIO){ data }}
+    val out = (new FIFOIO){(new BasicCrossbarIO){ data }}
   }
-  io.out.header.src := io.in.header.src
-  io.out.header.dst := io.in.header.dst + UFix(lconf.nHubs)
-  io.out.bits := io.in.bits
+  io.out.bits.header.src := io.in.bits.header.src
+  io.out.bits.header.dst := io.in.bits.header.dst + UFix(lconf.nHubs)
+  io.out.bits.payload := io.in.bits.payload
   io.out.valid := io.in.valid
   io.in.ready := io.out.ready
 }
 
 object CrossbarToTileShim {
-  def apply[T <: Data](physIO: BasicCrossbarIO[T])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
-    val shim = (new CrossbarToTileShim) { physIO.bits.clone }
+  def apply[T <: Data](physIO: FIFOIO[BasicCrossbarIO[T]])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
+    val shim = (new CrossbarToTileShim) { physIO.bits.payload.clone }
     shim.io.in <> physIO
     shim.io.out
   }
 }
 class CrossbarToTileShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) extends Component {
   val io = new Bundle {
-    val in  = (new BasicCrossbarIO){ data }.flip
-    val out = (new TileIO){ data }
+    val in  = (new FIFOIO){(new BasicCrossbarIO){ data }}.flip
+    val out = (new ClientSourcedIO){(new LogicalNetworkIO){ data }}
   }
-  io.out.header.src := io.in.header.src
-  io.out.header.dst := io.in.header.dst - UFix(lconf.nHubs)
-  io.out.bits := io.in.bits
+  io.out.bits.header.src := io.in.bits.header.src
+  io.out.bits.header.dst := io.in.bits.header.dst - UFix(lconf.nHubs)
+  io.out.bits.payload := io.in.bits.payload
   io.out.valid := io.in.valid
   io.in.ready := io.out.ready
 }
 
 object CrossbarToHubShim {
-  def apply[T <: Data](physIO: BasicCrossbarIO[T])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
-    val shim = (new CrossbarToHubShim) { physIO.bits.clone }
+  def apply[T <: Data](physIO: FIFOIO[BasicCrossbarIO[T]])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
+    val shim = (new CrossbarToHubShim) { physIO.bits.payload.clone }
     shim.io.in <> physIO
     shim.io.out
   }
 }
 class CrossbarToHubShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) extends Component {
   val io = new Bundle {
-    val in  = (new BasicCrossbarIO){ data }.flip
-    val out = (new HubIO){ data }.flip
+    val in  = (new FIFOIO){(new BasicCrossbarIO){ data }}.flip
+    val out = (new MasterSourcedIO){(new LogicalNetworkIO){ data }}.flip
   }
-  io.out.header.src := io.in.header.src - UFix(lconf.nHubs)
-  io.out.header.dst := io.in.header.dst
-  io.out.bits := io.in.bits
+  io.out.bits.header.src := io.in.bits.header.src - UFix(lconf.nHubs)
+  io.out.bits.header.dst := io.in.bits.header.dst
+  io.out.bits.payload := io.in.bits.payload
   io.out.valid := io.in.valid
   io.in.ready := io.out.ready
 }
 
-class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgent])(implicit conf: LogicalNetworkConfiguration) extends LogicalNetwork[TileLinkIO](endpoints)(conf) {
+class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit conf: LogicalNetworkConfiguration) extends LogicalNetwork[TileLinkIO](endpoints)(conf) {
   type TileLinkType = TileLinkIO
   val io = Vec(endpoints.map(_ match { case t:ClientCoherenceAgent => {(new TileLinkType).flip}; case h:MasterCoherenceAgent => {new TileLinkType}})){ new TileLinkType }
 
@@ -94,8 +94,8 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgent])(implicit conf
   //bundle containing LogicalNetworkIOs
   val tl = new TileLinkType
   val payloadBitsForEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
-      classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).map(
-      _.invoke(tl).asInstanceOf[LogicalNetworkIO[Data]].bits)
+      classOf[DirectionalFIFOIO[Data]].isAssignableFrom(x.getReturnType)).map(
+      _.invoke(tl).asInstanceOf[DirectionalFIFOIO[LogicalNetworkIO[Data]]].bits.payload)
   implicit val pconf = new PhysicalNetworkConfiguration(conf.nEndpoints, conf.idBits)//same config for all networks
   val physicalNetworks: Seq[BasicCrossbar[Data]] = payloadBitsForEachPhysicalNetwork.map(d => (new BasicCrossbar){d.clone}) 
 
@@ -105,13 +105,13 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgent])(implicit conf
   //shims to convert headers and process flits in the process.
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => {
     val logNetIOSubBundles = io.getClass.getMethods.filter( x => 
-      classOf[LogicalNetworkIO[Data]].isAssignableFrom(x.getReturnType)).zipWithIndex
-    val tileProducedSubBundles = logNetIOSubBundles.filter( x => // filter -> parition?
-      classOf[TileIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
-        (m.invoke(io).asInstanceOf[TileIO[Data]],i) } 
+      classOf[DirectionalFIFOIO[Data]].isAssignableFrom(x.getReturnType)).zipWithIndex
+    val tileProducedSubBundles = logNetIOSubBundles.filter( x =>
+      classOf[ClientSourcedIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
+        (m.invoke(io).asInstanceOf[ClientSourcedIO[LogicalNetworkIO[Data]]],i) }
     val hubProducedSubBundles  = logNetIOSubBundles.filter( x =>
-      classOf[HubIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
-        (m.invoke(io).asInstanceOf[HubIO[Data]],i) }
+      classOf[MasterSourcedIO[Data]].isAssignableFrom(x._1.getReturnType)).map{ case (m,i) =>
+        (m.invoke(io).asInstanceOf[MasterSourcedIO[LogicalNetworkIO[Data]]],i) }
     end match {
       case x:ClientCoherenceAgent => {
         tileProducedSubBundles.foreach{ case (sl,i) => { 
@@ -376,27 +376,41 @@ class Top extends Component {
     tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
     error_mode = error_mode || Reg(tile.io.host.debug.error_mode)
 
-    tl.xact_init <> Queue(tile.io.tilelink.xact_init)
-    tl.xact_init_data <> Queue(tile.io.tilelink.xact_init_data)
+    val x_init_q = Queue(tile.io.tilelink.xact_init)
+    tl.xact_init.valid := x_init_q.valid
+    tl.xact_init.bits.payload := x_init_q.bits.payload
+    tl.xact_init.bits.header.src := UFix(i)
+    tl.xact_init.bits.header.dst := UFix(0)
+    x_init_q.ready := tl.xact_init.ready
+    val x_init_data_q = Queue(tile.io.tilelink.xact_init_data)
+    tl.xact_init_data.valid := x_init_data_q.valid
+    tl.xact_init_data.bits.payload := x_init_data_q.bits.payload
+    tl.xact_init_data.bits.header.src := UFix(i)
+    tl.xact_init_data.bits.header.dst := UFix(0)
+    x_init_data_q.ready := tl.xact_init_data.ready
+    val x_finish_q = Queue(tile.io.tilelink.xact_finish)
+    tl.xact_finish.valid := x_finish_q.valid
+    tl.xact_finish.bits.payload := x_finish_q.bits.payload
+    tl.xact_finish.bits.header.src := UFix(i)
+    tl.xact_finish.bits.header.dst := UFix(0)
+    x_finish_q.ready := tl.xact_finish.ready
+    val p_rep_q = Queue(tile.io.tilelink.probe_rep, 1)
+    tl.probe_rep.valid := p_rep_q.valid
+    tl.probe_rep.bits.payload := p_rep_q.bits.payload
+    tl.probe_rep.bits.header.src := UFix(i)
+    tl.probe_rep.bits.header.dst := UFix(0)
+    p_rep_q.ready := tl.probe_rep.ready
+    val p_rep_data_q = Queue(tile.io.tilelink.probe_rep_data)
+    tl.probe_rep_data.valid := p_rep_data_q.valid
+    tl.probe_rep_data.bits.payload := p_rep_data_q.bits.payload
+    tl.probe_rep_data.bits.header.src := UFix(i)
+    tl.probe_rep_data.bits.header.dst := UFix(0)
+    p_rep_data_q.ready := tl.probe_rep_data.ready
+
     tile.io.tilelink.xact_abort <> Queue(tl.xact_abort)
     tile.io.tilelink.xact_rep <> Queue(tl.xact_rep, 1, pipe = true)
-    tl.xact_finish <> Queue(tile.io.tilelink.xact_finish)
     tile.io.tilelink.probe_req <> Queue(tl.probe_req)
-    tl.probe_rep <> Queue(tile.io.tilelink.probe_rep, 1)
-    tl.probe_rep_data <> Queue(tile.io.tilelink.probe_rep_data)
     il := hl.reset
-
-    tl.xact_init.header.src := UFix(i)
-    tl.xact_init.header.dst := UFix(0)
-    tl.xact_init_data.header.src := UFix(i)
-    tl.xact_init_data.header.dst := UFix(0)
-    tl.probe_rep.header.src := UFix(i)
-    tl.probe_rep.header.dst := UFix(0)
-    tl.probe_rep_data.header.src := UFix(i)
-    tl.probe_rep_data.header.dst := UFix(0)
-    tl.xact_finish.header.src := UFix(i)
-    tl.xact_finish.header.dst := UFix(0)
-    //TODO: What about incoming headers?
 
   }
 
