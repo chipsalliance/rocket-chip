@@ -48,32 +48,32 @@ class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Comp
   }
 }
 
-class UncachedRequestorIO extends Bundle {
-  val xact_init      = (new FIFOIO) { new TransactionInit }
-  val xact_abort     = (new FIFOIO) { new TransactionAbort }.flip
-  val xact_rep       = (new FIFOIO)      { new TransactionReply }.flip
-  val xact_finish    = (new FIFOIO) { new TransactionFinish }
+class UncachedRequestorIO(implicit conf: LogicalNetworkConfiguration) extends Bundle {
+  val xact_init      = (new ClientSourcedIO){(new LogicalNetworkIO){new TransactionInit }}
+  val xact_abort     = (new MasterSourcedIO) {(new LogicalNetworkIO){new TransactionAbort }}
+  val xact_rep       = (new MasterSourcedIO) {(new LogicalNetworkIO){new TransactionReply }}
+  val xact_finish    = (new ClientSourcedIO){(new LogicalNetworkIO){new TransactionFinish }}
 }
 
-class MemArbiter(n: Int) extends Component {
+class MemArbiter(n: Int)(implicit conf: LogicalNetworkConfiguration) extends Component {
   val io = new Bundle {
     val mem = new UncachedRequestorIO
     val requestor = Vec(n) { new UncachedRequestorIO }.flip
   }
 
   var xi_bits = new TransactionInit
-  xi_bits := io.requestor(n-1).xact_init.bits
-  xi_bits.tile_xact_id := Cat(io.requestor(n-1).xact_init.bits.tile_xact_id, UFix(n-1, log2Up(n)))
+  xi_bits := io.requestor(n-1).xact_init.bits.payload
+  xi_bits.tile_xact_id := Cat(io.requestor(n-1).xact_init.bits.payload.tile_xact_id, UFix(n-1, log2Up(n)))
   for (i <- n-2 to 0 by -1)
   {
     var my_xi_bits = new TransactionInit
-    my_xi_bits := io.requestor(i).xact_init.bits
-    my_xi_bits.tile_xact_id := Cat(io.requestor(i).xact_init.bits.tile_xact_id, UFix(i, log2Up(n)))
+    my_xi_bits := io.requestor(i).xact_init.bits.payload
+    my_xi_bits.tile_xact_id := Cat(io.requestor(i).xact_init.bits.payload.tile_xact_id, UFix(i, log2Up(n)))
 
     xi_bits = Mux(io.requestor(i).xact_init.valid, my_xi_bits, xi_bits)
   }
 
-  io.mem.xact_init.bits := xi_bits
+  io.mem.xact_init.bits.payload := xi_bits
   io.mem.xact_init.valid := io.requestor.map(_.xact_init.valid).reduce(_||_)
   io.requestor(0).xact_init.ready := io.mem.xact_init.ready
   for (i <- 1 until n)
@@ -92,22 +92,22 @@ class MemArbiter(n: Int) extends Component {
   io.mem.xact_rep.ready := Bool(false)
   for (i <- 0 until n)
   {
-    val tag = io.mem.xact_rep.bits.tile_xact_id
+    val tag = io.mem.xact_rep.bits.payload.tile_xact_id
     io.requestor(i).xact_rep.valid := Bool(false)
     when (tag(log2Up(n)-1,0) === UFix(i)) {
       io.requestor(i).xact_rep.valid := io.mem.xact_rep.valid
       io.mem.xact_rep.ready := io.requestor(i).xact_rep.ready
     }
     io.requestor(i).xact_rep.bits := io.mem.xact_rep.bits
-    io.requestor(i).xact_rep.bits.tile_xact_id := tag >> UFix(log2Up(n))
+    io.requestor(i).xact_rep.bits.payload.tile_xact_id := tag >> UFix(log2Up(n))
   }
 
   for (i <- 0 until n)
   {
-    val tag = io.mem.xact_abort.bits.tile_xact_id
+    val tag = io.mem.xact_abort.bits.payload.tile_xact_id
     io.requestor(i).xact_abort.valid := io.mem.xact_abort.valid && tag(log2Up(n)-1,0) === UFix(i)
     io.requestor(i).xact_abort.bits := io.mem.xact_abort.bits
-    io.requestor(i).xact_abort.bits.tile_xact_id := tag >> UFix(log2Up(n))
+    io.requestor(i).xact_abort.bits.payload.tile_xact_id := tag >> UFix(log2Up(n))
   }
 
   io.mem.xact_abort.ready := Bool(true)
