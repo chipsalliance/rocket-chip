@@ -97,6 +97,7 @@ class TransactionFinish extends Bundle {
   val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
 }
 
+/*
 class ioTileLink extends Bundle { 
   val xact_init      = (new FIFOIO) { new TransactionInit }
   val xact_init_data = (new FIFOIO) { new TransactionInitData }
@@ -108,3 +109,4 @@ class ioTileLink extends Bundle {
   val xact_finish    = (new FIFOIO) { new TransactionFinish }
   val incoherent     = Bool(OUTPUT)
 }
+*/
