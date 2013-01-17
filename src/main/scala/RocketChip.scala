@@ -221,24 +221,24 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent
   val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
   val mem_serdes = new MemSerdes(htif_width)
 
-  val testHub = new CoherenceHubBroadcast()(chWithHtifConf)
-  val testAdapter = new CoherenceHubAdapter()(lnWithHtifConf)
-  val testNet = new ReferenceChipCrossbarNetwork(List(testHub)++tileEndpoints)(lnWithHtifConf)
-  testNet.io(0) <> testAdapter.io.net
-  testHub.io.tiles <> testAdapter.io.hub
+  //val hub = new CoherenceHubBroadcast()(chWithHtifConf)
+  //val adapter = new CoherenceHubAdapter()(lnWithHtifConf)
+  val hub = new L2CoherenceAgent()(chWithHtifConf)
+  val net = new ReferenceChipCrossbarNetwork(List(hub)++tileEndpoints)(lnWithHtifConf)
+  //net.io(0) <> adapter.io.net
+  //hub.io.tiles <> adapter.io.hub
+  hub.io.network <> net.io(0)
 
   for (i <- 1 to conf.ln.nTiles) {
-    //hub.io.tiles(i) <> io.tiles(i)
-    testNet.io(i) <> io.tiles(i-1)
-    testHub.io.incoherent(i-1) := io.incoherent(i-1)
+    net.io(i) <> io.tiles(i-1)
+    hub.io.incoherent(i-1) := io.incoherent(i-1)
   }
-  //hub.io.tiles(conf.ln.nTiles) <> io.htif
-  testNet.io(conf.ln.nTiles+1) <> io.htif
-  testHub.io.incoherent(conf.ln.nTiles) := Bool(true)
+  net.io(conf.ln.nTiles+1) <> io.htif
+  hub.io.incoherent(conf.ln.nTiles) := Bool(true)
 
-  llc.io.cpu.req_cmd <> Queue(testHub.io.mem.req_cmd)
-  llc.io.cpu.req_data <> Queue(testHub.io.mem.req_data, REFILL_CYCLES)
-  testHub.io.mem.resp <> llc.io.cpu.resp
+  llc.io.cpu.req_cmd <> Queue(hub.io.mem.req_cmd)
+  llc.io.cpu.req_data <> Queue(hub.io.mem.req_data, REFILL_CYCLES)
+  hub.io.mem.resp <> llc.io.cpu.resp
 
   // mux between main and backup memory ports
   val mem_cmdq = (new Queue(2)) { new MemReqCmd }
@@ -356,7 +356,7 @@ class Top extends Component {
   val dc = DCacheConfig(128, 4, co, ntlb = 8,
                         nmshr = 2, nrpq = 16, nsdq = 17)
   val rc = RocketConfiguration(lnConf, co, ic, dc,
-                               fpu = true, vec = true)
+                               fpu = true, vec = false)
   val tileList = (0 until NTILES).map(r => new Tile(resetSignal = resetSigs(r))(rc))
   val uncore = new Uncore(HTIF_WIDTH, tileList)
 
