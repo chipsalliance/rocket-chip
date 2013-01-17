@@ -112,11 +112,11 @@ class MasterSourcedIO[T <: Data]()(data: => T) extends DirectionalFIFOIO()(data)
 class TileLinkIO(implicit conf: LogicalNetworkConfiguration) extends Bundle { 
   val xact_init      = (new ClientSourcedIO){(new LogicalNetworkIO){new TransactionInit }}
   val xact_init_data = (new ClientSourcedIO){(new LogicalNetworkIO){new TransactionInitData }}
-  val xact_abort     = (new MasterSourcedIO) {(new LogicalNetworkIO){new TransactionAbort }}
-  val probe_req      = (new MasterSourcedIO) {(new LogicalNetworkIO){new ProbeRequest }}
+  val xact_abort     = (new MasterSourcedIO){(new LogicalNetworkIO){new TransactionAbort }}
+  val probe_req      = (new MasterSourcedIO){(new LogicalNetworkIO){new ProbeRequest }}
   val probe_rep      = (new ClientSourcedIO){(new LogicalNetworkIO){new ProbeReply }}
   val probe_rep_data = (new ClientSourcedIO){(new LogicalNetworkIO){new ProbeReplyData }}
-  val xact_rep       = (new MasterSourcedIO) {(new LogicalNetworkIO){new TransactionReply }}
+  val xact_rep       = (new MasterSourcedIO){(new LogicalNetworkIO){new TransactionReply }}
   val xact_finish    = (new ClientSourcedIO){(new LogicalNetworkIO){new TransactionFinish }}
   override def clone = { new TileLinkIO().asInstanceOf[this.type] }
 }
