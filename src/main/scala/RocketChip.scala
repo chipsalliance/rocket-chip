@@ -376,40 +376,40 @@ class Top extends Component {
     tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
     error_mode = error_mode || Reg(tile.io.host.debug.error_mode)
 
-    val x_init_q = Queue(tile.io.tilelink.xact_init)
-    tl.xact_init.valid := x_init_q.valid
-    tl.xact_init.bits.payload := x_init_q.bits.payload
-    tl.xact_init.bits.header.src := UFix(i)
-    tl.xact_init.bits.header.dst := UFix(0)
-    x_init_q.ready := tl.xact_init.ready
-    val x_init_data_q = Queue(tile.io.tilelink.xact_init_data)
-    tl.xact_init_data.valid := x_init_data_q.valid
-    tl.xact_init_data.bits.payload := x_init_data_q.bits.payload
-    tl.xact_init_data.bits.header.src := UFix(i)
-    tl.xact_init_data.bits.header.dst := UFix(0)
-    x_init_data_q.ready := tl.xact_init_data.ready
-    val x_finish_q = Queue(tile.io.tilelink.xact_finish)
-    tl.xact_finish.valid := x_finish_q.valid
-    tl.xact_finish.bits.payload := x_finish_q.bits.payload
-    tl.xact_finish.bits.header.src := UFix(i)
-    tl.xact_finish.bits.header.dst := UFix(0)
-    x_finish_q.ready := tl.xact_finish.ready
-    val p_rep_q = Queue(tile.io.tilelink.probe_rep, 1)
-    tl.probe_rep.valid := p_rep_q.valid
-    tl.probe_rep.bits.payload := p_rep_q.bits.payload
-    tl.probe_rep.bits.header.src := UFix(i)
-    tl.probe_rep.bits.header.dst := UFix(0)
-    p_rep_q.ready := tl.probe_rep.ready
-    val p_rep_data_q = Queue(tile.io.tilelink.probe_rep_data)
-    tl.probe_rep_data.valid := p_rep_data_q.valid
-    tl.probe_rep_data.bits.payload := p_rep_data_q.bits.payload
-    tl.probe_rep_data.bits.header.src := UFix(i)
-    tl.probe_rep_data.bits.header.dst := UFix(0)
-    p_rep_data_q.ready := tl.probe_rep_data.ready
+    val x_init_q = Queue(tile.io.tilelink.acquire)
+    tl.acquire.valid := x_init_q.valid
+    tl.acquire.bits.payload := x_init_q.bits.payload
+    tl.acquire.bits.header.src := UFix(i)
+    tl.acquire.bits.header.dst := UFix(0)
+    x_init_q.ready := tl.acquire.ready
+    val x_init_data_q = Queue(tile.io.tilelink.acquire_data)
+    tl.acquire_data.valid := x_init_data_q.valid
+    tl.acquire_data.bits.payload := x_init_data_q.bits.payload
+    tl.acquire_data.bits.header.src := UFix(i)
+    tl.acquire_data.bits.header.dst := UFix(0)
+    x_init_data_q.ready := tl.acquire_data.ready
+    val x_finish_q = Queue(tile.io.tilelink.grant_ack)
+    tl.grant_ack.valid := x_finish_q.valid
+    tl.grant_ack.bits.payload := x_finish_q.bits.payload
+    tl.grant_ack.bits.header.src := UFix(i)
+    tl.grant_ack.bits.header.dst := UFix(0)
+    x_finish_q.ready := tl.grant_ack.ready
+    val p_rep_q = Queue(tile.io.tilelink.release, 1)
+    tl.release.valid := p_rep_q.valid
+    tl.release.bits.payload := p_rep_q.bits.payload
+    tl.release.bits.header.src := UFix(i)
+    tl.release.bits.header.dst := UFix(0)
+    p_rep_q.ready := tl.release.ready
+    val p_rep_data_q = Queue(tile.io.tilelink.release_data)
+    tl.release_data.valid := p_rep_data_q.valid
+    tl.release_data.bits.payload := p_rep_data_q.bits.payload
+    tl.release_data.bits.header.src := UFix(i)
+    tl.release_data.bits.header.dst := UFix(0)
+    p_rep_data_q.ready := tl.release_data.ready
 
-    tile.io.tilelink.xact_abort <> Queue(tl.xact_abort)
-    tile.io.tilelink.xact_rep <> Queue(tl.xact_rep, 1, pipe = true)
-    tile.io.tilelink.probe_req <> Queue(tl.probe_req)
+    tile.io.tilelink.abort <> Queue(tl.abort)
+    tile.io.tilelink.grant <> Queue(tl.grant, 1, pipe = true)
+    tile.io.tilelink.probe <> Queue(tl.probe)
     il := hl.reset
 
   }

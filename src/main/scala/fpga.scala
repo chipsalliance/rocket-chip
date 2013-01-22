@@ -66,14 +66,14 @@ class FPGATop extends Component {
     when (tile.io.host.debug.error_mode) { io.debug.error_mode := Bool(true) }
 
     il := hl.reset
-    tl.xact_init <> Queue(tile.io.tilelink.xact_init)
-    tl.xact_init_data <> Queue(tile.io.tilelink.xact_init_data)
-    tile.io.tilelink.xact_abort <> Queue(tl.xact_abort)
-    tile.io.tilelink.xact_rep <> Queue(tl.xact_rep)
-    tl.xact_finish <> Queue(tile.io.tilelink.xact_finish)
-    tile.io.tilelink.probe_req <> Queue(tl.probe_req)
-    tl.probe_rep <> Queue(tile.io.tilelink.probe_rep)
-    tl.probe_rep_data <> Queue(tile.io.tilelink.probe_rep_data)
+    tl.acquire <> Queue(tile.io.tilelink.acquire)
+    tl.acquire_data <> Queue(tile.io.tilelink.acquire_data)
+    tile.io.tilelink.abort <> Queue(tl.abort)
+    tile.io.tilelink.grant <> Queue(tl.grant)
+    tl.grant_ack <> Queue(tile.io.tilelink.grant_ack)
+    tile.io.tilelink.probe <> Queue(tl.probe)
+    tl.release <> Queue(tile.io.tilelink.release)
+    tl.release_data <> Queue(tile.io.tilelink.release_data)
     //TODO: Set logcal network headers here
   }
 
