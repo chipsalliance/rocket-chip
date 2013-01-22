@@ -49,10 +49,10 @@ class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Comp
 }
 
 class UncachedRequestorIO(implicit conf: LogicalNetworkConfiguration) extends Bundle {
-  val xact_init      = (new ClientSourcedIO){(new LogicalNetworkIO){new TransactionInit }}
-  val xact_abort     = (new MasterSourcedIO) {(new LogicalNetworkIO){new TransactionAbort }}
-  val xact_rep       = (new MasterSourcedIO) {(new LogicalNetworkIO){new TransactionReply }}
-  val xact_finish    = (new ClientSourcedIO){(new LogicalNetworkIO){new TransactionFinish }}
+  val acquire      = (new ClientSourcedIO){(new LogicalNetworkIO){new Acquire }}
+  val abort     = (new MasterSourcedIO) {(new LogicalNetworkIO){new Abort }}
+  val grant       = (new MasterSourcedIO) {(new LogicalNetworkIO){new Grant }}
+  val grant_ack    = (new ClientSourcedIO){(new LogicalNetworkIO){new GrantAck }}
 }
 
 class MemArbiter(n: Int)(implicit conf: LogicalNetworkConfiguration) extends Component {
@@ -61,54 +61,54 @@ class MemArbiter(n: Int)(implicit conf: LogicalNetworkConfiguration) extends Com
     val requestor = Vec(n) { new UncachedRequestorIO }.flip
   }
 
-  var xi_bits = new TransactionInit
-  xi_bits := io.requestor(n-1).xact_init.bits.payload
-  xi_bits.tile_xact_id := Cat(io.requestor(n-1).xact_init.bits.payload.tile_xact_id, UFix(n-1, log2Up(n)))
+  var xi_bits = new Acquire
+  xi_bits := io.requestor(n-1).acquire.bits.payload
+  xi_bits.client_xact_id := Cat(io.requestor(n-1).acquire.bits.payload.client_xact_id, UFix(n-1, log2Up(n)))
   for (i <- n-2 to 0 by -1)
   {
-    var my_xi_bits = new TransactionInit
-    my_xi_bits := io.requestor(i).xact_init.bits.payload
-    my_xi_bits.tile_xact_id := Cat(io.requestor(i).xact_init.bits.payload.tile_xact_id, UFix(i, log2Up(n)))
+    var my_xi_bits = new Acquire
+    my_xi_bits := io.requestor(i).acquire.bits.payload
+    my_xi_bits.client_xact_id := Cat(io.requestor(i).acquire.bits.payload.client_xact_id, UFix(i, log2Up(n)))
 
-    xi_bits = Mux(io.requestor(i).xact_init.valid, my_xi_bits, xi_bits)
+    xi_bits = Mux(io.requestor(i).acquire.valid, my_xi_bits, xi_bits)
   }
 
-  io.mem.xact_init.bits.payload := xi_bits
-  io.mem.xact_init.valid := io.requestor.map(_.xact_init.valid).reduce(_||_)
-  io.requestor(0).xact_init.ready := io.mem.xact_init.ready
+  io.mem.acquire.bits.payload := xi_bits
+  io.mem.acquire.valid := io.requestor.map(_.acquire.valid).reduce(_||_)
+  io.requestor(0).acquire.ready := io.mem.acquire.ready
   for (i <- 1 until n)
-    io.requestor(i).xact_init.ready := io.requestor(i-1).xact_init.ready && !io.requestor(i-1).xact_init.valid
+    io.requestor(i).acquire.ready := io.requestor(i-1).acquire.ready && !io.requestor(i-1).acquire.valid
 
-  var xf_bits = io.requestor(n-1).xact_finish.bits
+  var xf_bits = io.requestor(n-1).grant_ack.bits
   for (i <- n-2 to 0 by -1)
-    xf_bits = Mux(io.requestor(i).xact_finish.valid, io.requestor(i).xact_finish.bits, xf_bits)
+    xf_bits = Mux(io.requestor(i).grant_ack.valid, io.requestor(i).grant_ack.bits, xf_bits)
 
-  io.mem.xact_finish.bits := xf_bits
-  io.mem.xact_finish.valid := io.requestor.map(_.xact_finish.valid).reduce(_||_)
-  io.requestor(0).xact_finish.ready := io.mem.xact_finish.ready
+  io.mem.grant_ack.bits := xf_bits
+  io.mem.grant_ack.valid := io.requestor.map(_.grant_ack.valid).reduce(_||_)
+  io.requestor(0).grant_ack.ready := io.mem.grant_ack.ready
   for (i <- 1 until n)
-    io.requestor(i).xact_finish.ready := io.requestor(i-1).xact_finish.ready && !io.requestor(i-1).xact_finish.valid
+    io.requestor(i).grant_ack.ready := io.requestor(i-1).grant_ack.ready && !io.requestor(i-1).grant_ack.valid
 
-  io.mem.xact_rep.ready := Bool(false)
+  io.mem.grant.ready := Bool(false)
   for (i <- 0 until n)
   {
-    val tag = io.mem.xact_rep.bits.payload.tile_xact_id
-    io.requestor(i).xact_rep.valid := Bool(false)
+    val tag = io.mem.grant.bits.payload.client_xact_id
+    io.requestor(i).grant.valid := Bool(false)
     when (tag(log2Up(n)-1,0) === UFix(i)) {
-      io.requestor(i).xact_rep.valid := io.mem.xact_rep.valid
-      io.mem.xact_rep.ready := io.requestor(i).xact_rep.ready
+      io.requestor(i).grant.valid := io.mem.grant.valid
+      io.mem.grant.ready := io.requestor(i).grant.ready
     }
-    io.requestor(i).xact_rep.bits := io.mem.xact_rep.bits
-    io.requestor(i).xact_rep.bits.payload.tile_xact_id := tag >> UFix(log2Up(n))
+    io.requestor(i).grant.bits := io.mem.grant.bits
+    io.requestor(i).grant.bits.payload.client_xact_id := tag >> UFix(log2Up(n))
   }
 
   for (i <- 0 until n)
   {
-    val tag = io.mem.xact_abort.bits.payload.tile_xact_id
-    io.requestor(i).xact_abort.valid := io.mem.xact_abort.valid && tag(log2Up(n)-1,0) === UFix(i)
-    io.requestor(i).xact_abort.bits := io.mem.xact_abort.bits
-    io.requestor(i).xact_abort.bits.payload.tile_xact_id := tag >> UFix(log2Up(n))
+    val tag = io.mem.abort.bits.payload.client_xact_id
+    io.requestor(i).abort.valid := io.mem.abort.valid && tag(log2Up(n)-1,0) === UFix(i)
+    io.requestor(i).abort.bits := io.mem.abort.bits
+    io.requestor(i).abort.bits.payload.client_xact_id := tag >> UFix(log2Up(n))
   }
 
-  io.mem.xact_abort.ready := Bool(true)
+  io.mem.abort.ready := Bool(true)
 }

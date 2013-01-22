@@ -106,14 +106,14 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   val mem_gxid = Reg() { Bits() }
   val mem_needs_ack = Reg() { Bool() }
   val mem_nacked = Reg(resetVal = Bool(false))
-  when (io.mem.xact_rep.valid) { 
+  when (io.mem.grant.valid) { 
     mem_acked := Bool(true)
-    mem_gxid := io.mem.xact_rep.bits.payload.global_xact_id
-    mem_needs_ack := io.mem.xact_rep.bits.payload.require_ack  
+    mem_gxid := io.mem.grant.bits.payload.master_xact_id
+    mem_needs_ack := io.mem.grant.bits.payload.require_ack  
   }
-  io.mem.xact_rep.ready := Bool(true)
-  when (io.mem.xact_abort.valid) { mem_nacked := Bool(true) }
-  io.mem.xact_abort.ready := Bool(true)
+  io.mem.grant.ready := Bool(true)
+  when (io.mem.abort.valid) { mem_nacked := Bool(true) }
+  io.mem.abort.ready := Bool(true)
 
   val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(9) { UFix() }
   val state = Reg(resetVal = state_rx)
@@ -126,11 +126,11 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   }
 
   val mem_cnt = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
-  val x_init = new Queue(1)(new TransactionInit)
+  val x_init = new Queue(1)(new Acquire)
   when (state === state_mem_req && x_init.io.enq.ready) {
     state := Mux(cmd === cmd_writemem, state_mem_wdata, state_mem_rdata)
   }
-  when (state === state_mem_wdata && io.mem.xact_init_data.ready) {
+  when (state === state_mem_wdata && io.mem.acquire_data.ready) {
     when (mem_cnt.andR)  {
       state := state_mem_wresp
     }
@@ -151,7 +151,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
       state := state_mem_req
       mem_nacked := Bool(false)
     }
-    when (io.mem.xact_rep.valid) {
+    when (io.mem.grant.valid) {
       when (mem_cnt.andR)  {
         state := state_mem_finish
       }
@@ -159,7 +159,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
     }
     mem_acked := Bool(false)
   }
-  when (state === state_mem_finish && io.mem.xact_finish.ready) {
+  when (state === state_mem_finish && io.mem.grant_ack.ready) {
     state := Mux(cmd === cmd_readmem || pos === UFix(1),  state_tx, state_rx)
     pos := pos - UFix(1)
     addr := addr + UFix(1 << OFFSET_BITS-3)
@@ -175,34 +175,34 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   var mem_req_data: Bits = null
   for (i <- 0 until MEM_DATA_BITS/short_request_bits) {
     val idx = Cat(mem_cnt, UFix(i, log2Up(MEM_DATA_BITS/short_request_bits)))
-    when (state === state_mem_rdata && io.mem.xact_rep.valid) {
-      packet_ram(idx) := io.mem.xact_rep.bits.payload.data((i+1)*short_request_bits-1, i*short_request_bits)
+    when (state === state_mem_rdata && io.mem.grant.valid) {
+      packet_ram(idx) := io.mem.grant.bits.payload.data((i+1)*short_request_bits-1, i*short_request_bits)
     }
     mem_req_data = Cat(packet_ram(idx), mem_req_data)
   }
   x_init.io.enq.valid := state === state_mem_req
   val init_addr = addr.toUFix >> UFix(OFFSET_BITS-3)
   val co = conf.co.asInstanceOf[CoherencePolicyWithUncached]
-  x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteTransactionInit(init_addr, UFix(0)), co.getUncachedReadTransactionInit(init_addr, UFix(0)))
-  io.mem.xact_init <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq)
-  io.mem.xact_init_data.valid:= state === state_mem_wdata
-  io.mem.xact_init_data.bits.payload.data := mem_req_data
-  io.mem.xact_finish.valid := (state === state_mem_finish) && mem_needs_ack
-  io.mem.xact_finish.bits.payload.global_xact_id := mem_gxid
-  io.mem.probe_req.ready := Bool(false)
-  io.mem.probe_rep.valid := Bool(false)
-  io.mem.probe_rep_data.valid := Bool(false)
+  x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteAcquire(init_addr, UFix(0)), co.getUncachedReadAcquire(init_addr, UFix(0)))
+  io.mem.acquire <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq)
+  io.mem.acquire_data.valid:= state === state_mem_wdata
+  io.mem.acquire_data.bits.payload.data := mem_req_data
+  io.mem.grant_ack.valid := (state === state_mem_finish) && mem_needs_ack
+  io.mem.grant_ack.bits.payload.master_xact_id := mem_gxid
+  io.mem.probe.ready := Bool(false)
+  io.mem.release.valid := Bool(false)
+  io.mem.release_data.valid := Bool(false)
 
-  io.mem.xact_init.bits.header.src := UFix(conf.ln.nTiles)
-  io.mem.xact_init.bits.header.dst := UFix(0)
-  io.mem.xact_init_data.bits.header.src := UFix(conf.ln.nTiles)
-  io.mem.xact_init_data.bits.header.dst := UFix(0)
-  io.mem.probe_rep.bits.header.src := UFix(conf.ln.nTiles)
-  io.mem.probe_rep.bits.header.dst := UFix(0)
-  io.mem.probe_rep_data.bits.header.src := UFix(conf.ln.nTiles)
-  io.mem.probe_rep_data.bits.header.dst := UFix(0)
-  io.mem.xact_finish.bits.header.src := UFix(conf.ln.nTiles)
-  io.mem.xact_finish.bits.header.dst := UFix(0)
+  io.mem.acquire.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.acquire.bits.header.dst := UFix(0)
+  io.mem.acquire_data.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.acquire_data.bits.header.dst := UFix(0)
+  io.mem.release.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.release.bits.header.dst := UFix(0)
+  io.mem.release_data.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.release_data.bits.header.dst := UFix(0)
+  io.mem.grant_ack.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.grant_ack.bits.header.dst := UFix(0)
 
   val pcrReadData = Vec(conf.ln.nTiles) { Reg() { Bits(width = io.cpu(0).pcr_rep.bits.getWidth) } }
   for (i <- 0 until conf.ln.nTiles) {

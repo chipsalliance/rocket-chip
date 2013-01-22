@@ -41,14 +41,14 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   arbiter.io.requestor(0) <> dcache.io.mem
   arbiter.io.requestor(1) <> icache.io.mem
 
-  io.tilelink.xact_init <> arbiter.io.mem.xact_init
-  io.tilelink.xact_init_data <> dcache.io.mem.xact_init_data
-  arbiter.io.mem.xact_abort <> io.tilelink.xact_abort
-  arbiter.io.mem.xact_rep <> io.tilelink.xact_rep
-  io.tilelink.xact_finish <> arbiter.io.mem.xact_finish
-  dcache.io.mem.probe_req <> io.tilelink.probe_req
-  io.tilelink.probe_rep <> dcache.io.mem.probe_rep
-  io.tilelink.probe_rep_data <> dcache.io.mem.probe_rep_data
+  io.tilelink.acquire <> arbiter.io.mem.acquire
+  io.tilelink.acquire_data <> dcache.io.mem.acquire_data
+  arbiter.io.mem.abort <> io.tilelink.abort
+  arbiter.io.mem.grant <> io.tilelink.grant
+  io.tilelink.grant_ack <> arbiter.io.mem.grant_ack
+  dcache.io.mem.probe <> io.tilelink.probe
+  io.tilelink.release <> dcache.io.mem.release
+  io.tilelink.release_data <> dcache.io.mem.release_data
 
   if (conf.vec) {
     val vicache = new Frontend()(ICacheConfig(128, 1, conf.co), lnConf) // 128 sets x 1 ways (8KB)
