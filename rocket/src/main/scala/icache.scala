@@ -172,7 +172,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
   val s2_miss = s2_valid && !s2_any_tag_hit
   rdy := state === s_ready && !s2_miss
 
-  val (rf_cnt, refill_done) = Counter(io.mem.xact_rep.valid, REFILL_CYCLES)
+  val (rf_cnt, refill_done) = Counter(io.mem.grant.valid, REFILL_CYCLES)
   val repl_way = if (c.dm) UFix(0) else LFSR16(s2_miss)(log2Up(c.assoc)-1,0)
 
   val enc_tagbits = c.code.width(c.tagbits)
@@ -223,8 +223,8 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
   for (i <- 0 until c.assoc) {
     val data_array = Mem(c.sets*REFILL_CYCLES, seqRead = true){ Bits(width = c.code.width(c.databits)) }
     val s1_dout = Reg(){ Bits() }
-    when (io.mem.xact_rep.valid && repl_way === UFix(i)) {
-      val d = io.mem.xact_rep.bits.payload.data
+    when (io.mem.grant.valid && repl_way === UFix(i)) {
+      val d = io.mem.grant.bits.payload.data
       data_array(Cat(s2_idx,rf_cnt)) := c.code.encode(d)
     }
     /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
@@ -237,16 +237,16 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
-  val finish_q = (new Queue(1)) { new TransactionFinish }
-  finish_q.io.enq.valid := refill_done && io.mem.xact_rep.bits.payload.require_ack
-  finish_q.io.enq.bits.global_xact_id := io.mem.xact_rep.bits.payload.global_xact_id
+  val finish_q = (new Queue(1)) { new GrantAck }
+  finish_q.io.enq.valid := refill_done && io.mem.grant.bits.payload.require_ack
+  finish_q.io.enq.bits.master_xact_id := io.mem.grant.bits.payload.master_xact_id
 
   // output signals
   io.resp.valid := s2_hit
-  io.mem.xact_init.valid := (state === s_request) && finish_q.io.enq.ready
-  io.mem.xact_init.bits.payload := c.co.getUncachedReadTransactionInit(s2_addr >> UFix(c.offbits), UFix(0))
-  io.mem.xact_finish <> FIFOedLogicalNetworkIOWrapper(finish_q.io.deq)
-  io.mem.xact_rep.ready := Bool(true)
+  io.mem.acquire.valid := (state === s_request) && finish_q.io.enq.ready
+  io.mem.acquire.bits.payload := c.co.getUncachedReadAcquire(s2_addr >> UFix(c.offbits), UFix(0))
+  io.mem.grant_ack <> FIFOedLogicalNetworkIOWrapper(finish_q.io.deq)
+  io.mem.grant.ready := Bool(true)
 
   // control state machine
   switch (state) {
@@ -255,11 +255,11 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
       invalidated := Bool(false)
     }
     is (s_request) {
-      when (io.mem.xact_init.ready && finish_q.io.enq.ready) { state := s_refill_wait }
+      when (io.mem.acquire.ready && finish_q.io.enq.ready) { state := s_refill_wait }
     }
     is (s_refill_wait) {
-      when (io.mem.xact_abort.valid) { state := s_request }
-      when (io.mem.xact_rep.valid) { state := s_refill }
+      when (io.mem.abort.valid) { state := s_request }
+      when (io.mem.grant.valid) { state := s_refill }
     }
     is (s_refill) {
       when (refill_done) { state := s_ready }

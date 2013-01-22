@@ -60,8 +60,8 @@ trait InterruptConstants {
  
 abstract trait RocketDcacheConstants extends uncore.constants.CacheConstants with uncore.constants.AddressConstants {
   require(OFFSET_BITS == log2Up(uncore.Constants.CACHE_DATA_SIZE_IN_BYTES))
-  require(OFFSET_BITS <= uncore.Constants.X_INIT_WRITE_MASK_BITS)
-  require(log2Up(OFFSET_BITS) <= uncore.Constants.X_INIT_SUBWORD_ADDR_BITS)
+  require(OFFSET_BITS <= uncore.Constants.ACQUIRE_WRITE_MASK_BITS)
+  require(log2Up(OFFSET_BITS) <= uncore.Constants.ACQUIRE_SUBWORD_ADDR_BITS)
 }
 
 trait VectorOpConstants {
