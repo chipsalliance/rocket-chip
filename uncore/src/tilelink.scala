@@ -32,81 +32,83 @@ class ioMemPipe extends Bundle {
   val resp     = (new PipeIO) { new MemResp() }.flip
 }
 
-class TransactionInit extends PhysicalAddress {
-  val x_type = Bits(width = X_INIT_TYPE_MAX_BITS)
-  val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
-  val write_mask = Bits(width = X_INIT_WRITE_MASK_BITS)
-  val subword_addr = Bits(width = X_INIT_SUBWORD_ADDR_BITS)
-  val atomic_opcode = Bits(width = X_INIT_ATOMIC_OP_BITS)
+class Acquire extends PhysicalAddress {
+  val a_type = Bits(width = ACQUIRE_TYPE_MAX_BITS)
+  val client_xact_id = Bits(width = CLIENT_XACT_ID_BITS)
+  val write_mask = Bits(width = ACQUIRE_WRITE_MASK_BITS)
+  val subword_addr = Bits(width = ACQUIRE_SUBWORD_ADDR_BITS)
+  val atomic_opcode = Bits(width = ACQUIRE_ATOMIC_OP_BITS)
 }
 
-object TransactionInit 
+object Acquire 
 {
-  def apply(x_type: Bits, addr: UFix, tile_xact_id: UFix) = {
-    val init = new TransactionInit
-    init.x_type := x_type
-    init.addr := addr
-    init.tile_xact_id := tile_xact_id
-    init
+  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix) = {
+    val acq = new Acquire
+    acq.a_type := a_type
+    acq.addr := addr
+    acq.client_xact_id := client_xact_id
+    acq
   }
-  def apply(x_type: Bits, addr: UFix, tile_xact_id: UFix, write_mask: Bits) = {
-    val init = new TransactionInit
-    init.x_type := x_type
-    init.addr := addr
-    init.tile_xact_id := tile_xact_id
-    init.write_mask := write_mask
-    init
+  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix, write_mask: Bits) = {
+    val acq = new Acquire
+    acq.a_type := a_type
+    acq.addr := addr
+    acq.client_xact_id := client_xact_id
+    acq.write_mask := write_mask
+    acq
   }
-  def apply(x_type: Bits, addr: UFix, tile_xact_id: UFix, subword_addr: UFix, atomic_opcode: UFix) = {
-    val init = new TransactionInit
-    init.x_type := x_type
-    init.addr := addr
-    init.tile_xact_id := tile_xact_id
-    init.subword_addr := subword_addr
-    init.atomic_opcode := atomic_opcode
-    init
+  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix, subword_addr: UFix, atomic_opcode: UFix) = {
+    val acq = new Acquire
+    acq.a_type := a_type
+    acq.addr := addr
+    acq.client_xact_id := client_xact_id
+    acq.subword_addr := subword_addr
+    acq.atomic_opcode := atomic_opcode
+    acq
   }
 }
 
-class TransactionInitData extends MemData
+class AcquireData extends MemData
 
-class TransactionAbort extends Bundle {
-  val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
+class Abort extends Bundle {
+  val client_xact_id = Bits(width = CLIENT_XACT_ID_BITS)
 }
 
-class ProbeRequest extends PhysicalAddress {
-  val p_type = Bits(width = P_REQ_TYPE_MAX_BITS)
-  val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
+class Probe extends PhysicalAddress {
+  val p_type = Bits(width = PROBE_TYPE_MAX_BITS)
+  val master_xact_id = Bits(width = MASTER_XACT_ID_BITS)
 }
 
-class ProbeReply extends Bundle {
-  val p_type = Bits(width = P_REP_TYPE_MAX_BITS)
-  val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
+class Release extends Bundle {
+  val r_type = Bits(width = RELEASE_TYPE_MAX_BITS)
+  val master_xact_id = Bits(width = MASTER_XACT_ID_BITS)
 }
 
-class ProbeReplyData extends MemData
+class ReleaseData extends MemData
 
-class TransactionReply extends MemData {
-  val x_type = Bits(width = X_REP_TYPE_MAX_BITS)
-  val tile_xact_id = Bits(width = TILE_XACT_ID_BITS)
-  val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
+class Grant extends MemData {
+  val g_type = Bits(width = GRANT_TYPE_MAX_BITS)
+  val client_xact_id = Bits(width = CLIENT_XACT_ID_BITS)
+  val master_xact_id = Bits(width = MASTER_XACT_ID_BITS)
   val require_ack = Bool()
 }
 
-class TransactionFinish extends Bundle {
-  val global_xact_id = Bits(width = GLOBAL_XACT_ID_BITS)
+class GrantAck extends Bundle {
+  val master_xact_id = Bits(width = MASTER_XACT_ID_BITS)
 }
 
-/*
-class ioTileLink extends Bundle { 
-  val xact_init      = (new FIFOIO) { new TransactionInit }
-  val xact_init_data = (new FIFOIO) { new TransactionInitData }
-  val xact_abort     = (new FIFOIO) { new TransactionAbort }.flip
-  val probe_req      = (new FIFOIO) { new ProbeRequest }.flip
-  val probe_rep      = (new FIFOIO) { new ProbeReply }
-  val probe_rep_data = (new FIFOIO) { new ProbeReplyData }
-  val xact_rep       = (new FIFOIO) { new TransactionReply }.flip
-  val xact_finish    = (new FIFOIO) { new TransactionFinish }
-  val incoherent     = Bool(OUTPUT)
+abstract class DirectionalFIFOIO[T <: Data]()(data: => T) extends FIFOIO()(data)
+class ClientSourcedIO[T <: Data]()(data: => T)  extends DirectionalFIFOIO()(data) 
+class MasterSourcedIO[T <: Data]()(data: => T) extends DirectionalFIFOIO()(data) {flip()}
+
+class TileLinkIO(implicit conf: LogicalNetworkConfiguration) extends Bundle { 
+  val acquire      = (new ClientSourcedIO){(new LogicalNetworkIO){new Acquire }}
+  val acquire_data = (new ClientSourcedIO){(new LogicalNetworkIO){new AcquireData }}
+  val abort        = (new MasterSourcedIO){(new LogicalNetworkIO){new Abort }}
+  val probe        = (new MasterSourcedIO){(new LogicalNetworkIO){new Probe }}
+  val release      = (new ClientSourcedIO){(new LogicalNetworkIO){new Release }}
+  val release_data = (new ClientSourcedIO){(new LogicalNetworkIO){new ReleaseData }}
+  val grant        = (new MasterSourcedIO){(new LogicalNetworkIO){new Grant }}
+  val grant_ack    = (new ClientSourcedIO){(new LogicalNetworkIO){new GrantAck }}
+  override def clone = { new TileLinkIO().asInstanceOf[this.type] }
 }
-*/
