@@ -15,10 +15,10 @@ DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir $(basedir)/emulator/generated-src
 CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
-generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
+generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala $(basedir)/src/*.scala
 	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS)"
 
-generated-src-debug/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala
+generated-src-debug/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala $(basedir)/src/*.scala
 	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS_DEBUG)"
 
 $(MODEL).o: %.o: generated-src/%.cpp
