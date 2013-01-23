@@ -358,7 +358,7 @@ class Top extends Component {
   val dc = DCacheConfig(128, 4, co, ntlb = 8,
                         nmshr = 2, nrpq = 16, nsdq = 17)
   val rc = RocketConfiguration(lnConf, co, ic, dc,
-                               fpu = true, vec = false)
+                               fpu = true, vec = true)
   val tileList = (0 until NTILES).map(r => new Tile(resetSignal = resetSigs(r))(rc))
   val uncore = new Uncore(HTIF_WIDTH, tileList)
 
