@@ -79,8 +79,8 @@ void mm_dramsim2_t::tick
 
   if (req_cmd_fire)
   {
-    auto byte_addr = req_cmd_addr*REFILL_COUNT*MM_WORD_SIZE;
-    assert(byte_addr < size);
+    // since the I$ can speculatively ask for address that are out of bounds
+    auto byte_addr = (req_cmd_addr*REFILL_COUNT*MM_WORD_SIZE) % size;
 
     if (req_cmd_store)
     {
