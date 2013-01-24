@@ -183,7 +183,8 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
     val tag = c.code.encode(s2_tag)
     tag_array.write(s2_idx, Fill(c.assoc, tag), wmask)
   }
-  /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
+//  /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
+  .elsewhen (s0_valid) {
     tag_rdata := tag_array(s0_pgoff(c.untagbits-1,c.offbits))
   }
 
@@ -227,7 +228,8 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
       val d = io.mem.grant.bits.payload.data
       data_array(Cat(s2_idx,rf_cnt)) := c.code.encode(d)
     }
-    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
+//    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
+    .elsewhen (s0_valid) {
       s1_dout := data_array(s0_pgoff(c.untagbits-1,c.offbits-rf_cnt.getWidth))
     }
     // if s1_tag_match is critical, replace with partial tag check
