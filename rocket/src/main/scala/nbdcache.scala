@@ -577,14 +577,14 @@ class MetaDataArray(implicit conf: DCacheConfig) extends Component {
   val tags = Mem(conf.sets, seqRead = true) { UFix(width = metabits*conf.ways) }
   val tag = Reg{UFix()}
 
-  when (io.read.valid) {
-    tag := tags(io.read.bits.addr(conf.untagbits-1,conf.offbits))
-  }
   when (rst || io.write.valid) {
     val addr = Mux(rst, rst_cnt, io.write.bits.idx)
     val data = Cat(Mux(rst, conf.co.newStateOnFlush, io.write.bits.data.state), io.write.bits.data.tag)
     val mask = Mux(rst, Fix(-1), io.write.bits.way_en)
     tags.write(addr, Fill(conf.ways, data), FillInterleaved(metabits, mask))
+  }
+  when (io.read.valid) {
+    tag := tags(io.read.bits.addr(conf.untagbits-1,conf.offbits))
   }
 
   for (w <- 0 until conf.ways) {

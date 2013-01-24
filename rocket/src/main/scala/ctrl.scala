@@ -603,7 +603,10 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   class Scoreboard
   {
-    val r = Reg(resetVal = Bits(0))
+//    val r = Reg(resetVal = Bits(0))
+    // RIMAS: explicitly set width to 32, otherwise Chisel would set it to 1024
+    // and cause a ton of warnings during synthesis
+    val r = Reg(resetVal = Bits(0,32))
     var next = r
     var ens = Bool(false)
     def apply(addr: UFix) = r(addr)
