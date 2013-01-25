@@ -601,12 +601,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   val replay_wb = io.dmem.resp.bits.nack || wb_reg_replay || vec_replay || io.dpath.pcr_replay
 
-  class Scoreboard
+  class Scoreboard(n: Int)
   {
-//    val r = Reg(resetVal = Bits(0))
-    // RIMAS: explicitly set width to 32, otherwise Chisel would set it to 1024
-    // and cause a ton of warnings during synthesis
-    val r = Reg(resetVal = Bits(0,32))
+    val r = Reg(resetVal = Bits(0, n))
     var next = r
     var ens = Bool(false)
     def apply(addr: UFix) = r(addr)
@@ -620,12 +617,12 @@ class Control(implicit conf: RocketConfiguration) extends Component
     }
   }
 
-  val sboard = new Scoreboard
+  val sboard = new Scoreboard(32)
   sboard.set((wb_reg_div_mul_val || wb_dcache_miss) && io.dpath.wb_wen, io.dpath.wb_waddr)
   sboard.clear(io.dpath.mem_ll_wb, io.dpath.mem_ll_waddr)
 
   val id_stall_fpu = if (conf.fpu) {
-    val fp_sboard = new Scoreboard
+    val fp_sboard = new Scoreboard(32)
     fp_sboard.set((wb_dcache_miss && wb_reg_fp_wen || io.fpu.sboard_set) && !replay_wb, io.dpath.wb_waddr)
     fp_sboard.clear(io.dpath.fp_sboard_clr, io.dpath.fp_sboard_clra)
     fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
