@@ -36,6 +36,15 @@ class HTIFIO(ntiles: Int) extends Bundle
   val ipi_rep = (new FIFOIO) { Bool() }.flip
 }
 
+class SCRIO extends Bundle
+{
+  val n = 64
+  val rdata = Vec(n) { Bits(INPUT, 64) }
+  val wen = Bool(OUTPUT)
+  val waddr = UFix(OUTPUT, log2Up(n))
+  val wdata = Bits(OUTPUT, 64)
+}
+
 class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Component with ClientCoherenceAgent
 {
   implicit val lnConf = conf.ln
@@ -43,6 +52,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
     val host = new HostIO(w)
     val cpu = Vec(conf.ln.nTiles) { new HTIFIO(conf.ln.nTiles).flip }
     val mem = new TileLinkIO()(conf.ln)
+    val scr = new SCRIO
   }
 
   val short_request_bits = 64
@@ -82,7 +92,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(6) { UFix() }
 
   val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.width-1, 0)
-  val pcr_coreid = if (conf.ln.nTiles == 1) UFix(0) else addr(20+log2Up(conf.ln.nTiles),20)
+  val pcr_coreid = addr(log2Up(conf.ln.nTiles+1)-1+20,20)
   val pcr_wdata = packet_ram(0)
 
   val bad_mem_packet = size(OFFSET_BITS-1-3,0).orR || addr(OFFSET_BITS-1-3,0).orR
@@ -204,7 +214,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   io.mem.grant_ack.bits.header.src := UFix(conf.ln.nTiles)
   io.mem.grant_ack.bits.header.dst := UFix(0)
 
-  val pcrReadData = Vec(conf.ln.nTiles) { Reg() { Bits(width = io.cpu(0).pcr_rep.bits.getWidth) } }
+  val pcrReadData = Reg{Bits(width = io.cpu(0).pcr_rep.bits.getWidth)}
   for (i <- 0 until conf.ln.nTiles) {
     val my_reset = Reg(resetVal = Bool(true))
     val my_ipi = Reg(resetVal = Bool(false))
@@ -235,22 +245,37 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
       when (cmd === cmd_writecr) {
         my_reset := pcr_wdata(0)
       }
-      pcrReadData(i) := my_reset.toBits
+      pcrReadData := my_reset.toBits
       state := state_tx
     }
 
     cpu.pcr_rep.ready := Bool(true)
     when (cpu.pcr_rep.valid) {
-      pcrReadData(i) := cpu.pcr_rep.bits
+      pcrReadData := cpu.pcr_rep.bits
       state := state_tx
     }
+  }
+
+  val scr_rdata = Vec(io.scr.rdata.size){Bits(width = 64)}
+  for (i <- 0 until scr_rdata.size)
+    scr_rdata(i) := io.scr.rdata(i)
+  scr_rdata(0) := conf.ln.nTiles
+  scr_rdata(1) := UFix(REFILL_CYCLES*MEM_DATA_BITS/8) << x_init.io.enq.bits.addr.getWidth
+
+  io.scr.wen := false
+  io.scr.wdata := pcr_wdata
+  io.scr.waddr := pcr_addr.toUFix
+  when (state === state_pcr_req && pcr_coreid === Fix(-1)) {
+    io.scr.wen := cmd === cmd_writecr
+    pcrReadData := scr_rdata(pcr_addr)
+    state := state_tx
   }
 
   val tx_cmd = Mux(nack, cmd_nack, cmd_ack)
   val tx_cmd_ext = Cat(Bits(0, 4-tx_cmd.getWidth), tx_cmd)
   val tx_header = Cat(addr, seqno, tx_size, tx_cmd_ext)
   val tx_data = Mux(tx_word_count === UFix(0), tx_header,
-                Mux(cmd === cmd_readcr || cmd === cmd_writecr, pcrReadData(pcr_coreid),
+                Mux(cmd === cmd_readcr || cmd === cmd_writecr, pcrReadData,
                 packet_ram(packet_ram_raddr)))
 
   io.host.in.ready := state === state_rx
