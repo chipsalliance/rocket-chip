@@ -601,7 +601,7 @@ class MetaDataArray(implicit conf: DCacheConfig) extends Component {
     io.resp(w).tag := m
   }
 
-  io.read.ready := !rst
+  io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
   io.write.ready := !rst
 }
 
