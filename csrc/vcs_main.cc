@@ -1,10 +1,16 @@
-#include "htif_phy.h"
+#include "htif_emulator.h"
 #include "mm.h"
 #include "mm_dramsim2.h"
 #include <DirectC.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <vector>
+#include <sstream>
+#include <iterator>
 
-htif_phy_t* htif_phy = NULL;
-mm_t* mm = NULL;
+static htif_emulator_t* htif = NULL;
+static unsigned htif_bytes;
+static mm_t* mm = NULL;
 
 extern "C" {
 
@@ -56,9 +62,8 @@ void memory_tick(
 
 void htif_init
 (
-  vc_handle fromhost,
-  vc_handle tohost,
   vc_handle width,
+  vc_handle argv,
   vc_handle loadmem,
   vc_handle dramsim
 )
@@ -66,17 +71,34 @@ void htif_init
   mm = vc_getScalar(dramsim) ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
   mm->init(MEM_SIZE);
 
-  vec32* fh = vc_4stVectorRef(fromhost);
-  vec32* th = vc_4stVectorRef(tohost);
   vec32* w = vc_4stVectorRef(width);
+  assert(w->d <= 32 && w->d % 8 == 0); // htif_tick assumes data fits in a vec32
+  htif_bytes = w->d/8;
 
   char loadmem_str[1024];
   vc_VectorToString(loadmem, loadmem_str);
   if (*loadmem_str)
     load_mem(mm->get_data(), loadmem_str);
 
-  assert(w->d <= 32); // htif_tick assumes data fits in a vec32
-  htif_phy = new htif_phy_t(w->d, fh->d, th->d);
+  char argv_str[1024];
+  vc_VectorToString(argv, argv_str);
+  if (!*argv_str)
+  {
+    if (*loadmem_str)
+      strcpy(argv_str, "none");
+    else
+    {
+      fprintf(stderr, "Usage: ./simv [host options] +argv=\"<target program> [target args]\"\n");
+      exit(-1);
+    }
+  }
+
+  std::vector<std::string> args;
+  std::stringstream ss(argv_str);
+  std::istream_iterator<std::string> begin(ss), end;
+  std::copy(begin, end, std::back_inserter<std::vector<std::string>>(args));
+
+  htif = new htif_emulator_t(args);
 }
 
 void htif_tick
@@ -86,19 +108,28 @@ void htif_tick
   vc_handle htif_in_bits,
   vc_handle htif_out_valid,
   vc_handle htif_out_ready,
-  vc_handle htif_out_bits
+  vc_handle htif_out_bits,
+  vc_handle exit
 )
 {
-  vec32* ob = vc_4stVectorRef(htif_out_bits);
-  htif_phy->tick(vc_getScalar(htif_in_ready), vc_getScalar(htif_out_valid), ob->d);
+  static bool peek_in_valid;
+  static uint32_t peek_in_bits;
+  if (vc_getScalar(htif_in_ready))
+    peek_in_valid = htif->recv_nonblocking(&peek_in_bits, htif_bytes);
 
-  vc_putScalar(htif_in_valid, htif_phy->in_valid());
-  vc_putScalar(htif_out_ready, htif_phy->out_ready());
+  vc_putScalar(htif_out_ready, 1);
+  if (vc_getScalar(htif_out_valid))
+  {
+    vec32* bits = vc_4stVectorRef(htif_out_bits);
+    htif->send(&bits->d, htif_bytes);
+  }
 
-  vec32 ib;
-  ib.c = 0;
-  ib.d = htif_phy->in_bits();
-  vc_put4stVector(htif_in_bits, &ib);
+  vec32 bits = {0, 0};
+  bits.d = peek_in_bits;
+  vc_put4stVector(htif_in_bits, &bits);
+  vc_putScalar(htif_in_valid, peek_in_valid);
+
+  vc_putScalar(exit, htif->done() ? (htif->exit_code() << 1 | 1) : 0);
 }
 
 }

@@ -4,6 +4,7 @@ import Chisel._
 import Node._
 import uncore._
 import rocket._
+import rocket.Util._
 import ReferenceChipBackend._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
@@ -290,7 +291,11 @@ class Uncore(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent])(implicit
   outmemsys.io.mem_backup_en <> io.mem_backup_en
 
   // pad out the HTIF using a divided clock
-  val hio = (new slowIO(8)) { Bits(width = htif_width+1) }
+  val hio = (new SlowIO(512)) { Bits(width = htif_width+1) }
+  hio.io.set_divisor.valid := htif.io.scr.wen && htif.io.scr.waddr === 63
+  hio.io.set_divisor.bits := htif.io.scr.wdata
+  htif.io.scr.rdata(63) := hio.io.divisor
+
   hio.io.out_fast.valid := htif.io.host.out.valid || outmemsys.io.mem_backup.req.valid
   hio.io.out_fast.bits := Cat(htif.io.host.out.valid, Mux(htif.io.host.out.valid, htif.io.host.out.bits, outmemsys.io.mem_backup.req.bits))
   htif.io.host.out.ready := hio.io.out_fast.ready

@@ -4,10 +4,12 @@ basedir = ..
 include ../Makefrag
 
 CXX := g++
-CXXFLAGS := -O1 -std=c++0x
+CXXFLAGS := $(CXXFLAGS) -O1 -std=c++0x -I$(RISCV)/include
 
 CXXSRCS := emulator disasm mm mm_dramsim2
 CXXFLAGS := $(CXXFLAGS) -I$(basedir)/csrc -I$(basedir)/chisel/csrc -I$(basedir)/dramsim2
+
+LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -L. -ldramsim -lfesvr -lpthread
 
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
 DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
@@ -34,10 +36,10 @@ $(addsuffix -debug.o,$(CXXSRCS)): %-debug.o: $(basedir)/csrc/%.cc $(basedir)/csr
 	$(CXX) $(CXXFLAGS) -Igenerated-src-debug -c -o $@ $<
 
 emulator: $(OBJS) libdramsim.a
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) -L. -ldramsim
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS)
 
 emulator-debug: $(DEBUG_OBJS) libdramsim.a
-	$(CXX) $(CXXFLAGS) -o $@ $(DEBUG_OBJS) -L. -ldramsim
+	$(CXX) $(CXXFLAGS) -o $@ $(DEBUG_OBJS) $(LDFLAGS)
  
 clean:
 	rm -rf *.o *.a emulator emulator-debug generated-src generated-src-debug DVEfiles output
@@ -67,13 +69,13 @@ output:
 	mkdir -p $@
 
 output/%.run: output/%.hex emulator
-	fesvr +dramsim -c -testrun -m3000000 +loadmem=$< none 2> /dev/null
+	./emulator +dramsim +max-cycles=3000000 +loadmem=$< none 2> /dev/null
 
 output/%.out: output/%.hex emulator
-	fesvr +dramsim -c -testrun -m3000000 -l +loadmem=$< none 2> $@
+	./emulator +dramsim +max-cycles=3000000 +verbose +loadmem=$< none 2> $@
 
 output/%.vpd: output/%.hex emulator-debug
-	fesvr +dramsim -c./emulator-debug -testrun -m3000000 -l -v- +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@) | vcd2vpd - $@ > /dev/null && [ $$PIPESTATUS -eq 0 ]
+	./emulator-debug +dramsim +max-cycles=3000000 +verbose -v- +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@) | vcd2vpd - $@ > /dev/null && [ $$PIPESTATUS -eq 0 ]
 
 run-asm-tests: $(addprefix output/, $(addsuffix .out, $(global_asm_tests) $(global_asm_vm_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
