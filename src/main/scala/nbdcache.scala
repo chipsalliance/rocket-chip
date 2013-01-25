@@ -508,7 +508,7 @@ class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
     val line_state = UFix(INPUT, 2)
   }
 
-  val s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(8) { UFix() }
+  val s_reset :: s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(9) { UFix() }
   val state = Reg(resetVal = s_invalid)
   val line_state = Reg() { UFix() }
   val way_en = Reg() { Bits() }
@@ -546,8 +546,11 @@ class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
     state := s_meta_read
     req := io.req.bits
   }
+  when (state === s_reset) {
+    state := s_invalid
+  }
 
-  io.req.ready := state === s_invalid && !reset
+  io.req.ready := state === s_invalid
   io.rep.valid := state === s_release
   io.rep.bits := conf.co.newRelease(req, Mux(hit, line_state, conf.co.newStateOnFlush))
 
