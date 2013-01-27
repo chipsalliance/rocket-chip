@@ -369,6 +369,8 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
     rep.bits.payload.master_xact_id := UFix(0)
     rep.bits.payload.data := io.mem.resp.bits.data
     rep.bits.payload.require_ack := Bool(true)
+    rep.bits.header.dst := UFix(0) // DNC
+    rep.bits.header.src := UFix(0) // DNC
     rep.valid := Bool(false)
     when(io.mem.resp.valid && (UFix(j) === init_client_id_arr(mem_idx))) {
       rep.bits.payload.g_type := co.getGrantType(a_type_arr(mem_idx), sh_count_arr(mem_idx))
@@ -445,6 +447,8 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
       conflicts(i) := t.busy && x_init.valid && co.isCoherenceConflict(t.addr, x_init.bits.payload.addr)
     }
     x_abort.bits.payload.client_xact_id := x_init.bits.payload.client_xact_id
+    x_abort.bits.header.dst := UFix(0) // DNC
+    x_abort.bits.header.src := UFix(0) // DNC
     want_to_abort_arr(j) := x_init.valid && (conflicts.toBits.orR || busy_arr.toBits.andR || (!x_init_data_dep_list(j).io.enq.ready && co.messageHasData(x_init.bits.payload)))
     
     x_abort.valid := Bool(false)
@@ -585,6 +589,7 @@ class L2CoherenceAgent(implicit conf: CoherenceHubConfiguration) extends Coheren
 
   // Nack conflicting transaction init attempts
   x_abort.bits.header.dst := x_init.bits.header.src
+  x_abort.bits.header.src := UFix(0) //DNC
   x_abort.bits.payload.client_xact_id := x_init.bits.payload.client_xact_id
   x_abort.valid := Bool(false)
   switch(abort_state) {
@@ -746,12 +751,14 @@ class XactTracker(id: Int)(implicit conf: CoherenceHubConfiguration) extends Com
   io.p_req.bits.payload.master_xact_id  := UFix(id)
   io.p_req.bits.payload.addr := xact.addr
   io.p_req.bits.header.dst := UFix(0)
+  io.p_req.bits.header.src := UFix(0) // DNC
   io.grant.bits.payload.data := io.mem_resp.bits.data
   io.grant.bits.payload.g_type := co.getGrantType(xact.a_type, init_sharer_cnt_)
   io.grant.bits.payload.client_xact_id := xact.client_xact_id
   io.grant.bits.payload.master_xact_id := UFix(id)
   io.grant.bits.payload.require_ack := all_grants_require_acks
   io.grant.bits.header.dst := init_client_id_
+  io.grant.bits.header.src := UFix(0) // DNC
   io.grant.valid := (io.mem_resp.valid && (UFix(id) === io.mem_resp.bits.tag)) 
   io.x_init.ready := Bool(false)
   io.x_init_data.ready := Bool(false)
