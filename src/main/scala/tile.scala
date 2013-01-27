@@ -50,6 +50,14 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   io.tilelink.release <> dcache.io.mem.release
   io.tilelink.release_data <> dcache.io.mem.release_data
 
+  val ioSubBundles = arbiter.io.getClass.getMethods.filter( x => 
+    classOf[DirectionalFIFOIO[Data]].isAssignableFrom(x.getReturnType)).map{ m =>
+      m.invoke(arbiter.io).asInstanceOf[DirectionalFIFOIO[LogicalNetworkIO[Data]]] }
+  ioSubBundles.foreach{ m => 
+    m.bits.header.dst := UFix(0)
+    m.bits.header.src := UFix(0)
+  }
+
   if (conf.vec) {
     val vicache = new Frontend()(ICacheConfig(128, 1, conf.co), lnConf) // 128 sets x 1 ways (8KB)
     arbiter.io.requestor(2) <> vicache.io.mem
