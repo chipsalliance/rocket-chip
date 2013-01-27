@@ -194,8 +194,8 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   val init_addr = addr.toUFix >> UFix(OFFSET_BITS-3)
   val co = conf.co.asInstanceOf[CoherencePolicyWithUncached]
   x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteAcquire(init_addr, UFix(0)), co.getUncachedReadAcquire(init_addr, UFix(0)))
-  io.mem.acquire <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq)
-  io.mem.acquire_data.valid:= state === state_mem_wdata
+  io.mem.acquire <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq, UFix(conf.ln.nTiles), UFix(0))
+  io.mem.acquire_data.valid := state === state_mem_wdata
   io.mem.acquire_data.bits.payload.data := mem_req_data
   io.mem.grant_ack.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.grant_ack.bits.payload.master_xact_id := mem_gxid
@@ -203,8 +203,6 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   io.mem.release.valid := Bool(false)
   io.mem.release_data.valid := Bool(false)
 
-  io.mem.acquire.bits.header.src := UFix(conf.ln.nTiles)
-  io.mem.acquire.bits.header.dst := UFix(0)
   io.mem.acquire_data.bits.header.src := UFix(conf.ln.nTiles)
   io.mem.acquire_data.bits.header.dst := UFix(0)
   io.mem.release.bits.header.src := UFix(conf.ln.nTiles)
