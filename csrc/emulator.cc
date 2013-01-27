@@ -29,7 +29,6 @@ int main(int argc, char** argv)
   const char* failure = NULL;
   disassembler disasm;
   bool dramsim2 = false;
-  std::vector<std::string> target_args;
 
   for (int i = 1; i < argc; i++)
   {
@@ -46,19 +45,6 @@ int main(int argc, char** argv)
       max_cycles = atoll(argv[i]+12);
     else if (arg.substr(0, 9) == "+loadmem=")
       loadmem = argv[i]+9;
-    else if (arg.substr(0, 1) != "-" || arg.substr(0, 1) != "+")
-      target_args = std::vector<std::string>(argv + i, argv + argc);
-    else
-    {
-      fprintf(stderr, "unknown option: %s\n", argv[i]);
-      exit(1);
-    }
-  }
-
-  if (target_args.empty())
-  {
-    fprintf(stderr, "usage: %s [host options] <target program> [target args]\n", argv[0]);
-    exit(1);
   }
 
   const int disasm_len = 24;
@@ -85,7 +71,7 @@ int main(int argc, char** argv)
   tile.init(random_seed != 0);
 
   // Instantiate HTIF
-  htif = new htif_emulator_t(target_args);
+  htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
   int htif_bits = tile.Top__io_host_in_bits.width();
   assert(htif_bits % 8 == 0 && htif_bits <= val_n_bits());
 

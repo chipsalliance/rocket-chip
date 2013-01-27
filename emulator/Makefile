@@ -69,13 +69,13 @@ output:
 	mkdir -p $@
 
 output/%.run: output/%.hex emulator
-	./emulator +dramsim +max-cycles=3000000 +loadmem=$< none 2> /dev/null
+	./emulator +dramsim +max-cycles=3000000 +coremap-random +loadmem=$< none 2> /dev/null
 
 output/%.out: output/%.hex emulator
-	./emulator +dramsim +max-cycles=3000000 +verbose +loadmem=$< none 2> $@
+	./emulator +dramsim +max-cycles=3000000 +verbose +coremap-random +loadmem=$< none 2> $@
 
 output/%.vpd: output/%.hex emulator-debug
-	./emulator-debug +dramsim +max-cycles=3000000 +verbose -v- +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@) | vcd2vpd - $@ > /dev/null && [ $$PIPESTATUS -eq 0 ]
+	./emulator-debug +dramsim +max-cycles=3000000 +verbose -v- +coremap-random +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@) | vcd2vpd - $@ > /dev/null && [ $$PIPESTATUS -eq 0 ]
 
 run-asm-tests: $(addprefix output/, $(addsuffix .out, $(global_asm_tests) $(global_asm_vm_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
