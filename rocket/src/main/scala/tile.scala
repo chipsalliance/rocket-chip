@@ -41,18 +41,28 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   arbiter.io.requestor(0) <> dcache.io.mem
   arbiter.io.requestor(1) <> icache.io.mem
 
-  io.tilelink.acquire <> arbiter.io.mem.acquire
-  io.tilelink.acquire_data <> dcache.io.mem.acquire_data
+  io.tilelink.acquire.valid := arbiter.io.mem.acquire.valid
+  io.tilelink.acquire.ready := arbiter.io.mem.acquire.ready
+  io.tilelink.acquire.bits := arbiter.io.mem.acquire.bits
+  io.tilelink.acquire_data.valid := dcache.io.mem.acquire_data.valid
+  io.tilelink.acquire_data.ready := dcache.io.mem.acquire_data.ready
+  io.tilelink.acquire_data.bits := dcache.io.mem.acquire_data.bits
   arbiter.io.mem.abort <> io.tilelink.abort
   arbiter.io.mem.grant <> io.tilelink.grant
-  io.tilelink.grant_ack <> arbiter.io.mem.grant_ack
+  io.tilelink.grant_ack.valid := arbiter.io.mem.grant_ack.valid
+  io.tilelink.grant_ack.ready := arbiter.io.mem.grant_ack.ready
+  io.tilelink.grant_ack.bits := arbiter.io.mem.grant_ack.bits
   dcache.io.mem.probe <> io.tilelink.probe
-  io.tilelink.release <> dcache.io.mem.release
-  io.tilelink.release_data <> dcache.io.mem.release_data
+  io.tilelink.release.valid := dcache.io.mem.release.valid
+  io.tilelink.release.ready := dcache.io.mem.release.ready
+  io.tilelink.release.bits := dcache.io.mem.release.bits
+  io.tilelink.release_data.valid := dcache.io.mem.release_data.valid
+  io.tilelink.release_data.ready := dcache.io.mem.release_data.ready
+  io.tilelink.release_data.bits := dcache.io.mem.release_data.bits
 
-  val ioSubBundles = arbiter.io.getClass.getMethods.filter( x => 
-    classOf[DirectionalFIFOIO[Data]].isAssignableFrom(x.getReturnType)).map{ m =>
-      m.invoke(arbiter.io).asInstanceOf[DirectionalFIFOIO[LogicalNetworkIO[Data]]] }
+  val ioSubBundles = io.tilelink.getClass.getMethods.filter( x => 
+    classOf[ClientSourcedIO[Data]].isAssignableFrom(x.getReturnType)).map{ m =>
+      m.invoke(io.tilelink).asInstanceOf[ClientSourcedIO[LogicalNetworkIO[Data]]] }
   ioSubBundles.foreach{ m => 
     m.bits.header.dst := UFix(0)
     m.bits.header.src := UFix(0)
