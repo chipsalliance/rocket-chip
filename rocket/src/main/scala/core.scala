@@ -43,7 +43,7 @@ class Core(implicit conf: RocketConfiguration) extends Component
   } else null
 
   if (conf.vec) {
-    val vu = new vu()
+    val vu = new vu(Reg(reset))
 
     val vdtlb = new TLB(8)
     ptw += vdtlb.io.ptw
