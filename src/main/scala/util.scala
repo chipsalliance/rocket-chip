@@ -73,3 +73,55 @@ case class WideCounter(width: Int, inc: Bool = Bool(true))
     if (isWide) large := (if (w < smallWidth) UFix(0) else x(w.min(width)-1,smallWidth))
   }
 }
+
+class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Component
+{
+  val io = new ioQueue(entries)(data)
+  require(isPow2(entries) && entries > 1)
+
+  val do_flow = Bool()
+  val do_enq = io.enq.fire() && !do_flow
+  val do_deq = io.deq.fire() && !do_flow
+
+  val maybe_full = Reg(resetVal = Bool(false))
+  val enq_ptr = Counter(do_enq, entries)._1
+  val deq_ptr = Counter(do_deq, entries)._1
+  when (do_enq != do_deq) { maybe_full := do_enq }
+
+  val ptr_match = enq_ptr === deq_ptr
+  val empty = ptr_match && !maybe_full
+  val full = ptr_match && maybe_full
+  do_flow := empty && io.deq.ready
+
+  val ram = Mem(entries, seqRead = true){data}
+  val ram_out = Reg{data}
+  val ram_out_valid = Reg(io.deq.ready)
+  when (io.deq.ready && !empty) {
+    ram_out := ram(Mux(io.deq.valid, deq_ptr + UFix(1), deq_ptr))
+  }
+  when (do_enq) { ram(enq_ptr) := io.enq.bits }
+
+  io.deq.valid := Mux(empty, io.enq.valid, ram_out_valid)
+  io.enq.ready := !full
+  io.deq.bits := Mux(empty, io.enq.bits, ram_out)
+}
+
+class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Component
+{
+  val io = new ioQueue(entries)(data)
+
+  val fq = new HellaFlowQueue(entries)(data)
+  io.enq <> fq.io.enq
+  io.deq <> Queue(fq.io.deq, 1, pipe = true)
+}
+
+object HellaQueue
+{
+  def apply[T <: Data](enq: FIFOIO[T], entries: Int) = {
+    val q = (new HellaQueue(entries)) { enq.bits.clone }
+    q.io.enq.valid := enq.valid // not using <> so that override is allowed
+    q.io.enq.bits := enq.bits
+    enq.ready := q.io.enq.ready
+    q.io.deq
+  }
+}
