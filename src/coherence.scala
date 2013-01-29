@@ -31,6 +31,7 @@ abstract class CoherencePolicy {
   def getAcquireTypeOnCacheControl(cmd: Bits): Bits
   def getAcquireTypeOnWriteback(): Bits
 
+  def getVoluntaryWriteback(addr: UFix, client_id: UFix, master_id: UFix): Release
   def newRelease (incoming: Probe, state: UFix): Release
 
   def messageHasData (reply: Release): Bool
@@ -40,11 +41,15 @@ abstract class CoherencePolicy {
   def messageIsUncached(acq: Acquire): Bool
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool
+  def isVoluntary(rel: Release): Bool
   def getGrantType(a_type: UFix, count: UFix): Bits
+  def getGrantType(rel: Release, count: UFix): Bits
   def getProbeType(a_type: UFix, global_state: UFix): UFix
   def needsMemRead(a_type: UFix, global_state: UFix): Bool
   def needsMemWrite(a_type: UFix, global_state: UFix): Bool
   def needsAckReply(a_type: UFix, global_state: UFix): Bool
+  def requiresAck(grant: Grant): Bool
+  def requiresAck(release: Release): Bool
 }
 
 trait UncachedTransactions {
@@ -70,17 +75,20 @@ abstract class IncoherentPolicy extends CoherencePolicy {
   def messageHasData (reply: Release) = Bool(false)
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = Bool(false)
   def getGrantType(a_type: UFix, count: UFix): Bits = Bits(0)
+  def getGrantType(rel: Release, count: UFix): Bits = Bits(0)
   def getProbeType(a_type: UFix, global_state: UFix): UFix = UFix(0)
   def needsMemRead(a_type: UFix, global_state: UFix): Bool = Bool(false)
   def needsMemWrite(a_type: UFix, global_state: UFix): Bool = Bool(false)
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = Bool(false)
+  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(release: Release) = Bool(false)
 }
 
 class ThreeStateIncoherence extends IncoherentPolicy {
   val tileInvalid :: tileClean :: tileDirty :: Nil = Enum(3){ UFix() }
   val acquireReadClean :: acquireReadDirty :: acquireWriteback :: Nil = Enum(3){ UFix() }
   val grantData :: grantAck :: Nil = Enum(2){ UFix() }
-  val releaseInvalidateAck :: Nil = Enum(1){ UFix() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateAck :: Nil = Enum(2){ UFix() }
   val uncachedTypeList = List() 
   val hasDataTypeList = List(acquireWriteback)
 
@@ -106,6 +114,9 @@ class ThreeStateIncoherence extends IncoherentPolicy {
     ))
   }
 
+  def getVoluntaryWriteback(addr: UFix, client_id: UFix, master_id: UFix) = Release(releaseVoluntaryInvalidateData, addr, client_id, master_id)
+  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
+
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
     Mux(write || cmd === M_PFW, acquireReadDirty, acquireReadClean)
@@ -129,9 +140,9 @@ class MICoherence extends CoherencePolicyWithUncached {
   val globalInvalid :: globalValid :: Nil = Enum(2){ UFix() }
 
   val acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(6){ UFix() }
-  val grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(6){ UFix() }
+  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(7){ UFix() }
   val probeInvalidate :: probeCopy :: Nil = Enum(2){ UFix() }
-  val releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(4){ UFix() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(5){ UFix() }
   val uncachedTypeList = List(acquireReadUncached, acquireWriteUncached, grantReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
 
@@ -180,7 +191,9 @@ class MICoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordAcquire(addr: UFix, id: UFix) = Acquire(acquireReadWordUncached, addr, id)
   def getUncachedWriteWordAcquire(addr: UFix, id: UFix, write_mask: Bits) = Acquire(acquireWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicAcquire(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = Acquire(acquireAtomicUncached, addr, id, subword_addr, atomic_op)
+  def getVoluntaryWriteback(addr: UFix, client_id: UFix, master_id: UFix) = Release(releaseVoluntaryInvalidateData, addr, client_id, master_id)
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = acquireReadExclusive
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = acquireReadExclusive
@@ -228,6 +241,12 @@ class MICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
+  def getGrantType(rel: Release, count: UFix): Bits = {
+    MuxLookup(rel.r_type, grantReadUncached, Array(
+      releaseVoluntaryInvalidateData -> grantVoluntaryAck
+    ))
+  }
+
   def getProbeType(a_type: UFix, global_state: UFix): UFix = {
     MuxLookup(a_type, probeCopy, Array(
       acquireReadExclusive -> probeInvalidate, 
@@ -248,6 +267,8 @@ class MICoherence extends CoherencePolicyWithUncached {
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
+  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(release: Release) = Bool(false)
 }
 
 class MEICoherence extends CoherencePolicyWithUncached {
@@ -256,9 +277,9 @@ class MEICoherence extends CoherencePolicyWithUncached {
   val globalInvalid :: globalExclusiveClean :: Nil = Enum(2){ UFix() }
 
   val acquireReadExclusiveClean :: acquireReadExclusiveDirty :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(7){ UFix() }
-  val grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(7){ UFix() }
+  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(8){ UFix() }
   val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(3){ UFix() }
-  val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(6){ UFix() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(7){ UFix() }
   val uncachedTypeList = List(acquireReadUncached, acquireWriteUncached, grantReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
 
@@ -316,7 +337,9 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordAcquire(addr: UFix, id: UFix) = Acquire(acquireReadWordUncached, addr, id)
   def getUncachedWriteWordAcquire(addr: UFix, id: UFix, write_mask: Bits) = Acquire(acquireWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicAcquire(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = Acquire(acquireAtomicUncached, addr, id, subword_addr, atomic_op)
+  def getVoluntaryWriteback(addr: UFix, client_id: UFix, master_id: UFix) = Release(releaseVoluntaryInvalidateData, addr, client_id, master_id)
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -373,6 +396,12 @@ class MEICoherence extends CoherencePolicyWithUncached {
       acquireAtomicUncached -> grantAtomicUncached
     ))
   }
+  def getGrantType(rel: Release, count: UFix): Bits = {
+    MuxLookup(rel.r_type, grantReadUncached, Array(
+      releaseVoluntaryInvalidateData -> grantVoluntaryAck
+    ))
+  }
+
 
   def getProbeType(a_type: UFix, global_state: UFix): UFix = {
     MuxLookup(a_type, probeCopy, Array(
@@ -395,6 +424,8 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
+  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(release: Release) = Bool(false)
 }
 
 class MSICoherence extends CoherencePolicyWithUncached {
@@ -403,9 +434,9 @@ class MSICoherence extends CoherencePolicyWithUncached {
   val globalInvalid :: globalShared :: globalExclusive :: Nil = Enum(3){ UFix() }
 
   val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(7){ UFix() }
-  val grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(8){ UFix() }
+  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(9){ UFix() }
   val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(3){ UFix() }
-  val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(6){ UFix() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(7){ UFix() }
   val uncachedTypeList = List(acquireReadUncached, acquireWriteUncached, grantReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
 
@@ -470,7 +501,9 @@ class MSICoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordAcquire(addr: UFix, id: UFix) = Acquire(acquireReadWordUncached, addr, id)
   def getUncachedWriteWordAcquire(addr: UFix, id: UFix, write_mask: Bits) = Acquire(acquireWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicAcquire(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = Acquire(acquireAtomicUncached, addr, id, subword_addr, atomic_op)
+  def getVoluntaryWriteback(addr: UFix, client_id: UFix, master_id: UFix) = Release(releaseVoluntaryInvalidateData, addr, client_id, master_id)
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -527,6 +560,12 @@ class MSICoherence extends CoherencePolicyWithUncached {
       acquireAtomicUncached -> grantAtomicUncached
     ))
   }
+  def getGrantType(rel: Release, count: UFix): Bits = {
+    MuxLookup(rel.r_type, grantReadUncached, Array(
+      releaseVoluntaryInvalidateData -> grantVoluntaryAck
+    ))
+  }
+
 
   def getProbeType(a_type: UFix, global_state: UFix): UFix = {
     MuxLookup(a_type, probeCopy, Array(
@@ -546,6 +585,8 @@ class MSICoherence extends CoherencePolicyWithUncached {
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
+  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(release: Release) = Bool(false)
 }
 
 class MESICoherence extends CoherencePolicyWithUncached {
@@ -554,9 +595,9 @@ class MESICoherence extends CoherencePolicyWithUncached {
   val globalInvalid :: globalShared :: globalExclusiveClean :: Nil = Enum(3){ UFix() }
 
   val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(7){ UFix() }
-  val grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(8){ UFix() }
+  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(9){ UFix() }
   val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(3){ UFix() }
-  val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(6){ UFix() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(7){ UFix() }
   val uncachedTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
 
@@ -621,7 +662,9 @@ class MESICoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordAcquire(addr: UFix, id: UFix) = Acquire(acquireReadWordUncached, addr, id)
   def getUncachedWriteWordAcquire(addr: UFix, id: UFix, write_mask: Bits) = Acquire(acquireWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicAcquire(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = Acquire(acquireAtomicUncached, addr, id, subword_addr, atomic_op)
+  def getVoluntaryWriteback(addr: UFix, client_id: UFix, master_id: UFix) = Release(releaseVoluntaryInvalidateData, addr, client_id, master_id)
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -678,6 +721,12 @@ class MESICoherence extends CoherencePolicyWithUncached {
       acquireAtomicUncached -> grantAtomicUncached
     ))
   }
+  def getGrantType(rel: Release, count: UFix): Bits = {
+    MuxLookup(rel.r_type, grantReadUncached, Array(
+      releaseVoluntaryInvalidateData -> grantVoluntaryAck
+    ))
+  }
+
 
   def getProbeType(a_type: UFix, global_state: UFix): UFix = {
     MuxLookup(a_type, probeCopy, Array(
@@ -700,6 +749,9 @@ class MESICoherence extends CoherencePolicyWithUncached {
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
+
+  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(release: Release) = Bool(false)
 }
 
 class MigratoryCoherence extends CoherencePolicyWithUncached {
@@ -707,9 +759,9 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: tileSharedByTwo :: tileMigratoryClean :: tileMigratoryDirty :: Nil = Enum(7){ UFix() }
 
   val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: acquireInvalidateOthers :: Nil = Enum(8){ UFix() }
-  val grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: grantReadMigratory :: Nil = Enum(9){ UFix() }
+  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: grantReadMigratory :: Nil = Enum(10){ UFix() }
   val probeInvalidate :: probeDowngrade :: probeCopy :: probeInvalidateOthers :: Nil = Enum(4){ UFix() }
-  val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(10){ UFix() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(11){ UFix() }
   val uncachedTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
 
@@ -789,7 +841,9 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def getUncachedReadWordAcquire(addr: UFix, id: UFix) = Acquire(acquireReadWordUncached, addr, id)
   def getUncachedWriteWordAcquire(addr: UFix, id: UFix, write_mask: Bits) = Acquire(acquireWriteWordUncached, addr, id, write_mask)
   def getUncachedAtomicAcquire(addr: UFix, id: UFix, subword_addr: UFix, atomic_op: UFix) = Acquire(acquireAtomicUncached, addr, id, subword_addr, atomic_op)
+  def getVoluntaryWriteback(addr: UFix, client_id: UFix, master_id: UFix) = Release(releaseVoluntaryInvalidateData, addr, client_id, master_id)
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -848,6 +902,12 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
       acquireInvalidateOthers -> grantReadExclusiveAck                                      //TODO: add this to MESI?
     ))
   }
+  def getGrantType(rel: Release, count: UFix): Bits = {
+    MuxLookup(rel.r_type, grantReadUncached, Array(
+      releaseVoluntaryInvalidateData -> grantVoluntaryAck
+    ))
+  }
+
 
   def getProbeType(a_type: UFix, global_state: UFix): UFix = {
     MuxLookup(a_type, probeCopy, Array(
@@ -871,4 +931,6 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached || a_type === acquireWriteWordUncached ||a_type === acquireInvalidateOthers)
   }
+  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(release: Release) = Bool(false)
 }
