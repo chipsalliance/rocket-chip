@@ -223,21 +223,21 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent
   //val llc = new DRAMSideLLCNull(NGLOBAL_XACTS, REFILL_CYCLES)
   val mem_serdes = new MemSerdes(htif_width)
 
-  val hub = new CoherenceHubBroadcast()(chWithHtifConf)
+  //val hub = new CoherenceHubBroadcast()(chWithHtifConf)
   //val adapter = new CoherenceHubAdapter()(lnWithHtifConf)
-  //val hub = new L2CoherenceAgent()(chWithHtifConf)
-  //val net = new ReferenceChipCrossbarNetwork(List(hub)++tileEndpoints)(lnWithHtifConf)
+  val hub = new L2CoherenceAgent()(chWithHtifConf)
+  val net = new ReferenceChipCrossbarNetwork(List(hub)++tileEndpoints)(lnWithHtifConf)
   //net.io(0) <> adapter.io.net
   //hub.io.tiles <> adapter.io.hub
-  //hub.io.network <> net.io(0)
+  hub.io.network <> net.io(0)
 
   for (i <- 1 to conf.ln.nTiles) {
-    //net.io(i) <> io.tiles(i-1)
-    hub.io.tiles(i-1) <> io.tiles(i-1)
+    net.io(i) <> io.tiles(i-1)
+    //hub.io.tiles(i-1) <> io.tiles(i-1)
     hub.io.incoherent(i-1) := io.incoherent(i-1)
   }
-  //net.io(conf.ln.nTiles+1) <> io.htif
-  hub.io.tiles(conf.ln.nTiles) <> io.htif
+  net.io(conf.ln.nTiles+1) <> io.htif
+  //hub.io.tiles(conf.ln.nTiles) <> io.htif
   hub.io.incoherent(conf.ln.nTiles) := Bool(true)
 
   llc.io.cpu.req_cmd <> Queue(hub.io.mem.req_cmd)
