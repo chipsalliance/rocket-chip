@@ -238,7 +238,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
   val finish_q = (new Queue(1)) { new GrantAck }
-  finish_q.io.enq.valid := refill_done && io.mem.grant.bits.payload.require_ack
+  finish_q.io.enq.valid := refill_done && c.co.requiresAck(io.mem.grant.bits.payload)
   finish_q.io.enq.bits.master_xact_id := io.mem.grant.bits.payload.master_xact_id
 
   // output signals

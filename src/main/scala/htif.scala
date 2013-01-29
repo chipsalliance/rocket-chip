@@ -109,7 +109,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   when (io.mem.grant.valid) { 
     mem_acked := Bool(true)
     mem_gxid := io.mem.grant.bits.payload.master_xact_id
-    mem_needs_ack := io.mem.grant.bits.payload.require_ack  
+    mem_needs_ack := conf.co.requiresAck(io.mem.grant.bits.payload)
   }
   io.mem.grant.ready := Bool(true)
   when (io.mem.abort.valid) { mem_nacked := Bool(true) }
