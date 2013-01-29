@@ -79,8 +79,20 @@ class Probe extends PhysicalAddress {
   val master_xact_id = Bits(width = MASTER_XACT_ID_BITS)
 }
 
-class Release extends Bundle {
+object Release
+{
+  def apply(r_type: Bits, addr: UFix, client_xact_id: UFix, master_xact_id: UFix) = {
+    val rel = new Release
+    rel.r_type := r_type
+    rel.addr := addr
+    rel.client_xact_id := client_xact_id
+    rel.master_xact_id := master_xact_id
+    rel
+  }
+}
+class Release extends PhysicalAddress {
   val r_type = Bits(width = RELEASE_TYPE_MAX_BITS)
+  val client_xact_id = Bits(width = CLIENT_XACT_ID_BITS)
   val master_xact_id = Bits(width = MASTER_XACT_ID_BITS)
 }
 
@@ -90,7 +102,6 @@ class Grant extends MemData {
   val g_type = Bits(width = GRANT_TYPE_MAX_BITS)
   val client_xact_id = Bits(width = CLIENT_XACT_ID_BITS)
   val master_xact_id = Bits(width = MASTER_XACT_ID_BITS)
-  val require_ack = Bool()
 }
 
 class GrantAck extends Bundle {
