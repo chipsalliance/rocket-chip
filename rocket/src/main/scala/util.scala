@@ -95,8 +95,10 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Component
 
   val ram = Mem(entries, seqRead = true){data}
   val ram_out = Reg{data}
-  val ram_out_valid = Reg(io.deq.ready)
+  val ram_out_valid = Reg{Bool()}
+  ram_out_valid := Bool(false)
   when (io.deq.ready && !empty) {
+    ram_out_valid := Bool(true)
     ram_out := ram(Mux(io.deq.valid, deq_ptr + UFix(1), deq_ptr))
   }
   when (do_enq) { ram(enq_ptr) := io.enq.bits }
