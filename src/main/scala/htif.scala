@@ -258,7 +258,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
   scr_rdata(0) := conf.ln.nTiles
-  scr_rdata(1) := UFix(REFILL_CYCLES*MEM_DATA_BITS/8) << x_init.io.enq.bits.addr.getWidth
+  scr_rdata(1) := (UFix(REFILL_CYCLES*MEM_DATA_BITS/8) << x_init.io.enq.bits.addr.getWidth) >> 20
 
   io.scr.wen := false
   io.scr.wdata := pcr_wdata
