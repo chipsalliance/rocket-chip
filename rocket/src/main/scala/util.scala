@@ -98,11 +98,11 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Component
   val ram_out = Reg{Bits(width = data.getWidth)}
   val ram_out_valid = Reg{Bool()}
   ram_out_valid := Bool(false)
+  when (do_enq) { ram(enq_ptr) := io.enq.bits.toBits }
   when (io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)) {
     ram_out_valid := Bool(true)
     ram_out := ram(Mux(io.deq.valid, deq_ptr + UFix(1), deq_ptr))
   }
-  when (do_enq) { ram(enq_ptr) := io.enq.bits.toBits }
 
   io.deq.valid := Mux(empty, io.enq.valid, ram_out_valid)
   io.enq.ready := !full
