@@ -109,13 +109,16 @@ int main(int argc, char** argv)
 
     if (tile.Top__io_host_clk_edge.to_bool())
     {
-      bool in_valid = tile.Top__io_host_in_ready.to_bool() &&
-                      htif->recv_nonblocking(&tile.Top__io_host_in_bits.values[0], htif_bits/8);
-      tile.Top__io_host_in_valid = LIT<1>(in_valid);
-      tile.Top__io_host_out_ready = LIT<1>(1);
+      static bool htif_in_valid = false;
+      static val_t htif_in_bits;
+      if (tile.Top__io_host_in_ready.to_bool() || !htif_in_valid)
+        htif_in_valid = htif->recv_nonblocking(&htif_in_bits, htif_bits/8);
+      tile.Top__io_host_in_valid = LIT<1>(htif_in_valid);
+      tile.Top__io_host_in_bits = LIT<64>(htif_in_bits);
 
       if (tile.Top__io_host_out_valid.to_bool())
         htif->send(&tile.Top__io_host_out_bits.values[0], htif_bits/8);
+      tile.Top__io_host_out_ready = LIT<1>(1);
     }
 
   
