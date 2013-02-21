@@ -583,7 +583,6 @@ class MetaDataArray(implicit conf: DCacheConfig) extends Component {
 
   val metabits = io.write.bits.data.state.width + conf.tagbits
   val tags = Mem(conf.sets, seqRead = true) { UFix(width = metabits*conf.ways) }
-  val tag = Reg{UFix()}
 
   when (rst || io.write.valid) {
     val addr = Mux(rst, rst_cnt, io.write.bits.idx)
@@ -591,9 +590,7 @@ class MetaDataArray(implicit conf: DCacheConfig) extends Component {
     val mask = Mux(rst, Fix(-1), io.write.bits.way_en)
     tags.write(addr, Fill(conf.ways, data), FillInterleaved(metabits, mask))
   }
-  when (io.read.valid) {
-    tag := tags(io.read.bits.addr(conf.untagbits-1,conf.offbits))
-  }
+  val tag = tags(RegEn(io.read.bits.addr >> conf.offbits, io.read.valid))
 
   for (w <- 0 until conf.ways) {
     val m = tag(metabits*(w+1)-1, metabits*w)
@@ -619,7 +616,7 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
     for (w <- 0 until conf.ways by conf.wordsperrow) {
       val wway_en = io.write.bits.way_en(w+conf.wordsperrow-1,w)
       val rway_en = io.read.bits.way_en(w+conf.wordsperrow-1,w)
-      val resp = Vec(conf.wordsperrow){Reg{Bits(width = conf.bitsperrow)}}
+      val resp = Vec(conf.wordsperrow){Bits(width = conf.bitsperrow)}
       val r_raddr = RegEn(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
         val array = Mem(conf.sets*REFILL_CYCLES, seqRead = true){ Bits(width=conf.bitsperrow) }
@@ -628,9 +625,7 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
           val mask = FillInterleaved(conf.encdatabits, wway_en)
           array.write(waddr, data, mask)
         }
-        when (rway_en.orR && io.read.valid) {
-          resp(p) := array(raddr)
-        }
+        resp(p) := array(RegEn(raddr, rway_en.orR && io.read.valid))
       }
       for (dw <- 0 until conf.wordsperrow) {
         val r = AVec(resp.map(_(conf.encdatabits*(dw+1)-1,conf.encdatabits*dw)))
@@ -643,15 +638,11 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
   } else {
     val wmask = FillInterleaved(conf.encdatabits, io.write.bits.wmask)
     for (w <- 0 until conf.ways) {
-      val rdata = Reg() { Bits() }
       val array = Mem(conf.sets*REFILL_CYCLES, seqRead = true){ Bits(width=conf.bitsperrow) }
       when (io.write.bits.way_en(w) && io.write.valid) {
         array.write(waddr, io.write.bits.data, wmask)
       }
-      when (io.read.bits.way_en(w) && io.read.valid) {
-        rdata := array(raddr)
-      }
-      io.resp(w) := rdata
+      io.resp(w) := array(RegEn(raddr, io.read.bits.way_en(w) && io.read.valid))
     }
   }
 
