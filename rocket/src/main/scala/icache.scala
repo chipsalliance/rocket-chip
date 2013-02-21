@@ -177,7 +177,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
 
   val enc_tagbits = c.code.width(c.tagbits)
   val tag_array = Mem(c.sets, seqRead = true) { Bits(width = enc_tagbits*c.assoc) }
-  val tag_rdata = Reg() { Bits() }
+  val tag_raddr = Reg{UFix()}
   when (refill_done) {
     val wmask = FillInterleaved(enc_tagbits, if (c.dm) Bits(1) else UFixToOH(repl_way))
     val tag = c.code.encode(s2_tag)
@@ -185,7 +185,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
   }
 //  /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
   .elsewhen (s0_valid) {
-    tag_rdata := tag_array(s0_pgoff(c.untagbits-1,c.offbits))
+    tag_raddr := s0_pgoff(c.untagbits-1,c.offbits)
   }
 
   val vb_array = Reg(resetVal = Bits(0, c.lines))
@@ -209,7 +209,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
     val s2_vb = Reg() { Bool() }
     val s2_tag_disparity = Reg() { Bool() }
     val s2_tag_match = Reg() { Bool() }
-    val tag_out = tag_rdata(enc_tagbits*(i+1)-1, enc_tagbits*i)
+    val tag_out = tag_array(tag_raddr)(enc_tagbits*(i+1)-1, enc_tagbits*i)
     when (s1_valid && rdy && !stall) {
       s2_vb := s1_vb
       s2_tag_disparity := c.code.decode(tag_out).error
@@ -223,17 +223,17 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
 
   for (i <- 0 until c.assoc) {
     val data_array = Mem(c.sets*REFILL_CYCLES, seqRead = true){ Bits(width = c.code.width(c.databits)) }
-    val s1_dout = Reg(){ Bits() }
+    val s1_raddr = Reg{UFix()}
     when (io.mem.grant.valid && repl_way === UFix(i)) {
       val d = io.mem.grant.bits.payload.data
       data_array(Cat(s2_idx,rf_cnt)) := c.code.encode(d)
     }
 //    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
     .elsewhen (s0_valid) {
-      s1_dout := data_array(s0_pgoff(c.untagbits-1,c.offbits-rf_cnt.getWidth))
+      s1_raddr := s0_pgoff(c.untagbits-1,c.offbits-rf_cnt.getWidth)
     }
     // if s1_tag_match is critical, replace with partial tag check
-    when (s1_valid && rdy && !stall && (Bool(c.dm) || s1_tag_match(i))) { s2_dout(i) := s1_dout }
+    when (s1_valid && rdy && !stall && (Bool(c.dm) || s1_tag_match(i))) { s2_dout(i) := data_array(s1_raddr) }
   }
   val s2_dout_word = s2_dout.map(x => (x >> (s2_offset(log2Up(c.databits/8)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8)))(c.ibytes*8-1,0))
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
