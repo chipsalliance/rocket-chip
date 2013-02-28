@@ -106,20 +106,4 @@ class LogicalNetworkIO[T <: Data]()(data: => T)(implicit conf: LogicalNetworkCon
   val payload = data
   override def clone = { new LogicalNetworkIO()(data).asInstanceOf[this.type] }
 }
-
-abstract class DirectionalFIFOIO[T <: Data]()(data: => T) extends FIFOIO()(data)
-class ClientSourcedIO[T <: Data]()(data: => T)  extends DirectionalFIFOIO()(data) 
-class MasterSourcedIO[T <: Data]()(data: => T) extends DirectionalFIFOIO()(data) {flip()}
-
-class TileLinkIO(implicit conf: LogicalNetworkConfiguration) extends Bundle { 
-  val acquire      = (new ClientSourcedIO){(new LogicalNetworkIO){new Acquire }}
-  val acquire_data = (new ClientSourcedIO){(new LogicalNetworkIO){new AcquireData }}
-  val abort     = (new MasterSourcedIO){(new LogicalNetworkIO){new Abort }}
-  val probe      = (new MasterSourcedIO){(new LogicalNetworkIO){new Probe }}
-  val release      = (new ClientSourcedIO){(new LogicalNetworkIO){new Release }}
-  val release_data = (new ClientSourcedIO){(new LogicalNetworkIO){new ReleaseData }}
-  val grant       = (new MasterSourcedIO){(new LogicalNetworkIO){new Grant }}
-  val grant_ack    = (new ClientSourcedIO){(new LogicalNetworkIO){new GrantAck }}
-  override def clone = { new TileLinkIO().asInstanceOf[this.type] }
-}
 }
