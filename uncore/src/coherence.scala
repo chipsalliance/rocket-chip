@@ -49,6 +49,7 @@ abstract class CoherencePolicy {
   def needsMemRead(a_type: UFix, global_state: UFix): Bool
   def needsMemWrite(a_type: UFix, global_state: UFix): Bool
   def needsAckReply(a_type: UFix, global_state: UFix): Bool
+  def needsSelfProbe(acq: Acquire): Bool
   def requiresAck(grant: Grant): Bool
   def requiresAck(release: Release): Bool
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool
@@ -79,6 +80,7 @@ abstract class IncoherentPolicy extends CoherencePolicy {
   def needsMemRead(a_type: UFix, global_state: UFix): Bool = Bool(false)
   def needsMemWrite(a_type: UFix, global_state: UFix): Bool = Bool(false)
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = Bool(false)
+  def needsSelfProbe(acq: Acquire) = Bool(false)
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = Bool(false)
@@ -268,6 +270,7 @@ class MICoherence extends CoherencePolicyWithUncached {
   }
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
+  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
@@ -421,6 +424,7 @@ class MEICoherence extends CoherencePolicyWithUncached {
   }
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
+  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
@@ -578,6 +582,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
   }
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
+  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
@@ -740,6 +745,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
 
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
+  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
@@ -918,6 +924,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   }
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
+  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
