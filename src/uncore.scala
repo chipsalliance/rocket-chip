@@ -105,14 +105,9 @@ class XactTrackerBroadcast(id: Int)(implicit conf: CoherenceHubConfiguration) ex
   val probe_initial_flags = Bits(width = conf.ln.nTiles)
   probe_initial_flags := Bits(0)
   if (conf.ln.nTiles > 1) {
-    // issue self-probes for uncached read xacts to facilitate I$ coherence
-    // TODO: this is hackish; figure out how to do it more systematically
-    val probe_self = co match {
-      case u: CoherencePolicyWithUncached => u.isUncachedReadTransaction(io.alloc_req.bits.acquire)
-      case _ => Bool(false)
-    }
-    val myflag = Mux(probe_self, Bits(0), UFixToOH(io.alloc_req.bits.client_id(log2Up(conf.ln.nTiles)-1,0)))
-    probe_initial_flags := ~(io.tile_incoherent | myflag)
+    val probe_self = co.needsSelfProbe(io.alloc_req.bits.acquire) 
+    val probe_self_flag = Mux(probe_self, Bits(0), UFixToOH(io.alloc_req.bits.client_id(log2Up(conf.ln.nTiles)-1,0)))
+    probe_initial_flags := ~(io.tile_incoherent | probe_self_flag)
   }
 
   io.busy := state != s_idle
