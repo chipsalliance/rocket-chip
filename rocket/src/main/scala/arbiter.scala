@@ -61,29 +61,29 @@ class MemArbiter(n: Int)(implicit conf: LogicalNetworkConfiguration) extends Com
     val requestor = Vec(n) { new UncachedRequestorIO }.flip
   }
 
-  var xi_bits = new Acquire
-  xi_bits := io.requestor(n-1).acquire.bits.payload
-  xi_bits.client_xact_id := Cat(io.requestor(n-1).acquire.bits.payload.client_xact_id, UFix(n-1, log2Up(n)))
+  var acq_bits = new Acquire
+  acq_bits := io.requestor(n-1).acquire.bits.payload
+  acq_bits.client_xact_id := Cat(io.requestor(n-1).acquire.bits.payload.client_xact_id, UFix(n-1, log2Up(n)))
   for (i <- n-2 to 0 by -1)
   {
-    var my_xi_bits = new Acquire
-    my_xi_bits := io.requestor(i).acquire.bits.payload
-    my_xi_bits.client_xact_id := Cat(io.requestor(i).acquire.bits.payload.client_xact_id, UFix(i, log2Up(n)))
+    var my_acq_bits = new Acquire
+    my_acq_bits := io.requestor(i).acquire.bits.payload
+    my_acq_bits.client_xact_id := Cat(io.requestor(i).acquire.bits.payload.client_xact_id, UFix(i, log2Up(n)))
 
-    xi_bits = Mux(io.requestor(i).acquire.valid, my_xi_bits, xi_bits)
+    acq_bits = Mux(io.requestor(i).acquire.valid, my_acq_bits, acq_bits)
   }
 
-  io.mem.acquire.bits.payload := xi_bits
+  io.mem.acquire.bits.payload := acq_bits
   io.mem.acquire.valid := io.requestor.map(_.acquire.valid).reduce(_||_)
   io.requestor(0).acquire.ready := io.mem.acquire.ready
   for (i <- 1 until n)
     io.requestor(i).acquire.ready := io.requestor(i-1).acquire.ready && !io.requestor(i-1).acquire.valid
 
-  var xf_bits = io.requestor(n-1).grant_ack.bits
+  var ga_bits = io.requestor(n-1).grant_ack.bits
   for (i <- n-2 to 0 by -1)
-    xf_bits = Mux(io.requestor(i).grant_ack.valid, io.requestor(i).grant_ack.bits, xf_bits)
+    ga_bits = Mux(io.requestor(i).grant_ack.valid, io.requestor(i).grant_ack.bits, ga_bits)
 
-  io.mem.grant_ack.bits := xf_bits
+  io.mem.grant_ack.bits := ga_bits
   io.mem.grant_ack.valid := io.requestor.map(_.grant_ack.valid).reduce(_||_)
   io.requestor(0).grant_ack.ready := io.mem.grant_ack.ready
   for (i <- 1 until n)

@@ -24,6 +24,7 @@ case class RocketConfiguration(lnConf: LogicalNetworkConfiguration, co: Coherenc
 class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Component(resetSignal) with ClientCoherenceAgent
 {
   val memPorts = 2 + confIn.vec
+  val dcachePortID = 0
   implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(memPorts), databits = confIn.xprlen)
   implicit val lnConf = confIn.lnConf
   implicit val conf = confIn.copy(dcache = dcConf)
@@ -38,7 +39,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   val dcache    = new HellaCache
 
   val arbiter   = new MemArbiter(memPorts)
-  arbiter.io.requestor(0) <> dcache.io.mem
+  arbiter.io.requestor(dcachePortID) <> dcache.io.mem
   arbiter.io.requestor(1) <> icache.io.mem
 
   io.tilelink.acquire <> arbiter.io.mem.acquire
@@ -47,8 +48,11 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   arbiter.io.mem.grant <> io.tilelink.grant
   io.tilelink.grant_ack <> arbiter.io.mem.grant_ack
   dcache.io.mem.probe <> io.tilelink.probe
-  io.tilelink.release <> dcache.io.mem.release
   io.tilelink.release_data <> dcache.io.mem.release_data
+  io.tilelink.release.valid   := dcache.io.mem.release.valid
+  dcache.io.mem.release.ready := io.tilelink.release.ready
+  io.tilelink.release.bits := dcache.io.mem.release.bits
+  io.tilelink.release.bits.payload.client_xact_id :=  Cat(dcache.io.mem.release.bits.payload.client_xact_id, UFix(dcachePortID, log2Up(memPorts))) // Mimic client id extension done by MemArbiter for Acquires from either cache)
 
   if (conf.vec) {
     val vicache = new Frontend()(ICacheConfig(128, 1, conf.co), lnConf) // 128 sets x 1 ways (8KB)
