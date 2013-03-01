@@ -10,7 +10,7 @@ import hwacha._
 class Datapath(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
-    val host  = new HTIFIO(conf.lnConf.nTiles)
+    val host  = new HTIFIO(conf.lnConf.nClients)
     val ctrl  = (new CtrlDpathIO).flip
     val dmem = new HellaCacheIO()(conf.dcache)
     val ptw = (new DatapathPTWIO).flip

@@ -41,7 +41,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   implicit val lnConf = conf.ln
   val io = new Bundle {
     val host = new HostIO(w)
-    val cpu = Vec(conf.ln.nTiles) { new HTIFIO(conf.ln.nTiles).flip }
+    val cpu = Vec(conf.ln.nClients) { new HTIFIO(conf.ln.nClients).flip }
     val mem = new TileLinkIO()(conf.ln)
   }
 
@@ -82,7 +82,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(6) { UFix() }
 
   val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.width-1, 0)
-  val pcr_coreid = if (conf.ln.nTiles == 1) UFix(0) else addr(20+log2Up(conf.ln.nTiles),20)
+  val pcr_coreid = if (conf.ln.nClients == 1) UFix(0) else addr(20+log2Up(conf.ln.nClients),20)
   val pcr_wdata = packet_ram(0)
 
   val bad_mem_packet = size(OFFSET_BITS-1-3,0).orR || addr(OFFSET_BITS-1-3,0).orR
@@ -182,19 +182,19 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   io.mem.release.valid := Bool(false)
   io.mem.release_data.valid := Bool(false)
 
-  io.mem.acquire.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.acquire.bits.header.src := UFix(conf.ln.nClients)
   io.mem.acquire.bits.header.dst := UFix(0)
-  io.mem.acquire_data.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.acquire_data.bits.header.src := UFix(conf.ln.nClients)
   io.mem.acquire_data.bits.header.dst := UFix(0)
-  io.mem.release.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.release.bits.header.src := UFix(conf.ln.nClients)
   io.mem.release.bits.header.dst := UFix(0)
-  io.mem.release_data.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.release_data.bits.header.src := UFix(conf.ln.nClients)
   io.mem.release_data.bits.header.dst := UFix(0)
-  io.mem.grant_ack.bits.header.src := UFix(conf.ln.nTiles)
+  io.mem.grant_ack.bits.header.src := UFix(conf.ln.nClients)
   io.mem.grant_ack.bits.header.dst := UFix(0)
 
-  val pcrReadData = Vec(conf.ln.nTiles) { Reg() { Bits(width = io.cpu(0).pcr_rep.bits.getWidth) } }
-  for (i <- 0 until conf.ln.nTiles) {
+  val pcrReadData = Vec(conf.ln.nClients) { Reg() { Bits(width = io.cpu(0).pcr_rep.bits.getWidth) } }
+  for (i <- 0 until conf.ln.nClients) {
     val my_reset = Reg(resetVal = Bool(true))
     val my_ipi = Reg(resetVal = Bool(false))
 
@@ -211,7 +211,7 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
     }
     cpu.ipi_rep.valid := my_ipi
     cpu.ipi_req.ready := Bool(true)
-    for (j <- 0 until conf.ln.nTiles) {
+    for (j <- 0 until conf.ln.nClients) {
       when (io.cpu(j).ipi_req.valid && io.cpu(j).ipi_req.bits === UFix(i)) {
         my_ipi := Bool(true)
       }
