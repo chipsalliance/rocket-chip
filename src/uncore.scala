@@ -24,9 +24,9 @@ class XactTrackerBroadcast(id: Int)(implicit conf: CoherenceHubConfiguration) ex
     val p_data          = (new PipeIO) { new TrackerProbeData }.flip
     val can_alloc       = Bool(INPUT)
     val grant_ack     = Bool(INPUT)
-    val release_cnt_dec   = Bits(INPUT, conf.ln.nTiles)
-    val probe_cnt_inc   = Bits(INPUT, conf.ln.nTiles)
-    val tile_incoherent = Bits(INPUT, conf.ln.nTiles)
+    val release_cnt_dec   = Bits(INPUT, conf.ln.nClients)
+    val probe_cnt_inc   = Bits(INPUT, conf.ln.nClients)
+    val tile_incoherent = Bits(INPUT, conf.ln.nClients)
     val release_data      = (new PipeIO) { new ReleaseData }.flip
     val acquire_data     = (new PipeIO) { new AcquireData }.flip
     val sent_grant_ack  = Bool(INPUT)
@@ -44,13 +44,13 @@ class XactTrackerBroadcast(id: Int)(implicit conf: CoherenceHubConfiguration) ex
     val client_xact_id    = Bits(OUTPUT, CLIENT_XACT_ID_BITS)
     val sharer_count    = Bits(OUTPUT, conf.ln.idBits+1)
     val a_type          = Bits(OUTPUT, ACQUIRE_TYPE_MAX_BITS)
-    val push_probe      = Bits(OUTPUT, conf.ln.nTiles)
-    val pop_release       = Bits(OUTPUT, conf.ln.nTiles)
-    val pop_release_data  = Bits(OUTPUT, conf.ln.nTiles)
-    val pop_release_dep   = Bits(OUTPUT, conf.ln.nTiles)
-    val pop_acquire      = Bits(OUTPUT, conf.ln.nTiles)
-    val pop_acquire_data = Bits(OUTPUT, conf.ln.nTiles)
-    val pop_acquire_dep  = Bits(OUTPUT, conf.ln.nTiles)
+    val push_probe      = Bits(OUTPUT, conf.ln.nClients)
+    val pop_release       = Bits(OUTPUT, conf.ln.nClients)
+    val pop_release_data  = Bits(OUTPUT, conf.ln.nClients)
+    val pop_release_dep   = Bits(OUTPUT, conf.ln.nClients)
+    val pop_acquire      = Bits(OUTPUT, conf.ln.nClients)
+    val pop_acquire_data = Bits(OUTPUT, conf.ln.nClients)
+    val pop_acquire_dep  = Bits(OUTPUT, conf.ln.nClients)
     val send_grant_ack  = Bool(OUTPUT)
   }
 
@@ -91,8 +91,8 @@ class XactTrackerBroadcast(id: Int)(implicit conf: CoherenceHubConfiguration) ex
   val state = Reg(resetVal = s_idle)
   val xact  = Reg{ new Acquire }
   val init_client_id_ = Reg{ Bits() }
-  val release_count = if (conf.ln.nTiles == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2Up(conf.ln.nTiles)))
-  val probe_flags = Reg(resetVal = Bits(0, width = conf.ln.nTiles))
+  val release_count = if (conf.ln.nClients == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
+  val probe_flags = Reg(resetVal = Bits(0, width = conf.ln.nClients))
   val release_client_id_ = Reg{ Bits() }
   val x_needs_read = Reg(resetVal = Bool(false))
   val acquire_data_needs_write = Reg(resetVal = Bool(false))
@@ -102,11 +102,11 @@ class XactTrackerBroadcast(id: Int)(implicit conf: CoherenceHubConfiguration) ex
   val mem_cnt = Reg(resetVal = UFix(0, width = log2Up(REFILL_CYCLES)))
   val mem_cnt_next = mem_cnt + UFix(1)
   val mem_cnt_max = ~UFix(0, width = log2Up(REFILL_CYCLES))
-  val probe_initial_flags = Bits(width = conf.ln.nTiles)
+  val probe_initial_flags = Bits(width = conf.ln.nClients)
   probe_initial_flags := Bits(0)
-  if (conf.ln.nTiles > 1) {
+  if (conf.ln.nClients > 1) {
     val probe_self = co.needsSelfProbe(io.alloc_req.bits.acquire) 
-    val probe_self_flag = Mux(probe_self, Bits(0), UFixToOH(io.alloc_req.bits.client_id(log2Up(conf.ln.nTiles)-1,0)))
+    val probe_self_flag = Mux(probe_self, Bits(0), UFixToOH(io.alloc_req.bits.client_id(log2Up(conf.ln.nClients)-1,0)))
     probe_initial_flags := ~(io.tile_incoherent | probe_self_flag)
   }
 
@@ -115,7 +115,7 @@ class XactTrackerBroadcast(id: Int)(implicit conf: CoherenceHubConfiguration) ex
   io.init_client_id := init_client_id_
   io.release_client_id := release_client_id_
   io.client_xact_id := xact.client_xact_id
-  io.sharer_count := UFix(conf.ln.nTiles) // TODO: Broadcast only
+  io.sharer_count := UFix(conf.ln.nClients) // TODO: Broadcast only
   io.a_type := xact.a_type
 
   io.mem_req_cmd.valid := Bool(false)
@@ -129,13 +129,13 @@ class XactTrackerBroadcast(id: Int)(implicit conf: CoherenceHubConfiguration) ex
   io.probe.bits.p_type := co.getProbeType(xact.a_type, UFix(0))
   io.probe.bits.master_xact_id  := UFix(id)
   io.probe.bits.addr := xact.addr
-  io.push_probe      := Bits(0, width = conf.ln.nTiles)
-  io.pop_release       := Bits(0, width = conf.ln.nTiles)
-  io.pop_release_data  := Bits(0, width = conf.ln.nTiles)
-  io.pop_release_dep   := Bits(0, width = conf.ln.nTiles)
-  io.pop_acquire      := Bits(0, width = conf.ln.nTiles)
-  io.pop_acquire_data := Bits(0, width = conf.ln.nTiles)
-  io.pop_acquire_dep  := Bits(0, width = conf.ln.nTiles)
+  io.push_probe      := Bits(0, width = conf.ln.nClients)
+  io.pop_release       := Bits(0, width = conf.ln.nClients)
+  io.pop_release_data  := Bits(0, width = conf.ln.nClients)
+  io.pop_release_dep   := Bits(0, width = conf.ln.nClients)
+  io.pop_acquire      := Bits(0, width = conf.ln.nClients)
+  io.pop_acquire_data := Bits(0, width = conf.ln.nClients)
+  io.pop_acquire_dep  := Bits(0, width = conf.ln.nClients)
   io.send_grant_ack  := Bool(false)
 
   switch (state) {
@@ -150,7 +150,7 @@ class XactTrackerBroadcast(id: Int)(implicit conf: CoherenceHubConfiguration) ex
         p_w_mem_cmd_sent := Bool(false)
         x_w_mem_cmd_sent := Bool(false)
         io.pop_acquire := UFix(1) << io.alloc_req.bits.client_id
-        if(conf.ln.nTiles > 1) {
+        if(conf.ln.nClients > 1) {
           release_count := PopCount(probe_initial_flags)
           state := Mux(probe_initial_flags.orR, s_probe, s_mem)
         } else state := s_mem
@@ -167,7 +167,7 @@ class XactTrackerBroadcast(id: Int)(implicit conf: CoherenceHubConfiguration) ex
       when(io.release_cnt_dec.orR) {
         val dec = PopCount(io.release_cnt_dec)
         io.pop_release := io.release_cnt_dec
-        if(conf.ln.nTiles > 1) release_count := release_count - dec
+        if(conf.ln.nClients > 1) release_count := release_count - dec
         when(release_count === dec) {
           state := s_mem
         }
@@ -223,7 +223,7 @@ case class CoherenceHubConfiguration(co: CoherencePolicy, ln: LogicalNetworkConf
 class CoherenceHubAdapter(implicit conf: LogicalNetworkConfiguration) extends Component with MasterCoherenceAgent {
   val io = new Bundle {
     val net = (new TileLinkIO).flip
-    val hub = Vec(conf.nTiles) { new TileLinkIO }
+    val hub = Vec(conf.nClients) { new TileLinkIO }
   }
 
   val netClientProducedSubBundles = io.net.getClass.getMethods.filter( x =>
@@ -259,8 +259,8 @@ class CoherenceHubAdapter(implicit conf: LogicalNetworkConfiguration) extends Co
 
 abstract class CoherenceHub(implicit conf: LogicalNetworkConfiguration) extends Component with MasterCoherenceAgent {
   val io = new Bundle {
-    val tiles = Vec(conf.nTiles) { new TileLinkIO }.flip
-    val incoherent = Vec(conf.nTiles) { Bool() }.asInput
+    val tiles = Vec(conf.nClients) { new TileLinkIO }.flip
+    val incoherent = Vec(conf.nClients) { Bool() }.asInput
     val mem = new ioMem
   }
 }
@@ -307,8 +307,8 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
   val send_grant_ack_arr = Vec(NGLOBAL_XACTS){ Bool() }
 
   val do_free_arr        = Vec(NGLOBAL_XACTS){ Bool() }
-  val release_cnt_dec_arr  = VecBuf(NGLOBAL_XACTS){ Vec(conf.ln.nTiles){ Bool()}  }
-  val probe_cnt_inc_arr  = VecBuf(NGLOBAL_XACTS){ Vec(conf.ln.nTiles){ Bool()}  }
+  val release_cnt_dec_arr  = VecBuf(NGLOBAL_XACTS){ Vec(conf.ln.nClients){ Bool()}  }
+  val probe_cnt_inc_arr  = VecBuf(NGLOBAL_XACTS){ Vec(conf.ln.nClients){ Bool()}  }
   val sent_grant_ack_arr = Vec(NGLOBAL_XACTS){  Bool() }
   val p_data_client_id_arr = Vec(NGLOBAL_XACTS){  Bits(width=conf.ln.idBits) }
   val p_data_valid_arr   = Vec(NGLOBAL_XACTS){  Bool() }
@@ -333,17 +333,17 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
     sent_grant_ack_arr(i) := Bool(false)
     p_data_client_id_arr(i) := Bits(0, width = conf.ln.idBits)
     p_data_valid_arr(i)   := Bool(false)
-    for( j <- 0 until conf.ln.nTiles) {
+    for( j <- 0 until conf.ln.nClients) {
       release_cnt_dec_arr(i)(j) := Bool(false)    
       probe_cnt_inc_arr(i)(j) := Bool(false)
     }
   }
 
-  val release_data_dep_list = List.fill(conf.ln.nTiles)((new Queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth must >= NPRIMARY
-  val acquire_data_dep_list = List.fill(conf.ln.nTiles)((new Queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth should >= NPRIMARY
+  val release_data_dep_list = List.fill(conf.ln.nClients)((new Queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth must >= NPRIMARY
+  val acquire_data_dep_list = List.fill(conf.ln.nClients)((new Queue(NGLOBAL_XACTS)){new TrackerDependency}) // depth should >= NPRIMARY
 
   // Free finished transactions
-  for( j <- 0 until conf.ln.nTiles ) {
+  for( j <- 0 until conf.ln.nClients ) {
     val ack = io.tiles(j).grant_ack
     when (ack.valid) {
       do_free_arr(ack.bits.payload.master_xact_id) := Bool(true)
@@ -355,7 +355,7 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
   // Forward memory responses from mem to tile or arbitrate to  ack
   val mem_idx = io.mem.resp.bits.tag
   val ack_idx = PriorityEncoder(send_grant_ack_arr.toBits)
-  for( j <- 0 until conf.ln.nTiles ) {
+  for( j <- 0 until conf.ln.nClients ) {
     val rep = io.tiles(j).grant
     rep.bits.payload.g_type := UFix(0)
     rep.bits.payload.client_xact_id := UFix(0)
@@ -393,7 +393,7 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
   io.mem.req_data <> Queue(mem_req_data_arb.io.out)
   
   // Handle probe replies, which may or may not have data
-  for( j <- 0 until conf.ln.nTiles ) {
+  for( j <- 0 until conf.ln.nClients ) {
     val release = io.tiles(j).release
     val release_data = io.tiles(j).release_data
     val idx = release.bits.payload.master_xact_id
@@ -413,10 +413,10 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
     trackerList(i).io.release_data.valid := io.tiles(trackerList(i).io.release_client_id).release_data.valid
     trackerList(i).io.release_data.bits := io.tiles(trackerList(i).io.release_client_id).release_data.bits.payload
 
-    trackerList(i).io.release_data_dep.valid := MuxLookup(trackerList(i).io.release_client_id, release_data_dep_list(0).io.deq.valid, (0 until conf.ln.nTiles).map( j => UFix(j) -> release_data_dep_list(j).io.deq.valid))
-    trackerList(i).io.release_data_dep.bits := MuxLookup(trackerList(i).io.release_client_id, release_data_dep_list(0).io.deq.bits, (0 until conf.ln.nTiles).map( j => UFix(j) -> release_data_dep_list(j).io.deq.bits))
+    trackerList(i).io.release_data_dep.valid := MuxLookup(trackerList(i).io.release_client_id, release_data_dep_list(0).io.deq.valid, (0 until conf.ln.nClients).map( j => UFix(j) -> release_data_dep_list(j).io.deq.valid))
+    trackerList(i).io.release_data_dep.bits := MuxLookup(trackerList(i).io.release_client_id, release_data_dep_list(0).io.deq.bits, (0 until conf.ln.nClients).map( j => UFix(j) -> release_data_dep_list(j).io.deq.bits))
 
-    for( j <- 0 until conf.ln.nTiles) {
+    for( j <- 0 until conf.ln.nClients) {
       val release = io.tiles(j).release
       release_cnt_dec_arr(i)(j) := release.valid && (release.bits.payload.master_xact_id === UFix(i))
     }
@@ -426,7 +426,7 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
   // Only one allocation per cycle
   // Init requests may or may not have data
   val alloc_arb = (new Arbiter(NGLOBAL_XACTS)) { Bool() }
-  val init_arb = (new Arbiter(conf.ln.nTiles)) { new TrackerAllocReq }
+  val init_arb = (new Arbiter(conf.ln.nClients)) { new TrackerAllocReq }
   for( i <- 0 until NGLOBAL_XACTS ) {
     alloc_arb.io.in(i).valid := !trackerList(i).io.busy
     trackerList(i).io.can_alloc := alloc_arb.io.in(i).ready
@@ -435,10 +435,10 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
 
     trackerList(i).io.acquire_data.bits := io.tiles(trackerList(i).io.init_client_id).acquire_data.bits.payload
     trackerList(i).io.acquire_data.valid := io.tiles(trackerList(i).io.init_client_id).acquire_data.valid
-    trackerList(i).io.acquire_data_dep.bits := MuxLookup(trackerList(i).io.init_client_id, acquire_data_dep_list(0).io.deq.bits, (0 until conf.ln.nTiles).map( j => UFix(j) -> acquire_data_dep_list(j).io.deq.bits))
-    trackerList(i).io.acquire_data_dep.valid := MuxLookup(trackerList(i).io.init_client_id, acquire_data_dep_list(0).io.deq.valid, (0 until conf.ln.nTiles).map( j => UFix(j) -> acquire_data_dep_list(j).io.deq.valid))
+    trackerList(i).io.acquire_data_dep.bits := MuxLookup(trackerList(i).io.init_client_id, acquire_data_dep_list(0).io.deq.bits, (0 until conf.ln.nClients).map( j => UFix(j) -> acquire_data_dep_list(j).io.deq.bits))
+    trackerList(i).io.acquire_data_dep.valid := MuxLookup(trackerList(i).io.init_client_id, acquire_data_dep_list(0).io.deq.valid, (0 until conf.ln.nClients).map( j => UFix(j) -> acquire_data_dep_list(j).io.deq.valid))
   }
-  for( j <- 0 until conf.ln.nTiles ) {
+  for( j <- 0 until conf.ln.nClients ) {
     val acquire = io.tiles(j).acquire
     val acquire_data = io.tiles(j).acquire_data
     val acquire_data_dep = acquire_data_dep_list(j).io.deq
@@ -457,8 +457,8 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
 
   // Handle probe request generation
   // Must arbitrate for each request port
-  val probe_arb_arr = List.fill(conf.ln.nTiles)((new Arbiter(NGLOBAL_XACTS)) { new Probe() })
-  for( j <- 0 until conf.ln.nTiles ) {
+  val probe_arb_arr = List.fill(conf.ln.nClients)((new Arbiter(NGLOBAL_XACTS)) { new Probe() })
+  for( j <- 0 until conf.ln.nClients ) {
     for( i <- 0 until NGLOBAL_XACTS ) {
       val t = trackerList(i).io
       probe_arb_arr(j).io.in(i).bits :=  t.probe.bits
@@ -473,7 +473,7 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
 abstract class CoherenceAgent(implicit conf: LogicalNetworkConfiguration) extends Component with MasterCoherenceAgent {
   val io = new Bundle {
     val network = (new TileLinkIO).flip
-    val incoherent = Vec(conf.nTiles) { Bool() }.asInput
+    val incoherent = Vec(conf.nClients) { Bool() }.asInput
     val mem = new ioMem
   }
 }
@@ -604,7 +604,7 @@ abstract class XactTracker(id: Int)(implicit conf: CoherenceHubConfiguration) ex
     val release           = (new FIFOIO){(new LogicalNetworkIO) { new Release }}.flip
     val release_data      = (new FIFOIO){(new LogicalNetworkIO) { new ReleaseData }}.flip
     val free            = Bool(INPUT)
-    val tile_incoherent = Bits(INPUT, conf.ln.nTiles)
+    val tile_incoherent = Bits(INPUT, conf.ln.nClients)
     val release_data_dep  = (new FIFOIO) { new TrackerDependency }.flip
     val acquire_data_dep = (new FIFOIO) { new TrackerDependency }.flip
     val mem_resp        = (new FIFOIO) { new MemResp }.flip
@@ -624,7 +624,7 @@ class WritebackTracker(id: Int)(implicit conf: CoherenceHubConfiguration) extend
   val s_idle :: s_mem :: s_ack :: s_busy :: Nil = Enum(4){ UFix() }
   val state = Reg(resetVal = s_idle)
   val xact  = Reg{ new Release }
-  val init_client_id_ = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nTiles)))
+  val init_client_id_ = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
   val release_data_needs_write = Reg(resetVal = Bool(false))
   val mem_cmd_sent = Reg(resetVal = Bool(false))
 
@@ -688,27 +688,27 @@ class AcquireTracker(id: Int)(implicit conf: CoherenceHubConfiguration) extends 
   val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(5){ UFix() }
   val state = Reg(resetVal = s_idle)
   val xact  = Reg{ new Acquire }
-  val init_client_id_ = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nTiles)))
+  val init_client_id_ = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
   //TODO: Will need id reg for merged release xacts
-  val init_sharer_cnt_ = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nTiles)))
+  val init_sharer_cnt_ = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
   val grant_type = co.getGrantType(xact.a_type, init_sharer_cnt_)
-  val release_count = if (conf.ln.nTiles == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2Up(conf.ln.nTiles)))
-  val probe_flags = Reg(resetVal = Bits(0, width = conf.ln.nTiles))
+  val release_count = if (conf.ln.nClients == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
+  val probe_flags = Reg(resetVal = Bits(0, width = conf.ln.nClients))
   val x_needs_read = Reg(resetVal = Bool(false))
   val acquire_data_needs_write = Reg(resetVal = Bool(false))
   val release_data_needs_write = Reg(resetVal = Bool(false))
   val x_w_mem_cmd_sent = Reg(resetVal = Bool(false))
   val p_w_mem_cmd_sent = Reg(resetVal = Bool(false))
-  val probe_initial_flags = Bits(width = conf.ln.nTiles)
+  val probe_initial_flags = Bits(width = conf.ln.nClients)
   probe_initial_flags := Bits(0)
-  if (conf.ln.nTiles > 1) {
+  if (conf.ln.nClients > 1) {
     // issue self-probes for uncached read xacts to facilitate I$ coherence
     // TODO: this is hackish; figure out how to do it more systematically
     val probe_self = co match {
       case u: CoherencePolicyWithUncached => u.isUncachedReadTransaction(io.acquire.bits.payload)
       case _ => Bool(false)
     }
-    val myflag = Mux(probe_self, Bits(0), UFixToOH(io.acquire.bits.header.src(log2Up(conf.ln.nTiles)-1,0)))
+    val myflag = Mux(probe_self, Bits(0), UFixToOH(io.acquire.bits.header.src(log2Up(conf.ln.nClients)-1,0)))
     probe_initial_flags := ~(io.tile_incoherent | myflag)
   }
 
@@ -746,7 +746,7 @@ class AcquireTracker(id: Int)(implicit conf: CoherenceHubConfiguration) extends 
       when( io.acquire.valid ) {
         xact := io.acquire.bits.payload
         init_client_id_ := io.acquire.bits.header.src
-        init_sharer_cnt_ := UFix(conf.ln.nTiles) // TODO: Broadcast only
+        init_sharer_cnt_ := UFix(conf.ln.nClients) // TODO: Broadcast only
         acquire_data_needs_write := co.messageHasData(io.acquire.bits.payload)
         x_needs_read := co.needsMemRead(io.acquire.bits.payload.a_type, UFix(0))
         probe_flags := probe_initial_flags
@@ -754,7 +754,7 @@ class AcquireTracker(id: Int)(implicit conf: CoherenceHubConfiguration) extends 
         p_w_mem_cmd_sent := Bool(false)
         x_w_mem_cmd_sent := Bool(false)
         io.acquire.ready := Bool(true)
-        if(conf.ln.nTiles > 1) {
+        if(conf.ln.nClients > 1) {
           release_count := PopCount(probe_initial_flags)
           state := Mux(probe_initial_flags.orR, s_probe, s_mem)
         } else state := s_mem
@@ -771,7 +771,7 @@ class AcquireTracker(id: Int)(implicit conf: CoherenceHubConfiguration) extends 
       }
       when(io.release.valid) {
         io.release.ready := Bool(true)
-        if(conf.ln.nTiles > 1) release_count := release_count - UFix(1)
+        if(conf.ln.nClients > 1) release_count := release_count - UFix(1)
         when(release_count === UFix(1)) {
           state := s_mem
         }
