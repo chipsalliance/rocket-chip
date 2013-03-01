@@ -31,7 +31,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
 
   val io = new Bundle {
     val tilelink = new TileLinkIO
-    val host = new HTIFIO(lnConf.nTiles)
+    val host = new HTIFIO(lnConf.nClients)
   }
 
   val core      = new Core
