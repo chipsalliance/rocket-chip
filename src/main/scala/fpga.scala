@@ -11,20 +11,20 @@ class FPGAUncore(htif_width: Int)(implicit conf: CoherenceHubConfiguration) exte
   val io = new Bundle {
     val host = new HostIO(htif_width)
     val mem = new ioMem
-    val tiles = Vec(conf.ln.nTiles) { new TileLinkIO()(conf.ln) }.flip
-    val htif = Vec(conf.ln.nTiles) { new HTIFIO(conf.ln.nTiles) }.flip
-    val incoherent = Vec(conf.ln.nTiles) { Bool() }.asInput
+    val tiles = Vec(conf.ln.nClients) { new TileLinkIO()(conf.ln) }.flip
+    val htif = Vec(conf.ln.nClients) { new HTIFIO(conf.ln.nClients) }.flip
+    val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
   }
 
   val htif = new rocketHTIF(htif_width)
   htif.io.cpu <> io.htif
   io.host <> htif.io.host
 
-  val lnWithHtif = conf.ln.copy(nEndpoints = conf.ln.nEndpoints+1, nTiles = conf.ln.nTiles+1)
+  val lnWithHtif = conf.ln.copy(nEndpoints = conf.ln.nEndpoints+1, nClients = conf.ln.nClients+1)
   val hub = new CoherenceHubBroadcast()(conf.copy(ln = lnWithHtif))
-  for (i <- 0 until conf.ln.nTiles)
+  for (i <- 0 until conf.ln.nClients)
     hub.io.tiles(i) <> io.tiles(i)
-  hub.io.tiles(conf.ln.nTiles) <> htif.io.mem
+  hub.io.tiles(conf.ln.nClients) <> htif.io.mem
   hub.io.incoherent <> io.incoherent
 
   io.mem.req_cmd <> Queue(hub.io.mem.req_cmd)
@@ -44,17 +44,17 @@ class FPGATop extends Component {
   implicit val uconf = CoherenceHubConfiguration(co, lnConf)
   val uncore = new FPGAUncore(htif_width = htif_width)
 
-  val resetSigs = Vec(uconf.ln.nTiles){ Bool() }
+  val resetSigs = Vec(uconf.ln.nClients){ Bool() }
   val ic = ICacheConfig(64, 1, co, ntlb = 4, nbtb = 4)
   val dc = DCacheConfig(64, 1, co, ntlb = 4,
                         nmshr = 2, nrpq = 16, nsdq = 17)
   val rc = RocketConfiguration(uconf.ln, co, ic, dc,
                                fastMulDiv = false,
                                fpu = false, vec = false)
-  val tileList = (0 until uconf.ln.nTiles).map(r => new Tile(resetSignal = resetSigs(r))(rc))
+  val tileList = (0 until uconf.ln.nClients).map(r => new Tile(resetSignal = resetSigs(r))(rc))
 
   io.debug.error_mode := Bool(false)
-  for (i <- 0 until uconf.ln.nTiles) {
+  for (i <- 0 until uconf.ln.nClients) {
     val hl = uncore.io.htif(i)
     val tl = uncore.io.tiles(i)
     val il = uncore.io.incoherent(i)

@@ -22,7 +22,7 @@ class TileToCrossbarShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetwork
     val in  = (new ClientSourcedIO){(new LogicalNetworkIO){ data }}.flip
     val out = (new FIFOIO){(new BasicCrossbarIO){ data }}
   }
-  io.out.bits.header.src := io.in.bits.header.src + UFix(lconf.nHubs)
+  io.out.bits.header.src := io.in.bits.header.src + UFix(lconf.nMasters)
   io.out.bits.header.dst := io.in.bits.header.dst 
   io.out.bits.payload := io.in.bits.payload
   io.out.valid := io.in.valid
@@ -42,7 +42,7 @@ class HubToCrossbarShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkC
     val out = (new FIFOIO){(new BasicCrossbarIO){ data }}
   }
   io.out.bits.header.src := io.in.bits.header.src
-  io.out.bits.header.dst := io.in.bits.header.dst + UFix(lconf.nHubs)
+  io.out.bits.header.dst := io.in.bits.header.dst + UFix(lconf.nMasters)
   io.out.bits.payload := io.in.bits.payload
   io.out.valid := io.in.valid
   io.in.ready := io.out.ready
@@ -61,7 +61,7 @@ class CrossbarToTileShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetwork
     val out = (new ClientSourcedIO){(new LogicalNetworkIO){ data }}
   }
   io.out.bits.header.src := io.in.bits.header.src
-  io.out.bits.header.dst := io.in.bits.header.dst - UFix(lconf.nHubs)
+  io.out.bits.header.dst := io.in.bits.header.dst - UFix(lconf.nMasters)
   io.out.bits.payload := io.in.bits.payload
   io.out.valid := io.in.valid
   io.in.ready := io.out.ready
@@ -79,7 +79,7 @@ class CrossbarToHubShim[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkC
     val in  = (new FIFOIO){(new BasicCrossbarIO){ data }}.flip
     val out = (new MasterSourcedIO){(new LogicalNetworkIO){ data }}.flip
   }
-  io.out.bits.header.src := io.in.bits.header.src - UFix(lconf.nHubs)
+  io.out.bits.header.src := io.in.bits.header.src - UFix(lconf.nMasters)
   io.out.bits.header.dst := io.in.bits.header.dst
   io.out.bits.payload := io.in.bits.payload
   io.out.valid := io.in.valid
@@ -201,9 +201,9 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent
 {
   implicit val lnconf = conf.ln
   val io = new Bundle {
-    val tiles = Vec(conf.ln.nTiles) { new TileLinkIO }.flip
+    val tiles = Vec(conf.ln.nClients) { new TileLinkIO }.flip
     val htif = (new TileLinkIO).flip
-    val incoherent = Vec(conf.ln.nTiles) { Bool() }.asInput
+    val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
     val mem = new ioMemPipe
@@ -213,9 +213,9 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent
 
   val lnWithHtifConf = conf.ln.copy(nEndpoints = conf.ln.nEndpoints+1, 
                                     idBits = log2Up(conf.ln.nEndpoints+1)+1,
-                                    nTiles = conf.ln.nTiles+1)
+                                    nClients = conf.ln.nClients+1)
   val chWithHtifConf = conf.copy(ln = lnWithHtifConf)
-  require(tileEndpoints.length == lnWithHtifConf.nTiles)
+  require(tileEndpoints.length == lnWithHtifConf.nClients)
   //val hub = new CoherenceHubBroadcast()(chWithHtifConf)
   val llc_tag_leaf = Mem(1024, seqRead = true) { Bits(width = 72) }
   val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
@@ -231,14 +231,14 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent
   //hub.io.tiles <> adapter.io.hub
   hub.io.network <> net.io(0)
 
-  for (i <- 1 to conf.ln.nTiles) {
+  for (i <- 1 to conf.ln.nClients) {
     net.io(i) <> io.tiles(i-1)
     //hub.io.tiles(i-1) <> io.tiles(i-1)
     hub.io.incoherent(i-1) := io.incoherent(i-1)
   }
-  net.io(conf.ln.nTiles+1) <> io.htif
-  //hub.io.tiles(conf.ln.nTiles) <> io.htif
-  hub.io.incoherent(conf.ln.nTiles) := Bool(true)
+  net.io(conf.ln.nClients+1) <> io.htif
+  //hub.io.tiles(conf.ln.nClients) <> io.htif
+  hub.io.incoherent(conf.ln.nClients) := Bool(true)
 
   llc.io.cpu.req_cmd <> Queue(hub.io.mem.req_cmd)
   llc.io.cpu.req_data <> Queue(hub.io.mem.req_data, REFILL_CYCLES)
@@ -276,9 +276,9 @@ class Uncore(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent])(implicit
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
     val mem = new ioMemPipe
-    val tiles = Vec(conf.ln.nTiles) { new TileLinkIO }.flip
-    val htif = Vec(conf.ln.nTiles) { new HTIFIO(conf.ln.nTiles) }.flip
-    val incoherent = Vec(conf.ln.nTiles) { Bool() }.asInput
+    val tiles = Vec(conf.ln.nClients) { new TileLinkIO }.flip
+    val htif = Vec(conf.ln.nClients) { new HTIFIO(conf.ln.nClients) }.flip
+    val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
   }
 
   val htif = new rocketHTIF(htif_width)
