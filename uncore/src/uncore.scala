@@ -290,7 +290,6 @@ class CoherenceHubNull(implicit conf: CoherenceHubConfiguration) extends Coheren
   grant.bits.payload.data := io.mem.resp.bits.data
   grant.valid := io.mem.resp.valid || acquire.valid && is_write && io.mem.req_cmd.ready
 
-  io.tiles(0).abort.valid := Bool(false)
   io.tiles(0).grant_ack.ready := Bool(true)
   io.tiles(0).probe.valid := Bool(false)
   io.tiles(0).release.ready := Bool(true)
@@ -427,51 +426,6 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
       release_cnt_dec_arr(i)(j) := release.valid && (release.bits.payload.master_xact_id === UFix(i))
     }
   }
-
-  // Nack conflicting transaction init attempts
-  val s_idle :: s_abort_drain :: s_abort_send :: Nil = Enum(3){ UFix() }
-  val abort_state_arr = Vec(conf.ln.nTiles) { Reg(resetVal = s_idle) }
-  val want_to_abort_arr = Vec(conf.ln.nTiles) { Bool() }
-  for( j <- 0 until conf.ln.nTiles ) {
-    val acquire = io.tiles(j).acquire
-    val acquire_data = io.tiles(j).acquire_data
-    val x_abort  = io.tiles(j).abort
-    val abort_cnt = Reg(resetVal = UFix(0, width = log2Up(REFILL_CYCLES)))
-    val conflicts = Vec(NGLOBAL_XACTS) { Bool() }
-    for( i <- 0 until NGLOBAL_XACTS) {
-      val t = trackerList(i).io
-      conflicts(i) := t.busy && acquire.valid && co.isCoherenceConflict(t.addr, acquire.bits.payload.addr)
-    }
-    x_abort.bits.payload.client_xact_id := acquire.bits.payload.client_xact_id
-    want_to_abort_arr(j) := acquire.valid && (conflicts.toBits.orR || busy_arr.toBits.andR || (!acquire_data_dep_list(j).io.enq.ready && co.messageHasData(acquire.bits.payload)))
-    
-    x_abort.valid := Bool(false)
-    switch(abort_state_arr(j)) {
-      is(s_idle) {
-        when(want_to_abort_arr(j)) {
-          when(co.messageHasData(acquire.bits.payload)) {
-            abort_state_arr(j) := s_abort_drain
-          } . otherwise {
-            abort_state_arr(j) := s_abort_send
-          }
-        }
-      }
-      is(s_abort_drain) { // raises acquire_data.ready below
-        when(acquire_data.valid) {
-          abort_cnt := abort_cnt + UFix(1)
-          when(abort_cnt === ~UFix(0, width = log2Up(REFILL_CYCLES))) {
-            abort_state_arr(j) := s_abort_send
-          }
-        }
-      }
-      is(s_abort_send) { // nothing is dequeued for now
-        x_abort.valid := Bool(true)
-        when(x_abort.ready) { // raises acquire.ready below
-          abort_state_arr(j) := s_idle
-        }
-      }
-    }
-  }
   
   // Handle transaction initiation requests
   // Only one allocation per cycle
@@ -493,16 +447,14 @@ class CoherenceHubBroadcast(implicit conf: CoherenceHubConfiguration) extends Co
     val acquire = io.tiles(j).acquire
     val acquire_data = io.tiles(j).acquire_data
     val acquire_data_dep = acquire_data_dep_list(j).io.deq
-    val x_abort = io.tiles(j).abort
-    init_arb.io.in(j).valid := (abort_state_arr(j) === s_idle) && !want_to_abort_arr(j) && acquire.valid
+    init_arb.io.in(j).valid := acquire.valid
     init_arb.io.in(j).bits.acquire := acquire.bits.payload
     init_arb.io.in(j).bits.client_id := UFix(j)
     val pop_acquires = trackerList.map(_.io.pop_acquire(j).toBool)
-    val do_pop = foldR(pop_acquires)(_||_)
-    acquire_data_dep_list(j).io.enq.valid := do_pop && co.messageHasData(acquire.bits.payload) && (abort_state_arr(j) === s_idle) 
+    acquire.ready := foldR(pop_acquires)(_||_)
+    acquire_data_dep_list(j).io.enq.valid := acquire.ready && co.messageHasData(acquire.bits.payload)
     acquire_data_dep_list(j).io.enq.bits.master_xact_id := OHToUFix(pop_acquires)
-    acquire.ready := (x_abort.valid && x_abort.ready) || do_pop
-    acquire_data.ready := (abort_state_arr(j) === s_abort_drain) || foldR(trackerList.map(_.io.pop_acquire_data(j).toBool))(_||_)
+    acquire_data.ready := foldR(trackerList.map(_.io.pop_acquire_data(j).toBool))(_||_)
     acquire_data_dep.ready := foldR(trackerList.map(_.io.pop_acquire_dep(j).toBool))(_||_)
   }
   
@@ -552,60 +504,28 @@ class L2CoherenceAgent(implicit conf: CoherenceHubConfiguration) extends Coheren
   // Init requests may or may not have data
   val acquire = io.network.acquire
   val acquire_data = io.network.acquire_data
-  val x_abort = io.network.abort
   val x_dep_deq = acquire_data_dep_q.io.deq
-  val s_idle :: s_abort_drain :: s_abort_send :: Nil = Enum(3){ UFix() }
-  val abort_state = Reg(resetVal = s_idle)
-  val abort_cnt = Reg(resetVal = UFix(0, width = log2Up(REFILL_CYCLES)))
   val any_acquire_conflict = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
   val all_busy = trackerList.map(_.io.busy).reduce(_&&_)
-  val want_to_abort = acquire.valid && (any_acquire_conflict || all_busy || (!acquire_data_dep_q.io.enq.ready && co.messageHasData(acquire.bits.payload)))
 
   val alloc_arb = (new Arbiter(NGLOBAL_XACTS+1)) { Bool() }
   for( i <- 0 to NGLOBAL_XACTS ) {
     alloc_arb.io.in(i).valid := !trackerList(i).io.busy
     trackerList(i).io.acquire.bits := acquire.bits
-    trackerList(i).io.acquire.valid := (abort_state === s_idle) && !want_to_abort && acquire.valid && alloc_arb.io.in(i).ready
+    trackerList(i).io.acquire.valid := acquire.valid && alloc_arb.io.in(i).ready
 
     trackerList(i).io.acquire_data.bits := acquire_data.bits
     trackerList(i).io.acquire_data.valid := acquire_data.valid
     trackerList(i).io.acquire_data_dep.bits := x_dep_deq.bits
     trackerList(i).io.acquire_data_dep.valid := x_dep_deq.valid
   }
-  val pop_acquire = trackerList.map(_.io.acquire.ready).reduce(_||_)
-  acquire.ready := (x_abort.valid && x_abort.ready) || pop_acquire
-  acquire_data.ready := (abort_state === s_abort_drain) || trackerList.map(_.io.acquire_data.ready).reduce(_||_)
-  acquire_data_dep_q.io.enq.valid := pop_acquire && co.messageHasData(acquire.bits.payload) && (abort_state === s_idle) 
+  acquire.ready := trackerList.map(_.io.acquire.ready).reduce(_||_)
+  acquire_data.ready := trackerList.map(_.io.acquire_data.ready).reduce(_||_)
+  acquire_data_dep_q.io.enq.valid := acquire.ready && co.messageHasData(acquire.bits.payload)
   acquire_data_dep_q.io.enq.bits.master_xact_id := OHToUFix(trackerList.map(_.io.acquire.ready))
   x_dep_deq.ready := trackerList.map(_.io.acquire_data_dep.ready).reduce(_||_)
   
   alloc_arb.io.out.ready := acquire.valid
-
-  // Nack conflicting transaction init attempts
-  x_abort.bits.header.dst := acquire.bits.header.src
-  x_abort.bits.payload.client_xact_id := acquire.bits.payload.client_xact_id
-  x_abort.valid := Bool(false)
-  switch(abort_state) {
-    is(s_idle) {
-      when(want_to_abort) {
-        abort_state := Mux( co.messageHasData(acquire.bits.payload), s_abort_drain, s_abort_send)
-      }
-    }
-    is(s_abort_drain) { // raises acquire_data.ready below
-      when(acquire_data.valid) {
-        abort_cnt := abort_cnt + UFix(1)
-        when(abort_cnt === ~UFix(0, width = log2Up(REFILL_CYCLES))) {
-          abort_state := s_abort_send
-        }
-      }
-    }
-    is(s_abort_send) { // nothing is dequeued for now
-      x_abort.valid := Bool(true)
-      when(x_abort.ready) { // raises acquire.ready 
-        abort_state := s_idle
-      }
-    }
-  }
 
   // Handle probe request generation
   val probe_arb = (new Arbiter(NGLOBAL_XACTS+1)){(new LogicalNetworkIO){ new Probe }}

@@ -70,10 +70,6 @@ object Acquire
 
 class AcquireData extends MemData
 
-class Abort extends Bundle {
-  val client_xact_id = Bits(width = CLIENT_XACT_ID_BITS)
-}
-
 class Probe extends PhysicalAddress {
   val p_type = Bits(width = PROBE_TYPE_MAX_BITS)
   val master_xact_id = Bits(width = MASTER_XACT_ID_BITS)
@@ -115,7 +111,6 @@ class MasterSourcedIO[T <: Data]()(data: => T) extends DirectionalFIFOIO()(data)
 class TileLinkIO(implicit conf: LogicalNetworkConfiguration) extends Bundle { 
   val acquire      = (new ClientSourcedIO){(new LogicalNetworkIO){new Acquire }}
   val acquire_data = (new ClientSourcedIO){(new LogicalNetworkIO){new AcquireData }}
-  val abort        = (new MasterSourcedIO){(new LogicalNetworkIO){new Abort }}
   val probe        = (new MasterSourcedIO){(new LogicalNetworkIO){new Probe }}
   val release      = (new ClientSourcedIO){(new LogicalNetworkIO){new Release }}
   val release_data = (new ClientSourcedIO){(new LogicalNetworkIO){new ReleaseData }}
