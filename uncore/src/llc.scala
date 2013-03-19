@@ -442,3 +442,99 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   io.mem.req_cmd <> memCmdArb.io.out
   io.mem.req_data <> writeback.io.mem.req_data
 }
+
+class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Component
+{
+  val io = new ioQueue(entries)(data)
+  require(isPow2(entries) && entries > 1)
+
+  val do_flow = Bool()
+  val do_enq = io.enq.fire() && !do_flow
+  val do_deq = io.deq.fire() && !do_flow
+
+  val maybe_full = Reg(resetVal = Bool(false))
+  val enq_ptr = Counter(do_enq, entries)._1
+  val deq_ptr = Counter(do_deq, entries)._1
+  when (do_enq != do_deq) { maybe_full := do_enq }
+
+  val ptr_match = enq_ptr === deq_ptr
+  val empty = ptr_match && !maybe_full
+  val full = ptr_match && maybe_full
+  val atLeastTwo = full || enq_ptr - deq_ptr >= UFix(2)
+  do_flow := empty && io.deq.ready
+
+  val ram = Mem(entries, seqRead = true){Bits(width = data.getWidth)}
+  val ram_addr = Reg{Bits()}
+  val ram_out_valid = Reg{Bool()}
+  ram_out_valid := Bool(false)
+  when (do_enq) { ram(enq_ptr) := io.enq.bits.toBits }
+  when (io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)) {
+    ram_out_valid := Bool(true)
+    ram_addr := Mux(io.deq.valid, deq_ptr + UFix(1), deq_ptr)
+  }
+
+  io.deq.valid := Mux(empty, io.enq.valid, ram_out_valid)
+  io.enq.ready := !full
+  io.deq.bits := Mux(empty, io.enq.bits, data.fromBits(ram(ram_addr)))
+}
+
+class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Component
+{
+  val io = new ioQueue(entries)(data)
+
+  val fq = new HellaFlowQueue(entries)(data)
+  io.enq <> fq.io.enq
+  io.deq <> Queue(fq.io.deq, 1, pipe = true)
+}
+
+object HellaQueue
+{
+  def apply[T <: Data](enq: FIFOIO[T], entries: Int) = {
+    val q = (new HellaQueue(entries)) { enq.bits.clone }
+    q.io.enq.valid := enq.valid // not using <> so that override is allowed
+    q.io.enq.bits := enq.bits
+    enq.ready := q.io.enq.ready
+    q.io.deq
+  }
+}
+
+class DRAMSideLLCNull(numRequests: Int, refillCycles: Int) extends Component
+{
+  val io = new Bundle {
+    val cpu = new ioMem().flip
+    val mem = new ioMemPipe
+  }
+
+  val numEntries = numRequests * refillCycles
+  val size = log2Down(numEntries) + 1
+
+  val inc = Bool()
+  val dec = Bool()
+  val count = Reg(resetVal = UFix(numEntries, size))
+  val watermark = count >= UFix(refillCycles)
+
+  when (inc && !dec) {
+    count := count + UFix(1)
+  }
+  when (!inc && dec) {
+    count := count - UFix(refillCycles)
+  }
+  when (inc && dec) {
+    count := count - UFix(refillCycles-1)
+  }
+
+  val cmdq_mask = io.cpu.req_cmd.bits.rw || watermark
+
+  io.mem.req_cmd.valid := io.cpu.req_cmd.valid && cmdq_mask
+  io.cpu.req_cmd.ready := io.mem.req_cmd.ready && cmdq_mask
+  io.mem.req_cmd.bits := io.cpu.req_cmd.bits
+
+  io.mem.req_data <> io.cpu.req_data
+
+  val resp_dataq = (new HellaQueue(numEntries)) { new MemResp }
+  resp_dataq.io.enq <> io.mem.resp
+  io.cpu.resp <> resp_dataq.io.deq
+
+  inc := resp_dataq.io.deq.fire()
+  dec := io.mem.req_cmd.fire() && !io.mem.req_cmd.bits.rw
+}
