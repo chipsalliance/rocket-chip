@@ -40,7 +40,7 @@ class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[Bit
     for (j <- 0 until nWide) {
       val mem = leaf.clone
       var dout: Bits = null
-      val dout1 = if (postLatency > 0) Reg() { Bits() } else null
+      val ridx = if (postLatency > 0) Reg() { Bits() } else null
 
       var wmask0 = Fill(colMux, wmask(math.min(wmask.getWidth, leaf.data.width*(j+1))-1, leaf.data.width*j))
       if (colMux > 1)
@@ -48,15 +48,15 @@ class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[Bit
       val wdata0 = Fill(colMux, wdata(math.min(wdata.getWidth, leaf.data.width*(j+1))-1, leaf.data.width*j))
       when (in.valid) {
         when (in.bits.rw) { mem.write(idx, wdata0, wmask0) }
-        .otherwise { if (postLatency > 0) dout1 := mem(idx) }
+        .otherwise { if (postLatency > 0) ridx := idx }
       }
 
       if (postLatency == 0) {
         dout = mem(idx)
       } else if (postLatency == 1) {
-        dout = dout1
+        dout = mem(ridx)
       } else
-        dout = Pipe(reg_ren, dout1, postLatency-1).bits
+        dout = Pipe(reg_ren, mem(ridx), postLatency-1).bits
 
       rdata(j) := dout
     }
