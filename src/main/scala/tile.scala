@@ -44,7 +44,6 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
 
   io.tilelink.acquire <> arbiter.io.mem.acquire
   io.tilelink.acquire_data <> dcache.io.mem.acquire_data
-  arbiter.io.mem.abort <> io.tilelink.abort
   arbiter.io.mem.grant <> io.tilelink.grant
   io.tilelink.grant_ack <> arbiter.io.mem.grant_ack
   dcache.io.mem.probe <> io.tilelink.probe
