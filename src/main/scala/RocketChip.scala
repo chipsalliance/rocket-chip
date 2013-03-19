@@ -220,6 +220,7 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent
   val llc_tag_leaf = Mem(1024, seqRead = true) { Bits(width = 72) }
   val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
   val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
+  //val llc = new DRAMSideLLCNull(NGLOBAL_XACTS, REFILL_CYCLES)
   val mem_serdes = new MemSerdes(htif_width)
 
   val hub = new CoherenceHubBroadcast()(chWithHtifConf)
