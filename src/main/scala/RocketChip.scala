@@ -420,7 +420,6 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
       outer.grant_ack.bits.header.src := UFix(i)
       grant_ack_q.ready := outer.grant_ack.ready
 
-      client.abort <> Queue(outer.abort)
       client.grant <> Queue(outer.grant, 1, pipe = true)
       client.probe <> Queue(outer.probe)
   }
