@@ -415,7 +415,6 @@ class Top extends Component {
     tl.release_data.bits.header.dst := UFix(0)
     p_rep_data_q.ready := tl.release_data.ready
 
-    tile.io.tilelink.abort <> Queue(tl.abort)
     tile.io.tilelink.grant <> Queue(tl.grant, 1, pipe = true)
     tile.io.tilelink.probe <> Queue(tl.probe)
     il := hl.reset

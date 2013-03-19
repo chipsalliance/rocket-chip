@@ -68,7 +68,6 @@ class FPGATop extends Component {
     il := hl.reset
     tl.acquire <> Queue(tile.io.tilelink.acquire)
     tl.acquire_data <> Queue(tile.io.tilelink.acquire_data)
-    tile.io.tilelink.abort <> Queue(tl.abort)
     tile.io.tilelink.grant <> Queue(tl.grant)
     tl.grant_ack <> Queue(tile.io.tilelink.grant_ack)
     tile.io.tilelink.probe <> Queue(tl.probe)
