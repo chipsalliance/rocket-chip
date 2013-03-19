@@ -105,15 +105,12 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   val mem_acked = Reg(resetVal = Bool(false))
   val mem_gxid = Reg() { Bits() }
   val mem_needs_ack = Reg() { Bool() }
-  val mem_nacked = Reg(resetVal = Bool(false))
   when (io.mem.grant.valid) { 
     mem_acked := Bool(true)
     mem_gxid := io.mem.grant.bits.payload.master_xact_id
     mem_needs_ack := conf.co.requiresAck(io.mem.grant.bits.payload)
   }
   io.mem.grant.ready := Bool(true)
-  when (io.mem.abort.valid) { mem_nacked := Bool(true) }
-  io.mem.abort.ready := Bool(true)
 
   val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(9) { UFix() }
   val state = Reg(resetVal = state_rx)
@@ -137,20 +134,12 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
     mem_cnt := mem_cnt + UFix(1)
   }
   when (state === state_mem_wresp) {
-    when (mem_nacked) {
-      state := state_mem_req
-      mem_nacked := Bool(false)
-    }
     when (mem_acked) {
       state := state_mem_finish
       mem_acked := Bool(false)
     }
   }
   when (state === state_mem_rdata) {
-    when (mem_nacked) {
-      state := state_mem_req
-      mem_nacked := Bool(false)
-    }
     when (io.mem.grant.valid) {
       when (mem_cnt.andR)  {
         state := state_mem_finish

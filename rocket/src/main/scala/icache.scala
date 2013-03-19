@@ -259,7 +259,6 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
       when (io.mem.acquire.ready && finish_q.io.enq.ready) { state := s_refill_wait }
     }
     is (s_refill_wait) {
-      when (io.mem.abort.valid) { state := s_request }
       when (io.mem.grant.valid) { state := s_refill }
     }
     is (s_refill) {

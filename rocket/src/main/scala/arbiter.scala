@@ -50,7 +50,6 @@ class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Comp
 
 class UncachedRequestorIO(implicit conf: LogicalNetworkConfiguration) extends Bundle {
   val acquire      = (new ClientSourcedIO){(new LogicalNetworkIO){new Acquire }}
-  val abort     = (new MasterSourcedIO) {(new LogicalNetworkIO){new Abort }}
   val grant       = (new MasterSourcedIO) {(new LogicalNetworkIO){new Grant }}
   val grant_ack    = (new ClientSourcedIO){(new LogicalNetworkIO){new GrantAck }}
 }
@@ -101,14 +100,4 @@ class MemArbiter(n: Int)(implicit conf: LogicalNetworkConfiguration) extends Com
     io.requestor(i).grant.bits := io.mem.grant.bits
     io.requestor(i).grant.bits.payload.client_xact_id := tag >> UFix(log2Up(n))
   }
-
-  for (i <- 0 until n)
-  {
-    val tag = io.mem.abort.bits.payload.client_xact_id
-    io.requestor(i).abort.valid := io.mem.abort.valid && tag(log2Up(n)-1,0) === UFix(i)
-    io.requestor(i).abort.bits := io.mem.abort.bits
-    io.requestor(i).abort.bits.payload.client_xact_id := tag >> UFix(log2Up(n))
-  }
-
-  io.mem.abort.ready := Bool(true)
 }
