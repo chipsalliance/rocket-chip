@@ -54,7 +54,7 @@ class Frontend(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) ex
 {
   val io = new Bundle {
     val cpu = new CPUFrontendIO()(c).flip
-    val mem = new UncachedRequestorIO
+    val mem = new UncachedTileLinkIO
   }
   
   val btb = new rocketDpathBTB(c.nbtb)
@@ -134,7 +134,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
       val datablock = Bits(width = c.databits)
     })
     val invalidate = Bool(INPUT)
-    val mem = new UncachedRequestorIO
+    val mem = new UncachedTileLinkIO
   }
 
   val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(4) { UFix() }
@@ -246,6 +246,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
   io.resp.valid := s2_hit
   io.mem.acquire.valid := (state === s_request) && finish_q.io.enq.ready
   io.mem.acquire.bits.payload := c.co.getUncachedReadAcquire(s2_addr >> UFix(c.offbits), UFix(0))
+  io.mem.acquire_data.valid := Bool(false)
   io.mem.grant_ack <> FIFOedLogicalNetworkIOWrapper(finish_q.io.deq)
   io.mem.grant.ready := Bool(true)
 

@@ -36,7 +36,7 @@ class HTIFIO(ntiles: Int) extends Bundle
   val ipi_rep = (new FIFOIO) { Bool() }.flip
 }
 
-class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Component with ClientCoherenceAgent
+class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component with ClientCoherenceAgent
 {
   implicit val lnConf = conf.ln
   val io = new Bundle {
@@ -104,10 +104,12 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
 
   val mem_acked = Reg(resetVal = Bool(false))
   val mem_gxid = Reg() { Bits() }
+  val mem_gsrc = Reg() { UFix(width = conf.ln.idBits) }
   val mem_needs_ack = Reg() { Bool() }
   when (io.mem.grant.valid) { 
     mem_acked := Bool(true)
     mem_gxid := io.mem.grant.bits.payload.master_xact_id
+    mem_gsrc := io.mem.grant.bits.header.src
     mem_needs_ack := conf.co.requiresAck(io.mem.grant.bits.payload)
   }
   io.mem.grant.ready := Bool(true)
@@ -173,25 +175,15 @@ class rocketHTIF(w: Int)(implicit conf: CoherenceHubConfiguration) extends Compo
   val init_addr = addr.toUFix >> UFix(OFFSET_BITS-3)
   val co = conf.co.asInstanceOf[CoherencePolicyWithUncached]
   x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteAcquire(init_addr, UFix(0)), co.getUncachedReadAcquire(init_addr, UFix(0)))
-  io.mem.acquire <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq)
+  io.mem.acquire <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq, UFix(conf.ln.nClients), UFix(0))
   io.mem.acquire_data.valid:= state === state_mem_wdata
   io.mem.acquire_data.bits.payload.data := mem_req_data
   io.mem.grant_ack.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.grant_ack.bits.payload.master_xact_id := mem_gxid
+  io.mem.grant_ack.bits.header.dst := mem_gsrc
   io.mem.probe.ready := Bool(false)
   io.mem.release.valid := Bool(false)
   io.mem.release_data.valid := Bool(false)
-
-  io.mem.acquire.bits.header.src := UFix(conf.ln.nClients)
-  io.mem.acquire.bits.header.dst := UFix(0)
-  io.mem.acquire_data.bits.header.src := UFix(conf.ln.nClients)
-  io.mem.acquire_data.bits.header.dst := UFix(0)
-  io.mem.release.bits.header.src := UFix(conf.ln.nClients)
-  io.mem.release.bits.header.dst := UFix(0)
-  io.mem.release_data.bits.header.src := UFix(conf.ln.nClients)
-  io.mem.release_data.bits.header.dst := UFix(0)
-  io.mem.grant_ack.bits.header.src := UFix(conf.ln.nClients)
-  io.mem.grant_ack.bits.header.dst := UFix(0)
 
   val pcrReadData = Vec(conf.ln.nClients) { Reg() { Bits(width = io.cpu(0).pcr_rep.bits.getWidth) } }
   for (i <- 0 until conf.ln.nClients) {
