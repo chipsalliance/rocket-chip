@@ -11,7 +11,7 @@ abstract trait CoherenceConfigConstants {
 
 trait UncoreConstants {
   val NGLOBAL_XACTS = 8
-  val MASTER_XACT_ID_BITS = log2Up(NGLOBAL_XACTS)
+  val MASTER_XACT_ID_MAX_BITS = log2Up(NGLOBAL_XACTS)
   val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 
 }
 
@@ -29,7 +29,7 @@ trait TileLinkTypeConstants {
 trait TileLinkSizeConstants extends 
   TileLinkTypeConstants
 {
-  val CLIENT_XACT_ID_BITS = 5
+  val CLIENT_XACT_ID_MAX_BITS = 10
   val ACQUIRE_WRITE_MASK_BITS = 6
   val ACQUIRE_SUBWORD_ADDR_BITS = 3
   val ACQUIRE_ATOMIC_OP_BITS = 4
@@ -72,7 +72,7 @@ trait MemoryInterfaceConstants extends
   UncoreConstants with 
   TileLinkSizeConstants 
 {
-  val MEM_TAG_BITS = max(CLIENT_XACT_ID_BITS, MASTER_XACT_ID_BITS)
+  val MEM_TAG_BITS = max(CLIENT_XACT_ID_MAX_BITS, MASTER_XACT_ID_MAX_BITS)
   val MEM_DATA_BITS = 128
   val REFILL_CYCLES = CACHE_DATA_SIZE_IN_BYTES*8/MEM_DATA_BITS
 }

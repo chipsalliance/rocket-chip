@@ -40,8 +40,6 @@ class BasicCrossbar[T <: Data]()(data: => T)(implicit conf: PhysicalNetworkConfi
       rdy := arb.ready && (in.bits.header.dst === UFix(i))
     }}
     out <> rrarb.io.out
-    //out.bits.header.src := rrarb.io.chosen.toUFix
-    //out.bits.header.dst := UFix(i)
   }}
   for(i <- 0 until conf.nEndpoints) {
     io.in(i).ready := rdyVecs.map(r => r(i)).reduceLeft(_||_)
@@ -62,21 +60,23 @@ class LogicalHeader(implicit conf: LogicalNetworkConfiguration) extends Bundle {
 }
 
 object FIFOedLogicalNetworkIOWrapper {
-  def apply[T <: Data](in: FIFOIO[T])(implicit conf: LogicalNetworkConfiguration) = {
-    val shim = (new FIFOedLogicalNetworkIOWrapper){ in.bits.clone }
+  def apply[T <: Data](in: FIFOIO[T], src: UFix = UFix(0), dst: UFix = UFix(0))(implicit conf: LogicalNetworkConfiguration) = {
+    val shim = (new FIFOedLogicalNetworkIOWrapper(src, dst)){ in.bits.clone }
     shim.io.in.valid := in.valid
     shim.io.in.bits := in.bits
     in.ready := shim.io.in.ready
     shim.io.out
   }
 }
-class FIFOedLogicalNetworkIOWrapper[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration) extends Component {
+class FIFOedLogicalNetworkIOWrapper[T <: Data](src: UFix, dst: UFix)(data: => T)(implicit lconf: LogicalNetworkConfiguration) extends Component {
   val io = new Bundle {
     val in = (new FIFOIO){ data }.flip
     val out = (new FIFOIO){(new LogicalNetworkIO){ data }} 
   }
   io.out.valid := io.in.valid
   io.out.bits.payload := io.in.bits
+  io.out.bits.header.dst := dst
+  io.out.bits.header.src := src
   io.in.ready := io.out.ready
 }
 
