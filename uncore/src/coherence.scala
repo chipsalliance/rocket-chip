@@ -34,9 +34,7 @@ abstract class CoherencePolicy {
   def getVoluntaryWriteback(addr: UFix, client_id: UFix, master_id: UFix): Release
   def newRelease (incoming: Probe, state: UFix, id: UFix): Release
 
-  def messageHasData (rel: Release): Bool
-  def messageHasData (acq: Acquire): Bool
-  def messageHasData (grant: Grant): Bool
+  def messageHasData (rel: SourcedMessage): Bool
   def messageUpdatesDataArray (reply: Grant): Bool
   def messageIsUncached(acq: Acquire): Bool
 
@@ -46,8 +44,8 @@ abstract class CoherencePolicy {
   def getGrantType(a_type: UFix, count: UFix): Bits
   def getGrantType(rel: Release, count: UFix): Bits
   def getProbeType(a_type: UFix, global_state: UFix): UFix
-  def needsMemRead(a_type: UFix, global_state: UFix): Bool
-  def needsMemWrite(a_type: UFix, global_state: UFix): Bool
+  def needsOuterRead(a_type: UFix, global_state: UFix): Bool
+  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool
   def needsAckReply(a_type: UFix, global_state: UFix): Bool
   def needsSelfProbe(acq: Acquire): Bool
   def requiresAck(grant: Grant): Bool
@@ -72,13 +70,12 @@ abstract class IncoherentPolicy extends CoherencePolicy {
   // UNIMPLEMENTED
   def newStateOnProbe(incoming: Probe, state: UFix): Bits = state
   def newRelease (incoming: Probe, state: UFix, id: UFix): Release = Release( UFix(0), UFix(0), UFix(0), UFix(0))
-  def messageHasData (rel: Release) = Bool(false)
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = Bool(false)
   def getGrantType(a_type: UFix, count: UFix): Bits = Bits(0)
   def getGrantType(rel: Release, count: UFix): Bits = Bits(0)
   def getProbeType(a_type: UFix, global_state: UFix): UFix = UFix(0)
-  def needsMemRead(a_type: UFix, global_state: UFix): Bool = Bool(false)
-  def needsMemWrite(a_type: UFix, global_state: UFix): Bool = Bool(false)
+  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = Bool(false)
+  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = Bool(false)
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
   def requiresAck(grant: Grant) = Bool(true)
@@ -134,8 +131,12 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = releaseVoluntaryInvalidateData
 
-  def messageHasData (acq: Acquire): Bool = uFixListContains(hasDataAcquireTypeList, acq.a_type)
-  def messageHasData (grant: Grant): Bool = uFixListContains(hasDataGrantTypeList, grant.g_type) 
+  def messageHasData( msg: SourcedMessage ) = msg match {
+    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => Bool(false)
+    case _ => Bool(false)
+  }
   def messageUpdatesDataArray (reply: Grant) = (reply.g_type === grantData)
   def messageIsUncached(acq: Acquire): Bool = uFixListContains(uncachedAcquireTypeList, acq.a_type)
 }
@@ -221,9 +222,12 @@ class MICoherence extends CoherencePolicyWithUncached {
     Release( Mux(needsWriteback(state), with_data, without_data), incoming.addr, id, incoming.master_xact_id)
   }
 
-  def messageHasData (rel: Release): Bool = uFixListContains(hasDataReleaseTypeList, rel.r_type) 
-  def messageHasData (acq: Acquire): Bool = uFixListContains(hasDataAcquireTypeList, acq.a_type)
-  def messageHasData (grant: Grant): Bool = uFixListContains(hasDataGrantTypeList, grant.g_type) 
+  def messageHasData(msg: SourcedMessage) = msg match {
+    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case _ => Bool(false)
+  }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadExclusive)
   }
@@ -259,10 +263,10 @@ class MICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsMemRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
       (a_type != acquireWriteUncached)
   }
-  def needsMemWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
@@ -373,9 +377,12 @@ class MEICoherence extends CoherencePolicyWithUncached {
     Release( Mux(needsWriteback(state), with_data, without_data), incoming.addr, id, incoming.master_xact_id)
   }
 
-  def messageHasData (rel: Release): Bool = uFixListContains(hasDataReleaseTypeList, rel.r_type) 
-  def messageHasData (acq: Acquire): Bool = uFixListContains(hasDataAcquireTypeList, acq.a_type)
-  def messageHasData (grant: Grant): Bool = uFixListContains(hasDataGrantTypeList, grant.g_type) 
+  def messageHasData(msg: SourcedMessage) = msg match {
+    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case _ => Bool(false)
+  }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadExclusive)
   }
@@ -413,10 +420,10 @@ class MEICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsMemRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
       (a_type != acquireWriteUncached)
   }
-  def needsMemWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
@@ -534,9 +541,12 @@ class MSICoherence extends CoherencePolicyWithUncached {
     Release( Mux(needsWriteback(state), with_data, without_data), incoming.addr, id, incoming.master_xact_id)
   }
 
-  def messageHasData (rel: Release): Bool = uFixListContains(hasDataReleaseTypeList, rel.r_type) 
-  def messageHasData (acq: Acquire): Bool = uFixListContains(hasDataAcquireTypeList, acq.a_type)
-  def messageHasData (grant: Grant): Bool = uFixListContains(hasDataGrantTypeList, grant.g_type) 
+  def messageHasData(msg: SourcedMessage) = msg match {
+    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case _ => Bool(false)
+  }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadShared || reply.g_type === grantReadExclusive)
   }
@@ -571,10 +581,10 @@ class MSICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsMemRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
       (a_type != acquireWriteUncached)
   }
-  def needsMemWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
@@ -693,9 +703,12 @@ class MESICoherence extends CoherencePolicyWithUncached {
     Release( Mux(needsWriteback(state), with_data, without_data), incoming.addr, id, incoming.master_xact_id)
   }
 
-  def messageHasData (rel: Release): Bool = uFixListContains(hasDataReleaseTypeList, rel.r_type) 
-  def messageHasData (acq: Acquire): Bool = uFixListContains(hasDataAcquireTypeList, acq.a_type)
-  def messageHasData (grant: Grant): Bool = uFixListContains(hasDataGrantTypeList, grant.g_type) 
+  def messageHasData(msg: SourcedMessage) = msg match {
+    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case _ => Bool(false)
+  }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadShared || reply.g_type === grantReadExclusive)
   }
@@ -733,10 +746,10 @@ class MESICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsMemRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
       (a_type != acquireWriteUncached)
   }
-  def needsMemWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
@@ -871,9 +884,12 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
     Release( Mux(needsWriteback(state), with_data, without_data), incoming.addr, id, incoming.master_xact_id)
   }
 
-  def messageHasData (acq: Acquire): Bool = uFixListContains(hasDataAcquireTypeList, acq.a_type)
-  def messageHasData (rel: Release): Bool = uFixListContains(hasDataReleaseTypeList, rel.r_type) 
-  def messageHasData (grant: Grant): Bool = uFixListContains(hasDataGrantTypeList, grant.g_type) 
+  def messageHasData(msg: SourcedMessage) = msg match {
+    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case _ => Bool(false)
+  }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     uFixListContains(List(grantReadShared, grantReadExclusive, grantReadMigratory), reply.g_type)
   }
@@ -913,10 +929,10 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsMemRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
       (a_type != acquireWriteUncached && a_type != acquireInvalidateOthers)
   }
-  def needsMemWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached || a_type === acquireWriteWordUncached || a_type === acquireAtomicUncached)
   }
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
