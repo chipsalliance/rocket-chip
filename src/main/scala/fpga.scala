@@ -6,7 +6,7 @@ import uncore._
 import rocket._
 import rocket.Constants._
 
-class FPGAUncore(htif_width: Int)(implicit conf: CoherenceHubConfiguration) extends Component
+class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
 {
   val io = new Bundle {
     val host = new HostIO(htif_width)
@@ -20,16 +20,29 @@ class FPGAUncore(htif_width: Int)(implicit conf: CoherenceHubConfiguration) exte
   htif.io.cpu <> io.htif
   io.host <> htif.io.host
 
-  val lnWithHtif = conf.ln.copy(nEndpoints = conf.ln.nEndpoints+1, nClients = conf.ln.nClients+1)
-  val hub = new CoherenceHubBroadcast()(conf.copy(ln = lnWithHtif))
-  for (i <- 0 until conf.ln.nClients)
-    hub.io.tiles(i) <> io.tiles(i)
-  hub.io.tiles(conf.ln.nClients) <> htif.io.mem
-  hub.io.incoherent <> io.incoherent
+  val lnWithHtifConf = conf.ln.copy(nEndpoints = conf.ln.nEndpoints+1, 
+                                    idBits = log2Up(conf.ln.nEndpoints+1)+1,
+                                    nClients = conf.ln.nClients+1)
+  val ucWithHtifConf = conf.copy(ln = lnWithHtifConf)
+  val clientEndpoints = tileList :+ htif
+  val masterEndpoints = List.fill(lnWithHtifConf.nMasters)(new L2CoherenceAgent(0)(ucWithHtifConf))
 
-  io.mem.req_cmd <> Queue(hub.io.mem.req_cmd)
-  io.mem.req_data <> Queue(hub.io.mem.req_data, REFILL_CYCLES*2)
-  hub.io.mem.resp <> Queue(io.mem.resp, REFILL_CYCLES*2)
+  val net = new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints)(lnWithHtifConf)
+  net.io zip (masterEndpoints.map(_.io.client) ++ io.tiles :+ io.htif) map { case (net, end) => net <> end }
+  masterEndpoints.map{ _.io.incoherent zip (io.incoherent ++ List(Bool(true))) map { case (m, c) => m := c } }
+
+  val conv = new MemIOUncachedTileLinkIOConverter(2)(ucWithHtifConf)
+  if(lnWithHtifConf.nMasters > 1) {
+    val arb = new UncachedTileLinkIOArbiter(lnWithHtifConf.nMasters)(lnWithHtifConf)
+    arb.io.in zip masterEndpoints.map(_.io.master) map { case (arb, cache) => arb <> cache }
+    conv.io.uncached <> arb.io.out
+  } else {
+    conv.io.uncached <> masterEndpoints.head.io.master
+  }
+
+  io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
+  io.mem.req_data <> Queue(conv.io.mem.req_data, REFILL_CYCLES*2)
+  conv.io.mem.resp <> Queue(io.mem.resp, REFILL_CYCLES*2)
 }
 
 class FPGATop extends Component {
@@ -41,8 +54,7 @@ class FPGATop extends Component {
   }
   val co = new MESICoherence
   implicit val lnConf = LogicalNetworkConfiguration(4, 3, 1, 3)
-  implicit val uconf = CoherenceHubConfiguration(co, lnConf)
-  val uncore = new FPGAUncore(htif_width = htif_width)
+  implicit val uconf = UncoreConfiguration(co, lnConf)
 
   val resetSigs = Vec(uconf.ln.nClients){ Bool() }
   val ic = ICacheConfig(64, 1, co, ntlb = 4, nbtb = 4)
@@ -52,6 +64,7 @@ class FPGATop extends Component {
                                fastMulDiv = false,
                                fpu = false, vec = false)
   val tileList = (0 until uconf.ln.nClients).map(r => new Tile(resetSignal = resetSigs(r))(rc))
+  val uncore = new FPGAUncore(htif_width = htif_width, tileList = tileList)
 
   io.debug.error_mode := Bool(false)
   for (i <- 0 until uconf.ln.nClients) {

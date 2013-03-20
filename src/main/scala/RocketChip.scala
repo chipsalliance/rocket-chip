@@ -2,6 +2,7 @@ package referencechip
 
 import Chisel._
 import Node._
+import uncore.Constants._
 import uncore._
 import rocket._
 import rocket.Util._
@@ -9,6 +10,122 @@ import ReferenceChipBackend._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
+object TileLinkHeaderAppender {
+  def apply[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasMemData](meta: ClientSourcedIO[LogicalNetworkIO[T]], data: ClientSourcedIO[LogicalNetworkIO[U]], clientId: Int, nBanks: Int, bankIdLsb: Int)(implicit conf: UncoreConfiguration) = {
+    val shim = (new TileLinkHeaderAppenderWithData(clientId, nBanks, bankIdLsb)){meta.bits.payload.clone}{data.bits.payload.clone}
+    shim.io.meta_in <> meta
+    shim.io.data_in <> data
+    (shim.io.meta_out, shim.io.data_out)
+  }
+  def apply[T <: SourcedMessage with HasPhysicalAddress](meta: ClientSourcedIO[LogicalNetworkIO[T]], clientId: Int, nBanks: Int, bankIdLsb: Int)(implicit conf: UncoreConfiguration) = {
+    val shim = (new TileLinkHeaderAppender(clientId, nBanks, bankIdLsb)){meta.bits.payload.clone}
+    shim.io.meta_in <> meta
+    shim.io.meta_out
+  }
+}
+
+abstract class AddressConverter extends Component {
+  def convertAddrToBank(addr: Bits, n: Int, lsb: Int): UFix = {
+    require(lsb + log2Up(n) < PADDR_BITS - OFFSET_BITS, {println("Invalid bits for bank multiplexing.")})
+    addr(lsb + log2Up(n) - 1, lsb)
+  }
+}
+
+class TileLinkHeaderAppenderWithData[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasMemData](clientId: Int, nBanks: Int, bankIdLsb: Int)(metadata: => T)(data: => U)(implicit conf: UncoreConfiguration) extends AddressConverter {
+  implicit val ln = conf.ln
+  val io = new Bundle {
+    val meta_in = (new ClientSourcedIO){(new LogicalNetworkIO){ metadata }}.flip
+    val data_in = (new ClientSourcedIO){(new LogicalNetworkIO){ data }}.flip
+    val meta_out = (new ClientSourcedIO){(new LogicalNetworkIO){ metadata }}
+    val data_out = (new ClientSourcedIO){(new LogicalNetworkIO){ data }}
+  }
+
+  val meta_q = Queue(io.meta_in)
+  val data_q = Queue(io.data_in)
+  if(nBanks == 1) {
+    io.meta_out.bits.payload := meta_q.bits.payload
+    io.meta_out.bits.header.src := UFix(clientId)
+    io.meta_out.bits.header.dst := UFix(0)
+    io.meta_out.valid := meta_q.valid
+    meta_q.ready := io.meta_out.ready
+    io.data_out.bits.payload := data_q.bits.payload
+    io.data_out.bits.header.src := UFix(clientId)
+    io.data_out.bits.header.dst := UFix(0)
+    io.data_out.valid := data_q.valid
+    data_q.ready := io.data_out.ready
+  } else {
+    val meta_has_data = conf.co.messageHasData(meta_q.bits.payload)
+    val addr_q = (new Queue(2, pipe = true, flow = true)){io.meta_in.bits.payload.addr.clone}
+    val data_cnt = Reg(resetVal = UFix(0, width = log2Up(REFILL_CYCLES)))
+    val data_cnt_up = data_cnt + UFix(1)
+
+    io.meta_out.bits.payload := meta_q.bits.payload
+    io.meta_out.bits.header.src := UFix(clientId)
+    io.meta_out.bits.header.dst := convertAddrToBank(meta_q.bits.payload.addr, nBanks, bankIdLsb)
+    io.data_out.bits.payload := meta_q.bits.payload
+    io.data_out.bits.header.src := UFix(clientId)
+    io.data_out.bits.header.dst := convertAddrToBank(addr_q.io.deq.bits, nBanks, bankIdLsb)
+    addr_q.io.enq.bits := meta_q.bits.payload.addr
+
+    io.meta_out.valid := meta_q.valid && addr_q.io.enq.ready
+    meta_q.ready := io.meta_out.ready && addr_q.io.enq.ready
+    io.data_out.valid := data_q.valid && addr_q.io.deq.valid
+    data_q.ready := io.data_out.ready && addr_q.io.deq.valid
+    addr_q.io.enq.valid := meta_q.valid && io.meta_out.ready && meta_has_data
+    addr_q.io.deq.ready := Bool(false)
+
+    when(data_q.valid && data_q.ready) {
+      data_cnt := data_cnt_up
+      when(data_cnt_up === UFix(0)) {
+        addr_q.io.deq.ready := Bool(true)
+      }
+    }
+  }
+}
+
+class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress](clientId: Int, nBanks: Int, bankIdLsb: Int)(metadata: => T)(implicit conf: UncoreConfiguration) extends AddressConverter {
+  implicit val ln = conf.ln
+  val io = new Bundle {
+    val meta_in = (new ClientSourcedIO){(new LogicalNetworkIO){ metadata }}.flip
+    val meta_out = (new ClientSourcedIO){(new LogicalNetworkIO){ metadata }}
+  }
+  val meta_q = Queue(io.meta_in)
+  io.meta_out.bits.payload := meta_q.bits.payload
+  io.meta_out.bits.header.src := UFix(clientId)
+  io.meta_out.valid := meta_q.valid
+  meta_q.ready := io.meta_out.ready
+  if(nBanks == 1) {
+    io.meta_out.bits.header.dst := UFix(0)
+  } else {
+    io.meta_out.bits.header.dst := convertAddrToBank(meta_q.bits.payload.addr, nBanks, bankIdLsb)
+  }
+}  
+
+class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit conf: UncoreConfiguration) extends Component {
+  implicit val ln = conf.ln
+  val io = new Bundle {
+    val uncached = new UncachedTileLinkIO().flip
+    val mem = new ioMem
+  }
+  val mem_cmd_q = (new Queue(qDepth)){new MemReqCmd}
+  val mem_data_q = (new Queue(qDepth)){new MemData}
+  mem_cmd_q.io.enq.valid := io.uncached.acquire.valid
+  io.uncached.acquire.ready := mem_cmd_q.io.enq.ready 
+  mem_cmd_q.io.enq.bits.rw := conf.co.needsOuterWrite(io.uncached.acquire.bits.payload.a_type, UFix(0))
+  mem_cmd_q.io.enq.bits.tag := io.uncached.acquire.bits.payload.client_xact_id
+  mem_cmd_q.io.enq.bits.addr := io.uncached.acquire.bits.payload.addr
+  mem_data_q.io.enq.valid := io.uncached.acquire_data.valid
+  io.uncached.acquire_data.ready := mem_data_q.io.enq.ready
+  mem_data_q.io.enq.bits.data := io.uncached.acquire_data.bits.payload.data 
+  io.uncached.grant.valid := io.mem.resp.valid
+  io.mem.resp.ready := io.uncached.grant.ready
+  io.uncached.grant.bits.payload.data := io.mem.resp.bits.data
+  io.uncached.grant.bits.payload.client_xact_id := io.mem.resp.bits.tag
+  io.uncached.grant.bits.payload.master_xact_id := UFix(0) // DNC
+  io.uncached.grant.bits.payload.g_type := UFix(0) // DNC
+  io.mem.req_cmd <> mem_cmd_q.io.deq
+  io.mem.req_data <> mem_data_q.io.deq
+}
 
 object TileToCrossbarShim {
   def apply[T <: Data](logIO: ClientSourcedIO[LogicalNetworkIO[T]])(implicit lconf: LogicalNetworkConfiguration, pconf: PhysicalNetworkConfiguration) = {
@@ -197,7 +314,7 @@ class ReferenceChipBackend extends VerilogBackend
   transforms += ((c: Component) => addMemPin(c))
 }
 
-class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent])(implicit conf: CoherenceHubConfiguration) extends Component
+class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
 {
   implicit val lnconf = conf.ln
   val io = new Bundle {
@@ -214,35 +331,31 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent
   val lnWithHtifConf = conf.ln.copy(nEndpoints = conf.ln.nEndpoints+1, 
                                     idBits = log2Up(conf.ln.nEndpoints+1)+1,
                                     nClients = conf.ln.nClients+1)
-  val chWithHtifConf = conf.copy(ln = lnWithHtifConf)
-  require(tileEndpoints.length == lnWithHtifConf.nClients)
-  //val hub = new CoherenceHubBroadcast()(chWithHtifConf)
+  val ucWithHtifConf = conf.copy(ln = lnWithHtifConf)
+  require(clientEndpoints.length == lnWithHtifConf.nClients)
+  val masterEndpoints = (0 until lnWithHtifConf.nMasters).map(new L2CoherenceAgent(_)(ucWithHtifConf))
+
   val llc_tag_leaf = Mem(1024, seqRead = true) { Bits(width = 72) }
   val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
   val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
   //val llc = new DRAMSideLLCNull(NGLOBAL_XACTS, REFILL_CYCLES)
   val mem_serdes = new MemSerdes(htif_width)
 
-  //val hub = new CoherenceHubBroadcast()(chWithHtifConf)
-  //val adapter = new CoherenceHubAdapter()(lnWithHtifConf)
-  val hub = new L2CoherenceAgent()(chWithHtifConf)
-  val net = new ReferenceChipCrossbarNetwork(List(hub)++tileEndpoints)(lnWithHtifConf)
-  //net.io(0) <> adapter.io.net
-  //hub.io.tiles <> adapter.io.hub
-  hub.io.network <> net.io(0)
+  val net = new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints)(lnWithHtifConf)
+  net.io zip (masterEndpoints.map(_.io.client) ++ io.tiles :+ io.htif) map { case (net, end) => net <> end }
+  masterEndpoints.map{ _.io.incoherent zip (io.incoherent ++ List(Bool(true))) map { case (m, c) => m := c } }
 
-  for (i <- 1 to conf.ln.nClients) {
-    net.io(i) <> io.tiles(i-1)
-    //hub.io.tiles(i-1) <> io.tiles(i-1)
-    hub.io.incoherent(i-1) := io.incoherent(i-1)
+  val conv = new MemIOUncachedTileLinkIOConverter(2)(ucWithHtifConf)
+  if(lnWithHtifConf.nMasters > 1) {
+    val arb = new UncachedTileLinkIOArbiter(lnWithHtifConf.nMasters)(lnWithHtifConf)
+    arb.io.in zip masterEndpoints.map(_.io.master) map { case (arb, cache) => arb <> cache }
+    conv.io.uncached <> arb.io.out
+  } else {
+    conv.io.uncached <> masterEndpoints.head.io.master
   }
-  net.io(conf.ln.nClients+1) <> io.htif
-  //hub.io.tiles(conf.ln.nClients) <> io.htif
-  hub.io.incoherent(conf.ln.nClients) := Bool(true)
-
-  llc.io.cpu.req_cmd <> Queue(hub.io.mem.req_cmd)
-  llc.io.cpu.req_data <> Queue(hub.io.mem.req_data, REFILL_CYCLES)
-  hub.io.mem.resp <> llc.io.cpu.resp
+  llc.io.cpu.req_cmd <> Queue(conv.io.mem.req_cmd)
+  llc.io.cpu.req_data <> Queue(conv.io.mem.req_data, REFILL_CYCLES)
+  conv.io.mem.resp <> llc.io.cpu.resp
 
   // mux between main and backup memory ports
   val mem_cmdq = (new Queue(2)) { new MemReqCmd }
@@ -267,7 +380,7 @@ class OuterMemorySystem(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent
   io.mem_backup <> mem_serdes.io.narrow
 }
 
-class Uncore(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent])(implicit conf: CoherenceHubConfiguration) extends Component
+class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
 {
   implicit val lnconf = conf.ln
   val io = new Bundle {
@@ -280,16 +393,37 @@ class Uncore(htif_width: Int, tileEndpoints: Seq[ClientCoherenceAgent])(implicit
     val htif = Vec(conf.ln.nClients) { new HTIFIO(conf.ln.nClients) }.flip
     val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
   }
+  val nBanks = 1
+  val bankIdLsb = 5
 
   val htif = new rocketHTIF(htif_width)
+  val outmemsys = new OuterMemorySystem(htif_width, tileList :+ htif)
   htif.io.cpu <> io.htif
-
-  val outmemsys = new OuterMemorySystem(htif_width, tileEndpoints++List(htif))
-  outmemsys.io.tiles <> io.tiles
-  outmemsys.io.htif <> htif.io.mem
   outmemsys.io.incoherent <> io.incoherent
   io.mem <> outmemsys.io.mem
   outmemsys.io.mem_backup_en <> io.mem_backup_en
+
+  // Add networking headers and endpoint queues
+  (outmemsys.io.tiles :+ outmemsys.io.htif).zip(io.tiles :+ htif.io.mem).zipWithIndex.map { 
+    case ((outer, client), i) => 
+      val (acq_w_header, acq_data_w_header) = TileLinkHeaderAppender(client.acquire, client.acquire_data, i, nBanks, bankIdLsb)
+      outer.acquire <> acq_w_header
+      outer.acquire_data <> acq_data_w_header
+
+      val (rel_w_header, rel_data_w_header) = TileLinkHeaderAppender(client.release, client.release_data, i, nBanks, bankIdLsb)
+      outer.release <> rel_w_header
+      outer.release_data <> rel_data_w_header
+
+      val grant_ack_q = Queue(client.grant_ack)
+      outer.grant_ack.valid := grant_ack_q.valid
+      outer.grant_ack.bits := grant_ack_q.bits
+      outer.grant_ack.bits.header.src := UFix(i)
+      grant_ack_q.ready := outer.grant_ack.ready
+
+      client.abort <> Queue(outer.abort)
+      client.grant <> Queue(outer.grant, 1, pipe = true)
+      client.probe <> Queue(outer.probe)
+  }
 
   // pad out the HTIF using a divided clock
   val hio = (new SlowIO(512)) { Bits(width = htif_width+1) }
@@ -332,6 +466,7 @@ class TopIO(htif_width: Int) extends Bundle  {
 
 object DummyTopLevelConstants extends _root_.uncore.constants.CoherenceConfigConstants {
   val NTILES = 2
+  val NBANKS = 2
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
   val ENABLE_CLEAN_EXCLUSIVE = true
@@ -354,8 +489,8 @@ class Top extends Component {
               else new MICoherence
             }
 
-  implicit val lnConf = LogicalNetworkConfiguration(NTILES+1, log2Up(NTILES)+1, 1, NTILES)
-  implicit val chConf = CoherenceHubConfiguration(co, lnConf)
+  implicit val lnConf = LogicalNetworkConfiguration(NTILES+NBANKS, log2Up(NTILES)+1, NBANKS, NTILES)
+  implicit val uConf = UncoreConfiguration(co, lnConf)
 
   val io = new TopIO(HTIF_WIDTH)
 
@@ -376,49 +511,14 @@ class Top extends Component {
 
     resetSigs(i) := hl.reset
     val tile = tileList(i)
-
+    tile.io.tilelink <> tl
+    il := hl.reset
     tile.io.host.reset := Reg(Reg(hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
     hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
     hl.ipi_req <> Queue(tile.io.host.ipi_req)
     tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
     error_mode = error_mode || Reg(tile.io.host.debug.error_mode)
-
-    val x_init_q = Queue(tile.io.tilelink.acquire)
-    tl.acquire.valid := x_init_q.valid
-    tl.acquire.bits.payload := x_init_q.bits.payload
-    tl.acquire.bits.header.src := UFix(i)
-    tl.acquire.bits.header.dst := UFix(0)
-    x_init_q.ready := tl.acquire.ready
-    val x_init_data_q = Queue(tile.io.tilelink.acquire_data)
-    tl.acquire_data.valid := x_init_data_q.valid
-    tl.acquire_data.bits.payload := x_init_data_q.bits.payload
-    tl.acquire_data.bits.header.src := UFix(i)
-    tl.acquire_data.bits.header.dst := UFix(0)
-    x_init_data_q.ready := tl.acquire_data.ready
-    val x_finish_q = Queue(tile.io.tilelink.grant_ack)
-    tl.grant_ack.valid := x_finish_q.valid
-    tl.grant_ack.bits.payload := x_finish_q.bits.payload
-    tl.grant_ack.bits.header.src := UFix(i)
-    tl.grant_ack.bits.header.dst := UFix(0)
-    x_finish_q.ready := tl.grant_ack.ready
-    val p_rep_q = Queue(tile.io.tilelink.release, 1)
-    tl.release.valid := p_rep_q.valid
-    tl.release.bits.payload := p_rep_q.bits.payload
-    tl.release.bits.header.src := UFix(i)
-    tl.release.bits.header.dst := UFix(0)
-    p_rep_q.ready := tl.release.ready
-    val p_rep_data_q = Queue(tile.io.tilelink.release_data)
-    tl.release_data.valid := p_rep_data_q.valid
-    tl.release_data.bits.payload := p_rep_data_q.bits.payload
-    tl.release_data.bits.header.src := UFix(i)
-    tl.release_data.bits.header.dst := UFix(0)
-    p_rep_data_q.ready := tl.release_data.ready
-
-    tile.io.tilelink.grant <> Queue(tl.grant, 1, pipe = true)
-    tile.io.tilelink.probe <> Queue(tl.probe)
-    il := hl.reset
-
   }
 
   io.host <> uncore.io.host
