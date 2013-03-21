@@ -123,11 +123,18 @@ class DataWriteReq(implicit conf: DCacheConfig) extends Bundle {
   override def clone = new DataWriteReq().asInstanceOf[this.type]
 }
 
+class InternalProbe(implicit conf: DCacheConfig) extends Probe {
+  val client_xact_id = Bits(width = CLIENT_XACT_ID_MAX_BITS)
+
+  override def clone = new InternalProbe().asInstanceOf[this.type]
+}
+
 class WritebackReq(implicit conf: DCacheConfig) extends Bundle {
   val tag = Bits(width = conf.tagbits)
   val idx = Bits(width = conf.idxbits)
   val way_en = Bits(width = conf.ways)
-  val client_xact_id = Bits(width = CLIENT_XACT_ID_BITS)
+  val client_xact_id = Bits(width = CLIENT_XACT_ID_MAX_BITS)
+  val r_type = UFix(width = RELEASE_TYPE_MAX_BITS) 
 
   override def clone = new WritebackReq().asInstanceOf[this.type]
 }
@@ -153,7 +160,7 @@ class MetaWriteReq(implicit conf: DCacheConfig) extends Bundle {
   override def clone = new MetaWriteReq().asInstanceOf[this.type]
 }
 
-class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
+class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguration) extends Component {
   val io = new Bundle {
     val req_pri_val    = Bool(INPUT)
     val req_pri_rdy    = Bool(OUTPUT)
@@ -162,17 +169,17 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
     val req_bits       = new MSHRReq().asInput
     val req_sdq_id     = UFix(INPUT, log2Up(conf.nsdq))
 
-    val idx_match      = Bool(OUTPUT)
-    val tag            = Bits(OUTPUT, conf.tagbits)
+    val idx_match       = Bool(OUTPUT)
+    val probe_idx_match = Bool(OUTPUT)
+    val tag             = Bits(OUTPUT, conf.tagbits)
 
     val mem_req  = (new FIFOIO) { new Acquire }
     val mem_resp = new DataWriteReq().asOutput
     val meta_read = (new FIFOIO) { new MetaReadReq }
     val meta_write = (new FIFOIO) { new MetaWriteReq }
     val replay = (new FIFOIO) { new Replay() }
-    val mem_abort = (new PipeIO) { new Abort }.flip
-    val mem_rep = (new PipeIO) { new Grant }.flip
-    val mem_finish = (new FIFOIO) { new GrantAck }
+    val mem_grant = (new PipeIO) { (new LogicalNetworkIO) {new Grant} }.flip
+    val mem_finish = (new FIFOIO) { (new LogicalNetworkIO) {new GrantAck} }
     val wb_req = (new FIFOIO) { new WritebackReq }
     val probe_writeback = (new FIFOIO) { Bool() }.flip
   }
@@ -180,16 +187,20 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9) { UFix() }
   val state = Reg(resetVal = s_invalid)
 
-  val acq_type = Reg { UFix() }
+  val acquire_type = Reg { UFix() }
+  val release_type = Reg { UFix() }
   val line_state = Reg { UFix() }
   val refill_count = Reg { UFix(width = log2Up(REFILL_CYCLES)) }
   val req = Reg { new MSHRReq() }
-  val writeback_probed = Reg{Bool()}
 
   val req_cmd = io.req_bits.cmd
   val req_idx = req.addr(conf.untagbits-1,conf.offbits)
   val idx_match = req_idx === io.req_bits.addr(conf.untagbits-1,conf.offbits)
   val sec_rdy = idx_match && (state === s_wb_req || state === s_wb_resp || state === s_meta_clear || (state === s_refill_req || state === s_refill_resp) && !conf.co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
+
+  val reply = io.mem_grant.valid && io.mem_grant.bits.payload.client_xact_id === UFix(id)
+  val refill_done = reply && refill_count.andR
+  val wb_done = reply && (state === s_wb_resp)
 
   val rpq = (new Queue(conf.nrpq)) { new Replay }
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && !isPrefetch(req_cmd)
@@ -197,16 +208,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   rpq.io.enq.bits.sdq_id := io.req_sdq_id
   rpq.io.deq.ready := io.replay.ready && state === s_drain_rpq || state === s_invalid
 
-  val abort = io.mem_abort.valid && io.mem_abort.bits.client_xact_id === UFix(id)
-  val reply = io.mem_rep.valid && io.mem_rep.bits.client_xact_id === UFix(id)
-  val refill_done = reply && refill_count.andR
-  val wb_done = reply && (state === s_wb_resp)
-
-  io.wb_req.valid := Bool(false)
-  when (io.probe_writeback.valid && idx_match && io.probe_writeback.bits) {
-    writeback_probed := true
-  }
-  io.probe_writeback.ready := !idx_match || state != s_wb_req && state != s_wb_resp && state != s_meta_clear
+  io.probe_writeback.ready := (state != s_wb_req && state != s_wb_resp && state != s_meta_clear) || !idx_match //TODO != s_drain_rpq ?
 
   when (state === s_drain_rpq && !rpq.io.deq.valid) {
     state := s_invalid
@@ -222,38 +224,31 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
     when (refill_done) { state := s_meta_write_req }
     when (reply) {
       refill_count := refill_count + UFix(1)
-      line_state := conf.co.newStateOnGrant(io.mem_rep.bits, io.mem_req.bits)
+      line_state := conf.co.newStateOnGrant(io.mem_grant.bits.payload, io.mem_req.bits)
     }
-    when (abort) { state := s_refill_req }
   }
   when (state === s_refill_req) {
-    when (abort) { state := s_refill_req }
-    .elsewhen (io.mem_req.ready) { state := s_refill_resp }
+    when (io.mem_req.ready) { state := s_refill_resp }
   }
   when (state === s_meta_clear && io.meta_write.ready) {
     state := s_refill_req
   }
   when (state === s_wb_resp) {
     when (reply) { state := s_meta_clear }
-    when (abort) { state := Mux(writeback_probed, s_refill_req, s_wb_req) }
   }
-  when (state === s_wb_req) {
-    io.wb_req.valid := true
-    when (writeback_probed) { 
-      io.wb_req.valid := false
-      state := s_refill_req
-    }.elsewhen (io.wb_req.ready) { state := s_wb_resp }
+  when (state === s_wb_req && io.wb_req.ready) {
+    state := s_wb_resp 
   }
 
   when (io.req_sec_val && io.req_sec_rdy) { // s_wb_req, s_wb_resp, s_refill_req
-    acq_type := conf.co.getAcquireTypeOnSecondaryMiss(req_cmd, conf.co.newStateOnFlush(), io.mem_req.bits)
+    acquire_type := conf.co.getAcquireTypeOnSecondaryMiss(req_cmd, conf.co.newStateOnFlush(), io.mem_req.bits)
   }
   when (io.req_pri_val && io.req_pri_rdy) {
     line_state := conf.co.newStateOnFlush()
     refill_count := UFix(0)
-    acq_type := conf.co.getAcquireTypeOnPrimaryMiss(req_cmd, conf.co.newStateOnFlush())
+    acquire_type := conf.co.getAcquireTypeOnPrimaryMiss(req_cmd, conf.co.newStateOnFlush())
+    release_type := conf.co.getReleaseTypeOnVoluntaryWriteback() //TODO downgrades etc 
     req := io.req_bits
-    writeback_probed := false
 
     state := Mux(conf.co.needsWriteback(io.req_bits.old_meta.state), s_wb_req, s_refill_req)
     when (io.req_bits.tag_match) {
@@ -266,9 +261,10 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
     }
   }
 
-  val finish_q = (new Queue(2 /* wb + refill */)) { new GrantAck }
-  finish_q.io.enq.valid := wb_done || refill_done
-  finish_q.io.enq.bits.master_xact_id := io.mem_rep.bits.master_xact_id
+  val finish_q = (new Queue(2 /* wb + refill */)) { (new LogicalNetworkIO){new GrantAck} }
+  finish_q.io.enq.valid := (wb_done || refill_done) && conf.co.requiresAck(io.mem_grant.bits.payload)
+  finish_q.io.enq.bits.payload.master_xact_id := io.mem_grant.bits.payload.master_xact_id
+  finish_q.io.enq.bits.header.dst := io.mem_grant.bits.header.src
   val can_finish = state === s_invalid || state === s_refill_req || state === s_refill_resp
   io.mem_finish.valid := finish_q.io.deq.valid && can_finish
   finish_q.io.deq.ready := io.mem_finish.ready && can_finish
@@ -287,13 +283,15 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   io.meta_write.bits.data.tag := io.tag
   io.meta_write.bits.way_en := req.way_en
 
+  io.wb_req.valid := state === s_wb_req
   io.wb_req.bits.tag := req.old_meta.tag
   io.wb_req.bits.idx := req_idx
   io.wb_req.bits.way_en := req.way_en
   io.wb_req.bits.client_xact_id := Bits(id)
+  io.wb_req.bits.r_type := conf.co.getReleaseTypeOnVoluntaryWriteback()
 
   io.mem_req.valid := state === s_refill_req
-  io.mem_req.bits.a_type := acq_type
+  io.mem_req.bits.a_type := acquire_type
   io.mem_req.bits.addr := Cat(io.tag, req_idx).toUFix
   io.mem_req.bits.client_xact_id := Bits(id)
   io.mem_finish <> finish_q.io.deq
@@ -313,7 +311,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Component {
   }
 }
 
-class MSHRFile(implicit conf: DCacheConfig) extends Component {
+class MSHRFile(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguration) extends Component {
   val io = new Bundle {
     val req = (new FIFOIO) { new MSHRReq }.flip
     val secondary_miss = Bool(OUTPUT)
@@ -323,11 +321,10 @@ class MSHRFile(implicit conf: DCacheConfig) extends Component {
     val meta_read = (new FIFOIO) { new MetaReadReq }
     val meta_write = (new FIFOIO) { new MetaWriteReq }
     val replay = (new FIFOIO) { new Replay }
-    val mem_abort = (new PipeIO) { new Abort }.flip
-    val mem_rep = (new PipeIO) { new Grant }.flip
-    val mem_finish = (new FIFOIO) { new GrantAck }
+    val mem_grant = (new PipeIO) { (new LogicalNetworkIO){new Grant} }.flip
+    val mem_finish = (new FIFOIO) { (new LogicalNetworkIO){new GrantAck} }
     val wb_req = (new FIFOIO) { new WritebackReq }
-    val probe = (new FIFOIO) { Bool() }.flip
+    val probe = (new FIFOIO) { new Bool() }.flip
 
     val fence_rdy = Bool(OUTPUT)
   }
@@ -346,7 +343,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Component {
   val meta_read_arb = (new Arbiter(conf.nmshr)) { new MetaReadReq }
   val meta_write_arb = (new Arbiter(conf.nmshr)) { new MetaWriteReq }
   val mem_req_arb = (new Arbiter(conf.nmshr)) { new Acquire }
-  val mem_finish_arb = (new Arbiter(conf.nmshr)) { new GrantAck }
+  val mem_finish_arb = (new Arbiter(conf.nmshr)) { (new LogicalNetworkIO){new GrantAck} }
   val wb_req_arb = (new Arbiter(conf.nmshr)) { new WritebackReq }
   val replay_arb = (new Arbiter(conf.nmshr)) { new Replay() }
   val alloc_arb = (new Arbiter(conf.nmshr)) { Bool() }
@@ -383,8 +380,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Component {
     mshr.io.probe_writeback.valid := io.probe.valid
     mshr.io.probe_writeback.bits := wb_probe_match
 
-    mshr.io.mem_abort <> io.mem_abort
-    mshr.io.mem_rep <> io.mem_rep
+    mshr.io.mem_grant <> io.mem_grant
     memRespMux(i) := mshr.io.mem_resp
 
     pri_rdy = pri_rdy || mshr.io.req_pri_rdy
@@ -404,7 +400,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Component {
 
   io.req.ready := Mux(idx_match, tag_match && sec_rdy, pri_rdy) && sdq_rdy
   io.secondary_miss := idx_match
-  io.mem_resp := memRespMux(io.mem_rep.bits.client_xact_id)
+  io.mem_resp := memRespMux(io.mem_grant.bits.payload.client_xact_id)
   io.fence_rdy := !fence
   io.probe.ready := writeback_probe_rdy || !wb_probe_match
 
@@ -426,13 +422,11 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Component {
     val meta_read = (new FIFOIO) { new MetaReadReq }
     val data_req = (new FIFOIO) { new DataReadReq() }
     val data_resp = Bits(INPUT, conf.bitsperrow)
-    val mem_req = (new FIFOIO) { new Acquire }
-    val mem_req_data = (new FIFOIO) { new AcquireData }
+    val release = (new FIFOIO) { new Release }
     val release_data = (new FIFOIO) { new ReleaseData }
   }
 
   val valid = Reg(resetVal = Bool(false))
-  val is_probe = Reg{Bool()}
   val r1_data_req_fired = Reg(resetVal = Bool(false))
   val r2_data_req_fired = Reg(resetVal = Bool(false))
   val cmd_sent = Reg{Bool()}
@@ -447,7 +441,7 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Component {
       cnt := cnt + 1
     }
 
-    when (r2_data_req_fired && !Mux(is_probe, io.release_data.ready, io.mem_req_data.ready)) {
+    when (r2_data_req_fired && !io.release_data.ready) {
       r1_data_req_fired := false
       r2_data_req_fired := false
       cnt := cnt - Mux[UFix](r1_data_req_fired, 2, 1)
@@ -457,20 +451,18 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Component {
       valid := false
     }
 
-    when (valid && io.mem_req.ready) {
+    when (valid && io.release.ready) {
       cmd_sent := true
     }
   }
   when (io.probe.fire()) {
     valid := true
-    is_probe := true
     cmd_sent := true
     cnt := 0
     req := io.probe.bits
   }
   when (io.req.fire()) {
     valid := true
-    is_probe := false
     cmd_sent := false
     cnt := 0
     req := io.req.bits
@@ -483,22 +475,21 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Component {
   io.data_req.bits.way_en := req.way_en
   io.data_req.bits.addr := Cat(req.idx, cnt(log2Up(REFILL_CYCLES)-1,0)) << conf.ramoffbits
 
-  io.mem_req.valid := valid && !cmd_sent
-  io.mem_req.bits.a_type := conf.co.getAcquireTypeOnWriteback()
-  io.mem_req.bits.addr := Cat(req.tag, req.idx).toUFix
-  io.mem_req.bits.client_xact_id := req.client_xact_id
-  io.mem_req_data.valid := r2_data_req_fired && !is_probe
-  io.mem_req_data.bits.data := io.data_resp
-  io.release_data.valid := r2_data_req_fired && is_probe
+  io.release.valid := valid && !cmd_sent
+  io.release.bits.r_type := req.r_type
+  io.release.bits.addr := Cat(req.tag, req.idx).toUFix
+  io.release.bits.client_xact_id := req.client_xact_id
+  io.release.bits.master_xact_id := UFix(0)
+  io.release_data.valid := r2_data_req_fired
   io.release_data.bits.data := io.data_resp
 
   io.meta_read.valid := fire
-  io.meta_read.bits.addr := io.mem_req.bits.addr << conf.offbits
+  io.meta_read.bits.addr := io.release.bits.addr << conf.offbits
 }
 
 class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
   val io = new Bundle {
-    val req = (new FIFOIO) { new Probe }.flip
+    val req = (new FIFOIO) { new InternalProbe }.flip
     val rep = (new FIFOIO) { new Release }
     val meta_read = (new FIFOIO) { new MetaReadReq }
     val meta_write = (new FIFOIO) { new MetaWriteReq }
@@ -512,7 +503,7 @@ class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
   val state = Reg(resetVal = s_invalid)
   val line_state = Reg() { UFix() }
   val way_en = Reg() { Bits() }
-  val req = Reg() { new Probe() }
+  val req = Reg() { new InternalProbe }
   val hit = way_en.orR
 
   when (state === s_meta_write && io.meta_write.ready) {
@@ -552,7 +543,7 @@ class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
 
   io.req.ready := state === s_invalid
   io.rep.valid := state === s_release
-  io.rep.bits := conf.co.newRelease(req, Mux(hit, line_state, conf.co.newStateOnFlush))
+  io.rep.bits := conf.co.newRelease(req, Mux(hit, line_state, conf.co.newStateOnFlush), req.client_xact_id)
 
   io.meta_read.valid := state === s_meta_read
   io.meta_read.bits.addr := req.addr << UFix(conf.offbits)
@@ -568,6 +559,8 @@ class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
   io.wb_req.bits.way_en := way_en
   io.wb_req.bits.idx := req.addr
   io.wb_req.bits.tag := req.addr >> UFix(conf.idxbits)
+  io.wb_req.bits.r_type := UFix(0) // DNC
+  io.wb_req.bits.client_xact_id := UFix(0) // DNC
 }
 
 class MetaDataArray(implicit conf: DCacheConfig) extends Component {
@@ -913,12 +906,15 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   mshr.io.req.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
   mshr.io.req.bits.data := s2_req.data
 
-  mshr.io.mem_rep.valid := io.mem.grant.fire()
-  mshr.io.mem_rep.bits := io.mem.grant.bits.payload
-  mshr.io.mem_abort.valid := io.mem.abort.valid
-  mshr.io.mem_abort.bits := io.mem.abort.bits.payload
-  io.mem.abort.ready := Bool(true)
+  mshr.io.mem_grant.valid := io.mem.grant.fire()
+  mshr.io.mem_grant.bits := io.mem.grant.bits
   when (mshr.io.req.fire()) { replacer.miss }
+
+  io.mem.acquire <> FIFOedLogicalNetworkIOWrapper(mshr.io.mem_req)
+  //TODO io.mem.acquire_data should be connected to uncached store data generator
+  //io.mem.acquire_data <> FIFOedLogicalNetworkIOWrapper(TODO)
+  io.mem.acquire_data.valid := Bool(false)
+  io.mem.acquire_data.bits.payload.data := UFix(0)
 
   // replays
   readArb.io.in(1).valid := mshr.io.replay.valid
@@ -930,8 +926,11 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   metaWriteArb.io.in(0) <> mshr.io.meta_write
 
   // probes
+  val releaseArb = (new Arbiter(2)) { new Release }
+  FIFOedLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release
+
   prober.io.req <> FIFOedLogicalNetworkIOUnwrapper(io.mem.probe)
-  FIFOedLogicalNetworkIOWrapper(prober.io.rep) <> io.mem.release
+  prober.io.rep <> releaseArb.io.in(1)
   prober.io.mshr_req <> mshr.io.probe
   prober.io.wb_req <> wb.io.probe
   prober.io.way_en := s2_tag_match_way
@@ -952,6 +951,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   wb.io.meta_read <> metaReadArb.io.in(3)
   wb.io.data_req <> readArb.io.in(2)
   wb.io.data_resp := s2_data_corrected
+  releaseArb.io.in(0) <> wb.io.release
   FIFOedLogicalNetworkIOWrapper(wb.io.release_data) <> io.mem.release_data
 
   // store->load bypassing
@@ -1015,11 +1015,5 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   io.cpu.resp.bits.data_subword := loadgen.byte
   io.cpu.resp.bits.store_data := s2_req.data
   
-  val acquire_arb = (new Arbiter(2)) { new Acquire }
-  acquire_arb.io.in(0) <> wb.io.mem_req
-  acquire_arb.io.in(1) <> mshr.io.mem_req
-  io.mem.acquire <> FIFOedLogicalNetworkIOWrapper(acquire_arb.io.out)
-
-  io.mem.acquire_data <> FIFOedLogicalNetworkIOWrapper(wb.io.mem_req_data)
-  io.mem.grant_ack <> FIFOedLogicalNetworkIOWrapper(mshr.io.mem_finish)
+  io.mem.grant_ack <> mshr.io.mem_finish
 }
