@@ -40,15 +40,13 @@ class BasicCrossbar[T <: Data]()(data: => T)(implicit conf: PhysicalNetworkConfi
       rdy := arb.ready && (in.bits.header.dst === UFix(i))
     }}
     out <> rrarb.io.out
-    //out.bits.header.src := rrarb.io.chosen.toUFix
-    //out.bits.header.dst := UFix(i)
   }}
   for(i <- 0 until conf.nEndpoints) {
     io.in(i).ready := rdyVecs.map(r => r(i)).reduceLeft(_||_)
   }
 }
 
-case class LogicalNetworkConfiguration(nEndpoints: Int, idBits: Int, nHubs: Int, nTiles: Int)
+case class LogicalNetworkConfiguration(nEndpoints: Int, idBits: Int, nMasters: Int, nClients: Int)
 
 abstract class LogicalNetwork[TileLinkType <: Bundle](endpoints: Seq[CoherenceAgentRole])(implicit conf: LogicalNetworkConfiguration) extends Component {
   val io: Vec[TileLinkType]
@@ -106,4 +104,5 @@ class LogicalNetworkIO[T <: Data]()(data: => T)(implicit conf: LogicalNetworkCon
   val payload = data
   override def clone = { new LogicalNetworkIO()(data).asInstanceOf[this.type] }
 }
+
 }
