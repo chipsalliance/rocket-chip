@@ -274,7 +274,7 @@ class MICoherence extends CoherencePolicyWithUncached {
   }
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
-  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
+  def needsSelfProbe(acq: Acquire) = Bool(false)
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
@@ -431,7 +431,7 @@ class MEICoherence extends CoherencePolicyWithUncached {
   }
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
-  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
+  def needsSelfProbe(acq: Acquire) = Bool(false)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
@@ -592,7 +592,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
   }
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
-  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
+  def needsSelfProbe(acq: Acquire) = Bool(false)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
@@ -758,7 +758,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
 
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
-  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
+  def needsSelfProbe(acq: Acquire) = Bool(false)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
@@ -940,7 +940,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   }
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
-  def needsSelfProbe(acq: Acquire) = acq.a_type === acquireReadUncached
+  def needsSelfProbe(acq: Acquire) = Bool(false)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
