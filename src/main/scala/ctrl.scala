@@ -56,8 +56,6 @@ class CtrlDpathIO extends Bundle()
   val status = new Status().asInput
   val fp_sboard_clr  = Bool(INPUT);
   val fp_sboard_clra = UFix(INPUT, 5);
-  val irq_timer = Bool(INPUT);
-  val irq_ipi   = Bool(INPUT);
   val pcr_replay = Bool(INPUT)
 }
 
@@ -407,10 +405,8 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val ctrl_killx = Bool()
   val ctrl_killm = Bool()
 
-  val id_maskable_interrupts = List(
-    (io.dpath.irq_ipi,   IRQ_IPI),
-    (io.dpath.irq_timer, IRQ_TIMER))
-  var id_interrupts = id_maskable_interrupts.map(i => (io.dpath.status.im(i._2) && i._1, UFix(CAUSE_INTERRUPT+i._2)))
+  val sr = io.dpath.status
+  var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UFix(CAUSE_INTERRUPT+i)))
 
   val (vec_replay, vec_stalld) = if (conf.vec) {
     // vector control

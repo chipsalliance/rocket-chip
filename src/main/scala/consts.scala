@@ -54,8 +54,6 @@ trait ScalarOpConstants {
 
 trait InterruptConstants {
   val CAUSE_INTERRUPT = 32
-  val IRQ_IPI = 5
-  val IRQ_TIMER = 7
 }
  
 abstract trait RocketDcacheConstants extends uncore.constants.CacheConstants with uncore.constants.AddressConstants {
