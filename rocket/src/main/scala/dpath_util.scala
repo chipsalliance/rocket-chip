@@ -55,6 +55,7 @@ class rocketDpathBTB(entries: Int) extends Component
 }
 
 class Status extends Bundle {
+  val ip = Bits(width = 8)
   val im = Bits(width = 8)
   val zero = Bits(width = 7)
   val vm = Bool()
@@ -177,6 +178,8 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   val wdata = Mux(io.w.en, io.w.data, host_pcr_bits.data)
 
   io.status := reg_status
+  io.status.ip := Cat(r_irq_timer, Bool(false),      r_irq_ipi,   Bool(false),
+                      Bool(false), Bool(false),      Bool(false), Bool(false))
   io.ptbr_wen := wen && waddr === PTBR
   io.evec := Mux(io.exception, reg_ebase, reg_epc).toUFix
   io.ptbr := reg_ptbr
@@ -229,7 +232,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   val read_veccfg = if (conf.vec) Cat(io.vec_nfregs, io.vec_nxregs, io.vec_appvl) else Bits(0)
   val read_cause = reg_cause(reg_cause.getWidth-1) << conf.xprlen-1 | reg_cause(reg_cause.getWidth-2,0)
   rdata := AVec[Bits](
-    reg_status.toBits, reg_epc,          reg_badvaddr,     reg_ebase,
+    io.status.toBits,  reg_epc,          reg_badvaddr,     reg_ebase,
     reg_count,         reg_compare,      read_cause,       read_ptbr,
     reg_coreid/*x*/,   read_impl/*x*/,   reg_coreid,       read_impl,
     reg_k0,            reg_k1,           reg_k0/*x*/,      reg_k1/*x*/,
@@ -276,6 +279,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
     reg_status.vm := false
     reg_status.zero := 0
     reg_status.im := 0
+    reg_status.ip := 0
   }
 }
 
