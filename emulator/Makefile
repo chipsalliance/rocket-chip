@@ -75,7 +75,8 @@ output/%.out: output/%.hex emulator
 
 output/%.vpd: output/%.hex emulator-debug
 	rm -rf $@.vcd && mkfifo $@.vcd
-	./emulator-debug +dramsim +max-cycles=3000000 +verbose -v$@.vcd +coremap-random +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@) | vcd2vpd $@.vcd $@ > /dev/null && [ $$PIPESTATUS -eq 0 ]
+	vcd2vpd $@.vcd $@ > /dev/null &
+	./emulator-debug +dramsim +max-cycles=3000000 +verbose -v$@.vcd +coremap-random +loadmem=$< none 2> $(patsubst %.vpd,%.out,$@)
 
 run-asm-tests: $(addprefix output/, $(addsuffix .out, $(global_asm_tests) $(global_asm_vm_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
