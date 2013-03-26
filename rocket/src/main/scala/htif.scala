@@ -92,7 +92,7 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component w
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(6) { UFix() }
 
   val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.width-1, 0)
-  val pcr_coreid = if (conf.ln.nClients == 1) UFix(0) else addr(log2Up(conf.ln.nClients)-1+20,20)
+  val pcr_coreid = addr(log2Up(conf.ln.nClients)-1+20+1,20)
   val pcr_wdata = packet_ram(0)
 
   val bad_mem_packet = size(OFFSET_BITS-1-3,0).orR || addr(OFFSET_BITS-1-3,0).orR
