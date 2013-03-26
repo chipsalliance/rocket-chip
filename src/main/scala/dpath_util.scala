@@ -178,7 +178,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   val wdata = Mux(io.w.en, io.w.data, host_pcr_bits.data)
 
   io.status := reg_status
-  io.status.ip := Cat(r_irq_timer, Bool(false),      r_irq_ipi,   Bool(false),
+  io.status.ip := Cat(r_irq_timer, reg_fromhost.orR, r_irq_ipi,   Bool(false),
                       Bool(false), Bool(false),      Bool(false), Bool(false))
   io.ptbr_wen := wen && waddr === PTBR
   io.evec := Mux(io.exception, reg_ebase, reg_epc).toUFix
