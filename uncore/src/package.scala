@@ -49,7 +49,7 @@ class BasicCrossbar[T <: Data]()(data: => T)(implicit conf: PhysicalNetworkConfi
 case class LogicalNetworkConfiguration(nEndpoints: Int, idBits: Int, nMasters: Int, nClients: Int)
 
 abstract class LogicalNetwork[TileLinkType <: Bundle](endpoints: Seq[CoherenceAgentRole])(implicit conf: LogicalNetworkConfiguration) extends Component {
-  val io: Vec[TileLinkType]
+  override val io: Vec[TileLinkType]
   val physicalNetworks: Seq[PhysicalNetwork]
   require(endpoints.length == conf.nEndpoints)
 }
