@@ -194,9 +194,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
 
 	// processor control regfile read
   val pcr = new PCR
-  pcr.io.r.en   := io.ctrl.pcr != PCR.N
-  pcr.io.r.addr := wb_reg_inst(26,22).toUFix
-
   pcr.io.host <> io.host
   pcr.io <> io.ctrl
   io.ctrl.pcr_replay := pcr.io.replay
@@ -287,7 +284,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     wb_reg_wdata := mem_ll_wdata
   }
   wb_wdata := Mux(io.ctrl.wb_load, io.dmem.resp.bits.data_subword,
-              Mux(io.ctrl.pcr != PCR.N, pcr.io.r.data,
+              Mux(io.ctrl.pcr != PCR.N, pcr.io.rw.rdata,
               wb_reg_wdata))
 
   if (conf.vec)
@@ -321,11 +318,9 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   io.ctrl.fp_sboard_clra := dmem_resp_waddr
 
 	// processor control regfile write
-  pcr.io.w.addr := wb_reg_inst(26,22).toUFix
-  pcr.io.w.en   := io.ctrl.pcr === PCR.T || io.ctrl.pcr === PCR.S || io.ctrl.pcr === PCR.C
-  pcr.io.w.data := Mux(io.ctrl.pcr === PCR.S, pcr.io.r.data | wb_reg_wdata,
-                   Mux(io.ctrl.pcr === PCR.C, pcr.io.r.data & ~wb_reg_wdata,
-                   wb_reg_wdata))
+  pcr.io.rw.addr := wb_reg_inst(26,22).toUFix
+  pcr.io.rw.cmd  := io.ctrl.pcr
+  pcr.io.rw.wdata := wb_reg_wdata
 
   // hook up I$
   io.imem.req.bits.currentpc := ex_reg_pc
