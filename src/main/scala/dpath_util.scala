@@ -106,8 +106,12 @@ class PCR(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
     val host = new HTIFIO(conf.lnConf.nClients)
-    val r = new ioReadPort(conf.nxpr, conf.xprlen)
-    val w = new ioWritePort(conf.nxpr, conf.xprlen)
+    val rw = new Bundle {
+      val addr = UFix(INPUT, log2Up(conf.nxpr))
+      val cmd = Bits(INPUT, PCR.SZ)
+      val rdata = Bits(INPUT, conf.xprlen)
+      val wdata = Bits(INPUT, conf.xprlen)
+    }
     
     val status = new Status().asOutput
     val ptbr = UFix(OUTPUT, PADDR_BITS)
@@ -151,11 +155,9 @@ class PCR(implicit conf: RocketConfiguration) extends Component
 
   val r_irq_timer = Reg(resetVal = Bool(false))
   val r_irq_ipi   = Reg(resetVal = Bool(true))
-  
-  val rdata = Bits();
 
   val host_pcr_req_valid = Reg{Bool()} // don't reset
-  val host_pcr_req_fire = host_pcr_req_valid && !io.r.en && !io.w.en
+  val host_pcr_req_fire = host_pcr_req_valid && io.rw.cmd === PCR.N
   val host_pcr_rep_valid = Reg{Bool()} // don't reset
   val host_pcr_bits = Reg{io.host.pcr_req.bits.clone}
   io.host.pcr_req.ready := !host_pcr_req_valid && !host_pcr_rep_valid
@@ -168,23 +170,22 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   when (host_pcr_req_fire) {
     host_pcr_req_valid := false
     host_pcr_rep_valid := true
-    host_pcr_bits.data := rdata
+    host_pcr_bits.data := io.rw.rdata
   }
   when (io.host.pcr_rep.fire()) { host_pcr_rep_valid := false }
 
-  val raddr = Mux(io.r.en, io.r.addr, host_pcr_bits.addr)
-  val wen = io.w.en || !io.r.en && host_pcr_req_valid && host_pcr_bits.rw
-  val waddr = Mux(io.w.en, io.w.addr, host_pcr_bits.addr)
-  val wdata = Mux(io.w.en, io.w.data, host_pcr_bits.data)
+  val addr = Mux(io.rw.cmd != PCR.N, io.rw.addr, host_pcr_bits.addr)
+  val wen = io.rw.cmd === PCR.T || io.rw.cmd === PCR.S || io.rw.cmd === PCR.C ||
+    host_pcr_req_fire && host_pcr_bits.rw
+  val wdata = Mux(io.rw.cmd != PCR.N, io.rw.wdata, host_pcr_bits.data)
 
   io.status := reg_status
   io.status.ip := Cat(r_irq_timer, reg_fromhost.orR, r_irq_ipi,   Bool(false),
                       Bool(false), Bool(false),      Bool(false), Bool(false))
-  io.ptbr_wen := wen && waddr === PTBR
+  io.ptbr_wen := wen && addr === PTBR
   io.evec := Mux(io.exception, reg_ebase, reg_epc).toUFix
   io.ptbr := reg_ptbr
   io.host.debug.error_mode := reg_error_mode
-  io.r.data := rdata
 
   io.vecbank := reg_vecbank
   var cnt = UFix(0,4)
@@ -193,7 +194,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   io.vecbankcnt := cnt(3,0)
 
   when (io.badvaddr_wen || io.vec_irq_aux_wen) {
-    val wdata = Mux(io.badvaddr_wen, io.w.data, io.vec_irq_aux)
+    val wdata = Mux(io.badvaddr_wen, io.rw.wdata, io.vec_irq_aux)
     val (upper, lower) = Split(wdata, VADDR_BITS)
     val sign = Mux(lower.toFix < Fix(0), upper.andR, upper.orR)
     reg_badvaddr := Cat(sign, lower).toFix
@@ -221,8 +222,8 @@ class PCR(implicit conf: RocketConfiguration) extends Component
 
   io.irq_timer := r_irq_timer;
   io.irq_ipi := r_irq_ipi;
-  io.host.ipi_req.valid := io.w.en && io.w.addr === SEND_IPI
-  io.host.ipi_req.bits := io.w.data
+  io.host.ipi_req.valid := io.rw.cmd === PCR.T && io.rw.addr === SEND_IPI
+  io.host.ipi_req.bits := io.rw.wdata
   io.replay := io.host.ipi_req.valid && !io.host.ipi_req.ready
 
   when (host_pcr_req_fire && !host_pcr_bits.rw && host_pcr_bits.addr === TOHOST) { reg_tohost := UFix(0) }
@@ -231,7 +232,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   val read_ptbr = reg_ptbr(PADDR_BITS-1,PGIDX_BITS) << PGIDX_BITS
   val read_veccfg = if (conf.vec) Cat(io.vec_nfregs, io.vec_nxregs, io.vec_appvl) else Bits(0)
   val read_cause = reg_cause(reg_cause.getWidth-1) << conf.xprlen-1 | reg_cause(reg_cause.getWidth-2,0)
-  rdata := AVec[Bits](
+  io.rw.rdata := AVec[Bits](
     io.status.toBits,  reg_epc,          reg_badvaddr,     reg_ebase,
     reg_count,         reg_compare,      read_cause,       read_ptbr,
     reg_coreid/*x*/,   read_impl/*x*/,   reg_coreid,       read_impl,
@@ -240,28 +241,32 @@ class PCR(implicit conf: RocketConfiguration) extends Component
     reg_vecbank/*x*/,  read_veccfg/*x*/, reg_vecbank/*x*/, read_veccfg/*x*/,
     reg_vecbank/*x*/,  read_veccfg/*x*/, reg_tohost/*x*/,  reg_fromhost/*x*/,
     reg_vecbank/*x*/,  read_veccfg/*x*/, reg_tohost,       reg_fromhost
-  )(raddr)
+  )(addr)
 
   when (wen) {
-    when (waddr === STATUS) {
-      reg_status := new Status().fromBits(wdata)
+    when (addr === STATUS) {
+      val sr_wdata = Mux(io.rw.cmd === PCR.S, reg_status.toBits | wdata,
+                     Mux(io.rw.cmd === PCR.C, reg_status.toBits & ~wdata,
+                     wdata))
+      reg_status := new Status().fromBits(sr_wdata)
+
       reg_status.zero := 0
       if (!conf.vec) reg_status.ev := false
       if (!conf.fpu) reg_status.ef := false
       if (!conf.rvc) reg_status.ec := false
     }
-    when (waddr === EPC)      { reg_epc := wdata(VADDR_BITS,0).toFix }
-    when (waddr === EVEC)     { reg_ebase := wdata(VADDR_BITS-1,0).toFix }
-    when (waddr === COUNT)    { reg_count := wdata.toUFix }
-    when (waddr === COMPARE)  { reg_compare := wdata(31,0).toUFix; r_irq_timer := Bool(false); }
-    when (waddr === COREID)   { reg_coreid := wdata(15,0) }
-    when (waddr === FROMHOST) { when (reg_fromhost === UFix(0) || io.w.en) { reg_fromhost := wdata } }
-    when (waddr === TOHOST)   { when (reg_tohost === UFix(0)) { reg_tohost := wdata } }
-    when (waddr === CLR_IPI)  { r_irq_ipi := wdata(0) }
-    when (waddr === K0)       { reg_k0 := wdata; }
-    when (waddr === K1)       { reg_k1 := wdata; }
-    when (waddr === PTBR)     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
-    when (waddr === VECBANK)  { reg_vecbank:= wdata(7,0) }
+    when (addr === EPC)      { reg_epc := wdata(VADDR_BITS,0).toFix }
+    when (addr === EVEC)     { reg_ebase := wdata(VADDR_BITS-1,0).toFix }
+    when (addr === COUNT)    { reg_count := wdata.toUFix }
+    when (addr === COMPARE)  { reg_compare := wdata(31,0).toUFix; r_irq_timer := Bool(false); }
+    when (addr === COREID)   { reg_coreid := wdata(15,0) }
+    when (addr === FROMHOST) { when (reg_fromhost === UFix(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
+    when (addr === TOHOST)   { when (reg_tohost === UFix(0)) { reg_tohost := wdata } }
+    when (addr === CLR_IPI)  { r_irq_ipi := wdata(0) }
+    when (addr === K0)       { reg_k0 := wdata; }
+    when (addr === K1)       { reg_k1 := wdata; }
+    when (addr === PTBR)     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
+    when (addr === VECBANK)  { reg_vecbank:= wdata(7,0) }
   }
 
   io.host.ipi_rep.ready := Bool(true)
@@ -285,9 +290,6 @@ class PCR(implicit conf: RocketConfiguration) extends Component
 
 class ioReadPort(d: Int, w: Int) extends Bundle
 {
-  val addr = UFix(INPUT, log2Up(d))
-  val en   = Bool(INPUT)
-  val data = Bits(OUTPUT, w)
   override def clone = new ioReadPort(d, w).asInstanceOf[this.type]
 }
 
