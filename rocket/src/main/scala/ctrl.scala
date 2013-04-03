@@ -6,6 +6,7 @@ import Constants._
 import Instructions._
 import hwacha._
 import ALU._
+import Util._
 
 class CtrlDpathIO extends Bundle()
 {
@@ -174,13 +175,13 @@ object XDecode extends DecodeConstants
     REMUW->     List(xpr64,N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_32, FN_REMU,  N,M_X,      MT_X, N,Y,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
                                         
     SYSCALL->   List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_X, WB_X,  PCR.N,N,N,Y,N,N),
-    SETPCR->    List(Y,    N,N,BR_N,  N,N,N,A2_ITYPE,DW_XPR,FN_OP2,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.S,N,N,N,Y,Y),
-    CLEARPCR->  List(Y,    N,N,BR_N,  N,N,N,A2_ITYPE,DW_XPR,FN_OP2,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.C,N,N,N,Y,Y),
+    SETPCR->    List(Y,    N,N,BR_N,  N,N,N,A2_ITYPE,DW_XPR,FN_OP2,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.S,N,N,N,Y,N),
+    CLEARPCR->  List(Y,    N,N,BR_N,  N,N,N,A2_ITYPE,DW_XPR,FN_OP2,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.C,N,N,N,Y,N),
     ERET->      List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_X, WB_X,  PCR.N,N,Y,N,Y,N),
     FENCE->     List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     Y,M_FENCE,  MT_X, N,N,N,WA_X, WB_X,  PCR.N,N,N,N,N,N),
     FENCE_I->   List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     Y,M_FENCE,  MT_X, N,N,N,WA_X, WB_X,  PCR.N,Y,N,N,N,Y),
-    MFPCR->     List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.F,N,N,N,Y,Y),
-    MTPCR->     List(Y,    N,N,BR_N,  N,Y,N,A2_RTYPE,DW_XPR,FN_OP2,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.T,N,N,N,Y,Y),
+    MFPCR->     List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.F,N,N,N,Y,N),
+    MTPCR->     List(Y,    N,N,BR_N,  N,Y,N,A2_RTYPE,DW_XPR,FN_OP2,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.T,N,N,N,Y,N),
     RDTIME->    List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_XPR,FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_TSC,PCR.N,N,N,N,N,N),
     RDCYCLE->   List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_XPR,FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_TSC,PCR.N,N,N,N,N,N),
     RDINSTRET-> List(Y,    N,N,BR_N,  N,N,N,A2_X,    DW_XPR,FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_IRT,PCR.N,N,N,N,N,N))
@@ -393,7 +394,6 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val wb_reg_eret            = Reg(resetVal = Bool(false))
   val wb_reg_xcpt            = Reg(resetVal = Bool(false))
   val wb_reg_replay          = Reg(resetVal = Bool(false))
-  val wb_reg_replay_next     = Reg(resetVal = Bool(false))
   val wb_reg_cause           = Reg(){UFix()}
   val wb_reg_fp_val          = Reg(resetVal = Bool(false))
   val wb_reg_div_mul_val = Reg(resetVal = Bool(false))
@@ -453,6 +453,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   // executing ERET when traps are enabled causes an illegal instruction exception
   val illegal_inst = !id_int_val.toBool || (id_eret.toBool && io.dpath.status.et)
+  // flush pipeline on PCR writes that may have side effects
+  val id_pcr_flush = id_pcr != PCR.N && id_pcr != PCR.F &&
+    id_raddr1 != PCR.K0 && id_raddr1 != PCR.K1 && id_raddr1 != PCR.EPC
 
   val (id_xcpt, id_cause) = checkExceptions(List(
     (id_interrupt,                            id_interrupt_cause),
@@ -499,7 +502,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     ex_reg_flush_inst  := id_fence_i
     ex_reg_fp_val           := id_fp_val
     ex_reg_vec_val          := id_vec_val.toBool
-    ex_reg_replay_next      := id_replay_next
+    ex_reg_replay_next      := id_replay_next || id_pcr_flush
     ex_reg_load_use         := id_load_use;
     ex_reg_mem_cmd := id_mem_cmd
     ex_reg_mem_type := id_mem_type.toUFix
@@ -567,7 +570,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   ctrl_killm := killm_common || mem_xcpt || fpu_kill_mem
 
   wb_reg_replay := replay_mem && !take_pc_wb
-  wb_reg_xcpt := mem_xcpt && !take_pc_wb && !wb_reg_replay_next
+  wb_reg_xcpt := mem_xcpt && !take_pc_wb
   when (mem_xcpt) { wb_reg_cause := mem_cause }
 
   when (ctrl_killm) {
@@ -580,7 +583,6 @@ class Control(implicit conf: RocketConfiguration) extends Component
     wb_reg_mem_val     := Bool(false)
     wb_reg_div_mul_val := Bool(false);
     wb_reg_fp_val      := Bool(false)
-    wb_reg_replay_next := Bool(false)
   }
   .otherwise {
     wb_reg_valid       := mem_reg_valid
@@ -592,7 +594,6 @@ class Control(implicit conf: RocketConfiguration) extends Component
     wb_reg_mem_val     := mem_reg_mem_val
     wb_reg_div_mul_val := mem_reg_div_mul_val
     wb_reg_fp_val      := mem_reg_fp_val
-    wb_reg_replay_next := mem_reg_replay_next
   }
 
   val replay_wb = io.dmem.resp.bits.nack || wb_reg_replay || vec_replay || io.dpath.pcr_replay
@@ -651,7 +652,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   io.imem.req.bits.taken := !ex_reg_btb_hit || ex_reg_jalr
   io.imem.req.valid  := take_pc
 
-  // stall for RAW/WAW hazards on loads, AMOs, and mul/div in execute stage.
+  // stall for RAW/WAW hazards on PCRs, loads, AMOs, and mul/div in execute stage.
   val data_hazard_ex = ex_reg_wen &&
     (id_renx1.toBool && id_raddr1 === io.dpath.ex_waddr ||
      id_renx2.toBool && id_raddr2 === io.dpath.ex_waddr ||
@@ -661,10 +662,10 @@ class Control(implicit conf: RocketConfiguration) extends Component
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.ex_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.ex_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.ex_waddr)
-  val id_ex_hazard = data_hazard_ex && (ex_reg_mem_val || ex_reg_div_mul_val || ex_reg_fp_val) ||
+  val id_ex_hazard = data_hazard_ex && (ex_reg_pcr != PCR.N || ex_reg_mem_val || ex_reg_div_mul_val || ex_reg_fp_val) ||
                      fp_data_hazard_ex && (ex_reg_mem_val || ex_reg_fp_val)
     
-  // stall for RAW/WAW hazards on LB/LH and mul/div in memory stage.
+  // stall for RAW/WAW hazards on PCRs, LB/LH, and mul/div in memory stage.
   val mem_mem_cmd_bh =
     if (!conf.fastLoadWord) Bool(true)
     else if (conf.fastLoadByte) Bool(false)
@@ -678,7 +679,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.mem_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.mem_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.mem_waddr)
-  val id_mem_hazard = data_hazard_mem && (mem_reg_mem_val && mem_mem_cmd_bh || mem_reg_div_mul_val || mem_reg_fp_val) ||
+  val id_mem_hazard = data_hazard_mem && (mem_reg_pcr != PCR.N || mem_reg_mem_val && mem_mem_cmd_bh || mem_reg_div_mul_val || mem_reg_fp_val) ||
                       fp_data_hazard_mem && mem_reg_fp_val
   id_load_use := mem_reg_mem_val && (data_hazard_mem || fp_data_hazard_mem)
 
@@ -705,10 +706,11 @@ class Control(implicit conf: RocketConfiguration) extends Component
     id_fp_val && id_stall_fpu ||
     id_mem_val && !io.dmem.req.ready ||
     vec_stalld
-  ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || id_interrupt
+  val ctrl_draind = id_interrupt || ex_reg_replay_next
+  ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || ctrl_draind
 
-  io.dpath.killd := take_pc || ctrl_stalld && !id_interrupt
-  io.imem.resp.ready := pc_taken || !ctrl_stalld
+  io.dpath.killd := take_pc || ctrl_stalld && !ctrl_draind
+  io.imem.resp.ready := pc_taken || !ctrl_stalld || ctrl_draind
   io.imem.invalidate := wb_reg_flush_inst
 
   io.dpath.mem_load := mem_reg_mem_val && mem_reg_wen
