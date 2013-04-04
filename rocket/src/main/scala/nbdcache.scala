@@ -139,6 +139,14 @@ class WritebackReq(implicit conf: DCacheConfig) extends Bundle {
   override def clone = new WritebackReq().asInstanceOf[this.type]
 }
 
+object MetaData {
+  def apply(tag: Bits, state: UFix)(implicit conf: DCacheConfig) = {
+    val meta = new MetaData
+    meta.state := state
+    meta.tag := tag
+    meta
+  }
+}
 class MetaData(implicit conf: DCacheConfig) extends Bundle {
   val state = UFix(width = conf.statebits)
   val tag = Bits(width = conf.tagbits)
@@ -250,7 +258,6 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
     release_type := conf.co.getReleaseTypeOnVoluntaryWriteback() //TODO downgrades etc 
     req := io.req_bits
 
-    state := Mux(conf.co.needsWriteback(io.req_bits.old_meta.state), s_wb_req, s_refill_req)
     when (io.req_bits.tag_match) {
       when (conf.co.isHit(req_cmd, io.req_bits.old_meta.state)) { // set dirty bit
         state := s_meta_write_req
@@ -258,6 +265,8 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
       }.otherwise { // upgrade permissions
         state := s_refill_req
       }
+    }.otherwise { // writback if necessary and refill
+      state := Mux(conf.co.needsWriteback(io.req_bits.old_meta.state), s_wb_req, s_refill_req)
     }
   }
 
@@ -902,7 +911,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   mshr.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd))
   mshr.io.req.bits := s2_req
   mshr.io.req.bits.tag_match := s2_tag_match
-  mshr.io.req.bits.old_meta := s2_repl_meta
+  mshr.io.req.bits.old_meta := Mux(s2_tag_match, MetaData(s2_repl_meta.tag, s2_hit_state), s2_repl_meta)
   mshr.io.req.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
   mshr.io.req.bits.data := s2_req.data
 
