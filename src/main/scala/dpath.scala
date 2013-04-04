@@ -200,6 +200,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
 
   io.ptw.ptbr := pcr.io.ptbr
   io.ptw.invalidate := pcr.io.ptbr_wen
+  io.ptw.eret := io.ctrl.eret
   io.ptw.status := pcr.io.status
   
 	// branch resolution logic
