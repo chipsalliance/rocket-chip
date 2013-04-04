@@ -127,6 +127,11 @@ object XDecode extends DecodeConstants
     AMOMINU_D-> List(xpr64,N,N,BR_N,  N,Y,Y,A2_ZERO, DW_XPR,FN_ADD,   Y,M_XA_MINU,MT_D, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     AMOMAX_D->  List(xpr64,N,N,BR_N,  N,Y,Y,A2_ZERO, DW_XPR,FN_ADD,   Y,M_XA_MAX, MT_D, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     AMOMAXU_D-> List(xpr64,N,N,BR_N,  N,Y,Y,A2_ZERO, DW_XPR,FN_ADD,   Y,M_XA_MAXU,MT_D, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
+
+    LR_W->      List(Y,    N,N,BR_N,  N,Y,Y,A2_ZERO, DW_XPR,FN_ADD,   Y,M_XLR,    MT_W, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
+    LR_D->      List(xpr64,N,N,BR_N,  N,Y,Y,A2_ZERO, DW_XPR,FN_ADD,   Y,M_XLR,    MT_D, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
+    SC_W->      List(Y,    N,N,BR_N,  N,Y,Y,A2_ZERO, DW_XPR,FN_ADD,   Y,M_XSC,    MT_W, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
+    SC_D->      List(xpr64,N,N,BR_N,  N,Y,Y,A2_ZERO, DW_XPR,FN_ADD,   Y,M_XSC,    MT_D, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
                                         
     LUI->       List(Y,    N,N,BR_N,  N,N,N,A2_LTYPE,DW_XPR,FN_OP2,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     ADDI->      List(Y,    N,N,BR_N,  N,N,Y,A2_ITYPE,DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
@@ -383,7 +388,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val mem_reg_replay_next     = Reg(resetVal = Bool(false))
   val mem_reg_pcr             = Reg(resetVal = PCR.N)
   val mem_reg_cause           = Reg(){UFix()}
-  val mem_reg_mem_type        = Reg(){Bits()}
+  val mem_reg_slow_bypass     = Reg(){Bool()}
 
   val wb_reg_valid           = Reg(resetVal = Bool(false))
   val wb_reg_pcr             = Reg(resetVal = PCR.N)
@@ -516,8 +521,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
                      ex_reg_div_mul_val && !io.dpath.div_mul_rdy ||
                      mem_reg_replay_next
   ctrl_killx := take_pc_wb || replay_ex
-
   val take_pc_ex = !Mux(ex_reg_jalr, ex_reg_btb_hit && io.dpath.jalr_eq, ex_reg_btb_hit === io.dpath.ex_br_taken)
+  // detect 2-cycle load-use delay for LB/LH/SC
+  val ex_slow_bypass = ex_reg_mem_cmd === M_XSC || AVec(MT_B, MT_BU, MT_H, MT_HU).contains(ex_reg_mem_type)
 
   val (ex_xcpt, ex_cause) = checkExceptions(List(
     (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause),
@@ -552,7 +558,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     mem_reg_fp_val := ex_reg_fp_val
     mem_reg_vec_val := ex_reg_vec_val
     mem_reg_replay_next := ex_reg_replay_next
-    mem_reg_mem_type := ex_reg_mem_type
+    mem_reg_slow_bypass := ex_slow_bypass
     mem_reg_xcpt := ex_xcpt
   }
 
@@ -667,9 +673,8 @@ class Control(implicit conf: RocketConfiguration) extends Component
     
   // stall for RAW/WAW hazards on PCRs, LB/LH, and mul/div in memory stage.
   val mem_mem_cmd_bh =
-    if (!conf.fastLoadWord) Bool(true)
-    else if (conf.fastLoadByte) Bool(false)
-    else AVec(MT_B, MT_BU, MT_H, MT_HU) contains mem_reg_mem_type
+    if (conf.fastLoadWord) Bool(!conf.fastLoadByte) && mem_reg_slow_bypass
+    else Bool(true)
   val data_hazard_mem = mem_reg_wen &&
     (id_raddr1 != UFix(0) && id_renx1 && id_raddr1 === io.dpath.mem_waddr ||
      id_raddr2 != UFix(0) && id_renx2 && id_raddr2 === io.dpath.mem_waddr ||

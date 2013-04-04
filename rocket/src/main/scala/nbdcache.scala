@@ -869,6 +869,17 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEn(meta.io.resp(w).state, s1_clk_en)){Bits()})
   val s2_hit = s2_tag_match && conf.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === conf.co.newStateOnHit(s2_req.cmd, s2_hit_state)
 
+  // load-reserved/store-conditional
+  val s2_lr_valid = Reg(resetVal = Bool(false))
+  val s2_lr_addr = Reg{UFix()}
+  val s2_lr_addr_match = s2_lr_addr === (s2_req.addr >> conf.offbits)
+  when (s2_valid_masked && s2_req.cmd === M_XLR) {
+    s2_lr_valid := true
+    s2_lr_addr := s2_req.addr >> conf.offbits
+  }
+  when (prober.io.mshr_req.valid && s2_lr_addr_match) { s2_lr_valid := false }
+  when (io.cpu.ptw.eret) { s2_lr_valid := false }
+
   val s2_data = Vec(conf.ways){Bits(width = conf.bitsperrow)}
   for (w <- 0 until conf.ways) {
     val regs = Vec(conf.wordsperrow){Reg{Bits(width = conf.encdatabits)}}
@@ -1015,13 +1026,13 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
     io.cpu.req.ready := Bool(false)
   }
 
-  val s2_read = isRead(s2_req.cmd)
+  val s2_read = isRead(s2_req.cmd) || s2_req.cmd === M_XSC
   io.cpu.resp.valid  := s2_read && (s2_replay || s2_valid_masked && s2_hit) && !s2_data_correctable
   io.cpu.resp.bits.nack := s2_valid && s2_nack
   io.cpu.resp.bits := s2_req
   io.cpu.resp.bits.replay := s2_replay && s2_read
   io.cpu.resp.bits.data := loadgen.word
-  io.cpu.resp.bits.data_subword := loadgen.byte
+  io.cpu.resp.bits.data_subword := Mux(s2_req.cmd === M_XSC, !s2_lr_addr_match, loadgen.byte)
   io.cpu.resp.bits.store_data := s2_req.data
   
   io.mem.grant_ack <> mshr.io.mem_finish
