@@ -121,8 +121,7 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write || cmd === M_PFW, acquireReadDirty, acquireReadClean)
+    Mux(isWriteIntent(cmd), acquireReadDirty, acquireReadClean)
   }
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -517,8 +516,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write || cmd === M_PFW, acquireReadExclusive, acquireReadShared)
+    Mux(isWriteIntent(cmd), acquireReadExclusive, acquireReadShared)
   }
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -679,8 +677,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write || cmd === M_PFW, acquireReadExclusive, acquireReadShared)
+    Mux(isWriteIntent(cmd), acquireReadExclusive, acquireReadShared)
   }
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
@@ -857,8 +854,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write || cmd === M_PFW, Mux(state === tileInvalid, acquireReadExclusive, acquireInvalidateOthers), acquireReadShared)
+    Mux(isWriteIntent(cmd), Mux(state === tileInvalid, acquireReadExclusive, acquireInvalidateOthers), acquireReadShared)
   }
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
     val (read, write) = cpuCmdToRW(cmd)
