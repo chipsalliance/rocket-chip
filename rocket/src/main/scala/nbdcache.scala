@@ -872,8 +872,10 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   // load-reserved/store-conditional
   val s2_lr_valid = Reg(resetVal = Bool(false))
   val s2_lr_addr = Reg{UFix()}
-  val s2_lr_addr_match = s2_lr_addr === (s2_req.addr >> conf.offbits)
-  when (s2_valid_masked && s2_req.cmd === M_XLR) {
+  val (s2_lr, s2_sc) = (s2_req.cmd === M_XLR, s2_req.cmd === M_XSC)
+  val s2_lr_addr_match = s2_lr_valid && s2_lr_addr === (s2_req.addr >> conf.offbits)
+  val s2_sc_fail = s2_sc && !s2_lr_addr_match
+  when ((s2_valid_masked && s2_hit || s2_replay) && s2_lr) {
     s2_lr_valid := true
     s2_lr_addr := s2_req.addr >> conf.offbits
   }
@@ -898,7 +900,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   val s2_data_correctable = AVec(s2_data_decoded.map(_.correctable)).toBits()(s2_word_idx)
   
   // store/amo hits
-  s3_valid := (s2_valid_masked && s2_hit || s2_replay) && isWrite(s2_req.cmd)
+  s3_valid := (s2_valid_masked && s2_hit && !s2_sc_fail || s2_replay) && isWrite(s2_req.cmd)
   val amoalu = new AMOALU
   when ((s2_valid || s2_replay) && (isWrite(s2_req.cmd) || s2_data_correctable)) {
     s3_req := s2_req
@@ -978,7 +980,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   val s4_valid = Reg(s3_valid, resetVal = Bool(false))
   val s4_req = RegEn(s3_req, s3_valid && metaReadArb.io.out.valid)
   val bypasses = List(
-    (s2_valid_masked || s2_replay, s2_req, amoalu.io.out),
+    (s2_valid_masked && !s2_sc_fail || s2_replay, s2_req, amoalu.io.out),
     (s3_valid, s3_req, s3_req.data),
     (s4_valid, s4_req, s4_req.data)
   ).map(r => (r._1 && (s1_addr >> conf.wordoffbits === r._2.addr >> conf.wordoffbits) && isWrite(r._2.cmd), r._3))
@@ -1026,13 +1028,13 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
     io.cpu.req.ready := Bool(false)
   }
 
-  val s2_read = isRead(s2_req.cmd) || s2_req.cmd === M_XSC
-  io.cpu.resp.valid  := s2_read && (s2_replay || s2_valid_masked && s2_hit) && !s2_data_correctable
+  val s2_do_resp = isRead(s2_req.cmd) || s2_sc
+  io.cpu.resp.valid  := s2_do_resp && (s2_replay || s2_valid_masked && s2_hit) && !s2_data_correctable
   io.cpu.resp.bits.nack := s2_valid && s2_nack
   io.cpu.resp.bits := s2_req
-  io.cpu.resp.bits.replay := s2_replay && s2_read
+  io.cpu.resp.bits.replay := s2_replay && s2_do_resp
   io.cpu.resp.bits.data := loadgen.word
-  io.cpu.resp.bits.data_subword := Mux(s2_req.cmd === M_XSC, !s2_lr_addr_match, loadgen.byte)
+  io.cpu.resp.bits.data_subword := Mux(s2_sc, s2_sc_fail, loadgen.byte)
   io.cpu.resp.bits.store_data := s2_req.data
   
   io.mem.grant_ack <> mshr.io.mem_finish
