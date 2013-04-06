@@ -216,8 +216,6 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
   rpq.io.enq.bits.sdq_id := io.req_sdq_id
   rpq.io.deq.ready := io.replay.ready && state === s_drain_rpq || state === s_invalid
 
-  io.probe_writeback.ready := (state != s_wb_req && state != s_wb_resp && state != s_meta_clear) || !idx_match //TODO != s_drain_rpq ?
-
   when (state === s_drain_rpq && !rpq.io.deq.valid) {
     state := s_invalid
   }
@@ -235,16 +233,16 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
       line_state := conf.co.newStateOnGrant(io.mem_grant.bits.payload, io.mem_req.bits)
     }
   }
-  when (state === s_refill_req) {
-    when (io.mem_req.ready) { state := s_refill_resp }
+  when (io.mem_req.fire()) { // s_refill_req
+    state := s_refill_resp
   }
   when (state === s_meta_clear && io.meta_write.ready) {
     state := s_refill_req
   }
-  when (state === s_wb_resp) {
-    when (reply) { state := s_meta_clear }
+  when (state === s_wb_resp && reply) {
+    state := s_meta_clear
   }
-  when (state === s_wb_req && io.wb_req.ready) {
+  when (io.wb_req.fire()) { // s_wb_req
     state := s_wb_resp 
   }
 
@@ -270,21 +268,22 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
     }
   }
 
-  val finish_q = (new Queue(2 /* wb + refill */)) { (new LogicalNetworkIO){new GrantAck} }
-  finish_q.io.enq.valid := (wb_done || refill_done) && conf.co.requiresAck(io.mem_grant.bits.payload)
-  finish_q.io.enq.bits.payload.master_xact_id := io.mem_grant.bits.payload.master_xact_id
-  finish_q.io.enq.bits.header.dst := io.mem_grant.bits.header.src
+  val ackq = (new Queue(1)) { (new LogicalNetworkIO){new GrantAck} }
+  ackq.io.enq.valid := (wb_done || refill_done) && conf.co.requiresAck(io.mem_grant.bits.payload)
+  ackq.io.enq.bits.payload.master_xact_id := io.mem_grant.bits.payload.master_xact_id
+  ackq.io.enq.bits.header.dst := io.mem_grant.bits.header.src
   val can_finish = state === s_invalid || state === s_refill_req || state === s_refill_resp
-  io.mem_finish.valid := finish_q.io.deq.valid && can_finish
-  finish_q.io.deq.ready := io.mem_finish.ready && can_finish
-  io.mem_finish.bits := finish_q.io.deq.bits
+  io.mem_finish.valid := ackq.io.deq.valid && can_finish
+  ackq.io.deq.ready := io.mem_finish.ready && can_finish
+  io.mem_finish.bits := ackq.io.deq.bits
 
   io.idx_match := (state != s_invalid) && idx_match
   io.mem_resp := req
   io.mem_resp.addr := Cat(req_idx, refill_count) << conf.ramoffbits
   io.tag := req.addr >> conf.untagbits
-  io.req_pri_rdy := state === s_invalid && !finish_q.io.deq.valid
+  io.req_pri_rdy := state === s_invalid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
+  io.probe_writeback.ready := !idx_match || (state != s_wb_req && state != s_wb_resp && state != s_meta_clear)
 
   io.meta_write.valid := state === s_meta_write_req || state === s_meta_clear
   io.meta_write.bits.idx := req_idx
@@ -292,18 +291,18 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
   io.meta_write.bits.data.tag := io.tag
   io.meta_write.bits.way_en := req.way_en
 
-  io.wb_req.valid := state === s_wb_req
+  io.wb_req.valid := state === s_wb_req && ackq.io.enq.ready
   io.wb_req.bits.tag := req.old_meta.tag
   io.wb_req.bits.idx := req_idx
   io.wb_req.bits.way_en := req.way_en
   io.wb_req.bits.client_xact_id := Bits(id)
   io.wb_req.bits.r_type := conf.co.getReleaseTypeOnVoluntaryWriteback()
 
-  io.mem_req.valid := state === s_refill_req
+  io.mem_req.valid := state === s_refill_req && ackq.io.enq.ready
   io.mem_req.bits.a_type := acquire_type
   io.mem_req.bits.addr := Cat(io.tag, req_idx).toUFix
   io.mem_req.bits.client_xact_id := Bits(id)
-  io.mem_finish <> finish_q.io.deq
+  io.mem_finish <> ackq.io.deq
   io.mem_req.bits.client_xact_id := Bits(id)
 
   io.meta_read.valid := state === s_drain_rpq
