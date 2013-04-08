@@ -36,6 +36,7 @@ case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
   val encmetabits = code.width(metabits)
   val wordsperrow = MEM_DATA_BITS/databits
   val bitsperrow = wordsperrow*encdatabits
+  val lrsc_cycles = 32 // ISA requires 16-insn LRSC sequences to succeed
 }
 
 abstract class ReplacementPolicy
@@ -178,7 +179,6 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
     val req_sdq_id     = UFix(INPUT, log2Up(conf.nsdq))
 
     val idx_match       = Bool(OUTPUT)
-    val probe_idx_match = Bool(OUTPUT)
     val tag             = Bits(OUTPUT, conf.tagbits)
 
     val mem_req  = (new FIFOIO) { new Acquire }
@@ -189,7 +189,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
     val mem_grant = (new PipeIO) { (new LogicalNetworkIO) {new Grant} }.flip
     val mem_finish = (new FIFOIO) { (new LogicalNetworkIO) {new GrantAck} }
     val wb_req = (new FIFOIO) { new WritebackReq }
-    val probe_writeback = (new FIFOIO) { Bool() }.flip
+    val probe_rdy = Bool(OUTPUT)
   }
 
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9) { UFix() }
@@ -283,7 +283,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
   io.tag := req.addr >> conf.untagbits
   io.req_pri_rdy := state === s_invalid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
-  io.probe_writeback.ready := !idx_match || (state != s_wb_req && state != s_wb_resp && state != s_meta_clear)
+  io.probe_rdy := !idx_match || (state != s_wb_req && state != s_wb_resp && state != s_meta_clear)
 
   io.meta_write.valid := state === s_meta_write_req || state === s_meta_clear
   io.meta_write.bits.idx := req_idx
@@ -332,8 +332,8 @@ class MSHRFile(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguration)
     val mem_grant = (new PipeIO) { (new LogicalNetworkIO){new Grant} }.flip
     val mem_finish = (new FIFOIO) { (new LogicalNetworkIO){new GrantAck} }
     val wb_req = (new FIFOIO) { new WritebackReq }
-    val probe = (new FIFOIO) { new Bool() }.flip
 
+    val probe_rdy = Bool(OUTPUT)
     val fence_rdy = Bool(OUTPUT)
   }
 
@@ -346,6 +346,8 @@ class MSHRFile(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguration)
 
   val idxMatch = Vec(conf.nmshr) { Bool() }
   val tagList = Vec(conf.nmshr) { Bits() }
+  val tag_match = Mux1H(idxMatch, tagList) === io.req.bits.addr >> conf.untagbits
+
   val wbTagList = Vec(conf.nmshr) { Bits() }
   val memRespMux = Vec(conf.nmshr) { new DataWriteReq }
   val meta_read_arb = (new Arbiter(conf.nmshr)) { new MetaReadReq }
@@ -356,14 +358,12 @@ class MSHRFile(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguration)
   val replay_arb = (new Arbiter(conf.nmshr)) { new Replay() }
   val alloc_arb = (new Arbiter(conf.nmshr)) { Bool() }
 
-  val tag_match = Mux1H(idxMatch, tagList) === io.req.bits.addr >> conf.untagbits
-  val wb_probe_match = Mux1H(idxMatch, wbTagList) === io.req.bits.addr >> conf.untagbits
-
   var idx_match = Bool(false)
   var pri_rdy = Bool(false)
-  var fence = Bool(false)
   var sec_rdy = Bool(false)
-  var writeback_probe_rdy = Bool(true)
+
+  io.fence_rdy := true
+  io.probe_rdy := true
 
   for (i <- 0 to conf.nmshr-1) {
     val mshr = new MSHR(i)
@@ -385,17 +385,16 @@ class MSHRFile(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguration)
     mshr.io.mem_finish <> mem_finish_arb.io.in(i)
     mshr.io.wb_req <> wb_req_arb.io.in(i)
     mshr.io.replay <> replay_arb.io.in(i)
-    mshr.io.probe_writeback.valid := io.probe.valid
-    mshr.io.probe_writeback.bits := wb_probe_match
 
     mshr.io.mem_grant <> io.mem_grant
     memRespMux(i) := mshr.io.mem_resp
 
     pri_rdy = pri_rdy || mshr.io.req_pri_rdy
     sec_rdy = sec_rdy || mshr.io.req_sec_rdy
-    fence = fence || !mshr.io.req_pri_rdy
     idx_match = idx_match || mshr.io.idx_match
-    writeback_probe_rdy = writeback_probe_rdy && mshr.io.probe_writeback.ready
+
+    when (!mshr.io.req_pri_rdy) { io.fence_rdy := false }
+    when (!mshr.io.probe_rdy) { io.probe_rdy := false }
   }
 
   alloc_arb.io.out.ready := io.req.valid && sdq_rdy && !idx_match
@@ -409,8 +408,6 @@ class MSHRFile(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguration)
   io.req.ready := Mux(idx_match, tag_match && sec_rdy, pri_rdy) && sdq_rdy
   io.secondary_miss := idx_match
   io.mem_resp := memRespMux(io.mem_grant.bits.payload.client_xact_id)
-  io.fence_rdy := !fence
-  io.probe.ready := writeback_probe_rdy || !wb_probe_match
 
   val free_sdq = io.replay.fire() && isWrite(io.replay.bits.cmd)
   io.replay.bits.data := sdq(RegEn(replay_arb.io.out.bits.sdq_id, free_sdq))
@@ -501,9 +498,9 @@ class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
     val rep = (new FIFOIO) { new Release }
     val meta_read = (new FIFOIO) { new MetaReadReq }
     val meta_write = (new FIFOIO) { new MetaWriteReq }
-    val mshr_req = (new FIFOIO) { Bool() }
     val wb_req = (new FIFOIO) { new WritebackReq }
     val way_en = Bits(INPUT, conf.ways)
+    val mshr_rdy = Bool(INPUT)
     val line_state = UFix(INPUT, 2)
   }
 
@@ -533,7 +530,7 @@ class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
     state := s_release
     line_state := io.line_state
     way_en := io.way_en
-    when (!io.mshr_req.ready) { state := s_meta_read }
+    when (!io.mshr_rdy) { state := s_meta_read }
   }
   when (state === s_meta_resp) {
     state := s_mshr_req
@@ -562,7 +559,6 @@ class ProbeUnit(implicit conf: DCacheConfig)  extends Component {
   io.meta_write.bits.data.state := conf.co.newStateOnProbe(req, line_state)
   io.meta_write.bits.data.tag := req.addr >> UFix(conf.idxbits)
 
-  io.mshr_req.valid := state === s_mshr_req
   io.wb_req.valid := state === s_writeback_req
   io.wb_req.bits.way_en := way_en
   io.wb_req.bits.idx := req.addr
@@ -869,17 +865,23 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   val s2_hit = s2_tag_match && conf.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === conf.co.newStateOnHit(s2_req.cmd, s2_hit_state)
 
   // load-reserved/store-conditional
-  val s2_lr_valid = Reg(resetVal = Bool(false))
-  val s2_lr_addr = Reg{UFix()}
+  val lrsc_count = Reg(resetVal = UFix(0))
+  val lrsc_valid = lrsc_count.orR
+  val lrsc_addr = Reg{UFix()}
   val (s2_lr, s2_sc) = (s2_req.cmd === M_XLR, s2_req.cmd === M_XSC)
-  val s2_lr_addr_match = s2_lr_valid && s2_lr_addr === (s2_req.addr >> conf.offbits)
-  val s2_sc_fail = s2_sc && !s2_lr_addr_match
-  when ((s2_valid_masked && s2_hit || s2_replay) && s2_lr) {
-    s2_lr_valid := true
-    s2_lr_addr := s2_req.addr >> conf.offbits
+  val s2_lrsc_addr_match = lrsc_valid && lrsc_addr === (s2_req.addr >> conf.offbits)
+  val s2_sc_fail = s2_sc && !s2_lrsc_addr_match
+  when (lrsc_valid) { lrsc_count := lrsc_count - 1 }
+  when (s2_valid_masked && s2_hit || s2_replay) {
+    when (s2_lr) {
+      when (!lrsc_valid) { lrsc_count := conf.lrsc_cycles-1 }
+      lrsc_addr := s2_req.addr >> conf.offbits
+    }
+    when (s2_sc) {
+      lrsc_count := 0
+    }
   }
-  when (prober.io.mshr_req.valid && s2_lr_addr_match) { s2_lr_valid := false }
-  when (io.cpu.ptw.eret) { s2_lr_valid := false }
+  when (io.cpu.ptw.eret) { lrsc_count := 0 }
 
   val s2_data = Vec(conf.ways){Bits(width = conf.bitsperrow)}
   for (w <- 0 until conf.ways) {
@@ -899,7 +901,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   val s2_data_correctable = AVec(s2_data_decoded.map(_.correctable)).toBits()(s2_word_idx)
   
   // store/amo hits
-  s3_valid := (s2_valid_masked && s2_hit && !s2_sc_fail || s2_replay) && isWrite(s2_req.cmd)
+  s3_valid := (s2_valid_masked && s2_hit || s2_replay) && !s2_sc_fail && isWrite(s2_req.cmd)
   val amoalu = new AMOALU
   when ((s2_valid || s2_replay) && (isWrite(s2_req.cmd) || s2_data_correctable)) {
     s3_req := s2_req
@@ -950,14 +952,17 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   val releaseArb = (new Arbiter(2)) { new Release }
   FIFOedLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release
 
-  prober.io.req <> FIFOedLogicalNetworkIOUnwrapper(io.mem.probe)
+  val probe = FIFOedLogicalNetworkIOUnwrapper(io.mem.probe)
+  prober.io.req.valid := probe.valid && !lrsc_valid
+  probe.ready := prober.io.req.ready && !lrsc_valid
+  prober.io.req.bits := probe.bits
   prober.io.rep <> releaseArb.io.in(1)
-  prober.io.mshr_req <> mshr.io.probe
   prober.io.wb_req <> wb.io.probe
   prober.io.way_en := s2_tag_match_way
   prober.io.line_state := s2_hit_state
   prober.io.meta_read <> metaReadArb.io.in(2)
   prober.io.meta_write <> metaWriteArb.io.in(1)
+  prober.io.mshr_rdy := mshr.io.probe_rdy
 
   // refills
   val refill = conf.co.messageUpdatesDataArray(io.mem.grant.bits.payload)
@@ -979,7 +984,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   val s4_valid = Reg(s3_valid, resetVal = Bool(false))
   val s4_req = RegEn(s3_req, s3_valid && metaReadArb.io.out.valid)
   val bypasses = List(
-    (s2_valid_masked && !s2_sc_fail || s2_replay, s2_req, amoalu.io.out),
+    ((s2_valid_masked || s2_replay) && !s2_sc_fail, s2_req, amoalu.io.out),
     (s3_valid, s3_req, s3_req.data),
     (s4_valid, s4_req, s4_req.data)
   ).map(r => (r._1 && (s1_addr >> conf.wordoffbits === r._2.addr >> conf.wordoffbits) && isWrite(r._2.cmd), r._3))
@@ -1035,6 +1040,6 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   io.cpu.resp.bits.data := loadgen.word
   io.cpu.resp.bits.data_subword := Mux(s2_sc, s2_sc_fail, loadgen.byte)
   io.cpu.resp.bits.store_data := s2_req.data
-  
+
   io.mem.grant_ack <> mshr.io.mem_finish
 }
