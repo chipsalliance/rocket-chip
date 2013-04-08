@@ -7,10 +7,6 @@ trait CoherenceAgentRole
 trait ClientCoherenceAgent extends CoherenceAgentRole
 trait MasterCoherenceAgent extends CoherenceAgentRole
 
-object cpuCmdToRW {
-  def apply(cmd: Bits): (Bool, Bool) = (isRead(cmd) || isPrefetch(cmd), isWrite(cmd))
-}
-
 abstract class CoherencePolicy {
   def isHit (cmd: Bits, state: UFix): Bool
   def isValid (state: UFix): Bool
@@ -102,8 +98,7 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   def needsWriteback (state: UFix): Bool = state === tileDirty
 
   def newState(cmd: Bits, state: UFix): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, tileDirty, Mux(read, Mux(state === tileDirty, tileDirty, tileClean), state))
+    Mux(isWrite(cmd), tileDirty, Mux(isRead(cmd), Mux(state === tileDirty, tileDirty, tileClean), state))
   }
   def newStateOnHit(cmd: Bits, state: UFix): UFix = newState(cmd, state)
   def newStateOnCacheControl(cmd: Bits) = tileInvalid //TODO
@@ -124,8 +119,7 @@ class ThreeStateIncoherence extends IncoherentPolicy {
     Mux(isWriteIntent(cmd), acquireReadDirty, acquireReadClean)
   }
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, acquireReadDirty, outstanding.a_type)
+    Mux(isWriteIntent(cmd), acquireReadDirty, outstanding.a_type)
   }
   def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = releaseVoluntaryInvalidateData
@@ -296,9 +290,8 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def isValid (state: UFix): Bool = state != tileInvalid
 
   def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool = {
-    val (read, write) = cpuCmdToRW(cmd)
-    (read && messageIsUncached(outstanding)) ||
-      (write && (outstanding.a_type != acquireReadExclusiveDirty))
+    (isRead(cmd) && messageIsUncached(outstanding)) ||
+      (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusiveDirty))
   }
   def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
     MuxLookup(cmd, (state === tileExclusiveDirty), Array(
@@ -311,8 +304,7 @@ class MEICoherence extends CoherencePolicyWithUncached {
   }
 
   def newStateOnHit(cmd: Bits, state: UFix): UFix = { 
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, tileExclusiveDirty, state)
+    Mux(isWrite(cmd), tileExclusiveDirty, state)
   }
   def newStateOnCacheControl(cmd: Bits) = {
     MuxLookup(cmd, tileInvalid, Array(
@@ -352,12 +344,10 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
   def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, acquireReadExclusiveDirty, acquireReadExclusiveClean)
+    Mux(isWriteIntent(cmd), acquireReadExclusiveDirty, acquireReadExclusiveClean)
   }
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, acquireReadExclusiveDirty, outstanding.a_type)
+    Mux(isWriteIntent(cmd), acquireReadExclusiveDirty, outstanding.a_type)
   }
   def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
@@ -450,8 +440,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
   val hasDataGrantTypeList = List(grantReadShared, grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
   def isHit (cmd: Bits, state: UFix): Bool = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, (state === tileExclusiveDirty),
+    Mux(isWriteIntent(cmd), (state === tileExclusiveDirty),
         (state === tileShared || state === tileExclusiveDirty))
   }
   def isValid (state: UFix): Bool = {
@@ -459,9 +448,8 @@ class MSICoherence extends CoherencePolicyWithUncached {
   }
 
   def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool = {
-    val (read, write) = cpuCmdToRW(cmd)
-    (read && messageIsUncached(outstanding)) || 
-      (write && (outstanding.a_type != acquireReadExclusive))
+    (isRead(cmd) && messageIsUncached(outstanding)) || 
+      (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusive))
   }
   def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
     MuxLookup(cmd, (state === tileExclusiveDirty), Array(
@@ -474,8 +462,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
   }
 
   def newStateOnHit(cmd: Bits, state: UFix): UFix = { 
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, tileExclusiveDirty, state)
+    Mux(isWrite(cmd), tileExclusiveDirty, state)
   }
   def newStateOnCacheControl(cmd: Bits) = {
     MuxLookup(cmd, tileInvalid, Array(
@@ -519,8 +506,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
     Mux(isWriteIntent(cmd), acquireReadExclusive, acquireReadShared)
   }
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, acquireReadExclusive, outstanding.a_type)
+    Mux(isWriteIntent(cmd), acquireReadExclusive, outstanding.a_type)
   }
   def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
@@ -611,8 +597,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
   val hasDataGrantTypeList = List(grantReadShared, grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
   def isHit (cmd: Bits, state: UFix): Bool = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, (state === tileExclusiveClean || state === tileExclusiveDirty),
+    Mux(isWriteIntent(cmd), (state === tileExclusiveClean || state === tileExclusiveDirty),
         (state === tileShared || state === tileExclusiveClean || state === tileExclusiveDirty))
   }
   def isValid (state: UFix): Bool = {
@@ -620,9 +605,8 @@ class MESICoherence extends CoherencePolicyWithUncached {
   }
 
   def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool = {
-    val (read, write) = cpuCmdToRW(cmd)
-    (read && messageIsUncached(outstanding)) ||
-      (write && (outstanding.a_type != acquireReadExclusive))
+    (isRead(cmd) && messageIsUncached(outstanding)) ||
+      (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusive))
   }
   def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
     MuxLookup(cmd, (state === tileExclusiveDirty), Array(
@@ -635,8 +619,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
   }
 
   def newStateOnHit(cmd: Bits, state: UFix): UFix = { 
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, tileExclusiveDirty, state)
+    Mux(isWrite(cmd), tileExclusiveDirty, state)
   }
   def newStateOnCacheControl(cmd: Bits) = {
     MuxLookup(cmd, tileInvalid, Array(
@@ -680,8 +663,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
     Mux(isWriteIntent(cmd), acquireReadExclusive, acquireReadShared)
   }
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, acquireReadExclusive, outstanding.a_type)
+    Mux(isWriteIntent(cmd), acquireReadExclusive, outstanding.a_type)
   }
   def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
@@ -775,17 +757,15 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
 
   def isHit (cmd: Bits, state: UFix): Bool = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, uFixListContains(List(tileExclusiveClean, tileExclusiveDirty, tileMigratoryClean, tileMigratoryDirty), state), (state != tileInvalid))
+    Mux(isWriteIntent(cmd), uFixListContains(List(tileExclusiveClean, tileExclusiveDirty, tileMigratoryClean, tileMigratoryDirty), state), (state != tileInvalid))
   }
   def isValid (state: UFix): Bool = {
     state != tileInvalid
   }
 
   def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool = {
-    val (read, write) = cpuCmdToRW(cmd)
-    (read && messageIsUncached(outstanding)) ||
-      (write && (outstanding.a_type != acquireReadExclusive && outstanding.a_type != acquireInvalidateOthers))
+    (isRead(cmd) && messageIsUncached(outstanding)) ||
+      (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusive && outstanding.a_type != acquireInvalidateOthers))
   }
   def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
     MuxLookup(cmd, (state === tileExclusiveDirty), Array(
@@ -798,8 +778,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   }
 
   def newStateOnHit(cmd: Bits, state: UFix): UFix = { 
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, MuxLookup(state, tileExclusiveDirty, Array(
+    Mux(isWrite(cmd), MuxLookup(state, tileExclusiveDirty, Array(
                 tileExclusiveClean -> tileExclusiveDirty,
                 tileMigratoryClean -> tileMigratoryDirty)), state)
   }
@@ -857,8 +836,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
     Mux(isWriteIntent(cmd), Mux(state === tileInvalid, acquireReadExclusive, acquireInvalidateOthers), acquireReadShared)
   }
   def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
-    val (read, write) = cpuCmdToRW(cmd)
-    Mux(write, Mux(state === tileInvalid, acquireReadExclusive, acquireInvalidateOthers), outstanding.a_type)
+    Mux(isWriteIntent(cmd), Mux(state === tileInvalid, acquireReadExclusive, acquireInvalidateOthers), outstanding.a_type)
   }
   def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
