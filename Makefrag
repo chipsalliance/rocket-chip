@@ -20,6 +20,7 @@ libdramsim.a: $(DRAMSIM_OBJS)
 global_tstdir = $(basedir)/riscv-asmtests-bmarks/riscv-tests
 global_asm_tests = \
 	riscv_ipi \
+	riscv_lrsc \
 	riscv_add \
 	riscv_addi \
 	riscv_amoadd_d \
