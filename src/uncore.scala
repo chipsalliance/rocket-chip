@@ -68,27 +68,28 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: UncoreConfiguration) extends 
   io.client.probe <> probe_arb.io.out
   probe_arb.io.in zip trackerList map { case (arb, t) => arb <> t.io.client.probe }
 
-  // Handle probe replies, which may or may not have data
+  // Handle releases, which might be voluntary and might have data
   val release = io.client.release
   val release_data = io.client.release_data
   val voluntary = co.isVoluntary(release.bits.payload)
   val any_release_conflict = trackerList.tail.map(_.io.has_release_conflict).reduce(_||_)
   val block_releases = (!release_data_dep_q.io.enq.ready && co.messageHasData(release.bits.payload))
   val conflict_idx = Vec(trackerList.map(_.io.has_release_conflict)){Bool()}.lastIndexWhere{b: Bool => b}
-  val idx = Mux(voluntary, Mux(any_release_conflict, conflict_idx, UFix(0)), release.bits.payload.master_xact_id)
+  //val release_idx = Mux(voluntary, Mux(any_release_conflict, conflict_idx, UFix(0)), release.bits.payload.master_xact_id) // TODO: Add merging logic to allow allocated AcquireTracker to handle conflicts, send all necessary grants, use first sufficient response
+  val release_idx = Mux(voluntary, UFix(0), release.bits.payload.master_xact_id)
   for( i <- 0 until trackerList.size ) {
     val t = trackerList(i).io.client
     t.release.bits := release.bits 
-    t.release.valid := release.valid && (idx === UFix(i)) && !block_releases
+    t.release.valid := release.valid && (release_idx === UFix(i)) && !block_releases
     t.release_data.bits := release_data.bits
     t.release_data.valid := release_data.valid
     trackerList(i).io.release_data_dep.bits := release_data_dep_q.io.deq.bits
     trackerList(i).io.release_data_dep.valid := release_data_dep_q.io.deq.valid
   }
-  release.ready := Vec(trackerList.map(_.io.client.release.ready)){Bool()}(idx) && !block_releases
+  release.ready := Vec(trackerList.map(_.io.client.release.ready)){Bool()}(release_idx) && !block_releases
   release_data.ready := trackerList.map(_.io.client.release_data.ready).reduce(_||_)
   release_data_dep_q.io.enq.valid := release.valid && release.ready &&  co.messageHasData(release.bits.payload)
-  release_data_dep_q.io.enq.bits.master_xact_id := idx
+  release_data_dep_q.io.enq.bits.master_xact_id := release_idx
   release_data_dep_q.io.deq.ready := trackerList.map(_.io.release_data_dep.ready).reduce(_||_)
 
   // Reply to initial requestor
