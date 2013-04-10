@@ -211,11 +211,14 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
   //reflection to automatically create enough networks for any given 
   //bundle containing LogicalNetworkIOs
   val tl = new TileLinkType
-  val payloadBitsForEachPhysicalNetwork = tl.getClass.getMethods.filter( x => 
-      classOf[DirectionalFIFOIO[Data]].isAssignableFrom(x.getReturnType)).map(
+  val tileLinkDirectionalFIFOs = tl.getClass.getMethods.filter( x => 
+      classOf[DirectionalFIFOIO[Data]].isAssignableFrom(x.getReturnType))
+  val payloadBitsForEachPhysicalNetwork = tileLinkDirectionalFIFOs.map(
       _.invoke(tl).asInstanceOf[DirectionalFIFOIO[LogicalNetworkIO[Data]]].bits.payload)
+  val lockCountForEachPhysicalNetwork = tileLinkDirectionalFIFOs.map( x =>
+      if(classOf[ClientSourcedDataIO[Data]].isAssignableFrom(x.getReturnType)) REFILL_CYCLES else 1)
   implicit val pconf = new PhysicalNetworkConfiguration(conf.nEndpoints, conf.idBits)//same config for all networks
-  val physicalNetworks: Seq[BasicCrossbar[Data]] = payloadBitsForEachPhysicalNetwork.map(d => (new BasicCrossbar){d.clone}) 
+  val physicalNetworks: Seq[BasicCrossbar[Data]] = lockCountForEachPhysicalNetwork zip payloadBitsForEachPhysicalNetwork map { case (c,d) => (new BasicCrossbar(c)){d.clone} }
 
   //Use reflection to get the subset of each node's TileLink
   //corresponding to each direction of dataflow and connect each sub-bundle
