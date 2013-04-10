@@ -265,7 +265,7 @@ class MICoherence extends CoherencePolicyWithUncached {
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
-  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(grant: Grant) = grant.g_type != grantVoluntaryAck
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
   def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
@@ -418,7 +418,7 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
-  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(grant: Grant) = grant.g_type != grantVoluntaryAck
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
 
@@ -574,7 +574,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached)
   }
-  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(grant: Grant) = grant.g_type != grantVoluntaryAck
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
 
@@ -735,7 +735,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
       (a_type === acquireWriteUncached)
   }
 
-  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(grant: Grant) = grant.g_type != grantVoluntaryAck
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
 
@@ -912,7 +912,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
       (a_type === acquireWriteUncached || a_type === acquireWriteWordUncached ||a_type === acquireInvalidateOthers)
   }
-  def requiresAck(grant: Grant) = Bool(true)
+  def requiresAck(grant: Grant) = grant.g_type != grantVoluntaryAck
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
 

@@ -24,7 +24,56 @@ class BasicCrossbarIO[T <: Data]()(data: => T)(implicit conf: PhysicalNetworkCon
 
 abstract class PhysicalNetwork(conf: PhysicalNetworkConfiguration) extends Component
 
-class BasicCrossbar[T <: Data]()(data: => T)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
+class LockingRRArbiter[T <: Data](n: Int, count: Int)(data: => T) extends Component {
+  val io = new ioArbiter(n)(data)
+
+  val cnt = Reg(resetVal = UFix(0, width = log2Up(count)))
+  val cnt_next = cnt + UFix(1)
+  val locked = Reg(resetVal = Bool(false))
+  val lock_idx = Reg(resetVal = UFix(n))
+
+  if(count > 1){
+    when(io.out.valid && io.out.ready) {
+      cnt := cnt_next
+      when(!locked) {
+        locked := Bool(true)
+        lock_idx := Vec(io.in.map{ in => in.ready && in.valid}){Bool()}.indexWhere{i: Bool => i} 
+      }
+      when(cnt_next === UFix(0)) {
+        locked := Bool(false)
+      }
+    }
+  } else {
+    locked := Bool(false)
+    lock_idx := UFix(n)
+    cnt := UFix(0)
+  }
+    
+
+  val last_grant = Reg(resetVal = Bits(0, log2Up(n)))
+  val g = ArbiterCtrl((0 until n).map(i => io.in(i).valid && UFix(i) > last_grant) ++ io.in.map(_.valid))
+  val grant = (0 until n).map(i => g(i) && UFix(i) > last_grant || g(i+n))
+  (0 until n).map(i => io.in(i).ready := Mux(locked, lock_idx === UFix(i), grant(i)) && io.out.ready)
+
+  var choose = Bits(n-1)
+  for (i <- n-2 to 0 by -1)
+    choose = Mux(io.in(i).valid, Bits(i), choose)
+  for (i <- n-1 to 1 by -1)
+    choose = Mux(io.in(i).valid && UFix(i) > last_grant, Bits(i), choose)
+  choose = Mux(locked, lock_idx, choose)
+  when (io.out.valid && io.out.ready) {
+    last_grant := choose
+  }
+
+  val dvec = Vec(n) { data } 
+  (0 until n).map(i => dvec(i) := io.in(i).bits )
+
+  io.out.valid := Mux(locked, io.in(lock_idx).valid, io.in.map(_.valid).foldLeft(Bool(false))( _ || _))
+  io.out.bits := dvec(choose)
+  io.chosen := choose
+}
+
+class BasicCrossbar[T <: Data](count: Int)(data: => T)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
   val io = new Bundle {
     val in  = Vec(conf.nEndpoints){(new FIFOIO){(new BasicCrossbarIO){data}}}.flip 
     val out = Vec(conf.nEndpoints){(new FIFOIO){(new BasicCrossbarIO){data}}}
@@ -33,7 +82,7 @@ class BasicCrossbar[T <: Data]()(data: => T)(implicit conf: PhysicalNetworkConfi
   val rdyVecs = List.fill(conf.nEndpoints)(Vec(conf.nEndpoints){Bool()})
 
   io.out.zip(rdyVecs).zipWithIndex.map{ case ((out, rdys), i) => {
-    val rrarb = (new RRArbiter(conf.nEndpoints)){io.in(0).bits.clone}
+    val rrarb = (new LockingRRArbiter(conf.nEndpoints, count)){io.in(0).bits.clone}
     (rrarb.io.in, io.in, rdys).zipped.map{ case (arb, in, rdy) => {
       arb.valid := in.valid && (in.bits.header.dst === UFix(i)) 
       arb.bits := in.bits
