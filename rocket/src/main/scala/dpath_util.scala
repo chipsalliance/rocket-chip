@@ -109,7 +109,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
     val rw = new Bundle {
       val addr = UFix(INPUT, log2Up(conf.nxpr))
       val cmd = Bits(INPUT, PCR.SZ)
-      val rdata = Bits(INPUT, conf.xprlen)
+      val rdata = Bits(OUTPUT, conf.xprlen)
       val wdata = Bits(INPUT, conf.xprlen)
     }
     
