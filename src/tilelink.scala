@@ -118,11 +118,12 @@ class GrantAck extends ClientSourcedMessage with HasMasterTransactionId
 
 abstract class DirectionalFIFOIO[T <: Data]()(data: => T) extends FIFOIO()(data)
 class ClientSourcedIO[T <: Data]()(data: => T)  extends DirectionalFIFOIO()(data) 
+class ClientSourcedDataIO[T <: Data]()(data: => T)  extends ClientSourcedIO()(data) 
 class MasterSourcedIO[T <: Data]()(data: => T) extends DirectionalFIFOIO()(data) {flip()}
 
 class UncachedTileLinkIO(implicit conf: LogicalNetworkConfiguration) extends Bundle {
   val acquire      = (new ClientSourcedIO){(new LogicalNetworkIO){new Acquire }}
-  val acquire_data = (new ClientSourcedIO){(new LogicalNetworkIO){new AcquireData }}
+  val acquire_data = (new ClientSourcedDataIO){(new LogicalNetworkIO){new AcquireData }}
   val grant       = (new MasterSourcedIO) {(new LogicalNetworkIO){new Grant }}
   val grant_ack    = (new ClientSourcedIO){(new LogicalNetworkIO){new GrantAck }}
   override def clone = { new UncachedTileLinkIO().asInstanceOf[this.type] }
@@ -131,7 +132,7 @@ class UncachedTileLinkIO(implicit conf: LogicalNetworkConfiguration) extends Bun
 class TileLinkIO(implicit conf: LogicalNetworkConfiguration) extends UncachedTileLinkIO()(conf) { 
   val probe        = (new MasterSourcedIO){(new LogicalNetworkIO){new Probe }}
   val release      = (new ClientSourcedIO){(new LogicalNetworkIO){new Release }}
-  val release_data = (new ClientSourcedIO){(new LogicalNetworkIO){new ReleaseData }}
+  val release_data = (new ClientSourcedDataIO){(new LogicalNetworkIO){new ReleaseData }}
   override def clone = { new TileLinkIO().asInstanceOf[this.type] }
 }
 
