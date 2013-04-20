@@ -276,16 +276,16 @@ class ReferenceChipBackend extends VerilogBackend
   def addMemPin(c: Component) = {
     for (node <- Component.nodes) {
       if (node.isInstanceOf[Mem[ _ ]] && node.component != null && node.asInstanceOf[Mem[_]].seqRead) {
-        val init = Bool(INPUT)
-        init.setName("init")
+        val init = Bool()
+        init.setName("init_node")
         node.inputs += init
+        init.component = node.component
         connectMemPin(c, node.component, init)
       }
     }
   }
 
   def connectMemPin(topC: Component, c: Component, p: Bool): Unit = {
-    p.component = c
     var isNewPin = false
     val compInitPin = 
       if (initMap.contains(c)) {
@@ -300,6 +300,7 @@ class ReferenceChipBackend extends VerilogBackend
     if (isNewPin) {
       compInitPin.setName("init")
       c.io.asInstanceOf[Bundle] += compInitPin
+      compInitPin.component = c
       initMap += (c -> compInitPin)
       connectMemPin(topC, c.parent, compInitPin)
     }
