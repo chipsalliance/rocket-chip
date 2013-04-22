@@ -78,7 +78,7 @@ global_asm_tests = \
 	riscv_mulw \
 	riscv_or \
 	riscv_ori \
-	riscv_rdnpc \
+	riscv_auipc \
 	riscv_rem \
 	riscv_remu \
 	riscv_remuw \
