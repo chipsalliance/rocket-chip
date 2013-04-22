@@ -214,15 +214,15 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     Mux(io.ctrl.ex_br_type === BR_GEU, ex_rs1 >= ex_rs2,
         io.ctrl.ex_br_type === BR_J))))))
 
-  val ex_pc_plus4 = ex_reg_pc + 4
-  val ex_branch_target = (ex_reg_pc.toFix + (ex_imm << 1)).toUFix
+  val ex_pc_plus4 = ex_reg_pc.toFix + Mux(ex_reg_sel_alu2 === A2_LTYPE, ex_reg_inst(26,7).toFix << 12, Fix(4))
+  val ex_branch_target = ex_reg_pc.toFix + (ex_imm << 1)
 
   val tsc_reg = WideCounter(64)
   val irt_reg = WideCounter(64, io.ctrl.wb_valid)
   
 	// writeback select mux
   val ex_wdata =
-    Mux(ex_reg_ctrl_sel_wb === WB_PC,  ex_pc_plus4.toFix,
+    Mux(ex_reg_ctrl_sel_wb === WB_PC,  ex_pc_plus4,
     Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg.value,
     Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg.value,
         alu.io.out))).toBits // WB_ALU
@@ -328,8 +328,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   io.imem.req.bits.pc :=
     Mux(io.ctrl.sel_pc === PC_EX4, ex_pc_plus4,
     Mux(io.ctrl.sel_pc === PC_EX,  Mux(io.ctrl.ex_jalr, ex_effective_address, ex_branch_target),
-    Mux(io.ctrl.sel_pc === PC_PCR, Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec).toUFix,
-        wb_reg_pc))) // PC_WB
+    Mux(io.ctrl.sel_pc === PC_PCR, Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec),
+        wb_reg_pc))).toUFix // PC_WB
 
   // expose debug signals to testbench
   // XXX debug() doesn't right, so create a false dependence
