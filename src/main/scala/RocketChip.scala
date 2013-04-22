@@ -335,7 +335,7 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
   require(clientEndpoints.length == lnWithHtifConf.nClients)
   val masterEndpoints = (0 until lnWithHtifConf.nMasters).map(new L2CoherenceAgent(_)(ucWithHtifConf))
 
-  val llc_tag_leaf = Mem(1024, seqRead = true) { Bits(width = 72) }
+  val llc_tag_leaf = Mem(512, seqRead = true) { Bits(width = 152) }
   val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
   val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
   //val llc = new DRAMSideLLCNull(NGLOBAL_XACTS, REFILL_CYCLES)
