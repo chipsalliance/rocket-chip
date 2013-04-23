@@ -11,27 +11,20 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
 object TileLinkHeaderAppender {
-  def apply[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasMemData](meta: ClientSourcedIO[LogicalNetworkIO[T]], data: ClientSourcedIO[LogicalNetworkIO[U]], clientId: Int, nBanks: Int, bankIdLsb: Int)(implicit conf: UncoreConfiguration) = {
-    val shim = (new TileLinkHeaderAppenderWithData(clientId, nBanks, bankIdLsb)){meta.bits.payload.clone}{data.bits.payload.clone}
+  def apply[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasMemData](meta: ClientSourcedIO[LogicalNetworkIO[T]], data: ClientSourcedIO[LogicalNetworkIO[U]], clientId: Int, addrConvert: (UFix, Int, Int) => UFix)(implicit conf: UncoreConfiguration) = {
+    val shim = (new TileLinkHeaderAppenderWithData(clientId, addrConvert)){meta.bits.payload.clone}{data.bits.payload.clone}
     shim.io.meta_in <> meta
     shim.io.data_in <> data
     (shim.io.meta_out, shim.io.data_out)
   }
   def apply[T <: SourcedMessage with HasPhysicalAddress](meta: ClientSourcedIO[LogicalNetworkIO[T]], clientId: Int, nBanks: Int, bankIdLsb: Int)(implicit conf: UncoreConfiguration) = {
-    val shim = (new TileLinkHeaderAppender(clientId, nBanks, bankIdLsb)){meta.bits.payload.clone}
+    val shim = (new TileLinkHeaderAppender(clientId, addrConvert)){meta.bits.payload.clone}
     shim.io.meta_in <> meta
     shim.io.meta_out
   }
 }
 
-abstract class AddressConverter extends Component {
-  def convertAddrToBank(addr: Bits, n: Int, lsb: Int): UFix = {
-    require(lsb + log2Up(n) < PADDR_BITS - OFFSET_BITS, {println("Invalid bits for bank multiplexing.")})
-    addr(lsb + log2Up(n) - 1, lsb)
-  }
-}
-
-class TileLinkHeaderAppenderWithData[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasMemData](clientId: Int, nBanks: Int, bankIdLsb: Int)(metadata: => T)(data: => U)(implicit conf: UncoreConfiguration) extends AddressConverter {
+class TileLinkHeaderAppenderWithData[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasMemData](clientId: Int, addrConvert: (UFix, Int, Int) => UFix)(metadata: => T)(data: => U)(implicit conf: UncoreConfiguration) extends Component{
   implicit val ln = conf.ln
   val io = new Bundle {
     val meta_in = (new ClientSourcedIO){(new LogicalNetworkIO){ metadata }}.flip
@@ -61,10 +54,10 @@ class TileLinkHeaderAppenderWithData[T <: SourcedMessage with HasPhysicalAddress
 
     io.meta_out.bits.payload := meta_q.bits.payload
     io.meta_out.bits.header.src := UFix(clientId)
-    io.meta_out.bits.header.dst := convertAddrToBank(meta_q.bits.payload.addr, nBanks, bankIdLsb)
+    io.meta_out.bits.header.dst := addrConvert(meta_q.bits.payload.addr)
     io.data_out.bits.payload := meta_q.bits.payload
     io.data_out.bits.header.src := UFix(clientId)
-    io.data_out.bits.header.dst := convertAddrToBank(addr_q.io.deq.bits, nBanks, bankIdLsb)
+    io.data_out.bits.header.dst := addrConvert(addr_q.io.deq.bits)
     addr_q.io.enq.bits := meta_q.bits.payload.addr
 
     io.meta_out.valid := meta_q.valid && addr_q.io.enq.ready
@@ -83,7 +76,7 @@ class TileLinkHeaderAppenderWithData[T <: SourcedMessage with HasPhysicalAddress
   }
 }
 
-class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress](clientId: Int, nBanks: Int, bankIdLsb: Int)(metadata: => T)(implicit conf: UncoreConfiguration) extends AddressConverter {
+class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress](clientId: Int, addrConvert: (UFix, Int, Int) => UFix)(metadata: => T)(implicit conf: UncoreConfiguration) extends AddressConverter {
   implicit val ln = conf.ln
   val io = new Bundle {
     val meta_in = (new ClientSourcedIO){(new LogicalNetworkIO){ metadata }}.flip
@@ -97,7 +90,7 @@ class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress](client
   if(nBanks == 1) {
     io.meta_out.bits.header.dst := UFix(0)
   } else {
-    io.meta_out.bits.header.dst := convertAddrToBank(meta_q.bits.payload.addr, nBanks, bankIdLsb)
+    io.meta_out.bits.header.dst := addrConvert(meta_q.bits.payload.addr)
   }
 }  
 
@@ -405,13 +398,18 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
   outmemsys.io.mem_backup_en <> io.mem_backup_en
 
   // Add networking headers and endpoint queues
+  def convertAddrToBank(addr: Bits): UFix = {
+    require(bankIdLsb + log2Up(nBanks) < PADDR_BITS - OFFSET_BITS, {println("Invalid bits for bank multiplexing.")})
+    addr(bankIdLsb + log2Up(nBanks) - 1, bankIdLsb)
+  }
+
   (outmemsys.io.tiles :+ outmemsys.io.htif).zip(io.tiles :+ htif.io.mem).zipWithIndex.map { 
     case ((outer, client), i) => 
-      val (acq_w_header, acq_data_w_header) = TileLinkHeaderAppender(client.acquire, client.acquire_data, i, nBanks, bankIdLsb)
+      val (acq_w_header, acq_data_w_header) = TileLinkHeaderAppender(client.acquire, client.acquire_data, i, convertAddrToBank)
       outer.acquire <> acq_w_header
       outer.acquire_data <> acq_data_w_header
 
-      val (rel_w_header, rel_data_w_header) = TileLinkHeaderAppender(client.release, client.release_data, i, nBanks, bankIdLsb)
+      val (rel_w_header, rel_data_w_header) = TileLinkHeaderAppender(client.release, client.release_data, i, convertAddrToBank)
       outer.release <> rel_w_header
       outer.release_data <> rel_data_w_header
 
