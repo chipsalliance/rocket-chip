@@ -14,17 +14,17 @@ BUILDING THE TOOLCHAIN:
 
   To build RISC-V ISA simulator, frontend server, proxy kernel and newlib based GNU toolchain:
 
+    export RISCV=/path/to/riscv/toolchain/installation
     cd riscv-gcc-isasim
-    vi build.sh (Edit INSTALL_PREFIX)
     ./build.sh
 
   To build asm tests and benchmarks (you must have the RISC-V toolchain installed and in your path):
 
-    cd riscv-asmtests-bmarks/riscv-tests/
-    make
+    cd riscv-tests/isa/
+    make -j
 
     cd riscv-asmtests-bmarks/riscv-bmarks/
-    make
+    make -j
 
 BUILDING THE PROJECT:
 
