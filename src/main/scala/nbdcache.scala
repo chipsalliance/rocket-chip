@@ -264,7 +264,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
         state := s_refill_req
       }
     }.otherwise { // writback if necessary and refill
-      state := Mux(conf.co.needsWriteback(io.req_bits.old_meta.state), s_wb_req, s_refill_req)
+      state := Mux(conf.co.needsWriteback(io.req_bits.old_meta.state), s_wb_req, s_meta_clear)
     }
   }
 
