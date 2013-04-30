@@ -263,6 +263,14 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: UncoreConfigura
           release_data_client_id := io.client.release.bits.header.src
         }
       }
+      when (release_data_needs_write) {
+        doOuterReqWrite(io.master.acquire, 
+                      io.master.acquire_data, 
+                      io.client.release_data, 
+                      release_data_needs_write, 
+                      r_w_mem_cmd_sent, 
+                      release_data_client_id)
+      }
     }
     is(s_mem) {
       when (release_data_needs_write) {
