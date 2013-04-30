@@ -283,7 +283,10 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
   io.tag := req.addr >> conf.untagbits
   io.req_pri_rdy := state === s_invalid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
-  io.probe_rdy := !idx_match || (state != s_wb_req && state != s_wb_resp && state != s_meta_clear)
+
+  val meta_hazard = Reg(resetVal = UFix(0,2))
+  when (meta_hazard != 0 || io.meta_write.fire()) { meta_hazard := meta_hazard + 1 }
+  io.probe_rdy := !idx_match || (state != s_wb_req && state != s_wb_resp && state != s_meta_clear && meta_hazard === 0)
 
   io.meta_write.valid := state === s_meta_write_req || state === s_meta_clear
   io.meta_write.bits.idx := req_idx
