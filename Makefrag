@@ -491,7 +491,7 @@ vecasm_pt_tests = \
 
 # Globally installed benchmarks
 
-bmarkdir = $(basedir)/riscv-asmtests-bmarks/riscv-bmarks
+bmarkdir = $(basedir)/riscv-tests/benchmarks
 bmarks = \
 	median.riscv \
 	multiply.riscv \
@@ -501,9 +501,11 @@ bmarks = \
 	dgemm.riscv \
 	dhrystone.riscv \
 	spmv.riscv \
-	vec_vvadd.riscv \
-	vec_cmplxmult.riscv \
-	vec_matmul.riscv \
+	vec-vvadd.riscv \
+	vec-cmplxmult.riscv \
+	vec-matmul.riscv \
+	mt-vvadd.riscv \
+	mt-matmul.riscv \
 
 vec_bmarkdir = $(basedir)/../../riscv-app/misc/build
 vec_bmarks = \
