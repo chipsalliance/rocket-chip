@@ -10,8 +10,9 @@ abstract trait CoherenceConfigConstants {
 }
 
 trait UncoreConstants {
-  val NGLOBAL_XACTS = 8
-  val MASTER_XACT_ID_MAX_BITS = log2Up(NGLOBAL_XACTS)
+  val NGLOBAL_ACQ_XACTS = 8
+  val NGLOBAL_REL_XACTS = 4
+  val MASTER_XACT_ID_MAX_BITS = log2Up(NGLOBAL_ACQ_XACTS+NGLOBAL_REL_XACTS)
   val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 
 }
 

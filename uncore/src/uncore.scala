@@ -23,8 +23,9 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: UncoreConfiguration) extends 
 {
   implicit val lnConf = conf.ln
   val co = conf.co
-  val trackerList = (0 until conf.ln.nClients).map(new VoluntaryReleaseTracker(_, bankId)) ++ 
-                    (conf.ln.nClients until conf.ln.nClients + NGLOBAL_XACTS).map(new AcquireTracker(_, bankId))
+  require(conf.ln.nClients < NGLOBAL_REL_XACTS) //TODO: handle in config
+  val trackerList = (0 until NGLOBAL_REL_XACTS).map(new VoluntaryReleaseTracker(_, bankId)) ++ 
+                    (NGLOBAL_REL_XACTS until NGLOBAL_REL_XACTS + NGLOBAL_ACQ_XACTS).map(new AcquireTracker(_, bankId))
   
   trackerList.map(_.io.tile_incoherent := io.incoherent.toBits)
 
