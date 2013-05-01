@@ -190,6 +190,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfigura
     val mem_finish = (new FIFOIO) { (new LogicalNetworkIO) {new GrantAck} }
     val wb_req = (new FIFOIO) { new WritebackReq }
     val probe_rdy = Bool(OUTPUT)
+    val mshr_rdy = Bool(INPUT)
   }
 
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9) { UFix() }
@@ -1012,7 +1013,8 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
 
   // nack it like it's hot
   val s1_nack = dtlb.io.req.valid && dtlb.io.resp.miss ||
-                s1_req.addr(indexmsb,indexlsb) === prober.io.meta_write.bits.idx && !prober.io.req.ready
+                s1_req.addr(indexmsb,indexlsb) === prober.io.meta_write.bits.idx && !prober.io.req.ready ||
+                s1_req.addr(tagmsb, indexlsb) === io.mem.probe.bits.payload.addr && io.mem.probe.fire()
   val s2_nack_hit = RegEn(s1_nack, s1_valid || s1_replay)
   when (s2_nack_hit) { mshr.io.req.valid := Bool(false) }
   val s2_nack_victim = s2_hit && mshr.io.secondary_miss
