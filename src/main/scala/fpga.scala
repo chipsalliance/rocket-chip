@@ -6,26 +6,27 @@ import uncore._
 import rocket._
 import rocket.Constants._
 
-class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
+class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
 {
+  implicit val lnconf = conf.ln
   val io = new Bundle {
-    val host = new HostIO(htif_width)
-    val mem = new ioMem
-    val tiles = Vec(conf.ln.nClients) { new TileLinkIO()(conf.ln) }.flip
-    val htif = Vec(conf.ln.nClients) { new HTIFIO(conf.ln.nClients) }.flip
+    val tiles = Vec(conf.ln.nClients) { new TileLinkIO }.flip
+    val htif = (new TileLinkIO).flip
     val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
+    val mem = new ioMemPipe
   }
 
-  val htif = new rocketHTIF(htif_width)
-  htif.io.cpu <> io.htif
-  io.host <> htif.io.host
+  import rocket.Constants._
 
   val lnWithHtifConf = conf.ln.copy(nEndpoints = conf.ln.nEndpoints+1, 
                                     idBits = log2Up(conf.ln.nEndpoints+1)+1,
                                     nClients = conf.ln.nClients+1)
   val ucWithHtifConf = conf.copy(ln = lnWithHtifConf)
-  val clientEndpoints = tileList :+ htif
-  val masterEndpoints = List.fill(lnWithHtifConf.nMasters)(new L2CoherenceAgent(0)(ucWithHtifConf))
+  require(clientEndpoints.length == lnWithHtifConf.nClients)
+  val masterEndpoints = (0 until lnWithHtifConf.nMasters).map(new L2CoherenceAgent(_)(ucWithHtifConf))
+
+  val llc = new DRAMSideLLCNull(NGLOBAL_XACTS, REFILL_CYCLES)
+  val mem_serdes = new MemSerdes(htif_width)
 
   val net = new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints)(lnWithHtifConf)
   net.io zip (masterEndpoints.map(_.io.client) ++ io.tiles :+ io.htif) map { case (net, end) => net <> end }
@@ -39,10 +40,64 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
   } else {
     conv.io.uncached <> masterEndpoints.head.io.master
   }
+  llc.io.cpu.req_cmd <> Queue(conv.io.mem.req_cmd)
+  llc.io.cpu.req_data <> Queue(conv.io.mem.req_data, REFILL_CYCLES)
+  conv.io.mem.resp <> llc.io.cpu.resp
 
-  io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
-  io.mem.req_data <> Queue(conv.io.mem.req_data, REFILL_CYCLES*2)
-  conv.io.mem.resp <> Queue(io.mem.resp, REFILL_CYCLES*2)
+  val mem_cmdq = (new Queue(2)) { new MemReqCmd }
+  mem_cmdq.io.enq <> llc.io.mem.req_cmd
+  mem_cmdq.io.deq <> io.mem.req_cmd
+
+  val mem_dataq = (new Queue(REFILL_CYCLES)) { new MemData }
+  mem_dataq.io.enq <> llc.io.mem.req_data
+  mem_dataq.io.deq <> io.mem.req_data
+
+  llc.io.mem.resp <> io.mem.resp
+}
+
+class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
+{
+  implicit val lnconf = conf.ln
+  val io = new Bundle {
+    val debug = new DebugIO()
+    val host = new HostIO(htif_width)
+    val mem = new ioMemPipe
+    val tiles = Vec(conf.ln.nClients) { new TileLinkIO }.flip
+    val htif = Vec(conf.ln.nClients) { new HTIFIO(conf.ln.nClients) }.flip
+    val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
+  }
+  val nBanks = 1
+  val bankIdLsb = 5
+
+  val htif = new rocketHTIF(htif_width)
+  val outmemsys = new FPGAOuterMemorySystem(htif_width, tileList :+ htif)
+  htif.io.cpu <> io.htif
+  outmemsys.io.incoherent <> io.incoherent
+  io.mem <> outmemsys.io.mem
+
+  // Add networking headers and endpoint queues
+  (outmemsys.io.tiles :+ outmemsys.io.htif).zip(io.tiles :+ htif.io.mem).zipWithIndex.map { 
+    case ((outer, client), i) => 
+      val (acq_w_header, acq_data_w_header) = TileLinkHeaderAppender(client.acquire, client.acquire_data, i, nBanks, bankIdLsb)
+      outer.acquire <> acq_w_header
+      outer.acquire_data <> acq_data_w_header
+
+      val (rel_w_header, rel_data_w_header) = TileLinkHeaderAppender(client.release, client.release_data, i, nBanks, bankIdLsb)
+      outer.release <> rel_w_header
+      outer.release_data <> rel_data_w_header
+
+      val grant_ack_q = Queue(client.grant_ack)
+      outer.grant_ack.valid := grant_ack_q.valid
+      outer.grant_ack.bits := grant_ack_q.bits
+      outer.grant_ack.bits.header.src := UFix(i)
+      grant_ack_q.ready := outer.grant_ack.ready
+
+      client.grant <> Queue(outer.grant, 1, pipe = true)
+      client.probe <> Queue(outer.probe)
+  }
+
+  htif.io.host.out <> io.host.out
+  htif.io.host.in <> io.host.in
 }
 
 class FPGATop extends Component {
@@ -53,7 +108,9 @@ class FPGATop extends Component {
     val mem = new ioMem
   }
   val co = new MESICoherence
-  implicit val lnConf = LogicalNetworkConfiguration(4, 3, 1, 3)
+  val ntiles = 1
+  val nbanks = 1
+  implicit val lnConf = LogicalNetworkConfiguration(ntiles+nbanks, log2Up(ntiles)+1, nbanks, ntiles)
   implicit val uconf = UncoreConfiguration(co, lnConf)
 
   val resetSigs = Vec(uconf.ln.nClients){ Bool() }
@@ -75,18 +132,15 @@ class FPGATop extends Component {
     resetSigs(i) := hl.reset
     val tile = tileList(i)
 
-    tile.io.host <> hl
-    when (tile.io.host.debug.error_mode) { io.debug.error_mode := Bool(true) }
-
+    tile.io.tilelink <> tl
     il := hl.reset
-    tl.acquire <> Queue(tile.io.tilelink.acquire)
-    tl.acquire_data <> Queue(tile.io.tilelink.acquire_data)
-    tile.io.tilelink.grant <> Queue(tl.grant)
-    tl.grant_ack <> Queue(tile.io.tilelink.grant_ack)
-    tile.io.tilelink.probe <> Queue(tl.probe)
-    tl.release <> Queue(tile.io.tilelink.release)
-    tl.release_data <> Queue(tile.io.tilelink.release_data)
-    //TODO: Set logcal network headers here
+    tile.io.host.reset := Reg(Reg(hl.reset))
+    tile.io.host.pcr_req <> Queue(hl.pcr_req)
+    hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
+    hl.ipi_req <> Queue(tile.io.host.ipi_req)
+    tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
+
+    when (tile.io.host.debug.error_mode) { io.debug.error_mode := Bool(true) }
   }
 
   io.host <> uncore.io.host
@@ -151,7 +205,7 @@ class Slave extends AXISlave
   top.io.mem.resp.bits.tag := tagq.io.deq.bits
   top.io.mem.resp.valid := wen(1) && in_count.andR
   tagq.io.deq.ready := top.io.mem.resp.fire() && rf_count.andR
-  wready(1) := top.io.mem.resp.ready
+  wready(1) := Bool(true) //top.io.mem.resp.ready
   when (wen(1) && wready(1)) {
     in_count := in_count + UFix(1)
     in_reg := top.io.mem.resp.bits.data
