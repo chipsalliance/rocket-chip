@@ -6,17 +6,17 @@ CXXFLAGS := -O2
 
 SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
 
-DRAMSIM_OBJS := $(patsubst %.cpp,%.o,$(wildcard $(basedir)/dramsim2/*.cpp))
+DRAMSIM_OBJS := $(patsubst %.cpp,%.o,$(wildcard $(base_dir)/dramsim2/*.cpp))
 $(DRAMSIM_OBJS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -DNO_STORAGE -DNO_OUTPUT -Dmain=nomain -c -o $@ $<
-libdramsim.a: $(DRAMSIM_OBJS)
+$(sim_dir)/libdramsim.a: $(DRAMSIM_OBJS)
 	ar rcs $@ $^
 
 #--------------------------------------------------------------------
 # Tests
 #--------------------------------------------------------------------
 
-tstdir = $(basedir)/riscv-tests/isa
+tstdir = $(base_dir)/riscv-tests/isa
 asm_p_tests = \
 	rv64si-pm-ipi \
 	rv64ui-pm-lrsc \
@@ -491,7 +491,7 @@ vecasm_pt_tests = \
 
 # Globally installed benchmarks
 
-bmarkdir = $(basedir)/riscv-tests/benchmarks
+bmarkdir = $(base_dir)/riscv-tests/benchmarks
 bmarks = \
 	median.riscv \
 	multiply.riscv \
@@ -507,7 +507,7 @@ bmarks = \
 	mt-vvadd.riscv \
 	mt-matmul.riscv \
 
-vec_bmarkdir = $(basedir)/../../riscv-app/misc/build
+vec_bmarkdir = $(base_dir)/../../riscv-app/misc/build
 vec_bmarks = \
 	ubmark-vvadd \
 	ubmark-bin-search \

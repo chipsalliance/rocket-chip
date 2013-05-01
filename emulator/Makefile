@@ -1,26 +1,28 @@
 all: emulator
 
-basedir = ..
-include ../Makefrag
+base_dir = ..
+sim_dir = .
+
+include $(base_dir)/Makefrag
 
 CXXFLAGS := $(CXXFLAGS) -std=c++0x -I$(RISCV)/include
 
 CXXSRCS := emulator disasm mm mm_dramsim2
-CXXFLAGS := $(CXXFLAGS) -I$(basedir)/csrc -I$(basedir)/chisel/csrc -I$(basedir)/dramsim2
+CXXFLAGS := $(CXXFLAGS) -I$(base_dir)/csrc -I$(base_dir)/chisel/csrc -I$(base_dir)/dramsim2
 
 LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -L. -ldramsim -lfesvr -lpthread
 
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
 DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 
-CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir $(basedir)/emulator/generated-src
+CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir $(base_dir)/emulator/generated-src
 CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
-generated-src/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala $(basedir)/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS)"
+generated-src/$(MODEL).cpp: $(base_dir)/riscv-rocket/src/*.scala $(base_dir)/riscv-hwacha/src/*.scala $(base_dir)/chisel/src/main/scala/* $(base_dir)/uncore/src/*.scala $(base_dir)/src/*.scala
+	cd $(base_dir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS)"
 
-generated-src-debug/$(MODEL).cpp: $(basedir)/riscv-rocket/src/*.scala $(basedir)/riscv-hwacha/src/*.scala $(basedir)/chisel/src/main/scala/* $(basedir)/uncore/src/*.scala $(basedir)/src/*.scala
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS_DEBUG)"
+generated-src-debug/$(MODEL).cpp: $(base_dir)/riscv-rocket/src/*.scala $(base_dir)/riscv-hwacha/src/*.scala $(base_dir)/chisel/src/main/scala/* $(base_dir)/uncore/src/*.scala $(base_dir)/src/*.scala
+	cd $(base_dir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS_DEBUG)"
 
 $(MODEL).o: %.o: generated-src/%.cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
@@ -28,10 +30,10 @@ $(MODEL).o: %.o: generated-src/%.cpp
 $(MODEL)-debug.o: %-debug.o: generated-src-debug/%.cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src-debug -c -o $@ $<
 
-$(addsuffix .o,$(CXXSRCS)): %.o: $(basedir)/csrc/%.cc $(basedir)/csrc/*.h generated-src/$(MODEL).cpp
+$(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h generated-src/$(MODEL).cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
 
-$(addsuffix -debug.o,$(CXXSRCS)): %-debug.o: $(basedir)/csrc/%.cc $(basedir)/csrc/*.h generated-src-debug/$(MODEL).cpp
+$(addsuffix -debug.o,$(CXXSRCS)): %-debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h generated-src-debug/$(MODEL).cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src-debug -c -o $@ $<
 
 emulator: $(OBJS) libdramsim.a
@@ -44,7 +46,7 @@ clean:
 	rm -rf *.o *.a emulator emulator-debug generated-src generated-src-debug DVEfiles output
 
 test:
-	cd $(basedir)/sbt && $(SBT) "project referencechip" "~make $(CURDIR) run-fast $(CHISEL_ARGS)"
+	cd $(base_dir)/sbt && $(SBT) "project referencechip" "~make $(CURDIR) run-fast $(CHISEL_ARGS)"
 
 #--------------------------------------------------------------------
 # Run assembly tests and benchmarks
