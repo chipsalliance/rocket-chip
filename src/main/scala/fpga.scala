@@ -39,7 +39,7 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
   }
   io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
   io.mem.req_data <> Queue(conv.io.mem.req_data, REFILL_CYCLES)
-  conv.io.mem.resp <> Queue(io.mem.resp, 16)
+  conv.io.mem.resp <> Queue(io.mem.resp)
 }
 
 class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
