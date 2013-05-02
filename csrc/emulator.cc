@@ -176,6 +176,8 @@ int main(int argc, char** argv)
   if (vcd)
     fclose(vcdfile);
 
+  delete htif;
+
   if (failure)
   {
     fprintf(logfile, "*** FAILED *** (%s) after %lld cycles\n", failure, (long long)trace_count);

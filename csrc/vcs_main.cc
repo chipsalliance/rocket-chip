@@ -101,6 +101,11 @@ void htif_init
   htif = new htif_emulator_t(args);
 }
 
+void htif_fini()
+{
+  delete htif;
+}
+
 void htif_tick
 (
   vc_handle htif_in_valid,
