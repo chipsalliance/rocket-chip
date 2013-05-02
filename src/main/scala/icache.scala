@@ -173,7 +173,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
   rdy := state === s_ready && !s2_miss
 
   Assert(!c.co.isVoluntary(io.mem.grant.bits.payload) || !io.mem.grant.valid, "UncachedRequestors shouldn't get voluntary grants.")
-  val (rf_cnt, refill_done) = Counter(io.mem.grant.valid && !c.co.isVoluntary(io.mem.grant.bits.payload), REFILL_CYCLES)
+  val (rf_cnt, refill_done) = Counter(io.mem.grant.valid, REFILL_CYCLES)
   val repl_way = if (c.dm) UFix(0) else LFSR16(s2_miss)(log2Up(c.assoc)-1,0)
 
   val enc_tagbits = c.code.width(c.tagbits)
@@ -225,7 +225,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
   for (i <- 0 until c.assoc) {
     val data_array = Mem(c.sets*REFILL_CYCLES, seqRead = true){ Bits(width = c.code.width(c.databits)) }
     val s1_raddr = Reg{UFix()}
-    when (io.mem.grant.valid && c.co.messageHasData(io.mem.grant.bits.payload) && repl_way === UFix(i)) {
+    when (io.mem.grant.valid && repl_way === UFix(i)) {
       val d = io.mem.grant.bits.payload.data
       data_array(Cat(s2_idx,rf_cnt)) := c.code.encode(d)
     }
