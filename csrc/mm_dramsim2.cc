@@ -19,10 +19,10 @@ void mm_dramsim2_t::read_complete(unsigned id, uint64_t address, uint64_t clock_
   auto tag = req[address];
   req.erase(address);
 
-  for (int i = 0; i < REFILL_COUNT; i++)
+  for (int i = 0; i < line_size/word_size; i++)
   {
-    auto base = data + address + i*MM_WORD_SIZE;
-    auto dat = std::vector<char>(base, base + MM_WORD_SIZE);
+    auto base = data + address + i*word_size;
+    auto dat = std::vector<char>(base, base + word_size);
     resp.push(std::make_pair(tag, dat));
   }
 
@@ -43,10 +43,12 @@ void power_callback(double a, double b, double c, double d)
     //fprintf(stderr, "power callback: %0.3f, %0.3f, %0.3f, %0.3f\n",a,b,c,d);
 }
 
-void mm_dramsim2_t::init(size_t sz)
+void mm_dramsim2_t::init(size_t sz, int wsz, int lsz)
 {
-  mm_t::init(sz);
-  dummy_data.resize(MM_WORD_SIZE);
+  assert(lsz == 64); // assumed by dramsim2
+  mm_t::init(sz, wsz, lsz);
+
+  dummy_data.resize(word_size);
 
   assert(size % (1024*1024) == 0);
   mem = getMemorySystemInstance("DDR3_micron_64M_8B_x4_sg15.ini", "system.ini", "dramsim2_ini", "results", size/(1024*1024));
@@ -67,20 +69,22 @@ void mm_dramsim2_t::tick
   uint64_t req_cmd_addr,
   uint64_t req_cmd_tag,
   bool req_data_val,
-  void* req_data_bits
+  void* req_data_bits,
+  bool resp_rdy
 )
 {
   bool req_cmd_fire = req_cmd_val && req_cmd_ready();
   bool req_data_fire = req_data_val && req_data_ready();
+  bool resp_fire = resp_valid() && resp_rdy;
   assert(!(req_cmd_fire && req_data_fire));
 
-  if (resp_valid())
+  if (resp_fire)
     resp.pop();
 
   if (req_cmd_fire)
   {
     // since the I$ can speculatively ask for address that are out of bounds
-    auto byte_addr = (req_cmd_addr*REFILL_COUNT*MM_WORD_SIZE) % size;
+    auto byte_addr = (req_cmd_addr * line_size) % size;
 
     if (req_cmd_store)
     {
@@ -104,9 +108,9 @@ void mm_dramsim2_t::tick
 
   if (req_data_fire)
   {
-    memcpy(data + store_addr + store_count*MM_WORD_SIZE, req_data_bits, MM_WORD_SIZE);
+    memcpy(data + store_addr + store_count*word_size, req_data_bits, word_size);
 
-    store_count = (store_count + 1) % REFILL_COUNT;
+    store_count = (store_count + 1) % (line_size/word_size);
     if (store_count == 0)
     { // last chunch of cache line arrived.
       store_inflight = 0;

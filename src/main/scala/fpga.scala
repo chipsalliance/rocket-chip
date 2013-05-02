@@ -13,7 +13,7 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
     val tiles = Vec(conf.ln.nClients) { new TileLinkIO }.flip
     val htif = (new TileLinkIO).flip
     val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
-    val mem = new ioMemPipe
+    val mem = new ioMem
   }
 
   import rocket.Constants._
@@ -24,9 +24,6 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
   val ucWithHtifConf = conf.copy(ln = lnWithHtifConf)
   require(clientEndpoints.length == lnWithHtifConf.nClients)
   val masterEndpoints = (0 until lnWithHtifConf.nMasters).map(new L2CoherenceAgent(_)(ucWithHtifConf))
-
-  val llc = new DRAMSideLLCNull(NGLOBAL_XACTS, REFILL_CYCLES)
-  val mem_serdes = new MemSerdes(htif_width)
 
   val net = new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints)(lnWithHtifConf)
   net.io zip (masterEndpoints.map(_.io.client) ++ io.tiles :+ io.htif) map { case (net, end) => net <> end }
@@ -40,19 +37,9 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
   } else {
     conv.io.uncached <> masterEndpoints.head.io.master
   }
-  llc.io.cpu.req_cmd <> Queue(conv.io.mem.req_cmd)
-  llc.io.cpu.req_data <> Queue(conv.io.mem.req_data, REFILL_CYCLES)
-  conv.io.mem.resp <> llc.io.cpu.resp
-
-  val mem_cmdq = (new Queue(2)) { new MemReqCmd }
-  mem_cmdq.io.enq <> llc.io.mem.req_cmd
-  mem_cmdq.io.deq <> io.mem.req_cmd
-
-  val mem_dataq = (new Queue(REFILL_CYCLES)) { new MemData }
-  mem_dataq.io.enq <> llc.io.mem.req_data
-  mem_dataq.io.deq <> io.mem.req_data
-
-  llc.io.mem.resp <> io.mem.resp
+  io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
+  io.mem.req_data <> Queue(conv.io.mem.req_data, REFILL_CYCLES)
+  conv.io.mem.resp <> Queue(io.mem.resp, 16)
 }
 
 class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
@@ -61,7 +48,7 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
   val io = new Bundle {
     val debug = new DebugIO()
     val host = new HostIO(htif_width)
-    val mem = new ioMemPipe
+    val mem = new ioMem
     val tiles = Vec(conf.ln.nClients) { new TileLinkIO }.flip
     val htif = Vec(conf.ln.nClients) { new HTIFIO(conf.ln.nClients) }.flip
     val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
@@ -188,11 +175,11 @@ class Slave extends AXISlave
 
   // read cr1 -> mem.req_cmd (nonblocking)
   // the memory system is FIFO from hereon out, so just remember the tags here
-  val tagq = new Queue(NGLOBAL_XACTS)(top.io.mem.req_cmd.bits.tag.clone)
+  val tagq = new Queue(4)(top.io.mem.req_cmd.bits.tag.clone)
   tagq.io.enq.bits := top.io.mem.req_cmd.bits.tag
   tagq.io.enq.valid := ren(1) && top.io.mem.req_cmd.valid && !top.io.mem.req_cmd.bits.rw
   top.io.mem.req_cmd.ready := ren(1)
-  rdata(1) := Cat(top.io.mem.req_cmd.bits.addr, top.io.mem.req_cmd.bits.rw, top.io.mem.req_cmd.valid)
+  rdata(1) := Cat(top.io.mem.req_cmd.bits.addr, top.io.mem.req_cmd.bits.rw, top.io.mem.req_cmd.valid && (tagq.io.enq.ready || top.io.mem.req_cmd.bits.rw))
   rvalid(1) := Bool(true)
   require(dw >= top.io.mem.req_cmd.bits.addr.getWidth + 1 + 1)
 
@@ -205,7 +192,7 @@ class Slave extends AXISlave
   top.io.mem.resp.bits.tag := tagq.io.deq.bits
   top.io.mem.resp.valid := wen(1) && in_count.andR
   tagq.io.deq.ready := top.io.mem.resp.fire() && rf_count.andR
-  wready(1) := Bool(true) //top.io.mem.resp.ready
+  wready(1) := top.io.mem.resp.ready
   when (wen(1) && wready(1)) {
     in_count := in_count + UFix(1)
     in_reg := top.io.mem.resp.bits.data
@@ -222,7 +209,7 @@ class Slave extends AXISlave
   when (ren(2) && rvalid(2)) { out_count := out_count + UFix(1) }
 
   // read cr3 -> error mode (nonblocking)
-  rdata(3) := top.io.debug.error_mode
+  rdata(3) := Cat(top.io.mem.req_cmd.valid, tagq.io.enq.ready, top.io.debug.error_mode)
   rvalid(3) := Bool(true)
 
   // writes to cr2, cr3 ignored

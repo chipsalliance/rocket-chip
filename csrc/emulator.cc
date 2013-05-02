@@ -60,16 +60,17 @@ int main(int argc, char** argv)
     fprintf(vcdfile, "$upscope $end\n");
   }
 
-  mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-  mm->init(MEM_SIZE);
-  if (loadmem)
-    load_mem(mm->get_data(), loadmem);
-
 
   // The chisel generated code
   Top_t tile;
   srand(random_seed);
   tile.init(random_seed != 0);
+
+  // Instantiate and initialize main memory
+  mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
+  mm->init(MEM_SIZE, tile.Top__io_mem_resp_bits_data.width()/8, LINE_SIZE);
+  if (loadmem)
+    load_mem(mm->get_data(), loadmem);
 
   // Instantiate HTIF
   htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
@@ -105,7 +106,9 @@ int main(int argc, char** argv)
       tile.Top__io_mem_req_cmd_bits_tag.lo_word(),
 
       tile.Top__io_mem_req_data_valid.lo_word(),
-      &tile.Top__io_mem_req_data_bits_data.values[0]
+      &tile.Top__io_mem_req_data_bits_data.values[0],
+
+      tile.Top__io_mem_resp_ready.to_bool()
     );
 
     if (tile.Top__io_host_clk_edge.to_bool())

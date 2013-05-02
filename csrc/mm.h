@@ -1,17 +1,19 @@
 #ifndef MM_EMULATOR_H
 #define MM_EMULATOR_H
 
-#include "mm_param.h"
 #include <stdint.h>
 #include <cstring>
 #include <queue>
+
+const int LINE_SIZE = 64; // all cores assume this.
+const size_t MEM_SIZE = (sizeof(long) > 4 ? 4L : 1L) * 1024*1024*1024;
 
 class mm_t
 {
  public:
   mm_t() : data(0), size(0) {}
 
-  virtual void init(size_t sz);
+  virtual void init(size_t sz, int word_size, int line_size);
 
   virtual bool req_cmd_ready() = 0;
   virtual bool req_data_ready() = 0;
@@ -26,17 +28,22 @@ class mm_t
     uint64_t req_cmd_addr,
     uint64_t req_cmd_tag,
     bool req_data_val,
-    void* req_data_bits
+    void* req_data_bits,
+    bool resp_rdy
   ) = 0;
 
   virtual void* get_data() { return data; }
   virtual size_t get_size() { return size; }
+  virtual size_t get_word_size() { return word_size; }
+  virtual size_t get_line_size() { return line_size; }
 
   virtual ~mm_t();
 
  protected:
   char* data;
   size_t size;
+  int word_size;
+  int line_size;
 };
 
 class mm_magic_t : public mm_t
@@ -44,7 +51,7 @@ class mm_magic_t : public mm_t
  public:
   mm_magic_t() : store_inflight(false), store_count(0) {}
 
-  virtual void init(size_t sz);
+  virtual void init(size_t sz, int word_size, int line_size);
 
   virtual bool req_cmd_ready() { return !store_inflight; }
   virtual bool req_data_ready() { return store_inflight; }
@@ -59,7 +66,8 @@ class mm_magic_t : public mm_t
     uint64_t req_cmd_addr,
     uint64_t req_cmd_tag,
     bool req_data_val,
-    void* req_data_bits
+    void* req_data_bits,
+    bool resp_rdy
   );
 
  protected:

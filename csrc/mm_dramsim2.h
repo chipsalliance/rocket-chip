@@ -12,7 +12,7 @@ class mm_dramsim2_t : public mm_t
  public:
   mm_dramsim2_t() : store_inflight(false), store_count(0) {}
 
-  virtual void init(size_t sz);
+  virtual void init(size_t sz, int word_size, int line_size);
 
   virtual bool req_cmd_ready() { return mem->willAcceptTransaction() && !store_inflight; }
   virtual bool req_data_ready() { return mem->willAcceptTransaction() && store_inflight; }
@@ -27,7 +27,8 @@ class mm_dramsim2_t : public mm_t
     uint64_t req_cmd_addr,
     uint64_t req_cmd_tag,
     bool req_data_val,
-    void* req_data_bits
+    void* req_data_bits,
+    bool resp_rdy
   );
 
 

@@ -323,7 +323,7 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
     val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
-    val mem = new ioMemPipe
+    val mem = new ioMem
   }
 
   import rocket.Constants._
@@ -375,6 +375,7 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
   mem_serdes.io.wide.req_data.bits := mem_dataq.io.deq.bits
 
   llc.io.mem.resp.valid := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.valid, io.mem.resp.valid)
+  io.mem.resp.ready := Bool(true)
   llc.io.mem.resp.bits := Mux(io.mem_backup_en, mem_serdes.io.wide.resp.bits, io.mem.resp.bits)
 
   io.mem_backup <> mem_serdes.io.narrow
@@ -388,7 +389,7 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
     val host = new HostIO(htif_width)
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
-    val mem = new ioMemPipe
+    val mem = new ioMem
     val tiles = Vec(conf.ln.nClients) { new TileLinkIO }.flip
     val htif = Vec(conf.ln.nClients) { new HTIFIO(conf.ln.nClients) }.flip
     val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput

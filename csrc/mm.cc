@@ -5,8 +5,11 @@
 #include <cstring>
 #include <cassert>
 
-void mm_t::init(size_t sz)
+void mm_t::init(size_t sz, int wsz, int lsz)
 {
+  assert(wsz > 0 && lsz > 0 && (lsz & (lsz-1)) == 0 && lsz % wsz == 0);
+  word_size = wsz;
+  line_size = lsz;
   data = new char[sz];
   size = sz;
 }
@@ -16,10 +19,10 @@ mm_t::~mm_t()
   delete [] data;
 }
 
-void mm_magic_t::init(size_t sz)
+void mm_magic_t::init(size_t sz, int wsz, int lsz)
 {
-  mm_t::init(sz);
-  dummy_data.resize(MM_WORD_SIZE);
+  mm_t::init(sz, wsz, lsz);
+  dummy_data.resize(word_size);
 }
 
 void mm_magic_t::tick
@@ -29,28 +32,30 @@ void mm_magic_t::tick
   uint64_t req_cmd_addr,
   uint64_t req_cmd_tag,
   bool req_data_val,
-  void* req_data_bits
+  void* req_data_bits,
+  bool resp_rdy
 )
 {
   bool req_cmd_fire = req_cmd_val && req_cmd_ready();
   bool req_data_fire = req_data_val && req_data_ready();
+  bool resp_fire = resp_valid() && resp_rdy;
   assert(!(req_cmd_fire && req_data_fire));
 
-  if (resp_valid())
+  if (resp_fire)
     resp.pop();
 
   if (req_data_fire)
   {
-    memcpy(data + store_addr + store_count*MM_WORD_SIZE, req_data_bits, MM_WORD_SIZE);
+    memcpy(data + store_addr + store_count*word_size, req_data_bits, word_size);
 
-    store_count = (store_count + 1) % REFILL_COUNT;
+    store_count = (store_count + 1) % (line_size/word_size);
     if (store_count == 0)
       store_inflight = false;
   }
 
   if (req_cmd_fire)
   {
-    auto byte_addr = req_cmd_addr*REFILL_COUNT*MM_WORD_SIZE;
+    auto byte_addr = req_cmd_addr * line_size;
     assert(byte_addr < size);
 
     if (req_cmd_store)
@@ -58,10 +63,10 @@ void mm_magic_t::tick
       store_inflight = true;
       store_addr = byte_addr;
     }
-    else for (int i = 0; i < REFILL_COUNT; i++)
+    else for (int i = 0; i < line_size/word_size; i++)
     {
-      auto base = data + byte_addr + i*MM_WORD_SIZE;
-      auto dat = std::vector<char>(base, base + MM_WORD_SIZE);
+      auto base = data + byte_addr + i*word_size;
+      auto dat = std::vector<char>(base, base + word_size);
       resp.push(std::make_pair(req_cmd_tag, dat));
     }
   }

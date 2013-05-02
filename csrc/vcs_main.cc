@@ -26,23 +26,24 @@ void memory_tick(
   vc_handle mem_req_data_bits,
 
   vc_handle mem_resp_val,
+  vc_handle mem_resp_rdy,
   vc_handle mem_resp_tag,
   vc_handle mem_resp_data)
 {
-  uint32_t req_data[MM_WORD_SIZE*REFILL_COUNT/sizeof(uint32_t)];
-  for (size_t i = 0; i < MM_WORD_SIZE*REFILL_COUNT/sizeof(uint32_t); i++)
+  uint32_t req_data[mm->get_word_size()/sizeof(uint32_t)];
+  for (size_t i = 0; i < mm->get_word_size()/sizeof(uint32_t); i++)
     req_data[i] = vc_4stVectorRef(mem_req_data_bits)[i].d;
 
   vc_putScalar(mem_req_rdy, mm->req_cmd_ready());
   vc_putScalar(mem_req_data_rdy, mm->req_data_ready());
   vc_putScalar(mem_resp_val, mm->resp_valid());
 
-  vec32 d[MM_WORD_SIZE*REFILL_COUNT/sizeof(uint32_t)];
+  vec32 d[mm->get_word_size()/sizeof(uint32_t)];
   d[0].c = 0;
   d[0].d = mm->resp_tag();
   vc_put4stVector(mem_resp_tag, d);
 
-  for (size_t i = 0; i < MM_WORD_SIZE*REFILL_COUNT/sizeof(uint32_t); i++)
+  for (size_t i = 0; i < mm->get_word_size()/sizeof(uint32_t); i++)
   {
     d[i].c = 0;
     d[i].d = ((uint32_t*)mm->resp_data())[i];
@@ -56,22 +57,26 @@ void memory_tick(
     vc_4stVectorRef(mem_req_addr)->d,
     vc_4stVectorRef(mem_req_tag)->d,
     vc_getScalar(mem_req_data_val),
-    req_data
+    req_data,
+    vc_getScalar(mem_resp_rdy)
   );
 }
 
 void htif_init
 (
-  vc_handle width,
+  vc_handle htif_width,
+  vc_handle mem_width,
   vc_handle argv,
   vc_handle loadmem,
   vc_handle dramsim
 )
 {
+  int mw = vc_4stVectorRef(mem_width)->d;
   mm = vc_getScalar(dramsim) ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-  mm->init(MEM_SIZE);
+  assert(mw && (mw & (mw-1)) == 0);
+  mm->init(MEM_SIZE, mw/8, LINE_SIZE);
 
-  vec32* w = vc_4stVectorRef(width);
+  vec32* w = vc_4stVectorRef(htif_width);
   assert(w->d <= 32 && w->d % 8 == 0); // htif_tick assumes data fits in a vec32
   htif_bytes = w->d/8;
 
@@ -134,7 +139,8 @@ void htif_tick
   vc_put4stVector(htif_in_bits, &bits);
   vc_putScalar(htif_in_valid, peek_in_valid);
 
-  vc_putScalar(exit, htif->done() ? (htif->exit_code() << 1 | 1) : 0);
+  bits.d = htif->done() ? (htif->exit_code() << 1 | 1) : 0;
+  vc_put4stVector(exit, &bits);
 }
 
 }
