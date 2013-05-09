@@ -842,7 +842,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
 
   def newRelease (incoming: Probe, state: UFix, id: UFix): Release = {
-    Assert( incoming.p_type === probeInvalidateOthers && needsWriteback(state), "Bad probe request type, should be impossible.")
+    //Assert( incoming.p_type === probeInvalidateOthers && needsWriteback(state), "Bad probe request type, should be impossible.")
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
       probeInvalidate       -> Mux(uFixListContains(List(tileExclusiveDirty, tileMigratoryDirty), state), 
                                     releaseInvalidateDataMigratory, releaseInvalidateData),
