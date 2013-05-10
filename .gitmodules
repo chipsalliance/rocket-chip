@@ -13,3 +13,6 @@
 [submodule "dramsim2"]
 	path = dramsim2
 	url = git@github.com:dramninjasUMD/DRAMSim2.git
+[submodule "riscv-tools"]
+	path = riscv-tools
+	url = git@github.com:ucb-bar/riscv-tools.git
