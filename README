@@ -2,12 +2,10 @@ Quick and dirty instructions:
 
 CHECKOUT THE CODE:
 
-  git submodule init
-  git submodule update
+  git submodule update --init
 
-  cd riscv-gcc-isasim
-  git submodule init
-  git submodule update
+  cd riscv-tools
+  git submodule update --init
 
 
 BUILDING THE TOOLCHAIN:
@@ -15,7 +13,7 @@ BUILDING THE TOOLCHAIN:
   To build RISC-V ISA simulator, frontend server, proxy kernel and newlib based GNU toolchain:
 
     export RISCV=/path/to/riscv/toolchain/installation
-    cd riscv-gcc-isasim
+    cd riscv-tools
     ./build.sh
 
   To build asm tests and benchmarks (you must have the RISC-V toolchain installed and in your path):
@@ -23,7 +21,7 @@ BUILDING THE TOOLCHAIN:
     cd riscv-tests/isa/
     make -j
 
-    cd riscv-asmtests-bmarks/riscv-bmarks/
+    cd riscv-tests/benchmarks
     make -j
 
 BUILDING THE PROJECT:
@@ -62,8 +60,7 @@ UPDATING TO A NEWER VERSION OF CHISEL:
 
   To grab a newer version of chisel:
 
-    git submodule init
-    git submodule update
+    git submodule update --init
     cd chisel
     git pull origin master
 
