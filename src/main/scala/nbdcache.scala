@@ -669,7 +669,7 @@ class AMOALU(implicit conf: DCacheConfig) extends Component {
   val word = io.typ === MT_W || io.typ === MT_WU || io.typ === MT_B || io.typ === MT_BU
 
   val mask = Fix(-1,64) ^ (io.addr(2) << 31)
-  val adder_out = (io.lhs & mask) + (io.rhs & mask)
+  val adder_out = (io.lhs & mask).toUFix + (io.rhs & mask)
 
   val cmp_lhs  = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
   val cmp_rhs  = Mux(word && !io.addr(2), io.rhs(31), io.rhs(63))
