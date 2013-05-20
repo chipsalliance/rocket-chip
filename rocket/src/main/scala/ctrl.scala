@@ -530,7 +530,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     (ex_reg_fp_val && io.fpu.illegal_rm,   UFix(2))))
   
   mem_reg_replay := replay_ex && !take_pc_wb;
-  mem_reg_xcpt_interrupt := ex_reg_xcpt_interrupt && !take_pc_wb
+  mem_reg_xcpt_interrupt := ex_reg_xcpt_interrupt && !take_pc_wb && !mem_reg_replay_next
   when (ex_xcpt) { mem_reg_cause := ex_cause }
   mem_reg_div_mul_val := ex_reg_div_mul_val && io.dpath.div_mul_rdy
 
