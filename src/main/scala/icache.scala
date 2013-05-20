@@ -110,7 +110,7 @@ class Frontend(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) ex
   icache.io.req.bits.idx := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
   icache.io.invalidate := io.cpu.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
-  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss
+  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss
   icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
