@@ -3,9 +3,9 @@ package uncore
 import Chisel._
 import Constants._
 
-trait CoherenceAgentRole
-trait ClientCoherenceAgent extends CoherenceAgentRole
-trait MasterCoherenceAgent extends CoherenceAgentRole
+abstract trait CoherenceAgentRole
+abstract trait ClientCoherenceAgent extends CoherenceAgentRole
+abstract trait MasterCoherenceAgent extends CoherenceAgentRole
 
 abstract class CoherencePolicy {
   def isHit (cmd: Bits, state: UFix): Bool
