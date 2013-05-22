@@ -81,9 +81,11 @@ class Frontend(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) ex
     s1_same_block := s0_same_block && !tlb.io.resp.miss
     s1_pc := npc
     s2_valid := !icmiss
-    s2_pc := s1_pc
-    s2_btb_hit := btb.io.hit
-    s2_xcpt_if := tlb.io.resp.xcpt_if
+    when (!icmiss) {
+      s2_pc := s1_pc
+      s2_btb_hit := btb.io.hit
+      s2_xcpt_if := tlb.io.resp.xcpt_if
+    }
   }
   when (io.cpu.req.valid) {
     s1_same_block := Bool(false)
