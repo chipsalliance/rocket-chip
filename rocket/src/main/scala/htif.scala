@@ -139,7 +139,7 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component w
   when (state === state_mem_req && x_init.io.enq.ready) {
     state := Mux(cmd === cmd_writemem, state_mem_wdata, state_mem_rdata)
   }
-  when (state === state_mem_wdata && io.mem.acquire_data.ready) {
+  when (state === state_mem_wdata && io.mem.acquire.data.ready) {
     when (mem_cnt.andR)  {
       state := state_mem_wresp
     }
@@ -185,15 +185,15 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component w
   val init_addr = addr.toUFix >> UFix(OFFSET_BITS-3)
   val co = conf.co.asInstanceOf[CoherencePolicyWithUncached]
   x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteAcquire(init_addr, UFix(0)), co.getUncachedReadAcquire(init_addr, UFix(0)))
-  io.mem.acquire <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq, UFix(conf.ln.nClients), UFix(0))
-  io.mem.acquire_data.valid := state === state_mem_wdata
-  io.mem.acquire_data.bits.payload.data := mem_req_data
+  io.mem.acquire.meta <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq, UFix(conf.ln.nClients), UFix(0))
+  io.mem.acquire.data.valid := state === state_mem_wdata
+  io.mem.acquire.data.bits.payload.data := mem_req_data
   io.mem.grant_ack.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.grant_ack.bits.payload.master_xact_id := mem_gxid
   io.mem.grant_ack.bits.header.dst := mem_gsrc
   io.mem.probe.ready := Bool(false)
-  io.mem.release.valid := Bool(false)
-  io.mem.release_data.valid := Bool(false)
+  io.mem.release.meta.valid := Bool(false)
+  io.mem.release.data.valid := Bool(false)
 
   val pcrReadData = Reg{Bits(width = io.cpu(0).pcr_rep.bits.getWidth)}
   for (i <- 0 until conf.ln.nClients) {

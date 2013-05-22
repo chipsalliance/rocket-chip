@@ -40,20 +40,19 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   val icache    = new Frontend()(confIn.icache, lnConf)
   val dcache    = new HellaCache
 
-  val arbiter   = new UncachedTileLinkIOArbiter(memPorts)
+  val arbiter   = new UncachedTileLinkIOArbiter(memPorts, confIn.dcache.co)
   arbiter.io.in(dcachePortId) <> dcache.io.mem
   arbiter.io.in(icachePortId) <> icache.io.mem
 
   io.tilelink.acquire <> arbiter.io.out.acquire
-  io.tilelink.acquire_data <> arbiter.io.out.acquire_data
   arbiter.io.out.grant <> io.tilelink.grant
   io.tilelink.grant_ack <> arbiter.io.out.grant_ack
   dcache.io.mem.probe <> io.tilelink.probe
-  io.tilelink.release_data <> dcache.io.mem.release_data
-  io.tilelink.release.valid   := dcache.io.mem.release.valid
-  dcache.io.mem.release.ready := io.tilelink.release.ready
-  io.tilelink.release.bits := dcache.io.mem.release.bits
-  io.tilelink.release.bits.payload.client_xact_id :=  Cat(dcache.io.mem.release.bits.payload.client_xact_id, UFix(dcachePortId, log2Up(memPorts))) // Mimic client id extension done by UncachedTileLinkIOArbiter for Acquires from either client)
+  io.tilelink.release.data <> dcache.io.mem.release.data
+  io.tilelink.release.meta.valid   := dcache.io.mem.release.meta.valid
+  dcache.io.mem.release.meta.ready := io.tilelink.release.meta.ready
+  io.tilelink.release.meta.bits := dcache.io.mem.release.meta.bits
+  io.tilelink.release.meta.bits.payload.client_xact_id :=  Cat(dcache.io.mem.release.meta.bits.payload.client_xact_id, UFix(dcachePortId, log2Up(memPorts))) // Mimic client id extension done by UncachedTileLinkIOArbiter for Acquires from either client)
 
   /*val ioSubBundles = io.tilelink.getClass.getMethods.filter( x => 
     classOf[ClientSourcedIO[Data]].isAssignableFrom(x.getReturnType)).map{ m =>
