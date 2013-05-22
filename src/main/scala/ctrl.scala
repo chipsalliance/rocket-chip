@@ -521,9 +521,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val replay_ex_other = wb_dcache_miss && ex_reg_load_use || mem_reg_replay_next
   val replay_ex = replay_ex_structural || replay_ex_other
   ctrl_killx := take_pc_wb || replay_ex
-  val take_pc_ex = !Mux(ex_reg_jalr, 
-    ex_reg_btb_hit && io.dpath.jalr_eq && !replay_ex_other,
-    ex_reg_btb_hit === io.dpath.ex_br_taken)
+  val take_pc_ex = Mux(ex_reg_jalr,
+    !(ex_reg_btb_hit && io.dpath.jalr_eq) && !replay_ex_other,
+    ex_reg_btb_hit != io.dpath.ex_br_taken)
   // detect 2-cycle load-use delay for LB/LH/SC
   val ex_slow_bypass = ex_reg_mem_cmd === M_XSC || AVec(MT_B, MT_BU, MT_H, MT_HU).contains(ex_reg_mem_type)
 
