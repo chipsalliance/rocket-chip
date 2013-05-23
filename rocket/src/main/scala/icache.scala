@@ -248,9 +248,9 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
 
   // output signals
   io.resp.valid := s2_hit
-  io.mem.acquire.valid := (state === s_request) && finish_q.io.enq.ready
-  io.mem.acquire.bits.payload := c.co.getUncachedReadAcquire(s2_addr >> UFix(c.offbits), UFix(0))
-  io.mem.acquire_data.valid := Bool(false)
+  io.mem.acquire.meta.valid := (state === s_request) && finish_q.io.enq.ready
+  io.mem.acquire.meta.bits.payload := c.co.getUncachedReadAcquire(s2_addr >> UFix(c.offbits), UFix(0))
+  io.mem.acquire.data.valid := Bool(false)
   io.mem.grant_ack <> FIFOedLogicalNetworkIOWrapper(finish_q.io.deq)
   io.mem.grant.ready := Bool(true)
 
@@ -261,7 +261,7 @@ class ICache(implicit c: ICacheConfig, lnconf: LogicalNetworkConfiguration) exte
       invalidated := Bool(false)
     }
     is (s_request) {
-      when (io.mem.acquire.ready && finish_q.io.enq.ready) { state := s_refill_wait }
+      when (io.mem.acquire.meta.ready && finish_q.io.enq.ready) { state := s_refill_wait }
     }
     is (s_refill_wait) {
       when (io.mem.grant.valid) { state := s_refill }

@@ -937,11 +937,11 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   mshr.io.mem_grant.bits := io.mem.grant.bits
   when (mshr.io.req.fire()) { replacer.miss }
 
-  io.mem.acquire <> FIFOedLogicalNetworkIOWrapper(mshr.io.mem_req)
-  //TODO io.mem.acquire_data should be connected to uncached store data generator
-  //io.mem.acquire_data <> FIFOedLogicalNetworkIOWrapper(TODO)
-  io.mem.acquire_data.valid := Bool(false)
-  io.mem.acquire_data.bits.payload.data := UFix(0)
+  io.mem.acquire.meta <> FIFOedLogicalNetworkIOWrapper(mshr.io.mem_req)
+  //TODO io.mem.acquire.data should be connected to uncached store data generator
+  //io.mem.acquire.data <> FIFOedLogicalNetworkIOWrapper(TODO)
+  io.mem.acquire.data.valid := Bool(false)
+  io.mem.acquire.data.bits.payload.data := UFix(0)
 
   // replays
   readArb.io.in(1).valid := mshr.io.replay.valid
@@ -954,7 +954,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
 
   // probes
   val releaseArb = (new Arbiter(2)) { new Release }
-  FIFOedLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release
+  FIFOedLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release.meta
 
   val probe = FIFOedLogicalNetworkIOUnwrapper(io.mem.probe)
   prober.io.req.valid := probe.valid && !lrsc_valid
@@ -982,7 +982,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   wb.io.data_req <> readArb.io.in(2)
   wb.io.data_resp := s2_data_corrected
   releaseArb.io.in(0) <> wb.io.release
-  FIFOedLogicalNetworkIOWrapper(wb.io.release_data) <> io.mem.release_data
+  FIFOedLogicalNetworkIOWrapper(wb.io.release_data) <> io.mem.release.data
 
   // store->load bypassing
   val s4_valid = Reg(s3_valid, resetVal = Bool(false))
