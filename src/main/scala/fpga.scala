@@ -25,13 +25,13 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
   require(clientEndpoints.length == lnWithHtifConf.nClients)
   val masterEndpoints = (0 until lnWithHtifConf.nMasters).map(new L2CoherenceAgent(_)(ucWithHtifConf))
 
-  val net = new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints)(lnWithHtifConf)
+  val net = new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints)(ucWithHtifConf)
   net.io zip (masterEndpoints.map(_.io.client) ++ io.tiles :+ io.htif) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip (io.incoherent ++ List(Bool(true))) map { case (m, c) => m := c } }
 
   val conv = new MemIOUncachedTileLinkIOConverter(2)(ucWithHtifConf)
   if(lnWithHtifConf.nMasters > 1) {
-    val arb = new UncachedTileLinkIOArbiter(lnWithHtifConf.nMasters)(lnWithHtifConf)
+    val arb = new UncachedTileLinkIOArbiter(lnWithHtifConf.nMasters, conf.co)(lnWithHtifConf)
     arb.io.in zip masterEndpoints.map(_.io.master) map { case (arb, cache) => arb <> cache }
     conv.io.uncached <> arb.io.out
   } else {
@@ -63,15 +63,16 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
   io.mem <> outmemsys.io.mem
 
   // Add networking headers and endpoint queues
+  // Add networking headers and endpoint queues
+  def convertAddrToBank(addr: Bits): UFix = {
+    require(bankIdLsb + log2Up(nBanks) < PADDR_BITS - OFFSET_BITS, {println("Invalid bits for bank multiplexing.")})
+    addr(bankIdLsb + log2Up(nBanks) - 1, bankIdLsb)
+  }
+
   (outmemsys.io.tiles :+ outmemsys.io.htif).zip(io.tiles :+ htif.io.mem).zipWithIndex.map { 
     case ((outer, client), i) => 
-      val (acq_w_header, acq_data_w_header) = TileLinkHeaderAppender(client.acquire, client.acquire_data, i, nBanks, bankIdLsb)
-      outer.acquire <> acq_w_header
-      outer.acquire_data <> acq_data_w_header
-
-      val (rel_w_header, rel_data_w_header) = TileLinkHeaderAppender(client.release, client.release_data, i, nBanks, bankIdLsb)
-      outer.release <> rel_w_header
-      outer.release_data <> rel_data_w_header
+      outer.acquire <> TileLinkHeaderAppender(client.acquire, i, nBanks, convertAddrToBank _)
+      outer.release <> TileLinkHeaderAppender(client.release, i, nBanks, convertAddrToBank _)
 
       val grant_ack_q = Queue(client.grant_ack)
       outer.grant_ack.valid := grant_ack_q.valid
