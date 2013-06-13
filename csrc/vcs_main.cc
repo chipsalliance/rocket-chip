@@ -109,6 +109,7 @@ void htif_init
 void htif_fini()
 {
   delete htif;
+  htif = NULL;
 }
 
 void htif_tick

@@ -23,13 +23,13 @@ int main(int argc, char** argv)
   uint64_t max_cycles = 0;
   uint64_t trace_count = 0;
   int start = 0;
-  bool log = false;
   const char* vcd = NULL;
   const char* loadmem = NULL;
-  FILE *vcdfile = NULL, *logfile = stderr;
+  FILE *vcdfile = NULL;
   const char* failure = NULL;
   disassembler disasm;
   bool dramsim2 = false;
+  bool log = false;
 
   for (int i = 1; i < argc; i++)
   {
@@ -132,39 +132,11 @@ int main(int argc, char** argv)
       break;
     }
 
-    if (log || vcd)
-    {
-      val_t wb_reg_inst = tile.Top_Tile_core_dpath__wb_reg_inst.lo_word();
-      val_t wb_waddr = wb_reg_inst >> 27;
-      val_t wb_reg_raddr1 = (wb_reg_inst >> 22) & 0x1f;
-      val_t wb_reg_raddr2 = (wb_reg_inst >> 17) & 0x1f;
-      val_t wb_reg_rs1 =  tile.Top_Tile_core_dpath__wb_reg_rs1.lo_word();
-      val_t wb_reg_rs2 =  tile.Top_Tile_core_dpath__wb_reg_rs2.lo_word();
+    if (log)
+      tile.print(stderr);
 
-      insn_t wb_insn;
-      wb_insn.bits = wb_reg_inst;
-      std::string wb_disasm = disasm.disassemble(wb_insn);
-      
-      if (log)
-      {
-        fprintf(logfile, "C: %10lld [%ld] pc=[%011lx] W[r%2ld=%016lx][%ld] R[r%2ld=%016lx] R[r%2ld=%016lx] inst=[%08lx] %-32s\n", \
-                (long long)trace_count, tile.Top_Tile_core_ctrl__wb_reg_valid.lo_word(), tile.Top_Tile_core_dpath__wb_reg_pc.lo_word(), \
-                tile.Top_Tile_core_dpath__wb_reg_waddr.lo_word(), tile.Top_Tile_core_dpath__wb_wdata.lo_word(), tile.Top_Tile_core_dpath__wb_wen.lo_word(),
-                wb_reg_raddr1, wb_reg_rs1, wb_reg_raddr2, wb_reg_rs2, wb_reg_inst, wb_disasm.c_str());
-      }
-
-      if (vcd)
-      {
-        wb_disasm.resize(disasm_len, ' ');
-        dat_t<disasm_len*8> disasm_dat;
-        for (int i = 0; i < disasm_len; i++)
-          disasm_dat = disasm_dat << 8 | LIT<8>(wb_disasm[i]);
-
-        tile.dump(vcdfile, trace_count);
-        dat_dump(vcdfile, disasm_dat, "NDISASM_WB");
-        dat_dump(vcdfile, dat_t<64>(trace_count), "NCYCLE\n");
-      }
-    }
+    if (vcd)
+      tile.dump(vcdfile, trace_count);
 
     tile.clock_hi(LIT<1>(0));
     trace_count++;
@@ -183,7 +155,7 @@ int main(int argc, char** argv)
 
   if (failure)
   {
-    fprintf(logfile, "*** FAILED *** (%s) after %lld cycles\n", failure, (long long)trace_count);
+    fprintf(stderr, "*** FAILED *** (%s) after %lld cycles\n", failure, (long long)trace_count);
     return -1;
   }
 
