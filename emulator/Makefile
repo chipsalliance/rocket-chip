@@ -66,6 +66,10 @@ $(addprefix output/, $(addsuffix .hex, $(bmarks))): output/%.hex: $(bmarkdir)/%.
 	mkdir -p output
 	ln -fs ../$< $@
 
+$(addprefix output/, $(addsuffix .hex, $(mt_bmarks))): output/%.hex: $(mt_bmarkdir)/%.hex
+	mkdir -p output
+	ln -fs ../$< $@
+
 output:
 	mkdir -p $@
 
@@ -88,6 +92,8 @@ run-vecasm-timer-tests: $(addprefix output/, $(addsuffix .out, $(vecasm_pt_tests
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
 run-bmarks-test: $(addprefix output/, $(addsuffix .out, $(bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
+run-mt-tests: $(addprefix output/, $(addsuffix .out, $(mt_bmarks)))
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
 
 run-asm-tests-debug: $(addprefix output/, $(addsuffix .vpd, $(asm_p_tests) $(asm_v_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
@@ -96,6 +102,8 @@ run-vecasm-tests-debug: $(addprefix output/, $(addsuffix .vpd, $(vecasm_p_tests)
 run-vecasm-timer-tests-debug: $(addprefix output/, $(addsuffix .vpd, $(vecasm_pt_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
 run-bmarks-test-debug: $(addprefix output/, $(addsuffix .vpd, $(bmarks)))
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
+run-mt-tests-debug: $(addprefix output/, $(addsuffix .vpd, $(mt_bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
 
 run: run-asm-tests run-vecasm-tests run-vecasm-timer-tests run-bmarks-test
