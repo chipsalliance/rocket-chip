@@ -196,6 +196,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
   val pcr = new PCR
   pcr.io.host <> io.host
   pcr.io <> io.ctrl
+  pcr.io.pc := wb_reg_pc
   io.ctrl.pcr_replay := pcr.io.replay
 
   io.ptw.ptbr := pcr.io.ptbr
@@ -331,9 +332,10 @@ class Datapath(implicit conf: RocketConfiguration) extends Component
     Mux(io.ctrl.sel_pc === PC_PCR, Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec),
         wb_reg_pc))).toUFix // PC_WB
 
-  // expose debug signals to testbench
-  // XXX debug() doesn't right, so create a false dependence
-  val debugList = List(wb_reg_pc, wb_reg_inst, wb_wen, wb_reg_waddr, wb_wdata, wb_reg_rs1, wb_reg_rs2)
-  pcr.io.pc := wb_reg_pc | (debugList.map(d => d^d).reduce(_|_)).toUFix
-  debugList.foreach(debug _)
+  printf("C: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] %s\n",
+         tsc_reg(32,0), io.ctrl.wb_valid, wb_reg_pc,
+         Mux(wb_wen, wb_reg_waddr, UFix(0)), wb_wdata,
+         wb_reg_inst(26,22), wb_reg_rs1,
+         wb_reg_inst(21,17), wb_reg_rs2,
+         wb_reg_inst, Disassemble(wb_reg_inst))
 }
