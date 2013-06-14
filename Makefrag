@@ -537,7 +537,6 @@ al_vvadd.riscv\
 am_matmul.riscv\
 am_vvadd.riscv\
 an_matmul.riscv\
-an_vvadd.riscv\
 ap_matmul.riscv\
 ap_vvadd.riscv\
 aq_matmul.riscv\

@@ -416,7 +416,7 @@ class TopIO(htif_width: Int) extends Bundle  {
 }
 
 object DummyTopLevelConstants extends _root_.uncore.constants.CoherenceConfigConstants {
-  val NTILES = 1
+  val NTILES = 2
   val NBANKS = 1
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true

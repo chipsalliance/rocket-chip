@@ -74,7 +74,7 @@ output:
 	mkdir -p $@
 
 output/%.run: output/%.hex emulator
-	./emulator +dramsim +max-cycles=30000000 +coremap-random +loadmem=$< none 2> /dev/null
+	./emulator +dramsim +max-cycles=30000000 +loadmem=$< none 2> /dev/null
 
 output/%.out: output/%.hex emulator
 	./emulator +dramsim +max-cycles=30000000 +verbose +coremap-random +loadmem=$< none 2> $@
