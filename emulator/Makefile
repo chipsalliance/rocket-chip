@@ -5,7 +5,7 @@ sim_dir = .
 
 include $(base_dir)/Makefrag
 
-CXXFLAGS := $(CXXFLAGS) -std=c++0x -I$(RISCV)/include
+CXXFLAGS := $(CXXFLAGS) -std=c++11 -I$(RISCV)/include
 
 CXXSRCS := emulator disasm mm mm_dramsim2
 CXXFLAGS := $(CXXFLAGS) -I$(base_dir)/csrc -I$(base_dir)/chisel/csrc -I$(base_dir)/dramsim2
