@@ -56,7 +56,7 @@ object Str
   def apply(x: Fix): Bits = apply(x, 10)
   def apply(x: Fix, radix: Int): Bits = {
     val neg = x < Fix(0)
-    val abs = Mux(neg, -x, x).toUFix
+    val abs = x.abs
     if (radix != 10) {
       Cat(Mux(neg, Str('-'), Str(' ')), Str(abs, radix))
     } else {
@@ -77,16 +77,6 @@ object Str
       }
       Cat(Mux(needSign, Str('-'), Str(' ')), s)
     }
-  }
-
-  def bigIntToString(x: BigInt): String = {
-    val s = new StringBuilder
-    var b = x
-    while (b != 0) {
-      s += (x & 0xFF).toChar
-      b = b >> 8
-    }
-    s.toString
   }
 
   private def digit(d: Int): Char = (if (d < 10) '0'+d else 'a'-10+d).toChar
