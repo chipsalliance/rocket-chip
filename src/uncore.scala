@@ -23,7 +23,7 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: UncoreConfiguration) extends 
 {
   implicit val lnConf = conf.ln
   val co = conf.co
-  require(conf.ln.nClients < NGLOBAL_REL_XACTS) //TODO: handle in config
+  //require(conf.ln.nClients < NGLOBAL_REL_XACTS) //TODO: handle in config
   val trackerList = (0 until NGLOBAL_REL_XACTS).map(new VoluntaryReleaseTracker(_, bankId)) ++ 
                     (NGLOBAL_REL_XACTS until NGLOBAL_REL_XACTS + NGLOBAL_ACQ_XACTS).map(new AcquireTracker(_, bankId))
   
@@ -60,7 +60,7 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: UncoreConfiguration) extends 
   val block_releases = Bool(false)
   val conflict_idx = Vec(trackerList.map(_.io.has_release_conflict)){Bool()}.lastIndexWhere{b: Bool => b}
   //val release_idx = Mux(voluntary, Mux(any_release_conflict, conflict_idx, UFix(0)), release.bits.payload.master_xact_id) // TODO: Add merging logic to allow allocated AcquireTracker to handle conflicts, send all necessary grants, use first sufficient response
-  val release_idx = Mux(voluntary, release.meta.bits.header.src, release.meta.bits.payload.master_xact_id)
+  val release_idx = Mux(voluntary, UFix(0), release.meta.bits.payload.master_xact_id)
   for( i <- 0 until trackerList.size ) {
     val t = trackerList(i).io.client
     t.release.meta.bits := release.meta.bits 
@@ -83,7 +83,7 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: UncoreConfiguration) extends 
   ack.ready := Bool(true)
 
   // Create an arbiter for the one memory port
-  val outer_arb = new UncachedTileLinkIOArbiter(trackerList.size, conf.co)
+  val outer_arb = new UncachedTileLinkIOArbiterThatPassesId(trackerList.size, conf.co)
   outer_arb.io.in zip  trackerList map { case(arb, t) => arb <> t.io.master }
   io.master <> outer_arb.io.out
 }
