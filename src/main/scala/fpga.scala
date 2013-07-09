@@ -31,7 +31,7 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
 
   val conv = new MemIOUncachedTileLinkIOConverter(2)(ucWithHtifConf)
   if(lnWithHtifConf.nMasters > 1) {
-    val arb = new UncachedTileLinkIOArbiter(lnWithHtifConf.nMasters, conf.co)(lnWithHtifConf)
+    val arb = new UncachedTileLinkIOArbiterThatAppendsArbiterId(lnWithHtifConf.nMasters, conf.co)(lnWithHtifConf)
     arb.io.in zip masterEndpoints.map(_.io.master) map { case (arb, cache) => arb <> cache }
     conv.io.uncached <> arb.io.out
   } else {
