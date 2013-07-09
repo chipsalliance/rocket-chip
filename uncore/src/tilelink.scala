@@ -147,12 +147,24 @@ class TileLinkIO(implicit conf: LogicalNetworkConfiguration) extends UncachedTil
   override def clone = { new TileLinkIO().asInstanceOf[this.type] }
 }
 
-class UncachedTileLinkIOArbiter(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Component {
+/*
+ * TODO: Merge the below classes into children of an abstract class in Chisel 2.0
+abstract class UncachedTileLinkIOArbiter(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Component {
+  def acquireClientXactId(in: Acquire, id: Int): Bits
+  def grantClientXactId(in: Grant): Bits
+  def arbIdx(in: Grant): UFix
+}
+*/
+
+class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Component {
+  def acquireClientXactId(in: Acquire, id: Int) = Cat(in.client_xact_id, UFix(id, log2Up(n)))
+  def grantClientXactId(in: Grant) = in.client_xact_id >> UFix(log2Up(n))
+  def arbIdx(in: Grant) = in.client_xact_id(log2Up(n)-1,0).toUFix
+
   val io = new Bundle {
     val in = Vec(n) { new UncachedTileLinkIO }.flip
     val out = new UncachedTileLinkIO
   }
-
   def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
   val acq_arb = new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData})
   io.out.acquire <> acq_arb.io.out
@@ -160,7 +172,7 @@ class UncachedTileLinkIOArbiter(n: Int, co: CoherencePolicy)(implicit conf: Logi
     arb.data <> req.data
     arb.meta.valid := req.meta.valid
     arb.meta.bits := req.meta.bits
-    arb.meta.bits.payload.client_xact_id := Cat(req.meta.bits.payload.client_xact_id, UFix(id, log2Up(n)))
+    arb.meta.bits.payload.client_xact_id := acquireClientXactId(req.meta.bits.payload, id)
     req.meta.ready := arb.meta.ready
   }}
 
@@ -170,13 +182,85 @@ class UncachedTileLinkIOArbiter(n: Int, co: CoherencePolicy)(implicit conf: Logi
 
   io.out.grant.ready := Bool(false)
   for (i <- 0 until n) {
-    val tag = io.out.grant.bits.payload.client_xact_id
     io.in(i).grant.valid := Bool(false)
-    when (tag(log2Up(n)-1,0) === UFix(i)) {
+    when (arbIdx(io.out.grant.bits.payload) === UFix(i)) {
       io.in(i).grant.valid := io.out.grant.valid
       io.out.grant.ready := io.in(i).grant.ready
     }
     io.in(i).grant.bits := io.out.grant.bits
-    io.in(i).grant.bits.payload.client_xact_id := tag >> UFix(log2Up(n))
+    io.in(i).grant.bits.payload.client_xact_id := grantClientXactId(io.out.grant.bits.payload) 
   }
 }
+
+class UncachedTileLinkIOArbiterThatPassesId(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Component {
+  def acquireClientXactId(in: Acquire, id: Int) = in.client_xact_id
+  def grantClientXactId(in: Grant) = in.client_xact_id
+  def arbIdx(in: Grant): UFix = in.client_xact_id
+
+  val io = new Bundle {
+    val in = Vec(n) { new UncachedTileLinkIO }.flip
+    val out = new UncachedTileLinkIO
+  }
+  def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
+  val acq_arb = new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData})
+  io.out.acquire <> acq_arb.io.out
+  io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
+    arb.data <> req.data
+    arb.meta.valid := req.meta.valid
+    arb.meta.bits := req.meta.bits
+    arb.meta.bits.payload.client_xact_id := acquireClientXactId(req.meta.bits.payload, id)
+    req.meta.ready := arb.meta.ready
+  }}
+
+  val grant_ack_arb = (new RRArbiter(n)){ (new LogicalNetworkIO){new GrantAck} }
+  io.out.grant_ack <> grant_ack_arb.io.out
+  grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
+
+  io.out.grant.ready := Bool(false)
+  for (i <- 0 until n) {
+    io.in(i).grant.valid := Bool(false)
+    when (arbIdx(io.out.grant.bits.payload) === UFix(i)) {
+      io.in(i).grant.valid := io.out.grant.valid
+      io.out.grant.ready := io.in(i).grant.ready
+    }
+    io.in(i).grant.bits := io.out.grant.bits
+    io.in(i).grant.bits.payload.client_xact_id := grantClientXactId(io.out.grant.bits.payload) 
+  }
+}
+
+class UncachedTileLinkIOArbiterThatUsesNewId(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Component {
+  def acquireClientXactId(in: Acquire, id: Int) = UFix(id, log2Up(n))
+  def grantClientXactId(in: Grant) = UFix(0) // DNC 
+  def arbIdx(in: Grant) = in.client_xact_id
+
+  val io = new Bundle {
+    val in = Vec(n) { new UncachedTileLinkIO }.flip
+    val out = new UncachedTileLinkIO
+  }
+  def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
+  val acq_arb = new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData})
+  io.out.acquire <> acq_arb.io.out
+  io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
+    arb.data <> req.data
+    arb.meta.valid := req.meta.valid
+    arb.meta.bits := req.meta.bits
+    arb.meta.bits.payload.client_xact_id := acquireClientXactId(req.meta.bits.payload, id)
+    req.meta.ready := arb.meta.ready
+  }}
+
+  val grant_ack_arb = (new RRArbiter(n)){ (new LogicalNetworkIO){new GrantAck} }
+  io.out.grant_ack <> grant_ack_arb.io.out
+  grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
+
+  io.out.grant.ready := Bool(false)
+  for (i <- 0 until n) {
+    io.in(i).grant.valid := Bool(false)
+    when (arbIdx(io.out.grant.bits.payload) === UFix(i)) {
+      io.in(i).grant.valid := io.out.grant.valid
+      io.out.grant.ready := io.in(i).grant.ready
+    }
+    io.in(i).grant.bits := io.out.grant.bits
+    io.in(i).grant.bits.payload.client_xact_id := grantClientXactId(io.out.grant.bits.payload) 
+  }
+}
+
