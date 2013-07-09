@@ -40,7 +40,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   val icache    = new Frontend()(confIn.icache, lnConf)
   val dcache    = new HellaCache
 
-  val arbiter   = new UncachedTileLinkIOArbiter(memPorts, confIn.dcache.co)
+  val arbiter   = new UncachedTileLinkIOArbiterThatAppendsArbiterId(memPorts, confIn.dcache.co)
   arbiter.io.in(dcachePortId) <> dcache.io.mem
   arbiter.io.in(icachePortId) <> icache.io.mem
 
