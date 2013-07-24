@@ -1,7 +1,6 @@
 package rocket
 
 import Chisel._
-import Constants._
 import uncore._
 import Util._
 

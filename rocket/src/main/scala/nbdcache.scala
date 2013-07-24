@@ -1,8 +1,6 @@
 package rocket
 
 import Chisel._
-import Node._
-import Constants._
 import uncore._
 import Util._
 
@@ -12,6 +10,9 @@ case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
                         narrowRead: Boolean = true,
                         reqtagbits: Int = -1, databits: Int = -1)
 {
+  require(OFFSET_BITS == log2Up(CACHE_DATA_SIZE_IN_BYTES))
+  require(OFFSET_BITS <= ACQUIRE_WRITE_MASK_BITS)
+  require(log2Up(OFFSET_BITS) <= ACQUIRE_SUBWORD_ADDR_BITS)
   require(isPow2(sets))
   require(isPow2(ways)) // TODO: relax this
   def lines = sets*ways

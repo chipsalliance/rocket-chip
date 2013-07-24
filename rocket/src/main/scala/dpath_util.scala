@@ -1,10 +1,10 @@
 package rocket
 
 import Chisel._
-import Node._
-import Constants._
-import scala.math._
 import Util._
+import Node._
+import uncore.constants.AddressConstants._
+import scala.math._
 
 class DpathBTBIO extends Bundle
 {

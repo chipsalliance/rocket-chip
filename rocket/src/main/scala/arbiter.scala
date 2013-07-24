@@ -1,8 +1,6 @@
 package rocket
 
 import Chisel._
-import Node._
-import Constants._
 import uncore._
 
 class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Component

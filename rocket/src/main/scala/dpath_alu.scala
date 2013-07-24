@@ -2,7 +2,6 @@ package rocket
 
 import Chisel._
 import Node._
-import Constants._
 import Instructions._
 
 object ALU

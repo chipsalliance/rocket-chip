@@ -1,10 +1,9 @@
 package rocket
 
 import Chisel._
-import Node._
-import Constants._
 import Instructions._
 import hwacha._
+import uncore.constants.MemoryOpConstants._
 import ALU._
 import Util._
 

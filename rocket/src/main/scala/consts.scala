@@ -56,12 +56,6 @@ trait InterruptConstants {
   val CAUSE_INTERRUPT = 32
 }
  
-abstract trait RocketDcacheConstants extends uncore.constants.CacheConstants with uncore.constants.AddressConstants {
-  require(OFFSET_BITS == log2Up(uncore.Constants.CACHE_DATA_SIZE_IN_BYTES))
-  require(OFFSET_BITS <= uncore.Constants.ACQUIRE_WRITE_MASK_BITS)
-  require(log2Up(OFFSET_BITS) <= uncore.Constants.ACQUIRE_SUBWORD_ADDR_BITS)
-}
-
 trait VectorOpConstants {
   val VEC_X = Bits("b??", 2).toUFix
   val VEC_FN_N = UFix(0, 2)
