@@ -88,7 +88,7 @@ object Simplify
         for (p <- r; if p.prime)
           prime = p :: prime
     }
-    prime.sort(_<_)
+    prime.sortWith(_<_)
   }
   def getEssentialPrimeImplicants(prime: Seq[Term], minterms: Seq[Term]): (Seq[Term],Seq[Term],Seq[Term]) = {
     for (i <- 0 until prime.size) {
@@ -116,7 +116,7 @@ object Simplify
     val ca = getCost(a, bits)
     val cb = getCost(b, bits)
     def listLess(a: List[Term], b: List[Term]): Boolean = !b.isEmpty && (a.isEmpty || a.head < b.head || a.head == b.head && listLess(a.tail, b.tail))
-    ca < cb || ca == cb && listLess(a.sort(_<_), b.sort(_<_))
+    ca < cb || ca == cb && listLess(a.sortWith(_<_), b.sortWith(_<_))
   }
   def getCover(implicants: Seq[Term], minterms: Seq[Term], bits: Int) = {
     if (minterms.nonEmpty) {
@@ -179,7 +179,7 @@ object SimplifyDC
         for (p <- r; if p.prime)
           prime = p :: prime
     }
-    prime.sort(_<_)
+    prime.sortWith(_<_)
   }
 
   def verify(cover: Seq[Term], minterms: Seq[Term], maxterms: Seq[Term]) = {

@@ -1,9 +1,8 @@
 package rocket
 
 import Chisel._
-import Node._
-import Constants._
 import hwacha._
+import uncore.constants.MemoryOpConstants._
 import Util._
 
 class RocketIO(implicit conf: RocketConfiguration) extends Bundle

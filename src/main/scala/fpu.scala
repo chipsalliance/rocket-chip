@@ -1,11 +1,10 @@
 package rocket
 
 import Chisel._
-import Node._
-import Constants._
 import Instructions._
 import Util._
 import FPConstants._
+import uncore.constants.MemoryOpConstants._
 
 object FPConstants
 {

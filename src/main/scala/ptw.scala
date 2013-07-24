@@ -1,8 +1,8 @@
 package rocket
 
 import Chisel._
-import Node._
-import Constants._
+import uncore.constants.AddressConstants._
+import uncore.constants.MemoryOpConstants._
 import Util._
 
 class TLBPTWIO extends Bundle {

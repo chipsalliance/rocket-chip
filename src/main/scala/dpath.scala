@@ -1,11 +1,10 @@
 package rocket
 
 import Chisel._
-import Node._
-import Constants._
 import Instructions._
 import Util._
 import hwacha._
+import uncore.constants.AddressConstants._
 
 class Datapath(implicit conf: RocketConfiguration) extends Component
 {
