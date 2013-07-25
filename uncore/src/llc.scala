@@ -1,8 +1,5 @@
 package uncore
-
 import Chisel._
-import Node._
-import Constants._
 
 class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[Bits])(gen: => T) extends Component
 {

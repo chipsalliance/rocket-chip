@@ -1,7 +1,5 @@
 package uncore
-
 import Chisel._
-import Constants._
 
 trait HasPhysicalAddress extends Bundle {
   val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
