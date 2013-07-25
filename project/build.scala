@@ -6,14 +6,16 @@ import Keys._
 object BuildSettings extends Build {
   val buildOrganization = "berkeley"
   val buildVersion = "1.1"
-  val buildScalaVersion = "2.9.2"
+  val buildScalaVersion = "2.10.2"
 
   val buildSettings = Defaults.defaultSettings ++ Seq (
     //unmanagedBase <<= baseDirectory { base => base / ".." / custom_lib" },
     organization := buildOrganization,
     version      := buildVersion,
     scalaVersion := buildScalaVersion,
-    traceLevel   := 15
+    traceLevel   := 15,
+    scalacOptions ++= Seq("-deprecation","-unchecked"),
+    libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
   )
 
   lazy val chisel = Project("chisel", file("chisel"), settings = buildSettings)

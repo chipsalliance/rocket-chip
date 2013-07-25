@@ -4,7 +4,6 @@ import Chisel._
 import Node._
 import uncore._
 import rocket._
-import rocket.Constants._
 
 class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
 {
@@ -15,8 +14,6 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
     val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
     val mem = new ioMem
   }
-
-  import rocket.Constants._
 
   val lnWithHtifConf = conf.ln.copy(nEndpoints = conf.ln.nEndpoints+1, 
                                     idBits = log2Up(conf.ln.nEndpoints+1)+1,
