@@ -1,7 +1,5 @@
 package uncore
-
 import Chisel._
-import Constants._
 
 class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Component
 {

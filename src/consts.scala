@@ -36,6 +36,7 @@ trait TileLinkSizeConstants extends
   val ACQUIRE_ATOMIC_OP_BITS = 4
 }
 
+object MemoryOpConstants extends MemoryOpConstants
 trait MemoryOpConstants {
   val MT_X  = Bits("b???", 3);
   val MT_B  = Bits("b000", 3);
@@ -82,6 +83,7 @@ trait MemoryInterfaceConstants extends
   val REFILL_CYCLES = CACHE_DATA_SIZE_IN_BYTES*8/MEM_DATA_BITS
 }
 
+object AddressConstants extends AddressConstants
 trait AddressConstants { 
   val PADDR_BITS = 32
   val VADDR_BITS = 43;

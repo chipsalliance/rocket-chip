@@ -1,8 +1,5 @@
 package uncore
-
 import Chisel._
-import Node._
-import Constants._
 import scala.math._
 
 class ioMemSerialized(w: Int) extends Bundle

@@ -1,7 +1,5 @@
 package uncore
-
 import Chisel._
-import Constants._
 
 abstract trait CoherenceAgentRole
 abstract trait ClientCoherenceAgent extends CoherenceAgentRole

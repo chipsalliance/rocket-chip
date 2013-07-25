@@ -1,7 +1,5 @@
 package uncore
-
 import Chisel._
-import Constants._
 
 class TrackerDependency(implicit conf: UncoreConfiguration)  extends Bundle {
   val tracker_id = Bits(width = MASTER_XACT_ID_MAX_BITS)
@@ -109,7 +107,6 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: Uncore
   val release_data_needs_write = Reg(resetVal = Bool(false))
   val mem_cmd_sent = Reg(resetVal = Bool(false))
   val cmd_to_write = co.getUncachedWriteAcquire(xact.addr, UFix(trackerId))
-  val cmd_to_read = co.getUncachedReadAcquire(xact.addr, UFix(trackerId))
 
   io.has_acquire_conflict := Bool(false)
   io.has_release_conflict := co.isCoherenceConflict(xact.addr, io.client.release.meta.bits.payload.addr) && (state != s_idle)
@@ -153,6 +150,7 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: Uncore
       when (release_data_needs_write) {
         doOuterReqWrite(io.master.acquire,
                       io.client.release.data,
+                      cmd_to_write,
                       release_data_needs_write,
                       mem_cmd_sent,
                       init_client_id_)
@@ -264,6 +262,7 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: UncoreConfigura
       when (release_data_needs_write) {
         doOuterReqWrite(io.master.acquire,
                       io.client.release.data, 
+                      cmd_to_write,
                       release_data_needs_write, 
                       r_w_mem_cmd_sent, 
                       release_data_client_id)
@@ -273,17 +272,19 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: UncoreConfigura
       when (release_data_needs_write) {
         doOuterReqWrite(io.master.acquire,
                       io.client.release.data,
+                      cmd_to_write,
                       release_data_needs_write,
                       r_w_mem_cmd_sent,
                       release_data_client_id)
       } . elsewhen(acquire_data_needs_write) {
         doOuterReqWrite(io.master.acquire,
                       io.client.acquire.data,
+                      cmd_to_write,
                       acquire_data_needs_write,
                       a_w_mem_cmd_sent,
                       init_client_id_)
       } . elsewhen (x_needs_read) {    
-        doOuterReqRead(io.master.acquire, x_needs_read)
+        doOuterReqRead(io.master.acquire, cmd_to_read, x_needs_read)
       } . otherwise { 
         state := Mux(co.needsAckReply(xact.a_type, UFix(0)), s_ack, 
                   Mux(co.requiresAck(io.client.grant.bits.payload), s_busy, s_idle))
@@ -302,14 +303,12 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: UncoreConfigura
 }
 
 abstract trait OuterRequestGenerator {
-  val cmd_to_write: Acquire
-  val cmd_to_read: Acquire
   val mem_cnt = Reg(resetVal = UFix(0, width = log2Up(REFILL_CYCLES)))
   val mem_cnt_next = mem_cnt + UFix(1)
 
-  def doOuterReqWrite[T <: HasMemData](master_acq: PairedDataIO[LogicalNetworkIO[Acquire],LogicalNetworkIO[AcquireData]], client_data: FIFOIO[LogicalNetworkIO[T]], trigger: Bool, cmd_sent: Bool, desired_client_data_src_id: UFix) {
+  def doOuterReqWrite[T <: HasMemData](master_acq: PairedDataIO[LogicalNetworkIO[Acquire],LogicalNetworkIO[AcquireData]], client_data: FIFOIO[LogicalNetworkIO[T]], cmd: Acquire, trigger: Bool, cmd_sent: Bool, desired_client_data_src_id: UFix) {
     val do_write = client_data.valid && (client_data.bits.header.src === desired_client_data_src_id)
-    master_acq.meta.bits.payload := cmd_to_write
+    master_acq.meta.bits.payload := cmd
     master_acq.data.bits.payload := client_data.bits.payload
     when(master_acq.meta.fire()) {
       cmd_sent := Bool(true)
@@ -329,9 +328,9 @@ abstract trait OuterRequestGenerator {
     }
   }
 
-  def doOuterReqRead(master_acq: PairedDataIO[LogicalNetworkIO[Acquire],LogicalNetworkIO[AcquireData]], trigger: Bool) {
+  def doOuterReqRead(master_acq: PairedDataIO[LogicalNetworkIO[Acquire],LogicalNetworkIO[AcquireData]], cmd: Acquire, trigger: Bool) {
     master_acq.meta.valid := Bool(true)
-    master_acq.meta.bits.payload := cmd_to_read
+    master_acq.meta.bits.payload := cmd
     when(master_acq.meta.ready) {
       trigger := Bool(false)
     }
