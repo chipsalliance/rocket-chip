@@ -97,6 +97,7 @@ object PCR
   val K1       = 13
   val VECBANK  = 18
   val VECCFG   = 19
+  val STATS    = 28
   val RESET    = 29
   val TOHOST   = 30
   val FROMHOST = 31
@@ -131,6 +132,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
     val replay = Bool(OUTPUT)
     val vecbank = Bits(OUTPUT, 8)
     val vecbankcnt = UFix(OUTPUT, 4)
+    val stats = Bool(OUTPUT)
     val vec_appvl = UFix(INPUT, 12)
     val vec_nxregs = UFix(INPUT, 6)
     val vec_nfregs = UFix(INPUT, 6)
@@ -150,6 +152,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   val reg_k1 = Reg{Bits(width = conf.xprlen)}
   val reg_ptbr = Reg{UFix(width = PADDR_BITS)}
   val reg_vecbank = Reg(resetVal = Fix(-1,8).toBits)
+  val reg_stats = Reg(resetVal = Bool(false))
   val reg_error_mode  = Reg(resetVal = Bool(false))
   val reg_status = Reg{new Status} // reset down below
 
@@ -192,6 +195,8 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   for (i <- 0 until 8)
     cnt = cnt + reg_vecbank(i)
   io.vecbankcnt := cnt(3,0)
+
+  io.stats := reg_stats
 
   when (io.badvaddr_wen || io.vec_irq_aux_wen) {
     val wdata = Mux(io.badvaddr_wen, io.rw.wdata, io.vec_irq_aux)
@@ -240,7 +245,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
     reg_vecbank/*x*/,  read_veccfg/*x*/, reg_vecbank,      read_veccfg,
     reg_vecbank/*x*/,  read_veccfg/*x*/, reg_vecbank/*x*/, read_veccfg/*x*/,
     reg_vecbank/*x*/,  read_veccfg/*x*/, reg_tohost/*x*/,  reg_fromhost/*x*/,
-    reg_vecbank/*x*/,  read_veccfg/*x*/, reg_tohost,       reg_fromhost
+    reg_stats/*x*/,    read_veccfg/*x*/, reg_tohost,       reg_fromhost
   )(addr)
 
   when (wen) {
@@ -267,6 +272,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
     when (addr === K1)       { reg_k1 := wdata; }
     when (addr === PTBR)     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
     when (addr === VECBANK)  { reg_vecbank:= wdata(7,0) }
+    when (addr === STATS)    { reg_stats := wdata(0) }
   }
 
   io.host.ipi_rep.ready := Bool(true)
