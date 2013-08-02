@@ -105,7 +105,7 @@ object PCR
 class PCR(implicit conf: RocketConfiguration) extends Component
 {
   val io = new Bundle {
-    val host = new HTIFIO(conf.lnConf.nClients)
+    val host = new HTIFIO(conf.tl.ln.nClients)
     val rw = new Bundle {
       val addr = UFix(INPUT, log2Up(conf.nxpr))
       val cmd = Bits(INPUT, PCR.SZ)

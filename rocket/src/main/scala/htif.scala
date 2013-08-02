@@ -44,13 +44,14 @@ class SCRIO extends Bundle
   val wdata = Bits(OUTPUT, 64)
 }
 
-class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component with ClientCoherenceAgent
+class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Component with ClientCoherenceAgent
 {
-  implicit val lnConf = conf.ln
+  implicit val (ln, co) = (conf.ln, conf.co)
+  val nTiles = ln.nClients-1 // This HTIF is itself a TileLink client
   val io = new Bundle {
     val host = new HostIO(w)
-    val cpu = Vec(conf.ln.nClients) { new HTIFIO(conf.ln.nClients).flip }
-    val mem = new TileLinkIO()(conf.ln)
+    val cpu = Vec(nTiles) { new HTIFIO(nTiles).flip } 
+    val mem = new TileLinkIO
     val scr = new SCRIO
   }
 
@@ -91,7 +92,7 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component w
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(6) { UFix() }
 
   val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.width-1, 0)
-  val pcr_coreid = addr(log2Up(conf.ln.nClients)-1+20+1,20)
+  val pcr_coreid = addr(log2Up(nTiles)-1+20+1,20)
   val pcr_wdata = packet_ram(0)
 
   val bad_mem_packet = size(OFFSET_BITS-1-3,0).orR || addr(OFFSET_BITS-1-3,0).orR
@@ -126,8 +127,8 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component w
   val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(9) { UFix() }
   val state = Reg(resetVal = state_rx)
 
+  val rx_cmd = Mux(rx_word_count === UFix(0), next_cmd, cmd)
   when (state === state_rx && rx_done) {
-    val rx_cmd = Mux(rx_word_count === UFix(0), next_cmd, cmd)
     state := Mux(rx_cmd === cmd_readmem || rx_cmd === cmd_writemem, state_mem_req,
              Mux(rx_cmd === cmd_readcr || rx_cmd === cmd_writecr, state_pcr_req,
              state_tx))
@@ -182,9 +183,10 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component w
   }
   x_init.io.enq.valid := state === state_mem_req
   val init_addr = addr.toUFix >> UFix(OFFSET_BITS-3)
-  val co = conf.co.asInstanceOf[CoherencePolicyWithUncached]
-  x_init.io.enq.bits := Mux(cmd === cmd_writemem, co.getUncachedWriteAcquire(init_addr, UFix(0)), co.getUncachedReadAcquire(init_addr, UFix(0)))
-  io.mem.acquire.meta <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq, UFix(conf.ln.nClients), UFix(0))
+  x_init.io.enq.bits := Mux(cmd === cmd_writemem, 
+    Acquire(co.getUncachedWriteAcquireType, init_addr, UFix(0)), 
+    Acquire(co.getUncachedReadAcquireType, init_addr, UFix(0)))
+  io.mem.acquire.meta <> FIFOedLogicalNetworkIOWrapper(x_init.io.deq, UFix(conf.ln.nClients), UFix(0)) // By convention HTIF is the client with the largest id
   io.mem.acquire.data.valid := state === state_mem_wdata
   io.mem.acquire.data.bits.payload.data := mem_req_data
   io.mem.grant_ack.valid := (state === state_mem_finish) && mem_needs_ack
@@ -195,7 +197,7 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component w
   io.mem.release.data.valid := Bool(false)
 
   val pcrReadData = Reg{Bits(width = io.cpu(0).pcr_rep.bits.getWidth)}
-  for (i <- 0 until conf.ln.nClients) {
+  for (i <- 0 until nTiles) {
     val my_reset = Reg(resetVal = Bool(true))
     val my_ipi = Reg(resetVal = Bool(false))
 
@@ -212,7 +214,7 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component w
     }
     cpu.ipi_rep.valid := my_ipi
     cpu.ipi_req.ready := Bool(true)
-    for (j <- 0 until conf.ln.nClients) {
+    for (j <- 0 until nTiles) {
       when (io.cpu(j).ipi_req.valid && io.cpu(j).ipi_req.bits === UFix(i)) {
         my_ipi := Bool(true)
       }
@@ -239,7 +241,7 @@ class rocketHTIF(w: Int)(implicit conf: UncoreConfiguration) extends Component w
   val scr_rdata = Vec(io.scr.rdata.size){Bits(width = 64)}
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
-  scr_rdata(0) := conf.ln.nClients
+  scr_rdata(0) := nTiles
   scr_rdata(1) := (UFix(REFILL_CYCLES*MEM_DATA_BITS/8) << x_init.io.enq.bits.addr.getWidth) >> 20
 
   io.scr.wen := false
