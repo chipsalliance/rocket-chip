@@ -4,38 +4,6 @@ package constants
 import Chisel._
 import scala.math.max
 
-abstract trait CoherenceConfigConstants {
-  val ENABLE_SHARING: Boolean
-  val ENABLE_CLEAN_EXCLUSIVE: Boolean
-}
-
-trait UncoreConstants {
-  val NGLOBAL_ACQ_XACTS = 8
-  val NGLOBAL_REL_XACTS = 1
-  val MASTER_XACT_ID_MAX_BITS = log2Up(NGLOBAL_ACQ_XACTS+NGLOBAL_REL_XACTS)
-  val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 
-}
-
-trait CacheConstants extends UncoreConstants {
-  val OFFSET_BITS = log2Up(CACHE_DATA_SIZE_IN_BYTES)
-}
-
-trait TileLinkTypeConstants {
-  val ACQUIRE_TYPE_MAX_BITS = 2
-  val GRANT_TYPE_MAX_BITS = 3
-  val PROBE_TYPE_MAX_BITS = 2
-  val RELEASE_TYPE_MAX_BITS = 3
-}
-
-trait TileLinkSizeConstants extends 
-  TileLinkTypeConstants
-{
-  val CLIENT_XACT_ID_MAX_BITS = 10
-  val ACQUIRE_WRITE_MASK_BITS = 6
-  val ACQUIRE_SUBWORD_ADDR_BITS = 3
-  val ACQUIRE_ATOMIC_OP_BITS = 4
-}
-
 object MemoryOpConstants extends MemoryOpConstants
 trait MemoryOpConstants {
   val MT_X  = Bits("b???", 3);
@@ -74,15 +42,6 @@ trait MemoryOpConstants {
   def isWriteIntent(cmd: Bits) = isWrite(cmd) || cmd === M_PFW || cmd === M_XLR
 }
 
-trait MemoryInterfaceConstants extends 
-  UncoreConstants with 
-  TileLinkSizeConstants 
-{
-  val MEM_TAG_BITS = max(CLIENT_XACT_ID_MAX_BITS, MASTER_XACT_ID_MAX_BITS)
-  val MEM_DATA_BITS = 128
-  val REFILL_CYCLES = CACHE_DATA_SIZE_IN_BYTES*8/MEM_DATA_BITS
-}
-
 object AddressConstants extends AddressConstants
 trait AddressConstants { 
   val PADDR_BITS = 32
@@ -94,3 +53,23 @@ trait AddressConstants {
   val PERM_BITS = 6;
 }
 
+trait CacheConstants {
+  val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 
+  val OFFSET_BITS = log2Up(CACHE_DATA_SIZE_IN_BYTES)
+}
+
+trait TileLinkSizeConstants {
+  val ACQUIRE_WRITE_MASK_BITS = 6
+  val ACQUIRE_SUBWORD_ADDR_BITS = 3
+  val ACQUIRE_ATOMIC_OP_BITS = 4
+}
+
+trait MemoryInterfaceConstants extends 
+  CacheConstants with 
+  AddressConstants 
+{
+  val MEM_TAG_BITS = 5
+  val MEM_DATA_BITS = 128
+  val REFILL_CYCLES = CACHE_DATA_SIZE_IN_BYTES*8/MEM_DATA_BITS
+  val MEM_ADDR_BITS = PADDR_BITS - OFFSET_BITS
+}
