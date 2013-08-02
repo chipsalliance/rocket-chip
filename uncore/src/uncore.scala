@@ -1,30 +1,26 @@
 package uncore
 import Chisel._
 
-class TrackerDependency(implicit conf: UncoreConfiguration)  extends Bundle {
-  val tracker_id = Bits(width = MASTER_XACT_ID_MAX_BITS)
-  val data_src_id = Bits(width = conf.ln.idBits)
-  override def clone = { new TrackerDependency().asInstanceOf[this.type] }
-}
-
-case class UncoreConfiguration(co: CoherencePolicyWithUncached, ln: LogicalNetworkConfiguration)
-
-abstract class CoherenceAgent(implicit conf: LogicalNetworkConfiguration) extends Component with MasterCoherenceAgent {
+abstract class CoherenceAgent(implicit conf: TileLinkConfiguration) extends Component with MasterCoherenceAgent {
   val io = new Bundle {
     val client = (new TileLinkIO).flip
     val master = new UncachedTileLinkIO
-    val incoherent = Vec(conf.nClients) { Bool() }.asInput
+    val incoherent = Vec(conf.ln.nClients) { Bool() }.asInput
   }
 }
 
-class L2CoherenceAgent(bankId: Int)(implicit conf: UncoreConfiguration) extends CoherenceAgent()(conf.ln)
+case class L2CoherenceAgentConfiguration(tl: TileLinkConfiguration, nReleaseTransactions: Int, nAcquireTransactions: Int)
+
+class L2CoherenceAgent(bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends CoherenceAgent()(conf.tl)
 {
-  implicit val lnConf = conf.ln
-  val co = conf.co
-  //require(conf.ln.nClients < NGLOBAL_REL_XACTS) //TODO: handle in config
-  val trackerList = (0 until NGLOBAL_REL_XACTS).map(new VoluntaryReleaseTracker(_, bankId)) ++ 
-                    (NGLOBAL_REL_XACTS until NGLOBAL_REL_XACTS + NGLOBAL_ACQ_XACTS).map(new AcquireTracker(_, bankId))
+  implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
+
+  // Create SHRs for outstanding transactions
+  val nTrackers = conf.nReleaseTransactions + conf.nAcquireTransactions
+  val trackerList = (0 until conf.nReleaseTransactions).map(new VoluntaryReleaseTracker(_, bankId)) ++ 
+                    (conf.nReleaseTransactions until nTrackers).map(new AcquireTracker(_, bankId))
   
+  // Propagate incoherence flags
   trackerList.map(_.io.tile_incoherent := io.incoherent.toBits)
 
   // Handle acquire transaction initiation
@@ -81,32 +77,31 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: UncoreConfiguration) extends 
   ack.ready := Bool(true)
 
   // Create an arbiter for the one memory port
-  val outer_arb = new UncachedTileLinkIOArbiterThatPassesId(trackerList.size, conf.co)
+  val outer_arb = new UncachedTileLinkIOArbiterThatPassesId(trackerList.size)
   outer_arb.io.in zip  trackerList map { case(arb, t) => arb <> t.io.master }
   io.master <> outer_arb.io.out
 }
 
 
-abstract class XactTracker()(implicit conf: UncoreConfiguration) extends Component with OuterRequestGenerator {
-  val co = conf.co
-  implicit val ln = conf.ln
+abstract class XactTracker()(implicit conf: L2CoherenceAgentConfiguration) extends Component with OuterRequestGenerator {
+  implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
   val io = new Bundle {
     val client = (new TileLinkIO).flip
     val master = new UncachedTileLinkIO
-    val tile_incoherent = Bits(INPUT, conf.ln.nClients)
+    val tile_incoherent = Bits(INPUT, ln.nClients)
     val has_acquire_conflict = Bool(OUTPUT)
     val has_release_conflict = Bool(OUTPUT)
   }
 }
 
-class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: UncoreConfiguration) extends XactTracker()(conf) {
+class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
   val s_idle :: s_mem :: s_ack :: s_busy :: Nil = Enum(4){ UFix() }
   val state = Reg(resetVal = s_idle)
   val xact  = Reg{ new Release }
-  val init_client_id_ = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
+  val init_client_id_ = Reg(resetVal = UFix(0, width = log2Up(ln.nClients)))
   val release_data_needs_write = Reg(resetVal = Bool(false))
   val mem_cmd_sent = Reg(resetVal = Bool(false))
-  val cmd_to_write = co.getUncachedWriteAcquire(xact.addr, UFix(trackerId))
+  val cmd_to_write = Acquire(co.getUncachedWriteAcquireType, xact.addr, UFix(trackerId))
 
   io.has_acquire_conflict := Bool(false)
   io.has_release_conflict := co.isCoherenceConflict(xact.addr, io.client.release.meta.bits.payload.addr) && (state != s_idle)
@@ -163,38 +158,38 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: Uncore
   }
 }
 
-class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: UncoreConfiguration) extends XactTracker()(conf) {
+class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
   val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(5){ UFix() }
   val state = Reg(resetVal = s_idle)
   val xact  = Reg{ new Acquire }
-  val init_client_id_ = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
-  val release_data_client_id = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
+  val init_client_id_ = Reg(resetVal = UFix(0, width = log2Up(ln.nClients)))
+  val release_data_client_id = Reg(resetVal = UFix(0, width = log2Up(ln.nClients)))
   //TODO: Will need id reg for merged release xacts
-  val init_sharer_cnt_ = Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
+  val init_sharer_cnt_ = Reg(resetVal = UFix(0, width = log2Up(ln.nClients)))
   val grant_type = co.getGrantType(xact.a_type, init_sharer_cnt_)
-  val release_count = if (conf.ln.nClients == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2Up(conf.ln.nClients)))
-  val probe_flags = Reg(resetVal = Bits(0, width = conf.ln.nClients))
+  val release_count = if (ln.nClients == 1) UFix(0) else Reg(resetVal = UFix(0, width = log2Up(ln.nClients)))
+  val probe_flags = Reg(resetVal = Bits(0, width = ln.nClients))
   val curr_p_id = PriorityEncoder(probe_flags)
   val x_needs_read = Reg(resetVal = Bool(false))
   val acquire_data_needs_write = Reg(resetVal = Bool(false))
   val release_data_needs_write = Reg(resetVal = Bool(false))
-  val cmd_to_write = co.getUncachedWriteAcquire(xact.addr, UFix(trackerId))
-  val cmd_to_read = co.getUncachedReadAcquire(xact.addr, UFix(trackerId))
+  val cmd_to_write = Acquire(co.getUncachedWriteAcquireType, xact.addr, UFix(trackerId))
+  val cmd_to_read = Acquire(co.getUncachedReadAcquireType, xact.addr, UFix(trackerId))
   val a_w_mem_cmd_sent = Reg(resetVal = Bool(false))
   val r_w_mem_cmd_sent = Reg(resetVal = Bool(false))
-  val probe_initial_flags = Bits(width = conf.ln.nClients)
+  val probe_initial_flags = Bits(width = ln.nClients)
   probe_initial_flags := Bits(0)
-  if (conf.ln.nClients > 1) {
+  if (ln.nClients > 1) {
     // issue self-probes for uncached read xacts to facilitate I$ coherence
     val probe_self = Bool(true) //co.needsSelfProbe(io.client.acquire.bits.payload)
-    val myflag = Mux(probe_self, Bits(0), UFixToOH(io.client.acquire.meta.bits.header.src(log2Up(conf.ln.nClients)-1,0)))
+    val myflag = Mux(probe_self, Bits(0), UFixToOH(io.client.acquire.meta.bits.header.src(log2Up(ln.nClients)-1,0)))
     probe_initial_flags := ~(io.tile_incoherent | myflag)
   }
 
   io.has_acquire_conflict := co.isCoherenceConflict(xact.addr, io.client.acquire.meta.bits.payload.addr) && (state != s_idle)
   io.has_release_conflict := co.isCoherenceConflict(xact.addr, io.client.release.meta.bits.payload.addr) && (state != s_idle)
   io.master.acquire.meta.valid := Bool(false)
-  io.master.acquire.meta.bits.payload := co.getUncachedReadAcquire(xact.addr, UFix(trackerId))
+  io.master.acquire.meta.bits.payload := Acquire(co.getUncachedReadAcquireType, xact.addr, UFix(trackerId))
   //TODO io.master.acquire.bits.header.dst
   io.master.acquire.meta.bits.header.src := UFix(bankId)
   io.master.acquire.data.valid := Bool(false)
@@ -227,14 +222,14 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: UncoreConfigura
       when( io.client.acquire.meta.valid ) {
         xact := io.client.acquire.meta.bits.payload
         init_client_id_ := io.client.acquire.meta.bits.header.src
-        init_sharer_cnt_ := UFix(conf.ln.nClients) // TODO: Broadcast only
+        init_sharer_cnt_ := UFix(ln.nClients) // TODO: Broadcast only
         acquire_data_needs_write := co.messageHasData(io.client.acquire.meta.bits.payload)
         x_needs_read := co.needsOuterRead(io.client.acquire.meta.bits.payload.a_type, UFix(0))
         probe_flags := probe_initial_flags
         mem_cnt := UFix(0)
         r_w_mem_cmd_sent := Bool(false)
         a_w_mem_cmd_sent := Bool(false)
-        if(conf.ln.nClients > 1) {
+        if(ln.nClients > 1) {
           release_count := PopCount(probe_initial_flags)
           state := Mux(probe_initial_flags.orR, s_probe, s_mem)
         } else state := s_mem
@@ -250,7 +245,7 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: UncoreConfigura
       }
       io.client.release.meta.ready := Bool(true)
       when(io.client.release.meta.valid) {
-        if(conf.ln.nClients > 1) release_count := release_count - UFix(1)
+        if(ln.nClients > 1) release_count := release_count - UFix(1)
         when(release_count === UFix(1)) {
           state := s_mem
         }
@@ -306,7 +301,7 @@ abstract trait OuterRequestGenerator {
   val mem_cnt = Reg(resetVal = UFix(0, width = log2Up(REFILL_CYCLES)))
   val mem_cnt_next = mem_cnt + UFix(1)
 
-  def doOuterReqWrite[T <: HasMemData](master_acq: PairedDataIO[LogicalNetworkIO[Acquire],LogicalNetworkIO[AcquireData]], client_data: FIFOIO[LogicalNetworkIO[T]], cmd: Acquire, trigger: Bool, cmd_sent: Bool, desired_client_data_src_id: UFix) {
+  def doOuterReqWrite[T <: HasTileLinkData](master_acq: PairedDataIO[LogicalNetworkIO[Acquire],LogicalNetworkIO[AcquireData]], client_data: FIFOIO[LogicalNetworkIO[T]], cmd: Acquire, trigger: Bool, cmd_sent: Bool, desired_client_data_src_id: UFix) {
     val do_write = client_data.valid && (client_data.bits.header.src === desired_client_data_src_id)
     master_acq.meta.bits.payload := cmd
     master_acq.data.bits.payload := client_data.bits.payload

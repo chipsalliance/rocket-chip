@@ -1,99 +1,86 @@
 package uncore
 import Chisel._
 
-trait HasPhysicalAddress extends Bundle {
+case class TileLinkConfiguration(co: CoherencePolicyWithUncached, ln: LogicalNetworkConfiguration, masterXactIdBits: Int, clientXactIdBits: Int, dataBits: Int) 
+
+abstract trait TileLinkSubBundle extends Bundle {
+  implicit val conf: TileLinkConfiguration
+}
+
+trait HasPhysicalAddress extends TileLinkSubBundle {
   val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
 }
 
-trait HasClientTransactionId extends Bundle {
-  val client_xact_id = Bits(width = CLIENT_XACT_ID_MAX_BITS)
+trait HasClientTransactionId extends TileLinkSubBundle {
+  val client_xact_id = Bits(width = conf.clientXactIdBits)
 }
 
-trait HasMasterTransactionId extends Bundle {
-  val master_xact_id = Bits(width = MASTER_XACT_ID_MAX_BITS)
+trait HasMasterTransactionId extends TileLinkSubBundle {
+  val master_xact_id = Bits(width = conf.masterXactIdBits)
 }
 
-trait HasMemData extends Bundle {
-  val data = Bits(width = MEM_DATA_BITS)
-}
-
-class MemData extends Bundle with HasMemData
-
-class MemReqCmd extends Bundle with HasPhysicalAddress {
-  val rw = Bool()
-  val tag = Bits(width = MEM_TAG_BITS)
-}
-
-class MemResp extends Bundle with HasMemData {
-  val tag = Bits(width = MEM_TAG_BITS)
-}
-
-class ioMem extends Bundle {
-  val req_cmd  = (new FIFOIO) { new MemReqCmd() }
-  val req_data = (new FIFOIO) { new MemData() }
-  val resp     = (new FIFOIO) { new MemResp() }.flip
-}
-
-class ioMemPipe extends Bundle {
-  val req_cmd  = (new FIFOIO) { new MemReqCmd() }
-  val req_data = (new FIFOIO) { new MemData() }
-  val resp     = (new PipeIO) { new MemResp() }.flip
+trait HasTileLinkData extends TileLinkSubBundle {
+  val data = Bits(width = conf.dataBits)
 }
 
 trait SourcedMessage extends Bundle
 trait ClientSourcedMessage extends SourcedMessage
 trait MasterSourcedMessage extends SourcedMessage
 
-class Acquire extends ClientSourcedMessage with HasPhysicalAddress with HasClientTransactionId {
-  val a_type = Bits(width = ACQUIRE_TYPE_MAX_BITS)
-  val write_mask = Bits(width = ACQUIRE_WRITE_MASK_BITS)
-  val subword_addr = Bits(width = ACQUIRE_SUBWORD_ADDR_BITS)
-  val atomic_opcode = Bits(width = ACQUIRE_ATOMIC_OP_BITS)
-}
-
 object Acquire 
 {
-  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix) = {
+  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix)(implicit conf: TileLinkConfiguration) = {
     val acq = new Acquire
     acq.a_type := a_type
     acq.addr := addr
     acq.client_xact_id := client_xact_id
-    acq.write_mask := Bits(0, width = ACQUIRE_WRITE_MASK_BITS)
-    acq.subword_addr := Bits(0, width = ACQUIRE_SUBWORD_ADDR_BITS)
-    acq.atomic_opcode := Bits(0, width = ACQUIRE_ATOMIC_OP_BITS)
+    acq.write_mask := Bits(0)
+    acq.subword_addr := Bits(0)
+    acq.atomic_opcode := Bits(0)
     acq
   }
-  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix, write_mask: Bits) = {
+  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix, write_mask: Bits)(implicit conf: TileLinkConfiguration) = {
     val acq = new Acquire
     acq.a_type := a_type
     acq.addr := addr
     acq.client_xact_id := client_xact_id
     acq.write_mask := write_mask
-    acq.subword_addr := Bits(0, width = ACQUIRE_SUBWORD_ADDR_BITS)
-    acq.atomic_opcode := Bits(0, width = ACQUIRE_ATOMIC_OP_BITS)
+    acq.subword_addr := Bits(0)
+    acq.atomic_opcode := Bits(0)
     acq
   }
-  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix, subword_addr: UFix, atomic_opcode: UFix) = {
+  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix, subword_addr: UFix, atomic_opcode: UFix)(implicit conf: TileLinkConfiguration) = {
     val acq = new Acquire
     acq.a_type := a_type
     acq.addr := addr
     acq.client_xact_id := client_xact_id
     acq.subword_addr := subword_addr
     acq.atomic_opcode := atomic_opcode
-    acq.write_mask := Bits(0, width = ACQUIRE_WRITE_MASK_BITS)
+    acq.write_mask := Bits(0)
     acq
   }
 }
+class Acquire(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasPhysicalAddress with HasClientTransactionId {
+  val a_type = Bits(width = conf.co.acquireTypeBits)
+  val write_mask = Bits(width = ACQUIRE_WRITE_MASK_BITS)
+  val subword_addr = Bits(width = ACQUIRE_SUBWORD_ADDR_BITS)
+  val atomic_opcode = Bits(width = ACQUIRE_ATOMIC_OP_BITS)
+  override def clone = { (new Acquire).asInstanceOf[this.type] }
+}
 
-class AcquireData extends ClientSourcedMessage with HasMemData
 
-class Probe extends MasterSourcedMessage with HasPhysicalAddress with HasMasterTransactionId {
-  val p_type = Bits(width = PROBE_TYPE_MAX_BITS)
+class AcquireData(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasTileLinkData {
+  override def clone = { (new AcquireData).asInstanceOf[this.type] }
+}
+
+class Probe(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage with HasPhysicalAddress with HasMasterTransactionId {
+  val p_type = Bits(width = conf.co.probeTypeBits)
+  override def clone = { (new Probe).asInstanceOf[this.type] }
 }
 
 object Release
 {
-  def apply(r_type: Bits, addr: UFix, client_xact_id: UFix, master_xact_id: UFix) = {
+  def apply(r_type: Bits, addr: UFix, client_xact_id: UFix, master_xact_id: UFix)(implicit conf: TileLinkConfiguration) = {
     val rel = new Release
     rel.r_type := r_type
     rel.addr := addr
@@ -102,17 +89,24 @@ object Release
     rel
   }
 }
-class Release extends ClientSourcedMessage with HasPhysicalAddress with HasClientTransactionId with HasMasterTransactionId {
-  val r_type = Bits(width = RELEASE_TYPE_MAX_BITS)
+class Release(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasPhysicalAddress with HasClientTransactionId with HasMasterTransactionId {
+  val r_type = Bits(width = conf.co.releaseTypeBits)
+  override def clone = { (new Release).asInstanceOf[this.type] }
 }
 
-class ReleaseData extends ClientSourcedMessage with HasMemData
-
-class Grant extends MasterSourcedMessage with HasMemData with HasClientTransactionId with HasMasterTransactionId {
-  val g_type = Bits(width = GRANT_TYPE_MAX_BITS)
+class ReleaseData(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasTileLinkData {
+  override def clone = { (new ReleaseData).asInstanceOf[this.type] }
 }
 
-class GrantAck extends ClientSourcedMessage with HasMasterTransactionId 
+class Grant(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage with HasTileLinkData with HasClientTransactionId with HasMasterTransactionId {
+  val g_type = Bits(width = conf.co.grantTypeBits)
+  override def clone = { (new Grant).asInstanceOf[this.type] }
+}
+
+class GrantAck(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasMasterTransactionId {
+  override def clone = { (new GrantAck).asInstanceOf[this.type] }
+}
+
 
 trait DirectionalIO
 trait ClientSourcedIO extends DirectionalIO
@@ -132,14 +126,15 @@ class MasterSourcedDataIO[M <: Data, D <: Data]()(meta: => M, data: => D)  exten
   override def clone = { new MasterSourcedDataIO()(meta,data).asInstanceOf[this.type] }
 }
 
-class UncachedTileLinkIO(implicit conf: LogicalNetworkConfiguration) extends Bundle {
+class UncachedTileLinkIO(implicit conf: TileLinkConfiguration) extends Bundle {
+  implicit val ln = conf.ln
   val acquire   = new ClientSourcedDataIO()(new LogicalNetworkIO()(new Acquire), new LogicalNetworkIO()(new AcquireData))
   val grant     = new MasterSourcedFIFOIO()(new LogicalNetworkIO()(new Grant))
   val grant_ack = new ClientSourcedFIFOIO()(new LogicalNetworkIO()(new GrantAck))
   override def clone = { new UncachedTileLinkIO().asInstanceOf[this.type] }
 }
 
-class TileLinkIO(implicit conf: LogicalNetworkConfiguration) extends UncachedTileLinkIO()(conf) { 
+class TileLinkIO(implicit conf: TileLinkConfiguration) extends UncachedTileLinkIO()(conf) { 
   val probe     = new MasterSourcedFIFOIO()(new LogicalNetworkIO()(new Probe))
   val release   = new ClientSourcedDataIO()(new LogicalNetworkIO()(new Release), new LogicalNetworkIO()(new ReleaseData))
   override def clone = { new TileLinkIO().asInstanceOf[this.type] }
@@ -154,7 +149,8 @@ abstract class UncachedTileLinkIOArbiter(n: Int, co: CoherencePolicy)(implicit c
 }
 */
 
-class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Component {
+class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int)(implicit conf: TileLinkConfiguration) extends Component {
+  implicit val (ln, co) = (conf.ln, conf.co)
   def acquireClientXactId(in: Acquire, id: Int) = Cat(in.client_xact_id, UFix(id, log2Up(n)))
   def grantClientXactId(in: Grant) = in.client_xact_id >> UFix(log2Up(n))
   def arbIdx(in: Grant) = in.client_xact_id(log2Up(n)-1,0).toUFix
@@ -190,7 +186,8 @@ class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int, co: CoherencePolicy)
   }
 }
 
-class UncachedTileLinkIOArbiterThatPassesId(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Component {
+class UncachedTileLinkIOArbiterThatPassesId(n: Int)(implicit conf: TileLinkConfiguration) extends Component {
+  implicit val (ln, co) = (conf.ln, conf.co)
   def acquireClientXactId(in: Acquire, id: Int) = in.client_xact_id
   def grantClientXactId(in: Grant) = in.client_xact_id
   def arbIdx(in: Grant): UFix = in.client_xact_id
@@ -226,7 +223,8 @@ class UncachedTileLinkIOArbiterThatPassesId(n: Int, co: CoherencePolicy)(implici
   }
 }
 
-class UncachedTileLinkIOArbiterThatUsesNewId(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Component {
+class UncachedTileLinkIOArbiterThatUsesNewId(n: Int)(implicit conf: TileLinkConfiguration) extends Component {
+  implicit val (ln, co) = (conf.ln, conf.co)
   def acquireClientXactId(in: Acquire, id: Int) = UFix(id, log2Up(n))
   def grantClientXactId(in: Grant) = UFix(0) // DNC 
   def arbIdx(in: Grant) = in.client_xact_id

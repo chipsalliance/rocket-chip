@@ -2,6 +2,33 @@ package uncore
 import Chisel._
 import scala.math._
 
+class MemData extends Bundle {
+  val data = Bits(width = MEM_DATA_BITS)
+}
+
+class MemReqCmd extends Bundle {
+  val addr = UFix(width = MEM_ADDR_BITS)
+  val rw = Bool()
+  val tag = Bits(width = MEM_TAG_BITS)
+}
+
+class MemResp extends Bundle {
+  val tag = Bits(width = MEM_TAG_BITS)
+  val data = Bits(width = MEM_DATA_BITS)
+}
+
+class ioMem extends Bundle {
+  val req_cmd  = (new FIFOIO) { new MemReqCmd() }
+  val req_data = (new FIFOIO) { new MemData() }
+  val resp     = (new FIFOIO) { new MemResp() }.flip
+}
+
+class ioMemPipe extends Bundle {
+  val req_cmd  = (new FIFOIO) { new MemReqCmd() }
+  val req_data = (new FIFOIO) { new MemData() }
+  val resp     = (new PipeIO) { new MemResp() }.flip
+}
+
 class ioMemSerialized(w: Int) extends Bundle
 {
   val req = (new FIFOIO) { Bits(width = w) }

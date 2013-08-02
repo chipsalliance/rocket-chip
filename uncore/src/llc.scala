@@ -86,10 +86,10 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
     val cpu = (new FIFOIO) { new MemReqCmd }.flip
     val repl_way = UFix(INPUT, log2Up(ways))
     val repl_dirty = Bool(INPUT)
-    val repl_tag = UFix(INPUT, PADDR_BITS - OFFSET_BITS - log2Up(sets))
+    val repl_tag = UFix(INPUT, MEM_ADDR_BITS - log2Up(sets))
     val data = (new FIFOIO) { new LLCDataReq(ways) }
     val tag = (new FIFOIO) { new Bundle {
-      val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
+      val addr = UFix(width = MEM_ADDR_BITS)
       val way = UFix(width = log2Up(ways))
     } }
     val mem = new ioMemPipe
@@ -105,7 +105,7 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
     val refillCount = UFix(width = log2Up(REFILL_CYCLES))
     val requested = Bool()
     val old_dirty = Bool()
-    val old_tag = UFix(width = PADDR_BITS - OFFSET_BITS - log2Up(sets))
+    val old_tag = UFix(width = MEM_ADDR_BITS - log2Up(sets))
     val wb_busy = Bool()
 
     override def clone = new MSHR().asInstanceOf[this.type]
@@ -184,7 +184,7 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
 class LLCWriteback(requestors: Int) extends Component
 {
   val io = new Bundle {
-    val req = Vec(requestors) { (new FIFOIO) { UFix(width = PADDR_BITS - OFFSET_BITS) }.flip }
+    val req = Vec(requestors) { (new FIFOIO) { UFix(width = MEM_ADDR_BITS) }.flip }
     val data = Vec(requestors) { (new FIFOIO) { new MemData }.flip }
     val mem = new ioMemPipe
   }
@@ -235,7 +235,7 @@ class LLCData(latency: Int, sets: Int, ways: Int, leaf: Mem[Bits]) extends Compo
   val io = new Bundle {
     val req = (new FIFOIO) { new LLCDataReq(ways) }.flip
     val req_data = (new FIFOIO) { new MemData }.flip
-    val writeback = (new FIFOIO) { UFix(width = PADDR_BITS - OFFSET_BITS) }
+    val writeback = (new FIFOIO) { UFix(width = MEM_ADDR_BITS) }
     val writeback_data = (new FIFOIO) { new MemData }
     val resp = (new FIFOIO) { new MemResp }
     val mem_resp = (new PipeIO) { new MemResp }.flip
@@ -348,7 +348,7 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
     val mem = new ioMemPipe
   }
 
-  val tagWidth = PADDR_BITS - OFFSET_BITS - log2Up(sets)
+  val tagWidth = MEM_ADDR_BITS - log2Up(sets)
   val metaWidth = tagWidth + 2 // valid + dirty
 
   val memCmdArb = (new Arbiter(2)) { new MemReqCmd }
