@@ -5,19 +5,19 @@ import uncore._
 import scala.reflect._
 
 object TileLinkHeaderAppender {
-  def apply[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasMemData](in: ClientSourcedDataIO[LogicalNetworkIO[T],LogicalNetworkIO[U]], clientId: Int, nBanks: Int, addrConvert: Bits => UFix)(implicit conf: UncoreConfiguration) = {
+  def apply[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasTileLinkData](in: ClientSourcedDataIO[LogicalNetworkIO[T],LogicalNetworkIO[U]], clientId: Int, nBanks: Int, addrConvert: Bits => UFix)(implicit conf: TileLinkConfiguration) = {
     val shim = new TileLinkHeaderAppender(clientId, nBanks, addrConvert)(in.meta.bits.payload.clone, in.data.bits.payload.clone)
     shim.io.in <> in
     shim.io.out
   }
-  def apply[T <: SourcedMessage with HasPhysicalAddress](in: ClientSourcedFIFOIO[LogicalNetworkIO[T]], clientId: Int, nBanks: Int, addrConvert: Bits => UFix)(implicit conf: UncoreConfiguration) = {
+  def apply[T <: SourcedMessage with HasPhysicalAddress](in: ClientSourcedFIFOIO[LogicalNetworkIO[T]], clientId: Int, nBanks: Int, addrConvert: Bits => UFix)(implicit conf: TileLinkConfiguration) = {
     val shim = new TileLinkHeaderAppender(clientId, nBanks, addrConvert)(in.bits.payload.clone, new AcquireData)
     shim.io.in.meta <> in
     shim.io.out.meta
   }
 }
 
-class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasMemData](clientId: Int, nBanks: Int, addrConvert: Bits => UFix)(metadata: => T, data: => U)(implicit conf: UncoreConfiguration) extends Component {
+class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasTileLinkData](clientId: Int, nBanks: Int, addrConvert: Bits => UFix)(metadata: => T, data: => U)(implicit conf: TileLinkConfiguration) extends Component {
   implicit val ln = conf.ln
   val io = new Bundle {
     val in = new ClientSourcedDataIO()((new LogicalNetworkIO){ metadata }, (new LogicalNetworkIO){ data }).flip
@@ -68,8 +68,7 @@ class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress, U <: S
 }
 
 //Adapter betweewn an UncachedTileLinkIO and a mem controller MemIO
-class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit conf: UncoreConfiguration) extends Component {
-  implicit val ln = conf.ln
+class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit conf: TileLinkConfiguration) extends Component {
   val io = new Bundle {
     val uncached = new UncachedTileLinkIO().flip
     val mem = new ioMem
@@ -94,10 +93,10 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit conf: UncoreConfigu
   io.mem.req_data <> mem_data_q.io.deq
 }
 
-class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit conf: UncoreConfiguration) extends LogicalNetwork[TileLinkIO](endpoints)(conf.ln) {
-  implicit val lnConf = conf.ln
+class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit conf: UncoreConfiguration) extends LogicalNetwork[TileLinkIO](endpoints)(conf.tl.ln) {
+  implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
   val io = Vec(endpoints.map(_ match { case t:ClientCoherenceAgent => {(new TileLinkIO).flip}; case h:MasterCoherenceAgent => {new TileLinkIO}})){ new TileLinkIO }
-  implicit val pconf = new PhysicalNetworkConfiguration(conf.ln.nEndpoints, conf.ln.idBits) // Same config for all networks
+  implicit val pconf = new PhysicalNetworkConfiguration(ln.nEndpoints, ln.idBits) // Same config for all networks
 
   // Aliases for the various network IO bundle types
   type FBCIO[T <: Data] = FIFOIO[PhysicalNetworkIO[T]]
@@ -119,12 +118,12 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
   }
   def CrossbarToMasterShim[T <: Data](in: FBCIO[T]): FLNIO[T] = {
     val out = DefaultFromCrossbarShim(in)
-    out.bits.header.src := in.bits.header.src - UFix(conf.ln.nMasters)
+    out.bits.header.src := in.bits.header.src - UFix(ln.nMasters)
     out
   }
   def CrossbarToClientShim[T <: Data](in: FBCIO[T]): FLNIO[T] = {
     val out = DefaultFromCrossbarShim(in)
-    out.bits.header.dst := in.bits.header.dst - UFix(conf.ln.nMasters)
+    out.bits.header.dst := in.bits.header.dst - UFix(ln.nMasters)
     out
   }
   def DefaultToCrossbarShim[T <: Data](in: FLNIO[T]): FBCIO[T] = {
@@ -137,12 +136,12 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
   }
   def MasterToCrossbarShim[T <: Data](in: FLNIO[T]): FBCIO[T] = {
     val out = DefaultToCrossbarShim(in)
-    out.bits.header.dst := in.bits.header.dst + UFix(conf.ln.nMasters)
+    out.bits.header.dst := in.bits.header.dst + UFix(ln.nMasters)
     out
   }
   def ClientToCrossbarShim[T <: Data](in: FLNIO[T]): FBCIO[T] = {
     val out = DefaultToCrossbarShim(in)
-    out.bits.header.src := in.bits.header.src + UFix(conf.ln.nMasters)
+    out.bits.header.src := in.bits.header.src + UFix(ln.nMasters)
     out
   }
 
@@ -203,11 +202,11 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
 
 
   // Actually instantiate the particular networks required for TileLink
-  def acqHasData(acq: PhysicalNetworkIO[Acquire]) = conf.co.messageHasData(acq.payload)
+  def acqHasData(acq: PhysicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
   val acq_net = new PairedCrossbar(REFILL_CYCLES, acqHasData _)(new Acquire, new AcquireData)
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doClientSourcedPairedHookup(end, acq_net.io.in(id), acq_net.io.out(id), io.acquire) }
 
-  def relHasData(rel: PhysicalNetworkIO[Release]) = conf.co.messageHasData(rel.payload)
+  def relHasData(rel: PhysicalNetworkIO[Release]) = co.messageHasData(rel.payload)
   val rel_net = new PairedCrossbar(REFILL_CYCLES, relHasData _)(new Release, new ReleaseData)
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doClientSourcedPairedHookup(end, rel_net.io.in(id), rel_net.io.out(id), io.release) }
 
