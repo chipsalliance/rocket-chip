@@ -4,7 +4,7 @@ import Chisel._
 import uncore._
 import Util._
 
-case class RocketConfiguration(lnConf: LogicalNetworkConfiguration, co: CoherencePolicyWithUncached,
+case class RocketConfiguration(tl: TileLinkConfiguration,
                                icache: ICacheConfig, dcache: DCacheConfig,
                                fpu: Boolean, vec: Boolean,
                                fastLoadWord: Boolean = true,
@@ -26,7 +26,9 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   val icachePortId = 1
   val vicachePortId = 2
   implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(memPorts), databits = confIn.xprlen)
-  implicit val lnConf = confIn.lnConf
+  implicit val icConf = confIn.icache
+  implicit val tlConf = confIn.tl
+  implicit val lnConf = confIn.tl.ln
   implicit val conf = confIn.copy(dcache = dcConf)
 
   val io = new Bundle {
@@ -35,10 +37,10 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   }
 
   val core      = new Core
-  val icache    = new Frontend()(confIn.icache, lnConf)
+  val icache    = new Frontend
   val dcache    = new HellaCache
 
-  val arbiter   = new UncachedTileLinkIOArbiterThatAppendsArbiterId(memPorts, confIn.dcache.co)
+  val arbiter   = new UncachedTileLinkIOArbiterThatAppendsArbiterId(memPorts)
   arbiter.io.in(dcachePortId) <> dcache.io.mem
   arbiter.io.in(icachePortId) <> icache.io.mem
 
@@ -61,7 +63,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Compon
   }*/
 
   if (conf.vec) {
-    val vicache = new Frontend()(ICacheConfig(128, 1, conf.co), lnConf) // 128 sets x 1 ways (8KB)
+    val vicache = new Frontend()(ICacheConfig(128, 1), tlConf) // 128 sets x 1 ways (8KB)
     arbiter.io.in(vicachePortId) <> vicache.io.mem
     core.io.vimem <> vicache.io.cpu
   }

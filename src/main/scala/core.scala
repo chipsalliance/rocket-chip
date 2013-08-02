@@ -7,7 +7,7 @@ import Util._
 
 class RocketIO(implicit conf: RocketConfiguration) extends Bundle
 {
-  val host    = new HTIFIO(conf.lnConf.nClients)
+  val host    = new HTIFIO(conf.tl.ln.nClients)
   val imem    = new CPUFrontendIO()(conf.icache)
   val vimem   = new CPUFrontendIO()(conf.icache)
   val dmem    = new HellaCacheIO()(conf.dcache)
