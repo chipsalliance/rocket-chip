@@ -21,6 +21,7 @@ case class DCacheConfig(sets: Int, ways: Int, co: CoherencePolicy,
   def vpnbits = VADDR_BITS - PGIDX_BITS
   def pgidxbits = PGIDX_BITS
   def offbits = OFFSET_BITS
+  def maxaddrbits = ppnbits.max(vpnbits+1) + pgidxbits
   def paddrbits = ppnbits + pgidxbits
   def lineaddrbits = paddrbits - offbits
   def idxbits = log2Up(sets)
@@ -694,7 +695,7 @@ class HellaCacheReq(implicit conf: DCacheConfig) extends Bundle {
   val kill = Bool()
   val typ  = Bits(width = 3)
   val phys = Bool()
-  val addr = UFix(width = conf.ppnbits.max(conf.vpnbits+1) + conf.pgidxbits)
+  val addr = UFix(width = conf.maxaddrbits)
   val data = Bits(width = conf.databits)
   val tag  = Bits(width = conf.reqtagbits)
   val cmd  = Bits(width = 4)
@@ -710,7 +711,7 @@ class HellaCacheResp(implicit conf: DCacheConfig) extends Bundle {
   val data_subword = Bits(width = conf.databits)
   val tag = Bits(width = conf.reqtagbits)
   val cmd  = Bits(width = 4)
-  val addr = UFix(width = conf.ppnbits.max(conf.vpnbits+1) + conf.pgidxbits)
+  val addr = UFix(width = conf.maxaddrbits)
   val store_data = Bits(width = conf.databits)
 
   override def clone = new HellaCacheResp().asInstanceOf[this.type]
@@ -747,7 +748,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
 
   val wb = new WritebackUnit
   val prober = new ProbeUnit
-  val mshr = new MSHRFile
+  val mshrs = new MSHRFile
 
   io.cpu.req.ready := Bool(true)
   val s1_valid = Reg(io.cpu.req.fire(), resetVal = Bool(false))
@@ -791,8 +792,8 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
     s1_req := prober.io.meta_read.bits
     s1_req.phys := Bool(true)
   }
-  when (mshr.io.replay.valid) {
-    s1_req := mshr.io.replay.bits
+  when (mshrs.io.replay.valid) {
+    s1_req := mshrs.io.replay.bits
   }
   when (s2_recycle) {
     s1_req := s2_req
@@ -805,7 +806,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
     s2_req.cmd := s1_req.cmd
     s2_req.tag := s1_req.tag
     when (s1_write) {
-      s2_req.data := Mux(s1_replay, mshr.io.replay.bits.data, io.cpu.req.bits.data)
+      s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, io.cpu.req.bits.data)
     }
     when (s1_recycled) { s2_req.data := s1_req.data }
   }
@@ -927,32 +928,31 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegEn(meta.io.resp(w), s1_clk_en && s1_replaced_way_en(w))){new MetaData})
 
   // miss handling
-  mshr.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd))
-  mshr.io.req.bits := s2_req
-  mshr.io.req.bits.tag_match := s2_tag_match
-  mshr.io.req.bits.old_meta := Mux(s2_tag_match, MetaData(s2_repl_meta.tag, s2_hit_state), s2_repl_meta)
-  mshr.io.req.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
-  mshr.io.req.bits.data := s2_req.data
+  mshrs.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd))
+  mshrs.io.req.bits := s2_req
+  mshrs.io.req.bits.tag_match := s2_tag_match
+  mshrs.io.req.bits.old_meta := Mux(s2_tag_match, MetaData(s2_repl_meta.tag, s2_hit_state), s2_repl_meta)
+  mshrs.io.req.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
+  mshrs.io.req.bits.data := s2_req.data
 
-  mshr.io.mem_grant.valid := io.mem.grant.fire()
-  mshr.io.mem_grant.bits := io.mem.grant.bits
-  when (mshr.io.req.fire()) { replacer.miss }
+  mshrs.io.mem_grant.valid := io.mem.grant.fire()
+  mshrs.io.mem_grant.bits := io.mem.grant.bits
+  when (mshrs.io.req.fire()) { replacer.miss }
 
-  io.mem.acquire.meta <> FIFOedLogicalNetworkIOWrapper(mshr.io.mem_req)
+  io.mem.acquire.meta <> FIFOedLogicalNetworkIOWrapper(mshrs.io.mem_req)
   //TODO io.mem.acquire.data should be connected to uncached store data generator
   //io.mem.acquire.data <> FIFOedLogicalNetworkIOWrapper(TODO)
   io.mem.acquire.data.valid := Bool(false)
   io.mem.acquire.data.bits.payload.data := UFix(0)
 
   // replays
-  readArb.io.in(1).valid := mshr.io.replay.valid
-  readArb.io.in(1).bits := mshr.io.replay.bits
+  readArb.io.in(1).valid := mshrs.io.replay.valid
+  readArb.io.in(1).bits := mshrs.io.replay.bits
   readArb.io.in(1).bits.way_en := Fix(-1)
-  mshr.io.replay.ready := readArb.io.in(1).ready
-  s1_replay := mshr.io.replay.valid && readArb.io.in(1).ready
-  metaReadArb.io.in(1) <> mshr.io.meta_read
-  metaWriteArb.io.in(0) <> mshr.io.meta_write
-
+  mshrs.io.replay.ready := readArb.io.in(1).ready
+  s1_replay := mshrs.io.replay.valid && readArb.io.in(1).ready
+  metaReadArb.io.in(1) <> mshrs.io.meta_read
+  metaWriteArb.io.in(0) <> mshrs.io.meta_write
   // probes
   val releaseArb = (new Arbiter(2)) { new Release }
   FIFOedLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release.meta
@@ -967,18 +967,18 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   prober.io.line_state := s2_hit_state
   prober.io.meta_read <> metaReadArb.io.in(2)
   prober.io.meta_write <> metaWriteArb.io.in(1)
-  prober.io.mshr_rdy := mshr.io.probe_rdy
+  prober.io.mshr_rdy := mshrs.io.probe_rdy
 
   // refills
-  val refill = conf.co.messageUpdatesDataArray(io.mem.grant.bits.payload)
+  val refill = tl.co.messageUpdatesDataArray(io.mem.grant.bits.payload)
   writeArb.io.in(1).valid := io.mem.grant.valid && refill
   io.mem.grant.ready := writeArb.io.in(1).ready || !refill
-  writeArb.io.in(1).bits := mshr.io.mem_resp
+  writeArb.io.in(1).bits := mshrs.io.mem_resp
   writeArb.io.in(1).bits.wmask := Fix(-1)
   writeArb.io.in(1).bits.data := io.mem.grant.bits.payload.data
 
   // writebacks
-  wb.io.req <> mshr.io.wb_req
+  wb.io.req <> mshrs.io.wb_req
   wb.io.meta_read <> metaReadArb.io.in(3)
   wb.io.data_req <> readArb.io.in(2)
   wb.io.data_resp := s2_data_corrected
@@ -1016,10 +1016,10 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   val s1_nack = dtlb.io.req.valid && dtlb.io.resp.miss ||
                 s1_req.addr(indexmsb,indexlsb) === prober.io.meta_write.bits.idx && !prober.io.req.ready
   val s2_nack_hit = RegEn(s1_nack, s1_valid || s1_replay)
-  when (s2_nack_hit) { mshr.io.req.valid := Bool(false) }
-  val s2_nack_victim = s2_hit && mshr.io.secondary_miss
-  val s2_nack_miss = !s2_hit && !mshr.io.req.ready
-  val s2_nack_fence = s2_req.cmd === M_FENCE && !mshr.io.fence_rdy
+  when (s2_nack_hit) { mshrs.io.req.valid := Bool(false) }
+  val s2_nack_victim = s2_hit && mshrs.io.secondary_miss
+  val s2_nack_miss = !s2_hit && !mshrs.io.req.ready
+  val s2_nack_fence = s2_req.cmd === M_FENCE && !mshrs.io.fence_rdy
   val s2_nack = s2_nack_hit || s2_nack_victim || s2_nack_miss || s2_nack_fence
   s2_valid_masked := s2_valid && !s2_nack
 
@@ -1030,7 +1030,7 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
 
   // after a nack, block until nack condition resolves to save energy
   val block_fence = Reg(resetVal = Bool(false))
-  block_fence := (s2_valid && s2_req.cmd === M_FENCE || block_fence) && !mshr.io.fence_rdy
+  block_fence := (s2_valid && s2_req.cmd === M_FENCE || block_fence) && !mshrs.io.fence_rdy
   val block_miss = Reg(resetVal = Bool(false))
   block_miss := (s2_valid || block_miss) && s2_nack_miss
   when (block_fence || block_miss) {
@@ -1046,5 +1046,5 @@ class HellaCache(implicit conf: DCacheConfig, lnconf: LogicalNetworkConfiguratio
   io.cpu.resp.bits.data_subword := Mux(s2_sc, s2_sc_fail, loadgen.byte)
   io.cpu.resp.bits.store_data := s2_req.data
 
-  io.mem.grant_ack <> mshr.io.mem_finish
+  io.mem.grant_ack <> mshrs.io.mem_finish
 }
