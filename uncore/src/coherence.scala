@@ -12,35 +12,35 @@ abstract class CoherencePolicy {
   def nProbeTypes: Int
   def nReleaseTypes: Int
   def nGrantTypes: Int
-  def clientStateBits = log2Up(nClientStates)
-  def masterStateBits = log2Up(nMasterStates)
-  def acquireTypeBits = log2Up(nAcquireTypes)
-  def probeTypeBits = log2Up(nProbeTypes)
-  def releaseTypeBits = log2Up(nReleaseTypes)
-  def grantTypeBits = log2Up(nGrantTypes)
+  def clientStateWidth = log2Up(nClientStates)
+  def masterStateWidth = log2Up(nMasterStates)
+  def acquireTypeWidth = log2Up(nAcquireTypes)
+  def probeTypeWidth = log2Up(nProbeTypes)
+  def releaseTypeWidth = log2Up(nReleaseTypes)
+  def grantTypeWidth = log2Up(nGrantTypes)
 
-  def isHit (cmd: Bits, state: UFix): Bool
-  def isValid (state: UFix): Bool
+  def isHit (cmd: UInt, state: UInt): Bool
+  def isValid (state: UInt): Bool
 
-  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool
-  def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool
-  def needsWriteback (state: UFix): Bool
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool
+  def needsTransactionOnCacheControl(cmd: UInt, state: UInt): Bool
+  def needsWriteback (state: UInt): Bool
 
-  def newStateOnHit(cmd: Bits, state: UFix): UFix
-  def newStateOnCacheControl(cmd: Bits): UFix
-  def newStateOnWriteback(): UFix
-  def newStateOnFlush(): UFix
-  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UFix
-  def newStateOnProbe(incoming: Probe, state: UFix): Bits
+  def newStateOnHit(cmd: UInt, state: UInt): UInt
+  def newStateOnCacheControl(cmd: UInt): UInt
+  def newStateOnWriteback(): UInt
+  def newStateOnFlush(): UInt
+  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UInt
+  def newStateOnProbe(incoming: Probe, state: UInt): Bits
 
-  def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix
-  def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix
-  def getProbeType(a_type: UFix, global_state: UFix): UFix
-  def getReleaseTypeOnCacheControl(cmd: Bits): Bits
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, state: UInt): UInt
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, state: UInt, outstanding: Acquire): UInt
+  def getProbeType(a_type: UInt, global_state: UInt): UInt
+  def getReleaseTypeOnCacheControl(cmd: UInt): Bits
   def getReleaseTypeOnVoluntaryWriteback(): Bits
-  def getReleaseTypeOnProbe(incoming: Probe, state: UFix): Bits
-  def getGrantType(a_type: UFix, count: UFix): Bits
-  def getGrantType(rel: Release, count: UFix): Bits
+  def getReleaseTypeOnProbe(incoming: Probe, state: UInt): Bits
+  def getGrantType(a_type: UInt, count: UInt): Bits
+  def getGrantType(rel: Release, count: UInt): Bits
 
   def messageHasData (rel: SourcedMessage): Bool
   def messageUpdatesDataArray (reply: Grant): Bool
@@ -49,15 +49,15 @@ abstract class CoherencePolicy {
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool
   def isVoluntary(rel: Release): Bool
   def isVoluntary(gnt: Grant): Bool
-  def needsOuterRead(a_type: UFix, global_state: UFix): Bool
-  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool
-  def needsAckReply(a_type: UFix, global_state: UFix): Bool
+  def needsOuterRead(a_type: UInt, global_state: UInt): Bool
+  def needsOuterWrite(a_type: UInt, global_state: UInt): Bool
+  def needsAckReply(a_type: UInt, global_state: UInt): Bool
   def needsSelfProbe(acq: Acquire): Bool
   def requiresAck(grant: Grant): Bool
   def requiresAck(release: Release): Bool
-  def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool
+  def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool
 
-  def uFixListContains(list: List[UFix], elem: UFix): Bool = list.map(elem === _).reduceLeft(_||_)
+  def uSIntListContains(list: List[UInt], elem: UInt): Bool = list.map(elem === _).reduceLeft(_||_)
 }
 
 trait UncachedTransactions {
@@ -73,19 +73,19 @@ abstract class CoherencePolicyWithUncached extends CoherencePolicy with Uncached
 
 abstract class IncoherentPolicy extends CoherencePolicy {
   // UNIMPLEMENTED
-  def newStateOnProbe(incoming: Probe, state: UFix): Bits = state
-  def getReleaseTypeOnProbe(incoming: Probe, state: UFix): Bits = Bits(0)
+  def newStateOnProbe(incoming: Probe, state: UInt): Bits = state
+  def getReleaseTypeOnProbe(incoming: Probe, state: UInt): Bits = Bits(0)
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = Bool(false)
-  def getGrantType(a_type: UFix, count: UFix): Bits = Bits(0)
-  def getGrantType(rel: Release, count: UFix): Bits = Bits(0)
-  def getProbeType(a_type: UFix, global_state: UFix): UFix = UFix(0)
-  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = Bool(false)
-  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = Bool(false)
-  def needsAckReply(a_type: UFix, global_state: UFix): Bool = Bool(false)
+  def getGrantType(a_type: UInt, count: UInt): Bits = Bits(0)
+  def getGrantType(rel: Release, count: UInt): Bits = Bits(0)
+  def getProbeType(a_type: UInt, global_state: UInt): UInt = UInt(0)
+  def needsOuterRead(a_type: UInt, global_state: UInt): Bool = Bool(false)
+  def needsOuterWrite(a_type: UInt, global_state: UInt): Bool = Bool(false)
+  def needsAckReply(a_type: UInt, global_state: UInt): Bool = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
   def requiresAck(grant: Grant) = Bool(true)
   def requiresAck(release: Release) = Bool(false)
-  def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = Bool(false)
+  def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = Bool(false)
 
 }
 
@@ -96,27 +96,27 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   def nProbeTypes = 0
   def nReleaseTypes = 2
   def nGrantTypes = 3
-  val tileInvalid :: tileClean :: tileDirty :: Nil = Enum(nClientStates){ UFix() }
-  val acquireReadClean :: acquireReadDirty :: acquireWriteback :: Nil = Enum(nAcquireTypes){ UFix() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateAck :: Nil = Enum(nReleaseTypes){ UFix() }
-  val grantVoluntaryAck :: grantData :: grantAck :: Nil = Enum(nGrantTypes){ UFix() }
+  val tileInvalid :: tileClean :: tileDirty :: Nil = Enum(nClientStates){ UInt() }
+  val acquireReadClean :: acquireReadDirty :: acquireWriteback :: Nil = Enum(nAcquireTypes){ UInt() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateAck :: Nil = Enum(nReleaseTypes){ UInt() }
+  val grantVoluntaryAck :: grantData :: grantAck :: Nil = Enum(nGrantTypes){ UInt() }
   val uncachedAcquireTypeList = List() 
   val hasDataAcquireTypeList = List(acquireWriteback)
   val hasDataReleaseTypeList = List(acquireWriteback)
   val hasDataGrantTypeList = List(grantData)
 
-  def isHit ( cmd: Bits, state: UFix): Bool = (state === tileClean || state === tileDirty)
-  def isValid (state: UFix): Bool = state != tileInvalid
+  def isHit ( cmd: UInt, state: UInt): Bool = (state === tileClean || state === tileDirty)
+  def isValid (state: UInt): Bool = state != tileInvalid
 
-  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire) = Bool(false)
-  def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = state === tileDirty
-  def needsWriteback (state: UFix): Bool = state === tileDirty
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire) = Bool(false)
+  def needsTransactionOnCacheControl(cmd: UInt, state: UInt): Bool = state === tileDirty
+  def needsWriteback (state: UInt): Bool = state === tileDirty
 
-  def newState(cmd: Bits, state: UFix): UFix = {
+  def newState(cmd: UInt, state: UInt): UInt = {
     Mux(isWrite(cmd), tileDirty, Mux(isRead(cmd), Mux(state === tileDirty, tileDirty, tileClean), state))
   }
-  def newStateOnHit(cmd: Bits, state: UFix): UFix = newState(cmd, state)
-  def newStateOnCacheControl(cmd: Bits) = tileInvalid //TODO
+  def newStateOnHit(cmd: UInt, state: UInt): UInt = newState(cmd, state)
+  def newStateOnCacheControl(cmd: UInt) = tileInvalid //TODO
   def newStateOnWriteback() = tileInvalid
   def newStateOnFlush() = tileInvalid
   def newStateOnGrant(incoming: Grant, outstanding: Acquire) = {
@@ -129,23 +129,23 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
-  def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, state: UInt): UInt = {
     Mux(isWriteIntent(cmd), acquireReadDirty, acquireReadClean)
   }
-  def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, state: UInt, outstanding: Acquire): UInt = {
     Mux(isWriteIntent(cmd), acquireReadDirty, outstanding.a_type)
   }
-  def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
+  def getReleaseTypeOnCacheControl(cmd: UInt): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = releaseVoluntaryInvalidateData
 
   def messageHasData( msg: SourcedMessage ) = msg match {
-    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
+    case acq: Acquire => uSIntListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uSIntListContains(hasDataGrantTypeList, grant.g_type) 
     case rel: Release => Bool(false)
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant) = (reply.g_type === grantData)
-  def messageIsUncached(acq: Acquire): Bool = uFixListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uSIntListContains(uncachedAcquireTypeList, acq.a_type)
 }
 
 class MICoherence extends CoherencePolicyWithUncached {
@@ -156,35 +156,35 @@ class MICoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 5
   def nGrantTypes = 7
 
-  val tileInvalid :: tileValid :: Nil = Enum(nClientStates){ UFix() }
-  val globalInvalid :: globalValid :: Nil = Enum(nMasterStates){ UFix() }
+  val tileInvalid :: tileValid :: Nil = Enum(nClientStates){ UInt() }
+  val globalInvalid :: globalValid :: Nil = Enum(nMasterStates){ UInt() }
 
-  val acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UFix() }
-  val probeInvalidate :: probeCopy :: Nil = Enum(nProbeTypes){ UFix() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UFix() }
-  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UFix() }
+  val acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UInt() }
+  val probeInvalidate :: probeCopy :: Nil = Enum(nProbeTypes){ UInt() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UInt() }
+  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UInt() }
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
   val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseCopyData)
   val hasDataGrantTypeList = List(grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
-  def isHit (cmd: Bits, state: UFix): Bool = state != tileInvalid
-  def isValid (state: UFix): Bool = state != tileInvalid
+  def isHit (cmd: UInt, state: UInt): Bool = state != tileInvalid
+  def isValid (state: UInt): Bool = state != tileInvalid
 
-  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool = (outstanding.a_type != acquireReadExclusive)
-  def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = (outstanding.a_type != acquireReadExclusive)
+  def needsTransactionOnCacheControl(cmd: UInt, state: UInt): Bool = {
     MuxLookup(cmd, (state === tileValid), Array(
       M_INV -> (state === tileValid),
       M_CLN -> (state === tileValid)
     ))
   }
-  def needsWriteback (state: UFix): Bool = {
+  def needsWriteback (state: UInt): Bool = {
     needsTransactionOnCacheControl(M_INV, state)
   }
 
-  def newStateOnHit(cmd: Bits, state: UFix): UFix = state
-  def newStateOnCacheControl(cmd: Bits) = {
+  def newStateOnHit(cmd: UInt, state: UInt): UInt = state
+  def newStateOnCacheControl(cmd: UInt) = {
     MuxLookup(cmd, tileInvalid, Array(
       M_INV -> tileInvalid,
       M_CLN -> tileValid
@@ -192,7 +192,7 @@ class MICoherence extends CoherencePolicyWithUncached {
   }
   def newStateOnWriteback() = newStateOnCacheControl(M_INV)
   def newStateOnFlush() = newStateOnCacheControl(M_INV)
-  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UFix = {
+  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UInt = {
     MuxLookup(incoming.g_type, tileInvalid, Array(
       grantReadExclusive -> tileValid,
       grantReadUncached  -> tileInvalid,
@@ -202,7 +202,7 @@ class MICoherence extends CoherencePolicyWithUncached {
       grantAtomicUncached -> tileInvalid
     ))
   } 
-  def newStateOnProbe(incoming: Probe, state: UFix): Bits = {
+  def newStateOnProbe(incoming: Probe, state: UInt): Bits = {
     MuxLookup(incoming.p_type, state, Array(
       probeInvalidate -> tileInvalid,
       probeCopy       -> state
@@ -218,11 +218,11 @@ class MICoherence extends CoherencePolicyWithUncached {
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
-  def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = acquireReadExclusive
-  def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = acquireReadExclusive
-  def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, state: UInt): UInt = acquireReadExclusive
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, state: UInt, outstanding: Acquire): UInt = acquireReadExclusive
+  def getReleaseTypeOnCacheControl(cmd: UInt): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, state: UFix): Bits = {
+  def getReleaseTypeOnProbe(incoming: Probe, state: UInt): Bits = {
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
       probeInvalidate -> releaseInvalidateData,
       probeCopy       -> releaseCopyData
@@ -235,19 +235,19 @@ class MICoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => uSIntListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uSIntListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uSIntListContains(hasDataReleaseTypeList, rel.r_type) 
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadExclusive)
   }
-  def messageIsUncached(acq: Acquire): Bool = uFixListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uSIntListContains(uncachedAcquireTypeList, acq.a_type)
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UFix, count: UFix): Bits = {
+  def getGrantType(a_type: UInt, count: UInt): Bits = {
     MuxLookup(a_type, grantReadUncached, Array(
       acquireReadExclusive -> grantReadExclusive,
       acquireReadUncached  -> grantReadUncached,
@@ -258,13 +258,13 @@ class MICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def getGrantType(rel: Release, count: UFix): Bits = {
+  def getGrantType(rel: Release, count: UInt): Bits = {
     MuxLookup(rel.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
-  def getProbeType(a_type: UFix, global_state: UFix): UFix = {
+  def getProbeType(a_type: UInt, global_state: UInt): UInt = {
     MuxLookup(a_type, probeCopy, Array(
       acquireReadExclusive -> probeInvalidate, 
       acquireReadUncached -> probeCopy, 
@@ -275,19 +275,19 @@ class MICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UInt, global_state: UInt): Bool = {
       (a_type != acquireWriteUncached)
   }
-  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached)
   }
-  def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
+  def needsAckReply(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached)
   }
   def requiresAck(grant: Grant) = grant.g_type != grantVoluntaryAck
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
-  def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
+  def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
 class MEICoherence extends CoherencePolicyWithUncached {
@@ -298,40 +298,40 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 7
   def nGrantTypes = 8
 
-  val tileInvalid :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(nClientStates){ UFix() }
-  val globalInvalid :: globalExclusiveClean :: Nil = Enum(nMasterStates){ UFix() }
+  val tileInvalid :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(nClientStates){ UInt() }
+  val globalInvalid :: globalExclusiveClean :: Nil = Enum(nMasterStates){ UInt() }
 
-  val acquireReadExclusiveClean :: acquireReadExclusiveDirty :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UFix() }
-  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(nProbeTypes){ UFix() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UFix() }
-  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UFix() }
+  val acquireReadExclusiveClean :: acquireReadExclusiveDirty :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UInt() }
+  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(nProbeTypes){ UInt() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UInt() }
+  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UInt() }
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
   val hasDataGrantTypeList = List(grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
-  def isHit (cmd: Bits, state: UFix): Bool = state != tileInvalid
-  def isValid (state: UFix): Bool = state != tileInvalid
+  def isHit (cmd: UInt, state: UInt): Bool = state != tileInvalid
+  def isValid (state: UInt): Bool = state != tileInvalid
 
-  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool = {
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = {
     (isRead(cmd) && messageIsUncached(outstanding)) ||
       (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusiveDirty))
   }
-  def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
+  def needsTransactionOnCacheControl(cmd: UInt, state: UInt): Bool = {
     MuxLookup(cmd, (state === tileExclusiveDirty), Array(
       M_INV -> (state === tileExclusiveDirty),
       M_CLN -> (state === tileExclusiveDirty)
     ))
   }
-  def needsWriteback (state: UFix): Bool = {
+  def needsWriteback (state: UInt): Bool = {
     needsTransactionOnCacheControl(M_INV, state)
   }
 
-  def newStateOnHit(cmd: Bits, state: UFix): UFix = { 
+  def newStateOnHit(cmd: UInt, state: UInt): UInt = { 
     Mux(isWrite(cmd), tileExclusiveDirty, state)
   }
-  def newStateOnCacheControl(cmd: Bits) = {
+  def newStateOnCacheControl(cmd: UInt) = {
     MuxLookup(cmd, tileInvalid, Array(
       M_INV -> tileInvalid,
       M_CLN -> tileExclusiveClean
@@ -339,7 +339,7 @@ class MEICoherence extends CoherencePolicyWithUncached {
   }
   def newStateOnWriteback() = newStateOnCacheControl(M_INV)
   def newStateOnFlush() = newStateOnCacheControl(M_INV)
-  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UFix = {
+  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UInt = {
     MuxLookup(incoming.g_type, tileInvalid, Array(
       grantReadExclusive  -> Mux(outstanding.a_type === acquireReadExclusiveDirty, tileExclusiveDirty, tileExclusiveClean),
       grantReadExclusiveAck -> tileExclusiveDirty, 
@@ -350,7 +350,7 @@ class MEICoherence extends CoherencePolicyWithUncached {
       grantAtomicUncached -> tileInvalid
     ))
   } 
-  def newStateOnProbe(incoming: Probe, state: UFix): Bits = {
+  def newStateOnProbe(incoming: Probe, state: UInt): Bits = {
     MuxLookup(incoming.p_type, state, Array(
       probeInvalidate -> tileInvalid,
       probeDowngrade  -> tileExclusiveClean,
@@ -367,15 +367,15 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
-  def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, state: UInt): UInt = {
     Mux(isWriteIntent(cmd), acquireReadExclusiveDirty, acquireReadExclusiveClean)
   }
-  def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, state: UInt, outstanding: Acquire): UInt = {
     Mux(isWriteIntent(cmd), acquireReadExclusiveDirty, outstanding.a_type)
   }
-  def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
+  def getReleaseTypeOnCacheControl(cmd: UInt): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, state: UFix): Bits = {
+  def getReleaseTypeOnProbe(incoming: Probe, state: UInt): Bits = {
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
       probeInvalidate -> releaseInvalidateData,
       probeDowngrade  -> releaseDowngradeData,
@@ -390,19 +390,19 @@ class MEICoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => uSIntListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uSIntListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uSIntListContains(hasDataReleaseTypeList, rel.r_type) 
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadExclusive)
   }
-  def messageIsUncached(acq: Acquire): Bool = uFixListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uSIntListContains(uncachedAcquireTypeList, acq.a_type)
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UFix, count: UFix): Bits = {
+  def getGrantType(a_type: UInt, count: UInt): Bits = {
     MuxLookup(a_type, grantReadUncached, Array(
       acquireReadExclusiveClean -> grantReadExclusive,
       acquireReadExclusiveDirty -> grantReadExclusive,
@@ -413,14 +413,14 @@ class MEICoherence extends CoherencePolicyWithUncached {
       acquireAtomicUncached -> grantAtomicUncached
     ))
   }
-  def getGrantType(rel: Release, count: UFix): Bits = {
+  def getGrantType(rel: Release, count: UInt): Bits = {
     MuxLookup(rel.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
 
-  def getProbeType(a_type: UFix, global_state: UFix): UFix = {
+  def getProbeType(a_type: UInt, global_state: UInt): UInt = {
     MuxLookup(a_type, probeCopy, Array(
       acquireReadExclusiveClean -> probeInvalidate,
       acquireReadExclusiveDirty -> probeInvalidate, 
@@ -432,20 +432,20 @@ class MEICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UInt, global_state: UInt): Bool = {
       (a_type != acquireWriteUncached)
   }
-  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached)
   }
-  def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
+  def needsAckReply(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached)
   }
   def requiresAck(grant: Grant) = grant.g_type != grantVoluntaryAck
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
 
-  def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
+  def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
 class MSICoherence extends CoherencePolicyWithUncached {
@@ -456,45 +456,45 @@ class MSICoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 7
   def nGrantTypes = 9
 
-  val tileInvalid :: tileShared :: tileExclusiveDirty :: Nil = Enum(nClientStates){ UFix() }
-  val globalInvalid :: globalShared :: globalExclusive :: Nil = Enum(nMasterStates){ UFix() }
+  val tileInvalid :: tileShared :: tileExclusiveDirty :: Nil = Enum(nClientStates){ UInt() }
+  val globalInvalid :: globalShared :: globalExclusive :: Nil = Enum(nMasterStates){ UInt() }
 
-  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UFix() }
-  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(nProbeTypes){ UFix() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UFix() }
-  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UFix() }
+  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UInt() }
+  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(nProbeTypes){ UInt() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UInt() }
+  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UInt() }
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
   val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
   val hasDataGrantTypeList = List(grantReadShared, grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
-  def isHit (cmd: Bits, state: UFix): Bool = {
+  def isHit (cmd: UInt, state: UInt): Bool = {
     Mux(isWriteIntent(cmd), (state === tileExclusiveDirty),
         (state === tileShared || state === tileExclusiveDirty))
   }
-  def isValid (state: UFix): Bool = {
+  def isValid (state: UInt): Bool = {
     state != tileInvalid
   }
 
-  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool = {
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = {
     (isRead(cmd) && messageIsUncached(outstanding)) || 
       (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusive))
   }
-  def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
+  def needsTransactionOnCacheControl(cmd: UInt, state: UInt): Bool = {
     MuxLookup(cmd, (state === tileExclusiveDirty), Array(
       M_INV -> (state === tileExclusiveDirty),
       M_CLN -> (state === tileExclusiveDirty)
     ))
   }
-  def needsWriteback (state: UFix): Bool = {
+  def needsWriteback (state: UInt): Bool = {
     needsTransactionOnCacheControl(M_INV, state)
   }
 
-  def newStateOnHit(cmd: Bits, state: UFix): UFix = { 
+  def newStateOnHit(cmd: UInt, state: UInt): UInt = { 
     Mux(isWrite(cmd), tileExclusiveDirty, state)
   }
-  def newStateOnCacheControl(cmd: Bits) = {
+  def newStateOnCacheControl(cmd: UInt) = {
     MuxLookup(cmd, tileInvalid, Array(
       M_INV -> tileInvalid,
       M_CLN -> tileShared
@@ -502,7 +502,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
   }
   def newStateOnWriteback() = newStateOnCacheControl(M_INV)
   def newStateOnFlush() = newStateOnCacheControl(M_INV)
-  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UFix = {
+  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UInt = {
     MuxLookup(incoming.g_type, tileInvalid, Array(
       grantReadShared -> tileShared,
       grantReadExclusive  -> tileExclusiveDirty,
@@ -514,7 +514,7 @@ class MSICoherence extends CoherencePolicyWithUncached {
       grantAtomicUncached -> tileInvalid
     ))
   } 
-  def newStateOnProbe(incoming: Probe, state: UFix): Bits = {
+  def newStateOnProbe(incoming: Probe, state: UInt): Bits = {
     MuxLookup(incoming.p_type, state, Array(
       probeInvalidate -> tileInvalid,
       probeDowngrade  -> tileShared,
@@ -531,15 +531,15 @@ class MSICoherence extends CoherencePolicyWithUncached {
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
-  def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, state: UInt): UInt = {
     Mux(isWriteIntent(cmd), acquireReadExclusive, acquireReadShared)
   }
-  def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, state: UInt, outstanding: Acquire): UInt = {
     Mux(isWriteIntent(cmd), acquireReadExclusive, outstanding.a_type)
   }
-  def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
+  def getReleaseTypeOnCacheControl(cmd: UInt): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, state: UFix): Bits = {
+  def getReleaseTypeOnProbe(incoming: Probe, state: UInt): Bits = {
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
       probeInvalidate -> releaseInvalidateData,
       probeDowngrade  -> releaseDowngradeData,
@@ -554,21 +554,21 @@ class MSICoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => uSIntListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uSIntListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uSIntListContains(hasDataReleaseTypeList, rel.r_type) 
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadShared || reply.g_type === grantReadExclusive)
   }
-  def messageIsUncached(acq: Acquire): Bool = uFixListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uSIntListContains(uncachedAcquireTypeList, acq.a_type)
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UFix, count: UFix): Bits = {
+  def getGrantType(a_type: UInt, count: UInt): Bits = {
     MuxLookup(a_type, grantReadUncached, Array(
-      acquireReadShared    -> Mux(count > UFix(0), grantReadShared, grantReadExclusive),
+      acquireReadShared    -> Mux(count > UInt(0), grantReadShared, grantReadExclusive),
       acquireReadExclusive -> grantReadExclusive,
       acquireReadUncached  -> grantReadUncached,
       acquireWriteUncached -> grantWriteUncached,
@@ -577,14 +577,14 @@ class MSICoherence extends CoherencePolicyWithUncached {
       acquireAtomicUncached -> grantAtomicUncached
     ))
   }
-  def getGrantType(rel: Release, count: UFix): Bits = {
+  def getGrantType(rel: Release, count: UInt): Bits = {
     MuxLookup(rel.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
 
-  def getProbeType(a_type: UFix, global_state: UFix): UFix = {
+  def getProbeType(a_type: UInt, global_state: UInt): UInt = {
     MuxLookup(a_type, probeCopy, Array(
       acquireReadShared -> probeDowngrade,
       acquireReadExclusive -> probeInvalidate, 
@@ -593,20 +593,20 @@ class MSICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UInt, global_state: UInt): Bool = {
       (a_type != acquireWriteUncached)
   }
-  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached)
   }
-  def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
+  def needsAckReply(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached)
   }
   def requiresAck(grant: Grant) = grant.g_type != grantVoluntaryAck
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
 
-  def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
+  def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
 class MESICoherence extends CoherencePolicyWithUncached {
@@ -617,45 +617,45 @@ class MESICoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 7
   def nGrantTypes = 9
 
-  val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(nClientStates){ UFix() }
-  val globalInvalid :: globalShared :: globalExclusiveClean :: Nil = Enum(nMasterStates){ UFix() }
+  val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(nClientStates){ UInt() }
+  val globalInvalid :: globalShared :: globalExclusiveClean :: Nil = Enum(nMasterStates){ UInt() }
 
-  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UFix() }
-  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(nProbeTypes){ UFix() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UFix() }
-  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UFix() }
+  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UInt() }
+  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(nProbeTypes){ UInt() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UInt() }
+  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UInt() }
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
   val hasDataGrantTypeList = List(grantReadShared, grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
-  def isHit (cmd: Bits, state: UFix): Bool = {
+  def isHit (cmd: UInt, state: UInt): Bool = {
     Mux(isWriteIntent(cmd), (state === tileExclusiveClean || state === tileExclusiveDirty),
         (state === tileShared || state === tileExclusiveClean || state === tileExclusiveDirty))
   }
-  def isValid (state: UFix): Bool = {
+  def isValid (state: UInt): Bool = {
     state != tileInvalid
   }
 
-  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool = {
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = {
     (isRead(cmd) && messageIsUncached(outstanding)) ||
       (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusive))
   }
-  def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
+  def needsTransactionOnCacheControl(cmd: UInt, state: UInt): Bool = {
     MuxLookup(cmd, (state === tileExclusiveDirty), Array(
       M_INV -> (state === tileExclusiveDirty),
       M_CLN -> (state === tileExclusiveDirty)
     ))
   }
-  def needsWriteback (state: UFix): Bool = {
+  def needsWriteback (state: UInt): Bool = {
     needsTransactionOnCacheControl(M_INV, state)
   }
 
-  def newStateOnHit(cmd: Bits, state: UFix): UFix = { 
+  def newStateOnHit(cmd: UInt, state: UInt): UInt = { 
     Mux(isWrite(cmd), tileExclusiveDirty, state)
   }
-  def newStateOnCacheControl(cmd: Bits) = {
+  def newStateOnCacheControl(cmd: UInt) = {
     MuxLookup(cmd, tileInvalid, Array(
       M_INV -> tileInvalid,
       M_CLN -> tileShared
@@ -663,7 +663,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
   }
   def newStateOnWriteback() = newStateOnCacheControl(M_INV)
   def newStateOnFlush() = newStateOnCacheControl(M_INV)
-  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UFix = {
+  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UInt = {
     MuxLookup(incoming.g_type, tileInvalid, Array(
       grantReadShared -> tileShared,
       grantReadExclusive  -> Mux(outstanding.a_type === acquireReadExclusive, tileExclusiveDirty, tileExclusiveClean),
@@ -675,7 +675,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
       grantAtomicUncached -> tileInvalid
     ))
   } 
-  def newStateOnProbe(incoming: Probe, state: UFix): Bits = {
+  def newStateOnProbe(incoming: Probe, state: UInt): Bits = {
     MuxLookup(incoming.p_type, state, Array(
       probeInvalidate -> tileInvalid,
       probeDowngrade  -> tileShared,
@@ -692,15 +692,15 @@ class MESICoherence extends CoherencePolicyWithUncached {
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
-  def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, state: UInt): UInt = {
     Mux(isWriteIntent(cmd), acquireReadExclusive, acquireReadShared)
   }
-  def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, state: UInt, outstanding: Acquire): UInt = {
     Mux(isWriteIntent(cmd), acquireReadExclusive, outstanding.a_type)
   }
-  def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
+  def getReleaseTypeOnCacheControl(cmd: UInt): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, state: UFix): Bits = {
+  def getReleaseTypeOnProbe(incoming: Probe, state: UInt): Bits = {
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
       probeInvalidate -> releaseInvalidateData,
       probeDowngrade  -> releaseDowngradeData,
@@ -715,21 +715,21 @@ class MESICoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => uSIntListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uSIntListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uSIntListContains(hasDataReleaseTypeList, rel.r_type) 
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadShared || reply.g_type === grantReadExclusive)
   }
-  def messageIsUncached(acq: Acquire): Bool = uFixListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uSIntListContains(uncachedAcquireTypeList, acq.a_type)
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UFix, count: UFix): Bits = {
+  def getGrantType(a_type: UInt, count: UInt): Bits = {
     MuxLookup(a_type, grantReadUncached, Array(
-      acquireReadShared    -> Mux(count > UFix(0), grantReadShared, grantReadExclusive),
+      acquireReadShared    -> Mux(count > UInt(0), grantReadShared, grantReadExclusive),
       acquireReadExclusive -> grantReadExclusive,
       acquireReadUncached  -> grantReadUncached,
       acquireWriteUncached -> grantWriteUncached,
@@ -738,14 +738,14 @@ class MESICoherence extends CoherencePolicyWithUncached {
       acquireAtomicUncached -> grantAtomicUncached
     ))
   }
-  def getGrantType(rel: Release, count: UFix): Bits = {
+  def getGrantType(rel: Release, count: UInt): Bits = {
     MuxLookup(rel.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
 
-  def getProbeType(a_type: UFix, global_state: UFix): UFix = {
+  def getProbeType(a_type: UInt, global_state: UInt): UInt = {
     MuxLookup(a_type, probeCopy, Array(
       acquireReadShared -> probeDowngrade,
       acquireReadExclusive -> probeInvalidate, 
@@ -757,13 +757,13 @@ class MESICoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UInt, global_state: UInt): Bool = {
       (a_type != acquireWriteUncached)
   }
-  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached)
   }
-  def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
+  def needsAckReply(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached)
   }
 
@@ -771,7 +771,7 @@ class MESICoherence extends CoherencePolicyWithUncached {
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
 
-  def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
+  def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
 class MigratoryCoherence extends CoherencePolicyWithUncached {
@@ -782,45 +782,45 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 11
   def nGrantTypes = 9
 
-  val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: tileSharedByTwo :: tileMigratoryClean :: tileMigratoryDirty :: Nil = Enum(nClientStates){ UFix() }
+  val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: tileSharedByTwo :: tileMigratoryClean :: tileMigratoryDirty :: Nil = Enum(nClientStates){ UInt() }
 
-  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: acquireInvalidateOthers :: Nil = Enum(nAcquireTypes){ UFix() }
-  val probeInvalidate :: probeDowngrade :: probeCopy :: probeInvalidateOthers :: Nil = Enum(nProbeTypes){ UFix() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(nReleaseTypes){ UFix() }
-  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: grantReadMigratory :: Nil = Enum(nGrantTypes){ UFix() }
+  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: acquireInvalidateOthers :: Nil = Enum(nAcquireTypes){ UInt() }
+  val probeInvalidate :: probeDowngrade :: probeCopy :: probeInvalidateOthers :: Nil = Enum(nProbeTypes){ UInt() }
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(nReleaseTypes){ UInt() }
+  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: grantReadMigratory :: Nil = Enum(nGrantTypes){ UInt() }
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
   val hasDataGrantTypeList = List(grantReadShared, grantReadExclusive, grantReadUncached, grantReadMigratory, grantReadWordUncached, grantAtomicUncached)
   val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
 
-  def isHit (cmd: Bits, state: UFix): Bool = {
-    Mux(isWriteIntent(cmd), uFixListContains(List(tileExclusiveClean, tileExclusiveDirty, tileMigratoryClean, tileMigratoryDirty), state), (state != tileInvalid))
+  def isHit (cmd: UInt, state: UInt): Bool = {
+    Mux(isWriteIntent(cmd), uSIntListContains(List(tileExclusiveClean, tileExclusiveDirty, tileMigratoryClean, tileMigratoryDirty), state), (state != tileInvalid))
   }
-  def isValid (state: UFix): Bool = {
+  def isValid (state: UInt): Bool = {
     state != tileInvalid
   }
 
-  def needsTransactionOnSecondaryMiss(cmd: Bits, outstanding: Acquire): Bool = {
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = {
     (isRead(cmd) && messageIsUncached(outstanding)) ||
       (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusive && outstanding.a_type != acquireInvalidateOthers))
   }
-  def needsTransactionOnCacheControl(cmd: Bits, state: UFix): Bool = {
+  def needsTransactionOnCacheControl(cmd: UInt, state: UInt): Bool = {
     MuxLookup(cmd, (state === tileExclusiveDirty), Array(
-      M_INV -> uFixListContains(List(tileExclusiveDirty,tileMigratoryDirty),state),
-      M_CLN -> uFixListContains(List(tileExclusiveDirty,tileMigratoryDirty),state)
+      M_INV -> uSIntListContains(List(tileExclusiveDirty,tileMigratoryDirty),state),
+      M_CLN -> uSIntListContains(List(tileExclusiveDirty,tileMigratoryDirty),state)
     ))
   }
-  def needsWriteback (state: UFix): Bool = {
+  def needsWriteback (state: UInt): Bool = {
     needsTransactionOnCacheControl(M_INV, state)
   }
 
-  def newStateOnHit(cmd: Bits, state: UFix): UFix = { 
+  def newStateOnHit(cmd: UInt, state: UInt): UInt = { 
     Mux(isWrite(cmd), MuxLookup(state, tileExclusiveDirty, Array(
                 tileExclusiveClean -> tileExclusiveDirty,
                 tileMigratoryClean -> tileMigratoryDirty)), state)
   }
-  def newStateOnCacheControl(cmd: Bits) = {
+  def newStateOnCacheControl(cmd: UInt) = {
     MuxLookup(cmd, tileInvalid, Array(
       M_INV -> tileInvalid,
       M_CLN -> tileShared
@@ -828,7 +828,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   }
   def newStateOnWriteback() = newStateOnCacheControl(M_INV)
   def newStateOnFlush() = newStateOnCacheControl(M_INV)
-  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UFix = {
+  def newStateOnGrant(incoming: Grant, outstanding: Acquire): UInt = {
     MuxLookup(incoming.g_type, tileInvalid, Array(
       grantReadShared -> tileShared,
       grantReadExclusive  -> MuxLookup(outstanding.a_type, tileExclusiveDirty,  Array(
@@ -846,7 +846,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
                                   acquireReadShared -> tileMigratoryClean))
     ))
   } 
-  def newStateOnProbe(incoming: Probe, state: UFix): Bits = {
+  def newStateOnProbe(incoming: Probe, state: UInt): Bits = {
     MuxLookup(incoming.p_type, state, Array(
       probeInvalidate -> tileInvalid,
       probeInvalidateOthers -> tileInvalid,
@@ -869,17 +869,17 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
-  def getAcquireTypeOnPrimaryMiss(cmd: Bits, state: UFix): UFix = {
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, state: UInt): UInt = {
     Mux(isWriteIntent(cmd), Mux(state === tileInvalid, acquireReadExclusive, acquireInvalidateOthers), acquireReadShared)
   }
-  def getAcquireTypeOnSecondaryMiss(cmd: Bits, state: UFix, outstanding: Acquire): UFix = {
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, state: UInt, outstanding: Acquire): UInt = {
     Mux(isWriteIntent(cmd), Mux(state === tileInvalid, acquireReadExclusive, acquireInvalidateOthers), outstanding.a_type)
   }
-  def getReleaseTypeOnCacheControl(cmd: Bits): Bits = releaseVoluntaryInvalidateData // TODO
+  def getReleaseTypeOnCacheControl(cmd: UInt): Bits = releaseVoluntaryInvalidateData // TODO
   def getReleaseTypeOnVoluntaryWriteback(): Bits = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, state: UFix): Bits = {
+  def getReleaseTypeOnProbe(incoming: Probe, state: UInt): Bits = {
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
-      probeInvalidate -> Mux(uFixListContains(List(tileExclusiveDirty, tileMigratoryDirty), state), 
+      probeInvalidate -> Mux(uSIntListContains(List(tileExclusiveDirty, tileMigratoryDirty), state), 
                                     releaseInvalidateDataMigratory, releaseInvalidateData),
       probeDowngrade -> Mux(state === tileMigratoryDirty, releaseDowngradeDataMigratory, releaseDowngradeData),
       probeCopy -> releaseCopyData
@@ -894,21 +894,21 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uFixListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uFixListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uFixListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => uSIntListContains(hasDataAcquireTypeList, acq.a_type)
+    case grant: Grant => uSIntListContains(hasDataGrantTypeList, grant.g_type) 
+    case rel: Release => uSIntListContains(hasDataReleaseTypeList, rel.r_type) 
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant): Bool = {
-    uFixListContains(List(grantReadShared, grantReadExclusive, grantReadMigratory), reply.g_type)
+    uSIntListContains(List(grantReadShared, grantReadExclusive, grantReadMigratory), reply.g_type)
   }
-  def messageIsUncached(acq: Acquire): Bool = uFixListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uSIntListContains(uncachedAcquireTypeList, acq.a_type)
 
   def isCoherenceConflict(addr1: Bits, addr2: Bits): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UFix, count: UFix): Bits = {
+  def getGrantType(a_type: UInt, count: UInt): Bits = {
     MuxLookup(a_type, grantReadUncached, Array(
-      acquireReadShared    -> Mux(count > UFix(0), grantReadShared, grantReadExclusive), //TODO: what is count? Depend on release.p_type???
+      acquireReadShared    -> Mux(count > UInt(0), grantReadShared, grantReadExclusive), //TODO: what is count? Depend on release.p_type???
       acquireReadExclusive -> grantReadExclusive,                                            
       acquireReadUncached  -> grantReadUncached,
       acquireWriteUncached -> grantWriteUncached,
@@ -918,14 +918,14 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
       acquireInvalidateOthers -> grantReadExclusiveAck                                      //TODO: add this to MESI?
     ))
   }
-  def getGrantType(rel: Release, count: UFix): Bits = {
+  def getGrantType(rel: Release, count: UInt): Bits = {
     MuxLookup(rel.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
 
-  def getProbeType(a_type: UFix, global_state: UFix): UFix = {
+  def getProbeType(a_type: UInt, global_state: UInt): UInt = {
     MuxLookup(a_type, probeCopy, Array(
       acquireReadShared -> probeDowngrade,
       acquireReadExclusive -> probeInvalidate, 
@@ -938,18 +938,18 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
     ))
   }
 
-  def needsOuterRead(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterRead(a_type: UInt, global_state: UInt): Bool = {
       (a_type != acquireWriteUncached && a_type != acquireInvalidateOthers)
   }
-  def needsOuterWrite(a_type: UFix, global_state: UFix): Bool = {
+  def needsOuterWrite(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached || a_type === acquireWriteWordUncached || a_type === acquireAtomicUncached)
   }
-  def needsAckReply(a_type: UFix, global_state: UFix): Bool = {
+  def needsAckReply(a_type: UInt, global_state: UInt): Bool = {
       (a_type === acquireWriteUncached || a_type === acquireWriteWordUncached ||a_type === acquireInvalidateOthers)
   }
   def requiresAck(grant: Grant) = grant.g_type != grantVoluntaryAck
   def requiresAck(release: Release) = Bool(false)
   def needsSelfProbe(acq: Acquire) = Bool(false)
 
-  def pendingVoluntaryReleaseIsSufficient(r_type: UFix, p_type: UFix): Bool = (r_type === releaseVoluntaryInvalidateData)
+  def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }

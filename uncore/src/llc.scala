@@ -1,17 +1,17 @@
 package uncore
 import Chisel._
 
-class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[Bits])(gen: => T) extends Component
+class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[UInt])(gen: => T) extends Module
 {
   class Inputs extends Bundle {
-    val addr = UFix(INPUT, log2Up(n))
+    val addr = UInt(INPUT, log2Up(n))
     val rw = Bool(INPUT)
     val wdata = gen.asInput
     val wmask = gen.asInput
     override def clone = new Inputs().asInstanceOf[this.type]
   }
   val io = new Bundle {
-    val in = new PipeIO()(new Inputs).flip
+    val in = Valid(new Inputs).flip
     val rdata = gen.asOutput
   }
   val data = gen
@@ -21,27 +21,27 @@ class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[Bit
   if (nDeep > 1 || colMux > 1)
     require(isPow2(n) && isPow2(leaf.n))
 
-  val rdataDeep = Vec(nDeep) { Bits() }
-  val rdataSel = Vec(nDeep) { Bool() }
+  val rdataDeep = Vec.fill(nDeep){Bits()}
+  val rdataSel = Vec.fill(nDeep){Bool()}
   for (i <- 0 until nDeep) {
-    val in = Pipe(io.in.valid && (if (nDeep == 1) Bool(true) else UFix(i) === io.in.bits.addr(log2Up(n)-1, log2Up(n/nDeep))), io.in.bits, preLatency)
+    val in = Pipe(io.in.valid && (if (nDeep == 1) Bool(true) else UInt(i) === io.in.bits.addr(log2Up(n)-1, log2Up(n/nDeep))), io.in.bits, preLatency)
     val idx = in.bits.addr(log2Up(n/nDeep/colMux)-1, 0)
     val wdata = in.bits.wdata.toBits
     val wmask = in.bits.wmask.toBits
     val ren = in.valid && !in.bits.rw
-    val reg_ren = Reg(ren)
-    val rdata = Vec(nWide) { Bits() }
+    val reg_ren = RegUpdate(ren)
+    val rdata = Vec.fill(nWide){Bits()}
 
     val r = Pipe(ren, in.bits.addr, postLatency)
 
     for (j <- 0 until nWide) {
       val mem = leaf.clone
       var dout: Bits = null
-      val ridx = if (postLatency > 0) Reg() { Bits() } else null
+      val ridx = if (postLatency > 0) Reg(Bits()) else null
 
       var wmask0 = Fill(colMux, wmask(math.min(wmask.getWidth, leaf.data.width*(j+1))-1, leaf.data.width*j))
       if (colMux > 1)
-        wmask0 = wmask0 & FillInterleaved(gen.width, UFixToOH(in.bits.addr(log2Up(n/nDeep)-1, log2Up(n/nDeep/colMux)), log2Up(colMux)))
+        wmask0 = wmask0 & FillInterleaved(gen.width, UIntToOH(in.bits.addr(log2Up(n/nDeep)-1, log2Up(n/nDeep/colMux)), log2Up(colMux)))
       val wdata0 = Fill(colMux, wdata(math.min(wdata.getWidth, leaf.data.width*(j+1))-1, leaf.data.width*j))
       when (in.valid) {
         when (in.bits.rw) { mem.write(idx, wdata0, wmask0) }
@@ -61,7 +61,7 @@ class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[Bit
 
     var colMuxOut = rdataWide
     if (colMux > 1) {
-      val colMuxIn = Vec((0 until colMux).map(k => rdataWide(gen.width*(k+1)-1, gen.width*k))) { Bits() }
+      val colMuxIn = Vec((0 until colMux).map(k => rdataWide(gen.width*(k+1)-1, gen.width*k)))
       colMuxOut = colMuxIn(r.bits(log2Up(n/nDeep)-1, log2Up(n/nDeep/colMux)))
     }
 
@@ -74,47 +74,49 @@ class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[Bit
 
 class LLCDataReq(ways: Int) extends MemReqCmd
 {
-  val way = UFix(width = log2Up(ways))
+  val way = UInt(width = log2Up(ways))
   val isWriteback = Bool()
-
   override def clone = new LLCDataReq(ways).asInstanceOf[this.type]
 }
 
-class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
+class LLCTagReq(ways: Int) extends HasMemAddr
+{
+  val way = UInt(width = log2Up(ways))
+  override def clone = new LLCTagReq(ways).asInstanceOf[this.type]
+}
+
+class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Module
 {
   val io = new Bundle {
-    val cpu = (new FIFOIO) { new MemReqCmd }.flip
-    val repl_way = UFix(INPUT, log2Up(ways))
+    val cpu = Decoupled(new MemReqCmd).flip
+    val repl_way = UInt(INPUT, log2Up(ways))
     val repl_dirty = Bool(INPUT)
-    val repl_tag = UFix(INPUT, MEM_ADDR_BITS - log2Up(sets))
-    val data = (new FIFOIO) { new LLCDataReq(ways) }
-    val tag = (new FIFOIO) { new Bundle {
-      val addr = UFix(width = MEM_ADDR_BITS)
-      val way = UFix(width = log2Up(ways))
-    } }
+    val repl_tag = UInt(INPUT, MEM_ADDR_BITS - log2Up(sets))
+    val data = Decoupled(new LLCDataReq(ways))
+    val tag = Decoupled(new LLCTagReq(ways))
     val mem = new ioMemPipe
-    val mem_resp_set = UFix(OUTPUT, log2Up(sets))
-    val mem_resp_way = UFix(OUTPUT, log2Up(ways))
+    val mem_resp_set = UInt(OUTPUT, log2Up(sets))
+    val mem_resp_way = UInt(OUTPUT, log2Up(ways))
   }
 
   class MSHR extends Bundle {
-    val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
-    val way = UFix(width = log2Up(ways))
+    val addr = UInt(width = PADDR_BITS - OFFSET_BITS)
+    val way = UInt(width = log2Up(ways))
     val tag = io.cpu.bits.tag.clone
     val refilled = Bool()
-    val refillCount = UFix(width = log2Up(REFILL_CYCLES))
+    val refillCount = UInt(width = log2Up(REFILL_CYCLES))
     val requested = Bool()
     val old_dirty = Bool()
-    val old_tag = UFix(width = MEM_ADDR_BITS - log2Up(sets))
+    val old_tag = UInt(width = MEM_ADDR_BITS - log2Up(sets))
     val wb_busy = Bool()
 
     override def clone = new MSHR().asInstanceOf[this.type]
   }
 
-  val valid = Vec(outstanding) { Reg(resetVal = Bool(false)) }
+  val valid = Vec.fill(outstanding){RegReset(Bool(false))}
   val validBits = valid.toBits
   val freeId = PriorityEncoder(~validBits)
-  val mshr = Vec(outstanding) { Reg() { new MSHR } }
+  val mshr = Vec.fill(outstanding){Reg(new MSHR)}
   when (io.cpu.valid && io.cpu.ready) {
     valid(freeId) := Bool(true)
     mshr(freeId).addr := io.cpu.bits.addr
@@ -124,7 +126,7 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
     mshr(freeId).old_tag := io.repl_tag
     mshr(freeId).wb_busy := Bool(false)
     mshr(freeId).requested := Bool(false)
-    mshr(freeId).refillCount := UFix(0)
+    mshr(freeId).refillCount := UInt(0)
     mshr(freeId).refilled := Bool(false)
   }
 
@@ -136,8 +138,8 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
   val refillId = io.mem.resp.bits.tag(log2Up(outstanding)-1, 0)
   val refillCount = mshr(refillId).refillCount
   when (io.mem.resp.valid) {
-    mshr(refillId).refillCount := refillCount + UFix(1)
-    when (refillCount === UFix(REFILL_CYCLES-1)) { mshr(refillId).refilled := Bool(true) }
+    mshr(refillId).refillCount := refillCount + UInt(1)
+    when (refillCount === UInt(REFILL_CYCLES-1)) { mshr(refillId).refilled := Bool(true) }
   }
 
   val replays = Cat(Bits(0), (outstanding-1 to 0 by -1).map(i => valid(i) && mshr(i).refilled):_*)
@@ -161,7 +163,7 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
   io.data.bits.rw := Bool(false)
   io.data.bits.tag := mshr(replayId).tag
   io.data.bits.isWriteback := Bool(true)
-  io.data.bits.addr := Cat(mshr(writebackId).old_tag, mshr(writebackId).addr(log2Up(sets)-1, 0)).toUFix
+  io.data.bits.addr := Cat(mshr(writebackId).old_tag, mshr(writebackId).addr(log2Up(sets)-1, 0)).toUInt
   io.data.bits.way := mshr(writebackId).way
   when (replay) {
     io.data.valid := io.tag.ready
@@ -181,25 +183,25 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Component
   io.mem_resp_way := mshr(refillId).way
 }
 
-class LLCWriteback(requestors: Int) extends Component
+class LLCWriteback(requestors: Int) extends Module
 {
   val io = new Bundle {
-    val req = Vec(requestors) { (new FIFOIO) { UFix(width = MEM_ADDR_BITS) }.flip }
-    val data = Vec(requestors) { (new FIFOIO) { new MemData }.flip }
+    val req = Vec.fill(requestors){Decoupled(UInt(width = MEM_ADDR_BITS)).flip }
+    val data = Vec.fill(requestors){Decoupled(new MemData).flip }
     val mem = new ioMemPipe
   }
 
-  val valid = Reg(resetVal = Bool(false))
-  val who = Reg() { UFix() }
-  val addr = Reg() { UFix() }
-  val cmd_sent = Reg() { Bool() }
-  val data_sent = Reg() { Bool() }
-  val count = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
+  val valid = RegReset(Bool(false))
+  val who = Reg(UInt())
+  val addr = Reg(UInt())
+  val cmd_sent = Reg(Bool())
+  val data_sent = Reg(Bool())
+  val count = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
 
   var anyReq = Bool(false)
   for (i <- 0 until requestors) {
     io.req(i).ready := !valid && !anyReq
-    io.data(i).ready := valid && who === UFix(i) && io.mem.req_data.ready
+    io.data(i).ready := valid && who === UInt(i) && io.mem.req_data.ready
     anyReq = anyReq || io.req(i).valid
   }
 
@@ -213,8 +215,8 @@ class LLCWriteback(requestors: Int) extends Component
   }
 
   when (io.mem.req_data.valid && io.mem.req_data.ready) {
-    count := count + UFix(1)
-    when (count === UFix(REFILL_CYCLES-1)) {
+    count := count + UInt(1)
+    when (count === UInt(REFILL_CYCLES-1)) {
       data_sent := Bool(true)
       when (cmd_sent) { valid := Bool(false) }
     }
@@ -230,51 +232,51 @@ class LLCWriteback(requestors: Int) extends Component
   io.mem.req_data.bits := io.data(who).bits
 }
 
-class LLCData(latency: Int, sets: Int, ways: Int, leaf: Mem[Bits]) extends Component
+class LLCData(latency: Int, sets: Int, ways: Int, leaf: Mem[UInt]) extends Module
 {
   val io = new Bundle {
-    val req = (new FIFOIO) { new LLCDataReq(ways) }.flip
-    val req_data = (new FIFOIO) { new MemData }.flip
-    val writeback = (new FIFOIO) { UFix(width = MEM_ADDR_BITS) }
-    val writeback_data = (new FIFOIO) { new MemData }
-    val resp = (new FIFOIO) { new MemResp }
-    val mem_resp = (new PipeIO) { new MemResp }.flip
-    val mem_resp_set = UFix(INPUT, log2Up(sets))
-    val mem_resp_way = UFix(INPUT, log2Up(ways))
+    val req = Decoupled(new LLCDataReq(ways)).flip
+    val req_data = Decoupled(new MemData).flip
+    val writeback = Decoupled(UInt(width = MEM_ADDR_BITS))
+    val writeback_data = Decoupled(new MemData)
+    val resp = Decoupled(new MemResp)
+    val mem_resp = Valid(new MemResp).flip
+    val mem_resp_set = UInt(INPUT, log2Up(sets))
+    val mem_resp_way = UInt(INPUT, log2Up(ways))
   }
 
-  val data = new BigMem(sets*ways*REFILL_CYCLES, 1, latency-1, leaf)(Bits(width = MEM_DATA_BITS))
+  val data = Module(new BigMem(sets*ways*REFILL_CYCLES, 1, latency-1, leaf)(Bits(width = MEM_DATA_BITS)))
   class QEntry extends MemResp {
     val isWriteback = Bool()
     override def clone = new QEntry().asInstanceOf[this.type]
   }
-  val q = (new Queue(latency+2)) { new QEntry }
-  val qReady = q.io.count <= UFix(q.entries-latency-1)
-  val valid = Reg(resetVal = Bool(false))
-  val req = Reg() { io.req.bits.clone }
-  val count = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
-  val refillCount = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
+  val q = Module(new Queue(new QEntry, latency+2))
+  val qReady = q.io.count <= UInt(q.entries-latency-1)
+  val valid = RegReset(Bool(false))
+  val req = Reg(io.req.bits.clone)
+  val count = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
+  val refillCount = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
 
   when (data.io.in.valid && !io.mem_resp.valid) {
-    count := count + UFix(1)
-    when (valid && count === UFix(REFILL_CYCLES-1)) { valid := Bool(false) }
+    count := count + UInt(1)
+    when (valid && count === UInt(REFILL_CYCLES-1)) { valid := Bool(false) }
   }
   when (io.req.valid && io.req.ready) { valid := Bool(true); req := io.req.bits }
-  when (io.mem_resp.valid) { refillCount := refillCount + UFix(1) }
+  when (io.mem_resp.valid) { refillCount := refillCount + UInt(1) }
 
   data.io.in.valid := io.req.valid && io.req.ready && Mux(io.req.bits.rw, io.req_data.valid, qReady)
-  data.io.in.bits.addr := Cat(io.req.bits.way, io.req.bits.addr(log2Up(sets)-1, 0), count).toUFix
+  data.io.in.bits.addr := Cat(io.req.bits.way, io.req.bits.addr(log2Up(sets)-1, 0), count).toUInt
   data.io.in.bits.rw := io.req.bits.rw
   data.io.in.bits.wdata := io.req_data.bits.data
-  data.io.in.bits.wmask := Fix(-1, io.req_data.bits.data.width)
+  data.io.in.bits.wmask := SInt(-1, io.req_data.bits.data.width)
   when (valid) {
     data.io.in.valid := Mux(req.rw, io.req_data.valid, qReady)
-    data.io.in.bits.addr := Cat(req.way, req.addr(log2Up(sets)-1, 0), count).toUFix
+    data.io.in.bits.addr := Cat(req.way, req.addr(log2Up(sets)-1, 0), count).toUInt
     data.io.in.bits.rw := req.rw
   }
   when (io.mem_resp.valid) {
     data.io.in.valid := Bool(true)
-    data.io.in.bits.addr := Cat(io.mem_resp_way, io.mem_resp_set, refillCount).toUFix
+    data.io.in.bits.addr := Cat(io.mem_resp_way, io.mem_resp_set, refillCount).toUInt
     data.io.in.bits.rw := Bool(true)
     data.io.in.bits.wdata := io.mem_resp.bits.data
   }
@@ -298,21 +300,21 @@ class LLCData(latency: Int, sets: Int, ways: Int, leaf: Mem[Bits]) extends Compo
   io.writeback_data.bits := q.io.deq.bits
 }
 
-class MemReqArb(n: Int) extends Component // UNTESTED
+class MemReqArb(n: Int) extends Module // UNTESTED
 {
   val io = new Bundle {
-    val cpu = Vec(n) { new ioMem().flip }
+    val cpu = Vec.fill(n){new ioMem().flip}
     val mem = new ioMem
   }
 
-  val lock = Reg(resetVal = Bool(false))
-  val locker = Reg() { UFix() }
+  val lock = RegReset(Bool(false))
+  val locker = Reg(UInt())
 
-  val arb = new RRArbiter(n)(new MemReqCmd)
+  val arb = Module(new RRArbiter(new MemReqCmd, n))
   val respWho = io.mem.resp.bits.tag(log2Up(n)-1,0)
-  val respTag = io.mem.resp.bits.tag >> UFix(log2Up(n))
+  val respTag = io.mem.resp.bits.tag >> UInt(log2Up(n))
   for (i <- 0 until n) {
-    val me = UFix(i, log2Up(n))
+    val me = UInt(i, log2Up(n))
     arb.io.in(i).valid := io.cpu(i).req_cmd.valid
     arb.io.in(i).bits := io.cpu(i).req_cmd.bits
     arb.io.in(i).bits.tag := Cat(io.cpu(i).req_cmd.bits.tag, me)
@@ -323,7 +325,7 @@ class MemReqArb(n: Int) extends Component // UNTESTED
     val haveLock = lock && locker === me
     when (getLock) {
       lock := Bool(true)
-      locker := UFix(i)
+      locker := UInt(i)
     }
     when (getLock || haveLock) {
       io.cpu(i).req_data.ready := io.mem.req_data.ready
@@ -341,7 +343,7 @@ class MemReqArb(n: Int) extends Component // UNTESTED
   when (unlock) { lock := Bool(false) }
 }
 
-class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], dataLeaf: Mem[Bits]) extends Component
+class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[UInt], dataLeaf: Mem[UInt]) extends Module
 {
   val io = new Bundle {
     val cpu = new ioMem().flip
@@ -351,48 +353,48 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   val tagWidth = MEM_ADDR_BITS - log2Up(sets)
   val metaWidth = tagWidth + 2 // valid + dirty
 
-  val memCmdArb = (new Arbiter(2)) { new MemReqCmd }
-  val dataArb = (new Arbiter(2)) { new LLCDataReq(ways) }
-  val mshr = new LLCMSHRFile(sets, ways, outstanding)
-  val tags = new BigMem(sets, 0, 1, tagLeaf)(Bits(width = metaWidth*ways))
-  val data = new LLCData(4, sets, ways, dataLeaf)
-  val writeback = new LLCWriteback(2)
+  val memCmdArb = Module(new Arbiter(new MemReqCmd, 2))
+  val dataArb = Module(new Arbiter(new LLCDataReq(ways), 2))
+  val mshr = Module(new LLCMSHRFile(sets, ways, outstanding))
+  val tags = Module(new BigMem(sets, 0, 1, tagLeaf)(Bits(width = metaWidth*ways)))
+  val data = Module(new LLCData(4, sets, ways, dataLeaf))
+  val writeback = Module(new LLCWriteback(2))
 
-  val initCount = Reg(resetVal = UFix(0, log2Up(sets+1)))
+  val initCount = RegReset(UInt(0, log2Up(sets+1)))
   val initialize = !initCount(log2Up(sets))
-  when (initialize) { initCount := initCount + UFix(1) }
+  when (initialize) { initCount := initCount + UInt(1) }
 
-  val replay_s2 = Reg(resetVal = Bool(false))
-  val s2_valid = Reg(resetVal = Bool(false))
-  val s2 = Reg() { new MemReqCmd }
+  val replay_s2 = RegReset(Bool(false))
+  val s2_valid = RegReset(Bool(false))
+  val s2 = Reg(new MemReqCmd)
   val s3_rdy = Bool()
   val replay_s2_rdy = Bool()
 
-  val s1_valid = Reg(io.cpu.req_cmd.fire() || replay_s2 && replay_s2_rdy, resetVal = Bool(false))
-  val s1 = Reg() { new MemReqCmd }
+  val s1_valid = Reg(update = io.cpu.req_cmd.fire() || replay_s2 && replay_s2_rdy, reset = Bool(false))
+  val s1 = Reg(new MemReqCmd)
   when (io.cpu.req_cmd.fire()) { s1 := io.cpu.req_cmd.bits }
   when (replay_s2 && replay_s2_rdy) { s1 := s2 }
 
   s2_valid := s1_valid
   replay_s2 := s2_valid && !s3_rdy || replay_s2 && !replay_s2_rdy
-  val s2_tags = Vec(ways) { Reg() { Bits(width = metaWidth) } }
+  val s2_tags = Vec.fill(ways){Reg(Bits(width = metaWidth))}
   when (s1_valid) {
     s2 := s1
     for (i <- 0 until ways)
       s2_tags(i) := tags.io.rdata(metaWidth*(i+1)-1, metaWidth*i)
   }
   val s2_hits = s2_tags.map(t => t(tagWidth) && s2.addr(s2.addr.width-1, s2.addr.width-tagWidth) === t(tagWidth-1, 0))
-  val s2_hit_way = OHToUFix(s2_hits)
+  val s2_hit_way = OHToUInt(s2_hits)
   val s2_hit = s2_hits.reduceLeft(_||_)
   val s2_hit_dirty = s2_tags(s2_hit_way)(tagWidth+1)
   val repl_way = LFSR16(s2_valid)(log2Up(ways)-1, 0)
-  val repl_tag = s2_tags(repl_way).toUFix
+  val repl_tag = s2_tags(repl_way).toUInt
   val setDirty = s2_valid && s2.rw && s2_hit && !s2_hit_dirty
 
   val tag_we = initialize || setDirty || mshr.io.tag.fire()
   val tag_waddr = Mux(initialize, initCount, Mux(setDirty, s2.addr, mshr.io.tag.bits.addr))
   val tag_wdata = Cat(setDirty, !initialize, Mux(setDirty, s2.addr, mshr.io.tag.bits.addr)(mshr.io.tag.bits.addr.width-1, mshr.io.tag.bits.addr.width-tagWidth))
-  val tag_wmask = Mux(initialize, Fix(-1, ways), UFixToOH(Mux(setDirty, s2_hit_way, mshr.io.tag.bits.way)))
+  val tag_wmask = Mux(initialize, SInt(-1, ways), UIntToOH(Mux(setDirty, s2_hit_way, mshr.io.tag.bits.way)))
   tags.io.in.valid := io.cpu.req_cmd.fire() || replay_s2 && replay_s2_rdy || tag_we
   tags.io.in.bits.addr := Mux(tag_we, tag_waddr, Mux(replay_s2, s2.addr, io.cpu.req_cmd.bits.addr)(log2Up(sets)-1,0))
   tags.io.in.bits.rw := tag_we
@@ -440,16 +442,16 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[Bits], da
   io.mem.req_data <> writeback.io.mem.req_data
 }
 
-class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Component
+class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
 {
-  val io = new ioQueue(entries)(data)
+  val io = new QueueIO(data, entries)
   require(isPow2(entries) && entries > 1)
 
   val do_flow = Bool()
   val do_enq = io.enq.fire() && !do_flow
   val do_deq = io.deq.fire() && !do_flow
 
-  val maybe_full = Reg(resetVal = Bool(false))
+  val maybe_full = RegReset(Bool(false))
   val enq_ptr = Counter(do_enq, entries)._1
   val deq_ptr = Counter(do_deq, entries)._1
   when (do_enq != do_deq) { maybe_full := do_enq }
@@ -457,37 +459,37 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Component
   val ptr_match = enq_ptr === deq_ptr
   val empty = ptr_match && !maybe_full
   val full = ptr_match && maybe_full
-  val atLeastTwo = full || enq_ptr - deq_ptr >= UFix(2)
+  val atLeastTwo = full || enq_ptr - deq_ptr >= UInt(2)
   do_flow := empty && io.deq.ready
 
-  val ram = Mem(entries, seqRead = true){Bits(width = data.getWidth)}
-  val ram_addr = Reg{Bits()}
-  val ram_out_valid = Reg{Bool()}
+  val ram = Mem(data, entries, seqRead = true)
+  val ram_addr = Reg(Bits())
+  val ram_out_valid = Reg(Bool())
   ram_out_valid := Bool(false)
   when (do_enq) { ram(enq_ptr) := io.enq.bits.toBits }
   when (io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)) {
     ram_out_valid := Bool(true)
-    ram_addr := Mux(io.deq.valid, deq_ptr + UFix(1), deq_ptr)
+    ram_addr := Mux(io.deq.valid, deq_ptr + UInt(1), deq_ptr)
   }
 
   io.deq.valid := Mux(empty, io.enq.valid, ram_out_valid)
   io.enq.ready := !full
-  io.deq.bits := Mux(empty, io.enq.bits, data.fromBits(ram(ram_addr)))
+  io.deq.bits := Mux(empty, io.enq.bits, ram(ram_addr))
 }
 
-class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Component
+class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module
 {
-  val io = new ioQueue(entries)(data)
+  val io = new QueueIO(data, entries)
 
-  val fq = new HellaFlowQueue(entries)(data)
+  val fq = Module(new HellaFlowQueue(entries)(data))
   io.enq <> fq.io.enq
   io.deq <> Queue(fq.io.deq, 1, pipe = true)
 }
 
 object HellaQueue
 {
-  def apply[T <: Data](enq: FIFOIO[T], entries: Int) = {
-    val q = (new HellaQueue(entries)) { enq.bits.clone }
+  def apply[T <: Data](enq: DecoupledIO[T], entries: Int) = {
+    val q = Module((new HellaQueue(entries)) { enq.bits.clone })
     q.io.enq.valid := enq.valid // not using <> so that override is allowed
     q.io.enq.bits := enq.bits
     enq.ready := q.io.enq.ready
@@ -495,7 +497,7 @@ object HellaQueue
   }
 }
 
-class DRAMSideLLCNull(numRequests: Int, refillCycles: Int) extends Component
+class DRAMSideLLCNull(numRequests: Int, refillCycles: Int) extends Module
 {
   val io = new Bundle {
     val cpu = new ioMem().flip
@@ -507,17 +509,17 @@ class DRAMSideLLCNull(numRequests: Int, refillCycles: Int) extends Component
 
   val inc = Bool()
   val dec = Bool()
-  val count = Reg(resetVal = UFix(numEntries, size))
-  val watermark = count >= UFix(refillCycles)
+  val count = RegReset(UInt(numEntries, size))
+  val watermark = count >= UInt(refillCycles)
 
   when (inc && !dec) {
-    count := count + UFix(1)
+    count := count + UInt(1)
   }
   when (!inc && dec) {
-    count := count - UFix(refillCycles)
+    count := count - UInt(refillCycles)
   }
   when (inc && dec) {
-    count := count - UFix(refillCycles-1)
+    count := count - UInt(refillCycles-1)
   }
 
   val cmdq_mask = io.cpu.req_cmd.bits.rw || watermark
@@ -528,7 +530,7 @@ class DRAMSideLLCNull(numRequests: Int, refillCycles: Int) extends Component
 
   io.mem.req_data <> io.cpu.req_data
 
-  val resp_dataq = (new HellaQueue(numEntries)) { new MemResp }
+  val resp_dataq = Module((new HellaQueue(numEntries)) { new MemResp })
   resp_dataq.io.enq <> io.mem.resp
   io.cpu.resp <> resp_dataq.io.deq
 
