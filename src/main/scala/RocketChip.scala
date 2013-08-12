@@ -9,19 +9,20 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
 object DummyTopLevelConstants {
-  val NTILES = 2
+  val NTILES = 1
   val NBANKS = 1
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
   val ENABLE_CLEAN_EXCLUSIVE = true
   val HAS_VEC = true
+  val HAS_FPU = true
   val NL2_REL_XACTS = 1
   val NL2_ACQ_XACTS = 8
   val NMSHRS = 2
 }
 
 object ReferenceChipBackend {
-  val initMap = new HashMap[Component, Bool]()
+  val initMap = new HashMap[Module, Bool]()
 }
 
 class ReferenceChipBackend extends VerilogBackend
@@ -35,15 +36,15 @@ class ReferenceChipBackend extends VerilogBackend
     (if (idx == 0) res.toString else "") + super.emitPortDef(m, idx)
   }
 
-  def addMemPin(c: Component) = {
-    for (node <- Component.nodes) {
+  def addMemPin(c: Module) = {
+    for (node <- Module.nodes) {
       if (node.isInstanceOf[Mem[ _ ]] && node.component != null && node.asInstanceOf[Mem[_]].seqRead) {
         connectMemPin(c, node.component, node)
       }
     }
   }
 
-  def connectMemPin(topC: Component, c: Component, p: Node): Unit = {
+  def connectMemPin(topC: Module, c: Module, p: Node): Unit = {
     var isNewPin = false
     val compInitPin = 
       if (initMap.contains(c)) {
@@ -64,7 +65,7 @@ class ReferenceChipBackend extends VerilogBackend
     }
   }
 
-  def addTopLevelPin(c: Component) = {
+  def addTopLevelPin(c: Module) = {
     val init = Bool(INPUT)
     init.setName("init")
     init.component = c
@@ -72,37 +73,37 @@ class ReferenceChipBackend extends VerilogBackend
     initMap += (c -> init)
   }
 
-  transforms += ((c: Component) => addTopLevelPin(c))
-  transforms += ((c: Component) => addMemPin(c))
+  transforms += ((c: Module) => addTopLevelPin(c))
+  transforms += ((c: Module) => addMemPin(c))
 }
 
-class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
+class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
 {
   implicit val (tl, ln, l2) = (conf.tl, conf.tl.ln, conf.l2)
   val io = new Bundle {
-    val tiles = Vec(conf.nTiles) { new TileLinkIO }.flip
+    val tiles = Vec.fill(conf.nTiles){new TileLinkIO}.flip
     val htif = (new TileLinkIO).flip
-    val incoherent = Vec(ln.nClients) { Bool() }.asInput
+    val incoherent = Vec.fill(ln.nClients){Bool()}.asInput
     val mem = new ioMem
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
   }
 
-  val llc_tag_leaf = Mem(512, seqRead = true) { Bits(width = 152) }
-  val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
-  //val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
-  val llc = new DRAMSideLLCNull(8, REFILL_CYCLES)
-  val mem_serdes = new MemSerdes(htif_width)
+  val llc_tag_leaf = Mem(Bits(width = 152), 512, seqRead = true)
+  val llc_data_leaf = Mem(Bits(width = 64), 4096, seqRead = true)
+  val llc = Module(new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf))
+  //val llc = Module(new DRAMSideLLCNull(8, REFILL_CYCLES))
+  val mem_serdes = Module(new MemSerdes(htif_width))
 
   require(clientEndpoints.length == ln.nClients)
-  val masterEndpoints = (0 until ln.nMasters).map(new L2CoherenceAgent(_))
-  val net = new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints)
+  val masterEndpoints = (0 until ln.nMasters).map(i => Module(new L2CoherenceAgent(i)))
+  val net = Module(new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints))
   net.io zip (masterEndpoints.map(_.io.client) ++ io.tiles :+ io.htif) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
 
-  val conv = new MemIOUncachedTileLinkIOConverter(2)
+  val conv = Module(new MemIOUncachedTileLinkIOConverter(2))
   if(ln.nMasters > 1) {
-    val arb = new UncachedTileLinkIOArbiterThatAppendsArbiterId(ln.nMasters)
+    val arb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(ln.nMasters))
     arb.io.in zip masterEndpoints.map(_.io.master) map { case (arb, cache) => arb <> cache }
     conv.io.uncached <> arb.io.out
   } else {
@@ -113,7 +114,7 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
   conv.io.mem.resp <> llc.io.cpu.resp
 
   // mux between main and backup memory ports
-  val mem_cmdq = (new Queue(2)) { new MemReqCmd }
+  val mem_cmdq = Module(new Queue(new MemReqCmd, 2))
   mem_cmdq.io.enq <> llc.io.mem.req_cmd
   mem_cmdq.io.deq.ready := Mux(io.mem_backup_en, mem_serdes.io.wide.req_cmd.ready, io.mem.req_cmd.ready)
   io.mem.req_cmd.valid := mem_cmdq.io.deq.valid && !io.mem_backup_en
@@ -121,7 +122,7 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
   mem_serdes.io.wide.req_cmd.valid := mem_cmdq.io.deq.valid && io.mem_backup_en
   mem_serdes.io.wide.req_cmd.bits := mem_cmdq.io.deq.bits
 
-  val mem_dataq = (new Queue(REFILL_CYCLES)) { new MemData }
+  val mem_dataq = Module(new Queue(new MemData, REFILL_CYCLES))
   mem_dataq.io.enq <> llc.io.mem.req_data
   mem_dataq.io.deq.ready := Mux(io.mem_backup_en, mem_serdes.io.wide.req_data.ready, io.mem.req_data.ready)
   io.mem.req_data.valid := mem_dataq.io.deq.valid && !io.mem_backup_en
@@ -138,21 +139,21 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
 
 case class UncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int)
 
-class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
+class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
 {
   implicit val tl = conf.tl
   val io = new Bundle {
     val debug = new DebugIO()
     val host = new HostIO(htif_width)
     val mem = new ioMem
-    val tiles = Vec(conf.nTiles) { new TileLinkIO }.flip
-    val htif = Vec(conf.nTiles) { new HTIFIO(conf.nTiles) }.flip
-    val incoherent = Vec(conf.nTiles) { Bool() }.asInput
+    val tiles = Vec.fill(conf.nTiles){new TileLinkIO}.flip
+    val htif = Vec.fill(conf.nTiles){new HTIFIO(conf.nTiles)}.flip
+    val incoherent = Vec.fill(conf.nTiles){Bool()}.asInput
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
   }
-  val htif = new RocketHTIF(htif_width)
-  val outmemsys = new OuterMemorySystem(htif_width, tileList :+ htif)
+  val htif = Module(new RocketHTIF(htif_width))
+  val outmemsys = Module(new OuterMemorySystem(htif_width, tileList :+ htif))
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif
   htif.io.cpu <> io.htif
@@ -160,7 +161,7 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
   outmemsys.io.mem_backup_en <> io.mem_backup_en
 
   // Add networking headers and endpoint queues
-  def convertAddrToBank(addr: Bits): UFix = {
+  def convertAddrToBank(addr: Bits): UInt = {
     require(conf.bankIdLsb + log2Up(conf.nBanks) < MEM_ADDR_BITS, {println("Invalid bits for bank multiplexing.")})
     addr(conf.bankIdLsb + log2Up(conf.nBanks) - 1, conf.bankIdLsb)
   }
@@ -173,7 +174,7 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
       val grant_ack_q = Queue(client.grant_ack)
       outer.grant_ack.valid := grant_ack_q.valid
       outer.grant_ack.bits := grant_ack_q.bits
-      outer.grant_ack.bits.header.src := UFix(i)
+      outer.grant_ack.bits.header.src := UInt(i)
       grant_ack_q.ready := outer.grant_ack.ready
 
       client.grant <> Queue(outer.grant, 1, pipe = true)
@@ -181,7 +182,7 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
   }
 
   // pad out the HTIF using a divided clock
-  val hio = (new SlowIO(512)) { Bits(width = htif_width+1) }
+  val hio = Module((new SlowIO(512)) { Bits(width = htif_width+1) })
   hio.io.set_divisor.valid := htif.io.scr.wen && htif.io.scr.waddr === 63
   hio.io.set_divisor.bits := htif.io.scr.wdata
   htif.io.scr.rdata(63) := hio.io.divisor
@@ -205,7 +206,7 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
   htif.io.host.in.bits := hio.io.in_fast.bits
   hio.io.in_fast.ready := Mux(hio.io.in_fast.bits(htif_width), Bool(true), htif.io.host.in.ready)
   io.host.clk := hio.io.clk_slow
-  io.host.clk_edge := Reg(io.host.clk && !Reg(io.host.clk))
+  io.host.clk_edge := RegUpdate(io.host.clk && !RegUpdate(io.host.clk))
 }
 
 class TopIO(htifWidth: Int) extends Bundle  {
@@ -224,14 +225,14 @@ class VLSITopIO(htifWidth: Int) extends TopIO(htifWidth) {
 
 import DummyTopLevelConstants._
 
-class MemDessert extends Component {
+class MemDessert extends Module {
   val io = new MemDesserIO(HTIF_WIDTH)
-  val x = new MemDesser(HTIF_WIDTH)
+  val x = Module(new MemDesser(HTIF_WIDTH))
   io.narrow <> x.io.narrow
   io.wide <> x.io.wide
 }
 
-class Top extends Component {
+class Top extends Module {
   val co =  if(ENABLE_SHARING) {
               if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence
               else new MSICoherence
@@ -249,13 +250,13 @@ class Top extends Component {
   val dc = DCacheConfig(128, 4, ntlb = 8, 
                         nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
   val rc = RocketConfiguration(tl, ic, dc,
-                               fpu = true, vec = HAS_VEC)
+                               fpu = HAS_FPU, vec = HAS_VEC)
 
   val io = new VLSITopIO(HTIF_WIDTH)
 
-  val resetSigs = Vec(uc.nTiles){Bool()}
-  val tileList = (0 until uc.nTiles).map(r => new Tile(resetSignal = resetSigs(r))(rc))
-  val uncore = new Uncore(HTIF_WIDTH, tileList)
+  val resetSigs = Vec.fill(uc.nTiles){Bool()}
+  val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
+  val uncore = Module(new Uncore(HTIF_WIDTH, tileList))
 
   var error_mode = Bool(false)
   for (i <- 0 until uc.nTiles) {
@@ -267,12 +268,12 @@ class Top extends Component {
     val tile = tileList(i)
     tile.io.tilelink <> tl
     il := hl.reset
-    tile.io.host.reset := Reg(Reg(hl.reset))
+    tile.io.host.reset := RegUpdate(RegUpdate(hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
     hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
     hl.ipi_req <> Queue(tile.io.host.ipi_req)
     tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
-    error_mode = error_mode || Reg(tile.io.host.debug.error_mode)
+    error_mode = error_mode || RegUpdate(tile.io.host.debug.error_mode)
   }
 
   io.host <> uncore.io.host

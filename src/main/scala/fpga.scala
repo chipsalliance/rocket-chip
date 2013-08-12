@@ -5,26 +5,26 @@ import Node._
 import uncore._
 import rocket._
 
-class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
+class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
 {
   implicit val (tl, ln, l2) = (conf.tl, conf.tl.ln, conf.l2)
   val io = new Bundle {
-    val tiles = Vec(conf.nTiles) { new TileLinkIO }.flip
+    val tiles = Vec.fill(conf.nTiles){new TileLinkIO}.flip
     val htif = (new TileLinkIO).flip
-    val incoherent = Vec(ln.nClients) { Bool() }.asInput
+    val incoherent = Vec.fill(ln.nClients){Bool()}.asInput
     val mem = new ioMem
   }
 
   require(clientEndpoints.length == ln.nClients)
-  val masterEndpoints = (0 until ln.nMasters).map(new L2CoherenceAgent(_))
+  val masterEndpoints = (0 until ln.nMasters).map(i => Module(new L2CoherenceAgent(i)))
 
-  val net = new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints)
+  val net = Module(new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints))
   net.io zip (masterEndpoints.map(_.io.client) ++ io.tiles :+ io.htif) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
 
-  val conv = new MemIOUncachedTileLinkIOConverter(2)
+  val conv = Module(new MemIOUncachedTileLinkIOConverter(2))
   if(ln.nMasters > 1) {
-    val arb = new UncachedTileLinkIOArbiterThatAppendsArbiterId(ln.nMasters)
+    val arb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(ln.nMasters))
     arb.io.in zip masterEndpoints.map(_.io.master) map { case (arb, cache) => arb <> cache }
     conv.io.uncached <> arb.io.out
   } else {
@@ -35,24 +35,24 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
   conv.io.mem.resp <> Queue(io.mem.resp)
 }
 
-class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
+class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
 {
   implicit val (tl, ln) = (conf.tl, conf.tl.ln)
   val io = new Bundle {
     val debug = new DebugIO()
     val host = new HostIO(htif_width)
     val mem = new ioMem
-    val tiles = Vec(conf.nTiles) { new TileLinkIO }.flip
-    val htif = Vec(conf.nTiles) { new HTIFIO(conf.nTiles) }.flip
-    val incoherent = Vec(conf.nTiles) { Bool() }.asInput
+    val tiles = Vec.fill(conf.nTiles){new TileLinkIO}.flip
+    val htif = Vec.fill(conf.nTiles){new HTIFIO(conf.nTiles)}.flip
+    val incoherent = Vec.fill(conf.nTiles){Bool()}.asInput
   }
-  val htif = new RocketHTIF(htif_width)
-  val outmemsys = new FPGAOuterMemorySystem(htif_width, tileList :+ htif)
+  val htif = Module(new RocketHTIF(htif_width))
+  val outmemsys = Module(new FPGAOuterMemorySystem(htif_width, tileList :+ htif))
   htif.io.cpu <> io.htif
   outmemsys.io.mem <> io.mem
 
   // Add networking headers and endpoint queues
-  def convertAddrToBank(addr: Bits): UFix = {
+  def convertAddrToBank(addr: Bits): UInt = {
     require(conf.bankIdLsb + log2Up(conf.nBanks) < MEM_ADDR_BITS, {println("Invalid bits for bank multiplexing.")})
     addr(conf.bankIdLsb + log2Up(conf.nBanks) - 1, conf.bankIdLsb)
   }
@@ -66,7 +66,7 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
       val grant_ack_q = Queue(client.grant_ack)
       outer.grant_ack.valid := grant_ack_q.valid
       outer.grant_ack.bits := grant_ack_q.bits
-      outer.grant_ack.bits.header.src := UFix(i)
+      outer.grant_ack.bits.header.src := UInt(i)
       grant_ack_q.ready := outer.grant_ack.ready
 
       client.grant <> Queue(outer.grant, 1, pipe = true)
@@ -79,7 +79,7 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
 
 class FPGATopIO(htifWidth: Int) extends TopIO(htifWidth)
 
-class FPGATop extends Component {
+class FPGATop extends Module {
   val htif_width = 16
   val co = new MESICoherence
   val ntiles = 1
@@ -98,9 +98,9 @@ class FPGATop extends Component {
 
   val io = new FPGATopIO(htif_width)
 
-  val resetSigs = Vec(uc.nTiles){Bool()}
-  val tileList = (0 until uc.nTiles).map(r => new Tile(resetSignal = resetSigs(r))(rc))
-  val uncore = new FPGAUncore(htif_width, tileList)
+  val resetSigs = Vec.fill(uc.nTiles){Bool()}
+  val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
+  val uncore = Module(new FPGAUncore(htif_width, tileList))
 
   io.debug.error_mode := Bool(false)
   for (i <- 0 until uc.nTiles) {
@@ -113,7 +113,7 @@ class FPGATop extends Component {
 
     tile.io.tilelink <> tl
     il := hl.reset
-    tile.io.host.reset := Reg(Reg(hl.reset))
+    tile.io.host.reset := RegUpdate(RegUpdate(hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
     hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
     hl.ipi_req <> Queue(tile.io.host.ipi_req)
@@ -126,12 +126,12 @@ class FPGATop extends Component {
   io.mem <> uncore.io.mem
 }
 
-abstract class AXISlave extends Component {
+abstract class AXISlave extends Module {
   val aw = 5
   val dw = 32
   val io = new Bundle {
-    val in = new FIFOIO()(Bits(width = dw)).flip
-    val out = new FIFOIO()(Bits(width = dw))
+    val in = Decoupled(Bits(width = dw)).flip
+    val out = Decoupled(Bits(width = dw))
     val addr = Bits(INPUT, aw)
   }
 }
@@ -144,11 +144,11 @@ class Slave extends AXISlave
   val htifw = top.io.host.in.bits.getWidth
   
   val n = 4 // htif, mem req/read data, mem write data, error mode
-  def wen(i: Int) = io.in.valid && io.addr(log2Up(n)-1,0) === UFix(i)
-  def ren(i: Int) = io.out.ready && io.addr(log2Up(n)-1,0) === UFix(i)
-  val rdata = Vec(n){Bits(width = dw)}
-  val rvalid = Vec(n){Bool()}
-  val wready = Vec(n){Bool()}
+  def wen(i: Int) = io.in.valid && io.addr(log2Up(n)-1,0) === UInt(i)
+  def ren(i: Int) = io.out.ready && io.addr(log2Up(n)-1,0) === UInt(i)
+  val rdata = Vec.fill(n){Bits(width = dw)}
+  val rvalid = Vec.fill(n){Bool()}
+  val wready = Vec.fill(n){Bool()}
 
   io.in.ready := wready(io.addr)
   io.out.valid := rvalid(io.addr)
@@ -167,7 +167,7 @@ class Slave extends AXISlave
 
   // read cr1 -> mem.req_cmd (nonblocking)
   // the memory system is FIFO from hereon out, so just remember the tags here
-  val tagq = new Queue(4)(top.io.mem.req_cmd.bits.tag.clone)
+  val tagq = Module(new Queue(top.io.mem.req_cmd.bits.tag, 4))
   tagq.io.enq.bits := top.io.mem.req_cmd.bits.tag
   tagq.io.enq.valid := ren(1) && top.io.mem.req_cmd.valid && !top.io.mem.req_cmd.bits.rw
   top.io.mem.req_cmd.ready := ren(1)
@@ -176,29 +176,29 @@ class Slave extends AXISlave
   require(dw >= top.io.mem.req_cmd.bits.addr.getWidth + 1 + 1)
 
   // write cr1 -> mem.resp (nonblocking)
-  val in_count = Reg(resetVal = UFix(0, log2Up(memw/dw)))
-  val rf_count = Reg(resetVal = UFix(0, log2Up(REFILL_CYCLES)))
+  val in_count = RegReset(UInt(0, log2Up(memw/dw)))
+  val rf_count = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
   require(memw % dw == 0 && isPow2(memw/dw))
-  val in_reg = Reg{top.io.mem.resp.bits.data.clone}
+  val in_reg = Reg(top.io.mem.resp.bits.data)
   top.io.mem.resp.bits.data := Cat(io.in.bits, in_reg(in_reg.getWidth-1,dw))
   top.io.mem.resp.bits.tag := tagq.io.deq.bits
   top.io.mem.resp.valid := wen(1) && in_count.andR
   tagq.io.deq.ready := top.io.mem.resp.fire() && rf_count.andR
   wready(1) := top.io.mem.resp.ready
   when (wen(1) && wready(1)) {
-    in_count := in_count + UFix(1)
+    in_count := in_count + UInt(1)
     in_reg := top.io.mem.resp.bits.data
   }
   when (top.io.mem.resp.fire()) {
-    rf_count := rf_count + UFix(1)
+    rf_count := rf_count + UInt(1)
   }
 
   // read cr2 -> mem.req_data (blocking)
-  val out_count = Reg(resetVal = UFix(0, log2Up(memw/dw)))
+  val out_count = RegReset(UInt(0, log2Up(memw/dw)))
   top.io.mem.req_data.ready := ren(2) && out_count.andR
-  rdata(2) := top.io.mem.req_data.bits.data >> (out_count * UFix(dw))
+  rdata(2) := top.io.mem.req_data.bits.data >> (out_count * UInt(dw))
   rvalid(2) := top.io.mem.req_data.valid
-  when (ren(2) && rvalid(2)) { out_count := out_count + UFix(1) }
+  when (ren(2) && rvalid(2)) { out_count := out_count + UInt(1) }
 
   // read cr3 -> error mode (nonblocking)
   rdata(3) := Cat(top.io.mem.req_cmd.valid, tagq.io.enq.ready, top.io.debug.error_mode)
