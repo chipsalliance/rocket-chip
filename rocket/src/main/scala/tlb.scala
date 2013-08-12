@@ -4,25 +4,25 @@ import Chisel._
 import uncore.constants.AddressConstants._
 import scala.math._
 
-class ioCAM(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
+class CAMIO(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
     val clear        = Bool(INPUT);
     val clear_hit    = Bool(INPUT)
     val tag          = Bits(INPUT, tag_bits);
     val hit          = Bool(OUTPUT);
-    val hits         = UFix(OUTPUT, entries);
+    val hits         = UInt(OUTPUT, entries);
     val valid_bits   = Bits(OUTPUT, entries);
     
     val write        = Bool(INPUT);
     val write_tag    = Bits(INPUT, tag_bits);
-    val write_addr    = UFix(INPUT, addr_bits);
+    val write_addr    = UInt(INPUT, addr_bits);
 }
 
-class rocketCAM(entries: Int, tag_bits: Int) extends Component {
+class RocketCAM(entries: Int, tag_bits: Int) extends Module {
   val addr_bits = ceil(log(entries)/log(2)).toInt;
-  val io = new ioCAM(entries, addr_bits, tag_bits);
-  val cam_tags = Vec(entries) { Reg() { Bits(width = tag_bits) } }
+  val io = new CAMIO(entries, addr_bits, tag_bits);
+  val cam_tags = Vec.fill(entries){Reg(Bits(width = tag_bits))}
 
-  val vb_array = Reg(resetVal = Bits(0, entries));
+  val vb_array = RegReset(Bits(0, entries))
   when (io.write) {
     vb_array := vb_array.bitSet(io.write_addr, Bool(true));
     cam_tags(io.write_addr) := io.write_tag
@@ -37,27 +37,27 @@ class rocketCAM(entries: Int, tag_bits: Int) extends Component {
   val hits = (0 until entries).map(i => vb_array(i) && cam_tags(i) === io.tag)
   
   io.valid_bits := vb_array;
-  io.hits := Vec(hits){Bool()}.toBits.toUFix
+  io.hits := Vec(hits).toBits
   io.hit := io.hits.orR
 }
 
 class PseudoLRU(n: Int)
 {
-  val state = Reg() { Bits(width = n) }
-  def access(way: UFix) = {
+  val state = Reg(Bits(width = n))
+  def access(way: UInt) = {
     var next_state = state
-    var idx = UFix(1,1)
+    var idx = UInt(1,1)
     for (i <- log2Up(n)-1 to 0 by -1) {
       val bit = way(i)
-      val mask = (UFix(1,n) << idx)(n-1,0)
-      next_state = next_state & ~mask | Mux(bit, UFix(0), mask)
+      val mask = (UInt(1,n) << idx)(n-1,0)
+      next_state = next_state & ~mask | Mux(bit, UInt(0), mask)
       //next_state.bitSet(idx, !bit)
       idx = Cat(idx, bit)
     }
     state := next_state
   }
   def replace = {
-    var idx = UFix(1,1)
+    var idx = UInt(1,1)
     for (i <- 0 until log2Up(n))
       idx = Cat(idx, state(idx))
     idx(log2Up(n)-1,0)
@@ -66,8 +66,8 @@ class PseudoLRU(n: Int)
 
 class TLBReq extends Bundle
 {
-  val asid = UFix(width = ASID_BITS)
-  val vpn = UFix(width = VPN_BITS+1)
+  val asid = UInt(width = ASID_BITS)
+  val vpn = UInt(width = VPN_BITS+1)
   val passthrough = Bool()
   val instruction = Bool()
 }
@@ -76,8 +76,8 @@ class TLBResp(entries: Int) extends Bundle
 {
   // lookup responses
   val miss = Bool(OUTPUT)
-  val hit_idx = UFix(OUTPUT, entries)
-  val ppn = UFix(OUTPUT, PPN_BITS)
+  val hit_idx = UInt(OUTPUT, entries)
+  val ppn = UInt(OUTPUT, PPN_BITS)
   val xcpt_ld = Bool(OUTPUT)
   val xcpt_st = Bool(OUTPUT)
   val xcpt_if = Bool(OUTPUT)
@@ -85,23 +85,23 @@ class TLBResp(entries: Int) extends Bundle
   override def clone = new TLBResp(entries).asInstanceOf[this.type]
 }
 
-class TLB(entries: Int) extends Component
+class TLB(entries: Int) extends Module
 {
   val io = new Bundle {
-    val req = new FIFOIO()(new TLBReq).flip
+    val req = Decoupled(new TLBReq).flip
     val resp = new TLBResp(entries)
     val ptw = new TLBPTWIO
   }
 
-  val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(4) { UFix() }
-  val state = Reg(resetVal = s_ready)
-  val r_refill_tag = Reg() { UFix() }
-  val r_refill_waddr = Reg() { UFix() }
+  val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(4) { UInt() }
+  val state = RegReset(s_ready)
+  val r_refill_tag = Reg(UInt())
+  val r_refill_waddr = Reg(UInt())
 
-  val tag_cam = new rocketCAM(entries, ASID_BITS+VPN_BITS);
-  val tag_ram = Vec(entries) { Reg() { io.ptw.resp.bits.ppn.clone } }
+  val tag_cam = Module(new RocketCAM(entries, ASID_BITS+VPN_BITS))
+  val tag_ram = Vec.fill(entries){Reg(io.ptw.resp.bits.ppn.clone)}
   
-  val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUFix
+  val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUInt
   tag_cam.io.clear := io.ptw.invalidate
   tag_cam.io.clear_hit := io.req.fire() && Mux(io.req.bits.instruction, io.resp.xcpt_if, io.resp.xcpt_ld && io.resp.xcpt_st)
   tag_cam.io.tag := lookup_tag
@@ -109,18 +109,18 @@ class TLB(entries: Int) extends Component
   tag_cam.io.write_tag := r_refill_tag
   tag_cam.io.write_addr := r_refill_waddr
   val tag_hit = tag_cam.io.hit
-  val tag_hit_addr = OHToUFix(tag_cam.io.hits)
+  val tag_hit_addr = OHToUInt(tag_cam.io.hits)
   
   // permission bit arrays
-  val ur_array = Reg{Bits()} // user read permission
-  val uw_array = Reg{Bits()} // user write permission
-  val ux_array = Reg{Bits()} // user execute permission
-  val sr_array = Reg{Bits()} // supervisor read permission
-  val sw_array = Reg{Bits()} // supervisor write permission
-  val sx_array = Reg{Bits()} // supervisor execute permission
+  val ur_array = Reg(Bits()) // user read permission
+  val uw_array = Reg(Bits()) // user write permission
+  val ux_array = Reg(Bits()) // user execute permission
+  val sr_array = Reg(Bits()) // supervisor read permission
+  val sw_array = Reg(Bits()) // supervisor write permission
+  val sx_array = Reg(Bits()) // supervisor execute permission
   when (io.ptw.resp.valid) {
     tag_ram(r_refill_waddr) := io.ptw.resp.bits.ppn
-    val perm = (!io.ptw.resp.bits.error).toFix & io.ptw.resp.bits.perm(5,0)
+    val perm = (!io.ptw.resp.bits.error).toSInt & io.ptw.resp.bits.perm(5,0)
     ur_array := ur_array.bitSet(r_refill_waddr, perm(2))
     uw_array := uw_array.bitSet(r_refill_waddr, perm(1))
     ux_array := ux_array.bitSet(r_refill_waddr, perm(0))
@@ -140,7 +140,7 @@ class TLB(entries: Int) extends Component
   val tlb_miss = io.ptw.status.vm && !tag_hit && !bad_va
   
   when (io.req.valid && tlb_hit) {
-    plru.access(OHToUFix(tag_cam.io.hits))
+    plru.access(OHToUInt(tag_cam.io.hits))
   }
 
   io.req.ready := state === s_ready

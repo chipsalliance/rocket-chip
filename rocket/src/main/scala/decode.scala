@@ -17,7 +17,7 @@ object DecodeLogic
     terms.map { t =>
       if (!cache.contains(t))
         cache += t -> ((if (t.mask == 0) addr else addr & Lit(BigInt(2).pow(addr.width)-(t.mask+1), addr.width){Bits()}) === Lit(t.value, addr.width){Bits()})
-      cache(t)
+      cache(t).toBool
     }.foldLeft(Bool(false))(_||_)
   }
   def apply(addr: Bits, default: Iterable[Bits], mapping: Iterable[(Bits, Iterable[Bits])]) = {

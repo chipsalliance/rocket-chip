@@ -45,7 +45,7 @@ case class DCacheConfig(sets: Int, ways: Int,
 
 abstract class ReplacementPolicy
 {
-  def way: UFix
+  def way: UInt
   def miss: Unit
   def hit: Unit
 }
@@ -56,7 +56,7 @@ class RandomReplacement(implicit conf: DCacheConfig) extends ReplacementPolicy
   replace := Bool(false)
   val lfsr = LFSR16(replace)
 
-  def way = if (conf.dm) UFix(0) else lfsr(conf.waybits-1,0)
+  def way = if (conf.dm) UInt(0) else lfsr(conf.waybits-1,0)
   def miss = replace := Bool(true)
   def hit = {}
 }
@@ -107,7 +107,7 @@ class MSHRReq(implicit conf: DCacheConfig) extends HellaCacheReq {
 }
 
 class Replay(implicit conf: DCacheConfig) extends HellaCacheReq {
-  val sdq_id = UFix(width = log2Up(conf.nsdq))
+  val sdq_id = UInt(width = log2Up(conf.nsdq))
 
   override def clone = new Replay().asInstanceOf[this.type]
 }
@@ -139,13 +139,13 @@ class WritebackReq(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exten
   val idx = Bits(width = conf.idxbits)
   val way_en = Bits(width = conf.ways)
   val client_xact_id = Bits(width = tl.clientXactIdBits)
-  val r_type = UFix(width = tl.co.releaseTypeBits) 
+  val r_type = UInt(width = tl.co.releaseTypeWidth) 
 
   override def clone = new WritebackReq().asInstanceOf[this.type]
 }
 
 object MetaData {
-  def apply(tag: Bits, state: UFix)(implicit conf: DCacheConfig) = {
+  def apply(tag: Bits, state: UInt)(implicit conf: DCacheConfig) = {
     val meta = new MetaData
     meta.state := state
     meta.tag := tag
@@ -153,14 +153,14 @@ object MetaData {
   }
 }
 class MetaData(implicit conf: DCacheConfig) extends Bundle {
-  val state = UFix(width = conf.statebits)
+  val state = UInt(width = conf.statebits)
   val tag = Bits(width = conf.tagbits)
 
   override def clone = new MetaData().asInstanceOf[this.type]
 }
 
 class MetaReadReq(implicit conf: DCacheConfig) extends Bundle {
-  val addr  = UFix(width = conf.paddrbits)
+  val addr  = UInt(width = conf.paddrbits)
 
   override def clone = new MetaReadReq().asInstanceOf[this.type]
 }
@@ -173,7 +173,7 @@ class MetaWriteReq(implicit conf: DCacheConfig) extends Bundle {
   override def clone = new MetaWriteReq().asInstanceOf[this.type]
 }
 
-class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Component {
+class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
   implicit val ln = tl.ln
   val io = new Bundle {
     val req_pri_val    = Bool(INPUT)
@@ -181,41 +181,41 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     val req_sec_val    = Bool(INPUT)
     val req_sec_rdy    = Bool(OUTPUT)
     val req_bits       = new MSHRReq().asInput
-    val req_sdq_id     = UFix(INPUT, log2Up(conf.nsdq))
+    val req_sdq_id     = UInt(INPUT, log2Up(conf.nsdq))
 
     val idx_match       = Bool(OUTPUT)
     val tag             = Bits(OUTPUT, conf.tagbits)
 
-    val mem_req  = (new FIFOIO) { new Acquire }
+    val mem_req  = Decoupled(new Acquire)
     val mem_resp = new DataWriteReq().asOutput
-    val meta_read = (new FIFOIO) { new MetaReadReq }
-    val meta_write = (new FIFOIO) { new MetaWriteReq }
-    val replay = (new FIFOIO) { new Replay() }
-    val mem_grant = (new PipeIO) { (new LogicalNetworkIO) {new Grant} }.flip
-    val mem_finish = (new FIFOIO) { (new LogicalNetworkIO) {new GrantAck} }
-    val wb_req = (new FIFOIO) { new WritebackReq }
+    val meta_read = Decoupled(new MetaReadReq)
+    val meta_write = Decoupled(new MetaWriteReq)
+    val replay = Decoupled(new Replay())
+    val mem_grant = Valid((new LogicalNetworkIO) {new Grant} ).flip
+    val mem_finish = Decoupled((new LogicalNetworkIO) {new GrantAck} )
+    val wb_req = Decoupled(new WritebackReq)
     val probe_rdy = Bool(OUTPUT)
   }
 
-  val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9) { UFix() }
-  val state = Reg(resetVal = s_invalid)
+  val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9) { UInt() }
+  val state = RegReset(s_invalid)
 
-  val acquire_type = Reg { UFix() }
-  val release_type = Reg { UFix() }
-  val line_state = Reg { UFix() }
-  val refill_count = Reg { UFix(width = log2Up(REFILL_CYCLES)) }
-  val req = Reg { new MSHRReq() }
+  val acquire_type = Reg(UInt())
+  val release_type = Reg(UInt())
+  val line_state = Reg(UInt())
+  val refill_count = Reg(UInt(width = log2Up(REFILL_CYCLES)))
+  val req = Reg(new MSHRReq())
 
   val req_cmd = io.req_bits.cmd
   val req_idx = req.addr(conf.untagbits-1,conf.offbits)
   val idx_match = req_idx === io.req_bits.addr(conf.untagbits-1,conf.offbits)
   val sec_rdy = idx_match && (state === s_wb_req || state === s_wb_resp || state === s_meta_clear || (state === s_refill_req || state === s_refill_resp) && !tl.co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
 
-  val reply = io.mem_grant.valid && io.mem_grant.bits.payload.client_xact_id === UFix(id)
+  val reply = io.mem_grant.valid && io.mem_grant.bits.payload.client_xact_id === UInt(id)
   val refill_done = reply && refill_count.andR
   val wb_done = reply && (state === s_wb_resp)
 
-  val rpq = (new Queue(conf.nrpq)) { new Replay }
+  val rpq = Module(new Queue(new Replay, conf.nrpq))
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && !isPrefetch(req_cmd)
   rpq.io.enq.bits := io.req_bits
   rpq.io.enq.bits.sdq_id := io.req_sdq_id
@@ -234,7 +234,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   when (state === s_refill_resp) {
     when (refill_done) { state := s_meta_write_req }
     when (reply) {
-      refill_count := refill_count + UFix(1)
+      refill_count := refill_count + UInt(1)
       line_state := tl.co.newStateOnGrant(io.mem_grant.bits.payload, io.mem_req.bits)
     }
   }
@@ -256,7 +256,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   }
   when (io.req_pri_val && io.req_pri_rdy) {
     line_state := tl.co.newStateOnFlush()
-    refill_count := UFix(0)
+    refill_count := UInt(0)
     acquire_type := tl.co.getAcquireTypeOnPrimaryMiss(req_cmd, tl.co.newStateOnFlush())
     release_type := tl.co.getReleaseTypeOnVoluntaryWriteback() //TODO downgrades etc 
     req := io.req_bits
@@ -273,7 +273,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     }
   }
 
-  val ackq = (new Queue(1)) { (new LogicalNetworkIO){new GrantAck} }
+  val ackq = Module(new Queue((new LogicalNetworkIO){new GrantAck}, 1))
   ackq.io.enq.valid := (wb_done || refill_done) && tl.co.requiresAck(io.mem_grant.bits.payload)
   ackq.io.enq.bits.payload.master_xact_id := io.mem_grant.bits.payload.master_xact_id
   ackq.io.enq.bits.header.dst := io.mem_grant.bits.header.src
@@ -289,7 +289,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   io.req_pri_rdy := state === s_invalid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
-  val meta_hazard = Reg(resetVal = UFix(0,2))
+  val meta_hazard = RegReset(UInt(0,2))
   when (meta_hazard != 0) { meta_hazard := meta_hazard + 1 }
   when (io.meta_write.fire()) { meta_hazard := 1 }
   io.probe_rdy := !idx_match || (state != s_wb_req && state != s_wb_resp && state != s_meta_clear && meta_hazard === 0)
@@ -309,7 +309,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
 
   io.mem_req.valid := state === s_refill_req && ackq.io.enq.ready
   io.mem_req.bits.a_type := acquire_type
-  io.mem_req.bits.addr := Cat(io.tag, req_idx).toUFix
+  io.mem_req.bits.addr := Cat(io.tag, req_idx).toUInt
   io.mem_req.bits.client_xact_id := Bits(id)
   io.mem_finish <> ackq.io.deq
   io.mem_req.bits.client_xact_id := Bits(id)
@@ -320,7 +320,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   io.replay.valid := state === s_drain_rpq && rpq.io.deq.valid
   io.replay.bits := rpq.io.deq.bits
   io.replay.bits.phys := Bool(true)
-  io.replay.bits.addr := Cat(io.tag, req_idx, rpq.io.deq.bits.addr(conf.offbits-1,0)).toUFix
+  io.replay.bits.addr := Cat(io.tag, req_idx, rpq.io.deq.bits.addr(conf.offbits-1,0)).toUInt
 
   when (!io.meta_read.ready) {
     rpq.io.deq.ready := Bool(false)
@@ -328,45 +328,45 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   }
 }
 
-class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Component {
+class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
   implicit val ln = tl.ln
   val io = new Bundle {
-    val req = (new FIFOIO) { new MSHRReq }.flip
+    val req = Decoupled(new MSHRReq).flip
     val secondary_miss = Bool(OUTPUT)
 
-    val mem_req  = (new FIFOIO) { new Acquire }
+    val mem_req  = Decoupled(new Acquire)
     val mem_resp = new DataWriteReq().asOutput
-    val meta_read = (new FIFOIO) { new MetaReadReq }
-    val meta_write = (new FIFOIO) { new MetaWriteReq }
-    val replay = (new FIFOIO) { new Replay }
-    val mem_grant = (new PipeIO) { (new LogicalNetworkIO){new Grant} }.flip
-    val mem_finish = (new FIFOIO) { (new LogicalNetworkIO){new GrantAck} }
-    val wb_req = (new FIFOIO) { new WritebackReq }
+    val meta_read = Decoupled(new MetaReadReq)
+    val meta_write = Decoupled(new MetaWriteReq)
+    val replay = Decoupled(new Replay)
+    val mem_grant = Valid((new LogicalNetworkIO){new Grant}).flip
+    val mem_finish = Decoupled((new LogicalNetworkIO){new GrantAck})
+    val wb_req = Decoupled(new WritebackReq)
 
     val probe_rdy = Bool(OUTPUT)
     val fence_rdy = Bool(OUTPUT)
   }
 
-  val sdq_val = Reg(resetVal = Bits(0, conf.nsdq))
+  val sdq_val = RegReset(Bits(0, conf.nsdq))
   val sdq_alloc_id = PriorityEncoder(~sdq_val(conf.nsdq-1,0))
   val sdq_rdy = !sdq_val.andR
   val sdq_enq = io.req.valid && io.req.ready && isWrite(io.req.bits.cmd)
-  val sdq = Mem(conf.nsdq) { io.req.bits.data.clone }
+  val sdq = Mem(io.req.bits.data, conf.nsdq)
   when (sdq_enq) { sdq(sdq_alloc_id) := io.req.bits.data }
 
-  val idxMatch = Vec(conf.nmshr) { Bool() }
-  val tagList = Vec(conf.nmshr) { Bits() }
+  val idxMatch = Vec.fill(conf.nmshr){Bool()}
+  val tagList = Vec.fill(conf.nmshr){Bits()}
   val tag_match = Mux1H(idxMatch, tagList) === io.req.bits.addr >> conf.untagbits
 
-  val wbTagList = Vec(conf.nmshr) { Bits() }
-  val memRespMux = Vec(conf.nmshr) { new DataWriteReq }
-  val meta_read_arb = (new Arbiter(conf.nmshr)) { new MetaReadReq }
-  val meta_write_arb = (new Arbiter(conf.nmshr)) { new MetaWriteReq }
-  val mem_req_arb = (new Arbiter(conf.nmshr)) { new Acquire }
-  val mem_finish_arb = (new Arbiter(conf.nmshr)) { (new LogicalNetworkIO){new GrantAck} }
-  val wb_req_arb = (new Arbiter(conf.nmshr)) { new WritebackReq }
-  val replay_arb = (new Arbiter(conf.nmshr)) { new Replay() }
-  val alloc_arb = (new Arbiter(conf.nmshr)) { Bool() }
+  val wbTagList = Vec.fill(conf.nmshr){Bits()}
+  val memRespMux = Vec.fill(conf.nmshr){new DataWriteReq}
+  val meta_read_arb = Module(new Arbiter(new MetaReadReq, conf.nmshr))
+  val meta_write_arb = Module(new Arbiter(new MetaWriteReq, conf.nmshr))
+  val mem_req_arb = Module(new Arbiter(new Acquire, conf.nmshr))
+  val mem_finish_arb = Module(new Arbiter((new LogicalNetworkIO){new GrantAck}, conf.nmshr))
+  val wb_req_arb = Module(new Arbiter(new WritebackReq, conf.nmshr))
+  val replay_arb = Module(new Arbiter(new Replay, conf.nmshr))
+  val alloc_arb = Module(new Arbiter(Bool(), conf.nmshr))
 
   var idx_match = Bool(false)
   var pri_rdy = Bool(false)
@@ -376,7 +376,7 @@ class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends C
   io.probe_rdy := true
 
   for (i <- 0 to conf.nmshr-1) {
-    val mshr = new MSHR(i)
+    val mshr = Module(new MSHR(i))
 
     idxMatch(i) := mshr.io.idx_match
     tagList(i) := mshr.io.tag
@@ -424,29 +424,29 @@ class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends C
   io.replay <> replay_arb.io.out
 
   when (io.replay.valid || sdq_enq) {
-    sdq_val := sdq_val & ~(UFixToOH(io.replay.bits.sdq_id) & Fill(conf.nsdq, free_sdq)) | 
+    sdq_val := sdq_val & ~(UIntToOH(io.replay.bits.sdq_id) & Fill(conf.nsdq, free_sdq)) | 
                PriorityEncoderOH(~sdq_val(conf.nsdq-1,0)) & Fill(conf.nsdq, sdq_enq)
   }
 }
 
 
-class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Component {
+class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
   val io = new Bundle {
-    val req = (new FIFOIO) { new WritebackReq() }.flip
-    val probe = (new FIFOIO) { new WritebackReq() }.flip
-    val meta_read = (new FIFOIO) { new MetaReadReq }
-    val data_req = (new FIFOIO) { new DataReadReq() }
+    val req = Decoupled(new WritebackReq()).flip
+    val probe = Decoupled(new WritebackReq()).flip
+    val meta_read = Decoupled(new MetaReadReq)
+    val data_req = Decoupled(new DataReadReq())
     val data_resp = Bits(INPUT, conf.bitsperrow)
-    val release = (new FIFOIO) { new Release }
-    val release_data = (new FIFOIO) { new ReleaseData }
+    val release = Decoupled(new Release)
+    val release_data = Decoupled(new ReleaseData)
   }
 
-  val valid = Reg(resetVal = Bool(false))
-  val r1_data_req_fired = Reg(resetVal = Bool(false))
-  val r2_data_req_fired = Reg(resetVal = Bool(false))
-  val cmd_sent = Reg{Bool()}
-  val cnt = Reg{UFix(width = log2Up(REFILL_CYCLES+1))}
-  val req = Reg{new WritebackReq}
+  val valid = RegReset(Bool(false))
+  val r1_data_req_fired = RegReset(Bool(false))
+  val r2_data_req_fired = RegReset(Bool(false))
+  val cmd_sent = Reg(Bool())
+  val cnt = Reg(UInt(width = log2Up(REFILL_CYCLES+1)))
+  val req = Reg(new WritebackReq)
 
   when (valid) {
     r1_data_req_fired := false
@@ -459,7 +459,7 @@ class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     when (r2_data_req_fired && !io.release_data.ready) {
       r1_data_req_fired := false
       r2_data_req_fired := false
-      cnt := cnt - Mux[UFix](r1_data_req_fired, 2, 1)
+      cnt := cnt - Mux[UInt](r1_data_req_fired, 2, 1)
     }
 
     when (!r1_data_req_fired && !r2_data_req_fired && cmd_sent && cnt === REFILL_CYCLES) {
@@ -483,7 +483,7 @@ class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     req := io.req.bits
   }
 
-  val fire = valid && cnt < UFix(REFILL_CYCLES)
+  val fire = valid && cnt < UInt(REFILL_CYCLES)
   io.req.ready := !valid && !io.probe.valid
   io.probe.ready := !valid
   io.data_req.valid := fire
@@ -492,9 +492,9 @@ class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
 
   io.release.valid := valid && !cmd_sent
   io.release.bits.r_type := req.r_type
-  io.release.bits.addr := Cat(req.tag, req.idx).toUFix
+  io.release.bits.addr := Cat(req.tag, req.idx).toUInt
   io.release.bits.client_xact_id := req.client_xact_id
-  io.release.bits.master_xact_id := UFix(0)
+  io.release.bits.master_xact_id := UInt(0)
   io.release_data.valid := r2_data_req_fired
   io.release_data.bits.data := io.data_resp
 
@@ -502,23 +502,23 @@ class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   io.meta_read.bits.addr := io.release.bits.addr << conf.offbits
 }
 
-class ProbeUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Component {
+class ProbeUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
   val io = new Bundle {
-    val req = (new FIFOIO) { new InternalProbe }.flip
-    val rep = (new FIFOIO) { new Release }
-    val meta_read = (new FIFOIO) { new MetaReadReq }
-    val meta_write = (new FIFOIO) { new MetaWriteReq }
-    val wb_req = (new FIFOIO) { new WritebackReq }
+    val req = Decoupled(new InternalProbe).flip
+    val rep = Decoupled(new Release)
+    val meta_read = Decoupled(new MetaReadReq)
+    val meta_write = Decoupled(new MetaWriteReq)
+    val wb_req = Decoupled(new WritebackReq)
     val way_en = Bits(INPUT, conf.ways)
     val mshr_rdy = Bool(INPUT)
-    val line_state = UFix(INPUT, 2)
+    val line_state = UInt(INPUT, 2)
   }
 
-  val s_reset :: s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(9) { UFix() }
-  val state = Reg(resetVal = s_invalid)
-  val line_state = Reg() { UFix() }
-  val way_en = Reg() { Bits() }
-  val req = Reg() { new InternalProbe }
+  val s_reset :: s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(9) { UInt() }
+  val state = RegReset(s_invalid)
+  val line_state = Reg(UInt())
+  val way_en = Reg(Bits())
+  val req = Reg(new InternalProbe)
   val hit = way_en.orR
 
   when (state === s_meta_write && io.meta_write.ready) {
@@ -561,40 +561,40 @@ class ProbeUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends 
   io.rep.bits := Release(tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.newStateOnFlush)), req.addr, req.client_xact_id, req.master_xact_id)
 
   io.meta_read.valid := state === s_meta_read
-  io.meta_read.bits.addr := req.addr << UFix(conf.offbits)
+  io.meta_read.bits.addr := req.addr << UInt(conf.offbits)
 
   io.meta_write.valid := state === s_meta_write
   io.meta_write.bits.way_en := way_en
   io.meta_write.bits.idx := req.addr
   io.meta_write.bits.data.state := tl.co.newStateOnProbe(req, line_state)
-  io.meta_write.bits.data.tag := req.addr >> UFix(conf.idxbits)
+  io.meta_write.bits.data.tag := req.addr >> UInt(conf.idxbits)
 
   io.wb_req.valid := state === s_writeback_req
   io.wb_req.bits.way_en := way_en
   io.wb_req.bits.idx := req.addr
-  io.wb_req.bits.tag := req.addr >> UFix(conf.idxbits)
-  io.wb_req.bits.r_type := UFix(0) // DNC
-  io.wb_req.bits.client_xact_id := UFix(0) // DNC
+  io.wb_req.bits.tag := req.addr >> UInt(conf.idxbits)
+  io.wb_req.bits.r_type := UInt(0) // DNC
+  io.wb_req.bits.client_xact_id := UInt(0) // DNC
 }
 
-class MetaDataArray(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Component {
+class MetaDataArray(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
   val io = new Bundle {
-    val read = (new FIFOIO) { new MetaReadReq }.flip
-    val write = (new FIFOIO) { new MetaWriteReq }.flip
-    val resp = Vec(conf.ways){ (new MetaData).asOutput }
+    val read = Decoupled(new MetaReadReq).flip
+    val write = Decoupled(new MetaWriteReq).flip
+    val resp = Vec.fill(conf.ways){(new MetaData).asOutput}
   }
 
-  val rst_cnt = Reg(resetVal = UFix(0, log2Up(conf.sets+1)))
+  val rst_cnt = RegReset(UInt(0, log2Up(conf.sets+1)))
   val rst = rst_cnt < conf.sets
   when (rst) { rst_cnt := rst_cnt+1 }
 
   val metabits = io.write.bits.data.state.width + conf.tagbits
-  val tags = Mem(conf.sets, seqRead = true) { UFix(width = metabits*conf.ways) }
+  val tags = Mem(UInt(width = metabits*conf.ways), conf.sets, seqRead = true)
 
   when (rst || io.write.valid) {
     val addr = Mux(rst, rst_cnt, io.write.bits.idx)
     val data = Cat(Mux(rst, tl.co.newStateOnFlush, io.write.bits.data.state), io.write.bits.data.tag)
-    val mask = Mux(rst, Fix(-1), io.write.bits.way_en)
+    val mask = Mux(rst, SInt(-1), io.write.bits.way_en)
     tags.write(addr, Fill(conf.ways, data), FillInterleaved(metabits, mask))
   }
   val tag = tags(RegEn(io.read.bits.addr >> conf.offbits, io.read.valid))
@@ -609,11 +609,11 @@ class MetaDataArray(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   io.write.ready := !rst
 }
 
-class DataArray(implicit conf: DCacheConfig) extends Component {
+class DataArray(implicit conf: DCacheConfig) extends Module {
   val io = new Bundle {
-    val read = new FIFOIO()(new DataReadReq).flip
-    val write = new FIFOIO()(new DataWriteReq).flip
-    val resp = Vec(conf.ways){ Bits(OUTPUT, conf.bitsperrow) }
+    val read = Decoupled(new DataReadReq).flip
+    val write = Decoupled(new DataWriteReq).flip
+    val resp = Vec.fill(conf.ways){Bits(OUTPUT, conf.bitsperrow)}
   }
 
   val waddr = io.write.bits.addr >> conf.ramoffbits
@@ -623,10 +623,10 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
     for (w <- 0 until conf.ways by conf.wordsperrow) {
       val wway_en = io.write.bits.way_en(w+conf.wordsperrow-1,w)
       val rway_en = io.read.bits.way_en(w+conf.wordsperrow-1,w)
-      val resp = Vec(conf.wordsperrow){Bits(width = conf.bitsperrow)}
+      val resp = Vec.fill(conf.wordsperrow){Bits(width = conf.bitsperrow)}
       val r_raddr = RegEn(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
-        val array = Mem(conf.sets*REFILL_CYCLES, seqRead = true){ Bits(width=conf.bitsperrow) }
+        val array = Mem(Bits(width=conf.bitsperrow), conf.sets*REFILL_CYCLES, seqRead = true)
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
           val data = Fill(conf.wordsperrow, io.write.bits.data(conf.encdatabits*(p+1)-1,conf.encdatabits*p))
           val mask = FillInterleaved(conf.encdatabits, wway_en)
@@ -645,7 +645,7 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
   } else {
     val wmask = FillInterleaved(conf.encdatabits, io.write.bits.wmask)
     for (w <- 0 until conf.ways) {
-      val array = Mem(conf.sets*REFILL_CYCLES, seqRead = true){ Bits(width=conf.bitsperrow) }
+      val array = Mem(Bits(width=conf.bitsperrow), conf.sets*REFILL_CYCLES, seqRead = true)
       when (io.write.bits.way_en(w) && io.write.valid) {
         array.write(waddr, io.write.bits.data, wmask)
       }
@@ -657,7 +657,7 @@ class DataArray(implicit conf: DCacheConfig) extends Component {
   io.write.ready := Bool(true)
 }
 
-class AMOALU(implicit conf: DCacheConfig) extends Component {
+class AMOALU(implicit conf: DCacheConfig) extends Module {
   val io = new Bundle {
     val addr = Bits(INPUT, conf.offbits)
     val cmd = Bits(INPUT, 4)
@@ -674,8 +674,8 @@ class AMOALU(implicit conf: DCacheConfig) extends Component {
   val min = io.cmd === M_XA_MIN || io.cmd === M_XA_MINU
   val word = io.typ === MT_W || io.typ === MT_WU || io.typ === MT_B || io.typ === MT_BU
 
-  val mask = Fix(-1,64) ^ (io.addr(2) << 31)
-  val adder_out = (io.lhs & mask).toUFix + (io.rhs & mask)
+  val mask = SInt(-1,64) ^ (io.addr(2) << 31)
+  val adder_out = (io.lhs & mask).toUInt + (io.rhs & mask)
 
   val cmp_lhs  = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
   val cmp_rhs  = Mux(word && !io.addr(2), io.rhs(31), io.rhs(63))
@@ -699,7 +699,7 @@ class HellaCacheReq(implicit conf: DCacheConfig) extends Bundle {
   val kill = Bool()
   val typ  = Bits(width = 3)
   val phys = Bool()
-  val addr = UFix(width = conf.maxaddrbits)
+  val addr = UInt(width = conf.maxaddrbits)
   val data = Bits(width = conf.databits)
   val tag  = Bits(width = conf.reqtagbits)
   val cmd  = Bits(width = 4)
@@ -715,7 +715,7 @@ class HellaCacheResp(implicit conf: DCacheConfig) extends Bundle {
   val data_subword = Bits(width = conf.databits)
   val tag = Bits(width = conf.reqtagbits)
   val cmd  = Bits(width = 4)
-  val addr = UFix(width = conf.maxaddrbits)
+  val addr = UInt(width = conf.maxaddrbits)
   val store_data = Bits(width = conf.databits)
 
   override def clone = new HellaCacheResp().asInstanceOf[this.type]
@@ -733,13 +733,13 @@ class HellaCacheExceptions extends Bundle {
 
 // interface between D$ and processor/DTLB
 class HellaCacheIO(implicit conf: DCacheConfig) extends Bundle {
-  val req = (new FIFOIO){ new HellaCacheReq }
-  val resp = (new PipeIO){ new HellaCacheResp }.flip
+  val req = Decoupled(new HellaCacheReq)
+  val resp = Valid(new HellaCacheResp).flip
   val xcpt = (new HellaCacheExceptions).asInput
   val ptw = (new TLBPTWIO).flip
 }
 
-class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Component {
+class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
   implicit val ln = tl.ln
   val io = new Bundle {
     val cpu = (new HellaCacheIO).flip
@@ -751,37 +751,37 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val offsetmsb   = indexlsb-1
   val offsetlsb   = log2Up(conf.databytes)
 
-  val wb = new WritebackUnit
-  val prober = new ProbeUnit
-  val mshrs = new MSHRFile
+  val wb = Module(new WritebackUnit)
+  val prober = Module(new ProbeUnit)
+  val mshrs = Module(new MSHRFile)
 
   io.cpu.req.ready := Bool(true)
-  val s1_valid = Reg(io.cpu.req.fire(), resetVal = Bool(false))
-  val s1_req = Reg{io.cpu.req.bits.clone}
+  val s1_valid = Reg(update=io.cpu.req.fire(), reset=Bool(false))
+  val s1_req = Reg(io.cpu.req.bits.clone)
   val s1_valid_masked = s1_valid && !io.cpu.req.bits.kill
-  val s1_replay = Reg(resetVal = Bool(false))
-  val s1_clk_en = Reg{Bool()}
+  val s1_replay = RegReset(Bool(false))
+  val s1_clk_en = Reg(Bool())
 
-  val s2_valid = Reg(s1_valid_masked, resetVal = Bool(false))
-  val s2_req = Reg{io.cpu.req.bits.clone}
-  val s2_replay = Reg(s1_replay, resetVal = Bool(false))
+  val s2_valid = Reg(update=s1_valid_masked, reset=Bool(false))
+  val s2_req = Reg(io.cpu.req.bits.clone)
+  val s2_replay = Reg(update=s1_replay, reset=Bool(false))
   val s2_recycle = Bool()
   val s2_valid_masked = Bool()
 
-  val s3_valid = Reg(resetVal = Bool(false))
-  val s3_req = Reg{io.cpu.req.bits.clone}
-  val s3_way = Reg{Bits()}
+  val s3_valid = RegReset(Bool(false))
+  val s3_req = Reg(io.cpu.req.bits.clone)
+  val s3_way = Reg(Bits())
 
   val s1_recycled = RegEn(s2_recycle, s1_clk_en)
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
-  val dtlb = new TLB(8)
+  val dtlb = Module(new TLB(8))
   dtlb.io.ptw <> io.cpu.ptw
   dtlb.io.req.valid := s1_valid_masked && s1_readwrite && !s1_req.phys
   dtlb.io.req.bits.passthrough := s1_req.phys
-  dtlb.io.req.bits.asid := UFix(0)
+  dtlb.io.req.bits.asid := UInt(0)
   dtlb.io.req.bits.vpn := s1_req.addr >> conf.pgidxbits
   dtlb.io.req.bits.instruction := Bool(false)
   when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }
@@ -806,14 +806,16 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val s1_addr = Cat(dtlb.io.resp.ppn, s1_req.addr(conf.pgidxbits-1,0))
 
   when (s1_clk_en) {
-    s2_req.addr := s1_addr
+    s2_req.kill := s1_req.kill
     s2_req.typ := s1_req.typ
-    s2_req.cmd := s1_req.cmd
-    s2_req.tag := s1_req.tag
+    s2_req.phys := s1_req.phys
+    s2_req.addr := s1_addr
     when (s1_write) {
       s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, io.cpu.req.bits.data)
     }
     when (s1_recycled) { s2_req.data := s1_req.data }
+    s2_req.tag := s1_req.tag
+    s2_req.cmd := s1_req.cmd
   }
 
   val misaligned =
@@ -827,19 +829,19 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
 
   // tags
-  val meta = new MetaDataArray
-  val metaReadArb = (new Arbiter(5)) { new MetaReadReq }
-  val metaWriteArb = (new Arbiter(2)) { new MetaWriteReq }
+  val meta = Module(new MetaDataArray)
+  val metaReadArb = Module(new Arbiter(new MetaReadReq, 5))
+  val metaWriteArb = Module(new Arbiter(new MetaWriteReq, 2))
   metaReadArb.io.out <> meta.io.read
   metaWriteArb.io.out <> meta.io.write
 
   // data
-  val data = new DataArray
-  val readArb = new Arbiter(4)(new DataReadReq)
+  val data = Module(new DataArray)
+  val readArb = Module(new Arbiter(new DataReadReq, 4))
   readArb.io.out.ready := !io.mem.grant.valid || io.mem.grant.ready // insert bubble if refill gets blocked
   readArb.io.out <> data.io.read
 
-  val writeArb = new Arbiter(2)(new DataWriteReq)
+  val writeArb = Module(new Arbiter(new DataWriteReq, 2))
   data.io.write.valid := writeArb.io.out.valid
   writeArb.io.out.ready := data.io.write.ready
   data.io.write.bits := writeArb.io.out.bits
@@ -854,7 +856,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   // data read for new requests
   readArb.io.in(3).bits.addr := io.cpu.req.bits.addr
   readArb.io.in(3).valid := io.cpu.req.valid
-  readArb.io.in(3).bits.way_en := Fix(-1)
+  readArb.io.in(3).bits.way_en := SInt(-1)
   when (!readArb.io.in(3).ready) { io.cpu.req.ready := Bool(false) }
 
   // recycled requests
@@ -862,23 +864,23 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   metaReadArb.io.in(0).bits.addr := s2_req.addr
   readArb.io.in(0).valid := s2_recycle
   readArb.io.in(0).bits.addr := s2_req.addr
-  readArb.io.in(0).bits.way_en := Fix(-1)
+  readArb.io.in(0).bits.way_en := SInt(-1)
 
   // tag check and way muxing
-  def wayMap[T <: Data](f: Int => T)(gen: => T) = Vec((0 until conf.ways).map(f)){gen}
-  val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === (s1_addr >> conf.untagbits)){Bits()}.toBits
-  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && tl.co.isValid(meta.io.resp(w).state)){Bits()}.toBits
+  def wayMap[T <: Data](f: Int => T) = Vec((0 until conf.ways).map(f))
+  val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === (s1_addr >> conf.untagbits)).toBits
+  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && tl.co.isValid(meta.io.resp(w).state)).toBits
   s1_clk_en := metaReadArb.io.out.valid
   val s1_writeback = s1_clk_en && !s1_valid && !s1_replay
   val s2_tag_match_way = RegEn(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
-  val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEn(meta.io.resp(w).state, s1_clk_en)){Bits()})
+  val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEn(meta.io.resp(w).state, s1_clk_en)))
   val s2_hit = s2_tag_match && tl.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === tl.co.newStateOnHit(s2_req.cmd, s2_hit_state)
 
   // load-reserved/store-conditional
-  val lrsc_count = Reg(resetVal = UFix(0))
+  val lrsc_count = RegReset(UInt(0))
   val lrsc_valid = lrsc_count.orR
-  val lrsc_addr = Reg{UFix()}
+  val lrsc_addr = Reg(UInt())
   val (s2_lr, s2_sc) = (s2_req.cmd === M_XLR, s2_req.cmd === M_XSC)
   val s2_lrsc_addr_match = lrsc_valid && lrsc_addr === (s2_req.addr >> conf.offbits)
   val s2_sc_fail = s2_sc && !s2_lrsc_addr_match
@@ -894,9 +896,9 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   }
   when (io.cpu.ptw.eret) { lrsc_count := 0 }
 
-  val s2_data = Vec(conf.ways){Bits(width = conf.bitsperrow)}
+  val s2_data = Vec.fill(conf.ways){Bits(width = conf.bitsperrow)}
   for (w <- 0 until conf.ways) {
-    val regs = Vec(conf.wordsperrow){Reg{Bits(width = conf.encdatabits)}}
+    val regs = Vec.fill(conf.wordsperrow){Reg(Bits(width = conf.encdatabits))}
     val en1 = s1_clk_en && s1_tag_eq_way(w)
     for (i <- 0 until regs.size) {
       val en = en1 && (Bool(i == 0 || !conf.isNarrowRead) || s1_writeback)
@@ -908,12 +910,12 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val s2_data_decoded = (0 until conf.wordsperrow).map(i => conf.code.decode(s2_data_muxed(conf.encdatabits*(i+1)-1,conf.encdatabits*i)))
   val s2_data_corrected = AVec(s2_data_decoded.map(_.corrected)).toBits
   val s2_data_uncorrected = AVec(s2_data_decoded.map(_.uncorrected)).toBits
-  val s2_word_idx = if (conf.isNarrowRead) UFix(0) else s2_req.addr(log2Up(conf.wordsperrow*conf.databytes)-1,3)
+  val s2_word_idx = if (conf.isNarrowRead) UInt(0) else s2_req.addr(log2Up(conf.wordsperrow*conf.databytes)-1,3)
   val s2_data_correctable = AVec(s2_data_decoded.map(_.correctable)).toBits()(s2_word_idx)
   
   // store/amo hits
   s3_valid := (s2_valid_masked && s2_hit || s2_replay) && !s2_sc_fail && isWrite(s2_req.cmd)
-  val amoalu = new AMOALU
+  val amoalu = Module(new AMOALU)
   when ((s2_valid || s2_replay) && (isWrite(s2_req.cmd) || s2_data_correctable)) {
     s3_req := s2_req
     s3_req.data := Mux(s2_data_correctable, s2_data_corrected, amoalu.io.out)
@@ -921,16 +923,16 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   }
 
   writeArb.io.in(0).bits.addr := s3_req.addr
-  writeArb.io.in(0).bits.wmask := UFix(1) << s3_req.addr(conf.ramoffbits-1,offsetlsb).toUFix
+  writeArb.io.in(0).bits.wmask := UInt(1) << s3_req.addr(conf.ramoffbits-1,offsetlsb).toUInt
   writeArb.io.in(0).bits.data := Fill(conf.wordsperrow, s3_req.data)
   writeArb.io.in(0).valid := s3_valid
   writeArb.io.in(0).bits.way_en :=  s3_way
 
   // replacement policy
   val replacer = new RandomReplacement
-  val s1_replaced_way_en = UFixToOH(replacer.way)
-  val s2_replaced_way_en = UFixToOH(RegEn(replacer.way, s1_clk_en))
-  val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegEn(meta.io.resp(w), s1_clk_en && s1_replaced_way_en(w))){new MetaData})
+  val s1_replaced_way_en = UIntToOH(replacer.way)
+  val s2_replaced_way_en = UIntToOH(RegEn(replacer.way, s1_clk_en))
+  val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegEn(meta.io.resp(w), s1_clk_en && s1_replaced_way_en(w))).toSeq)
 
   // miss handling
   mshrs.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd))
@@ -948,18 +950,18 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   //TODO io.mem.acquire.data should be connected to uncached store data generator
   //io.mem.acquire.data <> FIFOedLogicalNetworkIOWrapper(TODO)
   io.mem.acquire.data.valid := Bool(false)
-  io.mem.acquire.data.bits.payload.data := UFix(0)
+  io.mem.acquire.data.bits.payload.data := UInt(0)
 
   // replays
   readArb.io.in(1).valid := mshrs.io.replay.valid
   readArb.io.in(1).bits := mshrs.io.replay.bits
-  readArb.io.in(1).bits.way_en := Fix(-1)
+  readArb.io.in(1).bits.way_en := SInt(-1)
   mshrs.io.replay.ready := readArb.io.in(1).ready
   s1_replay := mshrs.io.replay.valid && readArb.io.in(1).ready
   metaReadArb.io.in(1) <> mshrs.io.meta_read
   metaWriteArb.io.in(0) <> mshrs.io.meta_write
   // probes
-  val releaseArb = (new Arbiter(2)) { new Release }
+  val releaseArb = Module(new Arbiter(new Release, 2))
   FIFOedLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release.meta
 
   val probe = FIFOedLogicalNetworkIOUnwrapper(io.mem.probe)
@@ -979,7 +981,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   writeArb.io.in(1).valid := io.mem.grant.valid && refill
   io.mem.grant.ready := writeArb.io.in(1).ready || !refill
   writeArb.io.in(1).bits := mshrs.io.mem_resp
-  writeArb.io.in(1).bits.wmask := Fix(-1)
+  writeArb.io.in(1).bits.wmask := SInt(-1)
   writeArb.io.in(1).bits.data := io.mem.grant.bits.payload.data
 
   // writebacks
@@ -991,15 +993,15 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   FIFOedLogicalNetworkIOWrapper(wb.io.release_data) <> io.mem.release.data
 
   // store->load bypassing
-  val s4_valid = Reg(s3_valid, resetVal = Bool(false))
+  val s4_valid = Reg(update=s3_valid, reset=Bool(false))
   val s4_req = RegEn(s3_req, s3_valid && metaReadArb.io.out.valid)
   val bypasses = List(
     ((s2_valid_masked || s2_replay) && !s2_sc_fail, s2_req, amoalu.io.out),
     (s3_valid, s3_req, s3_req.data),
     (s4_valid, s4_req, s4_req.data)
   ).map(r => (r._1 && (s1_addr >> conf.wordoffbits === r._2.addr >> conf.wordoffbits) && isWrite(r._2.cmd), r._3))
-  val s2_store_bypass_data = Reg{Bits(width = conf.databits)}
-  val s2_store_bypass = Reg{Bool()}
+  val s2_store_bypass_data = Reg(Bits(width = conf.databits))
+  val s2_store_bypass = Reg(Bool())
   when (s1_clk_en) {
     s2_store_bypass := false
     when (bypasses.map(_._1).reduce(_||_)) {
@@ -1029,14 +1031,14 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   s2_valid_masked := s2_valid && !s2_nack
 
   val s2_recycle_ecc = (s2_valid || s2_replay) && s2_hit && s2_data_correctable
-  val s2_recycle_next = Reg(resetVal = Bool(false))
+  val s2_recycle_next = RegReset(Bool(false))
   when (s1_valid || s1_replay) { s2_recycle_next := (s1_valid || s1_replay) && s2_recycle_ecc }
   s2_recycle := s2_recycle_ecc || s2_recycle_next
 
   // after a nack, block until nack condition resolves to save energy
-  val block_fence = Reg(resetVal = Bool(false))
+  val block_fence = RegReset(Bool(false))
   block_fence := (s2_valid && s2_req.cmd === M_FENCE || block_fence) && !mshrs.io.fence_rdy
-  val block_miss = Reg(resetVal = Bool(false))
+  val block_miss = RegReset(Bool(false))
   block_miss := (s2_valid || block_miss) && s2_nack_miss
   when (block_fence || block_miss) {
     io.cpu.req.ready := Bool(false)

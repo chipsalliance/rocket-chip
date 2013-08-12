@@ -10,20 +10,20 @@ import Util._
 class CtrlDpathIO extends Bundle()
 {
   // outputs to datapath
-  val sel_pc   = UFix(OUTPUT, 3);
+  val sel_pc   = UInt(OUTPUT, 3);
   val killd    = Bool(OUTPUT);
   val ren2     = Bool(OUTPUT);
   val ren1     = Bool(OUTPUT);
-  val sel_alu2 = UFix(OUTPUT, 3);
+  val sel_alu2 = UInt(OUTPUT, 3);
   val fn_dw    = Bool(OUTPUT);
-  val fn_alu   = UFix(OUTPUT, SZ_ALU_FN);
+  val fn_alu   = UInt(OUTPUT, SZ_ALU_FN);
   val div_mul_val = Bool(OUTPUT)
   val div_mul_kill = Bool(OUTPUT)
   val div_val  = Bool(OUTPUT);
   val div_kill = Bool(OUTPUT)
   val sel_wa   = Bool(OUTPUT);
-  val sel_wb   = UFix(OUTPUT, 3);
-  val pcr      = UFix(OUTPUT, 3)
+  val sel_wb   = UInt(OUTPUT, 3);
+  val pcr      = UInt(OUTPUT, 3)
   val eret  = Bool(OUTPUT);
   val mem_load = Bool(OUTPUT);
   val wb_load = Bool(OUTPUT)
@@ -39,7 +39,7 @@ class CtrlDpathIO extends Bundle()
   val mem_rs2_val = Bool(OUTPUT)
   // exception handling
   val exception = Bool(OUTPUT);
-  val cause    = UFix(OUTPUT, 6);
+  val cause    = UInt(OUTPUT, 6);
   val badvaddr_wen = Bool(OUTPUT); // high for a load/store access fault
   val vec_irq_aux_wen = Bool(OUTPUT)
   // inputs from datapath
@@ -49,13 +49,13 @@ class CtrlDpathIO extends Bundle()
   val ex_br_taken = Bool(INPUT)
   val div_mul_rdy = Bool(INPUT)
   val mem_ll_wb = Bool(INPUT)
-  val mem_ll_waddr = UFix(INPUT, 5)
-  val ex_waddr = UFix(INPUT, 5);  // write addr from execute stage
-  val mem_waddr = UFix(INPUT, 5); // write addr from memory stage
-  val wb_waddr = UFix(INPUT, 5);  // write addr from writeback stage
+  val mem_ll_waddr = UInt(INPUT, 5)
+  val ex_waddr = UInt(INPUT, 5);  // write addr from execute stage
+  val mem_waddr = UInt(INPUT, 5); // write addr from memory stage
+  val wb_waddr = UInt(INPUT, 5);  // write addr from writeback stage
   val status = new Status().asInput
   val fp_sboard_clr  = Bool(INPUT);
-  val fp_sboard_clra = UFix(INPUT, 5);
+  val fp_sboard_clra = UInt(INPUT, 5);
   val pcr_replay = Bool(INPUT)
 }
 
@@ -72,7 +72,7 @@ abstract trait DecodeConstants
                 //   |     | | |      | | | |        |      |       | |         |     | | | |     |      |     | | | | |
                 List(N,    X,X,BR_X,  X,X,X,A2_X,    DW_X,  FN_X,   N,M_X,      MT_X, X,X,X,WA_X, WB_X,  PCR.X,N,X,X,X,X)
                                         
-  val table: Array[(Bits, List[Bits])]
+  val table: Array[(UInt, List[UInt])]
 }
 
 object XDecode extends DecodeConstants
@@ -318,7 +318,7 @@ object VDecode extends DecodeConstants
     VXCPTHOLD-> List(Y,    N,Y,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,   N,M_X,      MT_X, N,N,N,WA_X, WB_X,  PCR.N,N,N,N,Y,N))
 }
 
-class Control(implicit conf: RocketConfiguration) extends Component
+class Control(implicit conf: RocketConfiguration) extends Module
 {
   val io = new Bundle {
     val dpath   = new CtrlDpathIO
@@ -339,11 +339,15 @@ class Control(implicit conf: RocketConfiguration) extends Component
   if (conf.fpu) decode_table ++= FDecode.table
   if (conf.vec) decode_table ++= VDecode.table
 
-  val cs = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
-
-  val id_int_val :: id_fp_val :: id_vec_val :: id_br_type :: id_jalr :: id_renx2 :: id_renx1 :: id_sel_alu2 :: id_fn_dw :: id_fn_alu :: cs0 = cs 
-  val id_mem_val :: id_mem_cmd :: id_mem_type :: id_mul_val :: id_div_val :: id_wen :: id_sel_wa :: id_sel_wb :: cs1 = cs0
-  val id_pcr :: id_fence_i :: id_eret :: id_syscall :: id_privileged :: id_replay_next :: Nil = cs1
+  val logic = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
+  val cs = logic.map { 
+    case b if b.inputs.head.getClass == classOf[Bool] => b.toBool
+    case u => u 
+  }
+  
+  val (id_int_val: Bool) :: (id_fp_val: Bool) :: (id_vec_val: Bool) :: id_br_type :: (id_jalr: Bool) :: (id_renx2: Bool) :: (id_renx1: Bool) :: id_sel_alu2 :: (id_fn_dw: Bool) :: id_fn_alu :: cs0 = cs 
+  val (id_mem_val: Bool) :: id_mem_cmd :: id_mem_type :: (id_mul_val: Bool) :: (id_div_val: Bool) :: (id_wen: Bool) :: id_sel_wa :: id_sel_wb :: cs1 = cs0
+  val id_pcr :: (id_fence_i: Bool) :: (id_eret: Bool) :: (id_syscall: Bool) :: (id_privileged: Bool) :: (id_replay_next: Bool) :: Nil = cs1
 
   val id_raddr3 = io.dpath.inst(16,12);
   val id_raddr2 = io.dpath.inst(21,17);
@@ -351,70 +355,70 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val id_waddr  = Mux(id_sel_wa === WA_RA, RA, io.dpath.inst(31,27));
   val id_load_use = Bool();
   
-  val ex_reg_xcpt_interrupt  = Reg(resetVal = Bool(false))
-  val ex_reg_valid           = Reg(resetVal = Bool(false))
-  val ex_reg_eret            = Reg(resetVal = Bool(false))
-  val ex_reg_wen             = Reg(resetVal = Bool(false))
-  val ex_reg_fp_wen          = Reg(resetVal = Bool(false))
-  val ex_reg_flush_inst      = Reg(resetVal = Bool(false))
-  val ex_reg_jalr            = Reg(resetVal = Bool(false))
-  val ex_reg_btb_hit         = Reg(resetVal = Bool(false))
-  val ex_reg_div_mul_val     = Reg(resetVal = Bool(false))
-  val ex_reg_mem_val         = Reg(resetVal = Bool(false))
-  val ex_reg_xcpt            = Reg(resetVal = Bool(false))
-  val ex_reg_fp_val          = Reg(resetVal = Bool(false))
-  val ex_reg_vec_val         = Reg(resetVal = Bool(false))
-  val ex_reg_replay_next     = Reg(resetVal = Bool(false))
-  val ex_reg_load_use        = Reg(resetVal = Bool(false))
-  val ex_reg_pcr             = Reg(resetVal = PCR.N)
-  val ex_reg_br_type         = Reg(resetVal = BR_N)
-  val ex_reg_mem_cmd         = Reg(){Bits()}
-  val ex_reg_mem_type        = Reg(){Bits()}
-  val ex_reg_cause           = Reg(){UFix()}
+  val ex_reg_xcpt_interrupt  = RegReset(Bool(false))
+  val ex_reg_valid           = RegReset(Bool(false))
+  val ex_reg_eret            = RegReset(Bool(false))
+  val ex_reg_wen             = RegReset(Bool(false))
+  val ex_reg_fp_wen          = RegReset(Bool(false))
+  val ex_reg_flush_inst      = RegReset(Bool(false))
+  val ex_reg_jalr            = RegReset(Bool(false))
+  val ex_reg_btb_hit         = RegReset(Bool(false))
+  val ex_reg_div_mul_val     = RegReset(Bool(false))
+  val ex_reg_mem_val         = RegReset(Bool(false))
+  val ex_reg_xcpt            = RegReset(Bool(false))
+  val ex_reg_fp_val          = RegReset(Bool(false))
+  val ex_reg_vec_val         = RegReset(Bool(false))
+  val ex_reg_replay_next     = RegReset(Bool(false))
+  val ex_reg_load_use        = RegReset(Bool(false))
+  val ex_reg_pcr             = RegReset(PCR.N)
+  val ex_reg_br_type         = RegReset(BR_N)
+  val ex_reg_mem_cmd         = Reg(Bits())
+  val ex_reg_mem_type        = Reg(Bits())
+  val ex_reg_cause           = Reg(UInt())
 
-  val mem_reg_xcpt_interrupt  = Reg(resetVal = Bool(false))
-  val mem_reg_valid           = Reg(resetVal = Bool(false))
-  val mem_reg_eret            = Reg(resetVal = Bool(false))
-  val mem_reg_wen             = Reg(resetVal = Bool(false))
-  val mem_reg_fp_wen          = Reg(resetVal = Bool(false))
-  val mem_reg_flush_inst      = Reg(resetVal = Bool(false))
-  val mem_reg_div_mul_val     = Reg(resetVal = Bool(false))
-  val mem_reg_mem_val         = Reg(resetVal = Bool(false))
-  val mem_reg_xcpt            = Reg(resetVal = Bool(false))
-  val mem_reg_fp_val          = Reg(resetVal = Bool(false))
-  val mem_reg_vec_val         = Reg(resetVal = Bool(false))
-  val mem_reg_replay          = Reg(resetVal = Bool(false))
-  val mem_reg_replay_next     = Reg(resetVal = Bool(false))
-  val mem_reg_pcr             = Reg(resetVal = PCR.N)
-  val mem_reg_cause           = Reg(){UFix()}
-  val mem_reg_slow_bypass     = Reg(){Bool()}
+  val mem_reg_xcpt_interrupt  = RegReset(Bool(false))
+  val mem_reg_valid           = RegReset(Bool(false))
+  val mem_reg_eret            = RegReset(Bool(false))
+  val mem_reg_wen             = RegReset(Bool(false))
+  val mem_reg_fp_wen          = RegReset(Bool(false))
+  val mem_reg_flush_inst      = RegReset(Bool(false))
+  val mem_reg_div_mul_val     = RegReset(Bool(false))
+  val mem_reg_mem_val         = RegReset(Bool(false))
+  val mem_reg_xcpt            = RegReset(Bool(false))
+  val mem_reg_fp_val          = RegReset(Bool(false))
+  val mem_reg_vec_val         = RegReset(Bool(false))
+  val mem_reg_replay          = RegReset(Bool(false))
+  val mem_reg_replay_next     = RegReset(Bool(false))
+  val mem_reg_pcr             = RegReset(PCR.N)
+  val mem_reg_cause           = Reg(UInt())
+  val mem_reg_slow_bypass     = Reg(Bool())
 
-  val wb_reg_valid           = Reg(resetVal = Bool(false))
-  val wb_reg_pcr             = Reg(resetVal = PCR.N)
-  val wb_reg_wen             = Reg(resetVal = Bool(false))
-  val wb_reg_fp_wen          = Reg(resetVal = Bool(false))
-  val wb_reg_flush_inst      = Reg(resetVal = Bool(false))
-  val wb_reg_mem_val         = Reg(resetVal = Bool(false))
-  val wb_reg_eret            = Reg(resetVal = Bool(false))
-  val wb_reg_xcpt            = Reg(resetVal = Bool(false))
-  val wb_reg_replay          = Reg(resetVal = Bool(false))
-  val wb_reg_cause           = Reg(){UFix()}
-  val wb_reg_fp_val          = Reg(resetVal = Bool(false))
-  val wb_reg_div_mul_val = Reg(resetVal = Bool(false))
+  val wb_reg_valid           = RegReset(Bool(false))
+  val wb_reg_pcr             = RegReset(PCR.N)
+  val wb_reg_wen             = RegReset(Bool(false))
+  val wb_reg_fp_wen          = RegReset(Bool(false))
+  val wb_reg_flush_inst      = RegReset(Bool(false))
+  val wb_reg_mem_val         = RegReset(Bool(false))
+  val wb_reg_eret            = RegReset(Bool(false))
+  val wb_reg_xcpt            = RegReset(Bool(false))
+  val wb_reg_replay          = RegReset(Bool(false))
+  val wb_reg_cause           = Reg(UInt())
+  val wb_reg_fp_val          = RegReset(Bool(false))
+  val wb_reg_div_mul_val     = RegReset(Bool(false))
 
   val take_pc = Bool()
-  val pc_taken = Reg(take_pc, resetVal = Bool(false))
+  val pc_taken = Reg(update = take_pc, reset = Bool(false))
   val take_pc_wb = Bool()
   val ctrl_killd = Bool()
   val ctrl_killx = Bool()
   val ctrl_killm = Bool()
 
   val sr = io.dpath.status
-  var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UFix(CAUSE_INTERRUPT+i)))
+  var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UInt(CAUSE_INTERRUPT+i)))
 
   val (vec_replay, vec_stalld) = if (conf.vec) {
     // vector control
-    val vec = new rocketCtrlVec()
+    val vec = Module(new rocketCtrlVec)
 
     io.vec_dpath <> vec.io.dpath
     io.vec_iface <> vec.io.iface
@@ -425,7 +429,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     vec.io.exception := wb_reg_xcpt
     vec.io.eret := wb_reg_eret
 
-    val vec_dec = new rocketCtrlVecDecoder()
+    val vec_dec = Module(new rocketCtrlVecDecoder)
     vec_dec.io.inst := io.dpath.inst
 
     val s = io.dpath.status.s
@@ -452,7 +456,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
   val (id_interrupt_unmasked, id_interrupt_cause) = checkExceptions(id_interrupts)
   val id_interrupt = io.dpath.status.et && id_interrupt_unmasked
 
-  def checkExceptions(x: Seq[(Bits, UFix)]) =
+  def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
 
   // executing ERET when traps are enabled causes an illegal instruction exception
@@ -463,13 +467,13 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   val (id_xcpt, id_cause) = checkExceptions(List(
     (id_interrupt,                            id_interrupt_cause),
-    (io.imem.resp.bits.xcpt_ma,               UFix(0)),
-    (io.imem.resp.bits.xcpt_if,               UFix(1)),
-    (illegal_inst,                            UFix(2)),
-    (id_privileged && !io.dpath.status.s,     UFix(3)),
-    (id_fp_val && !io.dpath.status.ef,        UFix(4)),
-    (id_syscall,                              UFix(6)),
-    (id_vec_val && !io.dpath.status.ev,       UFix(12))))
+    (io.imem.resp.bits.xcpt_ma,               UInt(0)),
+    (io.imem.resp.bits.xcpt_if,               UInt(1)),
+    (illegal_inst,                            UInt(2)),
+    (id_privileged && !io.dpath.status.s,     UInt(3)),
+    (id_fp_val && !io.dpath.status.ef,        UInt(4)),
+    (id_syscall,                              UInt(6)),
+    (id_vec_val && !io.dpath.status.ev,       UInt(12))))
 
   ex_reg_xcpt_interrupt := id_interrupt && !take_pc && io.imem.resp.valid
   when (id_xcpt) { ex_reg_cause := id_cause }
@@ -500,7 +504,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     ex_reg_mem_val     := id_mem_val.toBool;
     ex_reg_valid       := Bool(true)
     ex_reg_pcr         := id_pcr
-    ex_reg_wen         := id_wen && id_waddr != UFix(0)
+    ex_reg_wen         := id_wen && id_waddr != UInt(0)
     ex_reg_fp_wen      := id_fp_val && io.fpu.dec.wen
     ex_reg_eret        := id_eret.toBool;
     ex_reg_flush_inst  := id_fence_i
@@ -509,7 +513,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
     ex_reg_replay_next      := id_replay_next || id_pcr_flush
     ex_reg_load_use         := id_load_use;
     ex_reg_mem_cmd := id_mem_cmd
-    ex_reg_mem_type := id_mem_type.toUFix
+    ex_reg_mem_type := id_mem_type.toUInt
     ex_reg_xcpt := id_xcpt
   }
 
@@ -528,7 +532,7 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   val (ex_xcpt, ex_cause) = checkExceptions(List(
     (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause),
-    (ex_reg_fp_val && io.fpu.illegal_rm,   UFix(2))))
+    (ex_reg_fp_val && io.fpu.illegal_rm,   UInt(2))))
   
   mem_reg_replay := replay_ex && !take_pc_wb;
   mem_reg_xcpt_interrupt := ex_reg_xcpt_interrupt && !take_pc_wb && !mem_reg_replay_next
@@ -565,10 +569,10 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
-    (mem_reg_mem_val && io.dmem.xcpt.ma.ld,  UFix( 8)),
-    (mem_reg_mem_val && io.dmem.xcpt.ma.st,  UFix( 9)),
-    (mem_reg_mem_val && io.dmem.xcpt.pf.ld,  UFix(10)),
-    (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UFix(11))))
+    (mem_reg_mem_val && io.dmem.xcpt.ma.ld,  UInt( 8)),
+    (mem_reg_mem_val && io.dmem.xcpt.ma.st,  UInt( 9)),
+    (mem_reg_mem_val && io.dmem.xcpt.pf.ld,  UInt(10)),
+    (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UInt(11))))
 
   val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
   val ll_wb_kill_mem = io.dpath.mem_ll_wb && (mem_reg_wen || mem_reg_fp_wen || mem_reg_vec_val || mem_reg_pcr != PCR.N)
@@ -607,14 +611,14 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   class Scoreboard(n: Int)
   {
-    val r = Reg(resetVal = Bits(0, n))
+    val r = RegReset(Bits(0, n))
     var next = r
     var ens = Bool(false)
-    def apply(addr: UFix) = r(addr)
-    def set(en: Bool, addr: UFix): Unit = update(en, next | mask(en, addr))
-    def clear(en: Bool, addr: UFix): Unit = update(en, next & ~mask(en, addr))
-    private def mask(en: Bool, addr: UFix) = Mux(en, UFix(1) << addr, UFix(0))
-    private def update(en: Bool, update: Bits) = {
+    def apply(addr: UInt) = r(addr)
+    def set(en: Bool, addr: UInt): Unit = update(en, next | mask(en, addr))
+    def clear(en: Bool, addr: UInt): Unit = update(en, next & ~mask(en, addr))
+    private def mask(en: Bool, addr: UInt) = Mux(en, UInt(1) << addr, UInt(0))
+    private def update(en: Bool, update: UInt) = {
       next = update
       ens = ens || en
       when (ens) { r := next }
@@ -640,8 +644,8 @@ class Control(implicit conf: RocketConfiguration) extends Component
 	// write cause to PCR on an exception
 	io.dpath.exception := wb_reg_xcpt
 	io.dpath.cause := wb_reg_cause
-	io.dpath.badvaddr_wen := wb_reg_xcpt && (wb_reg_cause === UFix(10) || wb_reg_cause === UFix(11))
-  io.dpath.vec_irq_aux_wen := wb_reg_xcpt && wb_reg_cause >= UFix(24) && wb_reg_cause < UFix(32)
+	io.dpath.badvaddr_wen := wb_reg_xcpt && (wb_reg_cause === UInt(10) || wb_reg_cause === UInt(11))
+  io.dpath.vec_irq_aux_wen := wb_reg_xcpt && wb_reg_cause >= UInt(24) && wb_reg_cause < UInt(32)
 
   // control transfer from ex/wb
   take_pc_wb := replay_wb || wb_reg_xcpt || wb_reg_eret
@@ -677,9 +681,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
     if (conf.fastLoadWord) Bool(!conf.fastLoadByte) && mem_reg_slow_bypass
     else Bool(true)
   val data_hazard_mem = mem_reg_wen &&
-    (id_raddr1 != UFix(0) && id_renx1 && id_raddr1 === io.dpath.mem_waddr ||
-     id_raddr2 != UFix(0) && id_renx2 && id_raddr2 === io.dpath.mem_waddr ||
-     id_waddr  != UFix(0) && id_wen   && id_waddr  === io.dpath.mem_waddr)
+    (id_raddr1 != UInt(0) && id_renx1 && id_raddr1 === io.dpath.mem_waddr ||
+     id_raddr2 != UInt(0) && id_renx2 && id_raddr2 === io.dpath.mem_waddr ||
+     id_waddr  != UInt(0) && id_wen   && id_waddr  === io.dpath.mem_waddr)
   val fp_data_hazard_mem = mem_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.mem_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.mem_waddr ||
@@ -691,9 +695,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
 
   // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
   val data_hazard_wb = wb_reg_wen &&
-    (id_raddr1 != UFix(0) && id_renx1 && (id_raddr1 === io.dpath.wb_waddr) ||
-     id_raddr2 != UFix(0) && id_renx2 && (id_raddr2 === io.dpath.wb_waddr) ||
-     id_waddr  != UFix(0) && id_wen   && (id_waddr  === io.dpath.wb_waddr))
+    (id_raddr1 != UInt(0) && id_renx1 && (id_raddr1 === io.dpath.wb_waddr) ||
+     id_raddr2 != UInt(0) && id_renx2 && (id_raddr2 === io.dpath.wb_waddr) ||
+     id_waddr  != UInt(0) && id_wen   && (id_waddr  === io.dpath.wb_waddr))
   val fp_data_hazard_wb = wb_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.wb_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.wb_waddr ||
@@ -703,9 +707,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
                      fp_data_hazard_wb && (wb_dcache_miss || wb_reg_fp_val)
 
   val id_sboard_hazard =
-    (id_raddr1 != UFix(0) && id_renx1 && sboard(id_raddr1) ||
-     id_raddr2 != UFix(0) && id_renx2 && sboard(id_raddr2) ||
-     id_waddr  != UFix(0) && id_wen   && sboard(id_waddr))
+    (id_raddr1 != UInt(0) && id_renx1 && sboard(id_raddr1) ||
+     id_raddr2 != UInt(0) && id_renx2 && sboard(id_raddr2) ||
+     id_waddr  != UInt(0) && id_wen   && sboard(id_waddr))
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
@@ -723,9 +727,9 @@ class Control(implicit conf: RocketConfiguration) extends Component
   io.dpath.wb_load  := wb_reg_mem_val && wb_reg_wen
   io.dpath.ren2     := id_renx2.toBool;
   io.dpath.ren1     := id_renx1.toBool;
-  io.dpath.sel_alu2 := id_sel_alu2.toUFix
+  io.dpath.sel_alu2 := id_sel_alu2.toUInt
   io.dpath.fn_dw    := id_fn_dw.toBool;
-  io.dpath.fn_alu   := id_fn_alu.toUFix
+  io.dpath.fn_alu   := id_fn_alu.toUInt
   io.dpath.div_mul_val  := ex_reg_div_mul_val
   io.dpath.div_mul_kill := mem_reg_div_mul_val && killm_common
   io.dpath.ex_fp_val:= ex_reg_fp_val;
@@ -736,8 +740,8 @@ class Control(implicit conf: RocketConfiguration) extends Component
   io.dpath.wb_wen   := wb_reg_wen && !replay_wb
   io.dpath.wb_valid := wb_reg_valid && !replay_wb
   io.dpath.sel_wa   := id_sel_wa.toBool;
-  io.dpath.sel_wb   := id_sel_wb.toUFix
-  io.dpath.pcr      := wb_reg_pcr.toUFix
+  io.dpath.sel_wb   := id_sel_wb.toUInt
+  io.dpath.pcr      := wb_reg_pcr.toUInt
   io.dpath.eret := wb_reg_eret
   io.dpath.ex_mem_type := ex_reg_mem_type
   io.dpath.ex_br_type := ex_reg_br_type

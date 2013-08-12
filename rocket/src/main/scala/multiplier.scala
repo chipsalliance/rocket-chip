@@ -8,37 +8,37 @@ class MultiplierReq(implicit conf: RocketConfiguration) extends Bundle {
   val dw = Bits(width = SZ_DW)
   val in1 = Bits(width = conf.xprlen)
   val in2 = Bits(width = conf.xprlen)
-  val tag = UFix(width = conf.nxprbits)
+  val tag = UInt(width = conf.nxprbits)
 
   override def clone = new MultiplierReq().asInstanceOf[this.type]
 }
 
 class MultiplierResp(implicit conf: RocketConfiguration) extends Bundle {
   val data = Bits(width = conf.xprlen)
-  val tag = UFix(width = conf.nxprbits)
+  val tag = UInt(width = conf.nxprbits)
 
   override def clone = new MultiplierResp().asInstanceOf[this.type]
 }
 
 class MultiplierIO(implicit conf: RocketConfiguration) extends Bundle {
-  val req = new FIFOIO()(new MultiplierReq).flip
+  val req = Decoupled(new MultiplierReq).flip
   val kill = Bool(INPUT)
-  val resp = new FIFOIO()(new MultiplierResp)
+  val resp = Decoupled(new MultiplierResp)
 }
 
-class Multiplier(unroll: Int = 1, earlyOut: Boolean = false)(implicit conf: RocketConfiguration) extends Component {
+class Multiplier(unroll: Int = 1, earlyOut: Boolean = false)(implicit conf: RocketConfiguration) extends Module {
   val io = new MultiplierIO
 
   val w0 = io.req.bits.in1.getWidth
   val w = (w0+1+unroll-1)/unroll*unroll
   val cycles = w/unroll
   
-  val r_val = Reg(resetVal = Bool(false));
-  val r_prod= Reg { Bits(width = w*2) }
-  val r_lsb = Reg { Bits() }
-  val r_cnt = Reg { UFix(width = log2Up(cycles+1)) }
-  val r_req = Reg{new MultiplierReq}
-  val r_lhs = Reg{Bits(width = w0+1)}
+  val r_val = RegReset(Bool(false))
+  val r_prod = Reg(Bits(width = w*2))
+  val r_lsb = Reg(Bits())
+  val r_cnt = Reg(UInt(width = log2Up(cycles+1)))
+  val r_req = Reg(new MultiplierReq)
+  val r_lhs = Reg(Bits(width = w0+1))
 
   val dw = io.req.bits.dw
   val fn = io.req.bits.fn
@@ -55,7 +55,7 @@ class Multiplier(unroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rock
   
   when (io.req.fire()) {
     r_val := Bool(true)
-    r_cnt := UFix(0, log2Up(cycles+1))
+    r_cnt := UInt(0, log2Up(cycles+1))
     r_req := io.req.bits
     r_lhs := lhs_in
     r_prod:= rhs_in
@@ -65,21 +65,21 @@ class Multiplier(unroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rock
     r_val := Bool(false)
   }
 
-  val eOutDist = (UFix(cycles)-r_cnt)*UFix(unroll)
-  val outShift = Mux(isMulFN(r_req.fn, FN_MUL), UFix(0), Mux(r_req.dw === DW_64, UFix(64), UFix(32)))
-  val shiftDist = Mux(r_cnt === UFix(cycles), outShift, eOutDist)
-  val eOutMask = (UFix(1) << eOutDist) - UFix(1)
-  val eOut = r_cnt != UFix(0) && Bool(earlyOut) && !((r_prod(w-1,0) ^ r_lsb.toFix) & eOutMask).orR
-  val shift = r_prod.toFix >> shiftDist
+  val eOutDist = (UInt(cycles)-r_cnt)*UInt(unroll)
+  val outShift = Mux(isMulFN(r_req.fn, FN_MUL), UInt(0), Mux(r_req.dw === DW_64, UInt(64), UInt(32)))
+  val shiftDist = Mux(r_cnt === UInt(cycles), outShift, eOutDist)
+  val eOutMask = (UInt(1) << eOutDist) - UInt(1)
+  val eOut = r_cnt != UInt(0) && Bool(earlyOut) && !((r_prod(w-1,0) ^ r_lsb.toSInt) & eOutMask).orR
+  val shift = r_prod.toSInt >> shiftDist
 
-  val sum = r_prod(2*w-1,w).toFix + r_prod(unroll-1,0).toFix * r_lhs.toFix + Mux(r_lsb, r_lhs.toFix, Fix(0))
-  when (r_val && (r_cnt != UFix(cycles))) {
+  val sum = r_prod(2*w-1,w).toSInt + r_prod(unroll-1,0).toSInt * r_lhs.toSInt + Mux(r_lsb.toBool, r_lhs.toSInt, SInt(0))
+  when (r_val && (r_cnt != UInt(cycles))) {
     r_lsb  := r_prod(unroll-1)
-    r_prod := Cat(sum, r_prod(w-1,unroll)).toFix
-    r_cnt := r_cnt + UFix(1)
+    r_prod := Cat(sum, r_prod(w-1,unroll)).toSInt
+    r_cnt := r_cnt + UInt(1)
     when (eOut) {
       r_prod := shift
-      r_cnt := UFix(cycles)
+      r_cnt := UInt(cycles)
     }
   }
 
@@ -89,5 +89,5 @@ class Multiplier(unroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rock
   io.req.ready := !r_val
   io.resp.bits := r_req
   io.resp.bits.data := Mux(r_req.dw === DW_64, out64, out32)
-  io.resp.valid := r_val && (r_cnt === UFix(cycles))
+  io.resp.valid := r_val && (r_cnt === UInt(cycles))
 }

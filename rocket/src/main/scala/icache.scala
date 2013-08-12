@@ -25,14 +25,14 @@ case class ICacheConfig(sets: Int, assoc: Int,
 }
 
 class FrontendReq extends Bundle {
-  val pc = UFix(width = VADDR_BITS+1)
+  val pc = UInt(width = VADDR_BITS+1)
   val mispredict = Bool()
   val taken = Bool()
-  val currentpc = UFix(width = VADDR_BITS+1)
+  val currentpc = UInt(width = VADDR_BITS+1)
 }
 
 class FrontendResp(implicit conf: ICacheConfig) extends Bundle {
-  val pc = UFix(width = VADDR_BITS+1)  // ID stage PC
+  val pc = UInt(width = VADDR_BITS+1)  // ID stage PC
   val data = Bits(width = conf.ibytes*8)
   val taken = Bool()
   val xcpt_ma = Bool()
@@ -42,36 +42,36 @@ class FrontendResp(implicit conf: ICacheConfig) extends Bundle {
 }
 
 class CPUFrontendIO(implicit conf: ICacheConfig) extends Bundle {
-  val req = new PipeIO()(new FrontendReq)
-  val resp = new FIFOIO()(new FrontendResp).flip
+  val req = Valid(new FrontendReq)
+  val resp = Decoupled(new FrontendResp).flip
   val ptw = new TLBPTWIO().flip
   val invalidate = Bool(OUTPUT)
 }
 
-class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Component
+class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
 {
   val io = new Bundle {
     val cpu = new CPUFrontendIO()(c).flip
     val mem = new UncachedTileLinkIO
   }
   
-  val btb = new rocketDpathBTB(c.nbtb)
-  val icache = new ICache
-  val tlb = new TLB(c.ntlb)
+  val btb = Module(new rocketDpathBTB(c.nbtb))
+  val icache = Module(new ICache)
+  val tlb = Module(new TLB(c.ntlb))
 
-  val s1_pc = Reg() { UFix() }
-  val s1_same_block = Reg() { Bool() }
-  val s2_valid = Reg(resetVal = Bool(true))
-  val s2_pc = Reg(resetVal = UFix(START_ADDR))
-  val s2_btb_hit = Reg(resetVal = Bool(false))
-  val s2_xcpt_if = Reg(resetVal = Bool(false))
+  val s1_pc = Reg(UInt())
+  val s1_same_block = Reg(Bool())
+  val s2_valid = RegReset(Bool(true))
+  val s2_pc = RegReset(UInt(START_ADDR))
+  val s2_btb_hit = RegReset(Bool(false))
+  val s2_xcpt_if = RegReset(Bool(false))
 
   val btbTarget = Cat(btb.io.target(VADDR_BITS-1), btb.io.target)
-  val pcp4_0 = s1_pc + UFix(c.ibytes)
+  val pcp4_0 = s1_pc + UInt(c.ibytes)
   val pcp4 = Cat(s1_pc(VADDR_BITS-1) & pcp4_0(VADDR_BITS-1), pcp4_0(VADDR_BITS-1,0))
   val icmiss = s2_valid && !icache.io.resp.valid
   val predicted_npc = Mux(btb.io.hit, btbTarget, pcp4)
-  val npc = Mux(icmiss, s2_pc, predicted_npc).toUFix
+  val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
   val s0_same_block = !icmiss && !io.cpu.req.valid && (predicted_npc >> log2Up(c.databits/8)) === (s1_pc >> log2Up(c.databits/8))
 
   val stall = io.cpu.resp.valid && !io.cpu.resp.ready
@@ -100,8 +100,8 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Comp
 
   tlb.io.ptw <> io.cpu.ptw
   tlb.io.req.valid := !stall && !icmiss
-  tlb.io.req.bits.vpn := s1_pc >> UFix(PGIDX_BITS)
-  tlb.io.req.bits.asid := UFix(0)
+  tlb.io.req.bits.vpn := s1_pc >> UInt(PGIDX_BITS)
+  tlb.io.req.bits.asid := UInt(0)
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.instruction := Bool(true)
 
@@ -117,40 +117,45 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Comp
   io.cpu.resp.bits.pc := s2_pc
   io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc(log2Up(c.databits/8)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8))
   io.cpu.resp.bits.taken := s2_btb_hit
-  io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(c.ibytes)-1,0) != UFix(0)
+  io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(c.ibytes)-1,0) != UInt(0)
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
 }
 
-class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Component
+class ICacheReq extends Bundle {
+  val idx = UInt(width = PGIDX_BITS)
+  val ppn = UInt(width = PPN_BITS) // delayed one cycle
+  val kill = Bool() // delayed one cycle
+}
+
+class ICacheResp(implicit c: ICacheConfig) extends Bundle {
+  val data = Bits(width = c.ibytes*8)
+  val datablock = Bits(width = c.databits)
+  override def clone = new ICacheResp().asInstanceOf[this.type]
+}
+
+class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
 {
   implicit val lnConf = tl.ln
   val io = new Bundle {
-    val req = new PipeIO()(new Bundle {
-      val idx = UFix(width = PGIDX_BITS)
-      val ppn = UFix(width = PPN_BITS) // delayed one cycle
-      val kill = Bool() // delayed one cycle
-    }).flip
-    val resp = new FIFOIO()(new Bundle {
-      val data = Bits(width = c.ibytes*8)
-      val datablock = Bits(width = c.databits)
-    })
+    val req = Valid(new ICacheReq).flip
+    val resp = Decoupled(new ICacheResp)
     val invalidate = Bool(INPUT)
     val mem = new UncachedTileLinkIO
   }
 
-  val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(4) { UFix() }
-  val state = Reg(resetVal = s_ready)
-  val invalidated = Reg() { Bool() }
+  val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(4) { UInt() }
+  val state = RegReset(s_ready)
+  val invalidated = Reg(Bool())
   val stall = !io.resp.ready
   val rdy = Bool()
 
-  val s2_valid = Reg(resetVal = Bool(false))
-  val s2_addr = Reg { UFix(width = PADDR_BITS) }
+  val s2_valid = RegReset(Bool(false))
+  val s2_addr = Reg(UInt(width = PADDR_BITS))
   val s2_any_tag_hit = Bool()
 
-  val s1_valid = Reg(resetVal = Bool(false))
-  val s1_pgoff = Reg() { UFix(width = PGIDX_BITS) }
-  val s1_addr = Cat(io.req.bits.ppn, s1_pgoff).toUFix
+  val s1_valid = RegReset(Bool(false))
+  val s1_pgoff = Reg(UInt(width = PGIDX_BITS))
+  val s1_addr = Cat(io.req.bits.ppn, s1_pgoff).toUInt
   val s1_tag = s1_addr(c.tagbits+c.untagbits-1,c.untagbits)
 
   val s0_valid = io.req.valid || s1_valid && stall
@@ -175,14 +180,14 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Compon
 
   //assert(!co.isVoluntary(io.mem.grant.bits.payload) || !io.mem.grant.valid, "UncachedRequestors shouldn't get voluntary grants.")
   val (rf_cnt, refill_done) = Counter(io.mem.grant.valid, REFILL_CYCLES)
-  val repl_way = if (c.dm) UFix(0) else LFSR16(s2_miss)(log2Up(c.assoc)-1,0)
+  val repl_way = if (c.dm) UInt(0) else LFSR16(s2_miss)(log2Up(c.assoc)-1,0)
 
   val enc_tagbits = c.code.width(c.tagbits)
-  val tag_array = Mem(c.sets, seqRead = true) { Bits(width = enc_tagbits*c.assoc) }
-  val tag_raddr = Reg{UFix()}
+  val tag_array = Mem(Bits(width = enc_tagbits*c.assoc), c.sets, seqRead = true)
+  val tag_raddr = Reg(UInt())
   when (refill_done) {
-    val wmask = FillInterleaved(enc_tagbits, if (c.dm) Bits(1) else UFixToOH(repl_way))
-    val tag = c.code.encode(s2_tag)
+    val wmask = FillInterleaved(enc_tagbits, if (c.dm) Bits(1) else UIntToOH(repl_way))
+    val tag = c.code.encode(s2_tag).toUInt
     tag_array.write(s2_idx, Fill(c.assoc, tag), wmask)
   }
 //  /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
@@ -190,7 +195,7 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Compon
     tag_raddr := s0_pgoff(c.untagbits-1,c.offbits)
   }
 
-  val vb_array = Reg(resetVal = Bits(0, c.lines))
+  val vb_array = RegReset(Bits(0, c.lines))
   when (refill_done && !invalidated) {
     vb_array := vb_array.bitSet(Cat(repl_way, s2_idx), Bool(true))
   }
@@ -198,19 +203,19 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Compon
     vb_array := Bits(0)
     invalidated := Bool(true)
   }
-  val s2_disparity = Vec(c.assoc) { Bool() }
+  val s2_disparity = Vec.fill(c.assoc){Bool()}
   for (i <- 0 until c.assoc)
-    when (s2_valid && s2_disparity(i)) { vb_array := vb_array.bitSet(Cat(UFix(i), s2_idx), Bool(false)) }
+    when (s2_valid && s2_disparity(i)) { vb_array := vb_array.bitSet(Cat(UInt(i), s2_idx), Bool(false)) }
 
-  val s1_tag_match = Vec(c.assoc) { Bool() }
-  val s2_tag_hit = Vec(c.assoc) { Bool() }
-  val s2_dout = Vec(c.assoc){Reg{Bits()}}
+  val s1_tag_match = Vec.fill(c.assoc){Bool()}
+  val s2_tag_hit = Vec.fill(c.assoc){Bool()}
+  val s2_dout = Vec.fill(c.assoc){Reg(Bits())}
 
   for (i <- 0 until c.assoc) {
-    val s1_vb = vb_array(Cat(UFix(i), s1_pgoff(c.untagbits-1,c.offbits))).toBool
-    val s2_vb = Reg() { Bool() }
-    val s2_tag_disparity = Reg() { Bool() }
-    val s2_tag_match = Reg() { Bool() }
+    val s1_vb = vb_array(Cat(UInt(i), s1_pgoff(c.untagbits-1,c.offbits))).toBool
+    val s2_vb = Reg(Bool())
+    val s2_tag_disparity = Reg(Bool())
+    val s2_tag_match = Reg(Bool())
     val tag_out = tag_array(tag_raddr)(enc_tagbits*(i+1)-1, enc_tagbits*i)
     when (s1_valid && rdy && !stall) {
       s2_vb := s1_vb
@@ -224,9 +229,9 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Compon
   s2_any_tag_hit := s2_tag_hit.reduceLeft(_||_) && !s2_disparity.reduceLeft(_||_)
 
   for (i <- 0 until c.assoc) {
-    val data_array = Mem(c.sets*REFILL_CYCLES, seqRead = true){ Bits(width = c.code.width(c.databits)) }
-    val s1_raddr = Reg{UFix()}
-    when (io.mem.grant.valid && repl_way === UFix(i)) {
+    val data_array = Mem(Bits(width = c.code.width(c.databits)), c.sets*REFILL_CYCLES, seqRead = true)
+    val s1_raddr = Reg(UInt())
+    when (io.mem.grant.valid && repl_way === UInt(i)) {
       val d = io.mem.grant.bits.payload.data
       data_array(Cat(s2_idx,rf_cnt)) := c.code.encode(d)
     }
@@ -241,14 +246,14 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Compon
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
-  val finish_q = (new Queue(1)) { new GrantAck }
+  val finish_q = Module(new Queue(new GrantAck, 1))
   finish_q.io.enq.valid := refill_done && tl.co.requiresAck(io.mem.grant.bits.payload)
   finish_q.io.enq.bits.master_xact_id := io.mem.grant.bits.payload.master_xact_id
 
   // output signals
   io.resp.valid := s2_hit
   io.mem.acquire.meta.valid := (state === s_request) && finish_q.io.enq.ready
-  io.mem.acquire.meta.bits.payload := Acquire(tl.co.getUncachedReadAcquireType, s2_addr >> UFix(c.offbits), UFix(0))
+  io.mem.acquire.meta.bits.payload := Acquire(tl.co.getUncachedReadAcquireType, s2_addr >> UInt(c.offbits), UInt(0))
   io.mem.acquire.data.valid := Bool(false)
   io.mem.grant_ack <> FIFOedLogicalNetworkIOWrapper(finish_q.io.deq)
   io.mem.grant.ready := Bool(true)

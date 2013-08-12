@@ -18,15 +18,15 @@ class CtrlDpathVecIO extends Bundle
 
 class CtrlVecInterfaceIO extends Bundle
 {
-  val vcmdq = new FIFOIO()(Bits(width = SZ_VCMD))
-  val vximm1q = new FIFOIO()(Bits(width = SZ_VIMM))
-  val vximm2q = new FIFOIO()(Bits(width = SZ_VSTRIDE))
-  val vcntq = new FIFOIO()(Bits(width = SZ_VLEN+1))
+  val vcmdq = Decoupled(Bits(width = SZ_VCMD))
+  val vximm1q = Decoupled(Bits(width = SZ_VIMM))
+  val vximm2q = Decoupled(Bits(width = SZ_VSTRIDE))
+  val vcntq = Decoupled(Bits(width = SZ_VLEN+1))
 
-  val vpfcmdq = new FIFOIO()(Bits(width = SZ_VCMD))
-  val vpfximm1q = new FIFOIO()(Bits(width = SZ_VIMM))
-  val vpfximm2q = new FIFOIO()(Bits(width = SZ_VSTRIDE))
-  val vpfcntq = new FIFOIO()(Bits(width = SZ_VLEN))
+  val vpfcmdq = Decoupled(Bits(width = SZ_VCMD))
+  val vpfximm1q = Decoupled(Bits(width = SZ_VIMM))
+  val vpfximm2q = Decoupled(Bits(width = SZ_VSTRIDE))
+  val vpfcntq = Decoupled(Bits(width = SZ_VLEN))
 
   val vcmdq_user_ready = Bool(INPUT)
   val vximm1q_user_ready = Bool(INPUT)
@@ -34,7 +34,7 @@ class CtrlVecInterfaceIO extends Bundle
   val vfence_ready = Bool(INPUT)
 
   val irq = Bool(INPUT)
-  val irq_cause = UFix(INPUT, 5)
+  val irq_cause = UInt(INPUT, 5)
 
   val exception = Bool(OUTPUT)
 
@@ -55,7 +55,7 @@ class CtrlVecIO extends Bundle
   val replay = Bool(OUTPUT)
   val vfence_ready = Bool(OUTPUT)
   val irq = Bool(OUTPUT)
-  val irq_cause = UFix(OUTPUT, 5)
+  val irq_cause = UInt(OUTPUT, 5)
 }
 
 class rocketCtrlVecSigs extends Bundle
@@ -82,7 +82,7 @@ class rocketCtrlVecSigs extends Bundle
   val xcpthold = Bool()
 }
 
-class rocketCtrlVecDecoder extends Component
+class rocketCtrlVecDecoder extends Module
 {
   val io = new Bundle
   {
@@ -184,11 +184,11 @@ class rocketCtrlVecDecoder extends Component
   io.sigs.xcpthold := xcpthold.toBool
 }
 
-class rocketCtrlVec extends Component
+class rocketCtrlVec extends Module
 {
   val io = new CtrlVecIO
 
-  val dec = new rocketCtrlVecDecoder()
+  val dec = Module(new rocketCtrlVecDecoder)
   dec.io.inst := io.dpath.inst
 
   val valid_common = io.valid && io.sr_ev && dec.io.sigs.valid && !(dec.io.sigs.appvlmask && io.dpath.appvl0)
@@ -261,7 +261,7 @@ class rocketCtrlVec extends Component
 
   io.iface.exception := io.exception && io.sr_ev
 
-  val reg_hold = Reg(resetVal = Bool(false))
+  val reg_hold = RegReset(Bool(false))
 
   when (valid_common && dec.io.sigs.xcpthold) { reg_hold := Bool(true) }
   when (io.eret) { reg_hold := Bool(false) }
