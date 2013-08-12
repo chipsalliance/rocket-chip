@@ -5,10 +5,11 @@ case class TileLinkConfiguration(co: CoherencePolicyWithUncached, ln: LogicalNet
 
 abstract trait TileLinkSubBundle extends Bundle {
   implicit val conf: TileLinkConfiguration
+  // TODO: override clone here, passing conf
 }
 
 trait HasPhysicalAddress extends TileLinkSubBundle {
-  val addr = UFix(width = PADDR_BITS - OFFSET_BITS)
+  val addr = UInt(width = PADDR_BITS - OFFSET_BITS)
 }
 
 trait HasClientTransactionId extends TileLinkSubBundle {
@@ -29,7 +30,7 @@ trait MasterSourcedMessage extends SourcedMessage
 
 object Acquire 
 {
-  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix)(implicit conf: TileLinkConfiguration) = {
+  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt)(implicit conf: TileLinkConfiguration) = {
     val acq = new Acquire
     acq.a_type := a_type
     acq.addr := addr
@@ -39,7 +40,7 @@ object Acquire
     acq.atomic_opcode := Bits(0)
     acq
   }
-  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix, write_mask: Bits)(implicit conf: TileLinkConfiguration) = {
+  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt, write_mask: Bits)(implicit conf: TileLinkConfiguration) = {
     val acq = new Acquire
     acq.a_type := a_type
     acq.addr := addr
@@ -49,7 +50,7 @@ object Acquire
     acq.atomic_opcode := Bits(0)
     acq
   }
-  def apply(a_type: Bits, addr: UFix, client_xact_id: UFix, subword_addr: UFix, atomic_opcode: UFix)(implicit conf: TileLinkConfiguration) = {
+  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt, subword_addr: UInt, atomic_opcode: UInt)(implicit conf: TileLinkConfiguration) = {
     val acq = new Acquire
     acq.a_type := a_type
     acq.addr := addr
@@ -61,7 +62,7 @@ object Acquire
   }
 }
 class Acquire(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasPhysicalAddress with HasClientTransactionId {
-  val a_type = Bits(width = conf.co.acquireTypeBits)
+  val a_type = Bits(width = conf.co.acquireTypeWidth)
   val write_mask = Bits(width = ACQUIRE_WRITE_MASK_BITS)
   val subword_addr = Bits(width = ACQUIRE_SUBWORD_ADDR_BITS)
   val atomic_opcode = Bits(width = ACQUIRE_ATOMIC_OP_BITS)
@@ -74,13 +75,13 @@ class AcquireData(implicit val conf: TileLinkConfiguration) extends ClientSource
 }
 
 class Probe(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage with HasPhysicalAddress with HasMasterTransactionId {
-  val p_type = Bits(width = conf.co.probeTypeBits)
+  val p_type = Bits(width = conf.co.probeTypeWidth)
   override def clone = { (new Probe).asInstanceOf[this.type] }
 }
 
 object Release
 {
-  def apply(r_type: Bits, addr: UFix, client_xact_id: UFix, master_xact_id: UFix)(implicit conf: TileLinkConfiguration) = {
+  def apply(r_type: Bits, addr: UInt, client_xact_id: UInt, master_xact_id: UInt)(implicit conf: TileLinkConfiguration) = {
     val rel = new Release
     rel.r_type := r_type
     rel.addr := addr
@@ -90,7 +91,7 @@ object Release
   }
 }
 class Release(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasPhysicalAddress with HasClientTransactionId with HasMasterTransactionId {
-  val r_type = Bits(width = conf.co.releaseTypeBits)
+  val r_type = Bits(width = conf.co.releaseTypeWidth)
   override def clone = { (new Release).asInstanceOf[this.type] }
 }
 
@@ -99,7 +100,7 @@ class ReleaseData(implicit val conf: TileLinkConfiguration) extends ClientSource
 }
 
 class Grant(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage with HasTileLinkData with HasClientTransactionId with HasMasterTransactionId {
-  val g_type = Bits(width = conf.co.grantTypeBits)
+  val g_type = Bits(width = conf.co.grantTypeWidth)
   override def clone = { (new Grant).asInstanceOf[this.type] }
 }
 
@@ -111,13 +112,13 @@ class GrantAck(implicit val conf: TileLinkConfiguration) extends ClientSourcedMe
 trait DirectionalIO
 trait ClientSourcedIO extends DirectionalIO
 trait MasterSourcedIO extends DirectionalIO
-class ClientSourcedFIFOIO[T <: Data]()(data: => T) extends FIFOIO()(data) with ClientSourcedIO {
+class ClientSourcedFIFOIO[T <: Data]()(data: => T) extends DecoupledIO(data) with ClientSourcedIO {
   override def clone = { new ClientSourcedFIFOIO()(data).asInstanceOf[this.type] }
 }
 class ClientSourcedDataIO[M <: Data, D <: Data]()(meta: => M, data: => D)  extends PairedDataIO()(meta,data) with ClientSourcedIO {
   override def clone = { new ClientSourcedDataIO()(meta,data).asInstanceOf[this.type] }
 }
-class MasterSourcedFIFOIO[T <: Data]()(data: => T) extends FIFOIO()(data) with MasterSourcedIO {
+class MasterSourcedFIFOIO[T <: Data]()(data: => T) extends DecoupledIO(data) with MasterSourcedIO {
   flip()
   override def clone = { new MasterSourcedFIFOIO()(data).asInstanceOf[this.type] }
 }
@@ -142,25 +143,25 @@ class TileLinkIO(implicit conf: TileLinkConfiguration) extends UncachedTileLinkI
 
 /*
  * TODO: Merge the below classes into children of an abstract class in Chisel 2.0
-abstract class UncachedTileLinkIOArbiter(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Component {
+abstract class UncachedTileLinkIOArbiter(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Module {
   def acquireClientXactId(in: Acquire, id: Int): Bits
   def grantClientXactId(in: Grant): Bits
-  def arbIdx(in: Grant): UFix
+  def arbIdx(in: Grant): UInt
 }
 */
 
-class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int)(implicit conf: TileLinkConfiguration) extends Component {
+class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int)(implicit conf: TileLinkConfiguration) extends Module {
   implicit val (ln, co) = (conf.ln, conf.co)
-  def acquireClientXactId(in: Acquire, id: Int) = Cat(in.client_xact_id, UFix(id, log2Up(n)))
-  def grantClientXactId(in: Grant) = in.client_xact_id >> UFix(log2Up(n))
-  def arbIdx(in: Grant) = in.client_xact_id(log2Up(n)-1,0).toUFix
+  def acquireClientXactId(in: Acquire, id: Int) = Cat(in.client_xact_id, UInt(id, log2Up(n)))
+  def grantClientXactId(in: Grant) = in.client_xact_id >> UInt(log2Up(n))
+  def arbIdx(in: Grant) = in.client_xact_id(log2Up(n)-1,0).toUInt
 
   val io = new Bundle {
-    val in = Vec(n) { new UncachedTileLinkIO }.flip
+    val in = Vec.fill(n){new UncachedTileLinkIO}.flip
     val out = new UncachedTileLinkIO
   }
   def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
-  val acq_arb = new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData})
+  val acq_arb = Module(new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData}))
   io.out.acquire <> acq_arb.io.out
   io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
     arb.data <> req.data
@@ -170,14 +171,14 @@ class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int)(implicit conf: TileL
     req.meta.ready := arb.meta.ready
   }}
 
-  val grant_ack_arb = (new RRArbiter(n)){ (new LogicalNetworkIO){new GrantAck} }
+  val grant_ack_arb = Module(new RRArbiter((new LogicalNetworkIO){new GrantAck},n))
   io.out.grant_ack <> grant_ack_arb.io.out
   grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
 
   io.out.grant.ready := Bool(false)
   for (i <- 0 until n) {
     io.in(i).grant.valid := Bool(false)
-    when (arbIdx(io.out.grant.bits.payload) === UFix(i)) {
+    when (arbIdx(io.out.grant.bits.payload) === UInt(i)) {
       io.in(i).grant.valid := io.out.grant.valid
       io.out.grant.ready := io.in(i).grant.ready
     }
@@ -186,18 +187,18 @@ class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int)(implicit conf: TileL
   }
 }
 
-class UncachedTileLinkIOArbiterThatPassesId(n: Int)(implicit conf: TileLinkConfiguration) extends Component {
+class UncachedTileLinkIOArbiterThatPassesId(n: Int)(implicit conf: TileLinkConfiguration) extends Module {
   implicit val (ln, co) = (conf.ln, conf.co)
   def acquireClientXactId(in: Acquire, id: Int) = in.client_xact_id
   def grantClientXactId(in: Grant) = in.client_xact_id
-  def arbIdx(in: Grant): UFix = in.client_xact_id
+  def arbIdx(in: Grant): UInt = in.client_xact_id
 
   val io = new Bundle {
-    val in = Vec(n) { new UncachedTileLinkIO }.flip
+    val in = Vec.fill(n){new UncachedTileLinkIO}.flip
     val out = new UncachedTileLinkIO
   }
   def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
-  val acq_arb = new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData})
+  val acq_arb = Module(new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData}))
   io.out.acquire <> acq_arb.io.out
   io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
     arb.data <> req.data
@@ -207,14 +208,14 @@ class UncachedTileLinkIOArbiterThatPassesId(n: Int)(implicit conf: TileLinkConfi
     req.meta.ready := arb.meta.ready
   }}
 
-  val grant_ack_arb = (new RRArbiter(n)){ (new LogicalNetworkIO){new GrantAck} }
+  val grant_ack_arb = Module(new RRArbiter((new LogicalNetworkIO){new GrantAck},n))
   io.out.grant_ack <> grant_ack_arb.io.out
   grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
 
   io.out.grant.ready := Bool(false)
   for (i <- 0 until n) {
     io.in(i).grant.valid := Bool(false)
-    when (arbIdx(io.out.grant.bits.payload) === UFix(i)) {
+    when (arbIdx(io.out.grant.bits.payload) === UInt(i)) {
       io.in(i).grant.valid := io.out.grant.valid
       io.out.grant.ready := io.in(i).grant.ready
     }
@@ -223,18 +224,18 @@ class UncachedTileLinkIOArbiterThatPassesId(n: Int)(implicit conf: TileLinkConfi
   }
 }
 
-class UncachedTileLinkIOArbiterThatUsesNewId(n: Int)(implicit conf: TileLinkConfiguration) extends Component {
+class UncachedTileLinkIOArbiterThatUsesNewId(n: Int)(implicit conf: TileLinkConfiguration) extends Module {
   implicit val (ln, co) = (conf.ln, conf.co)
-  def acquireClientXactId(in: Acquire, id: Int) = UFix(id, log2Up(n))
-  def grantClientXactId(in: Grant) = UFix(0) // DNC 
+  def acquireClientXactId(in: Acquire, id: Int) = UInt(id, log2Up(n))
+  def grantClientXactId(in: Grant) = UInt(0) // DNC 
   def arbIdx(in: Grant) = in.client_xact_id
 
   val io = new Bundle {
-    val in = Vec(n) { new UncachedTileLinkIO }.flip
+    val in = Vec.fill(n){new UncachedTileLinkIO}.flip
     val out = new UncachedTileLinkIO
   }
   def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
-  val acq_arb = new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData})
+  val acq_arb = Module(new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData}))
   io.out.acquire <> acq_arb.io.out
   io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
     arb.data <> req.data
@@ -244,14 +245,14 @@ class UncachedTileLinkIOArbiterThatUsesNewId(n: Int)(implicit conf: TileLinkConf
     req.meta.ready := arb.meta.ready
   }}
 
-  val grant_ack_arb = (new RRArbiter(n)){ (new LogicalNetworkIO){new GrantAck} }
+  val grant_ack_arb = Module(new RRArbiter((new LogicalNetworkIO){new GrantAck},n))
   io.out.grant_ack <> grant_ack_arb.io.out
   grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
 
   io.out.grant.ready := Bool(false)
   for (i <- 0 until n) {
     io.in(i).grant.valid := Bool(false)
-    when (arbIdx(io.out.grant.bits.payload) === UFix(i)) {
+    when (arbIdx(io.out.grant.bits.payload) === UInt(i)) {
       io.in(i).grant.valid := io.out.grant.valid
       io.out.grant.ready := io.in(i).grant.ready
     }
