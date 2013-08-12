@@ -5,13 +5,15 @@ import uncore.constants.AddressConstants._
 import uncore.constants.MemoryOpConstants._
 import Util._
 
-class TLBPTWIO extends Bundle {
-  val req = new FIFOIO()(UFix(width = VPN_BITS))
-  val resp = new PipeIO()(new Bundle {
+class PTWResp extends Bundle {
     val error = Bool()
-    val ppn = UFix(width = PPN_BITS)
+    val ppn = UInt(width = PPN_BITS)
     val perm = Bits(width = PERM_BITS)
-  }).flip
+}
+
+class TLBPTWIO extends Bundle {
+  val req = Decoupled(UInt(width = VPN_BITS))
+  val resp = Valid(new PTWResp).flip
 
   val status = new Status().asInput
   val invalidate = Bool(INPUT)
@@ -19,16 +21,16 @@ class TLBPTWIO extends Bundle {
 }
 
 class DatapathPTWIO extends Bundle {
-  val ptbr = UFix(INPUT, PADDR_BITS)
+  val ptbr = UInt(INPUT, PADDR_BITS)
   val invalidate = Bool(INPUT)
   val eret = Bool(INPUT)
   val status = new Status().asInput
 }
 
-class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
+class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
 {
   val io = new Bundle {
-    val requestor = Vec(n) { new TLBPTWIO }.flip
+    val requestor = Vec.fill(n){new TLBPTWIO}.flip
     val mem = new HellaCacheIO()(conf.dcache)
     val dpath = new DatapathPTWIO
   }
@@ -37,17 +39,17 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
   val bitsPerLevel = VPN_BITS/levels
   require(VPN_BITS == levels * bitsPerLevel)
 
-  val s_ready :: s_req :: s_wait :: s_done :: s_error :: Nil = Enum(5) { UFix() };
-  val state = Reg(resetVal = s_ready)
-  val count = Reg{UFix(width = log2Up(levels))}
+  val s_ready :: s_req :: s_wait :: s_done :: s_error :: Nil = Enum(5) { UInt() };
+  val state = RegReset(s_ready)
+  val count = Reg(UInt(width = log2Up(levels)))
 
-  val r_req_vpn = Reg{Bits()}
-  val r_req_dest = Reg{Bits()}
-  val r_pte = Reg{Bits()}
+  val r_req_vpn = Reg(Bits())
+  val r_req_dest = Reg(Bits())
+  val r_pte = Reg(Bits())
   
   val vpn_idx = AVec((0 until levels).map(i => (r_req_vpn >> (levels-i-1)*bitsPerLevel)(bitsPerLevel-1,0)))(count)
 
-  val arb = new RRArbiter(n)(UFix(width = VPN_BITS))
+  val arb = Module(new RRArbiter(UInt(width = VPN_BITS), n))
   arb.io.in <> io.requestor.map(_.req)
   arb.io.out.ready := state === s_ready
 
@@ -65,7 +67,7 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
   io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := M_XRD
   io.mem.req.bits.typ  := MT_D
-  io.mem.req.bits.addr := Cat(r_pte(PADDR_BITS-1,PGIDX_BITS), vpn_idx).toUFix << log2Up(conf.xprlen/8)
+  io.mem.req.bits.addr := Cat(r_pte(PADDR_BITS-1,PGIDX_BITS), vpn_idx).toUInt << log2Up(conf.xprlen/8)
   io.mem.req.bits.kill := Bool(false)
   
   val resp_val = state === s_done || state === s_error
@@ -78,11 +80,11 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
   val resp_ppn = AVec((0 until levels-1).map(i => Cat(r_resp_ppn >> bitsPerLevel*(levels-i-1), r_req_vpn(bitsPerLevel*(levels-i-1)-1,0))) :+ r_resp_ppn)(count)
 
   for (i <- 0 until io.requestor.size) {
-    val me = r_req_dest === UFix(i)
+    val me = r_req_dest === UInt(i)
     io.requestor(i).resp.valid := resp_val && me
     io.requestor(i).resp.bits.error := resp_err
     io.requestor(i).resp.bits.perm := r_pte(9,4)
-    io.requestor(i).resp.bits.ppn := resp_ppn.toUFix
+    io.requestor(i).resp.bits.ppn := resp_ppn.toUInt
     io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).eret := io.dpath.eret
     io.requestor(i).status := io.dpath.status
@@ -94,7 +96,7 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
       when (arb.io.out.valid) {
         state := s_req;
       }
-      count := UFix(0)
+      count := UInt(0)
     }
     is (s_req) {
       when (io.mem.req.ready) {
@@ -110,8 +112,8 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Component
           state := s_done
         }
         .otherwise {
-          count := count + UFix(1)
-          when (resp_ptd && count < UFix(levels-1)) {
+          count := count + UInt(1)
+          when (resp_ptd && count < UInt(levels-1)) {
             state := s_req
           }
           .otherwise {

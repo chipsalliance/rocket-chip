@@ -8,18 +8,18 @@ import scala.math._
 
 class DpathBTBIO extends Bundle
 {
-  val current_pc     = UFix(INPUT, VADDR_BITS);
+  val current_pc     = UInt(INPUT, VADDR_BITS);
   val hit            = Bool(OUTPUT);
-  val target         = UFix(OUTPUT, VADDR_BITS);
+  val target         = UInt(OUTPUT, VADDR_BITS);
   val wen            = Bool(INPUT);
   val clr            = Bool(INPUT);
   val invalidate     = Bool(INPUT);
-  val correct_pc     = UFix(INPUT, VADDR_BITS);
-  val correct_target = UFix(INPUT, VADDR_BITS);
+  val correct_pc     = UInt(INPUT, VADDR_BITS);
+  val correct_target = UInt(INPUT, VADDR_BITS);
 }
 
 // fully-associative branch target buffer
-class rocketDpathBTB(entries: Int) extends Component
+class rocketDpathBTB(entries: Int) extends Module
 {
   val io = new DpathBTBIO
 
@@ -29,18 +29,18 @@ class rocketDpathBTB(entries: Int) extends Component
   val hit = Bool()
   val update = Bool()
   var update_reduction = Bool(false)
-  val hits = Vec(entries) { Bool() }
-  val updates = Vec(entries) { Bool() }
-  val targets = Vec(entries) { Reg() { UFix() } }
+  val hits = Vec.fill(entries){Bool()}
+  val updates = Vec.fill(entries){Bool()}
+  val targets = Vec.fill(entries){Reg(UInt())}
   val anyUpdate = updates.toBits.orR
 
   for (i <- 0 until entries) {
-    val tag = Reg() { UFix() }
-    val valid = Reg(resetVal = Bool(false))
+    val tag = Reg(UInt())
+    val valid = RegReset(Bool(false))
     hits(i) := valid && tag === io.current_pc
     updates(i) := valid && tag === io.correct_pc
 
-    when (io.wen && (updates(i) || !anyUpdate && UFix(i) === repl_way)) {
+    when (io.wen && (updates(i) || !anyUpdate && UInt(i) === repl_way)) {
       valid := Bool(false)
       when (!io.clr) {
         valid := Bool(true)
@@ -103,26 +103,26 @@ object PCR
   val FROMHOST = 31
 }
 
-class PCR(implicit conf: RocketConfiguration) extends Component
+class PCR(implicit conf: RocketConfiguration) extends Module
 {
   val io = new Bundle {
     val host = new HTIFIO(conf.tl.ln.nClients)
     val rw = new Bundle {
-      val addr = UFix(INPUT, log2Up(conf.nxpr))
+      val addr = UInt(INPUT, log2Up(conf.nxpr))
       val cmd = Bits(INPUT, PCR.SZ)
       val rdata = Bits(OUTPUT, conf.xprlen)
       val wdata = Bits(INPUT, conf.xprlen)
     }
     
     val status = new Status().asOutput
-    val ptbr = UFix(OUTPUT, PADDR_BITS)
-    val evec = UFix(OUTPUT, VADDR_BITS)
+    val ptbr = UInt(OUTPUT, PADDR_BITS)
+    val evec = UInt(OUTPUT, VADDR_BITS)
     val exception = Bool(INPUT)
-    val cause = UFix(INPUT, 6)
+    val cause = UInt(INPUT, 6)
     val badvaddr_wen = Bool(INPUT)
     val vec_irq_aux = Bits(INPUT, conf.xprlen)
     val vec_irq_aux_wen = Bool(INPUT)
-    val pc = UFix(INPUT, VADDR_BITS+1)
+    val pc = UInt(INPUT, VADDR_BITS+1)
     val eret = Bool(INPUT)
     val ei = Bool(INPUT)
     val di = Bool(INPUT)
@@ -131,38 +131,38 @@ class PCR(implicit conf: RocketConfiguration) extends Component
     val irq_ipi = Bool(OUTPUT)
     val replay = Bool(OUTPUT)
     val vecbank = Bits(OUTPUT, 8)
-    val vecbankcnt = UFix(OUTPUT, 4)
+    val vecbankcnt = UInt(OUTPUT, 4)
     val stats = Bool(OUTPUT)
-    val vec_appvl = UFix(INPUT, 12)
-    val vec_nxregs = UFix(INPUT, 6)
-    val vec_nfregs = UFix(INPUT, 6)
+    val vec_appvl = UInt(INPUT, 12)
+    val vec_nxregs = UInt(INPUT, 6)
+    val vec_nfregs = UInt(INPUT, 6)
   }
   import PCR._
  
-  val reg_epc = Reg{Bits(width = conf.xprlen)}
-  val reg_badvaddr = Reg{Bits(width = conf.xprlen)}
-  val reg_ebase = Reg{Bits(width = conf.xprlen)}
+  val reg_epc = Reg(Bits(width = conf.xprlen))
+  val reg_badvaddr = Reg(Bits(width = conf.xprlen))
+  val reg_ebase = Reg(Bits(width = conf.xprlen))
   val reg_count = WideCounter(32)
-  val reg_compare = Reg{Bits(width = 32)}
-  val reg_cause = Reg{Bits(width = io.cause.getWidth)}
-  val reg_tohost = Reg(resetVal = Bits(0, conf.xprlen))
-  val reg_fromhost = Reg(resetVal = Bits(0, conf.xprlen))
-  val reg_coreid = Reg{Bits(width = 16)}
-  val reg_k0 = Reg{Bits(width = conf.xprlen)}
-  val reg_k1 = Reg{Bits(width = conf.xprlen)}
-  val reg_ptbr = Reg{UFix(width = PADDR_BITS)}
-  val reg_vecbank = Reg(resetVal = Fix(-1,8).toBits)
-  val reg_stats = Reg(resetVal = Bool(false))
-  val reg_error_mode  = Reg(resetVal = Bool(false))
-  val reg_status = Reg{new Status} // reset down below
+  val reg_compare = Reg(Bits(width = 32))
+  val reg_cause = Reg(Bits(width = io.cause.getWidth))
+  val reg_tohost = RegReset(Bits(0, conf.xprlen))
+  val reg_fromhost = RegReset(Bits(0, conf.xprlen))
+  val reg_coreid = Reg(Bits(width = 16))
+  val reg_k0 = Reg(Bits(width = conf.xprlen))
+  val reg_k1 = Reg(Bits(width = conf.xprlen))
+  val reg_ptbr = Reg(UInt(width = PADDR_BITS))
+  val reg_vecbank = RegReset(SInt(-1,8).toBits)
+  val reg_stats = RegReset(Bool(false))
+  val reg_error_mode = RegReset(Bool(false))
+  val reg_status = Reg(new Status) // reset down below
 
-  val r_irq_timer = Reg(resetVal = Bool(false))
-  val r_irq_ipi   = Reg(resetVal = Bool(true))
+  val r_irq_timer = RegReset(Bool(false))
+  val r_irq_ipi = RegReset(Bool(true))
 
-  val host_pcr_req_valid = Reg{Bool()} // don't reset
+  val host_pcr_req_valid = Reg(Bool()) // don't reset
   val host_pcr_req_fire = host_pcr_req_valid && io.rw.cmd === PCR.N
-  val host_pcr_rep_valid = Reg{Bool()} // don't reset
-  val host_pcr_bits = Reg{io.host.pcr_req.bits.clone}
+  val host_pcr_rep_valid = Reg(Bool()) // don't reset
+  val host_pcr_bits = Reg(io.host.pcr_req.bits)
   io.host.pcr_req.ready := !host_pcr_req_valid && !host_pcr_rep_valid
   io.host.pcr_rep.valid := host_pcr_rep_valid
   io.host.pcr_rep.bits := host_pcr_bits.data
@@ -186,12 +186,12 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   io.status.ip := Cat(r_irq_timer, reg_fromhost.orR, r_irq_ipi,   Bool(false),
                       Bool(false), Bool(false),      Bool(false), Bool(false))
   io.ptbr_wen := wen && addr === PTBR
-  io.evec := Mux(io.exception, reg_ebase, reg_epc).toUFix
+  io.evec := Mux(io.exception, reg_ebase, reg_epc).toUInt
   io.ptbr := reg_ptbr
   io.host.debug.error_mode := reg_error_mode
 
   io.vecbank := reg_vecbank
-  var cnt = UFix(0,4)
+  var cnt = UInt(0,4)
   for (i <- 0 until 8)
     cnt = cnt + reg_vecbank(i)
   io.vecbankcnt := cnt(3,0)
@@ -201,8 +201,8 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   when (io.badvaddr_wen || io.vec_irq_aux_wen) {
     val wdata = Mux(io.badvaddr_wen, io.rw.wdata, io.vec_irq_aux)
     val (upper, lower) = Split(wdata, VADDR_BITS)
-    val sign = Mux(lower.toFix < Fix(0), upper.andR, upper.orR)
-    reg_badvaddr := Cat(sign, lower).toFix
+    val sign = Mux(lower.toSInt < SInt(0), upper.andR, upper.orR)
+    reg_badvaddr := Cat(sign, lower).toSInt
   }
 
   when (io.exception) {
@@ -212,7 +212,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
     reg_status.s := true
     reg_status.ps := reg_status.s
     reg_status.et := false
-    reg_epc := io.pc.toFix
+    reg_epc := io.pc.toSInt
     reg_cause := io.cause
   }
   
@@ -231,7 +231,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   io.host.ipi_req.bits := io.rw.wdata
   io.replay := io.host.ipi_req.valid && !io.host.ipi_req.ready
 
-  when (host_pcr_req_fire && !host_pcr_bits.rw && host_pcr_bits.addr === TOHOST) { reg_tohost := UFix(0) }
+  when (host_pcr_req_fire && !host_pcr_bits.rw && host_pcr_bits.addr === TOHOST) { reg_tohost := UInt(0) }
 
   val read_impl = Bits(2)
   val read_ptbr = reg_ptbr(PADDR_BITS-1,PGIDX_BITS) << PGIDX_BITS
@@ -260,17 +260,17 @@ class PCR(implicit conf: RocketConfiguration) extends Component
       if (!conf.fpu) reg_status.ef := false
       if (!conf.rvc) reg_status.ec := false
     }
-    when (addr === EPC)      { reg_epc := wdata(VADDR_BITS,0).toFix }
-    when (addr === EVEC)     { reg_ebase := wdata(VADDR_BITS-1,0).toFix }
-    when (addr === COUNT)    { reg_count := wdata.toUFix }
-    when (addr === COMPARE)  { reg_compare := wdata(31,0).toUFix; r_irq_timer := Bool(false); }
+    when (addr === EPC)      { reg_epc := wdata(VADDR_BITS,0).toSInt }
+    when (addr === EVEC)     { reg_ebase := wdata(VADDR_BITS-1,0).toSInt }
+    when (addr === COUNT)    { reg_count := wdata.toUInt }
+    when (addr === COMPARE)  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false); }
     when (addr === COREID)   { reg_coreid := wdata(15,0) }
-    when (addr === FROMHOST) { when (reg_fromhost === UFix(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
-    when (addr === TOHOST)   { when (reg_tohost === UFix(0)) { reg_tohost := wdata } }
+    when (addr === FROMHOST) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
+    when (addr === TOHOST)   { when (reg_tohost === UInt(0)) { reg_tohost := wdata } }
     when (addr === CLR_IPI)  { r_irq_ipi := wdata(0) }
     when (addr === K0)       { reg_k0 := wdata; }
     when (addr === K1)       { reg_k1 := wdata; }
-    when (addr === PTBR)     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUFix; }
+    when (addr === PTBR)     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUInt; }
     when (addr === VECBANK)  { reg_vecbank:= wdata(7,0) }
     when (addr === STATS)    { reg_stats := wdata(0) }
   }
@@ -278,7 +278,7 @@ class PCR(implicit conf: RocketConfiguration) extends Component
   io.host.ipi_rep.ready := Bool(true)
   when (io.host.ipi_rep.valid) { r_irq_ipi := Bool(true) }
 
-  when (reset) {
+  when(this.getReset) {
     reg_status.et := false
     reg_status.ef := false
     reg_status.ev := false
@@ -301,7 +301,7 @@ class ioReadPort(d: Int, w: Int) extends Bundle
 
 class ioWritePort(d: Int, w: Int) extends Bundle
 {
-  val addr = UFix(INPUT, log2Up(d))
+  val addr = UInt(INPUT, log2Up(d))
   val en   = Bool(INPUT)
   val data = Bits(INPUT, w)
   override def clone = new ioWritePort(d, w).asInstanceOf[this.type]

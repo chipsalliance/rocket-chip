@@ -13,12 +13,12 @@ class RocketIO(implicit conf: RocketConfiguration) extends Bundle
   val dmem    = new HellaCacheIO()(conf.dcache)
 }
 
-class Core(implicit conf: RocketConfiguration) extends Component
+class Core(implicit conf: RocketConfiguration) extends Module
 {
   val io    = new RocketIO
    
-  val ctrl  = new Control
-  val dpath = new Datapath
+  val ctrl  = Module(new Control)
+  val dpath = Module(new Datapath)
 
   ctrl.io.dpath <> dpath.io.ctrl
   dpath.io.host <> io.host
@@ -26,7 +26,7 @@ class Core(implicit conf: RocketConfiguration) extends Component
   ctrl.io.imem <> io.imem
   dpath.io.imem <> io.imem
 
-  val dmemArb = new HellaCacheArbiter(2 + conf.vec)
+  val dmemArb = Module(new HellaCacheArbiter(2 + conf.vec))
   dmemArb.io.mem <> io.dmem
   val dmem = dmemArb.io.requestor
   dmem(1) <> ctrl.io.dmem
@@ -35,20 +35,20 @@ class Core(implicit conf: RocketConfiguration) extends Component
   val ptw = collection.mutable.ArrayBuffer(io.imem.ptw, io.dmem.ptw)
 
   val fpu: FPU = if (conf.fpu) {
-    val fpu = new FPU(4,6)
+    val fpu = Module(new FPU(4,6))
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
     fpu
   } else null
 
   if (conf.vec) {
-    val vu = new vu(Reg(reset))
+    val vu = Module(new vu(RegUpdate(this.getReset)))
 
-    val vdtlb = new TLB(8)
+    val vdtlb = Module(new TLB(8))
     ptw += vdtlb.io.ptw
     vdtlb.io <> vu.io.vtlb
 
-    val pftlb = new TLB(2)
+    val pftlb = Module(new TLB(2))
     pftlb.io <> vu.io.vpftlb
     ptw += pftlb.io.ptw
 
@@ -104,7 +104,7 @@ class Core(implicit conf: RocketConfiguration) extends Component
     // exceptions
     vu.io.xcpt.exception := ctrl.io.vec_iface.exception
     vu.io.xcpt.evac := ctrl.io.vec_iface.evac
-    vu.io.xcpt.evac_addr := dpath.io.vec_iface.evac_addr.toUFix
+    vu.io.xcpt.evac_addr := dpath.io.vec_iface.evac_addr.toUInt
     vu.io.xcpt.kill := ctrl.io.vec_iface.kill
     vu.io.xcpt.hold := ctrl.io.vec_iface.hold
 
@@ -125,7 +125,7 @@ class Core(implicit conf: RocketConfiguration) extends Component
     fpu.io.dfma.valid := Bool(false)
   }
 
-  val thePTW = new PTW(ptw.length)
+  val thePTW = Module(new PTW(ptw.length))
   ptw zip thePTW.io.requestor map { case (a, b) => a <> b }
   thePTW.io.dpath <> dpath.io.ptw
   dmem(0) <> thePTW.io.mem

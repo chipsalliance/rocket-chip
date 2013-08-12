@@ -4,20 +4,20 @@ import Chisel._
 import ALU._
 import Util._
 
-class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: RocketConfiguration) extends Component {
+class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: RocketConfiguration) extends Module {
   val io = new MultiplierIO
   val w = io.req.bits.in1.getWidth
   val mulw = (w+mulUnroll-1)/mulUnroll*mulUnroll
   
-  val s_ready :: s_neg_inputs :: s_mul_busy :: s_div_busy :: s_move_rem :: s_neg_output :: s_done :: Nil = Enum(7) { UFix() };
-  val state = Reg(resetVal = s_ready);
+  val s_ready :: s_neg_inputs :: s_mul_busy :: s_div_busy :: s_move_rem :: s_neg_output :: s_done :: Nil = Enum(7) { UInt() };
+  val state = RegReset(s_ready)
   
-  val req = Reg{io.req.bits.clone}
-  val count = Reg{UFix(width = log2Up(w+1))}
-  val divby0 = Reg{Bool()}
-  val neg_out = Reg{Bool()}
-  val divisor = Reg{Bits(width = w+1)} // div only needs w bits
-  val remainder = Reg{Bits(width = 2*mulw+2)} // div only needs 2*w+1 bits
+  val req = Reg(io.req.bits.clone)
+  val count = Reg(UInt(width = log2Up(w+1)))
+  val divby0 = Reg(Bool())
+  val neg_out = Reg(Bool())
+  val divisor = Reg(Bits(width = w+1)) // div only needs w bits
+  val remainder = Reg(Bits(width = 2*mulw+2)) // div only needs 2*w+1 bits
 
   def sext(x: Bits, cmds: Vec[Bits]) = {
     val sign = Mux(io.req.bits.dw === DW_64, x(w-1), x(w/2-1)) && cmds.contains(io.req.bits.fn)
@@ -51,11 +51,11 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
   when (state === s_mul_busy) {
     val mulReg = Cat(remainder(2*mulw+1,w+1),remainder(w-1,0))
     val mplier = mulReg(mulw-1,0)
-    val accum = mulReg(2*mulw,mulw).toFix
-    val mpcand = divisor.toFix
+    val accum = mulReg(2*mulw,mulw).toSInt
+    val mpcand = divisor.toSInt
     val prod = mplier(mulUnroll-1,0) * mpcand + accum
-    val nextMulReg = Cat(prod, mplier(mulw-1,mulUnroll))
-    remainder := Cat(nextMulReg >> w, Bool(false), nextMulReg(w-1,0)).toFix
+    val nextMulReg = Cat(prod, mplier(mulw-1,mulUnroll)).toUInt
+    remainder := Cat(nextMulReg >> w, Bool(false), nextMulReg(w-1,0)).toSInt
 
     count := count + 1
     when (count === mulw/mulUnroll-1) {
@@ -66,13 +66,13 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
     }
   }
   when (state === s_div_busy) {
-    when (count === UFix(w)) {
+    when (count === UInt(w)) {
       state := Mux(neg_out && !divby0, s_neg_output, s_done)
       when (AVec(FN_REM, FN_REMU) contains req.fn) {
         state := s_move_rem
       }
     }
-    count := count + UFix(1)
+    count := count + UInt(1)
 
     val msb = subtractor(w)
     divby0 := divby0 && !msb
@@ -80,8 +80,8 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
 
     val divisorMSB = Log2(divisor(w-1,0), w)
     val dividendMSB = Log2(remainder(w-1,0), w)
-    val eOutPos = UFix(w-1, log2Up(2*w)) + divisorMSB - dividendMSB
-    val eOut = count === UFix(0) && eOutPos > 0 && (divisorMSB != UFix(0) || divisor(0))
+    val eOutPos = UInt(w-1, log2Up(2*w)) + divisorMSB - dividendMSB
+    val eOut = count === UInt(0) && eOutPos > 0 && (divisorMSB != UInt(0) || divisor(0))
     when (Bool(earlyOut) && eOut) {
       val shift = eOutPos(log2Up(w)-1,0)
       remainder := remainder(w-1,0) << shift
@@ -101,7 +101,7 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
     val mulState = Mux(lhs_sign, s_neg_inputs, s_mul_busy)
     val divState = Mux(lhs_sign || rhs_sign, s_neg_inputs, s_div_busy)
     state := Mux(isMul, mulState, divState)
-    count := UFix(0)
+    count := UInt(0)
     neg_out := !isMul && Mux(isRem, lhs_sign, lhs_sign != rhs_sign)
     divby0 := true
     divisor := Cat(rhs_sign, rhs_in)
@@ -115,20 +115,20 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
   io.req.ready := state === s_ready
 }
 
-class Divider(earlyOut: Boolean = false)(implicit conf: RocketConfiguration) extends Component {
+class Divider(earlyOut: Boolean = false)(implicit conf: RocketConfiguration) extends Module {
   val io = new MultiplierIO
   val w = io.req.bits.in1.getWidth
   
-  val s_ready :: s_neg_inputs :: s_busy :: s_move_rem :: s_neg_output :: s_done :: Nil = Enum(6) { UFix() };
-  val state = Reg(resetVal = s_ready);
+  val s_ready :: s_neg_inputs :: s_busy :: s_move_rem :: s_neg_output :: s_done :: Nil = Enum(6) { UInt() };
+  val state = RegReset(s_ready)
   
-  val count       = Reg() { UFix(width = log2Up(w+1)) }
-  val divby0      = Reg() { Bool() };
-  val neg_out     = Reg() { Bool() };
-  val r_req = Reg{io.req.bits.clone}
+  val count = Reg(UInt(width = log2Up(w+1)))
+  val divby0 = Reg(Bool())
+  val neg_out = Reg(Bool())
+  val r_req = Reg(io.req.bits)
   
-  val divisor     = Reg() { Bits() }
-  val remainder   = Reg() { Bits(width = 2*w+1) }
+  val divisor     = Reg(Bits())
+  val remainder   = Reg(Bits(width = 2*w+1))
   val subtractor  = remainder(2*w,w) - divisor
 
   def sext(x: Bits, cmds: Vec[Bits]) = {
@@ -159,10 +159,10 @@ class Divider(earlyOut: Boolean = false)(implicit conf: RocketConfiguration) ext
     state := Mux(neg_out, s_neg_output, s_done)
   }
   when (state === s_busy) {
-    when (count === UFix(w)) {
+    when (count === UInt(w)) {
       state := Mux(r_isRem, s_move_rem, Mux(neg_out && !divby0, s_neg_output, s_done))
     }
-    count := count + UFix(1)
+    count := count + UInt(1)
 
     val msb = subtractor(w)
     divby0 := divby0 && !msb
@@ -170,8 +170,8 @@ class Divider(earlyOut: Boolean = false)(implicit conf: RocketConfiguration) ext
 
     val divisorMSB = Log2(divisor, w)
     val dividendMSB = Log2(remainder(w-1,0), w)
-    val eOutPos = UFix(w-1, log2Up(2*w)) + divisorMSB - dividendMSB
-    val eOut = count === UFix(0) && eOutPos > 0 && (divisorMSB != UFix(0) || divisor(0))
+    val eOutPos = UInt(w-1, log2Up(2*w)) + divisorMSB - dividendMSB
+    val eOut = count === UInt(0) && eOutPos > 0 && (divisorMSB != UInt(0) || divisor(0))
     when (Bool(earlyOut) && eOut) {
       val shift = eOutPos(log2Up(w)-1,0)
       remainder := remainder(w-1,0) << shift
@@ -187,7 +187,7 @@ class Divider(earlyOut: Boolean = false)(implicit conf: RocketConfiguration) ext
   }
   when (io.req.fire()) {
     state := Mux(lhs_sign || rhs_sign, s_neg_inputs, s_busy)
-    count := UFix(0)
+    count := UInt(0)
     neg_out := Mux(AVec(FN_REM, FN_REMU).contains(io.req.bits.fn), lhs_sign, lhs_sign != rhs_sign)
     divby0 := true
     divisor := rhs_in

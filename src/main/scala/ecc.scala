@@ -63,7 +63,7 @@ class SECCode extends Code
       } else
         x(mapping(i))
     }
-    Vec(y){Bool()}.toBits
+    Vec(y).toBits
   }
   def decode(y: Bits) = new Decoding {
     val n = y.getWidth
@@ -75,11 +75,11 @@ class SECCode extends Code
         yield y(j-1)
       r reduce (_^_)
     }
-    val s = Vec(syndrome){Bool()}.toBits
+    val s = Vec(syndrome).toBits
 
-    private def swizzle(z: Bits) = Vec((1 to n).filter(i => !isPow2(i)).map(i => z(i-1))){Bool()}.toBits
+    private def swizzle(z: Bits) = Vec((1 to n).filter(i => !isPow2(i)).map(i => z(i-1))).toBits
     def uncorrected = swizzle(y)
-    def corrected = swizzle(((y << 1) ^ UFixToOH(s)) >> 1)
+    def corrected = swizzle(((y.toUInt << 1) ^ UIntToOH(s)) >> 1)
     def correctable = s.orR
     def uncorrectable = Bool(false)
   }
@@ -109,12 +109,12 @@ object ErrGen
   // generate a 1-bit error with approximate probability 2^-f
   def apply(width: Int, f: Int): Bits = {
     require(width > 0 && f >= 0 && log2Up(width) + f <= 16)
-    UFixToOH(LFSR16()(log2Up(width)+f-1,0))(width-1,0)
+    UIntToOH(LFSR16()(log2Up(width)+f-1,0))(width-1,0)
   }
   def apply(x: Bits, f: Int): Bits = x ^ apply(x.getWidth, f)
 }
 
-class SECDEDTest extends Component
+class SECDEDTest extends Module
 {
   val code = new SECDEDCode
   val k = 4
