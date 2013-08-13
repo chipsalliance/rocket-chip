@@ -756,15 +756,15 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val mshrs = Module(new MSHRFile)
 
   io.cpu.req.ready := Bool(true)
-  val s1_valid = Reg(update=io.cpu.req.fire(), reset=Bool(false))
+  val s1_valid = Reg(update=io.cpu.req.fire(), resetVal=Bool(false))
   val s1_req = Reg(io.cpu.req.bits.clone)
   val s1_valid_masked = s1_valid && !io.cpu.req.bits.kill
   val s1_replay = RegReset(Bool(false))
   val s1_clk_en = Reg(Bool())
 
-  val s2_valid = Reg(update=s1_valid_masked, reset=Bool(false))
+  val s2_valid = Reg(update=s1_valid_masked, resetVal=Bool(false))
   val s2_req = Reg(io.cpu.req.bits.clone)
-  val s2_replay = Reg(update=s1_replay, reset=Bool(false))
+  val s2_replay = Reg(update=s1_replay, resetVal=Bool(false))
   val s2_recycle = Bool()
   val s2_valid_masked = Bool()
 
@@ -993,7 +993,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   FIFOedLogicalNetworkIOWrapper(wb.io.release_data) <> io.mem.release.data
 
   // store->load bypassing
-  val s4_valid = Reg(update=s3_valid, reset=Bool(false))
+  val s4_valid = Reg(update=s3_valid, resetVal=Bool(false))
   val s4_req = RegEn(s3_req, s3_valid && metaReadArb.io.out.valid)
   val bypasses = List(
     ((s2_valid_masked || s2_replay) && !s2_sc_fail, s2_req, amoalu.io.out),

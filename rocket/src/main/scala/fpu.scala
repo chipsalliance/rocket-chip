@@ -465,10 +465,10 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   when (io.ctrl.valid) {
     ex_reg_inst := io.dpath.inst
   }
-  val ex_reg_valid = Reg(update=io.ctrl.valid, reset=Bool(false))
-  val mem_reg_valid = Reg(update=ex_reg_valid && !io.ctrl.killx, reset=Bool(false))
+  val ex_reg_valid = Reg(update=io.ctrl.valid, resetVal=Bool(false))
+  val mem_reg_valid = Reg(update=ex_reg_valid && !io.ctrl.killx, resetVal=Bool(false))
   val killm = io.ctrl.killm || io.ctrl.nack_mem
-  val wb_reg_valid = Reg(update=mem_reg_valid && !killm, reset=Bool(false))
+  val wb_reg_valid = Reg(update=mem_reg_valid && !killm, resetVal=Bool(false))
 
   val fp_decoder = Module(new FPUDecoder)
   fp_decoder.io.inst := io.dpath.inst
