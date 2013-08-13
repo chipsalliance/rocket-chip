@@ -176,20 +176,6 @@ class CtrlFPUIO extends Bundle {
   val sboard_clra = UInt(INPUT, 5)
 }
 
-object RegEn
-{
-  def apply[T <: Data](data: T, en: Bool) = {
-    val r = Reg(data)
-    when (en) { r := data }
-    r
-  }
-  def apply[T <: Bits](data: T, en: Bool, resetVal: T) = {
-    val r = RegReset(resetVal)
-    when (en) { r := data }
-    r
-  }
-}
-
 class FPToInt extends Module
 {
   class Input extends Bundle {
