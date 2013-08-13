@@ -278,7 +278,7 @@ class PCR(implicit conf: RocketConfiguration) extends Module
   io.host.ipi_rep.ready := Bool(true)
   when (io.host.ipi_rep.valid) { r_irq_ipi := Bool(true) }
 
-  when(this.getReset) {
+  when(this.reset) {
     reg_status.et := false
     reg_status.ef := false
     reg_status.ev := false

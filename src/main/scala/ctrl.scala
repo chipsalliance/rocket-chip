@@ -407,7 +407,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val wb_reg_div_mul_val     = RegReset(Bool(false))
 
   val take_pc = Bool()
-  val pc_taken = Reg(update = take_pc, reset = Bool(false))
+  val pc_taken = Reg(update = take_pc, resetVal = Bool(false))
   val take_pc_wb = Bool()
   val ctrl_killd = Bool()
   val ctrl_killx = Bool()
