@@ -120,123 +120,57 @@ class TileLinkIO(implicit conf: TileLinkConfiguration) extends UncachedTileLinkI
   override def clone = { new TileLinkIO().asInstanceOf[this.type] }
 }
 
-/*
- * TODO: Merge the below classes into children of an abstract class in Chisel 2.0
-abstract class UncachedTileLinkIOArbiter(n: Int, co: CoherencePolicy)(implicit conf: LogicalNetworkConfiguration) extends Module {
+abstract class UncachedTileLinkIOArbiter(n: Int)(implicit conf: TileLinkConfiguration) extends Module {
   def acquireClientXactId(in: Acquire, id: Int): Bits
   def grantClientXactId(in: Grant): Bits
   def arbIdx(in: Grant): UInt
-}
-*/
 
-class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int)(implicit conf: TileLinkConfiguration) extends Module {
   implicit val (ln, co) = (conf.ln, conf.co)
+  val io = new Bundle {
+    val in = Vec.fill(n){new UncachedTileLinkIO}.flip
+    val out = new UncachedTileLinkIO
+  }
+  def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
+  val acq_arb = Module(new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData}))
+  io.out.acquire <> acq_arb.io.out
+  io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
+    arb.data <> req.data
+    arb.meta.valid := req.meta.valid
+    arb.meta.bits := req.meta.bits
+    arb.meta.bits.payload.client_xact_id := acquireClientXactId(req.meta.bits.payload, id)
+    req.meta.ready := arb.meta.ready
+  }}
+
+  val grant_ack_arb = Module(new RRArbiter((new LogicalNetworkIO){new GrantAck},n))
+  io.out.grant_ack <> grant_ack_arb.io.out
+  grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
+
+  io.out.grant.ready := Bool(false)
+  for (i <- 0 until n) {
+    io.in(i).grant.valid := Bool(false)
+    when (arbIdx(io.out.grant.bits.payload) === UInt(i)) {
+      io.in(i).grant.valid := io.out.grant.valid
+      io.out.grant.ready := io.in(i).grant.ready
+    }
+    io.in(i).grant.bits := io.out.grant.bits
+    io.in(i).grant.bits.payload.client_xact_id := grantClientXactId(io.out.grant.bits.payload) 
+  }
+}
+
+class UncachedTileLinkIOArbiterThatAppendsArbiterId(n: Int)(implicit conf: TileLinkConfiguration) extends UncachedTileLinkIOArbiter(n)(conf) {
   def acquireClientXactId(in: Acquire, id: Int) = Cat(in.client_xact_id, UInt(id, log2Up(n)))
   def grantClientXactId(in: Grant) = in.client_xact_id >> UInt(log2Up(n))
   def arbIdx(in: Grant) = in.client_xact_id(log2Up(n)-1,0).toUInt
-
-  val io = new Bundle {
-    val in = Vec.fill(n){new UncachedTileLinkIO}.flip
-    val out = new UncachedTileLinkIO
-  }
-  def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
-  val acq_arb = Module(new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData}))
-  io.out.acquire <> acq_arb.io.out
-  io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
-    arb.data <> req.data
-    arb.meta.valid := req.meta.valid
-    arb.meta.bits := req.meta.bits
-    arb.meta.bits.payload.client_xact_id := acquireClientXactId(req.meta.bits.payload, id)
-    req.meta.ready := arb.meta.ready
-  }}
-
-  val grant_ack_arb = Module(new RRArbiter((new LogicalNetworkIO){new GrantAck},n))
-  io.out.grant_ack <> grant_ack_arb.io.out
-  grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
-
-  io.out.grant.ready := Bool(false)
-  for (i <- 0 until n) {
-    io.in(i).grant.valid := Bool(false)
-    when (arbIdx(io.out.grant.bits.payload) === UInt(i)) {
-      io.in(i).grant.valid := io.out.grant.valid
-      io.out.grant.ready := io.in(i).grant.ready
-    }
-    io.in(i).grant.bits := io.out.grant.bits
-    io.in(i).grant.bits.payload.client_xact_id := grantClientXactId(io.out.grant.bits.payload) 
-  }
 }
 
-class UncachedTileLinkIOArbiterThatPassesId(n: Int)(implicit conf: TileLinkConfiguration) extends Module {
-  implicit val (ln, co) = (conf.ln, conf.co)
+class UncachedTileLinkIOArbiterThatPassesId(n: Int)(implicit conf: TileLinkConfiguration) extends UncachedTileLinkIOArbiter(n)(conf) {
   def acquireClientXactId(in: Acquire, id: Int) = in.client_xact_id
   def grantClientXactId(in: Grant) = in.client_xact_id
   def arbIdx(in: Grant): UInt = in.client_xact_id
-
-  val io = new Bundle {
-    val in = Vec.fill(n){new UncachedTileLinkIO}.flip
-    val out = new UncachedTileLinkIO
-  }
-  def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
-  val acq_arb = Module(new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData}))
-  io.out.acquire <> acq_arb.io.out
-  io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
-    arb.data <> req.data
-    arb.meta.valid := req.meta.valid
-    arb.meta.bits := req.meta.bits
-    arb.meta.bits.payload.client_xact_id := acquireClientXactId(req.meta.bits.payload, id)
-    req.meta.ready := arb.meta.ready
-  }}
-
-  val grant_ack_arb = Module(new RRArbiter((new LogicalNetworkIO){new GrantAck},n))
-  io.out.grant_ack <> grant_ack_arb.io.out
-  grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
-
-  io.out.grant.ready := Bool(false)
-  for (i <- 0 until n) {
-    io.in(i).grant.valid := Bool(false)
-    when (arbIdx(io.out.grant.bits.payload) === UInt(i)) {
-      io.in(i).grant.valid := io.out.grant.valid
-      io.out.grant.ready := io.in(i).grant.ready
-    }
-    io.in(i).grant.bits := io.out.grant.bits
-    io.in(i).grant.bits.payload.client_xact_id := grantClientXactId(io.out.grant.bits.payload) 
-  }
 }
 
-class UncachedTileLinkIOArbiterThatUsesNewId(n: Int)(implicit conf: TileLinkConfiguration) extends Module {
-  implicit val (ln, co) = (conf.ln, conf.co)
+class UncachedTileLinkIOArbiterThatUsesNewId(n: Int)(implicit conf: TileLinkConfiguration) extends UncachedTileLinkIOArbiter(n)(conf) {
   def acquireClientXactId(in: Acquire, id: Int) = UInt(id, log2Up(n))
   def grantClientXactId(in: Grant) = UInt(0) // DNC 
   def arbIdx(in: Grant) = in.client_xact_id
-
-  val io = new Bundle {
-    val in = Vec.fill(n){new UncachedTileLinkIO}.flip
-    val out = new UncachedTileLinkIO
-  }
-  def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
-  val acq_arb = Module(new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData}))
-  io.out.acquire <> acq_arb.io.out
-  io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
-    arb.data <> req.data
-    arb.meta.valid := req.meta.valid
-    arb.meta.bits := req.meta.bits
-    arb.meta.bits.payload.client_xact_id := acquireClientXactId(req.meta.bits.payload, id)
-    req.meta.ready := arb.meta.ready
-  }}
-
-  val grant_ack_arb = Module(new RRArbiter((new LogicalNetworkIO){new GrantAck},n))
-  io.out.grant_ack <> grant_ack_arb.io.out
-  grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
-
-  io.out.grant.ready := Bool(false)
-  for (i <- 0 until n) {
-    io.in(i).grant.valid := Bool(false)
-    when (arbIdx(io.out.grant.bits.payload) === UInt(i)) {
-      io.in(i).grant.valid := io.out.grant.valid
-      io.out.grant.ready := io.in(i).grant.ready
-    }
-    io.in(i).grant.bits := io.out.grant.bits
-    io.in(i).grant.bits.payload.client_xact_id := grantClientXactId(io.out.grant.bits.payload) 
-  }
 }
-
