@@ -14,7 +14,7 @@ object DummyTopLevelConstants {
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
   val ENABLE_CLEAN_EXCLUSIVE = true
-  val HAS_VEC = true
+  val HAS_VEC = false
   val HAS_FPU = true
   val NL2_REL_XACTS = 1
   val NL2_ACQ_XACTS = 8
