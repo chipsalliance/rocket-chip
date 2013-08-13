@@ -54,14 +54,6 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   io.tilelink.release.meta.bits := dcache.io.mem.release.meta.bits
   io.tilelink.release.meta.bits.payload.client_xact_id :=  Cat(dcache.io.mem.release.meta.bits.payload.client_xact_id, UInt(dcachePortId, log2Up(memPorts))) // Mimic client id extension done by UncachedTileLinkIOArbiter for Acquires from either client)
 
-  /*val ioSubBundles = io.tilelink.getClass.getMethods.filter( x => 
-    classOf[ClientSourcedIO[Data]].isAssignableFrom(x.getReturnType)).map{ m =>
-      m.invoke(io.tilelink).asInstanceOf[ClientSourcedIO[LogicalNetworkIO[Data]]] }
-  ioSubBundles.foreach{ m => 
-    m.bits.header.dst := UInt(0)
-    m.bits.header.src := UInt(0)
-  }*/
-
   if (conf.vec) {
     val vicache = Module(new Frontend()(ICacheConfig(128, 1), tlConf)) // 128 sets x 1 ways (8KB)
     arbiter.io.in(vicachePortId) <> vicache.io.mem
