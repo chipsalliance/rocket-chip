@@ -370,7 +370,7 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[UInt], da
   val s3_rdy = Bool()
   val replay_s2_rdy = Bool()
 
-  val s1_valid = Reg(update = io.cpu.req_cmd.fire() || replay_s2 && replay_s2_rdy, reset = Bool(false))
+  val s1_valid = Reg(update = io.cpu.req_cmd.fire() || replay_s2 && replay_s2_rdy, resetVal = Bool(false))
   val s1 = Reg(new MemReqCmd)
   when (io.cpu.req_cmd.fire()) { s1 := io.cpu.req_cmd.bits }
   when (replay_s2 && replay_s2_rdy) { s1 := s2 }
