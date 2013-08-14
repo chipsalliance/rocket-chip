@@ -42,7 +42,7 @@ class Core(implicit conf: RocketConfiguration) extends Module
   } else null
 
   if (conf.vec) {
-    val vu = Module(new vu(RegUpdate(this.getReset)))
+    val vu = Module(new vu(RegUpdate(reset)))
 
     val vdtlb = Module(new TLB(8))
     ptw += vdtlb.io.ptw
@@ -109,7 +109,7 @@ class Core(implicit conf: RocketConfiguration) extends Module
     vu.io.xcpt.hold := ctrl.io.vec_iface.hold
 
     // hooking up vector memory interface
-    dmem(2).req.bits.data := RegEn(StoreGen(vu.io.dmem_req.bits).data, vu.io.dmem_req.valid && isWrite(vu.io.dmem_req.bits.cmd))
+    dmem(2).req.bits.data := RegEnable(StoreGen(vu.io.dmem_req.bits).data, vu.io.dmem_req.valid && isWrite(vu.io.dmem_req.bits.cmd))
     dmem(2).req <> vu.io.dmem_req
     dmem(2).resp <> vu.io.dmem_resp
 
