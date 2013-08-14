@@ -255,7 +255,7 @@ class Top extends Module {
   val io = new VLSITopIO(HTIF_WIDTH)
 
   val resetSigs = Vec.fill(uc.nTiles){Bool()}
-  val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
+  val tileList = (0 until uc.nTiles).map(r => Module(new Tile(_reset = resetSigs(r))(rc)))
   val uncore = Module(new Uncore(HTIF_WIDTH, tileList))
 
   var error_mode = Bool(false)

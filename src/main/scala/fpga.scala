@@ -99,7 +99,7 @@ class FPGATop extends Module {
   val io = new FPGATopIO(htif_width)
 
   val resetSigs = Vec.fill(uc.nTiles){Bool()}
-  val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
+  val tileList = (0 until uc.nTiles).map(r => Module(new Tile(_reset = resetSigs(r))(rc)))
   val uncore = Module(new FPGAUncore(htif_width, tileList))
 
   io.debug.error_mode := Bool(false)
