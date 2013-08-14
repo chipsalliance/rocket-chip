@@ -43,6 +43,11 @@ case class DCacheConfig(sets: Int, ways: Int,
   val lrsc_cycles = 32 // ISA requires 16-insn LRSC sequences to succeed
 }
 
+abstract trait DCacheBundle extends Bundle {
+  implicit val conf: DCacheConfig
+  override def clone = this.getClass.getConstructors.head.newInstance(conf).asInstanceOf[this.type]
+}
+
 abstract class ReplacementPolicy
 {
   def way: UInt
@@ -102,30 +107,22 @@ class MSHRReq(implicit conf: DCacheConfig) extends HellaCacheReq {
   val tag_match = Bool()
   val old_meta = new MetaData
   val way_en = Bits(width = conf.ways)
-
-  override def clone = new MSHRReq().asInstanceOf[this.type]
 }
 
 class Replay(implicit conf: DCacheConfig) extends HellaCacheReq {
   val sdq_id = UInt(width = log2Up(conf.nsdq))
-
-  override def clone = new Replay().asInstanceOf[this.type]
 }
 
-class DataReadReq(implicit conf: DCacheConfig) extends Bundle {
+class DataReadReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val way_en = Bits(width = conf.ways)
   val addr   = Bits(width = conf.untagbits)
-
-  override def clone = new DataReadReq().asInstanceOf[this.type]
 }
 
-class DataWriteReq(implicit conf: DCacheConfig) extends Bundle {
+class DataWriteReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val way_en = Bits(width = conf.ways)
   val addr   = Bits(width = conf.untagbits)
   val wmask  = Bits(width = conf.wordsperrow)
   val data   = Bits(width = conf.bitsperrow)
-
-  override def clone = new DataWriteReq().asInstanceOf[this.type]
 }
 
 class InternalProbe(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Probe {
@@ -152,25 +149,19 @@ object MetaData {
     meta
   }
 }
-class MetaData(implicit conf: DCacheConfig) extends Bundle {
+class MetaData(implicit val conf: DCacheConfig) extends DCacheBundle {
   val state = UInt(width = conf.statebits)
   val tag = Bits(width = conf.tagbits)
-
-  override def clone = new MetaData().asInstanceOf[this.type]
 }
 
-class MetaReadReq(implicit conf: DCacheConfig) extends Bundle {
+class MetaReadReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val addr  = UInt(width = conf.paddrbits)
-
-  override def clone = new MetaReadReq().asInstanceOf[this.type]
 }
 
-class MetaWriteReq(implicit conf: DCacheConfig) extends Bundle {
+class MetaWriteReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val way_en = Bits(width = conf.ways)
   val idx  = Bits(width = conf.idxbits)
   val data = new MetaData()
-
-  override def clone = new MetaWriteReq().asInstanceOf[this.type]
 }
 
 class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
@@ -420,7 +411,7 @@ class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends M
   io.mem_resp := memRespMux(io.mem_grant.bits.payload.client_xact_id)
 
   val free_sdq = io.replay.fire() && isWrite(io.replay.bits.cmd)
-  io.replay.bits.data := sdq(RegEn(replay_arb.io.out.bits.sdq_id, free_sdq))
+  io.replay.bits.data := sdq(RegEnable(replay_arb.io.out.bits.sdq_id, free_sdq))
   io.replay <> replay_arb.io.out
 
   when (io.replay.valid || sdq_enq) {
@@ -597,7 +588,7 @@ class MetaDataArray(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     val mask = Mux(rst, SInt(-1), io.write.bits.way_en)
     tags.write(addr, Fill(conf.ways, data), FillInterleaved(metabits, mask))
   }
-  val tag = tags(RegEn(io.read.bits.addr >> conf.offbits, io.read.valid))
+  val tag = tags(RegEnable(io.read.bits.addr >> conf.offbits, io.read.valid))
 
   for (w <- 0 until conf.ways) {
     val m = tag(metabits*(w+1)-1, metabits*w)
@@ -624,7 +615,7 @@ class DataArray(implicit conf: DCacheConfig) extends Module {
       val wway_en = io.write.bits.way_en(w+conf.wordsperrow-1,w)
       val rway_en = io.read.bits.way_en(w+conf.wordsperrow-1,w)
       val resp = Vec.fill(conf.wordsperrow){Bits(width = conf.bitsperrow)}
-      val r_raddr = RegEn(io.read.bits.addr, io.read.valid)
+      val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
         val array = Mem(Bits(width=conf.bitsperrow), conf.sets*REFILL_CYCLES, seqRead = true)
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
@@ -632,7 +623,7 @@ class DataArray(implicit conf: DCacheConfig) extends Module {
           val mask = FillInterleaved(conf.encdatabits, wway_en)
           array.write(waddr, data, mask)
         }
-        resp(p) := array(RegEn(raddr, rway_en.orR && io.read.valid))
+        resp(p) := array(RegEnable(raddr, rway_en.orR && io.read.valid))
       }
       for (dw <- 0 until conf.wordsperrow) {
         val r = AVec(resp.map(_(conf.encdatabits*(dw+1)-1,conf.encdatabits*dw)))
@@ -649,7 +640,7 @@ class DataArray(implicit conf: DCacheConfig) extends Module {
       when (io.write.bits.way_en(w) && io.write.valid) {
         array.write(waddr, io.write.bits.data, wmask)
       }
-      io.resp(w) := array(RegEn(raddr, io.read.bits.way_en(w) && io.read.valid))
+      io.resp(w) := array(RegEnable(raddr, io.read.bits.way_en(w) && io.read.valid))
     }
   }
 
@@ -695,7 +686,7 @@ class AMOALU(implicit conf: DCacheConfig) extends Module {
   io.out := wmask & out | ~wmask & io.lhs
 }
 
-class HellaCacheReq(implicit conf: DCacheConfig) extends Bundle {
+class HellaCacheReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val kill = Bool()
   val typ  = Bits(width = 3)
   val phys = Bool()
@@ -703,11 +694,9 @@ class HellaCacheReq(implicit conf: DCacheConfig) extends Bundle {
   val data = Bits(width = conf.databits)
   val tag  = Bits(width = conf.reqtagbits)
   val cmd  = Bits(width = 4)
-
-  override def clone = new HellaCacheReq().asInstanceOf[this.type]
 }
 
-class HellaCacheResp(implicit conf: DCacheConfig) extends Bundle {
+class HellaCacheResp(implicit val conf: DCacheConfig) extends DCacheBundle {
   val nack = Bool() // comes 2 cycles after req.fire
   val replay = Bool()
   val typ = Bits(width = 3)
@@ -717,8 +706,6 @@ class HellaCacheResp(implicit conf: DCacheConfig) extends Bundle {
   val cmd  = Bits(width = 4)
   val addr = UInt(width = conf.maxaddrbits)
   val store_data = Bits(width = conf.databits)
-
-  override def clone = new HellaCacheResp().asInstanceOf[this.type]
 }
 
 class AlignmentExceptions extends Bundle {
@@ -756,15 +743,15 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val mshrs = Module(new MSHRFile)
 
   io.cpu.req.ready := Bool(true)
-  val s1_valid = Reg(update=io.cpu.req.fire(), reset=Bool(false))
+  val s1_valid = Reg(updateData=io.cpu.req.fire(), resetData=Bool(false))
   val s1_req = Reg(io.cpu.req.bits.clone)
   val s1_valid_masked = s1_valid && !io.cpu.req.bits.kill
   val s1_replay = RegReset(Bool(false))
   val s1_clk_en = Reg(Bool())
 
-  val s2_valid = Reg(update=s1_valid_masked, reset=Bool(false))
+  val s2_valid = Reg(updateData=s1_valid_masked, resetData=Bool(false))
   val s2_req = Reg(io.cpu.req.bits.clone)
-  val s2_replay = Reg(update=s1_replay, reset=Bool(false))
+  val s2_replay = Reg(updateData=s1_replay, resetData=Bool(false))
   val s2_recycle = Bool()
   val s2_valid_masked = Bool()
 
@@ -772,7 +759,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val s3_req = Reg(io.cpu.req.bits.clone)
   val s3_way = Reg(Bits())
 
-  val s1_recycled = RegEn(s2_recycle, s1_clk_en)
+  val s1_recycled = RegEnable(s2_recycle, s1_clk_en)
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
@@ -872,9 +859,9 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && tl.co.isValid(meta.io.resp(w).state)).toBits
   s1_clk_en := metaReadArb.io.out.valid
   val s1_writeback = s1_clk_en && !s1_valid && !s1_replay
-  val s2_tag_match_way = RegEn(s1_tag_match_way, s1_clk_en)
+  val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
-  val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEn(meta.io.resp(w).state, s1_clk_en)))
+  val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEnable(meta.io.resp(w).state, s1_clk_en)))
   val s2_hit = s2_tag_match && tl.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === tl.co.newStateOnHit(s2_req.cmd, s2_hit_state)
 
   // load-reserved/store-conditional
@@ -931,8 +918,8 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   // replacement policy
   val replacer = new RandomReplacement
   val s1_replaced_way_en = UIntToOH(replacer.way)
-  val s2_replaced_way_en = UIntToOH(RegEn(replacer.way, s1_clk_en))
-  val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegEn(meta.io.resp(w), s1_clk_en && s1_replaced_way_en(w))).toSeq)
+  val s2_replaced_way_en = UIntToOH(RegEnable(replacer.way, s1_clk_en))
+  val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegEnable(meta.io.resp(w), s1_clk_en && s1_replaced_way_en(w))).toSeq)
 
   // miss handling
   mshrs.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd))
@@ -993,8 +980,8 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   FIFOedLogicalNetworkIOWrapper(wb.io.release_data) <> io.mem.release.data
 
   // store->load bypassing
-  val s4_valid = Reg(update=s3_valid, reset=Bool(false))
-  val s4_req = RegEn(s3_req, s3_valid && metaReadArb.io.out.valid)
+  val s4_valid = Reg(updateData=s3_valid, resetData=Bool(false))
+  val s4_req = RegEnable(s3_req, s3_valid && metaReadArb.io.out.valid)
   val bypasses = List(
     ((s2_valid_masked || s2_replay) && !s2_sc_fail, s2_req, amoalu.io.out),
     (s3_valid, s3_req, s3_req.data),
@@ -1022,7 +1009,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   // nack it like it's hot
   val s1_nack = dtlb.io.req.valid && dtlb.io.resp.miss ||
                 s1_req.addr(indexmsb,indexlsb) === prober.io.meta_write.bits.idx && !prober.io.req.ready
-  val s2_nack_hit = RegEn(s1_nack, s1_valid || s1_replay)
+  val s2_nack_hit = RegEnable(s1_nack, s1_valid || s1_replay)
   when (s2_nack_hit) { mshrs.io.req.valid := Bool(false) }
   val s2_nack_victim = s2_hit && mshrs.io.secondary_miss
   val s2_nack_miss = !s2_hit && !mshrs.io.req.ready

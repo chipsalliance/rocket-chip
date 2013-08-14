@@ -451,23 +451,23 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   when (io.ctrl.valid) {
     ex_reg_inst := io.dpath.inst
   }
-  val ex_reg_valid = Reg(update=io.ctrl.valid, reset=Bool(false))
-  val mem_reg_valid = Reg(update=ex_reg_valid && !io.ctrl.killx, reset=Bool(false))
+  val ex_reg_valid = Reg(updateData=io.ctrl.valid, resetData=Bool(false))
+  val mem_reg_valid = Reg(updateData=ex_reg_valid && !io.ctrl.killx, resetData=Bool(false))
   val killm = io.ctrl.killm || io.ctrl.nack_mem
-  val wb_reg_valid = Reg(update=mem_reg_valid && !killm, reset=Bool(false))
+  val wb_reg_valid = Reg(updateData=mem_reg_valid && !killm, resetData=Bool(false))
 
   val fp_decoder = Module(new FPUDecoder)
   fp_decoder.io.inst := io.dpath.inst
 
-  val ctrl = RegEn(fp_decoder.io.sigs, io.ctrl.valid)
-  val mem_ctrl = RegEn(ctrl, ex_reg_valid)
-  val wb_ctrl = RegEn(mem_ctrl, mem_reg_valid)
+  val ctrl = RegEnable(fp_decoder.io.sigs, io.ctrl.valid)
+  val mem_ctrl = RegEnable(ctrl, ex_reg_valid)
+  val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
   // load response
   val load_wb = RegUpdate(io.dpath.dmem_resp_val)
-  val load_wb_single = RegEn(io.dpath.dmem_resp_type === MT_W || io.dpath.dmem_resp_type === MT_WU, io.dpath.dmem_resp_val)
-  val load_wb_data = RegEn(io.dpath.dmem_resp_data, io.dpath.dmem_resp_val)
-  val load_wb_tag = RegEn(io.dpath.dmem_resp_tag, io.dpath.dmem_resp_val)
+  val load_wb_single = RegEnable(io.dpath.dmem_resp_type === MT_W || io.dpath.dmem_resp_type === MT_WU, io.dpath.dmem_resp_val)
+  val load_wb_data = RegEnable(io.dpath.dmem_resp_data, io.dpath.dmem_resp_val)
+  val load_wb_tag = RegEnable(io.dpath.dmem_resp_tag, io.dpath.dmem_resp_val)
   val rec_s = hardfloat.floatNToRecodedFloatN(load_wb_data, 23, 9)
   val rec_d = hardfloat.floatNToRecodedFloatN(load_wb_data, 52, 12)
   val load_wb_data_recoded = Mux(load_wb_single, Cat(SInt(-1), rec_s), rec_d)
@@ -576,15 +576,15 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val wexc = Vec(pipes.map(_.wexc))(wsrc)
   when (wen(0)) { regfile(waddr(4,0)) := wdata }
 
-  val wb_toint_exc = RegEn(fpiu.io.out.bits.exc, mem_ctrl.toint)
+  val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
   when (wb_reg_valid && wb_ctrl.toint || wen(0)) {
     fsr_exc := fsr_exc |
       Fill(fsr_exc.getWidth, wb_reg_valid && wb_ctrl.toint) & wb_toint_exc |
       Fill(fsr_exc.getWidth, wen(0)) & wexc
   }
 
-  val mem_fsr_wdata = RegEn(io.dpath.fromint_data(FSR_WIDTH-1,0), ex_reg_valid && ctrl.wrfsr)
-  val wb_fsr_wdata = RegEn(mem_fsr_wdata, mem_reg_valid && mem_ctrl.wrfsr)
+  val mem_fsr_wdata = RegEnable(io.dpath.fromint_data(FSR_WIDTH-1,0), ex_reg_valid && ctrl.wrfsr)
+  val wb_fsr_wdata = RegEnable(mem_fsr_wdata, mem_reg_valid && mem_ctrl.wrfsr)
   when (wb_reg_valid && wb_ctrl.wrfsr) {
     fsr_exc := wb_fsr_wdata
     fsr_rm := wb_fsr_wdata >> fsr_exc.getWidth
