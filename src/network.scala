@@ -148,42 +148,24 @@ class LogicalHeader(implicit conf: LogicalNetworkConfiguration) extends Bundle {
 
 object FIFOedLogicalNetworkIOWrapper {
   def apply[T <: Data](in: DecoupledIO[T], src: UInt = UInt(0), dst: UInt = UInt(0))(implicit conf: LogicalNetworkConfiguration) = {
-    val shim = Module((new FIFOedLogicalNetworkIOWrapper(src, dst)){ in.bits.clone })
-    shim.io.in.valid := in.valid
-    shim.io.in.bits := in.bits
-    in.ready := shim.io.in.ready
-    shim.io.out
+    val out = Decoupled((new LogicalNetworkIO){in.bits.clone}).asDirectionless
+    out.valid := in.valid
+    out.bits.payload := in.bits
+    out.bits.header.dst := dst
+    out.bits.header.src := src
+    in.ready := out.ready
+    out
   }
-}
-class FIFOedLogicalNetworkIOWrapper[T <: Data](src: UInt, dst: UInt)(data: => T)(implicit lconf: LogicalNetworkConfiguration) extends Module {
-  val io = new Bundle {
-    val in = Decoupled(data).flip
-    val out = Decoupled((new LogicalNetworkIO){data})
-  }
-  io.out.valid := io.in.valid
-  io.out.bits.payload := io.in.bits
-  io.out.bits.header.dst := dst
-  io.out.bits.header.src := src
-  io.in.ready := io.out.ready
 }
 
 object FIFOedLogicalNetworkIOUnwrapper {
   def apply[T <: Data](in: DecoupledIO[LogicalNetworkIO[T]])(implicit conf: LogicalNetworkConfiguration) = {
-    val shim = Module((new FIFOedLogicalNetworkIOUnwrapper){ in.bits.payload.clone })
-    shim.io.in.valid := in.valid
-    shim.io.in.bits := in.bits
-    in.ready := shim.io.in.ready
-    shim.io.out
+    val out = Decoupled(in.bits.payload.clone).asDirectionless
+    out.valid := in.valid
+    out.bits := in.bits.payload
+    in.ready := out.ready
+    out
   }
-}
-class FIFOedLogicalNetworkIOUnwrapper[T <: Data]()(data: => T)(implicit lconf: LogicalNetworkConfiguration) extends Module {
-  val io = new Bundle {
-    val in = Decoupled((new LogicalNetworkIO){data}).flip
-    val out = Decoupled(data)
-  }
-  io.out.valid := io.in.valid
-  io.out.bits := io.in.bits.payload
-  io.in.ready := io.out.ready
 }
 
 class LogicalNetworkIO[T <: Data]()(data: => T)(implicit conf: LogicalNetworkConfiguration) extends Bundle {
