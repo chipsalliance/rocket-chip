@@ -47,7 +47,7 @@ class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
   val out_slow_bits = Reg(data)
 
   val fromhost_q = Module(new Queue(data,1))
-  fromhost_q.io.enq.valid := rising && (io.in_slow.valid && in_slow_rdy || reset)
+  fromhost_q.io.enq.valid := rising && (io.in_slow.valid && in_slow_rdy || this.reset)
   fromhost_q.io.enq.bits := io.in_slow.bits
   fromhost_q.io.deq <> io.in_fast
 
@@ -58,7 +58,7 @@ class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
   when (held) {
     in_slow_rdy := fromhost_q.io.enq.ready
     out_slow_val := tohost_q.io.deq.valid
-    out_slow_bits := Mux(reset, fromhost_q.io.deq.bits, tohost_q.io.deq.bits)
+    out_slow_bits := Mux(this.reset, fromhost_q.io.deq.bits, tohost_q.io.deq.bits)
   }
 
   io.in_slow.ready := in_slow_rdy
