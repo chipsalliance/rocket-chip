@@ -14,10 +14,10 @@ class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
   }
 
   require(divisor_max >= 8 && divisor_max <= 65536 && isPow2(divisor_max))
-  val divisor = RegReset(UInt(divisor_max-1))
-  val d_shadow = RegReset(UInt(divisor_max-1))
-  val hold = RegReset(UInt(divisor_max/4-1))
-  val h_shadow = RegReset(UInt(divisor_max/4-1))
+  val divisor = Reg(init=UInt(divisor_max-1))
+  val d_shadow = Reg(init=UInt(divisor_max-1))
+  val hold = Reg(init=UInt(divisor_max/4-1))
+  val h_shadow = Reg(init=UInt(divisor_max/4-1))
   when (io.set_divisor.valid) {
     d_shadow := io.set_divisor.bits(log2Up(divisor_max)-1, 0).toUInt
     h_shadow := io.set_divisor.bits(log2Up(divisor_max)-1+16, 16).toUInt
@@ -42,8 +42,8 @@ class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
     myclock := Bool(true)
   }
 
-  val in_slow_rdy = RegReset(Bool(false))
-  val out_slow_val = RegReset(Bool(false))
+  val in_slow_rdy = Reg(init=Bool(false))
+  val out_slow_val = Reg(init=Bool(false))
   val out_slow_bits = Reg(data)
 
   val fromhost_q = Module(new Queue(data,1))

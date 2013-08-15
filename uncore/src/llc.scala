@@ -29,7 +29,7 @@ class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[UIn
     val wdata = in.bits.wdata.toBits
     val wmask = in.bits.wmask.toBits
     val ren = in.valid && !in.bits.rw
-    val reg_ren = RegUpdate(ren)
+    val reg_ren = Reg(next=ren)
     val rdata = Vec.fill(nWide){Bits()}
 
     val r = Pipe(ren, in.bits.addr, postLatency)
@@ -113,7 +113,7 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int) extends Module
     override def clone = new MSHR().asInstanceOf[this.type]
   }
 
-  val valid = Vec.fill(outstanding){RegReset(Bool(false))}
+  val valid = Vec.fill(outstanding){Reg(init=Bool(false))}
   val validBits = valid.toBits
   val freeId = PriorityEncoder(~validBits)
   val mshr = Vec.fill(outstanding){Reg(new MSHR)}
@@ -191,12 +191,12 @@ class LLCWriteback(requestors: Int) extends Module
     val mem = new ioMemPipe
   }
 
-  val valid = RegReset(Bool(false))
+  val valid = Reg(init=Bool(false))
   val who = Reg(UInt())
   val addr = Reg(UInt())
   val cmd_sent = Reg(Bool())
   val data_sent = Reg(Bool())
-  val count = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
+  val count = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
 
   var anyReq = Bool(false)
   for (i <- 0 until requestors) {
@@ -252,10 +252,10 @@ class LLCData(latency: Int, sets: Int, ways: Int, leaf: Mem[UInt]) extends Modul
   }
   val q = Module(new Queue(new QEntry, latency+2))
   val qReady = q.io.count <= UInt(q.entries-latency-1)
-  val valid = RegReset(Bool(false))
+  val valid = Reg(init=Bool(false))
   val req = Reg(io.req.bits.clone)
-  val count = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
-  val refillCount = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
+  val count = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
+  val refillCount = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
 
   when (data.io.in.valid && !io.mem_resp.valid) {
     count := count + UInt(1)
@@ -307,7 +307,7 @@ class MemReqArb(n: Int) extends Module // UNTESTED
     val mem = new ioMem
   }
 
-  val lock = RegReset(Bool(false))
+  val lock = Reg(init=Bool(false))
   val locker = Reg(UInt())
 
   val arb = Module(new RRArbiter(new MemReqCmd, n))
@@ -360,17 +360,17 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, tagLeaf: Mem[UInt], da
   val data = Module(new LLCData(4, sets, ways, dataLeaf))
   val writeback = Module(new LLCWriteback(2))
 
-  val initCount = RegReset(UInt(0, log2Up(sets+1)))
+  val initCount = Reg(init=UInt(0, log2Up(sets+1)))
   val initialize = !initCount(log2Up(sets))
   when (initialize) { initCount := initCount + UInt(1) }
 
-  val replay_s2 = RegReset(Bool(false))
-  val s2_valid = RegReset(Bool(false))
+  val replay_s2 = Reg(init=Bool(false))
+  val s2_valid = Reg(init=Bool(false))
   val s2 = Reg(new MemReqCmd)
   val s3_rdy = Bool()
   val replay_s2_rdy = Bool()
 
-  val s1_valid = Reg(updateData = io.cpu.req_cmd.fire() || replay_s2 && replay_s2_rdy, resetData = Bool(false))
+  val s1_valid = Reg(next = io.cpu.req_cmd.fire() || replay_s2 && replay_s2_rdy, init = Bool(false))
   val s1 = Reg(new MemReqCmd)
   when (io.cpu.req_cmd.fire()) { s1 := io.cpu.req_cmd.bits }
   when (replay_s2 && replay_s2_rdy) { s1 := s2 }
@@ -451,7 +451,7 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
   val do_enq = io.enq.fire() && !do_flow
   val do_deq = io.deq.fire() && !do_flow
 
-  val maybe_full = RegReset(Bool(false))
+  val maybe_full = Reg(init=Bool(false))
   val enq_ptr = Counter(do_enq, entries)._1
   val deq_ptr = Counter(do_deq, entries)._1
   when (do_enq != do_deq) { maybe_full := do_enq }
@@ -509,7 +509,7 @@ class DRAMSideLLCNull(numRequests: Int, refillCycles: Int) extends Module
 
   val inc = Bool()
   val dec = Bool()
-  val count = RegReset(UInt(numEntries, size))
+  val count = Reg(init=UInt(numEntries, size))
   val watermark = count >= UInt(refillCycles)
 
   when (inc && !dec) {

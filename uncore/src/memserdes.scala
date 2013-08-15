@@ -54,9 +54,9 @@ class MemSerdes(w: Int) extends Module
   val in_buf = Reg(Bits())
 
   val s_idle :: s_read_addr :: s_write_addr :: s_write_idle :: s_write_data :: Nil = Enum(5) { UInt() }
-  val state = RegReset(s_idle)
-  val send_cnt = RegReset(UInt(0, log2Up((max(abits, dbits)+w-1)/w)))
-  val data_send_cnt = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
+  val state = Reg(init=s_idle)
+  val send_cnt = Reg(init=UInt(0, log2Up((max(abits, dbits)+w-1)/w)))
+  val data_send_cnt = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
   val adone = io.narrow.req.ready && send_cnt === UInt((abits-1)/w)
   val ddone = io.narrow.req.ready && send_cnt === UInt((dbits-1)/w)
 
@@ -96,9 +96,9 @@ class MemSerdes(w: Int) extends Module
     send_cnt := UInt(0)
   }
 
-  val recv_cnt = RegReset(UInt(0, log2Up((rbits+w-1)/w)))
-  val data_recv_cnt = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
-  val resp_val = RegReset(Bool(false))
+  val recv_cnt = Reg(init=UInt(0, log2Up((rbits+w-1)/w)))
+  val data_recv_cnt = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
+  val resp_val = Reg(init=Bool(false))
 
   resp_val := Bool(false)
   when (io.narrow.resp.valid) {
@@ -129,14 +129,14 @@ class MemDesser(w: Int) extends Module // test rig side
   val rbits = io.wide.resp.bits.getWidth
 
   require(dbits >= abits && rbits >= dbits)
-  val recv_cnt = RegReset(UInt(0, log2Up((rbits+w-1)/w)))
-  val data_recv_cnt = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
+  val recv_cnt = Reg(init=UInt(0, log2Up((rbits+w-1)/w)))
+  val data_recv_cnt = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
   val adone = io.narrow.req.valid && recv_cnt === UInt((abits-1)/w)
   val ddone = io.narrow.req.valid && recv_cnt === UInt((dbits-1)/w)
   val rdone = io.narrow.resp.valid && recv_cnt === UInt((rbits-1)/w)
 
   val s_cmd_recv :: s_cmd :: s_data_recv :: s_data :: s_reply :: Nil = Enum(5) { UInt() }
-  val state = RegReset(s_cmd_recv)
+  val state = Reg(init=s_cmd_recv)
 
   val in_buf = Reg(Bits())
   when (io.narrow.req.valid && io.narrow.req.ready || io.narrow.resp.valid) {
