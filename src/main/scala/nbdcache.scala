@@ -189,7 +189,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   }
 
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9) { UInt() }
-  val state = RegReset(s_invalid)
+  val state = Reg(init=s_invalid)
 
   val acquire_type = Reg(UInt())
   val release_type = Reg(UInt())
@@ -280,7 +280,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   io.req_pri_rdy := state === s_invalid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
-  val meta_hazard = RegReset(UInt(0,2))
+  val meta_hazard = Reg(init=UInt(0,2))
   when (meta_hazard != 0) { meta_hazard := meta_hazard + 1 }
   when (io.meta_write.fire()) { meta_hazard := 1 }
   io.probe_rdy := !idx_match || (state != s_wb_req && state != s_wb_resp && state != s_meta_clear && meta_hazard === 0)
@@ -338,7 +338,7 @@ class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends M
     val fence_rdy = Bool(OUTPUT)
   }
 
-  val sdq_val = RegReset(Bits(0, conf.nsdq))
+  val sdq_val = Reg(init=Bits(0, conf.nsdq))
   val sdq_alloc_id = PriorityEncoder(~sdq_val(conf.nsdq-1,0))
   val sdq_rdy = !sdq_val.andR
   val sdq_enq = io.req.valid && io.req.ready && isWrite(io.req.bits.cmd)
@@ -432,9 +432,9 @@ class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     val release_data = Decoupled(new ReleaseData)
   }
 
-  val valid = RegReset(Bool(false))
-  val r1_data_req_fired = RegReset(Bool(false))
-  val r2_data_req_fired = RegReset(Bool(false))
+  val valid = Reg(init=Bool(false))
+  val r1_data_req_fired = Reg(init=Bool(false))
+  val r2_data_req_fired = Reg(init=Bool(false))
   val cmd_sent = Reg(Bool())
   val cnt = Reg(UInt(width = log2Up(REFILL_CYCLES+1)))
   val req = Reg(new WritebackReq)
@@ -506,7 +506,7 @@ class ProbeUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends 
   }
 
   val s_reset :: s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(9) { UInt() }
-  val state = RegReset(s_invalid)
+  val state = Reg(init=s_invalid)
   val line_state = Reg(UInt())
   val way_en = Reg(Bits())
   val req = Reg(new InternalProbe)
@@ -575,7 +575,7 @@ class MetaDataArray(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     val resp = Vec.fill(conf.ways){(new MetaData).asOutput}
   }
 
-  val rst_cnt = RegReset(UInt(0, log2Up(conf.sets+1)))
+  val rst_cnt = Reg(init=UInt(0, log2Up(conf.sets+1)))
   val rst = rst_cnt < conf.sets
   when (rst) { rst_cnt := rst_cnt+1 }
 
@@ -743,19 +743,19 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val mshrs = Module(new MSHRFile)
 
   io.cpu.req.ready := Bool(true)
-  val s1_valid = Reg(updateData=io.cpu.req.fire(), resetData=Bool(false))
+  val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_req = Reg(io.cpu.req.bits.clone)
   val s1_valid_masked = s1_valid && !io.cpu.req.bits.kill
-  val s1_replay = RegReset(Bool(false))
+  val s1_replay = Reg(init=Bool(false))
   val s1_clk_en = Reg(Bool())
 
-  val s2_valid = Reg(updateData=s1_valid_masked, resetData=Bool(false))
+  val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
   val s2_req = Reg(io.cpu.req.bits.clone)
-  val s2_replay = Reg(updateData=s1_replay, resetData=Bool(false))
+  val s2_replay = Reg(next=s1_replay, init=Bool(false))
   val s2_recycle = Bool()
   val s2_valid_masked = Bool()
 
-  val s3_valid = RegReset(Bool(false))
+  val s3_valid = Reg(init=Bool(false))
   val s3_req = Reg(io.cpu.req.bits.clone)
   val s3_way = Reg(Bits())
 
@@ -865,7 +865,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val s2_hit = s2_tag_match && tl.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === tl.co.newStateOnHit(s2_req.cmd, s2_hit_state)
 
   // load-reserved/store-conditional
-  val lrsc_count = RegReset(UInt(0))
+  val lrsc_count = Reg(init=UInt(0))
   val lrsc_valid = lrsc_count.orR
   val lrsc_addr = Reg(UInt())
   val (s2_lr, s2_sc) = (s2_req.cmd === M_XLR, s2_req.cmd === M_XSC)
@@ -980,7 +980,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   FIFOedLogicalNetworkIOWrapper(wb.io.release_data) <> io.mem.release.data
 
   // store->load bypassing
-  val s4_valid = Reg(updateData=s3_valid, resetData=Bool(false))
+  val s4_valid = Reg(next=s3_valid, init=Bool(false))
   val s4_req = RegEnable(s3_req, s3_valid && metaReadArb.io.out.valid)
   val bypasses = List(
     ((s2_valid_masked || s2_replay) && !s2_sc_fail, s2_req, amoalu.io.out),
@@ -1018,14 +1018,14 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   s2_valid_masked := s2_valid && !s2_nack
 
   val s2_recycle_ecc = (s2_valid || s2_replay) && s2_hit && s2_data_correctable
-  val s2_recycle_next = RegReset(Bool(false))
+  val s2_recycle_next = Reg(init=Bool(false))
   when (s1_valid || s1_replay) { s2_recycle_next := (s1_valid || s1_replay) && s2_recycle_ecc }
   s2_recycle := s2_recycle_ecc || s2_recycle_next
 
   // after a nack, block until nack condition resolves to save energy
-  val block_fence = RegReset(Bool(false))
+  val block_fence = Reg(init=Bool(false))
   block_fence := (s2_valid && s2_req.cmd === M_FENCE || block_fence) && !mshrs.io.fence_rdy
-  val block_miss = RegReset(Bool(false))
+  val block_miss = Reg(init=Bool(false))
   block_miss := (s2_valid || block_miss) && s2_nack_miss
   when (block_fence || block_miss) {
     io.cpu.req.ready := Bool(false)

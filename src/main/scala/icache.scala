@@ -61,10 +61,10 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
 
   val s1_pc = Reg(UInt())
   val s1_same_block = Reg(Bool())
-  val s2_valid = RegReset(Bool(true))
-  val s2_pc = RegReset(UInt(START_ADDR))
-  val s2_btb_hit = RegReset(Bool(false))
-  val s2_xcpt_if = RegReset(Bool(false))
+  val s2_valid = Reg(init=Bool(true))
+  val s2_pc = Reg(init=UInt(START_ADDR))
+  val s2_btb_hit = Reg(init=Bool(false))
+  val s2_xcpt_if = Reg(init=Bool(false))
 
   val btbTarget = Cat(btb.io.target(VADDR_BITS-1), btb.io.target)
   val pcp4_0 = s1_pc + UInt(c.ibytes)
@@ -144,16 +144,16 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
   }
 
   val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(4) { UInt() }
-  val state = RegReset(s_ready)
+  val state = Reg(init=s_ready)
   val invalidated = Reg(Bool())
   val stall = !io.resp.ready
   val rdy = Bool()
 
-  val s2_valid = RegReset(Bool(false))
+  val s2_valid = Reg(init=Bool(false))
   val s2_addr = Reg(UInt(width = PADDR_BITS))
   val s2_any_tag_hit = Bool()
 
-  val s1_valid = RegReset(Bool(false))
+  val s1_valid = Reg(init=Bool(false))
   val s1_pgoff = Reg(UInt(width = PGIDX_BITS))
   val s1_addr = Cat(io.req.bits.ppn, s1_pgoff).toUInt
   val s1_tag = s1_addr(c.tagbits+c.untagbits-1,c.untagbits)
@@ -195,7 +195,7 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
     tag_raddr := s0_pgoff(c.untagbits-1,c.offbits)
   }
 
-  val vb_array = RegReset(Bits(0, c.lines))
+  val vb_array = Reg(init=Bits(0, c.lines))
   when (refill_done && !invalidated) {
     vb_array := vb_array.bitSet(Cat(repl_way, s2_idx), Bool(true))
   }

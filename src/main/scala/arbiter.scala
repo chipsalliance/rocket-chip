@@ -10,7 +10,7 @@ class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Modu
     val mem = new HellaCacheIO()(conf.dcache)
   }
 
-  val r_valid = io.requestor.map(r => RegUpdate(r.req.valid))
+  val r_valid = io.requestor.map(r => Reg(next=r.req.valid))
 
   io.mem.req.valid := io.requestor.map(_.req.valid).reduce(_||_)
   io.requestor(0).req.ready := io.mem.req.ready

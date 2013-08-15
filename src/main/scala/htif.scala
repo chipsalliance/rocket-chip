@@ -60,7 +60,7 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module wi
   require(short_request_bits % w == 0)
 
   val rx_count_w = 13 + log2Up(64) - log2Up(w) // data size field is 12 bits
-  val rx_count = RegReset(UInt(0,rx_count_w))
+  val rx_count = Reg(init=UInt(0,rx_count_w))
   val rx_shifter = Reg(Bits(width = short_request_bits))
   val rx_shifter_in = Cat(io.host.in.bits, rx_shifter(short_request_bits-1,w))
   val next_cmd = rx_shifter_in(3,0)
@@ -100,7 +100,7 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module wi
              Mux(cmd === cmd_readcr || cmd === cmd_writecr, size != UInt(1),
              Bool(true)))
 
-  val tx_count = RegReset(UInt(0, rx_count_w))
+  val tx_count = Reg(init=UInt(0, rx_count_w))
   val tx_subword_count = tx_count(log2Up(short_request_bits/w)-1,0)
   val tx_word_count = tx_count(rx_count_w-1, log2Up(short_request_bits/w))
   val packet_ram_raddr = tx_word_count(log2Up(packet_ram_depth)-1,0) - UInt(1)
@@ -112,7 +112,7 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module wi
   val tx_size = Mux(!nack && (cmd === cmd_readmem || cmd === cmd_readcr || cmd === cmd_writecr), size, UInt(0))
   val tx_done = io.host.out.ready && tx_subword_count.andR && (tx_word_count === tx_size || tx_word_count > UInt(0) && packet_ram_raddr.andR)
 
-  val mem_acked = RegReset(Bool(false))
+  val mem_acked = Reg(init=Bool(false))
   val mem_gxid = Reg(Bits())
   val mem_gsrc = Reg(UInt(width = conf.ln.idBits))
   val mem_needs_ack = Reg(Bool())
@@ -125,7 +125,7 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module wi
   io.mem.grant.ready := Bool(true)
 
   val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(9) { UInt() }
-  val state = RegReset(state_rx)
+  val state = Reg(init=state_rx)
 
   val rx_cmd = Mux(rx_word_count === UInt(0), next_cmd, cmd)
   when (state === state_rx && rx_done) {
@@ -134,7 +134,7 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module wi
              state_tx))
   }
 
-  val mem_cnt = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
+  val mem_cnt = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
   val x_init = Module(new Queue(new Acquire, 1))
   when (state === state_mem_req && x_init.io.enq.ready) {
     state := Mux(cmd === cmd_writemem, state_mem_wdata, state_mem_rdata)
@@ -198,8 +198,8 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module wi
 
   val pcrReadData = Reg(Bits(width = io.cpu(0).pcr_rep.bits.getWidth))
   for (i <- 0 until nTiles) {
-    val my_reset = RegReset(Bool(true))
-    val my_ipi = RegReset(Bool(false))
+    val my_reset = Reg(init=Bool(true))
+    val my_ipi = Reg(init=Bool(false))
 
     val cpu = io.cpu(i)
     val me = pcr_coreid === UInt(i)

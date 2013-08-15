@@ -40,7 +40,7 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
   require(VPN_BITS == levels * bitsPerLevel)
 
   val s_ready :: s_req :: s_wait :: s_done :: s_error :: Nil = Enum(5) { UInt() };
-  val state = RegReset(s_ready)
+  val state = Reg(init=s_ready)
   val count = Reg(UInt(width = log2Up(levels)))
 
   val r_req_vpn = Reg(Bits())

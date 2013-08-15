@@ -110,8 +110,8 @@ class rocketDpathVec extends Module
   val max_threads = UInt(WIDTH_BMASK)
   val uts_per_bank = Mux(Bool(HAVE_PVFB) & nreg_mod_bank > max_threads, max_threads, nreg_mod_bank)
 
-  val reg_hwvl = RegReset(UInt(32, 12))
-  val reg_appvl0 = RegReset(Bool(true))
+  val reg_hwvl = Reg(init=UInt(32, 12))
+  val reg_appvl0 = Reg(init=Bool(true))
   val hwvl_vcfg = (uts_per_bank * io.vecbankcnt)(11,0)
 
   val hwvl =
@@ -123,9 +123,9 @@ class rocketDpathVec extends Module
     Mux(io.wdata(11,0) < hwvl, io.wdata(11,0).toUInt,
         hwvl.toUInt))
 
-  val reg_nxregs = RegReset(UInt(32, 6))
-  val reg_nfregs = RegReset(UInt(32, 6))
-  val reg_appvl = RegReset(UInt(0, 12))
+  val reg_nxregs = Reg(init=UInt(32, 6))
+  val reg_nfregs = Reg(init=UInt(32, 6))
+  val reg_appvl = Reg(init=UInt(0, 12))
 
   when (io.valid)
   {

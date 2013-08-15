@@ -261,7 +261,7 @@ class rocketCtrlVec extends Module
 
   io.iface.exception := io.exception && io.sr_ev
 
-  val reg_hold = RegReset(Bool(false))
+  val reg_hold = Reg(init=Bool(false))
 
   when (valid_common && dec.io.sigs.xcpthold) { reg_hold := Bool(true) }
   when (io.eret) { reg_hold := Bool(false) }

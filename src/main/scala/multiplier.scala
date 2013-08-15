@@ -33,7 +33,7 @@ class Multiplier(unroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rock
   val w = (w0+1+unroll-1)/unroll*unroll
   val cycles = w/unroll
   
-  val r_val = RegReset(Bool(false))
+  val r_val = Reg(init=Bool(false))
   val r_prod = Reg(Bits(width = w*2))
   val r_lsb = Reg(Bits())
   val r_cnt = Reg(UInt(width = log2Up(cycles+1)))

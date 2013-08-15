@@ -10,7 +10,7 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
   val mulw = (w+mulUnroll-1)/mulUnroll*mulUnroll
   
   val s_ready :: s_neg_inputs :: s_mul_busy :: s_div_busy :: s_move_rem :: s_neg_output :: s_done :: Nil = Enum(7) { UInt() };
-  val state = RegReset(s_ready)
+  val state = Reg(init=s_ready)
   
   val req = Reg(io.req.bits.clone)
   val count = Reg(UInt(width = log2Up(w+1)))
@@ -120,7 +120,7 @@ class Divider(earlyOut: Boolean = false)(implicit conf: RocketConfiguration) ext
   val w = io.req.bits.in1.getWidth
   
   val s_ready :: s_neg_inputs :: s_busy :: s_move_rem :: s_neg_output :: s_done :: Nil = Enum(6) { UInt() };
-  val state = RegReset(s_ready)
+  val state = Reg(init=s_ready)
   
   val count = Reg(UInt(width = log2Up(w+1)))
   val divby0 = Reg(Bool())
