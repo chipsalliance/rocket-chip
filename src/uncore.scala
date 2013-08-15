@@ -96,11 +96,11 @@ abstract class XactTracker()(implicit conf: L2CoherenceAgentConfiguration) exten
 
 class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
   val s_idle :: s_mem :: s_ack :: s_busy :: Nil = Enum(4){ UInt() }
-  val state = RegReset(s_idle)
+  val state = Reg(init=s_idle)
   val xact  = Reg{ new Release }
-  val init_client_id_ = RegReset(UInt(0, width = log2Up(ln.nClients)))
-  val release_data_needs_write = RegReset(Bool(false))
-  val mem_cmd_sent = RegReset(Bool(false))
+  val init_client_id_ = Reg(init=UInt(0, width = log2Up(ln.nClients)))
+  val release_data_needs_write = Reg(init=Bool(false))
+  val mem_cmd_sent = Reg(init=Bool(false))
   val cmd_to_write = Acquire(co.getUncachedWriteAcquireType, xact.addr, UInt(trackerId))
 
   io.has_acquire_conflict := Bool(false)
@@ -160,23 +160,23 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2Cohe
 
 class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
   val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(5){ UInt() }
-  val state = RegReset(s_idle)
+  val state = Reg(init=s_idle)
   val xact  = Reg{ new Acquire }
-  val init_client_id_ = RegReset(UInt(0, width = log2Up(ln.nClients)))
-  val release_data_client_id = RegReset(UInt(0, width = log2Up(ln.nClients)))
+  val init_client_id_ = Reg(init=UInt(0, width = log2Up(ln.nClients)))
+  val release_data_client_id = Reg(init=UInt(0, width = log2Up(ln.nClients)))
   //TODO: Will need id reg for merged release xacts
-  val init_sharer_cnt_ = RegReset(UInt(0, width = log2Up(ln.nClients)))
+  val init_sharer_cnt_ = Reg(init=UInt(0, width = log2Up(ln.nClients)))
   val grant_type = co.getGrantType(xact.a_type, init_sharer_cnt_)
-  val release_count = if (ln.nClients == 1) UInt(0) else RegReset(UInt(0, width = log2Up(ln.nClients)))
-  val probe_flags = RegReset(Bits(0, width = ln.nClients))
+  val release_count = if (ln.nClients == 1) UInt(0) else Reg(init=UInt(0, width = log2Up(ln.nClients)))
+  val probe_flags = Reg(init=Bits(0, width = ln.nClients))
   val curr_p_id = PriorityEncoder(probe_flags)
-  val x_needs_read = RegReset(Bool(false))
-  val acquire_data_needs_write = RegReset(Bool(false))
-  val release_data_needs_write = RegReset(Bool(false))
+  val x_needs_read = Reg(init=Bool(false))
+  val acquire_data_needs_write = Reg(init=Bool(false))
+  val release_data_needs_write = Reg(init=Bool(false))
   val cmd_to_write = Acquire(co.getUncachedWriteAcquireType, xact.addr, UInt(trackerId))
   val cmd_to_read = Acquire(co.getUncachedReadAcquireType, xact.addr, UInt(trackerId))
-  val a_w_mem_cmd_sent = RegReset(Bool(false))
-  val r_w_mem_cmd_sent = RegReset(Bool(false))
+  val a_w_mem_cmd_sent = Reg(init=Bool(false))
+  val r_w_mem_cmd_sent = Reg(init=Bool(false))
   val probe_initial_flags = Bits(width = ln.nClients)
   probe_initial_flags := Bits(0)
   if (ln.nClients > 1) {
@@ -296,7 +296,7 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgen
 }
 
 abstract trait OuterRequestGenerator {
-  val mem_cnt = RegReset(UInt(0, width = log2Up(REFILL_CYCLES)))
+  val mem_cnt = Reg(init=UInt(0, width = log2Up(REFILL_CYCLES)))
   val mem_cnt_next = mem_cnt + UInt(1)
 
   def doOuterReqWrite[T <: HasTileLinkData](master_acq: PairedDataIO[LogicalNetworkIO[Acquire],LogicalNetworkIO[AcquireData]], client_data: DecoupledIO[LogicalNetworkIO[T]], cmd: Acquire, trigger: Bool, cmd_sent: Bool, desired_client_data_src_id: UInt) {

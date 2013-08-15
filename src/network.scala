@@ -19,8 +19,8 @@ class PairedArbiterIO[M <: Data, D <: Data](n: Int)(m: => M, d: => D) extends Bu
 class PairedLockingRRArbiter[M <: Data, D <: Data](n: Int, count: Int, needsLock: Option[M => Bool] = None)(meta: => M, data: => D) extends Module {
   require(isPow2(count))
   val io = new PairedArbiterIO(n)(meta,data)
-  val locked  = if(count > 1) RegReset(Bool(false)) else Bool(false)
-  val lockIdx = if(count > 1) RegReset(UInt(n-1)) else UInt(n-1)
+  val locked  = if(count > 1) Reg(init=Bool(false)) else Bool(false)
+  val lockIdx = if(count > 1) Reg(init=UInt(n-1)) else UInt(n-1)
   val grant = List.fill(n)(Bool())
   val meta_chosen = Bits(width = log2Up(n))
 
@@ -37,7 +37,7 @@ class PairedLockingRRArbiter[M <: Data, D <: Data](n: Int, count: Int, needsLock
   io.data_chosen := Mux(locked, lockIdx, meta_chosen)
 
   if(count > 1){
-    val cnt = RegReset(UInt(0, width = log2Up(count)))
+    val cnt = Reg(init=UInt(0, width = log2Up(count)))
     val cnt_next = cnt + UInt(1)
     when(io.out.data.fire()){
       cnt := cnt_next
@@ -54,7 +54,7 @@ class PairedLockingRRArbiter[M <: Data, D <: Data](n: Int, count: Int, needsLock
       }
     }
   }
-  val last_grant = RegReset(Bits(0, log2Up(n)))
+  val last_grant = Reg(init=Bits(0, log2Up(n)))
   val ctrl = ArbiterCtrl((0 until n).map(i => io.in(i).meta.valid && UInt(i) > last_grant) ++ io.in.map(_.meta.valid))
   (0 until n).map(i => grant(i) := ctrl(i) && UInt(i) > last_grant || ctrl(i + n))
 
