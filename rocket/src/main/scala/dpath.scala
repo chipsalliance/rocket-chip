@@ -50,7 +50,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val wb_reg_inst = Reg(Bits())
   val wb_reg_waddr = Reg(UInt())
   val wb_reg_wdata = Reg(Bits())
-  val wb_reg_ll_wb = RegReset(Bool(false))
+  val wb_reg_ll_wb = Reg(init=Bool(false))
   val wb_wdata = Bits()
   val wb_reg_store_data = Reg(Bits())
   val wb_reg_rs1 = Reg(Bits())

@@ -22,7 +22,7 @@ class RocketCAM(entries: Int, tag_bits: Int) extends Module {
   val io = new CAMIO(entries, addr_bits, tag_bits);
   val cam_tags = Vec.fill(entries){Reg(Bits(width = tag_bits))}
 
-  val vb_array = RegReset(Bits(0, entries))
+  val vb_array = Reg(init=Bits(0, entries))
   when (io.write) {
     vb_array := vb_array.bitSet(io.write_addr, Bool(true));
     cam_tags(io.write_addr) := io.write_tag
@@ -94,7 +94,7 @@ class TLB(entries: Int) extends Module
   }
 
   val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(4) { UInt() }
-  val state = RegReset(s_ready)
+  val state = Reg(init=s_ready)
   val r_refill_tag = Reg(UInt())
   val r_refill_waddr = Reg(UInt())
 

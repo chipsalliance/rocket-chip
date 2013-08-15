@@ -36,7 +36,7 @@ class rocketDpathBTB(entries: Int) extends Module
 
   for (i <- 0 until entries) {
     val tag = Reg(UInt())
-    val valid = RegReset(Bool(false))
+    val valid = Reg(init=Bool(false))
     hits(i) := valid && tag === io.current_pc
     updates(i) := valid && tag === io.correct_pc
 
@@ -145,19 +145,19 @@ class PCR(implicit conf: RocketConfiguration) extends Module
   val reg_count = WideCounter(32)
   val reg_compare = Reg(Bits(width = 32))
   val reg_cause = Reg(Bits(width = io.cause.getWidth))
-  val reg_tohost = RegReset(Bits(0, conf.xprlen))
-  val reg_fromhost = RegReset(Bits(0, conf.xprlen))
+  val reg_tohost = Reg(init=Bits(0, conf.xprlen))
+  val reg_fromhost = Reg(init=Bits(0, conf.xprlen))
   val reg_coreid = Reg(Bits(width = 16))
   val reg_k0 = Reg(Bits(width = conf.xprlen))
   val reg_k1 = Reg(Bits(width = conf.xprlen))
   val reg_ptbr = Reg(UInt(width = PADDR_BITS))
-  val reg_vecbank = RegReset(SInt(-1,8).toBits)
-  val reg_stats = RegReset(Bool(false))
-  val reg_error_mode = RegReset(Bool(false))
+  val reg_vecbank = Reg(init=SInt(-1,8).toBits)
+  val reg_stats = Reg(init=Bool(false))
+  val reg_error_mode = Reg(init=Bool(false))
   val reg_status = Reg(new Status) // reset down below
 
-  val r_irq_timer = RegReset(Bool(false))
-  val r_irq_ipi = RegReset(Bool(true))
+  val r_irq_timer = Reg(init=Bool(false))
+  val r_irq_ipi = Reg(init=Bool(true))
 
   val host_pcr_req_valid = Reg(Bool()) // don't reset
   val host_pcr_req_fire = host_pcr_req_valid && io.rw.cmd === PCR.N

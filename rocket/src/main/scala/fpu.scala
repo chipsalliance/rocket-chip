@@ -198,7 +198,7 @@ class FPToInt extends Module
   }
 
   val in = Reg(new Input)
-  val valid = RegUpdate(io.in.valid)
+  val valid = Reg(next=io.in.valid)
   when (io.in.valid) {
     def upconvert(x: UInt) = hardfloat.recodedFloatNToRecodedFloatM(x, Bits(0), 23, 9, 52, 12)._1
     when (io.in.bits.cmd === FCMD_STORE) {
@@ -381,7 +381,7 @@ class FPUSFMAPipe(val latency: Int) extends Module
   val one = Bits("h80000000")
   val zero = Cat(io.in1(32) ^ io.in2(32), Bits(0, 32))
 
-  val valid = RegUpdate(io.valid)
+  val valid = Reg(next=io.valid)
   when (io.valid) {
     cmd := Cat(io.cmd(1) & (cmd_fma || cmd_addsub), io.cmd(0))
     rm := io.rm
@@ -418,7 +418,7 @@ class FPUDFMAPipe(val latency: Int) extends Module
   val one = Bits("h8000000000000000")
   val zero = Cat(io.in1(64) ^ io.in2(64), Bits(0, 64))
 
-  val valid = RegUpdate(io.valid)
+  val valid = Reg(next=io.valid)
   when (io.valid) {
     cmd := Cat(io.cmd(1) & (cmd_fma || cmd_addsub), io.cmd(0))
     rm := io.rm
@@ -451,10 +451,10 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   when (io.ctrl.valid) {
     ex_reg_inst := io.dpath.inst
   }
-  val ex_reg_valid = Reg(updateData=io.ctrl.valid, resetData=Bool(false))
-  val mem_reg_valid = Reg(updateData=ex_reg_valid && !io.ctrl.killx, resetData=Bool(false))
+  val ex_reg_valid = Reg(next=io.ctrl.valid, init=Bool(false))
+  val mem_reg_valid = Reg(next=ex_reg_valid && !io.ctrl.killx, init=Bool(false))
   val killm = io.ctrl.killm || io.ctrl.nack_mem
-  val wb_reg_valid = Reg(updateData=mem_reg_valid && !killm, resetData=Bool(false))
+  val wb_reg_valid = Reg(next=mem_reg_valid && !killm, init=Bool(false))
 
   val fp_decoder = Module(new FPUDecoder)
   fp_decoder.io.inst := io.dpath.inst
@@ -464,7 +464,7 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
   // load response
-  val load_wb = RegUpdate(io.dpath.dmem_resp_val)
+  val load_wb = Reg(next=io.dpath.dmem_resp_val)
   val load_wb_single = RegEnable(io.dpath.dmem_resp_type === MT_W || io.dpath.dmem_resp_type === MT_WU, io.dpath.dmem_resp_val)
   val load_wb_data = RegEnable(io.dpath.dmem_resp_data, io.dpath.dmem_resp_val)
   val load_wb_tag = RegEnable(io.dpath.dmem_resp_tag, io.dpath.dmem_resp_val)
@@ -546,7 +546,7 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val maxLatency = pipes.map(_.lat).max
   val memLatencyMask = latencyMask(mem_ctrl, 2)
 
-  val wen = RegReset(Bits(0, maxLatency-1))
+  val wen = Reg(init=Bits(0, maxLatency-1))
   val winfo = Vec.fill(maxLatency-1){Reg(Bits())}
   val mem_wen = mem_reg_valid && (mem_ctrl.fma || mem_ctrl.fastpipe || mem_ctrl.fromint)
   val (write_port_busy, mem_winfo) = (Reg(Bool()), Reg(Bits()))
@@ -592,11 +592,11 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
 
   val fp_inflight = wb_reg_valid && wb_ctrl.toint || wen.orR
   val fsr_busy = mem_ctrl.rdfsr && fp_inflight || wb_reg_valid && wb_ctrl.wrfsr
-  val units_busy = mem_reg_valid && mem_ctrl.fma && RegUpdate(Mux(ctrl.single, io.sfma.valid, io.dfma.valid))
+  val units_busy = mem_reg_valid && mem_ctrl.fma && Reg(next=Mux(ctrl.single, io.sfma.valid, io.dfma.valid))
   io.ctrl.nack_mem := fsr_busy || units_busy || write_port_busy
   io.ctrl.dec <> fp_decoder.io.sigs
   def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(Bool(false))(_||_)
-  io.ctrl.sboard_set := wb_reg_valid && RegUpdate(useScoreboard(_._1.cond(mem_ctrl)))
+  io.ctrl.sboard_set := wb_reg_valid && Reg(next=useScoreboard(_._1.cond(mem_ctrl)))
   io.ctrl.sboard_clr := wen(0) && useScoreboard(x => wsrc === UInt(x._2))
   io.ctrl.sboard_clra := waddr
   // we don't currently support round-max-magnitude (rm=4)
