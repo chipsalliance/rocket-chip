@@ -42,7 +42,7 @@ class Core(implicit conf: RocketConfiguration) extends Module
   } else null
 
   if (conf.vec) {
-    val vu = Module(new vu(Reg(next=reset)))
+    val vu = Module(new vu(Reg(next=this.reset)))
 
     val vdtlb = Module(new TLB(8))
     ptw += vdtlb.io.ptw

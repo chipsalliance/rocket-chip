@@ -19,7 +19,7 @@ case class RocketConfiguration(tl: TileLinkConfiguration,
   if (fastLoadByte) require(fastLoadWord)
 }
 
-class Tile(_reset: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = _reset) with ClientCoherenceAgent
+class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = resetSignal) with ClientCoherenceAgent
 {
   val memPorts = 2 + confIn.vec
   val dcachePortId = 0
