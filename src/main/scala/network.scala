@@ -40,7 +40,7 @@ class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress, U <: S
   } else {
     val meta_has_data = conf.co.messageHasData(meta_q.bits.payload)
     val addr_q = Module(new Queue(io.in.meta.bits.payload.addr.clone, 2, pipe = true, flow = true))
-    val data_cnt = RegReset(UInt(0, width = log2Up(REFILL_CYCLES)))
+    val data_cnt = Reg(init=UInt(0, width = log2Up(REFILL_CYCLES)))
     val data_cnt_up = data_cnt + UInt(1)
 
     io.out.meta.bits.payload := meta_q.bits.payload

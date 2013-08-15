@@ -113,7 +113,7 @@ class FPGATop extends Module {
 
     tile.io.tilelink <> tl
     il := hl.reset
-    tile.io.host.reset := RegUpdate(RegUpdate(hl.reset))
+    tile.io.host.reset := Reg(next=Reg(next=hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
     hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
     hl.ipi_req <> Queue(tile.io.host.ipi_req)
@@ -176,8 +176,8 @@ class Slave extends AXISlave
   require(dw >= top.io.mem.req_cmd.bits.addr.getWidth + 1 + 1)
 
   // write cr1 -> mem.resp (nonblocking)
-  val in_count = RegReset(UInt(0, log2Up(memw/dw)))
-  val rf_count = RegReset(UInt(0, log2Up(REFILL_CYCLES)))
+  val in_count = Reg(init=UInt(0, log2Up(memw/dw)))
+  val rf_count = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
   require(memw % dw == 0 && isPow2(memw/dw))
   val in_reg = Reg(top.io.mem.resp.bits.data)
   top.io.mem.resp.bits.data := Cat(io.in.bits, in_reg(in_reg.getWidth-1,dw))
@@ -194,7 +194,7 @@ class Slave extends AXISlave
   }
 
   // read cr2 -> mem.req_data (blocking)
-  val out_count = RegReset(UInt(0, log2Up(memw/dw)))
+  val out_count = Reg(init=UInt(0, log2Up(memw/dw)))
   top.io.mem.req_data.ready := ren(2) && out_count.andR
   rdata(2) := top.io.mem.req_data.bits.data >> (out_count * UInt(dw))
   rvalid(2) := top.io.mem.req_data.valid
