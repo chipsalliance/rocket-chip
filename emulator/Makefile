@@ -8,21 +8,21 @@ include $(base_dir)/Makefrag
 CXXFLAGS := $(CXXFLAGS) -std=c++11 -I$(RISCV)/include
 
 CXXSRCS := emulator disasm mm mm_dramsim2
-CXXFLAGS := $(CXXFLAGS) -I$(base_dir)/csrc -I$(base_dir)/chisel/csrc -I$(base_dir)/dramsim2
+CXXFLAGS := $(CXXFLAGS) -I$(base_dir)/csrc -I$(base_dir)/dramsim2
 
 LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -L. -ldramsim -lfesvr -lpthread
 
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
 DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 
-CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir $(base_dir)/emulator/generated-src
+CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir emulator/generated-src
 CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
-generated-src/$(MODEL).cpp: $(base_dir)/riscv-rocket/src/*.scala $(base_dir)/riscv-hwacha/src/*.scala $(base_dir)/chisel/src/main/scala/* $(base_dir)/uncore/src/main/scala/*.scala $(base_dir)/src/*.scala
-	cd $(base_dir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS)"
+generated-src/$(MODEL).cpp: $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/hwacha/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/$(src_path)/*.scala
+	cd $(base_dir) && $(SBT) "elaborate $(CHISEL_ARGS)"
 
-generated-src-debug/$(MODEL).cpp: $(base_dir)/riscv-rocket/src/*.scala $(base_dir)/riscv-hwacha/src/*.scala $(base_dir)/chisel/src/main/scala/* $(base_dir)/uncore/src/main/*.scala $(base_dir)/src/*.scala
-	cd $(base_dir)/sbt && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS_DEBUG)"
+generated-src-debug/$(MODEL).cpp: $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/hwacha/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/$(src_path)/*.scala
+	cd $(base_dir) && $(SBT) "elaborate $(CHISEL_ARGS_DEBUG)"
 
 $(MODEL).o: %.o: generated-src/%.cpp
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
@@ -46,7 +46,7 @@ clean:
 	rm -rf *.o *.a emulator emulator-debug generated-src generated-src-debug DVEfiles output
 
 test:
-	cd $(base_dir)/sbt && $(SBT) "project referencechip" "~make $(CURDIR) run-fast $(CHISEL_ARGS)"
+	cd $(base_dir) && $(SBT) "~make $(CURDIR) run-fast $(CHISEL_ARGS)"
 
 #--------------------------------------------------------------------
 # Run assembly tests and benchmarks

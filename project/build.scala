@@ -15,15 +15,15 @@ object BuildSettings extends Build {
     scalaVersion := buildScalaVersion,
     traceLevel   := 15,
     scalacOptions ++= Seq("-deprecation","-unchecked"),
-    libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
+    libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value,
+                            "edu.berkeley.cs" %% "chisel" % "2.1-SNAPSHOT",
+                            "edu.berkeley.cs" %% "hardfloat" % "1.2")
   )
 
-  lazy val chisel = Project("chisel", file("chisel"), settings = buildSettings)
-  lazy val hardfloat = Project("hardfloat", file("hardfloat"), settings = buildSettings) dependsOn(chisel)
-  lazy val hwacha = Project("hwacha", file("hwacha"), settings = buildSettings) dependsOn(hardfloat,chisel)
-  lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(chisel)
-  lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore,hwacha,hardfloat,chisel)
-  lazy val referencechip = Project("referencechip", file("referencechip"), settings = buildSettings ++ chipSettings) dependsOn(chisel,rocket)
+  lazy val hwacha = Project("hwacha", file("hwacha"), settings = buildSettings)
+  lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings)
+  lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore,hwacha)
+  lazy val referencechip = Project("referencechip", file("."), settings = buildSettings ++ chipSettings) dependsOn(rocket)
 
   val elaborateTask = InputKey[Unit]("elaborate", "convert chisel components into backend source code")
   val makeTask = InputKey[Unit]("make", "trigger backend-specific makefile command")

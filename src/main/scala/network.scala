@@ -109,7 +109,7 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
   // Shims for converting between logical network IOs and physical network IOs
   //TODO: Could be less verbose if you could override subbundles after a <>
   def DefaultFromCrossbarShim[T <: Data](in: FBCIO[T]): FLNIO[T] = {
-    val out = Decoupled(new LogicalNetworkIO()(in.bits.payload.clone))
+    val out = Decoupled(new LogicalNetworkIO()(in.bits.payload.clone)).asDirectionless
     out.bits.header := in.bits.header
     out.bits.payload := in.bits.payload
     out.valid := in.valid
@@ -127,7 +127,7 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
     out
   }
   def DefaultToCrossbarShim[T <: Data](in: FLNIO[T]): FBCIO[T] = {
-    val out = Decoupled(new PhysicalNetworkIO()(in.bits.payload.clone))
+    val out = Decoupled(new PhysicalNetworkIO()(in.bits.payload.clone)).asDirectionless
     out.bits.header := in.bits.header
     out.bits.payload := in.bits.payload
     out.valid := in.valid

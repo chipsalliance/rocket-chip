@@ -48,6 +48,8 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
   }
   val htif = Module(new RocketHTIF(htif_width))
   val outmemsys = Module(new FPGAOuterMemorySystem(htif_width, tileList :+ htif))
+  val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
+  outmemsys.io.incoherent := incoherentWithHtif
   htif.io.cpu <> io.htif
   outmemsys.io.mem <> io.mem
 
@@ -57,7 +59,6 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
     addr(conf.bankIdLsb + log2Up(conf.nBanks) - 1, conf.bankIdLsb)
   }
 
-  outmemsys.io.incoherent <> (io.incoherent :+ Bool(true))
   (outmemsys.io.tiles :+ outmemsys.io.htif).zip(io.tiles :+ htif.io.mem).zipWithIndex.map { 
     case ((outer, client), i) => 
       outer.acquire <> TileLinkHeaderAppender(client.acquire, i, conf.nBanks, convertAddrToBank _)
@@ -138,7 +139,7 @@ abstract class AXISlave extends Module {
 
 class Slave extends AXISlave
 {
-  val top = new FPGATop
+  val top = Module(new FPGATop)
 
   val memw = top.io.mem.resp.bits.data.getWidth
   val htifw = top.io.host.in.bits.getWidth
