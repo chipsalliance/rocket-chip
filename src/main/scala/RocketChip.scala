@@ -16,9 +16,11 @@ object DummyTopLevelConstants {
   val ENABLE_CLEAN_EXCLUSIVE = true
   val HAS_VEC = true
   val NL2_REL_XACTS = 1
-  val NL2_ACQ_XACTS = 8
+  val NL2_ACQ_XACTS = 7
   val NMSHRS = 2
 }
+
+import DummyTopLevelConstants._
 
 object ReferenceChipBackend {
   val initMap = new HashMap[Component, Bool]()
@@ -91,7 +93,7 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
   val llc_tag_leaf = Mem(512, seqRead = true) { Bits(width = 152) }
   val llc_data_leaf = Mem(4096, seqRead = true) { Bits(width = 64) }
   //val llc = new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf)
-  val llc = new DRAMSideLLCNull(8, REFILL_CYCLES)
+  val llc = new DRAMSideLLCNull(NL2_REL_XACTS+NL2_ACQ_XACTS, REFILL_CYCLES)
   val mem_serdes = new MemSerdes(htif_width)
 
   require(clientEndpoints.length == ln.nClients)
@@ -221,8 +223,6 @@ class VLSITopIO(htifWidth: Int) extends TopIO(htifWidth) {
   val out_mem_ready = Bool(INPUT)
   val out_mem_valid = Bool(OUTPUT)
 }
-
-import DummyTopLevelConstants._
 
 class MemDessert extends Component {
   val io = new MemDesserIO(HTIF_WIDTH)
