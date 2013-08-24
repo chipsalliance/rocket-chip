@@ -138,7 +138,7 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
   io.mem_backup <> mem_serdes.io.narrow
 }
 
-case class UncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int)
+case class UncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int, nSCR: Int)
 
 class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Component
 {
@@ -153,7 +153,7 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
   }
-  val htif = new RocketHTIF(htif_width)
+  val htif = new RocketHTIF(htif_width, conf.nSCR)
   val outmemsys = new OuterMemorySystem(htif_width, tileList :+ htif)
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif
@@ -243,7 +243,7 @@ class Top extends Component {
   implicit val ln = LogicalNetworkConfiguration(NTILES+NBANKS+1, log2Up(NTILES)+1, NBANKS, NTILES+1)
   implicit val tl = TileLinkConfiguration(co, ln, log2Up(NL2_REL_XACTS+NL2_ACQ_XACTS), 2*log2Up(NMSHRS*NTILES+1), MEM_DATA_BITS)
   implicit val l2 = L2CoherenceAgentConfiguration(tl, NL2_REL_XACTS, NL2_ACQ_XACTS)
-  implicit val uc = UncoreConfiguration(l2, tl, NTILES, NBANKS, bankIdLsb = 5)
+  implicit val uc = UncoreConfiguration(l2, tl, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64)
 
   val ic = ICacheConfig(128, 2, ntlb = 8, nbtb = 16)
   val dc = DCacheConfig(128, 4, ntlb = 8, 
