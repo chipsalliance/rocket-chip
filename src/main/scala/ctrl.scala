@@ -660,7 +660,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     Mux(!ex_reg_btb_hit,  PC_EX,  // mispredicted taken branch
         PC_EX4)))))               // mispredicted not taken branch
 
-  io.imem.req.bits.mispredict := !take_pc_wb && take_pc_ex
+  io.imem.req.bits.mispredict := !take_pc_wb && take_pc_ex && !ex_reg_xcpt
   io.imem.req.bits.taken := !ex_reg_btb_hit || ex_reg_jalr
   io.imem.req.valid  := take_pc
 
