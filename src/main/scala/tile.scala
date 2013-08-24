@@ -15,7 +15,6 @@ case class RocketConfiguration(tl: TileLinkConfiguration,
   val xprlen = 64
   val nxpr = 32
   val nxprbits = log2Up(nxpr)
-  val rvc = false
   if (fastLoadByte) require(fastLoadWord)
 }
 

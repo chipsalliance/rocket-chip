@@ -72,9 +72,6 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
   
   val resp_val = state === s_done || state === s_error
   val resp_err = state === s_error || state === s_wait
-  
-  val resp_ptd = io.mem.resp.bits.data(1,0) === Bits(1)
-  val resp_pte = io.mem.resp.bits.data(1,0) === Bits(2)
 
   val r_resp_ppn = io.mem.req.bits.addr >> PGIDX_BITS
   val resp_ppn = AVec((0 until levels-1).map(i => Cat(r_resp_ppn >> bitsPerLevel*(levels-i-1), r_req_vpn(bitsPerLevel*(levels-i-1)-1,0))) :+ r_resp_ppn)(count)
@@ -83,7 +80,7 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
     val me = r_req_dest === UInt(i)
     io.requestor(i).resp.valid := resp_val && me
     io.requestor(i).resp.bits.error := resp_err
-    io.requestor(i).resp.bits.perm := r_pte(9,4)
+    io.requestor(i).resp.bits.perm := r_pte(8,3)
     io.requestor(i).resp.bits.ppn := resp_ppn.toUInt
     io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).eret := io.dpath.eret
@@ -108,16 +105,13 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
         state := s_req
       }
       when (io.mem.resp.valid) {
-        when (resp_pte) { // page table entry
-          state := s_done
-        }
-        .otherwise {
-          count := count + UInt(1)
-          when (resp_ptd && count < UInt(levels-1)) {
+        state := s_error
+        when (io.mem.resp.bits.data(0)) {
+          when (!io.mem.resp.bits.data(1)) {
+            state := s_done
+          }.elsewhen (count < levels-1) {
             state := s_req
-          }
-          .otherwise {
-            state := s_error
+            count := count + 1
           }
         }
       }

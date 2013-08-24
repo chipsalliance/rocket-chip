@@ -109,13 +109,10 @@ class rocketCtrlVecDecoder extends Module
                 // val vcmd    vimm      vimm2     | fn        | | | | | | | | | | | | | |
                 //   | |       |         |         | |         | | | | | | | | | | | | | |
                 List(N,VCMD_X, VIMM_X,   VIMM2_X,  N,VEC_FN_N, N,N,N,N,N,N,N,N,N,N,N,N,N,N),Array(
-    VVCFGIVL->  List(Y,VCMD_I, VIMM_VLEN,VIMM2_X,  Y,VEC_CFGVL,N,Y,Y,N,N,Y,Y,N,N,N,Y,N,N,N),
-    VVCFG->     List(Y,VCMD_I, VIMM_VLEN,VIMM2_X,  N,VEC_CFG,  N,Y,Y,N,N,Y,Y,N,N,N,Y,N,N,N),
+    VSETCFGVL-> List(Y,VCMD_I, VIMM_VLEN,VIMM2_X,  Y,VEC_CFGVL,N,Y,Y,N,N,Y,Y,N,N,N,Y,N,N,N),
     VSETVL->    List(Y,VCMD_I, VIMM_VLEN,VIMM2_X,  Y,VEC_VL,   N,Y,Y,N,N,Y,Y,N,N,N,N,N,N,N),
     VF->        List(Y,VCMD_I, VIMM_ALU, VIMM2_X,  N,VEC_FN_N, Y,Y,Y,N,N,N,N,N,N,N,N,N,N,N),
     VMVV->      List(Y,VCMD_TX,VIMM_X,   VIMM2_X,  N,VEC_FN_N, Y,Y,N,N,N,N,N,N,N,N,N,N,N,N),
-    VMSV->      List(Y,VCMD_TX,VIMM_ALU, VIMM2_X,  N,VEC_FN_N, Y,Y,Y,N,N,N,N,N,N,N,N,N,N,N),
-    VFMVV->     List(Y,VCMD_TF,VIMM_X,   VIMM2_X,  N,VEC_FN_N, Y,Y,N,N,N,N,N,N,N,N,N,N,N,N),
     FENCE_V_L-> List(Y,VCMD_F, VIMM_X,   VIMM2_X,  N,VEC_FN_N, N,N,N,N,N,N,N,N,N,N,Y,N,N,N),
     FENCE_V_G-> List(Y,VCMD_F, VIMM_X,   VIMM2_X,  N,VEC_FN_N, N,N,N,N,N,N,N,N,N,N,Y,N,N,N),
     VLD->       List(Y,VCMD_MX,VIMM_ALU, VIMM2_X,  N,VEC_FN_N, Y,Y,Y,N,N,Y,Y,N,N,N,N,N,N,N),

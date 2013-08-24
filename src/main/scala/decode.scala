@@ -13,10 +13,10 @@ object DecodeLogic
       new Term(b.value)
     }
   }
-  def logic(addr: Bits, cache: scala.collection.mutable.Map[Term,Bits], terms: Seq[Term]) = {
+  def logic(addr: Bits, addrWidth: Int, cache: scala.collection.mutable.Map[Term,Bits], terms: Seq[Term]) = {
     terms.map { t =>
       if (!cache.contains(t))
-        cache += t -> ((if (t.mask == 0) addr else addr & Lit(BigInt(2).pow(addr.width)-(t.mask+1), addr.width){Bits()}) === Lit(t.value, addr.width){Bits()})
+        cache += t -> ((if (t.mask == 0) addr else addr & Lit(BigInt(2).pow(addrWidth)-(t.mask+1), addrWidth){Bits()}) === Lit(t.value, addrWidth){Bits()})
       cache(t).toBool
     }.foldLeft(Bool(false))(_||_)
   }
@@ -27,19 +27,26 @@ object DecodeLogic
       val dlit = d.litOf
       val dterm = term(dlit)
       val (keys, values) = map.unzip
-      val keysterms = keys.toList.map(k => term(k.litOf)) zip values.toList.map(v => term(v.head.litOf))
+      val addrWidth = keys.map(_.getWidth).max
+      val terms = keys.toList.map(k => term(k.litOf))
+      val termvalues = terms zip values.toList.map(v => term(v.head.litOf))
+
+      for (t <- terms.tails; if !t.isEmpty)
+        for (u <- t.tail)
+          assert(!t.head.intersects(u), "DecodeLogic: keys " + t + " and " + u + " overlap")
 
       val result = (0 until math.max(dlit.width, values.map(_.head.litOf.width).max)).map({ case (i: Int) =>
+        val mint = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 1 }.map(_._1)
+        val maxt = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 0 }.map(_._1)
+        val dc = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 1 }.map(_._1)
+
         if (((dterm.mask >> i) & 1) != 0) {
-          var mint = keysterms.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 1 }.map(_._1)
-          var maxt = keysterms.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 0 }.map(_._1)
-          logic(addr, cache, SimplifyDC(mint, maxt, addr.width)).toBits
+          logic(addr, addrWidth, cache, SimplifyDC(mint, maxt, addrWidth)).toBits
         } else {
-          val want = 1 - ((dterm.value.toInt >> i) & 1)
-          val mint = keysterms.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == want }.map(_._1)
-          val dc = keysterms.filter { case (k,t) => ((t.mask >> i) & 1) == 1 }.map(_._1)
-          val bit = logic(addr, cache, Simplify(mint, dc, addr.width)).toBits
-          if (want == 1) bit else ~bit
+          val defbit = (dterm.value.toInt >> i) & 1
+          val t = if (defbit == 0) mint else maxt
+          val bit = logic(addr, addrWidth, cache, Simplify(t, dc, addrWidth)).toBits
+          if (defbit == 0) bit else ~bit
         }
       }).reverse.reduceRight(Cat(_,_))
       map = map map { case (x,y) => (x, y.tail) }
@@ -71,7 +78,7 @@ class Term(val value: BigInt, val mask: BigInt = 0)
     new Term(value &~ bit, mask | bit)
   }
 
-  override def toString = value.toString + "-" + mask + (if (prime) "p" else "")
+  override def toString = value.toString(16) + "-" + mask.toString(16) + (if (prime) "p" else "")
 }
 
 object Simplify

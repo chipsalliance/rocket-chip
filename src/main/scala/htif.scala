@@ -5,11 +5,6 @@ import Node._
 import uncore._
 import Util._
 
-class DebugIO extends Bundle
-{
-  val error_mode  = Bool(OUTPUT);
-}
-
 class HostIO(val w: Int) extends Bundle
 {
   val clk = Bool(OUTPUT)
@@ -28,7 +23,7 @@ class PCRReq extends Bundle
 class HTIFIO(ntiles: Int) extends Bundle
 {
   val reset = Bool(INPUT)
-  val debug = new DebugIO
+  val id = UInt(INPUT, log2Up(ntiles))
   val pcr_req = Decoupled(new PCRReq).flip
   val pcr_rep = Decoupled(Bits(width = 64))
   val ipi_req = Decoupled(Bits(width = log2Up(ntiles)))
