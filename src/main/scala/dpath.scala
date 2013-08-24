@@ -71,22 +71,17 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   // bypass muxes
   val id_rs1_zero = id_raddr1 === UInt(0)
   val id_rs1_ex_bypass = io.ctrl.ex_wen && id_raddr1 === ex_reg_waddr
-  val id_rs1_mem_bypass = io.ctrl.mem_wen && id_raddr1 === mem_reg_waddr 
-  val id_rs1_bypass = id_rs1_zero || id_rs1_ex_bypass || id_rs1_mem_bypass
-  val id_rs1_bypass_src = Mux(id_rs1_zero, UInt(0), Mux(id_rs1_ex_bypass, UInt(1), UInt(2) | io.ctrl.mem_load))
-  val id_rs1 =
-    Mux(id_raddr1 === UInt(0), UInt(0),
-    Mux(wb_wen && id_raddr1 === wb_reg_waddr, wb_wdata,
-        readRF(id_raddr1)))
+  val id_rs1_mem_bypass = io.ctrl.mem_wen && id_raddr1 === mem_reg_waddr
+  val id_rs1_bypass = id_rs1_zero || id_rs1_ex_bypass || id_rs1_mem_bypass || io.ctrl.mem_ll_bypass_rs1
+  val id_rs1_bypass_src = Mux(id_rs1_zero, UInt(0), Mux(id_rs1_ex_bypass, UInt(1), Mux(io.ctrl.mem_load, UInt(3), UInt(2))))
+  val id_rs1 = Mux(wb_wen && id_raddr1 === wb_reg_waddr, wb_wdata, readRF(id_raddr1))
 
   val id_rs2_zero = id_raddr2 === UInt(0)
   val id_rs2_ex_bypass = io.ctrl.ex_wen && id_raddr2 === ex_reg_waddr
   val id_rs2_mem_bypass = io.ctrl.mem_wen && id_raddr2 === mem_reg_waddr 
-  val id_rs2_bypass = id_rs2_zero || id_rs2_ex_bypass || id_rs2_mem_bypass
-  val id_rs2_bypass_src = Mux(id_rs2_zero, UInt(0), Mux(id_rs2_ex_bypass, UInt(1), UInt(2) | io.ctrl.mem_load))
-  val id_rs2 = Mux(id_raddr2 === UInt(0), UInt(0),
-    Mux(wb_wen && id_raddr2 === wb_reg_waddr, wb_wdata,
-        readRF(id_raddr2)))
+  val id_rs2_bypass = id_rs2_zero || id_rs2_ex_bypass || id_rs2_mem_bypass || io.ctrl.mem_ll_bypass_rs2
+  val id_rs2_bypass_src = Mux(id_rs2_zero, UInt(0), Mux(id_rs2_ex_bypass, UInt(1), Mux(io.ctrl.mem_load, UInt(3), UInt(2))))
+  val id_rs2 = Mux(wb_wen && id_raddr2 === wb_reg_waddr, wb_wdata, readRF(id_raddr2))
 
   // immediate generation
   def imm(sel: Bits, inst: Bits) = {
