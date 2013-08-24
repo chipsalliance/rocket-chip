@@ -121,12 +121,12 @@ class TLB(entries: Int) extends Module
   when (io.ptw.resp.valid) {
     tag_ram(r_refill_waddr) := io.ptw.resp.bits.ppn
     val perm = (!io.ptw.resp.bits.error).toSInt & io.ptw.resp.bits.perm(5,0)
-    ur_array := ur_array.bitSet(r_refill_waddr, perm(2))
+    ur_array := ur_array.bitSet(r_refill_waddr, perm(0))
     uw_array := uw_array.bitSet(r_refill_waddr, perm(1))
-    ux_array := ux_array.bitSet(r_refill_waddr, perm(0))
-    sr_array := sr_array.bitSet(r_refill_waddr, perm(5))
+    ux_array := ux_array.bitSet(r_refill_waddr, perm(2))
+    sr_array := sr_array.bitSet(r_refill_waddr, perm(3))
     sw_array := sw_array.bitSet(r_refill_waddr, perm(4))
-    sx_array := sx_array.bitSet(r_refill_waddr, perm(3))
+    sx_array := sx_array.bitSet(r_refill_waddr, perm(5))
   }
  
   // high if there are any unused (invalid) entries in the TLB

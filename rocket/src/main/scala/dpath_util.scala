@@ -58,15 +58,15 @@ class Status extends Bundle {
   val ip = Bits(width = 8)
   val im = Bits(width = 8)
   val zero = Bits(width = 7)
+  val ev = Bool()
   val vm = Bool()
   val s64 = Bool()
   val u64 = Bool()
-  val s = Bool()
-  val ps = Bool()
-  val ec = Bool()
-  val ev = Bool()
   val ef = Bool()
-  val et = Bool()
+  val pei = Bool()
+  val ei = Bool()
+  val ps = Bool()
+  val s = Bool()
 }
 
 object PCR
@@ -81,20 +81,22 @@ object PCR
   val S = Bits(7,3) // setpcr
 
   // regs
-  val STATUS   =  0
-  val EPC      =  1
-  val BADVADDR =  2
-  val EVEC     =  3
-  val COUNT    =  4
-  val COMPARE  =  5
-  val CAUSE    =  6
-  val PTBR     =  7
-  val SEND_IPI =  8
-  val CLR_IPI  =  9
-  val COREID   = 10
-  val IMPL     = 11
-  val K0       = 12
-  val K1       = 13
+  val SUP0     =  0
+  val SUP1     =  1
+  val EPC      =  2
+  val BADVADDR =  3
+  val PTBR     =  4
+  val ASID     =  5
+  val COUNT    =  6
+  val COMPARE  =  7
+  val EVEC     =  8
+  val CAUSE    =  9
+  val STATUS   = 10
+  val HARTID   = 11
+  val IMPL     = 12
+  val FATC     = 13
+  val SEND_IPI = 14
+  val CLR_IPI  = 15
   val VECBANK  = 18
   val VECCFG   = 19
   val STATS    = 28
@@ -116,7 +118,7 @@ class PCR(implicit conf: RocketConfiguration) extends Module
     
     val status = new Status().asOutput
     val ptbr = UInt(OUTPUT, PADDR_BITS)
-    val evec = UInt(OUTPUT, VADDR_BITS)
+    val evec = UInt(OUTPUT, VADDR_BITS+1)
     val exception = Bool(INPUT)
     val cause = UInt(INPUT, 6)
     val badvaddr_wen = Bool(INPUT)
@@ -126,7 +128,7 @@ class PCR(implicit conf: RocketConfiguration) extends Module
     val eret = Bool(INPUT)
     val ei = Bool(INPUT)
     val di = Bool(INPUT)
-    val ptbr_wen = Bool(OUTPUT)
+    val fatc = Bool(OUTPUT)
     val irq_timer = Bool(OUTPUT)
     val irq_ipi = Bool(OUTPUT)
     val replay = Bool(OUTPUT)
@@ -139,21 +141,19 @@ class PCR(implicit conf: RocketConfiguration) extends Module
   }
   import PCR._
  
-  val reg_epc = Reg(Bits(width = conf.xprlen))
-  val reg_badvaddr = Reg(Bits(width = conf.xprlen))
-  val reg_ebase = Reg(Bits(width = conf.xprlen))
+  val reg_epc = Reg(Bits(width = VADDR_BITS+1))
+  val reg_badvaddr = Reg(Bits(width = VADDR_BITS))
+  val reg_evec = Reg(Bits(width = VADDR_BITS))
   val reg_count = WideCounter(32)
   val reg_compare = Reg(Bits(width = 32))
   val reg_cause = Reg(Bits(width = io.cause.getWidth))
   val reg_tohost = Reg(init=Bits(0, conf.xprlen))
   val reg_fromhost = Reg(init=Bits(0, conf.xprlen))
-  val reg_coreid = Reg(Bits(width = 16))
-  val reg_k0 = Reg(Bits(width = conf.xprlen))
-  val reg_k1 = Reg(Bits(width = conf.xprlen))
+  val reg_sup0 = Reg(Bits(width = conf.xprlen))
+  val reg_sup1 = Reg(Bits(width = conf.xprlen))
   val reg_ptbr = Reg(UInt(width = PADDR_BITS))
   val reg_vecbank = Reg(init=SInt(-1,8).toBits)
   val reg_stats = Reg(init=Bool(false))
-  val reg_error_mode = Reg(init=Bool(false))
   val reg_status = Reg(new Status) // reset down below
 
   val r_irq_timer = Reg(init=Bool(false))
@@ -185,10 +185,9 @@ class PCR(implicit conf: RocketConfiguration) extends Module
   io.status := reg_status
   io.status.ip := Cat(r_irq_timer, reg_fromhost.orR, r_irq_ipi,   Bool(false),
                       Bool(false), Bool(false),      Bool(false), Bool(false))
-  io.ptbr_wen := wen && addr === PTBR
-  io.evec := Mux(io.exception, reg_ebase, reg_epc).toUInt
+  io.fatc := wen && addr === FATC
+  io.evec := Mux(io.exception, reg_evec.toSInt, reg_epc).toUInt
   io.ptbr := reg_ptbr
-  io.host.debug.error_mode := reg_error_mode
 
   io.vecbank := reg_vecbank
   var cnt = UInt(0,4)
@@ -206,19 +205,17 @@ class PCR(implicit conf: RocketConfiguration) extends Module
   }
 
   when (io.exception) {
-    when (!reg_status.et) {
-      reg_error_mode := true
-    }
     reg_status.s := true
     reg_status.ps := reg_status.s
-    reg_status.et := false
+    reg_status.ei := false
+    reg_status.pei := reg_status.ei
     reg_epc := io.pc.toSInt
     reg_cause := io.cause
   }
   
   when (io.eret) {
     reg_status.s := reg_status.ps
-    reg_status.et := true
+    reg_status.ei := reg_status.pei
   }
   
   when (reg_count === reg_compare) {
@@ -238,10 +235,10 @@ class PCR(implicit conf: RocketConfiguration) extends Module
   val read_veccfg = if (conf.vec) Cat(io.vec_nfregs, io.vec_nxregs, io.vec_appvl) else Bits(0)
   val read_cause = reg_cause(reg_cause.getWidth-1) << conf.xprlen-1 | reg_cause(reg_cause.getWidth-2,0)
   io.rw.rdata := AVec[Bits](
-    io.status.toBits,  reg_epc,          reg_badvaddr,     reg_ebase,
-    reg_count,         reg_compare,      read_cause,       read_ptbr,
-    reg_coreid/*x*/,   read_impl/*x*/,   reg_coreid,       read_impl,
-    reg_k0,            reg_k1,           reg_k0/*x*/,      reg_k1/*x*/,
+    reg_sup0,          reg_sup1,         reg_epc,          reg_badvaddr,
+    reg_ptbr,          Bits(0)/*asid*/,  reg_count,        reg_compare,
+    reg_evec,          reg_cause,        io.status.toBits, io.host.id,
+    read_impl,         read_impl/*x*/,   read_impl/*x*/,   read_impl/*x*/,
     reg_vecbank/*x*/,  read_veccfg/*x*/, reg_vecbank,      read_veccfg,
     reg_vecbank/*x*/,  read_veccfg/*x*/, reg_vecbank/*x*/, read_veccfg/*x*/,
     reg_vecbank/*x*/,  read_veccfg/*x*/, reg_tohost/*x*/,  reg_fromhost/*x*/,
@@ -255,21 +252,21 @@ class PCR(implicit conf: RocketConfiguration) extends Module
                      wdata))
       reg_status := new Status().fromBits(sr_wdata)
 
+      reg_status.s64 := true
+      reg_status.u64 := true
       reg_status.zero := 0
       if (!conf.vec) reg_status.ev := false
       if (!conf.fpu) reg_status.ef := false
-      if (!conf.rvc) reg_status.ec := false
     }
     when (addr === EPC)      { reg_epc := wdata(VADDR_BITS,0).toSInt }
-    when (addr === EVEC)     { reg_ebase := wdata(VADDR_BITS-1,0).toSInt }
+    when (addr === EVEC)     { reg_evec := wdata(VADDR_BITS-1,0).toSInt }
     when (addr === COUNT)    { reg_count := wdata.toUInt }
     when (addr === COMPARE)  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false); }
-    when (addr === COREID)   { reg_coreid := wdata(15,0) }
     when (addr === FROMHOST) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
     when (addr === TOHOST)   { when (reg_tohost === UInt(0)) { reg_tohost := wdata } }
     when (addr === CLR_IPI)  { r_irq_ipi := wdata(0) }
-    when (addr === K0)       { reg_k0 := wdata; }
-    when (addr === K1)       { reg_k1 := wdata; }
+    when (addr === SUP0)     { reg_sup0 := wdata; }
+    when (addr === SUP1)     { reg_sup1 := wdata; }
     when (addr === PTBR)     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUInt; }
     when (addr === VECBANK)  { reg_vecbank:= wdata(7,0) }
     when (addr === STATS)    { reg_stats := wdata(0) }
@@ -279,10 +276,10 @@ class PCR(implicit conf: RocketConfiguration) extends Module
   when (io.host.ipi_rep.valid) { r_irq_ipi := Bool(true) }
 
   when(this.reset) {
-    reg_status.et := false
+    reg_status.ei := false
+    reg_status.pei := false
     reg_status.ef := false
     reg_status.ev := false
-    reg_status.ec := false
     reg_status.ps := false
     reg_status.s := true
     reg_status.u64 := true

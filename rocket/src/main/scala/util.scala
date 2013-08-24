@@ -41,15 +41,14 @@ object Str
   def apply(x: UInt): Bits = apply(x, 10)
   def apply(x: UInt, radix: Int): Bits = {
     val rad = UInt(radix)
-    val digs = digits(radix)
     val w = x.getWidth
     require(w > 0)
 
     var q = x
-    var s = digs(q % rad)
+    var s = digit(q % rad)
     for (i <- 1 until ceil(log(2)/log(radix)*w).toInt) {
       q = q / rad
-      s = Cat(Mux(Bool(radix == 10) && q === UInt(0), Str(' '), digs(q % rad)), s)
+      s = Cat(Mux(Bool(radix == 10) && q === UInt(0), Str(' '), digit(q % rad)), s)
     }
     s
   }
@@ -61,28 +60,24 @@ object Str
       Cat(Mux(neg, Str('-'), Str(' ')), Str(abs, radix))
     } else {
       val rad = UInt(radix)
-      val digs = digits(radix)
       val w = abs.getWidth
       require(w > 0)
 
       var q = abs
-      var s = digs(q % rad)
+      var s = digit(q % rad)
       var needSign = neg
       for (i <- 1 until ceil(log(2)/log(radix)*w).toInt) {
         q = q / rad
         val placeSpace = q === UInt(0)
         val space = Mux(needSign, Str('-'), Str(' '))
         needSign = needSign && !placeSpace
-        s = Cat(Mux(placeSpace, space, digs(q % rad)), s)
+        s = Cat(Mux(placeSpace, space, digit(q % rad)), s)
       }
       Cat(Mux(needSign, Str('-'), Str(' ')), s)
     }
   }
 
-  private def digit(d: Int): Char = (if (d < 10) '0'+d else 'a'-10+d).toChar
-  private def digits(radix: Int): Vec[Bits] =
-    AVec((0 until radix).map(i => Str(digit(i))))
-
+  private def digit(d: UInt): Bits = Mux(d < UInt(10), Str('0')+d, Str(('a'-10).toChar)+d)(7,0)
   private def validChar(x: Char) = x == (x & 0xFF)
 }
 

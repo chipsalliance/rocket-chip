@@ -93,9 +93,7 @@ object XDecode extends DecodeConstants
                                         
     J->         List(Y,    N,N,BR_J,  N,N,N,A2_JTYPE,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,WA_X, WB_X,  PCR.N,N,N,N,N,N),
     JAL->       List(Y,    N,N,BR_J,  N,N,N,A2_JTYPE,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,Y,WA_RA,WB_PC, PCR.N,N,N,N,N,N),
-    JALR_C->    List(Y,    N,N,BR_N,  Y,N,Y,A2_ITYPE,DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_PC, PCR.N,N,N,N,N,N),
-    JALR_J->    List(Y,    N,N,BR_N,  Y,N,Y,A2_ITYPE,DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_PC, PCR.N,N,N,N,N,N),
-    JALR_R->    List(Y,    N,N,BR_N,  Y,N,Y,A2_ITYPE,DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_PC, PCR.N,N,N,N,N,N),
+    JALR->      List(Y,    N,N,BR_N,  Y,N,Y,A2_ITYPE,DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_PC, PCR.N,N,N,N,N,N),
     AUIPC->     List(Y,    N,N,BR_N,  N,N,N,A2_LTYPE,DW_XPR,FN_OP2,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_PC, PCR.N,N,N,N,N,N),
                                         
     LB->        List(Y,    N,N,BR_N,  N,N,Y,A2_ITYPE,DW_XPR,FN_ADD,   Y,M_XRD,    MT_B, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
@@ -146,9 +144,9 @@ object XDecode extends DecodeConstants
     SUB->       List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_SUB,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     SLT->       List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_SLT,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     SLTU->      List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_SLTU,  N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
-    riscvAND->  List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_AND,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
-    riscvOR->   List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_OR,    N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
-    riscvXOR->  List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_XOR,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
+    AND->       List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_AND,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
+    OR->        List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_OR,    N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
+    XOR->       List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_XOR,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     SLL->       List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_SL,    N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     SRL->       List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_SR,    N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     SRA->       List(Y,    N,N,BR_N,  N,Y,Y,A2_RTYPE,DW_XPR,FN_SRA,   N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
@@ -226,8 +224,8 @@ object FDecode extends DecodeConstants
     FNMADD_D->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FNMSUB_S->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FNMSUB_D->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
-    MFTX_S->    List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
-    MFTX_D->    List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
+    FMV_X_S->   List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
+    FMV_X_D->   List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FCVT_W_S->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FCVT_W_D->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FCVT_WU_S-> List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
@@ -242,8 +240,8 @@ object FDecode extends DecodeConstants
     FLT_D->     List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FLE_S->     List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FLE_D->     List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
-    MXTF_S->    List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
-    MXTF_D->    List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
+    FMV_S_X->   List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
+    FMV_D_X->   List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FCVT_S_W->  List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FCVT_D_W->  List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FCVT_S_WU-> List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
@@ -252,8 +250,8 @@ object FDecode extends DecodeConstants
     FCVT_D_L->  List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FCVT_S_LU-> List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FCVT_D_LU-> List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
-    MFFSR->     List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
-    MTFSR->     List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
+    FRSR->      List(Y,    Y,N,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
+    FSSR->      List(Y,    Y,N,BR_N,  N,N,Y,A2_X,    DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FLW->       List(Y,    Y,N,BR_N,  N,N,Y,A2_ITYPE,DW_XPR,FN_ADD,   Y,M_XRD,    MT_W, N,N,N,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     FLD->       List(Y,    Y,N,BR_N,  N,N,Y,A2_ITYPE,DW_XPR,FN_ADD,   Y,M_XRD,    MT_D, N,N,N,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
     FSW->       List(Y,    Y,N,BR_N,  N,N,Y,A2_BTYPE,DW_XPR,FN_ADD,   Y,M_XWR,    MT_W, N,N,N,WA_X, WB_ALU,PCR.N,N,N,N,N,N),
@@ -269,13 +267,10 @@ object VDecode extends DecodeConstants
                 //         | vec_val  | | renx1                     mem_val           | | wen            pcr   | | | privileged
                 //   val   | | brtype | | | s_alu2   dw     alu     | mem_cmd mem_type| | | s_wa  s_wb   |     | | | | replay_next
                 //   |     | | |      | | | |        |      |       | |         |     | | | |     |      |     | | | | |
-    VVCFGIVL->  List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO, DW_XPR,FN_ADD, N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,Y),
-    VVCFG->     List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO, DW_XPR,FN_ADD, N,M_X,      MT_X, N,N,N,WA_RD,WB_ALU,PCR.N,N,N,N,N,Y),
+    VSETCFGVL-> List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO, DW_XPR,FN_ADD, N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,Y),
     VSETVL->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO, DW_XPR,FN_ADD, N,M_X,      MT_X, N,N,Y,WA_RD,WB_ALU,PCR.N,N,N,N,N,Y),
     VF->        List(Y,    N,Y,BR_N,  N,N,Y,A2_ITYPE,DW_XPR,FN_ADD, N,M_X,      MT_X, N,N,N,WA_X, WB_ALU,PCR.N,N,N,N,N,N),
     VMVV->      List(Y,    N,Y,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,   N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
-    VMSV->      List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO, DW_XPR,FN_ADD, N,M_X,      MT_X, N,N,N,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
-    VFMVV->     List(Y,    N,Y,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,   N,M_X,      MT_X, N,N,N,WA_RD,WB_X,  PCR.N,N,N,N,N,N),
     FENCE_V_L-> List(Y,    N,Y,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,   N,M_X,      MT_X, N,N,N,WA_X, WB_X,  PCR.N,N,N,N,N,N),
     FENCE_V_G-> List(Y,    N,Y,BR_N,  N,N,N,A2_X,    DW_X,  FN_X,   Y,M_FENCE,  MT_X, N,N,N,WA_X, WB_X,  PCR.N,N,N,N,N,N),
     VLD->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO, DW_XPR,FN_ADD, N,M_X,      MT_X, N,N,N,WA_RD,WB_ALU,PCR.N,N,N,N,N,N),
@@ -454,22 +449,20 @@ class Control(implicit conf: RocketConfiguration) extends Module
   } else (Bool(false), Bool(false))
 
   val (id_interrupt_unmasked, id_interrupt_cause) = checkExceptions(id_interrupts)
-  val id_interrupt = io.dpath.status.et && id_interrupt_unmasked
+  val id_interrupt = io.dpath.status.ei && id_interrupt_unmasked
 
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
 
-  // executing ERET when traps are enabled causes an illegal instruction exception
-  val illegal_inst = !id_int_val.toBool || (id_eret.toBool && io.dpath.status.et)
   // flush pipeline on PCR writes that may have side effects
   val id_pcr_flush = id_pcr != PCR.N && id_pcr != PCR.F &&
-    id_raddr1 != PCR.K0 && id_raddr1 != PCR.K1 && id_raddr1 != PCR.EPC
+    id_raddr1 != PCR.SUP0 && id_raddr1 != PCR.SUP1 && id_raddr1 != PCR.EPC
 
   val (id_xcpt, id_cause) = checkExceptions(List(
     (id_interrupt,                            id_interrupt_cause),
     (io.imem.resp.bits.xcpt_ma,               UInt(0)),
     (io.imem.resp.bits.xcpt_if,               UInt(1)),
-    (illegal_inst,                            UInt(2)),
+    (!id_int_val.toBool,                      UInt(2)),
     (id_privileged && !io.dpath.status.s,     UInt(3)),
     (id_fp_val && !io.dpath.status.ef,        UInt(4)),
     (id_syscall,                              UInt(6)),

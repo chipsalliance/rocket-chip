@@ -199,7 +199,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ctrl.pcr_replay := pcr.io.replay
 
   io.ptw.ptbr := pcr.io.ptbr
-  io.ptw.invalidate := pcr.io.ptbr_wen
+  io.ptw.invalidate := pcr.io.fatc
   io.ptw.eret := io.ctrl.eret
   io.ptw.status := pcr.io.status
   
@@ -216,6 +216,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
 
   val ex_pc_plus4 = ex_reg_pc.toSInt + Mux(ex_reg_sel_alu2 === A2_LTYPE, ex_reg_inst(26,7).toSInt << 12, SInt(4))
   val ex_branch_target = ex_reg_pc.toSInt + (ex_imm << 1)
+  val ex_jalr_target = (ex_effective_address >> 1 << 1).toSInt
 
   val tsc_reg = WideCounter(64)
   val irt_reg = WideCounter(64, io.ctrl.wb_valid)
@@ -327,8 +328,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.imem.req.bits.currentpc := ex_reg_pc
   io.imem.req.bits.pc :=
     Mux(io.ctrl.sel_pc === PC_EX4, ex_pc_plus4,
-    Mux(io.ctrl.sel_pc === PC_EX,  Mux(io.ctrl.ex_jalr, ex_effective_address.toSInt, ex_branch_target),
-    Mux(io.ctrl.sel_pc === PC_PCR, Cat(pcr.io.evec(VADDR_BITS-1), pcr.io.evec),
+    Mux(io.ctrl.sel_pc === PC_EX,  Mux(io.ctrl.ex_jalr, ex_jalr_target, ex_branch_target),
+    Mux(io.ctrl.sel_pc === PC_PCR, pcr.io.evec,
         wb_reg_pc))).toUInt // PC_WB
 
   printf("C: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] %s\n",
