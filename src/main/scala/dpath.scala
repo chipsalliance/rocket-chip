@@ -162,7 +162,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   div.io.req.bits.in2 := ex_rs2
   div.io.req.bits.tag := ex_reg_waddr
   div.io.kill := io.ctrl.div_mul_kill
-  div.io.resp.ready := Bool(true)
+  div.io.resp.ready := !io.ctrl.mem_wen
   io.ctrl.div_mul_rdy := div.io.req.ready
   
   io.fpu.fromint_data := ex_rs1
@@ -249,7 +249,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val mem_ll_wdata = Bits()
   mem_ll_wdata := div.io.resp.bits.data
   io.ctrl.mem_ll_waddr := div.io.resp.bits.tag
-  io.ctrl.mem_ll_wb := div.io.resp.valid
+  io.ctrl.mem_ll_wb := div.io.resp.valid && !io.ctrl.mem_wen
   when (dmem_resp_replay) {
     div.io.resp.ready := Bool(false)
     mem_ll_wdata := io.dmem.resp.bits.data_subword
