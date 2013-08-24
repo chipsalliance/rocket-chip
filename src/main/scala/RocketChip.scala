@@ -9,7 +9,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
 object DummyTopLevelConstants {
-  val NTILES = 2
+  val NTILES = 1
   val NBANKS = 1
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
