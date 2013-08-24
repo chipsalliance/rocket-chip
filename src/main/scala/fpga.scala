@@ -46,7 +46,7 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
     val htif = Vec(conf.nTiles) { new HTIFIO(conf.nTiles) }.flip
     val incoherent = Vec(conf.nTiles) { Bool() }.asInput
   }
-  val htif = new RocketHTIF(htif_width)
+  val htif = new RocketHTIF(htif_width, conf.nSCR)
   val outmemsys = new FPGAOuterMemorySystem(htif_width, tileList :+ htif)
   htif.io.cpu <> io.htif
   outmemsys.io.mem <> io.mem
@@ -88,7 +88,7 @@ class FPGATop extends Component {
   implicit val ln = LogicalNetworkConfiguration(ntiles+nbanks+1, log2Up(ntiles)+1, nbanks, ntiles+1)
   implicit val tl = TileLinkConfiguration(co, ln, log2Up(1+8), 2*log2Up(nmshrs*ntiles+1), MEM_DATA_BITS)
   implicit val l2 = L2CoherenceAgentConfiguration(tl, 1, 8)
-  implicit val uc = UncoreConfiguration(l2, tl, ntiles, nbanks, bankIdLsb = 5)
+  implicit val uc = UncoreConfiguration(l2, tl, ntiles, nbanks, bankIdLsb = 5, nSCR = 64)
 
   val ic = ICacheConfig(64, 1, ntlb = 4, nbtb = 4)
   val dc = DCacheConfig(64, 1, ntlb = 4, nmshr = 2, nrpq = 16, nsdq = 17, states = co.nClientStates)
