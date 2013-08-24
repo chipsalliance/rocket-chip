@@ -35,16 +35,15 @@ class HTIFIO(ntiles: Int) extends Bundle
   val ipi_rep = (new FIFOIO) { Bool() }.flip
 }
 
-class SCRIO extends Bundle
+class SCRIO(n: Int) extends Bundle
 {
-  val n = 64
   val rdata = Vec(n) { Bits(INPUT, 64) }
   val wen = Bool(OUTPUT)
   val waddr = UFix(OUTPUT, log2Up(n))
   val wdata = Bits(OUTPUT, 64)
 }
 
-class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Component with ClientCoherenceAgent
+class RocketHTIF(w: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extends Component with ClientCoherenceAgent
 {
   implicit val (ln, co) = (conf.ln, conf.co)
   val nTiles = ln.nClients-1 // This HTIF is itself a TileLink client
@@ -52,7 +51,7 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Component
     val host = new HostIO(w)
     val cpu = Vec(nTiles) { new HTIFIO(nTiles).flip } 
     val mem = new TileLinkIO
-    val scr = new SCRIO
+    val scr = new SCRIO(nSCR)
   }
 
   val short_request_bits = 64
