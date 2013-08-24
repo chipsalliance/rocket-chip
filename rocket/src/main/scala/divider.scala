@@ -54,11 +54,14 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
     val accum = mulReg(2*mulw,mulw).toSInt
     val mpcand = divisor.toSInt
     val prod = mplier(mulUnroll-1,0) * mpcand + accum
-    val nextMulReg = Cat(prod, mplier(mulw-1,mulUnroll)).toUInt
+    val eOut = Bool(earlyOut) && count > 0 &&
+      (0 until mulw/mulUnroll).map(i => i > mulw/mulUnroll-1-count || mplier((i+1)*mulUnroll-1,i*mulUnroll) === 0).reduce(_&&_)
+    val eOutValue = mulReg >> (mulw/mulUnroll-count)(log2Up(mulw/mulUnroll)-1,0)*mulUnroll
+    val nextMulReg = Mux(eOut, eOutValue, Cat(prod, mplier(mulw-1,mulUnroll)))
     remainder := Cat(nextMulReg >> w, Bool(false), nextMulReg(w-1,0)).toSInt
 
     count := count + 1
-    when (count === mulw/mulUnroll-1) {
+    when (count === mulw/mulUnroll-1 || eOut) {
       state := s_done
       when (AVec(FN_MULH, FN_MULHU, FN_MULHSU) contains req.fn) {
         state := s_move_rem
