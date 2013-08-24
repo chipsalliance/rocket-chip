@@ -120,7 +120,7 @@ class TLB(entries: Int) extends Module
   val sx_array = Reg(Bits()) // supervisor execute permission
   when (io.ptw.resp.valid) {
     tag_ram(r_refill_waddr) := io.ptw.resp.bits.ppn
-    val perm = (!io.ptw.resp.bits.error).toSInt & io.ptw.resp.bits.perm(5,0)
+    val perm = (!io.ptw.resp.bits.error).toSInt & io.ptw.resp.bits.perm
     ur_array := ur_array.bitSet(r_refill_waddr, perm(0))
     uw_array := uw_array.bitSet(r_refill_waddr, perm(1))
     ux_array := ux_array.bitSet(r_refill_waddr, perm(2))

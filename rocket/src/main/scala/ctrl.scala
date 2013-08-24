@@ -37,6 +37,8 @@ class CtrlDpathIO extends Bundle()
   val ex_mem_type = Bits(OUTPUT, 3)
   val ex_rs2_val = Bool(OUTPUT)
   val mem_rs2_val = Bool(OUTPUT)
+  val mem_ll_bypass_rs1 = Bool(OUTPUT)
+  val mem_ll_bypass_rs2 = Bool(OUTPUT)
   // exception handling
   val exception = Bool(OUTPUT);
   val cause    = UInt(OUTPUT, 6);
@@ -605,11 +607,17 @@ class Control(implicit conf: RocketConfiguration) extends Module
   class Scoreboard(n: Int)
   {
     val r = Reg(init=Bits(0, n))
-    var _next = r
+    private var _next = r
+    private var cur = r
     var ens = Bool(false)
-    def apply(addr: UInt) = r(addr)
     def set(en: Bool, addr: UInt): Unit = update(en, _next | mask(en, addr))
-    def clear(en: Bool, addr: UInt): Unit = update(en, _next & ~mask(en, addr))
+    def clear(en: Bool, addr: UInt): Unit = {
+      val m = ~mask(en, addr)
+      update(en, _next & m)
+      //cur = cur & m
+    }
+    def read(addr: UInt) = r(addr)
+    def readBypassed(addr: UInt) = cur(addr)
     private def mask(en: Bool, addr: UInt) = Mux(en, UInt(1) << addr, UInt(0))
     private def update(en: Bool, update: UInt) = {
       _next = update
@@ -628,10 +636,10 @@ class Control(implicit conf: RocketConfiguration) extends Module
     fp_sboard.clear(io.dpath.fp_sboard_clr, io.dpath.fp_sboard_clra)
     fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
 
-    io.fpu.dec.ren1 && fp_sboard(id_raddr1) ||
-    io.fpu.dec.ren2 && fp_sboard(id_raddr2) ||
-    io.fpu.dec.ren3 && fp_sboard(id_raddr3) ||
-    io.fpu.dec.wen  && fp_sboard(id_waddr)
+    io.fpu.dec.ren1 && fp_sboard.readBypassed(id_raddr1) ||
+    io.fpu.dec.ren2 && fp_sboard.readBypassed(id_raddr2) ||
+    io.fpu.dec.ren3 && fp_sboard.readBypassed(id_raddr3) ||
+    io.fpu.dec.wen  && fp_sboard.readBypassed(id_waddr)
   } else Bool(false)
 
 	// write cause to PCR on an exception
@@ -699,10 +707,12 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_wb_hazard = data_hazard_wb && (wb_dcache_miss || wb_reg_div_mul_val) ||
                      fp_data_hazard_wb && (wb_dcache_miss || wb_reg_fp_val)
 
+  io.dpath.mem_ll_bypass_rs1 := io.dpath.mem_ll_wb && io.dpath.mem_ll_waddr === id_raddr1
+  io.dpath.mem_ll_bypass_rs2 := io.dpath.mem_ll_wb && io.dpath.mem_ll_waddr === id_raddr2
   val id_sboard_hazard =
-    (id_raddr1 != UInt(0) && id_renx1 && sboard(id_raddr1) ||
-     id_raddr2 != UInt(0) && id_renx2 && sboard(id_raddr2) ||
-     id_waddr  != UInt(0) && id_wen   && sboard(id_waddr))
+    (id_raddr1 != UInt(0) && id_renx1 && sboard.read(id_raddr1) && !io.dpath.mem_ll_bypass_rs1 ||
+     id_raddr2 != UInt(0) && id_renx2 && sboard.read(id_raddr2) && !io.dpath.mem_ll_bypass_rs2 ||
+     id_waddr  != UInt(0) && id_wen   && sboard.read(id_waddr))
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
