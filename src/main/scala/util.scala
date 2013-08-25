@@ -130,3 +130,21 @@ case class WideCounter(width: Int, inc: Bool = Bool(true))
     if (isWide) large := (if (w < smallWidth) UInt(0) else x(w.min(width)-1,smallWidth))
   }
 }
+
+object Random
+{
+  def apply(mod: Int, inc: Bool = Bool(true)): UInt = {
+    if (isPow2(mod)) {
+      require(mod <= 65536)
+      LFSR16(inc)(log2Up(mod)-1,0).toUInt
+    } else {
+      val max = 1 << log2Up(mod*8)
+      val rand_pow2 = apply(max, inc)
+
+      var res = UInt(mod-1)
+      for (i <- mod-1 to 1 by -1)
+        res = Mux(rand_pow2 < UInt(i*max/mod), UInt(i-1), res)
+      res
+    }
+  }
+}
