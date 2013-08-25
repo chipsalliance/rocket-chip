@@ -113,6 +113,9 @@ class PCR(implicit conf: RocketConfiguration) extends Component
       val rdata = Bits(OUTPUT, conf.xprlen)
       val wdata = Bits(INPUT, conf.xprlen)
     }
+
+    // there is a fixed constant related to this in PCRReq.addr
+    require(log2Up(conf.nxpr) == 5)
     
     val status = new Status().asOutput
     val ptbr = UFix(OUTPUT, PADDR_BITS)
