@@ -112,8 +112,7 @@ class MemSerdes(w: Int) extends Module
   }
 
   io.wide.resp.valid := resp_val
-  io.wide.resp.bits.tag := in_buf(io.wide.resp.bits.tag.width-1,0)
-  io.wide.resp.bits.data := in_buf >> UInt(io.wide.resp.bits.tag.width)
+  io.wide.resp.bits := io.wide.resp.bits.fromBits(in_buf)
 }
 
 class MemDesserIO(w: Int) extends Bundle {
