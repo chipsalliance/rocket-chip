@@ -16,7 +16,7 @@ class HostIO(val w: Int) extends Bundle
 class PCRReq extends Bundle
 {
   val rw = Bool()
-  val addr = Bits(width = 6)
+  val addr = Bits(width = 5)
   val data = Bits(width = 64)
 }
 
@@ -30,7 +30,7 @@ class HTIFIO(ntiles: Int) extends Bundle
   val ipi_rep = Decoupled(Bool()).flip
 }
 
-class SCRIO extends Bundle
+class SCRIO(n: Int) extends Bundle
 {
   val n = 64
   val rdata = Vec.fill(n){Bits(INPUT, 64)}
@@ -39,7 +39,7 @@ class SCRIO extends Bundle
   val wdata = Bits(OUTPUT, 64)
 }
 
-class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module with ClientCoherenceAgent
+class RocketHTIF(w: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extends Component with ClientCoherenceAgent
 {
   implicit val (ln, co) = (conf.ln, conf.co)
   val nTiles = ln.nClients-1 // This HTIF is itself a TileLink client
@@ -47,7 +47,7 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module wi
     val host = new HostIO(w)
     val cpu = Vec.fill(nTiles){new HTIFIO(nTiles).flip}
     val mem = new TileLinkIO
-    val scr = new SCRIO
+    val scr = new SCRIO(nSCR)
   }
 
   val short_request_bits = 64
@@ -233,6 +233,7 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module wi
     }
   }
 
+  val scr_addr = addr(log2Up(nSCR)-1, 0)
   val scr_rdata = Vec.fill(io.scr.rdata.size){Bits(width = 64)}
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
@@ -241,10 +242,10 @@ class RocketHTIF(w: Int)(implicit conf: TileLinkConfiguration) extends Module wi
 
   io.scr.wen := false
   io.scr.wdata := pcr_wdata
-  io.scr.waddr := pcr_addr.toUInt
+  io.scr.waddr := scr_addr.toUInt
   when (state === state_pcr_req && pcr_coreid === SInt(-1)) {
     io.scr.wen := cmd === cmd_writecr
-    pcrReadData := scr_rdata(pcr_addr)
+    pcrReadData := scr_rdata(scr_addr)
     state := state_tx
   }
 
