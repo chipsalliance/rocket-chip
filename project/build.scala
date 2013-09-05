@@ -17,7 +17,12 @@ object BuildSettings extends Build {
     scalacOptions ++= Seq("-deprecation","-unchecked"),
     libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value,
                             "edu.berkeley.cs" %% "chisel" % "2.1-SNAPSHOT",
-                            "edu.berkeley.cs" %% "hardfloat" % "1.2")
+                            "edu.berkeley.cs" %% "hardfloat" % "1.2"),
+    resolvers ++= Seq(
+      "Sonatype Snapshots" at "http://oss.sonatype.org/content/repositories/snapshots",
+      "Sonatype Releases" at "http://oss.sonatype.org/content/repositories/releases",
+      "scct-github-repository" at "http://mtkopone.github.com/scct/maven-repo"
+    )
   )
 
   lazy val hwacha = Project("hwacha", file("hwacha"), settings = buildSettings)
