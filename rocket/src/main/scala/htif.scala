@@ -5,6 +5,11 @@ import Node._
 import uncore._
 import Util._
 
+class DebugIO extends Bundle
+{
+  val error_mode = Bool(OUTPUT)
+}
+
 class HostIO(val w: Int) extends Bundle
 {
   val clk = Bool(OUTPUT)
@@ -23,6 +28,7 @@ class PCRReq extends Bundle
 class HTIFIO(ntiles: Int) extends Bundle
 {
   val reset = Bool(INPUT)
+  val debug = new DebugIO
   val id = UInt(INPUT, log2Up(ntiles))
   val pcr_req = Decoupled(new PCRReq).flip
   val pcr_rep = Decoupled(Bits(width = 64))
@@ -32,14 +38,13 @@ class HTIFIO(ntiles: Int) extends Bundle
 
 class SCRIO(n: Int) extends Bundle
 {
-  val n = 64
   val rdata = Vec.fill(n){Bits(INPUT, 64)}
   val wen = Bool(OUTPUT)
   val waddr = UInt(OUTPUT, log2Up(n))
   val wdata = Bits(OUTPUT, 64)
 }
 
-class RocketHTIF(w: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extends Component with ClientCoherenceAgent
+class RocketHTIF(w: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extends Module with ClientCoherenceAgent
 {
   implicit val (ln, co) = (conf.ln, conf.co)
   val nTiles = ln.nClients-1 // This HTIF is itself a TileLink client
