@@ -17,9 +17,11 @@ object DummyTopLevelConstants {
   val HAS_VEC = false
   val HAS_FPU = true
   val NL2_REL_XACTS = 1
-  val NL2_ACQ_XACTS = 8
+  val NL2_ACQ_XACTS = 7
   val NMSHRS = 2
 }
+
+import DummyTopLevelConstants._
 
 object ReferenceChipBackend {
   val initMap = new HashMap[Module, Bool]()
@@ -91,8 +93,8 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
 
   val llc_tag_leaf = Mem(Bits(width = 152), 512, seqRead = true)
   val llc_data_leaf = Mem(Bits(width = 64), 4096, seqRead = true)
-  val llc = Module(new DRAMSideLLC(512, 8, 4, llc_tag_leaf, llc_data_leaf))
-  //val llc = Module(new DRAMSideLLCNull(8, REFILL_CYCLES))
+  val llc = Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, tagLeaf=llc_tag_leaf, dataLeaf=llc_data_leaf))
+  //val llc = Module(new DRAMSideLLCNull(NL2_REL_XACTS+NL2_ACQ_XACTS, REFILL_CYCLES))
   val mem_serdes = Module(new MemSerdes(htif_width))
 
   require(clientEndpoints.length == ln.nClients)
@@ -137,7 +139,7 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
   io.mem_backup <> mem_serdes.io.narrow
 }
 
-case class UncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int)
+case class UncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int, nSCR: Int)
 
 class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
 {
@@ -152,7 +154,7 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
   }
-  val htif = Module(new RocketHTIF(htif_width))
+  val htif = Module(new RocketHTIF(htif_width, conf.nSCR))
   val outmemsys = Module(new OuterMemorySystem(htif_width, tileList :+ htif))
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif
@@ -223,7 +225,6 @@ class VLSITopIO(htifWidth: Int) extends TopIO(htifWidth) {
   val out_mem_valid = Bool(OUTPUT)
 }
 
-import DummyTopLevelConstants._
 
 class MemDessert extends Module {
   val io = new MemDesserIO(HTIF_WIDTH)
@@ -244,7 +245,7 @@ class Top extends Module {
   implicit val ln = LogicalNetworkConfiguration(NTILES+NBANKS+1, log2Up(NTILES)+1, NBANKS, NTILES+1)
   implicit val tl = TileLinkConfiguration(co, ln, log2Up(NL2_REL_XACTS+NL2_ACQ_XACTS), 2*log2Up(NMSHRS*NTILES+1), MEM_DATA_BITS)
   implicit val l2 = L2CoherenceAgentConfiguration(tl, NL2_REL_XACTS, NL2_ACQ_XACTS)
-  implicit val uc = UncoreConfiguration(l2, tl, NTILES, NBANKS, bankIdLsb = 5)
+  implicit val uc = UncoreConfiguration(l2, tl, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64)
 
   val ic = ICacheConfig(128, 2, ntlb = 8, nbtb = 16)
   val dc = DCacheConfig(128, 4, ntlb = 8, 
