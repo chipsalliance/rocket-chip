@@ -6,22 +6,22 @@ import scala.reflect._
 
 object TileLinkHeaderAppender {
   def apply[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasTileLinkData](in: ClientSourcedDataIO[LogicalNetworkIO[T],LogicalNetworkIO[U]], clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(implicit conf: TileLinkConfiguration) = {
-    val shim = Module(new TileLinkHeaderAppender(clientId, nBanks, addrConvert)(in.meta.bits.payload.clone, in.data.bits.payload.clone))
+    val shim = Module(new TileLinkHeaderAppender(in.meta.bits.payload, in.data.bits.payload, clientId, nBanks, addrConvert))
     shim.io.in <> in
     shim.io.out
   }
   def apply[T <: SourcedMessage with HasPhysicalAddress](in: ClientSourcedFIFOIO[LogicalNetworkIO[T]], clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(implicit conf: TileLinkConfiguration) = {
-    val shim = Module(new TileLinkHeaderAppender(clientId, nBanks, addrConvert)(in.bits.payload.clone, new AcquireData))
+    val shim = Module(new TileLinkHeaderAppender(in.bits.payload.clone, new AcquireData, clientId, nBanks, addrConvert))
     shim.io.in.meta <> in
     shim.io.out.meta
   }
 }
 
-class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasTileLinkData](clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(metadata: => T, data: => U)(implicit conf: TileLinkConfiguration) extends Module {
+class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasTileLinkData](mType: T, dType: U, clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(implicit conf: TileLinkConfiguration) extends Module {
   implicit val ln = conf.ln
   val io = new Bundle {
-    val in = new ClientSourcedDataIO()((new LogicalNetworkIO){ metadata }, (new LogicalNetworkIO){ data }).flip
-    val out = new ClientSourcedDataIO()((new LogicalNetworkIO){ metadata }, (new LogicalNetworkIO){ data })
+    val in = new ClientSourcedDataIO(new LogicalNetworkIO(mType), new LogicalNetworkIO(dType)).flip
+    val out = new ClientSourcedDataIO(new LogicalNetworkIO(mType), new LogicalNetworkIO(dType))
   }
 
   val meta_q = Queue(io.in.meta)
@@ -109,7 +109,7 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
   // Shims for converting between logical network IOs and physical network IOs
   //TODO: Could be less verbose if you could override subbundles after a <>
   def DefaultFromCrossbarShim[T <: Data](in: FBCIO[T]): FLNIO[T] = {
-    val out = Decoupled(new LogicalNetworkIO()(in.bits.payload.clone)).asDirectionless
+    val out = Decoupled(new LogicalNetworkIO(in.bits.payload)).asDirectionless
     out.bits.header := in.bits.header
     out.bits.payload := in.bits.payload
     out.valid := in.valid
@@ -127,7 +127,7 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
     out
   }
   def DefaultToCrossbarShim[T <: Data](in: FLNIO[T]): FBCIO[T] = {
-    val out = Decoupled(new PhysicalNetworkIO()(in.bits.payload.clone)).asDirectionless
+    val out = Decoupled(new PhysicalNetworkIO(in.bits.payload)).asDirectionless
     out.bits.header := in.bits.header
     out.bits.payload := in.bits.payload
     out.valid := in.valid
@@ -203,20 +203,20 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
 
   // Actually instantiate the particular networks required for TileLink
   def acqHasData(acq: PhysicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
-  val acq_net = Module(new PairedCrossbar(REFILL_CYCLES, acqHasData _)(new Acquire, new AcquireData))
+  val acq_net = Module(new PairedCrossbar(new Acquire, new AcquireData, REFILL_CYCLES, acqHasData _))
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doClientSourcedPairedHookup(end, acq_net.io.in(id), acq_net.io.out(id), io.acquire) }
 
   def relHasData(rel: PhysicalNetworkIO[Release]) = co.messageHasData(rel.payload)
-  val rel_net = Module(new PairedCrossbar(REFILL_CYCLES, relHasData _)(new Release, new ReleaseData))
+  val rel_net = Module(new PairedCrossbar(new Release, new ReleaseData, REFILL_CYCLES, relHasData _))
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doClientSourcedPairedHookup(end, rel_net.io.in(id), rel_net.io.out(id), io.release) }
 
-  val probe_net = Module(new BasicCrossbar()(new Probe))
+  val probe_net = Module(new BasicCrossbar(new Probe))
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doMasterSourcedFIFOHookup(end, probe_net.io.in(id), probe_net.io.out(id), io.probe) }
 
-  val grant_net = Module(new BasicCrossbar()(new Grant))
+  val grant_net = Module(new BasicCrossbar(new Grant))
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doMasterSourcedFIFOHookup(end, grant_net.io.in(id), grant_net.io.out(id), io.grant) }
 
-  val ack_net = Module(new BasicCrossbar()(new GrantAck))
+  val ack_net = Module(new BasicCrossbar(new GrantAck))
   endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doClientSourcedFIFOHookup(end, ack_net.io.in(id), ack_net.io.out(id), io.grant_ack) }
 
   val physicalNetworks = List(acq_net, rel_net, probe_net, grant_net, ack_net)
