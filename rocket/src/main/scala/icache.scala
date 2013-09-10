@@ -143,7 +143,7 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
     val mem = new UncachedTileLinkIO
   }
 
-  val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(4) { UInt() }
+  val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_ready)
   val invalidated = Reg(Bool())
   val stall = !io.resp.ready
