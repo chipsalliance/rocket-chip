@@ -95,7 +95,7 @@ abstract class XactTracker()(implicit conf: L2CoherenceAgentConfiguration) exten
 }
 
 class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
-  val s_idle :: s_mem :: s_ack :: s_busy :: Nil = Enum(4){ UInt() }
+  val s_idle :: s_mem :: s_ack :: s_busy :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Release }
   val init_client_id_ = Reg(init=UInt(0, width = log2Up(ln.nClients)))
@@ -159,7 +159,7 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2Cohe
 }
 
 class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
-  val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(5){ UInt() }
+  val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Acquire }
   val init_client_id_ = Reg(init=UInt(0, width = log2Up(ln.nClients)))
