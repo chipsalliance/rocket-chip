@@ -188,7 +188,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     val probe_rdy = Bool(OUTPUT)
   }
 
-  val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9) { UInt() }
+  val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(UInt(), 9)
   val state = Reg(init=s_invalid)
 
   val acquire_type = Reg(UInt())
@@ -505,7 +505,7 @@ class ProbeUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends 
     val line_state = UInt(INPUT, 2)
   }
 
-  val s_reset :: s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(9) { UInt() }
+  val s_reset :: s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(UInt(), 9)
   val state = Reg(init=s_invalid)
   val line_state = Reg(UInt())
   val way_en = Reg(Bits())

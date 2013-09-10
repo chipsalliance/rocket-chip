@@ -89,7 +89,7 @@ class RocketHTIF(w: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extend
     packet_ram(rx_word_count(log2Up(packet_ram_depth)-1,0) - UInt(1)) := rx_shifter_in
   }
 
-  val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(6) { UInt() }
+  val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(UInt(), 6)
 
   val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.width-1, 0)
   val pcr_coreid = addr(log2Up(nTiles)-1+20+1,20)
@@ -124,7 +124,7 @@ class RocketHTIF(w: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extend
   }
   io.mem.grant.ready := Bool(true)
 
-  val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(9) { UInt() }
+  val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_req :: state_mem_wdata :: state_mem_wresp :: state_mem_rdata :: state_mem_finish :: state_tx :: Nil = Enum(UInt(), 9)
   val state = Reg(init=state_rx)
 
   val rx_cmd = Mux(rx_word_count === UInt(0), next_cmd, cmd)

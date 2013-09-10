@@ -93,7 +93,7 @@ class TLB(entries: Int) extends Module
     val ptw = new TLBPTWIO
   }
 
-  val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(4) { UInt() }
+  val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_ready)
   val r_refill_tag = Reg(UInt())
   val r_refill_waddr = Reg(UInt())
