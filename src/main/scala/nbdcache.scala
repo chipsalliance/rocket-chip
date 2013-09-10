@@ -181,9 +181,9 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     val mem_resp = new DataWriteReq().asOutput
     val meta_read = Decoupled(new MetaReadReq)
     val meta_write = Decoupled(new MetaWriteReq)
-    val replay = Decoupled(new Replay())
-    val mem_grant = Valid((new LogicalNetworkIO) {new Grant} ).flip
-    val mem_finish = Decoupled((new LogicalNetworkIO) {new GrantAck} )
+    val replay = Decoupled(new Replay)
+    val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
+    val mem_finish = Decoupled(new LogicalNetworkIO(new GrantAck))
     val wb_req = Decoupled(new WritebackReq)
     val probe_rdy = Bool(OUTPUT)
   }
@@ -264,7 +264,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     }
   }
 
-  val ackq = Module(new Queue((new LogicalNetworkIO){new GrantAck}, 1))
+  val ackq = Module(new Queue(new LogicalNetworkIO(new GrantAck), 1))
   ackq.io.enq.valid := (wb_done || refill_done) && tl.co.requiresAck(io.mem_grant.bits.payload)
   ackq.io.enq.bits.payload.master_xact_id := io.mem_grant.bits.payload.master_xact_id
   ackq.io.enq.bits.header.dst := io.mem_grant.bits.header.src
@@ -330,8 +330,8 @@ class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends M
     val meta_read = Decoupled(new MetaReadReq)
     val meta_write = Decoupled(new MetaWriteReq)
     val replay = Decoupled(new Replay)
-    val mem_grant = Valid((new LogicalNetworkIO){new Grant}).flip
-    val mem_finish = Decoupled((new LogicalNetworkIO){new GrantAck})
+    val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
+    val mem_finish = Decoupled(new LogicalNetworkIO(new GrantAck))
     val wb_req = Decoupled(new WritebackReq)
 
     val probe_rdy = Bool(OUTPUT)
@@ -354,7 +354,7 @@ class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends M
   val meta_read_arb = Module(new Arbiter(new MetaReadReq, conf.nmshr))
   val meta_write_arb = Module(new Arbiter(new MetaWriteReq, conf.nmshr))
   val mem_req_arb = Module(new Arbiter(new Acquire, conf.nmshr))
-  val mem_finish_arb = Module(new Arbiter((new LogicalNetworkIO){new GrantAck}, conf.nmshr))
+  val mem_finish_arb = Module(new Arbiter(new LogicalNetworkIO(new GrantAck), conf.nmshr))
   val wb_req_arb = Module(new Arbiter(new WritebackReq, conf.nmshr))
   val replay_arb = Module(new Arbiter(new Replay, conf.nmshr))
   val alloc_arb = Module(new Arbiter(Bool(), conf.nmshr))
