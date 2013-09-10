@@ -53,7 +53,7 @@ class MemSerdes(w: Int) extends Module
   val out_buf = Reg(Bits())
   val in_buf = Reg(Bits())
 
-  val s_idle :: s_read_addr :: s_write_addr :: s_write_idle :: s_write_data :: Nil = Enum(5) { UInt() }
+  val s_idle :: s_read_addr :: s_write_addr :: s_write_idle :: s_write_data :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_idle)
   val send_cnt = Reg(init=UInt(0, log2Up((max(abits, dbits)+w-1)/w)))
   val data_send_cnt = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
@@ -134,7 +134,7 @@ class MemDesser(w: Int) extends Module // test rig side
   val ddone = io.narrow.req.valid && recv_cnt === UInt((dbits-1)/w)
   val rdone = io.narrow.resp.valid && recv_cnt === UInt((rbits-1)/w)
 
-  val s_cmd_recv :: s_cmd :: s_data_recv :: s_data :: s_reply :: Nil = Enum(5) { UInt() }
+  val s_cmd_recv :: s_cmd :: s_data_recv :: s_data :: s_reply :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_cmd_recv)
 
   val in_buf = Reg(Bits())

@@ -96,10 +96,10 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   def nProbeTypes = 0
   def nReleaseTypes = 2
   def nGrantTypes = 3
-  val tileInvalid :: tileClean :: tileDirty :: Nil = Enum(nClientStates){ UInt() }
-  val acquireReadClean :: acquireReadDirty :: acquireWriteback :: Nil = Enum(nAcquireTypes){ UInt() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateAck :: Nil = Enum(nReleaseTypes){ UInt() }
-  val grantVoluntaryAck :: grantData :: grantAck :: Nil = Enum(nGrantTypes){ UInt() }
+  val tileInvalid :: tileClean :: tileDirty :: Nil = Enum(UInt(), nClientStates)
+  val acquireReadClean :: acquireReadDirty :: acquireWriteback :: Nil = Enum(UInt(), nAcquireTypes)
+  val releaseVoluntaryInvalidateData :: releaseInvalidateAck :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantVoluntaryAck :: grantData :: grantAck :: Nil = Enum(UInt(), nGrantTypes)
   val uncachedAcquireTypeList = List() 
   val hasDataAcquireTypeList = List(acquireWriteback)
   val hasDataReleaseTypeList = List(acquireWriteback)
@@ -156,13 +156,13 @@ class MICoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 5
   def nGrantTypes = 7
 
-  val tileInvalid :: tileValid :: Nil = Enum(nClientStates){ UInt() }
-  val globalInvalid :: globalValid :: Nil = Enum(nMasterStates){ UInt() }
+  val tileInvalid :: tileValid :: Nil = Enum(UInt(), nClientStates)
+  val globalInvalid :: globalValid :: Nil = Enum(UInt(), nMasterStates)
 
-  val acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UInt() }
-  val probeInvalidate :: probeCopy :: Nil = Enum(nProbeTypes){ UInt() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UInt() }
-  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UInt() }
+  val acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(UInt(), nAcquireTypes)
+  val probeInvalidate :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(UInt(), nGrantTypes)
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
@@ -298,13 +298,13 @@ class MEICoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 7
   def nGrantTypes = 8
 
-  val tileInvalid :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(nClientStates){ UInt() }
-  val globalInvalid :: globalExclusiveClean :: Nil = Enum(nMasterStates){ UInt() }
+  val tileInvalid :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
+  val globalInvalid :: globalExclusiveClean :: Nil = Enum(UInt(), nMasterStates)
 
-  val acquireReadExclusiveClean :: acquireReadExclusiveDirty :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UInt() }
-  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(nProbeTypes){ UInt() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UInt() }
-  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UInt() }
+  val acquireReadExclusiveClean :: acquireReadExclusiveDirty :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(UInt(), nAcquireTypes)
+  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(UInt(), nGrantTypes)
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
@@ -456,13 +456,13 @@ class MSICoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 7
   def nGrantTypes = 9
 
-  val tileInvalid :: tileShared :: tileExclusiveDirty :: Nil = Enum(nClientStates){ UInt() }
-  val globalInvalid :: globalShared :: globalExclusive :: Nil = Enum(nMasterStates){ UInt() }
+  val tileInvalid :: tileShared :: tileExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
+  val globalInvalid :: globalShared :: globalExclusive :: Nil = Enum(UInt(), nMasterStates)
 
-  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UInt() }
-  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(nProbeTypes){ UInt() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UInt() }
-  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UInt() }
+  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(UInt(), nAcquireTypes)
+  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(UInt(), nGrantTypes)
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
@@ -617,13 +617,13 @@ class MESICoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 7
   def nGrantTypes = 9
 
-  val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(nClientStates){ UInt() }
-  val globalInvalid :: globalShared :: globalExclusiveClean :: Nil = Enum(nMasterStates){ UInt() }
+  val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
+  val globalInvalid :: globalShared :: globalExclusiveClean :: Nil = Enum(UInt(), nMasterStates)
 
-  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(nAcquireTypes){ UInt() }
-  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(nProbeTypes){ UInt() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(nReleaseTypes){ UInt() }
-  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(nGrantTypes){ UInt() }
+  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: Nil = Enum(UInt(), nAcquireTypes)
+  val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(UInt(), nGrantTypes)
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
@@ -782,12 +782,12 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def nReleaseTypes = 11
   def nGrantTypes = 9
 
-  val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: tileSharedByTwo :: tileMigratoryClean :: tileMigratoryDirty :: Nil = Enum(nClientStates){ UInt() }
+  val tileInvalid :: tileShared :: tileExclusiveClean :: tileExclusiveDirty :: tileSharedByTwo :: tileMigratoryClean :: tileMigratoryDirty :: Nil = Enum(UInt(), nClientStates)
 
-  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: acquireInvalidateOthers :: Nil = Enum(nAcquireTypes){ UInt() }
-  val probeInvalidate :: probeDowngrade :: probeCopy :: probeInvalidateOthers :: Nil = Enum(nProbeTypes){ UInt() }
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(nReleaseTypes){ UInt() }
-  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: grantReadMigratory :: Nil = Enum(nGrantTypes){ UInt() }
+  val acquireReadShared :: acquireReadExclusive :: acquireReadUncached :: acquireWriteUncached :: acquireReadWordUncached :: acquireWriteWordUncached :: acquireAtomicUncached :: acquireInvalidateOthers :: Nil = Enum(UInt(), nAcquireTypes)
+  val probeInvalidate :: probeDowngrade :: probeCopy :: probeInvalidateOthers :: Nil = Enum(UInt(), nProbeTypes)
+  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: grantReadMigratory :: Nil = Enum(UInt(), nGrantTypes)
 
   val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
   val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
