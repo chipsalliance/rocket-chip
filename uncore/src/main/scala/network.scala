@@ -2,23 +2,23 @@ package uncore
 import Chisel._
 import scala.collection.mutable.Stack
 
-class PairedDataIO[M <: Data, D <: Data]()(m: => M, d: => D) extends Bundle {
-  val meta = Decoupled(m)
-  val data = Decoupled(d)
-  override def clone = { new PairedDataIO()(m,d).asInstanceOf[this.type] }
+class PairedDataIO[M <: Data, D <: Data](mType: M, dType: D) extends Bundle {
+  val meta = Decoupled(mType)
+  val data = Decoupled(dType)
+  override def clone = { new PairedDataIO(mType, dType).asInstanceOf[this.type] }
 }
 
-class PairedArbiterIO[M <: Data, D <: Data](n: Int)(m: => M, d: => D) extends Bundle {
-  val in  = Vec.fill(n){new PairedDataIO()(m,d)}.flip
-  val out = new PairedDataIO()(m,d)  
-  val meta_chosen = Bits(OUTPUT, log2Up(n)) 
-  val data_chosen = Bits(OUTPUT, log2Up(n)) 
-  override def clone = { new PairedArbiterIO(n)(m,d).asInstanceOf[this.type] }
+class PairedArbiterIO[M <: Data, D <: Data](mType: M, dType: D, n: Int) extends Bundle {
+  val in  = Vec.fill(n){new PairedDataIO(mType, dType)}.flip
+  val out = new PairedDataIO(mType, dType)  
+  val meta_chosen = UInt(OUTPUT, log2Up(n)) 
+  val data_chosen = UInt(OUTPUT, log2Up(n)) 
+  override def clone = { new PairedArbiterIO(mType, dType, n).asInstanceOf[this.type] }
 }
 
-class PairedLockingRRArbiter[M <: Data, D <: Data](n: Int, count: Int, needsLock: Option[M => Bool] = None)(meta: => M, data: => D) extends Module {
+class PairedLockingRRArbiter[M <: Data, D <: Data](mType: M, dType: D, n: Int, count: Int, needsLock: Option[M => Bool] = None) extends Module {
   require(isPow2(count))
-  val io = new PairedArbiterIO(n)(meta,data)
+  val io = new PairedArbiterIO(mType, dType, n)
   val locked  = if(count > 1) Reg(init=Bool(false)) else Bool(false)
   val lockIdx = if(count > 1) Reg(init=UInt(n-1)) else UInt(n-1)
   val grant = List.fill(n)(Bool())
@@ -68,10 +68,10 @@ class PairedLockingRRArbiter[M <: Data, D <: Data](n: Int, count: Int, needsLock
   when (io.out.meta.fire()) { last_grant := meta_chosen }
 }
 
-class PairedCrossbar[M <: Data, D <: Data](count: Int, needsLock: Option[PhysicalNetworkIO[M] => Bool] = None)(meta: => M, data: => D)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
+class PairedCrossbar[M <: Data, D <: Data](mType: M, dType: D, count: Int, needsLock: Option[PhysicalNetworkIO[M] => Bool] = None)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
   val io = new Bundle {
-    val in  = Vec.fill(conf.nEndpoints){new PairedDataIO()(new PhysicalNetworkIO()(meta),new PhysicalNetworkIO()(data))}.flip 
-    val out = Vec.fill(conf.nEndpoints){new PairedDataIO()(new PhysicalNetworkIO()(meta),new PhysicalNetworkIO()(data))}
+    val in  = Vec.fill(conf.nEndpoints){new PairedDataIO(new PhysicalNetworkIO(mType),new PhysicalNetworkIO(dType))}.flip 
+    val out = Vec.fill(conf.nEndpoints){new PairedDataIO(new PhysicalNetworkIO(mType),new PhysicalNetworkIO(dType))}
   }
 
   val metaRdyVecs = List.fill(conf.nEndpoints)(Vec.fill(conf.nEndpoints){Bool()})
@@ -79,7 +79,7 @@ class PairedCrossbar[M <: Data, D <: Data](count: Int, needsLock: Option[Physica
   val rdyVecs = metaRdyVecs zip dataRdyVecs
 
   io.out.zip(rdyVecs).zipWithIndex.map{ case ((out, rdys), i) => {
-    val rrarb = Module(new PairedLockingRRArbiter(conf.nEndpoints, count, needsLock)(io.in(0).meta.bits.clone, io.in(0).data.bits.clone))
+    val rrarb = Module(new PairedLockingRRArbiter(io.in(0).meta.bits.clone, io.in(0).data.bits.clone, conf.nEndpoints, count, needsLock))
     rrarb.io.in zip io.in zip rdys._1 zip rdys._2 map { case (((arb, in), meta_rdy), data_rdy) => {
       arb.meta.valid := in.meta.valid && (in.meta.bits.header.dst === UInt(i)) 
       arb.meta.bits := in.meta.bits
@@ -103,18 +103,18 @@ class PhysicalHeader(implicit conf: PhysicalNetworkConfiguration) extends Bundle
   val dst = UInt(width = conf.idBits)
 }
 
-class PhysicalNetworkIO[T <: Data]()(data: => T)(implicit conf: PhysicalNetworkConfiguration) extends Bundle {
-  val header = (new PhysicalHeader)
-  val payload = data
-  override def clone = { new PhysicalNetworkIO()(data).asInstanceOf[this.type] }
+class PhysicalNetworkIO[T <: Data](dType: T)(implicit conf: PhysicalNetworkConfiguration) extends Bundle {
+  val header = new PhysicalHeader
+  val payload = dType.clone
+  override def clone = { new PhysicalNetworkIO(dType).asInstanceOf[this.type] }
 }
 
 abstract class PhysicalNetwork(conf: PhysicalNetworkConfiguration) extends Module
 
-class BasicCrossbar[T <: Data](count: Int = 1)(data: => T)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
+class BasicCrossbar[T <: Data](dType: T, count: Int = 1)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
   val io = new Bundle {
-    val in  = Vec.fill(conf.nEndpoints){Decoupled((new PhysicalNetworkIO){data})}.flip 
-    val out = Vec.fill(conf.nEndpoints){Decoupled((new PhysicalNetworkIO){data})}
+    val in  = Vec.fill(conf.nEndpoints){Decoupled(new PhysicalNetworkIO(dType))}.flip 
+    val out = Vec.fill(conf.nEndpoints){Decoupled(new PhysicalNetworkIO(dType))}
   }
 
   val rdyVecs = List.fill(conf.nEndpoints)(Vec.fill(conf.nEndpoints)(Bool()))
@@ -148,7 +148,7 @@ class LogicalHeader(implicit conf: LogicalNetworkConfiguration) extends Bundle {
 
 object FIFOedLogicalNetworkIOWrapper {
   def apply[T <: Data](in: DecoupledIO[T], src: UInt = UInt(0), dst: UInt = UInt(0))(implicit conf: LogicalNetworkConfiguration) = {
-    val out = Decoupled((new LogicalNetworkIO){in.bits.clone}).asDirectionless
+    val out = Decoupled(new LogicalNetworkIO(in.bits.clone)).asDirectionless
     out.valid := in.valid
     out.bits.payload := in.bits
     out.bits.header.dst := dst
@@ -168,8 +168,8 @@ object FIFOedLogicalNetworkIOUnwrapper {
   }
 }
 
-class LogicalNetworkIO[T <: Data]()(data: => T)(implicit conf: LogicalNetworkConfiguration) extends Bundle {
+class LogicalNetworkIO[T <: Data](dType: T)(implicit conf: LogicalNetworkConfiguration) extends Bundle {
   val header = new LogicalHeader
-  val payload = data
-  override def clone = { new LogicalNetworkIO()(data).asInstanceOf[this.type] }
+  val payload = dType.clone
+  override def clone = { new LogicalNetworkIO(dType).asInstanceOf[this.type] }
 }

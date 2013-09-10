@@ -91,32 +91,32 @@ class GrantAck(implicit val conf: TileLinkConfiguration) extends ClientSourcedMe
 trait DirectionalIO
 trait ClientSourcedIO extends DirectionalIO
 trait MasterSourcedIO extends DirectionalIO
-class ClientSourcedFIFOIO[T <: Data]()(data: => T) extends DecoupledIO(data) with ClientSourcedIO {
-  override def clone = { new ClientSourcedFIFOIO()(data).asInstanceOf[this.type] }
+class ClientSourcedFIFOIO[T <: Data](dType: T) extends DecoupledIO(dType) with ClientSourcedIO {
+  override def clone = { new ClientSourcedFIFOIO(dType).asInstanceOf[this.type] }
 }
-class ClientSourcedDataIO[M <: Data, D <: Data]()(meta: => M, data: => D)  extends PairedDataIO()(meta,data) with ClientSourcedIO {
-  override def clone = { new ClientSourcedDataIO()(meta,data).asInstanceOf[this.type] }
+class ClientSourcedDataIO[M <: Data, D <: Data](mType: M, dType: D) extends PairedDataIO(mType, dType) with ClientSourcedIO {
+  override def clone = { new ClientSourcedDataIO(mType, dType).asInstanceOf[this.type] }
 }
-class MasterSourcedFIFOIO[T <: Data]()(data: => T) extends DecoupledIO(data) with MasterSourcedIO {
+class MasterSourcedFIFOIO[T <: Data](dType: T) extends DecoupledIO(dType) with MasterSourcedIO {
   flip()
-  override def clone = { new MasterSourcedFIFOIO()(data).asInstanceOf[this.type] }
+  override def clone = { new MasterSourcedFIFOIO(dType).asInstanceOf[this.type] }
 }
-class MasterSourcedDataIO[M <: Data, D <: Data]()(meta: => M, data: => D)  extends PairedDataIO()(meta,data) with MasterSourcedIO {
+class MasterSourcedDataIO[M <: Data, D <: Data](mType: M, dType: D) extends PairedDataIO(mType, dType) with MasterSourcedIO {
   flip()
-  override def clone = { new MasterSourcedDataIO()(meta,data).asInstanceOf[this.type] }
+  override def clone = { new MasterSourcedDataIO(mType, dType).asInstanceOf[this.type] }
 }
 
 class UncachedTileLinkIO(implicit conf: TileLinkConfiguration) extends Bundle {
   implicit val ln = conf.ln
-  val acquire   = new ClientSourcedDataIO()(new LogicalNetworkIO()(new Acquire), new LogicalNetworkIO()(new AcquireData))
-  val grant     = new MasterSourcedFIFOIO()(new LogicalNetworkIO()(new Grant))
-  val grant_ack = new ClientSourcedFIFOIO()(new LogicalNetworkIO()(new GrantAck))
+  val acquire   = new ClientSourcedDataIO(new LogicalNetworkIO(new Acquire), new LogicalNetworkIO(new AcquireData))
+  val grant     = new MasterSourcedFIFOIO(new LogicalNetworkIO(new Grant))
+  val grant_ack = new ClientSourcedFIFOIO(new LogicalNetworkIO(new GrantAck))
   override def clone = { new UncachedTileLinkIO().asInstanceOf[this.type] }
 }
 
 class TileLinkIO(implicit conf: TileLinkConfiguration) extends UncachedTileLinkIO()(conf) { 
-  val probe     = new MasterSourcedFIFOIO()(new LogicalNetworkIO()(new Probe))
-  val release   = new ClientSourcedDataIO()(new LogicalNetworkIO()(new Release), new LogicalNetworkIO()(new ReleaseData))
+  val probe     = new MasterSourcedFIFOIO(new LogicalNetworkIO(new Probe))
+  val release   = new ClientSourcedDataIO(new LogicalNetworkIO(new Release), new LogicalNetworkIO(new ReleaseData))
   override def clone = { new TileLinkIO().asInstanceOf[this.type] }
 }
 
@@ -131,7 +131,7 @@ abstract class UncachedTileLinkIOArbiter(n: Int)(implicit conf: TileLinkConfigur
     val out = new UncachedTileLinkIO
   }
   def acqHasData(acq: LogicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
-  val acq_arb = Module(new PairedLockingRRArbiter(n, REFILL_CYCLES, acqHasData _)((new LogicalNetworkIO){new Acquire},(new LogicalNetworkIO){new AcquireData}))
+  val acq_arb = Module(new PairedLockingRRArbiter(new LogicalNetworkIO(new Acquire), new LogicalNetworkIO(new AcquireData), n, REFILL_CYCLES, acqHasData _))
   io.out.acquire <> acq_arb.io.out
   io.in.map(_.acquire).zipWithIndex.zip(acq_arb.io.in).map{ case ((req,id), arb) => {
     arb.data <> req.data
@@ -141,7 +141,7 @@ abstract class UncachedTileLinkIOArbiter(n: Int)(implicit conf: TileLinkConfigur
     req.meta.ready := arb.meta.ready
   }}
 
-  val grant_ack_arb = Module(new RRArbiter((new LogicalNetworkIO){new GrantAck},n))
+  val grant_ack_arb = Module(new RRArbiter(new LogicalNetworkIO(new GrantAck), n))
   io.out.grant_ack <> grant_ack_arb.io.out
   grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
 

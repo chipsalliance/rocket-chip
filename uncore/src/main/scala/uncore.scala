@@ -43,7 +43,7 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: L2CoherenceAgentConfiguration
   alloc_arb.io.out.ready := acquire.meta.valid && !block_acquires
 
   // Handle probe request generation
-  val probe_arb = Module(new Arbiter((new LogicalNetworkIO){ new Probe }, trackerList.size))
+  val probe_arb = Module(new Arbiter(new LogicalNetworkIO(new Probe), trackerList.size))
   io.client.probe <> probe_arb.io.out
   probe_arb.io.in zip trackerList map { case (arb, t) => arb <> t.io.client.probe }
 
@@ -66,7 +66,7 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: L2CoherenceAgentConfiguration
   release.data.ready := trackerList.map(_.io.client.release.data.ready).reduce(_||_)
 
   // Reply to initial requestor
-  val grant_arb = Module(new Arbiter((new LogicalNetworkIO){ new Grant }, trackerList.size))
+  val grant_arb = Module(new Arbiter(new LogicalNetworkIO(new Grant), trackerList.size))
   io.client.grant <> grant_arb.io.out
   grant_arb.io.in zip trackerList map { case (arb, t) => arb <> t.io.client.grant }
 
