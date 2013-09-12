@@ -679,8 +679,9 @@ class AMOALU(implicit conf: DCacheConfig) extends Module {
   val out = Mux(io.cmd === M_XA_ADD, adder_out,
             Mux(io.cmd === M_XA_AND, io.lhs & io.rhs,
             Mux(io.cmd === M_XA_OR,  io.lhs | io.rhs,
+            Mux(io.cmd === M_XA_XOR, io.lhs ^ io.rhs,
             Mux(Mux(less, min, max), io.lhs,
-            io.rhs))))
+            io.rhs)))))
 
   val wmask = FillInterleaved(8, StoreGen(io.typ, io.addr).mask)
   io.out := wmask & out | ~wmask & io.lhs
@@ -724,6 +725,7 @@ class HellaCacheIO(implicit conf: DCacheConfig) extends Bundle {
   val resp = Valid(new HellaCacheResp).flip
   val xcpt = (new HellaCacheExceptions).asInput
   val ptw = (new TLBPTWIO).flip
+  val ordered = Bool(INPUT)
 }
 
 class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
@@ -1013,8 +1015,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   when (s2_nack_hit) { mshrs.io.req.valid := Bool(false) }
   val s2_nack_victim = s2_hit && mshrs.io.secondary_miss
   val s2_nack_miss = !s2_hit && !mshrs.io.req.ready
-  val s2_nack_fence = s2_req.cmd === M_FENCE && !mshrs.io.fence_rdy
-  val s2_nack = s2_nack_hit || s2_nack_victim || s2_nack_miss || s2_nack_fence
+  val s2_nack = s2_nack_hit || s2_nack_victim || s2_nack_miss
   s2_valid_masked := s2_valid && !s2_nack
 
   val s2_recycle_ecc = (s2_valid || s2_replay) && s2_hit && s2_data_correctable
@@ -1023,11 +1024,9 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   s2_recycle := s2_recycle_ecc || s2_recycle_next
 
   // after a nack, block until nack condition resolves to save energy
-  val block_fence = Reg(init=Bool(false))
-  block_fence := (s2_valid && s2_req.cmd === M_FENCE || block_fence) && !mshrs.io.fence_rdy
   val block_miss = Reg(init=Bool(false))
   block_miss := (s2_valid || block_miss) && s2_nack_miss
-  when (block_fence || block_miss) {
+  when (block_miss) {
     io.cpu.req.ready := Bool(false)
   }
 
@@ -1039,6 +1038,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   io.cpu.resp.bits.data := loadgen.word
   io.cpu.resp.bits.data_subword := Mux(s2_sc, s2_sc_fail, loadgen.byte)
   io.cpu.resp.bits.store_data := s2_req.data
+  io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
 
   io.mem.grant_ack <> mshrs.io.mem_finish
 }
