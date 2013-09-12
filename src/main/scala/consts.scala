@@ -16,32 +16,36 @@ trait ScalarOpConstants {
   val BR_LTU  = Bits(6, 3)
   val BR_GEU  = Bits(7, 3)
 
-  val PC_EX4 = UInt(0, 2)
-  val PC_EX  = UInt(1, 2)
+  val PC_EX  = UInt(0, 2)
   val PC_WB  = UInt(2, 2)
   val PC_PCR = UInt(3, 2)
 
-  val A2_X     = Bits("b???", 3)
-  val A2_BTYPE = UInt(0, 3);
-  val A2_LTYPE = UInt(1, 3);
-  val A2_ITYPE = UInt(2, 3);
-  val A2_ZERO  = UInt(4, 3);
-  val A2_JTYPE = UInt(5, 3);
-  val A2_RTYPE = UInt(6, 3);
+  val A1_X    = Bits("b??", 2)
+  val A1_RS1  = UInt(0, 2)
+  val A1_PC   = UInt(1, 2)
+  val A1_ZERO = UInt(2, 2)
+
+  val IMM_X  = Bits("b???", 3)
+  val IMM_S  = UInt(0, 3);
+  val IMM_SB = UInt(1, 3);
+  val IMM_U  = UInt(2, 3);
+  val IMM_UJ = UInt(3, 3);
+  val IMM_I  = UInt(4, 3);
+
+  val A2_X    = Bits("b??", 2)
+  val A2_RS2  = UInt(0, 2)
+  val A2_IMM  = UInt(1, 2)
+  val A2_ZERO = UInt(2, 3)
+  val A2_FOUR = UInt(3, 3)
 
   val X = Bits("b?", 1)
   val N = Bits(0, 1)
   val Y = Bits(1, 1)
 
-  val WA_X  = UInt("b?", 1)
-  val WA_RD = UInt(0, 1)
-  val WA_RA = UInt(1, 1)
-
-  val WB_X   = UInt("b???", 3)
-  val WB_PC  = UInt(0, 3);
-  val WB_ALU = UInt(2, 3);
-  val WB_TSC = UInt(4, 3);
-  val WB_IRT = UInt(5, 3);
+  val WB_X   = UInt("b??", 2)
+  val WB_ALU = UInt(0, 3);
+  val WB_TSC = UInt(2, 3);
+  val WB_IRT = UInt(3, 3);
 
   val SZ_DW = 1
   val DW_X  = X

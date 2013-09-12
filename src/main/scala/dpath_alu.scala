@@ -18,7 +18,6 @@ object ALU
   val FN_SLT  = Bits(10)
   val FN_SLTU = Bits(11)
   val FN_SRA  = Bits(13)
-  val FN_OP2  = Bits(15)
 
   val FN_DIV  = FN_XOR
   val FN_DIVU = FN_SR
@@ -65,18 +64,14 @@ class ALU(implicit conf: RocketConfiguration) extends Module
   val shout_r = (Cat(isSub(io.fn) & shin(63), shin).toSInt >> shamt)(63,0)
   val shout_l = Reverse(shout_r)
 
-  val bitwise_logic =
-    Mux(io.fn === FN_AND, io.in1 & io.in2,
-    Mux(io.fn === FN_OR,  io.in1 | io.in2,
-    Mux(io.fn === FN_XOR, io.in1 ^ io.in2,
-        io.in2))) // FN_OP2
-
   val out64 =
     Mux(io.fn === FN_ADD || io.fn === FN_SUB,  sum,
     Mux(io.fn === FN_SLT || io.fn === FN_SLTU, less,
     Mux(io.fn === FN_SR  || io.fn === FN_SRA,  shout_r,
     Mux(io.fn === FN_SL,                       shout_l,
-        bitwise_logic))))
+    Mux(io.fn === FN_AND,                      io.in1 & io.in2,
+    Mux(io.fn === FN_OR,                       io.in1 | io.in2,
+                /*FN_XOR*/                     io.in1 ^ io.in2))))))
 
   val out_hi = Mux(io.dw === DW_64, out64(63,32), Fill(32, out64(31)))
   io.out := Cat(out_hi, out64(31,0)).toUInt
