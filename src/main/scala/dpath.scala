@@ -3,7 +3,6 @@ package rocket
 import Chisel._
 import Instructions._
 import Util._
-import hwacha._
 import uncore.constants.AddressConstants._
 
 class Datapath(implicit conf: RocketConfiguration) extends Module
@@ -15,8 +14,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     val ptw = (new DatapathPTWIO).flip
     val imem  = new CPUFrontendIO()(conf.icache)
     val fpu = new DpathFPUIO
-    val vec_ctrl = (new CtrlDpathVecIO).flip
-    val vec_iface = new DpathVecInterfaceIO
   }
 
   // execute definitions
@@ -291,29 +288,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   wb_wdata := Mux(io.ctrl.wb_load, io.dmem.resp.bits.data_subword,
               Mux(io.ctrl.pcr != PCR.N, pcr.io.rw.rdata,
               wb_reg_wdata))
-
-  if (conf.vec)
-  {
-    // vector datapath
-    val vec = Module(new rocketDpathVec)
-
-    vec.io.ctrl <> io.vec_ctrl
-    io.vec_iface <> vec.io.iface 
-
-    vec.io.valid := io.ctrl.wb_valid && pcr.io.status.ev
-    vec.io.inst := wb_reg_inst
-    vec.io.vecbank := pcr.io.vecbank
-    vec.io.vecbankcnt := pcr.io.vecbankcnt
-    vec.io.wdata := wb_reg_wdata
-    vec.io.rs2 := wb_reg_store_data
-
-    pcr.io.vec_irq_aux := vec.io.irq_aux
-    pcr.io.vec_appvl := vec.io.appvl
-    pcr.io.vec_nxregs := vec.io.nxregs
-    pcr.io.vec_nfregs := vec.io.nfregs
-
-    when (vec.io.wen) { wb_wdata := vec.io.appvl }
-  }
 
   when (wb_wen) { writeRF(wb_reg_waddr, wb_wdata) }
   io.ctrl.wb_waddr := wb_reg_waddr

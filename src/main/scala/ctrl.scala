@@ -2,7 +2,6 @@ package rocket
 
 import Chisel._
 import Instructions._
-import hwacha._
 import uncore.constants.MemoryOpConstants._
 import ALU._
 import Util._
@@ -45,7 +44,6 @@ class CtrlDpathIO extends Bundle()
   val exception = Bool(OUTPUT);
   val cause    = UInt(OUTPUT, 6);
   val badvaddr_wen = Bool(OUTPUT); // high for a load/store access fault
-  val vec_irq_aux_wen = Bool(OUTPUT)
   // inputs from datapath
   val inst    = Bits(INPUT, 32);
   val jalr_eq = Bool(INPUT)
@@ -71,7 +69,7 @@ abstract trait DecodeConstants
                 //                                                                                                       fence.i
                 //                    jalr                                                            mul_val            | eret
                 //         fp_val     | renx2                                                         | div_val          | | syscall
-                //         | vec_val  | | renx1     s_alu1                          mem_val           | | wen      pcr   | | | privileged
+                //         | rocc_val | | renx1     s_alu1                          mem_val           | | wen      pcr   | | | privileged
                 //   val   | | brtype | | | s_alu2  |       imm    dw     alu       | mem_cmd mem_type| | | s_wb   |     | | | | replay_next
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | fence
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | | amo
@@ -87,7 +85,7 @@ object XDecode extends DecodeConstants
                 //                                                                                                       fence.i
                 //                    jalr                                                            mul_val            | eret
                 //         fp_val     | renx2                                                         | div_val          | | syscall
-                //         | vec_val  | | renx1     s_alu1                          mem_val           | | wen      pcr   | | | privileged
+                //         | rocc_val | | renx1     s_alu1                          mem_val           | | wen      pcr   | | | privileged
                 //   val   | | brtype | | | s_alu2  |       imm    dw     alu       | mem_cmd mem_type| | | s_wb   |     | | | | replay_next
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | fence
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | | amo
@@ -204,7 +202,7 @@ object FDecode extends DecodeConstants
                 //                                                                                                       fence.i
                 //                    jalr                                                            mul_val            | eret
                 //         fp_val     | renx2                                                         | div_val          | | syscall
-                //         | vec_val  | | renx1     s_alu1                          mem_val           | | wen      pcr   | | | privileged
+                //         | rocc_val | | renx1     s_alu1                          mem_val           | | wen      pcr   | | | privileged
                 //   val   | | brtype | | | s_alu2  |       imm    dw     alu       | mem_cmd mem_type| | | s_wb   |     | | | | replay_next
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | fence
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | | amo
@@ -269,61 +267,41 @@ object FDecode extends DecodeConstants
     FSD->       List(Y,    Y,N,BR_N,  N,N,Y,A2_IMM, A1_RS1, IMM_S, DW_XPR,FN_ADD,   Y,M_XWR,    MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N))
 }
 
-object VDecode extends DecodeConstants
+object RoCCDecode extends DecodeConstants
 {
   val table = Array(
-                //                                                                                                       fence.i
-                //                    jalr                                                            mul_val            | eret
-                //         fp_val     | renx2                                                         | div_val          | | syscall
-                //         | vec_val  | | renx1     s_alu1                          mem_val           | | wen      pcr   | | | privileged
-                //   val   | | brtype | | | s_alu2  |       imm    dw     alu       | mem_cmd mem_type| | | s_wb   |     | | | | replay_next
-                //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | fence
-                //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | | amo
-                //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | | |
-    VSETCFGVL-> List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,Y,N,N),
-    VSETVL->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,Y,N,N),
-    VF->        List(Y,    N,Y,BR_N,  N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VMVV->      List(Y,    N,Y,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WB_X,  PCR.N,N,N,N,N,N,N,N),
-    FENCE_V_L-> List(Y,    N,Y,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WB_X,  PCR.N,N,N,N,N,N,N,N),
-    FENCE_V_G-> List(Y,    N,Y,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     Y,M_X,      MT_X, N,N,N,WB_X,  PCR.N,N,N,N,N,N,N,N),
-    VLD->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLW->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLWU->      List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLH->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLHU->      List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLB->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLBU->      List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VSD->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VSW->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VSH->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VSB->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VFLD->      List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VFLW->      List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VFSD->      List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VFSW->      List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLSTD->     List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLSTW->     List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLSTWU->    List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLSTH->     List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLSTHU->    List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLSTB->     List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VLSTBU->    List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VSSTD->     List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VSSTW->     List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VSSTH->     List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VSSTB->     List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VFLSTD->    List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VFLSTW->    List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VFSSTD->    List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    VFSSTW->    List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_D, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-                                    
-    VENQCMD->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,Y,N,N,N),
-    VENQIMM1->  List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,Y,N,N,N),
-    VENQIMM2->  List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,Y,N,N,N),
-    VENQCNT->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,Y,N,N,N),
-    VXCPTEVAC-> List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,Y,N,N,N),
-    VXCPTKILL-> List(Y,    N,Y,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WB_X,  PCR.N,N,N,N,Y,N,N,N),
-    VXCPTHOLD-> List(Y,    N,Y,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WB_X,  PCR.N,N,N,N,Y,N,N,N))
+                        //                                                                                                       fence.i
+                        //                    jalr                                                            mul_val            | eret
+                        //         fp_val     | renx2                                                         | div_val          | | syscall
+                        //         | rocc_val | | renx1     s_alu1                          mem_val           | | wen      pcr   | | | privileged
+                        //   val   | | brtype | | | s_alu2  |       imm    dw     alu       | mem_cmd mem_type| | | s_wb   |     | | | | replay_next
+                        //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | fence
+                        //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | | amo
+                        //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |      |     | | | | | | |
+    CUSTOM0->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM0_RS1->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM0_RS1_RS2->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM0->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM0_RD_RS1->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM0_RD_RS1_RS2->List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM1->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM1_RS1->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM1_RS1_RS2->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM1->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM1_RD_RS1->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM1_RD_RS1_RS2->List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM2->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM2_RS1->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM2_RS1_RS2->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM2->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM2_RD_RS1->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM2_RD_RS1_RS2->List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM3->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM3_RS1->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM3_RS1_RS2->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM3->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM3_RD_RS1->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM3_RD_RS1_RS2->List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N))
 }
 
 class Control(implicit conf: RocketConfiguration) extends Module
@@ -339,13 +317,11 @@ class Control(implicit conf: RocketConfiguration) extends Module
     val xcpt_dtlb_ld = Bool(INPUT)
     val xcpt_dtlb_st = Bool(INPUT)
     val fpu = new CtrlFPUIO
-    val vec_dpath = new CtrlDpathVecIO
-    val vec_iface = new CtrlVecInterfaceIO
   }
 
   var decode_table = XDecode.table
   if (conf.fpu) decode_table ++= FDecode.table
-  if (conf.vec) decode_table ++= VDecode.table
+  if (!conf.rocc.isEmpty) decode_table ++= RoCCDecode.table
 
   val logic = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
   val cs = logic.map { 
@@ -353,7 +329,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     case u => u 
   }
   
-  val (id_int_val: Bool) :: (id_fp_val: Bool) :: (id_vec_val: Bool) :: id_br_type :: (id_jalr: Bool) :: (id_renx2: Bool) :: (id_renx1: Bool) :: cs0 = cs
+  val (id_int_val: Bool) :: (id_fp_val: Bool) :: (id_rocc_val: Bool) :: id_br_type :: (id_jalr: Bool) :: (id_renx2: Bool) :: (id_renx1: Bool) :: cs0 = cs
   val id_sel_alu2 :: id_sel_alu1 :: id_sel_imm :: (id_fn_dw: Bool) :: id_fn_alu :: cs1 = cs0
   val (id_mem_val: Bool) :: id_mem_cmd :: id_mem_type :: (id_mul_val: Bool) :: (id_div_val: Bool) :: (id_wen: Bool) :: id_sel_wb :: cs2 = cs1
   val id_pcr :: (id_fence_i: Bool) :: (id_eret: Bool) :: (id_syscall: Bool) :: (id_privileged: Bool) :: (id_replay_next: Bool) :: (id_fence: Bool) :: (id_amo: Bool) :: Nil = cs2
@@ -370,7 +346,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val ex_reg_mem_val         = Reg(init=Bool(false))
   val ex_reg_xcpt            = Reg(init=Bool(false))
   val ex_reg_fp_val          = Reg(init=Bool(false))
-  val ex_reg_vec_val         = Reg(init=Bool(false))
+  val ex_reg_rocc_val        = Reg(init=Bool(false))
   val ex_reg_replay_next     = Reg(init=Bool(false))
   val ex_reg_load_use        = Reg(init=Bool(false))
   val ex_reg_pcr             = Reg(init=PCR.N)
@@ -389,7 +365,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val mem_reg_mem_val         = Reg(init=Bool(false))
   val mem_reg_xcpt            = Reg(init=Bool(false))
   val mem_reg_fp_val          = Reg(init=Bool(false))
-  val mem_reg_vec_val         = Reg(init=Bool(false))
+  val mem_reg_rocc_val        = Reg(init=Bool(false))
   val mem_reg_replay          = Reg(init=Bool(false))
   val mem_reg_replay_next     = Reg(init=Bool(false))
   val mem_reg_pcr             = Reg(init=PCR.N)
@@ -426,43 +402,6 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val sr = io.dpath.status
   var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UInt(CAUSE_INTERRUPT+i)))
 
-  val (vec_replay, vec_stalld) = if (conf.vec) {
-    // vector control
-    val vec = Module(new rocketCtrlVec)
-
-    io.vec_dpath <> vec.io.dpath
-    io.vec_iface <> vec.io.iface
-
-    vec.io.valid := wb_reg_valid
-    vec.io.s := io.dpath.status.s
-    vec.io.sr_ev := io.dpath.status.ev
-    vec.io.exception := wb_reg_xcpt
-    vec.io.eret := wb_reg_eret
-
-    val vec_dec = Module(new rocketCtrlVecDecoder)
-    vec_dec.io.inst := io.dpath.inst
-
-    val s = io.dpath.status.s
-    val mask_cmdq_ready = !vec_dec.io.sigs.enq_cmdq || s && io.vec_iface.vcmdq.ready || !s && io.vec_iface.vcmdq_user_ready
-    val mask_ximm1q_ready = !vec_dec.io.sigs.enq_ximm1q || s && io.vec_iface.vximm1q.ready || !s && io.vec_iface.vximm1q_user_ready
-    val mask_ximm2q_ready = !vec_dec.io.sigs.enq_ximm2q || s && io.vec_iface.vximm2q.ready || !s && io.vec_iface.vximm2q_user_ready
-    val mask_cntq_ready = !vec_dec.io.sigs.enq_cntq || io.vec_iface.vcntq.ready
-    val mask_pfcmdq_ready = !vec_dec.io.sigs.enq_pfcmdq || io.vec_iface.vpfcmdq.ready
-    val mask_pfximm1q_ready = !vec_dec.io.sigs.enq_pfximm1q || io.vec_iface.vpfximm1q.ready
-    val mask_pfximm2q_ready = !vec_dec.io.sigs.enq_pfximm2q || io.vec_iface.vpfximm2q.ready
-    val mask_pfcntq_ready = !vec_dec.io.sigs.enq_pfcntq || io.vec_iface.vpfcntq.ready
-
-    id_interrupts = id_interrupts :+ (vec.io.irq, vec.io.irq_cause)
-
-    val stalld =
-      id_vec_val && (
-        !mask_cmdq_ready || !mask_ximm1q_ready || !mask_ximm2q_ready || !mask_cntq_ready ||
-        !mask_pfcmdq_ready || !mask_pfximm1q_ready || !mask_pfximm2q_ready || !mask_pfcntq_ready ||
-        vec_dec.io.sigs.vfence && !vec.io.vfence_ready)
-
-    (vec.io.replay, stalld)
-  } else (Bool(false), Bool(false))
-
   val (id_interrupt_unmasked, id_interrupt_cause) = checkExceptions(id_interrupts)
   val id_interrupt = io.dpath.status.ei && id_interrupt_unmasked
 
@@ -489,7 +428,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     (id_privileged && !io.dpath.status.s,     UInt(3)),
     (id_fp_val && !io.dpath.status.ef,        UInt(4)),
     (id_syscall,                              UInt(6)),
-    (id_vec_val && !io.dpath.status.ev,       UInt(12))))
+    (id_rocc_val && !io.dpath.status.er,       UInt(12))))
 
   ex_reg_xcpt_interrupt := id_interrupt && !take_pc && io.imem.resp.valid
   when (id_xcpt) { ex_reg_cause := id_cause }
@@ -505,7 +444,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     ex_reg_eret        := Bool(false);
     ex_reg_flush_inst  := Bool(false);  
     ex_reg_fp_val := Bool(false)
-    ex_reg_vec_val := Bool(false)
+    ex_reg_rocc_val := Bool(false)
     ex_reg_replay_next := Bool(false)
     ex_reg_load_use := Bool(false)
     ex_reg_pcr := PCR.N
@@ -525,7 +464,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     ex_reg_eret        := id_eret.toBool;
     ex_reg_flush_inst  := id_fence_i
     ex_reg_fp_val := id_fp_val
-    ex_reg_vec_val := id_vec_val.toBool
+    ex_reg_rocc_val := id_rocc_val.toBool
     ex_reg_replay_next := id_replay_next || id_pcr_flush
     ex_reg_load_use := id_load_use
     ex_reg_mem_cmd := id_mem_cmd
@@ -564,7 +503,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     mem_reg_mem_val     := Bool(false);
     mem_reg_flush_inst  := Bool(false);
     mem_reg_fp_val := Bool(false)
-    mem_reg_vec_val := Bool(false)
+    mem_reg_rocc_val := Bool(false)
     mem_reg_replay_next := Bool(false)
     mem_reg_xcpt := Bool(false)
   }
@@ -577,7 +516,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     mem_reg_mem_val     := ex_reg_mem_val;
     mem_reg_flush_inst  := ex_reg_flush_inst;
     mem_reg_fp_val := ex_reg_fp_val
-    mem_reg_vec_val := ex_reg_vec_val
+    mem_reg_rocc_val := ex_reg_rocc_val
     mem_reg_replay_next := ex_reg_replay_next
     mem_reg_slow_bypass := ex_slow_bypass
     mem_reg_xcpt := ex_xcpt
@@ -591,7 +530,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UInt(11))))
 
   val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
-  val ll_wb_kill_mem = io.dpath.mem_ll_wb && (mem_reg_wen || mem_reg_fp_wen || mem_reg_vec_val || mem_reg_pcr != PCR.N)
+  val ll_wb_kill_mem = io.dpath.mem_ll_wb && (mem_reg_wen || mem_reg_fp_wen || mem_reg_rocc_val || mem_reg_pcr != PCR.N)
   val replay_mem  = ll_wb_kill_mem || mem_reg_replay || fpu_kill_mem
   val killm_common = ll_wb_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
   ctrl_killm := killm_common || mem_xcpt || fpu_kill_mem
@@ -623,7 +562,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     wb_reg_fp_val      := mem_reg_fp_val
   }
 
-  val replay_wb = io.dmem.resp.bits.nack || wb_reg_replay || vec_replay || io.dpath.pcr_replay
+  val replay_wb = io.dmem.resp.bits.nack || wb_reg_replay || io.dpath.pcr_replay
 
   class Scoreboard(n: Int)
   {
@@ -667,7 +606,6 @@ class Control(implicit conf: RocketConfiguration) extends Module
 	io.dpath.exception := wb_reg_xcpt
 	io.dpath.cause := wb_reg_cause
 	io.dpath.badvaddr_wen := wb_reg_xcpt && (wb_reg_cause === UInt(10) || wb_reg_cause === UInt(11))
-  io.dpath.vec_irq_aux_wen := wb_reg_xcpt && wb_reg_cause >= UInt(24) && wb_reg_cause < UInt(32)
 
   // control transfer from ex/wb
   take_pc_wb := replay_wb || wb_reg_xcpt || wb_reg_eret
@@ -737,8 +675,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
     id_fp_val && id_stall_fpu ||
     id_mem_val && !io.dmem.req.ready ||
-    id_do_fence && !id_fence_ok ||
-    vec_stalld
+    id_do_fence && !id_fence_ok
   val ctrl_draind = id_interrupt || ex_reg_replay_next
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || ctrl_draind
 
@@ -770,8 +707,8 @@ class Control(implicit conf: RocketConfiguration) extends Module
   io.dpath.eret := wb_reg_eret
   io.dpath.ex_mem_type := ex_reg_mem_type
   io.dpath.ex_br_type := ex_reg_br_type
-  io.dpath.ex_rs2_val := ex_reg_mem_val && isWrite(ex_reg_mem_cmd) || ex_reg_vec_val
-  io.dpath.mem_rs2_val := mem_reg_vec_val
+  io.dpath.ex_rs2_val := ex_reg_mem_val && isWrite(ex_reg_mem_cmd) || ex_reg_rocc_val
+  io.dpath.mem_rs2_val := mem_reg_rocc_val
 
   io.fpu.valid := !ctrl_killd && id_fp_val
   io.fpu.killx := ctrl_killx

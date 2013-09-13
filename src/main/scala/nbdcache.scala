@@ -69,7 +69,6 @@ class RandomReplacement(implicit conf: DCacheConfig) extends ReplacementPolicy
 object StoreGen
 {
   def apply(r: HellaCacheReq) = new StoreGen(r.typ, r.addr, r.data)
-  def apply(r: hwacha.io_dmem_req_bundle) = new StoreGen(r.typ, r.addr, r.data)
   def apply(typ: Bits, addr: Bits, data: Bits = Bits(0)) = new StoreGen(typ, addr, data)
 }
 
