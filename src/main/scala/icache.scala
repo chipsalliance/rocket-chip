@@ -59,7 +59,8 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   val icache = Module(new ICache)
   val tlb = Module(new TLB(c.ntlb))
 
-  val s1_pc = Reg(UInt())
+  val s1_pc_ = Reg(UInt())
+  val s1_pc = s1_pc_ & SInt(-2) // discard LSB of PC (throughout the pipeline)
   val s1_same_block = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=UInt(START_ADDR))
@@ -77,7 +78,7 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   val stall = io.cpu.resp.valid && !io.cpu.resp.ready
   when (!stall) {
     s1_same_block := s0_same_block && !tlb.io.resp.miss
-    s1_pc := npc
+    s1_pc_ := npc
     s2_valid := !icmiss
     when (!icmiss) {
       s2_pc := s1_pc
@@ -87,7 +88,7 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   }
   when (io.cpu.req.valid) {
     s1_same_block := Bool(false)
-    s1_pc := io.cpu.req.bits.pc
+    s1_pc_ := io.cpu.req.bits.pc
     s2_valid := Bool(false)
   }
 
