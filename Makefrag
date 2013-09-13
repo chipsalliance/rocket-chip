@@ -20,8 +20,6 @@ src_path = src/main/scala
 
 tstdir = $(base_dir)/riscv-tests/isa
 asm_p_tests = \
-	rv64si-pm-ipi \
-	rv64ui-pm-lrsc \
 	rv64ui-p-add \
 	rv64ui-p-addi \
 	rv64ui-p-amoadd_d \
@@ -30,6 +28,8 @@ asm_p_tests = \
 	rv64ui-p-amoand_w \
 	rv64ui-p-amoor_d \
 	rv64ui-p-amoor_w \
+	rv64ui-p-amoxor_d \
+	rv64ui-p-amoxor_w \
 	rv64ui-p-amoswap_d \
 	rv64ui-p-amoswap_w \
 	rv64ui-p-amomax_d \
@@ -63,8 +63,6 @@ asm_p_tests = \
 	rv64ui-p-j \
 	rv64ui-p-jal \
 	rv64ui-p-jalr \
-	rv64ui-p-jalr_j \
-	rv64ui-p-jalr_r \
 	rv64ui-p-lb \
 	rv64ui-p-lbu \
 	rv64ui-p-ld \
@@ -113,6 +111,8 @@ asm_p_tests = \
 	rv64uf-p-fmin \
 	rv64uf-p-fmadd \
 	rv64uf-p-structural \
+	rv64si-pm-ipi \
+	rv64ui-pm-lrsc \
 
 asm_v_tests = \
 	rv64ui-v-add \
@@ -123,6 +123,8 @@ asm_v_tests = \
 	rv64ui-v-amoand_w \
 	rv64ui-v-amoor_d \
 	rv64ui-v-amoor_w \
+	rv64ui-v-amoxor_d \
+	rv64ui-v-amoxor_w \
 	rv64ui-v-amoswap_d \
 	rv64ui-v-amoswap_w \
 	rv64ui-v-amomax_d \
@@ -156,8 +158,6 @@ asm_v_tests = \
 	rv64ui-v-j \
 	rv64ui-v-jal \
 	rv64ui-v-jalr \
-	rv64ui-v-jalr_j \
-	rv64ui-v-jalr_r \
 	rv64ui-v-lb \
 	rv64ui-v-lbu \
 	rv64ui-v-ld \
@@ -503,11 +503,11 @@ bmarks = \
 	dgemm.riscv \
 	dhrystone.riscv \
 	spmv.riscv \
-	vec-vvadd.riscv \
-	vec-cmplxmult.riscv \
-	vec-matmul.riscv \
-	mt-vvadd.riscv \
-	mt-matmul.riscv \
+	#vec-vvadd.riscv \
+	#vec-cmplxmult.riscv \
+	#vec-matmul.riscv \
+	#mt-vvadd.riscv \
+	#mt-matmul.riscv \
 
 vec_bmarkdir = $(base_dir)/../../riscv-app/misc/build
 vec_bmarks = \

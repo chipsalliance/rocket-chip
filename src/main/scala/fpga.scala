@@ -39,7 +39,6 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
 {
   implicit val (tl, ln) = (conf.tl, conf.tl.ln)
   val io = new Bundle {
-    val debug = new DebugIO()
     val host = new HostIO(htif_width)
     val mem = new ioMem
     val tiles = Vec.fill(conf.nTiles){new TileLinkIO}.flip
@@ -103,7 +102,6 @@ class FPGATop extends Module {
   val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
   val uncore = Module(new FPGAUncore(htif_width, tileList))
 
-  io.debug.error_mode := Bool(false)
   for (i <- 0 until uc.nTiles) {
     val hl = uncore.io.htif(i)
     val tl = uncore.io.tiles(i)
@@ -114,13 +112,12 @@ class FPGATop extends Module {
 
     tile.io.tilelink <> tl
     il := hl.reset
+    tile.io.host.id := UInt(i)
     tile.io.host.reset := Reg(next=Reg(next=hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req)
     hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
     hl.ipi_req <> Queue(tile.io.host.ipi_req)
     tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
-
-    when (tile.io.host.debug.error_mode) { io.debug.error_mode := Bool(true) }
   }
 
   io.host <> uncore.io.host
@@ -144,7 +141,7 @@ class Slave extends AXISlave
   val memw = top.io.mem.resp.bits.data.getWidth
   val htifw = top.io.host.in.bits.getWidth
   
-  val n = 4 // htif, mem req/read data, mem write data, error mode
+  val n = 4
   def wen(i: Int) = io.in.valid && io.addr(log2Up(n)-1,0) === UInt(i)
   def ren(i: Int) = io.out.ready && io.addr(log2Up(n)-1,0) === UInt(i)
   val rdata = Vec.fill(n){Bits(width = dw)}
@@ -201,8 +198,8 @@ class Slave extends AXISlave
   rvalid(2) := top.io.mem.req_data.valid
   when (ren(2) && rvalid(2)) { out_count := out_count + UInt(1) }
 
-  // read cr3 -> error mode (nonblocking)
-  rdata(3) := Cat(top.io.mem.req_cmd.valid, tagq.io.enq.ready, top.io.debug.error_mode)
+  // read cr3 -> debug signals (nonblocking)
+  rdata(3) := Cat(top.io.mem.req_cmd.valid, tagq.io.enq.ready)
   rvalid(3) := Bool(true)
 
   // writes to cr2, cr3 ignored

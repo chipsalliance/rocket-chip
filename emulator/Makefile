@@ -106,6 +106,6 @@ run-bmarks-test-debug: $(addprefix output/, $(addsuffix .vpd, $(bmarks)))
 run-mt-tests-debug: $(addprefix output/, $(addsuffix .vpd, $(mt_bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
 
-run: run-asm-tests run-vecasm-tests run-vecasm-timer-tests run-bmarks-test
-run-debug: run-asm-tests-debug run-vecasm-tests-debug run-vecasm-timer-tests-debug run-bmarks-test-debug
+run: run-asm-tests run-bmarks-test #run-vecasm-tests run-vecasm-timer-tests
+run-debug: run-asm-tests-debug run-bmarks-test-debug #run-vecasm-tests-debug run-vecasm-timer-tests-debug
 run-fast: $(addprefix output/, $(addsuffix .run, $(asm_p_tests) $(asm_v_tests) $(bmarks)))

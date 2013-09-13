@@ -125,13 +125,6 @@ int main(int argc, char** argv)
       tile.Top__io_host_out_ready = LIT<1>(1);
     }
 
-  
-    if (tile.Top__io_debug_error_mode.lo_word())
-    {
-      failure = "entered error mode";
-      break;
-    }
-
     if (log)
       tile.print(stderr);
 

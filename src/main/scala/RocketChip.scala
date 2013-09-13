@@ -145,7 +145,6 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
 {
   implicit val tl = conf.tl
   val io = new Bundle {
-    val debug = new DebugIO()
     val host = new HostIO(htif_width)
     val mem = new ioMem
     val tiles = Vec.fill(conf.nTiles){new TileLinkIO}.flip
@@ -212,7 +211,6 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
 }
 
 class TopIO(htifWidth: Int) extends Bundle  {
-  val debug   = new DebugIO
   val host    = new HostIO(htifWidth)
   val mem     = new ioMem
 }
@@ -259,7 +257,6 @@ class Top extends Module {
   val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
   val uncore = Module(new Uncore(HTIF_WIDTH, tileList))
 
-  var error_mode = Bool(false)
   for (i <- 0 until uc.nTiles) {
     val hl = uncore.io.htif(i)
     val tl = uncore.io.tiles(i)
@@ -270,11 +267,11 @@ class Top extends Module {
     tile.io.tilelink <> tl
     il := hl.reset
     tile.io.host.reset := Reg(next=Reg(next=hl.reset))
-    tile.io.host.pcr_req <> Queue(hl.pcr_req)
-    hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
-    hl.ipi_req <> Queue(tile.io.host.ipi_req)
-    tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
-    error_mode = error_mode || Reg(next=tile.io.host.debug.error_mode)
+    tile.io.host.pcr_req <> Queue(hl.pcr_req, 1)
+    tile.io.host.id := i
+    hl.pcr_rep <> Queue(tile.io.host.pcr_rep, 1)
+    hl.ipi_req <> Queue(tile.io.host.ipi_req, 1)
+    tile.io.host.ipi_rep <> Queue(hl.ipi_rep, 1)
   }
 
   io.host <> uncore.io.host
@@ -286,5 +283,4 @@ class Top extends Module {
 
   io.mem_backup_en <> uncore.io.mem_backup_en
   io.mem <> uncore.io.mem
-  io.debug.error_mode := error_mode
 }
