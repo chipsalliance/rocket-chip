@@ -6,7 +6,7 @@ import Util._
 
 case class RocketConfiguration(tl: TileLinkConfiguration,
                                icache: ICacheConfig, dcache: DCacheConfig,
-                               fpu: Boolean, vec: Boolean,
+                               fpu: Boolean, rocc: Option[RoCC] = None,
                                fastLoadWord: Boolean = true,
                                fastLoadByte: Boolean = false,
                                fastMulDiv: Boolean = true)
@@ -20,7 +20,7 @@ case class RocketConfiguration(tl: TileLinkConfiguration,
 
 class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = resetSignal) with ClientCoherenceAgent
 {
-  val memPorts = 2 + confIn.vec
+  val memPorts = 2
   val dcachePortId = 0
   val icachePortId = 1
   val vicachePortId = 2
@@ -38,14 +38,23 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   val core = Module(new Core)
   val icache = Module(new Frontend)
   val dcache = Module(new HellaCache)
+  val ptw = Module(new PTW(2))
 
-  val arbiter = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(memPorts))
-  arbiter.io.in(dcachePortId) <> dcache.io.mem
-  arbiter.io.in(icachePortId) <> icache.io.mem
+  val dcacheArb = Module(new HellaCacheArbiter(2 + !conf.rocc.isEmpty))
+  dcacheArb.io.requestor(0) <> ptw.io.mem
+  dcacheArb.io.requestor(1) <> core.io.dmem
+  dcache.io.cpu <> dcacheArb.io.mem
 
-  io.tilelink.acquire <> arbiter.io.out.acquire
-  arbiter.io.out.grant <> io.tilelink.grant
-  io.tilelink.grant_ack <> arbiter.io.out.grant_ack
+  ptw.io.requestor(0) <> icache.io.cpu.ptw
+  ptw.io.requestor(1) <> dcache.io.cpu.ptw
+
+  val memArb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(memPorts))
+  memArb.io.in(dcachePortId) <> dcache.io.mem
+  memArb.io.in(icachePortId) <> icache.io.mem
+
+  io.tilelink.acquire <> memArb.io.out.acquire
+  memArb.io.out.grant <> io.tilelink.grant
+  io.tilelink.grant_ack <> memArb.io.out.grant_ack
   dcache.io.mem.probe <> io.tilelink.probe
   io.tilelink.release.data <> dcache.io.mem.release.data
   io.tilelink.release.meta.valid   := dcache.io.mem.release.meta.valid
@@ -53,13 +62,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   io.tilelink.release.meta.bits := dcache.io.mem.release.meta.bits
   io.tilelink.release.meta.bits.payload.client_xact_id :=  Cat(dcache.io.mem.release.meta.bits.payload.client_xact_id, UInt(dcachePortId, log2Up(memPorts))) // Mimic client id extension done by UncachedTileLinkIOArbiter for Acquires from either client)
 
-  if (conf.vec) {
-    val vicache = Module(new Frontend()(ICacheConfig(128, 1), tlConf)) // 128 sets x 1 ways (8KB)
-    arbiter.io.in(vicachePortId) <> vicache.io.mem
-    core.io.vimem <> vicache.io.cpu
-  }
-
   core.io.host <> io.host
   core.io.imem <> icache.io.cpu
-  core.io.dmem <> dcache.io.cpu
+  core.io.ptw <> ptw.io.dpath
 }
