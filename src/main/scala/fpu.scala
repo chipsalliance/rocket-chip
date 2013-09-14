@@ -245,7 +245,7 @@ class FPToInt extends Module
   }
 
   io.out.valid := valid
-  io.out.bits.store := Mux(in.single, Cat(unrec_s, unrec_s), unrec_d)
+  io.out.bits.store := Mux(in.single, Cat(unrec_d(63,32), unrec_s), unrec_d)
   io.out.bits.lt := dcmp.io.a_lt_b
 }
 
