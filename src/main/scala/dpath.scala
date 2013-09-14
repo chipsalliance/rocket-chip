@@ -14,6 +14,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     val ptw = (new DatapathPTWIO).flip
     val imem  = new CPUFrontendIO()(conf.icache)
     val fpu = new DpathFPUIO
+    val rocc = new RoCCInterface().flip
   }
 
   // execute definitions
@@ -39,8 +40,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val mem_reg_wdata = Reg(Bits())
   val mem_reg_kill = Reg(Bool())
   val mem_reg_store_data = Reg(Bits())
-  val mem_reg_rs1 = Reg(Bits())
-  val mem_reg_rs2 = Reg(Bits())
   
   // writeback definitions
   val wb_reg_pc = Reg(UInt())
@@ -49,8 +48,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val wb_reg_wdata = Reg(Bits())
   val wb_reg_ll_wb = Reg(init=Bool(false))
   val wb_wdata = Bits()
-  val wb_reg_store_data = Reg(Bits())
-  val wb_reg_rs1 = Reg(Bits())
   val wb_reg_rs2 = Reg(Bits())
   val wb_wen = io.ctrl.wb_wen && io.ctrl.wb_valid || wb_reg_ll_wb
 
@@ -235,8 +232,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     mem_reg_pc := ex_reg_pc
     mem_reg_inst := ex_reg_inst
     mem_reg_wdata := ex_wdata
-    mem_reg_rs1 := ex_rs1
-    mem_reg_rs2 := ex_rs2
     when (io.ctrl.ex_rs2_val) {
       mem_reg_store_data := StoreGen(io.ctrl.ex_mem_type, Bits(0), ex_rs2).data
     }
@@ -255,8 +250,19 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   mem_ll_wdata := div.io.resp.bits.data
   io.ctrl.mem_ll_waddr := div.io.resp.bits.tag
   io.ctrl.mem_ll_wb := div.io.resp.valid && !io.ctrl.mem_wen
+  if (!conf.rocc.isEmpty) {
+    io.rocc.resp.ready := !io.ctrl.mem_wen && !io.ctrl.mem_rocc_val
+    when (io.rocc.resp.fire()) {
+      div.io.resp.ready := Bool(false)
+      mem_ll_wdata := io.rocc.resp.bits.data
+      io.ctrl.mem_ll_waddr := io.rocc.resp.bits.rd
+      io.ctrl.mem_ll_wb := Bool(true)
+    }
+  }
   when (dmem_resp_replay) {
     div.io.resp.ready := Bool(false)
+    if (!conf.rocc.isEmpty)
+      io.rocc.resp.ready := Bool(false)
     mem_ll_wdata := io.dmem.resp.bits.data_subword
     io.ctrl.mem_ll_waddr := dmem_resp_waddr
     io.ctrl.mem_ll_wb := Bool(true)
@@ -274,11 +280,9 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     wb_reg_waddr := io.ctrl.mem_waddr
     wb_reg_inst := mem_reg_inst
     wb_reg_wdata := Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data, mem_reg_wdata)
-    wb_reg_rs1 := mem_reg_rs1
-    wb_reg_rs2 := mem_reg_rs2
-    when (io.ctrl.mem_rs2_val) {
-      wb_reg_store_data := mem_reg_store_data
-    }
+  }
+  when (io.ctrl.mem_rocc_val) {
+    wb_reg_rs2 := Bits(0)//mem_reg_rs2
   }
   wb_reg_ll_wb := io.ctrl.mem_ll_wb
   when (io.ctrl.mem_ll_wb) {
@@ -301,6 +305,10 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   pcr.io.rw.cmd  := io.ctrl.pcr
   pcr.io.rw.wdata := wb_reg_wdata
 
+  io.rocc.cmd.bits.inst := new RoCCInstruction().fromBits(wb_reg_inst)
+  io.rocc.cmd.bits.rs1 := wb_reg_wdata
+  io.rocc.cmd.bits.rs2 := wb_reg_rs2
+
   // hook up I$
   io.imem.req.bits.currentpc := ex_reg_pc
   io.imem.req.bits.pc :=
@@ -311,7 +319,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   printf("C: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] %s\n",
          tsc_reg(32,0), io.ctrl.wb_valid, wb_reg_pc,
          Mux(wb_wen, wb_reg_waddr, UInt(0)), wb_wdata,
-         wb_reg_inst(26,22), wb_reg_rs1,
-         wb_reg_inst(21,17), wb_reg_rs2,
+         wb_reg_inst(26,22), Reg(next=Reg(next=ex_rs1)),
+         wb_reg_inst(21,17), Reg(next=Reg(next=ex_rs2)),
          wb_reg_inst, Disassemble(wb_reg_inst))
 }
