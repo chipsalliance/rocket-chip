@@ -66,12 +66,6 @@ class RandomReplacement(implicit conf: DCacheConfig) extends ReplacementPolicy
   def hit = {}
 }
 
-object StoreGen
-{
-  def apply(r: HellaCacheReq) = new StoreGen(r.typ, r.addr, r.data)
-  def apply(typ: Bits, addr: Bits, data: Bits = Bits(0)) = new StoreGen(typ, addr, data)
-}
-
 class StoreGen(typ: Bits, addr: Bits, dat: Bits)
 {
   val byte = typ === MT_B || typ === MT_BU
@@ -85,13 +79,15 @@ class StoreGen(typ: Bits, addr: Bits, dat: Bits)
   def data =
     Mux(byte, Fill(8, dat( 7,0)),
     Mux(half, Fill(4, dat(15,0)),
+                      wordData))
+  lazy val wordData =
     Mux(word, Fill(2, dat(31,0)),
-                      dat)))
+                      dat)
 }
 
 class LoadGen(typ: Bits, addr: Bits, dat: Bits)
 {
-  val t = StoreGen(typ, addr, dat)
+  val t = new StoreGen(typ, addr, dat)
   val sign = typ === MT_B || typ === MT_H || typ === MT_W || typ === MT_D
 
   val wordShift = Mux(addr(2), dat(63,32), dat(31,0))
@@ -658,6 +654,8 @@ class AMOALU(implicit conf: DCacheConfig) extends Module {
   }
 
   require(conf.databits == 64)
+  val storegen = new StoreGen(io.typ, io.addr, io.rhs)
+  val rhs = storegen.wordData
   
   val sgned = io.cmd === M_XA_MIN || io.cmd === M_XA_MAX
   val max = io.cmd === M_XA_MAX || io.cmd === M_XA_MAXU
@@ -665,24 +663,24 @@ class AMOALU(implicit conf: DCacheConfig) extends Module {
   val word = io.typ === MT_W || io.typ === MT_WU || io.typ === MT_B || io.typ === MT_BU
 
   val mask = SInt(-1,64) ^ (io.addr(2) << 31)
-  val adder_out = (io.lhs & mask).toUInt + (io.rhs & mask)
+  val adder_out = (io.lhs & mask).toUInt + (rhs & mask)
 
   val cmp_lhs  = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
-  val cmp_rhs  = Mux(word && !io.addr(2), io.rhs(31), io.rhs(63))
-  val lt_lo = io.lhs(31,0) < io.rhs(31,0)
-  val lt_hi = io.lhs(63,32) < io.rhs(63,32)
-  val eq_hi = io.lhs(63,32) === io.rhs(63,32)
+  val cmp_rhs  = Mux(word && !io.addr(2), rhs(31), rhs(63))
+  val lt_lo = io.lhs(31,0) < rhs(31,0)
+  val lt_hi = io.lhs(63,32) < rhs(63,32)
+  val eq_hi = io.lhs(63,32) === rhs(63,32)
   val lt = Mux(word, Mux(io.addr(2), lt_hi, lt_lo), lt_hi || eq_hi && lt_lo)
   val less = Mux(cmp_lhs === cmp_rhs, lt, Mux(sgned, cmp_lhs, cmp_rhs))
 
   val out = Mux(io.cmd === M_XA_ADD, adder_out,
-            Mux(io.cmd === M_XA_AND, io.lhs & io.rhs,
-            Mux(io.cmd === M_XA_OR,  io.lhs | io.rhs,
-            Mux(io.cmd === M_XA_XOR, io.lhs ^ io.rhs,
+            Mux(io.cmd === M_XA_AND, io.lhs & rhs,
+            Mux(io.cmd === M_XA_OR,  io.lhs | rhs,
+            Mux(io.cmd === M_XA_XOR, io.lhs ^ rhs,
             Mux(Mux(less, min, max), io.lhs,
-            io.rhs)))))
+            storegen.data)))))
 
-  val wmask = FillInterleaved(8, StoreGen(io.typ, io.addr).mask)
+  val wmask = FillInterleaved(8, storegen.mask)
   io.out := wmask & out | ~wmask & io.lhs
 }
 

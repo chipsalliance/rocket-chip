@@ -39,7 +39,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val mem_reg_inst = Reg(Bits())
   val mem_reg_wdata = Reg(Bits())
   val mem_reg_kill = Reg(Bool())
-  val mem_reg_store_data = Reg(Bits())
+  val mem_reg_rs2 = Reg(Bits())
   
   // writeback definitions
   val wb_reg_pc = Reg(UInt())
@@ -190,7 +190,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
   io.dmem.req.bits.addr := Cat(vaSign(ex_rs1, alu.io.adder_out), alu.io.adder_out(VADDR_BITS-1,0)).toUInt
-  io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_store_data)
+  io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
   io.dmem.req.bits.tag := Cat(io.ctrl.ex_waddr, io.ctrl.ex_fp_val)
   require(io.dmem.req.bits.tag.getWidth >= 6)
 
@@ -233,7 +233,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     mem_reg_inst := ex_reg_inst
     mem_reg_wdata := ex_wdata
     when (io.ctrl.ex_rs2_val) {
-      mem_reg_store_data := StoreGen(io.ctrl.ex_mem_type, Bits(0), ex_rs2).data
+      mem_reg_rs2 := ex_rs2
     }
   }
   
@@ -282,7 +282,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     wb_reg_wdata := Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data, mem_reg_wdata)
   }
   when (io.ctrl.mem_rocc_val) {
-    wb_reg_rs2 := Bits(0)//mem_reg_rs2
+    wb_reg_rs2 := mem_reg_rs2
   }
   wb_reg_ll_wb := io.ctrl.mem_ll_wb
   when (io.ctrl.mem_ll_wb) {
