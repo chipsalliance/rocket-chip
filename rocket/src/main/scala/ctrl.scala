@@ -37,7 +37,8 @@ class CtrlDpathIO extends Bundle()
   val wb_valid = Bool(OUTPUT)
   val ex_mem_type = Bits(OUTPUT, 3)
   val ex_rs2_val = Bool(OUTPUT)
-  val mem_rs2_val = Bool(OUTPUT)
+  val ex_rocc_val = Bool(OUTPUT)
+  val mem_rocc_val = Bool(OUTPUT)
   val mem_ll_bypass_rs1 = Bool(OUTPUT)
   val mem_ll_bypass_rs2 = Bool(OUTPUT)
   // exception handling
@@ -317,6 +318,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     val xcpt_dtlb_ld = Bool(INPUT)
     val xcpt_dtlb_st = Bool(INPUT)
     val fpu = new CtrlFPUIO
+    val rocc = new RoCCInterface().flip
   }
 
   var decode_table = XDecode.table
@@ -376,6 +378,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val wb_reg_pcr             = Reg(init=PCR.N)
   val wb_reg_wen             = Reg(init=Bool(false))
   val wb_reg_fp_wen          = Reg(init=Bool(false))
+  val wb_reg_rocc_val        = Reg(init=Bool(false))
   val wb_reg_flush_inst      = Reg(init=Bool(false))
   val wb_reg_mem_val         = Reg(init=Bool(false))
   val wb_reg_eret            = Reg(init=Bool(false))
@@ -416,9 +419,11 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_amo_aq = io.dpath.inst(16)
   val id_amo_rl = io.dpath.inst(15)
   val id_fence_next = id_fence || id_amo && id_amo_rl
-  val id_fence_ok = io.dmem.ordered && !ex_reg_mem_val
+  val id_rocc_busy = io.rocc.busy || ex_reg_rocc_val || mem_reg_rocc_val || wb_reg_rocc_val
+  val id_fence_ok = io.dmem.ordered && !ex_reg_mem_val &&
+    (Bool(conf.rocc.isEmpty) || !id_rocc_busy)
   id_reg_fence := id_fence_next || id_reg_fence && !id_fence_ok
-  val id_do_fence = id_amo && id_amo_aq || id_reg_fence && id_mem_val || id_pcr_flush
+  val id_do_fence = id_amo && id_amo_aq || id_reg_fence && (id_mem_val || id_rocc_val) || id_pcr_flush
 
   val (id_xcpt, id_cause) = checkExceptions(List(
     (id_interrupt,                            id_interrupt_cause),
@@ -549,6 +554,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     wb_reg_mem_val     := Bool(false)
     wb_reg_div_mul_val := Bool(false);
     wb_reg_fp_val      := Bool(false)
+    wb_reg_rocc_val := Bool(false)
   }
   .otherwise {
     wb_reg_valid       := mem_reg_valid
@@ -560,9 +566,11 @@ class Control(implicit conf: RocketConfiguration) extends Module
     wb_reg_mem_val     := mem_reg_mem_val
     wb_reg_div_mul_val := mem_reg_div_mul_val
     wb_reg_fp_val      := mem_reg_fp_val
+    wb_reg_rocc_val := mem_reg_rocc_val
   }
 
-  val replay_wb = io.dmem.resp.bits.nack || wb_reg_replay || io.dpath.pcr_replay
+  val replay_wb = io.dmem.resp.bits.nack || wb_reg_replay ||
+    io.dpath.pcr_replay || Bool(!conf.rocc.isEmpty) && wb_reg_rocc_val && !io.rocc.cmd.ready
 
   class Scoreboard(n: Int)
   {
@@ -708,7 +716,8 @@ class Control(implicit conf: RocketConfiguration) extends Module
   io.dpath.ex_mem_type := ex_reg_mem_type
   io.dpath.ex_br_type := ex_reg_br_type
   io.dpath.ex_rs2_val := ex_reg_mem_val && isWrite(ex_reg_mem_cmd) || ex_reg_rocc_val
-  io.dpath.mem_rs2_val := mem_reg_rocc_val
+  io.dpath.ex_rocc_val := ex_reg_rocc_val
+  io.dpath.mem_rocc_val := mem_reg_rocc_val
 
   io.fpu.valid := !ctrl_killd && id_fp_val
   io.fpu.killx := ctrl_killx
@@ -719,4 +728,6 @@ class Control(implicit conf: RocketConfiguration) extends Module
   io.dmem.req.bits.cmd  := ex_reg_mem_cmd
   io.dmem.req.bits.typ  := ex_reg_mem_type
   io.dmem.req.bits.phys := Bool(false)
+
+  io.rocc.cmd.valid := wb_reg_rocc_val
 }

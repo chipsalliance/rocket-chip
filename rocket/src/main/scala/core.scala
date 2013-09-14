@@ -10,6 +10,7 @@ class RocketIO(implicit conf: RocketConfiguration) extends Bundle
   val imem = new CPUFrontendIO()(conf.icache)
   val dmem = new HellaCacheIO()(conf.dcache)
   val ptw = new DatapathPTWIO().flip
+  val rocc = new RoCCInterface().flip
 }
 
 class Core(implicit conf: RocketConfiguration) extends Module
@@ -18,6 +19,15 @@ class Core(implicit conf: RocketConfiguration) extends Module
    
   val ctrl  = Module(new Control)
   val dpath = Module(new Datapath)
+
+  val fpu: FPU = if (conf.fpu) {
+    val fpu = Module(new FPU(4,6))
+    dpath.io.fpu <> fpu.io.dpath
+    ctrl.io.fpu <> fpu.io.ctrl
+    fpu.io.sfma.valid := Bool(false) // hook these up to coprocessor?
+    fpu.io.dfma.valid := Bool(false)
+    fpu
+  } else null
 
   ctrl.io.dpath <> dpath.io.ctrl
   dpath.io.host <> io.host
@@ -30,12 +40,6 @@ class Core(implicit conf: RocketConfiguration) extends Module
 
   dpath.io.ptw <> io.ptw
 
-  val fpu: FPU = if (conf.fpu) {
-    val fpu = Module(new FPU(4,6))
-    dpath.io.fpu <> fpu.io.dpath
-    ctrl.io.fpu <> fpu.io.ctrl
-    fpu.io.sfma.valid := Bool(false) // hook these up to coprocessor?
-    fpu.io.dfma.valid := Bool(false)
-    fpu
-  } else null
+  ctrl.io.rocc <> io.rocc
+  dpath.io.rocc <> io.rocc
 }
