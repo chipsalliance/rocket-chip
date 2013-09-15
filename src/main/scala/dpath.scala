@@ -317,10 +317,10 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     Mux(io.ctrl.sel_pc === PC_PCR, pcr.io.evec,
         wb_reg_pc)).toUInt // PC_WB
 
-  printf("C: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] %s\n",
+  printf("C: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          tsc_reg(32,0), io.ctrl.wb_valid, wb_reg_pc,
          Mux(wb_wen, wb_reg_waddr, UInt(0)), wb_wdata,
          wb_reg_inst(26,22), Reg(next=Reg(next=ex_rs1)),
          wb_reg_inst(21,17), Reg(next=Reg(next=ex_rs2)),
-         wb_reg_inst, Disassemble(wb_reg_inst))
+         wb_reg_inst, wb_reg_inst)
 }
