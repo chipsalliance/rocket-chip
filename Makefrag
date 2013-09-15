@@ -585,3 +585,9 @@ bs_matmul.riscv\
 bs_vvadd.riscv\
 bt_matmul.riscv\
 bt_vvadd.riscv\
+
+disasm := 2>
+which_disasm := $(shell which riscv-dis)
+ifneq ($(which_disasm),)
+	disasm := 3>&1 1>&2 2>&3 | $(which_disasm) >
+endif

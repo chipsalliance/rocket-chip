@@ -74,10 +74,10 @@ output:
 	mkdir -p $@
 
 output/%.run: output/%.hex emulator
-	./emulator +dramsim +max-cycles=30000000 +loadmem=$< none 2> /dev/null
+	./emulator +dramsim +max-cycles=30000000 +loadmem=$< none 2> /dev/null 2> $@
 
 output/%.out: output/%.hex emulator
-	./emulator +dramsim +max-cycles=30000000 +verbose +coremap-random +loadmem=$< none 2> $@
+	./emulator +dramsim +max-cycles=30000000 +verbose +coremap-random +loadmem=$< none $(disasm) $@
 
 output/%.vpd: output/%.hex emulator-debug
 	rm -rf $@.vcd && mkfifo $@.vcd
