@@ -94,7 +94,7 @@ class FPGATop extends Module {
   val dc = DCacheConfig(64, 1, ntlb = 4, nmshr = 2, nrpq = 16, nsdq = 17, states = co.nClientStates)
   val rc = RocketConfiguration(tl, ic, dc,
                                fastMulDiv = false,
-                               fpu = false, vec = false)
+                               fpu = false)
 
   val io = new FPGATopIO(htif_width)
 

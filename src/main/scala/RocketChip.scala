@@ -14,7 +14,6 @@ object DummyTopLevelConstants {
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
   val ENABLE_CLEAN_EXCLUSIVE = true
-  val HAS_VEC = false
   val HAS_FPU = true
   val NL2_REL_XACTS = 1
   val NL2_ACQ_XACTS = 7
@@ -249,7 +248,7 @@ class Top extends Module {
   val dc = DCacheConfig(128, 4, ntlb = 8, 
                         nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
   val rc = RocketConfiguration(tl, ic, dc,
-                               fpu = HAS_FPU, vec = HAS_VEC)
+                               fpu = HAS_FPU)
 
   val io = new VLSITopIO(HTIF_WIDTH)
 
