@@ -5,12 +5,13 @@ import Node._
 
 object DecodeLogic
 {
-  def term(b: Literal) = {
-    if (b.isZ) {
-      var (bits, mask, swidth) = Literal.parseLit(b.toString)
-      new Term(BigInt(bits, 2), BigInt(2).pow(b.width)-(BigInt(mask, 2)+1))
+  def term(b: Bits) = {
+    val lit = b.litOf
+    if (lit.isZ) {
+      var (bits, mask, swidth) = Literal.parseLit(lit.toString)
+      new Term(BigInt(bits, 2), BigInt(2).pow(lit.width)-(BigInt(mask, 2)+1))
     } else {
-      new Term(b.value)
+      new Term(lit.value)
     }
   }
   def logic(addr: Bits, addrWidth: Int, cache: scala.collection.mutable.Map[Term,Bits], terms: Seq[Term]) = {
@@ -24,18 +25,17 @@ object DecodeLogic
     var map = mapping
     var cache = scala.collection.mutable.Map[Term,Bits]()
     default map { d =>
-      val dlit = d.litOf
-      val dterm = term(dlit)
+      val dterm = term(d)
       val (keys, values) = map.unzip
       val addrWidth = keys.map(_.getWidth).max
-      val terms = keys.toList.map(k => term(k.litOf))
-      val termvalues = terms zip values.toList.map(v => term(v.head.litOf))
+      val terms = keys.toList.map(k => term(k))
+      val termvalues = terms zip values.toList.map(v => term(v.head))
 
-      for (t <- terms.tails; if !t.isEmpty)
+      for (t <- keys.zip(terms).tails; if !t.isEmpty)
         for (u <- t.tail)
-          assert(!t.head.intersects(u), "DecodeLogic: keys " + t + " and " + u + " overlap")
+          assert(!t.head._2.intersects(u._2), "DecodeLogic: keys " + t.head + " and " + u + " overlap")
 
-      val result = (0 until math.max(dlit.width, values.map(_.head.litOf.width).max)).map({ case (i: Int) =>
+      val result = (0 until math.max(d.litOf.width, values.map(_.head.litOf.width).max)).map({ case (i: Int) =>
         val mint = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 1 }.map(_._1)
         val maxt = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 0 }.map(_._1)
         val dc = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 1 }.map(_._1)

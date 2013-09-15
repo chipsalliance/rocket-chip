@@ -698,6 +698,7 @@ class HellaCacheResp(implicit val conf: DCacheConfig) extends DCacheBundle {
   val nack = Bool() // comes 2 cycles after req.fire
   val replay = Bool()
   val typ = Bits(width = 3)
+  val has_data = Bool()
   val data = Bits(width = conf.databits)
   val data_subword = Bits(width = conf.databits)
   val tag = Bits(width = conf.reqtagbits)
@@ -1027,15 +1028,96 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
     io.cpu.req.ready := Bool(false)
   }
 
-  val s2_do_resp = isRead(s2_req.cmd) || s2_sc
-  io.cpu.resp.valid  := s2_do_resp && (s2_replay || s2_valid_masked && s2_hit) && !s2_data_correctable
+  io.cpu.resp.valid  := (s2_replay || s2_valid_masked && s2_hit) && !s2_data_correctable
   io.cpu.resp.bits.nack := s2_valid && s2_nack
   io.cpu.resp.bits := s2_req
-  io.cpu.resp.bits.replay := s2_replay && s2_do_resp
+  io.cpu.resp.bits.has_data := isRead(s2_req.cmd) || s2_sc
+  io.cpu.resp.bits.replay := s2_replay
   io.cpu.resp.bits.data := loadgen.word
   io.cpu.resp.bits.data_subword := Mux(s2_sc, s2_sc_fail, loadgen.byte)
   io.cpu.resp.bits.store_data := s2_req.data
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
 
   io.mem.grant_ack <> mshrs.io.mem_finish
+}
+
+// exposes a sane decoupled request interface
+class SimpleHellaCacheIF(implicit conf: DCacheConfig) extends Module
+{
+  val io = new Bundle {
+    val requestor = new HellaCacheIO().flip
+    val cache = new HellaCacheIO
+  }
+
+  val replaying_cmb = Bool()
+  val replaying = Reg(next = replaying_cmb, init = Bool(false))
+  replaying_cmb := replaying
+
+  val replayq1 = Module(new Queue(new HellaCacheReq, 1, flow = true))
+  val replayq2 = Module(new Queue(new HellaCacheReq, 1))
+  val req_arb = Module(new Arbiter(new HellaCacheReq, 2))
+
+  req_arb.io.in(0) <> replayq1.io.deq
+  req_arb.io.in(1).valid := !replaying_cmb && io.requestor.req.valid
+  req_arb.io.in(1).bits := io.requestor.req.bits
+  io.requestor.req.ready := !replaying_cmb && req_arb.io.in(1).ready
+
+  val s2_nack = io.cache.resp.bits.nack
+  val s3_nack = Reg(next=s2_nack)
+
+  val s0_req_fire = io.cache.req.fire()
+  val s1_req_fire = Reg(next=s0_req_fire)
+  val s2_req_fire = Reg(next=s1_req_fire)
+
+  io.cache.req.bits.kill := s2_nack
+  io.cache.req.bits.phys := Bool(true)
+  io.cache.req.bits.data := RegEnable(req_arb.io.out.bits.data, s0_req_fire)
+  io.cache.req <> req_arb.io.out
+
+  // replay queues
+  // replayq1 holds the older request
+  // replayq2 holds the newer request (for the first nack)
+  // we need to split the queues like this for the case where the older request
+  // goes through but gets nacked, while the newer request stalls
+  // if this happens, the newer request will go through before the older
+  // request
+  // we don't need to check replayq1.io.enq.ready and replayq2.io.enq.ready as
+  // there will only be two requests going through at most
+
+  // stash d$ request in stage 2 if nacked (older request)
+  replayq1.io.enq.valid := Bool(false)
+  replayq1.io.enq.bits.cmd := io.cache.resp.bits.cmd
+  replayq1.io.enq.bits.typ := io.cache.resp.bits.typ
+  replayq1.io.enq.bits.addr := io.cache.resp.bits.addr
+  replayq1.io.enq.bits.data := io.cache.resp.bits.store_data
+  replayq1.io.enq.bits.tag := io.cache.resp.bits.tag
+
+  // stash d$ request in stage 1 if nacked (newer request)
+  replayq2.io.enq.valid := s2_req_fire && s3_nack
+  replayq2.io.enq.bits.data := io.cache.resp.bits.store_data
+  replayq2.io.enq.bits <> io.cache.resp.bits
+  replayq2.io.deq.ready := Bool(false)
+
+  when (s2_nack) {
+    replayq1.io.enq.valid := Bool(true)
+    replaying_cmb := Bool(true)
+  }
+
+  // when replaying request got sunk into the d$
+  when (s2_req_fire && Reg(next=Reg(next=replaying_cmb)) && !s2_nack) {
+    // see if there's a stashed request in replayq2
+    when (replayq2.io.deq.valid) {
+      replayq1.io.enq.valid := Bool(true)
+      replayq1.io.enq.bits.cmd := replayq2.io.deq.bits.cmd
+      replayq1.io.enq.bits.typ := replayq2.io.deq.bits.typ
+      replayq1.io.enq.bits.addr := replayq2.io.deq.bits.addr
+      replayq1.io.enq.bits.data := replayq2.io.deq.bits.data
+      replayq1.io.enq.bits.tag := replayq2.io.deq.bits.tag
+      replayq2.io.deq.ready := Bool(true)
+    } .otherwise {
+      replaying_cmb := Bool(false)
+    }
+  }
+
+  io.requestor.resp := io.cache.resp
 }
