@@ -6,7 +6,7 @@ import Util._
 
 case class RocketConfiguration(tl: TileLinkConfiguration,
                                icache: ICacheConfig, dcache: DCacheConfig,
-                               fpu: Boolean, rocc: Option[RoCC] = None,
+                               fpu: Boolean, rocc: Option[RocketConfiguration => RoCC] = None,
                                fastLoadWord: Boolean = true,
                                fastLoadByte: Boolean = false,
                                fastMulDiv: Boolean = true)
@@ -23,7 +23,6 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   val memPorts = 2
   val dcachePortId = 0
   val icachePortId = 1
-  val vicachePortId = 2
   implicit val tlConf = confIn.tl
   implicit val lnConf = confIn.tl.ln
   implicit val icConf = confIn.icache
@@ -48,6 +47,18 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   ptw.io.requestor(0) <> icache.io.cpu.ptw
   ptw.io.requestor(1) <> dcache.io.cpu.ptw
 
+  if (!conf.rocc.isEmpty) {
+    val dcIF = Module(new SimpleHellaCacheIF)
+    val rocc = Module((conf.rocc.get)(conf))
+    dcIF.io.requestor <> rocc.io.mem
+    core.io.rocc <> rocc.io
+    dcacheArb.io.requestor(2) <> dcIF.io.cache
+  }
+
+  core.io.host <> io.host
+  core.io.imem <> icache.io.cpu
+  core.io.ptw <> ptw.io.dpath
+
   val memArb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(memPorts))
   memArb.io.in(dcachePortId) <> dcache.io.mem
   memArb.io.in(icachePortId) <> icache.io.mem
@@ -61,8 +72,4 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   dcache.io.mem.release.meta.ready := io.tilelink.release.meta.ready
   io.tilelink.release.meta.bits := dcache.io.mem.release.meta.bits
   io.tilelink.release.meta.bits.payload.client_xact_id :=  Cat(dcache.io.mem.release.meta.bits.payload.client_xact_id, UInt(dcachePortId, log2Up(memPorts))) // Mimic client id extension done by UncachedTileLinkIOArbiter for Acquires from either client)
-
-  core.io.host <> io.host
-  core.io.imem <> icache.io.cpu
-  core.io.ptw <> ptw.io.dpath
 }

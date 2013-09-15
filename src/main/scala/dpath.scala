@@ -244,7 +244,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
   val dmem_resp_fpu =  io.dmem.resp.bits.tag(0).toBool
   val dmem_resp_waddr = io.dmem.resp.bits.tag.toUInt >> UInt(1)
-  val dmem_resp_replay = io.dmem.resp.bits.replay && dmem_resp_xpu
+  val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
+  val dmem_resp_replay = io.dmem.resp.bits.replay && io.dmem.resp.bits.has_data
 
   val mem_ll_wdata = Bits()
   mem_ll_wdata := div.io.resp.bits.data
@@ -259,7 +260,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
       io.ctrl.mem_ll_wb := Bool(true)
     }
   }
-  when (dmem_resp_replay) {
+  when (dmem_resp_replay && dmem_resp_xpu) {
     div.io.resp.ready := Bool(false)
     if (!conf.rocc.isEmpty)
       io.rocc.resp.ready := Bool(false)
@@ -269,7 +270,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   }
   when (io.ctrl.mem_ll_waddr === UInt(0)) { io.ctrl.mem_ll_wb := Bool(false) }
 
-  io.fpu.dmem_resp_val := io.dmem.resp.valid && dmem_resp_fpu
+  io.fpu.dmem_resp_val := dmem_resp_valid && dmem_resp_fpu
   io.fpu.dmem_resp_data := io.dmem.resp.bits.data
   io.fpu.dmem_resp_type := io.dmem.resp.bits.typ
   io.fpu.dmem_resp_tag := dmem_resp_waddr
@@ -297,7 +298,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ctrl.wb_waddr := wb_reg_waddr
 
   // scoreboard clear (for div/mul and D$ load miss writebacks)
-  io.ctrl.fp_sboard_clr  := io.dmem.resp.bits.replay && dmem_resp_fpu
+  io.ctrl.fp_sboard_clr  := dmem_resp_replay && dmem_resp_fpu
   io.ctrl.fp_sboard_clra := dmem_resp_waddr
 
 	// processor control regfile write

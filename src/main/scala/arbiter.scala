@@ -39,6 +39,7 @@ class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Modu
     val tag_hit = io.mem.resp.bits.tag(log2Up(n)-1,0) === UInt(i)
     resp.valid := io.mem.resp.valid && tag_hit
     io.requestor(i).xcpt := io.mem.xcpt
+    io.requestor(i).ordered := io.mem.ordered
     resp.bits := io.mem.resp.bits
     resp.bits.tag := io.mem.resp.bits.tag >> UInt(log2Up(n))
     resp.bits.nack := io.mem.resp.bits.nack && tag_hit

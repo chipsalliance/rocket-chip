@@ -282,25 +282,25 @@ object RoCCDecode extends DecodeConstants
     CUSTOM0->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM0_RS1->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM0_RS1_RS2->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    CUSTOM0->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM0_RD->        List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM0_RD_RS1->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM0_RD_RS1_RS2->List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM1->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM1_RS1->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM1_RS1_RS2->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    CUSTOM1->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM1_RD->        List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM1_RD_RS1->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM1_RD_RS1_RS2->List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM2->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM2_RS1->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM2_RS1_RS2->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    CUSTOM2->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM2_RD->        List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM2_RD_RS1->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM2_RD_RS1_RS2->List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM3->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM3_RS1->       List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM3_RS1_RS2->   List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    CUSTOM3->           List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    CUSTOM3_RD->        List(Y,    N,Y,BR_N,  N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM3_RD_RS1->    List(Y,    N,Y,BR_N,  N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     CUSTOM3_RD_RS1_RS2->List(Y,    N,Y,BR_N,  N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N))
 }
@@ -639,7 +639,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.ex_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.ex_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.ex_waddr)
-  val id_ex_hazard = data_hazard_ex && (ex_reg_pcr != PCR.N || ex_reg_mem_val || ex_reg_div_mul_val || ex_reg_fp_val) ||
+  val id_ex_hazard = data_hazard_ex && (ex_reg_pcr != PCR.N || ex_reg_mem_val || ex_reg_div_mul_val || ex_reg_fp_val || ex_reg_rocc_val) ||
                      fp_data_hazard_ex && (ex_reg_mem_val || ex_reg_fp_val)
     
   // stall for RAW/WAW hazards on PCRs, LB/LH, and mul/div in memory stage.
@@ -655,7 +655,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.mem_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.mem_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.mem_waddr)
-  val id_mem_hazard = data_hazard_mem && (mem_reg_pcr != PCR.N || mem_reg_mem_val && mem_mem_cmd_bh || mem_reg_div_mul_val || mem_reg_fp_val) ||
+  val id_mem_hazard = data_hazard_mem && (mem_reg_pcr != PCR.N || mem_reg_mem_val && mem_mem_cmd_bh || mem_reg_div_mul_val || mem_reg_fp_val || mem_reg_rocc_val) ||
                       fp_data_hazard_mem && mem_reg_fp_val
   id_load_use := mem_reg_mem_val && (data_hazard_mem || fp_data_hazard_mem)
 
@@ -669,7 +669,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.wb_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.wb_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.wb_waddr)
-  val id_wb_hazard = data_hazard_wb && (wb_dcache_miss || wb_reg_div_mul_val) ||
+  val id_wb_hazard = data_hazard_wb && (wb_dcache_miss || wb_reg_div_mul_val || wb_reg_rocc_val) ||
                      fp_data_hazard_wb && (wb_dcache_miss || wb_reg_fp_val)
 
   io.dpath.mem_ll_bypass_rs1 := io.dpath.mem_ll_wb && io.dpath.mem_ll_waddr === id_raddr1
