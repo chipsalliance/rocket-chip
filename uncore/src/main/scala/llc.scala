@@ -466,7 +466,7 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
   val ram_addr = Reg(Bits())
   val ram_out_valid = Reg(Bool())
   ram_out_valid := Bool(false)
-  when (do_enq) { ram(enq_ptr) := io.enq.bits.toBits }
+  when (do_enq) { ram(enq_ptr) := io.enq.bits }
   when (io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)) {
     ram_out_valid := Bool(true)
     ram_addr := Mux(io.deq.valid, deq_ptr + UInt(1), deq_ptr)
