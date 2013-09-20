@@ -14,7 +14,7 @@ object DummyTopLevelConstants {
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
   val ENABLE_CLEAN_EXCLUSIVE = true
-  val HAS_FPU = true
+  val HAS_FPU = false
   val NL2_REL_XACTS = 1
   val NL2_ACQ_XACTS = 7
   val NMSHRS = 2
@@ -28,6 +28,7 @@ object ReferenceChipBackend {
 
 class ReferenceChipBackend extends VerilogBackend
 {
+  initMap.clear()
   override def emitPortDef(m: MemAccess, idx: Int) = {
     val res = new StringBuilder()
     for (node <- m.mem.inputs) {
@@ -52,7 +53,9 @@ class ReferenceChipBackend extends VerilogBackend
         initMap(c)
       } else {
         isNewPin = true
-        Bool(INPUT)
+        val res = Bool(INPUT)
+        res.isIo = true
+        res
       }
 
     p.inputs += compInitPin
@@ -68,6 +71,7 @@ class ReferenceChipBackend extends VerilogBackend
 
   def addTopLevelPin(c: Module) = {
     val init = Bool(INPUT)
+    init.isIo = true
     init.setName("init")
     init.component = c
     c.io.asInstanceOf[Bundle] += init
@@ -76,6 +80,7 @@ class ReferenceChipBackend extends VerilogBackend
 
   transforms += ((c: Module) => addTopLevelPin(c))
   transforms += ((c: Module) => addMemPin(c))
+  transforms += ((c: Module) => collectNodesIntoComp(initializeDFS))
 }
 
 class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
@@ -92,8 +97,8 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
 
   val llc_tag_leaf = Mem(Bits(width = 152), 512, seqRead = true)
   val llc_data_leaf = Mem(Bits(width = 64), 4096, seqRead = true)
-  val llc = Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, tagLeaf=llc_tag_leaf, dataLeaf=llc_data_leaf))
-  //val llc = Module(new DRAMSideLLCNull(NL2_REL_XACTS+NL2_ACQ_XACTS, REFILL_CYCLES))
+  //val llc = Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, tagLeaf=llc_tag_leaf, dataLeaf=llc_data_leaf))
+  val llc = Module(new DRAMSideLLCNull(NL2_REL_XACTS+NL2_ACQ_XACTS, REFILL_CYCLES))
   val mem_serdes = Module(new MemSerdes(htif_width))
 
   require(clientEndpoints.length == ln.nClients)
