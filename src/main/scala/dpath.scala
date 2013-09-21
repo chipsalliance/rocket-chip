@@ -59,8 +59,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   def readRF(a: UInt) = regfile_(~a)
   def writeRF(a: UInt, d: Bits) = regfile_(~a) := d
 
-  val id_raddr1 = id_inst(26,22).toUInt;
-  val id_raddr2 = id_inst(21,17).toUInt;
+  val id_raddr1 = id_inst(19,15).toUInt;
+  val id_raddr2 = id_inst(24,20).toUInt;
 
   // bypass muxes
   val id_rs1_zero = id_raddr1 === UInt(0)
@@ -79,18 +79,18 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
 
   // immediate generation
   def imm(sel: Bits, inst: Bits) = {
-    val sign = inst(10).toSInt
-    val b30_20 = Mux(sel === IMM_U, inst(21,11).toSInt, sign)
-    val b19_12 = Mux(sel != IMM_U && sel != IMM_UJ, sign,
-                 Cat(inst(9,7), inst(26,22)).toSInt)
+    val sign = inst(31).toSInt
+    val b30_20 = Mux(sel === IMM_U, inst(30,20).toSInt, sign)
+    val b19_12 = Mux(sel != IMM_U && sel != IMM_UJ, sign, inst(19,12).toSInt)
     val b11 = Mux(sel === IMM_U, SInt(0),
-              Mux(sel === IMM_SB || sel === IMM_UJ, inst(11).toSInt, sign))
-    val b10_6 = Mux(sel === IMM_S || sel === IMM_SB, inst(31,27),
-                Mux(sel === IMM_U, Bits(0), inst(21,17)))
-    val b5_1 = Mux(sel === IMM_U, Bits(0), inst(16,12))
-    val b0 = Mux(sel === IMM_I || sel === IMM_S, inst(11), Bits(0))
+              Mux(sel === IMM_UJ, inst(20).toSInt,
+              Mux(sel === IMM_SB, inst(7).toSInt, sign)))
+    val b10_5 = Mux(sel === IMM_U, Bits(0), inst(30,25))
+    val b4_1 = Mux(sel === IMM_U, Bits(0),
+               Mux(sel === IMM_S || sel === IMM_SB, inst(11,8), inst(24,21)))
+    val b0 = Mux(sel === IMM_S, inst(7), Mux(sel === IMM_I, inst(20), Bits(0)))
     
-    Cat(sign, b30_20, b19_12, b11, b10_6, b5_1, b0).toSInt
+    Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).toSInt
   }
 
   io.ctrl.inst := id_inst
@@ -125,8 +125,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     }
   }
 
-  val ex_raddr1 = ex_reg_inst(26,22)
-  val ex_raddr2 = ex_reg_inst(21,17)
+  val ex_raddr1 = ex_reg_inst(19,15)
+  val ex_raddr2 = ex_reg_inst(24,20)
 
   val dmem_resp_data = if (conf.fastLoadByte) io.dmem.resp.bits.data_subword else io.dmem.resp.bits.data
   val ex_rs1 =
@@ -134,7 +134,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UInt(2), wb_reg_wdata,
     Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UInt(1), mem_reg_wdata,
     Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UInt(0), Bits(0),
-    Mux(ex_reg_sel_alu1 === A1_ZERO,                     Bits(0),
+    Mux(AVec(A1_ZERO, A1_PCHI) contains ex_reg_sel_alu1, Bits(0),
     Cat(ex_reg_rs1_msb, ex_reg_rs1_lsb))))))
   val ex_rs2 =
     Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UInt(3) && Bool(conf.fastLoadWord), dmem_resp_data,
@@ -144,7 +144,9 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     Cat(ex_reg_rs2_msb, ex_reg_rs2_lsb)))))
 
   val ex_imm = imm(ex_reg_sel_imm, ex_reg_inst)
-  val ex_op1 = Mux(ex_reg_sel_alu1 === A1_PC, ex_reg_pc.toSInt, ex_rs1)
+  val ex_op1_hi = Mux(AVec(A1_PC, A1_PCHI) contains ex_reg_sel_alu1, ex_reg_pc >> 12, ex_rs1 >> 12).toSInt
+  val ex_op1_lo = Mux(ex_reg_sel_alu1 === A1_PC, ex_reg_pc(11,0), ex_rs1(11,0)).toSInt
+  val ex_op1 = Cat(ex_op1_hi, ex_op1_lo)
   val ex_op2 = Mux(ex_reg_sel_alu2 === A2_RS2,  ex_rs2.toSInt,
                Mux(ex_reg_sel_alu2 === A2_IMM,  ex_imm,
                Mux(ex_reg_sel_alu2 === A2_ZERO, SInt(0),
@@ -170,7 +172,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ctrl.div_mul_rdy := div.io.req.ready
   
   io.fpu.fromint_data := ex_rs1
-  io.ctrl.ex_waddr := ex_reg_inst(31,27)
+  io.ctrl.ex_waddr := ex_reg_inst(11,7)
 
   def vaSign(a0: UInt, ea: Bits) = {
     // efficient means to compress 64-bit VA into VADDR_BITS+1 bits
@@ -207,7 +209,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ptw.status := pcr.io.status
   
 	// branch resolution logic
-  io.ctrl.jalr_eq := ex_rs1 === id_pc.toSInt && ex_reg_inst(21,10) === UInt(0)
+  io.ctrl.jalr_eq := ex_rs1 === id_pc.toSInt && ex_reg_inst(31,20) === UInt(0)
   io.ctrl.ex_br_taken :=
     Mux(io.ctrl.ex_br_type === BR_EQ,  ex_rs1 === ex_rs2,
     Mux(io.ctrl.ex_br_type === BR_NE,  ex_rs1 !=  ex_rs2,
@@ -238,7 +240,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   }
   
   // for load/use hazard detection (load byte/halfword)
-  io.ctrl.mem_waddr := mem_reg_inst(31,27)
+  io.ctrl.mem_waddr := mem_reg_inst(11,7)
 
   // writeback arbitration
   val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
@@ -302,7 +304,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ctrl.fp_sboard_clra := dmem_resp_waddr
 
 	// processor control regfile write
-  pcr.io.rw.addr := wb_reg_inst(26,22).toUInt
+  pcr.io.rw.addr := wb_reg_inst(19,15).toUInt
   pcr.io.rw.cmd  := io.ctrl.pcr
   pcr.io.rw.wdata := wb_reg_wdata
 
@@ -320,7 +322,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   printf("C: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          tsc_reg(32,0), io.ctrl.wb_valid, wb_reg_pc,
          Mux(wb_wen, wb_reg_waddr, UInt(0)), wb_wdata,
-         wb_reg_inst(26,22), Reg(next=Reg(next=ex_rs1)),
-         wb_reg_inst(21,17), Reg(next=Reg(next=ex_rs2)),
+         wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs1)),
+         wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs2)),
          wb_reg_inst, wb_reg_inst)
 }

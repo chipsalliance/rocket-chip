@@ -100,7 +100,7 @@ object XDecode extends DecodeConstants
                                         
     JAL->       List(Y,    N,N,BR_J,  N,N,N,A2_FOUR,A1_PC,  IMM_UJ,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     JALR->      List(Y,    N,N,BR_N,  Y,N,Y,A2_FOUR,A1_PC,  IMM_I, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
-    AUIPC->     List(Y,    N,N,BR_N,  N,N,N,A2_IMM, A1_PC,  IMM_U, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
+    AUIPC->     List(Y,    N,N,BR_N,  N,N,N,A2_IMM, A1_PCHI,IMM_U, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
                                         
     LB->        List(Y,    N,N,BR_N,  N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_XPR,FN_ADD,   Y,M_XRD,    MT_B, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
     LH->        List(Y,    N,N,BR_N,  N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_XPR,FN_ADD,   Y,M_XRD,    MT_H, N,N,Y,WB_ALU,PCR.N,N,N,N,N,N,N,N),
@@ -189,7 +189,7 @@ object XDecode extends DecodeConstants
     CLEARPCR->  List(Y,    N,N,BR_N,  N,N,N,A2_IMM, A1_ZERO,IMM_I, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.C,N,N,N,Y,N,N,N),
     ERET->      List(Y,    N,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WB_X,  PCR.N,N,Y,N,Y,N,N,N),
     FENCE->     List(Y,    N,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WB_X,  PCR.N,N,N,N,N,N,Y,N),
-    FENCE_I->   List(Y,    N,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WB_X,  PCR.N,Y,N,N,N,Y,Y,N),
+    FENCE_I->   List(Y,    N,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,WB_X,  PCR.N,Y,N,N,N,Y,N,N),
     MFPCR->     List(Y,    N,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,WB_X,  PCR.F,N,N,N,Y,N,N,N),
     MTPCR->     List(Y,    N,N,BR_N,  N,Y,N,A2_RS2, A1_ZERO,IMM_I, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,WB_ALU,PCR.T,N,N,N,Y,N,N,N),
     RDTIME->    List(Y,    N,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_XPR,FN_X,     N,M_X,      MT_X, N,N,Y,WB_TSC,PCR.N,N,N,N,N,N,N,N),
@@ -395,11 +395,11 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val ctrl_killx = Bool()
   val ctrl_killm = Bool()
 
-  val id_raddr3 = io.dpath.inst(16,12)
-  val id_raddr2 = io.dpath.inst(21,17)
-  val id_raddr1 = io.dpath.inst(26,22)
-  val id_waddr  = io.dpath.inst(31,27)
-  val id_load_use = Bool();
+  val id_raddr3 = io.dpath.inst(31,27)
+  val id_raddr2 = io.dpath.inst(24,20)
+  val id_raddr1 = io.dpath.inst(19,15)
+  val id_waddr  = io.dpath.inst(11,7)
+  val id_load_use = Bool()
   val id_reg_fence = Reg(init=Bool(false))
 
   val sr = io.dpath.status
@@ -416,14 +416,14 @@ class Control(implicit conf: RocketConfiguration) extends Module
     id_raddr1 != PCR.SUP0 && id_raddr1 != PCR.SUP1 && id_raddr1 != PCR.EPC
 
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
-  val id_amo_aq = io.dpath.inst(16)
-  val id_amo_rl = io.dpath.inst(15)
+  val id_amo_aq = io.dpath.inst(26)
+  val id_amo_rl = io.dpath.inst(25)
   val id_fence_next = id_fence || id_amo && id_amo_rl
   val id_rocc_busy = io.rocc.busy || ex_reg_rocc_val || mem_reg_rocc_val || wb_reg_rocc_val
   val id_fence_ok = io.dmem.ordered && !ex_reg_mem_val &&
     (Bool(conf.rocc.isEmpty) || !id_rocc_busy)
   id_reg_fence := id_fence_next || id_reg_fence && !id_fence_ok
-  val id_do_fence = id_amo && id_amo_aq || id_reg_fence && (id_mem_val || id_rocc_val) || id_pcr_flush
+  val id_do_fence = id_amo && id_amo_aq || id_fence_i || id_reg_fence && (id_mem_val || id_rocc_val) || id_pcr_flush
 
   val (id_xcpt, id_cause) = checkExceptions(List(
     (id_interrupt,                            id_interrupt_cause),
