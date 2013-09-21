@@ -479,10 +479,10 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val regfile = Mem(Bits(width = 65), 32)
   when (load_wb) { regfile(load_wb_tag) := load_wb_data_recoded }
 
-  val ex_rs1 = regfile(ex_reg_inst(26,22))
-  val ex_rs2 = regfile(ex_reg_inst(21,17))
-  val ex_rs3 = regfile(ex_reg_inst(16,12))
-  val ex_rm = Mux(ex_reg_inst(11,9) === Bits(7), fsr_rm, ex_reg_inst(11,9))
+  val ex_rs1 = regfile(ex_reg_inst(19,15))
+  val ex_rs2 = regfile(ex_reg_inst(24,20))
+  val ex_rs3 = regfile(ex_reg_inst(31,27))
+  val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), fsr_rm, ex_reg_inst(14,12))
 
   val fpiu = Module(new FPToInt)
   fpiu.io.in.valid := ex_reg_valid && ctrl.toint
@@ -552,7 +552,7 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val (write_port_busy, mem_winfo) = (Reg(Bool()), Reg(Bits()))
   when (ex_reg_valid) {
     write_port_busy := mem_wen && (memLatencyMask & latencyMask(ctrl, 1)).orR || (wen & latencyMask(ctrl, 0)).orR
-    mem_winfo := Cat(pipeid(ctrl), ex_reg_inst(31,27))
+    mem_winfo := Cat(pipeid(ctrl), ex_reg_inst(11,7))
   }
 
   for (i <- 0 until maxLatency-2) {
