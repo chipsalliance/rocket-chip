@@ -14,7 +14,7 @@ object DummyTopLevelConstants {
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
   val ENABLE_CLEAN_EXCLUSIVE = true
-  val HAS_FPU = false
+  val HAS_FPU = true
   val NL2_REL_XACTS = 1
   val NL2_ACQ_XACTS = 7
   val NMSHRS = 2
@@ -97,8 +97,8 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
 
   val llc_tag_leaf = Mem(Bits(width = 152), 512, seqRead = true)
   val llc_data_leaf = Mem(Bits(width = 64), 4096, seqRead = true)
-  //val llc = Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, tagLeaf=llc_tag_leaf, dataLeaf=llc_data_leaf))
-  val llc = Module(new DRAMSideLLCNull(NL2_REL_XACTS+NL2_ACQ_XACTS, REFILL_CYCLES))
+  val llc = Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, tagLeaf=llc_tag_leaf, dataLeaf=llc_data_leaf))
+  //val llc = Module(new DRAMSideLLCNull(NL2_REL_XACTS+NL2_ACQ_XACTS, REFILL_CYCLES))
   val mem_serdes = Module(new MemSerdes(htif_width))
 
   require(clientEndpoints.length == ln.nClients)
