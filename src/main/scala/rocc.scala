@@ -6,13 +6,13 @@ import uncore._
 
 class RoCCInstruction extends Bundle
 {
-  val rd = Bits(width = 5)
-  val rs1 = Bits(width = 5)
-  val rs2 = Bits(width = 5)
   val funct = Bits(width = 7)
+  val rs2 = Bits(width = 5)
+  val rs1 = Bits(width = 5)
   val xd = Bool()
   val xs1 = Bool()
   val xs2 = Bool()
+  val rd = Bits(width = 5)
   val opcode = Bits(width = 7)
 }
 
