@@ -91,16 +91,23 @@ class AccumulatorExample(conf: RocketConfiguration) extends RoCC(conf)
   val stallLoad = doLoad && !io.mem.req.ready
   val stallResp = doResp && !io.resp.ready
 
-  cmd.ready := !stallReg && !stallLoad && !stallResp
+  val loadSent = Reg(init=Bool(false))
+  when(cmd.fire()) { loadSent := Bool(false) }.elsewhen(io.mem.req.fire()) {loadSent := Bool(true)}
+    // This ensures that, even if we hold a command at the queue, it is only processed once
 
-  io.resp.valid := cmd.valid && doResp && !stallReg && !stallLoad
+  cmd.ready := !stallReg && !stallLoad && !stallResp && (!doLoad || !doResp || loadSent)
+    // command resolved if no stalls AND not issuing a load that will need a request
+    // note, loadSent = true will occur when the load response comes back
+
+  io.resp.valid := cmd.valid && doResp && !stallReg && !stallLoad && (!doLoad || loadSent)
+    // valid response if valid command, need a response, no stalls on needed reg AND not issuing a load
   io.resp.bits.rd := cmd.bits.inst.rd
   io.resp.bits.data := accum
 
   io.busy := Bool(false)
   io.interrupt := Bool(false)
 
-  io.mem.req.valid := cmd.valid && doLoad && !stallReg && !stallResp
+  io.mem.req.valid := cmd.valid && doLoad && !stallReg && !stallResp && !loadSent
   io.mem.req.bits.addr := addend
   io.mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
   io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
