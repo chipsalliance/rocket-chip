@@ -95,16 +95,21 @@ class AccumulatorExample(conf: RocketConfiguration) extends RoCC(conf)
 
   cmd.ready := !stallReg && !stallLoad && !stallResp
     // command resolved if no stalls AND not issuing a load that will need a request
-    // note, loadSent = true will occur when the load response comes back
 
+  // PROC RESPONSE INTERFACE
   io.resp.valid := cmd.valid && doResp && !stallReg && !stallLoad
     // valid response if valid command, need a response, and no stalls
   io.resp.bits.rd := cmd.bits.inst.rd
-  io.resp.bits.data := accum // Semantics is to always send out prior accumulator register value
+    // Must respond with the appropriate tag or undefined behavior
+  io.resp.bits.data := accum
+    // Semantics is to always send out prior accumulator register value
 
-  io.busy := Bool(false)
+  io.busy := cmd.valid || busy.reduce(_||_)
+    // Be busy when have pending memory requests or committed possibility of pending requests
   io.interrupt := Bool(false)
+    // Set this true to trigger an interrupt on the processor (please refer to supervisor documentation)
 
+  // MEMORY REQUEST INTERFACE
   io.mem.req.valid := cmd.valid && doLoad && !stallReg && !stallResp
   io.mem.req.bits.addr := addend
   io.mem.req.bits.tag := addr
