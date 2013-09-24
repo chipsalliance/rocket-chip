@@ -47,6 +47,8 @@ class RoCCInterface(implicit conf: RocketConfiguration) extends Bundle
 abstract class RoCC(conf: RocketConfiguration) extends Module
 {
   val io = new RoCCInterface()(conf)
+
+  io.mem.req.bits.phys := Bool(true) // don't perform address translation
 }
 
 class AccumulatorExample(conf: RocketConfiguration) extends RoCC(conf)
@@ -109,5 +111,4 @@ class AccumulatorExample(conf: RocketConfiguration) extends RoCC(conf)
   io.mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
   io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
-  io.mem.req.bits.phys := Bool(true) // don't perform address translation
 }
