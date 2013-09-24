@@ -595,7 +595,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   }
 
   val sboard = new Scoreboard(32)
-  sboard.set((wb_reg_div_mul_val || wb_dcache_miss) && io.dpath.wb_wen, io.dpath.wb_waddr)
+  sboard.set((wb_reg_div_mul_val || wb_dcache_miss || wb_reg_rocc_val) && io.dpath.wb_wen, io.dpath.wb_waddr)
   sboard.clear(io.dpath.mem_ll_wb, io.dpath.mem_ll_waddr)
 
   val id_stall_fpu = if (conf.fpu) {
