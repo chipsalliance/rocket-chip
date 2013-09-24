@@ -7,6 +7,7 @@ import Util._
 case class RocketConfiguration(tl: TileLinkConfiguration,
                                icache: ICacheConfig, dcache: DCacheConfig,
                                fpu: Boolean, rocc: Option[RocketConfiguration => RoCC] = None,
+                               vm: Boolean = true,
                                fastLoadWord: Boolean = true,
                                fastLoadByte: Boolean = false,
                                fastMulDiv: Boolean = true)

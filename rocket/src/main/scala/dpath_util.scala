@@ -242,6 +242,7 @@ class PCR(implicit conf: RocketConfiguration) extends Module
       reg_status.s64 := true
       reg_status.u64 := true
       reg_status.zero := 0
+      if (!conf.vm) reg_status.vm := false
       if (conf.rocc.isEmpty) reg_status.er := false
       if (!conf.fpu) reg_status.ef := false
     }
