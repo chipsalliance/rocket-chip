@@ -212,6 +212,8 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
   hio.io.in_fast.ready := Mux(hio.io.in_fast.bits(htif_width), Bool(true), htif.io.host.in.ready)
   io.host.clk := hio.io.clk_slow
   io.host.clk_edge := Reg(next=io.host.clk && !Reg(next=io.host.clk))
+
+  io.host.debug_stats_pcr := htif.io.host.debug_stats_pcr
 }
 
 class TopIO(htifWidth: Int) extends Bundle  {
@@ -276,6 +278,7 @@ class Top extends Module {
     hl.pcr_rep <> Queue(tile.io.host.pcr_rep, 1)
     hl.ipi_req <> Queue(tile.io.host.ipi_req, 1)
     tile.io.host.ipi_rep <> Queue(hl.ipi_rep, 1)
+    hl.debug_stats_pcr := tile.io.host.debug_stats_pcr
   }
 
   io.host <> uncore.io.host
