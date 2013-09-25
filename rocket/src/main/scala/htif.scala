@@ -11,6 +11,7 @@ class HostIO(val w: Int) extends Bundle
   val clk_edge = Bool(OUTPUT)
   val in = Decoupled(Bits(width = w)).flip
   val out = Decoupled(Bits(width = w))
+  val debug_stats_pcr = Bool(OUTPUT)
 }
 
 class PCRReq extends Bundle
@@ -28,6 +29,9 @@ class HTIFIO(ntiles: Int) extends Bundle
   val pcr_rep = Decoupled(Bits(width = 64))
   val ipi_req = Decoupled(Bits(width = log2Up(ntiles)))
   val ipi_rep = Decoupled(Bool()).flip
+  val debug_stats_pcr = Bool(OUTPUT)
+    // wired directly to stats register
+    // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work
 }
 
 class SCRIO(n: Int) extends Bundle
@@ -48,6 +52,9 @@ class RocketHTIF(w: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extend
     val mem = new TileLinkIO
     val scr = new SCRIO(nSCR)
   }
+
+  io.host.debug_stats_pcr := io.cpu.map(_.debug_stats_pcr).reduce(_||_)
+    // system is 'interesting' if any tile is 'interesting'
 
   val short_request_bits = 64
   val long_request_bits = 576

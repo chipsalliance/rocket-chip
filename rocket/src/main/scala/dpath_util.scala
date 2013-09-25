@@ -133,7 +133,6 @@ class PCR(implicit conf: RocketConfiguration) extends Module
     val irq_timer = Bool(OUTPUT)
     val irq_ipi = Bool(OUTPUT)
     val replay = Bool(OUTPUT)
-    val stats = Bool(OUTPUT)
   }
   import PCR._
  
@@ -171,6 +170,8 @@ class PCR(implicit conf: RocketConfiguration) extends Module
     host_pcr_bits.data := io.rw.rdata
   }
   when (io.host.pcr_rep.fire()) { host_pcr_rep_valid := false }
+  
+  io.host.debug_stats_pcr := reg_stats // direct export up the hierarchy
 
   val addr = Mux(io.rw.cmd != PCR.N, io.rw.addr, host_pcr_bits.addr)
   val wen = io.rw.cmd === PCR.T || io.rw.cmd === PCR.S || io.rw.cmd === PCR.C ||
@@ -183,7 +184,6 @@ class PCR(implicit conf: RocketConfiguration) extends Module
   io.fatc := wen && addr === FATC
   io.evec := Mux(io.exception, reg_evec.toSInt, reg_epc).toUInt
   io.ptbr := reg_ptbr
-  io.stats := reg_stats
 
   when (io.badvaddr_wen) {
     val wdata = io.rw.wdata
