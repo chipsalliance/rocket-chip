@@ -21,13 +21,14 @@ case class RocketConfiguration(tl: TileLinkConfiguration,
 
 class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = resetSignal) with ClientCoherenceAgent
 {
-  val memPorts = 2
+  val memPorts = 2 // Number of ports to outer memory system from tile: 1 from I$, 1 from D$
   val dcachePortId = 0
   val icachePortId = 1
+  val dcachePorts = 2 + !confIn.rocc.isEmpty // Number of ports into D$: 1 from core, 1 from PTW, maybe 1 from RoCC
   implicit val tlConf = confIn.tl
   implicit val lnConf = confIn.tl.ln
   implicit val icConf = confIn.icache
-  implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(memPorts), databits = confIn.xprlen)
+  implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(dcachePorts), databits = confIn.xprlen)
   implicit val conf = confIn.copy(dcache = dcConf)
 
   val io = new Bundle {
@@ -38,9 +39,9 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   val core = Module(new Core)
   val icache = Module(new Frontend)
   val dcache = Module(new HellaCache)
-  val ptw = Module(new PTW(2))
+  val ptw = Module(new PTW(2)) // 2 ports, 1 from I$, 1 from D$
 
-  val dcacheArb = Module(new HellaCacheArbiter(2 + !conf.rocc.isEmpty))
+  val dcacheArb = Module(new HellaCacheArbiter(dcachePorts))
   dcacheArb.io.requestor(0) <> ptw.io.mem
   dcacheArb.io.requestor(1) <> core.io.dmem
   dcache.io.cpu <> dcacheArb.io.mem
