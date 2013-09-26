@@ -15,20 +15,22 @@ object BuildSettings extends Build {
     scalaVersion := buildScalaVersion,
     traceLevel   := 15,
     scalacOptions ++= Seq("-deprecation","-unchecked"),
-    libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value,
-                            "edu.berkeley.cs" %% "chisel" % "2.1-SNAPSHOT",
-                            "edu.berkeley.cs" %% "hardfloat" % "1.2"),
-    resolvers ++= Seq(
-      "Sonatype Snapshots" at "http://oss.sonatype.org/content/repositories/snapshots",
-      "Sonatype Releases" at "http://oss.sonatype.org/content/repositories/releases",
-      "scct-github-repository" at "http://mtkopone.github.com/scct/maven-repo"
-    )
+    libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+    //                        "edu.berkeley.cs" %% "chisel" % "2.3-SNAPSHOT",
+    //                        "edu.berkeley.cs" %% "hardfloat" % "1.2"),
+    //resolvers ++= Seq(
+    //  "Sonatype Snapshots" at "http://oss.sonatype.org/content/repositories/snapshots",
+    //  "Sonatype Releases" at "http://oss.sonatype.org/content/repositories/releases",
+    //  "scct-github-repository" at "http://mtkopone.github.com/scct/maven-repo"
+    //)
   )
 
-  lazy val hwacha = Project("hwacha", file("hwacha"), settings = buildSettings)
-  lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings)
-  lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore,hwacha)
   lazy val referencechip = Project("referencechip", file("."), settings = buildSettings ++ chipSettings) dependsOn(rocket)
+  lazy val chisel = Project("chisel", file("chisel"), settings = buildSettings)
+  lazy val hardfloat = Project("hardfloat", file("hardfloat"), settings = buildSettings) dependsOn(chisel)
+  lazy val hwacha = Project("hwacha", file("hwacha"), settings = buildSettings) dependsOn(hardfloat)
+  lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(chisel)
+  lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore,hwacha)
 
   val elaborateTask = InputKey[Unit]("elaborate", "convert chisel components into backend source code")
   val makeTask = InputKey[Unit]("make", "trigger backend-specific makefile command")

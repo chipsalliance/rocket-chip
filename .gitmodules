@@ -10,3 +10,9 @@
 [submodule "rocket"]
 	path = rocket
 	url = git@github.com:ucb-bar/riscv-rocket.git
+[submodule "chisel"]
+	path = chisel
+	url = git@github.com:ucb-bar/chisel.git
+[submodule "hardfloat"]
+	path = hardfloat
+	url = git@github.com:ucb-bar/hardfloat.git
