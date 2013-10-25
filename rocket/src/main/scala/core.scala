@@ -21,7 +21,7 @@ class Core(implicit conf: RocketConfiguration) extends Module
   val dpath = Module(new Datapath)
 
   val fpu: FPU = if (conf.fpu) {
-    val fpu = Module(new FPU(4,6))
+    val fpu = Module(new FPU(2,3))
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
     fpu.io.sfma.valid := Bool(false) // hook these up to coprocessor?
