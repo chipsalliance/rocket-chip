@@ -80,16 +80,13 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
 
     val divisorMSB = Log2(divisor(w-1,0), w)
     val dividendMSB = Log2(remainder(w-1,0), w)
-    val eOutPos = UInt(w-1, log2Up(2*w)) + divisorMSB - dividendMSB
-    val eOut = count === UInt(0) && eOutPos > 0 && (divisorMSB != UInt(0) || divisor(0))
+    val eOutPos = UInt(w-1) + divisorMSB - dividendMSB
+    val eOutZero = divisorMSB > dividendMSB
+    val eOut = count === UInt(0) && (eOutPos > 0 || eOutZero) && (divisorMSB != UInt(0) || divisor(0))
     when (Bool(earlyOut) && eOut) {
-      val shift = eOutPos(log2Up(w)-1,0)
+      val shift = Mux(eOutZero, UInt(w-1), eOutPos)
       remainder := remainder(w-1,0) << shift
       count := shift
-      when (eOutPos(log2Up(w))) {
-        remainder := remainder(w-1,0) << w-1
-        count := w-1
-      }
     }
   }
   when (io.resp.fire() || io.kill) {
