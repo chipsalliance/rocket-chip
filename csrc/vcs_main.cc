@@ -106,10 +106,11 @@ void htif_init
   htif = new htif_emulator_t(args);
 }
 
-void htif_fini()
+void htif_fini(vc_handle failure)
 {
   delete htif;
   htif = NULL;
+  exit(vc_getScalar(failure));
 }
 
 void htif_tick

@@ -20,13 +20,12 @@ void handle_sigterm(int sig)
 int main(int argc, char** argv)
 {
   unsigned random_seed = (unsigned)time(NULL) ^ (unsigned)getpid();
-  uint64_t max_cycles = 0;
+  uint64_t max_cycles = -1;
   uint64_t trace_count = 0;
-  int start = 0;
+  int ret = 0;
   const char* vcd = NULL;
   const char* loadmem = NULL;
   FILE *vcdfile = NULL;
-  const char* failure = NULL;
   disassembler disasm;
   bool dramsim2 = false;
   bool log = false;
@@ -89,7 +88,7 @@ int main(int argc, char** argv)
     tile.clock_hi(LIT<1>(1));
   }
 
-  while (!htif->done())
+  while (!htif->done() && trace_count < max_cycles)
   {
     tile.Top__io_mem_req_cmd_ready = LIT<1>(mm->req_cmd_ready());
     tile.Top__io_mem_req_data_ready = LIT<1>(mm->req_data_ready());
@@ -133,24 +132,23 @@ int main(int argc, char** argv)
 
     tile.clock_hi(LIT<1>(0));
     trace_count++;
-
-    if (max_cycles != 0 && trace_count == max_cycles)
-    {
-      failure = "timeout";
-      break;
-    }
   }
 
   if (vcd)
     fclose(vcdfile);
 
-  delete htif;
-
-  if (failure)
+  if (htif->exit_code())
   {
-    fprintf(stderr, "*** FAILED *** (%s) after %lld cycles\n", failure, (long long)trace_count);
-    return -1;
+    fprintf(stderr, "*** FAILED *** (code = %d) after %lld cycles\n", htif->exit_code(), (long long)trace_count);
+    ret = htif->exit_code();
+  }
+  else if (trace_count == max_cycles)
+  {
+    fprintf(stderr, "*** FAILED *** (timeout) after %lld cycles\n", (long long)trace_count);
+    ret = 2;
   }
 
-  return 0;
+  delete htif;
+
+  return ret;
 }
