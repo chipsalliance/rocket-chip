@@ -25,12 +25,11 @@ object BuildSettings extends Build {
     //)
   )
 
-  lazy val referencechip = Project("referencechip", file("."), settings = buildSettings ++ chipSettings) dependsOn(rocket)
   lazy val chisel = Project("chisel", file("chisel"), settings = buildSettings)
   lazy val hardfloat = Project("hardfloat", file("hardfloat"), settings = buildSettings) dependsOn(chisel)
-  lazy val hwacha = Project("hwacha", file("hwacha"), settings = buildSettings) dependsOn(hardfloat)
-  lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(chisel)
-  lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore,hwacha)
+  lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(hardfloat)
+  lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore)
+  lazy val referencechip = Project("referencechip", file("."), settings = buildSettings ++ chipSettings) dependsOn(rocket)
 
   val elaborateTask = InputKey[Unit]("elaborate", "convert chisel components into backend source code")
   val makeTask = InputKey[Unit]("make", "trigger backend-specific makefile command")
