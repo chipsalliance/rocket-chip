@@ -310,7 +310,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
 
   when (!io.meta_read.ready) {
     rpq.io.deq.ready := Bool(false)
-    io.replay.bits.cmd := M_FENCE // NOP
+    io.replay.bits.cmd := M_NOP
   }
 }
 
@@ -751,7 +751,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
 
   val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
   val s2_req = Reg(io.cpu.req.bits.clone)
-  val s2_replay = Reg(next=s1_replay, init=Bool(false))
+  val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd != M_NOP
   val s2_recycle = Bool()
   val s2_valid_masked = Bool()
 
