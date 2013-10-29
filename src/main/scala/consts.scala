@@ -22,7 +22,7 @@ trait MemoryOpConstants {
   val M_PFR     = Bits("b00010"); // prefetch with intent to read
   val M_PFW     = Bits("b00011"); // prefetch with intent to write
   val M_XA_SWAP = Bits("b00100");
-  val M_FENCE   = Bits("b00101"); // memory fence
+  val M_NOP     = Bits("b00101");
   val M_XLR     = Bits("b00110");
   val M_XSC     = Bits("b00111");
   val M_XA_ADD  = Bits("b01000");
