@@ -254,8 +254,11 @@ class Top extends Module {
   val ic = ICacheConfig(128, 2, ntlb = 8, nbtb = 16)
   val dc = DCacheConfig(128, 4, ntlb = 8, 
                         nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
+  val hc = hwacha.HwachaConfiguration(8, 256)
   val rc = RocketConfiguration(tl, ic, dc,
-                               fpu = HAS_FPU)
+                               fpu = HAS_FPU,
+                               rocc = (c: RocketConfiguration) => (new hwacha.Hwacha(hc, c))
+                               )
 
   val io = new VLSITopIO(HTIF_WIDTH)
 
