@@ -50,11 +50,9 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   ptw.io.requestor(1) <> dcache.io.cpu.ptw
 
   if (!conf.rocc.isEmpty) {
-    val dcIF = Module(new SimpleHellaCacheIF)
     val rocc = Module((conf.rocc.get)(conf))
-    dcIF.io.requestor <> rocc.io.mem
     core.io.rocc <> rocc.io
-    dcacheArb.io.requestor(2) <> dcIF.io.cache
+    dcacheArb.io.requestor(2) <> rocc.io.mem
   }
 
   core.io.host <> io.host
