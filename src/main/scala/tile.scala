@@ -21,9 +21,10 @@ case class RocketConfiguration(tl: TileLinkConfiguration,
 
 class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = resetSignal) with ClientCoherenceAgent
 {
-  val memPorts = 2 // Number of ports to outer memory system from tile: 1 from I$, 1 from D$
+  val memPorts = 2 + !confIn.rocc.isEmpty // Number of ports to outer memory system from tile: 1 from I$, 1 from D$, maybe 1 from Rocc
   val dcachePortId = 0
   val icachePortId = 1
+  val roccPortId = 2
   val dcachePorts = 2 + !confIn.rocc.isEmpty // Number of ports into D$: 1 from core, 1 from PTW, maybe 1 from RoCC
   implicit val tlConf = confIn.tl
   implicit val lnConf = confIn.tl.ln
@@ -39,7 +40,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   val core = Module(new Core)
   val icache = Module(new Frontend)
   val dcache = Module(new HellaCache)
-  val ptw = Module(new PTW(2)) // 2 ports, 1 from I$, 1 from D$
+  val ptw = Module(new PTW(if (confIn.rocc.isEmpty) 2 else 5)) // 2 ports, 1 from I$, 1 from D$, maybe 3 from RoCC
 
   val dcacheArb = Module(new HellaCacheArbiter(dcachePorts))
   dcacheArb.io.requestor(0) <> ptw.io.mem
@@ -49,12 +50,6 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   ptw.io.requestor(0) <> icache.io.cpu.ptw
   ptw.io.requestor(1) <> dcache.io.cpu.ptw
 
-  if (!conf.rocc.isEmpty) {
-    val rocc = Module((conf.rocc.get)(conf))
-    core.io.rocc <> rocc.io
-    dcacheArb.io.requestor(2) <> rocc.io.mem
-  }
-
   core.io.host <> io.host
   core.io.imem <> icache.io.cpu
   core.io.ptw <> ptw.io.dpath
@@ -62,6 +57,16 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   val memArb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(memPorts))
   memArb.io.in(dcachePortId) <> dcache.io.mem
   memArb.io.in(icachePortId) <> icache.io.mem
+
+  if (!conf.rocc.isEmpty) {
+    val rocc = Module((conf.rocc.get)(conf))
+    core.io.rocc <> rocc.io
+    dcacheArb.io.requestor(2) <> rocc.io.mem
+    memArb.io.in(roccPortId) <> rocc.io.imem
+    ptw.io.requestor(2) <> rocc.io.iptw
+    ptw.io.requestor(3) <> rocc.io.dptw
+    ptw.io.requestor(4) <> rocc.io.pptw
+  }
 
   io.tilelink.acquire <> memArb.io.out.acquire
   memArb.io.out.grant <> io.tilelink.grant

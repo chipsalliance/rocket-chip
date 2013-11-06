@@ -38,6 +38,10 @@ class RoCCInterface(implicit conf: RocketConfiguration) extends Bundle
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
   val mem = new HellaCacheIO()(conf.dcache)
+  val imem = new UncachedTileLinkIO()(conf.tl)
+  val iptw = new TLBPTWIO
+  val dptw = new TLBPTWIO
+  val pptw = new TLBPTWIO
   val busy = Bool(OUTPUT)
   val interrupt = Bool(OUTPUT)
 
