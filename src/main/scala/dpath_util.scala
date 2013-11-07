@@ -3,6 +3,7 @@ package rocket
 import Chisel._
 import Util._
 import Node._
+import uncore.HTIFIO
 import uncore.constants.AddressConstants._
 import scala.math._
 
