@@ -13,6 +13,7 @@ object BuildSettings extends Build {
     organization := buildOrganization,
     version      := buildVersion,
     scalaVersion := buildScalaVersion,
+    parallelExecution in Global := false,
     traceLevel   := 15,
     scalacOptions ++= Seq("-deprecation","-unchecked"),
     libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
