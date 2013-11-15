@@ -3,6 +3,7 @@ package rocket
 import Chisel._
 import Instructions._
 import Util._
+import uncore.HTIFIO
 import uncore.constants.AddressConstants._
 
 class Datapath(implicit conf: RocketConfiguration) extends Module
