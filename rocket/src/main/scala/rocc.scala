@@ -42,6 +42,8 @@ class RoCCInterface(implicit conf: RocketConfiguration) extends Bundle
   val iptw = new TLBPTWIO
   val dptw = new TLBPTWIO
   val pptw = new TLBPTWIO
+  val cp_dfma = new ioFMA(65).flip
+  val cp_sfma = new ioFMA(33).flip
   val busy = Bool(OUTPUT)
   val interrupt = Bool(OUTPUT)
 

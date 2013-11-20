@@ -25,8 +25,6 @@ class Core(implicit conf: RocketConfiguration) extends Module
     val fpu = Module(new FPU(2,3))
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
-    fpu.io.sfma.valid := Bool(false) // hook these up to coprocessor?
-    fpu.io.dfma.valid := Bool(false)
     fpu
   } else null
 
@@ -43,4 +41,9 @@ class Core(implicit conf: RocketConfiguration) extends Module
 
   ctrl.io.rocc <> io.rocc
   dpath.io.rocc <> io.rocc
+
+  require(conf.fpu)
+  // Hookup the {S,D}FMA pipes
+  fpu.io.sfma <> io.rocc.cp_sfma
+  fpu.io.dfma <> io.rocc.cp_dfma
 }
