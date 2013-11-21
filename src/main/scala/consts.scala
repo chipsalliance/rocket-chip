@@ -54,6 +54,7 @@ trait AddressConstants {
   val PERM_BITS = 6;
 }
 
+object CacheConstants extends CacheConstants
 trait CacheConstants {
   val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 
   val OFFSET_BITS = log2Up(CACHE_DATA_SIZE_IN_BYTES)
