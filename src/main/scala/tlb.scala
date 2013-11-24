@@ -20,7 +20,7 @@ class CAMIO(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
 class RocketCAM(entries: Int, tag_bits: Int) extends Module {
   val addr_bits = ceil(log(entries)/log(2)).toInt;
   val io = new CAMIO(entries, addr_bits, tag_bits);
-  val cam_tags = Vec.fill(entries){Reg(Bits(width = tag_bits))}
+  val cam_tags = Mem(Bits(width = tag_bits), entries)
 
   val vb_array = Reg(init=Bits(0, entries))
   when (io.write) {
