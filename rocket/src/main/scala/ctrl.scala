@@ -459,7 +459,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   .otherwise {
     ex_reg_br_type     := id_br_type;
     ex_reg_jalr        := id_jalr
-    ex_reg_btb_hit     := io.imem.resp.bits.taken
+    ex_reg_btb_hit     := io.imem.resp.bits.taken && !id_jalr
     ex_reg_div_mul_val := id_mul_val || id_div_val
     ex_reg_mem_val     := id_mem_val.toBool;
     ex_reg_valid       := Bool(true)
@@ -484,9 +484,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val replay_ex_other = wb_dcache_miss && ex_reg_load_use || mem_reg_replay_next
   val replay_ex = replay_ex_structural || replay_ex_other
   ctrl_killx := take_pc_wb || replay_ex
-  val take_pc_ex = Mux(ex_reg_jalr,
-    !(ex_reg_btb_hit && io.dpath.jalr_eq) && !replay_ex_other,
-    ex_reg_btb_hit != io.dpath.ex_br_taken)
+  val take_pc_ex = ex_reg_jalr && !io.dpath.jalr_eq || io.dpath.ex_br_taken
   // detect 2-cycle load-use delay for LB/LH/SC
   val ex_slow_bypass = ex_reg_mem_cmd === M_XSC || AVec(MT_B, MT_BU, MT_H, MT_HU).contains(ex_reg_mem_type)
 
@@ -714,7 +712,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   io.dpath.pcr      := wb_reg_pcr.toUInt
   io.dpath.eret := wb_reg_eret
   io.dpath.ex_mem_type := ex_reg_mem_type
-  io.dpath.ex_br_type := ex_reg_br_type
+  io.dpath.ex_br_type := ex_reg_br_type ^ ex_reg_btb_hit
   io.dpath.ex_rs2_val := ex_reg_mem_val && isWrite(ex_reg_mem_cmd) || ex_reg_rocc_val
   io.dpath.ex_rocc_val := ex_reg_rocc_val
   io.dpath.mem_rocc_val := mem_reg_rocc_val
