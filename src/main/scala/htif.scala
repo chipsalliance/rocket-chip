@@ -196,6 +196,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
   io.mem.release.meta.valid := Bool(false)
   io.mem.release.data.valid := Bool(false)
 
+  val pcr_reset = UInt(pcr_RESET)(pcr_addr.getWidth-1,0)
   val pcrReadData = Reg(Bits(width = io.cpu(0).pcr_rep.bits.getWidth))
   for (i <- 0 until nTiles) {
     val my_reset = Reg(init=Bool(true))
@@ -203,7 +204,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
 
     val cpu = io.cpu(i)
     val me = pcr_coreid === UInt(i)
-    cpu.pcr_req.valid := state === state_pcr_req && me && pcr_addr != UInt(pcr_RESET)
+    cpu.pcr_req.valid := state === state_pcr_req && me && pcr_addr != pcr_reset
     cpu.pcr_req.bits.rw := cmd === cmd_writecr
     cpu.pcr_req.bits.addr := pcr_addr
     cpu.pcr_req.bits.data := pcr_wdata
@@ -223,7 +224,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
     when (cpu.pcr_req.valid && cpu.pcr_req.ready) {
       state := state_pcr_resp
     }
-    when (state === state_pcr_req && me && pcr_addr === UInt(pcr_RESET)) {
+    when (state === state_pcr_req && me && pcr_addr === pcr_reset) {
       when (cmd === cmd_writecr) {
         my_reset := pcr_wdata(0)
       }
