@@ -881,7 +881,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
       lrsc_count := 0
     }
   }
-  when (io.cpu.ptw.eret) { lrsc_count := 0 }
+  when (io.cpu.ptw.sret) { lrsc_count := 0 }
 
   val s2_data = Vec.fill(conf.ways){Bits(width = conf.bitsperrow)}
   for (w <- 0 until conf.ways) {
