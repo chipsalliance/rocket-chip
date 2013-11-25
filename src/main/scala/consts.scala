@@ -32,6 +32,7 @@ trait ScalarOpConstants {
   val IMM_U  = UInt(2, 3);
   val IMM_UJ = UInt(3, 3);
   val IMM_I  = UInt(4, 3);
+  val IMM_Z  = UInt(5, 3);
 
   val A2_X    = Bits("b??", 2)
   val A2_RS2  = UInt(0, 2)

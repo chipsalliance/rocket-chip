@@ -17,13 +17,13 @@ class TLBPTWIO extends Bundle {
 
   val status = new Status().asInput
   val invalidate = Bool(INPUT)
-  val eret = Bool(INPUT)
+  val sret = Bool(INPUT)
 }
 
 class DatapathPTWIO extends Bundle {
   val ptbr = UInt(INPUT, PADDR_BITS)
   val invalidate = Bool(INPUT)
-  val eret = Bool(INPUT)
+  val sret = Bool(INPUT)
   val status = new Status().asInput
 }
 
@@ -83,7 +83,7 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
     io.requestor(i).resp.bits.perm := r_pte(8,3)
     io.requestor(i).resp.bits.ppn := resp_ppn.toUInt
     io.requestor(i).invalidate := io.dpath.invalidate
-    io.requestor(i).eret := io.dpath.eret
+    io.requestor(i).sret := io.dpath.sret
     io.requestor(i).status := io.dpath.status
   }
 

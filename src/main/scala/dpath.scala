@@ -26,7 +26,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val ex_reg_sel_alu2 = Reg(UInt())
   val ex_reg_sel_alu1 = Reg(UInt())
   val ex_reg_sel_imm = Reg(UInt())
-  val ex_reg_ctrl_sel_wb = Reg(UInt())
   val ex_reg_kill = Reg(Bool())
   val ex_reg_rs1_bypass = Reg(Bool())
   val ex_reg_rs1_lsb = Reg(Bits())
@@ -50,7 +49,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val wb_reg_ll_wb = Reg(init=Bool(false))
   val wb_wdata = Bits()
   val wb_reg_rs2 = Reg(Bits())
-  val wb_wen = io.ctrl.wb_wen && io.ctrl.wb_valid || wb_reg_ll_wb
+  val wb_wen = io.ctrl.wb_wen || wb_reg_ll_wb
 
   // instruction decode stage
   val id_inst = io.imem.resp.bits.data
@@ -83,13 +82,16 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     val sign = inst(31).toSInt
     val b30_20 = Mux(sel === IMM_U, inst(30,20).toSInt, sign)
     val b19_12 = Mux(sel != IMM_U && sel != IMM_UJ, sign, inst(19,12).toSInt)
-    val b11 = Mux(sel === IMM_U, SInt(0),
+    val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
               Mux(sel === IMM_UJ, inst(20).toSInt,
               Mux(sel === IMM_SB, inst(7).toSInt, sign)))
-    val b10_5 = Mux(sel === IMM_U, Bits(0), inst(30,25))
+    val b10_5 = Mux(sel === IMM_U || sel === IMM_Z, Bits(0), inst(30,25))
     val b4_1 = Mux(sel === IMM_U, Bits(0),
-               Mux(sel === IMM_S || sel === IMM_SB, inst(11,8), inst(24,21)))
-    val b0 = Mux(sel === IMM_S, inst(7), Mux(sel === IMM_I, inst(20), Bits(0)))
+               Mux(sel === IMM_S || sel === IMM_SB, inst(11,8),
+               Mux(sel === IMM_Z, inst(19,16), inst(24,21))))
+    val b0 = Mux(sel === IMM_S, inst(7),
+             Mux(sel === IMM_I, inst(20),
+             Mux(sel === IMM_Z, inst(15), Bits(0))))
     
     Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).toSInt
   }
@@ -107,7 +109,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     ex_reg_sel_alu2 := io.ctrl.sel_alu2
     ex_reg_sel_alu1 := io.ctrl.sel_alu1
     ex_reg_sel_imm := io.ctrl.sel_imm
-    ex_reg_ctrl_sel_wb := io.ctrl.sel_wb
     ex_reg_rs1_bypass := id_rs1_bypass && io.ctrl.ren1
     ex_reg_rs2_bypass := id_rs2_bypass && io.ctrl.ren2
     when (io.ctrl.ren1) {
@@ -198,15 +199,16 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   require(io.dmem.req.bits.tag.getWidth >= 6)
 
 	// processor control regfile read
-  val pcr = Module(new PCR)
+  val pcr = Module(new CSRFile)
   pcr.io.host <> io.host
   pcr.io <> io.ctrl
+  pcr.io <> io.fpu
   pcr.io.pc := wb_reg_pc
-  io.ctrl.pcr_replay := pcr.io.replay
+  io.ctrl.csr_replay := pcr.io.replay
 
   io.ptw.ptbr := pcr.io.ptbr
   io.ptw.invalidate := pcr.io.fatc
-  io.ptw.eret := io.ctrl.eret
+  io.ptw.sret := io.ctrl.sret
   io.ptw.status := pcr.io.status
   
 	// branch resolution logic
@@ -220,21 +222,12 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     Mux(io.ctrl.ex_br_type === BR_GEU, ex_rs1 >= ex_rs2,
         io.ctrl.ex_br_type === BR_J))))))
 
-  val tsc_reg = WideCounter(64)
-  val irt_reg = WideCounter(64, io.ctrl.wb_valid)
-  
-	// writeback select mux
-  val ex_wdata =
-    Mux(ex_reg_ctrl_sel_wb === WB_TSC, tsc_reg.value,
-    Mux(ex_reg_ctrl_sel_wb === WB_IRT, irt_reg.value,
-        alu.io.out)).toBits // WB_ALU
-
   // memory stage
   mem_reg_kill := ex_reg_kill
   when (!ex_reg_kill) {
     mem_reg_pc := ex_reg_pc
     mem_reg_inst := ex_reg_inst
-    mem_reg_wdata := ex_wdata
+    mem_reg_wdata := alu.io.out
     when (io.ctrl.ex_rs2_val) {
       mem_reg_rs2 := ex_rs2
     }
@@ -294,7 +287,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     wb_reg_wdata := mem_ll_wdata
   }
   wb_wdata := Mux(io.ctrl.wb_load, io.dmem.resp.bits.data_subword,
-              Mux(io.ctrl.pcr != PCR.N, pcr.io.rw.rdata,
+              Mux(io.ctrl.csr != CSR.N, pcr.io.rw.rdata,
               wb_reg_wdata))
 
   when (wb_wen) { writeRF(wb_reg_waddr, wb_wdata) }
@@ -305,8 +298,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ctrl.fp_sboard_clra := dmem_resp_waddr
 
 	// processor control regfile write
-  pcr.io.rw.addr := wb_reg_inst(19,15).toUInt
-  pcr.io.rw.cmd  := io.ctrl.pcr
+  pcr.io.rw.addr := wb_reg_inst(31,20)
+  pcr.io.rw.cmd  := io.ctrl.csr
   pcr.io.rw.wdata := wb_reg_wdata
 
   io.rocc.cmd.bits.inst := new RoCCInstruction().fromBits(wb_reg_inst)
@@ -321,7 +314,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
         wb_reg_pc)).toUInt // PC_WB
 
   printf("C: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         tsc_reg(32,0), io.ctrl.wb_valid, wb_reg_pc,
+         pcr.io.time(32,0), io.ctrl.retire, wb_reg_pc,
          Mux(wb_wen, wb_reg_waddr, UInt(0)), wb_wdata,
          wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs1)),
          wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs2)),
