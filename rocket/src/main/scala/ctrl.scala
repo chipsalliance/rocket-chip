@@ -407,17 +407,22 @@ class Control(implicit conf: RocketConfiguration) extends Module
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
 
+  val fp_csrs = CSRs.fcsr :: CSRs.frm :: CSRs.fflags :: Nil
+  val legal_csrs = if (conf.fpu) CSRs.all.toSet else CSRs.all.toSet -- fp_csrs
+
   val id_csr_addr = io.dpath.inst(31,20)
   val id_csr_en = id_csr != CSR.N
-  val id_csr_ren = id_raddr1 === UInt(0) && Vec(CSR.S, CSR.C).contains(id_csr)
-  val id_csr_privileged =
-    id_csr_addr(9,8) != UInt(0) && id_csr_ren ||
-    id_csr_addr(11,10) != UInt(0) && id_csr_en
-  val id_csr_invalid = id_csr_en &&
-    !Vec(CSRs.all.map(a => UInt(a))).contains(id_csr_addr)
+  val id_csr_fp = Bool(conf.fpu) && id_csr_en && DecodeLogic(id_csr_addr, fp_csrs, CSRs.all.toSet -- fp_csrs)
+  val id_csr_wen = id_raddr1 != UInt(0) || !Vec(CSR.S, CSR.C).contains(id_csr)
+  val id_csr_privileged = id_csr_en &&
+    (id_csr_addr(9,8) != UInt(0) ||
+     id_csr_addr(11,10) != UInt(0) && id_csr_wen)
+  val id_csr_invalid = id_csr_en && !Vec(legal_csrs.map(UInt(_))).contains(id_csr_addr)
   // flush pipeline on CSR writes that may have side effects
-  val id_csr_flush = id_csr_en && !id_csr_ren &&
-    id_csr_addr != CSRs.sup0 && id_csr_addr != CSRs.sup1 && id_csr_addr != CSRs.epc
+  val id_csr_flush = {
+    val safe_csrs = CSRs.sup0 :: CSRs.sup1 :: CSRs.epc :: Nil
+    id_csr_en && id_csr_wen && DecodeLogic(id_csr_addr, legal_csrs -- safe_csrs, safe_csrs)
+  }
   val id_privileged = id_sret || id_csr_privileged
 
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
@@ -431,14 +436,14 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_do_fence = id_amo && id_amo_aq || id_fence_i || id_reg_fence && (id_mem_val || id_rocc_val) || id_csr_flush
 
   val (id_xcpt, id_cause) = checkExceptions(List(
-    (id_interrupt,                            id_interrupt_cause),
-    (io.imem.resp.bits.xcpt_ma,               UInt(0)),
-    (io.imem.resp.bits.xcpt_if,               UInt(1)),
-    (!id_int_val.toBool || id_csr_invalid,    UInt(2)),
-    (id_privileged && !io.dpath.status.s,     UInt(3)),
-    (id_fp_val && !io.dpath.status.ef,        UInt(4)),
-    (id_syscall,                              UInt(6)),
-    (id_rocc_val && !io.dpath.status.er,       UInt(12))))
+    (id_interrupt,                                    id_interrupt_cause),
+    (io.imem.resp.bits.xcpt_ma,                       UInt(0)),
+    (io.imem.resp.bits.xcpt_if,                       UInt(1)),
+    (!id_int_val || id_csr_invalid,                   UInt(2)),
+    (id_privileged && !io.dpath.status.s,             UInt(3)),
+    ((id_fp_val || id_csr_fp) && !io.dpath.status.ef, UInt(4)),
+    (id_syscall,                                      UInt(6)),
+    (id_rocc_val && !io.dpath.status.er,              UInt(12))))
 
   ex_reg_xcpt_interrupt := id_interrupt && !take_pc && io.imem.resp.valid
   when (id_xcpt) { ex_reg_cause := id_cause }
