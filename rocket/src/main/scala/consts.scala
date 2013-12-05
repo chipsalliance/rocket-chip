@@ -40,9 +40,9 @@ trait ScalarOpConstants {
   val A2_ZERO = UInt(2, 3)
   val A2_FOUR = UInt(3, 3)
 
-  val X = Bits("b?", 1)
-  val N = Bits(0, 1)
-  val Y = Bits(1, 1)
+  val X = Bool.DC
+  val N = Bool(false)
+  val Y = Bool(true)
 
   val WB_X   = UInt("b??", 2)
   val WB_ALU = UInt(0, 3);
