@@ -21,10 +21,10 @@ trait ScalarOpConstants {
   val PC_PCR = UInt(3, 2)
 
   val A1_X    = Bits("b??", 2)
-  val A1_RS1  = UInt(0, 2)
-  val A1_ZERO = UInt(1, 2)
-  val A1_PC   = UInt(2, 2)
-  val A1_PCHI = UInt(3, 2)
+  val A1_ZERO = UInt(0, 2)
+  val A1_RS1  = UInt(1, 2)
+  val A1_PCHI = UInt(2, 2)
+  val A1_PC   = UInt(3, 2)
 
   val IMM_X  = Bits("b???", 3)
   val IMM_S  = UInt(0, 3);
@@ -35,19 +35,21 @@ trait ScalarOpConstants {
   val IMM_Z  = UInt(5, 3);
 
   val A2_X    = Bits("b??", 2)
-  val A2_RS2  = UInt(0, 2)
-  val A2_IMM  = UInt(1, 2)
-  val A2_ZERO = UInt(2, 3)
-  val A2_FOUR = UInt(3, 3)
+  val A2_ZERO = UInt(0, 2)
+  val A2_FOUR = UInt(1, 2)
+  val A2_RS2  = UInt(2, 2)
+  val A2_IMM  = UInt(3, 2)
 
   val X = Bool.DC
   val N = Bool(false)
   val Y = Bool(true)
 
-  val WB_X   = UInt("b??", 2)
-  val WB_ALU = UInt(0, 3);
-  val WB_TSC = UInt(2, 3);
-  val WB_IRT = UInt(3, 3);
+  val NBYP = 4
+  val SZ_BYP = log2Up(NBYP)
+  val BYP_0   = 0
+  val BYP_EX  = 1
+  val BYP_MEM = 2
+  val BYP_DC  = 3
 
   val SZ_DW = 1
   val DW_X  = X

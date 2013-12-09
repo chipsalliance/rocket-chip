@@ -9,6 +9,7 @@ object Util
   implicit def intToBoolean(x: Int): Boolean = if (x != 0) true else false
   implicit def booleanToInt(x: Boolean): Int = if (x) 1 else 0
   implicit def booleanToBool(x: Boolean): Bits = Bool(x)
+  implicit def intSeqToUIntSeq(x: Iterable[Int]): Iterable[UInt] = x.map(UInt(_))
 
   implicit def wcToUInt(c: WideCounter): UInt = c.value
 }

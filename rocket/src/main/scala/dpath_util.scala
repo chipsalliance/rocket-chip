@@ -267,7 +267,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
       when (decoded_addr(CSRs.count))    { reg_time := wdata.toUInt }
       when (decoded_addr(CSRs.compare))  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false); }
       when (decoded_addr(CSRs.fromhost)) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
-      when (decoded_addr(CSRs.tohost))   { when (reg_tohost === UInt(0)) { reg_tohost := wdata } }
+      when (decoded_addr(CSRs.tohost))   { when (reg_tohost === UInt(0) || host_pcr_req_fire) { reg_tohost := wdata } }
       when (decoded_addr(CSRs.clear_ipi)){ r_irq_ipi := wdata(0) }
       when (decoded_addr(CSRs.sup0))     { reg_sup0 := wdata; }
       when (decoded_addr(CSRs.sup1))     { reg_sup1 := wdata; }
