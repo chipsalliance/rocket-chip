@@ -11,8 +11,7 @@ class CtrlDpathIO extends Bundle()
   // outputs to datapath
   val sel_pc   = UInt(OUTPUT, 3);
   val killd    = Bool(OUTPUT);
-  val ren2     = Bool(OUTPUT);
-  val ren1     = Bool(OUTPUT);
+  val ren      = Vec.fill(2)(Bool(OUTPUT))
   val sel_alu2 = UInt(OUTPUT, 3)
   val sel_alu1 = UInt(OUTPUT, 2)
   val sel_imm  = UInt(OUTPUT, 3)
@@ -37,8 +36,9 @@ class CtrlDpathIO extends Bundle()
   val ex_rs2_val = Bool(OUTPUT)
   val ex_rocc_val = Bool(OUTPUT)
   val mem_rocc_val = Bool(OUTPUT)
-  val mem_ll_bypass_rs1 = Bool(OUTPUT)
-  val mem_ll_bypass_rs2 = Bool(OUTPUT)
+  val bypass = Vec.fill(2)(Bool(OUTPUT))
+  val bypass_src = Vec.fill(2)(Bits(OUTPUT, SZ_BYP))
+  val ll_ready = Bool(OUTPUT)
   // exception handling
   val retire = Bool(OUTPUT)
   val exception = Bool(OUTPUT);
@@ -50,11 +50,11 @@ class CtrlDpathIO extends Bundle()
   val ex_br_type = Bits(OUTPUT, SZ_BR)
   val ex_br_taken = Bool(INPUT)
   val div_mul_rdy = Bool(INPUT)
-  val mem_ll_wb = Bool(INPUT)
-  val mem_ll_waddr = UInt(INPUT, 5)
-  val ex_waddr = UInt(INPUT, 5);  // write addr from execute stage
-  val mem_waddr = UInt(INPUT, 5); // write addr from memory stage
-  val wb_waddr = UInt(INPUT, 5);  // write addr from writeback stage
+  val ll_wen = Bool(INPUT)
+  val ll_waddr = UInt(INPUT, 5)
+  val ex_waddr = UInt(INPUT, 5)
+  val mem_waddr = UInt(INPUT, 5)
+  val wb_waddr = UInt(INPUT, 5)
   val status = new Status().asInput
   val fp_sboard_clr  = Bool(INPUT);
   val fp_sboard_clra = UInt(INPUT, 5);
@@ -543,9 +543,8 @@ class Control(implicit conf: RocketConfiguration) extends Module
     (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UInt(11))))
 
   val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
-  val ll_wb_kill_mem = io.dpath.mem_ll_wb && (mem_reg_wen || mem_reg_fp_wen || mem_reg_rocc_val || mem_reg_csr != CSR.N)
-  val replay_mem  = ll_wb_kill_mem || mem_reg_replay || fpu_kill_mem
-  val killm_common = ll_wb_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
+  val replay_mem  = mem_reg_replay || fpu_kill_mem
+  val killm_common = take_pc_wb || mem_reg_xcpt || !mem_reg_valid
   ctrl_killm := killm_common || mem_xcpt || fpu_kill_mem
 
   wb_reg_replay := replay_mem && !take_pc_wb
@@ -577,23 +576,22 @@ class Control(implicit conf: RocketConfiguration) extends Module
     wb_reg_rocc_val := mem_reg_rocc_val
   }
 
-  val replay_wb = io.dmem.resp.bits.nack || wb_reg_replay ||
-    io.dpath.csr_replay || Bool(!conf.rocc.isEmpty) && wb_reg_rocc_val && !io.rocc.cmd.ready
+  val replay_wb_common = 
+    io.dmem.resp.bits.nack || wb_reg_replay ||
+    io.dpath.ll_wen && wb_reg_wen || io.dpath.csr_replay
+  val wb_rocc_val = wb_reg_rocc_val && !replay_wb_common
+  val replay_wb = replay_wb_common || wb_reg_rocc_val && !io.rocc.cmd.ready
 
   class Scoreboard(n: Int)
   {
-    val r = Reg(init=Bits(0, n))
-    private var _next = r
-    private var cur = r
-    var ens = Bool(false)
     def set(en: Bool, addr: UInt): Unit = update(en, _next | mask(en, addr))
-    def clear(en: Bool, addr: UInt): Unit = {
-      val m = ~mask(en, addr)
-      update(en, _next & m)
-      //cur = cur & m
-    }
-    def read(addr: UInt) = r(addr)
-    def readBypassed(addr: UInt) = cur(addr)
+    def clear(en: Bool, addr: UInt): Unit = update(en, _next & ~mask(en, addr))
+    def read(addr: UInt): Bool = r(addr)
+    def readBypassed(addr: UInt): Bool = _next(addr)
+
+    private val r = Reg(init=Bits(0, n))
+    private var _next = r
+    private var ens = Bool(false)
     private def mask(en: Bool, addr: UInt) = Mux(en, UInt(1) << addr, UInt(0))
     private def update(en: Bool, update: UInt) = {
       _next = update
@@ -604,7 +602,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   val sboard = new Scoreboard(32)
   sboard.set((wb_reg_div_mul_val || wb_dcache_miss || wb_reg_rocc_val) && io.dpath.wb_wen, io.dpath.wb_waddr)
-  sboard.clear(io.dpath.mem_ll_wb, io.dpath.mem_ll_waddr)
+  sboard.clear(io.dpath.ll_wen, io.dpath.ll_waddr)
 
   val id_stall_fpu = if (conf.fpu) {
     val fp_sboard = new Scoreboard(32)
@@ -613,10 +611,10 @@ class Control(implicit conf: RocketConfiguration) extends Module
     fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
 
     id_csr_en && !io.fpu.fcsr_rdy ||
-    io.fpu.dec.ren1 && fp_sboard.readBypassed(id_raddr1) ||
-    io.fpu.dec.ren2 && fp_sboard.readBypassed(id_raddr2) ||
-    io.fpu.dec.ren3 && fp_sboard.readBypassed(id_raddr3) ||
-    io.fpu.dec.wen  && fp_sboard.readBypassed(id_waddr)
+    io.fpu.dec.ren1 && fp_sboard.read(id_raddr1) ||
+    io.fpu.dec.ren2 && fp_sboard.read(id_raddr2) ||
+    io.fpu.dec.ren3 && fp_sboard.read(id_raddr3) ||
+    io.fpu.dec.wen  && fp_sboard.read(id_waddr)
   } else Bool(false)
 
 	// write CAUSE CSR on an exception
@@ -637,6 +635,18 @@ class Control(implicit conf: RocketConfiguration) extends Module
   io.imem.req.bits.mispredict := !take_pc_wb && take_pc_ex && !ex_reg_xcpt
   io.imem.req.bits.taken := !ex_reg_btb_hit || ex_reg_jalr
   io.imem.req.valid  := take_pc
+
+  val bypassDst = Array(id_raddr1, id_raddr2)
+  val bypassSrc = Array.fill(NBYP)((Bool(true), UInt(0)))
+  bypassSrc(BYP_EX) = (ex_reg_wen, io.dpath.ex_waddr)
+  bypassSrc(BYP_MEM) = (mem_reg_wen && !mem_reg_mem_val, io.dpath.mem_waddr)
+  bypassSrc(BYP_DC) = (mem_reg_wen, io.dpath.mem_waddr)
+
+  val doBypass = bypassDst.map(d => bypassSrc.map(s => s._1 && s._2 === d))
+  for (i <- 0 until io.dpath.bypass.size) {
+    io.dpath.bypass(i) := doBypass(i).reduce(_||_)
+    io.dpath.bypass_src(i) := PriorityEncoder(doBypass(i))
+  }
 
   // stall for RAW/WAW hazards on PCRs, loads, AMOs, and mul/div in execute stage.
   val data_hazard_ex = ex_reg_wen &&
@@ -669,24 +679,17 @@ class Control(implicit conf: RocketConfiguration) extends Module
   id_load_use := mem_reg_mem_val && (data_hazard_mem || fp_data_hazard_mem)
 
   // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
-  val data_hazard_wb = wb_reg_wen &&
-    (id_raddr1 != UInt(0) && id_renx1 && (id_raddr1 === io.dpath.wb_waddr) ||
-     id_raddr2 != UInt(0) && id_renx2 && (id_raddr2 === io.dpath.wb_waddr) ||
-     id_waddr  != UInt(0) && id_wen   && (id_waddr  === io.dpath.wb_waddr))
   val fp_data_hazard_wb = wb_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.wb_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.wb_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.wb_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.wb_waddr)
-  val id_wb_hazard = data_hazard_wb && (wb_dcache_miss || wb_reg_div_mul_val || wb_reg_rocc_val) ||
-                     fp_data_hazard_wb && (wb_dcache_miss || wb_reg_fp_val)
+  val id_wb_hazard = fp_data_hazard_wb && (wb_dcache_miss || wb_reg_fp_val)
 
-  io.dpath.mem_ll_bypass_rs1 := io.dpath.mem_ll_wb && io.dpath.mem_ll_waddr === id_raddr1
-  io.dpath.mem_ll_bypass_rs2 := io.dpath.mem_ll_wb && io.dpath.mem_ll_waddr === id_raddr2
   val id_sboard_hazard =
-    (id_raddr1 != UInt(0) && id_renx1 && sboard.read(id_raddr1) && !io.dpath.mem_ll_bypass_rs1 ||
-     id_raddr2 != UInt(0) && id_renx2 && sboard.read(id_raddr2) && !io.dpath.mem_ll_bypass_rs2 ||
-     id_waddr  != UInt(0) && id_wen   && sboard.read(id_waddr))
+    (id_raddr1 != UInt(0) && id_renx1 && sboard.readBypassed(id_raddr1) ||
+     id_raddr2 != UInt(0) && id_renx2 && sboard.readBypassed(id_raddr2) ||
+     id_waddr  != UInt(0) && id_wen   && sboard.readBypassed(id_waddr))
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
@@ -702,8 +705,8 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   io.dpath.mem_load := mem_reg_mem_val && mem_reg_wen
   io.dpath.wb_load  := wb_reg_mem_val && wb_reg_wen
-  io.dpath.ren2     := id_renx2.toBool;
-  io.dpath.ren1     := id_renx1.toBool;
+  io.dpath.ren(1) := id_renx2
+  io.dpath.ren(0) := id_renx1
   io.dpath.sel_alu2 := id_sel_alu2.toUInt
   io.dpath.sel_alu1 := id_sel_alu1.toUInt
   io.dpath.sel_imm  := id_sel_imm.toUInt
@@ -717,6 +720,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   io.dpath.ex_predicted_taken := ex_reg_btb_hit
   io.dpath.ex_wen   := ex_reg_wen;
   io.dpath.mem_wen  := mem_reg_wen;
+  io.dpath.ll_ready := !wb_reg_wen
   io.dpath.wb_wen   := wb_reg_wen && !replay_wb
   io.dpath.retire := wb_reg_valid && !replay_wb
   io.dpath.csr := wb_reg_csr
@@ -737,5 +741,5 @@ class Control(implicit conf: RocketConfiguration) extends Module
   io.dmem.req.bits.typ  := ex_reg_mem_type
   io.dmem.req.bits.phys := Bool(false)
 
-  io.rocc.cmd.valid := wb_reg_rocc_val
+  io.rocc.cmd.valid := wb_rocc_val
 }

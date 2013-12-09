@@ -27,12 +27,9 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val ex_reg_sel_alu1 = Reg(UInt())
   val ex_reg_sel_imm = Reg(UInt())
   val ex_reg_kill = Reg(Bool())
-  val ex_reg_rs1_bypass = Reg(Bool())
-  val ex_reg_rs1_lsb = Reg(Bits())
-  val ex_reg_rs1_msb = Reg(Bits())
-  val ex_reg_rs2_bypass = Reg(Bool())
-  val ex_reg_rs2_lsb = Reg(Bits())
-  val ex_reg_rs2_msb = Reg(Bits())
+  val ex_reg_rs_bypass = Vec.fill(2)(Reg(Bool()))
+  val ex_reg_rs_lsb = Vec.fill(2)(Reg(Bits()))
+  val ex_reg_rs_msb = Vec.fill(2)(Reg(Bits()))
 
   // memory definitions
   val mem_reg_pc = Reg(UInt())
@@ -44,38 +41,38 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   // writeback definitions
   val wb_reg_pc = Reg(UInt())
   val wb_reg_inst = Reg(Bits())
-  val wb_reg_waddr = Reg(UInt())
   val wb_reg_wdata = Reg(Bits())
-  val wb_reg_ll_wb = Reg(init=Bool(false))
   val wb_wdata = Bits()
   val wb_reg_rs2 = Reg(Bits())
-  val wb_wen = io.ctrl.wb_wen || wb_reg_ll_wb
 
   // instruction decode stage
   val id_inst = io.imem.resp.bits.data
   val id_pc = io.imem.resp.bits.pc
-  
-  val regfile_ = Mem(Bits(width = 64), 31)
-  def readRF(a: UInt) = regfile_(~a)
-  def writeRF(a: UInt, d: Bits) = regfile_(~a) := d
+ 
+  class RegFile {
+    private val rf = Mem(UInt(width = 64), 31)
+    private val reads = collection.mutable.ArrayBuffer[(UInt,UInt)]()
+    private var canRead = true
+    def read(addr: UInt) = {
+      require(canRead)
+      reads += addr -> UInt()
+      reads.last._2 := rf(~addr)
+      reads.last._2
+    }
+    def write(addr: UInt, data: UInt) = {
+      canRead = false
+      when (addr != UInt(0)) {
+        rf(~addr) := data
+        for ((raddr, rdata) <- reads)
+          when (addr === raddr) { rdata := data }
+      }
+    }
+  }
+  val rf = new RegFile
 
-  val id_raddr1 = id_inst(19,15).toUInt;
-  val id_raddr2 = id_inst(24,20).toUInt;
-
-  // bypass muxes
-  val id_rs1_zero = id_raddr1 === UInt(0)
-  val id_rs1_ex_bypass = io.ctrl.ex_wen && id_raddr1 === io.ctrl.ex_waddr
-  val id_rs1_mem_bypass = io.ctrl.mem_wen && id_raddr1 === io.ctrl.mem_waddr
-  val id_rs1_bypass = id_rs1_zero || id_rs1_ex_bypass || id_rs1_mem_bypass || io.ctrl.mem_ll_bypass_rs1
-  val id_rs1_bypass_src = Mux(id_rs1_zero, UInt(0), Mux(id_rs1_ex_bypass, UInt(1), Mux(io.ctrl.mem_load, UInt(3), UInt(2))))
-  val id_rs1 = Mux(wb_wen && id_raddr1 === wb_reg_waddr, wb_wdata, readRF(id_raddr1))
-
-  val id_rs2_zero = id_raddr2 === UInt(0)
-  val id_rs2_ex_bypass = io.ctrl.ex_wen && id_raddr2 === io.ctrl.ex_waddr
-  val id_rs2_mem_bypass = io.ctrl.mem_wen && id_raddr2 === io.ctrl.mem_waddr 
-  val id_rs2_bypass = id_rs2_zero || id_rs2_ex_bypass || id_rs2_mem_bypass || io.ctrl.mem_ll_bypass_rs2
-  val id_rs2_bypass_src = Mux(id_rs2_zero, UInt(0), Mux(id_rs2_ex_bypass, UInt(1), Mux(io.ctrl.mem_load, UInt(3), UInt(2))))
-  val id_rs2 = Mux(wb_wen && id_raddr2 === wb_reg_waddr, wb_wdata, readRF(id_raddr2))
+  // RF read ports + bypass from WB stage
+  val id_raddr = Vec(id_inst(19,15), id_inst(24,20))
+  val id_rs = id_raddr.map(rf.read _)
 
   // immediate generation
   def imm(sel: Bits, inst: Bits) = {
@@ -109,56 +106,49 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     ex_reg_sel_alu2 := io.ctrl.sel_alu2
     ex_reg_sel_alu1 := io.ctrl.sel_alu1
     ex_reg_sel_imm := io.ctrl.sel_imm
-    ex_reg_rs1_bypass := id_rs1_bypass && io.ctrl.ren1
-    ex_reg_rs2_bypass := id_rs2_bypass && io.ctrl.ren2
-    when (io.ctrl.ren1) {
-      ex_reg_rs1_lsb := id_rs1_bypass_src
-      when (!id_rs1_bypass) {
-        ex_reg_rs1_lsb := id_rs1(id_rs1_bypass_src.getWidth-1,0)
-        ex_reg_rs1_msb := id_rs1(63,id_rs1_bypass_src.getWidth)
+    ex_reg_rs_bypass := io.ctrl.bypass
+    for (i <- 0 until id_rs.size) {
+      when (io.ctrl.ren(i)) {
+        ex_reg_rs_lsb(i) := id_rs(i)(SZ_BYP-1,0)
+        when (!io.ctrl.bypass(i)) {
+          ex_reg_rs_msb(i) := id_rs(i) >> SZ_BYP
+        }
       }
-    }
-    when (io.ctrl.ren2) {
-      ex_reg_rs2_lsb := id_rs2_bypass_src
-      when (!id_rs2_bypass) {
-        ex_reg_rs2_lsb := id_rs2(id_rs2_bypass_src.getWidth-1,0)
-        ex_reg_rs2_msb := id_rs2(63,id_rs2_bypass_src.getWidth)
-      }
+      when (io.ctrl.bypass(i)) { ex_reg_rs_lsb(i) := io.ctrl.bypass_src(i) }
     }
   }
 
   val ex_raddr1 = ex_reg_inst(19,15)
   val ex_raddr2 = ex_reg_inst(24,20)
 
-  val dmem_resp_data = if (conf.fastLoadByte) io.dmem.resp.bits.data_subword else io.dmem.resp.bits.data
-  val ex_rs1 =
-    Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UInt(3) && Bool(conf.fastLoadWord), dmem_resp_data,
-    Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UInt(2), wb_reg_wdata,
-    Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UInt(1), mem_reg_wdata,
-    Mux(ex_reg_rs1_bypass && ex_reg_rs1_lsb === UInt(0), Bits(0),
-    Mux(AVec(A1_ZERO, A1_PCHI) contains ex_reg_sel_alu1, Bits(0),
-    Cat(ex_reg_rs1_msb, ex_reg_rs1_lsb))))))
-  val ex_rs2 =
-    Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UInt(3) && Bool(conf.fastLoadWord), dmem_resp_data,
-    Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UInt(2), wb_reg_wdata,
-    Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UInt(1), mem_reg_wdata,
-    Mux(ex_reg_rs2_bypass && ex_reg_rs2_lsb === UInt(0), Bits(0),
-    Cat(ex_reg_rs2_msb, ex_reg_rs2_lsb)))))
+  val bypass = Vec.fill(NBYP)(Bits())
+  bypass(BYP_0) := Bits(0)
+  bypass(BYP_EX) := mem_reg_wdata
+  bypass(BYP_MEM) := wb_reg_wdata
+  bypass(BYP_DC) := (if (conf.fastLoadByte) io.dmem.resp.bits.data_subword
+                     else if (conf.fastLoadWord) io.dmem.resp.bits.data
+                     else wb_reg_wdata)
 
+  val ex_rs = for (i <- 0 until id_rs.size)
+    yield Mux(ex_reg_rs_bypass(i), bypass(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
   val ex_imm = imm(ex_reg_sel_imm, ex_reg_inst)
-  val ex_op1_hi = Mux(AVec(A1_PC, A1_PCHI) contains ex_reg_sel_alu1, ex_reg_pc >> 12, ex_rs1 >> 12).toSInt
-  val ex_op1_lo = Mux(ex_reg_sel_alu1 === A1_PC, ex_reg_pc(11,0), ex_rs1(11,0)).toSInt
+  val ex_op1_hi = MuxLookup(ex_reg_sel_alu1, ex_reg_pc.toSInt >> 12, Seq(
+    A1_RS1 -> (ex_rs(0).toSInt >> 12),
+    A1_ZERO -> SInt(0)))
+  val ex_op1_lo = MuxLookup(ex_reg_sel_alu1, UInt(0), Seq(
+    A1_RS1 -> ex_rs(0)(11,0),
+    A1_PC -> ex_reg_pc(11,0)))
   val ex_op1 = Cat(ex_op1_hi, ex_op1_lo)
-  val ex_op2 = Mux(ex_reg_sel_alu2 === A2_RS2,  ex_rs2.toSInt,
-               Mux(ex_reg_sel_alu2 === A2_IMM,  ex_imm,
-               Mux(ex_reg_sel_alu2 === A2_ZERO, SInt(0),
-                                                SInt(4))))
+  val ex_op2 = MuxLookup(ex_reg_sel_alu2, SInt(0), Seq(
+    A2_RS2 -> ex_rs(1).toSInt,
+    A2_IMM -> ex_imm,
+    A2_FOUR -> SInt(4)))
 
   val alu = Module(new ALU)
   alu.io.dw := ex_reg_ctrl_fn_dw;
   alu.io.fn := ex_reg_ctrl_fn_alu;
   alu.io.in2 := ex_op2.toUInt
-  alu.io.in1 := ex_op1.toUInt
+  alu.io.in1 := ex_op1
   
   // multiplier and divider
   val div = Module(new MulDiv(mulUnroll = if (conf.fastMulDiv) 8 else 1,
@@ -166,15 +156,13 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   div.io.req.valid := io.ctrl.div_mul_val
   div.io.req.bits.dw := ex_reg_ctrl_fn_dw
   div.io.req.bits.fn := ex_reg_ctrl_fn_alu
-  div.io.req.bits.in1 := ex_rs1
-  div.io.req.bits.in2 := ex_rs2
+  div.io.req.bits.in1 := ex_rs(0)
+  div.io.req.bits.in2 := ex_rs(1)
   div.io.req.bits.tag := io.ctrl.ex_waddr
   div.io.kill := io.ctrl.div_mul_kill
-  div.io.resp.ready := !io.ctrl.mem_wen
   io.ctrl.div_mul_rdy := div.io.req.ready
   
-  io.fpu.fromint_data := ex_rs1
-  io.ctrl.ex_waddr := ex_reg_inst(11,7)
+  io.fpu.fromint_data := ex_rs(0)
 
   def vaSign(a0: UInt, ea: Bits) = {
     // efficient means to compress 64-bit VA into VADDR_BITS+1 bits
@@ -185,16 +173,15 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     Mux(a === SInt(-1) || a === SInt(-2), e === SInt(-1),
     e(0)))
   }
-  val ex_br_base = Mux(io.ctrl.ex_jalr, ex_rs1, ex_reg_pc)
+  val ex_br_base = Mux(io.ctrl.ex_jalr, ex_rs(0), ex_reg_pc)
   val ex_br_offset = Mux(io.ctrl.ex_predicted_taken, SInt(4), ex_imm(19,0).toSInt)
   val ex_br64 = ex_br_base + ex_br_offset
-  val ex_br_msb = Mux(io.ctrl.ex_jalr, vaSign(ex_rs1, ex_br64), vaSign(ex_reg_pc, ex_br64))
+  val ex_br_msb = Mux(io.ctrl.ex_jalr, vaSign(ex_rs(0), ex_br64), vaSign(ex_reg_pc, ex_br64))
   val ex_br_addr = Cat(ex_br_msb, ex_br64(VADDR_BITS-1,0))
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req.bits.addr := Cat(vaSign(ex_rs1, alu.io.adder_out), alu.io.adder_out(VADDR_BITS-1,0)).toUInt
-  io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
+  io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(VADDR_BITS-1,0)).toUInt
   io.dmem.req.bits.tag := Cat(io.ctrl.ex_waddr, io.ctrl.ex_fp_val)
   require(io.dmem.req.bits.tag.getWidth >= 6)
 
@@ -212,14 +199,14 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ptw.status := pcr.io.status
   
 	// branch resolution logic
-  io.ctrl.jalr_eq := ex_rs1 === id_pc.toSInt && ex_reg_inst(31,20) === UInt(0)
+  io.ctrl.jalr_eq := ex_rs(0) === id_pc.toSInt && ex_reg_inst(31,20) === UInt(0)
   io.ctrl.ex_br_taken :=
-    Mux(io.ctrl.ex_br_type === BR_EQ,  ex_rs1 === ex_rs2,
-    Mux(io.ctrl.ex_br_type === BR_NE,  ex_rs1 !=  ex_rs2,
-    Mux(io.ctrl.ex_br_type === BR_LT,  ex_rs1.toSInt < ex_rs2.toSInt,
-    Mux(io.ctrl.ex_br_type === BR_GE,  ex_rs1.toSInt >= ex_rs2.toSInt,
-    Mux(io.ctrl.ex_br_type === BR_LTU, ex_rs1 < ex_rs2,
-    Mux(io.ctrl.ex_br_type === BR_GEU, ex_rs1 >= ex_rs2,
+    Mux(io.ctrl.ex_br_type === BR_EQ,  ex_rs(0) === ex_rs(1),
+    Mux(io.ctrl.ex_br_type === BR_NE,  ex_rs(0) !=  ex_rs(1),
+    Mux(io.ctrl.ex_br_type === BR_LT,  ex_rs(0).toSInt < ex_rs(1).toSInt,
+    Mux(io.ctrl.ex_br_type === BR_GE,  ex_rs(0).toSInt >= ex_rs(1).toSInt,
+    Mux(io.ctrl.ex_br_type === BR_LTU, ex_rs(0) < ex_rs(1),
+    Mux(io.ctrl.ex_br_type === BR_GEU, ex_rs(0) >= ex_rs(1),
         io.ctrl.ex_br_type === BR_J))))))
 
   // memory stage
@@ -228,13 +215,12 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     mem_reg_pc := ex_reg_pc
     mem_reg_inst := ex_reg_inst
     mem_reg_wdata := alu.io.out
-    when (io.ctrl.ex_rs2_val) {
-      mem_reg_rs2 := ex_rs2
-    }
   }
-  
-  // for load/use hazard detection (load byte/halfword)
-  io.ctrl.mem_waddr := mem_reg_inst(11,7)
+  when (io.ctrl.ex_rs2_val) {
+    mem_reg_rs2 := ex_rs(1)
+  }
+
+  io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
 
   // writeback arbitration
   val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
@@ -243,28 +229,27 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
   val dmem_resp_replay = io.dmem.resp.bits.replay && io.dmem.resp.bits.has_data
 
-  val mem_ll_wdata = Bits()
-  mem_ll_wdata := div.io.resp.bits.data
-  io.ctrl.mem_ll_waddr := div.io.resp.bits.tag
-  io.ctrl.mem_ll_wb := div.io.resp.valid && !io.ctrl.mem_wen
+  val ll_wdata = Bits()
+  div.io.resp.ready := io.ctrl.ll_ready
+  ll_wdata := div.io.resp.bits.data
+  io.ctrl.ll_waddr := div.io.resp.bits.tag
+  io.ctrl.ll_wen := div.io.resp.fire()
   if (!conf.rocc.isEmpty) {
-    io.rocc.resp.ready := !io.ctrl.mem_wen && !io.ctrl.mem_rocc_val
+    io.rocc.resp.ready := io.ctrl.ll_ready
     when (io.rocc.resp.fire()) {
       div.io.resp.ready := Bool(false)
-      mem_ll_wdata := io.rocc.resp.bits.data
-      io.ctrl.mem_ll_waddr := io.rocc.resp.bits.rd
-      io.ctrl.mem_ll_wb := Bool(true)
+      ll_wdata := io.rocc.resp.bits.data
+      io.ctrl.ll_waddr := io.rocc.resp.bits.rd
+      io.ctrl.ll_wen := Bool(true)
     }
   }
   when (dmem_resp_replay && dmem_resp_xpu) {
     div.io.resp.ready := Bool(false)
     if (!conf.rocc.isEmpty)
       io.rocc.resp.ready := Bool(false)
-    mem_ll_wdata := io.dmem.resp.bits.data_subword
-    io.ctrl.mem_ll_waddr := dmem_resp_waddr
-    io.ctrl.mem_ll_wb := Bool(true)
+    io.ctrl.ll_waddr := dmem_resp_waddr
+    io.ctrl.ll_wen := Bool(true)
   }
-  when (io.ctrl.mem_ll_waddr === UInt(0)) { io.ctrl.mem_ll_wb := Bool(false) }
 
   io.fpu.dmem_resp_val := dmem_resp_valid && dmem_resp_fpu
   io.fpu.dmem_resp_data := io.dmem.resp.bits.data
@@ -274,24 +259,20 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   // writeback stage
   when (!mem_reg_kill) {
     wb_reg_pc := mem_reg_pc
-    wb_reg_waddr := io.ctrl.mem_waddr
     wb_reg_inst := mem_reg_inst
     wb_reg_wdata := Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data, mem_reg_wdata)
   }
   when (io.ctrl.mem_rocc_val) {
     wb_reg_rs2 := mem_reg_rs2
   }
-  wb_reg_ll_wb := io.ctrl.mem_ll_wb
-  when (io.ctrl.mem_ll_wb) {
-    wb_reg_waddr := io.ctrl.mem_ll_waddr
-    wb_reg_wdata := mem_ll_wdata
-  }
-  wb_wdata := Mux(io.ctrl.wb_load, io.dmem.resp.bits.data_subword,
+  wb_wdata := Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data_subword,
+              Mux(io.ctrl.ll_wen, ll_wdata,
               Mux(io.ctrl.csr != CSR.N, pcr.io.rw.rdata,
-              wb_reg_wdata))
+              wb_reg_wdata)))
 
-  when (wb_wen) { writeRF(wb_reg_waddr, wb_wdata) }
-  io.ctrl.wb_waddr := wb_reg_waddr
+  val wb_wen = io.ctrl.ll_wen || io.ctrl.wb_wen
+  val wb_waddr = Mux(io.ctrl.ll_wen, io.ctrl.ll_waddr, io.ctrl.wb_waddr)
+  when (wb_wen) { rf.write(wb_waddr, wb_wdata) }
 
   // scoreboard clear (for div/mul and D$ load miss writebacks)
   io.ctrl.fp_sboard_clr  := dmem_resp_replay && dmem_resp_fpu
@@ -312,11 +293,16 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     Mux(io.ctrl.sel_pc === PC_EX,  ex_br_addr,
     Mux(io.ctrl.sel_pc === PC_PCR, pcr.io.evec,
         wb_reg_pc)).toUInt // PC_WB
+  
+  // for hazard/bypass opportunity detection
+  io.ctrl.ex_waddr := ex_reg_inst(11,7)
+  io.ctrl.mem_waddr := mem_reg_inst(11,7)
+  io.ctrl.wb_waddr := wb_reg_inst(11,7)
 
   printf("C: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          pcr.io.time(32,0), io.ctrl.retire, wb_reg_pc,
-         Mux(wb_wen, wb_reg_waddr, UInt(0)), wb_wdata,
-         wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs1)),
-         wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs2)),
+         Mux(wb_wen, wb_waddr, UInt(0)), wb_wdata,
+         wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
+         wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),
          wb_reg_inst, wb_reg_inst)
 }
