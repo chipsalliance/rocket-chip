@@ -16,7 +16,7 @@ object DecodeLogic
   }
   def logic(addr: UInt, addrWidth: Int, cache: scala.collection.mutable.Map[Term,Bool], terms: Seq[Term]) = {
     terms.map { t =>
-      cache.getOrElseUpdate(t, (if (t.mask == 0) addr else addr & Lit(BigInt(2).pow(addrWidth)-(t.mask+1), addrWidth){Bits()}) === Lit(t.value, addrWidth){Bits()})
+      cache.getOrElseUpdate(t, (if (t.mask == 0) addr else addr & Bits(BigInt(2).pow(addrWidth)-(t.mask+1), addrWidth)) === Bits(t.value, addrWidth))
     }.foldLeft(Bool(false))(_||_)
   }
   def apply[T <: Bits](addr: UInt, default: T, mapping: Iterable[(UInt, T)]): T = {
@@ -48,13 +48,12 @@ object DecodeLogic
     default.fromBits(result)
   }
   def apply[T <: Bits](addr: UInt, default: Iterable[T], mappingIn: Iterable[(UInt, Iterable[T])]): Iterable[T] = {
-    var mapping = mappingIn
-    default map { thisDefault =>
-      val thisMapping = for ((key, values) <- mapping) yield key -> values.head
-      val res = apply(addr, thisDefault, thisMapping)
-      mapping = for ((key, values) <- mapping) yield key -> values.tail
-      res
-    }
+    val mapping = collection.mutable.ArrayBuffer.fill(default.size)(collection.mutable.ArrayBuffer[(UInt, T)]())
+    for ((key, values) <- mappingIn)
+      for ((value, i) <- values zipWithIndex)
+        mapping(i) += key -> value
+    for ((thisDefault, thisMapping) <- default zip mapping)
+      yield apply(addr, thisDefault, thisMapping)
   }
   def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool =
     apply(addr, Bool.DC, trues.map(_ -> Bool(true)) ++ falses.map(_ -> Bool(false)))
