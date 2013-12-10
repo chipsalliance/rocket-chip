@@ -276,7 +276,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
   val meta_hazard = Reg(init=UInt(0,2))
-  when (meta_hazard != 0) { meta_hazard := meta_hazard + 1 }
+  when (meta_hazard != UInt(0)) { meta_hazard := meta_hazard + 1 }
   when (io.meta_write.fire()) { meta_hazard := 1 }
   io.probe_rdy := !idx_match || (state != s_wb_req && state != s_wb_resp && state != s_meta_clear && meta_hazard === 0)
 
@@ -574,7 +574,7 @@ class MetaDataArray(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   val rst = rst_cnt < conf.sets
   when (rst) { rst_cnt := rst_cnt+1 }
 
-  val metabits = io.write.bits.data.state.width + conf.tagbits
+  val metabits = io.write.bits.data.state.getWidth + conf.tagbits
   val tags = Mem(UInt(width = metabits*conf.ways), conf.sets, seqRead = true)
 
   when (rst || io.write.valid) {
@@ -992,7 +992,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   when (s1_clk_en) {
     s2_store_bypass := false
     when (bypasses.map(_._1).reduce(_||_)) {
-      s2_store_bypass_data := PriorityMux(bypasses.map(x => (x._1, x._2)))
+      s2_store_bypass_data := PriorityMux(bypasses)
       s2_store_bypass := true
     }
   }

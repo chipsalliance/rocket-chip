@@ -321,11 +321,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   if (conf.fpu) decode_table ++= FDecode.table
   if (!conf.rocc.isEmpty) decode_table ++= RoCCDecode.table
 
-  val logic = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
-  val cs = logic.map { 
-    case b if b.inputs.head.getClass == classOf[Bool] => b.toBool
-    case u => u 
-  }
+  val cs = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
   
   val (id_int_val: Bool) :: (id_fp_val: Bool) :: (id_rocc_val: Bool) :: id_br_type :: (id_jalr: Bool) :: (id_renx2: Bool) :: (id_renx1: Bool) :: cs0 = cs
   val id_sel_alu2 :: id_sel_alu1 :: id_sel_imm :: (id_fn_dw: Bool) :: id_fn_alu :: cs1 = cs0
