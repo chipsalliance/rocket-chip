@@ -12,7 +12,7 @@ case class RocketConfiguration(tl: TileLinkConfiguration,
                                fastLoadByte: Boolean = false,
                                fastMulDiv: Boolean = true)
 {
-  val dcacheReqTagBits = 9 // enforce compliance with require()
+  val dcacheReqTagBits = 10 // enforce compliance with require() // hue hue hue
   val xprlen = 64
   val nxpr = 32
   val nxprbits = log2Up(nxpr)
