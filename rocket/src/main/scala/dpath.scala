@@ -174,7 +174,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     e(0)))
   }
   val ex_br_base = Mux(io.ctrl.ex_jalr, ex_rs(0), ex_reg_pc)
-  val ex_br_offset = Mux(io.ctrl.ex_predicted_taken, SInt(4), ex_imm(19,0).toSInt)
+  val ex_br_offset = Mux(io.ctrl.ex_predicted_taken, SInt(4), ex_imm(20,0).toSInt)
   val ex_br64 = ex_br_base + ex_br_offset
   val ex_br_msb = Mux(io.ctrl.ex_jalr, vaSign(ex_rs(0), ex_br64), vaSign(ex_reg_pc, ex_br64))
   val ex_br_addr = Cat(ex_br_msb, ex_br64(VADDR_BITS-1,0))
