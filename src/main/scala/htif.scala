@@ -244,7 +244,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
   scr_rdata(0) := UInt(nTiles)
-  scr_rdata(1) := UInt(((REFILL_CYCLES*MEM_DATA_BITS/8) << x_init.io.enq.bits.addr.getWidth) >> 20)
+  scr_rdata(1) := UInt((BigInt(REFILL_CYCLES*MEM_DATA_BITS/8) << x_init.io.enq.bits.addr.getWidth) >> 20)
 
   io.scr.wen := Bool(false)
   io.scr.wdata := pcr_wdata
