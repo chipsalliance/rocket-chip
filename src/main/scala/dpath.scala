@@ -145,8 +145,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     A2_FOUR -> SInt(4)))
 
   val alu = Module(new ALU)
-  alu.io.dw := ex_reg_ctrl_fn_dw;
-  alu.io.fn := ex_reg_ctrl_fn_alu;
+  alu.io.dw := ex_reg_ctrl_fn_dw
+  alu.io.fn := ex_reg_ctrl_fn_alu
   alu.io.in2 := ex_op2.toUInt
   alu.io.in1 := ex_op1
   
@@ -185,7 +185,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.dmem.req.bits.tag := Cat(io.ctrl.ex_waddr, io.ctrl.ex_fp_val)
   require(io.dmem.req.bits.tag.getWidth >= 6)
 
-	// processor control regfile read
+  // processor control regfile read
   val pcr = Module(new CSRFile)
   pcr.io.host <> io.host
   pcr.io <> io.ctrl
@@ -198,7 +198,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ptw.sret := io.ctrl.sret
   io.ptw.status := pcr.io.status
   
-	// branch resolution logic
+  // branch resolution logic
   io.ctrl.jalr_eq := ex_rs(0) === id_pc.toSInt && ex_reg_inst(31,20) === UInt(0)
   io.ctrl.ex_br_taken :=
     Mux(io.ctrl.ex_br_type === BR_EQ,  ex_rs(0) === ex_rs(1),
@@ -278,7 +278,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ctrl.fp_sboard_clr  := dmem_resp_replay && dmem_resp_fpu
   io.ctrl.fp_sboard_clra := dmem_resp_waddr
 
-	// processor control regfile write
+  // processor control regfile write
   pcr.io.rw.addr := wb_reg_inst(31,20)
   pcr.io.rw.cmd  := io.ctrl.csr
   pcr.io.rw.wdata := wb_reg_wdata

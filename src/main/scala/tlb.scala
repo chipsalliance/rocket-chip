@@ -5,30 +5,30 @@ import uncore.constants.AddressConstants._
 import scala.math._
 
 class CAMIO(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
-    val clear        = Bool(INPUT);
+    val clear        = Bool(INPUT)
     val clear_hit    = Bool(INPUT)
-    val tag          = Bits(INPUT, tag_bits);
-    val hit          = Bool(OUTPUT);
-    val hits         = UInt(OUTPUT, entries);
-    val valid_bits   = Bits(OUTPUT, entries);
+    val tag          = Bits(INPUT, tag_bits)
+    val hit          = Bool(OUTPUT)
+    val hits         = UInt(OUTPUT, entries)
+    val valid_bits   = Bits(OUTPUT, entries)
     
-    val write        = Bool(INPUT);
-    val write_tag    = Bits(INPUT, tag_bits);
-    val write_addr    = UInt(INPUT, addr_bits);
+    val write        = Bool(INPUT)
+    val write_tag    = Bits(INPUT, tag_bits)
+    val write_addr    = UInt(INPUT, addr_bits)
 }
 
 class RocketCAM(entries: Int, tag_bits: Int) extends Module {
-  val addr_bits = ceil(log(entries)/log(2)).toInt;
-  val io = new CAMIO(entries, addr_bits, tag_bits);
+  val addr_bits = ceil(log(entries)/log(2)).toInt
+  val io = new CAMIO(entries, addr_bits, tag_bits)
   val cam_tags = Mem(Bits(width = tag_bits), entries)
 
   val vb_array = Reg(init=Bits(0, entries))
   when (io.write) {
-    vb_array := vb_array.bitSet(io.write_addr, Bool(true));
+    vb_array := vb_array.bitSet(io.write_addr, Bool(true))
     cam_tags(io.write_addr) := io.write_tag
   }
   when (io.clear) {
-    vb_array := Bits(0, entries);
+    vb_array := Bits(0, entries)
   }
   .elsewhen (io.clear_hit) {
     vb_array := vb_array & ~io.hits
@@ -36,7 +36,7 @@ class RocketCAM(entries: Int, tag_bits: Int) extends Module {
   
   val hits = (0 until entries).map(i => vb_array(i) && cam_tags(i) === io.tag)
   
-  io.valid_bits := vb_array;
+  io.valid_bits := vb_array
   io.hits := Vec(hits).toBits
   io.hit := io.hits.orR
 }

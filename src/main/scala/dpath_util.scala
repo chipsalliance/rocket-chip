@@ -9,14 +9,14 @@ import scala.math._
 
 class DpathBTBIO extends Bundle
 {
-  val current_pc     = UInt(INPUT, VADDR_BITS);
-  val hit            = Bool(OUTPUT);
-  val target         = UInt(OUTPUT, VADDR_BITS);
-  val wen            = Bool(INPUT);
-  val clr            = Bool(INPUT);
-  val invalidate     = Bool(INPUT);
-  val correct_pc     = UInt(INPUT, VADDR_BITS);
-  val correct_target = UInt(INPUT, VADDR_BITS);
+  val current_pc     = UInt(INPUT, VADDR_BITS)
+  val hit            = Bool(OUTPUT)
+  val target         = UInt(OUTPUT, VADDR_BITS)
+  val wen            = Bool(INPUT)
+  val clr            = Bool(INPUT)
+  val invalidate     = Bool(INPUT)
+  val correct_pc     = UInt(INPUT, VADDR_BITS)
+  val correct_target = UInt(INPUT, VADDR_BITS)
 }
 
 // fully-associative branch target buffer
@@ -265,13 +265,13 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
       when (decoded_addr(CSRs.epc))      { reg_epc := wdata(VADDR_BITS,0).toSInt }
       when (decoded_addr(CSRs.evec))     { reg_evec := wdata(VADDR_BITS-1,0).toSInt }
       when (decoded_addr(CSRs.count))    { reg_time := wdata.toUInt }
-      when (decoded_addr(CSRs.compare))  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false); }
+      when (decoded_addr(CSRs.compare))  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false) }
       when (decoded_addr(CSRs.fromhost)) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
       when (decoded_addr(CSRs.tohost))   { when (reg_tohost === UInt(0) || host_pcr_req_fire) { reg_tohost := wdata } }
       when (decoded_addr(CSRs.clear_ipi)){ r_irq_ipi := wdata(0) }
-      when (decoded_addr(CSRs.sup0))     { reg_sup0 := wdata; }
-      when (decoded_addr(CSRs.sup1))     { reg_sup1 := wdata; }
-      when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUInt; }
+      when (decoded_addr(CSRs.sup0))     { reg_sup0 := wdata }
+      when (decoded_addr(CSRs.sup1))     { reg_sup1 := wdata }
+      when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUInt }
       when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
     }
   }
