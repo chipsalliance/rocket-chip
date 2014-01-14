@@ -27,12 +27,12 @@ trait ScalarOpConstants {
   val A1_PC   = UInt(3, 2)
 
   val IMM_X  = Bits("b???", 3)
-  val IMM_S  = UInt(0, 3);
-  val IMM_SB = UInt(1, 3);
-  val IMM_U  = UInt(2, 3);
-  val IMM_UJ = UInt(3, 3);
-  val IMM_I  = UInt(4, 3);
-  val IMM_Z  = UInt(5, 3);
+  val IMM_S  = UInt(0, 3)
+  val IMM_SB = UInt(1, 3)
+  val IMM_U  = UInt(2, 3)
+  val IMM_UJ = UInt(3, 3)
+  val IMM_I  = UInt(4, 3)
+  val IMM_Z  = UInt(5, 3)
 
   val A2_X    = Bits("b??", 2)
   val A2_ZERO = UInt(0, 2)
@@ -57,7 +57,7 @@ trait ScalarOpConstants {
   val DW_64 = Y
   val DW_XPR = Y
 
-  val RA = UInt(1, 5);
+  val RA = UInt(1, 5)
 }
 
 trait InterruptConstants {

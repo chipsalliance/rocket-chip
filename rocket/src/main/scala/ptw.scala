@@ -91,13 +91,13 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
   switch (state) {
     is (s_ready) {
       when (arb.io.out.valid) {
-        state := s_req;
+        state := s_req
       }
       count := UInt(0)
     }
     is (s_req) {
       when (io.mem.req.ready) {
-        state := s_wait;
+        state := s_wait
       }
     }
     is (s_wait) {
@@ -117,10 +117,10 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
       }
     }
     is (s_done) {
-      state := s_ready;
+      state := s_ready
     }
     is (s_error) {
-      state := s_ready;
+      state := s_ready
     }
   }
 }

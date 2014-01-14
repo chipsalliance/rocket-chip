@@ -9,8 +9,8 @@ import Util._
 class CtrlDpathIO extends Bundle()
 {
   // outputs to datapath
-  val sel_pc   = UInt(OUTPUT, 3);
-  val killd    = Bool(OUTPUT);
+  val sel_pc   = UInt(OUTPUT, 3)
+  val killd    = Bool(OUTPUT)
   val ren      = Vec.fill(2)(Bool(OUTPUT))
   val sel_alu2 = UInt(OUTPUT, 3)
   val sel_alu1 = UInt(OUTPUT, 2)
@@ -19,19 +19,19 @@ class CtrlDpathIO extends Bundle()
   val fn_alu   = UInt(OUTPUT, SZ_ALU_FN)
   val div_mul_val = Bool(OUTPUT)
   val div_mul_kill = Bool(OUTPUT)
-  val div_val  = Bool(OUTPUT);
+  val div_val  = Bool(OUTPUT)
   val div_kill = Bool(OUTPUT)
   val csr      = UInt(OUTPUT, 3)
   val sret  = Bool(OUTPUT)
-  val mem_load = Bool(OUTPUT);
+  val mem_load = Bool(OUTPUT)
   val wb_load = Bool(OUTPUT)
-  val ex_fp_val= Bool(OUTPUT);
-  val mem_fp_val= Bool(OUTPUT);
-  val ex_wen   = Bool(OUTPUT);
+  val ex_fp_val= Bool(OUTPUT)
+  val mem_fp_val= Bool(OUTPUT)
+  val ex_wen   = Bool(OUTPUT)
   val ex_jalr  = Bool(OUTPUT)
   val ex_predicted_taken = Bool(OUTPUT)
-  val mem_wen  = Bool(OUTPUT);
-  val wb_wen   = Bool(OUTPUT);
+  val mem_wen  = Bool(OUTPUT)
+  val wb_wen   = Bool(OUTPUT)
   val ex_mem_type = Bits(OUTPUT, 3)
   val ex_rs2_val = Bool(OUTPUT)
   val ex_rocc_val = Bool(OUTPUT)
@@ -41,11 +41,11 @@ class CtrlDpathIO extends Bundle()
   val ll_ready = Bool(OUTPUT)
   // exception handling
   val retire = Bool(OUTPUT)
-  val exception = Bool(OUTPUT);
-  val cause    = UInt(OUTPUT, 6);
-  val badvaddr_wen = Bool(OUTPUT); // high for a load/store access fault
+  val exception = Bool(OUTPUT)
+  val cause    = UInt(OUTPUT, 6)
+  val badvaddr_wen = Bool(OUTPUT) // high for a load/store access fault
   // inputs from datapath
-  val inst    = Bits(INPUT, 32);
+  val inst    = Bits(INPUT, 32)
   val jalr_eq = Bool(INPUT)
   val ex_br_type = Bits(OUTPUT, SZ_BR)
   val ex_br_taken = Bool(INPUT)
@@ -56,14 +56,14 @@ class CtrlDpathIO extends Bundle()
   val mem_waddr = UInt(INPUT, 5)
   val wb_waddr = UInt(INPUT, 5)
   val status = new Status().asInput
-  val fp_sboard_clr  = Bool(INPUT);
-  val fp_sboard_clra = UInt(INPUT, 5);
+  val fp_sboard_clr  = Bool(INPUT)
+  val fp_sboard_clra = UInt(INPUT, 5)
   val csr_replay = Bool(INPUT)
 }
 
 abstract trait DecodeConstants
 {
-  val xpr64 = Y;
+  val xpr64 = Y
 
   val decode_default =
                 //                                                                                                fence.i
@@ -446,14 +446,14 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   when (ctrl_killd) {
     ex_reg_jalr        := Bool(false)
-    ex_reg_btb_hit     := Bool(false);
+    ex_reg_btb_hit     := Bool(false)
     ex_reg_div_mul_val := Bool(false)
-    ex_reg_mem_val     := Bool(false);
-    ex_reg_valid       := Bool(false);
-    ex_reg_wen         := Bool(false);
-    ex_reg_fp_wen      := Bool(false);
+    ex_reg_mem_val     := Bool(false)
+    ex_reg_valid       := Bool(false)
+    ex_reg_wen         := Bool(false)
+    ex_reg_fp_wen      := Bool(false)
     ex_reg_sret        := Bool(false)
-    ex_reg_flush_inst  := Bool(false);  
+    ex_reg_flush_inst  := Bool(false)  
     ex_reg_fp_val := Bool(false)
     ex_reg_rocc_val := Bool(false)
     ex_reg_replay_next := Bool(false)
@@ -463,11 +463,11 @@ class Control(implicit conf: RocketConfiguration) extends Module
     ex_reg_xcpt := Bool(false)
   } 
   .otherwise {
-    ex_reg_br_type     := id_br_type;
+    ex_reg_br_type     := id_br_type
     ex_reg_jalr        := id_jalr
     ex_reg_btb_hit     := io.imem.resp.bits.taken && !id_jalr
     ex_reg_div_mul_val := id_mul_val || id_div_val
-    ex_reg_mem_val     := id_mem_val.toBool;
+    ex_reg_mem_val     := id_mem_val.toBool
     ex_reg_valid       := Bool(true)
     ex_reg_csr         := id_csr
     ex_reg_wen         := id_wen
@@ -498,19 +498,19 @@ class Control(implicit conf: RocketConfiguration) extends Module
     (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause),
     (ex_reg_fp_val && io.fpu.illegal_rm,   UInt(2))))
   
-  mem_reg_replay := replay_ex && !take_pc_wb;
+  mem_reg_replay := replay_ex && !take_pc_wb
   mem_reg_xcpt_interrupt := ex_reg_xcpt_interrupt && !take_pc_wb && !mem_reg_replay_next
   when (ex_xcpt) { mem_reg_cause := ex_cause }
   mem_reg_div_mul_val := ex_reg_div_mul_val && io.dpath.div_mul_rdy
 
   when (ctrl_killx) {
-    mem_reg_valid       := Bool(false);
+    mem_reg_valid       := Bool(false)
     mem_reg_csr         := CSR.N
-    mem_reg_wen         := Bool(false);
-    mem_reg_fp_wen      := Bool(false);
+    mem_reg_wen         := Bool(false)
+    mem_reg_fp_wen      := Bool(false)
     mem_reg_sret        := Bool(false)
-    mem_reg_mem_val     := Bool(false);
-    mem_reg_flush_inst  := Bool(false);
+    mem_reg_mem_val     := Bool(false)
+    mem_reg_flush_inst  := Bool(false)
     mem_reg_fp_val := Bool(false)
     mem_reg_rocc_val := Bool(false)
     mem_reg_replay_next := Bool(false)
@@ -519,11 +519,11 @@ class Control(implicit conf: RocketConfiguration) extends Module
   .otherwise {
     mem_reg_valid       := ex_reg_valid
     mem_reg_csr         := ex_reg_csr
-    mem_reg_wen         := ex_reg_wen;
-    mem_reg_fp_wen      := ex_reg_fp_wen;
+    mem_reg_wen         := ex_reg_wen
+    mem_reg_fp_wen      := ex_reg_fp_wen
     mem_reg_sret        := ex_reg_sret
-    mem_reg_mem_val     := ex_reg_mem_val;
-    mem_reg_flush_inst  := ex_reg_flush_inst;
+    mem_reg_mem_val     := ex_reg_mem_val
+    mem_reg_flush_inst  := ex_reg_flush_inst
     mem_reg_fp_val := ex_reg_fp_val
     mem_reg_rocc_val := ex_reg_rocc_val
     mem_reg_replay_next := ex_reg_replay_next
@@ -550,22 +550,22 @@ class Control(implicit conf: RocketConfiguration) extends Module
   when (ctrl_killm) {
     wb_reg_valid       := Bool(false)
     wb_reg_csr         := CSR.N
-    wb_reg_wen         := Bool(false);
-    wb_reg_fp_wen      := Bool(false);
+    wb_reg_wen         := Bool(false)
+    wb_reg_fp_wen      := Bool(false)
     wb_reg_sret        := Bool(false)
-    wb_reg_flush_inst  := Bool(false);
+    wb_reg_flush_inst  := Bool(false)
     wb_reg_mem_val     := Bool(false)
-    wb_reg_div_mul_val := Bool(false);
+    wb_reg_div_mul_val := Bool(false)
     wb_reg_fp_val      := Bool(false)
     wb_reg_rocc_val := Bool(false)
   }
   .otherwise {
     wb_reg_valid       := mem_reg_valid
     wb_reg_csr         := mem_reg_csr
-    wb_reg_wen         := mem_reg_wen;
-    wb_reg_fp_wen      := mem_reg_fp_wen;
+    wb_reg_wen         := mem_reg_wen
+    wb_reg_fp_wen      := mem_reg_fp_wen
     wb_reg_sret        := mem_reg_sret && !mem_reg_replay
-    wb_reg_flush_inst  := mem_reg_flush_inst;
+    wb_reg_flush_inst  := mem_reg_flush_inst
     wb_reg_mem_val     := mem_reg_mem_val
     wb_reg_div_mul_val := mem_reg_div_mul_val
     wb_reg_fp_val      := mem_reg_fp_val
@@ -613,14 +613,14 @@ class Control(implicit conf: RocketConfiguration) extends Module
     io.fpu.dec.wen  && fp_sboard.read(id_waddr)
   } else Bool(false)
 
-	// write CAUSE CSR on an exception
-	io.dpath.exception := wb_reg_xcpt
-	io.dpath.cause := wb_reg_cause
-	io.dpath.badvaddr_wen := wb_reg_xcpt // don't care for non-memory exceptions
+  // write CAUSE CSR on an exception
+  io.dpath.exception := wb_reg_xcpt
+  io.dpath.cause := wb_reg_cause
+  io.dpath.badvaddr_wen := wb_reg_xcpt // don't care for non-memory exceptions
 
   // control transfer from ex/wb
   take_pc_wb := replay_wb || wb_reg_xcpt || wb_reg_sret
-  take_pc := take_pc_ex || take_pc_wb;
+  take_pc := take_pc_ex || take_pc_wb
 
   io.dpath.sel_pc :=
     Mux(wb_reg_xcpt,      PC_PCR, // exception
@@ -706,16 +706,16 @@ class Control(implicit conf: RocketConfiguration) extends Module
   io.dpath.sel_alu2 := id_sel_alu2.toUInt
   io.dpath.sel_alu1 := id_sel_alu1.toUInt
   io.dpath.sel_imm  := id_sel_imm.toUInt
-  io.dpath.fn_dw    := id_fn_dw.toBool;
+  io.dpath.fn_dw    := id_fn_dw.toBool
   io.dpath.fn_alu   := id_fn_alu.toUInt
   io.dpath.div_mul_val  := ex_reg_div_mul_val
   io.dpath.div_mul_kill := mem_reg_div_mul_val && killm_common
-  io.dpath.ex_fp_val:= ex_reg_fp_val;
-  io.dpath.mem_fp_val:= mem_reg_fp_val;
+  io.dpath.ex_fp_val:= ex_reg_fp_val
+  io.dpath.mem_fp_val:= mem_reg_fp_val
   io.dpath.ex_jalr  := ex_reg_jalr
   io.dpath.ex_predicted_taken := ex_reg_btb_hit
-  io.dpath.ex_wen   := ex_reg_wen;
-  io.dpath.mem_wen  := mem_reg_wen;
+  io.dpath.ex_wen   := ex_reg_wen
+  io.dpath.mem_wen  := mem_reg_wen
   io.dpath.ll_ready := !wb_reg_wen
   io.dpath.wb_wen   := wb_reg_wen && !replay_wb
   io.dpath.retire := wb_reg_valid && !replay_wb
