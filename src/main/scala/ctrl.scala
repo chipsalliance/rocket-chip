@@ -538,9 +538,10 @@ class Control(implicit conf: RocketConfiguration) extends Module
     (mem_reg_mem_val && io.dmem.xcpt.pf.ld,  UInt(10)),
     (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UInt(11))))
 
+  val dcache_kill_mem = mem_reg_wen && io.dmem.resp.bits.load_replay_next // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
-  val replay_mem  = mem_reg_replay || fpu_kill_mem
-  val killm_common = take_pc_wb || mem_reg_xcpt || !mem_reg_valid
+  val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
+  val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
   ctrl_killm := killm_common || mem_xcpt || fpu_kill_mem
 
   wb_reg_replay := replay_mem && !take_pc_wb
@@ -573,8 +574,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   }
 
   val replay_wb_common = 
-    io.dmem.resp.bits.nack || wb_reg_replay ||
-    io.dpath.ll_wen && wb_reg_wen || io.dpath.csr_replay
+    io.dmem.resp.bits.nack || wb_reg_replay || io.dpath.csr_replay
   val wb_rocc_val = wb_reg_rocc_val && !replay_wb_common
   val replay_wb = replay_wb_common || wb_reg_rocc_val && !io.rocc.cmd.ready
 

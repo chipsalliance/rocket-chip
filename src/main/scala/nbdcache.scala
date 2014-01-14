@@ -697,6 +697,7 @@ class HellaCacheReq(implicit val conf: DCacheConfig) extends DCacheBundle {
 class HellaCacheResp(implicit val conf: DCacheConfig) extends DCacheBundle {
   val nack = Bool() // comes 2 cycles after req.fire
   val replay = Bool()
+  val load_replay_next = Bool() // next cycle, replay and has_data will be true
   val typ = Bits(width = 3)
   val has_data = Bool()
   val data = Bits(width = conf.databits)
@@ -762,6 +763,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val s1_recycled = RegEnable(s2_recycle, s1_clk_en)
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
+  val s1_sc = s1_req.cmd === M_XSC
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
   val dtlb = Module(new TLB(8))
@@ -1032,6 +1034,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   io.cpu.resp.bits.nack := s2_valid && s2_nack
   io.cpu.resp.bits := s2_req
   io.cpu.resp.bits.has_data := isRead(s2_req.cmd) || s2_sc
+  io.cpu.resp.bits.load_replay_next := s1_replay && (s1_read || s1_sc)
   io.cpu.resp.bits.replay := s2_replay
   io.cpu.resp.bits.data := loadgen.word
   io.cpu.resp.bits.data_subword := Mux(s2_sc, s2_sc_fail, loadgen.byte)
