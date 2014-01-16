@@ -85,7 +85,7 @@ class StoreGen(typ: Bits, addr: Bits, dat: Bits)
                       dat)
 }
 
-class LoadGen(typ: Bits, addr: Bits, dat: Bits)
+class LoadGen(typ: Bits, addr: Bits, dat: Bits, zero: Bool)
 {
   val t = new StoreGen(typ, addr, dat)
   val sign = typ === MT_B || typ === MT_H || typ === MT_W || typ === MT_D
@@ -94,8 +94,8 @@ class LoadGen(typ: Bits, addr: Bits, dat: Bits)
   val word = Cat(Mux(t.word, Fill(32, sign && wordShift(31)), dat(63,32)), wordShift)
   val halfShift = Mux(addr(1), word(31,16), word(15,0))
   val half = Cat(Mux(t.half, Fill(48, sign && halfShift(15)), word(63,16)), halfShift)
-  val byteShift = Mux(addr(0), half(15,8), half(7,0))
-  val byte = Cat(Mux(t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
+  val byteShift = Mux(zero, UInt(0), Mux(addr(0), half(15,8), half(7,0)))
+  val byte = Cat(Mux(zero || t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
 }
 
 class MSHRReq(implicit conf: DCacheConfig) extends HellaCacheReq {
@@ -1002,7 +1002,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   // load data subword mux/sign extension
   val s2_data_word_prebypass = s2_data_uncorrected >> Cat(s2_word_idx, Bits(0,log2Up(conf.databits)))
   val s2_data_word = Mux(s2_store_bypass, s2_store_bypass_data, s2_data_word_prebypass)
-  val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word)
+  val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc)
 
   amoalu.io := s2_req
   amoalu.io.lhs := s2_data_word
@@ -1037,7 +1037,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   io.cpu.resp.bits.load_replay_next := s1_replay && (s1_read || s1_sc)
   io.cpu.resp.bits.replay := s2_replay
   io.cpu.resp.bits.data := loadgen.word
-  io.cpu.resp.bits.data_subword := Mux(s2_sc, s2_sc_fail, loadgen.byte)
+  io.cpu.resp.bits.data_subword := loadgen.byte | s2_sc_fail
   io.cpu.resp.bits.store_data := s2_req.data
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
 
