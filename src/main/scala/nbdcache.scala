@@ -697,7 +697,6 @@ class HellaCacheReq(implicit val conf: DCacheConfig) extends DCacheBundle {
 class HellaCacheResp(implicit val conf: DCacheConfig) extends DCacheBundle {
   val nack = Bool() // comes 2 cycles after req.fire
   val replay = Bool()
-  val load_replay_next = Bool() // next cycle, replay and has_data will be true
   val typ = Bits(width = 3)
   val has_data = Bool()
   val data = Bits(width = conf.databits)
@@ -722,6 +721,7 @@ class HellaCacheExceptions extends Bundle {
 class HellaCacheIO(implicit conf: DCacheConfig) extends Bundle {
   val req = Decoupled(new HellaCacheReq)
   val resp = Valid(new HellaCacheResp).flip
+  val replay_next = Valid(Bits(width = conf.reqtagbits)).flip
   val xcpt = (new HellaCacheExceptions).asInput
   val ptw = (new TLBPTWIO).flip
   val ordered = Bool(INPUT)
@@ -1034,12 +1034,14 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   io.cpu.resp.bits.nack := s2_valid && s2_nack
   io.cpu.resp.bits := s2_req
   io.cpu.resp.bits.has_data := isRead(s2_req.cmd) || s2_sc
-  io.cpu.resp.bits.load_replay_next := s1_replay && (s1_read || s1_sc)
   io.cpu.resp.bits.replay := s2_replay
   io.cpu.resp.bits.data := loadgen.word
   io.cpu.resp.bits.data_subword := loadgen.byte | s2_sc_fail
   io.cpu.resp.bits.store_data := s2_req.data
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
+
+  io.cpu.replay_next.valid := s1_replay && (s1_read || s1_sc)
+  io.cpu.replay_next.bits := s1_req.tag
 
   io.mem.grant_ack <> mshrs.io.mem_finish
 }

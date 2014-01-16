@@ -538,7 +538,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     (mem_reg_mem_val && io.dmem.xcpt.pf.ld,  UInt(10)),
     (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UInt(11))))
 
-  val dcache_kill_mem = mem_reg_wen && io.dmem.resp.bits.load_replay_next // structural hazard on writeback port
+  val dcache_kill_mem = mem_reg_wen && io.dmem.replay_next.valid // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
   val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
   val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
