@@ -60,8 +60,10 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
 
   if (!conf.rocc.isEmpty) {
     val rocc = Module((conf.rocc.get)(conf))
+    val dcIF = Module(new SimpleHellaCacheIF)
+    dcIF.io.requestor <> rocc.io.mem
     core.io.rocc <> rocc.io
-    dcacheArb.io.requestor(2) <> rocc.io.mem
+    dcacheArb.io.requestor(2) <> dcIF.io.cache
     memArb.io.in(roccPortId) <> rocc.io.imem
     ptw.io.requestor(2) <> rocc.io.iptw
     ptw.io.requestor(3) <> rocc.io.dptw
