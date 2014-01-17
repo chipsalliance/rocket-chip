@@ -85,7 +85,7 @@ class StoreGen(typ: Bits, addr: Bits, dat: Bits)
                       dat)
 }
 
-class LoadGen(typ: Bits, addr: Bits, dat: Bits)
+class LoadGen(typ: Bits, addr: Bits, dat: Bits, zero: Bool)
 {
   val t = new StoreGen(typ, addr, dat)
   val sign = typ === MT_B || typ === MT_H || typ === MT_W || typ === MT_D
@@ -94,8 +94,8 @@ class LoadGen(typ: Bits, addr: Bits, dat: Bits)
   val word = Cat(Mux(t.word, Fill(32, sign && wordShift(31)), dat(63,32)), wordShift)
   val halfShift = Mux(addr(1), word(31,16), word(15,0))
   val half = Cat(Mux(t.half, Fill(48, sign && halfShift(15)), word(63,16)), halfShift)
-  val byteShift = Mux(addr(0), half(15,8), half(7,0))
-  val byte = Cat(Mux(t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
+  val byteShift = Mux(zero, UInt(0), Mux(addr(0), half(15,8), half(7,0)))
+  val byte = Cat(Mux(zero || t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
 }
 
 class MSHRReq(implicit conf: DCacheConfig) extends HellaCacheReq {
@@ -276,7 +276,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
   val meta_hazard = Reg(init=UInt(0,2))
-  when (meta_hazard != 0) { meta_hazard := meta_hazard + 1 }
+  when (meta_hazard != UInt(0)) { meta_hazard := meta_hazard + 1 }
   when (io.meta_write.fire()) { meta_hazard := 1 }
   io.probe_rdy := !idx_match || (state != s_wb_req && state != s_wb_resp && state != s_meta_clear && meta_hazard === 0)
 
@@ -574,7 +574,7 @@ class MetaDataArray(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   val rst = rst_cnt < conf.sets
   when (rst) { rst_cnt := rst_cnt+1 }
 
-  val metabits = io.write.bits.data.state.width + conf.tagbits
+  val metabits = io.write.bits.data.state.getWidth + conf.tagbits
   val tags = Mem(UInt(width = metabits*conf.ways), conf.sets, seqRead = true)
 
   when (rst || io.write.valid) {
@@ -721,6 +721,7 @@ class HellaCacheExceptions extends Bundle {
 class HellaCacheIO(implicit conf: DCacheConfig) extends Bundle {
   val req = Decoupled(new HellaCacheReq)
   val resp = Valid(new HellaCacheResp).flip
+  val replay_next = Valid(Bits(width = conf.reqtagbits)).flip
   val xcpt = (new HellaCacheExceptions).asInput
   val ptw = (new TLBPTWIO).flip
   val ordered = Bool(INPUT)
@@ -762,6 +763,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val s1_recycled = RegEnable(s2_recycle, s1_clk_en)
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
+  val s1_sc = s1_req.cmd === M_XSC
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
   val dtlb = Module(new TLB(8))
@@ -808,7 +810,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   val misaligned =
     (((s1_req.typ === MT_H) || (s1_req.typ === MT_HU)) && (s1_req.addr(0) != Bits(0))) ||
     (((s1_req.typ === MT_W) || (s1_req.typ === MT_WU)) && (s1_req.addr(1,0) != Bits(0))) ||
-    ((s1_req.typ === MT_D) && (s1_req.addr(2,0) != Bits(0)));
+    ((s1_req.typ === MT_D) && (s1_req.addr(2,0) != Bits(0)))
     
   io.cpu.xcpt.ma.ld := s1_read && misaligned
   io.cpu.xcpt.ma.st := s1_write && misaligned
@@ -881,7 +883,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
       lrsc_count := 0
     }
   }
-  when (io.cpu.ptw.eret) { lrsc_count := 0 }
+  when (io.cpu.ptw.sret) { lrsc_count := 0 }
 
   val s2_data = Vec.fill(conf.ways){Bits(width = conf.bitsperrow)}
   for (w <- 0 until conf.ways) {
@@ -992,7 +994,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   when (s1_clk_en) {
     s2_store_bypass := false
     when (bypasses.map(_._1).reduce(_||_)) {
-      s2_store_bypass_data := PriorityMux(bypasses.map(x => (x._1, x._2)))
+      s2_store_bypass_data := PriorityMux(bypasses)
       s2_store_bypass := true
     }
   }
@@ -1000,7 +1002,7 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   // load data subword mux/sign extension
   val s2_data_word_prebypass = s2_data_uncorrected >> Cat(s2_word_idx, Bits(0,log2Up(conf.databits)))
   val s2_data_word = Mux(s2_store_bypass, s2_store_bypass_data, s2_data_word_prebypass)
-  val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word)
+  val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc)
 
   amoalu.io := s2_req
   amoalu.io.lhs := s2_data_word
@@ -1034,9 +1036,12 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   io.cpu.resp.bits.has_data := isRead(s2_req.cmd) || s2_sc
   io.cpu.resp.bits.replay := s2_replay
   io.cpu.resp.bits.data := loadgen.word
-  io.cpu.resp.bits.data_subword := Mux(s2_sc, s2_sc_fail, loadgen.byte)
+  io.cpu.resp.bits.data_subword := loadgen.byte | s2_sc_fail
   io.cpu.resp.bits.store_data := s2_req.data
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
+
+  io.cpu.replay_next.valid := s1_replay && (s1_read || s1_sc)
+  io.cpu.replay_next.bits := s1_req.tag
 
   io.mem.grant_ack <> mshrs.io.mem_finish
 }
