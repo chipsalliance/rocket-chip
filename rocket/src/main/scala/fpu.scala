@@ -212,6 +212,7 @@ class FPToInt extends Module
 
   val unrec_s = hardfloat.recodedFloatNToFloatN(in.in1, 23, 9)
   val unrec_d = hardfloat.recodedFloatNToFloatN(in.in1, 52, 12)
+  val unrec_out = Mux(in.single, Cat(Fill(32, unrec_s(31)), unrec_s), unrec_d)
 
   val dcmp = Module(new hardfloat.recodedFloatNCompare(52, 12))
   dcmp.io.a := in.in1
@@ -221,7 +222,8 @@ class FPToInt extends Module
 
   val d2i = hardfloat.recodedFloatNToAny(in.in1, in.rm, ~in.cmd(1,0), 52, 12, 64)
 
-  io.out.bits.toint := Mux(in.single, Cat(Fill(32, unrec_s(31)), unrec_s), unrec_d)
+  io.out.bits.toint := unrec_out
+  io.out.bits.store := unrec_out
   io.out.bits.exc := Bits(0)
 
   when (in.cmd === FCMD_CVT_W_FMT || in.cmd === FCMD_CVT_WU_FMT) {
@@ -238,7 +240,6 @@ class FPToInt extends Module
   }
 
   io.out.valid := valid
-  io.out.bits.store := Mux(in.single, Cat(unrec_d(63,32), unrec_s), unrec_d)
   io.out.bits.lt := dcmp.io.a_lt_b
 }
 
@@ -268,7 +269,7 @@ class IntToFP(val latency: Int) extends Module
   mux.exc := Bits(0)
   mux.data := hardfloat.floatNToRecodedFloatN(in.bits.data, 52, 12)
   when (in.bits.single) {
-    mux.data := hardfloat.floatNToRecodedFloatN(in.bits.data, 23, 9)
+    mux.data := Cat(SInt(-1, 32), hardfloat.floatNToRecodedFloatN(in.bits.data, 23, 9))
   }
 
   when (in.bits.cmd === FCMD_CVT_FMT_W || in.bits.cmd === FCMD_CVT_FMT_WU ||
