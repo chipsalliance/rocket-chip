@@ -14,45 +14,50 @@ object DecodeLogic
       new Term(lit.value)
     }
   }
-  def logic(addr: Bits, addrWidth: Int, cache: scala.collection.mutable.Map[Term,Bits], terms: Seq[Term]) = {
+  def logic(addr: UInt, addrWidth: Int, cache: scala.collection.mutable.Map[Term,Bool], terms: Seq[Term]) = {
     terms.map { t =>
-      if (!cache.contains(t))
-        cache += t -> ((if (t.mask == 0) addr else addr & Lit(BigInt(2).pow(addrWidth)-(t.mask+1), addrWidth){Bits()}) === Lit(t.value, addrWidth){Bits()})
-      cache(t).toBool
+      cache.getOrElseUpdate(t, (if (t.mask == 0) addr else addr & Bits(BigInt(2).pow(addrWidth)-(t.mask+1), addrWidth)) === Bits(t.value, addrWidth))
     }.foldLeft(Bool(false))(_||_)
   }
-  def apply(addr: Bits, default: Iterable[Bits], mapping: Iterable[(Bits, Iterable[Bits])]) = {
-    var map = mapping
-    var cache = scala.collection.mutable.Map[Term,Bits]()
-    default map { d =>
-      val dterm = term(d)
-      val (keys, values) = map.unzip
-      val addrWidth = keys.map(_.getWidth).max
-      val terms = keys.toList.map(k => term(k))
-      val termvalues = terms zip values.toList.map(v => term(v.head))
+  def apply[T <: Bits](addr: UInt, default: T, mapping: Iterable[(UInt, T)]): T = {
+    val cache = caches.getOrElseUpdate(Module.current, collection.mutable.Map[Term,Bool]())
+    val dterm = term(default)
+    val (keys, values) = mapping.unzip
+    val addrWidth = keys.map(_.getWidth).max
+    val terms = keys.toList.map(k => term(k))
+    val termvalues = terms zip values.toList.map(term(_))
 
-      for (t <- keys.zip(terms).tails; if !t.isEmpty)
-        for (u <- t.tail)
-          assert(!t.head._2.intersects(u._2), "DecodeLogic: keys " + t.head + " and " + u + " overlap")
+    for (t <- keys.zip(terms).tails; if !t.isEmpty)
+      for (u <- t.tail)
+        assert(!t.head._2.intersects(u._2), "DecodeLogic: keys " + t.head + " and " + u + " overlap")
 
-      val result = (0 until math.max(d.litOf.width, values.map(_.head.litOf.width).max)).map({ case (i: Int) =>
-        val mint = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 1 }.map(_._1)
-        val maxt = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 0 }.map(_._1)
-        val dc = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 1 }.map(_._1)
+    val result = (0 until default.litOf.width.max(values.map(_.litOf.width).max)).map({ case (i: Int) =>
+      val mint = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 1 }.map(_._1)
+      val maxt = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 0 }.map(_._1)
+      val dc = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 1 }.map(_._1)
 
-        if (((dterm.mask >> i) & 1) != 0) {
-          logic(addr, addrWidth, cache, SimplifyDC(mint, maxt, addrWidth)).toBits
-        } else {
-          val defbit = (dterm.value.toInt >> i) & 1
-          val t = if (defbit == 0) mint else maxt
-          val bit = logic(addr, addrWidth, cache, Simplify(t, dc, addrWidth)).toBits
-          if (defbit == 0) bit else ~bit
-        }
-      }).reverse.reduceRight(Cat(_,_))
-      map = map map { case (x,y) => (x, y.tail) }
-      result
-    }
+      if (((dterm.mask >> i) & 1) != 0) {
+        logic(addr, addrWidth, cache, SimplifyDC(mint, maxt, addrWidth)).toBits
+      } else {
+        val defbit = (dterm.value.toInt >> i) & 1
+        val t = if (defbit == 0) mint else maxt
+        val bit = logic(addr, addrWidth, cache, Simplify(t, dc, addrWidth)).toBits
+        if (defbit == 0) bit else ~bit
+      }
+    }).reverse.reduceRight(Cat(_,_))
+    default.fromBits(result)
   }
+  def apply[T <: Bits](addr: UInt, default: Iterable[T], mappingIn: Iterable[(UInt, Iterable[T])]): Iterable[T] = {
+    val mapping = collection.mutable.ArrayBuffer.fill(default.size)(collection.mutable.ArrayBuffer[(UInt, T)]())
+    for ((key, values) <- mappingIn)
+      for ((value, i) <- values zipWithIndex)
+        mapping(i) += key -> value
+    for ((thisDefault, thisMapping) <- default zip mapping)
+      yield apply(addr, thisDefault, thisMapping)
+  }
+  def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool =
+    apply(addr, Bool.DC, trues.map(_ -> Bool(true)) ++ falses.map(_ -> Bool(false)))
+  private val caches = collection.mutable.Map[Module,collection.mutable.Map[Term,Bool]]()
 }
 
 class Term(val value: BigInt, val mask: BigInt = 0)

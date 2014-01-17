@@ -160,11 +160,11 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
   val s1_tag = s1_addr(c.tagbits+c.untagbits-1,c.untagbits)
 
   val s0_valid = io.req.valid || s1_valid && stall
-  val s0_pgoff = Mux(io.req.valid, io.req.bits.idx, s1_pgoff)
+  val s0_pgoff = Mux(s1_valid && stall, s1_pgoff, io.req.bits.idx)
 
   s1_valid := io.req.valid && rdy || s1_valid && stall && !io.req.bits.kill
   when (io.req.valid && rdy) {
-    s1_pgoff := s0_pgoff
+    s1_pgoff := io.req.bits.idx
   }
 
   s2_valid := s1_valid && rdy && !io.req.bits.kill || io.resp.valid && stall

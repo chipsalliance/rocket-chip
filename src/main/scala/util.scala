@@ -9,6 +9,7 @@ object Util
   implicit def intToBoolean(x: Int): Boolean = if (x != 0) true else false
   implicit def booleanToInt(x: Boolean): Int = if (x) 1 else 0
   implicit def booleanToBool(x: Boolean): Bits = Bool(x)
+  implicit def intSeqToUIntSeq(x: Iterable[Int]): Iterable[UInt] = x.map(UInt(_))
 
   implicit def wcToUInt(c: WideCounter): UInt = c.value
 }
@@ -27,19 +28,19 @@ object AVec
 
 object Str
 {
-  def apply(s: String): Bits = {
+  def apply(s: String): UInt = {
     var i = BigInt(0)
     require(s.forall(validChar _))
     for (c <- s)
       i = (i << 8) | c
-    Lit(i, s.length*8){Bits()}
+    UInt(i, s.length*8)
   }
-  def apply(x: Char): Bits = {
+  def apply(x: Char): UInt = {
     require(validChar(x))
-    Lit(x, 8){Bits()}
+    UInt(x.toInt, 8)
   }
-  def apply(x: UInt): Bits = apply(x, 10)
-  def apply(x: UInt, radix: Int): Bits = {
+  def apply(x: UInt): UInt = apply(x, 10)
+  def apply(x: UInt, radix: Int): UInt = {
     val rad = UInt(radix)
     val w = x.getWidth
     require(w > 0)
@@ -52,8 +53,8 @@ object Str
     }
     s
   }
-  def apply(x: SInt): Bits = apply(x, 10)
-  def apply(x: SInt, radix: Int): Bits = {
+  def apply(x: SInt): UInt = apply(x, 10)
+  def apply(x: SInt, radix: Int): UInt = {
     val neg = x < SInt(0)
     val abs = x.abs
     if (radix != 10) {
@@ -77,7 +78,7 @@ object Str
     }
   }
 
-  private def digit(d: UInt): Bits = Mux(d < UInt(10), Str('0')+d, Str(('a'-10).toChar)+d)(7,0)
+  private def digit(d: UInt): UInt = Mux(d < UInt(10), Str('0')+d, Str(('a'-10).toChar)+d)(7,0)
   private def validChar(x: Char) = x == (x & 0xFF)
 }
 
