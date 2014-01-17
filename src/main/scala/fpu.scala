@@ -464,7 +464,7 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val load_wb_tag = RegEnable(io.dpath.dmem_resp_tag, io.dpath.dmem_resp_val)
   val rec_s = hardfloat.floatNToRecodedFloatN(load_wb_data, 23, 9)
   val rec_d = hardfloat.floatNToRecodedFloatN(load_wb_data, 52, 12)
-  val load_wb_data_recoded = Mux(load_wb_single, Cat(SInt(-1), rec_s), rec_d)
+  val load_wb_data_recoded = Mux(load_wb_single, Cat(SInt(-1, 32), rec_s), rec_d)
 
   // regfile
   val regfile = Mem(Bits(width = 65), 32)
@@ -526,7 +526,7 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val pipes = List(
     Pipe(fpmu, fpmu.latency, (c: FPUCtrlSigs) => c.fastpipe, fpmu.io.out.bits.data, fpmu.io.out.bits.exc),
     Pipe(ifpu, ifpu.latency, (c: FPUCtrlSigs) => c.fromint, ifpu.io.out.bits.data, ifpu.io.out.bits.exc),
-    Pipe(sfma, sfma.latency, (c: FPUCtrlSigs) => c.fma && c.single, sfma.io.out, sfma.io.exc),
+    Pipe(sfma, sfma.latency, (c: FPUCtrlSigs) => c.fma && c.single, Cat(SInt(-1, 32), sfma.io.out), sfma.io.exc),
     Pipe(dfma, dfma.latency, (c: FPUCtrlSigs) => c.fma && !c.single, dfma.io.out, dfma.io.exc))
   def latencyMask(c: FPUCtrlSigs, offset: Int) = {
     require(pipes.forall(_.lat >= offset))
