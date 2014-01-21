@@ -68,11 +68,13 @@ class PairedLockingRRArbiter[M <: Data, D <: Data](mType: M, dType: D, n: Int, c
   when (io.out.meta.fire()) { last_grant := meta_chosen }
 }
 
-class PairedCrossbar[M <: Data, D <: Data](mType: M, dType: D, count: Int, needsLock: Option[PhysicalNetworkIO[M] => Bool] = None)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
-  val io = new Bundle {
+class PairedCrossbarIO[M <: Data, D <: Data](mType: M, dType: D)(implicit conf: PhysicalNetworkConfiguration) extends Bundle {
     val in  = Vec.fill(conf.nEndpoints){new PairedDataIO(new PhysicalNetworkIO(mType),new PhysicalNetworkIO(dType))}.flip 
     val out = Vec.fill(conf.nEndpoints){new PairedDataIO(new PhysicalNetworkIO(mType),new PhysicalNetworkIO(dType))}
-  }
+}
+
+class PairedCrossbar[M <: Data, D <: Data](mType: M, dType: D, count: Int, needsLock: Option[PhysicalNetworkIO[M] => Bool] = None)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
+  val io = new PairedCrossbarIO(mType, dType)
 
   val metaRdyVecs = List.fill(conf.nEndpoints)(Vec.fill(conf.nEndpoints){Bool()})
   val dataRdyVecs = List.fill(conf.nEndpoints)(Vec.fill(conf.nEndpoints){Bool()})
@@ -111,11 +113,12 @@ class PhysicalNetworkIO[T <: Data](dType: T)(implicit conf: PhysicalNetworkConfi
 
 abstract class PhysicalNetwork(conf: PhysicalNetworkConfiguration) extends Module
 
-class BasicCrossbar[T <: Data](dType: T, count: Int = 1)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
-  val io = new Bundle {
+class BasicCrossbarIO[T <: Data](dType: T)(implicit conf: PhysicalNetworkConfiguration) extends Bundle {
     val in  = Vec.fill(conf.nEndpoints){Decoupled(new PhysicalNetworkIO(dType))}.flip 
     val out = Vec.fill(conf.nEndpoints){Decoupled(new PhysicalNetworkIO(dType))}
-  }
+}
+class BasicCrossbar[T <: Data](dType: T, count: Int = 1)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
+  val io = new BasicCrossbarIO(dType)
 
   val rdyVecs = List.fill(conf.nEndpoints)(Vec.fill(conf.nEndpoints)(Bool()))
 
@@ -133,13 +136,11 @@ class BasicCrossbar[T <: Data](dType: T, count: Int = 1)(implicit conf: Physical
   }
 }
 
-case class LogicalNetworkConfiguration(nEndpoints: Int, idBits: Int, nMasters: Int, nClients: Int)
-
-abstract class LogicalNetwork[TileLinkType <: Bundle](endpoints: Seq[CoherenceAgentRole])(implicit conf: LogicalNetworkConfiguration) extends Module {
-  override val io: Vec[TileLinkType]
-  val physicalNetworks: Seq[PhysicalNetwork]
-  require(endpoints.length == conf.nEndpoints)
+case class LogicalNetworkConfiguration(idBits: Int, nMasters: Int, nClients: Int) {
+  val nEndpoints = nMasters + nClients
 }
+
+abstract class LogicalNetwork[TileLinkType <: Bundle](implicit conf: LogicalNetworkConfiguration) extends Module
 
 class LogicalHeader(implicit conf: LogicalNetworkConfiguration) extends Bundle {
   val src = UInt(width = conf.idBits)
