@@ -1,7 +1,7 @@
 package uncore
 import Chisel._
 
-abstract class CoherenceAgent(implicit conf: TileLinkConfiguration) extends Module with MasterCoherenceAgent {
+abstract class CoherenceAgent(implicit conf: TileLinkConfiguration) extends Module {
   val io = new Bundle {
     val client = (new TileLinkIO).flip
     val master = new UncachedTileLinkIO
@@ -279,13 +279,13 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgen
       } . elsewhen (x_needs_read) {    
         doOuterReqRead(io.master.acquire, cmd_to_read, x_needs_read)
       } . otherwise { 
-        state := Mux(co.needsAckReply(xact.a_type, UInt(0)), s_ack, 
-                  Mux(co.requiresAck(io.client.grant.bits.payload), s_busy, s_idle))
+        state := Mux(co.requiresDatalessGrant(xact.a_type, UInt(0)), s_ack, 
+                  Mux(co.requiresAckForGrant(io.client.grant.bits.payload.g_type), s_busy, s_idle))
       }
     }
     is(s_ack) {
       io.client.grant.valid := Bool(true)
-      when(io.client.grant.ready) { state := Mux(co.requiresAck(io.client.grant.bits.payload), s_busy, s_idle) }
+      when(io.client.grant.ready) { state := Mux(co.requiresAckForGrant(io.client.grant.bits.payload.g_type), s_busy, s_idle) }
     }
     is(s_busy) { // Nothing left to do but wait for transaction to complete
       when (io.client.grant_ack.valid && io.client.grant_ack.bits.payload.master_xact_id === UInt(trackerId)) {

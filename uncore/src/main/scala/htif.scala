@@ -41,7 +41,7 @@ class SCRIO(n: Int) extends Bundle
   val wdata = Bits(OUTPUT, 64)
 }
 
-class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extends Module with ClientCoherenceAgent
+class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extends Module
 {
   implicit val (ln, co) = (conf.ln, conf.co)
   val nTiles = ln.nClients-1 // This HTIF is itself a TileLink client
@@ -120,7 +120,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
     mem_acked := Bool(true)
     mem_gxid := io.mem.grant.bits.payload.master_xact_id
     mem_gsrc := io.mem.grant.bits.header.src
-    mem_needs_ack := conf.co.requiresAck(io.mem.grant.bits.payload)
+    mem_needs_ack := conf.co.requiresAckForGrant(io.mem.grant.bits.payload.g_type)
   }
   io.mem.grant.ready := Bool(true)
 

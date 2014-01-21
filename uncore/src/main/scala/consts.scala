@@ -6,14 +6,15 @@ import scala.math.max
 
 object MemoryOpConstants extends MemoryOpConstants
 trait MemoryOpConstants {
-  val MT_X  = Bits("b???", 3);
-  val MT_B  = Bits("b000", 3);
-  val MT_H  = Bits("b001", 3);
-  val MT_W  = Bits("b010", 3);
-  val MT_D  = Bits("b011", 3);
-  val MT_BU = Bits("b100", 3);
-  val MT_HU = Bits("b101", 3);
-  val MT_WU = Bits("b110", 3);
+  val MT_SZ = 3
+  val MT_X  = Bits("b???")
+  val MT_B  = Bits("b000")
+  val MT_H  = Bits("b001")
+  val MT_W  = Bits("b010")
+  val MT_D  = Bits("b011")
+  val MT_BU = Bits("b100")
+  val MT_HU = Bits("b101")
+  val MT_WU = Bits("b110")
 
   val M_SZ      = 5
   val M_X       = Bits("b?????");
