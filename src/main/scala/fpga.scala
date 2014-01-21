@@ -45,7 +45,7 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
     val htif = Vec.fill(conf.nTiles){new HTIFIO(conf.nTiles)}.flip
     val incoherent = Vec.fill(conf.nTiles){Bool()}.asInput
   }
-  val htif = Module(new HTIF(htif_width, PCR.RESET, conf.nSCR))
+  val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR))
   val outmemsys = Module(new FPGAOuterMemorySystem(htif_width, tileList :+ htif))
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif

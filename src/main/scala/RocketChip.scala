@@ -157,7 +157,7 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
     val mem_backup = new ioMemSerialized(htif_width)
     val mem_backup_en = Bool(INPUT)
   }
-  val htif = Module(new HTIF(htif_width, PCR.RESET, conf.nSCR))
+  val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR))
   val outmemsys = Module(new OuterMemorySystem(htif_width, tileList :+ htif))
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif
