@@ -433,13 +433,13 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   val (id_xcpt, id_cause) = checkExceptions(List(
     (id_interrupt,                                    id_interrupt_cause),
-    (io.imem.resp.bits.xcpt_ma,                       UInt(0)),
-    (io.imem.resp.bits.xcpt_if,                       UInt(1)),
-    (!id_int_val || id_csr_invalid,                   UInt(2)),
-    (id_privileged && !io.dpath.status.s,             UInt(3)),
-    ((id_fp_val || id_csr_fp) && !io.dpath.status.ef, UInt(4)),
-    (id_syscall,                                      UInt(6)),
-    (id_rocc_val && !io.dpath.status.er,              UInt(12))))
+    (io.imem.resp.bits.xcpt_ma,                       UInt(Causes.misaligned_fetch)),
+    (io.imem.resp.bits.xcpt_if,                       UInt(Causes.fault_fetch)),
+    (!id_int_val || id_csr_invalid,                   UInt(Causes.illegal_instruction)),
+    (id_privileged && !io.dpath.status.s,             UInt(Causes.privileged_instruction)),
+    ((id_fp_val || id_csr_fp) && !io.dpath.status.ef, UInt(Causes.fp_disabled)),
+    (id_syscall,                                      UInt(Causes.syscall)),
+    (id_rocc_val && !io.dpath.status.er,              UInt(Causes.accelerator_disabled))))
 
   ex_reg_xcpt_interrupt := id_interrupt && !take_pc && io.imem.resp.valid
   when (id_xcpt) { ex_reg_cause := id_cause }
@@ -496,7 +496,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   val (ex_xcpt, ex_cause) = checkExceptions(List(
     (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause),
-    (ex_reg_fp_val && io.fpu.illegal_rm,   UInt(2))))
+    (ex_reg_fp_val && io.fpu.illegal_rm,   UInt(Causes.illegal_instruction))))
   
   mem_reg_replay := replay_ex && !take_pc_wb
   mem_reg_xcpt_interrupt := ex_reg_xcpt_interrupt && !take_pc_wb && !mem_reg_replay_next
@@ -533,10 +533,10 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
-    (mem_reg_mem_val && io.dmem.xcpt.ma.ld,  UInt( 8)),
-    (mem_reg_mem_val && io.dmem.xcpt.ma.st,  UInt( 9)),
-    (mem_reg_mem_val && io.dmem.xcpt.pf.ld,  UInt(10)),
-    (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UInt(11))))
+    (mem_reg_mem_val && io.dmem.xcpt.ma.ld,  UInt(Causes.misaligned_load)),
+    (mem_reg_mem_val && io.dmem.xcpt.ma.st,  UInt(Causes.misaligned_store)),
+    (mem_reg_mem_val && io.dmem.xcpt.pf.ld,  UInt(Causes.fault_load)),
+    (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UInt(Causes.fault_store))))
 
   val dcache_kill_mem = mem_reg_wen && io.dmem.replay_next.valid // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
