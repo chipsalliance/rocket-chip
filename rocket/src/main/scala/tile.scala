@@ -20,7 +20,7 @@ case class RocketConfiguration(tl: TileLinkConfiguration,
   if (fastLoadByte) require(fastLoadWord)
 }
 
-class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = resetSignal) with ClientCoherenceAgent
+class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = resetSignal)
 {
   val memPorts = 2 // Number of ports to outer memory system from tile: 1 from I$, 1 from D$
   val dcachePortId = 0
