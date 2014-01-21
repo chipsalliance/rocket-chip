@@ -94,7 +94,7 @@ int main(int argc, char** argv)
     tile.Top__io_mem_req_data_ready = LIT<1>(mm->req_data_ready());
     tile.Top__io_mem_resp_valid = LIT<1>(mm->resp_valid());
     tile.Top__io_mem_resp_bits_tag = LIT<64>(mm->resp_tag());
-    memcpy(&tile.Top__io_mem_resp_bits_data, mm->resp_data(), tile.Top__io_mem_resp_bits_data.width()/8);
+    memcpy(tile.Top__io_mem_resp_bits_data.values, mm->resp_data(), tile.Top__io_mem_resp_bits_data.width()/8);
 
     tile.clock_lo(LIT<1>(0));
 
@@ -105,7 +105,7 @@ int main(int argc, char** argv)
       tile.Top__io_mem_req_cmd_bits_tag.lo_word(),
 
       tile.Top__io_mem_req_data_valid.lo_word(),
-      &tile.Top__io_mem_req_data_bits_data.values[0],
+      tile.Top__io_mem_req_data_bits_data.values,
 
       tile.Top__io_mem_resp_ready.to_bool()
     );
@@ -120,7 +120,7 @@ int main(int argc, char** argv)
       tile.Top__io_host_in_bits = LIT<64>(htif_in_bits);
 
       if (tile.Top__io_host_out_valid.to_bool())
-        htif->send(&tile.Top__io_host_out_bits.values[0], htif_bits/8);
+        htif->send(tile.Top__io_host_out_bits.values, htif_bits/8);
       tile.Top__io_host_out_ready = LIT<1>(1);
     }
 
