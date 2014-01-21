@@ -260,7 +260,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   }
 
   val ackq = Module(new Queue(new LogicalNetworkIO(new GrantAck), 1))
-  ackq.io.enq.valid := (wb_done || refill_done) && tl.co.requiresAck(io.mem_grant.bits.payload)
+  ackq.io.enq.valid := (wb_done || refill_done) && tl.co.requiresAckForGrant(io.mem_grant.bits.payload.g_type)
   ackq.io.enq.bits.payload.master_xact_id := io.mem_grant.bits.payload.master_xact_id
   ackq.io.enq.bits.header.dst := io.mem_grant.bits.header.src
   val can_finish = state === s_invalid || state === s_refill_req || state === s_refill_resp
@@ -686,12 +686,12 @@ class AMOALU(implicit conf: DCacheConfig) extends Module {
 
 class HellaCacheReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val kill = Bool()
-  val typ  = Bits(width = 3)
+  val typ  = Bits(width = MT_SZ)
   val phys = Bool()
   val addr = UInt(width = conf.maxaddrbits)
   val data = Bits(width = conf.databits)
   val tag  = Bits(width = conf.reqtagbits)
-  val cmd  = Bits(width = 4)
+  val cmd  = Bits(width = M_SZ)
 }
 
 class HellaCacheResp(implicit val conf: DCacheConfig) extends DCacheBundle {

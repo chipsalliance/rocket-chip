@@ -248,7 +248,7 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
   val finish_q = Module(new Queue(new GrantAck, 1))
-  finish_q.io.enq.valid := refill_done && tl.co.requiresAck(io.mem.grant.bits.payload)
+  finish_q.io.enq.valid := refill_done && tl.co.requiresAckForGrant(io.mem.grant.bits.payload.g_type)
   finish_q.io.enq.bits.master_xact_id := io.mem.grant.bits.payload.master_xact_id
 
   // output signals
