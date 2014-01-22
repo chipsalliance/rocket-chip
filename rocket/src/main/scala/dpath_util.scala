@@ -246,11 +246,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
 
   when (wen) {
     when (decoded_addr(CSRs.status)) {
-      val sr_wdata = Mux(io.rw.cmd === CSR.S, reg_status.toBits | wdata,
-                     Mux(io.rw.cmd === CSR.C, reg_status.toBits & ~wdata,
-                     wdata))
-      reg_status := new Status().fromBits(sr_wdata)
-
+      reg_status := new Status().fromBits(wdata)
       reg_status.s64 := true
       reg_status.u64 := true
       reg_status.zero := 0
@@ -258,22 +254,20 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
       if (conf.rocc.isEmpty) reg_status.er := false
       if (!conf.fpu) reg_status.ef := false
     }
-    when (io.rw.cmd != CSR.C && io.rw.cmd != CSR.S) {
-      when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
-      when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
-      when (decoded_addr(CSRs.fcsr))     { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
-      when (decoded_addr(CSRs.epc))      { reg_epc := wdata(VADDR_BITS,0).toSInt }
-      when (decoded_addr(CSRs.evec))     { reg_evec := wdata(VADDR_BITS-1,0).toSInt }
-      when (decoded_addr(CSRs.count))    { reg_time := wdata.toUInt }
-      when (decoded_addr(CSRs.compare))  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false) }
-      when (decoded_addr(CSRs.fromhost)) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
-      when (decoded_addr(CSRs.tohost))   { when (reg_tohost === UInt(0) || host_pcr_req_fire) { reg_tohost := wdata } }
-      when (decoded_addr(CSRs.clear_ipi)){ r_irq_ipi := wdata(0) }
-      when (decoded_addr(CSRs.sup0))     { reg_sup0 := wdata }
-      when (decoded_addr(CSRs.sup1))     { reg_sup1 := wdata }
-      when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUInt }
-      when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
-    }
+    when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
+    when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
+    when (decoded_addr(CSRs.fcsr))     { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
+    when (decoded_addr(CSRs.epc))      { reg_epc := wdata(VADDR_BITS,0).toSInt }
+    when (decoded_addr(CSRs.evec))     { reg_evec := wdata(VADDR_BITS-1,0).toSInt }
+    when (decoded_addr(CSRs.count))    { reg_time := wdata.toUInt }
+    when (decoded_addr(CSRs.compare))  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false) }
+    when (decoded_addr(CSRs.fromhost)) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
+    when (decoded_addr(CSRs.tohost))   { when (reg_tohost === UInt(0) || host_pcr_req_fire) { reg_tohost := wdata } }
+    when (decoded_addr(CSRs.clear_ipi)){ r_irq_ipi := wdata(0) }
+    when (decoded_addr(CSRs.sup0))     { reg_sup0 := wdata }
+    when (decoded_addr(CSRs.sup1))     { reg_sup1 := wdata }
+    when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUInt }
+    when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
   }
 
   io.host.ipi_rep.ready := Bool(true)

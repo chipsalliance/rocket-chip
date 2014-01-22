@@ -281,7 +281,9 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   // processor control regfile write
   pcr.io.rw.addr := wb_reg_inst(31,20)
   pcr.io.rw.cmd  := io.ctrl.csr
-  pcr.io.rw.wdata := wb_reg_wdata
+  pcr.io.rw.wdata := Mux(io.ctrl.csr === CSR.S, pcr.io.rw.rdata | wb_reg_wdata,
+                     Mux(io.ctrl.csr === CSR.C, pcr.io.rw.rdata & ~wb_reg_wdata,
+                     wb_reg_wdata))
 
   io.rocc.cmd.bits.inst := new RoCCInstruction().fromBits(wb_reg_inst)
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
