@@ -111,6 +111,8 @@ asm_p_tests = \
 	rv64uf-p-fmin \
 	rv64uf-p-fmadd \
 	rv64uf-p-structural \
+	rv64si-p-coreid \
+	rv64si-p-csr \
 	rv64si-pm-ipi \
 	rv64ui-pm-lrsc \
 
