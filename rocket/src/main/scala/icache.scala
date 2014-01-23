@@ -5,11 +5,11 @@ import uncore._
 import Util._
 
 case class ICacheConfig(sets: Int, assoc: Int,
+                        ibytes: Int = 4,
                         ntlb: Int = 8, nbtb: Int = 8,
                         code: Code = new IdentityCode)
 {
   val w = 1
-  val ibytes = 4
 
   val dm = assoc == 1
   val lines = sets * assoc
