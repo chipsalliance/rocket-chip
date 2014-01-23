@@ -56,7 +56,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
     // system is 'interesting' if any tile is 'interesting'
 
   val short_request_bits = 64
-  val long_request_bits = 576
+  val long_request_bits = short_request_bits + MEM_DATA_BITS*REFILL_CYCLES
   require(short_request_bits % w == 0)
 
   val rx_count_w = 13 + log2Up(64) - log2Up(w) // data size field is 12 bits
