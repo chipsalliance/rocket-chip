@@ -90,12 +90,12 @@ object XDecode extends DecodeConstants
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |     | | | | fence
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |     | | | | | amo
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |     | | | | | |
-    BNE->       List(Y,    N,N,BR_NE, N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BEQ->       List(Y,    N,N,BR_EQ, N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BLT->       List(Y,    N,N,BR_LT, N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BLTU->      List(Y,    N,N,BR_LTU,N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BGE->       List(Y,    N,N,BR_GE, N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BGEU->      List(Y,    N,N,BR_GEU,N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BNE->       List(Y,    N,N,BR_NE, N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BEQ->       List(Y,    N,N,BR_EQ, N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BLT->       List(Y,    N,N,BR_LT, N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BLTU->      List(Y,    N,N,BR_LTU,N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BGE->       List(Y,    N,N,BR_GE, N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BGEU->      List(Y,    N,N,BR_GEU,N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
                                         
     JAL->       List(Y,    N,N,BR_J,  N,N,N,A2_FOUR,A1_PC,  IMM_UJ,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     JALR->      List(Y,    N,N,BR_N,  Y,N,Y,A2_FOUR,A1_PC,  IMM_I, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
