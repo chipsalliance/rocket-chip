@@ -417,7 +417,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   // flush pipeline on CSR writes that may have side effects
   val id_csr_flush = {
     val safe_csrs = CSRs.sup0 :: CSRs.sup1 :: CSRs.epc :: Nil
-    id_csr_en && id_csr_wen && DecodeLogic(id_csr_addr, legal_csrs -- safe_csrs, safe_csrs)
+    id_csr_en && id_csr_wen && !DecodeLogic(id_csr_addr, safe_csrs, legal_csrs -- safe_csrs)
   }
   val id_privileged = id_sret || id_csr_privileged
 
@@ -645,10 +645,13 @@ class Control(implicit conf: RocketConfiguration) extends Module
   }
 
   // stall for RAW/WAW hazards on PCRs, loads, AMOs, and mul/div in execute stage.
+  val id_renx1_not0 = id_renx1 && id_raddr1 != UInt(0)
+  val id_renx2_not0 = id_renx2 && id_raddr2 != UInt(0)
+  val id_wen_not0 = id_wen && id_waddr != UInt(0)
   val data_hazard_ex = ex_reg_wen &&
-    (id_renx1.toBool && id_raddr1 === io.dpath.ex_waddr ||
-     id_renx2.toBool && id_raddr2 === io.dpath.ex_waddr ||
-     id_wen.toBool   && id_waddr  === io.dpath.ex_waddr)
+    (id_renx1_not0 && id_raddr1 === io.dpath.ex_waddr ||
+     id_renx2_not0 && id_raddr2 === io.dpath.ex_waddr ||
+     id_wen_not0   && id_waddr  === io.dpath.ex_waddr)
   val fp_data_hazard_ex = ex_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.ex_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.ex_waddr ||
@@ -662,9 +665,9 @@ class Control(implicit conf: RocketConfiguration) extends Module
     if (conf.fastLoadWord) Bool(!conf.fastLoadByte) && mem_reg_slow_bypass
     else Bool(true)
   val data_hazard_mem = mem_reg_wen &&
-    (id_raddr1 != UInt(0) && id_renx1 && id_raddr1 === io.dpath.mem_waddr ||
-     id_raddr2 != UInt(0) && id_renx2 && id_raddr2 === io.dpath.mem_waddr ||
-     id_waddr  != UInt(0) && id_wen   && id_waddr  === io.dpath.mem_waddr)
+    (id_renx1_not0 && id_raddr1 === io.dpath.mem_waddr ||
+     id_renx2_not0 && id_raddr2 === io.dpath.mem_waddr ||
+     id_wen_not0   && id_waddr  === io.dpath.mem_waddr)
   val fp_data_hazard_mem = mem_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.mem_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.mem_waddr ||
@@ -683,9 +686,9 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_wb_hazard = fp_data_hazard_wb && (wb_dcache_miss || wb_reg_fp_val)
 
   val id_sboard_hazard =
-    (id_raddr1 != UInt(0) && id_renx1 && sboard.readBypassed(id_raddr1) ||
-     id_raddr2 != UInt(0) && id_renx2 && sboard.readBypassed(id_raddr2) ||
-     id_waddr  != UInt(0) && id_wen   && sboard.readBypassed(id_waddr))
+    (id_renx1_not0 && sboard.readBypassed(id_raddr1) ||
+     id_renx2_not0 && sboard.readBypassed(id_raddr2) ||
+     id_wen_not0   && sboard.readBypassed(id_waddr))
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
