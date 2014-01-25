@@ -7,6 +7,7 @@ import Util._
 case class RocketConfiguration(tl: TileLinkConfiguration,
                                icache: ICacheConfig, dcache: DCacheConfig,
                                fpu: Boolean, rocc: Option[RocketConfiguration => RoCC] = None,
+                               retireWidth: Int = 1,
                                vm: Boolean = true,
                                fastLoadWord: Boolean = true,
                                fastLoadByte: Boolean = false,
@@ -30,6 +31,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   implicit val icConf = confIn.icache
   implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(dcachePorts), databits = confIn.xprlen)
   implicit val conf = confIn.copy(dcache = dcConf)
+  require(conf.retireWidth == 1) // for now...
 
   val io = new Bundle {
     val tilelink = new TileLinkIO
