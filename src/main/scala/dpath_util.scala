@@ -98,7 +98,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
     val ptbr = UInt(OUTPUT, PADDR_BITS)
     val evec = UInt(OUTPUT, VADDR_BITS+1)
     val exception = Bool(INPUT)
-    val retire = Bool(INPUT)
+    val retire = UInt(INPUT, log2Up(1+conf.retireWidth))
     val cause = UInt(INPUT, conf.xprlen)
     val badvaddr_wen = Bool(INPUT)
     val pc = UInt(INPUT, VADDR_BITS+1)
