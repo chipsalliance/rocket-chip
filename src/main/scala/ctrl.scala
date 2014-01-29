@@ -738,4 +738,5 @@ class Control(implicit conf: RocketConfiguration) extends Module
   io.dmem.req.bits.phys := Bool(false)
 
   io.rocc.cmd.valid := wb_rocc_val
+  io.rocc.exception := wb_reg_xcpt && sr.er
 }
