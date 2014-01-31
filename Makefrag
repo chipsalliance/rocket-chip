@@ -2,7 +2,7 @@
 
 MODEL := Top
 CXX := g++
-CXXFLAGS := -O2
+CXXFLAGS := -O1
 
 SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
 
