@@ -410,16 +410,18 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_csr_en = id_csr != CSR.N
   val id_csr_fp = Bool(conf.fpu) && id_csr_en && DecodeLogic(id_csr_addr, fp_csrs, CSRs.all.toSet -- fp_csrs)
   val id_csr_wen = id_raddr1 != UInt(0) || !Vec(CSR.S, CSR.C).contains(id_csr)
-  val id_csr_privileged = id_csr_en &&
-    (id_csr_addr(9,8) != UInt(0) ||
-     id_csr_addr(11,10) != UInt(0) && id_csr_wen)
   val id_csr_invalid = id_csr_en && !Vec(legal_csrs.map(UInt(_))).contains(id_csr_addr)
+  val id_csr_privileged = id_csr_en &&
+    (id_csr_addr(11,10) === UInt(3) && id_csr_wen ||
+     id_csr_addr(11,10) === UInt(2) ||
+     id_csr_addr(11,10) === UInt(1) && !io.dpath.status.s ||
+     id_csr_addr(9,8) >= UInt(2) ||
+     id_csr_addr(9,8) === UInt(1) && !io.dpath.status.s && id_csr_wen)
   // flush pipeline on CSR writes that may have side effects
   val id_csr_flush = {
     val safe_csrs = CSRs.sup0 :: CSRs.sup1 :: CSRs.epc :: Nil
     id_csr_en && id_csr_wen && !DecodeLogic(id_csr_addr, safe_csrs, legal_csrs -- safe_csrs)
   }
-  val id_privileged = id_sret || id_csr_privileged
 
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
   val id_amo_aq = io.dpath.inst(26)
@@ -436,7 +438,8 @@ class Control(implicit conf: RocketConfiguration) extends Module
     (io.imem.resp.bits.xcpt_ma,                       UInt(Causes.misaligned_fetch)),
     (io.imem.resp.bits.xcpt_if,                       UInt(Causes.fault_fetch)),
     (!id_int_val || id_csr_invalid,                   UInt(Causes.illegal_instruction)),
-    (id_privileged && !io.dpath.status.s,             UInt(Causes.privileged_instruction)),
+    (id_csr_privileged,                               UInt(Causes.privileged_instruction)),
+    (id_sret && !io.dpath.status.s,                   UInt(Causes.privileged_instruction)),
     ((id_fp_val || id_csr_fp) && !io.dpath.status.ef, UInt(Causes.fp_disabled)),
     (id_syscall,                                      UInt(Causes.syscall)),
     (id_rocc_val && !io.dpath.status.er,              UInt(Causes.accelerator_disabled))))
