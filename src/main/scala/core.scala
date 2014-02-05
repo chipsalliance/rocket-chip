@@ -42,8 +42,6 @@ class Core(implicit conf: RocketConfiguration) extends Module
   ctrl.io.rocc <> io.rocc
   dpath.io.rocc <> io.rocc
 
-  require(conf.fpu)
-  // Hookup the {S,D}FMA pipes
-  fpu.io.sfma <> io.rocc.cp_sfma
-  fpu.io.dfma <> io.rocc.cp_dfma
+  fpu.io.sfma.valid := Bool(false)
+  fpu.io.dfma.valid := Bool(false)
 }
