@@ -59,10 +59,6 @@ trait ScalarOpConstants {
 
   val RA = UInt(1, 5)
 }
-
-trait InterruptConstants {
-  val CAUSE_INTERRUPT = 32
-}
  
 trait VectorOpConstants {
   val VEC_X = Bits("b??", 2).toUInt

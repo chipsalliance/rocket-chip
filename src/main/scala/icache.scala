@@ -5,11 +5,11 @@ import uncore._
 import Util._
 
 case class ICacheConfig(sets: Int, assoc: Int,
+                        ibytes: Int = 4,
                         ntlb: Int = 8, nbtb: Int = 8,
                         code: Code = new IdentityCode)
 {
   val w = 1
-  val ibytes = 4
 
   val dm = assoc == 1
   val lines = sets * assoc
@@ -248,7 +248,7 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
   val finish_q = Module(new Queue(new GrantAck, 1))
-  finish_q.io.enq.valid := refill_done && tl.co.requiresAck(io.mem.grant.bits.payload)
+  finish_q.io.enq.valid := refill_done && tl.co.requiresAckForGrant(io.mem.grant.bits.payload.g_type)
   finish_q.io.enq.bits.master_xact_id := io.mem.grant.bits.payload.master_xact_id
 
   // output signals

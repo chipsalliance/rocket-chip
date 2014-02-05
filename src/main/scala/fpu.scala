@@ -212,6 +212,7 @@ class FPToInt extends Module
 
   val unrec_s = hardfloat.recodedFloatNToFloatN(in.in1, 23, 9)
   val unrec_d = hardfloat.recodedFloatNToFloatN(in.in1, 52, 12)
+  val unrec_out = Mux(in.single, Cat(Fill(32, unrec_s(31)), unrec_s), unrec_d)
 
   val dcmp = Module(new hardfloat.recodedFloatNCompare(52, 12))
   dcmp.io.a := in.in1
@@ -221,7 +222,8 @@ class FPToInt extends Module
 
   val d2i = hardfloat.recodedFloatNToAny(in.in1, in.rm, ~in.cmd(1,0), 52, 12, 64)
 
-  io.out.bits.toint := Mux(in.single, Cat(Fill(32, unrec_s(31)), unrec_s), unrec_d)
+  io.out.bits.toint := unrec_out
+  io.out.bits.store := unrec_out
   io.out.bits.exc := Bits(0)
 
   when (in.cmd === FCMD_CVT_W_FMT || in.cmd === FCMD_CVT_WU_FMT) {
@@ -238,7 +240,6 @@ class FPToInt extends Module
   }
 
   io.out.valid := valid
-  io.out.bits.store := Mux(in.single, Cat(unrec_d(63,32), unrec_s), unrec_d)
   io.out.bits.lt := dcmp.io.a_lt_b
 }
 
@@ -268,7 +269,7 @@ class IntToFP(val latency: Int) extends Module
   mux.exc := Bits(0)
   mux.data := hardfloat.floatNToRecodedFloatN(in.bits.data, 52, 12)
   when (in.bits.single) {
-    mux.data := hardfloat.floatNToRecodedFloatN(in.bits.data, 23, 9)
+    mux.data := Cat(SInt(-1, 32), hardfloat.floatNToRecodedFloatN(in.bits.data, 23, 9))
   }
 
   when (in.bits.cmd === FCMD_CVT_FMT_W || in.bits.cmd === FCMD_CVT_FMT_WU ||
@@ -463,7 +464,7 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val load_wb_tag = RegEnable(io.dpath.dmem_resp_tag, io.dpath.dmem_resp_val)
   val rec_s = hardfloat.floatNToRecodedFloatN(load_wb_data, 23, 9)
   val rec_d = hardfloat.floatNToRecodedFloatN(load_wb_data, 52, 12)
-  val load_wb_data_recoded = Mux(load_wb_single, Cat(SInt(-1), rec_s), rec_d)
+  val load_wb_data_recoded = Mux(load_wb_single, Cat(SInt(-1, 32), rec_s), rec_d)
 
   // regfile
   val regfile = Mem(Bits(width = 65), 32)
@@ -525,7 +526,7 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val pipes = List(
     Pipe(fpmu, fpmu.latency, (c: FPUCtrlSigs) => c.fastpipe, fpmu.io.out.bits.data, fpmu.io.out.bits.exc),
     Pipe(ifpu, ifpu.latency, (c: FPUCtrlSigs) => c.fromint, ifpu.io.out.bits.data, ifpu.io.out.bits.exc),
-    Pipe(sfma, sfma.latency, (c: FPUCtrlSigs) => c.fma && c.single, sfma.io.out, sfma.io.exc),
+    Pipe(sfma, sfma.latency, (c: FPUCtrlSigs) => c.fma && c.single, Cat(SInt(-1, 32), sfma.io.out), sfma.io.exc),
     Pipe(dfma, dfma.latency, (c: FPUCtrlSigs) => c.fma && !c.single, dfma.io.out, dfma.io.exc))
   def latencyMask(c: FPUCtrlSigs, offset: Int) = {
     require(pipes.forall(_.lat >= offset))
