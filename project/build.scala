@@ -47,7 +47,7 @@ object BuildSettings extends Build {
      val chiselMainObject = chiselMainClass.getDeclaredFields.head.get(null)
      val chiselMain = chiselMainClass.getMethod("run", classOf[Array[String]], classOf[Function0[_]])
      val chiselArgs = args.drop(numArgs)
-     val component = classLoader.loadClass(packageName+"."+componentName)
+     val component = classLoader.loadClass((if (!componentName.contains('.')) packageName+"." else "")+componentName)
      val generator = () => component.newInstance()
      chiselMain.invoke(chiselMainObject, Array(chiselArgs.toArray, generator):_*)
   }
