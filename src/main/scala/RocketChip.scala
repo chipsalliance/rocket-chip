@@ -83,7 +83,7 @@ class ReferenceChipBackend extends VerilogBackend
   transforms += ((c: Module) => collectNodesIntoComp(initializeDFS))
 }
 
-class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
+class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
 {
   implicit val (tl, ln, l2) = (conf.tl, conf.tl.ln, conf.l2)
   val io = new Bundle {
@@ -101,10 +101,10 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
   //val llc = Module(new DRAMSideLLCNull(NL2_REL_XACTS+NL2_ACQ_XACTS, REFILL_CYCLES))
   val mem_serdes = Module(new MemSerdes(htif_width))
 
-  require(clientEndpoints.length == ln.nClients)
   val masterEndpoints = (0 until ln.nMasters).map(i => Module(new L2CoherenceAgent(i)))
-  val net = Module(new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints))
-  net.io zip (masterEndpoints.map(_.io.client) ++ io.tiles :+ io.htif) map { case (net, end) => net <> end }
+  val net = Module(new ReferenceChipCrossbarNetwork)
+  net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
+  net.io.masters zip (masterEndpoints.map(_.io.client)) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
 
   val conv = Module(new MemIOUncachedTileLinkIOConverter(2))
@@ -145,7 +145,7 @@ class OuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAge
 
 case class UncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int, nSCR: Int)
 
-class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
+class Uncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
 {
   implicit val tl = conf.tl
   val io = new Bundle {
@@ -158,7 +158,7 @@ class Uncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf
     val mem_backup_en = Bool(INPUT)
   }
   val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR))
-  val outmemsys = Module(new OuterMemorySystem(htif_width, tileList :+ htif))
+  val outmemsys = Module(new OuterMemorySystem(htif_width))
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif
   htif.io.cpu <> io.htif
@@ -246,7 +246,7 @@ class Top extends Module {
               else new MICoherence
             }
 
-  implicit val ln = LogicalNetworkConfiguration(NTILES+NBANKS+1, log2Up(NTILES)+1, NBANKS, NTILES+1)
+  implicit val ln = LogicalNetworkConfiguration(log2Up(NTILES)+1, NBANKS, NTILES+1)
   implicit val tl = TileLinkConfiguration(co, ln, log2Up(NL2_REL_XACTS+NL2_ACQ_XACTS), 2*log2Up(NMSHRS*NTILES+1), MEM_DATA_BITS)
   implicit val l2 = L2CoherenceAgentConfiguration(tl, NL2_REL_XACTS, NL2_ACQ_XACTS)
   implicit val uc = UncoreConfiguration(l2, tl, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64)
@@ -265,7 +265,7 @@ class Top extends Module {
 
   val resetSigs = Vec.fill(uc.nTiles){Bool()}
   val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
-  val uncore = Module(new Uncore(HTIF_WIDTH, tileList))
+  val uncore = Module(new Uncore(HTIF_WIDTH))
 
   for (i <- 0 until uc.nTiles) {
     val hl = uncore.io.htif(i)
