@@ -7,6 +7,7 @@ import Util._
 case class RocketConfiguration(tl: TileLinkConfiguration,
                                icache: ICacheConfig, dcache: DCacheConfig,
                                fpu: Boolean, rocc: Option[RocketConfiguration => RoCC] = None,
+                               retireWidth: Int = 1,
                                vm: Boolean = true,
                                fastLoadWord: Boolean = true,
                                fastLoadByte: Boolean = false,
@@ -19,7 +20,7 @@ case class RocketConfiguration(tl: TileLinkConfiguration,
   if (fastLoadByte) require(fastLoadWord)
 }
 
-class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = resetSignal) with ClientCoherenceAgent
+class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = resetSignal)
 {
   val memPorts = 2 + !confIn.rocc.isEmpty // Number of ports to outer memory system from tile: 1 from I$, 1 from D$, maybe 1 from Rocc
   val dcachePortId = 0
@@ -31,6 +32,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   implicit val icConf = confIn.icache
   implicit val dcConf = confIn.dcache.copy(reqtagbits = confIn.dcacheReqTagBits + log2Up(dcachePorts), databits = confIn.xprlen)
   implicit val conf = confIn.copy(dcache = dcConf)
+  require(conf.retireWidth == 1) // for now...
 
   val io = new Bundle {
     val tilelink = new TileLinkIO

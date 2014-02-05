@@ -6,7 +6,7 @@ import uncore.constants.MemoryOpConstants._
 import ALU._
 import Util._
 
-class CtrlDpathIO extends Bundle()
+class CtrlDpathIO(implicit conf: RocketConfiguration) extends Bundle
 {
   // outputs to datapath
   val sel_pc   = UInt(OUTPUT, 3)
@@ -42,7 +42,7 @@ class CtrlDpathIO extends Bundle()
   // exception handling
   val retire = Bool(OUTPUT)
   val exception = Bool(OUTPUT)
-  val cause    = UInt(OUTPUT, 6)
+  val cause    = UInt(OUTPUT, conf.xprlen)
   val badvaddr_wen = Bool(OUTPUT) // high for a load/store access fault
   // inputs from datapath
   val inst    = Bits(INPUT, 32)
@@ -90,12 +90,12 @@ object XDecode extends DecodeConstants
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |     | | | | fence
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |     | | | | | amo
                 //   |     | | |      | | | |       |       |      |      |         | |         |     | | | |     | | | | | |
-    BNE->       List(Y,    N,N,BR_NE, N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BEQ->       List(Y,    N,N,BR_EQ, N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BLT->       List(Y,    N,N,BR_LT, N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BLTU->      List(Y,    N,N,BR_LTU,N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BGE->       List(Y,    N,N,BR_GE, N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
-    BGEU->      List(Y,    N,N,BR_GEU,N,Y,Y,A2_RS2, A1_RS1, IMM_SB,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BNE->       List(Y,    N,N,BR_NE, N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BEQ->       List(Y,    N,N,BR_EQ, N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BLT->       List(Y,    N,N,BR_LT, N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BLTU->      List(Y,    N,N,BR_LTU,N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BGE->       List(Y,    N,N,BR_GE, N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    BGEU->      List(Y,    N,N,BR_GEU,N,Y,Y,A2_X,   A1_X,   IMM_SB,DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
                                         
     JAL->       List(Y,    N,N,BR_J,  N,N,N,A2_FOUR,A1_PC,  IMM_UJ,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     JALR->      List(Y,    N,N,BR_N,  Y,N,Y,A2_FOUR,A1_PC,  IMM_I, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
@@ -395,7 +395,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_reg_fence = Reg(init=Bool(false))
 
   val sr = io.dpath.status
-  var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UInt(CAUSE_INTERRUPT+i)))
+  var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UInt(BigInt(1) << (conf.xprlen-1) | i)))
 
   val (id_interrupt_unmasked, id_interrupt_cause) = checkExceptions(id_interrupts)
   val id_interrupt = io.dpath.status.ei && id_interrupt_unmasked
@@ -410,16 +410,18 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_csr_en = id_csr != CSR.N
   val id_csr_fp = Bool(conf.fpu) && id_csr_en && DecodeLogic(id_csr_addr, fp_csrs, CSRs.all.toSet -- fp_csrs)
   val id_csr_wen = id_raddr1 != UInt(0) || !Vec(CSR.S, CSR.C).contains(id_csr)
-  val id_csr_privileged = id_csr_en &&
-    (id_csr_addr(9,8) != UInt(0) ||
-     id_csr_addr(11,10) != UInt(0) && id_csr_wen)
   val id_csr_invalid = id_csr_en && !Vec(legal_csrs.map(UInt(_))).contains(id_csr_addr)
+  val id_csr_privileged = id_csr_en &&
+    (id_csr_addr(11,10) === UInt(3) && id_csr_wen ||
+     id_csr_addr(11,10) === UInt(2) ||
+     id_csr_addr(11,10) === UInt(1) && !io.dpath.status.s ||
+     id_csr_addr(9,8) >= UInt(2) ||
+     id_csr_addr(9,8) === UInt(1) && !io.dpath.status.s && id_csr_wen)
   // flush pipeline on CSR writes that may have side effects
   val id_csr_flush = {
     val safe_csrs = CSRs.sup0 :: CSRs.sup1 :: CSRs.epc :: Nil
-    id_csr_en && id_csr_wen && DecodeLogic(id_csr_addr, legal_csrs -- safe_csrs, safe_csrs)
+    id_csr_en && id_csr_wen && !DecodeLogic(id_csr_addr, safe_csrs, legal_csrs -- safe_csrs)
   }
-  val id_privileged = id_sret || id_csr_privileged
 
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
   val id_amo_aq = io.dpath.inst(26)
@@ -433,13 +435,14 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   val (id_xcpt, id_cause) = checkExceptions(List(
     (id_interrupt,                                    id_interrupt_cause),
-    (io.imem.resp.bits.xcpt_ma,                       UInt(0)),
-    (io.imem.resp.bits.xcpt_if,                       UInt(1)),
-    (!id_int_val || id_csr_invalid,                   UInt(2)),
-    (id_privileged && !io.dpath.status.s,             UInt(3)),
-    ((id_fp_val || id_csr_fp) && !io.dpath.status.ef, UInt(4)),
-    (id_syscall,                                      UInt(6)),
-    (id_rocc_val && !io.dpath.status.er,              UInt(12))))
+    (io.imem.resp.bits.xcpt_ma,                       UInt(Causes.misaligned_fetch)),
+    (io.imem.resp.bits.xcpt_if,                       UInt(Causes.fault_fetch)),
+    (!id_int_val || id_csr_invalid,                   UInt(Causes.illegal_instruction)),
+    (id_csr_privileged,                               UInt(Causes.privileged_instruction)),
+    (id_sret && !io.dpath.status.s,                   UInt(Causes.privileged_instruction)),
+    ((id_fp_val || id_csr_fp) && !io.dpath.status.ef, UInt(Causes.fp_disabled)),
+    (id_syscall,                                      UInt(Causes.syscall)),
+    (id_rocc_val && !io.dpath.status.er,              UInt(Causes.accelerator_disabled))))
 
   ex_reg_xcpt_interrupt := id_interrupt && !take_pc && io.imem.resp.valid
   when (id_xcpt) { ex_reg_cause := id_cause }
@@ -496,7 +499,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   val (ex_xcpt, ex_cause) = checkExceptions(List(
     (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause),
-    (ex_reg_fp_val && io.fpu.illegal_rm,   UInt(2))))
+    (ex_reg_fp_val && io.fpu.illegal_rm,   UInt(Causes.illegal_instruction))))
   
   mem_reg_replay := replay_ex && !take_pc_wb
   mem_reg_xcpt_interrupt := ex_reg_xcpt_interrupt && !take_pc_wb && !mem_reg_replay_next
@@ -533,10 +536,10 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
-    (mem_reg_mem_val && io.dmem.xcpt.ma.ld,  UInt( 8)),
-    (mem_reg_mem_val && io.dmem.xcpt.ma.st,  UInt( 9)),
-    (mem_reg_mem_val && io.dmem.xcpt.pf.ld,  UInt(10)),
-    (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UInt(11))))
+    (mem_reg_mem_val && io.dmem.xcpt.ma.ld,  UInt(Causes.misaligned_load)),
+    (mem_reg_mem_val && io.dmem.xcpt.ma.st,  UInt(Causes.misaligned_store)),
+    (mem_reg_mem_val && io.dmem.xcpt.pf.ld,  UInt(Causes.fault_load)),
+    (mem_reg_mem_val && io.dmem.xcpt.pf.st,  UInt(Causes.fault_store))))
 
   val dcache_kill_mem = mem_reg_wen && io.dmem.replay_next.valid // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_fp_val && io.fpu.nack_mem
@@ -645,10 +648,13 @@ class Control(implicit conf: RocketConfiguration) extends Module
   }
 
   // stall for RAW/WAW hazards on PCRs, loads, AMOs, and mul/div in execute stage.
+  val id_renx1_not0 = id_renx1 && id_raddr1 != UInt(0)
+  val id_renx2_not0 = id_renx2 && id_raddr2 != UInt(0)
+  val id_wen_not0 = id_wen && id_waddr != UInt(0)
   val data_hazard_ex = ex_reg_wen &&
-    (id_renx1.toBool && id_raddr1 === io.dpath.ex_waddr ||
-     id_renx2.toBool && id_raddr2 === io.dpath.ex_waddr ||
-     id_wen.toBool   && id_waddr  === io.dpath.ex_waddr)
+    (id_renx1_not0 && id_raddr1 === io.dpath.ex_waddr ||
+     id_renx2_not0 && id_raddr2 === io.dpath.ex_waddr ||
+     id_wen_not0   && id_waddr  === io.dpath.ex_waddr)
   val fp_data_hazard_ex = ex_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.ex_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.ex_waddr ||
@@ -662,9 +668,9 @@ class Control(implicit conf: RocketConfiguration) extends Module
     if (conf.fastLoadWord) Bool(!conf.fastLoadByte) && mem_reg_slow_bypass
     else Bool(true)
   val data_hazard_mem = mem_reg_wen &&
-    (id_raddr1 != UInt(0) && id_renx1 && id_raddr1 === io.dpath.mem_waddr ||
-     id_raddr2 != UInt(0) && id_renx2 && id_raddr2 === io.dpath.mem_waddr ||
-     id_waddr  != UInt(0) && id_wen   && id_waddr  === io.dpath.mem_waddr)
+    (id_renx1_not0 && id_raddr1 === io.dpath.mem_waddr ||
+     id_renx2_not0 && id_raddr2 === io.dpath.mem_waddr ||
+     id_wen_not0   && id_waddr  === io.dpath.mem_waddr)
   val fp_data_hazard_mem = mem_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.mem_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.mem_waddr ||
@@ -683,9 +689,9 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_wb_hazard = fp_data_hazard_wb && (wb_dcache_miss || wb_reg_fp_val)
 
   val id_sboard_hazard =
-    (id_raddr1 != UInt(0) && id_renx1 && sboard.readBypassed(id_raddr1) ||
-     id_raddr2 != UInt(0) && id_renx2 && sboard.readBypassed(id_raddr2) ||
-     id_waddr  != UInt(0) && id_wen   && sboard.readBypassed(id_waddr))
+    (id_renx1_not0 && sboard.readBypassed(id_raddr1) ||
+     id_renx2_not0 && sboard.readBypassed(id_raddr2) ||
+     id_wen_not0   && sboard.readBypassed(id_waddr))
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
