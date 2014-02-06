@@ -427,11 +427,12 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_amo_aq = io.dpath.inst(26)
   val id_amo_rl = io.dpath.inst(25)
   val id_fence_next = id_fence || id_amo && id_amo_rl
-  val id_rocc_busy = io.rocc.busy || ex_reg_rocc_val || mem_reg_rocc_val || wb_reg_rocc_val
-  val id_fence_ok = io.dmem.ordered && !ex_reg_mem_val &&
-    (Bool(conf.rocc.isEmpty) || !id_rocc_busy)
-  id_reg_fence := id_fence_next || id_reg_fence && !id_fence_ok
-  val id_do_fence = id_amo && id_amo_aq || id_fence_i || id_reg_fence && (id_mem_val || id_rocc_val) || id_csr_flush
+  val id_mem_busy = !io.dmem.ordered || ex_reg_mem_val
+  val id_rocc_busy = Bool(!conf.rocc.isEmpty) &&
+    (io.rocc.busy || ex_reg_rocc_val || mem_reg_rocc_val || wb_reg_rocc_val)
+  id_reg_fence := id_fence_next || id_reg_fence && id_mem_busy
+  val id_do_fence = id_rocc_busy && id_fence ||
+    id_mem_busy && (id_amo && id_amo_aq || id_fence_i || id_reg_fence && (id_mem_val || id_rocc_val) || id_csr_flush)
 
   val (id_xcpt, id_cause) = checkExceptions(List(
     (id_interrupt,                                    id_interrupt_cause),
@@ -697,7 +698,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
     id_fp_val && id_stall_fpu ||
     id_mem_val && !io.dmem.req.ready ||
-    id_do_fence && !id_fence_ok
+    id_do_fence
   val ctrl_draind = id_interrupt || ex_reg_replay_next
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || ctrl_draind
 
