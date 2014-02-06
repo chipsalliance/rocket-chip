@@ -745,4 +745,5 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   io.rocc.cmd.valid := wb_rocc_val
   io.rocc.exception := wb_reg_xcpt && sr.er
+  io.rocc.s := sr.s
 }

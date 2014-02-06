@@ -190,6 +190,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   pcr.io.host <> io.host
   pcr.io <> io.ctrl
   pcr.io <> io.fpu
+  pcr.io.rocc <> io.rocc
   pcr.io.pc := wb_reg_pc
   io.ctrl.csr_replay := pcr.io.replay
 

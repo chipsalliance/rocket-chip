@@ -39,6 +39,7 @@ class RoCCInterface(implicit conf: RocketConfiguration) extends Bundle
   val resp = Decoupled(new RoCCResponse)
   val mem = new HellaCacheIO()(conf.dcache)
   val busy = Bool(OUTPUT)
+  val s = Bool(INPUT)
   val interrupt = Bool(OUTPUT)
   
   // These should be handled differently, eventually
