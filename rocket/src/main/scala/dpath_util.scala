@@ -132,6 +132,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
 
   val r_irq_timer = Reg(init=Bool(false))
   val r_irq_ipi = Reg(init=Bool(true))
+  val irq_rocc = Bool(!conf.rocc.isEmpty) && io.rocc.interrupt
 
   val cpu_req_valid = io.rw.cmd != CSR.N
   val host_pcr_req_valid = Reg(Bool()) // don't reset
@@ -171,8 +172,8 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
   val wdata = Mux(cpu_req_valid, io.rw.wdata, host_pcr_bits.data)
 
   io.status := reg_status
-  io.status.ip := Cat(r_irq_timer, reg_fromhost.orR,  r_irq_ipi,   Bool(false),
-                      Bool(false), io.rocc.interrupt, Bool(false), Bool(false))
+  io.status.ip := Cat(r_irq_timer, reg_fromhost.orR, r_irq_ipi,   Bool(false),
+                      Bool(false), irq_rocc,         Bool(false), Bool(false))
   io.fatc := wen && decoded_addr(CSRs.fatc)
   io.evec := Mux(io.exception, reg_evec.toSInt, reg_epc).toUInt
   io.ptbr := reg_ptbr
