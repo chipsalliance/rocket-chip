@@ -99,6 +99,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
     val evec = UInt(OUTPUT, VADDR_BITS+1)
     val exception = Bool(INPUT)
     val retire = UInt(INPUT, log2Up(1+conf.retireWidth))
+    val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+conf.retireWidth)))
     val cause = UInt(INPUT, conf.xprlen)
     val badvaddr_wen = Bool(INPUT)
     val pc = UInt(INPUT, VADDR_BITS+1)
@@ -124,6 +125,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
   val reg_status = Reg(new Status) // reset down below
   val reg_time = WideCounter(conf.xprlen)
   val reg_instret = WideCounter(conf.xprlen, io.retire)
+  val reg_uarch_counters = io.uarch_counters.map(WideCounter(conf.xprlen, _))
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
@@ -209,7 +211,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
   val read_impl = Bits(2)
   val read_ptbr = reg_ptbr(PADDR_BITS-1,PGIDX_BITS) << PGIDX_BITS
 
-  val read_mapping = Map[Int,Bits](
+  val read_mapping = collection.mutable.Map[Int,Bits](
     CSRs.fflags -> (if (conf.fpu) reg_fflags else UInt(0)),
     CSRs.frm -> (if (conf.fpu) reg_frm else UInt(0)),
     CSRs.fcsr -> (if (conf.fpu) Cat(reg_frm, reg_fflags) else UInt(0)),
@@ -235,6 +237,9 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
     CSRs.stats -> reg_stats,
     CSRs.tohost -> reg_tohost,
     CSRs.fromhost -> reg_fromhost)
+
+  for (i <- 0 until reg_uarch_counters.size)
+    read_mapping += (CSRs.uarch0 + i) -> reg_uarch_counters(i)
 
   io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
 
