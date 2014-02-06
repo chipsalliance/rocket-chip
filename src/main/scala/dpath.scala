@@ -193,6 +193,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   pcr.io.rocc <> io.rocc
   pcr.io.pc := wb_reg_pc
   io.ctrl.csr_replay := pcr.io.replay
+  pcr.io.uarch_counters.foreach(_ := Bool(false))
 
   io.ptw.ptbr := pcr.io.ptbr
   io.ptw.invalidate := pcr.io.fatc
