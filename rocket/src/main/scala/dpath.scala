@@ -132,13 +132,9 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val ex_rs = for (i <- 0 until id_rs.size)
     yield Mux(ex_reg_rs_bypass(i), bypass(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
   val ex_imm = imm(ex_reg_sel_imm, ex_reg_inst)
-  val ex_op1_hi = MuxLookup(ex_reg_sel_alu1, ex_reg_pc.toSInt >> 12, Seq(
-    A1_RS1 -> (ex_rs(0).toSInt >> 12),
-    A1_ZERO -> SInt(0)))
-  val ex_op1_lo = MuxLookup(ex_reg_sel_alu1, UInt(0), Seq(
-    A1_RS1 -> ex_rs(0)(11,0),
-    A1_PC -> ex_reg_pc(11,0)))
-  val ex_op1 = Cat(ex_op1_hi, ex_op1_lo)
+  val ex_op1 = MuxLookup(ex_reg_sel_alu1, SInt(0), Seq(
+    A1_RS1 -> ex_rs(0).toSInt,
+    A1_PC -> ex_reg_pc.toSInt))
   val ex_op2 = MuxLookup(ex_reg_sel_alu2, SInt(0), Seq(
     A2_RS2 -> ex_rs(1).toSInt,
     A2_IMM -> ex_imm,
