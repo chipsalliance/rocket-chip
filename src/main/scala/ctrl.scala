@@ -99,7 +99,7 @@ object XDecode extends DecodeConstants
                                         
     JAL->       List(Y,    N,N,BR_J,  N,N,N,A2_FOUR,A1_PC,  IMM_UJ,DW_X,  FN_ADD,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     JALR->      List(Y,    N,N,BR_N,  Y,N,Y,A2_FOUR,A1_PC,  IMM_I, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
-    AUIPC->     List(Y,    N,N,BR_N,  N,N,N,A2_IMM, A1_PCHI,IMM_U, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
+    AUIPC->     List(Y,    N,N,BR_N,  N,N,N,A2_IMM, A1_PC,  IMM_U, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
                                         
     LB->        List(Y,    N,N,BR_N,  N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_XPR,FN_ADD,   Y,M_XRD,    MT_B, N,N,Y,CSR.N,N,N,N,N,N,N),
     LH->        List(Y,    N,N,BR_N,  N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_XPR,FN_ADD,   Y,M_XRD,    MT_H, N,N,Y,CSR.N,N,N,N,N,N,N),
