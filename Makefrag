@@ -14,6 +14,11 @@ $(sim_dir)/libdramsim.a: $(DRAMSIM_OBJS)
 
 src_path = src/main/scala
 
+#DESIGN := design_dsize8_c20b273
+SRC := rocket/$(src_path)/*.scala hwacha/$(src_path)/*.scala /uncore/$(src_path)/*.scala $(src_path)/*.scala
+PROJ := referencechip
+
+
 #--------------------------------------------------------------------
 # Tests
 #--------------------------------------------------------------------

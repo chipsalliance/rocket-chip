@@ -252,8 +252,11 @@ class Top extends Module {
   implicit val uc = UncoreConfiguration(l2, tl, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64)
 
   val ic = ICacheConfig(128, 2, ntlb = 8, nbtb = 38)
-  val dc = DCacheConfig(128, 4, ntlb = 8, 
-                        nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
+
+  val dsize = RangeParam("dsize",7,7,9)
+  val dc = DCacheConfig(math.pow(2, dsize.getValue).toInt, 4, ntlb = 8, nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
+  //val dc = DCacheConfig(128, 4, ntlb = 8, nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
+
   val rc = RocketConfiguration(tl, ic, dc,
                                fpu = HAS_FPU)
 
