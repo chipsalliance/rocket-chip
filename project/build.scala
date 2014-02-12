@@ -30,7 +30,8 @@ object BuildSettings extends Build {
   lazy val hardfloat = Project("hardfloat", file("hardfloat"), settings = buildSettings) dependsOn(chisel)
   lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(hardfloat)
   lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore)
-  lazy val referencechip = Project("referencechip", file("."), settings = buildSettings ++ chipSettings) dependsOn(rocket)
+  lazy val hwacha = Project("hwacha", file("hwacha"), settings = buildSettings) dependsOn(uncore, rocket)
+  lazy val referencechip = Project("referencechip", file("."), settings = buildSettings ++ chipSettings) dependsOn(rocket, hwacha)
 
   val elaborateTask = InputKey[Unit]("elaborate", "convert chisel components into backend source code")
   val makeTask = InputKey[Unit]("make", "trigger backend-specific makefile command")
@@ -46,7 +47,7 @@ object BuildSettings extends Build {
      val chiselMainObject = chiselMainClass.getDeclaredFields.head.get(null)
      val chiselMain = chiselMainClass.getMethod("run", classOf[Array[String]], classOf[Function0[_]])
      val chiselArgs = args.drop(numArgs)
-     val component = classLoader.loadClass(packageName+"."+componentName)
+     val component = classLoader.loadClass((if (!componentName.contains('.')) packageName+"." else "")+componentName)
      val generator = () => component.newInstance()
      chiselMain.invoke(chiselMainObject, Array(chiselArgs.toArray, generator):_*)
   }

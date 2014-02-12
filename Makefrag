@@ -2,7 +2,7 @@
 
 MODEL := Top
 CXX := g++
-CXXFLAGS := -O2
+CXXFLAGS := -O1
 
 SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
 
@@ -220,6 +220,9 @@ vecasm_p_tests = \
 	rv64uv-p-vmsv \
 	rv64uv-p-vmvv \
 	rv64uv-p-vfmvv \
+	rv64uv-p-vsetcfg \
+	rv64uv-p-vsetcfgi \
+	rv64uv-p-vsetvl \
 	rv64uv-p-movz \
 	rv64uv-p-movn \
 	rv64uv-p-fmovz \
@@ -246,21 +249,23 @@ vecasm_p_tests = \
 	rv64uv-p-vvadd_w \
 	rv64uv-p-vvmul_d \
 	rv64uv-p-amoadd_d \
-	rv64uv-p-amoswap_d \
 	rv64uv-p-amoand_d \
 	rv64uv-p-amoor_d \
+	rv64uv-p-amoxor_d \
 	rv64uv-p-amomax_d \
 	rv64uv-p-amomin_d \
 	rv64uv-p-amomaxu_d \
 	rv64uv-p-amominu_d \
+	rv64uv-p-amoswap_d \
 	rv64uv-p-amoadd_w \
-	rv64uv-p-amoswap_w \
 	rv64uv-p-amoand_w \
 	rv64uv-p-amoor_w \
+	rv64uv-p-amoxor_w \
 	rv64uv-p-amomax_w \
 	rv64uv-p-amomin_w \
 	rv64uv-p-amomaxu_w \
 	rv64uv-p-amominu_w \
+	rv64uv-p-amoswap_w \
 	rv64uv-p-imul \
 	rv64uv-p-fma \
 	rv64ui-p-vec-mul \
@@ -304,15 +309,15 @@ vecasm_p_tests = \
 	rv64uf-p-vec-fcvt_w \
 	rv64uf-p-vec-fcvt \
 	rv64uf-p-vec-fcmp \
-	rv64sv-p-illegal_tvec_cmd \
-	rv64sv-p-illegal_tvec_regid \
-	rv64sv-p-illegal_vt_inst \
-	rv64sv-p-illegal_vt_regid \
-	rv64sv-p-ma_utld \
-	rv64sv-p-ma_utsd \
-	rv64sv-p-ma_vld \
-	rv64sv-p-ma_vsd \
-	rv64sv-p-ma_vt_inst \
+#	rv64sv-p-illegal_tvec_cmd \
+#	rv64sv-p-illegal_tvec_regid \
+#	rv64sv-p-illegal_vt_inst \
+#	rv64sv-p-illegal_vt_regid \
+#	rv64sv-p-ma_utld \
+#	rv64sv-p-ma_utsd \
+#	rv64sv-p-ma_vld \
+#	rv64sv-p-ma_vsd \
+#	rv64sv-p-ma_vt_inst \
 
 vecasm_v_tests = \
 	rv64uv-v-wakeup \
