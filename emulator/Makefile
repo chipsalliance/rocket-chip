@@ -60,8 +60,6 @@ test:
 # Run assembly tests and benchmarks
 #--------------------------------------------------------------------
 
-MAX_CYCLES=30000000
-
 %.hex:
 	$(MAKE) -C $(dir $@) $(notdir $@)
 
@@ -84,15 +82,15 @@ output:
 	mkdir -p $@
 
 output/%.run: output/%.hex emulator
-	./emulator +dramsim +max-cycles=$(MAX_CYCLES) +loadmem=$< none 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
+	./emulator +dramsim +max-cycles=$(bmark_timeout_cycles) +loadmem=$< none 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
 
 output/%.out: output/%.hex emulator
-	./emulator +dramsim +max-cycles=$(MAX_CYCLES) +verbose +coremap-random +loadmem=$< none $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
+	./emulator +dramsim +max-cycles=$(bmark_timeout_cycles) +verbose +coremap-random +loadmem=$< none $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
 
 output/%.vpd: output/%.hex emulator-debug
 	rm -rf $@.vcd && mkfifo $@.vcd
 	vcd2vpd $@.vcd $@ > /dev/null &
-	./emulator-debug +dramsim +max-cycles=$(MAX_CYCLES) +verbose -v$@.vcd +coremap-random +loadmem=$< none $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+	./emulator-debug +dramsim +max-cycles=$(bmark_timeout_cycles) +verbose -v$@.vcd +coremap-random +loadmem=$< none $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
 run-asm-tests: $(addprefix output/, $(addsuffix .out, $(asm_p_tests) $(asm_v_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;

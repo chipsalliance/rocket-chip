@@ -1,4 +1,6 @@
 # Makefile snippet used by emulator/vlsi/fpga backends
+asm_timeout_cycles   =  10000000
+bmark_timeout_cycles = 100000000
 
 MODEL := Top
 CXX := g++
