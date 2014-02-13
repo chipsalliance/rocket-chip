@@ -127,7 +127,6 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2Cohe
   io.client.grant.bits.payload.data := UInt(0)
   io.client.grant.bits.header.dst := init_client_id_
   io.client.grant.bits.header.src := UInt(bankId)
-  io.client.grant_ack.valid := Bool(false)
 
   switch (state) {
     is(s_idle) {
@@ -212,7 +211,6 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgen
   io.client.release.meta.ready := Bool(false)
   io.client.release.data.ready := Bool(false)
   io.master.grant.ready := io.client.grant.ready
-  io.client.grant_ack.valid := Bool(false)
 
   switch (state) {
     is(s_idle) {
