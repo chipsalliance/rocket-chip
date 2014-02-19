@@ -5,7 +5,7 @@ import Node._
 import uncore._
 import rocket._
 
-class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
+class FPGAOuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
 {
   implicit val (tl, ln, l2) = (conf.tl, conf.tl.ln, conf.l2)
   val io = new Bundle {
@@ -15,11 +15,11 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
     val mem = new ioMem
   }
 
-  require(clientEndpoints.length == ln.nClients)
   val masterEndpoints = (0 until ln.nMasters).map(i => Module(new L2CoherenceAgent(i)))
 
-  val net = Module(new ReferenceChipCrossbarNetwork(masterEndpoints++clientEndpoints))
-  net.io zip (masterEndpoints.map(_.io.client) ++ io.tiles :+ io.htif) map { case (net, end) => net <> end }
+  val net = Module(new ReferenceChipCrossbarNetwork)
+  net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
+  net.io.masters zip (masterEndpoints.map(_.io.client)) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
 
   val conv = Module(new MemIOUncachedTileLinkIOConverter(2))
@@ -35,7 +35,7 @@ class FPGAOuterMemorySystem(htif_width: Int, clientEndpoints: Seq[ClientCoherenc
   conv.io.mem.resp <> Queue(io.mem.resp)
 }
 
-class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit conf: UncoreConfiguration) extends Module
+class FPGAUncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
 {
   implicit val (tl, ln) = (conf.tl, conf.tl.ln)
   val io = new Bundle {
@@ -46,7 +46,7 @@ class FPGAUncore(htif_width: Int, tileList: Seq[ClientCoherenceAgent])(implicit 
     val incoherent = Vec.fill(conf.nTiles){Bool()}.asInput
   }
   val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR))
-  val outmemsys = Module(new FPGAOuterMemorySystem(htif_width, tileList :+ htif))
+  val outmemsys = Module(new FPGAOuterMemorySystem(htif_width))
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif
   htif.io.cpu <> io.htif
@@ -85,7 +85,7 @@ class FPGATop extends Module {
   val ntiles = 1
   val nbanks = 1
   val nmshrs = 2
-  implicit val ln = LogicalNetworkConfiguration(ntiles+nbanks+1, log2Up(ntiles)+1, nbanks, ntiles+1)
+  implicit val ln = LogicalNetworkConfiguration(log2Up(ntiles)+1, nbanks, ntiles+1)
   implicit val tl = TileLinkConfiguration(co, ln, log2Up(1+8), 2*log2Up(nmshrs*ntiles+1), MEM_DATA_BITS)
   implicit val l2 = L2CoherenceAgentConfiguration(tl, 1, 8)
   implicit val uc = UncoreConfiguration(l2, tl, ntiles, nbanks, bankIdLsb = 5, nSCR = 64)
@@ -100,7 +100,7 @@ class FPGATop extends Module {
 
   val resetSigs = Vec.fill(uc.nTiles){Bool()}
   val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
-  val uncore = Module(new FPGAUncore(htif_width, tileList))
+  val uncore = Module(new FPGAUncore(htif_width))
 
   for (i <- 0 until uc.nTiles) {
     val hl = uncore.io.htif(i)

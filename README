@@ -2,10 +2,7 @@ Quick and dirty instructions:
 
 CHECKOUT THE CODE:
 
-  git submodule update --init
-
-  cd riscv-tools
-  git submodule update --init
+  git submodule update --init --recursive
 
 
 BUILDING THE TOOLCHAIN:
