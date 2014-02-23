@@ -180,6 +180,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(VADDR_BITS-1,0)).toUInt
   io.dmem.req.bits.tag := Cat(io.ctrl.ex_waddr, io.ctrl.ex_fp_val)
   require(io.dmem.req.bits.tag.getWidth >= 6)
+  require(conf.dcacheReqTagBits >= 6)
 
   // processor control regfile read
   val pcr = Module(new CSRFile)
