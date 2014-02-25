@@ -3,25 +3,26 @@ package referencechip
 import Chisel._
 import uncore._
 import scala.reflect._
+import scala.reflect.runtime.universe._
 
 object TileLinkHeaderAppender {
-  def apply[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasTileLinkData](in: ClientSourcedDataIO[LogicalNetworkIO[T],LogicalNetworkIO[U]], clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(implicit conf: TileLinkConfiguration) = {
+  def apply[T <: ClientSourcedMessage with HasPhysicalAddress, U <: ClientSourcedMessage with HasTileLinkData](in: PairedDataIO[LogicalNetworkIO[T],LogicalNetworkIO[U]], clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(implicit conf: TileLinkConfiguration) = {
     val shim = Module(new TileLinkHeaderAppender(in.meta.bits.payload, in.data.bits.payload, clientId, nBanks, addrConvert))
     shim.io.in <> in
     shim.io.out
   }
-  def apply[T <: SourcedMessage with HasPhysicalAddress](in: ClientSourcedFIFOIO[LogicalNetworkIO[T]], clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(implicit conf: TileLinkConfiguration) = {
+  def apply[T <: ClientSourcedMessage with HasPhysicalAddress](in: DecoupledIO[LogicalNetworkIO[T]], clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(implicit conf: TileLinkConfiguration) = {
     val shim = Module(new TileLinkHeaderAppender(in.bits.payload.clone, new AcquireData, clientId, nBanks, addrConvert))
     shim.io.in.meta <> in
     shim.io.out.meta
   }
 }
 
-class TileLinkHeaderAppender[T <: SourcedMessage with HasPhysicalAddress, U <: SourcedMessage with HasTileLinkData](mType: T, dType: U, clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(implicit conf: TileLinkConfiguration) extends Module {
+class TileLinkHeaderAppender[T <: ClientSourcedMessage with HasPhysicalAddress, U <: ClientSourcedMessage with HasTileLinkData](mType: T, dType: U, clientId: Int, nBanks: Int, addrConvert: Bits => UInt)(implicit conf: TileLinkConfiguration) extends Module {
   implicit val ln = conf.ln
   val io = new Bundle {
-    val in = new ClientSourcedDataIO(new LogicalNetworkIO(mType), new LogicalNetworkIO(dType)).flip
-    val out = new ClientSourcedDataIO(new LogicalNetworkIO(mType), new LogicalNetworkIO(dType))
+    val in = new PairedDataIO(new LogicalNetworkIO(mType), new LogicalNetworkIO(dType)).flip
+    val out = new PairedDataIO(new LogicalNetworkIO(mType), new LogicalNetworkIO(dType))
   }
 
   val meta_q = Queue(io.in.meta)
@@ -93,10 +94,20 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit conf: TileLinkConfi
   io.mem.req_data <> mem_data_q.io.deq
 }
 
-class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit conf: UncoreConfiguration) extends LogicalNetwork[TileLinkIO](endpoints)(conf.tl.ln) {
+class ReferenceChipCrossbarNetwork(implicit conf: UncoreConfiguration) extends LogicalNetwork[TileLinkIO]()(conf.tl.ln) {
   implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
-  val io = Vec(endpoints.map(_ match { case t:ClientCoherenceAgent => {(new TileLinkIO).flip}; case h:MasterCoherenceAgent => {new TileLinkIO}}))
+  val io = new Bundle {
+    val clients = Vec.fill(ln.nClients){(new TileLinkIO).flip}
+    val masters = Vec.fill(ln.nMasters){new TileLinkIO}
+  }
   implicit val pconf = new PhysicalNetworkConfiguration(ln.nEndpoints, ln.idBits) // Same config for all networks
+
+  // Actually instantiate the particular networks required for TileLink
+  val acqNet = Module(new PairedCrossbar(new Acquire, new AcquireData, REFILL_CYCLES, (acq: PhysicalNetworkIO[Acquire]) => co.messageHasData(acq.payload)))
+  val relNet = Module(new PairedCrossbar(new Release, new ReleaseData, REFILL_CYCLES, (rel: PhysicalNetworkIO[Release]) => co.messageHasData(rel.payload)))
+  val probeNet = Module(new BasicCrossbar(new Probe))
+  val grantNet = Module(new BasicCrossbar(new Grant))
+  val ackNet = Module(new BasicCrossbar(new GrantAck))
 
   // Aliases for the various network IO bundle types
   type FBCIO[T <: Data] = DecoupledIO[PhysicalNetworkIO[T]]
@@ -163,61 +174,53 @@ class ReferenceChipCrossbarNetwork(endpoints: Seq[CoherenceAgentRole])(implicit 
     phys_in.valid := Bool(false)
   }
 
-  // Use reflection to determine whether a particular endpoint should be
-  // hooked up as an [input/output] for a FIFO nework that is transmiitting
-  // [client/master]-sourced messages.
-  def doFIFOHookup[S <: CoherenceAgentRole: ClassTag, T <: Data](end: CoherenceAgentRole, phys_in: FBCIO[T], phys_out: FBCIO[T], log_io: FLNIO[T], inShim: ToCrossbar[T], outShim: FromCrossbar[T]) = {
-    // Is end's type a subtype of S, the agent type associated with inputs?
-    if(classTag[S].runtimeClass.isInstance(end)) 
-      doFIFOInputHookup(phys_in, phys_out, log_io, inShim)
-    else 
-      doFIFOOutputHookup(phys_in, phys_out, log_io, outShim)
+  def doFIFOHookup[T <: Data](isEndpointSourceOfMessage: Boolean, physIn: FBCIO[T], physOut: FBCIO[T], logIO: FLNIO[T], inShim: ToCrossbar[T], outShim: FromCrossbar[T]) = {
+    if(isEndpointSourceOfMessage) doFIFOInputHookup(physIn, physOut, logIO, inShim)
+    else                 doFIFOOutputHookup(physIn, physOut, logIO, outShim)
   }
-
-  def doClientSourcedFIFOHookup[T <: Data](end: CoherenceAgentRole, phys_in: FBCIO[T], phys_out: FBCIO[T], log_io: FLNIO[T]) =
-    doFIFOHookup[ClientCoherenceAgent, T](end, phys_in, phys_out, log_io, ClientToCrossbarShim, CrossbarToMasterShim)
-
-  def doMasterSourcedFIFOHookup[T <: Data](end: CoherenceAgentRole, phys_in: FBCIO[T], phys_out: FBCIO[T], log_io: FLNIO[T]) =
-    doFIFOHookup[MasterCoherenceAgent, T](end, phys_in, phys_out, log_io, MasterToCrossbarShim, CrossbarToClientShim)
     
-  // Use reflection to determine whether a particular endpoint should be
-  // hooked up as an [input/output] for a Paired nework that is transmiitting
-  // [client/master]-sourced messages.
-  def doPairedDataHookup[S <: CoherenceAgentRole : ClassTag, T <: Data, R <: Data](end: CoherenceAgentRole, phys_in: PBCIO[T,R], phys_out: PBCIO[T,R], log_io: PLNIO[T,R], inShim: ToCrossbar[T], outShim: FromCrossbar[T], inShimD: ToCrossbar[R], outShimD: FromCrossbar[R]) = {
-    // Is end's type a subtype of S, the agent type associated with inputs?
-    if(classTag[S].runtimeClass.isInstance(end)) {
-      doFIFOInputHookup[T](phys_in.meta, phys_out.meta, log_io.meta, inShim)
-      doFIFOInputHookup[R](phys_in.data, phys_out.data, log_io.data, inShimD)
-    } else {
-      doFIFOOutputHookup[T](phys_in.meta, phys_out.meta, log_io.meta, outShim)
-      doFIFOOutputHookup[R](phys_in.data, phys_out.data, log_io.data, outShimD)
+  //Hookup all instances of a particular subbundle of 
+  def doFIFOHookups[T <: Data: TypeTag](physIO: BasicCrossbarIO[T], getLogIO: TileLinkIO => FLNIO[T]) = {
+    typeTag[T].tpe match{ 
+      case t if t <:< typeTag[ClientSourcedMessage].tpe => {
+        io.masters.zipWithIndex.map{ case (i, id) => doFIFOHookup[T](false, physIO.in(id), physIO.out(id), getLogIO(i), ClientToCrossbarShim, CrossbarToMasterShim) }
+        io.clients.zipWithIndex.map{ case (i, id) => doFIFOHookup[T](true, physIO.in(id+ln.nMasters), physIO.out(id+ln.nMasters), getLogIO(i), ClientToCrossbarShim, CrossbarToMasterShim) }
+      }
+      case t if t <:< typeTag[MasterSourcedMessage].tpe => {
+        io.masters.zipWithIndex.map{ case (i, id) => doFIFOHookup[T](true, physIO.in(id), physIO.out(id), getLogIO(i), MasterToCrossbarShim, CrossbarToClientShim) }
+        io.clients.zipWithIndex.map{ case (i, id) => doFIFOHookup[T](false, physIO.in(id+ln.nMasters), physIO.out(id+ln.nMasters), getLogIO(i), MasterToCrossbarShim, CrossbarToClientShim) }
+      }
+      case _ => require(false, "Unknown message sourcing.")
     }
   }
 
-  def doClientSourcedPairedHookup[T <: Data, R <: Data](end: CoherenceAgentRole, phys_in: PBCIO[T,R], phys_out: PBCIO[T,R], log_io: PLNIO[T,R]) =
-    doPairedDataHookup[ClientCoherenceAgent, T, R](end, phys_in, phys_out, log_io, ClientToCrossbarShim, CrossbarToMasterShim, ClientToCrossbarShim, CrossbarToMasterShim)
+  def doPairedDataHookup[T <: Data, R <: Data](isEndpointSourceOfMessage: Boolean, physIn: PBCIO[T,R], physOut: PBCIO[T,R], logIO: PLNIO[T,R], inShim: ToCrossbar[T], outShim: FromCrossbar[T], inShimD: ToCrossbar[R], outShimD: FromCrossbar[R]) = {
+    if(isEndpointSourceOfMessage) {
+      doFIFOInputHookup[T](physIn.meta, physOut.meta, logIO.meta, inShim)
+      doFIFOInputHookup[R](physIn.data, physOut.data, logIO.data, inShimD)
+    } else {
+      doFIFOOutputHookup[T](physIn.meta, physOut.meta, logIO.meta, outShim)
+      doFIFOOutputHookup[R](physIn.data, physOut.data, logIO.data, outShimD)
+    }
+  }
 
-  def doMasterSourcedPairedHookup[T <: Data, R <: Data](end: CoherenceAgentRole, phys_in: PBCIO[T,R], phys_out: PBCIO[T,R], log_io: PLNIO[T,R]) =
-    doPairedDataHookup[MasterCoherenceAgent, T, R](end, phys_in, phys_out, log_io, MasterToCrossbarShim, CrossbarToClientShim, MasterToCrossbarShim, CrossbarToClientShim)
+  def doPairedDataHookups[T <: Data: TypeTag, R <: Data](physIO: PairedCrossbarIO[T,R], getLogIO: TileLinkIO => PLNIO[T,R]) = {
+    typeTag[T].tpe match{ 
+      case t if t <:< typeTag[ClientSourcedMessage].tpe => {
+        io.masters.zipWithIndex.map{ case (i, id) => doPairedDataHookup[T,R](false, physIO.in(id), physIO.out(id), getLogIO(i), ClientToCrossbarShim, CrossbarToMasterShim, ClientToCrossbarShim, CrossbarToMasterShim) }
+        io.clients.zipWithIndex.map{ case (i, id) => doPairedDataHookup[T,R](true, physIO.in(id+ln.nMasters), physIO.out(id+ln.nMasters), getLogIO(i), ClientToCrossbarShim, CrossbarToMasterShim, ClientToCrossbarShim, CrossbarToMasterShim) }
+      }
+      case t if t <:< typeTag[MasterSourcedMessage].tpe => {
+        io.masters.zipWithIndex.map{ case (i, id) => doPairedDataHookup[T,R](true, physIO.in(id), physIO.out(id), getLogIO(i), MasterToCrossbarShim, CrossbarToClientShim, MasterToCrossbarShim, CrossbarToClientShim) }
+        io.clients.zipWithIndex.map{ case (i, id) => doPairedDataHookup[T,R](false, physIO.in(id+ln.nMasters), physIO.out(id+ln.nMasters), getLogIO(i), MasterToCrossbarShim, CrossbarToClientShim, MasterToCrossbarShim, CrossbarToClientShim) }
+      }
+      case _ => require(false, "Unknown message sourcing.")
+    }
+  }
 
-
-  // Actually instantiate the particular networks required for TileLink
-  def acqHasData(acq: PhysicalNetworkIO[Acquire]) = co.messageHasData(acq.payload)
-  val acq_net = Module(new PairedCrossbar(new Acquire, new AcquireData, REFILL_CYCLES, acqHasData _))
-  endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doClientSourcedPairedHookup(end, acq_net.io.in(id), acq_net.io.out(id), io.acquire) }
-
-  def relHasData(rel: PhysicalNetworkIO[Release]) = co.messageHasData(rel.payload)
-  val rel_net = Module(new PairedCrossbar(new Release, new ReleaseData, REFILL_CYCLES, relHasData _))
-  endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doClientSourcedPairedHookup(end, rel_net.io.in(id), rel_net.io.out(id), io.release) }
-
-  val probe_net = Module(new BasicCrossbar(new Probe))
-  endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doMasterSourcedFIFOHookup(end, probe_net.io.in(id), probe_net.io.out(id), io.probe) }
-
-  val grant_net = Module(new BasicCrossbar(new Grant))
-  endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doMasterSourcedFIFOHookup(end, grant_net.io.in(id), grant_net.io.out(id), io.grant) }
-
-  val ack_net = Module(new BasicCrossbar(new GrantAck))
-  endpoints.zip(io).zipWithIndex.map{ case ((end, io), id) => doClientSourcedFIFOHookup(end, ack_net.io.in(id), ack_net.io.out(id), io.grant_ack) }
-
-  val physicalNetworks = List(acq_net, rel_net, probe_net, grant_net, ack_net)
+  doPairedDataHookups(acqNet.io, (tl: TileLinkIO) => tl.acquire)
+  doPairedDataHookups(relNet.io, (tl: TileLinkIO) => tl.release)
+  doFIFOHookups(probeNet.io, (tl: TileLinkIO) => tl.probe)
+  doFIFOHookups(grantNet.io, (tl: TileLinkIO) => tl.grant)
+  doFIFOHookups(ackNet.io, (tl: TileLinkIO) => tl.grant_ack)
 }

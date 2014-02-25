@@ -18,22 +18,30 @@ DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir emulator/generated-src
 CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
-generated-src/$(MODEL).cpp: $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/hwacha/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/$(src_path)/*.scala
+generated-src/$(MODEL).h: $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/hwacha/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/$(src_path)/*.scala
 	cd $(base_dir) && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS)"
 
-generated-src-debug/$(MODEL).cpp: $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/hwacha/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/$(src_path)/*.scala
+generated-src-debug/$(MODEL).h: $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/hwacha/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/$(src_path)/*.scala
 	cd $(base_dir) && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS_DEBUG)"
 
-$(MODEL).o: %.o: generated-src/%.cpp
+$(MODEL).o: %.o: generated-src/%.h
+	$(MAKE) -j $(patsubst %.cpp,%.o,$(shell ls generated-src/$(MODEL)-*.cpp))
+	$(LD) -r $(patsubst %.cpp,%.o,$(shell ls generated-src/$(MODEL)-*.cpp)) -o $@
+
+$(MODEL)-debug.o: %-debug.o: generated-src-debug/%.h
+	$(MAKE) -j $(patsubst %.cpp,%.o,$(shell ls generated-src-debug/$(MODEL)-*.cpp))
+	$(LD) -r $(patsubst %.cpp,%.o,$(shell ls generated-src-debug/$(MODEL)-*.cpp)) -o $@
+
+$(wildcard generated-src/*.o): %.o: %.cpp generated-src/$(MODEL).h
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
 
-$(MODEL)-debug.o: %-debug.o: generated-src-debug/%.cpp
+$(wildcard generated-src-debug/*.o): %.o: %.cpp generated-src-debug/$(MODEL).h
 	$(CXX) $(CXXFLAGS) -Igenerated-src-debug -c -o $@ $<
 
-$(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h generated-src/$(MODEL).cpp
+$(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h generated-src/$(MODEL).h
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
 
-$(addsuffix -debug.o,$(CXXSRCS)): %-debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h generated-src-debug/$(MODEL).cpp
+$(addsuffix -debug.o,$(CXXSRCS)): %-debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h generated-src-debug/$(MODEL).h
 	$(CXX) $(CXXFLAGS) -Igenerated-src-debug -c -o $@ $<
 
 emulator: $(OBJS) libdramsim.a
@@ -74,15 +82,15 @@ output:
 	mkdir -p $@
 
 output/%.run: output/%.hex emulator
-	./emulator +dramsim +max-cycles=30000000 +loadmem=$< none 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
+	./emulator +dramsim +max-cycles=$(bmark_timeout_cycles) +loadmem=$< none 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
 
 output/%.out: output/%.hex emulator
-	./emulator +dramsim +max-cycles=30000000 +verbose +coremap-random +loadmem=$< none $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
+	./emulator +dramsim +max-cycles=$(bmark_timeout_cycles) +verbose +coremap-random +loadmem=$< none $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
 
 output/%.vpd: output/%.hex emulator-debug
 	rm -rf $@.vcd && mkfifo $@.vcd
 	vcd2vpd $@.vcd $@ > /dev/null &
-	./emulator-debug +dramsim +max-cycles=30000000 +verbose -v$@.vcd +coremap-random +loadmem=$< none $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+	./emulator-debug +dramsim +max-cycles=$(bmark_timeout_cycles) +verbose -v$@.vcd +coremap-random +loadmem=$< none $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
 run-asm-tests: $(addprefix output/, $(addsuffix .out, $(asm_p_tests) $(asm_v_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
