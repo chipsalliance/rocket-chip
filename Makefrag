@@ -306,15 +306,18 @@ vecasm_p_tests = \
 	rv64uf-p-vec-fcvt_w \
 	rv64uf-p-vec-fcvt \
 	rv64uf-p-vec-fcmp \
-#	rv64sv-p-illegal_tvec_cmd \
-#	rv64sv-p-illegal_tvec_regid \
-#	rv64sv-p-illegal_vt_inst \
-#	rv64sv-p-illegal_vt_regid \
-#	rv64sv-p-ma_utld \
-#	rv64sv-p-ma_utsd \
-#	rv64sv-p-ma_vld \
-#	rv64sv-p-ma_vsd \
-#	rv64sv-p-ma_vt_inst \
+	rv64sv-p-illegal_cfg_nxpr \
+	rv64sv-p-illegal_cfg_nfpr \
+	rv64sv-p-illegal_inst \
+	rv64sv-p-illegal_tvec_regid \
+	rv64sv-p-illegal_vt_inst \
+	rv64sv-p-illegal_vt_regid \
+	rv64sv-p-ma_utld \
+	rv64sv-p-ma_utsd \
+	rv64sv-p-ma_vld \
+	rv64sv-p-ma_vsd \
+	rv64sv-p-ma_vt_inst \
+	rv64sv-p-privileged_inst \
 
 vecasm_v_tests = \
 	rv64uv-v-wakeup \
