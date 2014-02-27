@@ -265,6 +265,7 @@ vecasm_p_tests = \
 	rv64uv-p-amoswap_w \
 	rv64uv-p-imul \
 	rv64uv-p-fma \
+	rv64uv-p-fma_many \
 	rv64ui-p-vec-mul \
 	rv64ui-p-vec-mulw \
 	rv64ui-p-vec-mulh \
@@ -369,6 +370,7 @@ vecasm_v_tests = \
 	rv64uv-v-amominu_w \
 	rv64uv-v-imul \
 	rv64uv-v-fma \
+	rv64uv-v-fma_many \
 	rv64ui-v-vec-mul \
 	rv64ui-v-vec-mulw \
 	rv64ui-v-vec-mulh \
@@ -461,6 +463,7 @@ vecasm_pt_tests = \
 	rv64uv-pt-amominu_w \
 	rv64uv-pt-imul \
 	rv64uv-pt-fma \
+	rv64uv-pt-fma_many \
 	rv64ui-pt-vec-mul \
 	rv64ui-pt-vec-mulw \
 	rv64ui-pt-vec-mulh \
