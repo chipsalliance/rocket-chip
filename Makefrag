@@ -220,6 +220,7 @@ vecasm_p_tests = \
 	rv64uv-p-vsetcfg \
 	rv64uv-p-vsetcfgi \
 	rv64uv-p-vsetvl \
+	rv64uv-p-keepcfg \
 	rv64uv-p-movz \
 	rv64uv-p-movn \
 	rv64uv-p-fmovz \
