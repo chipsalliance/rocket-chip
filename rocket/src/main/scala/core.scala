@@ -21,8 +21,8 @@ class Core(implicit conf: RocketConfiguration) extends Module
   val ctrl  = Module(new Control)
   val dpath = Module(new Datapath)
 
-  val fpu: FPU = if (conf.fpu) {
-    val fpu = Module(new FPU(2,3))
+  val fpu: FPU = if (!conf.fpu.isEmpty) {
+    val fpu = Module(new FPU(conf.fpu.get))
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
     fpu
