@@ -6,6 +6,8 @@ import Util._
 import FPConstants._
 import uncore.constants.MemoryOpConstants._
 
+case class FPUConfig(sfmaLatency: Int = 2, dfmaLatency: Int = 3)
+
 object FPConstants
 {
   val FCMD_ADD =        Bits("b000000")
@@ -432,7 +434,7 @@ class FPUDFMAPipe(val latency: Int) extends Module
   io.exc := Pipe(valid, fma.io.exceptionFlags, latency-1).bits
 }
 
-class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
+class FPU(conf: FPUConfig) extends Module
 {
   val io = new Bundle {
     val ctrl = (new CtrlFPUIO).flip
@@ -501,7 +503,7 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   val cmd_fma = mem_ctrl.cmd === FCMD_MADD  || mem_ctrl.cmd === FCMD_MSUB ||
                 mem_ctrl.cmd === FCMD_NMADD || mem_ctrl.cmd === FCMD_NMSUB
   val cmd_addsub = mem_ctrl.cmd === FCMD_ADD || mem_ctrl.cmd === FCMD_SUB
-  val sfma = Module(new FPUSFMAPipe(sfma_latency))
+  val sfma = Module(new FPUSFMAPipe(conf.sfmaLatency))
   sfma.io.valid := io.sfma.valid || ex_reg_valid && ctrl.fma && ctrl.single
   sfma.io.in1 := Mux(io.sfma.valid, io.sfma.in1, ex_rs1)
   sfma.io.in2 := Mux(io.sfma.valid, io.sfma.in2, ex_rs2)
@@ -511,7 +513,7 @@ class FPU(sfma_latency: Int, dfma_latency: Int) extends Module
   io.sfma.out := sfma.io.out
   io.sfma.exc := sfma.io.exc
 
-  val dfma = Module(new FPUDFMAPipe(dfma_latency))
+  val dfma = Module(new FPUDFMAPipe(conf.dfmaLatency))
   dfma.io.valid := io.dfma.valid || ex_reg_valid && ctrl.fma && !ctrl.single
   dfma.io.in1 := Mux(io.dfma.valid, io.dfma.in1, ex_rs1)
   dfma.io.in2 := Mux(io.dfma.valid, io.dfma.in2, ex_rs2)

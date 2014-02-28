@@ -318,7 +318,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   }
 
   var decode_table = XDecode.table
-  if (conf.fpu) decode_table ++= FDecode.table
+  if (!conf.fpu.isEmpty) decode_table ++= FDecode.table
   if (!conf.rocc.isEmpty) decode_table ++= RoCCDecode.table
 
   val cs = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
@@ -404,11 +404,11 @@ class Control(implicit conf: RocketConfiguration) extends Module
     (x.map(_._1).reduce(_||_), PriorityMux(x))
 
   val fp_csrs = CSRs.fcsr :: CSRs.frm :: CSRs.fflags :: Nil
-  val legal_csrs = if (conf.fpu) CSRs.all.toSet else CSRs.all.toSet -- fp_csrs
+  val legal_csrs = if (!conf.fpu.isEmpty) CSRs.all.toSet else CSRs.all.toSet -- fp_csrs
 
   val id_csr_addr = io.dpath.inst(31,20)
   val id_csr_en = id_csr != CSR.N
-  val id_csr_fp = Bool(conf.fpu) && id_csr_en && DecodeLogic(id_csr_addr, fp_csrs, CSRs.all.toSet -- fp_csrs)
+  val id_csr_fp = Bool(!conf.fpu.isEmpty) && id_csr_en && DecodeLogic(id_csr_addr, fp_csrs, CSRs.all.toSet -- fp_csrs)
   val id_csr_wen = id_raddr1 != UInt(0) || !Vec(CSR.S, CSR.C).contains(id_csr)
   val id_csr_invalid = id_csr_en && !Vec(legal_csrs.map(UInt(_))).contains(id_csr_addr)
   val id_csr_privileged = id_csr_en &&
@@ -604,7 +604,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   sboard.set((wb_reg_div_mul_val || wb_dcache_miss || wb_reg_rocc_val) && io.dpath.wb_wen, io.dpath.wb_waddr)
   sboard.clear(io.dpath.ll_wen, io.dpath.ll_waddr)
 
-  val id_stall_fpu = if (conf.fpu) {
+  val id_stall_fpu = if (!conf.fpu.isEmpty) {
     val fp_sboard = new Scoreboard(32)
     fp_sboard.set((wb_dcache_miss && wb_reg_fp_wen || io.fpu.sboard_set) && !replay_wb, io.dpath.wb_waddr)
     fp_sboard.clear(io.dpath.fp_sboard_clr, io.dpath.fp_sboard_clra)
