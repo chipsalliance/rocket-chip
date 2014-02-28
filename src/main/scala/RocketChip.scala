@@ -251,9 +251,10 @@ class Top extends Module {
   implicit val l2 = L2CoherenceAgentConfiguration(tl, NL2_REL_XACTS, NL2_ACQ_XACTS)
   implicit val uc = UncoreConfiguration(l2, tl, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64)
 
-  val ic = ICacheConfig(128, 2, ntlb = 8, nbtb = 38)
+  val isize = RangeParam("i",7,7,9)
+  val ic = ICacheConfig(math.pow(2, isize.getValue).toInt, 2, ntlb = 8, nbtb = 38)
 
-  val dsize = RangeParam("dsize",7,7,9)
+  val dsize = RangeParam("d",7,7,9)
   val dc = DCacheConfig(math.pow(2, dsize.getValue).toInt, 4, ntlb = 8, nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
   //val dc = DCacheConfig(128, 4, ntlb = 8, nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
 
