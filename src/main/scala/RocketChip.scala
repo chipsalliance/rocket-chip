@@ -258,7 +258,7 @@ class Top extends Module {
   val hc = hwacha.HwachaConfiguration(vic, dc, 8, 256, ndtlb = 8, nptlb = 2)
   val rc = RocketConfiguration(tl, ic, dc,
                                fpu = HAS_FPU
-                               ,rocc = (c: RocketConfiguration) => (new hwacha.Hwacha(hc, c))
+                               //,rocc = (c: RocketConfiguration) => (new hwacha.Hwacha(hc, c))
                               )
 
   val io = new VLSITopIO(HTIF_WIDTH)
