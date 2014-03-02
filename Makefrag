@@ -217,6 +217,8 @@ vecasm_p_tests = \
 	rv64uv-p-vmsv \
 	rv64uv-p-vmvv \
 	rv64uv-p-vfmvv \
+	rv64uv-p-vfmsv_d \
+	rv64uv-p-vfmsv_s \
 	rv64uv-p-vsetcfg \
 	rv64uv-p-vsetcfgi \
 	rv64uv-p-vsetvl \
@@ -328,6 +330,12 @@ vecasm_v_tests = \
 	rv64uv-v-vmsv \
 	rv64uv-v-vmvv \
 	rv64uv-v-vfmvv \
+	rv64uv-v-vfmsv_d \
+	rv64uv-v-vfmsv_s \
+	rv64uv-v-vsetcfg \
+	rv64uv-v-vsetcfgi \
+	rv64uv-v-vsetvl \
+	rv64uv-v-keepcfg \
 	rv64uv-v-movz \
 	rv64uv-v-movn \
 	rv64uv-v-fmovz \
@@ -427,6 +435,12 @@ vecasm_pt_tests = \
 	rv64uv-pt-vmvv \
 	rv64uv-pt-vmsv \
 	rv64uv-pt-vfmvv \
+	rv64uv-pt-vfmsv_d \
+	rv64uv-pt-vfmsv_s \
+	rv64uv-pt-vsetcfg \
+	rv64uv-pt-vsetcfgi \
+	rv64uv-pt-vsetvl \
+	rv64uv-pt-keepcfg \
 	rv64uv-pt-movz \
 	rv64uv-pt-movn \
 	rv64uv-pt-fmovz \
