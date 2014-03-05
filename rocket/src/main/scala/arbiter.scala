@@ -46,7 +46,7 @@ class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Modu
     resp.bits.replay := io.mem.resp.bits.replay && tag_hit
 
     io.requestor(i).replay_next.valid := io.mem.replay_next.valid &&
-      io.mem.replay_next.bits(log2Up(n)-1,0) === UInt(log2Up(n))
+      io.mem.replay_next.bits(log2Up(n)-1,0) === UInt(i)
     io.requestor(i).replay_next.bits := io.mem.replay_next.bits >> UInt(log2Up(n))
   }
 }
