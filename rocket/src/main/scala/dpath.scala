@@ -300,8 +300,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ctrl.mem_waddr := mem_reg_inst(11,7)
   io.ctrl.wb_waddr := wb_reg_inst(11,7)
 
-  printf("C: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         pcr.io.time(32,0), io.ctrl.retire, wb_reg_pc,
+  printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
+         io.host.id, pcr.io.time(32,0), io.ctrl.retire, wb_reg_pc,
          Mux(wb_wen, wb_waddr, UInt(0)), wb_wdata, wb_wen,
          wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
          wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),
