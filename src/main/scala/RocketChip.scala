@@ -256,8 +256,8 @@ class Top extends Module {
                         nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
   val vic = ICacheConfig(128, 1)
   val hc = hwacha.HwachaConfiguration(vic, dc, 8, 256, ndtlb = 8, nptlb = 2)
-  val rc = RocketConfiguration(tl, ic, dc,
-                               fpu = HAS_FPU
+  val fpu = if (HAS_FPU) Some(FPUConfig(sfmaLatency = 2, dfmaLatency = 3)) else None
+  val rc = RocketConfiguration(tl, ic, dc, fpu
                                //,rocc = (c: RocketConfiguration) => (new hwacha.Hwacha(hc, c))
                               )
 

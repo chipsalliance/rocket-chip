@@ -125,7 +125,7 @@ int main(int argc, char** argv)
     }
 
     if (log)
-      tile.print(stderr, stderr);
+      tile.print(stderr);
 
     if (vcd)
       tile.dump(vcdfile, trace_count);
