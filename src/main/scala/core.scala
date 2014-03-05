@@ -21,12 +21,13 @@ class Core(implicit conf: RocketConfiguration) extends Module
   val ctrl  = Module(new Control)
   val dpath = Module(new Datapath)
 
-  val fpu: FPU = if (!conf.fpu.isEmpty) {
+  if (!conf.fpu.isEmpty) {
     val fpu = Module(new FPU(conf.fpu.get))
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
-    fpu
-  } else null
+    fpu.io.sfma.valid := Bool(false)
+    fpu.io.dfma.valid := Bool(false)
+  }
 
   ctrl.io.dpath <> dpath.io.ctrl
   dpath.io.host <> io.host
@@ -41,7 +42,4 @@ class Core(implicit conf: RocketConfiguration) extends Module
 
   ctrl.io.rocc <> io.rocc
   dpath.io.rocc <> io.rocc
-
-  fpu.io.sfma.valid := Bool(false)
-  fpu.io.dfma.valid := Bool(false)
 }
