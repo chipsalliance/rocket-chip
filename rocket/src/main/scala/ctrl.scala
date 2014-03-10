@@ -232,6 +232,8 @@ object FDecode extends DecodeConstants
     FNMADD_D->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
     FNMSUB_S->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
     FNMSUB_D->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,CSR.N,N,N,N,N,N,N),
+    FCLASS_S->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
+    FCLASS_D->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     FMV_X_S->   List(Y,    Y,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     FMV_X_D->   List(Y,    Y,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     FCVT_W_S->  List(Y,    Y,N,BR_N,  N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
