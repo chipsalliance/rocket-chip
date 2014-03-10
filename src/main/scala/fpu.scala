@@ -34,6 +34,7 @@ object FPConstants
   val FCMD_MIN =        Bits("b011000")
   val FCMD_MAX =        Bits("b011001")
   val FCMD_MFTX =       Bits("b011100")
+  val FCMD_CLASS =      Bits("b011101")
   val FCMD_MXTF =       Bits("b011110")
   val FCMD_MADD =       Bits("b100100")
   val FCMD_MSUB =       Bits("b100101")
@@ -91,6 +92,8 @@ class FPUDecoder extends Module
           FCVT_D_LU-> List(FCMD_CVT_FMT_LU,Y,N,N,N,N,Y,N,N,N,Y),
           FMV_X_S  -> List(FCMD_MFTX,      N,Y,N,N,Y,N,Y,N,N,Y),
           FMV_X_D  -> List(FCMD_MFTX,      N,Y,N,N,N,N,Y,N,N,Y),
+          FCLASS_S -> List(FCMD_CLASS,     N,Y,N,N,Y,N,Y,N,N,Y),
+          FCLASS_D -> List(FCMD_CLASS,     N,Y,N,N,N,N,Y,N,N,Y),
           FCVT_W_S -> List(FCMD_CVT_W_FMT, N,Y,N,N,Y,N,Y,N,N,Y),
           FCVT_WU_S-> List(FCMD_CVT_WU_FMT,N,Y,N,N,Y,N,Y,N,N,Y),
           FCVT_L_S -> List(FCMD_CVT_L_FMT, N,Y,N,N,Y,N,Y,N,N,Y),
@@ -203,7 +206,7 @@ class FPToInt extends Module
     when (io.in.bits.cmd === FCMD_STORE) {
       in.in1 := io.in.bits.in2
     }.otherwise {
-      val doUpconvert = io.in.bits.single && io.in.bits.cmd != FCMD_MFTX
+      val doUpconvert = io.in.bits.single && io.in.bits.cmd != FCMD_MFTX && io.in.bits.cmd != FCMD_CLASS
       in.in1 := Mux(doUpconvert, upconvert(io.in.bits.in1), io.in.bits.in1)
       in.in2 := Mux(doUpconvert, upconvert(io.in.bits.in2), io.in.bits.in2)
     }
@@ -235,6 +238,11 @@ class FPToInt extends Module
   when (in.cmd === FCMD_CVT_L_FMT || in.cmd === FCMD_CVT_LU_FMT) {
     io.out.bits.toint := d2i._1
     io.out.bits.exc := d2i._2
+  }
+  when (in.cmd === FCMD_CLASS) {
+    val classify_s = hardfloat.recodedFloatNClassify(in.in1, 23, 9)
+    val classify_d = hardfloat.recodedFloatNClassify(in.in1, 52, 12)
+    io.out.bits.toint := Mux(in.single, classify_s, classify_d)
   }
   when (in.cmd === FCMD_EQ || in.cmd === FCMD_LT || in.cmd === FCMD_LE) {
     io.out.bits.toint := dcmp_out
