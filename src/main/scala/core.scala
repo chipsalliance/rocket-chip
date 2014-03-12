@@ -25,8 +25,6 @@ class Core(implicit conf: RocketConfiguration) extends Module
     val fpu = Module(new FPU(conf.fpu.get))
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
-    fpu.io.sfma.valid := Bool(false)
-    fpu.io.dfma.valid := Bool(false)
   }
 
   ctrl.io.dpath <> dpath.io.ctrl
