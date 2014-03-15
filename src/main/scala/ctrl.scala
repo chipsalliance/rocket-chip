@@ -412,7 +412,13 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_csr_en = id_csr != CSR.N
   val id_csr_fp = Bool(!conf.fpu.isEmpty) && id_csr_en && DecodeLogic(id_csr_addr, fp_csrs, CSRs.all.toSet -- fp_csrs)
   val id_csr_wen = id_raddr1 != UInt(0) || !Vec(CSR.S, CSR.C).contains(id_csr)
-  val id_csr_invalid = id_csr_en && !Vec(legal_csrs.map(UInt(_))).contains(id_csr_addr)
+
+  val legal_uint_csrs = new scala.collection.mutable.ArrayBuffer[Bits]
+  for (csr <- legal_csrs) {
+    legal_uint_csrs += UInt(csr)
+  }
+
+  val id_csr_invalid = id_csr_en && !Vec(legal_uint_csrs).contains(id_csr_addr)
   val id_csr_privileged = id_csr_en &&
     (id_csr_addr(11,10) === UInt(3) && id_csr_wen ||
      id_csr_addr(11,10) === UInt(2) ||
