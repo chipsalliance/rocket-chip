@@ -243,7 +243,12 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
   for (i <- 0 until reg_uarch_counters.size)
     read_mapping += (CSRs.uarch0 + i) -> reg_uarch_counters(i)
 
-  io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
+  val decoded_mapping = new scala.collection.mutable.ArrayBuffer[(Bool, Bits)]
+  for ((k, v) <- read_mapping) {
+    decoded_mapping += ((decoded_addr(k), v))
+  }
+
+  io.rw.rdata := Mux1H(decoded_mapping)
 
   io.fcsr_rm := reg_frm
   when (io.fcsr_flags.valid) {
