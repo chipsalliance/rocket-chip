@@ -260,6 +260,10 @@ object CSRs {
   val uarch13 = 0xccd
   val uarch14 = 0xcce
   val uarch15 = 0xccf
+  val counth = 0x586
+  val cycleh = 0xc80
+  val timeh = 0xc81
+  val instreth = 0xc82
   val all = {
     val res = collection.mutable.ArrayBuffer[Int]()
     res += fflags
@@ -304,6 +308,14 @@ object CSRs {
     res += uarch13
     res += uarch14
     res += uarch15
+    res.toArray
+  }
+  val all32 = {
+    val res = collection.mutable.ArrayBuffer(all:_*)
+    res += counth
+    res += cycleh
+    res += timeh
+    res += instreth
     res.toArray
   }
 }
