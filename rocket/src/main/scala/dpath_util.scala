@@ -213,7 +213,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
   val read_impl = Bits(2)
   val read_ptbr = reg_ptbr(PADDR_BITS-1,PGIDX_BITS) << PGIDX_BITS
 
-  val read_mapping = collection.mutable.Map[Int,Bits](
+  val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
     CSRs.fflags -> (if (!conf.fpu.isEmpty) reg_fflags else UInt(0)),
     CSRs.frm -> (if (!conf.fpu.isEmpty) reg_frm else UInt(0)),
     CSRs.fcsr -> (if (!conf.fpu.isEmpty) Cat(reg_frm, reg_fflags) else UInt(0)),
@@ -243,12 +243,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
   for (i <- 0 until reg_uarch_counters.size)
     read_mapping += (CSRs.uarch0 + i) -> reg_uarch_counters(i)
 
-  val decoded_mapping = new scala.collection.mutable.ArrayBuffer[(Bool, Bits)]
-  for ((k, v) <- read_mapping) {
-    decoded_mapping += ((decoded_addr(k), v))
-  }
-
-  io.rw.rdata := Mux1H(decoded_mapping)
+  io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
 
   io.fcsr_rm := reg_frm
   when (io.fcsr_flags.valid) {
