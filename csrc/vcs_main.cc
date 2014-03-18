@@ -17,11 +17,11 @@ static unsigned htif_bytes;
 static mm_t* mm;
 static const char* loadmem;
 
-void htif_fini(int code)
+void htif_fini(vc_handle failure)
 {
   delete htif;
   htif = NULL;
-  exit(code);
+  exit(vc_getScalar(failure));
 }
 
 int main(int argc, char** argv)
