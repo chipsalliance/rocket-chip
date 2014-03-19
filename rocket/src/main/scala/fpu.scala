@@ -103,10 +103,10 @@ class FPUDecoder extends Module
           FSGNJ_D  -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,N,N,Y,N,N),
           FSGNJN_D -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,N,N,Y,N,N),
           FSGNJX_D -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,N,N,Y,N,N),
-          FMIN_S   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,Y,N,Y,Y,N,N),
-          FMAX_S   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,Y,N,Y,Y,N,N),
-          FMIN_D   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,N,Y,Y,N,N),
-          FMAX_D   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,N,Y,Y,N,N),
+          FMIN_S   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,Y,N,N,Y,N,N),
+          FMAX_S   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,Y,N,N,Y,N,N),
+          FMIN_D   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,N,N,Y,N,N),
+          FMAX_D   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,N,N,Y,N,N),
           FADD_S   -> List(FCMD_ADD,    N,Y,Y,Y,N,Y,Y,N,N,N,Y,Y),
           FSUB_S   -> List(FCMD_SUB,    N,Y,Y,Y,N,Y,Y,N,N,N,Y,Y),
           FMUL_S   -> List(FCMD_MUL,    N,Y,Y,Y,N,N,Y,N,N,N,Y,Y),
@@ -406,7 +406,7 @@ class FPU(conf: FPUConfig) extends Module
   dfma.io.in.bits := req
 
   val fpiu = Module(new FPToInt)
-  fpiu.io.in.valid := ex_reg_valid && ex_ctrl.toint
+  fpiu.io.in.valid := ex_reg_valid && (ex_ctrl.toint || ex_ctrl.cmd === FCMD_MINMAX)
   fpiu.io.in.bits := req
   io.dpath.store_data := fpiu.io.out.bits.store
   io.dpath.toint_data := fpiu.io.out.bits.toint
