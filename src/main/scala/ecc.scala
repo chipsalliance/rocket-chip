@@ -57,7 +57,7 @@ class SECCode extends Code
 
     val y = for (i <- 1 to n) yield {
       if (isPow2(i)) {
-        val r = for (j <- 1 to n; if j != i && (j & i))
+        val r = for (j <- 1 to n; if j != i && (j & i).toBoolean)
           yield x(mapping(j))
         r reduce (_^_)
       } else
@@ -71,7 +71,7 @@ class SECCode extends Code
 
     val p2 = for (i <- 0 until log2Up(n)) yield 1 << i
     val syndrome = p2 map { i =>
-      val r = for (j <- 1 to n; if j & i)
+      val r = for (j <- 1 to n; if (j & i).toBoolean)
         yield y(j-1)
       r reduce (_^_)
     }
