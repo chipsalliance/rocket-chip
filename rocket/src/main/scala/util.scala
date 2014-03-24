@@ -3,15 +3,18 @@ package rocket
 import Chisel._
 import scala.math._
 
-object Util
-{
+class BooleanToInt(x: Int) {
+  def toBoolean: Boolean = if (x != 0) true else false
+}
+
+object Util {
   implicit def intToUInt(x: Int): UInt = UInt(x)
-  implicit def intToBoolean(x: Int): Boolean = if (x != 0) true else false
-  implicit def booleanToInt(x: Boolean): Int = if (x) 1 else 0
   implicit def booleanToBool(x: Boolean): Bits = Bool(x)
   implicit def intSeqToUIntSeq(x: Iterable[Int]): Iterable[UInt] = x.map(UInt(_))
-
   implicit def wcToUInt(c: WideCounter): UInt = c.value
+
+  implicit def booleanToInt(x: Boolean): Int = if (x) 1 else 0
+  implicit def intToBooleanToInt(x: Int): BooleanToInt = new BooleanToInt(x)
 }
 
 object AVec
