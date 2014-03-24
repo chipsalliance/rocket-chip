@@ -383,7 +383,6 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val wb_reg_div_mul_val     = Reg(init=Bool(false))
 
   val take_pc = Bool()
-  val pc_taken = Reg(next=take_pc, init=Bool(false))
   val take_pc_wb = Bool()
   val ctrl_killd = Bool()
   val ctrl_killx = Bool()
@@ -707,7 +706,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || ctrl_draind
 
   io.dpath.killd := take_pc || ctrl_stalld && !ctrl_draind
-  io.imem.resp.ready := pc_taken || !ctrl_stalld || ctrl_draind
+  io.imem.resp.ready := !ctrl_stalld || ctrl_draind
   io.imem.invalidate := wb_reg_flush_inst
 
   io.dpath.mem_load := mem_reg_mem_val && mem_reg_wen
