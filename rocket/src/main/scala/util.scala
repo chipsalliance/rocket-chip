@@ -11,11 +11,14 @@ object Util {
   implicit def intToUInt(x: Int): UInt = UInt(x)
   implicit def booleanToBool(x: Boolean): Bits = Bool(x)
   implicit def intSeqToUIntSeq(x: Iterable[Int]): Iterable[UInt] = x.map(UInt(_))
+  implicit def seqToVec[T <: Data](x: Iterable[T]): Vec[T] = Vec(x)
   implicit def wcToUInt(c: WideCounter): UInt = c.value
 
   implicit def booleanToInt(x: Boolean): Int = if (x) 1 else 0
   implicit def intToBooleanToInt(x: Int): BooleanToInt = new BooleanToInt(x)
 }
+
+import Util._
 
 object AVec
 {
@@ -141,18 +144,20 @@ case class WideCounter(width: Int, inc: UInt = UInt(1))
 
 object Random
 {
-  def apply(mod: Int, inc: Bool = Bool(true)): UInt = {
-    if (isPow2(mod)) {
-      require(mod <= 65536)
-      LFSR16(inc)(log2Up(mod)-1,0).toUInt
-    } else {
-      val max = 1 << log2Up(mod*8)
-      val rand_pow2 = apply(max, inc)
-
-      var res = UInt(mod-1)
-      for (i <- mod-1 to 1 by -1)
-        res = Mux(rand_pow2 < UInt(i*max/mod), UInt(i-1), res)
-      res
-    }
+  def apply(mod: Int, random: UInt): UInt = {
+    if (isPow2(mod)) random(log2Up(mod)-1,0)
+    else PriorityEncoder(partition(apply(1 << log2Up(mod*8), random), mod))
   }
+  def apply(mod: Int): UInt = apply(mod, randomizer)
+  def oneHot(mod: Int, random: UInt): UInt = {
+    if (isPow2(mod)) UIntToOH(random(log2Up(mod)-1,0))
+    else PriorityEncoderOH(partition(apply(1 << log2Up(mod*8), random), mod)).toBits
+  }
+  def oneHot(mod: Int): UInt = oneHot(mod, randomizer)
+
+  private def randomizer = LFSR16()
+  private def round(x: Double): Int =
+    if (x.toInt.toDouble == x) x.toInt else (x.toInt + 1) & -2
+  private def partition(value: UInt, slices: Int) =
+    Vec.tabulate(slices)(i => value < round((i << value.getWidth).toDouble / slices))
 }

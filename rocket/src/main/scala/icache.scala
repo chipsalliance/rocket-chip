@@ -6,7 +6,7 @@ import Util._
 
 case class ICacheConfig(sets: Int, assoc: Int,
                         ibytes: Int = 4,
-                        ntlb: Int = 8, nbtb: Int = 8,
+                        ntlb: Int = 8, btb: BTBConfig = BTBConfig(8),
                         code: Code = new IdentityCode)
 {
   val w = 1
@@ -55,7 +55,7 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
     val mem = new UncachedTileLinkIO
   }
   
-  val btb = Module(new rocketDpathBTB(c.nbtb))
+  val btb = Module(new BTB(c.btb))
   val icache = Module(new ICache)
   val tlb = Module(new TLB(c.ntlb))
 
@@ -94,7 +94,7 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
 
   btb.io.current_pc := s1_pc
   btb.io.wen := io.cpu.req.bits.mispredict
-  btb.io.clr := !io.cpu.req.bits.taken
+  btb.io.taken := io.cpu.req.bits.taken
   btb.io.correct_pc := io.cpu.req.bits.currentpc
   btb.io.correct_target := io.cpu.req.bits.pc
   btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate

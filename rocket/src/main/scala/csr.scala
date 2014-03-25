@@ -7,56 +7,6 @@ import uncore.HTIFIO
 import uncore.constants.AddressConstants._
 import scala.math._
 
-class DpathBTBIO extends Bundle
-{
-  val current_pc     = UInt(INPUT, VADDR_BITS)
-  val hit            = Bool(OUTPUT)
-  val target         = UInt(OUTPUT, VADDR_BITS)
-  val wen            = Bool(INPUT)
-  val clr            = Bool(INPUT)
-  val invalidate     = Bool(INPUT)
-  val correct_pc     = UInt(INPUT, VADDR_BITS)
-  val correct_target = UInt(INPUT, VADDR_BITS)
-}
-
-// fully-associative branch target buffer
-class rocketDpathBTB(entries: Int) extends Module
-{
-  val io = new DpathBTBIO
-
-  var hit_reduction = Bool(false)
-  val hit = Bool()
-  val update = Bool()
-  var update_reduction = Bool(false)
-  val valid = Vec.fill(entries){Reg(init=Bool(false))}
-  val hits = Vec.fill(entries){Bool()}
-  val updates = Vec.fill(entries){Bool()}
-  val targets = Vec.fill(entries){Reg(UInt())}
-  val anyUpdate = updates.toBits.orR
-
-  val random_way = Random(entries, io.wen)
-  val invalid_way = valid.indexWhere((x: Bool) => !x)
-  val repl_way = Mux(valid.contains(Bool(false)), invalid_way, random_way)
-
-  for (i <- 0 until entries) {
-    val tag = Reg(UInt())
-    hits(i) := valid(i) && tag === io.current_pc
-    updates(i) := valid(i) && tag === io.correct_pc
-
-    when (io.wen && (updates(i) || !anyUpdate && UInt(i) === repl_way)) {
-      valid(i) := Bool(false)
-      when (!io.clr) {
-        valid(i) := Bool(true)
-        tag := io.correct_pc
-        targets(i) := io.correct_target
-      }
-    }
-  }
-
-  io.hit    := hits.toBits.orR
-  io.target := Mux1H(hits, targets)
-}
-
 class Status extends Bundle {
   val ip = Bits(width = 8)
   val im = Bits(width = 8)
@@ -293,17 +243,4 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
     reg_status.im := 0
     reg_status.ip := 0
   }
-}
-
-class ioReadPort(d: Int, w: Int) extends Bundle
-{
-  override def clone = new ioReadPort(d, w).asInstanceOf[this.type]
-}
-
-class ioWritePort(d: Int, w: Int) extends Bundle
-{
-  val addr = UInt(INPUT, log2Up(d))
-  val en   = Bool(INPUT)
-  val data = Bits(INPUT, w)
-  override def clone = new ioWritePort(d, w).asInstanceOf[this.type]
 }
