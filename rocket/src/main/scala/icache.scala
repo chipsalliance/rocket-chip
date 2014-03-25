@@ -71,9 +71,9 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   val pcp4_0 = s1_pc + UInt(c.ibytes)
   val pcp4 = Cat(s1_pc(VADDR_BITS-1) & pcp4_0(VADDR_BITS-1), pcp4_0(VADDR_BITS-1,0))
   val icmiss = s2_valid && !icache.io.resp.valid
-  val predicted_npc = Mux(btb.io.hit, btbTarget, pcp4)
+  val predicted_npc = btbTarget /* zero if btb miss */ | Mux(btb.io.hit, UInt(0), pcp4)
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
-  val s0_same_block = !icmiss && !io.cpu.req.valid && (predicted_npc >> log2Up(c.databits/8)) === (s1_pc >> log2Up(c.databits/8))
+  val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.hit && ((pcp4 & (c.databits/8)) === (s1_pc & (c.databits/8)))
 
   val stall = io.cpu.resp.valid && !io.cpu.resp.ready
   when (!stall) {
@@ -115,7 +115,7 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
-  io.cpu.resp.bits.pc := s2_pc
+  io.cpu.resp.bits.pc := s2_pc & SInt(-c.ibytes) // discard PC LSBs
   io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc(log2Up(c.databits/8)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8))
   io.cpu.resp.bits.taken := s2_btb_hit
   io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(c.ibytes)-1,0) != UInt(0)
