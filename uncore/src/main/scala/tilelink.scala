@@ -35,18 +35,24 @@ object Acquire
     acq.a_type := a_type
     acq.addr := addr
     acq.client_xact_id := client_xact_id
+    acq.data := Bits(0)
     acq.write_mask := Bits(0)
     acq.subword_addr := Bits(0)
     acq.atomic_opcode := Bits(0)
     acq
   }
-  def apply(a_type: UInt, addr: UInt, client_xact_id: UInt, write_mask: Bits)(implicit conf: TileLinkConfiguration): Acquire = {
+  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt, data: UInt)(implicit conf: TileLinkConfiguration): Acquire =  {
     val acq = apply(a_type, addr, client_xact_id)
+    acq.data := data
+    acq
+  }
+  def apply(a_type: UInt, addr: UInt, client_xact_id: UInt, write_mask: Bits, data: UInt)(implicit conf: TileLinkConfiguration): Acquire = {
+    val acq = apply(a_type, addr, client_xact_id, data)
     acq.write_mask := write_mask
     acq
   }
-  def apply(a_type: UInt, addr: UInt, client_xact_id: UInt, subword_addr: UInt, atomic_opcode: UInt)(implicit conf: TileLinkConfiguration): Acquire = {
-    val acq = apply(a_type, addr, client_xact_id)
+  def apply(a_type: UInt, addr: UInt, client_xact_id: UInt, subword_addr: UInt, atomic_opcode: UInt, data: UInt)(implicit conf: TileLinkConfiguration): Acquire = {
+    val acq = apply(a_type, addr, client_xact_id, data)
     acq.subword_addr := subword_addr
     acq.atomic_opcode := atomic_opcode
     acq
@@ -57,14 +63,16 @@ object Acquire
     acq
   }
 }
-class Acquire(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasPhysicalAddress with HasClientTransactionId {
+
+class Acquire(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage 
+    with HasPhysicalAddress 
+    with HasClientTransactionId 
+    with HasTileLinkData {
   val a_type = UInt(width = conf.co.acquireTypeWidth)
   val write_mask = Bits(width = ACQUIRE_WRITE_MASK_BITS)
   val subword_addr = Bits(width = ACQUIRE_SUBWORD_ADDR_BITS)
   val atomic_opcode = Bits(width = ACQUIRE_ATOMIC_OP_BITS)
 }
-
-class AcquireData(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasTileLinkData
 
 object Probe
 {
@@ -76,16 +84,20 @@ object Probe
     prb
   }
 }
-class Probe(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage with HasPhysicalAddress with HasMasterTransactionId {
+
+class Probe(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage 
+    with HasPhysicalAddress 
+    with HasMasterTransactionId {
   val p_type = UInt(width = conf.co.probeTypeWidth)
 }
 
 object Release
 {
-  def apply(r_type: UInt, addr: UInt)(implicit conf: TileLinkConfiguration) = {
+  def apply(r_type: UInt, addr: UInt, data: UInt)(implicit conf: TileLinkConfiguration) = {
     val rel = new Release
     rel.r_type := r_type
     rel.addr := addr
+    rel.data := data
     rel
   }
   def apply(r_type: UInt, addr: UInt, client_xact_id: UInt, master_xact_id: UInt)(implicit conf: TileLinkConfiguration) = {
@@ -94,16 +106,45 @@ object Release
     rel.addr := addr
     rel.client_xact_id := client_xact_id
     rel.master_xact_id := master_xact_id
+    rel.data := UInt(0)
+    rel
+  }
+  def apply(r_type: UInt, addr: UInt, client_xact_id: UInt, master_xact_id: UInt, data: UInt)(implicit conf: TileLinkConfiguration): Release = {
+    val rel = apply(r_type, addr, client_xact_id, master_xact_id)
+    rel.data := data
     rel
   }
 }
-class Release(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasPhysicalAddress with HasClientTransactionId with HasMasterTransactionId {
+
+class Release(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage 
+    with HasPhysicalAddress 
+    with HasClientTransactionId 
+    with HasMasterTransactionId 
+    with HasTileLinkData {
   val r_type = UInt(width = conf.co.releaseTypeWidth)
 }
 
-class ReleaseData(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasTileLinkData
+object Grant
+{
+  def apply(g_type: UInt, client_xact_id: UInt, master_xact_id: UInt)(implicit conf: TileLinkConfiguration) = {
+    val gnt = new Grant
+    gnt.g_type := g_type
+    gnt.client_xact_id := client_xact_id
+    gnt.master_xact_id := master_xact_id
+    gnt.data := UInt(0)
+    gnt
+  }
+  def apply(g_type: UInt, client_xact_id: UInt, master_xact_id: UInt, data: UInt)(implicit conf: TileLinkConfiguration): Grant = {
+    val gnt = apply(g_type, client_xact_id, master_xact_id)
+    gnt.data := data
+    gnt
+  }
+}
 
-class Grant(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage with HasTileLinkData with HasClientTransactionId with HasMasterTransactionId {
+class Grant(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage 
+    with HasTileLinkData 
+    with HasClientTransactionId 
+    with HasMasterTransactionId {
   val g_type = UInt(width = conf.co.grantTypeWidth)
 }
 
@@ -112,7 +153,7 @@ class GrantAck(implicit val conf: TileLinkConfiguration) extends ClientSourcedMe
 
 class UncachedTileLinkIO(implicit conf: TileLinkConfiguration) extends Bundle {
   implicit val ln = conf.ln
-  val acquire   = new PairedDataIO(new LogicalNetworkIO(new Acquire), new LogicalNetworkIO(new AcquireData))
+  val acquire   = new DecoupledIO(new LogicalNetworkIO(new Acquire))
   val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
   val grant_ack = new DecoupledIO(new LogicalNetworkIO(new GrantAck))
   override def clone = { new UncachedTileLinkIO().asInstanceOf[this.type] }
@@ -120,7 +161,7 @@ class UncachedTileLinkIO(implicit conf: TileLinkConfiguration) extends Bundle {
 
 class TileLinkIO(implicit conf: TileLinkConfiguration) extends UncachedTileLinkIO()(conf) { 
   val probe     = new DecoupledIO(new LogicalNetworkIO(new Probe)).flip
-  val release   = new PairedDataIO(new LogicalNetworkIO(new Release), new LogicalNetworkIO(new ReleaseData))
+  val release   = new DecoupledIO(new LogicalNetworkIO(new Release))
   override def clone = { new TileLinkIO().asInstanceOf[this.type] }
 }
 
@@ -129,32 +170,28 @@ abstract class TileLinkArbiterLike(val arbN: Int)(implicit conf: TileLinkConfigu
 
   type MasterSourcedWithId = MasterSourcedMessage with HasClientTransactionId
   type ClientSourcedWithId = ClientSourcedMessage with HasClientTransactionId 
-  type ClientSourcedWithData = ClientSourcedMessage with HasTileLinkData
 
   def clientSourcedClientXactId(in: ClientSourcedWithId, id: Int): Bits
   def masterSourcedClientXactId(in: MasterSourcedWithId): Bits
   def arbIdx(in: MasterSourcedWithId): UInt
 
-  def hookupClientSource[M <: ClientSourcedWithId, D <: ClientSourcedWithData]
-                        (ins: Seq[PairedDataIO[LogicalNetworkIO[M],LogicalNetworkIO[D]]], 
-                          out: PairedDataIO[LogicalNetworkIO[M],LogicalNetworkIO[D]]) {
+  def hookupClientSource[M <: ClientSourcedWithId]
+                        (ins: Seq[DecoupledIO[LogicalNetworkIO[M]]], 
+                         out: DecoupledIO[LogicalNetworkIO[M]]) {
     def hasData(m: LogicalNetworkIO[M]) = co.messageHasData(m.payload)
-    val arb = Module(new PairedLockingRRArbiter(out.meta.bits.clone, out.data.bits.clone, 
-                                                arbN, REFILL_CYCLES, hasData _))
+    val arb = Module(new RRArbiter(out.bits.clone, arbN))
     out <> arb.io.out
     ins.zipWithIndex.zip(arb.io.in).map{ case ((req,id), arb) => {
-      arb.data <> req.data
-      arb.meta.valid := req.meta.valid
-      arb.meta.bits := req.meta.bits
-      arb.meta.bits.payload := req.meta.bits.payload
-      arb.meta.bits.payload.client_xact_id := clientSourcedClientXactId(req.meta.bits.payload, id)
-      req.meta.ready := arb.meta.ready
+      arb.valid := req.valid
+      arb.bits := req.bits
+      arb.bits.payload.client_xact_id := clientSourcedClientXactId(req.bits.payload, id)
+      req.ready := arb.ready
     }}
   }
 
   def hookupMasterSource[M <: MasterSourcedWithId]
                         (ins: Seq[DecoupledIO[LogicalNetworkIO[M]]], 
-                          out: DecoupledIO[LogicalNetworkIO[M]]) {
+                         out: DecoupledIO[LogicalNetworkIO[M]]) {
     out.ready := Bool(false)
     for (i <- 0 until arbN) {
       ins(i).valid := Bool(false)

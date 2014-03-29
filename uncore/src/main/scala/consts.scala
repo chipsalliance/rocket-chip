@@ -70,9 +70,3 @@ trait TileLinkSizeConstants {
 trait MemoryInterfaceConstants extends 
   CacheConstants with 
   AddressConstants 
-{
-  val MEM_TAG_BITS = 5
-  val MEM_DATA_BITS = 128
-  val REFILL_CYCLES = CACHE_DATA_SIZE_IN_BYTES*8/MEM_DATA_BITS
-  val MEM_ADDR_BITS = PADDR_BITS - OFFSET_BITS
-}

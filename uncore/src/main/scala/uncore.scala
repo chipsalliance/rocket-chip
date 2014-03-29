@@ -31,16 +31,12 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: L2CoherenceAgentConfiguration
   val alloc_arb = Module(new Arbiter(Bool(), trackerList.size))
   for( i <- 0 until trackerList.size ) {
     val t = trackerList(i).io.client
-    alloc_arb.io.in(i).valid := t.acquire.meta.ready
-    t.acquire.meta.bits := acquire.meta.bits
-    t.acquire.meta.valid := alloc_arb.io.in(i).ready
-
-    t.acquire.data.bits := acquire.data.bits
-    t.acquire.data.valid := acquire.data.valid
+    alloc_arb.io.in(i).valid := t.acquire.ready
+    t.acquire.bits := acquire.bits
+    t.acquire.valid := alloc_arb.io.in(i).ready
   }
-  acquire.meta.ready := trackerList.map(_.io.client.acquire.meta.ready).reduce(_||_) && !block_acquires
-  acquire.data.ready := trackerList.map(_.io.client.acquire.data.ready).reduce(_||_)
-  alloc_arb.io.out.ready := acquire.meta.valid && !block_acquires
+  acquire.ready := trackerList.map(_.io.client.acquire.ready).reduce(_||_) && !block_acquires
+  alloc_arb.io.out.ready := acquire.valid && !block_acquires
 
   // Handle probe request generation
   val probe_arb = Module(new Arbiter(new LogicalNetworkIO(new Probe), trackerList.size))
@@ -49,21 +45,18 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: L2CoherenceAgentConfiguration
 
   // Handle releases, which might be voluntary and might have data
   val release = io.client.release
-  val voluntary = co.isVoluntary(release.meta.bits.payload)
+  val voluntary = co.isVoluntary(release.bits.payload)
   val any_release_conflict = trackerList.tail.map(_.io.has_release_conflict).reduce(_||_)
   val block_releases = Bool(false)
   val conflict_idx = Vec(trackerList.map(_.io.has_release_conflict)).lastIndexWhere{b: Bool => b}
   //val release_idx = Mux(voluntary, Mux(any_release_conflict, conflict_idx, UInt(0)), release.bits.payload.master_xact_id) // TODO: Add merging logic to allow allocated AcquireTracker to handle conflicts, send all necessary grants, use first sufficient response
-  val release_idx = Mux(voluntary, UInt(0), release.meta.bits.payload.master_xact_id)
+  val release_idx = Mux(voluntary, UInt(0), release.bits.payload.master_xact_id)
   for( i <- 0 until trackerList.size ) {
     val t = trackerList(i).io.client
-    t.release.meta.bits := release.meta.bits 
-    t.release.meta.valid := release.meta.valid && (release_idx === UInt(i)) && !block_releases
-    t.release.data.bits := release.data.bits
-    t.release.data.valid := release.data.valid
+    t.release.bits := release.bits 
+    t.release.valid := release.valid && (release_idx === UInt(i)) && !block_releases
   }
-  release.meta.ready := Vec(trackerList.map(_.io.client.release.meta.ready)).read(release_idx) && !block_releases
-  release.data.ready := trackerList.map(_.io.client.release.data.ready).reduce(_||_)
+  release.ready := Vec(trackerList.map(_.io.client.release.ready)).read(release_idx) && !block_releases
 
   // Reply to initial requestor
   val grant_arb = Module(new Arbiter(new LogicalNetworkIO(new Grant), trackerList.size))
@@ -83,7 +76,7 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: L2CoherenceAgentConfiguration
 }
 
 
-abstract class XactTracker()(implicit conf: L2CoherenceAgentConfiguration) extends Module with OuterRequestGenerator {
+abstract class XactTracker()(implicit conf: L2CoherenceAgentConfiguration) extends Module {
   implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
   val io = new Bundle {
     val client = (new TileLinkIO).flip
@@ -92,63 +85,56 @@ abstract class XactTracker()(implicit conf: L2CoherenceAgentConfiguration) exten
     val has_acquire_conflict = Bool(OUTPUT)
     val has_release_conflict = Bool(OUTPUT)
   }
+
+  val c_acq = io.client.acquire.bits
+  val c_rel = io.client.release.bits
+  val c_gnt = io.client.grant.bits
+  val c_ack = io.client.grant_ack.bits
+  val m_gnt = io.master.grant.bits
+
 }
 
 class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
   val s_idle :: s_mem :: s_ack :: s_busy :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Release }
-  val init_client_id_ = Reg(init=UInt(0, width = log2Up(ln.nClients)))
-  val release_data_needs_write = Reg(init=Bool(false))
-  val mem_cmd_sent = Reg(init=Bool(false))
-  val cmd_to_write = Acquire(co.getUncachedWriteAcquireType, xact.addr, UInt(trackerId))
+  val init_client_id = Reg(init=UInt(0, width = log2Up(ln.nClients)))
+  val incoming_rel = io.client.release.bits
 
   io.has_acquire_conflict := Bool(false)
-  io.has_release_conflict := co.isCoherenceConflict(xact.addr, io.client.release.meta.bits.payload.addr) && (state != s_idle)
+  io.has_release_conflict := co.isCoherenceConflict(xact.addr, incoming_rel.payload.addr) && 
+                               (state != s_idle)
 
   io.master.grant.ready := Bool(false)
-  io.master.acquire.meta.valid := Bool(false)
-  io.master.acquire.meta.bits.payload := cmd_to_write
-  //TODO io.master.acquire.bits.header.dst
-  io.master.acquire.meta.bits.header.src := UInt(bankId) 
-  io.master.acquire.data.valid := Bool(false)
-  io.master.acquire.data.bits.payload.data := UInt(0)
-  //TODO io.master.acquire_data.bits.header.dst
-  io.master.acquire.data.bits.header.src := UInt(bankId)
-  io.client.acquire.meta.ready := Bool(false)
-  io.client.acquire.data.ready := Bool(false)
+  io.master.acquire.valid := Bool(false)
+  io.master.acquire.bits.header.src := UInt(bankId) 
+  //io.master.acquire.bits.header.dst TODO
+  io.master.acquire.bits.payload := Acquire(co.getUncachedWriteAcquireType,
+                                            xact.addr,
+                                            UInt(trackerId),
+                                            xact.data)
+  io.client.acquire.ready := Bool(false)
   io.client.probe.valid := Bool(false)
-  io.client.release.meta.ready := Bool(false)
-  io.client.release.data.ready := Bool(false) // DNC
+  io.client.release.ready := Bool(false)
   io.client.grant.valid := Bool(false)
-  io.client.grant.bits.payload.g_type := co.getGrantType(xact, UInt(0))
-  io.client.grant.bits.payload.client_xact_id := xact.client_xact_id
-  io.client.grant.bits.payload.master_xact_id := UInt(trackerId)
-  io.client.grant.bits.payload.data := UInt(0)
-  io.client.grant.bits.header.dst := init_client_id_
   io.client.grant.bits.header.src := UInt(bankId)
+  io.client.grant.bits.header.dst := init_client_id
+  io.client.grant.bits.payload := Grant(co.getGrantType(xact, UInt(0)),
+                                        xact.client_xact_id,
+                                        UInt(trackerId))
 
   switch (state) {
     is(s_idle) {
-      io.client.release.meta.ready := Bool(true)
-      when( io.client.release.meta.valid ) {
-        xact := io.client.release.meta.bits.payload
-        init_client_id_ := io.client.release.meta.bits.header.src
-        release_data_needs_write := co.messageHasData(io.client.release.meta.bits.payload)
-        mem_cnt := UInt(0)
-        mem_cmd_sent := Bool(false)
-        state := s_mem
+      io.client.release.ready := Bool(true)
+      when( io.client.release.valid ) {
+        xact := incoming_rel.payload
+        init_client_id := incoming_rel.header.src
+        state := Mux(co.messageHasData(incoming_rel.payload), s_mem, s_ack)
       }
     }
     is(s_mem) {
-      when (release_data_needs_write) {
-        doOuterReqWrite(io.master.acquire,
-                      io.client.release.data,
-                      cmd_to_write,
-                      release_data_needs_write,
-                      mem_cmd_sent,
-                      init_client_id_)
-      } . otherwise { state := s_ack }
+      io.master.acquire.valid := Bool(true)
+      when(io.master.acquire.ready) { state := s_ack }
     }
     is(s_ack) {
       io.client.grant.valid := Bool(true)
@@ -158,172 +144,138 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2Cohe
 }
 
 class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
-  val s_idle :: s_ack :: s_mem :: s_probe :: s_busy :: Nil = Enum(UInt(), 5)
+  val s_idle :: s_probe :: s_mem_read :: s_mem_write :: s_make_grant :: s_busy :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Acquire }
-  val init_client_id_ = Reg(init=UInt(0, width = log2Up(ln.nClients)))
-  val release_data_client_id = Reg(init=UInt(0, width = log2Up(ln.nClients)))
+  val init_client_id = Reg(init=UInt(0, width = log2Up(ln.nClients)))
   //TODO: Will need id reg for merged release xacts
-  val init_sharer_cnt_ = Reg(init=UInt(0, width = log2Up(ln.nClients)))
-  val grant_type = co.getGrantType(xact.a_type, init_sharer_cnt_)
+
+  val init_sharer_cnt = Reg(init=UInt(0, width = log2Up(ln.nClients)))
   val release_count = if (ln.nClients == 1) UInt(0) else Reg(init=UInt(0, width = log2Up(ln.nClients)))
   val probe_flags = Reg(init=Bits(0, width = ln.nClients))
   val curr_p_id = PriorityEncoder(probe_flags)
-  val x_needs_read = Reg(init=Bool(false))
-  val acquire_data_needs_write = Reg(init=Bool(false))
-  val release_data_needs_write = Reg(init=Bool(false))
-  val cmd_to_write = Acquire(co.getUncachedWriteAcquireType, xact.addr, UInt(trackerId))
-  val cmd_to_read = Acquire(co.getUncachedReadAcquireType, xact.addr, UInt(trackerId))
-  val a_w_mem_cmd_sent = Reg(init=Bool(false))
-  val r_w_mem_cmd_sent = Reg(init=Bool(false))
+
+  val pending_outer_write = co.messageHasData(xact)
+  val pending_outer_read = co.needsOuterRead(xact.a_type, UInt(0))
+  val outer_write_acq = Acquire(co.getUncachedWriteAcquireType, 
+                                       xact.addr, UInt(trackerId), xact.data)
+  val outer_write_rel = Acquire(co.getUncachedWriteAcquireType, 
+                                       xact.addr, UInt(trackerId), c_rel.payload.data)
+  val outer_read = Acquire(co.getUncachedReadAcquireType, xact.addr, UInt(trackerId))
+
   val probe_initial_flags = Bits(width = ln.nClients)
   probe_initial_flags := Bits(0)
   if (ln.nClients > 1) {
     // issue self-probes for uncached read xacts to facilitate I$ coherence
     val probe_self = Bool(true) //co.needsSelfProbe(io.client.acquire.bits.payload)
-    val myflag = Mux(probe_self, Bits(0), UIntToOH(io.client.acquire.meta.bits.header.src(log2Up(ln.nClients)-1,0)))
+    val myflag = Mux(probe_self, Bits(0), UIntToOH(c_acq.header.src(log2Up(ln.nClients)-1,0)))
     probe_initial_flags := ~(io.tile_incoherent | myflag)
   }
 
-  io.has_acquire_conflict := co.isCoherenceConflict(xact.addr, io.client.acquire.meta.bits.payload.addr) && (state != s_idle)
-  io.has_release_conflict := co.isCoherenceConflict(xact.addr, io.client.release.meta.bits.payload.addr) && (state != s_idle)
-  io.master.acquire.meta.valid := Bool(false)
-  io.master.acquire.meta.bits.payload := Acquire(co.getUncachedReadAcquireType, xact.addr, UInt(trackerId))
-  io.master.acquire.meta.bits.header.src := UInt(bankId)
-  io.master.acquire.data.valid := Bool(false)
-  io.master.acquire.data.bits.payload.data := UInt(0)
-  io.master.acquire.data.bits.header.src := UInt(bankId)
-  io.client.probe.valid := Bool(false)
-  io.client.probe.bits.payload.p_type := co.getProbeType(xact.a_type, UInt(0))
-  io.client.probe.bits.payload.master_xact_id  := UInt(trackerId)
-  io.client.probe.bits.payload.addr := xact.addr
-  io.client.probe.bits.header.dst := UInt(0)
-  io.client.probe.bits.header.src := UInt(bankId)
-  io.client.grant.bits.payload.data := io.master.grant.bits.payload.data
-  io.client.grant.bits.payload.g_type := grant_type
-  io.client.grant.bits.payload.client_xact_id := xact.client_xact_id
-  io.client.grant.bits.payload.master_xact_id := UInt(trackerId)
-  io.client.grant.bits.header.dst := init_client_id_
-  io.client.grant.bits.header.src := UInt(bankId)
-  io.client.grant.valid := (io.master.grant.valid && (UInt(trackerId) === io.master.grant.bits.payload.client_xact_id)) 
-  io.client.acquire.meta.ready := Bool(false)
-  io.client.acquire.data.ready := Bool(false)
-  io.client.release.meta.ready := Bool(false)
-  io.client.release.data.ready := Bool(false)
+  io.has_acquire_conflict := co.isCoherenceConflict(xact.addr, c_acq.payload.addr) && (state != s_idle)
+  io.has_release_conflict := co.isCoherenceConflict(xact.addr, c_rel.payload.addr) && (state != s_idle)
+
+  io.master.acquire.valid := Bool(false)
+  io.master.acquire.bits.header.src := UInt(bankId)
+  //io.master.acquire.bits.header.dst TODO
+  io.master.acquire.bits.payload := outer_read 
   io.master.grant.ready := io.client.grant.ready
+
+  io.client.probe.valid := Bool(false)
+  io.client.probe.bits.header.src := UInt(bankId)
+  io.client.probe.bits.header.dst := curr_p_id
+  io.client.probe.bits.payload := Probe(co.getProbeType(xact.a_type, UInt(0)),
+                                               xact.addr,
+                                               UInt(trackerId))
+
+  val grant_type = co.getGrantType(xact.a_type, init_sharer_cnt)
+  io.client.grant.valid := Bool(false)
+  io.client.grant.bits.header.src := UInt(bankId)
+  io.client.grant.bits.header.dst := init_client_id
+  io.client.grant.bits.payload := Grant(grant_type,
+                                        xact.client_xact_id,
+                                        UInt(trackerId),
+                                        m_gnt.payload.data)
+
+  io.client.acquire.ready := Bool(false)
+  io.client.release.ready := Bool(false)
 
   switch (state) {
     is(s_idle) {
-      io.client.acquire.meta.ready := Bool(true)
-      when( io.client.acquire.meta.valid ) {
-        xact := io.client.acquire.meta.bits.payload
-        init_client_id_ := io.client.acquire.meta.bits.header.src
-        init_sharer_cnt_ := UInt(ln.nClients) // TODO: Broadcast only
-        acquire_data_needs_write := co.messageHasData(io.client.acquire.meta.bits.payload)
-        x_needs_read := co.needsOuterRead(io.client.acquire.meta.bits.payload.a_type, UInt(0))
+      io.client.acquire.ready := Bool(true)
+      val needs_outer_write = co.messageHasData(c_acq.payload)
+      val needs_outer_read = co.needsOuterRead(c_acq.payload.a_type, UInt(0))
+      when( io.client.acquire.valid ) {
+        xact := c_acq.payload
+        init_client_id := c_acq.header.src
+        init_sharer_cnt := UInt(ln.nClients) // TODO: Broadcast only
         probe_flags := probe_initial_flags
-        mem_cnt := UInt(0)
-        r_w_mem_cmd_sent := Bool(false)
-        a_w_mem_cmd_sent := Bool(false)
         if(ln.nClients > 1) {
           release_count := PopCount(probe_initial_flags)
-          state := Mux(probe_initial_flags.orR, s_probe, s_mem)
-        } else state := s_mem
+          state := Mux(probe_initial_flags.orR, s_probe,
+                    Mux(needs_outer_write, s_mem_write,
+                      Mux(needs_outer_read, s_mem_read, s_make_grant)))
+        } else state := Mux(needs_outer_write, s_mem_write,
+                        Mux(needs_outer_read, s_mem_read, s_make_grant))
       }
     }
     is(s_probe) {
-      when(probe_flags.orR) {
-        io.client.probe.valid := Bool(true)
-        io.client.probe.bits.header.dst := curr_p_id 
-      }
+      // Generate probes
+      io.client.probe.valid := probe_flags.orR
       when(io.client.probe.ready) {
         probe_flags := probe_flags & ~(UIntToOH(curr_p_id))
       }
-      io.client.release.meta.ready := Bool(true)
-      when(io.client.release.meta.valid) {
-        if(ln.nClients > 1) release_count := release_count - UInt(1)
-        when(release_count === UInt(1)) {
-          state := s_mem
-        }
-        when( co.messageHasData(io.client.release.meta.bits.payload)) {
-          release_data_needs_write := Bool(true)
-          release_data_client_id := io.client.release.meta.bits.header.src
-        }
-      }
-      when (release_data_needs_write) {
-        doOuterReqWrite(io.master.acquire,
-                      io.client.release.data, 
-                      cmd_to_write,
-                      release_data_needs_write, 
-                      r_w_mem_cmd_sent, 
-                      release_data_client_id)
-      }
-    }
-    is(s_mem) {
-      when (release_data_needs_write) {
-        doOuterReqWrite(io.master.acquire,
-                      io.client.release.data,
-                      cmd_to_write,
-                      release_data_needs_write,
-                      r_w_mem_cmd_sent,
-                      release_data_client_id)
-      } . elsewhen(acquire_data_needs_write) {
-        doOuterReqWrite(io.master.acquire,
-                      io.client.acquire.data,
-                      cmd_to_write,
-                      acquire_data_needs_write,
-                      a_w_mem_cmd_sent,
-                      init_client_id_)
-      } . elsewhen (x_needs_read) {    
-        doOuterReqRead(io.master.acquire, cmd_to_read, x_needs_read)
-      } . otherwise { 
-        state := Mux(co.requiresDatalessGrant(xact.a_type, UInt(0)), s_ack, 
-                  Mux(co.requiresAckForGrant(io.client.grant.bits.payload.g_type), s_busy, s_idle))
-      }
-    }
-    is(s_ack) {
-      io.client.grant.valid := Bool(true)
-      when(io.client.grant.ready) { state := Mux(co.requiresAckForGrant(io.client.grant.bits.payload.g_type), s_busy, s_idle) }
-    }
-    is(s_busy) { // Nothing left to do but wait for transaction to complete
-      when (io.client.grant_ack.valid && io.client.grant_ack.bits.payload.master_xact_id === UInt(trackerId)) {
-        state := s_idle
-      }
-    }
-  }
-}
 
-abstract trait OuterRequestGenerator {
-  val mem_cnt = Reg(init=UInt(0, width = log2Up(REFILL_CYCLES)))
-  val mem_cnt_next = mem_cnt + UInt(1)
-
-  def doOuterReqWrite[T <: HasTileLinkData](master_acq: PairedDataIO[LogicalNetworkIO[Acquire],LogicalNetworkIO[AcquireData]], client_data: DecoupledIO[LogicalNetworkIO[T]], cmd: Acquire, trigger: Bool, cmd_sent: Bool, desired_client_data_src_id: UInt) {
-    val do_write = client_data.valid && (client_data.bits.header.src === desired_client_data_src_id)
-    master_acq.meta.bits.payload := cmd
-    master_acq.data.bits.payload := client_data.bits.payload
-    when(master_acq.meta.fire()) {
-      cmd_sent := Bool(true)
-    }
-    when (do_write) {
-      master_acq.meta.valid := !cmd_sent
-      when (master_acq.meta.ready || cmd_sent) {
-        master_acq.data.valid := client_data.valid
-        when(master_acq.data.ready) {
-          client_data.ready:= Bool(true)
-          mem_cnt  := mem_cnt_next
-          when(mem_cnt === UInt(REFILL_CYCLES-1)) {
-            trigger := Bool(false)
+      // Handle releases, which may have data to be written back
+      when(io.client.release.valid) {
+        when(co.messageHasData(c_rel.payload)) {
+          io.master.acquire.valid := Bool(true)
+          io.master.acquire.bits.payload := outer_write_rel
+          when(io.master.acquire.ready) {
+            io.client.release.ready := Bool(true)
+            if(ln.nClients > 1) release_count := release_count - UInt(1)
+            when(release_count === UInt(1)) {
+              state := Mux(pending_outer_write, s_mem_write,
+                        Mux(pending_outer_read, s_mem_read, s_make_grant))
+            }
+          }
+        } .otherwise {
+          io.client.release.ready := Bool(true)
+          if(ln.nClients > 1) release_count := release_count - UInt(1)
+          when(release_count === UInt(1)) {
+            state := Mux(pending_outer_write, s_mem_write, 
+                      Mux(pending_outer_read, s_mem_read, s_make_grant))
           }
         }
       }
     }
-  }
-
-  def doOuterReqRead(master_acq: PairedDataIO[LogicalNetworkIO[Acquire],LogicalNetworkIO[AcquireData]], cmd: Acquire, trigger: Bool) {
-    master_acq.meta.valid := Bool(true)
-    master_acq.meta.bits.payload := cmd
-    when(master_acq.meta.ready) {
-      trigger := Bool(false)
+    is(s_mem_read) {
+      io.master.acquire.valid := Bool(true)
+      io.master.acquire.bits.payload := outer_read
+      when(io.master.acquire.ready) {
+        state := Mux(co.requiresAckForGrant(grant_type), s_busy, s_idle)
+      }
+    }
+    is(s_mem_write) {
+      io.master.acquire.valid := Bool(true)
+      io.master.acquire.bits.payload := outer_write_acq
+      when(io.master.acquire.ready) { 
+        state := Mux(pending_outer_read, s_mem_read, s_make_grant)
+      }
+    }
+    is(s_make_grant) {
+      io.client.grant.valid := Bool(true)
+      when(io.client.grant.ready) { 
+        state := Mux(co.requiresAckForGrant(grant_type), s_busy, s_idle)
+      }
+    }
+    is(s_busy) { // Nothing left to do but wait for transaction to complete
+      when(io.master.grant.valid && m_gnt.payload.client_xact_id === UInt(trackerId)) {
+        io.client.grant.valid := Bool(true)
+      }
+      when(io.client.grant_ack.valid && c_ack.payload.master_xact_id === UInt(trackerId)) {
+        state := s_idle
+      }
     }
   }
 }

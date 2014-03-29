@@ -48,7 +48,6 @@ abstract class CoherencePolicy {
   def needsOuterRead(a_type: UInt, global_state: UInt): Bool
   def needsOuterWrite(a_type: UInt, global_state: UInt): Bool
   def requiresOuterAcquire(a_type: UInt, global_state: UInt): Bool
-  def requiresDatalessGrant(a_type: UInt, global_state: UInt): Bool
   def requiresSelfProbe(a_type: UInt): Bool
   def requiresAckForGrant(g_type: UInt): Bool
   def requiresAckForRelease(r_type: UInt): Bool
@@ -79,7 +78,6 @@ abstract class IncoherentPolicy extends CoherencePolicy {
   def needsOuterRead(a_type: UInt, global_state: UInt): Bool = Bool(false)
   def needsOuterWrite(a_type: UInt, global_state: UInt): Bool = Bool(false)
   def requiresOuterAcquire(a_type: UInt, global_state: UInt): Bool = Bool(false)
-  def requiresDatalessGrant(a_type: UInt, global_state: UInt): Bool = Bool(false)
   def requiresSelfProbe(a_type: UInt) = Bool(false)
   def requiresAckForGrant(g_type: UInt) = Bool(true)
   def requiresAckForRelease(r_type: UInt) = Bool(false)
@@ -282,9 +280,6 @@ class MICoherence extends CoherencePolicyWithUncached {
   def requiresOuterAcquire(a_type: UInt, global_state: UInt): Bool = {
     needsOuterRead(a_type, global_state) || needsOuterWrite(a_type, global_state)
   }
-  def requiresDatalessGrant(a_type: UInt, global_state: UInt): Bool = {
-      (a_type === acquireWriteUncached)
-  }
   def requiresAckForGrant(g_type: UInt) = g_type != grantVoluntaryAck
   def requiresAckForRelease(r_type: UInt) = Bool(false)
   def requiresSelfProbe(a_type: UInt) = Bool(false)
@@ -441,9 +436,6 @@ class MEICoherence extends CoherencePolicyWithUncached {
   }
   def requiresOuterAcquire(a_type: UInt, global_state: UInt): Bool = {
     needsOuterRead(a_type, global_state) || needsOuterWrite(a_type, global_state)
-  }
-  def requiresDatalessGrant(a_type: UInt, global_state: UInt): Bool = {
-      (a_type === acquireWriteUncached)
   }
   def requiresAckForGrant(g_type: UInt) = g_type != grantVoluntaryAck
   def requiresAckForRelease(r_type: UInt) = Bool(false)
@@ -605,9 +597,6 @@ class MSICoherence extends CoherencePolicyWithUncached {
   }
   def requiresOuterAcquire(a_type: UInt, global_state: UInt): Bool = {
     needsOuterRead(a_type, global_state) || needsOuterWrite(a_type, global_state)
-  }
-  def requiresDatalessGrant(a_type: UInt, global_state: UInt): Bool = {
-      (a_type === acquireWriteUncached)
   }
   def requiresAckForGrant(g_type: UInt) = g_type != grantVoluntaryAck
   def requiresAckForRelease(r_type: UInt) = Bool(false)
@@ -772,9 +761,6 @@ class MESICoherence extends CoherencePolicyWithUncached {
   }
   def requiresOuterAcquire(a_type: UInt, global_state: UInt): Bool = {
     needsOuterRead(a_type, global_state) || needsOuterWrite(a_type, global_state)
-  }
-  def requiresDatalessGrant(a_type: UInt, global_state: UInt): Bool = {
-      (a_type === acquireWriteUncached)
   }
 
   def requiresAckForGrant(g_type: UInt) = g_type != grantVoluntaryAck
@@ -958,9 +944,6 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
     needsOuterRead(a_type, global_state) || needsOuterWrite(a_type, global_state)
   }
 
-  def requiresDatalessGrant(a_type: UInt, global_state: UInt): Bool = {
-      (a_type === acquireWriteUncached || a_type === acquireWriteWordUncached ||a_type === acquireInvalidateOthers)
-  }
   def requiresAckForGrant(g_type: UInt) = g_type != grantVoluntaryAck
   def requiresAckForRelease(r_type: UInt) = Bool(false)
   def requiresSelfProbe(a_type: UInt) = Bool(false)
