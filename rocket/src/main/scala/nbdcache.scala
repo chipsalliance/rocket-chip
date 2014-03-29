@@ -6,7 +6,7 @@ import Util._
 
 case class DCacheConfig(sets: Int, ways: Int,
                         nmshr: Int, nrpq: Int, nsdq: Int, ntlb: Int,
-                        states: Int = 2,
+                        tl: TileLinkConfiguration,
                         code: Code = new IdentityCode,
                         narrowRead: Boolean = true,
                         reqtagbits: Int = -1, databits: Int = -1)
@@ -17,6 +17,7 @@ case class DCacheConfig(sets: Int, ways: Int,
   require(log2Up(OFFSET_BITS) <= ACQUIRE_SUBWORD_ADDR_BITS)
   require(isPow2(sets))
   require(isPow2(ways)) // TODO: relax this
+  def states = tl.co.nClientStates
   def lines = sets*ways
   def dm = ways == 1
   def ppnbits = PADDR_BITS - PGIDX_BITS
@@ -30,15 +31,16 @@ case class DCacheConfig(sets: Int, ways: Int,
   def waybits = log2Up(ways)
   def untagbits = offbits + idxbits
   def tagbits = lineaddrbits - idxbits
-  def ramoffbits = log2Up(MEM_DATA_BITS/8)
+  def ramoffbits = log2Up(tl.dataBits/8)
   def databytes = databits/8
   def wordoffbits = log2Up(databytes)
-  def isNarrowRead = narrowRead && databits*ways % MEM_DATA_BITS == 0
+  def isNarrowRead = narrowRead && databits*ways % tl.dataBits == 0
+  def refillcycles = CACHE_DATA_SIZE_IN_BYTES*8/tl.dataBits
   val statebits = log2Up(states)
   val metabits = statebits + tagbits
   val encdatabits = code.width(databits)
   val encmetabits = code.width(metabits)
-  val wordsperrow = MEM_DATA_BITS/databits
+  val wordsperrow = tl.dataBits/databits
   val bitsperrow = wordsperrow*encdatabits
   val lrsc_cycles = 32 // ISA requires 16-insn LRSC sequences to succeed
 }
@@ -120,18 +122,19 @@ class DataWriteReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val data   = Bits(width = conf.bitsperrow)
 }
 
-class InternalProbe(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Probe {
-  val client_xact_id = Bits(width = tl.clientXactIdBits)
+class InternalProbe(implicit conf: DCacheConfig) extends Probe()(conf.tl) {
+  val client_xact_id = Bits(width = conf.tl.clientXactIdBits)
 
   override def clone = new InternalProbe().asInstanceOf[this.type]
 }
 
-class WritebackReq(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Bundle {
+class WritebackReq(implicit conf: DCacheConfig) extends Bundle {
   val tag = Bits(width = conf.tagbits)
   val idx = Bits(width = conf.idxbits)
   val way_en = Bits(width = conf.ways)
-  val client_xact_id = Bits(width = tl.clientXactIdBits)
-  val r_type = UInt(width = tl.co.releaseTypeWidth) 
+  val client_xact_id = Bits(width = conf.tl.clientXactIdBits)
+  val master_xact_id = Bits(width = conf.tl.masterXactIdBits)
+  val r_type = UInt(width = conf.tl.co.releaseTypeWidth) 
 
   override def clone = new WritebackReq().asInstanceOf[this.type]
 }
@@ -159,8 +162,8 @@ class MetaWriteReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val data = new MetaData()
 }
 
-class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
-  implicit val ln = tl.ln
+class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
+  implicit val (tl, ln) = (conf.tl, conf.tl.ln)
   val io = new Bundle {
     val req_pri_val    = Bool(INPUT)
     val req_pri_rdy    = Bool(OUTPUT)
@@ -189,7 +192,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   val acquire_type = Reg(UInt())
   val release_type = Reg(UInt())
   val line_state = Reg(UInt())
-  val refill_count = Reg(UInt(width = log2Up(REFILL_CYCLES)))
+  val refill_count = Reg(UInt(width = log2Up(conf.refillcycles))) // TODO: zero-width wire
   val req = Reg(new MSHRReq())
 
   val req_cmd = io.req_bits.cmd
@@ -198,7 +201,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   val sec_rdy = idx_match && (state === s_wb_req || state === s_wb_resp || state === s_meta_clear || (state === s_refill_req || state === s_refill_resp) && !tl.co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
 
   val reply = io.mem_grant.valid && io.mem_grant.bits.payload.client_xact_id === UInt(id)
-  val refill_done = reply && refill_count.andR
+  val refill_done = reply && (if(conf.refillcycles > 1) refill_count.andR else Bool(true))
   val wb_done = reply && (state === s_wb_resp)
 
   val rpq = Module(new Queue(new Replay, conf.nrpq))
@@ -220,7 +223,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   when (state === s_refill_resp) {
     when (refill_done) { state := s_meta_write_req }
     when (reply) {
-      refill_count := refill_count + UInt(1)
+      if(conf.refillcycles > 1) refill_count := refill_count + UInt(1)
       line_state := tl.co.newStateOnGrant(io.mem_grant.bits.payload, io.mem_req.bits)
     }
   }
@@ -270,7 +273,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
 
   io.idx_match := (state != s_invalid) && idx_match
   io.mem_resp := req
-  io.mem_resp.addr := Cat(req_idx, refill_count) << conf.ramoffbits
+  io.mem_resp.addr := (if(conf.refillcycles > 1) Cat(req_idx, refill_count) else req_idx) << conf.ramoffbits
   io.tag := req.addr >> conf.untagbits
   io.req_pri_rdy := state === s_invalid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
@@ -291,6 +294,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   io.wb_req.bits.idx := req_idx
   io.wb_req.bits.way_en := req.way_en
   io.wb_req.bits.client_xact_id := Bits(id)
+  io.wb_req.bits.master_xact_id := Bits(0) // DNC
   io.wb_req.bits.r_type := tl.co.getReleaseTypeOnVoluntaryWriteback()
 
   io.mem_req.valid := state === s_refill_req && ackq.io.enq.ready
@@ -314,8 +318,8 @@ class MSHR(id: Int)(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
   }
 }
 
-class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
-  implicit val ln = tl.ln
+class MSHRFile(implicit conf: DCacheConfig) extends Module {
+  implicit val (tl, ln) = (conf.tl, conf.tl.ln)
   val io = new Bundle {
     val req = Decoupled(new MSHRReq).flip
     val secondary_miss = Bool(OUTPUT)
@@ -416,22 +420,23 @@ class MSHRFile(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends M
 }
 
 
-class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
+class WritebackUnit(implicit conf: DCacheConfig) extends Module {
+  implicit val tl = conf.tl
   val io = new Bundle {
     val req = Decoupled(new WritebackReq()).flip
-    val probe = Decoupled(new WritebackReq()).flip
     val meta_read = Decoupled(new MetaReadReq)
     val data_req = Decoupled(new DataReadReq())
     val data_resp = Bits(INPUT, conf.bitsperrow)
     val release = Decoupled(new Release)
-    val release_data = Decoupled(new ReleaseData)
   }
+
+  require(conf.refillcycles == 1) // TODO Currently will issue refillcycles distinct releases; need to merge if rowsize < tilelink.dataSize
 
   val valid = Reg(init=Bool(false))
   val r1_data_req_fired = Reg(init=Bool(false))
   val r2_data_req_fired = Reg(init=Bool(false))
   val cmd_sent = Reg(Bool())
-  val cnt = Reg(UInt(width = log2Up(REFILL_CYCLES+1)))
+  val cnt = Reg(UInt(width = log2Up(conf.refillcycles+1)))
   val req = Reg(new WritebackReq)
 
   when (valid) {
@@ -441,26 +446,18 @@ class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
       r1_data_req_fired := true
       cnt := cnt + 1
     }
-
-    when (r2_data_req_fired && !io.release_data.ready) {
+    when (r2_data_req_fired && !io.release.ready) {
       r1_data_req_fired := false
       r2_data_req_fired := false
-      cnt := cnt - Mux[UInt](r1_data_req_fired, 2, 1)
+      cnt := (if(conf.refillcycles > 1) cnt - Mux[UInt](r1_data_req_fired, 2, 1) else UInt(0))
     }
-
-    when (!r1_data_req_fired && !r2_data_req_fired && cmd_sent && cnt === REFILL_CYCLES) {
+    when (io.release.fire()) {
+      cmd_sent := true
+    }
+    when (!r1_data_req_fired && !r2_data_req_fired && cmd_sent && cnt === conf.refillcycles) {
       valid := false
     }
 
-    when (valid && io.release.ready) {
-      cmd_sent := true
-    }
-  }
-  when (io.probe.fire()) {
-    valid := true
-    cmd_sent := true
-    cnt := 0
-    req := io.probe.bits
   }
   when (io.req.fire()) {
     valid := true
@@ -469,26 +466,27 @@ class WritebackUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) exte
     req := io.req.bits
   }
 
-  val fire = valid && cnt < UInt(REFILL_CYCLES)
-  io.req.ready := !valid && !io.probe.valid
-  io.probe.ready := !valid
+  val fire = valid && cnt < UInt(conf.refillcycles)
+  io.req.ready := !valid
   io.data_req.valid := fire
   io.data_req.bits.way_en := req.way_en
-  io.data_req.bits.addr := Cat(req.idx, cnt(log2Up(REFILL_CYCLES)-1,0)) << conf.ramoffbits
+  io.data_req.bits.addr := (if(conf.refillcycles > 1) Cat(req.idx, cnt(log2Up(conf.refillcycles)-1,0)) 
+                            else req.idx) << conf.ramoffbits
 
-  io.release.valid := valid && !cmd_sent
+  io.release.valid := valid && r2_data_req_fired
   io.release.bits.r_type := req.r_type
   io.release.bits.addr := Cat(req.tag, req.idx).toUInt
   io.release.bits.client_xact_id := req.client_xact_id
-  io.release.bits.master_xact_id := UInt(0)
-  io.release_data.valid := r2_data_req_fired
-  io.release_data.bits.data := io.data_resp
+  io.release.bits.master_xact_id := req.master_xact_id
+  io.release.bits.data := io.data_resp
 
+  // We reissue the meta read as it sets up the muxing for s2_data_muxed
   io.meta_read.valid := fire
   io.meta_read.bits.addr := io.release.bits.addr << conf.offbits
 }
 
-class ProbeUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
+class ProbeUnit(implicit conf: DCacheConfig) extends Module {
+  implicit val tl = conf.tl
   val io = new Bundle {
     val req = Decoupled(new InternalProbe).flip
     val rep = Decoupled(new Release)
@@ -543,7 +541,7 @@ class ProbeUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends 
   }
 
   io.req.ready := state === s_invalid
-  io.rep.valid := state === s_release
+  io.rep.valid := state === s_release && !tl.co.needsWriteback(line_state)
   io.rep.bits := Release(tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.newStateOnFlush)), req.addr, req.client_xact_id, req.master_xact_id)
 
   io.meta_read.valid := state === s_meta_read
@@ -559,11 +557,13 @@ class ProbeUnit(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends 
   io.wb_req.bits.way_en := way_en
   io.wb_req.bits.idx := req.addr
   io.wb_req.bits.tag := req.addr >> UInt(conf.idxbits)
-  io.wb_req.bits.r_type := UInt(0) // DNC
-  io.wb_req.bits.client_xact_id := UInt(0) // DNC
+  io.wb_req.bits.r_type := tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.newStateOnFlush))
+  io.wb_req.bits.client_xact_id := req.client_xact_id
+  io.wb_req.bits.master_xact_id := req.master_xact_id
 }
 
-class MetaDataArray(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
+class MetaDataArray(implicit conf: DCacheConfig) extends Module {
+  implicit val tl = conf.tl
   val io = new Bundle {
     val read = Decoupled(new MetaReadReq).flip
     val write = Decoupled(new MetaWriteReq).flip
@@ -612,7 +612,7 @@ class DataArray(implicit conf: DCacheConfig) extends Module {
       val resp = Vec.fill(conf.wordsperrow){Bits(width = conf.bitsperrow)}
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
-        val array = Mem(Bits(width=conf.bitsperrow), conf.sets*REFILL_CYCLES, seqRead = true)
+        val array = Mem(Bits(width=conf.bitsperrow), conf.sets*conf.refillcycles, seqRead = true)
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
           val data = Fill(conf.wordsperrow, io.write.bits.data(conf.encdatabits*(p+1)-1,conf.encdatabits*p))
           val mask = FillInterleaved(conf.encdatabits, wway_en)
@@ -631,7 +631,7 @@ class DataArray(implicit conf: DCacheConfig) extends Module {
   } else {
     val wmask = FillInterleaved(conf.encdatabits, io.write.bits.wmask)
     for (w <- 0 until conf.ways) {
-      val array = Mem(Bits(width=conf.bitsperrow), conf.sets*REFILL_CYCLES, seqRead = true)
+      val array = Mem(Bits(width=conf.bitsperrow), conf.sets*conf.refillcycles, seqRead = true)
       when (io.write.bits.way_en(w) && io.write.valid) {
         array.write(waddr, io.write.bits.data, wmask)
       }
@@ -727,8 +727,8 @@ class HellaCacheIO(implicit conf: DCacheConfig) extends Bundle {
   val ordered = Bool(INPUT)
 }
 
-class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends Module {
-  implicit val ln = tl.ln
+class HellaCache(implicit conf: DCacheConfig) extends Module {
+  implicit val (tl, ln) = (conf.tl, conf.tl.ln)
   val io = new Bundle {
     val cpu = (new HellaCacheIO).flip
     val mem = new TileLinkIO
@@ -930,16 +930,11 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   mshrs.io.req.bits.old_meta := Mux(s2_tag_match, MetaData(s2_repl_meta.tag, s2_hit_state), s2_repl_meta)
   mshrs.io.req.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
   mshrs.io.req.bits.data := s2_req.data
+  when (mshrs.io.req.fire()) { replacer.miss }
 
   mshrs.io.mem_grant.valid := io.mem.grant.fire()
   mshrs.io.mem_grant.bits := io.mem.grant.bits
-  when (mshrs.io.req.fire()) { replacer.miss }
-
-  io.mem.acquire.meta <> FIFOedLogicalNetworkIOWrapper(mshrs.io.mem_req)
-  //TODO io.mem.acquire.data should be connected to uncached store data generator
-  //io.mem.acquire.data <> FIFOedLogicalNetworkIOWrapper(TODO)
-  io.mem.acquire.data.valid := Bool(false)
-  io.mem.acquire.data.bits.payload.data := UInt(0)
+  io.mem.acquire <> DecoupledLogicalNetworkIOWrapper(mshrs.io.mem_req)
 
   // replays
   readArb.io.in(1).valid := mshrs.io.replay.valid
@@ -951,14 +946,13 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   metaWriteArb.io.in(0) <> mshrs.io.meta_write
   // probes
   val releaseArb = Module(new Arbiter(new Release, 2))
-  FIFOedLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release.meta
+  DecoupledLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release
 
-  val probe = FIFOedLogicalNetworkIOUnwrapper(io.mem.probe)
+  val probe = DecoupledLogicalNetworkIOUnwrapper(io.mem.probe)
   prober.io.req.valid := probe.valid && !lrsc_valid
   probe.ready := prober.io.req.ready && !lrsc_valid
   prober.io.req.bits := probe.bits
   prober.io.rep <> releaseArb.io.in(1)
-  prober.io.wb_req <> wb.io.probe
   prober.io.way_en := s2_tag_match_way
   prober.io.line_state := s2_hit_state
   prober.io.meta_read <> metaReadArb.io.in(2)
@@ -974,12 +968,14 @@ class HellaCache(implicit conf: DCacheConfig, tl: TileLinkConfiguration) extends
   writeArb.io.in(1).bits.data := io.mem.grant.bits.payload.data
 
   // writebacks
-  wb.io.req <> mshrs.io.wb_req
+  val wbArb = Module(new Arbiter(new WritebackReq, 2))
+  prober.io.wb_req <> wbArb.io.in(0)
+  mshrs.io.wb_req <> wbArb.io.in(1)
+  wbArb.io.out <> wb.io.req
   wb.io.meta_read <> metaReadArb.io.in(3)
   wb.io.data_req <> readArb.io.in(2)
   wb.io.data_resp := s2_data_corrected
   releaseArb.io.in(0) <> wb.io.release
-  FIFOedLogicalNetworkIOWrapper(wb.io.release_data) <> io.mem.release.data
 
   // store->load bypassing
   val s4_valid = Reg(next=s3_valid, init=Bool(false))

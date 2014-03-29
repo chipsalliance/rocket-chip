@@ -7,17 +7,19 @@ import Util._
 case class ICacheConfig(sets: Int, assoc: Int,
                         ibytes: Int = 4,
                         ntlb: Int = 8, btb: BTBConfig = BTBConfig(8),
+                        tl: TileLinkConfiguration,
                         code: Code = new IdentityCode)
 {
   val w = 1
 
   val dm = assoc == 1
   val lines = sets * assoc
-  val databits = MEM_DATA_BITS
+  val databits = tl.dataBits
   val idxbits = log2Up(sets)
   val offbits = OFFSET_BITS
   val untagbits = idxbits + offbits
   val tagbits = PADDR_BITS - untagbits
+  def refillcycles = CACHE_DATA_SIZE_IN_BYTES*8/tl.dataBits
 
   require(isPow2(sets) && isPow2(assoc))
   require(isPow2(w) && isPow2(ibytes))
@@ -133,9 +135,9 @@ class ICacheResp(implicit c: ICacheConfig) extends Bundle {
   override def clone = new ICacheResp().asInstanceOf[this.type]
 }
 
-class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
+class ICache(implicit c: ICacheConfig) extends Module
 {
-  implicit val lnConf = tl.ln
+  implicit val (tl, ln) = (c.tl, c.tl.ln)
   val io = new Bundle {
     val req = Valid(new ICacheReq).flip
     val resp = Decoupled(new ICacheResp)
@@ -179,7 +181,7 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
   rdy := state === s_ready && !s2_miss
 
   //assert(!co.isVoluntary(io.mem.grant.bits.payload) || !io.mem.grant.valid, "UncachedRequestors shouldn't get voluntary grants.")
-  val (rf_cnt, refill_done) = Counter(io.mem.grant.valid, REFILL_CYCLES)
+  val (rf_cnt, refill_done) = (if(c.refillcycles > 1) Counter(io.mem.grant.valid, c.refillcycles) else (UInt(0), state === s_refill))
   val repl_way = if (c.dm) UInt(0) else LFSR16(s2_miss)(log2Up(c.assoc)-1,0)
 
   val enc_tagbits = c.code.width(c.tagbits)
@@ -229,15 +231,16 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
   s2_any_tag_hit := s2_tag_hit.reduceLeft(_||_) && !s2_disparity.reduceLeft(_||_)
 
   for (i <- 0 until c.assoc) {
-    val data_array = Mem(Bits(width = c.code.width(c.databits)), c.sets*REFILL_CYCLES, seqRead = true)
+    val data_array = Mem(Bits(width = c.code.width(c.databits)), c.sets*c.refillcycles, seqRead = true)
     val s1_raddr = Reg(UInt())
     when (io.mem.grant.valid && repl_way === UInt(i)) {
       val d = io.mem.grant.bits.payload.data
-      data_array(Cat(s2_idx,rf_cnt)) := c.code.encode(d)
+      if(c.refillcycles > 1) data_array(Cat(s2_idx,rf_cnt)) := c.code.encode(d)
+      else                   data_array(s2_idx) := c.code.encode(d)
     }
 //    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
     .elsewhen (s0_valid) {
-      s1_raddr := s0_pgoff(c.untagbits-1,c.offbits-rf_cnt.getWidth)
+      s1_raddr := s0_pgoff(c.untagbits-1,c.offbits-(if(c.refillcycles > 1) rf_cnt.getWidth else 0))
     }
     // if s1_tag_match is critical, replace with partial tag check
     when (s1_valid && rdy && !stall && (Bool(c.dm) || s1_tag_match(i))) { s2_dout(i) := data_array(s1_raddr) }
@@ -246,16 +249,16 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
-  val finish_q = Module(new Queue(new GrantAck, 1))
-  finish_q.io.enq.valid := refill_done && tl.co.requiresAckForGrant(io.mem.grant.bits.payload.g_type)
-  finish_q.io.enq.bits.master_xact_id := io.mem.grant.bits.payload.master_xact_id
+  val ack_q = Module(new Queue(new LogicalNetworkIO(new GrantAck), 1))
+  ack_q.io.enq.valid := refill_done && tl.co.requiresAckForGrant(io.mem.grant.bits.payload.g_type)
+  ack_q.io.enq.bits.payload.master_xact_id := io.mem.grant.bits.payload.master_xact_id
+  ack_q.io.enq.bits.header.dst := io.mem.grant.bits.header.src
 
   // output signals
   io.resp.valid := s2_hit
-  io.mem.acquire.meta.valid := (state === s_request) && finish_q.io.enq.ready
-  io.mem.acquire.meta.bits.payload := Acquire(tl.co.getUncachedReadAcquireType, s2_addr >> UInt(c.offbits), UInt(0))
-  io.mem.acquire.data.valid := Bool(false)
-  io.mem.grant_ack <> FIFOedLogicalNetworkIOWrapper(finish_q.io.deq)
+  io.mem.acquire.valid := (state === s_request) && ack_q.io.enq.ready
+  io.mem.acquire.bits.payload := Acquire(tl.co.getUncachedReadAcquireType, s2_addr >> UInt(c.offbits), UInt(0))
+  io.mem.grant_ack <> ack_q.io.deq
   io.mem.grant.ready := Bool(true)
 
   // control state machine
@@ -265,7 +268,7 @@ class ICache(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
       invalidated := Bool(false)
     }
     is (s_request) {
-      when (io.mem.acquire.meta.ready && finish_q.io.enq.ready) { state := s_refill_wait }
+      when (io.mem.acquire.ready && ack_q.io.enq.ready) { state := s_refill_wait }
     }
     is (s_refill_wait) {
       when (io.mem.grant.valid) { state := s_refill }
