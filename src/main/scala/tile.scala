@@ -77,9 +77,8 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
   memArb.io.out.grant <> io.tilelink.grant
   io.tilelink.grant_ack <> memArb.io.out.grant_ack
   dcache.io.mem.probe <> io.tilelink.probe
-  io.tilelink.release.data <> dcache.io.mem.release.data
-  io.tilelink.release.meta.valid   := dcache.io.mem.release.meta.valid
-  dcache.io.mem.release.meta.ready := io.tilelink.release.meta.ready
-  io.tilelink.release.meta.bits := dcache.io.mem.release.meta.bits
-  io.tilelink.release.meta.bits.payload.client_xact_id :=  Cat(dcache.io.mem.release.meta.bits.payload.client_xact_id, UInt(dcachePortId, log2Up(memPorts))) // Mimic client id extension done by UncachedTileLinkIOArbiter for Acquires from either client)
+  io.tilelink.release.valid   := dcache.io.mem.release.valid
+  dcache.io.mem.release.ready := io.tilelink.release.ready
+  io.tilelink.release.bits := dcache.io.mem.release.bits
+  io.tilelink.release.bits.payload.client_xact_id :=  Cat(dcache.io.mem.release.bits.payload.client_xact_id, UInt(dcachePortId, log2Up(memPorts))) // Mimic client id extension done by UncachedTileLinkIOArbiter for Acquires from either client)
 }
