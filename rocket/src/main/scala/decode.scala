@@ -57,6 +57,8 @@ object DecodeLogic
   }
   def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool =
     apply(addr, Bool.DC, trues.map(_ -> Bool(true)) ++ falses.map(_ -> Bool(false)))
+  def apply(addr: UInt, tru: UInt, fals: UInt): Bool =
+    apply(addr, Seq(tru), Seq(fals))
   private val caches = collection.mutable.Map[Module,collection.mutable.Map[Term,Bool]]()
 }
 

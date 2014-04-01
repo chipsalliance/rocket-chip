@@ -26,15 +26,11 @@ case class ICacheConfig(sets: Int, assoc: Int,
 
 class FrontendReq extends Bundle {
   val pc = UInt(width = VADDR_BITS+1)
-  val mispredict = Bool()
-  val taken = Bool()
-  val currentpc = UInt(width = VADDR_BITS+1)
 }
 
 class FrontendResp(implicit conf: ICacheConfig) extends Bundle {
   val pc = UInt(width = VADDR_BITS+1)  // ID stage PC
   val data = Bits(width = conf.ibytes*8)
-  val taken = Bool()
   val xcpt_ma = Bool()
   val xcpt_if = Bool()
 
@@ -44,6 +40,8 @@ class FrontendResp(implicit conf: ICacheConfig) extends Bundle {
 class CPUFrontendIO(implicit conf: ICacheConfig) extends Bundle {
   val req = Valid(new FrontendReq)
   val resp = Decoupled(new FrontendResp).flip
+  val btb_resp = Valid(new BTBResp()(conf.btb)).flip
+  val btb_update = Valid(new BTBUpdate()(conf.btb))
   val ptw = new TLBPTWIO().flip
   val invalidate = Bool(OUTPUT)
 }
@@ -55,7 +53,7 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
     val mem = new UncachedTileLinkIO
   }
   
-  val btb = Module(new BTB(c.btb))
+  val btb = Module(new BTB()(c.btb))
   val icache = Module(new ICache)
   val tlb = Module(new TLB(c.ntlb))
 
@@ -64,16 +62,17 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   val s1_same_block = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=UInt(START_ADDR))
-  val s2_btb_hit = Reg(init=Bool(false))
+  val s2_btb_resp_valid = Reg(init=Bool(false))
+  val s2_btb_resp_bits = Reg(btb.io.resp.bits.clone)
   val s2_xcpt_if = Reg(init=Bool(false))
 
-  val btbTarget = Cat(btb.io.target(VADDR_BITS-1), btb.io.target)
+  val btbTarget = Cat(btb.io.resp.bits.target(VADDR_BITS-1), btb.io.resp.bits.target)
   val pcp4_0 = s1_pc + UInt(c.ibytes)
   val pcp4 = Cat(s1_pc(VADDR_BITS-1) & pcp4_0(VADDR_BITS-1), pcp4_0(VADDR_BITS-1,0))
   val icmiss = s2_valid && !icache.io.resp.valid
-  val predicted_npc = btbTarget /* zero if btb miss */ | Mux(btb.io.hit, UInt(0), pcp4)
+  val predicted_npc = btbTarget /* zero if btb miss */ | Mux(btb.io.resp.bits.taken, UInt(0), pcp4)
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
-  val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.hit && ((pcp4 & (c.databits/8)) === (s1_pc & (c.databits/8)))
+  val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.resp.bits.taken && ((pcp4 & (c.databits/8)) === (s1_pc & (c.databits/8)))
 
   val stall = io.cpu.resp.valid && !io.cpu.resp.ready
   when (!stall) {
@@ -82,7 +81,8 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
     s2_valid := !icmiss
     when (!icmiss) {
       s2_pc := s1_pc
-      s2_btb_hit := btb.io.hit
+      s2_btb_resp_valid := btb.io.resp.valid
+      when (btb.io.resp.valid) { s2_btb_resp_bits := btb.io.resp.bits }
       s2_xcpt_if := tlb.io.resp.xcpt_if
     }
   }
@@ -92,11 +92,8 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
     s2_valid := Bool(false)
   }
 
-  btb.io.current_pc := s1_pc
-  btb.io.wen := io.cpu.req.bits.mispredict
-  btb.io.taken := io.cpu.req.bits.taken
-  btb.io.correct_pc := io.cpu.req.bits.currentpc
-  btb.io.correct_target := io.cpu.req.bits.pc
+  btb.io.req := s1_pc & SInt(-c.ibytes)
+  btb.io.update := io.cpu.btb_update
   btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate
 
   tlb.io.ptw <> io.cpu.ptw
@@ -117,9 +114,11 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
   io.cpu.resp.bits.pc := s2_pc & SInt(-c.ibytes) // discard PC LSBs
   io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc(log2Up(c.databits/8)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8))
-  io.cpu.resp.bits.taken := s2_btb_hit
   io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(c.ibytes)-1,0) != UInt(0)
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
+
+  io.cpu.btb_resp.valid := s2_btb_resp_valid
+  io.cpu.btb_resp.bits := s2_btb_resp_bits
 }
 
 class ICacheReq extends Bundle {
