@@ -118,8 +118,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     }
   }
 
-  val ex_raddr1 = ex_reg_inst(19,15)
-  val ex_raddr2 = ex_reg_inst(24,20)
+  io.ctrl.ex_rs(0) := ex_reg_inst(19,15)
+  io.ctrl.ex_rs(1) := ex_reg_inst(24,20)
 
   val bypass = Vec.fill(NBYP)(Bits())
   bypass(BYP_0) := Bits(0)
@@ -171,7 +171,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   }
   val ex_br_base = Mux(io.ctrl.ex_jalr, ex_rs(0), ex_reg_pc)
   val ex_br_offset = Mux(io.ctrl.ex_predicted_taken, SInt(4), ex_imm(20,0).toSInt)
-  val ex_br64 = ex_br_base + ex_br_offset
+  val ex_br64 = (ex_br_base + ex_br_offset) & SInt(-2)
   val ex_br_msb = Mux(io.ctrl.ex_jalr, vaSign(ex_rs(0), ex_br64), vaSign(ex_reg_pc, ex_br64))
   val ex_br_addr = Cat(ex_br_msb, ex_br64(VADDR_BITS-1,0))
 
@@ -289,11 +289,13 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
   // hook up I$
-  io.imem.req.bits.currentpc := ex_reg_pc
   io.imem.req.bits.pc :=
     Mux(io.ctrl.sel_pc === PC_EX,  ex_br_addr,
     Mux(io.ctrl.sel_pc === PC_PCR, pcr.io.evec,
         wb_reg_pc)).toUInt // PC_WB
+  io.imem.btb_update.bits.pc := ex_reg_pc
+  io.imem.btb_update.bits.target := io.imem.req.bits.pc
+  io.imem.btb_update.bits.returnAddr := io.dmem.req.bits.addr & SInt(-4)
   
   // for hazard/bypass opportunity detection
   io.ctrl.ex_waddr := ex_reg_inst(11,7)
