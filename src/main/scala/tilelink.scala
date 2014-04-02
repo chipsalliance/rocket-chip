@@ -1,7 +1,7 @@
 package uncore
 import Chisel._
 
-case class TileLinkConfiguration(co: CoherencePolicyWithUncached, ln: LogicalNetworkConfiguration, masterXactIdBits: Int, clientXactIdBits: Int, dataBits: Int) 
+case class TileLinkConfiguration(co: CoherencePolicyWithUncached, ln: LogicalNetworkConfiguration, addrBits: Int, masterXactIdBits: Int, clientXactIdBits: Int, dataBits: Int, writeMaskBits: Int, wordAddrBits: Int, atomicOpBits: Int) 
 
 abstract trait TileLinkSubBundle extends Bundle {
   implicit val conf: TileLinkConfiguration
@@ -9,7 +9,7 @@ abstract trait TileLinkSubBundle extends Bundle {
 }
 
 trait HasPhysicalAddress extends TileLinkSubBundle {
-  val addr = UInt(width = PADDR_BITS - OFFSET_BITS)
+  val addr = UInt(width = conf.addrBits)
 }
 
 trait HasClientTransactionId extends TileLinkSubBundle {
@@ -69,9 +69,9 @@ class Acquire(implicit val conf: TileLinkConfiguration) extends ClientSourcedMes
     with HasClientTransactionId 
     with HasTileLinkData {
   val a_type = UInt(width = conf.co.acquireTypeWidth)
-  val write_mask = Bits(width = ACQUIRE_WRITE_MASK_BITS)
-  val subword_addr = Bits(width = ACQUIRE_SUBWORD_ADDR_BITS)
-  val atomic_opcode = Bits(width = ACQUIRE_ATOMIC_OP_BITS)
+  val write_mask = Bits(width = conf.writeMaskBits)
+  val subword_addr = Bits(width = conf.wordAddrBits)
+  val atomic_opcode = Bits(width = conf.atomicOpBits)
 }
 
 object Probe

@@ -2,6 +2,11 @@ package uncore
 import Chisel._
 import scala.math._
 
+case class AddressSpaceConfiguration(paddrBits: Int, vaddrBits: Int, pgIdxBits: Int, asidBits: Int, permBits:Int) {
+  val ppnBits = paddrBits - pgIdxBits
+  val vpnBits = vaddrBits - pgIdxBits
+}
+
 case class MemoryIFConfiguration(addrBits: Int, dataBits: Int, tagBits: Int, dataBeats: Int)
 
 abstract trait MemoryIFSubBundle extends Bundle {
