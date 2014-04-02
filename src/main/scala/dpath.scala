@@ -4,10 +4,10 @@ import Chisel._
 import Instructions._
 import Util._
 import uncore.HTIFIO
-import uncore.constants.AddressConstants._
 
 class Datapath(implicit conf: RocketConfiguration) extends Module
 {
+  implicit val as = conf.as
   val io = new Bundle {
     val host  = new HTIFIO(conf.tl.ln.nClients)
     val ctrl  = (new CtrlDpathIO).flip
@@ -158,10 +158,10 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.fpu.fromint_data := ex_rs(0)
 
   def vaSign(a0: UInt, ea: Bits) = {
-    // efficient means to compress 64-bit VA into VADDR_BITS+1 bits
-    // (VA is bad if VA(VADDR_BITS) != VA(VADDR_BITS-1))
-    val a = a0 >> VADDR_BITS-1
-    val e = ea(VADDR_BITS,VADDR_BITS-1)
+    // efficient means to compress 64-bit VA into conf.as.vaddrBits+1 bits
+    // (VA is bad if VA(conf.as.vaddrBits) != VA(conf.as.vaddrBits-1))
+    val a = a0 >> conf.as.vaddrBits-1
+    val e = ea(conf.as.vaddrBits,conf.as.vaddrBits-1)
     Mux(a === UInt(0) || a === UInt(1), e != UInt(0),
     Mux(a === SInt(-1) || a === SInt(-2), e === SInt(-1),
     e(0)))
@@ -169,7 +169,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(VADDR_BITS-1,0)).toUInt
+  io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(conf.as.vaddrBits-1,0)).toUInt
   io.dmem.req.bits.tag := Cat(io.ctrl.ex_waddr, io.ctrl.ex_fp_val)
   require(io.dmem.req.bits.tag.getWidth >= 6)
   require(conf.dcacheReqTagBits >= 6)
@@ -240,7 +240,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val mem_br_target = mem_reg_pc +
     Mux(io.ctrl.mem_branch && io.ctrl.mem_br_taken, imm(IMM_SB, mem_reg_inst),
     Mux(!io.ctrl.mem_jalr && !io.ctrl.mem_branch, imm(IMM_UJ, mem_reg_inst), SInt(4)))
-  val mem_npc = Mux(io.ctrl.mem_jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(VADDR_BITS-1,0)), mem_br_target)
+  val mem_npc = Mux(io.ctrl.mem_jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(conf.as.vaddrBits-1,0)), mem_br_target)
   io.ctrl.mem_misprediction := mem_npc != Mux(io.ctrl.ex_valid, ex_reg_pc, id_pc)
   io.ctrl.mem_rs1_ra := mem_reg_inst(19,15) === 1
   val mem_int_wdata = Mux(io.ctrl.mem_jalr, mem_br_target, mem_reg_wdata)

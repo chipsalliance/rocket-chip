@@ -3,10 +3,9 @@ package rocket
 import Chisel._
 import Util._
 import Node._
-import uncore.constants.AddressConstants._
 
-case class BTBConfig(entries: Int, nras: Int = 0) {
-  val matchBits = PGIDX_BITS
+case class BTBConfig(as: uncore.AddressSpaceConfiguration, entries: Int, nras: Int = 0) {
+  val matchBits = as.pgIdxBits
   val pages0 = 1 max log2Up(entries) // is this sensible?
   val pages = (pages0+1)/2*2 // control logic assumes 2 divides pages
   val opaqueBits = log2Up(entries)
@@ -56,9 +55,9 @@ class BHT(implicit conf: BTBConfig) {
 
 class BTBUpdate(implicit conf: BTBConfig) extends Bundle {
   val prediction = Valid(new BTBResp)
-  val pc = UInt(width = VADDR_BITS)
-  val target = UInt(width = VADDR_BITS)
-  val returnAddr = UInt(width = VADDR_BITS)
+  val pc = UInt(width = conf.as.vaddrBits)
+  val target = UInt(width = conf.as.vaddrBits)
+  val returnAddr = UInt(width = conf.as.vaddrBits)
   val taken = Bool()
   val isJump = Bool()
   val isCall = Bool()
@@ -70,7 +69,7 @@ class BTBUpdate(implicit conf: BTBConfig) extends Bundle {
 
 class BTBResp(implicit conf: BTBConfig) extends Bundle {
   val taken = Bool()
-  val target = UInt(width = VADDR_BITS)
+  val target = UInt(width = conf.as.vaddrBits)
   val entry = UInt(width = conf.opaqueBits)
   val bht = new BHTResp
 
@@ -80,7 +79,7 @@ class BTBResp(implicit conf: BTBConfig) extends Bundle {
 // fully-associative branch target buffer
 class BTB(implicit conf: BTBConfig) extends Module {
   val io = new Bundle {
-    val req = UInt(INPUT, VADDR_BITS)
+    val req = UInt(INPUT, conf.as.vaddrBits)
     val resp = Valid(new BTBResp)
     val update = Valid(new BTBUpdate).flip
     val invalidate = Bool(INPUT)
@@ -91,7 +90,7 @@ class BTB(implicit conf: BTBConfig) extends Module {
   val idxPages = Vec.fill(conf.entries){Reg(UInt(width=log2Up(conf.pages)))}
   val tgts = Vec.fill(conf.entries){Reg(UInt(width=conf.matchBits))}
   val tgtPages = Vec.fill(conf.entries){Reg(UInt(width=log2Up(conf.pages)))}
-  val pages = Vec.fill(conf.pages){Reg(UInt(width=VADDR_BITS-conf.matchBits))}
+  val pages = Vec.fill(conf.pages){Reg(UInt(width=conf.as.vaddrBits-conf.matchBits))}
   val pageValid = Vec.fill(conf.pages){Reg(init=Bool(false))}
   val idxPagesOH = idxPages.map(UIntToOH(_)(conf.pages-1,0))
   val tgtPagesOH = tgtPages.map(UIntToOH(_)(conf.pages-1,0))

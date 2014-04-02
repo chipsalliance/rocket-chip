@@ -7,41 +7,41 @@ import Util._
 case class DCacheConfig(sets: Int, ways: Int,
                         nmshr: Int, nrpq: Int, nsdq: Int, ntlb: Int,
                         tl: TileLinkConfiguration,
+                        as: AddressSpaceConfiguration,
+                        reqtagbits: Int, databits: Int,
+                        rowwords: Int = 8,
                         code: Code = new IdentityCode,
-                        narrowRead: Boolean = true,
-                        reqtagbits: Int = -1, databits: Int = -1)
+                        narrowRead: Boolean = true)
 {
   require(states > 0)
-  require(OFFSET_BITS == log2Up(CACHE_DATA_SIZE_IN_BYTES))
-  require(OFFSET_BITS <= ACQUIRE_WRITE_MASK_BITS)
-  require(log2Up(OFFSET_BITS) <= ACQUIRE_SUBWORD_ADDR_BITS)
   require(isPow2(sets))
   require(isPow2(ways)) // TODO: relax this
   def states = tl.co.nClientStates
   def lines = sets*ways
   def dm = ways == 1
-  def ppnbits = PADDR_BITS - PGIDX_BITS
-  def vpnbits = VADDR_BITS - PGIDX_BITS
-  def pgidxbits = PGIDX_BITS
-  def offbits = OFFSET_BITS
+  def offbits = log2Up(tl.dataBits/8)
+  def ppnbits = as.ppnBits
+  def vpnbits = as.vpnBits
+  def pgidxbits = as.pgIdxBits
   def maxaddrbits = ppnbits.max(vpnbits+1) + pgidxbits
-  def paddrbits = ppnbits + pgidxbits
+  def paddrbits = as.paddrBits
   def lineaddrbits = paddrbits - offbits
   def idxbits = log2Up(sets)
   def waybits = log2Up(ways)
   def untagbits = offbits + idxbits
   def tagbits = lineaddrbits - idxbits
-  def ramoffbits = log2Up(tl.dataBits/8)
   def databytes = databits/8
   def wordoffbits = log2Up(databytes)
-  def isNarrowRead = narrowRead && databits*ways % tl.dataBits == 0
-  def refillcycles = CACHE_DATA_SIZE_IN_BYTES*8/tl.dataBits
+  def rowbits = rowwords*databits
+  def rowbytes = rowwords*databytes
+  def rowoffbits = log2Up(rowbytes)
+  def refillcycles = tl.dataBits/(rowwords*databits)
+  def isNarrowRead = narrowRead && databits*ways % rowbits == 0
   val statebits = log2Up(states)
   val metabits = statebits + tagbits
   val encdatabits = code.width(databits)
   val encmetabits = code.width(metabits)
-  val wordsperrow = tl.dataBits/databits
-  val bitsperrow = wordsperrow*encdatabits
+  val encrowbits = rowwords*encdatabits
   val lrsc_cycles = 32 // ISA requires 16-insn LRSC sequences to succeed
 }
 
@@ -118,8 +118,8 @@ class DataReadReq(implicit val conf: DCacheConfig) extends DCacheBundle {
 class DataWriteReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val way_en = Bits(width = conf.ways)
   val addr   = Bits(width = conf.untagbits)
-  val wmask  = Bits(width = conf.wordsperrow)
-  val data   = Bits(width = conf.bitsperrow)
+  val wmask  = Bits(width = conf.rowwords)
+  val data   = Bits(width = conf.encrowbits)
 }
 
 class InternalProbe(implicit conf: DCacheConfig) extends Probe()(conf.tl) {
@@ -273,7 +273,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
 
   io.idx_match := (state != s_invalid) && idx_match
   io.mem_resp := req
-  io.mem_resp.addr := (if(conf.refillcycles > 1) Cat(req_idx, refill_count) else req_idx) << conf.ramoffbits
+  io.mem_resp.addr := (if(conf.refillcycles > 1) Cat(req_idx, refill_count) else req_idx) << conf.rowoffbits
   io.tag := req.addr >> conf.untagbits
   io.req_pri_rdy := state === s_invalid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
@@ -426,7 +426,7 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Module {
     val req = Decoupled(new WritebackReq()).flip
     val meta_read = Decoupled(new MetaReadReq)
     val data_req = Decoupled(new DataReadReq())
-    val data_resp = Bits(INPUT, conf.bitsperrow)
+    val data_resp = Bits(INPUT, conf.encrowbits)
     val release = Decoupled(new Release)
   }
 
@@ -471,7 +471,7 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Module {
   io.data_req.valid := fire
   io.data_req.bits.way_en := req.way_en
   io.data_req.bits.addr := (if(conf.refillcycles > 1) Cat(req.idx, cnt(log2Up(conf.refillcycles)-1,0)) 
-                            else req.idx) << conf.ramoffbits
+                            else req.idx) << conf.rowoffbits
 
   io.release.valid := valid && r2_data_req_fired
   io.release.bits.r_type := req.r_type
@@ -599,39 +599,39 @@ class DataArray(implicit conf: DCacheConfig) extends Module {
   val io = new Bundle {
     val read = Decoupled(new DataReadReq).flip
     val write = Decoupled(new DataWriteReq).flip
-    val resp = Vec.fill(conf.ways){Bits(OUTPUT, conf.bitsperrow)}
+    val resp = Vec.fill(conf.ways){Bits(OUTPUT, conf.encrowbits)}
   }
 
-  val waddr = io.write.bits.addr >> conf.ramoffbits
-  val raddr = io.read.bits.addr >> conf.ramoffbits
+  val waddr = io.write.bits.addr >> conf.rowoffbits
+  val raddr = io.read.bits.addr >> conf.rowoffbits
 
   if (conf.isNarrowRead) {
-    for (w <- 0 until conf.ways by conf.wordsperrow) {
-      val wway_en = io.write.bits.way_en(w+conf.wordsperrow-1,w)
-      val rway_en = io.read.bits.way_en(w+conf.wordsperrow-1,w)
-      val resp = Vec.fill(conf.wordsperrow){Bits(width = conf.bitsperrow)}
+    for (w <- 0 until conf.ways by conf.rowwords) {
+      val wway_en = io.write.bits.way_en(w+conf.rowwords-1,w)
+      val rway_en = io.read.bits.way_en(w+conf.rowwords-1,w)
+      val resp = Vec.fill(conf.rowwords){Bits(width = conf.encrowbits)}
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
-        val array = Mem(Bits(width=conf.bitsperrow), conf.sets*conf.refillcycles, seqRead = true)
+        val array = Mem(Bits(width=conf.encrowbits), conf.sets*conf.refillcycles, seqRead = true)
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
-          val data = Fill(conf.wordsperrow, io.write.bits.data(conf.encdatabits*(p+1)-1,conf.encdatabits*p))
+          val data = Fill(conf.rowwords, io.write.bits.data(conf.encdatabits*(p+1)-1,conf.encdatabits*p))
           val mask = FillInterleaved(conf.encdatabits, wway_en)
           array.write(waddr, data, mask)
         }
         resp(p) := array(RegEnable(raddr, rway_en.orR && io.read.valid))
       }
-      for (dw <- 0 until conf.wordsperrow) {
+      for (dw <- 0 until conf.rowwords) {
         val r = AVec(resp.map(_(conf.encdatabits*(dw+1)-1,conf.encdatabits*dw)))
         val resp_mux =
           if (r.size == 1) r
-          else AVec(r(r_raddr(conf.ramoffbits-1,conf.wordoffbits)), r.tail:_*)
+          else AVec(r(r_raddr(conf.rowoffbits-1,conf.wordoffbits)), r.tail:_*)
         io.resp(w+dw) := resp_mux.toBits
       }
     }
   } else {
     val wmask = FillInterleaved(conf.encdatabits, io.write.bits.wmask)
     for (w <- 0 until conf.ways) {
-      val array = Mem(Bits(width=conf.bitsperrow), conf.sets*conf.refillcycles, seqRead = true)
+      val array = Mem(Bits(width=conf.encrowbits), conf.sets*conf.refillcycles, seqRead = true)
       when (io.write.bits.way_en(w) && io.write.valid) {
         array.write(waddr, io.write.bits.data, wmask)
       }
@@ -723,7 +723,7 @@ class HellaCacheIO(implicit conf: DCacheConfig) extends Bundle {
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Valid(Bits(width = conf.reqtagbits)).flip
   val xcpt = (new HellaCacheExceptions).asInput
-  val ptw = (new TLBPTWIO).flip
+  val ptw = new TLBPTWIO()(conf.as).flip
   val ordered = Bool(INPUT)
 }
 
@@ -766,7 +766,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   val s1_sc = s1_req.cmd === M_XSC
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
-  val dtlb = Module(new TLB(8))
+  val dtlb = Module(new TLB(8)(conf.as))
   dtlb.io.ptw <> io.cpu.ptw
   dtlb.io.req.valid := s1_valid_masked && s1_readwrite && !s1_req.phys
   dtlb.io.req.bits.passthrough := s1_req.phys
@@ -834,7 +834,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   data.io.write.valid := writeArb.io.out.valid
   writeArb.io.out.ready := data.io.write.ready
   data.io.write.bits := writeArb.io.out.bits
-  val wdata_encoded = (0 until conf.wordsperrow).map(i => conf.code.encode(writeArb.io.out.bits.data(conf.databits*(i+1)-1,conf.databits*i)))
+  val wdata_encoded = (0 until conf.rowwords).map(i => conf.code.encode(writeArb.io.out.bits.data(conf.databits*(i+1)-1,conf.databits*i)))
   data.io.write.bits.data := AVec(wdata_encoded).toBits
 
   // tag read for new requests
@@ -885,9 +885,9 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   }
   when (io.cpu.ptw.sret) { lrsc_count := 0 }
 
-  val s2_data = Vec.fill(conf.ways){Bits(width = conf.bitsperrow)}
+  val s2_data = Vec.fill(conf.ways){Bits(width = conf.encrowbits)}
   for (w <- 0 until conf.ways) {
-    val regs = Vec.fill(conf.wordsperrow){Reg(Bits(width = conf.encdatabits))}
+    val regs = Vec.fill(conf.rowwords){Reg(Bits(width = conf.encdatabits))}
     val en1 = s1_clk_en && s1_tag_eq_way(w)
     for (i <- 0 until regs.size) {
       val en = en1 && (Bool(i == 0 || !conf.isNarrowRead) || s1_writeback)
@@ -896,10 +896,10 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
     s2_data(w) := regs.toBits
   }
   val s2_data_muxed = Mux1H(s2_tag_match_way, s2_data)
-  val s2_data_decoded = (0 until conf.wordsperrow).map(i => conf.code.decode(s2_data_muxed(conf.encdatabits*(i+1)-1,conf.encdatabits*i)))
+  val s2_data_decoded = (0 until conf.rowwords).map(i => conf.code.decode(s2_data_muxed(conf.encdatabits*(i+1)-1,conf.encdatabits*i)))
   val s2_data_corrected = AVec(s2_data_decoded.map(_.corrected)).toBits
   val s2_data_uncorrected = AVec(s2_data_decoded.map(_.uncorrected)).toBits
-  val s2_word_idx = if (conf.isNarrowRead) UInt(0) else s2_req.addr(log2Up(conf.wordsperrow*conf.databytes)-1,3)
+  val s2_word_idx = if (conf.isNarrowRead) UInt(0) else s2_req.addr(log2Up(conf.rowwords*conf.databytes)-1,3)
   val s2_data_correctable = AVec(s2_data_decoded.map(_.correctable)).toBits()(s2_word_idx)
   
   // store/amo hits
@@ -912,8 +912,8 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   }
 
   writeArb.io.in(0).bits.addr := s3_req.addr
-  writeArb.io.in(0).bits.wmask := UInt(1) << s3_req.addr(conf.ramoffbits-1,offsetlsb).toUInt
-  writeArb.io.in(0).bits.data := Fill(conf.wordsperrow, s3_req.data)
+  writeArb.io.in(0).bits.wmask := UInt(1) << s3_req.addr(conf.rowoffbits-1,offsetlsb).toUInt
+  writeArb.io.in(0).bits.data := Fill(conf.rowwords, s3_req.data)
   writeArb.io.in(0).valid := s3_valid
   writeArb.io.in(0).bits.way_en :=  s3_way
 

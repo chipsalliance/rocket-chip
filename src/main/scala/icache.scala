@@ -5,33 +5,37 @@ import uncore._
 import Util._
 
 case class ICacheConfig(sets: Int, assoc: Int,
-                        ibytes: Int = 4,
-                        ntlb: Int = 8, btb: BTBConfig = BTBConfig(8),
+                        ibytes: Int = 4, rowbytes: Int = 64,
+                        ntlb: Int = 8, 
                         tl: TileLinkConfiguration,
+                        as: AddressSpaceConfiguration,
+                        btb: BTBConfig,
                         code: Code = new IdentityCode)
 {
   val w = 1
 
   val dm = assoc == 1
   val lines = sets * assoc
-  val databits = tl.dataBits
   val idxbits = log2Up(sets)
-  val offbits = OFFSET_BITS
+  val offbits = log2Up(tl.dataBits/8)
+  val rowbits = rowbytes*8
+  val rowoffbits = log2Up(rowbytes)
   val untagbits = idxbits + offbits
-  val tagbits = PADDR_BITS - untagbits
-  def refillcycles = CACHE_DATA_SIZE_IN_BYTES*8/tl.dataBits
+  val tagbits = as.paddrBits - untagbits
+  val refillcycles = tl.dataBits/rowbits
 
   require(isPow2(sets) && isPow2(assoc))
   require(isPow2(w) && isPow2(ibytes))
-  require(PGIDX_BITS >= untagbits)
+  require(as.pgIdxBits >= untagbits)
 }
 
-class FrontendReq extends Bundle {
-  val pc = UInt(width = VADDR_BITS+1)
+class FrontendReq()(implicit conf: ICacheConfig) extends Bundle {
+  val pc = UInt(width = conf.as.vaddrBits+1)
+  override def clone = new FrontendReq().asInstanceOf[this.type]
 }
 
 class FrontendResp(implicit conf: ICacheConfig) extends Bundle {
-  val pc = UInt(width = VADDR_BITS+1)  // ID stage PC
+  val pc = UInt(width = conf.as.vaddrBits+1)  // ID stage PC
   val data = Bits(width = conf.ibytes*8)
   val xcpt_ma = Bool()
   val xcpt_if = Bool()
@@ -44,12 +48,13 @@ class CPUFrontendIO(implicit conf: ICacheConfig) extends Bundle {
   val resp = Decoupled(new FrontendResp).flip
   val btb_resp = Valid(new BTBResp()(conf.btb)).flip
   val btb_update = Valid(new BTBUpdate()(conf.btb))
-  val ptw = new TLBPTWIO().flip
+  val ptw = new TLBPTWIO()(conf.as).flip
   val invalidate = Bool(OUTPUT)
 }
 
-class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Module
+class Frontend(implicit c: ICacheConfig) extends Module
 {
+  implicit val (tl, as) = (c.tl, c.as)
   val io = new Bundle {
     val cpu = new CPUFrontendIO()(c).flip
     val mem = new UncachedTileLinkIO
@@ -68,13 +73,14 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   val s2_btb_resp_bits = Reg(btb.io.resp.bits.clone)
   val s2_xcpt_if = Reg(init=Bool(false))
 
-  val btbTarget = Cat(btb.io.resp.bits.target(VADDR_BITS-1), btb.io.resp.bits.target)
+  val msb = c.as.vaddrBits-1
+  val btbTarget = Cat(btb.io.resp.bits.target(msb), btb.io.resp.bits.target)
   val pcp4_0 = s1_pc + UInt(c.ibytes)
-  val pcp4 = Cat(s1_pc(VADDR_BITS-1) & pcp4_0(VADDR_BITS-1), pcp4_0(VADDR_BITS-1,0))
+  val pcp4 = Cat(s1_pc(msb) & pcp4_0(msb), pcp4_0(msb,0))
   val icmiss = s2_valid && !icache.io.resp.valid
   val predicted_npc = Mux(btb.io.resp.bits.taken, btbTarget, pcp4)
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
-  val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.resp.bits.taken && ((pcp4 & (c.databits/8)) === (s1_pc & (c.databits/8)))
+  val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.resp.bits.taken && ((pcp4 & c.rowbytes) === (s1_pc & c.rowbytes))
 
   val stall = io.cpu.resp.valid && !io.cpu.resp.ready
   when (!stall) {
@@ -100,7 +106,7 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
 
   tlb.io.ptw <> io.cpu.ptw
   tlb.io.req.valid := !stall && !icmiss
-  tlb.io.req.bits.vpn := s1_pc >> UInt(PGIDX_BITS)
+  tlb.io.req.bits.vpn := s1_pc >> UInt(c.as.pgIdxBits)
   tlb.io.req.bits.asid := UInt(0)
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.instruction := Bool(true)
@@ -115,7 +121,7 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
   io.cpu.resp.bits.pc := s2_pc & SInt(-c.ibytes) // discard PC LSBs
-  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc(log2Up(c.databits/8)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8))
+  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc(log2Up(c.rowbytes)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8))
   io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(c.ibytes)-1,0) != UInt(0)
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
 
@@ -123,15 +129,16 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   io.cpu.btb_resp.bits := s2_btb_resp_bits
 }
 
-class ICacheReq extends Bundle {
-  val idx = UInt(width = PGIDX_BITS)
-  val ppn = UInt(width = PPN_BITS) // delayed one cycle
+class ICacheReq(implicit c: ICacheConfig)  extends Bundle {
+  val idx = UInt(width = c.as.pgIdxBits)
+  val ppn = UInt(width = c.as.ppnBits) // delayed one cycle
   val kill = Bool() // delayed one cycle
+  override def clone = new ICacheReq().asInstanceOf[this.type]
 }
 
 class ICacheResp(implicit c: ICacheConfig) extends Bundle {
   val data = Bits(width = c.ibytes*8)
-  val datablock = Bits(width = c.databits)
+  val datablock = Bits(width = c.rowbits)
   override def clone = new ICacheResp().asInstanceOf[this.type]
 }
 
@@ -152,11 +159,11 @@ class ICache(implicit c: ICacheConfig) extends Module
   val rdy = Bool()
 
   val s2_valid = Reg(init=Bool(false))
-  val s2_addr = Reg(UInt(width = PADDR_BITS))
+  val s2_addr = Reg(UInt(width = c.as.paddrBits))
   val s2_any_tag_hit = Bool()
 
   val s1_valid = Reg(init=Bool(false))
-  val s1_pgoff = Reg(UInt(width = PGIDX_BITS))
+  val s1_pgoff = Reg(UInt(width = c.as.pgIdxBits))
   val s1_addr = Cat(io.req.bits.ppn, s1_pgoff).toUInt
   val s1_tag = s1_addr(c.tagbits+c.untagbits-1,c.untagbits)
 
@@ -231,7 +238,7 @@ class ICache(implicit c: ICacheConfig) extends Module
   s2_any_tag_hit := s2_tag_hit.reduceLeft(_||_) && !s2_disparity.reduceLeft(_||_)
 
   for (i <- 0 until c.assoc) {
-    val data_array = Mem(Bits(width = c.code.width(c.databits)), c.sets*c.refillcycles, seqRead = true)
+    val data_array = Mem(Bits(width = c.code.width(c.rowbits)), c.sets*c.refillcycles, seqRead = true)
     val s1_raddr = Reg(UInt())
     when (io.mem.grant.valid && repl_way === UInt(i)) {
       val d = io.mem.grant.bits.payload.data
@@ -245,7 +252,7 @@ class ICache(implicit c: ICacheConfig) extends Module
     // if s1_tag_match is critical, replace with partial tag check
     when (s1_valid && rdy && !stall && (Bool(c.dm) || s1_tag_match(i))) { s2_dout(i) := data_array(s1_raddr) }
   }
-  val s2_dout_word = s2_dout.map(x => (x >> (s2_offset(log2Up(c.databits/8)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8)))(c.ibytes*8-1,0))
+  val s2_dout_word = s2_dout.map(x => (x >> (s2_offset(log2Up(c.rowbytes)-1,log2Up(c.ibytes)) << log2Up(c.ibytes*8)))(c.ibytes*8-1,0))
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
