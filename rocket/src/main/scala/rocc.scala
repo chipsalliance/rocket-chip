@@ -35,6 +35,7 @@ class RoCCResponse(implicit conf: RocketConfiguration) extends Bundle
 
 class RoCCInterface(implicit conf: RocketConfiguration) extends Bundle
 {
+  implicit val as = conf.as
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
   val mem = new HellaCacheIO()(conf.dcache)

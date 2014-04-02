@@ -4,7 +4,7 @@ import Chisel._
 import Util._
 import Node._
 import uncore.HTIFIO
-import uncore.constants.AddressConstants._
+import uncore.AddressSpaceConfiguration
 import scala.math._
 
 class Status extends Bundle {
@@ -45,14 +45,14 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
     }
     
     val status = new Status().asOutput
-    val ptbr = UInt(OUTPUT, PADDR_BITS)
-    val evec = UInt(OUTPUT, VADDR_BITS+1)
+    val ptbr = UInt(OUTPUT, conf.as.paddrBits)
+    val evec = UInt(OUTPUT, conf.as.vaddrBits+1)
     val exception = Bool(INPUT)
     val retire = UInt(INPUT, log2Up(1+conf.retireWidth))
     val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+conf.retireWidth)))
     val cause = UInt(INPUT, conf.xprlen)
     val badvaddr_wen = Bool(INPUT)
-    val pc = UInt(INPUT, VADDR_BITS+1)
+    val pc = UInt(INPUT, conf.as.vaddrBits+1)
     val sret = Bool(INPUT)
     val fatc = Bool(OUTPUT)
     val replay = Bool(OUTPUT)
@@ -62,16 +62,16 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
     val rocc = new RoCCInterface().flip
   }
  
-  val reg_epc = Reg(Bits(width = VADDR_BITS+1))
-  val reg_badvaddr = Reg(Bits(width = VADDR_BITS))
-  val reg_evec = Reg(Bits(width = VADDR_BITS))
+  val reg_epc = Reg(Bits(width = conf.as.vaddrBits+1))
+  val reg_badvaddr = Reg(Bits(width = conf.as.vaddrBits))
+  val reg_evec = Reg(Bits(width = conf.as.vaddrBits))
   val reg_compare = Reg(Bits(width = 32))
   val reg_cause = Reg(Bits(width = conf.xprlen))
   val reg_tohost = Reg(init=Bits(0, conf.xprlen))
   val reg_fromhost = Reg(init=Bits(0, conf.xprlen))
   val reg_sup0 = Reg(Bits(width = conf.xprlen))
   val reg_sup1 = Reg(Bits(width = conf.xprlen))
-  val reg_ptbr = Reg(UInt(width = PADDR_BITS))
+  val reg_ptbr = Reg(UInt(width = conf.as.paddrBits))
   val reg_stats = Reg(init=Bool(false))
   val reg_status = Reg(new Status) // reset down below
   val reg_time = WideCounter(conf.xprlen)
@@ -130,7 +130,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
 
   when (io.badvaddr_wen) {
     val wdata = io.rw.wdata
-    val (upper, lower) = Split(wdata, VADDR_BITS)
+    val (upper, lower) = Split(wdata, conf.as.vaddrBits)
     val sign = Mux(lower.toSInt < SInt(0), upper.andR, upper.orR)
     reg_badvaddr := Cat(sign, lower).toSInt
   }
@@ -161,7 +161,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
   when (host_pcr_req_fire && !host_pcr_bits.rw && decoded_addr(CSRs.tohost)) { reg_tohost := UInt(0) }
 
   val read_impl = Bits(2)
-  val read_ptbr = reg_ptbr(PADDR_BITS-1,PGIDX_BITS) << PGIDX_BITS
+  val read_ptbr = reg_ptbr(conf.as.paddrBits-1, conf.as.pgIdxBits) << conf.as.pgIdxBits
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
     CSRs.fflags -> (if (!conf.fpu.isEmpty) reg_fflags else UInt(0)),
@@ -213,8 +213,8 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
     when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
     when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
     when (decoded_addr(CSRs.fcsr))     { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
-    when (decoded_addr(CSRs.epc))      { reg_epc := wdata(VADDR_BITS,0).toSInt }
-    when (decoded_addr(CSRs.evec))     { reg_evec := wdata(VADDR_BITS-1,0).toSInt }
+    when (decoded_addr(CSRs.epc))      { reg_epc := wdata(conf.as.vaddrBits,0).toSInt }
+    when (decoded_addr(CSRs.evec))     { reg_evec := wdata(conf.as.vaddrBits-1,0).toSInt }
     when (decoded_addr(CSRs.count))    { reg_time := wdata.toUInt }
     when (decoded_addr(CSRs.compare))  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false) }
     when (decoded_addr(CSRs.fromhost)) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
@@ -222,7 +222,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
     when (decoded_addr(CSRs.clear_ipi)){ r_irq_ipi := wdata(0) }
     when (decoded_addr(CSRs.sup0))     { reg_sup0 := wdata }
     when (decoded_addr(CSRs.sup1))     { reg_sup1 := wdata }
-    when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(PADDR_BITS-1, PGIDX_BITS), Bits(0, PGIDX_BITS)).toUInt }
+    when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(conf.as.paddrBits-1, conf.as.pgIdxBits), Bits(0, conf.as.pgIdxBits)).toUInt }
     when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
   }
 

@@ -3,14 +3,13 @@ package rocket
 import Chisel._
 import Util._
 import uncore.HTIFIO
-import uncore.constants.MemoryOpConstants._
 
 class RocketIO(implicit conf: RocketConfiguration) extends Bundle
 {
   val host = new HTIFIO(conf.tl.ln.nClients)
   val imem = new CPUFrontendIO()(conf.icache)
   val dmem = new HellaCacheIO()(conf.dcache)
-  val ptw = new DatapathPTWIO().flip
+  val ptw = new DatapathPTWIO()(conf.as).flip
   val rocc = new RoCCInterface().flip
 }
 

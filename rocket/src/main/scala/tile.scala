@@ -4,7 +4,7 @@ import Chisel._
 import uncore._
 import Util._
 
-case class RocketConfiguration(tl: TileLinkConfiguration,
+case class RocketConfiguration(tl: TileLinkConfiguration, as: AddressSpaceConfiguration,
                                icache: ICacheConfig, dcache: DCacheConfig,
                                fpu: Option[FPUConfig] = None,
                                rocc: Option[RocketConfiguration => RoCC] = None,
