@@ -2,7 +2,6 @@ package uncore
 package constants
 
 import Chisel._
-import scala.math.max
 
 object MemoryOpConstants extends MemoryOpConstants
 trait MemoryOpConstants {
@@ -43,30 +42,3 @@ trait MemoryOpConstants {
   def isWrite(cmd: Bits) = cmd === M_XWR || cmd === M_XSC || isAMO(cmd)
   def isWriteIntent(cmd: Bits) = isWrite(cmd) || cmd === M_PFW || cmd === M_XLR
 }
-
-object AddressConstants extends AddressConstants
-trait AddressConstants { 
-  val PADDR_BITS = 32
-  val VADDR_BITS = 43;
-  val PGIDX_BITS = 13;
-  val PPN_BITS = PADDR_BITS-PGIDX_BITS;
-  val VPN_BITS = VADDR_BITS-PGIDX_BITS;
-  val ASID_BITS = 7;
-  val PERM_BITS = 6;
-}
-
-object CacheConstants extends CacheConstants
-trait CacheConstants {
-  val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 
-  val OFFSET_BITS = log2Up(CACHE_DATA_SIZE_IN_BYTES)
-}
-
-trait TileLinkSizeConstants {
-  val ACQUIRE_WRITE_MASK_BITS = 6
-  val ACQUIRE_SUBWORD_ADDR_BITS = 3
-  val ACQUIRE_ATOMIC_OP_BITS = 4
-}
-
-trait MemoryInterfaceConstants extends 
-  CacheConstants with 
-  AddressConstants 

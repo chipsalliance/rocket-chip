@@ -41,7 +41,7 @@ class SCRIO(n: Int) extends Bundle
   val wdata = Bits(OUTPUT, 64)
 }
 
-class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfiguration) extends Module
+class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: TileLinkConfiguration) extends Module
 {
   implicit val (ln, co) = (conf.ln, conf.co)
   val nTiles = ln.nClients-1 // This HTIF is itself a TileLink client
@@ -75,7 +75,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
     when (rx_count === UInt(short_request_bits/w-1)) {
       cmd := next_cmd
       size := rx_shifter_in(15,4)
-      pos := rx_shifter_in(15,4+OFFSET_BITS-3)
+      pos := rx_shifter_in(15,4+offsetBits-3)
       seqno := rx_shifter_in(23,16)
       addr := rx_shifter_in(63,24)
     }
@@ -95,7 +95,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
   val pcr_coreid = addr(log2Up(nTiles)-1+20+1,20)
   val pcr_wdata = packet_ram(0)
 
-  val bad_mem_packet = size(OFFSET_BITS-1-3,0).orR || addr(OFFSET_BITS-1-3,0).orR
+  val bad_mem_packet = size(offsetBits-1-3,0).orR || addr(offsetBits-1-3,0).orR
   val nack = Mux(cmd === cmd_readmem || cmd === cmd_writemem, bad_mem_packet,
              Mux(cmd === cmd_readcr || cmd === cmd_writecr, size != UInt(1),
              Bool(true)))
@@ -157,7 +157,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
   when (state === state_mem_finish && io.mem.grant_ack.ready) {
     state := Mux(cmd === cmd_readmem || pos === UInt(1),  state_tx, state_rx)
     pos := pos - UInt(1)
-    addr := addr + UInt(1 << OFFSET_BITS-3)
+    addr := addr + UInt(1 << offsetBits-3)
   }
   when (state === state_tx && tx_done) {
     when (tx_word_count === tx_size) {
@@ -176,7 +176,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int)(implicit conf: TileLinkConfigurati
     mem_req_data = Cat(packet_ram(idx), mem_req_data)
   }
   acq_q.io.enq.valid := state === state_mem_rreq || state === state_mem_wreq
-  val init_addr = addr.toUInt >> UInt(OFFSET_BITS-3)
+  val init_addr = addr.toUInt >> UInt(offsetBits-3)
   acq_q.io.enq.bits := Mux(cmd === cmd_writemem, 
     Acquire(co.getUncachedWriteAcquireType, init_addr, UInt(0)), 
     Acquire(co.getUncachedReadAcquireType, init_addr, UInt(0)))
