@@ -7,6 +7,7 @@ import rocket.Util._
 import ReferenceChipBackend._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
+import DRAMModel._
 
 object DummyTopLevelConstants {
   val NTILES = 1
@@ -39,7 +40,7 @@ class ReferenceChipBackend extends VerilogBackend
   }
 
   def addMemPin(c: Module) = {
-    for (node <- Module.nodes) {
+    for (mod <- Module.components; node <- mod.nodes) {
       if (node.isInstanceOf[Mem[ _ ]] && node.component != null && node.asInstanceOf[Mem[_]].seqRead) {
         connectMemPin(c, node.component, node)
       }
@@ -82,6 +83,8 @@ class ReferenceChipBackend extends VerilogBackend
   transforms += ((c: Module) => addMemPin(c))
   transforms += ((c: Module) => collectNodesIntoComp(initializeDFS))
 }
+
+class Fame1ReferenceChipBackend extends ReferenceChipBackend with Fame1Transform
 
 class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
 {
@@ -237,8 +240,9 @@ class MemDessert extends Module {
   io.wide <> x.io.wide
 }
 
+
 class Top extends Module {
-  val co =  if(ENABLE_SHARING) {
+  val co = if(ENABLE_SHARING) {
               if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence
               else new MSICoherence
             } else {
@@ -251,8 +255,8 @@ class Top extends Module {
   implicit val l2 = L2CoherenceAgentConfiguration(tl, NL2_REL_XACTS, NL2_ACQ_XACTS)
   implicit val uc = UncoreConfiguration(l2, tl, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64)
 
-  val ic = ICacheConfig(128, 2, ntlb = 8, nbtb = 38)
-  val dc = DCacheConfig(128, 4, ntlb = 8, 
+  val ic = ICacheConfig(128, 2, ntlb = 8, btb = BTBConfig(64, 2))
+  val dc = DCacheConfig(128, 4, ntlb = 8,
                         nmshr = NMSHRS, nrpq = 16, nsdq = 17, states = co.nClientStates)
   val vic = ICacheConfig(128, 1)
   val hc = hwacha.HwachaConfiguration(vic, dc, 8, 256, ndtlb = 8, nptlb = 2)
@@ -295,3 +299,5 @@ class Top extends Module {
   io.mem_backup_en <> uncore.io.mem_backup_en
   io.mem <> uncore.io.mem
 }
+
+

@@ -8,11 +8,40 @@
 #include <sstream>
 #include <iterator>
 
-static htif_emulator_t* htif = NULL;
-static unsigned htif_bytes;
-static mm_t* mm = NULL;
-
 extern "C" {
+
+extern int vcs_main(int argc, char** argv);
+
+static htif_emulator_t* htif;
+static unsigned htif_bytes;
+static mm_t* mm;
+static const char* loadmem;
+
+void htif_fini(vc_handle failure)
+{
+  delete htif;
+  htif = NULL;
+  exit(vc_getScalar(failure));
+}
+
+int main(int argc, char** argv)
+{
+  bool dramsim = false;
+
+  for (int i = 1; i < argc; i++)
+  {
+    if (!strcmp(argv[i], "+dramsim"))
+      dramsim = true;
+    else if (!strncmp(argv[i], "+loadmem=", 9))
+      loadmem = argv[i]+9;
+  }
+
+  mm = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
+  htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
+
+  vcs_main(argc, argv);
+  abort(); // should never get here
+}
 
 void memory_tick(
   vc_handle mem_req_val,
@@ -62,55 +91,18 @@ void memory_tick(
   );
 }
 
-void htif_init
-(
-  vc_handle htif_width,
-  vc_handle mem_width,
-  vc_handle argv,
-  vc_handle loadmem,
-  vc_handle dramsim
-)
+void htif_init(vc_handle htif_width, vc_handle mem_width)
 {
   int mw = vc_4stVectorRef(mem_width)->d;
-  mm = vc_getScalar(dramsim) ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
   assert(mw && (mw & (mw-1)) == 0);
   mm->init(MEM_SIZE, mw/8, LINE_SIZE);
+
+  if (loadmem)
+    load_mem(mm->get_data(), loadmem);
 
   vec32* w = vc_4stVectorRef(htif_width);
   assert(w->d <= 32 && w->d % 8 == 0); // htif_tick assumes data fits in a vec32
   htif_bytes = w->d/8;
-
-  char loadmem_str[1024];
-  vc_VectorToString(loadmem, loadmem_str);
-  if (*loadmem_str)
-    load_mem(mm->get_data(), loadmem_str);
-
-  char argv_str[1024];
-  vc_VectorToString(argv, argv_str);
-  if (!*argv_str)
-  {
-    if (*loadmem_str)
-      strcpy(argv_str, "none");
-    else
-    {
-      fprintf(stderr, "Usage: ./simv [host options] +argv=\"<target program> [target args]\"\n");
-      exit(-1);
-    }
-  }
-
-  std::vector<std::string> args;
-  std::stringstream ss(argv_str);
-  std::istream_iterator<std::string> begin(ss), end;
-  std::copy(begin, end, std::back_inserter<std::vector<std::string>>(args));
-
-  htif = new htif_emulator_t(args);
-}
-
-void htif_fini(vc_handle failure)
-{
-  delete htif;
-  htif = NULL;
-  exit(vc_getScalar(failure));
 }
 
 void htif_tick
