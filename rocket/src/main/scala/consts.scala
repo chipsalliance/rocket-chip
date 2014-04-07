@@ -17,6 +17,7 @@ trait ScalarOpConstants {
   val BR_GEU  = Bits(7, 3)
 
   val PC_EX  = UInt(0, 2)
+  val PC_MEM = UInt(1, 2)
   val PC_WB  = UInt(2, 2)
   val PC_PCR = UInt(3, 2)
 

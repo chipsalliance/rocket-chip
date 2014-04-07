@@ -118,9 +118,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     }
   }
 
-  io.ctrl.ex_rs(0) := ex_reg_inst(19,15)
-  io.ctrl.ex_rs(1) := ex_reg_inst(24,20)
-
   val bypass = Vec.fill(NBYP)(Bits())
   bypass(BYP_0) := Bits(0)
   bypass(BYP_EX) := mem_reg_wdata
@@ -169,11 +166,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
     Mux(a === SInt(-1) || a === SInt(-2), e === SInt(-1),
     e(0)))
   }
-  val ex_br_base = Mux(io.ctrl.ex_jalr, ex_rs(0), ex_reg_pc)
-  val ex_br_offset = Mux(io.ctrl.ex_predicted_taken, SInt(4), ex_imm(20,0).toSInt)
-  val ex_br64 = (ex_br_base + ex_br_offset) & SInt(-2)
-  val ex_br_msb = Mux(io.ctrl.ex_jalr, vaSign(ex_rs(0), ex_br64), vaSign(ex_reg_pc, ex_br64))
-  val ex_br_addr = Cat(ex_br_msb, ex_br64(VADDR_BITS-1,0))
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
@@ -196,17 +188,6 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.ptw.invalidate := pcr.io.fatc
   io.ptw.sret := io.ctrl.sret
   io.ptw.status := pcr.io.status
-  
-  // branch resolution logic
-  io.ctrl.jalr_eq := ex_rs(0) === id_pc.toSInt && ex_reg_inst(31,20) === UInt(0)
-  io.ctrl.ex_br_taken :=
-    Mux(io.ctrl.ex_br_type === BR_EQ,  ex_rs(0) === ex_rs(1),
-    Mux(io.ctrl.ex_br_type === BR_NE,  ex_rs(0) !=  ex_rs(1),
-    Mux(io.ctrl.ex_br_type === BR_LT,  ex_rs(0).toSInt < ex_rs(1).toSInt,
-    Mux(io.ctrl.ex_br_type === BR_GE,  ex_rs(0).toSInt >= ex_rs(1).toSInt,
-    Mux(io.ctrl.ex_br_type === BR_LTU, ex_rs(0) < ex_rs(1),
-    Mux(io.ctrl.ex_br_type === BR_GEU, ex_rs(0) >= ex_rs(1),
-        io.ctrl.ex_br_type === BR_J))))))
 
   // memory stage
   mem_reg_kill := ex_reg_kill
@@ -255,11 +236,20 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.fpu.dmem_resp_type := io.dmem.resp.bits.typ
   io.fpu.dmem_resp_tag := dmem_resp_waddr
 
+  io.ctrl.mem_br_taken := mem_reg_wdata(0)
+  val mem_br_target = mem_reg_pc +
+    Mux(io.ctrl.mem_branch && io.ctrl.mem_br_taken, imm(IMM_SB, mem_reg_inst),
+    Mux(!io.ctrl.mem_jalr && !io.ctrl.mem_branch, imm(IMM_UJ, mem_reg_inst), SInt(4)))
+  val mem_npc = Mux(io.ctrl.mem_jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(VADDR_BITS-1,0)), mem_br_target)
+  io.ctrl.mem_misprediction := mem_npc != Mux(io.ctrl.ex_valid, ex_reg_pc, id_pc)
+  io.ctrl.mem_rs1_ra := mem_reg_inst(19,15) === 1
+  val mem_int_wdata = Mux(io.ctrl.mem_jalr, mem_br_target, mem_reg_wdata)
+
   // writeback stage
   when (!mem_reg_kill) {
     wb_reg_pc := mem_reg_pc
     wb_reg_inst := mem_reg_inst
-    wb_reg_wdata := Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data, mem_reg_wdata)
+    wb_reg_wdata := Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data, mem_int_wdata)
   }
   when (io.ctrl.mem_rocc_val) {
     wb_reg_rs2 := mem_reg_rs2
@@ -290,12 +280,12 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
 
   // hook up I$
   io.imem.req.bits.pc :=
-    Mux(io.ctrl.sel_pc === PC_EX,  ex_br_addr,
+    Mux(io.ctrl.sel_pc === PC_MEM, mem_npc,
     Mux(io.ctrl.sel_pc === PC_PCR, pcr.io.evec,
         wb_reg_pc)).toUInt // PC_WB
-  io.imem.btb_update.bits.pc := ex_reg_pc
+  io.imem.btb_update.bits.pc := mem_reg_pc
   io.imem.btb_update.bits.target := io.imem.req.bits.pc
-  io.imem.btb_update.bits.returnAddr := io.dmem.req.bits.addr & SInt(-4)
+  io.imem.btb_update.bits.returnAddr := mem_int_wdata
   
   // for hazard/bypass opportunity detection
   io.ctrl.ex_waddr := ex_reg_inst(11,7)

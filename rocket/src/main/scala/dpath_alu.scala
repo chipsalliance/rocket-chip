@@ -14,10 +14,14 @@ object ALU
   val FN_OR   = Bits(6)
   val FN_AND  = Bits(7)
   val FN_SR   = Bits(5)
-  val FN_SUB  = Bits(8)
-  val FN_SLT  = Bits(10)
-  val FN_SLTU = Bits(11)
-  val FN_SRA  = Bits(13)
+  val FN_SEQ  = Bits(8)
+  val FN_SNE  = Bits(9)
+  val FN_SUB  = Bits(10)
+  val FN_SRA  = Bits(11)
+  val FN_SLT  = Bits(12)
+  val FN_SGE  = Bits(13)
+  val FN_SLTU = Bits(14)
+  val FN_SGEU = Bits(15)
 
   val FN_DIV  = FN_XOR
   val FN_DIVU = FN_SR
@@ -31,7 +35,9 @@ object ALU
 
   def isMulFN(fn: Bits, cmp: Bits) = fn(1,0) === cmp(1,0)
   def isSub(cmd: Bits) = cmd(3)
-  def isSLTU(cmd: Bits) = cmd(0)
+  def cmpUnsigned(cmd: Bits) = cmd(1)
+  def cmpInverted(cmd: Bits) = cmd(0)
+  def cmpEq(cmd: Bits) = !cmd(2)
 }
 import ALU._
 
@@ -52,8 +58,10 @@ class ALU(implicit conf: RocketConfiguration) extends Module
   val sum = io.in1 + Mux(isSub(io.fn), -io.in2, io.in2)
 
   // SLT, SLTU
-  val less  = Mux(io.in1(63) === io.in2(63), sum(63),
-              Mux(isSLTU(io.fn), io.in2(63), io.in1(63)))
+  val cmp = cmpInverted(io.fn) ^
+    Mux(cmpEq(io.fn), sum === UInt(0),
+    Mux(io.in1(63) === io.in2(63), sum(63),
+    Mux(cmpUnsigned(io.fn), io.in2(63), io.in1(63))))
 
   // SLL, SRL, SRA
   val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0)).toUInt
@@ -66,12 +74,12 @@ class ALU(implicit conf: RocketConfiguration) extends Module
 
   val out64 =
     Mux(io.fn === FN_ADD || io.fn === FN_SUB,  sum,
-    Mux(io.fn === FN_SLT || io.fn === FN_SLTU, less,
     Mux(io.fn === FN_SR  || io.fn === FN_SRA,  shout_r,
     Mux(io.fn === FN_SL,                       shout_l,
     Mux(io.fn === FN_AND,                      io.in1 & io.in2,
     Mux(io.fn === FN_OR,                       io.in1 | io.in2,
-                /*FN_XOR*/                     io.in1 ^ io.in2))))))
+    Mux(io.fn === FN_XOR,                      io.in1 ^ io.in2,
+                /* all comparisons */          cmp))))))
 
   val out_hi = Mux(io.dw === DW_64, out64(63,32), Fill(32, out64(31)))
   io.out := Cat(out_hi, out64(31,0)).toUInt
