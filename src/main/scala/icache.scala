@@ -70,7 +70,7 @@ class Frontend(implicit c: ICacheConfig, tl: TileLinkConfiguration) extends Modu
   val pcp4_0 = s1_pc + UInt(c.ibytes)
   val pcp4 = Cat(s1_pc(VADDR_BITS-1) & pcp4_0(VADDR_BITS-1), pcp4_0(VADDR_BITS-1,0))
   val icmiss = s2_valid && !icache.io.resp.valid
-  val predicted_npc = btbTarget /* zero if btb miss */ | Mux(btb.io.resp.bits.taken, UInt(0), pcp4)
+  val predicted_npc = Mux(btb.io.resp.bits.taken, btbTarget, pcp4)
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
   val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.resp.bits.taken && ((pcp4 & (c.databits/8)) === (s1_pc & (c.databits/8)))
 
