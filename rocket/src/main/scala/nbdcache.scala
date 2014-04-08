@@ -9,13 +9,10 @@ case class DCacheConfig(sets: Int, ways: Int,
                         tl: TileLinkConfiguration,
                         as: AddressSpaceConfiguration,
                         reqtagbits: Int, databits: Int,
-                        rowwords: Int = 8,
+                        rowwords: Int = 2,
                         code: Code = new IdentityCode,
                         narrowRead: Boolean = true)
 {
-  require(states > 0)
-  require(isPow2(sets))
-  require(isPow2(ways)) // TODO: relax this
   def states = tl.co.nClientStates
   def lines = sets*ways
   def dm = ways == 1
@@ -35,7 +32,7 @@ case class DCacheConfig(sets: Int, ways: Int,
   def rowbits = rowwords*databits
   def rowbytes = rowwords*databytes
   def rowoffbits = log2Up(rowbytes)
-  def refillcycles = tl.dataBits/(rowwords*databits)
+  def refillcycles = tl.dataBits/(rowbits)
   def isNarrowRead = narrowRead && databits*ways % rowbits == 0
   val statebits = log2Up(states)
   val metabits = statebits + tagbits
@@ -43,6 +40,11 @@ case class DCacheConfig(sets: Int, ways: Int,
   val encmetabits = code.width(metabits)
   val encrowbits = rowwords*encdatabits
   val lrsc_cycles = 32 // ISA requires 16-insn LRSC sequences to succeed
+
+  require(states > 0)
+  require(isPow2(sets))
+  require(isPow2(ways)) // TODO: relax this
+  require(rowbits <= tl.dataBits)
 }
 
 abstract trait DCacheBundle extends Bundle {
@@ -200,6 +202,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
   val idx_match = req_idx === io.req_bits.addr(conf.untagbits-1,conf.offbits)
   val sec_rdy = idx_match && (state === s_wb_req || state === s_wb_resp || state === s_meta_clear || (state === s_refill_req || state === s_refill_resp) && !tl.co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
 
+  require(isPow2(conf.refillcycles))
   val reply = io.mem_grant.valid && io.mem_grant.bits.payload.client_xact_id === UInt(id)
   val refill_done = reply && (if(conf.refillcycles > 1) refill_count.andR else Bool(true))
   val wb_done = reply && (state === s_wb_resp)
@@ -302,7 +305,6 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
   io.mem_req.bits.addr := Cat(io.tag, req_idx).toUInt
   io.mem_req.bits.client_xact_id := Bits(id)
   io.mem_finish <> ackq.io.deq
-  io.mem_req.bits.client_xact_id := Bits(id)
 
   io.meta_read.valid := state === s_drain_rpq
   io.meta_read.bits.addr := io.mem_req.bits.addr << conf.offbits
@@ -430,59 +432,73 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Module {
     val release = Decoupled(new Release)
   }
 
-  require(conf.refillcycles == 1) // TODO Currently will issue refillcycles distinct releases; need to merge if rowsize < tilelink.dataSize
-
-  val valid = Reg(init=Bool(false))
+  val active = Reg(init=Bool(false))
   val r1_data_req_fired = Reg(init=Bool(false))
   val r2_data_req_fired = Reg(init=Bool(false))
-  val cmd_sent = Reg(Bool())
-  val cnt = Reg(UInt(width = log2Up(conf.refillcycles+1)))
+  val cnt = Reg(init = UInt(0, width = log2Up(conf.refillcycles+1)))
   val req = Reg(new WritebackReq)
 
-  when (valid) {
+  io.release.valid := false
+  when (active) {
     r1_data_req_fired := false
     r2_data_req_fired := r1_data_req_fired
     when (io.data_req.fire() && io.meta_read.fire()) {
       r1_data_req_fired := true
       cnt := cnt + 1
     }
-    when (r2_data_req_fired && !io.release.ready) {
-      r1_data_req_fired := false
-      r2_data_req_fired := false
-      cnt := (if(conf.refillcycles > 1) cnt - Mux[UInt](r1_data_req_fired, 2, 1) else UInt(0))
+    if(conf.refillcycles > 1) { // Coalescing buffer inserted
+      when (!r1_data_req_fired && !r2_data_req_fired && cnt === conf.refillcycles) {
+        io.release.valid := true
+        active := !io.release.ready
+      }
+    } else {                    // No buffer, data released a cycle earlier
+      when (r2_data_req_fired) {
+        io.release.valid := true
+        when(!io.release.ready) {
+          r1_data_req_fired := false
+          r2_data_req_fired := false
+          cnt := UInt(0)
+        } .otherwise {
+          active := false
+        }
+      }
     }
-    when (io.release.fire()) {
-      cmd_sent := true
-    }
-    when (!r1_data_req_fired && !r2_data_req_fired && cmd_sent && cnt === conf.refillcycles) {
-      valid := false
-    }
-
   }
   when (io.req.fire()) {
-    valid := true
-    cmd_sent := false
+    active := true
     cnt := 0
     req := io.req.bits
   }
 
-  val fire = valid && cnt < UInt(conf.refillcycles)
-  io.req.ready := !valid
-  io.data_req.valid := fire
-  io.data_req.bits.way_en := req.way_en
-  io.data_req.bits.addr := (if(conf.refillcycles > 1) Cat(req.idx, cnt(log2Up(conf.refillcycles)-1,0)) 
-                            else req.idx) << conf.rowoffbits
-
-  io.release.valid := valid && r2_data_req_fired
-  io.release.bits.r_type := req.r_type
-  io.release.bits.addr := Cat(req.tag, req.idx).toUInt
-  io.release.bits.client_xact_id := req.client_xact_id
-  io.release.bits.master_xact_id := req.master_xact_id
-  io.release.bits.data := io.data_resp
+  val fire = active && cnt < UInt(conf.refillcycles)
+  io.req.ready := !active
 
   // We reissue the meta read as it sets up the muxing for s2_data_muxed
   io.meta_read.valid := fire
   io.meta_read.bits.addr := io.release.bits.addr << conf.offbits
+
+  io.data_req.valid := fire
+  io.data_req.bits.way_en := req.way_en
+  if(conf.refillcycles > 1) {
+    io.data_req.bits.addr := Cat(req.idx, cnt(log2Up(conf.refillcycles)-1,0)) << conf.rowoffbits
+  } else {
+    io.data_req.bits.addr := req.idx << conf.rowoffbits
+  }
+
+  io.release.bits.r_type := req.r_type
+  io.release.bits.addr := Cat(req.tag, req.idx).toUInt
+  io.release.bits.client_xact_id := req.client_xact_id
+  io.release.bits.master_xact_id := req.master_xact_id
+  if(conf.refillcycles > 1) {
+    val data_buf = Reg(Bits())
+    when(active && r2_data_req_fired) {
+      data_buf := Cat(io.data_resp, data_buf(conf.refillcycles*conf.encrowbits-1, conf.encrowbits))
+    }
+    io.release.bits.data := data_buf
+  } else {
+    io.release.bits.data := io.data_resp
+  }
+
 }
 
 class ProbeUnit(implicit conf: DCacheConfig) extends Module {
@@ -541,7 +557,7 @@ class ProbeUnit(implicit conf: DCacheConfig) extends Module {
   }
 
   io.req.ready := state === s_invalid
-  io.rep.valid := state === s_release && !tl.co.needsWriteback(line_state)
+  io.rep.valid := state === s_release && !(hit && tl.co.needsWriteback(line_state))
   io.rep.bits := Release(tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.newStateOnFlush)), req.addr, req.client_xact_id, req.master_xact_id)
 
   io.meta_read.valid := state === s_meta_read
@@ -827,8 +843,6 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   // data
   val data = Module(new DataArray)
   val readArb = Module(new Arbiter(new DataReadReq, 4))
-  readArb.io.out.ready := !io.mem.grant.valid || io.mem.grant.ready // insert bubble if refill gets blocked
-  readArb.io.out <> data.io.read
 
   val writeArb = Module(new Arbiter(new DataWriteReq, 2))
   data.io.write.valid := writeArb.io.out.valid
@@ -912,7 +926,9 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   }
 
   writeArb.io.in(0).bits.addr := s3_req.addr
-  writeArb.io.in(0).bits.wmask := UInt(1) << s3_req.addr(conf.rowoffbits-1,offsetlsb).toUInt
+  writeArb.io.in(0).bits.wmask := UInt(1) << (if(conf.rowoffbits > offsetlsb) 
+                                                s3_req.addr(conf.rowoffbits-1,offsetlsb).toUInt
+                                              else UInt(0))
   writeArb.io.in(0).bits.data := Fill(conf.rowwords, s3_req.data)
   writeArb.io.in(0).valid := s3_valid
   writeArb.io.in(0).bits.way_en :=  s3_way
@@ -932,8 +948,6 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   mshrs.io.req.bits.data := s2_req.data
   when (mshrs.io.req.fire()) { replacer.miss }
 
-  mshrs.io.mem_grant.valid := io.mem.grant.fire()
-  mshrs.io.mem_grant.bits := io.mem.grant.bits
   io.mem.acquire <> DecoupledLogicalNetworkIOWrapper(mshrs.io.mem_req)
 
   // replays
@@ -944,6 +958,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   s1_replay := mshrs.io.replay.valid && readArb.io.in(1).ready
   metaReadArb.io.in(1) <> mshrs.io.meta_read
   metaWriteArb.io.in(0) <> mshrs.io.meta_write
+
   // probes
   val releaseArb = Module(new Arbiter(new Release, 2))
   DecoupledLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release
@@ -960,12 +975,21 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   prober.io.mshr_rdy := mshrs.io.probe_rdy
 
   // refills
-  val refill = tl.co.messageUpdatesDataArray(io.mem.grant.bits.payload)
-  writeArb.io.in(1).valid := io.mem.grant.valid && refill
-  io.mem.grant.ready := writeArb.io.in(1).ready || !refill
+  def doRefill(g: Grant): Bool = tl.co.messageUpdatesDataArray(g)
+  val refill = if(conf.refillcycles > 1) {
+    val ser = Module(new FlowThroughSerializer(io.mem.grant.bits, conf.refillcycles, doRefill))
+    ser.io.in <> io.mem.grant
+    ser.io.out
+  } else io.mem.grant
+  mshrs.io.mem_grant.valid := refill.fire()
+  mshrs.io.mem_grant.bits := refill.bits
+  refill.ready := writeArb.io.in(1).ready || !doRefill(refill.bits.payload)
+  writeArb.io.in(1).valid := refill.valid && doRefill(refill.bits.payload)
   writeArb.io.in(1).bits := mshrs.io.mem_resp
   writeArb.io.in(1).bits.wmask := SInt(-1)
-  writeArb.io.in(1).bits.data := io.mem.grant.bits.payload.data
+  writeArb.io.in(1).bits.data := refill.bits.payload.data(conf.encrowbits-1,0)
+  readArb.io.out.ready := !refill.valid || refill.ready // insert bubble if refill gets blocked
+  readArb.io.out <> data.io.read
 
   // writebacks
   val wbArb = Module(new Arbiter(new WritebackReq, 2))
