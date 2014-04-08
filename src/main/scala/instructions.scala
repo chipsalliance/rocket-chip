@@ -221,6 +221,7 @@ object CSRs {
   val fflags = 0x1
   val frm = 0x2
   val fcsr = 0x3
+  val stats = 0xc0
   val sup0 = 0x500
   val sup1 = 0x501
   val epc = 0x502
@@ -237,7 +238,6 @@ object CSRs {
   val fatc = 0x50d
   val send_ipi = 0x50e
   val clear_ipi = 0x50f
-  val stats = 0x51c
   val reset = 0x51d
   val tohost = 0x51e
   val fromhost = 0x51f
@@ -269,6 +269,7 @@ object CSRs {
     res += fflags
     res += frm
     res += fcsr
+    res += stats
     res += sup0
     res += sup1
     res += epc
@@ -285,7 +286,6 @@ object CSRs {
     res += fatc
     res += send_ipi
     res += clear_ipi
-    res += stats
     res += reset
     res += tohost
     res += fromhost
