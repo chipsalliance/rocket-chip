@@ -204,12 +204,16 @@ class BTB(implicit conf: BTBConfig) extends Module {
 
   if (conf.nras > 0) {
     val ras = new RAS
-    when (!ras.isEmpty && Mux1H(hits, useRAS)) {
+    val doPeek = Mux1H(hits, useRAS)
+    when (!ras.isEmpty && doPeek) {
       io.resp.bits.target := ras.peek
     }
     when (io.update.valid) {
       when (io.update.bits.isCall) {
         ras.push(io.update.bits.returnAddr)
+        when (doPeek) {
+          io.resp.bits.target := io.update.bits.returnAddr
+        }
       }.elsewhen (io.update.bits.isReturn && io.update.bits.prediction.valid) {
         ras.pop
       }
