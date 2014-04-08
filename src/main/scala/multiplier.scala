@@ -91,10 +91,16 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
     val mpcand = divisor.toSInt
     val prod = mplier(mulUnroll-1,0) * mpcand + accum
     val nextMulReg = Cat(prod, mplier(mulw-1,mulUnroll)).toUInt
-    remainder := Cat(nextMulReg >> w, Bool(false), nextMulReg(w-1,0)).toSInt
+
+    val eOutMask = (SInt(BigInt(-1) << mulw) >> (count * mulUnroll)(log2Up(mulw)-1,0))(mulw-1,0)
+    val eOut = Bool(earlyOut) && count != mulw/mulUnroll-1 && count != 0 &&
+      !isHi && (mplier & ~eOutMask) === UInt(0)
+    val eOutRes = (mulReg >> (mulw - count * mulUnroll)(log2Up(mulw)-1,0))
+    val nextMulReg1 = Cat(nextMulReg(2*mulw,mulw), Mux(eOut, eOutRes, nextMulReg)(mulw-1,0))
+    remainder := Cat(nextMulReg1 >> w, Bool(false), nextMulReg1(w-1,0)).toSInt
 
     count := count + 1
-    when (count === mulw/mulUnroll-1) {
+    when (eOut || count === mulw/mulUnroll-1) {
       state := Mux(isHi, s_move_rem, s_done)
     }
   }
