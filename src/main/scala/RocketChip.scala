@@ -8,8 +8,8 @@ import ReferenceChipBackend._
 import scala.collection.mutable.HashMap
 import DRAMModel._
 
-object DummyTopLevelConstants {
-  val NTILES = 2
+object DesignSpaceConstants {
+  val NTILES = 1
   val NBANKS = 1
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
@@ -18,13 +18,31 @@ object DummyTopLevelConstants {
   val NL2_REL_XACTS = 1
   val NL2_ACQ_XACTS = 7
   val NMSHRS = 2
+}
+
+object MemoryConstants {
+  val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 //TODO: How configurable is this really?
+  val OFFSET_BITS = log2Up(CACHE_DATA_SIZE_IN_BYTES)
+  val PADDR_BITS = 32
+  val VADDR_BITS = 43
+  val PGIDX_BITS = 13
+  val ASID_BITS = 7
+  val PERM_BITS = 6
   val MEM_TAG_BITS = 5
   val MEM_DATA_BITS = 128
   val MEM_ADDR_BITS = PADDR_BITS - OFFSET_BITS
   val MEM_DATA_BEATS = 4
 }
 
-import DummyTopLevelConstants._
+object TileLinkSizeConstants {
+  val WRITE_MASK_BITS = 6
+  val SUBWORD_ADDR_BITS = 3
+  val ATOMIC_OP_BITS = 4
+}
+
+import DesignSpaceConstants._
+import MemoryConstants._
+import TileLinkSizeConstants._
 
 object ReferenceChipBackend {
   val initMap = new HashMap[Module, Bool]()
@@ -150,7 +168,7 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
   io.mem_backup <> mem_serdes.io.narrow
 }
 
-case class UncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, mif: MemoryIFConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int, nSCR: Int)
+case class UncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, mif: MemoryIFConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int, nSCR: Int, offsetBits: Int)
 
 class Uncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
 {
@@ -164,7 +182,7 @@ class Uncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
     val mem_backup = new MemSerializedIO(htif_width)
     val mem_backup_en = Bool(INPUT)
   }
-  val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR))
+  val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR, conf.offsetBits))
   val outmemsys = Module(new OuterMemorySystem(htif_width))
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif
@@ -250,19 +268,29 @@ class Top extends Module {
             }
 
   implicit val ln = LogicalNetworkConfiguration(log2Up(NTILES)+1, NBANKS, NTILES+1)
-  implicit val tl = TileLinkConfiguration(co, ln, log2Up(NL2_REL_XACTS+NL2_ACQ_XACTS), 2*log2Up(NMSHRS*NTILES+1), CACHE_DATA_SIZE_IN_BYTES*8)
+  implicit val as = AddressSpaceConfiguration(PADDR_BITS, VADDR_BITS, PGIDX_BITS, ASID_BITS, PERM_BITS)
+  implicit val tl = TileLinkConfiguration(co = co, ln = ln, 
+                                          addrBits = as.paddrBits-OFFSET_BITS, 
+                                          clientXactIdBits = log2Up(NL2_REL_XACTS+NL2_ACQ_XACTS), 
+                                          masterXactIdBits = 2*log2Up(NMSHRS*NTILES+1), 
+                                          dataBits = CACHE_DATA_SIZE_IN_BYTES*8, 
+                                          writeMaskBits = WRITE_MASK_BITS, 
+                                          wordAddrBits = SUBWORD_ADDR_BITS, 
+                                          atomicOpBits = ATOMIC_OP_BITS)
   implicit val l2 = L2CoherenceAgentConfiguration(tl, NL2_REL_XACTS, NL2_ACQ_XACTS)
   implicit val mif = MemoryIFConfiguration(MEM_ADDR_BITS, MEM_DATA_BITS, MEM_TAG_BITS, MEM_DATA_BEATS)
-  implicit val uc = UncoreConfiguration(l2, tl, mif, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64)
+  implicit val uc = UncoreConfiguration(l2, tl, mif, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64, offsetBits = OFFSET_BITS)
 
-  val ic = ICacheConfig(128, 2, ntlb = 8, nbtb = 38, tl = tl)
-  val dc = DCacheConfig(128, 4, ntlb = 8, 
-                        nmshr = NMSHRS, nrpq = 16, nsdq = 17, tl = tl)
-  val vic = ICacheConfig(128, 1, tl = tl)
-  val hc = hwacha.HwachaConfiguration(vic, dc, 8, 256, ndtlb = 8, nptlb = 2)
+  val ic = ICacheConfig(sets = 128, assoc = 2, ntlb = 8, tl = tl, as = as, btb = BTBConfig(as, 8))
+  val dc = DCacheConfig(sets = 128, ways = 4, 
+                        tl = tl, as = as,
+                        ntlb = 8, nmshr = NMSHRS, nrpq = 16, nsdq = 17, 
+                        reqtagbits = -1, databits = -1)
+  val vic = ICacheConfig(sets = 128, assoc = 1, tl = tl, as = as, btb = BTBConfig(as, 8))
+  val hc = hwacha.HwachaConfiguration(as, vic, dc, 8, 256, ndtlb = 8, nptlb = 2)
   val fpu = if (HAS_FPU) Some(FPUConfig(sfmaLatency = 2, dfmaLatency = 3)) else None
-  val rc = RocketConfiguration(tl, ic, dc, fpu
-                               //,rocc = (c: RocketConfiguration) => (new hwacha.Hwacha(hc, c))
+  val rc = RocketConfiguration(tl, as, ic, dc, fpu,
+                               rocc = (c: RocketConfiguration) => (new hwacha.Hwacha(hc, c))
                               )
 
   val io = new VLSITopIO(HTIF_WIDTH)

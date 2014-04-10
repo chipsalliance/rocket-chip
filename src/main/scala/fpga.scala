@@ -47,7 +47,7 @@ class FPGAUncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Mo
     val htif = Vec.fill(conf.nTiles){new HTIFIO(conf.nTiles)}.flip
     val incoherent = Vec.fill(conf.nTiles){Bool()}.asInput
   }
-  val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR))
+  val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR, conf.offsetBits))
   val outmemsys = Module(new FPGAOuterMemorySystem(htif_width))
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif
@@ -73,6 +73,9 @@ class FPGAUncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Mo
   htif.io.host.in <> io.host.in
 }
 
+import MemoryConstants._
+import TileLinkSizeConstants._
+
 class ReferenceChip(htif_width: Int)(implicit mif: MemoryIFConfiguration) extends Module {
   val io = new Bundle {
     val host_in = new DecoupledIO(new HostPacket(htif_width)).flip()
@@ -90,13 +93,21 @@ class ReferenceChip(htif_width: Int)(implicit mif: MemoryIFConfiguration) extend
   val nbanks = 1
   val nmshrs = 2
   implicit val ln = LogicalNetworkConfiguration(log2Up(ntiles)+1, nbanks, ntiles+1)
-  implicit val tl = TileLinkConfiguration(co, ln, log2Up(1+8), 2*log2Up(nmshrs*ntiles+1), CACHE_DATA_SIZE_IN_BYTES*8)
+  implicit val as = AddressSpaceConfiguration(PADDR_BITS, VADDR_BITS, PGIDX_BITS, ASID_BITS, PERM_BITS)
+  implicit val tl = TileLinkConfiguration(co = co, ln = ln,
+                                          addrBits = as.paddrBits-OFFSET_BITS, 
+                                          clientXactIdBits = log2Up(1+8), 
+                                          masterXactIdBits = 2*log2Up(2*1+1), 
+                                          dataBits = CACHE_DATA_SIZE_IN_BYTES*8, 
+                                          writeMaskBits = WRITE_MASK_BITS, 
+                                          wordAddrBits = SUBWORD_ADDR_BITS, 
+                                          atomicOpBits = ATOMIC_OP_BITS)
   implicit val l2 = L2CoherenceAgentConfiguration(tl, 1, 8)
-  implicit val uc = UncoreConfiguration(l2, tl, mif, ntiles, nbanks, bankIdLsb = 5, nSCR = 64)
+  implicit val uc = UncoreConfiguration(l2, tl, mif, ntiles, nbanks, bankIdLsb = 5, nSCR = 64, offsetBits = OFFSET_BITS)
 
-  val ic = ICacheConfig(64, 1, ntlb = 4, nbtb = 4, tl = tl)
-  val dc = DCacheConfig(64, 1, ntlb = 4, nmshr = 2, nrpq = 16, nsdq = 17, tl = tl)
-  val rc = RocketConfiguration(tl, ic, dc, fpu = None,
+  val ic = ICacheConfig(64, 1, ntlb = 4, tl = tl, as = as, btb = BTBConfig(as, 8))
+  val dc = DCacheConfig(64, 1, ntlb = 4, nmshr = 2, nrpq = 16, nsdq = 17, tl = tl, as = as, reqtagbits = -1, databits = -1)
+  val rc = RocketConfiguration(tl, as, ic, dc, fpu = None,
                                fastMulDiv = false)
 
   val resetSigs = Vec.fill(uc.nTiles){Bool()}
@@ -138,13 +149,14 @@ class ReferenceChip(htif_width: Int)(implicit mif: MemoryIFConfiguration) extend
   io.mem_resp <> uncore.io.mem.resp
 }
 
+import MemoryConstants._
 
 class FPGATopIO(htifWidth: Int)(implicit conf: MemoryIFConfiguration) extends TopIO(htifWidth)(conf)
 
 class FPGATop extends Module {
   val htif_width = 16
   
-  implicit val mif = MemoryIFConfiguration(PADDR_BITS - OFFSET_BITS, 128, 5, 4)
+  implicit val mif = MemoryIFConfiguration(MEM_ADDR_BITS, MEM_DATA_BITS, MEM_TAG_BITS, 4)
   val deviceWidth = ROW_WIDTH/mif.dataBits
   implicit val mc = MemoryControllerConfiguration(deviceWidth, (if(deviceWidth == 4) 0 else log2Up(deviceWidth/4)), mif)
 
