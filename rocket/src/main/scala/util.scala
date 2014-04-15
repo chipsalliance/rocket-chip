@@ -201,6 +201,7 @@ class FlowThroughSerializer[T <: HasTileLinkData](gen: LogicalNetworkIO[T], n: I
     when(io.out.ready) { 
       cnt := cnt + UInt(1)
       when(wrap) {
+        cnt := UInt(0)
         io.done := Bool(true)
         active := Bool(false)
       }
