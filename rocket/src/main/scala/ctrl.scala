@@ -655,7 +655,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     Mux(replay_wb,        PC_WB,  // replay
                           PC_MEM)))
 
-  io.imem.btb_update.valid := (mem_reg_branch || mem_reg_jal || mem_reg_jalr) && !take_pc_wb && !mem_reg_xcpt
+  io.imem.btb_update.valid := mem_reg_branch || mem_reg_jal || mem_reg_jalr
   io.imem.btb_update.bits.prediction.valid := mem_reg_btb_hit
   io.imem.btb_update.bits.prediction.bits := mem_reg_btb_resp
   io.imem.btb_update.bits.taken := mem_reg_jal || mem_reg_branch && io.dpath.mem_br_taken
