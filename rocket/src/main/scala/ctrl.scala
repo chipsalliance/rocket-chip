@@ -601,6 +601,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     wb_reg_rocc_val := mem_reg_rocc_val
   }
 
+  val wb_set_sboard = wb_reg_div_mul_val || wb_dcache_miss || wb_reg_rocc_val
   val replay_wb_common = 
     io.dmem.resp.bits.nack || wb_reg_replay || io.dpath.csr_replay
   val wb_rocc_val = wb_reg_rocc_val && !replay_wb_common
@@ -625,7 +626,6 @@ class Control(implicit conf: RocketConfiguration) extends Module
   }
 
   val sboard = new Scoreboard(32)
-  sboard.set((wb_reg_div_mul_val || wb_dcache_miss || wb_reg_rocc_val) && io.dpath.wb_wen, io.dpath.wb_waddr)
   sboard.clear(io.dpath.ll_wen, io.dpath.ll_waddr)
 
   val id_stall_fpu = if (!conf.fpu.isEmpty) {
@@ -711,17 +711,24 @@ class Control(implicit conf: RocketConfiguration) extends Module
   id_load_use := mem_reg_mem_val && (data_hazard_mem || fp_data_hazard_mem)
 
   // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
+  val data_hazard_wb = wb_reg_wen &&
+    (id_renx1_not0 && id_raddr1 === io.dpath.wb_waddr ||
+     id_renx2_not0 && id_raddr2 === io.dpath.wb_waddr ||
+     id_wen_not0   && id_waddr  === io.dpath.wb_waddr)
   val fp_data_hazard_wb = wb_reg_fp_wen &&
     (io.fpu.dec.ren1 && id_raddr1 === io.dpath.wb_waddr ||
      io.fpu.dec.ren2 && id_raddr2 === io.dpath.wb_waddr ||
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.wb_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.wb_waddr)
-  val id_wb_hazard = fp_data_hazard_wb && (wb_dcache_miss || wb_reg_fp_val)
+  val id_wb_hazard = data_hazard_wb && wb_set_sboard ||
+                     fp_data_hazard_wb && (wb_dcache_miss || wb_reg_fp_val)
 
   val id_sboard_hazard =
     (id_renx1_not0 && sboard.readBypassed(id_raddr1) ||
      id_renx2_not0 && sboard.readBypassed(id_raddr2) ||
      id_wen_not0   && sboard.readBypassed(id_waddr))
+
+  sboard.set(wb_set_sboard && io.dpath.wb_wen, io.dpath.wb_waddr)
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
