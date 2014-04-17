@@ -637,10 +637,10 @@ class DataArray(implicit conf: DCacheConfig) extends Module {
         resp(p) := array(RegEnable(raddr, rway_en.orR && io.read.valid))
       }
       for (dw <- 0 until conf.rowwords) {
-        val r = AVec(resp.map(_(conf.encdatabits*(dw+1)-1,conf.encdatabits*dw)))
+        val r = Vec(resp.map(_(conf.encdatabits*(dw+1)-1,conf.encdatabits*dw)))
         val resp_mux =
           if (r.size == 1) r
-          else AVec(r(r_raddr(conf.rowoffbits-1,conf.wordoffbits)), r.tail:_*)
+          else Vec(r(r_raddr(conf.rowoffbits-1,conf.wordoffbits)), r.tail:_*)
         io.resp(w+dw) := resp_mux.toBits
       }
     }
@@ -849,7 +849,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   writeArb.io.out.ready := data.io.write.ready
   data.io.write.bits := writeArb.io.out.bits
   val wdata_encoded = (0 until conf.rowwords).map(i => conf.code.encode(writeArb.io.out.bits.data(conf.databits*(i+1)-1,conf.databits*i)))
-  data.io.write.bits.data := AVec(wdata_encoded).toBits
+  data.io.write.bits.data := Vec(wdata_encoded).toBits
 
   // tag read for new requests
   metaReadArb.io.in(4).valid := io.cpu.req.valid
@@ -911,10 +911,10 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   }
   val s2_data_muxed = Mux1H(s2_tag_match_way, s2_data)
   val s2_data_decoded = (0 until conf.rowwords).map(i => conf.code.decode(s2_data_muxed(conf.encdatabits*(i+1)-1,conf.encdatabits*i)))
-  val s2_data_corrected = AVec(s2_data_decoded.map(_.corrected)).toBits
-  val s2_data_uncorrected = AVec(s2_data_decoded.map(_.uncorrected)).toBits
+  val s2_data_corrected = Vec(s2_data_decoded.map(_.corrected)).toBits
+  val s2_data_uncorrected = Vec(s2_data_decoded.map(_.uncorrected)).toBits
   val s2_word_idx = if (conf.isNarrowRead) UInt(0) else s2_req.addr(log2Up(conf.rowwords*conf.databytes)-1,3)
-  val s2_data_correctable = AVec(s2_data_decoded.map(_.correctable)).toBits()(s2_word_idx)
+  val s2_data_correctable = Vec(s2_data_decoded.map(_.correctable)).toBits()(s2_word_idx)
   
   // store/amo hits
   s3_valid := (s2_valid_masked && s2_hit || s2_replay) && !s2_sc_fail && isWrite(s2_req.cmd)
