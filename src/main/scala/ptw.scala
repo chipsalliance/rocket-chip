@@ -48,7 +48,7 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
   val r_req_dest = Reg(Bits())
   val r_pte = Reg(Bits())
   
-  val vpn_idx = AVec((0 until levels).map(i => (r_req_vpn >> (levels-i-1)*bitsPerLevel)(bitsPerLevel-1,0)))(count)
+  val vpn_idx = Vec((0 until levels).map(i => (r_req_vpn >> (levels-i-1)*bitsPerLevel)(bitsPerLevel-1,0)))(count)
 
   val arb = Module(new RRArbiter(UInt(width = conf.as.vpnBits), n))
   arb.io.in <> io.requestor.map(_.req)
@@ -75,7 +75,7 @@ class PTW(n: Int)(implicit conf: RocketConfiguration) extends Module
   val resp_err = state === s_error || state === s_wait
 
   val r_resp_ppn = io.mem.req.bits.addr >> conf.as.pgIdxBits
-  val resp_ppn = AVec((0 until levels-1).map(i => Cat(r_resp_ppn >> bitsPerLevel*(levels-i-1), r_req_vpn(bitsPerLevel*(levels-i-1)-1,0))) :+ r_resp_ppn)(count)
+  val resp_ppn = Vec((0 until levels-1).map(i => Cat(r_resp_ppn >> bitsPerLevel*(levels-i-1), r_req_vpn(bitsPerLevel*(levels-i-1)-1,0))) :+ r_resp_ppn)(count)
 
   for (i <- 0 until io.requestor.size) {
     val me = r_req_dest === UInt(i)

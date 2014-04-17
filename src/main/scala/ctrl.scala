@@ -512,7 +512,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val replay_ex = replay_ex_structural || replay_ex_other
   ctrl_killx := take_pc_mem_wb || replay_ex
   // detect 2-cycle load-use delay for LB/LH/SC
-  val ex_slow_bypass = ex_reg_mem_cmd === M_XSC || AVec(MT_B, MT_BU, MT_H, MT_HU).contains(ex_reg_mem_type)
+  val ex_slow_bypass = ex_reg_mem_cmd === M_XSC || Vec(MT_B, MT_BU, MT_H, MT_HU).contains(ex_reg_mem_type)
 
   val (ex_xcpt, ex_cause) = checkExceptions(List(
     (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause),
