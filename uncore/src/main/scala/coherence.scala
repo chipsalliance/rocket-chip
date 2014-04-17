@@ -52,8 +52,6 @@ abstract class CoherencePolicy {
   def requiresAckForGrant(g_type: UInt): Bool
   def requiresAckForRelease(r_type: UInt): Bool
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool
-
-  def uIntListContains(list: List[UInt], elem: UInt): Bool = list.map(elem === _).reduceLeft(_||_)
 }
 
 trait UncachedTransactions {
@@ -96,10 +94,9 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   val acquireReadClean :: acquireReadDirty :: acquireWriteback :: Nil = Enum(UInt(), nAcquireTypes)
   val releaseVoluntaryInvalidateData :: releaseInvalidateAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantVoluntaryAck :: grantData :: grantAck :: Nil = Enum(UInt(), nGrantTypes)
-  val uncachedAcquireTypeList = List() 
-  val hasDataAcquireTypeList = List(acquireWriteback)
-  val hasDataReleaseTypeList = List(acquireWriteback)
-  val hasDataGrantTypeList = List(grantData)
+  val hasDataAcquireTypeVec = Vec(acquireWriteback)
+  val hasDataReleaseTypeVec = Vec(acquireWriteback)
+  val hasDataGrantTypeVec = Vec(grantData)
 
   def isHit ( cmd: UInt, state: UInt): Bool = (state === tileClean || state === tileDirty)
   def isValid (state: UInt): Bool = state != tileInvalid
@@ -135,13 +132,13 @@ class ThreeStateIncoherence extends IncoherentPolicy {
   def getReleaseTypeOnVoluntaryWriteback(): UInt = releaseVoluntaryInvalidateData
 
   def messageHasData( msg: SourcedMessage ) = msg match {
-    case acq: Acquire => uIntListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uIntListContains(hasDataGrantTypeList, grant.g_type) 
+    case acq: Acquire => hasDataAcquireTypeVec.contains(acq.a_type)
+    case grant: Grant => hasDataGrantTypeVec.contains(grant.g_type) 
     case rel: Release => Bool(false)
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant) = (reply.g_type === grantData)
-  def messageIsUncached(acq: Acquire): Bool = uIntListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = Bool(false)
 }
 
 class MICoherence extends CoherencePolicyWithUncached {
@@ -160,10 +157,10 @@ class MICoherence extends CoherencePolicyWithUncached {
   val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(UInt(), nGrantTypes)
 
-  val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
-  val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
-  val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseCopyData)
-  val hasDataGrantTypeList = List(grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
+  val uncachedAcquireTypeVec = Vec(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
+  val hasDataAcquireTypeVec = Vec(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
+  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseCopyData)
+  val hasDataGrantTypeVec = Vec(grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
   def isHit (cmd: UInt, state: UInt): Bool = state != tileInvalid
   def isValid (state: UInt): Bool = state != tileInvalid
@@ -231,15 +228,15 @@ class MICoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uIntListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uIntListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uIntListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => hasDataAcquireTypeVec.contains(acq.a_type)
+    case grant: Grant => hasDataGrantTypeVec.contains(grant.g_type) 
+    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadExclusive)
   }
-  def messageIsUncached(acq: Acquire): Bool = uIntListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uncachedAcquireTypeVec.contains(acq.a_type)
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
@@ -302,10 +299,10 @@ class MEICoherence extends CoherencePolicyWithUncached {
   val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantVoluntaryAck :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(UInt(), nGrantTypes)
 
-  val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
-  val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
-  val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  val hasDataGrantTypeList = List(grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
+  val uncachedAcquireTypeVec = Vec(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
+  val hasDataAcquireTypeVec = Vec(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
+  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  val hasDataGrantTypeVec = Vec(grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
   def isHit (cmd: UInt, state: UInt): Bool = state != tileInvalid
   def isValid (state: UInt): Bool = state != tileInvalid
@@ -386,15 +383,15 @@ class MEICoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uIntListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uIntListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uIntListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => hasDataAcquireTypeVec.contains(acq.a_type)
+    case grant: Grant => hasDataGrantTypeVec.contains(grant.g_type) 
+    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadExclusive)
   }
-  def messageIsUncached(acq: Acquire): Bool = uIntListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uncachedAcquireTypeVec.contains(acq.a_type)
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
@@ -460,10 +457,10 @@ class MSICoherence extends CoherencePolicyWithUncached {
   val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(UInt(), nGrantTypes)
 
-  val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
-  val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
-  val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  val hasDataGrantTypeList = List(grantReadShared, grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
+  val uncachedAcquireTypeVec = Vec(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
+  val hasDataAcquireTypeVec = Vec(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
+  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  val hasDataGrantTypeVec = Vec(grantReadShared, grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
   def isHit (cmd: UInt, state: UInt): Bool = {
     Mux(isWriteIntent(cmd), (state === tileExclusiveDirty),
@@ -550,15 +547,15 @@ class MSICoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uIntListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uIntListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uIntListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => hasDataAcquireTypeVec.contains(acq.a_type)
+    case grant: Grant => hasDataGrantTypeVec.contains(grant.g_type) 
+    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadShared || reply.g_type === grantReadExclusive)
   }
-  def messageIsUncached(acq: Acquire): Bool = uIntListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uncachedAcquireTypeVec.contains(acq.a_type)
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
@@ -621,10 +618,10 @@ class MESICoherence extends CoherencePolicyWithUncached {
   val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: Nil = Enum(UInt(), nGrantTypes)
 
-  val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
-  val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
-  val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  val hasDataGrantTypeList = List(grantReadShared, grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
+  val uncachedAcquireTypeVec = Vec(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
+  val hasDataAcquireTypeVec = Vec(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached) 
+  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  val hasDataGrantTypeVec = Vec(grantReadShared, grantReadExclusive, grantReadUncached, grantReadWordUncached, grantAtomicUncached)
 
   def isHit (cmd: UInt, state: UInt): Bool = {
     Mux(isWriteIntent(cmd), (state === tileExclusiveClean || state === tileExclusiveDirty),
@@ -711,15 +708,15 @@ class MESICoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uIntListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uIntListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uIntListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => hasDataAcquireTypeVec.contains(acq.a_type)
+    case grant: Grant => hasDataGrantTypeVec.contains(grant.g_type) 
+    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
     case _ => Bool(false)
   }
   def messageUpdatesDataArray (reply: Grant): Bool = {
     (reply.g_type === grantReadShared || reply.g_type === grantReadExclusive)
   }
-  def messageIsUncached(acq: Acquire): Bool = uIntListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageIsUncached(acq: Acquire): Bool = uncachedAcquireTypeVec.contains(acq.a_type)
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
@@ -785,13 +782,13 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(UInt(), nReleaseTypes)
   val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadUncached :: grantWriteUncached :: grantReadExclusiveAck :: grantReadWordUncached :: grantWriteWordUncached :: grantAtomicUncached :: grantReadMigratory :: Nil = Enum(UInt(), nGrantTypes)
 
-  val uncachedAcquireTypeList = List(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
-  val hasDataAcquireTypeList = List(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
-  val hasDataGrantTypeList = List(grantReadShared, grantReadExclusive, grantReadUncached, grantReadMigratory, grantReadWordUncached, grantAtomicUncached)
-  val hasDataReleaseTypeList = List(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
+  val uncachedAcquireTypeVec = Vec(acquireReadUncached, acquireWriteUncached, acquireReadWordUncached, acquireWriteWordUncached, acquireAtomicUncached) 
+  val hasDataAcquireTypeVec = Vec(acquireWriteUncached, acquireWriteWordUncached, acquireAtomicUncached)
+  val hasDataGrantTypeVec = Vec(grantReadShared, grantReadExclusive, grantReadUncached, grantReadMigratory, grantReadWordUncached, grantAtomicUncached)
+  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
 
   def isHit (cmd: UInt, state: UInt): Bool = {
-    Mux(isWriteIntent(cmd), uIntListContains(List(tileExclusiveClean, tileExclusiveDirty, tileMigratoryClean, tileMigratoryDirty), state), (state != tileInvalid))
+    Mux(isWriteIntent(cmd), Vec(tileExclusiveClean, tileExclusiveDirty, tileMigratoryClean, tileMigratoryDirty).contains(state), (state != tileInvalid))
   }
   def isValid (state: UInt): Bool = {
     state != tileInvalid
@@ -803,8 +800,8 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   }
   def needsTransactionOnCacheControl(cmd: UInt, state: UInt): Bool = {
     MuxLookup(cmd, (state === tileExclusiveDirty), Array(
-      M_INV -> uIntListContains(List(tileExclusiveDirty,tileMigratoryDirty),state),
-      M_CLN -> uIntListContains(List(tileExclusiveDirty,tileMigratoryDirty),state)
+      M_INV -> Vec(tileExclusiveDirty,tileMigratoryDirty).contains(state),
+      M_CLN -> Vec(tileExclusiveDirty,tileMigratoryDirty).contains(state)
     ))
   }
   def needsWriteback (state: UInt): Bool = {
@@ -875,7 +872,7 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   def getReleaseTypeOnVoluntaryWriteback(): UInt = getReleaseTypeOnCacheControl(M_INV)
   def getReleaseTypeOnProbe(incoming: Probe, state: UInt): UInt = {
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
-      probeInvalidate -> Mux(uIntListContains(List(tileExclusiveDirty, tileMigratoryDirty), state), 
+      probeInvalidate -> Mux(Vec(tileExclusiveDirty, tileMigratoryDirty).contains(state), 
                                     releaseInvalidateDataMigratory, releaseInvalidateData),
       probeDowngrade -> Mux(state === tileMigratoryDirty, releaseDowngradeDataMigratory, releaseDowngradeData),
       probeCopy -> releaseCopyData
@@ -890,15 +887,13 @@ class MigratoryCoherence extends CoherencePolicyWithUncached {
   }
 
   def messageHasData(msg: SourcedMessage) = msg match {
-    case acq: Acquire => uIntListContains(hasDataAcquireTypeList, acq.a_type)
-    case grant: Grant => uIntListContains(hasDataGrantTypeList, grant.g_type) 
-    case rel: Release => uIntListContains(hasDataReleaseTypeList, rel.r_type) 
+    case acq: Acquire => hasDataAcquireTypeVec.contains(acq.a_type)
+    case grant: Grant => hasDataGrantTypeVec.contains(grant.g_type) 
+    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
     case _ => Bool(false)
   }
-  def messageUpdatesDataArray (reply: Grant): Bool = {
-    uIntListContains(List(grantReadShared, grantReadExclusive, grantReadMigratory), reply.g_type)
-  }
-  def messageIsUncached(acq: Acquire): Bool = uIntListContains(uncachedAcquireTypeList, acq.a_type)
+  def messageUpdatesDataArray (reply: Grant): Bool = Vec(grantReadShared, grantReadExclusive, grantReadMigratory).contains(reply.g_type)
+  def messageIsUncached(acq: Acquire): Bool = uncachedAcquireTypeVec.contains(acq.a_type)
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
