@@ -122,7 +122,7 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: Rocke
       remainder := remainder(w-1,0) << shift
       count := shift
     }
-    when (count === 0 && !less /* divby0 */) { neg_out := false }
+    when (count === 0 && !less /* divby0 */ && !isHi) { neg_out := false }
   }
   when (io.resp.fire() || io.kill) {
     state := s_ready
