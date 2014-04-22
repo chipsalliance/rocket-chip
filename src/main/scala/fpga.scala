@@ -185,9 +185,9 @@ class FPGATop extends Module {
   referenceChip.DecoupledIOs("host_out").target.ready := io.host.out.ready
   referenceChip.DecoupledIOs("host_out").host_ready := Bool(true)
   
-  io.host.clk := referenceChip.DebugIOs("host_clk")
-  io.host.clk_edge := referenceChip.DebugIOs("host_clk_edge")
-  io.host.debug_stats_pcr := referenceChip.DebugIOs("host_debug_stats_pcr")
+  io.host.clk := referenceChip.DebugIOs("host_clk").toBits()(0)
+  io.host.clk_edge := referenceChip.DebugIOs("host_clk_edge").toBits()(0)
+  io.host.debug_stats_pcr := referenceChip.DebugIOs("host_debug_stats_pcr").toBits()(0)
 
   //reference chip to dram model connections
   val mem_req_cmd_queue = Module(new FameQueue(8)(new MemReqCmd()))
