@@ -4,15 +4,14 @@ import Chisel._
 import uncore._
 import Util._
 
-case class DCacheConfig(sets: Int, ways: Int,
+case class DCacheConfig(val sets: Int, val ways: Int,
                         nmshr: Int, nrpq: Int, nsdq: Int, ntlb: Int,
-                        tl: TileLinkConfiguration,
-                        as: AddressSpaceConfiguration,
+                        val tl: TileLinkConfiguration,
+                        val as: AddressSpaceConfiguration,
                         reqtagbits: Int, databits: Int,
                         rowwords: Int = 2,
                         code: Code = new IdentityCode,
-                        narrowRead: Boolean = true)
-{
+                        narrowRead: Boolean = true) extends CacheConfig {
   def states = tl.co.nClientStates
   def lines = sets*ways
   def dm = ways == 1
@@ -45,29 +44,12 @@ case class DCacheConfig(sets: Int, ways: Int,
   require(isPow2(sets))
   require(isPow2(ways)) // TODO: relax this
   require(rowbits <= tl.dataBits)
+  require(lineaddrbits == tl.addrBits) 
 }
 
 abstract trait DCacheBundle extends Bundle {
   implicit val conf: DCacheConfig
   override def clone = this.getClass.getConstructors.head.newInstance(conf).asInstanceOf[this.type]
-}
-
-abstract class ReplacementPolicy
-{
-  def way: UInt
-  def miss: Unit
-  def hit: Unit
-}
-
-class RandomReplacement(implicit conf: DCacheConfig) extends ReplacementPolicy
-{
-  private val replace = Bool()
-  replace := Bool(false)
-  val lfsr = LFSR16(replace)
-
-  def way = if (conf.dm) UInt(0) else lfsr(conf.waybits-1,0)
-  def miss = replace := Bool(true)
-  def hit = {}
 }
 
 class StoreGen(typ: Bits, addr: Bits, dat: Bits)
@@ -117,9 +99,7 @@ class DataReadReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val addr   = Bits(width = conf.untagbits)
 }
 
-class DataWriteReq(implicit val conf: DCacheConfig) extends DCacheBundle {
-  val way_en = Bits(width = conf.ways)
-  val addr   = Bits(width = conf.untagbits)
+class DataWriteReq(implicit conf: DCacheConfig) extends DataReadReq()(conf) {
   val wmask  = Bits(width = conf.rowwords)
   val data   = Bits(width = conf.encrowbits)
 }
@@ -561,7 +541,7 @@ class ProbeUnit(implicit conf: DCacheConfig) extends Module {
   io.rep.bits := Release(tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.newStateOnFlush)), req.addr, req.client_xact_id, req.master_xact_id)
 
   io.meta_read.valid := state === s_meta_read
-  io.meta_read.bits.addr := req.addr << UInt(conf.offbits)
+  io.meta_read.bits.addr := req.addr << conf.offbits
 
   io.meta_write.valid := state === s_meta_write
   io.meta_write.bits.way_en := way_en
@@ -782,7 +762,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   val s1_sc = s1_req.cmd === M_XSC
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
-  val dtlb = Module(new TLB(8)(conf.as))
+  val dtlb = Module(new TLB(conf.ntlb)(conf.as))
   dtlb.io.ptw <> io.cpu.ptw
   dtlb.io.req.valid := s1_valid_masked && s1_readwrite && !s1_req.phys
   dtlb.io.req.bits.passthrough := s1_req.phys
@@ -857,8 +837,8 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   when (!metaReadArb.io.in(4).ready) { io.cpu.req.ready := Bool(false) }
 
   // data read for new requests
-  readArb.io.in(3).bits.addr := io.cpu.req.bits.addr
   readArb.io.in(3).valid := io.cpu.req.valid
+  readArb.io.in(3).bits.addr := io.cpu.req.bits.addr
   readArb.io.in(3).bits.way_en := SInt(-1)
   when (!readArb.io.in(3).ready) { io.cpu.req.ready := Bool(false) }
 
