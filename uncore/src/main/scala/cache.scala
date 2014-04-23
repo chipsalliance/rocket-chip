@@ -74,34 +74,34 @@ class RandomReplacement(implicit val conf: CacheConfig) extends ReplacementPolic
   def hit = {}
 }
 
-object L2MetaData {
+object MetaData {
   def apply(tag: Bits, state: UInt)(implicit conf: CacheConfig) = {
-    val meta = new L2MetaData
+    val meta = new MetaData
     meta.state := state
     meta.tag := tag
     meta
   }
 }
-class L2MetaData(implicit val conf: CacheConfig) extends CacheBundle {
+class MetaData(implicit val conf: CacheConfig) extends CacheBundle {
   val state = UInt(width = conf.statebits)
   val tag = Bits(width = conf.tagbits)
 }
 
-class L2MetaReadReq(implicit val conf: CacheConfig) extends CacheBundle {
+class MetaReadReq(implicit val conf: CacheConfig) extends CacheBundle {
   val idx  = Bits(width = conf.idxbits)
 }
 
-class L2MetaWriteReq(implicit conf: CacheConfig) extends L2MetaReadReq()(conf) {
+class MetaWriteReq(implicit conf: CacheConfig) extends MetaReadReq()(conf) {
   val way_en = Bits(width = conf.ways)
-  val data = new L2MetaData()
+  val data = new MetaData()
 }
 
-class L2MetaDataArray(implicit conf: CacheConfig) extends Module {
+class MetaDataArray(implicit conf: CacheConfig) extends Module {
   implicit val tl = conf.tl
   val io = new Bundle {
-    val read = Decoupled(new L2MetaReadReq).flip
-    val write = Decoupled(new L2MetaWriteReq).flip
-    val resp = Vec.fill(conf.ways){(new L2MetaData).asOutput}
+    val read = Decoupled(new MetaReadReq).flip
+    val write = Decoupled(new MetaWriteReq).flip
+    val resp = Vec.fill(conf.ways){(new MetaData).asOutput}
   }
 
   val rst_cnt = Reg(init=UInt(0, log2Up(conf.sets+1)))
