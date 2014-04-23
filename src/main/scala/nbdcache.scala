@@ -105,11 +105,12 @@ class DataWriteReq(implicit conf: DCacheConfig) extends DataReadReq()(conf) {
   val data   = Bits(width = conf.encrowbits)
 }
 
-class InternalProbe(implicit conf: DCacheConfig) extends Probe()(conf.tl) {
-  val client_xact_id = Bits(width = conf.tl.clientXactIdBits)
-
-  override def clone = new InternalProbe().asInstanceOf[this.type]
+class L1MetaReadReq(implicit conf: DCacheConfig) extends MetaReadReq()(conf) {
+  val tag = Bits(width = conf.tagbits)
 }
+
+class InternalProbe(implicit conf: TileLinkConfiguration) extends Probe()(conf) 
+  with HasClientTransactionId
 
 class WritebackReq(implicit conf: DCacheConfig) extends Bundle {
   val tag = Bits(width = conf.tagbits)
@@ -120,32 +121,6 @@ class WritebackReq(implicit conf: DCacheConfig) extends Bundle {
   val r_type = UInt(width = conf.tl.co.releaseTypeWidth) 
 
   override def clone = new WritebackReq().asInstanceOf[this.type]
-}
-
-object MetaData {
-  def apply(tag: Bits, state: UInt)(implicit conf: DCacheConfig) = {
-    val meta = new MetaData
-    meta.state := state
-    meta.tag := tag
-    meta
-  }
-}
-class MetaData(implicit val conf: DCacheConfig) extends DCacheBundle {
-  val state = UInt(width = conf.statebits)
-  val tag = Bits(width = conf.tagbits)
-}
-
-class MetaReadReq(implicit val conf: DCacheConfig) extends DCacheBundle {
-  val idx  = Bits(width = conf.idxbits)
-}
-
-class MetaWriteReq(implicit conf: DCacheConfig) extends MetaReadReq()(conf) {
-  val way_en = Bits(width = conf.ways)
-  val data = new MetaData()
-}
-
-class L1MetaReadReq(implicit conf: DCacheConfig) extends MetaReadReq()(conf) {
-  val tag = Bits(width = conf.tagbits)
 }
 
 class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
@@ -563,39 +538,6 @@ class ProbeUnit(implicit conf: DCacheConfig) extends Module {
   io.wb_req.bits.r_type := tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.newStateOnFlush))
   io.wb_req.bits.client_xact_id := req.client_xact_id
   io.wb_req.bits.master_xact_id := req.master_xact_id
-}
-
-class MetaDataArray(implicit conf: DCacheConfig) extends Module {
-  implicit val tl = conf.tl
-  val io = new Bundle {
-    val read = Decoupled(new MetaReadReq).flip
-    val write = Decoupled(new MetaWriteReq).flip
-    val resp = Vec.fill(conf.ways){(new MetaData).asOutput}
-  }
-
-  val rst_cnt = Reg(init=UInt(0, log2Up(conf.sets+1)))
-  val rst = rst_cnt < conf.sets
-  when (rst) { rst_cnt := rst_cnt+1 }
-
-  val metabits = io.write.bits.data.state.getWidth + conf.tagbits
-  val tags = Mem(UInt(width = metabits*conf.ways), conf.sets, seqRead = true)
-
-  when (rst || io.write.valid) {
-    val addr = Mux(rst, rst_cnt, io.write.bits.idx)
-    val data = Cat(Mux(rst, tl.co.newStateOnFlush, io.write.bits.data.state), io.write.bits.data.tag)
-    val mask = Mux(rst, SInt(-1), io.write.bits.way_en)
-    tags.write(addr, Fill(conf.ways, data), FillInterleaved(metabits, mask))
-  }
-  val tag = tags(RegEnable(io.read.bits.idx, io.read.valid))
-
-  for (w <- 0 until conf.ways) {
-    val m = tag(metabits*(w+1)-1, metabits*w)
-    io.resp(w).state := m >> conf.tagbits
-    io.resp(w).tag := m
-  }
-
-  io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
-  io.write.ready := !rst
 }
 
 class DataArray(implicit conf: DCacheConfig) extends Module {
