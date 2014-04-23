@@ -45,6 +45,7 @@ case class DCacheConfig(val sets: Int, val ways: Int,
   require(isPow2(ways)) // TODO: relax this
   require(rowbits <= tl.dataBits)
   require(lineaddrbits == tl.addrBits) 
+  require(untagbits <= pgidxbits)
 }
 
 abstract trait DCacheBundle extends Bundle {
@@ -135,13 +136,16 @@ class MetaData(implicit val conf: DCacheConfig) extends DCacheBundle {
 }
 
 class MetaReadReq(implicit val conf: DCacheConfig) extends DCacheBundle {
-  val addr  = UInt(width = conf.paddrbits)
+  val idx  = Bits(width = conf.idxbits)
 }
 
-class MetaWriteReq(implicit val conf: DCacheConfig) extends DCacheBundle {
+class MetaWriteReq(implicit conf: DCacheConfig) extends MetaReadReq()(conf) {
   val way_en = Bits(width = conf.ways)
-  val idx  = Bits(width = conf.idxbits)
   val data = new MetaData()
+}
+
+class L1MetaReadReq(implicit conf: DCacheConfig) extends MetaReadReq()(conf) {
+  val tag = Bits(width = conf.tagbits)
 }
 
 class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
@@ -159,7 +163,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
 
     val mem_req  = Decoupled(new Acquire)
     val mem_resp = new DataWriteReq().asOutput
-    val meta_read = Decoupled(new MetaReadReq)
+    val meta_read = Decoupled(new L1MetaReadReq)
     val meta_write = Decoupled(new MetaWriteReq)
     val replay = Decoupled(new Replay)
     val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
@@ -287,7 +291,8 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
   io.mem_finish <> ackq.io.deq
 
   io.meta_read.valid := state === s_drain_rpq
-  io.meta_read.bits.addr := io.mem_req.bits.addr << conf.offbits
+  io.meta_read.bits.idx := req_idx
+  io.meta_read.bits.tag := io.tag
 
   io.replay.valid := state === s_drain_rpq && rpq.io.deq.valid
   io.replay.bits := rpq.io.deq.bits
@@ -308,7 +313,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Module {
 
     val mem_req  = Decoupled(new Acquire)
     val mem_resp = new DataWriteReq().asOutput
-    val meta_read = Decoupled(new MetaReadReq)
+    val meta_read = Decoupled(new L1MetaReadReq)
     val meta_write = Decoupled(new MetaWriteReq)
     val replay = Decoupled(new Replay)
     val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
@@ -332,7 +337,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Module {
 
   val wbTagList = Vec.fill(conf.nmshr){Bits()}
   val memRespMux = Vec.fill(conf.nmshr){new DataWriteReq}
-  val meta_read_arb = Module(new Arbiter(new MetaReadReq, conf.nmshr))
+  val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, conf.nmshr))
   val meta_write_arb = Module(new Arbiter(new MetaWriteReq, conf.nmshr))
   val mem_req_arb = Module(new Arbiter(new Acquire, conf.nmshr))
   val mem_finish_arb = Module(new Arbiter(new LogicalNetworkIO(new GrantAck), conf.nmshr))
@@ -406,7 +411,7 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Module {
   implicit val tl = conf.tl
   val io = new Bundle {
     val req = Decoupled(new WritebackReq()).flip
-    val meta_read = Decoupled(new MetaReadReq)
+    val meta_read = Decoupled(new L1MetaReadReq)
     val data_req = Decoupled(new DataReadReq())
     val data_resp = Bits(INPUT, conf.encrowbits)
     val release = Decoupled(new Release)
@@ -455,7 +460,8 @@ class WritebackUnit(implicit conf: DCacheConfig) extends Module {
 
   // We reissue the meta read as it sets up the muxing for s2_data_muxed
   io.meta_read.valid := fire
-  io.meta_read.bits.addr := io.release.bits.addr << conf.offbits
+  io.meta_read.bits.idx := req.idx
+  io.meta_read.bits.tag := req.tag
 
   io.data_req.valid := fire
   io.data_req.bits.way_en := req.way_en
@@ -486,7 +492,7 @@ class ProbeUnit(implicit conf: DCacheConfig) extends Module {
   val io = new Bundle {
     val req = Decoupled(new InternalProbe).flip
     val rep = Decoupled(new Release)
-    val meta_read = Decoupled(new MetaReadReq)
+    val meta_read = Decoupled(new L1MetaReadReq)
     val meta_write = Decoupled(new MetaWriteReq)
     val wb_req = Decoupled(new WritebackReq)
     val way_en = Bits(INPUT, conf.ways)
@@ -541,7 +547,8 @@ class ProbeUnit(implicit conf: DCacheConfig) extends Module {
   io.rep.bits := Release(tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.newStateOnFlush)), req.addr, req.client_xact_id, req.master_xact_id)
 
   io.meta_read.valid := state === s_meta_read
-  io.meta_read.bits.addr := req.addr << conf.offbits
+  io.meta_read.bits.idx := req.addr
+  io.meta_read.bits.tag := req.addr >> conf.idxbits
 
   io.meta_write.valid := state === s_meta_write
   io.meta_write.bits.way_en := way_en
@@ -579,7 +586,7 @@ class MetaDataArray(implicit conf: DCacheConfig) extends Module {
     val mask = Mux(rst, SInt(-1), io.write.bits.way_en)
     tags.write(addr, Fill(conf.ways, data), FillInterleaved(metabits, mask))
   }
-  val tag = tags(RegEnable(io.read.bits.addr >> conf.offbits, io.read.valid))
+  val tag = tags(RegEnable(io.read.bits.idx, io.read.valid))
 
   for (w <- 0 until conf.ways) {
     val m = tag(metabits*(w+1)-1, metabits*w)
@@ -775,11 +782,11 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
     s1_req := io.cpu.req.bits
   }
   when (wb.io.meta_read.valid) {
-    s1_req := wb.io.meta_read.bits
+    s1_req.addr := Cat(wb.io.meta_read.bits.tag, wb.io.meta_read.bits.idx) << conf.offbits
     s1_req.phys := Bool(true)
   }
   when (prober.io.meta_read.valid) {
-    s1_req := prober.io.meta_read.bits
+    s1_req.addr := Cat(prober.io.meta_read.bits.tag, prober.io.meta_read.bits.idx) << conf.offbits
     s1_req.phys := Bool(true)
   }
   when (mshrs.io.replay.valid) {
@@ -833,7 +840,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
 
   // tag read for new requests
   metaReadArb.io.in(4).valid := io.cpu.req.valid
-  metaReadArb.io.in(4).bits.addr := io.cpu.req.bits.addr
+  metaReadArb.io.in(4).bits.idx := io.cpu.req.bits.addr >> conf.offbits
   when (!metaReadArb.io.in(4).ready) { io.cpu.req.ready := Bool(false) }
 
   // data read for new requests
@@ -844,7 +851,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
 
   // recycled requests
   metaReadArb.io.in(0).valid := s2_recycle
-  metaReadArb.io.in(0).bits.addr := s2_req.addr
+  metaReadArb.io.in(0).bits.idx := s2_req.addr >> conf.offbits
   readArb.io.in(0).valid := s2_recycle
   readArb.io.in(0).bits.addr := s2_req.addr
   readArb.io.in(0).bits.way_en := SInt(-1)
