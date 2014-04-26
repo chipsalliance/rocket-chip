@@ -36,7 +36,7 @@ class ReferenceChipCrossbarNetwork(implicit conf: UncoreConfiguration) extends L
   val relNet = Module(new BasicCrossbar(new Release))
   val prbNet = Module(new BasicCrossbar(new Probe))
   val gntNet = Module(new BasicCrossbar(new Grant))
-  val ackNet = Module(new BasicCrossbar(new GrantAck))
+  val ackNet = Module(new BasicCrossbar(new Finish))
 
   // Aliases for the various network IO bundle types
   type FBCIO[T <: Data] = DecoupledIO[PhysicalNetworkIO[T]]
@@ -125,5 +125,5 @@ class ReferenceChipCrossbarNetwork(implicit conf: UncoreConfiguration) extends L
   doFIFOHookups(relNet.io, (tl: TileLinkIO) => tl.release)
   doFIFOHookups(prbNet.io, (tl: TileLinkIO) => tl.probe)
   doFIFOHookups(gntNet.io, (tl: TileLinkIO) => tl.grant)
-  doFIFOHookups(ackNet.io, (tl: TileLinkIO) => tl.grant_ack)
+  doFIFOHookups(ackNet.io, (tl: TileLinkIO) => tl.finish)
 }

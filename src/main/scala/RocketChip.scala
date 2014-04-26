@@ -200,7 +200,7 @@ class Uncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
     case ((outer, client), i) => 
       outer.acquire <> Queue(TileLinkHeaderOverwriter(client.acquire, i, conf.nBanks, convertAddrToBank _))
       outer.release <> Queue(TileLinkHeaderOverwriter(client.release, i, conf.nBanks, convertAddrToBank _))
-      outer.grant_ack <> Queue(TileLinkHeaderOverwriter(client.grant_ack, i))
+      outer.finish <> Queue(TileLinkHeaderOverwriter(client.finish, i))
       client.grant <> Queue(outer.grant, 1, pipe = true)
       client.probe <> Queue(outer.probe)
   }
