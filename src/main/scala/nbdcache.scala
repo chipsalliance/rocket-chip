@@ -142,7 +142,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
     val meta_write = Decoupled(new MetaWriteReq)
     val replay = Decoupled(new Replay)
     val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
-    val mem_finish = Decoupled(new LogicalNetworkIO(new GrantAck))
+    val mem_finish = Decoupled(new LogicalNetworkIO(new Finish))
     val wb_req = Decoupled(new WritebackReq)
     val probe_rdy = Bool(OUTPUT)
   }
@@ -224,7 +224,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
     }
   }
 
-  val ackq = Module(new Queue(new LogicalNetworkIO(new GrantAck), 1))
+  val ackq = Module(new Queue(new LogicalNetworkIO(new Finish), 1))
   ackq.io.enq.valid := (wb_done || refill_done) && tl.co.requiresAckForGrant(io.mem_grant.bits.payload.g_type)
   ackq.io.enq.bits.payload.master_xact_id := io.mem_grant.bits.payload.master_xact_id
   ackq.io.enq.bits.header.dst := io.mem_grant.bits.header.src
@@ -292,7 +292,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Module {
     val meta_write = Decoupled(new MetaWriteReq)
     val replay = Decoupled(new Replay)
     val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
-    val mem_finish = Decoupled(new LogicalNetworkIO(new GrantAck))
+    val mem_finish = Decoupled(new LogicalNetworkIO(new Finish))
     val wb_req = Decoupled(new WritebackReq)
 
     val probe_rdy = Bool(OUTPUT)
@@ -315,7 +315,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Module {
   val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, conf.nmshr))
   val meta_write_arb = Module(new Arbiter(new MetaWriteReq, conf.nmshr))
   val mem_req_arb = Module(new Arbiter(new Acquire, conf.nmshr))
-  val mem_finish_arb = Module(new Arbiter(new LogicalNetworkIO(new GrantAck), conf.nmshr))
+  val mem_finish_arb = Module(new Arbiter(new LogicalNetworkIO(new Finish), conf.nmshr))
   val wb_req_arb = Module(new Arbiter(new WritebackReq, conf.nmshr))
   val replay_arb = Module(new Arbiter(new Replay, conf.nmshr))
   val alloc_arb = Module(new Arbiter(Bool(), conf.nmshr))
@@ -992,7 +992,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   io.cpu.replay_next.valid := s1_replay && (s1_read || s1_sc)
   io.cpu.replay_next.bits := s1_req.tag
 
-  io.mem.grant_ack <> mshrs.io.mem_finish
+  io.mem.finish <> mshrs.io.mem_finish
 }
 
 // exposes a sane decoupled request interface

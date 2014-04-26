@@ -75,7 +75,7 @@ class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module
 
   io.tilelink.acquire <> memArb.io.out.acquire
   memArb.io.out.grant <> io.tilelink.grant
-  io.tilelink.grant_ack <> memArb.io.out.grant_ack
+  io.tilelink.finish <> memArb.io.out.finish
   dcache.io.mem.probe <> io.tilelink.probe
   io.tilelink.release.valid   := dcache.io.mem.release.valid
   dcache.io.mem.release.ready := io.tilelink.release.ready

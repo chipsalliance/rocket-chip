@@ -271,7 +271,7 @@ class ICache(implicit c: ICacheConfig) extends Module
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
-  val ack_q = Module(new Queue(new LogicalNetworkIO(new GrantAck), 1))
+  val ack_q = Module(new Queue(new LogicalNetworkIO(new Finish), 1))
   ack_q.io.enq.valid := refill_done && tl.co.requiresAckForGrant(refill_bits.payload.g_type)
   ack_q.io.enq.bits.payload.master_xact_id := refill_bits.payload.master_xact_id
   ack_q.io.enq.bits.header.dst := refill_bits.header.src
@@ -280,7 +280,7 @@ class ICache(implicit c: ICacheConfig) extends Module
   io.resp.valid := s2_hit
   io.mem.acquire.valid := (state === s_request) && ack_q.io.enq.ready
   io.mem.acquire.bits.payload := Acquire(tl.co.getUncachedReadAcquireType, s2_addr >> UInt(c.offbits), UInt(0))
-  io.mem.grant_ack <> ack_q.io.deq
+  io.mem.finish <> ack_q.io.deq
 
   // control state machine
   switch (state) {
