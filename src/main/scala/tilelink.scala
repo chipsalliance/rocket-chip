@@ -4,24 +4,24 @@ import Chisel._
 case class TileLinkConfiguration(co: CoherencePolicyWithUncached, ln: LogicalNetworkConfiguration, addrBits: Int, masterXactIdBits: Int, clientXactIdBits: Int, dataBits: Int, writeMaskBits: Int, wordAddrBits: Int, atomicOpBits: Int) 
 
 abstract trait TileLinkSubBundle extends Bundle {
-  implicit val conf: TileLinkConfiguration
-  override def clone = this.getClass.getConstructors.head.newInstance(conf).asInstanceOf[this.type]
+  implicit val tlconf: TileLinkConfiguration
+  override def clone = this.getClass.getConstructors.head.newInstance(tlconf).asInstanceOf[this.type]
 }
 
 trait HasPhysicalAddress extends TileLinkSubBundle {
-  val addr = UInt(width = conf.addrBits)
+  val addr = UInt(width = tlconf.addrBits)
 }
 
 trait HasClientTransactionId extends TileLinkSubBundle {
-  val client_xact_id = Bits(width = conf.clientXactIdBits)
+  val client_xact_id = Bits(width = tlconf.clientXactIdBits)
 }
 
 trait HasMasterTransactionId extends TileLinkSubBundle {
-  val master_xact_id = Bits(width = conf.masterXactIdBits)
+  val master_xact_id = Bits(width = tlconf.masterXactIdBits)
 }
 
 trait HasTileLinkData extends TileLinkSubBundle {
-  val data = Bits(width = conf.dataBits)
+  val data = Bits(width = tlconf.dataBits)
 }
 
 trait SourcedMessage extends Bundle
@@ -64,14 +64,14 @@ object Acquire
   }
 }
 
-class Acquire(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage 
+class Acquire(implicit val tlconf: TileLinkConfiguration) extends ClientSourcedMessage 
     with HasPhysicalAddress 
     with HasClientTransactionId 
     with HasTileLinkData {
-  val a_type = UInt(width = conf.co.acquireTypeWidth)
-  val write_mask = Bits(width = conf.writeMaskBits)
-  val subword_addr = Bits(width = conf.wordAddrBits)
-  val atomic_opcode = Bits(width = conf.atomicOpBits)
+  val a_type = UInt(width = tlconf.co.acquireTypeWidth)
+  val write_mask = Bits(width = tlconf.writeMaskBits)
+  val subword_addr = Bits(width = tlconf.wordAddrBits)
+  val atomic_opcode = Bits(width = tlconf.atomicOpBits)
 }
 
 object Probe
@@ -85,10 +85,10 @@ object Probe
   }
 }
 
-class Probe(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage 
+class Probe(implicit val tlconf: TileLinkConfiguration) extends MasterSourcedMessage 
     with HasPhysicalAddress 
     with HasMasterTransactionId {
-  val p_type = UInt(width = conf.co.probeTypeWidth)
+  val p_type = UInt(width = tlconf.co.probeTypeWidth)
 }
 
 object Release
@@ -116,12 +116,12 @@ object Release
   }
 }
 
-class Release(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage 
+class Release(implicit val tlconf: TileLinkConfiguration) extends ClientSourcedMessage 
     with HasPhysicalAddress 
     with HasClientTransactionId 
     with HasMasterTransactionId 
     with HasTileLinkData {
-  val r_type = UInt(width = conf.co.releaseTypeWidth)
+  val r_type = UInt(width = tlconf.co.releaseTypeWidth)
 }
 
 object Grant
@@ -141,14 +141,14 @@ object Grant
   }
 }
 
-class Grant(implicit val conf: TileLinkConfiguration) extends MasterSourcedMessage 
+class Grant(implicit val tlconf: TileLinkConfiguration) extends MasterSourcedMessage 
     with HasTileLinkData 
     with HasClientTransactionId 
     with HasMasterTransactionId {
-  val g_type = UInt(width = conf.co.grantTypeWidth)
+  val g_type = UInt(width = tlconf.co.grantTypeWidth)
 }
 
-class GrantAck(implicit val conf: TileLinkConfiguration) extends ClientSourcedMessage with HasMasterTransactionId
+class GrantAck(implicit val tlconf: TileLinkConfiguration) extends ClientSourcedMessage with HasMasterTransactionId
 
 
 class UncachedTileLinkIO(implicit conf: TileLinkConfiguration) extends Bundle {
