@@ -154,7 +154,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
     }
     mem_acked := Bool(false)
   }
-  when (state === state_mem_finish && io.mem.grant_ack.ready) {
+  when (state === state_mem_finish && io.mem.finish.ready) {
     state := Mux(cmd === cmd_readmem || pos === UInt(1),  state_tx, state_rx)
     pos := pos - UInt(1)
     addr := addr + UInt(1 << offsetBits-3)
@@ -186,9 +186,9 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
   io.mem.acquire.bits.payload.data := mem_req_data
   io.mem.acquire.bits.header.src := UInt(conf.ln.nClients) // By convention HTIF is the client with the largest id
   io.mem.acquire.bits.header.dst := UInt(0) // DNC; Overwritten outside module
-  io.mem.grant_ack.valid := (state === state_mem_finish) && mem_needs_ack
-  io.mem.grant_ack.bits.payload.master_xact_id := mem_gxid
-  io.mem.grant_ack.bits.header.dst := mem_gsrc
+  io.mem.finish.valid := (state === state_mem_finish) && mem_needs_ack
+  io.mem.finish.bits.payload.master_xact_id := mem_gxid
+  io.mem.finish.bits.header.dst := mem_gsrc
   io.mem.probe.ready := Bool(false)
   io.mem.release.valid := Bool(false)
 

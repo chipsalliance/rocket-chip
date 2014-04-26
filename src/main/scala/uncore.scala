@@ -64,9 +64,9 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: L2CoherenceAgentConfiguration
   grant_arb.io.in zip trackerList map { case (arb, t) => arb <> t.io.client.grant }
 
   // Free finished transactions
-  val ack = io.client.grant_ack
-  trackerList.map(_.io.client.grant_ack.valid := ack.valid)
-  trackerList.map(_.io.client.grant_ack.bits := ack.bits)
+  val ack = io.client.finish
+  trackerList.map(_.io.client.finish.valid := ack.valid)
+  trackerList.map(_.io.client.finish.bits := ack.bits)
   ack.ready := Bool(true)
 
   // Create an arbiter for the one memory port
@@ -89,7 +89,7 @@ abstract class XactTracker()(implicit conf: L2CoherenceAgentConfiguration) exten
   val c_acq = io.client.acquire.bits
   val c_rel = io.client.release.bits
   val c_gnt = io.client.grant.bits
-  val c_ack = io.client.grant_ack.bits
+  val c_ack = io.client.finish.bits
   val m_gnt = io.master.grant.bits
 
 }
@@ -273,7 +273,7 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgen
       when(io.master.grant.valid && m_gnt.payload.client_xact_id === UInt(trackerId)) {
         io.client.grant.valid := Bool(true)
       }
-      when(io.client.grant_ack.valid && c_ack.payload.master_xact_id === UInt(trackerId)) {
+      when(io.client.finish.valid && c_ack.payload.master_xact_id === UInt(trackerId)) {
         state := s_idle
       }
     }
