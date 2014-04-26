@@ -148,14 +148,14 @@ class Grant(implicit val tlconf: TileLinkConfiguration) extends MasterSourcedMes
   val g_type = UInt(width = tlconf.co.grantTypeWidth)
 }
 
-class GrantAck(implicit val tlconf: TileLinkConfiguration) extends ClientSourcedMessage with HasMasterTransactionId
+class Finish(implicit val tlconf: TileLinkConfiguration) extends ClientSourcedMessage with HasMasterTransactionId
 
 
 class UncachedTileLinkIO(implicit conf: TileLinkConfiguration) extends Bundle {
   implicit val ln = conf.ln
   val acquire   = new DecoupledIO(new LogicalNetworkIO(new Acquire))
   val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
-  val grant_ack = new DecoupledIO(new LogicalNetworkIO(new GrantAck))
+  val finish = new DecoupledIO(new LogicalNetworkIO(new Finish))
   override def clone = { new UncachedTileLinkIO().asInstanceOf[this.type] }
 }
 
@@ -214,9 +214,9 @@ abstract class UncachedTileLinkIOArbiter(n: Int)(implicit conf: TileLinkConfigur
   hookupClientSource(io.in.map(_.acquire), io.out.acquire)
   hookupMasterSource(io.in.map(_.grant), io.out.grant)
 
-  val grant_ack_arb = Module(new RRArbiter(new LogicalNetworkIO(new GrantAck), n))
-  io.out.grant_ack <> grant_ack_arb.io.out
-  grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
+  val finish_arb = Module(new RRArbiter(new LogicalNetworkIO(new Finish), n))
+  io.out.finish <> finish_arb.io.out
+  finish_arb.io.in zip io.in map { case (arb, req) => arb <> req.finish }
 }
 
 abstract class TileLinkIOArbiter(n: Int)(implicit conf: TileLinkConfiguration) extends TileLinkArbiterLike(n)(conf) {
@@ -233,9 +233,9 @@ abstract class TileLinkIOArbiter(n: Int)(implicit conf: TileLinkConfiguration) e
   io.in.map{ _.probe.bits := io.out.probe.bits }
   io.out.probe.ready := io.in.map(_.probe.ready).reduce(_||_)
 
-  val grant_ack_arb = Module(new RRArbiter(new LogicalNetworkIO(new GrantAck), n))
-  io.out.grant_ack <> grant_ack_arb.io.out
-  grant_ack_arb.io.in zip io.in map { case (arb, req) => arb <> req.grant_ack }
+  val finish_arb = Module(new RRArbiter(new LogicalNetworkIO(new Finish), n))
+  io.out.finish <> finish_arb.io.out
+  finish_arb.io.in zip io.in map { case (arb, req) => arb <> req.finish }
 }
 
 abstract trait AppendsArbiterId {
