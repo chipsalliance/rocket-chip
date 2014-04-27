@@ -4,9 +4,6 @@ import Chisel._
 import uncore._
 import rocket._
 import rocket.Util._
-import ReferenceChipBackend._
-import scala.collection.mutable.HashMap
-import DRAMModel._
 
 object DesignSpaceConstants {
   val NTILES = 1
@@ -44,69 +41,6 @@ import DesignSpaceConstants._
 import MemoryConstants._
 import TileLinkSizeConstants._
 
-object ReferenceChipBackend {
-  val initMap = new HashMap[Module, Bool]()
-}
-
-class ReferenceChipBackend extends VerilogBackend
-{
-  initMap.clear()
-  override def emitPortDef(m: MemAccess, idx: Int) = {
-    val res = new StringBuilder()
-    for (node <- m.mem.inputs) {
-      if(node.name.contains("init"))
-         res.append("    .init(" + node.name + "),\n")
-    }
-    (if (idx == 0) res.toString else "") + super.emitPortDef(m, idx)
-  }
-
-  def addMemPin(c: Module) = {
-    for (mod <- Module.components; node <- mod.nodes) {
-      if (node.isInstanceOf[Mem[ _ ]] && node.component != null && node.asInstanceOf[Mem[_]].seqRead) {
-        connectMemPin(c, node.component, node)
-      }
-    }
-  }
-
-  def connectMemPin(topC: Module, c: Module, p: Node): Unit = {
-    var isNewPin = false
-    val compInitPin = 
-      if (initMap.contains(c)) {
-        initMap(c)
-      } else {
-        isNewPin = true
-        val res = Bool(INPUT)
-        res.isIo = true
-        res
-      }
-
-    p.inputs += compInitPin
-
-    if (isNewPin) {
-      compInitPin.setName("init")
-      c.io.asInstanceOf[Bundle] += compInitPin
-      compInitPin.component = c
-      initMap += (c -> compInitPin)
-      connectMemPin(topC, c.parent, compInitPin)
-    }
-  }
-
-  def addTopLevelPin(c: Module) = {
-    val init = Bool(INPUT)
-    init.isIo = true
-    init.setName("init")
-    init.component = c
-    c.io.asInstanceOf[Bundle] += init
-    initMap += (c -> init)
-  }
-
-  transforms += ((c: Module) => addTopLevelPin(c))
-  transforms += ((c: Module) => addMemPin(c))
-  transforms += ((c: Module) => collectNodesIntoComp(initializeDFS))
-}
-
-class Fame1ReferenceChipBackend extends ReferenceChipBackend with Fame1Transform
-
 class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
 {
   implicit val (tl, ln, l2, mif) = (conf.tl, conf.tl.ln, conf.l2, conf.mif)
@@ -120,13 +54,19 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
   }
 
   val refill_cycles = tl.dataBits/mif.dataBits
-  val llc_tag_leaf = Mem(Bits(width = 152), 512, seqRead = true)
-  val llc_data_leaf = Mem(Bits(width = 64), 4096, seqRead = true)
-  val llc = Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, refill_cycles=refill_cycles, tagLeaf=llc_tag_leaf, dataLeaf=llc_data_leaf))
-  //val llc = Module(new DRAMSideLLCNull(NL2_REL_XACTS+NL2_ACQ_XACTS, refill_cycles))
-  val mem_serdes = Module(new MemSerdes(htif_width))
+  val (llc, masterEndpoints) = if(conf.useDRAMSideLLC) {
+    val llc_tag_leaf = Mem(Bits(width = 152), 512, seqRead = true)
+    val llc_data_leaf = Mem(Bits(width = 64), 4096, seqRead = true)
+    val llc = Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, 
+      refill_cycles=refill_cycles, tagLeaf=llc_tag_leaf, dataLeaf=llc_data_leaf))
+    val mes = (0 until ln.nMasters).map(i => Module(new L2CoherenceAgent(i)))
+    (llc, mes)
+  } else {
+    val llc = Module(new DRAMSideLLCNull(16, refill_cycles))
+    val mes = (0 until ln.nMasters).map(i => Module(new L2HellaCache(i)))
+    (llc, mes)
+  }
 
-  val masterEndpoints = (0 until ln.nMasters).map(i => Module(new L2CoherenceAgent(i)))
   val net = Module(new ReferenceChipCrossbarNetwork)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
   net.io.masters zip (masterEndpoints.map(_.io.client)) map { case (net, end) => net <> end }
@@ -145,6 +85,7 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
   conv.io.mem.resp <> llc.io.cpu.resp
 
   // mux between main and backup memory ports
+  val mem_serdes = Module(new MemSerdes(htif_width))
   val mem_cmdq = Module(new Queue(new MemReqCmd, 2))
   mem_cmdq.io.enq <> llc.io.mem.req_cmd
   mem_cmdq.io.deq.ready := Mux(io.mem_backup_en, mem_serdes.io.wide.req_cmd.ready, io.mem.req_cmd.ready)
@@ -168,7 +109,7 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
   io.mem_backup <> mem_serdes.io.narrow
 }
 
-case class UncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, mif: MemoryIFConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int, nSCR: Int, offsetBits: Int)
+case class UncoreConfiguration(l2: L2CacheConfig, tl: TileLinkConfiguration, mif: MemoryIFConfiguration, nTiles: Int, nBanks: Int, bankIdLsb: Int, nSCR: Int, offsetBits: Int, useDRAMSideLLC: Boolean)
 
 class Uncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
 {
@@ -200,7 +141,7 @@ class Uncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
     case ((outer, client), i) => 
       outer.acquire <> Queue(TileLinkHeaderOverwriter(client.acquire, i, conf.nBanks, convertAddrToBank _))
       outer.release <> Queue(TileLinkHeaderOverwriter(client.release, i, conf.nBanks, convertAddrToBank _))
-      outer.finish <> Queue(TileLinkHeaderOverwriter(client.finish, i))
+      outer.finish <> Queue(TileLinkHeaderOverwriter(client.finish, i, true))
       client.grant <> Queue(outer.grant, 1, pipe = true)
       client.probe <> Queue(outer.probe)
   }
@@ -277,9 +218,9 @@ class Top extends Module {
                                           writeMaskBits = WRITE_MASK_BITS, 
                                           wordAddrBits = SUBWORD_ADDR_BITS, 
                                           atomicOpBits = ATOMIC_OP_BITS)
-  implicit val l2 = L2CoherenceAgentConfiguration(tl, NL2_REL_XACTS, NL2_ACQ_XACTS)
+  implicit val l2 = L2CacheConfig(512, 8, 1, 1, NL2_REL_XACTS, NL2_ACQ_XACTS, tl, as)
   implicit val mif = MemoryIFConfiguration(MEM_ADDR_BITS, MEM_DATA_BITS, MEM_TAG_BITS, MEM_DATA_BEATS)
-  implicit val uc = UncoreConfiguration(l2, tl, mif, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64, offsetBits = OFFSET_BITS)
+  implicit val uc = UncoreConfiguration(l2, tl, mif, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64, offsetBits = OFFSET_BITS, useDRAMSideLLC = true)
 
   val ic = ICacheConfig(sets = 128, assoc = 2, ntlb = 8, tl = tl, as = as, btb = BTBConfig(as, 64, 2))
   val dc = DCacheConfig(sets = 128, ways = 4, 
@@ -306,11 +247,12 @@ class Top extends Module {
 
     resetSigs(i) := hl.reset
     val tile = tileList(i)
+
     tile.io.tilelink <> tl
     il := hl.reset
+    tile.io.host.id := UInt(i)
     tile.io.host.reset := Reg(next=Reg(next=hl.reset))
     tile.io.host.pcr_req <> Queue(hl.pcr_req, 1)
-    tile.io.host.id := i
     hl.pcr_rep <> Queue(tile.io.host.pcr_rep, 1)
     hl.ipi_req <> Queue(tile.io.host.ipi_req, 1)
     tile.io.host.ipi_rep <> Queue(hl.ipi_rep, 1)
@@ -327,5 +269,3 @@ class Top extends Module {
   io.mem_backup_en <> uncore.io.mem_backup_en
   io.mem <> uncore.io.mem
 }
-
-

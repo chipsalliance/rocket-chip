@@ -6,24 +6,25 @@ import scala.reflect._
 import scala.reflect.runtime.universe._
 
 object TileLinkHeaderOverwriter {
-  def apply[T <: ClientSourcedMessage](in: DecoupledIO[LogicalNetworkIO[T]], clientId: Int)(implicit conf: TileLinkConfiguration): DecoupledIO[LogicalNetworkIO[T]] = {
+  def apply[T <: ClientSourcedMessage](in: DecoupledIO[LogicalNetworkIO[T]], clientId: Int, passThrough: Boolean)(implicit conf: TileLinkConfiguration): DecoupledIO[LogicalNetworkIO[T]] = {
     val out = in.clone.asDirectionless
     out.bits.payload := in.bits.payload
     out.bits.header.src := UInt(clientId)
-    out.bits.header.dst := in.bits.header.dst
+    out.bits.header.dst := (if(passThrough) in.bits.header.dst else UInt(0))
     out.valid := in.valid
     in.ready := out.ready
     out
   }
   def apply[T <: ClientSourcedMessage with HasPhysicalAddress](in: DecoupledIO[LogicalNetworkIO[T]], clientId: Int, nBanks: Int, addrConvert: UInt => UInt)(implicit conf: TileLinkConfiguration): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out: DecoupledIO[LogicalNetworkIO[T]] = apply(in, clientId)
+    val out: DecoupledIO[LogicalNetworkIO[T]] = apply(in, clientId, false)
     out.bits.header.dst := (if(nBanks > 1) addrConvert(in.bits.payload.addr) else UInt(0))
     out
   }
 }
 
-class ReferenceChipCrossbarNetwork(implicit conf: UncoreConfiguration) extends LogicalNetwork[TileLinkIO]()(conf.tl.ln) {
-  implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
+class ReferenceChipCrossbarNetwork(implicit conf: TileLinkConfiguration) 
+  extends LogicalNetwork[TileLinkIO]()(conf.ln) {
+  implicit val (ln, co) = (conf.ln, conf.co)
   val io = new Bundle {
     val clients = Vec.fill(ln.nClients){(new TileLinkIO).flip}
     val masters = Vec.fill(ln.nMasters){new TileLinkIO}
