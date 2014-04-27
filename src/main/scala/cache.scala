@@ -1,7 +1,7 @@
 package uncore
 import Chisel._
 
-abstract class CacheConfig {
+trait CacheConfig {
   def sets: Int
   def ways: Int
   def tl: TileLinkConfiguration
@@ -18,12 +18,16 @@ abstract class CacheConfig {
   def statebits: Int
 }
 
-case class L2CacheConfig(val sets: Int, val ways: Int,
-                         nReleaseTransactions: Int, nAcquireTransactions: Int,
-                         nrpq: Int, nsdq: Int,
-                         val tl: TileLinkConfiguration,
-                         val as: AddressSpaceConfiguration) extends CacheConfig {
-  def databits = tl.dataBits
+case class L2CacheConfig(
+    val sets: Int, val ways: Int,
+    val nrpq: Int, val nsdq: Int,
+    val nReleaseTransactions: Int, 
+    val nAcquireTransactions: Int,
+    val tl: TileLinkConfiguration,
+    val as: AddressSpaceConfiguration) 
+  extends CoherenceAgentConfiguration
+  with CacheConfig
+{
   def states = tl.co.nMasterStates
   def lines = sets*ways
   def dm = ways == 1
@@ -33,8 +37,9 @@ case class L2CacheConfig(val sets: Int, val ways: Int,
   def waybits = log2Up(ways)
   def untagbits = offbits + idxbits
   def tagbits = lineaddrbits - idxbits
-  def databytes = databits/8
-  def wordoffbits = log2Up(databytes)
+  def wordbits = 64
+  def wordbytes = wordbits/8
+  def wordoffbits = log2Up(wordbytes)
   def rowbits = tl.dataBits
   def rowbytes = rowbits/8
   def rowoffbits = log2Up(rowbytes)
@@ -45,17 +50,17 @@ case class L2CacheConfig(val sets: Int, val ways: Int,
   require(states > 0)
   require(isPow2(sets))
   require(isPow2(ways)) // TODO: relax this
-  require(rowbits == tl.dataBits) //TODO: relax this?
+  require(refillcycles == 1) //TODO: relax this?
 }
 
 abstract trait CacheBundle extends Bundle {
-  implicit val conf: CacheConfig
-  override def clone = this.getClass.getConstructors.head.newInstance(conf).asInstanceOf[this.type]
+  implicit val cacheconf: CacheConfig
+  override def clone = this.getClass.getConstructors.head.newInstance(cacheconf).asInstanceOf[this.type]
 }
 
 abstract trait L2CacheBundle extends Bundle {
-  implicit val conf: L2CacheConfig
-  override def clone = this.getClass.getConstructors.head.newInstance(conf).asInstanceOf[this.type]
+  implicit val l2cacheconf: L2CacheConfig
+  override def clone = this.getClass.getConstructors.head.newInstance(l2cacheconf).asInstanceOf[this.type]
 }
 
 abstract class ReplacementPolicy {
@@ -64,31 +69,31 @@ abstract class ReplacementPolicy {
   def hit: Unit
 }
 
-class RandomReplacement(implicit val conf: CacheConfig) extends ReplacementPolicy {
+class RandomReplacement(implicit val cacheconf: CacheConfig) extends ReplacementPolicy {
   private val replace = Bool()
   replace := Bool(false)
   val lfsr = LFSR16(replace)
 
-  def way = if(conf.dm) UInt(0) else lfsr(log2Up(conf.ways)-1,0)
+  def way = if(cacheconf.dm) UInt(0) else lfsr(log2Up(cacheconf.ways)-1,0)
   def miss = replace := Bool(true)
   def hit = {}
 }
 
 object MetaData {
-  def apply(tag: Bits, state: UInt)(implicit conf: CacheConfig) = {
+  def apply(tag: Bits, state: UInt)(implicit cacheconf: CacheConfig) = {
     val meta = new MetaData
     meta.state := state
     meta.tag := tag
     meta
   }
 }
-class MetaData(implicit val conf: CacheConfig) extends CacheBundle {
-  val state = UInt(width = conf.statebits)
-  val tag = Bits(width = conf.tagbits)
+class MetaData(implicit val cacheconf: CacheConfig) extends CacheBundle {
+  val state = UInt(width = cacheconf.statebits)
+  val tag = Bits(width = cacheconf.tagbits)
 }
 
-class MetaReadReq(implicit val conf: CacheConfig) extends CacheBundle {
-  val idx  = Bits(width = conf.idxbits)
+class MetaReadReq(implicit val cacheconf: CacheConfig) extends CacheBundle {
+  val idx  = Bits(width = cacheconf.idxbits)
 }
 
 class MetaWriteReq(implicit conf: CacheConfig) extends MetaReadReq()(conf) {
@@ -128,27 +133,26 @@ class MetaDataArray(implicit conf: CacheConfig) extends Module {
   io.write.ready := !rst
 }
 
-class L2DataReadReq(implicit val conf: L2CacheConfig) extends L2CacheBundle {
-  val way_en = Bits(width = conf.ways)
-  val addr   = Bits(width = conf.untagbits)
+class L2DataReadReq(implicit val l2cacheconf: L2CacheConfig) extends L2CacheBundle {
+  val way_en = Bits(width = l2cacheconf.ways)
+  val addr   = Bits(width = l2cacheconf.tl.addrBits)
 }
 
 class L2DataWriteReq(implicit conf: L2CacheConfig) extends L2DataReadReq()(conf) {
   val wmask  = Bits(width = conf.tl.writeMaskBits)
-  val data   = Bits(width = conf.rowbits)
+  val data   = Bits(width = conf.tl.dataBits)
 }
 
 class L2DataArray(implicit conf: L2CacheConfig) extends Module {
   val io = new Bundle {
     val read = Decoupled(new L2DataReadReq).flip
     val write = Decoupled(new L2DataWriteReq).flip
-    val resp = Vec.fill(conf.ways){Bits(OUTPUT, conf.rowbits)}
+    val resp = Vec.fill(conf.ways){Bits(OUTPUT, conf.tl.dataBits)}
   }
 
-  val waddr = io.write.bits.addr >> UInt(conf.rowoffbits)
-  val raddr = io.read.bits.addr >> UInt(conf.rowoffbits)
-
-  val wmask = FillInterleaved(conf.databits, io.write.bits.wmask)
+  val waddr = io.write.bits.addr
+  val raddr = io.read.bits.addr
+  val wmask = FillInterleaved(conf.wordbits, io.write.bits.wmask)
   for (w <- 0 until conf.ways) {
     val array = Mem(Bits(width=conf.rowbits), conf.sets*conf.refillcycles, seqRead = true)
     when (io.write.bits.way_en(w) && io.write.valid) {
@@ -161,11 +165,51 @@ class L2DataArray(implicit conf: L2CacheConfig) extends Module {
   io.write.ready := Bool(true)
 }
 
-class L2HellaCache(bankId: Int)(implicit conf: L2CacheConfig) extends CoherenceAgent()(conf.tl)
-{
+trait InternalRequestState extends CacheBundle {
+  val tag_match = Bool()
+  val old_meta = new MetaData
+  val way_en = Bits(width = cacheconf.ways)
+}
+
+class InternalAcquire(implicit val cacheconf: CacheConfig) extends Acquire()(cacheconf.tl) 
+  with InternalRequestState
+
+class InternalRelease(implicit val cacheconf: CacheConfig) extends Release()(cacheconf.tl) 
+  with InternalRequestState
+
+class InternalTileLinkIO(implicit val l2cacheconf: L2CacheConfig) extends L2CacheBundle {
+  implicit val (tl, ln) = (l2cacheconf.tl, l2cacheconf.tl.ln)
+  val acquire   = new DecoupledIO(new LogicalNetworkIO(new InternalAcquire))
+  val probe     = new DecoupledIO(new LogicalNetworkIO(new Probe)).flip
+  val release   = new DecoupledIO(new LogicalNetworkIO(new InternalRelease))
+  val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
+  val finish = new DecoupledIO(new LogicalNetworkIO(new Finish))
+}
+
+class L2HellaCache(bankId: Int)(implicit conf: L2CacheConfig) extends CoherenceAgent {
   implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
 
-  // Create SHRs for outstanding transactions
+  val tshrfile = Module(new TSHRFile(bankId))
+
+  io.client <> tshrfile.io.client
+  io.master <> tshrfile.io.outer
+  io.incoherent <> tshrfile.io.incoherent
+}
+
+
+class TSHRFile(bankId: Int)(implicit conf: L2CacheConfig) extends Module {
+  implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
+  val io = new Bundle {
+    val client = (new InternalTileLinkIO).flip
+    val outer = new UncachedTileLinkIO
+    val incoherent = Vec.fill(ln.nClients){Bool()}.asInput
+    val meta_read_req = Decoupled(new MetaReadReq)
+    val meta_write_req = Decoupled(new MetaWriteReq)
+    val data_read_req = Decoupled(new MetaReadReq)
+    val data_write_req = Decoupled(new MetaWriteReq)
+  }
+
+  // Create TSHRs for outstanding transactions
   val nTrackers = conf.nReleaseTransactions + conf.nAcquireTransactions
   val trackerList = (0 until conf.nReleaseTransactions).map(id => Module(new L2VoluntaryReleaseTracker(id, bankId))) ++ 
                     (conf.nReleaseTransactions until nTrackers).map(id => Module(new L2AcquireTracker(id, bankId)))
@@ -222,7 +266,7 @@ class L2HellaCache(bankId: Int)(implicit conf: L2CacheConfig) extends CoherenceA
   // Create an arbiter for the one memory port
   val outer_arb = Module(new UncachedTileLinkIOArbiterThatPassesId(trackerList.size))
   outer_arb.io.in zip  trackerList map { case(arb, t) => arb <> t.io.master }
-  io.master <> outer_arb.io.out
+  io.outer <> outer_arb.io.out
 }
 
 
