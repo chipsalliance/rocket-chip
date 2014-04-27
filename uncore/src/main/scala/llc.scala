@@ -343,13 +343,15 @@ class MemReqArb(n: Int, refill_cycles: Int)(implicit conf: MemoryIFConfiguration
   when (unlock) { lock := Bool(false) }
 }
 
-class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int, tagLeaf: Mem[UInt], dataLeaf: Mem[UInt])(implicit conf: MemoryIFConfiguration) extends Module
-{
+abstract class DRAMSideLLCLike(implicit conf: MemoryIFConfiguration) extends Module {
   val io = new Bundle {
     val cpu = new MemIO().flip
     val mem = new MemPipeIO
   }
+}
 
+class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int, tagLeaf: Mem[UInt], dataLeaf: Mem[UInt])(implicit conf: MemoryIFConfiguration) extends DRAMSideLLCLike
+{
   val tagWidth = conf.addrBits - log2Up(sets)
   val metaWidth = tagWidth + 2 // valid + dirty
 
@@ -497,12 +499,8 @@ object HellaQueue
   }
 }
 
-class DRAMSideLLCNull(numRequests: Int, refillCycles: Int)(implicit conf: MemoryIFConfiguration) extends Module
-{
-  val io = new Bundle {
-    val cpu = new MemIO().flip
-    val mem = new MemPipeIO
-  }
+class DRAMSideLLCNull(numRequests: Int, refillCycles: Int)(implicit conf: MemoryIFConfiguration) 
+  extends DRAMSideLLCLike {
 
   val numEntries = numRequests * refillCycles
   val size = log2Down(numEntries) + 1

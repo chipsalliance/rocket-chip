@@ -1,18 +1,27 @@
 package uncore
 import Chisel._
 
-abstract class CoherenceAgent(implicit conf: TileLinkConfiguration) extends Module {
+trait CoherenceAgentConfiguration {
+  def tl: TileLinkConfiguration
+  def nReleaseTransactions: Int
+  def nAcquireTransactions: Int
+}
+
+abstract class CoherenceAgent(implicit conf: CoherenceAgentConfiguration) extends Module {
   val io = new Bundle {
-    val client = (new TileLinkIO).flip
-    val master = new UncachedTileLinkIO
-    val incoherent = Vec.fill(conf.ln.nClients){Bool()}.asInput
+    val client = (new TileLinkIO()(conf.tl)).flip
+    val master = new UncachedTileLinkIO()(conf.tl)
+    val incoherent = Vec.fill(conf.tl.ln.nClients){Bool()}.asInput
   }
 }
 
-case class L2CoherenceAgentConfiguration(tl: TileLinkConfiguration, nReleaseTransactions: Int, nAcquireTransactions: Int)
+case class L2CoherenceAgentConfiguration(
+    val tl: TileLinkConfiguration, 
+    val nReleaseTransactions: Int, 
+    val nAcquireTransactions: Int) extends CoherenceAgentConfiguration
 
-class L2CoherenceAgent(bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends CoherenceAgent()(conf.tl)
-{
+class L2CoherenceAgent(bankId: Int)(implicit conf: CoherenceAgentConfiguration) 
+  extends CoherenceAgent {
   implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
 
   // Create SHRs for outstanding transactions
@@ -76,7 +85,7 @@ class L2CoherenceAgent(bankId: Int)(implicit conf: L2CoherenceAgentConfiguration
 }
 
 
-abstract class XactTracker()(implicit conf: L2CoherenceAgentConfiguration) extends Module {
+abstract class XactTracker()(implicit conf: CoherenceAgentConfiguration) extends Module {
   implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
   val io = new Bundle {
     val client = (new TileLinkIO).flip
@@ -94,7 +103,8 @@ abstract class XactTracker()(implicit conf: L2CoherenceAgentConfiguration) exten
 
 }
 
-class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
+class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: CoherenceAgentConfiguration) 
+  extends XactTracker()(conf) {
   val s_idle :: s_mem :: s_ack :: s_busy :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Release }
@@ -143,7 +153,8 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int)(implicit conf: L2Cohe
   }
 }
 
-class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: L2CoherenceAgentConfiguration) extends XactTracker()(conf) {
+class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: CoherenceAgentConfiguration) 
+  extends XactTracker()(conf) {
   val s_idle :: s_probe :: s_mem_read :: s_mem_write :: s_make_grant :: s_busy :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Acquire }
