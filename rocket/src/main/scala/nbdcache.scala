@@ -85,11 +85,8 @@ class LoadGen(typ: Bits, addr: Bits, dat: Bits, zero: Bool)
   val byte = Cat(Mux(zero || t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
 }
 
-class MSHRReq(implicit conf: DCacheConfig) extends HellaCacheReq {
-  val tag_match = Bool()
-  val old_meta = new MetaData
-  val way_en = Bits(width = conf.ways)
-}
+class MSHRReq(implicit val cacheconf: DCacheConfig) extends HellaCacheReq
+  with InternalRequestState
 
 class Replay(implicit conf: DCacheConfig) extends HellaCacheReq {
   val sdq_id = UInt(width = log2Up(conf.nsdq))
