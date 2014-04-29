@@ -69,16 +69,16 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
 
   val net = Module(new ReferenceChipCrossbarNetwork)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
-  net.io.masters zip (masterEndpoints.map(_.io.client)) map { case (net, end) => net <> end }
+  net.io.masters zip (masterEndpoints.map(_.io.inner)) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
 
   val conv = Module(new MemIOUncachedTileLinkIOConverter(2))
   if(ln.nMasters > 1) {
     val arb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(ln.nMasters))
-    arb.io.in zip masterEndpoints.map(_.io.master) map { case (arb, cache) => arb <> cache }
+    arb.io.in zip masterEndpoints.map(_.io.outer) map { case (arb, cache) => arb <> cache }
     conv.io.uncached <> arb.io.out
   } else {
-    conv.io.uncached <> masterEndpoints.head.io.master
+    conv.io.uncached <> masterEndpoints.head.io.outer
   }
   llc.io.cpu.req_cmd <> Queue(conv.io.mem.req_cmd)
   llc.io.cpu.req_data <> Queue(conv.io.mem.req_data, refill_cycles)

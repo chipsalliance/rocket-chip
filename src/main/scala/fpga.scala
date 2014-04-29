@@ -19,11 +19,11 @@ class FPGAOuterMemorySystem(htif_width: Int)(implicit conf: FPGAUncoreConfigurat
   val master = Module(new L2CoherenceAgent(0))
   val net = Module(new ReferenceChipCrossbarNetwork)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
-  net.io.masters.head <> master.io.client 
+  net.io.masters.head <> master.io.inner
   master.io.incoherent zip io.incoherent map { case (m, c) => m := c }
 
   val conv = Module(new MemIOUncachedTileLinkIOConverter(2))
-  conv.io.uncached <> master.io.master
+  conv.io.uncached <> master.io.outer
   io.mem.req_cmd <> Queue(conv.io.mem.req_cmd, 2)
   io.mem.req_data <> Queue(conv.io.mem.req_data, tl.dataBits/mif.dataBits)
   conv.io.mem.resp <> Queue(io.mem.resp)
