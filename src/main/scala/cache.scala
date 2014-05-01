@@ -14,8 +14,6 @@ trait CacheConfig {
   def offbits: Int
   def untagbits: Int
   def rowbits: Int
-  def metabits: Int
-  def statebits: Int
 }
 
 case class L2CacheConfig(
@@ -45,7 +43,6 @@ case class L2CacheConfig(
   def rowoffbits = log2Up(rowbytes)
   def refillcycles = tl.dataBits/(rowbits)
   def statebits = log2Up(states)
-  def metabits = statebits + tagbits
 
   require(states > 0)
   require(isPow2(sets))
@@ -79,54 +76,61 @@ class RandomReplacement(implicit val cacheconf: CacheConfig) extends Replacement
   def hit = {}
 }
 
-object MetaData {
-  def apply(tag: Bits, state: UInt)(implicit cacheconf: CacheConfig) = {
-    val meta = new MetaData
-    meta.state := state
-    meta.tag := tag
-    meta
-  }
-}
-class MetaData(implicit val cacheconf: CacheConfig) extends CacheBundle {
-  val state = UInt(width = cacheconf.statebits)
+abstract class MetaData(implicit val cacheconf: CacheConfig) extends CacheBundle {
   val tag = Bits(width = cacheconf.tagbits)
 }
+
+class L2MetaData(implicit val l2cacheconf: L2CacheConfig) extends MetaData
+  with L2CacheBundle {
+  val state = UInt(width = l2cacheconf.statebits)
+  val sharers = Bits(width = l2cacheconf.tl.ln.nClients)
+}
+
+/*
+class L3MetaData(implicit conf: L3CacheConfig) extends MetaData()(conf) {
+  val cstate = UInt(width = cacheconf.cstatebits)
+  val mstate = UInt(width = cacheconf.mstatebits)
+  val sharers = Bits(width = cacheconf.tl.ln.nClients)
+}
+*/
 
 class MetaReadReq(implicit val cacheconf: CacheConfig) extends CacheBundle {
   val idx  = Bits(width = cacheconf.idxbits)
 }
 
-class MetaWriteReq(implicit conf: CacheConfig) extends MetaReadReq()(conf) {
+class MetaWriteReq[T <: MetaData](gen: T)(implicit conf: CacheConfig) extends MetaReadReq {
   val way_en = Bits(width = conf.ways)
-  val data = new MetaData()
+  val data = gen.clone
+  override def clone = new MetaWriteReq(gen)(conf).asInstanceOf[this.type]
 }
 
-class MetaDataArray(implicit conf: CacheConfig) extends Module {
+class MetaDataArray[T <: MetaData](resetMeta: T)(implicit conf: CacheConfig) extends Module {
   implicit val tl = conf.tl
+  def gen = resetMeta.clone
   val io = new Bundle {
     val read = Decoupled(new MetaReadReq).flip
-    val write = Decoupled(new MetaWriteReq).flip
-    val resp = Vec.fill(conf.ways){(new MetaData).asOutput}
+    val write = Decoupled(new MetaWriteReq(gen)).flip
+    val resp = Vec.fill(conf.ways){gen.asOutput}
   }
 
+  val metabits = resetMeta.getWidth
   val rst_cnt = Reg(init=UInt(0, log2Up(conf.sets+1)))
   val rst = rst_cnt < UInt(conf.sets)
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
-  val tags = Mem(UInt(width = conf.metabits*conf.ways), conf.sets, seqRead = true)
+  val tags = Mem(UInt(width = metabits*conf.ways), conf.sets, seqRead = true)
 
   when (rst || io.write.valid) {
     val addr = Mux(rst, rst_cnt, io.write.bits.idx)
-    val data = Cat(Mux(rst, tl.co.newStateOnFlush, io.write.bits.data.state), io.write.bits.data.tag)
+    val data = Mux(rst, resetMeta, io.write.bits.data).toBits
     val mask = Mux(rst, SInt(-1), io.write.bits.way_en)
-    tags.write(addr, Fill(conf.ways, data), FillInterleaved(conf.metabits, mask))
+    tags.write(addr, Fill(conf.ways, data), FillInterleaved(metabits, mask))
   }
   val tag = tags(RegEnable(io.read.bits.idx, io.read.valid))
 
   for (w <- 0 until conf.ways) {
-    val m = tag(conf.metabits*(w+1)-1, conf.metabits*w)
-    io.resp(w).state := m >> UInt(conf.tagbits)
-    io.resp(w).tag := m
+    val m = tag(metabits*(w+1)-1, metabits*w)
+    io.resp(w) := gen.fromBits(m)
   }
 
   io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
@@ -165,23 +169,23 @@ class L2DataArray(implicit conf: L2CacheConfig) extends Module {
   io.write.ready := Bool(true)
 }
 
-trait InternalRequestState extends CacheBundle {
+trait L2InternalRequestState extends L2CacheBundle {
   val tag_match = Bool()
-  val old_meta = new MetaData
-  val way_en = Bits(width = cacheconf.ways)
+  val old_meta = new L2MetaData
+  val way_en = Bits(width = l2cacheconf.ways)
 }
 
-class InternalAcquire(implicit val cacheconf: CacheConfig) extends Acquire()(cacheconf.tl) 
-  with InternalRequestState
+class L2InternalAcquire(implicit val l2cacheconf: L2CacheConfig) extends Acquire()(l2cacheconf.tl) 
+  with L2InternalRequestState
 
-class InternalRelease(implicit val cacheconf: CacheConfig) extends Release()(cacheconf.tl) 
-  with InternalRequestState
+class L2InternalRelease(implicit val l2cacheconf: L2CacheConfig) extends Release()(l2cacheconf.tl) 
+  with L2InternalRequestState
 
 class InternalTileLinkIO(implicit val l2cacheconf: L2CacheConfig) extends L2CacheBundle {
   implicit val (tl, ln) = (l2cacheconf.tl, l2cacheconf.tl.ln)
-  val acquire   = new DecoupledIO(new LogicalNetworkIO(new InternalAcquire))
+  val acquire   = new DecoupledIO(new LogicalNetworkIO(new L2InternalAcquire))
   val probe     = new DecoupledIO(new LogicalNetworkIO(new Probe)).flip
-  val release   = new DecoupledIO(new LogicalNetworkIO(new InternalRelease))
+  val release   = new DecoupledIO(new LogicalNetworkIO(new L2InternalRelease))
   val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
   val finish = new DecoupledIO(new LogicalNetworkIO(new Finish))
 }
@@ -190,6 +194,21 @@ class L2HellaCache(bankId: Int)(implicit conf: L2CacheConfig) extends CoherenceA
   implicit val (tl, ln, co) = (conf.tl, conf.tl.ln, conf.tl.co)
 
   val tshrfile = Module(new TSHRFile(bankId))
+
+  // tags
+  val meta = Module(new MetaDataArray(new L2MetaData))
+
+  // data
+  val data = Module(new L2DataArray)
+
+  // replacement policy
+  val replacer = new RandomReplacement
+/*
+  val s1_replaced_way_en = UIntToOH(replacer.way)
+  val s2_replaced_way_en = UIntToOH(RegEnable(replacer.way, s1_clk_en))
+  val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => 
+    RegEnable(meta.io.resp(w), s1_clk_en && s1_replaced_way_en(w))).toSeq)
+*/
 
   tshrfile.io.inner <> io.inner
   io.outer <> tshrfile.io.outer
@@ -204,9 +223,9 @@ class TSHRFile(bankId: Int)(implicit conf: L2CacheConfig) extends Module {
     val outer = new UncachedTileLinkIO
     val incoherent = Vec.fill(ln.nClients){Bool()}.asInput
     val meta_read_req = Decoupled(new MetaReadReq)
-    val meta_write_req = Decoupled(new MetaWriteReq)
-    val data_read_req = Decoupled(new MetaReadReq)
-    val data_write_req = Decoupled(new MetaWriteReq)
+    val meta_write_req = Decoupled(new MetaWriteReq(new L2MetaData))
+    val data_read_req = Decoupled(new L2DataReadReq)
+    val data_write_req = Decoupled(new L2DataWriteReq)
   }
 
   // Create TSHRs for outstanding transactions
