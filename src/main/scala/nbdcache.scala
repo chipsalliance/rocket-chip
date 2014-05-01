@@ -34,9 +34,7 @@ case class DCacheConfig(val sets: Int, val ways: Int,
   def refillcycles = tl.dataBits/(rowbits)
   def isNarrowRead = narrowRead && databits*ways % rowbits == 0
   val statebits = log2Up(states)
-  val metabits = statebits + tagbits
   val encdatabits = code.width(databits)
-  val encmetabits = code.width(metabits)
   val encrowbits = rowwords*encdatabits
   val lrsc_cycles = 32 // ISA requires 16-insn LRSC sequences to succeed
 
@@ -85,8 +83,11 @@ class LoadGen(typ: Bits, addr: Bits, dat: Bits, zero: Bool)
   val byte = Cat(Mux(zero || t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
 }
 
-class MSHRReq(implicit val cacheconf: DCacheConfig) extends HellaCacheReq
-  with InternalRequestState
+class MSHRReq(implicit val cacheconf: DCacheConfig) extends HellaCacheReq {
+  val tag_match = Bool()
+  val old_meta = new L1MetaData
+  val way_en = Bits(width = cacheconf.ways)
+}
 
 class Replay(implicit conf: DCacheConfig) extends HellaCacheReq {
   val sdq_id = UInt(width = log2Up(conf.nsdq))
@@ -97,27 +98,37 @@ class DataReadReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val addr   = Bits(width = conf.untagbits)
 }
 
-class DataWriteReq(implicit conf: DCacheConfig) extends DataReadReq()(conf) {
+class DataWriteReq(implicit conf: DCacheConfig) extends DataReadReq {
   val wmask  = Bits(width = conf.rowwords)
   val data   = Bits(width = conf.encrowbits)
 }
 
-class L1MetaReadReq(implicit conf: DCacheConfig) extends MetaReadReq()(conf) {
+object L1MetaData {
+  def apply(tag: Bits, state: UInt)(implicit conf: DCacheConfig) = {
+    val meta = new L1MetaData
+    meta.state := state
+    meta.tag := tag
+    meta
+  }
+}
+class L1MetaData(implicit val conf: DCacheConfig) extends MetaData {
+  val state = UInt(width = conf.statebits)
+}
+
+class L1MetaReadReq(implicit conf: DCacheConfig) extends MetaReadReq {
   val tag = Bits(width = conf.tagbits)
 }
 
 class InternalProbe(implicit conf: TileLinkConfiguration) extends Probe()(conf) 
   with HasClientTransactionId
 
-class WritebackReq(implicit conf: DCacheConfig) extends Bundle {
+class WritebackReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val tag = Bits(width = conf.tagbits)
   val idx = Bits(width = conf.idxbits)
   val way_en = Bits(width = conf.ways)
   val client_xact_id = Bits(width = conf.tl.clientXactIdBits)
   val master_xact_id = Bits(width = conf.tl.masterXactIdBits)
   val r_type = UInt(width = conf.tl.co.releaseTypeWidth) 
-
-  override def clone = new WritebackReq().asInstanceOf[this.type]
 }
 
 class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
@@ -136,7 +147,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
     val mem_req  = Decoupled(new Acquire)
     val mem_resp = new DataWriteReq().asOutput
     val meta_read = Decoupled(new L1MetaReadReq)
-    val meta_write = Decoupled(new MetaWriteReq)
+    val meta_write = Decoupled(new MetaWriteReq(new L1MetaData))
     val replay = Decoupled(new Replay)
     val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
     val mem_finish = Decoupled(new LogicalNetworkIO(new Finish))
@@ -286,7 +297,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Module {
     val mem_req  = Decoupled(new Acquire)
     val mem_resp = new DataWriteReq().asOutput
     val meta_read = Decoupled(new L1MetaReadReq)
-    val meta_write = Decoupled(new MetaWriteReq)
+    val meta_write = Decoupled(new MetaWriteReq(new L1MetaData))
     val replay = Decoupled(new Replay)
     val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
     val mem_finish = Decoupled(new LogicalNetworkIO(new Finish))
@@ -310,7 +321,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Module {
   val wbTagList = Vec.fill(conf.nmshr){Bits()}
   val memRespMux = Vec.fill(conf.nmshr){new DataWriteReq}
   val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, conf.nmshr))
-  val meta_write_arb = Module(new Arbiter(new MetaWriteReq, conf.nmshr))
+  val meta_write_arb = Module(new Arbiter(new MetaWriteReq(new L1MetaData), conf.nmshr))
   val mem_req_arb = Module(new Arbiter(new Acquire, conf.nmshr))
   val mem_finish_arb = Module(new Arbiter(new LogicalNetworkIO(new Finish), conf.nmshr))
   val wb_req_arb = Module(new Arbiter(new WritebackReq, conf.nmshr))
@@ -465,7 +476,7 @@ class ProbeUnit(implicit conf: DCacheConfig) extends Module {
     val req = Decoupled(new InternalProbe).flip
     val rep = Decoupled(new Release)
     val meta_read = Decoupled(new L1MetaReadReq)
-    val meta_write = Decoupled(new MetaWriteReq)
+    val meta_write = Decoupled(new MetaWriteReq(new L1MetaData))
     val wb_req = Decoupled(new WritebackReq)
     val way_en = Bits(INPUT, conf.ways)
     val mshr_rdy = Bool(INPUT)
@@ -760,16 +771,15 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
 
   // tags
-  val meta = Module(new MetaDataArray)
+  val meta = Module(new MetaDataArray(L1MetaData(tl.co.newStateOnFlush,UInt(0))))
   val metaReadArb = Module(new Arbiter(new MetaReadReq, 5))
-  val metaWriteArb = Module(new Arbiter(new MetaWriteReq, 2))
+  val metaWriteArb = Module(new Arbiter(new MetaWriteReq(new L1MetaData), 2))
   metaReadArb.io.out <> meta.io.read
   metaWriteArb.io.out <> meta.io.write
 
   // data
   val data = Module(new DataArray)
   val readArb = Module(new Arbiter(new DataReadReq, 4))
-
   val writeArb = Module(new Arbiter(new DataWriteReq, 2))
   data.io.write.valid := writeArb.io.out.valid
   writeArb.io.out.ready := data.io.write.ready
@@ -869,7 +879,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   mshrs.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd))
   mshrs.io.req.bits := s2_req
   mshrs.io.req.bits.tag_match := s2_tag_match
-  mshrs.io.req.bits.old_meta := Mux(s2_tag_match, MetaData(s2_repl_meta.tag, s2_hit_state), s2_repl_meta)
+  mshrs.io.req.bits.old_meta := Mux(s2_tag_match, L1MetaData(s2_repl_meta.tag, s2_hit_state), s2_repl_meta)
   mshrs.io.req.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
   mshrs.io.req.bits.data := s2_req.data
   when (mshrs.io.req.fire()) { replacer.miss }
