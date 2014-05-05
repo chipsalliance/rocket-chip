@@ -20,7 +20,7 @@ object DecodeLogic
     }.foldLeft(Bool(false))(_||_)
   }
   def apply[T <: Bits](addr: UInt, default: T, mapping: Iterable[(UInt, T)]): T = {
-    val cache = caches.getOrElseUpdate(Module.current, collection.mutable.Map[Term,Bool]())
+    val cache = caches.getOrElseUpdate(addr, collection.mutable.Map[Term,Bool]())
     val dterm = term(default)
     val (keys, values) = mapping.unzip
     val addrWidth = keys.map(_.getWidth).max
@@ -59,7 +59,7 @@ object DecodeLogic
     apply(addr, Bool.DC, trues.map(_ -> Bool(true)) ++ falses.map(_ -> Bool(false)))
   def apply(addr: UInt, tru: UInt, fals: UInt): Bool =
     apply(addr, Seq(tru), Seq(fals))
-  private val caches = collection.mutable.Map[Module,collection.mutable.Map[Term,Bool]]()
+  private val caches = collection.mutable.Map[UInt,collection.mutable.Map[Term,Bool]]()
 }
 
 class Term(val value: BigInt, val mask: BigInt = 0)
