@@ -771,7 +771,8 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
 
   // tags
-  val meta = Module(new MetaDataArray(L1MetaData(tl.co.newStateOnFlush,UInt(0))))
+  def onReset = L1MetaData(tl.co.newStateOnFlush, UInt(0))
+  val meta = Module(new MetaDataArray(onReset _))
   val metaReadArb = Module(new Arbiter(new MetaReadReq, 5))
   val metaWriteArb = Module(new Arbiter(new MetaWriteReq(new L1MetaData), 2))
   metaReadArb.io.out <> meta.io.read
