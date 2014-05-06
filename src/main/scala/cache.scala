@@ -104,16 +104,16 @@ class MetaWriteReq[T <: MetaData](gen: T)(implicit conf: CacheConfig) extends Me
   override def clone = new MetaWriteReq(gen)(conf).asInstanceOf[this.type]
 }
 
-class MetaDataArray[T <: MetaData](resetMeta: T)(implicit conf: CacheConfig) extends Module {
+class MetaDataArray[T <: MetaData](gen: () => T)(implicit conf: CacheConfig) extends Module {
   implicit val tl = conf.tl
-  def gen = resetMeta.clone
+  val rstVal = gen()
   val io = new Bundle {
     val read = Decoupled(new MetaReadReq).flip
-    val write = Decoupled(new MetaWriteReq(gen)).flip
-    val resp = Vec.fill(conf.ways){gen.asOutput}
+    val write = Decoupled(new MetaWriteReq(rstVal.clone)).flip
+    val resp = Vec.fill(conf.ways){rstVal.clone.asOutput}
   }
 
-  val metabits = resetMeta.getWidth
+  val metabits = rstVal.getWidth
   val rst_cnt = Reg(init=UInt(0, log2Up(conf.sets+1)))
   val rst = rst_cnt < UInt(conf.sets)
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
@@ -122,7 +122,7 @@ class MetaDataArray[T <: MetaData](resetMeta: T)(implicit conf: CacheConfig) ext
 
   when (rst || io.write.valid) {
     val addr = Mux(rst, rst_cnt, io.write.bits.idx)
-    val data = Mux(rst, resetMeta, io.write.bits.data).toBits
+    val data = Mux(rst, rstVal, io.write.bits.data).toBits
     val mask = Mux(rst, SInt(-1), io.write.bits.way_en)
     tags.write(addr, Fill(conf.ways, data), FillInterleaved(metabits, mask))
   }
@@ -130,7 +130,7 @@ class MetaDataArray[T <: MetaData](resetMeta: T)(implicit conf: CacheConfig) ext
 
   for (w <- 0 until conf.ways) {
     val m = tag(metabits*(w+1)-1, metabits*w)
-    io.resp(w) := gen.fromBits(m)
+    io.resp(w) := rstVal.clone.fromBits(m)
   }
 
   io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
@@ -196,7 +196,7 @@ class L2HellaCache(bankId: Int)(implicit conf: L2CacheConfig) extends CoherenceA
   val tshrfile = Module(new TSHRFile(bankId))
 
   // tags
-  val meta = Module(new MetaDataArray(new L2MetaData))
+  val meta = Module(new MetaDataArray(() => new L2MetaData))
 
   // data
   val data = Module(new L2DataArray)
