@@ -11,6 +11,7 @@ object DesignSpaceConstants {
   val HTIF_WIDTH = 16
   val ENABLE_SHARING = true
   val ENABLE_CLEAN_EXCLUSIVE = true
+  val USE_DRAMSIDE_LLC = true
   val HAS_FPU = true
   val NL2_REL_XACTS = 1
   val NL2_ACQ_XACTS = 7
@@ -220,7 +221,7 @@ class Top extends Module {
                                           atomicOpBits = ATOMIC_OP_BITS)
   implicit val l2 = L2CacheConfig(512, 8, 1, 1, NL2_REL_XACTS, NL2_ACQ_XACTS, tl, as)
   implicit val mif = MemoryIFConfiguration(MEM_ADDR_BITS, MEM_DATA_BITS, MEM_TAG_BITS, MEM_DATA_BEATS)
-  implicit val uc = UncoreConfiguration(l2, tl, mif, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64, offsetBits = OFFSET_BITS, useDRAMSideLLC = true)
+  implicit val uc = UncoreConfiguration(l2, tl, mif, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64, offsetBits = OFFSET_BITS, useDRAMSideLLC = USE_DRAMSIDE_LLC)
 
   val ic = ICacheConfig(sets = 128, assoc = 2, ntlb = 8, tl = tl, as = as, btb = BTBConfig(as, 64, 2))
   val dc = DCacheConfig(sets = 128, ways = 4, 
