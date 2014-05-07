@@ -771,7 +771,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
 
   // tags
-  def onReset = L1MetaData(tl.co.newStateOnFlush, UInt(0))
+  def onReset = L1MetaData(UInt(0), tl.co.newStateOnFlush)
   val meta = Module(new MetaDataArray(onReset _))
   val metaReadArb = Module(new Arbiter(new MetaReadReq, 5))
   val metaWriteArb = Module(new Arbiter(new MetaWriteReq(new L1MetaData), 2))
@@ -810,7 +810,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   def wayMap[T <: Data](f: Int => T) = Vec((0 until conf.ways).map(f))
   val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === (s1_addr >> conf.untagbits)).toBits
   val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && tl.co.isValid(meta.io.resp(w).state)).toBits
-  s1_clk_en := metaReadArb.io.out.valid
+  s1_clk_en := metaReadArb.io.out.valid //TODO: should be metaReadArb.io.out.fire(), but triggers Verilog backend bug
   val s1_writeback = s1_clk_en && !s1_valid && !s1_replay
   val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
