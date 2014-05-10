@@ -64,17 +64,15 @@ class PseudoLRU(n: Int)
   }
 }
 
-class TLBReq()(implicit conf: AddressSpaceConfiguration) extends Bundle
+class TLBReq()(implicit val conf: AddressSpaceConfiguration) extends BundleWithConf
 {
   val asid = UInt(width = conf.asidBits)
   val vpn = UInt(width = conf.vpnBits+1)
   val passthrough = Bool()
   val instruction = Bool()
-
-  override def clone = new TLBReq().asInstanceOf[this.type]
 }
 
-class TLBResp(entries: Int)(implicit conf: AddressSpaceConfiguration) extends Bundle
+class TLBResp(entries: Int)(implicit val conf: AddressSpaceConfiguration) extends BundleWithConf
 {
   // lookup responses
   val miss = Bool(OUTPUT)
@@ -83,8 +81,6 @@ class TLBResp(entries: Int)(implicit conf: AddressSpaceConfiguration) extends Bu
   val xcpt_ld = Bool(OUTPUT)
   val xcpt_st = Bool(OUTPUT)
   val xcpt_if = Bool(OUTPUT)
-
-  override def clone = new TLBResp(entries)(conf).asInstanceOf[this.type]
 }
 
 class TLB(entries: Int)(implicit conf: AddressSpaceConfiguration) extends Module

@@ -29,18 +29,15 @@ case class ICacheConfig(sets: Int, assoc: Int,
   require(as.pgIdxBits >= untagbits)
 }
 
-class FrontendReq()(implicit conf: ICacheConfig) extends Bundle {
+class FrontendReq()(implicit val conf: ICacheConfig) extends BundleWithConf {
   val pc = UInt(width = conf.as.vaddrBits+1)
-  override def clone = new FrontendReq().asInstanceOf[this.type]
 }
 
-class FrontendResp(implicit conf: ICacheConfig) extends Bundle {
+class FrontendResp(implicit val conf: ICacheConfig) extends BundleWithConf {
   val pc = UInt(width = conf.as.vaddrBits+1)  // ID stage PC
   val data = Bits(width = conf.ibytes*8)
   val xcpt_ma = Bool()
   val xcpt_if = Bool()
-
-  override def clone = new FrontendResp().asInstanceOf[this.type]
 }
 
 class CPUFrontendIO(implicit conf: ICacheConfig) extends Bundle {
@@ -129,17 +126,15 @@ class Frontend(implicit c: ICacheConfig) extends Module
   io.cpu.btb_resp.bits := s2_btb_resp_bits
 }
 
-class ICacheReq(implicit c: ICacheConfig)  extends Bundle {
-  val idx = UInt(width = c.as.pgIdxBits)
-  val ppn = UInt(width = c.as.ppnBits) // delayed one cycle
+class ICacheReq(implicit val conf: ICacheConfig) extends BundleWithConf {
+  val idx = UInt(width = conf.as.pgIdxBits)
+  val ppn = UInt(width = conf.as.ppnBits) // delayed one cycle
   val kill = Bool() // delayed one cycle
-  override def clone = new ICacheReq().asInstanceOf[this.type]
 }
 
-class ICacheResp(implicit c: ICacheConfig) extends Bundle {
-  val data = Bits(width = c.ibytes*8)
-  val datablock = Bits(width = c.rowbits)
-  override def clone = new ICacheResp().asInstanceOf[this.type]
+class ICacheResp(implicit val conf: ICacheConfig) extends BundleWithConf {
+  val data = Bits(width = conf.ibytes*8)
+  val datablock = Bits(width = conf.rowbits)
 }
 
 class ICache(implicit c: ICacheConfig) extends Module

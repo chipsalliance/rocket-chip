@@ -53,7 +53,7 @@ class BHT(implicit conf: BTBConfig) {
   val history = Reg(UInt(width = log2Up(conf.nbht)))
 }
 
-class BTBUpdate(implicit conf: BTBConfig) extends Bundle {
+class BTBUpdate(implicit val conf: BTBConfig) extends BundleWithConf {
   val prediction = Valid(new BTBResp)
   val pc = UInt(width = conf.as.vaddrBits)
   val target = UInt(width = conf.as.vaddrBits)
@@ -63,17 +63,13 @@ class BTBUpdate(implicit conf: BTBConfig) extends Bundle {
   val isCall = Bool()
   val isReturn = Bool()
   val incorrectTarget = Bool()
-
-  override def clone = new BTBUpdate().asInstanceOf[this.type]
 }
 
-class BTBResp(implicit conf: BTBConfig) extends Bundle {
+class BTBResp(implicit val conf: BTBConfig) extends BundleWithConf {
   val taken = Bool()
   val target = UInt(width = conf.as.vaddrBits)
   val entry = UInt(width = conf.opaqueBits)
   val bht = new BHTResp
-
-  override def clone = new BTBResp().asInstanceOf[this.type]
 }
 
 // fully-associative branch target buffer

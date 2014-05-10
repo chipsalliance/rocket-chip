@@ -16,24 +16,20 @@ class RoCCInstruction extends Bundle
   val opcode = Bits(width = 7)
 }
 
-class RoCCCommand(implicit conf: RocketConfiguration) extends Bundle
+class RoCCCommand(implicit val conf: RocketConfiguration) extends BundleWithConf
 {
   val inst = new RoCCInstruction
   val rs1 = Bits(width = conf.xprlen)
   val rs2 = Bits(width = conf.xprlen)
-
-  override def clone = new RoCCCommand().asInstanceOf[this.type]
 }
 
-class RoCCResponse(implicit conf: RocketConfiguration) extends Bundle
+class RoCCResponse(implicit val conf: RocketConfiguration) extends BundleWithConf
 {
   val rd = Bits(width = 5)
   val data = Bits(width = conf.xprlen)
-
-  override def clone = new RoCCResponse().asInstanceOf[this.type]
 }
 
-class RoCCInterface(implicit conf: RocketConfiguration) extends Bundle
+class RoCCInterface(implicit val conf: RocketConfiguration) extends BundleWithConf
 {
   implicit val as = conf.as
   val cmd = Decoupled(new RoCCCommand).flip
@@ -49,8 +45,6 @@ class RoCCInterface(implicit conf: RocketConfiguration) extends Bundle
   val dptw = new TLBPTWIO
   val pptw = new TLBPTWIO
   val exception = Bool(INPUT)
-
-  override def clone = new RoCCInterface().asInstanceOf[this.type]
 }
 
 abstract class RoCC(conf: RocketConfiguration) extends Module

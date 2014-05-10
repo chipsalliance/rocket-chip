@@ -168,7 +168,6 @@ class FPInput extends FPUCtrlSigs {
   val in1 = Bits(width = 65)
   val in2 = Bits(width = 65)
   val in3 = Bits(width = 65)
-  override def clone = new FPInput().asInstanceOf[this.type]
 }
 
 class FPToInt extends Module

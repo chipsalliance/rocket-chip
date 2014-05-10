@@ -46,11 +46,6 @@ case class DCacheConfig(val sets: Int, val ways: Int,
   require(untagbits <= pgidxbits)
 }
 
-abstract trait DCacheBundle extends Bundle {
-  implicit val conf: DCacheConfig
-  override def clone = this.getClass.getConstructors.head.newInstance(conf).asInstanceOf[this.type]
-}
-
 class StoreGen(typ: Bits, addr: Bits, dat: Bits)
 {
   val byte = typ === MT_B || typ === MT_BU
@@ -93,7 +88,7 @@ class Replay(implicit conf: DCacheConfig) extends HellaCacheReq {
   val sdq_id = UInt(width = log2Up(conf.nsdq))
 }
 
-class DataReadReq(implicit val conf: DCacheConfig) extends DCacheBundle {
+class DataReadReq(implicit val conf: DCacheConfig) extends BundleWithConf {
   val way_en = Bits(width = conf.ways)
   val addr   = Bits(width = conf.untagbits)
 }
@@ -122,7 +117,7 @@ class L1MetaReadReq(implicit conf: DCacheConfig) extends MetaReadReq {
 class InternalProbe(implicit conf: TileLinkConfiguration) extends Probe()(conf) 
   with HasClientTransactionId
 
-class WritebackReq(implicit val conf: DCacheConfig) extends DCacheBundle {
+class WritebackReq(implicit val conf: DCacheConfig) extends BundleWithConf {
   val tag = Bits(width = conf.tagbits)
   val idx = Bits(width = conf.idxbits)
   val way_en = Bits(width = conf.ways)
@@ -637,7 +632,7 @@ class AMOALU(implicit conf: DCacheConfig) extends Module {
   io.out := wmask & out | ~wmask & io.lhs
 }
 
-class HellaCacheReq(implicit val conf: DCacheConfig) extends DCacheBundle {
+class HellaCacheReq(implicit val conf: DCacheConfig) extends BundleWithConf {
   val kill = Bool()
   val typ  = Bits(width = MT_SZ)
   val phys = Bool()
@@ -647,7 +642,7 @@ class HellaCacheReq(implicit val conf: DCacheConfig) extends DCacheBundle {
   val cmd  = Bits(width = M_SZ)
 }
 
-class HellaCacheResp(implicit val conf: DCacheConfig) extends DCacheBundle {
+class HellaCacheResp(implicit val conf: DCacheConfig) extends BundleWithConf {
   val nack = Bool() // comes 2 cycles after req.fire
   val replay = Bool()
   val typ = Bits(width = 3)
