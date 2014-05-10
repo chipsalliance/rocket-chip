@@ -150,6 +150,9 @@ class BTB(implicit conf: BTBConfig) extends Module {
     val waddr = Mux(updateHit, update.bits.prediction.bits.entry, nextRepl)
 
     for (i <- 0 until conf.entries) {
+      when ((pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR) {
+        idxValid(i) := false
+      }
       when (waddr === i) {
         idxValid(i) := updateValid
         when (updateTarget) {
@@ -161,8 +164,6 @@ class BTB(implicit conf: BTBConfig) extends Module {
           useRAS(i) := update.bits.isReturn
           isJump(i) := update.bits.isJump
         }
-      }.elsewhen ((pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR) {
-        idxValid(i) := false
       }
     }
 
