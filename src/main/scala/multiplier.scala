@@ -4,21 +4,17 @@ import Chisel._
 import ALU._
 import Util._
 
-class MultiplierReq(implicit conf: RocketConfiguration) extends Bundle {
+class MultiplierReq(implicit val conf: RocketConfiguration) extends BundleWithConf {
   val fn = Bits(width = SZ_ALU_FN)
   val dw = Bits(width = SZ_DW)
   val in1 = Bits(width = conf.xprlen)
   val in2 = Bits(width = conf.xprlen)
   val tag = UInt(width = conf.nxprbits)
-
-  override def clone = new MultiplierReq().asInstanceOf[this.type]
 }
 
-class MultiplierResp(implicit conf: RocketConfiguration) extends Bundle {
+class MultiplierResp(implicit val conf: RocketConfiguration) extends BundleWithConf {
   val data = Bits(width = conf.xprlen)
   val tag = UInt(width = conf.nxprbits)
-
-  override def clone = new MultiplierResp().asInstanceOf[this.type]
 }
 
 class MultiplierIO(implicit conf: RocketConfiguration) extends Bundle {

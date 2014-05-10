@@ -4,15 +4,13 @@ import Chisel._
 import uncore._
 import Util._
 
-class PTWResp()(implicit conf: AddressSpaceConfiguration) extends Bundle {
+class PTWResp()(implicit val conf: AddressSpaceConfiguration) extends BundleWithConf {
   val error = Bool()
   val ppn = UInt(width = conf.ppnBits)
   val perm = Bits(width = conf.permBits)
-
-  override def clone = new PTWResp().asInstanceOf[this.type]
 }
 
-class TLBPTWIO()(implicit conf: AddressSpaceConfiguration) extends Bundle {
+class TLBPTWIO()(implicit val conf: AddressSpaceConfiguration) extends BundleWithConf {
   val req = Decoupled(UInt(width = conf.vpnBits))
   val resp = Valid(new PTWResp).flip
   val status = new Status().asInput
@@ -20,7 +18,7 @@ class TLBPTWIO()(implicit conf: AddressSpaceConfiguration) extends Bundle {
   val sret = Bool(INPUT)
 }
 
-class DatapathPTWIO()(implicit conf: AddressSpaceConfiguration) extends Bundle {
+class DatapathPTWIO()(implicit val conf: AddressSpaceConfiguration) extends BundleWithConf {
   val ptbr = UInt(INPUT, conf.paddrBits)
   val invalidate = Bool(INPUT)
   val sret = Bool(INPUT)
