@@ -33,34 +33,36 @@ object CSR
   val C =  Bits(3,2)
 }
 
+class CSRFileIO(implicit conf: RocketConfiguration) extends Bundle {
+  val host = new HTIFIO(conf.tl.ln.nClients)
+  val rw = new Bundle {
+    val addr = UInt(INPUT, 12)
+    val cmd = Bits(INPUT, CSR.SZ)
+    val rdata = Bits(OUTPUT, conf.xprlen)
+    val wdata = Bits(INPUT, conf.xprlen)
+  }
+
+  val status = new Status().asOutput
+  val ptbr = UInt(OUTPUT, conf.as.paddrBits)
+  val evec = UInt(OUTPUT, conf.as.vaddrBits+1)
+  val exception = Bool(INPUT)
+  val retire = UInt(INPUT, log2Up(1+conf.retireWidth))
+  val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+conf.retireWidth)))
+  val cause = UInt(INPUT, conf.xprlen)
+  val badvaddr_wen = Bool(INPUT)
+  val pc = UInt(INPUT, conf.as.vaddrBits+1)
+  val sret = Bool(INPUT)
+  val fatc = Bool(OUTPUT)
+  val replay = Bool(OUTPUT)
+  val time = UInt(OUTPUT, conf.xprlen)
+  val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
+  val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
+  val rocc = new RoCCInterface().flip
+}
+
 class CSRFile(implicit conf: RocketConfiguration) extends Module
 {
-  val io = new Bundle {
-    val host = new HTIFIO(conf.tl.ln.nClients)
-    val rw = new Bundle {
-      val addr = UInt(INPUT, 12)
-      val cmd = Bits(INPUT, CSR.SZ)
-      val rdata = Bits(OUTPUT, conf.xprlen)
-      val wdata = Bits(INPUT, conf.xprlen)
-    }
-    
-    val status = new Status().asOutput
-    val ptbr = UInt(OUTPUT, conf.as.paddrBits)
-    val evec = UInt(OUTPUT, conf.as.vaddrBits+1)
-    val exception = Bool(INPUT)
-    val retire = UInt(INPUT, log2Up(1+conf.retireWidth))
-    val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+conf.retireWidth)))
-    val cause = UInt(INPUT, conf.xprlen)
-    val badvaddr_wen = Bool(INPUT)
-    val pc = UInt(INPUT, conf.as.vaddrBits+1)
-    val sret = Bool(INPUT)
-    val fatc = Bool(OUTPUT)
-    val replay = Bool(OUTPUT)
-    val time = UInt(OUTPUT, conf.xprlen)
-    val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
-    val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
-    val rocc = new RoCCInterface().flip
-  }
+  val io = new CSRFileIO
  
   val reg_epc = Reg(Bits(width = conf.as.vaddrBits+1))
   val reg_badvaddr = Reg(Bits(width = conf.as.vaddrBits))
