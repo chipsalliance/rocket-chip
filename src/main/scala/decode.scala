@@ -31,7 +31,7 @@ object DecodeLogic
       for (u <- t.tail)
         assert(!t.head._2.intersects(u._2), "DecodeLogic: keys " + t.head + " and " + u + " overlap")
 
-    val result = (0 until default.litOf.width.max(values.map(_.litOf.width).max)).map({ case (i: Int) =>
+    val result = (0 until default.litOf.getWidth.max(values.map(_.litOf.getWidth).max)).map({ case (i: Int) =>
       val mint = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 1 }.map(_._1)
       val maxt = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 0 }.map(_._1)
       val dc = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 1 }.map(_._1)
