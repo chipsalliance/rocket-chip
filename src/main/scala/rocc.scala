@@ -3,6 +3,7 @@ package rocket
 import Chisel._
 import Node._
 import uncore._
+import Util._
 
 class RoCCInstruction extends Bundle
 {
@@ -119,4 +120,11 @@ class AccumulatorExample(conf: RocketConfiguration) extends RoCC(conf)
   io.mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
   io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
+
+  io.imem.acquire.valid := false
+  io.imem.grant.ready := false
+  io.imem.finish.valid := false
+  io.iptw.req.valid := false
+  io.dptw.req.valid := false
+  io.pptw.req.valid := false
 }
