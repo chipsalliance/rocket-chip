@@ -97,7 +97,7 @@ class TLB(entries: Int)(implicit conf: AddressSpaceConfiguration) extends Module
   val r_refill_waddr = Reg(UInt())
 
   val tag_cam = Module(new RocketCAM(entries, conf.asidBits+conf.vpnBits))
-  val tag_ram = Vec.fill(entries){Reg(io.ptw.resp.bits.ppn.clone)}
+  val tag_ram = Mem(io.ptw.resp.bits.ppn.clone, entries)
   
   val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUInt
   tag_cam.io.clear := io.ptw.invalidate
