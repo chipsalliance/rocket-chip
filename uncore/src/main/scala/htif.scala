@@ -84,7 +84,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
   val rx_word_count = (rx_count >> UInt(log2Up(short_request_bits/w)))
   val rx_word_done = io.host.in.valid && rx_count(log2Up(short_request_bits/w)-1,0).andR
   val packet_ram_depth = long_request_bits/short_request_bits-1
-  val packet_ram = Vec.fill(packet_ram_depth){Reg(Bits(width = short_request_bits))}
+  val packet_ram = Mem(Bits(width = short_request_bits), packet_ram_depth)
   when (rx_word_done && io.host.in.ready) {
     packet_ram(rx_word_count(log2Up(packet_ram_depth)-1,0) - UInt(1)) := rx_shifter_in
   }
