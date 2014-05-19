@@ -81,29 +81,29 @@ class BTB(implicit conf: BTBConfig) extends Module {
     val invalidate = Bool(INPUT)
   }
 
-  val idxValid = Vec.fill(conf.entries){Reg(init=Bool(false))}
-  val idxs = Vec.fill(conf.entries){Reg(UInt(width=conf.matchBits))}
-  val idxPages = Vec.fill(conf.entries){Reg(UInt(width=log2Up(conf.pages)))}
-  val tgts = Vec.fill(conf.entries){Reg(UInt(width=conf.matchBits))}
-  val tgtPages = Vec.fill(conf.entries){Reg(UInt(width=log2Up(conf.pages)))}
-  val pages = Vec.fill(conf.pages){Reg(UInt(width=conf.as.vaddrBits-conf.matchBits))}
-  val pageValid = Vec.fill(conf.pages){Reg(init=Bool(false))}
+  val idxValid = Reg(init=UInt(0, conf.entries))
+  val idxs = Mem(UInt(width=conf.matchBits), conf.entries)
+  val idxPages = Mem(UInt(width=log2Up(conf.pages)), conf.entries)
+  val tgts = Mem(UInt(width=conf.matchBits), conf.entries)
+  val tgtPages = Mem(UInt(width=log2Up(conf.pages)), conf.entries)
+  val pages = Mem(UInt(width=conf.as.vaddrBits-conf.matchBits), conf.pages)
+  val pageValid = Reg(init=UInt(0, conf.pages))
   val idxPagesOH = idxPages.map(UIntToOH(_)(conf.pages-1,0))
   val tgtPagesOH = tgtPages.map(UIntToOH(_)(conf.pages-1,0))
 
-  val useRAS = Vec.fill(conf.entries){Reg(Bool())}
-  val isJump = Vec.fill(conf.entries){Reg(Bool())}
+  val useRAS = Mem(Bool(), conf.entries)
+  val isJump = Mem(Bool(), conf.entries)
 
   private def page(addr: UInt) = addr >> conf.matchBits
   private def pageMatch(addr: UInt) = {
     val p = page(addr)
-    Vec(pages.map(_ === p)).toBits & pageValid.toBits
+    Vec(pages.map(_ === p)).toBits & pageValid
   }
   private def tagMatch(addr: UInt, pgMatch: UInt): UInt = {
     val idx = addr(conf.matchBits-1,0)
     val idxMatch = idxs.map(_ === idx).toBits
     val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR).toBits
-    idxValid.toBits & idxMatch & idxPageMatch
+    idxValid & idxMatch & idxPageMatch
   }
 
   val update = Pipe(io.update)
@@ -137,52 +137,49 @@ class BTB(implicit conf: BTBConfig) extends Module {
   val tgtPageRepl = Mux(samePage, idxPageUpdateOH, idxPageUpdateOH(conf.pages-2,0) << 1 | idxPageUpdateOH(conf.pages-1))
   val tgtPageUpdate = OHToUInt(Mux(usePageHit, pageHit, tgtPageRepl))
   val tgtPageReplEn = Mux(doTgtPageRepl, tgtPageRepl, UInt(0))
+  val doPageRepl = doIdxPageRepl || doTgtPageRepl
 
   val pageReplEn = idxPageReplEn | tgtPageReplEn
-  idxPageRepl := UIntToOH(Counter(update.valid && (doIdxPageRepl || doTgtPageRepl), conf.pages)._1)
+  idxPageRepl := UIntToOH(Counter(update.valid && doPageRepl, conf.pages)._1)
 
   when (update.valid && !(updateValid && !updateTarget)) {
     val nextRepl = Counter(!updateHit && updateValid, conf.entries)._1
     val waddr = Mux(updateHit, update.bits.prediction.bits.entry, nextRepl)
 
-    for (i <- 0 until conf.entries) {
-      when ((pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR) {
-        idxValid(i) := false
-      }
-      when (waddr === i) {
-        idxValid(i) := updateValid
-        when (updateTarget) {
-          if (i == 0) assert(io.req === update.bits.target, "BTB request != I$ target")
-          idxs(i) := update.bits.pc
-          idxPages(i) := idxPageUpdate
-          tgts(i) := update_target
-          tgtPages(i) := tgtPageUpdate
-          useRAS(i) := update.bits.isReturn
-          isJump(i) := update.bits.isJump
-        }
-      }
+    when (doPageRepl) {
+      val clearValid = for (i <- 0 until conf.entries)
+        yield (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR
+      idxValid := idxValid & ~Vec(clearValid).toBits
+    }
+    when (updateTarget) {
+      assert(io.req === update.bits.target, "BTB request != I$ target")
+      idxValid := idxValid.bitSet(waddr, updateValid)
+      idxs(waddr) := update.bits.pc
+      tgts(waddr) := update_target
+      idxPages(waddr) := idxPageUpdate
+      tgtPages(waddr) := tgtPageUpdate
+      useRAS(waddr) := update.bits.isReturn
+      isJump(waddr) := update.bits.isJump
     }
 
     require(conf.pages % 2 == 0)
     val idxWritesEven = (idxPageUpdateOH & Fill(conf.pages/2, UInt(1,2))).orR
 
-    def writeBank(i: Int, mod: Int, en: Bool, data: UInt) = {
-      for (i <- i until conf.pages by mod) {
-        when (en && pageReplEn(i)) {
-          pages(i) := data
-          pageValid(i) := true
-        }
-      }
-    }
+    def writeBank(i: Int, mod: Int, en: Bool, data: UInt) =
+      for (i <- i until conf.pages by mod)
+        when (en && pageReplEn(i)) { pages(i) := data }
+
     writeBank(0, 2, Mux(idxWritesEven, doIdxPageRepl, doTgtPageRepl),
       Mux(idxWritesEven, page(update.bits.pc), page(update_target)))
     writeBank(1, 2, Mux(idxWritesEven, doTgtPageRepl, doIdxPageRepl),
       Mux(idxWritesEven, page(update_target), page(update.bits.pc)))
+
+    when (doPageRepl) { pageValid := pageValid | pageReplEn }
   }
 
   when (io.invalidate) {
-    idxValid.foreach(_ := false)
-    pageValid.foreach(_ := false)
+    idxValid := 0
+    pageValid := 0
   }
 
   io.resp.valid := hits.toBits.orR
