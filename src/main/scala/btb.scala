@@ -146,14 +146,12 @@ class BTB(implicit conf: BTBConfig) extends Module {
     val nextRepl = Counter(!updateHit && updateValid, conf.entries)._1
     val waddr = Mux(updateHit, update.bits.prediction.bits.entry, nextRepl)
 
-    when (doPageRepl) {
-      val clearValid = for (i <- 0 until conf.entries)
-        yield (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR
-      idxValid := idxValid & ~Vec(clearValid).toBits
-    }
+    // invalidate entries if we stomp on pages they depend upon
+    idxValid := idxValid & ~Vec.tabulate(conf.entries)(i => (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR).toBits
+
+    idxValid(waddr) := updateValid
     when (updateTarget) {
       assert(io.req === update.bits.target, "BTB request != I$ target")
-      idxValid := idxValid.bitSet(waddr, updateValid)
       idxs(waddr) := update.bits.pc
       tgts(waddr) := update_target
       idxPages(waddr) := idxPageUpdate
