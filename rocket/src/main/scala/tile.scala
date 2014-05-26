@@ -23,11 +23,11 @@ case class RocketConfiguration(tl: TileLinkConfiguration, as: AddressSpaceConfig
 
 class Tile(resetSignal: Bool = null)(confIn: RocketConfiguration) extends Module(_reset = resetSignal)
 {
-  val memPorts = 2 + !confIn.rocc.isEmpty // Number of ports to outer memory system from tile: 1 from I$, 1 from D$, maybe 1 from Rocc
+  val memPorts = 2 + (!confIn.rocc.isEmpty).toInt // Number of ports to outer memory system from tile: 1 from I$, 1 from D$, maybe 1 from Rocc
   val dcachePortId = 0
   val icachePortId = 1
   val roccPortId = 2
-  val dcachePorts = 2 + !confIn.rocc.isEmpty // Number of ports into D$: 1 from core, 1 from PTW, maybe 1 from RoCC
+  val dcachePorts = 2 + (!confIn.rocc.isEmpty).toInt // Number of ports into D$: 1 from core, 1 from PTW, maybe 1 from RoCC
   implicit val tlConf = confIn.tl
   implicit val lnConf = confIn.tl.ln
   implicit val icConf = confIn.icache

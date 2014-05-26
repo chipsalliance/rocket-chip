@@ -47,8 +47,8 @@ class ParityCode extends Code
 class SECCode extends Code
 {
   def width(k: Int) = {
-    val m = log2Up(k) + 1 - !isPow2(k)
-    k + m + ((1 << m) < m+k+1)
+    val m = k.log2 + 1
+    k + m + ((1 << m) < m+k+1).toInt
   }
   def encode(x: Bits) = {
     val k = x.getWidth
@@ -57,7 +57,7 @@ class SECCode extends Code
 
     val y = for (i <- 1 to n) yield {
       if (isPow2(i)) {
-        val r = for (j <- 1 to n; if j != i && (j & i).toBoolean)
+        val r = for (j <- 1 to n; if j != i && (j & i) != 0)
           yield x(mapping(j))
         r reduce (_^_)
       } else
@@ -71,7 +71,7 @@ class SECCode extends Code
 
     val p2 = for (i <- 0 until log2Up(n)) yield 1 << i
     val syndrome = p2 map { i =>
-      val r = for (j <- 1 to n; if (j & i).toBoolean)
+      val r = for (j <- 1 to n; if (j & i) != 0)
         yield y(j-1)
       r reduce (_^_)
     }
