@@ -109,14 +109,12 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
 
   val addr = Mux(cpu_req_valid, io.rw.addr, host_pcr_bits.addr | 0x500)
   val decoded_addr = {
-    val default = List(Bits("b" + ("?"*CSRs.all.size), CSRs.all.size))
-    val outs = for (i <- 0 until CSRs.all.size)
-      yield UInt(CSRs.all(i), addr.getWidth) -> List(UInt(BigInt(1) << i, CSRs.all.size))
-
-    val d = DecodeLogic(addr, default, outs).toArray
+    val map = for ((v, i) <- CSRs.all.zipWithIndex)
+      yield v -> UInt(BigInt(1) << i)
+    val out = ROM(map)(addr)
     val a = Array.fill(CSRs.all.max+1)(null.asInstanceOf[Bool])
     for (i <- 0 until CSRs.all.size)
-      a(CSRs.all(i)) = d(0)(i)
+      a(CSRs.all(i)) = out(i)
     a
   }
 
