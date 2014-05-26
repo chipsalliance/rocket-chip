@@ -91,8 +91,8 @@ class BTB(implicit conf: BTBConfig) extends Module {
   val idxPagesOH = idxPages.map(UIntToOH(_)(conf.pages-1,0))
   val tgtPagesOH = tgtPages.map(UIntToOH(_)(conf.pages-1,0))
 
-  val useRAS = Mem(Bool(), conf.entries)
-  val isJump = Mem(Bool(), conf.entries)
+  val useRAS = Reg(UInt(width = conf.entries))
+  val isJump = Reg(UInt(width = conf.entries))
 
   private def page(addr: UInt) = addr >> conf.matchBits
   private def pageMatch(addr: UInt) = {
@@ -180,7 +180,7 @@ class BTB(implicit conf: BTBConfig) extends Module {
     pageValid := 0
   }
 
-  io.resp.valid := hits.toBits.orR
+  io.resp.valid := hits.orR
   io.resp.bits.taken := io.resp.valid
   io.resp.bits.target := Cat(Mux1H(Mux1H(hits, tgtPagesOH), pages), Mux1H(hits, tgts))
   io.resp.bits.entry := OHToUInt(hits)
