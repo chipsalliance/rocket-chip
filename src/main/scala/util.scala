@@ -4,8 +4,12 @@ import Chisel._
 import uncore._
 import scala.math._
 
-class BooleanToInt(x: Int) {
-  def toBoolean: Boolean = if (x != 0) true else false
+class Unsigned(x: Int) {
+  require(x >= 0)
+  def size: Int = { require(x > 0); ceil(log(x)/log(2)).toInt }
+  def log2: Int = { require(x > 0); floor(log(x)/log(2)).toInt }
+  def isPow2: Boolean = x > 0 && (x & (x-1)) == 0
+  def nextPow2: Int = if (x == 0) 1 else 1 << size
 }
 
 object Util {
@@ -15,8 +19,10 @@ object Util {
   implicit def seqToVec[T <: Data](x: Iterable[T]): Vec[T] = Vec(x)
   implicit def wcToUInt(c: WideCounter): UInt = c.value
 
-  implicit def booleanToInt(x: Boolean): Int = if (x) 1 else 0
-  implicit def intToBooleanToInt(x: Int): BooleanToInt = new BooleanToInt(x)
+  implicit def intToUnsigned(x: Int): Unsigned = new Unsigned(x)
+  implicit def booleanToIntConv(x: Boolean) = new AnyRef {
+    def toInt: Int = if (x) 1 else 0
+  }
 }
 
 import Util._
