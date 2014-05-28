@@ -167,7 +167,7 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: CoherenceAgentC
   val curr_p_id = PriorityEncoder(probe_flags)
 
   val pending_outer_write = co.messageHasData(xact)
-  val pending_outer_read = co.needsOuterRead(xact.a_type, UInt(0))
+  val pending_outer_read = co.requiresOuterRead(xact.a_type)
   val outer_write_acq = Acquire(co.getUncachedWriteAcquireType, 
                                        xact.addr, UInt(trackerId), xact.data)
   val outer_write_rel = Acquire(co.getUncachedWriteAcquireType, 
@@ -195,7 +195,7 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: CoherenceAgentC
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
   io.inner.probe.bits.header.dst := curr_p_id
-  io.inner.probe.bits.payload := Probe(co.getProbeType(xact.a_type, UInt(0)),
+  io.inner.probe.bits.payload := Probe(co.getProbeType(xact.a_type, co.masterMetadataOnFlush),
                                                xact.addr,
                                                UInt(trackerId))
 
@@ -215,7 +215,7 @@ class AcquireTracker(trackerId: Int, bankId: Int)(implicit conf: CoherenceAgentC
     is(s_idle) {
       io.inner.acquire.ready := Bool(true)
       val needs_outer_write = co.messageHasData(c_acq.payload)
-      val needs_outer_read = co.needsOuterRead(c_acq.payload.a_type, UInt(0))
+      val needs_outer_read = co.requiresOuterRead(c_acq.payload.a_type)
       when( io.inner.acquire.valid ) {
         xact := c_acq.payload
         init_client_id := c_acq.header.src
