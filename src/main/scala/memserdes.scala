@@ -232,7 +232,7 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit tlconf: TileLinkCon
     buf_out := io.uncached.acquire.bits.payload.data
     tag_out := io.uncached.acquire.bits.payload.client_xact_id
     addr_out := io.uncached.acquire.bits.payload.addr
-    has_data := tlconf.co.needsOuterWrite(io.uncached.acquire.bits.payload.a_type, UInt(0))
+    has_data := tlconf.co.messageHasData(io.uncached.acquire.bits.payload)
   }
   when(active_out) {
     when(mem_cmd_q.io.enq.fire()) {
