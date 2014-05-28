@@ -74,7 +74,7 @@ class FPGATop extends Module {
   val nmshrs = 2
   val htif_width = 16
   
-  val co = new MESICoherence
+  val co = new MESICoherence(new FullRepresentation(ntiles+1))
   implicit val ln = LogicalNetworkConfiguration(log2Up(ntiles)+1, 1, ntiles+1)
   implicit val as = AddressSpaceConfiguration(PADDR_BITS, VADDR_BITS, PGIDX_BITS, ASID_BITS, PERM_BITS)
   implicit val tl = TileLinkConfiguration(co = co, ln = ln,

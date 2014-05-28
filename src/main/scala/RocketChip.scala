@@ -201,12 +201,13 @@ class MemDessert extends Module {
 
 
 class Top extends Module {
+  val dir = new FullRepresentation(NTILES+1)
   val co = if(ENABLE_SHARING) {
-              if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence
-              else new MSICoherence
+              if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence(dir)
+              else new MSICoherence(dir)
             } else {
-              if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence
-              else new MICoherence
+              if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence(dir)
+              else new MICoherence(dir)
             }
 
   implicit val ln = LogicalNetworkConfiguration(log2Up(NTILES)+1, NBANKS, NTILES+1)
