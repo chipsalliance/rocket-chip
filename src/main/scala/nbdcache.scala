@@ -80,7 +80,7 @@ class LoadGen(typ: Bits, addr: Bits, dat: Bits, zero: Bool)
 
 class MSHRReq(implicit val cacheconf: DCacheConfig) extends HellaCacheReq {
   val tag_match = Bool()
-  val old_meta = new L1MetaData
+  val old_meta = new L1Metadata
   val way_en = Bits(width = cacheconf.ways)
 }
 
@@ -98,20 +98,23 @@ class DataWriteReq(implicit conf: DCacheConfig) extends DataReadReq {
   val data   = Bits(width = conf.encrowbits)
 }
 
-object L1MetaData {
-  def apply(tag: Bits, state: UInt)(implicit conf: DCacheConfig) = {
-    val meta = new L1MetaData
-    meta.state := state
+class L1MetaReadReq(implicit conf: DCacheConfig) extends MetaReadReq {
+  val tag = Bits(width = conf.tagbits)
+}
+
+class L1MetaWriteReq(implicit conf: DCacheConfig) extends 
+  MetaWriteReq[L1Metadata](new L1Metadata)
+
+object L1Metadata {
+  def apply(tag: Bits, coh: ClientMetadata)(implicit conf: DCacheConfig) = {
+    val meta = new L1Metadata
     meta.tag := tag
+    meta.coh := coh
     meta
   }
 }
-class L1MetaData(implicit val conf: DCacheConfig) extends MetaData {
-  val state = UInt(width = conf.statebits)
-}
-
-class L1MetaReadReq(implicit conf: DCacheConfig) extends MetaReadReq {
-  val tag = Bits(width = conf.tagbits)
+class L1Metadata(implicit val conf: DCacheConfig) extends Metadata {
+  val coh = conf.tl.co.clientMetadataOnFlush.clone
 }
 
 class InternalProbe(implicit conf: TileLinkConfiguration) extends Probe()(conf) 
@@ -142,7 +145,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
     val mem_req  = Decoupled(new Acquire)
     val mem_resp = new DataWriteReq().asOutput
     val meta_read = Decoupled(new L1MetaReadReq)
-    val meta_write = Decoupled(new MetaWriteReq(new L1MetaData))
+    val meta_write = Decoupled(new L1MetaWriteReq)
     val replay = Decoupled(new Replay)
     val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
     val mem_finish = Decoupled(new LogicalNetworkIO(new Finish))
@@ -155,7 +158,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
 
   val acquire_type = Reg(UInt())
   val release_type = Reg(UInt())
-  val line_state = Reg(UInt())
+  val line_state = Reg(new ClientMetadata()(tl.co))
   val refill_count = Reg(UInt(width = log2Up(conf.refillcycles))) // TODO: zero-width wire
   val req = Reg(new MSHRReq())
 
@@ -168,6 +171,10 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
   val reply = io.mem_grant.valid && io.mem_grant.bits.payload.client_xact_id === UInt(id)
   val refill_done = reply && (if(conf.refillcycles > 1) refill_count.andR else Bool(true))
   val wb_done = reply && (state === s_wb_resp)
+
+  val meta_on_flush = tl.co.clientMetadataOnFlush
+  val meta_on_grant = tl.co.clientMetadataOnGrant(io.mem_grant.bits.payload, io.mem_req.bits)
+  val meta_on_hit = tl.co.clientMetadataOnHit(req_cmd, io.req_bits.old_meta.coh)
 
   val rpq = Module(new Queue(new Replay, conf.nrpq))
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && !isPrefetch(req_cmd)
@@ -189,7 +196,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
     when (refill_done) { state := s_meta_write_req }
     when (reply) {
       if(conf.refillcycles > 1) refill_count := refill_count + UInt(1)
-      line_state := tl.co.newStateOnGrant(io.mem_grant.bits.payload, io.mem_req.bits)
+      line_state := meta_on_grant
     }
   }
   when (io.mem_req.fire()) { // s_refill_req
@@ -206,24 +213,24 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
   }
 
   when (io.req_sec_val && io.req_sec_rdy) { // s_wb_req, s_wb_resp, s_refill_req
-    acquire_type := tl.co.getAcquireTypeOnSecondaryMiss(req_cmd, tl.co.newStateOnFlush(), io.mem_req.bits)
+    acquire_type := tl.co.getAcquireTypeOnSecondaryMiss(req_cmd, meta_on_flush, io.mem_req.bits)
   }
   when (io.req_pri_val && io.req_pri_rdy) {
-    line_state := tl.co.newStateOnFlush()
+    line_state := meta_on_flush
     refill_count := UInt(0)
-    acquire_type := tl.co.getAcquireTypeOnPrimaryMiss(req_cmd, tl.co.newStateOnFlush())
+    acquire_type := tl.co.getAcquireTypeOnPrimaryMiss(req_cmd, meta_on_flush)
     release_type := tl.co.getReleaseTypeOnVoluntaryWriteback() //TODO downgrades etc 
     req := io.req_bits
 
     when (io.req_bits.tag_match) {
-      when (tl.co.isHit(req_cmd, io.req_bits.old_meta.state)) { // set dirty bit
+      when (tl.co.isHit(req_cmd, io.req_bits.old_meta.coh)) { // set dirty bit
         state := s_meta_write_req
-        line_state := tl.co.newStateOnHit(req_cmd, io.req_bits.old_meta.state)
+        line_state := meta_on_hit
       }.otherwise { // upgrade permissions
         state := s_refill_req
       }
     }.otherwise { // writback if necessary and refill
-      state := Mux(tl.co.needsWriteback(io.req_bits.old_meta.state), s_wb_req, s_meta_clear)
+      state := Mux(tl.co.needsWriteback(io.req_bits.old_meta.coh), s_wb_req, s_meta_clear)
     }
   }
 
@@ -250,7 +257,7 @@ class MSHR(id: Int)(implicit conf: DCacheConfig) extends Module {
 
   io.meta_write.valid := state === s_meta_write_req || state === s_meta_clear
   io.meta_write.bits.idx := req_idx
-  io.meta_write.bits.data.state := Mux(state === s_meta_clear, tl.co.newStateOnFlush(), line_state)
+  io.meta_write.bits.data.coh := Mux(state === s_meta_clear, meta_on_flush, line_state)
   io.meta_write.bits.data.tag := io.tag
   io.meta_write.bits.way_en := req.way_en
 
@@ -292,7 +299,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Module {
     val mem_req  = Decoupled(new Acquire)
     val mem_resp = new DataWriteReq().asOutput
     val meta_read = Decoupled(new L1MetaReadReq)
-    val meta_write = Decoupled(new MetaWriteReq(new L1MetaData))
+    val meta_write = Decoupled(new L1MetaWriteReq)
     val replay = Decoupled(new Replay)
     val mem_grant = Valid(new LogicalNetworkIO(new Grant)).flip
     val mem_finish = Decoupled(new LogicalNetworkIO(new Finish))
@@ -316,7 +323,7 @@ class MSHRFile(implicit conf: DCacheConfig) extends Module {
   val wbTagList = Vec.fill(conf.nmshr){Bits()}
   val memRespMux = Vec.fill(conf.nmshr){new DataWriteReq}
   val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, conf.nmshr))
-  val meta_write_arb = Module(new Arbiter(new MetaWriteReq(new L1MetaData), conf.nmshr))
+  val meta_write_arb = Module(new Arbiter(new L1MetaWriteReq, conf.nmshr))
   val mem_req_arb = Module(new Arbiter(new Acquire, conf.nmshr))
   val mem_finish_arb = Module(new Arbiter(new LogicalNetworkIO(new Finish), conf.nmshr))
   val wb_req_arb = Module(new Arbiter(new WritebackReq, conf.nmshr))
@@ -471,16 +478,16 @@ class ProbeUnit(implicit conf: DCacheConfig) extends Module {
     val req = Decoupled(new InternalProbe).flip
     val rep = Decoupled(new Release)
     val meta_read = Decoupled(new L1MetaReadReq)
-    val meta_write = Decoupled(new MetaWriteReq(new L1MetaData))
+    val meta_write = Decoupled(new L1MetaWriteReq)
     val wb_req = Decoupled(new WritebackReq)
     val way_en = Bits(INPUT, conf.ways)
     val mshr_rdy = Bool(INPUT)
-    val line_state = UInt(INPUT, 2)
+    val line_state = new ClientMetadata()(tl.co).asInput
   }
 
   val s_reset :: s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(UInt(), 9)
   val state = Reg(init=s_invalid)
-  val line_state = Reg(UInt())
+  val line_state = Reg(tl.co.clientMetadataOnFlush.clone)
   val way_en = Reg(Bits())
   val req = Reg(new InternalProbe)
   val hit = way_en.orR
@@ -522,7 +529,7 @@ class ProbeUnit(implicit conf: DCacheConfig) extends Module {
 
   io.req.ready := state === s_invalid
   io.rep.valid := state === s_release && !(hit && tl.co.needsWriteback(line_state))
-  io.rep.bits := Release(tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.newStateOnFlush)), req.addr, req.client_xact_id, req.master_xact_id)
+  io.rep.bits := Release(tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.clientMetadataOnFlush)), req.addr, req.client_xact_id, req.master_xact_id)
 
   io.meta_read.valid := state === s_meta_read
   io.meta_read.bits.idx := req.addr
@@ -531,14 +538,14 @@ class ProbeUnit(implicit conf: DCacheConfig) extends Module {
   io.meta_write.valid := state === s_meta_write
   io.meta_write.bits.way_en := way_en
   io.meta_write.bits.idx := req.addr
-  io.meta_write.bits.data.state := tl.co.newStateOnProbe(req, line_state)
+  io.meta_write.bits.data.coh := tl.co.clientMetadataOnProbe(req, line_state)
   io.meta_write.bits.data.tag := req.addr >> UInt(conf.idxbits)
 
   io.wb_req.valid := state === s_writeback_req
   io.wb_req.bits.way_en := way_en
   io.wb_req.bits.idx := req.addr
   io.wb_req.bits.tag := req.addr >> UInt(conf.idxbits)
-  io.wb_req.bits.r_type := tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.newStateOnFlush))
+  io.wb_req.bits.r_type := tl.co.getReleaseTypeOnProbe(req, Mux(hit, line_state, tl.co.clientMetadataOnFlush))
   io.wb_req.bits.client_xact_id := req.client_xact_id
   io.wb_req.bits.master_xact_id := req.master_xact_id
 }
@@ -766,10 +773,10 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
 
   // tags
-  def onReset = L1MetaData(UInt(0), tl.co.newStateOnFlush)
-  val meta = Module(new MetaDataArray(onReset _))
+  def onReset = L1Metadata(UInt(0), ClientMetadata(UInt(0))(tl.co))
+  val meta = Module(new MetadataArray(onReset _))
   val metaReadArb = Module(new Arbiter(new MetaReadReq, 5))
-  val metaWriteArb = Module(new Arbiter(new MetaWriteReq(new L1MetaData), 2))
+  val metaWriteArb = Module(new Arbiter(new L1MetaWriteReq, 2))
   metaReadArb.io.out <> meta.io.read
   metaWriteArb.io.out <> meta.io.write
 
@@ -804,13 +811,13 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   // tag check and way muxing
   def wayMap[T <: Data](f: Int => T) = Vec((0 until conf.ways).map(f))
   val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === (s1_addr >> conf.untagbits)).toBits
-  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && tl.co.isValid(meta.io.resp(w).state)).toBits
+  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && tl.co.isValid(meta.io.resp(w).coh)).toBits
   s1_clk_en := metaReadArb.io.out.valid //TODO: should be metaReadArb.io.out.fire(), but triggers Verilog backend bug
   val s1_writeback = s1_clk_en && !s1_valid && !s1_replay
   val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
-  val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEnable(meta.io.resp(w).state, s1_clk_en)))
-  val s2_hit = s2_tag_match && tl.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === tl.co.newStateOnHit(s2_req.cmd, s2_hit_state)
+  val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEnable(meta.io.resp(w).coh, s1_clk_en)))
+  val s2_hit = s2_tag_match && tl.co.isHit(s2_req.cmd, s2_hit_state) && s2_hit_state === tl.co.clientMetadataOnHit(s2_req.cmd, s2_hit_state)
 
   // load-reserved/store-conditional
   val lrsc_count = Reg(init=UInt(0))
@@ -875,7 +882,7 @@ class HellaCache(implicit conf: DCacheConfig) extends Module {
   mshrs.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd))
   mshrs.io.req.bits := s2_req
   mshrs.io.req.bits.tag_match := s2_tag_match
-  mshrs.io.req.bits.old_meta := Mux(s2_tag_match, L1MetaData(s2_repl_meta.tag, s2_hit_state), s2_repl_meta)
+  mshrs.io.req.bits.old_meta := Mux(s2_tag_match, L1Metadata(s2_repl_meta.tag, s2_hit_state), s2_repl_meta)
   mshrs.io.req.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
   mshrs.io.req.bits.data := s2_req.data
   when (mshrs.io.req.fire()) { replacer.miss }
