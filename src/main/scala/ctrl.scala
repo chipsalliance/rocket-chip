@@ -311,12 +311,6 @@ class Control(implicit conf: RocketConfiguration) extends Module
     val dpath   = new CtrlDpathIO
     val imem = new CPUFrontendIO()(conf.icache)
     val dmem = new HellaCacheIO()(conf.dcache)
-    val dtlb_val = Bool(OUTPUT)
-    val dtlb_kill = Bool(OUTPUT)
-    val dtlb_rdy = Bool(INPUT)
-    val dtlb_miss = Bool(INPUT)
-    val xcpt_dtlb_ld = Bool(INPUT)
-    val xcpt_dtlb_st = Bool(INPUT)
     val fpu = new CtrlFPUIO
     val rocc = new RoCCInterface().flip
   }
