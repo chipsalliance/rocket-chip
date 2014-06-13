@@ -438,10 +438,11 @@ class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int, ta
   replay_s2_rdy := s3_rdy && !tag_we
 
   io.cpu.resp <> data.io.resp
-  io.cpu.req_cmd.ready := !s1_valid && !s2_valid && !replay_s2 && !tag_we
   io.cpu.req_data.ready := writeback.io.data(1).ready || data.io.req_data.ready
   io.mem.req_cmd <> memCmdArb.io.out
   io.mem.req_data <> writeback.io.mem.req_data
+  io.cpu.req_cmd.ready := !(s1_valid || s2_valid || replay_s2 || tag_we ||
+    io.cpu.req_cmd.bits.rw && io.cpu.req_data.ready)
 }
 
 class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
