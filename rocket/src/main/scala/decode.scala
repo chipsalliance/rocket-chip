@@ -9,7 +9,7 @@ object DecodeLogic
     val lit = b.litOf
     if (lit.isZ) {
       var (bits, mask, swidth) = Literal.parseLit(lit.toString)
-      new Term(BigInt(bits, 2), BigInt(2).pow(lit.needWidth())-(BigInt(mask, 2)+1))
+      new Term(BigInt(bits, 2), BigInt(2).pow(lit.getWidth)-(BigInt(mask, 2)+1))
     } else {
       new Term(lit.value)
     }
