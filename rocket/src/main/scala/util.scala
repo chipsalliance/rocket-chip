@@ -163,8 +163,8 @@ class FlowThroughSerializer[T <: HasTileLinkData](gen: LogicalNetworkIO[T], n: I
     val cnt = UInt(OUTPUT, log2Up(n))
     val done = Bool(OUTPUT)
   }
-  require(io.in.bits.payload.data.width % n == 0)
-  val narrowWidth = io.in.bits.payload.data.width / n
+  require(io.in.bits.payload.data.needWidth() % n == 0)
+  val narrowWidth = io.in.bits.payload.data.needWidth() / n
   val cnt = Reg(init=UInt(0, width = log2Up(n)))
   val wrap = cnt === UInt(n-1)
   val rbits = Reg(init=io.in.bits)
