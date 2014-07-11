@@ -28,7 +28,7 @@ object MasterMetadata {
   def apply(state: UInt)(implicit c: CoherencePolicy): MasterMetadata = {
     val m = new MasterMetadata
     m.state := state
-    m.sharers := m.sharers.flush()
+    m.sharers.flush()
     m
   }
   def apply(state: UInt, sharers: DirectoryRepresentation)(implicit c: CoherencePolicy): MasterMetadata = {
@@ -51,32 +51,36 @@ class MixedMetadata(inner: CoherencePolicy, outer: CoherencePolicy) extends Cohe
 */
 
 abstract class DirectoryRepresentation extends Bundle {
-  val sharers: UInt
+  val internal: UInt
   def pop(id: UInt): DirectoryRepresentation
   def push(id: UInt): DirectoryRepresentation
   def flush(dummy: Int = 0): DirectoryRepresentation
   def none(dummy: Int = 0): Bool
   def one(dummy: Int = 0): Bool
+  def count(dummy: Int = 0): UInt
+  def next(dummy: Int = 0): UInt
 }
 
 class NullRepresentation extends DirectoryRepresentation {
-  val sharers = UInt(0)
+  val internal = UInt(0)
   def pop(id: UInt) = this
   def push(id: UInt) = this
   def flush(dummy: Int = 0) = this
   def none(dummy: Int = 0) = Bool(false)
   def one(dummy: Int = 0) = Bool(false)
+  def count(dummy: Int = 0) = UInt(0)
+  def next(dummy: Int = 0) = UInt(0)
 }
 
 class FullRepresentation(nClients: Int) extends DirectoryRepresentation {
-  val sharers = UInt(width = nClients)
-  def pop(id: UInt) = { sharers := sharers & ~UIntToOH(id); this }
-  def push(id: UInt) = { sharers := sharers | UIntToOH(id); this }
-  def flush(dummy: Int = 0) = { sharers := UInt(0, width = nClients); this }
-  def none(dummy: Int = 0) = sharers === UInt(0)
-  def one(dummy: Int = 0) = PopCount(sharers) === UInt(1)
-  def count(dummy: Int = 0) = PopCount(sharers)
-  def next(dummy: Int = 0) = PriorityEncoder(sharers)
+  val internal = UInt(width = nClients)
+  def pop(id: UInt) = { internal := internal & ~UIntToOH(id); this }
+  def push(id: UInt) = { internal := internal | UIntToOH(id); this }
+  def flush(dummy: Int = 0) = { internal := UInt(0, width = nClients); this }
+  def none(dummy: Int = 0) = internal === UInt(0)
+  def one(dummy: Int = 0) = PopCount(internal) === UInt(1)
+  def count(dummy: Int = 0) = PopCount(internal)
+  def next(dummy: Int = 0) = PriorityEncoder(internal)
   override def clone = new FullRepresentation(nClients).asInstanceOf[this.type]
 }
 
@@ -113,12 +117,14 @@ abstract class CoherencePolicy(val dir: () => DirectoryRepresentation) {
 
   def getAcquireTypeOnPrimaryMiss(cmd: UInt, m: ClientMetadata): UInt
   def getAcquireTypeOnSecondaryMiss(cmd: UInt, m: ClientMetadata, outstanding: Acquire): UInt
-  def getProbeType(a_type: UInt, m: MasterMetadata): UInt
+  def getProbeType(a: Acquire, m: MasterMetadata): UInt
   def getReleaseTypeOnCacheControl(cmd: UInt): UInt
   def getReleaseTypeOnVoluntaryWriteback(): UInt
-  def getReleaseTypeOnProbe(incoming: Probe, m: ClientMetadata): UInt
-  def getGrantType(a_type: UInt, count: UInt): UInt
-  def getGrantType(rel: Release, count: UInt): UInt
+  def getReleaseTypeOnProbe(p: Probe, m: ClientMetadata): UInt
+  def getGrantType(a: Acquire, m: MasterMetadata): UInt
+  def getGrantType(r: Release, m: MasterMetadata): UInt
+  //def getGrantType(a: Acquire) = getGrantType(a, new NullRepresentation) // TODO
+  //def getGrantType(r: Release) = getGrantType(r, new NullRepresentation)
 
   def messageHasData (rel: SourcedMessage): Bool
   def messageUpdatesDataArray (reply: Grant): Bool
@@ -259,8 +265,8 @@ class MICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWit
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UInt, count: UInt): UInt = {
-    MuxLookup(a_type, grantReadUncached, Array(
+  def getGrantType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, grantReadUncached, Array(
       acquireReadExclusive -> grantReadExclusive,
       acquireReadUncached  -> grantReadUncached,
       acquireWriteUncached -> grantWriteUncached,
@@ -270,14 +276,14 @@ class MICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWit
     ))
   }
 
-  def getGrantType(rel: Release, count: UInt): UInt = {
-    MuxLookup(rel.r_type, grantReadUncached, Array(
+  def getGrantType(r: Release, m: MasterMetadata): UInt = {
+    MuxLookup(r.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
-  def getProbeType(a_type: UInt, m: MasterMetadata): UInt = {
-    MuxLookup(a_type, probeCopy, Array(
+  def getProbeType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, probeCopy, Array(
       acquireReadExclusive -> probeInvalidate, 
       acquireReadUncached -> probeCopy, 
       acquireWriteUncached -> probeInvalidate,
@@ -427,8 +433,8 @@ class MEICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWi
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UInt, count: UInt): UInt = {
-    MuxLookup(a_type, grantReadUncached, Array(
+  def getGrantType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, grantReadUncached, Array(
       acquireReadExclusiveClean -> grantReadExclusive,
       acquireReadExclusiveDirty -> grantReadExclusive,
       acquireReadUncached  -> grantReadUncached,
@@ -438,15 +444,15 @@ class MEICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWi
       acquireAtomicUncached -> grantAtomicUncached
     ))
   }
-  def getGrantType(rel: Release, count: UInt): UInt = {
-    MuxLookup(rel.r_type, grantReadUncached, Array(
+  def getGrantType(r: Release, m: MasterMetadata): UInt = {
+    MuxLookup(r.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
 
-  def getProbeType(a_type: UInt, m: MasterMetadata): UInt = {
-    MuxLookup(a_type, probeCopy, Array(
+  def getProbeType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, probeCopy, Array(
       acquireReadExclusiveClean -> probeInvalidate,
       acquireReadExclusiveDirty -> probeInvalidate, 
       acquireReadUncached -> probeCopy, 
@@ -604,9 +610,9 @@ class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWi
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UInt, count: UInt): UInt = {
-    MuxLookup(a_type, grantReadUncached, Array(
-      acquireReadShared    -> Mux(count > UInt(0), grantReadShared, grantReadExclusive),
+  def getGrantType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, grantReadUncached, Array(
+      acquireReadShared    -> Mux(m.sharers.count() > UInt(0), grantReadShared, grantReadExclusive),
       acquireReadExclusive -> grantReadExclusive,
       acquireReadUncached  -> grantReadUncached,
       acquireWriteUncached -> grantWriteUncached,
@@ -615,14 +621,14 @@ class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWi
       acquireAtomicUncached -> grantAtomicUncached
     ))
   }
-  def getGrantType(rel: Release, count: UInt): UInt = {
-    MuxLookup(rel.r_type, grantReadUncached, Array(
+  def getGrantType(r: Release, m: MasterMetadata): UInt = {
+    MuxLookup(r.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
-  def getProbeType(a_type: UInt, m: MasterMetadata): UInt = {
-    MuxLookup(a_type, probeCopy, Array(
+  def getProbeType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, probeCopy, Array(
       acquireReadShared -> probeDowngrade,
       acquireReadExclusive -> probeInvalidate, 
       acquireReadUncached -> probeCopy, 
@@ -778,9 +784,9 @@ class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyW
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UInt, count: UInt): UInt = {
-    MuxLookup(a_type, grantReadUncached, Array(
-      acquireReadShared    -> Mux(count > UInt(0), grantReadShared, grantReadExclusive),
+  def getGrantType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, grantReadUncached, Array(
+      acquireReadShared    -> Mux(m.sharers.count() > UInt(0), grantReadShared, grantReadExclusive),
       acquireReadExclusive -> grantReadExclusive,
       acquireReadUncached  -> grantReadUncached,
       acquireWriteUncached -> grantWriteUncached,
@@ -789,15 +795,15 @@ class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyW
       acquireAtomicUncached -> grantAtomicUncached
     ))
   }
-  def getGrantType(rel: Release, count: UInt): UInt = {
-    MuxLookup(rel.r_type, grantReadUncached, Array(
+  def getGrantType(r: Release, m: MasterMetadata): UInt = {
+    MuxLookup(r.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
 
-  def getProbeType(a_type: UInt, m: MasterMetadata): UInt = {
-    MuxLookup(a_type, probeCopy, Array(
+  def getProbeType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, probeCopy, Array(
       acquireReadShared -> probeDowngrade,
       acquireReadExclusive -> probeInvalidate, 
       acquireReadUncached -> probeCopy, 
@@ -975,9 +981,9 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a_type: UInt, count: UInt): UInt = {
-    MuxLookup(a_type, grantReadUncached, Array(
-      acquireReadShared    -> Mux(count > UInt(0), grantReadShared, grantReadExclusive), //TODO: what is count? Depend on release.p_type???
+  def getGrantType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, grantReadUncached, Array(
+      acquireReadShared    -> Mux(m.sharers.count() > UInt(0), grantReadShared, grantReadExclusive), //TODO: what is count? Depend on release.p_type???
       acquireReadExclusive -> grantReadExclusive,                                            
       acquireReadUncached  -> grantReadUncached,
       acquireWriteUncached -> grantWriteUncached,
@@ -987,15 +993,15 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
       acquireInvalidateOthers -> grantReadExclusiveAck  //TODO: add this to MESI?
     ))
   }
-  def getGrantType(rel: Release, count: UInt): UInt = {
-    MuxLookup(rel.r_type, grantReadUncached, Array(
+  def getGrantType(r: Release, m: MasterMetadata): UInt = {
+    MuxLookup(r.r_type, grantReadUncached, Array(
       releaseVoluntaryInvalidateData -> grantVoluntaryAck
     ))
   }
 
 
-  def getProbeType(a_type: UInt, m: MasterMetadata): UInt = {
-    MuxLookup(a_type, probeCopy, Array(
+  def getProbeType(a: Acquire, m: MasterMetadata): UInt = {
+    MuxLookup(a.a_type, probeCopy, Array(
       acquireReadShared -> probeDowngrade,
       acquireReadExclusive -> probeInvalidate, 
       acquireReadUncached -> probeCopy, 
