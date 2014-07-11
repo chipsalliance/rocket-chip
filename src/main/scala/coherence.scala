@@ -39,7 +39,7 @@ object MasterMetadata {
 }
 class MasterMetadata(implicit c: CoherencePolicy) extends CoherenceMetadata {
   val state = UInt(width = c.masterStateWidth)
-  val sharers = c.dir.clone
+  val sharers = c.dir()
   override def clone = new MasterMetadata()(c).asInstanceOf[this.type]
 }
 /*
@@ -75,10 +75,12 @@ class FullRepresentation(nClients: Int) extends DirectoryRepresentation {
   def flush(dummy: Int = 0) = { sharers := UInt(0, width = nClients); this }
   def none(dummy: Int = 0) = sharers === UInt(0)
   def one(dummy: Int = 0) = PopCount(sharers) === UInt(1)
+  def count(dummy: Int = 0) = PopCount(sharers)
+  def next(dummy: Int = 0) = PriorityEncoder(sharers)
   override def clone = new FullRepresentation(nClients).asInstanceOf[this.type]
 }
 
-abstract class CoherencePolicy(val dir: DirectoryRepresentation) {
+abstract class CoherencePolicy(val dir: () => DirectoryRepresentation) {
   def nClientStates: Int
   def nMasterStates: Int
   def nAcquireTypes: Int
@@ -144,10 +146,10 @@ trait UncachedTransactions {
   def isUncachedReadTransaction(acq: Acquire): Bool
 }
 
-abstract class CoherencePolicyWithUncached(dir: DirectoryRepresentation) extends CoherencePolicy(dir)
+abstract class CoherencePolicyWithUncached(dir: () => DirectoryRepresentation) extends CoherencePolicy(dir)
   with UncachedTransactions
 
-class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
+class MICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
   def nClientStates = 2
   def nMasterStates = 2
   def nAcquireTypes = 6
@@ -299,7 +301,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicyWithUncac
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
-class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
+class MEICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
   def nClientStates = 3
   def nMasterStates = 2
   def nAcquireTypes = 7
@@ -470,7 +472,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicyWithUnca
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
-class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
+class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
   def nClientStates = 3
   def nMasterStates = 3
   def nAcquireTypes = 7
@@ -643,7 +645,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicyWithUnca
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
-class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
+class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
   def nClientStates = 4
   def nMasterStates = 3
   def nAcquireTypes = 7
@@ -822,7 +824,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicyWithUnc
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
-class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
+class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWithUncached(dir) {
   def nClientStates = 7
   def nMasterStates = 3
   def nAcquireTypes = 8
