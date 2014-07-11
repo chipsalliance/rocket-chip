@@ -130,7 +130,7 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends XactTracker {
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
-  io.inner.grant.bits.payload := Grant(co.getGrantType(xact, UInt(0)),
+  io.inner.grant.bits.payload := Grant(co.getGrantType(xact, co.masterMetadataOnFlush),
                                         xact.client_xact_id,
                                         UInt(trackerId))
 
@@ -161,7 +161,6 @@ class AcquireTracker(trackerId: Int, bankId: Int) extends XactTracker {
   val init_client_id = Reg(init=UInt(0, width = log2Up(nClients)))
   //TODO: Will need id reg for merged release xacts
 
-  val init_sharer_cnt = Reg(init=UInt(0, width = log2Up(nClients)))
   val release_count = if (nClients == 1) UInt(0) else Reg(init=UInt(0, width = log2Up(nClients)))
   val probe_flags = Reg(init=Bits(0, width = nClients))
   val curr_p_id = PriorityEncoder(probe_flags)
@@ -195,11 +194,11 @@ class AcquireTracker(trackerId: Int, bankId: Int) extends XactTracker {
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
   io.inner.probe.bits.header.dst := curr_p_id
-  io.inner.probe.bits.payload := Probe(co.getProbeType(xact.a_type, co.masterMetadataOnFlush),
+  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.masterMetadataOnFlush),
                                                xact.addr,
                                                UInt(trackerId))
 
-  val grant_type = co.getGrantType(xact.a_type, init_sharer_cnt)
+  val grant_type = co.getGrantType(xact, co.masterMetadataOnFlush)
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
@@ -219,7 +218,6 @@ class AcquireTracker(trackerId: Int, bankId: Int) extends XactTracker {
       when( io.inner.acquire.valid ) {
         xact := c_acq.payload
         init_client_id := c_acq.header.src
-        init_sharer_cnt := UInt(nClients) // TODO: Broadcast only
         probe_flags := probe_initial_flags
         if(nClients > 1) {
           release_count := PopCount(probe_initial_flags)

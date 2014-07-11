@@ -376,7 +376,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTrack
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
-  io.inner.grant.bits.payload := Grant(co.getGrantType(xact, UInt(0)),
+  io.inner.grant.bits.payload := Grant(co.getGrantType(xact, conf.tl.co.masterMetadataOnFlush),// TODO xact_internal.meta)
                                         xact.client_xact_id,
                                         UInt(trackerId))
 
@@ -454,11 +454,12 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
   io.inner.probe.bits.header.dst := curr_p_id
-  io.inner.probe.bits.payload := Probe(co.getProbeType(xact.a_type, co.masterMetadataOnFlush),
-                                               xact.addr,
-                                               UInt(trackerId))
+  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, /*xact_internal.meta), TODO*/
+                                          co.masterMetadataOnFlush),
+                                        xact.addr,
+                                        UInt(trackerId))
 
-  val grant_type = co.getGrantType(xact.a_type, init_sharer_cnt)
+  val grant_type = co.getGrantType(xact, conf.tl.co.masterMetadataOnFlush)// TODO xact_internal.meta)
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
