@@ -74,7 +74,7 @@ class NullRepresentation extends DirectoryRepresentation {
 
 class FullRepresentation(nClients: Int) extends DirectoryRepresentation {
   val internal = UInt(width = nClients)
-  def pop(id: UInt) = { internal := internal & ~UIntToOH(id); this }
+  def pop(id: UInt) = { internal := internal & ~UIntToOH(id); this } // make new FullRep to return?
   def push(id: UInt) = { internal := internal | UIntToOH(id); this }
   def flush(dummy: Int = 0) = { internal := UInt(0, width = nClients); this }
   def none(dummy: Int = 0) = internal === UInt(0)
