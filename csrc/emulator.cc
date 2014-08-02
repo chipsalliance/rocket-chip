@@ -125,7 +125,7 @@ int main(int argc, char** argv)
     }
 
     if (log)
-      tile.print(stderr, stderr);
+      tile.print(stderr);
 
     if (vcd)
       tile.dump(vcdfile, trace_count);
@@ -139,7 +139,7 @@ int main(int argc, char** argv)
 
   if (htif->exit_code())
   {
-    fprintf(stderr, "*** FAILED *** (code = %d) after %lld cycles\n", htif->exit_code(), (long long)trace_count);
+    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %lld cycles\n", htif->exit_code(), random_seed, (long long)trace_count);
     ret = htif->exit_code();
   }
   else if (trace_count == max_cycles)

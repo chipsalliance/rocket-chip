@@ -1,51 +1,47 @@
 package referencechip
 
 import Chisel._
-import Node._
 import uncore._
 import rocket._
+import DRAMModel._
+import DRAMModel.MemModelConstants._
 
-class FPGAOuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
-{
-  implicit val (tl, ln, l2) = (conf.tl, conf.tl.ln, conf.l2)
+class FPGAOuterMemorySystem(htif_width: Int)(implicit conf: FPGAUncoreConfiguration) 
+  extends Module {
+  implicit val (tl, ln, l2, mif) = (conf.tl, conf.tl.ln, conf.l2, conf.mif)
   val io = new Bundle {
     val tiles = Vec.fill(conf.nTiles){new TileLinkIO}.flip
     val htif = (new TileLinkIO).flip
     val incoherent = Vec.fill(ln.nClients){Bool()}.asInput
-    val mem = new ioMem
+    val mem = new MemIO
   }
 
-  val masterEndpoints = (0 until ln.nMasters).map(i => Module(new L2CoherenceAgent(i)))
-
+  val master = Module(new L2CoherenceAgent(0))
   val net = Module(new ReferenceChipCrossbarNetwork)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
-  net.io.masters zip (masterEndpoints.map(_.io.client)) map { case (net, end) => net <> end }
-  masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
+  net.io.masters.head <> master.io.inner
+  master.io.incoherent zip io.incoherent map { case (m, c) => m := c }
 
   val conv = Module(new MemIOUncachedTileLinkIOConverter(2))
-  if(ln.nMasters > 1) {
-    val arb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(ln.nMasters))
-    arb.io.in zip masterEndpoints.map(_.io.master) map { case (arb, cache) => arb <> cache }
-    conv.io.uncached <> arb.io.out
-  } else {
-    conv.io.uncached <> masterEndpoints.head.io.master
-  }
-  io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
-  io.mem.req_data <> Queue(conv.io.mem.req_data, REFILL_CYCLES)
+  conv.io.uncached <> master.io.outer
+  io.mem.req_cmd <> Queue(conv.io.mem.req_cmd, 2)
+  io.mem.req_data <> Queue(conv.io.mem.req_data, tl.dataBits/mif.dataBits)
   conv.io.mem.resp <> Queue(io.mem.resp)
 }
 
-class FPGAUncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
-{
-  implicit val (tl, ln) = (conf.tl, conf.tl.ln)
+case class FPGAUncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, mif: MemoryIFConfiguration, nTiles: Int, nSCR: Int, offsetBits: Int)
+
+class FPGAUncore(htif_width: Int)(implicit conf: FPGAUncoreConfiguration) 
+  extends Module {
+  implicit val (tl, ln, mif) = (conf.tl, conf.tl.ln, conf.mif)
   val io = new Bundle {
     val host = new HostIO(htif_width)
-    val mem = new ioMem
+    val mem = new MemIO
     val tiles = Vec.fill(conf.nTiles){new TileLinkIO}.flip
     val htif = Vec.fill(conf.nTiles){new HTIFIO(conf.nTiles)}.flip
     val incoherent = Vec.fill(conf.nTiles){Bool()}.asInput
   }
-  val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR))
+  val htif = Module(new HTIF(htif_width, CSRs.reset, conf.nSCR, conf.offsetBits))
   val outmemsys = Module(new FPGAOuterMemorySystem(htif_width))
   val incoherentWithHtif = (io.incoherent :+ Bool(true).asInput)
   outmemsys.io.incoherent := incoherentWithHtif
@@ -53,22 +49,11 @@ class FPGAUncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Mo
   outmemsys.io.mem <> io.mem
 
   // Add networking headers and endpoint queues
-  def convertAddrToBank(addr: Bits): UInt = {
-    require(conf.bankIdLsb + log2Up(conf.nBanks) < MEM_ADDR_BITS, {println("Invalid bits for bank multiplexing.")})
-    addr(conf.bankIdLsb + log2Up(conf.nBanks) - 1, conf.bankIdLsb)
-  }
-
   (outmemsys.io.tiles :+ outmemsys.io.htif).zip(io.tiles :+ htif.io.mem).zipWithIndex.map { 
     case ((outer, client), i) => 
-      outer.acquire <> TileLinkHeaderAppender(client.acquire, i, conf.nBanks, convertAddrToBank _)
-      outer.release <> TileLinkHeaderAppender(client.release, i, conf.nBanks, convertAddrToBank _)
-
-      val grant_ack_q = Queue(client.grant_ack)
-      outer.grant_ack.valid := grant_ack_q.valid
-      outer.grant_ack.bits := grant_ack_q.bits
-      outer.grant_ack.bits.header.src := UInt(i)
-      grant_ack_q.ready := outer.grant_ack.ready
-
+      outer.acquire <> Queue(TileLinkHeaderOverwriter(client.acquire, i, false))
+      outer.release <> Queue(TileLinkHeaderOverwriter(client.release, i, false))
+      outer.finish <> Queue(TileLinkHeaderOverwriter(client.finish, i, true))
       client.grant <> Queue(outer.grant, 1, pipe = true)
       client.probe <> Queue(outer.probe)
   }
@@ -77,27 +62,40 @@ class FPGAUncore(htif_width: Int)(implicit conf: UncoreConfiguration) extends Mo
   htif.io.host.in <> io.host.in
 }
 
-class FPGATopIO(htifWidth: Int) extends TopIO(htifWidth)
+import MemoryConstants._
+import TileLinkSizeConstants._
+
+import MemoryConstants._
+
+class FPGATopIO(htifWidth: Int)(implicit conf: MemoryIFConfiguration) extends TopIO(htifWidth)(conf)
 
 class FPGATop extends Module {
-  val htif_width = 16
-  val co = new MESICoherence
   val ntiles = 1
-  val nbanks = 1
   val nmshrs = 2
-  implicit val ln = LogicalNetworkConfiguration(log2Up(ntiles)+1, nbanks, ntiles+1)
-  implicit val tl = TileLinkConfiguration(co, ln, log2Up(1+8), 2*log2Up(nmshrs*ntiles+1), MEM_DATA_BITS)
+  val htif_width = 16
+  
+  val co = new MESICoherence(new FullRepresentation(ntiles+1))
+  implicit val ln = LogicalNetworkConfiguration(log2Up(ntiles)+1, 1, ntiles+1)
+  implicit val as = AddressSpaceConfiguration(PADDR_BITS, VADDR_BITS, PGIDX_BITS, ASID_BITS, PERM_BITS)
+  implicit val tl = TileLinkConfiguration(co = co, ln = ln,
+                                          addrBits = as.paddrBits-OFFSET_BITS, 
+                                          clientXactIdBits = log2Up(1+8), 
+                                          masterXactIdBits = 2*log2Up(2*1+1), 
+                                          dataBits = CACHE_DATA_SIZE_IN_BYTES*8, 
+                                          writeMaskBits = WRITE_MASK_BITS, 
+                                          wordAddrBits = SUBWORD_ADDR_BITS, 
+                                          atomicOpBits = ATOMIC_OP_BITS)
   implicit val l2 = L2CoherenceAgentConfiguration(tl, 1, 8)
-  implicit val uc = UncoreConfiguration(l2, tl, ntiles, nbanks, bankIdLsb = 5, nSCR = 64)
+  implicit val mif = MemoryIFConfiguration(MEM_ADDR_BITS, MEM_DATA_BITS, MEM_TAG_BITS, 4)
+  implicit val uc = FPGAUncoreConfiguration(l2, tl, mif, ntiles, nSCR = 64, offsetBits = OFFSET_BITS)
 
-  val ic = ICacheConfig(64, 1, ntlb = 4, nbtb = 4)
-  val dc = DCacheConfig(64, 1, ntlb = 4, nmshr = 2, nrpq = 16, nsdq = 17, states = co.nClientStates)
-  val rc = RocketConfiguration(tl, ic, dc,
-                               fastMulDiv = false,
-                               fpu = false)
+  val ic = ICacheConfig(64, 1, ntlb = 4, tl = tl, as = as, btb = BTBConfig(as, 8, 2))
+  val dc = DCacheConfig(64, 1, ntlb = 4, nmshr = 2, nrpq = 16, nsdq = 17, tl = tl, as = as, reqtagbits = -1, databits = -1)
+  val rc = RocketConfiguration(tl, as, ic, dc, fpu = None,
+                               fastMulDiv = false)
 
   val io = new FPGATopIO(htif_width)
-
+ 
   val resetSigs = Vec.fill(uc.nTiles){Bool()}
   val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
   val uncore = Module(new FPGAUncore(htif_width))
@@ -119,9 +117,9 @@ class FPGATop extends Module {
     hl.ipi_req <> Queue(tile.io.host.ipi_req)
     tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
   }
-
-  io.host <> uncore.io.host
-  io.mem <> uncore.io.mem
+ 
+  uncore.io.host <> io.host
+  uncore.io.mem <> io.mem
 }
 
 abstract class AXISlave extends Module {
@@ -175,7 +173,7 @@ class Slave extends AXISlave
 
   // write cr1 -> mem.resp (nonblocking)
   val in_count = Reg(init=UInt(0, log2Up(memw/dw)))
-  val rf_count = Reg(init=UInt(0, log2Up(REFILL_CYCLES)))
+  val rf_count = Reg(init=UInt(0, log2Up(CACHE_DATA_SIZE_IN_BYTES*8/memw)))
   require(memw % dw == 0 && isPow2(memw/dw))
   val in_reg = Reg(top.io.mem.resp.bits.data)
   top.io.mem.resp.bits.data := Cat(io.in.bits, in_reg(in_reg.getWidth-1,dw))

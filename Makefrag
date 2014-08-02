@@ -114,6 +114,7 @@ asm_p_tests = \
 	rv64uf-p-fcmp \
 	rv64uf-p-fcvt \
 	rv64uf-p-fcvt_w \
+	rv64uf-p-fclass \
 	rv64uf-p-fadd \
 	rv64uf-p-fmin \
 	rv64uf-p-fmadd \
@@ -210,6 +211,7 @@ asm_v_tests = \
 	rv64uf-v-fcmp \
 	rv64uf-v-fcvt \
 	rv64uf-v-fcvt_w \
+	rv64uf-v-fclass \
 	rv64uf-v-fadd \
 	rv64uf-v-fmin \
 	rv64uf-v-fmadd \
@@ -222,9 +224,12 @@ vecasm_p_tests = \
 	rv64uv-p-vmsv \
 	rv64uv-p-vmvv \
 	rv64uv-p-vfmvv \
+	rv64uv-p-vfmsv_d \
+	rv64uv-p-vfmsv_s \
 	rv64uv-p-vsetcfg \
 	rv64uv-p-vsetcfgi \
 	rv64uv-p-vsetvl \
+	rv64uv-p-keepcfg \
 	rv64uv-p-movz \
 	rv64uv-p-movn \
 	rv64uv-p-fmovz \
@@ -270,6 +275,7 @@ vecasm_p_tests = \
 	rv64uv-p-amoswap_w \
 	rv64uv-p-imul \
 	rv64uv-p-fma \
+	rv64uv-p-fma_many \
 	rv64ui-p-vec-mul \
 	rv64ui-p-vec-mulw \
 	rv64ui-p-vec-mulh \
@@ -311,15 +317,18 @@ vecasm_p_tests = \
 	rv64uf-p-vec-fcvt_w \
 	rv64uf-p-vec-fcvt \
 	rv64uf-p-vec-fcmp \
-#	rv64sv-p-illegal_tvec_cmd \
-#	rv64sv-p-illegal_tvec_regid \
-#	rv64sv-p-illegal_vt_inst \
-#	rv64sv-p-illegal_vt_regid \
-#	rv64sv-p-ma_utld \
-#	rv64sv-p-ma_utsd \
-#	rv64sv-p-ma_vld \
-#	rv64sv-p-ma_vsd \
-#	rv64sv-p-ma_vt_inst \
+	rv64sv-p-illegal_cfg_nxpr \
+	rv64sv-p-illegal_cfg_nfpr \
+	rv64sv-p-illegal_inst \
+	rv64sv-p-illegal_tvec_regid \
+	rv64sv-p-illegal_vt_inst \
+	rv64sv-p-illegal_vt_regid \
+	rv64sv-p-ma_utld \
+	rv64sv-p-ma_utsd \
+	rv64sv-p-ma_vld \
+	rv64sv-p-ma_vsd \
+	rv64sv-p-ma_vt_inst \
+	rv64sv-p-privileged_inst \
 
 vecasm_v_tests = \
 	rv64uv-v-wakeup \
@@ -328,6 +337,12 @@ vecasm_v_tests = \
 	rv64uv-v-vmsv \
 	rv64uv-v-vmvv \
 	rv64uv-v-vfmvv \
+	rv64uv-v-vfmsv_d \
+	rv64uv-v-vfmsv_s \
+	rv64uv-v-vsetcfg \
+	rv64uv-v-vsetcfgi \
+	rv64uv-v-vsetvl \
+	rv64uv-v-keepcfg \
 	rv64uv-v-movz \
 	rv64uv-v-movn \
 	rv64uv-v-fmovz \
@@ -371,6 +386,7 @@ vecasm_v_tests = \
 	rv64uv-v-amominu_w \
 	rv64uv-v-imul \
 	rv64uv-v-fma \
+	rv64uv-v-fma_many \
 	rv64ui-v-vec-mul \
 	rv64ui-v-vec-mulw \
 	rv64ui-v-vec-mulh \
@@ -426,6 +442,12 @@ vecasm_pt_tests = \
 	rv64uv-pt-vmvv \
 	rv64uv-pt-vmsv \
 	rv64uv-pt-vfmvv \
+	rv64uv-pt-vfmsv_d \
+	rv64uv-pt-vfmsv_s \
+	rv64uv-pt-vsetcfg \
+	rv64uv-pt-vsetcfgi \
+	rv64uv-pt-vsetvl \
+	rv64uv-pt-keepcfg \
 	rv64uv-pt-movz \
 	rv64uv-pt-movn \
 	rv64uv-pt-fmovz \
@@ -463,6 +485,7 @@ vecasm_pt_tests = \
 	rv64uv-pt-amominu_w \
 	rv64uv-pt-imul \
 	rv64uv-pt-fma \
+	rv64uv-pt-fma_many \
 	rv64ui-pt-vec-mul \
 	rv64ui-pt-vec-mulw \
 	rv64ui-pt-vec-mulh \
@@ -514,7 +537,7 @@ bmarks = \
 	qsort.riscv \
 	towers.riscv \
 	vvadd.riscv \
-	dgemm.riscv \
+	mm.riscv \
 	dhrystone.riscv \
 	spmv.riscv \
 	#vec-vvadd.riscv \
@@ -603,5 +626,5 @@ bt_vvadd.riscv\
 disasm := 2>
 which_disasm := $(shell which riscv-dis)
 ifneq ($(which_disasm),)
-	disasm := 3>&1 1>&2 2>&3 | $(which_disasm) >
+	disasm := 3>&1 1>&2 2>&3 | $(which_disasm) --extension=hwacha >
 endif
