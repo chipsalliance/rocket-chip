@@ -164,9 +164,9 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
   val read_ptbr = reg_ptbr(conf.as.paddrBits-1, conf.as.pgIdxBits) << conf.as.pgIdxBits
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
-    CSRs.fflags -> (if (!conf.fpu.isEmpty) reg_fflags else UInt(0)),
-    CSRs.frm -> (if (!conf.fpu.isEmpty) reg_frm else UInt(0)),
-    CSRs.fcsr -> (if (!conf.fpu.isEmpty) Cat(reg_frm, reg_fflags) else UInt(0)),
+    CSRs.fflags -> (if (!params(HasFPU)) reg_fflags else UInt(0)),
+    CSRs.frm -> (if (!params(HasFPU)) reg_frm else UInt(0)),
+    CSRs.fcsr -> (if (!params(HasFPU)) Cat(reg_frm, reg_fflags) else UInt(0)),
     CSRs.cycle -> reg_time,
     CSRs.time -> reg_time,
     CSRs.instret -> reg_instret,
@@ -208,7 +208,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
       reg_status.zero := 0
       if (!conf.vm) reg_status.vm := false
       if (conf.rocc.isEmpty) reg_status.er := false
-      if (conf.fpu.isEmpty) reg_status.ef := false
+      if (params(HasFPU)) reg_status.ef := false
     }
     when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
     when (decoded_addr(CSRs.frm))      { reg_frm := wdata }

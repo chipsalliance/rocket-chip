@@ -4,6 +4,9 @@ import Chisel._
 import Util._
 import uncore.HTIFIO
 
+case object FPUParams extends Field[PF]
+case object HasFPU extends Field[Boolean]
+
 class RocketIO(implicit conf: RocketConfiguration) extends Bundle
 {
   val host = new HTIFIO(conf.tl.ln.nClients)
@@ -20,8 +23,8 @@ class Core(implicit conf: RocketConfiguration) extends Module
   val ctrl  = Module(new Control)
   val dpath = Module(new Datapath)
 
-  if (!conf.fpu.isEmpty) {
-    val fpu = Module(new FPU(conf.fpu.get))
+  if (!params(HasFPU)) {
+    val fpu = Module(new FPU,params(FPUParams))
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
   }
