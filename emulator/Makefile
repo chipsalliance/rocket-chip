@@ -2,6 +2,8 @@ all: emulator
 
 base_dir = ..
 sim_dir = .
+PROJECT = referencechip
+CONFIG = DefaultCPPConfig
 
 include $(base_dir)/Makefrag
 
@@ -15,14 +17,14 @@ LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L. -ldramsim -lfes
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
 DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 
-CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir emulator/generated-src
+CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir emulator/generated-src --configInstance $(PROJECT).$(CONFIG)
 CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
 generated-src/$(MODEL).h: $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/hwacha/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/$(src_path)/*.scala
-	cd $(base_dir) && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS)"
+	cd $(base_dir) && $(SBT) "project $(PROJECT)" "elaborate $(CHISEL_ARGS)"
 
 generated-src-debug/$(MODEL).h: $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/hwacha/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/$(src_path)/*.scala
-	cd $(base_dir) && $(SBT) "project referencechip" "elaborate $(CHISEL_ARGS_DEBUG)"
+	cd $(base_dir) && $(SBT) "project $(PROJECT)" "elaborate $(CHISEL_ARGS_DEBUG)"
 
 $(MODEL).o: %.o: generated-src/%.h
 	$(MAKE) -j $(patsubst %.cpp,%.o,$(shell ls generated-src/$(MODEL)-*.cpp))

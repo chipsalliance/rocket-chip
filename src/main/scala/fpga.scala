@@ -62,11 +62,6 @@ class FPGAUncore(htif_width: Int)(implicit conf: FPGAUncoreConfiguration)
   htif.io.host.in <> io.host.in
 }
 
-import MemoryConstants._
-import TileLinkSizeConstants._
-
-import MemoryConstants._
-
 class FPGATopIO(htifWidth: Int)(implicit conf: MemoryIFConfiguration) extends TopIO(htifWidth)(conf)
 
 class FPGATop extends Module {
@@ -76,22 +71,22 @@ class FPGATop extends Module {
   
   val co = new MESICoherence(new FullRepresentation(ntiles+1))
   implicit val ln = LogicalNetworkConfiguration(log2Up(ntiles)+1, 1, ntiles+1)
-  implicit val as = AddressSpaceConfiguration(PADDR_BITS, VADDR_BITS, PGIDX_BITS, ASID_BITS, PERM_BITS)
+  implicit val as = AddressSpaceConfiguration(params[Int]("PADDR_BITS"), params[Int]("VADDR_BITS"), params[Int]("PGIDX_BITS"), params[Int]("ASID_BITS"), params[Int]("PERM_BITS"))
   implicit val tl = TileLinkConfiguration(co = co, ln = ln,
-                                          addrBits = as.paddrBits-OFFSET_BITS, 
+                                          addrBits = as.paddrBits-params[Int]("OFFSET_BITS"), 
                                           clientXactIdBits = log2Up(1+8), 
                                           masterXactIdBits = 2*log2Up(2*1+1), 
-                                          dataBits = CACHE_DATA_SIZE_IN_BYTES*8, 
-                                          writeMaskBits = WRITE_MASK_BITS, 
-                                          wordAddrBits = SUBWORD_ADDR_BITS, 
-                                          atomicOpBits = ATOMIC_OP_BITS)
+                                          dataBits = params[Int]("CACHE_DATA_SIZE_IN_BYTES")*8, 
+                                          writeMaskBits = params[Int]("WRITE_MASK_BITS"), 
+                                          wordAddrBits = params[Int]("SUBWORD_ADDR_BITS"), 
+                                          atomicOpBits = params[Int]("ATOMIC_OP_BITS"))
   implicit val l2 = L2CoherenceAgentConfiguration(tl, 1, 8)
-  implicit val mif = MemoryIFConfiguration(MEM_ADDR_BITS, MEM_DATA_BITS, MEM_TAG_BITS, 4)
-  implicit val uc = FPGAUncoreConfiguration(l2, tl, mif, ntiles, nSCR = 64, offsetBits = OFFSET_BITS)
+  implicit val mif = MemoryIFConfiguration(params[Int]("MEM_ADDR_BITS"), params[Int]("MEM_DATA_BITS"), params[Int]("MEM_TAG_BITS"), params[Int]("MEM_DATA_BEATS"))
+  implicit val uc = FPGAUncoreConfiguration(l2, tl, mif, ntiles, nSCR = 64, offsetBits = params[Int]("OFFSET_BITS"))
 
   val ic = ICacheConfig(64, 1, ntlb = 4, tl = tl, as = as, btb = BTBConfig(as, 8, 2))
   val dc = DCacheConfig(64, 1, ntlb = 4, nmshr = 2, nrpq = 16, nsdq = 17, tl = tl, as = as, reqtagbits = -1, databits = -1)
-  val rc = RocketConfiguration(tl, as, ic, dc, fpu = None,
+  val rc = RocketConfiguration(tl, as, ic, dc,
                                fastMulDiv = false)
 
   val io = new FPGATopIO(htif_width)
@@ -173,7 +168,7 @@ class Slave extends AXISlave
 
   // write cr1 -> mem.resp (nonblocking)
   val in_count = Reg(init=UInt(0, log2Up(memw/dw)))
-  val rf_count = Reg(init=UInt(0, log2Up(CACHE_DATA_SIZE_IN_BYTES*8/memw)))
+  val rf_count = Reg(init=UInt(0, log2Up(params[Int]("CACHE_DATA_SIZE_IN_BYTES")*8/memw)))
   require(memw % dw == 0 && isPow2(memw/dw))
   val in_reg = Reg(top.io.mem.resp.bits.data)
   top.io.mem.resp.bits.data := Cat(io.in.bits, in_reg(in_reg.getWidth-1,dw))

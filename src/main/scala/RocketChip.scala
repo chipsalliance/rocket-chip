@@ -5,42 +5,48 @@ import uncore._
 import rocket._
 import rocket.Util._
 
-object DesignSpaceConstants {
-  val NTILES = 1
-  val NBANKS = 1
-  val HTIF_WIDTH = 16
-  val ENABLE_SHARING = true
-  val ENABLE_CLEAN_EXCLUSIVE = true
-  val USE_DRAMSIDE_LLC = true
-  val HAS_FPU = true
-  val NL2_REL_XACTS = 1
-  val NL2_ACQ_XACTS = 7
-  val NMSHRS = 2
+class DefaultVLSIConfig extends DefaultConfig
+class DefaultFPGAConfig extends DefaultConfig
+class DefaultCPPConfig extends DefaultConfig
+class DefaultConfig extends ChiselConfig {
+  val top:World.TopDefs = {
+    (pname,site,here) => pname match {
+      //DesignSpaceConstants 
+      case "NTILES" => 1
+      case "NBANKS" => 1
+      case "HTIF_WIDTH" => 16
+      case "ENABLE_SHARING" => true
+      case "ENABLE_CLEAN_EXCLUSIVE" => true
+      case "USE_DRAMSIDE_LLC" => true
+      case "NL2_REL_XACTS" => 1
+      case "NL2_ACQ_XACTS" => 7
+      case "NMSHRS" => 2
+      //FPUConstants
+      case HasFPU => true
+      case FPUParams => Alter({ 
+          case SFMALatency => 2
+          case DFMALatency => 3
+        })
+      //MemoryConstants
+      case "CACHE_DATA_SIZE_IN_BYTES" => 1 << 6 //TODO: How configurable is this really?
+      case "OFFSET_BITS" => log2Up(here[Int]("CACHE_DATA_SIZE_IN_BYTES"))
+      case "PADDR_BITS" => 32
+      case "VADDR_BITS" => 43
+      case "PGIDX_BITS" => 13
+      case "ASID_BITS" => 7
+      case "PERM_BITS" => 6
+      case "MEM_TAG_BITS" => 5
+      case "MEM_DATA_BITS" => 128
+      case "MEM_ADDR_BITS" => here[Int]("PADDR_BITS") - here[Int]("OFFSET_BITS")
+      case "MEM_DATA_BEATS" => 4
+      //TileLinkSizeConstants
+      case "WRITE_MASK_BITS" => 6
+      case "SUBWORD_ADDR_BITS" => 3
+      case "ATOMIC_OP_BITS" => 4
+    }
+  }
 }
 
-object MemoryConstants {
-  val CACHE_DATA_SIZE_IN_BYTES = 1 << 6 //TODO: How configurable is this really?
-  val OFFSET_BITS = log2Up(CACHE_DATA_SIZE_IN_BYTES)
-  val PADDR_BITS = 32
-  val VADDR_BITS = 43
-  val PGIDX_BITS = 13
-  val ASID_BITS = 7
-  val PERM_BITS = 6
-  val MEM_TAG_BITS = 5
-  val MEM_DATA_BITS = 128
-  val MEM_ADDR_BITS = PADDR_BITS - OFFSET_BITS
-  val MEM_DATA_BEATS = 4
-}
-
-object TileLinkSizeConstants {
-  val WRITE_MASK_BITS = 6
-  val SUBWORD_ADDR_BITS = 3
-  val ATOMIC_OP_BITS = 4
-}
-
-import DesignSpaceConstants._
-import MemoryConstants._
-import TileLinkSizeConstants._
 
 class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) extends Module
 {
@@ -192,55 +198,54 @@ class VLSITopIO(htifWidth: Int)(implicit conf: MemoryIFConfiguration) extends To
 
 
 class MemDessert extends Module {
-  implicit val mif = MemoryIFConfiguration(MEM_ADDR_BITS, MEM_DATA_BITS, MEM_TAG_BITS, MEM_DATA_BEATS)
-  val io = new MemDesserIO(HTIF_WIDTH)
-  val x = Module(new MemDesser(HTIF_WIDTH))
+  implicit val mif = MemoryIFConfiguration(params[Int]("MEM_ADDR_BITS"), params[Int]("MEM_DATA_BITS"), params[Int]("MEM_TAG_BITS"), params[Int]("MEM_DATA_BEATS"))
+  val io = new MemDesserIO(params[Int]("HTIF_WIDTH"))
+  val x = Module(new MemDesser(params[Int]("HTIF_WIDTH")))
   io.narrow <> x.io.narrow
   io.wide <> x.io.wide
 }
 
 
 class Top extends Module {
-  val dir = new FullRepresentation(NTILES+1)
-  val co = if(ENABLE_SHARING) {
-              if(ENABLE_CLEAN_EXCLUSIVE) new MESICoherence(dir)
+  val dir = new FullRepresentation(params[Int]("NTILES")+1)
+  val co = if(params[Boolean]("ENABLE_SHARING")) {
+              if(params[Boolean]("ENABLE_CLEAN_EXCLUSIVE")) new MESICoherence(dir)
               else new MSICoherence(dir)
             } else {
-              if(ENABLE_CLEAN_EXCLUSIVE) new MEICoherence(dir)
+              if(params[Boolean]("ENABLE_CLEAN_EXCLUSIVE")) new MEICoherence(dir)
               else new MICoherence(dir)
             }
 
-  implicit val ln = LogicalNetworkConfiguration(log2Up(NTILES)+1, NBANKS, NTILES+1)
-  implicit val as = AddressSpaceConfiguration(PADDR_BITS, VADDR_BITS, PGIDX_BITS, ASID_BITS, PERM_BITS)
+  implicit val ln = LogicalNetworkConfiguration(log2Up(params[Int]("NTILES"))+1, params[Int]("NBANKS"), params[Int]("NTILES")+1)
+  implicit val as = AddressSpaceConfiguration(params[Int]("PADDR_BITS"), params[Int]("VADDR_BITS"), params[Int]("PGIDX_BITS"), params[Int]("ASID_BITS"), params[Int]("PERM_BITS"))
   implicit val tl = TileLinkConfiguration(co = co, ln = ln, 
-                                          addrBits = as.paddrBits-OFFSET_BITS, 
-                                          clientXactIdBits = log2Up(NL2_REL_XACTS+NL2_ACQ_XACTS), 
-                                          masterXactIdBits = 2*log2Up(NMSHRS*NTILES+1), 
-                                          dataBits = CACHE_DATA_SIZE_IN_BYTES*8, 
-                                          writeMaskBits = WRITE_MASK_BITS, 
-                                          wordAddrBits = SUBWORD_ADDR_BITS, 
-                                          atomicOpBits = ATOMIC_OP_BITS)
-  implicit val l2 = L2CacheConfig(512, 8, 1, 1, NL2_REL_XACTS, NL2_ACQ_XACTS, tl, as)
-  implicit val mif = MemoryIFConfiguration(MEM_ADDR_BITS, MEM_DATA_BITS, MEM_TAG_BITS, MEM_DATA_BEATS)
-  implicit val uc = UncoreConfiguration(l2, tl, mif, NTILES, NBANKS, bankIdLsb = 5, nSCR = 64, offsetBits = OFFSET_BITS, useDRAMSideLLC = USE_DRAMSIDE_LLC)
+                                          addrBits = as.paddrBits-params[Int]("OFFSET_BITS"), 
+                                          clientXactIdBits = log2Up(params[Int]("NL2_REL_XACTS")+params[Int]("NL2_ACQ_XACTS")), 
+                                          masterXactIdBits = 2*log2Up(params[Int]("NMSHRS")*params[Int]("NTILES")+1), 
+                                          dataBits = params[Int]("CACHE_DATA_SIZE_IN_BYTES")*8, 
+                                          writeMaskBits = params[Int]("WRITE_MASK_BITS"), 
+                                          wordAddrBits = params[Int]("SUBWORD_ADDR_BITS"), 
+                                          atomicOpBits = params[Int]("ATOMIC_OP_BITS"))
+  implicit val l2 = L2CacheConfig(512, 8, 1, 1, params[Int]("NL2_REL_XACTS"), params[Int]("NL2_ACQ_XACTS"), tl, as)
+  implicit val mif = MemoryIFConfiguration(params[Int]("MEM_ADDR_BITS"), params[Int]("MEM_DATA_BITS"), params[Int]("MEM_TAG_BITS"), params[Int]("MEM_DATA_BEATS"))
+  implicit val uc = UncoreConfiguration(l2, tl, mif, params[Int]("NTILES"), params[Int]("NBANKS"), bankIdLsb = 5, nSCR = 64, offsetBits = params[Int]("OFFSET_BITS"), useDRAMSideLLC = params[Boolean]("USE_DRAMSIDE_LLC"))
 
   val ic = ICacheConfig(sets = 128, assoc = 2, ntlb = 8, tl = tl, as = as, btb = BTBConfig(as, 64, 2))
   val dc = DCacheConfig(sets = 128, ways = 4, 
                         tl = tl, as = as,
-                        ntlb = 8, nmshr = NMSHRS, nrpq = 16, nsdq = 17, 
+                        ntlb = 8, nmshr = params[Int]("NMSHRS"), nrpq = 16, nsdq = 17, 
                         reqtagbits = -1, databits = -1)
   val vic = ICacheConfig(sets = 128, assoc = 1, tl = tl, as = as, btb = BTBConfig(as, 8))
   val hc = hwacha.HwachaConfiguration(as, vic, dc, 8, 256, ndtlb = 8, nptlb = 2)
-  val fpu = if (HAS_FPU) Some(FPUConfig(sfmaLatency = 2, dfmaLatency = 3)) else None
-  val rc = RocketConfiguration(tl, as, ic, dc, fpu
+  val rc = RocketConfiguration(tl, as, ic, dc
   //                             rocc = (c: RocketConfiguration) => (new hwacha.Hwacha(hc, c))
                               )
 
-  val io = new VLSITopIO(HTIF_WIDTH)
+  val io = new VLSITopIO(params[Int]("HTIF_WIDTH"))
 
   val resetSigs = Vec.fill(uc.nTiles){Bool()}
   val tileList = (0 until uc.nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))(rc)))
-  val uncore = Module(new Uncore(HTIF_WIDTH))
+  val uncore = Module(new Uncore(params[Int]("HTIF_WIDTH")))
 
   for (i <- 0 until uc.nTiles) {
     val hl = uncore.io.htif(i)
