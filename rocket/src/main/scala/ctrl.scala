@@ -43,7 +43,7 @@ class CtrlDpathIO(implicit conf: RocketConfiguration) extends Bundle
   // exception handling
   val retire = Bool(OUTPUT)
   val exception = Bool(OUTPUT)
-  val cause    = UInt(OUTPUT, conf.xprlen)
+  val cause    = UInt(OUTPUT, params[Int]("xprlen"))
   val badvaddr_wen = Bool(OUTPUT) // high for a load/store access fault
   // inputs from datapath
   val inst    = Bits(INPUT, 32)
@@ -316,8 +316,8 @@ class Control(implicit conf: RocketConfiguration) extends Module
   }
 
   var decode_table = XDecode.table
-  if (!params(HasFPU)) decode_table ++= FDecode.table
-  if (!conf.rocc.isEmpty) decode_table ++= RoCCDecode.table
+  if (params(HasFPU)) decode_table ++= FDecode.table
+  if (params[Boolean]("HasRoCC")) decode_table ++= RoCCDecode.table
 
   val cs = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
   
@@ -401,7 +401,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_reg_fence = Reg(init=Bool(false))
 
   val sr = io.dpath.status
-  var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UInt(BigInt(1) << (conf.xprlen-1) | i)))
+  var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UInt(BigInt(1) << (params[Int]("xprlen")-1) | i)))
 
   val (id_interrupt_unmasked, id_interrupt_cause) = checkExceptions(id_interrupts)
   val id_interrupt = io.dpath.status.ei && id_interrupt_unmasked
@@ -437,7 +437,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val id_amo_rl = io.dpath.inst(25)
   val id_fence_next = id_fence || id_amo && id_amo_rl
   val id_mem_busy = !io.dmem.ordered || ex_reg_mem_val
-  val id_rocc_busy = Bool(!conf.rocc.isEmpty) &&
+  val id_rocc_busy = Bool(params[Boolean]("HasRoCC")) &&
     (io.rocc.busy || ex_reg_rocc_val || mem_reg_rocc_val || wb_reg_rocc_val)
   id_reg_fence := id_fence_next || id_reg_fence && id_mem_busy
   val id_do_fence = id_rocc_busy && id_fence ||
@@ -690,7 +690,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
     
   // stall for RAW/WAW hazards on PCRs, LB/LH, and mul/div in memory stage.
   val mem_mem_cmd_bh =
-    if (conf.fastLoadWord) Bool(!conf.fastLoadByte) && mem_reg_slow_bypass
+    if (params[Boolean]("fastLoadWord")) Bool(!params[Boolean]("fastLoadByte")) && mem_reg_slow_bypass
     else Bool(true)
   val data_hazard_mem = mem_reg_wen &&
     (id_renx1_not0 && id_raddr1 === io.dpath.mem_waddr ||

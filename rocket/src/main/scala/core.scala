@@ -9,7 +9,7 @@ case object HasFPU extends Field[Boolean]
 
 class RocketIO(implicit conf: RocketConfiguration) extends Bundle
 {
-  val host = new HTIFIO(conf.tl.ln.nClients)
+  val host =  new HTIFIO(params[Int]("nClients"))
   val imem = new CPUFrontendIO()(conf.icache)
   val dmem = new HellaCacheIO()(conf.dcache)
   val ptw = new DatapathPTWIO()(conf.as).flip
@@ -18,7 +18,20 @@ class RocketIO(implicit conf: RocketConfiguration) extends Bundle
 
 class Core(implicit conf: RocketConfiguration) extends Module
 {
+  //xprlen
+  //hasfpu
+  //hasrocc
+  //fastloadword
+  //fastloadbyte
+  //as <- unfolded
+  
+  //fpuparams
+
   val io    = new RocketIO
+  //nClients
+
+  //icache
+  //dcache
    
   val ctrl  = Module(new Control)
   val dpath = Module(new Datapath)
