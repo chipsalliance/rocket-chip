@@ -45,6 +45,9 @@ BUILDING THE PROJECT:
     cd emulator
     make emulator-debug
 
+    (note that you must have run "make emulator" at least once before
+    running "make emulator-debug")
+
   And to run the assembly tests on the C simulator and generate waveforms:
 
     make run-asm-tests-debug
