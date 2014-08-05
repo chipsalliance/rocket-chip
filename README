@@ -63,12 +63,3 @@ UPDATING TO A NEWER VERSION OF CHISEL:
     git submodule update --init
     cd chisel
     git pull origin master
-
-  Then, to compile it and install it into the rocket repo:
-
-    cd sbt
-    sbt package
-    cp chisel/target/scala-2.8.1/chisel_2.8.1-1.1.jar ../../sbt/work/lib
-
-  If you commit a new jar, you must also commit the updated chisel submodule.
-
