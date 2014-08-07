@@ -58,6 +58,11 @@ And to run the assembly tests on the C simulator and generate waveforms:
     $ make run-vecasm-timer-tests-debug
     $ make run-bmarks-test-debug
 
+To FPGA-synthesizable verilog (output will be in `/fpga/generated-src`):
+
+    $ cd fpga/build/syn
+    $ make
+
 
 Updating To A Newer Version Of Chisel
 -------------------------------------
