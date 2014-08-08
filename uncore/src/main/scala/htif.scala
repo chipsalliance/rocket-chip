@@ -4,6 +4,11 @@ import Chisel._
 import Node._
 import uncore._
 
+case object HTIFWidth extends Field[Int]
+case object HTIFNSCR extends Field[Int]
+case object HTIFOffsetBits extends Field[Int]
+case object HTIFNCores extends Field[Int]
+
 class HostIO(val w: Int) extends Bundle
 {
   val clk = Bool(OUTPUT)
@@ -20,43 +25,48 @@ class PCRReq extends Bundle
   val data = Bits(width = 64)
 }
 
-class HTIFIO(ntiles: Int) extends Bundle
+class HTIFIO extends Bundle
 {
   val reset = Bool(INPUT)
-  val id = UInt(INPUT, log2Up(ntiles))
+  val id = UInt(INPUT, log2Up(params(HTIFNCores)))
   val pcr_req = Decoupled(new PCRReq).flip
   val pcr_rep = Decoupled(Bits(width = 64))
-  val ipi_req = Decoupled(Bits(width = log2Up(ntiles)))
+  val ipi_req = Decoupled(Bits(width = log2Up(params(HTIFNCores))))
   val ipi_rep = Decoupled(Bool()).flip
   val debug_stats_pcr = Bool(OUTPUT)
     // wired directly to stats register
     // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work
 }
 
-class SCRIO(n: Int) extends Bundle
+class SCRIO extends Bundle
 {
-  val rdata = Vec.fill(n){Bits(INPUT, 64)}
+  val rdata = Vec.fill(params(HTIFNSCR)){Bits(INPUT, 64)}
   val wen = Bool(OUTPUT)
-  val waddr = UInt(OUTPUT, log2Up(n))
+  val waddr = UInt(OUTPUT, log2Up(params(HTIFNSCR)))
   val wdata = Bits(OUTPUT, 64)
 }
 
-class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: TileLinkConfiguration) extends Module
+class HTIF(pcr_RESET: Int) extends Module
 {
-  implicit val (ln, co) = (conf.ln, conf.co)
-  val nTiles = ln.nClients-1 // This HTIF is itself a TileLink client
+  val dataBits = params(TLDataBits)
+  val co = params(TLCoherence)
+  val w = params(HTIFWidth)
+  val nSCR = params(HTIFNSCR)
+  val offsetBits = params(HTIFOffsetBits)
+  val nCores = params(HTIFNCores)
   val io = new Bundle {
     val host = new HostIO(w)
-    val cpu = Vec.fill(nTiles){new HTIFIO(nTiles).flip}
+    val cpu = Vec.fill(nCores){new HTIFIO().flip}
     val mem = new TileLinkIO
-    val scr = new SCRIO(nSCR)
+    val scr = new SCRIO
   }
+
 
   io.host.debug_stats_pcr := io.cpu.map(_.debug_stats_pcr).reduce(_||_)
     // system is 'interesting' if any tile is 'interesting'
 
   val short_request_bits = 64
-  val long_request_bits = short_request_bits + conf.dataBits
+  val long_request_bits = short_request_bits + dataBits
   require(short_request_bits % w == 0)
 
   val rx_count_w = 13 + log2Up(64) - log2Up(w) // data size field is 12 bits
@@ -92,7 +102,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(UInt(), 6)
 
   val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.width-1, 0)
-  val pcr_coreid = addr(log2Up(nTiles)-1+20+1,20)
+  val pcr_coreid = addr(log2Up(nCores)-1+20+1,20)
   val pcr_wdata = packet_ram(0)
 
   val bad_mem_packet = size(offsetBits-1-3,0).orR || addr(offsetBits-1-3,0).orR
@@ -114,13 +124,13 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
 
   val mem_acked = Reg(init=Bool(false))
   val mem_gxid = Reg(Bits())
-  val mem_gsrc = Reg(UInt(width = conf.ln.idBits))
+  val mem_gsrc = Reg(UInt())
   val mem_needs_ack = Reg(Bool())
   when (io.mem.grant.valid) { 
     mem_acked := Bool(true)
     mem_gxid := io.mem.grant.bits.payload.master_xact_id
     mem_gsrc := io.mem.grant.bits.header.src
-    mem_needs_ack := conf.co.requiresAckForGrant(io.mem.grant.bits.payload.g_type)
+    mem_needs_ack := co.requiresAckForGrant(io.mem.grant.bits.payload.g_type)
   }
   io.mem.grant.ready := Bool(true)
 
@@ -168,8 +178,8 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
   }
 
   var mem_req_data: Bits = null
-  for (i <- 0 until conf.dataBits/short_request_bits) {
-    val idx = UInt(i, log2Up(conf.dataBits/short_request_bits))
+  for (i <- 0 until dataBits/short_request_bits) {
+    val idx = UInt(i, log2Up(dataBits/short_request_bits))
     when (state === state_mem_rresp && io.mem.grant.valid) {
       packet_ram(idx) := io.mem.grant.bits.payload.data((i+1)*short_request_bits-1, i*short_request_bits)
     }
@@ -184,7 +194,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
   acq_q.io.deq.ready := io.mem.acquire.ready
   io.mem.acquire.bits.payload := acq_q.io.deq.bits
   io.mem.acquire.bits.payload.data := mem_req_data
-  io.mem.acquire.bits.header.src := UInt(conf.ln.nClients) // By convention HTIF is the client with the largest id
+  io.mem.acquire.bits.header.src := UInt(params(LNClients)) // By convention HTIF is the client with the largest id
   io.mem.acquire.bits.header.dst := UInt(0) // DNC; Overwritten outside module
   io.mem.finish.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.finish.bits.payload.master_xact_id := mem_gxid
@@ -194,7 +204,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
 
   val pcr_reset = UInt(pcr_RESET)(pcr_addr.getWidth-1,0)
   val pcrReadData = Reg(Bits(width = io.cpu(0).pcr_rep.bits.getWidth))
-  for (i <- 0 until nTiles) {
+  for (i <- 0 until nCores) {
     val my_reset = Reg(init=Bool(true))
     val my_ipi = Reg(init=Bool(false))
 
@@ -211,7 +221,7 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
     }
     cpu.ipi_rep.valid := my_ipi
     cpu.ipi_req.ready := Bool(true)
-    for (j <- 0 until nTiles) {
+    for (j <- 0 until nCores) {
       when (io.cpu(j).ipi_req.valid && io.cpu(j).ipi_req.bits === UInt(i)) {
         my_ipi := Bool(true)
       }
@@ -239,8 +249,8 @@ class HTIF(w: Int, pcr_RESET: Int, nSCR: Int, offsetBits: Int)(implicit conf: Ti
   val scr_rdata = Vec.fill(io.scr.rdata.size){Bits(width = 64)}
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
-  scr_rdata(0) := UInt(nTiles)
-  scr_rdata(1) := UInt((BigInt(conf.dataBits/8) << acq_q.io.enq.bits.addr.getWidth) >> 20)
+  scr_rdata(0) := UInt(nCores)
+  scr_rdata(1) := UInt((BigInt(dataBits/8) << acq_q.io.enq.bits.addr.getWidth) >> 20)
 
   io.scr.wen := Bool(false)
   io.scr.wdata := pcr_wdata
