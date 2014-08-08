@@ -1,32 +1,35 @@
 package uncore
 import Chisel._
 
-case class PhysicalNetworkConfiguration(nEndpoints: Int, idBits: Int)
+case object LNMasters extends Field[Int]
+case object LNClients extends Field[Int]
+case object LNEndpoints extends Field[Int]
 
-class PhysicalHeader(implicit conf: PhysicalNetworkConfiguration) extends Bundle {
-  val src = UInt(width = conf.idBits)
-  val dst = UInt(width = conf.idBits)
+class PhysicalHeader(n: Int) extends Bundle {
+  val src = UInt(width = log2Up(n))
+  val dst = UInt(width = log2Up(n))
 }
 
-class PhysicalNetworkIO[T <: Data](dType: T)(implicit conf: PhysicalNetworkConfiguration) extends Bundle {
-  val header = new PhysicalHeader
+class PhysicalNetworkIO[T <: Data](n: Int, dType: T) extends Bundle {
+  val header = new PhysicalHeader(n)
   val payload = dType.clone
-  override def clone = { new PhysicalNetworkIO(dType).asInstanceOf[this.type] }
+  override def clone = new PhysicalNetworkIO(n,dType).asInstanceOf[this.type]
 }
 
-abstract class PhysicalNetwork(conf: PhysicalNetworkConfiguration) extends Module
-
-class BasicCrossbarIO[T <: Data](dType: T)(implicit conf: PhysicalNetworkConfiguration) extends Bundle {
-    val in  = Vec.fill(conf.nEndpoints){Decoupled(new PhysicalNetworkIO(dType))}.flip 
-    val out = Vec.fill(conf.nEndpoints){Decoupled(new PhysicalNetworkIO(dType))}
+class BasicCrossbarIO[T <: Data](n: Int, dType: T) extends Bundle {
+    val in  = Vec.fill(n){Decoupled(new PhysicalNetworkIO(n,dType))}.flip 
+    val out = Vec.fill(n){Decoupled(new PhysicalNetworkIO(n,dType))}
 }
-class BasicCrossbar[T <: Data](dType: T, count: Int = 1)(implicit conf: PhysicalNetworkConfiguration) extends PhysicalNetwork(conf) {
-  val io = new BasicCrossbarIO(dType)
 
-  val rdyVecs = List.fill(conf.nEndpoints)(Vec.fill(conf.nEndpoints)(Bool()))
+abstract class PhysicalNetwork extends Module
+
+class BasicCrossbar[T <: Data](n: Int, dType: T, count: Int = 1) extends PhysicalNetwork {
+  val io = new BasicCrossbarIO(n, dType)
+
+  val rdyVecs = List.fill(n){Vec.fill(n)(Bool())}
 
   io.out.zip(rdyVecs).zipWithIndex.map{ case ((out, rdys), i) => {
-    val rrarb = Module(new LockingRRArbiter(io.in(0).bits, conf.nEndpoints, count))
+    val rrarb = Module(new LockingRRArbiter(io.in(0).bits, n, count))
     (rrarb.io.in, io.in, rdys).zipped.map{ case (arb, in, rdy) => {
       arb.valid := in.valid && (in.bits.header.dst === UInt(i)) 
       arb.bits := in.bits
@@ -34,30 +37,26 @@ class BasicCrossbar[T <: Data](dType: T, count: Int = 1)(implicit conf: Physical
     }}
     out <> rrarb.io.out
   }}
-  for(i <- 0 until conf.nEndpoints) {
+  for(i <- 0 until n) {
     io.in(i).ready := rdyVecs.map(r => r(i)).reduceLeft(_||_)
   }
 }
 
-case class LogicalNetworkConfiguration(idBits: Int, nMasters: Int, nClients: Int) {
-  val nEndpoints = nMasters + nClients
+abstract class LogicalNetwork extends Module
+
+class LogicalHeader extends Bundle {
+  val src = UInt(width = log2Up(params(LNEndpoints)))
+  val dst = UInt(width = log2Up(params(LNEndpoints)))
 }
 
-abstract class LogicalNetwork[TileLinkType <: Bundle](implicit conf: LogicalNetworkConfiguration) extends Module
-
-class LogicalHeader(implicit conf: LogicalNetworkConfiguration) extends Bundle {
-  val src = UInt(width = conf.idBits)
-  val dst = UInt(width = conf.idBits)
-}
-
-class LogicalNetworkIO[T <: Data](dType: T)(implicit conf: LogicalNetworkConfiguration) extends Bundle {
+class LogicalNetworkIO[T <: Data](dType: T) extends Bundle {
   val header = new LogicalHeader
   val payload = dType.clone
   override def clone = { new LogicalNetworkIO(dType).asInstanceOf[this.type] }
 }
 
 object DecoupledLogicalNetworkIOWrapper {
-  def apply[T <: Data](in: DecoupledIO[T], src: UInt = UInt(0), dst: UInt = UInt(0))(implicit conf: LogicalNetworkConfiguration) = {
+  def apply[T <: Data](in: DecoupledIO[T], src: UInt = UInt(0), dst: UInt = UInt(0)) = {
     val out = Decoupled(new LogicalNetworkIO(in.bits.clone)).asDirectionless
     out.valid := in.valid
     out.bits.payload := in.bits
@@ -69,7 +68,7 @@ object DecoupledLogicalNetworkIOWrapper {
 }
 
 object DecoupledLogicalNetworkIOUnwrapper {
-  def apply[T <: Data](in: DecoupledIO[LogicalNetworkIO[T]])(implicit conf: LogicalNetworkConfiguration) = {
+  def apply[T <: Data](in: DecoupledIO[LogicalNetworkIO[T]]) = {
     val out = Decoupled(in.bits.payload.clone).asDirectionless
     out.valid := in.valid
     out.bits := in.bits.payload
