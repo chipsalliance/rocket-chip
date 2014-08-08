@@ -6,7 +6,7 @@ import uncore.constants.MemoryOpConstants._
 import ALU._
 import Util._
 
-class CtrlDpathIO(implicit conf: RocketConfiguration) extends Bundle
+class CtrlDpathIO extends Bundle
 {
   // outputs to datapath
   val sel_pc   = UInt(OUTPUT, 3)
@@ -305,19 +305,19 @@ object RoCCDecode extends DecodeConstants
     CUSTOM3_RD_RS1_RS2->List(Y,    N,Y,N,N,N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N))
 }
 
-class Control(implicit conf: RocketConfiguration) extends Module
+class Control extends Module
 {
   val io = new Bundle {
     val dpath   = new CtrlDpathIO
-    val imem = new CPUFrontendIO()(conf.icache)
-    val dmem = new HellaCacheIO()(conf.dcache)
+    val imem = new CPUFrontendIO
+    val dmem = new HellaCacheIO
     val fpu = new CtrlFPUIO
     val rocc = new RoCCInterface().flip
   }
 
   var decode_table = XDecode.table
-  if (params(HasFPU)) decode_table ++= FDecode.table
-  if (params[Boolean]("HasRoCC")) decode_table ++= RoCCDecode.table
+  if (!params(BuildFPU).isEmpty) decode_table ++= FDecode.table
+  if (!params(BuildRoCC).isEmpty) decode_table ++= RoCCDecode.table
 
   val cs = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
   
@@ -411,13 +411,13 @@ class Control(implicit conf: RocketConfiguration) extends Module
 
   val fp_csrs = CSRs.fcsr :: CSRs.frm :: CSRs.fflags :: Nil
   val legal_csrs = collection.mutable.LinkedHashSet(CSRs.all:_*)
-  if (params(HasFPU))
+  if(params(BuildFPU).isEmpty)
     legal_csrs --= fp_csrs
 
   val id_csr_addr = io.dpath.inst(31,20)
   val isLegalCSR = Vec.tabulate(1 << id_csr_addr.getWidth)(i => Bool(legal_csrs contains i))
   val id_csr_en = id_csr != CSR.N
-  val id_csr_fp = Bool(!params(HasFPU)) && id_csr_en && DecodeLogic(id_csr_addr, fp_csrs, CSRs.all.toSet -- fp_csrs)
+  val id_csr_fp = Bool(!params(BuildFPU).isEmpty) && id_csr_en && DecodeLogic(id_csr_addr, fp_csrs, CSRs.all.toSet -- fp_csrs)
   val id_csr_wen = id_raddr1 != UInt(0) || !Vec(CSR.S, CSR.C).contains(id_csr)
   val id_csr_invalid = id_csr_en && !isLegalCSR(id_csr_addr)
   val id_csr_privileged = id_csr_en &&
@@ -623,7 +623,7 @@ class Control(implicit conf: RocketConfiguration) extends Module
   val sboard = new Scoreboard(32)
   sboard.clear(io.dpath.ll_wen, io.dpath.ll_waddr)
 
-  val id_stall_fpu = if (!params(HasFPU)) {
+  val id_stall_fpu = if (!params(BuildFPU).isEmpty) {
     val fp_sboard = new Scoreboard(32)
     fp_sboard.set((wb_dcache_miss && wb_reg_fp_wen || io.fpu.sboard_set) && !replay_wb, io.dpath.wb_waddr)
     fp_sboard.clear(io.dpath.fp_sboard_clr, io.dpath.fp_sboard_clra)
