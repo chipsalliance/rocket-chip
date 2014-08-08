@@ -3,8 +3,7 @@ package rocket
 import Chisel._
 import Util._
 import Node._
-import uncore.HTIFIO
-import uncore.AddressSpaceConfiguration
+import uncore._
 import scala.math._
 
 class Status extends Bundle {
@@ -33,58 +32,58 @@ object CSR
   val C =  Bits(3,2)
 }
 
-class CSRFileIO(implicit conf: RocketConfiguration) extends Bundle {
-  val host = new HTIFIO(conf.tl.ln.nClients)
+class CSRFileIO extends Bundle {
+  val host = new HTIFIO
   val rw = new Bundle {
     val addr = UInt(INPUT, 12)
     val cmd = Bits(INPUT, CSR.SZ)
-    val rdata = Bits(OUTPUT, conf.xprlen)
-    val wdata = Bits(INPUT, conf.xprlen)
+    val rdata = Bits(OUTPUT, params(XprLen))
+    val wdata = Bits(INPUT, params(XprLen))
   }
 
   val status = new Status().asOutput
-  val ptbr = UInt(OUTPUT, conf.as.paddrBits)
-  val evec = UInt(OUTPUT, conf.as.vaddrBits+1)
+  val ptbr = UInt(OUTPUT, params(PAddrBits))
+  val evec = UInt(OUTPUT, params(VAddrBits)+1)
   val exception = Bool(INPUT)
-  val retire = UInt(INPUT, log2Up(1+conf.retireWidth))
-  val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+conf.retireWidth)))
-  val cause = UInt(INPUT, conf.xprlen)
+  val retire = UInt(INPUT, log2Up(1+params(RetireWidth)))
+  val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+params(RetireWidth))))
+  val cause = UInt(INPUT, params(XprLen))
   val badvaddr_wen = Bool(INPUT)
-  val pc = UInt(INPUT, conf.as.vaddrBits+1)
+  val pc = UInt(INPUT, params(VAddrBits)+1)
   val sret = Bool(INPUT)
   val fatc = Bool(OUTPUT)
   val replay = Bool(OUTPUT)
-  val time = UInt(OUTPUT, conf.xprlen)
+  val time = UInt(OUTPUT, params(XprLen))
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
   val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
   val rocc = new RoCCInterface().flip
 }
 
-class CSRFile(implicit conf: RocketConfiguration) extends Module
+class CSRFile extends Module
 {
   val io = new CSRFileIO
  
-  val reg_epc = Reg(Bits(width = conf.as.vaddrBits+1))
-  val reg_badvaddr = Reg(Bits(width = conf.as.vaddrBits))
-  val reg_evec = Reg(Bits(width = conf.as.vaddrBits))
+  val reg_epc = Reg(Bits(width = params(VAddrBits)+1))
+  val reg_badvaddr = Reg(Bits(width = params(VAddrBits)))
+  val reg_evec = Reg(Bits(width = params(VAddrBits)))
   val reg_compare = Reg(Bits(width = 32))
-  val reg_cause = Reg(Bits(width = conf.xprlen))
-  val reg_tohost = Reg(init=Bits(0, conf.xprlen))
-  val reg_fromhost = Reg(init=Bits(0, conf.xprlen))
-  val reg_sup0 = Reg(Bits(width = conf.xprlen))
-  val reg_sup1 = Reg(Bits(width = conf.xprlen))
-  val reg_ptbr = Reg(UInt(width = conf.as.paddrBits))
+  val reg_cause = Reg(Bits(width = params(XprLen)))
+  val reg_tohost = Reg(init=Bits(0, params(XprLen)))
+  val reg_fromhost = Reg(init=Bits(0, params(XprLen)))
+  val reg_sup0 = Reg(Bits(width = params(XprLen)))
+  val reg_sup1 = Reg(Bits(width = params(XprLen)))
+  val reg_ptbr = Reg(UInt(width = params(PAddrBits)))
   val reg_stats = Reg(init=Bool(false))
   val reg_status = Reg(new Status) // reset down below
-  val reg_time = WideCounter(conf.xprlen)
-  val reg_instret = WideCounter(conf.xprlen, io.retire)
-  val reg_uarch_counters = io.uarch_counters.map(WideCounter(conf.xprlen, _))
+  val reg_time = WideCounter(params(XprLen))
+  val reg_instret = WideCounter(params(XprLen), io.retire)
+  val reg_uarch_counters = io.uarch_counters.map(WideCounter(params(XprLen), _))
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
   val r_irq_timer = Reg(init=Bool(false))
   val r_irq_ipi = Reg(init=Bool(true))
-  val irq_rocc = Bool(!conf.rocc.isEmpty) && io.rocc.interrupt
+  val irq_rocc = Bool(!params(BuildRoCC).isEmpty) && io.rocc.interrupt
 
   val cpu_req_valid = io.rw.cmd != CSR.N
   val host_pcr_req_valid = Reg(Bool()) // don't reset
@@ -130,7 +129,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
 
   when (io.badvaddr_wen) {
     val wdata = io.rw.wdata
-    val (upper, lower) = Split(wdata, conf.as.vaddrBits)
+    val (upper, lower) = Split(wdata, params(VAddrBits))
     val sign = Mux(lower.toSInt < SInt(0), upper.andR, upper.orR)
     reg_badvaddr := Cat(sign, lower).toSInt
   }
@@ -161,12 +160,12 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
   when (host_pcr_req_fire && !host_pcr_bits.rw && decoded_addr(CSRs.tohost)) { reg_tohost := UInt(0) }
 
   val read_impl = Bits(2)
-  val read_ptbr = reg_ptbr(conf.as.paddrBits-1, conf.as.pgIdxBits) << conf.as.pgIdxBits
+  val read_ptbr = reg_ptbr(params(PAddrBits)-1, params(PgIdxBits)) << params(PgIdxBits)
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
-    CSRs.fflags -> (if (!params(HasFPU)) reg_fflags else UInt(0)),
-    CSRs.frm -> (if (!params(HasFPU)) reg_frm else UInt(0)),
-    CSRs.fcsr -> (if (!params(HasFPU)) Cat(reg_frm, reg_fflags) else UInt(0)),
+    CSRs.fflags -> (if (!params(BuildFPU).isEmpty) reg_fflags else UInt(0)),
+    CSRs.frm -> (if (!params(BuildFPU).isEmpty) reg_frm else UInt(0)),
+    CSRs.fcsr -> (if (!params(BuildFPU).isEmpty) Cat(reg_frm, reg_fflags) else UInt(0)),
     CSRs.cycle -> reg_time,
     CSRs.time -> reg_time,
     CSRs.instret -> reg_instret,
@@ -206,15 +205,15 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
       reg_status.s64 := true
       reg_status.u64 := true
       reg_status.zero := 0
-      if (!conf.vm) reg_status.vm := false
-      if (conf.rocc.isEmpty) reg_status.er := false
-      if (params(HasFPU)) reg_status.ef := false
+      if (!params(UseVM)) reg_status.vm := false
+      if (params(BuildRoCC).isEmpty) reg_status.er := false
+      if (params(BuildFPU).isEmpty) reg_status.ef := false
     }
     when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
     when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
     when (decoded_addr(CSRs.fcsr))     { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
-    when (decoded_addr(CSRs.epc))      { reg_epc := wdata(conf.as.vaddrBits,0).toSInt }
-    when (decoded_addr(CSRs.evec))     { reg_evec := wdata(conf.as.vaddrBits-1,0).toSInt }
+    when (decoded_addr(CSRs.epc))      { reg_epc := wdata(params(VAddrBits),0).toSInt }
+    when (decoded_addr(CSRs.evec))     { reg_evec := wdata(params(VAddrBits)-1,0).toSInt }
     when (decoded_addr(CSRs.count))    { reg_time := wdata.toUInt }
     when (decoded_addr(CSRs.compare))  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false) }
     when (decoded_addr(CSRs.fromhost)) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
@@ -222,7 +221,7 @@ class CSRFile(implicit conf: RocketConfiguration) extends Module
     when (decoded_addr(CSRs.clear_ipi)){ r_irq_ipi := wdata(0) }
     when (decoded_addr(CSRs.sup0))     { reg_sup0 := wdata }
     when (decoded_addr(CSRs.sup1))     { reg_sup1 := wdata }
-    when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(conf.as.paddrBits-1, conf.as.pgIdxBits), Bits(0, conf.as.pgIdxBits)).toUInt }
+    when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(params(PAddrBits)-1, params(PgIdxBits)), Bits(0, params(PgIdxBits))).toUInt }
     when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
   }
 

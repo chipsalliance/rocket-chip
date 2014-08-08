@@ -5,39 +5,26 @@ import Util._
 import uncore.HTIFIO
 
 case object FPUParams extends Field[PF]
-case object HasFPU extends Field[Boolean]
+case object BuildFPU extends Field[Option[() => FPU]]
 
-class RocketIO(implicit conf: RocketConfiguration) extends Bundle
+class RocketIO extends Bundle
 {
-  val host =  new HTIFIO(params[Int]("nClients"))
-  val imem = new CPUFrontendIO()(conf.icache)
-  val dmem = new HellaCacheIO()(conf.dcache)
-  val ptw = new DatapathPTWIO()(conf.as).flip
+  val host =  new HTIFIO
+  val imem = new CPUFrontendIO
+  val dmem = new HellaCacheIO
+  val ptw = new DatapathPTWIO().flip
   val rocc = new RoCCInterface().flip
 }
 
-class Core(implicit conf: RocketConfiguration) extends Module
+class Core extends Module
 {
-  //xprlen
-  //hasfpu
-  //hasrocc
-  //fastloadword
-  //fastloadbyte
-  //as <- unfolded
-  
-  //fpuparams
-
-  val io    = new RocketIO
-  //nClients
-
-  //icache
-  //dcache
+  val io = new RocketIO
    
-  val ctrl  = Module(new Control)
+  val ctrl = Module(new Control)
   val dpath = Module(new Datapath)
 
-  if (!params(HasFPU)) {
-    val fpu = Module(new FPU,params(FPUParams))
+  if (!params(BuildFPU).isEmpty) {
+    val fpu = Module(params(BuildFPU).get(),params(FPUParams))
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
   }

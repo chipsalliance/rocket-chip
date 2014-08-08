@@ -3,17 +3,16 @@ package rocket
 import Chisel._
 import Instructions._
 import Util._
-import uncore.HTIFIO
+import uncore._
 
-class Datapath(implicit conf: RocketConfiguration) extends Module
+class Datapath extends Module
 {
-  implicit val as = conf.as
   val io = new Bundle {
-    val host  = new HTIFIO(conf.tl.ln.nClients)
-    val ctrl  = (new CtrlDpathIO).flip
-    val dmem = new HellaCacheIO()(conf.dcache)
-    val ptw = (new DatapathPTWIO).flip
-    val imem  = new CPUFrontendIO()(conf.icache)
+    val host  = new HTIFIO
+    val ctrl  = new CtrlDpathIO().flip
+    val dmem = new HellaCacheIO
+    val ptw = new DatapathPTWIO().flip
+    val imem  = new CPUFrontendIO
     val fpu = new DpathFPUIO
     val rocc = new RoCCInterface().flip
   }
@@ -122,8 +121,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   bypass(BYP_0) := Bits(0)
   bypass(BYP_EX) := mem_reg_wdata
   bypass(BYP_MEM) := wb_reg_wdata
-  bypass(BYP_DC) := (if (conf.fastLoadByte) io.dmem.resp.bits.data_subword
-                     else if (conf.fastLoadWord) io.dmem.resp.bits.data
+  bypass(BYP_DC) := (if(params(FastLoadByte)) io.dmem.resp.bits.data_subword
+                     else if(params(FastLoadWord)) io.dmem.resp.bits.data
                      else wb_reg_wdata)
 
   val ex_rs = for (i <- 0 until id_rs.size)
@@ -144,8 +143,8 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   alu.io.in1 := ex_op1
   
   // multiplier and divider
-  val div = Module(new MulDiv(mulUnroll = if (conf.fastMulDiv) 8 else 1,
-                       earlyOut = conf.fastMulDiv))
+  val div = Module(new MulDiv(mulUnroll = if(params(FastMulDiv)) 8 else 1,
+                       earlyOut = params(FastMulDiv)))
   div.io.req.valid := io.ctrl.div_mul_val
   div.io.req.bits.dw := ex_reg_ctrl_fn_dw
   div.io.req.bits.fn := ex_reg_ctrl_fn_alu
@@ -158,10 +157,10 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   io.fpu.fromint_data := ex_rs(0)
 
   def vaSign(a0: UInt, ea: Bits) = {
-    // efficient means to compress 64-bit VA into conf.as.vaddrBits+1 bits
-    // (VA is bad if VA(conf.as.vaddrBits) != VA(conf.as.vaddrBits-1))
-    val a = a0 >> conf.as.vaddrBits-1
-    val e = ea(conf.as.vaddrBits,conf.as.vaddrBits-1)
+    // efficient means to compress 64-bit VA into params(VAddrBits)+1 bits
+    // (VA is bad if VA(params(VAddrBits)) != VA(params(VAddrBits)-1))
+    val a = a0 >> params(VAddrBits)-1
+    val e = ea(params(VAddrBits),params(VAddrBits)-1)
     Mux(a === UInt(0) || a === UInt(1), e != UInt(0),
     Mux(a === SInt(-1) || a === SInt(-2), e === SInt(-1),
     e(0)))
@@ -169,10 +168,10 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(conf.as.vaddrBits-1,0)).toUInt
+  io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(params(VAddrBits)-1,0)).toUInt
   io.dmem.req.bits.tag := Cat(io.ctrl.ex_waddr, io.ctrl.ex_fp_val)
   require(io.dmem.req.bits.tag.getWidth >= 6)
-  require(conf.dcacheReqTagBits >= 6)
+  require(params(DcacheReqTagBits) >= 6)
 
   // processor control regfile read
   val pcr = Module(new CSRFile)
@@ -214,7 +213,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   ll_wdata := div.io.resp.bits.data
   io.ctrl.ll_waddr := div.io.resp.bits.tag
   io.ctrl.ll_wen := div.io.resp.fire()
-  if (!conf.rocc.isEmpty) {
+  if (!params(BuildRoCC).isEmpty) {
     io.rocc.resp.ready := io.ctrl.ll_ready
     when (io.rocc.resp.fire()) {
       div.io.resp.ready := Bool(false)
@@ -225,7 +224,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   }
   when (dmem_resp_replay && dmem_resp_xpu) {
     div.io.resp.ready := Bool(false)
-    if (!conf.rocc.isEmpty)
+    if (!params(BuildRoCC).isEmpty)
       io.rocc.resp.ready := Bool(false)
     io.ctrl.ll_waddr := dmem_resp_waddr
     io.ctrl.ll_wen := Bool(true)
@@ -240,7 +239,7 @@ class Datapath(implicit conf: RocketConfiguration) extends Module
   val mem_br_target = mem_reg_pc +
     Mux(io.ctrl.mem_branch && io.ctrl.mem_br_taken, imm(IMM_SB, mem_reg_inst),
     Mux(!io.ctrl.mem_jalr && !io.ctrl.mem_branch, imm(IMM_UJ, mem_reg_inst), SInt(4)))
-  val mem_npc = Mux(io.ctrl.mem_jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(conf.as.vaddrBits-1,0)), mem_br_target)
+  val mem_npc = Mux(io.ctrl.mem_jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(params(VAddrBits)-1,0)), mem_br_target)
   io.ctrl.mem_misprediction := mem_npc != Mux(io.ctrl.ex_valid, ex_reg_pc, id_pc)
   io.ctrl.mem_rs1_ra := mem_reg_inst(19,15) === 1
   val mem_int_wdata = Mux(io.ctrl.mem_jalr, mem_br_target, mem_reg_wdata)
