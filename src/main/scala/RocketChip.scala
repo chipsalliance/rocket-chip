@@ -109,10 +109,10 @@ class DefaultConfig extends ChiselConfig {
           case Entries => 62
           case NRAS => 2
           case MatchBits => site(PgIdxBits)
-          case Pages => ((1 max(log2Up(here(Entries))))+1)/2*2
+          case Pages => ((1 max(log2Up(site(Entries))))+1)/2*2 //TODO PARAMS no here?
           // control logic assumes 2 divides pages
           case OpaqueBits => log2Up(here(Entries))
-          case NBHT => 1 << log2Up(here(Entries)*2)
+          case NBHT => 1 << log2Up(site(Entries)*2) //TODO PARAMS no here?
         })
       //MemoryConstants
       case "CACHE_DATA_SIZE_IN_BYTES" => 1 << 6
@@ -132,9 +132,9 @@ class DefaultConfig extends ChiselConfig {
       case TileLinkL1Params => Alter({
           case LNMasters => site[Int]("NBANKS")
           case LNClients => site[Int]("NTILES")+1
-          case LNEndpoints => here(LNMasters) + here(LNClients)
+          case LNEndpoints => site[Int]("NBANKS") + site[Int]("NTILES")+1 // TODO PARAMS why broken?: site(LNMasters) +site(LNClients)
           case TLCoherence => site(Coherence)
-          case TLAddrBits => site[Int]("PADDR_BITS") - site[Int]("OFFSET_BITS")
+          case TLAddrBits => site(PAddrBits) - site[Int]("OFFSET_BITS")
           case TLMasterXactIdBits => log2Up(site[Int]("NL2_REL_XACTS")+site[Int]("NL2_ACQ_XACTS"))
           case TLClientXactIdBits => 2*log2Up(site[Int]("NMSHRS")*site[Int]("NTILES")+1)
           case TLDataBits => site[Int]("CACHE_DATA_SIZE_IN_BYTES")*8
@@ -348,9 +348,10 @@ class Top extends Module {
   val nTiles = params(NTiles)
   val io = new VLSITopIO
 
-  params.alter(params(TileLinkL1Params))
+  val tl: PartialFunction[Any,Any] = params(TileLinkL1Params) //TODO PARAMS can't lookup in map() below?
+  params.alter(tl)
   val resetSigs = Vec.fill(nTiles){Bool()}
-  val tileList = (0 until nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))))
+  val tileList = (0 until nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r)), tl))//TODO PARAMS above alter() is insufficient?
   val uncore = Module(new Uncore)
 
   for (i <- 0 until nTiles) {
