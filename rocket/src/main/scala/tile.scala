@@ -32,8 +32,8 @@ class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
 
   val optionalRoCC = params(BuildRoCC)
 
-  params.alter(params(RocketFrontendParams)) // Used in icache, Core
-  val icache = Module(new Frontend)
+  val p = params.alter(params(CoreBTBParams)).alter(params(RocketFrontendParams)) // Used in icache, Core
+  val icache = Module(new Frontend)(p) //TODO PARAMS: best way to alter both?
   params.alter(params(RocketDCacheParams)) // Used in dcache, PTW, RoCCm Core
   val dcache = Module(new HellaCache)
   val ptw = Module(new PTW(if(optionalRoCC.isEmpty) 2 else 5))

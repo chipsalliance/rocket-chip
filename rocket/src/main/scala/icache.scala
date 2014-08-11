@@ -19,6 +19,7 @@ class FrontendResp extends Bundle {
 }
 
 class CPUFrontendIO extends Bundle {
+  params.alter(params(CoreBTBParams))
   val req = Valid(new FrontendReq)
   val resp = Decoupled(new FrontendResp).flip
   val btb_resp = Valid(new BTBResp).flip
