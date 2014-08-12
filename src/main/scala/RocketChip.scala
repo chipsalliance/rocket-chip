@@ -310,7 +310,7 @@ class Top extends Module {
   //val vic = ICacheConfig(sets = 128, assoc = 1, tl = tl, as = as, btb = BTBConfig(as, 8))
   //val hc = hwacha.HwachaConfiguration(as, vic, dc, 8, 256, ndtlb = 8, nptlb = 2)
 
-  val nTiles = params(NTiles)
+  val nTiles = params[Int]("NTILES")
   val io = new VLSITopIO
 
   val tl: PartialFunction[Any,Any] = params(TileLinkL1Params) //TODO PARAMS can't lookup in map() below?
