@@ -60,59 +60,30 @@ class DefaultConfig extends ChiselConfig {
           case NTLBEntries => 8
           case CoreReqTagBits => site(DcacheReqTagBits)
           case CoreDataBits => site(XprLen)
-          case RowWords => 2
           case ECCCode => new IdentityCode
+          case LRSCCycles => 32 
           //From uncore/cache.scala
           case NSets => 128
           case NWays => 4
-          case IsDM => here(NWays) == 1
-          case OffBits => log2Up(site(TLDataBits))
-          case IdxBits => log2Up(here(NSets))
-          case UntagBits => here(OffBits) + here(IdxBits)
-          case TagBits => here(PAddrBits) - here(UntagBits)
-          case WayBits => log2Up(here(NWays))
-          case Replacer => () => new RandomReplacement(site(NWays))
-          case RowBits => here(RowWords)*here(CoreDataBits)
-          case WordBits => here(CoreDataBits)
-          case RefillCycles => site(TLDataBits)/here(RowBits)
-          //Derived
-          case MaxAddrBits => math.max(site(PPNBits),site(VPNBits)+1) + site(PgIdxBits)
-          case CoreDataBytes => here(CoreDataBits)/8
-          case WordOffBits => log2Up(here(CoreDataBytes))
-          case RowBytes => here(RowWords)*here(CoreDataBytes)
-          case RowOffBits => log2Up(here(RowBytes))
-          case DoNarrowRead => here(CoreDataBits)*here(NWays) % here(RowBits) == 0
-          case EncDataBits => here(ECCCode).width(here(CoreDataBits))
-          case EncRowBits => here(RowWords)*here(EncDataBits)
-          case LRSCCycles => 32 
+          case BlockOffBits => log2Up(site(TLDataBits)/8)
+          case RowBits => 2*site(XprLen)
+          case WordBits => site(XprLen) //here(CoreDataBits) TODO
+          case Replacer => () => new RandomReplacement(4)//site(NWays)) TODO
         })
       case RocketFrontendParams => Alter({
           case InstBytes => 4
-          case RowBytes => 16
           case NTLBEntries => 8
           case ECCCode => new IdentityCode
+          //From rocket/btb.scala
+          case BTBEntries => 62
+          case NRAS => 2
           //From uncore/cache.scala
           case NSets => 128
           case NWays => 2
-          case IsDM => here(NWays) == 1
-          case OffBits => log2Up(site(TLDataBits)/8)
-          case IdxBits => log2Up(here(NSets))
-          case UntagBits => here(OffBits) + here(IdxBits)
-          case TagBits => here(PAddrBits) - here(UntagBits)
-          case WayBits => log2Up(here(NWays))
-          case Replacer => () => new RandomReplacement(site(NWays))
-          case RowBits => here(RowBytes)*8
-          case RefillCycles => site(TLDataBits)/here(RowBits)
-          case RowOffBits => log2Up(here(RowBytes))
-        })
-      case CoreBTBParams => Alter({
-          case Entries => 62
-          case NRAS => 2
-          case MatchBits => site(PgIdxBits)
-          case Pages => ((1 max(log2Up(site(Entries))))+1)/2*2 //TODO PARAMS no here?
-          // control logic assumes 2 divides pages
-          case OpaqueBits => log2Up(here(Entries))
-          case NBHT => 1 << log2Up(site(Entries)*2) //TODO PARAMS no here?
+          case BlockOffBits => log2Up(site(TLDataBits)/8)
+          case RowBits => 16*8
+          case WordBits => site(XprLen) //TODO merge with instbytes?
+          case Replacer => () => new RandomReplacement(2)//site(NWays)) TODO
         })
       //MemoryConstants
       case "CACHE_DATA_SIZE_IN_BYTES" => 1 << 6
@@ -145,20 +116,13 @@ class DefaultConfig extends ChiselConfig {
       case L2HellaCacheParams => Alter({
           case NReleaseTransactors =>  site[Int]("NL2_REL_XACTS")
           case NAcquireTransactors =>  site[Int]("NL2_ACQ_XACTS")
-          case NTransactors => here(NReleaseTransactors) + here(NAcquireTransactors)
           case NClients => site[Int]("NTILES") + 1
           case NSets => 512
           case NWays => 8
-          case IsDM => here(NWays) == 1
-          case OffBits => 0
-          case IdxBits => log2Up(here(NSets))
-          case UntagBits => here(OffBits) + here(IdxBits)
-          case TagBits => here(PAddrBits) - here(UntagBits)
-          case WayBits => log2Up(here(NWays))
-          case Replacer => () => new RandomReplacement(site(NWays))
+          case BlockOffBits => 0
           case RowBits => site(TLDataBits)
-          case WordBits => 64
-          case RefillCycles => site(TLDataBits)/here(RowBits)
+          case WordBits => site(XprLen)
+          case Replacer => () => new RandomReplacement(8)//site(NWays))
         })
       case NTiles => here[Int]("NTILES")
       case NBanks => here[Int]("NBANKS")
@@ -172,11 +136,11 @@ class DefaultConfig extends ChiselConfig {
             refill_cycles=refill, tagLeaf=tag, dataLeaf=data))
         } else { Module(new DRAMSideLLCNull(16, refill)) }
       }
-      case BuildCoherentMaster => (id: Int) => {
+      case BuildCoherentMaster => (id: Int, p: Some[Parameters]) => {
         if(!site[Boolean]("USE_DRAMSIDE_LLC")) { 
-          Module(new L2CoherenceAgent(id), here(L2HellaCacheParams))
+          Module(new L2CoherenceAgent(id))(p)
         } else {
-          Module(new L2HellaCache(id), here(L2HellaCacheParams))
+          Module(new L2HellaCache(id))(p)
         }
       }
       //HTIF Constants
@@ -194,7 +158,7 @@ case object BankIdLSB extends Field[Int]
 case object TileLinkL1Params extends Field[PF]
 case object L2HellaCacheParams extends Field[PF]
 case object BuildDRAMSideLLC extends Field[() => DRAMSideLLCLike]
-case object BuildCoherentMaster extends Field[Int => CoherenceAgent]
+case object BuildCoherentMaster extends Field[(Int,Option[Parameters]) => CoherenceAgent]
 case object Coherence extends Field[CoherencePolicyWithUncached]
 
 class OuterMemorySystem extends Module
@@ -210,9 +174,10 @@ class OuterMemorySystem extends Module
 
   val refill_cycles = params(TLDataBits)/params(MIFDataBits)
   val llc = params(BuildDRAMSideLLC)()
-  val masterEndpoints = (0 until params(NBanks)).map(params(BuildCoherentMaster))
+  val l2p = Some(params.alter(params(L2HellaCacheParams)))
+  val masterEndpoints = (0 until params(NBanks)).map(params(BuildCoherentMaster)(_,l2p))
 
-  val net = Module(new ReferenceChipCrossbarNetwork)
+  val net = Module(new ReferenceChipCrossbarNetwork)(l2p)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
   net.io.masters zip (masterEndpoints.map(_.io.inner)) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
@@ -349,10 +314,9 @@ class Top extends Module {
   val io = new VLSITopIO
 
   val tl: PartialFunction[Any,Any] = params(TileLinkL1Params) //TODO PARAMS can't lookup in map() below?
-  params.alter(tl)
   val resetSigs = Vec.fill(nTiles){Bool()}
   val tileList = (0 until nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r)), tl))//TODO PARAMS above alter() is insufficient?
-  val uncore = Module(new Uncore)
+  val uncore = Module(new Uncore, tl)
 
   for (i <- 0 until nTiles) {
     val hl = uncore.io.htif(i)
