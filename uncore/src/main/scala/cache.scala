@@ -13,18 +13,19 @@ abstract trait CacheParameters extends UsesParameters {
   val vaddrBits = params(VAddrBits)
   val pgIdxBits = params(PgIdxBits) 
   val nSets = params(NSets)
-  val nWays = params(NWays)
   val blockOffBits = params(BlockOffBits)
-  val wordBits = params(WordBits)
-  val rowBits = params(RowBits)
-  val wordOffBits = log2Up(wordBits)
   val idxBits = log2Up(nSets)
   val untagBits = blockOffBits + idxBits
   val tagBits = paddrBits - untagBits
+  val nWays = params(NWays)
   val wayBits = log2Up(nWays)
   val isDM = nWays == 1
+  val wordBits = params(WordBits)
+  val wordBytes = wordBits/8
+  val wordOffBits = log2Up(wordBytes)
+  val rowBits = params(RowBits)
   val rowWords = rowBits/wordBits 
-  val rowBytes = rowBits*8
+  val rowBytes = rowBits/8
   val rowOffBits = log2Up(rowBytes)
   val refillCycles = params(TLDataBits)/rowBits
 }
