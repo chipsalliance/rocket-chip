@@ -71,7 +71,7 @@ class PTW(n: Int) extends Module
   val resp_val = state === s_done || state === s_error
   val resp_err = state === s_error || state === s_wait
 
-  val r_resp_ppn = io.mem.req.bits.addr >> params(PgIdxBits)
+  val r_resp_ppn = io.mem.req.bits.addr >> UInt(params(PgIdxBits))
   val resp_ppn = Vec((0 until levels-1).map(i => Cat(r_resp_ppn >> bitsPerLevel*(levels-i-1), r_req_vpn(bitsPerLevel*(levels-i-1)-1,0))) :+ r_resp_ppn)(count)
 
   for (i <- 0 until io.requestor.size) {
