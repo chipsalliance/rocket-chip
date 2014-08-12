@@ -24,7 +24,8 @@ class Core extends Module
   val dpath = Module(new Datapath)
 
   if (!params(BuildFPU).isEmpty) {
-    val fpu = Module(params(BuildFPU).get(),params(FPUParams))
+    val p = Some(params.alter(params(FPUParams)))
+    val fpu = Module(params(BuildFPU).get())(p)
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
   }

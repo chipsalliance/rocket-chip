@@ -32,15 +32,16 @@ class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
 
   val optionalRoCC = params(BuildRoCC)
 
-  val p = params.alter(params(CoreBTBParams)).alter(params(RocketFrontendParams)) // Used in icache, Core
+  val p = params.alter(params(RocketFrontendParams)) // Used in icache, Core
   val icache = Module(new Frontend)(p) //TODO PARAMS: best way to alter both?
-  params.alter(params(RocketDCacheParams)) // Used in dcache, PTW, RoCCm Core
-  val dcache = Module(new HellaCache)
-  val ptw = Module(new PTW(if(optionalRoCC.isEmpty) 2 else 5))
+  val p2 = params.alter(params(RocketDCacheParams)) // Used in dcache, PTW, RoCCm Core
+  val dcache = Module(new HellaCache)(p2)
+  val ptw = Module(new PTW(if(optionalRoCC.isEmpty) 2 else 5))(p2)
     // 2 ports, 1 from I$, 1 from D$, maybe 3 from RoCC
-  val core = Module(new Core)
+  val p3 = params.alter(params(RocketFrontendParams)).alter(params(RocketDCacheParams))
+  val core = Module(new Core)(p3)
 
-  val dcArb = Module(new HellaCacheArbiter(params(NDCachePorts)))
+  val dcArb = Module(new HellaCacheArbiter(params(NDCachePorts)))(p2)
   dcArb.io.requestor(0) <> ptw.io.mem
   dcArb.io.requestor(1) <> core.io.dmem
   dcArb.io.mem <> dcache.io.cpu

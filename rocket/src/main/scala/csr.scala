@@ -160,7 +160,7 @@ class CSRFile extends Module
   when (host_pcr_req_fire && !host_pcr_bits.rw && decoded_addr(CSRs.tohost)) { reg_tohost := UInt(0) }
 
   val read_impl = Bits(2)
-  val read_ptbr = reg_ptbr(params(PAddrBits)-1, params(PgIdxBits)) << params(PgIdxBits)
+  val read_ptbr = reg_ptbr(params(PAddrBits)-1, params(PgIdxBits)) << UInt(params(PgIdxBits))
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
     CSRs.fflags -> (if (!params(BuildFPU).isEmpty) reg_fflags else UInt(0)),
