@@ -3,16 +3,34 @@ import Chisel._
 
 case object NSets extends Field[Int]
 case object NWays extends Field[Int]
-case object IsDM extends Field[Boolean]
-case object TagBits extends Field[Int]
-case object IdxBits extends Field[Int]
-case object OffBits extends Field[Int]
-case object UntagBits extends Field[Int]
-case object WayBits extends Field[Int]
+case object BlockOffBits extends Field[Int]
 case object RowBits extends Field[Int]
 case object WordBits extends Field[Int]
-case object RefillCycles extends Field[Int]
 case object Replacer extends Field[() => ReplacementPolicy]
+
+abstract trait CacheParameters extends UsesParameters {
+  val paddrBits = params(PAddrBits)
+  val vaddrBits = params(VAddrBits)
+  val pgIdxBits = params(PgIdxBits) 
+  val nSets = params(NSets)
+  val nWays = params(NWays)
+  val blockOffBits = params(BlockOffBits)
+  val wordBits = params(WordBits)
+  val rowBits = params(RowBits)
+  val wordOffBits = log2Up(wordBits)
+  val idxBits = log2Up(nSets)
+  val untagBits = blockOffBits + idxBits
+  val tagBits = paddrBits - untagBits
+  val wayBits = log2Up(nWays)
+  val isDM = nWays == 1
+  val rowWords = rowBits/wordBits 
+  val rowBytes = rowBits*8
+  val rowOffBits = log2Up(rowBytes)
+  val refillCycles = params(TLDataBits)/rowBits
+}
+
+abstract class CacheBundle extends Bundle with CacheParameters
+abstract class CacheModule extends Module with CacheParameters
 
 abstract class ReplacementPolicy {
   def way: UInt
@@ -30,43 +48,43 @@ class RandomReplacement(ways: Int) extends ReplacementPolicy {
   def hit = {}
 }
 
-abstract class Metadata extends Bundle {
-  val tag = Bits(width = params(TagBits))
+abstract class Metadata extends CacheBundle {
+  val tag = Bits(width = tagBits)
   val coh: CoherenceMetadata
 }
 
-class MetaReadReq extends Bundle {
-  val idx  = Bits(width = params(IdxBits))
+class MetaReadReq extends CacheBundle {
+  val idx  = Bits(width = idxBits)
 }
 
 class MetaWriteReq[T <: Metadata](gen: T) extends MetaReadReq {
-  val way_en = Bits(width = params(WayBits))
+  val way_en = Bits(width = nWays)
   val data = gen.clone
   override def clone = new MetaWriteReq(gen).asInstanceOf[this.type]
 }
 
-class MetadataArray[T <: Metadata](makeRstVal: () => T) extends Module {
+class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
   val rstVal = makeRstVal()
   val io = new Bundle {
     val read = Decoupled(new MetaReadReq).flip
     val write = Decoupled(new MetaWriteReq(rstVal.clone)).flip
-    val resp = Vec.fill(params(NWays)){rstVal.clone.asOutput}
+    val resp = Vec.fill(nWays){rstVal.clone.asOutput}
   }
   val metabits = rstVal.getWidth
-  val rst_cnt = Reg(init=UInt(0, log2Up(params(NSets)+1)))
-  val rst = rst_cnt < UInt(params(NSets))
+  val rst_cnt = Reg(init=UInt(0, log2Up(nSets+1)))
+  val rst = rst_cnt < UInt(nSets)
   val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
   val wdata = Mux(rst, rstVal, io.write.bits.data).toBits
   val wmask = Mux(rst, SInt(-1), io.write.bits.way_en)
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
-  val tag_arr = Mem(UInt(width = metabits*params(NWays)), params(NSets), seqRead = true)
+  val tag_arr = Mem(UInt(width = metabits*nWays), nSets, seqRead = true)
   when (rst || io.write.valid) {
-    tag_arr.write(waddr, Fill(params(NWays), wdata), FillInterleaved(metabits, wmask))
+    tag_arr.write(waddr, Fill(nWays, wdata), FillInterleaved(metabits, wmask))
   }
 
   val tags = tag_arr(RegEnable(io.read.bits.idx, io.read.valid))
-  for (w <- 0 until params(NWays)) {
+  for (w <- 0 until nWays) {
     val m = tags(metabits*(w+1)-1, metabits*w)
     io.resp(w) := rstVal.clone.fromBits(m)
   }
@@ -75,14 +93,20 @@ class MetadataArray[T <: Metadata](makeRstVal: () => T) extends Module {
   io.write.ready := !rst
 }
 
-trait HasL2Id extends Bundle {
-  val id = UInt(width  = log2Up(params(NTransactors)))
+abstract trait L2HellaCacheParameters extends CacheParameters 
+  with CoherenceAgentParameters
+
+abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
+abstract class L2HellaCacheModule extends Module with L2HellaCacheParameters
+
+trait HasL2Id extends Bundle with CoherenceAgentParameters {
+  val id = UInt(width  = log2Up(nTransactors))
 }
 
-trait HasL2InternalRequestState extends Bundle {
+trait HasL2InternalRequestState extends L2HellaCacheBundle {
   val tag_match = Bool()
   val old_meta = new L2Metadata
-  val way_en = Bits(width = params(NWays))
+  val way_en = Bits(width = nWays)
 }
 
 object L2Metadata {
@@ -93,23 +117,22 @@ object L2Metadata {
     meta
   }
 }
-class L2Metadata extends Metadata {
-  val coh = params(TLCoherence).masterMetadataOnFlush.clone
+class L2Metadata extends Metadata with L2HellaCacheParameters {
+  val coh = co.masterMetadataOnFlush.clone
 }
 
 class L2MetaReadReq extends MetaReadReq with HasL2Id {
-  val tag = Bits(width = params(TagBits))
+  val tag = Bits(width = tagBits)
 }
 
 class L2MetaWriteReq extends MetaWriteReq[L2Metadata](new L2Metadata)
   with HasL2Id
 
-class L2MetaResp extends Bundle
+class L2MetaResp extends L2HellaCacheBundle
   with HasL2Id 
   with HasL2InternalRequestState
 
-class L2MetadataArray extends Module {
-  val (co, ways) = (params(TLCoherence), params(NWays))
+class L2MetadataArray extends L2HellaCacheModule {
   val io = new Bundle {
     val read = Decoupled(new L2MetaReadReq).flip
     val write = Decoupled(new L2MetaWriteReq).flip
@@ -123,7 +146,7 @@ class L2MetadataArray extends Module {
   val s1_clk_en = Reg(next = io.read.fire())
   val s1_tag = RegEnable(io.read.bits.tag, io.read.valid)
   val s1_id = RegEnable(io.read.bits.id, io.read.valid)
-  def wayMap[T <: Data](f: Int => T) = Vec((0 until ways).map(f))
+  def wayMap[T <: Data](f: Int => T) = Vec((0 until nWays).map(f))
   val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === s1_tag)
   val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && co.isValid(meta.io.resp(w).coh)).toBits
   val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
@@ -146,8 +169,8 @@ class L2MetadataArray extends Module {
   io.resp.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
 }
 
-class L2DataReadReq extends Bundle with HasL2Id {
-  val way_en = Bits(width = params(NWays))
+class L2DataReadReq extends L2HellaCacheBundle with HasL2Id {
+  val way_en = Bits(width = nWays)
   val addr   = Bits(width = params(TLAddrBits))
 }
 
@@ -160,7 +183,7 @@ class L2DataResp extends Bundle with HasL2Id {
   val data   = Bits(width = params(TLDataBits))
 }
 
-class L2DataArray extends Module {
+class L2DataArray extends L2HellaCacheModule {
   val io = new Bundle {
     val read = Decoupled(new L2DataReadReq).flip
     val write = Decoupled(new L2DataWriteReq).flip
@@ -169,9 +192,9 @@ class L2DataArray extends Module {
 
   val waddr = io.write.bits.addr
   val raddr = io.read.bits.addr
-  val wmask = FillInterleaved(params(WordBits), io.write.bits.wmask)
-  val resp = (0 until params(NWays)).map { w =>
-    val array = Mem(Bits(width=params(RowBits)), params(NSets)*params(RefillCycles), seqRead = true)
+  val wmask = FillInterleaved(wordBits, io.write.bits.wmask)
+  val resp = (0 until nWays).map { w =>
+    val array = Mem(Bits(width=params(RowBits)), nSets*refillCycles, seqRead = true)
     when (io.write.bits.way_en(w) && io.write.valid) {
       array.write(waddr, io.write.bits.data, wmask)
     }
@@ -185,11 +208,11 @@ class L2DataArray extends Module {
   io.write.ready := Bool(true)
 }
 
-class L2HellaCache(bankId: Int) extends CoherenceAgent {
+class L2HellaCache(bankId: Int) extends CoherenceAgent with L2HellaCacheParameters {
 
-  require(isPow2(params(NSets)))
-  require(isPow2(params(NWays))) 
-  require(params(RefillCycles) == 1)
+  require(isPow2(nSets))
+  require(isPow2(nWays)) 
+  require(refillCycles == 1)
 
   val tshrfile = Module(new TSHRFile(bankId))
   val meta = Module(new L2MetadataArray)
@@ -207,8 +230,7 @@ class L2HellaCache(bankId: Int) extends CoherenceAgent {
 }
 
 
-class TSHRFile(bankId: Int) extends Module {
-  val (co, nClients) = (params(TLCoherence), params(NClients))
+class TSHRFile(bankId: Int) extends L2HellaCacheModule {
   val io = new Bundle {
     val inner = (new TileLinkIO).flip
     val outer = new UncachedTileLinkIO
@@ -234,9 +256,9 @@ class TSHRFile(bankId: Int) extends Module {
   }
 
   // Create TSHRs for outstanding transactions
-  val trackerList = (0 until params(NReleaseTransactors)).map { id => 
+  val trackerList = (0 until nReleaseTransactors).map { id => 
     Module(new L2VoluntaryReleaseTracker(id, bankId)) 
-  } ++ (params(NReleaseTransactors) until params(NTransactors)).map { id => 
+  } ++ (nReleaseTransactors until nTransactors).map { id => 
     Module(new L2AcquireTracker(id, bankId))
   }
   
@@ -301,8 +323,7 @@ class TSHRFile(bankId: Int) extends Module {
 }
 
 
-abstract class L2XactTracker extends Module {
-  val (co, nClients) = (params(TLCoherence),params(NClients))
+abstract class L2XactTracker extends L2HellaCacheModule {
   val io = new Bundle {
     val inner = (new TileLinkIO).flip
     val outer = new UncachedTileLinkIO

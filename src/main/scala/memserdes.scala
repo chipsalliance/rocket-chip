@@ -209,7 +209,7 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
   val co = params(TLCoherence)
   val tbits = params(MIFTagBits)
   val dbits = params(MIFDataBits)
-  val dbeats = params(MIFDataBits)
+  val dbeats = params(MIFDataBeats)
   require(params(TLDataBits) == dbits*dbeats)
   //require(params(TLClientXactIdBits) <= params(MIFTagBits))
 

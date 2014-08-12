@@ -3,24 +3,31 @@ import Chisel._
 
 case object NReleaseTransactors extends Field[Int]
 case object NAcquireTransactors extends Field[Int]
-case object NTransactors extends Field[Int]
 case object NClients extends Field[Int]
 
-abstract class CoherenceAgent extends Module {
+abstract trait CoherenceAgentParameters extends UsesParameters {
   val co = params(TLCoherence)
+  val nReleaseTransactors = params(NReleaseTransactors)
+  val nAcquireTransactors = params(NAcquireTransactors)
+  val nTransactors = nReleaseTransactors + nAcquireTransactors
+  val nClients = params(NClients)
+}
+
+abstract class CoherenceAgent extends Module
+    with CoherenceAgentParameters {
   val io = new Bundle {
     val inner = (new TileLinkIO).flip
     val outer = new UncachedTileLinkIO
-    val incoherent = Vec.fill(params(NClients)){Bool()}.asInput
+    val incoherent = Vec.fill(nClients){Bool()}.asInput
   }
 }
 
 class L2CoherenceAgent(bankId: Int) extends CoherenceAgent {
 
   // Create SHRs for outstanding transactions
-  val trackerList = (0 until params(NReleaseTransactors)).map(id => 
+  val trackerList = (0 until nReleaseTransactors).map(id => 
     Module(new VoluntaryReleaseTracker(id, bankId))) ++ 
-      (params(NReleaseTransactors) until params(NTransactors)).map(id => 
+      (nReleaseTransactors until nTransactors).map(id => 
         Module(new AcquireTracker(id, bankId)))
   
   // Propagate incoherence flags
