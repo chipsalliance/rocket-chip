@@ -5,7 +5,6 @@ import uncore._
 import Util._
 
 case object InstBytes extends Field[Int]
-case object CoreBTBParams extends Field[PF]
 
 abstract trait FrontendParameters extends CacheParameters {
   val instBytes = params(InstBytes)

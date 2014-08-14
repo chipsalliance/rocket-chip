@@ -7,11 +7,12 @@ import Util._
 case object StoreDataQueueDepth extends Field[Int]
 case object ReplayQueueDepth extends Field[Int]
 case object NMSHRs extends Field[Int]
-case object NTLBEntries extends Field[Int]
 case object CoreReqTagBits extends Field[Int]
 case object CoreDataBits extends Field[Int]
-case object ECCCode extends Field[Code]
 case object LRSCCycles extends Field[Int]
+//TODO PARAMS Also used by icache: is this ok?:
+case object NTLBEntries extends Field[Int]
+case object ECCCode extends Field[Code]
 
 abstract trait L1HellaCacheParameters extends CacheParameters {
   val indexmsb = untagBits-1
