@@ -9,7 +9,7 @@
 	url = git@github.com:ucb-bar/riscv-tools.git
 [submodule "rocket"]
 	path = rocket
-	url = git@github.com:ucb-bar/riscv-rocket.git
+	url = git@github.com:ucb-bar/rocket-staging.git
 [submodule "chisel"]
 	path = chisel
 	url = git@github.com:ucb-bar/chisel.git
