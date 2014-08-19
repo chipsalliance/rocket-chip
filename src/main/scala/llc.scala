@@ -1,7 +1,7 @@
 package uncore
 import Chisel._
 
-class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[UInt])(gen: => T) extends Module
+class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[UInt], noMask: Boolean = false)(gen: => T) extends Module
 {
   class Inputs extends Bundle {
     val addr = UInt(INPUT, log2Up(n))
@@ -44,7 +44,12 @@ class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[UIn
         wmask0 = wmask0 & FillInterleaved(gen.getWidth, UIntToOH(in.bits.addr(log2Up(n/nDeep)-1, log2Up(n/nDeep/colMux)), log2Up(colMux)))
       val wdata0 = Fill(colMux, wdata(math.min(wdata.getWidth, leaf.data.getWidth*(j+1))-1, leaf.data.getWidth*j))
       when (in.valid) {
-        when (in.bits.rw) { mem.write(idx, wdata0, wmask0) }
+        when (in.bits.rw) {
+          if (noMask)
+            mem.write(idx, wdata0)
+          else
+            mem.write(idx, wdata0, wmask0)
+        }
         .otherwise { if (postLatency > 0) ridx := idx }
       }
 
@@ -245,7 +250,7 @@ class LLCData(latency: Int, sets: Int, ways: Int, refill_cycles: Int, leaf: Mem[
     val mem_resp_way = UInt(INPUT, log2Up(ways))
   }
 
-  val data = Module(new BigMem(sets*ways*refill_cycles, 1, latency-1, leaf)(Bits(width = conf.dataBits)))
+  val data = Module(new BigMem(sets*ways*refill_cycles, 1, latency-1, leaf, true)(Bits(width = conf.dataBits)))
   class QEntry extends MemResp {
     val isWriteback = Bool()
     override def clone = new QEntry().asInstanceOf[this.type]
@@ -268,7 +273,6 @@ class LLCData(latency: Int, sets: Int, ways: Int, refill_cycles: Int, leaf: Mem[
   data.io.in.bits.addr := Cat(io.req.bits.way, io.req.bits.addr(log2Up(sets)-1, 0), count).toUInt
   data.io.in.bits.rw := io.req.bits.rw
   data.io.in.bits.wdata := io.req_data.bits.data
-  data.io.in.bits.wmask := SInt(-1, io.req_data.bits.data.getWidth)
   when (valid) {
     data.io.in.valid := Mux(req.rw, io.req_data.valid, qReady)
     data.io.in.bits.addr := Cat(req.way, req.addr(log2Up(sets)-1, 0), count).toUInt
