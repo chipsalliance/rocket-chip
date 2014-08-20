@@ -6,6 +6,9 @@ import rocket._
 import DRAMModel._
 import DRAMModel.MemModelConstants._
 
+
+import DesignSpaceConstants._
+
 class FPGAOuterMemorySystem(htif_width: Int)(implicit conf: FPGAUncoreConfiguration) 
   extends Module {
   implicit val (tl, ln, l2, mif) = (conf.tl, conf.tl.ln, conf.l2, conf.mif)
@@ -16,20 +19,48 @@ class FPGAOuterMemorySystem(htif_width: Int)(implicit conf: FPGAUncoreConfigurat
     val mem = new MemIO
   }
 
-  val master = Module(new L2CoherenceAgent(0))
+  val refill_cycles = tl.dataBits/mif.dataBits
+  val llc_tag_leaf = Mem(Bits(width = 152), 512, seqRead = true)
+  val llc_data_leaf = Mem(Bits(width = 64), 4096, seqRead = true)
+  val llc = Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16,
+    refill_cycles=refill_cycles, tagLeaf=llc_tag_leaf, dataLeaf=llc_data_leaf))
+  val masterEndpoints = (0 until ln.nMasters).map(i => Module(new L2CoherenceAgent(i)))
+
   val net = Module(new ReferenceChipCrossbarNetwork)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
-  net.io.masters.head <> master.io.inner
-  master.io.incoherent zip io.incoherent map { case (m, c) => m := c }
+  net.io.masters zip (masterEndpoints.map(_.io.inner)) map { case (net, end) => net <> end }
+  masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
 
   val conv = Module(new MemIOUncachedTileLinkIOConverter(2))
-  conv.io.uncached <> master.io.outer
-  io.mem.req_cmd <> Queue(conv.io.mem.req_cmd, 2)
-  io.mem.req_data <> Queue(conv.io.mem.req_data, tl.dataBits/mif.dataBits)
-  conv.io.mem.resp <> Queue(io.mem.resp)
+  if(ln.nMasters > 1) {
+    val arb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(ln.nMasters))
+    arb.io.in zip masterEndpoints.map(_.io.outer) map { case (arb, cache) => arb <> cache }
+    conv.io.uncached <> arb.io.out
+  } else {
+    conv.io.uncached <> masterEndpoints.head.io.outer
+  }
+  llc.io.cpu.req_cmd <> Queue(conv.io.mem.req_cmd)
+  llc.io.cpu.req_data <> Queue(conv.io.mem.req_data, refill_cycles)
+  conv.io.mem.resp <> llc.io.cpu.resp
+
+  val mem_cmdq = Module(new Queue(new MemReqCmd, 2))
+  mem_cmdq.io.enq <> llc.io.mem.req_cmd
+  mem_cmdq.io.deq.ready := io.mem.req_cmd.ready
+  io.mem.req_cmd.valid := mem_cmdq.io.deq.valid
+  io.mem.req_cmd.bits := mem_cmdq.io.deq.bits
+
+  val mem_dataq = Module(new Queue(new MemData, refill_cycles))
+  mem_dataq.io.enq <> llc.io.mem.req_data
+  mem_dataq.io.deq.ready := io.mem.req_data.ready
+  io.mem.req_data.valid := mem_dataq.io.deq.valid
+  io.mem.req_data.bits := mem_dataq.io.deq.bits
+
+  llc.io.mem.resp.valid := io.mem.resp.valid
+  io.mem.resp.ready := Bool(true)
+  llc.io.mem.resp.bits := io.mem.resp.bits
 }
 
-case class FPGAUncoreConfiguration(l2: L2CoherenceAgentConfiguration, tl: TileLinkConfiguration, mif: MemoryIFConfiguration, nTiles: Int, nSCR: Int, offsetBits: Int)
+case class FPGAUncoreConfiguration(l2: L2CacheConfig, tl: TileLinkConfiguration, mif: MemoryIFConfiguration, nTiles: Int, nSCR: Int, offsetBits: Int)
 
 class FPGAUncore(htif_width: Int)(implicit conf: FPGAUncoreConfiguration) 
   extends Module {
@@ -85,7 +116,7 @@ class FPGATop extends Module {
                                           writeMaskBits = WRITE_MASK_BITS, 
                                           wordAddrBits = SUBWORD_ADDR_BITS, 
                                           atomicOpBits = ATOMIC_OP_BITS)
-  implicit val l2 = L2CoherenceAgentConfiguration(tl, 1, 8)
+  implicit val l2 = L2CacheConfig(512, 8, 1, 1, NL2_REL_XACTS, NL2_ACQ_XACTS, tl, as)
   implicit val mif = MemoryIFConfiguration(MEM_ADDR_BITS, MEM_DATA_BITS, MEM_TAG_BITS, 4)
   implicit val uc = FPGAUncoreConfiguration(l2, tl, mif, ntiles, nSCR = 64, offsetBits = OFFSET_BITS)
 
