@@ -5,160 +5,13 @@ import uncore._
 import rocket._
 import rocket.Util._
 
-class DefaultVLSIConfig extends DefaultConfig
-class DefaultFPGAConfig extends DefaultConfig
-class DefaultCPPConfig extends DefaultConfig
-class DefaultConfig extends ChiselConfig {
-  val top:World.TopDefs = {
-    (pname,site,here) => pname match {
-      //DesignSpaceConstants 
-      case "NTILES" => 1
-      case "NBANKS" => 1
-      case "HTIF_WIDTH" => 16
-      case "ENABLE_SHARING" => true
-      case "ENABLE_CLEAN_EXCLUSIVE" => true
-      case "USE_DRAMSIDE_LLC" => true
-      case "NL2_REL_XACTS" => 1
-      case "NL2_ACQ_XACTS" => 7
-      case "NMSHRS" => 2
-      //Coherence
-      case Coherence => {
-          val dir = new FullRepresentation(site[Int]("NTILES")+1)
-          if(site[Boolean]("ENABLE_SHARING")) {
-            if(site[Boolean]("ENABLE_CLEAN_EXCLUSIVE")) new MESICoherence(dir)
-            else new MSICoherence(dir)
-          } else {
-            if(site[Boolean]("ENABLE_CLEAN_EXCLUSIVE")) new MEICoherence(dir)
-            else new MICoherence(dir)
-          }
-        }
-      //Rocket Constants
-      // Number of ports into D$: 1 from core, 1 from PTW, maybe 1 from RoCC
-      case NDCachePorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 1) 
-      // Number of ports to outer memory system from tile: 1 from I$, 1 from D$, maybe 1 from Rocc
-      case NTilePorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 1)
-      case BuildRoCC => None
-      case RetireWidth => 1
-      case UseVM => true
-      case FastLoadWord => true
-      case FastLoadByte => false
-      case FastMulDiv => true
-      case DcacheReqTagBits => 7 + log2Up(here(NDCachePorts))
-      case XprLen => 64
-      case NXpr => 32
-      case NXprBits => log2Up(here(NXpr))
-      case BuildFPU => Some(() => new FPU)
-      case FPUParams => Alter({ 
-          case SFMALatency => 2
-          case DFMALatency => 3
-        })
-      case RocketDCacheParams => Alter({
-          //L1 Specific
-          case StoreDataQueueDepth => 17
-          case ReplayQueueDepth => 16
-          case NMSHRs => site[Int]("NMSHRS")
-          case NTLBEntries => 8
-          case CoreReqTagBits => site(DcacheReqTagBits)
-          case CoreDataBits => site(XprLen)
-          case ECCCode => new IdentityCode
-          case LRSCCycles => 32 
-          //From uncore/cache.scala
-          case NSets => 128
-          case NWays => 4
-          case BlockOffBits => log2Up(site(TLDataBits)/8)
-          case RowBits => 2*site(XprLen)
-          case WordBits => site(XprLen) //here(CoreDataBits) TODO
-          case Replacer => () => new RandomReplacement(4)//site(NWays)) TODO
-        })
-      case RocketFrontendParams => Alter({
-          case InstBytes => 4
-          case NTLBEntries => 8
-          case ECCCode => new IdentityCode
-          //From rocket/btb.scala
-          case BTBEntries => 62
-          case NRAS => 2
-          //From uncore/cache.scala
-          case NSets => 128
-          case NWays => 2
-          case BlockOffBits => log2Up(site(TLDataBits)/8)
-          case RowBits => 16*8
-          case WordBits => site(XprLen) //TODO merge with instbytes?
-          case Replacer => () => new RandomReplacement(2)//site(NWays)) TODO
-        })
-      //MemoryConstants
-      case "CACHE_DATA_SIZE_IN_BYTES" => 1 << 6
-      case "OFFSET_BITS" => log2Up(here[Int]("CACHE_DATA_SIZE_IN_BYTES"))
-      case PAddrBits => 32
-      case VAddrBits => 43
-      case PgIdxBits => 13
-      case ASIdBits => 7
-      case PermBits => 6
-      case PPNBits => here(PAddrBits) - here(PgIdxBits)
-      case VPNBits => here(VAddrBits) - here(PgIdxBits)
-      case MIFTagBits => 5
-      case MIFDataBits => 128
-      case MIFAddrBits => here(PAddrBits) - here[Int]("OFFSET_BITS")
-      case MIFDataBeats => 4
-      //Uncore Constants
-      case TileLinkL1Params => Alter({
-          case LNMasters => site[Int]("NBANKS")
-          case LNClients => site[Int]("NTILES")+1
-          case LNEndpoints => site[Int]("NBANKS") + site[Int]("NTILES")+1 // TODO PARAMS why broken?: site(LNMasters) +site(LNClients)
-          case TLCoherence => site(Coherence)
-          case TLAddrBits => site(PAddrBits) - site[Int]("OFFSET_BITS")
-          case TLMasterXactIdBits => log2Up(site[Int]("NL2_REL_XACTS")+site[Int]("NL2_ACQ_XACTS"))
-          case TLClientXactIdBits => 2*log2Up(site[Int]("NMSHRS")*site[Int]("NTILES")+1)
-          case TLDataBits => site[Int]("CACHE_DATA_SIZE_IN_BYTES")*8
-          case TLWriteMaskBits => 6
-          case TLWordAddrBits  => 3
-          case TLAtomicOpBits  => 4
-        })
-      case L2HellaCacheParams => Alter({
-          case NReleaseTransactors =>  site[Int]("NL2_REL_XACTS")
-          case NAcquireTransactors =>  site[Int]("NL2_ACQ_XACTS")
-          case NClients => site[Int]("NTILES") + 1
-          case NSets => 512
-          case NWays => 8
-          case BlockOffBits => 0
-          case RowBits => site(TLDataBits)
-          case WordBits => site(XprLen)
-          case Replacer => () => new RandomReplacement(8)//site(NWays))
-        })
-      case NTiles => here[Int]("NTILES")
-      case NBanks => here[Int]("NBANKS")
-      case BankIdLSB => 5
-      case BuildDRAMSideLLC => () => {
-        val refill = site(TLDataBits)/site(MIFDataBits)
-        if(site[Boolean]("USE_DRAMSIDE_LLC")) {
-          val tag = Mem(Bits(width = 152), 512, seqRead = true)
-          val data = Mem(Bits(width = 64), 4096, seqRead = true)
-          Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, 
-            refill_cycles=refill, tagLeaf=tag, dataLeaf=data))
-        } else { Module(new DRAMSideLLCNull(16, refill)) }
-      }
-      case BuildCoherentMaster => (id: Int, p: Some[Parameters]) => {
-        if(!site[Boolean]("USE_DRAMSIDE_LLC")) { 
-          Module(new L2CoherenceAgent(id))(p)
-        } else {
-          Module(new L2HellaCache(id))(p)
-        }
-      }
-      //HTIF Constants
-      case HTIFWidth => 16
-      case HTIFNSCR => 64
-      case HTIFOffsetBits => here[Int]("OFFSET_BITS")
-      case HTIFNCores => here[Int]("NTILES")
-    }
-  }
-}
-
 case object NTiles extends Field[Int]
 case object NBanks extends Field[Int]
 case object BankIdLSB extends Field[Int]
-case object TileLinkL1Params extends Field[PF]
-case object L2HellaCacheParams extends Field[PF]
+case object CacheBlockBytes extends Field[Int]
+case object CacheBlockOffsetBits extends Field[Int]
 case object BuildDRAMSideLLC extends Field[() => DRAMSideLLCLike]
-case object BuildCoherentMaster extends Field[(Int,Option[Parameters]) => CoherenceAgent]
+case object BuildCoherentMaster extends Field[(Int) => CoherenceAgent]
 case object Coherence extends Field[CoherencePolicyWithUncached]
 
 class OuterMemorySystem extends Module
@@ -174,10 +27,9 @@ class OuterMemorySystem extends Module
 
   val refill_cycles = params(TLDataBits)/params(MIFDataBits)
   val llc = params(BuildDRAMSideLLC)()
-  val l2p = Some(params.alter(params(L2HellaCacheParams)))
-  val masterEndpoints = (0 until params(NBanks)).map(params(BuildCoherentMaster)(_,l2p))
+  val masterEndpoints = (0 until params(NBanks)).map(params(BuildCoherentMaster))
 
-  val net = Module(new ReferenceChipCrossbarNetwork)(l2p)
+  val net = Module(new ReferenceChipCrossbarNetwork)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
   net.io.masters zip (masterEndpoints.map(_.io.inner)) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
@@ -310,13 +162,12 @@ class Top extends Module {
   //val vic = ICacheConfig(sets = 128, assoc = 1, tl = tl, as = as, btb = BTBConfig(as, 8))
   //val hc = hwacha.HwachaConfiguration(as, vic, dc, 8, 256, ndtlb = 8, nptlb = 2)
 
-  val nTiles = params[Int]("NTILES")
+  val nTiles = params(NTiles)
   val io = new VLSITopIO
 
-  val tl: PartialFunction[Any,Any] = params(TileLinkL1Params) //TODO PARAMS can't lookup in map() below?
   val resetSigs = Vec.fill(nTiles){Bool()}
-  val tileList = (0 until nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r)), tl))//TODO PARAMS above alter() is insufficient?
-  val uncore = Module(new Uncore, tl)
+  val tileList = (0 until nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))))
+  val uncore = Module(new Uncore)
 
   for (i <- 0 until nTiles) {
     val hl = uncore.io.htif(i)

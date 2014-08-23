@@ -14,7 +14,7 @@ class FPGAOuterMemorySystem extends Module {
     val mem = new MemIO
   }
 
-  val master = Module(new L2CoherenceAgent(0), params(L2HellaCacheParams))
+  val master = Module(new L2CoherenceAgent(0), {case CacheName => "L2"})
   val net = Module(new ReferenceChipCrossbarNetwork)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
   net.io.masters.head <> master.io.inner
@@ -88,8 +88,6 @@ class FPGATop extends Module {
   val nTiles = params(NTiles)
   val io = new FPGATopIO
  
-  params.alter(params(TileLinkL1Params))
-
   val resetSigs = Vec.fill(nTiles){Bool()}
   val tileList = (0 until nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))))
   val uncore = Module(new FPGAUncore)
