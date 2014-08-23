@@ -1,6 +1,7 @@
 package uncore
 import Chisel._
 
+case object CacheName extends Field[String]
 case object NSets extends Field[Int]
 case object NWays extends Field[Int]
 case object BlockOffBits extends Field[Int]
