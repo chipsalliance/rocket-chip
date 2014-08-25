@@ -9,7 +9,18 @@ case object HTIFNSCR extends Field[Int]
 case object HTIFOffsetBits extends Field[Int]
 case object HTIFNCores extends Field[Int]
 
-class HostIO(val w: Int) extends Bundle
+abstract trait HTIFParameters extends UsesParameters {
+  val dataBits = params(TLDataBits)
+  val co = params(TLCoherence)
+  val w = params(HTIFWidth)
+  val nSCR = params(HTIFNSCR)
+  val offsetBits = params(HTIFOffsetBits)
+  val nCores = params(HTIFNCores)
+}
+
+abstract class HTIFBundle extends Bundle with HTIFParameters
+
+class HostIO extends HTIFBundle
 {
   val clk = Bool(OUTPUT)
   val clk_edge = Bool(OUTPUT)
@@ -25,42 +36,34 @@ class PCRReq extends Bundle
   val data = Bits(width = 64)
 }
 
-class HTIFIO extends Bundle
-{
+class HTIFIO extends HTIFBundle {
   val reset = Bool(INPUT)
-  val id = UInt(INPUT, log2Up(params(HTIFNCores)))
+  val id = UInt(INPUT, log2Up(nCores))
   val pcr_req = Decoupled(new PCRReq).flip
   val pcr_rep = Decoupled(Bits(width = 64))
-  val ipi_req = Decoupled(Bits(width = log2Up(params(HTIFNCores))))
+  val ipi_req = Decoupled(Bits(width = log2Up(nCores)))
   val ipi_rep = Decoupled(Bool()).flip
   val debug_stats_pcr = Bool(OUTPUT)
     // wired directly to stats register
     // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work
 }
 
-class SCRIO extends Bundle
-{
-  val rdata = Vec.fill(params(HTIFNSCR)){Bits(INPUT, 64)}
+class SCRIO extends HTIFBundle {
+  val rdata = Vec.fill(nSCR){Bits(INPUT, 64)}
   val wen = Bool(OUTPUT)
-  val waddr = UInt(OUTPUT, log2Up(params(HTIFNSCR)))
+  val waddr = UInt(OUTPUT, log2Up(nSCR))
   val wdata = Bits(OUTPUT, 64)
 }
 
-class HTIF(pcr_RESET: Int) extends Module
-{
-  val dataBits = params(TLDataBits)
-  val co = params(TLCoherence)
-  val w = params(HTIFWidth)
-  val nSCR = params(HTIFNSCR)
-  val offsetBits = params(HTIFOffsetBits)
-  val nCores = params(HTIFNCores)
-  val io = new Bundle {
-    val host = new HostIO(w)
-    val cpu = Vec.fill(nCores){new HTIFIO().flip}
+class HTIFModuleIO extends HTIFBundle {
+    val host = new HostIO
+    val cpu = Vec.fill(nCores){new HTIFIO}.flip
     val mem = new TileLinkIO
     val scr = new SCRIO
-  }
+}
 
+class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
+  val io = new HTIFModuleIO
 
   io.host.debug_stats_pcr := io.cpu.map(_.debug_stats_pcr).reduce(_||_)
     // system is 'interesting' if any tile is 'interesting'
