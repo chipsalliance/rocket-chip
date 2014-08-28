@@ -58,7 +58,7 @@ class OuterMemorySystem extends Module with TopLevelParameters {
   // Create a SerDes for backup memory port
   if(params(UseBackupMemoryPort)) {
     VLSIUtils.doOuterMemorySystemSerdes(llc.io.mem, io.mem, io.mem_backup,
-                                        io.mem_backup_en, params(HTIFWidth))
+                                        io.mem_backup_en, htifW)
   } else {
     io.mem <> llc.io.mem 
   }

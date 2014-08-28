@@ -64,7 +64,7 @@ class Slave extends AXISlave
 
   // write cr1 -> mem.resp (nonblocking)
   val in_count = Reg(init=UInt(0, log2Up(memw/dw)))
-  val rf_count = Reg(init=UInt(0, log2Up(params[Int]("CACHE_DATA_SIZE_IN_BYTES")*8/memw)))
+  val rf_count = Reg(init=UInt(0, log2Up(params(CacheBlockBytes)*8/memw)))
   require(memw % dw == 0 && isPow2(memw/dw))
   val in_reg = Reg(top.io.mem.resp.bits.data)
   top.io.mem.resp.bits.data := Cat(io.in.bits, in_reg(in_reg.getWidth-1,dw))

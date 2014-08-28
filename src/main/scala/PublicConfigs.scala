@@ -5,9 +5,6 @@ import uncore._
 import rocket._
 import rocket.Util._
 
-class DefaultVLSIConfig extends DefaultConfig
-class DefaultFPGAConfig extends DefaultConfig
-class DefaultCPPConfig extends DefaultConfig
 class DefaultConfig extends ChiselConfig {
   val top:World.TopDefs = {
     (pname,site,here) => pname match {
@@ -145,4 +142,36 @@ class DefaultConfig extends ChiselConfig {
     case "L1D_WAYS" => 4
   }
 }
+class DefaultVLSIConfig extends DefaultConfig
+class DefaultCPPConfig extends DefaultConfig
 
+class FPGAConfig(default: ChiselConfig) extends ChiselConfig {
+  val top:World.TopDefs = {
+    (pname,site,here) => pname match {
+      case NSets => site(CacheName) match {
+        case "L1I" => 64
+        case "L1D" => Knob("L1D_SETS")
+      }
+      case NWays => site(CacheName) match {
+        case "L1I" => 1
+        case "L1D" => Knob("L1D_WAYS")
+      }
+      case FastMulDiv => false
+      case NITLBEntries => 4
+      case NBTBEntries => 8
+      case NDTLBEntries => 4
+      case _ => default.top(pname,site,here)
+    }
+  }
+  override val knobVal:Any=>Any = {
+    case "NTILES" => 1
+    case "NBANKS" => 1
+    case "L2_REL_XACTS" => 1
+    case "L2_ACQ_XACTS" => 7
+    case "L1D_MSHRS" => 2
+    case "L1D_SETS" => 64
+    case "L1D_WAYS" => 1
+  }
+}
+
+class DefaultFPGAConfig extends FPGAConfig(new DefaultConfig)
