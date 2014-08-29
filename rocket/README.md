@@ -13,8 +13,8 @@ future.  We are currently in the process of cleaning up the repository.  Please 
 
 Currently, a Rocket core with an 8 KB direct-mapped L1 instruction cache
 and an 8 KB direct-mapped L1 data cache has been instantiated and committed to 
-the zynq-fpga infrastructure repository. A copy of the generated Verilog is available
-[here](https://raw.githubusercontent.com/ucb-bar/zynq-fpga/master/hw/src/verilog/Slave.v).
+the fpga-zynq infrastructure repository. A copy of the generated Verilog is available
+[here](https://raw.githubusercontent.com/ucb-bar/fpga-zynq/master/hw/src/verilog/Slave.v).
 
 The following table compares a 32-bit ARM Cortex-A5 core to a 64-bit RISC-V
 Rocket core built in the same TSMC process (40GPLUS). Fourth column is the
