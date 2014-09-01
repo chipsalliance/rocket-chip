@@ -1,4 +1,4 @@
-package referencechip
+package rocketchip
 
 import Chisel._
 import uncore._
@@ -68,7 +68,7 @@ class OuterMemorySystem(htif_width: Int)(implicit conf: UncoreConfiguration) ext
     (llc, mes)
   }
 
-  val net = Module(new ReferenceChipCrossbarNetwork)
+  val net = Module(new RocketChipCrossbarNetwork)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
   net.io.masters zip (masterEndpoints.map(_.io.inner)) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
@@ -233,7 +233,7 @@ class Top extends Module {
   val hc = hwacha.HwachaConfiguration(as, vic, dc, 8, 256, ndtlb = 8, nptlb = 2)
   val fpu = if (HAS_FPU) Some(FPUConfig(sfmaLatency = 2, dfmaLatency = 3)) else None
   val rc = RocketConfiguration(tl, as, ic, dc, fpu
-  //                             rocc = (c: RocketConfiguration) => (new hwacha.Hwacha(hc, c))
+                               ,rocc = (c: RocketConfiguration) => (new hwacha.Hwacha(hc, c))
                               )
 
   val io = new VLSITopIO(HTIF_WIDTH)

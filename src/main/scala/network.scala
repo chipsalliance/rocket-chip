@@ -1,4 +1,4 @@
-package referencechip
+package rocketchip
 
 import Chisel._
 import uncore._
@@ -22,7 +22,7 @@ object TileLinkHeaderOverwriter {
   }
 }
 
-class ReferenceChipCrossbarNetwork(implicit conf: TileLinkConfiguration) 
+class RocketChipCrossbarNetwork(implicit conf: TileLinkConfiguration) 
   extends LogicalNetwork[TileLinkIO]()(conf.ln) {
   implicit val (ln, co) = (conf.ln, conf.co)
   val io = new Bundle {

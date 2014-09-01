@@ -1,10 +1,8 @@
-package referencechip
+package rocketchip
 
 import Chisel._
 import uncore._
 import rocket._
-import DRAMModel._
-import DRAMModel.MemModelConstants._
 
 
 import DesignSpaceConstants._
@@ -26,7 +24,7 @@ class FPGAOuterMemorySystem(htif_width: Int)(implicit conf: FPGAUncoreConfigurat
     refill_cycles=refill_cycles, tagLeaf=llc_tag_leaf, dataLeaf=llc_data_leaf))
   val masterEndpoints = (0 until ln.nMasters).map(i => Module(new L2CoherenceAgent(i)))
 
-  val net = Module(new ReferenceChipCrossbarNetwork)
+  val net = Module(new RocketChipCrossbarNetwork)
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
   net.io.masters zip (masterEndpoints.map(_.io.inner)) map { case (net, end) => net <> end }
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
