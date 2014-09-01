@@ -5,13 +5,13 @@ import Util._
 import Node._
 import uncore._
 
-case object BTBEntries extends Field[Int]
+case object NBTBEntries extends Field[Int]
 case object NRAS extends Field[Int] 
 
 abstract trait BTBParameters extends UsesParameters {
   val vaddrBits = params(VAddrBits)
   val matchBits = params(PgIdxBits)
-  val entries = params(BTBEntries)
+  val entries = params(NBTBEntries)
   val nRAS = params(NRAS)
   val nPages = ((1 max(log2Up(entries)))+1)/2*2 // control logic assumes 2 divides pages
   val opaqueBits = log2Up(entries)

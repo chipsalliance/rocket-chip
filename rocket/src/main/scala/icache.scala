@@ -4,29 +4,30 @@ import Chisel._
 import uncore._
 import Util._
 
-case object InstBytes extends Field[Int]
+case object NITLBEntries extends Field[Int]
+case object ECCCode extends Field[Option[Code]]
 
-abstract trait FrontendParameters extends CacheParameters {
-  val instBytes = params(InstBytes)
+abstract trait L1CacheParameters extends CacheParameters with CoreParameters {
   val co = params(TLCoherence)
-  val code = params(ECCCode)
-} 
+  val code = params(ECCCode).getOrElse(new IdentityCode)
+}
 
+abstract trait FrontendParameters extends L1CacheParameters
 abstract class FrontendBundle extends Bundle with FrontendParameters
 abstract class FrontendModule extends Module with FrontendParameters
 
-class FrontendReq extends FrontendBundle {
-  val pc = UInt(width = vaddrBits+1)
+class FrontendReq extends CoreBundle {
+  val pc = UInt(width = params(VAddrBits)+1)
 }
 
-class FrontendResp extends FrontendBundle {
-  val pc = UInt(width = vaddrBits+1)  // ID stage PC
-  val data = Bits(width = instBytes*8)
+class FrontendResp extends CoreBundle {
+  val pc = UInt(width = params(VAddrBits)+1)  // ID stage PC
+  val data = Bits(width = coreInstBits)
   val xcpt_ma = Bool()
   val xcpt_if = Bool()
 }
 
-class CPUFrontendIO extends FrontendBundle {
+class CPUFrontendIO extends CoreBundle {
   val req = Valid(new FrontendReq)
   val resp = Decoupled(new FrontendResp).flip
   val btb_resp = Valid(new BTBResp).flip
@@ -44,7 +45,7 @@ class Frontend extends FrontendModule
   
   val btb = Module(new BTB)
   val icache = Module(new ICache)
-  val tlb = Module(new TLB(params(NTLBEntries)))
+  val tlb = Module(new TLB(params(NITLBEntries)))
 
   val s1_pc_ = Reg(UInt())
   val s1_pc = s1_pc_ & SInt(-2) // discard LSB of PC (throughout the pipeline)
@@ -57,7 +58,7 @@ class Frontend extends FrontendModule
 
   val msb = vaddrBits-1
   val btbTarget = Cat(btb.io.resp.bits.target(msb), btb.io.resp.bits.target)
-  val pcp4_0 = s1_pc + UInt(instBytes)
+  val pcp4_0 = s1_pc + UInt(coreInstBytes)
   val pcp4 = Cat(s1_pc(msb) & pcp4_0(msb), pcp4_0(msb,0))
   val icmiss = s2_valid && !icache.io.resp.valid
   val predicted_npc = Mux(btb.io.resp.bits.taken, btbTarget, pcp4)
@@ -82,7 +83,7 @@ class Frontend extends FrontendModule
     s2_valid := Bool(false)
   }
 
-  btb.io.req := s1_pc & SInt(-instBytes)
+  btb.io.req := s1_pc & SInt(-coreInstBytes)
   btb.io.update := io.cpu.btb_update
   btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate
 
@@ -102,9 +103,9 @@ class Frontend extends FrontendModule
   icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
-  io.cpu.resp.bits.pc := s2_pc & SInt(-instBytes) // discard PC LSBs
-  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(instBytes)) << log2Up(instBytes*8))
-  io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(instBytes)-1,0) != UInt(0)
+  io.cpu.resp.bits.pc := s2_pc & SInt(-coreInstBytes) // discard PC LSBs
+  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(coreInstBytes)) << log2Up(coreInstBits))
+  io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(coreInstBytes)-1,0) != UInt(0)
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
 
   io.cpu.btb_resp.valid := s2_btb_resp_valid
@@ -118,7 +119,7 @@ class ICacheReq extends FrontendBundle {
 }
 
 class ICacheResp extends FrontendBundle {
-  val data = Bits(width = instBytes*8)
+  val data = Bits(width = coreInstBits)
   val datablock = Bits(width = rowBits)
 }
 
@@ -131,7 +132,7 @@ class ICache extends FrontendModule
     val mem = new UncachedTileLinkIO
   }
   require(isPow2(nSets) && isPow2(nWays))
-  require(isPow2(instBytes))
+  require(isPow2(coreInstBytes))
   require(pgIdxBits >= untagBits)
 
   val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(UInt(), 4)
@@ -249,7 +250,7 @@ class ICache extends FrontendModule
     // if s1_tag_match is critical, replace with partial tag check
     when (s1_valid && rdy && !stall && (Bool(isDM) || s1_tag_match(i))) { s2_dout(i) := data_array(s1_raddr) }
   }
-  val s2_dout_word = s2_dout.map(x => (x >> (s2_offset(log2Up(rowBytes)-1,log2Up(instBytes)) << log2Up(instBytes*8)))(instBytes*8-1,0))
+  val s2_dout_word = s2_dout.map(x => (x >> (s2_offset(log2Up(rowBytes)-1,log2Up(coreInstBytes)) << log2Up(coreInstBits)))(coreInstBits-1,0))
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 

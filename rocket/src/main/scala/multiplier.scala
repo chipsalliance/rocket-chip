@@ -9,12 +9,12 @@ class MultiplierReq extends Bundle {
   val dw = Bits(width = SZ_DW)
   val in1 = Bits(width = params(XprLen))
   val in2 = Bits(width = params(XprLen))
-  val tag = UInt(width = params(NXprBits))
+  val tag = UInt(width = log2Up(params(NMultXpr)))
 }
 
 class MultiplierResp extends Bundle {
   val data = Bits(width = params(XprLen))
-  val tag = UInt(width = params(NXprBits))
+  val tag = UInt(width = log2Up(params(NMultXpr)))
 }
 
 class MultiplierIO extends Bundle {
