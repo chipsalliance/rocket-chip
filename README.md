@@ -15,13 +15,6 @@ To build RISC-V ISA simulator, frontend server, proxy kernel and newlib based GN
     $ cd riscv-tools
     $ ./build.sh
 
-To build asm tests and benchmarks (you must have the RISC-V toolchain installed and in your path):
-
-    $ cd riscv-tests/isa/
-    $ make -j
-    $ cd riscv-tests/benchmarks
-    $ make -j
-
 
 Building The Project
 --------------------
@@ -33,7 +26,7 @@ To build the C simulator:
 
 To build the VCS simulator:
 
-    $ cd vlsi/build/vcs-sim-rtl
+    $ cd vsim
     $ make
 
 in either case, you can run a set of assembly tests or simple benchmarks:
@@ -58,9 +51,9 @@ And to run the assembly tests on the C simulator and generate waveforms:
     $ make run-vecasm-timer-tests-debug
     $ make run-bmarks-test-debug
 
-To get FPGA-synthesizable verilog (output will be in `fpga/generated-src`):
+To get FPGA-synthesizable verilog (output will be in `fsim/generated-src`):
 
-    $ cd fpga/build/syn
+    $ cd fsim
     $ make
 
 
