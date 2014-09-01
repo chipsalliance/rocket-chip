@@ -27,11 +27,6 @@ object Util {
 
 import Util._
 
-abstract trait BundleWithConf extends Bundle {
-  val conf: AnyRef
-  override def clone = this.getClass.getConstructors.head.newInstance(conf).asInstanceOf[this.type]
-}
-
 object Str
 {
   def apply(s: String): UInt = {

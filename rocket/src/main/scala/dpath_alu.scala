@@ -41,16 +41,16 @@ object ALU
 }
 import ALU._
 
-class ALUIO(implicit conf: RocketConfiguration) extends Bundle {
+class ALUIO extends Bundle {
   val dw = Bits(INPUT, SZ_DW)
   val fn = Bits(INPUT, SZ_ALU_FN)
-  val in2 = UInt(INPUT, conf.xprlen)
-  val in1 = UInt(INPUT, conf.xprlen)
-  val out = UInt(OUTPUT, conf.xprlen)
-  val adder_out = UInt(OUTPUT, conf.xprlen)
+  val in2 = UInt(INPUT, params(XprLen))
+  val in1 = UInt(INPUT, params(XprLen))
+  val out = UInt(OUTPUT, params(XprLen))
+  val adder_out = UInt(OUTPUT, params(XprLen))
 }
 
-class ALU(implicit conf: RocketConfiguration) extends Module
+class ALU extends Module
 {
   val io = new ALUIO
 

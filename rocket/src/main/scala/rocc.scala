@@ -17,48 +17,46 @@ class RoCCInstruction extends Bundle
   val opcode = Bits(width = 7)
 }
 
-class RoCCCommand(implicit val conf: RocketConfiguration) extends BundleWithConf
+class RoCCCommand extends Bundle
 {
   val inst = new RoCCInstruction
-  val rs1 = Bits(width = conf.xprlen)
-  val rs2 = Bits(width = conf.xprlen)
+  val rs1 = Bits(width = params(XprLen))
+  val rs2 = Bits(width = params(XprLen))
 }
 
-class RoCCResponse(implicit val conf: RocketConfiguration) extends BundleWithConf
+class RoCCResponse extends Bundle
 {
   val rd = Bits(width = 5)
-  val data = Bits(width = conf.xprlen)
+  val data = Bits(width = params(XprLen))
 }
 
-class RoCCInterface(implicit val conf: RocketConfiguration) extends BundleWithConf
+class RoCCInterface extends Bundle
 {
-  implicit val as = conf.as
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
-  val mem = new HellaCacheIO()(conf.dcache)
+  val mem = new HellaCacheIO
   val busy = Bool(OUTPUT)
   val s = Bool(INPUT)
   val interrupt = Bool(OUTPUT)
   
   // These should be handled differently, eventually
-  val imem = new UncachedTileLinkIO()(conf.tl)
+  val imem = new UncachedTileLinkIO
   val iptw = new TLBPTWIO
   val dptw = new TLBPTWIO
   val pptw = new TLBPTWIO
   val exception = Bool(INPUT)
 }
 
-abstract class RoCC(conf: RocketConfiguration) extends Module
+abstract class RoCC extends Module
 {
-  val io = new RoCCInterface()(conf)
-
+  val io = new RoCCInterface
   io.mem.req.bits.phys := Bool(true) // don't perform address translation
 }
 
-class AccumulatorExample(conf: RocketConfiguration) extends RoCC(conf)
+class AccumulatorExample extends RoCC
 {
   val n = 4
-  val regfile = Mem(UInt(width = conf.xprlen), n)
+  val regfile = Mem(UInt(width = params(XprLen)), n)
   val busy = Vec.fill(n){Reg(init=Bool(false))}
 
   val cmd = Queue(io.cmd)
