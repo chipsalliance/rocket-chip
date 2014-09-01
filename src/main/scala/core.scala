@@ -4,24 +4,28 @@ import Chisel._
 import Util._
 import uncore.HTIFIO
 
-class RocketIO(implicit conf: RocketConfiguration) extends Bundle
+case object FPUParams extends Field[PF]
+case object BuildFPU extends Field[Option[() => FPU]]
+
+class RocketIO extends Bundle
 {
-  val host = new HTIFIO(conf.tl.ln.nClients)
-  val imem = new CPUFrontendIO()(conf.icache)
-  val dmem = new HellaCacheIO()(conf.dcache)
-  val ptw = new DatapathPTWIO()(conf.as).flip
+  val host =  new HTIFIO
+  val imem = new CPUFrontendIO
+  val dmem = new HellaCacheIO
+  val ptw = new DatapathPTWIO().flip
   val rocc = new RoCCInterface().flip
 }
 
-class Core(implicit conf: RocketConfiguration) extends Module
+class Core extends Module
 {
-  val io    = new RocketIO
+  val io = new RocketIO
    
-  val ctrl  = Module(new Control)
+  val ctrl = Module(new Control)
   val dpath = Module(new Datapath)
 
-  if (!conf.fpu.isEmpty) {
-    val fpu = Module(new FPU(conf.fpu.get))
+  if (!params(BuildFPU).isEmpty) {
+    val p = Some(params.alter(params(FPUParams)))
+    val fpu = Module(params(BuildFPU).get())(p)
     dpath.io.fpu <> fpu.io.dpath
     ctrl.io.fpu <> fpu.io.ctrl
   }

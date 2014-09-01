@@ -1,7 +1,7 @@
 package rocket
 
 import Chisel._
-import uncore.AddressSpaceConfiguration
+import uncore._
 import scala.math._
 
 class CAMIO(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
@@ -64,26 +64,26 @@ class PseudoLRU(n: Int)
   }
 }
 
-class TLBReq()(implicit val conf: AddressSpaceConfiguration) extends BundleWithConf
+class TLBReq extends Bundle
 {
-  val asid = UInt(width = conf.asidBits)
-  val vpn = UInt(width = conf.vpnBits+1)
+  val asid = UInt(width = params(ASIdBits))
+  val vpn = UInt(width = params(VPNBits)+1)
   val passthrough = Bool()
   val instruction = Bool()
 }
 
-class TLBResp(entries: Int)(implicit val conf: AddressSpaceConfiguration) extends BundleWithConf
+class TLBResp(entries: Int) extends Bundle
 {
   // lookup responses
   val miss = Bool(OUTPUT)
   val hit_idx = UInt(OUTPUT, entries)
-  val ppn = UInt(OUTPUT, conf.ppnBits)
+  val ppn = UInt(OUTPUT, params(PPNBits))
   val xcpt_ld = Bool(OUTPUT)
   val xcpt_st = Bool(OUTPUT)
   val xcpt_if = Bool(OUTPUT)
 }
 
-class TLB(entries: Int)(implicit conf: AddressSpaceConfiguration) extends Module
+class TLB(entries: Int) extends Module
 {
   val io = new Bundle {
     val req = Decoupled(new TLBReq).flip
@@ -96,7 +96,7 @@ class TLB(entries: Int)(implicit conf: AddressSpaceConfiguration) extends Module
   val r_refill_tag = Reg(UInt())
   val r_refill_waddr = Reg(UInt())
 
-  val tag_cam = Module(new RocketCAM(entries, conf.asidBits+conf.vpnBits))
+  val tag_cam = Module(new RocketCAM(entries, params(ASIdBits)+params(VPNBits)))
   val tag_ram = Mem(io.ptw.resp.bits.ppn.clone, entries)
   
   val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUInt
@@ -133,7 +133,7 @@ class TLB(entries: Int)(implicit conf: AddressSpaceConfiguration) extends Module
   val plru = new PseudoLRU(entries)
   val repl_waddr = Mux(has_invalid_entry, invalid_entry, plru.replace)
   
-  val bad_va = io.req.bits.vpn(conf.vpnBits) != io.req.bits.vpn(conf.vpnBits-1)
+  val bad_va = io.req.bits.vpn(params(VPNBits)) != io.req.bits.vpn(params(VPNBits)-1)
   val tlb_hit  = io.ptw.status.vm && tag_hit
   val tlb_miss = io.ptw.status.vm && !tag_hit && !bad_va
   
@@ -146,7 +146,7 @@ class TLB(entries: Int)(implicit conf: AddressSpaceConfiguration) extends Module
   io.resp.xcpt_st := bad_va || tlb_hit && !Mux(io.ptw.status.s, (sw_array & tag_cam.io.hits).orR, (uw_array & tag_cam.io.hits).orR)
   io.resp.xcpt_if := bad_va || tlb_hit && !Mux(io.ptw.status.s, (sx_array & tag_cam.io.hits).orR, (ux_array & tag_cam.io.hits).orR)
   io.resp.miss := tlb_miss
-  io.resp.ppn := Mux(io.ptw.status.vm && !io.req.bits.passthrough, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(conf.ppnBits-1,0))
+  io.resp.ppn := Mux(io.ptw.status.vm && !io.req.bits.passthrough, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(params(PPNBits)-1,0))
   io.resp.hit_idx := tag_cam.io.hits
   
   io.ptw.req.valid := state === s_request

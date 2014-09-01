@@ -3,11 +3,11 @@ package rocket
 import Chisel._
 import uncore._
 
-class HellaCacheArbiter(n: Int)(implicit conf: RocketConfiguration) extends Module
+class HellaCacheArbiter(n: Int) extends Module
 {
   val io = new Bundle {
-    val requestor = Vec.fill(n){new HellaCacheIO()(conf.dcache)}.flip
-    val mem = new HellaCacheIO()(conf.dcache)
+    val requestor = Vec.fill(n){new HellaCacheIO}.flip
+    val mem = new HellaCacheIO
   }
 
   val r_valid = io.requestor.map(r => Reg(next=r.req.valid))
