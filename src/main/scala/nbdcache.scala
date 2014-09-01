@@ -7,25 +7,14 @@ import Util._
 case object StoreDataQueueDepth extends Field[Int]
 case object ReplayQueueDepth extends Field[Int]
 case object NMSHRs extends Field[Int]
-case object CoreReqTagBits extends Field[Int]
-case object CoreDataBits extends Field[Int]
 case object LRSCCycles extends Field[Int]
-//TODO PARAMS Also used by icache: is this ok?:
-case object NTLBEntries extends Field[Int]
-case object ECCCode extends Field[Code]
+case object NDTLBEntries extends Field[Int]
 
-abstract trait L1HellaCacheParameters extends CacheParameters {
+abstract trait L1HellaCacheParameters extends L1CacheParameters {
   val indexmsb = untagBits-1
   val indexlsb = blockOffBits
   val offsetmsb = indexlsb-1
   val offsetlsb = wordOffBits
-
-  val co = params(TLCoherence)
-  val code = params(ECCCode)
-  val coreReqTagBits = params(CoreReqTagBits)
-  val coreDataBits = params(CoreDataBits)
-  val maxAddrBits = math.max(params(PPNBits),params(VPNBits)+1) + params(PgIdxBits)
-  val coreDataBytes = coreDataBits/8
   val doNarrowRead = coreDataBits * nWays % rowBits == 0
   val encDataBits = code.width(coreDataBits)
   val encRowBits = encDataBits*rowWords
@@ -66,26 +55,26 @@ class LoadGen(typ: Bits, addr: Bits, dat: Bits, zero: Bool)
   val byte = Cat(Mux(zero || t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
 }
 
-class HellaCacheReq extends L1HellaCacheBundle {
+class HellaCacheReq extends CoreBundle {
   val kill = Bool()
   val typ  = Bits(width = MT_SZ)
   val phys = Bool()
-  val addr = UInt(width = maxAddrBits)
+  val addr = UInt(width = coreMaxAddrBits)
   val data = Bits(width = coreDataBits)
-  val tag  = Bits(width = coreReqTagBits)
+  val tag  = Bits(width = coreDCacheReqTagBits)
   val cmd  = Bits(width = M_SZ)
 }
 
-class HellaCacheResp extends L1HellaCacheBundle {
+class HellaCacheResp extends CoreBundle {
   val nack = Bool() // comes 2 cycles after req.fire
   val replay = Bool()
   val typ = Bits(width = 3)
   val has_data = Bool()
   val data = Bits(width = coreDataBits)
   val data_subword = Bits(width = coreDataBits)
-  val tag = Bits(width = coreReqTagBits)
+  val tag = Bits(width = coreDCacheReqTagBits)
   val cmd  = Bits(width = 4)
-  val addr = UInt(width = maxAddrBits)
+  val addr = UInt(width = coreMaxAddrBits)
   val store_data = Bits(width = coreDataBits)
 }
 
@@ -100,22 +89,22 @@ class HellaCacheExceptions extends Bundle {
 }
 
 // interface between D$ and processor/DTLB
-class HellaCacheIO extends L1HellaCacheBundle {
+class HellaCacheIO extends CoreBundle {
   val req = Decoupled(new HellaCacheReq)
   val resp = Valid(new HellaCacheResp).flip
-  val replay_next = Valid(Bits(width = coreReqTagBits)).flip
+  val replay_next = Valid(Bits(width = coreDCacheReqTagBits)).flip
   val xcpt = (new HellaCacheExceptions).asInput
   val ptw = new TLBPTWIO().flip
   val ordered = Bool(INPUT)
 }
 
-class MSHRReq extends HellaCacheReq {
+class MSHRReq extends HellaCacheReq with L1HellaCacheParameters {
   val tag_match = Bool()
   val old_meta = new L1Metadata
   val way_en = Bits(width = nWays)
 }
 
-class Replay extends HellaCacheReq {
+class Replay extends HellaCacheReq with L1HellaCacheParameters {
   val sdq_id = UInt(width = log2Up(params(StoreDataQueueDepth)))
 }
 
@@ -704,7 +693,7 @@ class HellaCache extends L1HellaCacheModule {
   val s1_sc = s1_req.cmd === M_XSC
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
-  val dtlb = Module(new TLB(params(NTLBEntries)))
+  val dtlb = Module(new TLB(params(NDTLBEntries)))
   dtlb.io.ptw <> io.cpu.ptw
   dtlb.io.req.valid := s1_valid_masked && s1_readwrite && !s1_req.phys
   dtlb.io.req.bits.passthrough := s1_req.phys
