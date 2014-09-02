@@ -1,4 +1,4 @@
-package referencechip
+package rocketchip
 
 import Chisel._
 import uncore._
@@ -33,7 +33,7 @@ class OuterMemorySystem extends Module with TopLevelParameters {
   }
 
   // Create a simple NoC and points of coherence serialization
-  val net = Module(new ReferenceChipCrossbarNetwork)
+  val net = Module(new RocketChipCrossbarNetwork)
   val masterEndpoints = (0 until params(NBanks)).map(params(BuildCoherenceMaster))
   net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
   net.io.masters zip (masterEndpoints.map(_.io.inner)) map { case (net, end) => net <> end }

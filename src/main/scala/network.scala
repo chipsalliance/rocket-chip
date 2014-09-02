@@ -1,4 +1,4 @@
-package referencechip
+package rocketchip
 
 import Chisel._
 import uncore._
@@ -22,7 +22,7 @@ object TileLinkHeaderOverwriter {
   }
 }
 
-class ReferenceChipCrossbarNetwork extends LogicalNetwork {
+class RocketChipCrossbarNetwork extends LogicalNetwork {
   val io = new Bundle {
     val clients = Vec.fill(params(LNClients)){(new TileLinkIO).flip}
     val masters = Vec.fill(params(LNMasters)){new TileLinkIO}

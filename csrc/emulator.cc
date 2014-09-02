@@ -1,9 +1,7 @@
 #include "htif_emulator.h"
-#include "common.h"
 #include "emulator.h"
 #include "mm.h"
 #include "mm_dramsim2.h"
-#include "disasm.h"
 #include "Top.h" // chisel-generated code...
 #include <fcntl.h>
 #include <signal.h>
@@ -26,7 +24,6 @@ int main(int argc, char** argv)
   const char* vcd = NULL;
   const char* loadmem = NULL;
   FILE *vcdfile = NULL;
-  disassembler disasm;
   bool dramsim2 = false;
   bool log = false;
 

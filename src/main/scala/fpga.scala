@@ -1,17 +1,6 @@
-package referencechip
+package rocketchip
 
 import Chisel._
-
-  /*
-  val ntiles = 1
-  val nmshrs = 2
-  implicit val uc = FPGAUncoreConfiguration(l2, tl, mif, ntiles, nSCR = 64, offsetBits = params[Int]("OFFSET_BITS"))
-
-  val ic = ICacheConfig(64, 1, ntlb = 4, tl = tl, as = as, btb = BTBConfig(as, 8, 2))
-  val dc = DCacheConfig(64, 1, ntlb = 4, nmshr = 2, nrpq = 16, nsdq = 17, tl = tl, as = as, reqtagbits = -1, databits = -1)
-  val rc = RocketConfiguration(tl, as, ic, dc,
-                               fastMulDiv = false)
-*/
 
 abstract class AXISlave extends Module {
   val aw = 5

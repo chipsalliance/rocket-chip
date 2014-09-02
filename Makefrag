@@ -1,12 +1,48 @@
-# Makefile snippet used by emulator/vlsi/fpga backends
-asm_timeout_cycles   =  10000000
-bmark_timeout_cycles = 100000000
-
 MODEL := Top
+FPGAMODEL := FPGATop
 CXX := g++
 CXXFLAGS := -O1
 
 SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
+
+src_path = src/main/scala
+chisel_srcs = $(base_dir)/$(src_path)/*.scala $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/hwacha/$(src_path)/*.scala
+
+disasm := 2>
+which_disasm := $(shell which riscv-dis)
+ifneq ($(which_disasm),)
+	disasm := 3>&1 1>&2 2>&3 | $(which_disasm) --extension=hwacha >
+endif
+
+timeout_cycles = 100000000
+
+#--------------------------------------------------------------------
+# Verilog Generation
+#--------------------------------------------------------------------
+
+# VLSI Backend
+$(generated_dir)/$(MODEL).v: $(chisel_srcs)
+	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate $(MODEL) --backend rocketchip.RocketChipBackend --targetDir $(generated_dir) --noInlineMem --configInstance rocketchip.DefaultVLSIConfig"
+	cd $(generated_dir) && \
+	if [ -a $(MODEL).conf ]; then \
+		sed -i 's*^*$(vlsi_mem_gen) *' $(MODEL).conf && \
+		sed -i 's*$$* >> $(MODEL).v*' $(MODEL).conf && \
+		sh $(MODEL).conf; \
+	fi
+
+# FPGA Backend
+$(generated_dir)/$(FPGAMODEL).v: $(chisel_srcs)
+	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate $(FPGAMODEL) --backend fpga --targetDir $(generated_dir) --configInstance rocketchip.DefaultFPGAConfig"
+
+$(generated_dir)/$(FPGAMODEL)Mem.v: $(generated_dir)/$(FPGAMODEL).conf $(mem_gen)
+	$(mem_gen) $(generated_dir)/$(FPGAMODEL).conf > $(generated_dir)/$(FPGAMODEL)Mem.v
+
+$(generated_dir)/memdessertMemDessert.v: $(base_dir)/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala
+	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate MemDessert --backend v --targetDir $(generated_dir) --moduleNamePrefix memdessert --configInstance rocketchip.DefaultVLSIConfig"
+
+#--------------------------------------------------------------------
+# DRAMSim2
+#--------------------------------------------------------------------
 
 DRAMSIM_OBJS := $(patsubst %.cpp,%.o,$(wildcard $(base_dir)/dramsim2/*.cpp))
 $(DRAMSIM_OBJS): %.o: %.cpp
@@ -14,18 +50,12 @@ $(DRAMSIM_OBJS): %.o: %.cpp
 $(sim_dir)/libdramsim.a: $(DRAMSIM_OBJS)
 	ar rcs $@ $^
 
-src_path = src/main/scala
-
-#DESIGN := design_dsize8_c20b273
-SRC := rocket/$(src_path)/*.scala hwacha/$(src_path)/*.scala /uncore/$(src_path)/*.scala $(src_path)/*.scala
-PROJ := referencechip
-
-
 #--------------------------------------------------------------------
-# Tests
+# ISA Tests
 #--------------------------------------------------------------------
 
-tstdir = $(base_dir)/riscv-tests/isa
+tests_isa_dir = $(base_dir)/riscv-tools/riscv-tests/isa
+
 asm_p_tests = \
 	rv64ui-p-add \
 	rv64ui-p-addi \
@@ -528,9 +558,11 @@ vecasm_pt_tests = \
 	rv64uf-pt-vec-fcvt \
 	rv64uf-pt-vec-fcmp \
 
-# Globally installed benchmarks
+#--------------------------------------------------------------------
+# Benchmark Tests
+#--------------------------------------------------------------------
 
-bmarkdir = $(base_dir)/riscv-tests/benchmarks
+tests_bmark_dir = $(base_dir)/riscv-tools/riscv-tests/benchmarks
 bmarks = \
 	median.riscv \
 	multiply.riscv \
@@ -546,85 +578,97 @@ bmarks = \
 	#mt-vvadd.riscv \
 	#mt-matmul.riscv \
 
-vec_bmarkdir = $(base_dir)/../../riscv-app/misc/build
-vec_bmarks = \
-	ubmark-vvadd \
-	ubmark-bin-search \
-	ubmark-cmplx-mult \
-	ubmark-masked-filter \
+#--------------------------------------------------------------------
+# Multi-threaded Benchmark Tests
+#--------------------------------------------------------------------
 
-
-mt_bmarkdir = $(base_dir)/riscv-tests/mt
+test_mt_bmark_dir = $(base_dir)/riscv-tools/riscv-tests/mt
 mt_bmarks = \
-ab_matmul.riscv\
-ab_vvadd.riscv\
-ad_matmul.riscv\
-ad_vvadd.riscv\
-ae_matmul.riscv\
-ae_vvadd.riscv\
-af_matmul.riscv\
-af_vvadd.riscv\
-ag_matmul.riscv\
-ag_vvadd.riscv\
-ai_matmul.riscv\
-ai_vvadd.riscv\
-aj_vvadd.riscv\
-ak_matmul.riscv\
-ak_vvadd.riscv\
-al_matmul.riscv\
-al_vvadd.riscv\
-am_matmul.riscv\
-am_vvadd.riscv\
-an_matmul.riscv\
-ap_matmul.riscv\
-ap_vvadd.riscv\
-aq_matmul.riscv\
-aq_vvadd.riscv\
-ar_matmul.riscv\
-ar_vvadd.riscv\
-as_matmul.riscv\
-as_vvadd.riscv\
-at_matmul.riscv\
-at_vvadd.riscv\
-av_matmul.riscv\
-av_vvadd.riscv\
-ay_matmul.riscv\
-ay_vvadd.riscv\
-az_matmul.riscv\
-az_vvadd.riscv\
-ba_matmul.riscv\
-ba_vvadd.riscv\
-bb_matmul.riscv\
-bb_vvadd.riscv\
-bc_matmul.riscv\
-bc_vvadd.riscv\
-be_matmul.riscv\
-be_vvadd.riscv\
-bf_matmul.riscv\
-bf_vvadd.riscv\
-bh_matmul.riscv\
-bh_vvadd.riscv\
-bj_matmul.riscv\
-bj_vvadd.riscv\
-bk_matmul.riscv\
-bk_vvadd.riscv\
-bm_matmul.riscv\
-bm_vvadd.riscv\
-bn_matmul.riscv\
-bn_vvadd.riscv\
-bo_matmul.riscv\
-bo_vvadd.riscv\
-bp_matmul.riscv\
-bp_vvadd.riscv\
-br_matmul.riscv\
-br_vvadd.riscv\
-bs_matmul.riscv\
-bs_vvadd.riscv\
-bt_matmul.riscv\
-bt_vvadd.riscv\
+  ab_matmul.riscv \
+  ab_vvadd.riscv \
+  ad_matmul.riscv \
+  ad_vvadd.riscv \
+  ae_matmul.riscv \
+  ae_vvadd.riscv \
+  af_matmul.riscv \
+  af_vvadd.riscv \
+  ag_matmul.riscv \
+  ag_vvadd.riscv \
+  ai_matmul.riscv \
+  ai_vvadd.riscv \
+  aj_vvadd.riscv \
+  ak_matmul.riscv \
+  ak_vvadd.riscv \
+  al_matmul.riscv \
+  al_vvadd.riscv \
+  am_matmul.riscv \
+  am_vvadd.riscv \
+  an_matmul.riscv \
+  ap_matmul.riscv \
+  ap_vvadd.riscv \
+  aq_matmul.riscv \
+  aq_vvadd.riscv \
+  ar_matmul.riscv \
+  ar_vvadd.riscv \
+  as_matmul.riscv \
+  as_vvadd.riscv \
+  at_matmul.riscv \
+  at_vvadd.riscv \
+  av_matmul.riscv \
+  av_vvadd.riscv \
+  ay_matmul.riscv \
+  ay_vvadd.riscv \
+  az_matmul.riscv \
+  az_vvadd.riscv \
+  ba_matmul.riscv \
+  ba_vvadd.riscv \
+  bb_matmul.riscv \
+  bb_vvadd.riscv \
+  bc_matmul.riscv \
+  bc_vvadd.riscv \
+  be_matmul.riscv \
+  be_vvadd.riscv \
+  bf_matmul.riscv \
+  bf_vvadd.riscv \
+  bh_matmul.riscv \
+  bh_vvadd.riscv \
+  bj_matmul.riscv \
+  bj_vvadd.riscv \
+  bk_matmul.riscv \
+  bk_vvadd.riscv \
+  bm_matmul.riscv \
+  bm_vvadd.riscv \
+  bn_matmul.riscv \
+  bn_vvadd.riscv \
+  bo_matmul.riscv \
+  bo_vvadd.riscv \
+  bp_matmul.riscv \
+  bp_vvadd.riscv \
+  br_matmul.riscv \
+  br_vvadd.riscv \
+  bs_matmul.riscv \
+  bs_vvadd.riscv \
+  bt_matmul.riscv \
+  bt_vvadd.riscv \
 
-disasm := 2>
-which_disasm := $(shell which riscv-dis)
-ifneq ($(which_disasm),)
-	disasm := 3>&1 1>&2 2>&3 | $(which_disasm) --extension=hwacha >
-endif
+#--------------------------------------------------------------------
+# Build Tests
+#--------------------------------------------------------------------
+
+%.hex:
+	$(MAKE) -C $(dir $@) $(notdir $@)
+
+%.riscv.hex: %
+	$(MAKE) -C $(dir $@) $(notdir $@)
+
+$(addprefix $(output_dir)/, $(addsuffix .hex, $(asm_p_tests) $(asm_v_tests) $(vecasm_p_tests) $(vecasm_v_tests) $(vecasm_pt_tests))): $(output_dir)/%.hex: $(tests_isa_dir)/%.hex
+	mkdir -p $(output_dir)
+	ln -fs $< $@
+
+$(addprefix $(output_dir)/, $(addsuffix .hex, $(bmarks))): $(output_dir)/%.hex: $(tests_bmark_dir)/%.hex
+	mkdir -p $(output_dir)
+	ln -fs $< $@
+
+$(addprefix $(output_dir)/, $(addsuffix .hex, $(mt_bmarks))): $(output_dir)/%.hex: $(test_mt_bmark_dir)/%.hex
+	mkdir -p $(output_dir)
+	ln -fs $< $@

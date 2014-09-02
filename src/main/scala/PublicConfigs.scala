@@ -1,4 +1,4 @@
-package referencechip
+package rocketchip
 
 import Chisel._
 import uncore._

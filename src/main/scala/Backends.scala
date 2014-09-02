@@ -1,14 +1,14 @@
-package referencechip
+package rocketchip
 
 import Chisel._
-import ReferenceChipBackend._
+import RocketChipBackend._
 import scala.collection.mutable.HashMap
 
-object ReferenceChipBackend {
+object RocketChipBackend {
   val initMap = new HashMap[Module, Bool]()
 }
 
-class ReferenceChipBackend extends VerilogBackend
+class RocketChipBackend extends VerilogBackend
 {
   initMap.clear()
   override def emitPortDef(m: MemAccess, idx: Int) = {
@@ -65,5 +65,5 @@ class ReferenceChipBackend extends VerilogBackend
   transforms += ((c: Module) => collectNodesIntoComp(initializeDFS))
 }
 
-class Fame1ReferenceChipBackend extends ReferenceChipBackend with Fame1Transform
+class Fame1RocketChipBackend extends RocketChipBackend with Fame1Transform
 
