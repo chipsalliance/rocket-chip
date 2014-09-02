@@ -104,7 +104,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
 
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(UInt(), 6)
 
-  val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.width-1, 0)
+  val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.getWidth-1, 0)
   val pcr_coreid = addr(log2Up(nCores)-1+20+1,20)
   val pcr_wdata = packet_ram(0)
 
