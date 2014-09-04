@@ -40,6 +40,10 @@ $(generated_dir)/$(FPGAMODEL)Mem.v: $(generated_dir)/$(FPGAMODEL).conf $(mem_gen
 $(generated_dir)/memdessertMemDessert.v: $(base_dir)/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala
 	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate MemDessert --backend v --targetDir $(generated_dir) --moduleNamePrefix memdessert"
 
+# Generic Verilog
+.PHONY: verilog
+verilog: $(sim_vsrcs)
+
 #--------------------------------------------------------------------
 # DRAMSim2
 #--------------------------------------------------------------------
