@@ -122,6 +122,14 @@ def gen_mem(name, width, depth, ports, mask_gran):
       sys.exit('%s: unknown port type %s' % (sys.argv[0], ptype))
 
   decl += ['reg [%d:0] ram [%d:0];' % (width-1, depth-1)]
+  decl += ['`ifndef SYNTHESIS']
+  decl += ['  integer initvar;']
+  decl += ['  initial begin']
+  decl += ['    #0.002;']
+  decl += ['    for (initvar = 0; initvar < %d; initvar = initvar+1)' % depth]
+  decl += ['      ram[initvar] = {%d {$random}};' % ((width-1)/32+1)]
+  decl += ['  end']
+  decl += ['`endif']
 
   for pid in readports:
     decl += ['reg [%d:0] reg_R%dA;' % (addr_width-1, pid)]
