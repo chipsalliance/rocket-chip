@@ -3,6 +3,8 @@ all: emulator
 base_dir = $(abspath ..)
 sim_dir = .
 output_dir = $(sim_dir)/output
+PROJECT = rocketchip
+CONFIG = DefaultCPPConfig
 
 include $(base_dir)/Makefrag
 
@@ -16,14 +18,14 @@ LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L. -ldramsim -lfes
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL))
 DEBUG_OBJS := $(addsuffix -debug.o,$(CXXSRCS) $(MODEL))
 
-CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --targetDir emulator/generated-src
+CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --configInstance $(PROJECT).$(CONFIG) --targetDir emulator/generated-src
 CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
 generated-src/$(MODEL).h: $(chisel_srcs)
-	cd $(base_dir) && $(SBT) "project rocketchip" "elaborate $(CHISEL_ARGS)"
+	cd $(base_dir) && $(SBT) "project $(PROJECT)" "elaborate $(CHISEL_ARGS)"
 
 generated-src-debug/$(MODEL).h: $(chisel_srcs)
-	cd $(base_dir) && $(SBT) "project rocketchip" "elaborate $(CHISEL_ARGS_DEBUG)"
+	cd $(base_dir) && $(SBT) "project $(PROJECT)" "elaborate $(CHISEL_ARGS_DEBUG)"
 
 $(MODEL).o: %.o: generated-src/%.h
 	$(MAKE) -j $(patsubst %.cpp,%.o,$(shell ls generated-src/$(MODEL)-*.cpp))
