@@ -6,7 +6,8 @@ import Util._
 import FPConstants._
 import uncore.constants.MemoryOpConstants._
 
-case class FPUConfig(sfmaLatency: Int = 2, dfmaLatency: Int = 3)
+case object SFMALatency
+case object DFMALatency
 
 object FPConstants
 {
@@ -340,7 +341,7 @@ class FPUFMAPipe(val latency: Int, sigWidth: Int, expWidth: Int) extends Module
   io.out := Pipe(valid, res, latency-1)
 }
 
-class FPU(conf: FPUConfig) extends Module
+class FPU extends Module
 {
   val io = new Bundle {
     val ctrl = (new CtrlFPUIO).flip
@@ -396,11 +397,11 @@ class FPU(conf: FPUConfig) extends Module
   req.in3 := ex_rs3
   req.typ := ex_reg_inst(21,20)
 
-  val sfma = Module(new FPUFMAPipe(conf.sfmaLatency, 23, 9))
+  val sfma = Module(new FPUFMAPipe(params(SFMALatency), 23, 9))
   sfma.io.in.valid := ex_reg_valid && ex_ctrl.fma && ex_ctrl.single
   sfma.io.in.bits := req
 
-  val dfma = Module(new FPUFMAPipe(conf.dfmaLatency, 52, 12))
+  val dfma = Module(new FPUFMAPipe(params(DFMALatency), 52, 12))
   dfma.io.in.valid := ex_reg_valid && ex_ctrl.fma && !ex_ctrl.single
   dfma.io.in.bits := req
 

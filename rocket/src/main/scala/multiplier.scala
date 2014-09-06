@@ -4,26 +4,26 @@ import Chisel._
 import ALU._
 import Util._
 
-class MultiplierReq(implicit val conf: RocketConfiguration) extends BundleWithConf {
+class MultiplierReq extends Bundle {
   val fn = Bits(width = SZ_ALU_FN)
   val dw = Bits(width = SZ_DW)
-  val in1 = Bits(width = conf.xprlen)
-  val in2 = Bits(width = conf.xprlen)
-  val tag = UInt(width = conf.nxprbits)
+  val in1 = Bits(width = params(XprLen))
+  val in2 = Bits(width = params(XprLen))
+  val tag = UInt(width = log2Up(params(NMultXpr)))
 }
 
-class MultiplierResp(implicit val conf: RocketConfiguration) extends BundleWithConf {
-  val data = Bits(width = conf.xprlen)
-  val tag = UInt(width = conf.nxprbits)
+class MultiplierResp extends Bundle {
+  val data = Bits(width = params(XprLen))
+  val tag = UInt(width = log2Up(params(NMultXpr)))
 }
 
-class MultiplierIO(implicit conf: RocketConfiguration) extends Bundle {
+class MultiplierIO extends Bundle {
   val req = Decoupled(new MultiplierReq).flip
   val kill = Bool(INPUT)
   val resp = Decoupled(new MultiplierResp)
 }
 
-class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false)(implicit conf: RocketConfiguration) extends Module {
+class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false) extends Module {
   val io = new MultiplierIO
   val w = io.req.bits.in1.getWidth
   val mulw = (w+mulUnroll-1)/mulUnroll*mulUnroll
