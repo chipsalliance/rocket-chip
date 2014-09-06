@@ -2,57 +2,58 @@ package uncore
 import Chisel._
 import scala.math._
 
-case class AddressSpaceConfiguration(paddrBits: Int, vaddrBits: Int, pgIdxBits: Int, asidBits: Int, permBits:Int) {
-  val ppnBits = paddrBits - pgIdxBits
-  val vpnBits = vaddrBits - pgIdxBits
+case object PAddrBits extends Field[Int]
+case object VAddrBits extends Field[Int]
+case object PgIdxBits extends Field[Int]
+case object ASIdBits extends Field[Int]
+case object PermBits extends Field[Int]
+case object PPNBits extends Field[Int]
+case object VPNBits extends Field[Int]
+
+case object MIFAddrBits extends Field[Int]
+case object MIFDataBits extends Field[Int]
+case object MIFTagBits extends Field[Int]
+case object MIFDataBeats extends Field[Int]
+
+trait HasMemData extends Bundle {
+  val data = Bits(width = params(MIFDataBits))
 }
 
-case class MemoryIFConfiguration(addrBits: Int, dataBits: Int, tagBits: Int, dataBeats: Int)
-
-abstract trait MemoryIFSubBundle extends Bundle {
-  implicit val conf: MemoryIFConfiguration
-  override def clone = this.getClass.getConstructors.head.newInstance(conf).asInstanceOf[this.type]
+trait HasMemAddr extends Bundle {
+  val addr = UInt(width = params(MIFAddrBits))
 }
 
-trait HasMemData extends MemoryIFSubBundle {
-  val data = Bits(width = conf.dataBits)
+trait HasMemTag extends Bundle {
+  val tag = UInt(width = params(MIFTagBits))
 }
 
-trait HasMemAddr extends MemoryIFSubBundle {
-  val addr = UInt(width = conf.addrBits)
-}
-
-trait HasMemTag extends MemoryIFSubBundle {
-  val tag = UInt(width = conf.tagBits)
-}
-
-class MemReqCmd(implicit val conf: MemoryIFConfiguration) extends HasMemAddr with HasMemTag {
+class MemReqCmd extends HasMemAddr with HasMemTag {
   val rw = Bool()
 }
 
-class MemResp(implicit val conf: MemoryIFConfiguration) extends HasMemData with HasMemTag
+class MemResp extends HasMemData with HasMemTag
 
-class MemData(implicit val conf: MemoryIFConfiguration) extends HasMemData
+class MemData extends HasMemData
 
-class MemIO(implicit val conf: MemoryIFConfiguration) extends Bundle {
+class MemIO extends Bundle {
   val req_cmd  = Decoupled(new MemReqCmd)
   val req_data = Decoupled(new MemData)
   val resp     = Decoupled(new MemResp).flip
 }
 
-class MemPipeIO(implicit val conf: MemoryIFConfiguration) extends Bundle {
+class MemPipeIO extends Bundle {
   val req_cmd  = Decoupled(new MemReqCmd)
   val req_data = Decoupled(new MemData)
   val resp     = Valid(new MemResp).flip
 }
 
-class MemSerializedIO(w: Int)(implicit val conf: MemoryIFConfiguration) extends Bundle
+class MemSerializedIO(w: Int) extends Bundle
 {
   val req = Decoupled(Bits(width = w))
   val resp = Valid(Bits(width = w)).flip
 }
 
-class MemSerdes(w: Int)(implicit val conf: MemoryIFConfiguration) extends Module
+class MemSerdes(w: Int) extends Module
 {
   val io = new Bundle {
     val wide = new MemIO().flip
@@ -61,6 +62,7 @@ class MemSerdes(w: Int)(implicit val conf: MemoryIFConfiguration) extends Module
   val abits = io.wide.req_cmd.bits.toBits.getWidth
   val dbits = io.wide.req_data.bits.toBits.getWidth
   val rbits = io.wide.resp.bits.getWidth
+  val dbeats = params(MIFDataBeats)
 
   val out_buf = Reg(Bits())
   val in_buf = Reg(Bits())
@@ -68,7 +70,7 @@ class MemSerdes(w: Int)(implicit val conf: MemoryIFConfiguration) extends Module
   val s_idle :: s_read_addr :: s_write_addr :: s_write_idle :: s_write_data :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_idle)
   val send_cnt = Reg(init=UInt(0, log2Up((max(abits, dbits)+w-1)/w)))
-  val data_send_cnt = Reg(init=UInt(0, log2Up(conf.dataBeats)))
+  val data_send_cnt = Reg(init=UInt(0, log2Up(dbeats)))
   val adone = io.narrow.req.ready && send_cnt === UInt((abits-1)/w)
   val ddone = io.narrow.req.ready && send_cnt === UInt((dbits-1)/w)
 
@@ -104,12 +106,12 @@ class MemSerdes(w: Int)(implicit val conf: MemoryIFConfiguration) extends Module
   }
   when (state === s_write_data && ddone) {
     data_send_cnt := data_send_cnt + UInt(1)
-    state := Mux(data_send_cnt === UInt(conf.dataBeats-1), s_idle, s_write_idle)
+    state := Mux(data_send_cnt === UInt(dbeats-1), s_idle, s_write_idle)
     send_cnt := UInt(0)
   }
 
   val recv_cnt = Reg(init=UInt(0, log2Up((rbits+w-1)/w)))
-  val data_recv_cnt = Reg(init=UInt(0, log2Up(conf.dataBeats)))
+  val data_recv_cnt = Reg(init=UInt(0, log2Up(dbeats)))
   val resp_val = Reg(init=Bool(false))
 
   resp_val := Bool(false)
@@ -127,21 +129,22 @@ class MemSerdes(w: Int)(implicit val conf: MemoryIFConfiguration) extends Module
   io.wide.resp.bits := io.wide.resp.bits.fromBits(in_buf)
 }
 
-class MemDesserIO(w: Int)(implicit val conf: MemoryIFConfiguration) extends Bundle {
+class MemDesserIO(w: Int) extends Bundle {
   val narrow = new MemSerializedIO(w).flip
   val wide = new MemIO
 }
 
-class MemDesser(w: Int)(implicit val conf: MemoryIFConfiguration) extends Module // test rig side
+class MemDesser(w: Int) extends Module // test rig side
 {
   val io = new MemDesserIO(w)
   val abits = io.wide.req_cmd.bits.toBits.getWidth
   val dbits = io.wide.req_data.bits.toBits.getWidth
   val rbits = io.wide.resp.bits.getWidth
+  val dbeats = params(MIFDataBeats)
 
   require(dbits >= abits && rbits >= dbits)
   val recv_cnt = Reg(init=UInt(0, log2Up((rbits+w-1)/w)))
-  val data_recv_cnt = Reg(init=UInt(0, log2Up(conf.dataBeats)))
+  val data_recv_cnt = Reg(init=UInt(0, log2Up(dbeats)))
   val adone = io.narrow.req.valid && recv_cnt === UInt((abits-1)/w)
   val ddone = io.narrow.req.valid && recv_cnt === UInt((dbits-1)/w)
   val rdone = io.narrow.resp.valid && recv_cnt === UInt((rbits-1)/w)
@@ -169,13 +172,13 @@ class MemDesser(w: Int)(implicit val conf: MemoryIFConfiguration) extends Module
   }
   when (state === s_data && io.wide.req_data.ready) {
     state := s_data_recv
-    when (data_recv_cnt === UInt(conf.dataBeats-1)) {
+    when (data_recv_cnt === UInt(dbeats-1)) {
       state := s_cmd_recv
     }
     data_recv_cnt := data_recv_cnt + UInt(1)
   }
   when (rdone) { // state === s_reply
-    when (data_recv_cnt === UInt(conf.dataBeats-1)) {
+    when (data_recv_cnt === UInt(dbeats-1)) {
       state := s_cmd_recv
     }
     recv_cnt := UInt(0)
@@ -189,7 +192,7 @@ class MemDesser(w: Int)(implicit val conf: MemoryIFConfiguration) extends Module
   io.wide.req_data.valid := state === s_data
   io.wide.req_data.bits.data := in_buf >> UInt(((rbits+w-1)/w - (dbits+w-1)/w)*w)
 
-  val dataq = Module(new Queue(new MemResp, conf.dataBeats))
+  val dataq = Module(new Queue(new MemResp, dbeats))
   dataq.io.enq <> io.wide.resp
   dataq.io.deq.ready := recv_cnt === UInt((rbits-1)/w)
 
@@ -198,18 +201,21 @@ class MemDesser(w: Int)(implicit val conf: MemoryIFConfiguration) extends Module
 }
 
 //Adapter betweewn an UncachedTileLinkIO and a mem controller MemIO
-class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit tlconf: TileLinkConfiguration, mifconf: MemoryIFConfiguration) extends Module {
+class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
   val io = new Bundle {
     val uncached = new UncachedTileLinkIO().flip
     val mem = new MemIO
   }
-
-  require(tlconf.dataBits == mifconf.dataBits*mifconf.dataBeats)
-  //require(tlconf.clientXactIdBits <= mifconf.tagBits)
+  val co = params(TLCoherence)
+  val tbits = params(MIFTagBits)
+  val dbits = params(MIFDataBits)
+  val dbeats = params(MIFDataBeats)
+  require(params(TLDataBits) == dbits*dbeats)
+  //require(params(TLClientXactIdBits) <= params(MIFTagBits))
 
   val mem_cmd_q = Module(new Queue(new MemReqCmd, qDepth))
   val mem_data_q = Module(new Queue(new MemData, qDepth))
-  val cnt_max = mifconf.dataBeats
+  val cnt_max = dbeats
 
   val cnt_out = Reg(UInt(width = log2Up(cnt_max+1)))
   val active_out = Reg(init=Bool(false))
@@ -222,7 +228,7 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit tlconf: TileLinkCon
   val cnt_in = Reg(UInt(width = log2Up(cnt_max+1)))
   val active_in = Reg(init=Bool(false))
   val buf_in = Reg(Bits())
-  val tag_in = Reg(UInt(width = mifconf.tagBits))
+  val tag_in = Reg(UInt(width = tbits))
   
   // Decompose outgoing TL Acquires into MemIO cmd and data
   when(!active_out && io.uncached.acquire.valid) {
@@ -232,7 +238,7 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit tlconf: TileLinkCon
     buf_out := io.uncached.acquire.bits.payload.data
     tag_out := io.uncached.acquire.bits.payload.client_xact_id
     addr_out := io.uncached.acquire.bits.payload.addr
-    has_data := tlconf.co.messageHasData(io.uncached.acquire.bits.payload)
+    has_data := co.messageHasData(io.uncached.acquire.bits.payload)
   }
   when(active_out) {
     when(mem_cmd_q.io.enq.fire()) {
@@ -240,7 +246,7 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit tlconf: TileLinkCon
     }
     when(mem_data_q.io.enq.fire()) {
       cnt_out := cnt_out + UInt(1)
-      buf_out := buf_out >> UInt(mifconf.dataBits) 
+      buf_out := buf_out >> UInt(dbits) 
     }
     when(cmd_sent_out && (!has_data || cnt_out === UInt(cnt_max))) {
       active_out := Bool(false)
@@ -264,7 +270,7 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit tlconf: TileLinkCon
   when(!active_in && io.mem.resp.valid) {
     active_in := Bool(true)
     cnt_in := UInt(1)
-    buf_in := io.mem.resp.bits.data << UInt(mifconf.dataBits*(cnt_max-1))
+    buf_in := io.mem.resp.bits.data << UInt(dbits*(cnt_max-1))
     tag_in := io.mem.resp.bits.tag
   }
   when(active_in) {
@@ -272,7 +278,7 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int)(implicit tlconf: TileLinkCon
       active_in := Bool(false)
     }
     when(io.mem.resp.fire()) {
-      buf_in := Cat(io.mem.resp.bits.data, buf_in(cnt_max*mifconf.dataBits-1,mifconf.dataBits))
+      buf_in := Cat(io.mem.resp.bits.data, buf_in(cnt_max*dbits-1,dbits))
       cnt_in := cnt_in + UInt(1)
     }
   }

@@ -77,26 +77,26 @@ class BigMem[T <: Data](n: Int, preLatency: Int, postLatency: Int, leaf: Mem[UIn
   io.rdata := Mux1H(rdataSel, rdataDeep)
 }
 
-class LLCDataReq(ways: Int)(implicit conf: MemoryIFConfiguration) extends MemReqCmd
+class LLCDataReq(ways: Int) extends MemReqCmd
 {
   val way = UInt(width = log2Up(ways))
   val isWriteback = Bool()
-  override def clone = new LLCDataReq(ways)(conf).asInstanceOf[this.type]
+  override def clone = new LLCDataReq(ways).asInstanceOf[this.type]
 }
 
-class LLCTagReq(ways: Int)(implicit val conf: MemoryIFConfiguration) extends HasMemAddr
+class LLCTagReq(ways: Int) extends HasMemAddr
 {
   val way = UInt(width = log2Up(ways))
-  override def clone = new LLCTagReq(ways)(conf).asInstanceOf[this.type]
+  override def clone = new LLCTagReq(ways).asInstanceOf[this.type]
 }
 
-class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int)(implicit conf: MemoryIFConfiguration) extends Module
+class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int) extends Module
 {
   val io = new Bundle {
     val cpu = Decoupled(new MemReqCmd).flip
     val repl_way = UInt(INPUT, log2Up(ways))
     val repl_dirty = Bool(INPUT)
-    val repl_tag = UInt(INPUT, conf.addrBits - log2Up(sets))
+    val repl_tag = UInt(INPUT, params(MIFAddrBits) - log2Up(sets))
     val data = Decoupled(new LLCDataReq(ways))
     val tag = Decoupled(new LLCTagReq(ways))
     val mem = new MemPipeIO
@@ -105,14 +105,14 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int)(im
   }
 
   class MSHR extends Bundle {
-    val addr = UInt(width = conf.addrBits)
+    val addr = UInt(width = params(MIFAddrBits))
     val way = UInt(width = log2Up(ways))
     val tag = io.cpu.bits.tag.clone
     val refilled = Bool()
     val refillCount = UInt(width = log2Up(refill_cycles))
     val requested = Bool()
     val old_dirty = Bool()
-    val old_tag = UInt(width = conf.addrBits - log2Up(sets))
+    val old_tag = UInt(width = params(MIFAddrBits) - log2Up(sets))
     val wb_busy = Bool()
 
     override def clone = new MSHR().asInstanceOf[this.type]
@@ -188,10 +188,10 @@ class LLCMSHRFile(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int)(im
   io.mem_resp_way := mshr(refillId).way
 }
 
-class LLCWriteback(requestors: Int, refill_cycles: Int)(implicit conf: MemoryIFConfiguration) extends Module
+class LLCWriteback(requestors: Int, refill_cycles: Int) extends Module
 {
   val io = new Bundle {
-    val req = Vec.fill(requestors){Decoupled(UInt(width = conf.addrBits)).flip }
+    val req = Vec.fill(requestors){Decoupled(UInt(width = params(MIFAddrBits))).flip }
     val data = Vec.fill(requestors){Decoupled(new MemData).flip }
     val mem = new MemPipeIO
   }
@@ -237,12 +237,12 @@ class LLCWriteback(requestors: Int, refill_cycles: Int)(implicit conf: MemoryIFC
   io.mem.req_data.bits := io.data(who).bits
 }
 
-class LLCData(latency: Int, sets: Int, ways: Int, refill_cycles: Int, leaf: Mem[UInt])(implicit conf: MemoryIFConfiguration) extends Module
+class LLCData(latency: Int, sets: Int, ways: Int, refill_cycles: Int, leaf: Mem[UInt]) extends Module
 {
   val io = new Bundle {
     val req = Decoupled(new LLCDataReq(ways)).flip
     val req_data = Decoupled(new MemData).flip
-    val writeback = Decoupled(UInt(width = conf.addrBits))
+    val writeback = Decoupled(UInt(width = params(MIFAddrBits)))
     val writeback_data = Decoupled(new MemData)
     val resp = Decoupled(new MemResp)
     val mem_resp = Valid(new MemResp).flip
@@ -250,7 +250,7 @@ class LLCData(latency: Int, sets: Int, ways: Int, refill_cycles: Int, leaf: Mem[
     val mem_resp_way = UInt(INPUT, log2Up(ways))
   }
 
-  val data = Module(new BigMem(sets*ways*refill_cycles, 1, latency-1, leaf, true)(Bits(width = conf.dataBits)))
+  val data = Module(new BigMem(sets*ways*refill_cycles, 1, latency-1, leaf, true)(Bits(width = params(MIFDataBits))))
   class QEntry extends MemResp {
     val isWriteback = Bool()
     override def clone = new QEntry().asInstanceOf[this.type]
@@ -304,7 +304,7 @@ class LLCData(latency: Int, sets: Int, ways: Int, refill_cycles: Int, leaf: Mem[
   io.writeback_data.bits := q.io.deq.bits
 }
 
-class MemReqArb(n: Int, refill_cycles: Int)(implicit conf: MemoryIFConfiguration) extends Module
+class MemReqArb(n: Int, refill_cycles: Int) extends Module
 {
   val io = new Bundle {
     val cpu = Vec.fill(n){new MemIO().flip}
@@ -347,16 +347,16 @@ class MemReqArb(n: Int, refill_cycles: Int)(implicit conf: MemoryIFConfiguration
   when (unlock) { lock := Bool(false) }
 }
 
-abstract class DRAMSideLLCLike(implicit conf: MemoryIFConfiguration) extends Module {
+abstract class DRAMSideLLCLike extends Module {
   val io = new Bundle {
     val cpu = new MemIO().flip
     val mem = new MemPipeIO
   }
 }
 
-class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int, tagLeaf: Mem[UInt], dataLeaf: Mem[UInt])(implicit conf: MemoryIFConfiguration) extends DRAMSideLLCLike
+class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int, tagLeaf: Mem[UInt], dataLeaf: Mem[UInt]) extends DRAMSideLLCLike
 {
-  val tagWidth = conf.addrBits - log2Up(sets)
+  val tagWidth = params(MIFAddrBits) - log2Up(sets)
   val metaWidth = tagWidth + 2 // valid + dirty
 
   val memCmdArb = Module(new Arbiter(new MemReqCmd, 2))
@@ -504,8 +504,7 @@ object HellaQueue
   }
 }
 
-class DRAMSideLLCNull(numRequests: Int, refillCycles: Int)(implicit conf: MemoryIFConfiguration) 
-  extends DRAMSideLLCLike {
+class DRAMSideLLCNull(numRequests: Int, refillCycles: Int) extends DRAMSideLLCLike {
 
   val numEntries = numRequests * refillCycles
   val size = log2Down(numEntries) + 1
