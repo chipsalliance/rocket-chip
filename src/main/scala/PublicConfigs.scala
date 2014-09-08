@@ -75,7 +75,7 @@ class DefaultConfig extends ChiselConfig {
       case FastMulDiv => true
       case XprLen => 64
       case NMultXpr => 32
-      case BuildFPU => Some(() => new FPU)
+      case BuildFPU => Some(() => Module(new FPU))
       case SFMALatency => 2
       case DFMALatency => 3
       case CoreInstBits => 32
