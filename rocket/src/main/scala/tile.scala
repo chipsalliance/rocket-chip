@@ -4,7 +4,7 @@ import Chisel._
 import uncore._
 import Util._
 
-case object WhichL1Cache extends Field[String]
+case object CoreName extends Field[String]
 case object NDCachePorts extends Field[Int]
 case object NTilePorts extends Field[Int]
 case object NPTWPorts extends Field[Int]
@@ -16,10 +16,10 @@ class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
     val host = new HTIFIO
   }
 
-  val icache = Module(new Frontend, { case CacheName => "L1I" })
+  val icache = Module(new Frontend, { case CacheName => "L1I"; case CoreName => "Rocket" })
   val dcache = Module(new HellaCache, { case CacheName => "L1D" })
   val ptw = Module(new PTW(params(NPTWPorts)))
-  val core = Module(new Core)
+  val core = Module(new Core, { case CoreName => "Rocket" })
 
   val dcArb = Module(new HellaCacheArbiter(params(NDCachePorts)))
   dcArb.io.requestor(0) <> ptw.io.mem
@@ -40,11 +40,11 @@ class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
 
   //If so specified, build an RoCC module and wire it in
   params(BuildRoCC)
-    .map { br => Module(br()) }
+    .map { br => br() }
     .foreach { rocc =>
       val dcIF = Module(new SimpleHellaCacheIF)
-      dcIF.io.requestor <> rocc.io.mem
       core.io.rocc <> rocc.io
+      dcIF.io.requestor <> rocc.io.mem
       dcArb.io.requestor(2) <> dcIF.io.cache
       memArb.io.in(2) <> rocc.io.imem
       ptw.io.requestor(2) <> rocc.io.iptw
@@ -62,4 +62,5 @@ class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
   dcache.io.mem.release.ready := io.tilelink.release.ready
   io.tilelink.release.bits := dcache.io.mem.release.bits
   io.tilelink.release.bits.payload.client_xact_id :=  Cat(dcache.io.mem.release.bits.payload.client_xact_id, UInt(dcPortId, log2Up(params(NTilePorts))))
+
 }

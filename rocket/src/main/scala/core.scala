@@ -49,7 +49,7 @@ class Core extends Module with CoreParameters
 
   //If so specified, build an FPU module and wire it in
   params(BuildFPU) 
-    .map { bf => Module(bf()) } 
+    .map { bf => bf() } 
     .foreach { fpu => 
       dpath.io.fpu <> fpu.io.dpath
       ctrl.io.fpu <> fpu.io.ctrl
