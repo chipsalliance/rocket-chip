@@ -160,6 +160,7 @@ class FPGAConfig(default: ChiselConfig) extends ChiselConfig {
       case NITLBEntries => 4
       case NBTBEntries => 8
       case NDTLBEntries => 4
+      case UseBackupMemoryPort => false
       case _ => default.topDefinitions(pname,site,here)
     }
   }

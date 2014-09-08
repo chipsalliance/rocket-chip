@@ -1,5 +1,4 @@
 MODEL := Top
-FPGAMODEL := FPGATop
 CXX := g++
 CXXFLAGS := -O1
 
@@ -22,23 +21,14 @@ timeout_cycles = 100000000
 
 # VLSI Backend
 $(generated_dir)/$(MODEL).v: $(chisel_srcs)
-	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate $(MODEL) --backend rocketchip.RocketChipBackend --targetDir $(generated_dir) --noInlineMem --configInstance rocketchip.DefaultVLSIConfig"
+	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate $(MODEL) --backend $(BACKEND) --targetDir $(generated_dir) --noInlineMem --configInstance rocketchip.$(CONFIG)"
 	cd $(generated_dir) && \
 	if [ -a $(MODEL).conf ]; then \
-		sed -i 's*^*$(vlsi_mem_gen) *' $(MODEL).conf && \
-		sed -i 's*$$* >> $(MODEL).v*' $(MODEL).conf && \
-		sh $(MODEL).conf; \
+	  $(mem_gen) $(generated_dir)/$(MODEL).conf >> $(generated_dir)/$(MODEL).v; \
 	fi
 
-# FPGA Backend
-$(generated_dir)/$(FPGAMODEL).v: $(chisel_srcs)
-	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate $(FPGAMODEL) --backend fpga --targetDir $(generated_dir) --configInstance rocketchip.DefaultFPGAConfig"
-
-$(generated_dir)/$(FPGAMODEL)Mem.v: $(generated_dir)/$(FPGAMODEL).conf $(mem_gen)
-	$(mem_gen) $(generated_dir)/$(FPGAMODEL).conf > $(generated_dir)/$(FPGAMODEL)Mem.v
-
 $(generated_dir)/memdessertMemDessert.v: $(base_dir)/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala
-	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate MemDessert --backend v --targetDir $(generated_dir) --moduleNamePrefix memdessert --configInstance rocketchip.DefaultVLSIConfig"
+	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate MemDessert --backend v --targetDir $(generated_dir) --moduleNamePrefix memdessert --configInstance rocketchip.$(CONFIG)"
 
 #--------------------------------------------------------------------
 # DRAMSim2

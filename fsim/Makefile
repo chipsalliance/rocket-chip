@@ -15,6 +15,9 @@ mem_gen = $(base_dir)/fsim/fpga_mem_gen
 sim_dir = .
 output_dir = $(sim_dir)/output
 
+BACKEND = fpga
+CONFIG = DefaultFPGAConfig
+
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag
 include $(base_dir)/vsim/Makefrag-sim

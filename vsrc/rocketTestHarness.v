@@ -112,7 +112,7 @@ module rocketTestHarness;
   wire #0.1 mem_bk_in_valid_delay = mem_bk_in_valid;
   wire mem_bk_out_valid_delay; assign #0.1 mem_bk_out_valid = mem_bk_out_valid_delay;
 
-  `TOP dut
+  Top dut
   (
     .clk(clk),
     .reset(reset),

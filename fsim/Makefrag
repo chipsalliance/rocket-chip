@@ -6,8 +6,7 @@
 # Verilog sources
 
 sim_vsrcs = \
-	$(generated_dir)/$(FPGAMODEL).v \
-	$(generated_dir)/$(FPGAMODEL)Mem.v \
+	$(generated_dir)/$(MODEL).v \
 	$(generated_dir)/memdessertMemDessert.v \
 	$(base_dir)/vsrc/const.vh \
 	$(base_dir)/vsrc/rocketTestHarness.v \
@@ -45,7 +44,6 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -timescale=1ns/10ps -quiet
 	$(RISCV)/lib/libfesvr.so \
 	$(sim_dir)/libdramsim.a \
 	+define+FPGA \
-	+define+TOP=$(FPGAMODEL) \
 	+define+CLOCK_PERIOD=0.5 $(sim_vsrcs) $(sim_csrcs) \
 	+define+PRINTF_COND=rocketTestHarness.verbose \
 	+libext+.v \

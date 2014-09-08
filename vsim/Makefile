@@ -11,9 +11,12 @@ default: all
 
 base_dir = $(abspath ..)
 generated_dir = $(abspath ./generated-src)
-vlsi_mem_gen = $(base_dir)/vsim/vlsi_mem_gen
+mem_gen = $(base_dir)/vsim/vlsi_mem_gen
 sim_dir = .
 output_dir = $(sim_dir)/output
+
+BACKEND = rocketchip.RocketChipBackend
+CONFIG = DefaultVLSIConfig
 
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag

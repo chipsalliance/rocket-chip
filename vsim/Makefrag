@@ -43,7 +43,6 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -timescale=1ns/10ps -quiet
 	-e vcs_main \
 	$(RISCV)/lib/libfesvr.so \
 	$(sim_dir)/libdramsim.a \
-	+define+TOP=$(MODEL) \
 	+define+CLOCK_PERIOD=0.5 $(sim_vsrcs) $(sim_csrcs) \
 	+define+PRINTF_COND=rocketTestHarness.verbose \
 	+libext+.v \

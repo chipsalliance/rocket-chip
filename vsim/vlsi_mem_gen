@@ -4,6 +4,31 @@ import math
 
 use_latches = 0
 
+def parse_line(line):
+  name = ''
+  width = 0
+  depth = 0
+  ports = ''
+  mask_gran = 1
+  tokens = line.split()
+  i = 0
+  for i in xrange(0,len(tokens),2):
+    s = tokens[i]
+    if s == 'name':
+      name = tokens[i+1]
+    elif s == 'width':
+      width = int(tokens[i+1])
+    elif s == 'depth':
+      depth = int(tokens[i+1])
+    elif s == 'ports':
+      ports = tokens[i+1].split(',')
+    elif s == 'mask_gran':
+      # currently used only for fpga, but here for .conf format compatability
+      mask_gran = int(tokens[i+1])
+    else:
+      sys.exit('%s: unknown argument %s' % (sys.argv[0], a))
+  return (name, width, depth, ports)
+
 def gen_mem(name, width, depth, ports):
   addr_width = max(math.ceil(math.log(depth)/math.log(2)),1)
   port_spec = ['input CLK', 'input RST', 'input init']
@@ -112,33 +137,11 @@ def gen_mem(name, width, depth, ports):
 endmodule\n" % (name, ',\n  '.join(port_spec), body)
   return s
 
-name = ''
-width = 0
-depth = 0
-ports = ''
+def main():
+  if len(sys.argv) < 2:
+    sys.exit('Please give a .conf file as input')
+  for line in open(sys.argv[1]):
+    print gen_mem(*parse_line(line))
 
-tokens = sys.argv[1:len(sys.argv)]
-i = 0
-while i < len(tokens):
-  a = tokens[i]
-  if a == 'name':
-    name = tokens[i+1]
-    i += 1
-  elif a == 'width':
-    width = int(tokens[i+1])
-    i += 1
-  elif a == 'depth':
-    depth = int(tokens[i+1])
-    i += 1
-  elif a == 'ports':
-    ports = tokens[i+1].split(',')
-    i += 1
-  elif a == 'mask_gran':
-    # currently used only for fpga, but here for .conf format compatability
-    mask_gran = int(tokens[i+1])
-    i += 1
-  else:
-    sys.exit('%s: unknown argument %s' % (sys.argv[0], a))
-  i += 1
-
-print gen_mem(name, width, depth, ports)
+if __name__ == '__main__':
+  main()
