@@ -79,10 +79,6 @@ $(output_dir)/%.vpd: $(output_dir)/%.hex emulator-debug
 
 run-asm-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(asm_p_tests) $(asm_v_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
-run-vecasm-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(vecasm_p_tests) $(vecasm_v_tests)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
-run-vecasm-timer-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(vecasm_pt_tests)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
 run-bmarks-test: $(addprefix $(output_dir)/, $(addsuffix .out, $(bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
 run-mt-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(mt_bmarks)))
@@ -90,15 +86,18 @@ run-mt-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(mt_bmarks)))
 
 run-asm-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(asm_p_tests) $(asm_v_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
-run-vecasm-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(vecasm_p_tests) $(vecasm_v_tests)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
-run-vecasm-timer-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(vecasm_pt_tests)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
 run-bmarks-test-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
 run-mt-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(mt_bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
 
-run: run-asm-tests run-bmarks-test #run-vecasm-tests run-vecasm-timer-tests
-run-debug: run-asm-tests-debug run-bmarks-test-debug #run-vecasm-tests-debug run-vecasm-timer-tests-debug
+# UCB use only
+-include Makefrag-refchip
+
+run: run-asm-tests run-bmarks-test
+run-debug: run-asm-tests-debug run-bmarks-test-debug
 run-fast: $(addprefix $(output_dir)/, $(addsuffix .run, $(asm_p_tests) $(asm_v_tests) $(bmarks)))
+
+.PHONY: run-asm-tests run-bmarks-test run-mt-tests
+.PHONY: run-asm-tests-debug run-bmarks-test-debug run-mt-tests-debug
+.PHONY: run run-debug run-fast
