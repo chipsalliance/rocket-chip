@@ -1,6 +1,11 @@
 # UCB use only
 -include $(base_dir)/Makefrag-refchip
 
+# check RISCV environment variable
+ifndef RISCV
+$(error Please set environment variable RISCV. Please take a look at README)
+endif
+
 MODEL := Top
 CXX := g++
 CXXFLAGS := -O1
