@@ -1,7 +1,5 @@
 // Test harness for Rocket RISC-V Processor
 
-`define HTIF_WIDTH 16
-
 extern "A" void htif_init
 (
   input reg [31:0] htif_width,
@@ -233,7 +231,7 @@ module rocketTestHarness;
     .io_wide_resp_bits_tag(mem_bk_resp_tag)
   );
 
-  BRAMMem mem
+  BackupMemory mem
   (
     .clk(htif_clk),
     .reset(reset),

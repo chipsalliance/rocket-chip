@@ -7,10 +7,10 @@
 
 sim_vsrcs = \
 	$(generated_dir)/$(MODEL).v \
+	$(generated_dir)/consts.vh \
 	$(generated_dir)/memdessertMemDessert.v \
-	$(base_dir)/vsrc/const.vh \
 	$(base_dir)/vsrc/rocketTestHarness.v \
-	$(base_dir)/vsrc/bram_mem.v \
+	$(base_dir)/vsrc/backup_mem.v \
 
 # C sources
 

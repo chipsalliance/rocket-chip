@@ -9,7 +9,7 @@ class DefaultConfig extends ChiselConfig {
   val topDefinitions:World.TopDefs = {
     (pname,site,here) => pname match {
       //HTIF Parameters
-      case HTIFWidth => 16
+      case HTIFWidth => Dump("HTIF_WIDTH", 16)
       case HTIFNSCR => 64
       case HTIFOffsetBits => site(CacheBlockOffsetBits)
       case HTIFNCores => site(NTiles)
@@ -21,9 +21,9 @@ class DefaultConfig extends ChiselConfig {
       case PermBits => 6
       case PPNBits => site(PAddrBits) - site(PgIdxBits)
       case VPNBits => site(VAddrBits) - site(PgIdxBits)
-      case MIFTagBits => 5
-      case MIFDataBits => 128
-      case MIFAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
+      case MIFTagBits => Dump("MEM_TAG_BITS", 5)
+      case MIFDataBits => Dump("MEM_DATA_BITS", 128)
+      case MIFAddrBits => Dump("MEM_ADDR_BITS", site(PAddrBits) - site(CacheBlockOffsetBits))
       case MIFDataBeats => site(TLDataBits)/site(MIFDataBits)
       //Params used by all caches
       case ECCCode => None

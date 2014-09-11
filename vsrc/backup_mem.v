@@ -1,4 +1,5 @@
-`define ceilLog2(x) ((x) > 2**30 ? 31 : \
+`define ceilLog2(x) ( \
+(x) > 2**30 ? 31 : \
 (x) > 2**29 ? 30 : \
 (x) > 2**28 ? 29 : \
 (x) > 2**27 ? 28 : \
@@ -31,7 +32,7 @@
 (x) > 2**0 ? 1 : 0)
 
 `ifdef MEM_BACKUP_EN
-module BRAMMem
+module BackupMemory
 (
   input         clk,
   input         reset,
@@ -40,7 +41,7 @@ module BRAMMem
   output                      mem_req_ready,
   input                       mem_req_rw,
   input [`MEM_ADDR_BITS-1:0]  mem_req_addr,
-  input  [15:0]               mem_req_tag,
+  input [`MEM_TAG_BITS-1:0]   mem_req_tag,
 
   input                       mem_req_data_valid,
   output                      mem_req_data_ready,
@@ -48,14 +49,14 @@ module BRAMMem
 
   output reg                  mem_resp_valid,
   output reg [`MEM_DATA_BITS-1:0] mem_resp_data,
-  output reg  [15:0]          mem_resp_tag
+  output reg [`MEM_TAG_BITS-1:0] mem_resp_tag
 );
 
   localparam DATA_CYCLES = 4;
   localparam DEPTH = 2*1024*1024;
 
   reg [`ceilLog2(DATA_CYCLES)-1:0] cnt;
-  reg [15:0] tag;
+  reg [`MEM_TAG_BITS-1:0] tag;
   reg state_busy, state_rw;
   reg [`MEM_ADDR_BITS-1:0] addr;
 
