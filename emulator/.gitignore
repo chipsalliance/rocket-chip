@@ -3,9 +3,8 @@
 *.a
 *.log
 output/
-emulator
+emulator-*
 generated-src
-emulator-debug
 generated-src-debug
 kernel
 kernel.hex

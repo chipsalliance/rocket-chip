@@ -23,6 +23,9 @@ include $(sim_dir)/Makefrag
 include $(base_dir)/vsim/Makefrag-sim
 
 all: $(simv)
+debug: $(simv_debug)
 
 clean:
 	rm -rf $(junk) simv* csrc *.key DVE* *.h *.a *.daidir $(generated_dir)
+
+.PHONY: default all debug clean

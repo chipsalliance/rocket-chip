@@ -27,20 +27,20 @@ timeout_cycles = 100000000
 # Verilog Generation
 #--------------------------------------------------------------------
 
-$(generated_dir)/$(MODEL).v: $(chisel_srcs)
+$(generated_dir)/$(MODEL).$(CONFIG).v: $(chisel_srcs)
 	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate $(MODEL) --backend $(BACKEND) --targetDir $(generated_dir) --noInlineMem --configInstance rocketchip.$(CONFIG) --configDump"
 	cd $(generated_dir) && \
-	if [ -a $(MODEL).conf ]; then \
-	  $(mem_gen) $(generated_dir)/$(MODEL).conf >> $(generated_dir)/$(MODEL).v; \
+	if [ -a $(MODEL).$(CONFIG).conf ]; then \
+	  $(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $(generated_dir)/$(MODEL).$(CONFIG).v; \
 	fi
 
-$(generated_dir)/consts.vh: $(generated_dir)/rocketchip.$(CONFIG).prm
+$(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(MODEL).$(CONFIG).v
 	echo "\`ifndef CONST_VH" > $@
 	echo "\`define CONST_VH" >> $@
-	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/`define \1 \2/' $< >> $@
+	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/`define \1 \2/' $(patsubst %.v,%.prm,$<) >> $@
 	echo "\`endif // CONST_VH" >> $@
 
-$(generated_dir)/memdessertMemDessert.v: $(base_dir)/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala
+$(generated_dir)/memdessertMemDessert.$(CONFIG).v: $(base_dir)/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala
 	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate MemDessert --backend v --targetDir $(generated_dir) --moduleNamePrefix memdessert --configInstance rocketchip.$(CONFIG)"
 
 #--------------------------------------------------------------------

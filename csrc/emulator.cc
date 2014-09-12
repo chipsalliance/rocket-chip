@@ -2,7 +2,6 @@
 #include "emulator.h"
 #include "mm.h"
 #include "mm_dramsim2.h"
-#include "Top.h" // chisel-generated code...
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>

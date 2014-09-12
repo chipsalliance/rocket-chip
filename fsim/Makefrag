@@ -6,9 +6,9 @@
 # Verilog sources
 
 sim_vsrcs = \
-	$(generated_dir)/$(MODEL).v \
-	$(generated_dir)/consts.vh \
-	$(generated_dir)/memdessertMemDessert.v \
+	$(generated_dir)/$(MODEL).$(CONFIG).v \
+	$(generated_dir)/consts.$(CONFIG).vh \
+	$(generated_dir)/memdessertMemDessert.$(CONFIG).v \
 	$(base_dir)/vsrc/rocketTestHarness.v \
 	$(base_dir)/vsrc/backup_mem.v \
 
@@ -52,12 +52,12 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -timescale=1ns/10ps -quiet
 # Build the simulator
 #--------------------------------------------------------------------
 
-simv = $(sim_dir)/simv
+simv = $(sim_dir)/simv-$(CONFIG)
 $(simv) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a
 	cd $(sim_dir) && \
 	$(VCS) $(VCS_OPTS) -o $(simv) \
 
-simv_debug = $(sim_dir)/simv-debug
+simv_debug = $(sim_dir)/simv-$(CONFIG)-debug
 $(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a
 	cd $(sim_dir) && \
 	$(VCS) $(VCS_OPTS) -o $(simv_debug) \
