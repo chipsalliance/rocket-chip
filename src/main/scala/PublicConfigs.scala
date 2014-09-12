@@ -103,7 +103,7 @@ class DefaultConfig extends ChiselConfig {
         if(site[Boolean]("USE_DRAMSIDE_LLC")) {
           val tag = Mem(Bits(width = 152), 512, seqRead = true)
           val data = Mem(Bits(width = 64), 4096, seqRead = true)
-          Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, 
+          Module(new DRAMSideLLC_HasKnownBug(sets=512, ways=8, outstanding=16,
             refill_cycles=refill, tagLeaf=tag, dataLeaf=data))
         } else {
           Module(new DRAMSideLLCNull(8, refill))
@@ -130,7 +130,7 @@ class DefaultConfig extends ChiselConfig {
       }
       case "ENABLE_SHARING" => true
       case "ENABLE_CLEAN_EXCLUSIVE" => true
-      case "USE_DRAMSIDE_LLC" => false
+      case "USE_DRAMSIDE_LLC" => false // DO NOT TURN ON. Read uncore/src/main/scala/llc.scala
       case "USE_L2_CACHE" => false 
     }
   }
