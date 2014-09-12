@@ -1,4 +1,4 @@
-// Test harness for Rocket RISC-V Processor
+// See LICENSE for license details.
 
 extern "A" void htif_init
 (

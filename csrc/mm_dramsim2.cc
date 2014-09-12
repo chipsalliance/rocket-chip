@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 #include "mm_dramsim2.h"
 #include "mm.h"
 #include <DRAMSim.h>

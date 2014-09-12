@@ -1,4 +1,7 @@
-#!/usr/bin/env python
+#! /usr/bin/env python
+
+# See LICENSE for license details.
+
 import sys
 import math
 

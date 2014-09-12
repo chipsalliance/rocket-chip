@@ -1,8 +1,10 @@
-#!/usr/bin/env python
+#! /usr/bin/env python
+
+# See LICENSE for license details.
+# This is based off of reference-chip/vlsi/src/vlsi_mem_gen
+
 import sys
 import math
-
-# This is based off of reference-chip/vlsi/src/vlsi_mem_gen
 
 use_latches = 1
 

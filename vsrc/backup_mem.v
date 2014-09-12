@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 `define ceilLog2(x) ( \
 (x) > 2**30 ? 31 : \
 (x) > 2**29 ? 30 : \

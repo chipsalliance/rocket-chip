@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 #ifndef _MM_EMULATOR_DRAMSIM2_H
 #define _MM_EMULATOR_DRAMSIM2_H
 

@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 #include "htif_emulator.h"
 #include "mm.h"
 #include "mm_dramsim2.h"

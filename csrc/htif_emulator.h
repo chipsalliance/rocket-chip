@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 #ifndef _HTIF_EMULATOR_H
 #define _HTIF_EMULATOR_H
 

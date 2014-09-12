@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 #include "htif_emulator.h"
 #include "emulator.h"
 #include "mm.h"

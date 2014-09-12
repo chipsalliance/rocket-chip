@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 #include "mm.h"
 #include <iostream>
 #include <fstream>

@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 #ifndef MM_EMULATOR_H
 #define MM_EMULATOR_H
 
