@@ -30,7 +30,20 @@ object BuildSettings extends Build {
   lazy val hardfloat = Project("hardfloat", file("hardfloat"), settings = buildSettings) dependsOn(chisel)
   lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(hardfloat)
   lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore)
-  lazy val rocketchip = Project("rocketchip", file("."), settings = buildSettings ++ chipSettings) dependsOn(rocket)
+  
+  val baselist = Vector("chisel", "uncore", "rocket", "hardfloat")
+  def show[A](in: Seq[A]) = in.map(_.toString).foldRight("")(_+" "+_)
+  def getsubdirs = {
+    val blacklist = (baselist ++ Vector("target", "project"))
+    IO.listFiles(file(".")) map (_.toString.split("/").last) filter (f=> !blacklist.contains(f)) filter (f=> !IO.listFiles(file(f+"/src/main/scala")).isEmpty)
+  }
+
+  val othersources = getsubdirs map (f=>s"${f}/src/main/scala") map (f=>file(f))
+  val addOtherFiles = Seq (
+    unmanagedSourceDirectories in Compile ++= othersources.toSeq
+  ) // aggregate extra sources into rocketchip
+  
+  lazy val rocketchip = Project("rocketchip", file("."), settings = buildSettings ++ chipSettings ++ addOtherFiles).dependsOn(chisel, hardfloat, uncore, rocket)
 
   val elaborateTask = InputKey[Unit]("elaborate", "convert chisel components into backend source code")
   val makeTask = InputKey[Unit]("make", "trigger backend-specific makefile command")
