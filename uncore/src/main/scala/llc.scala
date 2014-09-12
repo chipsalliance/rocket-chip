@@ -354,7 +354,19 @@ abstract class DRAMSideLLCLike extends Module {
   }
 }
 
-class DRAMSideLLC(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int, tagLeaf: Mem[UInt], dataLeaf: Mem[UInt]) extends DRAMSideLLCLike
+// DRAMSideLLC has a known bug now. DO NOT USE. We are working on a brand new
+// L2$. Stay stuned.
+//
+// Bug description:
+// There's a race condition between the writeback unit (the module which
+// sends the data out to the backside interface) and the data unit (the module
+// which writes the data into the SRAM in the L2$).  The "hit status"
+// is saved in a register, however, is updated again when there's
+// a transaction coming from the core without waiting until the writeback unit
+// has sent out all its data to the outer memory system.  This is why the
+// problem manifests at a higher probability with the slow backup memory port.
+
+class DRAMSideLLC_HasKnownBug(sets: Int, ways: Int, outstanding: Int, refill_cycles: Int, tagLeaf: Mem[UInt], dataLeaf: Mem[UInt]) extends DRAMSideLLCLike
 {
   val tagWidth = params(MIFAddrBits) - log2Up(sets)
   val metaWidth = tagWidth + 2 // valid + dirty
@@ -505,7 +517,6 @@ object HellaQueue
 }
 
 class DRAMSideLLCNull(numRequests: Int, refillCycles: Int) extends DRAMSideLLCLike {
-
   val numEntries = numRequests * refillCycles
   val size = log2Down(numEntries) + 1
 
