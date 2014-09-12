@@ -105,7 +105,9 @@ class DefaultConfig extends ChiselConfig {
           val data = Mem(Bits(width = 64), 4096, seqRead = true)
           Module(new DRAMSideLLC(sets=512, ways=8, outstanding=16, 
             refill_cycles=refill, tagLeaf=tag, dataLeaf=data))
-        } else { Module(new DRAMSideLLCNull(16, refill)) }
+        } else {
+          Module(new DRAMSideLLCNull(8, refill))
+        }
       }
       case BuildCoherenceMaster => (id: Int) => {
         if(site[Boolean]("USE_L2_CACHE")) { 
@@ -128,7 +130,7 @@ class DefaultConfig extends ChiselConfig {
       }
       case "ENABLE_SHARING" => true
       case "ENABLE_CLEAN_EXCLUSIVE" => true
-      case "USE_DRAMSIDE_LLC" => true
+      case "USE_DRAMSIDE_LLC" => false
       case "USE_L2_CACHE" => false 
     }
   }
