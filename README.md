@@ -7,12 +7,12 @@ the RISC-V Rocket Core.
 Contributors
 ------------
 
-Scott Beamer
-Henry Cook
-Yunsup Lee
-Stephen Twigg
-Huy Vo
-Andrew Waterman
+- Scott Beamer
+- Henry Cook
+- Yunsup Lee
+- Stephen Twigg
+- Huy Vo
+- Andrew Waterman
 
 _Quick and dirty instructions:_
 
