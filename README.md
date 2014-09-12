@@ -4,6 +4,7 @@ Rocket Chip Generator
 This repository contains the Rocket chip generator necessary to instantiate
 the RISC-V Rocket Core.
 
+
 Contributors
 ------------
 
@@ -14,7 +15,6 @@ Contributors
 - Huy Vo
 - Andrew Waterman
 
-_Quick and dirty instructions:_
 
 Checkout The Code
 -----------------
