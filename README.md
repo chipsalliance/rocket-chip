@@ -32,29 +32,22 @@ To build the VCS simulator:
 in either case, you can run a set of assembly tests or simple benchmarks:
 
     $ make run-asm-tests
-    $ make run-vecasm-tests
-    $ make run-vecasm-timer-tests
     $ make run-bmarks-test
 
 To build a C simulator that is capable of VCD waveform generation:
 
     $ cd emulator
-    $ make emulator-debug
-
-(note that you must have run `make emulator` at least once before
-running `make emulator-debug`)
+    $ make debug
 
 And to run the assembly tests on the C simulator and generate waveforms:
 
     $ make run-asm-tests-debug
-    $ make run-vecasm-tests-debug
-    $ make run-vecasm-timer-tests-debug
     $ make run-bmarks-test-debug
 
 To get FPGA-synthesizable verilog (output will be in `fsim/generated-src`):
 
     $ cd fsim
-    $ make
+    $ make verilog
 
 
 Updating To A Newer Version Of Chisel
