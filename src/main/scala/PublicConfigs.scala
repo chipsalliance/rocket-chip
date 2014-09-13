@@ -108,7 +108,7 @@ class DefaultConfig extends ChiselConfig {
           Module(new DRAMSideLLC_HasKnownBug(sets=512, ways=8, outstanding=16,
             refill_cycles=refill, tagLeaf=tag, dataLeaf=data))
         } else {
-          Module(new DRAMSideLLCNull(8, refill))
+          Module(new DRAMSideLLCNull(site(NReleaseTransactors)+site(NAcquireTransactors), refill))
         }
       }
       case BuildCoherenceMaster => (id: Int) => {
