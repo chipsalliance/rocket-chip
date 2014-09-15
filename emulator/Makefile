@@ -2,7 +2,7 @@ base_dir = $(abspath ..)
 sim_dir = .
 output_dir = $(sim_dir)/output
 PROJECT = rocketchip
-CONFIG = DefaultCPPConfig
+CONFIG ?= DefaultCPPConfig
 
 all: emulator-$(CONFIG)
 debug: emulator-$(CONFIG)-debug
