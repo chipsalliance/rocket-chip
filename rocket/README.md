@@ -1,5 +1,5 @@
-Rocket Core Generator
-================================================================
+Rocket Core
+===========
 
 Rocket is a 6-stage single-issue in-order pipeline that executes the 64-bit
 scalar RISC-V ISA.  Rocket implements an MMU that supports page-based virtual
@@ -8,13 +8,9 @@ also has an optional IEEE 754-2008-compliant FPU, which implements both
 single- and double-precision floating-point operations, including fused
 multiply-add.
 
-We plan to open-source our Rocket core generator written in Chisel in the near 
-future.  We are currently in the process of cleaning up the repository.  Please stay tuned.
-
-Currently, a Rocket core with an 8 KB direct-mapped L1 instruction cache
-and an 8 KB direct-mapped L1 data cache has been instantiated and committed to 
-the fpga-zynq infrastructure repository. A copy of the generated Verilog is available
-[here](https://raw.githubusercontent.com/ucb-bar/fpga-zynq/master/hw/src/verilog/Slave.v).
+This repository is not intended to be a self-running repository. To
+instantiate a Rocket core, please use the Rocket chip generator found in the
+rocket-chip git repository.
 
 The following table compares a 32-bit ARM Cortex-A5 core to a 64-bit RISC-V
 Rocket core built in the same TSMC process (40GPLUS). Fourth column is the
