@@ -62,6 +62,14 @@ class BHT(nbht: Int) {
   val history = Reg(UInt(width = nbhtbits))
 }
 
+// BTB update occurs during branch resolution (i.e., PC redirection if a mispredict).
+//  - "pc" is what future fetch PCs will tag match against.
+//  - "br_pc" is the PC of the branch instruction.
+//  - "resp.mask" provides a mask of valid instructions (instructions are
+//      masked off by the predicted, taken branch).
+// Assumption: superscalar commits are batched together into a single
+// "taken" update ("history compression"), and correspond to the
+// superscalar fetch 1:1.
 class BTBUpdate extends Bundle with BTBParameters {
   val prediction = Valid(new BTBResp)
   val pc = UInt(width = vaddrBits)
@@ -71,11 +79,13 @@ class BTBUpdate extends Bundle with BTBParameters {
   val isJump = Bool()
   val isCall = Bool()
   val isReturn = Bool()
+  val br_pc = UInt(width = vaddrBits)
   val incorrectTarget = Bool()
 }
 
 class BTBResp extends Bundle with BTBParameters {
   val taken = Bool()
+  val mask = Bits(width = log2Up(params(FetchWidth)))
   val target = UInt(width = vaddrBits)
   val entry = UInt(width = opaqueBits)
   val bht = new BHTResp
@@ -102,6 +112,7 @@ class BTB extends Module with BTBParameters {
 
   val useRAS = Reg(UInt(width = entries))
   val isJump = Reg(UInt(width = entries))
+  val brIdx  = Mem(UInt(width=log2Up(params(FetchWidth))), entries)
 
   private def page(addr: UInt) = addr >> matchBits
   private def pageMatch(addr: UInt) = {
@@ -167,6 +178,7 @@ class BTB extends Module with BTBParameters {
       tgtPages(waddr) := tgtPageUpdate
       useRAS(waddr) := update.bits.isReturn
       isJump(waddr) := update.bits.isJump
+      brIdx(waddr)  := update.bits.br_pc
     }
 
     require(nPages % 2 == 0)
@@ -193,6 +205,7 @@ class BTB extends Module with BTBParameters {
   io.resp.bits.taken := io.resp.valid
   io.resp.bits.target := Cat(Mux1H(Mux1H(hits, tgtPagesOH), pages), Mux1H(hits, tgts))
   io.resp.bits.entry := OHToUInt(hits)
+  io.resp.bits.mask := Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)) 
 
   if (nBHT > 0) {
     val bht = new BHT(nBHT)

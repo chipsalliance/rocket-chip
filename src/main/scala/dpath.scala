@@ -47,9 +47,9 @@ class Datapath extends Module
   val wb_reg_rs2 = Reg(Bits())
 
   // instruction decode stage
-  val id_inst = io.imem.resp.bits.data
+  val id_inst = io.imem.resp.bits.data(0).toBits; require(params(FetchWidth) == 1)
   val id_pc = io.imem.resp.bits.pc
- 
+
   class RegFile {
     private val rf = Mem(UInt(width = 64), 31)
     private val reads = collection.mutable.ArrayBuffer[(UInt,UInt)]()
