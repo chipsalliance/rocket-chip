@@ -15,8 +15,8 @@ mem_gen = $(base_dir)/vsim/vlsi_mem_gen
 sim_dir = .
 output_dir = $(sim_dir)/output
 
-BACKEND = rocketchip.RocketChipBackend
-CONFIG = DefaultVLSIConfig
+BACKEND ?= rocketchip.RocketChipBackend
+CONFIG ?= DefaultVLSIConfig
 
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag
