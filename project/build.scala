@@ -1,5 +1,6 @@
 import sbt._
 import Keys._
+import scala.language.postfixOps
 //val extracted: Extracted = Project.extract(state)
 //import extracted._
 
@@ -26,27 +27,35 @@ object BuildSettings extends Build {
     //)
   )
 
-  lazy val chisel = Project("chisel", file("chisel"), settings = buildSettings)
-  lazy val hardfloat = Project("hardfloat", file("hardfloat"), settings = buildSettings) dependsOn(chisel)
-  lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(hardfloat)
-  lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore)
+  lazy val chisel     = Project("chisel", file("chisel"), settings = buildSettings)
+  lazy val hardfloat  = Project("hardfloat", file("hardfloat"), settings = buildSettings) dependsOn(chisel)
+  lazy val uncore     = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(hardfloat)
+  lazy val rocket     = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore)
 
   val baselist = Vector("chisel", "uncore", "rocket", "hardfloat")
-  def show[A](in: Seq[A]) = in.map(_.toString).foldRight("")(_+" "+_)
   def getsubdirs = {
-    val blacklist = (baselist ++ Vector("target", "project"))
+    val blacklist = (baselist ++ Vector("target", "project", "addons"))
     IO.listFiles(file(".")) map (_.toString.split("/").last) filter (f=> !blacklist.contains(f)) filter (f=> !IO.listFiles(file(f+"/src/main/scala")).isEmpty)
   }
-  // def buildsubproj(sproj: String) = Project(sproj, file(sproj), settings = buildSettings).dependsOn(chisel, uncore, rocket, hardfloat)
-  // val subprojs = (getsubprojs map (sproj=>buildsubproj(sproj)))
-  //    unfortunately, creating projects on the fly doesn't seem to quite work in sbt
+  val addonsources = getsubdirs map (f=>s"${f}/src/main/scala") map (f=>file(f))
+  addonsources.foreach(a => println(s"[info] Found addon: " + a.toString.split("/").head))
 
-  val othersources = getsubdirs map (f=>s"${f}/src/main/scala") map (f=>file(f))
-  val addOtherFiles = Seq (
-    unmanagedSourceDirectories in Compile ++= othersources.toSeq
-  ) // so instead, for dynamically expanding projects, just compile them all at once with rocket chip
+  val prepareTask = TaskKey[Unit]("prepare","Remove old sources and copy over new ones to addon/src")
+  def prepareTaskImpl = {
+    import IO._
+    delete(file("addons/src"))
+    createDirectory(file("addons/src/main/scala"))
+    addonsources.foreach(as => {
+      val addonname = as.toString.split("/").head
+      copyDirectory(as, file("addons/src/main/scala/"+addonname))
+    })
+  }
   
-  lazy val rocketchip = Project("rocketchip", file("."), settings = buildSettings ++ chipSettings ++ addOtherFiles).dependsOn(chisel, hardfloat, uncore, rocket)
+  lazy val addons     = Project("addons", file("addons"), settings = buildSettings ++ Seq(
+    prepareTask := prepareTaskImpl,
+    (compile in Compile) <<= (compile in Compile) dependsOn (prepareTask)
+  )) dependsOn(chisel, hardfloat, uncore, rocket)
+  lazy val rocketchip = Project("rocketchip", file("."), settings = buildSettings ++ chipSettings).dependsOn(chisel, uncore, rocket, addons)
 
   val elaborateTask = InputKey[Unit]("elaborate", "convert chisel components into backend source code")
   val makeTask = InputKey[Unit]("make", "trigger backend-specific makefile command")
@@ -57,7 +66,7 @@ object BuildSettings extends Build {
      val projectName = pr.id
      val packageName = projectName //TODO: valid convention?
      val componentName = args(0)
-     val classLoader = new java.net.URLClassLoader(cp.map(_.data.toURL).toArray, cp.getClass.getClassLoader)
+     val classLoader = new java.net.URLClassLoader(cp.map(_.data.toURI.toURL).toArray, cp.getClass.getClassLoader)
      val chiselMainClass = classLoader.loadClass("Chisel.chiselMain$")
      val chiselMainObject = chiselMainClass.getDeclaredFields.head.get(null)
      val chiselMain = chiselMainClass.getMethod("run", classOf[Array[String]], classOf[Function0[_]])
