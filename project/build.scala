@@ -34,8 +34,8 @@ object BuildSettings extends Build {
 
   val baselist = Vector("chisel", "uncore", "rocket", "hardfloat")
   def getsubdirs = {
-    val blacklist = (baselist ++ Vector("target", "project", "addons"))
-    IO.listFiles(file(".")) map (_.toString.split("/").last) filter (f=> !blacklist.contains(f)) filter (f=> !IO.listFiles(file(f+"/src/main/scala")).isEmpty)
+    val blacklist = (baselist ++ Vector("target", "project"))
+    IO.listFiles(file(".")) map (_.toString.split("/").last) filter (f=> !blacklist.contains(f) && (f(0)!='.')) filter (f=> !IO.listFiles(file(f+"/src/main/scala")).isEmpty)
   }
   val addonsources = getsubdirs map (f=>s"${f}/src/main/scala") map (f=>file(f))
   addonsources.foreach(a => println(s"[info] Found addon: " + a.toString.split("/").head))
@@ -43,15 +43,15 @@ object BuildSettings extends Build {
   val prepareTask = TaskKey[Unit]("prepare","Remove old sources and copy over new ones to addon/src")
   def prepareTaskImpl = {
     import IO._
-    delete(file("addons/src"))
-    createDirectory(file("addons/src/main/scala"))
+    delete(file(".addons-dont-touch/src"))
+    createDirectory(file(".addons-dont-touch/src/main/scala"))
     addonsources.foreach(as => {
       val addonname = as.toString.split("/").head
-      copyDirectory(as, file("addons/src/main/scala/"+addonname))
+      copyDirectory(as, file(".addons-dont-touch/src/main/scala/"+addonname))
     })
   }
   
-  lazy val addons     = Project("addons", file("addons"), settings = buildSettings ++ Seq(
+  lazy val addons     = Project("addons", file(".addons-dont-touch"), settings = buildSettings ++ Seq(
     prepareTask := prepareTaskImpl,
     (compile in Compile) <<= (compile in Compile) dependsOn (prepareTask)
   )) dependsOn(chisel, hardfloat, uncore, rocket)
