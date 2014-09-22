@@ -6,7 +6,7 @@
 import sys
 import math
 
-use_latches = 1
+use_latches = False
 
 
 module_template = '''module %s(
