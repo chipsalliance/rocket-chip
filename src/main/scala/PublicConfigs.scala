@@ -160,6 +160,7 @@ class FPGAConfig(default: ChiselConfig) extends ChiselConfig {
         case "L1I" => 1
         case "L1D" => Knob("L1D_WAYS")
       }
+      case BuildFPU => None
       case FastMulDiv => false
       case NITLBEntries => 4
       case NBTBEntries => 8
