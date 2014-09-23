@@ -62,6 +62,7 @@ class RocketChipBackend extends VerilogBackend
     initMap += (c -> init)
   }
 
+  transforms += {c => collectNodesIntoComp}
   transforms += addTopLevelPin
   transforms += addMemPin
 }
