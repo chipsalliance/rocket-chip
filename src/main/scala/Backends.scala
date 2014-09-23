@@ -62,9 +62,8 @@ class RocketChipBackend extends VerilogBackend
     initMap += (c -> init)
   }
 
-  transforms += ((c: Module) => addTopLevelPin(c))
-  transforms += ((c: Module) => addMemPin(c))
-  transforms += ((c: Module) => collectNodesIntoComp(initializeDFS))
+  transforms += addTopLevelPin
+  transforms += addMemPin
 }
 
 class Fame1RocketChipBackend extends RocketChipBackend with Fame1Transform
