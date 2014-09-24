@@ -286,3 +286,112 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
   }
 }
 
+class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
+{
+  val io = new QueueIO(data, entries)
+  require(isPow2(entries) && entries > 1)
+
+  val do_flow = Bool()
+  val do_enq = io.enq.fire() && !do_flow
+  val do_deq = io.deq.fire() && !do_flow
+
+  val maybe_full = Reg(init=Bool(false))
+  val enq_ptr = Counter(do_enq, entries)._1
+  val deq_ptr = Counter(do_deq, entries)._1
+  when (do_enq != do_deq) { maybe_full := do_enq }
+
+  val ptr_match = enq_ptr === deq_ptr
+  val empty = ptr_match && !maybe_full
+  val full = ptr_match && maybe_full
+  val atLeastTwo = full || enq_ptr - deq_ptr >= UInt(2)
+  do_flow := empty && io.deq.ready
+
+  val ram = Mem(data, entries, seqRead = true)
+  val ram_addr = Reg(Bits())
+  val ram_out_valid = Reg(Bool())
+  ram_out_valid := Bool(false)
+  when (do_enq) { ram(enq_ptr) := io.enq.bits }
+  when (io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)) {
+    ram_out_valid := Bool(true)
+    ram_addr := Mux(io.deq.valid, deq_ptr + UInt(1), deq_ptr)
+  }
+
+  io.deq.valid := Mux(empty, io.enq.valid, ram_out_valid)
+  io.enq.ready := !full
+  io.deq.bits := Mux(empty, io.enq.bits, ram(ram_addr))
+}
+
+class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module
+{
+  val io = new QueueIO(data, entries)
+
+  val fq = Module(new HellaFlowQueue(entries)(data))
+  io.enq <> fq.io.enq
+  io.deq <> Queue(fq.io.deq, 1, pipe = true)
+}
+
+object HellaQueue
+{
+  def apply[T <: Data](enq: DecoupledIO[T], entries: Int) = {
+    val q = Module((new HellaQueue(entries)) { enq.bits.clone })
+    q.io.enq.valid := enq.valid // not using <> so that override is allowed
+    q.io.enq.bits := enq.bits
+    enq.ready := q.io.enq.ready
+    q.io.deq
+  }
+}
+
+class MemPipeIOMemIOConverter(numRequests: Int, refillCycles: Int) extends Module {
+  val io = new Bundle {
+    val cpu = new MemIO().flip
+    val mem = new MemPipeIO
+  }
+
+  val numEntries = numRequests * refillCycles
+  val size = log2Down(numEntries) + 1
+
+  val inc = Bool()
+  val dec = Bool()
+  val count = Reg(init=UInt(numEntries, size))
+  val watermark = count >= UInt(refillCycles)
+
+  when (inc && !dec) {
+    count := count + UInt(1)
+  }
+  when (!inc && dec) {
+    count := count - UInt(refillCycles)
+  }
+  when (inc && dec) {
+    count := count - UInt(refillCycles-1)
+  }
+
+  val cmdq_mask = io.cpu.req_cmd.bits.rw || watermark
+
+  io.mem.req_cmd.valid := io.cpu.req_cmd.valid && cmdq_mask
+  io.cpu.req_cmd.ready := io.mem.req_cmd.ready && cmdq_mask
+  io.mem.req_cmd.bits := io.cpu.req_cmd.bits
+
+  io.mem.req_data <> io.cpu.req_data
+
+  val resp_dataq = Module((new HellaQueue(numEntries)) { new MemResp })
+  resp_dataq.io.enq <> io.mem.resp
+  io.cpu.resp <> resp_dataq.io.deq
+
+  inc := resp_dataq.io.deq.fire()
+  dec := io.mem.req_cmd.fire() && !io.mem.req_cmd.bits.rw
+}
+
+class MemPipeIOUncachedTileLinkIOConverter(outstanding: Int, refillCycles: Int) extends Module {
+  val io = new Bundle {
+    val uncached = new UncachedTileLinkIO().flip
+    val mem = new MemPipeIO
+  }
+  
+  val a = Module(new MemIOUncachedTileLinkIOConverter(2))
+  val b = Module(new MemPipeIOMemIOConverter(outstanding, refillCycles))
+  a.io.uncached <> io.uncached
+  b.io.cpu.req_cmd <> Queue(a.io.mem.req_cmd, 2)
+  b.io.cpu.req_data <> Queue(a.io.mem.req_data, refillCycles)
+  a.io.mem.resp <> b.io.cpu.resp
+  b.io.mem <> io.mem
+}
