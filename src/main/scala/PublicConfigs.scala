@@ -126,7 +126,7 @@ class DefaultConfig extends ChiselConfig {
         }
       }
       case Coherence => {
-        val dir = new FullRepresentation(site(NClients))
+        val dir = () => new FullRepresentation(site(NClients))
         val enSharing = site[Boolean]("ENABLE_SHARING")
         val enCleanEx = site[Boolean]("ENABLE_CLEAN_EXCLUSIVE")
         if(enSharing) {
