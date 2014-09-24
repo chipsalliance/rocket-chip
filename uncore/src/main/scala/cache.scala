@@ -212,13 +212,14 @@ class L2DataArray extends L2HellaCacheModule {
   io.write.ready := Bool(true)
 }
 
-class L2HellaCache(bankId: Int) extends CoherenceAgent with L2HellaCacheParameters {
+class L2HellaCache(bankId: Int, innerId: String, outerId: String) extends 
+    CoherenceAgent(innerId, outerId) with L2HellaCacheParameters {
 
   require(isPow2(nSets))
   require(isPow2(nWays)) 
   require(refillCycles == 1)
 
-  val tshrfile = Module(new TSHRFile(bankId))
+  val tshrfile = Module(new TSHRFile(bankId, innerId, outerId))
   val meta = Module(new L2MetadataArray)
   val data = Module(new L2DataArray)
 
@@ -234,10 +235,10 @@ class L2HellaCache(bankId: Int) extends CoherenceAgent with L2HellaCacheParamete
 }
 
 
-class TSHRFile(bankId: Int) extends L2HellaCacheModule {
+class TSHRFile(bankId: Int, innerId: String, outerId: String) extends L2HellaCacheModule {
   val io = new Bundle {
-    val inner = (new TileLinkIO).flip
-    val outer = new UncachedTileLinkIO
+    val inner = Bundle(new TileLinkIO, {case TLId => innerId}).flip
+    val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
     val incoherent = Vec.fill(nClients){Bool()}.asInput
     val meta_read = Decoupled(new L2MetaReadReq)
     val meta_write = Decoupled(new L2MetaWriteReq)
@@ -261,9 +262,9 @@ class TSHRFile(bankId: Int) extends L2HellaCacheModule {
 
   // Create TSHRs for outstanding transactions
   val trackerList = (0 until nReleaseTransactors).map { id => 
-    Module(new L2VoluntaryReleaseTracker(id, bankId)) 
+    Module(new L2VoluntaryReleaseTracker(id, bankId, innerId, outerId)) 
   } ++ (nReleaseTransactors until nTransactors).map { id => 
-    Module(new L2AcquireTracker(id, bankId))
+    Module(new L2AcquireTracker(id, bankId, innerId, outerId))
   }
   
   // Propagate incoherence flags
@@ -312,7 +313,8 @@ class TSHRFile(bankId: Int) extends L2HellaCacheModule {
   ack.ready := Bool(true)
 
   // Arbitrate for the outer memory port
-  val outer_arb = Module(new UncachedTileLinkIOArbiterThatPassesId(trackerList.size))
+  val outer_arb = Module(new UncachedTileLinkIOArbiterThatPassesId(trackerList.size),
+                         {case TLId => outerId})
   outer_arb.io.in zip  trackerList map { case(arb, t) => arb <> t.io.outer }
   io.outer <> outer_arb.io.out
 
@@ -327,10 +329,10 @@ class TSHRFile(bankId: Int) extends L2HellaCacheModule {
 }
 
 
-abstract class L2XactTracker extends L2HellaCacheModule {
+abstract class L2XactTracker(innerId: String, outerId: String) extends L2HellaCacheModule {
   val io = new Bundle {
-    val inner = (new TileLinkIO).flip
-    val outer = new UncachedTileLinkIO
+    val inner = Bundle(new TileLinkIO, {case TLId => innerId}).flip
+    val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
     val tile_incoherent = Bits(INPUT, nClients)
     val has_acquire_conflict = Bool(OUTPUT)
     val has_release_conflict = Bool(OUTPUT)
@@ -350,7 +352,7 @@ abstract class L2XactTracker extends L2HellaCacheModule {
 
 }
 
-class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
+class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, outerId: String) extends L2XactTracker(innerId, outerId) {
   val s_idle :: s_mem :: s_ack :: s_busy :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Release }
@@ -364,10 +366,11 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTrack
   io.outer.grant.ready := Bool(false)
   io.outer.acquire.valid := Bool(false)
   io.outer.acquire.bits.header.src := UInt(bankId) 
-  io.outer.acquire.bits.payload := Acquire(co.getUncachedWriteAcquireType,
+  io.outer.acquire.bits.payload := Bundle(Acquire(co.getUncachedWriteAcquireType,
                                             xact.addr,
                                             UInt(trackerId),
-                                            xact.data)
+                                            xact.data),
+                                    { case TLId => outerId })
   io.inner.acquire.ready := Bool(false)
   io.inner.probe.valid := Bool(false)
   io.inner.release.ready := Bool(false)
@@ -426,7 +429,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTrack
   }
 }
 
-class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
+class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: String) extends L2XactTracker(innerId, outerId) {
   val s_idle :: s_probe :: s_mem_read :: s_mem_write :: s_make_grant :: s_busy :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Acquire }
@@ -440,11 +443,14 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
 
   val pending_outer_write = co.messageHasData(xact)
   val pending_outer_read = co.requiresOuterRead(xact.a_type)
-  val outer_write_acq = Acquire(co.getUncachedWriteAcquireType, 
-                                       xact.addr, UInt(trackerId), xact.data)
-  val outer_write_rel = Acquire(co.getUncachedWriteAcquireType, 
-                                       xact.addr, UInt(trackerId), c_rel.payload.data)
-  val outer_read = Acquire(co.getUncachedReadAcquireType, xact.addr, UInt(trackerId))
+  val outer_write_acq = Bundle(Acquire(co.getUncachedWriteAcquireType, 
+                                       xact.addr, UInt(trackerId), xact.data),
+                                    { case TLId => outerId })
+  val outer_write_rel = Bundle(Acquire(co.getUncachedWriteAcquireType, 
+                                       xact.addr, UInt(trackerId), c_rel.payload.data),
+                                    { case TLId => outerId })
+  val outer_read = Bundle(Acquire(co.getUncachedReadAcquireType, xact.addr, UInt(trackerId)),
+                                    { case TLId => outerId })
 
   val probe_initial_flags = Bits(width = nClients)
   probe_initial_flags := Bits(0)
