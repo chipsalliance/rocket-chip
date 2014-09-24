@@ -16,6 +16,7 @@ case object BuildDRAMSideLLC extends Field[(Int) => DRAMSideLLCLike]
 case object BuildCoherenceMaster extends Field[(Int) => CoherenceAgent]
 case object UseBackupMemoryPort extends Field[Boolean]
 case object Coherence extends Field[CoherencePolicyWithUncached]
+case object BuildTile extends Field[(Bool)=>Tile]
 
 abstract trait TopLevelParameters extends UsesParameters {
   val htifW = params(HTIFWidth)
@@ -24,6 +25,7 @@ abstract trait TopLevelParameters extends UsesParameters {
   val lsb = params(BankIdLSB)
   val refillCycles = params(MIFDataBeats)
 }
+
 class OuterMemorySystem extends Module with TopLevelParameters {
   val io = new Bundle {
     val tiles = Vec.fill(params(NTiles)){new TileLinkIO}.flip
@@ -132,7 +134,7 @@ class Top extends Module with TopLevelParameters {
   val io = new TopIO
 
   val resetSigs = Vec.fill(nTiles){Bool()}
-  val tileList = (0 until nTiles).map(r => Module(new Tile(resetSignal = resetSigs(r))))
+  val tileList = (0 until nTiles).map(r => Module(params(BuildTile)(resetSigs(r))))
   val uncore = Module(new Uncore)
 
   for (i <- 0 until nTiles) {

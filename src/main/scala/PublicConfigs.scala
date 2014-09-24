@@ -10,6 +10,8 @@ import rocket.Util._
 class DefaultConfig extends ChiselConfig {
   val topDefinitions:World.TopDefs = {
     (pname,site,here) => pname match {
+      //RocketChip Parameters
+      case BuildTile => (r:Bool) => {new RocketTile(resetSignal = r)}
       //HTIF Parameters
       case HTIFWidth => Dump("HTIF_WIDTH", 16)
       case HTIFNSCR => 64
