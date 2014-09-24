@@ -149,7 +149,21 @@ class DefaultConfig extends ChiselConfig {
 class DefaultVLSIConfig extends DefaultConfig
 class DefaultCPPConfig extends DefaultConfig
 
+
 class FPGAConfig(default: ChiselConfig) extends ChiselConfig {
+  val topDefinitions:World.TopDefs = {
+    (pname,site,here) => pname match {
+      case UseBackupMemoryPort => false
+      case _ => default.topDefinitions(pname,site,here)
+    }
+  }
+  override val knobValues = default.knobValues
+}
+
+class DefaultFPGAConfig extends FPGAConfig(new DefaultConfig)
+
+
+class FPGASmallConfig(default: ChiselConfig) extends ChiselConfig {
   val topDefinitions:World.TopDefs = {
     (pname,site,here) => pname match {
       case NSets => site(CacheName) match {
@@ -180,4 +194,4 @@ class FPGAConfig(default: ChiselConfig) extends ChiselConfig {
   }
 }
 
-class DefaultFPGAConfig extends FPGAConfig(new DefaultConfig)
+class DefaultFPGASmallConfig extends FPGASmallConfig(new FPGAConfig(new DefaultConfig))
