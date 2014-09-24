@@ -23,46 +23,30 @@ class RocketChipBackend extends VerilogBackend
   }
 
   def addMemPin(c: Module) = {
-    for (mod <- Module.components; node <- mod.nodes) {
-      if (node.isInstanceOf[Mem[ _ ]] && node.component != null && node.asInstanceOf[Mem[_]].seqRead) {
-        connectMemPin(c, node.component, node)
-      }
+    for (m <- Driver.components) {
+      m bfs { _ match {
+        case mem: Mem[_] if mem.seqRead =>
+          connectMemPin(m, mem)
+        case _ =>
+      } }
     }
   }
 
-  def connectMemPin(topC: Module, c: Module, p: Node): Unit = {
-    var isNewPin = false
-    val compInitPin = 
-      if (initMap.contains(c)) {
-        initMap(c)
-      } else {
-        isNewPin = true
-        val res = Bool(INPUT)
-        res.isIo = true
-        res
-      }
+  def connectInitPin(c: Module) {
+    initMap(c) = c.addPin(Bool(INPUT), "init")
+    if (!(initMap contains c.parent)) connectInitPin(c.parent)
+    initMap(c) := initMap(c.parent)
+  }
 
-    p.inputs += compInitPin
-
-    if (isNewPin) {
-      compInitPin.setName("init")
-      c.io.asInstanceOf[Bundle] += compInitPin
-      compInitPin.component = c
-      initMap += (c -> compInitPin)
-      connectMemPin(topC, c.parent, compInitPin)
-    }
+  def connectMemPin(c: Module, mem: Mem[_]) {
+    if (!(initMap contains c)) connectInitPin(c)
+    mem.inputs += initMap(c)
   }
 
   def addTopLevelPin(c: Module) = {
-    val init = Bool(INPUT)
-    init.isIo = true
-    init.setName("init")
-    init.component = c
-    c.io.asInstanceOf[Bundle] += init
-    initMap += (c -> init)
+    initMap(c) = c.addPin(Bool(INPUT), "init")
   }
 
-  transforms += collectNodesIntoComp
   transforms += addTopLevelPin
   transforms += addMemPin
 }
