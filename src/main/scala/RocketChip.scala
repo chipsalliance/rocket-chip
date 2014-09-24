@@ -42,9 +42,11 @@ class OuterMemorySystem extends Module with TopLevelParameters {
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
 
   // Create a converter between TileLinkIO and MemIO
-  val conv = Module(new MemIOUncachedTileLinkIOConverter(2))
+  val conv = Module(new MemIOUncachedTileLinkIOConverter(2), 
+                    { case TLId => "outer" })
   if(params(NBanks) > 1) {
-    val arb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(params(NBanks)))
+    val arb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(params(NBanks)),
+                    { case TLId => "outer" })
     arb.io.in zip masterEndpoints.map(_.io.outer) map { case (arb, cache) => arb <> cache }
     conv.io.uncached <> arb.io.out
   } else {

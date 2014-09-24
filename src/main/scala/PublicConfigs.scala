@@ -87,10 +87,17 @@ class DefaultConfig extends ChiselConfig {
       case LNMasters => site(NBanks)
       case LNClients => site(NTiles)+1
       case LNEndpoints => site(LNMasters) + site(LNClients)
+      case TLId => "inner"
       case TLCoherence => site(Coherence)
       case TLAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
-      case TLMasterXactIdBits => log2Up(site(NReleaseTransactors)+site(NAcquireTransactors))
-      case TLClientXactIdBits => log2Up(site(NMSHRs))+log2Up(site(NTilePorts))
+      case TLMasterXactIdBits => site(TLId) match {
+        case "inner" => log2Up(site(NReleaseTransactors)+site(NAcquireTransactors))
+        case "outer" => 1
+      }
+      case TLClientXactIdBits => site(TLId) match {
+        case "inner" => log2Up(site(NMSHRs))+log2Up(site(NTilePorts))
+        case "outer" => log2Up(site(NReleaseTransactors)+site(NAcquireTransactors))
+      }
       case TLDataBits => site(CacheBlockBytes)*8
       case TLWriteMaskBits => 6
       case TLWordAddrBits  => 3
@@ -113,9 +120,9 @@ class DefaultConfig extends ChiselConfig {
       }
       case BuildCoherenceMaster => (id: Int) => {
         if(site[Boolean]("USE_L2_CACHE")) { 
-          Module(new L2HellaCache(id), { case CacheName => "L2" })
+          Module(new L2HellaCache(id, "inner", "outer"), { case CacheName => "L2" })
         } else {
-          Module(new L2CoherenceAgent(id), { case CacheName => "L2" })
+          Module(new L2CoherenceAgent(id, "inner", "outer"), { case CacheName => "L2" })
         }
       }
       case Coherence => {
