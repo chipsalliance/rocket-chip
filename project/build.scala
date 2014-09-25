@@ -30,18 +30,21 @@ object BuildSettings extends Build {
   lazy val hardfloat = Project("hardfloat", file("hardfloat"), settings = buildSettings) dependsOn(chisel)
   lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(hardfloat)
   lazy val rocket = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore)
-  
+
   val baselist = Vector("chisel", "uncore", "rocket", "hardfloat")
   def show[A](in: Seq[A]) = in.map(_.toString).foldRight("")(_+" "+_)
   def getsubdirs = {
     val blacklist = (baselist ++ Vector("target", "project"))
     IO.listFiles(file(".")) map (_.toString.split("/").last) filter (f=> !blacklist.contains(f)) filter (f=> !IO.listFiles(file(f+"/src/main/scala")).isEmpty)
   }
+  // def buildsubproj(sproj: String) = Project(sproj, file(sproj), settings = buildSettings).dependsOn(chisel, uncore, rocket, hardfloat)
+  // val subprojs = (getsubprojs map (sproj=>buildsubproj(sproj)))
+  //    unfortunately, creating projects on the fly doesn't seem to quite work in sbt
 
   val othersources = getsubdirs map (f=>s"${f}/src/main/scala") map (f=>file(f))
   val addOtherFiles = Seq (
     unmanagedSourceDirectories in Compile ++= othersources.toSeq
-  ) // aggregate extra sources into rocketchip
+  ) // so instead, for dynamically expanding projects, just compile them all at once with rocket chip
   
   lazy val rocketchip = Project("rocketchip", file("."), settings = buildSettings ++ chipSettings ++ addOtherFiles).dependsOn(chisel, hardfloat, uncore, rocket)
 
