@@ -61,28 +61,3 @@ trait ScalarOpConstants {
 
   val RA = UInt(1, 5)
 }
- 
-trait VectorOpConstants {
-  val VEC_X = Bits("b??", 2).toUInt
-  val VEC_FN_N = UInt(0, 2)
-  val VEC_VL = UInt(1, 2)
-  val VEC_CFG = UInt(2, 2)
-  val VEC_CFGVL = UInt(3, 2)
-
-  val VCMD_I = UInt(0, 3)
-  val VCMD_F = UInt(1, 3)
-  val VCMD_TX = UInt(2, 3)
-  val VCMD_TF = UInt(3, 3)
-  val VCMD_MX = UInt(4, 3)
-  val VCMD_MF = UInt(5, 3)
-  val VCMD_A = UInt(6, 3)
-  val VCMD_X = UInt(0, 3)
-
-  val VIMM_VLEN = UInt(0, 1)
-  val VIMM_ALU = UInt(1, 1)
-  val VIMM_X = UInt(0, 1)
-
-  val VIMM2_RS2 = UInt(0, 1)
-  val VIMM2_ALU = UInt(1, 1)
-  val VIMM2_X = UInt(0, 1)
-}
