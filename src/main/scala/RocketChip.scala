@@ -9,13 +9,13 @@ import rocket.Util._
 
 case object NTiles extends Field[Int]
 case object NBanks extends Field[Int]
+case object NOutstandingMemReqs extends Field[Int]
 case object BankIdLSB extends Field[Int]
 case object CacheBlockBytes extends Field[Int]
 case object CacheBlockOffsetBits extends Field[Int]
-case object BuildDRAMSideLLC extends Field[(Int) => DRAMSideLLCLike]
-case object BuildCoherenceMaster extends Field[(Int) => CoherenceAgent]
 case object UseBackupMemoryPort extends Field[Boolean]
 case object Coherence extends Field[CoherencePolicyWithUncached]
+case object BuildCoherenceMaster extends Field[(Int) => CoherenceAgent]
 case object BuildTile extends Field[(Bool)=>Tile]
 
 abstract trait TopLevelParameters extends UsesParameters {
@@ -44,7 +44,8 @@ class OuterMemorySystem extends Module with TopLevelParameters {
   masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
 
   // Create a converter between TileLinkIO and MemIO
-  val conv = Module(new MemIOUncachedTileLinkIOConverter(2), 
+  val conv = Module(new MemPipeIOUncachedTileLinkIOConverter(
+                      params(NOutstandingMemReqs), refillCycles), 
                     { case TLId => "outer" })
   if(params(NBanks) > 1) {
     val arb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(params(NBanks)),
@@ -55,18 +56,12 @@ class OuterMemorySystem extends Module with TopLevelParameters {
     conv.io.uncached <> masterEndpoints.head.io.outer
   }
 
-  // Create a DRAM-side LLC
-  val llc = params(BuildDRAMSideLLC)(refillCycles)
-  llc.io.cpu.req_cmd <> Queue(conv.io.mem.req_cmd, 2)
-  llc.io.cpu.req_data <> Queue(conv.io.mem.req_data, refillCycles)
-  conv.io.mem.resp <> llc.io.cpu.resp
-  
   // Create a SerDes for backup memory port
   if(params(UseBackupMemoryPort)) {
-    VLSIUtils.doOuterMemorySystemSerdes(llc.io.mem, io.mem, io.mem_backup,
+    VLSIUtils.doOuterMemorySystemSerdes(conv.io.mem, io.mem, io.mem_backup,
                                         io.mem_backup_en, htifW)
   } else {
-    io.mem <> llc.io.mem 
+    io.mem <> conv.io.mem 
   }
 }
 

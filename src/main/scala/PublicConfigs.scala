@@ -106,43 +106,15 @@ class DefaultConfig extends ChiselConfig {
       case TLAtomicOpBits  => 4
       case NTiles => Knob("NTILES")
       case NBanks => Knob("NBANKS")
+      case NOutstandingMemReqs => 16 //site(NBanks)*(site(NReleaseTransactors)+site(NAcquireTransactors))
       case BankIdLSB => 5
       case CacheBlockBytes => 64
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case UseBackupMemoryPort => true
-      case BuildDRAMSideLLC => (refill: Int) => {
-        if(site[Boolean]("USE_DRAMSIDE_LLC")) {
-          val tag = Mem(Bits(width = 152), 512, seqRead = true)
-          val data = Mem(Bits(width = 64), 4096, seqRead = true)
-          Module(new DRAMSideLLC_HasKnownBug(sets=512, ways=8, outstanding=16,
-            refill_cycles=refill, tagLeaf=tag, dataLeaf=data))
-        } else {
-          Module(new DRAMSideLLCNull(site(NReleaseTransactors)+site(NAcquireTransactors), refill))
-        }
-      }
       case BuildCoherenceMaster => (id: Int) => {
-        if(site[Boolean]("USE_L2_CACHE")) { 
-          Module(new L2HellaCache(id, "inner", "outer"), { case CacheName => "L2" })
-        } else {
           Module(new L2CoherenceAgent(id, "inner", "outer"), { case CacheName => "L2" })
-        }
       }
-      case Coherence => {
-        val dir = () => new FullRepresentation(site(NClients))
-        val enSharing = site[Boolean]("ENABLE_SHARING")
-        val enCleanEx = site[Boolean]("ENABLE_CLEAN_EXCLUSIVE")
-        if(enSharing) {
-          if(enCleanEx) new MESICoherence(dir)
-          else new MSICoherence(dir)
-        } else {
-          if(enCleanEx) new MEICoherence(dir)
-          else new MICoherence(dir)
-        }
-      }
-      case "ENABLE_SHARING" => true
-      case "ENABLE_CLEAN_EXCLUSIVE" => true
-      case "USE_DRAMSIDE_LLC" => false // DO NOT TURN ON. Read uncore/src/main/scala/llc.scala
-      case "USE_L2_CACHE" => false 
+      case Coherence => new MSICoherence(() => new NullRepresentation)
     }
   }
   override val knobValues:Any=>Any = {
