@@ -353,7 +353,7 @@ mt_bmarks = \
 %.riscv.hex: %
 	$(MAKE) -C $(dir $@) $(notdir $@)
 
-$(addprefix $(output_dir)/, $(addsuffix .hex, $(asm_p_tests) $(asm_v_tests) $(vecasm_p_tests) $(vecasm_v_tests) $(vecasm_pt_tests))): $(output_dir)/%.hex: $(tests_isa_dir)/%.hex
+$(addprefix $(output_dir)/, $(addsuffix .hex, $(asm_p_tests) $(asm_v_tests))): $(output_dir)/%.hex: $(tests_isa_dir)/%.hex
 	mkdir -p $(output_dir)
 	ln -fs $< $@
 
