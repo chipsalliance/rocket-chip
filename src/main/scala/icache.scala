@@ -85,7 +85,8 @@ class Frontend extends FrontendModule
     s2_valid := Bool(false)
   }
 
-  btb.io.req := s1_pc & SInt(-coreInstBytes)
+  btb.io.req.valid := io.cpu.resp.fire()
+  btb.io.req.bits := s1_pc & SInt(-coreInstBytes)
   btb.io.update := io.cpu.btb_update
   btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate
 
