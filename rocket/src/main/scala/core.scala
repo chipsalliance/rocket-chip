@@ -28,10 +28,15 @@ abstract trait CoreParameters extends UsesParameters {
   val coreMaxAddrBits = math.max(params(PPNBits),params(VPNBits)+1) + params(PgIdxBits)
 
   if(params(FastLoadByte)) require(params(FastLoadWord))
+}
+
+abstract trait RocketCoreParameters extends CoreParameters
+{
   require(params(RetireWidth) == 1) // for now...
 }
-abstract class CoreBundle extends Bundle with CoreParameters
-abstract class CoreModule extends Module with CoreParameters
+
+abstract class CoreBundle extends Bundle with RocketCoreParameters
+abstract class CoreModule extends Module with RocketCoreParameters
 
 class RocketIO extends Bundle
 {
