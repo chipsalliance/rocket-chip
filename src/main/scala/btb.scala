@@ -47,16 +47,15 @@ class BHTResp extends Bundle with BTBParameters {
 
 class BHT(nbht: Int) {
   val nbhtbits = log2Up(nbht)
-  def get(enable: Bool, addr: UInt, btb_hit: Bool): BHTResp = {
+  def get(addr: UInt): BHTResp = {
     val res = new BHTResp
     val index = addr(nbhtbits+1,2) ^ history
-    res.history := history
     res.value := table(index)
-    val taken = res.value(0) && btb_hit
-    when (enable) {
-      history := Cat(taken, history(nbhtbits-1,1))
-    }
+    res.history := history
     res
+  }
+  def updateSpeculativeHistory(taken: Bool): Unit = {
+    history := Cat(taken, history(nbhtbits-1,1))
   }
   def update(addr: UInt, d: BHTResp, taken: Bool, mispredict: Bool): Unit = {
     val index = addr(nbhtbits+1,2) ^ d.history
@@ -92,9 +91,10 @@ class BTBResp extends Bundle with BTBParameters {
 // fully-associative branch target buffer
 class BTB extends Module with BTBParameters {
   val io = new Bundle {
-    val req = Valid(UInt(INPUT, vaddrBits)).flip
+    val req = UInt(INPUT, vaddrBits)
     val resp = Valid(new BTBResp)
     val update = Valid(new BTBUpdate).flip
+    val decode = Valid(new Bundle{val taken = Bool()}).flip
     val invalidate = Bool(INPUT)
   }
 
@@ -124,10 +124,10 @@ class BTB extends Module with BTBParameters {
   }
 
   val update = Pipe(io.update)
-  val update_target = io.req.bits
+  val update_target = io.req
 
-  val pageHit = pageMatch(io.req.bits)
-  val hits = tagMatch(io.req.bits, pageHit)
+  val pageHit = pageMatch(io.req)
+  val hits = tagMatch(io.req, pageHit)
   val updatePageHit = pageMatch(update.bits.pc)
   val updateHits = tagMatch(update.bits.pc, updatePageHit)
 
@@ -168,7 +168,7 @@ class BTB extends Module with BTBParameters {
 
     idxValid(waddr) := updateValid
     when (updateTarget) {
-      assert(io.req.bits === update.bits.target, "BTB request != I$ target")
+      assert(io.req === update.bits.target, "BTB request != I$ target")
       idxs(waddr) := update.bits.pc
       tgts(waddr) := update_target
       idxPages(waddr) := idxPageUpdate
@@ -204,7 +204,10 @@ class BTB extends Module with BTBParameters {
 
   if (nBHT > 0) {
     val bht = new BHT(nBHT)
-    val res = bht.get(io.req.valid, io.req.bits, hits.orR)
+    val res = bht.get(io.req)
+    when (io.decode.valid) {
+       bht.updateSpeculativeHistory(io.decode.bits.taken)
+    }
     when (update.valid && !update.bits.isJump) {
        bht.update(update.bits.pc, update.bits.prediction.bits.bht, update.bits.taken, update.bits.incorrectTarget)
     }
