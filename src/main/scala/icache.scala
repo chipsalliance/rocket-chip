@@ -5,7 +5,6 @@ package rocket
 import Chisel._
 import uncore._
 import Util._
-import Instructions._
 
 case object NITLBEntries extends Field[Int]
 case object ECCCode extends Field[Option[Code]]
@@ -86,12 +85,10 @@ class Frontend extends FrontendModule
     s2_valid := Bool(false)
   }
 
-  btb.io.req := s1_pc & SInt(-coreInstBytes)
+  btb.io.req.valid := !stall && !icmiss
+  btb.io.req.bits.addr := s1_pc & SInt(-coreInstBytes)
   btb.io.update := io.cpu.btb_update
   btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate
-  btb.io.decode.valid := io.cpu.resp.valid && DecodeIsBr(io.cpu.resp.bits.data)
-  btb.io.decode.bits.taken := Reg(next=btb.io.resp.bits.taken)
-
 
   tlb.io.ptw <> io.cpu.ptw
   tlb.io.req.valid := !stall && !icmiss
@@ -288,21 +285,3 @@ class ICache extends FrontendModule
     }
   }
 }
-
-object DecodeIsBr {
-  def apply(inst: Bits): Bool = {
-    val signal = DecodeLogic(inst.toUInt,   List(N),
-            Array(//JAL     -> List(Y),
-                  //JALR    -> List(Y),
-                  BEQ     -> List(Y),
-                  BNE     -> List(Y),
-                  BGE     -> List(Y),
-                  BGEU    -> List(Y),
-                  BLT     -> List(Y),
-                  BLTU    -> List(Y)))
-
-    val (is_br: Bool) :: Nil = signal
-    is_br
-  }
-}
-
