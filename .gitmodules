@@ -16,3 +16,6 @@
 [submodule "hardfloat"]
 	path = hardfloat
 	url = git@github.com:ucb-bar/berkeley-hardfloat.git
+[submodule "fpga-zynq"]
+	path = fpga-zynq
+	url = https://github.com/ucb-bar/fpga-zynq.git
