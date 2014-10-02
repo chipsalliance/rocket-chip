@@ -156,13 +156,13 @@ class Grant extends MasterSourcedMessage
 class Finish extends ClientSourcedMessage with HasMasterTransactionId
 
 
-class UncachedTileLinkIO(p: Option[Parameters] = None) extends Bundle()(p) {
+class UncachedTileLinkIO extends Bundle {
   val acquire   = new DecoupledIO(new LogicalNetworkIO(new Acquire))
   val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
   val finish = new DecoupledIO(new LogicalNetworkIO(new Finish))
 }
 
-class TileLinkIO(p: Option[Parameters] = None) extends UncachedTileLinkIO(p) {
+class TileLinkIO extends UncachedTileLinkIO {
   val probe     = new DecoupledIO(new LogicalNetworkIO(new Probe)).flip
   val release   = new DecoupledIO(new LogicalNetworkIO(new Release))
 }
