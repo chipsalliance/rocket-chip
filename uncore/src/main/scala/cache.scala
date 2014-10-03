@@ -122,7 +122,7 @@ object L2Metadata {
   }
 }
 class L2Metadata extends Metadata with L2HellaCacheParameters {
-  val coh = co.masterMetadataOnFlush.clone
+  val coh = new MasterMetadata()(co) //co.masterMetadataOnFlush.clone
 }
 
 class L2MetaReadReq extends MetaReadReq with HasL2Id {
@@ -306,11 +306,14 @@ class TSHRFile(bankId: Int, innerId: String, outerId: String) extends L2HellaCac
   // Reply to initial requestor
   doOutputArbitration(io.inner.grant, trackerList.map(_.io.inner.grant))
 
-  // Free finished transactions
-  val ack = io.inner.finish
-  trackerList.map(_.io.inner.finish.valid := ack.valid)
-  trackerList.map(_.io.inner.finish.bits := ack.bits)
-  ack.ready := Bool(true)
+  // Free finished transactions on ack
+  val finish = io.inner.finish
+  val finish_idx = finish.bits.payload.master_xact_id
+  trackerList.zipWithIndex.map { case (t, i) => 
+    t.io.inner.finish.valid := finish.valid && finish_idx === UInt(i)
+  }
+  trackerList.map(_.io.inner.finish.bits := finish.bits)
+  finish.ready := Vec(trackerList.map(_.io.inner.finish.ready)).read(finish_idx)
 
   // Arbitrate for the outer memory port
   val outer_arb = Module(new UncachedTileLinkIOArbiterThatPassesId(trackerList.size),
@@ -353,7 +356,7 @@ abstract class L2XactTracker(innerId: String, outerId: String) extends L2HellaCa
 }
 
 class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, outerId: String) extends L2XactTracker(innerId, outerId) {
-  val s_idle :: s_mem :: s_ack :: s_busy :: Nil = Enum(UInt(), 4)
+  val s_idle :: s_meta_read :: s_meta_resp :: s_meta_write :: s_data_write :: s_ack :: s_busy :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Release }
   val xact_internal = Reg{ new L2MetaResp }
@@ -365,19 +368,14 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
 
   io.outer.grant.ready := Bool(false)
   io.outer.acquire.valid := Bool(false)
-  io.outer.acquire.bits.header.src := UInt(bankId) 
-  io.outer.acquire.bits.payload := Bundle(Acquire(co.getUncachedWriteAcquireType,
-                                            xact.addr,
-                                            UInt(trackerId),
-                                            xact.data),
-                                    { case TLId => outerId })
+
   io.inner.acquire.ready := Bool(false)
   io.inner.probe.valid := Bool(false)
   io.inner.release.ready := Bool(false)
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
-  io.inner.grant.bits.payload := Grant(co.getGrantType(xact, co.masterMetadataOnFlush),// TODO xact_internal.meta)
+  io.inner.grant.bits.payload := Grant(co.getGrantType(xact, xact_internal.meta.coh),
                                         xact.client_xact_id,
                                         UInt(trackerId))
 
@@ -397,8 +395,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
   io.meta_write.bits.idx := xact.addr(untagBits-1,blockOffBits)
   io.meta_write.bits.way_en := xact_internal.way_en
   io.meta_write.bits.data := xact_internal.meta
-
-  when(io.meta_resp.valid) { xact_internal := io.meta_resp.bits }
+  io.meta_resp.valid := Bool(true)
 
   switch (state) {
     is(s_idle) {
@@ -406,25 +403,32 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
       when( io.inner.release.valid ) {
         xact := c_rel.payload
         init_client_id := c_rel.header.src
-        state := s_mem
+        state := s_meta_read
       }
-    }/*
+    }
     is(s_meta_read) {
-      when(io.meta_read.ready) state := s_meta_resp
+      io.meta_read.valid := Bool(true)
+      when(io.meta_read.ready) { state := s_meta_resp }
     }
     is(s_meta_resp) {
       when(io.meta_resp.valid) {
-        xact_internal.meta := tl.co.masterMetadataOnRelease(xact, xact_internal.meta, init_client_id))
-        state := Mux(s_meta_write
-          Mux(co.messageHasData(xact), s_mem, s_ack)
-    }*/
-    is(s_mem) {
-      io.outer.acquire.valid := Bool(true)
+        xact_internal := io.meta_resp.bits
+        state := s_meta_write
+      }
+    }
+    is(s_meta_write) {
+      io.meta_write.valid := Bool(true)
       when(io.outer.acquire.ready) { state := s_ack }
     }
     is(s_ack) {
       io.inner.grant.valid := Bool(true)
-      when(io.inner.grant.ready) { state := s_idle }
+      when(io.inner.grant.ready) { 
+        state := Mux(co.requiresAckForGrant(io.inner.grant.bits.payload.g_type),
+          s_busy, s_idle) 
+      }
+    }
+    is(s_busy) {
+      when(io.inner.finish.valid) { state := s_idle }
     }
   }
 }

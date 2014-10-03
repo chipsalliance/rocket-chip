@@ -62,10 +62,10 @@ abstract class DirectoryRepresentation extends Bundle {
 }
 
 class NullRepresentation extends DirectoryRepresentation {
-  val internal = UInt(0)
+  val internal = UInt()
   def pop(id: UInt) = this
   def push(id: UInt) = this
-  def flush(dummy: Int = 0) = this
+  def flush(dummy: Int = 0) = { internal := UInt(0); this }
   def none(dummy: Int = 0) = Bool(false)
   def one(dummy: Int = 0) = Bool(false)
   def count(dummy: Int = 0) = UInt(0)
