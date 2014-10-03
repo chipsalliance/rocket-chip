@@ -12,11 +12,14 @@ case object NTilePorts extends Field[Int]
 case object NPTWPorts extends Field[Int]
 case object BuildRoCC extends Field[Option[() => RoCC]]
 
-class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
+abstract class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
   val io = new Bundle {
     val tilelink = new TileLinkIO
     val host = new HTIFIO
   }
+}
+
+class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
 
   val icache = Module(new Frontend, { case CacheName => "L1I"; case CoreName => "Rocket" })
   val dcache = Module(new HellaCache, { case CacheName => "L1D" })
