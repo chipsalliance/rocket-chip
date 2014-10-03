@@ -43,7 +43,7 @@ class Frontend extends FrontendModule
     val cpu = new CPUFrontendIO().flip
     val mem = new UncachedTileLinkIO
   }
-  
+
   val btb = Module(new BTB)
   val icache = Module(new ICache)
   val tlb = Module(new TLB(params(NITLBEntries)))
@@ -84,7 +84,8 @@ class Frontend extends FrontendModule
     s2_valid := Bool(false)
   }
 
-  btb.io.req := s1_pc & SInt(-coreInstBytes)
+  btb.io.req.valid := !stall && !icmiss
+  btb.io.req.bits.addr := s1_pc & SInt(-coreInstBytes)
   btb.io.update := io.cpu.btb_update
   btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate
 

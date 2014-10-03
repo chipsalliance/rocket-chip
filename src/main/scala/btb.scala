@@ -8,7 +8,7 @@ import Node._
 import uncore._
 
 case object NBTBEntries extends Field[Int]
-case object NRAS extends Field[Int] 
+case object NRAS extends Field[Int]
 
 abstract trait BTBParameters extends UsesParameters {
   val vaddrBits = params(VAddrBits)
@@ -41,35 +41,57 @@ class RAS(nras: Int) {
 }
 
 class BHTResp extends Bundle with BTBParameters {
-  val index = UInt(width = log2Up(nBHT).max(1))
+  val history = UInt(width = log2Up(nBHT).max(1))
   val value = UInt(width = 2)
 }
 
-class BHT(nbht: Int) {
-  val nbhtbits = log2Up(nbht) 
-  def get(addr: UInt): BHTResp = {
+// BHT contains table of 2-bit counters and a global history register.
+// The BHT only predicts and updates when there is a BTB hit.
+// The global history:
+//    - updated speculatively in fetch (if there's a BTB hit).
+//    - on a mispredict, the history register is reset (again, only if BTB hit).
+// The counter table:
+//    - each PC has its own counter, updated when a branch resolves (and BTB hit).
+//    - the BTB provides the predicted branch PC, allowing us to properly index
+//      the counter table and provide the prediction for that specific branch.
+//      Critical path concerns may require only providing a single counter for
+//      the entire fetch packet, but that complicates how multiple branches
+//      update that line.
+class BHT(nbht: Int, fetchwidth: Int) {
+  val nbhtbits = log2Up(nbht)
+  private val logfw = if (fetchwidth == 1) 0 else log2Up(fetchwidth)
+
+  def get(fetch_addr: UInt, bridx: UInt, update: Bool): BHTResp = {
     val res = new BHTResp
-    res.index := addr(nbhtbits+1,2) ^ history
-    res.value := table(res.index)
+    val aligned_addr = fetch_addr >> UInt(logfw + 2)
+    val index = aligned_addr ^ history
+    val counters = table(index)
+    res.value := (counters >> (bridx<<1)) & Bits(0x3)
+    res.history := history
+    val taken = res.value(0)
+    when (update) { history := Cat(taken, history(nbhtbits-1,1)) }
     res
   }
-  def update(d: BHTResp, taken: Bool): Unit = {
-    table(d.index) := Cat(taken, (d.value(1) & d.value(0)) | ((d.value(1) | d.value(0)) & taken))
-    history := Cat(taken, history(nbhtbits-1,1))
+  def update(addr: UInt, d: BHTResp, taken: Bool, mispredict: Bool): Unit = {
+    val aligned_addr = addr >> UInt(logfw + 2)
+    val index = aligned_addr ^ d.history
+    val new_cntr = Cat(taken, (d.value(1) & d.value(0)) | ((d.value(1) | d.value(0)) & taken))
+    var bridx: UInt = null
+    if (logfw == 0) bridx = UInt(0) else bridx = addr(logfw+1,2)
+    val mask = Bits(0x3) << (bridx<<1)
+    table.write(index, new_cntr, mask) 
+    when (mispredict) { history := Cat(taken, d.history(nbhtbits-1,1)) }
   }
 
-  private val table = Mem(UInt(width = 2), nbht)
+  private val table = Mem(UInt(width = 2*fetchwidth), nbht)
   val history = Reg(UInt(width = nbhtbits))
 }
 
-// BTB update occurs during branch resolution (i.e., PC redirection if a mispredict).
+// BTB update occurs during branch resolution.
 //  - "pc" is what future fetch PCs will tag match against.
 //  - "br_pc" is the PC of the branch instruction.
 //  - "resp.mask" provides a mask of valid instructions (instructions are
-//      masked off by the predicted, taken branch).
-// Assumption: superscalar commits are batched together into a single
-// "taken" update ("history compression"), and correspond to the
-// superscalar fetch 1:1.
+//      masked off by the predicted taken branch).
 class BTBUpdate extends Bundle with BTBParameters {
   val prediction = Valid(new BTBResp)
   val pc = UInt(width = vaddrBits)
@@ -91,10 +113,14 @@ class BTBResp extends Bundle with BTBParameters {
   val bht = new BHTResp
 }
 
+class BTBReq extends Bundle with BTBParameters {
+   val addr = UInt(width = vaddrBits)
+}
+
 // fully-associative branch target buffer
 class BTB extends Module with BTBParameters {
   val io = new Bundle {
-    val req = UInt(INPUT, vaddrBits)
+    val req = Valid(new BTBReq).flip
     val resp = Valid(new BTBResp)
     val update = Valid(new BTBUpdate).flip
     val invalidate = Bool(INPUT)
@@ -126,23 +152,23 @@ class BTB extends Module with BTBParameters {
     idxValid & idxMatch & idxPageMatch
   }
 
-  val update = Pipe(io.update)
-  val update_target = io.req
+  val r_update = Pipe(io.update)
+  val update_target = io.req.bits.addr
 
-  val pageHit = pageMatch(io.req)
-  val hits = tagMatch(io.req, pageHit)
-  val updatePageHit = pageMatch(update.bits.pc)
-  val updateHits = tagMatch(update.bits.pc, updatePageHit)
+  val pageHit = pageMatch(io.req.bits.addr)
+  val hits = tagMatch(io.req.bits.addr, pageHit)
+  val updatePageHit = pageMatch(r_update.bits.pc)
+  val updateHits = tagMatch(r_update.bits.pc, updatePageHit)
 
-  private var lfsr = LFSR16(update.valid)
+  private var lfsr = LFSR16(r_update.valid)
   def rand(width: Int) = {
     lfsr = lfsr(lfsr.getWidth-1,1)
     Random.oneHot(width, lfsr)
   }
 
-  val updateHit = update.bits.prediction.valid
-  val updateValid = update.bits.incorrectTarget || updateHit && Bool(nBHT > 0)
-  val updateTarget = updateValid && update.bits.incorrectTarget
+  val updateHit = r_update.bits.prediction.valid
+  val updateValid = r_update.bits.incorrectTarget || updateHit && Bool(nBHT > 0)
+  val updateTarget = updateValid && r_update.bits.incorrectTarget
 
   val useUpdatePageHit = updatePageHit.orR
   val doIdxPageRepl = updateTarget && !useUpdatePageHit
@@ -151,7 +177,7 @@ class BTB extends Module with BTBParameters {
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
   val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, UInt(0))
 
-  val samePage = page(update.bits.pc) === page(update_target)
+  val samePage = page(r_update.bits.pc) === page(update_target)
   val usePageHit = (pageHit & ~idxPageReplEn).orR
   val doTgtPageRepl = updateTarget && !samePage && !usePageHit
   val tgtPageRepl = Mux(samePage, idxPageUpdateOH, idxPageUpdateOH(nPages-2,0) << 1 | idxPageUpdateOH(nPages-1))
@@ -160,25 +186,25 @@ class BTB extends Module with BTBParameters {
   val doPageRepl = doIdxPageRepl || doTgtPageRepl
 
   val pageReplEn = idxPageReplEn | tgtPageReplEn
-  idxPageRepl := UIntToOH(Counter(update.valid && doPageRepl, nPages)._1)
+  idxPageRepl := UIntToOH(Counter(r_update.valid && doPageRepl, nPages)._1)
 
-  when (update.valid && !(updateValid && !updateTarget)) {
+  when (r_update.valid && !(updateValid && !updateTarget)) {
     val nextRepl = Counter(!updateHit && updateValid, entries)._1
-    val waddr = Mux(updateHit, update.bits.prediction.bits.entry, nextRepl)
+    val waddr = Mux(updateHit, r_update.bits.prediction.bits.entry, nextRepl)
 
     // invalidate entries if we stomp on pages they depend upon
     idxValid := idxValid & ~Vec.tabulate(entries)(i => (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR).toBits
 
     idxValid(waddr) := updateValid
     when (updateTarget) {
-      assert(io.req === update.bits.target, "BTB request != I$ target")
-      idxs(waddr) := update.bits.pc
+      assert(io.req.bits.addr === r_update.bits.target, "BTB request != I$ target")
+      idxs(waddr) := r_update.bits.pc
       tgts(waddr) := update_target
       idxPages(waddr) := idxPageUpdate
       tgtPages(waddr) := tgtPageUpdate
-      useRAS(waddr) := update.bits.isReturn
-      isJump(waddr) := update.bits.isJump
-      brIdx(waddr)  := update.bits.br_pc
+      useRAS(waddr) := r_update.bits.isReturn
+      isJump(waddr) := r_update.bits.isJump
+      brIdx(waddr)  := r_update.bits.br_pc
     }
 
     require(nPages % 2 == 0)
@@ -189,9 +215,9 @@ class BTB extends Module with BTBParameters {
         when (en && pageReplEn(i)) { pages(i) := data }
 
     writeBank(0, 2, Mux(idxWritesEven, doIdxPageRepl, doTgtPageRepl),
-      Mux(idxWritesEven, page(update.bits.pc), page(update_target)))
+      Mux(idxWritesEven, page(r_update.bits.pc), page(update_target)))
     writeBank(1, 2, Mux(idxWritesEven, doTgtPageRepl, doIdxPageRepl),
-      Mux(idxWritesEven, page(update_target), page(update.bits.pc)))
+      Mux(idxWritesEven, page(update_target), page(r_update.bits.pc)))
 
     when (doPageRepl) { pageValid := pageValid | pageReplEn }
   }
@@ -208,9 +234,13 @@ class BTB extends Module with BTBParameters {
   io.resp.bits.mask := Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)) 
 
   if (nBHT > 0) {
-    val bht = new BHT(nBHT)
-    val res = bht.get(io.req)
-    when (update.valid && updateHit && !update.bits.isJump) { bht.update(update.bits.prediction.bits.bht, update.bits.taken) }
+    val bht = new BHT(nBHT, params(FetchWidth))
+    val res = bht.get(io.req.bits.addr, brIdx(io.resp.bits.entry), io.req.valid && hits.orR && !Mux1H(hits, isJump))
+    val update_btb_hit = io.update.bits.prediction.valid
+    when (io.update.valid && update_btb_hit && !io.update.bits.isJump) {
+      bht.update(io.update.bits.br_pc, io.update.bits.prediction.bits.bht,
+                 io.update.bits.taken, io.update.bits.incorrectTarget)
+    }
     when (!res.value(0) && !Mux1H(hits, isJump)) { io.resp.bits.taken := false }
     io.resp.bits.bht := res
   }
