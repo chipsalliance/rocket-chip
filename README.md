@@ -264,7 +264,7 @@ You can also run assembly tests and benchmarks separately:
     $ make -jN run-asm-tests
     $ make -jN run-bmarks-tests
 
-To generate vcd waveforms, you can run on of the following commands:
+To generate vcd waveforms, you can run one of the following commands:
 
     $ make -jN run-debug
     $ make -jN run-asm-tests-debug
