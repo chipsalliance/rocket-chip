@@ -9,9 +9,9 @@ the RISC-V Rocket Core.
 + [Quick instructions](#quick) for those who want to dive directly into the details without knowing exactly what's in the repository.
 + [What's in the Rocket chip generator repository?](#what)
 + [How should I use the Rocket chip generator?](#how)
-  + [Using the high-performance cycle-accurate C++ emulator](#emulator)
-  + [Mapping a Rocket core down to an FPGA](#fpga)
-  + [Pushing a Rocket core through the VLSI tools](#vlsi)
+    + [Using the high-performance cycle-accurate C++ emulator](#emulator)
+    + [Mapping a Rocket core down to an FPGA](#fpga)
+    + [Pushing a Rocket core through the VLSI tools](#vlsi)
 + [How can I parameterize my Rocket chip?](#param)
 + [Contributors](#contributors)
 
