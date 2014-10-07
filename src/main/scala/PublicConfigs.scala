@@ -144,7 +144,7 @@ class FPGAConfig extends ChiselConfig (
 
 class DefaultFPGAConfig extends ChiselConfig(new FPGAConfig ++ new DefaultConfig)
 
-class FPGASmallConfig extends ChiselConfig (
+class SmallConfig extends ChiselConfig (
     topDefinitions = { (pname,site,here) => pname match {
       case BuildFPU => None
       case FastMulDiv => false
@@ -160,4 +160,6 @@ class FPGASmallConfig extends ChiselConfig (
   }
 )
 
-class DefaultFPGASmallConfig extends ChiselConfig(new FPGASmallConfig ++ new DefaultFPGAConfig)
+class DefaultFPGASmallConfig extends ChiselConfig(new SmallConfig ++ new DefaultFPGAConfig)
+
+class ExampleSmallConfig extends ChiselConfig(new SmallConfig ++ new DefaultConfig)
