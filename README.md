@@ -323,7 +323,7 @@ We use Synopsys VCS for Verilog simulation. We acknowledge that using a
 proprietary Verilog simulation tool for an open-source project is not
 ideal; we ask the community to help us move DirectC routines (VCS's way
 of gluing Verilog testbenches to arbitrary C/C++ code) into DPI/VPI
-routines so that we can make Verilog simulation work with a open-source
+routines so that we can make Verilog simulation work with an open-source
 Verilog simulator. In the meantime, you can use the C++ emulator to
 generate vcd waveforms, which you can view with an open-source waveform
 viewer such as GTKWave.
