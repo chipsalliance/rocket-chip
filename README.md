@@ -19,8 +19,11 @@ the RISC-V Rocket Core.
 
 ### Checkout The Code
 
+    $ git clone https://github.com/ucb-bar/rocket-chip.git
+    $ cd rocket-chip
     $ git submodule update --init
-    $ git submodule update --init riscv-tools/riscv-tests
+    $ cd riscv-tools
+    $ git submodule update --init --recursive riscv-tests
 
 ### Setting up the RISCV environment variable
 
@@ -225,9 +228,10 @@ points to the rocket-chip repository.
 
     $ git clone https://github.com/ucb-bar/rocket-chip.git
     $ cd rocket-chip
-    $ git submodule update --init
-    $ git submodule update --init riscv-tools/riscv-tests
     $ export ROCKETCHIP=`pwd`
+    $ git submodule update --init
+    $ cd riscv-tools
+    $ git submodule update --init --recursive riscv-tests
 
 Before going any further, you must point the RISCV environment variable
 to your riscv-tools installation directory. If you do not yet have
@@ -254,6 +258,22 @@ cycle-accurate emulator, compile the emulator, compile all RISC-V
 assembly tests and benchmarks, and run both tests and benchmarks on the
 emulator. If make finished without any errors, it means that the
 generated Rocket chip has passed all assembly tests and benchmarks!
+
+You can also run assembly tests and benchmarks separately:
+
+    $ make -jN run-asm-tests
+    $ make -jN run-bmarks-tests
+
+To generate vcd waveforms, you can run on of the following commands:
+
+    $ make -jN run-debug
+    $ make -jN run-asm-tests-debug
+    $ make -jN run-bmarks-tests-debug
+
+Or call out individual assembly tests or benchmarks:
+
+    $ make output/rv64ui-p-add.out
+    $ make output/rv64ui-p-add.vcd
 
 Now take a look in the emulator/generated-src directory. You will find
 Chisel generated C++ code.
@@ -388,14 +408,19 @@ DefaultVLSIConfig and DefaultCPPConfig, you will see that currently both
 are set to be identical to DefaultConfig.
 
 Further down, you will be able to see two FPGA configurations:
-FPGAConfig and FPGASmallConfig. FPGAConfig inherits from DefaultConfig,
-but overrides the low-performance memory port (i.e., backup memory port)
-to be turned off. This is because the high-performance memory port is
-directly connected to the high-performance AXI interface on the ZYNQ
-FPGA. FPGASmallConfig inherits from FPGAConfig, but changes the cache
-sizes, disables the FPU, turns off the fast early-out multiplier and
-divider, and reduces the number of TLB entries. This small configuration
-is used for the Zybo FPGA board, which has the smallest ZYNQ part.
+DefaultFPGAConfig and DefaultFPGASmallConfig. DefaultFPGAConfig inherits from
+DefaultConfig, but overrides the low-performance memory port (i.e., backup
+memory port) to be turned off. This is because the high-performance memory
+port is directly connected to the high-performance AXI interface on the ZYNQ
+FPGA. DefaultFPGASmallConfig inherits from DefaultFPGAConfig, but changes the
+cache sizes, disables the FPU, turns off the fast early-out multiplier and
+divider, and reduces the number of TLB entries (all defined in SmallConfig).
+This small configuration is used for the Zybo FPGA board, which has the
+smallest ZYNQ part.
+
+Towards the end, you can also find that ExampleSmallConfig inherits all
+parameters from DefaultConfig but overrides the same parameters of
+SmallConfig.
 
 Now take a look at fsim/Makefile and vsim/Makefile. Search for the
 CONFIG variable. DefaultFPGAConfig is used for the FPGA build, while
@@ -403,12 +428,12 @@ DefaultVLSIConfig is used for the VLSI build. You can also change the
 CONFIG variable on the make command line:
 
     $ cd $ROCKETCHIP/vsim
-    $ make -jN CONFIG=DefaultFPGAConfig run
+    $ make -jN CONFIG=ExampleSmallConfig run-asm-tests
 
 Or, even by defining CONFIG as an environment variable:
 
-    $ export CONFIG=DefaultFPGAConfig
-    $ make -jN run
+    $ export CONFIG=ExampleSmallConfig
+    $ make -jN run-asm-tests
 
 This parameterization is one of the many strengths of processor
 generators written in Chisel, and will be more detailed in a future blog
