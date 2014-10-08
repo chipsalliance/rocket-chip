@@ -77,6 +77,7 @@ class Acquire extends ClientSourcedMessage
   val write_mask = Bits(width = params(TLWriteMaskBits))
   val subword_addr = Bits(width = params(TLWordAddrBits))
   val atomic_opcode = Bits(width = params(TLAtomicOpBits))
+  def is(t: UInt) = a_type === t
 }
 
 object Probe
@@ -94,6 +95,7 @@ class Probe extends MasterSourcedMessage
     with HasPhysicalAddress 
     with HasMasterTransactionId {
   val p_type = UInt(width = params(TLCoherence).probeTypeWidth)
+  def is(t: UInt) = p_type === t
 }
 
 object Release
@@ -127,6 +129,7 @@ class Release extends ClientSourcedMessage
     with HasMasterTransactionId 
     with HasTileLinkData {
   val r_type = UInt(width = params(TLCoherence).releaseTypeWidth)
+  def is(t: UInt) = r_type === t
 }
 
 object Grant
@@ -151,6 +154,7 @@ class Grant extends MasterSourcedMessage
     with HasClientTransactionId 
     with HasMasterTransactionId {
   val g_type = UInt(width = params(TLCoherence).grantTypeWidth)
+  def is(t: UInt) = g_type === t
 }
 
 class Finish extends ClientSourcedMessage with HasMasterTransactionId

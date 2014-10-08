@@ -353,10 +353,14 @@ abstract class L2XactTracker(innerId: String, outerId: String) extends L2HellaCa
   val c_ack = io.inner.finish.bits
   val m_gnt = io.outer.grant.bits
 
+  def mergeData(acq: Acquire, data: UInt): UInt = {
+    //TODO wite mask
+    Mux(co.messageHasData(acq), acq.data, data)
+  }
 }
 
 class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, outerId: String) extends L2XactTracker(innerId, outerId) {
-  val s_idle :: s_meta_read :: s_meta_resp :: s_meta_write :: s_data_write :: s_ack :: s_busy :: Nil = Enum(UInt(), 6)
+  val s_idle :: s_meta_read :: s_meta_resp :: s_meta_write :: s_data_write :: s_grant :: s_busy :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Release }
   val xact_internal = Reg{ new L2MetaResp }
@@ -412,18 +416,26 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
     }
     is(s_meta_resp) {
       when(io.meta_resp.valid) {
-        xact_internal := io.meta_resp.bits
-        state := s_meta_write
+        xact_internal := co.masterMetadataOnRelease(xact, 
+                                                    io.meta_resp.bits.meta.coh, 
+                                                    init_client_id)
+        state := Mux(io.meta_resp.bits.tag_match, 
+                   Mux(co.messageHasData(xact), s_data_write, s_meta_write),
+                   s_grant)
       }
+    }
+    is(s_data_write) {
+      io.data_write.valid := Bool(true)
+      when(io.data_write.ready) { state := s_meta_write }
     }
     is(s_meta_write) {
       io.meta_write.valid := Bool(true)
-      when(io.outer.acquire.ready) { state := s_ack }
+      when(io.meta_write.ready) { state := s_grant }
     }
-    is(s_ack) {
+    is(s_grant) {
       io.inner.grant.valid := Bool(true)
       when(io.inner.grant.ready) { 
-        state := Mux(co.requiresAckForGrant(io.inner.grant.bits.payload.g_type),
+        state := Mux(co.requiresAckForGrant(c_gnt.payload.g_type),
           s_busy, s_idle) 
       }
     }
@@ -434,61 +446,71 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
 }
 
 class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: String) extends L2XactTracker(innerId, outerId) {
-  val s_idle :: s_probe :: s_mem_read :: s_mem_write :: s_make_grant :: s_busy :: Nil = Enum(UInt(), 6)
+  val s_idle :: s_meta_read :: s_meta_resp :: s_probe :: s_data_read_wb :: s_data_resp_wb :: s_outer_write_wb :: s_outer_read :: s_outer_resp :: s_data_read_hit :: s_data_resp_hit :: s_data_write :: s_outer_write_acq :: s_meta_write :: s_grant :: s_busy :: Nil = Enum(UInt(), 16)
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Acquire }
   val xact_internal = Reg{ new L2MetaResp }
   val init_client_id = Reg(init=UInt(0, width = log2Up(nClients)))
   //TODO: Will need id reg for merged release xacts
   
-  val release_count = if (nClients == 1) UInt(0) else Reg(init=UInt(0, width = log2Up(nClients)))
-  val probe_flags = Reg(init=Bits(0, width = nClients))
-  val curr_p_id = PriorityEncoder(probe_flags)
 
-  val pending_outer_write = co.messageHasData(xact)
-  val pending_outer_read = co.requiresOuterRead(xact.a_type)
+  val release_count = Reg(init = UInt(0, width = log2Up(nClients)))
+  val pending_probes = Reg(init = co.dir())
+  val curr_p_id = pending_probes.next()
+  
+  val is_uncached = co.messageIsUncached(xact)
+  val tag_match = xact_internal.tag_match
+  val needs_writeback = co.needsWriteback(xact_internal.meta.coh)
+  val is_hit = co.isHit(xact, xact_internal.meta.coh)
+  val needs_probes = co.requiresProbes(xact.a_type, xact_internal.meta.coh)
+  val c_rel_had_data = Reg{Bool()}
+  val c_rel_was_voluntary = Reg{Bool()}
+  val wb_buffer = Reg{xact.data.clone}
+
+  io.has_acquire_conflict := co.isCoherenceConflict(xact.addr, c_acq.payload.addr) && 
+                              (state != s_idle) //TODO: Also indexes
+  io.has_release_conflict := co.isCoherenceConflict(xact.addr, c_rel.payload.addr) && 
+                              (state != s_idle) //TODO: Also indexes?
+
   val outer_write_acq = Bundle(Acquire(co.getUncachedWriteAcquireType, 
-                                       xact.addr, UInt(trackerId), xact.data),
-                                    { case TLId => outerId })
-  val outer_write_rel = Bundle(Acquire(co.getUncachedWriteAcquireType, 
-                                       xact.addr, UInt(trackerId), c_rel.payload.data),
-                                    { case TLId => outerId })
-  val outer_read = Bundle(Acquire(co.getUncachedReadAcquireType, xact.addr, UInt(trackerId)),
-                                    { case TLId => outerId })
-
-  val probe_initial_flags = Bits(width = nClients)
-  probe_initial_flags := Bits(0)
-  if (nClients > 1) {
-    // issue self-probes for uncached read xacts to facilitate I$ coherence
-    val probe_self = Bool(true) //co.needsSelfProbe(io.inner.acquire.bits.payload)
-    val myflag = Mux(probe_self, Bits(0), UIntToOH(c_acq.header.src(log2Up(nClients)-1,0)))
-    probe_initial_flags := ~(io.tile_incoherent | myflag)
-  }
-
-  io.has_acquire_conflict := co.isCoherenceConflict(xact.addr, c_acq.payload.addr) && (state != s_idle)
-  io.has_release_conflict := co.isCoherenceConflict(xact.addr, c_rel.payload.addr) && (state != s_idle)
-
+                                        xact.addr, 
+                                        UInt(trackerId), 
+                                        xact.data), { case TLId => outerId })
+  val outer_write_wb = Bundle(Acquire(co.getUncachedWriteAcquireType, 
+                                        Cat(xact_internal.meta.tag, 
+                                            xact.addr(untagBits-1,blockOffBits)), 
+                                        UInt(trackerId), 
+                                        wb_buffer), { case TLId => outerId })
+  val outer_read = Bundle(Acquire(co.getUncachedReadAcquireType, 
+                                        xact.addr, 
+                                        UInt(trackerId)), { case TLId => outerId })
   io.outer.acquire.valid := Bool(false)
+  io.outer.acquire.bits.payload := outer_read //default
   io.outer.acquire.bits.header.src := UInt(bankId)
-  io.outer.acquire.bits.payload := outer_read 
-  io.outer.grant.ready := io.inner.grant.ready
+  io.outer.grant.ready := Bool(true) //grant.data -> xact.data
 
+  val inner_probe_cacq = Probe(co.getProbeType(xact, xact_internal.meta.coh),
+                                xact.addr,
+                                UInt(trackerId))
+  val inner_probe_wb = Probe(co.getProbeTypeOnVoluntaryWriteback,
+                                xact.addr,
+                                UInt(trackerId))
+  //TODO inner_probe_mprb
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
   io.inner.probe.bits.header.dst := curr_p_id
-  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, /*xact_internal.meta), TODO*/
-                                          co.masterMetadataOnFlush),
-                                        xact.addr,
-                                        UInt(trackerId))
+  io.inner.probe.bits.payload := Mux(needs_writeback, 
+                                      inner_probe_wb,
+                                      inner_probe_cacq)
 
-  val grant_type = co.getGrantType(xact, co.masterMetadataOnFlush)// TODO xact_internal.meta)
+  val grant_type = co.getGrantType(xact, xact_internal.meta.coh)
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
   io.inner.grant.bits.payload := Grant(grant_type,
                                         xact.client_xact_id,
                                         UInt(trackerId),
-                                        m_gnt.payload.data)
+                                        xact.data)
 
   io.inner.acquire.ready := Bool(false)
   io.inner.release.ready := Bool(false)
@@ -511,91 +533,154 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   io.meta_write.bits.id := UInt(trackerId)
   io.meta_write.bits.idx := xact.addr(untagBits-1,blockOffBits)
   io.meta_write.bits.way_en := xact_internal.way_en
-  io.meta_write.bits.data := xact_internal.meta
-
-  when(io.meta_resp.valid && io.meta_resp.bits.id === UInt(trackerId)) { xact_internal := io.meta_resp.bits }
+  io.meta_write.bits.data.tag := xact.addr >> UInt(untagBits)
+  io.meta_write.bits.data.coh := xact_internal.meta.coh
 
   switch (state) {
     is(s_idle) {
       io.inner.acquire.ready := Bool(true)
-      val needs_outer_write = co.messageHasData(c_acq.payload)
-      val needs_outer_read = co.requiresOuterRead(c_acq.payload.a_type)
       when( io.inner.acquire.valid ) {
         xact := c_acq.payload
         init_client_id := c_acq.header.src
-        probe_flags := probe_initial_flags
-        if(nClients > 1) {
-          release_count := PopCount(probe_initial_flags)
-          state := Mux(probe_initial_flags.orR, s_probe,
-                    Mux(needs_outer_write, s_mem_write,
-                      Mux(needs_outer_read, s_mem_read, s_make_grant)))
-        } else state := Mux(needs_outer_write, s_mem_write,
-                        Mux(needs_outer_read, s_mem_read, s_make_grant))
+        state := s_meta_read
       }
     }
-    // s_read_meta 
-    // xact_internal := resp
-    is(s_probe) {
-      // Generate probes
-      io.inner.probe.valid := probe_flags.orR
-      when(io.inner.probe.ready) {
-        probe_flags := probe_flags & ~(UIntToOH(curr_p_id))
+    is(s_meta_read) {
+      io.meta_read.valid := Bool(true)
+      when(io.meta_read.ready) { state := s_meta_resp }
+    }
+    is(s_meta_resp) {
+      when(io.meta_resp.valid) {
+        val coh = io.meta_resp.bits.meta.coh
+        val _tag_match = io.meta_resp.bits.tag_match
+        val _needs_writeback = co.needsWriteback(coh)
+        val _is_hit = co.isHit(xact, coh)
+        val _needs_probes = co.requiresProbes(xact.a_type, coh)
+        xact_internal := io.meta_resp.bits
+        when(!_needs_writeback) {
+          xact_internal.meta.coh := co.masterMetadataOnFlush
+        }
+        when(_needs_probes) {
+          pending_probes := coh.sharers
+          release_count := coh.sharers.count()
+          c_rel_had_data := Bool(false)
+          c_rel_was_voluntary := Bool(false)
+        }  
+        state := Mux(_tag_match,
+                  Mux(_is_hit,
+                    Mux(_needs_probes, s_probe, s_data_read_hit),
+                    Mux(_needs_probes, s_probe, s_outer_read)),
+                  Mux(_needs_writeback,
+                    Mux(_needs_probes, s_probe, s_data_read_wb),
+                    s_outer_read))
       }
+    }
+    is(s_probe) {
+      val skip = io.tile_incoherent(curr_p_id) ||
+                  ((curr_p_id === init_client_id) && 
+                    !co.requiresSelfProbe(xact.a_type))
+      io.inner.probe.valid := !(pending_probes.none() || skip)
+      when(io.inner.probe.ready || skip) {
+        pending_probes.pop(curr_p_id)
+      }
+      when(skip) { release_count := release_count - UInt(1) }
 
-      // Handle releases, which may have data to be written back
+      // Handle releases, which may have data being written back
+      io.inner.release.ready := Bool(true)
       when(io.inner.release.valid) {
-        //xact_internal.meta.coh := tl.co.masterMetadataOnRelease(
-        //                        io.inner.release.bits.payload, 
-        //                        xact_internal.meta.coh,
-        //                        init_client_id)
+        xact_internal.meta.coh := co.masterMetadataOnRelease(
+                                    c_rel.payload, 
+                                    xact_internal.meta.coh,
+                                    c_rel.header.src)
         when(co.messageHasData(c_rel.payload)) {
-          io.outer.acquire.valid := Bool(true)
-          io.outer.acquire.bits.payload := outer_write_rel
-          when(io.outer.acquire.ready) {
-            io.inner.release.ready := Bool(true)
-            if(nClients > 1) release_count := release_count - UInt(1)
-            when(release_count === UInt(1)) {
-              state := Mux(pending_outer_write, s_mem_write,
-                        Mux(pending_outer_read, s_mem_read, s_make_grant))
-            }
+          c_rel_had_data := Bool(true)
+          when(tag_match) {
+            xact.data := mergeData(xact, io.inner.release.bits.payload.data)
+          } .otherwise {
+            wb_buffer := io.inner.release.bits.payload.data
           }
-        } .otherwise {
-          io.inner.release.ready := Bool(true)
-          if(nClients > 1) release_count := release_count - UInt(1)
+        }
+        when(co.isVoluntary(c_rel.payload)) {
+          c_rel_was_voluntary := Bool(true)
+        }
+        when(!co.isVoluntary(c_rel.payload)) {
+          release_count := release_count - Mux(skip, UInt(2), UInt(1))
           when(release_count === UInt(1)) {
-            state := Mux(pending_outer_write, s_mem_write, 
-                      Mux(pending_outer_read, s_mem_read, s_make_grant))
+              state := Mux(tag_match,
+                        Mux(is_hit,
+                          Mux(c_rel_had_data, s_meta_write, s_data_read_hit),
+                          s_outer_read),
+                        Mux(c_rel_had_data, s_outer_write_wb, s_data_read_wb))
           }
         }
       }
     }
-    is(s_mem_read) {
+    is(s_data_read_wb) {
+      io.data_read.valid := Bool(true)
+      when(io.data_read.ready) {
+        state := s_data_resp_wb
+      }
+    }
+    is(s_data_resp_wb) {
+      when(io.data_resp.valid) {
+        wb_buffer := io.data_resp.bits
+        state := s_outer_write_wb
+      }
+    }
+    is(s_outer_write_wb) {
+      io.outer.acquire.valid := Bool(true)
+      io.outer.acquire.bits.payload := outer_write_wb
+      when(io.outer.acquire.ready) { 
+        state := s_outer_read
+      }
+    }
+    is(s_outer_read) {
       io.outer.acquire.valid := Bool(true)
       io.outer.acquire.bits.payload := outer_read
       when(io.outer.acquire.ready) {
-        state := Mux(co.requiresAckForGrant(grant_type), s_busy, s_idle)
+        state := s_outer_resp
       }
     }
-    is(s_mem_write) {
-      io.outer.acquire.valid := Bool(true)
-      io.outer.acquire.bits.payload := outer_write_acq
-      when(io.outer.acquire.ready) { 
-        state := Mux(pending_outer_read, s_mem_read, s_make_grant)
+    is(s_outer_resp) {
+      io.outer.grant.ready := Bool(true)
+      when(io.outer.grant.valid) {
+        xact.data := mergeData(xact, io.outer.grant.bits.payload.data)
+        //TODO: set pending client state in xact_internal.meta.coh
+        state := Mux(co.messageHasData(io.outer.grant.bits.payload),
+                      s_data_write, s_data_read_hit)
       }
     }
-    is(s_make_grant) {
+    is(s_data_read_hit) {
+      io.data_read.valid := Bool(true)
+      when(io.data_read.ready) {
+        state := s_data_resp_hit
+      }
+    }
+    is(s_data_resp_hit) {
+      when(io.data_resp.valid) {
+        xact.data := mergeData(xact, io.data_resp.bits.data)
+        state := s_meta_write
+      }
+    }
+    is(s_data_write) {
+      io.data_write.valid := Bool(true)
+      when(io.data_write.ready) {
+        state := s_meta_write
+      }
+    }
+    is(s_meta_write) {
+      io.meta_write.valid := Bool(true)
+      when(io.meta_write.ready) { state := s_grant }
+    }
+    is(s_grant) {
       io.inner.grant.valid := Bool(true)
       when(io.inner.grant.ready) { 
-        state := Mux(co.requiresAckForGrant(grant_type), s_busy, s_idle)
+        state := Mux(co.requiresAckForGrant(c_gnt.payload.g_type),
+          s_busy, s_idle) 
       }
     }
-    is(s_busy) { // Nothing left to do but wait for transaction to complete
-      when(io.outer.grant.valid && m_gnt.payload.client_xact_id === UInt(trackerId)) {
-        io.inner.grant.valid := Bool(true)
-      }
-      when(io.inner.finish.valid && c_ack.payload.master_xact_id === UInt(trackerId)) {
-        state := s_idle
-      }
+    is(s_busy) {
+      when(io.inner.finish.valid) { state := s_idle }
     }
   }
 }
