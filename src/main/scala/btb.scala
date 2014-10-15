@@ -75,7 +75,7 @@ class BTBUpdate extends Bundle with BTBParameters {
   val isJump = Bool()
   val isCall = Bool()
   val isReturn = Bool()
-  val incorrectTarget = Bool()
+  val mispredict = Bool()
 }
 
 class BTBResp extends Bundle with BTBParameters {
@@ -138,8 +138,8 @@ class BTB extends Module with BTBParameters {
   }
 
   val updateHit = r_update.bits.prediction.valid
-  val updateValid = r_update.bits.incorrectTarget || updateHit && Bool(nBHT > 0)
-  val updateTarget = updateValid && r_update.bits.incorrectTarget
+  val updateValid = r_update.bits.mispredict || updateHit && Bool(nBHT > 0)
+  val updateTarget = updateValid && r_update.bits.mispredict && r_update.bits.taken
 
   val useUpdatePageHit = updatePageHit.orR
   val doIdxPageRepl = updateTarget && !useUpdatePageHit
@@ -208,7 +208,7 @@ class BTB extends Module with BTBParameters {
     val update_btb_hit = io.update.bits.prediction.valid
     when (io.update.valid && update_btb_hit && !io.update.bits.isJump) {
       bht.update(io.update.bits.pc, io.update.bits.prediction.bits.bht,
-                 io.update.bits.taken, io.update.bits.incorrectTarget)
+                 io.update.bits.taken, io.update.bits.mispredict)
     }
     when (!res.value(0) && !Mux1H(hits, isJump)) { io.resp.bits.taken := false }
     io.resp.bits.bht := res
