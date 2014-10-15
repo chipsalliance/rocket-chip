@@ -113,10 +113,7 @@ class CSRFile extends Module
     val map = for ((v, i) <- CSRs.all.zipWithIndex)
       yield v -> UInt(BigInt(1) << i)
     val out = ROM(map)(addr)
-    val a = Array.fill(CSRs.all.max+1)(null.asInstanceOf[Bool])
-    for (i <- 0 until CSRs.all.size)
-      a(CSRs.all(i)) = out(i)
-    a
+    Map((CSRs.all zip out.toBools):_*)
   }
 
   val wen = cpu_req_valid || host_pcr_req_fire && host_pcr_bits.rw
