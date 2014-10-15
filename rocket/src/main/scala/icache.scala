@@ -114,7 +114,7 @@ class Frontend extends FrontendModule
   }
 
   val all_ones = UInt((1 << coreFetchWidth)-1)
-  val msk_pc = all_ones << s2_pc(log2Up(coreFetchWidth)-1+2,2)
+  val msk_pc = if (coreFetchWidth == 1) all_ones else all_ones << s2_pc(log2Up(coreFetchWidth) -1+2,2)
   io.cpu.resp.bits.mask := msk_pc & btb.io.resp.bits.mask
 
   io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(coreInstBytes)-1,0) != UInt(0)
