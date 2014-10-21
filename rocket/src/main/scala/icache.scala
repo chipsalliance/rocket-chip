@@ -58,9 +58,10 @@ class Frontend extends FrontendModule
   val s2_xcpt_if = Reg(init=Bool(false))
 
   val msb = vaddrBits-1
+  val lsb = log2Up(coreFetchWidth*coreInstBytes)
   val btbTarget = Cat(btb.io.resp.bits.target(msb), btb.io.resp.bits.target)
-  val ntpc_0 = s1_pc + UInt(coreInstBytes)
-  val ntpc = Cat(s1_pc(msb) & ntpc_0(msb), ntpc_0(msb,0))
+  val ntpc_0 = s1_pc + UInt(coreInstBytes*coreFetchWidth)
+  val ntpc = Cat(s1_pc(msb) & ntpc_0(msb), ntpc_0(msb,lsb), Bits(0,lsb)) // unsure
   val icmiss = s2_valid && !icache.io.resp.valid
   val predicted_npc = Mux(btb.io.resp.bits.taken, btbTarget, ntpc)
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
@@ -115,7 +116,8 @@ class Frontend extends FrontendModule
 
   val all_ones = UInt((1 << coreFetchWidth)-1)
   val msk_pc = if (coreFetchWidth == 1) all_ones else all_ones << s2_pc(log2Up(coreFetchWidth) -1+2,2)
-  io.cpu.resp.bits.mask := msk_pc & btb.io.resp.bits.mask
+  // TODO what is the best way to handle the clock-gating of s2_btb_resp_bits?
+  io.cpu.resp.bits.mask := Mux(s2_btb_resp_valid, msk_pc & s2_btb_resp_bits.mask, msk_pc)
 
   io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(coreInstBytes)-1,0) != UInt(0)
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if

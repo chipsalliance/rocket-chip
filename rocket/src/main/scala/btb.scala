@@ -79,7 +79,7 @@ class BHT(nbht: Int) {
 //  - "pc" is what future fetch PCs will tag match against.
 //  - "br_pc" is the PC of the branch instruction.
 //  - "bridx" is the low-order PC bits of the predicted branch (after 
-//    shifting off the lowest log(inst_bytes) bits off).
+//    shifting off the lowest log(inst_bytes) bits off). 
 //  - "resp.mask" provides a mask of valid instructions (instructions are
 //      masked off by the predicted taken branch).
 class BTBUpdate extends Bundle with BTBParameters {
@@ -196,9 +196,9 @@ class BTB extends Module with BTBParameters {
       useRAS(waddr) := r_update.bits.isReturn
       isJump(waddr) := r_update.bits.isJump
       if (params(FetchWidth) == 1) {
-         brIdx(waddr) := UInt(0)
+        brIdx(waddr) := UInt(0)
       } else {
-         brIdx(waddr) := r_update.bits.br_pc >> log2Up(params(CoreInstBits)/8)
+        brIdx(waddr) := r_update.bits.br_pc >> log2Up(params(CoreInstBits)/8)
       }
     }
 
@@ -226,8 +226,14 @@ class BTB extends Module with BTBParameters {
   io.resp.bits.taken := io.resp.valid
   io.resp.bits.target := Cat(Mux1H(Mux1H(hits, tgtPagesOH), pages), Mux1H(hits, tgts))
   io.resp.bits.entry := OHToUInt(hits)
-  io.resp.bits.mask := Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)) 
   io.resp.bits.bridx := brIdx(io.resp.bits.entry)
+  if (params(FetchWidth) == 1) {
+    io.resp.bits.mask := UInt(1)
+  } else {
+    io.resp.bits.mask := Mux(io.resp.valid, Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)),
+                                             ((UInt(1) << UInt(params(FetchWidth)))-UInt(1)))
+//  val all_ones = UInt((1 << coreFetchWidth)-1)
+  }
 
   if (nBHT > 0) {
     val bht = new BHT(nBHT)
