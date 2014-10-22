@@ -459,11 +459,22 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   val pending_probes = Reg(init = co.dir().flush)
   val curr_p_id = co.dir().next(pending_probes)
   
+  
+  val next_coh_on_release = co.masterMetadataOnRelease(
+                                    c_rel.payload, 
+                                    xact_internal.meta.coh,
+                                    c_rel.header.src)
+  val next_coh_on_grant = co.masterMetadataOnGrant(
+                                    c_gnt.payload, 
+                                    xact_internal.meta.coh,
+                                    c_gnt.header.dst)
   val is_uncached = co.messageIsUncached(xact)
   val tag_match = xact_internal.tag_match
   val needs_writeback = co.needsWriteback(xact_internal.meta.coh)
   val is_hit = co.isHit(xact, xact_internal.meta.coh)
   val needs_probes = co.requiresProbes(xact.a_type, xact_internal.meta.coh)
+  //TODO: does allocate
+
   val c_rel_had_data = Reg(init = Bool(false))
   val c_rel_was_voluntary = Reg(init = Bool(false))
   val wb_buffer = Reg{xact.data.clone}
@@ -535,7 +546,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   io.meta_write.bits.idx := xact.addr(untagBits-1,blockOffBits)
   io.meta_write.bits.way_en := xact_internal.way_en
   io.meta_write.bits.data.tag := xact.addr >> UInt(untagBits)
-  io.meta_write.bits.data.coh := xact_internal.meta.coh
+  io.meta_write.bits.data.coh := next_coh_on_grant
 
   switch (state) {
     is(s_idle) {
@@ -558,11 +569,6 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
         val _is_hit = co.isHit(xact, coh)
         val _needs_probes = co.requiresProbes(xact.a_type, coh)
         xact_internal := io.meta_resp.bits
-        test := UInt(0)
-        when(!_needs_writeback) {
-//          xact_internal.meta.coh := co.masterMetadataOnFlush
-          test := UInt(12)
-        }
         when(_needs_probes) {
           pending_probes := coh.sharers
           release_count := co.dir().count(coh.sharers)
@@ -591,12 +597,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
       // Handle releases, which may have data being written back
       io.inner.release.ready := Bool(true)
       when(io.inner.release.valid) {
-/*
-        xact_internal.meta.coh := co.masterMetadataOnRelease(
-                                    c_rel.payload, 
-                                    xact_internal.meta.coh,
-                                    c_rel.header.src)
-*/
+        xact_internal.meta.coh := next_coh_on_release
         when(co.messageHasData(c_rel.payload)) {
           c_rel_had_data := Bool(true)
           when(tag_match) {
