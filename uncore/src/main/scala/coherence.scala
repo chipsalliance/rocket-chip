@@ -58,6 +58,7 @@ abstract class DirectoryRepresentation(val width: Int) {
   def one(s: UInt): Bool
   def count(s: UInt): UInt
   def next(s: UInt): UInt
+  def full(s: UInt): UInt
 }
 
 class NullRepresentation extends DirectoryRepresentation(1) {
@@ -68,6 +69,7 @@ class NullRepresentation extends DirectoryRepresentation(1) {
   def one(s: UInt) = Bool(false)
   def count(s: UInt) = UInt(0)
   def next(s: UInt) = UInt(0)
+  def full(s: UInt) = UInt(0)
 }
 
 class FullRepresentation(nClients: Int) extends DirectoryRepresentation(nClients) {
@@ -78,6 +80,7 @@ class FullRepresentation(nClients: Int) extends DirectoryRepresentation(nClients
   def one(s: UInt) = PopCount(s) === UInt(1)
   def count(s: UInt) = PopCount(s)
   def next(s: UInt) = PriorityEncoder(s)
+  def full(s: UInt) = s
 }
 
 abstract class CoherencePolicy(val dir: () => DirectoryRepresentation) {
@@ -147,6 +150,7 @@ trait UncachedTransactions {
   def getUncachedWriteWordAcquireType: UInt
   def getUncachedAtomicAcquireType: UInt
   def isUncachedReadTransaction(acq: Acquire): Bool
+  def getUncachedReadGrantType: UInt
 }
 
 abstract class CoherencePolicyWithUncached(dir: () => DirectoryRepresentation) extends CoherencePolicy(dir)
@@ -234,6 +238,8 @@ class MICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWit
   def getUncachedWriteWordAcquireType = acquireWriteWordUncached
   def getUncachedAtomicAcquireType = acquireAtomicUncached
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def getUncachedReadGrantType = grantReadUncached
+
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
@@ -399,6 +405,8 @@ class MEICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWi
   def getUncachedWriteWordAcquireType = acquireWriteWordUncached
   def getUncachedAtomicAcquireType = acquireAtomicUncached
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def getUncachedReadGrantType = grantReadUncached
+
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
@@ -579,6 +587,8 @@ class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyWi
   def getUncachedWriteWordAcquireType = acquireWriteWordUncached
   def getUncachedAtomicAcquireType = acquireAtomicUncached
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def getUncachedReadGrantType = grantReadUncached
+
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
@@ -756,6 +766,8 @@ class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicyW
   def getUncachedWriteWordAcquireType = acquireWriteWordUncached
   def getUncachedAtomicAcquireType = acquireAtomicUncached
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def getUncachedReadGrantType = grantReadUncached
+
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
@@ -954,6 +966,8 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
   def getUncachedWriteWordAcquireType = acquireWriteWordUncached
   def getUncachedAtomicAcquireType = acquireAtomicUncached
   def isUncachedReadTransaction(acq: Acquire) = acq.a_type === acquireReadUncached
+  def getUncachedReadGrantType = grantReadUncached
+
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
   def isVoluntary(gnt: Grant) = gnt.g_type === grantVoluntaryAck
 
