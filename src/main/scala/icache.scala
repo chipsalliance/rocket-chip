@@ -114,9 +114,8 @@ class Frontend extends FrontendModule
     io.cpu.resp.bits.data(i) := fetch_data(i*coreInstBits+coreInstBits-1, i*coreInstBits)
   }
 
-  val all_ones = UInt((1 << coreFetchWidth)-1)
+  val all_ones = UInt((1 << (coreFetchWidth+1))-1)
   val msk_pc = if (coreFetchWidth == 1) all_ones else all_ones << s2_pc(log2Up(coreFetchWidth) -1+2,2)
-  // TODO what is the best way to handle the clock-gating of s2_btb_resp_bits?
   io.cpu.resp.bits.mask := Mux(s2_btb_resp_valid, msk_pc & s2_btb_resp_bits.mask, msk_pc)
 
   io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(coreInstBytes)-1,0) != UInt(0)

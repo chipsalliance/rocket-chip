@@ -230,9 +230,8 @@ class BTB extends Module with BTBParameters {
   if (params(FetchWidth) == 1) {
     io.resp.bits.mask := UInt(1)
   } else {
-    io.resp.bits.mask := Mux(io.resp.valid, Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)),
-                                             ((UInt(1) << UInt(params(FetchWidth)))-UInt(1)))
-//  val all_ones = UInt((1 << coreFetchWidth)-1)
+    // note: btb_resp is clock gated, so the mask is only relevant for the io.resp.valid case
+    io.resp.bits.mask := Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1))
   }
 
   if (nBHT > 0) {
