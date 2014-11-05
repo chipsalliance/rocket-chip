@@ -146,7 +146,6 @@ class WritebackReq extends L1HellaCacheBundle {
   val idx = Bits(width = idxBits)
   val way_en = Bits(width = nWays)
   val client_xact_id = Bits(width = params(TLClientXactIdBits))
-  val master_xact_id = Bits(width = params(TLMasterXactIdBits))
   val r_type = UInt(width = co.releaseTypeWidth) 
 }
 
@@ -286,7 +285,6 @@ class MSHR(id: Int) extends L1HellaCacheModule {
   io.wb_req.bits.idx := req_idx
   io.wb_req.bits.way_en := req.way_en
   io.wb_req.bits.client_xact_id := Bits(id)
-  io.wb_req.bits.master_xact_id := Bits(0) // DNC
   io.wb_req.bits.r_type := co.getReleaseTypeOnVoluntaryWriteback()
 
   io.mem_req.valid := state === s_refill_req && ackq.io.enq.ready
@@ -476,7 +474,6 @@ class WritebackUnit extends L1HellaCacheModule {
   io.release.bits.r_type := req.r_type
   io.release.bits.addr := Cat(req.tag, req.idx).toUInt
   io.release.bits.client_xact_id := req.client_xact_id
-  io.release.bits.master_xact_id := req.master_xact_id
   if(refillCycles > 1) {
     val data_buf = Reg(Bits())
     when(active && r2_data_req_fired) {
@@ -545,7 +542,7 @@ class ProbeUnit extends L1HellaCacheModule {
 
   io.req.ready := state === s_invalid
   io.rep.valid := state === s_release && !(hit && co.needsWriteback(line_state))
-  io.rep.bits := Release(co.getReleaseTypeOnProbe(req, Mux(hit, line_state, co.clientMetadataOnFlush)), req.addr, req.client_xact_id, req.master_xact_id)
+  io.rep.bits := Release(co.getReleaseTypeOnProbe(req, Mux(hit, line_state, co.clientMetadataOnFlush)), req.addr, req.client_xact_id)
 
   io.meta_read.valid := state === s_meta_read
   io.meta_read.bits.idx := req.addr
@@ -563,7 +560,6 @@ class ProbeUnit extends L1HellaCacheModule {
   io.wb_req.bits.tag := req.addr >> UInt(idxBits)
   io.wb_req.bits.r_type := co.getReleaseTypeOnProbe(req, Mux(hit, line_state, co.clientMetadataOnFlush))
   io.wb_req.bits.client_xact_id := req.client_xact_id
-  io.wb_req.bits.master_xact_id := req.master_xact_id
 }
 
 class DataArray extends L1HellaCacheModule {
