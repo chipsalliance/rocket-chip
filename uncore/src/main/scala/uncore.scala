@@ -62,8 +62,8 @@ class L2CoherenceAgent(bankId: Int, innerId: String, outerId: String) extends
   val any_release_conflict = trackerList.tail.map(_.io.has_release_conflict).reduce(_||_)
   val block_releases = Bool(false)
   val conflict_idx = Vec(trackerList.map(_.io.has_release_conflict)).lastIndexWhere{b: Bool => b}
-  //val release_idx = Mux(voluntary, Mux(any_release_conflict, conflict_idx, UInt(0)), release.bits.payload.master_xact_id) // TODO: Add merging logic to allow allocated AcquireTracker to handle conflicts, send all necessary grants, use first sufficient response
-  val release_idx = Mux(voluntary, UInt(0), release.bits.payload.master_xact_id)
+  val release_idx = Mux(voluntary, UInt(0), conflict_idx)
+  // TODO: Add merging logic to allow allocated AcquireTracker to handle conflicts, send all necessary grants, use first sufficient response
   for( i <- 0 until trackerList.size ) {
     val t = trackerList(i).io.inner
     t.release.bits := release.bits 
@@ -200,9 +200,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
   io.inner.probe.bits.header.dst := curr_p_id
-  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.masterMetadataOnFlush),
-                                               xact.addr,
-                                               UInt(trackerId))
+  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.masterMetadataOnFlush), xact.addr)
 
   val grant_type = co.getGrantType(xact, co.masterMetadataOnFlush)
   io.inner.grant.valid := Bool(false)

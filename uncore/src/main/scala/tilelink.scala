@@ -79,52 +79,41 @@ class Acquire extends ClientSourcedMessage
   val atomic_opcode = Bits(width = params(TLAtomicOpBits))
 }
 
-object Probe
-{
-  def apply(p_type: UInt, addr: UInt, master_xact_id: UInt) = {
+
+object Probe {
+  def apply(p_type: UInt, addr: UInt) = {
     val prb = new Probe
     prb.p_type := p_type
     prb.addr := addr
-    prb.master_xact_id := master_xact_id
     prb
   }
 }
 
 class Probe extends MasterSourcedMessage 
-    with HasPhysicalAddress 
-    with HasMasterTransactionId {
+    with HasPhysicalAddress {
   val p_type = UInt(width = params(TLCoherence).probeTypeWidth)
 }
 
-object Release
-{
-  def apply(r_type: UInt, addr: UInt, data: UInt): Release = {
-    val rel = new Release
-    rel.r_type := r_type
-    rel.addr := addr
-    rel.data := data
-    rel
-  }
-  def apply(r_type: UInt, addr: UInt, client_xact_id: UInt, master_xact_id: UInt): Release = {
+object Release {
+  def apply(r_type: UInt, addr: UInt, client_xact_id: UInt, data: UInt): Release = {
     val rel = new Release
     rel.r_type := r_type
     rel.addr := addr
     rel.client_xact_id := client_xact_id
-    rel.master_xact_id := master_xact_id
-    rel.data := UInt(0)
-    rel
-  }
-  def apply(r_type: UInt, addr: UInt, client_xact_id: UInt, master_xact_id: UInt, data: UInt): Release = {
-    val rel = apply(r_type, addr, client_xact_id, master_xact_id)
     rel.data := data
     rel
+  }
+  def apply(r_type: UInt, addr: UInt, client_xact_id: UInt): Release = {
+    apply(r_type, addr, client_xact_id, UInt(0))
+  }
+  def apply(r_type: UInt, addr: UInt): Release = {
+    apply(r_type, addr, UInt(0), UInt(0))
   }
 }
 
 class Release extends ClientSourcedMessage 
     with HasPhysicalAddress 
     with HasClientTransactionId 
-    with HasMasterTransactionId 
     with HasTileLinkData {
   val r_type = UInt(width = params(TLCoherence).releaseTypeWidth)
 }
