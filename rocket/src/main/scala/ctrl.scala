@@ -652,15 +652,18 @@ class Control extends Module
     Mux(replay_wb,        PC_WB,  // replay
                           PC_MEM)))
 
-  io.imem.btb_update.valid := (mem_reg_branch || io.imem.btb_update.bits.isJump) && !take_pc_wb
+  io.imem.btb_update.valid := take_pc_mem && !take_pc_wb
   io.imem.btb_update.bits.prediction.valid := mem_reg_btb_hit
   io.imem.btb_update.bits.prediction.bits := mem_reg_btb_resp
   io.imem.btb_update.bits.taken := mem_reg_branch && io.dpath.mem_br_taken || io.imem.btb_update.bits.isJump
-  io.imem.btb_update.bits.mispredict := take_pc_mem
   io.imem.btb_update.bits.isJump := mem_reg_jal || mem_reg_jalr
-  io.imem.btb_update.bits.isCall := mem_reg_wen && io.dpath.mem_waddr(0)
   io.imem.btb_update.bits.isReturn := mem_reg_jalr && io.dpath.mem_rs1_ra
-  io.imem.req.valid  := take_pc
+  io.imem.ras_update.valid := io.imem.btb_update.bits.isJump && !take_pc_wb
+  io.imem.ras_update.bits.isCall := mem_reg_wen && io.dpath.mem_waddr(0)
+  io.imem.ras_update.bits.isReturn := mem_reg_jalr && io.dpath.mem_rs1_ra
+  io.imem.ras_update.bits.prediction.valid := mem_reg_btb_hit
+  io.imem.ras_update.bits.prediction.bits := mem_reg_btb_resp
+  io.imem.req.valid := take_pc
 
   val bypassDst = Array(id_raddr1, id_raddr2)
   val bypassSrc = Array.fill(NBYP)((Bool(true), UInt(0)))

@@ -65,36 +65,40 @@ class BHT(nbht: Int) {
     when (update) { history := Cat(taken, history(nbhtbits-1,1)) }
     res
   }
-  def update(addr: UInt, d: BHTResp, taken: Bool, mispredict: Bool): Unit = {
+  def update(addr: UInt, d: BHTResp, taken: Bool): Unit = {
     val index = addr(nbhtbits+1,2) ^ d.history
     table(index) := Cat(taken, (d.value(1) & d.value(0)) | ((d.value(1) | d.value(0)) & taken))
-    when (mispredict) { history := Cat(taken, d.history(nbhtbits-1,1)) }
+    history := Cat(taken, d.history(nbhtbits-1,1))
   }
 
   private val table = Mem(UInt(width = 2), nbht)
   val history = Reg(UInt(width = nbhtbits))
 }
 
-// BTB update occurs during branch resolution.
+// BTB update occurs during branch resolution (and only on a mispredict).
 //  - "pc" is what future fetch PCs will tag match against.
 //  - "br_pc" is the PC of the branch instruction.
-//  - "bridx" is the low-order PC bits of the predicted branch (after 
-//    shifting off the lowest log(inst_bytes) bits off). 
-//  - "resp.mask" provides a mask of valid instructions (instructions are
-//      masked off by the predicted taken branch).
 class BTBUpdate extends Bundle with BTBParameters {
   val prediction = Valid(new BTBResp)
   val pc = UInt(width = vaddrBits)
   val target = UInt(width = vaddrBits)
-  val returnAddr = UInt(width = vaddrBits)
   val taken = Bool()
   val isJump = Bool()
-  val isCall = Bool()
   val isReturn = Bool()
   val br_pc = UInt(width = vaddrBits)
-  val mispredict = Bool()
 }
 
+class RASUpdate extends Bundle with BTBParameters {
+  val isCall = Bool()
+  val isReturn = Bool()
+  val returnAddr = UInt(width = vaddrBits)
+  val prediction = Valid(new BTBResp)
+}
+
+//  - "bridx" is the low-order PC bits of the predicted branch (after
+//    shifting off the lowest log(inst_bytes) bits off).
+//  - "resp.mask" provides a mask of valid instructions (instructions are
+//      masked off by the predicted taken branch).
 class BTBResp extends Bundle with BTBParameters {
   val taken = Bool()
   val mask = Bits(width = params(FetchWidth))
@@ -109,11 +113,15 @@ class BTBReq extends Bundle with BTBParameters {
 }
 
 // fully-associative branch target buffer
-class BTB extends Module with BTBParameters {
+// Higher-performance processors may cause BTB updates to occur out-of-order,
+// which requires an extra CAM port for updates (to ensure no duplicates get
+// placed in BTB).
+class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParameters {
   val io = new Bundle {
     val req = Valid(new BTBReq).flip
     val resp = Valid(new BTBResp)
     val update = Valid(new BTBUpdate).flip
+    val ras_update = Valid(new RASUpdate).flip
     val invalidate = Bool(INPUT)
   }
 
@@ -158,8 +166,7 @@ class BTB extends Module with BTBParameters {
   }
 
   val updateHit = r_update.bits.prediction.valid
-  val updateValid = r_update.bits.mispredict || updateHit && Bool(nBHT > 0)
-  val updateTarget = updateValid && r_update.bits.mispredict && r_update.bits.taken
+  val updateTarget = r_update.bits.taken
 
   val useUpdatePageHit = updatePageHit.orR
   val doIdxPageRepl = updateTarget && !useUpdatePageHit
@@ -179,27 +186,32 @@ class BTB extends Module with BTBParameters {
   val pageReplEn = idxPageReplEn | tgtPageReplEn
   idxPageRepl := UIntToOH(Counter(r_update.valid && doPageRepl, nPages)._1)
 
-  when (r_update.valid && !(updateValid && !updateTarget)) {
-    val nextRepl = Counter(!updateHit && updateValid, entries)._1
-    val waddr = Mux(updateHit, r_update.bits.prediction.bits.entry, nextRepl)
+  when (r_update.valid && updateTarget) {
+    assert(io.req.bits.addr === r_update.bits.target, "BTB request != I$ target")
+
+    val nextRepl = Counter(!updateHit, entries)._1
+    var waddr:UInt = null
+    if (!updates_out_of_order) {
+      waddr = Mux(updateHit, r_update.bits.prediction.bits.entry, nextRepl)
+    } else {
+      println("   BTB accepts out-of-order updates.")
+      waddr = Mux(updateHits.orR, OHToUInt(updateHits), nextRepl)
+    }
 
     // invalidate entries if we stomp on pages they depend upon
     idxValid := idxValid & ~Vec.tabulate(entries)(i => (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR).toBits
 
-    idxValid(waddr) := updateValid
-    when (updateTarget) {
-      assert(io.req.bits.addr === r_update.bits.target, "BTB request != I$ target")
-      idxs(waddr) := r_update.bits.pc
-      tgts(waddr) := update_target
-      idxPages(waddr) := idxPageUpdate
-      tgtPages(waddr) := tgtPageUpdate
-      useRAS(waddr) := r_update.bits.isReturn
-      isJump(waddr) := r_update.bits.isJump
-      if (params(FetchWidth) == 1) {
-        brIdx(waddr) := UInt(0)
-      } else {
-        brIdx(waddr) := r_update.bits.br_pc >> log2Up(params(CoreInstBits)/8)
-      }
+    idxValid(waddr) := Bool(true) 
+    idxs(waddr) := r_update.bits.pc
+    tgts(waddr) := update_target
+    idxPages(waddr) := idxPageUpdate
+    tgtPages(waddr) := tgtPageUpdate
+    useRAS(waddr) := r_update.bits.isReturn
+    isJump(waddr) := r_update.bits.isJump
+    if (params(FetchWidth) == 1) {
+      brIdx(waddr) := UInt(0)
+    } else {
+      brIdx(waddr) := r_update.bits.br_pc >> log2Up(params(CoreInstBits)/8)
     }
 
     require(nPages % 2 == 0)
@@ -231,7 +243,9 @@ class BTB extends Module with BTBParameters {
     io.resp.bits.mask := UInt(1)
   } else {
     // note: btb_resp is clock gated, so the mask is only relevant for the io.resp.valid case
-    io.resp.bits.mask := Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1))
+    val all_ones = UInt((1 << (params(FetchWidth)+1))-1)
+    io.resp.bits.mask := Mux(io.resp.bits.taken, Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)),
+                                                 all_ones)
   }
 
   if (nBHT > 0) {
@@ -239,8 +253,7 @@ class BTB extends Module with BTBParameters {
     val res = bht.get(io.req.bits.addr, io.req.valid && hits.orR && !Mux1H(hits, isJump))
     val update_btb_hit = io.update.bits.prediction.valid
     when (io.update.valid && update_btb_hit && !io.update.bits.isJump) {
-      bht.update(io.update.bits.pc, io.update.bits.prediction.bits.bht,
-                 io.update.bits.taken, io.update.bits.mispredict)
+      bht.update(io.update.bits.pc, io.update.bits.prediction.bits.bht, io.update.bits.taken)
     }
     when (!res.value(0) && !Mux1H(hits, isJump)) { io.resp.bits.taken := false }
     io.resp.bits.bht := res
@@ -252,13 +265,13 @@ class BTB extends Module with BTBParameters {
     when (!ras.isEmpty && doPeek) {
       io.resp.bits.target := ras.peek
     }
-    when (io.update.valid) {
-      when (io.update.bits.isCall) {
-        ras.push(io.update.bits.returnAddr)
+    when (io.ras_update.valid) {
+      when (io.ras_update.bits.isCall) {
+        ras.push(io.ras_update.bits.returnAddr)
         when (doPeek) {
-          io.resp.bits.target := io.update.bits.returnAddr
+          io.resp.bits.target := io.ras_update.bits.returnAddr
         }
-      }.elsewhen (io.update.bits.isReturn && io.update.bits.prediction.valid) {
+      }.elsewhen (io.ras_update.bits.isReturn && io.ras_update.bits.prediction.valid) {
         ras.pop
       }
     }

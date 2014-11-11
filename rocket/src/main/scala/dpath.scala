@@ -286,8 +286,8 @@ class Datapath extends Module
         wb_reg_pc)).toUInt // PC_WB
   io.imem.btb_update.bits.pc := mem_reg_pc
   io.imem.btb_update.bits.target := io.imem.req.bits.pc
-  io.imem.btb_update.bits.returnAddr := mem_int_wdata
   io.imem.btb_update.bits.br_pc := mem_reg_pc
+  io.imem.ras_update.bits.returnAddr := mem_int_wdata
   
   // for hazard/bypass opportunity detection
   io.ctrl.ex_waddr := ex_reg_inst(11,7)
