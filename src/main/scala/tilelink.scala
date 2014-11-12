@@ -2,65 +2,89 @@
 
 package uncore
 import Chisel._
+import scala.math.max
 
 case object TLId extends Field[String]
-case object TLCoherence extends Field[CoherencePolicyWithUncached]
+case object TLCoherence extends Field[CoherencePolicy]
 case object TLAddrBits extends Field[Int]
 case object TLMasterXactIdBits extends Field[Int]
 case object TLClientXactIdBits extends Field[Int]
 case object TLDataBits extends Field[Int]
-case object TLWriteMaskBits extends Field[Int]
-case object TLWordAddrBits extends Field[Int]
-case object TLAtomicOpBits extends Field[Int]
 
-trait HasPhysicalAddress extends Bundle {
-  val addr = UInt(width = params(TLAddrBits))
+abstract trait TileLinkParameters extends UsesParameters {
+  val tlAddrBits = params(TLAddrBits)
+  val tlClientXactIdBits = params(TLClientXactIdBits)
+  val tlMasterXactIdBits = params(TLMasterXactIdBits)
+  val tlDataBits = params(TLDataBits)
+  val tlWriteMaskBits = tlDataBits/8
+  val tlSubblockAddrBits = log2Up(tlWriteMaskBits)
+  val tlAtomicOpcodeBits = log2Up(NUM_XA_OPS)
+  val tlUncachedOperandSizeBits = MT_SZ
+  val tlSubblockUnionBits = max(tlWriteMaskBits, 
+                             (tlSubblockAddrBits + 
+                                tlUncachedOperandSizeBits + 
+                                tlAtomicOpcodeBits))
 }
 
-trait HasClientTransactionId extends Bundle {
-  val client_xact_id = Bits(width = params(TLClientXactIdBits))
+class TLBundle extends Bundle with TileLinkParameters
+
+trait HasPhysicalAddress extends TLBundle {
+  val addr = UInt(width = tlAddrBits)
 }
 
-trait HasMasterTransactionId extends Bundle {
-  val master_xact_id = Bits(width = params(TLMasterXactIdBits))
+trait HasClientTransactionId extends TLBundle {
+  val client_xact_id = Bits(width = tlClientXactIdBits)
 }
 
-trait HasTileLinkData extends Bundle {
-  val data = Bits(width = params(TLDataBits))
+trait HasMasterTransactionId extends TLBundle {
+  val master_xact_id = Bits(width = tlMasterXactIdBits)
 }
 
-trait SourcedMessage extends Bundle
+trait HasTileLinkData extends TLBundle {
+  val data = UInt(width = tlDataBits)
+}
+
+trait SourcedMessage extends TLBundle
 trait ClientSourcedMessage extends SourcedMessage
 trait MasterSourcedMessage extends SourcedMessage
 
-object Acquire 
-{
-  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt): Acquire = {
+class Acquire extends ClientSourcedMessage 
+    with HasPhysicalAddress 
+    with HasClientTransactionId 
+    with HasTileLinkData {
+  val uncached = Bool()
+  val a_type = UInt(width = max(log2Up(Acquire.nUncachedAcquireTypes), params(TLCoherence).acquireTypeWidth))
+  val subblock =  Bits(width = tlSubblockUnionBits)
+  val sbAddrOff = tlSubblockAddrBits + tlUncachedOperandSizeBits
+  val opSzOff = tlUncachedOperandSizeBits + sbAddrOff
+  def operand_sz(dummy: Int = 0) = subblock(tlUncachedOperandSizeBits-1, 0)
+  def subblock_addr(dummy: Int = 0) = subblock(sbAddrOff-1, tlUncachedOperandSizeBits)
+  def atomic_op(dummy: Int = 0) = subblock(opSzOff-1, sbAddrOff)
+  def write_mask(dummy: Int = 0) = subblock(tlWriteMaskBits-1, 0)
+}
+
+object Acquire {
+  val nUncachedAcquireTypes = 3
+  //val uncachedRead :: uncachedWrite :: uncachedAtomic :: Nil = Enum(UInt(), nUncachedAcquireTypes)
+  def uncachedRead = UInt(0)
+  def uncachedWrite = UInt(1)
+  def uncachedAtomic = UInt(2)
+  def hasData(a_type: UInt) = Vec(uncachedWrite, uncachedAtomic).contains(a_type)
+  def requiresOuterRead(a_type: UInt) = a_type != uncachedWrite
+  def requiresOuterWrite(a_type: UInt) = a_type === uncachedWrite
+
+  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt, data: UInt): Acquire = {
     val acq = new Acquire
+    acq.uncached := Bool(false)
     acq.a_type := a_type
     acq.addr := addr
     acq.client_xact_id := client_xact_id
-    acq.data := Bits(0)
-    acq.write_mask := Bits(0)
-    acq.subword_addr := Bits(0)
-    acq.atomic_opcode := Bits(0)
-    acq
-  }
-  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt, data: UInt): Acquire = {
-    val acq = apply(a_type, addr, client_xact_id)
     acq.data := data
+    acq.subblock := UInt(0)
     acq
   }
-  def apply(a_type: UInt, addr: UInt, client_xact_id: UInt, write_mask: Bits, data: UInt): Acquire = {
-    val acq = apply(a_type, addr, client_xact_id, data)
-    acq.write_mask := write_mask
-    acq
-  }
-  def apply(a_type: UInt, addr: UInt, client_xact_id: UInt, subword_addr: UInt, atomic_opcode: UInt, data: UInt): Acquire = {
-    val acq = apply(a_type, addr, client_xact_id, data)
-    acq.subword_addr := subword_addr
-    acq.atomic_opcode := atomic_opcode
-    acq
+  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt): Acquire = {
+    apply(a_type, addr, client_xact_id, UInt(0))
   }
   def apply(a: Acquire): Acquire = {
     val acq = new Acquire
@@ -69,16 +93,45 @@ object Acquire
   }
 }
 
-class Acquire extends ClientSourcedMessage 
-    with HasPhysicalAddress 
-    with HasClientTransactionId 
-    with HasTileLinkData {
-  val a_type = UInt(width = params(TLCoherence).acquireTypeWidth)
-  val write_mask = Bits(width = params(TLWriteMaskBits))
-  val subword_addr = Bits(width = params(TLWordAddrBits))
-  val atomic_opcode = Bits(width = params(TLAtomicOpBits))
+object UncachedRead {
+  def apply(addr: UInt, client_xact_id: UInt, subblock_addr: UInt, operand_sz: UInt): Acquire = {
+    val acq = Acquire(Acquire.uncachedRead, addr, client_xact_id)
+    acq.uncached := Bool(true)
+    acq.subblock := Cat(subblock_addr, operand_sz)
+    acq
+  }
+  def apply(addr: UInt, client_xact_id: UInt): Acquire = {
+    apply(addr, client_xact_id, UInt(0), MT_CB)
+  }
+  def apply(addr: UInt): Acquire = {
+    apply(addr, UInt(0), UInt(0), MT_CB)
+  }
 }
 
+object UncachedWrite {
+  def apply(addr: UInt, client_xact_id: UInt, write_mask: Bits, data: UInt): Acquire = {
+    val acq = Acquire(Acquire.uncachedWrite, addr, client_xact_id, data)
+    acq.uncached := Bool(true)
+    acq.subblock := write_mask
+    acq
+  }
+  def apply(addr: UInt, client_xact_id: UInt, data: UInt): Acquire = {
+    apply(addr, client_xact_id, SInt(-1), data)
+  }
+  def apply(addr: UInt, data: UInt): Acquire = {
+    apply(addr, UInt(0), data)
+  }
+}
+
+object UncachedAtomic {
+  def apply(addr: UInt, client_xact_id: UInt, atomic_opcode: UInt, 
+      subblock_addr: UInt, operand_sz: UInt, data: UInt): Acquire = {
+    val acq = Acquire(Acquire.uncachedAtomic, addr, client_xact_id, data)
+    acq.uncached := Bool(true)
+    acq.subblock := Cat(atomic_opcode, subblock_addr, operand_sz)
+    acq
+  }
+}
 
 object Probe {
   def apply(p_type: UInt, addr: UInt) = {
@@ -118,28 +171,34 @@ class Release extends ClientSourcedMessage
   val r_type = UInt(width = params(TLCoherence).releaseTypeWidth)
 }
 
-object Grant
-{
-  def apply(g_type: UInt, client_xact_id: UInt, master_xact_id: UInt): Grant = {
-    val gnt = new Grant
-    gnt.g_type := g_type
-    gnt.client_xact_id := client_xact_id
-    gnt.master_xact_id := master_xact_id
-    gnt.data := UInt(0)
-    gnt
-  }
-  def apply(g_type: UInt, client_xact_id: UInt, master_xact_id: UInt, data: UInt): Grant = {
-    val gnt = apply(g_type, client_xact_id, master_xact_id)
-    gnt.data := data
-    gnt
-  }
-}
-
 class Grant extends MasterSourcedMessage 
     with HasTileLinkData 
     with HasClientTransactionId 
     with HasMasterTransactionId {
-  val g_type = UInt(width = params(TLCoherence).grantTypeWidth)
+  val uncached = Bool()
+  val g_type = UInt(width = max(log2Up(Grant.nUncachedGrantTypes), params(TLCoherence).grantTypeWidth))
+}
+
+object Grant {
+  val nUncachedGrantTypes = 3
+  //val uncachedRead :: uncachedWrite :: uncachedAtomic :: Nil = Enum(UInt(), nUncachedGrantTypes)
+  def uncachedRead = UInt(0)
+  def uncachedWrite = UInt(1)
+  def uncachedAtomic = UInt(2)
+  def hasData(g_type: UInt) = Vec(uncachedRead, uncachedAtomic).contains(g_type)
+
+  def apply(uncached: Bool, g_type: UInt, client_xact_id: UInt, master_xact_id: UInt, data: UInt): Grant = {
+    val gnt = new Grant
+    gnt.uncached := uncached
+    gnt.g_type := g_type
+    gnt.client_xact_id := client_xact_id
+    gnt.master_xact_id := master_xact_id
+    gnt.data := data
+    gnt
+  }
+  def apply(uncached: Bool, g_type: UInt, client_xact_id: UInt, master_xact_id: UInt): Grant = {
+    apply(uncached, g_type, client_xact_id, master_xact_id, UInt(0))
+  }
 }
 
 class Finish extends ClientSourcedMessage with HasMasterTransactionId

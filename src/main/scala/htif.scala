@@ -135,7 +135,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     mem_acked := Bool(true)
     mem_gxid := io.mem.grant.bits.payload.master_xact_id
     mem_gsrc := io.mem.grant.bits.header.src
-    mem_needs_ack := co.requiresAckForGrant(io.mem.grant.bits.payload.g_type)
+    mem_needs_ack := co.requiresAckForGrant(io.mem.grant.bits.payload)
   }
   io.mem.grant.ready := Bool(true)
 
@@ -193,8 +193,8 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   acq_q.io.enq.valid := state === state_mem_rreq || state === state_mem_wreq
   val init_addr = addr.toUInt >> UInt(offsetBits-3)
   acq_q.io.enq.bits := Mux(cmd === cmd_writemem, 
-    Acquire(co.getUncachedWriteAcquireType, init_addr, UInt(0)), 
-    Acquire(co.getUncachedReadAcquireType, init_addr, UInt(0)))
+    UncachedWrite(init_addr, UInt(0)), 
+    UncachedRead(init_addr))
   io.mem.acquire.valid := acq_q.io.deq.valid
   acq_q.io.deq.ready := io.mem.acquire.ready
   io.mem.acquire.bits.payload := acq_q.io.deq.bits

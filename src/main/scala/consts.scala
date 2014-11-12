@@ -16,7 +16,9 @@ trait MemoryOpConstants {
   val MT_BU = Bits("b100")
   val MT_HU = Bits("b101")
   val MT_WU = Bits("b110")
+  val MT_CB = Bits("b111") // cache block
 
+  val NUM_XA_OPS = 9
   val M_SZ      = 5
   val M_X       = Bits("b?????");
   val M_XRD     = Bits("b00000"); // int load
