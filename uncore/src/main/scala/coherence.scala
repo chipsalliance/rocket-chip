@@ -51,7 +51,6 @@ class MixedMetadata(inner: CoherencePolicy, outer: CoherencePolicy) extends Cohe
 */
 
 abstract class DirectoryRepresentation extends Bundle {
-  val internal: UInt
   def pop(id: UInt): DirectoryRepresentation
   def push(id: UInt): DirectoryRepresentation
   def flush(dummy: Int = 0): DirectoryRepresentation
@@ -61,14 +60,13 @@ abstract class DirectoryRepresentation extends Bundle {
   def next(dummy: Int = 0): UInt
 }
 
-class NullRepresentation extends DirectoryRepresentation {
-  val internal = UInt(0)
+class NullRepresentation(nClients: Int) extends DirectoryRepresentation {
   def pop(id: UInt) = this
   def push(id: UInt) = this
   def flush(dummy: Int = 0) = this
   def none(dummy: Int = 0) = Bool(false)
   def one(dummy: Int = 0) = Bool(false)
-  def count(dummy: Int = 0) = UInt(0)
+  def count(dummy: Int = 0) = UInt(nClients)
   def next(dummy: Int = 0) = UInt(0)
 }
 
