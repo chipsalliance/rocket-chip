@@ -16,7 +16,7 @@ abstract trait TileLinkParameters extends UsesParameters {
   val tlClientXactIdBits = params(TLClientXactIdBits)
   val tlMasterXactIdBits = params(TLMasterXactIdBits)
   val tlDataBits = params(TLDataBits)
-  val tlWriteMaskBits = tlDataBits/8
+  val tlWriteMaskBits = if(tlDataBits/8 < 1) 1 else tlDataBits
   val tlSubblockAddrBits = log2Up(tlWriteMaskBits)
   val tlAtomicOpcodeBits = log2Up(NUM_XA_OPS)
   val tlUncachedOperandSizeBits = MT_SZ
