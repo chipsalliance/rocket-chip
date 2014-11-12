@@ -122,7 +122,7 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
   io.outer.acquire.valid := Bool(false)
   io.outer.acquire.bits.header.src := UInt(bankId) 
   //io.outer.acquire.bits.header.dst TODO
-  io.outer.acquire.bits.payload := Bundle(Acquire(co.getUncachedWriteAcquireType,
+  io.outer.acquire.bits.payload := Bundle(UncachedWrite(
                                             xact.addr,
                                             UInt(trackerId),
                                             xact.data),
@@ -133,7 +133,8 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
-  io.inner.grant.bits.payload := Grant(co.getGrantType(xact, co.masterMetadataOnFlush),
+  io.inner.grant.bits.payload := Grant(Bool(false),
+                                        co.getGrantTypeOnVoluntaryWriteback(co.masterMetadataOnFlush),
                                         xact.client_xact_id,
                                         UInt(trackerId))
 
@@ -169,15 +170,13 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   val curr_p_id = PriorityEncoder(probe_flags)
 
   val pending_outer_write = co.messageHasData(xact)
-  val pending_outer_read = co.requiresOuterRead(xact.a_type)
-  val outer_write_acq = Bundle(Acquire(co.getUncachedWriteAcquireType, 
-                                       xact.addr, UInt(trackerId), xact.data),
-                                    { case TLId => outerId })
-  val outer_write_rel = Bundle(Acquire(co.getUncachedWriteAcquireType, 
-                                       xact.addr, UInt(trackerId), c_rel.payload.data),
-                                    { case TLId => outerId })
-  val outer_read = Bundle(Acquire(co.getUncachedReadAcquireType, xact.addr, UInt(trackerId)),
-                                    { case TLId => outerId })
+  val pending_outer_read = co.requiresOuterRead(xact, co.masterMetadataOnFlush)
+  val outer_write_acq = Bundle(UncachedWrite(xact.addr, UInt(trackerId), xact.data),
+                          { case TLId => outerId })
+  val outer_write_rel = Bundle(UncachedWrite(xact.addr, UInt(trackerId), c_rel.payload.data),
+                          { case TLId => outerId })
+  val outer_read = Bundle(UncachedRead(xact.addr, UInt(trackerId)),
+                      { case TLId => outerId })
 
   val probe_initial_flags = Bits(width = nClients)
   probe_initial_flags := Bits(0)
@@ -202,11 +201,11 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   io.inner.probe.bits.header.dst := curr_p_id
   io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.masterMetadataOnFlush), xact.addr)
 
-  val grant_type = co.getGrantType(xact, co.masterMetadataOnFlush)
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
-  io.inner.grant.bits.payload := Grant(grant_type,
+  io.inner.grant.bits.payload := Grant(xact.uncached,
+                                        co.getGrantType(xact, co.masterMetadataOnFlush),
                                         xact.client_xact_id,
                                         UInt(trackerId),
                                         m_gnt.payload.data)
@@ -218,7 +217,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
     is(s_idle) {
       io.inner.acquire.ready := Bool(true)
       val needs_outer_write = co.messageHasData(c_acq.payload)
-      val needs_outer_read = co.requiresOuterRead(c_acq.payload.a_type)
+      val needs_outer_read = co.requiresOuterRead(c_acq.payload, co.masterMetadataOnFlush)
       when( io.inner.acquire.valid ) {
         xact := c_acq.payload
         init_client_id := c_acq.header.src
@@ -266,7 +265,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
       io.outer.acquire.valid := Bool(true)
       io.outer.acquire.bits.payload := outer_read
       when(io.outer.acquire.ready) {
-        state := Mux(co.requiresAckForGrant(grant_type), s_busy, s_idle)
+        state := Mux(co.requiresAckForGrant(io.inner.grant.bits.payload), s_busy, s_idle)
       }
     }
     is(s_mem_write) {
@@ -279,7 +278,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
     is(s_make_grant) {
       io.inner.grant.valid := Bool(true)
       when(io.inner.grant.ready) { 
-        state := Mux(co.requiresAckForGrant(grant_type), s_busy, s_idle)
+        state := Mux(co.requiresAckForGrant(io.inner.grant.bits.payload), s_busy, s_idle)
       }
     }
     is(s_busy) { // Nothing left to do but wait for transaction to complete
