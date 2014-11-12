@@ -254,7 +254,7 @@ class MSHR(id: Int) extends L1HellaCacheModule {
   }
 
   val ackq = Module(new Queue(new LogicalNetworkIO(new Finish), 1))
-  ackq.io.enq.valid := (wb_done || refill_done) && co.requiresAckForGrant(io.mem_grant.bits.payload.g_type)
+  ackq.io.enq.valid := (wb_done || refill_done) && co.requiresAckForGrant(io.mem_grant.bits.payload)
   ackq.io.enq.bits.payload.master_xact_id := io.mem_grant.bits.payload.master_xact_id
   ackq.io.enq.bits.header.dst := io.mem_grant.bits.header.src
   val can_finish = state === s_invalid || state === s_refill_req || state === s_refill_resp
@@ -288,9 +288,7 @@ class MSHR(id: Int) extends L1HellaCacheModule {
   io.wb_req.bits.r_type := co.getReleaseTypeOnVoluntaryWriteback()
 
   io.mem_req.valid := state === s_refill_req && ackq.io.enq.ready
-  io.mem_req.bits.a_type := acquire_type
-  io.mem_req.bits.addr := Cat(io.tag, req_idx).toUInt
-  io.mem_req.bits.client_xact_id := Bits(id)
+  io.mem_req.bits := Acquire(acquire_type, Cat(io.tag, req_idx).toUInt, Bits(id))
   io.mem_finish <> ackq.io.deq
 
   io.meta_read.valid := state === s_drain_rpq
