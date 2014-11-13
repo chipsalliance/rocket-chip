@@ -5,14 +5,17 @@ import Chisel._
 
 case object NReleaseTransactors extends Field[Int]
 case object NAcquireTransactors extends Field[Int]
+case object L2StoreDataQueueDepth extends Field[Int]
 case object NClients extends Field[Int]
 
 abstract trait CoherenceAgentParameters extends UsesParameters {
   val co = params(TLCoherence)
-  val nReleaseTransactors = params(NReleaseTransactors)
+  val nReleaseTransactors = 1
   val nAcquireTransactors = params(NAcquireTransactors)
   val nTransactors = nReleaseTransactors + nAcquireTransactors
   val nClients = params(NClients)
+  val sdqDepth = params(L2StoreDataQueueDepth)
+  val sdqIdBits = math.max(log2Up(nReleaseTransactors) + 1, log2Up(params(L2StoreDataQueueDepth))) + 1
 }
 
 abstract class CoherenceAgent(innerId: String, outerId: String) extends Module
@@ -27,11 +30,19 @@ abstract class CoherenceAgent(innerId: String, outerId: String) extends Module
 class L2CoherenceAgent(bankId: Int, innerId: String, outerId: String) extends 
     CoherenceAgent(innerId, outerId) {
 
+  // Queue to store impending UncachedWrite data
+  val sdq_val = Reg(init=Bits(0, sdqDepth))
+  val sdq_alloc_id = PriorityEncoder(~sdq_val(sdqDepth-1,0))
+  val sdq_rdy = !sdq_val.andR
+  val sdq_enq = io.inner.acquire.valid && io.inner.acquire.ready && co.messageHasData(io.inner.acquire.bits.payload)
+  val sdq = Vec.fill(sdqDepth){Reg(io.inner.acquire.bits.payload.data)}
+  when (sdq_enq) { sdq(sdq_alloc_id) := io.inner.acquire.bits.payload.data }
+
   // Create SHRs for outstanding transactions
   val trackerList = (0 until nReleaseTransactors).map(id => 
-    Module(new VoluntaryReleaseTracker(id, bankId, innerId, outerId))) ++ 
+    Module(new VoluntaryReleaseTracker(id, bankId, innerId, outerId), {case TLDataBits => sdqIdBits})) ++ 
       (nReleaseTransactors until nTransactors).map(id => 
-        Module(new AcquireTracker(id, bankId, innerId, outerId)))
+        Module(new AcquireTracker(id, bankId, innerId, outerId), {case TLDataBits => sdqIdBits}))
   
   // Propagate incoherence flags
   trackerList.map(_.io.tile_incoherent := io.incoherent.toBits)
@@ -46,10 +57,11 @@ class L2CoherenceAgent(bankId: Int, innerId: String, outerId: String) extends
     val t = trackerList(i).io.inner
     alloc_arb.io.in(i).valid := t.acquire.ready
     t.acquire.bits := acquire.bits
+    t.acquire.bits.payload.data := Cat(sdq_alloc_id, UInt(1))
     t.acquire.valid := alloc_arb.io.in(i).ready
   }
-  acquire.ready := trackerList.map(_.io.inner.acquire.ready).reduce(_||_) && !block_acquires
-  alloc_arb.io.out.ready := acquire.valid && !block_acquires
+  acquire.ready := trackerList.map(_.io.inner.acquire.ready).reduce(_||_) && sdq_rdy && !block_acquires
+  alloc_arb.io.out.ready := acquire.valid && sdq_rdy && !block_acquires
 
   // Handle probe request generation
   val probe_arb = Module(new Arbiter(new LogicalNetworkIO(new Probe), trackerList.size))
@@ -62,17 +74,24 @@ class L2CoherenceAgent(bankId: Int, innerId: String, outerId: String) extends
   val any_release_conflict = trackerList.tail.map(_.io.has_release_conflict).reduce(_||_)
   val block_releases = Bool(false)
   val conflict_idx = Vec(trackerList.map(_.io.has_release_conflict)).lastIndexWhere{b: Bool => b}
-  //val release_idx = Mux(voluntary, Mux(any_release_conflict, conflict_idx, UInt(0)), release.bits.payload.master_xact_id) // TODO: Add merging logic to allow allocated AcquireTracker to handle conflicts, send all necessary grants, use first sufficient response
-  val release_idx = Mux(voluntary, UInt(0), release.bits.payload.master_xact_id)
+  val release_idx = Mux(voluntary, UInt(0), conflict_idx)
+  // TODO: Add merging logic to allow allocated AcquireTracker to handle conflicts, send all necessary grants, use first sufficient response
   for( i <- 0 until trackerList.size ) {
     val t = trackerList(i).io.inner
     t.release.bits := release.bits 
+    t.release.bits.payload.data := (if (i < nReleaseTransactors) Cat(UInt(i), UInt(2)) else  UInt(0))
     t.release.valid := release.valid && (release_idx === UInt(i)) && !block_releases
   }
   release.ready := Vec(trackerList.map(_.io.inner.release.ready)).read(release_idx) && !block_releases
 
+  val vwbdq = Vec.fill(nReleaseTransactors){ Reg(release.bits.payload.data) }
+  when(voluntary && release.fire()) {
+    vwbdq(release_idx) := release.bits.payload.data
+  }
+
   // Reply to initial requestor
   val grant_arb = Module(new Arbiter(new LogicalNetworkIO(new Grant), trackerList.size))
+  io.inner.grant.bits.payload.data := io.outer.grant.bits.payload.data
   io.inner.grant <> grant_arb.io.out
   grant_arb.io.in zip trackerList map { case (arb, t) => arb <> t.io.inner.grant }
 
@@ -84,9 +103,22 @@ class L2CoherenceAgent(bankId: Int, innerId: String, outerId: String) extends
 
   // Create an arbiter for the one memory port
   val outer_arb = Module(new UncachedTileLinkIOArbiterThatPassesId(trackerList.size),
-                         {case TLId => outerId})
+                         { case TLId => outerId; case TLDataBits => sdqIdBits })
   outer_arb.io.in zip  trackerList map { case(arb, t) => arb <> t.io.outer }
+  val is_in_sdq = outer_arb.io.out.acquire.bits.payload.data(0)
+  val is_in_vwbdq = outer_arb.io.out.acquire.bits.payload.data(1)
+  val free_sdq_id = outer_arb.io.out.acquire.bits.payload.data >> UInt(1)
+  val free_vwbdq_id = outer_arb.io.out.acquire.bits.payload.data >> UInt(2)
+  val free_sdq = io.outer.acquire.fire() && co.messageHasData(io.outer.acquire.bits.payload) && is_in_sdq
+  io.outer.acquire.bits.payload.data := Mux(is_in_sdq, sdq(free_sdq_id),
+                                              Mux(is_in_vwbdq, vwbdq(free_vwbdq_id), release.bits.payload.data))
   io.outer <> outer_arb.io.out
+
+  // Update SDQ valid bits
+  when (io.outer.acquire.valid || sdq_enq) {
+    sdq_val := sdq_val & ~(UIntToOH(free_sdq_id) & Fill(sdqDepth, free_sdq)) | 
+               PriorityEncoderOH(~sdq_val(sdqDepth-1,0)) & Fill(sdqDepth, sdq_enq)
+  }
 }
 
 
@@ -112,17 +144,16 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
   val state = Reg(init=s_idle)
   val xact  = Reg{ new Release }
   val init_client_id = Reg(init=UInt(0, width = log2Up(nClients)))
-  val incoming_rel = io.inner.release.bits
 
   io.has_acquire_conflict := Bool(false)
-  io.has_release_conflict := co.isCoherenceConflict(xact.addr, incoming_rel.payload.addr) && 
+  io.has_release_conflict := co.isCoherenceConflict(xact.addr, c_rel.payload.addr) && 
                                (state != s_idle)
 
   io.outer.grant.ready := Bool(false)
   io.outer.acquire.valid := Bool(false)
   io.outer.acquire.bits.header.src := UInt(bankId) 
   //io.outer.acquire.bits.header.dst TODO
-  io.outer.acquire.bits.payload := Bundle(Acquire(co.getUncachedWriteAcquireType,
+  io.outer.acquire.bits.payload := Bundle(UncachedWrite(
                                             xact.addr,
                                             UInt(trackerId),
                                             xact.data),
@@ -133,17 +164,18 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
-  io.inner.grant.bits.payload := Grant(co.getGrantType(xact, co.masterMetadataOnFlush),
+  io.inner.grant.bits.payload := Grant(Bool(false),
+                                        co.getGrantTypeOnVoluntaryWriteback(co.masterMetadataOnFlush),
                                         xact.client_xact_id,
                                         UInt(trackerId))
 
   switch (state) {
     is(s_idle) {
-      io.inner.release.ready := Bool(true)
       when( io.inner.release.valid ) {
-        xact := incoming_rel.payload
-        init_client_id := incoming_rel.header.src
-        state := Mux(co.messageHasData(incoming_rel.payload), s_mem, s_ack)
+        io.inner.release.ready := Bool(true)
+        xact := c_rel.payload
+        init_client_id := c_rel.header.src
+        state := Mux(co.messageHasData(c_rel.payload), s_mem, s_ack)
       }
     }
     is(s_mem) {
@@ -169,15 +201,13 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   val curr_p_id = PriorityEncoder(probe_flags)
 
   val pending_outer_write = co.messageHasData(xact)
-  val pending_outer_read = co.requiresOuterRead(xact.a_type)
-  val outer_write_acq = Bundle(Acquire(co.getUncachedWriteAcquireType, 
-                                       xact.addr, UInt(trackerId), xact.data),
-                                    { case TLId => outerId })
-  val outer_write_rel = Bundle(Acquire(co.getUncachedWriteAcquireType, 
-                                       xact.addr, UInt(trackerId), c_rel.payload.data),
-                                    { case TLId => outerId })
-  val outer_read = Bundle(Acquire(co.getUncachedReadAcquireType, xact.addr, UInt(trackerId)),
-                                    { case TLId => outerId })
+  val pending_outer_read = co.requiresOuterRead(xact, co.masterMetadataOnFlush)
+  val outer_write_acq = Bundle(UncachedWrite(xact.addr, UInt(trackerId), xact.data),
+                          { case TLId => outerId })
+  val outer_write_rel = Bundle(UncachedWrite(xact.addr, UInt(trackerId), UInt(0)), // Special SQDId
+                          { case TLId => outerId })
+  val outer_read = Bundle(UncachedRead(xact.addr, UInt(trackerId)),
+                      { case TLId => outerId })
 
   val probe_initial_flags = Bits(width = nClients)
   probe_initial_flags := Bits(0)
@@ -200,18 +230,16 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
   io.inner.probe.bits.header.dst := curr_p_id
-  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.masterMetadataOnFlush),
-                                               xact.addr,
-                                               UInt(trackerId))
+  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.masterMetadataOnFlush), xact.addr)
 
-  val grant_type = co.getGrantType(xact, co.masterMetadataOnFlush)
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := init_client_id
-  io.inner.grant.bits.payload := Grant(grant_type,
+  io.inner.grant.bits.payload := Grant(xact.uncached,
+                                        co.getGrantType(xact, co.masterMetadataOnFlush),
                                         xact.client_xact_id,
                                         UInt(trackerId),
-                                        m_gnt.payload.data)
+                                        UInt(0)) // Data bypassed in parent
 
   io.inner.acquire.ready := Bool(false)
   io.inner.release.ready := Bool(false)
@@ -220,7 +248,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
     is(s_idle) {
       io.inner.acquire.ready := Bool(true)
       val needs_outer_write = co.messageHasData(c_acq.payload)
-      val needs_outer_read = co.requiresOuterRead(c_acq.payload.a_type)
+      val needs_outer_read = co.requiresOuterRead(c_acq.payload, co.masterMetadataOnFlush)
       when( io.inner.acquire.valid ) {
         xact := c_acq.payload
         init_client_id := c_acq.header.src
@@ -268,7 +296,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
       io.outer.acquire.valid := Bool(true)
       io.outer.acquire.bits.payload := outer_read
       when(io.outer.acquire.ready) {
-        state := Mux(co.requiresAckForGrant(grant_type), s_busy, s_idle)
+        state := Mux(co.requiresAckForGrant(io.inner.grant.bits.payload), s_busy, s_idle)
       }
     }
     is(s_mem_write) {
@@ -281,7 +309,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
     is(s_make_grant) {
       io.inner.grant.valid := Bool(true)
       when(io.inner.grant.ready) { 
-        state := Mux(co.requiresAckForGrant(grant_type), s_busy, s_idle)
+        state := Mux(co.requiresAckForGrant(io.inner.grant.bits.payload), s_busy, s_idle)
       }
     }
     is(s_busy) { // Nothing left to do but wait for transaction to complete
