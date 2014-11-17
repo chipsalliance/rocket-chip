@@ -79,7 +79,7 @@ abstract trait DecodeConstants
                 //   |     | | | | | | | |       |       |      |      |         | |         |     | | | |     | | | | | amo
                 //   |     | | | | | | | |       |       |      |      |         | |         |     | | | |     | | | | | |
                 List(N,    X,X,X,X,X,X,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, X,X,X,CSR.X,N,X,X,X,X,X)
-                                        
+
   val table: Array[(UInt, List[UInt])]
 }
 
@@ -162,7 +162,7 @@ object XDecode extends DecodeConstants
     SRL->       List(Y,    N,N,N,N,N,Y,Y,A2_RS2, A1_RS1, IMM_X, DW_XPR,FN_SR,    N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     SRA->       List(Y,    N,N,N,N,N,Y,Y,A2_RS2, A1_RS1, IMM_X, DW_XPR,FN_SRA,   N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
 
-    ADDIW->     List(xpr64,N,N,N,N,N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_32,FN_ADD,    N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),   
+    ADDIW->     List(xpr64,N,N,N,N,N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_32,FN_ADD,    N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     SLLIW->     List(xpr64,N,N,N,N,N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_32,FN_SL,     N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     SRLIW->     List(xpr64,N,N,N,N,N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_32,FN_SR,     N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
     SRAIW->     List(xpr64,N,N,N,N,N,N,Y,A2_IMM, A1_RS1, IMM_I, DW_32,FN_SRA,    N,M_X,      MT_X, N,N,Y,CSR.N,N,N,N,N,N,N),
@@ -322,12 +322,12 @@ class Control extends Module
   if (!params(BuildRoCC).isEmpty) decode_table ++= RoCCDecode.table
 
   val cs = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
-  
+
   val (id_int_val: Bool) :: (id_fp_val: Bool) :: (id_rocc_val: Bool) :: (id_branch: Bool) :: (id_jal: Bool) :: (id_jalr: Bool) :: (id_renx2: Bool) :: (id_renx1: Bool) :: cs0 = cs
   val id_sel_alu2 :: id_sel_alu1 :: id_sel_imm :: (id_fn_dw: Bool) :: id_fn_alu :: cs1 = cs0
   val (id_mem_val: Bool) :: id_mem_cmd :: id_mem_type :: (id_mul_val: Bool) :: (id_div_val: Bool) :: (id_wen: Bool) :: cs2 = cs1
   val id_csr :: (id_fence_i: Bool) :: (id_sret: Bool) :: (id_syscall: Bool) :: (id_replay_next: Bool) :: (id_fence: Bool) :: (id_amo: Bool) :: Nil = cs2
-  
+
   val ex_reg_xcpt_interrupt  = Reg(Bool())
   val ex_reg_valid           = Reg(Bool())
   val ex_reg_branch          = Reg(Bool())
@@ -470,14 +470,14 @@ class Control extends Module
     ex_reg_wen         := Bool(false)
     ex_reg_fp_wen      := Bool(false)
     ex_reg_sret        := Bool(false)
-    ex_reg_flush_inst  := Bool(false)  
+    ex_reg_flush_inst  := Bool(false)
     ex_reg_fp_val := Bool(false)
     ex_reg_rocc_val := Bool(false)
     ex_reg_replay_next := Bool(false)
     ex_reg_load_use := Bool(false)
     ex_reg_csr := CSR.N
     ex_reg_xcpt := Bool(false)
-  } 
+  }
   .otherwise {
     ex_reg_branch := id_branch
     ex_reg_jal := id_jal
@@ -514,7 +514,7 @@ class Control extends Module
   val (ex_xcpt, ex_cause) = checkExceptions(List(
     (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause),
     (ex_reg_fp_val && io.fpu.illegal_rm,   UInt(Causes.illegal_instruction))))
-  
+
   mem_reg_replay := !take_pc_mem_wb && replay_ex
   mem_reg_xcpt_interrupt := !take_pc_mem_wb && ex_reg_xcpt_interrupt && !mem_reg_replay_next
   when (ex_xcpt) { mem_reg_cause := ex_cause }
@@ -599,7 +599,7 @@ class Control extends Module
   }
 
   val wb_set_sboard = wb_reg_div_mul_val || wb_dcache_miss || wb_reg_rocc_val
-  val replay_wb_common = 
+  val replay_wb_common =
     io.dmem.resp.bits.nack || wb_reg_replay || io.dpath.csr_replay
   val wb_rocc_val = wb_reg_rocc_val && !replay_wb_common
   val replay_wb = replay_wb_common || wb_reg_rocc_val && !io.rocc.cmd.ready
@@ -699,7 +699,7 @@ class Control extends Module
      io.fpu.dec.wen  && id_waddr  === io.dpath.ex_waddr)
   val id_ex_hazard = data_hazard_ex && (ex_reg_csr != CSR.N || ex_reg_jalr || ex_reg_mem_val || ex_reg_div_mul_val || ex_reg_fp_val || ex_reg_rocc_val) ||
                      fp_data_hazard_ex && (ex_reg_mem_val || ex_reg_fp_val)
-    
+
   // stall for RAW/WAW hazards on PCRs, LB/LH, and mul/div in memory stage.
   val mem_mem_cmd_bh =
     if (params(FastLoadWord)) Bool(!params(FastLoadByte)) && mem_reg_slow_bypass
