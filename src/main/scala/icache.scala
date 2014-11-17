@@ -33,6 +33,7 @@ class CPUFrontendIO extends CoreBundle {
   val resp = Decoupled(new FrontendResp).flip
   val btb_resp = Valid(new BTBResp).flip
   val btb_update = Valid(new BTBUpdate)
+  val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
   val ptw = new TLBPTWIO().flip
   val invalidate = Bool(OUTPUT)
@@ -88,7 +89,8 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
 
   btb.io.req.valid := !stall && !icmiss
   btb.io.req.bits.addr := s1_pc & SInt(-coreInstBytes)
-  btb.io.update := io.cpu.btb_update
+  btb.io.btb_update := io.cpu.btb_update
+  btb.io.bht_update := io.cpu.bht_update
   btb.io.ras_update := io.cpu.ras_update
   btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate
 

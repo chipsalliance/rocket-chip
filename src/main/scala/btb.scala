@@ -51,7 +51,7 @@ class BHTResp extends Bundle with BTBParameters {
 //    - updated speculatively in fetch (if there's a BTB hit).
 //    - on a mispredict, the history register is reset (again, only if BTB hit).
 // The counter table:
-//    - each counter corresponds with the "fetch pc" (not the PC of the branch). 
+//    - each counter corresponds with the address of the fetch packet ("fetch pc").
 //    - updated when a branch resolves (and BTB was a hit for that branch).
 //      The updating branch must provide its "fetch pc".
 class BHT(nbht: Int) {
@@ -65,10 +65,10 @@ class BHT(nbht: Int) {
     when (update) { history := Cat(taken, history(nbhtbits-1,1)) }
     res
   }
-  def update(addr: UInt, d: BHTResp, taken: Bool): Unit = {
+  def update(addr: UInt, d: BHTResp, taken: Bool, mispredict: Bool): Unit = {
     val index = addr(nbhtbits+1,2) ^ d.history
     table(index) := Cat(taken, (d.value(1) & d.value(0)) | ((d.value(1) | d.value(0)) & taken))
-    history := Cat(taken, d.history(nbhtbits-1,1))
+    when (mispredict) { history := Cat(taken, d.history(nbhtbits-1,1)) }
   }
 
   private val table = Mem(UInt(width = 2), nbht)
@@ -88,6 +88,15 @@ class BTBUpdate extends Bundle with BTBParameters {
   val br_pc = UInt(width = vaddrBits)
 }
 
+// BHT update occurs during branch resolution on all conditional branches.
+//  - "pc" is what future fetch PCs will tag match against.
+class BHTUpdate extends Bundle with BTBParameters {
+  val prediction = Valid(new BTBResp)
+  val pc = UInt(width = vaddrBits)
+  val taken = Bool()
+  val mispredict = Bool()
+}
+
 class RASUpdate extends Bundle with BTBParameters {
   val isCall = Bool()
   val isReturn = Bool()
@@ -96,9 +105,9 @@ class RASUpdate extends Bundle with BTBParameters {
 }
 
 //  - "bridx" is the low-order PC bits of the predicted branch (after
-//    shifting off the lowest log(inst_bytes) bits off).
+//     shifting off the lowest log(inst_bytes) bits off).
 //  - "resp.mask" provides a mask of valid instructions (instructions are
-//      masked off by the predicted taken branch).
+//     masked off by the predicted taken branch).
 class BTBResp extends Bundle with BTBParameters {
   val taken = Bool()
   val mask = Bits(width = params(FetchWidth))
@@ -120,7 +129,8 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
   val io = new Bundle {
     val req = Valid(new BTBReq).flip
     val resp = Valid(new BTBResp)
-    val update = Valid(new BTBUpdate).flip
+    val btb_update = Valid(new BTBUpdate).flip
+    val bht_update = Valid(new BHTUpdate).flip
     val ras_update = Valid(new RASUpdate).flip
     val invalidate = Bool(INPUT)
   }
@@ -151,67 +161,62 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
     idxValid & idxMatch & idxPageMatch
   }
 
-  val r_update = Pipe(io.update)
+  val r_btb_update = Pipe(io.btb_update)
   val update_target = io.req.bits.addr
 
   val pageHit = pageMatch(io.req.bits.addr)
   val hits = tagMatch(io.req.bits.addr, pageHit)
-  val updatePageHit = pageMatch(r_update.bits.pc)
-  val updateHits = tagMatch(r_update.bits.pc, updatePageHit)
+  val updatePageHit = pageMatch(r_btb_update.bits.pc)
+  val updateHits = tagMatch(r_btb_update.bits.pc, updatePageHit)
 
-  private var lfsr = LFSR16(r_update.valid)
+  private var lfsr = LFSR16(r_btb_update.valid)
   def rand(width: Int) = {
     lfsr = lfsr(lfsr.getWidth-1,1)
     Random.oneHot(width, lfsr)
   }
 
-  val updateHit = r_update.bits.prediction.valid
-  val updateTarget = r_update.bits.taken
+  val updateHit = r_btb_update.bits.prediction.valid
 
   val useUpdatePageHit = updatePageHit.orR
-  val doIdxPageRepl = updateTarget && !useUpdatePageHit
+  val doIdxPageRepl = !useUpdatePageHit
   val idxPageRepl = UInt()
   val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
   val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, UInt(0))
 
-  val samePage = page(r_update.bits.pc) === page(update_target)
+  val samePage = page(r_btb_update.bits.pc) === page(update_target)
   val usePageHit = (pageHit & ~idxPageReplEn).orR
-  val doTgtPageRepl = updateTarget && !samePage && !usePageHit
+  val doTgtPageRepl = !samePage && !usePageHit
   val tgtPageRepl = Mux(samePage, idxPageUpdateOH, idxPageUpdateOH(nPages-2,0) << 1 | idxPageUpdateOH(nPages-1))
   val tgtPageUpdate = OHToUInt(Mux(usePageHit, pageHit, tgtPageRepl))
   val tgtPageReplEn = Mux(doTgtPageRepl, tgtPageRepl, UInt(0))
   val doPageRepl = doIdxPageRepl || doTgtPageRepl
 
   val pageReplEn = idxPageReplEn | tgtPageReplEn
-  idxPageRepl := UIntToOH(Counter(r_update.valid && doPageRepl, nPages)._1)
+  idxPageRepl := UIntToOH(Counter(r_btb_update.valid && doPageRepl, nPages)._1)
 
-  when (r_update.valid && updateTarget) {
-    assert(io.req.bits.addr === r_update.bits.target, "BTB request != I$ target")
+  when (r_btb_update.valid) {
+    assert(io.req.bits.addr === r_btb_update.bits.target, "BTB request != I$ target")
 
     val nextRepl = Counter(!updateHit, entries)._1
-    var waddr:UInt = null
-    if (!updates_out_of_order) {
-      waddr = Mux(updateHit, r_update.bits.prediction.bits.entry, nextRepl)
-    } else {
-      println("   BTB accepts out-of-order updates.")
-      waddr = Mux(updateHits.orR, OHToUInt(updateHits), nextRepl)
-    }
+    val waddr =
+      if (updates_out_of_order) Mux(updateHits.orR, OHToUInt(updateHits), nextRepl)
+      else Mux(updateHit, r_btb_update.bits.prediction.bits.entry, nextRepl)
 
     // invalidate entries if we stomp on pages they depend upon
     idxValid := idxValid & ~Vec.tabulate(entries)(i => (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR).toBits
 
-    idxValid(waddr) := Bool(true) 
-    idxs(waddr) := r_update.bits.pc
+    idxValid(waddr) := Bool(true)
+    idxs(waddr) := r_btb_update.bits.pc
     tgts(waddr) := update_target
     idxPages(waddr) := idxPageUpdate
     tgtPages(waddr) := tgtPageUpdate
-    useRAS(waddr) := r_update.bits.isReturn
-    isJump(waddr) := r_update.bits.isJump
+    useRAS(waddr) := r_btb_update.bits.isReturn
+    isJump(waddr) := r_btb_update.bits.isJump
     if (params(FetchWidth) == 1) {
       brIdx(waddr) := UInt(0)
     } else {
-      brIdx(waddr) := r_update.bits.br_pc >> log2Up(params(CoreInstBits)/8)
+      brIdx(waddr) := r_btb_update.bits.br_pc >> log2Up(params(CoreInstBits)/8)
     }
 
     require(nPages % 2 == 0)
@@ -222,9 +227,9 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
         when (en && pageReplEn(i)) { pages(i) := data }
 
     writeBank(0, 2, Mux(idxWritesEven, doIdxPageRepl, doTgtPageRepl),
-      Mux(idxWritesEven, page(r_update.bits.pc), page(update_target)))
+      Mux(idxWritesEven, page(r_btb_update.bits.pc), page(update_target)))
     writeBank(1, 2, Mux(idxWritesEven, doTgtPageRepl, doIdxPageRepl),
-      Mux(idxWritesEven, page(update_target), page(r_update.bits.pc)))
+      Mux(idxWritesEven, page(update_target), page(r_btb_update.bits.pc)))
 
     when (doPageRepl) { pageValid := pageValid | pageReplEn }
   }
@@ -243,17 +248,16 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
     io.resp.bits.mask := UInt(1)
   } else {
     // note: btb_resp is clock gated, so the mask is only relevant for the io.resp.valid case
-    val all_ones = UInt((1 << (params(FetchWidth)+1))-1)
     io.resp.bits.mask := Mux(io.resp.bits.taken, Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)),
-                                                 all_ones)
+                                                 SInt(-1))
   }
 
   if (nBHT > 0) {
     val bht = new BHT(nBHT)
     val res = bht.get(io.req.bits.addr, io.req.valid && hits.orR && !Mux1H(hits, isJump))
-    val update_btb_hit = io.update.bits.prediction.valid
-    when (io.update.valid && update_btb_hit && !io.update.bits.isJump) {
-      bht.update(io.update.bits.pc, io.update.bits.prediction.bits.bht, io.update.bits.taken)
+    val update_btb_hit = io.bht_update.bits.prediction.valid
+    when (io.bht_update.valid && update_btb_hit) {
+      bht.update(io.bht_update.bits.pc, io.bht_update.bits.prediction.bits.bht, io.bht_update.bits.taken, io.bht_update.bits.mispredict)
     }
     when (!res.value(0) && !Mux1H(hits, isJump)) { io.resp.bits.taken := false }
     io.resp.bits.bht := res
