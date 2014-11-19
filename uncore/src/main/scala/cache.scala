@@ -138,12 +138,19 @@ class L2MetaResp extends L2HellaCacheBundle
   with HasL2Id 
   with HasL2InternalRequestState
 
+trait HasL2MetaReadIO extends L2HellaCacheBundle {
+  val read = Decoupled(new L2MetaReadReq)
+  val resp = Valid(new L2MetaResp).flip
+}
+
+trait HasL2MetaWriteIO extends L2HellaCacheBundle {
+  val write = Decoupled(new L2MetaWriteReq)
+}
+
+class L2MetaRWIO extends L2HellaCacheBundle with HasL2MetaReadIO with HasL2MetaWriteIO
+
 class L2MetadataArray extends L2HellaCacheModule {
-  val io = new Bundle {
-    val read = Decoupled(new L2MetaReadReq).flip
-    val write = Decoupled(new L2MetaWriteReq).flip
-    val resp = Valid(new L2MetaResp)
-  }
+  val io = new L2MetaRWIO().flip
 
   val meta = Module(new MetadataArray(() => L2Metadata(UInt(0), co.masterMetadataOnFlush)))
   meta.io.read <> io.read
@@ -189,12 +196,19 @@ class L2DataResp extends Bundle with HasL2Id with TileLinkParameters {
   val data   = Bits(width = tlDataBits)
 }
 
+trait HasL2DataReadIO extends L2HellaCacheBundle { 
+  val read = Decoupled(new L2DataReadReq)
+  val resp = Valid(new L2DataResp).flip
+}
+
+trait HasL2DataWriteIO extends L2HellaCacheBundle { 
+  val write = Decoupled(new L2DataWriteReq)
+}
+
+class L2DataRWIO extends L2HellaCacheBundle with HasL2DataReadIO with HasL2DataWriteIO
+
 class L2DataArray extends L2HellaCacheModule {
-  val io = new Bundle {
-    val read = Decoupled(new L2DataReadReq).flip
-    val write = Decoupled(new L2DataWriteReq).flip
-    val resp = Valid(new L2DataResp)
-  }
+  val io = new L2DataRWIO().flip
 
   val waddr = io.write.bits.addr
   val raddr = io.read.bits.addr
@@ -226,12 +240,8 @@ class L2HellaCache(bankId: Int, innerId: String, outerId: String) extends
   val data = Module(new L2DataArray)
 
   tshrfile.io.inner <> io.inner
-  tshrfile.io.meta_read <> meta.io.read
-  tshrfile.io.meta_write <> meta.io.write
-  tshrfile.io.meta_resp <> meta.io.resp
-  tshrfile.io.data_read <> data.io.read
-  tshrfile.io.data_write <> data.io.write
-  tshrfile.io.data_resp <> data.io.resp
+  tshrfile.io.meta <> meta.io
+  tshrfile.io.data <> data.io
   io.outer <> tshrfile.io.outer
   io.incoherent <> tshrfile.io.incoherent
 }
@@ -242,12 +252,8 @@ class TSHRFile(bankId: Int, innerId: String, outerId: String) extends L2HellaCac
     val inner = Bundle(new TileLinkIO, {case TLId => innerId}).flip
     val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
     val incoherent = Vec.fill(nClients){Bool()}.asInput
-    val meta_read = Decoupled(new L2MetaReadReq)
-    val meta_write = Decoupled(new L2MetaWriteReq)
-    val meta_resp = Valid(new L2MetaResp).flip
-    val data_read = Decoupled(new L2DataReadReq)
-    val data_write = Decoupled(new L2DataWriteReq)
-    val data_resp = Valid(new L2DataResp).flip
+    val meta = new L2MetaRWIO
+    val data = new L2DataRWIO
   }
 
   // Wiring helper funcs
@@ -323,12 +329,12 @@ class TSHRFile(bankId: Int, innerId: String, outerId: String) extends L2HellaCac
   io.outer <> outer_arb.io.out
 
   // Local memory
-  doOutputArbitration(io.meta_read, trackerList.map(_.io.meta_read))
-  doOutputArbitration(io.meta_write, trackerList.map(_.io.meta_write))
-  doOutputArbitration(io.data_read, trackerList.map(_.io.data_read))
-  doOutputArbitration(io.data_write, trackerList.map(_.io.data_write))
-  doInputRouting(io.meta_resp, trackerList.map(_.io.meta_resp))
-  doInputRouting(io.data_resp, trackerList.map(_.io.data_resp))
+  doOutputArbitration(io.meta.read, trackerList.map(_.io.meta.read))
+  doOutputArbitration(io.meta.write, trackerList.map(_.io.meta.write))
+  doOutputArbitration(io.data.read, trackerList.map(_.io.data.read))
+  doOutputArbitration(io.data.write, trackerList.map(_.io.data.write))
+  doInputRouting(io.meta.resp, trackerList.map(_.io.meta.resp))
+  doInputRouting(io.data.resp, trackerList.map(_.io.data.resp))
 
 }
 
@@ -340,12 +346,8 @@ abstract class L2XactTracker(innerId: String, outerId: String) extends L2HellaCa
     val tile_incoherent = Bits(INPUT, nClients)
     val has_acquire_conflict = Bool(OUTPUT)
     val has_release_conflict = Bool(OUTPUT)
-    val meta_read = Decoupled(new L2MetaReadReq)
-    val meta_write = Decoupled(new L2MetaWriteReq)
-    val meta_resp = Valid(new L2MetaResp).flip
-    val data_read = Decoupled(new L2DataReadReq)
-    val data_write = Decoupled(new L2DataWriteReq)
-    val data_resp = Valid(new L2DataResp).flip
+    val data = new L2DataRWIO
+    val meta = new L2MetaRWIO
   }
 
   val c_acq = io.inner.acquire.bits
@@ -386,23 +388,23 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
                                         xact.client_xact_id,
                                         UInt(trackerId))
 
-  io.data_read.valid := Bool(false)
-  io.data_write.valid := Bool(false)
-  io.data_write.bits.id := UInt(trackerId)
-  io.data_write.bits.way_en := xact_internal.way_en
-  io.data_write.bits.addr := xact.addr
-  io.data_write.bits.wmask := SInt(-1)
-  io.data_write.bits.data := xact.data
-  io.meta_read.valid := Bool(false)
-  io.meta_read.bits.id := UInt(trackerId)
-  io.meta_read.bits.idx := xact.addr(untagBits-1,blockOffBits)
-  io.meta_read.bits.tag := xact.addr >> UInt(untagBits)
-  io.meta_write.valid := Bool(false)
-  io.meta_write.bits.id := UInt(trackerId)
-  io.meta_write.bits.idx := xact.addr(untagBits-1,blockOffBits)
-  io.meta_write.bits.way_en := xact_internal.way_en
-  io.meta_write.bits.data.tag := xact.addr >> UInt(untagBits)
-  io.meta_write.bits.data.coh := co.masterMetadataOnRelease(xact, 
+  io.data.read.valid := Bool(false)
+  io.data.write.valid := Bool(false)
+  io.data.write.bits.id := UInt(trackerId)
+  io.data.write.bits.way_en := xact_internal.way_en
+  io.data.write.bits.addr := xact.addr
+  io.data.write.bits.wmask := SInt(-1)
+  io.data.write.bits.data := xact.data
+  io.meta.read.valid := Bool(false)
+  io.meta.read.bits.id := UInt(trackerId)
+  io.meta.read.bits.idx := xact.addr(untagBits-1,blockOffBits)
+  io.meta.read.bits.tag := xact.addr >> UInt(untagBits)
+  io.meta.write.valid := Bool(false)
+  io.meta.write.bits.id := UInt(trackerId)
+  io.meta.write.bits.idx := xact.addr(untagBits-1,blockOffBits)
+  io.meta.write.bits.way_en := xact_internal.way_en
+  io.meta.write.bits.data.tag := xact.addr >> UInt(untagBits)
+  io.meta.write.bits.data.coh := co.masterMetadataOnRelease(xact, 
                                                             xact_internal.meta.coh, 
                                                             init_client_id)
 
@@ -416,24 +418,24 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
       }
     }
     is(s_meta_read) {
-      io.meta_read.valid := Bool(true)
-      when(io.meta_read.ready) { state := s_meta_resp }
+      io.meta.read.valid := Bool(true)
+      when(io.meta.read.ready) { state := s_meta_resp }
     }
     is(s_meta_resp) {
-      when(io.meta_resp.valid) {
-        xact_internal := io.meta_resp.bits
-        state := Mux(io.meta_resp.bits.tag_match, 
+      when(io.meta.resp.valid) {
+        xact_internal := io.meta.resp.bits
+        state := Mux(io.meta.resp.bits.tag_match, 
                    Mux(co.messageHasData(xact), s_data_write, s_meta_write),
                    s_grant)
       }
     }
     is(s_data_write) {
-      io.data_write.valid := Bool(true)
-      when(io.data_write.ready) { state := s_meta_write }
+      io.data.write.valid := Bool(true)
+      when(io.data.write.ready) { state := s_meta_write }
     }
     is(s_meta_write) {
-      io.meta_write.valid := Bool(true)
-      when(io.meta_write.ready) { state := s_grant }
+      io.meta.write.valid := Bool(true)
+      when(io.meta.write.ready) { state := s_grant }
     }
     is(s_grant) {
       io.inner.grant.valid := Bool(true)
@@ -522,26 +524,26 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   io.inner.release.ready := Bool(false)
   io.inner.finish.ready := Bool(false)
 
-  io.data_read.valid := Bool(false)
-  io.data_read.bits.id := UInt(trackerId)
-  io.data_read.bits.way_en := xact_internal.way_en
-  io.data_read.bits.addr := xact.addr 
-  io.data_write.valid := Bool(false)
-  io.data_write.bits.id := UInt(trackerId)
-  io.data_write.bits.way_en := xact_internal.way_en
-  io.data_write.bits.addr := xact.addr
-  io.data_write.bits.wmask := SInt(-1)
-  io.data_write.bits.data := xact.data
-  io.meta_read.valid := Bool(false)
-  io.meta_read.bits.id := UInt(trackerId)
-  io.meta_read.bits.idx := xact.addr(untagBits-1,blockOffBits)
-  io.meta_read.bits.tag := xact.addr >> UInt(untagBits)
-  io.meta_write.valid := Bool(false)
-  io.meta_write.bits.id := UInt(trackerId)
-  io.meta_write.bits.idx := xact.addr(untagBits-1,blockOffBits)
-  io.meta_write.bits.way_en := xact_internal.way_en
-  io.meta_write.bits.data.tag := xact.addr >> UInt(untagBits)
-  io.meta_write.bits.data.coh := next_coh_on_grant
+  io.data.read.valid := Bool(false)
+  io.data.read.bits.id := UInt(trackerId)
+  io.data.read.bits.way_en := xact_internal.way_en
+  io.data.read.bits.addr := xact.addr 
+  io.data.write.valid := Bool(false)
+  io.data.write.bits.id := UInt(trackerId)
+  io.data.write.bits.way_en := xact_internal.way_en
+  io.data.write.bits.addr := xact.addr
+  io.data.write.bits.wmask := SInt(-1)
+  io.data.write.bits.data := xact.data
+  io.meta.read.valid := Bool(false)
+  io.meta.read.bits.id := UInt(trackerId)
+  io.meta.read.bits.idx := xact.addr(untagBits-1,blockOffBits)
+  io.meta.read.bits.tag := xact.addr >> UInt(untagBits)
+  io.meta.write.valid := Bool(false)
+  io.meta.write.bits.id := UInt(trackerId)
+  io.meta.write.bits.idx := xact.addr(untagBits-1,blockOffBits)
+  io.meta.write.bits.way_en := xact_internal.way_en
+  io.meta.write.bits.data.tag := xact.addr >> UInt(untagBits)
+  io.meta.write.bits.data.coh := next_coh_on_grant
 
   switch (state) {
     is(s_idle) {
@@ -553,17 +555,17 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
       }
     }
     is(s_meta_read) {
-      io.meta_read.valid := Bool(true)
-      when(io.meta_read.ready) { state := s_meta_resp }
+      io.meta.read.valid := Bool(true)
+      when(io.meta.read.ready) { state := s_meta_resp }
     }
     is(s_meta_resp) {
-      when(io.meta_resp.valid) {
-        val coh = io.meta_resp.bits.meta.coh
-        val _tag_match = io.meta_resp.bits.tag_match
+      when(io.meta.resp.valid) {
+        val coh = io.meta.resp.bits.meta.coh
+        val _tag_match = io.meta.resp.bits.tag_match
         val _needs_writeback = !_tag_match && co.needsWriteback(coh)
         val _is_hit = _tag_match && co.isHit(xact, coh)
         val _needs_probes = co.requiresProbes(xact, coh)
-        xact_internal := io.meta_resp.bits
+        xact_internal := io.meta.resp.bits
         when(_needs_probes) {
           val mask_incoherent = co.dir().full(coh.sharers) & ~io.tile_incoherent
           val mask_self = mask_incoherent & 
@@ -626,14 +628,14 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
       }
     }
     is(s_data_read_wb) {
-      io.data_read.valid := Bool(true)
-      when(io.data_read.ready) {
+      io.data.read.valid := Bool(true)
+      when(io.data.read.ready) {
         state := s_data_resp_wb
       }
     }
     is(s_data_resp_wb) {
-      when(io.data_resp.valid) {
-        wb_buffer := io.data_resp.bits.data
+      when(io.data.resp.valid) {
+        wb_buffer := io.data.resp.bits.data
         state := s_outer_write_wb
       }
     }
@@ -661,26 +663,26 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
       }
     }
     is(s_data_read_hit) {
-      io.data_read.valid := Bool(true)
-      when(io.data_read.ready) {
+      io.data.read.valid := Bool(true)
+      when(io.data.read.ready) {
         state := s_data_resp_hit
       }
     }
     is(s_data_resp_hit) {
-      when(io.data_resp.valid) {
-        xact.data := mergeData(xact, io.data_resp.bits.data)
+      when(io.data.resp.valid) {
+        xact.data := mergeData(xact, io.data.resp.bits.data)
         state := s_meta_write
       }
     }
     is(s_data_write) {
-      io.data_write.valid := Bool(true)
-      when(io.data_write.ready) {
+      io.data.write.valid := Bool(true)
+      when(io.data.write.ready) {
         state := s_meta_write
       }
     }
     is(s_meta_write) {
-      io.meta_write.valid := Bool(true)
-      when(io.meta_write.ready) { state := s_grant }
+      io.meta.write.valid := Bool(true)
+      when(io.meta.write.ready) { state := s_grant }
     }
     is(s_grant) {
       io.inner.grant.valid := Bool(true)
