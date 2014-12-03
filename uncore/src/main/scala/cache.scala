@@ -462,6 +462,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   val crel_wb_src = Reg(init = UInt(0, width = log2Up(nClients)))
   val crel_wb_g_type = Reg(init = UInt(0, width = co.grantTypeWidth))
   val wb_buffer = Reg{xact.data.clone}
+  val addr_wb = Cat(xact_internal.meta.tag, xact.addr(untagBits-1,blockOffBits))
 
   val release_count = Reg(init = UInt(0, width = log2Up(nClients+1)))
   val pending_probes = Reg(init = co.dir().flush)
@@ -476,8 +477,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
 
   io.has_acquire_conflict := co.isCoherenceConflict(xact.addr, c_acq.payload.addr) && 
                               (state != s_idle) //TODO: Also indexes
-  io.has_release_conflict := co.isCoherenceConflict(xact.addr, c_rel.payload.addr) && 
-                              (state != s_idle) //TODO: Also indexes?
+  io.has_release_conflict := (co.isCoherenceConflict(xact.addr, c_rel.payload.addr) ||
+                               co.isCoherenceConflict(addr_wb, c_rel.payload.addr)) && 
+                               (state != s_idle) //TODO: Also indexes?
 
   val next_coh_on_release = co.masterMetadataOnRelease(
                                     c_rel.payload, 
@@ -488,7 +490,6 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
                                     xact_internal.meta.coh,
                                     c_gnt.header.dst)
 
-  val addr_wb = Cat(xact_internal.meta.tag, xact.addr(untagBits-1,blockOffBits))
   val outer_write_acq = Bundle(UncachedWrite(xact.addr, UInt(trackerId), xact.data), 
                           { case TLId => outerId })
   val outer_write_wb = Bundle(UncachedWrite(addr_wb, UInt(trackerId), wb_buffer),
