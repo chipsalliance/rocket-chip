@@ -10,12 +10,14 @@ case object TLAddrBits extends Field[Int]
 case object TLMasterXactIdBits extends Field[Int]
 case object TLClientXactIdBits extends Field[Int]
 case object TLDataBits extends Field[Int]
+case object TLDataBeats extends Field[Int]
 
 abstract trait TileLinkParameters extends UsesParameters {
   val tlAddrBits = params(TLAddrBits)
   val tlClientXactIdBits = params(TLClientXactIdBits)
   val tlMasterXactIdBits = params(TLMasterXactIdBits)
   val tlDataBits = params(TLDataBits)
+  val tlDataBeats = params(TLDataBeats)
   val tlWriteMaskBits = if(tlDataBits/8 < 1) 1 else tlDataBits
   val tlSubblockAddrBits = log2Up(tlWriteMaskBits)
   val tlAtomicOpcodeBits = log2Up(NUM_XA_OPS)

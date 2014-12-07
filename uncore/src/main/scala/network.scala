@@ -25,13 +25,13 @@ class BasicCrossbarIO[T <: Data](n: Int, dType: T) extends Bundle {
 
 abstract class PhysicalNetwork extends Module
 
-class BasicCrossbar[T <: Data](n: Int, dType: T, count: Int = 1) extends PhysicalNetwork {
+class BasicCrossbar[T <: Data](n: Int, dType: T, count: Int = 1, needsLock: Option[PhysicalNetworkIO[T] => Bool] = None) extends PhysicalNetwork {
   val io = new BasicCrossbarIO(n, dType)
 
   val rdyVecs = List.fill(n){Vec.fill(n)(Bool())}
 
   io.out.zip(rdyVecs).zipWithIndex.map{ case ((out, rdys), i) => {
-    val rrarb = Module(new LockingRRArbiter(io.in(0).bits, n, count))
+    val rrarb = Module(new LockingRRArbiter(io.in(0).bits, n, count, needsLock))
     (rrarb.io.in, io.in, rdys).zipped.map{ case (arb, in, rdy) => {
       arb.valid := in.valid && (in.bits.header.dst === UInt(i)) 
       arb.bits := in.bits
