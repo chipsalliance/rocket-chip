@@ -209,81 +209,122 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
     val mem = new MemIO
   }
   val co = params(TLCoherence)
-  val tbits = params(MIFTagBits)
-  val dbits = params(MIFDataBits)
-  val dbeats = params(MIFDataBeats)
-  require(params(TLDataBits) == dbits*dbeats)
+  val mifTagBits = params(MIFTagBits)
+  val mifDataBits = params(MIFDataBits)
+  val mifDataBeats = params(MIFDataBeats)
+  val tlDataBits = params(TLDataBits)
+  val tlDataBeats = params(TLDataBeats)
+  val dataBits = tlDataBits*tlDataBeats 
+  require(tlDataBits*tlDataBeats == mifDataBits*mifDataBeats)
   //require(params(TLClientXactIdBits) <= params(MIFTagBits))
 
+  // Decompose outgoing TL Acquires into MemIO cmd and data
   val mem_cmd_q = Module(new Queue(new MemReqCmd, qDepth))
   val mem_data_q = Module(new Queue(new MemData, qDepth))
-  val cnt_max = dbeats
 
-  val cnt_out = Reg(UInt(width = log2Up(cnt_max+1)))
+  io.uncached.acquire.ready := Bool(false)
+  io.uncached.grant.valid := Bool(false)
+  io.mem.resp.ready := Bool(false)
+  mem_cmd_q.io.enq.valid := Bool(false)
+  mem_data_q.io.enq.valid := Bool(false)
+
+  val acq_has_data = co.messageHasData(io.uncached.acquire.bits.payload)
+  val (tl_cnt_out, tl_wrap_out) = Counter(io.uncached.acquire.fire() && acq_has_data, tlDataBeats)
+  val (mif_cnt_out, mif_wrap_out) = Counter(mem_data_q.io.enq.fire(), mifDataBeats)
   val active_out = Reg(init=Bool(false))
   val cmd_sent_out = Reg(init=Bool(false))
-  val buf_out = Reg(Bits())
+  val tl_done_out = Reg(init=Bool(false))
+  val mif_done_out = Reg(init=Bool(false))
   val tag_out = Reg(Bits())
   val addr_out = Reg(Bits())
   val has_data = Reg(init=Bool(false))
+  val tl_buf_out = Vec.fill(tlDataBeats){ Reg(io.uncached.acquire.bits.payload.data.clone) }
+  val mif_buf_out = Vec.fill(mifDataBeats){ new MemData }
+  mif_buf_out := mif_buf_out.fromBits(tl_buf_out.toBits)
+  val mif_prog_out = (mif_cnt_out+UInt(1, width = log2Up(mifDataBeats+1)))*UInt(mifDataBits)
+  val tl_prog_out = tl_cnt_out*UInt(tlDataBits)
 
-  val cnt_in = Reg(UInt(width = log2Up(cnt_max+1)))
-  val active_in = Reg(init=Bool(false))
-  val buf_in = Reg(Bits())
-  val tag_in = Reg(UInt(width = tbits))
-  
-  // Decompose outgoing TL Acquires into MemIO cmd and data
-  when(!active_out && io.uncached.acquire.valid) {
-    active_out := Bool(true)
-    cmd_sent_out := Bool(false)
-    cnt_out := UInt(0)
-    buf_out := io.uncached.acquire.bits.payload.data
-    tag_out := io.uncached.acquire.bits.payload.client_xact_id
-    addr_out := io.uncached.acquire.bits.payload.addr
-    has_data := co.messageHasData(io.uncached.acquire.bits.payload)
+  when(!active_out){
+    io.uncached.acquire.ready := Bool(true)
+    when(io.uncached.acquire.valid) {
+      active_out := Bool(true)
+      cmd_sent_out := Bool(false)
+      tag_out := io.uncached.acquire.bits.payload.client_xact_id
+      addr_out := io.uncached.acquire.bits.payload.addr
+      has_data := acq_has_data
+      tl_done_out := tl_wrap_out
+      mif_done_out := Bool(false)
+      tl_buf_out(tl_cnt_out) := io.uncached.acquire.bits.payload.data
+    }
   }
   when(active_out) {
+    when(!cmd_sent_out) {
+      mem_cmd_q.io.enq.valid := Bool(true)
+    }
+    when(has_data) {
+      when(!tl_done_out) {
+        io.uncached.acquire.ready := Bool(true)
+        when(io.uncached.acquire.valid) {
+          tl_buf_out(tl_cnt_out) := io.uncached.acquire.bits.payload.data
+        }
+      }
+      when(!mif_done_out) { 
+        mem_data_q.io.enq.valid := tl_done_out || mif_prog_out <= tl_prog_out
+      }
+    }
     when(mem_cmd_q.io.enq.fire()) {
       cmd_sent_out := Bool(true)
     }
-    when(mem_data_q.io.enq.fire()) {
-      cnt_out := cnt_out + UInt(1)
-      buf_out := buf_out >> UInt(dbits) 
-    }
-    when(cmd_sent_out && (!has_data || cnt_out === UInt(cnt_max))) {
+    when(tl_wrap_out) { tl_done_out := Bool(true) }
+    when(mif_wrap_out) { mif_done_out := Bool(true) }
+    when(cmd_sent_out && (!has_data || mif_done_out)) {
       active_out := Bool(false)
     }
   }
 
-  io.uncached.acquire.ready := !active_out
-  mem_cmd_q.io.enq.valid := active_out && !cmd_sent_out
   mem_cmd_q.io.enq.bits.rw := has_data
   mem_cmd_q.io.enq.bits.tag := tag_out
   mem_cmd_q.io.enq.bits.addr := addr_out
-  mem_data_q.io.enq.valid := active_out && has_data && cnt_out < UInt(cnt_max)
-  mem_data_q.io.enq.bits.data := buf_out
+  mem_data_q.io.enq.bits.data := mif_buf_out(mif_cnt_out).data
   io.mem.req_cmd <> mem_cmd_q.io.deq
   io.mem.req_data <> mem_data_q.io.deq
 
   // Aggregate incoming MemIO responses into TL Grants
-  io.mem.resp.ready := !active_in || cnt_in < UInt(cnt_max)
-  io.uncached.grant.valid := active_in && (cnt_in === UInt(cnt_max))
-  io.uncached.grant.bits.payload := Grant(Bool(true), Grant.uncachedRead, tag_in, UInt(0), buf_in)
-  when(!active_in && io.mem.resp.valid) {
-    active_in := Bool(true)
-    cnt_in := UInt(1)
-    buf_in := io.mem.resp.bits.data << UInt(dbits*(cnt_max-1))
-    tag_in := io.mem.resp.bits.tag
+  val (mif_cnt_in, mif_wrap_in) = Counter(io.mem.resp.fire(), mifDataBeats) // TODO: Assumes all resps have data
+  val (tl_cnt_in, tl_wrap_in) = Counter(io.uncached.grant.fire(), tlDataBeats)
+  val active_in = Reg(init=Bool(false))
+  val mif_done_in = Reg(init=Bool(false))
+  val tag_in = Reg(UInt(width = mifTagBits))
+  val mif_buf_in = Vec.fill(mifDataBeats){ Reg(new MemData) }
+  val tl_buf_in = Vec.fill(tlDataBeats){ io.uncached.acquire.bits.payload.data.clone }
+  tl_buf_in := tl_buf_in.fromBits(mif_buf_in.toBits)
+  val tl_prog_in = (tl_cnt_in+UInt(1, width = log2Up(tlDataBeats+1)))*UInt(tlDataBits)
+  val mif_prog_in = mif_cnt_in*UInt(mifDataBits)
+
+  when(!active_in) {
+    io.mem.resp.ready := Bool(true)
+    when(io.mem.resp.valid) {
+      active_in := Bool(true)
+      mif_done_in := mif_wrap_in
+      tag_in := io.mem.resp.bits.tag
+      mif_buf_in(tl_cnt_in).data := io.mem.resp.bits.data
+    }
   }
+  
   when(active_in) {
-    when(io.uncached.grant.fire()) {
-      active_in := Bool(false)
+    io.uncached.grant.valid := mif_done_in || tl_prog_in <= mif_prog_in
+    when(!mif_done_in) {
+      io.mem.resp.ready := Bool(true)
+      when(io.mem.resp.valid) {
+        mif_buf_in(mif_cnt_in).data := io.mem.resp.bits.data
+      }
     }
-    when(io.mem.resp.fire()) {
-      buf_in := Cat(io.mem.resp.bits.data, buf_in(cnt_max*dbits-1,dbits))
-      cnt_in := cnt_in + UInt(1)
-    }
+    when(mif_wrap_in) { mif_done_in := Bool(true) }
+    when(tl_wrap_in) { active_in := Bool(false) }
   }
+
+  io.uncached.grant.bits.payload := Grant(Bool(true), Grant.uncachedRead, tag_in, UInt(0), 
+                                      tl_buf_in(tl_cnt_in))
 }
 
 class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
@@ -390,8 +431,8 @@ class MemPipeIOUncachedTileLinkIOConverter(outstanding: Int, refillCycles: Int) 
   val a = Module(new MemIOUncachedTileLinkIOConverter(2))
   val b = Module(new MemPipeIOMemIOConverter(outstanding, refillCycles))
   a.io.uncached <> io.uncached
-  b.io.cpu.req_cmd <> Queue(a.io.mem.req_cmd, 2)
-  b.io.cpu.req_data <> Queue(a.io.mem.req_data, refillCycles)
+  b.io.cpu.req_cmd <> Queue(a.io.mem.req_cmd, 2, pipe=true)
+  b.io.cpu.req_data <> Queue(a.io.mem.req_data, refillCycles, pipe=true)
   a.io.mem.resp <> b.io.cpu.resp
   b.io.mem <> io.mem
 }

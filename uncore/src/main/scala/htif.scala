@@ -13,6 +13,7 @@ case object HTIFNCores extends Field[Int]
 
 abstract trait HTIFParameters extends UsesParameters {
   val dataBits = params(TLDataBits)
+  val dataBeats = params(TLDataBeats)
   val co = params(TLCoherence)
   val w = params(HTIFWidth)
   val nSCR = params(HTIFNSCR)
@@ -71,7 +72,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     // system is 'interesting' if any tile is 'interesting'
 
   val short_request_bits = 64
-  val long_request_bits = short_request_bits + dataBits
+  val long_request_bits = short_request_bits + dataBits*dataBeats
   require(short_request_bits % w == 0)
 
   val rx_count_w = 13 + log2Up(64) - log2Up(w) // data size field is 12 bits
@@ -150,12 +151,13 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
              state_tx)))
   }
 
-  val acq_q = Module(new Queue(new Acquire, 1))
-  when (state === state_mem_wreq && acq_q.io.enq.ready) {
-    state := state_mem_wresp
+  val (cnt, cnt_done) = Counter((state === state_mem_wreq && io.mem.acquire.ready) ||
+                                 (state === state_mem_rresp && io.mem.grant.valid), dataBeats)
+  when (state === state_mem_wreq) {
+    when (cnt_done) { state := state_mem_wresp }
   }
-  when (state === state_mem_rreq && acq_q.io.enq.ready) {
-    state := state_mem_rresp
+  when (state === state_mem_rreq) {
+    when(io.mem.acquire.ready) { state := state_mem_rresp }
   }
   when (state === state_mem_wresp) {
     when (mem_acked) {
@@ -164,10 +166,10 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     }
   }
   when (state === state_mem_rresp) {
-    when (io.mem.grant.valid) {
+    when (cnt_done) { 
       state := state_mem_finish
+      mem_acked := Bool(false)
     }
-    mem_acked := Bool(false)
   }
   when (state === state_mem_finish && io.mem.finish.ready) {
     state := Mux(cmd === cmd_readmem || pos === UInt(1),  state_tx, state_rx)
@@ -182,22 +184,19 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     state := Mux(cmd === cmd_readmem && pos != UInt(0), state_mem_rreq, state_rx)
   }
 
-  var mem_req_data: Bits = null
+  var mem_req_data: UInt = null
   for (i <- 0 until dataBits/short_request_bits) {
-    val idx = UInt(i, log2Up(dataBits/short_request_bits))
+    val idx = Cat(cnt, UInt(i, log2Up(dataBits/short_request_bits)))
     when (state === state_mem_rresp && io.mem.grant.valid) {
       packet_ram(idx) := io.mem.grant.bits.payload.data((i+1)*short_request_bits-1, i*short_request_bits)
     }
     mem_req_data = Cat(packet_ram(idx), mem_req_data)
   }
-  acq_q.io.enq.valid := state === state_mem_rreq || state === state_mem_wreq
   val init_addr = addr.toUInt >> UInt(offsetBits-3)
-  acq_q.io.enq.bits := Mux(cmd === cmd_writemem, 
-    UncachedWrite(init_addr, UInt(0)), 
+  io.mem.acquire.valid := state === state_mem_rreq || state === state_mem_wreq
+  io.mem.acquire.bits.payload := Mux(cmd === cmd_writemem, 
+    UncachedWrite(init_addr, mem_req_data), 
     UncachedRead(init_addr))
-  io.mem.acquire.valid := acq_q.io.deq.valid
-  acq_q.io.deq.ready := io.mem.acquire.ready
-  io.mem.acquire.bits.payload := acq_q.io.deq.bits
   io.mem.acquire.bits.payload.data := mem_req_data
   io.mem.acquire.bits.header.src := UInt(params(LNClients)) // By convention HTIF is the client with the largest id
   io.mem.acquire.bits.header.dst := UInt(0) // DNC; Overwritten outside module
@@ -255,7 +254,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
   scr_rdata(0) := UInt(nCores)
-  scr_rdata(1) := UInt((BigInt(dataBits/8) << acq_q.io.enq.bits.addr.getWidth) >> 20)
+  scr_rdata(1) := UInt((BigInt(dataBits*dataBeats/8) << params(TLAddrBits)) >> 20)
 
   io.scr.wen := Bool(false)
   io.scr.wdata := pcr_wdata

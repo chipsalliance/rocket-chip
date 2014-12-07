@@ -3,12 +3,6 @@
 package uncore
 import Chisel._
 
-object MuxBundle {
-  def apply[T <: Data] (default: T, mapping: Seq[(Bool, T)]): T = {
-    mapping.reverse.foldLeft(default)((b, a) => Mux(a._1, a._2, b))
-  }
-}
-
 abstract class CoherenceMetadata extends Bundle
 
 object ClientMetadata {
