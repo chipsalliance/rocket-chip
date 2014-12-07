@@ -26,9 +26,11 @@ abstract trait TileLinkParameters extends UsesParameters {
                              (tlSubblockAddrBits + 
                                 tlUncachedOperandSizeBits + 
                                 tlAtomicOpcodeBits))
+  val co = params(TLCoherence)
 }
 
-class TLBundle extends Bundle with TileLinkParameters
+abstract class TLBundle extends Bundle with TileLinkParameters
+abstract class TLModule extends Module with TileLinkParameters
 
 trait HasPhysicalAddress extends TLBundle {
   val addr = UInt(width = tlAddrBits)
@@ -55,7 +57,7 @@ class Acquire extends ClientSourcedMessage
     with HasClientTransactionId 
     with HasTileLinkData {
   val uncached = Bool()
-  val a_type = UInt(width = max(log2Up(Acquire.nUncachedAcquireTypes), params(TLCoherence).acquireTypeWidth))
+  val a_type = UInt(width = max(log2Up(Acquire.nUncachedAcquireTypes), co.acquireTypeWidth))
   val subblock =  Bits(width = tlSubblockUnionBits)
   val sbAddrOff = tlSubblockAddrBits + tlUncachedOperandSizeBits
   val opSzOff = tlUncachedOperandSizeBits + sbAddrOff
@@ -147,7 +149,7 @@ object Probe {
 
 class Probe extends MasterSourcedMessage 
     with HasPhysicalAddress {
-  val p_type = UInt(width = params(TLCoherence).probeTypeWidth)
+  val p_type = UInt(width = co.probeTypeWidth)
   def is(t: UInt) = p_type === t
 }
 
@@ -172,7 +174,7 @@ class Release extends ClientSourcedMessage
     with HasPhysicalAddress 
     with HasClientTransactionId 
     with HasTileLinkData {
-  val r_type = UInt(width = params(TLCoherence).releaseTypeWidth)
+  val r_type = UInt(width = co.releaseTypeWidth)
   def is(t: UInt) = r_type === t
 }
 
@@ -181,7 +183,7 @@ class Grant extends MasterSourcedMessage
     with HasClientTransactionId 
     with HasMasterTransactionId {
   val uncached = Bool()
-  val g_type = UInt(width = max(log2Up(Grant.nUncachedGrantTypes), params(TLCoherence).grantTypeWidth))
+  val g_type = UInt(width = max(log2Up(Grant.nUncachedGrantTypes), co.grantTypeWidth))
   def is(t: UInt) = g_type === t
 }
 
@@ -221,7 +223,7 @@ class TileLinkIO extends UncachedTileLinkIO {
   val release   = new DecoupledIO(new LogicalNetworkIO(new Release))
 }
 
-abstract class TileLinkArbiterLike(val arbN: Int) extends Module {
+abstract class TileLinkArbiterLike(val arbN: Int) extends TLModule {
   type MasterSourcedWithId = MasterSourcedMessage with HasClientTransactionId
   type ClientSourcedWithId = ClientSourcedMessage with HasClientTransactionId 
 
@@ -232,8 +234,8 @@ abstract class TileLinkArbiterLike(val arbN: Int) extends Module {
   def hookupClientSource[M <: ClientSourcedWithId]
                         (ins: Seq[DecoupledIO[LogicalNetworkIO[M]]], 
                          out: DecoupledIO[LogicalNetworkIO[M]]) {
-    def hasData(m: LogicalNetworkIO[M]) = params(TLCoherence).messageHasData(m.payload)
-    val arb = Module(new RRArbiter(out.bits.clone, arbN))
+    def hasData(m: LogicalNetworkIO[M]) = co.messageHasData(m.payload)
+    val arb = Module(new LockingRRArbiter(out.bits.clone, arbN, params(TLDataBeats), Some(hasData _)))
     out <> arb.io.out
     ins.zipWithIndex.zip(arb.io.in).map{ case ((req,id), arb) => {
       arb.valid := req.valid

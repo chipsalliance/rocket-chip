@@ -30,7 +30,8 @@ abstract trait CacheParameters extends UsesParameters {
   val rowWords = rowBits/wordBits 
   val rowBytes = rowBits/8
   val rowOffBits = log2Up(rowBytes)
-  val refillCycles = params(TLDataBits)/rowBits
+  val refillCyclesPerBeat = params(TLDataBits)/rowBits
+  val refillCycles = refillCyclesPerBeat*params(TLDataBeats)
 }
 
 abstract class CacheBundle extends Bundle with CacheParameters
@@ -99,7 +100,6 @@ class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
 
 abstract trait L2HellaCacheParameters extends CacheParameters 
   with CoherenceAgentParameters
-  with TileLinkParameters
 
 abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
 abstract class L2HellaCacheModule extends Module with L2HellaCacheParameters
