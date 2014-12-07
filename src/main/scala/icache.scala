@@ -12,6 +12,7 @@ case object ECCCode extends Field[Option[Code]]
 abstract trait L1CacheParameters extends CacheParameters with CoreParameters {
   val co = params(TLCoherence)
   val code = params(ECCCode).getOrElse(new IdentityCode)
+  val outerDataBeats = params(TLDataBeats)
 }
 
 abstract trait FrontendParameters extends L1CacheParameters
@@ -173,22 +174,13 @@ class ICache extends FrontendModule
   val s2_miss = s2_valid && !s2_any_tag_hit
   rdy := state === s_ready && !s2_miss
 
-  var refill_cnt = UInt(0)
-  var refill_done = state === s_refill 
-  var refill_valid = io.mem.grant.valid
-  var refill_bits = io.mem.grant.bits
-  def doRefill(g: Grant): Bool = Bool(true)
-  if(refillCycles > 1) {
-    val ser = Module(new FlowThroughSerializer(io.mem.grant.bits, refillCycles, doRefill))
-    ser.io.in <> io.mem.grant
-    refill_cnt = ser.io.cnt
-    refill_done = ser.io.done
-    refill_valid = ser.io.out.valid
-    refill_bits = ser.io.out.bits
-    ser.io.out.ready := Bool(true)
-  } else {
-    io.mem.grant.ready := Bool(true)
-  }
+  val ser = Module(new FlowThroughSerializer(io.mem.grant.bits, refillCyclesPerBeat, (g: Grant) => co.messageUpdatesDataArray(g)))
+  ser.io.in <> io.mem.grant
+  val (refill_cnt, refill_wrap) = Counter(ser.io.out.fire(), refillCycles) //TODO Zero width wire
+  val refill_done = state === s_refill && refill_wrap
+  val refill_valid = ser.io.out.valid
+  val refill_bits = ser.io.out.bits
+  ser.io.out.ready := Bool(true)
   //assert(!c.tlco.isVoluntary(refill_bits.payload) || !refill_valid, "UncachedRequestors shouldn't get voluntary grants.")
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s2_miss)(log2Up(nWays)-1,0)
@@ -243,8 +235,8 @@ class ICache extends FrontendModule
     val s1_raddr = Reg(UInt())
     when (refill_valid && repl_way === UInt(i)) {
       val e_d = code.encode(refill_bits.payload.data)
-      if(refillCycles > 1) data_array(Cat(s2_idx,refill_cnt)) := e_d
-      else                   data_array(s2_idx) := e_d
+      if(refillCycles > 1) data_array(Cat(s2_idx, refill_cnt)) := e_d
+      else data_array(s2_idx) := e_d
     }
 //    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
     .elsewhen (s0_valid) {

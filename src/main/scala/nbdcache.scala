@@ -191,7 +191,6 @@ class MSHR(id: Int) extends L1HellaCacheModule {
   val acquire_type = Reg(UInt())
   val release_type = Reg(UInt())
   val line_state = Reg(new ClientMetadata()(co))
-  val refill_count = Reg(UInt(width = log2Up(refillCycles))) // TODO: zero-width wire
   val req = Reg(new MSHRReqInternal())
 
   val req_cmd = io.req_bits.cmd
@@ -199,9 +198,8 @@ class MSHR(id: Int) extends L1HellaCacheModule {
   val idx_match = req_idx === io.req_bits.addr(untagBits-1,blockOffBits)
   val sec_rdy = idx_match && (state === s_wb_req || state === s_wb_resp || state === s_meta_clear || (state === s_refill_req || state === s_refill_resp) && !co.needsTransactionOnSecondaryMiss(req_cmd, io.mem_req.bits))
 
-  require(isPow2(refillCycles))
   val reply = io.mem_grant.valid && io.mem_grant.bits.payload.client_xact_id === UInt(id)
-  val refill_done = reply && (if(refillCycles > 1) refill_count.andR else Bool(true))
+  val (refill_cnt, refill_done) = Counter(reply && co.messageUpdatesDataArray(io.mem_grant.bits.payload), refillCycles) // TODO: Zero width?
   val wb_done = reply && (state === s_wb_resp)
 
   val meta_on_flush = co.clientMetadataOnFlush
@@ -226,7 +224,7 @@ class MSHR(id: Int) extends L1HellaCacheModule {
   when (state === s_refill_resp) {
     when (refill_done) { state := s_meta_write_req }
     when (reply) {
-      if(refillCycles > 1) refill_count := refill_count + UInt(1)
+      if(refillCycles > 1) refill_cnt := refill_cnt + UInt(1)
       line_state := meta_on_grant
     }
   }
@@ -242,13 +240,12 @@ class MSHR(id: Int) extends L1HellaCacheModule {
   when (io.wb_req.fire()) { // s_wb_req
     state := s_wb_resp 
   }
-
   when (io.req_sec_val && io.req_sec_rdy) { // s_wb_req, s_wb_resp, s_refill_req
     acquire_type := co.getAcquireTypeOnSecondaryMiss(req_cmd, meta_on_flush, io.mem_req.bits)
   }
   when (io.req_pri_val && io.req_pri_rdy) {
     line_state := meta_on_flush
-    refill_count := UInt(0)
+    refill_cnt := UInt(0)
     acquire_type := co.getAcquireTypeOnPrimaryMiss(req_cmd, meta_on_flush)
     release_type := co.getReleaseTypeOnVoluntaryWriteback() //TODO downgrades etc 
     req := io.req_bits
@@ -276,7 +273,7 @@ class MSHR(id: Int) extends L1HellaCacheModule {
 
   io.idx_match := (state != s_invalid) && idx_match
   io.mem_resp := req
-  io.mem_resp.addr := (if(refillCycles > 1) Cat(req_idx, refill_count) else req_idx) << rowOffBits
+  io.mem_resp.addr := (if(refillCycles > 1) Cat(req_idx, refill_cnt) else req_idx) << rowOffBits
   io.tag := req.addr >> untagBits
   io.req_pri_rdy := state === s_invalid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
@@ -351,7 +348,7 @@ class MSHRFile extends L1HellaCacheModule {
   val memRespMux = Vec.fill(params(NMSHRs)){new DataWriteReq}
   val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, params(NMSHRs)))
   val meta_write_arb = Module(new Arbiter(new L1MetaWriteReq, params(NMSHRs)))
-  val mem_req_arb = Module(new Arbiter(new Acquire, params(NMSHRs)))
+  val mem_req_arb = Module(new LockingArbiter(new Acquire, params(NMSHRs), outerDataBeats, co.messageHasData _))
   val mem_finish_arb = Module(new Arbiter(new LogicalNetworkIO(new Finish), params(NMSHRs)))
   val wb_req_arb = Module(new Arbiter(new WritebackReq, params(NMSHRs)))
   val replay_arb = Module(new Arbiter(new ReplayInternal, params(NMSHRs)))
@@ -430,7 +427,9 @@ class WritebackUnit extends L1HellaCacheModule {
   val active = Reg(init=Bool(false))
   val r1_data_req_fired = Reg(init=Bool(false))
   val r2_data_req_fired = Reg(init=Bool(false))
-  val cnt = Reg(init = UInt(0, width = log2Up(refillCycles+1)))
+  val cnt = Reg(init = UInt(0, width = log2Up(refillCycles+1))) //TODO Zero width
+  val buf_v = (if(refillCyclesPerBeat > 1) Reg(init=Bits(0, width = refillCyclesPerBeat-1)) else Bits(1))
+  val beat_done = buf_v.andR
   val req = Reg(new WritebackReq)
 
   io.release.valid := false
@@ -441,27 +440,22 @@ class WritebackUnit extends L1HellaCacheModule {
       r1_data_req_fired := true
       cnt := cnt + 1
     }
-    if(refillCycles > 1) { // Coalescing buffer inserted
-      when (!r1_data_req_fired && !r2_data_req_fired && cnt === refillCycles) {
-        io.release.valid := true
-        active := !io.release.ready
-      }
-    } else {                    // No buffer, data released a cycle earlier
-      when (r2_data_req_fired) {
-        io.release.valid := true
-        when(!io.release.ready) {
-          r1_data_req_fired := false
-          r2_data_req_fired := false
-          cnt := UInt(0)
-        } .otherwise {
-          active := false
-        }
+    when (r2_data_req_fired) {
+      io.release.valid := beat_done
+      when(!io.release.ready) {
+        r1_data_req_fired := false
+        r2_data_req_fired := false
+        cnt := cnt - Mux[UInt](Bool(refillCycles > 1) && r1_data_req_fired, 2, 1)
+      } .elsewhen(beat_done) { if(refillCyclesPerBeat > 1) buf_v := 0 }
+      when(!r1_data_req_fired) {
+        active := cnt < UInt(refillCycles)
       }
     }
   }
   when (io.req.fire()) {
     active := true
     cnt := 0
+    if(refillCyclesPerBeat > 1) buf_v := 0
     req := io.req.bits
   }
 
@@ -475,25 +469,23 @@ class WritebackUnit extends L1HellaCacheModule {
 
   io.data_req.valid := fire
   io.data_req.bits.way_en := req.way_en
-  if(refillCycles > 1) {
-    io.data_req.bits.addr := Cat(req.idx, cnt(log2Up(refillCycles)-1,0)) << rowOffBits
-  } else {
-    io.data_req.bits.addr := req.idx << rowOffBits
-  }
+  io.data_req.bits.addr := (if(refillCycles > 1) Cat(req.idx, cnt(log2Up(refillCycles)-1,0))
+                            else req.idx) << rowOffBits
 
   io.release.bits.r_type := req.r_type
   io.release.bits.addr := Cat(req.tag, req.idx).toUInt
   io.release.bits.client_xact_id := req.client_xact_id
-  if(refillCycles > 1) {
-    val data_buf = Reg(Bits())
-    when(active && r2_data_req_fired) {
-      data_buf := Cat(io.data_resp, data_buf(refillCycles*encRowBits-1, encRowBits))
-    }
-    io.release.bits.data := data_buf
-  } else {
-    io.release.bits.data := io.data_resp
-  }
-
+  io.release.bits.data := 
+    (if(refillCyclesPerBeat > 1) {
+      val data_buf = Reg(Bits())
+      when(active && r2_data_req_fired && !beat_done) {
+        data_buf := Cat(io.data_resp, data_buf((refillCyclesPerBeat-1)*encRowBits-1, encRowBits))
+        buf_v := (if(refillCyclesPerBeat > 2)
+                    Cat(UInt(1), buf_v(refillCyclesPerBeat-2,1))
+                  else UInt(1))
+      }
+      Cat(io.data_resp, data_buf)
+    } else { io.data_resp })
 }
 
 class ProbeUnit extends L1HellaCacheModule {
@@ -551,8 +543,12 @@ class ProbeUnit extends L1HellaCacheModule {
   }
 
   io.req.ready := state === s_invalid
-  io.rep.valid := state === s_release && !(hit && co.needsWriteback(line_state))
-  io.rep.bits := Release(co.getReleaseTypeOnProbe(req, Mux(hit, line_state, co.clientMetadataOnFlush)), req.addr, req.client_xact_id)
+  io.rep.valid := state === s_release &&
+                  !(hit && co.needsWriteback(line_state)) // Otherwise WBU will issue release
+  io.rep.bits := Release(co.getReleaseTypeOnProbe(req,
+                                                  Mux(hit, line_state, co.clientMetadataOnFlush)),
+                                                  req.addr, 
+                                                  req.client_xact_id)
 
   io.meta_read.valid := state === s_meta_read
   io.meta_read.bits.idx := req.addr
@@ -878,8 +874,8 @@ class HellaCache extends L1HellaCacheModule {
   metaReadArb.io.in(1) <> mshrs.io.meta_read
   metaWriteArb.io.in(0) <> mshrs.io.meta_write
 
-  // probes
-  val releaseArb = Module(new Arbiter(new Release, 2))
+  // probes and releases
+  val releaseArb = Module(new LockingArbiter(new Release, 2, outerDataBeats, co.messageHasData _))
   DecoupledLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release
 
   val probe = DecoupledLogicalNetworkIOUnwrapper(io.mem.probe)
@@ -895,11 +891,9 @@ class HellaCache extends L1HellaCacheModule {
 
   // refills
   def doRefill(g: Grant): Bool = co.messageUpdatesDataArray(g)
-  val refill = if(refillCycles > 1) {
-    val ser = Module(new FlowThroughSerializer(io.mem.grant.bits, refillCycles, doRefill))
-    ser.io.in <> io.mem.grant
-    ser.io.out
-  } else io.mem.grant
+  val ser = Module(new FlowThroughSerializer(io.mem.grant.bits, refillCyclesPerBeat, doRefill))
+  ser.io.in <> io.mem.grant
+  val refill = ser.io.out
   mshrs.io.mem_grant.valid := refill.fire()
   mshrs.io.mem_grant.bits := refill.bits
   refill.ready := writeArb.io.in(1).ready || !doRefill(refill.bits.payload)
