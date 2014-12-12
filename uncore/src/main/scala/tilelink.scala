@@ -78,15 +78,18 @@ object Acquire {
   def requiresOuterRead(a_type: UInt) = a_type != uncachedWrite
   def requiresOuterWrite(a_type: UInt) = a_type === uncachedWrite
 
-  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt, data: UInt): Acquire = {
+  def apply(uncached: Bool, a_type: Bits, addr: UInt, client_xact_id: UInt, data: UInt, subblock: UInt): Acquire = {
     val acq = new Acquire
-    acq.uncached := Bool(false)
+    acq.uncached := uncached
     acq.a_type := a_type
     acq.addr := addr
     acq.client_xact_id := client_xact_id
     acq.data := data
-    acq.subblock := UInt(0)
+    acq.subblock := subblock
     acq
+  }
+  def apply(a_type: Bits, addr: UInt, client_xact_id: UInt, data: UInt): Acquire = {
+    apply(Bool(false), a_type, addr, client_xact_id, data, UInt(0))
   }
   def apply(a_type: Bits, addr: UInt, client_xact_id: UInt): Acquire = {
     apply(a_type, addr, client_xact_id, UInt(0))
