@@ -226,6 +226,25 @@ class TileLinkIO extends UncachedTileLinkIO {
   val release   = new DecoupledIO(new LogicalNetworkIO(new Release))
 }
 
+class TileLinkIOWrapper extends TLModule {
+  val io = new Bundle {
+    val in = new UncachedTileLinkIO().flip
+    val out = new TileLinkIO
+  }
+  io.out.acquire <> io.in.acquire
+  io.out.grant <> io.in.grant
+  io.out.finish <> io.in.finish
+  io.out.probe.ready := Bool(false)
+  io.out.release.valid := Bool(false)
+}
+object TileLinkIOWrapper {
+  def apply[T <: Data](uncached: UncachedTileLinkIO) = {
+    val conv = Module(new TileLinkIOWrapper)
+    conv.io.in <> uncached
+    conv.io.out
+  }
+}
+
 abstract class TileLinkArbiterLike(val arbN: Int) extends TLModule {
   type MasterSourcedWithId = MasterSourcedMessage with HasClientTransactionId
   type ClientSourcedWithId = ClientSourcedMessage with HasClientTransactionId 
