@@ -205,9 +205,7 @@ class MICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(di
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
     val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
     val uncached = MasterMetadata(masterValid, m.sharers)(this)
-    MuxBundle(uncached, Array(
-      g.is(grantReadExclusive) -> cached
-    ))
+    Mux(g.uncached, uncached, cached)
   }
 
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
@@ -339,9 +337,7 @@ class MEICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(d
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
     val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
     val uncached = MasterMetadata(masterValid, m.sharers)(this)
-    MuxBundle(uncached, Array(
-      g.is(grantReadExclusive) -> cached
-    ))
+    Mux(g.uncached, uncached, cached)
   }
 
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
@@ -485,10 +481,7 @@ class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(d
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
     val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
     val uncached = MasterMetadata(masterValid, m.sharers)(this)
-    MuxBundle(uncached, Array(
-      g.is(grantReadShared) -> cached,
-      g.is(grantReadExclusive) -> cached
-    ))
+    Mux(g.uncached, uncached, cached)
   }
 
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
@@ -644,11 +637,7 @@ class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
     val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
     val uncached = MasterMetadata(masterValid, m.sharers)(this)
-    MuxBundle(uncached, Array(
-      g.is(grantReadShared) -> cached,
-      g.is(grantReadExclusive) -> cached,
-      g.is(grantReadExclusiveAck) -> cached
-    ))
+    Mux(g.uncached, uncached, cached)
   }
 
   def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
@@ -817,12 +806,7 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
     val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
     val uncached = MasterMetadata(masterValid, m.sharers)(this)
-    MuxBundle(uncached, Array(
-      g.is(grantReadShared) -> cached,
-      g.is(grantReadExclusive) -> cached,
-      g.is(grantReadExclusiveAck) -> cached,
-      g.is(grantReadMigratory) -> cached
-    ))
+    Mux(g.uncached, uncached, cached)
   }
 
 

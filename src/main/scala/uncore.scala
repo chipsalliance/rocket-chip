@@ -15,18 +15,8 @@ abstract trait CoherenceAgentParameters extends UsesParameters
   val nTransactors = nReleaseTransactors + nAcquireTransactors
   val nClients = params(NClients)
   val sdqDepth = params(L2StoreDataQueueDepth)*tlDataBeats
-  val dqIdxBits = math.max(log2Up(nReleaseTransactors) + 1, log2Up(params(L2StoreDataQueueDepth))) +
-                    log2Ceil(tlDataBeats)
+  val dqIdxBits = math.max(log2Up(nReleaseTransactors) + 1, log2Up(sdqDepth))
   val nDataQueueLocations = 3 //Stores, VoluntaryWBs, Releases
-}
-
-abstract class CoherenceAgent(innerId: String, outerId: String) extends Module
-    with CoherenceAgentParameters {
-  val io = new Bundle {
-    val inner = Bundle(new TileLinkIO, {case TLId => innerId}).flip
-    val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
-    val incoherent = Vec.fill(nClients){Bool()}.asInput
-  }
 }
 
 class DataQueueLocation extends Bundle with CoherenceAgentParameters {
@@ -39,6 +29,15 @@ object DataQueueLocation {
     d.idx := idx
     d.loc := loc
     d
+  }
+}
+
+abstract class CoherenceAgent(innerId: String, outerId: String) extends Module
+    with CoherenceAgentParameters {
+  val io = new Bundle {
+    val inner = Bundle(new TileLinkIO, {case TLId => innerId}).flip
+    val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
+    val incoherent = Vec.fill(nClients){Bool()}.asInput
   }
 }
 
@@ -103,6 +102,12 @@ class L2CoherenceAgent(bankId: Int, innerId: String, outerId: String) extends
   }
   release.ready := Vec(trackerList.map(_.io.inner.release.ready)).read(release_idx) && !block_releases
 
+  // Wire finished transaction acks
+  val ack = io.inner.finish
+  trackerList.map(_.io.inner.finish.valid := ack.valid)
+  trackerList.map(_.io.inner.finish.bits := ack.bits)
+  ack.ready := Bool(true)
+
   // Wire probe requests to clients
   val probe_arb = Module(new Arbiter(new LogicalNetworkIO(new Probe), trackerList.size))
   io.inner.probe <> probe_arb.io.out
@@ -114,12 +119,6 @@ class L2CoherenceAgent(bankId: Int, innerId: String, outerId: String) extends
   io.inner.grant.bits.payload.data := io.outer.grant.bits.payload.data
   io.inner.grant <> grant_arb.io.out
   grant_arb.io.in zip trackerList map { case (arb, t) => arb <> t.io.inner.grant }
-
-  // Wire finished transaction acks
-  val ack = io.inner.finish
-  trackerList.map(_.io.inner.finish.valid := ack.valid)
-  trackerList.map(_.io.inner.finish.bits := ack.bits)
-  ack.ready := Bool(true)
 
   // Create an arbiter for the one memory port
   val outer_arb = Module(new UncachedTileLinkIOArbiterThatPassesId(trackerList.size),
@@ -164,9 +163,13 @@ abstract class XactTracker(innerId: String, outerId: String) extends Module {
 class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, outerId: String) extends XactTracker(innerId, outerId) {
   val s_idle :: s_outer :: s_ack :: s_busy :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_idle)
-  val xact  = Reg{ new Release }
-  val init_client_id = Reg(init=UInt(0, width = log2Up(nClients)))
-  val data_ptrs = Vec.fill(tlDataBeats){ Reg(io.inner.release.bits.payload.data.clone) }
+
+  val xact_src = Reg(io.inner.release.bits.header.src.clone)
+  val xact_r_type = Reg(io.inner.release.bits.payload.r_type)
+  val xact_addr = Reg(io.inner.release.bits.payload.addr.clone)
+  val xact_client_xact_id = Reg(io.inner.release.bits.payload.client_xact_id.clone)
+  val xact_data = Vec.fill(tlDataBeats){ Reg(io.inner.release.bits.payload.data.clone) }
+
   val collect_inner_data = Reg(init=Bool(false))
   val (inner_data_cnt, inner_data_done) =
     Counter(io.inner.release.fire() && co.messageHasData(io.inner.release.bits.payload), tlDataBeats)
@@ -174,33 +177,35 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
     Counter(io.outer.acquire.fire() && co.messageHasData(io.outer.acquire.bits.payload), tlDataBeats)
 
   io.has_acquire_conflict := Bool(false)
-  io.has_release_conflict := co.isCoherenceConflict(xact.addr, c_rel.payload.addr) && 
+  io.has_release_conflict := co.isCoherenceConflict(xact_addr, c_rel.payload.addr) && 
                                (state != s_idle)
 
   io.outer.grant.ready := Bool(false)
   io.outer.acquire.valid := Bool(false)
-  io.outer.acquire.bits.header.src := UInt(bankId) 
-  //io.outer.acquire.bits.header.dst TODO
-  io.outer.acquire.bits.payload := Bundle(UncachedWrite(
-                                            xact.addr,
-                                            UInt(trackerId),
-                                            data_ptrs(outer_data_cnt)),
-                                    { case TLId => outerId })
   io.inner.acquire.ready := Bool(false)
   io.inner.probe.valid := Bool(false)
   io.inner.release.ready := Bool(false)
   io.inner.grant.valid := Bool(false)
+  io.inner.finish.ready := Bool(false)
+
   io.inner.grant.bits.header.src := UInt(bankId)
-  io.inner.grant.bits.header.dst := init_client_id
+  io.inner.grant.bits.header.dst := xact_src
   io.inner.grant.bits.payload := Grant(Bool(false),
                                         co.getGrantTypeOnVoluntaryWriteback(co.masterMetadataOnFlush),
-                                        xact.client_xact_id,
+                                        xact_client_xact_id,
                                         UInt(trackerId))
+
+  io.outer.acquire.bits.header.src := UInt(bankId) 
+  io.outer.acquire.bits.payload := Bundle(UncachedWrite(
+                                            xact_addr,
+                                            UInt(trackerId),
+                                            xact_data(outer_data_cnt)),
+                                    { case TLId => outerId })
 
   when(collect_inner_data) {
     io.inner.release.ready := Bool(true)
     when(io.inner.release.valid) {
-      data_ptrs(inner_data_cnt) := c_rel.payload.data
+      xact_data(inner_data_cnt) := c_rel.payload.data
     }
     when(inner_data_done) { collect_inner_data := Bool(false) }
   }
@@ -209,15 +214,18 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
     is(s_idle) {
       io.inner.release.ready := Bool(true)
       when( io.inner.release.valid ) {
-        xact := c_rel.payload
-        init_client_id := c_rel.header.src
-        data_ptrs(UInt(0)) := c_rel.payload.data
+        xact_src := c_rel.header.src
+        xact_r_type := c_rel.payload.r_type
+        xact_addr := c_rel.payload.addr
+        xact_client_xact_id := c_rel.payload.client_xact_id
+        xact_data(UInt(0)) := c_rel.payload.data
         collect_inner_data := co.messageHasData(c_rel.payload)
         state := Mux(co.messageHasData(c_rel.payload), s_outer, s_ack)
       }
     }
     is(s_outer) {
-      io.outer.acquire.valid := (if(tlDataBeats == 1) Bool(true) else !collect_inner_data || (outer_data_cnt < inner_data_cnt))
+      io.outer.acquire.valid := (if(tlDataBeats == 1) Bool(true) 
+                                  else !collect_inner_data || (outer_data_cnt < inner_data_cnt))
       when(outer_data_done) { state := s_ack }
     }
     is(s_ack) {
@@ -230,28 +238,28 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
 class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: String) extends XactTracker(innerId, outerId) {
   val s_idle :: s_probe :: s_mem_read :: s_mem_write :: s_make_grant :: s_busy :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_idle)
-  val xact  = Reg{ new Acquire }
-  val init_client_id = Reg(init=UInt(0, width = log2Up(nClients)))
-  //TODO: Will need id reg for merged release xacts
-  val data_ptrs = Vec.fill(tlDataBeats){ Reg(io.inner.acquire.bits.payload.data.clone) }
+
+  val xact_src = Reg(io.inner.acquire.bits.header.src.clone)
+  val xact_uncached = Reg(io.inner.acquire.bits.payload.uncached.clone)
+  val xact_a_type = Reg(io.inner.acquire.bits.payload.a_type.clone)
+  val xact_addr = Reg(io.inner.acquire.bits.payload.addr.clone)
+  val xact_client_xact_id = Reg(io.inner.acquire.bits.payload.client_xact_id.clone)
+  val xact_subblock = Reg(io.inner.acquire.bits.payload.subblock.clone)
+  val xact_data = Vec.fill(tlDataBeats){ Reg(io.inner.acquire.bits.payload.data.clone) }
+  val xact = Acquire(xact_uncached, xact_a_type, xact_addr, xact_client_xact_id, UInt(0), xact_subblock)
+
   val collect_inner_data = Reg(init=Bool(false))
   val (inner_data_cnt, inner_data_done) = 
     Counter(io.inner.acquire.fire() && co.messageHasData(io.inner.acquire.bits.payload), tlDataBeats)
   val (outer_data_cnt, outer_data_done) = 
     Counter(io.outer.acquire.fire() && co.messageHasData(io.outer.acquire.bits.payload), tlDataBeats)
 
-  val release_count = if (nClients == 1) UInt(0) else Reg(init=UInt(0, width = log2Up(nClients)))
+  val release_count = Reg(init=UInt(0, width = log2Up(nClients)))
   val probe_flags = Reg(init=Bits(0, width = nClients))
   val curr_p_id = PriorityEncoder(probe_flags)
 
   val pending_outer_write = co.messageHasData(xact)
   val pending_outer_read = co.requiresOuterRead(xact, co.masterMetadataOnFlush)
-  val outer_write_acq = Bundle(UncachedWrite(xact.addr, UInt(trackerId), data_ptrs(outer_data_cnt)),
-                          { case TLId => outerId })
-  val outer_write_rel = Bundle(UncachedWrite(xact.addr, UInt(trackerId), c_rel.payload.data),
-                          { case TLId => outerId })
-  val outer_read = Bundle(UncachedRead(xact.addr, UInt(trackerId)),
-                      { case TLId => outerId })
 
   val probe_initial_flags = Bits(width = nClients)
   probe_initial_flags := Bits(0)
@@ -260,26 +268,34 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   val myflag = Mux(probe_self, Bits(0), UIntToOH(c_acq.header.src(log2Up(nClients)-1,0)))
   probe_initial_flags := ~(io.tile_incoherent | myflag)
 
-  io.has_acquire_conflict := co.isCoherenceConflict(xact.addr, c_acq.payload.addr) && (state != s_idle) && !collect_inner_data
-  io.has_release_conflict := co.isCoherenceConflict(xact.addr, c_rel.payload.addr) && (state != s_idle)
+  io.has_acquire_conflict := co.isCoherenceConflict(xact_addr, c_acq.payload.addr) && 
+                              (state != s_idle) && 
+                              !collect_inner_data
+  io.has_release_conflict := co.isCoherenceConflict(xact_addr, c_rel.payload.addr) && 
+                              (state != s_idle)
+
+  val outer_write_acq = Bundle(UncachedWrite(xact_addr, UInt(trackerId), xact_data(outer_data_cnt)),
+                          { case TLId => outerId })
+  val outer_write_rel = Bundle(UncachedWrite(xact_addr, UInt(trackerId), c_rel.payload.data),
+                          { case TLId => outerId })
+  val outer_read = Bundle(UncachedRead(xact_addr, UInt(trackerId)), { case TLId => outerId })
 
   io.outer.acquire.valid := Bool(false)
+  io.outer.acquire.bits.payload := outer_read //default
   io.outer.acquire.bits.header.src := UInt(bankId)
-  //io.outer.acquire.bits.header.dst TODO
-  io.outer.acquire.bits.payload := outer_read 
   io.outer.grant.ready := io.inner.grant.ready
 
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
   io.inner.probe.bits.header.dst := curr_p_id
-  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.masterMetadataOnFlush), xact.addr)
+  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.masterMetadataOnFlush), xact_addr)
 
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
-  io.inner.grant.bits.header.dst := init_client_id
-  io.inner.grant.bits.payload := Grant(xact.uncached,
+  io.inner.grant.bits.header.dst := xact_src
+  io.inner.grant.bits.payload := Grant(xact_uncached,
                                         co.getGrantType(xact, co.masterMetadataOnFlush),
-                                        xact.client_xact_id,
+                                        xact_client_xact_id,
                                         UInt(trackerId),
                                         UInt(0)) // Data bypassed in parent
 
@@ -289,7 +305,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   when(collect_inner_data) {
     io.inner.acquire.ready := Bool(true)
     when(io.inner.acquire.valid) {
-      data_ptrs(inner_data_cnt) := c_acq.payload.data
+      xact_data(inner_data_cnt) := c_acq.payload.data
     }
     when(inner_data_done) { collect_inner_data := Bool(false) }
   }
@@ -300,9 +316,13 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
       val needs_outer_write = co.messageHasData(c_acq.payload)
       val needs_outer_read = co.requiresOuterRead(c_acq.payload, co.masterMetadataOnFlush)
       when( io.inner.acquire.valid ) {
-        xact := c_acq.payload
-        init_client_id := c_acq.header.src
-        data_ptrs(UInt(0)) := c_acq.payload.data
+        xact_uncached := c_acq.payload.uncached
+        xact_a_type := c_acq.payload.a_type
+        xact_addr := c_acq.payload.addr
+        xact_client_xact_id := c_acq.payload.client_xact_id
+        xact_data(UInt(0)) := c_acq.payload.data
+        xact_subblock := c_acq.payload.subblock
+        xact_src := c_acq.header.src
         collect_inner_data := co.messageHasData(c_acq.payload)
         probe_flags := probe_initial_flags
         release_count := PopCount(probe_initial_flags)
@@ -319,12 +339,12 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
       }
 
       // Handle releases, which may have data to be written back
+      io.inner.release.ready := !co.messageHasData(c_rel.payload) || io.outer.acquire.ready
       when(io.inner.release.valid) {
         when(co.messageHasData(c_rel.payload)) {
           io.outer.acquire.valid := Bool(true)
           io.outer.acquire.bits.payload := outer_write_rel
           when(io.outer.acquire.ready) {
-            io.inner.release.ready := Bool(true)
             when(outer_data_done) {
               release_count := release_count - UInt(1)
               when(release_count === UInt(1)) {
@@ -334,7 +354,6 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
             }
           }
         } .otherwise {
-          io.inner.release.ready := Bool(true)
           release_count := release_count - UInt(1)
           when(release_count === UInt(1)) {
             state := Mux(pending_outer_write, s_mem_write, 
@@ -351,7 +370,8 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
       }
     }
     is(s_mem_write) {
-      io.outer.acquire.valid := (if(tlDataBeats == 1) Bool(true) else !collect_inner_data || (outer_data_cnt < inner_data_cnt))
+      io.outer.acquire.valid := (if(tlDataBeats == 1) Bool(true) 
+                                  else !collect_inner_data || (outer_data_cnt < inner_data_cnt))
       io.outer.acquire.bits.payload := outer_write_acq
       when(outer_data_done) {
         state := Mux(pending_outer_read, s_mem_read, s_make_grant)
