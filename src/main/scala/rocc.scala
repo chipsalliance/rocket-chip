@@ -43,6 +43,7 @@ class RoCCInterface extends Bundle
   
   // These should be handled differently, eventually
   val imem = new UncachedTileLinkIO
+  val dmem = new TileLinkIO
   val iptw = new TLBPTWIO
   val dptw = new TLBPTWIO
   val pptw = new TLBPTWIO
@@ -124,6 +125,11 @@ class AccumulatorExample extends RoCC
   io.imem.acquire.valid := false
   io.imem.grant.ready := false
   io.imem.finish.valid := false
+  io.dmem.acquire.valid := false
+  io.dmem.release.valid := false
+  io.dmem.finish.valid := false
+  io.dmem.probe.ready := false
+  io.dmem.grant.ready := false
   io.iptw.req.valid := false
   io.dptw.req.valid := false
   io.pptw.req.valid := false
