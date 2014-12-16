@@ -123,7 +123,7 @@ object L2Metadata {
   }
 }
 class L2Metadata extends Metadata with L2HellaCacheParameters {
-  val coh = new MasterMetadata()(co) //co.masterMetadataOnFlush.clone
+  val coh = new MasterMetadata
 }
 
 class L2MetaReadReq extends MetaReadReq with HasL2Id {
@@ -524,8 +524,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   val (local_data_resp_cnt, local_data_resp_done) = Counter(io.data.resp.valid, tlDataBeats)
 
   val release_count = Reg(init = UInt(0, width = log2Up(nClients+1)))
-  val pending_probes = Reg(init = co.dir().flush)
-  val curr_p_id = co.dir().next(pending_probes)
+  val pending_probes = Reg(init = co.dir.flush)
+  val curr_p_id = co.dir.next(pending_probes)
   
   val needs_writeback = !xact_tag_match && co.needsWriteback(xact_meta.coh)
   val is_hit = xact_tag_match && co.isHit(xact, xact_meta.coh)
@@ -645,11 +645,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
         val _is_hit = _tag_match && co.isHit(xact, coh)
         val _needs_probes = co.requiresProbes(xact, coh)
         when(_needs_probes) {
-          val mask_incoherent = co.dir().full(coh.sharers) & ~io.tile_incoherent
+          val mask_incoherent = co.dir.full(coh.sharers) & ~io.tile_incoherent
           val mask_self = mask_incoherent & 
                             ~(!(co.requiresSelfProbe(xact) || _needs_writeback) << xact_src)
           pending_probes := mask_self
-          release_count := co.dir().count(mask_self)
+          release_count := co.dir.count(mask_self)
           crel_had_data := Bool(false)
           crel_was_voluntary := Bool(false)
         } 
@@ -663,9 +663,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
       }
     }
     is(s_probe) {
-      io.inner.probe.valid := !co.dir().none(pending_probes)
+      io.inner.probe.valid := !co.dir.none(pending_probes)
       when(io.inner.probe.ready) {
-        pending_probes := co.dir().pop(pending_probes, curr_p_id)
+        pending_probes := co.dir.pop(pending_probes, curr_p_id)
       }
 
       // Handle releases, which may have data being written back
