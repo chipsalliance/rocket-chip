@@ -190,7 +190,7 @@ class MSHR(id: Int) extends L1HellaCacheModule {
 
   val acquire_type = Reg(UInt())
   val release_type = Reg(UInt())
-  val line_state = Reg(new ClientMetadata()(co))
+  val line_state = Reg(new ClientMetadata)
   val req = Reg(new MSHRReqInternal())
 
   val req_cmd = io.req_bits.cmd
@@ -497,7 +497,7 @@ class ProbeUnit extends L1HellaCacheModule {
     val wb_req = Decoupled(new WritebackReq)
     val way_en = Bits(INPUT, nWays)
     val mshr_rdy = Bool(INPUT)
-    val line_state = new ClientMetadata()(co).asInput
+    val line_state = new ClientMetadata().asInput
   }
 
   val s_reset :: s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(UInt(), 9)
@@ -749,7 +749,7 @@ class HellaCache extends L1HellaCacheModule {
   io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
 
   // tags
-  def onReset = L1Metadata(UInt(0), ClientMetadata(UInt(0))(co))
+  def onReset = L1Metadata(UInt(0), ClientMetadata(UInt(0)))
   val meta = Module(new MetadataArray(onReset _))
   val metaReadArb = Module(new Arbiter(new MetaReadReq, 5))
   val metaWriteArb = Module(new Arbiter(new L1MetaWriteReq, 2))
