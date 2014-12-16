@@ -216,10 +216,13 @@ class L2DataArray extends L2HellaCacheModule {
   val wmask = FillInterleaved(8, io.write.bits.wmask)
   val resp = (0 until nWays).map { w =>
     val array = Mem(Bits(width=rowBits), nSets*refillCycles, seqRead = true)
+    val reg_raddr = Reg(UInt())
     when (io.write.bits.way_en(w) && io.write.valid) {
       array.write(waddr, io.write.bits.data, wmask)
+    }.elsewhen (io.read.bits.way_en(w) && io.read.valid) {
+      reg_raddr := raddr
     }
-    array(RegEnable(raddr, io.read.bits.way_en(w) && io.read.valid))
+    array(reg_raddr)
   }
   io.resp.valid := ShiftRegister(io.read.fire(), 1)
   io.resp.bits.id := ShiftRegister(io.read.bits.id, 1)
