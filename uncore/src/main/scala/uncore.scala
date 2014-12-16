@@ -4,16 +4,22 @@ package uncore
 import Chisel._
 
 case object NReleaseTransactors extends Field[Int]
+case object NProbeTransactors extends Field[Int]
 case object NAcquireTransactors extends Field[Int]
+case object NIncoherentClients extends Field[Int]
+case object NCoherentClients extends Field[Int]
 case object L2StoreDataQueueDepth extends Field[Int]
-case object NClients extends Field[Int]
+case object L2CoherencePolicy extends Field[DirectoryRepresentation => CoherencePolicy]
+case object L2DirectoryRepresentation extends Field[DirectoryRepresentation]
 
 abstract trait CoherenceAgentParameters extends UsesParameters 
     with TileLinkParameters {
   val nReleaseTransactors = 1
   val nAcquireTransactors = params(NAcquireTransactors)
   val nTransactors = nReleaseTransactors + nAcquireTransactors
-  val nClients = params(NClients)
+  val nCoherentClients = params(NCoherentClients)
+  val nIncoherentClients = params(NIncoherentClients)
+  val nClients = nCoherentClients + nIncoherentClients
   val sdqDepth = params(L2StoreDataQueueDepth)*tlDataBeats
   val dqIdxBits = math.max(log2Up(nReleaseTransactors) + 1, log2Up(sdqDepth))
   val nDataQueueLocations = 3 //Stores, VoluntaryWBs, Releases
@@ -41,7 +47,7 @@ abstract class CoherenceAgent(innerId: String, outerId: String) extends Module
   }
 }
 
-class L2CoherenceAgent(bankId: Int, innerId: String, outerId: String) extends 
+class L2BroadcastHub(bankId: Int, innerId: String, outerId: String) extends 
     CoherenceAgent(innerId, outerId) {
 
   val internalDataBits = new DataQueueLocation().getWidth
@@ -143,11 +149,12 @@ class L2CoherenceAgent(bankId: Int, innerId: String, outerId: String) extends
 
 
 abstract class XactTracker(innerId: String, outerId: String) extends Module {
-  val (co, nClients, tlDataBeats) = (params(TLCoherence),params(NClients),params(TLDataBeats))
+  val (co, tlDataBeats) = (params(TLCoherence), params(TLDataBeats))
+  val nClients = params(NCoherentClients) + params(NIncoherentClients)
   val io = new Bundle {
     val inner = Bundle(new TileLinkIO, {case TLId => innerId}).flip
     val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
-    val tile_incoherent = Bits(INPUT, params(NClients))
+    val tile_incoherent = Bits(INPUT, nClients)
     val has_acquire_conflict = Bool(OUTPUT)
     val has_release_conflict = Bool(OUTPUT)
   }

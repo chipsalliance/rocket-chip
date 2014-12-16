@@ -3,46 +3,35 @@
 package uncore
 import Chisel._
 
-abstract class CoherenceMetadata extends Bundle
+abstract class CoherenceMetadata extends Bundle with CoherenceAgentParameters
 
+class ClientMetadata extends CoherenceMetadata {
+  val state = UInt(width = co.clientStateWidth)
+  def ===(right: ClientMetadata): Bool = this.state === right.state
+  override def clone = new ClientMetadata().asInstanceOf[this.type]
+}
 object ClientMetadata {
-  def apply(state: UInt)(implicit c: CoherencePolicy) = {
+  def apply(state: UInt) = {
     val m = new ClientMetadata
     m.state := state
     m
   }
 }
-class ClientMetadata(implicit c: CoherencePolicy) extends CoherenceMetadata {
-  val state = UInt(width = c.clientStateWidth)
-  def ===(right: ClientMetadata): Bool = this.state === right.state
-  override def clone = new ClientMetadata()(c).asInstanceOf[this.type]
-}
 
+class MasterMetadata extends CoherenceMetadata {
+  val state = UInt(width = co.masterStateWidth)
+  val sharers = UInt(width = co.dir.width)
+  override def clone = new MasterMetadata().asInstanceOf[this.type]
+}
 object MasterMetadata {
-  def apply(state: UInt)(implicit c: CoherencePolicy): MasterMetadata = {
+  def apply(state: UInt, sharers: UInt) = {
     val m = new MasterMetadata
     m.state := state
-    m.sharers := c.dir().flush
-    m
-  }
-  def apply(state: UInt, sharers: UInt)(implicit c: CoherencePolicy): MasterMetadata = {
-    val m = apply(state)
     m.sharers := sharers
     m
   }
+  def apply(state: UInt): MasterMetadata = apply(state, new MasterMetadata().co.dir.flush)
 }
-class MasterMetadata(implicit c: CoherencePolicy) extends CoherenceMetadata {
-  val state = UInt(width = c.masterStateWidth)
-  val sharers = UInt(width = c.dir().width)
-  override def clone = new MasterMetadata()(c).asInstanceOf[this.type]
-}
-/*
-class MixedMetadata(inner: CoherencePolicy, outer: CoherencePolicy) extends CoherenceMetadata {
-  val cstate = UInt(width = outer.clientStateWidth)
-  val mstate = UInt(width = inner.masterStateWidth)
-  val sharers = inner.dir.sharers.clone
-}
-*/
 
 abstract class DirectoryRepresentation(val width: Int) {
   def pop(prev: UInt, id: UInt): UInt
@@ -77,7 +66,7 @@ class FullRepresentation(nClients: Int) extends DirectoryRepresentation(nClients
   def full(s: UInt) = s
 }
 
-abstract class CoherencePolicy(val dir: () => DirectoryRepresentation) {
+abstract class CoherencePolicy(val dir: DirectoryRepresentation) {
   def nClientStates: Int
   def nMasterStates: Int
   def nAcquireTypes: Int
@@ -143,7 +132,7 @@ abstract class CoherencePolicy(val dir: () => DirectoryRepresentation) {
   }
 }
 
-class MICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(dir) {
+class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def nClientStates = 2
   def nMasterStates = 2
   def nAcquireTypes = 1
@@ -184,18 +173,18 @@ class MICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(di
     MuxLookup(cmd, clientInvalid, Array(
       M_INV -> clientInvalid,
       M_CLN -> clientValid
-    )))(this)
+    )))
   def clientMetadataOnFlush = clientMetadataOnCacheControl(M_INV)
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = 
-    ClientMetadata(Mux(incoming.uncached, clientInvalid, clientValid))(this)
+    ClientMetadata(Mux(incoming.uncached, clientInvalid, clientValid))
   def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
     MuxLookup(incoming.p_type, m.state, Array(
       probeInvalidate -> clientInvalid,
       probeCopy       -> m.state
-    )))(this)
-  def masterMetadataOnFlush = MasterMetadata(masterInvalid)(this)
+    )))
+  def masterMetadataOnFlush = MasterMetadata(masterInvalid)
   def masterMetadataOnRelease(r: Release, m: MasterMetadata, src: UInt) = {
-    val next = MasterMetadata(masterValid, dir().pop(m.sharers, src))(this)
+    val next = MasterMetadata(masterValid, dir.pop(m.sharers, src))
     MuxBundle(m, Array(
       r.is(releaseVoluntaryInvalidateData) -> next,
       r.is(releaseInvalidateData) -> next,
@@ -203,8 +192,8 @@ class MICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(di
     ))
   }
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
-    val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
-    val uncached = MasterMetadata(masterValid, m.sharers)(this)
+    val cached = MasterMetadata(masterValid, dir.push(m.sharers, dst))
+    val uncached = MasterMetadata(masterValid, m.sharers)
     Mux(g.uncached, uncached, cached)
   }
 
@@ -263,11 +252,11 @@ class MICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(di
   def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir().none(m.sharers)
+  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
-class MEICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(dir) {
+class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def nClientStates = 3
   def nMasterStates = 2
   def nAcquireTypes = 2
@@ -307,27 +296,27 @@ class MEICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(d
   def needsWriteback(m: MasterMetadata) = isValid(m)
 
   def clientMetadataOnHit(cmd: UInt, m: ClientMetadata) = 
-    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, m.state))(this)
+    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, m.state))
   
   def clientMetadataOnCacheControl(cmd: UInt) = ClientMetadata(
     MuxLookup(cmd, clientInvalid, Array(
       M_INV -> clientInvalid,
       M_CLN -> clientExclusiveClean
-    )))(this)
+    )))
   def clientMetadataOnFlush() = clientMetadataOnCacheControl(M_INV)
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = ClientMetadata(
     Mux(incoming.uncached, clientInvalid,
       Mux(outstanding.a_type === acquireReadExclusiveDirty, clientExclusiveDirty, 
-        clientExclusiveClean)))(this)
+        clientExclusiveClean)))
   def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
     MuxLookup(incoming.p_type, m.state, Array(
       probeInvalidate -> clientInvalid,
       probeDowngrade  -> clientExclusiveClean,
       probeCopy       -> m.state
-    )))(this)
-  def masterMetadataOnFlush = MasterMetadata(masterInvalid)(this)
+    )))
+  def masterMetadataOnFlush = MasterMetadata(masterInvalid)
   def masterMetadataOnRelease(r: Release, m: MasterMetadata, src: UInt) = {
-    val next = MasterMetadata(masterValid, dir().pop(m.sharers,src))(this)
+    val next = MasterMetadata(masterValid, dir.pop(m.sharers,src))
     MuxBundle(m, Array(
       r.is(releaseVoluntaryInvalidateData) -> next,
       r.is(releaseInvalidateData) -> next,
@@ -335,8 +324,8 @@ class MEICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(d
     ))
   }
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
-    val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
-    val uncached = MasterMetadata(masterValid, m.sharers)(this)
+    val cached = MasterMetadata(masterValid, dir.push(m.sharers, dst))
+    val uncached = MasterMetadata(masterValid, m.sharers)
     Mux(g.uncached, uncached, cached)
   }
 
@@ -401,12 +390,12 @@ class MEICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(d
   def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir().none(m.sharers)
+  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
-class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(dir) {
+class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def nClientStates = 3
   def nMasterStates = 2
   def nAcquireTypes = 2
@@ -452,26 +441,26 @@ class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(d
   def needsWriteback(m: MasterMetadata) = isValid(m)
 
   def clientMetadataOnHit(cmd: UInt, m: ClientMetadata) =
-    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, m.state))(this)
+    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, m.state))
   def clientMetadataOnCacheControl(cmd: UInt) = ClientMetadata(
     MuxLookup(cmd, clientInvalid, Array(
       M_INV -> clientInvalid,
       M_CLN -> clientShared
-    )))(this)
+    )))
   def clientMetadataOnFlush() = clientMetadataOnCacheControl(M_INV)
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = ClientMetadata(
     Mux(incoming.uncached, clientInvalid,
       Mux(incoming.g_type === grantReadShared, clientShared, 
-        clientExclusiveDirty)))(this)
+        clientExclusiveDirty)))
   def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
     MuxLookup(incoming.p_type, m.state, Array(
       probeInvalidate -> clientInvalid,
       probeDowngrade  -> clientShared,
       probeCopy       -> m.state
-    )))(this)
-  def masterMetadataOnFlush = MasterMetadata(masterInvalid)(this)
+    )))
+  def masterMetadataOnFlush = MasterMetadata(masterInvalid)
   def masterMetadataOnRelease(r: Release, m: MasterMetadata, src: UInt) = {
-    val next = MasterMetadata(masterValid, dir().pop(m.sharers,src))(this)
+    val next = MasterMetadata(masterValid, dir.pop(m.sharers,src))
     MuxBundle(m, Array(
       r.is(releaseVoluntaryInvalidateData) -> next,
       r.is(releaseInvalidateData) -> next,
@@ -479,8 +468,8 @@ class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(d
     ))
   }
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
-    val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
-    val uncached = MasterMetadata(masterValid, m.sharers)(this)
+    val cached = MasterMetadata(masterValid, dir.push(m.sharers, dst))
+    val uncached = MasterMetadata(masterValid, m.sharers)
     Mux(g.uncached, uncached, cached)
   }
 
@@ -525,7 +514,7 @@ class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(d
   def getGrantType(a: Acquire, m: MasterMetadata): UInt = {
     Mux(a.uncached, getGrantTypeForUncached(a, m),
       Mux(a.a_type === acquireReadShared,
-        Mux(!dir().none(m.sharers), grantReadShared, grantReadExclusive),
+        Mux(!dir.none(m.sharers), grantReadShared, grantReadExclusive),
         grantReadExclusive))
   }
   def getGrantTypeOnVoluntaryWriteback(m: MasterMetadata): UInt = grantVoluntaryAck
@@ -552,12 +541,12 @@ class MSICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(d
   def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir().none(m.sharers)
+  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
-class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(dir) {
+class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def nClientStates = 4
   def nMasterStates = 2
   def nAcquireTypes = 2
@@ -603,13 +592,13 @@ class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(
   def needsWriteback(m: MasterMetadata) = isValid(m)
 
   def clientMetadataOnHit(cmd: UInt, m: ClientMetadata) = 
-    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, m.state))(this)
+    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, m.state))
 
   def clientMetadataOnCacheControl(cmd: UInt) = ClientMetadata(
     MuxLookup(cmd, clientInvalid, Array(
       M_INV -> clientInvalid,
       M_CLN -> clientShared
-    )))(this)
+    )))
   def clientMetadataOnFlush = clientMetadataOnCacheControl(M_INV)
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = ClientMetadata(
     Mux(incoming.uncached, clientInvalid,
@@ -618,16 +607,16 @@ class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(
         grantReadExclusive -> Mux(outstanding.a_type === acquireReadExclusive, 
                                 clientExclusiveDirty, clientExclusiveClean),
         grantReadExclusiveAck -> clientExclusiveDirty
-      ))))(this)
+      ))))
   def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
     MuxLookup(incoming.p_type, m.state, Array(
       probeInvalidate -> clientInvalid,
       probeDowngrade  -> clientShared,
       probeCopy       -> m.state
-    )))(this)
-  def masterMetadataOnFlush = MasterMetadata(masterInvalid)(this)
+    )))
+  def masterMetadataOnFlush = MasterMetadata(masterInvalid)
   def masterMetadataOnRelease(r: Release, m: MasterMetadata, src: UInt) = {
-    val next = MasterMetadata(masterValid, dir().pop(m.sharers,src))(this)
+    val next = MasterMetadata(masterValid, dir.pop(m.sharers,src))
     MuxBundle(m, Array(
       r.is(releaseVoluntaryInvalidateData) -> next,
       r.is(releaseInvalidateData) -> next,
@@ -635,8 +624,8 @@ class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(
     ))
   }
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
-    val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
-    val uncached = MasterMetadata(masterValid, m.sharers)(this)
+    val cached = MasterMetadata(masterValid, dir.push(m.sharers, dst))
+    val uncached = MasterMetadata(masterValid, m.sharers)
     Mux(g.uncached, uncached, cached)
   }
 
@@ -681,7 +670,7 @@ class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(
   def getGrantType(a: Acquire, m: MasterMetadata): UInt = {
     Mux(a.uncached, getGrantTypeForUncached(a, m),
       Mux(a.a_type === acquireReadShared,
-        Mux(!dir().none(m.sharers), grantReadShared, grantReadExclusive),
+        Mux(!dir.none(m.sharers), grantReadShared, grantReadExclusive),
         grantReadExclusive))
   }
   def getGrantTypeOnVoluntaryWriteback(m: MasterMetadata): UInt = grantVoluntaryAck
@@ -708,12 +697,12 @@ class MESICoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(
   def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir().none(m.sharers)
+  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
-class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePolicy(dir) {
+class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def nClientStates = 7
   def nMasterStates = 2
   def nAcquireTypes = 3
@@ -760,12 +749,12 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
   def clientMetadataOnHit(cmd: UInt, m: ClientMetadata) = ClientMetadata(
     Mux(isWrite(cmd), MuxLookup(m.state, clientExclusiveDirty, Array(
                 clientExclusiveClean -> clientExclusiveDirty,
-                clientMigratoryClean -> clientMigratoryDirty)), m.state))(this)
+                clientMigratoryClean -> clientMigratoryDirty)), m.state))
   def clientMetadataOnCacheControl(cmd: UInt) = ClientMetadata(
     MuxLookup(cmd, clientInvalid, Array(
       M_INV -> clientInvalid,
       M_CLN -> clientShared
-    )))(this)
+    )))
   def clientMetadataOnFlush = clientMetadataOnCacheControl(M_INV)
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = ClientMetadata(
     Mux(incoming.uncached, clientInvalid,
@@ -779,7 +768,7 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
                                     acquireInvalidateOthers -> clientMigratoryDirty,
                                     acquireReadExclusive -> clientMigratoryDirty,
                                     acquireReadShared -> clientMigratoryClean))
-      ))))(this)
+      ))))
   def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
     MuxLookup(incoming.p_type, m.state, Array(
       probeInvalidate -> clientInvalid,
@@ -791,10 +780,10 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
                               clientSharedByTwo    -> clientShared,
                               clientMigratoryClean -> clientSharedByTwo,
                               clientMigratoryDirty -> clientInvalid))
-    )))(this)
-  def masterMetadataOnFlush = MasterMetadata(masterInvalid)(this)
+    )))
+  def masterMetadataOnFlush = MasterMetadata(masterInvalid)
   def masterMetadataOnRelease(r: Release, m: MasterMetadata, src: UInt) = {
-    val next = MasterMetadata(masterValid, dir().pop(m.sharers,src))(this)
+    val next = MasterMetadata(masterValid, dir.pop(m.sharers,src))
     MuxBundle(m, Array(
       r.is(releaseVoluntaryInvalidateData) -> next,
       r.is(releaseInvalidateData) -> next,
@@ -804,8 +793,8 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
     ))
   }
   def masterMetadataOnGrant(g: Grant, m: MasterMetadata, dst: UInt) = {
-    val cached = MasterMetadata(masterValid, dir().push(m.sharers, dst))(this)
-    val uncached = MasterMetadata(masterValid, m.sharers)(this)
+    val cached = MasterMetadata(masterValid, dir.push(m.sharers, dst))
+    val uncached = MasterMetadata(masterValid, m.sharers)
     Mux(g.uncached, uncached, cached)
   }
 
@@ -853,7 +842,7 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
   def getGrantType(a: Acquire, m: MasterMetadata): UInt = {
     Mux(a.uncached, getGrantTypeForUncached(a, m),
       MuxLookup(a.a_type, grantReadShared, Array(
-        acquireReadShared    -> Mux(!dir().none(m.sharers), grantReadShared, grantReadExclusive),
+        acquireReadShared    -> Mux(!dir.none(m.sharers), grantReadShared, grantReadExclusive),
         acquireReadExclusive -> grantReadExclusive,                                            
         acquireInvalidateOthers -> grantReadExclusiveAck  //TODO: add this to MESI for broadcast?
       )))
@@ -883,7 +872,7 @@ class MigratoryCoherence(dir: () => DirectoryRepresentation) extends CoherencePo
   def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir().none(m.sharers)
+  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
