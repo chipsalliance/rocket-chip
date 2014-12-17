@@ -30,8 +30,6 @@ abstract trait CacheParameters extends UsesParameters {
   val rowWords = rowBits/wordBits 
   val rowBytes = rowBits/8
   val rowOffBits = log2Up(rowBytes)
-  val refillCyclesPerBeat = params(TLDataBits)/rowBits
-  val refillCycles = refillCyclesPerBeat*params(TLDataBeats)
 }
 
 abstract class CacheBundle extends Bundle with CacheParameters
@@ -99,7 +97,12 @@ class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
 }
 
 abstract trait L2HellaCacheParameters extends CacheParameters 
-  with CoherenceAgentParameters
+    with CoherenceAgentParameters {
+  val idxMSB = idxBits-1
+  val idxLSB = 0
+  val refillCyclesPerBeat = params(TLDataBits)/rowBits
+  val refillCycles = refillCyclesPerBeat*params(TLDataBeats)
+}
 
 abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
 abstract class L2HellaCacheModule extends Module with L2HellaCacheParameters
@@ -415,13 +418,13 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
   io.data.write.bits.data := xact_data(local_data_cnt)
   io.meta.read.valid := Bool(false)
   io.meta.read.bits.id := UInt(trackerId)
-  io.meta.read.bits.idx := xact_addr(untagBits-1,blockOffBits)
-  io.meta.read.bits.tag := xact_addr >> UInt(untagBits)
+  io.meta.read.bits.idx := xact_addr(idxMSB,idxLSB)
+  io.meta.read.bits.tag := xact_addr >> UInt(idxBits)
   io.meta.write.valid := Bool(false)
   io.meta.write.bits.id := UInt(trackerId)
-  io.meta.write.bits.idx := xact_addr(untagBits-1,blockOffBits)
+  io.meta.write.bits.idx := xact_addr(idxMSB,idxLSB)
   io.meta.write.bits.way_en := xact_way_en
-  io.meta.write.bits.data.tag := xact_addr >> UInt(untagBits)
+  io.meta.write.bits.data.tag := xact_addr >> UInt(idxBits)
   io.meta.write.bits.data.coh := co.masterMetadataOnRelease(xact, 
                                                             xact_meta.coh, 
                                                             xact_src)
@@ -505,7 +508,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   val crel_wb_src = Reg(init = UInt(0, width = log2Up(nClients)))
   val crel_wb_g_type = Reg(init = UInt(0, width = co.grantTypeWidth))
   val wb_buffer = Vec.fill(tlDataBeats){ Reg(io.inner.acquire.bits.payload.data.clone) }
-  val wb_addr = Cat(xact_meta.tag, xact_addr(untagBits-1,blockOffBits))
+  val wb_addr = Cat(xact_meta.tag, xact_addr(idxMSB,idxLSB))
 
   val collect_cacq_data = Reg(init=Bool(false))
   //TODO: zero width wires
@@ -535,7 +538,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   //TODO: Are there any races between lines with the same idx?
   //TODO: Allow hit under miss for stores
   io.has_acquire_conflict := co.isCoherenceConflict(xact.addr, c_acq.payload.addr) &&
-                              xact.addr(untagBits-1,0) === c_acq.payload.addr(untagBits-1,0) &&
+                              xact.addr(idxMSB,idxLSB) === c_acq.payload.addr(idxMSB,idxLSB) &&
                               (state != s_idle) &&
                               !collect_cacq_data
   io.has_release_conflict := (co.isCoherenceConflict(xact.addr, c_rel.payload.addr) ||
@@ -598,13 +601,13 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   io.data.write.bits.data := xact_data(local_data_write_cnt)
   io.meta.read.valid := Bool(false)
   io.meta.read.bits.id := UInt(trackerId)
-  io.meta.read.bits.idx := xact_addr(untagBits-1,blockOffBits)
-  io.meta.read.bits.tag := xact_addr >> UInt(untagBits)
+  io.meta.read.bits.idx := xact_addr(idxMSB,idxLSB)
+  io.meta.read.bits.tag := xact_addr >> UInt(idxBits)
   io.meta.write.valid := Bool(false)
   io.meta.write.bits.id := UInt(trackerId)
-  io.meta.write.bits.idx := xact_addr(untagBits-1,blockOffBits)
+  io.meta.write.bits.idx := xact_addr(idxMSB,idxLSB)
   io.meta.write.bits.way_en := xact_way_en
-  io.meta.write.bits.data.tag := xact_addr >> UInt(untagBits)
+  io.meta.write.bits.data.tag := xact_addr >> UInt(idxBits)
   io.meta.write.bits.data.coh := next_coh_on_grant
 
   when(collect_cacq_data) {
