@@ -13,6 +13,8 @@ abstract trait L1CacheParameters extends CacheParameters with CoreParameters {
   val co = params(TLCoherence)
   val code = params(ECCCode).getOrElse(new IdentityCode)
   val outerDataBeats = params(TLDataBeats)
+  val refillCyclesPerBeat = params(TLDataBits)/rowBits
+  val refillCycles = refillCyclesPerBeat*outerDataBeats
 }
 
 abstract trait FrontendParameters extends L1CacheParameters
