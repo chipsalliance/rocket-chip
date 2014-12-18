@@ -221,11 +221,8 @@ class MSHR(id: Int) extends L1HellaCacheModule {
     state := s_meta_write_resp
   }
   when (state === s_refill_resp) {
+    when (reply) { line_state := meta_on_grant }
     when (refill_done) { state := s_meta_write_req }
-    when (reply) {
-      if(refillCycles > 1) refill_cnt := refill_cnt + UInt(1)
-      line_state := meta_on_grant
-    }
   }
   when (io.mem_req.fire()) { // s_refill_req
     state := s_refill_resp
