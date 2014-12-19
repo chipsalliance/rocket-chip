@@ -303,17 +303,13 @@ class TSHRFile(bankId: Int, innerId: String, outerId: String) extends L2HellaCac
 
   // Handle releases, which might be voluntary and might have data
   val release = io.inner.release
-  val voluntary = co.isVoluntary(release.bits.payload)
-  val any_release_conflict = trackerList.tail.map(_.io.has_release_conflict).reduce(_||_)
-  val block_releases = Bool(false)
-  val conflict_idx = Vec(trackerList.map(_.io.has_release_conflict)).lastIndexWhere{b: Bool => b}
-  val release_idx = Mux(voluntary, Mux(any_release_conflict, conflict_idx, UInt(0)), conflict_idx)
+  val release_idx = Vec(trackerList.map(_.io.has_release_match)).indexWhere{b: Bool => b}
   for( i <- 0 until trackerList.size ) {
     val t = trackerList(i).io.inner
     t.release.bits := release.bits 
-    t.release.valid := release.valid && (release_idx === UInt(i)) && !block_releases
+    t.release.valid := release.valid && (release_idx === UInt(i))
   }
-  release.ready := Vec(trackerList.map(_.io.inner.release.ready)).read(release_idx) && !block_releases
+  release.ready := Vec(trackerList.map(_.io.inner.release.ready)).read(release_idx)
 
   // Wire finished transaction acks
   val finish = io.inner.finish
@@ -353,7 +349,7 @@ abstract class L2XactTracker(innerId: String, outerId: String) extends L2HellaCa
     val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
     val tile_incoherent = Bits(INPUT, nClients)
     val has_acquire_conflict = Bool(OUTPUT)
-    val has_release_conflict = Bool(OUTPUT)
+    val has_release_match = Bool(OUTPUT)
     val data = new L2DataRWIO
     val meta = new L2MetaRWIO
   }
@@ -391,8 +387,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
     Counter(io.data.write.fire(), tlDataBeats)
 
   io.has_acquire_conflict := Bool(false)
-  io.has_release_conflict := co.isCoherenceConflict(xact_addr, c_rel.payload.addr) && 
-                               (state != s_idle)
+  io.has_release_match := co.isVoluntary(c_rel.payload)
 
   io.outer.grant.ready := Bool(false)
   io.outer.acquire.valid := Bool(false)
@@ -541,9 +536,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
                               xact.addr(idxMSB,idxLSB) === c_acq.payload.addr(idxMSB,idxLSB) &&
                               (state != s_idle) &&
                               !collect_cacq_data
-  io.has_release_conflict := (co.isCoherenceConflict(xact.addr, c_rel.payload.addr) ||
-                               co.isCoherenceConflict(wb_addr, c_rel.payload.addr)) &&
-                               (state != s_idle)
+  io.has_release_match := !co.isVoluntary(c_rel.payload) &&
+                            (co.isCoherenceConflict(xact.addr, c_rel.payload.addr) ||
+                              co.isCoherenceConflict(wb_addr, c_rel.payload.addr)) &&
+                            (state === s_probe)
 
   val next_coh_on_release = co.masterMetadataOnRelease(
                                     c_rel.payload, 

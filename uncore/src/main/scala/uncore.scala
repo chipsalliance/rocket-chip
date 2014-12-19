@@ -94,19 +94,16 @@ class L2BroadcastHub(bankId: Int, innerId: String, outerId: String) extends
   when(vwbdq_enq) { vwbdq(rel_data_cnt) := release.bits.payload.data }
 
   // Handle releases, which might be voluntary and might have data
-  val any_release_conflict = trackerList.tail.map(_.io.has_release_conflict).reduce(_||_)
-  val block_releases = Bool(false)
-  val conflict_idx = Vec(trackerList.map(_.io.has_release_conflict)).lastIndexWhere{b: Bool => b}
-  val release_idx = Mux(voluntary, UInt(0), conflict_idx)
+  val release_idx = Vec(trackerList.map(_.io.has_release_match)).indexWhere{b: Bool => b}
   for( i <- 0 until trackerList.size ) {
     val t = trackerList(i).io.inner
     t.release.bits := release.bits 
     t.release.bits.payload.data := (if (i < nReleaseTransactors) 
                                       DataQueueLocation(rel_data_cnt, inVolWBQueue)
                                     else DataQueueLocation(UInt(0), inClientReleaseQueue)).toBits
-    t.release.valid := release.valid && (release_idx === UInt(i)) && !block_releases
+    t.release.valid := release.valid && (release_idx === UInt(i))
   }
-  release.ready := Vec(trackerList.map(_.io.inner.release.ready)).read(release_idx) && !block_releases
+  release.ready := Vec(trackerList.map(_.io.inner.release.ready)).read(release_idx)
 
   // Wire finished transaction acks
   val ack = io.inner.finish
@@ -156,7 +153,7 @@ abstract class XactTracker(innerId: String, outerId: String) extends Module {
     val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
     val tile_incoherent = Bits(INPUT, nClients)
     val has_acquire_conflict = Bool(OUTPUT)
-    val has_release_conflict = Bool(OUTPUT)
+    val has_release_match = Bool(OUTPUT)
   }
 
   val c_acq = io.inner.acquire.bits
@@ -184,8 +181,7 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
     Counter(io.outer.acquire.fire() && co.messageHasData(io.outer.acquire.bits.payload), tlDataBeats)
 
   io.has_acquire_conflict := Bool(false)
-  io.has_release_conflict := co.isCoherenceConflict(xact_addr, c_rel.payload.addr) && 
-                               (state != s_idle)
+  io.has_release_match := co.isVoluntary(c_rel.payload)
 
   io.outer.grant.ready := Bool(false)
   io.outer.acquire.valid := Bool(false)
@@ -278,7 +274,8 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   io.has_acquire_conflict := co.isCoherenceConflict(xact_addr, c_acq.payload.addr) && 
                               (state != s_idle) && 
                               !collect_inner_data
-  io.has_release_conflict := co.isCoherenceConflict(xact_addr, c_rel.payload.addr) && 
+  io.has_release_match := co.isCoherenceConflict(xact_addr, c_rel.payload.addr) && 
+                              !co.isVoluntary(c_rel.payload) &&
                               (state != s_idle)
 
   val outer_write_acq = Bundle(UncachedWrite(xact_addr, UInt(trackerId), xact_data(outer_data_cnt)),
