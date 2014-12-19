@@ -117,6 +117,7 @@ abstract class CoherencePolicy(val dir: DirectoryRepresentation) {
   def requiresOuterWrite(acq: Acquire, m: MasterMetadata): Bool
   def requiresSelfProbe(a: Acquire): Bool
   def requiresProbes(a: Acquire, m: MasterMetadata): Bool
+  def requiresProbesOnVoluntaryWriteback(m: MasterMetadata): Bool
   def requiresAckForGrant(g: Grant): Bool
   def requiresAckForRelease(r: Release): Bool
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool
@@ -253,6 +254,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
   def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
+  def requiresProbesOnVoluntaryWriteback(m: MasterMetadata) = !dir.none(m.sharers)
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
 
@@ -391,6 +393,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
   def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
+  def requiresProbesOnVoluntaryWriteback(m: MasterMetadata) = !dir.none(m.sharers)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
@@ -541,7 +544,11 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
+  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers) &&
+    Mux(dir.one(m.sharers), Bool(true),
+      Mux(a.uncached, a.a_type != Acquire.uncachedRead,
+        a.a_type != acquireReadShared))
+  def requiresProbesOnVoluntaryWriteback(m: MasterMetadata) = !dir.none(m.sharers)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
@@ -697,7 +704,11 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
+  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers) &&
+    Mux(dir.one(m.sharers), Bool(true),
+      Mux(a.uncached, a.a_type != Acquire.uncachedRead,
+        a.a_type != acquireReadShared))
+  def requiresProbesOnVoluntaryWriteback(m: MasterMetadata) = !dir.none(m.sharers)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
@@ -872,7 +883,11 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
   def requiresAckForRelease(r: Release) = Bool(false)
   def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers)
+  def requiresProbes(a: Acquire, m: MasterMetadata) = !dir.none(m.sharers) &&
+    Mux(dir.one(m.sharers), Bool(true),
+      Mux(a.uncached, a.a_type != Acquire.uncachedRead,
+        a.a_type != acquireReadShared))
+  def requiresProbesOnVoluntaryWriteback(m: MasterMetadata) = !dir.none(m.sharers)
 
   def pendingVoluntaryReleaseIsSufficient(r_type: UInt, p_type: UInt): Bool = (r_type === releaseVoluntaryInvalidateData)
 }
