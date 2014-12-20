@@ -293,14 +293,19 @@ class TSHRFile(bankId: Int, innerId: String, outerId: String) extends L2HellaCac
 
   // Handle acquire transaction initiation
   val acquire = io.inner.acquire
-  val block_acquires = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
   val alloc_arb = Module(new Arbiter(Bool(), trackerList.size))
   val acquireList =  trackerList.map(_.io.inner.acquire)
-  acquireList zip alloc_arb.io.in map { case(acq, arb) =>
+  val acquireMatchList = trackerList.map(_.io.has_acquire_match)
+  val any_acquire_matches = acquireMatchList.reduce(_||_)
+  val alloc_idx = Vec(alloc_arb.io.in.map(_.ready)).lastIndexWhere{b: Bool => b}
+  val match_idx = Vec(acquireMatchList).indexWhere{b: Bool => b}
+  val acquire_idx = Mux(any_acquire_matches, match_idx, alloc_idx)
+  acquireList.zip(alloc_arb.io.in).zipWithIndex.map { case((acq, arb), i) =>
     arb.valid := acq.ready
     acq.bits := acquire.bits
-    acq.valid := arb.ready
+    acq.valid := acquire.valid && (acquire_idx === UInt(i))
   }
+  val block_acquires = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
   acquire.ready := acquireList.map(_.ready).reduce(_||_) && !block_acquires
   alloc_arb.io.out.ready := acquire.valid && !block_acquires
 
@@ -367,7 +372,6 @@ class L2WritebackUnit(trackerId: Int, bankId: Int, innerId: String, outerId: Str
     val inner = Bundle(new TileLinkIO, {case TLId => innerId}).flip
     val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
     val tile_incoherent = Bits(INPUT, nClients)
-    val has_acquire_conflict = Bool(OUTPUT)
     val has_release_match = Bool(OUTPUT)
     val data = new L2DataRWIO
   }
@@ -500,6 +504,7 @@ abstract class L2XactTracker(innerId: String, outerId: String) extends L2HellaCa
     val outer = Bundle(new UncachedTileLinkIO, {case TLId => outerId})
     val tile_incoherent = Bits(INPUT, nClients)
     val has_acquire_conflict = Bool(OUTPUT)
+    val has_acquire_match = Bool(OUTPUT)
     val has_release_match = Bool(OUTPUT)
     val data = new L2DataRWIO
     val meta = new L2MetaRWIO
@@ -539,6 +544,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
     Counter(io.data.write.fire(), tlDataBeats)
 
   io.has_acquire_conflict := Bool(false)
+  io.has_acquire_match := Bool(false)
   io.has_release_match := co.isVoluntary(c_rel.payload)
 
   io.outer.grant.ready := Bool(false)
@@ -689,8 +695,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
                               xact.addr(idxMSB,idxLSB) === c_acq.payload.addr(idxMSB,idxLSB) &&
                               (state != s_idle) &&
                               !collect_cacq_data
+  io.has_acquire_match := co.messageHasData(xact) &&
+                            (xact.addr === c_acq.payload.addr) &&
+                              collect_cacq_data
   io.has_release_match := !co.isVoluntary(c_rel.payload) &&
-                            co.isCoherenceConflict(xact.addr, c_rel.payload.addr) &&
+                            (xact.addr === c_rel.payload.addr) &&
                             (state === s_probe)
 
   val next_coh_on_rel = co.masterMetadataOnRelease(c_rel.payload, xact_meta.coh, c_rel.header.src)
