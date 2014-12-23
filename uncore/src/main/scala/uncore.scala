@@ -198,7 +198,6 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
                                         xact_client_xact_id,
                                         UInt(trackerId))
 
-  io.outer.acquire.bits.header.src := UInt(bankId) 
   io.outer.acquire.bits.payload := Bundle(UncachedWrite(
                                             xact_addr,
                                             UInt(trackerId),
@@ -286,7 +285,6 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
 
   io.outer.acquire.valid := Bool(false)
   io.outer.acquire.bits.payload := outer_read //default
-  io.outer.acquire.bits.header.src := UInt(bankId)
   io.outer.grant.ready := io.inner.grant.ready
 
   io.inner.probe.valid := Bool(false)
