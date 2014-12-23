@@ -413,7 +413,6 @@ class L2WritebackUnit(trackerId: Int, bankId: Int, innerId: String, outerId: Str
                                                         UInt(trackerId),
                                                         xact_data(outer_data_write_cnt)),
                                      { case TLId => outerId })
-  io.outer.acquire.bits.header.src := UInt(bankId)
   io.outer.grant.ready := Bool(false) // Never gets mgnts
 
   io.inner.probe.valid := Bool(false)
@@ -712,7 +711,6 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
 
   io.outer.acquire.valid := Bool(false)
   io.outer.acquire.bits.payload := outer_read //default
-  io.outer.acquire.bits.header.src := UInt(bankId)
   io.outer.grant.ready := Bool(true) //grant.data -> xact.data
 
   io.inner.probe.valid := Bool(false)
