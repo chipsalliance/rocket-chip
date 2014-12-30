@@ -253,7 +253,7 @@ class ICache extends FrontendModule
 
   val ack_q = Module(new Queue(new LogicalNetworkIO(new Finish), 1))
   ack_q.io.enq.valid := refill_done && co.requiresAckForGrant(refill_bits.payload)
-  ack_q.io.enq.bits.payload.master_xact_id := refill_bits.payload.master_xact_id
+  ack_q.io.enq.bits.payload.manager_xact_id := refill_bits.payload.manager_xact_id
   ack_q.io.enq.bits.header.dst := refill_bits.header.src
 
   // output signals
