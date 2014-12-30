@@ -260,7 +260,7 @@ class MSHR(id: Int) extends L1HellaCacheModule {
 
   val ackq = Module(new Queue(new LogicalNetworkIO(new Finish), 1))
   ackq.io.enq.valid := (wb_done || refill_done) && co.requiresAckForGrant(io.mem_grant.bits.payload)
-  ackq.io.enq.bits.payload.master_xact_id := io.mem_grant.bits.payload.master_xact_id
+  ackq.io.enq.bits.payload.manager_xact_id := io.mem_grant.bits.payload.manager_xact_id
   ackq.io.enq.bits.header.dst := io.mem_grant.bits.header.src
   val can_finish = state === s_invalid || state === s_refill_req || state === s_refill_resp
   io.mem_finish.valid := ackq.io.deq.valid && can_finish
