@@ -194,7 +194,7 @@ class VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, oute
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := xact_src
   io.inner.grant.bits.payload := Grant(Bool(false),
-                                        co.getGrantTypeOnVoluntaryWriteback(co.masterMetadataOnFlush),
+                                        co.getGrantTypeOnVoluntaryWriteback(co.managerMetadataOnFlush),
                                         xact_client_xact_id,
                                         UInt(trackerId))
 
@@ -261,7 +261,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   val curr_p_id = PriorityEncoder(probe_flags)
 
   val pending_outer_write = co.messageHasData(xact)
-  val pending_outer_read = co.requiresOuterRead(xact, co.masterMetadataOnFlush)
+  val pending_outer_read = co.requiresOuterRead(xact, co.managerMetadataOnFlush)
 
   val probe_initial_flags = Bits(width = nClients)
   probe_initial_flags := Bits(0)
@@ -290,13 +290,13 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
   io.inner.probe.bits.header.dst := curr_p_id
-  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.masterMetadataOnFlush), xact_addr)
+  io.inner.probe.bits.payload := Probe(co.getProbeType(xact, co.managerMetadataOnFlush), xact_addr)
 
   io.inner.grant.valid := Bool(false)
   io.inner.grant.bits.header.src := UInt(bankId)
   io.inner.grant.bits.header.dst := xact_src
   io.inner.grant.bits.payload := Grant(xact_uncached,
-                                        co.getGrantType(xact, co.masterMetadataOnFlush),
+                                        co.getGrantType(xact, co.managerMetadataOnFlush),
                                         xact_client_xact_id,
                                         UInt(trackerId),
                                         UInt(0)) // Data bypassed in parent
@@ -316,7 +316,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
     is(s_idle) {
       io.inner.acquire.ready := Bool(true)
       val needs_outer_write = co.messageHasData(c_acq.payload)
-      val needs_outer_read = co.requiresOuterRead(c_acq.payload, co.masterMetadataOnFlush)
+      val needs_outer_read = co.requiresOuterRead(c_acq.payload, co.managerMetadataOnFlush)
       when( io.inner.acquire.valid ) {
         xact_uncached := c_acq.payload.uncached
         xact_a_type := c_acq.payload.a_type
@@ -389,7 +389,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
       when(io.outer.grant.valid && m_gnt.payload.client_xact_id === UInt(trackerId)) {
         io.inner.grant.valid := Bool(true)
       }
-      when(io.inner.finish.valid && c_ack.payload.master_xact_id === UInt(trackerId)) {
+      when(io.inner.finish.valid && c_ack.payload.manager_xact_id === UInt(trackerId)) {
         state := s_idle
       }
     }

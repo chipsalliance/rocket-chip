@@ -4,10 +4,13 @@ package uncore
 import Chisel._
 import scala.math.max
 
-case object TLId extends Field[String]
+// Parameters exposed to the top-level design, set based on 
+// external requirements or design space exploration
+//
+case object TLId extends Field[String] // Unique name per network
 case object TLCoherence extends Field[CoherencePolicy]
 case object TLAddrBits extends Field[Int]
-case object TLMasterXactIdBits extends Field[Int]
+case object TLManagerXactIdBits extends Field[Int]
 case object TLClientXactIdBits extends Field[Int]
 case object TLDataBits extends Field[Int]
 case object TLDataBeats extends Field[Int]
@@ -15,7 +18,7 @@ case object TLDataBeats extends Field[Int]
 abstract trait TileLinkParameters extends UsesParameters {
   val tlAddrBits = params(TLAddrBits)
   val tlClientXactIdBits = params(TLClientXactIdBits)
-  val tlMasterXactIdBits = params(TLMasterXactIdBits)
+  val tlManagerXactIdBits = params(TLManagerXactIdBits)
   val tlDataBits = params(TLDataBits)
   val tlDataBeats = params(TLDataBeats)
   val tlWriteMaskBits = if(tlDataBits/8 < 1) 1 else tlDataBits
@@ -25,13 +28,23 @@ abstract trait TileLinkParameters extends UsesParameters {
   val tlSubblockUnionBits = max(tlWriteMaskBits, 
                              (tlSubblockAddrBits + 
                                 tlUncachedOperandSizeBits + 
-                                tlAtomicOpcodeBits))
+                                tlAtomicOpcodeBits)) + 1
   val co = params(TLCoherence)
 }
 
 abstract class TLBundle extends Bundle with TileLinkParameters
 abstract class TLModule extends Module with TileLinkParameters
 
+// Directionality of message channel
+// Used to hook up logical network ports to physical network ports
+trait TileLinkChannel extends TLBundle
+trait ClientToManagerChannel extends TileLinkChannel
+trait ManagerToClientChannel extends TileLinkChannel
+trait ClientToClientChannel extends TileLinkChannel // Unused for now
+
+// Common signals that are used in multiple channels.
+// These traits are useful for type parameterization.
+//
 trait HasPhysicalAddress extends TLBundle {
   val addr = UInt(width = tlAddrBits)
 }
@@ -40,19 +53,17 @@ trait HasClientTransactionId extends TLBundle {
   val client_xact_id = Bits(width = tlClientXactIdBits)
 }
 
-trait HasMasterTransactionId extends TLBundle {
-  val master_xact_id = Bits(width = tlMasterXactIdBits)
+trait HasManagerTransactionId extends TLBundle {
+  val manager_xact_id = Bits(width = tlManagerXactIdBits)
 }
 
 trait HasTileLinkData extends TLBundle {
   val data = UInt(width = tlDataBits)
 }
 
-trait SourcedMessage extends TLBundle
-trait ClientSourcedMessage extends SourcedMessage
-trait MasterSourcedMessage extends SourcedMessage
+// Actual TileLink channel bundle definitions
 
-class Acquire extends ClientSourcedMessage 
+class Acquire extends ClientToManagerChannel 
     with HasPhysicalAddress 
     with HasClientTransactionId 
     with HasTileLinkData {
@@ -61,16 +72,17 @@ class Acquire extends ClientSourcedMessage
   val subblock =  Bits(width = tlSubblockUnionBits)
   val sbAddrOff = tlSubblockAddrBits + tlUncachedOperandSizeBits
   val opSzOff = tlUncachedOperandSizeBits + sbAddrOff
-  def operand_sz(dummy: Int = 0) = subblock(tlUncachedOperandSizeBits-1, 0)
-  def subblock_addr(dummy: Int = 0) = subblock(sbAddrOff-1, tlUncachedOperandSizeBits)
-  def atomic_op(dummy: Int = 0) = subblock(opSzOff-1, sbAddrOff)
-  def write_mask(dummy: Int = 0) = subblock(tlWriteMaskBits-1, 0)
+  def allocate(dummy: Int = 0) = subblock(0)
+  def operand_sz(dummy: Int = 0) = subblock(tlUncachedOperandSizeBits, 1)
+  def subblock_addr(dummy: Int = 0) = subblock(sbAddrOff, tlUncachedOperandSizeBits+1)
+  def atomic_op(dummy: Int = 0) = subblock(opSzOff, sbAddrOff+1)
+  def write_mask(dummy: Int = 0) = subblock(tlWriteMaskBits, 1)
   def is(t: UInt) = a_type === t
 }
 
 object Acquire {
   val nUncachedAcquireTypes = 3
-  //val uncachedRead :: uncachedWrite :: uncachedAtomic :: Nil = Enum(UInt(), nUncachedAcquireTypes)
+  //TODO: val uncachedRead :: uncachedWrite :: uncachedAtomic :: Nil = Enum(UInt(), nUncachedAcquireTypes)
   def uncachedRead = UInt(0)
   def uncachedWrite = UInt(1)
   def uncachedAtomic = UInt(2)
@@ -102,29 +114,29 @@ object Acquire {
 }
 
 object UncachedRead {
-  def apply(addr: UInt, client_xact_id: UInt, subblock_addr: UInt, operand_sz: UInt): Acquire = {
+  def apply(addr: UInt, client_xact_id: UInt, subblock_addr: UInt, operand_sz: UInt, alloc: Bool): Acquire = {
     val acq = Acquire(Acquire.uncachedRead, addr, client_xact_id)
     acq.uncached := Bool(true)
-    acq.subblock := Cat(subblock_addr, operand_sz)
+    acq.subblock := Cat(subblock_addr, operand_sz, alloc)
     acq
   }
   def apply(addr: UInt, client_xact_id: UInt): Acquire = {
-    apply(addr, client_xact_id, UInt(0), MT_CB)
+    apply(addr, client_xact_id, UInt(0), MT_CB, Bool(true))
   }
   def apply(addr: UInt): Acquire = {
-    apply(addr, UInt(0), UInt(0), MT_CB)
+    apply(addr, UInt(0))
   }
 }
 
 object UncachedWrite {
-  def apply(addr: UInt, client_xact_id: UInt, write_mask: Bits, data: UInt): Acquire = {
+  def apply(addr: UInt, client_xact_id: UInt, write_mask: Bits, alloc: Bool, data: UInt): Acquire = {
     val acq = Acquire(Acquire.uncachedWrite, addr, client_xact_id, data)
     acq.uncached := Bool(true)
-    acq.subblock := write_mask
+    acq.subblock := Cat(write_mask, alloc)
     acq
   }
   def apply(addr: UInt, client_xact_id: UInt, data: UInt): Acquire = {
-    apply(addr, client_xact_id, SInt(-1), data)
+    apply(addr, client_xact_id, SInt(-1), Bool(true), data)
   }
   def apply(addr: UInt, data: UInt): Acquire = {
     apply(addr, UInt(0), data)
@@ -136,9 +148,15 @@ object UncachedAtomic {
       subblock_addr: UInt, operand_sz: UInt, data: UInt): Acquire = {
     val acq = Acquire(Acquire.uncachedAtomic, addr, client_xact_id, data)
     acq.uncached := Bool(true)
-    acq.subblock := Cat(atomic_opcode, subblock_addr, operand_sz)
+    acq.subblock := Cat(atomic_opcode, subblock_addr, operand_sz, Bool(true))
     acq
   }
+}
+
+class Probe extends ManagerToClientChannel 
+    with HasPhysicalAddress {
+  val p_type = UInt(width = co.probeTypeWidth)
+  def is(t: UInt) = p_type === t
 }
 
 object Probe {
@@ -150,10 +168,12 @@ object Probe {
   }
 }
 
-class Probe extends MasterSourcedMessage 
-    with HasPhysicalAddress {
-  val p_type = UInt(width = co.probeTypeWidth)
-  def is(t: UInt) = p_type === t
+class Release extends ClientToManagerChannel 
+    with HasPhysicalAddress 
+    with HasClientTransactionId 
+    with HasTileLinkData {
+  val r_type = UInt(width = co.releaseTypeWidth)
+  def is(t: UInt) = r_type === t
 }
 
 object Release {
@@ -173,18 +193,10 @@ object Release {
   }
 }
 
-class Release extends ClientSourcedMessage 
-    with HasPhysicalAddress 
-    with HasClientTransactionId 
-    with HasTileLinkData {
-  val r_type = UInt(width = co.releaseTypeWidth)
-  def is(t: UInt) = r_type === t
-}
-
-class Grant extends MasterSourcedMessage 
+class Grant extends ManagerToClientChannel 
     with HasTileLinkData 
     with HasClientTransactionId 
-    with HasMasterTransactionId {
+    with HasManagerTransactionId {
   val uncached = Bool()
   val g_type = UInt(width = max(log2Up(Grant.nUncachedGrantTypes), co.grantTypeWidth))
   def is(t: UInt) = g_type === t
@@ -192,29 +204,30 @@ class Grant extends MasterSourcedMessage
 
 object Grant {
   val nUncachedGrantTypes = 3
-  //val uncachedRead :: uncachedWrite :: uncachedAtomic :: Nil = Enum(UInt(), nUncachedGrantTypes)
+  //TODO val uncachedRead :: uncachedWrite :: uncachedAtomic :: Nil = Enum(UInt(), nUncachedGrantTypes)
   def uncachedRead = UInt(0)
   def uncachedWrite = UInt(1)
   def uncachedAtomic = UInt(2)
   def hasData(g_type: UInt) = Vec(uncachedRead, uncachedAtomic).contains(g_type)
 
-  def apply(uncached: Bool, g_type: UInt, client_xact_id: UInt, master_xact_id: UInt, data: UInt): Grant = {
+  def apply(uncached: Bool, g_type: UInt, client_xact_id: UInt, manager_xact_id: UInt, data: UInt): Grant = {
     val gnt = new Grant
     gnt.uncached := uncached
     gnt.g_type := g_type
     gnt.client_xact_id := client_xact_id
-    gnt.master_xact_id := master_xact_id
+    gnt.manager_xact_id := manager_xact_id
     gnt.data := data
     gnt
   }
-  def apply(uncached: Bool, g_type: UInt, client_xact_id: UInt, master_xact_id: UInt): Grant = {
-    apply(uncached, g_type, client_xact_id, master_xact_id, UInt(0))
+  def apply(uncached: Bool, g_type: UInt, client_xact_id: UInt, manager_xact_id: UInt): Grant = {
+    apply(uncached, g_type, client_xact_id, manager_xact_id, UInt(0))
   }
 }
 
-class Finish extends ClientSourcedMessage with HasMasterTransactionId
+class Finish extends ClientToManagerChannel with HasManagerTransactionId
 
 
+// Complete IO definitions for two types of TileLink clients 
 class UncachedTileLinkIO extends Bundle {
   val acquire   = new DecoupledIO(new LogicalNetworkIO(new Acquire))
   val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
@@ -226,6 +239,8 @@ class TileLinkIO extends UncachedTileLinkIO {
   val release   = new DecoupledIO(new LogicalNetworkIO(new Release))
 }
 
+// Converts UncachedTileLinkIO to regular TileLinkIO by pinning
+// probe.ready and release.valid low
 class TileLinkIOWrapper extends TLModule {
   val io = new Bundle {
     val in = new UncachedTileLinkIO().flip
@@ -245,13 +260,16 @@ object TileLinkIOWrapper {
   }
 }
 
+// Utility functions for constructing TileLinkIO arbiters
 abstract class TileLinkArbiterLike(val arbN: Int) extends TLModule {
-  type MasterSourcedWithId = MasterSourcedMessage with HasClientTransactionId
-  type ClientSourcedWithId = ClientSourcedMessage with HasClientTransactionId 
+  type ManagerSourcedWithId = ManagerToClientChannel with HasClientTransactionId
+  type ClientSourcedWithId = ClientToManagerChannel with HasClientTransactionId 
 
+  // These are filled in depending on whether the arbiter mucks with the 
+  // client ids and then needs to revert them on the way back
   def clientSourcedClientXactId(in: ClientSourcedWithId, id: Int): Bits
-  def masterSourcedClientXactId(in: MasterSourcedWithId): Bits
-  def arbIdx(in: MasterSourcedWithId): UInt
+  def managerSourcedClientXactId(in: ManagerSourcedWithId): Bits
+  def arbIdx(in: ManagerSourcedWithId): UInt
 
   def hookupClientSource[M <: ClientSourcedWithId]
                         (ins: Seq[DecoupledIO[LogicalNetworkIO[M]]], 
@@ -267,7 +285,7 @@ abstract class TileLinkArbiterLike(val arbN: Int) extends TLModule {
     }}
   }
 
-  def hookupMasterSource[M <: MasterSourcedWithId]
+  def hookupManagerSource[M <: ManagerSourcedWithId]
                         (ins: Seq[DecoupledIO[LogicalNetworkIO[M]]], 
                          out: DecoupledIO[LogicalNetworkIO[M]]) {
     out.ready := Bool(false)
@@ -278,7 +296,7 @@ abstract class TileLinkArbiterLike(val arbN: Int) extends TLModule {
         out.ready := ins(i).ready
       }
       ins(i).bits := out.bits
-      ins(i).bits.payload.client_xact_id := masterSourcedClientXactId(out.bits.payload) 
+      ins(i).bits.payload.client_xact_id := managerSourcedClientXactId(out.bits.payload) 
     }
   }
 }
@@ -291,7 +309,7 @@ abstract class UncachedTileLinkIOArbiter(n: Int)
   }
 
   hookupClientSource(io.in.map(_.acquire), io.out.acquire)
-  hookupMasterSource(io.in.map(_.grant), io.out.grant)
+  hookupManagerSource(io.in.map(_.grant), io.out.grant)
 
   val finish_arb = Module(new RRArbiter(new LogicalNetworkIO(new Finish), n))
   io.out.finish <> finish_arb.io.out
@@ -306,7 +324,7 @@ abstract class TileLinkIOArbiter(n: Int) extends TileLinkArbiterLike(n) {
 
   hookupClientSource(io.in.map(_.acquire), io.out.acquire)
   hookupClientSource(io.in.map(_.release), io.out.release)
-  hookupMasterSource(io.in.map(_.grant), io.out.grant)
+  hookupManagerSource(io.in.map(_.grant), io.out.grant)
 
   io.in.map{ _.probe.valid := io.out.probe.valid }
   io.in.map{ _.probe.bits := io.out.probe.bits }
@@ -317,35 +335,39 @@ abstract class TileLinkIOArbiter(n: Int) extends TileLinkArbiterLike(n) {
   finish_arb.io.in zip io.in map { case (arb, req) => arb <> req.finish }
 }
 
+// Appends the port index of the arbiter to the client_xact_id
 abstract trait AppendsArbiterId {
   val arbN: Int
-  def clientSourcedClientXactId(in: ClientSourcedMessage with HasClientTransactionId, id: Int) =
+  def clientSourcedClientXactId(in: ClientToManagerChannel with HasClientTransactionId, id: Int) =
     Cat(in.client_xact_id, UInt(id, log2Up(arbN)))
-  def masterSourcedClientXactId(in: MasterSourcedMessage with HasClientTransactionId) = 
+  def managerSourcedClientXactId(in: ManagerToClientChannel with HasClientTransactionId) = 
     in.client_xact_id >> UInt(log2Up(arbN))
-  def arbIdx(in: MasterSourcedMessage with HasClientTransactionId) = 
+  def arbIdx(in: ManagerToClientChannel with HasClientTransactionId) = 
     in.client_xact_id(log2Up(arbN)-1,0).toUInt
 }
 
+// Uses the client_xact_id as is (assumes it has been set to port index)
 abstract trait PassesId {
-  def clientSourcedClientXactId(in: ClientSourcedMessage with HasClientTransactionId, id: Int) = 
+  def clientSourcedClientXactId(in: ClientToManagerChannel with HasClientTransactionId, id: Int) = 
     in.client_xact_id
-  def masterSourcedClientXactId(in: MasterSourcedMessage with HasClientTransactionId) = 
+  def managerSourcedClientXactId(in: ManagerToClientChannel with HasClientTransactionId) = 
     in.client_xact_id
-  def arbIdx(in: MasterSourcedMessage with HasClientTransactionId) = 
+  def arbIdx(in: ManagerToClientChannel with HasClientTransactionId) = 
     in.client_xact_id
 }
 
+// Overwrites some default client_xact_id with the port idx
 abstract trait UsesNewId {
   val arbN: Int
-  def clientSourcedClientXactId(in: ClientSourcedMessage with HasClientTransactionId, id: Int) = 
+  def clientSourcedClientXactId(in: ClientToManagerChannel with HasClientTransactionId, id: Int) = 
     UInt(id, log2Up(arbN))
-  def masterSourcedClientXactId(in: MasterSourcedMessage with HasClientTransactionId) = 
+  def managerSourcedClientXactId(in: ManagerToClientChannel with HasClientTransactionId) = 
     UInt(0)
-  def arbIdx(in: MasterSourcedMessage with HasClientTransactionId) = 
+  def arbIdx(in: ManagerToClientChannel with HasClientTransactionId) = 
     in.client_xact_id
 }
 
+// Mix-in id generation traits to make concrete arbiter classes
 class UncachedTileLinkIOArbiterThatAppendsArbiterId(val n: Int) extends UncachedTileLinkIOArbiter(n) with AppendsArbiterId
 class UncachedTileLinkIOArbiterThatPassesId(val n: Int) extends UncachedTileLinkIOArbiter(n) with PassesId
 class UncachedTileLinkIOArbiterThatUsesNewId(val n: Int) extends UncachedTileLinkIOArbiter(n) with UsesNewId

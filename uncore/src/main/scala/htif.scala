@@ -134,7 +134,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   val mem_needs_ack = Reg(Bool())
   when (io.mem.grant.valid) { 
     mem_acked := Bool(true)
-    mem_gxid := io.mem.grant.bits.payload.master_xact_id
+    mem_gxid := io.mem.grant.bits.payload.manager_xact_id
     mem_gsrc := io.mem.grant.bits.header.src
     mem_needs_ack := co.requiresAckForGrant(io.mem.grant.bits.payload)
   }
@@ -201,7 +201,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   io.mem.acquire.bits.header.src := UInt(params(LNClients)) // By convention HTIF is the client with the largest id
   io.mem.acquire.bits.header.dst := UInt(0) // DNC; Overwritten outside module
   io.mem.finish.valid := (state === state_mem_finish) && mem_needs_ack
-  io.mem.finish.bits.payload.master_xact_id := mem_gxid
+  io.mem.finish.bits.payload.manager_xact_id := mem_gxid
   io.mem.finish.bits.header.dst := mem_gsrc
   io.mem.probe.ready := Bool(false)
   io.mem.release.valid := Bool(false)

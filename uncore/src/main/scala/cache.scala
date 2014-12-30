@@ -118,7 +118,7 @@ trait HasL2InternalRequestState extends L2HellaCacheBundle {
 }
 
 object L2Metadata {
-  def apply(tag: Bits, coh: MasterMetadata) = {
+  def apply(tag: Bits, coh: ManagerMetadata) = {
     val meta = new L2Metadata
     meta.tag := tag
     meta.coh := coh
@@ -126,7 +126,7 @@ object L2Metadata {
   }
 }
 class L2Metadata extends Metadata with L2HellaCacheParameters {
-  val coh = new MasterMetadata
+  val coh = new ManagerMetadata
 }
 
 class L2MetaReadReq extends MetaReadReq with HasL2Id {
@@ -156,7 +156,7 @@ class L2MetaRWIO extends L2HellaCacheBundle with HasL2MetaReadIO with HasL2MetaW
 class L2MetadataArray extends L2HellaCacheModule {
   val io = new L2MetaRWIO().flip
 
-  val meta = Module(new MetadataArray(() => L2Metadata(UInt(0), co.masterMetadataOnFlush)))
+  val meta = Module(new MetadataArray(() => L2Metadata(UInt(0), co.managerMetadataOnFlush)))
   meta.io.read <> io.read
   meta.io.write <> io.write
   
@@ -322,7 +322,7 @@ class TSHRFile(bankId: Int, innerId: String, outerId: String) extends L2HellaCac
 
   // Wire finished transaction acks
   val finish = io.inner.finish
-  val finish_idx = finish.bits.payload.master_xact_id
+  val finish_idx = finish.bits.payload.manager_xact_id
   trackerList.zipWithIndex.map { case (t, i) => 
     t.io.inner.finish.valid := finish.valid && finish_idx === UInt(i)
   }
@@ -355,7 +355,7 @@ class TSHRFile(bankId: Int, innerId: String, outerId: String) extends L2HellaCac
 class L2WritebackReq extends L2HellaCacheBundle
     with HasL2Id {
   val addr = UInt(width = tlAddrBits)
-  val coh = new MasterMetadata
+  val coh = new ManagerMetadata
   val way_en = Bits(width = nWays)
 }
 
@@ -385,7 +385,7 @@ class L2WritebackUnit(trackerId: Int, bankId: Int, innerId: String, outerId: Str
   val state = Reg(init=s_idle)
 
   val xact_addr = Reg(io.inner.acquire.bits.payload.addr.clone)
-  val xact_coh = Reg{ new MasterMetadata }
+  val xact_coh = Reg{ new ManagerMetadata }
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact_data = Vec.fill(tlDataBeats){ Reg(io.inner.acquire.bits.payload.data.clone) }
   val xact_id = Reg{ UInt() }
@@ -406,7 +406,7 @@ class L2WritebackUnit(trackerId: Int, bankId: Int, innerId: String, outerId: Str
                             co.isCoherenceConflict(xact_addr, c_rel.payload.addr) &&
                             (state === s_probe)
 
-  val next_coh_on_rel = co.masterMetadataOnRelease(c_rel.payload, xact_coh, c_rel.header.src)
+  val next_coh_on_rel = co.managerMetadataOnRelease(c_rel.payload, xact_coh, c_rel.header.src)
 
   io.outer.acquire.valid := Bool(false)
   io.outer.acquire.bits.payload := Bundle(UncachedWrite(xact_addr,
@@ -577,7 +577,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
   io.meta.write.bits.idx := xact_addr(idxMSB,idxLSB)
   io.meta.write.bits.way_en := xact_way_en
   io.meta.write.bits.data.tag := xact_addr >> UInt(idxBits)
-  io.meta.write.bits.data.coh := co.masterMetadataOnRelease(xact, 
+  io.meta.write.bits.data.coh := co.managerMetadataOnRelease(xact, 
                                                             xact_meta.coh, 
                                                             xact_src)
   io.wb.req.valid := Bool(false)
@@ -701,8 +701,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
                             (xact.addr === c_rel.payload.addr) &&
                             (state === s_probe)
 
-  val next_coh_on_rel = co.masterMetadataOnRelease(c_rel.payload, xact_meta.coh, c_rel.header.src)
-  val next_coh_on_gnt = co.masterMetadataOnGrant(c_gnt.payload, xact_meta.coh,
+  val next_coh_on_rel = co.managerMetadataOnRelease(c_rel.payload, xact_meta.coh, c_rel.header.src)
+  val next_coh_on_gnt = co.managerMetadataOnGrant(c_gnt.payload, xact_meta.coh,
                                     c_gnt.header.dst)
 
   val outer_write = Bundle(UncachedWrite(xact_addr, UInt(trackerId), xact_data(outer_data_write_cnt)), 
