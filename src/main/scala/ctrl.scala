@@ -14,11 +14,7 @@ class CtrlDpathIO extends Bundle
   val sel_pc   = UInt(OUTPUT, 3)
   val killd    = Bool(OUTPUT)
   val ren      = Vec.fill(2)(Bool(OUTPUT))
-  val sel_alu2 = UInt(OUTPUT, 3)
-  val sel_alu1 = UInt(OUTPUT, 2)
-  val sel_imm  = UInt(OUTPUT, 3)
-  val fn_dw    = Bool(OUTPUT)
-  val fn_alu   = UInt(OUTPUT, SZ_ALU_FN)
+  val ex_ctrl = new IntCtrlSigs().asOutput
   val div_mul_val = Bool(OUTPUT)
   val div_mul_kill = Bool(OUTPUT)
   val div_val  = Bool(OUTPUT)
@@ -81,6 +77,43 @@ abstract trait DecodeConstants
                 List(N,    X,X,X,X,X,X,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, X,X,X,CSR.X,N,X,X,X,X,X)
                                         
   val table: Array[(UInt, List[UInt])]
+}
+
+class IntCtrlSigs extends Bundle {
+  val legal = Bool()
+  val fp = Bool()
+  val rocc = Bool()
+  val branch = Bool()
+  val jal = Bool()
+  val jalr = Bool()
+  val rrs2 = Bool()
+  val rrs1 = Bool()
+  val sel_alu2 = Bits(width = A2_X.getWidth)
+  val sel_alu1 = Bits(width = A1_X.getWidth)
+  val sel_imm = Bits(width = IMM_X.getWidth)
+  val alu_dw = Bool()
+  val alu_fn = Bits(width = FN_X.getWidth)
+  val mem = Bool()
+  val mem_cmd = Bits(width = M_SZ)
+  val mem_type = Bits(width = MT_SZ)
+  val mul = Bool()
+  val div = Bool()
+  val wrd = Bool()
+  val csr = Bits(width = CSR.SZ)
+  val fence_i = Bool()
+  val sret = Bool()
+  val scall = Bool()
+  val replay_next = Bool()
+  val fence = Bool()
+  val amo = Bool()
+
+  def decode(inst: UInt, table: Iterable[(UInt, List[UInt])]) = {
+    val decoder = DecodeLogic(inst, XDecode.decode_default, table)
+    Vec(legal, fp, rocc, branch, jal, jalr, rrs2, rrs1, sel_alu2, sel_alu1,
+        sel_imm, alu_dw, alu_fn, mem, mem_cmd, mem_type, mul, div, wrd, csr,
+        fence_i, sret, scall, replay_next, fence, amo) := decoder
+    this
+  }
 }
 
 object XDecode extends DecodeConstants
@@ -321,13 +354,9 @@ class Control extends Module
   if (!params(BuildFPU).isEmpty) decode_table ++= FDecode.table
   if (!params(BuildRoCC).isEmpty) decode_table ++= RoCCDecode.table
 
-  val cs = DecodeLogic(io.dpath.inst, XDecode.decode_default, decode_table)
-  
-  val (id_int_val: Bool) :: (id_fp_val: Bool) :: (id_rocc_val: Bool) :: (id_branch: Bool) :: (id_jal: Bool) :: (id_jalr: Bool) :: (id_renx2: Bool) :: (id_renx1: Bool) :: cs0 = cs
-  val id_sel_alu2 :: id_sel_alu1 :: id_sel_imm :: (id_fn_dw: Bool) :: id_fn_alu :: cs1 = cs0
-  val (id_mem_val: Bool) :: id_mem_cmd :: id_mem_type :: (id_mul_val: Bool) :: (id_div_val: Bool) :: (id_wen: Bool) :: cs2 = cs1
-  val id_csr :: (id_fence_i: Bool) :: (id_sret: Bool) :: (id_syscall: Bool) :: (id_replay_next: Bool) :: (id_fence: Bool) :: (id_amo: Bool) :: Nil = cs2
-  
+  val id_ctrl = new IntCtrlSigs().decode(io.dpath.inst, decode_table)
+  val ex_ctrl = Reg(new IntCtrlSigs)
+
   val ex_reg_xcpt_interrupt  = Reg(Bool())
   val ex_reg_valid           = Reg(Bool())
   val ex_reg_branch          = Reg(Bool())
@@ -418,9 +447,9 @@ class Control extends Module
 
   val id_csr_addr = io.dpath.inst(31,20)
   val isLegalCSR = Vec.tabulate(1 << id_csr_addr.getWidth)(i => Bool(legal_csrs contains i))
-  val id_csr_en = id_csr != CSR.N
+  val id_csr_en = id_ctrl.csr != CSR.N
   val id_csr_fp = Bool(!params(BuildFPU).isEmpty) && id_csr_en && DecodeLogic(id_csr_addr, fp_csrs, CSRs.all.toSet -- fp_csrs)
-  val id_csr_wen = id_raddr1 != UInt(0) || !Vec(CSR.S, CSR.C).contains(id_csr)
+  val id_csr_wen = id_raddr1 != UInt(0) || !Vec(CSR.S, CSR.C).contains(id_ctrl.csr)
   val id_csr_invalid = id_csr_en && !isLegalCSR(id_csr_addr)
   val id_csr_privileged = id_csr_en &&
     (id_csr_addr(11,10) === UInt(3) && id_csr_wen ||
@@ -437,24 +466,24 @@ class Control extends Module
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
   val id_amo_aq = io.dpath.inst(26)
   val id_amo_rl = io.dpath.inst(25)
-  val id_fence_next = id_fence || id_amo && id_amo_rl
+  val id_fence_next = id_ctrl.fence || id_ctrl.amo && id_amo_rl
   val id_mem_busy = !io.dmem.ordered || ex_reg_mem_val
   val id_rocc_busy = Bool(!params(BuildRoCC).isEmpty) &&
     (io.rocc.busy || ex_reg_rocc_val || mem_reg_rocc_val || wb_reg_rocc_val)
   id_reg_fence := id_fence_next || id_reg_fence && id_mem_busy
-  val id_do_fence = id_rocc_busy && id_fence ||
-    id_mem_busy && (id_amo && id_amo_aq || id_fence_i || id_reg_fence && (id_mem_val || id_rocc_val) || id_csr_flush)
+  val id_do_fence = id_rocc_busy && id_ctrl.fence ||
+    id_mem_busy && (id_ctrl.amo && id_amo_aq || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc) || id_csr_flush)
 
   val (id_xcpt, id_cause) = checkExceptions(List(
     (id_interrupt,                                    id_interrupt_cause),
     (io.imem.resp.bits.xcpt_ma,                       UInt(Causes.misaligned_fetch)),
     (io.imem.resp.bits.xcpt_if,                       UInt(Causes.fault_fetch)),
-    (!id_int_val || id_csr_invalid,                   UInt(Causes.illegal_instruction)),
+    (!id_ctrl.legal || id_csr_invalid,                UInt(Causes.illegal_instruction)),
     (id_csr_privileged,                               UInt(Causes.privileged_instruction)),
-    (id_sret && !io.dpath.status.s,                   UInt(Causes.privileged_instruction)),
-    ((id_fp_val || id_csr_fp) && !io.dpath.status.ef, UInt(Causes.fp_disabled)),
-    (id_syscall,                                      UInt(Causes.syscall)),
-    (id_rocc_val && !io.dpath.status.er,              UInt(Causes.accelerator_disabled))))
+    (id_ctrl.sret && !io.dpath.status.s,              UInt(Causes.privileged_instruction)),
+    ((id_ctrl.fp || id_csr_fp) && !io.dpath.status.ef,UInt(Causes.fp_disabled)),
+    (id_ctrl.scall,                                   UInt(Causes.syscall)),
+    (id_ctrl.rocc && !io.dpath.status.er,             UInt(Causes.accelerator_disabled))))
 
   ex_reg_xcpt_interrupt := id_interrupt && !take_pc && io.imem.resp.valid
   when (id_xcpt) { ex_reg_cause := id_cause }
@@ -479,25 +508,26 @@ class Control extends Module
     ex_reg_xcpt := Bool(false)
   } 
   .otherwise {
-    ex_reg_branch := id_branch
-    ex_reg_jal := id_jal
-    ex_reg_jalr := id_jalr
+    ex_ctrl := id_ctrl
+    ex_reg_branch := id_ctrl.branch
+    ex_reg_jal := id_ctrl.jal
+    ex_reg_jalr := id_ctrl.jalr
     ex_reg_btb_hit := io.imem.btb_resp.valid
     when (io.imem.btb_resp.valid) { ex_reg_btb_resp := io.imem.btb_resp.bits }
-    ex_reg_div_mul_val := id_mul_val || id_div_val
-    ex_reg_mem_val     := id_mem_val.toBool
+    ex_reg_div_mul_val := id_ctrl.mul || id_ctrl.div
+    ex_reg_mem_val := id_ctrl.mem
     ex_reg_valid       := Bool(true)
-    ex_reg_csr         := id_csr
-    ex_reg_wen         := id_wen
-    ex_reg_fp_wen      := id_fp_val && io.fpu.dec.wen
-    ex_reg_sret        := id_sret
-    ex_reg_flush_inst  := id_fence_i
-    ex_reg_fp_val := id_fp_val
-    ex_reg_rocc_val := id_rocc_val.toBool
-    ex_reg_replay_next := id_replay_next || id_csr_flush
+    ex_reg_csr := id_ctrl.csr
+    ex_reg_wen := id_ctrl.wrd
+    ex_reg_fp_wen := id_ctrl.fp && io.fpu.dec.wen
+    ex_reg_sret := id_ctrl.sret
+    ex_reg_flush_inst := id_ctrl.fence_i
+    ex_reg_fp_val := id_ctrl.fp
+    ex_reg_rocc_val := id_ctrl.rocc
+    ex_reg_replay_next := id_ctrl.replay_next || id_csr_flush
     ex_reg_load_use := id_load_use
-    ex_reg_mem_cmd := id_mem_cmd
-    ex_reg_mem_type := id_mem_type.toUInt
+    ex_reg_mem_cmd := id_ctrl.mem_cmd
+    ex_reg_mem_type := id_ctrl.mem_type
     ex_reg_xcpt := id_xcpt
   }
 
@@ -675,9 +705,9 @@ class Control extends Module
   }
 
   // stall for RAW/WAW hazards on PCRs, loads, AMOs, and mul/div in execute stage.
-  val id_renx1_not0 = id_renx1 && id_raddr1 != UInt(0)
-  val id_renx2_not0 = id_renx2 && id_raddr2 != UInt(0)
-  val id_wen_not0 = id_wen && id_waddr != UInt(0)
+  val id_renx1_not0 = id_ctrl.rrs1 && id_raddr1 != UInt(0)
+  val id_renx2_not0 = id_ctrl.rrs2 && id_raddr2 != UInt(0)
+  val id_wen_not0 = id_ctrl.wrd && id_waddr != UInt(0)
   val data_hazard_ex = ex_reg_wen &&
     (id_renx1_not0 && id_raddr1 === io.dpath.ex_waddr ||
      id_renx2_not0 && id_raddr2 === io.dpath.ex_waddr ||
@@ -729,8 +759,8 @@ class Control extends Module
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
-    id_fp_val && id_stall_fpu ||
-    id_mem_val && !io.dmem.req.ready ||
+    id_ctrl.fp && id_stall_fpu ||
+    id_ctrl.mem && !io.dmem.req.ready ||
     id_do_fence
   val ctrl_draind = id_interrupt || ex_reg_replay_next
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || ctrl_draind
@@ -741,13 +771,9 @@ class Control extends Module
 
   io.dpath.mem_load := mem_reg_mem_val && mem_reg_wen
   io.dpath.wb_load  := wb_reg_mem_val && wb_reg_wen
-  io.dpath.ren(1) := id_renx2
-  io.dpath.ren(0) := id_renx1
-  io.dpath.sel_alu2 := id_sel_alu2.toUInt
-  io.dpath.sel_alu1 := id_sel_alu1.toUInt
-  io.dpath.sel_imm  := id_sel_imm.toUInt
-  io.dpath.fn_dw    := id_fn_dw.toBool
-  io.dpath.fn_alu   := id_fn_alu.toUInt
+  io.dpath.ren(1) := id_ctrl.rrs2
+  io.dpath.ren(0) := id_ctrl.rrs1
+  io.dpath.ex_ctrl := ex_ctrl
   io.dpath.div_mul_val  := ex_reg_div_mul_val
   io.dpath.div_mul_kill := mem_reg_div_mul_val && killm_common
   io.dpath.ex_fp_val:= ex_reg_fp_val
@@ -767,7 +793,7 @@ class Control extends Module
   io.dpath.ex_rocc_val := ex_reg_rocc_val
   io.dpath.mem_rocc_val := mem_reg_rocc_val
 
-  io.fpu.valid := !ctrl_killd && id_fp_val
+  io.fpu.valid := !ctrl_killd && id_ctrl.fp
   io.fpu.killx := ctrl_killx
   io.fpu.killm := killm_common
 
