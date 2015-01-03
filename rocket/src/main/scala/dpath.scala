@@ -22,11 +22,6 @@ class Datapath extends Module
   // execute definitions
   val ex_reg_pc = Reg(UInt())
   val ex_reg_inst = Reg(Bits())
-  val ex_reg_ctrl_fn_dw = Reg(UInt())
-  val ex_reg_ctrl_fn_alu = Reg(UInt())
-  val ex_reg_sel_alu2 = Reg(UInt())
-  val ex_reg_sel_alu1 = Reg(UInt())
-  val ex_reg_sel_imm = Reg(UInt())
   val ex_reg_kill = Reg(Bool())
   val ex_reg_rs_bypass = Vec.fill(2)(Reg(Bool()))
   val ex_reg_rs_lsb = Vec.fill(2)(Reg(Bits()))
@@ -102,11 +97,6 @@ class Datapath extends Module
   when (!io.ctrl.killd) {
     ex_reg_pc := id_pc
     ex_reg_inst := id_inst
-    ex_reg_ctrl_fn_dw := io.ctrl.fn_dw.toUInt
-    ex_reg_ctrl_fn_alu := io.ctrl.fn_alu
-    ex_reg_sel_alu2 := io.ctrl.sel_alu2
-    ex_reg_sel_alu1 := io.ctrl.sel_alu1
-    ex_reg_sel_imm := io.ctrl.sel_imm
     ex_reg_rs_bypass := io.ctrl.bypass
     for (i <- 0 until id_rs.size) {
       when (io.ctrl.ren(i)) {
@@ -129,18 +119,18 @@ class Datapath extends Module
 
   val ex_rs = for (i <- 0 until id_rs.size)
     yield Mux(ex_reg_rs_bypass(i), bypass(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
-  val ex_imm = imm(ex_reg_sel_imm, ex_reg_inst)
-  val ex_op1 = MuxLookup(ex_reg_sel_alu1, SInt(0), Seq(
+  val ex_imm = imm(io.ctrl.ex_ctrl.sel_imm, ex_reg_inst)
+  val ex_op1 = MuxLookup(io.ctrl.ex_ctrl.sel_alu1, SInt(0), Seq(
     A1_RS1 -> ex_rs(0).toSInt,
     A1_PC -> ex_reg_pc.toSInt))
-  val ex_op2 = MuxLookup(ex_reg_sel_alu2, SInt(0), Seq(
+  val ex_op2 = MuxLookup(io.ctrl.ex_ctrl.sel_alu2, SInt(0), Seq(
     A2_RS2 -> ex_rs(1).toSInt,
     A2_IMM -> ex_imm,
     A2_FOUR -> SInt(4)))
 
   val alu = Module(new ALU)
-  alu.io.dw := ex_reg_ctrl_fn_dw
-  alu.io.fn := ex_reg_ctrl_fn_alu
+  alu.io.dw := io.ctrl.ex_ctrl.alu_dw
+  alu.io.fn := io.ctrl.ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.toUInt
   alu.io.in1 := ex_op1
   
@@ -148,8 +138,8 @@ class Datapath extends Module
   val div = Module(new MulDiv(mulUnroll = if(params(FastMulDiv)) 8 else 1,
                        earlyOut = params(FastMulDiv)))
   div.io.req.valid := io.ctrl.div_mul_val
-  div.io.req.bits.dw := ex_reg_ctrl_fn_dw
-  div.io.req.bits.fn := ex_reg_ctrl_fn_alu
+  div.io.req.bits.dw := io.ctrl.ex_ctrl.alu_dw
+  div.io.req.bits.fn := io.ctrl.ex_ctrl.alu_fn
   div.io.req.bits.in1 := ex_rs(0)
   div.io.req.bits.in2 := ex_rs(1)
   div.io.req.bits.tag := io.ctrl.ex_waddr
