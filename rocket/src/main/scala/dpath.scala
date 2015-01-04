@@ -137,13 +137,13 @@ class Datapath extends Module
   // multiplier and divider
   val div = Module(new MulDiv(mulUnroll = if(params(FastMulDiv)) 8 else 1,
                        earlyOut = params(FastMulDiv)))
-  div.io.req.valid := io.ctrl.div_mul_val
+  div.io.req.valid := io.ctrl.ex_valid && io.ctrl.ex_ctrl.div
   div.io.req.bits.dw := io.ctrl.ex_ctrl.alu_dw
   div.io.req.bits.fn := io.ctrl.ex_ctrl.alu_fn
   div.io.req.bits.in1 := ex_rs(0)
   div.io.req.bits.in2 := ex_rs(1)
   div.io.req.bits.tag := io.ctrl.ex_waddr
-  div.io.kill := io.ctrl.div_mul_kill
+  div.io.kill := io.ctrl.killm && Reg(next = div.io.req.fire())
   io.ctrl.div_mul_rdy := div.io.req.ready
   
   io.fpu.fromint_data := ex_rs(0)
@@ -161,7 +161,7 @@ class Datapath extends Module
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
   io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(params(VAddrBits)-1,0)).toUInt
-  io.dmem.req.bits.tag := Cat(io.ctrl.ex_waddr, io.ctrl.ex_fp_val)
+  io.dmem.req.bits.tag := Cat(io.ctrl.ex_waddr, io.ctrl.ex_ctrl.fp)
   require(io.dmem.req.bits.tag.getWidth >= 6)
   require(params(CoreDCacheReqTagBits) >= 6)
 
@@ -186,12 +186,12 @@ class Datapath extends Module
     mem_reg_pc := ex_reg_pc
     mem_reg_inst := ex_reg_inst
     mem_reg_wdata := alu.io.out
-  }
-  when (io.ctrl.ex_rs2_val) {
-    mem_reg_rs2 := ex_rs(1)
+    when (io.ctrl.ex_ctrl.rxs2 && (io.ctrl.ex_ctrl.mem || io.ctrl.ex_ctrl.rocc)) {
+      mem_reg_rs2 := ex_rs(1)
+    }
   }
 
-  io.dmem.req.bits.data := Mux(io.ctrl.mem_fp_val, io.fpu.store_data, mem_reg_rs2)
+  io.dmem.req.bits.data := Mux(io.ctrl.mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
 
   // writeback arbitration
   val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
@@ -229,21 +229,21 @@ class Datapath extends Module
 
   io.ctrl.mem_br_taken := mem_reg_wdata(0)
   val mem_br_target = mem_reg_pc +
-    Mux(io.ctrl.mem_branch && io.ctrl.mem_br_taken, imm(IMM_SB, mem_reg_inst),
-    Mux(!io.ctrl.mem_jalr && !io.ctrl.mem_branch, imm(IMM_UJ, mem_reg_inst), SInt(4)))
-  val mem_npc = Mux(io.ctrl.mem_jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(params(VAddrBits)-1,0)), mem_br_target)
+    Mux(io.ctrl.mem_ctrl.branch && io.ctrl.mem_br_taken, imm(IMM_SB, mem_reg_inst),
+    Mux(io.ctrl.mem_ctrl.jal, imm(IMM_UJ, mem_reg_inst), SInt(4)))
+  val mem_npc = Mux(io.ctrl.mem_ctrl.jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(params(VAddrBits)-1,0)), mem_br_target)
   io.ctrl.mem_misprediction := mem_npc != ex_reg_pc || !io.ctrl.ex_valid
   io.ctrl.mem_rs1_ra := mem_reg_inst(19,15) === 1
-  val mem_int_wdata = Mux(io.ctrl.mem_jalr, mem_br_target, mem_reg_wdata)
+  val mem_int_wdata = Mux(io.ctrl.mem_ctrl.jalr, mem_br_target, mem_reg_wdata)
 
   // writeback stage
   when (!mem_reg_kill) {
     wb_reg_pc := mem_reg_pc
     wb_reg_inst := mem_reg_inst
-    wb_reg_wdata := Mux(io.ctrl.mem_fp_val && io.ctrl.mem_wen, io.fpu.toint_data, mem_int_wdata)
-  }
-  when (io.ctrl.mem_rocc_val) {
-    wb_reg_rs2 := mem_reg_rs2
+    wb_reg_wdata := Mux(io.ctrl.mem_ctrl.fp && io.ctrl.mem_ctrl.wxd, io.fpu.toint_data, mem_int_wdata)
+    when (io.ctrl.mem_ctrl.rocc) {
+      wb_reg_rs2 := mem_reg_rs2
+    }
   }
   wb_wdata := Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data_subword,
               Mux(io.ctrl.ll_wen, ll_wdata,
