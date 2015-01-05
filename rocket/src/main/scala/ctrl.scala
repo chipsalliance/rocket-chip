@@ -31,7 +31,6 @@ class CtrlDpathIO extends Bundle
   val badvaddr_wen = Bool(OUTPUT) // high for a load/store access fault
   // inputs from datapath
   val inst    = Bits(INPUT, 32)
-  val jalr_eq = Bool(INPUT)
   val mem_br_taken = Bool(INPUT)
   val mem_misprediction  = Bool(INPUT)
   val div_mul_rdy = Bool(INPUT)
@@ -371,7 +370,6 @@ class Control extends Module
   val wb_reg_xcpt            = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
   val wb_reg_cause           = Reg(UInt())
-  val wb_reg_fp_val          = Reg(Bool())
 
   val take_pc_wb = Bool()
   val mem_misprediction = io.dpath.mem_misprediction && mem_reg_valid && (mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal)
@@ -444,21 +442,15 @@ class Control extends Module
     (id_ctrl.scall,                                   UInt(Causes.syscall)),
     (id_ctrl.rocc && !io.dpath.status.er,             UInt(Causes.accelerator_disabled))))
 
+  ex_reg_valid := !ctrl_killd
+  ex_reg_xcpt := !ctrl_killd && id_xcpt
   ex_reg_xcpt_interrupt := id_interrupt && !take_pc && io.imem.resp.valid
   when (id_xcpt) { ex_reg_cause := id_cause }
 
-  when (ctrl_killd) {
-    ex_reg_btb_hit := false
-    ex_reg_valid       := Bool(false)
-    ex_reg_flush_pipe := Bool(false)
-    ex_reg_load_use := Bool(false)
-    ex_reg_xcpt := Bool(false)
-  } 
-  .otherwise {
+  when (!ctrl_killd) {
     ex_ctrl := id_ctrl
     ex_reg_btb_hit := io.imem.btb_resp.valid
     when (io.imem.btb_resp.valid) { ex_reg_btb_resp := io.imem.btb_resp.bits }
-    ex_reg_valid       := Bool(true)
     ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush
     ex_reg_load_use := id_load_use
     ex_reg_xcpt := id_xcpt
