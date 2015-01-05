@@ -105,7 +105,7 @@ class Frontend extends FrontendModule
   icache.io.req.bits.idx := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
   icache.io.invalidate := io.cpu.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
-  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss
+  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss || io.cpu.ptw.invalidate
   icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
@@ -216,7 +216,7 @@ class ICache extends FrontendModule
   val s2_dout = Vec.fill(nWays){Reg(Bits())}
 
   for (i <- 0 until nWays) {
-    val s1_vb = vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
+    val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
     val s2_vb = Reg(Bool())
     val s2_tag_disparity = Reg(Bool())
     val s2_tag_match = Reg(Bool())
