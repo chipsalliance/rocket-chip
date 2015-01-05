@@ -10,6 +10,9 @@ case object ECCCode extends Field[Option[Code]]
 abstract trait L1CacheParameters extends CacheParameters with CoreParameters {
   val co = params(TLCoherence)
   val code = params(ECCCode).getOrElse(new IdentityCode)
+  val outerDataBeats = params(TLDataBeats)
+  val refillCyclesPerBeat = params(TLDataBits)/rowBits
+  val refillCycles = refillCyclesPerBeat*outerDataBeats
 }
 
 abstract trait FrontendParameters extends L1CacheParameters
@@ -106,7 +109,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   icache.io.req.bits.idx := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
   icache.io.invalidate := io.cpu.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
-  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss
+  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss || io.cpu.ptw.invalidate
   icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
@@ -187,22 +190,13 @@ class ICache extends FrontendModule
   val s2_miss = s2_valid && !s2_any_tag_hit
   rdy := state === s_ready && !s2_miss
 
-  var refill_cnt = UInt(0)
-  var refill_done = state === s_refill 
-  var refill_valid = io.mem.grant.valid
-  var refill_bits = io.mem.grant.bits
-  def doRefill(g: Grant): Bool = Bool(true)
-  if(refillCycles > 1) {
-    val ser = Module(new FlowThroughSerializer(io.mem.grant.bits, refillCycles, doRefill))
-    ser.io.in <> io.mem.grant
-    refill_cnt = ser.io.cnt
-    refill_done = ser.io.done
-    refill_valid = ser.io.out.valid
-    refill_bits = ser.io.out.bits
-    ser.io.out.ready := Bool(true)
-  } else {
-    io.mem.grant.ready := Bool(true)
-  }
+  val ser = Module(new FlowThroughSerializer(io.mem.grant.bits, refillCyclesPerBeat, (g: Grant) => co.messageUpdatesDataArray(g)))
+  ser.io.in <> io.mem.grant
+  val (refill_cnt, refill_wrap) = Counter(ser.io.out.fire(), refillCycles) //TODO Zero width wire
+  val refill_done = state === s_refill && refill_wrap
+  val refill_valid = ser.io.out.valid
+  val refill_bits = ser.io.out.bits
+  ser.io.out.ready := Bool(true)
   //assert(!c.tlco.isVoluntary(refill_bits.payload) || !refill_valid, "UncachedRequestors shouldn't get voluntary grants.")
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s2_miss)(log2Up(nWays)-1,0)
@@ -236,7 +230,7 @@ class ICache extends FrontendModule
   val s2_dout = Vec.fill(nWays){Reg(Bits())}
 
   for (i <- 0 until nWays) {
-    val s1_vb = vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
+    val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
     val s2_vb = Reg(Bool())
     val s2_tag_disparity = Reg(Bool())
     val s2_tag_match = Reg(Bool())
@@ -257,8 +251,8 @@ class ICache extends FrontendModule
     val s1_raddr = Reg(UInt())
     when (refill_valid && repl_way === UInt(i)) {
       val e_d = code.encode(refill_bits.payload.data)
-      if(refillCycles > 1) data_array(Cat(s2_idx,refill_cnt)) := e_d
-      else                   data_array(s2_idx) := e_d
+      if(refillCycles > 1) data_array(Cat(s2_idx, refill_cnt)) := e_d
+      else data_array(s2_idx) := e_d
     }
 //    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
     .elsewhen (s0_valid) {
@@ -272,14 +266,14 @@ class ICache extends FrontendModule
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
   val ack_q = Module(new Queue(new LogicalNetworkIO(new Finish), 1))
-  ack_q.io.enq.valid := refill_done && co.requiresAckForGrant(refill_bits.payload.g_type)
-  ack_q.io.enq.bits.payload.master_xact_id := refill_bits.payload.master_xact_id
+  ack_q.io.enq.valid := refill_done && co.requiresAckForGrant(refill_bits.payload)
+  ack_q.io.enq.bits.payload.manager_xact_id := refill_bits.payload.manager_xact_id
   ack_q.io.enq.bits.header.dst := refill_bits.header.src
 
   // output signals
   io.resp.valid := s2_hit
   io.mem.acquire.valid := (state === s_request) && ack_q.io.enq.ready
-  io.mem.acquire.bits.payload := Acquire(co.getUncachedReadAcquireType, s2_addr >> UInt(blockOffBits), UInt(0))
+  io.mem.acquire.bits.payload := UncachedRead(s2_addr >> UInt(blockOffBits))
   io.mem.finish <> ack_q.io.deq
 
   // control state machine
