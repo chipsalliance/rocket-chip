@@ -60,7 +60,7 @@ abstract trait DecodeConstants
                 //   |     | | | | | | | |       |       |      |      |         | |         |     | | | | | | csr   | | | | amo
                 //   |     | | | | | | | |       |       |      |      |         | |         |     | | | | | | |     | | | | |
                 List(N,    X,X,X,X,X,X,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, X,X,X,X,X,X,CSR.X,X,X,X,X,X)
-                                        
+
   val table: Array[(UInt, List[UInt])]
 }
 
@@ -505,7 +505,7 @@ class Control extends Module
   when (mem_xcpt) { wb_reg_cause := mem_cause }
 
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
-  val replay_wb_common = 
+  val replay_wb_common =
     io.dmem.resp.bits.nack || wb_reg_replay || io.dpath.csr_replay
   val wb_rocc_val = wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   val replay_wb = replay_wb_common || wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
@@ -558,14 +558,24 @@ class Control extends Module
     Mux(wb_reg_valid && wb_ctrl.sret, PC_PCR, // sret instruction
                                       PC_MEM)))
 
-  io.imem.btb_update.valid := mem_reg_valid && (mem_ctrl.branch || io.imem.btb_update.bits.isJump) && !take_pc_wb
+  io.imem.btb_update.valid := mem_reg_valid && io.dpath.mem_misprediction && ((mem_ctrl.branch && io.dpath.mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal) && !take_pc_wb
   io.imem.btb_update.bits.prediction.valid := mem_reg_btb_hit
   io.imem.btb_update.bits.prediction.bits := mem_reg_btb_resp
-  io.imem.btb_update.bits.taken := mem_ctrl.branch && io.dpath.mem_br_taken || io.imem.btb_update.bits.isJump
-  io.imem.btb_update.bits.mispredict := mem_misprediction
   io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
-  io.imem.btb_update.bits.isCall := mem_ctrl.wxd && io.dpath.mem_waddr(0)
   io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && io.dpath.mem_rs1_ra
+
+  io.imem.bht_update.valid := mem_reg_valid && mem_ctrl.branch && !take_pc_wb
+  io.imem.bht_update.bits.taken := io.dpath.mem_br_taken
+  io.imem.bht_update.bits.mispredict := io.dpath.mem_misprediction
+  io.imem.bht_update.bits.prediction.valid := mem_reg_btb_hit
+  io.imem.bht_update.bits.prediction.bits := mem_reg_btb_resp
+
+  io.imem.ras_update.valid := io.imem.btb_update.bits.isJump && !take_pc_wb
+  io.imem.ras_update.bits.isCall := mem_ctrl.wxd && io.dpath.mem_waddr(0)
+  io.imem.ras_update.bits.isReturn := mem_ctrl.jalr && io.dpath.mem_rs1_ra
+  io.imem.ras_update.bits.prediction.valid := mem_reg_btb_hit
+  io.imem.ras_update.bits.prediction.bits := mem_reg_btb_resp
+
   io.imem.req.valid := take_pc
 
   val bypassDst = Array(id_raddr1, id_raddr2)
@@ -595,7 +605,7 @@ class Control extends Module
      io.fpu.dec.ren3 && id_raddr3 === io.dpath.ex_waddr ||
      io.fpu.dec.wen  && id_waddr  === io.dpath.ex_waddr)
   val id_ex_hazard = ex_reg_valid && (data_hazard_ex && ex_cannot_bypass || fp_data_hazard_ex)
-    
+
   // stall for RAW/WAW hazards on PCRs, LB/LH, and mul/div in memory stage.
   val mem_mem_cmd_bh =
     if (params(FastLoadWord)) Bool(!params(FastLoadByte)) && mem_reg_slow_bypass

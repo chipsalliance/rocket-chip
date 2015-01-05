@@ -1,5 +1,3 @@
-// See LICENSE for license details.
-
 package rocket
 
 import Chisel._
@@ -27,7 +25,8 @@ class FrontendReq extends CoreBundle {
 
 class FrontendResp extends CoreBundle {
   val pc = UInt(width = params(VAddrBits)+1)  // ID stage PC
-  val data = Bits(width = coreInstBits)
+  val data = Vec.fill(coreFetchWidth) (Bits(width = coreInstBits))
+  val mask = Bits(width = coreFetchWidth)
   val xcpt_ma = Bool()
   val xcpt_if = Bool()
 }
@@ -37,18 +36,20 @@ class CPUFrontendIO extends CoreBundle {
   val resp = Decoupled(new FrontendResp).flip
   val btb_resp = Valid(new BTBResp).flip
   val btb_update = Valid(new BTBUpdate)
+  val bht_update = Valid(new BHTUpdate)
+  val ras_update = Valid(new RASUpdate)
   val ptw = new TLBPTWIO().flip
   val invalidate = Bool(OUTPUT)
 }
 
-class Frontend extends FrontendModule
+class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
 {
   val io = new Bundle {
     val cpu = new CPUFrontendIO().flip
     val mem = new UncachedTileLinkIO
   }
 
-  val btb = Module(new BTB)
+  val btb = Module(new BTB(btb_updates_out_of_order))
   val icache = Module(new ICache)
   val tlb = Module(new TLB(params(NITLBEntries)))
 
@@ -62,13 +63,14 @@ class Frontend extends FrontendModule
   val s2_xcpt_if = Reg(init=Bool(false))
 
   val msb = vaddrBits-1
+  val lsb = log2Up(coreFetchWidth*coreInstBytes)
   val btbTarget = Cat(btb.io.resp.bits.target(msb), btb.io.resp.bits.target)
-  val pcp4_0 = s1_pc + UInt(coreInstBytes)
-  val pcp4 = Cat(s1_pc(msb) & pcp4_0(msb), pcp4_0(msb,0))
+  val ntpc_0 = s1_pc + UInt(coreInstBytes*coreFetchWidth)
+  val ntpc = Cat(s1_pc(msb) & ntpc_0(msb), ntpc_0(msb,lsb), Bits(0,lsb)) // unsure
   val icmiss = s2_valid && !icache.io.resp.valid
-  val predicted_npc = Mux(btb.io.resp.bits.taken, btbTarget, pcp4)
+  val predicted_npc = Mux(btb.io.resp.bits.taken, btbTarget, ntpc)
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
-  val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.resp.bits.taken && ((pcp4 & rowBytes) === (s1_pc & rowBytes))
+  val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.resp.bits.taken && ((ntpc & rowBytes) === (s1_pc & rowBytes))
 
   val stall = io.cpu.resp.valid && !io.cpu.resp.ready
   when (!stall) {
@@ -90,7 +92,9 @@ class Frontend extends FrontendModule
 
   btb.io.req.valid := !stall && !icmiss
   btb.io.req.bits.addr := s1_pc & SInt(-coreInstBytes)
-  btb.io.update := io.cpu.btb_update
+  btb.io.btb_update := io.cpu.btb_update
+  btb.io.bht_update := io.cpu.bht_update
+  btb.io.ras_update := io.cpu.ras_update
   btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate
 
   tlb.io.ptw <> io.cpu.ptw
@@ -110,7 +114,17 @@ class Frontend extends FrontendModule
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
   io.cpu.resp.bits.pc := s2_pc & SInt(-coreInstBytes) // discard PC LSBs
-  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(coreInstBytes)) << log2Up(coreInstBits))
+
+
+  val fetch_data = icache.io.resp.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(coreFetchWidth*coreInstBytes)) << log2Up(coreFetchWidth*coreInstBits))
+  for (i <- 0 until coreFetchWidth) {
+    io.cpu.resp.bits.data(i) := fetch_data(i*coreInstBits+coreInstBits-1, i*coreInstBits)
+  }
+
+  val all_ones = UInt((1 << (coreFetchWidth+1))-1)
+  val msk_pc = if (coreFetchWidth == 1) all_ones else all_ones << s2_pc(log2Up(coreFetchWidth) -1+2,2)
+  io.cpu.resp.bits.mask := Mux(s2_btb_resp_valid, msk_pc & s2_btb_resp_bits.mask, msk_pc)
+
   io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(coreInstBytes)-1,0) != UInt(0)
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
 
