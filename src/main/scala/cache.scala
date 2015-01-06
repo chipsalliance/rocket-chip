@@ -870,7 +870,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
         xact_data(local_data_resp_cnt) := mergeData(xact, xact_data(local_data_resp_cnt), 
                                                       io.data.resp.bits.data)
       }
-      when(local_data_resp_done) { state := s_meta_write }
+      when(local_data_resp_done) {
+          state := Mux(co.messageHasData(xact), s_data_write, s_meta_write)
+      }
     }
     is(s_data_write) {
       io.data.write.valid := Bool(true)
