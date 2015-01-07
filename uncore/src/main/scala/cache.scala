@@ -688,8 +688,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
 
   //TODO: Are there any races between lines with the same idx?
   //TODO: Allow hit under miss for stores
-  io.has_acquire_conflict := co.isCoherenceConflict(xact.addr, c_acq.payload.addr) &&
-                              xact.addr(idxMSB,idxLSB) === c_acq.payload.addr(idxMSB,idxLSB) &&
+  io.has_acquire_conflict := (co.isCoherenceConflict(xact.addr, c_acq.payload.addr) ||
+                              xact.addr(idxMSB,idxLSB) === c_acq.payload.addr(idxMSB,idxLSB)) &&
                               (state != s_idle) &&
                               !collect_cacq_data
   io.has_acquire_match := co.messageHasData(xact) &&
@@ -857,9 +857,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
       }
     }
     is(s_data_read) {
-      io.data.read.valid := Bool(true)
+      io.data.read.valid := (if(tlDataBeats == 1) Bool(true) 
+                                  else !collect_cacq_data || (local_data_resp_cnt < cacq_data_cnt))
       when(io.data.resp.valid) {
-        //TODO make sure cacq data is actually present before merging
         xact_data(local_data_resp_cnt) := mergeData(xact, xact_data(local_data_resp_cnt), 
                                                       io.data.resp.bits.data)
       }
