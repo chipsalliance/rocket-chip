@@ -214,24 +214,22 @@ class L2DataRWIO extends L2HellaCacheBundle with HasL2DataReadIO with HasL2DataW
 class L2DataArray extends L2HellaCacheModule {
   val io = new L2DataRWIO().flip
 
-  val waddr = io.write.bits.addr
-  val raddr = io.read.bits.addr
   val wmask = FillInterleaved(8, io.write.bits.wmask)
-  val resp = (0 until nWays).map { w =>
-    val array = Mem(Bits(width=rowBits), nSets*refillCycles, seqRead = true)
-    val reg_raddr = Reg(UInt())
-    when (io.write.bits.way_en(w) && io.write.valid) {
-      array.write(waddr, io.write.bits.data, wmask)
-    }.elsewhen (io.read.bits.way_en(w) && io.read.valid) {
-      reg_raddr := raddr
-    }
-    array(reg_raddr)
+  val reg_raddr = Reg(UInt())
+  val array = Mem(Bits(width=rowBits), nWays*nSets*refillCycles, seqRead = true)
+  val waddr = Cat(OHToUInt(io.write.bits.way_en), io.write.bits.addr)
+  val raddr = Cat(OHToUInt(io.read.bits.way_en), io.read.bits.addr)
+
+  when (io.write.bits.way_en.orR && io.write.valid) {
+    array.write(waddr, io.write.bits.data, wmask)
+  }.elsewhen (io.read.bits.way_en.orR && io.read.valid) {
+    reg_raddr := raddr
   }
+
   io.resp.valid := ShiftRegister(io.read.fire(), 1)
   io.resp.bits.id := ShiftRegister(io.read.bits.id, 1)
-  io.resp.bits.data := Mux1H(ShiftRegister(io.read.bits.way_en, 1), resp)
-
-  io.read.ready := !io.write.valid // TODO 1R/W vs 1R1W?
+  io.resp.bits.data := array(reg_raddr)
+  io.read.ready := !io.write.valid
   io.write.ready := Bool(true)
 }
 
