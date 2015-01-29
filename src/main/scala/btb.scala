@@ -23,7 +23,7 @@ abstract trait BTBParameters extends UsesParameters {
 class RAS(nras: Int) {
   def push(addr: UInt): Unit = {
     when (count < nras) { count := count + 1 }
-    val nextPos = Mux(Bool(isPow2(nras)) || pos > 0, pos+1, UInt(0))
+    val nextPos = Mux(Bool(isPow2(nras)) || pos < nras-1, pos+1, UInt(0))
     stack(nextPos) := addr
     pos := nextPos
   }
