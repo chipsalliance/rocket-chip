@@ -747,7 +747,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   val state = Reg(init=s_idle)
 
   val xact_src = Reg(io.inner.acquire.bits.header.src.clone)
-  val xact_uncached = Reg(io.inner.acquire.bits.payload.uncached.clone)
+  val xact_builtin_type = Reg(io.inner.acquire.bits.payload.builtin_type.clone)
   val xact_a_type = Reg(io.inner.acquire.bits.payload.a_type.clone)
   val xact_addr_block = Reg(io.inner.acquire.bits.payload.addr_block.clone)
   val xact_addr_beat = Reg(io.inner.acquire.bits.payload.addr_beat.clone)
@@ -760,7 +760,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   val xact_meta = Reg{ new L2Metadata }
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact = Acquire(
-              uncached = xact_uncached,
+              builtin_type = xact_builtin_type,
               a_type = xact_a_type,
               client_xact_id = xact_client_xact_id,
               addr_block = xact_addr_block,
@@ -796,7 +796,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   val needs_writeback = !xact_tag_match && co.isValid(xact_meta.coh) // TODO: dirty bit
   val is_hit = xact_tag_match && co.isHit(xact, xact_meta.coh)
   val needs_probes = co.requiresProbes(xact, xact_meta.coh)
-  //val do_allocate = !xact_uncached || xact.allocate()
+  //val do_allocate = !xact_builtin_type || xact.allocate()
 
   val amoalu = Module(new AMOALU)
   amoalu.io.addr := xact.addr()
@@ -921,7 +921,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
     is(s_idle) {
       io.inner.acquire.ready := Bool(true)
       when( io.inner.acquire.valid ) {
-        xact_uncached := cacq.payload.uncached
+        xact_builtin_type := cacq.payload.builtin_type
         xact_a_type := cacq.payload.a_type
         xact_addr_block := cacq.payload.addr_block
         xact_addr_beat := cacq.payload.addr_beat
@@ -947,9 +947,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
         val _needs_writeback = !_tag_match && co.isValid(coh) //TODO: dirty bit
         val _needs_probes = _tag_match && co.requiresProbes(xact, coh)
         val _is_hit = _tag_match && co.isHit(xact, coh)
-        val full_block = !xact.uncached ||
-                            xact.is(Acquire.uncachedReadBlock) ||
-                            xact.is(Acquire.uncachedWriteBlock)
+        val full_block = !xact.builtin_type || 
+                            xact.hasMultibeatData() ||
+                            cgnt.payload.hasMultibeatData()
         read_data_cnt := Mux(full_block, UInt(0), xact_addr_beat)
         read_data_max := Mux(full_block, UInt(refillCycles-1), xact_addr_beat)
         write_data_cnt := Mux(full_block || !_is_hit, UInt(0), xact_addr_beat)

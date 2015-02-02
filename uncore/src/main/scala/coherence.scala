@@ -174,7 +174,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     ClientMetadata(Mux(cmd === M_FLUSH, clientInvalid, meta.state))
 
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
-    ClientMetadata(Mux(incoming.uncached, clientInvalid, clientValid))
+    ClientMetadata(Mux(incoming.builtin_type, clientInvalid, clientValid))
 
   def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) =
     ClientMetadata(Mux(incoming.p_type === probeInvalidate,
@@ -189,7 +189,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   }
 
   def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
-    Mux(g.uncached, 
+    Mux(g.builtin_type, 
       ManagerMetadata(managerValid, meta.sharers),
       ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
 
@@ -218,27 +218,27 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
   def getGrantType(a: Acquire, meta: ManagerMetadata): UInt = 
-    Mux(a.uncached, Grant.getGrantTypeForUncached(a), grantExclusive)
+    Mux(a.builtin_type, Grant.getGrantTypeForUncached(a), grantExclusive)
 
   def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
-    Mux(a.uncached, 
+    Mux(a.builtin_type, 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.uncachedReadBlock -> probeCopy, 
         Acquire.uncachedWriteBlock -> probeInvalidate,
         Acquire.uncachedRead -> probeCopy, 
         Acquire.uncachedWrite -> probeInvalidate,
-        Acquire.uncachedAtomic -> probeInvalidate
-      )), probeInvalidate)
+        Acquire.uncachedAtomic -> probeInvalidate)), 
+      probeInvalidate)
 
   def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt =
     MuxLookup(cmd, probeCopy, Array(
       M_FLUSH -> probeInvalidate))
 
   def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) = 
-    Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), Bool(true))
+    Mux(acq.builtin_type, Acquire.requiresOuterRead(acq.a_type), Bool(true))
 
   def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
-    Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
+    Mux(acq.builtin_type, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
   def requiresProbes(a: Acquire, meta: ManagerMetadata) = !dir.none(meta.sharers)
 
@@ -271,7 +271,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def isValid (meta: ManagerMetadata) = meta.state != managerInvalid
 
   def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool =
-    (isRead(cmd) && outstanding.uncached) ||
+    (isRead(cmd) && outstanding.builtin_type) ||
       (isWriteIntent(cmd) && (outstanding.a_type != acquireExclusiveDirty))
 
   def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) = 
@@ -286,7 +286,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
 
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
     ClientMetadata(
-      Mux(incoming.uncached, clientInvalid,
+      Mux(incoming.builtin_type, clientInvalid,
         Mux(outstanding.a_type === acquireExclusiveDirty, clientExclusiveDirty, 
           clientExclusiveClean)))
 
@@ -306,7 +306,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   }
 
   def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
-    Mux(g.uncached, 
+    Mux(g.builtin_type, 
       ManagerMetadata(managerValid, meta.sharers),
       ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
 
@@ -338,10 +338,10 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
   def getGrantType(a: Acquire, meta: ManagerMetadata): UInt =
-    Mux(a.uncached, Grant.getGrantTypeForUncached(a), grantExclusive)
+    Mux(a.builtin_type, Grant.getGrantTypeForUncached(a), grantExclusive)
 
   def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
-    Mux(a.uncached, 
+    Mux(a.builtin_type, 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.uncachedReadBlock -> probeCopy, 
         Acquire.uncachedWriteBlock -> probeInvalidate,
@@ -356,15 +356,15 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_PRODUCE -> probeDowngrade))
 
   def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) = 
-    Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), Bool(true))
+    Mux(acq.builtin_type, Acquire.requiresOuterRead(acq.a_type), Bool(true))
 
   def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
-    Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
+    Mux(acq.builtin_type, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
   def requiresProbes(a: Acquire, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false), 
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
-        Mux(a.uncached, a.hasData(), Bool(true))))
+        Mux(a.builtin_type, a.hasData(), Bool(true))))
 
   def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 }
@@ -396,7 +396,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def isValid(meta: ManagerMetadata) = meta.state != managerInvalid
 
   def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool =
-    (isRead(cmd) && outstanding.uncached) ||
+    (isRead(cmd) && outstanding.builtin_type) ||
       (isWriteIntent(cmd) && (outstanding.a_type != acquireExclusive))
 
   def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) =
@@ -413,7 +413,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
 
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
     ClientMetadata(
-      Mux(incoming.uncached, clientInvalid,
+      Mux(incoming.builtin_type, clientInvalid,
         MuxLookup(incoming.g_type, clientInvalid, Array(
           grantShared -> clientShared,
           grantExclusive -> clientExclusiveDirty,
@@ -435,7 +435,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   }
 
   def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
-    Mux(g.uncached, 
+    Mux(g.builtin_type, 
       ManagerMetadata(managerValid, meta.sharers),
       ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
 
@@ -467,13 +467,13 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
   def getGrantType(a: Acquire, meta: ManagerMetadata): UInt =
-    Mux(a.uncached, Grant.getGrantTypeForUncached(a),
+    Mux(a.builtin_type, Grant.getGrantTypeForUncached(a),
       Mux(a.a_type === acquireShared,
         Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
         grantExclusive))
 
   def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
-    Mux(a.uncached, 
+    Mux(a.builtin_type, 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.uncachedReadBlock -> probeCopy, 
         Acquire.uncachedWriteBlock -> probeInvalidate,
@@ -490,15 +490,15 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_PRODUCE -> probeDowngrade))
 
   def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) =
-    Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), Bool(true))
+    Mux(acq.builtin_type, Acquire.requiresOuterRead(acq.a_type), Bool(true))
 
   def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
-    Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
+    Mux(acq.builtin_type, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
   def requiresProbes(a: Acquire, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false), 
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
-        Mux(a.uncached, a.hasData(), a.a_type != acquireShared)))
+        Mux(a.builtin_type, a.hasData(), a.a_type != acquireShared)))
 
   def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 }
@@ -530,7 +530,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def isValid (meta: ManagerMetadata) = meta.state != managerInvalid
 
   def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool =
-    (isRead(cmd) && outstanding.uncached) ||
+    (isRead(cmd) && outstanding.builtin_type) ||
       (isWriteIntent(cmd) && (outstanding.a_type != acquireExclusive))
 
   def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) =
@@ -548,7 +548,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
 
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
     ClientMetadata(
-      Mux(incoming.uncached, clientInvalid,
+      Mux(incoming.builtin_type, clientInvalid,
         MuxLookup(incoming.g_type, clientInvalid, Array(
           grantShared -> clientShared,
           grantExclusive -> Mux(outstanding.a_type === acquireExclusive, 
@@ -571,7 +571,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   }
 
   def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
-    Mux(g.uncached, 
+    Mux(g.builtin_type, 
       ManagerMetadata(managerValid, meta.sharers),
       ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
 
@@ -603,13 +603,13 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
   def getGrantType(a: Acquire, meta: ManagerMetadata): UInt =
-    Mux(a.uncached, Grant.getGrantTypeForUncached(a),
+    Mux(a.builtin_type, Grant.getGrantTypeForUncached(a),
       Mux(a.a_type === acquireShared,
         Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
         grantExclusive))
 
   def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
-    Mux(a.uncached, 
+    Mux(a.builtin_type, 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.uncachedReadBlock -> probeCopy, 
         Acquire.uncachedWriteBlock -> probeInvalidate,
@@ -626,15 +626,15 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_PRODUCE -> probeDowngrade))
 
   def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) =
-    Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), Bool(true))
+    Mux(acq.builtin_type, Acquire.requiresOuterRead(acq.a_type), Bool(true))
 
   def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
-    Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
+    Mux(acq.builtin_type, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
   def requiresProbes(a: Acquire, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false), 
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
-        Mux(a.uncached, a.hasData(), a.a_type != acquireShared)))
+        Mux(a.builtin_type, a.hasData(), a.a_type != acquireShared)))
 
   def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 }
@@ -666,7 +666,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   def isValid (meta: ManagerMetadata) = meta.state != managerInvalid
 
   def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool =
-    (isRead(cmd) && outstanding.uncached) ||
+    (isRead(cmd) && outstanding.builtin_type) ||
       (isWriteIntent(cmd) && !Vec(acquireExclusive, acquireInvalidateOthers).contains(outstanding.a_type)) 
 
   def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) =
@@ -690,7 +690,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
 
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
     ClientMetadata(
-      Mux(incoming.uncached, clientInvalid,
+      Mux(incoming.builtin_type, clientInvalid,
         MuxLookup(incoming.g_type, clientInvalid, Array(
           grantShared       -> clientShared,
           grantExclusive    -> MuxLookup(outstanding.a_type, clientExclusiveDirty, Array(
@@ -725,7 +725,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   }
 
   def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
-    Mux(g.uncached, 
+    Mux(g.builtin_type, 
       ManagerMetadata(managerValid, meta.sharers),
       ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
 
@@ -774,14 +774,14 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
   def getGrantType(a: Acquire, meta: ManagerMetadata): UInt =
-    Mux(a.uncached, Grant.getGrantTypeForUncached(a),
+    Mux(a.builtin_type, Grant.getGrantTypeForUncached(a),
       MuxLookup(a.a_type, grantShared, Array(
         acquireShared    -> Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
         acquireExclusive -> grantExclusive,                                            
         acquireInvalidateOthers -> grantExclusiveAck)))  //TODO: add this to MESI for broadcast?
 
   def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
-    Mux(a.uncached, 
+    Mux(a.builtin_type, 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.uncachedReadBlock -> probeCopy, 
         Acquire.uncachedWriteBlock -> probeInvalidate,
@@ -799,15 +799,15 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
       M_PRODUCE -> probeDowngrade))
 
   def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) =
-    Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), acq.a_type != acquireInvalidateOthers)
+    Mux(acq.builtin_type, Acquire.requiresOuterRead(acq.a_type), acq.a_type != acquireInvalidateOthers)
 
   def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
-    Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
+    Mux(acq.builtin_type, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
   def requiresProbes(a: Acquire, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false),
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
-        Mux(a.uncached, a.hasData(), a.a_type != acquireShared)))
+        Mux(a.builtin_type, a.hasData(), a.a_type != acquireShared)))
 
   def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 }
