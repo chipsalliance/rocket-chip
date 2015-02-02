@@ -16,7 +16,6 @@ trait MemoryOpConstants {
   val MT_BU = Bits("b100")
   val MT_HU = Bits("b101")
   val MT_WU = Bits("b110")
-  val MT_CB = Bits("b111") // cache block
 
   val NUM_XA_OPS = 9
   val M_SZ      = 5
@@ -37,8 +36,9 @@ trait MemoryOpConstants {
   val M_XA_MAX  = Bits("b01101");
   val M_XA_MINU = Bits("b01110");
   val M_XA_MAXU = Bits("b01111");
-  val M_INV     = Bits("b10000"); // write back and invalidate line
-  val M_CLN     = Bits("b10001"); // write back line
+  val M_FLUSH   = Bits("b10000") // write back dirty data and cede R/W permissions
+  val M_PRODUCE = Bits("b10001") // write back dirty data and cede W permissions
+  val M_CLEAN   = Bits("b10011") // write back dirty data and retain R/W permissions
 
   def isAMO(cmd: Bits) = cmd(3) || cmd === M_XA_SWAP
   def isPrefetch(cmd: Bits) = cmd === M_PFR || cmd === M_PFW

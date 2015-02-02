@@ -34,7 +34,7 @@ object ZCounter {
   }
 }
 
-class FlowThroughSerializer[T <: HasTileLinkData](gen: LogicalNetworkIO[T], n: Int, doSer: T => Bool) extends Module {
+class FlowThroughSerializer[T <: HasTileLinkData](gen: LogicalNetworkIO[T], n: Int) extends Module {
   val io = new Bundle {
     val in = Decoupled(gen.clone).flip
     val out = Decoupled(gen.clone)
@@ -65,12 +65,12 @@ class FlowThroughSerializer[T <: HasTileLinkData](gen: LogicalNetworkIO[T], n: I
     io.out.valid := active || io.in.valid
     io.out.bits := io.in.bits
     when(!active && io.in.valid) {
-      when(doSer(io.in.bits.payload)) {
+      when(io.in.bits.payload.hasData()) {
         cnt := Mux(io.out.ready, UInt(1), UInt(0))
         rbits := io.in.bits
         active := Bool(true)
       }
-      io.done := !doSer(io.in.bits.payload)
+      io.done := !io.in.bits.payload.hasData()
     }
     when(active) {
       io.out.bits := rbits

@@ -136,7 +136,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     mem_acked := Bool(true)
     mem_gxid := io.mem.grant.bits.payload.manager_xact_id
     mem_gsrc := io.mem.grant.bits.header.src
-    mem_needs_ack := co.requiresAckForGrant(io.mem.grant.bits.payload)
+    mem_needs_ack := io.mem.grant.bits.payload.requiresAck()
   }
   io.mem.grant.ready := Bool(true)
 
@@ -184,22 +184,26 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     state := Mux(cmd === cmd_readmem && pos != UInt(0), state_mem_rreq, state_rx)
   }
 
-  var mem_req_data: UInt = null
-  for (i <- 0 until dataBits/short_request_bits) {
-    val idx = Cat(cnt, UInt(i, log2Up(dataBits/short_request_bits)))
+  val n = dataBits/short_request_bits
+  val mem_req_data = (0 until n).map { i =>
+    val ui = UInt(i, log2Up(n))
     when (state === state_mem_rresp && io.mem.grant.valid) {
-      packet_ram(idx) := io.mem.grant.bits.payload.data((i+1)*short_request_bits-1, i*short_request_bits)
+      packet_ram(Cat(io.mem.grant.bits.payload.addr_beat, ui)) := 
+        io.mem.grant.bits.payload.data((i+1)*short_request_bits-1, i*short_request_bits)
     }
-    mem_req_data = Cat(packet_ram(idx), mem_req_data)
-  }
+    packet_ram(Cat(cnt, ui))
+  }.reverse.reduce(_##_)
+
   val init_addr = addr.toUInt >> UInt(offsetBits-3)
   io.mem.acquire.valid := state === state_mem_rreq || state === state_mem_wreq
   io.mem.acquire.bits.payload := Mux(cmd === cmd_writemem, 
-    UncachedWrite(init_addr, mem_req_data), 
-    UncachedRead(init_addr))
+    UncachedWriteBlock(
+      addr_block = init_addr,
+      addr_beat = cnt,
+      client_xact_id = UInt(0),
+      data = mem_req_data), 
+    UncachedReadBlock(addr_block = init_addr))
   io.mem.acquire.bits.payload.data := mem_req_data
-  io.mem.acquire.bits.header.src := UInt(params(LNClients)) // By convention HTIF is the client with the largest id
-  io.mem.acquire.bits.header.dst := UInt(0) // DNC; Overwritten outside module
   io.mem.finish.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.finish.bits.payload.manager_xact_id := mem_gxid
   io.mem.finish.bits.header.dst := mem_gsrc

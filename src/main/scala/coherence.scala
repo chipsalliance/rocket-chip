@@ -3,7 +3,6 @@
 package uncore
 import Chisel._
 
-
 // Classes to represent coherence information in clients and managers
 abstract class CoherenceMetadata extends Bundle with CoherenceAgentParameters
 
@@ -14,9 +13,9 @@ class ClientMetadata extends CoherenceMetadata {
 }
 object ClientMetadata {
   def apply(state: UInt) = {
-    val m = new ClientMetadata
-    m.state := state
-    m
+    val meta = new ClientMetadata
+    meta.state := state
+    meta
   }
 }
 
@@ -27,10 +26,10 @@ class ManagerMetadata extends CoherenceMetadata {
 }
 object ManagerMetadata {
   def apply(state: UInt, sharers: UInt) = {
-    val m = new ManagerMetadata
-    m.state := state
-    m.sharers := sharers
-    m
+    val meta = new ManagerMetadata
+    meta.state := state
+    meta.sharers := sharers
+    meta
   }
   def apply(state: UInt): ManagerMetadata = apply(state, new ManagerMetadata().co.dir.flush)
 }
@@ -85,56 +84,59 @@ abstract class CoherencePolicy(val dir: DirectoryRepresentation) {
   def releaseTypeWidth = log2Up(nReleaseTypes)
   def grantTypeWidth = log2Up(nGrantTypes)
 
-  def isHit (cmd: UInt, m: ClientMetadata): Bool
-  def isValid (m: ClientMetadata): Bool
-  def isHit (incoming: Acquire, m: ManagerMetadata): Bool
-  def isValid (m: ManagerMetadata): Bool
+  val clientStatesWithReadPermission: Vec[UInt]
+  val clientStatesWithWritePermission: Vec[UInt]
+  val clientStatesWithDirtyData: Vec[UInt]
+  val acquireTypesWithData = Nil // Only built-in Acquire types have data for now
+  val releaseTypesWithData: Vec[UInt] 
+  val grantTypesWithData: Vec[UInt]
+
+  def isValid(meta: ClientMetadata): Bool
+  def isValid(meta: ManagerMetadata): Bool
+
+  def isHit(cmd: UInt, meta: ClientMetadata): Bool = {
+    Mux(isWriteIntent(cmd), 
+      clientStatesWithWritePermission.contains(meta.state),
+      clientStatesWithReadPermission.contains(meta.state))
+  }
+  //TODO: Use outer protocol's clientState instead, remove this function:
+  def isHit(incoming: Acquire, meta: ManagerMetadata) = isValid(meta)
 
   def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool
-  def needsTransactionOnCacheControl(cmd: UInt, m: ClientMetadata): Bool
-  def needsWriteback(m: ClientMetadata): Bool
-  def needsWriteback(m: ManagerMetadata): Bool
+  //TODO: Assumes all cache ctrl ops writeback dirty data, and
+  //      doesn't issue transaction when e.g. downgrading Exclusive to Shared:
+  def needsTransactionOnCacheControl(cmd: UInt, meta: ClientMetadata): Bool =
+    clientStatesWithDirtyData.contains(meta.state) 
+  def needsWriteback(meta: ClientMetadata): Bool =
+    needsTransactionOnCacheControl(M_FLUSH, meta)
 
-  def clientMetadataOnHit(cmd: UInt, m: ClientMetadata): ClientMetadata
-  def clientMetadataOnCacheControl(cmd: UInt): ClientMetadata 
-  def clientMetadataOnFlush: ClientMetadata 
   def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire): ClientMetadata 
-  def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata): ClientMetadata 
-  def managerMetadataOnFlush: ManagerMetadata 
-  def managerMetadataOnRelease(incoming: Release, m: ManagerMetadata, src: UInt): ManagerMetadata
-  def managerMetadataOnGrant(outgoing: Grant, m: ManagerMetadata, dst: UInt): ManagerMetadata
+  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata): ClientMetadata 
+  def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata): ClientMetadata
+  def clientMetadataOnCacheControl(cmd: UInt, meta: ClientMetadata): ClientMetadata 
+  def clientMetadataOnFlush: ClientMetadata
 
-  def getAcquireTypeOnPrimaryMiss(cmd: UInt, m: ClientMetadata): UInt
-  def getAcquireTypeOnSecondaryMiss(cmd: UInt, m: ClientMetadata, outstanding: Acquire): UInt
-  def getProbeType(a: Acquire, m: ManagerMetadata): UInt
-  def getProbeTypeOnVoluntaryWriteback: UInt
-  def getReleaseTypeOnCacheControl(cmd: UInt): UInt
-  def getReleaseTypeOnVoluntaryWriteback(): UInt
-  def getReleaseTypeOnProbe(p: Probe, m: ClientMetadata): UInt
-  def getGrantType(a: Acquire, m: ManagerMetadata): UInt
-  def getGrantTypeOnVoluntaryWriteback(m: ManagerMetadata): UInt
+  def managerMetadataOnRelease(incoming: Release, meta: ManagerMetadata, src: UInt): ManagerMetadata
+  def managerMetadataOnGrant(outgoing: Grant, meta: ManagerMetadata, dst: UInt): ManagerMetadata
+  def managerMetadataOnCacheControl(cmd: UInt, meta: ManagerMetadata): ManagerMetadata 
+  def managerMetadataOnFlush: ManagerMetadata
 
-  def messageHasData(rel: TileLinkChannel): Bool
-  def messageUpdatesDataArray(g: Grant): Bool
-  def isVoluntary(rel: Release): Bool
-  def isVoluntary(gnt: Grant): Bool
-  def requiresOuterRead(acq: Acquire, m: ManagerMetadata): Bool
-  def requiresOuterWrite(acq: Acquire, m: ManagerMetadata): Bool
-  def requiresSelfProbe(a: Acquire): Bool
-  def requiresProbes(a: Acquire, m: ManagerMetadata): Bool
-  def requiresProbesOnVoluntaryWriteback(m: ManagerMetadata): Bool
-  def requiresAckForGrant(g: Grant): Bool
-  def requiresAckForRelease(r: Release): Bool
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, meta: ClientMetadata): UInt
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, meta: ClientMetadata, outstanding: Acquire): UInt
+  def getReleaseType(p: Probe, meta: ClientMetadata): UInt
+  def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt
+
+  def getGrantType(acq: Acquire, meta: ManagerMetadata): UInt
+  def getProbeType(acq: Acquire, meta: ManagerMetadata): UInt
+  def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt
+
+  def requiresOuterRead(acq: Acquire, meta: ManagerMetadata): Bool
+  def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata): Bool
+  def requiresProbes(acq: Acquire, meta: ManagerMetadata): Bool
+  def requiresProbes(cmd: UInt, meta: ManagerMetadata): Bool
+  def requiresProbesOnVoluntaryWriteback(meta: ManagerMetadata): Bool = requiresProbes(M_FLUSH, meta)
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool
-
-  def getGrantTypeForUncached(a: Acquire, m: ManagerMetadata): UInt = {
-    MuxLookup(a.a_type, Grant.uncachedRead, Array(
-      Acquire.uncachedRead -> Grant.uncachedRead,
-      Acquire.uncachedWrite -> Grant.uncachedWrite,
-      Acquire.uncachedAtomic -> Grant.uncachedAtomic
-    ))
-  }
 }
 
 class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
@@ -142,123 +144,105 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def nManagerStates = 2
   def nAcquireTypes = 1
   def nProbeTypes = 2
-  def nReleaseTypes = 5
-  def nGrantTypes = 2
+  def nReleaseTypes = 4
+  def nGrantTypes = 1
 
   val clientInvalid :: clientValid :: Nil = Enum(UInt(), nClientStates)
-  val masterInvalid :: masterValid :: Nil = Enum(UInt(), nManagerStates)
+  val managerInvalid :: managerValid :: Nil = Enum(UInt(), nManagerStates)
 
-  val acquireReadExclusive :: Nil = Enum(UInt(), nAcquireTypes)
+  val acquireExclusive :: Nil = Enum(UInt(), nAcquireTypes)
   val probeInvalidate :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
-  val grantVoluntaryAck :: grantReadExclusive :: Nil = Enum(UInt(), nGrantTypes)
+  val releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantExclusive :: Nil = Enum(UInt(), nGrantTypes)
 
-  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseCopyData)
-  val hasDataGrantTypeVec = Vec(grantReadExclusive)
+  val clientStatesWithReadPermission = Vec(clientValid)
+  val clientStatesWithWritePermission = Vec(clientValid)
+  val clientStatesWithDirtyData = Vec(clientValid)
+  val releaseTypesWithData = Vec(releaseInvalidateData, releaseCopyData)
+  val grantTypesWithData = Vec(grantExclusive)
 
-  def isHit (cmd: UInt, m: ClientMetadata): Bool = isValid(m)
-  def isValid (m: ClientMetadata): Bool = m.state != clientInvalid
-  def isHit (incoming: Acquire, m: ManagerMetadata): Bool = isValid(m)
-  def isValid (m: ManagerMetadata): Bool = m.state != masterInvalid
+  def isValid (meta: ClientMetadata): Bool = meta.state != clientInvalid
+  def isValid (meta: ManagerMetadata): Bool = meta.state != managerInvalid
 
-  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = (outstanding.a_type != acquireReadExclusive)
-  def needsTransactionOnCacheControl(cmd: UInt, m: ClientMetadata): Bool = {
-    MuxLookup(cmd, (m.state === clientValid), Array(
-      M_INV -> (m.state === clientValid),
-      M_CLN -> (m.state === clientValid)
-    ))
-  }
-  def needsWriteback (m: ClientMetadata): Bool = {
-    needsTransactionOnCacheControl(M_INV, m)
-  }
-  def needsWriteback(m: ManagerMetadata) = isValid(m)
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = 
+    (outstanding.a_type != acquireExclusive)
 
-  def clientMetadataOnHit(cmd: UInt, m: ClientMetadata) = m
-  def clientMetadataOnCacheControl(cmd: UInt) = ClientMetadata(
-    MuxLookup(cmd, clientInvalid, Array(
-      M_INV -> clientInvalid,
-      M_CLN -> clientValid
-    )))
-  def clientMetadataOnFlush = clientMetadataOnCacheControl(M_INV)
-  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = 
+  def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) = meta
+
+  def clientMetadataOnFlush = ClientMetadata(clientInvalid)
+  def clientMetadataOnCacheControl(cmd: UInt, meta: ClientMetadata) =
+    ClientMetadata(Mux(cmd === M_FLUSH, clientInvalid, meta.state))
+
+  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
     ClientMetadata(Mux(incoming.uncached, clientInvalid, clientValid))
-  def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
-    MuxLookup(incoming.p_type, m.state, Array(
-      probeInvalidate -> clientInvalid,
-      probeCopy       -> m.state
-    )))
-  def managerMetadataOnFlush = ManagerMetadata(masterInvalid)
-  def managerMetadataOnRelease(r: Release, m: ManagerMetadata, src: UInt) = {
-    val next = ManagerMetadata(masterValid, dir.pop(m.sharers, src))
-    MuxBundle(m, Array(
-      r.is(releaseVoluntaryInvalidateData) -> next,
+
+  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) =
+    ClientMetadata(Mux(incoming.p_type === probeInvalidate,
+                       clientInvalid, meta.state))
+
+  def managerMetadataOnRelease(r: Release, meta: ManagerMetadata, src: UInt) = {
+    val next = ManagerMetadata(managerValid, dir.pop(meta.sharers, src))
+    MuxBundle(meta, Array(
       r.is(releaseInvalidateData) -> next,
       r.is(releaseInvalidateAck) -> next
     ))
   }
-  def managerMetadataOnGrant(g: Grant, m: ManagerMetadata, dst: UInt) = {
-    val cached = ManagerMetadata(masterValid, dir.push(m.sharers, dst))
-    val uncached = ManagerMetadata(masterValid, m.sharers)
-    Mux(g.uncached, uncached, cached)
+
+  def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
+    Mux(g.uncached, 
+      ManagerMetadata(managerValid, meta.sharers),
+      ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
+
+  def managerMetadataOnFlush = ManagerMetadata(managerInvalid)
+
+  def managerMetadataOnCacheControl(cmd: UInt, meta: ManagerMetadata) =
+    ManagerMetadata(Mux(cmd === M_FLUSH, managerInvalid, meta.state))
+
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, meta: ClientMetadata): UInt = acquireExclusive
+
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, meta: ClientMetadata, outstanding: Acquire): UInt = acquireExclusive
+
+  def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
+    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    MuxLookup(cmd, releaseCopyAck, Array(
+      M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
+      M_PRODUCE -> Mux(dirty, releaseCopyData, releaseCopyAck),
+      M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
 
-  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
-  def isVoluntary(gnt: Grant) = !gnt.uncached && gnt.g_type === grantVoluntaryAck
-
-  def getAcquireTypeOnPrimaryMiss(cmd: UInt, m: ClientMetadata): UInt = acquireReadExclusive
-  def getAcquireTypeOnSecondaryMiss(cmd: UInt, m: ClientMetadata, outstanding: Acquire): UInt = acquireReadExclusive
-  def getReleaseTypeOnCacheControl(cmd: UInt): UInt = releaseVoluntaryInvalidateData // TODO
-  def getReleaseTypeOnVoluntaryWriteback(): UInt = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, m: ClientMetadata): UInt = {
-    val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
-      probeInvalidate -> releaseInvalidateData,
-      probeCopy       -> releaseCopyData
-    ))
-    val without_data = MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
-      probeInvalidate -> releaseInvalidateAck,
-      probeCopy       -> releaseCopyAck
-    ))
-    Mux(needsWriteback(m), with_data, without_data)
-  }
-
-  def messageHasData(msg: TileLinkChannel) = msg match {
-    case acq: Acquire => Mux(acq.uncached, Acquire.hasData(acq.a_type), Bool(false))
-    case gnt: Grant => Mux(gnt.uncached, Grant.hasData(gnt.g_type), hasDataGrantTypeVec.contains(gnt.g_type))
-    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
-    case _ => Bool(false)
-  }
-  def messageUpdatesDataArray(g: Grant): Bool = {
-    Mux(g.uncached, Bool(false), 
-      (g.g_type === grantReadExclusive))
-  }
+  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt =
+    MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
+      probeInvalidate -> getReleaseType(M_FLUSH, meta),
+      probeCopy       -> getReleaseType(M_CLEAN, meta)))
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a: Acquire, m: ManagerMetadata): UInt = 
-    Mux(a.uncached, getGrantTypeForUncached(a, m), grantReadExclusive)
+  def getGrantType(a: Acquire, meta: ManagerMetadata): UInt = 
+    Mux(a.uncached, Grant.getGrantTypeForUncached(a), grantExclusive)
 
-  def getGrantTypeOnVoluntaryWriteback(m: ManagerMetadata): UInt = grantVoluntaryAck
-
-  def getProbeType(a: Acquire, m: ManagerMetadata): UInt = {
+  def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
     Mux(a.uncached, 
       MuxLookup(a.a_type, probeCopy, Array(
+        Acquire.uncachedReadBlock -> probeCopy, 
+        Acquire.uncachedWriteBlock -> probeInvalidate,
         Acquire.uncachedRead -> probeCopy, 
         Acquire.uncachedWrite -> probeInvalidate,
         Acquire.uncachedAtomic -> probeInvalidate
       )), probeInvalidate)
-  }
 
-  def getProbeTypeOnVoluntaryWriteback: UInt = probeInvalidate
-  def requiresOuterRead(acq: Acquire, m: ManagerMetadata) = 
+  def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt =
+    MuxLookup(cmd, probeCopy, Array(
+      M_FLUSH -> probeInvalidate))
+
+  def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) = 
     Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), Bool(true))
-  def requiresOuterWrite(acq: Acquire, m: ManagerMetadata) =
+
+  def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
     Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
-  def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
-  def requiresAckForRelease(r: Release) = Bool(false)
-  def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: ManagerMetadata) = !dir.none(m.sharers)
-  def requiresProbesOnVoluntaryWriteback(m: ManagerMetadata) = !dir.none(m.sharers)
+  def requiresProbes(a: Acquire, meta: ManagerMetadata) = !dir.none(meta.sharers)
+
+  def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 }
 
 class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
@@ -266,137 +250,123 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def nManagerStates = 2
   def nAcquireTypes = 2
   def nProbeTypes = 3
-  def nReleaseTypes = 7
-  def nGrantTypes = 2
+  def nReleaseTypes = 6
+  def nGrantTypes = 1
 
   val clientInvalid :: clientExclusiveClean :: clientExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
-  val masterInvalid :: masterValid :: Nil = Enum(UInt(), nManagerStates)
+  val managerInvalid :: managerValid :: Nil = Enum(UInt(), nManagerStates)
 
-  val acquireReadExclusiveClean :: acquireReadExclusiveDirty :: Nil = Enum(UInt(), nAcquireTypes)
+  val acquireExclusiveClean :: acquireExclusiveDirty :: Nil = Enum(UInt(), nAcquireTypes)
   val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
-  val grantVoluntaryAck :: grantReadExclusive :: Nil = Enum(UInt(), nGrantTypes)
+  val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantExclusive :: Nil = Enum(UInt(), nGrantTypes)
 
-  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  val hasDataGrantTypeVec = Vec(grantReadExclusive)
+  val clientStatesWithReadPermission = Vec(clientExclusiveClean, clientExclusiveDirty)
+  val clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
+  val clientStatesWithDirtyData = Vec(clientExclusiveDirty)
+  val releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  val grantTypesWithData = Vec(grantExclusive)
 
-  def isHit (cmd: UInt, m: ClientMetadata) = isValid(m)
-  def isValid (m: ClientMetadata) = m.state != clientInvalid
-  def isHit (incoming: Acquire, m: ManagerMetadata) = isValid(m)
-  def isValid (m: ManagerMetadata) = m.state != masterInvalid
+  def isValid (meta: ClientMetadata) = meta.state != clientInvalid
+  def isValid (meta: ManagerMetadata) = meta.state != managerInvalid
 
-  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = {
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool =
     (isRead(cmd) && outstanding.uncached) ||
-      (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusiveDirty))
-  }
-  def needsTransactionOnCacheControl(cmd: UInt, m: ClientMetadata): Bool = {
-    MuxLookup(cmd, (m.state === clientExclusiveDirty), Array(
-      M_INV -> (m.state === clientExclusiveDirty),
-      M_CLN -> (m.state === clientExclusiveDirty)
-    ))
-  }
-  def needsWriteback (m: ClientMetadata): Bool = {
-    needsTransactionOnCacheControl(M_INV, m)
-  }
-  def needsWriteback(m: ManagerMetadata) = isValid(m)
+      (isWriteIntent(cmd) && (outstanding.a_type != acquireExclusiveDirty))
 
-  def clientMetadataOnHit(cmd: UInt, m: ClientMetadata) = 
-    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, m.state))
-  
-  def clientMetadataOnCacheControl(cmd: UInt) = ClientMetadata(
-    MuxLookup(cmd, clientInvalid, Array(
-      M_INV -> clientInvalid,
-      M_CLN -> clientExclusiveClean
-    )))
-  def clientMetadataOnFlush() = clientMetadataOnCacheControl(M_INV)
-  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = ClientMetadata(
-    Mux(incoming.uncached, clientInvalid,
-      Mux(outstanding.a_type === acquireReadExclusiveDirty, clientExclusiveDirty, 
-        clientExclusiveClean)))
-  def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
-    MuxLookup(incoming.p_type, m.state, Array(
-      probeInvalidate -> clientInvalid,
-      probeDowngrade  -> clientExclusiveClean,
-      probeCopy       -> m.state
-    )))
-  def managerMetadataOnFlush = ManagerMetadata(masterInvalid)
-  def managerMetadataOnRelease(r: Release, m: ManagerMetadata, src: UInt) = {
-    val next = ManagerMetadata(masterValid, dir.pop(m.sharers,src))
-    MuxBundle(m, Array(
-      r.is(releaseVoluntaryInvalidateData) -> next,
+  def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) = 
+    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, meta.state))
+
+  def clientMetadataOnFlush = ClientMetadata(clientInvalid)
+  def clientMetadataOnCacheControl(cmd: UInt, meta: ClientMetadata) =
+    ClientMetadata(
+      MuxLookup(cmd, meta.state, Array(
+        M_FLUSH -> clientInvalid,
+        M_CLEAN -> Mux(meta.state === clientExclusiveDirty, clientExclusiveClean, meta.state))))
+
+  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
+    ClientMetadata(
+      Mux(incoming.uncached, clientInvalid,
+        Mux(outstanding.a_type === acquireExclusiveDirty, clientExclusiveDirty, 
+          clientExclusiveClean)))
+
+  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) =
+    ClientMetadata(
+      MuxLookup(incoming.p_type, meta.state, Array(
+        probeInvalidate -> clientInvalid,
+        probeDowngrade  -> clientExclusiveClean,
+        probeCopy       -> meta.state)))
+
+  def managerMetadataOnRelease(r: Release, meta: ManagerMetadata, src: UInt) = {
+    val next = ManagerMetadata(managerValid, dir.pop(meta.sharers,src))
+    MuxBundle(meta, Array(
       r.is(releaseInvalidateData) -> next,
       r.is(releaseInvalidateAck) -> next
     ))
   }
-  def managerMetadataOnGrant(g: Grant, m: ManagerMetadata, dst: UInt) = {
-    val cached = ManagerMetadata(masterValid, dir.push(m.sharers, dst))
-    val uncached = ManagerMetadata(masterValid, m.sharers)
-    Mux(g.uncached, uncached, cached)
+
+  def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
+    Mux(g.uncached, 
+      ManagerMetadata(managerValid, meta.sharers),
+      ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
+
+  def managerMetadataOnFlush = ManagerMetadata(managerInvalid)
+
+  def managerMetadataOnCacheControl(cmd: UInt, meta: ManagerMetadata) = 
+    ManagerMetadata(Mux(cmd === M_FLUSH, managerInvalid, meta.state))
+
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, meta: ClientMetadata): UInt =
+    Mux(isWriteIntent(cmd), acquireExclusiveDirty, acquireExclusiveClean)
+
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, meta: ClientMetadata, outstanding: Acquire): UInt =
+    Mux(isWriteIntent(cmd), acquireExclusiveDirty, outstanding.a_type)
+
+  def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
+    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    MuxLookup(cmd, releaseCopyAck, Array(
+      M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
+      M_PRODUCE -> Mux(dirty, releaseDowngradeData, releaseDowngradeAck),
+      M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
 
-  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
-  def isVoluntary(gnt: Grant) = !gnt.uncached && gnt.g_type === grantVoluntaryAck
-
-  def getAcquireTypeOnPrimaryMiss(cmd: UInt, m: ClientMetadata): UInt = {
-    Mux(isWriteIntent(cmd), acquireReadExclusiveDirty, acquireReadExclusiveClean)
-  }
-  def getAcquireTypeOnSecondaryMiss(cmd: UInt, m: ClientMetadata, outstanding: Acquire): UInt = {
-    Mux(isWriteIntent(cmd), acquireReadExclusiveDirty, outstanding.a_type)
-  }
-  def getReleaseTypeOnCacheControl(cmd: UInt): UInt = releaseVoluntaryInvalidateData // TODO
-  def getReleaseTypeOnVoluntaryWriteback(): UInt = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, m: ClientMetadata): UInt = {
-    val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
-      probeInvalidate -> releaseInvalidateData,
-      probeDowngrade  -> releaseDowngradeData,
-      probeCopy       -> releaseCopyData
-    ))
-    val without_data = MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
-      probeInvalidate -> releaseInvalidateAck,
-      probeDowngrade  -> releaseDowngradeAck,
-      probeCopy       -> releaseCopyAck
-    ))
-    Mux(needsWriteback(m), with_data, without_data)
-  }
-
-  def messageHasData(msg: TileLinkChannel) = msg match {
-    case acq: Acquire => Mux(acq.uncached, Acquire.hasData(acq.a_type), Bool(false))
-    case gnt: Grant => Mux(gnt.uncached, Grant.hasData(gnt.g_type), hasDataGrantTypeVec.contains(gnt.g_type))
-    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
-    case _ => Bool(false)
-  }
-  def messageUpdatesDataArray(g: Grant): Bool = {
-    Mux(g.uncached, Bool(false), 
-      (g.g_type === grantReadExclusive))
-  }
+  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt =
+    MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
+      probeInvalidate -> getReleaseType(M_FLUSH, meta),
+      probeDowngrade  -> getReleaseType(M_PRODUCE, meta),
+      probeCopy       -> getReleaseType(M_CLEAN, meta)))
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a: Acquire, m: ManagerMetadata): UInt = {
-    Mux(a.uncached, getGrantTypeForUncached(a, m), grantReadExclusive)
-  }
-  def getGrantTypeOnVoluntaryWriteback(m: ManagerMetadata): UInt = grantVoluntaryAck
+  def getGrantType(a: Acquire, meta: ManagerMetadata): UInt =
+    Mux(a.uncached, Grant.getGrantTypeForUncached(a), grantExclusive)
 
-  def getProbeType(a: Acquire, m: ManagerMetadata): UInt = {
+  def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
     Mux(a.uncached, 
       MuxLookup(a.a_type, probeCopy, Array(
+        Acquire.uncachedReadBlock -> probeCopy, 
+        Acquire.uncachedWriteBlock -> probeInvalidate,
         Acquire.uncachedRead -> probeCopy, 
         Acquire.uncachedWrite -> probeInvalidate,
-        Acquire.uncachedAtomic -> probeInvalidate
-      )), probeInvalidate)
-  }
-  def getProbeTypeOnVoluntaryWriteback: UInt = probeInvalidate
+        Acquire.uncachedAtomic -> probeInvalidate)),
+      probeInvalidate)
 
-  def requiresOuterRead(acq: Acquire, m: ManagerMetadata) = 
+  def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt =
+    MuxLookup(cmd, probeCopy, Array(
+      M_FLUSH -> probeInvalidate,
+      M_PRODUCE -> probeDowngrade))
+
+  def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) = 
     Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), Bool(true))
-  def requiresOuterWrite(acq: Acquire, m: ManagerMetadata) =
+
+  def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
     Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
-  def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
-  def requiresAckForRelease(r: Release) = Bool(false)
-  def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: ManagerMetadata) = !dir.none(m.sharers)
-  def requiresProbesOnVoluntaryWriteback(m: ManagerMetadata) = !dir.none(m.sharers)
+  def requiresProbes(a: Acquire, meta: ManagerMetadata) =
+    Mux(dir.none(meta.sharers), Bool(false), 
+      Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
+        Mux(a.uncached, a.hasData(), Bool(true))))
+
+  def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 }
 
 class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
@@ -404,152 +374,133 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def nManagerStates = 2
   def nAcquireTypes = 2
   def nProbeTypes = 3
-  def nReleaseTypes = 7
+  def nReleaseTypes = 6
   def nGrantTypes = 3
 
   val clientInvalid :: clientShared :: clientExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
-  //val masterInvalid :: masterShared :: masterExclusive :: Nil = Enum(UInt(), nManagerStates)
-  val masterInvalid :: masterValid :: Nil = Enum(UInt(), nManagerStates)
+  //val managerInvalid :: masterShared :: masterExclusive :: Nil = Enum(UInt(), nManagerStates)
+  val managerInvalid :: managerValid :: Nil = Enum(UInt(), nManagerStates)
 
-  val acquireReadShared :: acquireReadExclusive :: Nil = Enum(UInt(), nAcquireTypes)
+  val acquireShared :: acquireExclusive :: Nil = Enum(UInt(), nAcquireTypes)
   val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
-  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: Nil = Enum(UInt(), nGrantTypes)
+  val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantShared :: grantExclusive :: grantExclusiveAck :: Nil = Enum(UInt(), nGrantTypes)
 
-  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  val hasDataGrantTypeVec = Vec(grantReadShared, grantReadExclusive)
+  val clientStatesWithReadPermission = Vec(clientShared, clientExclusiveDirty)
+  val clientStatesWithWritePermission = Vec(clientExclusiveDirty)
+  val clientStatesWithDirtyData = Vec(clientExclusiveDirty)
+  val releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  val grantTypesWithData = Vec(grantShared, grantExclusive)
 
-  def isHit (cmd: UInt, m: ClientMetadata): Bool = {
-    Mux(isWriteIntent(cmd), (m.state === clientExclusiveDirty),
-        (m.state === clientShared || m.state === clientExclusiveDirty))
-  }
-  def isValid (m: ClientMetadata): Bool = {
-    m.state != clientInvalid
-  }
-  def isHit (incoming: Acquire, m: ManagerMetadata) = isValid(m)
-  def isValid (m: ManagerMetadata) = m.state != masterInvalid
+  def isValid(meta: ClientMetadata): Bool = meta.state != clientInvalid
+  def isValid(meta: ManagerMetadata) = meta.state != managerInvalid
 
-  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = {
-    (isRead(cmd) && outstanding.uncached) || 
-      (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusive))
-  }
-  def needsTransactionOnCacheControl(cmd: UInt, m: ClientMetadata): Bool = {
-    MuxLookup(cmd, (m.state === clientExclusiveDirty), Array(
-      M_INV -> (m.state === clientExclusiveDirty),
-      M_CLN -> (m.state === clientExclusiveDirty)
-    ))
-  }
-  def needsWriteback (m: ClientMetadata): Bool = {
-    needsTransactionOnCacheControl(M_INV, m)
-  }
-  def needsWriteback(m: ManagerMetadata) = isValid(m)
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool =
+    (isRead(cmd) && outstanding.uncached) ||
+      (isWriteIntent(cmd) && (outstanding.a_type != acquireExclusive))
 
-  def clientMetadataOnHit(cmd: UInt, m: ClientMetadata) =
-    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, m.state))
-  def clientMetadataOnCacheControl(cmd: UInt) = ClientMetadata(
-    MuxLookup(cmd, clientInvalid, Array(
-      M_INV -> clientInvalid,
-      M_CLN -> clientShared
-    )))
-  def clientMetadataOnFlush() = clientMetadataOnCacheControl(M_INV)
-  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = ClientMetadata(
-    Mux(incoming.uncached, clientInvalid,
-      Mux(incoming.g_type === grantReadShared, clientShared, 
-        clientExclusiveDirty)))
-  def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
-    MuxLookup(incoming.p_type, m.state, Array(
-      probeInvalidate -> clientInvalid,
-      probeDowngrade  -> clientShared,
-      probeCopy       -> m.state
-    )))
-  def managerMetadataOnFlush = ManagerMetadata(masterInvalid)
-  def managerMetadataOnRelease(r: Release, m: ManagerMetadata, src: UInt) = {
-    val next = ManagerMetadata(masterValid, dir.pop(m.sharers,src))
-    MuxBundle(m, Array(
-      r.is(releaseVoluntaryInvalidateData) -> next,
+  def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) =
+    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, meta.state))
+
+  def clientMetadataOnFlush = ClientMetadata(clientInvalid)
+
+  def clientMetadataOnCacheControl(cmd: UInt, meta: ClientMetadata) =
+    ClientMetadata(
+      MuxLookup(cmd, meta.state, Array(
+        M_FLUSH   -> clientInvalid,
+        M_PRODUCE -> Mux(clientStatesWithWritePermission.contains(meta.state), 
+                      clientShared, meta.state))))
+
+  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
+    ClientMetadata(
+      Mux(incoming.uncached, clientInvalid,
+        MuxLookup(incoming.g_type, clientInvalid, Array(
+          grantShared -> clientShared,
+          grantExclusive -> clientExclusiveDirty,
+          grantExclusiveAck -> clientExclusiveDirty))))
+
+  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) = 
+    ClientMetadata(
+      MuxLookup(incoming.p_type, meta.state, Array(
+        probeInvalidate -> clientInvalid,
+        probeDowngrade  -> clientShared,
+        probeCopy       -> meta.state)))
+
+  def managerMetadataOnRelease(r: Release, meta: ManagerMetadata, src: UInt) = {
+    val next = ManagerMetadata(managerValid, dir.pop(meta.sharers,src))
+    MuxBundle(meta, Array(
       r.is(releaseInvalidateData) -> next,
       r.is(releaseInvalidateAck) -> next
     ))
   }
-  def managerMetadataOnGrant(g: Grant, m: ManagerMetadata, dst: UInt) = {
-    val cached = ManagerMetadata(masterValid, dir.push(m.sharers, dst))
-    val uncached = ManagerMetadata(masterValid, m.sharers)
-    Mux(g.uncached, uncached, cached)
+
+  def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
+    Mux(g.uncached, 
+      ManagerMetadata(managerValid, meta.sharers),
+      ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
+
+  def managerMetadataOnFlush = ManagerMetadata(managerInvalid)
+
+  def managerMetadataOnCacheControl(cmd: UInt, meta: ManagerMetadata) =
+    ManagerMetadata(Mux(cmd === M_FLUSH, managerInvalid, meta.state))
+
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, meta: ClientMetadata): UInt =
+    Mux(isWriteIntent(cmd), acquireExclusive, acquireShared)
+
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, meta: ClientMetadata, outstanding: Acquire): UInt =
+    Mux(isWriteIntent(cmd), acquireExclusive, outstanding.a_type)
+
+  def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
+    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    MuxLookup(cmd, releaseCopyAck, Array(
+      M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
+      M_PRODUCE -> Mux(dirty, releaseDowngradeData, releaseDowngradeAck),
+      M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
 
-  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
-  def isVoluntary(gnt: Grant) = !gnt.uncached && gnt.g_type === grantVoluntaryAck
-
-  def getAcquireTypeOnPrimaryMiss(cmd: UInt, m: ClientMetadata): UInt = {
-    Mux(isWriteIntent(cmd), acquireReadExclusive, acquireReadShared)
-  }
-  def getAcquireTypeOnSecondaryMiss(cmd: UInt, m: ClientMetadata, outstanding: Acquire): UInt = {
-    Mux(isWriteIntent(cmd), acquireReadExclusive, outstanding.a_type)
-  }
-  def getReleaseTypeOnCacheControl(cmd: UInt): UInt = releaseVoluntaryInvalidateData // TODO
-  def getReleaseTypeOnVoluntaryWriteback(): UInt = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, m: ClientMetadata): UInt = {
-    val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
-      probeInvalidate -> releaseInvalidateData,
-      probeDowngrade  -> releaseDowngradeData,
-      probeCopy       -> releaseCopyData
-    ))
-    val without_data = MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
-      probeInvalidate -> releaseInvalidateAck,
-      probeDowngrade  -> releaseDowngradeAck,
-      probeCopy       -> releaseCopyAck
-    ))
-    Mux(needsWriteback(m), with_data, without_data)
-  }
-
-  def messageHasData(msg: TileLinkChannel) = msg match {
-    case acq: Acquire => Mux(acq.uncached, Acquire.hasData(acq.a_type), Bool(false))
-    case gnt: Grant => Mux(gnt.uncached, Grant.hasData(gnt.g_type), hasDataGrantTypeVec.contains(gnt.g_type))
-    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
-    case _ => Bool(false)
-  }
-  def messageUpdatesDataArray(g: Grant): Bool = {
-    Mux(g.uncached, Bool(false), 
-      (g.g_type === grantReadShared || g.g_type === grantReadExclusive))
-  }
+  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt =
+    MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
+      probeInvalidate -> getReleaseType(M_FLUSH, meta),
+      probeDowngrade  -> getReleaseType(M_PRODUCE, meta),
+      probeCopy       -> getReleaseType(M_CLEAN, meta)))
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a: Acquire, m: ManagerMetadata): UInt = {
-    Mux(a.uncached, getGrantTypeForUncached(a, m),
-      Mux(a.a_type === acquireReadShared,
-        Mux(!dir.none(m.sharers), grantReadShared, grantReadExclusive),
-        grantReadExclusive))
-  }
-  def getGrantTypeOnVoluntaryWriteback(m: ManagerMetadata): UInt = grantVoluntaryAck
+  def getGrantType(a: Acquire, meta: ManagerMetadata): UInt =
+    Mux(a.uncached, Grant.getGrantTypeForUncached(a),
+      Mux(a.a_type === acquireShared,
+        Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
+        grantExclusive))
 
-  def getProbeType(a: Acquire, m: ManagerMetadata): UInt = {
+  def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
     Mux(a.uncached, 
       MuxLookup(a.a_type, probeCopy, Array(
+        Acquire.uncachedReadBlock -> probeCopy, 
+        Acquire.uncachedWriteBlock -> probeInvalidate,
         Acquire.uncachedRead -> probeCopy, 
         Acquire.uncachedWrite -> probeInvalidate,
-        Acquire.uncachedAtomic -> probeInvalidate
-      )),
-      MuxLookup(a.a_type, probeInvalidate, Array(
-        acquireReadShared -> probeDowngrade,
-        acquireReadExclusive -> probeInvalidate
-      )))
-  }
-  def getProbeTypeOnVoluntaryWriteback: UInt = probeInvalidate
+        Acquire.uncachedAtomic -> probeInvalidate)),
+      MuxLookup(a.a_type, probeCopy, Array(
+        acquireShared -> probeDowngrade,
+        acquireExclusive -> probeInvalidate)))
 
-  def requiresOuterRead(acq: Acquire, m: ManagerMetadata) = 
+  def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt =
+    MuxLookup(cmd, probeCopy, Array(
+      M_FLUSH -> probeInvalidate,
+      M_PRODUCE -> probeDowngrade))
+
+  def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) =
     Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), Bool(true))
-  def requiresOuterWrite(acq: Acquire, m: ManagerMetadata) =
+
+  def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
     Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
-  def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
-  def requiresAckForRelease(r: Release) = Bool(false)
-  def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: ManagerMetadata) = !dir.none(m.sharers) &&
-    Mux(dir.one(m.sharers), Bool(true),
-      Mux(a.uncached, a.a_type != Acquire.uncachedRead,
-        a.a_type != acquireReadShared))
-  def requiresProbesOnVoluntaryWriteback(m: ManagerMetadata) = !dir.none(m.sharers)
+  def requiresProbes(a: Acquire, meta: ManagerMetadata) =
+    Mux(dir.none(meta.sharers), Bool(false), 
+      Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
+        Mux(a.uncached, a.hasData(), a.a_type != acquireShared)))
+
+  def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 }
 
 class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
@@ -557,157 +508,135 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def nManagerStates = 2
   def nAcquireTypes = 2
   def nProbeTypes = 3
-  def nReleaseTypes = 7
-  def nGrantTypes = 4
+  def nReleaseTypes = 6
+  def nGrantTypes = 3
 
   val clientInvalid :: clientShared :: clientExclusiveClean :: clientExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
-  //val masterInvalid :: masterShared :: masterExclusive :: Nil = Enum(UInt(), nManagerStates)
-  val masterInvalid :: masterValid :: Nil = Enum(UInt(), nManagerStates)
+  //val managerInvalid :: masterShared :: masterExclusive :: Nil = Enum(UInt(), nManagerStates)
+  val managerInvalid :: managerValid :: Nil = Enum(UInt(), nManagerStates)
 
-  val acquireReadShared :: acquireReadExclusive :: Nil = Enum(UInt(), nAcquireTypes)
+  val acquireShared :: acquireExclusive :: Nil = Enum(UInt(), nAcquireTypes)
   val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
-  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadExclusiveAck :: Nil = Enum(UInt(), nGrantTypes)
+  val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantShared :: grantExclusive :: grantExclusiveAck :: Nil = Enum(UInt(), nGrantTypes)
 
-  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  val hasDataGrantTypeVec = Vec(grantReadShared, grantReadExclusive)
+  val clientStatesWithReadPermission = Vec(clientShared, clientExclusiveClean, clientExclusiveDirty)
+  val clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
+  val clientStatesWithDirtyData = Vec(clientExclusiveDirty)
+  val releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  val grantTypesWithData = Vec(grantShared, grantExclusive)
 
-  def isHit (cmd: UInt, m: ClientMetadata): Bool = {
-    Mux(isWriteIntent(cmd), (m.state === clientExclusiveClean || m.state === clientExclusiveDirty),
-        (m.state === clientShared || m.state === clientExclusiveClean || m.state === clientExclusiveDirty))
-  }
-  def isValid (m: ClientMetadata): Bool = {
-    m.state != clientInvalid
-  }
-  def isHit (incoming: Acquire, m: ManagerMetadata) = isValid(m)
-  def isValid (m: ManagerMetadata) = m.state != masterInvalid
+  def isValid (meta: ClientMetadata): Bool = meta.state != clientInvalid
+  def isValid (meta: ManagerMetadata) = meta.state != managerInvalid
 
-  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = {
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool =
     (isRead(cmd) && outstanding.uncached) ||
-      (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusive))
-  }
-  def needsTransactionOnCacheControl(cmd: UInt, m: ClientMetadata): Bool = {
-    MuxLookup(cmd, (m.state === clientExclusiveDirty), Array(
-      M_INV -> (m.state === clientExclusiveDirty),
-      M_CLN -> (m.state === clientExclusiveDirty)
-    ))
-  }
-  def needsWriteback (m: ClientMetadata): Bool = {
-    needsTransactionOnCacheControl(M_INV, m)
-  }
-  def needsWriteback(m: ManagerMetadata) = isValid(m)
+      (isWriteIntent(cmd) && (outstanding.a_type != acquireExclusive))
 
-  def clientMetadataOnHit(cmd: UInt, m: ClientMetadata) = 
-    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, m.state))
+  def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) =
+    ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, meta.state))
 
-  def clientMetadataOnCacheControl(cmd: UInt) = ClientMetadata(
-    MuxLookup(cmd, clientInvalid, Array(
-      M_INV -> clientInvalid,
-      M_CLN -> clientShared
-    )))
-  def clientMetadataOnFlush = clientMetadataOnCacheControl(M_INV)
-  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = ClientMetadata(
-    Mux(incoming.uncached, clientInvalid,
-      MuxLookup(incoming.g_type, clientInvalid, Array(
-        grantReadShared -> clientShared,
-        grantReadExclusive -> Mux(outstanding.a_type === acquireReadExclusive, 
-                                clientExclusiveDirty, clientExclusiveClean),
-        grantReadExclusiveAck -> clientExclusiveDirty
-      ))))
-  def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
-    MuxLookup(incoming.p_type, m.state, Array(
-      probeInvalidate -> clientInvalid,
-      probeDowngrade  -> clientShared,
-      probeCopy       -> m.state
-    )))
-  def managerMetadataOnFlush = ManagerMetadata(masterInvalid)
-  def managerMetadataOnRelease(r: Release, m: ManagerMetadata, src: UInt) = {
-    val next = ManagerMetadata(masterValid, dir.pop(m.sharers,src))
-    MuxBundle(m, Array(
-      r.is(releaseVoluntaryInvalidateData) -> next,
+  def clientMetadataOnFlush = ClientMetadata(clientInvalid)
+
+  def clientMetadataOnCacheControl(cmd: UInt, meta: ClientMetadata) =
+    ClientMetadata(
+      MuxLookup(cmd, meta.state, Array(
+        M_FLUSH   -> clientInvalid,
+        M_PRODUCE -> Mux(clientStatesWithWritePermission.contains(meta.state), 
+                      clientShared, meta.state),
+        M_CLEAN   -> Mux(meta.state === clientExclusiveDirty, clientExclusiveClean, meta.state))))
+
+  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
+    ClientMetadata(
+      Mux(incoming.uncached, clientInvalid,
+        MuxLookup(incoming.g_type, clientInvalid, Array(
+          grantShared -> clientShared,
+          grantExclusive -> Mux(outstanding.a_type === acquireExclusive, 
+                                  clientExclusiveDirty, clientExclusiveClean),
+          grantExclusiveAck -> clientExclusiveDirty))))
+
+  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) =
+    ClientMetadata(
+      MuxLookup(incoming.p_type, meta.state, Array(
+        probeInvalidate -> clientInvalid,
+        probeDowngrade  -> clientShared,
+        probeCopy       -> meta.state)))
+
+  def managerMetadataOnRelease(r: Release, meta: ManagerMetadata, src: UInt) = {
+    val next = ManagerMetadata(managerValid, dir.pop(meta.sharers,src))
+    MuxBundle(meta, Array(
       r.is(releaseInvalidateData) -> next,
       r.is(releaseInvalidateAck) -> next
     ))
   }
-  def managerMetadataOnGrant(g: Grant, m: ManagerMetadata, dst: UInt) = {
-    val cached = ManagerMetadata(masterValid, dir.push(m.sharers, dst))
-    val uncached = ManagerMetadata(masterValid, m.sharers)
-    Mux(g.uncached, uncached, cached)
+
+  def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
+    Mux(g.uncached, 
+      ManagerMetadata(managerValid, meta.sharers),
+      ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
+
+  def managerMetadataOnFlush = ManagerMetadata(managerInvalid)
+
+  def managerMetadataOnCacheControl(cmd: UInt, meta: ManagerMetadata) =
+    ManagerMetadata(Mux(cmd === M_FLUSH, managerInvalid, meta.state))
+
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, meta: ClientMetadata): UInt =
+    Mux(isWriteIntent(cmd), acquireExclusive, acquireShared)
+
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, meta: ClientMetadata, outstanding: Acquire): UInt =
+    Mux(isWriteIntent(cmd), acquireExclusive, outstanding.a_type)
+  
+  def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
+    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    MuxLookup(cmd, releaseCopyAck, Array(
+      M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
+      M_PRODUCE -> Mux(dirty, releaseDowngradeData, releaseDowngradeAck),
+      M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
 
-  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
-  def isVoluntary(gnt: Grant) = !gnt.uncached && gnt.g_type === grantVoluntaryAck
-
-  def getAcquireTypeOnPrimaryMiss(cmd: UInt, m: ClientMetadata): UInt = {
-    Mux(isWriteIntent(cmd), acquireReadExclusive, acquireReadShared)
-  }
-  def getAcquireTypeOnSecondaryMiss(cmd: UInt, m: ClientMetadata, outstanding: Acquire): UInt = {
-    Mux(isWriteIntent(cmd), acquireReadExclusive, outstanding.a_type)
-  }
-  def getReleaseTypeOnCacheControl(cmd: UInt): UInt = releaseVoluntaryInvalidateData // TODO
-  def getReleaseTypeOnVoluntaryWriteback(): UInt = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, m: ClientMetadata): UInt = {
-    val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
-      probeInvalidate -> releaseInvalidateData,
-      probeDowngrade  -> releaseDowngradeData,
-      probeCopy       -> releaseCopyData
-    ))
-    val without_data = MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
-      probeInvalidate -> releaseInvalidateAck,
-      probeDowngrade  -> releaseDowngradeAck,
-      probeCopy       -> releaseCopyAck
-    ))
-    Mux(needsWriteback(m), with_data, without_data)
-  }
-
-  def messageHasData(msg: TileLinkChannel) = msg match {
-    case acq: Acquire => Mux(acq.uncached, Acquire.hasData(acq.a_type), Bool(false))
-    case gnt: Grant => Mux(gnt.uncached, Grant.hasData(gnt.g_type), hasDataGrantTypeVec.contains(gnt.g_type))
-    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
-    case _ => Bool(false)
-  }
-  def messageUpdatesDataArray(g: Grant): Bool = {
-    Mux(g.uncached, Bool(false), 
-      (g.g_type === grantReadShared || g.g_type === grantReadExclusive))
-  }
+  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt =
+    MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
+      probeInvalidate -> getReleaseType(M_FLUSH, meta),
+      probeDowngrade  -> getReleaseType(M_PRODUCE, meta),
+      probeCopy       -> getReleaseType(M_CLEAN, meta)))
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a: Acquire, m: ManagerMetadata): UInt = {
-    Mux(a.uncached, getGrantTypeForUncached(a, m),
-      Mux(a.a_type === acquireReadShared,
-        Mux(!dir.none(m.sharers), grantReadShared, grantReadExclusive),
-        grantReadExclusive))
-  }
-  def getGrantTypeOnVoluntaryWriteback(m: ManagerMetadata): UInt = grantVoluntaryAck
+  def getGrantType(a: Acquire, meta: ManagerMetadata): UInt =
+    Mux(a.uncached, Grant.getGrantTypeForUncached(a),
+      Mux(a.a_type === acquireShared,
+        Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
+        grantExclusive))
 
-  def getProbeType(a: Acquire, m: ManagerMetadata): UInt = {
+  def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
     Mux(a.uncached, 
       MuxLookup(a.a_type, probeCopy, Array(
+        Acquire.uncachedReadBlock -> probeCopy, 
+        Acquire.uncachedWriteBlock -> probeInvalidate,
         Acquire.uncachedRead -> probeCopy, 
         Acquire.uncachedWrite -> probeInvalidate,
-        Acquire.uncachedAtomic -> probeInvalidate
-      )),
+        Acquire.uncachedAtomic -> probeInvalidate)),
       MuxLookup(a.a_type, probeCopy, Array(
-        acquireReadShared -> probeDowngrade,
-        acquireReadExclusive -> probeInvalidate
-      )))
-  }
-  def getProbeTypeOnVoluntaryWriteback: UInt = probeInvalidate
+        acquireShared -> probeDowngrade,
+        acquireExclusive -> probeInvalidate)))
 
-  def requiresOuterRead(acq: Acquire, m: ManagerMetadata) = 
+  def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt =
+    MuxLookup(cmd, probeCopy, Array(
+      M_FLUSH -> probeInvalidate,
+      M_PRODUCE -> probeDowngrade))
+
+  def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) =
     Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), Bool(true))
-  def requiresOuterWrite(acq: Acquire, m: ManagerMetadata) =
+
+  def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
     Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
-  def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
-  def requiresAckForRelease(r: Release) = Bool(false)
-  def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: ManagerMetadata) = !dir.none(m.sharers) &&
-    Mux(dir.one(m.sharers), Bool(true),
-      Mux(a.uncached, a.a_type != Acquire.uncachedRead,
-        a.a_type != acquireReadShared))
-  def requiresProbesOnVoluntaryWriteback(m: ManagerMetadata) = !dir.none(m.sharers)
+  def requiresProbes(a: Acquire, meta: ManagerMetadata) =
+    Mux(dir.none(meta.sharers), Bool(false), 
+      Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
+        Mux(a.uncached, a.hasData(), a.a_type != acquireShared)))
+
+  def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 }
 
 class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
@@ -715,174 +644,170 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   def nManagerStates = 2
   def nAcquireTypes = 3
   def nProbeTypes = 4
-  def nReleaseTypes = 11
-  def nGrantTypes = 5
+  def nReleaseTypes = 10
+  def nGrantTypes = 4
 
   val clientInvalid :: clientShared :: clientExclusiveClean :: clientExclusiveDirty :: clientSharedByTwo :: clientMigratoryClean :: clientMigratoryDirty :: Nil = Enum(UInt(), nClientStates)
-  //val masterInvalid :: masterShared :: masterExclusive :: Nil = Enum(UInt(), nManagerStates)
-  val masterInvalid :: masterValid :: Nil = Enum(UInt(), nManagerStates)
+  //val managerInvalid :: masterShared :: masterExclusive :: Nil = Enum(UInt(), nManagerStates)
+  val managerInvalid :: managerValid :: Nil = Enum(UInt(), nManagerStates)
 
-  val acquireReadShared :: acquireReadExclusive :: acquireInvalidateOthers :: Nil = Enum(UInt(), nAcquireTypes)
+  val acquireShared :: acquireExclusive :: acquireInvalidateOthers :: Nil = Enum(UInt(), nAcquireTypes)
   val probeInvalidate :: probeDowngrade :: probeCopy :: probeInvalidateOthers :: Nil = Enum(UInt(), nProbeTypes)
-  val releaseVoluntaryInvalidateData :: releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(UInt(), nReleaseTypes)
-  val grantVoluntaryAck :: grantReadShared :: grantReadExclusive :: grantReadExclusiveAck :: grantReadMigratory :: Nil = Enum(UInt(), nGrantTypes)
+  val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(UInt(), nReleaseTypes)
+  val grantShared :: grantExclusive :: grantExclusiveAck :: grantReadMigratory :: Nil = Enum(UInt(), nGrantTypes)
 
-  val hasDataGrantTypeVec = Vec(grantReadShared, grantReadExclusive, grantReadMigratory)
-  val hasDataReleaseTypeVec = Vec(releaseVoluntaryInvalidateData, releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
+  val clientStatesWithReadPermission = Vec(clientShared, clientExclusiveClean, clientExclusiveDirty, clientSharedByTwo, clientMigratoryClean, clientMigratoryDirty)
+  val clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty, clientMigratoryClean, clientMigratoryDirty)
+  val clientStatesWithDirtyData = Vec(clientExclusiveDirty, clientMigratoryDirty)
+  val releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
+  val grantTypesWithData = Vec(grantShared, grantExclusive, grantReadMigratory)
 
-  def isHit (cmd: UInt, m: ClientMetadata): Bool = {
-    Mux(isWriteIntent(cmd), Vec(clientExclusiveClean, clientExclusiveDirty, clientMigratoryClean, clientMigratoryDirty).contains(m.state), (m.state != clientInvalid))
-  }
-  def isValid (m: ClientMetadata): Bool = {
-    m.state != clientInvalid
-  }
-  def isHit (incoming: Acquire, m: ManagerMetadata) = isValid(m)
-  def isValid (m: ManagerMetadata) = m.state != masterInvalid
+  def isValid (meta: ClientMetadata): Bool = meta.state != clientInvalid
+  def isValid (meta: ManagerMetadata) = meta.state != managerInvalid
 
-  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool = {
+  def needsTransactionOnSecondaryMiss(cmd: UInt, outstanding: Acquire): Bool =
     (isRead(cmd) && outstanding.uncached) ||
-      (isWriteIntent(cmd) && (outstanding.a_type != acquireReadExclusive && outstanding.a_type != acquireInvalidateOthers))
-  }
-  def needsTransactionOnCacheControl(cmd: UInt, m: ClientMetadata): Bool = {
-    MuxLookup(cmd, (m.state === clientExclusiveDirty), Array(
-      M_INV -> Vec(clientExclusiveDirty,clientMigratoryDirty).contains(m.state),
-      M_CLN -> Vec(clientExclusiveDirty,clientMigratoryDirty).contains(m.state)
-    ))
-  }
-  def needsWriteback (m: ClientMetadata): Bool = {
-    needsTransactionOnCacheControl(M_INV, m)
-  }
-  def needsWriteback(m: ManagerMetadata) = isValid(m)
+      (isWriteIntent(cmd) && !Vec(acquireExclusive, acquireInvalidateOthers).contains(outstanding.a_type)) 
 
-  def clientMetadataOnHit(cmd: UInt, m: ClientMetadata) = ClientMetadata(
-    Mux(isWrite(cmd), MuxLookup(m.state, clientExclusiveDirty, Array(
-                clientExclusiveClean -> clientExclusiveDirty,
-                clientMigratoryClean -> clientMigratoryDirty)), m.state))
-  def clientMetadataOnCacheControl(cmd: UInt) = ClientMetadata(
-    MuxLookup(cmd, clientInvalid, Array(
-      M_INV -> clientInvalid,
-      M_CLN -> clientShared
-    )))
-  def clientMetadataOnFlush = clientMetadataOnCacheControl(M_INV)
-  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) = ClientMetadata(
-    Mux(incoming.uncached, clientInvalid,
-      MuxLookup(incoming.g_type, clientInvalid, Array(
-        grantReadShared -> clientShared,
-        grantReadExclusive  -> MuxLookup(outstanding.a_type, clientExclusiveDirty,  Array(
-                                     acquireReadExclusive -> clientExclusiveDirty,
-                                     acquireReadShared -> clientExclusiveClean)),
-        grantReadExclusiveAck -> clientExclusiveDirty, 
-        grantReadMigratory -> MuxLookup(outstanding.a_type, clientMigratoryDirty, Array(
-                                    acquireInvalidateOthers -> clientMigratoryDirty,
-                                    acquireReadExclusive -> clientMigratoryDirty,
-                                    acquireReadShared -> clientMigratoryClean))
-      ))))
-  def clientMetadataOnProbe(incoming: Probe, m: ClientMetadata) = ClientMetadata(
-    MuxLookup(incoming.p_type, m.state, Array(
-      probeInvalidate -> clientInvalid,
-      probeInvalidateOthers -> clientInvalid,
-      probeCopy -> m.state,
-      probeDowngrade -> MuxLookup(m.state, clientShared, Array(
-                              clientExclusiveClean -> clientSharedByTwo,
-                              clientExclusiveDirty -> clientSharedByTwo,
-                              clientSharedByTwo    -> clientShared,
-                              clientMigratoryClean -> clientSharedByTwo,
-                              clientMigratoryDirty -> clientInvalid))
-    )))
-  def managerMetadataOnFlush = ManagerMetadata(masterInvalid)
-  def managerMetadataOnRelease(r: Release, m: ManagerMetadata, src: UInt) = {
-    val next = ManagerMetadata(masterValid, dir.pop(m.sharers,src))
-    MuxBundle(m, Array(
-      r.is(releaseVoluntaryInvalidateData) -> next,
+  def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) =
+    ClientMetadata(
+      Mux(isWrite(cmd), MuxLookup(meta.state, clientExclusiveDirty, Array(
+                          clientExclusiveClean -> clientExclusiveDirty,
+                          clientMigratoryClean -> clientMigratoryDirty)),
+                        meta.state))
+
+  def clientMetadataOnFlush = ClientMetadata(clientInvalid)
+
+  def clientMetadataOnCacheControl(cmd: UInt, meta: ClientMetadata) =
+    ClientMetadata(
+      MuxLookup(cmd, meta.state, Array(
+        M_FLUSH   -> clientInvalid,
+        M_PRODUCE -> Mux(clientStatesWithWritePermission.contains(meta.state), 
+                       clientShared, meta.state),
+        M_CLEAN   -> MuxLookup(meta.state, meta.state, Array(
+                       clientExclusiveDirty -> clientExclusiveClean,
+                       clientMigratoryDirty -> clientMigratoryClean)))))
+
+  def clientMetadataOnGrant(incoming: Grant, outstanding: Acquire) =
+    ClientMetadata(
+      Mux(incoming.uncached, clientInvalid,
+        MuxLookup(incoming.g_type, clientInvalid, Array(
+          grantShared       -> clientShared,
+          grantExclusive    -> MuxLookup(outstanding.a_type, clientExclusiveDirty, Array(
+                                 acquireExclusive -> clientExclusiveDirty,
+                                 acquireShared -> clientExclusiveClean)),
+          grantExclusiveAck  -> clientExclusiveDirty, 
+          grantReadMigratory -> MuxLookup(outstanding.a_type, clientMigratoryDirty, Array(
+                                  acquireInvalidateOthers -> clientMigratoryDirty,
+                                  acquireExclusive -> clientMigratoryDirty,
+                                  acquireShared -> clientMigratoryClean))))))
+
+  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) =
+    ClientMetadata(
+      MuxLookup(incoming.p_type, meta.state, Array(
+        probeInvalidate -> clientInvalid,
+        probeInvalidateOthers -> clientInvalid,
+        probeCopy -> meta.state,
+        probeDowngrade -> MuxLookup(meta.state, clientShared, Array(
+                                clientExclusiveClean -> clientSharedByTwo,
+                                clientExclusiveDirty -> clientSharedByTwo,
+                                clientSharedByTwo    -> clientShared,
+                                clientMigratoryClean -> clientSharedByTwo,
+                                clientMigratoryDirty -> clientInvalid)))))
+
+  def managerMetadataOnRelease(r: Release, meta: ManagerMetadata, src: UInt) = {
+    val next = ManagerMetadata(managerValid, dir.pop(meta.sharers,src))
+    MuxBundle(meta, Array(
       r.is(releaseInvalidateData) -> next,
       r.is(releaseInvalidateAck) -> next,
       r.is(releaseInvalidateDataMigratory) -> next,
-      r.is(releaseInvalidateAckMigratory) -> next
-    ))
-  }
-  def managerMetadataOnGrant(g: Grant, m: ManagerMetadata, dst: UInt) = {
-    val cached = ManagerMetadata(masterValid, dir.push(m.sharers, dst))
-    val uncached = ManagerMetadata(masterValid, m.sharers)
-    Mux(g.uncached, uncached, cached)
+      r.is(releaseInvalidateAckMigratory) -> next))
   }
 
+  def managerMetadataOnGrant(g: Grant, meta: ManagerMetadata, dst: UInt) =
+    Mux(g.uncached, 
+      ManagerMetadata(managerValid, meta.sharers),
+      ManagerMetadata(managerValid, dir.push(meta.sharers, dst)))
 
-  def isVoluntary(rel: Release) = rel.r_type === releaseVoluntaryInvalidateData
-  def isVoluntary(gnt: Grant) = !gnt.uncached && gnt.g_type === grantVoluntaryAck
+  def managerMetadataOnFlush = ManagerMetadata(managerInvalid)
 
-  def getAcquireTypeOnPrimaryMiss(cmd: UInt, m: ClientMetadata): UInt = {
-    Mux(isWriteIntent(cmd), Mux(m.state === clientInvalid, acquireReadExclusive, acquireInvalidateOthers), acquireReadShared)
+  def managerMetadataOnCacheControl(cmd: UInt, meta: ManagerMetadata) =
+    ManagerMetadata(Mux(cmd === M_FLUSH, managerInvalid, meta.state))
+
+  def getAcquireTypeOnPrimaryMiss(cmd: UInt, meta: ClientMetadata): UInt =
+    Mux(isWriteIntent(cmd), 
+      Mux(meta.state === clientInvalid, acquireExclusive, acquireInvalidateOthers), 
+      acquireShared)
+
+  def getAcquireTypeOnSecondaryMiss(cmd: UInt, meta: ClientMetadata, outstanding: Acquire): UInt =
+    Mux(isWriteIntent(cmd), 
+      Mux(meta.state === clientInvalid, acquireExclusive, acquireInvalidateOthers), 
+      outstanding.a_type)
+
+  def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
+    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    MuxLookup(cmd, releaseCopyAck, Array(
+      M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
+      M_PRODUCE -> Mux(dirty, releaseDowngradeData, releaseDowngradeAck),
+      M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
-  def getAcquireTypeOnSecondaryMiss(cmd: UInt, m: ClientMetadata, outstanding: Acquire): UInt = {
-    Mux(isWriteIntent(cmd), Mux(m.state === clientInvalid, acquireReadExclusive, acquireInvalidateOthers), outstanding.a_type)
-  }
-  def getReleaseTypeOnCacheControl(cmd: UInt): UInt = releaseVoluntaryInvalidateData // TODO
-  def getReleaseTypeOnVoluntaryWriteback(): UInt = getReleaseTypeOnCacheControl(M_INV)
-  def getReleaseTypeOnProbe(incoming: Probe, m: ClientMetadata): UInt = {
+
+  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt = {
+    val dirty = clientStatesWithDirtyData.contains(meta.state)
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
-      probeInvalidate -> Mux(Vec(clientExclusiveDirty, clientMigratoryDirty).contains(m.state), 
-                                    releaseInvalidateDataMigratory, releaseInvalidateData),
-      probeDowngrade -> Mux(m.state === clientMigratoryDirty, releaseDowngradeDataMigratory, releaseDowngradeData),
-      probeCopy -> releaseCopyData
-    ))
+      probeInvalidate -> Mux(Vec(clientExclusiveDirty, clientMigratoryDirty).contains(meta.state),
+                          releaseInvalidateDataMigratory, releaseInvalidateData),
+      probeDowngrade -> Mux(meta.state === clientMigratoryDirty,
+                          releaseDowngradeDataMigratory, releaseDowngradeData),
+      probeCopy -> releaseCopyData))
     val without_data = MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
-      probeInvalidate -> Mux(clientExclusiveClean === m.state, releaseInvalidateAckMigratory, releaseInvalidateAck),
-      probeInvalidateOthers -> Mux(m.state === clientSharedByTwo, releaseInvalidateAckMigratory, releaseInvalidateAck),
-      probeDowngrade  -> Mux(m.state != clientInvalid, releaseDowngradeAckHasCopy, releaseDowngradeAck),
-      probeCopy       -> releaseCopyAck
-    ))
-    Mux(needsWriteback(m), with_data, without_data)
-  }
-
-  def messageHasData(msg: TileLinkChannel) = msg match {
-    case acq: Acquire => Mux(acq.uncached, Acquire.hasData(acq.a_type), Bool(false))
-    case gnt: Grant => Mux(gnt.uncached, Grant.hasData(gnt.g_type), hasDataGrantTypeVec.contains(gnt.g_type))
-    case rel: Release => hasDataReleaseTypeVec.contains(rel.r_type) 
-    case _ => Bool(false)
-  }
-  def messageUpdatesDataArray(g: Grant): Bool = {
-    Mux(g.uncached, Bool(false), 
-      Vec(grantReadShared, grantReadExclusive, grantReadMigratory).contains(g.g_type))
+      probeInvalidate -> Mux(clientExclusiveClean === meta.state,
+                           releaseInvalidateAckMigratory, releaseInvalidateAck),
+      probeInvalidateOthers -> Mux(clientSharedByTwo === meta.state,
+                                 releaseInvalidateAckMigratory, releaseInvalidateAck),
+      probeDowngrade  -> Mux(meta.state != clientInvalid,
+                           releaseDowngradeAckHasCopy, releaseDowngradeAck),
+      probeCopy       -> releaseCopyAck))
+    Mux(dirty, with_data, without_data)
   }
 
   def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool = (addr1 === addr2)
 
-  def getGrantType(a: Acquire, m: ManagerMetadata): UInt = {
-    Mux(a.uncached, getGrantTypeForUncached(a, m),
-      MuxLookup(a.a_type, grantReadShared, Array(
-        acquireReadShared    -> Mux(!dir.none(m.sharers), grantReadShared, grantReadExclusive),
-        acquireReadExclusive -> grantReadExclusive,                                            
-        acquireInvalidateOthers -> grantReadExclusiveAck  //TODO: add this to MESI for broadcast?
-      )))
-  }
-  def getGrantTypeOnVoluntaryWriteback(m: ManagerMetadata): UInt = grantVoluntaryAck
+  def getGrantType(a: Acquire, meta: ManagerMetadata): UInt =
+    Mux(a.uncached, Grant.getGrantTypeForUncached(a),
+      MuxLookup(a.a_type, grantShared, Array(
+        acquireShared    -> Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
+        acquireExclusive -> grantExclusive,                                            
+        acquireInvalidateOthers -> grantExclusiveAck)))  //TODO: add this to MESI for broadcast?
 
-  def getProbeType(a: Acquire, m: ManagerMetadata): UInt = {
+  def getProbeType(a: Acquire, meta: ManagerMetadata): UInt =
     Mux(a.uncached, 
       MuxLookup(a.a_type, probeCopy, Array(
+        Acquire.uncachedReadBlock -> probeCopy, 
+        Acquire.uncachedWriteBlock -> probeInvalidate,
         Acquire.uncachedRead -> probeCopy, 
         Acquire.uncachedWrite -> probeInvalidate,
-        Acquire.uncachedAtomic -> probeInvalidate
-      )),
+        Acquire.uncachedAtomic -> probeInvalidate)),
       MuxLookup(a.a_type, probeCopy, Array(
-        acquireReadShared -> probeDowngrade,
-        acquireReadExclusive -> probeInvalidate, 
-        acquireInvalidateOthers -> probeInvalidateOthers
-      )))
-  }
-  def getProbeTypeOnVoluntaryWriteback: UInt = probeInvalidate
+        acquireShared -> probeDowngrade,
+        acquireExclusive -> probeInvalidate, 
+        acquireInvalidateOthers -> probeInvalidateOthers)))
 
-  def requiresOuterRead(acq: Acquire, m: ManagerMetadata) = 
+  def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt =
+    MuxLookup(cmd, probeCopy, Array(
+      M_FLUSH -> probeInvalidate,
+      M_PRODUCE -> probeDowngrade))
+
+  def requiresOuterRead(acq: Acquire, meta: ManagerMetadata) =
     Mux(acq.uncached, Acquire.requiresOuterRead(acq.a_type), acq.a_type != acquireInvalidateOthers)
-  def requiresOuterWrite(acq: Acquire, m: ManagerMetadata) =
+
+  def requiresOuterWrite(acq: Acquire, meta: ManagerMetadata) =
     Mux(acq.uncached, Acquire.requiresOuterWrite(acq.a_type), Bool(false))
 
-  def requiresAckForGrant(g: Grant) = g.uncached || g.g_type != grantVoluntaryAck
-  def requiresAckForRelease(r: Release) = Bool(false)
-  def requiresSelfProbe(a: Acquire) = a.uncached && a.a_type === Acquire.uncachedRead
-  def requiresProbes(a: Acquire, m: ManagerMetadata) = !dir.none(m.sharers) &&
-    Mux(dir.one(m.sharers), Bool(true),
-      Mux(a.uncached, a.a_type != Acquire.uncachedRead,
-        a.a_type != acquireReadShared))
-  def requiresProbesOnVoluntaryWriteback(m: ManagerMetadata) = !dir.none(m.sharers)
+  def requiresProbes(a: Acquire, meta: ManagerMetadata) =
+    Mux(dir.none(meta.sharers), Bool(false),
+      Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
+        Mux(a.uncached, a.hasData(), a.a_type != acquireShared)))
+
+  def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 }
