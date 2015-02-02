@@ -8,7 +8,7 @@ import uncore.constants.MemoryOpConstants._
 import ALU._
 import Util._
 
-class CtrlDpathIO extends Bundle
+class CtrlDpathIO extends CoreBundle
 {
   // outputs to datapath
   val sel_pc   = UInt(OUTPUT, 3)
@@ -27,7 +27,7 @@ class CtrlDpathIO extends Bundle
   // exception handling
   val retire = Bool(OUTPUT)
   val exception = Bool(OUTPUT)
-  val cause    = UInt(OUTPUT, params(XprLen))
+  val cause    = UInt(OUTPUT, xLen)
   val badvaddr_wen = Bool(OUTPUT) // high for a load/store access fault
   // inputs from datapath
   val inst    = Bits(INPUT, 32)
@@ -328,7 +328,7 @@ object RoCCDecode extends DecodeConstants
     CUSTOM3_RD_RS1_RS2->List(Y,    N,Y,N,N,N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,N,N,Y,CSR.N,N,N,N,N,N))
 }
 
-class Control extends Module
+class Control extends CoreModule
 {
   val io = new Bundle {
     val dpath   = new CtrlDpathIO
@@ -388,7 +388,7 @@ class Control extends Module
   val id_reg_fence = Reg(init=Bool(false))
 
   val sr = io.dpath.status
-  var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UInt(BigInt(1) << (params(XprLen)-1) | i)))
+  var id_interrupts = (0 until sr.ip.getWidth).map(i => (sr.im(i) && sr.ip(i), UInt(BigInt(1) << (xLen-1) | i)))
 
   val (id_interrupt_unmasked, id_interrupt_cause) = checkExceptions(id_interrupts)
   val id_interrupt = io.dpath.status.ei && id_interrupt_unmasked

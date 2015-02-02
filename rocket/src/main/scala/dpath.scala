@@ -7,7 +7,7 @@ import Instructions._
 import Util._
 import uncore._
 
-class Datapath extends Module
+class Datapath extends CoreModule
 {
   val io = new Bundle {
     val host  = new HTIFIO
@@ -149,10 +149,10 @@ class Datapath extends Module
   io.fpu.fromint_data := ex_rs(0)
 
   def vaSign(a0: UInt, ea: Bits) = {
-    // efficient means to compress 64-bit VA into params(VAddrBits)+1 bits
-    // (VA is bad if VA(params(VAddrBits)) != VA(params(VAddrBits)-1))
-    val a = a0 >> params(VAddrBits)-1
-    val e = ea(params(VAddrBits),params(VAddrBits)-1)
+    // efficient means to compress 64-bit VA into vaddrBits+1 bits
+    // (VA is bad if VA(vaddrBits) != VA(vaddrBits-1))
+    val a = a0 >> vaddrBits-1
+    val e = ea(vaddrBits,vaddrBits-1)
     Mux(a === UInt(0) || a === UInt(1), e != UInt(0),
     Mux(a === SInt(-1) || a === SInt(-2), e === SInt(-1),
     e(0)))
@@ -160,7 +160,7 @@ class Datapath extends Module
 
   // D$ request interface (registered inside D$ module)
   // other signals (req_val, req_rdy) connect to control module  
-  io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(params(VAddrBits)-1,0)).toUInt
+  io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(vaddrBits-1,0)).toUInt
   io.dmem.req.bits.tag := Cat(io.ctrl.ex_waddr, io.ctrl.ex_ctrl.fp)
   require(io.dmem.req.bits.tag.getWidth >= 6)
   require(params(CoreDCacheReqTagBits) >= 6)
@@ -231,7 +231,7 @@ class Datapath extends Module
   val mem_br_target = mem_reg_pc +
     Mux(io.ctrl.mem_ctrl.branch && io.ctrl.mem_br_taken, imm(IMM_SB, mem_reg_inst),
     Mux(io.ctrl.mem_ctrl.jal, imm(IMM_UJ, mem_reg_inst), SInt(4)))
-  val mem_npc = Mux(io.ctrl.mem_ctrl.jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(params(VAddrBits)-1,0)), mem_br_target)
+  val mem_npc = Mux(io.ctrl.mem_ctrl.jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(vaddrBits-1,0)), mem_br_target)
   io.ctrl.mem_misprediction := mem_npc != ex_reg_pc || !io.ctrl.ex_valid
   io.ctrl.mem_rs1_ra := mem_reg_inst(19,15) === 1
   val mem_int_wdata = Mux(io.ctrl.mem_ctrl.jalr, mem_br_target, mem_reg_wdata)

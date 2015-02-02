@@ -43,13 +43,13 @@ object ALU
 }
 import ALU._
 
-class ALUIO extends Bundle {
+class ALUIO extends CoreBundle {
   val dw = Bits(INPUT, SZ_DW)
   val fn = Bits(INPUT, SZ_ALU_FN)
-  val in2 = UInt(INPUT, params(XprLen))
-  val in1 = UInt(INPUT, params(XprLen))
-  val out = UInt(OUTPUT, params(XprLen))
-  val adder_out = UInt(OUTPUT, params(XprLen))
+  val in2 = UInt(INPUT, xLen)
+  val in1 = UInt(INPUT, xLen)
+  val out = UInt(OUTPUT, xLen)
+  val adder_out = UInt(OUTPUT, xLen)
 }
 
 class ALU extends Module

@@ -6,16 +6,16 @@ import Chisel._
 import ALU._
 import Util._
 
-class MultiplierReq extends Bundle {
+class MultiplierReq extends CoreBundle {
   val fn = Bits(width = SZ_ALU_FN)
   val dw = Bits(width = SZ_DW)
-  val in1 = Bits(width = params(XprLen))
-  val in2 = Bits(width = params(XprLen))
+  val in1 = Bits(width = xLen)
+  val in2 = Bits(width = xLen)
   val tag = UInt(width = log2Up(params(NMultXpr)))
 }
 
-class MultiplierResp extends Bundle {
-  val data = Bits(width = params(XprLen))
+class MultiplierResp extends CoreBundle {
+  val data = Bits(width = xLen)
   val tag = UInt(width = log2Up(params(NMultXpr)))
 }
 

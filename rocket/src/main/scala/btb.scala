@@ -10,8 +10,7 @@ import uncore._
 case object NBTBEntries extends Field[Int]
 case object NRAS extends Field[Int]
 
-abstract trait BTBParameters extends UsesParameters {
-  val vaddrBits = params(VAddrBits)
+abstract trait BTBParameters extends CoreParameters {
   val matchBits = params(PgIdxBits)
   val entries = params(NBTBEntries)
   val nRAS = params(NRAS)
