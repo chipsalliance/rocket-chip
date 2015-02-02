@@ -228,7 +228,9 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
   mem_cmd_q.io.enq.valid := Bool(false)
   mem_data_q.io.enq.valid := Bool(false)
 
-  val acq_has_data = co.messageHasData(io.uncached.acquire.bits.payload)
+  //TODO: Assert that only WriteUncachedBlock and ReadUncachedBlock are
+  //acceptable Acquire types
+  val acq_has_data = io.uncached.acquire.bits.payload.hasData()
   val (tl_cnt_out, tl_wrap_out) = Counter(io.uncached.acquire.fire() && acq_has_data, tlDataBeats)
   val (mif_cnt_out, mif_wrap_out) = Counter(mem_data_q.io.enq.fire(), mifDataBeats)
   val active_out = Reg(init=Bool(false))
@@ -250,7 +252,7 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
       active_out := Bool(true)
       cmd_sent_out := Bool(false)
       tag_out := io.uncached.acquire.bits.payload.client_xact_id
-      addr_out := io.uncached.acquire.bits.payload.addr
+      addr_out := io.uncached.acquire.bits.payload.addr_block
       has_data := acq_has_data
       tl_done_out := tl_wrap_out
       mif_done_out := Bool(false)
@@ -323,8 +325,12 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
     when(tl_wrap_in) { active_in := Bool(false) }
   }
 
-  io.uncached.grant.bits.payload := Grant(Bool(true), Grant.uncachedRead, tag_in, UInt(0), 
-                                      tl_buf_in(tl_cnt_in))
+  io.uncached.grant.bits.payload := Grant(uncached = Bool(true),
+                                          g_type = Grant.uncachedReadBlock,
+                                          client_xact_id = tag_in,
+                                          manager_xact_id = UInt(0),
+                                          addr_beat = tl_cnt_in,
+                                          data = tl_buf_in(tl_cnt_in))
 }
 
 class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
