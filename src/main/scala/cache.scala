@@ -166,12 +166,15 @@ class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
 abstract trait L2HellaCacheParameters extends CacheParameters with CoherenceAgentParameters {
   val idxMSB = idxBits-1
   val idxLSB = 0
-  val refillCyclesPerBeat = params(TLDataBits)/rowBits
-  val refillCycles = refillCyclesPerBeat*params(TLDataBeats)
+  val refillCyclesPerBeat = tlDataBits/rowBits
+  val refillCycles = refillCyclesPerBeat*tlDataBeats
   require(refillCyclesPerBeat == 1)
+  val amoAluOperandBits = params(AmoAluOperandBits)
+  require(amoAluOperandBits <= tlDataBits)
 }
 
 abstract class L2HellaCacheBundle extends TLBundle with L2HellaCacheParameters
+
 abstract class L2HellaCacheModule extends TLModule with L2HellaCacheParameters {
   def connectDataBeatCounter[S <: HasTileLinkData](inc: Bool, data: S) = {
     val (cnt, cnt_done) =
@@ -750,7 +753,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   val xact_addr_beat = Reg(io.inner.acquire.bits.payload.addr_beat.clone)
   val xact_client_xact_id = Reg(io.inner.acquire.bits.payload.client_xact_id.clone)
   val xact_subblock = Reg(io.inner.acquire.bits.payload.subblock.clone)
-  val xact_data = Vec.fill(tlDataBeats){ Reg(io.inner.acquire.bits.payload.data.clone) }
+  val xact_data = Vec.fill(tlDataBeats+1) { // Extra entry holds AMO result
+    Reg(io.inner.acquire.bits.payload.data.clone) 
+  } 
   val xact_tag_match = Reg{ Bool() }
   val xact_meta = Reg{ new L2Metadata }
   val xact_way_en = Reg{ Bits(width = nWays) }
@@ -803,13 +808,19 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   def mergeData[T <: HasTileLinkData](buffer: Vec[UInt], incoming: T) {
     val old_data = incoming.data
     val new_data = buffer(incoming.addr_beat)
-    amoalu.io.lhs := old_data
-    amoalu.io.rhs := new_data
-    val wmask = FillInterleaved(8, xact.write_mask())
-    buffer(incoming.addr_beat) := 
-      Mux(xact.is(Acquire.uncachedAtomic), amoalu.io.out,
+    val amoOpSz = UInt(amoAluOperandBits)
+    val offset = xact.addr_byte()(tlByteAddrBits-1, log2Up(amoAluOperandBits/8))
+    amoalu.io.lhs := old_data >> offset*amoOpSz
+    amoalu.io.rhs := new_data >> offset*amoOpSz
+    val wmask = 
+      Mux(xact.is(Acquire.uncachedAtomic), 
+        FillInterleaved(amoAluOperandBits, UIntToOH(offset)),
         Mux(xact.is(Acquire.uncachedWriteBlock) || xact.is(Acquire.uncachedWrite),
-          wmask & new_data | ~wmask & old_data, old_data))
+          FillInterleaved(8, xact.write_mask()), 
+          UInt(0, width = tlDataBits)))
+    buffer(incoming.addr_beat) := ~wmask & old_data | wmask & 
+      Mux(xact.is(Acquire.uncachedAtomic), amoalu.io.out << offset*amoOpSz, new_data)
+    when(xact.is(Acquire.uncachedAtomic)) { buffer(tlDataBeats) := old_data } // For AMO result 
   }
 
   //TODO: Allow hit under miss for stores
@@ -860,7 +871,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
                                     manager_xact_id = UInt(trackerId), 
                                     meta = xact_meta.coh, 
                                     addr_beat = cgnt_data_cnt,
-                                    data = xact_data(cgnt_data_cnt))
+                                    data = Mux(xact.is(Acquire.uncachedAtomic),
+                                            xact_data(tlDataBeats),
+                                            xact_data(cgnt_data_cnt)))
 
   io.inner.acquire.ready := Bool(false)
   io.inner.release.ready := Bool(false)
