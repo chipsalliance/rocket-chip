@@ -4,7 +4,6 @@ import Chisel._
 import uncore._
 import Util._
 
-case object NITLBEntries extends Field[Int]
 case object ECCCode extends Field[Option[Code]]
 
 abstract trait L1CacheParameters extends CacheParameters with CoreParameters {
@@ -20,18 +19,18 @@ abstract class FrontendBundle extends Bundle with FrontendParameters
 abstract class FrontendModule extends Module with FrontendParameters
 
 class FrontendReq extends CoreBundle {
-  val pc = UInt(width = params(VAddrBits)+1)
+  val pc = UInt(width = vaddrBits+1)
 }
 
 class FrontendResp extends CoreBundle {
-  val pc = UInt(width = params(VAddrBits)+1)  // ID stage PC
+  val pc = UInt(width = vaddrBits+1)  // ID stage PC
   val data = Vec.fill(coreFetchWidth) (Bits(width = coreInstBits))
   val mask = Bits(width = coreFetchWidth)
   val xcpt_ma = Bool()
   val xcpt_if = Bool()
 }
 
-class CPUFrontendIO extends CoreBundle {
+class CPUFrontendIO extends Bundle {
   val req = Valid(new FrontendReq)
   val resp = Decoupled(new FrontendResp).flip
   val btb_resp = Valid(new BTBResp).flip
@@ -51,7 +50,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
 
   val btb = Module(new BTB(btb_updates_out_of_order))
   val icache = Module(new ICache)
-  val tlb = Module(new TLB(params(NITLBEntries)))
+  val tlb = Module(new TLB)
 
   val s1_pc_ = Reg(UInt())
   val s1_pc = s1_pc_ & SInt(-2) // discard LSB of PC (throughout the pipeline)
@@ -134,7 +133,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
 
 class ICacheReq extends FrontendBundle {
   val idx = UInt(width = pgIdxBits)
-  val ppn = UInt(width = params(PPNBits)) // delayed one cycle
+  val ppn = UInt(width = ppnBits) // delayed one cycle
   val kill = Bool() // delayed one cycle
 }
 
@@ -190,14 +189,15 @@ class ICache extends FrontendModule
   val s2_miss = s2_valid && !s2_any_tag_hit
   rdy := state === s_ready && !s2_miss
 
-  val ser = Module(new FlowThroughSerializer(io.mem.grant.bits, refillCyclesPerBeat, (g: Grant) => co.messageUpdatesDataArray(g)))
+  val ser = Module(new FlowThroughSerializer(
+                          io.mem.grant.bits,
+                          refillCyclesPerBeat))
   ser.io.in <> io.mem.grant
   val (refill_cnt, refill_wrap) = Counter(ser.io.out.fire(), refillCycles) //TODO Zero width wire
   val refill_done = state === s_refill && refill_wrap
   val refill_valid = ser.io.out.valid
   val refill_bits = ser.io.out.bits
   ser.io.out.ready := Bool(true)
-  //assert(!c.tlco.isVoluntary(refill_bits.payload) || !refill_valid, "UncachedRequestors shouldn't get voluntary grants.")
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s2_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
@@ -251,7 +251,7 @@ class ICache extends FrontendModule
     val s1_raddr = Reg(UInt())
     when (refill_valid && repl_way === UInt(i)) {
       val e_d = code.encode(refill_bits.payload.data)
-      if(refillCycles > 1) data_array(Cat(s2_idx, refill_cnt)) := e_d
+      if(refillCycles > 1) data_array(Cat(s2_idx, refill_bits.payload.addr_beat)) := e_d
       else data_array(s2_idx) := e_d
     }
 //    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
@@ -266,14 +266,14 @@ class ICache extends FrontendModule
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
   val ack_q = Module(new Queue(new LogicalNetworkIO(new Finish), 1))
-  ack_q.io.enq.valid := refill_done && co.requiresAckForGrant(refill_bits.payload)
-  ack_q.io.enq.bits.payload.manager_xact_id := refill_bits.payload.manager_xact_id
+  ack_q.io.enq.valid := refill_done && refill_bits.payload.requiresAck()
+  ack_q.io.enq.bits.payload := refill_bits.payload.makeFinish()
   ack_q.io.enq.bits.header.dst := refill_bits.header.src
 
   // output signals
   io.resp.valid := s2_hit
   io.mem.acquire.valid := (state === s_request) && ack_q.io.enq.ready
-  io.mem.acquire.bits.payload := UncachedRead(s2_addr >> UInt(blockOffBits))
+  io.mem.acquire.bits.payload := UncachedReadBlock(addr_block = s2_addr >> UInt(blockOffBits))
   io.mem.finish <> ack_q.io.deq
 
   // control state machine

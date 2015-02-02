@@ -7,7 +7,7 @@ import Util._
 import uncore._
 
 case object BuildFPU extends Field[Option[() => FPU]]
-case object XprLen extends Field[Int]
+case object XLen extends Field[Int]
 case object NMultXpr extends Field[Int]
 case object FetchWidth extends Field[Int]
 case object RetireWidth extends Field[Int]
@@ -20,14 +20,23 @@ case object CoreDataBits extends Field[Int]
 case object CoreDCacheReqTagBits extends Field[Int]
 
 abstract trait CoreParameters extends UsesParameters {
-  val xprLen = params(XprLen)
+  val xLen = params(XLen)
+  val paddrBits = params(PAddrBits)
+  val vaddrBits = params(VAddrBits)
+  val pgIdxBits = params(PgIdxBits)
+  val ppnBits = params(PPNBits)
+  val vpnBits = params(VPNBits)
+  val permBits = params(PermBits)
+  val asIdBits = params(ASIdBits)
+
+  val retireWidth = params(RetireWidth)
   val coreFetchWidth = params(FetchWidth)
   val coreInstBits = params(CoreInstBits)
   val coreInstBytes = coreInstBits/8
-  val coreDataBits = xprLen
+  val coreDataBits = xLen
   val coreDataBytes = coreDataBits/8
   val coreDCacheReqTagBits = params(CoreDCacheReqTagBits)
-  val coreMaxAddrBits = math.max(params(PPNBits),params(VPNBits)+1) + params(PgIdxBits)
+  val coreMaxAddrBits = math.max(ppnBits,vpnBits+1) + pgIdxBits
 
   if(params(FastLoadByte)) require(params(FastLoadWord))
 }

@@ -34,52 +34,52 @@ object CSR
   val C =  Bits(3,2)
 }
 
-class CSRFileIO extends Bundle {
+class CSRFileIO extends CoreBundle {
   val host = new HTIFIO
   val rw = new Bundle {
     val addr = UInt(INPUT, 12)
     val cmd = Bits(INPUT, CSR.SZ)
-    val rdata = Bits(OUTPUT, params(XprLen))
-    val wdata = Bits(INPUT, params(XprLen))
+    val rdata = Bits(OUTPUT, xLen)
+    val wdata = Bits(INPUT, xLen)
   }
 
   val status = new Status().asOutput
-  val ptbr = UInt(OUTPUT, params(PAddrBits))
-  val evec = UInt(OUTPUT, params(VAddrBits)+1)
+  val ptbr = UInt(OUTPUT, paddrBits)
+  val evec = UInt(OUTPUT, vaddrBits+1)
   val exception = Bool(INPUT)
-  val retire = UInt(INPUT, log2Up(1+params(RetireWidth)))
-  val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+params(RetireWidth))))
-  val cause = UInt(INPUT, params(XprLen))
+  val retire = UInt(INPUT, log2Up(1+retireWidth))
+  val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+retireWidth)))
+  val cause = UInt(INPUT, xLen)
   val badvaddr_wen = Bool(INPUT)
-  val pc = UInt(INPUT, params(VAddrBits)+1)
+  val pc = UInt(INPUT, vaddrBits+1)
   val sret = Bool(INPUT)
   val fatc = Bool(OUTPUT)
   val replay = Bool(OUTPUT)
-  val time = UInt(OUTPUT, params(XprLen))
+  val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
   val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
   val rocc = new RoCCInterface().flip
 }
 
-class CSRFile extends Module
+class CSRFile extends CoreModule
 {
   val io = new CSRFileIO
  
-  val reg_epc = Reg(Bits(width = params(VAddrBits)+1))
-  val reg_badvaddr = Reg(Bits(width = params(VAddrBits)))
-  val reg_evec = Reg(Bits(width = params(VAddrBits)))
+  val reg_epc = Reg(Bits(width = vaddrBits+1))
+  val reg_badvaddr = Reg(Bits(width = vaddrBits))
+  val reg_evec = Reg(Bits(width = vaddrBits))
   val reg_compare = Reg(Bits(width = 32))
-  val reg_cause = Reg(Bits(width = params(XprLen)))
-  val reg_tohost = Reg(init=Bits(0, params(XprLen)))
-  val reg_fromhost = Reg(init=Bits(0, params(XprLen)))
-  val reg_sup0 = Reg(Bits(width = params(XprLen)))
-  val reg_sup1 = Reg(Bits(width = params(XprLen)))
-  val reg_ptbr = Reg(UInt(width = params(PAddrBits)))
+  val reg_cause = Reg(Bits(width = xLen))
+  val reg_tohost = Reg(init=Bits(0, xLen))
+  val reg_fromhost = Reg(init=Bits(0, xLen))
+  val reg_sup0 = Reg(Bits(width = xLen))
+  val reg_sup1 = Reg(Bits(width = xLen))
+  val reg_ptbr = Reg(UInt(width = paddrBits))
   val reg_stats = Reg(init=Bool(false))
   val reg_status = Reg(new Status) // reset down below
-  val reg_time = WideCounter(params(XprLen))
-  val reg_instret = WideCounter(params(XprLen), io.retire)
-  val reg_uarch_counters = io.uarch_counters.map(WideCounter(params(XprLen), _))
+  val reg_time = WideCounter(xLen)
+  val reg_instret = WideCounter(xLen, io.retire)
+  val reg_uarch_counters = io.uarch_counters.map(WideCounter(xLen, _))
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
@@ -128,7 +128,7 @@ class CSRFile extends Module
 
   when (io.badvaddr_wen) {
     val wdata = io.rw.wdata
-    val (upper, lower) = Split(wdata, params(VAddrBits))
+    val (upper, lower) = Split(wdata, vaddrBits)
     val sign = Mux(lower.toSInt < SInt(0), upper.andR, upper.orR)
     reg_badvaddr := Cat(sign, lower).toSInt
   }
@@ -159,7 +159,7 @@ class CSRFile extends Module
   when (host_pcr_req_fire && !host_pcr_bits.rw && decoded_addr(CSRs.tohost)) { reg_tohost := UInt(0) }
 
   val read_impl = Bits(2)
-  val read_ptbr = reg_ptbr(params(PAddrBits)-1, params(PgIdxBits)) << UInt(params(PgIdxBits))
+  val read_ptbr = reg_ptbr(paddrBits-1, pgIdxBits) << UInt(pgIdxBits)
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
     CSRs.fflags -> (if (!params(BuildFPU).isEmpty) reg_fflags else UInt(0)),
@@ -211,8 +211,8 @@ class CSRFile extends Module
     when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
     when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
     when (decoded_addr(CSRs.fcsr))     { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
-    when (decoded_addr(CSRs.epc))      { reg_epc := wdata(params(VAddrBits),0).toSInt }
-    when (decoded_addr(CSRs.evec))     { reg_evec := wdata(params(VAddrBits)-1,0).toSInt }
+    when (decoded_addr(CSRs.epc))      { reg_epc := wdata(vaddrBits,0).toSInt }
+    when (decoded_addr(CSRs.evec))     { reg_evec := wdata(vaddrBits-1,0).toSInt }
     when (decoded_addr(CSRs.count))    { reg_time := wdata.toUInt }
     when (decoded_addr(CSRs.compare))  { reg_compare := wdata(31,0).toUInt; r_irq_timer := Bool(false) }
     when (decoded_addr(CSRs.fromhost)) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
@@ -220,7 +220,7 @@ class CSRFile extends Module
     when (decoded_addr(CSRs.clear_ipi)){ r_irq_ipi := wdata(0) }
     when (decoded_addr(CSRs.sup0))     { reg_sup0 := wdata }
     when (decoded_addr(CSRs.sup1))     { reg_sup1 := wdata }
-    when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(params(PAddrBits)-1, params(PgIdxBits)), Bits(0, params(PgIdxBits))).toUInt }
+    when (decoded_addr(CSRs.ptbr))     { reg_ptbr := Cat(wdata(paddrBits-1, pgIdxBits), Bits(0, pgIdxBits)).toUInt }
     when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
   }
 

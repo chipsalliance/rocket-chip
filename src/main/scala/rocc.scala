@@ -19,17 +19,17 @@ class RoCCInstruction extends Bundle
   val opcode = Bits(width = 7)
 }
 
-class RoCCCommand extends Bundle
+class RoCCCommand extends CoreBundle
 {
   val inst = new RoCCInstruction
-  val rs1 = Bits(width = params(XprLen))
-  val rs2 = Bits(width = params(XprLen))
+  val rs1 = Bits(width = xLen)
+  val rs2 = Bits(width = xLen)
 }
 
-class RoCCResponse extends Bundle
+class RoCCResponse extends CoreBundle
 {
   val rd = Bits(width = 5)
-  val data = Bits(width = params(XprLen))
+  val data = Bits(width = xLen)
 }
 
 class RoCCInterface extends Bundle
@@ -50,7 +50,7 @@ class RoCCInterface extends Bundle
   val exception = Bool(INPUT)
 }
 
-abstract class RoCC extends Module
+abstract class RoCC extends CoreModule
 {
   val io = new RoCCInterface
   io.mem.req.bits.phys := Bool(true) // don't perform address translation
@@ -59,7 +59,7 @@ abstract class RoCC extends Module
 class AccumulatorExample extends RoCC
 {
   val n = 4
-  val regfile = Mem(UInt(width = params(XprLen)), n)
+  val regfile = Mem(UInt(width = xLen), n)
   val busy = Vec.fill(n){Reg(init=Bool(false))}
 
   val cmd = Queue(io.cmd)

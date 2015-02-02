@@ -6,23 +6,33 @@ import Chisel._
 import uncore._
 import scala.math._
 
-class CAMIO(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
+case object NTLBEntries extends Field[Int]
+
+abstract trait TLBParameters extends CoreParameters {
+  val entries = params(NTLBEntries)
+  val camAddrBits = ceil(log(entries)/log(2)).toInt
+  val camTagBits = asIdBits + vpnBits
+}
+
+abstract class TLBBundle extends Bundle with TLBParameters
+abstract class TLBModule extends Module with TLBParameters
+
+class CAMIO extends TLBBundle {
     val clear        = Bool(INPUT)
     val clear_hit    = Bool(INPUT)
-    val tag          = Bits(INPUT, tag_bits)
+    val tag          = Bits(INPUT, camTagBits)
     val hit          = Bool(OUTPUT)
     val hits         = UInt(OUTPUT, entries)
     val valid_bits   = Bits(OUTPUT, entries)
     
     val write        = Bool(INPUT)
-    val write_tag    = Bits(INPUT, tag_bits)
-    val write_addr    = UInt(INPUT, addr_bits)
+    val write_tag    = Bits(INPUT, camTagBits)
+    val write_addr    = UInt(INPUT, camAddrBits)
 }
 
-class RocketCAM(entries: Int, tag_bits: Int) extends Module {
-  val addr_bits = ceil(log(entries)/log(2)).toInt
-  val io = new CAMIO(entries, addr_bits, tag_bits)
-  val cam_tags = Mem(Bits(width = tag_bits), entries)
+class RocketCAM extends TLBModule {
+  val io = new CAMIO
+  val cam_tags = Mem(Bits(width = camTagBits), entries)
 
   val vb_array = Reg(init=Bits(0, entries))
   when (io.write) {
@@ -66,30 +76,27 @@ class PseudoLRU(n: Int)
   }
 }
 
-class TLBReq extends Bundle
-{
-  val asid = UInt(width = params(ASIdBits))
-  val vpn = UInt(width = params(VPNBits)+1)
+class TLBReq extends TLBBundle {
+  val asid = UInt(width = asIdBits)
+  val vpn = UInt(width = vpnBits+1)
   val passthrough = Bool()
   val instruction = Bool()
 }
 
-class TLBResp(entries: Int) extends Bundle
-{
+class TLBResp(cnt: Option[Int] = None) extends TLBBundle {
   // lookup responses
   val miss = Bool(OUTPUT)
-  val hit_idx = UInt(OUTPUT, entries)
-  val ppn = UInt(OUTPUT, params(PPNBits))
+  val hit_idx = UInt(OUTPUT, cnt.getOrElse(entries))
+  val ppn = UInt(OUTPUT, ppnBits)
   val xcpt_ld = Bool(OUTPUT)
   val xcpt_st = Bool(OUTPUT)
   val xcpt_if = Bool(OUTPUT)
 }
 
-class TLB(entries: Int) extends Module
-{
+class TLB extends TLBModule {
   val io = new Bundle {
     val req = Decoupled(new TLBReq).flip
-    val resp = new TLBResp(entries)
+    val resp = new TLBResp
     val ptw = new TLBPTWIO
   }
 
@@ -98,7 +105,7 @@ class TLB(entries: Int) extends Module
   val r_refill_tag = Reg(UInt())
   val r_refill_waddr = Reg(UInt())
 
-  val tag_cam = Module(new RocketCAM(entries, params(ASIdBits)+params(VPNBits)))
+  val tag_cam = Module(new RocketCAM)
   val tag_ram = Mem(io.ptw.resp.bits.ppn.clone, entries)
   
   val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUInt
@@ -135,7 +142,7 @@ class TLB(entries: Int) extends Module
   val plru = new PseudoLRU(entries)
   val repl_waddr = Mux(has_invalid_entry, invalid_entry, plru.replace)
   
-  val bad_va = io.req.bits.vpn(params(VPNBits)) != io.req.bits.vpn(params(VPNBits)-1)
+  val bad_va = io.req.bits.vpn(vpnBits) != io.req.bits.vpn(vpnBits-1)
   val tlb_hit  = io.ptw.status.vm && tag_hit
   val tlb_miss = io.ptw.status.vm && !tag_hit && !bad_va
   
