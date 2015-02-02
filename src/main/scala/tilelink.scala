@@ -76,11 +76,11 @@ class Acquire extends ClientToManagerChannel
     with HasClientTransactionId 
     with HasTileLinkData {
   // Actual bundle fields
-  val uncached = Bool()
+  val builtin_type = Bool()
   val a_type = UInt(width = max(log2Up(Acquire.nBuiltinAcquireTypes), co.acquireTypeWidth))
   val subblock =  Bits(width = tlSubblockUnionBits)
 
-  // Utility funcs for accessing uncached/subblock union
+  // Utility funcs for accessing subblock union
   val opSizeOff = tlByteAddrBits + 1
   val opCodeOff = tlUncachedOperandSizeBits + opSizeOff
   val opMSB = tlAtomicOpcodeBits + opCodeOff
@@ -94,13 +94,13 @@ class Acquire extends ClientToManagerChannel
   // Other helper funcs
   def is(t: UInt) = a_type === t
 
-  def hasData(dummy: Int = 0): Bool = uncached && Acquire.typesWithData.contains(a_type)
+  def hasData(dummy: Int = 0): Bool = builtin_type && Acquire.typesWithData.contains(a_type)
 
-  def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && uncached &&
+  def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && builtin_type &&
                                            Acquire.typesWithMultibeatData.contains(a_type)
 
   //TODO: This function is a hack to support Rocket icache snooping Rocket nbdcache:
-  def requiresSelfProbe(dummy: Int = 0) = uncached && Acquire.requiresSelfProbe(a_type)
+  def requiresSelfProbe(dummy: Int = 0) = builtin_type && Acquire.requiresSelfProbe(a_type)
 
   def makeProbe(meta: ManagerMetadata = co.managerMetadataOnFlush): Probe =
     Probe(co.getProbeType(this, meta), this.addr_block)
@@ -111,7 +111,7 @@ class Acquire extends ClientToManagerChannel
       addr_beat: UInt = UInt(0),
       data: UInt = UInt(0)): Grant = {
     Grant(
-      uncached = this.uncached,
+      builtin_type = this.builtin_type,
       g_type = co.getGrantType(this, meta),
       client_xact_id = this.client_xact_id,
       manager_xact_id = manager_xact_id,
@@ -140,7 +140,7 @@ object Acquire {
 
   // Most generic constructor
   def apply(
-      uncached: Bool,
+      builtin_type: Bool,
       a_type: Bits,
       client_xact_id: UInt,
       addr_block: UInt,
@@ -148,7 +148,7 @@ object Acquire {
       data: UInt = UInt(0),
       subblock: UInt = UInt(0)): Acquire = {
     val acq = new Acquire
-    acq.uncached := uncached
+    acq.builtin_type := builtin_type
     acq.a_type := a_type
     acq.client_xact_id := client_xact_id
     acq.addr_block := addr_block
@@ -160,7 +160,7 @@ object Acquire {
   // For cached types
   def apply(a_type: Bits, client_xact_id: UInt, addr_block: UInt): Acquire = {
     apply(
-      uncached = Bool(false),
+      builtin_type = Bool(false),
       a_type = a_type,
       client_xact_id = client_xact_id,
       addr_block = addr_block)
@@ -181,7 +181,7 @@ object UncachedRead {
       addr_beat: UInt, 
       alloc: Bool = Bool(true)): Acquire = {
     Acquire(
-      uncached = Bool(true),
+      builtin_type = Bool(true),
       a_type = Acquire.uncachedRead,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
@@ -197,7 +197,7 @@ object UncachedReadBlock {
       addr_block: UInt, 
       alloc: Bool = Bool(true)): Acquire = {
     Acquire(
-      uncached = Bool(true),
+      builtin_type = Bool(true),
       a_type = Acquire.uncachedReadBlock,
       client_xact_id = client_xact_id, 
       addr_block = addr_block,
@@ -214,7 +214,7 @@ object UncachedWrite {
       write_mask: UInt = Acquire.fullWriteMask,
       alloc: Bool = Bool(true)): Acquire = {
     Acquire(
-      uncached = Bool(true),
+      builtin_type = Bool(true),
       a_type = Acquire.uncachedWrite,
       addr_block = addr_block,
       addr_beat = addr_beat,
@@ -233,7 +233,7 @@ object UncachedWriteBlock {
       data: UInt,
       alloc: Bool = Bool(true)): Acquire = {
     Acquire(
-      uncached = Bool(true),
+      builtin_type = Bool(true),
       a_type = Acquire.uncachedWriteBlock,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
@@ -253,7 +253,7 @@ object UncachedAtomic {
       operand_size: UInt,
       data: UInt): Acquire = {
     Acquire(
-      uncached = Bool(true),
+      builtin_type = Bool(true),
       a_type = Acquire.uncachedAtomic, 
       client_xact_id = client_xact_id, 
       addr_block = addr_block, 
@@ -308,6 +308,7 @@ class Release extends ClientToManagerChannel
   // Helper funcs
   def is(t: UInt) = r_type === t
   def hasData(dummy: Int = 0) = co.releaseTypesWithData.contains(r_type)
+  //TODO: Assumes all releases write back full cache blocks:
   def hasMultibeatData(dummy: Int = 0) = Bool(tlDataBeats > 1) && co.releaseTypesWithData.contains(r_type)
   def isVoluntary(dummy: Int = 0) = voluntary
   def requiresAck(dummy: Int = 0) = !Bool(networkPreservesPointToPointOrdering)
@@ -317,7 +318,7 @@ class Release extends ClientToManagerChannel
       meta: ManagerMetadata = co.managerMetadataOnFlush): Grant = {
     Grant(
       g_type = Grant.voluntaryAck,
-      uncached = Bool(true), // Grant.voluntaryAck is built-in type
+      builtin_type = Bool(true), // Grant.voluntaryAck is built-in type
       client_xact_id = this.client_xact_id,
       manager_xact_id = manager_xact_id
     )
@@ -363,19 +364,19 @@ class Grant extends ManagerToClientChannel
     with HasTileLinkData 
     with HasClientTransactionId 
     with HasManagerTransactionId {
-  val uncached = Bool()
+  val builtin_type = Bool()
   val g_type = UInt(width = max(log2Up(Grant.nBuiltinGrantTypes), co.grantTypeWidth))
 
   // Helper funcs
   def is(t: UInt) = g_type === t
-  def hasData(dummy: Int = 0): Bool = Mux(uncached,
+  def hasData(dummy: Int = 0): Bool = Mux(builtin_type,
                                         Grant.typesWithData.contains(g_type),
                                         co.grantTypesWithData.contains(g_type))
   def hasMultibeatData(dummy: Int = 0): Bool = 
-    Bool(tlDataBeats > 1) && Mux(uncached,
+    Bool(tlDataBeats > 1) && Mux(builtin_type,
                                Grant.typesWithMultibeatData.contains(g_type),
                                co.grantTypesWithData.contains(g_type))
-  def isVoluntary(dummy: Int = 0): Bool = uncached && (g_type === Grant.voluntaryAck)
+  def isVoluntary(dummy: Int = 0): Bool = builtin_type && (g_type === Grant.voluntaryAck)
   def requiresAck(dummy: Int = 0): Bool = !Bool(networkPreservesPointToPointOrdering) && !isVoluntary()
   def makeFinish(dummy: Int = 0): Finish = {
     val f = new Finish
@@ -396,14 +397,14 @@ object Grant {
   def typesWithMultibeatData= Vec(uncachedReadBlock)
 
   def apply(
-      uncached: Bool,
+      builtin_type: Bool,
       g_type: UInt,
       client_xact_id: UInt, 
       manager_xact_id: UInt,
       addr_beat: UInt = UInt(0),
       data: UInt = UInt(0)): Grant = {
     val gnt = new Grant
-    gnt.uncached := uncached
+    gnt.builtin_type := builtin_type
     gnt.g_type := g_type
     gnt.client_xact_id := client_xact_id
     gnt.manager_xact_id := manager_xact_id
@@ -452,9 +453,9 @@ class TileLinkIOWrapper extends TLModule {
   io.out.release.valid := Bool(false)
 }
 object TileLinkIOWrapper {
-  def apply[T <: Data](uncached: UncachedTileLinkIO) = {
+  def apply[T <: Data](utl: UncachedTileLinkIO) = {
     val conv = Module(new TileLinkIOWrapper)
-    conv.io.in <> uncached
+    conv.io.in <> utl
     conv.io.out
   }
 }

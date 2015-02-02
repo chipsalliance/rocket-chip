@@ -260,7 +260,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   val state = Reg(init=s_idle)
 
   val xact_src = Reg(io.inner.acquire.bits.header.src.clone)
-  val xact_uncached = Reg(io.inner.acquire.bits.payload.uncached.clone)
+  val xact_builtin_type = Reg(io.inner.acquire.bits.payload.builtin_type.clone)
   val xact_a_type = Reg(io.inner.acquire.bits.payload.a_type.clone)
   val xact_client_xact_id = Reg(io.inner.acquire.bits.payload.client_xact_id.clone)
   val xact_addr_block = Reg(io.inner.acquire.bits.payload.addr_block.clone)
@@ -268,7 +268,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   val xact_subblock = Reg(io.inner.acquire.bits.payload.subblock.clone)
   val xact_data = Vec.fill(tlDataBeats){ Reg(io.inner.acquire.bits.payload.data.clone) }
   val xact = Acquire(
-              uncached = xact_uncached,
+              builtin_type = xact_builtin_type,
               a_type = xact_a_type,
               client_xact_id = xact_client_xact_id,
               addr_block = xact_addr_block,
@@ -355,7 +355,7 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
       val needs_outer_write = cacq.payload.hasData()
       val needs_outer_read = co.requiresOuterRead(cacq.payload, co.managerMetadataOnFlush)
       when(io.inner.acquire.valid) {
-        xact_uncached := cacq.payload.uncached
+        xact_builtin_type := cacq.payload.builtin_type
         xact_a_type := cacq.payload.a_type
         xact_addr_block := cacq.payload.addr_block
         xact_addr_beat := cacq.payload.addr_beat

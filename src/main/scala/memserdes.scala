@@ -325,7 +325,7 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
     when(tl_wrap_in) { active_in := Bool(false) }
   }
 
-  io.uncached.grant.bits.payload := Grant(uncached = Bool(true),
+  io.uncached.grant.bits.payload := Grant(builtin_type = Bool(true),
                                           g_type = Grant.uncachedReadBlock,
                                           client_xact_id = tag_in,
                                           manager_xact_id = UInt(0),
