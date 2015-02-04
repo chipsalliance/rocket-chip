@@ -328,7 +328,7 @@ class L2DataArray extends L2HellaCacheModule {
   io.write.ready := Bool(true)
 }
 
-class L2HellaCache(bankId: Int, innerId: String, outerId: String) extends 
+class L2HellaCacheBank(bankId: Int, innerId: String, outerId: String) extends
     CoherenceAgent(innerId, outerId) with L2HellaCacheParameters {
 
   require(isPow2(nSets))
