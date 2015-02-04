@@ -76,21 +76,24 @@ class PseudoLRU(n: Int)
   }
 }
 
-class TLBReq extends TLBBundle {
+class TLBReq extends CoreBundle {
   val asid = UInt(width = asIdBits)
   val vpn = UInt(width = vpnBits+1)
   val passthrough = Bool()
   val instruction = Bool()
 }
 
-class TLBResp(cnt: Option[Int] = None) extends TLBBundle {
+class TLBRespNoHitIndex extends CoreBundle {
   // lookup responses
   val miss = Bool(OUTPUT)
-  val hit_idx = UInt(OUTPUT, cnt.getOrElse(entries))
   val ppn = UInt(OUTPUT, ppnBits)
   val xcpt_ld = Bool(OUTPUT)
   val xcpt_st = Bool(OUTPUT)
   val xcpt_if = Bool(OUTPUT)
+}
+
+class TLBResp extends TLBRespNoHitIndex with TLBParameters {
+  val hit_idx = UInt(OUTPUT, entries)
 }
 
 class TLB extends TLBModule {
