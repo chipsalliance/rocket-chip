@@ -145,7 +145,7 @@ class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
   val rst = rst_cnt < UInt(nSets)
   val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
   val wdata = Mux(rst, rstVal, io.write.bits.data).toBits
-  val wmask = Mux(rst, SInt(-1), io.write.bits.way_en)
+  val wmask = Mux(rst, SInt(-1), io.write.bits.way_en).toUInt
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val tag_arr = Mem(UInt(width = metabits*nWays), nSets, seqRead = true)
