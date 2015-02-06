@@ -49,6 +49,9 @@ trait ClientToClientChannel extends TileLinkChannel // Unused for now
 //
 trait HasCacheBlockAddress extends TLBundle {
   val addr_block = UInt(width = tlBlockAddrBits)
+
+  def conflicts[T <: HasCacheBlockAddress](that: T) = this.addr_block === that.addr_block
+  def conflicts[T <: HasCacheBlockAddress](addr: UInt) = this.addr_block === addr
 }
 
 trait HasTileLinkBeatId extends TLBundle {

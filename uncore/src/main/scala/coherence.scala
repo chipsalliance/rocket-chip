@@ -135,8 +135,6 @@ abstract class CoherencePolicy(val dir: DirectoryRepresentation) {
   def requiresProbes(acq: Acquire, meta: ManagerMetadata): Bool
   def requiresProbes(cmd: UInt, meta: ManagerMetadata): Bool
   def requiresProbesOnVoluntaryWriteback(meta: ManagerMetadata): Bool = requiresProbes(M_FLUSH, meta)
-
-  def isCoherenceConflict(addr1: UInt, addr2: UInt): Bool
 }
 
 class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {

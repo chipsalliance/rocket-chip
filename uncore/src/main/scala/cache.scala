@@ -397,7 +397,7 @@ class TSHRFile(bankId: Int, innerId: String, outerId: String) extends L2HellaCac
   acquireList.zip(alloc_arb.io.in).zipWithIndex.map { case((acq, arb), i) =>
     arb.valid := acq.ready
     acq.bits := acquire.bits
-    acq.valid := acquire.valid && (acquire_idx === UInt(i))
+    acq.valid := arb.ready && (acquire_idx === UInt(i))
   }
   val block_acquires = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
   acquire.ready := acquireList.map(_.ready).reduce(_||_) && !block_acquires
@@ -475,7 +475,6 @@ class L2WritebackUnit(trackerId: Int, bankId: Int, innerId: String, outerId: Str
   val cacq = io.inner.acquire.bits
   val crel = io.inner.release.bits
   val cgnt = io.inner.grant.bits
-  val c_ack = io.inner.finish.bits
   val mgnt = io.outer.grant.bits
 
   val s_idle :: s_probe :: s_data_read :: s_data_resp :: s_outer_write :: Nil = Enum(UInt(), 5)
@@ -498,7 +497,7 @@ class L2WritebackUnit(trackerId: Int, bankId: Int, innerId: String, outerId: Str
   val resp_data_done = connectIncomingDataBeatCounter(io.data.resp)
 
   io.has_release_match := !crel.payload.isVoluntary() &&
-                            co.isCoherenceConflict(xact_addr_block, crel.payload.addr_block) &&
+                            crel.payload.conflicts(xact_addr_block) &&
                             (state === s_probe)
 
   val next_coh_on_rel = co.managerMetadataOnRelease(crel.payload, xact_coh, crel.header.src)
@@ -824,12 +823,12 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   }
 
   //TODO: Allow hit under miss for stores
-  io.has_acquire_conflict := (co.isCoherenceConflict(xact.addr_block, cacq.payload.addr_block) ||
-                              xact.addr_block(idxMSB,idxLSB) === cacq.payload.addr_block(idxMSB,idxLSB)) &&
+  val in_same_set = xact.addr_block(idxMSB,idxLSB) === 
+                      cacq.payload.addr_block(idxMSB,idxLSB)
+  io.has_acquire_conflict := (xact.conflicts(cacq.payload) || in_same_set) &&
                               (state != s_idle) &&
                               !collect_cacq_data
-  io.has_acquire_match := xact.hasMultibeatData() &&
-                            (xact.addr_block === cacq.payload.addr_block) &&
+  io.has_acquire_match := xact.conflicts(cacq.payload) &&
                               collect_cacq_data
   io.has_release_match := !crel.payload.isVoluntary() &&
                             (xact.addr_block === crel.payload.addr_block) &&

@@ -300,10 +300,10 @@ class AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: Stri
   val myflag = Mux(probe_self, Bits(0), UIntToOH(cacq.header.src(log2Up(nClients)-1,0)))
   probe_initial_flags := ~(io.tile_incoherent | myflag)
 
-  io.has_acquire_conflict := co.isCoherenceConflict(xact_addr_block, cacq.payload.addr_block) && 
-                              (state != s_idle) && 
-                              !collect_inner_data
-  io.has_release_match := co.isCoherenceConflict(xact_addr_block, crel.payload.addr_block) && 
+  io.has_acquire_conflict := xact.conflicts(cacq.payload) && 
+                              !collect_inner_data &&
+                              (state != s_idle)
+  io.has_release_match := xact.conflicts(crel.payload) && 
                               !crel.payload.isVoluntary() &&
                               (state != s_idle)
 
