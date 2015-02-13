@@ -27,7 +27,7 @@ int main(int argc, char** argv)
   FILE *vcdfile = NULL;
   bool dramsim2 = false;
   bool log = false;
-	uint64_t memsz = MEM_SIZE;
+  uint64_t memsz = MEM_SIZE;
 
 
   for (int i = 1; i < argc; i++)
@@ -68,16 +68,16 @@ int main(int argc, char** argv)
   tile.init(random_seed != 0);
 
   mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-	try {
-		mm->init(memsz, tile.Top__io_mem_resp_bits_data.width()/8, LINE_SIZE);
-	}
-	catch (const std::bad_alloc& e) {
-		fprintf(stderr,
-				"I've failed to grasp %d byte of your memory\n"
-				"Set smaller amount of memory by -m <N>" , memsz 
-				);
-		exit(-1);
-	}
+  try {
+  	mm->init(memsz, tile.Top__io_mem_resp_bits_data.width()/8, LINE_SIZE);
+  }
+  catch (const std::bad_alloc& e) {
+  	fprintf(stderr,
+  			"I've failed to grasp %d byte of your memory\n"
+  			"Set smaller amount of memory by -m <N>" , memsz 
+  			);
+  	exit(-1);
+  }
   if (loadmem)
     load_mem(mm->get_data(), loadmem);
 
