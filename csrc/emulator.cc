@@ -66,6 +66,7 @@ int main(int argc, char** argv)
   srand(random_seed);
   tile.init(random_seed != 0);
 
+  // Instantiate and initialize main memory
   mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
   try {
   	mm->init(memsz, tile.Top__io_mem_resp_bits_data.width()/8, LINE_SIZE);
@@ -80,12 +81,14 @@ int main(int argc, char** argv)
   if (loadmem)
     load_mem(mm->get_data(), loadmem);
 
+  // Instantiate HTIF
   htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
   int htif_bits = tile.Top__io_host_in_bits.width();
   assert(htif_bits % 8 == 0 && htif_bits <= val_n_bits());
 
   signal(SIGTERM, handle_sigterm);
 
+  // reset for a few cycles to support pipelined reset
   tile.Top__io_host_in_valid = LIT<1>(0);
   tile.Top__io_host_out_ready = LIT<1>(0);
   tile.Top__io_mem_backup_en = LIT<1>(0);
@@ -143,7 +146,6 @@ int main(int argc, char** argv)
 
   if (vcd)
     fclose(vcdfile);
-
 
   if (htif->exit_code())
   {
