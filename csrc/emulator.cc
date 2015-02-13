@@ -27,12 +27,16 @@ int main(int argc, char** argv)
   FILE *vcdfile = NULL;
   bool dramsim2 = false;
   bool log = false;
+	uint64_t memsz = MEM_SIZE;
+
 
   for (int i = 1; i < argc; i++)
   {
     std::string arg = argv[i];
     if (arg.substr(0, 2) == "-v")
       vcd = argv[i]+2;
+    else if (arg.substr(0, 2) == "-m")
+      memsz = atoll(argv[i]+2);
     else if (arg.substr(0, 2) == "-s")
       random_seed = atoi(argv[i]+2);
     else if (arg == "+dramsim")
@@ -63,20 +67,26 @@ int main(int argc, char** argv)
   srand(random_seed);
   tile.init(random_seed != 0);
 
-  // Instantiate and initialize main memory
   mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-  mm->init(MEM_SIZE, tile.Top__io_mem_resp_bits_data.width()/8, LINE_SIZE);
+	try {
+		mm->init(memsz, tile.Top__io_mem_resp_bits_data.width()/8, LINE_SIZE);
+	}
+	catch (const std::bad_alloc& e) {
+		fprintf(stderr,
+				"I've failed to grasp %d byte of your memory\n"
+				"Set smaller amount of memory by -m <N>" , memsz 
+				);
+		exit(-1);
+	}
   if (loadmem)
     load_mem(mm->get_data(), loadmem);
 
-  // Instantiate HTIF
   htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
   int htif_bits = tile.Top__io_host_in_bits.width();
   assert(htif_bits % 8 == 0 && htif_bits <= val_n_bits());
 
   signal(SIGTERM, handle_sigterm);
 
-  // reset for a few cycles to support pipelined reset
   tile.Top__io_host_in_valid = LIT<1>(0);
   tile.Top__io_host_out_ready = LIT<1>(0);
   tile.Top__io_mem_backup_en = LIT<1>(0);
