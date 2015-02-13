@@ -36,7 +36,7 @@ int main(int argc, char** argv)
     if (arg.substr(0, 2) == "-v")
       vcd = argv[i]+2;
     else if (arg.substr(0, 2) == "-m")
-      memsz = atoll(argv[i]+2);
+      memsz = atoll(argv[i+1]);
     else if (arg.substr(0, 2) == "-s")
       random_seed = atoi(argv[i]+2);
     else if (arg == "+dramsim")
@@ -49,6 +49,7 @@ int main(int argc, char** argv)
       loadmem = argv[i]+9;
   }
 
+	printf("memsize = %ld, loadmem = %s\n", memsz, loadmem);
   const int disasm_len = 24;
   if (vcd)
   {
@@ -73,8 +74,8 @@ int main(int argc, char** argv)
   }
   catch (const std::bad_alloc& e) {
   	fprintf(stderr,
-  			"I've failed to grasp %d byte of your memory\n"
-  			"Set smaller amount of memory by -m <N>" , memsz 
+  			"I've failed to grasp %ld byte of your memory\n"
+  			"Set smaller amount of memory by -m <N>\n" , memsz 
   			);
   	exit(-1);
   }
@@ -144,6 +145,7 @@ int main(int argc, char** argv)
 
   if (vcd)
     fclose(vcdfile);
+
 
   if (htif->exit_code())
   {
