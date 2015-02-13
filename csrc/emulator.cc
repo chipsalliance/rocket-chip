@@ -29,14 +29,13 @@ int main(int argc, char** argv)
   bool log = false;
   uint64_t memsz = MEM_SIZE;
 
-
   for (int i = 1; i < argc; i++)
   {
     std::string arg = argv[i];
     if (arg.substr(0, 2) == "-v")
       vcd = argv[i]+2;
-    else if (arg.substr(0, 2) == "-m")
-      memsz = atoll(argv[i+1]);
+    else if (arg.substr(0, 9) == "+memsize=")
+      memsz = atoll(argv[i]+9);
     else if (arg.substr(0, 2) == "-s")
       random_seed = atoi(argv[i]+2);
     else if (arg == "+dramsim")
@@ -49,7 +48,6 @@ int main(int argc, char** argv)
       loadmem = argv[i]+9;
   }
 
-	printf("memsize = %ld, loadmem = %s\n", memsz, loadmem);
   const int disasm_len = 24;
   if (vcd)
   {
@@ -74,8 +72,8 @@ int main(int argc, char** argv)
   }
   catch (const std::bad_alloc& e) {
   	fprintf(stderr,
-  			"I've failed to grasp %ld byte of your memory\n"
-  			"Set smaller amount of memory by -m <N>\n" , memsz 
+  			"I've failed to grasp %ld byte (%ldMB) of your memory\n"
+  			"Set smaller amount of memory by +memsize=<N>\n" , memsz, memsz / (1024 * 1024)
   			);
   	exit(-1);
   }
