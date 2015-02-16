@@ -418,7 +418,8 @@ class WritebackUnit extends L1HellaCacheModule {
         data_req_cnt := data_req_cnt - Mux[UInt](Bool(refillCycles > 1) && r1_data_req_fired, 2, 1)
       } .elsewhen(beat_done) { if(refillCyclesPerBeat > 1) buf_v := 0 }
       when(!r1_data_req_fired) {
-        active := data_req_cnt < UInt(refillCycles)
+        // We're done if this is the final data request and the Release can be sent
+        active := data_req_cnt < UInt(refillCycles) || !io.release.ready
       }
     }
   }
