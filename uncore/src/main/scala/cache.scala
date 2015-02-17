@@ -281,9 +281,9 @@ class L2MetadataArray extends L2HellaCacheModule {
 }
 
 class L2DataReadReq extends L2HellaCacheBundle 
-    with HasCacheBlockAddress
     with HasTileLinkBeatId
     with HasL2Id {
+  val addr_idx = UInt(width = idxBits)
   val way_en = Bits(width = nWays)
 }
 
@@ -311,8 +311,8 @@ class L2DataArray extends L2HellaCacheModule {
   val wmask = FillInterleaved(8, io.write.bits.wmask)
   val reg_raddr = Reg(UInt())
   val array = Mem(Bits(width=rowBits), nWays*nSets*refillCycles, seqRead = true)
-  val waddr = Cat(OHToUInt(io.write.bits.way_en), io.write.bits.addr_block, io.write.bits.addr_beat)
-  val raddr = Cat(OHToUInt(io.read.bits.way_en), io.read.bits.addr_block, io.read.bits.addr_beat)
+  val waddr = Cat(OHToUInt(io.write.bits.way_en), io.write.bits.addr_idx, io.write.bits.addr_beat)
+  val raddr = Cat(OHToUInt(io.read.bits.way_en), io.read.bits.addr_idx, io.read.bits.addr_beat)
 
   when (io.write.bits.way_en.orR && io.write.valid) {
     array.write(waddr, io.write.bits.data, wmask)
@@ -524,7 +524,7 @@ class L2WritebackUnit(trackerId: Int, bankId: Int, innerId: String, outerId: Str
   io.data.read.valid := Bool(false)
   io.data.read.bits.id := UInt(trackerId)
   io.data.read.bits.way_en := xact_way_en
-  io.data.read.bits.addr_block := xact_addr_block
+  io.data.read.bits.addr_idx := xact_addr_block(idxMSB,idxLSB)
   io.data.read.bits.addr_beat := read_data_cnt
   io.data.write.valid := Bool(false)
 
@@ -658,7 +658,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int, innerId: String, ou
   io.data.write.valid := Bool(false)
   io.data.write.bits.id := UInt(trackerId)
   io.data.write.bits.way_en := xact_way_en
-  io.data.write.bits.addr_block := xact_addr_block
+  io.data.write.bits.addr_idx := xact_addr_block(idxMSB,idxLSB)
   io.data.write.bits.addr_beat := write_data_cnt
   io.data.write.bits.wmask := SInt(-1)
   io.data.write.bits.data := xact_data(write_data_cnt)
@@ -881,12 +881,12 @@ class L2AcquireTracker(trackerId: Int, bankId: Int, innerId: String, outerId: St
   io.data.read.valid := Bool(false)
   io.data.read.bits.id := UInt(trackerId)
   io.data.read.bits.way_en := xact_way_en
-  io.data.read.bits.addr_block := xact_addr_block
+  io.data.read.bits.addr_idx := xact_addr_block(idxMSB,idxLSB)
   io.data.read.bits.addr_beat := read_data_cnt
   io.data.write.valid := Bool(false)
   io.data.write.bits.id := UInt(trackerId)
   io.data.write.bits.way_en := xact_way_en
-  io.data.write.bits.addr_block := xact_addr_block
+  io.data.write.bits.addr_idx := xact_addr_block(idxMSB,idxLSB)
   io.data.write.bits.addr_beat := write_data_cnt
   io.data.write.bits.wmask := SInt(-1)
   io.data.write.bits.data := xact_data(write_data_cnt)
