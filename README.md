@@ -31,7 +31,7 @@ To build the rocket-chip repository, you must point the RISCV
 environment variable to your riscv-tools installation directory. If you
 do not yet have riscv-tools installed, please follow the directions in
 the
-[riscv-tools/README](https://github.com/ucb-bar/riscv-tools/blob/master/README.md).
+[riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
 
     $ export RISCV=/path/to/riscv/toolchain/installation
 
@@ -143,7 +143,7 @@ use dramsim2 to emulate DRAM timing.
 We also tag a version of the FPGA infrastructure that works with the RTL
 committed in the rocket-chip repository.
 * **riscv-tools**
-([https://github.com/ucb-bar/riscv-tools](https://github.com/ucb-bar/riscv-tools)):
+([https://github.com/riscv/riscv-tools](https://github.com/riscv/riscv-tools)):
 We tag a version of riscv-tools that works with the RTL committed in the
 rocket-chip repository.  Once the software toolchain stabilizes, we
 might turn this submodule into an external dependency.
@@ -236,7 +236,7 @@ points to the rocket-chip repository.
 Before going any further, you must point the RISCV environment variable
 to your riscv-tools installation directory. If you do not yet have
 riscv-tools installed, follow the directions in the
-[riscv-tools/README](https://github.com/ucb-bar/riscv-tools/blob/master/README.md).
+[riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
 
     export RISCV=/path/to/install/riscv/toolchain
 
