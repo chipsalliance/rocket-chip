@@ -202,13 +202,15 @@ class MemDesser(w: Int) extends Module // test rig side
   io.narrow.resp.bits := dataq.io.deq.bits.toBits >> (recv_cnt * UInt(w))
 }
 
+//Adapter between a TileLinkIO and a UncachedTileLinkIO, merges voluntary
+
+
 //Adapter betweewn an UncachedTileLinkIO and a mem controller MemIO
-class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
+class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
   val io = new Bundle {
-    val uncached = new UncachedTileLinkIO().flip
+    val tl = new TileLinkIO().flip
     val mem = new MemIO
   }
-  val co = params(TLCoherence)
   val mifTagBits = params(MIFTagBits)
   val mifDataBits = params(MIFDataBits)
   val mifDataBeats = params(MIFDataBeats)
@@ -216,121 +218,241 @@ class MemIOUncachedTileLinkIOConverter(qDepth: Int) extends Module {
   val tlDataBeats = params(TLDataBeats)
   val dataBits = tlDataBits*tlDataBeats 
   require(tlDataBits*tlDataBeats == mifDataBits*mifDataBeats)
-  //require(params(TLClientXactIdBits) <= params(MIFTagBits))
+  require(params(TLClientXactIdBits) <= params(MIFTagBits))
+
+  io.tl.acquire.ready := Bool(false)
+  io.tl.probe.valid := Bool(false)
+  io.tl.release.ready := Bool(false)
+  io.tl.finish.ready := Bool(true)
+  io.mem.resp.ready := Bool(false)
+
+  val gnt_arb = Module(new Arbiter(new LogicalNetworkIO(new Grant), 2))
+  io.tl.grant <> gnt_arb.io.out
+
+  val acq_has_data = io.tl.acquire.bits.payload.hasData()
+  val rel_has_data = io.tl.release.bits.payload.hasData()
 
   // Decompose outgoing TL Acquires into MemIO cmd and data
-  val mem_cmd_q = Module(new Queue(new MemReqCmd, qDepth))
-  val mem_data_q = Module(new Queue(new MemData, qDepth))
-
-  io.uncached.acquire.ready := Bool(false)
-  io.uncached.grant.valid := Bool(false)
-  io.mem.resp.ready := Bool(false)
-  mem_cmd_q.io.enq.valid := Bool(false)
-  mem_data_q.io.enq.valid := Bool(false)
-
-  //TODO: Assert that only WriteUncachedBlock and ReadUncachedBlock are
-  //acceptable Acquire types
-  val acq_has_data = io.uncached.acquire.bits.payload.hasData()
-  val (tl_cnt_out, tl_wrap_out) = Counter(io.uncached.acquire.fire() && acq_has_data, tlDataBeats)
-  val (mif_cnt_out, mif_wrap_out) = Counter(mem_data_q.io.enq.fire(), mifDataBeats)
   val active_out = Reg(init=Bool(false))
   val cmd_sent_out = Reg(init=Bool(false))
-  val tl_done_out = Reg(init=Bool(false))
-  val mif_done_out = Reg(init=Bool(false))
   val tag_out = Reg(Bits())
   val addr_out = Reg(Bits())
   val has_data = Reg(init=Bool(false))
-  val tl_buf_out = Vec.fill(tlDataBeats){ Reg(io.uncached.acquire.bits.payload.data.clone) }
-  val mif_buf_out = Vec.fill(mifDataBeats){ new MemData }
-  mif_buf_out := mif_buf_out.fromBits(tl_buf_out.toBits)
-  val mif_prog_out = (mif_cnt_out+UInt(1, width = log2Up(mifDataBeats+1)))*UInt(mifDataBits)
-  val tl_prog_out = tl_cnt_out*UInt(tlDataBits)
+  val data_from_rel = Reg(init=Bool(false))
+  val (tl_cnt_out, tl_wrap_out) =
+    Counter((io.tl.acquire.fire() && acq_has_data) ||
+              (io.tl.release.fire() && rel_has_data), tlDataBeats)
+  val tl_done_out = Reg(init=Bool(false))
+  val make_grant_ack = Reg(init=Bool(false))
+  val grant_for_rel = Grant(
+                        is_builtin_type = Bool(true),
+                        g_type = Grant.voluntaryAckType,
+                        client_xact_id = tag_out,
+                        manager_xact_id = UInt(0))
+  val grant_for_acq_write = ManagerMetadata.onReset.makeGrant(
+                                  acq = Acquire(
+                                    is_builtin_type = tag_out(0),
+                                    a_type = tag_out >> UInt(1),
+                                    client_xact_id = tag_out >> UInt(io.tl.tlAcquireTypeBits+1),
+                                    addr_block = UInt(0)), //DNC
+                                  manager_xact_id = UInt(0))
+  gnt_arb.io.in(1).valid := Bool(false)
+  gnt_arb.io.in(1).bits.payload := Mux(data_from_rel, grant_for_rel, grant_for_acq_write)
 
-  when(!active_out){
-    io.uncached.acquire.ready := Bool(true)
-    when(io.uncached.acquire.valid) {
-      active_out := Bool(true)
-      cmd_sent_out := Bool(false)
-      tag_out := io.uncached.acquire.bits.payload.client_xact_id
-      addr_out := io.uncached.acquire.bits.payload.addr_block
-      has_data := acq_has_data
-      tl_done_out := tl_wrap_out
-      mif_done_out := Bool(false)
-      tl_buf_out(tl_cnt_out) := io.uncached.acquire.bits.payload.data
+  if(tlDataBits != mifDataBits || tlDataBeats != mifDataBeats) {
+    val mem_cmd_q = Module(new Queue(new MemReqCmd, qDepth))
+    val mem_data_q = Module(new Queue(new MemData, qDepth))
+    mem_cmd_q.io.enq.valid := Bool(false)
+    mem_data_q.io.enq.valid := Bool(false)
+    val (mif_cnt_out, mif_wrap_out) = Counter(mem_data_q.io.enq.fire(), mifDataBeats)
+    val mif_done_out = Reg(init=Bool(false))
+    val tl_buf_out = Vec.fill(tlDataBeats){ Reg(io.tl.acquire.bits.payload.data.clone) }
+    val mif_buf_out = Vec.fill(mifDataBeats){ new MemData }
+    mif_buf_out := mif_buf_out.fromBits(tl_buf_out.toBits)
+    val mif_prog_out = (mif_cnt_out+UInt(1, width = log2Up(mifDataBeats+1)))*UInt(mifDataBits)
+    val tl_prog_out = tl_cnt_out*UInt(tlDataBits)
+
+    when(!active_out){
+      io.tl.release.ready := Bool(true)
+      io.tl.acquire.ready := !io.tl.release.valid
+      when(io.tl.release.valid) {
+        active_out := Bool(true)
+        cmd_sent_out := Bool(false)
+        tag_out := io.tl.release.bits.payload.client_xact_id
+        addr_out := io.tl.release.bits.payload.addr_block
+        has_data := rel_has_data
+        data_from_rel := Bool(true)
+        make_grant_ack := Bool(true)
+        tl_done_out := tl_wrap_out
+        tl_buf_out(tl_cnt_out) := io.tl.release.bits.payload.data
+      } .elsewhen(io.tl.acquire.valid) {
+        active_out := Bool(true)
+        cmd_sent_out := Bool(false)
+        tag_out := Cat(io.tl.acquire.bits.payload.client_xact_id,
+                       io.tl.acquire.bits.payload.a_type,
+                       io.tl.acquire.bits.payload.is_builtin_type)
+        addr_out := io.tl.acquire.bits.payload.addr_block
+        has_data := acq_has_data
+        data_from_rel := Bool(false)
+        make_grant_ack := acq_has_data
+        tl_done_out := tl_wrap_out
+        tl_buf_out(tl_cnt_out) := io.tl.acquire.bits.payload.data
+      }
     }
-  }
-  when(active_out) {
-    when(!cmd_sent_out) {
-      mem_cmd_q.io.enq.valid := Bool(true)
-    }
-    when(has_data) {
-      when(!tl_done_out) {
-        io.uncached.acquire.ready := Bool(true)
-        when(io.uncached.acquire.valid) {
-          tl_buf_out(tl_cnt_out) := io.uncached.acquire.bits.payload.data
+    when(active_out) {
+      mem_cmd_q.io.enq.valid := !cmd_sent_out
+      cmd_sent_out := cmd_sent_out || mem_cmd_q.io.enq.fire()
+      when(has_data) {
+        when(!tl_done_out) {
+          io.tl.acquire.ready := Bool(true)
+          when(io.tl.acquire.valid) {
+            tl_buf_out(tl_cnt_out) := Mux(data_from_rel,
+                                        io.tl.release.bits.payload.data,
+                                        io.tl.acquire.bits.payload.data)
+          }
+        }
+        when(!mif_done_out) { 
+          mem_data_q.io.enq.valid := tl_done_out || mif_prog_out <= tl_prog_out
         }
       }
-      when(!mif_done_out) { 
-        mem_data_q.io.enq.valid := tl_done_out || mif_prog_out <= tl_prog_out
+      when(tl_wrap_out) { tl_done_out := Bool(true) }
+      when(mif_wrap_out) { mif_done_out := Bool(true) }
+      when(tl_done_out && make_grant_ack) {
+        gnt_arb.io.in(1).valid := Bool(true)
+        when(gnt_arb.io.in(1).ready) { make_grant_ack := Bool(false) }
+      }
+      when(cmd_sent_out && (!has_data || mif_done_out) && !make_grant_ack) {
+        active_out := Bool(false)
       }
     }
-    when(mem_cmd_q.io.enq.fire()) {
-      cmd_sent_out := Bool(true)
+
+    mem_cmd_q.io.enq.bits.rw := has_data
+    mem_cmd_q.io.enq.bits.tag := tag_out
+    mem_cmd_q.io.enq.bits.addr := addr_out
+    mem_data_q.io.enq.bits.data := mif_buf_out(mif_cnt_out).data
+    io.mem.req_cmd <> mem_cmd_q.io.deq
+    io.mem.req_data <> mem_data_q.io.deq
+  } else { // Don't make the data buffers and try to flow cmd and data
+    io.mem.req_cmd.valid := Bool(false)
+    io.mem.req_data.valid := Bool(false)
+    io.mem.req_cmd.bits.rw := has_data
+    io.mem.req_cmd.bits.tag := tag_out
+    io.mem.req_cmd.bits.addr := addr_out
+    io.mem.req_data.bits.data := Mux(data_from_rel,
+                                   io.tl.release.bits.payload.data,
+                                   io.tl.acquire.bits.payload.data)
+    when(!active_out){
+      io.tl.release.ready := io.mem.req_data.ready
+      io.tl.acquire.ready := io.mem.req_data.ready && !io.tl.release.valid
+      io.mem.req_data.valid := (io.tl.release.valid && rel_has_data) ||
+                                 (io.tl.acquire.valid && acq_has_data)
+      when(io.mem.req_data.ready && (io.tl.release.valid || io.tl.acquire.valid)) {
+        active_out := !io.mem.req_cmd.ready || io.mem.req_data.valid
+        io.mem.req_cmd.valid := Bool(true)
+        cmd_sent_out := io.mem.req_cmd.ready
+        tag_out := io.mem.req_cmd.bits.tag
+        addr_out := io.mem.req_data.bits.data
+        has_data := io.mem.req_cmd.bits.rw
+        tl_done_out := tl_wrap_out
+        when(io.tl.release.valid) {
+          data_from_rel := Bool(true)
+          make_grant_ack := Bool(true)
+          io.mem.req_cmd.bits.rw := rel_has_data
+          io.mem.req_cmd.bits.tag := io.tl.release.bits.payload.client_xact_id
+          io.mem.req_cmd.bits.addr := io.tl.release.bits.payload.addr_block
+          io.mem.req_data.bits.data := io.tl.release.bits.payload.data
+        } .elsewhen(io.tl.acquire.valid) {
+          data_from_rel := Bool(false)
+          make_grant_ack := acq_has_data
+          io.mem.req_cmd.bits.rw := acq_has_data
+          io.mem.req_cmd.bits.tag := Cat(io.tl.acquire.bits.payload.client_xact_id,
+                                         io.tl.acquire.bits.payload.a_type,
+                                         io.tl.acquire.bits.payload.is_builtin_type)
+          io.mem.req_cmd.bits.addr := io.tl.acquire.bits.payload.addr_block
+          io.mem.req_data.bits.data := io.tl.acquire.bits.payload.data
+        }
+      }
     }
-    when(tl_wrap_out) { tl_done_out := Bool(true) }
-    when(mif_wrap_out) { mif_done_out := Bool(true) }
-    when(cmd_sent_out && (!has_data || mif_done_out)) {
-      active_out := Bool(false)
+    when(active_out) {
+      io.mem.req_cmd.valid := !cmd_sent_out
+      cmd_sent_out := cmd_sent_out || io.mem.req_cmd.fire()
+      when(has_data && !tl_done_out) {
+        when(data_from_rel) {
+          io.tl.release.ready := io.mem.req_data.ready
+          io.mem.req_data.valid := io.tl.release.valid
+        } .otherwise {
+          io.tl.acquire.ready := io.mem.req_data.ready
+          io.mem.req_data.valid := io.tl.acquire.valid
+        }
+      }
+      when(tl_wrap_out) { tl_done_out := Bool(true) }
+      when(tl_done_out && make_grant_ack) {
+        gnt_arb.io.in(1).valid := Bool(true)
+        when(gnt_arb.io.in(1).ready) { make_grant_ack := Bool(false) }
+      }
+      when(cmd_sent_out && (!has_data || tl_done_out) && !make_grant_ack) {
+        active_out := Bool(false)
+      }
     }
   }
-
-  mem_cmd_q.io.enq.bits.rw := has_data
-  mem_cmd_q.io.enq.bits.tag := tag_out
-  mem_cmd_q.io.enq.bits.addr := addr_out
-  mem_data_q.io.enq.bits.data := mif_buf_out(mif_cnt_out).data
-  io.mem.req_cmd <> mem_cmd_q.io.deq
-  io.mem.req_data <> mem_data_q.io.deq
 
   // Aggregate incoming MemIO responses into TL Grants
-  val (mif_cnt_in, mif_wrap_in) = Counter(io.mem.resp.fire(), mifDataBeats) // TODO: Assumes all resps have data
-  val (tl_cnt_in, tl_wrap_in) = Counter(io.uncached.grant.fire(), tlDataBeats)
   val active_in = Reg(init=Bool(false))
-  val mif_done_in = Reg(init=Bool(false))
+  val (tl_cnt_in, tl_wrap_in) = Counter(io.tl.grant.fire() && io.tl.grant.bits.payload.hasMultibeatData(), tlDataBeats)
   val tag_in = Reg(UInt(width = mifTagBits))
-  val mif_buf_in = Vec.fill(mifDataBeats){ Reg(new MemData) }
-  val tl_buf_in = Vec.fill(tlDataBeats){ io.uncached.acquire.bits.payload.data.clone }
-  tl_buf_in := tl_buf_in.fromBits(mif_buf_in.toBits)
-  val tl_prog_in = (tl_cnt_in+UInt(1, width = log2Up(tlDataBeats+1)))*UInt(tlDataBits)
-  val mif_prog_in = mif_cnt_in*UInt(mifDataBits)
 
-  when(!active_in) {
-    io.mem.resp.ready := Bool(true)
-    when(io.mem.resp.valid) {
-      active_in := Bool(true)
-      mif_done_in := mif_wrap_in
-      tag_in := io.mem.resp.bits.tag
-      mif_buf_in(tl_cnt_in).data := io.mem.resp.bits.data
-    }
-  }
-  
-  when(active_in) {
-    io.uncached.grant.valid := mif_done_in || tl_prog_in <= mif_prog_in
-    when(!mif_done_in) {
+  if(tlDataBits != mifDataBits || tlDataBeats != mifDataBeats) {
+    val (mif_cnt_in, mif_wrap_in) = Counter(io.mem.resp.fire(), mifDataBeats) // TODO: Assumes all resps have data
+    val mif_done_in = Reg(init=Bool(false))
+    val mif_buf_in = Vec.fill(mifDataBeats){ Reg(new MemData) }
+    val tl_buf_in = Vec.fill(tlDataBeats){ io.tl.acquire.bits.payload.data.clone }
+    tl_buf_in := tl_buf_in.fromBits(mif_buf_in.toBits)
+    val tl_prog_in = (tl_cnt_in+UInt(1, width = log2Up(tlDataBeats+1)))*UInt(tlDataBits)
+    val mif_prog_in = mif_cnt_in*UInt(mifDataBits)
+    gnt_arb.io.in(0).bits.payload := ManagerMetadata.onReset.makeGrant(
+                                      acq = Acquire(
+                                        is_builtin_type = tag_in(0),
+                                        a_type = tag_in >> UInt(1),
+                                        client_xact_id = tag_in >> UInt(io.tl.tlAcquireTypeBits+1),
+                                        addr_block = UInt(0)), //DNC
+                                      manager_xact_id = UInt(0),
+                                      addr_beat = tl_cnt_in,
+                                      data = tl_buf_in(tl_cnt_in))
+
+    when(!active_in) {
       io.mem.resp.ready := Bool(true)
       when(io.mem.resp.valid) {
-        mif_buf_in(mif_cnt_in).data := io.mem.resp.bits.data
+        active_in := Bool(true)
+        mif_done_in := mif_wrap_in
+        tag_in := io.mem.resp.bits.tag
+        mif_buf_in(tl_cnt_in).data := io.mem.resp.bits.data
       }
     }
-    when(mif_wrap_in) { mif_done_in := Bool(true) }
-    when(tl_wrap_in) { active_in := Bool(false) }
+    when(active_in) {
+      gnt_arb.io.in(0).valid := mif_done_in || tl_prog_in <= mif_prog_in
+      when(!mif_done_in) {
+        io.mem.resp.ready := Bool(true)
+        when(io.mem.resp.valid) {
+          mif_buf_in(mif_cnt_in).data := io.mem.resp.bits.data
+        }
+      }
+      when(mif_wrap_in) { mif_done_in := Bool(true) }
+      when(tl_wrap_in) { active_in := Bool(false) }
+    }
+  } else { // Don't generate all the uneeded data buffers and flow resp
+    gnt_arb.io.in(0).valid := io.mem.resp.valid
+    io.mem.resp.ready := gnt_arb.io.in(0).ready
+    gnt_arb.io.in(0).bits.payload :=
+      ManagerMetadata.onReset.makeGrant(
+        acq = Acquire(
+          is_builtin_type = io.mem.resp.bits.tag(0),
+          a_type = io.mem.resp.bits.tag >> UInt(1),
+          client_xact_id = io.mem.resp.bits.tag >> UInt(io.tl.tlAcquireTypeBits+1),
+          addr_block = UInt(0)), //DNC
+        manager_xact_id = UInt(0),
+        addr_beat = tl_cnt_in,
+        data =  io.mem.resp.bits.data)
   }
-
-  io.uncached.grant.bits.payload := Grant(builtin_type = Bool(true),
-                                          g_type = Grant.uncachedReadBlock,
-                                          client_xact_id = tag_in,
-                                          manager_xact_id = UInt(0),
-                                          addr_beat = tl_cnt_in,
-                                          data = tl_buf_in(tl_cnt_in))
 }
 
 class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
@@ -428,15 +550,15 @@ class MemPipeIOMemIOConverter(numRequests: Int, refillCycles: Int) extends Modul
   dec := io.mem.req_cmd.fire() && !io.mem.req_cmd.bits.rw
 }
 
-class MemPipeIOUncachedTileLinkIOConverter(outstanding: Int, refillCycles: Int) extends Module {
+class MemPipeIOTileLinkIOConverter(outstanding: Int, refillCycles: Int) extends Module {
   val io = new Bundle {
-    val uncached = new UncachedTileLinkIO().flip
+    val tl = new TileLinkIO().flip
     val mem = new MemPipeIO
   }
   
-  val a = Module(new MemIOUncachedTileLinkIOConverter(2))
+  val a = Module(new MemIOTileLinkIOConverter(1))
   val b = Module(new MemPipeIOMemIOConverter(outstanding, refillCycles))
-  a.io.uncached <> io.uncached
+  a.io.tl <> io.tl
   b.io.cpu.req_cmd <> Queue(a.io.mem.req_cmd, 2, pipe=true)
   b.io.cpu.req_data <> Queue(a.io.mem.req_data, refillCycles, pipe=true)
   a.io.mem.resp <> b.io.cpu.resp

@@ -14,7 +14,6 @@ case object HTIFNCores extends Field[Int]
 abstract trait HTIFParameters extends UsesParameters {
   val dataBits = params(TLDataBits)
   val dataBeats = params(TLDataBeats)
-  val co = params(TLCoherence)
   val w = params(HTIFWidth)
   val nSCR = params(HTIFNSCR)
   val offsetBits = params(HTIFOffsetBits)
@@ -197,12 +196,12 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   val init_addr = addr.toUInt >> UInt(offsetBits-3)
   io.mem.acquire.valid := state === state_mem_rreq || state === state_mem_wreq
   io.mem.acquire.bits.payload := Mux(cmd === cmd_writemem, 
-    UncachedWriteBlock(
+    PutBlock(
       addr_block = init_addr,
       addr_beat = cnt,
       client_xact_id = UInt(0),
       data = mem_req_data), 
-    UncachedReadBlock(addr_block = init_addr))
+    GetBlock(addr_block = init_addr))
   io.mem.acquire.bits.payload.data := mem_req_data
   io.mem.finish.valid := (state === state_mem_finish) && mem_needs_ack
   io.mem.finish.bits.payload.manager_xact_id := mem_gxid
@@ -258,7 +257,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
   scr_rdata(0) := UInt(nCores)
-  scr_rdata(1) := UInt((BigInt(dataBits*dataBeats/8) << params(TLAddrBits)) >> 20)
+  scr_rdata(1) := UInt((BigInt(dataBits*dataBeats/8) << params(TLBlockAddrBits)) >> 20)
 
   io.scr.wen := Bool(false)
   io.scr.wdata := pcr_wdata

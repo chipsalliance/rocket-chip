@@ -8,30 +8,35 @@ import scala.math.max
 // external requirements or design space exploration
 //
 case object TLId extends Field[String] // Unique name per network
-case object TLCoherence extends Field[CoherencePolicy]
-case object TLAddrBits extends Field[Int]
+case object TLCoherencePolicy extends Field[CoherencePolicy]
+case object TLBlockAddrBits extends Field[Int]
 case object TLManagerXactIdBits extends Field[Int]
 case object TLClientXactIdBits extends Field[Int]
 case object TLDataBits extends Field[Int]
 case object TLDataBeats extends Field[Int]
+case object TLNetworkIsOrderedP2P extends Field[Boolean]
 
 abstract trait TileLinkParameters extends UsesParameters {
-  val tlBlockAddrBits = params(TLAddrBits)
+  val tlBlockAddrBits = params(TLBlockAddrBits)
   val tlClientXactIdBits = params(TLClientXactIdBits)
   val tlManagerXactIdBits = params(TLManagerXactIdBits)
   val tlDataBits = params(TLDataBits)
   val tlDataBeats = params(TLDataBeats)
+  val tlCoh = params(TLCoherencePolicy)
   val tlWriteMaskBits = if(tlDataBits/8 < 1) 1 else tlDataBits/8
   val tlBeatAddrBits = log2Up(tlDataBeats)
   val tlByteAddrBits = log2Up(tlWriteMaskBits)
-  val tlAtomicOpcodeBits = M_SZ
-  val tlUncachedOperandSizeBits = MT_SZ
-  val tlSubblockUnionBits = max(tlWriteMaskBits, 
+  val tlMemoryOpcodeBits = M_SZ
+  val tlMemoryOperandSizeBits = MT_SZ
+  val tlAcquireTypeBits = max(log2Up(Acquire.nBuiltInTypes), 
+                              tlCoh.acquireTypeWidth)
+  val tlAcquireUnionBits = max(tlWriteMaskBits,
                                  (tlByteAddrBits +
-                                   tlUncachedOperandSizeBits + 
-                                   tlAtomicOpcodeBits)) + 1
-  val co = params(TLCoherence)
-  val networkPreservesPointToPointOrdering = false //TODO: check physical network type
+                                   tlMemoryOperandSizeBits +
+                                   tlMemoryOpcodeBits)) + 1
+  val tlGrantTypeBits = max(log2Up(Grant.nBuiltInTypes), 
+                              tlCoh.grantTypeWidth) + 1
+  val tlNetworkPreservesPointToPointOrdering = params(TLNetworkIsOrderedP2P)
 }
 
 abstract class TLBundle extends Bundle with TileLinkParameters
@@ -50,8 +55,8 @@ trait ClientToClientChannel extends TileLinkChannel // Unused for now
 trait HasCacheBlockAddress extends TLBundle {
   val addr_block = UInt(width = tlBlockAddrBits)
 
-  def conflicts[T <: HasCacheBlockAddress](that: T) = this.addr_block === that.addr_block
-  def conflicts[T <: HasCacheBlockAddress](addr: UInt) = this.addr_block === addr
+  def conflicts(that: HasCacheBlockAddress) = this.addr_block === that.addr_block
+  def conflicts(addr: UInt) = this.addr_block === addr
 }
 
 trait HasTileLinkBeatId extends TLBundle {
@@ -66,8 +71,9 @@ trait HasManagerTransactionId extends TLBundle {
   val manager_xact_id = Bits(width = tlManagerXactIdBits)
 }
 
-abstract trait HasTileLinkData extends HasTileLinkBeatId {
+trait HasTileLinkData extends HasTileLinkBeatId {
   val data = UInt(width = tlDataBits)
+
   def hasData(dummy: Int = 0): Bool
   def hasMultibeatData(dummy: Int = 0): Bool
 }
@@ -79,94 +85,80 @@ class Acquire extends ClientToManagerChannel
     with HasClientTransactionId 
     with HasTileLinkData {
   // Actual bundle fields
-  val builtin_type = Bool()
-  val a_type = UInt(width = max(log2Up(Acquire.nBuiltinAcquireTypes), co.acquireTypeWidth))
-  val subblock =  Bits(width = tlSubblockUnionBits)
+  val is_builtin_type = Bool()
+  val a_type = UInt(width = tlAcquireTypeBits)
+  val union = Bits(width = tlAcquireUnionBits)
 
   // Utility funcs for accessing subblock union
-  val opSizeOff = tlByteAddrBits + 1
-  val opCodeOff = tlUncachedOperandSizeBits + opSizeOff
-  val opMSB = tlAtomicOpcodeBits + opCodeOff
-  def allocate(dummy: Int = 0) = subblock(0)
-  def addr_byte(dummy: Int = 0) = subblock(opSizeOff-1, 1)
-  def op_size(dummy: Int = 0) = subblock(opCodeOff-1, opSizeOff)
-  def op_code(dummy: Int = 0) = subblock(opMSB-1, opCodeOff)
-  def write_mask(dummy: Int = 0) = subblock(tlWriteMaskBits, 1)
-  def addr(dummy: Int = 0) = Cat(addr_block, addr_beat, this.addr_byte(0))
+  val opCodeOff = 1
+  val opSizeOff = tlMemoryOpcodeBits + opCodeOff
+  val addrByteOff = tlMemoryOperandSizeBits + opSizeOff
+  val addrByteMSB = tlByteAddrBits + addrByteOff
+  def allocate(dummy: Int = 0) = union(0)
+  def op_code(dummy: Int = 0) = Mux(hasData(), M_XWR, union(opSizeOff-1, opCodeOff))
+  def op_size(dummy: Int = 0) = union(addrByteOff-1, opSizeOff)
+  def addr_byte(dummy: Int = 0) = union(addrByteMSB-1, addrByteOff)
+  def write_mask(dummy: Int = 0) = union(tlWriteMaskBits, 1)
+  def addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, this.addr_byte())
 
   // Other helper funcs
   def is(t: UInt) = a_type === t
 
-  def hasData(dummy: Int = 0): Bool = builtin_type && Acquire.typesWithData.contains(a_type)
+  def isBuiltInType(dummy: Int = 0): Bool = is_builtin_type
 
-  def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && builtin_type &&
+  def isSubBlockType(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesOnSubBlocks.contains(a_type) 
+
+  // Assumes no custom types have data
+  def hasData(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesWithData.contains(a_type)
+
+  def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && isBuiltInType() &&
                                            Acquire.typesWithMultibeatData.contains(a_type)
 
   //TODO: This function is a hack to support Rocket icache snooping Rocket nbdcache:
-  def requiresSelfProbe(dummy: Int = 0) = builtin_type && Acquire.requiresSelfProbe(a_type)
+  def requiresSelfProbe(dummy: Int = 0) = isBuiltInType() && a_type === Acquire.getBlockType
 
-  def makeProbe(meta: ManagerMetadata = co.managerMetadataOnFlush): Probe =
-    Probe(co.getProbeType(this, meta), this.addr_block)
-
-  def makeGrant(
-      manager_xact_id: UInt, 
-      meta: ManagerMetadata = co.managerMetadataOnFlush,
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): Grant = {
-    Grant(
-      builtin_type = this.builtin_type,
-      g_type = co.getGrantType(this, meta),
-      client_xact_id = this.client_xact_id,
-      manager_xact_id = manager_xact_id,
-      addr_beat = addr_beat,
-      data = data
-    )
+  def getBuiltInGrantType(dummy: Int = 0): UInt = {
+    MuxLookup(this.a_type, Grant.ackType, Array(
+      Acquire.getType -> Grant.dataBeatType,
+      Acquire.getBlockType -> Grant.dataBlockType,
+      Acquire.putType -> Grant.ackType,
+      Acquire.putBlockType -> Grant.ackType,
+      Acquire.putAtomicType -> Grant.dataBeatType))
   }
 }
 
 object Acquire {
-  val nBuiltinAcquireTypes = 5
+  val nBuiltInTypes = 5
   //TODO: Use Enum
-  def uncachedRead       = UInt(0)
-  def uncachedReadBlock  = UInt(1)
-  def uncachedWrite      = UInt(2)
-  def uncachedWriteBlock = UInt(3)
-  def uncachedAtomic     = UInt(4)
-  def typesWithData = Vec(uncachedWrite, uncachedWriteBlock, uncachedAtomic)
-  def typesWithMultibeatData = Vec(uncachedWriteBlock)
-  def requiresOuterRead(a_type: UInt) = a_type != uncachedWriteBlock
-  def requiresOuterWrite(a_type: UInt) = typesWithData.contains(a_type)
-  //TODO: This function is a hack to support Rocket icache snooping Rocket nbdcache:
-  def requiresSelfProbe(a_type: UInt) = a_type === uncachedReadBlock 
+  def getType       = UInt("b000")
+  def getBlockType  = UInt("b001")
+  def putType       = UInt("b010")
+  def putBlockType  = UInt("b011")
+  def putAtomicType = UInt("b100")
+  def typesWithData = Vec(putType, putBlockType, putAtomicType)
+  def typesWithMultibeatData = Vec(putBlockType)
+  def typesOnSubBlocks = Vec(putType, getType, putAtomicType)
 
   def fullWriteMask = SInt(-1, width = new Acquire().tlWriteMaskBits).toUInt
 
   // Most generic constructor
   def apply(
-      builtin_type: Bool,
+      is_builtin_type: Bool,
       a_type: Bits,
       client_xact_id: UInt,
       addr_block: UInt,
       addr_beat: UInt = UInt(0),
       data: UInt = UInt(0),
-      subblock: UInt = UInt(0)): Acquire = {
+      union: UInt = UInt(0)): Acquire = {
     val acq = new Acquire
-    acq.builtin_type := builtin_type
+    acq.is_builtin_type := is_builtin_type
     acq.a_type := a_type
     acq.client_xact_id := client_xact_id
     acq.addr_block := addr_block
     acq.addr_beat := addr_beat
     acq.data := data
-    acq.subblock := subblock
+    acq.union := union
     acq
-  }
-  // For cached types
-  def apply(a_type: Bits, client_xact_id: UInt, addr_block: UInt): Acquire = {
-    apply(
-      builtin_type = Bool(false),
-      a_type = a_type,
-      client_xact_id = client_xact_id,
-      addr_block = addr_block)
   }
   // Copy constructor
   def apply(a: Acquire): Acquire = {
@@ -177,58 +169,73 @@ object Acquire {
 }
 
 // Asks for a single TileLink beat of data
-object UncachedRead {
+object Get {
   def apply(
       client_xact_id: UInt, 
       addr_block: UInt, 
       addr_beat: UInt, 
       alloc: Bool = Bool(true)): Acquire = {
     Acquire(
-      builtin_type = Bool(true),
-      a_type = Acquire.uncachedRead,
+      is_builtin_type = Bool(true),
+      a_type = Acquire.getType,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
-      subblock = alloc)
+      union = Cat(M_XRD, alloc))
   }
 }
 
 // Asks for an entire cache block of data
-object UncachedReadBlock {
+object GetBlock {
   def apply(
       client_xact_id: UInt = UInt(0), 
       addr_block: UInt, 
       alloc: Bool = Bool(true)): Acquire = {
     Acquire(
-      builtin_type = Bool(true),
-      a_type = Acquire.uncachedReadBlock,
+      is_builtin_type = Bool(true),
+      a_type = Acquire.getBlockType,
       client_xact_id = client_xact_id, 
       addr_block = addr_block,
-      subblock = alloc.toUInt)
+      union = Cat(M_XRD, alloc))
   }
 }
 
-object UncachedWrite {
+// Writes up to a single TileLink beat of data, using mask
+object Put {
   def apply(
       client_xact_id: UInt,
       addr_block: UInt,
       addr_beat: UInt,
       data: UInt,
-      write_mask: UInt = Acquire.fullWriteMask,
-      alloc: Bool = Bool(true)): Acquire = {
+      write_mask: UInt = Acquire.fullWriteMask): Acquire = {
     Acquire(
-      builtin_type = Bool(true),
-      a_type = Acquire.uncachedWrite,
+      is_builtin_type = Bool(true),
+      a_type = Acquire.putType,
       addr_block = addr_block,
       addr_beat = addr_beat,
       client_xact_id = client_xact_id,
       data = data,
-      subblock = Cat(write_mask, alloc))
+      union = Cat(write_mask, Bool(true)))
   }
 }
 
-// For full block of data
-object UncachedWriteBlock {
+// Writes an entire cache block of data
+object PutBlock {
+  def apply(
+      client_xact_id: UInt,
+      addr_block: UInt,
+      addr_beat: UInt,
+      data: UInt,
+      write_mask: UInt): Acquire = {
+    Acquire(
+      is_builtin_type = Bool(true),
+      a_type = Acquire.putBlockType,
+      client_xact_id = client_xact_id,
+      addr_block = addr_block,
+      addr_beat = addr_beat,
+      data = data,
+      union = Cat(write_mask, (write_mask != Acquire.fullWriteMask)))
+  }
   def apply(
       client_xact_id: UInt,
       addr_block: UInt,
@@ -236,17 +243,18 @@ object UncachedWriteBlock {
       data: UInt,
       alloc: Bool = Bool(true)): Acquire = {
     Acquire(
-      builtin_type = Bool(true),
-      a_type = Acquire.uncachedWriteBlock,
+      is_builtin_type = Bool(true),
+      a_type = Acquire.putBlockType,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
       data = data,
-      subblock = Cat(Acquire.fullWriteMask, alloc))
+      union = Cat(Acquire.fullWriteMask, alloc))
   }
 }
 
-object UncachedAtomic {
+// Performs an atomic operation in the outer memory
+object PutAtomic {
   def apply(
       client_xact_id: UInt,
       addr_block: UInt,
@@ -256,47 +264,29 @@ object UncachedAtomic {
       operand_size: UInt,
       data: UInt): Acquire = {
     Acquire(
-      builtin_type = Bool(true),
-      a_type = Acquire.uncachedAtomic, 
+      is_builtin_type = Bool(true),
+      a_type = Acquire.putAtomicType,
       client_xact_id = client_xact_id, 
       addr_block = addr_block, 
       addr_beat = addr_beat, 
       data = data,
-      subblock = Cat(atomic_opcode, operand_size, addr_byte, Bool(true)))
+      union = Cat(addr_byte, operand_size, atomic_opcode, Bool(true)))
   }
 }
 
 class Probe extends ManagerToClientChannel 
     with HasCacheBlockAddress {
-  val p_type = UInt(width = co.probeTypeWidth)
+  val p_type = UInt(width = tlCoh.probeTypeWidth)
 
   def is(t: UInt) = p_type === t
-  def makeRelease(
-      client_xact_id: UInt,
-      meta: ClientMetadata = co.clientMetadataOnFlush,
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): Release = {
-    Release(
-      voluntary = Bool(false),
-      r_type = co.getReleaseType(this, meta),
-      client_xact_id = client_xact_id,
-      addr_block = this.addr_block,
-      addr_beat = addr_beat,
-      data = data)
-  }
 }
 
 object Probe {
-  val co = new Probe().co
   def apply(p_type: UInt, addr_block: UInt) = {
     val prb = new Probe
     prb.p_type := p_type
     prb.addr_block := addr_block
     prb
-  }
-
-  def onVoluntaryWriteback(meta: ManagerMetadata, addr_block: UInt): Probe = {
-    apply(co.getProbeType(M_FLUSH, meta), addr_block)
   }
 }
 
@@ -305,31 +295,19 @@ class Release extends ClientToManagerChannel
     with HasCacheBlockAddress 
     with HasClientTransactionId 
     with HasTileLinkData {
-  val r_type = UInt(width = co.releaseTypeWidth)
+  val r_type = UInt(width = tlCoh.releaseTypeWidth)
   val voluntary = Bool()
 
   // Helper funcs
   def is(t: UInt) = r_type === t
-  def hasData(dummy: Int = 0) = co.releaseTypesWithData.contains(r_type)
+  def hasData(dummy: Int = 0) = tlCoh.releaseTypesWithData.contains(r_type)
   //TODO: Assumes all releases write back full cache blocks:
-  def hasMultibeatData(dummy: Int = 0) = Bool(tlDataBeats > 1) && co.releaseTypesWithData.contains(r_type)
+  def hasMultibeatData(dummy: Int = 0) = Bool(tlDataBeats > 1) && tlCoh.releaseTypesWithData.contains(r_type)
   def isVoluntary(dummy: Int = 0) = voluntary
-  def requiresAck(dummy: Int = 0) = !Bool(networkPreservesPointToPointOrdering)
-
-  def makeGrant(
-      manager_xact_id: UInt,
-      meta: ManagerMetadata = co.managerMetadataOnFlush): Grant = {
-    Grant(
-      g_type = Grant.voluntaryAck,
-      builtin_type = Bool(true), // Grant.voluntaryAck is built-in type
-      client_xact_id = this.client_xact_id,
-      manager_xact_id = manager_xact_id
-    )
-  }
+  def requiresAck(dummy: Int = 0) = !Bool(tlNetworkPreservesPointToPointOrdering)
 }
 
 object Release {
-  val co = new Release().co
   def apply(
       voluntary: Bool,
       r_type: UInt,
@@ -346,68 +324,52 @@ object Release {
     rel.voluntary := voluntary
     rel
   }
-
-  def makeVoluntaryWriteback(
-      meta: ClientMetadata,
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): Release = {
-    Release(
-      voluntary = Bool(true),
-      r_type = co.getReleaseType(M_FLUSH, meta),
-      client_xact_id = client_xact_id,
-      addr_block = addr_block,
-      addr_beat = addr_beat,
-      data = data)
-  }
 }
 
 class Grant extends ManagerToClientChannel 
     with HasTileLinkData 
     with HasClientTransactionId 
     with HasManagerTransactionId {
-  val builtin_type = Bool()
-  val g_type = UInt(width = max(log2Up(Grant.nBuiltinGrantTypes), co.grantTypeWidth))
+  val is_builtin_type = Bool()
+  val g_type = UInt(width = tlGrantTypeBits)
 
   // Helper funcs
-  def is(t: UInt) = g_type === t
-  def hasData(dummy: Int = 0): Bool = Mux(builtin_type,
+  def isBuiltInType(dummy: Int = 0): Bool = is_builtin_type
+  def is(t: UInt):Bool = g_type === t
+  def hasData(dummy: Int = 0): Bool = Mux(isBuiltInType(),
                                         Grant.typesWithData.contains(g_type),
-                                        co.grantTypesWithData.contains(g_type))
+                                        tlCoh.grantTypesWithData.contains(g_type))
   def hasMultibeatData(dummy: Int = 0): Bool = 
-    Bool(tlDataBeats > 1) && Mux(builtin_type,
+    Bool(tlDataBeats > 1) && Mux(isBuiltInType(),
                                Grant.typesWithMultibeatData.contains(g_type),
-                               co.grantTypesWithData.contains(g_type))
-  def isVoluntary(dummy: Int = 0): Bool = builtin_type && (g_type === Grant.voluntaryAck)
-  def requiresAck(dummy: Int = 0): Bool = !Bool(networkPreservesPointToPointOrdering) && !isVoluntary()
+                               tlCoh.grantTypesWithData.contains(g_type))
+  def isVoluntary(dummy: Int = 0): Bool = isBuiltInType() && (g_type === Grant.voluntaryAckType)
+  def requiresAck(dummy: Int = 0): Bool = !Bool(tlNetworkPreservesPointToPointOrdering) && !isVoluntary()
   def makeFinish(dummy: Int = 0): Finish = {
-    val f = new Finish
+    val f = Bundle(new Finish, { case TLManagerXactIdBits => tlManagerXactIdBits })
     f.manager_xact_id := this.manager_xact_id
     f
   }
 }
 
 object Grant {
-  val nBuiltinGrantTypes = 5
-  //TODO Use Enum
-  def voluntaryAck       = UInt(0)
-  def uncachedRead       = UInt(1)
-  def uncachedReadBlock  = UInt(2)
-  def uncachedWrite      = UInt(3)
-  def uncachedAtomic     = UInt(4)
-  def typesWithData = Vec(uncachedRead, uncachedReadBlock, uncachedAtomic)
-  def typesWithMultibeatData= Vec(uncachedReadBlock)
+  val nBuiltInTypes = 4
+  def voluntaryAckType = UInt("b00")
+  def ackType          = UInt("b01")
+  def dataBeatType     = UInt("b10")
+  def dataBlockType    = UInt("b11")
+  def typesWithData = Vec(dataBlockType, dataBeatType)
+  def typesWithMultibeatData= Vec(dataBlockType)
 
   def apply(
-      builtin_type: Bool,
+      is_builtin_type: Bool,
       g_type: UInt,
       client_xact_id: UInt, 
       manager_xact_id: UInt,
       addr_beat: UInt = UInt(0),
       data: UInt = UInt(0)): Grant = {
     val gnt = new Grant
-    gnt.builtin_type := builtin_type
+    gnt.is_builtin_type := is_builtin_type
     gnt.g_type := g_type
     gnt.client_xact_id := client_xact_id
     gnt.manager_xact_id := manager_xact_id
@@ -415,23 +377,12 @@ object Grant {
     gnt.data := data
     gnt
   }
-
-  def getGrantTypeForUncached(a: Acquire): UInt =  {
-    MuxLookup(a.a_type, Grant.uncachedRead, Array(
-      Acquire.uncachedRead -> Grant.uncachedRead,
-      Acquire.uncachedReadBlock -> Grant.uncachedReadBlock,
-      Acquire.uncachedWrite -> Grant.uncachedWrite,
-      Acquire.uncachedWriteBlock -> Grant.uncachedWrite,
-      Acquire.uncachedAtomic -> Grant.uncachedAtomic
-    ))
-  }
 }
 
 class Finish extends ClientToManagerChannel with HasManagerTransactionId
 
-
 // Complete IO definitions for two types of TileLink clients 
-class UncachedTileLinkIO extends Bundle {
+class UncachedTileLinkIO extends TLBundle {
   val acquire   = new DecoupledIO(new LogicalNetworkIO(new Acquire))
   val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
   val finish = new DecoupledIO(new LogicalNetworkIO(new Finish))
@@ -456,11 +407,17 @@ class TileLinkIOWrapper extends TLModule {
   io.out.release.valid := Bool(false)
 }
 object TileLinkIOWrapper {
-  def apply[T <: Data](utl: UncachedTileLinkIO) = {
+  def apply(utl: UncachedTileLinkIO, p: Parameters): TileLinkIO = {
+    val conv = Module(new TileLinkIOWrapper)(p)
+    conv.io.in <> utl
+    conv.io.out
+  }
+  def apply(utl: UncachedTileLinkIO): TileLinkIO = {
     val conv = Module(new TileLinkIOWrapper)
     conv.io.in <> utl
     conv.io.out
   }
+  def apply(tl: TileLinkIO) = tl
 }
 
 abstract trait HasArbiterTypes {
