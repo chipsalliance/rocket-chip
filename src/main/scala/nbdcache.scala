@@ -83,7 +83,6 @@ class HellaCacheIO extends CoreBundle {
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Valid(Bits(width = coreDCacheReqTagBits)).flip
   val xcpt = (new HellaCacheExceptions).asInput
-  val ptw = new TLBPTWIO().flip
   val ordered = Bool(INPUT)
 }
 
@@ -596,6 +595,7 @@ class DataArray extends L1HellaCacheModule {
 class HellaCache extends L1HellaCacheModule {
   val io = new Bundle {
     val cpu = (new HellaCacheIO).flip
+    val ptw = new TLBPTWIO()
     val mem = new TileLinkIO
   }
  
@@ -634,7 +634,7 @@ class HellaCache extends L1HellaCacheModule {
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
   val dtlb = Module(new TLB)
-  dtlb.io.ptw <> io.cpu.ptw
+  dtlb.io.ptw <> io.ptw
   dtlb.io.req.valid := s1_valid_masked && s1_readwrite && !s1_req.phys
   dtlb.io.req.bits.passthrough := s1_req.phys
   dtlb.io.req.bits.asid := UInt(0)
@@ -750,7 +750,7 @@ class HellaCache extends L1HellaCacheModule {
       lrsc_count := 0
     }
   }
-  when (io.cpu.ptw.sret) { lrsc_count := 0 }
+  when (io.ptw.sret) { lrsc_count := 0 }
 
   val s2_data = Vec.fill(nWays){Bits(width = encRowBits)}
   for (w <- 0 until nWays) {
