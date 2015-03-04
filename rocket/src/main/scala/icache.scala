@@ -37,7 +37,6 @@ class CPUFrontendIO extends Bundle {
   val btb_update = Valid(new BTBUpdate)
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
-  val ptw = new TLBPTWIO().flip
   val invalidate = Bool(OUTPUT)
 }
 
@@ -45,6 +44,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
 {
   val io = new Bundle {
     val cpu = new CPUFrontendIO().flip
+    val ptw = new TLBPTWIO()
     val mem = new UncachedTileLinkIO
   }
 
@@ -94,9 +94,9 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   btb.io.btb_update := io.cpu.btb_update
   btb.io.bht_update := io.cpu.bht_update
   btb.io.ras_update := io.cpu.ras_update
-  btb.io.invalidate := io.cpu.invalidate || io.cpu.ptw.invalidate
+  btb.io.invalidate := io.cpu.invalidate || io.ptw.invalidate
 
-  tlb.io.ptw <> io.cpu.ptw
+  tlb.io.ptw <> io.ptw
   tlb.io.req.valid := !stall && !icmiss
   tlb.io.req.bits.vpn := s1_pc >> UInt(pgIdxBits)
   tlb.io.req.bits.asid := UInt(0)
@@ -108,7 +108,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   icache.io.req.bits.idx := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
   icache.io.invalidate := io.cpu.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
-  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss || io.cpu.ptw.invalidate
+  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss || io.ptw.invalidate
   icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)

@@ -31,8 +31,8 @@ class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
   dcArb.io.requestor(1) <> core.io.dmem
   dcArb.io.mem <> dcache.io.cpu
 
-  ptw.io.requestor(0) <> icache.io.cpu.ptw
-  ptw.io.requestor(1) <> dcache.io.cpu.ptw
+  ptw.io.requestor(0) <> icache.io.ptw
+  ptw.io.requestor(1) <> dcache.io.ptw
 
   core.io.host <> io.host
   core.io.imem <> icache.io.cpu

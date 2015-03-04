@@ -17,13 +17,11 @@ class TLBPTWIO extends CoreBundle {
   val resp = Valid(new PTWResp).flip
   val status = new Status().asInput
   val invalidate = Bool(INPUT)
-  val sret = Bool(INPUT)
 }
 
 class DatapathPTWIO extends CoreBundle {
   val ptbr = UInt(INPUT, paddrBits)
   val invalidate = Bool(INPUT)
-  val sret = Bool(INPUT)
   val status = new Status().asInput
 }
 
@@ -83,7 +81,6 @@ class PTW(n: Int) extends CoreModule
     io.requestor(i).resp.bits.perm := r_pte(8,3)
     io.requestor(i).resp.bits.ppn := resp_ppn.toUInt
     io.requestor(i).invalidate := io.dpath.invalidate
-    io.requestor(i).sret := io.dpath.sret
     io.requestor(i).status := io.dpath.status
   }
 
