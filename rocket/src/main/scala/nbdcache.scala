@@ -83,6 +83,7 @@ class HellaCacheIO extends CoreBundle {
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Valid(Bits(width = coreDCacheReqTagBits)).flip
   val xcpt = (new HellaCacheExceptions).asInput
+  val sret = Bool(OUTPUT)
   val ordered = Bool(INPUT)
 }
 
@@ -750,7 +751,7 @@ class HellaCache extends L1HellaCacheModule {
       lrsc_count := 0
     }
   }
-  when (io.ptw.sret) { lrsc_count := 0 }
+  when (io.cpu.sret) { lrsc_count := 0 }
 
   val s2_data = Vec.fill(nWays){Bits(width = encRowBits)}
   for (w <- 0 until nWays) {

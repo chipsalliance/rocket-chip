@@ -177,7 +177,6 @@ class Datapath extends CoreModule
 
   io.ptw.ptbr := pcr.io.ptbr
   io.ptw.invalidate := pcr.io.fatc
-  io.ptw.sret := io.ctrl.sret
   io.ptw.status := pcr.io.status
 
   // memory stage
