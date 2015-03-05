@@ -60,9 +60,7 @@ trait HasClientSideCoherencePolicy {
         first_cmd: UInt,
         second_cmd: UInt,
         meta: ClientMetadata): Bool = {
-    isWriteIntent(second_cmd) && 
-      !isWriteIntent(first_cmd) || 
-      (getAcquireType(first_cmd, meta) != getAcquireType(second_cmd, meta))
+    isWriteIntent(second_cmd) && !isWriteIntent(first_cmd)
   }
   //TODO: Assumes all cache ctrl ops writeback dirty data, and
   //      doesn't issue transaction when e.g. downgrading Exclusive to Shared:
