@@ -26,6 +26,7 @@ class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
   val ptw = Module(new PTW(params(NPTWPorts)))
   val core = Module(new Core, { case CoreName => "Rocket" })
 
+  dcache.io.cpu.sret := core.io.dmem.sret
   val dcArb = Module(new HellaCacheArbiter(params(NDCachePorts)))
   dcArb.io.requestor(0) <> ptw.io.mem
   dcArb.io.requestor(1) <> core.io.dmem
