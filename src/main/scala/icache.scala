@@ -45,7 +45,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   val io = new Bundle {
     val cpu = new CPUFrontendIO().flip
     val ptw = new TLBPTWIO()
-    val mem = new UncachedTileLinkIO
+    val mem = new HeaderlessUncachedTileLinkIO
   }
 
   val btb = Module(new BTB(btb_updates_out_of_order))
@@ -148,7 +148,7 @@ class ICache extends FrontendModule
     val req = Valid(new ICacheReq).flip
     val resp = Decoupled(new ICacheResp)
     val invalidate = Bool(INPUT)
-    val mem = new UncachedTileLinkIO
+    val mem = new HeaderlessUncachedTileLinkIO
   }
   require(isPow2(nSets) && isPow2(nWays))
   require(isPow2(coreInstBytes))
@@ -273,7 +273,7 @@ class ICache extends FrontendModule
   // output signals
   io.resp.valid := s2_hit
   io.mem.acquire.valid := (state === s_request) && ack_q.io.enq.ready
-  io.mem.acquire.bits.payload := GetBlock(addr_block = s2_addr >> UInt(blockOffBits))
+  io.mem.acquire.bits := GetBlock(addr_block = s2_addr >> UInt(blockOffBits))
   io.mem.finish <> ack_q.io.deq
 
   // control state machine

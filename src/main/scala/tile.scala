@@ -14,7 +14,7 @@ case object BuildRoCC extends Field[Option[() => RoCC]]
 
 abstract class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
   val io = new Bundle {
-    val tilelink = new TileLinkIO
+    val tilelink = new HeaderlessTileLinkIO
     val host = new HTIFIO
   }
 }
@@ -39,10 +39,10 @@ class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
   core.io.imem <> icache.io.cpu
   core.io.ptw <> ptw.io.dpath
 
-  val memArb = Module(new TileLinkIOArbiterThatAppendsArbiterId(params(NTilePorts)))
+  val memArb = Module(new RocketTileLinkIOArbiter(params(NTilePorts)))
   io.tilelink <> memArb.io.out
   memArb.io.in(0) <> dcache.io.mem
-  memArb.io.in(1) <> TileLinkIOWrapper(icache.io.mem)
+  memArb.io.in(1) <> HeaderlessTileLinkIOWrapper(icache.io.mem)
 
   //If so specified, build an RoCC module and wire it in
   params(BuildRoCC)
@@ -52,7 +52,7 @@ class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
       core.io.rocc <> rocc.io
       dcIF.io.requestor <> rocc.io.mem
       dcArb.io.requestor(2) <> dcIF.io.cache
-      memArb.io.in(2) <> TileLinkIOWrapper(rocc.io.imem)
+      memArb.io.in(2) <> HeaderlessTileLinkIOWrapper(rocc.io.imem)
       memArb.io.in(3) <> rocc.io.dmem
       ptw.io.requestor(2) <> rocc.io.iptw
       ptw.io.requestor(3) <> rocc.io.dptw

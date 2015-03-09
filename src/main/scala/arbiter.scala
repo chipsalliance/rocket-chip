@@ -52,3 +52,16 @@ class HellaCacheArbiter(n: Int) extends Module
     io.requestor(i).replay_next.bits := io.mem.replay_next.bits >> UInt(log2Up(n))
   }
 }
+
+class RocketTileLinkIOArbiter(n: Int) extends TileLinkArbiterLike(n) 
+    with AppendsArbiterId {
+  val io = new Bundle {
+    val in = Vec.fill(n){new HeaderlessTileLinkIO}.flip
+    val out = new HeaderlessTileLinkIO
+  }
+  hookupClientSourceHeaderless(io.in.map(_.acquire), io.out.acquire)
+  hookupClientSourceHeaderless(io.in.map(_.release), io.out.release)
+  hookupFinish(io.in.map(_.finish), io.out.finish)
+  hookupManagerSourceBroadcast(io.in.map(_.probe), io.out.probe)
+  hookupManagerSourceWithId(io.in.map(_.grant), io.out.grant)
+}

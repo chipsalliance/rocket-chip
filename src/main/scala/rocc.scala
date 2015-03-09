@@ -42,8 +42,8 @@ class RoCCInterface extends Bundle
   val interrupt = Bool(OUTPUT)
   
   // These should be handled differently, eventually
-  val imem = new UncachedTileLinkIO
-  val dmem = new TileLinkIO
+  val imem = new HeaderlessUncachedTileLinkIO
+  val dmem = new HeaderlessTileLinkIO
   val iptw = new TLBPTWIO
   val dptw = new TLBPTWIO
   val pptw = new TLBPTWIO
