@@ -831,6 +831,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
           when(io.ognt().requiresAck()) {
             pending_finish.payload := pending_finish_on_ognt
             pending_finish.header.dst := io.outer.grant.bits.header.src
+            pending_finish.header.src := UInt(bankId)
             state := s_outer_finish
           }.otherwise {
             state := Mux(!do_allocate, s_inner_grant,
