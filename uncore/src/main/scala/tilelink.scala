@@ -3,6 +3,7 @@
 package uncore
 import Chisel._
 import scala.math.max
+import scala.reflect.ClassTag
 
 // Parameters exposed to the top-level design, set based on 
 // external requirements or design space exploration
@@ -290,7 +291,6 @@ object Probe {
   }
 }
 
-
 class Release extends ClientToManagerChannel 
     with HasCacheBlockAddress 
     with HasClientTransactionId 
@@ -420,6 +420,42 @@ object TileLinkIOWrapper {
   def apply(tl: TileLinkIO) = tl
 }
 
+// This version of TileLinkIO does not contain network headers for packets
+// that originate in the Clients (i.e. Acquire and Release). These headers
+// are provided in the top-level that instantiates the clients and network.
+// By eliding the header subbundles within the clients we can enable 
+// hierarchical P&R while minimizing unconnected port errors in GDS.
+class HeaderlessUncachedTileLinkIO extends TLBundle {
+  val acquire   = new DecoupledIO(new Acquire)
+  val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
+  val finish = new DecoupledIO(new LogicalNetworkIO(new Finish))
+}
+
+class HeaderlessTileLinkIO extends HeaderlessUncachedTileLinkIO {
+  val probe     = new DecoupledIO(new LogicalNetworkIO(new Probe)).flip
+  val release   = new DecoupledIO(new Release)
+}
+
+class HeaderlessTileLinkIOWrapper extends TLModule {
+  val io = new Bundle {
+    val in = new HeaderlessUncachedTileLinkIO().flip
+    val out = new HeaderlessTileLinkIO
+  }
+  io.out.acquire <> io.in.acquire
+  io.out.grant <> io.in.grant
+  io.out.finish <> io.in.finish
+  io.out.probe.ready := Bool(false)
+  io.out.release.valid := Bool(false)
+}
+
+object HeaderlessTileLinkIOWrapper {
+  def apply(utl: HeaderlessUncachedTileLinkIO): HeaderlessTileLinkIO = {
+    val conv = Module(new HeaderlessTileLinkIOWrapper)
+    conv.io.in <> utl
+    conv.io.out
+  }
+}
+
 abstract trait HasArbiterTypes {
   val arbN: Int
   type ManagerSourcedWithId = ManagerToClientChannel with HasClientTransactionId
@@ -428,6 +464,7 @@ abstract trait HasArbiterTypes {
                                       HasClientTransactionId with 
                                       HasTileLinkData
 }
+
 // Utility functions for constructing TileLinkIO arbiters
 abstract class TileLinkArbiterLike(val arbN: Int) extends TLModule
     with HasArbiterTypes {
@@ -438,33 +475,64 @@ abstract class TileLinkArbiterLike(val arbN: Int) extends TLModule
   def managerSourcedClientXactId(in: ManagerSourcedWithId): Bits
   def arbIdx(in: ManagerSourcedWithId): UInt
 
-  def hookupClientSource[M <: ClientSourcedWithIdAndData]
-                        (ins: Seq[DecoupledIO[LogicalNetworkIO[M]]], 
-                         out: DecoupledIO[LogicalNetworkIO[M]]) {
+  def hookupClientSource[M <: ClientSourcedWithIdAndData : ClassTag]
+                        (clts: Seq[DecoupledIO[LogicalNetworkIO[M]]],
+                         mngr: DecoupledIO[LogicalNetworkIO[M]]) {
     def hasData(m: LogicalNetworkIO[M]) = m.payload.hasMultibeatData()
-    val arb = Module(new LockingRRArbiter(out.bits.clone, arbN, params(TLDataBeats), Some(hasData _)))
-    out <> arb.io.out
-    ins.zipWithIndex.zip(arb.io.in).map{ case ((req,id), arb) => {
+    val arb = Module(new LockingRRArbiter(mngr.bits.clone, arbN, params(TLDataBeats), Some(hasData _)))
+    clts.zipWithIndex.zip(arb.io.in).map{ case ((req, id), arb) => {
       arb.valid := req.valid
       arb.bits := req.bits
       arb.bits.payload.client_xact_id := clientSourcedClientXactId(req.bits.payload, id)
       req.ready := arb.ready
     }}
+    arb.io.out <> mngr
   }
 
-  def hookupManagerSource[M <: ManagerSourcedWithId]
-                        (ins: Seq[DecoupledIO[LogicalNetworkIO[M]]], 
-                         out: DecoupledIO[LogicalNetworkIO[M]]) {
-    out.ready := Bool(false)
+  def hookupClientSourceHeaderless[M <: ClientSourcedWithIdAndData : ClassTag]
+                        (clts: Seq[DecoupledIO[M]],
+                         mngr: DecoupledIO[M]) {
+    def hasData(m: M) = m.hasMultibeatData()
+    val arb = Module(new LockingRRArbiter(mngr.bits.clone, arbN, params(TLDataBeats), Some(hasData _)))
+    clts.zipWithIndex.zip(arb.io.in).map{ case ((req, id), arb) => {
+      arb.valid := req.valid
+      arb.bits := req.bits
+      arb.bits.client_xact_id := clientSourcedClientXactId(req.bits, id)
+      req.ready := arb.ready
+    }}
+    arb.io.out <> mngr
+  }
+
+  def hookupFinish[M <: LogicalNetworkIO[Finish] : ClassTag]
+                        (clts: Seq[DecoupledIO[M]],
+                         mngr: DecoupledIO[M]) {
+    val arb = Module(new RRArbiter(mngr.bits.clone, arbN))
+    arb.io.in zip clts map { case (arb, req) => arb <> req }
+    arb.io.out <> mngr
+  }
+
+  def hookupManagerSourceWithId[M <: ManagerSourcedWithId]
+                        (clts: Seq[DecoupledIO[LogicalNetworkIO[M]]], 
+                         mngr: DecoupledIO[LogicalNetworkIO[M]]) {
+    mngr.ready := Bool(false)
     for (i <- 0 until arbN) {
-      ins(i).valid := Bool(false)
-      when (arbIdx(out.bits.payload) === UInt(i)) {
-        ins(i).valid := out.valid
-        out.ready := ins(i).ready
+      clts(i).valid := Bool(false)
+      when (arbIdx(mngr.bits.payload) === UInt(i)) {
+        clts(i).valid := mngr.valid
+        mngr.ready := clts(i).ready
       }
-      ins(i).bits := out.bits
-      ins(i).bits.payload.client_xact_id := managerSourcedClientXactId(out.bits.payload) 
+      clts(i).bits := mngr.bits
+      clts(i).bits.payload.client_xact_id := 
+        managerSourcedClientXactId(mngr.bits.payload)
     }
+  }
+
+  def hookupManagerSourceBroadcast[M <: ManagerToClientChannel]
+                        (clts: Seq[DecoupledIO[LogicalNetworkIO[M]]], 
+                         mngr: DecoupledIO[LogicalNetworkIO[M]]) {
+    clts.map{ _.valid := mngr.valid }
+    clts.map{ _.bits := mngr.bits }
+    mngr.ready := clts.map(_.ready).reduce(_||_)
   }
 }
 
@@ -474,13 +542,9 @@ abstract class UncachedTileLinkIOArbiter(n: Int)
     val in = Vec.fill(n){new UncachedTileLinkIO}.flip
     val out = new UncachedTileLinkIO
   }
-
   hookupClientSource(io.in.map(_.acquire), io.out.acquire)
-  hookupManagerSource(io.in.map(_.grant), io.out.grant)
-
-  val finish_arb = Module(new RRArbiter(new LogicalNetworkIO(new Finish), n))
-  io.out.finish <> finish_arb.io.out
-  finish_arb.io.in zip io.in map { case (arb, req) => arb <> req.finish }
+  hookupFinish(io.in.map(_.finish), io.out.finish)
+  hookupManagerSourceWithId(io.in.map(_.grant), io.out.grant)
 }
 
 abstract class TileLinkIOArbiter(n: Int) extends TileLinkArbiterLike(n) {
@@ -488,18 +552,11 @@ abstract class TileLinkIOArbiter(n: Int) extends TileLinkArbiterLike(n) {
     val in = Vec.fill(n){new TileLinkIO}.flip
     val out = new TileLinkIO
   }
-
   hookupClientSource(io.in.map(_.acquire), io.out.acquire)
   hookupClientSource(io.in.map(_.release), io.out.release)
-  hookupManagerSource(io.in.map(_.grant), io.out.grant)
-
-  io.in.map{ _.probe.valid := io.out.probe.valid }
-  io.in.map{ _.probe.bits := io.out.probe.bits }
-  io.out.probe.ready := io.in.map(_.probe.ready).reduce(_||_)
-
-  val finish_arb = Module(new RRArbiter(new LogicalNetworkIO(new Finish), n))
-  io.out.finish <> finish_arb.io.out
-  finish_arb.io.in zip io.in map { case (arb, req) => arb <> req.finish }
+  hookupFinish(io.in.map(_.finish), io.out.finish)
+  hookupManagerSourceBroadcast(io.in.map(_.probe), io.out.probe)
+  hookupManagerSourceWithId(io.in.map(_.grant), io.out.grant)
 }
 
 // Appends the port index of the arbiter to the client_xact_id
