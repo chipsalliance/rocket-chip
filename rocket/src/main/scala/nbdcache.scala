@@ -597,7 +597,7 @@ class HellaCache extends L1HellaCacheModule {
   val io = new Bundle {
     val cpu = (new HellaCacheIO).flip
     val ptw = new TLBPTWIO()
-    val mem = new TileLinkIO
+    val mem = new HeaderlessTileLinkIO
   }
  
   require(params(LRSCCycles) >= 32) // ISA requires 16-insn LRSC sequences to succeed
@@ -802,7 +802,7 @@ class HellaCache extends L1HellaCacheModule {
   mshrs.io.req.bits.data := s2_req.data
   when (mshrs.io.req.fire()) { replacer.miss }
 
-  io.mem.acquire <> DecoupledLogicalNetworkIOWrapper(mshrs.io.mem_req)
+  io.mem.acquire <> mshrs.io.mem_req
 
   // replays
   readArb.io.in(1).valid := mshrs.io.replay.valid
@@ -815,7 +815,7 @@ class HellaCache extends L1HellaCacheModule {
 
   // probes and releases
   val releaseArb = Module(new LockingArbiter(new Release, 2, outerDataBeats, (r: Release) => r.hasMultibeatData()))
-  DecoupledLogicalNetworkIOWrapper(releaseArb.io.out) <> io.mem.release
+  releaseArb.io.out <> io.mem.release
 
   val probe = DecoupledLogicalNetworkIOUnwrapper(io.mem.probe)
   prober.io.req.valid := probe.valid && !lrsc_valid
