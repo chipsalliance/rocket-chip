@@ -159,10 +159,10 @@ object SimplifyDC
   def getImplicitDC(maxterms: Seq[Term], term: Term, bits: Int, above: Boolean): Term = {
     for (i <- 0 until bits) {
       var t: Term = null
-      if (above && ((term.value | term.mask) & (1L << i)) == 0)
-        t = new Term(term.value | (1L << i), term.mask)
-      else if (!above && (term.value & (1L << i)) != 0)
-        t = new Term(term.value & ~(1L << i), term.mask)
+      if (above && ((term.value | term.mask) & (BigInt(1) << i)) == 0)
+        t = new Term(term.value | (BigInt(1) << i), term.mask)
+      else if (!above && (term.value & (BigInt(1) << i)) != 0)
+        t = new Term(term.value & ~(BigInt(1) << i), term.mask)
       if (t != null && !maxterms.exists(_.intersects(t)))
         return t
     }
