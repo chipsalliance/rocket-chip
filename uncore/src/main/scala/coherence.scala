@@ -383,6 +383,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val nManagerStates = 0 // TODO: We could add a Shared state to avoid probing
                          //        only a single sharer (also would need 
                          //        notification msg to track clean drops)
+                         //        Also could avoid probes on outer WBs.
 
   def requiresProbes(a: Acquire, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false), 
@@ -501,6 +502,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val nManagerStates = 0 // TODO: We could add a Shared state to avoid probing
                          //        only a single sharer (also would need 
                          //        notification msg to track clean drops)
+                         //        Also could avoid probes on outer WBs.
 
   def requiresProbes(a: Acquire, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false), 
