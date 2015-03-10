@@ -566,17 +566,16 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val is_hit = xact_tag_match && xact_meta.coh.outer.isHit(xact.op_code())
   val do_allocate = xact.allocate()
   val needs_writeback = !xact_tag_match && do_allocate && 
-                          xact_meta.coh.outer.requiresVoluntaryWriteback()
-  val needs_probes = xact_meta.coh.inner.requiresProbes(xact)
+                          (xact_meta.coh.outer.requiresVoluntaryWriteback() ||
+                           xact_meta.coh.inner.requiresProbesOnVoluntaryWriteback())
 
   val pending_coh_on_hit = HierarchicalMetadata(
                               io.meta.resp.bits.meta.coh.inner,
                               io.meta.resp.bits.meta.coh.outer.onHit(xact.op_code()))
-  val pending_coh_on_irel = HierarchicalMetadata(
-                              pending_coh.inner.onRelease(
+  val pending_icoh_on_irel = pending_coh.inner.onRelease(
                                 incoming = io.irel(), 
-                                src = io.inner.release.bits.header.src),
-                              pending_coh.outer.onHit(M_XWR)) // WB is a write
+                                src = io.inner.release.bits.header.src)
+  val pending_ocoh_on_irel = pending_coh.outer.onHit(M_XWR) // WB is a write
   val pending_coh_on_ognt = HierarchicalMetadata(
                               ManagerMetadata.onReset,
                               pending_coh.outer.onGrant(io.ognt(), xact.op_code()))
@@ -768,7 +767,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         val _tag_match = io.meta.resp.bits.tag_match
         val _is_hit = _tag_match && _coh.outer.isHit(xact.op_code())
         val _needs_writeback = !_tag_match && do_allocate && 
-                                  _coh.outer.requiresVoluntaryWriteback()
+                                  (_coh.outer.requiresVoluntaryWriteback() ||
+                                   _coh.inner.requiresProbesOnVoluntaryWriteback())
         val _needs_probes = _tag_match && _coh.inner.requiresProbes(xact)
         when(_is_hit) { pending_coh := pending_coh_on_hit }
         when(_needs_probes) {
@@ -796,12 +796,13 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
       // Handle releases, which may have data being written back
       io.inner.release.ready := Bool(true)
       when(io.inner.release.valid) {
-        pending_coh := pending_coh_on_irel
+        pending_coh.inner := pending_icoh_on_irel
         // Handle released dirty data
         //TODO: make sure cacq data is actually present before accpeting
         //      release data to merge!
         when(io.irel().hasData()) {
           irel_had_data := Bool(true)
+          pending_coh.outer := pending_ocoh_on_irel
           mergeDataInner(data_buffer, io.irel())
         }
         // We don't decrement release_count until we've received all the data beats.
@@ -931,8 +932,9 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
   val resp_data_done = connectInternalDataBeatCounter(io.data.resp)
 
   val pending_icoh_on_irel = xact_coh.inner.onRelease(
-                               incoming = io.irel(), 
+                               incoming = io.irel(),
                                src = io.inner.release.bits.header.src)
+  val pending_ocoh_on_irel = xact_coh.outer.onHit(M_XWR) // WB is a write
 
   io.has_acquire_conflict := Bool(false)
   io.has_acquire_match := Bool(false)
@@ -1008,6 +1010,7 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
         // Handle released dirty data
         when(io.irel().hasData()) {
           irel_had_data := Bool(true)
+          xact_coh.outer := pending_ocoh_on_irel
           data_buffer(io.irel().addr_beat) := io.irel().data
         }
         // We don't decrement release_count until we've received all the data beats.
@@ -1016,7 +1019,11 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
         }
       }
       when(release_count === UInt(0)) {
-        state := Mux(irel_had_data, s_outer_release, s_data_read)
+        state := Mux(irel_had_data, // If someone released a dirty block
+                   s_outer_release, // write that block back, otherwise
+                   Mux(xact_coh.outer.requiresVoluntaryWriteback(),
+                     s_data_read,   // write extant dirty data back, or just
+                     s_wb_resp))    // drop a clean block after collecting acks
       }
     }
     is(s_data_read) {

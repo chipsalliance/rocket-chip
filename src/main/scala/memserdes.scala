@@ -212,6 +212,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
     val mem = new MemIO
   }
   val mifTagBits = params(MIFTagBits)
+  val mifAddrBits = params(MIFAddrBits)
   val mifDataBits = params(MIFDataBits)
   val mifDataBeats = params(MIFDataBeats)
   val tlDataBits = params(TLDataBits)
@@ -235,8 +236,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
   // Decompose outgoing TL Acquires into MemIO cmd and data
   val active_out = Reg(init=Bool(false))
   val cmd_sent_out = Reg(init=Bool(false))
-  val tag_out = Reg(Bits())
-  val addr_out = Reg(Bits())
+  val tag_out = Reg(UInt(width = mifTagBits))
+  val addr_out = Reg(UInt(width = mifAddrBits))
   val has_data = Reg(init=Bool(false))
   val data_from_rel = Reg(init=Bool(false))
   val (tl_cnt_out, tl_wrap_out) =
@@ -343,26 +344,34 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
         active_out := !io.mem.req_cmd.ready || io.mem.req_data.valid
         io.mem.req_cmd.valid := Bool(true)
         cmd_sent_out := io.mem.req_cmd.ready
-        tag_out := io.mem.req_cmd.bits.tag
-        addr_out := io.mem.req_data.bits.data
-        has_data := io.mem.req_cmd.bits.rw
         tl_done_out := tl_wrap_out
         when(io.tl.release.valid) {
           data_from_rel := Bool(true)
           make_grant_ack := Bool(true)
-          io.mem.req_cmd.bits.rw := rel_has_data
-          io.mem.req_cmd.bits.tag := Cat(io.tl.release.bits.payload.client_xact_id,
-                                         io.tl.release.bits.payload.isVoluntary())
-          io.mem.req_cmd.bits.addr := io.tl.release.bits.payload.addr_block
           io.mem.req_data.bits.data := io.tl.release.bits.payload.data
+          val tag =  Cat(io.tl.release.bits.payload.client_xact_id,
+                         io.tl.release.bits.payload.isVoluntary())
+          val addr = io.tl.release.bits.payload.addr_block
+          io.mem.req_cmd.bits.tag := tag
+          io.mem.req_cmd.bits.addr := addr
+          io.mem.req_cmd.bits.rw := rel_has_data
+          tag_out := tag
+          addr_out := addr
+          has_data := rel_has_data
         } .elsewhen(io.tl.acquire.valid) {
           data_from_rel := Bool(false)
           make_grant_ack := acq_has_data
-          io.mem.req_cmd.bits.rw := acq_has_data
-          io.mem.req_cmd.bits.tag := Cat(io.tl.acquire.bits.payload.client_xact_id,
-                                         io.tl.acquire.bits.payload.isBuiltInType())
-          io.mem.req_cmd.bits.addr := io.tl.acquire.bits.payload.addr_block
           io.mem.req_data.bits.data := io.tl.acquire.bits.payload.data
+          io.mem.req_cmd.bits.rw := acq_has_data
+          val tag = Cat(io.tl.acquire.bits.payload.client_xact_id,
+                        io.tl.acquire.bits.payload.isBuiltInType())
+          val addr = io.tl.acquire.bits.payload.addr_block
+          io.mem.req_cmd.bits.tag := tag
+          io.mem.req_cmd.bits.addr := addr
+          io.mem.req_cmd.bits.rw := acq_has_data
+          tag_out := tag
+          addr_out := addr
+          has_data := acq_has_data
         }
       }
     }
@@ -380,7 +389,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
       }
       when(tl_wrap_out) { tl_done_out := Bool(true) }
       when(tl_done_out && make_grant_ack) {
-        gnt_arb.io.in(1).valid := Bool(true)
+        gnt_arb.io.in(1).valid := Bool(true) // TODO: grants for voluntary acks?
         when(gnt_arb.io.in(1).ready) { make_grant_ack := Bool(false) }
       }
       when(cmd_sent_out && (!has_data || tl_done_out) && !make_grant_ack) {
