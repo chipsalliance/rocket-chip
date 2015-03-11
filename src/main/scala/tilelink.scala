@@ -109,6 +109,8 @@ class Acquire extends ClientToManagerChannel
 
   def isSubBlockType(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesOnSubBlocks.contains(a_type) 
 
+  def isPrefetch(dummy: Int = 0): Bool = isBuiltInType() && is(Acquire.prefetchType) 
+
   // Assumes no custom types have data
   def hasData(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesWithData.contains(a_type)
 
@@ -124,7 +126,8 @@ class Acquire extends ClientToManagerChannel
       Acquire.getBlockType -> Grant.dataBlockType,
       Acquire.putType -> Grant.ackType,
       Acquire.putBlockType -> Grant.ackType,
-      Acquire.putAtomicType -> Grant.dataBeatType))
+      Acquire.putAtomicType -> Grant.dataBeatType,
+      Acquire.prefetchType -> Grant.ackType))
   }
 }
 
@@ -136,6 +139,7 @@ object Acquire {
   def putType       = UInt("b010")
   def putBlockType  = UInt("b011")
   def putAtomicType = UInt("b100")
+  def prefetchType = UInt("b101")
   def typesWithData = Vec(putType, putBlockType, putAtomicType)
   def typesWithMultibeatData = Vec(putBlockType)
   def typesOnSubBlocks = Vec(putType, getType, putAtomicType)
@@ -172,9 +176,9 @@ object Acquire {
 // Asks for a single TileLink beat of data
 object Get {
   def apply(
-      client_xact_id: UInt, 
-      addr_block: UInt, 
-      addr_beat: UInt, 
+      client_xact_id: UInt,
+      addr_block: UInt,
+      addr_beat: UInt,
       alloc: Bool = Bool(true)): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
@@ -189,8 +193,8 @@ object Get {
 // Asks for an entire cache block of data
 object GetBlock {
   def apply(
-      client_xact_id: UInt = UInt(0), 
-      addr_block: UInt, 
+      client_xact_id: UInt = UInt(0),
+      addr_block: UInt,
       alloc: Bool = Bool(true)): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
@@ -198,6 +202,22 @@ object GetBlock {
       client_xact_id = client_xact_id, 
       addr_block = addr_block,
       union = Cat(M_XRD, alloc))
+  }
+}
+
+// Prefetch a cache block into the next level of the memory hierarchy
+// with read permissions
+object GetPrefetch {
+  def apply(
+      client_xact_id: UInt,
+      addr_block: UInt): Acquire = {
+    Acquire(
+      is_builtin_type = Bool(true),
+      a_type = Acquire.prefetchType,
+      client_xact_id = client_xact_id,
+      addr_block = addr_block,
+      addr_beat = UInt(0),
+      union = Cat(M_XRD, Bool(true)))
   }
 }
 
@@ -272,6 +292,22 @@ object PutAtomic {
       addr_beat = addr_beat, 
       data = data,
       union = Cat(addr_byte, operand_size, atomic_opcode, Bool(true)))
+  }
+}
+
+// Prefetch a cache block into the next level of the memory hierarchy
+// with write permissions
+object PutPrefetch {
+  def apply(
+      client_xact_id: UInt,
+      addr_block: UInt): Acquire = {
+    Acquire(
+      is_builtin_type = Bool(true),
+      a_type = Acquire.prefetchType,
+      client_xact_id = client_xact_id,
+      addr_block = addr_block,
+      addr_beat = UInt(0),
+      union = Cat(M_XWR, Bool(true)))
   }
 }
 
