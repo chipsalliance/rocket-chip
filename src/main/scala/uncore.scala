@@ -21,6 +21,8 @@ trait CoherenceAgentParameters extends UsesParameters {
   def outerTLParams = params.alterPartial({ case TLId => params(OuterTLId)})
   val outerDataBeats = outerTLParams(TLDataBeats)
   val outerDataBits = outerTLParams(TLDataBits)
+  val outerBeatAddrBits = log2Up(outerDataBeats)
+  val outerByteAddrBits = log2Up(outerDataBits/8)
   def innerTLParams = params.alterPartial({case TLId => params(InnerTLId)})
   val innerDataBeats = innerTLParams(TLDataBeats)
   val innerDataBits = innerTLParams(TLDataBits)
