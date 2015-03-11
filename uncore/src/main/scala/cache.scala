@@ -6,15 +6,16 @@ import Chisel._
 case object CacheName extends Field[String]
 case object NSets extends Field[Int]
 case object NWays extends Field[Int]
-case object BlockOffBits extends Field[Int]
 case object RowBits extends Field[Int]
 case object Replacer extends Field[() => ReplacementPolicy]
 case object AmoAluOperandBits extends Field[Int]
 case object L2DirectoryRepresentation extends Field[DirectoryRepresentation]
+case object CacheBlockBytes extends Field[Int]
+case object CacheBlockOffsetBits extends Field[Int]
 
 abstract trait CacheParameters extends UsesParameters {
   val nSets = params(NSets)
-  val blockOffBits = params(BlockOffBits)
+  val blockOffBits = params(CacheBlockOffsetBits)
   val idxBits = log2Up(nSets)
   val untagBits = blockOffBits + idxBits
   val tagBits = params(PAddrBits) - untagBits
@@ -165,6 +166,7 @@ abstract trait L2HellaCacheParameters extends CacheParameters with CoherenceAgen
   val blockAddrBits = params(TLBlockAddrBits)
   val refillCyclesPerBeat = outerDataBits/rowBits
   val refillCycles = refillCyclesPerBeat*outerDataBeats
+  val internalDataBeats = params(CacheBlockBytes)*8/rowBits
   require(refillCyclesPerBeat == 1)
   val amoAluOperandBits = params(AmoAluOperandBits)
   require(amoAluOperandBits <= innerDataBits)
@@ -410,6 +412,14 @@ class L2XactTrackerIO extends HierarchicalXactTrackerIO {
 }
 
 abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
+  class CacheBlockBuffer {
+    val buffer = Reg(Bits(width = params(CacheBlockBytes)*8))
+
+    def internal = Vec.fill(internalDataBeats){ Bits(width = rowBits) }.fromBits(buffer)
+    def inner = Vec.fill(innerDataBeats){ Bits(width = innerDataBits) }.fromBits(buffer)
+    def outer = Vec.fill(outerDataBeats){ Bits(width = outerDataBits) }.fromBits(buffer)
+  }
+
   def connectDataBeatCounter[S <: L2HellaCacheBundle](inc: Bool, data: S, beat: UInt, full_block: Bool) = {
     if(data.refillCycles > 1) {
       val (multi_cnt, multi_done) = Counter(full_block && inc, data.refillCycles)
@@ -554,9 +564,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
 
   val xact_src = Reg(io.inner.acquire.bits.header.src.clone)
   val xact = Reg(Bundle(new Acquire, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
-  val data_buffer = Vec.fill(innerDataBeats+1) { // Extra entry holds AMO result
+  val data_buffer = Vec.fill(innerDataBeats) {
     Reg(io.iacq().data.clone) 
-  } 
+  }
+  val amo_result = Reg(io.iacq().data.clone)
   val xact_tag_match = Reg{ Bool() }
   val xact_meta = Reg{ new L2Metadata }
   val xact_way_en = Reg{ Bits(width = nWays) }
@@ -612,44 +623,31 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   amoalu.io.cmd := xact.op_code()
   amoalu.io.typ := xact.op_size()
   amoalu.io.lhs := io.data.resp.bits.data //default
-  amoalu.io.rhs := data_buffer(0) // default
+  amoalu.io.rhs := data_buffer.head // default
 
-  // TODO: figure out how to merge the following three versions of this func
-  def mergeDataInternal[T <: HasL2Data](buffer: Vec[UInt], incoming: T) {
-    val old_data = incoming.data
-    val new_data = buffer(incoming.addr_beat)
+  def mergeData[T <: HasTileLinkData]
+      (byteAddrBits: Int, dataBits: Int)
+      (buffer: Vec[UInt], beat: UInt, incoming: UInt) {
+    val old_data = incoming
+    val new_data = buffer(beat)
     val amoOpSz = UInt(amoAluOperandBits)
-    val offset = xact.addr_byte()(innerByteAddrBits-1, log2Up(amoAluOperandBits/8))
+    val offset = xact.addr_byte()(byteAddrBits-1, log2Up(amoAluOperandBits/8))
     amoalu.io.lhs := old_data >> offset*amoOpSz
     amoalu.io.rhs := new_data >> offset*amoOpSz
-    val wmask = 
+    val valid_beat = xact.addr_beat === beat
+    val wmask = Fill(dataBits, valid_beat) &
       Mux(xact.is(Acquire.putAtomicType), 
         FillInterleaved(amoAluOperandBits, UIntToOH(offset)),
         Mux(xact.is(Acquire.putBlockType) || xact.is(Acquire.putType),
           FillInterleaved(8, xact.write_mask()), 
-          UInt(0, width = innerDataBits)))
-    buffer(incoming.addr_beat) := ~wmask & old_data | wmask & 
+          UInt(0, width = dataBits)))
+    buffer(beat) := ~wmask & old_data | wmask & 
       Mux(xact.is(Acquire.putAtomicType), amoalu.io.out << offset*amoOpSz, new_data)
-    when(xact.is(Acquire.putAtomicType)) { buffer(innerDataBeats) := old_data } // For AMO result 
+    when(xact.is(Acquire.putAtomicType) && valid_beat) { amo_result := old_data }
   }
-  def mergeDataInner[T <: HasTileLinkData](buffer: Vec[UInt], incoming: T) = mergeDataOuter(buffer, incoming)
-  def mergeDataOuter[T <: HasTileLinkData](buffer: Vec[UInt], incoming: T) {
-    val old_data = incoming.data
-    val new_data = buffer(incoming.addr_beat)
-    val amoOpSz = UInt(amoAluOperandBits)
-    val offset = xact.addr_byte()(innerByteAddrBits-1, log2Up(amoAluOperandBits/8))
-    amoalu.io.lhs := old_data >> offset*amoOpSz
-    amoalu.io.rhs := new_data >> offset*amoOpSz
-    val wmask = 
-      Mux(xact.is(Acquire.putAtomicType), 
-        FillInterleaved(amoAluOperandBits, UIntToOH(offset)),
-        Mux(xact.is(Acquire.putBlockType) || xact.is(Acquire.putType),
-          FillInterleaved(8, xact.write_mask()), 
-          UInt(0, width = innerDataBits)))
-    buffer(incoming.addr_beat) := ~wmask & old_data | wmask & 
-      Mux(xact.is(Acquire.putAtomicType), amoalu.io.out << offset*amoOpSz, new_data)
-    when(xact.is(Acquire.putAtomicType)) { buffer(innerDataBeats) := old_data } // For AMO result 
-  }
+  val mergeDataInternal = mergeData(log2Up(rowBits/8), rowBits) _
+  val mergeDataInner = mergeData(innerByteAddrBits, innerDataBits) _
+  val mergeDataOuter = mergeData(outerByteAddrBits, outerDataBits) _
 
   //TODO: Allow hit under miss for stores
   val in_same_set = xact.addr_block(idxMSB,idxLSB) === 
@@ -694,7 +692,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                                     manager_xact_id = UInt(trackerId), 
                                     addr_beat = ignt_data_cnt,
                                     data = Mux(xact.is(Acquire.putAtomicType),
-                                            data_buffer(innerDataBeats),
+                                            amo_result,
                                             data_buffer(ignt_data_cnt)))
 
   io.inner.acquire.ready := Bool(false)
@@ -803,7 +801,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         when(io.irel().hasData()) {
           irel_had_data := Bool(true)
           pending_coh.outer := pending_ocoh_on_irel
-          mergeDataInner(data_buffer, io.irel())
+          mergeDataInner(data_buffer, io.irel().addr_beat, io.irel().data)
         }
         // We don't decrement release_count until we've received all the data beats.
         when(!io.irel().hasMultibeatData() || irel_data_done) {
@@ -824,7 +822,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
       io.outer.grant.ready := Bool(true)
       when(io.outer.grant.valid) {
         when(io.ognt().hasData()) { 
-          mergeDataOuter(data_buffer, io.ognt()) 
+          mergeDataOuter(data_buffer, io.ognt().addr_beat, io.ognt().data)
           ognt_had_data := Bool(true)
         }
         when(ognt_data_done) { 
@@ -851,13 +849,13 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     is(s_data_read) {
       io.data.read.valid := !collect_iacq_data || iacq_data_valid(read_data_cnt)
       when(io.data.resp.valid) {
-        mergeDataInternal(data_buffer, io.data.resp.bits)
+        mergeDataInternal(data_buffer, io.data.resp.bits.addr_beat, io.data.resp.bits.data)
       }
       when(read_data_done) { state := s_data_resp }
     }
     is(s_data_resp) {
       when(io.data.resp.valid) {
-        mergeDataInternal(data_buffer, io.data.resp.bits)
+        mergeDataInternal(data_buffer, io.data.resp.bits.addr_beat, io.data.resp.bits.data)
       }
       when(resp_data_done) {
         state := Mux(xact.hasData(), s_data_write, s_inner_grant)
