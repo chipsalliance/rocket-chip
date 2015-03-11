@@ -412,7 +412,7 @@ class L2XactTrackerIO extends HierarchicalXactTrackerIO {
 abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
   def connectDataBeatCounter[S <: L2HellaCacheBundle](inc: Bool, data: S, beat: UInt, full_block: Bool) = {
     if(data.refillCycles > 1) {
-      val (multi_cnt, multi_done) = Counter(inc, data.refillCycles)
+      val (multi_cnt, multi_done) = Counter(full_block && inc, data.refillCycles)
       (Mux(!full_block, beat, multi_cnt), Mux(!full_block, inc, multi_done))
     } else { (UInt(0), inc) }
   }
