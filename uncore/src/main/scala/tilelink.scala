@@ -443,7 +443,7 @@ class TileLinkIOWrapper extends TLModule {
   io.out.acquire <> io.in.acquire
   io.out.grant <> io.in.grant
   io.out.finish <> io.in.finish
-  io.out.probe.ready := Bool(false)
+  io.out.probe.ready := Bool(true)
   io.out.release.valid := Bool(false)
 }
 object TileLinkIOWrapper {
@@ -484,7 +484,7 @@ class HeaderlessTileLinkIOWrapper extends TLModule {
   io.out.acquire <> io.in.acquire
   io.out.grant <> io.in.grant
   io.out.finish <> io.in.finish
-  io.out.probe.ready := Bool(false)
+  io.out.probe.ready := Bool(true)
   io.out.release.valid := Bool(false)
 }
 
