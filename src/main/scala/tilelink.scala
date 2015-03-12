@@ -572,7 +572,7 @@ abstract class TileLinkArbiterLike(val arbN: Int) extends TLModule
                          mngr: DecoupledIO[LogicalNetworkIO[M]]) {
     clts.map{ _.valid := mngr.valid }
     clts.map{ _.bits := mngr.bits }
-    mngr.ready := clts.map(_.ready).reduce(_||_)
+    mngr.ready := clts.map(_.ready).reduce(_&&_)
   }
 }
 
