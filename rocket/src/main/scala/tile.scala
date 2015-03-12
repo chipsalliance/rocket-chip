@@ -8,25 +8,24 @@ import Util._
 
 case object CoreName extends Field[String]
 case object NDCachePorts extends Field[Int]
-case object NTilePorts extends Field[Int]
 case object NPTWPorts extends Field[Int]
 case object BuildRoCC extends Field[Option[() => RoCC]]
 
 abstract class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
   val io = new Bundle {
-    val tilelink = new HeaderlessTileLinkIO
+    val cached = new HeaderlessTileLinkIO
+    val uncached = new HeaderlessTileLinkIO
     val host = new HTIFIO
   }
 }
 
 class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
-
   val icache = Module(new Frontend, { case CacheName => "L1I"; case CoreName => "Rocket" })
   val dcache = Module(new HellaCache, { case CacheName => "L1D" })
   val ptw = Module(new PTW(params(NPTWPorts)))
   val core = Module(new Core, { case CoreName => "Rocket" })
 
-  dcache.io.cpu.sret := core.io.dmem.sret
+  dcache.io.cpu.sret := core.io.dmem.sret // Bypass sret to dcache
   val dcArb = Module(new HellaCacheArbiter(params(NDCachePorts)))
   dcArb.io.requestor(0) <> ptw.io.mem
   dcArb.io.requestor(1) <> core.io.dmem
@@ -39,23 +38,23 @@ class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
   core.io.imem <> icache.io.cpu
   core.io.ptw <> ptw.io.dpath
 
-  val memArb = Module(new RocketTileLinkIOArbiter(params(NTilePorts)))
-  io.tilelink <> memArb.io.out
-  memArb.io.in(0) <> dcache.io.mem
-  memArb.io.in(1) <> HeaderlessTileLinkIOWrapper(icache.io.mem)
-
-  //If so specified, build an RoCC module and wire it in
-  params(BuildRoCC)
-    .map { br => br() }
-    .foreach { rocc =>
-      val dcIF = Module(new SimpleHellaCacheIF)
-      core.io.rocc <> rocc.io
-      dcIF.io.requestor <> rocc.io.mem
-      dcArb.io.requestor(2) <> dcIF.io.cache
-      memArb.io.in(2) <> HeaderlessTileLinkIOWrapper(rocc.io.imem)
-      memArb.io.in(3) <> rocc.io.dmem
-      ptw.io.requestor(2) <> rocc.io.iptw
-      ptw.io.requestor(3) <> rocc.io.dptw
-      ptw.io.requestor(4) <> rocc.io.pptw
-    }
+  // Connect the caches and ROCC to the outer memory system
+  io.cached <> dcache.io.mem
+  // If so specified, build an RoCC module and wire it in
+  // otherwise, just hookup the icache
+  io.uncached <> params(BuildRoCC).map { buildItHere =>
+    val rocc = buildItHere()
+    val memArb = Module(new RocketUncachedTileLinkIOArbiter(3))
+    val dcIF = Module(new SimpleHellaCacheIF)
+    core.io.rocc <> rocc.io
+    dcIF.io.requestor <> rocc.io.mem
+    dcArb.io.requestor(2) <> dcIF.io.cache
+    memArb.io.in(0) <> icache.io.mem
+    memArb.io.in(1) <> rocc.io.imem
+    memArb.io.in(2) <> rocc.io.dmem
+    ptw.io.requestor(2) <> rocc.io.iptw
+    ptw.io.requestor(3) <> rocc.io.dptw
+    ptw.io.requestor(4) <> rocc.io.pptw
+    memArb.io.out
+  }.getOrElse(icache.io.mem)
 }
