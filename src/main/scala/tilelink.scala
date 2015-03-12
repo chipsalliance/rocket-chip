@@ -121,13 +121,13 @@ class Acquire extends ClientToManagerChannel
   def requiresSelfProbe(dummy: Int = 0) = isBuiltInType() && a_type === Acquire.getBlockType
 
   def getBuiltInGrantType(dummy: Int = 0): UInt = {
-    MuxLookup(this.a_type, Grant.ackType, Array(
-      Acquire.getType -> Grant.dataBeatType,
-      Acquire.getBlockType -> Grant.dataBlockType,
-      Acquire.putType -> Grant.ackType,
-      Acquire.putBlockType -> Grant.ackType,
-      Acquire.putAtomicType -> Grant.dataBeatType,
-      Acquire.prefetchType -> Grant.ackType))
+    MuxLookup(this.a_type, Grant.putAckType, Array(
+      Acquire.getType       -> Grant.getDataBeatType,
+      Acquire.getBlockType  -> Grant.getDataBlockType,
+      Acquire.putType       -> Grant.putAckType,
+      Acquire.putBlockType  -> Grant.putAckType,
+      Acquire.putAtomicType -> Grant.getDataBeatType,
+      Acquire.prefetchType  -> Grant.prefetchAckType))
   }
 }
 
@@ -389,13 +389,14 @@ class Grant extends ManagerToClientChannel
 }
 
 object Grant {
-  val nBuiltInTypes = 4
-  def voluntaryAckType = UInt("b00")
-  def ackType          = UInt("b01")
-  def dataBeatType     = UInt("b10")
-  def dataBlockType    = UInt("b11")
-  def typesWithData = Vec(dataBlockType, dataBeatType)
-  def typesWithMultibeatData= Vec(dataBlockType)
+  val nBuiltInTypes = 5
+  def voluntaryAckType = UInt("b000")
+  def putAckType       = UInt("b001")
+  def prefetchAckType  = UInt("b011")
+  def getDataBeatType  = UInt("b100")
+  def getDataBlockType = UInt("b101")
+  def typesWithData = Vec(getDataBlockType, getDataBeatType)
+  def typesWithMultibeatData= Vec(getDataBlockType)
 
   def apply(
       is_builtin_type: Bool,

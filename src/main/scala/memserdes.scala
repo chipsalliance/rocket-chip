@@ -249,7 +249,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
   gnt_arb.io.in(1).valid := Bool(false)
   gnt_arb.io.in(1).bits.payload := Grant(
                                     is_builtin_type = Bool(true),
-                                    g_type = Mux(data_from_rel, Grant.voluntaryAckType, Grant.ackType),
+                                    g_type = Mux(data_from_rel, Grant.voluntaryAckType, Grant.putAckType),
                                     client_xact_id = tag_out >> UInt(1),
                                     manager_xact_id = UInt(0))
 
@@ -414,7 +414,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
     gnt_arb.io.in(0).bits.payload := Grant(
                                       is_builtin_type = tag_in(0),
                                       g_type = Mux(tag_in(0),
-                                                 Grant.dataBlockType,
+                                                 Grant.getDataBlockType,
                                                  UInt(0)), // TODO: Assumes MI or MEI protocol
                                       client_xact_id = tag_in >> UInt(1),
                                       manager_xact_id = UInt(0),
@@ -447,7 +447,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
     gnt_arb.io.in(0).bits.payload := Grant(
                                       is_builtin_type = io.mem.resp.bits.tag(0),
                                       g_type = Mux(io.mem.resp.bits.tag(0),
-                                                 Grant.dataBlockType,
+                                                 Grant.getDataBlockType,
                                                  UInt(0)), // TODO: Assumes MI or MEI protocol
                                       client_xact_id = io.mem.resp.bits.tag >> UInt(1),
                                       manager_xact_id = UInt(0),
