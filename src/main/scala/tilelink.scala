@@ -96,7 +96,9 @@ class Acquire extends ClientToManagerChannel
   val addrByteOff = tlMemoryOperandSizeBits + opSizeOff
   val addrByteMSB = tlByteAddrBits + addrByteOff
   def allocate(dummy: Int = 0) = union(0)
-  def op_code(dummy: Int = 0) = Mux(hasData(), M_XWR, union(opSizeOff-1, opCodeOff))
+  def op_code(dummy: Int = 0) = Mux(isBuiltInType() &&
+    (a_type === Acquire.putType || a_type === Acquire.putBlockType),
+    M_XWR, union(opSizeOff-1, opCodeOff))
   def op_size(dummy: Int = 0) = union(addrByteOff-1, opSizeOff)
   def addr_byte(dummy: Int = 0) = union(addrByteMSB-1, addrByteOff)
   def write_mask(dummy: Int = 0) = union(tlWriteMaskBits, 1)
