@@ -868,9 +868,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     is(s_inner_grant) {
       io.inner.grant.valid := Bool(true)
       when(ignt_data_done) {
-        val coh_dirty = pending_coh_on_ignt != xact_meta.coh
-        when(coh_dirty) { pending_coh := pending_coh_on_ignt }
-        state := Mux(!is_hit || coh_dirty, s_meta_write,
+        val meta_dirty = !is_hit || pending_coh_on_ignt != xact_meta.coh
+        when(meta_dirty) { pending_coh := pending_coh_on_ignt }
+        state := Mux(meta_dirty, s_meta_write,
                    Mux(io.ignt().requiresAck(), s_inner_finish, s_idle))
       }
     }
