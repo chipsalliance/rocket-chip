@@ -370,6 +370,7 @@ class Control extends CoreModule
   val wb_reg_xcpt            = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
   val wb_reg_cause           = Reg(UInt())
+  val wb_reg_rocc_pending    = Reg(init=Bool(false))
 
   val take_pc_wb = Bool()
   val mem_misprediction = io.dpath.mem_misprediction && mem_reg_valid && (mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal)
@@ -510,6 +511,9 @@ class Control extends CoreModule
   val wb_rocc_val = wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   val replay_wb = replay_wb_common || wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
 
+  when (wb_rocc_val) { wb_reg_rocc_pending := !io.rocc.cmd.ready }
+  when (wb_reg_xcpt) { wb_reg_rocc_pending := Bool(false) }
+
   class Scoreboard(n: Int)
   {
     def set(en: Bool, addr: UInt): Unit = update(en, _next | mask(en, addr))
@@ -646,6 +650,7 @@ class Control extends CoreModule
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && !io.dmem.req.ready ||
+    Bool(!params(BuildRoCC).isEmpty) && wb_reg_rocc_pending && id_ctrl.rocc && !io.rocc.cmd.ready ||
     id_do_fence
   val ctrl_draind = id_interrupt
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || ctrl_draind
