@@ -596,13 +596,14 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                                 dst = io.inner.grant.bits.header.dst),
                               pending_coh.outer)
 
-  val release_count = Reg(init = UInt(0, width = log2Up(nClients+1)))
-  val pending_probes = Reg(init = Bits(0, width = nClients))
+  val release_count = Reg(init = UInt(0, width = log2Up(nCoherentClients+1)))
+  val pending_probes = Reg(init = Bits(0, width = nCoherentClients))
   val curr_p_id = PriorityEncoder(pending_probes)
   val full_sharers = io.meta.resp.bits.meta.coh.inner.full()
-  val mask_self = Mux(xact.requiresSelfProbe(),
-                    full_sharers | (UInt(1) << xact_src),
-                    full_sharers & ~UInt(UInt(1) << xact_src, width = nClients))
+  val probe_self = xact.requiresSelfProbe()
+  val mask_self = Mux(probe_self,
+                    full_sharers | UInt(UInt(1) << xact_src, width = nCoherentClients),
+                    full_sharers & ~UInt(UInt(1) << xact_src, width = nCoherentClients))
   val mask_incoherent = mask_self & ~io.incoherent.toBits
 
   val collect_iacq_data = Reg(init=Bool(false))
@@ -770,8 +771,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         val _needs_probes = _tag_match && _coh.inner.requiresProbes(xact)
         when(_is_hit) { pending_coh := pending_coh_on_hit }
         when(_needs_probes) {
-          pending_probes := mask_incoherent(nCoherentClients-1,0)
-          release_count := PopCount(mask_incoherent(nCoherentClients-1,0))
+          pending_probes := mask_incoherent
+          release_count := PopCount(mask_incoherent)
         } 
         state := Mux(_tag_match,
                    Mux(_needs_probes, s_probe, Mux(_is_hit, s_data_read, s_outer_acquire)), // Probe, hit or upgrade
@@ -920,9 +921,11 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
   val pending_finish = Reg{ io.outer.finish.bits.clone }
 
   val irel_had_data = Reg(init = Bool(false))
-  val release_count = Reg(init = UInt(0, width = log2Up(nClients+1)))
-  val pending_probes = Reg(init = Bits(0, width = nClients))
+  val release_count = Reg(init = UInt(0, width = log2Up(nCoherentClients+1)))
+  val pending_probes = Reg(init = Bits(0, width = nCoherentClients))
   val curr_p_id = PriorityEncoder(pending_probes)
+  val full_sharers = io.wb.req.bits.coh.inner.full()
+  val mask_incoherent = full_sharers & ~io.incoherent.toBits
 
   val irel_data_done = connectIncomingDataBeatCounter(io.inner.release)
   val (orel_data_cnt, orel_data_done) = connectOutgoingDataBeatCounter(io.outer.release)
@@ -985,12 +988,10 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
         xact_way_en := io.wb.req.bits.way_en
         xact_id := io.wb.req.bits.id
         irel_had_data := Bool(false)
-        val coh = io.wb.req.bits.coh
-        val needs_probes = coh.inner.requiresProbesOnVoluntaryWriteback()
+        val needs_probes = io.wb.req.bits.coh.inner.requiresProbesOnVoluntaryWriteback()
         when(needs_probes) {
-          val mask_incoherent = coh.inner.full() & ~io.incoherent.toBits
-          pending_probes := mask_incoherent(nCoherentClients-1,0)
-          release_count := PopCount(mask_incoherent(nCoherentClients-1,0))
+          pending_probes := mask_incoherent
+          release_count := PopCount(mask_incoherent)
         }
         state := Mux(needs_probes, s_probe, s_data_read)
       }
