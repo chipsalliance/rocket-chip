@@ -73,7 +73,7 @@ trait HasCoherenceAgentWiringHelpers {
 
 trait HasInnerTLIO extends CoherenceAgentBundle {
   val inner = Bundle(new TileLinkIO)(innerTLParams).flip
-  val incoherent = Vec.fill(nClients){Bool()}.asInput
+  val incoherent = Vec.fill(nCoherentClients){Bool()}.asInput
   def iacq(dummy: Int = 0) = inner.acquire.bits.payload
   def iprb(dummy: Int = 0) = inner.probe.bits.payload
   def irel(dummy: Int = 0) = inner.release.bits.payload

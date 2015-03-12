@@ -219,16 +219,15 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
       Vec(Acquire.getType, Acquire.putType, Acquire.putAtomicType).contains(xact.a_type)),
     "Broadcast Hub does not support PutAtomics or subblock Gets/Puts") // TODO
 
-  val release_count = Reg(init=UInt(0, width = log2Up(nClients)))
-  val probe_flags = Reg(init=Bits(0, width = nClients))
-  val curr_p_id = PriorityEncoder(probe_flags)
-  val probe_initial_flags = Bits(width = nClients)
-  probe_initial_flags := Bits(0)
-  // issue self-probes for uncached read xacts to facilitate I$ coherence
+  val release_count = Reg(init=UInt(0, width = log2Up(nCoherentClients+1)))
+  val pending_probes = Reg(init=Bits(0, width = nCoherentClients))
+  val curr_p_id = PriorityEncoder(pending_probes)
+  val full_sharers = coh.full()
   val probe_self = io.inner.acquire.bits.payload.requiresSelfProbe()
-  val myflag = Mux(probe_self, Bits(0), 
-                UIntToOH(io.inner.acquire.bits.header.src(log2Up(nClients)-1,0)))
-  probe_initial_flags := ~(io.incoherent.toBits | myflag)
+  val mask_self = Mux(probe_self,
+                    full_sharers | UInt(UInt(1) << xact_src, width = nCoherentClients),
+                    full_sharers & ~UInt(UInt(1) << xact_src, width = nCoherentClients))
+  val mask_incoherent = mask_self & ~io.incoherent.toBits
 
   val collect_iacq_data = Reg(init=Bool(false))
   val iacq_data_valid = Reg(init=Bits(0, width = innerDataBeats))
@@ -307,18 +306,21 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
         data_buffer(UInt(0)) := io.iacq().data
         collect_iacq_data := io.iacq().hasMultibeatData()
         iacq_data_valid := io.iacq().hasData() << io.iacq().addr_beat
-        probe_flags := probe_initial_flags
-        release_count := PopCount(probe_initial_flags)
-        state := Mux(probe_initial_flags.orR, s_probe,
+        val needs_probes = mask_incoherent.orR
+        when(needs_probes) {
+          pending_probes := mask_incoherent
+          release_count := PopCount(mask_incoherent)
+        }
+        state := Mux(needs_probes, s_probe,
                   Mux(pending_outer_write_, s_mem_write,
                     Mux(pending_outer_read_, s_mem_read, s_make_grant)))
       }
     }
     is(s_probe) {
       // Generate probes
-      io.inner.probe.valid := probe_flags.orR
+      io.inner.probe.valid := pending_probes.orR
       when(io.inner.probe.ready) {
-        probe_flags := probe_flags & ~(UIntToOH(curr_p_id))
+        pending_probes := pending_probes & ~UIntToOH(curr_p_id)
       }
 
       // Handle releases, which may have data to be written back
