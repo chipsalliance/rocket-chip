@@ -14,7 +14,7 @@ case object BuildRoCC extends Field[Option[() => RoCC]]
 abstract class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
   val io = new Bundle {
     val cached = new HeaderlessTileLinkIO
-    val uncached = new HeaderlessTileLinkIO
+    val uncached = new HeaderlessUncachedTileLinkIO
     val host = new HTIFIO
   }
 }
