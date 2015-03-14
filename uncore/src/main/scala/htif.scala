@@ -34,7 +34,7 @@ class HostIO extends HTIFBundle
 class PCRReq extends Bundle
 {
   val rw = Bool()
-  val addr = Bits(width = 5)
+  val addr = Bits(width = 12)
   val data = Bits(width = 64)
 }
 
@@ -206,7 +206,6 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   io.mem.finish.bits.payload.manager_xact_id := mem_gxid
   io.mem.finish.bits.header.dst := mem_gsrc
 
-  val pcr_reset = UInt(pcr_RESET)(pcr_addr.getWidth-1,0)
   val pcrReadData = Reg(Bits(width = io.cpu(0).pcr_rep.bits.getWidth))
   for (i <- 0 until nCores) {
     val my_reset = Reg(init=Bool(true))
@@ -214,7 +213,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
 
     val cpu = io.cpu(i)
     val me = pcr_coreid === UInt(i)
-    cpu.pcr_req.valid := state === state_pcr_req && me && pcr_addr != pcr_reset
+    cpu.pcr_req.valid := state === state_pcr_req && me && pcr_addr != UInt(pcr_RESET)
     cpu.pcr_req.bits.rw := cmd === cmd_writecr
     cpu.pcr_req.bits.addr := pcr_addr
     cpu.pcr_req.bits.data := pcr_wdata
@@ -234,7 +233,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     when (cpu.pcr_req.valid && cpu.pcr_req.ready) {
       state := state_pcr_resp
     }
-    when (state === state_pcr_req && me && pcr_addr === pcr_reset) {
+    when (state === state_pcr_req && me && pcr_addr === UInt(pcr_RESET)) {
       when (cmd === cmd_writecr) {
         my_reset := pcr_wdata(0)
       }
