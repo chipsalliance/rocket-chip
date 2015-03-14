@@ -641,6 +641,7 @@ class HellaCache extends L1HellaCacheModule {
   dtlb.io.req.bits.asid := UInt(0)
   dtlb.io.req.bits.vpn := s1_req.addr >> pgIdxBits
   dtlb.io.req.bits.instruction := Bool(false)
+  dtlb.io.req.bits.store := s1_write
   when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }
   
   when (io.cpu.req.valid) {

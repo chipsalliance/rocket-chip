@@ -102,6 +102,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   tlb.io.req.bits.asid := UInt(0)
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.instruction := Bool(true)
+  tlb.io.req.bits.store := Bool(false)
 
   icache.io.mem <> io.mem
   icache.io.req.valid := !stall && !s0_same_block

@@ -72,7 +72,7 @@ class Datapath extends CoreModule
 
   // immediate generation
   def imm(sel: Bits, inst: Bits) = {
-    val sign = inst(31).toSInt
+    val sign = Mux(sel === IMM_Z, SInt(0), inst(31).toSInt)
     val b30_20 = Mux(sel === IMM_U, inst(30,20).toSInt, sign)
     val b19_12 = Mux(sel != IMM_U && sel != IMM_UJ, sign, inst(19,12).toSInt)
     val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
@@ -172,7 +172,6 @@ class Datapath extends CoreModule
   pcr.io <> io.fpu
   pcr.io.rocc <> io.rocc
   pcr.io.pc := wb_reg_pc
-  io.ctrl.csr_replay := pcr.io.replay
   pcr.io.uarch_counters.foreach(_ := Bool(false))
 
   io.ptw.ptbr := pcr.io.ptbr
@@ -232,6 +231,7 @@ class Datapath extends CoreModule
     Mux(io.ctrl.mem_ctrl.jal, imm(IMM_UJ, mem_reg_inst), SInt(4)))
   val mem_npc = Mux(io.ctrl.mem_ctrl.jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(vaddrBits-1,0)), mem_br_target).toUInt
   io.ctrl.mem_misprediction := mem_npc != ex_reg_pc || !io.ctrl.ex_valid
+  io.ctrl.mem_npc_misaligned := mem_npc(1)
   io.ctrl.mem_rs1_ra := mem_reg_inst(19,15) === 1
   val mem_int_wdata = Mux(io.ctrl.mem_ctrl.jalr, mem_br_target, mem_reg_wdata).toUInt
 
@@ -246,7 +246,7 @@ class Datapath extends CoreModule
   }
   wb_wdata := Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data_subword,
               Mux(io.ctrl.ll_wen, ll_wdata,
-              Mux(io.ctrl.csr != CSR.N, pcr.io.rw.rdata,
+              Mux(io.ctrl.csr_cmd != CSR.N, pcr.io.rw.rdata,
               wb_reg_wdata)))
 
   val wb_wen = io.ctrl.ll_wen || io.ctrl.wb_wen
@@ -259,10 +259,8 @@ class Datapath extends CoreModule
 
   // processor control regfile write
   pcr.io.rw.addr := wb_reg_inst(31,20)
-  pcr.io.rw.cmd  := io.ctrl.csr
-  pcr.io.rw.wdata := Mux(io.ctrl.csr === CSR.S, pcr.io.rw.rdata | wb_reg_wdata,
-                     Mux(io.ctrl.csr === CSR.C, pcr.io.rw.rdata & ~wb_reg_wdata,
-                     wb_reg_wdata))
+  pcr.io.rw.cmd := io.ctrl.csr_cmd
+  pcr.io.rw.wdata := wb_reg_wdata
 
   io.rocc.cmd.bits.inst := new RoCCInstruction().fromBits(wb_reg_inst)
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
