@@ -33,9 +33,9 @@ class MemReqCmd extends HasMemAddr with HasMemTag {
   val rw = Bool()
 }
 
-class MemResp extends HasMemData with HasMemTag
-
+class MemTag extends HasMemTag
 class MemData extends HasMemData
+class MemResp extends HasMemData with HasMemTag
 
 class MemIO extends Bundle {
   val req_cmd  = Decoupled(new MemReqCmd)
@@ -543,9 +543,20 @@ class MemPipeIOMemIOConverter(numRequests: Int, refillCycles: Int) extends Modul
 
   io.mem.req_data <> io.cpu.req_data
 
-  val resp_dataq = Module((new HellaQueue(numEntries)) { new MemResp })
-  resp_dataq.io.enq <> io.mem.resp
-  io.cpu.resp <> resp_dataq.io.deq
+  // Have separate queues to allow for different mem implementations
+  val resp_dataq = Module((new HellaQueue(numEntries)) { new MemData })
+  resp_dataq.io.enq.valid := io.mem.resp.valid
+  resp_dataq.io.enq.bits.data := io.mem.resp.bits.data
+
+  val resp_tagq = Module((new HellaQueue(numEntries)) { new MemTag })
+  resp_tagq.io.enq.valid := io.mem.resp.valid
+  resp_tagq.io.enq.bits.tag := io.mem.resp.bits.tag
+
+  io.cpu.resp.valid := resp_dataq.io.deq.valid && resp_tagq.io.deq.valid
+  io.cpu.resp.bits.data := resp_dataq.io.deq.bits.data
+  io.cpu.resp.bits.tag := resp_tagq.io.deq.bits.tag
+  resp_dataq.io.deq.ready := io.cpu.resp.ready
+  resp_tagq.io.deq.ready := io.cpu.resp.ready
 
   inc := resp_dataq.io.deq.fire()
   dec := io.mem.req_cmd.fire() && !io.mem.req_cmd.bits.rw
