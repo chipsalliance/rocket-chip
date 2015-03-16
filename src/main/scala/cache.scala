@@ -322,14 +322,22 @@ class L2HellaCacheBank(bankId: Int) extends HierarchicalCoherenceAgent
   require(isPow2(nWays)) 
 
   val tshrfile = Module(new TSHRFile(bankId))
-  val meta = Module(new L2MetadataArray)
-  val data = Module(new L2DataArray(1))
 
-  tshrfile.io.inner <> io.inner
-  tshrfile.io.meta <> meta.io
-  tshrfile.io.data <> data.io
+  //TODO: Expose queue depths and data array pipeline cycles as parameters?
+  tshrfile.io.inner.acquire <> io.inner.acquire
+  tshrfile.io.inner.probe <> io.inner.probe
+  tshrfile.io.inner.release <> Queue(io.inner.release)
+  tshrfile.io.inner.grant <> io.inner.grant
+  tshrfile.io.inner.finish <> io.inner.finish
+
   io.outer <> tshrfile.io.outer
   io.incoherent <> tshrfile.io.incoherent
+
+  val meta = Module(new L2MetadataArray)
+  tshrfile.io.meta <> meta.io
+
+  val data = Module(new L2DataArray(1))
+  tshrfile.io.data <> data.io
 }
 
 class TSHRFileIO extends HierarchicalTLIO {
