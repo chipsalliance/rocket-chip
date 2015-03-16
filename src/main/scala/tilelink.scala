@@ -119,9 +119,7 @@ class Acquire extends ClientToManagerChannel
   def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && isBuiltInType() &&
                                            Acquire.typesWithMultibeatData.contains(a_type)
 
-  //TODO: This function is a hack to support Rocket icache snooping Rocket nbdcache
-  //      and nbdcache invalidations after RoCC accelerator puts
-  def requiresSelfProbe(dummy: Int = 0) = isBuiltInType()
+  def requiresSelfProbe(dummy: Int = 0) = Bool(false)
 
   def getBuiltInGrantType(dummy: Int = 0): UInt = {
     MuxLookup(this.a_type, Grant.putAckType, Array(
