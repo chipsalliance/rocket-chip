@@ -572,11 +572,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val state = Reg(init=s_idle)
 
   val xact_src = Reg(io.inner.acquire.bits.header.src.clone)
-  val xact = Reg(Bundle(new Acquire, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
+  val xact = Reg(Bundle(new Acquire, { case TLId => params(InnerTLId) }))
   val data_buffer = Vec.fill(innerDataBeats) {
     Reg(io.iacq().data.clone) 
   }
-  val amo_result = Reg(io.iacq().data.clone)
+  val amo_result = xact.data
   val xact_tag_match = Reg{ Bool() }
   val xact_meta = Reg{ new L2Metadata }
   val xact_way_en = Reg{ Bits(width = nWays) }
@@ -638,13 +638,14 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   def mergeData[T <: HasTileLinkData]
       (byteAddrBits: Int, dataBits: Int)
       (buffer: Vec[UInt], beat: UInt, incoming: UInt) {
-    val old_data = incoming
-    val new_data = buffer(beat)
+    val old_data = incoming     // Refilled, written back, or de-cached data
+    val new_data = buffer(beat) // Newly Put data is in the buffer
     val amoOpSz = UInt(amoAluOperandBits)
     val offset = xact.addr_byte()(byteAddrBits-1, log2Up(amoAluOperandBits/8))
     amoalu.io.lhs := old_data >> offset*amoOpSz
     amoalu.io.rhs := new_data >> offset*amoOpSz
-    val valid_beat = xact.is(Acquire.putBlockType) || xact.addr_beat === beat
+    val valid_beat = (xact.is(Acquire.putBlockType) || xact.addr_beat === beat) &&
+                        xact.isBuiltInType() // Only custom a_types have data for now
     val wmask = Fill(dataBits, valid_beat) &
       Mux(xact.is(Acquire.putAtomicType), 
         FillInterleaved(amoAluOperandBits, UIntToOH(offset)),
@@ -746,6 +747,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     io.iacq().client_xact_id != xact.client_xact_id),
     "AcquireTracker accepted data beat from different client transaction than initial request.")
 
+  //TODO: Assumes in-order network
   assert(!(state === s_idle && io.inner.acquire.fire() &&
     io.iacq().addr_beat != UInt(0)),
     "AcquireTracker initialized with a tail data beat.")
@@ -765,6 +767,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
       when(io.inner.acquire.valid) {
         xact_src := io.inner.acquire.bits.header.src
         xact := io.iacq()
+        xact.data := UInt(0)
         data_buffer(io.iacq().addr_beat) := io.iacq().data
         collect_iacq_data := io.iacq().hasMultibeatData()
         iacq_data_valid := io.iacq().hasData() << io.iacq().addr_beat
