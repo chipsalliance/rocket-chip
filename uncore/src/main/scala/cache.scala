@@ -636,7 +636,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     val offset = xact.addr_byte()(byteAddrBits-1, log2Up(amoAluOperandBits/8))
     amoalu.io.lhs := old_data >> offset*amoOpSz
     amoalu.io.rhs := new_data >> offset*amoOpSz
-    val valid_beat = xact.addr_beat === beat
+    val valid_beat = xact.is(Acquire.putBlockType) || xact.addr_beat === beat
     val wmask = Fill(dataBits, valid_beat) &
       Mux(xact.is(Acquire.putAtomicType), 
         FillInterleaved(amoAluOperandBits, UIntToOH(offset)),
