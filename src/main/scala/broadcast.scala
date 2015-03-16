@@ -40,53 +40,53 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
   trackerList.map(_.io.incoherent := io.incoherent.toBits)
 
   // Queue to store impending Put data
-  val acquire = io.inner.acquire
+  val sdq = Vec.fill(sdqDepth){ Reg(io.iacq().data) }
   val sdq_val = Reg(init=Bits(0, sdqDepth))
   val sdq_alloc_id = PriorityEncoder(~sdq_val)
   val sdq_rdy = !sdq_val.andR
-  val sdq_enq = acquire.fire() && acquire.bits.payload.hasData()
-  val sdq = Vec.fill(sdqDepth){ Reg(io.inner.acquire.bits.payload.data) }
-  when (sdq_enq) { sdq(sdq_alloc_id) := acquire.bits.payload.data }
+  val sdq_enq = io.inner.acquire.fire() && io.iacq().hasData()
+  when (sdq_enq) { sdq(sdq_alloc_id) := io.iacq().data }
 
   // Handle acquire transaction initiation
-  val any_acquire_conflict = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
-  val block_acquires = any_acquire_conflict
   val alloc_arb = Module(new Arbiter(Bool(), trackerList.size))
-  for( i <- 0 until trackerList.size ) {
-    val t = trackerList(i).io.inner
-    alloc_arb.io.in(i).valid := t.acquire.ready
-    t.acquire.bits := acquire.bits
-    t.acquire.bits.payload.data := DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
-    t.acquire.valid := alloc_arb.io.in(i).ready
+  val trackerAcquireIOs =  trackerList.map(_.io.inner.acquire)
+  val acquireMatchList = trackerList.map(_.io.has_acquire_match)
+  val any_acquire_matches = acquireMatchList.reduce(_||_)
+  val alloc_idx = Vec(alloc_arb.io.in.map(_.ready)).lastIndexWhere{b: Bool => b}
+  val match_idx = Vec(acquireMatchList).indexWhere{b: Bool => b}
+  val acquire_idx = Mux(any_acquire_matches, match_idx, alloc_idx)
+  trackerAcquireIOs.zip(alloc_arb.io.in).zipWithIndex.foreach {
+    case((tracker, arb), i) =>
+      arb.valid := tracker.ready
+      tracker.bits := io.inner.acquire.bits
+      tracker.bits.payload.data :=
+        DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
+      tracker.valid := arb.ready && (acquire_idx === UInt(i))
   }
-  acquire.ready := trackerList.map(_.io.inner.acquire.ready).reduce(_||_) && sdq_rdy && !block_acquires
-  alloc_arb.io.out.ready := acquire.valid && sdq_rdy && !block_acquires
+  val block_acquires = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
+  io.inner.acquire.ready := trackerAcquireIOs.map(_.ready).reduce(_||_) &&
+                              sdq_rdy && !block_acquires
+  alloc_arb.io.out.ready := io.inner.acquire.valid && sdq_rdy && !block_acquires
 
   // Queue to store impending Voluntary Release data
-  val release = io.inner.release
-  val voluntary = release.bits.payload.isVoluntary()
-  val vwbdq_enq = release.fire() && voluntary && release.bits.payload.hasData()
+  val voluntary = io.irel().isVoluntary()
+  val vwbdq_enq = io.inner.release.fire() && voluntary && io.irel().hasData()
   val (rel_data_cnt, rel_data_done) = Counter(vwbdq_enq, innerDataBeats) //TODO Zero width
-  val vwbdq = Vec.fill(innerDataBeats){ Reg(release.bits.payload.data) } //TODO Assumes nReleaseTransactors == 1 
-  when(vwbdq_enq) { vwbdq(rel_data_cnt) := release.bits.payload.data }
+  val vwbdq = Vec.fill(innerDataBeats){ Reg(io.irel().data) } //TODO Assumes nReleaseTransactors == 1 
+  when(vwbdq_enq) { vwbdq(rel_data_cnt) := io.irel().data }
 
   // Handle releases, which might be voluntary and might have data
   val release_idx = Vec(trackerList.map(_.io.has_release_match)).indexWhere{b: Bool => b}
-  for( i <- 0 until trackerList.size ) {
-    val t = trackerList(i).io.inner
-    t.release.bits := release.bits 
-    t.release.bits.payload.data := (if (i < nReleaseTransactors) 
-                                      DataQueueLocation(rel_data_cnt, inVolWBQueue)
-                                    else DataQueueLocation(UInt(0), inClientReleaseQueue)).toBits
-    t.release.valid := release.valid && (release_idx === UInt(i))
+  val trackerReleaseIOs = trackerList.map(_.io.inner.release)
+  trackerReleaseIOs.zipWithIndex.foreach {
+    case(tracker, i) =>
+      tracker.bits := io.inner.release.bits
+      tracker.bits.payload.data := DataQueueLocation(rel_data_cnt,
+                                     (if(i < nReleaseTransactors) inVolWBQueue
+                                      else inClientReleaseQueue)).toBits
+      tracker.valid := io.inner.release.valid && (release_idx === UInt(i))
   }
-  release.ready := Vec(trackerList.map(_.io.inner.release.ready)).read(release_idx)
-
-  // Wire finished transaction acks
-  val ack = io.inner.finish
-  trackerList.map(_.io.inner.finish.valid := ack.valid)
-  trackerList.map(_.io.inner.finish.bits := ack.bits)
-  ack.ready := Bool(true)
+  io.inner.release.ready := Vec(trackerReleaseIOs.map(_.ready)).read(release_idx)
 
   // Wire probe requests and grant reply to clients, finish acks from clients
   // Note that we bypass the Grant data subbundles
@@ -107,7 +107,7 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
   val free_sdq = io.outer.acquire.fire() &&
                   io.outer.acquire.bits.payload.hasData() &&
                   outer_data_ptr.loc === inStoreQueue
-  io.outer.acquire.bits.payload.data := MuxLookup(outer_data_ptr.loc, release.bits.payload.data, Array(
+  io.outer.acquire.bits.payload.data := MuxLookup(outer_data_ptr.loc, io.irel().data, Array(
                                           inStoreQueue -> sdq(outer_data_ptr.idx),
                                           inVolWBQueue -> vwbdq(outer_data_ptr.idx)))
   io.outer <> outer_arb.io.out
@@ -216,8 +216,9 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
   val coh = ManagerMetadata.onReset
 
   assert(!(state != s_idle && xact.isBuiltInType() && 
-      Vec(Acquire.getType, Acquire.putType, Acquire.putAtomicType).contains(xact.a_type)),
-    "Broadcast Hub does not support PutAtomics or subblock Gets/Puts") // TODO
+      Vec(Acquire.getType, Acquire.putType, Acquire.putAtomicType,
+        Acquire.prefetchType).contains(xact.a_type)),
+    "Broadcast Hub does not support PutAtomics, subblock Gets/Puts, or prefetches") // TODO
 
   val release_count = Reg(init=UInt(0, width = log2Up(nCoherentClients+1)))
   val pending_probes = Reg(init=Bits(0, width = nCoherentClients))
@@ -238,17 +239,18 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
   val ognt_data_done = connectIncomingDataBeatCounter(io.outer.grant)
   val pending_ognt_ack = Reg(init=Bool(false))
   val pending_outer_write = xact.hasData()
-  val pending_outer_read = io.ignt().hasData()
   val pending_outer_write_ = io.iacq().hasData()
+  val pending_outer_read = io.ignt().hasData()
   val pending_outer_read_ = coh.makeGrant(io.iacq(), UInt(trackerId)).hasData()
 
   io.has_acquire_conflict := xact.conflicts(io.iacq()) && 
-                              !collect_iacq_data &&
-                              (state != s_idle)
-  io.has_release_match := xact.conflicts(io.irel()) && 
-                              !io.irel().isVoluntary() &&
-                              (state != s_idle)
-  io.has_acquire_match := Bool(false)
+                              (state != s_idle) &&
+                              !collect_iacq_data
+  io.has_acquire_match := xact.conflicts(io.iacq()) &&
+                              collect_iacq_data
+  io.has_release_match := xact.conflicts(io.irel()) &&
+                            !io.irel().isVoluntary() &&
+                            (state === s_probe)
 
   val outer_write_acq = Bundle(PutBlock(
                                 client_xact_id = UInt(trackerId),
@@ -281,6 +283,18 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
   io.inner.acquire.ready := Bool(false)
   io.inner.release.ready := Bool(false)
   io.inner.finish.ready := Bool(false)
+
+  assert(!(state != s_idle && collect_iacq_data && io.inner.acquire.fire() &&
+    io.inner.acquire.bits.header.src != xact_src),
+    "AcquireTracker accepted data beat from different network source than initial request.")
+
+  assert(!(state != s_idle && collect_iacq_data && io.inner.acquire.fire() &&
+    io.iacq().client_xact_id != xact.client_xact_id),
+    "AcquireTracker accepted data beat from different client transaction than initial request.")
+
+  assert(!(state === s_idle && io.inner.acquire.fire() &&
+    io.iacq().addr_beat != UInt(0)),
+    "AcquireTracker initialized with a tail data beat.")
 
   when(collect_iacq_data) {
     io.inner.acquire.ready := Bool(true)

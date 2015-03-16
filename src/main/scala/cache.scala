@@ -356,33 +356,34 @@ class TSHRFile(bankId: Int) extends L2HellaCacheModule
   (trackerList.map(_.io.incoherent) :+ wb.io.incoherent).map( _ := io.incoherent.toBits)
 
   // Handle acquire transaction initiation
-  val acquire = io.inner.acquire
   val alloc_arb = Module(new Arbiter(Bool(), trackerList.size))
-  val acquireList =  trackerList.map(_.io.inner.acquire)
+  val trackerAcquireIOs =  trackerList.map(_.io.inner.acquire)
   val acquireMatchList = trackerList.map(_.io.has_acquire_match)
   val any_acquire_matches = acquireMatchList.reduce(_||_)
   val alloc_idx = Vec(alloc_arb.io.in.map(_.ready)).lastIndexWhere{b: Bool => b}
   val match_idx = Vec(acquireMatchList).indexWhere{b: Bool => b}
   val acquire_idx = Mux(any_acquire_matches, match_idx, alloc_idx)
-  acquireList.zip(alloc_arb.io.in).zipWithIndex.map { case((acq, arb), i) =>
-    arb.valid := acq.ready
-    acq.bits := acquire.bits
-    acq.valid := arb.ready && (acquire_idx === UInt(i))
+  trackerAcquireIOs.zip(alloc_arb.io.in).zipWithIndex.foreach { 
+    case((tracker, arb), i) =>
+      arb.valid := tracker.ready
+      tracker.bits := io.inner.acquire.bits
+      tracker.valid := arb.ready && (acquire_idx === UInt(i))
   }
   val block_acquires = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
-  acquire.ready := acquireList.map(_.ready).reduce(_||_) && !block_acquires
-  alloc_arb.io.out.ready := acquire.valid && !block_acquires
+  io.inner.acquire.ready := trackerAcquireIOs.map(_.ready).reduce(_||_) &&
+                              !block_acquires
+  alloc_arb.io.out.ready := io.inner.acquire.valid && !block_acquires
 
   // Wire releases from clients
-  val release = io.inner.release
   val release_idx = Vec(trackerList.map(_.io.has_release_match) :+
                           wb.io.has_release_match).indexWhere{b: Bool => b}
-  val releaseList = trackerList.map(_.io.inner.release) :+ wb.io.inner.release
-  releaseList.zipWithIndex.map { case(r, i) =>
-    r.bits := release.bits
-    r.valid := release.valid && (release_idx === UInt(i))
+  val trackerReleaseIOs = trackerList.map(_.io.inner.release) :+ wb.io.inner.release
+  trackerReleaseIOs.zipWithIndex.foreach { 
+    case(tracker, i) =>
+      tracker.bits := io.inner.release.bits
+      tracker.valid := io.inner.release.valid && (release_idx === UInt(i))
   }
-  release.ready := Vec(releaseList.map(_.ready)).read(release_idx)
+  io.inner.release.ready := Vec(trackerReleaseIOs.map(_.ready)).read(release_idx)
 
   // Wire probe requests and grant reply to clients, finish acks from clients
   doOutputArbitration(io.inner.probe, trackerList.map(_.io.inner.probe) :+ wb.io.inner.probe)
@@ -658,8 +659,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                               !collect_iacq_data
   io.has_acquire_match := xact.conflicts(io.iacq()) &&
                               collect_iacq_data
-  io.has_release_match := !io.irel().isVoluntary() &&
-                            (xact.addr_block === io.irel().addr_block) &&
+  io.has_release_match := xact.conflicts(io.irel()) &&
+                            !io.irel().isVoluntary() &&
                             (state === s_probe)
 
   // If we're allocating in this cache, we can use the current metadata
@@ -728,6 +729,18 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   io.wb.req.bits.coh := xact_meta.coh
   io.wb.req.bits.way_en := xact_way_en
   io.wb.req.bits.id := UInt(trackerId)
+
+  assert(!(state != s_idle && collect_iacq_data && io.inner.acquire.fire() &&
+    io.inner.acquire.bits.header.src != xact_src),
+    "AcquireTracker accepted data beat from different network source than initial request.")
+
+  assert(!(state != s_idle && collect_iacq_data && io.inner.acquire.fire() &&
+    io.iacq().client_xact_id != xact.client_xact_id),
+    "AcquireTracker accepted data beat from different client transaction than initial request.")
+
+  assert(!(state === s_idle && io.inner.acquire.fire() &&
+    io.iacq().addr_beat != UInt(0)),
+    "AcquireTracker initialized with a tail data beat.")
 
   when(collect_iacq_data) {
     io.inner.acquire.ready := Bool(true)
