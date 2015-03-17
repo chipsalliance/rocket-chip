@@ -610,12 +610,12 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                     full_sharers & ~UInt(UInt(1) << xact_src, width = nCoherentClients))
   val mask_incoherent = mask_self & ~io.incoherent.toBits
 
-  val irel_had_data = Reg(init = Bool(false))
-  val ognt_had_data = Reg(init = Bool(false))
   val irel_data_done = connectIncomingDataBeatCounter(io.inner.release)
   val ognt_data_done = connectIncomingDataBeatCounter(io.outer.grant)
   val (oacq_data_cnt, oacq_data_done) = connectOutgoingDataBeatCounter(io.outer.acquire, xact.addr_beat)
   val (ignt_data_idx, ignt_data_done) = connectOutgoingDataBeatCounter(io.inner.grant, ignt_q.io.deq.bits.addr_beat)
+  val ifin_cnt = Reg(init = UInt(0, width = log2Up(nSecondaryMisses+1)))
+  when(ignt_data_done) { ifin_cnt := ifin_cnt + UInt(1) }
 
   val pending_reads = Reg(init=Bits(0, width = innerDataBeats))
   val pending_writes = Reg(init=Bits(0, width = innerDataBeats))
@@ -789,8 +789,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                             SInt(-1, width = innerDataBeats)).toUInt
         pending_writes := UInt(0)
         pending_resps := UInt(0)
-        irel_had_data := Bool(false)
-        ognt_had_data := Bool(false)
+        ifin_cnt := UInt(0)
         state := s_meta_read
       }
     }
@@ -940,7 +939,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     }
     is(s_inner_finish) {
       io.inner.finish.ready := Bool(true)
-      when(io.inner.finish.valid) { state := s_idle }
+      when(io.inner.finish.valid) { 
+        ifin_cnt := ifin_cnt - UInt(1)
+        when(ifin_cnt <= UInt(1)) { state := s_idle }
+      }
     }
   }
 
