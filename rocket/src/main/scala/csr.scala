@@ -82,6 +82,7 @@ class CSRFileIO extends CoreBundle {
 
   val csr_replay = Bool(OUTPUT)
   val csr_xcpt = Bool(OUTPUT)
+  val eret = Bool(OUTPUT)
 
   val status = new MStatus().asOutput
   val ptbr = UInt(OUTPUT, paddrBits)
@@ -206,7 +207,8 @@ class CSRFile extends CoreModule
              Mux(insn_redirect_trap, reg_stvec,
              Mux(reg_mstatus.prv(1), reg_mepc, reg_sepc))).toUInt
   io.ptbr := reg_sptbr
-  io.csr_xcpt := csr_xcpt || insn_redirect_trap || insn_ret /* sort of a lie */
+  io.csr_xcpt := csr_xcpt
+  io.eret := insn_ret || insn_redirect_trap
   io.status := reg_mstatus
   io.status.fs := reg_mstatus.fs.orR.toSInt // either off or dirty (no clean/initial support yet)
   io.status.xs := reg_mstatus.xs.orR.toSInt // either off or dirty (no clean/initial support yet)

@@ -45,6 +45,7 @@ class CtrlDpathIO extends CoreBundle
   // inputs from csr file
   val csr_replay = Bool(INPUT)
   val csr_xcpt = Bool(INPUT)
+  val eret = Bool(INPUT)
   val interrupt = Bool(INPUT)
   val interrupt_cause = UInt(INPUT, xLen)
 }
@@ -541,10 +542,10 @@ class Control extends CoreModule
   val wb_xcpt = wb_reg_xcpt || io.dpath.csr_xcpt
 
   // control transfer from ex/wb
-  take_pc_wb := replay_wb || wb_xcpt
+  take_pc_wb := replay_wb || wb_xcpt || io.dpath.eret
 
   io.dpath.sel_pc :=
-    Mux(wb_xcpt,                      PC_PCR, // exception or [m|s]ret
+    Mux(wb_xcpt || io.dpath.eret,     PC_PCR, // exception or [m|s]ret
     Mux(replay_wb,                    PC_WB,  // replay
                                       PC_MEM))
 
