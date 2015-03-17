@@ -187,14 +187,12 @@ class CSRFile extends CoreModule
               Mux(io.rw.cmd === CSR.S, io.rw.rdata | io.rw.wdata,
               host_pcr_bits.data)))
 
-  val opcode = io.rw.addr(3,0)
-  // The following comparison is meant to be opcode === SFENCE_VM(23,20). But
-  // FOR SOME FUCKING REASON, extracting SFENCE_VM(23,20) gives 3, not 4.
-  val insn_sfence_vm = opcode === 4 && system_insn && priv_sufficient
-  val insn_redirect_trap = opcode === MRTS(23,20) && system_insn && priv_sufficient
-  val insn_ret = opcode === SRET(23,20) /* or H/MRET */ && io.rw.addr(1) && system_insn && priv_sufficient
-  val insn_break = opcode === SBREAK(23,20) && io.rw.addr(0) && system_insn && priv_sufficient
-  val insn_call = opcode === SCALL(23,20) /* or H/MCALL */ && system_insn && priv_sufficient
+  val opcode = io.rw.addr
+  val insn_call = !opcode(8) && !opcode(0) && system_insn && priv_sufficient
+  val insn_break = !opcode(8) && opcode(0) && system_insn && priv_sufficient
+  val insn_ret = opcode(8) && !opcode(0) && system_insn && priv_sufficient
+  val insn_sfence_vm = opcode(8) && opcode(0) && system_insn && priv_sufficient
+  val insn_redirect_trap = opcode(2) && system_insn && priv_sufficient
 
   val csr_xcpt = (cpu_wen && read_only) ||
     (cpu_ren && (!priv_sufficient || !addr_valid || fp_csr && !io.status.fs.orR)) ||
@@ -228,7 +226,7 @@ class CSRFile extends CoreModule
     when (csr_xcpt) {
       reg_mcause := Causes.illegal_instruction
       when (insn_break) { reg_mcause := Causes.breakpoint }
-      when (insn_call) { reg_mcause := Causes.scall + csr_addr_priv }
+      when (insn_call) { reg_mcause := Causes.ecall }
     }
 
     reg_mbadaddr := io.pc
