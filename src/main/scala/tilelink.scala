@@ -106,10 +106,11 @@ class Acquire extends ClientToManagerChannel
   def amo_shift_bits(dummy: Int = 0) = UInt(amoAluOperandBits)*amo_offset()
   def wmask(dummy: Int = 0) = 
     Mux(isBuiltInType(Acquire.putAtomicType), 
-      FillInterleaved(amoAluOperandBits, UIntToOH(amo_offset())),
+      FillInterleaved(amoAluOperandBits/8, UIntToOH(amo_offset())),
       Mux(isBuiltInType(Acquire.putBlockType) || isBuiltInType(Acquire.putType),
-        FillInterleaved(8, union(tlWriteMaskBits, 1)),
-        UInt(0, width = tlDataBits)))
+        union(tlWriteMaskBits, 1),
+        UInt(0, width = tlWriteMaskBits)))
+  def full_wmask(dummy: Int = 0) = FillInterleaved(8, wmask())
 
   def addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, this.addr_byte())
 
