@@ -667,6 +667,6 @@ class Control extends CoreModule
   io.dmem.sret := wb_xcpt // obviously not an sret, but sufficient
 
   io.rocc.cmd.valid := wb_rocc_val
-  io.rocc.exception := wb_xcpt && io.dpath.status.xs != 0
-  io.rocc.s := io.dpath.status.prv != 0 // should we just pass all of mstatus?
+  io.rocc.exception := wb_xcpt && io.dpath.status.xs.orR
+  io.rocc.s := io.dpath.status.prv.orR // should we just pass all of mstatus?
 }
