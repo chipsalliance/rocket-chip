@@ -658,13 +658,12 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     val new_data = data_buffer(beat) // Newly Put data is already in the buffer
     amoalu.io.lhs := old_data >> xact.amo_shift_bits()
     amoalu.io.rhs := new_data >> xact.amo_shift_bits()
-    val valid_beat = (xact.isBuiltInType(Acquire.putBlockType) || xact.addr_beat === beat)
-    val wmask = Fill(dataBits, valid_beat) & FillInterleaved(8, wmask_buffer(beat))
+    val wmask = FillInterleaved(8, wmask_buffer(beat))
     data_buffer(beat) := ~wmask & old_data |
                           wmask & Mux(xact.isBuiltInType(Acquire.putAtomicType),
                                         amoalu.io.out << xact.amo_shift_bits(),
                                         new_data)
-    when(xact.is(Acquire.putAtomicType) && valid_beat) { amo_result := old_data }
+    when(xact.is(Acquire.putAtomicType) && xact.addr_beat === beat) { amo_result := old_data }
   }
   val mergeDataInternal = mergeData(rowBits) _
   val mergeDataInner = mergeData(innerDataBits) _
