@@ -95,12 +95,9 @@ object Instructions {
   def SC_D               = Bits("b00011????????????011?????0101111")
   def SCALL              = Bits("b00000000000000000000000001110011")
   def SBREAK             = Bits("b00000000000100000000000001110011")
-  def SRET               = Bits("b00010000001000000000000001110011")
-  def SFENCE_VM          = Bits("b000100000100?????000000001110011")
-  def HCALL              = Bits("b00010000000000000000000001110011")
-  def MCALL              = Bits("b00100000000000000000000001110011")
-  def MRET               = Bits("b00110000001000000000000001110011")
-  def MRTS               = Bits("b00110000100100000000000001110011")
+  def SRET               = Bits("b00010000000000000000000001110011")
+  def SFENCE_VM          = Bits("b000100000001?????000000001110011")
+  def MRTS               = Bits("b00110000010100000000000001110011")
   def CSRRW              = Bits("b?????????????????001?????1110011")
   def CSRRS              = Bits("b?????????????????010?????1110011")
   def CSRRC              = Bits("b?????????????????011?????1110011")
@@ -198,27 +195,23 @@ object Causes {
   val misaligned_fetch = 0x0
   val fault_fetch = 0x1
   val illegal_instruction = 0x2
-  val scall = 0x4
-  val hcall = 0x5
-  val mcall = 0x6
-  val breakpoint = 0x7
-  val misaligned_load = 0x8
-  val fault_load = 0x9
-  val misaligned_store = 0xa
-  val fault_store = 0xb
+  val misaligned_load = 0x4
+  val fault_load = 0x5
+  val misaligned_store = 0x6
+  val fault_store = 0x7
+  val ecall = 0x8
+  val breakpoint = 0x9
   val all = {
     val res = collection.mutable.ArrayBuffer[Int]()
     res += misaligned_fetch
     res += fault_fetch
     res += illegal_instruction
-    res += scall
-    res += hcall
-    res += mcall
-    res += breakpoint
     res += misaligned_load
     res += fault_load
     res += misaligned_store
     res += fault_store
+    res += ecall
+    res += breakpoint
     res.toArray
   }
 }
