@@ -48,25 +48,29 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
   when (sdq_enq) { sdq(sdq_alloc_id) := io.iacq().data }
 
   // Handle acquire transaction initiation
-  val alloc_arb = Module(new Arbiter(Bool(), trackerList.size))
   val trackerAcquireIOs =  trackerList.map(_.io.inner.acquire)
+
+  val alloc_arb = Module(new Arbiter(Bool(), trackerList.size))
+  alloc_arb.io.out.ready := Bool(true)
+  trackerAcquireIOs.zip(alloc_arb.io.in).foreach {
+    case(tracker, arb) => arb.valid := tracker.ready
+  }
+  val alloc_idx = Vec(alloc_arb.io.in.map(_.ready)).lastIndexWhere{b: Bool => b}
+
   val acquireMatchList = trackerList.map(_.io.has_acquire_match)
   val any_acquire_matches = acquireMatchList.reduce(_||_)
-  val alloc_idx = Vec(alloc_arb.io.in.map(_.ready)).lastIndexWhere{b: Bool => b}
   val match_idx = Vec(acquireMatchList).indexWhere{b: Bool => b}
+
   val acquire_idx = Mux(any_acquire_matches, match_idx, alloc_idx)
-  trackerAcquireIOs.zip(alloc_arb.io.in).zipWithIndex.foreach {
-    case((tracker, arb), i) =>
-      arb.valid := tracker.ready
+  val block_acquires = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
+  io.inner.acquire.ready := trackerAcquireIOs.map(_.ready).reduce(_||_) && !block_acquires && sdq_rdy
+  trackerAcquireIOs.zipWithIndex.foreach {
+    case(tracker, i) =>
       tracker.bits := io.inner.acquire.bits
       tracker.bits.payload.data :=
         DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
-      tracker.valid := arb.ready && (acquire_idx === UInt(i))
+      tracker.valid := io.inner.acquire.valid && !block_acquires && (acquire_idx === UInt(i))
   }
-  val block_acquires = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
-  io.inner.acquire.ready := trackerAcquireIOs.map(_.ready).reduce(_||_) &&
-                              sdq_rdy && !block_acquires
-  alloc_arb.io.out.ready := io.inner.acquire.valid && sdq_rdy && !block_acquires
 
   // Queue to store impending Voluntary Release data
   val voluntary = io.irel().isVoluntary()
