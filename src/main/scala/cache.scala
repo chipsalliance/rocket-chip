@@ -754,6 +754,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
 
   //TODO: Assumes in-order network
   assert(!(state === s_idle && io.inner.acquire.fire() &&
+    !io.iacq().isSubBlockType() &&
     io.iacq().addr_beat != UInt(0)),
     "AcquireTracker initialized with a tail data beat.")
 
