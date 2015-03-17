@@ -129,7 +129,7 @@ class Acquire extends ClientToManagerChannel
   def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && isBuiltInType() &&
                                            Acquire.typesWithMultibeatData.contains(a_type)
 
-  def requiresSelfProbe(dummy: Int = 0) = isBuiltInType()//Bool(false)
+  def requiresSelfProbe(dummy: Int = 0) = Bool(false)
 
   def getBuiltInGrantType(dummy: Int = 0): UInt = {
     MuxLookup(this.a_type, Grant.putAckType, Array(
