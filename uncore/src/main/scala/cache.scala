@@ -782,7 +782,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         xact := io.iacq()
         xact.data := UInt(0)
         wmask_buffer.foreach { w => w := UInt(0) }
-        pending_reads  := Mux(io.iacq().isSubBlockType(), SInt(0), SInt(-1)).toUInt
+        pending_reads  := Mux(io.iacq().isSubBlockType(),
+                            UIntToOH(io.iacq().addr_beat),
+                            SInt(-1, width = innerDataBeats)).toUInt
         pending_writes := UInt(0)
         pending_resps := UInt(0)
         irel_had_data := Bool(false)
@@ -947,9 +949,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
       mergeDataPut(beat, io.iacq().wmask(), io.iacq().data)
       wmask_buffer(beat) := io.iacq().wmask() | wmask_buffer(beat)
       //iacq_data_valid(beat) := Bool(true)
-      pending_writes(beat) := Bool(true)
+      pending_writes := pending_writes | UIntToOH(io.iacq().addr_beat)
     }
-    pending_reads(beat) := Bool(true)
+    when(state != s_idle) { pending_reads := pending_reads | UIntToOH(io.iacq().addr_beat) }
   }
 
   assert(!(state != s_idle && io.inner.acquire.fire() &&
