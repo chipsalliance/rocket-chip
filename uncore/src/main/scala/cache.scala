@@ -376,8 +376,7 @@ class TSHRFile(bankId: Int) extends L2HellaCacheModule
   val alloc_arb = Module(new Arbiter(Bool(), trackerList.size))
   alloc_arb.io.out.ready := Bool(true)
   trackerAcquireIOs.zip(alloc_arb.io.in).foreach {
-    case(tracker, arb) =>
-      arb.valid := tracker.ready
+    case(tracker, arb) => arb.valid := tracker.ready
   }
   val alloc_idx = Vec(alloc_arb.io.in.map(_.ready)).lastIndexWhere{b: Bool => b}
 
