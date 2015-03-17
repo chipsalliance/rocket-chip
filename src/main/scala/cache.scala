@@ -364,23 +364,28 @@ class TSHRFile(bankId: Int) extends L2HellaCacheModule
   (trackerList.map(_.io.incoherent) :+ wb.io.incoherent).map( _ := io.incoherent.toBits)
 
   // Handle acquire transaction initiation
+  val trackerAcquireIOs = trackerList.map(_.io.inner.acquire)
+
   val alloc_arb = Module(new Arbiter(Bool(), trackerList.size))
-  val trackerAcquireIOs =  trackerList.map(_.io.inner.acquire)
+  alloc_arb.io.out.ready := Bool(true)
+  trackerAcquireIOs.zip(alloc_arb.io.in).foreach {
+    case(tracker, arb) =>
+      arb.valid := tracker.ready
+  }
+  val alloc_idx = Vec(alloc_arb.io.in.map(_.ready)).lastIndexWhere{b: Bool => b}
+
   val acquireMatchList = trackerList.map(_.io.has_acquire_match)
   val any_acquire_matches = acquireMatchList.reduce(_||_)
-  val alloc_idx = Vec(alloc_arb.io.in.map(_.ready)).lastIndexWhere{b: Bool => b}
   val match_idx = Vec(acquireMatchList).indexWhere{b: Bool => b}
+
   val acquire_idx = Mux(any_acquire_matches, match_idx, alloc_idx)
-  trackerAcquireIOs.zip(alloc_arb.io.in).zipWithIndex.foreach { 
-    case((tracker, arb), i) =>
-      arb.valid := tracker.ready
-      tracker.bits := io.inner.acquire.bits
-      tracker.valid := arb.ready && (acquire_idx === UInt(i))
-  }
   val block_acquires = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
-  io.inner.acquire.ready := trackerAcquireIOs.map(_.ready).reduce(_||_) &&
-                              !block_acquires
-  alloc_arb.io.out.ready := io.inner.acquire.valid && !block_acquires
+  io.inner.acquire.ready := trackerAcquireIOs.map(_.ready).reduce(_||_) && !block_acquires
+  trackerAcquireIOs.zipWithIndex.foreach {
+    case(tracker, i) =>
+      tracker.bits := io.inner.acquire.bits
+      tracker.valid := io.inner.acquire.valid && !block_acquires && (acquire_idx === UInt(i))
+  }
 
   // Wire releases from clients
   val release_idx = Vec(trackerList.map(_.io.has_release_match) :+
