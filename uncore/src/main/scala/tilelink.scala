@@ -38,6 +38,7 @@ abstract trait TileLinkParameters extends UsesParameters {
   val tlGrantTypeBits = max(log2Up(Grant.nBuiltInTypes), 
                               tlCoh.grantTypeWidth) + 1
   val tlNetworkPreservesPointToPointOrdering = params(TLNetworkIsOrderedP2P)
+  val amoAluOperandBits = params(AmoAluOperandBits)
 }
 
 abstract class TLBundle extends Bundle with TileLinkParameters
@@ -101,13 +102,22 @@ class Acquire extends ClientToManagerChannel
     M_XWR, union(opSizeOff-1, opCodeOff))
   def op_size(dummy: Int = 0) = union(addrByteOff-1, opSizeOff)
   def addr_byte(dummy: Int = 0) = union(addrByteMSB-1, addrByteOff)
-  def write_mask(dummy: Int = 0) = union(tlWriteMaskBits, 1)
+  private def amo_offset(dummy: Int = 0) = addr_byte()(tlByteAddrBits-1, log2Up(amoAluOperandBits/8))
+  def amo_shift_bits(dummy: Int = 0) = UInt(amoAluOperandBits)*amo_offset()
+  def wmask(dummy: Int = 0) = 
+    Mux(isBuiltInType(Acquire.putAtomicType), 
+      FillInterleaved(amoAluOperandBits, UIntToOH(amo_offset())),
+      Mux(isBuiltInType(Acquire.putBlockType) || isBuiltInType(Acquire.putType),
+        FillInterleaved(8, union(tlWriteMaskBits, 1)),
+        UInt(0, width = tlDataBits)))
+
   def addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, this.addr_byte())
 
   // Other helper funcs
-  def is(t: UInt) = a_type === t
+  def is(t: UInt) = a_type === t //TODO: make this more opaque; def ===?
 
   def isBuiltInType(dummy: Int = 0): Bool = is_builtin_type
+  def isBuiltInType(t: UInt): Bool = is_builtin_type && a_type === t 
 
   def isSubBlockType(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesOnSubBlocks.contains(a_type) 
 
@@ -119,7 +129,7 @@ class Acquire extends ClientToManagerChannel
   def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && isBuiltInType() &&
                                            Acquire.typesWithMultibeatData.contains(a_type)
 
-  def requiresSelfProbe(dummy: Int = 0) = Bool(false)
+  def requiresSelfProbe(dummy: Int = 0) = isBuiltInType()//Bool(false)
 
   def getBuiltInGrantType(dummy: Int = 0): UInt = {
     MuxLookup(this.a_type, Grant.putAckType, Array(
@@ -229,7 +239,7 @@ object Put {
       addr_block: UInt,
       addr_beat: UInt,
       data: UInt,
-      write_mask: UInt = Acquire.fullWriteMask): Acquire = {
+      wmask: UInt = Acquire.fullWriteMask): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.putType,
@@ -237,7 +247,7 @@ object Put {
       addr_beat = addr_beat,
       client_xact_id = client_xact_id,
       data = data,
-      union = Cat(write_mask, Bool(true)))
+      union = Cat(wmask, Bool(true)))
   }
 }
 
@@ -248,7 +258,7 @@ object PutBlock {
       addr_block: UInt,
       addr_beat: UInt,
       data: UInt,
-      write_mask: UInt): Acquire = {
+      wmask: UInt): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.putBlockType,
@@ -256,7 +266,7 @@ object PutBlock {
       addr_block = addr_block,
       addr_beat = addr_beat,
       data = data,
-      union = Cat(write_mask, (write_mask != Acquire.fullWriteMask)))
+      union = Cat(wmask, (wmask != Acquire.fullWriteMask)))
   }
   def apply(
       client_xact_id: UInt,
