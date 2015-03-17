@@ -900,6 +900,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         mergeDataInternal(io.data.resp.bits.addr_beat, io.data.resp.bits.data)
         pending_resps := pending_resps & ~UIntToOH(io.data.resp.bits.addr_beat)
       }
+      when(io.data.read.ready && io.data.resp.valid) {
+        pending_resps := (pending_resps & 
+                          ~UIntToOH(io.data.resp.bits.addr_beat)) |
+                           UIntToOH(curr_read_beat)
+      }
     }
     is(s_data_resp) {
       when(io.data.resp.valid) {
