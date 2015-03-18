@@ -869,8 +869,6 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
       when(io.inner.release.valid) {
         pending_coh.inner := pending_icoh_on_irel
         // Handle released dirty data
-        //TODO: make sure cacq data is actually present before accpeting
-        //      release data to merge!
         when(io.irel().hasData()) {
           pending_coh.outer := pending_ocoh_on_irel
           mergeDataInner(io.irel().addr_beat, io.irel().data)
@@ -990,18 +988,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     data_buffer(beat) := (~full & data_buffer(beat)) | (full & io.iacq().data)
     wmask_buffer(beat) := wmask | Mux(state === s_idle, Bits(0), wmask_buffer(beat))
     when(!xact.hasMultibeatData()) { ignt_q.io.enq.valid := Bool(true) }
-    //iacq_data_valid(beat) := Bool(true)
   }
 
   assert(!(state != s_idle && io.inner.acquire.fire() &&
     io.inner.acquire.bits.header.src != xact_src),
     "AcquireTracker accepted data beat from different network source than initial request.")
-
-  //TODO: Assumes in-order network
-  assert(!(state === s_idle && io.inner.acquire.fire() &&
-    !io.iacq().isSubBlockType() &&
-    io.iacq().addr_beat != UInt(0)),
-    "AcquireTracker initialized with a tail data beat.")
 }
 
 class L2WritebackReq extends L2HellaCacheBundle
