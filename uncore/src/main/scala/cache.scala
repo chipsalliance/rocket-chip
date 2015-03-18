@@ -676,12 +676,6 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   amoalu.io.lhs := io.data.resp.bits.data //default
   amoalu.io.rhs := data_buffer.head // default
 
-  def mergeDataPut(beat: UInt, wmask: UInt, put_data: UInt) {
-    val full = FillInterleaved(8, wmask)
-    data_buffer(beat) := (~full & data_buffer(beat)) | (full & put_data)
-    wmask_buffer(beat) := wmask | wmask_buffer(beat)
-  }
-
   def mergeData(dataBits: Int)(beat: UInt, incoming: UInt) {
     val old_data = incoming     // Refilled, written back, or de-cached data
     val new_data = data_buffer(beat) // Newly Put data is already in the buffer
@@ -971,7 +965,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
 
   // Handle Get and Put merging
   when(io.inner.acquire.fire() && io.iacq().hasData()) {
-    mergeDataPut(io.iacq().addr_beat, io.iacq().wmask(), io.iacq().data)
+    val beat = io.iacq().addr_beat
+    val wmask = io.iacq().wmask()
+    val full = FillInterleaved(8, wmask)
+    data_buffer(beat) := (~full & data_buffer(beat)) | (full & io.iacq().data)
+    wmask_buffer(beat) := wmask | Mux(state === s_idle, Bits(0), wmask_buffer(beat))
     when(!xact.hasMultibeatData()) { ignt_q.io.enq.valid := Bool(true) }
     //iacq_data_valid(beat) := Bool(true)
   }
