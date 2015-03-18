@@ -686,6 +686,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                           wmask & Mux(xact.isBuiltInType(Acquire.putAtomicType),
                                         amoalu.io.out << xact.amo_shift_bits(),
                                         new_data)
+    wmask_buffer(beat) := SInt(-1)
     when(xact.is(Acquire.putAtomicType) && xact.addr_beat === beat) { amo_result := old_data }
   }
   val mergeDataInternal = mergeData(rowBits) _
@@ -779,7 +780,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   io.data.write.bits.way_en := xact_way_en
   io.data.write.bits.addr_idx := xact.addr_block(idxMSB,idxLSB)
   io.data.write.bits.addr_beat := curr_write_beat
-  io.data.write.bits.wmask := SInt(-1)
+  io.data.write.bits.wmask := wmask_buffer(curr_write_beat)
   io.data.write.bits.data := data_buffer(curr_write_beat)
   io.meta.read.valid := Bool(false)
   io.meta.read.bits.id := UInt(trackerId)
