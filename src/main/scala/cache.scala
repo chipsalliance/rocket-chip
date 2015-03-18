@@ -632,7 +632,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   ignt_q.io.deq.ready := ignt_data_done
 
   val ifin_cnt = Reg(init = UInt(0, width = log2Up(nSecondaryMisses+1)))
-  when(ignt_data_done) { ifin_cnt := ifin_cnt + UInt(1) }
+  when(ignt_data_done) { ifin_cnt := ifin_cnt + Mux(io.inner.finish.fire(), UInt(0), UInt(1)) }
+  .elsewhen(io.inner.finish.fire()) { ifin_cnt := ifin_cnt - UInt(1) }
+
   val pending_reads = Reg(init=Bits(0, width = innerDataBeats))
   pending_reads := (pending_reads |
                     addPendingBit(io.inner.acquire)) &
@@ -943,12 +945,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                    Mux(io.ignt().requiresAck(), s_inner_finish, s_idle))
       }
       io.inner.finish.ready := Bool(true)
-      when(io.inner.finish.valid) {
-        ifin_cnt := ifin_cnt - Mux(ignt_data_done, UInt(0), UInt(1))
-      }
     }
     is(s_meta_write) {
       io.meta.write.valid := Bool(true)
+      io.inner.finish.ready := Bool(true)
       when(io.meta.write.ready) {
         state := Mux(io.ignt().requiresAck(), s_inner_finish, s_idle)
       }
@@ -956,13 +956,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     is(s_inner_finish) {
       io.inner.finish.ready := Bool(true)
       when(io.inner.finish.valid) { 
-        ifin_cnt := ifin_cnt - UInt(1)
         when(ifin_cnt <= UInt(1)) { state := s_idle }
       }
       when(ifin_cnt === UInt(0)) { state := s_idle }
     }
   }
-
 
   // Handle Get and Put merging
   when(io.inner.acquire.fire() && io.iacq().hasData()) {
