@@ -464,10 +464,10 @@ abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
     Fill(in.bits.refillCycles, in.fire()) & UIntToOH(in.bits.addr_beat)
 
   def dropPendingBit[T <: HasL2BeatAddr] (in: DecoupledIO[T]) =
-    Fill(in.bits.refillCycles, in.fire()) & ~UIntToOH(in.bits.addr_beat)
+    ~Fill(in.bits.refillCycles, in.fire()) | ~UIntToOH(in.bits.addr_beat)
 
   def dropInternalPendingBit[T <: HasL2BeatAddr] (in: ValidIO[T]) =
-    Fill(in.bits.refillCycles, in.valid) & ~UIntToOH(in.bits.addr_beat)
+    ~Fill(in.bits.refillCycles, in.valid) | ~UIntToOH(in.bits.addr_beat)
 }
 
 class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
@@ -634,22 +634,22 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val ifin_cnt = Reg(init = UInt(0, width = log2Up(nSecondaryMisses+1)))
   when(ignt_data_done) { ifin_cnt := ifin_cnt + UInt(1) }
   val pending_reads = Reg(init=Bits(0, width = innerDataBeats))
-  pending_reads := pending_reads |
-                    addPendingBit(io.inner.acquire) |
+  pending_reads := (pending_reads |
+                    addPendingBit(io.inner.acquire)) &
                     dropPendingBit(io.data.read)
   val curr_read_beat = PriorityEncoder(pending_reads)
 
   val pending_writes = Reg(init=Bits(0, width = innerDataBeats))
-  pending_writes := pending_writes |
+  pending_writes := (pending_writes |
                       addPendingBit(io.inner.acquire) |
                       addPendingBit(io.inner.release) |
-                      addPendingBit(io.outer.grant) &
+                      addPendingBit(io.outer.grant)) &
                       dropPendingBit(io.data.write)
   val curr_write_beat = PriorityEncoder(pending_writes)
 
   val pending_resps = Reg(init=Bits(0, width = innerDataBeats))
-  pending_resps := pending_resps |
-                     addInternalPendingBit(io.data.read) &
+  pending_resps := (pending_resps |
+                     addInternalPendingBit(io.data.read)) &
                      dropInternalPendingBit(io.data.resp)
 
   val pending_coh_on_hit = HierarchicalMetadata(
