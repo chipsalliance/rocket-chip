@@ -173,7 +173,6 @@ abstract trait L2HellaCacheParameters extends CacheParameters with CoherenceAgen
   require(rowBits == innerDataBits) // TODO: relax this by improving s_data_* states
   val nSecondaryMisses = 4
   val enableGetMerging = false
-  val enablePutMerging = true
 }
 
 abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
@@ -709,11 +708,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                              do_allocate &&
                              ignt_q.io.enq.ready
   //TODO: mix Puts and PutBlocks
-  val can_merge_iacq_put = ((Bool(enablePutMerging) &&
-                               (xact.isBuiltInType(Acquire.putType) &&
-                                 io.iacq().isBuiltInType(Acquire.putType))) ||
-                               (xact.isBuiltInType(Acquire.putBlockType) &&
-                                 io.iacq().isBuiltInType(Acquire.putBlockType))) &&
+  val can_merge_iacq_put = ((xact.isBuiltInType(Acquire.putType) &&
+                               io.iacq().isBuiltInType(Acquire.putType)) ||
+                             (xact.isBuiltInType(Acquire.putBlockType) &&
+                               io.iacq().isBuiltInType(Acquire.putBlockType))) &&
                              (xact_src === io.inner.acquire.bits.header.src) &&
                              (xact.client_xact_id === io.iacq().client_xact_id) &&
                              xact.conflicts(io.iacq()) &&
