@@ -591,7 +591,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTrack
 class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val io = new L2XactTrackerIO
 
-  val s_idle :: s_meta_read :: s_meta_resp :: s_wb_req :: s_wb_resp :: s_probe :: s_outer_acquire :: s_outer_grant :: s_outer_finish :: s_data_read :: s_data_resp :: s_data_write :: s_inner_grant :: s_meta_write :: s_inner_finish :: Nil = Enum(UInt(), 15)
+  val s_idle :: s_meta_read :: s_meta_resp :: s_wb_req :: s_wb_resp :: s_probe :: s_outer_acquire :: s_outer_grant :: s_outer_finish :: s_data_read :: s_data_resp :: s_wait_puts :: s_data_write :: s_inner_grant :: s_meta_write :: s_inner_finish :: Nil = Enum(UInt(), 16)
   val state = Reg(init=s_idle)
 
   val xact_src = Reg(io.inner.acquire.bits.header.src.clone)
@@ -602,12 +602,15 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val xact_meta = Reg{ new L2Metadata }
   val xact_way_en = Reg{ Bits(width = nWays) }
   val pending_coh = Reg{ xact_meta.coh.clone }
+  val pending_puts = Reg(init=Bits(0, width = innerDataBeats))
+  pending_puts := (pending_puts | addPendingBit(io.inner.acquire))
 
   val is_hit = xact_tag_match && xact_meta.coh.outer.isHit(xact.op_code())
   val do_allocate = xact.allocate()
   val needs_writeback = !xact_tag_match && do_allocate && 
                           (xact_meta.coh.outer.requiresVoluntaryWriteback() ||
                            xact_meta.coh.inner.requiresProbesOnVoluntaryWriteback())
+  val needs_more_put_data = !pending_puts.andR
 
   val release_count = Reg(init = UInt(0, width = log2Up(nCoherentClients+1)))
   val pending_probes = Reg(init = Bits(0, width = nCoherentClients))
@@ -808,9 +811,12 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         xact := io.iacq()
         xact.data := UInt(0)
         wmask_buffer.foreach { w => w := UInt(0) }
-        pending_reads  := Mux(io.iacq().isSubBlockType(),
-                            UIntToOH(io.iacq().addr_beat),
-                            SInt(-1, width = innerDataBeats)).toUInt
+        pending_puts := Mux(io.iacq().isBuiltInType(Acquire.putBlockType),
+                          UInt(0),
+                          SInt(-1, width = innerDataBeats)).toUInt
+        pending_reads := Mux(io.iacq().isSubBlockType(),
+                           UIntToOH(io.iacq().addr_beat),
+                           SInt(-1, width = innerDataBeats)).toUInt
         pending_writes := addPendingBit(io.inner.acquire)
         pending_resps := UInt(0)
         ifin_cnt := UInt(0)
@@ -876,7 +882,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
       }
       when(release_count === UInt(0)) {
         state := Mux(is_hit,
-                   Mux(pending_writes.orR, s_data_write, s_data_read),
+                   Mux(pending_writes.orR,
+                     Mux(needs_more_put_data, s_wait_puts, s_data_write),
+                     s_data_read),
                    s_outer_acquire)
       }
     }
@@ -901,7 +909,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
             state := s_outer_finish
           }.otherwise {
             state := Mux(!do_allocate, s_inner_grant,
-                       Mux(pending_writes.orR, s_data_write, s_data_read))
+                       Mux(pending_writes.orR,
+                         Mux(needs_more_put_data, s_wait_puts, s_data_write),
+                         s_data_read))
           }
         }
       }
@@ -910,7 +920,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
       io.outer.finish.valid := Bool(true)
       when(io.outer.finish.ready) {
         state := Mux(!do_allocate, s_inner_grant,
-                   Mux(pending_writes.orR, s_data_write, s_data_read))
+                   Mux(pending_writes.orR,
+                       Mux(needs_more_put_data, s_wait_puts, s_data_write),
+                       s_data_read))
       }
     }
     is(s_data_read) {
@@ -927,12 +939,15 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         mergeDataInternal(io.data.resp.bits.addr_beat, io.data.resp.bits.data)
         pending_resps := pending_resps & ~UIntToOH(io.data.resp.bits.addr_beat)
         when(PopCount(pending_resps) <= UInt(1)) {
-          state := Mux(pending_writes.orR, s_data_write, s_inner_grant)
+          state := Mux(pending_writes.orR,
+                     Mux(needs_more_put_data, s_wait_puts, s_data_write),
+                     s_inner_grant)
         }
       }
     }
+    is(s_wait_puts) { when(!needs_more_put_data) { state := s_data_write } }
     is(s_data_write) {
-      io.data.write.valid := pending_writes.orR //TODO make sure all acquire data is present
+      io.data.write.valid := pending_writes.orR
       when(io.data.write.ready) {
         when(PopCount(pending_writes) <= UInt(1)) { state := s_inner_grant }
       }
