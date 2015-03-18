@@ -172,7 +172,6 @@ abstract trait L2HellaCacheParameters extends CacheParameters with CoherenceAgen
   require(amoAluOperandBits <= innerDataBits)
   require(rowBits == innerDataBits) // TODO: relax this by improving s_data_* states
   val nSecondaryMisses = 4
-  val enableGetMerging = false
 }
 
 abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
@@ -697,8 +696,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val mergeDataInner = mergeData(innerDataBits) _
   val mergeDataOuter = mergeData(outerDataBits) _
 
-  val can_merge_iacq_get = Bool(enableGetMerging) &&
-                             (xact.isBuiltInType(Acquire.getType) &&
+  val can_merge_iacq_get = (xact.isBuiltInType(Acquire.getType) &&
                                io.iacq().isBuiltInType(Acquire.getType)) &&
                              (xact_src === io.inner.acquire.bits.header.src) &&
                              xact.conflicts(io.iacq()) &&
@@ -979,13 +977,15 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   }
 
   // Handle Get and Put merging
-  when(io.inner.acquire.fire() && io.iacq().hasData()) {
-    val beat = io.iacq().addr_beat
-    val wmask = io.iacq().wmask()
-    val full = FillInterleaved(8, wmask)
-    data_buffer(beat) := (~full & data_buffer(beat)) | (full & io.iacq().data)
-    wmask_buffer(beat) := wmask | Mux(state === s_idle, Bits(0), wmask_buffer(beat))
-    when(!xact.hasMultibeatData()) { ignt_q.io.enq.valid := Bool(true) }
+  when(io.inner.acquire.fire()) {
+    when (io.iacq().hasData()) {
+      val beat = io.iacq().addr_beat
+      val wmask = io.iacq().wmask()
+      val full = FillInterleaved(8, wmask)
+      data_buffer(beat) := (~full & data_buffer(beat)) | (full & io.iacq().data)
+      wmask_buffer(beat) := wmask | Mux(state === s_idle, Bits(0), wmask_buffer(beat))
+    }
+    when(!io.iacq().hasMultibeatData()) { ignt_q.io.enq.valid := Bool(true) }
   }
 
   assert(!(state != s_idle && io.inner.acquire.fire() &&
