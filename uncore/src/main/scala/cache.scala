@@ -814,7 +814,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         pending_reads  := Mux(io.iacq().isSubBlockType(),
                             UIntToOH(io.iacq().addr_beat),
                             SInt(-1, width = innerDataBeats)).toUInt
-        pending_writes := UInt(0)
+        pending_writes := addPendingBit(io.inner.acquire)
         pending_resps := UInt(0)
         ifin_cnt := UInt(0)
         ignt_q.io.enq.valid := Bool(true)
