@@ -628,7 +628,7 @@ class HellaCache extends L1HellaCacheModule {
   val s3_req = Reg(io.cpu.req.bits.clone)
   val s3_way = Reg(Bits())
 
-  val s1_recycled = RegEnable(s2_recycle, s1_clk_en)
+  val s1_recycled = RegEnable(s2_recycle, Bool(false), s1_clk_en)
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
   val s1_sc = s1_req.cmd === M_XSC
