@@ -810,7 +810,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         xact.data := UInt(0)
         wmask_buffer.foreach { w => w := UInt(0) }
         pending_puts := Mux(io.iacq().isBuiltInType(Acquire.putBlockType),
-                          UInt(0),
+                          addPendingBitWhenHasData(io.inner.acquire),
                           SInt(-1, width = innerDataBeats)).toUInt
         pending_reads := Mux(io.iacq().isSubBlockType(),
                            addPendingBitWhenWmaskIsNotFull(io.inner.acquire),
