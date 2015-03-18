@@ -446,17 +446,28 @@ abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
       (Mux(!full_block, beat, multi_cnt), Mux(!full_block, inc, multi_done))
     } else { (UInt(0), inc) }
   }
+
   def connectInternalDataBeatCounter[T <: HasL2BeatAddr](
       in: DecoupledIO[T],
       beat: UInt = UInt(0),
       full_block: Bool = Bool(true)) = {
     connectDataBeatCounter(in.fire(), in.bits, beat, full_block)
   }
+
   def connectInternalDataBeatCounter[T <: HasL2Data](
       in: ValidIO[T],
       full_block: Bool = Bool(true)) = {
     connectDataBeatCounter(in.valid, in.bits, UInt(0), full_block)._2
   }
+
+  def addInternalPendingBit[T <: HasL2BeatAddr](in: DecoupledIO[T]) =
+    Fill(in.bits.refillCycles, in.fire()) & UIntToOH(in.bits.addr_beat)
+
+  def dropPendingBit[T <: HasL2BeatAddr] (in: DecoupledIO[T]) =
+    Fill(in.bits.refillCycles, in.fire()) & ~UIntToOH(in.bits.addr_beat)
+
+  def dropInternalPendingBit[T <: HasL2BeatAddr] (in: ValidIO[T]) =
+    Fill(in.bits.refillCycles, in.valid) & ~UIntToOH(in.bits.addr_beat)
 }
 
 class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
@@ -591,8 +602,6 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val xact_meta = Reg{ new L2Metadata }
   val xact_way_en = Reg{ Bits(width = nWays) }
   val pending_coh = Reg{ xact_meta.coh.clone }
-  val pending_finish = Reg{ io.outer.finish.bits.clone }
-  val ignt_q = Module(new Queue(new L2SecondaryMissInfo, nSecondaryMisses))(innerTLParams)
 
   val is_hit = xact_tag_match && xact_meta.coh.outer.isHit(xact.op_code())
   val do_allocate = xact.allocate()
@@ -611,17 +620,37 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val mask_incoherent = mask_self & ~io.incoherent.toBits
 
   val irel_data_done = connectIncomingDataBeatCounter(io.inner.release)
-  val ognt_data_done = connectIncomingDataBeatCounter(io.outer.grant)
   val (oacq_data_cnt, oacq_data_done) = connectOutgoingDataBeatCounter(io.outer.acquire, xact.addr_beat)
+  val ognt_data_done = connectIncomingDataBeatCounter(io.outer.grant)
+  val pending_ofin = Reg{ io.outer.finish.bits.clone }
+
+  val ignt_q = Module(new Queue(new L2SecondaryMissInfo, nSecondaryMisses))(innerTLParams)
   val (ignt_data_idx, ignt_data_done) = connectOutgoingDataBeatCounter(io.inner.grant, ignt_q.io.deq.bits.addr_beat)
+  ignt_q.io.enq.valid := Bool(false)
+  ignt_q.io.enq.bits.client_xact_id := io.iacq().client_xact_id
+  ignt_q.io.enq.bits.addr_beat := io.iacq().addr_beat
+  ignt_q.io.deq.ready := ignt_data_done
+
   val ifin_cnt = Reg(init = UInt(0, width = log2Up(nSecondaryMisses+1)))
   when(ignt_data_done) { ifin_cnt := ifin_cnt + UInt(1) }
-
   val pending_reads = Reg(init=Bits(0, width = innerDataBeats))
-  val pending_writes = Reg(init=Bits(0, width = innerDataBeats))
-  val pending_resps = Reg(init=Bits(0, width = innerDataBeats))
+  pending_reads := pending_reads |
+                    addPendingBit(io.inner.acquire) |
+                    dropPendingBit(io.data.read)
   val curr_read_beat = PriorityEncoder(pending_reads)
+
+  val pending_writes = Reg(init=Bits(0, width = innerDataBeats))
+  pending_writes := pending_writes |
+                      addPendingBit(io.inner.acquire) |
+                      addPendingBit(io.inner.release) |
+                      addPendingBit(io.outer.grant) &
+                      dropPendingBit(io.data.write)
   val curr_write_beat = PriorityEncoder(pending_writes)
+
+  val pending_resps = Reg(init=Bits(0, width = innerDataBeats))
+  pending_resps := pending_resps |
+                     addInternalPendingBit(io.data.read) &
+                     dropInternalPendingBit(io.data.resp)
 
   val pending_coh_on_hit = HierarchicalMetadata(
                               io.meta.resp.bits.meta.coh.inner,
@@ -720,8 +749,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   io.outer.release.valid := Bool(false)
   io.outer.grant.ready := Bool(false)
   io.outer.finish.valid := Bool(false)
-  io.outer.finish.bits := pending_finish
-  val pending_finish_on_ognt = io.ognt().makeFinish()
+  io.outer.finish.bits := pending_ofin
+  val pending_ofin_on_ognt = io.ognt().makeFinish()
 
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
@@ -739,7 +768,6 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                                             amo_result,
                                             data_buffer(ignt_data_idx)))
   io.ignt().client_xact_id := ignt_q.io.deq.bits.client_xact_id
-  ignt_q.io.deq.ready := ignt_data_done
 
   io.inner.acquire.ready := state === s_idle ||
                               can_merge_iacq_put ||
@@ -789,6 +817,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         pending_writes := UInt(0)
         pending_resps := UInt(0)
         ifin_cnt := UInt(0)
+        ignt_q.io.enq.valid := Bool(true)
         state := s_meta_read
       }
     }
@@ -842,7 +871,6 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         when(io.irel().hasData()) {
           pending_coh.outer := pending_ocoh_on_irel
           mergeDataInner(io.irel().addr_beat, io.irel().data)
-          pending_writes := pending_writes | UIntToOH(io.irel().addr_beat)
         }
         // We don't decrement release_count until we've received all the data beats.
         when(!io.irel().hasMultibeatData() || irel_data_done) {
@@ -866,14 +894,13 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
       when(io.outer.grant.valid) {
         when(io.ognt().hasData()) { 
           mergeDataOuter(io.ognt().addr_beat, io.ognt().data)
-          pending_writes := pending_writes | UIntToOH(io.ognt().addr_beat)
         }
         when(ognt_data_done) { 
           pending_coh := pending_coh_on_ognt
           when(io.ognt().requiresAck()) {
-            pending_finish.payload := pending_finish_on_ognt
-            pending_finish.header.dst := io.outer.grant.bits.header.src
-            pending_finish.header.src := UInt(bankId)
+            pending_ofin.payload := pending_ofin_on_ognt
+            pending_ofin.header.dst := io.outer.grant.bits.header.src
+            pending_ofin.header.src := UInt(bankId)
             state := s_outer_finish
           }.otherwise {
             state := Mux(!do_allocate, s_inner_grant,
@@ -892,18 +919,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     is(s_data_read) {
       io.data.read.valid := pending_reads.orR
       when(io.data.read.ready) {
-        pending_resps := pending_resps | UIntToOH(curr_read_beat)
-        pending_reads := pending_reads & ~UIntToOH(curr_read_beat)
         when(PopCount(pending_reads) <= UInt(1)) { state := s_data_resp }
       }
       when(io.data.resp.valid) {
         mergeDataInternal(io.data.resp.bits.addr_beat, io.data.resp.bits.data)
-        pending_resps := pending_resps & ~UIntToOH(io.data.resp.bits.addr_beat)
-      }
-      when(io.data.read.ready && io.data.resp.valid) {
-        pending_resps := (pending_resps & 
-                          ~UIntToOH(io.data.resp.bits.addr_beat)) |
-                           UIntToOH(curr_read_beat)
       }
     }
     is(s_data_resp) {
@@ -918,7 +937,6 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     is(s_data_write) {
       io.data.write.valid := pending_writes.orR //TODO make sure all acquire data is present
       when(io.data.write.ready) {
-        pending_writes := pending_writes & ~UIntToOH(curr_write_beat)
         when(PopCount(pending_writes) <= UInt(1)) { state := s_inner_grant }
       }
     }
@@ -950,20 +968,12 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     }
   }
 
-  ignt_q.io.enq.valid := io.inner.acquire.fire() &&
-    (state === s_idle || !xact.hasMultibeatData())
-  ignt_q.io.enq.bits.client_xact_id := io.iacq().client_xact_id
-  ignt_q.io.enq.bits.addr_beat := io.iacq().addr_beat
 
   // Handle Get and Put merging
-  when(io.inner.acquire.fire()) {
-    val beat = io.iacq().addr_beat
-    when(io.iacq().hasData()) {
-      mergeDataPut(beat, io.iacq().wmask(), io.iacq().data)
-      //iacq_data_valid(beat) := Bool(true)
-      pending_writes := pending_writes | UIntToOH(io.iacq().addr_beat)
-    }
-    when(state != s_idle) { pending_reads := pending_reads | UIntToOH(io.iacq().addr_beat) }
+  when(io.inner.acquire.fire() && io.iacq().hasData()) {
+    mergeDataPut(io.iacq().addr_beat, io.iacq().wmask(), io.iacq().data)
+    when(!xact.hasMultibeatData()) { ignt_q.io.enq.valid := Bool(true) }
+    //iacq_data_valid(beat) := Bool(true)
   }
 
   assert(!(state != s_idle && io.inner.acquire.fire() &&
@@ -1007,7 +1017,7 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
   val xact_way_en = Reg{ Bits(width = nWays) }
   val data_buffer = Vec.fill(innerDataBeats){ Reg(io.irel().data.clone) }
   val xact_id = Reg{ UInt() }
-  val pending_finish = Reg{ io.outer.finish.bits.clone }
+  val pending_ofin = Reg{ io.outer.finish.bits.clone }
 
   val irel_had_data = Reg(init = Bool(false))
   val release_count = Reg(init = UInt(0, width = log2Up(nCoherentClients+1)))
@@ -1043,8 +1053,8 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
   io.outer.release.bits.header.src := UInt(bankId)
   io.outer.grant.ready := Bool(false) // default
   io.outer.finish.valid := Bool(false) // default
-  io.outer.finish.bits := pending_finish
-  val pending_finish_on_ognt = io.ognt().makeFinish()
+  io.outer.finish.bits := pending_ofin
+  val pending_ofin_on_ognt = io.ognt().makeFinish()
 
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
@@ -1133,8 +1143,8 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
       io.outer.grant.ready := Bool(true)
       when(io.outer.grant.valid) { 
         when(io.ognt().requiresAck()) {
-          pending_finish.payload := pending_finish_on_ognt
-          pending_finish.header.dst := io.outer.grant.bits.header.src
+          pending_ofin.payload := pending_ofin_on_ognt
+          pending_ofin.header.dst := io.outer.grant.bits.header.src
           state :=  s_outer_finish
         }.otherwise { 
           state := s_wb_resp

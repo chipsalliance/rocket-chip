@@ -139,12 +139,19 @@ abstract class XactTracker extends CoherenceAgentModule {
     val done = Mux(multi, multi_done, inc)
     (cnt, done)
   }
+
   def connectOutgoingDataBeatCounter[T <: HasTileLinkData : ClassTag](
       in: DecoupledIO[LogicalNetworkIO[T]], 
       beat: UInt = UInt(0)) = {
     connectDataBeatCounter(in.fire(), in.bits.payload, beat)
   }
+
   def connectIncomingDataBeatCounter[T <: HasTileLinkData : ClassTag](in: DecoupledIO[LogicalNetworkIO[T]]) = {
     connectDataBeatCounter(in.fire(), in.bits.payload, UInt(0))._2
+  }
+
+  def addPendingBit[T <: HasTileLinkData with HasTileLinkBeatId](in: DecoupledIO[LogicalNetworkIO[T]]) = {
+    (Fill(in.bits.payload.tlDataBeats, in.fire() && in.bits.payload.hasData()) &
+      UIntToOH(in.bits.payload.addr_beat))
   }
 }
