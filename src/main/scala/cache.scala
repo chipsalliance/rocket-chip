@@ -10,6 +10,8 @@ case object RowBits extends Field[Int]
 case object Replacer extends Field[() => ReplacementPolicy]
 case object AmoAluOperandBits extends Field[Int]
 case object L2DirectoryRepresentation extends Field[DirectoryRepresentation]
+case object NPrimaryMisses extends Field[Int]
+case object NSecondaryMisses extends Field[Int]
 case object CacheBlockBytes extends Field[Int]
 case object CacheBlockOffsetBits extends Field[Int]
 
@@ -171,7 +173,7 @@ abstract trait L2HellaCacheParameters extends CacheParameters with CoherenceAgen
   val amoAluOperandBits = params(AmoAluOperandBits)
   require(amoAluOperandBits <= innerDataBits)
   require(rowBits == innerDataBits) // TODO: relax this by improving s_data_* states
-  val nSecondaryMisses = 4
+  val nSecondaryMisses = params(NSecondaryMisses)
 }
 
 abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
