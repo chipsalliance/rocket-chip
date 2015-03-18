@@ -929,6 +929,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         state := Mux(meta_dirty, s_meta_write,
                    Mux(io.ignt().requiresAck(), s_inner_finish, s_idle))
       }
+      io.inner.finish.ready := Bool(true)
+      when(io.inner.finish.valid) {
+        ifin_cnt := ifin_cnt - Mux(ignt_data_done, UInt(0), UInt(1))
+      }
     }
     is(s_meta_write) {
       io.meta.write.valid := Bool(true)
@@ -942,6 +946,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         ifin_cnt := ifin_cnt - UInt(1)
         when(ifin_cnt <= UInt(1)) { state := s_idle }
       }
+      when(ifin_cnt === UInt(0)) { state := s_idle }
     }
   }
 
