@@ -151,12 +151,19 @@ abstract class XactTracker extends CoherenceAgentModule {
   }
 
   def addPendingBitWhenHasData[T <: HasTileLinkData with HasTileLinkBeatId](in: DecoupledIO[LogicalNetworkIO[T]]) = {
-    (Fill(in.bits.payload.tlDataBeats, in.fire() && in.bits.payload.hasData()) &
-      UIntToOH(in.bits.payload.addr_beat))
+    Fill(in.bits.payload.tlDataBeats, in.fire() && in.bits.payload.hasData()) &
+      UIntToOH(in.bits.payload.addr_beat)
   }
 
-  def addPendingBitWhenWmaskIsNotFull(in: DecoupledIO[LogicalNetworkIO[Acquire]]) = {
-    (Fill(in.bits.payload.tlDataBeats, in.fire() && !in.bits.payload.wmask().andR) &
-      UIntToOH(in.bits.payload.addr_beat))
+  def dropPendingBitWhenHasData[T <: HasTileLinkData with HasTileLinkBeatId](in: DecoupledIO[LogicalNetworkIO[T]]) = {
+    ~Fill(in.bits.payload.tlDataBeats, in.fire() && in.bits.payload.hasData()) |
+      ~UIntToOH(in.bits.payload.addr_beat)
+  }
+
+  def addPendingBitWhenGetOrAtomic(in: DecoupledIO[LogicalNetworkIO[Acquire]]) = {
+    val a = in.bits.payload
+    Fill(a.tlDataBeats, in.fire() && a.isBuiltInType() &&
+        (a.is(Acquire.getType) || a.is(Acquire.getBlockType) || a.is(Acquire.putAtomicType))) &
+      UIntToOH(a.addr_beat)
   }
 }
