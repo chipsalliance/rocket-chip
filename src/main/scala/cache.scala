@@ -638,7 +638,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   pending_ignt_data := pending_ignt_data |
                          addPendingBitInternal(io.data.resp) |
                          addPendingBitWhenHasData(io.inner.release) |
-                         addPendingBitWhenHasData(io.outer.grant)
+                         addPendingBitWhenHasData(io.outer.grant) |
+                         addPendingBitWhenHasData(io.inner.acquire)
   val ignt_q = Module(new Queue(new L2SecondaryMissInfo, nSecondaryMisses))(innerTLParams)
   val (ignt_data_idx, ignt_data_done) = connectOutgoingDataBeatCounter(io.inner.grant, ignt_q.io.deq.bits.addr_beat)
   ignt_q.io.enq.valid := Bool(false)
