@@ -826,9 +826,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         pending_puts := Mux(io.iacq().isBuiltInType(Acquire.putBlockType),
                           dropPendingBitWhenHasData(io.inner.acquire),
                           UInt(0))
-        pending_reads := Mux(io.iacq().isBuiltInType(),
-                           addPendingBitWhenGetOrAtomic(io.inner.acquire),
-                           SInt(-1, width = innerDataBeats)).toUInt
+        pending_reads := Mux(io.iacq().isBuiltInType(Acquire.getBlockType) || 
+                             !io.iacq().isBuiltInType(),
+                           SInt(-1, width = innerDataBeats),
+                           addPendingBitWhenGetOrAtomic(io.inner.acquire)).toUInt
         pending_writes := addPendingBitWhenHasData(io.inner.acquire)
         pending_resps := UInt(0)
         pending_ignt_data := UInt(0)
