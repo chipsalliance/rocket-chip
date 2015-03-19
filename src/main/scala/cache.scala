@@ -609,10 +609,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val present_puts = Reg(init=Bits(0, width = innerDataBeats))
   present_puts := (present_puts | addPendingBitWhenHasData(io.inner.acquire))
 
-  val is_hit = xact_tag_match && 
-                 (xact_meta.coh.outer.isHit(xact.op_code()) ||
-                   (Bool(isLastLevelCache) && // LLC has all the permissions
-                     xact_meta.coh.outer.isValid()))
+  val is_hit = (if(isLastLevelCache)
+                   (xact.isBuiltInType(Acquire.putBlockType) ||
+                     xact_meta.coh.outer.isValid())
+                 else (xact_tag_match && xact_meta.coh.outer.isHit(xact.op_code())))
   val do_allocate = xact.allocate()
   val needs_writeback = !xact_tag_match && do_allocate && 
                           (xact_meta.coh.outer.requiresVoluntaryWriteback() ||
@@ -857,10 +857,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         pending_coh := io.meta.resp.bits.meta.coh
         val _coh = io.meta.resp.bits.meta.coh
         val _tag_match = io.meta.resp.bits.tag_match
-        val _is_hit = _tag_match && 
-                        (_coh.outer.isHit(xact.op_code()) ||
-                          (Bool(isLastLevelCache) && // LLC has all the permissions
-                            _coh.outer.isValid()))
+        val _is_hit = (if(isLastLevelCache)
+                         (xact.isBuiltInType(Acquire.putBlockType) ||
+                           _coh.outer.isValid())
+                       else (_tag_match && _coh.outer.isHit(xact.op_code())))
                             
         val _needs_writeback = !_tag_match && do_allocate && 
                                   (_coh.outer.requiresVoluntaryWriteback() ||
