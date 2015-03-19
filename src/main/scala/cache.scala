@@ -606,9 +606,9 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val xact_meta = Reg{ new L2Metadata }
   val xact_way_en = Reg{ Bits(width = nWays) }
   val pending_coh = Reg{ xact_meta.coh.clone }
-  val present_puts = Reg(init=Bits(0, width = innerDataBeats))
-  present_puts := (present_puts | addPendingBitWhenHasData(io.inner.acquire))
-  val needs_more_put_data = !present_puts.andR
+  val pending_puts = Reg(init=Bits(0, width = innerDataBeats))
+  pending_puts := (pending_puts & dropPendingBitWhenHasData(io.inner.acquire))
+  val needs_more_put_data = pending_puts.orR
   val do_allocate = xact.allocate()
 
   val release_count = Reg(init = UInt(0, width = log2Up(nCoherentClients+1)))
@@ -648,9 +648,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
 
   val pending_reads = Reg(init=Bits(0, width = innerDataBeats))
   pending_reads := (pending_reads |
-                    addPendingBitWhenWmaskIsNotFull(io.inner.acquire)) &
+                    addPendingBitWhenGetOrAtomic(io.inner.acquire)) &
                     (dropPendingBit(io.data.read) &
-                     dropPendingBitWhenWmaskIsFull(io.inner.acquire) &
                      dropPendingBitWhenHasData(io.inner.release) &
                      dropPendingBitWhenHasData(io.outer.grant))
   val curr_read_beat = PriorityEncoder(pending_reads)
@@ -824,14 +823,12 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         xact := io.iacq()
         xact.data := UInt(0)
         wmask_buffer.foreach { w => w := UInt(0) }
-        present_puts := Mux(io.iacq().isBuiltInType(Acquire.putBlockType),
-                          addPendingBitWhenHasData(io.inner.acquire),
-                          SInt(-1, width = innerDataBeats)).toUInt
-        pending_reads := Mux(io.iacq().isBuiltInType(Acquire.putBlockType),
-                           UInt(0),
-                           Mux(io.iacq().isSubBlockType(),
-                             addPendingBitWhenWmaskIsNotFull(io.inner.acquire),
-                             SInt(-1, width = innerDataBeats)).toUInt)
+        pending_puts := Mux(io.iacq().isBuiltInType(Acquire.putBlockType),
+                          dropPendingBitWhenHasData(io.inner.acquire),
+                          UInt(0))
+        pending_reads := Mux(io.iacq().isBuiltInType(),
+                           addPendingBitWhenGetOrAtomic(io.inner.acquire),
+                           SInt(-1, width = innerDataBeats)).toUInt
         pending_writes := addPendingBitWhenHasData(io.inner.acquire)
         pending_resps := UInt(0)
         pending_ignt_data := UInt(0)

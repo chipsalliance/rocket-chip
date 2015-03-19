@@ -160,14 +160,10 @@ abstract class XactTracker extends CoherenceAgentModule {
       ~UIntToOH(in.bits.payload.addr_beat)
   }
 
-  //TODO | with existing wmask_buffer?
-  def addPendingBitWhenWmaskIsNotFull(in: DecoupledIO[LogicalNetworkIO[Acquire]]) = {
-    Fill(in.bits.payload.tlDataBeats, in.fire() && !in.bits.payload.wmask().andR) &
-      UIntToOH(in.bits.payload.addr_beat)
-  }
-
-  def dropPendingBitWhenWmaskIsFull(in: DecoupledIO[LogicalNetworkIO[Acquire]]) = {
-    ~Fill(in.bits.payload.tlDataBeats, in.fire() && in.bits.payload.wmask().andR) |
-      ~UIntToOH(in.bits.payload.addr_beat)
+  def addPendingBitWhenGetOrAtomic(in: DecoupledIO[LogicalNetworkIO[Acquire]]) = {
+    val a = in.bits.payload
+    Fill(a.tlDataBeats, in.fire() && a.isBuiltInType() &&
+        (a.is(Acquire.getType) || a.is(Acquire.getBlockType) || a.is(Acquire.putAtomicType))) &
+      UIntToOH(a.addr_beat)
   }
 }
