@@ -174,6 +174,7 @@ abstract trait L2HellaCacheParameters extends CacheParameters with CoherenceAgen
   require(amoAluOperandBits <= innerDataBits)
   require(rowBits == innerDataBits) // TODO: relax this by improving s_data_* states
   val nSecondaryMisses = params(NSecondaryMisses)
+  val isLastLevelCache = true
 }
 
 abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
@@ -594,7 +595,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTrack
 class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val io = new L2XactTrackerIO
 
-  val s_idle :: s_meta_read :: s_meta_resp :: s_wb_req :: s_wb_resp :: s_probe :: s_outer_acquire :: s_outer_grant :: s_outer_finish :: s_data_read :: s_data_resp :: s_wait_puts :: s_data_write :: s_inner_grant :: s_meta_write :: s_inner_finish :: Nil = Enum(UInt(), 16)
+  val s_idle :: s_meta_read :: s_meta_resp :: s_wb_req :: s_wb_resp :: s_inner_probe :: s_outer_acquire :: s_outer_grant :: s_outer_finish :: s_data_read :: s_data_resp :: s_wait_puts :: s_data_write :: s_inner_grant :: s_meta_write :: s_inner_finish :: Nil = Enum(UInt(), 16)
   val state = Reg(init=s_idle)
 
   val xact_src = Reg(io.inner.acquire.bits.header.src.clone)
@@ -605,15 +606,18 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val xact_meta = Reg{ new L2Metadata }
   val xact_way_en = Reg{ Bits(width = nWays) }
   val pending_coh = Reg{ xact_meta.coh.clone }
-  val pending_puts = Reg(init=Bits(0, width = innerDataBeats))
-  pending_puts := (pending_puts | addPendingBitWhenHasData(io.inner.acquire))
+  val present_puts = Reg(init=Bits(0, width = innerDataBeats))
+  present_puts := (present_puts | addPendingBitWhenHasData(io.inner.acquire))
 
-  val is_hit = xact_tag_match && xact_meta.coh.outer.isHit(xact.op_code())
+  val is_hit = xact_tag_match && 
+                 (xact_meta.coh.outer.isHit(xact.op_code()) ||
+                   (Bool(isLastLevelCache) && // LLC has all the permissions
+                     xact_meta.coh.outer.isValid()))
   val do_allocate = xact.allocate()
   val needs_writeback = !xact_tag_match && do_allocate && 
                           (xact_meta.coh.outer.requiresVoluntaryWriteback() ||
                            xact_meta.coh.inner.requiresProbesOnVoluntaryWriteback())
-  val needs_more_put_data = !pending_puts.andR
+  val needs_more_put_data = !present_puts.andR
 
   val release_count = Reg(init = UInt(0, width = log2Up(nCoherentClients+1)))
   val pending_probes = Reg(init = Bits(0, width = nCoherentClients))
@@ -652,7 +656,10 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val pending_reads = Reg(init=Bits(0, width = innerDataBeats))
   pending_reads := (pending_reads |
                     addPendingBitWhenWmaskIsNotFull(io.inner.acquire)) &
-                    dropPendingBit(io.data.read)
+                    (dropPendingBit(io.data.read) &
+                     dropPendingBitWhenWmaskIsFull(io.inner.acquire) &
+                     dropPendingBitWhenHasData(io.inner.release) &
+                     dropPendingBitWhenHasData(io.outer.grant))
   val curr_read_beat = PriorityEncoder(pending_reads)
 
   val pending_writes = Reg(init=Bits(0, width = innerDataBeats))
@@ -683,6 +690,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                                 outgoing = io.ignt(),
                                 dst = io.inner.grant.bits.header.dst),
                               pending_coh.outer)
+  val pending_ofin_on_ognt = io.ognt().makeFinish()
 
   val amo_result = xact.data
   val amoalu = Module(new AMOALU)
@@ -714,11 +722,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                              (xact_src === io.inner.acquire.bits.header.src) &&
                              xact.conflicts(io.iacq()) &&
                              Vec(s_meta_read, s_meta_resp, s_wb_req, s_wb_resp,
-                                 s_probe, s_outer_acquire, s_outer_grant, 
+                                 s_inner_probe, s_outer_acquire, s_outer_grant, 
                                  s_outer_finish).contains(state) &&
                              do_allocate &&
                              ignt_q.io.enq.ready
-  //TODO: mix Puts and PutBlocks
+
   val can_merge_iacq_put = ((xact.isBuiltInType(Acquire.putType) &&
                                io.iacq().isBuiltInType(Acquire.putType)) ||
                              (xact.isBuiltInType(Acquire.putBlockType) &&
@@ -727,7 +735,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                              (xact.client_xact_id === io.iacq().client_xact_id) &&
                              xact.conflicts(io.iacq()) &&
                              Vec(s_meta_read, s_meta_resp, s_wb_req, s_wb_resp,
-                                 s_probe, s_outer_acquire, s_outer_grant, 
+                                 s_inner_probe, s_outer_acquire, s_outer_grant, 
                                  s_outer_finish, s_data_read, 
                                  s_data_resp).contains(state) &&
                              do_allocate &&
@@ -737,7 +745,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                       io.iacq().addr_block(idxMSB,idxLSB)
   io.has_release_match := xact.conflicts(io.irel()) &&
                             !io.irel().isVoluntary() &&
-                            (state === s_probe)
+                            (state === s_inner_probe)
   io.has_acquire_match := can_merge_iacq_put || can_merge_iacq_get
   io.has_acquire_conflict := (xact.conflicts(io.iacq()) || in_same_set) &&
                               (state != s_idle) &&
@@ -746,7 +754,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   // If we're allocating in this cache, we can use the current metadata
   // to make an appropriate custom Acquire, otherwise we copy over the
   // built-in Acquire from the inner TL to the outer TL
-  io.outer.acquire.valid := Bool(false)
+  io.outer.acquire.valid := state === s_outer_acquire
   io.outer.acquire.bits.payload := Mux(do_allocate,
                                     xact_meta.coh.outer.makeAcquire(
                                       client_xact_id = UInt(trackerId),
@@ -756,12 +764,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   io.outer.acquire.bits.header.src := UInt(bankId)
   io.outer.probe.ready := Bool(false)
   io.outer.release.valid := Bool(false)
-  io.outer.grant.ready := Bool(false)
-  io.outer.finish.valid := Bool(false)
+  io.outer.grant.ready := state === s_outer_grant
+  io.outer.finish.valid := state === s_outer_finish
   io.outer.finish.bits := pending_ofin
-  val pending_ofin_on_ognt = io.ognt().makeFinish()
 
-  io.inner.probe.valid := Bool(false)
+  io.inner.probe.valid := state === s_inner_probe && pending_probes.orR
   io.inner.probe.bits.header.src := UInt(bankId)
   io.inner.probe.bits.header.dst := curr_probe_dst
   io.inner.probe.bits.payload := pending_coh.inner.makeProbe(xact)
@@ -784,34 +791,34 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   io.inner.acquire.ready := state === s_idle ||
                               can_merge_iacq_put ||
                               can_merge_iacq_get
-  io.inner.release.ready := state === s_probe
+  io.inner.release.ready := state === s_inner_probe
   io.inner.finish.ready := Vec(s_inner_finish, s_meta_write, s_inner_grant,
                                s_data_write, s_wait_puts, s_data_resp).contains(state)
 
-  io.data.read.valid := Bool(false)
+  io.data.read.valid := state === s_data_read && pending_reads.orR
   io.data.read.bits.id := UInt(trackerId)
   io.data.read.bits.way_en := xact_way_en
   io.data.read.bits.addr_idx := xact.addr_block(idxMSB,idxLSB)
   io.data.read.bits.addr_beat := curr_read_beat
-  io.data.write.valid := Bool(false)
+  io.data.write.valid := state === s_data_write && pending_writes.orR
   io.data.write.bits.id := UInt(trackerId)
   io.data.write.bits.way_en := xact_way_en
   io.data.write.bits.addr_idx := xact.addr_block(idxMSB,idxLSB)
   io.data.write.bits.addr_beat := curr_write_beat
   io.data.write.bits.wmask := wmask_buffer(curr_write_beat)
   io.data.write.bits.data := data_buffer(curr_write_beat)
-  io.meta.read.valid := Bool(false)
+  io.meta.read.valid := state === s_meta_read
   io.meta.read.bits.id := UInt(trackerId)
   io.meta.read.bits.idx := xact.addr_block(idxMSB,idxLSB)
   io.meta.read.bits.tag := xact.addr_block >> UInt(idxBits)
-  io.meta.write.valid := Bool(false)
+  io.meta.write.valid := state === s_meta_write
   io.meta.write.bits.id := UInt(trackerId)
   io.meta.write.bits.idx := xact.addr_block(idxMSB,idxLSB)
   io.meta.write.bits.way_en := xact_way_en
   io.meta.write.bits.data.tag := xact.addr_block >> UInt(idxBits)
   io.meta.write.bits.data.coh := pending_coh
                                         
-  io.wb.req.valid := Bool(false)
+  io.wb.req.valid := state === s_wb_req
   io.wb.req.bits.addr_block := Cat(xact_meta.tag, xact.addr_block(idxMSB,idxLSB))
   io.wb.req.bits.coh := xact_meta.coh
   io.wb.req.bits.way_en := xact_way_en
@@ -824,12 +831,14 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         xact := io.iacq()
         xact.data := UInt(0)
         wmask_buffer.foreach { w => w := UInt(0) }
-        pending_puts := Mux(io.iacq().isBuiltInType(Acquire.putBlockType),
+        present_puts := Mux(io.iacq().isBuiltInType(Acquire.putBlockType),
                           addPendingBitWhenHasData(io.inner.acquire),
                           SInt(-1, width = innerDataBeats)).toUInt
-        pending_reads := Mux(io.iacq().isSubBlockType(),
-                           addPendingBitWhenWmaskIsNotFull(io.inner.acquire),
-                           SInt(-1, width = innerDataBeats)).toUInt
+        pending_reads := Mux(io.iacq().isBuiltInType(Acquire.putBlockType),
+                           UInt(0),
+                           Mux(io.iacq().isSubBlockType(),
+                             addPendingBitWhenWmaskIsNotFull(io.inner.acquire),
+                             SInt(-1, width = innerDataBeats)).toUInt)
         pending_writes := addPendingBitWhenHasData(io.inner.acquire)
         pending_resps := UInt(0)
         pending_ignt_data := UInt(0)
@@ -838,10 +847,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         state := s_meta_read
       }
     }
-    is(s_meta_read) {
-      io.meta.read.valid := Bool(true)
-      when(io.meta.read.ready) { state := s_meta_resp }
-    }
+    is(s_meta_read) { when(io.meta.read.ready) { state := s_meta_resp } }
     is(s_meta_resp) {
       when(io.meta.resp.valid) {
         xact_tag_match := io.meta.resp.bits.tag_match
@@ -850,31 +856,33 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         pending_coh := io.meta.resp.bits.meta.coh
         val _coh = io.meta.resp.bits.meta.coh
         val _tag_match = io.meta.resp.bits.tag_match
-        val _is_hit = _tag_match && _coh.outer.isHit(xact.op_code())
+        val _is_hit = _tag_match && 
+                        (_coh.outer.isHit(xact.op_code()) ||
+                          (Bool(isLastLevelCache) && // LLC has all the permissions
+                            _coh.outer.isValid()))
+                            
         val _needs_writeback = !_tag_match && do_allocate && 
                                   (_coh.outer.requiresVoluntaryWriteback() ||
                                    _coh.inner.requiresProbesOnVoluntaryWriteback())
-        val _needs_probes = _tag_match && _coh.inner.requiresProbes(xact)
+        val _needs_inner_probes = _tag_match && _coh.inner.requiresProbes(xact)
         when(_is_hit) { pending_coh := pending_coh_on_hit }
-        when(_needs_probes) {
+        when(_needs_inner_probes) {
           pending_probes := mask_incoherent
           release_count := PopCount(mask_incoherent)
         } 
-        state := Mux(_tag_match,
-                   Mux(_needs_probes, s_probe, Mux(_is_hit, s_data_read, s_outer_acquire)), // Probe, hit or upgrade
-                   Mux(_needs_writeback, s_wb_req, s_outer_acquire)) // Evict ifneedbe
+        state := Mux(!_tag_match, 
+                   Mux(_needs_writeback, s_wb_req, s_outer_acquire),
+                   Mux(_needs_inner_probes, s_inner_probe,
+                      Mux(!is_hit, s_outer_acquire,
+                        Mux(pending_reads.orR, s_data_read,
+                          Mux(!pending_writes.orR, s_inner_grant,
+                            Mux(needs_more_put_data, s_wait_puts, s_data_write))))))
       }
     }
-    is(s_wb_req) {
-      io.wb.req.valid := Bool(true)
-      when(io.wb.req.ready) { state := s_wb_resp }
-    }
-    is(s_wb_resp) {
-      when(io.wb.resp.valid) { state := s_outer_acquire }
-    }
-    is(s_probe) {
+    is(s_wb_req) { when(io.wb.req.ready) { state := s_wb_resp } }
+    is(s_wb_resp) { when(io.wb.resp.valid) { state := s_outer_acquire } }
+    is(s_inner_probe) {
       // Send probes
-      io.inner.probe.valid := pending_probes != UInt(0)
       when(io.inner.probe.ready) {
         pending_probes := pending_probes & ~UIntToOH(curr_probe_dst)
       }
@@ -892,21 +900,14 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         }
       }
       when(release_count === UInt(0)) {
-        state := Mux(is_hit,
-                   Mux(pending_writes.orR,
-                     Mux(needs_more_put_data, s_wait_puts, s_data_write),
-                     s_data_read),
-                   s_outer_acquire)
+        state := Mux(!is_hit, s_outer_acquire,
+                  Mux(pending_reads.orR, s_data_read,
+                    Mux(!pending_writes.orR, s_inner_grant,
+                      Mux(needs_more_put_data, s_wait_puts, s_data_write))))
       }
     }
-    is(s_outer_acquire) {
-      io.outer.acquire.valid := Bool(true)
-      when(oacq_data_done) {
-        state := s_outer_grant
-      }
-    }
+    is(s_outer_acquire) { when(oacq_data_done) { state := s_outer_grant } }
     is(s_outer_grant) {
-      io.outer.grant.ready := Bool(true)
       when(io.outer.grant.valid) {
         when(io.ognt().hasData()) { 
           mergeDataOuter(io.ognt().addr_beat, io.ognt().data)
@@ -919,51 +920,40 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
             pending_ofin.header.src := UInt(bankId)
             state := s_outer_finish
           }.otherwise {
-            state := Mux(!do_allocate, s_inner_grant,
-                       Mux(pending_writes.orR,
-                         Mux(needs_more_put_data, s_wait_puts, s_data_write),
-                         s_data_read))
+            state := Mux(pending_reads.orR, s_data_read,
+                      Mux(!pending_writes.orR, s_inner_grant,
+                        Mux(needs_more_put_data, s_wait_puts, s_data_write)))
           }
         }
       }
     }
     is(s_outer_finish) {
-      io.outer.finish.valid := Bool(true)
       when(io.outer.finish.ready) {
-        state := Mux(!do_allocate, s_inner_grant,
-                   Mux(pending_writes.orR,
-                       Mux(needs_more_put_data, s_wait_puts, s_data_write),
-                       s_data_read))
+        state := Mux(pending_reads.orR, s_data_read,
+                  Mux(!pending_writes.orR, s_inner_grant,
+                    Mux(needs_more_put_data, s_wait_puts, s_data_write)))
       }
     }
     is(s_data_read) {
-      io.data.read.valid := pending_reads.orR
-      when(io.data.read.ready) {
-        when(PopCount(pending_reads) <= UInt(1)) { state := s_data_resp }
-      }
       when(io.data.resp.valid) {
         mergeDataInternal(io.data.resp.bits.addr_beat, io.data.resp.bits.data)
       }
-      when(PopCount(pending_reads) === UInt(0)) {
-        state := Mux(pending_writes.orR,
-                   Mux(needs_more_put_data, s_wait_puts, s_data_write),
-                   s_inner_grant)
+      when(io.data.read.ready) {
+        when(PopCount(pending_reads) <= UInt(1)) { state := s_data_resp }
       }
     }
     is(s_data_resp) {
       when(io.data.resp.valid) {
         mergeDataInternal(io.data.resp.bits.addr_beat, io.data.resp.bits.data)
-        pending_resps := pending_resps & ~UIntToOH(io.data.resp.bits.addr_beat)
-        when(PopCount(pending_resps) <= UInt(1)) {
-          state := Mux(pending_writes.orR,
-                     Mux(needs_more_put_data, s_wait_puts, s_data_write),
-                     s_inner_grant)
-        }
+      }
+      when(PopCount(pending_resps) === UInt(0) ||
+            (io.data.resp.valid && PopCount(pending_resps) === UInt(1))) {
+         state := Mux(!pending_writes.orR, s_inner_grant,
+                    Mux(needs_more_put_data, s_wait_puts, s_data_write))
       }
     }
     is(s_wait_puts) { when(!needs_more_put_data) { state := s_data_write } }
     is(s_data_write) {
-      io.data.write.valid := pending_writes.orR
       when(io.data.write.ready) {
         when(PopCount(pending_writes) <= UInt(1)) { state := s_inner_grant }
       }
@@ -978,15 +968,14 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                      s_inner_finish, s_idle))
       }
     }
-    is(s_meta_write) {
-      io.meta.write.valid := Bool(true)
+    is(s_meta_write) { 
       when(io.meta.write.ready) {
         state := Mux(ifin_cnt > UInt(0), s_inner_finish, s_idle)
       }
     }
     is(s_inner_finish) {
       when(ifin_cnt === UInt(0) ||
-           (io.inner.finish.valid && ifin_cnt === UInt(1))) { 
+           (io.inner.finish.valid && ifin_cnt === UInt(1))) {
         state := s_idle
       }
     }
@@ -1031,7 +1020,7 @@ class L2WritebackUnitIO extends HierarchicalXactTrackerIO {
 class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
   val io = new L2WritebackUnitIO
 
-  val s_idle :: s_probe :: s_data_read :: s_data_resp :: s_outer_release :: s_outer_grant :: s_outer_finish :: s_wb_resp :: Nil = Enum(UInt(), 8)
+  val s_idle :: s_inner_probe :: s_data_read :: s_data_resp :: s_outer_release :: s_outer_grant :: s_outer_finish :: s_wb_resp :: Nil = Enum(UInt(), 8)
   val state = Reg(init=s_idle)
 
   val xact_addr_block = Reg(io.wb.req.bits.addr_block.clone)
@@ -1057,12 +1046,13 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
                                incoming = io.irel(),
                                src = io.inner.release.bits.header.src)
   val pending_ocoh_on_irel = xact_coh.outer.onHit(M_XWR) // WB is a write
+  val pending_ofin_on_ognt = io.ognt().makeFinish()
 
   io.has_acquire_conflict := Bool(false)
   io.has_acquire_match := Bool(false)
   io.has_release_match := !io.irel().isVoluntary() &&
                             io.irel().conflicts(xact_addr_block) &&
-                            (state === s_probe)
+                            (state === s_inner_probe)
 
   io.outer.acquire.valid := Bool(false)
   io.outer.probe.ready := Bool(false)
@@ -1076,7 +1066,6 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
   io.outer.grant.ready := Bool(false) // default
   io.outer.finish.valid := Bool(false) // default
   io.outer.finish.bits := pending_ofin
-  val pending_ofin_on_ognt = io.ognt().makeFinish()
 
   io.inner.probe.valid := Bool(false)
   io.inner.probe.bits.header.src := UInt(bankId)
@@ -1109,15 +1098,15 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
         xact_way_en := io.wb.req.bits.way_en
         xact_id := io.wb.req.bits.id
         irel_had_data := Bool(false)
-        val needs_probes = io.wb.req.bits.coh.inner.requiresProbesOnVoluntaryWriteback()
-        when(needs_probes) {
+        val needs_inner_probes = io.wb.req.bits.coh.inner.requiresProbesOnVoluntaryWriteback()
+        when(needs_inner_probes) {
           pending_probes := mask_incoherent
           release_count := PopCount(mask_incoherent)
         }
-        state := Mux(needs_probes, s_probe, s_data_read)
+        state := Mux(needs_inner_probes, s_inner_probe, s_data_read)
       }
     }
-    is(s_probe) {
+    is(s_inner_probe) {
       // Send probes
       io.inner.probe.valid := pending_probes != UInt(0)
       when(io.inner.probe.ready) {
