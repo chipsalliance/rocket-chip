@@ -859,7 +859,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
         val _tag_match = io.meta.resp.bits.tag_match
         val _is_hit = (if(isLastLevelCache)
                          (xact.isBuiltInType(Acquire.putBlockType) ||
-                           _coh.outer.isValid())
+                           _tag_match && _coh.outer.isValid())
                        else (_tag_match && _coh.outer.isHit(xact.op_code())))
                             
         val _needs_writeback = !_tag_match && do_allocate && 
@@ -871,17 +871,23 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
           pending_probes := mask_incoherent
           release_count := PopCount(mask_incoherent)
         } 
-        state := Mux(!_tag_match, 
-                   Mux(_needs_writeback, s_wb_req, s_outer_acquire),
+        state := Mux(_needs_writeback, s_wb_req,
                    Mux(_needs_inner_probes, s_inner_probe,
-                      Mux(!is_hit, s_outer_acquire,
+                      Mux(!_is_hit, s_outer_acquire,
                         Mux(pending_reads.orR, s_data_read,
                           Mux(!pending_writes.orR, s_inner_grant,
                             Mux(needs_more_put_data, s_wait_puts, s_data_write))))))
       }
     }
     is(s_wb_req) { when(io.wb.req.ready) { state := s_wb_resp } }
-    is(s_wb_resp) { when(io.wb.resp.valid) { state := s_outer_acquire } }
+    is(s_wb_resp) { 
+      when(io.wb.resp.valid) { 
+        state := Mux(!is_hit, s_outer_acquire,
+                   Mux(pending_reads.orR, s_data_read,
+                     Mux(!pending_writes.orR, s_inner_grant,
+                       Mux(needs_more_put_data, s_wait_puts, s_data_write))))
+      }
+    }
     is(s_inner_probe) {
       // Send probes
       when(io.inner.probe.ready) {
