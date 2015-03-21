@@ -229,7 +229,7 @@ class Datapath extends CoreModule
   val mem_br_target = mem_reg_pc +
     Mux(io.ctrl.mem_ctrl.branch && io.ctrl.mem_br_taken, imm(IMM_SB, mem_reg_inst),
     Mux(io.ctrl.mem_ctrl.jal, imm(IMM_UJ, mem_reg_inst), SInt(4)))
-  val mem_npc = Mux(io.ctrl.mem_ctrl.jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(vaddrBits-1,0)), mem_br_target).toUInt
+  val mem_npc = (Mux(io.ctrl.mem_ctrl.jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(vaddrBits-1,0)), mem_br_target) & SInt(-2)).toUInt
   io.ctrl.mem_misprediction := mem_npc != ex_reg_pc || !io.ctrl.ex_valid
   io.ctrl.mem_npc_misaligned := mem_npc(1)
   io.ctrl.mem_rs1_ra := mem_reg_inst(19,15) === 1
