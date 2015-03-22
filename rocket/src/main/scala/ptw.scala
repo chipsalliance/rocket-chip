@@ -13,9 +13,7 @@ class PTWReq extends CoreBundle {
 
 class PTWResp extends CoreBundle {
   val error = Bool()
-  val ppn = UInt(width = ppnBits)
-  val perm = Bits(width = permBits)
-  val dirty = Bool()
+  val pte = new PTE
 }
 
 class TLBPTWIO extends CoreBundle {
@@ -29,6 +27,17 @@ class DatapathPTWIO extends CoreBundle {
   val ptbr = UInt(INPUT, paddrBits)
   val invalidate = Bool(INPUT)
   val status = new MStatus().asInput
+}
+
+class PTE extends CoreBundle {
+  val ppn = Bits(width = ppnBits)
+  val reserved = Bits(width = 2)
+  val d = Bool()
+  val r = Bool()
+  val perm = Bits(width = 6)
+  val g = Bool()
+  val t = Bool()
+  val v = Bool()
 }
 
 class PTW(n: Int) extends CoreModule
@@ -49,7 +58,7 @@ class PTW(n: Int) extends CoreModule
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
-  val r_pte = Reg(Bits())
+  val r_pte = Reg(new PTE)
   
   val vpn_idx = Vec((0 until levels).map(i => (r_req.addr >> (levels-i-1)*bitsPerLevel)(bitsPerLevel-1,0)))(count)
 
@@ -57,16 +66,39 @@ class PTW(n: Int) extends CoreModule
   arb.io.in <> io.requestor.map(_.req)
   arb.io.out.ready := state === s_ready
 
-  val pte = io.mem.resp.bits.data
+  val pte = new PTE().fromBits(io.mem.resp.bits.data)
+  val pte_addr = Cat(r_pte.ppn, vpn_idx).toUInt << log2Up(xLen/8)
+
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
     r_req_dest := arb.io.chosen
-    r_pte := Cat(io.dpath.ptbr(paddrBits-1,pgIdxBits), pte(pgIdxBits-1,0))
+    r_pte.ppn := io.dpath.ptbr(paddrBits-1,pgIdxBits)
   }
 
-  val perm_ok = (pte(8,3) & r_req.perm).orR
+  val (pte_cache_hit, pte_cache_data) = {
+    val size = log2Up(levels * 2)
+    val plru = new PseudoLRU(size)
+    val valid = Reg(init = Bits(0, size))
+    val tags = Mem(UInt(width = paddrBits), size)
+    val data = Mem(UInt(width = paddrBits - pgIdxBits), size)
+
+    val hits = Vec(tags.map(_ === pte_addr)).toBits & valid
+    val hit = hits.orR
+    when (io.mem.resp.valid && io.mem.resp.bits.data(1,0).andR && !hit) {
+      val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
+      valid(r) := true
+      tags(r) := pte_addr
+      data(r) := io.mem.resp.bits.data(paddrBits-1,pgIdxBits)
+    }
+    when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
+    when (io.dpath.invalidate) { valid := 0 }
+
+    (hit, Mux1H(hits, data))
+  }
+
+  val perm_ok = (pte.perm & r_req.perm).orR
   val is_store = r_req.perm(1) || r_req.perm(4)
-  val set_dirty_bit = perm_ok && !pte(1) && (!pte(9) || (is_store && !pte(10)))
+  val set_dirty_bit = perm_ok && !pte.t && (!pte.r || (is_store && !pte.d))
   when (io.mem.resp.valid && state === s_wait && !set_dirty_bit) {
     r_pte := pte
   }
@@ -75,7 +107,7 @@ class PTW(n: Int) extends CoreModule
   io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := Mux(state === s_set_dirty, M_XA_OR, M_XRD)
   io.mem.req.bits.typ  := MT_D
-  io.mem.req.bits.addr := Cat(r_pte(paddrBits-1,pgIdxBits), vpn_idx).toUInt << log2Up(xLen/8)
+  io.mem.req.bits.addr := pte_addr
   io.mem.req.bits.kill := Bool(false)
   io.mem.req.bits.data := UInt(1<<9) | Mux(is_store, UInt(1<<10), UInt(0))
   
@@ -89,9 +121,8 @@ class PTW(n: Int) extends CoreModule
     val me = r_req_dest === UInt(i)
     io.requestor(i).resp.valid := resp_val && me
     io.requestor(i).resp.bits.error := resp_err
-    io.requestor(i).resp.bits.perm := r_pte(8,3)
-    io.requestor(i).resp.bits.dirty := r_pte(10)
-    io.requestor(i).resp.bits.ppn := resp_ppn.toUInt
+    io.requestor(i).resp.bits.pte := r_pte
+    io.requestor(i).resp.bits.pte.ppn := resp_ppn
     io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).status := io.dpath.status
   }
@@ -105,7 +136,12 @@ class PTW(n: Int) extends CoreModule
       count := UInt(0)
     }
     is (s_req) {
-      when (io.mem.req.ready) {
+      when (pte_cache_hit && count < levels-1) {
+        io.mem.req.valid := false
+        state := s_req
+        count := count + 1
+        r_pte.ppn := pte_cache_data
+      }.elsewhen (io.mem.req.ready) {
         state := s_wait
       }
     }
@@ -115,10 +151,10 @@ class PTW(n: Int) extends CoreModule
       }
       when (io.mem.resp.valid) {
         state := s_error
-        when (pte(0)) {
+        when (pte.v) {
           when (set_dirty_bit) {
             state := s_set_dirty
-          }.elsewhen (!pte(1)) {
+          }.elsewhen (!pte.t) {
             state := s_done
           }.elsewhen (count < levels-1) {
             state := s_req
