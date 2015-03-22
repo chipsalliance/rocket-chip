@@ -109,7 +109,7 @@ class TLB extends TLBModule {
   val r_req = Reg(new TLBReq)
 
   val tag_cam = Module(new RocketCAM)
-  val tag_ram = Mem(io.ptw.resp.bits.ppn.clone, entries)
+  val tag_ram = Mem(io.ptw.resp.bits.pte.ppn.clone, entries)
   
   val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUInt
   tag_cam.io.tag := lookup_tag
@@ -128,8 +128,8 @@ class TLB extends TLBModule {
   val sx_array = Reg(Bits()) // supervisor execute permission
   val dirty_array = Reg(Bits()) // PTE dirty bit
   when (io.ptw.resp.valid) {
-    val perm = io.ptw.resp.bits.perm & ~io.ptw.resp.bits.error.toSInt
-    tag_ram(r_refill_waddr) := io.ptw.resp.bits.ppn
+    val perm = io.ptw.resp.bits.pte.perm & ~io.ptw.resp.bits.error.toSInt
+    tag_ram(r_refill_waddr) := io.ptw.resp.bits.pte.ppn
     valid_array := valid_array.bitSet(r_refill_waddr, !io.ptw.resp.bits.error)
     ur_array := ur_array.bitSet(r_refill_waddr, perm(0) || perm(2))
     uw_array := uw_array.bitSet(r_refill_waddr, perm(1))
@@ -137,7 +137,7 @@ class TLB extends TLBModule {
     sr_array := sr_array.bitSet(r_refill_waddr, perm(3) || perm(5))
     sw_array := sw_array.bitSet(r_refill_waddr, perm(4))
     sx_array := sx_array.bitSet(r_refill_waddr, perm(5))
-    dirty_array := dirty_array.bitSet(r_refill_waddr, io.ptw.resp.bits.dirty)
+    dirty_array := dirty_array.bitSet(r_refill_waddr, io.ptw.resp.bits.pte.d)
   }
  
   // high if there are any unused (invalid) entries in the TLB
