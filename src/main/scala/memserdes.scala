@@ -207,7 +207,7 @@ class MemDesser(w: Int) extends Module // test rig side
 
 
 //Adapter betweewn an UncachedTileLinkIO and a mem controller MemIO
-class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
+class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
   val io = new Bundle {
     val tl = new TileLinkIO().flip
     val mem = new MemIO
@@ -216,11 +216,10 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
   val mifAddrBits = params(MIFAddrBits)
   val mifDataBits = params(MIFDataBits)
   val mifDataBeats = params(MIFDataBeats)
-  val tlDataBits = params(TLDataBits)
-  val tlDataBeats = params(TLDataBeats)
   val dataBits = tlDataBits*tlDataBeats 
-  require(tlDataBits*tlDataBeats == mifDataBits*mifDataBeats)
-  require(params(TLClientXactIdBits) <= params(MIFTagBits))
+  val dstIdBits = params(LNHeaderBits)
+  require(tlDataBits*tlDataBeats == mifDataBits*mifDataBeats, "Data sizes between LLC and MC don't agree")
+  require(dstIdBits + tlClientXactIdBits < mifTagBits, "MemIO converter is going truncate tags: " + dstIdBits + " + " + tlClientXactIdBits + " >= " + mifTagBits)
 
   io.tl.acquire.ready := Bool(false)
   io.tl.probe.valid := Bool(false)
@@ -231,6 +230,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
   val gnt_arb = Module(new Arbiter(new LogicalNetworkIO(new Grant), 2))
   io.tl.grant <> gnt_arb.io.out
 
+  val dst_off = dstIdBits + tlClientXactIdBits
   val acq_has_data = io.tl.acquire.bits.payload.hasData()
   val rel_has_data = io.tl.release.bits.payload.hasData()
 
@@ -253,6 +253,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
                                     g_type = Mux(data_from_rel, Grant.voluntaryAckType, Grant.putAckType),
                                     client_xact_id = tag_out >> UInt(1),
                                     manager_xact_id = UInt(0))
+  gnt_arb.io.in(1).bits.header.dst := (if(dstIdBits > 0) tag_out(dst_off, tlClientXactIdBits + 1) else UInt(0))
+  gnt_arb.io.in(1).bits.header.src := UInt(0)
 
   if(tlDataBits != mifDataBits || tlDataBeats != mifDataBeats) {
     val mem_cmd_q = Module(new Queue(new MemReqCmd, qDepth))
@@ -273,7 +275,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
       when(io.tl.release.valid) {
         active_out := Bool(true)
         cmd_sent_out := Bool(false)
-        tag_out := Cat(io.tl.release.bits.payload.client_xact_id,
+        tag_out := Cat(io.tl.release.bits.header.src,
+                       io.tl.release.bits.payload.client_xact_id,
                        io.tl.release.bits.payload.isVoluntary())
         addr_out := io.tl.release.bits.payload.addr_block
         has_data := rel_has_data
@@ -284,7 +287,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
       } .elsewhen(io.tl.acquire.valid) {
         active_out := Bool(true)
         cmd_sent_out := Bool(false)
-        tag_out := Cat(io.tl.acquire.bits.payload.client_xact_id,
+        tag_out := Cat(io.tl.release.bits.header.src,
+                       io.tl.acquire.bits.payload.client_xact_id,
                        io.tl.acquire.bits.payload.isBuiltInType())
         addr_out := io.tl.acquire.bits.payload.addr_block
         has_data := acq_has_data
@@ -350,7 +354,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
           data_from_rel := Bool(true)
           make_grant_ack := Bool(true)
           io.mem.req_data.bits.data := io.tl.release.bits.payload.data
-          val tag =  Cat(io.tl.release.bits.payload.client_xact_id,
+          val tag =  Cat(io.tl.release.bits.header.src,
+                         io.tl.release.bits.payload.client_xact_id,
                          io.tl.release.bits.payload.isVoluntary())
           val addr = io.tl.release.bits.payload.addr_block
           io.mem.req_cmd.bits.tag := tag
@@ -364,7 +369,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
           make_grant_ack := acq_has_data
           io.mem.req_data.bits.data := io.tl.acquire.bits.payload.data
           io.mem.req_cmd.bits.rw := acq_has_data
-          val tag = Cat(io.tl.acquire.bits.payload.client_xact_id,
+          val tag = Cat(io.tl.acquire.bits.header.src,
+                        io.tl.acquire.bits.payload.client_xact_id,
                         io.tl.acquire.bits.payload.isBuiltInType())
           val addr = io.tl.acquire.bits.payload.addr_block
           io.mem.req_cmd.bits.tag := tag
@@ -421,6 +427,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
                                       manager_xact_id = UInt(0),
                                       addr_beat = tl_cnt_in,
                                       data = tl_buf_in(tl_cnt_in))
+    gnt_arb.io.in(0).bits.header.dst := (if(dstIdBits > 0) tag_in(dst_off, tlClientXactIdBits + 1) else UInt(0))
+    gnt_arb.io.in(0).bits.header.src := UInt(0)
 
     when(!active_in) {
       io.mem.resp.ready := Bool(true)
@@ -454,6 +462,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends Module {
                                       manager_xact_id = UInt(0),
                                       addr_beat = tl_cnt_in,
                                       data = io.mem.resp.bits.data)
+    gnt_arb.io.in(0).bits.header.dst := (if(dstIdBits > 0) io.mem.resp.bits.tag(dst_off, tlClientXactIdBits + 1) else UInt(0))
+    gnt_arb.io.in(0).bits.header.src := UInt(0)
   }
 }
 

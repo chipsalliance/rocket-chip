@@ -2,7 +2,8 @@
 
 package uncore
 import Chisel._
-import scala.reflect.ClassTag
+import scala.reflect._
+import scala.reflect.runtime.universe._
 
 case object NReleaseTransactors extends Field[Int]
 case object NProbeTransactors extends Field[Int]
@@ -82,26 +83,24 @@ trait HasInnerTLIO extends CoherenceAgentBundle {
 }
 
 trait HasUncachedOuterTLIO extends CoherenceAgentBundle {
-  val outer = Bundle(new UncachedTileLinkIO)(outerTLParams)
-  def oacq(dummy: Int = 0) = outer.acquire.bits.payload
-  def ognt(dummy: Int = 0) = outer.grant.bits.payload
-  def ofin(dummy: Int = 0) = outer.finish.bits.payload
+  val outer = Bundle(new HeaderlessUncachedTileLinkIO)(outerTLParams)
+  def oacq(dummy: Int = 0) = outer.acquire.bits
+  def ognt(dummy: Int = 0) = outer.grant.bits
 }
 
 trait HasCachedOuterTLIO extends CoherenceAgentBundle {
-  val outer = Bundle(new TileLinkIO)(outerTLParams)
-  def oacq(dummy: Int = 0) = outer.acquire.bits.payload
-  def oprb(dummy: Int = 0) = outer.probe.bits.payload
-  def orel(dummy: Int = 0) = outer.release.bits.payload
-  def ognt(dummy: Int = 0) = outer.grant.bits.payload
-  def ofin(dummy: Int = 0) = outer.finish.bits.payload
+  val outer = Bundle(new HeaderlessTileLinkIO)(outerTLParams)
+  def oacq(dummy: Int = 0) = outer.acquire.bits
+  def oprb(dummy: Int = 0) = outer.probe.bits
+  def orel(dummy: Int = 0) = outer.release.bits
+  def ognt(dummy: Int = 0) = outer.grant.bits
 }
 
 class ManagerTLIO extends HasInnerTLIO with HasUncachedOuterTLIO
 
 abstract class CoherenceAgent extends CoherenceAgentModule {
   def innerTL: TileLinkIO
-  def outerTL: TileLinkIO
+  def outerTL: HeaderlessTileLinkIO
   def incoherent: Vec[Bool]
 }
 
@@ -131,39 +130,47 @@ trait HasTrackerConflictIO extends Bundle {
 class ManagerXactTrackerIO extends ManagerTLIO with HasTrackerConflictIO
 class HierarchicalXactTrackerIO extends HierarchicalTLIO with HasTrackerConflictIO
 
-abstract class XactTracker extends CoherenceAgentModule {
-  def connectDataBeatCounter[S <: HasTileLinkData : ClassTag](inc: Bool, data: S, beat: UInt) = {
-    val multi = data.hasMultibeatData()
-    val (multi_cnt, multi_done) = Counter(inc && multi, data.tlDataBeats)
-    val cnt = Mux(multi, multi_cnt, beat)
-    val done = Mux(multi, multi_done, inc)
-    (cnt, done)
+abstract class XactTracker extends CoherenceAgentModule
+    with HasDataBeatCounters {
+  def addPendingBitWhenBeat[T <: HasBeat](inc: Bool, in: T): UInt  =  Fill(in.tlDataBeats, inc) &  UIntToOH(in.addr_beat)
+  def dropPendingBitWhenBeat[T <: HasBeat](dec: Bool, in: T): UInt = ~Fill(in.tlDataBeats, dec) | ~UIntToOH(in.addr_beat)
+
+  def addPendingBitWhenBeatHasData[T <: Data : TypeTag](in: DecoupledIO[T]): UInt = {
+    in.bits match {
+      case p: HasBeat if typeTag[T].tpe <:< typeTag[HasBeat].tpe =>
+        addPendingBitWhenBeat(in.fire() && p.hasData(), p)
+      case ln: LNAcquire if typeTag[T].tpe <:< typeTag[LNAcquire].tpe =>
+        addPendingBitWhenBeat(in.fire() && ln.payload.hasData(), ln.payload)
+      case ln: LNRelease if typeTag[T].tpe <:< typeTag[LNRelease].tpe =>
+        addPendingBitWhenBeat(in.fire() && ln.payload.hasData(), ln.payload)
+      case ln: LNGrant if typeTag[T].tpe <:< typeTag[LNGrant].tpe =>
+        addPendingBitWhenBeat(in.fire() && ln.payload.hasData(), ln.payload)
+      case _ => { require(false, "Don't know how track beats of " + typeTag[T].tpe); UInt(0) }
+    }
   }
 
-  def connectOutgoingDataBeatCounter[T <: HasTileLinkData : ClassTag](
-      in: DecoupledIO[LogicalNetworkIO[T]], 
-      beat: UInt = UInt(0)) = {
-    connectDataBeatCounter(in.fire(), in.bits.payload, beat)
-  }
-
-  def connectIncomingDataBeatCounter[T <: HasTileLinkData : ClassTag](in: DecoupledIO[LogicalNetworkIO[T]]) = {
-    connectDataBeatCounter(in.fire(), in.bits.payload, UInt(0))._2
-  }
-
-  def addPendingBitWhenHasData[T <: HasTileLinkData with HasTileLinkBeatId](in: DecoupledIO[LogicalNetworkIO[T]]) = {
-    Fill(in.bits.payload.tlDataBeats, in.fire() && in.bits.payload.hasData()) &
-      UIntToOH(in.bits.payload.addr_beat)
-  }
-
-  def dropPendingBitWhenHasData[T <: HasTileLinkData with HasTileLinkBeatId](in: DecoupledIO[LogicalNetworkIO[T]]) = {
-    ~Fill(in.bits.payload.tlDataBeats, in.fire() && in.bits.payload.hasData()) |
-      ~UIntToOH(in.bits.payload.addr_beat)
-  }
-
-  def addPendingBitWhenGetOrAtomic(in: DecoupledIO[LogicalNetworkIO[Acquire]]) = {
+  def addPendingBitWhenBeatIsGetOrAtomic(in: DecoupledIO[LogicalNetworkIO[Acquire]]): UInt = {
     val a = in.bits.payload
-    Fill(a.tlDataBeats, in.fire() && a.isBuiltInType() &&
-        (a.is(Acquire.getType) || a.is(Acquire.getBlockType) || a.is(Acquire.putAtomicType))) &
-      UIntToOH(a.addr_beat)
+    val isGetOrAtomic = a.isBuiltInType() &&
+                        (Vec(Acquire.getType, Acquire.getBlockType, Acquire.putAtomicType).contains(a.a_type))
+    addPendingBitWhenBeat(in.fire() && isGetOrAtomic, in.bits.payload)
+  }
+
+  def dropPendingBitWhenBeatHasData[T <: Data : TypeTag](in: DecoupledIO[T]): UInt = {
+    in.bits match {
+      case p: HasBeat if typeTag[T].tpe <:< typeTag[HasBeat].tpe =>
+        dropPendingBitWhenBeat(in.fire() && p.hasData(), p)
+      case ln: LNAcquire if typeTag[T].tpe <:< typeTag[LNAcquire].tpe =>
+        dropPendingBitWhenBeat(in.fire() && ln.payload.hasData(), ln.payload)
+      case ln: LNRelease if typeTag[T].tpe <:< typeTag[LNRelease].tpe =>
+        dropPendingBitWhenBeat(in.fire() && ln.payload.hasData(), ln.payload)
+      case ln: LNGrant if typeTag[T].tpe <:< typeTag[LNGrant].tpe =>
+        dropPendingBitWhenBeat(in.fire() && ln.payload.hasData(), ln.payload)
+      case _ => { require(false, "Don't know how track beats of " + typeTag[T].tpe); UInt(0) }
+    }
+  }
+
+  def dropPendingBitAtDest(in: DecoupledIO[LogicalNetworkIO[Probe]]): UInt = {
+    ~Fill(nCoherentClients, in.fire()) | ~UIntToOH(in.bits.header.dst)
   }
 }

@@ -18,6 +18,7 @@ class ClientMetadata extends CoherenceMetadata {
   val state = UInt(width = co.clientStateWidth)
 
   def ===(rhs: ClientMetadata): Bool = this.state === rhs.state
+  def !=(rhs: ClientMetadata): Bool = !this.===(rhs)
 
   def isValid(dummy: Int = 0): Bool = co.isValid(this)
   def isHit(cmd: UInt): Bool = co.isHit(cmd, this)
@@ -99,6 +100,7 @@ class ManagerMetadata extends CoherenceMetadata {
 
   def ===(rhs: ManagerMetadata): Bool = //this.state === rhs.state && TODO: Fix 0-width wires in Chisel
                                          this.sharers === rhs.sharers
+  def !=(rhs: ManagerMetadata): Bool = !this.===(rhs)
   def full(dummy: Int = 0) = co.dir.full(this.sharers)
 
   def requiresProbes(acq: Acquire): Bool = co.requiresProbes(acq, this)
@@ -171,7 +173,7 @@ class HierarchicalMetadata extends CoherenceMetadata {
   val outer: ClientMetadata = Bundle(new ClientMetadata, {case TLId => params(OuterTLId)})
   def ===(rhs: HierarchicalMetadata): Bool = 
     this.inner === rhs.inner && this.outer === rhs.outer
-  def !=(rhs: HierarchicalMetadata): Bool = !(this === rhs)
+  def !=(rhs: HierarchicalMetadata): Bool = !this.===(rhs)
 }
 
 object HierarchicalMetadata {

@@ -6,6 +6,7 @@ import Chisel._
 case object LNManagers extends Field[Int]
 case object LNClients extends Field[Int]
 case object LNEndpoints extends Field[Int]
+case object LNHeaderBits extends Field[Int]
 
 class PhysicalHeader(n: Int) extends Bundle {
   val src = UInt(width = log2Up(n))
@@ -47,8 +48,8 @@ class BasicCrossbar[T <: Data](n: Int, dType: T, count: Int = 1, needsLock: Opti
 abstract class LogicalNetwork extends Module
 
 class LogicalHeader extends Bundle {
-  val src = UInt(width = log2Up(params(LNEndpoints)))
-  val dst = UInt(width = log2Up(params(LNEndpoints)))
+  val src = UInt(width = params(LNHeaderBits))
+  val dst = UInt(width = params(LNHeaderBits))
 }
 
 class LogicalNetworkIO[T <: Data](dType: T) extends Bundle {
