@@ -52,20 +52,17 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
   val acquireConflicts = Vec(trackerList.map(_.io.has_acquire_conflict)).toBits
   val acquireMatches = Vec(trackerList.map(_.io.has_acquire_match)).toBits
   val acquireReadys = Vec(trackerAcquireIOs.map(_.ready)).toBits
-  val acquire_idx = Mux(acquireMatches.orR, 
+  val acquire_idx = Mux(acquireMatches.orR,
                       PriorityEncoder(acquireMatches),
                       PriorityEncoder(acquireReadys))
 
   val block_acquires = acquireConflicts.orR || !sdq_rdy
-  io.inner.acquire.ready := acquireReadys.orR && !block_acquires 
+  io.inner.acquire.ready := acquireReadys.orR && !block_acquires
   trackerAcquireIOs.zipWithIndex.foreach {
     case(tracker, i) =>
       tracker.bits := io.inner.acquire.bits
-      tracker.bits.payload.data :=
-        DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
-      tracker.valid := io.inner.acquire.valid &&
-        !block_acquires &&
-        (acquire_idx === UInt(i))
+      tracker.bits.payload.data := DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
+      tracker.valid := io.inner.acquire.valid && !block_acquires && (acquire_idx === UInt(i))
   }
 
   // Queue to store impending Voluntary Release data
@@ -94,24 +91,24 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
 
   // Wire probe requests and grant reply to clients, finish acks from clients
   // Note that we bypass the Grant data subbundles
-  io.inner.grant.bits.payload.data := io.outer.grant.bits.payload.data
-  io.inner.grant.bits.payload.addr_beat := io.outer.grant.bits.payload.addr_beat
+  io.inner.grant.bits.payload.data := io.outer.grant.bits.data
+  io.inner.grant.bits.payload.addr_beat := io.outer.grant.bits.addr_beat
   doOutputArbitration(io.inner.grant, trackerList.map(_.io.inner.grant))
   doOutputArbitration(io.inner.probe, trackerList.map(_.io.inner.probe))
   doInputRouting(io.inner.finish, trackerList.map(_.io.inner.finish))
 
   // Create an arbiter for the one memory port
-  val outer_arb = Module(new UncachedTileLinkIOArbiterThatPassesId(trackerList.size),
+  val outer_arb = Module(new HeaderlessUncachedTileLinkIOArbiter(trackerList.size),
                          { case TLId => params(OuterTLId)
                            case TLDataBits => internalDataBits })
   outer_arb.io.in zip  trackerList map { case(arb, t) => arb <> t.io.outer }
   // Get the pending data out of the store data queue
-  val outer_data_ptr = new DataQueueLocation().fromBits(outer_arb.io.out.acquire.bits.payload.data)
+  val outer_data_ptr = new DataQueueLocation().fromBits(outer_arb.io.out.acquire.bits.data)
   val is_in_sdq = outer_data_ptr.loc === inStoreQueue
   val free_sdq = io.outer.acquire.fire() &&
-                  io.outer.acquire.bits.payload.hasData() &&
+                  io.outer.acquire.bits.hasData() &&
                   outer_data_ptr.loc === inStoreQueue
-  io.outer.acquire.bits.payload.data := MuxLookup(outer_data_ptr.loc, io.irel().data, Array(
+  io.outer.acquire.bits.data := MuxLookup(outer_data_ptr.loc, io.irel().data, Array(
                                           inStoreQueue -> sdq(outer_data_ptr.idx),
                                           inVolWBQueue -> vwbdq(outer_data_ptr.idx)))
   io.outer <> outer_arb.io.out
@@ -147,7 +144,6 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends Broa
 
   io.outer.acquire.valid := Bool(false)
   io.outer.grant.ready := Bool(false)
-  io.outer.finish.valid := Bool(false)
   io.inner.acquire.ready := Bool(false)
   io.inner.probe.valid := Bool(false)
   io.inner.release.ready := Bool(false)
@@ -159,11 +155,12 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends Broa
   io.inner.grant.bits.payload := coh.makeGrant(xact, UInt(trackerId))
 
   //TODO: Use io.outer.release instead?
-  io.outer.acquire.bits.payload := Bundle(PutBlock( 
-                                            client_xact_id = UInt(trackerId),
-                                            addr_block = xact.addr_block,
-                                            addr_beat = oacq_data_cnt,
-                                            data = data_buffer(oacq_data_cnt)))(outerTLParams)
+  io.outer.acquire.bits := Bundle(
+    PutBlock( 
+      client_xact_id = UInt(trackerId),
+      addr_block = xact.addr_block,
+      addr_beat = oacq_data_cnt,
+      data = data_buffer(oacq_data_cnt)))(outerTLParams)
 
   when(collect_irel_data) {
     io.inner.release.ready := Bool(true)
@@ -271,7 +268,7 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
                             addr_block = xact.addr_block))(outerTLParams)
 
   io.outer.acquire.valid := Bool(false)
-  io.outer.acquire.bits.payload := outer_read //default
+  io.outer.acquire.bits := outer_read //default
   io.outer.grant.ready := Bool(false)
 
   io.inner.probe.valid := Bool(false)
@@ -346,7 +343,7 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
       when(io.inner.release.valid) {
         when(io.irel().hasData()) {
           io.outer.acquire.valid := Bool(true)
-          io.outer.acquire.bits.payload := outer_write_rel
+          io.outer.acquire.bits := outer_write_rel
           when(io.outer.acquire.ready) {
             when(oacq_data_done) {
               pending_ognt_ack := Bool(true)
@@ -368,7 +365,7 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
     }
     is(s_mem_write) { // Write data to outer memory
       io.outer.acquire.valid := !pending_ognt_ack || !collect_iacq_data || iacq_data_valid(oacq_data_cnt)
-      io.outer.acquire.bits.payload := outer_write_acq
+      io.outer.acquire.bits := outer_write_acq
       when(oacq_data_done) {
         pending_ognt_ack := Bool(true)
         state := Mux(pending_outer_read, s_mem_read, s_mem_resp)
@@ -376,7 +373,7 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
     }
     is(s_mem_read) { // Read data from outer memory (possibly what was just written)
       io.outer.acquire.valid := !pending_ognt_ack
-      io.outer.acquire.bits.payload := outer_read
+      io.outer.acquire.bits := outer_read
       when(io.outer.acquire.fire()) { state := s_mem_resp }
     }
     is(s_mem_resp) { // Wait to forward grants from outer memory

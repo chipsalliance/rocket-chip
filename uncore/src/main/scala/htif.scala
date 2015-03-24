@@ -127,21 +127,11 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   val tx_size = Mux(!nack && (cmd === cmd_readmem || cmd === cmd_readcr || cmd === cmd_writecr), size, UInt(0))
   val tx_done = io.host.out.ready && tx_subword_count.andR && (tx_word_count === tx_size || tx_word_count > UInt(0) && packet_ram_raddr.andR)
 
-  val mem_acked = Reg(init=Bool(false))
-  val mem_gxid = Reg(Bits())
-  val mem_gsrc = Reg(UInt())
-  val mem_needs_ack = Reg(Bool())
-  when (io.mem.grant.valid) { 
-    mem_acked := Bool(true)
-    mem_gxid := io.mem.grant.bits.payload.manager_xact_id
-    mem_gsrc := io.mem.grant.bits.header.src
-    mem_needs_ack := io.mem.grant.bits.payload.requiresAck()
-  }
-  io.mem.grant.ready := Bool(true)
-
-  val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_rreq :: state_mem_wreq :: state_mem_rresp :: state_mem_wresp :: state_mem_finish :: state_tx :: Nil = Enum(UInt(), 9)
+  val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_rreq :: state_mem_wreq :: state_mem_rresp :: state_mem_wresp :: state_tx :: Nil = Enum(UInt(), 8)
   val state = Reg(init=state_rx)
 
+  val (cnt, cnt_done) = Counter((state === state_mem_wreq && io.mem.acquire.ready) ||
+                                 (state === state_mem_rresp && io.mem.grant.valid), dataBeats)
   val rx_cmd = Mux(rx_word_count === UInt(0), next_cmd, cmd)
   when (state === state_rx && rx_done) {
     state := Mux(rx_cmd === cmd_readmem, state_mem_rreq,
@@ -149,28 +139,18 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
              Mux(rx_cmd === cmd_readcr || rx_cmd === cmd_writecr, state_pcr_req,
              state_tx)))
   }
-
-  val (cnt, cnt_done) = Counter((state === state_mem_wreq && io.mem.acquire.ready) ||
-                                 (state === state_mem_rresp && io.mem.grant.valid), dataBeats)
   when (state === state_mem_wreq) {
     when (cnt_done) { state := state_mem_wresp }
   }
   when (state === state_mem_rreq) {
     when(io.mem.acquire.ready) { state := state_mem_rresp }
   }
-  when (state === state_mem_wresp) {
-    when (mem_acked) {
-      state := state_mem_finish
-      mem_acked := Bool(false)
-    }
+  when (state === state_mem_wresp && io.mem.grant.valid) {
+    state := Mux(cmd === cmd_readmem || pos === UInt(1),  state_tx, state_rx)
+    pos := pos - UInt(1)
+    addr := addr + UInt(1 << offsetBits-3)
   }
-  when (state === state_mem_rresp) {
-    when (cnt_done) { 
-      state := state_mem_finish
-      mem_acked := Bool(false)
-    }
-  }
-  when (state === state_mem_finish && io.mem.finish.ready) {
+  when (state === state_mem_rresp && cnt_done) {
     state := Mux(cmd === cmd_readmem || pos === UInt(1),  state_tx, state_rx)
     pos := pos - UInt(1)
     addr := addr + UInt(1 << offsetBits-3)
@@ -187,8 +167,8 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   val mem_req_data = (0 until n).map { i =>
     val ui = UInt(i, log2Up(n))
     when (state === state_mem_rresp && io.mem.grant.valid) {
-      packet_ram(Cat(io.mem.grant.bits.payload.addr_beat, ui)) := 
-        io.mem.grant.bits.payload.data((i+1)*short_request_bits-1, i*short_request_bits)
+      packet_ram(Cat(io.mem.grant.bits.addr_beat, ui)) := 
+        io.mem.grant.bits.data((i+1)*short_request_bits-1, i*short_request_bits)
     }
     packet_ram(Cat(cnt, ui))
   }.reverse.reduce(_##_)
@@ -202,9 +182,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
       client_xact_id = UInt(0),
       data = mem_req_data), 
     GetBlock(addr_block = init_addr))
-  io.mem.finish.valid := (state === state_mem_finish) && mem_needs_ack
-  io.mem.finish.bits.payload.manager_xact_id := mem_gxid
-  io.mem.finish.bits.header.dst := mem_gsrc
+  io.mem.grant.ready := Bool(true)
 
   val pcrReadData = Reg(Bits(width = io.cpu(0).pcr_rep.bits.getWidth))
   for (i <- 0 until nCores) {
