@@ -170,10 +170,56 @@ class CSRFile extends CoreModule
   
   io.host.debug_stats_pcr := reg_stats // direct export up the hierarchy
 
+  val read_mstatus = io.status.toBits
+  val read_sstatus = new SStatus
+  read_sstatus := new SStatus().fromBits(read_mstatus) // sstatus mostly overlaps mstatus
+  read_sstatus.zero0 := 0
+  read_sstatus.zero1 := 0
+  read_sstatus.zero2 := 0
+  read_sstatus.zero3 := 0
+  read_sstatus.zero4 := 0
+  read_sstatus.zero5 := 0
+  read_sstatus.ua := io.status.ua
+  read_sstatus.tip := r_irq_timer
+
+  val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
+    CSRs.fflags -> (if (!params(BuildFPU).isEmpty) reg_fflags else UInt(0)),
+    CSRs.frm -> (if (!params(BuildFPU).isEmpty) reg_frm else UInt(0)),
+    CSRs.fcsr -> (if (!params(BuildFPU).isEmpty) Cat(reg_frm, reg_fflags) else UInt(0)),
+    CSRs.cycle -> reg_time,
+    CSRs.scycle -> reg_time,
+    CSRs.time -> reg_time,
+    CSRs.stime -> reg_time,
+    CSRs.instret -> reg_instret,
+    CSRs.sinstret -> reg_instret,
+    CSRs.mstatus -> read_mstatus,
+    CSRs.mscratch -> reg_mscratch,
+    CSRs.mepc -> reg_mepc,
+    CSRs.mbadaddr -> reg_mbadaddr,
+    CSRs.mcause -> reg_mcause,
+    CSRs.stimecmp -> reg_stimecmp,
+    CSRs.stvec -> reg_stvec,
+    CSRs.hartid -> io.host.id,
+    CSRs.send_ipi -> io.host.id, /* don't care */
+    CSRs.stats -> reg_stats,
+    CSRs.tohost -> reg_tohost,
+    CSRs.fromhost -> reg_fromhost)
+
+  if (params(UseVM)) {
+    read_mapping += CSRs.sstatus -> read_sstatus.toBits
+    read_mapping += CSRs.sscratch -> reg_sscratch
+    read_mapping += CSRs.scause -> reg_scause
+    read_mapping += CSRs.sbadaddr -> reg_sbadaddr
+    read_mapping += CSRs.sptbr -> reg_sptbr
+    read_mapping += CSRs.sasid -> UInt(0)
+    read_mapping += CSRs.sepc -> reg_sepc
+  }
+
+  for (i <- 0 until reg_uarch_counters.size)
+    read_mapping += (CSRs.uarch0 + i) -> reg_uarch_counters(i)
+
   val addr = Mux(cpu_ren, io.rw.addr, host_pcr_bits.addr)
-  val decoded_addr = Map((
-    for ((v, i) <- CSRs.all.zipWithIndex)
-      yield v -> (addr === CSRs.all(i))):_*)
+  val decoded_addr = read_mapping map { case (k, v) => k -> (addr === k) }
 
   val addr_valid = decoded_addr.values.reduce(_||_)
   val fp_csr = decoded_addr(CSRs.fflags) || decoded_addr(CSRs.frm) || decoded_addr(CSRs.fcsr)
@@ -268,50 +314,6 @@ class CSRFile extends CoreModule
 
   when (host_pcr_req_fire && !host_pcr_bits.rw && decoded_addr(CSRs.tohost)) { reg_tohost := UInt(0) }
 
-  val read_mstatus = io.status.toBits
-  val read_sstatus = new SStatus
-  read_sstatus := new SStatus().fromBits(read_mstatus) // sstatus mostly overlaps mstatus
-  read_sstatus.zero0 := 0
-  read_sstatus.zero1 := 0
-  read_sstatus.zero2 := 0
-  read_sstatus.zero3 := 0
-  read_sstatus.zero4 := 0
-  read_sstatus.zero5 := 0
-  read_sstatus.ua := io.status.ua
-  read_sstatus.tip := r_irq_timer
-
-  val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
-    CSRs.fflags -> (if (!params(BuildFPU).isEmpty) reg_fflags else UInt(0)),
-    CSRs.frm -> (if (!params(BuildFPU).isEmpty) reg_frm else UInt(0)),
-    CSRs.fcsr -> (if (!params(BuildFPU).isEmpty) Cat(reg_frm, reg_fflags) else UInt(0)),
-    CSRs.cycle -> reg_time,
-    CSRs.time -> reg_time,
-    CSRs.scycle -> reg_time,
-    CSRs.stime -> reg_time,
-    CSRs.instret -> reg_instret,
-    CSRs.sinstret -> reg_instret,
-    CSRs.mstatus -> read_mstatus,
-    CSRs.mscratch -> reg_mscratch,
-    CSRs.mepc -> reg_mepc,
-    CSRs.mbadaddr -> reg_mbadaddr,
-    CSRs.mcause -> reg_mcause,
-    CSRs.sstatus -> read_sstatus.toBits,
-    CSRs.sscratch -> reg_sscratch,
-    CSRs.sepc -> reg_sepc,
-    CSRs.scause -> reg_scause,
-    CSRs.sbadaddr -> reg_sbadaddr,
-    CSRs.sptbr -> reg_sptbr,
-    CSRs.sasid -> UInt(0),
-    CSRs.stimecmp -> reg_stimecmp,
-    CSRs.stvec -> reg_stvec,
-    CSRs.hartid -> io.host.id,
-    CSRs.stats -> reg_stats,
-    CSRs.tohost -> reg_tohost,
-    CSRs.fromhost -> reg_fromhost)
-
-  for (i <- 0 until reg_uarch_counters.size)
-    read_mapping += (CSRs.uarch0 + i) -> reg_uarch_counters(i)
-
   io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
 
   io.fcsr_rm := reg_frm
@@ -326,25 +328,22 @@ class CSRFile extends CoreModule
       reg_mstatus.msip := new_mstatus.msip
       reg_mstatus.stie := new_mstatus.stie
       reg_mstatus.ie := new_mstatus.ie
-      reg_mstatus.ie1 := new_mstatus.ie1
-      reg_mstatus.ie2 := new_mstatus.ie2
-      when (new_mstatus.mprv != PRV_H) { reg_mstatus.mprv := new_mstatus.mprv }
-      when (new_mstatus.prv != PRV_H) { reg_mstatus.prv := new_mstatus.prv }
-      when (new_mstatus.prv1 != PRV_H) { reg_mstatus.prv1 := new_mstatus.prv1 }
-      when (new_mstatus.prv2 != PRV_H) { reg_mstatus.prv2 := new_mstatus.prv2 }
+
+      val supportedModes = Vec((PRV_M :: PRV_U :: (if (params(UseVM)) List(PRV_S) else Nil)).map(UInt(_)))
+      if (supportedModes.size > 1) {
+        when (supportedModes contains new_mstatus.mprv) { reg_mstatus.mprv := new_mstatus.mprv }
+        when (supportedModes contains new_mstatus.prv) { reg_mstatus.prv := new_mstatus.prv }
+        when (supportedModes contains new_mstatus.prv1) { reg_mstatus.prv1 := new_mstatus.prv1 }
+        reg_mstatus.ie1 := new_mstatus.ie1
+        if (supportedModes.size > 2) {
+          when (supportedModes contains new_mstatus.prv2) { reg_mstatus.prv2 := new_mstatus.prv2 }
+          reg_mstatus.ie2 := new_mstatus.ie2
+        }
+      }
+
       if (params(UseVM)) when (new_mstatus.vm === 0 || new_mstatus.vm === 5) { reg_mstatus.vm := new_mstatus.vm }
-      if (!params(BuildFPU).isEmpty) reg_mstatus.fs := new_mstatus.fs
+      if (params(UseVM) || !params(BuildFPU).isEmpty) reg_mstatus.fs := new_mstatus.fs
       if (!params(BuildRoCC).isEmpty) reg_mstatus.xs := new_mstatus.xs
-    }
-    when (decoded_addr(CSRs.sstatus)) {
-      val new_sstatus = new SStatus().fromBits(wdata)
-      reg_mstatus.ssip := new_sstatus.sip
-      reg_mstatus.stie := new_sstatus.tie
-      reg_mstatus.ie := new_sstatus.ie
-      reg_mstatus.ie1 := new_sstatus.pie
-      reg_mstatus.prv1 := Mux(new_sstatus.ps, PRV_S, PRV_U)
-      if (!params(BuildFPU).isEmpty) reg_mstatus.fs := new_sstatus.fs
-      if (!params(BuildRoCC).isEmpty) reg_mstatus.xs := new_sstatus.xs
     }
     when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
     when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
@@ -353,7 +352,6 @@ class CSRFile extends CoreModule
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata }
-    when (decoded_addr(CSRs.sepc))     { reg_sepc := wdata(vaddrBits,0).toSInt }
     when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata(vaddrBits-1,0).toSInt }
     when (decoded_addr(CSRs.scycle))   { reg_time := wdata.toUInt }
     when (decoded_addr(CSRs.stime))    { reg_time := wdata.toUInt }
@@ -361,9 +359,22 @@ class CSRFile extends CoreModule
     when (decoded_addr(CSRs.stimecmp)) { reg_stimecmp := wdata(31,0).toUInt; r_irq_timer := Bool(false) }
     when (decoded_addr(CSRs.fromhost)) { when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
     when (decoded_addr(CSRs.tohost))   { when (reg_tohost === UInt(0) || host_pcr_req_fire) { reg_tohost := wdata } }
-    when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
-    when (decoded_addr(CSRs.sptbr))    { reg_sptbr := Cat(wdata(paddrBits-1, pgIdxBits), Bits(0, pgIdxBits)).toUInt }
     when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
+    if (params(UseVM)) {
+      when (decoded_addr(CSRs.sstatus)) {
+        val new_sstatus = new SStatus().fromBits(wdata)
+        reg_mstatus.ssip := new_sstatus.sip
+        reg_mstatus.stie := new_sstatus.tie
+        reg_mstatus.ie := new_sstatus.ie
+        reg_mstatus.ie1 := new_sstatus.pie
+        reg_mstatus.prv1 := Mux(new_sstatus.ps, PRV_S, PRV_U)
+        if (!params(BuildFPU).isEmpty) reg_mstatus.fs := new_sstatus.fs
+        if (!params(BuildRoCC).isEmpty) reg_mstatus.xs := new_sstatus.xs
+      }
+      when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
+      when (decoded_addr(CSRs.sptbr))    { reg_sptbr := Cat(wdata(paddrBits-1, pgIdxBits), Bits(0, pgIdxBits)).toUInt }
+      when (decoded_addr(CSRs.sepc))     { reg_sepc := wdata(vaddrBits,0).toSInt }
+    }
   }
 
   io.host.ipi_rep.ready := true
@@ -377,9 +388,9 @@ class CSRFile extends CoreModule
     reg_mstatus.ie := false
     reg_mstatus.prv := PRV_M
     reg_mstatus.ie1 := false
-    reg_mstatus.prv1 := PRV_S
+    reg_mstatus.prv1 := PRV_U /* hard-wired to 0 when missing user mode */
     reg_mstatus.ie2 := false
-    reg_mstatus.prv2 := PRV_S
+    reg_mstatus.prv2 := PRV_U /* hard-wired to 0 when missing supervisor mode */
     reg_mstatus.mprv := PRV_M
     reg_mstatus.zero2 := 0
     reg_mstatus.vm := 0
