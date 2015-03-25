@@ -277,7 +277,7 @@ class CSRFile extends CoreModule
     reg_mstatus.prv2 := reg_mstatus.prv1
     reg_mstatus.ie2 := reg_mstatus.ie1
 
-    reg_mepc := io.pc
+    reg_mepc := io.pc & SInt(-coreInstBytes)
     reg_mcause := io.cause
     when (csr_xcpt) {
       reg_mcause := Causes.illegal_instruction
@@ -358,7 +358,7 @@ class CSRFile extends CoreModule
     when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
     when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
     when (decoded_addr(CSRs.fcsr))     { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
-    when (decoded_addr(CSRs.mepc))     { reg_mepc := wdata(vaddrBits,0).toSInt }
+    when (decoded_addr(CSRs.mepc))     { reg_mepc := wdata(vaddrBits,0).toSInt & SInt(-coreInstBytes) }
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata }
@@ -382,8 +382,8 @@ class CSRFile extends CoreModule
       }
       when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
       when (decoded_addr(CSRs.sptbr))    { reg_sptbr := Cat(wdata(paddrBits-1, pgIdxBits), Bits(0, pgIdxBits)).toUInt }
-      when (decoded_addr(CSRs.sepc))     { reg_sepc := wdata(vaddrBits,0).toSInt }
-      when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata(vaddrBits-1,0).toSInt }
+      when (decoded_addr(CSRs.sepc))     { reg_sepc := wdata(vaddrBits,0).toSInt & SInt(-coreInstBytes) }
+      when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata(vaddrBits-1,0).toSInt & SInt(-coreInstBytes) }
     }
   }
 
