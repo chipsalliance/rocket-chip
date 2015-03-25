@@ -18,6 +18,7 @@ case object FastMulDiv extends Field[Boolean]
 case object CoreInstBits extends Field[Int]
 case object CoreDataBits extends Field[Int]
 case object CoreDCacheReqTagBits extends Field[Int]
+case object NCustomMRWCSRs extends Field[Int]
 
 abstract trait CoreParameters extends UsesParameters {
   val xLen = params(XLen)

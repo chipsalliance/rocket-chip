@@ -11,21 +11,22 @@ import scala.math._
 
 class MStatus extends Bundle {
   val sd = Bool()
-  val zero6 = UInt(width = 19)
+  val zero4 = UInt(width = 19)
   val ha = UInt(width = 4)
   val sa = UInt(width = 4)
   val ua = UInt(width = 4)
-  val zero5 = UInt(width = 1)
+  val sd_rv32 = UInt(width = 1)
   val xs = UInt(width = 2)
   val fs = UInt(width = 2)
   val mtie = Bool()
   val htie = Bool()
   val stie = Bool()
-  val zero4 = UInt(width = 1)
-  val vm = UInt(width = 4)
   val zero3 = UInt(width = 1)
+  val vm = UInt(width = 4)
+  val zero2 = UInt(width = 1)
   val mprv = UInt(width = 2)
-  val zero2 = UInt(width = 3)
+  val prv3 = UInt(width = 2)
+  val ie3 = Bool()
   val prv2 = UInt(width = 2)
   val ie2 = Bool()
   val prv1 = UInt(width = 2)
@@ -90,10 +91,10 @@ class CSRFileIO extends CoreBundle {
   val exception = Bool(INPUT)
   val retire = UInt(INPUT, log2Up(1+retireWidth))
   val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+retireWidth)))
+  val custom_mrw_csrs = Vec.fill(params(NCustomMRWCSRs))(UInt(INPUT, xLen))
   val cause = UInt(INPUT, xLen)
   val mbadaddr_wen = Bool(INPUT)
   val pc = SInt(INPUT, vaddrBits+1)
-  val sret = Bool(INPUT)
   val fatc = Bool(OUTPUT)
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
@@ -141,7 +142,7 @@ class CSRFile extends CoreModule
     }
   }
 
-  checkInterrupt(PRV_S, r_irq_timer, 0)
+  checkInterrupt(PRV_S, reg_mstatus.stie && r_irq_timer, 0)
   checkInterrupt(PRV_S, reg_mstatus.ssip, 1)
   checkInterrupt(PRV_M, reg_mstatus.msip, 1)
   checkInterrupt(PRV_M, reg_fromhost != 0, 2)
@@ -198,7 +199,6 @@ class CSRFile extends CoreModule
     CSRs.mbadaddr -> reg_mbadaddr,
     CSRs.mcause -> reg_mcause,
     CSRs.stimecmp -> reg_stimecmp,
-    CSRs.stvec -> reg_stvec,
     CSRs.hartid -> io.host.id,
     CSRs.send_ipi -> io.host.id, /* don't care */
     CSRs.stats -> reg_stats,
@@ -213,10 +213,18 @@ class CSRFile extends CoreModule
     read_mapping += CSRs.sptbr -> reg_sptbr
     read_mapping += CSRs.sasid -> UInt(0)
     read_mapping += CSRs.sepc -> reg_sepc
+    read_mapping += CSRs.stvec -> reg_stvec
   }
 
   for (i <- 0 until reg_uarch_counters.size)
     read_mapping += (CSRs.uarch0 + i) -> reg_uarch_counters(i)
+
+  for (i <- 0 until params(NCustomMRWCSRs)) {
+    val addr = 0x790 + i // turn 0x790 into parameter CustomMRWCSRBase?
+    require(addr >= 0x780 && addr <= 0x7ff, "custom MRW CSR address " + i + " is out of range")
+    require(!read_mapping.contains(addr), "custom MRW CSR address " + i + " is already in use")
+    read_mapping += addr -> io.custom_mrw_csrs(i)
+  }
 
   val addr = Mux(cpu_ren, io.rw.addr, host_pcr_bits.addr)
   val decoded_addr = read_mapping map { case (k, v) => k -> (addr === k) }
@@ -257,6 +265,8 @@ class CSRFile extends CoreModule
   io.status.fs := reg_mstatus.fs.orR.toSInt // either off or dirty (no clean/initial support yet)
   io.status.xs := reg_mstatus.xs.orR.toSInt // either off or dirty (no clean/initial support yet)
   io.status.sd := reg_mstatus.xs.orR || reg_mstatus.fs.orR
+  if (xLen == 32)
+    io.status.sd_rv32 := io.status.sd
 
   when (io.exception || csr_xcpt) {
     reg_mstatus.ie := false
@@ -352,7 +362,6 @@ class CSRFile extends CoreModule
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata }
-    when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata(vaddrBits-1,0).toSInt }
     when (decoded_addr(CSRs.scycle))   { reg_time := wdata.toUInt }
     when (decoded_addr(CSRs.stime))    { reg_time := wdata.toUInt }
     when (decoded_addr(CSRs.sinstret)) { reg_instret := wdata.toUInt }
@@ -374,6 +383,7 @@ class CSRFile extends CoreModule
       when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
       when (decoded_addr(CSRs.sptbr))    { reg_sptbr := Cat(wdata(paddrBits-1, pgIdxBits), Bits(0, pgIdxBits)).toUInt }
       when (decoded_addr(CSRs.sepc))     { reg_sepc := wdata(vaddrBits,0).toSInt }
+      when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata(vaddrBits-1,0).toSInt }
     }
   }
 
@@ -391,6 +401,8 @@ class CSRFile extends CoreModule
     reg_mstatus.prv1 := PRV_U /* hard-wired to 0 when missing user mode */
     reg_mstatus.ie2 := false
     reg_mstatus.prv2 := PRV_U /* hard-wired to 0 when missing supervisor mode */
+    reg_mstatus.ie3 := false
+    reg_mstatus.prv3 := PRV_U /* hard-wired to 0 when missing hypervisor mode */
     reg_mstatus.mprv := PRV_M
     reg_mstatus.zero2 := 0
     reg_mstatus.vm := 0
@@ -400,11 +412,11 @@ class CSRFile extends CoreModule
     reg_mstatus.mtie := false
     reg_mstatus.fs := 0
     reg_mstatus.xs := 0
-    reg_mstatus.zero4 := 0
+    reg_mstatus.sd_rv32 := false
     reg_mstatus.ua := 4
     reg_mstatus.sa := 4
     reg_mstatus.ha := 0
-    reg_mstatus.zero5 := 0
+    reg_mstatus.zero4 := 0
     reg_mstatus.sd := false
   }
 }
