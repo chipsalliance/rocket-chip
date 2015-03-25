@@ -26,7 +26,6 @@ class FrontendResp extends CoreBundle {
   val pc = UInt(width = vaddrBits+1)  // ID stage PC
   val data = Vec.fill(coreFetchWidth) (Bits(width = coreInstBits))
   val mask = Bits(width = coreFetchWidth)
-  val xcpt_ma = Bool()
   val xcpt_if = Bool()
 }
 
@@ -53,7 +52,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   val tlb = Module(new TLB)
 
   val s1_pc_ = Reg(UInt())
-  val s1_pc = s1_pc_ & SInt(-2) // discard LSB of PC (throughout the pipeline)
+  val s1_pc = s1_pc_ & SInt(-coreInstBytes) // discard PC LSBS (this propagates down the pipeline)
   val s1_same_block = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=UInt(START_ADDR))
@@ -90,7 +89,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   }
 
   btb.io.req.valid := !stall && !icmiss
-  btb.io.req.bits.addr := s1_pc & SInt(-coreInstBytes)
+  btb.io.req.bits.addr := s1_pc
   btb.io.btb_update := io.cpu.btb_update
   btb.io.bht_update := io.cpu.bht_update
   btb.io.ras_update := io.cpu.ras_update
@@ -113,7 +112,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
-  io.cpu.resp.bits.pc := s2_pc & SInt(-coreInstBytes) // discard PC LSBs
+  io.cpu.resp.bits.pc := s2_pc
 
 
   val fetch_data = icache.io.resp.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(coreFetchWidth*coreInstBytes)) << log2Up(coreFetchWidth*coreInstBits))
@@ -124,8 +123,6 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   val all_ones = UInt((1 << (coreFetchWidth+1))-1)
   val msk_pc = if (coreFetchWidth == 1) all_ones else all_ones << s2_pc(log2Up(coreFetchWidth) -1+2,2)
   io.cpu.resp.bits.mask := Mux(s2_btb_resp_valid, msk_pc & s2_btb_resp_bits.mask, msk_pc)
-
-  io.cpu.resp.bits.xcpt_ma := s2_pc(log2Up(coreInstBytes)-1,0) != UInt(0)
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
 
   io.cpu.btb_resp.valid := s2_btb_resp_valid
