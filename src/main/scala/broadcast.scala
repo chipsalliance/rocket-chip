@@ -48,28 +48,24 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
   when (sdq_enq) { sdq(sdq_alloc_id) := io.iacq().data }
 
   // Handle acquire transaction initiation
-  val trackerAcquireIOs =  trackerList.map(_.io.inner.acquire)
+  val trackerAcquireIOs = trackerList.map(_.io.inner.acquire)
+  val acquireConflicts = Vec(trackerList.map(_.io.has_acquire_conflict)).toBits
+  val acquireMatches = Vec(trackerList.map(_.io.has_acquire_match)).toBits
+  val acquireReadys = Vec(trackerAcquireIOs.map(_.ready)).toBits
+  val acquire_idx = Mux(acquireMatches.orR, 
+                      PriorityEncoder(acquireMatches),
+                      PriorityEncoder(acquireReadys))
 
-  val alloc_arb = Module(new Arbiter(Bool(), trackerList.size))
-  alloc_arb.io.out.ready := Bool(true)
-  trackerAcquireIOs.zip(alloc_arb.io.in).foreach {
-    case(tracker, arb) => arb.valid := tracker.ready
-  }
-  val alloc_idx = Vec(alloc_arb.io.in.map(_.ready)).lastIndexWhere{b: Bool => b}
-
-  val acquireMatchList = trackerList.map(_.io.has_acquire_match)
-  val any_acquire_matches = acquireMatchList.reduce(_||_)
-  val match_idx = Vec(acquireMatchList).indexWhere{b: Bool => b}
-
-  val acquire_idx = Mux(any_acquire_matches, match_idx, alloc_idx)
-  val block_acquires = trackerList.map(_.io.has_acquire_conflict).reduce(_||_)
-  io.inner.acquire.ready := trackerAcquireIOs.map(_.ready).reduce(_||_) && !block_acquires && sdq_rdy
+  val block_acquires = acquireConflicts.orR || !sdq_rdy
+  io.inner.acquire.ready := acquireReadys.orR && !block_acquires 
   trackerAcquireIOs.zipWithIndex.foreach {
     case(tracker, i) =>
       tracker.bits := io.inner.acquire.bits
       tracker.bits.payload.data :=
         DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
-      tracker.valid := io.inner.acquire.valid && !block_acquires && (acquire_idx === UInt(i))
+      tracker.valid := io.inner.acquire.valid &&
+        !block_acquires &&
+        (acquire_idx === UInt(i))
   }
 
   // Queue to store impending Voluntary Release data
@@ -80,17 +76,21 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
   when(vwbdq_enq) { vwbdq(rel_data_cnt) := io.irel().data }
 
   // Handle releases, which might be voluntary and might have data
-  val release_idx = Vec(trackerList.map(_.io.has_release_match)).indexWhere{b: Bool => b}
   val trackerReleaseIOs = trackerList.map(_.io.inner.release)
+  val releaseReadys = Vec(trackerReleaseIOs.map(_.ready)).toBits
+  val releaseMatches = Vec(trackerList.map(_.io.has_release_match)).toBits
+  val release_idx = PriorityEncoder(releaseMatches)
+  io.inner.release.ready := releaseReadys(release_idx)
   trackerReleaseIOs.zipWithIndex.foreach {
     case(tracker, i) =>
+      tracker.valid := io.inner.release.valid && (release_idx === UInt(i))
       tracker.bits := io.inner.release.bits
       tracker.bits.payload.data := DataQueueLocation(rel_data_cnt,
                                      (if(i < nReleaseTransactors) inVolWBQueue
                                       else inClientReleaseQueue)).toBits
-      tracker.valid := io.inner.release.valid && (release_idx === UInt(i))
   }
-  io.inner.release.ready := Vec(trackerReleaseIOs.map(_.ready)).read(release_idx)
+  assert(!(io.inner.release.valid && !releaseMatches.orR),
+    "Non-voluntary release should always have a Tracker waiting for it.")
 
   // Wire probe requests and grant reply to clients, finish acks from clients
   // Note that we bypass the Grant data subbundles
