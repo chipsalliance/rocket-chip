@@ -505,6 +505,29 @@ object HeaderlessTileLinkIOWrapper {
   }
 }
 
+class TileLinkEnqueuer(depths: (Int, Int, Int, Int, Int)) extends Module {
+  val io = new Bundle {
+    val client = new TileLinkIO().flip
+    val manager = new TileLinkIO
+  }
+  io.manager.acquire <> (if(depths._1 > 0) Queue(io.client.acquire, depths._1) else io.client.acquire)
+  io.client.probe    <> (if(depths._2 > 0) Queue(io.manager.probe, depths._2) else io.manager.probe)
+  io.manager.release <> (if(depths._3 > 0) Queue(io.client.release, depths._3) else io.client.release)
+  io.client.grant    <> (if(depths._4 > 0) Queue(io.manager.grant, depths._4) else io.manager.grant)
+  io.manager.finish  <> (if(depths._5 > 0) Queue(io.client.finish, depths._5) else io.client.finish)
+}
+
+object TileLinkEnqueuer {
+  def apply(in: TileLinkIO, depths: (Int, Int, Int, Int, Int))(p: Parameters): TileLinkIO = {
+    val t = Module(new TileLinkEnqueuer(depths))(p)
+    t.io.client <> in
+    t.io.manager
+  }
+  def apply(in: TileLinkIO, depth: Int)(p: Parameters): TileLinkIO = {
+    apply(in, (depth, depth, depth, depth, depth))(p)
+  }
+}
+
 abstract trait HasArbiterTypes {
   val arbN: Int
   type ManagerSourcedWithId = ManagerToClientChannel with HasClientTransactionId
