@@ -229,9 +229,9 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
   val curr_p_id = PriorityEncoder(pending_probes)
   val full_sharers = coh.full()
   val probe_self = io.inner.acquire.bits.payload.requiresSelfProbe()
-  val mask_self = Mux(probe_self,
-                    full_sharers | UInt(UInt(1) << xact_src, width = nCoherentClients),
-                    full_sharers & ~UInt(UInt(1) << xact_src, width = nCoherentClients))
+  val mask_self_true = UInt(UInt(1) << io.inner.acquire.bits.header.src, width = nCoherentClients)
+  val mask_self_false = ~UInt(UInt(1) << io.inner.acquire.bits.header.src, width = nCoherentClients)
+  val mask_self = Mux(probe_self, full_sharers | mask_self_true, full_sharers & mask_self_false)
   val mask_incoherent = mask_self & ~io.incoherent.toBits
 
   val collect_iacq_data = Reg(init=Bool(false))
