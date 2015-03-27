@@ -44,7 +44,7 @@ class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
   // otherwise, just hookup the icache
   io.uncached <> params(BuildRoCC).map { buildItHere =>
     val rocc = buildItHere()
-    val memArb = Module(new RocketUncachedTileLinkIOArbiter(3))
+    val memArb = Module(new HeaderlessTileLinkIOArbiter(3))
     val dcIF = Module(new SimpleHellaCacheIF)
     core.io.rocc <> rocc.io
     dcIF.io.requestor <> rocc.io.mem
