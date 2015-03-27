@@ -6,14 +6,6 @@ import Chisel._
 import uncore._
 import scala.math._
 
-class Unsigned(x: Int) {
-  require(x >= 0)
-  def clog2: Int = { require(x > 0); ceil(log(x)/log(2)).toInt }
-  def log2: Int = { require(x > 0); floor(log(x)/log(2)).toInt }
-  def isPow2: Boolean = x > 0 && (x & (x-1)) == 0
-  def nextPow2: Int = if (x == 0) 1 else 1 << clog2
-}
-
 object Util {
   implicit def intToUInt(x: Int): UInt = UInt(x)
   implicit def booleanToBool(x: Boolean): Bits = Bool(x)
