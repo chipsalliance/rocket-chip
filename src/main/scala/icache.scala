@@ -4,12 +4,9 @@ import Chisel._
 import uncore._
 import Util._
 
-case object ECCCode extends Field[Option[Code]]
-
 abstract trait L1CacheParameters extends CacheParameters with CoreParameters {
   val outerDataBeats = params(TLDataBeats)
   val outerDataBits = params(TLDataBits)
-  val code = params(ECCCode).getOrElse(new IdentityCode)
   val refillCyclesPerBeat = outerDataBits/rowBits
   val refillCycles = refillCyclesPerBeat*outerDataBeats
 }
