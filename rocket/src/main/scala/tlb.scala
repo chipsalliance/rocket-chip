@@ -119,7 +119,7 @@ class TLB extends TLBModule {
   val tag_hit_addr = OHToUInt(tag_cam.io.hits)
   
   // permission bit arrays
-  val valid_array = Reg(Bits()) // V bit of PTE (not equivalent to CAM tag valid bit!)
+  val valid_array = Reg(Bits()) // PTE is valid (not equivalent to CAM tag valid bit!)
   val ur_array = Reg(Bits()) // user read permission
   val uw_array = Reg(Bits()) // user write permission
   val ux_array = Reg(Bits()) // user execute permission
@@ -128,16 +128,16 @@ class TLB extends TLBModule {
   val sx_array = Reg(Bits()) // supervisor execute permission
   val dirty_array = Reg(Bits()) // PTE dirty bit
   when (io.ptw.resp.valid) {
-    val perm = io.ptw.resp.bits.pte.perm & ~io.ptw.resp.bits.error.toSInt
-    tag_ram(r_refill_waddr) := io.ptw.resp.bits.pte.ppn
+    val pte = io.ptw.resp.bits.pte
+    tag_ram(r_refill_waddr) := pte.ppn
     valid_array := valid_array.bitSet(r_refill_waddr, !io.ptw.resp.bits.error)
-    ur_array := ur_array.bitSet(r_refill_waddr, perm(0) || perm(2))
-    uw_array := uw_array.bitSet(r_refill_waddr, perm(1))
-    ux_array := ux_array.bitSet(r_refill_waddr, perm(2))
-    sr_array := sr_array.bitSet(r_refill_waddr, perm(3) || perm(5))
-    sw_array := sw_array.bitSet(r_refill_waddr, perm(4))
-    sx_array := sx_array.bitSet(r_refill_waddr, perm(5))
-    dirty_array := dirty_array.bitSet(r_refill_waddr, io.ptw.resp.bits.pte.d)
+    ur_array(r_refill_waddr) := pte.ur() && !io.ptw.resp.bits.error
+    uw_array(r_refill_waddr) := pte.uw() && !io.ptw.resp.bits.error
+    ux_array(r_refill_waddr) := pte.ux() && !io.ptw.resp.bits.error
+    sr_array(r_refill_waddr) := pte.sr() && !io.ptw.resp.bits.error
+    sw_array(r_refill_waddr) := pte.sw() && !io.ptw.resp.bits.error
+    sx_array(r_refill_waddr) := pte.sx() && !io.ptw.resp.bits.error
+    dirty_array(r_refill_waddr) := pte.d
   }
  
   // high if there are any unused (invalid) entries in the TLB
@@ -150,7 +150,6 @@ class TLB extends TLBModule {
   val priv_s = priv === PRV_S
   val priv_uses_vm = priv <= PRV_S
   val req_xwr = Cat(!r_req.store, r_req.store, !(r_req.instruction || r_req.store))
-  val req_perm = Cat(req_xwr & priv_s.toSInt, req_xwr & ~priv_s.toSInt)
 
   val r_array = Mux(priv_s, sr_array, ur_array)
   val w_array = Mux(priv_s, sw_array, uw_array)
@@ -183,7 +182,9 @@ class TLB extends TLBModule {
   
   io.ptw.req.valid := state === s_request
   io.ptw.req.bits.addr := r_refill_tag
-  io.ptw.req.bits.perm := req_perm
+  io.ptw.req.bits.prv := io.ptw.status.prv
+  io.ptw.req.bits.store := r_req.store
+  io.ptw.req.bits.fetch := r_req.instruction
 
   when (io.req.fire() && tlb_miss) {
     state := s_request
