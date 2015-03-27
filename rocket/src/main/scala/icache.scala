@@ -190,15 +190,10 @@ class ICache extends FrontendModule
   val s2_miss = s2_valid && !s2_any_tag_hit
   rdy := state === s_ready && !s2_miss
 
-  val ser = Module(new FlowThroughSerializer(
-                          io.mem.grant.bits,
-                          refillCyclesPerBeat))
-  ser.io.in <> io.mem.grant
-  val (refill_cnt, refill_wrap) = Counter(ser.io.out.fire(), refillCycles) //TODO Zero width wire
+  val narrow_grant = FlowThroughSerializer(io.mem.grant, refillCyclesPerBeat)
+  val (refill_cnt, refill_wrap) = Counter(narrow_grant.fire(), refillCycles) //TODO Zero width wire
   val refill_done = state === s_refill && refill_wrap
-  val refill_valid = ser.io.out.valid
-  val refill_bits = ser.io.out.bits
-  ser.io.out.ready := Bool(true)
+  narrow_grant.ready := Bool(true)
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s2_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
@@ -250,9 +245,9 @@ class ICache extends FrontendModule
   for (i <- 0 until nWays) {
     val data_array = Mem(Bits(width = code.width(rowBits)), nSets*refillCycles, seqRead = true)
     val s1_raddr = Reg(UInt())
-    when (refill_valid && repl_way === UInt(i)) {
-      val e_d = code.encode(refill_bits.payload.data)
-      if(refillCycles > 1) data_array(Cat(s2_idx, refill_bits.payload.addr_beat)) := e_d
+    when (narrow_grant.valid && repl_way === UInt(i)) {
+      val e_d = code.encode(narrow_grant.bits.data)
+      if(refillCycles > 1) data_array(Cat(s2_idx, refill_cnt)) := e_d
       else data_array(s2_idx) := e_d
     }
 //    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
@@ -266,16 +261,10 @@ class ICache extends FrontendModule
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
   io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
 
-  val ack_q = Module(new Queue(new LogicalNetworkIO(new Finish), 1))
-  ack_q.io.enq.valid := refill_done && refill_bits.payload.requiresAck()
-  ack_q.io.enq.bits.payload := refill_bits.payload.makeFinish()
-  ack_q.io.enq.bits.header.dst := refill_bits.header.src
-
   // output signals
   io.resp.valid := s2_hit
-  io.mem.acquire.valid := (state === s_request) && ack_q.io.enq.ready
+  io.mem.acquire.valid := (state === s_request)
   io.mem.acquire.bits := GetBlock(addr_block = s2_addr >> UInt(blockOffBits))
-  io.mem.finish <> ack_q.io.deq
 
   // control state machine
   switch (state) {
@@ -284,7 +273,7 @@ class ICache extends FrontendModule
       invalidated := Bool(false)
     }
     is (s_request) {
-      when (io.mem.acquire.ready && ack_q.io.enq.ready) { state := s_refill_wait }
+      when (io.mem.acquire.ready) { state := s_refill_wait }
     }
     is (s_refill_wait) {
       when (io.mem.grant.valid) { state := s_refill }
