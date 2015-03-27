@@ -7,8 +7,9 @@ import scala.math._
 case object PAddrBits extends Field[Int]
 case object VAddrBits extends Field[Int]
 case object PgIdxBits extends Field[Int]
+case object PgLevels extends Field[Int]
+case object PgLevelBits extends Field[Int]
 case object ASIdBits extends Field[Int]
-case object PermBits extends Field[Int]
 case object PPNBits extends Field[Int]
 case object VPNBits extends Field[Int]
 
