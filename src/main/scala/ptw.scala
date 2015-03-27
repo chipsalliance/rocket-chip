@@ -8,7 +8,9 @@ import Util._
 
 class PTWReq extends CoreBundle {
   val addr = UInt(width = vpnBits)
-  val perm = Bits(width = permBits)
+  val prv = Bits(width = 2)
+  val store = Bool()
+  val fetch = Bool()
 }
 
 class PTWResp extends CoreBundle {
@@ -34,10 +36,20 @@ class PTE extends CoreBundle {
   val reserved = Bits(width = 2)
   val d = Bool()
   val r = Bool()
-  val perm = Bits(width = 6)
   val g = Bool()
-  val t = Bool()
-  val v = Bool()
+  val perm = Bits(width = 2)
+  val typ = Bits(width = 3)
+
+  def table(dummy: Int = 0) = typ === 1
+  def leaf(dummy: Int = 0) = typ >= 2
+  def ur(dummy: Int = 0) = typ === 2 || typ >= 4
+  def uw(dummy: Int = 0) = ur() && perm(0)
+  def ux(dummy: Int = 0) = ur() && perm(1)
+  def sr(dummy: Int = 0) = typ >= 3
+  def sw(dummy: Int = 0) = Mux(typ >= 4, typ(0), typ === 3 && perm(0))
+  def sx(dummy: Int = 0) = Mux(typ >= 4, typ(1), typ === 3 && perm(1))
+  def access_ok(prv: Bits, store: Bool, fetch: Bool) =
+    Mux(prv(0), Mux(fetch, sx(), Mux(store, sw(), sr())), Mux(fetch, ux(), Mux(store, uw(), ur())))
 }
 
 class PTW(n: Int) extends CoreModule
@@ -48,19 +60,15 @@ class PTW(n: Int) extends CoreModule
     val dpath = new DatapathPTWIO
   }
   
-  val levels = 3
-  val bitsPerLevel = vpnBits/levels
-  require(vpnBits == levels * bitsPerLevel)
-
   val s_ready :: s_req :: s_wait :: s_set_dirty :: s_wait_dirty :: s_done :: s_error :: Nil = Enum(UInt(), 7)
   val state = Reg(init=s_ready)
-  val count = Reg(UInt(width = log2Up(levels)))
+  val count = Reg(UInt(width = log2Up(pgLevels)))
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
   val r_pte = Reg(new PTE)
   
-  val vpn_idx = Vec((0 until levels).map(i => (r_req.addr >> (levels-i-1)*bitsPerLevel)(bitsPerLevel-1,0)))(count)
+  val vpn_idx = Vec((0 until pgLevels).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0)))(count)
 
   val arb = Module(new RRArbiter(new PTWReq, n))
   arb.io.in <> io.requestor.map(_.req)
@@ -76,19 +84,19 @@ class PTW(n: Int) extends CoreModule
   }
 
   val (pte_cache_hit, pte_cache_data) = {
-    val size = log2Up(levels * 2)
+    val size = log2Up(pgLevels * 2)
     val plru = new PseudoLRU(size)
     val valid = Reg(init = Bits(0, size))
     val tags = Mem(UInt(width = paddrBits), size)
-    val data = Mem(UInt(width = paddrBits - pgIdxBits), size)
+    val data = Mem(UInt(width = ppnBits), size)
 
     val hits = Vec(tags.map(_ === pte_addr)).toBits & valid
     val hit = hits.orR
-    when (io.mem.resp.valid && io.mem.resp.bits.data(1,0).andR && !hit) {
+    when (io.mem.resp.valid && pte.table() && !hit) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
       valid(r) := true
       tags(r) := pte_addr
-      data(r) := io.mem.resp.bits.data(paddrBits-1,pgIdxBits)
+      data(r) := pte.ppn
     }
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
     when (io.dpath.invalidate) { valid := 0 }
@@ -96,12 +104,16 @@ class PTW(n: Int) extends CoreModule
     (hit, Mux1H(hits, data))
   }
 
-  val perm_ok = (pte.perm & r_req.perm).orR
-  val is_store = r_req.perm(1) || r_req.perm(4)
-  val set_dirty_bit = perm_ok && !pte.t && (!pte.r || (is_store && !pte.d))
+  val perm_ok = pte.access_ok(r_req.prv, r_req.store, r_req.fetch)
+  val set_dirty_bit = perm_ok && (!pte.r || (r_req.store && !pte.d))
   when (io.mem.resp.valid && state === s_wait && !set_dirty_bit) {
     r_pte := pte
   }
+
+  val pte_wdata = new PTE
+  pte_wdata := new PTE().fromBits(0)
+  pte_wdata.r := true
+  pte_wdata.d := r_req.store
   
   io.mem.req.valid     := state === s_req || state === s_set_dirty
   io.mem.req.bits.phys := Bool(true)
@@ -109,13 +121,13 @@ class PTW(n: Int) extends CoreModule
   io.mem.req.bits.typ  := MT_D
   io.mem.req.bits.addr := pte_addr
   io.mem.req.bits.kill := Bool(false)
-  io.mem.req.bits.data := UInt(1<<9) | Mux(is_store, UInt(1<<10), UInt(0))
+  io.mem.req.bits.data := pte_wdata.toBits
   
   val resp_err = state === s_error
   val resp_val = state === s_done || resp_err
 
   val r_resp_ppn = io.mem.req.bits.addr >> UInt(pgIdxBits)
-  val resp_ppn = Vec((0 until levels-1).map(i => Cat(r_resp_ppn >> bitsPerLevel*(levels-i-1), r_req.addr(bitsPerLevel*(levels-i-1)-1,0))) :+ r_resp_ppn)(count)
+  val resp_ppn = Vec((0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn)(count)
 
   for (i <- 0 until io.requestor.size) {
     val me = r_req_dest === UInt(i)
@@ -136,7 +148,7 @@ class PTW(n: Int) extends CoreModule
       count := UInt(0)
     }
     is (s_req) {
-      when (pte_cache_hit && count < levels-1) {
+      when (pte_cache_hit && count < pgLevels-1) {
         io.mem.req.valid := false
         state := s_req
         count := count + 1
@@ -151,15 +163,12 @@ class PTW(n: Int) extends CoreModule
       }
       when (io.mem.resp.valid) {
         state := s_error
-        when (pte.v) {
-          when (set_dirty_bit) {
-            state := s_set_dirty
-          }.elsewhen (!pte.t) {
-            state := s_done
-          }.elsewhen (count < levels-1) {
-            state := s_req
-            count := count + 1
-          }
+        when (pte.table() && count < pgLevels-1) {
+          state := s_req
+          count := count + 1
+        }
+        when (pte.leaf()) {
+          state := Mux(set_dirty_bit, s_set_dirty, s_done)
         }
       }
     }

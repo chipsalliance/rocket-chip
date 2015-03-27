@@ -27,7 +27,8 @@ abstract trait CoreParameters extends UsesParameters {
   val pgIdxBits = params(PgIdxBits)
   val ppnBits = params(PPNBits)
   val vpnBits = params(VPNBits)
-  val permBits = params(PermBits)
+  val pgLevels = params(PgLevels)
+  val pgLevelBits = params(PgLevelBits)
   val asIdBits = params(ASIdBits)
 
   val retireWidth = params(RetireWidth)
