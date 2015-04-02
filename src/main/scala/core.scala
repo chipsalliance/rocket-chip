@@ -74,6 +74,12 @@ class Core extends Module with CoreParameters
     .foreach { fpu => 
       dpath.io.fpu <> fpu.io.dpath
       ctrl.io.fpu <> fpu.io.ctrl
+      if(!params(BuildRoCC).isEmpty) {
+        io.rocc.fpu_req <> fpu.io.cp_req
+        io.rocc.fpu_resp <> fpu.io.cp_resp
+      } else {
+        fpu.io.cp_req.valid := Bool(false)  
+      }
     }
 
   ctrl.io.dpath <> dpath.io.ctrl

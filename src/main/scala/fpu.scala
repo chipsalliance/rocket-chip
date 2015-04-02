@@ -348,21 +348,32 @@ class FPU extends Module
   val io = new Bundle {
     val ctrl = (new CtrlFPUIO).flip
     val dpath = (new DpathFPUIO).flip
+    val cp_req = Decoupled(new FPInput()).flip //cp doesn't pay attn to kill sigs
+    val cp_resp = Decoupled(new FPResult())
   }
 
   val ex_reg_valid = Reg(next=io.ctrl.valid, init=Bool(false))
+  val req_valid = ex_reg_valid || io.cp_req.valid
   val ex_reg_inst = RegEnable(io.dpath.inst, io.ctrl.valid)
-  val mem_reg_valid = Reg(next=ex_reg_valid && !io.ctrl.killx, init=Bool(false))
+  val ex_cp_valid = io.cp_req.valid && !ex_reg_valid
+  val mem_reg_valid = Reg(next=ex_reg_valid && !io.ctrl.killx || ex_cp_valid, init=Bool(false))
   val mem_reg_inst = RegEnable(ex_reg_inst, ex_reg_valid)
-  val killm = io.ctrl.killm || io.ctrl.nack_mem
-  val wb_reg_valid = Reg(next=mem_reg_valid && !killm, init=Bool(false))
+  val mem_cp_valid = Reg(next=ex_cp_valid, init=Bool(false))
+  val killm = (io.ctrl.killm || io.ctrl.nack_mem) && !mem_cp_valid
+  val wb_reg_valid = Reg(next=mem_reg_valid && (!killm || mem_cp_valid), init=Bool(false))
+  val wb_cp_valid = Reg(next=mem_cp_valid, init=Bool(false))
 
   val fp_decoder = Module(new FPUDecoder)
   fp_decoder.io.inst := io.dpath.inst
 
+  val cp_ctrl = new FPUCtrlSigs
+  cp_ctrl <> io.cp_req.bits
+  io.cp_resp.valid := Bool(false)
+  io.cp_resp.bits.data := UInt(0)
+
   val id_ctrl = fp_decoder.io.sigs
-  val ex_ctrl = RegEnable(id_ctrl, io.ctrl.valid)
-  val mem_ctrl = RegEnable(ex_ctrl, ex_reg_valid)
+  val ex_ctrl = Mux(ex_reg_valid, RegEnable(id_ctrl, io.ctrl.valid), cp_ctrl)
+  val mem_ctrl = RegEnable(ex_ctrl, req_valid)
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
   // load response
@@ -391,35 +402,43 @@ class FPU extends Module
   val ex_rs1::ex_rs2::ex_rs3::Nil = Seq(ex_ra1, ex_ra2, ex_ra3).map(regfile(_))
   val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), io.dpath.fcsr_rm, ex_reg_inst(14,12))
 
+  val cp_rs1 = io.cp_req.bits.in1
+  val cp_rs2 = Mux(io.cp_req.bits.swap23, io.cp_req.bits.in3, io.cp_req.bits.in2)
+  val cp_rs3 = Mux(io.cp_req.bits.swap23, io.cp_req.bits.in2, io.cp_req.bits.in3)
+
   val req = new FPInput
   req := ex_ctrl
-  req.rm := ex_rm
-  req.in1 := ex_rs1
-  req.in2 := ex_rs2
-  req.in3 := ex_rs3
-  req.typ := ex_reg_inst(21,20)
+  req.rm := Mux(ex_reg_valid, ex_rm, io.cp_req.bits.rm)
+  req.in1 := Mux(ex_reg_valid, ex_rs1, cp_rs1)
+  req.in2 := Mux(ex_reg_valid, ex_rs2, cp_rs2)
+  req.in3 := Mux(ex_reg_valid, ex_rs3, cp_rs3)
+  req.typ := Mux(ex_reg_valid, ex_reg_inst(21,20), io.cp_req.bits.typ)
 
   val sfma = Module(new FPUFMAPipe(params(SFMALatency), 23, 9))
-  sfma.io.in.valid := ex_reg_valid && ex_ctrl.fma && ex_ctrl.single
+  sfma.io.in.valid := req_valid && ex_ctrl.fma && ex_ctrl.single
   sfma.io.in.bits := req
 
   val dfma = Module(new FPUFMAPipe(params(DFMALatency), 52, 12))
-  dfma.io.in.valid := ex_reg_valid && ex_ctrl.fma && !ex_ctrl.single
+  dfma.io.in.valid := req_valid && ex_ctrl.fma && !ex_ctrl.single
   dfma.io.in.bits := req
 
   val fpiu = Module(new FPToInt)
-  fpiu.io.in.valid := ex_reg_valid && (ex_ctrl.toint || ex_ctrl.cmd === FCMD_MINMAX)
+  fpiu.io.in.valid := req_valid && (ex_ctrl.toint || ex_ctrl.cmd === FCMD_MINMAX)
   fpiu.io.in.bits := req
   io.dpath.store_data := fpiu.io.out.bits.store
   io.dpath.toint_data := fpiu.io.out.bits.toint
+  when(fpiu.io.out.valid){//COLIN FIXME: are there conflicts since we now share a port?
+    io.cp_resp.bits.data := fpiu.io.out.bits.toint
+    io.cp_resp.valid := Bool(true)
+  }
 
   val ifpu = Module(new IntToFP(3))
-  ifpu.io.in.valid := ex_reg_valid && ex_ctrl.fromint
+  ifpu.io.in.valid := req_valid && ex_ctrl.fromint
   ifpu.io.in.bits := req
-  ifpu.io.in.bits.in1 := io.dpath.fromint_data
+  ifpu.io.in.bits.in1 := Mux(ex_reg_valid, io.dpath.fromint_data, cp_rs1)
 
   val fpmu = Module(new FPToFP(2))
-  fpmu.io.in.valid := ex_reg_valid && ex_ctrl.fastpipe
+  fpmu.io.in.valid := req_valid && ex_ctrl.fastpipe
   fpmu.io.in.bits := req
   fpmu.io.lt := fpiu.io.out.bits.lt
 
@@ -441,8 +460,8 @@ class FPU extends Module
   val wen = Reg(init=Bits(0, maxLatency-1))
   val winfo = Vec.fill(maxLatency-1){Reg(Bits())}
   val mem_wen = mem_reg_valid && (mem_ctrl.fma || mem_ctrl.fastpipe || mem_ctrl.fromint)
-  val write_port_busy = RegEnable(mem_wen && (memLatencyMask & latencyMask(ex_ctrl, 1)).orR || (wen & latencyMask(ex_ctrl, 0)).orR, ex_reg_valid)
-  val mem_winfo = Cat(pipeid(mem_ctrl), mem_reg_inst(11,7))
+  val write_port_busy = RegEnable(mem_wen && (memLatencyMask & latencyMask(ex_ctrl, 1)).orR || (wen & latencyMask(ex_ctrl, 0)).orR, req_valid)
+  val mem_winfo = Cat(mem_cp_valid, pipeid(mem_ctrl), mem_reg_inst(11,7))
 
   for (i <- 0 until maxLatency-2) {
     when (wen(i+1)) { winfo(i) := winfo(i+1) }
@@ -461,9 +480,15 @@ class FPU extends Module
 
   val waddr = winfo(0)(4,0).toUInt
   val wsrc = winfo(0) >> waddr.getWidth
+  val wcp = winfo(0)(waddr.getWidth+log2Up(pipes.size))
   val wdata = Vec(pipes.map(_.wdata))(wsrc)
   val wexc = Vec(pipes.map(_.wexc))(wsrc)
-  when (wen(0)) { regfile(waddr(4,0)) := wdata }
+  when (wen(0) && !wcp) { regfile(waddr(4,0)) := wdata }
+  when (wen(0) && wcp) { 
+    io.cp_resp.bits.data := wdata
+    io.cp_resp.valid := Bool(true) 
+  }
+  io.cp_req.ready := !ex_reg_valid
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
@@ -478,8 +503,8 @@ class FPU extends Module
   io.ctrl.nack_mem := units_busy || write_port_busy
   io.ctrl.dec <> fp_decoder.io.sigs
   def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(Bool(false))(_||_)
-  io.ctrl.sboard_set := wb_reg_valid && Reg(next=useScoreboard(_._1.cond(mem_ctrl)))
-  io.ctrl.sboard_clr := wen(0) && useScoreboard(x => wsrc === UInt(x._2))
+  io.ctrl.sboard_set := wb_reg_valid && !wb_cp_valid && Reg(next=useScoreboard(_._1.cond(mem_ctrl)))
+  io.ctrl.sboard_clr := wen(0) && !wb_cp_valid && useScoreboard(x => wsrc === UInt(x._2))
   io.ctrl.sboard_clra := waddr
   // we don't currently support round-max-magnitude (rm=4)
   io.ctrl.illegal_rm := ex_rm(2) && ex_ctrl.round
