@@ -7,6 +7,7 @@ import Util._
 import uncore._
 
 case object BuildFPU extends Field[Option[() => FPU]]
+case object FDivSqrt extends Field[Boolean]
 case object XLen extends Field[Int]
 case object NMultXpr extends Field[Int]
 case object FetchWidth extends Field[Int]
