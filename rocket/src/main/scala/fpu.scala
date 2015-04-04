@@ -20,8 +20,8 @@ object FPConstants
   val FCMD_MSUB =   Bits("b1??01")
   val FCMD_NMSUB =  Bits("b1??10")
   val FCMD_NMADD =  Bits("b1??11")
-  val FCMD_DIV =    Bits("b?0?11")
-  val FCMD_SQRT =   Bits("b?1?11")
+  val FCMD_DIV =    Bits("b?0011")
+  val FCMD_SQRT =   Bits("b?1011")
   val FCMD_SGNJ =   Bits("b??1?0")
   val FCMD_MINMAX = Bits("b?01?1")
   val FCMD_CVT_FF = Bits("b??0??")
@@ -45,13 +45,17 @@ class FPUCtrlSigs extends Bundle
   val ren1 = Bool()
   val ren2 = Bool()
   val ren3 = Bool()
+  val swap12 = Bool()
   val swap23 = Bool()
   val single = Bool()
   val fromint = Bool()
   val toint = Bool()
   val fastpipe = Bool()
   val fma = Bool()
+  val div = Bool()
+  val sqrt = Bool()
   val round = Bool()
+  val wflags = Bool()
 }
 
 class FPUDecoder extends Module
@@ -65,69 +69,73 @@ class FPUDecoder extends Module
   val Y = Bool(true)
   val X = Bool(false)
   val decoder = DecodeLogic(io.inst,
-    List                  (FCMD_X,      X,X,X,X,X,X,X,X,X,X,X,X),
-    Array(FLW      -> List(FCMD_X,      Y,Y,N,N,N,X,Y,N,N,N,N,N),
-          FLD      -> List(FCMD_X,      Y,Y,N,N,N,X,N,N,N,N,N,N),
-          FSW      -> List(FCMD_MV_XF,  Y,N,N,Y,N,X,Y,N,Y,N,N,N),
-          FSD      -> List(FCMD_MV_XF,  Y,N,N,Y,N,X,N,N,Y,N,N,N),
-          FMV_S_X  -> List(FCMD_MV_FX,  N,Y,N,N,N,X,Y,Y,N,N,N,Y),
-          FMV_D_X  -> List(FCMD_MV_FX,  N,Y,N,N,N,X,N,Y,N,N,N,Y),
-          FCVT_S_W -> List(FCMD_CVT_FI, N,Y,N,N,N,X,Y,Y,N,N,N,Y),
-          FCVT_S_WU-> List(FCMD_CVT_FI, N,Y,N,N,N,X,Y,Y,N,N,N,Y),
-          FCVT_S_L -> List(FCMD_CVT_FI, N,Y,N,N,N,X,Y,Y,N,N,N,Y),
-          FCVT_S_LU-> List(FCMD_CVT_FI, N,Y,N,N,N,X,Y,Y,N,N,N,Y),
-          FCVT_D_W -> List(FCMD_CVT_FI, N,Y,N,N,N,X,N,Y,N,N,N,Y),
-          FCVT_D_WU-> List(FCMD_CVT_FI, N,Y,N,N,N,X,N,Y,N,N,N,Y),
-          FCVT_D_L -> List(FCMD_CVT_FI, N,Y,N,N,N,X,N,Y,N,N,N,Y),
-          FCVT_D_LU-> List(FCMD_CVT_FI, N,Y,N,N,N,X,N,Y,N,N,N,Y),
-          FMV_X_S  -> List(FCMD_MV_XF,  N,N,Y,N,N,X,Y,N,Y,N,N,Y),
-          FMV_X_D  -> List(FCMD_MV_XF,  N,N,Y,N,N,X,N,N,Y,N,N,Y),
-          FCLASS_S -> List(FCMD_MV_XF,  N,N,Y,N,N,X,Y,N,Y,N,N,Y),
-          FCLASS_D -> List(FCMD_MV_XF,  N,N,Y,N,N,X,N,N,Y,N,N,Y),
-          FCVT_W_S -> List(FCMD_CVT_IF, N,N,Y,N,N,X,Y,N,Y,N,N,Y),
-          FCVT_WU_S-> List(FCMD_CVT_IF, N,N,Y,N,N,X,Y,N,Y,N,N,Y),
-          FCVT_L_S -> List(FCMD_CVT_IF, N,N,Y,N,N,X,Y,N,Y,N,N,Y),
-          FCVT_LU_S-> List(FCMD_CVT_IF, N,N,Y,N,N,X,Y,N,Y,N,N,Y),
-          FCVT_W_D -> List(FCMD_CVT_IF, N,N,Y,N,N,X,N,N,Y,N,N,Y),
-          FCVT_WU_D-> List(FCMD_CVT_IF, N,N,Y,N,N,X,N,N,Y,N,N,Y),
-          FCVT_L_D -> List(FCMD_CVT_IF, N,N,Y,N,N,X,N,N,Y,N,N,Y),
-          FCVT_LU_D-> List(FCMD_CVT_IF, N,N,Y,N,N,X,N,N,Y,N,N,Y),
-          FCVT_S_D -> List(FCMD_CVT_FF, N,Y,Y,N,N,X,Y,N,N,Y,N,Y),
-          FCVT_D_S -> List(FCMD_CVT_FF, N,Y,Y,N,N,X,N,N,N,Y,N,Y),
-          FEQ_S    -> List(FCMD_CMP,    N,N,Y,Y,N,N,Y,N,Y,N,N,N),
-          FLT_S    -> List(FCMD_CMP,    N,N,Y,Y,N,N,Y,N,Y,N,N,N),
-          FLE_S    -> List(FCMD_CMP,    N,N,Y,Y,N,N,Y,N,Y,N,N,N),
-          FEQ_D    -> List(FCMD_CMP,    N,N,Y,Y,N,N,N,N,Y,N,N,N),
-          FLT_D    -> List(FCMD_CMP,    N,N,Y,Y,N,N,N,N,Y,N,N,N),
-          FLE_D    -> List(FCMD_CMP,    N,N,Y,Y,N,N,N,N,Y,N,N,N),
-          FSGNJ_S  -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,Y,N,N,Y,N,N),
-          FSGNJN_S -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,Y,N,N,Y,N,N),
-          FSGNJX_S -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,Y,N,N,Y,N,N),
-          FSGNJ_D  -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,N,N,Y,N,N),
-          FSGNJN_D -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,N,N,Y,N,N),
-          FSGNJX_D -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,N,N,Y,N,N),
-          FMIN_S   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,Y,N,N,Y,N,N),
-          FMAX_S   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,Y,N,N,Y,N,N),
-          FMIN_D   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,N,N,Y,N,N),
-          FMAX_D   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,N,N,Y,N,N),
-          FADD_S   -> List(FCMD_ADD,    N,Y,Y,Y,N,Y,Y,N,N,N,Y,Y),
-          FSUB_S   -> List(FCMD_SUB,    N,Y,Y,Y,N,Y,Y,N,N,N,Y,Y),
-          FMUL_S   -> List(FCMD_MUL,    N,Y,Y,Y,N,N,Y,N,N,N,Y,Y),
-          FADD_D   -> List(FCMD_ADD,    N,Y,Y,Y,N,Y,N,N,N,N,Y,Y),
-          FSUB_D   -> List(FCMD_SUB,    N,Y,Y,Y,N,Y,N,N,N,N,Y,Y),
-          FMUL_D   -> List(FCMD_MUL,    N,Y,Y,Y,N,N,N,N,N,N,Y,Y),
-          FMADD_S  -> List(FCMD_MADD,   N,Y,Y,Y,Y,N,Y,N,N,N,Y,Y),
-          FMSUB_S  -> List(FCMD_MSUB,   N,Y,Y,Y,Y,N,Y,N,N,N,Y,Y),
-          FNMADD_S -> List(FCMD_NMADD,  N,Y,Y,Y,Y,N,Y,N,N,N,Y,Y),
-          FNMSUB_S -> List(FCMD_NMSUB,  N,Y,Y,Y,Y,N,Y,N,N,N,Y,Y),
-          FMADD_D  -> List(FCMD_MADD,   N,Y,Y,Y,Y,N,N,N,N,N,Y,Y),
-          FMSUB_D  -> List(FCMD_MSUB,   N,Y,Y,Y,Y,N,N,N,N,N,Y,Y),
-          FNMADD_D -> List(FCMD_NMADD,  N,Y,Y,Y,Y,N,N,N,N,N,Y,Y),
-          FNMSUB_D -> List(FCMD_NMSUB,  N,Y,Y,Y,Y,N,N,N,N,N,Y,Y)
+    List                  (FCMD_X,      X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,X),
+    Array(FLW      -> List(FCMD_X,      Y,Y,N,N,N,X,X,Y,N,N,N,N,N,N,N,N),
+          FLD      -> List(FCMD_X,      Y,Y,N,N,N,X,X,N,N,N,N,N,N,N,N,N),
+          FSW      -> List(FCMD_MV_XF,  Y,N,N,Y,N,Y,X,Y,N,Y,N,N,N,N,N,N),
+          FSD      -> List(FCMD_MV_XF,  Y,N,N,Y,N,Y,X,N,N,Y,N,N,N,N,N,N),
+          FMV_S_X  -> List(FCMD_MV_FX,  N,Y,N,N,N,X,X,Y,Y,N,N,N,N,N,Y,N),
+          FMV_D_X  -> List(FCMD_MV_FX,  N,Y,N,N,N,X,X,N,Y,N,N,N,N,N,Y,N),
+          FCVT_S_W -> List(FCMD_CVT_FI, N,Y,N,N,N,X,X,Y,Y,N,N,N,N,N,Y,Y),
+          FCVT_S_WU-> List(FCMD_CVT_FI, N,Y,N,N,N,X,X,Y,Y,N,N,N,N,N,Y,Y),
+          FCVT_S_L -> List(FCMD_CVT_FI, N,Y,N,N,N,X,X,Y,Y,N,N,N,N,N,Y,Y),
+          FCVT_S_LU-> List(FCMD_CVT_FI, N,Y,N,N,N,X,X,Y,Y,N,N,N,N,N,Y,Y),
+          FCVT_D_W -> List(FCMD_CVT_FI, N,Y,N,N,N,X,X,N,Y,N,N,N,N,N,Y,Y),
+          FCVT_D_WU-> List(FCMD_CVT_FI, N,Y,N,N,N,X,X,N,Y,N,N,N,N,N,Y,Y),
+          FCVT_D_L -> List(FCMD_CVT_FI, N,Y,N,N,N,X,X,N,Y,N,N,N,N,N,Y,Y),
+          FCVT_D_LU-> List(FCMD_CVT_FI, N,Y,N,N,N,X,X,N,Y,N,N,N,N,N,Y,Y),
+          FMV_X_S  -> List(FCMD_MV_XF,  N,N,Y,N,N,N,X,Y,N,Y,N,N,N,N,Y,N),
+          FMV_X_D  -> List(FCMD_MV_XF,  N,N,Y,N,N,N,X,N,N,Y,N,N,N,N,Y,N),
+          FCLASS_S -> List(FCMD_MV_XF,  N,N,Y,N,N,N,X,Y,N,Y,N,N,N,N,Y,N),
+          FCLASS_D -> List(FCMD_MV_XF,  N,N,Y,N,N,N,X,N,N,Y,N,N,N,N,Y,N),
+          FCVT_W_S -> List(FCMD_CVT_IF, N,N,Y,N,N,N,X,Y,N,Y,N,N,N,N,Y,Y),
+          FCVT_WU_S-> List(FCMD_CVT_IF, N,N,Y,N,N,N,X,Y,N,Y,N,N,N,N,Y,Y),
+          FCVT_L_S -> List(FCMD_CVT_IF, N,N,Y,N,N,N,X,Y,N,Y,N,N,N,N,Y,Y),
+          FCVT_LU_S-> List(FCMD_CVT_IF, N,N,Y,N,N,N,X,Y,N,Y,N,N,N,N,Y,Y),
+          FCVT_W_D -> List(FCMD_CVT_IF, N,N,Y,N,N,N,X,N,N,Y,N,N,N,N,Y,Y),
+          FCVT_WU_D-> List(FCMD_CVT_IF, N,N,Y,N,N,N,X,N,N,Y,N,N,N,N,Y,Y),
+          FCVT_L_D -> List(FCMD_CVT_IF, N,N,Y,N,N,N,X,N,N,Y,N,N,N,N,Y,Y),
+          FCVT_LU_D-> List(FCMD_CVT_IF, N,N,Y,N,N,N,X,N,N,Y,N,N,N,N,Y,Y),
+          FCVT_S_D -> List(FCMD_CVT_FF, N,Y,Y,N,N,N,X,Y,N,N,Y,N,N,N,Y,Y),
+          FCVT_D_S -> List(FCMD_CVT_FF, N,Y,Y,N,N,N,X,N,N,N,Y,N,N,N,Y,Y),
+          FEQ_S    -> List(FCMD_CMP,    N,N,Y,Y,N,N,N,Y,N,Y,N,N,N,N,N,Y),
+          FLT_S    -> List(FCMD_CMP,    N,N,Y,Y,N,N,N,Y,N,Y,N,N,N,N,N,Y),
+          FLE_S    -> List(FCMD_CMP,    N,N,Y,Y,N,N,N,Y,N,Y,N,N,N,N,N,Y),
+          FEQ_D    -> List(FCMD_CMP,    N,N,Y,Y,N,N,N,N,N,Y,N,N,N,N,N,Y),
+          FLT_D    -> List(FCMD_CMP,    N,N,Y,Y,N,N,N,N,N,Y,N,N,N,N,N,Y),
+          FLE_D    -> List(FCMD_CMP,    N,N,Y,Y,N,N,N,N,N,Y,N,N,N,N,N,Y),
+          FSGNJ_S  -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,Y,N,N,Y,N,N,N,N,N),
+          FSGNJN_S -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,Y,N,N,Y,N,N,N,N,N),
+          FSGNJX_S -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,Y,N,N,Y,N,N,N,N,N),
+          FSGNJ_D  -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,N,N,N,Y,N,N,N,N,N),
+          FSGNJN_D -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,N,N,N,Y,N,N,N,N,N),
+          FSGNJX_D -> List(FCMD_SGNJ,   N,Y,Y,Y,N,N,N,N,N,N,Y,N,N,N,N,N),
+          FMIN_S   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,Y,N,N,Y,N,N,N,N,Y),
+          FMAX_S   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,Y,N,N,Y,N,N,N,N,Y),
+          FMIN_D   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,N,N,N,Y,N,N,N,N,Y),
+          FMAX_D   -> List(FCMD_MINMAX, N,Y,Y,Y,N,N,N,N,N,N,Y,N,N,N,N,Y),
+          FADD_S   -> List(FCMD_ADD,    N,Y,Y,Y,N,N,Y,Y,N,N,N,Y,N,N,Y,Y),
+          FSUB_S   -> List(FCMD_SUB,    N,Y,Y,Y,N,N,Y,Y,N,N,N,Y,N,N,Y,Y),
+          FMUL_S   -> List(FCMD_MUL,    N,Y,Y,Y,N,N,N,Y,N,N,N,Y,N,N,Y,Y),
+          FADD_D   -> List(FCMD_ADD,    N,Y,Y,Y,N,N,Y,N,N,N,N,Y,N,N,Y,Y),
+          FSUB_D   -> List(FCMD_SUB,    N,Y,Y,Y,N,N,Y,N,N,N,N,Y,N,N,Y,Y),
+          FMUL_D   -> List(FCMD_MUL,    N,Y,Y,Y,N,N,N,N,N,N,N,Y,N,N,Y,Y),
+          FMADD_S  -> List(FCMD_MADD,   N,Y,Y,Y,Y,N,N,Y,N,N,N,Y,N,N,Y,Y),
+          FMSUB_S  -> List(FCMD_MSUB,   N,Y,Y,Y,Y,N,N,Y,N,N,N,Y,N,N,Y,Y),
+          FNMADD_S -> List(FCMD_NMADD,  N,Y,Y,Y,Y,N,N,Y,N,N,N,Y,N,N,Y,Y),
+          FNMSUB_S -> List(FCMD_NMSUB,  N,Y,Y,Y,Y,N,N,Y,N,N,N,Y,N,N,Y,Y),
+          FMADD_D  -> List(FCMD_MADD,   N,Y,Y,Y,Y,N,N,N,N,N,N,Y,N,N,Y,Y),
+          FMSUB_D  -> List(FCMD_MSUB,   N,Y,Y,Y,Y,N,N,N,N,N,N,Y,N,N,Y,Y),
+          FNMADD_D -> List(FCMD_NMADD,  N,Y,Y,Y,Y,N,N,N,N,N,N,Y,N,N,Y,Y),
+          FNMSUB_D -> List(FCMD_NMSUB,  N,Y,Y,Y,Y,N,N,N,N,N,N,Y,N,N,Y,Y),
+          FDIV_S   -> List(FCMD_DIV,    N,Y,Y,Y,N,N,N,Y,N,N,N,N,Y,N,Y,Y),
+          FSQRT_S  -> List(FCMD_SQRT,   N,Y,Y,N,N,Y,X,Y,N,N,N,N,N,Y,Y,Y),
+          FDIV_D   -> List(FCMD_DIV,    N,Y,Y,Y,N,N,N,N,N,N,N,N,Y,N,Y,Y),
+          FSQRT_D  -> List(FCMD_SQRT,   N,Y,Y,N,N,Y,X,N,N,N,N,N,N,Y,Y,Y)
           ))
   val s = io.sigs
-  Vec(s.cmd, s.ldst, s.wen, s.ren1, s.ren2, s.ren3, s.swap23, s.single, s.fromint,
-      s.toint, s.fastpipe, s.fma, s.round) := decoder
+  Vec(s.cmd, s.ldst, s.wen, s.ren1, s.ren2, s.ren3, s.swap12, s.swap23, s.single, s.fromint,
+      s.toint, s.fastpipe, s.fma, s.div, s.sqrt, s.round, s.wflags) := decoder
 }
 
 class DpathFPUIO extends Bundle {
@@ -177,6 +185,7 @@ class FPToInt extends Module
 {
   val io = new Bundle {
     val in = Valid(new FPInput).flip
+    val as_double = new FPInput().asOutput
     val out = Valid(new Bundle {
       val lt = Bool()
       val store = Bits(width = 64)
@@ -227,6 +236,7 @@ class FPToInt extends Module
 
   io.out.valid := valid
   io.out.bits.lt := dcmp.io.a_lt_b
+  io.as_double := in
 }
 
 class IntToFP(val latency: Int) extends Module
@@ -380,13 +390,16 @@ class FPU extends Module
 
   val ex_ra1::ex_ra2::ex_ra3::Nil = List.fill(3)(Reg(UInt()))
   when (io.ctrl.valid) {
-    when (id_ctrl.ren1) { ex_ra1 := io.dpath.inst(19,15) }
-    when (id_ctrl.ren3) { ex_ra3 := io.dpath.inst(31,27) }
-    when (id_ctrl.ren2) {
-      when ( id_ctrl.ldst) { ex_ra1 := io.dpath.inst(24,20) }
-      when (!id_ctrl.ldst && !id_ctrl.swap23) { ex_ra2 := io.dpath.inst(24,20) }
-      when (!id_ctrl.ldst &&  id_ctrl.swap23) { ex_ra3 := io.dpath.inst(24,20) }
+    when (id_ctrl.ren1) {
+      when (!id_ctrl.swap12) { ex_ra1 := io.dpath.inst(19,15) }
+      when (id_ctrl.swap12) { ex_ra2 := io.dpath.inst(19,15) }
     }
+    when (id_ctrl.ren2) {
+      when (id_ctrl.swap12) { ex_ra1 := io.dpath.inst(24,20) }
+      when (id_ctrl.swap23) { ex_ra3 := io.dpath.inst(24,20) }
+      when (!id_ctrl.swap12 && !id_ctrl.swap23) { ex_ra2 := io.dpath.inst(24,20) }
+    }
+    when (id_ctrl.ren3) { ex_ra3 := io.dpath.inst(31,27) }
   }
   val ex_rs1::ex_rs2::ex_rs3::Nil = Seq(ex_ra1, ex_ra2, ex_ra3).map(regfile(_))
   val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), io.dpath.fcsr_rm, ex_reg_inst(14,12))
@@ -408,7 +421,7 @@ class FPU extends Module
   dfma.io.in.bits := req
 
   val fpiu = Module(new FPToInt)
-  fpiu.io.in.valid := ex_reg_valid && (ex_ctrl.toint || ex_ctrl.cmd === FCMD_MINMAX)
+  fpiu.io.in.valid := ex_reg_valid && (ex_ctrl.toint || ex_ctrl.div || ex_ctrl.sqrt || ex_ctrl.cmd === FCMD_MINMAX)
   fpiu.io.in.bits := req
   io.dpath.store_data := fpiu.io.out.bits.store
   io.dpath.toint_data := fpiu.io.out.bits.toint
@@ -422,6 +435,15 @@ class FPU extends Module
   fpmu.io.in.valid := ex_reg_valid && ex_ctrl.fastpipe
   fpmu.io.in.bits := req
   fpmu.io.lt := fpiu.io.out.bits.lt
+
+  val divSqrt = Module(new hardfloat.divSqrtRecodedFloat64)
+  val divSqrt_inReady = Mux(divSqrt.io.sqrtOp, divSqrt.io.inReady_sqrt, divSqrt.io.inReady_div)
+  val divSqrt_outValid = divSqrt.io.outValid_div || divSqrt.io.outValid_sqrt
+  val divSqrt_wen = Reg(next=Bool(false))
+  val divSqrt_waddr = Reg(Bits())
+  val divSqrt_wdata = Bits()
+  val divSqrt_flags = Bits()
+  val divSqrt_in_flight = Reg(init=Bool(false))
 
   // writeback arbitration
   case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, wdata: Bits, wexc: Bits)
@@ -459,28 +481,63 @@ class FPU extends Module
     }
   }
 
-  val waddr = winfo(0)(4,0).toUInt
-  val wsrc = winfo(0) >> waddr.getWidth
-  val wdata = Vec(pipes.map(_.wdata))(wsrc)
+  val waddr = Mux(divSqrt_wen, divSqrt_waddr, winfo(0)(4,0).toUInt)
+  val wsrc = winfo(0) >> 5
+  val wdata = Mux(divSqrt_wen, divSqrt_wdata, Vec(pipes.map(_.wdata))(wsrc))
   val wexc = Vec(pipes.map(_.wexc))(wsrc)
-  when (wen(0)) { regfile(waddr(4,0)) := wdata }
+  when (wen(0) || divSqrt_wen) { regfile(waddr) := wdata }
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
-  io.dpath.fcsr_flags.valid := wb_toint_valid || wen(0)
+  io.dpath.fcsr_flags.valid := wb_toint_valid || divSqrt_wen || wen(0)
   io.dpath.fcsr_flags.bits :=
     Mux(wb_toint_valid, wb_toint_exc, UInt(0)) |
+    Mux(divSqrt_wen, divSqrt_flags, UInt(0)) |
     Mux(wen(0), wexc, UInt(0))
 
-  val fp_inflight = wb_reg_valid && wb_ctrl.toint || wen.orR
-  val units_busy = Bool(false) //mem_reg_valid && mem_ctrl.fma && Reg(next=Mux(ex_ctrl.single, io.sfma.valid, io.dfma.valid))
-  io.ctrl.fcsr_rdy := !fp_inflight
-  io.ctrl.nack_mem := units_busy || write_port_busy
+  val units_busy = mem_reg_valid && (mem_ctrl.div || mem_ctrl.sqrt) && (!divSqrt_inReady || wen.orR) // || mem_reg_valid && mem_ctrl.fma && Reg(next=Mux(ex_ctrl.single, io.sfma.valid, io.dfma.valid))
+  io.ctrl.fcsr_rdy := !(ex_reg_valid && ex_ctrl.wflags || mem_reg_valid && mem_ctrl.wflags || wb_reg_valid && wb_ctrl.toint || wen.orR || divSqrt_in_flight)
+  io.ctrl.nack_mem := units_busy || write_port_busy || divSqrt_in_flight
   io.ctrl.dec <> fp_decoder.io.sigs
   def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(Bool(false))(_||_)
-  io.ctrl.sboard_set := wb_reg_valid && Reg(next=useScoreboard(_._1.cond(mem_ctrl)))
-  io.ctrl.sboard_clr := wen(0) && useScoreboard(x => wsrc === UInt(x._2))
+  io.ctrl.sboard_set := wb_reg_valid && Reg(next=useScoreboard(_._1.cond(mem_ctrl)) || mem_ctrl.div || mem_ctrl.sqrt)
+  io.ctrl.sboard_clr := divSqrt_wen || (wen(0) && useScoreboard(x => wsrc === UInt(x._2)))
   io.ctrl.sboard_clra := waddr
   // we don't currently support round-max-magnitude (rm=4)
   io.ctrl.illegal_rm := ex_rm(2) && ex_ctrl.round
+
+  divSqrt_wdata := 0
+  divSqrt_flags := 0
+  if (params(FDivSqrt)) {
+    val divSqrt_single = Reg(Bool())
+    val divSqrt_rm = Reg(Bits())
+    val divSqrt_flags_double = Reg(Bits())
+    val divSqrt_wdata_double = Reg(Bits())
+
+    def upconvert(x: UInt) = hardfloat.recodedFloatNToRecodedFloatM(x, Bits(0), 23, 9, 52, 12)._1
+    val divSqrt_wb_hazard = wen.orR
+    divSqrt.io.inValid := mem_reg_valid && !divSqrt_wb_hazard && !divSqrt_in_flight && !io.ctrl.killm && (mem_ctrl.div || mem_ctrl.sqrt)
+    divSqrt.io.sqrtOp := mem_ctrl.sqrt
+    divSqrt.io.a := fpiu.io.as_double.in1
+    divSqrt.io.b := fpiu.io.as_double.in2
+    divSqrt.io.roundingMode := fpiu.io.as_double.rm
+
+    when (divSqrt.io.inValid && divSqrt_inReady) {
+      divSqrt_in_flight := true
+      divSqrt_single := mem_ctrl.single
+      divSqrt_waddr := mem_reg_inst(11,7)
+      divSqrt_rm := divSqrt.io.roundingMode
+    }
+
+    when (divSqrt_outValid) {
+      divSqrt_wen := true
+      divSqrt_wdata_double := divSqrt.io.out
+      divSqrt_in_flight := false
+      divSqrt_flags_double := divSqrt.io.exceptionFlags
+    }
+
+    val divSqrt_toSingle = hardfloat.recodedFloatNToRecodedFloatM(divSqrt_wdata_double, ex_rm, 52, 12, 23, 9)
+    divSqrt_wdata := Mux(divSqrt_single, divSqrt_toSingle._1, divSqrt_wdata_double)
+    divSqrt_flags := divSqrt_flags_double | Mux(divSqrt_single, divSqrt_toSingle._2, Bits(0))
+  }
 }

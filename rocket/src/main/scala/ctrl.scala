@@ -296,6 +296,15 @@ object FDecode extends DecodeConstants
     FSD->       List(Y,    Y,N,N,N,N,N,Y,A2_IMM, A1_RS1, IMM_S, DW_XPR,FN_ADD,   Y,M_XWR,    MT_D, N,Y,N,N,N,N,CSR.N,N,N,N))
 }
 
+object FDivSqrtDecode extends DecodeConstants
+{
+  val table = Array(
+    FDIV_S->    List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
+    FDIV_D->    List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
+    FSQRT_S->   List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
+    FSQRT_D->   List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N))
+}
+
 object RoCCDecode extends DecodeConstants
 {
   val table = Array(
@@ -345,6 +354,7 @@ class Control extends CoreModule
 
   var decode_table = XDecode.table
   if (!params(BuildFPU).isEmpty) decode_table ++= FDecode.table
+  if (!params(BuildFPU).isEmpty && params(FDivSqrt)) decode_table ++= FDivSqrtDecode.table
   if (!params(BuildRoCC).isEmpty) decode_table ++= RoCCDecode.table
 
   val id_ctrl = new IntCtrlSigs().decode(io.dpath.inst, decode_table)
