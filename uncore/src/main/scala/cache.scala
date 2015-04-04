@@ -15,6 +15,7 @@ case object NPrimaryMisses extends Field[Int]
 case object NSecondaryMisses extends Field[Int]
 case object CacheBlockBytes extends Field[Int]
 case object CacheBlockOffsetBits extends Field[Int]
+case object ECCCode extends Field[Option[Code]]
 
 abstract trait CacheParameters extends UsesParameters {
   val nSets = params(NSets)
@@ -28,6 +29,7 @@ abstract trait CacheParameters extends UsesParameters {
   val rowBits = params(RowBits)
   val rowBytes = rowBits/8
   val rowOffBits = log2Up(rowBytes)
+  val code = params(ECCCode).getOrElse(new IdentityCode)
 }
 
 abstract class CacheBundle extends Bundle with CacheParameters
@@ -176,6 +178,7 @@ abstract trait L2HellaCacheParameters extends CacheParameters with CoherenceAgen
   require(rowBits == innerDataBits) // TODO: relax this by improving s_data_* states
   val nSecondaryMisses = params(NSecondaryMisses)
   val isLastLevelCache = true
+  val ignoresWriteMask = !params(ECCCode).isEmpty
 }
 
 abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
@@ -462,6 +465,12 @@ abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
 
   def dropPendingBitInternal[T <: HasL2BeatAddr] (in: ValidIO[T]) =
     ~Fill(in.bits.refillCycles, in.valid) | ~UIntToOH(in.bits.addr_beat)
+
+  def addPendingBitWhenBeatHasPartialWritemask(in: DecoupledIO[LogicalNetworkIO[Acquire]]): UInt = {
+    val a = in.bits.payload
+    val isPartial = a.wmask() != Acquire.fullWriteMask
+    addPendingBitWhenBeat(in.fire() && isPartial && Bool(ignoresWriteMask), in.bits.payload)
+  }
 }
 
 class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
@@ -805,7 +814,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                        dropPendingBit(io.data.read) &
                        dropPendingBitWhenBeatHasData(io.inner.release) &
                        dropPendingBitWhenBeatHasData(io.outer.grant)) |
-                     addPendingBitWhenBeatIsGetOrAtomic(io.inner.acquire)
+                     addPendingBitWhenBeatIsGetOrAtomic(io.inner.acquire) |
+                     addPendingBitWhenBeatHasPartialWritemask(io.inner.acquire)
   val curr_read_beat = PriorityEncoder(pending_reads)
   io.data.read.valid := state === s_busy &&
                           pending_reads.orR &&
@@ -880,7 +890,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     pending_reads := Mux(
       io.iacq().isBuiltInType(Acquire.getBlockType) || !io.iacq().isBuiltInType(),
       SInt(-1, width = innerDataBeats),
-      addPendingBitWhenBeatIsGetOrAtomic(io.inner.acquire)).toUInt
+      (addPendingBitWhenBeatIsGetOrAtomic(io.inner.acquire) | 
+        addPendingBitWhenBeatHasPartialWritemask(io.inner.acquire)).toUInt)
     pending_writes := addPendingBitWhenBeatHasData(io.inner.acquire)
     pending_resps := UInt(0)
     pending_ignt_data := UInt(0)
