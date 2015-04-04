@@ -132,8 +132,10 @@ class HierarchicalXactTrackerIO extends HierarchicalTLIO with HasTrackerConflict
 
 abstract class XactTracker extends CoherenceAgentModule
     with HasDataBeatCounters {
-  def addPendingBitWhenBeat[T <: HasBeat](inc: Bool, in: T): UInt  =  Fill(in.tlDataBeats, inc) &  UIntToOH(in.addr_beat)
-  def dropPendingBitWhenBeat[T <: HasBeat](dec: Bool, in: T): UInt = ~Fill(in.tlDataBeats, dec) | ~UIntToOH(in.addr_beat)
+  def addPendingBitWhenBeat[T <: HasBeat](inc: Bool, in: T): UInt =
+    Fill(in.tlDataBeats, inc) &  UIntToOH(in.addr_beat)
+  def dropPendingBitWhenBeat[T <: HasBeat](dec: Bool, in: T): UInt =
+    ~Fill(in.tlDataBeats, dec) | ~UIntToOH(in.addr_beat)
 
   def addPendingBitWhenBeatHasData[T <: Data : TypeTag](in: DecoupledIO[T]): UInt = {
     in.bits match {
