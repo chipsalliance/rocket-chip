@@ -377,7 +377,7 @@ class CSRFile extends CoreModule
         reg_mstatus.ie := new_sstatus.ie
         reg_mstatus.ie1 := new_sstatus.pie
         reg_mstatus.prv1 := Mux(new_sstatus.ps, PRV_S, PRV_U)
-        if (!params(BuildFPU).isEmpty) reg_mstatus.fs := new_sstatus.fs
+        reg_mstatus.fs := new_sstatus.fs // even without an FPU
         if (!params(BuildRoCC).isEmpty) reg_mstatus.xs := new_sstatus.xs
       }
       when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }

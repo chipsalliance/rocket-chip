@@ -33,7 +33,8 @@ class DatapathPTWIO extends CoreBundle {
 
 class PTE extends CoreBundle {
   val ppn = Bits(width = ppnBits)
-  val reserved = Bits(width = 2)
+  val reserved = Bits(width = 16)
+  val reserved_for_software = Bits(width = 2)
   val d = Bool()
   val r = Bool()
   val g = Bool()
