@@ -440,7 +440,7 @@ class FPU extends Module
   fpiu.io.in.bits := req
   io.dpath.store_data := fpiu.io.out.bits.store
   io.dpath.toint_data := fpiu.io.out.bits.toint
-  when(fpiu.io.out.valid){//COLIN FIXME: are there conflicts since we now share a port?
+  when(fpiu.io.out.valid && mem_cp_valid && !(mem_ctrl.div || mem_ctrl.sqrt)){
     io.cp_resp.bits.data := fpiu.io.out.bits.toint
     io.cp_resp.valid := Bool(true)
   }
@@ -463,6 +463,7 @@ class FPU extends Module
   val divSqrt_wdata = Bits()
   val divSqrt_flags = Bits()
   val divSqrt_in_flight = Reg(init=Bool(false))
+  val divSqrt_cp = Reg(init=Bool(false))
 
   // writeback arbitration
   case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, wdata: Bits, wexc: Bits)
@@ -505,8 +506,8 @@ class FPU extends Module
   val wcp = winfo(0)(5+log2Up(pipes.size))
   val wdata = Mux(divSqrt_wen, divSqrt_wdata, Vec(pipes.map(_.wdata))(wsrc))
   val wexc = Vec(pipes.map(_.wexc))(wsrc)
-  when (!wcp && (wen(0) || divSqrt_wen)) { regfile(waddr) := wdata }
-  when (wcp && (wen(0) || divSqrt_wen)) { 
+  when ((!wcp && wen(0)) || (!divSqrt_cp && divSqrt_wen)) { regfile(waddr) := wdata }
+  when ((wcp && wen(0)) || (divSqrt_cp && divSqrt_wen)) { 
     io.cp_resp.bits.data := wdata
     io.cp_resp.valid := Bool(true) 
   }
@@ -541,7 +542,7 @@ class FPU extends Module
 
     def upconvert(x: UInt) = hardfloat.recodedFloatNToRecodedFloatM(x, Bits(0), 23, 9, 52, 12)._1
     val divSqrt_wb_hazard = wen.orR
-    divSqrt.io.inValid := mem_reg_valid && !divSqrt_wb_hazard && !divSqrt_in_flight && !io.ctrl.killm && (mem_ctrl.div || mem_ctrl.sqrt)
+    divSqrt.io.inValid := mem_reg_valid && !divSqrt_wb_hazard && !divSqrt_in_flight && (!io.ctrl.killm || mem_cp_valid) && (mem_ctrl.div || mem_ctrl.sqrt)
     divSqrt.io.sqrtOp := mem_ctrl.sqrt
     divSqrt.io.a := fpiu.io.as_double.in1
     divSqrt.io.b := fpiu.io.as_double.in2
@@ -552,6 +553,7 @@ class FPU extends Module
       divSqrt_single := mem_ctrl.single
       divSqrt_waddr := mem_reg_inst(11,7)
       divSqrt_rm := divSqrt.io.roundingMode
+      divSqrt_cp := mem_cp_valid
     }
 
     when (divSqrt_outValid) {
