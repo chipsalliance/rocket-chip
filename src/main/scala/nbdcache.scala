@@ -686,6 +686,10 @@ class HellaCache extends L1HellaCacheModule {
   io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.xcpt_ld
   io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
 
+  assert (!(Reg(next=
+    (io.cpu.xcpt.ma.ld || io.cpu.xcpt.ma.st || io.cpu.xcpt.pf.ld || io.cpu.xcpt.pf.st)) &&
+    io.cpu.resp.valid), "DCache exception occurred - cache response not killed.")
+
   // tags
   def onReset = L1Metadata(UInt(0), ClientMetadata.onReset)
   val meta = Module(new MetadataArray(onReset _))
