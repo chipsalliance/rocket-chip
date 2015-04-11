@@ -553,7 +553,7 @@ class Control extends CoreModule
   take_pc_wb := replay_wb || wb_xcpt || io.dpath.eret
 
   io.dpath.sel_pc :=
-    Mux(wb_xcpt || io.dpath.eret,     PC_PCR, // exception or [m|s]ret
+    Mux(wb_xcpt || io.dpath.eret,     PC_CSR, // exception or [m|s]ret
     Mux(replay_wb,                    PC_WB,  // replay
                                       PC_MEM))
 
@@ -589,7 +589,7 @@ class Control extends CoreModule
     io.dpath.bypass_src(i) := PriorityEncoder(doBypass(i))
   }
 
-  // stall for RAW/WAW hazards on PCRs, loads, AMOs, and mul/div in execute stage.
+  // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
   val id_renx1_not0 = id_ctrl.rxs1 && id_raddr1 != UInt(0)
   val id_renx2_not0 = id_ctrl.rxs2 && id_raddr2 != UInt(0)
   val id_wen_not0 = id_ctrl.wxd && id_waddr != UInt(0)
@@ -605,7 +605,7 @@ class Control extends CoreModule
      io.fpu.dec.wen  && id_waddr  === io.dpath.ex_waddr)
   val id_ex_hazard = ex_reg_valid && (data_hazard_ex && ex_cannot_bypass || fp_data_hazard_ex)
 
-  // stall for RAW/WAW hazards on PCRs, LB/LH, and mul/div in memory stage.
+  // stall for RAW/WAW hazards on CSRs, LB/LH, and mul/div in memory stage.
   val mem_mem_cmd_bh =
     if (params(FastLoadWord)) Bool(!params(FastLoadByte)) && mem_reg_slow_bypass
     else Bool(true)
