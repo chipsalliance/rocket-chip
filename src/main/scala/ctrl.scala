@@ -674,7 +674,7 @@ class Control extends CoreModule
   io.dmem.req.bits.cmd  := ex_ctrl.mem_cmd
   io.dmem.req.bits.typ  := ex_ctrl.mem_type
   io.dmem.req.bits.phys := Bool(false)
-  io.dmem.sret := wb_xcpt // obviously not an sret, but sufficient
+  io.dmem.invalidate_lr := wb_xcpt
 
   io.rocc.cmd.valid := wb_rocc_val
   io.rocc.exception := wb_xcpt && io.dpath.status.xs.orR
