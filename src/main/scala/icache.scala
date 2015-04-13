@@ -114,13 +114,11 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
   io.cpu.resp.bits.pc := s2_pc
 
-  var fetch_data:Bits = null
-  require (coreFetchWidth <= 4)
-  if (coreFetchWidth == 4) {
-    fetch_data = icache.io.resp.bits.datablock
-  } else {
-    fetch_data = icache.io.resp.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(coreFetchWidth*coreInstBytes)) << log2Up(coreFetchWidth*coreInstBits))
-  }
+  require(coreFetchWidth * coreInstBytes <= rowBytes)
+  val fetch_data =
+    if (coreFetchWidth * coreInstBytes == rowBytes) icache.io.resp.bits.datablock
+    else icache.io.resp.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(coreFetchWidth*coreInstBytes)) << log2Up(coreFetchWidth*coreInstBits))
+
   for (i <- 0 until coreFetchWidth) {
     io.cpu.resp.bits.data(i) := fetch_data(i*coreInstBits+coreInstBits-1, i*coreInstBits)
   }
