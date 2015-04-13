@@ -577,7 +577,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTrack
       }
     }
     is(s_inner_grant) {
-      io.inner.grant.valid := Bool(true)
+      io.inner.grant.valid := !collect_irel_data
       when(io.inner.grant.ready) { 
         state := Mux(io.ignt().requiresAck(), s_inner_finish, s_idle)
       }
@@ -587,6 +587,10 @@ class L2VoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends L2XactTrack
       when(io.inner.finish.valid) { state := s_idle }
     }
   }
+
+  // Checks for illegal behavior
+  assert(!(state === s_meta_resp && io.meta.resp.valid && !io.meta.resp.bits.tag_match),
+    "VoluntaryReleaseTracker accepted Release for a block not resident in this cache!")
 }
 
 
@@ -748,8 +752,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   updatePendingCohWhen(io.inner.release.fire(), pending_coh_on_irel)
   mergeDataInner(io.inner.release)
 
-  // The following subtrascation handles misses or coherence permission
-  // upgrades by initiating a new transaction in the outer memory:
+  // Handle misses or coherence permission upgrades by initiating a new transaction in the outer memory:
   //
   // If we're allocating in this cache, we can use the current metadata
   // to make an appropriate custom Acquire, otherwise we copy over the
@@ -804,12 +807,17 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                               pending_coh.inner.onGrant(
                                 outgoing = io.ignt(),
                                 dst = io.inner.grant.bits.header.dst),
-                              pending_coh.outer)
+                              Mux(ognt_data_done,
+                                pending_coh_on_ognt.outer,
+                                pending_coh.outer))
   updatePendingCohWhen(io.inner.grant.fire(), pending_coh_on_ignt)
 
   // We must wait for as many Finishes as we sent Grants
   io.inner.finish.ready := state === s_busy
 
+  // We read from the the cache at this level if data wasn't written back or refilled.
+  // We may merge Gets, requiring further beats to be read.
+  // If ECC requires a full writemask, we'll read out data on partial writes as well.
   pending_reads := (pending_reads &
                        dropPendingBit(io.data.read) &
                        dropPendingBitWhenBeatHasData(io.inner.release) &
@@ -829,6 +837,8 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
                      addPendingBitInternal(io.data.read)
   mergeDataInternal(io.data.resp)
 
+  // We write data to the cache at this level if it was Put here with allocate flag,
+  // written back dirty, or refilled from outer memory.
   pending_writes := (pending_writes & dropPendingBit(io.data.write)) |
                       addPendingBitWhenBeatHasData(io.inner.acquire) |
                       addPendingBitWhenBeatHasData(io.inner.release) |
@@ -883,11 +893,11 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
     xact_src := io.inner.acquire.bits.header.src
     xact := io.iacq()
     xact.data := UInt(0)
-    pending_puts := Mux(
+    pending_puts := Mux( // Make sure to collect all data from a PutBlock
       io.iacq().isBuiltInType(Acquire.putBlockType),
       dropPendingBitWhenBeatHasData(io.inner.acquire),
       UInt(0))
-    pending_reads := Mux(
+    pending_reads := Mux( // GetBlocks and custom types read all beats
       io.iacq().isBuiltInType(Acquire.getBlockType) || !io.iacq().isBuiltInType(),
       SInt(-1, width = innerDataBeats),
       (addPendingBitWhenBeatIsGetOrAtomic(io.inner.acquire) | 
@@ -932,8 +942,7 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   when(state === s_wb_resp && io.wb.resp.valid) {
     // If we're overwriting the whole block in a last level cache we can
     // just do it without fetching any data from memory
-    val skip_outer_acquire = Bool(isLastLevelCache) &&
-                               xact.isBuiltInType(Acquire.putBlockType)
+    val skip_outer_acquire = Bool(isLastLevelCache) && xact.isBuiltInType(Acquire.putBlockType)
     state := Mux(!skip_outer_acquire, s_outer_acquire, s_busy)
   }
   when(state === s_inner_probe && !(pending_iprbs.orR || pending_irels)) {
