@@ -583,6 +583,7 @@ trait HasDataBeatCounters {
     val cnt = Reg(init = UInt(0, width = log2Up(max+1)))
     val (up_idx, do_inc) = connectDataBeatCounter(up.fire(), up.bits, beat)
     val (down_idx, do_dec) = connectDataBeatCounter(down.fire(), down.bits, beat)
+    //Module.assert(!(do_dec && cnt === UInt(0)), "Decrementing 2way beat counter before ever incrementing")
     cnt := Mux(do_dec,
             Mux(do_inc, cnt, cnt - UInt(1)),
             Mux(do_inc, cnt + UInt(1), cnt))
@@ -632,7 +633,7 @@ class FinishUnit(srcId: Int = 0) extends TLModule
   val done = connectIncomingDataBeatCounters(io.grant, entries).reduce(_||_)
   val q = Module(new FinishQueue(entries))
 
-  q.io.enq.valid := io.grant.valid && g.requiresAck() && (!g.hasMultibeatData() || done)
+  q.io.enq.valid := io.grant.fire() && g.requiresAck() && (!g.hasMultibeatData() || done)
   q.io.enq.bits.fin := g.makeFinish()
   q.io.enq.bits.dst := io.grant.bits.header.src
 
