@@ -166,17 +166,17 @@ class Datapath extends CoreModule
   require(params(CoreDCacheReqTagBits) >= 6)
 
   // processor control regfile read
-  val pcr = Module(new CSRFile)
-  pcr.io.host <> io.host
-  pcr.io <> io.ctrl
-  pcr.io <> io.fpu
-  pcr.io.rocc <> io.rocc
-  pcr.io.pc := wb_reg_pc
-  pcr.io.uarch_counters.foreach(_ := Bool(false))
+  val csr = Module(new CSRFile)
+  csr.io.host <> io.host
+  csr.io <> io.ctrl
+  csr.io <> io.fpu
+  csr.io.rocc <> io.rocc
+  csr.io.pc := wb_reg_pc
+  csr.io.uarch_counters.foreach(_ := Bool(false))
 
-  io.ptw.ptbr := pcr.io.ptbr
-  io.ptw.invalidate := pcr.io.fatc
-  io.ptw.status := pcr.io.status
+  io.ptw.ptbr := csr.io.ptbr
+  io.ptw.invalidate := csr.io.fatc
+  io.ptw.status := csr.io.status
 
   // memory stage
   mem_reg_kill := ex_reg_kill
@@ -246,7 +246,7 @@ class Datapath extends CoreModule
   }
   wb_wdata := Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data_subword,
               Mux(io.ctrl.ll_wen, ll_wdata,
-              Mux(io.ctrl.csr_cmd != CSR.N, pcr.io.rw.rdata,
+              Mux(io.ctrl.csr_cmd != CSR.N, csr.io.rw.rdata,
               wb_reg_wdata)))
 
   val wb_wen = io.ctrl.ll_wen || io.ctrl.wb_wen
@@ -258,9 +258,9 @@ class Datapath extends CoreModule
   io.ctrl.fp_sboard_clra := dmem_resp_waddr
 
   // processor control regfile write
-  pcr.io.rw.addr := wb_reg_inst(31,20)
-  pcr.io.rw.cmd := io.ctrl.csr_cmd
-  pcr.io.rw.wdata := wb_reg_wdata
+  csr.io.rw.addr := wb_reg_inst(31,20)
+  csr.io.rw.cmd := io.ctrl.csr_cmd
+  csr.io.rw.wdata := wb_reg_wdata
 
   io.rocc.cmd.bits.inst := new RoCCInstruction().fromBits(wb_reg_inst)
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
@@ -269,7 +269,7 @@ class Datapath extends CoreModule
   // hook up I$
   io.imem.req.bits.pc :=
     Mux(io.ctrl.sel_pc === PC_MEM, mem_npc,
-    Mux(io.ctrl.sel_pc === PC_PCR, pcr.io.evec,
+    Mux(io.ctrl.sel_pc === PC_CSR, csr.io.evec,
         wb_reg_pc)).toUInt // PC_WB
   io.imem.btb_update.bits.pc := mem_reg_pc
   io.imem.btb_update.bits.target := io.imem.req.bits.pc
@@ -283,7 +283,7 @@ class Datapath extends CoreModule
   io.ctrl.wb_waddr := wb_reg_inst(11,7)
 
   printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         io.host.id, pcr.io.time(32,0), io.ctrl.retire, wb_reg_pc,
+         io.host.id, csr.io.time(32,0), io.ctrl.retire, wb_reg_pc,
          Mux(wb_wen, wb_waddr, UInt(0)), wb_wdata, wb_wen,
          wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
          wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),

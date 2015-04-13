@@ -123,7 +123,7 @@ class AccumulatorExample extends RoCC
   io.mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
   io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
-  io.mem.sret := false
+  io.mem.invalidate_lr := false
 
   io.imem.acquire.valid := false
   io.imem.grant.ready := false
