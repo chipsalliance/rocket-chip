@@ -281,7 +281,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
         addr_out := io.tl.release.bits.payload.addr_block
         has_data := rel_has_data
         data_from_rel := Bool(true)
-        make_grant_ack := Bool(true)
+        make_grant_ack := io.tl.release.bits.payload.requiresAck()
         tl_done_out := tl_wrap_out
         tl_buf_out(tl_cnt_out) := io.tl.release.bits.payload.data
       } .elsewhen(io.tl.acquire.valid) {
@@ -352,7 +352,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
         tl_done_out := tl_wrap_out
         when(io.tl.release.valid) {
           data_from_rel := Bool(true)
-          make_grant_ack := Bool(true)
+          make_grant_ack := io.tl.release.bits.payload.requiresAck()
           io.mem.req_data.bits.data := io.tl.release.bits.payload.data
           val tag =  Cat(io.tl.release.bits.header.src,
                          io.tl.release.bits.payload.client_xact_id,
@@ -366,7 +366,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
           has_data := rel_has_data
         } .elsewhen(io.tl.acquire.valid) {
           data_from_rel := Bool(false)
-          make_grant_ack := acq_has_data
+          make_grant_ack := acq_has_data // i.e. is it a Put
           io.mem.req_data.bits.data := io.tl.acquire.bits.payload.data
           io.mem.req_cmd.bits.rw := acq_has_data
           val tag = Cat(io.tl.acquire.bits.header.src,

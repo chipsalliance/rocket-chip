@@ -16,9 +16,6 @@ trait CoherenceAgentParameters extends UsesParameters {
   val nReleaseTransactors = 1
   val nAcquireTransactors = params(NAcquireTransactors)
   val nTransactors = nReleaseTransactors + nAcquireTransactors
-  val nCoherentClients = params(NCoherentClients)
-  val nIncoherentClients = params(NIncoherentClients)
-  val nClients = nCoherentClients + nIncoherentClients
   def outerTLParams = params.alterPartial({ case TLId => params(OuterTLId)})
   val outerDataBeats = outerTLParams(TLDataBeats)
   val outerDataBits = outerTLParams(TLDataBits)
@@ -35,31 +32,13 @@ abstract class CoherenceAgentBundle extends Bundle with CoherenceAgentParameters
 abstract class CoherenceAgentModule extends Module with CoherenceAgentParameters
 
 trait HasCoherenceAgentWiringHelpers {
-  def doOutputArbitration[T <: Data : ClassTag](
-      out: DecoupledIO[T],
-      ins: Seq[DecoupledIO[T]]) {
-    val arb = Module(new RRArbiter(out.bits.clone, ins.size))
-    out <> arb.io.out
-    arb.io.in zip ins map { case (a, in) => a <> in }
-  }
-
-  def doOutputArbitration[T <: HasTileLinkData : ClassTag, S <: LogicalNetworkIO[T] : ClassTag](
-      out: DecoupledIO[S],
-      ins: Seq[DecoupledIO[S]]) {
+  def doOutputArbitration[T <: TileLinkChannel : ClassTag](
+      out: DecoupledIO[LogicalNetworkIO[T]],
+      ins: Seq[DecoupledIO[LogicalNetworkIO[T]]]) {
     def lock(o: LogicalNetworkIO[T]) = o.payload.hasMultibeatData()
-    val arb = Module(new LockingRRArbiter(
-                          out.bits.clone,
-                          ins.size, 
-                          out.bits.payload.tlDataBeats,
-                          lock _))
+    val arb = Module(new LockingRRArbiter( out.bits.clone, ins.size, out.bits.payload.tlDataBeats, lock _))
     out <> arb.io.out
     arb.io.in zip ins map { case (a, in) => a <> in }
-  }
-
-  def doInputRouting[T <: HasL2Id](in: ValidIO[T], outs: Seq[ValidIO[T]]) {
-    val idx = in.bits.id
-    outs.map(_.bits := in.bits)
-    outs.zipWithIndex.map { case (o,i) => o.valid := in.valid && idx === UInt(i) }
   }
 
   def doInputRouting[T <: HasManagerTransactionId](
@@ -74,7 +53,7 @@ trait HasCoherenceAgentWiringHelpers {
 
 trait HasInnerTLIO extends CoherenceAgentBundle {
   val inner = Bundle(new TileLinkIO)(innerTLParams).flip
-  val incoherent = Vec.fill(nCoherentClients){Bool()}.asInput
+  val incoherent = Vec.fill(inner.tlNCoherentClients){Bool()}.asInput
   def iacq(dummy: Int = 0) = inner.acquire.bits.payload
   def iprb(dummy: Int = 0) = inner.probe.bits.payload
   def irel(dummy: Int = 0) = inner.release.bits.payload
@@ -173,6 +152,6 @@ abstract class XactTracker extends CoherenceAgentModule
   }
 
   def dropPendingBitAtDest(in: DecoupledIO[LogicalNetworkIO[Probe]]): UInt = {
-    ~Fill(nCoherentClients, in.fire()) | ~UIntToOH(in.bits.header.dst)
+    ~Fill(in.bits.payload.tlNCoherentClients, in.fire()) | ~UIntToOH(in.bits.header.dst)
   }
 }

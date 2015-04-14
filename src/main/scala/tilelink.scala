@@ -11,25 +11,33 @@ import scala.reflect.runtime.universe._
 //
 case object TLId extends Field[String] // Unique name per network
 case object TLCoherencePolicy extends Field[CoherencePolicy]
-case object TLBlockAddrBits extends Field[Int]
+case object TLNManagers extends Field[Int]
+case object TLNClients extends Field[Int]
+case object TLNCoherentClients extends Field[Int]
+case object TLNIncoherentClients extends Field[Int]
 case object TLMaxClientXacts extends Field[Int]
 case object TLMaxClientPorts extends Field[Int]
 case object TLMaxManagerXacts extends Field[Int]
+case object TLBlockAddrBits extends Field[Int]
 case object TLDataBits extends Field[Int]
 case object TLDataBeats extends Field[Int]
 case object TLNetworkIsOrderedP2P extends Field[Boolean]
 
 abstract trait TileLinkParameters extends UsesParameters {
-  val tlBlockAddrBits = params(TLBlockAddrBits)
+  val tlCoh = params(TLCoherencePolicy)
+  val tlNManagers = params(TLNManagers)
+  val tlNClients = params(TLNClients)
+  val tlNCoherentClients = params(TLNCoherentClients)
+  val tlNIncoherentClients = params(TLNIncoherentClients)
   val tlMaxClientXacts = params(TLMaxClientXacts)
   val tlMaxClientPorts = params(TLMaxClientPorts)
   val tlMaxManagerXacts = params(TLMaxManagerXacts)
   val tlClientXactIdBits = log2Up(tlMaxClientXacts*tlMaxClientPorts)
   val tlManagerXactIdBits = log2Up(tlMaxManagerXacts)
+  val tlBlockAddrBits = params(TLBlockAddrBits)
   val tlDataBits = params(TLDataBits)
   val tlDataBytes = tlDataBits/8
   val tlDataBeats = params(TLDataBeats)
-  val tlCoh = params(TLCoherencePolicy)
   val tlWriteMaskBits = if(tlDataBits/8 < 1) 1 else tlDataBits/8
   val tlBeatAddrBits = log2Up(tlDataBeats)
   val tlByteAddrBits = log2Up(tlWriteMaskBits)
@@ -44,11 +52,11 @@ abstract trait TileLinkParameters extends UsesParameters {
   val tlGrantTypeBits = max(log2Up(Grant.nBuiltInTypes), 
                               tlCoh.grantTypeWidth) + 1
   val tlNetworkPreservesPointToPointOrdering = params(TLNetworkIsOrderedP2P)
+  val tlNetworkDoesNotInterleaveBeats = true
   val amoAluOperandBits = params(AmoAluOperandBits)
 }
 
-abstract class TLBundle extends Bundle with TileLinkParameters {
-}
+abstract class TLBundle extends Bundle with TileLinkParameters
 abstract class TLModule extends Module with TileLinkParameters
 
 // Directionality of message channel
@@ -62,7 +70,7 @@ trait ManagerToClientChannel extends TileLinkChannel
 trait ClientToClientChannel extends TileLinkChannel // Unused for now
 
 // Common signals that are used in multiple channels.
-// These traits are useful for type parameterization.
+// These traits are useful for type parameterizing bundle wiring functions.
 //
 trait HasCacheBlockAddress extends TLBundle {
   val addr_block = UInt(width = tlBlockAddrBits)
@@ -554,10 +562,10 @@ trait HasDataBeatCounters {
 
   def connectIncomingDataBeatCounters[T <: HasClientId : ClassTag](
       in: DecoupledIO[LogicalNetworkIO[T]],
-      entries: Int): Vec[Bool] = {
-    val id = in.bits.payload.client_xact_id
+      entries: Int,
+      getId: LogicalNetworkIO[T] => UInt): Vec[Bool] = {
     Vec((0 until entries).map { i =>
-      connectDataBeatCounter(in.fire() && id === UInt(i), in.bits.payload, UInt(0))._2 
+      connectDataBeatCounter(in.fire() && getId(in.bits) === UInt(i), in.bits.payload, UInt(0))._2 
     })
   }
 
@@ -615,41 +623,51 @@ class FinishQueueEntry extends TLBundle {
 
 class FinishQueue(entries: Int) extends Queue(new FinishQueueEntry, entries)
 
-class FinishUnit(srcId: Int = 0) extends TLModule 
+class FinishUnit(srcId: Int = 0, outstanding: Int = 2) extends TLModule 
     with HasDataBeatCounters {
   val io = new Bundle {
     val grant = Decoupled(new LogicalNetworkIO(new Grant)).flip
     val refill = Decoupled(new Grant)
     val finish = Decoupled(new LogicalNetworkIO(new Finish))
     val ready = Bool(OUTPUT)
-    val grant_done = Bool(OUTPUT)
-    val pending_finish = Bool(OUTPUT)
   }
 
-  val entries = 1 << tlClientXactIdBits
   val g = io.grant.bits.payload
-  assert(g.client_xact_id <= UInt(entries), "No grant beat counter provisioned, only " + entries)
 
-  val done = connectIncomingDataBeatCounters(io.grant, entries).reduce(_||_)
-  val q = Module(new FinishQueue(entries))
+  if(tlNetworkPreservesPointToPointOrdering) {
+    io.finish.valid := Bool(false)
+    io.refill.valid := io.grant.valid
+    io.refill.bits := g
+    io.grant.ready := io.refill.ready
+    io.ready := Bool(true)
+  } else {
+    // We only want to send Finishes after we have collected all beats of
+    // a multibeat Grant. But Grants from multiple managers or transactions may
+    // get interleaved, so we could need a counter for each.
+    val done = if(tlNetworkDoesNotInterleaveBeats) {
+      connectIncomingDataBeatCounter(io.grant)
+    } else {
+      val entries = 1 << tlClientXactIdBits
+      def getId(g: LogicalNetworkIO[Grant]) = g.payload.client_xact_id
+      assert(getId(io.grant.bits) <= UInt(entries), "Not enough grant beat counters, only " + entries + " entries.")
+      connectIncomingDataBeatCounters(io.grant, entries, getId).reduce(_||_)
+    }
+    val q = Module(new FinishQueue(outstanding))
+    q.io.enq.valid := io.grant.fire() && g.requiresAck() && (!g.hasMultibeatData() || done)
+    q.io.enq.bits.fin := g.makeFinish()
+    q.io.enq.bits.dst := io.grant.bits.header.src
 
-  q.io.enq.valid := io.grant.fire() && g.requiresAck() && (!g.hasMultibeatData() || done)
-  q.io.enq.bits.fin := g.makeFinish()
-  q.io.enq.bits.dst := io.grant.bits.header.src
+    io.finish.bits.header.src := UInt(srcId)
+    io.finish.bits.header.dst := q.io.deq.bits.dst
+    io.finish.bits.payload := q.io.deq.bits.fin
+    io.finish.valid := q.io.deq.valid
+    q.io.deq.ready := io.finish.ready
 
-  io.finish.bits.header.src := UInt(srcId)
-  io.finish.bits.header.dst := q.io.deq.bits.dst
-  io.finish.bits.payload := q.io.deq.bits.fin
-  io.finish.valid := q.io.deq.valid
-  q.io.deq.ready := io.finish.ready
-
-  io.refill.valid := io.grant.valid
-  io.refill.bits := io.grant.bits.payload
-  io.grant.ready := (q.io.enq.ready || !g.requiresAck()) && (io.refill.ready || !g.hasData())
-
-  io.ready := q.io.enq.ready
-  io.grant_done := done
-  io.pending_finish := q.io.deq.valid
+    io.refill.valid := io.grant.valid
+    io.refill.bits := g
+    io.grant.ready := (q.io.enq.ready || !g.requiresAck()) && io.refill.ready
+    io.ready := q.io.enq.ready
+  }
 }
 
 object TileLinkHeaderOverwriter {

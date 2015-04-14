@@ -187,7 +187,7 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends Broa
     is(s_outer) {
       io.outer.acquire.valid := !collect_irel_data || irel_data_valid(oacq_data_cnt)
       when(oacq_data_done) { 
-        state := Mux(xact.requiresAck(), s_grant, s_idle)
+        state := s_grant // converted irel to oacq, so expect grant TODO: Mux(xact.requiresAck(), s_grant, s_idle) ?
       }
     }
     is(s_grant) { // Forward the Grant.voluntaryAck
@@ -221,13 +221,13 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
         Acquire.prefetchType).contains(xact.a_type)),
     "Broadcast Hub does not support PutAtomics, subblock Gets/Puts, or prefetches") // TODO
 
-  val release_count = Reg(init=UInt(0, width = log2Up(nCoherentClients+1)))
-  val pending_probes = Reg(init=Bits(0, width = nCoherentClients))
+  val release_count = Reg(init=UInt(0, width = log2Up(io.inner.tlNCoherentClients+1)))
+  val pending_probes = Reg(init=Bits(0, width = io.inner.tlNCoherentClients))
   val curr_p_id = PriorityEncoder(pending_probes)
   val full_sharers = coh.full()
   val probe_self = io.inner.acquire.bits.payload.requiresSelfProbe()
-  val mask_self_true = UInt(UInt(1) << io.inner.acquire.bits.header.src, width = nCoherentClients)
-  val mask_self_false = ~UInt(UInt(1) << io.inner.acquire.bits.header.src, width = nCoherentClients)
+  val mask_self_true = UInt(UInt(1) << io.inner.acquire.bits.header.src, width = io.inner.tlNCoherentClients)
+  val mask_self_false = ~UInt(UInt(1) << io.inner.acquire.bits.header.src, width = io.inner.tlNCoherentClients)
   val mask_self = Mux(probe_self, full_sharers | mask_self_true, full_sharers & mask_self_false)
   val mask_incoherent = mask_self & ~io.incoherent.toBits
 
