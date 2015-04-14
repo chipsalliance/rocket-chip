@@ -182,7 +182,21 @@ abstract trait L2HellaCacheParameters extends CacheParameters with CoherenceAgen
 }
 
 abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
-abstract class L2HellaCacheModule extends Module with L2HellaCacheParameters
+abstract class L2HellaCacheModule extends Module with L2HellaCacheParameters {
+  def doInternalOutputArbitration[T <: Data : ClassTag](
+      out: DecoupledIO[T],
+      ins: Seq[DecoupledIO[T]]) {
+    val arb = Module(new RRArbiter(out.bits.clone, ins.size))
+    out <> arb.io.out
+    arb.io.in zip ins map { case (a, in) => a <> in }
+  }
+
+  def doInternalInputRouting[T <: HasL2Id](in: ValidIO[T], outs: Seq[ValidIO[T]]) {
+    val idx = in.bits.id
+    outs.map(_.bits := in.bits)
+    outs.zipWithIndex.map { case (o,i) => o.valid := in.valid && idx === UInt(i) }
+  }
+}
 
 trait HasL2Id extends Bundle with CoherenceAgentParameters {
   val id = UInt(width  = log2Up(nTransactors + 1))
@@ -361,8 +375,8 @@ class TSHRFile(bankId: Int) extends L2HellaCacheModule
   
   // WritebackUnit evicts data from L2, including invalidating L1s
   val wb = Module(new L2WritebackUnit(nTransactors, bankId))
-  doOutputArbitration(wb.io.wb.req, trackerList.map(_.io.wb.req))
-  doInputRouting(wb.io.wb.resp, trackerList.map(_.io.wb.resp))
+  doInternalOutputArbitration(wb.io.wb.req, trackerList.map(_.io.wb.req))
+  doInternalInputRouting(wb.io.wb.resp, trackerList.map(_.io.wb.resp))
 
   // Propagate incoherence flags
   (trackerList.map(_.io.incoherent) :+ wb.io.incoherent).map( _ := io.incoherent.toBits)
@@ -409,13 +423,13 @@ class TSHRFile(bankId: Int) extends L2HellaCacheModule
   outerList zip outer_arb.io.in map { case(out, arb) => out <> arb }
   io.outer <> outer_arb.io.out
 
-  // Wire local memories
-  doOutputArbitration(io.meta.read, trackerList.map(_.io.meta.read))
-  doOutputArbitration(io.meta.write, trackerList.map(_.io.meta.write))
-  doOutputArbitration(io.data.read, trackerList.map(_.io.data.read) :+ wb.io.data.read)
-  doOutputArbitration(io.data.write, trackerList.map(_.io.data.write))
-  doInputRouting(io.meta.resp, trackerList.map(_.io.meta.resp))
-  doInputRouting(io.data.resp, trackerList.map(_.io.data.resp) :+ wb.io.data.resp)
+  // Wire local memory arrays
+  doInternalOutputArbitration(io.meta.read, trackerList.map(_.io.meta.read))
+  doInternalOutputArbitration(io.meta.write, trackerList.map(_.io.meta.write))
+  doInternalOutputArbitration(io.data.read, trackerList.map(_.io.data.read) :+ wb.io.data.read)
+  doInternalOutputArbitration(io.data.write, trackerList.map(_.io.data.write))
+  doInternalInputRouting(io.meta.resp, trackerList.map(_.io.meta.resp))
+  doInternalInputRouting(io.data.resp, trackerList.map(_.io.data.resp) :+ wb.io.data.resp)
 }
 
 
@@ -620,19 +634,19 @@ class L2AcquireTracker(trackerId: Int, bankId: Int) extends L2XactTracker {
   val iacq_data_done =
     connectIncomingDataBeatCounter(io.inner.acquire)
   val pending_irels =
-    connectTwoWayBeatCounter(nCoherentClients, io.inner.probe, io.inner.release)._1
+    connectTwoWayBeatCounter(io.inner.tlNCoherentClients, io.inner.probe, io.inner.release)._1
   val (pending_ognts, oacq_data_idx, oacq_data_done, ognt_data_idx, ognt_data_done) =
     connectHeaderlessTwoWayBeatCounter(1, io.outer.acquire, io.outer.grant, xact.addr_beat)
   val (ignt_data_idx, ignt_data_done) =
     connectOutgoingDataBeatCounter(io.inner.grant, ignt_q.io.deq.bits.addr_beat)
   val pending_ifins =
     connectTwoWayBeatCounter(nSecondaryMisses, io.inner.grant, io.inner.finish, (g: Grant) => g.requiresAck())._1
-  val pending_puts = Reg(init=Bits(0, width = innerDataBeats))
-  val pending_iprbs = Reg(init = Bits(0, width = nCoherentClients))
-  val pending_reads = Reg(init=Bits(0, width = innerDataBeats))
-  val pending_writes = Reg(init=Bits(0, width = innerDataBeats))
-  val pending_resps = Reg(init=Bits(0, width = innerDataBeats))
-  val pending_ignt_data = Reg(init=Bits(0, width = innerDataBeats))
+  val pending_puts = Reg(init=Bits(0, width = io.inner.tlDataBeats))
+  val pending_iprbs = Reg(init = Bits(0, width = io.inner.tlNCoherentClients))
+  val pending_reads = Reg(init=Bits(0, width = io.inner.tlDataBeats))
+  val pending_writes = Reg(init=Bits(0, width = io.inner.tlDataBeats))
+  val pending_resps = Reg(init=Bits(0, width = io.inner.tlDataBeats))
+  val pending_ignt_data = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_meta_write = Reg{ Bool() }
 
   val all_pending_done =
@@ -1006,8 +1020,8 @@ class L2WritebackUnit(trackerId: Int, bankId: Int) extends L2XactTracker {
   val xact_id = Reg{ UInt() }
 
   val irel_had_data = Reg(init = Bool(false))
-  val irel_cnt = Reg(init = UInt(0, width = log2Up(nCoherentClients+1)))
-  val pending_probes = Reg(init = Bits(0, width = nCoherentClients))
+  val irel_cnt = Reg(init = UInt(0, width = log2Up(io.inner.tlNCoherentClients+1)))
+  val pending_probes = Reg(init = Bits(0, width = io.inner.tlNCoherentClients))
   val curr_probe_dst = PriorityEncoder(pending_probes)
   val full_sharers = io.wb.req.bits.coh.inner.full()
   val mask_incoherent = full_sharers & ~io.incoherent.toBits

@@ -3,8 +3,6 @@
 package uncore
 import Chisel._
 
-case object LNManagers extends Field[Int]
-case object LNClients extends Field[Int]
 case object LNEndpoints extends Field[Int]
 case object LNHeaderBits extends Field[Int]
 
