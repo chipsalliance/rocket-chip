@@ -21,7 +21,7 @@ trait ScalarOpConstants {
   val PC_EX  = UInt(0, 2)
   val PC_MEM = UInt(1, 2)
   val PC_WB  = UInt(2, 2)
-  val PC_PCR = UInt(3, 2)
+  val PC_CSR = UInt(3, 2)
 
   val A1_X    = Bits("b??", 2)
   val A1_ZERO = UInt(0, 2)

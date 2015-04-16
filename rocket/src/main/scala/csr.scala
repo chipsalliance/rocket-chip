@@ -93,7 +93,6 @@ class CSRFileIO extends CoreBundle {
   val uarch_counters = Vec.fill(16)(UInt(INPUT, log2Up(1+retireWidth)))
   val custom_mrw_csrs = Vec.fill(params(NCustomMRWCSRs))(UInt(INPUT, xLen))
   val cause = UInt(INPUT, xLen)
-  val mbadaddr_wen = Bool(INPUT)
   val pc = SInt(INPUT, vaddrBits+1)
   val fatc = Bool(OUTPUT)
   val time = UInt(OUTPUT, xLen)
