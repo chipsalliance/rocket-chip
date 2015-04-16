@@ -83,7 +83,7 @@ class HellaCacheIO extends CoreBundle {
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Valid(Bits(width = coreDCacheReqTagBits)).flip
   val xcpt = (new HellaCacheExceptions).asInput
-  val sret = Bool(OUTPUT)
+  val invalidate_lr = Bool(OUTPUT)
   val ordered = Bool(INPUT)
 }
 
@@ -686,6 +686,10 @@ class HellaCache extends L1HellaCacheModule {
   io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.xcpt_ld
   io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
 
+  assert (!(Reg(next=
+    (io.cpu.xcpt.ma.ld || io.cpu.xcpt.ma.st || io.cpu.xcpt.pf.ld || io.cpu.xcpt.pf.st)) &&
+    io.cpu.resp.valid), "DCache exception occurred - cache response not killed.")
+
   // tags
   def onReset = L1Metadata(UInt(0), ClientMetadata.onReset)
   val meta = Module(new MetadataArray(onReset _))
@@ -752,7 +756,7 @@ class HellaCache extends L1HellaCacheModule {
       lrsc_count := 0
     }
   }
-  when (io.cpu.sret) { lrsc_count := 0 }
+  when (io.cpu.invalidate_lr) { lrsc_count := 0 }
 
   val s2_data = Vec.fill(nWays){Bits(width = encRowBits)}
   for (w <- 0 until nWays) {
