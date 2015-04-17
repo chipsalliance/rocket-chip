@@ -41,7 +41,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   val io = new Bundle {
     val cpu = new CPUFrontendIO().flip
     val ptw = new TLBPTWIO()
-    val mem = new HeaderlessUncachedTileLinkIO
+    val mem = new ClientUncachedTileLinkIO
   }
 
   val btb = Module(new BTB(btb_updates_out_of_order))
@@ -146,7 +146,7 @@ class ICache extends FrontendModule
     val req = Valid(new ICacheReq).flip
     val resp = Decoupled(new ICacheResp)
     val invalidate = Bool(INPUT)
-    val mem = new HeaderlessUncachedTileLinkIO
+    val mem = new ClientUncachedTileLinkIO
   }
   require(isPow2(nSets) && isPow2(nWays))
   require(isPow2(coreInstBytes))

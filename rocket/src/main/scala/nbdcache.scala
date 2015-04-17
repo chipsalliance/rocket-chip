@@ -584,7 +584,7 @@ class HellaCache extends L1HellaCacheModule {
   val io = new Bundle {
     val cpu = (new HellaCacheIO).flip
     val ptw = new TLBPTWIO()
-    val mem = new HeaderlessTileLinkIO
+    val mem = new ClientTileLinkIO
   }
  
   require(params(LRSCCycles) >= 32) // ISA requires 16-insn LRSC sequences to succeed
