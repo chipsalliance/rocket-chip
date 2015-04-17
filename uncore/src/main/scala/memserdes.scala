@@ -18,16 +18,26 @@ case object MIFDataBits extends Field[Int]
 case object MIFTagBits extends Field[Int]
 case object MIFDataBeats extends Field[Int]
 
-trait HasMemData extends Bundle {
-  val data = Bits(width = params(MIFDataBits))
+trait MIFParameters extends UsesParameters {
+  val mifTagBits = params(MIFTagBits)
+  val mifAddrBits = params(MIFAddrBits)
+  val mifDataBits = params(MIFDataBits)
+  val mifDataBeats = params(MIFDataBeats)
+}
+ 
+abstract class MIFBundle extends Bundle with MIFParameters
+abstract class MIFModule extends Module with MIFParameters
+
+trait HasMemData extends MIFBundle {
+  val data = Bits(width = mifDataBits)
 }
 
-trait HasMemAddr extends Bundle {
-  val addr = UInt(width = params(MIFAddrBits))
+trait HasMemAddr extends MIFBundle {
+  val addr = UInt(width = mifAddrBits)
 }
 
-trait HasMemTag extends Bundle {
-  val tag = UInt(width = params(MIFTagBits))
+trait HasMemTag extends MIFBundle {
+  val tag = UInt(width = mifTagBits)
 }
 
 class MemReqCmd extends HasMemAddr with HasMemTag {
@@ -56,7 +66,7 @@ class MemSerializedIO(w: Int) extends Bundle
   val resp = Valid(Bits(width = w)).flip
 }
 
-class MemSerdes(w: Int) extends Module
+class MemSerdes(w: Int) extends MIFModule
 {
   val io = new Bundle {
     val wide = new MemIO().flip
@@ -65,7 +75,6 @@ class MemSerdes(w: Int) extends Module
   val abits = io.wide.req_cmd.bits.toBits.getWidth
   val dbits = io.wide.req_data.bits.toBits.getWidth
   val rbits = io.wide.resp.bits.getWidth
-  val dbeats = params(MIFDataBeats)
 
   val out_buf = Reg(Bits())
   val in_buf = Reg(Bits())
@@ -73,7 +82,7 @@ class MemSerdes(w: Int) extends Module
   val s_idle :: s_read_addr :: s_write_addr :: s_write_idle :: s_write_data :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_idle)
   val send_cnt = Reg(init=UInt(0, log2Up((max(abits, dbits)+w-1)/w)))
-  val data_send_cnt = Reg(init=UInt(0, log2Up(dbeats)))
+  val data_send_cnt = Reg(init=UInt(0, log2Up(mifDataBeats)))
   val adone = io.narrow.req.ready && send_cnt === UInt((abits-1)/w)
   val ddone = io.narrow.req.ready && send_cnt === UInt((dbits-1)/w)
 
@@ -109,12 +118,12 @@ class MemSerdes(w: Int) extends Module
   }
   when (state === s_write_data && ddone) {
     data_send_cnt := data_send_cnt + UInt(1)
-    state := Mux(data_send_cnt === UInt(dbeats-1), s_idle, s_write_idle)
+    state := Mux(data_send_cnt === UInt(mifDataBeats-1), s_idle, s_write_idle)
     send_cnt := UInt(0)
   }
 
   val recv_cnt = Reg(init=UInt(0, log2Up((rbits+w-1)/w)))
-  val data_recv_cnt = Reg(init=UInt(0, log2Up(dbeats)))
+  val data_recv_cnt = Reg(init=UInt(0, log2Up(mifDataBeats)))
   val resp_val = Reg(init=Bool(false))
 
   resp_val := Bool(false)
@@ -143,11 +152,11 @@ class MemDesser(w: Int) extends Module // test rig side
   val abits = io.wide.req_cmd.bits.toBits.getWidth
   val dbits = io.wide.req_data.bits.toBits.getWidth
   val rbits = io.wide.resp.bits.getWidth
-  val dbeats = params(MIFDataBeats)
+  val mifDataBeats = params(MIFDataBeats)
 
   require(dbits >= abits && rbits >= dbits)
   val recv_cnt = Reg(init=UInt(0, log2Up((rbits+w-1)/w)))
-  val data_recv_cnt = Reg(init=UInt(0, log2Up(dbeats)))
+  val data_recv_cnt = Reg(init=UInt(0, log2Up(mifDataBeats)))
   val adone = io.narrow.req.valid && recv_cnt === UInt((abits-1)/w)
   val ddone = io.narrow.req.valid && recv_cnt === UInt((dbits-1)/w)
   val rdone = io.narrow.resp.valid && recv_cnt === UInt((rbits-1)/w)
@@ -175,13 +184,13 @@ class MemDesser(w: Int) extends Module // test rig side
   }
   when (state === s_data && io.wide.req_data.ready) {
     state := s_data_recv
-    when (data_recv_cnt === UInt(dbeats-1)) {
+    when (data_recv_cnt === UInt(mifDataBeats-1)) {
       state := s_cmd_recv
     }
     data_recv_cnt := data_recv_cnt + UInt(1)
   }
   when (rdone) { // state === s_reply
-    when (data_recv_cnt === UInt(dbeats-1)) {
+    when (data_recv_cnt === UInt(mifDataBeats-1)) {
       state := s_cmd_recv
     }
     recv_cnt := UInt(0)
@@ -195,7 +204,7 @@ class MemDesser(w: Int) extends Module // test rig side
   io.wide.req_data.valid := state === s_data
   io.wide.req_data.bits.data := in_buf >> UInt(((rbits+w-1)/w - (dbits+w-1)/w)*w)
 
-  val dataq = Module(new Queue(new MemResp, dbeats))
+  val dataq = Module(new Queue(new MemResp, mifDataBeats))
   dataq.io.enq <> io.wide.resp
   dataq.io.deq.ready := recv_cnt === UInt((rbits-1)/w)
 
@@ -203,19 +212,12 @@ class MemDesser(w: Int) extends Module // test rig side
   io.narrow.resp.bits := dataq.io.deq.bits.toBits >> (recv_cnt * UInt(w))
 }
 
-//Adapter between a TileLinkIO and a UncachedTileLinkIO, merges voluntary
-
-
 //Adapter betweewn an UncachedTileLinkIO and a mem controller MemIO
-class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
+class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters {
   val io = new Bundle {
-    val tl = new TileLinkIO().flip
+    val tl = new ManagerTileLinkIO
     val mem = new MemIO
   }
-  val mifTagBits = params(MIFTagBits)
-  val mifAddrBits = params(MIFAddrBits)
-  val mifDataBits = params(MIFDataBits)
-  val mifDataBeats = params(MIFDataBeats)
   val dataBits = tlDataBits*tlDataBeats 
   val dstIdBits = params(LNHeaderBits)
   require(tlDataBits*tlDataBeats == mifDataBits*mifDataBeats, "Data sizes between LLC and MC don't agree")
@@ -227,12 +229,12 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
   io.tl.finish.ready := Bool(true)
   io.mem.resp.ready := Bool(false)
 
-  val gnt_arb = Module(new Arbiter(new LogicalNetworkIO(new Grant), 2))
+  val gnt_arb = Module(new Arbiter(new GrantToDst, 2))
   io.tl.grant <> gnt_arb.io.out
 
   val dst_off = dstIdBits + tlClientXactIdBits
-  val acq_has_data = io.tl.acquire.bits.payload.hasData()
-  val rel_has_data = io.tl.release.bits.payload.hasData()
+  val acq_has_data = io.tl.acquire.bits.hasData()
+  val rel_has_data = io.tl.release.bits.hasData()
 
   // Decompose outgoing TL Acquires into MemIO cmd and data
   val active_out = Reg(init=Bool(false))
@@ -248,13 +250,12 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
   val make_grant_ack = Reg(init=Bool(false))
 
   gnt_arb.io.in(1).valid := Bool(false)
-  gnt_arb.io.in(1).bits.payload := Grant(
-                                    is_builtin_type = Bool(true),
-                                    g_type = Mux(data_from_rel, Grant.voluntaryAckType, Grant.putAckType),
-                                    client_xact_id = tag_out >> UInt(1),
-                                    manager_xact_id = UInt(0))
-  gnt_arb.io.in(1).bits.header.dst := (if(dstIdBits > 0) tag_out(dst_off, tlClientXactIdBits + 1) else UInt(0))
-  gnt_arb.io.in(1).bits.header.src := UInt(0)
+  gnt_arb.io.in(1).bits := Grant(
+    dst = (if(dstIdBits > 0) tag_out(dst_off, tlClientXactIdBits + 1) else UInt(0)),
+    is_builtin_type = Bool(true),
+    g_type = Mux(data_from_rel, Grant.voluntaryAckType, Grant.putAckType),
+    client_xact_id = tag_out >> UInt(1),
+    manager_xact_id = UInt(0))
 
   if(tlDataBits != mifDataBits || tlDataBeats != mifDataBeats) {
     val mem_cmd_q = Module(new Queue(new MemReqCmd, qDepth))
@@ -263,7 +264,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
     mem_data_q.io.enq.valid := Bool(false)
     val (mif_cnt_out, mif_wrap_out) = Counter(mem_data_q.io.enq.fire(), mifDataBeats)
     val mif_done_out = Reg(init=Bool(false))
-    val tl_buf_out = Vec.fill(tlDataBeats){ Reg(io.tl.acquire.bits.payload.data.clone) }
+    val tl_buf_out = Vec.fill(tlDataBeats){ Reg(io.tl.acquire.bits.data.clone) }
     val mif_buf_out = Vec.fill(mifDataBeats){ new MemData }
     mif_buf_out := mif_buf_out.fromBits(tl_buf_out.toBits)
     val mif_prog_out = (mif_cnt_out+UInt(1, width = log2Up(mifDataBeats+1)))*UInt(mifDataBits)
@@ -275,27 +276,27 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
       when(io.tl.release.valid) {
         active_out := Bool(true)
         cmd_sent_out := Bool(false)
-        tag_out := Cat(io.tl.release.bits.header.src,
-                       io.tl.release.bits.payload.client_xact_id,
-                       io.tl.release.bits.payload.isVoluntary())
-        addr_out := io.tl.release.bits.payload.addr_block
+        tag_out := Cat(io.tl.release.bits.client_id,
+                       io.tl.release.bits.client_xact_id,
+                       io.tl.release.bits.isVoluntary())
+        addr_out := io.tl.release.bits.addr_block
         has_data := rel_has_data
         data_from_rel := Bool(true)
-        make_grant_ack := io.tl.release.bits.payload.requiresAck()
+        make_grant_ack := io.tl.release.bits.requiresAck()
         tl_done_out := tl_wrap_out
-        tl_buf_out(tl_cnt_out) := io.tl.release.bits.payload.data
+        tl_buf_out(tl_cnt_out) := io.tl.release.bits.data
       } .elsewhen(io.tl.acquire.valid) {
         active_out := Bool(true)
         cmd_sent_out := Bool(false)
-        tag_out := Cat(io.tl.release.bits.header.src,
-                       io.tl.acquire.bits.payload.client_xact_id,
-                       io.tl.acquire.bits.payload.isBuiltInType())
-        addr_out := io.tl.acquire.bits.payload.addr_block
+        tag_out := Cat(io.tl.release.bits.client_id,
+                       io.tl.acquire.bits.client_xact_id,
+                       io.tl.acquire.bits.isBuiltInType())
+        addr_out := io.tl.acquire.bits.addr_block
         has_data := acq_has_data
         data_from_rel := Bool(false)
         make_grant_ack := acq_has_data
         tl_done_out := tl_wrap_out
-        tl_buf_out(tl_cnt_out) := io.tl.acquire.bits.payload.data
+        tl_buf_out(tl_cnt_out) := io.tl.acquire.bits.data
       }
     }
     when(active_out) {
@@ -306,8 +307,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
           io.tl.acquire.ready := Bool(true)
           when(io.tl.acquire.valid) {
             tl_buf_out(tl_cnt_out) := Mux(data_from_rel,
-                                        io.tl.release.bits.payload.data,
-                                        io.tl.acquire.bits.payload.data)
+                                        io.tl.release.bits.data,
+                                        io.tl.acquire.bits.data)
           }
         }
         when(!mif_done_out) { 
@@ -338,8 +339,8 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
     io.mem.req_cmd.bits.tag := tag_out
     io.mem.req_cmd.bits.addr := addr_out
     io.mem.req_data.bits.data := Mux(data_from_rel,
-                                   io.tl.release.bits.payload.data,
-                                   io.tl.acquire.bits.payload.data)
+                                   io.tl.release.bits.data,
+                                   io.tl.acquire.bits.data)
     when(!active_out){
       io.tl.release.ready := io.mem.req_data.ready
       io.tl.acquire.ready := io.mem.req_data.ready && !io.tl.release.valid
@@ -352,12 +353,12 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
         tl_done_out := tl_wrap_out
         when(io.tl.release.valid) {
           data_from_rel := Bool(true)
-          make_grant_ack := io.tl.release.bits.payload.requiresAck()
-          io.mem.req_data.bits.data := io.tl.release.bits.payload.data
-          val tag =  Cat(io.tl.release.bits.header.src,
-                         io.tl.release.bits.payload.client_xact_id,
-                         io.tl.release.bits.payload.isVoluntary())
-          val addr = io.tl.release.bits.payload.addr_block
+          make_grant_ack := io.tl.release.bits.requiresAck()
+          io.mem.req_data.bits.data := io.tl.release.bits.data
+          val tag =  Cat(io.tl.release.bits.client_id,
+                         io.tl.release.bits.client_xact_id,
+                         io.tl.release.bits.isVoluntary())
+          val addr = io.tl.release.bits.addr_block
           io.mem.req_cmd.bits.tag := tag
           io.mem.req_cmd.bits.addr := addr
           io.mem.req_cmd.bits.rw := rel_has_data
@@ -367,12 +368,12 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
         } .elsewhen(io.tl.acquire.valid) {
           data_from_rel := Bool(false)
           make_grant_ack := acq_has_data // i.e. is it a Put
-          io.mem.req_data.bits.data := io.tl.acquire.bits.payload.data
+          io.mem.req_data.bits.data := io.tl.acquire.bits.data
           io.mem.req_cmd.bits.rw := acq_has_data
-          val tag = Cat(io.tl.acquire.bits.header.src,
-                        io.tl.acquire.bits.payload.client_xact_id,
-                        io.tl.acquire.bits.payload.isBuiltInType())
-          val addr = io.tl.acquire.bits.payload.addr_block
+          val tag = Cat(io.tl.acquire.bits.client_id,
+                        io.tl.acquire.bits.client_xact_id,
+                        io.tl.acquire.bits.isBuiltInType())
+          val addr = io.tl.acquire.bits.addr_block
           io.mem.req_cmd.bits.tag := tag
           io.mem.req_cmd.bits.addr := addr
           io.mem.req_cmd.bits.rw := acq_has_data
@@ -407,28 +408,25 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
 
   // Aggregate incoming MemIO responses into TL Grants
   val active_in = Reg(init=Bool(false))
-  val (tl_cnt_in, tl_wrap_in) = Counter(io.tl.grant.fire() && io.tl.grant.bits.payload.hasMultibeatData(), tlDataBeats)
+  val (tl_cnt_in, tl_wrap_in) = Counter(io.tl.grant.fire() && io.tl.grant.bits.hasMultibeatData(), tlDataBeats)
   val tag_in = Reg(UInt(width = mifTagBits))
 
   if(tlDataBits != mifDataBits || tlDataBeats != mifDataBeats) {
     val (mif_cnt_in, mif_wrap_in) = Counter(io.mem.resp.fire(), mifDataBeats) // TODO: Assumes all resps have data
     val mif_done_in = Reg(init=Bool(false))
     val mif_buf_in = Vec.fill(mifDataBeats){ Reg(new MemData) }
-    val tl_buf_in = Vec.fill(tlDataBeats){ io.tl.acquire.bits.payload.data.clone }
+    val tl_buf_in = Vec.fill(tlDataBeats){ io.tl.acquire.bits.data.clone }
     tl_buf_in := tl_buf_in.fromBits(mif_buf_in.toBits)
     val tl_prog_in = (tl_cnt_in+UInt(1, width = log2Up(tlDataBeats+1)))*UInt(tlDataBits)
     val mif_prog_in = mif_cnt_in*UInt(mifDataBits)
-    gnt_arb.io.in(0).bits.payload := Grant(
-                                      is_builtin_type = tag_in(0),
-                                      g_type = Mux(tag_in(0),
-                                                 Grant.getDataBlockType,
-                                                 UInt(0)), // TODO: Assumes MI or MEI protocol
-                                      client_xact_id = tag_in >> UInt(1),
-                                      manager_xact_id = UInt(0),
-                                      addr_beat = tl_cnt_in,
-                                      data = tl_buf_in(tl_cnt_in))
-    gnt_arb.io.in(0).bits.header.dst := (if(dstIdBits > 0) tag_in(dst_off, tlClientXactIdBits + 1) else UInt(0))
-    gnt_arb.io.in(0).bits.header.src := UInt(0)
+    gnt_arb.io.in(0).bits := Grant(
+      dst = (if(dstIdBits > 0) tag_in(dst_off, tlClientXactIdBits + 1) else UInt(0)),
+      is_builtin_type = tag_in(0),
+      g_type = Mux(tag_in(0), Grant.getDataBlockType, UInt(0)), // TODO: Assumes MI or MEI protocol
+      client_xact_id = tag_in >> UInt(1),
+      manager_xact_id = UInt(0),
+      addr_beat = tl_cnt_in,
+      data = tl_buf_in(tl_cnt_in))
 
     when(!active_in) {
       io.mem.resp.ready := Bool(true)
@@ -453,17 +451,14 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule {
   } else { // Don't generate all the uneeded data buffers and flow resp
     gnt_arb.io.in(0).valid := io.mem.resp.valid
     io.mem.resp.ready := gnt_arb.io.in(0).ready
-    gnt_arb.io.in(0).bits.payload := Grant(
-                                      is_builtin_type = io.mem.resp.bits.tag(0),
-                                      g_type = Mux(io.mem.resp.bits.tag(0),
-                                                 Grant.getDataBlockType,
-                                                 UInt(0)), // TODO: Assumes MI or MEI protocol
-                                      client_xact_id = io.mem.resp.bits.tag >> UInt(1),
-                                      manager_xact_id = UInt(0),
-                                      addr_beat = tl_cnt_in,
-                                      data = io.mem.resp.bits.data)
-    gnt_arb.io.in(0).bits.header.dst := (if(dstIdBits > 0) io.mem.resp.bits.tag(dst_off, tlClientXactIdBits + 1) else UInt(0))
-    gnt_arb.io.in(0).bits.header.src := UInt(0)
+    gnt_arb.io.in(0).bits := Grant(
+      dst = (if(dstIdBits > 0) io.mem.resp.bits.tag(dst_off, tlClientXactIdBits + 1) else UInt(0)),
+      is_builtin_type = io.mem.resp.bits.tag(0),
+      g_type = Mux(io.mem.resp.bits.tag(0), Grant.getDataBlockType, UInt(0)), // TODO: Assumes MI or MEI protocol
+      client_xact_id = io.mem.resp.bits.tag >> UInt(1),
+      manager_xact_id = UInt(0),
+      addr_beat = tl_cnt_in,
+      data = io.mem.resp.bits.data)
   }
 }
 
@@ -522,28 +517,28 @@ object HellaQueue
   }
 }
 
-class MemPipeIOMemIOConverter(numRequests: Int, refillCycles: Int) extends Module {
+class MemPipeIOMemIOConverter(numRequests: Int) extends MIFModule {
   val io = new Bundle {
     val cpu = new MemIO().flip
     val mem = new MemPipeIO
   }
 
-  val numEntries = numRequests * refillCycles
+  val numEntries = numRequests * mifDataBeats
   val size = log2Down(numEntries) + 1
 
   val inc = Bool()
   val dec = Bool()
   val count = Reg(init=UInt(numEntries, size))
-  val watermark = count >= UInt(refillCycles)
+  val watermark = count >= UInt(mifDataBeats)
 
   when (inc && !dec) {
     count := count + UInt(1)
   }
   when (!inc && dec) {
-    count := count - UInt(refillCycles)
+    count := count - UInt(mifDataBeats)
   }
   when (inc && dec) {
-    count := count - UInt(refillCycles-1)
+    count := count - UInt(mifDataBeats-1)
   }
 
   val cmdq_mask = io.cpu.req_cmd.bits.rw || watermark
@@ -573,17 +568,17 @@ class MemPipeIOMemIOConverter(numRequests: Int, refillCycles: Int) extends Modul
   dec := io.mem.req_cmd.fire() && !io.mem.req_cmd.bits.rw
 }
 
-class MemPipeIOTileLinkIOConverter(outstanding: Int, refillCycles: Int) extends Module {
+class MemPipeIOTileLinkIOConverter(outstanding: Int) extends MIFModule {
   val io = new Bundle {
-    val tl = new TileLinkIO().flip
+    val tl = new ManagerTileLinkIO
     val mem = new MemPipeIO
   }
   
   val a = Module(new MemIOTileLinkIOConverter(1))
-  val b = Module(new MemPipeIOMemIOConverter(outstanding, refillCycles))
+  val b = Module(new MemPipeIOMemIOConverter(outstanding))
   a.io.tl <> io.tl
   b.io.cpu.req_cmd <> Queue(a.io.mem.req_cmd, 2, pipe=true)
-  b.io.cpu.req_data <> Queue(a.io.mem.req_data, refillCycles, pipe=true)
+  b.io.cpu.req_data <> Queue(a.io.mem.req_data, mifDataBeats, pipe=true)
   a.io.mem.resp <> b.io.cpu.resp
   b.io.mem <> io.mem
 }
