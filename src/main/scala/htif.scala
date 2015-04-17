@@ -60,7 +60,7 @@ class SCRIO extends HTIFBundle {
 class HTIFModuleIO extends HTIFBundle {
     val host = new HostIO
     val cpu = Vec.fill(nCores){new HTIFIO}.flip
-    val mem = new HeaderlessUncachedTileLinkIO
+    val mem = new ClientUncachedTileLinkIO
     val scr = new SCRIO
 }
 

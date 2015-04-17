@@ -25,16 +25,16 @@ object DataQueueLocation {
   }
 }
 
-class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
+class L2BroadcastHub extends ManagerCoherenceAgent
     with BroadcastHubParameters {
   val internalDataBits = new DataQueueLocation().getWidth
   val inStoreQueue :: inVolWBQueue :: inClientReleaseQueue :: Nil = Enum(UInt(), nDataQueueLocations)
 
   // Create SHRs for outstanding transactions
-  val trackerList = (0 until nReleaseTransactors).map(id => 
-    Module(new BroadcastVoluntaryReleaseTracker(id, bankId), {case TLDataBits => internalDataBits})) ++ 
-      (nReleaseTransactors until nTransactors).map(id => 
-        Module(new BroadcastAcquireTracker(id, bankId), {case TLDataBits => internalDataBits}))
+  val trackerList = (0 until nReleaseTransactors).map(id =>
+    Module(new BroadcastVoluntaryReleaseTracker(id), {case TLDataBits => internalDataBits})) ++
+      (nReleaseTransactors until nTransactors).map(id =>
+        Module(new BroadcastAcquireTracker(id), {case TLDataBits => internalDataBits}))
   
   // Propagate incoherence flags
   trackerList.map(_.io.incoherent := io.incoherent.toBits)
@@ -61,7 +61,7 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
   trackerAcquireIOs.zipWithIndex.foreach {
     case(tracker, i) =>
       tracker.bits := io.inner.acquire.bits
-      tracker.bits.payload.data := DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
+      tracker.bits.data := DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
       tracker.valid := io.inner.acquire.valid && !block_acquires && (acquire_idx === UInt(i))
   }
 
@@ -82,7 +82,7 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
     case(tracker, i) =>
       tracker.valid := io.inner.release.valid && (release_idx === UInt(i))
       tracker.bits := io.inner.release.bits
-      tracker.bits.payload.data := DataQueueLocation(rel_data_cnt,
+      tracker.bits.data := DataQueueLocation(rel_data_cnt,
                                      (if(i < nReleaseTransactors) inVolWBQueue
                                       else inClientReleaseQueue)).toBits
   }
@@ -91,17 +91,17 @@ class L2BroadcastHub(bankId: Int) extends ManagerCoherenceAgent
 
   // Wire probe requests and grant reply to clients, finish acks from clients
   // Note that we bypass the Grant data subbundles
-  io.inner.grant.bits.payload.data := io.outer.grant.bits.data
-  io.inner.grant.bits.payload.addr_beat := io.outer.grant.bits.addr_beat
+  io.inner.grant.bits.data := io.outer.grant.bits.data
+  io.inner.grant.bits.addr_beat := io.outer.grant.bits.addr_beat
   doOutputArbitration(io.inner.grant, trackerList.map(_.io.inner.grant))
   doOutputArbitration(io.inner.probe, trackerList.map(_.io.inner.probe))
   doInputRouting(io.inner.finish, trackerList.map(_.io.inner.finish))
 
   // Create an arbiter for the one memory port
-  val outer_arb = Module(new HeaderlessUncachedTileLinkIOArbiter(trackerList.size),
+  val outer_arb = Module(new ClientUncachedTileLinkIOArbiter(trackerList.size),
                          { case TLId => params(OuterTLId)
                            case TLDataBits => internalDataBits })
-  outer_arb.io.in zip  trackerList map { case(arb, t) => arb <> t.io.outer }
+  outer_arb.io.in <> trackerList.map(_.io.outer)
   // Get the pending data out of the store data queue
   val outer_data_ptr = new DataQueueLocation().fromBits(outer_arb.io.out.acquire.bits.data)
   val is_in_sdq = outer_data_ptr.loc === inStoreQueue
@@ -124,12 +124,11 @@ class BroadcastXactTracker extends XactTracker {
   val io = new ManagerXactTrackerIO
 }
 
-class BroadcastVoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends BroadcastXactTracker {
+class BroadcastVoluntaryReleaseTracker(trackerId: Int) extends BroadcastXactTracker {
   val s_idle :: s_outer :: s_grant :: s_ack :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_idle)
 
-  val xact_src = Reg(io.inner.release.bits.header.src.clone)
-  val xact = Reg(Bundle(new Release, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
+  val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
   val data_buffer = Vec.fill(innerDataBeats){ Reg(io.irel().data.clone) }
   val coh = ManagerMetadata.onReset
 
@@ -150,9 +149,7 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends Broa
   io.inner.grant.valid := Bool(false)
   io.inner.finish.ready := Bool(false)
 
-  io.inner.grant.bits.header.src := UInt(bankId)
-  io.inner.grant.bits.header.dst := xact_src
-  io.inner.grant.bits.payload := coh.makeGrant(xact, UInt(trackerId))
+  io.inner.grant.bits := coh.makeGrant(xact, UInt(trackerId))
 
   //TODO: Use io.outer.release instead?
   io.outer.acquire.bits := Bundle(
@@ -175,7 +172,6 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends Broa
     is(s_idle) {
       io.inner.release.ready := Bool(true)
       when( io.inner.release.valid ) {
-        xact_src := io.inner.release.bits.header.src
         xact := io.irel()
         data_buffer(UInt(0)) := io.irel().data
         collect_irel_data := io.irel().hasMultibeatData()
@@ -207,12 +203,11 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int, bankId: Int) extends Broa
   }
 }
 
-class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXactTracker {
+class BroadcastAcquireTracker(trackerId: Int) extends BroadcastXactTracker {
   val s_idle :: s_probe :: s_mem_read :: s_mem_write :: s_make_grant :: s_mem_resp :: s_ack :: Nil = Enum(UInt(), 7)
   val state = Reg(init=s_idle)
 
-  val xact_src = Reg(io.inner.acquire.bits.header.src.clone)
-  val xact = Reg(Bundle(new Acquire, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
+  val xact = Reg(Bundle(new AcquireFromSrc, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
   val data_buffer = Vec.fill(innerDataBeats){ Reg(io.iacq().data.clone) }
   val coh = ManagerMetadata.onReset
 
@@ -225,9 +220,9 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
   val pending_probes = Reg(init=Bits(0, width = io.inner.tlNCoherentClients))
   val curr_p_id = PriorityEncoder(pending_probes)
   val full_sharers = coh.full()
-  val probe_self = io.inner.acquire.bits.payload.requiresSelfProbe()
-  val mask_self_true = UInt(UInt(1) << io.inner.acquire.bits.header.src, width = io.inner.tlNCoherentClients)
-  val mask_self_false = ~UInt(UInt(1) << io.inner.acquire.bits.header.src, width = io.inner.tlNCoherentClients)
+  val probe_self = io.inner.acquire.bits.requiresSelfProbe()
+  val mask_self_true = UInt(UInt(1) << io.inner.acquire.bits.client_id, width = io.inner.tlNCoherentClients)
+  val mask_self_false = ~UInt(UInt(1) << io.inner.acquire.bits.client_id, width = io.inner.tlNCoherentClients)
   val mask_self = Mux(probe_self, full_sharers | mask_self_true, full_sharers & mask_self_false)
   val mask_incoherent = mask_self & ~io.incoherent.toBits
 
@@ -272,21 +267,17 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
   io.outer.grant.ready := Bool(false)
 
   io.inner.probe.valid := Bool(false)
-  io.inner.probe.bits.header.src := UInt(bankId)
-  io.inner.probe.bits.header.dst := curr_p_id
-  io.inner.probe.bits.payload := coh.makeProbe(xact)
+  io.inner.probe.bits := coh.makeProbe(curr_p_id, xact)
 
   io.inner.grant.valid := Bool(false)
-  io.inner.grant.bits.header.src := UInt(bankId)
-  io.inner.grant.bits.header.dst := xact_src
-  io.inner.grant.bits.payload := coh.makeGrant(xact, UInt(trackerId)) // Data bypassed in parent
+  io.inner.grant.bits := coh.makeGrant(xact, UInt(trackerId)) // Data bypassed in parent
 
   io.inner.acquire.ready := Bool(false)
   io.inner.release.ready := Bool(false)
   io.inner.finish.ready := Bool(false)
 
   assert(!(state != s_idle && collect_iacq_data && io.inner.acquire.fire() &&
-    io.inner.acquire.bits.header.src != xact_src),
+    io.iacq().client_id != xact.client_id),
     "AcquireTracker accepted data beat from different network source than initial request.")
 
   assert(!(state != s_idle && collect_iacq_data && io.inner.acquire.fire() &&
@@ -316,7 +307,6 @@ class BroadcastAcquireTracker(trackerId: Int, bankId: Int) extends BroadcastXact
     is(s_idle) {
       io.inner.acquire.ready := Bool(true)
       when(io.inner.acquire.valid) {
-        xact_src := io.inner.acquire.bits.header.src
         xact := io.iacq()
         data_buffer(UInt(0)) := io.iacq().data
         collect_iacq_data := io.iacq().hasMultibeatData()

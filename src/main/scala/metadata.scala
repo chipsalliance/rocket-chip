@@ -108,17 +108,18 @@ class ManagerMetadata extends CoherenceMetadata {
   def requiresProbesOnVoluntaryWriteback(dummy: Int = 0): Bool =
     co.requiresProbes(M_FLUSH, this)
 
-  def makeProbe(cmd: UInt, addr_block: UInt): Probe = 
-    Bundle(Probe(co.getProbeType(cmd, this), addr_block), { case TLId => id })
+  def makeProbe(dst: UInt, cmd: UInt, addr_block: UInt): ProbeToDst =
+    Bundle(Probe(dst, co.getProbeType(cmd, this), addr_block), { case TLId => id })
 
-  def makeProbe(acq: Acquire): Probe = 
-    Bundle(Probe(co.getProbeType(acq, this), acq.addr_block), { case TLId => id })
+  def makeProbe(dst: UInt, acq: Acquire): ProbeToDst = 
+    Bundle(Probe(dst, co.getProbeType(acq, this), acq.addr_block), { case TLId => id })
 
-  def makeProbeForVoluntaryWriteback(addr_block: UInt): Probe =
-    makeProbe(M_FLUSH, addr_block)
+  def makeProbeForVoluntaryWriteback(dst: UInt, addr_block: UInt): ProbeToDst =
+    makeProbe(dst, M_FLUSH, addr_block)
 
-  def makeGrant(rel: Release, manager_xact_id: UInt): Grant = {
+  def makeGrant(rel: ReleaseFromSrc, manager_xact_id: UInt): GrantToDst = {
     Bundle(Grant(
+      dst = rel.client_id,
       is_builtin_type = Bool(true),
       g_type = Grant.voluntaryAckType,
       client_xact_id = rel.client_xact_id,
@@ -126,11 +127,12 @@ class ManagerMetadata extends CoherenceMetadata {
   }
 
   def makeGrant(
-      acq: Acquire,
+      acq: AcquireFromSrc,
       manager_xact_id: UInt, 
       addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): Grant = {
+      data: UInt = UInt(0)): GrantToDst = {
     Bundle(Grant(
+      dst = acq.client_id,
       is_builtin_type = acq.isBuiltInType(),
       g_type = Mux(acq.isBuiltInType(), 
                      acq.getBuiltInGrantType(),
@@ -141,11 +143,24 @@ class ManagerMetadata extends CoherenceMetadata {
       data = data), { case TLId => id })
   }
 
-  def onRelease(incoming: Release, src: UInt): ManagerMetadata =
-    Bundle(co.managerMetadataOnRelease(incoming, src, this), { case TLId => id })
+  def makeGrant(
+      dst: UInt,
+      acq: AcquireFromSrc,
+      client_xact_id: UInt,
+      manager_xact_id: UInt, 
+      addr_beat: UInt,
+      data: UInt): GrantToDst = {
+    val g = makeGrant(acq, manager_xact_id, addr_beat, data)
+    g.client_id := dst
+    g.client_xact_id := client_xact_id
+    g
+  }
+    
+  def onRelease(incoming: ReleaseFromSrc): ManagerMetadata =
+    Bundle(co.managerMetadataOnRelease(incoming, incoming.client_id, this), { case TLId => id })
 
-  def onGrant(outgoing: Grant, dst: UInt): ManagerMetadata =
-    Bundle(co.managerMetadataOnGrant(outgoing, dst, this), { case TLId => id })
+  def onGrant(outgoing: GrantToDst): ManagerMetadata =
+    Bundle(co.managerMetadataOnGrant(outgoing, outgoing.client_id, this), { case TLId => id })
 }
 
 object ManagerMetadata {
