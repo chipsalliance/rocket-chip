@@ -13,8 +13,8 @@ case object BuildRoCC extends Field[Option[() => RoCC]]
 
 abstract class Tile(resetSignal: Bool = null) extends Module(_reset = resetSignal) {
   val io = new Bundle {
-    val cached = new HeaderlessTileLinkIO
-    val uncached = new HeaderlessUncachedTileLinkIO
+    val cached = new ClientTileLinkIO
+    val uncached = new ClientUncachedTileLinkIO
     val host = new HTIFIO
   }
 }
@@ -44,7 +44,7 @@ class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
   // otherwise, just hookup the icache
   io.uncached <> params(BuildRoCC).map { buildItHere =>
     val rocc = buildItHere()
-    val memArb = Module(new RocketUncachedTileLinkIOArbiter(3))
+    val memArb = Module(new ClientTileLinkIOArbiter(3))
     val dcIF = Module(new SimpleHellaCacheIF)
     core.io.rocc <> rocc.io
     dcIF.io.requestor <> rocc.io.mem
