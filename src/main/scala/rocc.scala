@@ -7,7 +7,7 @@ import Node._
 import uncore._
 import Util._
 
-case object RoCCMemTagBits extends Field[Int]
+case object RoCCMaxTaggedMemXacts extends Field[Int]
 
 class RoCCInstruction extends Bundle
 {
@@ -44,8 +44,8 @@ class RoCCInterface extends Bundle
   val interrupt = Bool(OUTPUT)
   
   // These should be handled differently, eventually
-  val imem = new HeaderlessUncachedTileLinkIO
-  val dmem = new HeaderlessUncachedTileLinkIO
+  val imem = new ClientUncachedTileLinkIO
+  val dmem = new ClientUncachedTileLinkIO
   val iptw = new TLBPTWIO
   val dptw = new TLBPTWIO
   val pptw = new TLBPTWIO
@@ -129,10 +129,8 @@ class AccumulatorExample extends RoCC
 
   io.imem.acquire.valid := false
   io.imem.grant.ready := false
-  io.imem.finish.valid := false
   io.dmem.acquire.valid := false
   io.dmem.grant.ready := false
-  io.dmem.finish.valid := false
   io.iptw.req.valid := false
   io.dptw.req.valid := false
   io.pptw.req.valid := false
