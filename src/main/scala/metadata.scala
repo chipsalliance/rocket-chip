@@ -59,13 +59,12 @@ class ClientMetadata extends CoherenceMetadata {
 
   def makeRelease(
       prb: Probe,
-      client_xact_id: UInt,
       addr_beat: UInt = UInt(0),
       data: UInt = UInt(0)): Release = {
     Bundle(Release(
       voluntary = Bool(false),
       r_type = co.getReleaseType(prb, this),
-      client_xact_id = client_xact_id,
+      client_xact_id = UInt(0),
       addr_block = prb.addr_block,
       addr_beat = addr_beat,
       data = data), { case TLId => id })
