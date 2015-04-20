@@ -511,7 +511,7 @@ class ProbeUnit extends L1HellaCacheModule {
     req := io.req.bits
   }
 
-  val reply = old_coh.makeRelease(req, req.client_xact_id)
+  val reply = old_coh.makeRelease(req)
   io.req.ready := state === s_invalid
   io.rep.valid := state === s_release &&
                   !(tag_matches && old_coh.requiresVoluntaryWriteback()) // Otherwise WBU will issue release
