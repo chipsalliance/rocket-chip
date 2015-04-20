@@ -338,10 +338,6 @@ class L2DataArray(delay: Int) extends L2HellaCacheModule {
   io.write.ready := Bool(true)
 }
 
-class L2SecondaryMissInfo extends TLBundle
-    with HasTileLinkBeatId
-    with HasClientTransactionId
-
 class L2HellaCacheBank extends HierarchicalCoherenceAgent
     with L2HellaCacheParameters {
   require(isPow2(nSets))
@@ -617,10 +613,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   val pending_coh = Reg{ xact_old_meta.coh.clone }
 
   // Secondary miss queue
-  val ignt_q = Module(new Queue(new L2SecondaryMissInfo, nSecondaryMisses))(innerTLParams)
-  ignt_q.io.enq.bits.client_xact_id := io.iacq().client_xact_id
-  ignt_q.io.enq.bits.addr_beat := io.iacq().addr_beat
-  // TODO add ignt.dst <- iacq.src
+  val ignt_q = Module(new Queue(new SecondaryMissInfo, nSecondaryMisses))(innerTLParams)
 
   // State holding progress made on processing this transaction
   val iacq_data_done = connectIncomingDataBeatCounter(io.inner.acquire)
@@ -741,6 +734,12 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
                               can_merge_iacq_put ||
                               can_merge_iacq_get
 
+  // Enqueue secondary miss information
+  ignt_q.io.enq.valid := iacq_data_done
+  ignt_q.io.enq.bits.client_xact_id := io.iacq().client_xact_id
+  ignt_q.io.enq.bits.addr_beat := io.iacq().addr_beat
+  // TODO add ignt.dst <- iacq.src
+
   // Track whether any beats are missing from a PutBlock
   pending_puts := (pending_puts & dropPendingBitWhenBeatHasData(io.inner.acquire))
 
@@ -792,22 +791,20 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
                        addPendingBitWhenBeatHasData(io.inner.release) |
                        addPendingBitWhenBeatHasData(io.outer.grant) |
                        addPendingBitInternal(io.data.resp)
-  ignt_q.io.enq.valid := iacq_data_done
   ignt_q.io.deq.ready := ignt_data_done
-  // Make the Grant message using the data stored in the secondary miss queue
   io.inner.grant.valid := state === s_busy &&
                           ignt_q.io.deq.valid &&
                           (!io.ignt().hasData() ||
                             pending_ignt_data(ignt_data_idx))
+  // Make the Grant message using the data stored in the secondary miss queue
   io.inner.grant.bits := pending_coh.inner.makeGrant(
-                           dst = xact.client_id, // TODO: ignt_q.io.deq.bits.src 
-                           acq = xact,
-                           client_xact_id = ignt_q.io.deq.bits.client_xact_id,
+                           pri = xact,
+                           sec = ignt_q.io.deq.bits,
                            manager_xact_id = UInt(trackerId), 
-                           addr_beat = ignt_data_idx,
                            data = Mux(xact.is(Acquire.putAtomicType),
                                     amo_result,
                                     data_buffer(ignt_data_idx)))
+  io.inner.grant.bits.addr_beat := ignt_data_idx // override based on outgoing counter
 
   val pending_coh_on_ignt = HierarchicalMetadata(
                               pending_coh.inner.onGrant(io.ignt()),
