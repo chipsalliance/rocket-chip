@@ -785,6 +785,13 @@ class ClientTileLinkIOWrapper extends TLModule {
   io.out.release.valid := Bool(false)
 }
 
+/** Used to track metadata for transactions where multiple secondary misses have been merged
+  * and handled by a single transaction tracker.
+  */
+class SecondaryMissInfo extends TLBundle // TODO: add a_type to merge e.g. Get+GetBlocks, and/or HasClientId
+    with HasTileLinkBeatId
+    with HasClientTransactionId
+
 /** A helper module that automatically issues [[uncore.Finish]] messages in repsonse
   * to [[uncore.Grant]] that it receives from a manager and forwards to a client
   */
