@@ -625,7 +625,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   // State holding progress made on processing this transaction
   val iacq_data_done = connectIncomingDataBeatCounter(io.inner.acquire)
   val pending_irels = connectTwoWayBeatCounter(
-    max = io.inner.tlNCoherentClients,
+    max = io.inner.tlNCachingClients,
     up = io.inner.probe,
     down = io.inner.release)._1
   val (pending_ognts, oacq_data_idx, oacq_data_done, ognt_data_idx, ognt_data_done) =
@@ -641,7 +641,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
     down = io.inner.finish,
     track = (g: Grant) => g.requiresAck())._1
   val pending_puts = Reg(init=Bits(0, width = io.inner.tlDataBeats))
-  val pending_iprbs = Reg(init = Bits(0, width = io.inner.tlNCoherentClients))
+  val pending_iprbs = Reg(init = Bits(0, width = io.inner.tlNCachingClients))
   val pending_reads = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_writes = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_resps = Reg(init=Bits(0, width = io.inner.tlDataBeats))
@@ -1009,8 +1009,8 @@ class L2WritebackUnit(trackerId: Int) extends L2XactTracker {
   val xact_id = Reg{ UInt() }
 
   val irel_had_data = Reg(init = Bool(false))
-  val irel_cnt = Reg(init = UInt(0, width = log2Up(io.inner.tlNCoherentClients+1)))
-  val pending_probes = Reg(init = Bits(0, width = io.inner.tlNCoherentClients))
+  val irel_cnt = Reg(init = UInt(0, width = log2Up(io.inner.tlNCachingClients+1)))
+  val pending_probes = Reg(init = Bits(0, width = io.inner.tlNCachingClients))
   val curr_probe_dst = PriorityEncoder(pending_probes)
   val full_sharers = io.wb.req.bits.coh.inner.full()
   val mask_incoherent = full_sharers & ~io.incoherent.toBits

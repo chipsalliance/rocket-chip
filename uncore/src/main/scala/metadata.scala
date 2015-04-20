@@ -9,11 +9,11 @@ abstract class CoherenceMetadata extends Bundle {
   val id = params(TLId)
 }
 
-/*  The ClientMetadata stores the client-side coherence information,
-    such as permissions on the data and whether the data is dirty.
-    Its API can be used to make TileLink messages in response to
-    memory operations or TileLink Probes.
-*/
+/** Stores the client-side coherence information,
+  * such as permissions on the data and whether the data is dirty.
+  * Its API can be used to make TileLink messages in response to
+  * memory operations or [[uncore.Probe]] messages.
+  */
 class ClientMetadata extends CoherenceMetadata {
   val state = UInt(width = co.clientStateWidth)
 

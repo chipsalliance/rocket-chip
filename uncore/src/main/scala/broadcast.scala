@@ -216,13 +216,13 @@ class BroadcastAcquireTracker(trackerId: Int) extends BroadcastXactTracker {
         Acquire.prefetchType).contains(xact.a_type)),
     "Broadcast Hub does not support PutAtomics, subblock Gets/Puts, or prefetches") // TODO
 
-  val release_count = Reg(init=UInt(0, width = log2Up(io.inner.tlNCoherentClients+1)))
-  val pending_probes = Reg(init=Bits(0, width = io.inner.tlNCoherentClients))
+  val release_count = Reg(init=UInt(0, width = log2Up(io.inner.tlNCachingClients+1)))
+  val pending_probes = Reg(init=Bits(0, width = io.inner.tlNCachingClients))
   val curr_p_id = PriorityEncoder(pending_probes)
   val full_sharers = coh.full()
   val probe_self = io.inner.acquire.bits.requiresSelfProbe()
-  val mask_self_true = UInt(UInt(1) << io.inner.acquire.bits.client_id, width = io.inner.tlNCoherentClients)
-  val mask_self_false = ~UInt(UInt(1) << io.inner.acquire.bits.client_id, width = io.inner.tlNCoherentClients)
+  val mask_self_true = UInt(UInt(1) << io.inner.acquire.bits.client_id, width = io.inner.tlNCachingClients)
+  val mask_self_false = ~UInt(UInt(1) << io.inner.acquire.bits.client_id, width = io.inner.tlNCachingClients)
   val mask_self = Mux(probe_self, full_sharers | mask_self_true, full_sharers & mask_self_false)
   val mask_incoherent = mask_self & ~io.incoherent.toBits
 
