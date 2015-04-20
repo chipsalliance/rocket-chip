@@ -3,38 +3,50 @@
 package uncore
 import Chisel._
 import scala.math.max
-import scala.reflect._
-import scala.reflect.runtime.universe._
 
-// Parameters exposed to the top-level design, set based on 
-// external requirements or design space exploration
-//
-case object TLId extends Field[String] // Unique name per network
+/** Parameters exposed to the top-level design, set based on 
+  * external requirements or design space exploration
+  */
+/** Unique name per TileLink network*/
+case object TLId extends Field[String]
+/** Coherency policy used to define custom mesage types */
 case object TLCoherencePolicy extends Field[CoherencePolicy]
-case object TLNManagers extends Field[Int]
+/** Number of manager agents */
+case object TLNManagers extends Field[Int] 
+/** Number of client agents */
 case object TLNClients extends Field[Int]
-case object TLNCoherentClients extends Field[Int]
-case object TLNIncoherentClients extends Field[Int]
+/** Number of client agents that cache data and use custom [[uncore.Acquire]] types */
+case object TLNCachingClients extends Field[Int]
+/** Number of client agents that do not cache data and use built-in [[uncoreAcquire]] types */
+case object TLNCachelessClients extends Field[Int]
+/** Maximum number of unique outstanding transactions per client */
 case object TLMaxClientXacts extends Field[Int]
-case object TLMaxClientPorts extends Field[Int]
+/** Maximum number of clients multiplexed onto a single port */
+case object TLMaxClientsPerPort extends Field[Int]
+/** Maximum number of unique outstanding transactions per manager */
 case object TLMaxManagerXacts extends Field[Int]
+/** Width of cache block addresses */
 case object TLBlockAddrBits extends Field[Int]
+/** Width of data beats */
 case object TLDataBits extends Field[Int]
+/** Number of data beats per cache block */
 case object TLDataBeats extends Field[Int]
+/** Whether the underlying physical network preserved point-to-point ordering of messages */
 case object TLNetworkIsOrderedP2P extends Field[Boolean]
 
+/** Utility trait for building Modules and Bundles that use TileLink parameters */
 trait TileLinkParameters extends UsesParameters {
   val tlCoh = params(TLCoherencePolicy)
   val tlNManagers = params(TLNManagers)
   val tlNClients = params(TLNClients)
-  val tlNCoherentClients = params(TLNCoherentClients)
-  val tlNIncoherentClients = params(TLNIncoherentClients)
+  val tlNCachingClients = params(TLNCachingClients)
+  val tlNCachelessClients = params(TLNCachelessClients)
   val tlClientIdBits =  log2Up(tlNClients)
   val tlManagerIdBits =  log2Up(tlNManagers)
   val tlMaxClientXacts = params(TLMaxClientXacts)
-  val tlMaxClientPorts = params(TLMaxClientPorts)
+  val tlMaxClientsPerPort = params(TLMaxClientsPerPort)
   val tlMaxManagerXacts = params(TLMaxManagerXacts)
-  val tlClientXactIdBits = log2Up(tlMaxClientXacts*tlMaxClientPorts)
+  val tlClientXactIdBits = log2Up(tlMaxClientXacts*tlMaxClientsPerPort)
   val tlManagerXactIdBits = log2Up(tlMaxManagerXacts)
   val tlBlockAddrBits = params(TLBlockAddrBits)
   val tlDataBits = params(TLDataBits)
@@ -61,19 +73,23 @@ trait TileLinkParameters extends UsesParameters {
 abstract class TLBundle extends Bundle with TileLinkParameters
 abstract class TLModule extends Module with TileLinkParameters
 
-// Directionality of message channel
-// Used to hook up logical network ports to physical network ports
+/** Base trait for all TileLink channels */
 trait TileLinkChannel extends TLBundle {
   def hasData(dummy: Int = 0): Bool
   def hasMultibeatData(dummy: Int = 0): Bool
 }
+/** Directionality of message channel. Used to hook up logical network ports to physical network ports */
 trait ClientToManagerChannel extends TileLinkChannel
+/** Directionality of message channel. Used to hook up logical network ports to physical network ports */
 trait ManagerToClientChannel extends TileLinkChannel
+/** Directionality of message channel. Used to hook up logical network ports to physical network ports */
 trait ClientToClientChannel extends TileLinkChannel // Unused for now
 
-// Common signals that are used in multiple channels.
-// These traits are useful for type parameterizing bundle wiring functions.
-//
+/** Common signals that are used in multiple channels.
+  * These traits are useful for type parameterizing bundle wiring functions.
+  */
+
+/** Address of a cache block. */
 trait HasCacheBlockAddress extends TLBundle {
   val addr_block = UInt(width = tlBlockAddrBits)
 
@@ -81,18 +97,22 @@ trait HasCacheBlockAddress extends TLBundle {
   def conflicts(addr: UInt) = this.addr_block === addr
 }
 
+/** Sub-block address or beat id of multi-beat data */
 trait HasTileLinkBeatId extends TLBundle {
   val addr_beat = UInt(width = tlBeatAddrBits)
 }
 
+/* Client-side transaction id. Usually Miss Status Handling Register File index */
 trait HasClientTransactionId extends TLBundle {
   val client_xact_id = Bits(width = tlClientXactIdBits)
 }
 
+/** Manager-side transaction id. Usually Transaction Status Handling Register File index. */
 trait HasManagerTransactionId extends TLBundle {
   val manager_xact_id = Bits(width = tlManagerXactIdBits)
 }
 
+/** A single beat of cache block data */
 trait HasTileLinkData extends HasTileLinkBeatId {
   val data = UInt(width = tlDataBits)
 
@@ -100,61 +120,90 @@ trait HasTileLinkData extends HasTileLinkBeatId {
   def hasMultibeatData(dummy: Int = 0): Bool
 }
 
+/** The id of a client source or destination. Used in managers. */
 trait HasClientId extends TLBundle {
   val client_id = UInt(width = tlClientIdBits)
 }
 
-// Actual TileLink channel bundle definitions
+/** TileLink channel bundle definitions */
 
+/** The Acquire channel is used to intiate coherence protocol transactions in
+  * order to gain access to a cache block's data with certain permissions
+  * enabled. Messages sent over this channel may be custom types defined by
+  * a [[uncore.CoherencePolicy]] for cached data accesse or may be built-in types
+  * used for uncached data accesses. Acquires may contain data for Put or
+  * PutAtomic built-in types. After sending an Acquire, clients must
+  * wait for a manager to send them a [[uncore.Grant]] message in response.
+  */
 class Acquire extends ClientToManagerChannel 
     with HasCacheBlockAddress 
     with HasClientTransactionId 
     with HasTileLinkData {
-  // Actual bundle fields
+  // Actual bundle fields:
   val is_builtin_type = Bool()
   val a_type = UInt(width = tlAcquireTypeBits)
   val union = Bits(width = tlAcquireUnionBits)
 
-  // Utility funcs for accessing subblock union
+  // Utility funcs for accessing subblock union:
   val opCodeOff = 1
   val opSizeOff = tlMemoryOpcodeBits + opCodeOff
   val addrByteOff = tlMemoryOperandSizeBits + opSizeOff
   val addrByteMSB = tlByteAddrBits + addrByteOff
+  /** Hint whether to allocate the block in any interveneing caches */
   def allocate(dummy: Int = 0) = union(0)
-  def op_code(dummy: Int = 0) = Mux(isBuiltInType(Acquire.putType) || isBuiltInType(Acquire.putBlockType),
+  /** Op code for [[uncore.PutAtomic]] operations */
+  def op_code(dummy: Int = 0) = Mux(
+    isBuiltInType(Acquire.putType) || isBuiltInType(Acquire.putBlockType),
     M_XWR, union(opSizeOff-1, opCodeOff))
+  /** Operand size for [[uncore.PutAtomic]] */
   def op_size(dummy: Int = 0) = union(addrByteOff-1, opSizeOff)
+  /** Byte address for [[uncore.PutAtomic]] operand */
   def addr_byte(dummy: Int = 0) = union(addrByteMSB-1, addrByteOff)
   private def amo_offset(dummy: Int = 0) = addr_byte()(tlByteAddrBits-1, log2Up(amoAluOperandBits/8))
+  /** Bit offset of [[uncore.PutAtomic]] operand */
   def amo_shift_bits(dummy: Int = 0) = UInt(amoAluOperandBits)*amo_offset()
+  /** Write mask for [[uncore.Put]], [[uncore.PutBlock]], [[uncore.PutAtomic]] */
   def wmask(dummy: Int = 0) = 
     Mux(isBuiltInType(Acquire.putAtomicType), 
       FillInterleaved(amoAluOperandBits/8, UIntToOH(amo_offset())),
       Mux(isBuiltInType(Acquire.putBlockType) || isBuiltInType(Acquire.putType),
         union(tlWriteMaskBits, 1),
         UInt(0, width = tlWriteMaskBits)))
+  /** Full, beat-sized writemask */
   def full_wmask(dummy: Int = 0) = FillInterleaved(8, wmask())
-
+  /** Complete physical address for block, beat or operand */
   def addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, this.addr_byte())
 
-  // Other helper funcs
+  // Other helper functions:
+  /** Message type equality */
   def is(t: UInt) = a_type === t //TODO: make this more opaque; def ===?
 
+  /** Is this message a built-in or custom type */
   def isBuiltInType(dummy: Int = 0): Bool = is_builtin_type
+  /** Is this message a particular built-in type */
   def isBuiltInType(t: UInt): Bool = is_builtin_type && a_type === t 
 
+  /** Does this message refer to subblock operands using info in the Acquire.union subbundle */ 
   def isSubBlockType(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesOnSubBlocks.contains(a_type) 
 
+  /** Is this message a built-in prefetch message */
   def isPrefetch(dummy: Int = 0): Bool = isBuiltInType() && is(Acquire.prefetchType) 
 
-  // Assumes no custom types have data
+  /** Does this message contain data? Assumes that no custom message types have data. */
   def hasData(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesWithData.contains(a_type)
 
+  /** Does this message contain multiple beats of data? Assumes that no custom message types have data. */
   def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && isBuiltInType() &&
                                            Acquire.typesWithMultibeatData.contains(a_type)
 
+  /** Does this message require the manager to probe the client the very client that sent it?
+    * Needed if multiple caches are attached to the same port.
+    */
   def requiresSelfProbe(dummy: Int = 0) = Bool(false)
 
+  /** Mapping between each built-in Acquire type (defined in companion object)
+    * and a built-in Grant type.
+    */
   def getBuiltInGrantType(dummy: Int = 0): UInt = {
     MuxLookup(this.a_type, Grant.putAckType, Array(
       Acquire.getType       -> Grant.getDataBeatType,
@@ -166,15 +215,33 @@ class Acquire extends ClientToManagerChannel
   }
 }
 
+/** [[uncore.Acquire]] with an extra field stating its source id */
+class AcquireFromSrc extends Acquire with HasClientId
+
+/** Contains definitions of the the built-in Acquire types and a factory
+  * for [[uncore.Acquire]]
+  *
+  * In general you should avoid using this factory directly and use
+  * [[uncore.ClientMetadata.makeAcquire]] for custom cached Acquires and
+  * [[uncore.Get]], [[uncore.Put]], etc. for built-in uncached Acquires.
+  *
+  * @param is_builtin_type built-in or custom type message?
+  * @param a_type built-in type enum or custom type enum
+  * @param client_xact_id client's transaction id
+  * @param addr_block address of the cache block
+  * @param addr_beat sub-block address (which beat)
+  * @param data data being put outwards
+  * @param union additional fields used for uncached types
+  */
 object Acquire {
   val nBuiltInTypes = 5
   //TODO: Use Enum
-  def getType       = UInt("b000")
-  def getBlockType  = UInt("b001")
-  def putType       = UInt("b010")
-  def putBlockType  = UInt("b011")
-  def putAtomicType = UInt("b100")
-  def prefetchType = UInt("b101")
+  def getType       = UInt("b000") // Get a single beat of data
+  def getBlockType  = UInt("b001") // Get a whole block of data
+  def putType       = UInt("b010") // Put a single beat of data
+  def putBlockType  = UInt("b011") // Put a whole block of data
+  def putAtomicType = UInt("b100") // Perform an atomic memory op
+  def prefetchType  = UInt("b101") // Prefetch a whole block of data
   def typesWithData = Vec(putType, putBlockType, putAtomicType)
   def typesWithMultibeatData = Vec(putBlockType)
   def typesOnSubBlocks = Vec(putType, getType, putAtomicType)
@@ -208,7 +275,16 @@ object Acquire {
   }
 }
 
-// Asks for a single TileLink beat of data
+/** Get a single beat of data from the outer memory hierarchy
+  *
+  * The client can hint whether he block containing this beat should be 
+  * allocated in the intervening levels of the hierarchy.
+  *
+  * @param client_xact_id client's transaction id
+  * @param addr_block address of the cache block
+  * @param addr_beat sub-block address (which beat)
+  * @param alloc hint whether the block should be allocated in intervening caches
+  */
 object Get {
   def apply(
       client_xact_id: UInt,
@@ -225,7 +301,15 @@ object Get {
   }
 }
 
-// Asks for an entire cache block of data
+/** Get a whole cache block of data from the outer memory hierarchy
+  *
+  * The client can hint whether the block should be allocated in the 
+  * intervening levels of the hierarchy.
+  *
+  * @param client_xact_id client's transaction id
+  * @param addr_block address of the cache block
+  * @param alloc hint whether the block should be allocated in intervening caches
+  */
 object GetBlock {
   def apply(
       client_xact_id: UInt = UInt(0),
@@ -240,8 +324,12 @@ object GetBlock {
   }
 }
 
-// Prefetch a cache block into the next level of the memory hierarchy
-// with read permissions
+/** Prefetch a cache block into the next-outermost level of the memory hierarchy
+  * with read permissions.
+  *
+  * @param client_xact_id client's transaction id
+  * @param addr_block address of the cache block
+  */
 object GetPrefetch {
   def apply(
       client_xact_id: UInt,
@@ -256,7 +344,16 @@ object GetPrefetch {
   }
 }
 
-// Writes up to a single TileLink beat of data, using mask
+/** Put a single beat of data into the outer memory hierarchy
+  *
+  * The block will be allocated in the next-outermost level of the hierarchy.
+  *
+  * @param client_xact_id client's transaction id
+  * @param addr_block address of the cache block
+  * @param addr_beat sub-block address (which beat)
+  * @param data data being refilled to the original requestor
+  * @param wmask per-byte write mask for this beat
+  */
 object Put {
   def apply(
       client_xact_id: UInt,
@@ -275,7 +372,19 @@ object Put {
   }
 }
 
-// Writes an entire cache block of data
+/** Put a whole cache block of data into the outer memory hierarchy
+  *
+  * If the write mask is not full, the block will be allocated in the
+  * next-outermost level of the hierarchy. If the write mask is full, the
+  * client can hint whether the block should be allocated or not.
+  *
+  * @param client_xact_id client's transaction id
+  * @param addr_block address of the cache block
+  * @param addr_beat sub-block address (which beat of several)
+  * @param data data being refilled to the original requestor
+  * @param wmask per-byte write mask for this beat
+  * @param alloc hint whether the block should be allocated in intervening caches
+  */
 object PutBlock {
   def apply(
       client_xact_id: UInt,
@@ -309,7 +418,36 @@ object PutBlock {
   }
 }
 
-// Performs an atomic operation in the outer memory
+/** Prefetch a cache block into the next-outermost level of the memory hierarchy
+  * with write permissions.
+  *
+  * @param client_xact_id client's transaction id
+  * @param addr_block address of the cache block
+  */
+object PutPrefetch {
+  def apply(
+      client_xact_id: UInt,
+      addr_block: UInt): Acquire = {
+    Acquire(
+      is_builtin_type = Bool(true),
+      a_type = Acquire.prefetchType,
+      client_xact_id = client_xact_id,
+      addr_block = addr_block,
+      addr_beat = UInt(0),
+      union = Cat(M_XWR, Bool(true)))
+  }
+}
+
+/** Perform an atomic memory operation in the next-outermost level of the memory hierarchy
+  *
+  * @param client_xact_id client's transaction id
+  * @param addr_block address of the cache block
+  * @param addr_beat sub-block address (within which beat)
+  * @param addr_byte sub-block address (which byte)
+  * @param atomic_opcode {swap, add, xor, and, min, max, minu, maxu} from [[uncore.MemoryOpConstants]]
+  * @param operand_size {byte, half, word, double} from [[uncore.MemoryOpConstants]]
+  * @param data source operand data
+  */
 object PutAtomic {
   def apply(
       client_xact_id: UInt,
@@ -330,22 +468,11 @@ object PutAtomic {
   }
 }
 
-// Prefetch a cache block into the next level of the memory hierarchy
-// with write permissions
-object PutPrefetch {
-  def apply(
-      client_xact_id: UInt,
-      addr_block: UInt): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
-      a_type = Acquire.prefetchType,
-      client_xact_id = client_xact_id,
-      addr_block = addr_block,
-      addr_beat = UInt(0),
-      union = Cat(M_XWR, Bool(true)))
-  }
-}
-
+/** The Probe channel is used to force clients to release data or cede permissions
+  * on a cache block. Clients respond to Probes with [[uncore.Release]] messages.
+  * The available types of Probes are customized by a particular
+  * [[uncore.CoherencePolicy]].
+  */
 class Probe extends ManagerToClientChannel 
     with HasCacheBlockAddress {
   val p_type = UInt(width = tlCoh.probeTypeWidth)
@@ -355,6 +482,18 @@ class Probe extends ManagerToClientChannel
   def hasMultibeatData(dummy: Int = 0) = Bool(false)
 }
 
+/** [[uncore.Probe]] with an extra field stating its destination id */
+class ProbeToDst extends Probe with HasClientId
+
+/** Contains factories for [[uncore.Probe]] and [[uncore.ProbeToDst]]
+  *
+  * In general you should avoid using these factories directly and use
+  * [[uncore.ManagerMetadata.makeProbe]] instead.
+  *
+  * @param dst id of client to which probe should be sent
+  * @param p_type custom probe type
+  * @param addr_block address of the cache block
+  */
 object Probe {
   def apply(p_type: UInt, addr_block: UInt): Probe = {
     val prb = new Probe
@@ -371,6 +510,13 @@ object Probe {
   }
 }
 
+/** The Release channel is used to release data or permission back to the manager
+  * in response to [[uncore.Probe]] messages. It can also be used to voluntarily
+  * write back data, for example in the event that dirty data must be evicted on
+  * a cache miss. The available types of Release messages are always customized by
+  * a particular [[uncore.CoherencePolicy]]. Releases may contain data or may be
+  * simple acknowledgements. Voluntary Releases are acknowledged with [[uncore.Grants]].
+  */
 class Release extends ClientToManagerChannel 
     with HasCacheBlockAddress 
     with HasClientTransactionId 
@@ -387,6 +533,21 @@ class Release extends ClientToManagerChannel
   def requiresAck(dummy: Int = 0) = !Bool(tlNetworkPreservesPointToPointOrdering)
 }
 
+/** [[uncore.Release]] with an extra field stating its source id */
+class ReleaseFromSrc extends Release with HasClientId
+
+/** Contains a [[uncore.Release]] factory
+  *
+  * In general you should avoid using this factory directly and use
+  * [[uncore.ClientMetadata.makeRelease]] instead.
+  *
+  * @param voluntary is this a voluntary writeback
+  * @param r_type type enum defined by coherence protocol
+  * @param client_xact_id client's transaction id
+  * @param addr_block address of the cache block
+  * @param addr_beat beat id of the data
+  * @param data data being written back
+  */
 object Release {
   def apply(
       voluntary: Bool,
@@ -406,6 +567,13 @@ object Release {
   }
 }
 
+/** The Grant channel is used to refill data or grant permissions requested of the 
+  * manager agent via an [[uncore.Acquire]] message. It is also used to acknowledge
+  * the receipt of voluntary writeback from clients in the form of [[uncore.Release]]
+  * messages. There are built-in Grant messages used for Gets and Puts, and
+  * coherence policies may also define custom Grant types. Grants may contain data
+  * or may be simple acknowledgements. Grants are responded to with [[uncore.Finish]].
+  */
 class Grant extends ManagerToClientChannel 
     with HasTileLinkData 
     with HasClientTransactionId 
@@ -433,13 +601,30 @@ class Grant extends ManagerToClientChannel
   }
 }
 
+/** [[uncore.Grant]] with an extra field stating its destination */
+class GrantToDst extends Grant with HasClientId
+
+/** Contains definitions of the the built-in grant types and factories 
+  * for [[uncore.Grant]] and [[uncore.GrantToDst]]
+  *
+  * In general you should avoid using these factories directly and use
+  * [[uncore.ManagerMetadata.makeGrant]] instead.
+  *
+  * @param dst id of client to which grant should be sent
+  * @param is_builtin_type built-in or custom type message?
+  * @param g_type built-in type enum or custom type enum
+  * @param client_xact_id client's transaction id
+  * @param manager_xact_id manager's transaction id
+  * @param addr_beat beat id of the data
+  * @param data data being refilled to the original requestor
+  */
 object Grant {
   val nBuiltInTypes = 5
-  def voluntaryAckType = UInt("b000")
-  def putAckType       = UInt("b001")
-  def prefetchAckType  = UInt("b011")
-  def getDataBeatType  = UInt("b100")
-  def getDataBlockType = UInt("b101")
+  def voluntaryAckType = UInt("b000") // For acking Releases
+  def prefetchAckType  = UInt("b001") // For acking any kind of Prefetch
+  def putAckType       = UInt("b011") // For acking any kind of non-prfetch Put
+  def getDataBeatType  = UInt("b100") // Supplying a single beat of Get
+  def getDataBlockType = UInt("b101") // Supplying all beats of a GetBlock
   def typesWithData = Vec(getDataBlockType, getDataBeatType)
   def typesWithMultibeatData= Vec(getDataBlockType)
 
@@ -480,62 +665,69 @@ object Grant {
   }
 }
 
+/** The Finish channel is used to provide a global ordering of transactions
+  * in networks that do not guarantee point-to-point ordering of messages.
+  * A Finsish message is sent as acknowledgement of receipt of a [[uncore.Grant]].
+  * When a Finish message is received, a manager knows it is safe to begin
+  * processing other transactions that touch the same cache block.
+  */
 class Finish extends ClientToManagerChannel with HasManagerTransactionId {
   def hasData(dummy: Int = 0) = Bool(false)
   def hasMultibeatData(dummy: Int = 0) = Bool(false)
 }
 
-// These subtypes include a field for the source or destination ClientId
-class AcquireFromSrc extends Acquire with HasClientId
-class ProbeToDst extends Probe with HasClientId
-class ReleaseFromSrc extends Release with HasClientId
-class GrantToDst extends Grant with HasClientId
-
-// Complete IO definitions for two types of TileLink clients, including
-// networking headers
+/** Complete IO definition for incoherent TileLink, including networking headers */
 class UncachedTileLinkIO extends TLBundle {
   val acquire   = new DecoupledIO(new LogicalNetworkIO(new Acquire))
   val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
   val finish = new DecoupledIO(new LogicalNetworkIO(new Finish))
 }
 
+/** Complete IO definition for coherent TileLink, including networking headers */
 class TileLinkIO extends UncachedTileLinkIO {
   val probe     = new DecoupledIO(new LogicalNetworkIO(new Probe)).flip
   val release   = new DecoupledIO(new LogicalNetworkIO(new Release))
 }
 
-// Converts UncachedTileLinkIO to regular TileLinkIO by pinning
-// probe.ready and release.valid low
-class TileLinkIOWrapper extends TLModule {
-  val io = new Bundle {
-    val in = new UncachedTileLinkIO().flip
-    val out = new TileLinkIO
-  }
-  io.out.acquire <> io.in.acquire
-  io.out.grant <> io.in.grant
-  io.out.finish <> io.in.finish
-  io.out.probe.ready := Bool(true)
-  io.out.release.valid := Bool(false)
-}
-
-// This version of TileLinkIO does not contain network headers. The headers
-// are provided in the top-level that instantiates the clients and network,
-// probably using a TileLinkClientPort module.
-// By eliding the header subbundles within the clients we can enable 
-// hierarchical P&R while minimizing unconnected port errors in GDS.
-// Secondly, this version of the interface elides Finish messages, with the
-// assumption that a FinishUnit has been coupled to the TileLinkIO port
-// to deal with acking received Grants.
+/** This version of UncachedTileLinkIO does not contain network headers. 
+  * It is intended for use within client agents.
+  *
+  * Headers are provided in the top-level that instantiates the clients and network,
+  * probably using a [[uncore.ClientTileLinkPort]] module.
+  * By eliding the header subbundles within the clients we can enable 
+  * hierarchical P-and-R while minimizing unconnected port errors in GDS.
+  *
+  * Secondly, this version of the interface elides [[uncore.Finish]] messages, with the
+  * assumption that a [[uncore.FinishUnit]] has been coupled to the TileLinkIO port
+  * to deal with acking received [[uncore.Grants]].
+  */
 class ClientUncachedTileLinkIO extends TLBundle {
   val acquire   = new DecoupledIO(new Acquire)
   val grant     = new DecoupledIO(new Grant).flip
 }
 
+/** This version of TileLinkIO does not contain network headers. 
+  * It is intended for use within client agents.
+  */
 class ClientTileLinkIO extends ClientUncachedTileLinkIO {
   val probe     = new DecoupledIO(new Probe).flip
   val release   = new DecoupledIO(new Release)
 }
 
+/** This version of TileLinkIO does not contain network headers, but
+  * every channel does include an extra client_id subbundle.
+  * It is intended for use within Management agents.
+  *
+  * Managers need to track where [[uncore.Acquire]] and [[uncore.Release]] messages
+  * originated so that they can send a [[uncore.Grant]] to the right place. 
+  * Similarly they must be able to issues Probes to particular clients.
+  * However, we'd still prefer to have [[uncore.ManagerTileLinkPort]] fill in
+  * the header.src to enable hierarchical p-and-r of the managers. Additionally, 
+  * coherent clients might be mapped to random network port ids, and we'll leave it to the
+  * [[uncore.ManagerTileLinkPort]] to apply the correct mapping. Managers do need to
+  * see Finished so they know when to allow new transactions on a cache
+  * block to proceed.
+  */
 class ManagerTileLinkIO extends TLBundle {
   val acquire   = new DecoupledIO(new AcquireFromSrc).flip
   val grant     = new DecoupledIO(new GrantToDst)
@@ -544,17 +736,7 @@ class ManagerTileLinkIO extends TLBundle {
   val release   = new DecoupledIO(new ReleaseFromSrc).flip
 }
 
-class ClientTileLinkIOWrapper extends TLModule {
-  val io = new Bundle {
-    val in = new ClientUncachedTileLinkIO().flip
-    val out = new ClientTileLinkIO
-  }
-  io.out.acquire <> io.in.acquire
-  io.out.grant <> io.in.grant
-  io.out.probe.ready := Bool(true)
-  io.out.release.valid := Bool(false)
-}
-
+/** Utilities for safely wrapping a *UncachedTileLink by pinning probe.ready and release.valid low */
 object TileLinkIOWrapper {
   def apply(utl: ClientUncachedTileLinkIO, p: Parameters): ClientTileLinkIO = {
     val conv = Module(new ClientTileLinkIOWrapper)(p)
@@ -580,13 +762,32 @@ object TileLinkIOWrapper {
   def apply(tl: TileLinkIO): TileLinkIO = tl
 }
 
-class FinishQueueEntry extends TLBundle {
-    val fin = new Finish
-    val dst = UInt(width = log2Up(params(LNEndpoints)))
+class TileLinkIOWrapper extends TLModule {
+  val io = new Bundle {
+    val in = new UncachedTileLinkIO().flip
+    val out = new TileLinkIO
+  }
+  io.out.acquire <> io.in.acquire
+  io.out.grant <> io.in.grant
+  io.out.finish <> io.in.finish
+  io.out.probe.ready := Bool(true)
+  io.out.release.valid := Bool(false)
 }
 
-class FinishQueue(entries: Int) extends Queue(new FinishQueueEntry, entries)
+class ClientTileLinkIOWrapper extends TLModule {
+  val io = new Bundle {
+    val in = new ClientUncachedTileLinkIO().flip
+    val out = new ClientTileLinkIO
+  }
+  io.out.acquire <> io.in.acquire
+  io.out.grant <> io.in.grant
+  io.out.probe.ready := Bool(true)
+  io.out.release.valid := Bool(false)
+}
 
+/** A helper module that automatically issues [[uncore.Finish]] messages in repsonse
+  * to [[uncore.Grant]] that it receives from a manager and forwards to a client
+  */
 class FinishUnit(srcId: Int = 0, outstanding: Int = 2) extends TLModule with HasDataBeatCounters {
   val io = new Bundle {
     val grant = Decoupled(new LogicalNetworkIO(new Grant)).flip
@@ -633,36 +834,23 @@ class FinishUnit(srcId: Int = 0, outstanding: Int = 2) extends TLModule with Has
   }
 }
 
-object ClientTileLinkHeaderCreator {
-  def apply[T <: ClientToManagerChannel with HasCacheBlockAddress : ClassTag](
-      in: DecoupledIO[T],
-      clientId: Int,
-      addrConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = new DecoupledIO(new LogicalNetworkIO(in.bits.clone)).asDirectionless
-    out.bits.payload := in.bits
-    out.bits.header.src := UInt(clientId)
-    out.bits.header.dst := addrConvert(in.bits.addr_block)
-    out.valid := in.valid
-    in.ready := out.ready
-    out
-  }
+class FinishQueueEntry extends TLBundle {
+    val fin = new Finish
+    val dst = UInt(width = log2Up(params(LNEndpoints)))
 }
 
-object ManagerTileLinkHeaderCreator {
-  def apply[T <: ManagerToClientChannel with HasClientId : ClassTag](
-      in: DecoupledIO[T],
-      managerId: Int,
-      idConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = new DecoupledIO(new LogicalNetworkIO(in.bits.clone)).asDirectionless
-    out.bits.payload := in.bits
-    out.bits.header.src := UInt(managerId)
-    out.bits.header.dst := idConvert(in.bits.client_id)
-    out.valid := in.valid
-    in.ready := out.ready
-    out
-  }
-}
+class FinishQueue(entries: Int) extends Queue(new FinishQueueEntry, entries)
 
+/** A port to convert [[uncore.ClientTileLinkIO]].flip into [[uncore.TileLinkIO]]
+  *
+  * Creates network headers for [[uncore.Acquire]] and [[uncore.Release]] messages,
+  * calculating header.dst and filling in header.src.
+  * Strips headers from [[uncore.Probes]].
+  * Responds to [[uncore.Grant]] by automatically issuing [[uncore.Finish]] to the granting managers.
+  *
+  * @param clientId network port id of this agent
+  * @param addrConvert how a physical address maps to a destination manager port id
+  */
 class ClientTileLinkNetworkPort(clientId: Int, addrConvert: UInt => UInt) extends TLModule {
   val io = new Bundle {
     val client = new ClientTileLinkIO().flip
@@ -686,6 +874,31 @@ class ClientTileLinkNetworkPort(clientId: Int, addrConvert: UInt => UInt) extend
   io.client.grant <> gnt_without_header
 }
 
+object ClientTileLinkHeaderCreator {
+  def apply[T <: ClientToManagerChannel with HasCacheBlockAddress](
+      in: DecoupledIO[T],
+      clientId: Int,
+      addrConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
+    val out = new DecoupledIO(new LogicalNetworkIO(in.bits.clone)).asDirectionless
+    out.bits.payload := in.bits
+    out.bits.header.src := UInt(clientId)
+    out.bits.header.dst := addrConvert(in.bits.addr_block)
+    out.valid := in.valid
+    in.ready := out.ready
+    out
+  }
+}
+
+/** A port to convert [[uncore.ManagerTileLinkIO]].flip into [[uncore.TileLinkIO]].flip
+  *
+  * Creates network headers for [[uncore.Probe]] and [[uncore.Grant]] messagess,
+  * calculating header.dst and filling in header.src.
+  * Strips headers from [[uncore.Acquire]], [[uncore.Release]] and [[uncore.Finish],
+  * but supplies client_id instead.
+  *
+  * @param managerId the network port id of this agent
+  * @param idConvert how a sharer id maps to a destination client port id
+  */
 class ManagerTileLinkNetworkPort(managerId: Int, idConvert: UInt => UInt) extends TLModule {
   val io = new Bundle {
     val manager = new ManagerTileLinkIO().flip
@@ -700,8 +913,25 @@ class ManagerTileLinkNetworkPort(managerId: Int, idConvert: UInt => UInt) extend
   io.manager.finish <> DecoupledLogicalNetworkIOUnwrapper(io.network.finish)
 }
 
+object ManagerTileLinkHeaderCreator {
+  def apply[T <: ManagerToClientChannel with HasClientId](
+      in: DecoupledIO[T],
+      managerId: Int,
+      idConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
+    val out = new DecoupledIO(new LogicalNetworkIO(in.bits.clone)).asDirectionless
+    out.bits.payload := in.bits
+    out.bits.header.src := UInt(managerId)
+    out.bits.header.dst := idConvert(in.bits.client_id)
+    out.valid := in.valid
+    in.ready := out.ready
+    out
+  }
+}
+
+/** Struct for describing per-channel queue depths */
 case class TileLinkDepths(acq: Int, prb: Int, rel: Int, gnt: Int, fin: Int)
 
+/** Optionally enqueues each [[uncore.TileLinkChannel]] individually */
 class TileLinkEnqueuer(depths: TileLinkDepths) extends Module {
   val io = new Bundle {
     val client = new TileLinkIO().flip
@@ -905,10 +1135,10 @@ class ClientTileLinkIOArbiter(val arbN: Int) extends Module with TileLinkArbiter
 }
 
 /** Utility trait containing wiring functions to keep track of how many data beats have 
-  * been sent or recieved over a particular TileLinkChannel or pair of channels. 
+  * been sent or recieved over a particular [[uncore.TileLinkChannel]] or pair of channels. 
   *
   * Won't count message types that don't have data. 
-  * Used in XactTrackers and FinishUnit.
+  * Used in [[uncore.XactTracker]] and [[uncore.FinishUnit]].
   */
 trait HasDataBeatCounters {
   type HasBeat = TileLinkChannel with HasTileLinkBeatId
@@ -926,7 +1156,7 @@ trait HasDataBeatCounters {
     (cnt, done)
   }
 
-  /** Counter for beats on outgoing DecoupledIOs */
+  /** Counter for beats on outgoing [[chisel.DecoupledIO]] */
   def connectOutgoingDataBeatCounter[T <: TileLinkChannel](in: DecoupledIO[T], beat: UInt = UInt(0)): (UInt, Bool) =
     connectDataBeatCounter(in.fire(), in.bits, beat)
 

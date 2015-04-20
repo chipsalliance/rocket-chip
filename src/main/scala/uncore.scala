@@ -2,15 +2,10 @@
 
 package uncore
 import Chisel._
-import scala.reflect._
-import scala.reflect.runtime.universe._
 
 case object NReleaseTransactors extends Field[Int]
 case object NProbeTransactors extends Field[Int]
 case object NAcquireTransactors extends Field[Int]
-case object NIncoherentClients extends Field[Int]
-case object NCoherentClients extends Field[Int]
-case object L2CoherencePolicy extends Field[CoherencePolicy]
 
 trait CoherenceAgentParameters extends UsesParameters {
   val nReleaseTransactors = 1
@@ -28,6 +23,7 @@ trait CoherenceAgentParameters extends UsesParameters {
   val innerByteAddrBits = log2Up(innerDataBits/8)
   require(outerDataBeats == innerDataBeats) //TODO: must fix all xact_data Vecs to remove this requirement
 }
+
 abstract class CoherenceAgentBundle extends Bundle with CoherenceAgentParameters
 abstract class CoherenceAgentModule extends Module with CoherenceAgentParameters
 
@@ -53,7 +49,7 @@ trait HasCoherenceAgentWiringHelpers {
 
 trait HasInnerTLIO extends CoherenceAgentBundle {
   val inner = Bundle(new ManagerTileLinkIO)(innerTLParams)
-  val incoherent = Vec.fill(inner.tlNCoherentClients){Bool()}.asInput
+  val incoherent = Vec.fill(inner.tlNCachingClients){Bool()}.asInput
   def iacq(dummy: Int = 0) = inner.acquire.bits
   def iprb(dummy: Int = 0) = inner.probe.bits
   def irel(dummy: Int = 0) = inner.release.bits
@@ -129,5 +125,5 @@ abstract class XactTracker extends CoherenceAgentModule with HasDataBeatCounters
     dropPendingBitWhenBeat(in.fire() && in.bits.hasData(), in.bits)
 
   def dropPendingBitAtDest(in: DecoupledIO[ProbeToDst]): UInt =
-    ~Fill(in.bits.tlNCoherentClients, in.fire()) | ~UIntToOH(in.bits.client_id)
+    ~Fill(in.bits.tlNCachingClients, in.fire()) | ~UIntToOH(in.bits.client_id)
 }
