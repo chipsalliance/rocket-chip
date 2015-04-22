@@ -59,13 +59,14 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(btb.io.resp.bits.clone)
   val s2_xcpt_if = Reg(init=Bool(false))
+  val icbuf = Module(new Queue(new ICacheResp, 1, pipe=true))
 
   val msb = vaddrBits-1
   val lsb = log2Up(coreFetchWidth*coreInstBytes)
   val btbTarget = Cat(btb.io.resp.bits.target(msb), btb.io.resp.bits.target)
   val ntpc_0 = s1_pc + UInt(coreInstBytes*coreFetchWidth)
   val ntpc = Cat(s1_pc(msb) & ntpc_0(msb), ntpc_0(msb,lsb), Bits(0,lsb)) // unsure
-  val icmiss = s2_valid && !icache.io.resp.valid
+  val icmiss = s2_valid && !icbuf.io.deq.valid
   val predicted_npc = Mux(btb.io.resp.bits.taken, btbTarget, ntpc)
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
   val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.resp.bits.taken && ((ntpc & rowBytes) === (s1_pc & rowBytes))
@@ -109,15 +110,17 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   icache.io.invalidate := io.cpu.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
   icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss || io.ptw.invalidate
-  icache.io.resp.ready := !stall && !s1_same_block
 
-  io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
+  io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icbuf.io.deq.valid)
   io.cpu.resp.bits.pc := s2_pc
+
+  icbuf.io.enq <> icache.io.resp
+  icbuf.io.deq.ready := !stall && !s1_same_block
 
   require(coreFetchWidth * coreInstBytes <= rowBytes)
   val fetch_data =
-    if (coreFetchWidth * coreInstBytes == rowBytes) icache.io.resp.bits.datablock
-    else icache.io.resp.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(coreFetchWidth*coreInstBytes)) << log2Up(coreFetchWidth*coreInstBits))
+    if (coreFetchWidth * coreInstBytes == rowBytes) icbuf.io.deq.bits.datablock
+    else icbuf.io.deq.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(coreFetchWidth*coreInstBytes)) << log2Up(coreFetchWidth*coreInstBits))
 
   for (i <- 0 until coreFetchWidth) {
     io.cpu.resp.bits.data(i) := fetch_data(i*coreInstBits+coreInstBits-1, i*coreInstBits)
@@ -139,7 +142,6 @@ class ICacheReq extends FrontendBundle {
 }
 
 class ICacheResp extends FrontendBundle {
-  val data = Bits(width = coreInstBits)
   val datablock = Bits(width = rowBits)
 }
 
@@ -161,9 +163,8 @@ class ICache extends FrontendModule
   val stall = !io.resp.ready
   val rdy = Bool()
 
-  val s2_valid = Reg(init=Bool(false))
-  val s2_addr = Reg(UInt(width = paddrBits))
-  val s2_any_tag_hit = Bool()
+  val refill_addr = Reg(UInt(width = paddrBits))
+  val s1_any_tag_hit = Bool()
 
   val s1_valid = Reg(init=Bool(false))
   val s1_pgoff = Reg(UInt(width = pgIdxBits))
@@ -178,17 +179,17 @@ class ICache extends FrontendModule
     s1_pgoff := io.req.bits.idx
   }
 
-  s2_valid := s1_valid && rdy && !io.req.bits.kill || io.resp.valid && stall
-  when (s1_valid && rdy && !stall) {
-    s2_addr := s1_addr
-  }
+  val out_valid = s1_valid && !io.req.bits.kill && state === s_ready
+  val s1_idx = s1_addr(untagBits-1,blockOffBits)
+  val s1_offset = s1_addr(blockOffBits-1,0)
+  val s1_hit = out_valid && s1_any_tag_hit
+  val s1_miss = out_valid && !s1_any_tag_hit
+  rdy := state === s_ready && !s1_miss
 
-  val s2_tag = s2_addr(tagBits+untagBits-1,untagBits)
-  val s2_idx = s2_addr(untagBits-1,blockOffBits)
-  val s2_offset = s2_addr(blockOffBits-1,0)
-  val s2_hit = s2_valid && s2_any_tag_hit
-  val s2_miss = s2_valid && !s2_any_tag_hit
-  rdy := state === s_ready && !s2_miss
+  when (s1_valid && state === s_ready && s1_miss) {
+    refill_addr := s1_addr
+  }
+  val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
 
   val ser = Module(new FlowThroughSerializer(
                           io.mem.grant.bits,
@@ -200,14 +201,14 @@ class ICache extends FrontendModule
   val refill_bits = ser.io.out.bits
   ser.io.out.ready := Bool(true)
 
-  val repl_way = if (isDM) UInt(0) else LFSR16(s2_miss)(log2Up(nWays)-1,0)
+  val repl_way = if (isDM) UInt(0) else LFSR16(s1_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
   val tag_array = Mem(Bits(width = entagbits*nWays), nSets, seqRead = true)
   val tag_raddr = Reg(UInt())
   when (refill_done) {
     val wmask = FillInterleaved(entagbits, if (isDM) Bits(1) else UIntToOH(repl_way))
-    val tag = code.encode(s2_tag).toUInt
-    tag_array.write(s2_idx, Fill(nWays, tag), wmask)
+    val tag = code.encode(refill_tag).toUInt
+    tag_array.write(s1_idx, Fill(nWays, tag), wmask)
   }
 //  /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
   .elsewhen (s0_valid) {
@@ -216,55 +217,49 @@ class ICache extends FrontendModule
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
   when (refill_done && !invalidated) {
-    vb_array := vb_array.bitSet(Cat(repl_way, s2_idx), Bool(true))
+    vb_array := vb_array.bitSet(Cat(repl_way, s1_idx), Bool(true))
   }
   when (io.invalidate) {
     vb_array := Bits(0)
     invalidated := Bool(true)
   }
-  val s2_disparity = Vec.fill(nWays){Bool()}
+  val s1_disparity = Vec.fill(nWays){Bool()}
   for (i <- 0 until nWays)
-    when (s2_valid && s2_disparity(i)) { vb_array := vb_array.bitSet(Cat(UInt(i), s2_idx), Bool(false)) }
+    when (s1_valid && s1_disparity(i)) { vb_array := vb_array.bitSet(Cat(UInt(i), s1_idx), Bool(false)) }
 
   val s1_tag_match = Vec.fill(nWays){Bool()}
-  val s2_tag_hit = Vec.fill(nWays){Bool()}
-  val s2_dout = Vec.fill(nWays){Reg(Bits())}
+  val s1_tag_hit = Vec.fill(nWays){Bool()}
+  val s1_dout = Vec.fill(nWays){(Bits())}
 
   for (i <- 0 until nWays) {
     val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
-    val s2_vb = Reg(Bool())
-    val s2_tag_disparity = Reg(Bool())
-    val s2_tag_match = Reg(Bool())
     val tag_out = tag_array(tag_raddr)(entagbits*(i+1)-1, entagbits*i)
+    val s1_tag_disparity = code.decode(tag_out).error
     when (s1_valid && rdy && !stall) {
-      s2_vb := s1_vb
-      s2_tag_disparity := code.decode(tag_out).error
-      s2_tag_match := s1_tag_match(i)
     }
     s1_tag_match(i) := tag_out(tagBits-1,0) === s1_tag
-    s2_tag_hit(i) := s2_vb && s2_tag_match
-    s2_disparity(i) := s2_vb && (s2_tag_disparity || code.decode(s2_dout(i)).error)
+    s1_tag_hit(i) := s1_vb && s1_tag_match(i)
+    s1_disparity(i) := s1_vb && (s1_tag_disparity || code.decode(s1_dout(i)).error)
   }
-  s2_any_tag_hit := s2_tag_hit.reduceLeft(_||_) && !s2_disparity.reduceLeft(_||_)
+  s1_any_tag_hit := s1_tag_hit.reduceLeft(_||_) && !s1_disparity.reduceLeft(_||_)
 
   for (i <- 0 until nWays) {
     val data_array = Mem(Bits(width = code.width(rowBits)), nSets*refillCycles, seqRead = true)
     val s1_raddr = Reg(UInt())
     when (refill_valid && repl_way === UInt(i)) {
       val e_d = code.encode(refill_bits.payload.data)
-      if(refillCycles > 1) data_array(Cat(s2_idx, refill_bits.payload.addr_beat)) := e_d
-      else data_array(s2_idx) := e_d
+      if(refillCycles > 1) data_array(Cat(s1_idx, refill_bits.payload.addr_beat)) := e_d
+      else data_array(s1_idx) := e_d
     }
 //    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
     .elsewhen (s0_valid) {
       s1_raddr := s0_pgoff(untagBits-1,blockOffBits-(if(refillCycles > 1) refill_cnt.getWidth else 0))
     }
     // if s1_tag_match is critical, replace with partial tag check
-    when (s1_valid && rdy && !stall && (Bool(isDM) || s1_tag_match(i))) { s2_dout(i) := data_array(s1_raddr) }
+    s1_dout(i) := 0
+    when (s1_valid && rdy && !stall && (Bool(isDM) || s1_tag_match(i))) { s1_dout(i) := data_array(s1_raddr) }
   }
-  val s2_dout_word = s2_dout.map(x => (x >> (s2_offset(log2Up(rowBytes)-1,log2Up(coreInstBytes)) << log2Up(coreInstBits)))(coreInstBits-1,0))
-  io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
-  io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
+  io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
 
   val ack_q = Module(new Queue(new LogicalNetworkIO(new Finish), 1))
   ack_q.io.enq.valid := refill_done && refill_bits.payload.requiresAck()
@@ -272,15 +267,15 @@ class ICache extends FrontendModule
   ack_q.io.enq.bits.header.dst := refill_bits.header.src
 
   // output signals
-  io.resp.valid := s2_hit
+  io.resp.valid := s1_hit
   io.mem.acquire.valid := (state === s_request) && ack_q.io.enq.ready
-  io.mem.acquire.bits := GetBlock(addr_block = s2_addr >> UInt(blockOffBits))
+  io.mem.acquire.bits := GetBlock(addr_block = refill_addr >> UInt(blockOffBits))
   io.mem.finish <> ack_q.io.deq
 
   // control state machine
   switch (state) {
     is (s_ready) {
-      when (s2_miss) { state := s_request }
+      when (s1_miss) { state := s_request }
       invalidated := Bool(false)
     }
     is (s_request) {
