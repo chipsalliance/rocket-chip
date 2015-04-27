@@ -57,7 +57,10 @@ class LogicalNetworkIO[T <: Data](dType: T) extends Bundle {
 }
 
 object DecoupledLogicalNetworkIOWrapper {
-  def apply[T <: Data](in: DecoupledIO[T], src: UInt = UInt(0), dst: UInt = UInt(0)) = {
+  def apply[T <: Data](
+      in: DecoupledIO[T],
+      src: UInt = UInt(0),
+      dst: UInt = UInt(0)): DecoupledIO[LogicalNetworkIO[T]] = {
     val out = Decoupled(new LogicalNetworkIO(in.bits.clone)).asDirectionless
     out.valid := in.valid
     out.bits.payload := in.bits
@@ -69,10 +72,32 @@ object DecoupledLogicalNetworkIOWrapper {
 }
 
 object DecoupledLogicalNetworkIOUnwrapper {
-  def apply[T <: Data](in: DecoupledIO[LogicalNetworkIO[T]]) = {
+  def apply[T <: Data](in: DecoupledIO[LogicalNetworkIO[T]]): DecoupledIO[T] = {
     val out = Decoupled(in.bits.payload.clone).asDirectionless
     out.valid := in.valid
     out.bits := in.bits.payload
+    in.ready := out.ready
+    out
+  }
+}
+
+object DefaultFromPhysicalShim {
+  def apply[T <: Data](in: DecoupledIO[PhysicalNetworkIO[T]]): DecoupledIO[LogicalNetworkIO[T]] = {
+    val out = Decoupled(new LogicalNetworkIO(in.bits.payload)).asDirectionless
+    out.bits.header := in.bits.header
+    out.bits.payload := in.bits.payload
+    out.valid := in.valid
+    in.ready := out.ready
+    out
+  }
+}
+
+object DefaultToPhysicalShim {
+  def apply[T <: Data](n: Int, in: DecoupledIO[LogicalNetworkIO[T]]): DecoupledIO[PhysicalNetworkIO[T]] = {
+    val out = Decoupled(new PhysicalNetworkIO(n, in.bits.payload)).asDirectionless
+    out.bits.header := in.bits.header
+    out.bits.payload := in.bits.payload
+    out.valid := in.valid
     in.ready := out.ready
     out
   }
