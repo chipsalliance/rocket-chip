@@ -337,8 +337,7 @@ class L2DataArray(delay: Int) extends L2HellaCacheModule {
   io.write.ready := Bool(true)
 }
 
-class L2HellaCacheBank extends HierarchicalCoherenceAgent
-    with L2HellaCacheParameters {
+class L2HellaCacheBank extends HierarchicalCoherenceAgent with L2HellaCacheParameters {
   require(isPow2(nSets))
   require(isPow2(nWays)) 
 
@@ -357,8 +356,7 @@ class TSHRFileIO extends HierarchicalTLIO {
   val data = new L2DataRWIO
 }
 
-class TSHRFile extends L2HellaCacheModule 
-    with HasCoherenceAgentWiringHelpers {
+class TSHRFile extends L2HellaCacheModule with HasCoherenceAgentWiringHelpers {
   val io = new TSHRFileIO
 
   // Create TSHRs for outstanding transactions
@@ -381,7 +379,6 @@ class TSHRFile extends L2HellaCacheModule
   val acquire_idx = Mux(acquireMatches.orR,
                       PriorityEncoder(acquireMatches),
                       PriorityEncoder(acquireReadys))
-
   val block_acquires = acquireConflicts.orR
   io.inner.acquire.ready := acquireReadys.orR && !block_acquires
   trackerAcquireIOs.zipWithIndex.foreach {
@@ -432,7 +429,7 @@ class L2XactTrackerIO extends HierarchicalXactTrackerIO {
 }
 
 abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
-  class CacheBlockBuffer {
+  class CacheBlockBuffer { // TODO
     val buffer = Reg(Bits(width = params(CacheBlockBytes)*8))
 
     def internal = Vec.fill(internalDataBeats){ Bits(width = rowBits) }.fromBits(buffer)
@@ -477,127 +474,118 @@ abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
     val isPartial = a.wmask() != Acquire.fullWriteMask
     addPendingBitWhenBeat(in.fire() && isPartial && Bool(ignoresWriteMask), a)
   }
+
+  def pinAllReadyValidLow[T <: Data](b: Bundle) {
+    b.elements.foreach {
+      _._2 match {
+        case d: DecoupledIO[T] =>
+          if(d.ready.dir == OUTPUT) d.ready := Bool(false)
+          else if(d.valid.dir == OUTPUT) d.valid := Bool(false)
+        case v: ValidIO[T] => if(v.valid.dir == OUTPUT) v.valid := Bool(false) 
+        case b: Bundle => pinAllReadyValidLow(b)
+        case _ =>
+      }
+    }
+  }
 }
 
 class L2VoluntaryReleaseTracker(trackerId: Int) extends L2XactTracker {
   val io = new L2XactTrackerIO
+  pinAllReadyValidLow(io)
 
-  val s_idle :: s_meta_read :: s_meta_resp :: s_data_write :: s_meta_write :: s_inner_grant :: s_inner_finish :: Nil = Enum(UInt(), 7)
+  val s_idle :: s_meta_read :: s_meta_resp :: s_busy :: s_meta_write :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_idle)
 
   val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
-  val xact_tag_match = Reg{ Bool() }
-  val xact_old_meta = Reg{ new L2Metadata }
+  val data_buffer = Vec.fill(innerDataBeats){ Reg(init=UInt(0, width = innerDataBits)) }
   val xact_way_en = Reg{ Bits(width = nWays) }
-  val data_buffer = Vec.fill(innerDataBeats){ Reg(io.irel().data.clone) }
+  val xact_old_meta = Reg{ new L2Metadata }
   val coh = xact_old_meta.coh
 
-  val collect_irel_data = Reg(init=Bool(false))
-  val irel_data_valid = Reg(init=Bits(0, width = innerDataBeats))
-  val irel_data_done = connectIncomingDataBeatCounter(io.inner.release)
-  val (write_data_cnt, write_data_done) = connectInternalDataBeatCounter(io.data.write)
+  val pending_irels = Reg(init=Bits(0, width = io.inner.tlDataBeats))
+  val pending_writes = Reg(init=Bits(0, width = io.inner.tlDataBeats))
+  val pending_ignt = Reg(init=Bool(false))
 
-  io.has_acquire_conflict := Bool(false)
-  io.has_acquire_match := Bool(false)
-  io.has_release_match := io.irel().isVoluntary()
+  val all_pending_done =
+    !(pending_writes.orR ||
+      pending_ignt)
 
-  io.outer.acquire.valid := Bool(false)
-  io.outer.probe.ready := Bool(false)
-  io.outer.release.valid := Bool(false)
-  io.outer.grant.ready := Bool(false)
-  io.inner.acquire.ready := Bool(false)
-  io.inner.probe.valid := Bool(false)
-  io.inner.release.ready := Bool(false)
-  io.inner.grant.valid := Bool(false)
-  io.inner.finish.ready := Bool(false)
+  // Accept a voluntary Release (and any further beats of data)
+  pending_irels := (pending_irels & dropPendingBitWhenBeatHasData(io.inner.release))
+  io.inner.release.ready := state === s_idle || pending_irels.orR
+  when(io.inner.release.fire()) { data_buffer(io.irel().addr_beat) := io.irel().data }
 
-  io.inner.grant.bits := coh.inner.makeGrant(xact, UInt(trackerId))
-
-  io.data.read.valid := Bool(false)
-  io.data.write.valid := Bool(false)
-  io.data.write.bits.id := UInt(trackerId)
-  io.data.write.bits.way_en := xact_way_en
-  io.data.write.bits.addr_idx := xact.addr_block(idxMSB,idxLSB)
-  io.data.write.bits.addr_beat := write_data_cnt
-  io.data.write.bits.wmask := SInt(-1)
-  io.data.write.bits.data := data_buffer(write_data_cnt)
-  io.meta.read.valid := Bool(false)
+  // Begin a transaction by getting the current block metadata
+  io.meta.read.valid := state === s_meta_read
   io.meta.read.bits.id := UInt(trackerId)
   io.meta.read.bits.idx := xact.addr_block(idxMSB,idxLSB)
   io.meta.read.bits.tag := xact.addr_block >> UInt(idxBits)
-  io.meta.write.valid := Bool(false)
+
+  // Write the voluntarily written back data to this cache
+  pending_writes := (pending_writes & dropPendingBit(io.data.write)) |
+                      addPendingBitWhenBeatHasData(io.inner.release)
+  val curr_write_beat = PriorityEncoder(pending_writes)
+  io.data.write.valid := state === s_busy && pending_writes.orR
+  io.data.write.bits.id := UInt(trackerId)
+  io.data.write.bits.way_en := xact_way_en
+  io.data.write.bits.addr_idx := xact.addr_block(idxMSB,idxLSB)
+  io.data.write.bits.addr_beat := curr_write_beat
+  io.data.write.bits.wmask := SInt(-1)
+  io.data.write.bits.data := data_buffer(curr_write_beat)
+
+  // Send an acknowledgement
+  io.inner.grant.valid := state === s_busy && pending_ignt && !pending_irels
+  io.inner.grant.bits := coh.inner.makeGrant(xact, UInt(trackerId))
+  when(io.inner.grant.fire()) { pending_ignt := Bool(false) }
+
+  // End a transaction by updating the block metadata
+  io.meta.write.valid := state === s_meta_write
   io.meta.write.bits.id := UInt(trackerId)
   io.meta.write.bits.idx := xact.addr_block(idxMSB,idxLSB)
   io.meta.write.bits.way_en := xact_way_en
   io.meta.write.bits.data.tag := xact.addr_block >> UInt(idxBits)
   io.meta.write.bits.data.coh.inner := xact_old_meta.coh.inner.onRelease(xact)
-  io.meta.write.bits.data.coh.outer := xact_old_meta.coh.outer.onHit(M_XWR) // WB is a write
-  io.wb.req.valid := Bool(false)
+  io.meta.write.bits.data.coh.outer := Mux(xact.hasData(),
+                                         xact_old_meta.coh.outer.onHit(M_XWR),
+                                         xact_old_meta.coh.outer)
 
-  when(collect_irel_data) {
-    io.inner.release.ready := Bool(true)
-    when(io.inner.release.valid) {
-      data_buffer(io.irel().addr_beat) := io.irel().data
-      irel_data_valid(io.irel().addr_beat) := Bool(true)
+  // State machine updates and transaction handler metadata intialization
+  when(state === s_idle && io.inner.release.valid) {
+    xact := io.irel()
+    when(io.irel().hasMultibeatData()) {
+      pending_irels := dropPendingBitWhenBeatHasData(io.inner.release)
+    }. otherwise { 
+      pending_irels := UInt(0)
     }
-    when(irel_data_done) { collect_irel_data := Bool(false) }
+    pending_writes := addPendingBitWhenBeatHasData(io.inner.release)
+    pending_ignt := io.irel().requiresAck()
+    state := s_meta_read
   }
+  when(state === s_meta_read && io.meta.read.ready) { state := s_meta_resp }
+  when(state === s_meta_resp && io.meta.resp.valid) {
+    xact_old_meta := io.meta.resp.bits.meta
+    xact_way_en := io.meta.resp.bits.way_en
+    state := s_busy
+  }
+  when(state === s_busy && all_pending_done) { state := s_meta_write  }
+  when(state === s_meta_write && io.meta.write.ready) { state := s_idle }
 
-  switch (state) {
-    is(s_idle) {
-      io.inner.release.ready := Bool(true)
-      when( io.inner.release.valid ) {
-        xact := io.irel()
-        data_buffer(io.irel().addr_beat) := io.irel().data
-        collect_irel_data := io.irel().hasMultibeatData()
-        irel_data_valid := io.irel().hasData() << io.irel().addr_beat
-        state := s_meta_read
-      }
-    }
-    is(s_meta_read) {
-      io.meta.read.valid := Bool(true)
-      when(io.meta.read.ready) { state := s_meta_resp }
-    }
-    is(s_meta_resp) {
-      when(io.meta.resp.valid) {
-        xact_tag_match := io.meta.resp.bits.tag_match
-        xact_old_meta := io.meta.resp.bits.meta
-        xact_way_en := io.meta.resp.bits.way_en
-        state := Mux(io.meta.resp.bits.tag_match, 
-                   Mux(xact.hasData(), s_data_write, s_meta_write),
-                   Mux(xact.requiresAck(), s_inner_grant, s_idle))
-      }
-    }
-    is(s_data_write) {
-      io.data.write.valid := !collect_irel_data || irel_data_valid(write_data_cnt)
-      when(write_data_done) { state := s_meta_write }
-    }
-    is(s_meta_write) {
-      io.meta.write.valid := Bool(true)
-      when(io.meta.write.ready) { 
-        state := Mux(xact.requiresAck(), s_inner_grant, s_idle) // Need a Grant.voluntaryAck?
-      }
-    }
-    is(s_inner_grant) {
-      io.inner.grant.valid := !collect_irel_data
-      when(io.inner.grant.ready) { 
-        state := Mux(io.ignt().requiresAck(), s_inner_finish, s_idle)
-      }
-    }
-    is(s_inner_finish) {
-      io.inner.finish.ready := Bool(true)
-      when(io.inner.finish.valid) { state := s_idle }
-    }
-  }
+  // These IOs are used for routing in the parent
+  io.has_release_match := io.irel().isVoluntary()
+  io.has_acquire_match := Bool(false)
+  io.has_acquire_conflict := Bool(false)
 
   // Checks for illegal behavior
   assert(!(state === s_meta_resp && io.meta.resp.valid && !io.meta.resp.bits.tag_match),
     "VoluntaryReleaseTracker accepted Release for a block not resident in this cache!")
+  assert(!(state === s_idle && io.inner.release.fire() && !io.irel().isVoluntary()),
+    "VoluntaryReleaseTracker accepted Release that wasn't voluntary!")
 }
 
 
 class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   val io = new L2XactTrackerIO
+  pinAllReadyValidLow(io)
 
   val s_idle :: s_meta_read :: s_meta_resp :: s_wb_req :: s_wb_resp :: s_inner_probe :: s_outer_acquire :: s_busy :: s_meta_write :: Nil = Enum(UInt(), 9)
   val state = Reg(init=s_idle)
@@ -742,6 +730,20 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   // Track whether any beats are missing from a PutBlock
   pending_puts := (pending_puts & dropPendingBitWhenBeatHasData(io.inner.acquire))
 
+  // Begin a transaction by getting the current block metadata
+  io.meta.read.valid := state === s_meta_read
+  io.meta.read.bits.id := UInt(trackerId)
+  io.meta.read.bits.idx := xact.addr_block(idxMSB,idxLSB)
+  io.meta.read.bits.tag := xact.addr_block >> UInt(idxBits)
+
+  // Issue a request to the writeback unit
+  io.wb.req.valid := state === s_wb_req
+  io.wb.req.bits.id := UInt(trackerId)
+  io.wb.req.bits.idx := xact.addr_block(idxMSB,idxLSB)
+  io.wb.req.bits.tag := xact_old_meta.tag
+  io.wb.req.bits.coh := xact_old_meta.coh
+  io.wb.req.bits.way_en := xact_way_en
+
   // Track which clients yet need to be probed and make Probe message
   pending_iprbs := pending_iprbs & dropPendingBitAtDest(io.inner.probe)
   val curr_probe_dst = PriorityEncoder(pending_iprbs)
@@ -773,10 +775,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
         op_code = xact.op_code()),
       Bundle(Acquire(xact))(outerTLParams))
 
-  // Probes from the outer memory system are handled in the WritebackUnit
-  io.outer.probe.ready := Bool(false)
-  io.outer.release.valid := Bool(false)
-
+  // Handle the response from outer memory
   io.outer.grant.ready := state === s_busy
   val pending_coh_on_ognt = HierarchicalMetadata(
                               ManagerMetadata.onReset,
@@ -853,11 +852,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   io.data.write.bits.wmask := wmask_buffer(curr_write_beat)
   io.data.write.bits.data := data_buffer(curr_write_beat)
 
-  io.meta.read.valid := state === s_meta_read
-  io.meta.read.bits.id := UInt(trackerId)
-  io.meta.read.bits.idx := xact.addr_block(idxMSB,idxLSB)
-  io.meta.read.bits.tag := xact.addr_block >> UInt(idxBits)
-
+  // End a transaction by updating the block metadata
   io.meta.write.valid := state === s_meta_write
   io.meta.write.bits.id := UInt(trackerId)
   io.meta.write.bits.idx := xact.addr_block(idxMSB,idxLSB)
@@ -865,13 +860,6 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   io.meta.write.bits.data.tag := xact.addr_block >> UInt(idxBits)
   io.meta.write.bits.data.coh := pending_coh
                                         
-  io.wb.req.valid := state === s_wb_req
-  io.wb.req.bits.id := UInt(trackerId)
-  io.wb.req.bits.idx := xact.addr_block(idxMSB,idxLSB)
-  io.wb.req.bits.tag := xact_old_meta.tag
-  io.wb.req.bits.coh := xact_old_meta.coh
-  io.wb.req.bits.way_en := xact_way_en
-
   // Handling of secondary misses (Gets and Puts only for now)
   when(io.inner.acquire.fire() && io.iacq().hasData()) { // state <= s_meta_wrtie
     val beat = io.iacq().addr_beat
@@ -988,6 +976,7 @@ class L2WritebackUnitIO extends HierarchicalXactTrackerIO {
 
 class L2WritebackUnit(trackerId: Int) extends L2XactTracker {
   val io = new L2WritebackUnitIO
+  pinAllReadyValidLow(io)
 
   val s_idle :: s_inner_probe :: s_busy :: s_outer_grant :: s_wb_resp :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_idle)
@@ -1086,11 +1075,4 @@ class L2WritebackUnit(trackerId: Int) extends L2XactTracker {
   io.has_release_match := io.irel().conflicts(xact_addr_block) && !io.irel().isVoluntary() && io.inner.release.ready
   io.has_acquire_match := Bool(false)
   io.has_acquire_conflict := Bool(false)
-
-  // IOs pinned low
-  io.outer.acquire.valid := Bool(false)
-  io.outer.probe.ready := Bool(false) // TODO: handle these here
-  io.inner.grant.valid := Bool(false)
-  io.inner.acquire.ready := Bool(false)
-  io.inner.finish.ready := Bool(false)
 }
