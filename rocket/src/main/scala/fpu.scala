@@ -440,7 +440,7 @@ class FPU extends Module
   fpiu.io.in.bits := req
   io.dpath.store_data := fpiu.io.out.bits.store
   io.dpath.toint_data := fpiu.io.out.bits.toint
-  when(fpiu.io.out.valid && mem_cp_valid && !(mem_ctrl.div || mem_ctrl.sqrt)){
+  when(fpiu.io.out.valid && mem_cp_valid && mem_ctrl.toint){
     io.cp_resp.bits.data := fpiu.io.out.bits.toint
     io.cp_resp.valid := Bool(true)
   }
