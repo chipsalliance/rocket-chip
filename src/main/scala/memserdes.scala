@@ -60,14 +60,14 @@ class MemPipeIO extends Bundle {
   val resp     = Valid(new MemResp).flip
 }
 
-class MemSerializedIO(w: Int) extends Bundle
-{
+class MemSerializedIO(w: Int) extends Bundle {
   val req = Decoupled(Bits(width = w))
   val resp = Valid(Bits(width = w)).flip
 }
 
-class MemSerdes(w: Int) extends MIFModule
+class MemSerdes extends MIFModule
 {
+  val w = params(HTIFWidth)
   val io = new Bundle {
     val wide = new MemIO().flip
     val narrow = new MemSerializedIO(w)
@@ -514,6 +514,65 @@ object HellaQueue
     q.io.enq.bits := enq.bits
     enq.ready := q.io.enq.ready
     q.io.deq
+  }
+}
+
+class MemIOArbiter(val arbN: Int) extends MIFModule {
+  val io = new Bundle {
+    val inner = Vec.fill(arbN){new MemIO}.flip
+    val outer = new MemIO
+  }
+
+  if(arbN > 1) {
+    val cmd_arb = Module(new RRArbiter(new MemReqCmd, arbN))
+    val choice_q = Module(new Queue(cmd_arb.io.chosen.clone, 4))
+    val (data_cnt, data_done) = Counter(io.outer.req_data.fire(), mifDataBeats)
+
+    io.inner.map(_.req_cmd).zipWithIndex.zip(cmd_arb.io.in).map{ case ((req, id), arb) => {
+      arb.valid := req.valid
+      arb.bits := req.bits
+      arb.bits.tag := Cat(req.bits.tag, UInt(id))
+      req.ready := arb.ready
+    }}
+    io.outer.req_cmd.bits := cmd_arb.io.out.bits
+    io.outer.req_cmd.valid := cmd_arb.io.out.valid && choice_q.io.enq.ready
+    cmd_arb.io.out.ready := io.outer.req_cmd.ready && choice_q.io.enq.ready
+    choice_q.io.enq.bits := cmd_arb.io.chosen
+    choice_q.io.enq.valid := cmd_arb.io.out.fire() && cmd_arb.io.out.bits.rw
+
+    io.outer.req_data.bits := io.inner(choice_q.io.deq.bits).req_data.bits
+    io.outer.req_data.valid := io.inner(choice_q.io.deq.bits).req_data.valid && choice_q.io.deq.valid
+    io.inner.map(_.req_data.ready).zipWithIndex.foreach {
+      case(r, i) => r := UInt(i) === choice_q.io.deq.bits && choice_q.io.deq.valid
+    }
+    choice_q.io.deq.ready := data_done
+
+    io.outer.resp.ready := Bool(false)
+    for (i <- 0 until arbN) {
+      io.inner(i).resp.valid := Bool(false)
+      when(io.outer.resp.bits.tag(log2Up(arbN)-1,0).toUInt === UInt(i)) {
+        io.inner(i).resp.valid := io.outer.resp.valid
+        io.outer.resp.ready := io.inner(i).resp.ready
+      }
+      io.inner(i).resp.bits := io.outer.resp.bits
+      io.inner(i).resp.bits.tag := io.outer.resp.bits.tag >> UInt(log2Up(arbN))
+    }
+  } else { io.inner.head <> io.outer }
+}
+
+object MemIOMemPipeIOConverter {
+  def apply(in: MemPipeIO): MemIO = {
+    val out = new MemIO().asDirectionless
+    in.resp.valid := out.resp.valid
+    in.resp.bits := out.resp.bits
+    out.resp.ready := Bool(true)
+    out.req_cmd.valid := in.req_cmd.valid
+    out.req_cmd.bits := in.req_cmd.bits
+    in.req_cmd.ready := out.req_cmd.ready
+    out.req_data.valid := in.req_data.valid
+    out.req_data.bits := in.req_data.bits
+    in.req_data.ready := out.req_data.ready
+    out
   }
 }
 
