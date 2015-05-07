@@ -26,7 +26,7 @@ class FrontendResp extends CoreBundle {
   val xcpt_if = Bool()
 }
 
-class CPUFrontendIO extends Bundle {
+class CPUFrontendIO extends CoreBundle {
   val req = Valid(new FrontendReq)
   val resp = Decoupled(new FrontendResp).flip
   val btb_resp = Valid(new BTBResp).flip
@@ -34,6 +34,7 @@ class CPUFrontendIO extends Bundle {
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
   val invalidate = Bool(OUTPUT)
+  val npc = UInt(INPUT, width = vaddrBits+1)
 }
 
 class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
@@ -102,6 +103,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
 
   icache.io.mem <> io.mem
   icache.io.req.valid := !stall && !s0_same_block
+  io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
   icache.io.req.bits.idx := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
   icache.io.invalidate := io.cpu.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
