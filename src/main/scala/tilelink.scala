@@ -17,7 +17,7 @@ case object TLNManagers extends Field[Int]
 case object TLNClients extends Field[Int]
 /** Number of client agents that cache data and use custom [[uncore.Acquire]] types */
 case object TLNCachingClients extends Field[Int]
-/** Number of client agents that do not cache data and use built-in [[uncoreAcquire]] types */
+/** Number of client agents that do not cache data and use built-in [[uncore.Acquire]] types */
 case object TLNCachelessClients extends Field[Int]
 /** Maximum number of unique outstanding transactions per client */
 case object TLMaxClientXacts extends Field[Int]
@@ -488,7 +488,7 @@ class ProbeToDst extends Probe with HasClientId
 /** Contains factories for [[uncore.Probe]] and [[uncore.ProbeToDst]]
   *
   * In general you should avoid using these factories directly and use
-  * [[uncore.ManagerMetadata.makeProbe]] instead.
+  * [[uncore.ManagerMetadata.makeProbe(UInt,Acquire)* makeProbe]] instead.
   *
   * @param dst id of client to which probe should be sent
   * @param p_type custom probe type
@@ -515,7 +515,7 @@ object Probe {
   * write back data, for example in the event that dirty data must be evicted on
   * a cache miss. The available types of Release messages are always customized by
   * a particular [[uncore.CoherencePolicy]]. Releases may contain data or may be
-  * simple acknowledgements. Voluntary Releases are acknowledged with [[uncore.Grants]].
+  * simple acknowledgements. Voluntary Releases are acknowledged with [[uncore.Grant Grants]].
   */
 class Release extends ClientToManagerChannel 
     with HasCacheBlockAddress 
@@ -608,7 +608,7 @@ class GrantToDst extends Grant with HasClientId
   * for [[uncore.Grant]] and [[uncore.GrantToDst]]
   *
   * In general you should avoid using these factories directly and use
-  * [[uncore.ManagerMetadata.makeGrant]] instead.
+  * [[uncore.ManagerMetadata.makeGrant(uncore.AcquireFromSrc* makeGrant]] instead.
   *
   * @param dst id of client to which grant should be sent
   * @param is_builtin_type built-in or custom type message?
@@ -693,13 +693,13 @@ class TileLinkIO extends UncachedTileLinkIO {
   * It is intended for use within client agents.
   *
   * Headers are provided in the top-level that instantiates the clients and network,
-  * probably using a [[uncore.ClientTileLinkPort]] module.
+  * probably using a [[uncore.ClientTileLinkNetworkPort]] module.
   * By eliding the header subbundles within the clients we can enable 
   * hierarchical P-and-R while minimizing unconnected port errors in GDS.
   *
   * Secondly, this version of the interface elides [[uncore.Finish]] messages, with the
   * assumption that a [[uncore.FinishUnit]] has been coupled to the TileLinkIO port
-  * to deal with acking received [[uncore.Grants]].
+  * to deal with acking received [[uncore.Grant Grants]].
   */
 class ClientUncachedTileLinkIO extends TLBundle {
   val acquire   = new DecoupledIO(new Acquire)
@@ -721,10 +721,10 @@ class ClientTileLinkIO extends ClientUncachedTileLinkIO {
   * Managers need to track where [[uncore.Acquire]] and [[uncore.Release]] messages
   * originated so that they can send a [[uncore.Grant]] to the right place. 
   * Similarly they must be able to issues Probes to particular clients.
-  * However, we'd still prefer to have [[uncore.ManagerTileLinkPort]] fill in
+  * However, we'd still prefer to have [[uncore.ManagerTileLinkNetworkPort]] fill in
   * the header.src to enable hierarchical p-and-r of the managers. Additionally, 
   * coherent clients might be mapped to random network port ids, and we'll leave it to the
-  * [[uncore.ManagerTileLinkPort]] to apply the correct mapping. Managers do need to
+  * [[uncore.ManagerTileLinkNetworkPort]] to apply the correct mapping. Managers do need to
   * see Finished so they know when to allow new transactions on a cache
   * block to proceed.
   */
@@ -852,7 +852,7 @@ class FinishQueue(entries: Int) extends Queue(new FinishQueueEntry, entries)
   *
   * Creates network headers for [[uncore.Acquire]] and [[uncore.Release]] messages,
   * calculating header.dst and filling in header.src.
-  * Strips headers from [[uncore.Probes]].
+  * Strips headers from [[uncore.Probe Probes]].
   * Responds to [[uncore.Grant]] by automatically issuing [[uncore.Finish]] to the granting managers.
   *
   * @param clientId network port id of this agent
@@ -900,7 +900,7 @@ object ClientTileLinkHeaderCreator {
   *
   * Creates network headers for [[uncore.Probe]] and [[uncore.Grant]] messagess,
   * calculating header.dst and filling in header.src.
-  * Strips headers from [[uncore.Acquire]], [[uncore.Release]] and [[uncore.Finish],
+  * Strips headers from [[uncore.Acquire]], [[uncore.Release]] and [[uncore.Finish]],
   * but supplies client_id instead.
   *
   * @param managerId the network port id of this agent
