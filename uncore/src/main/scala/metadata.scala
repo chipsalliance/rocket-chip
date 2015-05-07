@@ -42,7 +42,7 @@ class ClientMetadata extends CoherenceMetadata {
     *
     * @param client_xact_id client's transaction id
     * @param addr_block address of the cache block
-    * @param op_code a memory operation from [[uncore.MemoryOpConstants]]
+    * @param op_code a memory operation from [[uncore.constants.MemoryOpConstants]]
     */
   def makeAcquire(
       client_xact_id: UInt,
@@ -114,14 +114,14 @@ class ClientMetadata extends CoherenceMetadata {
 
   /** New metadata after a op_code hits this block
     *
-    * @param op_code a memory operation from [[uncore.MemoryOpConstants]]
+    * @param op_code a memory operation from [[uncore.constants.MemoryOpConstants]]
     */
   def onHit(op_code: UInt): ClientMetadata =
     Bundle(co.clientMetadataOnHit(op_code, this), { case TLId => id })
 
   /** New metadata after receiving a [[uncore.Probe]]
     *
-    * @param op_code a memory operation from [[uncore.MemoryOpConstants]]
+    * @param op_code a memory operation from [[uncore.constants.MemoryOpConstants]]
     */
   def onCacheControl(op_code: UInt): ClientMetadata =
     Bundle(co.clientMetadataOnCacheControl(op_code, this), { case TLId => id })
@@ -157,11 +157,11 @@ class ManagerMetadata extends CoherenceMetadata {
   /** Converts the directory info into an N-hot sharer bitvector (i.e. full representation) */
   def full(dummy: Int = 0): UInt = co.dir.full(this.sharers)
 
-  /** Does this [[uncore.Acquire]] require [[uncore.Probes]] to be sent */
+  /** Does this [[uncore.Acquire]] require [[uncore.Probe Probes]] to be sent */
   def requiresProbes(acq: Acquire): Bool = co.requiresProbes(acq, this)
-  /** Does this memory op require [[uncore.Probes]] to be sent */
+  /** Does this memory op require [[uncore.Probe Probes]] to be sent */
   def requiresProbes(op_code: UInt): Bool = co.requiresProbes(op_code, this)
-  /** Does an eviction require [[uncore.Probes]] to be sent */
+  /** Does an eviction require [[uncore.Probe Probes]] to be sent */
   def requiresProbesOnVoluntaryWriteback(dummy: Int = 0): Bool =
     co.requiresProbes(M_FLUSH, this)
 
