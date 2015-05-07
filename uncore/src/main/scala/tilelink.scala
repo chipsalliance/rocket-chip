@@ -488,7 +488,7 @@ class ProbeToDst extends Probe with HasClientId
 /** Contains factories for [[uncore.Probe]] and [[uncore.ProbeToDst]]
   *
   * In general you should avoid using these factories directly and use
-  * [[uncore.ManagerMetadata.makeProbe(UInt,Acquire)*]] instead.
+  * [[uncore.ManagerMetadata.makeProbe(UInt,Acquire)* makeProbe]] instead.
   *
   * @param dst id of client to which probe should be sent
   * @param p_type custom probe type
