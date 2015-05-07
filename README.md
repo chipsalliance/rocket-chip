@@ -8,4 +8,5 @@ These components are only dependent on Chisel, i.e.
 
     lazy val uncore = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(chisel)
 
-Documentation about the uncore library will come in the near future.
+Documentation for the uncore library is available <a href="http://ucb-bar.github.io/uncore/latest/api/">here</a>
+and an overview of the TileLink Protocol is available <a href="https://docs.google.com/document/d/1Iczcjigc-LUi8QmDPwnAu1kH4Rrt6Kqi1_EUaCrfrk8/pub">here</a>
