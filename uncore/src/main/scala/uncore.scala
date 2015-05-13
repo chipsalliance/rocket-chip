@@ -114,6 +114,9 @@ abstract class XactTracker extends CoherenceAgentModule with HasDataBeatCounters
   def addPendingBitWhenBeatHasData[T <: HasBeat](in: DecoupledIO[T]): UInt =
     addPendingBitWhenBeat(in.fire() && in.bits.hasData(), in.bits)
 
+  def addPendingBitWhenBeatHasDataAndAllocs(in: DecoupledIO[AcquireFromSrc]): UInt =
+    addPendingBitWhenBeat(in.fire() && in.bits.hasData() && in.bits.allocate(), in.bits)
+
   def addPendingBitWhenBeatIsGetOrAtomic(in: DecoupledIO[AcquireFromSrc]): UInt = {
     val a = in.bits
     val isGetOrAtomic = a.isBuiltInType() &&
