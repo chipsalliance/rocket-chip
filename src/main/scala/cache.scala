@@ -836,7 +836,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   // We write data to the cache at this level if it was Put here with allocate flag,
   // written back dirty, or refilled from outer memory.
   pending_writes := (pending_writes & dropPendingBit(io.data.write)) |
-                      addPendingBitWhenBeatHasData(io.inner.acquire) |
+                      addPendingBitWhenBeatHasDataAndAllocs(io.inner.acquire) |
                       addPendingBitWhenBeatHasData(io.inner.release) |
                       addPendingBitWhenBeatHasData(io.outer.grant)
   val curr_write_beat = PriorityEncoder(pending_writes)
@@ -887,7 +887,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
       SInt(-1, width = innerDataBeats),
       (addPendingBitWhenBeatIsGetOrAtomic(io.inner.acquire) | 
         addPendingBitWhenBeatHasPartialWritemask(io.inner.acquire)).toUInt)
-    pending_writes := addPendingBitWhenBeatHasData(io.inner.acquire)
+    pending_writes := addPendingBitWhenBeatHasDataAndAllocs(io.inner.acquire)
     pending_resps := UInt(0)
     pending_ignt_data := UInt(0)
     pending_meta_write := UInt(0)
