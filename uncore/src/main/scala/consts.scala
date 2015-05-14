@@ -16,6 +16,7 @@ trait MemoryOpConstants {
   val MT_BU = Bits("b100")
   val MT_HU = Bits("b101")
   val MT_WU = Bits("b110")
+  val MT_Q  = Bits("b111")
 
   val NUM_XA_OPS = 9
   val M_SZ      = 5
