@@ -180,7 +180,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
       addr_block = init_addr,
       addr_beat = cnt,
       client_xact_id = UInt(0),
-      data = mem_req_data), 
+      data = mem_req_data),
     GetBlock(addr_block = init_addr))
   io.mem.grant.ready := Bool(true)
 
