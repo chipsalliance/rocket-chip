@@ -283,6 +283,8 @@ object Acquire {
   * @param client_xact_id client's transaction id
   * @param addr_block address of the cache block
   * @param addr_beat sub-block address (which beat)
+  * @param addr_byte sub-block address (which byte)
+  * @param operand_size {byte, half, word, double} from [[uncore.MemoryOpConstants]]
   * @param alloc hint whether the block should be allocated in intervening caches
   */
 object Get {
@@ -297,7 +299,22 @@ object Get {
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
-      union = Cat(M_XRD, alloc))
+      union = Cat(MT_Q, M_XRD, alloc))
+  }
+  def apply(
+      client_xact_id: UInt,
+      addr_block: UInt,
+      addr_beat: UInt,
+      addr_byte: UInt,
+      operand_size: UInt,
+      alloc: Bool): Acquire = {
+    Acquire(
+      is_builtin_type = Bool(true),
+      a_type = Acquire.getType,
+      client_xact_id = client_xact_id,
+      addr_block = addr_block,
+      addr_beat = addr_beat,
+      union = Cat(addr_byte, operand_size, M_XRD, alloc))
   }
 }
 
