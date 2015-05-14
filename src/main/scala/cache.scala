@@ -711,7 +711,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
                            xact.conflicts(io.iacq()) &&
                            state != s_idle && state != s_meta_write &&
                            !all_pending_done &&
-                           xact.allocate() &&
+                           (xact.allocate() || xact.isBuiltInType(Acquire.putBlockType)) &&
                            !io.inner.release.fire() &&
                            !io.outer.grant.fire() &&
                            !io.data.resp.valid &&
@@ -766,14 +766,16 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   // If we're allocating in this cache, we can use the current metadata
   // to make an appropriate custom Acquire, otherwise we copy over the
   // built-in Acquire from the inner TL to the outer TL
-  io.outer.acquire.valid := state === s_outer_acquire
+  io.outer.acquire.valid := state === s_outer_acquire &&
+                            (xact.allocate() || !pending_puts(oacq_data_idx))
   io.outer.acquire.bits := Mux(
-      xact.allocate(),
-      xact_old_meta.coh.outer.makeAcquire(
-        client_xact_id = UInt(0),
-        addr_block = xact.addr_block,
-        op_code = xact.op_code()),
-      Bundle(Acquire(xact))(outerTLParams))
+    xact.allocate(),
+    xact_old_meta.coh.outer.makeAcquire(
+      client_xact_id = UInt(0),
+      addr_block = xact.addr_block,
+      op_code = xact.op_code()),
+    Bundle(Acquire(xact))(outerTLParams))
+  io.oacq().data := data_buffer(oacq_data_idx)
 
   // Handle the response from outer memory
   io.outer.grant.ready := state === s_busy
