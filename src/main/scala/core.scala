@@ -40,6 +40,7 @@ abstract trait CoreParameters extends UsesParameters {
   val coreDataBytes = coreDataBits/8
   val coreDCacheReqTagBits = params(CoreDCacheReqTagBits)
   val coreMaxAddrBits = math.max(ppnBits,vpnBits+1) + pgIdxBits
+  val vaddrBitsExtended = vaddrBits + (vaddrBits < xLen).toInt
 
   if(params(FastLoadByte)) require(params(FastLoadWord))
 }
