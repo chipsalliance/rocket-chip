@@ -16,11 +16,11 @@ abstract class FrontendBundle extends Bundle with FrontendParameters
 abstract class FrontendModule extends Module with FrontendParameters
 
 class FrontendReq extends CoreBundle {
-  val pc = UInt(width = vaddrBits+1)
+  val pc = UInt(width = vaddrBitsExtended)
 }
 
 class FrontendResp extends CoreBundle {
-  val pc = UInt(width = vaddrBits+1)  // ID stage PC
+  val pc = UInt(width = vaddrBitsExtended)  // ID stage PC
   val data = Vec.fill(coreFetchWidth) (Bits(width = coreInstBits))
   val mask = Bits(width = coreFetchWidth)
   val xcpt_if = Bool()
@@ -34,7 +34,7 @@ class CPUFrontendIO extends CoreBundle {
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
   val invalidate = Bool(OUTPUT)
-  val npc = UInt(INPUT, width = vaddrBits+1)
+  val npc = UInt(INPUT, width = vaddrBitsExtended)
 }
 
 class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
@@ -103,8 +103,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
 
   icache.io.mem <> io.mem
   icache.io.req.valid := !stall && !s0_same_block
-  io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
-  icache.io.req.bits.idx := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
+  icache.io.req.bits.idx := io.cpu.npc
   icache.io.invalidate := io.cpu.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
   icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss || io.ptw.invalidate
@@ -112,6 +111,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
   io.cpu.resp.bits.pc := s2_pc
+  io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
 
   require(coreFetchWidth * coreInstBytes <= rowBytes)
   val fetch_data =
