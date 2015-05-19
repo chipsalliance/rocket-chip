@@ -97,7 +97,7 @@ object Split
     val w = x.getWidth
     def decreasing(x: Seq[Int]): Boolean =
       if (x.tail.isEmpty) true
-      else x.head > x.tail.head && decreasing(x.tail)
+      else x.head >= x.tail.head && decreasing(x.tail)
     require(decreasing(w :: n.toList))
     w
   }
