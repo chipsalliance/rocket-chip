@@ -33,22 +33,20 @@ class DatapathPTWIO extends CoreBundle {
 
 class PTE extends CoreBundle {
   val ppn = Bits(width = ppnBits)
-  val reserved = Bits(width = 16)
-  val reserved_for_software = Bits(width = 2)
+  val reserved_for_software = Bits(width = 3)
   val d = Bool()
   val r = Bool()
-  val g = Bool()
-  val perm = Bits(width = 2)
-  val typ = Bits(width = 3)
+  val typ = Bits(width = 4)
+  val v = Bool()
 
-  def table(dummy: Int = 0) = typ === 1
-  def leaf(dummy: Int = 0) = typ >= 2
-  def ur(dummy: Int = 0) = typ === 2 || typ >= 4
-  def uw(dummy: Int = 0) = ur() && perm(0)
-  def ux(dummy: Int = 0) = ur() && perm(1)
-  def sr(dummy: Int = 0) = typ >= 3
-  def sw(dummy: Int = 0) = Mux(typ >= 4, typ(0), typ === 3 && perm(0))
-  def sx(dummy: Int = 0) = Mux(typ >= 4, typ(1), typ === 3 && perm(1))
+  def table(dummy: Int = 0) = v && typ < 2
+  def leaf(dummy: Int = 0) = v && typ >= 2
+  def ur(dummy: Int = 0) = leaf() && typ < 8
+  def uw(dummy: Int = 0) = ur() && typ(0)
+  def ux(dummy: Int = 0) = ur() && typ(1)
+  def sr(dummy: Int = 0) = leaf()
+  def sw(dummy: Int = 0) = leaf() && typ(0)
+  def sx(dummy: Int = 0) = v && typ >= 4 && typ(1)
   def access_ok(prv: Bits, store: Bool, fetch: Bool) =
     Mux(prv(0), Mux(fetch, sx(), Mux(store, sw(), sr())), Mux(fetch, ux(), Mux(store, uw(), ur())))
 }
