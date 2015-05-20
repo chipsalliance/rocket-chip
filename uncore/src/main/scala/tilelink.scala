@@ -172,7 +172,7 @@ class Acquire extends ClientToManagerChannel
   /** Full, beat-sized writemask */
   def full_wmask(dummy: Int = 0) = FillInterleaved(8, wmask())
   /** Complete physical address for block, beat or operand */
-  def addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, this.addr_byte())
+  def full_addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, this.addr_byte())
 
   // Other helper functions:
   /** Message type equality */
@@ -337,7 +337,7 @@ object GetBlock {
       a_type = Acquire.getBlockType,
       client_xact_id = client_xact_id, 
       addr_block = addr_block,
-      union = Cat(M_XRD, alloc))
+      union = Cat(MT_Q, M_XRD, alloc))
   }
 }
 
@@ -357,7 +357,7 @@ object GetPrefetch {
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = UInt(0),
-      union = Cat(M_XRD, Bool(true)))
+      union = Cat(MT_Q, M_XRD, Bool(true)))
   }
 }
 
@@ -548,6 +548,7 @@ class Release extends ClientToManagerChannel
   def hasMultibeatData(dummy: Int = 0) = Bool(tlDataBeats > 1) && tlCoh.releaseTypesWithData.contains(r_type)
   def isVoluntary(dummy: Int = 0) = voluntary
   def requiresAck(dummy: Int = 0) = !Bool(tlNetworkPreservesPointToPointOrdering)
+  def full_addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, UInt(0, width = tlByteAddrBits))
 }
 
 /** [[uncore.Release]] with an extra field stating its source id */
