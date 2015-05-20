@@ -111,6 +111,8 @@ class L2BroadcastHub extends ManagerCoherenceAgent
   io.outer.acquire.bits.data := MuxLookup(outer_data_ptr.loc, io.irel().data, Array(
                                           inStoreQueue -> sdq(outer_data_ptr.idx),
                                           inVolWBQueue -> vwbdq(outer_data_ptr.idx)))
+  io.outer.acquire.bits.union := Cat(Fill(outer_arb.io.out.acquire.bits.union(1), io.outer.acquire.bits.tlWriteMaskBits),
+                                   outer_arb.io.out.acquire.bits.union(0))
   io.outer <> outer_arb.io.out
 
   // Update SDQ valid bits

@@ -641,7 +641,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   // Provide a single ALU per tracker to merge Puts and AMOs with data being
   // refilled, written back, or extant in the cache
   val amoalu = Module(new AMOALU)
-  amoalu.io.addr := xact.addr()
+  amoalu.io.addr := xact.full_addr()
   amoalu.io.cmd := xact.op_code()
   amoalu.io.typ := xact.op_size()
   amoalu.io.lhs := io.data.resp.bits.data // default, overwritten by calls to mergeData
