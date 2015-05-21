@@ -3,6 +3,8 @@ sim_dir = .
 output_dir = $(sim_dir)/output
 PROJECT = rocketchip
 CONFIG ?= DefaultCPPConfig
+SHELL=/bin/bash
+
 
 all: emulator-$(CONFIG)
 debug: emulator-$(CONFIG)-debug
