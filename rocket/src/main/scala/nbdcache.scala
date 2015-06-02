@@ -882,7 +882,7 @@ class HellaCache extends L1HellaCacheModule {
 
   val s2_recycle_ecc = (s2_valid || s2_replay) && s2_hit && s2_data_correctable
   val s2_recycle_next = Reg(init=Bool(false))
-  when (s1_valid || s1_replay) { s2_recycle_next := (s1_valid || s1_replay) && s2_recycle_ecc }
+  when (s1_valid || s1_replay) { s2_recycle_next := s2_recycle_ecc }
   s2_recycle := s2_recycle_ecc || s2_recycle_next
 
   // after a nack, block until nack condition resolves to save energy
