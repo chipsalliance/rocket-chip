@@ -670,8 +670,8 @@ class HellaCache extends L1HellaCacheModule {
     
   io.cpu.xcpt.ma.ld := s1_read && misaligned
   io.cpu.xcpt.ma.st := s1_write && misaligned
-  io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.xcpt_ld
-  io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
+  io.cpu.xcpt.pf.ld := !s1_req.phys && s1_read && dtlb.io.resp.xcpt_ld
+  io.cpu.xcpt.pf.st := !s1_req.phys && s1_write && dtlb.io.resp.xcpt_st
 
   assert (!(Reg(next=
     (io.cpu.xcpt.ma.ld || io.cpu.xcpt.ma.st || io.cpu.xcpt.pf.ld || io.cpu.xcpt.pf.st)) &&

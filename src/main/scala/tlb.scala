@@ -146,7 +146,7 @@ class TLB extends TLBModule {
   val plru = new PseudoLRU(entries)
   val repl_waddr = Mux(has_invalid_entry, invalid_entry, plru.replace)
  
-  val priv = Mux(io.ptw.status.prv === PRV_M && !io.req.bits.instruction, io.ptw.status.mprv, io.ptw.status.prv)
+  val priv = Mux(io.ptw.status.mprv && !io.req.bits.instruction, io.ptw.status.prv1, io.ptw.status.prv)
   val priv_s = priv === PRV_S
   val priv_uses_vm = priv <= PRV_S
   val req_xwr = Cat(!r_req.store, r_req.store, !(r_req.instruction || r_req.store))
@@ -155,7 +155,7 @@ class TLB extends TLBModule {
   val w_array = Mux(priv_s, sw_array, uw_array)
   val x_array = Mux(priv_s, sx_array, ux_array)
 
-  val vm_enabled = io.ptw.status.vm(2) && priv_uses_vm
+  val vm_enabled = io.ptw.status.vm(3) && priv_uses_vm
   val bad_va = io.req.bits.vpn(vpnBits) != io.req.bits.vpn(vpnBits-1)
   // it's only a store hit if the dirty bit is set
   val tag_hits = tag_cam.io.hits & (dirty_array | ~(io.req.bits.store.toSInt & w_array))
