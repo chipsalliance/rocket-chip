@@ -3,5 +3,6 @@
 package object rocket extends 
   rocket.constants.ScalarOpConstants
 {
-  val START_ADDR = 0x100
+  val MTVEC = 0x100
+  val START_ADDR = MTVEC + 0x100
 }

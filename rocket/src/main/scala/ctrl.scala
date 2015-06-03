@@ -44,6 +44,7 @@ class CtrlDpathIO extends CoreBundle
   val fp_sboard_clra = UInt(INPUT, 5)
   // inputs from csr file
   val csr_replay = Bool(INPUT)
+  val csr_stall = Bool(INPUT)
   val csr_xcpt = Bool(INPUT)
   val eret = Bool(INPUT)
   val interrupt = Bool(INPUT)
@@ -212,11 +213,12 @@ object XDecode extends DecodeConstants
     FENCE->     List(Y,    N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.N,N,Y,N),
     FENCE_I->   List(Y,    N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.N,Y,N,N),
 
-    SFENCE_VM-> List(Y,    N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
-    SCALL->     List(Y,    N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
-    SBREAK->    List(Y,    N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
-    SRET->      List(Y,    N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
-    MRTS->      List(Y,    N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
+    SFENCE_VM-> List(Y,    N,N,N,N,N,N,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
+    SCALL->     List(Y,    N,N,N,N,N,N,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
+    SBREAK->    List(Y,    N,N,N,N,N,N,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
+    SRET->      List(Y,    N,N,N,N,N,N,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
+    MRTS->      List(Y,    N,N,N,N,N,N,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
+    WFI->       List(Y,    N,N,N,N,N,N,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, N,N,N,N,N,N,CSR.I,N,N,N),
     CSRRW->     List(Y,    N,N,N,N,N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,N,N,Y,CSR.W,N,N,N),
     CSRRS->     List(Y,    N,N,N,N,N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,N,N,Y,CSR.S,N,N,N),
     CSRRC->     List(Y,    N,N,N,N,N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,N,N,Y,CSR.C,N,N,N),
@@ -646,7 +648,8 @@ class Control extends CoreModule
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && !io.dmem.req.ready ||
     Bool(!params(BuildRoCC).isEmpty) && wb_reg_rocc_pending && id_ctrl.rocc && !io.rocc.cmd.ready ||
-    id_do_fence
+    id_do_fence ||
+    io.dpath.csr_stall
   val ctrl_draind = io.dpath.interrupt
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || ctrl_draind
 

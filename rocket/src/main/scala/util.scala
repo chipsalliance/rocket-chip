@@ -12,6 +12,9 @@ object Util {
   implicit def intSeqToUIntSeq(x: Iterable[Int]): Iterable[UInt] = x.map(UInt(_))
   implicit def seqToVec[T <: Data](x: Iterable[T]): Vec[T] = Vec(x)
   implicit def wcToUInt(c: WideCounter): UInt = c.value
+  implicit def sextToConv(x: UInt) = new AnyRef {
+    def sextTo(n: Int): UInt = Cat(Fill(n - x.getWidth, x(x.getWidth-1)), x)
+  }
 
   implicit def intToUnsigned(x: Int): Unsigned = new Unsigned(x)
   implicit def booleanToIntConv(x: Boolean) = new AnyRef {
@@ -97,7 +100,7 @@ object Split
     val w = x.getWidth
     def decreasing(x: Seq[Int]): Boolean =
       if (x.tail.isEmpty) true
-      else x.head > x.tail.head && decreasing(x.tail)
+      else x.head >= x.tail.head && decreasing(x.tail)
     require(decreasing(w :: n.toList))
     w
   }
