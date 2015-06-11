@@ -329,10 +329,9 @@ class L2DataArray(delay: Int) extends L2HellaCacheModule {
     reg_raddr := raddr
   }
 
-  io.resp.valid := ShiftRegister(io.read.fire(), delay+1)
-  io.resp.bits.id := ShiftRegister(io.read.bits.id, delay+1)
-  io.resp.bits.addr_beat := ShiftRegister(io.read.bits.addr_beat, delay+1)
-  io.resp.bits.data := ShiftRegister(array(reg_raddr), delay)
+  val r_req = Pipe(io.read.fire(), io.read.bits)
+  io.resp := Pipe(r_req.valid, r_req.bits, delay)
+  io.resp.bits.data := Pipe(r_req.valid, array(reg_raddr), delay).bits
   io.read.ready := !io.write.valid
   io.write.ready := Bool(true)
 }
