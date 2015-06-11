@@ -226,7 +226,7 @@ class Datapath extends CoreModule
   io.fpu.dmem_resp_tag := dmem_resp_waddr
 
   io.ctrl.mem_br_taken := mem_reg_wdata(0)
-  val mem_br_target = mem_reg_pc +
+  val mem_br_target = mem_reg_pc.toSInt +
     Mux(io.ctrl.mem_ctrl.branch && io.ctrl.mem_br_taken, imm(IMM_SB, mem_reg_inst),
     Mux(io.ctrl.mem_ctrl.jal, imm(IMM_UJ, mem_reg_inst), SInt(4)))
   val mem_npc = (Mux(io.ctrl.mem_ctrl.jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(vaddrBits-1,0)), mem_br_target) & SInt(-2)).toUInt
