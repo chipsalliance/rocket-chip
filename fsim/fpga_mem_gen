@@ -53,7 +53,7 @@ def parse_line(line):
   mask_gran = 1
   tokens = line.split()
   i = 0
-  for i in xrange(0,len(tokens),2):
+  for i in range(0,len(tokens),2):
     s = tokens[i]
     if s == 'name':
       name = tokens[i+1]
@@ -188,7 +188,7 @@ def main():
   if len(sys.argv) < 2:
     sys.exit('Please give a .conf file as input')
   for line in open(sys.argv[1]):
-    print gen_mem(*parse_line(line))
+    print(gen_mem(*parse_line(line)))
 
 
 if __name__ == '__main__':
