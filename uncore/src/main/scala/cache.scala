@@ -874,6 +874,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   val pending_coh_on_hit = HierarchicalMetadata(
     io.meta.resp.bits.meta.coh.inner,
     io.meta.resp.bits.meta.coh.outer.onHit(xact.op_code()))
+  val pending_coh_on_miss = HierarchicalMetadata.onReset
 
   // State machine updates and transaction handler metadata intialization
   when(state === s_idle && io.inner.acquire.valid) {
@@ -910,7 +911,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
                              coh.inner.requiresProbesOnVoluntaryWriteback())
     val needs_inner_probes = tag_match && coh.inner.requiresProbes(xact)
     when(!tag_match || is_hit && pending_coh_on_hit != coh) { pending_meta_write := Bool(true) }
-    pending_coh := Mux(is_hit, pending_coh_on_hit, coh)
+    pending_coh := Mux(is_hit, pending_coh_on_hit, Mux(tag_match, coh, pending_coh_on_miss))
     when(needs_inner_probes) {
       val full_sharers = coh.inner.full()
       val mask_self = Mux(
