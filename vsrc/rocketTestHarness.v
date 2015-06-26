@@ -18,7 +18,7 @@ extern "A" void htif_tick
   output reg                    htif_out_ready,
   input  reg  [`HTIF_WIDTH-1:0] htif_out_bits,
 
-  output reg  [1:0]             exit
+  output reg  [31:0]            exit
 );
 
 extern "A" void memory_tick
@@ -128,14 +128,13 @@ module rocketTestHarness;
     .io_host_debug_stats_pcr(htif_out_stats_delay),
 
 `ifdef MEM_BACKUP_EN
-    .io_mem_backup_en(1'b1),
+    .io_mem_backup_ctrl_en(1'b1),
 `else
-    .io_mem_backup_en(1'b0),
+    .io_mem_backup_ctrl_en(1'b0),
 `endif
-    .io_in_mem_ready(),
-    .io_in_mem_valid(mem_bk_in_valid_delay),
-    .io_out_mem_ready(mem_bk_out_ready_delay),
-    .io_out_mem_valid(mem_bk_out_valid_delay),
+    .io_mem_backup_ctrl_in_valid(mem_bk_in_valid_delay),
+    .io_mem_backup_ctrl_out_ready(mem_bk_out_ready_delay),
+    .io_mem_backup_ctrl_out_valid(mem_bk_out_valid_delay),
 `endif
 
     .io_mem_req_cmd_valid(mem_req_valid_delay),
@@ -268,7 +267,7 @@ module rocketTestHarness;
   assign htif_in_bits = mem_bk_in_valid ? mem_in_bits : htif_in_bits_premux;
   assign htif_in_valid = htif_in_valid_premux && !mem_bk_in_valid;
   wire htif_in_ready_premux = htif_in_ready && !mem_bk_in_valid;
-  reg [1:0] exit = 0;
+  reg [31:0] exit = 0;
 
   always @(posedge htif_clk)
   begin

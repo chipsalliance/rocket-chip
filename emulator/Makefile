@@ -21,7 +21,7 @@ LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L. -ldramsim -lfes
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL).$(CONFIG))
 DEBUG_OBJS := $(addsuffix .debug.o,$(CXXSRCS) $(MODEL).$(CONFIG))
 
-CHISEL_ARGS := $(MODEL) --noIoDebug --backend c --configInstance $(PROJECT).$(CONFIG) --targetDir emulator/generated-src
+CHISEL_ARGS := $(MODEL) --W0W --noIoDebug --backend c --configInstance $(PROJECT).$(CONFIG) --compileInitializationUnoptimized --targetDir emulator/generated-src
 CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
 generated-src/$(MODEL).$(CONFIG).h: $(chisel_srcs)
@@ -38,10 +38,10 @@ $(MODEL).$(CONFIG).debug.o: %.debug.o: generated-src-debug/%.h
 	$(MAKE) -j $(patsubst %.cpp,%.o,$(shell ls generated-src-debug/$(MODEL).$(CONFIG)-*.cpp))
 	$(LD) -r $(patsubst %.cpp,%.o,$(shell ls generated-src-debug/$(MODEL).$(CONFIG)-*.cpp)) -o $@
 
-$(wildcard generated-src/*.o): %.o: %.cpp generated-src/$(MODEL).$(CONFIG).h
+generated-src/%.o: generated-src/%.cpp generated-src/$(MODEL).$(CONFIG).h
 	$(CXX) $(CXXFLAGS) -Igenerated-src -c -o $@ $<
 
-$(wildcard generated-src-debug/*.o): %.o: %.cpp generated-src-debug/$(MODEL).$(CONFIG).h
+generated-src-debug/%.o: generated-src-debug/%.cpp generated-src-debug/$(MODEL).$(CONFIG).h
 	$(CXX) $(CXXFLAGS) -Igenerated-src-debug -c -o $@ $<
 
 $(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h generated-src/$(MODEL).$(CONFIG).h
@@ -80,14 +80,14 @@ $(output_dir)/%.vpd: $(output_dir)/%.hex emulator-$(CONFIG)-debug
 	vcd2vpd $@.vcd $@ > /dev/null &
 	./emulator-$(CONFIG)-debug +dramsim +max-cycles=$(timeout_cycles) +verbose -v$@.vcd +loadmem=$< none $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
-run-asm-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(asm_p_tests) $(asm_v_tests)))
+run-asm-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(asm_p_tests) $(asm_pt_tests) $(asm_v_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
 run-bmarks-test: $(addprefix $(output_dir)/, $(addsuffix .out, $(bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
 run-mt-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(mt_bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
 
-run-asm-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(asm_p_tests) $(asm_v_tests)))
+run-asm-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(asm_p_tests) $(asm_pt_tests) $(asm_v_tests)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
 run-bmarks-test-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;

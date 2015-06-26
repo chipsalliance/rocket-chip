@@ -4,88 +4,133 @@ package rocketchip
 
 import Chisel._
 import uncore._
-import scala.reflect._
-import scala.reflect.runtime.universe._
 
-object TileLinkHeaderOverwriter {
-  def apply[T <: ClientSourcedMessage](in: DecoupledIO[LogicalNetworkIO[T]], clientId: Int, passThrough: Boolean): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = in.clone.asDirectionless
-    out.bits.payload := in.bits.payload
-    out.bits.header.src := UInt(clientId)
-    out.bits.header.dst := (if(passThrough) in.bits.header.dst else UInt(0))
-    out.valid := in.valid
-    in.ready := out.ready
-    out
+/** RocketChipNetworks combine a TileLink protocol with a particular physical
+  * network implementation and chip layout.
+  *
+  * Specifically, they provide mappings between ClientTileLinkIO/ 
+  * ManagerTileLinkIO channels and LogicalNetwork ports (i.e. generic
+  * TileLinkIO with networking headers). Channels coming into the network have
+  * appropriate networking headers appended and outgoing channels have their
+  * headers stripped.
+  *
+  * @constructor base class constructor for Rocket NoC
+  * @param addrToManagerId a mapping from a physical address to the network
+  *        id of a coherence manager
+  * @param sharerToClientId a mapping from the id of a particular coherent
+  *        client (as determined by e.g. the directory) and the network id
+  *        of that client
+  * @param clientDepths the depths of the queue that should be used to buffer
+  *        each channel on the client side of the network
+  * @param managerDepths the depths of the queue that should be used to buffer
+  *        each channel on the manager side of the network
+  */
+abstract class RocketChipNetwork(
+    addrToManagerId: UInt => UInt,
+    sharerToClientId: UInt => UInt,
+    clientDepths: TileLinkDepths, 
+    managerDepths: TileLinkDepths) extends TLModule {
+  val nClients = params(TLNClients)
+  val nManagers = params(TLNManagers)
+  val io = new Bundle {
+    val clients = Vec.fill(nClients){new ClientTileLinkIO}.flip
+    val managers = Vec.fill(nManagers){new ManagerTileLinkIO}.flip
   }
-  def apply[T <: ClientSourcedMessage with HasPhysicalAddress](in: DecoupledIO[LogicalNetworkIO[T]], clientId: Int, nBanks: Int, addrConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out: DecoupledIO[LogicalNetworkIO[T]] = apply(in, clientId, false)
-    out.bits.header.dst := (if(nBanks > 1) addrConvert(in.bits.payload.addr) else UInt(0))
-    out
+
+  val clients = io.clients.zipWithIndex.map { 
+    case (c, i) => {
+      val p = Module(new ClientTileLinkNetworkPort(i, addrToManagerId))
+      val q = Module(new TileLinkEnqueuer(clientDepths))
+      p.io.client <> c
+      q.io.client <> p.io.network
+      q.io.manager 
+    }
+  }
+
+  val managers = io.managers.zipWithIndex.map {
+    case (m, i) => {
+      val p = Module(new ManagerTileLinkNetworkPort(i, sharerToClientId))
+      val q = Module(new TileLinkEnqueuer(managerDepths))
+      m <> p.io.manager
+      p.io.network <> q.io.manager
+      q.io.client
+    }
   }
 }
 
-class RocketChipCrossbarNetwork extends LogicalNetwork {
-  val io = new Bundle {
-    val clients = Vec.fill(params(LNClients)){(new TileLinkIO).flip}
-    val masters = Vec.fill(params(LNMasters)){new TileLinkIO}
+/** A simple arbiter for each channel that also deals with header-based routing.
+  * Assumes a single manager agent. */
+class RocketChipTileLinkArbiter(
+    sharerToClientId: UInt => UInt = (u: UInt) => u,
+    clientDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0), 
+    managerDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0))
+      extends RocketChipNetwork(u => UInt(0), sharerToClientId, clientDepths, managerDepths)
+        with TileLinkArbiterLike
+        with PassesId {
+  val arbN = nClients
+  require(nManagers == 1)
+  if(arbN > 1) {
+    hookupClientSource(clients.map(_.acquire), managers.head.acquire)
+    hookupClientSource(clients.map(_.release), managers.head.release)
+    hookupFinish(clients.map(_.finish), managers.head.finish)
+    hookupManagerSourceWithHeader(clients.map(_.probe), managers.head.probe)
+    hookupManagerSourceWithHeader(clients.map(_.grant), managers.head.grant)
+  } else {
+    managers.head <> clients.head
   }
+}
 
+/** Provides a separate physical crossbar for each channel. Assumes multiple manager
+  * agents. Managers are assigned to higher physical network port ids than
+  * clients, and translations between logical network id and physical crossbar
+  * port id are done automatically.
+  */
+class RocketChipTileLinkCrossbar(
+    addrToManagerId: UInt => UInt = u => UInt(0),
+    sharerToClientId: UInt => UInt = u => u,
+    clientDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0), 
+    managerDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0))
+      extends RocketChipNetwork(addrToManagerId, sharerToClientId, clientDepths, managerDepths) {
   val n = params(LNEndpoints)
+  val count = params(TLDataBeats)
   // Actually instantiate the particular networks required for TileLink
-  val acqNet = Module(new BasicCrossbar(n, new Acquire))
-  val relNet = Module(new BasicCrossbar(n, new Release))
+  val acqNet = Module(new BasicCrossbar(n, new Acquire, count, Some((a: PhysicalNetworkIO[Acquire]) => a.payload.hasMultibeatData())))
+  val relNet = Module(new BasicCrossbar(n, new Release, count, Some((r: PhysicalNetworkIO[Release]) => r.payload.hasMultibeatData())))
   val prbNet = Module(new BasicCrossbar(n, new Probe))
-  val gntNet = Module(new BasicCrossbar(n, new Grant))
+  val gntNet = Module(new BasicCrossbar(n, new Grant, count, Some((g: PhysicalNetworkIO[Grant]) => g.payload.hasMultibeatData())))
   val ackNet = Module(new BasicCrossbar(n, new Finish))
 
   // Aliases for the various network IO bundle types
-  type FBCIO[T <: Data] = DecoupledIO[PhysicalNetworkIO[T]]
-  type FLNIO[T <: Data] = DecoupledIO[LogicalNetworkIO[T]]
-  type FromCrossbar[T <: Data] = FBCIO[T] => FLNIO[T]
-  type ToCrossbar[T <: Data] = FLNIO[T] => FBCIO[T]
+  type PNIO[T <: Data] = DecoupledIO[PhysicalNetworkIO[T]]
+  type LNIO[T <: Data] = DecoupledIO[LogicalNetworkIO[T]]
+  type FromCrossbar[T <: Data] = PNIO[T] => LNIO[T]
+  type ToCrossbar[T <: Data] = LNIO[T] => PNIO[T]
 
   // Shims for converting between logical network IOs and physical network IOs
-  //TODO: Could be less verbose if you could override subbundles after a <>
-  def DefaultFromCrossbarShim[T <: Data](in: FBCIO[T]): FLNIO[T] = {
-    val out = Decoupled(new LogicalNetworkIO(in.bits.payload)).asDirectionless
-    out.bits.header := in.bits.header
-    out.bits.payload := in.bits.payload
-    out.valid := in.valid
-    in.ready := out.ready
+  def crossbarToManagerShim[T <: Data](in: PNIO[T]): LNIO[T] = {
+    val out = DefaultFromPhysicalShim(in)
+    out.bits.header.src := in.bits.header.src - UInt(nManagers)
     out
   }
-  def CrossbarToMasterShim[T <: Data](in: FBCIO[T]): FLNIO[T] = {
-    val out = DefaultFromCrossbarShim(in)
-    out.bits.header.src := in.bits.header.src - UInt(params(LNMasters))
+  def crossbarToClientShim[T <: Data](in: PNIO[T]): LNIO[T] = {
+    val out = DefaultFromPhysicalShim(in)
+    out.bits.header.dst := in.bits.header.dst - UInt(nManagers)
     out
   }
-  def CrossbarToClientShim[T <: Data](in: FBCIO[T]): FLNIO[T] = {
-    val out = DefaultFromCrossbarShim(in)
-    out.bits.header.dst := in.bits.header.dst - UInt(params(LNMasters))
+  def managerToCrossbarShim[T <: Data](in: LNIO[T]): PNIO[T] = {
+    val out = DefaultToPhysicalShim(n, in)
+    out.bits.header.dst := in.bits.header.dst + UInt(nManagers)
     out
   }
-  def DefaultToCrossbarShim[T <: Data](in: FLNIO[T]): FBCIO[T] = {
-    val out = Decoupled(new PhysicalNetworkIO(n,in.bits.payload)).asDirectionless
-    out.bits.header := in.bits.header
-    out.bits.payload := in.bits.payload
-    out.valid := in.valid
-    in.ready := out.ready
-    out
-  }
-  def MasterToCrossbarShim[T <: Data](in: FLNIO[T]): FBCIO[T] = {
-    val out = DefaultToCrossbarShim(in)
-    out.bits.header.dst := in.bits.header.dst + UInt(params(LNMasters))
-    out
-  }
-  def ClientToCrossbarShim[T <: Data](in: FLNIO[T]): FBCIO[T] = {
-    val out = DefaultToCrossbarShim(in)
-    out.bits.header.src := in.bits.header.src + UInt(params(LNMasters))
+  def clientToCrossbarShim[T <: Data](in: LNIO[T]): PNIO[T] = {
+    val out = DefaultToPhysicalShim(n, in)
+    out.bits.header.src := in.bits.header.src + UInt(nManagers)
     out
   }
 
   // Make an individual connection between virtual and physical ports using
-  // a particular shim. Also seal the unused FIFO control signal.
-  def doFIFOInputHookup[T <: Data](phys_in: FBCIO[T], phys_out: FBCIO[T], log_io: FLNIO[T], shim: ToCrossbar[T]) = {
+  // a particular shim. Also pin the unused Decoupled control signal low.
+  def doDecoupledInputHookup[T <: Data](phys_in: PNIO[T], phys_out: PNIO[T], log_io: LNIO[T], shim: ToCrossbar[T]) = {
     val s = shim(log_io)
     phys_in.valid := s.valid
     phys_in.bits := s.bits
@@ -93,7 +138,7 @@ class RocketChipCrossbarNetwork extends LogicalNetwork {
     phys_out.ready := Bool(false)
   }
 
-  def doFIFOOutputHookup[T <: Data](phys_in: FBCIO[T], phys_out: FBCIO[T], log_io: FLNIO[T], shim: FromCrossbar[T]) = {
+  def doDecoupledOutputHookup[T <: Data](phys_in: PNIO[T], phys_out: PNIO[T], log_io: LNIO[T], shim: FromCrossbar[T]) = {
     val s = shim(phys_out)
     log_io.valid := s.valid
     log_io.bits := s.bits
@@ -101,29 +146,31 @@ class RocketChipCrossbarNetwork extends LogicalNetwork {
     phys_in.valid := Bool(false)
   }
 
-  def doFIFOHookup[T <: Data](isEndpointSourceOfMessage: Boolean, physIn: FBCIO[T], physOut: FBCIO[T], logIO: FLNIO[T], inShim: ToCrossbar[T], outShim: FromCrossbar[T]) = {
-    if(isEndpointSourceOfMessage) doFIFOInputHookup(physIn, physOut, logIO, inShim)
-    else doFIFOOutputHookup(physIn, physOut, logIO, outShim)
-  }
-    
   //Hookup all instances of a particular subbundle of TileLink
-  def doFIFOHookups[T <: Data: TypeTag](physIO: BasicCrossbarIO[T], getLogIO: TileLinkIO => FLNIO[T]) = {
-    typeTag[T].tpe match{ 
-      case t if t <:< typeTag[ClientSourcedMessage].tpe => {
-        io.masters.zipWithIndex.map{ case (i, id) => doFIFOHookup[T](false, physIO.in(id), physIO.out(id), getLogIO(i), ClientToCrossbarShim, CrossbarToMasterShim) }
-        io.clients.zipWithIndex.map{ case (i, id) => doFIFOHookup[T](true, physIO.in(id+params(LNMasters)), physIO.out(id+params(LNMasters)), getLogIO(i), ClientToCrossbarShim, CrossbarToMasterShim) }
+  def doDecoupledHookups[T <: Data](physIO: BasicCrossbarIO[T], getLogIO: TileLinkIO => LNIO[T]) = {
+    physIO.in.head.bits.payload match {
+      case c: ClientToManagerChannel => {
+        managers.zipWithIndex.map { case (i, id) => 
+          doDecoupledOutputHookup(physIO.in(id), physIO.out(id), getLogIO(i), crossbarToManagerShim[T])
+        }
+        clients.zipWithIndex.map { case (i, id) =>
+          doDecoupledInputHookup(physIO.in(id+nManagers), physIO.out(id+nManagers), getLogIO(i), clientToCrossbarShim[T])
+        }
       }
-      case t if t <:< typeTag[MasterSourcedMessage].tpe => {
-        io.masters.zipWithIndex.map{ case (i, id) => doFIFOHookup[T](true, physIO.in(id), physIO.out(id), getLogIO(i), MasterToCrossbarShim, CrossbarToClientShim) }
-        io.clients.zipWithIndex.map{ case (i, id) => doFIFOHookup[T](false, physIO.in(id+params(LNMasters)), physIO.out(id+params(LNMasters)), getLogIO(i), MasterToCrossbarShim, CrossbarToClientShim) }
+      case m: ManagerToClientChannel => {
+        managers.zipWithIndex.map { case (i, id) =>
+          doDecoupledInputHookup(physIO.in(id), physIO.out(id), getLogIO(i), managerToCrossbarShim[T])
+        }
+        clients.zipWithIndex.map { case (i, id) =>
+          doDecoupledOutputHookup(physIO.in(id+nManagers), physIO.out(id+nManagers), getLogIO(i), crossbarToClientShim[T])
+        }
       }
-      case _ => require(false, "Unknown message sourcing.")
     }
   }
 
-  doFIFOHookups(acqNet.io, (tl: TileLinkIO) => tl.acquire)
-  doFIFOHookups(relNet.io, (tl: TileLinkIO) => tl.release)
-  doFIFOHookups(prbNet.io, (tl: TileLinkIO) => tl.probe)
-  doFIFOHookups(gntNet.io, (tl: TileLinkIO) => tl.grant)
-  doFIFOHookups(ackNet.io, (tl: TileLinkIO) => tl.finish)
+  doDecoupledHookups(acqNet.io, (tl: TileLinkIO) => tl.acquire)
+  doDecoupledHookups(relNet.io, (tl: TileLinkIO) => tl.release)
+  doDecoupledHookups(prbNet.io, (tl: TileLinkIO) => tl.probe)
+  doDecoupledHookups(gntNet.io, (tl: TileLinkIO) => tl.grant)
+  doDecoupledHookups(ackNet.io, (tl: TileLinkIO) => tl.finish)
 }

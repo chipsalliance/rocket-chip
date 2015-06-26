@@ -61,7 +61,7 @@ int main(int argc, char** argv)
   // The chisel generated code
   Top_t tile;
   srand(random_seed);
-  tile.init(random_seed != 0);
+  tile.init(random_seed);
 
   // Instantiate and initialize main memory
   mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
@@ -76,17 +76,17 @@ int main(int argc, char** argv)
 
   signal(SIGTERM, handle_sigterm);
 
-  // reset for a few cycles to support pipelined reset
+  // reset for one host_clk cycle to handle pipelined reset
   tile.Top__io_host_in_valid = LIT<1>(0);
   tile.Top__io_host_out_ready = LIT<1>(0);
-  tile.Top__io_mem_backup_en = LIT<1>(0);
-  for (int i = 0; i < 10; i++)
+  tile.Top__io_mem_backup_ctrl_en = LIT<1>(0);
+  for (int i = 0; i < 3; i += tile.Top__io_host_clk_edge.to_bool())
   {
     tile.clock_lo(LIT<1>(1));
     tile.clock_hi(LIT<1>(1));
   }
 
-  while (!htif->done() && trace_count < max_cycles)
+  while (!htif->done() && trace_count < max_cycles && ret == 0)
   {
     tile.Top__io_mem_req_cmd_ready = LIT<1>(mm->req_cmd_ready());
     tile.Top__io_mem_req_data_ready = LIT<1>(mm->req_data_ready());
@@ -94,7 +94,13 @@ int main(int argc, char** argv)
     tile.Top__io_mem_resp_bits_tag = LIT<64>(mm->resp_tag());
     memcpy(tile.Top__io_mem_resp_bits_data.values, mm->resp_data(), tile.Top__io_mem_resp_bits_data.width()/8);
 
-    tile.clock_lo(LIT<1>(0));
+    try {
+      tile.clock_lo(LIT<1>(0));
+    } catch (std::runtime_error& e) {
+      max_cycles = trace_count; // terminate cleanly after this cycle
+      ret = 1;
+      std::cerr << e.what() << std::endl;
+    }
 
     mm->tick(
       tile.Top__io_mem_req_cmd_valid.lo_word(),
@@ -142,7 +148,7 @@ int main(int argc, char** argv)
   }
   else if (trace_count == max_cycles)
   {
-    fprintf(stderr, "*** FAILED *** (timeout) after %lld cycles\n", (long long)trace_count);
+    fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %lld cycles\n", random_seed, (long long)trace_count);
     ret = 2;
   }
 

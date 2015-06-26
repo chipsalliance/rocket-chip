@@ -82,16 +82,6 @@ def gen_mem(name, width, depth, ports):
   masked = len(maskedports)>0
   tup = (depth, width, nr, nw, nrw, masked)
 
-  decl.append('reg [%d:0] ram [%d:0];' % (width-1, depth-1))
-  decl.append('`ifndef SYNTHESIS')
-  decl.append('  integer initvar;')
-  decl.append('  initial begin')
-  decl.append('    #0.002;')
-  decl.append('    for (initvar = 0; initvar < %d; initvar = initvar+1)' % depth)
-  decl.append('      ram[initvar] = {%d {$random}};' % ((width-1)/32+1))
-  decl.append('  end')
-  decl.append('`endif')
-
   for pid in readports:
     decl.append('reg [%d:0] reg_R%dA;' % (addr_width-1, pid))
     sequential.append('if (R%dE) reg_R%dA <= R%dA;' % (pid, pid, pid))
@@ -114,6 +104,20 @@ def gen_mem(name, width, depth, ports):
     combinational.append('always @(*)')
     combinational.append('  if (CLK && latch_W%dE)' % (pid))
     combinational.append('    ram[latch_W%dA] <= latch_W%dI;' % (pid, pid))
+
+  decl.append('reg [%d:0] ram [%d:0];' % (width-1, depth-1))
+  decl.append('`ifndef SYNTHESIS')
+  decl.append('  integer initvar;')
+  decl.append('  initial begin')
+  decl.append('    #0.002;')
+  decl.append('    for (initvar = 0; initvar < %d; initvar = initvar+1)' % depth)
+  decl.append('      ram[initvar] = {%d {$random}};' % ((width-1)/32+1))
+  for pid in readports:
+    decl.append('    reg_R%dA = {%d {$random}};' % (pid, ((addr_width-1)/32+1)))
+  for pid in rwports:
+    decl.append('    reg_RW%dA = {%d {$random}};' % (pid, ((addr_width-1)/32+1)))
+  decl.append('  end')
+  decl.append('`endif')
 
   decl.append("integer i;")
   sequential.append("for (i = 0; i < %d; i=i+1) begin" % width)

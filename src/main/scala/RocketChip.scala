@@ -7,157 +7,200 @@ import uncore._
 import rocket._
 import rocket.Util._
 
-case object NTiles extends Field[Int]
-case object NBanks extends Field[Int]
-case object NOutstandingMemReqs extends Field[Int]
-case object BankIdLSB extends Field[Int]
-case object CacheBlockBytes extends Field[Int]
-case object CacheBlockOffsetBits extends Field[Int]
-case object UseBackupMemoryPort extends Field[Boolean]
-case object Coherence extends Field[CoherencePolicyWithUncached]
-case object BuildCoherenceMaster extends Field[(Int) => CoherenceAgent]
-case object BuildTile extends Field[(Bool)=>Tile]
+/** Top-level parameters of RocketChip, values set in e.g. PublicConfigs.scala */
 
-abstract trait TopLevelParameters extends UsesParameters {
+/** Number of tiles */
+case object NTiles extends Field[Int]
+/** Number of memory channels */
+case object NMemoryChannels extends Field[Int]
+/** Number of banks per memory channel */
+case object NBanksPerMemoryChannel extends Field[Int]
+/** Least significant bit of address used for bank partitioning */
+case object BankIdLSB extends Field[Int]
+/** Number of outstanding memory requests */
+case object NOutstandingMemReqsPerChannel extends Field[Int]
+/** Whether to use the slow backup memory port [VLSI] */
+case object UseBackupMemoryPort extends Field[Boolean]
+/** Function for building some kind of coherence manager agent */
+case object BuildL2CoherenceManager extends Field[() => CoherenceAgent]
+/** Function for building some kind of tile connected to a reset signal */
+case object BuildTiles extends Field[Seq[(Bool) => Tile]]
+/** Which protocol to use to talk to memory/devices */
+case object UseNASTI extends Field[Boolean]
+
+/** Utility trait for quick access to some relevant parameters */
+trait TopLevelParameters extends UsesParameters {
   val htifW = params(HTIFWidth)
   val nTiles = params(NTiles)
-  val nBanks = params(NBanks)
+  val nMemChannels = params(NMemoryChannels)
+  val nBanksPerMemChannel = params(NBanksPerMemoryChannel)
+  val nBanks = nMemChannels*nBanksPerMemChannel
   val lsb = params(BankIdLSB)
-  val refillCycles = params(MIFDataBeats)
+  val nMemReqs = params(NOutstandingMemReqsPerChannel)
+  val mifAddrBits = params(MIFAddrBits)
+  val mifDataBeats = params(MIFDataBeats)
+  require(lsb + log2Up(nBanks) < mifAddrBits)
 }
 
-class OuterMemorySystem extends Module with TopLevelParameters {
-  val io = new Bundle {
-    val tiles = Vec.fill(params(NTiles)){new TileLinkIO}.flip
-    val htif = (new TileLinkIO).flip
-    val incoherent = Vec.fill(params(LNClients)){Bool()}.asInput
-    val mem = new MemIO
-    val mem_backup = new MemSerializedIO(params(HTIFWidth))
-    val mem_backup_en = Bool(INPUT)
-  }
-
-  // Create a simple NoC and points of coherence serialization
-  val net = Module(new RocketChipCrossbarNetwork)
-  val masterEndpoints = (0 until params(NBanks)).map(params(BuildCoherenceMaster))
-  net.io.clients zip (io.tiles :+ io.htif) map { case (net, end) => net <> end }
-  net.io.masters zip (masterEndpoints.map(_.io.inner)) map { case (net, end) => net <> end }
-  masterEndpoints.map{ _.io.incoherent zip io.incoherent map { case (m, c) => m := c } }
-
-  // Create a converter between TileLinkIO and MemIO
-  val conv = Module(new MemPipeIOUncachedTileLinkIOConverter(
-                      params(NOutstandingMemReqs), refillCycles), 
-                    { case TLId => "outer" })
-  if(params(NBanks) > 1) {
-    val arb = Module(new UncachedTileLinkIOArbiterThatAppendsArbiterId(params(NBanks)),
-                    { case TLId => "outer" })
-    arb.io.in zip masterEndpoints.map(_.io.outer) map { case (arb, cache) => arb <> cache }
-    conv.io.uncached <> arb.io.out
-  } else {
-    conv.io.uncached <> masterEndpoints.head.io.outer
-  }
-
-  // Create a SerDes for backup memory port
-  if(params(UseBackupMemoryPort)) {
-    VLSIUtils.doOuterMemorySystemSerdes(conv.io.mem, io.mem, io.mem_backup,
-                                        io.mem_backup_en, htifW)
-  } else {
-    io.mem <> conv.io.mem 
-  }
+class MemBackupCtrlIO extends Bundle {
+  val en = Bool(INPUT)
+  val in_valid = Bool(INPUT)
+  val out_ready = Bool(INPUT)
+  val out_valid = Bool(OUTPUT)
 }
 
+/** Top-level io for the chip */
+class BasicTopIO extends Bundle {
+  val host = new HostIO
+  val mem_backup_ctrl = new MemBackupCtrlIO
+}
+
+class TopIO extends BasicTopIO {
+  val mem = new MemIO
+}
+
+class MultiChannelTopIO extends BasicTopIO with TopLevelParameters {
+  val mem = Vec.fill(nMemChannels){ new MemIO }
+}
+
+/** Top-level module for the chip */
+//TODO: Remove this wrapper once multichannel DRAM controller is provided
+class Top extends Module with TopLevelParameters {
+  val io = new TopIO
+  val temp = Module(new MultiChannelTop)
+  val arb = Module(new MemIOArbiter(nMemChannels))
+  arb.io.inner <> temp.io.mem
+  io.mem <> arb.io.outer
+  io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
+  io.host <> temp.io.host
+}
+
+class MultiChannelTop extends Module with TopLevelParameters {
+  val io = new MultiChannelTopIO
+
+  // Build an Uncore and a set of Tiles
+  val uncore = Module(new Uncore, {case TLId => "L1ToL2"})
+  val tileList = uncore.io.htif zip params(BuildTiles) map { case(hl, bt) => bt(hl.reset) }
+
+  // Connect each tile to the HTIF
+  uncore.io.htif.zip(tileList).zipWithIndex.foreach {
+    case ((hl, tile), i) =>
+      tile.io.host.id := UInt(i)
+      tile.io.host.reset := Reg(next=Reg(next=hl.reset))
+      tile.io.host.pcr_req <> Queue(hl.pcr_req)
+      hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
+      hl.ipi_req <> Queue(tile.io.host.ipi_req)
+      tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
+      hl.debug_stats_pcr := tile.io.host.debug_stats_pcr
+  }
+
+  // Connect the uncore to the tile memory ports, HostIO and MemIO
+  uncore.io.tiles_cached <> tileList.map(_.io.cached)
+  uncore.io.tiles_uncached <> tileList.map(_.io.uncached)
+  uncore.io.host <> io.host
+  uncore.io.mem <> io.mem
+  if(params(UseBackupMemoryPort)) { uncore.io.mem_backup_ctrl <> io.mem_backup_ctrl }
+}
+
+/** Wrapper around everything that isn't a Tile.
+  *
+  * Usually this is clocked and/or place-and-routed separately from the Tiles.
+  * Contains the Host-Target InterFace module (HTIF).
+  */
 class Uncore extends Module with TopLevelParameters {
   val io = new Bundle {
     val host = new HostIO
-    val mem = new MemIO
-    val tiles = Vec.fill(nTiles){new TileLinkIO}.flip
+    val mem = Vec.fill(nMemChannels){ new MemIO }
+    val tiles_cached = Vec.fill(nTiles){new ClientTileLinkIO}.flip
+    val tiles_uncached = Vec.fill(nTiles){new ClientUncachedTileLinkIO}.flip
     val htif = Vec.fill(nTiles){new HTIFIO}.flip
-    val incoherent = Vec.fill(nTiles){Bool()}.asInput
-    val mem_backup = new MemSerializedIO(htifW)
-    val mem_backup_en = Bool(INPUT)
+    val mem_backup_ctrl = new MemBackupCtrlIO
   }
 
-  // Used to hash physical addresses to banks
-  require(params(BankIdLSB) + log2Up(params(NBanks)) < params(MIFAddrBits))
-  def addrToBank(addr: Bits): UInt = {
-    if(nBanks > 1) addr( lsb + log2Up(nBanks) - 1, lsb)
-    else UInt(0)
-  }
-
-  val htif = Module(new HTIF(CSRs.reset)) // One HTIF module per chip
+  val htif = Module(new HTIF(CSRs.mreset)) // One HTIF module per chip
   val outmemsys = Module(new OuterMemorySystem) // NoC, LLC and SerDes
-
-  // Wire outer mem system to tiles and htif, adding
-  //   networking headers and endpoint queues
-  (outmemsys.io.tiles :+ outmemsys.io.htif) // Collect outward-facing TileLink ports
-    .zip(io.tiles :+ htif.io.mem)           // Zip them with matching ports from clients
-    .zipWithIndex                           // Index them
-    .map { case ((outer, client), i) =>     // Then use the index and bank hash to
-                                            //   overwrite the networking header
-      outer.acquire <> Queue(TileLinkHeaderOverwriter(client.acquire, i, nBanks, addrToBank _))
-      outer.release <> Queue(TileLinkHeaderOverwriter(client.release, i, nBanks, addrToBank _))
-      outer.finish <> Queue(TileLinkHeaderOverwriter(client.finish, i, true))
-      client.grant <> Queue(outer.grant, 1, pipe = true)
-      client.probe <> Queue(outer.probe)
-    } 
-  outmemsys.io.incoherent := (io.incoherent :+ Bool(true).asInput)
+  outmemsys.io.incoherent := htif.io.cpu.map(_.reset)
+  outmemsys.io.htif_uncached <> htif.io.mem
+  outmemsys.io.tiles_uncached <> io.tiles_uncached
+  outmemsys.io.tiles_cached <> io.tiles_cached
 
   // Wire the htif to the memory port(s) and host interface
   io.host.debug_stats_pcr := htif.io.host.debug_stats_pcr
   htif.io.cpu <> io.htif
   outmemsys.io.mem <> io.mem
   if(params(UseBackupMemoryPort)) {
-    outmemsys.io.mem_backup_en := io.mem_backup_en
-    VLSIUtils.padOutHTIFWithDividedClock(htif.io, outmemsys.io.mem_backup, 
-      io.mem_backup, io.host, io.mem_backup_en, htifW)
+    outmemsys.io.mem_backup_en := io.mem_backup_ctrl.en
+    VLSIUtils.padOutHTIFWithDividedClock(htif.io, outmemsys.io.mem_backup, io.mem_backup_ctrl, io.host, htifW)
   } else {
     htif.io.host.out <> io.host.out
     htif.io.host.in <> io.host.in
   }
 }
 
-class TopIO extends Bundle {
-  val host    = new HostIO
-  val mem     = new MemIO
-  val mem_backup_en = Bool(INPUT)
-  val in_mem_ready = Bool(OUTPUT)
-  val in_mem_valid = Bool(INPUT)
-  val out_mem_ready = Bool(INPUT)
-  val out_mem_valid = Bool(OUTPUT)
-}
-
-class Top extends Module with TopLevelParameters {
-  val io = new TopIO
-
-  val resetSigs = Vec.fill(nTiles){Bool()}
-  val tileList = (0 until nTiles).map(r => Module(params(BuildTile)(resetSigs(r))))
-  val uncore = Module(new Uncore)
-
-  for (i <- 0 until nTiles) {
-    val hl = uncore.io.htif(i)
-    val tl = uncore.io.tiles(i)
-    val il = uncore.io.incoherent(i)
-
-    resetSigs(i) := hl.reset
-    val tile = tileList(i)
-
-    tile.io.tilelink <> tl
-    il := hl.reset
-    tile.io.host.id := UInt(i)
-    tile.io.host.reset := Reg(next=Reg(next=hl.reset))
-    tile.io.host.pcr_req <> Queue(hl.pcr_req)
-    hl.pcr_rep <> Queue(tile.io.host.pcr_rep)
-    hl.ipi_req <> Queue(tile.io.host.ipi_req)
-    tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
-    hl.debug_stats_pcr := tile.io.host.debug_stats_pcr
+/** The whole outer memory hierarchy, including a NoC, some kind of coherence
+  * manager agent, and a converter from TileLink to MemIO.
+  */ 
+class OuterMemorySystem extends Module with TopLevelParameters {
+  val io = new Bundle {
+    val tiles_cached = Vec.fill(nTiles){new ClientTileLinkIO}.flip
+    val tiles_uncached = Vec.fill(nTiles){new ClientUncachedTileLinkIO}.flip
+    val htif_uncached = (new ClientUncachedTileLinkIO).flip
+    val incoherent = Vec.fill(nTiles){Bool()}.asInput
+    val mem = Vec.fill(nMemChannels){ new MemIO }
+    val mem_backup = new MemSerializedIO(htifW)
+    val mem_backup_en = Bool(INPUT)
   }
 
-  io.host <> uncore.io.host
-  io.mem <> uncore.io.mem
+  // Create a simple L1toL2 NoC between the tiles+htif and the banks of outer memory
+  // Cached ports are first in client list, making sharerToClientId just an indentity function
+  // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
+  val ordered_clients = (io.tiles_cached ++ (io.tiles_uncached :+ io.htif_uncached).map(TileLinkIOWrapper(_))) 
+  def sharerToClientId(sharerId: UInt) = sharerId
+  def addrToBank(addr: Bits): UInt = if(nBanks > 1) addr(lsb + log2Up(nBanks) - 1, lsb) else UInt(0)
+  val preBuffering = TileLinkDepths(2,2,2,2,2)
+  val postBuffering = TileLinkDepths(0,0,1,0,0) //TODO: had EOS24 crit path on inner.release
+  val l1tol2net = Module(
+    if(nBanks == 1) new RocketChipTileLinkArbiter(sharerToClientId, preBuffering, postBuffering)
+    else new RocketChipTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering, postBuffering))
 
+  // Create point(s) of coherence serialization
+  val managerEndpoints = List.fill(nMemChannels) {
+                           List.fill(nBanksPerMemChannel) {
+                             params(BuildL2CoherenceManager)()}}
+  managerEndpoints.flatten.foreach { _.incoherent := io.incoherent }
+
+  // Wire the tiles and htif to the TileLink client ports of the L1toL2 network,
+  // and coherence manager(s) to the other side
+  l1tol2net.io.clients <> ordered_clients
+  l1tol2net.io.managers <> managerEndpoints.flatMap(_.map(_.innerTL))
+
+  // Create a converter between TileLinkIO and MemIO for each channel
+  val outerTLParams = params.alterPartial({ case TLId => "L2ToMC" })
+  val backendBuffering = TileLinkDepths(0,0,0,0,0)
+  val mem_channels = managerEndpoints.map { banks =>
+    if(!params(UseNASTI)) {
+      val arb = Module(new RocketChipTileLinkArbiter(managerDepths = backendBuffering))(outerTLParams)
+      val conv = Module(new MemPipeIOTileLinkIOConverter(nMemReqs))(outerTLParams)
+      arb.io.clients <> banks.map(_.outerTL)
+      conv.io.tl <> arb.io.managers.head
+      MemIOMemPipeIOConverter(conv.io.mem)
+    } else {
+      val arb = Module(new RocketChipTileLinkArbiter(managerDepths = backendBuffering))(outerTLParams)
+      val conv1 = Module(new NASTIMasterIOTileLinkIOConverter)(outerTLParams)
+      val conv2 = Module(new MemIONASTISlaveIOConverter)
+      val conv3 = Module(new MemPipeIOMemIOConverter(nMemReqs))
+      arb.io.clients <> banks.map(_.outerTL)
+      conv1.io.tl <> arb.io.managers.head
+      conv2.io.nasti <> conv1.io.nasti
+      conv3.io.cpu.req_cmd <> Queue(conv2.io.mem.req_cmd, 2)
+      conv3.io.cpu.req_data <> Queue(conv2.io.mem.req_data, mifDataBeats)
+      conv2.io.mem.resp <> conv3.io.cpu.resp
+      MemIOMemPipeIOConverter(conv3.io.mem)
+    }
+  }
+
+  // Create a SerDes for backup memory port
   if(params(UseBackupMemoryPort)) {
-    uncore.io.mem_backup.resp.valid := io.in_mem_valid
-    io.out_mem_valid := uncore.io.mem_backup.req.valid
-    uncore.io.mem_backup.req.ready := io.out_mem_ready
-    io.mem_backup_en <> uncore.io.mem_backup_en
-  }
+    VLSIUtils.doOuterMemorySystemSerdes(mem_channels, io.mem, io.mem_backup, io.mem_backup_en, nMemChannels)
+  } else { io.mem <> mem_channels }
 }

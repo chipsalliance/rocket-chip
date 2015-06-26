@@ -54,6 +54,7 @@ simv = $(sim_dir)/simv-$(CONFIG)
 $(simv) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a
 	cd $(sim_dir) && \
 	$(VCS) $(VCS_OPTS) -o $(simv) \
+	-debug_pp \
 
 simv_debug = $(sim_dir)/simv-$(CONFIG)-debug
 $(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a
