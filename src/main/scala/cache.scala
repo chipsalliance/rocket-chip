@@ -1012,8 +1012,10 @@ class L2WritebackUnit(trackerId: Int) extends L2XactTracker {
   io.inner.release.ready := state === s_inner_probe || state === s_busy
   when(io.inner.release.fire()) {
     xact.coh.inner := inner_coh_on_irel
-    when(io.irel().hasData()) { xact.coh.outer := outer_coh_on_irel } // WB is a write
     data_buffer(io.inner.release.bits.addr_beat) := io.inner.release.bits.data
+  }
+  when(io.inner.release.valid && io.irel().conflicts(xact_addr_block) && io.irel().hasData()) {
+    xact.coh.outer := outer_coh_on_irel // must writeback dirty data supplied by any matching release, even voluntary ones
   }
 
   // If a release didn't write back data, have to read it from data array
