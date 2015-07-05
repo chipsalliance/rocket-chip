@@ -184,6 +184,11 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     GetBlock(addr_block = init_addr))
   io.mem.grant.ready := Bool(true)
 
+  // real-time counter (which doesn't really belong here...)
+  val rtc = Reg(init=UInt(0,64))
+  val rtc_tick = Counter(params(RTCPeriod)).inc()
+  when (rtc_tick) { rtc := rtc + UInt(1) }
+
   val pcrReadData = Reg(Bits(width = io.cpu(0).pcr_rep.bits.getWidth))
   for (i <- 0 until nCores) {
     val my_reset = Reg(init=Bool(true))
@@ -197,6 +202,21 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     cpu.pcr_req.bits.data := pcr_wdata
     cpu.reset := my_reset
 
+    // use pcr port to update core's rtc value periodically
+    val rtc_sent = Reg(init=Bool(false))
+    val rtc_outstanding = Reg(init=Bool(false))
+    when (rtc_tick) { rtc_sent := Bool(false) }
+    when (cpu.pcr_rep.valid) { rtc_outstanding := Bool(false) }
+    when (rtc_outstanding) { cpu.pcr_req.valid := Bool(false) }
+    when (state != state_pcr_req && state != state_pcr_resp && !rtc_sent && !rtc_outstanding) {
+      cpu.pcr_req.valid := Bool(true)
+      cpu.pcr_req.bits.rw := Bool(true)
+      cpu.pcr_req.bits.addr := UInt(pcr_RESET) /* XXX this means write mtime */
+      cpu.pcr_req.bits.data := rtc
+      rtc_sent := cpu.pcr_req.ready
+      rtc_outstanding := cpu.pcr_req.ready
+    }
+
     when (cpu.ipi_rep.ready) {
       my_ipi := Bool(false)
     }
@@ -208,7 +228,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
       }
     }
 
-    when (cpu.pcr_req.valid && cpu.pcr_req.ready) {
+    when (state === state_pcr_req && cpu.pcr_req.fire()) {
       state := state_pcr_resp
     }
     when (state === state_pcr_req && me && pcr_addr === UInt(pcr_RESET)) {
@@ -220,7 +240,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     }
 
     cpu.pcr_rep.ready := Bool(true)
-    when (cpu.pcr_rep.valid) {
+    when (state === state_pcr_resp && cpu.pcr_rep.valid) {
       pcrReadData := cpu.pcr_rep.bits
       state := state_tx
     }
