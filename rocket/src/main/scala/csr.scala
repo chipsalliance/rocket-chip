@@ -116,14 +116,15 @@ class CSRFile extends CoreModule
   val reg_sbadaddr = Reg(UInt(width = vaddrBitsExtended))
   val reg_sscratch = Reg(Bits(width = xLen))
   val reg_stvec = Reg(UInt(width = vaddrBits))
-  val reg_stimecmp = Reg(Bits(width = 32))
+  val reg_mtimecmp = Reg(Bits(width = xLen))
   val reg_sptbr = Reg(UInt(width = paddrBits))
   val reg_wfi = Reg(init=Bool(false))
 
   val reg_tohost = Reg(init=Bits(0, xLen))
   val reg_fromhost = Reg(init=Bits(0, xLen))
   val reg_stats = Reg(init=Bool(false))
-  val reg_time = WideCounter(xLen)
+  val reg_time = Reg(UInt(width = xLen))
+  val reg_cycle = WideCounter(xLen)
   val reg_instret = WideCounter(xLen, io.retire)
   val reg_uarch_counters = io.uarch_counters.map(WideCounter(xLen, _))
   val reg_fflags = Reg(UInt(width = 5))
@@ -146,6 +147,7 @@ class CSRFile extends CoreModule
   checkInterrupt(PRV_S, reg_mie.ssip && reg_mip.ssip, 0)
   checkInterrupt(PRV_M, reg_mie.msip && reg_mip.msip, 0)
   checkInterrupt(PRV_S, reg_mie.stip && reg_mip.stip, 1)
+  checkInterrupt(PRV_M, reg_mie.mtip && reg_mip.mtip, 1)
   checkInterrupt(PRV_M, reg_fromhost != 0, 2)
   checkInterrupt(PRV_M, irq_rocc, 3)
 
@@ -185,18 +187,20 @@ class CSRFile extends CoreModule
     CSRs.fflags -> (if (!params(BuildFPU).isEmpty) reg_fflags else UInt(0)),
     CSRs.frm -> (if (!params(BuildFPU).isEmpty) reg_frm else UInt(0)),
     CSRs.fcsr -> (if (!params(BuildFPU).isEmpty) Cat(reg_frm, reg_fflags) else UInt(0)),
-    CSRs.cycle -> reg_time,
-    CSRs.cyclew -> reg_time,
+    CSRs.cycle -> reg_cycle,
+    CSRs.cyclew -> reg_cycle,
     CSRs.instret -> reg_instret,
     CSRs.instretw -> reg_instret,
     CSRs.time -> reg_time,
     CSRs.timew -> reg_time,
     CSRs.stime -> reg_time,
     CSRs.stimew -> reg_time,
+    CSRs.mtime -> reg_time,
     CSRs.mcpuid -> UInt(cpuid),
     CSRs.mimpid -> UInt(impid),
     CSRs.mstatus -> read_mstatus,
     CSRs.mtdeleg -> UInt(0),
+    CSRs.mreset -> UInt(0),
     CSRs.mtvec -> UInt(MTVEC),
     CSRs.mip -> reg_mip.toBits,
     CSRs.mie -> reg_mie.toBits,
@@ -204,7 +208,7 @@ class CSRFile extends CoreModule
     CSRs.mepc -> reg_mepc.sextTo(xLen),
     CSRs.mbadaddr -> reg_mbadaddr.sextTo(xLen),
     CSRs.mcause -> reg_mcause,
-    CSRs.stimecmp -> reg_stimecmp,
+    CSRs.mtimecmp -> reg_mtimecmp,
     CSRs.mhartid -> io.host.id,
     CSRs.send_ipi -> io.host.id, /* don't care */
     CSRs.stats -> reg_stats,
@@ -341,11 +345,11 @@ class CSRFile extends CoreModule
 
   assert(PopCount(insn_ret :: insn_redirect_trap :: io.exception :: csr_xcpt :: io.csr_replay :: Nil) <= 1, "these conditions must be mutually exclusive")
 
-  when (reg_time(reg_stimecmp.getWidth-1,0) === reg_stimecmp) {
-    reg_mip.stip := true
+  when (reg_time >= reg_mtimecmp) {
+    reg_mip.mtip := true
   }
 
-  io.time := reg_time
+  io.time := reg_cycle
   io.host.ipi_req.valid := cpu_wen && decoded_addr(CSRs.send_ipi)
   io.host.ipi_req.bits := io.rw.wdata
   io.csr_replay := io.host.ipi_req.valid && !io.host.ipi_req.ready
@@ -387,8 +391,10 @@ class CSRFile extends CoreModule
     }
     when (decoded_addr(CSRs.mip)) {
       val new_mip = new MIP().fromBits(wdata)
-      if (params(UseVM))
+      if (params(UseVM)) {
         reg_mip.ssip := new_mip.ssip
+        reg_mip.stip := new_mip.stip
+      }
       reg_mip.msip := new_mip.msip
     }
     when (decoded_addr(CSRs.mie)) {
@@ -407,11 +413,9 @@ class CSRFile extends CoreModule
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
-    when (decoded_addr(CSRs.cyclew))   { reg_time := wdata }
     when (decoded_addr(CSRs.instretw)) { reg_instret := wdata }
-    when (decoded_addr(CSRs.timew))    { reg_time := wdata }
-    when (decoded_addr(CSRs.stimew))   { reg_time := wdata }
-    when (decoded_addr(CSRs.stimecmp)) { reg_stimecmp := wdata(31,0); reg_mip.stip := false }
+    when (decoded_addr(CSRs.mtimecmp)) { reg_mtimecmp := wdata; reg_mip.mtip := false }
+    when (decoded_addr(CSRs.mreset) /* XXX used by HTIF to write mtime */) { reg_time := wdata }
     when (decoded_addr(CSRs.mfromhost)){ when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
     when (decoded_addr(CSRs.mtohost))  { when (reg_tohost === UInt(0) || host_pcr_req_fire) { reg_tohost := wdata } }
     when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
