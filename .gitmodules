@@ -19,3 +19,6 @@
 [submodule "fpga-zynq"]
 	path = fpga-zynq
 	url = https://github.com/ucb-bar/fpga-zynq.git
+[submodule "boom"]
+	path = boom
+	url = https://github.com/ucb-bar/riscv-boom

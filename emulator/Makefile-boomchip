@@ -1,0 +1,64 @@
+#--------------------------------------------------------------------
+# Misc BOOM Utilities
+
+LCXXSRCS := lemulator mm mm_dramsim2
+
+LDEBUG_OBJS := $(addsuffix .debug.o,$(LCXXSRCS) $(MODEL).$(CONFIG))
+
+$(addsuffix .debug.o,$(LCXXSRCS)): %.debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h generated-src-debug/$(MODEL).$(CONFIG).h
+  $(CXX) $(CXXFLAGS) -include generated-src-debug/$(MODEL).$(CONFIG).h -Igenerated-src-debug -c -o $@ $<
+
+lemulator: $(LDEBUG_OBJS) libdramsim.a
+  $(CXX) $(CXXFLAGS) -o $@ $(LDEBUG_OBJS) $(LDFLAGS)
+
+differ: $(base_dir)/csrc/differ.cc
+  $(CXX) $(CXXFLAGS) -o $@ $<
+
+TEST=hello
+PK=/scratch/celio/install/riscv/riscv64-unknown-elf/bin/pk -p
+difftest: 
+  rm -f test.spike.commit test.spike.PID
+  mkfifo test.spike.commit 
+  lspike $(PK) $(TEST) 2> test.spike.commit & echo $$! > test.spike.PID
+  time ./lemulator -vdump.vcd +debug_printf=debug.log +verbose +gold-log=test.spike.commit $(PK) $(TEST)
+
+TORTURE=/scratch/celio/riscv-torture/output/failedtests/test_1422662215281_pseg_2
+torture:
+  lspike +signature=torture.spike.sig $(TORTURE) 2> torture.spike.commit
+  ./emulator-$(CONFIG) +verbose +signature=torture.csim.sig $(TORTURE) $(disasm) torture.temp
+  sed -e '/@@@/ !d' -e 's/-.*//g' -e 's/@@@ //' <torture.temp >torture.csim.commit
+  sed -e '/@@@/ d' <torture.temp >torture.csim.out
+  rm torture.temp
+  diff torture.spike.sig torture.csim.sig > torture.diff.sig
+  diff torture.spike.commit torture.csim.commit > torture.diff.commit
+
+
+TEST_473=/scratch/celio/riscv-spec-test/473.astar /scratch/celio/riscv-spec-test/473.astar/src/../data/test/input/lake.bin
+difftest-473: 
+  rm -f test473.spike.commit test473.spike.PID
+  mkfifo test473.spike.commit 
+  lspike $(PK) $(TEST_473) 2> test473.spike.commit & echo $$! > test473.spike.PID
+  time ./lemulator -v473.vcd +debug_printf=debug_473.log +verbose +gold-log=test473.spike.commit $(PK) $(TEST_473)
+
+  #./emulator-$(CONFIG) +verbose $(PK) $(TEST) 2> test.csim.commit & echo $$! > test.csim.PID && echo test.csim.PID
+
+#--------------------------------------------------------------------
+# Tests
+
+run-boom-asm-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(boom_asm_p_tests) $(boom_asm_v_tests)))
+  @echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
+run-boom-bmarks-test: $(addprefix $(output_dir)/, $(addsuffix .out, $(boom_bmarks)))
+  @echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
+
+run-boom-asm-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(boom_asm_p_tests) $(boom_asm_v_tests)))
+  @echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
+run-boom-bmarks-test-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(boom_bmarks)))
+  @echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
+
+
+run-boom: run-boom-asm-tests run-boom-bmarks-test
+run-boom-debug: run-boom-asm-tests-debug run-boom-bmarks-test-debug
+
+.PHONY: run-boom-asm-tests run-boom-bmarks-test
+.PHONY: run-boom-asm-tests-debug run-boom-bmarks-test-debug
+.PHONY: run-boom run-boom-debug
