@@ -95,7 +95,8 @@ run-mt-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(mt_bmarks)))
 	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
 
 # UCB use only
--include Makefrag-refchip
+-include Makefrag-boomchip
+-include Makefrag-hwachachip
 
 run: run-asm-tests run-bmarks-test
 run-debug: run-asm-tests-debug run-bmarks-test-debug
