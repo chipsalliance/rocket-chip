@@ -154,6 +154,14 @@ class DefaultConfig extends ChiselConfig (
 class DefaultVLSIConfig extends DefaultConfig
 class DefaultCPPConfig extends DefaultConfig
 
+class With2Cores extends ChiselConfig(knobValues = { case "NTILES" => 2 })
+class With4Cores extends ChiselConfig(knobValues = { case "NTILES" => 4 })
+class With8Cores extends ChiselConfig(knobValues = { case "NTILES" => 8 })
+
+class With2Banks extends ChiselConfig(knobValues = { case "NBANKS" => 2 })
+class With4Banks extends ChiselConfig(knobValues = { case "NBANKS" => 4 })
+class With8Banks extends ChiselConfig(knobValues = { case "NBANKS" => 8 })
+
 class WithL2Cache extends ChiselConfig(
   (pname,site,here) => pname match {
     case "L2_CAPACITY_IN_KB" => Knob("L2_CAPACITY_IN_KB")
@@ -177,7 +185,17 @@ class WithL2Cache extends ChiselConfig(
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048 }
 )
 
+class WithL2Capacity2048 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 2048 })
+class WithL2Capacity1024 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 1024 })
+class WithL2Capacity512 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 512 })
+class WithL2Capacity256 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 256 })
+class WithL2Capacity128 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 128 })
+class WithL2Capacity64 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 64 })
+
 class DefaultL2Config extends ChiselConfig(new WithL2Cache ++ new DefaultConfig)
+class DefaultL2VLSIConfig extends ChiselConfig(new WithL2Cache ++ new DefaultVLSIConfig)
+class DefaultL2CPPConfig extends ChiselConfig(new WithL2Cache ++ new DefaultCPPConfig)
+class DefaultL2FPGAConfig extends ChiselConfig(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
 
 class FPGAConfig extends ChiselConfig (
   (pname,site,here) => pname match {
