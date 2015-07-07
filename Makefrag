@@ -1,5 +1,6 @@
 # UCB use only
--include $(base_dir)/Makefrag-refchip
+-include $(base_dir)/Makefrag-boomchip
+-include $(base_dir)/Makefrag-hwachachip
 
 # check RISCV environment variable
 ifndef RISCV
