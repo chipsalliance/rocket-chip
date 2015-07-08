@@ -98,6 +98,7 @@ class DefaultConfig extends ChiselConfig (
       case CoreDCacheReqTagBits => 7 + log2Up(here(NDCachePorts))
       case NCustomMRWCSRs => 0
       //Uncore Paramters
+      case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
       case LNEndpoints => site(TLNManagers) + site(TLNClients)
       case LNHeaderBits => log2Ceil(site(TLNManagers)) + log2Up(site(TLNClients))
       case TLBlockAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)

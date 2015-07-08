@@ -162,7 +162,6 @@ asm_p_tests = \
 	rv64si-p-ma_addr \
 	rv64si-p-scall \
 	rv64si-p-sbreak \
-	rv64si-p-timer \
 	rv64ui-pm-lrsc \
 	rv64mi-p-csr \
 	rv64mi-p-mcsr \
