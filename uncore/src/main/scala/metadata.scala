@@ -45,9 +45,9 @@ class ClientMetadata extends CoherenceMetadata {
     * @param op_code a memory operation from [[uncore.constants.MemoryOpConstants]]
     */
   def makeAcquire(
+      op_code: UInt,
       client_xact_id: UInt,
-      addr_block: UInt,
-      op_code: UInt): Acquire = {
+      addr_block: UInt): Acquire = {
     Bundle(Acquire(
         is_builtin_type = Bool(false),
         a_type = co.getAcquireType(op_code, this),
@@ -55,6 +55,28 @@ class ClientMetadata extends CoherenceMetadata {
         addr_block = addr_block,
         union = Cat(op_code, Bool(true))),
       { case TLId => id })
+  }
+
+  /** Constructs a Release message based on this metadata on cache control op
+    *
+    * @param client_xact_id client's transaction id
+    * @param addr_block address of the cache block
+    * @param addr_beat sub-block address (which beat)
+    * @param data data being written back
+    */
+  def makeVoluntaryRelease(
+      op_code: UInt,
+      client_xact_id: UInt,
+      addr_block: UInt,
+      addr_beat: UInt = UInt(0),
+      data: UInt = UInt(0)): Release = {
+    Bundle(Release(
+      voluntary = Bool(true),
+      r_type = co.getReleaseType(op_code, this),
+      client_xact_id = client_xact_id,
+      addr_block = addr_block,
+      addr_beat = addr_beat,
+      data = data), { case TLId => id })
   }
 
   /** Constructs a Release message based on this metadata on an eviction
@@ -68,15 +90,13 @@ class ClientMetadata extends CoherenceMetadata {
       client_xact_id: UInt,
       addr_block: UInt,
       addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): Release = {
-    Bundle(Release(
-      voluntary = Bool(true),
-      r_type = co.getReleaseType(M_FLUSH, this),
+      data: UInt = UInt(0)): Release =
+    makeVoluntaryRelease(
+      op_code = M_FLUSH,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
-      data = data), { case TLId => id })
-  }
+      data = data)
 
   /** Constructs a Release message based on this metadata and a [[uncore.Probe]]
     *
@@ -119,7 +139,7 @@ class ClientMetadata extends CoherenceMetadata {
   def onHit(op_code: UInt): ClientMetadata =
     Bundle(co.clientMetadataOnHit(op_code, this), { case TLId => id })
 
-  /** New metadata after receiving a [[uncore.Probe]]
+  /** New metadata after op_code releases permissions on this block
     *
     * @param op_code a memory operation from [[uncore.constants.MemoryOpConstants]]
     */
