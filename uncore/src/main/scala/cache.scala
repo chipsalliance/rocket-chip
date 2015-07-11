@@ -150,7 +150,7 @@ class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
   val rst = rst_cnt < UInt(nSets)
   val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
   val wdata = Mux(rst, rstVal, io.write.bits.data).toBits
-  val wmask = Mux(rst, SInt(-1), io.write.bits.way_en).toUInt
+  val wmask = Mux(rst, SInt(-1), io.write.bits.way_en.toSInt).toUInt
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth
@@ -881,9 +881,9 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
       UInt(0))
     pending_reads := Mux( // GetBlocks and custom types read all beats
       io.iacq().isBuiltInType(Acquire.getBlockType) || !io.iacq().isBuiltInType(),
-      SInt(-1, width = innerDataBeats),
+      SInt(-1),
       (addPendingBitWhenBeatIsGetOrAtomic(io.inner.acquire) | 
-        addPendingBitWhenBeatHasPartialWritemask(io.inner.acquire)).toUInt)
+        addPendingBitWhenBeatHasPartialWritemask(io.inner.acquire)).toSInt).toUInt
     pending_writes := addPendingBitWhenBeatHasDataAndAllocs(io.inner.acquire)
     pending_resps := UInt(0)
     pending_ignt_data := UInt(0)
