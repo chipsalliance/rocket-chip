@@ -482,19 +482,16 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
   val atLeastTwo = full || enq_ptr - deq_ptr >= UInt(2)
   do_flow := empty && io.deq.ready
 
-  val ram = Mem(data, entries, seqRead = true)
-  val ram_addr = Reg(Bits())
-  val ram_out_valid = Reg(Bool())
-  ram_out_valid := Bool(false)
-  when (do_enq) { ram(enq_ptr) := io.enq.bits }
-  when (io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)) {
-    ram_out_valid := Bool(true)
-    ram_addr := Mux(io.deq.valid, Mux(deq_done, UInt(0), deq_ptr + UInt(1)), deq_ptr)
-  }
+  val ram = SeqMem(data, entries)
+  when (do_enq) { ram.write(enq_ptr, io.enq.bits) }
+
+  val ren = io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)
+  val raddr = Mux(io.deq.valid, Mux(deq_done, UInt(0), deq_ptr + UInt(1)), deq_ptr)
+  val ram_out_valid = Reg(next = ren)
 
   io.deq.valid := Mux(empty, io.enq.valid, ram_out_valid)
   io.enq.ready := !full
-  io.deq.bits := Mux(empty, io.enq.bits, ram(ram_addr))
+  io.deq.bits := Mux(empty, io.enq.bits, ram.read(raddr, ren))
 }
 
 class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module
