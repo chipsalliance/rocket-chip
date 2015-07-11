@@ -154,12 +154,12 @@ class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth
-  val tag_arr = Mem(UInt(width = metabits*nWays), nSets, seqRead = true)
+  val tag_arr = SeqMem(UInt(width = metabits*nWays), nSets)
   when (rst || io.write.valid) {
     tag_arr.write(waddr, Fill(nWays, wdata), FillInterleaved(metabits, wmask))
   }
 
-  val tags = tag_arr(RegEnable(io.read.bits.idx, io.read.valid))
+  val tags = tag_arr.read(io.read.bits.idx, io.read.valid)
   io.resp := io.resp.fromBits(tags)
   io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
   io.write.ready := !rst
@@ -317,21 +317,16 @@ class L2DataRWIO extends L2HellaCacheBundle with HasL2DataReadIO with HasL2DataW
 class L2DataArray(delay: Int) extends L2HellaCacheModule {
   val io = new L2DataRWIO().flip
 
-  val wmask = FillInterleaved(8, io.write.bits.wmask)
-  val reg_raddr = Reg(UInt())
-  val array = Mem(Bits(width=rowBits), nWays*nSets*refillCycles, seqRead = true)
-  val waddr = Cat(OHToUInt(io.write.bits.way_en), io.write.bits.addr_idx, io.write.bits.addr_beat)
+  val array = SeqMem(Bits(width=rowBits), nWays*nSets*refillCycles)
+  val ren = !io.write.valid && io.read.valid
   val raddr = Cat(OHToUInt(io.read.bits.way_en), io.read.bits.addr_idx, io.read.bits.addr_beat)
-
-  when (io.write.bits.way_en.orR && io.write.valid) {
-    array.write(waddr, io.write.bits.data, wmask)
-  }.elsewhen (io.read.bits.way_en.orR && io.read.valid) {
-    reg_raddr := raddr
-  }
+  val waddr = Cat(OHToUInt(io.write.bits.way_en), io.write.bits.addr_idx, io.write.bits.addr_beat)
+  val wmask = FillInterleaved(8, io.write.bits.wmask)
+  when (io.write.valid) { array.write(waddr, io.write.bits.data, wmask) }
 
   val r_req = Pipe(io.read.fire(), io.read.bits)
   io.resp := Pipe(r_req.valid, r_req.bits, delay)
-  io.resp.bits.data := Pipe(r_req.valid, array(reg_raddr), delay).bits
+  io.resp.bits.data := Pipe(r_req.valid, array.read(raddr, ren), delay).bits
   io.read.ready := !io.write.valid
   io.write.ready := Bool(true)
 }
