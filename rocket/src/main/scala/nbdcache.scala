@@ -551,13 +551,13 @@ class DataArray extends L1HellaCacheModule {
       val resp = Vec.fill(rowWords){Bits(width = encRowBits)}
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
-        val array = Mem(Bits(width=encRowBits), nSets*refillCycles, seqRead = true)
+        val array = SeqMem(Bits(width=encRowBits), nSets*refillCycles)
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
           val data = Fill(rowWords, io.write.bits.data(encDataBits*(p+1)-1,encDataBits*p))
           val mask = FillInterleaved(encDataBits, wway_en)
           array.write(waddr, data, mask)
         }
-        resp(p) := array(RegEnable(raddr, rway_en.orR && io.read.valid))
+        resp(p) := array.read(raddr, rway_en.orR && io.read.valid)
       }
       for (dw <- 0 until rowWords) {
         val r = Vec(resp.map(_(encDataBits*(dw+1)-1,encDataBits*dw)))
@@ -570,11 +570,11 @@ class DataArray extends L1HellaCacheModule {
   } else {
     val wmask = FillInterleaved(encDataBits, io.write.bits.wmask)
     for (w <- 0 until nWays) {
-      val array = Mem(Bits(width=encRowBits), nSets*refillCycles, seqRead = true)
+      val array = SeqMem(Bits(width=encRowBits), nSets*refillCycles)
       when (io.write.bits.way_en(w) && io.write.valid) {
         array.write(waddr, io.write.bits.data, wmask)
       }
-      io.resp(w) := array(RegEnable(raddr, io.read.bits.way_en(w) && io.read.valid))
+      io.resp(w) := array.read(raddr, io.read.bits.way_en(w) && io.read.valid)
     }
   }
 

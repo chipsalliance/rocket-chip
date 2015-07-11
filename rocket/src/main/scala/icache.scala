@@ -196,16 +196,12 @@ class ICache extends FrontendModule
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s2_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
-  val tag_array = Mem(Bits(width = entagbits*nWays), nSets, seqRead = true)
-  val tag_raddr = Reg(UInt())
+  val tag_array = SeqMem(Bits(width = entagbits*nWays), nSets)
+  val tag_rdata = tag_array.read(s0_pgoff(untagBits-1,blockOffBits), !refill_done && s0_valid)
   when (refill_done) {
     val wmask = FillInterleaved(entagbits, if (isDM) Bits(1) else UIntToOH(repl_way))
     val tag = code.encode(s2_tag).toUInt
     tag_array.write(s2_idx, Fill(nWays, tag), wmask)
-  }
-//  /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
-  .elsewhen (s0_valid) {
-    tag_raddr := s0_pgoff(untagBits-1,blockOffBits)
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
@@ -229,7 +225,7 @@ class ICache extends FrontendModule
     val s2_vb = Reg(Bool())
     val s2_tag_disparity = Reg(Bool())
     val s2_tag_match = Reg(Bool())
-    val tag_out = tag_array(tag_raddr)(entagbits*(i+1)-1, entagbits*i)
+    val tag_out = tag_rdata(entagbits*(i+1)-1, entagbits*i)
     when (s1_valid && rdy && !stall) {
       s2_vb := s1_vb
       s2_tag_disparity := code.decode(tag_out).error
@@ -242,19 +238,17 @@ class ICache extends FrontendModule
   s2_any_tag_hit := s2_tag_hit.reduceLeft(_||_) && !s2_disparity.reduceLeft(_||_)
 
   for (i <- 0 until nWays) {
-    val data_array = Mem(Bits(width = code.width(rowBits)), nSets*refillCycles, seqRead = true)
-    val s1_raddr = Reg(UInt())
-    when (narrow_grant.valid && repl_way === UInt(i)) {
-      val e_d = code.encode(narrow_grant.bits.data)
-      if(refillCycles > 1) data_array(Cat(s2_idx, refill_cnt)) := e_d
-      else data_array(s2_idx) := e_d
+    val data_array = SeqMem(Bits(width = code.width(rowBits)), nSets*refillCycles)
+    val wen = narrow_grant.valid && repl_way === UInt(i)
+    when (wen) {
+      val e_d = code.encode(narrow_grant.bits.data).toUInt
+      if(refillCycles > 1) data_array.write(Cat(s2_idx, refill_cnt), e_d)
+      else data_array.write(s2_idx, e_d)
     }
-//    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
-    .elsewhen (s0_valid) {
-      s1_raddr := s0_pgoff(untagBits-1,blockOffBits-(if(refillCycles > 1) refill_cnt.getWidth else 0))
-    }
+    val s0_raddr = s0_pgoff(untagBits-1,blockOffBits-(if(refillCycles > 1) refill_cnt.getWidth else 0))
+    val s1_rdata = data_array.read(s0_raddr, !wen && s0_valid)
     // if s1_tag_match is critical, replace with partial tag check
-    when (s1_valid && rdy && !stall && (Bool(isDM) || s1_tag_match(i))) { s2_dout(i) := data_array(s1_raddr) }
+    when (s1_valid && rdy && !stall && (Bool(isDM) || s1_tag_match(i))) { s2_dout(i) := s1_rdata }
   }
   val s2_dout_word = s2_dout.map(x => (x >> (s2_offset(log2Up(rowBytes)-1,log2Up(coreInstBytes)) << log2Up(coreInstBits)))(coreInstBits-1,0))
   io.resp.bits.data := Mux1H(s2_tag_hit, s2_dout_word)
