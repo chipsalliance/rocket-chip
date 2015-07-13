@@ -31,8 +31,9 @@ object BuildSettings extends Build {
   lazy val hardfloat  = Project("hardfloat", file("hardfloat"), settings = buildSettings) dependsOn(chisel)
   lazy val uncore     = Project("uncore", file("uncore"), settings = buildSettings) dependsOn(hardfloat)
   lazy val rocket     = Project("rocket", file("rocket"), settings = buildSettings) dependsOn(uncore)
+  lazy val zscale     = Project("zscale", file("zscale"), settings = buildSettings) dependsOn(rocket)
 
-  val baselist = Vector("chisel", "uncore", "rocket", "hardfloat")
+  val baselist = Vector("chisel", "uncore", "rocket", "zscale", "hardfloat")
   def getsubdirs = {
     val blacklist = (baselist ++ Vector("target", "project"))
     IO.listFiles(file(".")) map (_.toString.split("/").last) filter (f=> !blacklist.contains(f) && (f(0)!='.')) filter (f=> !IO.listFiles(file(f+"/src/main/scala")).isEmpty)
@@ -54,8 +55,8 @@ object BuildSettings extends Build {
   lazy val addons     = Project("addons", file(".addons-dont-touch"), settings = buildSettings ++ Seq(
     prepareTask := prepareTaskImpl,
     (compile in Compile) <<= (compile in Compile) dependsOn (prepareTask)
-  )) dependsOn(chisel, hardfloat, uncore, rocket)
-  lazy val rocketchip = Project("rocketchip", file("."), settings = buildSettings ++ chipSettings).dependsOn(chisel, uncore, rocket, addons)
+  )) dependsOn(chisel, hardfloat, uncore, rocket, zscale)
+  lazy val rocketchip = Project("rocketchip", file("."), settings = buildSettings ++ chipSettings).dependsOn(chisel, uncore, rocket, zscale, addons)
 
   val elaborateTask = InputKey[Unit]("elaborate", "convert chisel components into backend source code")
   val makeTask = InputKey[Unit]("make", "trigger backend-specific makefile command")

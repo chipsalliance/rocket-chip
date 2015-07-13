@@ -2,27 +2,11 @@
 # Run
 #--------------------------------------------------------------------
 
-# UCB use only
--include $(base_dir)/vsim/Makefrag-sim-refchip
-
-asm_tests_out = $(foreach test, $(asm_p_tests) $(asm_pt_tests) $(asm_v_tests), $(output_dir)/$(test).out)
-bmarks_out = $(foreach test, $(bmarks), $(output_dir)/$(test).out)
-mt_bmarks_out = $(foreach test, $(mt_bmarks), $(output_dir)/$(test).out)
-
-asm_tests_vcd = $(foreach test, $(asm_p_tests) $(asm_pt_tests) $(asm_v_tests), $(output_dir)/$(test).vcd)
-bmarks_vcd = $(foreach test, $(bmarks), $(output_dir)/$(test).vcd)
-mt_bmarks_vcd = $(foreach test, $(mt_bmarks), $(output_dir)/$(test).vcd)
-
-asm_tests_vpd = $(foreach test, $(asm_p_tests) $(asm_pt_tests) $(asm_v_tests), $(output_dir)/$(test).vpd)
-bmarks_vpd = $(foreach test, $(bmarks), $(output_dir)/$(test).vpd)
-mt_bmarks_vpd = $(foreach test, $(mt_bmarks), $(output_dir)/$(test).vpd)
-
-asm_tests_saif = $(foreach test, $(asm_p_tests) $(asm_pt_tests) $(asm_v_tests), $(output_dir)/$(test).saif)
-bmarks_saif = $(foreach test, $(bmarks), $(output_dir)/$(test).saif)
-mt_bmarks_saif = $(foreach test, $(mt_bmarks), $(output_dir)/$(test).saif)
-
 $(sim_dir)/dramsim2_ini:
 	ln -s $(base_dir)/emulator/dramsim2_ini $(sim_dir)/dramsim2_ini
+
+$(output_dir)/%.run: $(output_dir)/%.hex $(sim_dir)/dramsim2_ini $(simv)
+	cd $(sim_dir) && $(exec_simv) +dramsim +verbose +max-cycles=$(timeout_cycles) +loadmem=$< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
 
 $(output_dir)/%.out: $(output_dir)/%.hex $(sim_dir)/dramsim2_ini $(simv)
 	cd $(sim_dir) && $(exec_simv) +dramsim +verbose +max-cycles=$(timeout_cycles) +loadmem=$< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
@@ -36,35 +20,12 @@ $(output_dir)/%.vpd: $(output_dir)/%.hex $(sim_dir)/dramsim2_ini $(simv_debug)
 $(output_dir)/%.saif: $(output_dir)/%.hex $(sim_dir)/dramsim2_ini $(simv_debug)
 	cd $(sim_dir) && rm -f $(output_dir)/pipe-$*.vcd && vcd2saif -input $(output_dir)/pipe-$*.vcd -pipe "$(exec_simv_debug) +dramsim +verbose +vcdfile=$(output_dir)/pipe-$*.vcd +max-cycles=$(bmark_timeout_cycles) +loadmem=$<" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
 
-run-asm-tests: $(asm_tests_out)
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
-	       $(asm_tests_out); echo;
-
-run-bmarks-test: $(bmarks_out)
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
-	       $(bmarks_out); echo;
-
-run-mt-tests: $(mt_bmarks_out)
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
-	       $(mt_bmarks_out); echo;
-
-run-asm-tests-debug: $(asm_tests_vpd)
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
-          $(asm_tests_out); echo;
-
-run-bmarks-test-debug: $(bmarks_vpd)
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
-	       $(bmarks_out); echo;
-
-run-mt-tests-debug: $(mt_bmarks_vpd)
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
-	       $(mt_bmarks_out); echo;
-
 run: run-asm-tests run-bmarks-test
 run-debug: run-asm-tests-debug run-bmarks-test-debug
+run-fast: run-asm-tests-fast run-bmark-tests-fast
 
-.PHONY: run-asm-tests run-bmarks-test run-mt-tests
-.PHONY: run-asm-tests-debug run-bmarks-test-debug run-mt-tests-debug
-.PHONY: run run-debug
+.PHONY: run-asm-tests run-bmark-tests
+.PHONY: run-asm-tests-debug run-bmark-tests-debug
+.PHONY: run run-debug run-fast
 
 junk += $(output_dir)

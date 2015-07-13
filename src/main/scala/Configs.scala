@@ -6,13 +6,17 @@ import Chisel._
 import uncore._
 import rocket._
 import rocket.Util._
+import zscale._
 import scala.math.max
+import DefaultTestSuites._
 
 class DefaultConfig extends ChiselConfig (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
     pname match {
+      //
+      case UseZscale => false
       //HTIF Parameters
       case HTIFWidth => Dump("HTIF_WIDTH", 16)
       case HTIFNSCR => 64
@@ -75,8 +79,13 @@ class DefaultConfig extends ChiselConfig (
       case BuildL2CoherenceManager => () =>
         Module(new L2BroadcastHub, { case InnerTLId => "L1ToL2"; case OuterTLId => "L2ToMC" })
       //Tile Constants
-      case BuildTiles =>
+      case BuildTiles => {
+        TestGeneration.addSuites(rv64.map(_("p")) ++ rv64u.map(_("pt")) ++ List(bmarks))
+        if(site(UseVM)) TestGeneration.addSuites(rv64u.map(_("v")))
+        if(!site(FDivSqrt)) TestGeneration.addSuites(List(rv64ufNoDiv("p"), rv64ufNoDiv("pt")))
+        if(site(NTiles) > 1) TestGeneration.addSuite(mtBmarks)
         List.fill(site(NTiles)){ (r:Bool) => Module(new RocketTile(resetSignal = r), {case TLId => "L1ToL2"}) }
+      }
       case BuildRoCC => None
       case NDCachePorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 1) 
       case NPTWPorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 3)
@@ -98,6 +107,7 @@ class DefaultConfig extends ChiselConfig (
       case CoreDCacheReqTagBits => 7 + log2Up(here(NDCachePorts))
       case NCustomMRWCSRs => 0
       //Uncore Paramters
+      case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
       case LNEndpoints => site(TLNManagers) + site(TLNClients)
       case LNHeaderBits => log2Ceil(site(TLNManagers)) + log2Up(site(TLNClients))
       case TLBlockAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
@@ -154,6 +164,14 @@ class DefaultConfig extends ChiselConfig (
 class DefaultVLSIConfig extends DefaultConfig
 class DefaultCPPConfig extends DefaultConfig
 
+class With2Cores extends ChiselConfig(knobValues = { case "NTILES" => 2 })
+class With4Cores extends ChiselConfig(knobValues = { case "NTILES" => 4 })
+class With8Cores extends ChiselConfig(knobValues = { case "NTILES" => 8 })
+
+class With2Banks extends ChiselConfig(knobValues = { case "NBANKS" => 2 })
+class With4Banks extends ChiselConfig(knobValues = { case "NBANKS" => 4 })
+class With8Banks extends ChiselConfig(knobValues = { case "NBANKS" => 8 })
+
 class WithL2Cache extends ChiselConfig(
   (pname,site,here) => pname match {
     case "L2_CAPACITY_IN_KB" => Knob("L2_CAPACITY_IN_KB")
@@ -177,7 +195,29 @@ class WithL2Cache extends ChiselConfig(
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048 }
 )
 
+class WithL2Capacity2048 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 2048 })
+class WithL2Capacity1024 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 1024 })
+class WithL2Capacity512 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 512 })
+class WithL2Capacity256 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 256 })
+class WithL2Capacity128 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 128 })
+class WithL2Capacity64 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 64 })
+
 class DefaultL2Config extends ChiselConfig(new WithL2Cache ++ new DefaultConfig)
+class DefaultL2VLSIConfig extends ChiselConfig(new WithL2Cache ++ new DefaultVLSIConfig)
+class DefaultL2CPPConfig extends ChiselConfig(new WithL2Cache ++ new DefaultCPPConfig)
+class DefaultL2FPGAConfig extends ChiselConfig(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
+
+class WithZscale extends ChiselConfig(
+  (pname,site,here) => pname match {
+    case BuildZscale => {
+      TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
+      (r: Bool) => Module(new Zscale(r), {case TLId => "L1ToL2"})
+    }
+    case UseZscale => true
+  }
+)
+
+class ZscaleConfig extends ChiselConfig(new WithZscale ++ new DefaultConfig)
 
 class FPGAConfig extends ChiselConfig (
   (pname,site,here) => pname match {
