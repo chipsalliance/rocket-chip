@@ -10,6 +10,7 @@ all: emulator-$(CONFIG)
 debug: emulator-$(CONFIG)-debug
 
 include $(base_dir)/Makefrag
+-include generated-src/Makefrag
 
 CXXFLAGS := $(CXXFLAGS) -std=c++11 -I$(RISCV)/include
 
@@ -80,28 +81,10 @@ $(output_dir)/%.vpd: $(output_dir)/%.hex emulator-$(CONFIG)-debug
 	vcd2vpd $@.vcd $@ > /dev/null &
 	./emulator-$(CONFIG)-debug +dramsim +max-cycles=$(timeout_cycles) +verbose -v$@.vcd +loadmem=$< none $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
-run-asm-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(asm_p_tests) $(asm_pt_tests) $(asm_v_tests)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
-run-bmarks-test: $(addprefix $(output_dir)/, $(addsuffix .out, $(bmarks)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
-run-mt-tests: $(addprefix $(output_dir)/, $(addsuffix .out, $(mt_bmarks)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $^; echo;
+run: run-asm-tests run-bmark-tests
+run-debug: run-asm-tests-debug run-bmark-tests-debug
+run-fast: run-asm-tests-fast run-bmark-tests-fast
 
-run-asm-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(asm_p_tests) $(asm_pt_tests) $(asm_v_tests)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
-run-bmarks-test-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(bmarks)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
-run-mt-tests-debug: $(addprefix $(output_dir)/, $(addsuffix .vpd, $(mt_bmarks)))
-	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' $(patsubst %.vpd,%.out,$^); echo;
-
-# UCB use only
--include Makefrag-boomchip
--include Makefrag-hwachachip
-
-run: run-asm-tests run-bmarks-test
-run-debug: run-asm-tests-debug run-bmarks-test-debug
-run-fast: $(addprefix $(output_dir)/, $(addsuffix .run, $(asm_p_tests) $(asm_v_tests) $(bmarks)))
-
-.PHONY: run-asm-tests run-bmarks-test run-mt-tests
-.PHONY: run-asm-tests-debug run-bmarks-test-debug run-mt-tests-debug
+.PHONY: run-asm-tests run-bmarks-test
+.PHONY: run-asm-tests-debug run-bmark-tests-debug
 .PHONY: run run-debug run-fast

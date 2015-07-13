@@ -7,6 +7,9 @@ import uncore._
 import rocket._
 import zscale._
 
+case object UseZscale extends Field[Boolean]
+case object BuildZscale extends Field[(Bool) => Zscale]
+
 class ZscaleSystem extends Module {
   val io = new Bundle {
     val host = new HTIFIO
@@ -18,7 +21,7 @@ class ZscaleSystem extends Module {
     val corereset = new POCIIO
   }
 
-  val core = Module(new Zscale(io.host.reset), {case TLId => "L1ToL2"})
+  val core = params(BuildZscale)(io.host.reset)
 
   val bootmem_afn = (addr: UInt) => addr(31, 14) === UInt(0)
 
