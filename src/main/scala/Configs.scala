@@ -7,6 +7,7 @@ import uncore._
 import rocket._
 import rocket.Util._
 import scala.math.max
+import DefaultTestSuites._
 
 class DefaultConfig extends ChiselConfig (
   topDefinitions = { (pname,site,here) => 
@@ -75,8 +76,13 @@ class DefaultConfig extends ChiselConfig (
       case BuildL2CoherenceManager => () =>
         Module(new L2BroadcastHub, { case InnerTLId => "L1ToL2"; case OuterTLId => "L2ToMC" })
       //Tile Constants
-      case BuildTiles =>
+      case BuildTiles => {
+        TestGeneration.addSuites(rv64.map(_("p")) ++ rv64u.map(_("pt")) ++ List(bmarks))
+        if(site(UseVM)) TestGeneration.addSuites(rv64u.map(_("v")))
+        if(!site(FDivSqrt)) TestGeneration.addSuites(List(rv64ufNoDiv("p"), rv64ufNoDiv("pt")))
+        if(site(NTiles) > 1) TestGeneration.addSuite(mtBmarks)
         List.fill(site(NTiles)){ (r:Bool) => Module(new RocketTile(resetSignal = r), {case TLId => "L1ToL2"}) }
+      }
       case BuildRoCC => None
       case NDCachePorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 1) 
       case NPTWPorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 3)

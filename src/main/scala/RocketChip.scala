@@ -73,6 +73,7 @@ class Top extends Module with TopLevelParameters {
   io.mem <> arb.io.outer
   io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
   io.host <> temp.io.host
+  TestGeneration.generateMakefrag
 }
 
 class MultiChannelTop extends Module with TopLevelParameters {
