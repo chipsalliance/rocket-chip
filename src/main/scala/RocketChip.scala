@@ -67,12 +67,18 @@ class MultiChannelTopIO extends BasicTopIO with TopLevelParameters {
 //TODO: Remove this wrapper once multichannel DRAM controller is provided
 class Top extends Module with TopLevelParameters {
   val io = new TopIO
-  val temp = Module(new MultiChannelTop)
-  val arb = Module(new MemIOArbiter(nMemChannels))
-  arb.io.inner <> temp.io.mem
-  io.mem <> arb.io.outer
-  io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
-  io.host <> temp.io.host
+  if(!params(UseZscale)) {
+    val temp = Module(new MultiChannelTop)
+    val arb = Module(new MemIOArbiter(nMemChannels))
+    arb.io.inner <> temp.io.mem
+    io.mem <> arb.io.outer
+    io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
+    io.host <> temp.io.host
+  } else {
+    val temp = Module(new ZscaleTop)
+    io.host <> temp.io.host
+  }
+
   TestGeneration.generateMakefrag
 }
 

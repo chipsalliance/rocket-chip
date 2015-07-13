@@ -6,6 +6,7 @@ import Chisel._
 import uncore._
 import rocket._
 import rocket.Util._
+import zscale._
 import scala.math.max
 import DefaultTestSuites._
 
@@ -14,6 +15,8 @@ class DefaultConfig extends ChiselConfig (
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
     pname match {
+      //
+      case UseZscale => false
       //HTIF Parameters
       case HTIFWidth => Dump("HTIF_WIDTH", 16)
       case HTIFNSCR => 64
@@ -203,6 +206,18 @@ class DefaultL2Config extends ChiselConfig(new WithL2Cache ++ new DefaultConfig)
 class DefaultL2VLSIConfig extends ChiselConfig(new WithL2Cache ++ new DefaultVLSIConfig)
 class DefaultL2CPPConfig extends ChiselConfig(new WithL2Cache ++ new DefaultCPPConfig)
 class DefaultL2FPGAConfig extends ChiselConfig(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
+
+class WithZscale extends ChiselConfig(
+  (pname,site,here) => pname match {
+    case BuildZscale => {
+      TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
+      (r: Bool) => Module(new Zscale(r), {case TLId => "L1ToL2"})
+    }
+    case UseZscale => true
+  }
+)
+
+class ZscaleConfig extends ChiselConfig(new WithZscale ++ new DefaultConfig)
 
 class FPGAConfig extends ChiselConfig (
   (pname,site,here) => pname match {
