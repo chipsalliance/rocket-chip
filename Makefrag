@@ -1,5 +1,3 @@
--include $(generated_dir)/Makefrag
-
 # check RISCV environment variable
 ifndef RISCV
 $(error Please set environment variable RISCV. Please take a look at README)
