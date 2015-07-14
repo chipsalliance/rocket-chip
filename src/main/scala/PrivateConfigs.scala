@@ -4,17 +4,25 @@ import Chisel._
 import uncore._
 import rocket._
 import BOOM._
+import DefaultTestSuites._
 
 class WithAllBooms extends ChiselConfig(
   (pname,site,here) => pname match { 
-     case BuildTiles =>
+    case BuildTiles => {
+      TestGeneration.addSuites(rv64i.map(_("p")))
+      TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64u.map(_(env))))
+      TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
       List.fill(site(NTiles)){ (r:Bool) => Module(new BOOMTile(resetSignal = r), {case TLId => "L1ToL2"}) }
+    }
   }
 )
 
 class WithBoomAndRocketAlternating extends ChiselConfig(
   (pname,site,here) => pname match { 
     case BuildTiles => {
+      TestGeneration.addSuites(rv64i.map(_("p")))
+      TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64u.map(_(env))))
+      TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
       (0 until site(NTiles)).map { i =>
         (r:Bool) => Module({
           if(i % 2 != 0) new RocketTile(resetSignal = r)
