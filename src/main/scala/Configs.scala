@@ -80,10 +80,9 @@ class DefaultConfig extends ChiselConfig (
         Module(new L2BroadcastHub, { case InnerTLId => "L1ToL2"; case OuterTLId => "L2ToMC" })
       //Tile Constants
       case BuildTiles => {
-        TestGeneration.addSuites(rv64.map(_("p")) ++ rv64u.map(_("pt")) ++ List(bmarks))
-        if(site(UseVM)) TestGeneration.addSuites(rv64u.map(_("v")))
-        if(!site(FDivSqrt)) TestGeneration.addSuites(List(rv64ufNoDiv("p"), rv64ufNoDiv("pt")))
-        if(site(NTiles) > 1) TestGeneration.addSuite(mtBmarks)
+        TestGeneration.addSuites(rv64i.map(_("p")))
+        TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64u.map(_(env))))
+        TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
         List.fill(site(NTiles)){ (r:Bool) => Module(new RocketTile(resetSignal = r), {case TLId => "L1ToL2"}) }
       }
       case BuildRoCC => None
@@ -98,7 +97,12 @@ class DefaultConfig extends ChiselConfig (
       case FastMulDiv => true
       case XLen => 64
       case NMultXpr => 32
-      case BuildFPU => Some(() => Module(new FPU))
+      case BuildFPU => {
+        val env = if(site(UseVM)) List("p","pt","v") else List("p","pt")
+        if(site(FDivSqrt)) TestGeneration.addSuites(env.map(rv64uf))
+        else TestGeneration.addSuites(env.map(rv64ufNoDiv))
+        Some(() => Module(new FPU))
+      }
       case FDivSqrt => true
       case SFMALatency => 2
       case DFMALatency => 3
