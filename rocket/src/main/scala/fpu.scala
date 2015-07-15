@@ -461,7 +461,7 @@ class FPU extends Module
   val memLatencyMask = latencyMask(mem_ctrl, 2)
 
   val wen = Reg(init=Bits(0, maxLatency-1))
-  val winfo = Vec.fill(maxLatency-1){Reg(Bits())}
+  val winfo = Reg(Vec.fill(maxLatency-1){Bits()})
   val mem_wen = mem_reg_valid && (mem_ctrl.fma || mem_ctrl.fastpipe || mem_ctrl.fromint)
   val write_port_busy = RegEnable(mem_wen && (memLatencyMask & latencyMask(ex_ctrl, 1)).orR || (wen & latencyMask(ex_ctrl, 0)).orR, ex_reg_valid)
   val mem_winfo = Cat(pipeid(mem_ctrl), mem_reg_inst(11,7))

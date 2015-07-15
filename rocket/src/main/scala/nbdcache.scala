@@ -749,7 +749,7 @@ class HellaCache extends L1HellaCacheModule {
 
   val s2_data = Vec.fill(nWays){Bits(width = encRowBits)}
   for (w <- 0 until nWays) {
-    val regs = Vec.fill(rowWords){Reg(Bits(width = encDataBits))}
+    val regs = Reg(Vec.fill(rowWords){Bits(width = encDataBits)})
     val en1 = s1_clk_en && s1_tag_eq_way(w)
     for (i <- 0 until regs.size) {
       val en = en1 && ((Bool(i == 0) || !Bool(doNarrowRead)) || s1_writeback)

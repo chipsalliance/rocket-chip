@@ -23,9 +23,9 @@ class Datapath extends CoreModule
   val ex_reg_pc = Reg(UInt())
   val ex_reg_inst = Reg(Bits())
   val ex_reg_kill = Reg(Bool())
-  val ex_reg_rs_bypass = Vec.fill(2)(Reg(Bool()))
-  val ex_reg_rs_lsb = Vec.fill(2)(Reg(Bits()))
-  val ex_reg_rs_msb = Vec.fill(2)(Reg(Bits()))
+  val ex_reg_rs_bypass = Reg(Vec.fill(2)(Bool()))
+  val ex_reg_rs_lsb = Reg(Vec.fill(2)(Bits()))
+  val ex_reg_rs_msb = Reg(Vec.fill(2)(Bits()))
 
   // memory definitions
   val mem_reg_pc = Reg(UInt())
