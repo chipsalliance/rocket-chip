@@ -264,7 +264,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters 
     mem_data_q.io.enq.valid := Bool(false)
     val (mif_cnt_out, mif_wrap_out) = Counter(mem_data_q.io.enq.fire(), mifDataBeats)
     val mif_done_out = Reg(init=Bool(false))
-    val tl_buf_out = Vec.fill(tlDataBeats){ Reg(io.tl.acquire.bits.data.clone) }
+    val tl_buf_out = Reg(Vec(io.tl.acquire.bits.data, tlDataBeats))
     val mif_buf_out = Vec.fill(mifDataBeats){ new MemData }
     mif_buf_out := mif_buf_out.fromBits(tl_buf_out.toBits)
     val mif_prog_out = (mif_cnt_out+UInt(1, width = log2Up(mifDataBeats+1)))*UInt(mifDataBits)
@@ -414,7 +414,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters 
   if(tlDataBits != mifDataBits || tlDataBeats != mifDataBeats) {
     val (mif_cnt_in, mif_wrap_in) = Counter(io.mem.resp.fire(), mifDataBeats) // TODO: Assumes all resps have data
     val mif_done_in = Reg(init=Bool(false))
-    val mif_buf_in = Vec.fill(mifDataBeats){ Reg(new MemData) }
+    val mif_buf_in = Reg(Vec(new MemData, mifDataBeats))
     val tl_buf_in = Vec.fill(tlDataBeats){ io.tl.acquire.bits.data.clone }
     tl_buf_in := tl_buf_in.fromBits(mif_buf_in.toBits)
     val tl_prog_in = (tl_cnt_in+UInt(1, width = log2Up(tlDataBeats+1)))*UInt(tlDataBits)

@@ -491,7 +491,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int) extends L2XactTracker {
   val state = Reg(init=s_idle)
 
   val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
-  val data_buffer = Vec.fill(innerDataBeats){ Reg(init=UInt(0, width = innerDataBits)) }
+  val data_buffer = Reg(init=Vec.fill(innerDataBeats){UInt(0, width = innerDataBits)})
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact_old_meta = Reg{ new L2Metadata }
   val coh = xact_old_meta.coh
@@ -586,8 +586,8 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
 
   // State holding transaction metadata
   val xact = Reg(Bundle(new AcquireFromSrc, { case TLId => params(InnerTLId) }))
-  val data_buffer = Vec.fill(innerDataBeats){ Reg(init=UInt(0, width = innerDataBits)) }
-  val wmask_buffer = Vec.fill(innerDataBeats){ Reg(init=UInt(0,width = innerDataBits/8)) }
+  val data_buffer = Reg(init=Vec.fill(innerDataBeats){UInt(0, width = innerDataBits)})
+  val wmask_buffer = Reg(init=Vec.fill(innerDataBeats){UInt(0, width = innerDataBits/8)})
   val xact_tag_match = Reg{ Bool() }
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact_old_meta = Reg{ new L2Metadata }
@@ -979,7 +979,7 @@ class L2WritebackUnit(trackerId: Int) extends L2XactTracker {
   val state = Reg(init=s_idle)
 
   val xact = Reg(new L2WritebackReq)
-  val data_buffer = Vec.fill(innerDataBeats){ Reg(init=UInt(0, width = innerDataBits)) }
+  val data_buffer = Reg(init=Vec.fill(innerDataBeats){UInt(0, width = innerDataBits)})
   val xact_addr_block = Cat(xact.tag, xact.idx)
 
   val pending_irels =

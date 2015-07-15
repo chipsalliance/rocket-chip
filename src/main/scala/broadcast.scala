@@ -40,7 +40,7 @@ class L2BroadcastHub extends ManagerCoherenceAgent
   trackerList.map(_.io.incoherent := io.incoherent.toBits)
 
   // Queue to store impending Put data
-  val sdq = Vec.fill(sdqDepth){ Reg(io.iacq().data) }
+  val sdq = Reg(Vec.fill(sdqDepth){io.iacq().data})
   val sdq_val = Reg(init=Bits(0, sdqDepth))
   val sdq_alloc_id = PriorityEncoder(~sdq_val)
   val sdq_rdy = !sdq_val.andR
@@ -69,7 +69,7 @@ class L2BroadcastHub extends ManagerCoherenceAgent
   val voluntary = io.irel().isVoluntary()
   val vwbdq_enq = io.inner.release.fire() && voluntary && io.irel().hasData()
   val (rel_data_cnt, rel_data_done) = Counter(vwbdq_enq, innerDataBeats) //TODO Zero width
-  val vwbdq = Vec.fill(innerDataBeats){ Reg(io.irel().data) } //TODO Assumes nReleaseTransactors == 1 
+  val vwbdq = Reg(Vec.fill(innerDataBeats){io.irel().data}) //TODO Assumes nReleaseTransactors == 1
   when(vwbdq_enq) { vwbdq(rel_data_cnt) := io.irel().data }
 
   // Handle releases, which might be voluntary and might have data
@@ -131,7 +131,7 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int) extends BroadcastXactTrac
   val state = Reg(init=s_idle)
 
   val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
-  val data_buffer = Vec.fill(innerDataBeats){ Reg(io.irel().data.clone) }
+  val data_buffer = Reg(Vec.fill(innerDataBeats){io.irel().data})
   val coh = ManagerMetadata.onReset
 
   val collect_irel_data = Reg(init=Bool(false))
@@ -210,7 +210,7 @@ class BroadcastAcquireTracker(trackerId: Int) extends BroadcastXactTracker {
   val state = Reg(init=s_idle)
 
   val xact = Reg(Bundle(new AcquireFromSrc, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
-  val data_buffer = Vec.fill(innerDataBeats){ Reg(io.iacq().data.clone) }
+  val data_buffer = Reg(Vec.fill(innerDataBeats){io.iacq().data})
   val coh = ManagerMetadata.onReset
 
   assert(!(state != s_idle && xact.isBuiltInType() && 
