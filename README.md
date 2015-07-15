@@ -37,12 +37,12 @@ the
 
 ### Building The Project
 
-To build the C simulator:
+First, to build the C simulator:
 
     $ cd emulator
     $ make
 
-To build the VCS simulator:
+Or to build the VCS simulator:
 
     $ cd vsim
     $ make
@@ -51,7 +51,7 @@ In either case, you can run a set of assembly tests or simple benchmarks
 (Assuming you have N cores on your host system):
 
     $ make -jN run-asm-tests
-    $ make -jN run-bmarks-test
+    $ make -jN run-bmark-tests
 
 To build a C simulator that is capable of VCD waveform generation:
 
@@ -61,7 +61,7 @@ To build a C simulator that is capable of VCD waveform generation:
 And to run the assembly tests on the C simulator and generate waveforms:
 
     $ make -jN run-asm-tests-debug
-    $ make -jN run-bmarks-test-debug
+    $ make -jN run-bmark-tests-debug
 
 To generate FPGA-synthesizable verilog (output will be in `fsim/generated-src`):
 
