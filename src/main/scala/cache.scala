@@ -135,16 +135,16 @@ class MetaReadReq extends CacheBundle {
 
 class MetaWriteReq[T <: Metadata](gen: T) extends MetaReadReq {
   val way_en = Bits(width = nWays)
-  val data = gen.clone
-  override def clone = new MetaWriteReq(gen).asInstanceOf[this.type]
+  val data = gen.cloneType
+  override def cloneType = new MetaWriteReq(gen).asInstanceOf[this.type]
 }
 
 class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
   val rstVal = makeRstVal()
   val io = new Bundle {
     val read = Decoupled(new MetaReadReq).flip
-    val write = Decoupled(new MetaWriteReq(rstVal.clone)).flip
-    val resp = Vec.fill(nWays){rstVal.clone.asOutput}
+    val write = Decoupled(new MetaWriteReq(rstVal)).flip
+    val resp = Vec.fill(nWays){rstVal.cloneType.asOutput}
   }
   val rst_cnt = Reg(init=UInt(0, log2Up(nSets+1)))
   val rst = rst_cnt < UInt(nSets)
@@ -186,7 +186,7 @@ abstract class L2HellaCacheModule extends Module with L2HellaCacheParameters {
   def doInternalOutputArbitration[T <: Data : ClassTag](
       out: DecoupledIO[T],
       ins: Seq[DecoupledIO[T]]) {
-    val arb = Module(new RRArbiter(out.bits.clone, ins.size))
+    val arb = Module(new RRArbiter(out.bits, ins.size))
     out <> arb.io.out
     arb.io.in <> ins 
   }
@@ -237,7 +237,7 @@ class L2MetaReadReq extends MetaReadReq with HasL2Id {
 
 class L2MetaWriteReq extends MetaWriteReq[L2Metadata](new L2Metadata)
     with HasL2Id {
-  override def clone = new L2MetaWriteReq().asInstanceOf[this.type]
+  override def cloneType = new L2MetaWriteReq().asInstanceOf[this.type]
 }
 
 class L2MetaResp extends L2HellaCacheBundle
@@ -591,7 +591,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   val xact_tag_match = Reg{ Bool() }
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact_old_meta = Reg{ new L2Metadata }
-  val pending_coh = Reg{ xact_old_meta.coh.clone }
+  val pending_coh = Reg{ xact_old_meta.coh }
 
   // Secondary miss queue
   val ignt_q = Module(new Queue(new SecondaryMissInfo, nSecondaryMisses))(innerTLParams)

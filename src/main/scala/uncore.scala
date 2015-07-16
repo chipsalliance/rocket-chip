@@ -33,7 +33,7 @@ trait HasCoherenceAgentWiringHelpers {
       out: DecoupledIO[T],
       ins: Seq[DecoupledIO[T]]) {
     def lock(o: T) = o.hasMultibeatData()
-    val arb = Module(new LockingRRArbiter(out.bits.clone, ins.size, out.bits.tlDataBeats, lock _))
+    val arb = Module(new LockingRRArbiter(out.bits, ins.size, out.bits.tlDataBeats, lock _))
     out <> arb.io.out
     arb.io.in <> ins
   }
