@@ -467,7 +467,7 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
   val io = new QueueIO(data, entries)
   require(entries > 1)
 
-  val do_flow = Bool()
+  val do_flow = Wire(Bool())
   val do_enq = io.enq.fire() && !do_flow
   val do_deq = io.deq.fire() && !do_flow
 
@@ -559,7 +559,7 @@ class MemIOArbiter(val arbN: Int) extends MIFModule {
 
 object MemIOMemPipeIOConverter {
   def apply(in: MemPipeIO): MemIO = {
-    val out = new MemIO().asDirectionless
+    val out = Wire(new MemIO())
     in.resp.valid := out.resp.valid
     in.resp.bits := out.resp.bits
     out.resp.ready := Bool(true)
@@ -582,8 +582,8 @@ class MemPipeIOMemIOConverter(numRequests: Int) extends MIFModule {
   val numEntries = numRequests * mifDataBeats
   val size = log2Down(numEntries) + 1
 
-  val inc = Bool()
-  val dec = Bool()
+  val inc = Wire(Bool())
+  val dec = Wire(Bool())
   val count = Reg(init=UInt(numEntries, size))
   val watermark = count >= UInt(mifDataBeats)
 

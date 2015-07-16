@@ -150,7 +150,7 @@ class ClientMetadata extends CoherenceMetadata {
 /** Factories for ClientMetadata, including on reset */
 object ClientMetadata {
   def apply(state: UInt) = {
-    val meta = new ClientMetadata
+    val meta = Wire(new ClientMetadata)
     meta.state := state
     meta
   }
@@ -288,13 +288,13 @@ class ManagerMetadata extends CoherenceMetadata {
 /** Factories for ManagerMetadata, including on reset */
 object ManagerMetadata {
   def apply(sharers: UInt, state: UInt = UInt(width = 0)) = {
-    val meta = new ManagerMetadata
+    val meta = Wire(new ManagerMetadata)
     //meta.state := state TODO: Fix 0-width wires in Chisel 
     meta.sharers := sharers
     meta
   }
   def apply() = {
-    val meta = new ManagerMetadata
+    val meta = Wire(new ManagerMetadata)
     //meta.state := UInt(width = 0) TODO: Fix 0-width wires in Chisel 
     meta.sharers := meta.co.dir.flush
     meta
@@ -321,7 +321,7 @@ class HierarchicalMetadata extends CoherenceMetadata {
 /** Factories for HierarchicalMetadata, including on reset */
 object HierarchicalMetadata {
   def apply(inner: ManagerMetadata, outer: ClientMetadata): HierarchicalMetadata = {
-    val m = new HierarchicalMetadata
+    val m = Wire(new HierarchicalMetadata)
     m.inner := inner
     m.outer := outer
     m
