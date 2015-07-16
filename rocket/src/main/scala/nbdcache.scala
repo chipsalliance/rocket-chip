@@ -602,19 +602,19 @@ class HellaCache extends L1HellaCacheModule {
 
   io.cpu.req.ready := Bool(true)
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
-  val s1_req = Reg(io.cpu.req.bits.clone)
+  val s1_req = Reg(io.cpu.req.bits)
   val s1_valid_masked = s1_valid && !io.cpu.req.bits.kill
   val s1_replay = Reg(init=Bool(false))
   val s1_clk_en = Reg(Bool())
 
   val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
-  val s2_req = Reg(io.cpu.req.bits.clone)
+  val s2_req = Reg(io.cpu.req.bits)
   val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd != M_NOP
   val s2_recycle = Bool()
   val s2_valid_masked = Bool()
 
   val s3_valid = Reg(init=Bool(false))
-  val s3_req = Reg(io.cpu.req.bits.clone)
+  val s3_req = Reg(io.cpu.req.bits)
   val s3_way = Reg(Bits())
 
   val s1_recycled = RegEnable(s2_recycle, Bool(false), s1_clk_en)

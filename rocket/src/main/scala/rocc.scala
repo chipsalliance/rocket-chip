@@ -62,7 +62,7 @@ class AccumulatorExample extends RoCC
 {
   val n = 4
   val regfile = Mem(UInt(width = xLen), n)
-  val busy = Reg(init=Vec.fill(n){Bool(false)})
+  val busy = Reg(init=Vec(Bool(false), n))
 
   val cmd = Queue(io.cmd)
   val funct = cmd.bits.inst.funct

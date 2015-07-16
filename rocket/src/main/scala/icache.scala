@@ -55,7 +55,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=UInt(START_ADDR))
   val s2_btb_resp_valid = Reg(init=Bool(false))
-  val s2_btb_resp_bits = Reg(btb.io.resp.bits.clone)
+  val s2_btb_resp_bits = Reg(btb.io.resp.bits)
   val s2_xcpt_if = Reg(init=Bool(false))
 
   val msb = vaddrBits-1
