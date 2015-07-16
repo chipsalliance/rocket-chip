@@ -115,7 +115,7 @@ abstract class ReplacementPolicy {
 }
 
 class RandomReplacement(ways: Int) extends ReplacementPolicy {
-  private val replace = Bool()
+  private val replace = Wire(Bool())
   replace := Bool(false)
   val lfsr = LFSR16(replace)
 
@@ -224,7 +224,7 @@ class L2Metadata extends Metadata with L2HellaCacheParameters {
 
 object L2Metadata {
   def apply(tag: Bits, coh: HierarchicalMetadata) = {
-    val meta = new L2Metadata
+    val meta = Wire(new L2Metadata)
     meta.tag := tag
     meta.coh := coh
     meta

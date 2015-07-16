@@ -247,7 +247,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   }
 
   val scr_addr = addr(log2Up(nSCR)-1, 0)
-  val scr_rdata = Vec.fill(io.scr.rdata.size){Bits(width = 64)}
+  val scr_rdata = Wire(Vec(Bits(width=64), io.scr.rdata.size))
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
   scr_rdata(0) := UInt(nCores)

@@ -257,7 +257,7 @@ object Acquire {
       addr_beat: UInt = UInt(0),
       data: UInt = UInt(0),
       union: UInt = UInt(0)): Acquire = {
-    val acq = new Acquire
+    val acq = Wire(new Acquire)
     acq.is_builtin_type := is_builtin_type
     acq.a_type := a_type
     acq.client_xact_id := client_xact_id
@@ -269,7 +269,7 @@ object Acquire {
   }
   // Copy constructor
   def apply(a: Acquire): Acquire = {
-    val acq = new Acquire
+    val acq = Wire(new Acquire)
     acq := a
     acq
   }
@@ -513,13 +513,13 @@ class ProbeToDst extends Probe with HasClientId
   */
 object Probe {
   def apply(p_type: UInt, addr_block: UInt): Probe = {
-    val prb = new Probe
+    val prb = Wire(new Probe)
     prb.p_type := p_type
     prb.addr_block := addr_block
     prb
   }
   def apply(dst: UInt, p_type: UInt, addr_block: UInt): ProbeToDst = {
-    val prb = new ProbeToDst
+    val prb = Wire(new ProbeToDst)
     prb.client_id := dst
     prb.p_type := p_type
     prb.addr_block := addr_block
@@ -574,7 +574,7 @@ object Release {
       addr_block: UInt,
       addr_beat: UInt = UInt(0),
       data: UInt = UInt(0)): Release = {
-    val rel = new Release
+    val rel = Wire(new Release)
     rel.r_type := r_type
     rel.client_xact_id := client_xact_id
     rel.addr_block := addr_block
@@ -613,7 +613,7 @@ class Grant extends ManagerToClientChannel
   def isVoluntary(dummy: Int = 0): Bool = isBuiltInType() && (g_type === Grant.voluntaryAckType)
   def requiresAck(dummy: Int = 0): Bool = !Bool(tlNetworkPreservesPointToPointOrdering) && !isVoluntary()
   def makeFinish(dummy: Int = 0): Finish = {
-    val f = Bundle(new Finish, { case TLMaxManagerXacts => tlMaxManagerXacts })
+    val f = Wire(Bundle(new Finish, { case TLMaxManagerXacts => tlMaxManagerXacts }))
     f.manager_xact_id := this.manager_xact_id
     f
   }
@@ -671,7 +671,7 @@ object Grant {
       manager_xact_id: UInt,
       addr_beat: UInt = UInt(0),
       data: UInt = UInt(0)): GrantToDst = {
-    val gnt = new GrantToDst
+    val gnt = Wire(new GrantToDst)
     gnt.client_id := dst
     gnt.is_builtin_type := is_builtin_type
     gnt.g_type := g_type
@@ -904,7 +904,7 @@ object ClientTileLinkHeaderCreator {
       in: DecoupledIO[T],
       clientId: Int,
       addrConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = new DecoupledIO(new LogicalNetworkIO(in.bits)).asDirectionless
+    val out = Wire(new DecoupledIO(new LogicalNetworkIO(in.bits)))
     out.bits.payload := in.bits
     out.bits.header.src := UInt(clientId)
     out.bits.header.dst := addrConvert(in.bits.addr_block)
@@ -943,7 +943,7 @@ object ManagerTileLinkHeaderCreator {
       in: DecoupledIO[T],
       managerId: Int,
       idConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = new DecoupledIO(new LogicalNetworkIO(in.bits)).asDirectionless
+    val out = Wire(new DecoupledIO(new LogicalNetworkIO(in.bits)))
     out.bits.payload := in.bits
     out.bits.header.src := UInt(managerId)
     out.bits.header.dst := idConvert(in.bits.client_id)

@@ -73,7 +73,7 @@ object DecoupledLogicalNetworkIOWrapper {
 
 object DecoupledLogicalNetworkIOUnwrapper {
   def apply[T <: Data](in: DecoupledIO[LogicalNetworkIO[T]]): DecoupledIO[T] = {
-    val out = Decoupled(in.bits.payload).asDirectionless
+    val out = Wire(Decoupled(in.bits.payload))
     out.valid := in.valid
     out.bits := in.bits.payload
     in.ready := out.ready
