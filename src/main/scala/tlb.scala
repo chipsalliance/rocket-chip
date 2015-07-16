@@ -109,7 +109,7 @@ class TLB extends TLBModule {
   val r_req = Reg(new TLBReq)
 
   val tag_cam = Module(new RocketCAM)
-  val tag_ram = Mem(io.ptw.resp.bits.pte.ppn.clone, entries)
+  val tag_ram = Mem(io.ptw.resp.bits.pte.ppn, entries)
   
   val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUInt
   tag_cam.io.tag := lookup_tag
