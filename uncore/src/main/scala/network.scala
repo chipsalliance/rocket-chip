@@ -13,8 +13,8 @@ class PhysicalHeader(n: Int) extends Bundle {
 
 class PhysicalNetworkIO[T <: Data](n: Int, dType: T) extends Bundle {
   val header = new PhysicalHeader(n)
-  val payload = dType.clone
-  override def clone = new PhysicalNetworkIO(n,dType).asInstanceOf[this.type]
+  val payload = dType
+  override def cloneType = new PhysicalNetworkIO(n,dType).asInstanceOf[this.type]
 }
 
 class BasicCrossbarIO[T <: Data](n: Int, dType: T) extends Bundle {
@@ -52,8 +52,8 @@ class LogicalHeader extends Bundle {
 
 class LogicalNetworkIO[T <: Data](dType: T) extends Bundle {
   val header = new LogicalHeader
-  val payload = dType.clone
-  override def clone = { new LogicalNetworkIO(dType).asInstanceOf[this.type] }
+  val payload = dType.cloneType
+  override def cloneType = new LogicalNetworkIO(dType).asInstanceOf[this.type]
 }
 
 object DecoupledLogicalNetworkIOWrapper {
@@ -61,7 +61,7 @@ object DecoupledLogicalNetworkIOWrapper {
       in: DecoupledIO[T],
       src: UInt = UInt(0),
       dst: UInt = UInt(0)): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = Decoupled(new LogicalNetworkIO(in.bits.clone)).asDirectionless
+    val out = Decoupled(new LogicalNetworkIO(in.bits)).asDirectionless
     out.valid := in.valid
     out.bits.payload := in.bits
     out.bits.header.dst := dst
@@ -73,7 +73,7 @@ object DecoupledLogicalNetworkIOWrapper {
 
 object DecoupledLogicalNetworkIOUnwrapper {
   def apply[T <: Data](in: DecoupledIO[LogicalNetworkIO[T]]): DecoupledIO[T] = {
-    val out = Decoupled(in.bits.payload.clone).asDirectionless
+    val out = Decoupled(in.bits.payload).asDirectionless
     out.valid := in.valid
     out.bits := in.bits.payload
     in.ready := out.ready

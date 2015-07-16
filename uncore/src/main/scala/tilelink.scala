@@ -904,7 +904,7 @@ object ClientTileLinkHeaderCreator {
       in: DecoupledIO[T],
       clientId: Int,
       addrConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = new DecoupledIO(new LogicalNetworkIO(in.bits.clone)).asDirectionless
+    val out = new DecoupledIO(new LogicalNetworkIO(in.bits)).asDirectionless
     out.bits.payload := in.bits
     out.bits.header.src := UInt(clientId)
     out.bits.header.dst := addrConvert(in.bits.addr_block)
@@ -943,7 +943,7 @@ object ManagerTileLinkHeaderCreator {
       in: DecoupledIO[T],
       managerId: Int,
       idConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = new DecoupledIO(new LogicalNetworkIO(in.bits.clone)).asDirectionless
+    val out = new DecoupledIO(new LogicalNetworkIO(in.bits)).asDirectionless
     out.bits.payload := in.bits
     out.bits.header.src := UInt(managerId)
     out.bits.header.dst := idConvert(in.bits.client_id)
@@ -1001,7 +1001,7 @@ trait TileLinkArbiterLike extends TileLinkParameters {
       clts: Seq[DecoupledIO[LogicalNetworkIO[M]]],
       mngr: DecoupledIO[LogicalNetworkIO[M]]) {
     def hasData(m: LogicalNetworkIO[M]) = m.payload.hasMultibeatData()
-    val arb = Module(new LockingRRArbiter(mngr.bits.clone, arbN, tlDataBeats, Some(hasData _)))
+    val arb = Module(new LockingRRArbiter(mngr.bits, arbN, tlDataBeats, Some(hasData _)))
     clts.zipWithIndex.zip(arb.io.in).map{ case ((req, id), arb) => {
       arb.valid := req.valid
       arb.bits := req.bits
@@ -1015,7 +1015,7 @@ trait TileLinkArbiterLike extends TileLinkParameters {
       clts: Seq[DecoupledIO[M]],
       mngr: DecoupledIO[M]) {
     def hasData(m: M) = m.hasMultibeatData()
-    val arb = Module(new LockingRRArbiter(mngr.bits.clone, arbN, tlDataBeats, Some(hasData _)))
+    val arb = Module(new LockingRRArbiter(mngr.bits, arbN, tlDataBeats, Some(hasData _)))
     clts.zipWithIndex.zip(arb.io.in).map{ case ((req, id), arb) => {
       arb.valid := req.valid
       arb.bits := req.bits
@@ -1076,7 +1076,7 @@ trait TileLinkArbiterLike extends TileLinkParameters {
   }
 
   def hookupFinish[M <: LogicalNetworkIO[Finish]]( clts: Seq[DecoupledIO[M]], mngr: DecoupledIO[M]) {
-    val arb = Module(new RRArbiter(mngr.bits.clone, arbN))
+    val arb = Module(new RRArbiter(mngr.bits, arbN))
     arb.io.in <> clts
     arb.io.out <> mngr
   }

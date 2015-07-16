@@ -415,7 +415,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters 
     val (mif_cnt_in, mif_wrap_in) = Counter(io.mem.resp.fire(), mifDataBeats) // TODO: Assumes all resps have data
     val mif_done_in = Reg(init=Bool(false))
     val mif_buf_in = Reg(Vec(new MemData, mifDataBeats))
-    val tl_buf_in = Vec.fill(tlDataBeats){ io.tl.acquire.bits.data.clone }
+    val tl_buf_in = Vec.fill(tlDataBeats){ io.tl.acquire.bits.data }
     tl_buf_in := tl_buf_in.fromBits(mif_buf_in.toBits)
     val tl_prog_in = (tl_cnt_in+UInt(1, width = log2Up(tlDataBeats+1)))*UInt(tlDataBits)
     val mif_prog_in = mif_cnt_in*UInt(mifDataBits)
@@ -506,7 +506,7 @@ class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module
 object HellaQueue
 {
   def apply[T <: Data](enq: DecoupledIO[T], entries: Int) = {
-    val q = Module((new HellaQueue(entries)) { enq.bits.clone })
+    val q = Module((new HellaQueue(entries)) { enq.bits })
     q.io.enq.valid := enq.valid // not using <> so that override is allowed
     q.io.enq.bits := enq.bits
     enq.ready := q.io.enq.ready
@@ -522,7 +522,7 @@ class MemIOArbiter(val arbN: Int) extends MIFModule {
 
   if(arbN > 1) {
     val cmd_arb = Module(new RRArbiter(new MemReqCmd, arbN))
-    val choice_q = Module(new Queue(cmd_arb.io.chosen.clone, 4))
+    val choice_q = Module(new Queue(cmd_arb.io.chosen, 4))
     val (data_cnt, data_done) = Counter(io.outer.req_data.fire(), mifDataBeats)
 
     io.inner.map(_.req_cmd).zipWithIndex.zip(cmd_arb.io.in).map{ case ((req, id), arb) => {
