@@ -134,7 +134,7 @@ class CSRFile extends CoreModule
 
   io.interrupt_cause := 0
   io.interrupt := io.interrupt_cause(xLen-1)
-  val some_interrupt_pending = Bool(); some_interrupt_pending := false
+  val some_interrupt_pending = Wire(init=Bool(false))
   def checkInterrupt(max_priv: UInt, cond: Bool, num: Int) = {
     when (cond && (reg_mstatus.prv < max_priv || reg_mstatus.prv === max_priv && reg_mstatus.ie)) {
       io.interrupt_cause := UInt((BigInt(1) << (xLen-1)) + num)
@@ -216,20 +216,17 @@ class CSRFile extends CoreModule
     CSRs.mfromhost -> reg_fromhost)
 
   if (params(UseVM)) {
-    val read_sstatus = new SStatus
-    read_sstatus := new SStatus().fromBits(read_mstatus) // sstatus mostly overlaps mstatus
+    val read_sstatus = Wire(init=new SStatus().fromBits(read_mstatus))
     read_sstatus.zero1 := 0
     read_sstatus.zero2 := 0
     read_sstatus.zero3 := 0
     read_sstatus.zero4 := 0
 
-    val read_sip = new MIP
-    read_sip := new MIP().fromBits(0)
+    val read_sip = Wire(init=new MIP().fromBits(0))
     read_sip.ssip := reg_mip.ssip
     read_sip.stip := reg_mip.stip
 
-    val read_sie = new MIP
-    read_sie := new MIP().fromBits(0)
+    val read_sie = Wire(init=new MIP().fromBits(0))
     read_sie.ssip := reg_mie.ssip
     read_sie.stip := reg_mie.stip
 

@@ -359,7 +359,7 @@ class Control extends CoreModule
   if (!params(BuildFPU).isEmpty && params(FDivSqrt)) decode_table ++= FDivSqrtDecode.table
   if (!params(BuildRoCC).isEmpty) decode_table ++= RoCCDecode.table
 
-  val id_ctrl = new IntCtrlSigs().decode(io.dpath.inst, decode_table)
+  val id_ctrl = Wire(new IntCtrlSigs()).decode(io.dpath.inst, decode_table)
   val ex_ctrl = Reg(new IntCtrlSigs)
   val mem_ctrl = Reg(new IntCtrlSigs)
   val wb_ctrl = Reg(new IntCtrlSigs)
@@ -389,21 +389,21 @@ class Control extends CoreModule
   val wb_reg_cause           = Reg(UInt())
   val wb_reg_rocc_pending    = Reg(init=Bool(false))
 
-  val take_pc_wb = Bool()
+  val take_pc_wb = Wire(Bool())
   val mem_misprediction = io.dpath.mem_misprediction && mem_reg_valid && (mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal)
   val want_take_pc_mem = mem_reg_valid && (mem_misprediction || mem_reg_flush_pipe)
   val take_pc_mem = want_take_pc_mem && !io.dpath.mem_npc_misaligned
   val take_pc_mem_wb = take_pc_wb || take_pc_mem
   val take_pc = take_pc_mem_wb
-  val ctrl_killd = Bool()
-  val ctrl_killx = Bool()
-  val ctrl_killm = Bool()
+  val ctrl_killd = Wire(Bool())
+  val ctrl_killx = Wire(Bool())
+  val ctrl_killm = Wire(Bool())
 
   val id_raddr3 = io.dpath.inst(31,27)
   val id_raddr2 = io.dpath.inst(24,20)
   val id_raddr1 = io.dpath.inst(19,15)
   val id_waddr  = io.dpath.inst(11,7)
-  val id_load_use = Bool()
+  val id_load_use = Wire(Bool())
   val id_reg_fence = Reg(init=Bool(false))
 
   val id_csr_en = id_ctrl.csr != CSR.N

@@ -38,7 +38,7 @@ class Datapath extends CoreModule
   val wb_reg_pc = Reg(UInt())
   val wb_reg_inst = Reg(Bits())
   val wb_reg_wdata = Reg(Bits())
-  val wb_wdata = Bits()
+  val wb_wdata = Wire(Bits())
   val wb_reg_rs2 = Reg(Bits())
 
   // instruction decode stage
@@ -51,7 +51,7 @@ class Datapath extends CoreModule
     private var canRead = true
     def read(addr: UInt) = {
       require(canRead)
-      reads += addr -> UInt()
+      reads += addr -> Wire(UInt())
       reads.last._2 := rf(~addr)
       reads.last._2
     }
@@ -109,7 +109,7 @@ class Datapath extends CoreModule
     }
   }
 
-  val bypass = Vec.fill(NBYP)(Bits())
+  val bypass = Wire(Vec(Bits(), NBYP))
   bypass(BYP_0) := Bits(0)
   bypass(BYP_EX) := mem_reg_wdata
   bypass(BYP_MEM) := wb_reg_wdata
@@ -198,7 +198,7 @@ class Datapath extends CoreModule
   val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
   val dmem_resp_replay = io.dmem.resp.bits.replay && io.dmem.resp.bits.has_data
 
-  val ll_wdata = Bits()
+  val ll_wdata = Wire(Bits())
   div.io.resp.ready := io.ctrl.ll_ready
   ll_wdata := div.io.resp.bits.data
   io.ctrl.ll_waddr := div.io.resp.bits.tag
