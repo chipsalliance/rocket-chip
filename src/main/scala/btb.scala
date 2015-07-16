@@ -56,7 +56,7 @@ class BHTResp extends Bundle with BTBParameters {
 class BHT(nbht: Int) {
   val nbhtbits = log2Up(nbht)
   def get(addr: UInt, update: Bool): BHTResp = {
-    val res = new BHTResp
+    val res = Wire(new BHTResp)
     val index = addr(nbhtbits+1,2) ^ history
     res.value := table(index)
     res.history := history
@@ -178,7 +178,7 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
 
   val useUpdatePageHit = updatePageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
-  val idxPageRepl = UInt()
+  val idxPageRepl = Wire(UInt())
   val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
   val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, UInt(0))

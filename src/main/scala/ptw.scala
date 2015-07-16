@@ -109,8 +109,7 @@ class PTW(n: Int) extends CoreModule
     r_pte := pte
   }
 
-  val pte_wdata = new PTE
-  pte_wdata := new PTE().fromBits(0)
+  val pte_wdata = Wire(init=new PTE().fromBits(0))
   pte_wdata.r := true
   pte_wdata.d := r_req.store
   

@@ -158,11 +158,11 @@ class ICache extends FrontendModule
   val state = Reg(init=s_ready)
   val invalidated = Reg(Bool())
   val stall = !io.resp.ready
-  val rdy = Bool()
+  val rdy = Wire(Bool())
 
   val s2_valid = Reg(init=Bool(false))
   val s2_addr = Reg(UInt(width = paddrBits))
-  val s2_any_tag_hit = Bool()
+  val s2_any_tag_hit = Wire(Bool())
 
   val s1_valid = Reg(init=Bool(false))
   val s1_pgoff = Reg(UInt(width = pgIdxBits))
@@ -212,13 +212,13 @@ class ICache extends FrontendModule
     vb_array := Bits(0)
     invalidated := Bool(true)
   }
-  val s2_disparity = Vec.fill(nWays){Bool()}
+  val s2_disparity = Wire(Vec(Bool(), nWays))
   for (i <- 0 until nWays)
     when (s2_valid && s2_disparity(i)) { vb_array := vb_array.bitSet(Cat(UInt(i), s2_idx), Bool(false)) }
 
-  val s1_tag_match = Vec.fill(nWays){Bool()}
-  val s2_tag_hit = Vec.fill(nWays){Bool()}
-  val s2_dout = Reg(Vec.fill(nWays){Bits()})
+  val s1_tag_match = Wire(Vec(Bool(), nWays))
+  val s2_tag_hit = Wire(Vec(Bool(), nWays))
+  val s2_dout = Reg(Vec(Bits(), nWays))
 
   for (i <- 0 until nWays) {
     val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool

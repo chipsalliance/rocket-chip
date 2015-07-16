@@ -108,7 +108,7 @@ class L1MetaWriteReq extends
 
 object L1Metadata {
   def apply(tag: Bits, coh: ClientMetadata) = {
-    val meta = new L1Metadata
+    val meta = Wire(new L1Metadata)
     meta.tag := tag
     meta.coh := coh
     meta
@@ -303,12 +303,12 @@ class MSHRFile extends L1HellaCacheModule {
   val sdq = Mem(io.req.bits.data, sdqDepth)
   when (sdq_enq) { sdq(sdq_alloc_id) := io.req.bits.data }
 
-  val idxMatch = Vec.fill(nMSHRs){Bool()}
-  val tagList = Vec.fill(nMSHRs){Bits()}
+  val idxMatch = Wire(Vec(Bool(), nMSHRs))
+  val tagList = Wire(Vec(Bits(), nMSHRs))
   val tag_match = Mux1H(idxMatch, tagList) === io.req.bits.addr >> untagBits
 
-  val wbTagList = Vec.fill(nMSHRs){Bits()}
-  val refillMux = Vec.fill(nMSHRs){new L1RefillReq}
+  val wbTagList = Wire(Vec(Bits(), nMSHRs))
+  val refillMux = Wire(Vec(new L1RefillReq, nMSHRs))
   val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, nMSHRs))
   val meta_write_arb = Module(new Arbiter(new L1MetaWriteReq, nMSHRs))
   val mem_req_arb = Module(new LockingArbiter(
@@ -548,7 +548,7 @@ class DataArray extends L1HellaCacheModule {
     for (w <- 0 until nWays by rowWords) {
       val wway_en = io.write.bits.way_en(w+rowWords-1,w)
       val rway_en = io.read.bits.way_en(w+rowWords-1,w)
-      val resp = Vec.fill(rowWords){Bits(width = encRowBits)}
+      val resp = Wire(Vec(Bits(width = encRowBits), rowWords))
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
         val array = SeqMem(Bits(width=encRowBits), nSets*refillCycles)
@@ -610,8 +610,8 @@ class HellaCache extends L1HellaCacheModule {
   val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
   val s2_req = Reg(io.cpu.req.bits)
   val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd != M_NOP
-  val s2_recycle = Bool()
-  val s2_valid_masked = Bool()
+  val s2_recycle = Wire(Bool())
+  val s2_valid_masked = Wire(Bool())
 
   val s3_valid = Reg(init=Bool(false))
   val s3_req = Reg(io.cpu.req.bits)
@@ -747,7 +747,7 @@ class HellaCache extends L1HellaCacheModule {
   }
   when (io.cpu.invalidate_lr) { lrsc_count := 0 }
 
-  val s2_data = Vec.fill(nWays){Bits(width = encRowBits)}
+  val s2_data = Wire(Vec(Bits(width=encRowBits), nWays))
   for (w <- 0 until nWays) {
     val regs = Reg(Vec.fill(rowWords){Bits(width = encDataBits)})
     val en1 = s1_clk_en && s1_tag_eq_way(w)

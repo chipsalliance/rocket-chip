@@ -248,7 +248,7 @@ class IntToFP(val latency: Int) extends Module
 
   val in = Pipe(io.in)
 
-  val mux = new FPResult
+  val mux = Wire(new FPResult)
   mux.exc := Bits(0)
   mux.data := hardfloat.floatNToRecodedFloatN(in.bits.in1, 52, 12)
   when (in.bits.single) {
@@ -299,7 +299,7 @@ class FPToFP(val latency: Int) extends Module
   val isMax = in.bits.rm(0)
   val isLHS = isnan2 || isMax != io.lt && !isnan1
 
-  val mux = new FPResult
+  val mux = Wire(new FPResult)
   mux.exc := minmax_exc
   mux.data := in.bits.in2
 
@@ -347,7 +347,7 @@ class FPUFMAPipe(val latency: Int, sigWidth: Int, expWidth: Int) extends Module
   fma.io.b := in.in2
   fma.io.c := in.in3
 
-  val res = new FPResult
+  val res = Wire(new FPResult)
   res.data := fma.io.out
   res.exc := fma.io.exceptionFlags
   io.out := Pipe(valid, res, latency-1)
@@ -404,7 +404,7 @@ class FPU extends Module
   val ex_rs1::ex_rs2::ex_rs3::Nil = Seq(ex_ra1, ex_ra2, ex_ra3).map(regfile(_))
   val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), io.dpath.fcsr_rm, ex_reg_inst(14,12))
 
-  val req = new FPInput
+  val req = Wire(new FPInput)
   req := ex_ctrl
   req.rm := ex_rm
   req.in1 := ex_rs1
@@ -441,8 +441,8 @@ class FPU extends Module
   val divSqrt_outValid = divSqrt.io.outValid_div || divSqrt.io.outValid_sqrt
   val divSqrt_wen = Reg(next=Bool(false))
   val divSqrt_waddr = Reg(Bits())
-  val divSqrt_wdata = Bits()
-  val divSqrt_flags = Bits()
+  val divSqrt_wdata = Wire(Bits())
+  val divSqrt_flags = Wire(Bits())
   val divSqrt_in_flight = Reg(init=Bool(false))
 
   // writeback arbitration
