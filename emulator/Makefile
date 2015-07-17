@@ -10,7 +10,7 @@ all: emulator-$(CONFIG)
 debug: emulator-$(CONFIG)-debug
 
 include $(base_dir)/Makefrag
--include generated-src/Makefrag
+-include generated-src/Makefrag-tests.$(CONFIG)
 
 CXXFLAGS := $(CXXFLAGS) -std=c++11 -I$(RISCV)/include
 

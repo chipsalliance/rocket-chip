@@ -66,7 +66,7 @@ run-$kind-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets))
       } else { "\n" }
     }
 
-    val f = createOutputFile("Makefrag")
+    val f = createOutputFile("Makefrag-tests." + Driver.chiselConfigClassName.get)
     f.write(List(gen("asm", asmSuites.values.toSeq), gen("bmark", bmarkSuites.values.toSeq)).mkString("\n"))
     f.close
   }

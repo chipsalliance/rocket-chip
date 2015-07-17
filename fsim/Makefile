@@ -21,7 +21,7 @@ TB ?= rocketTestHarness
 
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag
--include $(generated_dir)/Makefrag
+-include $(generated_dir)/Makefrag-tests.$(CONFIG)
 include $(base_dir)/vsim/Makefrag-sim
 
 all: $(simv)
