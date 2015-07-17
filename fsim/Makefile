@@ -17,6 +17,7 @@ output_dir = $(sim_dir)/output
 
 BACKEND ?= fpga
 CONFIG ?= DefaultFPGAConfig
+TB ?= rocketTestHarness
 
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag

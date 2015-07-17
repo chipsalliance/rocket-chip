@@ -17,6 +17,7 @@ output_dir = $(sim_dir)/output
 
 BACKEND ?= rocketchip.RocketChipBackend
 CONFIG ?= DefaultVLSIConfig
+TB ?= rocketTestHarness
 
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag

@@ -218,6 +218,8 @@ class WithZscale extends ChiselConfig(
       (r: Bool) => Module(new Zscale(r), {case TLId => "L1ToL2"})
     }
     case UseZscale => true
+    case BootROMCapacity => Dump("BOOT_CAPACITY", 16*1024)
+    case DRAMCapacity => Dump("DRAM_CAPACITY", 64*1024*1024)
   }
 )
 

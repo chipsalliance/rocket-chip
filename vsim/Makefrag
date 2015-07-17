@@ -8,7 +8,7 @@ sim_vsrcs = \
 	$(generated_dir)/$(MODEL).$(CONFIG).v \
 	$(generated_dir)/consts.$(CONFIG).vh \
 	$(generated_dir)/memdessertMemDessert.$(CONFIG).v \
-	$(base_dir)/vsrc/rocketTestHarness.v \
+	$(base_dir)/vsrc/$(TB).v \
 	$(base_dir)/vsrc/backup_mem.v \
 
 # C sources
@@ -43,7 +43,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	$(RISCV)/lib/libfesvr.so \
 	$(sim_dir)/libdramsim.a \
 	+define+CLOCK_PERIOD=0.5 $(sim_vsrcs) $(sim_csrcs) \
-	+define+PRINTF_COND=rocketTestHarness.verbose \
+	+define+PRINTF_COND=$(TB).verbose \
 	+libext+.v \
 
 #--------------------------------------------------------------------
