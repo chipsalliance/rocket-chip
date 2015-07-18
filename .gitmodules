@@ -22,3 +22,6 @@
 [submodule "boom"]
 	path = boom
 	url = https://github.com/ucb-bar/riscv-boom
+[submodule "zscale"]
+	path = zscale
+	url = https://github.com/ucb-bar/zscale.git
