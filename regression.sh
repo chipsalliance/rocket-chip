@@ -4,6 +4,8 @@
 
 # Script to setup submodules, build rocket-chip, and run asm tests, and optionally run torture
 
+set -ex
+
 echo "Starting Rocket-chip regression test"
 if [ $# -lt 1 ]
 then
@@ -16,7 +18,7 @@ export RISCV="$(pwd)/install"; export PATH=$PATH:$RISCV/bin
 cd riscv-tools; ./build.sh; cd ..
 git submodule update --init 
 git submodule status --recursive
-cd emulator; make CONFIG=$1 run-asm-tests; cd ..
+cd emulator; make CONFIG=$1; make CONFIG=$1 run-asm-tests; cd ..
 if [ $# -ge 2 ]
 then
   git clone git@github.com:ucb-bar/riscv-torture.git
