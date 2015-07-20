@@ -4,6 +4,8 @@
 
 # Script to setup submodules, build rocket-chip, and run asm tests, and optionally run torture
 
+set -ex
+
 echo "Starting Rocket-chip regression test"
 if [ $# -lt 1 ]
 then
