@@ -23,7 +23,7 @@ class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
   val icache = Module(new Frontend, { case CacheName => "L1I"; case CoreName => "Rocket" })
   val dcache = Module(new HellaCache, { case CacheName => "L1D" })
   val ptw = Module(new PTW(params(NPTWPorts)))
-  val core = Module(new Core, { case CoreName => "Rocket" })
+  val core = Module(new Rocket, { case CoreName => "Rocket" })
 
   dcache.io.cpu.invalidate_lr := core.io.dmem.invalidate_lr // Bypass signal to dcache
   val dcArb = Module(new HellaCacheArbiter(params(NDCachePorts)))
@@ -37,6 +37,13 @@ class RocketTile(resetSignal: Bool = null) extends Tile(resetSignal) {
   core.io.host <> io.host
   core.io.imem <> icache.io.cpu
   core.io.ptw <> ptw.io.dpath
+
+  //If so specified, build an FPU module and wire it in
+  params(BuildFPU)
+    .map { bf => bf() }
+    .foreach { fpu =>
+      fpu.io <> core.io.fpu
+    }
 
   // Connect the caches and ROCC to the outer memory system
   io.cached <> dcache.io.mem

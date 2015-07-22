@@ -138,33 +138,34 @@ class FPUDecoder extends Module
       s.toint, s.fastpipe, s.fma, s.div, s.sqrt, s.round, s.wflags) := decoder
 }
 
-class DpathFPUIO extends Bundle {
-  val inst = Bits(OUTPUT, 32)
-  val fromint_data = Bits(OUTPUT, 64)
+class FPUIO extends Bundle {
+  val inst = Bits(INPUT, 32)
+  val fromint_data = Bits(INPUT, 64)
 
-  val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
-  val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
+  val fcsr_rm = Bits(INPUT, FPConstants.RM_SZ)
+  val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ))
 
-  val store_data = Bits(INPUT, 64)
-  val toint_data = Bits(INPUT, 64)
+  val store_data = Bits(OUTPUT, 64)
+  val toint_data = Bits(OUTPUT, 64)
 
-  val dmem_resp_val = Bool(OUTPUT)
-  val dmem_resp_type = Bits(OUTPUT, 3)
-  val dmem_resp_tag = UInt(OUTPUT, 5)
-  val dmem_resp_data = Bits(OUTPUT, 64)
+  val dmem_resp_val = Bool(INPUT)
+  val dmem_resp_type = Bits(INPUT, 3)
+  val dmem_resp_tag = UInt(INPUT, 5)
+  val dmem_resp_data = Bits(INPUT, 64)
+
+  val valid = Bool(INPUT)
+  val fcsr_rdy = Bool(OUTPUT)
+  val nack_mem = Bool(OUTPUT)
+  val illegal_rm = Bool(OUTPUT)
+  val killx = Bool(INPUT)
+  val killm = Bool(INPUT)
+  val dec = new FPUCtrlSigs().asOutput
+  val sboard_set = Bool(OUTPUT)
+  val sboard_clr = Bool(OUTPUT)
+  val sboard_clra = UInt(OUTPUT, 5)
 }
 
 class CtrlFPUIO extends Bundle {
-  val valid = Bool(OUTPUT)
-  val fcsr_rdy = Bool(INPUT)
-  val nack_mem = Bool(INPUT)
-  val illegal_rm = Bool(INPUT)
-  val killx = Bool(OUTPUT)
-  val killm = Bool(OUTPUT)
-  val dec = new FPUCtrlSigs().asInput
-  val sboard_set = Bool(INPUT)
-  val sboard_clr = Bool(INPUT)
-  val sboard_clra = UInt(INPUT, 5)
 }
 
 class FPResult extends Bundle
@@ -355,31 +356,28 @@ class FPUFMAPipe(val latency: Int, sigWidth: Int, expWidth: Int) extends Module
 
 class FPU extends Module
 {
-  val io = new Bundle {
-    val ctrl = (new CtrlFPUIO).flip
-    val dpath = (new DpathFPUIO).flip
-  }
+  val io = new FPUIO
 
-  val ex_reg_valid = Reg(next=io.ctrl.valid, init=Bool(false))
-  val ex_reg_inst = RegEnable(io.dpath.inst, io.ctrl.valid)
-  val mem_reg_valid = Reg(next=ex_reg_valid && !io.ctrl.killx, init=Bool(false))
+  val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
+  val ex_reg_inst = RegEnable(io.inst, io.valid)
+  val mem_reg_valid = Reg(next=ex_reg_valid && !io.killx, init=Bool(false))
   val mem_reg_inst = RegEnable(ex_reg_inst, ex_reg_valid)
-  val killm = io.ctrl.killm || io.ctrl.nack_mem
+  val killm = io.killm || io.nack_mem
   val wb_reg_valid = Reg(next=mem_reg_valid && !killm, init=Bool(false))
 
   val fp_decoder = Module(new FPUDecoder)
-  fp_decoder.io.inst := io.dpath.inst
+  fp_decoder.io.inst := io.inst
 
   val id_ctrl = fp_decoder.io.sigs
-  val ex_ctrl = RegEnable(id_ctrl, io.ctrl.valid)
+  val ex_ctrl = RegEnable(id_ctrl, io.valid)
   val mem_ctrl = RegEnable(ex_ctrl, ex_reg_valid)
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
   // load response
-  val load_wb = Reg(next=io.dpath.dmem_resp_val)
-  val load_wb_single = RegEnable(io.dpath.dmem_resp_type === MT_W || io.dpath.dmem_resp_type === MT_WU, io.dpath.dmem_resp_val)
-  val load_wb_data = RegEnable(io.dpath.dmem_resp_data, io.dpath.dmem_resp_val)
-  val load_wb_tag = RegEnable(io.dpath.dmem_resp_tag, io.dpath.dmem_resp_val)
+  val load_wb = Reg(next=io.dmem_resp_val)
+  val load_wb_single = RegEnable(io.dmem_resp_type === MT_W || io.dmem_resp_type === MT_WU, io.dmem_resp_val)
+  val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
+  val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
   val rec_s = hardfloat.floatNToRecodedFloatN(load_wb_data, 23, 9)
   val rec_d = hardfloat.floatNToRecodedFloatN(load_wb_data, 52, 12)
   val load_wb_data_recoded = Mux(load_wb_single, Cat(SInt(-1, 32), rec_s), rec_d)
@@ -389,20 +387,20 @@ class FPU extends Module
   when (load_wb) { regfile(load_wb_tag) := load_wb_data_recoded }
 
   val ex_ra1::ex_ra2::ex_ra3::Nil = List.fill(3)(Reg(UInt()))
-  when (io.ctrl.valid) {
+  when (io.valid) {
     when (id_ctrl.ren1) {
-      when (!id_ctrl.swap12) { ex_ra1 := io.dpath.inst(19,15) }
-      when (id_ctrl.swap12) { ex_ra2 := io.dpath.inst(19,15) }
+      when (!id_ctrl.swap12) { ex_ra1 := io.inst(19,15) }
+      when (id_ctrl.swap12) { ex_ra2 := io.inst(19,15) }
     }
     when (id_ctrl.ren2) {
-      when (id_ctrl.swap12) { ex_ra1 := io.dpath.inst(24,20) }
-      when (id_ctrl.swap23) { ex_ra3 := io.dpath.inst(24,20) }
-      when (!id_ctrl.swap12 && !id_ctrl.swap23) { ex_ra2 := io.dpath.inst(24,20) }
+      when (id_ctrl.swap12) { ex_ra1 := io.inst(24,20) }
+      when (id_ctrl.swap23) { ex_ra3 := io.inst(24,20) }
+      when (!id_ctrl.swap12 && !id_ctrl.swap23) { ex_ra2 := io.inst(24,20) }
     }
-    when (id_ctrl.ren3) { ex_ra3 := io.dpath.inst(31,27) }
+    when (id_ctrl.ren3) { ex_ra3 := io.inst(31,27) }
   }
   val ex_rs1::ex_rs2::ex_rs3::Nil = Seq(ex_ra1, ex_ra2, ex_ra3).map(regfile(_))
-  val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), io.dpath.fcsr_rm, ex_reg_inst(14,12))
+  val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), io.fcsr_rm, ex_reg_inst(14,12))
 
   val req = Wire(new FPInput)
   req := ex_ctrl
@@ -423,13 +421,13 @@ class FPU extends Module
   val fpiu = Module(new FPToInt)
   fpiu.io.in.valid := ex_reg_valid && (ex_ctrl.toint || ex_ctrl.div || ex_ctrl.sqrt || ex_ctrl.cmd === FCMD_MINMAX)
   fpiu.io.in.bits := req
-  io.dpath.store_data := fpiu.io.out.bits.store
-  io.dpath.toint_data := fpiu.io.out.bits.toint
+  io.store_data := fpiu.io.out.bits.store
+  io.toint_data := fpiu.io.out.bits.toint
 
   val ifpu = Module(new IntToFP(3))
   ifpu.io.in.valid := ex_reg_valid && ex_ctrl.fromint
   ifpu.io.in.bits := req
-  ifpu.io.in.bits.in1 := io.dpath.fromint_data
+  ifpu.io.in.bits.in1 := io.fromint_data
 
   val fpmu = Module(new FPToFP(2))
   fpmu.io.in.valid := ex_reg_valid && ex_ctrl.fastpipe
@@ -489,22 +487,22 @@ class FPU extends Module
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
-  io.dpath.fcsr_flags.valid := wb_toint_valid || divSqrt_wen || wen(0)
-  io.dpath.fcsr_flags.bits :=
+  io.fcsr_flags.valid := wb_toint_valid || divSqrt_wen || wen(0)
+  io.fcsr_flags.bits :=
     Mux(wb_toint_valid, wb_toint_exc, UInt(0)) |
     Mux(divSqrt_wen, divSqrt_flags, UInt(0)) |
     Mux(wen(0), wexc, UInt(0))
 
   val units_busy = mem_reg_valid && (mem_ctrl.div || mem_ctrl.sqrt) && (!divSqrt_inReady || wen.orR) // || mem_reg_valid && mem_ctrl.fma && Reg(next=Mux(ex_ctrl.single, io.sfma.valid, io.dfma.valid))
-  io.ctrl.fcsr_rdy := !(ex_reg_valid && ex_ctrl.wflags || mem_reg_valid && mem_ctrl.wflags || wb_reg_valid && wb_ctrl.toint || wen.orR || divSqrt_in_flight)
-  io.ctrl.nack_mem := units_busy || write_port_busy || divSqrt_in_flight
-  io.ctrl.dec <> fp_decoder.io.sigs
+  io.fcsr_rdy := !(ex_reg_valid && ex_ctrl.wflags || mem_reg_valid && mem_ctrl.wflags || wb_reg_valid && wb_ctrl.toint || wen.orR || divSqrt_in_flight)
+  io.nack_mem := units_busy || write_port_busy || divSqrt_in_flight
+  io.dec <> fp_decoder.io.sigs
   def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(Bool(false))(_||_)
-  io.ctrl.sboard_set := wb_reg_valid && Reg(next=useScoreboard(_._1.cond(mem_ctrl)) || mem_ctrl.div || mem_ctrl.sqrt)
-  io.ctrl.sboard_clr := divSqrt_wen || (wen(0) && useScoreboard(x => wsrc === UInt(x._2)))
-  io.ctrl.sboard_clra := waddr
+  io.sboard_set := wb_reg_valid && Reg(next=useScoreboard(_._1.cond(mem_ctrl)) || mem_ctrl.div || mem_ctrl.sqrt)
+  io.sboard_clr := divSqrt_wen || (wen(0) && useScoreboard(x => wsrc === UInt(x._2)))
+  io.sboard_clra := waddr
   // we don't currently support round-max-magnitude (rm=4)
-  io.ctrl.illegal_rm := ex_rm(2) && ex_ctrl.round
+  io.illegal_rm := ex_rm(2) && ex_ctrl.round
 
   divSqrt_wdata := 0
   divSqrt_flags := 0
@@ -516,7 +514,7 @@ class FPU extends Module
 
     def upconvert(x: UInt) = hardfloat.recodedFloatNToRecodedFloatM(x, Bits(0), 23, 9, 52, 12)._1
     val divSqrt_wb_hazard = wen.orR
-    divSqrt.io.inValid := mem_reg_valid && !divSqrt_wb_hazard && !divSqrt_in_flight && !io.ctrl.killm && (mem_ctrl.div || mem_ctrl.sqrt)
+    divSqrt.io.inValid := mem_reg_valid && !divSqrt_wb_hazard && !divSqrt_in_flight && !io.killm && (mem_ctrl.div || mem_ctrl.sqrt)
     divSqrt.io.sqrtOp := mem_ctrl.sqrt
     divSqrt.io.a := fpiu.io.as_double.in1
     divSqrt.io.b := fpiu.io.as_double.in2

@@ -18,11 +18,6 @@ trait ScalarOpConstants {
   val BR_LTU  = Bits(6, 3)
   val BR_GEU  = Bits(7, 3)
 
-  val PC_EX  = UInt(0, 2)
-  val PC_MEM = UInt(1, 2)
-  val PC_WB  = UInt(2, 2)
-  val PC_CSR = UInt(3, 2)
-
   val A1_X    = Bits("b??", 2)
   val A1_ZERO = UInt(0, 2)
   val A1_RS1  = UInt(1, 2)
@@ -45,13 +40,6 @@ trait ScalarOpConstants {
   val X = Bool.DC
   val N = Bool(false)
   val Y = Bool(true)
-
-  val NBYP = 4
-  val SZ_BYP = log2Up(NBYP)
-  val BYP_0   = 0
-  val BYP_EX  = 1
-  val BYP_MEM = 2
-  val BYP_DC  = 3
 
   val SZ_DW = 1
   val DW_X  = X
