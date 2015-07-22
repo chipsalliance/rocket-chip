@@ -89,6 +89,7 @@ class DefaultConfig extends ChiselConfig (
       case NDCachePorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 1) 
       case NPTWPorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 3)
       //Rocket Core Constants
+      case CoreName => "Rocket"
       case FetchWidth => 1
       case RetireWidth => 1
       case UseVM => true

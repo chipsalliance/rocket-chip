@@ -40,6 +40,7 @@ class BenchmarkTestSuite(makePrefix: String, val dir: String, val names: Set[Str
 object TestGeneration extends FileSystemUtilities{
   import scala.collection.mutable.HashMap
   val asmSuites = new HashMap[String,AssemblyTestSuite]()
+  val postscript = new HashMap[String,String]()
   val bmarkSuites = new  HashMap[String,BenchmarkTestSuite]()
 
   def addSuite(s: RocketTestSuite) {
@@ -50,6 +51,8 @@ object TestGeneration extends FileSystemUtilities{
   }
   
   def addSuites(s: Seq[RocketTestSuite]) { s.foreach(addSuite) }
+
+  def addVariable(name: String, value: String) { postscript += (name -> value) }
 
   def generateMakefrag {
     def gen(kind: String, s: Seq[RocketTestSuite]) = {
@@ -67,7 +70,10 @@ run-$kind-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets))
     }
 
     val f = createOutputFile("Makefrag-tests." + Driver.chiselConfigClassName.get)
-    f.write(List(gen("asm", asmSuites.values.toSeq), gen("bmark", bmarkSuites.values.toSeq)).mkString("\n"))
+    f.write(
+      List(gen("asm", asmSuites.values.toSeq), gen("bmark", bmarkSuites.values.toSeq)).mkString("\n") +
+      postscript.map(p => p._1 + " = " + p._2).mkString("\n")
+    )
     f.close
   }
 }
