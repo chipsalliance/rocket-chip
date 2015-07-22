@@ -78,8 +78,6 @@ class Top extends Module with TopLevelParameters {
     val temp = Module(new ZscaleTop)
     io.host <> temp.io.host
   }
-
-  TestGeneration.generateMakefrag
 }
 
 class MultiChannelTop extends Module with TopLevelParameters {
