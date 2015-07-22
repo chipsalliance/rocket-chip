@@ -454,11 +454,7 @@ class Rocket extends CoreModule
     fp_sboard.clear(dmem_resp_replay && dmem_resp_fpu, dmem_resp_waddr)
     fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
 
-    id_csr_en && !io.fpu.fcsr_rdy ||
-    io.fpu.dec.ren1 && fp_sboard.read(id_raddr1) ||
-    io.fpu.dec.ren2 && fp_sboard.read(id_raddr2) ||
-    io.fpu.dec.ren3 && fp_sboard.read(id_raddr3) ||
-    io.fpu.dec.wen  && fp_sboard.read(id_waddr)
+    id_csr_en && !io.fpu.fcsr_rdy || checkHazards(fp_hazard_targets, fp_sboard.read _)
   } else Bool(false)
 
   val ctrl_stalld =
