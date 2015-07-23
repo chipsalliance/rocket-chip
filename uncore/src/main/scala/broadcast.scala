@@ -111,7 +111,7 @@ class L2BroadcastHub extends ManagerCoherenceAgent
   io.outer.acquire.bits.data := MuxLookup(outer_data_ptr.loc, io.irel().data, Array(
                                           inStoreQueue -> sdq(outer_data_ptr.idx),
                                           inVolWBQueue -> vwbdq(outer_data_ptr.idx)))
-  io.outer.acquire.bits.union := Cat(Fill(outer_arb.io.out.acquire.bits.union(1), io.outer.acquire.bits.tlWriteMaskBits),
+  io.outer.acquire.bits.union := Cat(Fill(io.outer.acquire.bits.tlWriteMaskBits, outer_arb.io.out.acquire.bits.union(1)),
                                    outer_arb.io.out.acquire.bits.union(0))
   io.outer <> outer_arb.io.out
 
@@ -221,11 +221,7 @@ class BroadcastAcquireTracker(trackerId: Int) extends BroadcastXactTracker {
   val release_count = Reg(init=UInt(0, width = log2Up(io.inner.tlNCachingClients+1)))
   val pending_probes = Reg(init=Bits(0, width = io.inner.tlNCachingClients))
   val curr_p_id = PriorityEncoder(pending_probes)
-  val full_sharers = coh.full()
-  val probe_self = io.inner.acquire.bits.requiresSelfProbe()
-  val mask_self_true = UInt(UInt(1) << io.inner.acquire.bits.client_id, width = io.inner.tlNCachingClients)
-  val mask_self_false = ~UInt(UInt(1) << io.inner.acquire.bits.client_id, width = io.inner.tlNCachingClients)
-  val mask_self = Mux(probe_self, full_sharers | mask_self_true, full_sharers & mask_self_false)
+  val mask_self = coh.full().bitSet(io.inner.acquire.bits.client_id, io.inner.acquire.bits.requiresSelfProbe())
   val mask_incoherent = mask_self & ~io.incoherent.toBits
 
   val collect_iacq_data = Reg(init=Bool(false))

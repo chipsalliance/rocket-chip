@@ -3,7 +3,7 @@
 package uncore
 
 import Chisel._
-import Node._
+import Chisel.ImplicitConversions._
 import uncore._
 
 case object HTIFWidth extends Field[Int]

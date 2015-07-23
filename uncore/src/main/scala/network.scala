@@ -61,7 +61,7 @@ object DecoupledLogicalNetworkIOWrapper {
       in: DecoupledIO[T],
       src: UInt = UInt(0),
       dst: UInt = UInt(0)): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = Decoupled(new LogicalNetworkIO(in.bits)).asDirectionless
+    val out = Wire(Decoupled(new LogicalNetworkIO(in.bits)))
     out.valid := in.valid
     out.bits.payload := in.bits
     out.bits.header.dst := dst
@@ -83,7 +83,7 @@ object DecoupledLogicalNetworkIOUnwrapper {
 
 object DefaultFromPhysicalShim {
   def apply[T <: Data](in: DecoupledIO[PhysicalNetworkIO[T]]): DecoupledIO[LogicalNetworkIO[T]] = {
-    val out = Decoupled(new LogicalNetworkIO(in.bits.payload)).asDirectionless
+    val out = Wire(Decoupled(new LogicalNetworkIO(in.bits.payload)))
     out.bits.header := in.bits.header
     out.bits.payload := in.bits.payload
     out.valid := in.valid
@@ -94,7 +94,7 @@ object DefaultFromPhysicalShim {
 
 object DefaultToPhysicalShim {
   def apply[T <: Data](n: Int, in: DecoupledIO[LogicalNetworkIO[T]]): DecoupledIO[PhysicalNetworkIO[T]] = {
-    val out = Decoupled(new PhysicalNetworkIO(n, in.bits.payload)).asDirectionless
+    val out = Wire(Decoupled(new PhysicalNetworkIO(n, in.bits.payload)))
     out.bits.header := in.bits.header
     out.bits.payload := in.bits.payload
     out.valid := in.valid
