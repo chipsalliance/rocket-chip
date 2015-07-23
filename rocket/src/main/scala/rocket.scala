@@ -301,6 +301,7 @@ class Rocket extends CoreModule
   div.io.kill := killm_common && Reg(next = div.io.req.fire())
   val ctrl_killm = killm_common || mem_xcpt || fpu_kill_mem
 
+  // writeback stage
   wb_reg_valid := !ctrl_killm
   wb_reg_replay := replay_mem && !take_pc_wb
   wb_reg_xcpt := mem_xcpt && !take_pc_wb
@@ -320,6 +321,8 @@ class Rocket extends CoreModule
     io.dmem.resp.bits.nack || wb_reg_replay || csr.io.csr_replay
   val wb_rocc_val = wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   val replay_wb = replay_wb_common || wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
+  val wb_xcpt = wb_reg_xcpt || csr.io.csr_xcpt
+  take_pc_wb := replay_wb || wb_xcpt || csr.io.eret
 
   when (wb_rocc_val) { wb_reg_rocc_pending := !io.rocc.cmd.ready }
   when (wb_reg_xcpt) { wb_reg_rocc_pending := Bool(false) }
@@ -379,44 +382,6 @@ class Rocket extends CoreModule
   csr.io.rw.cmd := Mux(wb_reg_valid, wb_ctrl.csr, CSR.N)
   csr.io.rw.wdata := wb_reg_wdata
 
-  val sboard = new Scoreboard(32)
-  sboard.clear(ll_wen, ll_waddr)
-
-  // control transfer from ex/wb
-  val wb_xcpt = wb_reg_xcpt || csr.io.csr_xcpt
-  take_pc_wb := replay_wb || wb_xcpt || csr.io.eret
-
-  io.imem.req.bits.pc :=
-    Mux(wb_xcpt || csr.io.eret, csr.io.evec,     // exception or [m|s]ret
-    Mux(replay_wb,              wb_reg_pc,       // replay
-                                mem_npc)).toUInt // mispredicted branch
-
-  io.imem.btb_update.valid := mem_reg_valid && !mem_npc_misaligned && mem_wrong_npc && ((mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal) && !take_pc_wb
-  io.imem.btb_update.bits.prediction.valid := mem_reg_btb_hit
-  io.imem.btb_update.bits.prediction.bits := mem_reg_btb_resp
-  io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
-  io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && mem_reg_inst(19,15) === Bits("b00??1")
-
-  io.imem.bht_update.valid := mem_reg_valid && mem_ctrl.branch && !take_pc_wb
-  io.imem.bht_update.bits.taken := mem_br_taken
-  io.imem.bht_update.bits.mispredict := mem_wrong_npc
-  io.imem.bht_update.bits.prediction.valid := mem_reg_btb_hit
-  io.imem.bht_update.bits.prediction.bits := mem_reg_btb_resp
-
-  io.imem.ras_update.valid := mem_reg_valid && io.imem.btb_update.bits.isJump && !mem_npc_misaligned && !take_pc_wb
-  io.imem.ras_update.bits.isCall := mem_ctrl.wxd && mem_waddr(0)
-  io.imem.ras_update.bits.isReturn := io.imem.btb_update.bits.isReturn
-  io.imem.ras_update.bits.prediction.valid := mem_reg_btb_hit
-  io.imem.ras_update.bits.prediction.bits := mem_reg_btb_resp
-
-  io.imem.req.valid := take_pc
-  io.imem.btb_update.bits.pc := mem_reg_pc
-  io.imem.btb_update.bits.target := io.imem.req.bits.pc
-  io.imem.btb_update.bits.br_pc := mem_reg_pc
-  io.imem.bht_update.bits.pc := mem_reg_pc
-  io.imem.ras_update.bits.returnAddr := mem_int_wdata
-
-  // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
   val hazard_targets = Seq((id_ctrl.rxs1 && id_raddr1 != UInt(0), id_raddr1),
                            (id_ctrl.rxs2 && id_raddr2 != UInt(0), id_raddr2),
                            (id_ctrl.wxd && id_waddr != UInt(0), id_waddr))
@@ -425,7 +390,12 @@ class Rocket extends CoreModule
                               (io.fpu.dec.ren3, id_raddr3),
                               (io.fpu.dec.wen, id_waddr))
 
+  val sboard = new Scoreboard(32)
+  sboard.clear(ll_wen, ll_waddr)
   val id_sboard_hazard = checkHazards(hazard_targets, sboard.readBypassed _)
+  sboard.set(wb_set_sboard && wb_wen, wb_waddr)
+
+  // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
   val ex_cannot_bypass = ex_ctrl.csr != CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc
   val data_hazard_ex = ex_ctrl.wxd && checkHazards(hazard_targets, _ === ex_waddr)
   val fp_data_hazard_ex = ex_ctrl.wfd && checkHazards(fp_hazard_targets, _ === ex_waddr)
@@ -446,8 +416,6 @@ class Rocket extends CoreModule
   val fp_data_hazard_wb = wb_ctrl.wfd && checkHazards(fp_hazard_targets, _ === wb_waddr)
   val id_wb_hazard = wb_reg_valid && (data_hazard_wb && wb_set_sboard || fp_data_hazard_wb)
 
-  sboard.set(wb_set_sboard && wb_wen, wb_waddr)
-
   val id_stall_fpu = if (!params(BuildFPU).isEmpty) {
     val fp_sboard = new Scoreboard(32)
     fp_sboard.set((wb_dcache_miss && wb_ctrl.wfd || io.fpu.sboard_set) && wb_valid, wb_waddr)
@@ -466,8 +434,34 @@ class Rocket extends CoreModule
     csr.io.csr_stall
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || csr.io.interrupt
 
-  io.imem.resp.ready := !ctrl_stalld || csr.io.interrupt
+  io.imem.req.valid := take_pc
+  io.imem.req.bits.pc :=
+    Mux(wb_xcpt || csr.io.eret, csr.io.evec,     // exception or [m|s]ret
+    Mux(replay_wb,              wb_reg_pc,       // replay
+                                mem_npc)).toUInt // mispredicted branch
   io.imem.invalidate := wb_reg_valid && wb_ctrl.fence_i
+  io.imem.resp.ready := !ctrl_stalld || csr.io.interrupt
+
+  io.imem.btb_update.valid := mem_reg_valid && !mem_npc_misaligned && mem_wrong_npc && ((mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal) && !take_pc_wb
+  io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
+  io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && mem_reg_inst(19,15) === Bits("b00??1")
+  io.imem.btb_update.bits.pc := mem_reg_pc
+  io.imem.btb_update.bits.target := io.imem.req.bits.pc
+  io.imem.btb_update.bits.br_pc := mem_reg_pc
+  io.imem.btb_update.bits.prediction.valid := mem_reg_btb_hit
+  io.imem.btb_update.bits.prediction.bits := mem_reg_btb_resp
+
+  io.imem.bht_update.valid := mem_reg_valid && mem_ctrl.branch && !take_pc_wb
+  io.imem.bht_update.bits.pc := mem_reg_pc
+  io.imem.bht_update.bits.taken := mem_br_taken
+  io.imem.bht_update.bits.mispredict := mem_wrong_npc
+  io.imem.bht_update.bits.prediction := io.imem.btb_update.bits.prediction
+
+  io.imem.ras_update.valid := mem_reg_valid && io.imem.btb_update.bits.isJump && !mem_npc_misaligned && !take_pc_wb
+  io.imem.ras_update.bits.returnAddr := mem_int_wdata
+  io.imem.ras_update.bits.isCall := mem_ctrl.wxd && mem_waddr(0)
+  io.imem.ras_update.bits.isReturn := io.imem.btb_update.bits.isReturn
+  io.imem.ras_update.bits.prediction := io.imem.btb_update.bits.prediction
 
   io.fpu.valid := !ctrl_killd && id_ctrl.fp
   io.fpu.killx := ctrl_killx
