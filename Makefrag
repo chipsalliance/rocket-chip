@@ -11,7 +11,7 @@ SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
 SHELL := /bin/bash
 
 src_path = src/main/scala
-chisel_srcs = $(base_dir)/$(src_path)/*.scala $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(SRC_EXTENSION)
+chisel_srcs = $(base_dir)/$(src_path)/*.scala $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(base_dir)/zscale/$(src_path)/*.scala $(SRC_EXTENSION)
 
 disasm := 2>
 which_disasm := $(shell which spike-dasm)
