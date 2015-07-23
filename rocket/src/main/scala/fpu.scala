@@ -434,10 +434,8 @@ class FPU extends Module
   fpmu.io.in.bits := req
   fpmu.io.lt := fpiu.io.out.bits.lt
 
-  val divSqrt = Module(new hardfloat.divSqrtRecodedFloat64)
-  val divSqrt_inReady = Mux(divSqrt.io.sqrtOp, divSqrt.io.inReady_sqrt, divSqrt.io.inReady_div)
-  val divSqrt_outValid = divSqrt.io.outValid_div || divSqrt.io.outValid_sqrt
   val divSqrt_wen = Reg(next=Bool(false))
+  val divSqrt_inReady = Wire(init=Bool(false))
   val divSqrt_waddr = Reg(Bits())
   val divSqrt_wdata = Wire(Bits())
   val divSqrt_flags = Wire(Bits())
@@ -512,7 +510,9 @@ class FPU extends Module
     val divSqrt_flags_double = Reg(Bits())
     val divSqrt_wdata_double = Reg(Bits())
 
-    def upconvert(x: UInt) = hardfloat.recodedFloatNToRecodedFloatM(x, Bits(0), 23, 9, 52, 12)._1
+    val divSqrt = Module(new hardfloat.divSqrtRecodedFloat64)
+    divSqrt_inReady := Mux(divSqrt.io.sqrtOp, divSqrt.io.inReady_sqrt, divSqrt.io.inReady_div)
+    val divSqrt_outValid = divSqrt.io.outValid_div || divSqrt.io.outValid_sqrt
     val divSqrt_wb_hazard = wen.orR
     divSqrt.io.inValid := mem_reg_valid && !divSqrt_wb_hazard && !divSqrt_in_flight && !io.killm && (mem_ctrl.div || mem_ctrl.sqrt)
     divSqrt.io.sqrtOp := mem_ctrl.sqrt
