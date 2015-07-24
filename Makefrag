@@ -25,7 +25,7 @@ timeout_cycles = 100000000
 # Verilog Generation
 #--------------------------------------------------------------------
 
-$(generated_dir)/$(MODEL).$(CONFIG).v: $(chisel_srcs)
+$(generated_dir)/$(MODEL).$(CONFIG).v: $(chisel_srcs) $(generated_dir)/memdessertMemDessert.$(CONFIG).v
 	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "run $(MODEL) --backend $(BACKEND) --targetDir $(generated_dir) --W0W --configDump --noInlineMem --configInstance rocketchip.$(CONFIG)"
 	cd $(generated_dir) && \
 	if [ -a $(MODEL).$(CONFIG).conf ]; then \
