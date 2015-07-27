@@ -4,7 +4,6 @@ package rocket
 
 import Chisel._
 import Util._
-import Node._
 import uncore._
 
 case object NBTBEntries extends Field[Int]
