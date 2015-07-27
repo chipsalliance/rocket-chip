@@ -5,7 +5,6 @@ package rocket
 import Chisel._
 import Util._
 import Instructions._
-import Node._
 import uncore._
 import scala.math._
 
@@ -421,7 +420,7 @@ class CSRFile extends CoreModule
         val new_sstatus = new SStatus().fromBits(wdata)
         reg_mstatus.ie := new_sstatus.ie
         reg_mstatus.ie1 := new_sstatus.pie
-        reg_mstatus.prv1 := Mux(new_sstatus.ps, PRV_S, PRV_U)
+        reg_mstatus.prv1 := Mux[UInt](new_sstatus.ps, PRV_S, PRV_U)
         reg_mstatus.mprv := new_sstatus.mprv
         reg_mstatus.fs := new_sstatus.fs // even without an FPU
         if (!params(BuildRoCC).isEmpty) reg_mstatus.xs := new_sstatus.xs
