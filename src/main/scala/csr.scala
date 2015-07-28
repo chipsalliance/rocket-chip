@@ -57,7 +57,7 @@ object CSR
 {
   // commands
   val SZ = 3
-  val X = UInt.DC(SZ)
+  val X = BitPat.DC(SZ)
   val N = UInt(0,SZ)
   val W = UInt(1,SZ)
   val S = UInt(2,SZ)
