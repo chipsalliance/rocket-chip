@@ -50,7 +50,7 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false) extends Module {
                    FN_MUL    -> List(Y, N, X, X),
                    FN_MULH   -> List(Y, Y, Y, Y),
                    FN_MULHU  -> List(Y, Y, N, N),
-                   FN_MULHSU -> List(Y, Y, Y, N)))
+                   FN_MULHSU -> List(Y, Y, Y, N))).map(_ toBool)
 
   def sext(x: Bits, signed: Bool) = {
     val sign = signed && Mux(io.req.bits.dw === DW_64, x(w-1), x(w/2-1))

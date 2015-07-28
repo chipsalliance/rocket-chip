@@ -11,7 +11,7 @@ abstract trait DecodeConstants
 {
   val xpr64 = Y
 
-  val decode_default =
+  val decode_default: List[BitPat] =
                 //               jal                                                               renf1             fence.i
                 //               | jalr                                                            | renf2           |
                 //         fp_val| | renx2                                                         | | renf3         |
@@ -22,7 +22,7 @@ abstract trait DecodeConstants
                 //   |     | | | | | | | |       |       |      |      |         | |         |     | | | | | | |     | | |
                 List(N,    X,X,X,X,X,X,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, X,X,X,X,X,X,CSR.X,X,X,X)
 
-  val table: Array[(UInt, List[UInt])]
+  val table: Array[(BitPat, List[BitPat])]
 }
 
 class IntCtrlSigs extends Bundle {
@@ -53,7 +53,7 @@ class IntCtrlSigs extends Bundle {
   val fence = Bool()
   val amo = Bool()
 
-  def decode(inst: UInt, table: Iterable[(UInt, List[UInt])]) = {
+  def decode(inst: UInt, table: Iterable[(BitPat, List[BitPat])]) = {
     val decoder = DecodeLogic(inst, XDecode.decode_default, table)
     Vec(legal, fp, rocc, branch, jal, jalr, rxs2, rxs1, sel_alu2, sel_alu1,
         sel_imm, alu_dw, alu_fn, mem, mem_cmd, mem_type,
@@ -64,7 +64,7 @@ class IntCtrlSigs extends Bundle {
 
 object XDecode extends DecodeConstants
 {
-  val table = Array(
+  val table: Array[(BitPat, List[BitPat])] = Array(
                 //               jal                                                               renf1             fence.i
                 //               | jalr                                                            | renf2           |
                 //         fp_val| | renx2                                                         | | renf3         |
@@ -185,7 +185,7 @@ object XDecode extends DecodeConstants
 
 object FDecode extends DecodeConstants
 {
-  val table = Array(
+  val table: Array[(BitPat, List[BitPat])] = Array(
                 //               jal                                                               renf1             fence.i
                 //               | jalr                                                            | renf2           |
                 //         fp_val| | renx2                                                         | | renf3         |
@@ -256,7 +256,7 @@ object FDecode extends DecodeConstants
 
 object FDivSqrtDecode extends DecodeConstants
 {
-  val table = Array(
+  val table: Array[(BitPat, List[BitPat])] = Array(
     FDIV_S->    List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
     FDIV_D->    List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
     FSQRT_S->   List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
@@ -265,7 +265,7 @@ object FDivSqrtDecode extends DecodeConstants
 
 object RoCCDecode extends DecodeConstants
 {
-  val table = Array(
+  val table: Array[(BitPat, List[BitPat])] = Array(
                         //               jal                                                               renf1             fence.i
                         //               | jalr                                                            | renf2           |
                         //         fp_val| | renx2                                                         | | renf3         |

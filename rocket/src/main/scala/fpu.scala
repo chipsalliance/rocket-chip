@@ -13,24 +13,24 @@ case object DFMALatency
 
 object FPConstants
 {
-  val FCMD_ADD =    Bits("b0??00")
-  val FCMD_SUB =    Bits("b0??01")
-  val FCMD_MUL =    Bits("b0??10")
-  val FCMD_MADD =   Bits("b1??00")
-  val FCMD_MSUB =   Bits("b1??01")
-  val FCMD_NMSUB =  Bits("b1??10")
-  val FCMD_NMADD =  Bits("b1??11")
-  val FCMD_DIV =    Bits("b?0011")
-  val FCMD_SQRT =   Bits("b?1011")
-  val FCMD_SGNJ =   Bits("b??1?0")
-  val FCMD_MINMAX = Bits("b?01?1")
-  val FCMD_CVT_FF = Bits("b??0??")
-  val FCMD_CVT_IF = Bits("b?10??")
-  val FCMD_CMP =    Bits("b?01??")
-  val FCMD_MV_XF =  Bits("b?11??")
-  val FCMD_CVT_FI = Bits("b??0??")
-  val FCMD_MV_FX =  Bits("b??1??")
-  val FCMD_X =      Bits("b?????")
+  val FCMD_ADD =    BitPat("b0??00")
+  val FCMD_SUB =    BitPat("b0??01")
+  val FCMD_MUL =    BitPat("b0??10")
+  val FCMD_MADD =   BitPat("b1??00")
+  val FCMD_MSUB =   BitPat("b1??01")
+  val FCMD_NMSUB =  BitPat("b1??10")
+  val FCMD_NMADD =  BitPat("b1??11")
+  val FCMD_DIV =    BitPat("b?0011")
+  val FCMD_SQRT =   BitPat("b?1011")
+  val FCMD_SGNJ =   BitPat("b??1?0")
+  val FCMD_MINMAX = BitPat("b?01?1")
+  val FCMD_CVT_FF = BitPat("b??0??")
+  val FCMD_CVT_IF = BitPat("b?10??")
+  val FCMD_CMP =    BitPat("b?01??")
+  val FCMD_MV_XF =  BitPat("b?11??")
+  val FCMD_CVT_FI = BitPat("b??0??")
+  val FCMD_MV_FX =  BitPat("b??1??")
+  val FCMD_X =      BitPat("b?????")
   val FCMD_WIDTH = 5
 
   val RM_SZ = 3
@@ -65,9 +65,6 @@ class FPUDecoder extends Module
     val sigs = new FPUCtrlSigs().asOutput
   }
 
-  val N = Bool(false)
-  val Y = Bool(true)
-  val X = Bool(false)
   val decoder = DecodeLogic(io.inst,
     List                  (FCMD_X,      X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,X),
     Array(FLW      -> List(FCMD_X,      Y,Y,N,N,N,X,X,Y,N,N,N,N,N,N,N,N),
