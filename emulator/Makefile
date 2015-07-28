@@ -26,10 +26,10 @@ CHISEL_ARGS := $(MODEL) --W0W --noIoDebug --backend c --configInstance $(PROJECT
 CHISEL_ARGS_DEBUG := $(CHISEL_ARGS)-debug --debug --vcd --ioDebug
 
 generated-src/$(MODEL).$(CONFIG).h: $(chisel_srcs)
-	cd $(base_dir) && $(SBT) "project $(PROJECT)" "elaborate $(CHISEL_ARGS)"
+	cd $(base_dir) && $(SBT) "project $(PROJECT)" "run $(CHISEL_ARGS)"
 
 generated-src-debug/$(MODEL).$(CONFIG).h: $(chisel_srcs)
-	cd $(base_dir) && $(SBT) "project $(PROJECT)" "elaborate $(CHISEL_ARGS_DEBUG)"
+	cd $(base_dir) && $(SBT) "project $(PROJECT)" "run $(CHISEL_ARGS_DEBUG)"
 
 $(MODEL).$(CONFIG).o: %.o: generated-src/%.h
 	$(MAKE) -j $(patsubst %.cpp,%.o,$(shell ls generated-src/$(MODEL).$(CONFIG)-*.cpp))

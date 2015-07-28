@@ -63,13 +63,13 @@ run-$kind-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $targets))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
 run-$kind-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $targets))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^); echo;
-run-$kind-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets))
+run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
 """
       } else { "\n" }
     }
 
-    val f = createOutputFile("Makefrag-tests." + Driver.chiselConfigClassName.get)
+    val f = createOutputFile(s"${Driver.topComponent.name}.${Driver.chiselConfigClassName.get}.d")
     f.write(
       List(gen("asm", asmSuites.values.toSeq), gen("bmark", bmarkSuites.values.toSeq)).mkString("\n") +
       postscript.map(p => p._1 + " = " + p._2).mkString("\n")
@@ -123,4 +123,13 @@ object DefaultTestSuites {
     List("ad","ae","af","ag","ai","ak","al","am","an","ap","aq","ar","at","av","ay","az",
          "bb","bc","bf","bh","bj","bk","bm","bo","br","bs","ce","cf","cg","ci","ck","cl",
          "cm","cs","cv","cy","dc","df","dm","do","dr","ds","du","dv").map(_+"_matmul")).toSet)
+
+  val zscaleBmarks = new BenchmarkTestSuite("zscale", "$(base_dir)/zscale/sw", Set(
+    "led", "mbist"))
+}
+
+object TestGenerator extends App {
+  val gen = () => Class.forName("rocketchip."+args(0)).newInstance().asInstanceOf[Module]
+  chiselMain.run(args.drop(1), gen)
+  TestGeneration.generateMakefrag
 }

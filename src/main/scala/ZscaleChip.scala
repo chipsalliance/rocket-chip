@@ -71,6 +71,4 @@ class ZscaleTop extends Module {
   sys.io.host <> io.host
   bootmem.io <> sys.io.bootmem
   dram.io <> sys.io.dram
-
-  TestGeneration.generateMakefrag
 }
