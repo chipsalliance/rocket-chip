@@ -262,13 +262,13 @@ generated Rocket chip has passed all assembly tests and benchmarks!
 You can also run assembly tests and benchmarks separately:
 
     $ make -jN run-asm-tests
-    $ make -jN run-bmarks-tests
+    $ make -jN run-bmark-tests
 
 To generate vcd waveforms, you can run one of the following commands:
 
     $ make -jN run-debug
     $ make -jN run-asm-tests-debug
-    $ make -jN run-bmarks-tests-debug
+    $ make -jN run-bmark-tests-debug
 
 Or call out individual assembly tests or benchmarks:
 
