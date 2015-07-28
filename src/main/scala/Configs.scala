@@ -215,6 +215,7 @@ class WithZscale extends ChiselConfig(
   (pname,site,here) => pname match {
     case BuildZscale => {
       TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
+      TestGeneration.addSuites(List(zscaleBmarks))
       (r: Bool) => Module(new Zscale(r), {case TLId => "L1ToL2"})
     }
     case UseZscale => true
