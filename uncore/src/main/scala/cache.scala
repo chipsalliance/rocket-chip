@@ -441,13 +441,13 @@ abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
   def connectInternalDataBeatCounter[T <: HasL2BeatAddr](
       in: DecoupledIO[T],
       beat: UInt = UInt(0),
-      full_block: Bool = Bool(true)) = {
+      full_block: Bool = Bool(true)): (UInt, Bool) = {
     connectDataBeatCounter(in.fire(), in.bits, beat, full_block)
   }
 
   def connectInternalDataBeatCounter[T <: HasL2Data](
       in: ValidIO[T],
-      full_block: Bool = Bool(true)) = {
+      full_block: Bool): Bool = {
     connectDataBeatCounter(in.valid, in.bits, UInt(0), full_block)._2
   }
 
