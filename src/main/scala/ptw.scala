@@ -85,20 +85,21 @@ class PTW(n: Int) extends CoreModule
   val (pte_cache_hit, pte_cache_data) = {
     val size = log2Up(pgLevels * 2)
     val plru = new PseudoLRU(size)
-    val valid = Reg(init = Bits(0, size))
+    val valid = Reg(init=Vec(Bool(), size))
+    val validBits = valid.toBits
     val tags = Mem(UInt(width = paddrBits), size)
     val data = Mem(UInt(width = ppnBits), size)
 
-    val hits = Vec(tags.map(_ === pte_addr)).toBits & valid
+    val hits = Vec(tags.map(_ === pte_addr)).toBits & validBits
     val hit = hits.orR
     when (io.mem.resp.valid && pte.table() && !hit) {
-      val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
+      val r = Mux(validBits.andR, plru.replace, PriorityEncoder(~validBits))
       valid(r) := true
       tags(r) := pte_addr
       data(r) := pte.ppn
     }
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
-    when (io.dpath.invalidate) { valid := 0 }
+    when (reset || io.dpath.invalidate) { valid.foreach(_ := false) }
 
     (hit, Mux1H(hits, data))
   }
