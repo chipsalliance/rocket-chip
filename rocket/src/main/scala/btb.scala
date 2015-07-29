@@ -252,12 +252,13 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
 
   if (nBHT > 0) {
     val bht = new BHT(nBHT)
-    val res = bht.get(io.req.bits.addr, io.req.valid && hits.orR && !Mux1H(hits, isJump))
+    val isBranch = !Mux1H(hits, isJump)
+    val res = bht.get(io.req.bits.addr, io.req.valid && io.resp.valid && isBranch)
     val update_btb_hit = io.bht_update.bits.prediction.valid
     when (io.bht_update.valid && update_btb_hit) {
       bht.update(io.bht_update.bits.pc, io.bht_update.bits.prediction.bits.bht, io.bht_update.bits.taken, io.bht_update.bits.mispredict)
     }
-    when (!res.value(0) && !Mux1H(hits, isJump)) { io.resp.bits.taken := false }
+    when (!res.value(0) && isBranch) { io.resp.bits.taken := false }
     io.resp.bits.bht := res
   }
 
