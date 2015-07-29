@@ -40,7 +40,7 @@ object DecodeLogic
       }
     }).reverse.reduceRight(Cat(_,_))
   }
-  def apply(addr: UInt, default: Iterable[BitPat], mappingIn: Iterable[(BitPat, Iterable[BitPat])]): Iterable[UInt] = {
+  def apply(addr: UInt, default: Seq[BitPat], mappingIn: Iterable[(BitPat, Seq[BitPat])]): Seq[UInt] = {
     val mapping = collection.mutable.ArrayBuffer.fill(default.size)(collection.mutable.ArrayBuffer[(BitPat, BitPat)]())
     for ((key, values) <- mappingIn)
       for ((value, i) <- values zipWithIndex)
@@ -48,8 +48,8 @@ object DecodeLogic
     for ((thisDefault, thisMapping) <- default zip mapping)
       yield apply(addr, thisDefault, thisMapping)
   }
-  def apply(addr: UInt, default: Iterable[BitPat], mappingIn: List[(UInt, Iterable[BitPat])]): Iterable[UInt] =
-    apply(addr, default, mappingIn.map(m => (BitPat(m._1), m._2)).asInstanceOf[Iterable[(BitPat, Iterable[BitPat])]])
+  def apply(addr: UInt, default: Seq[BitPat], mappingIn: List[(UInt, Seq[BitPat])]): Seq[UInt] =
+    apply(addr, default, mappingIn.map(m => (BitPat(m._1), m._2)).asInstanceOf[Iterable[(BitPat, Seq[BitPat])]])
   def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool =
     apply(addr, BitPat.DC(1), trues.map(BitPat(_) -> BitPat("b1")) ++ falses.map(BitPat(_) -> BitPat("b0"))).toBool
   private val caches = collection.mutable.Map[UInt,collection.mutable.Map[Term,Bool]]()
