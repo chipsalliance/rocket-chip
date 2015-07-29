@@ -444,7 +444,7 @@ class Rocket extends CoreModule
 
   io.imem.btb_update.valid := mem_reg_valid && !mem_npc_misaligned && mem_wrong_npc && ((mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal) && !take_pc_wb
   io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
-  io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && mem_reg_inst(19,15) === Bits("b00??1")
+  io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && mem_reg_inst(19,15) === BitPat("b00??1")
   io.imem.btb_update.bits.pc := mem_reg_pc
   io.imem.btb_update.bits.target := io.imem.req.bits.pc
   io.imem.btb_update.bits.br_pc := mem_reg_pc
