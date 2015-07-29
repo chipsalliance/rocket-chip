@@ -133,7 +133,7 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
     val invalidate = Bool(INPUT)
   }
 
-  val idxValid = Reg(init=UInt(0, entries))
+  val idxValid = Reg(Vec(Bool(), entries))
   val idxs = Mem(UInt(width=matchBits), entries)
   val idxPages = Mem(UInt(width=log2Up(nPages)), entries)
   val tgts = Mem(UInt(width=matchBits), entries)
@@ -143,8 +143,8 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
   val idxPagesOH = idxPages.map(UIntToOH(_)(nPages-1,0))
   val tgtPagesOH = tgtPages.map(UIntToOH(_)(nPages-1,0))
 
-  val useRAS = Reg(UInt(width = entries))
-  val isJump = Reg(UInt(width = entries))
+  val useRAS = Reg(Vec(Bool(), entries))
+  val isJump = Reg(Vec(Bool(), entries))
   val brIdx  = Mem(UInt(width=log2Up(params(FetchWidth))), entries)
 
   private def page(addr: UInt) = addr >> matchBits
@@ -152,11 +152,12 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
     val p = page(addr)
     Vec(pages.map(_ === p)).toBits & pageValid
   }
-  private def tagMatch(addr: UInt, pgMatch: UInt): UInt = {
+  private def tagMatch(addr: UInt, pgMatch: UInt): Vec[Bool] = {
     val idx = addr(matchBits-1,0)
     val idxMatch = idxs.map(_ === idx).toBits
     val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR).toBits
-    idxValid & idxMatch & idxPageMatch
+    Vec(for (i <- 0 until entries)
+      yield idxValid(i) && idxMatch(i) && idxPageMatch(i))
   }
 
   val r_btb_update = Pipe(io.btb_update)
@@ -198,11 +199,12 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
 
     val nextRepl = Counter(!updateHit, entries)._1
     val waddr =
-      if (updates_out_of_order) Mux(updateHits.orR, OHToUInt(updateHits), nextRepl)
+      if (updates_out_of_order) Mux(updateHits.reduce(_||_), OHToUInt(updateHits), nextRepl)
       else Mux(updateHit, r_btb_update.bits.prediction.bits.entry, nextRepl)
 
     // invalidate entries if we stomp on pages they depend upon
-    idxValid := idxValid & ~Vec.tabulate(entries)(i => (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR).toBits
+    for (i <- 0 until idxValid.size)
+      when ((pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR) { idxValid(i) := false }
 
     idxValid(waddr) := Bool(true)
     idxs(waddr) := r_btb_update.bits.pc
@@ -237,7 +239,7 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
     pageValid := 0
   }
 
-  io.resp.valid := hits.orR
+  io.resp.valid := hits.reduce(_||_)
   io.resp.bits.taken := io.resp.valid
   io.resp.bits.target := Cat(Mux1H(Mux1H(hits, tgtPagesOH), pages), Mux1H(hits, tgts))
   io.resp.bits.entry := OHToUInt(hits)

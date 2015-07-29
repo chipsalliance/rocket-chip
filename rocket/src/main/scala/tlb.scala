@@ -119,18 +119,18 @@ class TLB extends TLBModule {
   val tag_hit_addr = OHToUInt(tag_cam.io.hits)
   
   // permission bit arrays
-  val valid_array = Reg(Bits()) // PTE is valid (not equivalent to CAM tag valid bit!)
-  val ur_array = Reg(Bits()) // user read permission
-  val uw_array = Reg(Bits()) // user write permission
-  val ux_array = Reg(Bits()) // user execute permission
-  val sr_array = Reg(Bits()) // supervisor read permission
-  val sw_array = Reg(Bits()) // supervisor write permission
-  val sx_array = Reg(Bits()) // supervisor execute permission
-  val dirty_array = Reg(Bits()) // PTE dirty bit
+  val valid_array = Reg(Vec(Bool(), entries)) // PTE is valid (not equivalent to CAM tag valid bit!)
+  val ur_array = Reg(Vec(Bool(), entries)) // user read permission
+  val uw_array = Reg(Vec(Bool(), entries)) // user write permission
+  val ux_array = Reg(Vec(Bool(), entries)) // user execute permission
+  val sr_array = Reg(Vec(Bool(), entries)) // supervisor read permission
+  val sw_array = Reg(Vec(Bool(), entries)) // supervisor write permission
+  val sx_array = Reg(Vec(Bool(), entries)) // supervisor execute permission
+  val dirty_array = Reg(Vec(Bool(), entries)) // PTE dirty bit
   when (io.ptw.resp.valid) {
     val pte = io.ptw.resp.bits.pte
     tag_ram(r_refill_waddr) := pte.ppn
-    valid_array := valid_array.bitSet(r_refill_waddr, !io.ptw.resp.bits.error)
+    valid_array(r_refill_waddr) := !io.ptw.resp.bits.error
     ur_array(r_refill_waddr) := pte.ur() && !io.ptw.resp.bits.error
     uw_array(r_refill_waddr) := pte.uw() && !io.ptw.resp.bits.error
     ux_array(r_refill_waddr) := pte.ux() && !io.ptw.resp.bits.error
@@ -151,14 +151,14 @@ class TLB extends TLBModule {
   val priv_uses_vm = priv <= PRV_S
   val req_xwr = Cat(!r_req.store, r_req.store, !(r_req.instruction || r_req.store))
 
-  val r_array = Mux(priv_s, sr_array, ur_array)
-  val w_array = Mux(priv_s, sw_array, uw_array)
-  val x_array = Mux(priv_s, sx_array, ux_array)
+  val r_array = Mux(priv_s, sr_array.toBits, ur_array.toBits)
+  val w_array = Mux(priv_s, sw_array.toBits, uw_array.toBits)
+  val x_array = Mux(priv_s, sx_array.toBits, ux_array.toBits)
 
   val vm_enabled = io.ptw.status.vm(3) && priv_uses_vm
   val bad_va = io.req.bits.vpn(vpnBits) != io.req.bits.vpn(vpnBits-1)
   // it's only a store hit if the dirty bit is set
-  val tag_hits = tag_cam.io.hits & (dirty_array | ~(io.req.bits.store.toSInt & w_array))
+  val tag_hits = tag_cam.io.hits & (dirty_array.toBits | ~(io.req.bits.store.toSInt & w_array))
   val tag_hit = tag_hits.orR
   val tlb_hit = vm_enabled && tag_hit
   val tlb_miss = vm_enabled && !tag_hit && !bad_va
@@ -177,7 +177,7 @@ class TLB extends TLBModule {
 
   // clear invalid entries on access, or all entries on a TLB flush
   tag_cam.io.clear := io.ptw.invalidate || io.req.fire()
-  tag_cam.io.clear_mask := ~valid_array | (tag_cam.io.hits & ~tag_hits)
+  tag_cam.io.clear_mask := ~valid_array.toBits | (tag_cam.io.hits & ~tag_hits)
   when (io.ptw.invalidate) { tag_cam.io.clear_mask := SInt(-1) }
   
   io.ptw.req.valid := state === s_request
