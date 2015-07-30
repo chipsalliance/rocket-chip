@@ -3,6 +3,7 @@
 package rocketchip
 
 import Chisel._
+import junctions._
 import uncore._
 
 class MemDessert extends Module {
@@ -18,9 +19,10 @@ object VLSIUtils {
       mems: Seq[MemIO],
       backup: MemSerializedIO,
       en: Bool,
-      nMemChannels: Int) {
+      nMemChannels: Int,
+      htifWidth: Int) {
     val arb = Module(new MemIOArbiter(nMemChannels))
-    val mem_serdes = Module(new MemSerdes)
+    val mem_serdes = Module(new MemSerdes(htifWidth))
     mem_serdes.io.wide <> arb.io.outer
     mem_serdes.io.narrow <> backup
 

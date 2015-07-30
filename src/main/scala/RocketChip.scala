@@ -3,6 +3,7 @@
 package rocketchip
 
 import Chisel._
+import junctions._
 import uncore._
 import rocket._
 import rocket.Util._
@@ -192,7 +193,7 @@ class OuterMemorySystem extends Module with TopLevelParameters {
     } else {
       val arb = Module(new RocketChipTileLinkArbiter(managerDepths = backendBuffering))(outerTLParams)
       val conv1 = Module(new NASTIMasterIOTileLinkIOConverter)(outerTLParams)
-      val conv2 = Module(new MemIONASTISlaveIOConverter)
+      val conv2 = Module(new MemIONASTISlaveIOConverter(params(CacheBlockOffsetBits)))
       val conv3 = Module(new MemPipeIOMemIOConverter(nMemReqs))
       arb.io.clients <> banks.map(_.outerTL)
       conv1.io.tl <> arb.io.managers.head
@@ -206,6 +207,6 @@ class OuterMemorySystem extends Module with TopLevelParameters {
 
   // Create a SerDes for backup memory port
   if(params(UseBackupMemoryPort)) {
-    VLSIUtils.doOuterMemorySystemSerdes(mem_channels, io.mem, io.mem_backup, io.mem_backup_en, nMemChannels)
+    VLSIUtils.doOuterMemorySystemSerdes(mem_channels, io.mem, io.mem_backup, io.mem_backup_en, nMemChannels, params(HTIFWidth))
   } else { io.mem <> mem_channels }
 }
