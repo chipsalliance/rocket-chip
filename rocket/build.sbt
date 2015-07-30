@@ -6,5 +6,5 @@ name := "rocket"
 
 scalaVersion := "2.10.2"
 
-libraryDependencies ++= (Seq("chisel", "hardfloat", "uncore").map {
+libraryDependencies ++= (Seq("chisel", "hardfloat", "uncore", "junctions").map {
   dep: String => sys.props.get(dep + "Version") map { "edu.berkeley.cs" %% dep % _ }}).flatten
