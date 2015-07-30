@@ -229,6 +229,7 @@ class ZscaleConfig extends ChiselConfig(new WithZscale ++ new DefaultConfig)
 
 class FPGAConfig extends ChiselConfig (
   (pname,site,here) => pname match {
+    case NAcquireTransactors => 4
     case UseBackupMemoryPort => false
   }
 )
