@@ -3,6 +3,7 @@
 package uncore
 import Chisel._
 import scala.reflect.ClassTag
+import junctions._
 
 case object CacheName extends Field[String]
 case object NSets extends Field[Int]
