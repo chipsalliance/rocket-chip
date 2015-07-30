@@ -3,6 +3,7 @@
 package rocket
 
 import Chisel._
+import junctions._
 import uncore._
 import Util._
 

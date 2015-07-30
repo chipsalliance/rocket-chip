@@ -4,7 +4,7 @@ package rocket
 
 import Chisel._
 import Util._
-import uncore._
+import junctions._
 import scala.math._
 
 case object NTLBEntries extends Field[Int]

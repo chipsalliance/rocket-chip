@@ -3,8 +3,8 @@
 package rocket
 
 import Chisel._
+import junctions._
 import Util._
-import uncore._
 
 case object NBTBEntries extends Field[Int]
 case object NRAS extends Field[Int]
