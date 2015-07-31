@@ -18,7 +18,7 @@ class DataQueueLocation extends Bundle with BroadcastHubParameters {
 
 object DataQueueLocation {
   def apply(idx: UInt, loc: UInt) = {
-    val d = new DataQueueLocation
+    val d = Wire(new DataQueueLocation)
     d.idx := idx
     d.loc := loc
     d
