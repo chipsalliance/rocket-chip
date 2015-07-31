@@ -37,7 +37,7 @@ class L2BroadcastHub extends ManagerCoherenceAgent
         Module(new BroadcastAcquireTracker(id), {case TLDataBits => internalDataBits}))
   
   // Propagate incoherence flags
-  trackerList.map(_.io.incoherent := io.incoherent.toBits)
+  trackerList.map(_.io.incoherent := io.incoherent)
 
   // Queue to store impending Put data
   val sdq = Reg(Vec.fill(sdqDepth){io.iacq().data})
