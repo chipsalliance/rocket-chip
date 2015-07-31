@@ -31,7 +31,7 @@ abstract trait HASTIConstants
   val SZ_HADDR = 32
   val SZ_HDATA = 32
 
-  def dgate(valid: Bool, b: Bits) = Fill(b.getWidth, valid) & b
+  def dgate(valid: Bool, b: UInt) = Fill(b.getWidth, valid) & b
 }
 
 class HASTIMasterIO extends Bundle
