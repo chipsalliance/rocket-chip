@@ -50,7 +50,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   val tlb = Module(new TLB)
 
   val s1_pc_ = Reg(UInt())
-  val s1_pc = s1_pc_ & SInt(-coreInstBytes) // discard PC LSBS (this propagates down the pipeline)
+  val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
   val s1_same_block = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=UInt(START_ADDR))

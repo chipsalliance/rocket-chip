@@ -85,7 +85,7 @@ class PTW(n: Int) extends CoreModule
   val (pte_cache_hit, pte_cache_data) = {
     val size = log2Up(pgLevels * 2)
     val plru = new PseudoLRU(size)
-    val valid = Reg(init=Vec(Bool(), size))
+    val valid = Reg(Vec(Bool(), size))
     val validBits = valid.toBits
     val tags = Mem(UInt(width = paddrBits), size)
     val data = Mem(UInt(width = ppnBits), size)

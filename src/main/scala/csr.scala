@@ -306,7 +306,7 @@ class CSRFile extends CoreModule
     reg_mstatus.prv2 := reg_mstatus.prv1
     reg_mstatus.ie2 := reg_mstatus.ie1
 
-    reg_mepc := io.pc & SInt(-coreInstBytes)
+    reg_mepc := ~(~io.pc | (coreInstBytes-1))
     reg_mcause := io.cause
     when (csr_xcpt) {
       reg_mcause := Causes.illegal_instruction

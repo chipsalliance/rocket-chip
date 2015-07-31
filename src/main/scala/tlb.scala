@@ -158,7 +158,7 @@ class TLB extends TLBModule {
   val vm_enabled = io.ptw.status.vm(3) && priv_uses_vm
   val bad_va = io.req.bits.vpn(vpnBits) != io.req.bits.vpn(vpnBits-1)
   // it's only a store hit if the dirty bit is set
-  val tag_hits = tag_cam.io.hits & (dirty_array.toBits | ~(io.req.bits.store.toSInt & w_array))
+  val tag_hits = tag_cam.io.hits & (dirty_array.toBits | ~Mux(io.req.bits.store, w_array, UInt(0)))
   val tag_hit = tag_hits.orR
   val tlb_hit = vm_enabled && tag_hit
   val tlb_miss = vm_enabled && !tag_hit && !bad_va

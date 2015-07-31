@@ -439,7 +439,7 @@ class FPU extends Module
   val divSqrt_in_flight = Reg(init=Bool(false))
 
   // writeback arbitration
-  case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, wdata: Bits, wexc: Bits)
+  case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, wdata: UInt, wexc: UInt)
   val pipes = List(
     Pipe(fpmu, fpmu.latency, (c: FPUCtrlSigs) => c.fastpipe, fpmu.io.out.bits.data, fpmu.io.out.bits.exc),
     Pipe(ifpu, ifpu.latency, (c: FPUCtrlSigs) => c.fromint, ifpu.io.out.bits.data, ifpu.io.out.bits.exc),
