@@ -29,8 +29,8 @@ trait HasCustomTileLinkMessageTypes {
   def grantTypeWidth = log2Up(nGrantTypes)
 
   val acquireTypesWithData = Nil // Only built-in Acquire types have data for now
-  val releaseTypesWithData: Vec[UInt] 
-  val grantTypesWithData: Vec[UInt]
+  def releaseTypesWithData: Vec[UInt]
+  def grantTypesWithData: Vec[UInt]
 }
 
 /** This API contains all functions required for client coherence agents.
@@ -129,8 +129,8 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantExclusive :: Nil = Enum(UInt(), nGrantTypes)
 
-  val releaseTypesWithData = Vec(releaseInvalidateData, releaseCopyData)
-  val grantTypesWithData = Vec(grantExclusive)
+  def releaseTypesWithData = Vec(releaseInvalidateData, releaseCopyData)
+  def grantTypesWithData = Vec(grantExclusive)
 
   // Client states and functions
   val nClientStates = 2
@@ -220,8 +220,8 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantExclusive :: Nil = Enum(UInt(), nGrantTypes)
 
-  val releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  val grantTypesWithData = Vec(grantExclusive)
+  def releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  def grantTypesWithData = Vec(grantExclusive)
 
   // Client states and functions
   val nClientStates = 3
@@ -322,8 +322,8 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantShared :: grantExclusive :: grantExclusiveAck :: Nil = Enum(UInt(), nGrantTypes)
 
-  val releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  val grantTypesWithData = Vec(grantShared, grantExclusive)
+  def releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  def grantTypesWithData = Vec(grantShared, grantExclusive)
 
   // Client states and functions
   val nClientStates = 3
@@ -440,8 +440,8 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantShared :: grantExclusive :: grantExclusiveAck :: Nil = Enum(UInt(), nGrantTypes)
 
-  val releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  val grantTypesWithData = Vec(grantShared, grantExclusive)
+  def releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  def grantTypesWithData = Vec(grantShared, grantExclusive)
 
   // Client states and functions
   val nClientStates = 4
@@ -555,8 +555,8 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(UInt(), nReleaseTypes)
   val grantShared :: grantExclusive :: grantExclusiveAck :: grantReadMigratory :: Nil = Enum(UInt(), nGrantTypes)
 
-  val releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
-  val grantTypesWithData = Vec(grantShared, grantExclusive, grantReadMigratory)
+  def releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
+  def grantTypesWithData = Vec(grantShared, grantExclusive, grantReadMigratory)
 
   // Client states and functions
   val nClientStates = 7
