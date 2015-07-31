@@ -177,7 +177,7 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
 
   val useUpdatePageHit = updatePageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
-  val idxPageRepl = Wire(UInt())
+  val idxPageRepl = Wire(UInt(width = nPages))
   val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
   val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, UInt(0))

@@ -218,7 +218,7 @@ class ICache extends FrontendModule
 
   val s1_tag_match = Wire(Vec(Bool(), nWays))
   val s2_tag_hit = Wire(Vec(Bool(), nWays))
-  val s2_dout = Reg(Vec(Bits(), nWays))
+  val s2_dout = Reg(Vec(Bits(width = code.width(rowBits)), nWays))
 
   for (i <- 0 until nWays) {
     val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
