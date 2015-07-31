@@ -304,7 +304,7 @@ class MSHRFile extends L1HellaCacheModule {
   when (sdq_enq) { sdq(sdq_alloc_id) := io.req.bits.data }
 
   val idxMatch = Wire(Vec(Bool(), nMSHRs))
-  val tagList = Wire(Vec(Bits(), nMSHRs))
+  val tagList = Wire(Vec(Bits(width = tagBits), nMSHRs))
   val tag_match = Mux1H(idxMatch, tagList) === io.req.bits.addr >> untagBits
 
   val wbTagList = Wire(Vec(Bits(), nMSHRs))
