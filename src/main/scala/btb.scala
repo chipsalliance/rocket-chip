@@ -133,7 +133,7 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
     val invalidate = Bool(INPUT)
   }
 
-  val idxValid = Reg(Vec(Bool(), entries))
+  val idxValid = Reg(init=UInt(0, entries))
   val idxs = Mem(UInt(width=matchBits), entries)
   val idxPages = Mem(UInt(width=log2Up(nPages)), entries)
   val tgts = Mem(UInt(width=matchBits), entries)
@@ -152,12 +152,11 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
     val p = page(addr)
     Vec(pages.map(_ === p)).toBits & pageValid
   }
-  private def tagMatch(addr: UInt, pgMatch: UInt): Vec[Bool] = {
+  private def tagMatch(addr: UInt, pgMatch: UInt) = {
     val idx = addr(matchBits-1,0)
     val idxMatch = idxs.map(_ === idx).toBits
     val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR).toBits
-    Vec(for (i <- 0 until entries)
-      yield idxValid(i) && idxMatch(i) && idxPageMatch(i))
+    idxValid & idxMatch & idxPageMatch
   }
 
   val r_btb_update = Pipe(io.btb_update)
@@ -199,14 +198,14 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
 
     val nextRepl = Counter(!updateHit, entries)._1
     val waddr =
-      if (updates_out_of_order) Mux(updateHits.reduce(_||_), OHToUInt(updateHits), nextRepl)
+      if (updates_out_of_order) Mux(updateHits.orR, OHToUInt(updateHits), nextRepl)
       else Mux(updateHit, r_btb_update.bits.prediction.bits.entry, nextRepl)
 
     // invalidate entries if we stomp on pages they depend upon
-    for (i <- 0 until idxValid.size)
-      when ((pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR) { idxValid(i) := false }
+    val invalidateMask = Vec.tabulate(entries)(i => (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR).toBits
+    val validateMask = UIntToOH(waddr)
+    idxValid := (idxValid & ~invalidateMask) | validateMask
 
-    idxValid(waddr) := Bool(true)
     idxs(waddr) := r_btb_update.bits.pc
     tgts(waddr) := update_target
     idxPages(waddr) := idxPageUpdate
@@ -239,7 +238,7 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
     pageValid := 0
   }
 
-  io.resp.valid := hits.reduce(_||_)
+  io.resp.valid := hits.orR
   io.resp.bits.taken := io.resp.valid
   io.resp.bits.target := Cat(Mux1H(Mux1H(hits, tgtPagesOH), pages), Mux1H(hits, tgts))
   io.resp.bits.entry := OHToUInt(hits)
