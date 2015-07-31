@@ -36,7 +36,7 @@ abstract trait CacheParameters extends UsesParameters {
 abstract class CacheBundle extends Bundle with CacheParameters
 abstract class CacheModule extends Module with CacheParameters
 
-class StoreGen(typ: Bits, addr: Bits, dat: Bits) {
+class StoreGen(typ: UInt, addr: UInt, dat: UInt) {
   val byte = typ === MT_B || typ === MT_BU
   val half = typ === MT_H || typ === MT_HU
   val word = typ === MT_W || typ === MT_WU
@@ -54,7 +54,7 @@ class StoreGen(typ: Bits, addr: Bits, dat: Bits) {
                       dat)
 }
 
-class LoadGen(typ: Bits, addr: Bits, dat: Bits, zero: Bool) {
+class LoadGen(typ: UInt, addr: UInt, dat: UInt, zero: Bool) {
   val t = new StoreGen(typ, addr, dat)
   val sign = typ === MT_B || typ === MT_H || typ === MT_W || typ === MT_D
 
@@ -87,7 +87,7 @@ class AMOALU extends CacheModule {
   val word = io.typ === MT_W || io.typ === MT_WU || // Logic minimization:
                io.typ === MT_B || io.typ === MT_BU
 
-  val mask = SInt(-1,64) ^ (io.addr(2) << UInt(31))
+  val mask = ~UInt(0,64) ^ (io.addr(2) << UInt(31))
   val adder_out = (io.lhs & mask).toUInt + (rhs & mask)
 
   val cmp_lhs  = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))

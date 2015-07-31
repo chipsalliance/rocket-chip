@@ -107,11 +107,11 @@ class SECDEDCode extends Code
 object ErrGen
 {
   // generate a 1-bit error with approximate probability 2^-f
-  def apply(width: Int, f: Int): Bits = {
+  def apply(width: Int, f: Int): UInt = {
     require(width > 0 && f >= 0 && log2Up(width) + f <= 16)
     UIntToOH(LFSR16()(log2Up(width)+f-1,0))(width-1,0)
   }
-  def apply(x: Bits, f: Int): Bits = x ^ apply(x.getWidth, f)
+  def apply(x: UInt, f: Int): UInt = x ^ apply(x.getWidth, f)
 }
 
 class SECDEDTest extends Module
