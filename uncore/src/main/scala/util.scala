@@ -54,7 +54,7 @@ class FlowThroughSerializer[T <: HasTileLinkData](gen: T, n: Int) extends Module
 
   if(n == 1) {
     io.in <> io.out
-    io.cnt := UInt(width = 0)
+    io.cnt := UInt(0)
     io.done := Bool(true)
   } else {
     val cnt = Reg(init=UInt(0, width = log2Up(n)))
