@@ -198,7 +198,7 @@ class Rocket extends CoreModule
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.toUInt
-  alu.io.in1 := ex_op1
+  alu.io.in1 := ex_op1.toUInt
   
   // multiplier and divider
   val div = Module(new MulDiv(mulUnroll = if(params(FastMulDiv)) 8 else 1,

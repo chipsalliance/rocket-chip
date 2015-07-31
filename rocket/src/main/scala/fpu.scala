@@ -228,7 +228,7 @@ class FPToInt extends Module
     io.out.bits.exc := dcmp_exc
   }
   when (in.cmd === FCMD_CVT_IF) {
-    io.out.bits.toint := Mux(in.typ(1), d2i._1, d2i._1(31,0).toSInt)
+    io.out.bits.toint := Mux(in.typ(1), d2i._1, d2i._1(31,0).toSInt).toUInt
     io.out.bits.exc := d2i._2
   }
 

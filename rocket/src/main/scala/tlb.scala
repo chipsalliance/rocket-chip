@@ -178,7 +178,7 @@ class TLB extends TLBModule {
   // clear invalid entries on access, or all entries on a TLB flush
   tag_cam.io.clear := io.ptw.invalidate || io.req.fire()
   tag_cam.io.clear_mask := ~valid_array.toBits | (tag_cam.io.hits & ~tag_hits)
-  when (io.ptw.invalidate) { tag_cam.io.clear_mask := SInt(-1) }
+  when (io.ptw.invalidate) { tag_cam.io.clear_mask := ~UInt(0, entries) }
   
   io.ptw.req.valid := state === s_request
   io.ptw.req.bits.addr := r_refill_tag

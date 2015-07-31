@@ -291,9 +291,9 @@ class CSRFile extends CoreModule
   io.csr_xcpt := csr_xcpt
   io.eret := insn_ret || insn_redirect_trap
   io.status := reg_mstatus
-  io.status.fs := reg_mstatus.fs.orR.toSInt // either off or dirty (no clean/initial support yet)
-  io.status.xs := reg_mstatus.xs.orR.toSInt // either off or dirty (no clean/initial support yet)
-  io.status.sd := reg_mstatus.xs.orR || reg_mstatus.fs.orR
+  io.status.fs := Fill(2, reg_mstatus.fs.orR) // either off or dirty (no clean/initial support yet)
+  io.status.xs := Fill(2, reg_mstatus.xs.orR) // either off or dirty (no clean/initial support yet)
+  io.status.sd := io.status.fs.andR || io.status.xs.andR
   if (xLen == 32)
     io.status.sd_rv32 := io.status.sd
 
@@ -405,7 +405,7 @@ class CSRFile extends CoreModule
     when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
     when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
     when (decoded_addr(CSRs.fcsr))     { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
-    when (decoded_addr(CSRs.mepc))     { reg_mepc := wdata(vaddrBitsExtended-1,0).toSInt & SInt(-coreInstBytes) }
+    when (decoded_addr(CSRs.mepc))     { reg_mepc := ~(~wdata | (coreInstBytes-1)) }
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
@@ -436,8 +436,8 @@ class CSRFile extends CoreModule
       }
       when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
       when (decoded_addr(CSRs.sptbr))    { reg_sptbr := Cat(wdata(paddrBits-1, pgIdxBits), Bits(0, pgIdxBits)) }
-      when (decoded_addr(CSRs.sepc))     { reg_sepc := wdata(vaddrBitsExtended-1,0).toSInt & SInt(-coreInstBytes) }
-      when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata(vaddrBits-1,0).toSInt & SInt(-coreInstBytes) }
+      when (decoded_addr(CSRs.sepc))     { reg_sepc := ~(~wdata | (coreInstBytes-1)) }
+      when (decoded_addr(CSRs.stvec))    { reg_stvec := ~(~wdata | (coreInstBytes-1)) }
     }
   }
 

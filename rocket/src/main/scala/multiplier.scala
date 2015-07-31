@@ -95,7 +95,7 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false) extends Module {
       !isHi && (mplier & ~eOutMask) === UInt(0)
     val eOutRes = (mulReg >> (mulw - count * mulUnroll)(log2Up(mulw)-1,0))
     val nextMulReg1 = Cat(nextMulReg(2*mulw,mulw), Mux(eOut, eOutRes, nextMulReg)(mulw-1,0))
-    remainder := Cat(nextMulReg1 >> w, Bool(false), nextMulReg1(w-1,0)).toSInt
+    remainder := Cat(nextMulReg1 >> w, Bool(false), nextMulReg1(w-1,0))
 
     count := count + 1
     when (eOut || count === mulw/mulUnroll-1) {

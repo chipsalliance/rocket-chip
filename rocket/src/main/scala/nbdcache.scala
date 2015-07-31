@@ -705,7 +705,7 @@ class HellaCache extends L1HellaCacheModule {
   // data read for new requests
   readArb.io.in(3).valid := io.cpu.req.valid
   readArb.io.in(3).bits.addr := io.cpu.req.bits.addr
-  readArb.io.in(3).bits.way_en := SInt(-1)
+  readArb.io.in(3).bits.way_en := ~UInt(0, nWays)
   when (!readArb.io.in(3).ready) { io.cpu.req.ready := Bool(false) }
 
   // recycled requests
@@ -713,7 +713,7 @@ class HellaCache extends L1HellaCacheModule {
   metaReadArb.io.in(0).bits.idx := s2_req.addr >> blockOffBits
   readArb.io.in(0).valid := s2_recycle
   readArb.io.in(0).bits.addr := s2_req.addr
-  readArb.io.in(0).bits.way_en := SInt(-1)
+  readArb.io.in(0).bits.way_en := ~UInt(0, nWays)
 
   // tag check and way muxing
   def wayMap[T <: Data](f: Int => T) = Vec((0 until nWays).map(f))
@@ -800,7 +800,7 @@ class HellaCache extends L1HellaCacheModule {
   // replays
   readArb.io.in(1).valid := mshrs.io.replay.valid
   readArb.io.in(1).bits := mshrs.io.replay.bits
-  readArb.io.in(1).bits.way_en := SInt(-1)
+  readArb.io.in(1).bits.way_en := ~UInt(0, nWays)
   mshrs.io.replay.ready := readArb.io.in(1).ready
   s1_replay := mshrs.io.replay.valid && readArb.io.in(1).ready
   metaReadArb.io.in(1) <> mshrs.io.meta_read
@@ -828,7 +828,7 @@ class HellaCache extends L1HellaCacheModule {
   writeArb.io.in(1).valid := narrow_grant.valid && narrow_grant.bits.hasData()
   writeArb.io.in(1).bits.addr := mshrs.io.refill.addr
   writeArb.io.in(1).bits.way_en := mshrs.io.refill.way_en
-  writeArb.io.in(1).bits.wmask := SInt(-1)
+  writeArb.io.in(1).bits.wmask := ~UInt(0, nWays)
   writeArb.io.in(1).bits.data := narrow_grant.bits.data(encRowBits-1,0)
   readArb.io.out.ready := !narrow_grant.valid || narrow_grant.ready // insert bubble if refill gets blocked
   readArb.io.out <> data.io.read
