@@ -341,11 +341,11 @@ class MSHRFile extends L1HellaCacheModule {
     mshr.io.req_bits := io.req.bits
     mshr.io.req_bits.sdq_id := sdq_alloc_id
 
-    mshr.io.meta_read <> meta_read_arb.io.in(i)
-    mshr.io.meta_write <> meta_write_arb.io.in(i)
-    mshr.io.mem_req <> mem_req_arb.io.in(i)
-    mshr.io.wb_req <> wb_req_arb.io.in(i)
-    mshr.io.replay <> replay_arb.io.in(i)
+    meta_read_arb.io.in(i) <> mshr.io.meta_read
+    meta_write_arb.io.in(i) <> mshr.io.meta_write
+    mem_req_arb.io.in(i) <> mshr.io.mem_req
+    wb_req_arb.io.in(i) <> mshr.io.wb_req
+    replay_arb.io.in(i) <> mshr.io.replay
 
     mshr.io.mem_grant.valid := io.mem_grant.valid &&
                                  io.mem_grant.bits.client_xact_id === UInt(i)
@@ -362,10 +362,10 @@ class MSHRFile extends L1HellaCacheModule {
 
   alloc_arb.io.out.ready := io.req.valid && sdq_rdy && !idx_match
 
-  meta_read_arb.io.out <> io.meta_read
-  meta_write_arb.io.out <> io.meta_write
-  mem_req_arb.io.out <> io.mem_req
-  wb_req_arb.io.out <> io.wb_req
+  io.meta_read <> meta_read_arb.io.out
+  io.meta_write <> meta_write_arb.io.out
+  io.mem_req <> mem_req_arb.io.out
+  io.wb_req <> wb_req_arb.io.out
 
   io.req.ready := Mux(idx_match, tag_match && sec_rdy, pri_rdy) && sdq_rdy
   io.secondary_miss := idx_match
@@ -624,7 +624,7 @@ class HellaCache extends L1HellaCacheModule {
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
   val dtlb = Module(new TLB)
-  dtlb.io.ptw <> io.ptw
+  io.ptw <> dtlb.io.ptw
   dtlb.io.req.valid := s1_valid_masked && s1_readwrite && !s1_req.phys
   dtlb.io.req.bits.passthrough := s1_req.phys
   dtlb.io.req.bits.asid := UInt(0)
@@ -684,8 +684,8 @@ class HellaCache extends L1HellaCacheModule {
   val meta = Module(new MetadataArray(onReset _))
   val metaReadArb = Module(new Arbiter(new MetaReadReq, 5))
   val metaWriteArb = Module(new Arbiter(new L1MetaWriteReq, 2))
-  metaReadArb.io.out <> meta.io.read
-  metaWriteArb.io.out <> meta.io.write
+  meta.io.read <> metaReadArb.io.out
+  meta.io.write <> metaWriteArb.io.out
 
   // data
   val data = Module(new DataArray)
@@ -763,7 +763,7 @@ class HellaCache extends L1HellaCacheModule {
   val s2_data_uncorrected = Vec(s2_data_decoded.map(_.uncorrected)).toBits
   val s2_word_idx = if(doNarrowRead) UInt(0) else s2_req.addr(log2Up(rowWords*coreDataBytes)-1,3)
   val s2_data_correctable = Vec(s2_data_decoded.map(_.correctable)).toBits()(s2_word_idx)
-  
+
   // store/amo hits
   s3_valid := (s2_valid_masked && s2_hit || s2_replay) && !s2_sc_fail && isWrite(s2_req.cmd)
   val amoalu = Module(new AMOALU)
@@ -808,16 +808,16 @@ class HellaCache extends L1HellaCacheModule {
 
   // probes and releases
   val releaseArb = Module(new LockingArbiter(new Release, 2, outerDataBeats, (r: Release) => r.hasMultibeatData()))
-  releaseArb.io.out <> io.mem.release
+  io.mem.release <> releaseArb.io.out
 
   prober.io.req.valid := io.mem.probe.valid && !lrsc_valid
   io.mem.probe.ready := prober.io.req.ready && !lrsc_valid
   prober.io.req.bits := io.mem.probe.bits
-  prober.io.rep <> releaseArb.io.in(1)
+  releaseArb.io.in(1) <> prober.io.rep
   prober.io.way_en := s2_tag_match_way
   prober.io.block_state := s2_hit_state
-  prober.io.meta_read <> metaReadArb.io.in(2)
-  prober.io.meta_write <> metaWriteArb.io.in(1)
+  metaReadArb.io.in(2) <> prober.io.meta_read
+  metaWriteArb.io.in(1) <> prober.io.meta_write
   prober.io.mshr_rdy := mshrs.io.probe_rdy
 
   // refills
@@ -831,15 +831,15 @@ class HellaCache extends L1HellaCacheModule {
   writeArb.io.in(1).bits.wmask := ~UInt(0, nWays)
   writeArb.io.in(1).bits.data := narrow_grant.bits.data(encRowBits-1,0)
   readArb.io.out.ready := !narrow_grant.valid || narrow_grant.ready // insert bubble if refill gets blocked
-  readArb.io.out <> data.io.read
+  data.io.read <> readArb.io.out
 
   // writebacks
   val wbArb = Module(new Arbiter(new WritebackReq, 2))
-  prober.io.wb_req <> wbArb.io.in(0)
-  mshrs.io.wb_req <> wbArb.io.in(1)
-  wbArb.io.out <> wb.io.req
-  wb.io.meta_read <> metaReadArb.io.in(3)
-  wb.io.data_req <> readArb.io.in(2)
+  wbArb.io.in(0) <> prober.io.wb_req
+  wbArb.io.in(1) <> mshrs.io.wb_req
+  wb.io.req <> wbArb.io.out
+  metaReadArb.io.in(3) <> wb.io.meta_read
+  readArb.io.in(2) <> wb.io.data_req
   wb.io.data_resp := s2_data_corrected
   releaseArb.io.in(0) <> wb.io.release
 
@@ -865,8 +865,10 @@ class HellaCache extends L1HellaCacheModule {
   val s2_data_word_prebypass = s2_data_uncorrected >> Cat(s2_word_idx, Bits(0,log2Up(coreDataBits)))
   val s2_data_word = Mux(s2_store_bypass, s2_store_bypass_data, s2_data_word_prebypass)
   val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc)
-
-  amoalu.io := s2_req
+  
+  amoalu.io.addr := s2_req.addr
+  amoalu.io.cmd := s2_req.cmd
+  amoalu.io.typ := s2_req.typ
   amoalu.io.lhs := s2_data_word
   amoalu.io.rhs := s2_req.data
 
