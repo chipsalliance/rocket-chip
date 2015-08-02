@@ -165,7 +165,7 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int) extends BroadcastXactTrac
     io.inner.release.ready := Bool(true)
     when(io.inner.release.valid) {
       data_buffer(io.irel().addr_beat) := io.irel().data
-      irel_data_valid(io.irel().addr_beat) := Bool(true)
+      irel_data_valid := irel_data_valid.bitSet(io.irel().addr_beat, Bool(true))
     }
     when(irel_data_done) { collect_irel_data := Bool(false) }
   }
@@ -290,7 +290,7 @@ class BroadcastAcquireTracker(trackerId: Int) extends BroadcastXactTracker {
     io.inner.acquire.ready := Bool(true)
     when(io.inner.acquire.valid) {
       data_buffer(io.iacq().addr_beat) := io.iacq().data
-      iacq_data_valid(io.iacq().addr_beat) := Bool(true)
+      iacq_data_valid := iacq_data_valid.bitSet(io.iacq().addr_beat, Bool(true))
     }
     when(iacq_data_done) { collect_iacq_data := Bool(false) }
   }
