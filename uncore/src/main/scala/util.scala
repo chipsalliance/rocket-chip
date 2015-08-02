@@ -53,7 +53,7 @@ class FlowThroughSerializer[T <: HasTileLinkData](gen: T, n: Int) extends Module
   require(io.in.bits.data.getWidth % narrowWidth == 0)
 
   if(n == 1) {
-    io.in <> io.out
+    io.out <> io.in
     io.cnt := UInt(0)
     io.done := Bool(true)
   } else {
