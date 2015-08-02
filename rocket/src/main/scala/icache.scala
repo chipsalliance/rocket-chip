@@ -93,7 +93,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   btb.io.ras_update := io.cpu.ras_update
   btb.io.invalidate := io.cpu.invalidate || io.ptw.invalidate
 
-  tlb.io.ptw <> io.ptw
+  io.ptw <> tlb.io.ptw
   tlb.io.req.valid := !stall && !icmiss
   tlb.io.req.bits.vpn := s1_pc >> UInt(pgIdxBits)
   tlb.io.req.bits.asid := UInt(0)
@@ -101,7 +101,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   tlb.io.req.bits.instruction := Bool(true)
   tlb.io.req.bits.store := Bool(false)
 
-  icache.io.mem <> io.mem
+  io.mem <> icache.io.mem
   icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.idx := io.cpu.npc
   icache.io.invalidate := io.cpu.invalidate
