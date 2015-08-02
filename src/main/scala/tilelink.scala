@@ -1009,7 +1009,7 @@ trait TileLinkArbiterLike extends TileLinkParameters {
       arb.bits.payload.client_xact_id := clientSourcedClientXactId(req.bits.payload, id)
       req.ready := arb.ready
     }}
-    arb.io.out <> mngr
+    mngr <> arb.io.out
   }
 
   def hookupClientSourceHeaderless[M <: ClientSourcedWithIdAndData](
@@ -1023,7 +1023,7 @@ trait TileLinkArbiterLike extends TileLinkParameters {
       arb.bits.client_xact_id := clientSourcedClientXactId(req.bits, id)
       req.ready := arb.ready
     }}
-    arb.io.out <> mngr
+    mngr <> arb.io.out
   }
 
   def hookupManagerSourceWithHeader[M <: ManagerToClientChannel](
@@ -1079,7 +1079,7 @@ trait TileLinkArbiterLike extends TileLinkParameters {
   def hookupFinish[M <: LogicalNetworkIO[Finish]]( clts: Seq[DecoupledIO[M]], mngr: DecoupledIO[M]) {
     val arb = Module(new RRArbiter(mngr.bits, arbN))
     arb.io.in <> clts
-    arb.io.out <> mngr
+    mngr <> arb.io.out
   }
 }
 
@@ -1401,11 +1401,11 @@ class MemPipeIOTileLinkIOConverter(outstanding: Int) extends MIFModule {
   
   val a = Module(new MemIOTileLinkIOConverter(1))
   val b = Module(new MemPipeIOMemIOConverter(outstanding))
-  a.io.tl <> io.tl
+  io.tl <> a.io.tl
   b.io.cpu.req_cmd <> Queue(a.io.mem.req_cmd, 2, pipe=true)
   b.io.cpu.req_data <> Queue(a.io.mem.req_data, mifDataBeats, pipe=true)
   a.io.mem.resp <> b.io.cpu.resp
-  b.io.mem <> io.mem
+  io.mem <> b.io.mem
 }
 
 //Adapter betweewn an UncachedTileLinkIO and a mem controller MemIO
