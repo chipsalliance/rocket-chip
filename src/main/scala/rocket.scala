@@ -505,7 +505,7 @@ class Rocket extends CoreModule
   def checkHazards(targets: Seq[(Bool, UInt)], cond: UInt => Bool) =
     targets.map(h => h._1 && cond(h._2)).reduce(_||_)
 
-  def imm(sel: Bits, inst: Bits) = {
+  def imm(sel: UInt, inst: UInt) = {
     val sign = Mux(sel === IMM_Z, SInt(0), inst(31).toSInt)
     val b30_20 = Mux(sel === IMM_U, inst(30,20).toSInt, sign)
     val b19_12 = Mux(sel != IMM_U && sel != IMM_UJ, sign, inst(19,12).toSInt)
@@ -523,13 +523,13 @@ class Rocket extends CoreModule
     Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).toSInt
   }
 
-  def vaSign(a0: UInt, ea: Bits) = {
+  def vaSign(a0: UInt, ea: UInt) = {
     // efficient means to compress 64-bit VA into vaddrBits+1 bits
     // (VA is bad if VA(vaddrBits) != VA(vaddrBits-1))
     val a = a0 >> vaddrBits-1
     val e = ea(vaddrBits,vaddrBits-1)
     Mux(a === UInt(0) || a === UInt(1), e != UInt(0),
-    Mux(a === SInt(-1) || a === SInt(-2), e === SInt(-1),
+    Mux(a.toSInt === SInt(-1) || a.toSInt === SInt(-2), e.toSInt === SInt(-1),
     e(0)))
   }
 
