@@ -91,9 +91,9 @@ class L2BroadcastHub extends ManagerCoherenceAgent
 
   // Wire probe requests and grant reply to clients, finish acks from clients
   // Note that we bypass the Grant data subbundles
+  doOutputArbitration(io.inner.grant, trackerList.map(_.io.inner.grant))
   io.inner.grant.bits.data := io.outer.grant.bits.data
   io.inner.grant.bits.addr_beat := io.outer.grant.bits.addr_beat
-  doOutputArbitration(io.inner.grant, trackerList.map(_.io.inner.grant))
   doOutputArbitration(io.inner.probe, trackerList.map(_.io.inner.probe))
   doInputRouting(io.inner.finish, trackerList.map(_.io.inner.finish))
 
@@ -108,12 +108,12 @@ class L2BroadcastHub extends ManagerCoherenceAgent
   val free_sdq = io.outer.acquire.fire() &&
                   io.outer.acquire.bits.hasData() &&
                   outer_data_ptr.loc === inStoreQueue
+  io.outer <> outer_arb.io.out
   io.outer.acquire.bits.data := MuxLookup(outer_data_ptr.loc, io.irel().data, Array(
                                           inStoreQueue -> sdq(outer_data_ptr.idx),
                                           inVolWBQueue -> vwbdq(outer_data_ptr.idx)))
   io.outer.acquire.bits.union := Cat(Fill(io.outer.acquire.bits.tlWriteMaskBits, outer_arb.io.out.acquire.bits.union(1)),
                                    outer_arb.io.out.acquire.bits.union(0))
-  io.outer <> outer_arb.io.out
 
   // Update SDQ valid bits
   when (io.outer.acquire.valid || sdq_enq) {
