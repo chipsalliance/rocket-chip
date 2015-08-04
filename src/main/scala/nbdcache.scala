@@ -830,8 +830,8 @@ class HellaCache extends L1HellaCacheModule {
   writeArb.io.in(1).bits.way_en := mshrs.io.refill.way_en
   writeArb.io.in(1).bits.wmask := ~UInt(0, nWays)
   writeArb.io.in(1).bits.data := narrow_grant.bits.data(encRowBits-1,0)
-  readArb.io.out.ready := !narrow_grant.valid || narrow_grant.ready // insert bubble if refill gets blocked
   data.io.read <> readArb.io.out
+  readArb.io.out.ready := !narrow_grant.valid || narrow_grant.ready // insert bubble if refill gets blocked
 
   // writebacks
   val wbArb = Module(new Arbiter(new WritebackReq, 2))
