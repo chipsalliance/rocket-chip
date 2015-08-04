@@ -24,15 +24,15 @@ class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
     d_shadow := io.set_divisor.bits(log2Up(divisor_max)-1, 0).toUInt
     h_shadow := io.set_divisor.bits(log2Up(divisor_max)-1+16, 16).toUInt
   }
-  io.divisor := hold << UInt(16) | divisor
+  io.divisor := (hold << 16) | divisor
 
   val count = Reg{UInt(width = log2Up(divisor_max))}
   val myclock = Reg{Bool()}
   count := count + UInt(1)
 
-  val rising = count === (divisor >> UInt(1))
+  val rising = count === (divisor >> 1)
   val falling = count === divisor
-  val held = count === (divisor >> UInt(1)) + hold
+  val held = count === (divisor >> 1) + hold
 
   when (falling) {
     divisor := d_shadow
