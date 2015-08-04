@@ -787,7 +787,7 @@ class TileLinkIOWrapper extends TLModule {
     val out = new TileLinkIO
   }
   io.out.acquire <> io.in.acquire
-  io.out.grant <> io.in.grant
+  io.in.grant <> io.out.grant
   io.out.finish <> io.in.finish
   io.out.probe.ready := Bool(true)
   io.out.release.valid := Bool(false)
@@ -799,7 +799,7 @@ class ClientTileLinkIOWrapper extends TLModule {
     val out = new ClientTileLinkIO
   }
   io.out.acquire <> io.in.acquire
-  io.out.grant <> io.in.grant
+  io.in.grant <> io.out.grant
   io.out.probe.ready := Bool(true)
   io.out.release.valid := Bool(false)
 }
