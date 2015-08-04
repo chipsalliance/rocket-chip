@@ -6,8 +6,8 @@ import Chisel._
 
 abstract class Decoding
 {
-  def uncorrected: Bits
-  def corrected: Bits
+  def uncorrected: UInt
+  def corrected: UInt
   def correctable: Bool
   def uncorrectable: Bool
   def error = correctable || uncorrectable
@@ -16,15 +16,15 @@ abstract class Decoding
 abstract class Code
 {
   def width(w0: Int): Int
-  def encode(x: Bits): Bits
-  def decode(x: Bits): Decoding
+  def encode(x: UInt): UInt
+  def decode(x: UInt): Decoding
 }
 
 class IdentityCode extends Code
 {
   def width(w0: Int) = w0
-  def encode(x: Bits) = x
-  def decode(y: Bits) = new Decoding {
+  def encode(x: UInt) = x
+  def decode(y: UInt) = new Decoding {
     def uncorrected = y
     def corrected = y
     def correctable = Bool(false)
@@ -35,8 +35,8 @@ class IdentityCode extends Code
 class ParityCode extends Code
 {
   def width(w0: Int) = w0+1
-  def encode(x: Bits) = Cat(x.xorR, x)
-  def decode(y: Bits) = new Decoding {
+  def encode(x: UInt) = Cat(x.xorR, x)
+  def decode(y: UInt) = new Decoding {
     def uncorrected = y(y.getWidth-2,0)
     def corrected = uncorrected
     def correctable = Bool(false)
@@ -50,7 +50,7 @@ class SECCode extends Code
     val m = new Unsigned(k).log2 + 1
     k + m + (if((1 << m) < m+k+1) 1 else 0)
   }
-  def encode(x: Bits) = {
+  def encode(x: UInt) = {
     val k = x.getWidth
     require(k > 0)
     val n = width(k)
@@ -65,7 +65,7 @@ class SECCode extends Code
     }
     Vec(y).toBits
   }
-  def decode(y: Bits) = new Decoding {
+  def decode(y: UInt) = new Decoding {
     val n = y.getWidth
     require(n > 0 && !isPow2(n))
 
@@ -77,7 +77,7 @@ class SECCode extends Code
     }
     val s = Vec(syndrome).toBits
 
-    private def swizzle(z: Bits) = Vec((1 to n).filter(i => !isPow2(i)).map(i => z(i-1))).toBits
+    private def swizzle(z: UInt) = Vec((1 to n).filter(i => !isPow2(i)).map(i => z(i-1))).toBits
     def uncorrected = swizzle(y)
     def corrected = swizzle(((y.toUInt << UInt(1)) ^ UIntToOH(s)) >> UInt(1))
     def correctable = s.orR
@@ -92,8 +92,8 @@ class SECDEDCode extends Code
   private val par = new ParityCode
 
   def width(k: Int) = sec.width(k)+1
-  def encode(x: Bits) = par.encode(sec.encode(x))
-  def decode(x: Bits) = new Decoding {
+  def encode(x: UInt) = par.encode(sec.encode(x))
+  def decode(x: UInt) = new Decoding {
     val secdec = sec.decode(x(x.getWidth-2,0))
     val pardec = par.decode(x)
 
