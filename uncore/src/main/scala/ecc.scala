@@ -79,7 +79,7 @@ class SECCode extends Code
 
     private def swizzle(z: UInt) = Vec((1 to n).filter(i => !isPow2(i)).map(i => z(i-1))).toBits
     def uncorrected = swizzle(y)
-    def corrected = swizzle(((y.toUInt << UInt(1)) ^ UIntToOH(s)) >> UInt(1))
+    def corrected = swizzle(((y.toUInt << 1) ^ UIntToOH(s)) >> 1)
     def correctable = s.orR
     def uncorrectable = Bool(false)
   }

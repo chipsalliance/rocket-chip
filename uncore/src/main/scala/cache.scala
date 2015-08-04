@@ -87,7 +87,7 @@ class AMOALU extends CacheModule {
   val word = io.typ === MT_W || io.typ === MT_WU || // Logic minimization:
                io.typ === MT_B || io.typ === MT_BU
 
-  val mask = ~UInt(0,64) ^ (io.addr(2) << UInt(31))
+  val mask = ~UInt(0,64) ^ (io.addr(2) << 31)
   val adder_out = (io.lhs & mask).toUInt + (rhs & mask)
 
   val cmp_lhs  = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
