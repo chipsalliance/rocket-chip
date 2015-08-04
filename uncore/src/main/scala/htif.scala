@@ -256,7 +256,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   io.scr.wen := Bool(false)
   io.scr.wdata := pcr_wdata
   io.scr.waddr := scr_addr.toUInt
-  when (state === state_pcr_req && pcr_coreid === SInt(-1)) {
+  when (state === state_pcr_req && pcr_coreid.andR) {
     io.scr.wen := cmd === cmd_writecr
     pcrReadData := scr_rdata(scr_addr)
     state := state_tx
