@@ -55,9 +55,10 @@ class IntCtrlSigs extends Bundle {
 
   def decode(inst: UInt, table: Iterable[(BitPat, List[BitPat])]) = {
     val decoder = DecodeLogic(inst, XDecode.decode_default, table)
-    Vec(legal, fp, rocc, branch, jal, jalr, rxs2, rxs1, sel_alu2, sel_alu1,
-        sel_imm, alu_dw, alu_fn, mem, mem_cmd, mem_type,
-        rfs1, rfs2, rfs3, wfd, div, wxd, csr, fence_i, fence, amo) := decoder
+    val sigs = Seq(legal, fp, rocc, branch, jal, jalr, rxs2, rxs1, sel_alu2,
+                   sel_alu1, sel_imm, alu_dw, alu_fn, mem, mem_cmd, mem_type,
+                   rfs1, rfs2, rfs3, wfd, div, wxd, csr, fence_i, fence, amo)
+    sigs zip decoder map {case(s,d) => s := d}
     this
   }
 }
