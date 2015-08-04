@@ -24,7 +24,7 @@ object VLSIUtils {
     val arb = Module(new MemIOArbiter(nMemChannels))
     val mem_serdes = Module(new MemSerdes(htifWidth))
     mem_serdes.io.wide <> arb.io.outer
-    mem_serdes.io.narrow <> backup
+    backup <> mem_serdes.io.narrow
 
     llcs zip mems zip arb.io.inner foreach { case ((llc, mem), wide) =>
       llc.req_cmd.ready := Mux(en, wide.req_cmd.ready, mem.req_cmd.ready)
