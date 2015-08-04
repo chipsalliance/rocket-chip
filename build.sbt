@@ -4,7 +4,7 @@ version := "1.0"
 
 name := "junctions"
 
-scalaVersion := "2.10.2"
+scalaVersion := "2.11.6"
 
 // Provide a managed dependency on chisel if -DchiselVersion="" is supplied on the command line.
 libraryDependencies ++= (Seq("chisel").map {
