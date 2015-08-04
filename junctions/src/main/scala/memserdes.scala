@@ -248,7 +248,7 @@ class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module
   val io = new QueueIO(data, entries)
 
   val fq = Module(new HellaFlowQueue(entries)(data))
-  io.enq <> fq.io.enq
+  fq.io.enq <> io.enq
   io.deq <> Queue(fq.io.deq, 1, pipe = true)
 }
 
@@ -303,7 +303,7 @@ class MemIOArbiter(val arbN: Int) extends MIFModule {
       io.inner(i).resp.bits := io.outer.resp.bits
       io.inner(i).resp.bits.tag := io.outer.resp.bits.tag >> UInt(log2Up(arbN))
     }
-  } else { io.inner.head <> io.outer }
+  } else { io.outer <> io.inner.head }
 }
 
 object MemIOMemPipeIOConverter {
