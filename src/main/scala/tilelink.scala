@@ -1112,7 +1112,7 @@ trait AppendsArbiterId extends TileLinkArbiterLike {
   def clientSourcedClientXactId(in: ClientSourcedWithId, id: Int) =
     Cat(in.client_xact_id, UInt(id, log2Up(arbN)))
   def managerSourcedClientXactId(in: ManagerSourcedWithId) = 
-    in.client_xact_id >> UInt(log2Up(arbN))
+    in.client_xact_id >> log2Up(arbN)
   def arbIdx(in: ManagerSourcedWithId) = in.client_xact_id(log2Up(arbN)-1,0).toUInt
 }
 
@@ -1378,7 +1378,7 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
     dst = (if(dstIdBits > 0) io.nasti.r.bits.id(dst_off, tlClientXactIdBits + 1) else UInt(0)),
     is_builtin_type = io.nasti.r.bits.id(0),
     g_type = Mux(io.nasti.r.bits.id(0), Grant.getDataBlockType, UInt(0)), // TODO: Assumes MI or MEI protocol
-    client_xact_id = io.nasti.r.bits.id >> UInt(1),
+    client_xact_id = io.nasti.r.bits.id >> 1,
     manager_xact_id = UInt(0),
     addr_beat = tl_cnt_in,
     data = io.nasti.r.bits.data)
@@ -1389,7 +1389,7 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
     dst = (if(dstIdBits > 0) io.nasti.b.bits.id(dst_off, tlClientXactIdBits + 1) else UInt(0)),
     is_builtin_type = Bool(true),
     g_type = Mux(io.nasti.b.bits.id(0), Grant.voluntaryAckType, Grant.putAckType),
-    client_xact_id = io.nasti.b.bits.id >> UInt(1),
+    client_xact_id = io.nasti.b.bits.id >> 1,
     manager_xact_id = UInt(0))
 }
 
@@ -1450,7 +1450,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters 
     dst = (if(dstIdBits > 0) tag_out(dst_off, tlClientXactIdBits + 1) else UInt(0)),
     is_builtin_type = Bool(true),
     g_type = Mux(data_from_rel, Grant.voluntaryAckType, Grant.putAckType),
-    client_xact_id = tag_out >> UInt(1),
+    client_xact_id = tag_out >> 1,
     manager_xact_id = UInt(0))
 
   if(tlDataBits != mifDataBits || tlDataBeats != mifDataBeats) {
@@ -1619,7 +1619,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters 
       dst = (if(dstIdBits > 0) tag_in(dst_off, tlClientXactIdBits + 1) else UInt(0)),
       is_builtin_type = tag_in(0),
       g_type = Mux(tag_in(0), Grant.getDataBlockType, UInt(0)), // TODO: Assumes MI or MEI protocol
-      client_xact_id = tag_in >> UInt(1),
+      client_xact_id = tag_in >> 1,
       manager_xact_id = UInt(0),
       addr_beat = tl_cnt_in,
       data = tl_buf_in(tl_cnt_in))
@@ -1651,7 +1651,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters 
       dst = (if(dstIdBits > 0) io.mem.resp.bits.tag(dst_off, tlClientXactIdBits + 1) else UInt(0)),
       is_builtin_type = io.mem.resp.bits.tag(0),
       g_type = Mux(io.mem.resp.bits.tag(0), Grant.getDataBlockType, UInt(0)), // TODO: Assumes MI or MEI protocol
-      client_xact_id = io.mem.resp.bits.tag >> UInt(1),
+      client_xact_id = io.mem.resp.bits.tag >> 1,
       manager_xact_id = UInt(0),
       addr_beat = tl_cnt_in,
       data = io.mem.resp.bits.data)

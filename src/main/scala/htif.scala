@@ -96,7 +96,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     }
   }
 
-  val rx_word_count = (rx_count >> UInt(log2Up(short_request_bits/w)))
+  val rx_word_count = (rx_count >> log2Up(short_request_bits/w))
   val rx_word_done = io.host.in.valid && rx_count(log2Up(short_request_bits/w)-1,0).andR
   val packet_ram_depth = long_request_bits/short_request_bits-1
   val packet_ram = Mem(Bits(width = short_request_bits), packet_ram_depth)
@@ -173,7 +173,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     packet_ram(Cat(cnt, ui))
   }.reverse.reduce(_##_)
 
-  val init_addr = addr.toUInt >> UInt(offsetBits-3)
+  val init_addr = addr.toUInt >> (offsetBits-3)
   io.mem.acquire.valid := state === state_mem_rreq || state === state_mem_wreq
   io.mem.acquire.bits := Mux(cmd === cmd_writemem, 
     PutBlock(
