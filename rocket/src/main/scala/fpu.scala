@@ -131,8 +131,10 @@ class FPUDecoder extends Module
           FSQRT_D  -> List(FCMD_SQRT,   N,Y,Y,N,N,Y,X,N,N,N,N,N,N,Y,Y,Y)
           ))
   val s = io.sigs
-  Vec(s.cmd, s.ldst, s.wen, s.ren1, s.ren2, s.ren3, s.swap12, s.swap23, s.single, s.fromint,
-      s.toint, s.fastpipe, s.fma, s.div, s.sqrt, s.round, s.wflags) := decoder
+  val sigs = Seq(s.cmd, s.ldst, s.wen, s.ren1, s.ren2, s.ren3, s.swap12,
+                 s.swap23, s.single, s.fromint, s.toint, s.fastpipe, s.fma,
+                 s.div, s.sqrt, s.round, s.wflags)
+  sigs zip decoder map {case(s,d) => s := d}
 }
 
 class FPUIO extends Bundle {
