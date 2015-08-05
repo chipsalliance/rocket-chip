@@ -95,7 +95,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
 
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := !stall && !icmiss
-  tlb.io.req.bits.vpn := s1_pc >> UInt(pgIdxBits)
+  tlb.io.req.bits.vpn := s1_pc >> pgIdxBits
   tlb.io.req.bits.asid := UInt(0)
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.instruction := Bool(true)
@@ -257,7 +257,7 @@ class ICache extends FrontendModule
   // output signals
   io.resp.valid := s2_hit
   io.mem.acquire.valid := (state === s_request)
-  io.mem.acquire.bits := GetBlock(addr_block = s2_addr >> UInt(blockOffBits))
+  io.mem.acquire.bits := GetBlock(addr_block = s2_addr >> blockOffBits)
 
   // control state machine
   switch (state) {

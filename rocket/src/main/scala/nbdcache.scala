@@ -332,7 +332,7 @@ class MSHRFile extends L1HellaCacheModule {
 
     idxMatch(i) := mshr.io.idx_match
     tagList(i) := mshr.io.tag
-    wbTagList(i) := mshr.io.wb_req.bits.addr_block >> UInt(idxBits)
+    wbTagList(i) := mshr.io.wb_req.bits.addr_block >> idxBits
 
     alloc_arb.io.in(i).valid := mshr.io.req_pri_rdy
     mshr.io.req_pri_val := alloc_arb.io.in(i).ready
@@ -437,7 +437,7 @@ class WritebackUnit extends L1HellaCacheModule {
   // We reissue the meta read as it sets up the mux ctrl for s2_data_muxed
   io.meta_read.valid := fire
   io.meta_read.bits.idx := req_idx
-  io.meta_read.bits.tag := req.addr_block >> UInt(idxBits)
+  io.meta_read.bits.tag := req.addr_block >> idxBits
 
   io.data_req.valid := fire
   io.data_req.bits.way_en := req.way_en

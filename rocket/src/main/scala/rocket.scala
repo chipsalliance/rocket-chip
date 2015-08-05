@@ -331,7 +331,7 @@ class Rocket extends CoreModule
   // writeback arbitration
   val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
   val dmem_resp_fpu =  io.dmem.resp.bits.tag(0).toBool
-  val dmem_resp_waddr = io.dmem.resp.bits.tag.toUInt >> UInt(1)
+  val dmem_resp_waddr = io.dmem.resp.bits.tag.toUInt()(5,1)
   val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
   val dmem_resp_replay = io.dmem.resp.bits.replay && io.dmem.resp.bits.has_data
 
