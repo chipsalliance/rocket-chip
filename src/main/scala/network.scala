@@ -13,7 +13,7 @@ class PhysicalHeader(n: Int) extends Bundle {
 
 class PhysicalNetworkIO[T <: Data](n: Int, dType: T) extends Bundle {
   val header = new PhysicalHeader(n)
-  val payload = dType
+  val payload = dType.cloneType
   override def cloneType = new PhysicalNetworkIO(n,dType).asInstanceOf[this.type]
 }
 
