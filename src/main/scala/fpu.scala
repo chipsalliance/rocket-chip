@@ -215,7 +215,7 @@ class FPToInt extends Module
   dcmp.io.a := in.in1
   dcmp.io.b := in.in2
   val dcmp_out = (~in.rm & Cat(dcmp.io.a_lt_b, dcmp.io.a_eq_b)).orR
-  val dcmp_exc = (~in.rm & Cat(dcmp.io.a_lt_b_invalid, dcmp.io.a_eq_b_invalid)).orR << UInt(4)
+  val dcmp_exc = (~in.rm & Cat(dcmp.io.a_lt_b_invalid, dcmp.io.a_eq_b_invalid)).orR << 4
 
   val d2i = hardfloat.recodedFloatNToAny(in.in1, in.rm, in.typ ^ 1, 52, 12, 64)
 

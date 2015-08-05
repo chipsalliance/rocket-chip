@@ -125,7 +125,7 @@ class PTW(n: Int) extends CoreModule
   val resp_err = state === s_error
   val resp_val = state === s_done || resp_err
 
-  val r_resp_ppn = io.mem.req.bits.addr >> UInt(pgIdxBits)
+  val r_resp_ppn = io.mem.req.bits.addr >> pgIdxBits
   val resp_ppn = Vec((0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn)(count)
 
   for (i <- 0 until io.requestor.size) {
