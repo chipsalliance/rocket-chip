@@ -51,7 +51,7 @@ abstract class RocketChipNetwork(
     case (m, i) => {
       val p = Module(new ManagerTileLinkNetworkPort(i, sharerToClientId))
       val q = Module(new TileLinkEnqueuer(managerDepths))
-      m <> p.io.manager
+      p.io.manager <> m
       p.io.network <> q.io.manager
       q.io.client
     }
