@@ -50,12 +50,12 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   val tlb = Module(new TLB)
 
   val s1_pc_ = Reg(UInt())
-  val s1_pc = s1_pc_ & SInt(-coreInstBytes) // discard PC LSBS (this propagates down the pipeline)
+  val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
   val s1_same_block = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=UInt(START_ADDR))
   val s2_btb_resp_valid = Reg(init=Bool(false))
-  val s2_btb_resp_bits = Reg(btb.io.resp.bits.clone)
+  val s2_btb_resp_bits = Reg(btb.io.resp.bits)
   val s2_xcpt_if = Reg(init=Bool(false))
   val icbuf = Module(new Queue(new ICacheResp, 1, pipe=true))
 
@@ -94,7 +94,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   btb.io.ras_update := io.cpu.ras_update
   btb.io.invalidate := io.cpu.invalidate || io.ptw.invalidate
 
-  tlb.io.ptw <> io.ptw
+  io.ptw <> tlb.io.ptw
   tlb.io.req.valid := !stall && !icmiss
   tlb.io.req.bits.vpn := s1_pc >> UInt(pgIdxBits)
   tlb.io.req.bits.asid := UInt(0)
@@ -102,7 +102,7 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   tlb.io.req.bits.instruction := Bool(true)
   tlb.io.req.bits.store := Bool(false)
 
-  icache.io.mem <> io.mem
+  io.mem <> icache.io.mem
   icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.idx := io.cpu.npc
   icache.io.invalidate := io.cpu.invalidate
@@ -160,7 +160,7 @@ class ICache extends FrontendModule
   val state = Reg(init=s_ready)
   val invalidated = Reg(Bool())
   val stall = !io.resp.ready
-  val rdy = Bool()
+  val rdy = Wire(Bool())
 
   val refill_addr = Reg(UInt(width = paddrBits))
   val s1_any_tag_hit = Bool()
@@ -197,16 +197,12 @@ class ICache extends FrontendModule
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s1_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
-  val tag_array = Mem(Bits(width = entagbits*nWays), nSets, seqRead = true)
-  val tag_raddr = Reg(UInt())
+  val tag_array = SeqMem(Bits(width = entagbits*nWays), nSets)
+  val tag_rdata = tag_array.read(s0_pgoff(untagBits-1,blockOffBits), !refill_done && s0_valid)
   when (refill_done) {
     val wmask = FillInterleaved(entagbits, if (isDM) Bits(1) else UIntToOH(repl_way))
     val tag = code.encode(refill_tag).toUInt
     tag_array.write(s1_idx, Fill(nWays, tag), wmask)
-  }
-//  /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
-  .elsewhen (s0_valid) {
-    tag_raddr := s0_pgoff(untagBits-1,blockOffBits)
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
@@ -227,7 +223,7 @@ class ICache extends FrontendModule
 
   for (i <- 0 until nWays) {
     val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
-    val tag_out = tag_array(tag_raddr)(entagbits*(i+1)-1, entagbits*i)
+    val tag_out = tag_rdata(entagbits*(i+1)-1, entagbits*i)
     val s1_tag_disparity = code.decode(tag_out).error
     when (s1_valid && rdy && !stall) {
     }
@@ -238,20 +234,18 @@ class ICache extends FrontendModule
   s1_any_tag_hit := s1_tag_hit.reduceLeft(_||_) && !s1_disparity.reduceLeft(_||_)
 
   for (i <- 0 until nWays) {
-    val data_array = Mem(Bits(width = code.width(rowBits)), nSets*refillCycles, seqRead = true)
-    val s1_raddr = Reg(UInt())
-    when (narrow_grant.valid && repl_way === UInt(i)) {
-      val e_d = code.encode(narrow_grant.bits.data)
-      if(refillCycles > 1) data_array(Cat(s1_idx, refill_cnt)) := e_d
-      else data_array(s1_idx) := e_d
+    val data_array = SeqMem(Bits(width = code.width(rowBits)), nSets*refillCycles)
+    val wen = narrow_grant.valid && repl_way === UInt(i)
+    when (wen) {
+      val e_d = code.encode(narrow_grant.bits.data).toUInt
+      if(refillCycles > 1) data_array.write(Cat(s1_idx, refill_cnt), e_d)
+      else data_array.write(s1_idx, e_d)
     }
-//    /*.else*/when (s0_valid) { // uncomment ".else" to infer 6T SRAM
-    .elsewhen (s0_valid) {
-      s1_raddr := s0_pgoff(untagBits-1,blockOffBits-(if(refillCycles > 1) refill_cnt.getWidth else 0))
-    }
+    val s0_raddr = s0_pgoff(untagBits-1,blockOffBits-(if(refillCycles > 1) refill_cnt.getWidth else 0))
+    val s1_rdata = data_array.read(s0_raddr, !wen && s0_valid)
     // if s1_tag_match is critical, replace with partial tag check
     s1_dout(i) := 0
-    when (s1_valid && rdy && !stall && (Bool(isDM) || s1_tag_match(i))) { s1_dout(i) := data_array(s1_raddr) }
+    when (s1_valid && rdy && !stall && (Bool(isDM) || s1_tag_match(i))) { s1_dout(i) := s1_rdata }
   }
   io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
 

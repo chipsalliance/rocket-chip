@@ -5,7 +5,6 @@ package rocket
 import Chisel._
 import Util._
 import Instructions._
-import Node._
 import uncore._
 import scala.math._
 
@@ -58,7 +57,7 @@ object CSR
 {
   // commands
   val SZ = 3
-  val X = UInt.DC(SZ)
+  val X = BitPat.DC(SZ)
   val N = UInt(0,SZ)
   val W = UInt(1,SZ)
   val S = UInt(2,SZ)
@@ -134,7 +133,7 @@ class CSRFile extends CoreModule
 
   io.interrupt_cause := 0
   io.interrupt := io.interrupt_cause(xLen-1)
-  val some_interrupt_pending = Bool(); some_interrupt_pending := false
+  val some_interrupt_pending = Wire(init=Bool(false))
   def checkInterrupt(max_priv: UInt, cond: Bool, num: Int) = {
     when (cond && (reg_mstatus.prv < max_priv || reg_mstatus.prv === max_priv && reg_mstatus.ie)) {
       io.interrupt_cause := UInt((BigInt(1) << (xLen-1)) + num)
@@ -216,20 +215,17 @@ class CSRFile extends CoreModule
     CSRs.mfromhost -> reg_fromhost)
 
   if (params(UseVM)) {
-    val read_sstatus = new SStatus
-    read_sstatus := new SStatus().fromBits(read_mstatus) // sstatus mostly overlaps mstatus
+    val read_sstatus = Wire(init=new SStatus().fromBits(read_mstatus))
     read_sstatus.zero1 := 0
     read_sstatus.zero2 := 0
     read_sstatus.zero3 := 0
     read_sstatus.zero4 := 0
 
-    val read_sip = new MIP
-    read_sip := new MIP().fromBits(0)
+    val read_sip = Wire(init=new MIP().fromBits(0))
     read_sip.ssip := reg_mip.ssip
     read_sip.stip := reg_mip.stip
 
-    val read_sie = new MIP
-    read_sie := new MIP().fromBits(0)
+    val read_sie = Wire(init=new MIP().fromBits(0))
     read_sie.ssip := reg_mie.ssip
     read_sie.stip := reg_mie.stip
 
@@ -295,9 +291,9 @@ class CSRFile extends CoreModule
   io.csr_xcpt := csr_xcpt
   io.eret := insn_ret || insn_redirect_trap
   io.status := reg_mstatus
-  io.status.fs := reg_mstatus.fs.orR.toSInt // either off or dirty (no clean/initial support yet)
-  io.status.xs := reg_mstatus.xs.orR.toSInt // either off or dirty (no clean/initial support yet)
-  io.status.sd := reg_mstatus.xs.orR || reg_mstatus.fs.orR
+  io.status.fs := Fill(2, reg_mstatus.fs.orR) // either off or dirty (no clean/initial support yet)
+  io.status.xs := Fill(2, reg_mstatus.xs.orR) // either off or dirty (no clean/initial support yet)
+  io.status.sd := io.status.fs.andR || io.status.xs.andR
   if (xLen == 32)
     io.status.sd_rv32 := io.status.sd
 
@@ -310,7 +306,7 @@ class CSRFile extends CoreModule
     reg_mstatus.prv2 := reg_mstatus.prv1
     reg_mstatus.ie2 := reg_mstatus.ie1
 
-    reg_mepc := io.pc & SInt(-coreInstBytes)
+    reg_mepc := ~(~io.pc | (coreInstBytes-1))
     reg_mcause := io.cause
     when (csr_xcpt) {
       reg_mcause := Causes.illegal_instruction
@@ -409,7 +405,7 @@ class CSRFile extends CoreModule
     when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
     when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
     when (decoded_addr(CSRs.fcsr))     { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
-    when (decoded_addr(CSRs.mepc))     { reg_mepc := wdata(vaddrBitsExtended-1,0).toSInt & SInt(-coreInstBytes) }
+    when (decoded_addr(CSRs.mepc))     { reg_mepc := ~(~wdata | (coreInstBytes-1)) }
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
@@ -424,7 +420,7 @@ class CSRFile extends CoreModule
         val new_sstatus = new SStatus().fromBits(wdata)
         reg_mstatus.ie := new_sstatus.ie
         reg_mstatus.ie1 := new_sstatus.pie
-        reg_mstatus.prv1 := Mux(new_sstatus.ps, PRV_S, PRV_U)
+        reg_mstatus.prv1 := Mux[UInt](new_sstatus.ps, PRV_S, PRV_U)
         reg_mstatus.mprv := new_sstatus.mprv
         reg_mstatus.fs := new_sstatus.fs // even without an FPU
         if (!params(BuildRoCC).isEmpty) reg_mstatus.xs := new_sstatus.xs
@@ -440,8 +436,8 @@ class CSRFile extends CoreModule
       }
       when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
       when (decoded_addr(CSRs.sptbr))    { reg_sptbr := Cat(wdata(paddrBits-1, pgIdxBits), Bits(0, pgIdxBits)) }
-      when (decoded_addr(CSRs.sepc))     { reg_sepc := wdata(vaddrBitsExtended-1,0).toSInt & SInt(-coreInstBytes) }
-      when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata(vaddrBits-1,0).toSInt & SInt(-coreInstBytes) }
+      when (decoded_addr(CSRs.sepc))     { reg_sepc := ~(~wdata | (coreInstBytes-1)) }
+      when (decoded_addr(CSRs.stvec))    { reg_stvec := ~(~wdata | (coreInstBytes-1)) }
     }
   }
 
