@@ -3,7 +3,6 @@
 package rocket
 
 import Chisel._
-import Node._
 import uncore._
 import Util._
 
@@ -64,7 +63,7 @@ class AccumulatorExample extends RoCC
 {
   val n = 4
   val regfile = Mem(UInt(width = xLen), n)
-  val busy = Vec.fill(n){Reg(init=Bool(false))}
+  val busy = Reg(init=Vec(Bool(false), n))
 
   val cmd = Queue(io.cmd)
   val funct = cmd.bits.inst.funct

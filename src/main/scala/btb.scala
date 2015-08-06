@@ -3,9 +3,8 @@
 package rocket
 
 import Chisel._
+import junctions._
 import Util._
-import Node._
-import uncore._
 
 case object NBTBEntries extends Field[Int]
 case object NRAS extends Field[Int]
@@ -36,7 +35,7 @@ class RAS(nras: Int) {
 
   private val count = Reg(init=UInt(0,log2Up(nras+1)))
   private val pos = Reg(init=UInt(0,log2Up(nras)))
-  private val stack = Vec.fill(nras){Reg(UInt())}
+  private val stack = Reg(Vec.fill(nras){UInt()})
 }
 
 class BHTResp extends Bundle with BTBParameters {
@@ -56,7 +55,7 @@ class BHTResp extends Bundle with BTBParameters {
 class BHT(nbht: Int) {
   val nbhtbits = log2Up(nbht)
   def get(addr: UInt, update: Bool): BHTResp = {
-    val res = new BHTResp
+    val res = Wire(new BHTResp)
     val index = addr(nbhtbits+1,2) ^ history
     res.value := table(index)
     res.history := history
@@ -144,8 +143,8 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
   val idxPagesOH = idxPages.map(UIntToOH(_)(nPages-1,0))
   val tgtPagesOH = tgtPages.map(UIntToOH(_)(nPages-1,0))
 
-  val useRAS = Reg(UInt(width = entries))
-  val isJump = Reg(UInt(width = entries))
+  val useRAS = Reg(Vec(Bool(), entries))
+  val isJump = Reg(Vec(Bool(), entries))
   val brIdx  = Mem(UInt(width=log2Up(params(FetchWidth))), entries)
 
   private def page(addr: UInt) = addr >> matchBits
@@ -153,7 +152,7 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
     val p = page(addr)
     Vec(pages.map(_ === p)).toBits & pageValid
   }
-  private def tagMatch(addr: UInt, pgMatch: UInt): UInt = {
+  private def tagMatch(addr: UInt, pgMatch: UInt) = {
     val idx = addr(matchBits-1,0)
     val idxMatch = idxs.map(_ === idx).toBits
     val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR).toBits
@@ -178,7 +177,7 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
 
   val useUpdatePageHit = updatePageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
-  val idxPageRepl = UInt()
+  val idxPageRepl = Wire(UInt(width = nPages))
   val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
   val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, UInt(0))
@@ -203,9 +202,10 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
       else Mux(updateHit, r_btb_update.bits.prediction.bits.entry, nextRepl)
 
     // invalidate entries if we stomp on pages they depend upon
-    idxValid := idxValid & ~Vec.tabulate(entries)(i => (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR).toBits
+    val invalidateMask = Vec.tabulate(entries)(i => (pageReplEn & (idxPagesOH(i) | tgtPagesOH(i))).orR).toBits
+    val validateMask = UIntToOH(waddr)
+    idxValid := (idxValid & ~invalidateMask) | validateMask
 
-    idxValid(waddr) := Bool(true)
     idxs(waddr) := r_btb_update.bits.pc
     tgts(waddr) := update_target
     idxPages(waddr) := idxPageUpdate
@@ -253,12 +253,13 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
 
   if (nBHT > 0) {
     val bht = new BHT(nBHT)
-    val res = bht.get(io.req.bits.addr, io.req.valid && hits.orR && !Mux1H(hits, isJump))
+    val isBranch = !Mux1H(hits, isJump)
+    val res = bht.get(io.req.bits.addr, io.req.valid && io.resp.valid && isBranch)
     val update_btb_hit = io.bht_update.bits.prediction.valid
     when (io.bht_update.valid && update_btb_hit) {
       bht.update(io.bht_update.bits.pc, io.bht_update.bits.prediction.bits.bht, io.bht_update.bits.taken, io.bht_update.bits.mispredict)
     }
-    when (!res.value(0) && !Mux1H(hits, isJump)) { io.resp.bits.taken := false }
+    when (!res.value(0) && isBranch) { io.resp.bits.taken := false }
     io.resp.bits.bht := res
   }
 

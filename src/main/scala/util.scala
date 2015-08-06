@@ -9,8 +9,8 @@ import scala.math._
 object Util {
   implicit def intToUInt(x: Int): UInt = UInt(x)
   implicit def booleanToBool(x: Boolean): Bits = Bool(x)
-  implicit def intSeqToUIntSeq(x: Iterable[Int]): Iterable[UInt] = x.map(UInt(_))
-  implicit def seqToVec[T <: Data](x: Iterable[T]): Vec[T] = Vec(x)
+  implicit def intSeqToUIntSeq(x: Seq[Int]): Seq[UInt] = x.map(UInt(_))
+  implicit def seqToVec[T <: Data](x: Seq[T]): Vec[T] = Vec(x)
   implicit def wcToUInt(c: WideCounter): UInt = c.value
   implicit def sextToConv(x: UInt) = new AnyRef {
     def sextTo(n: Int): UInt = Cat(Fill(n - x.getWidth, x(x.getWidth-1)), x)

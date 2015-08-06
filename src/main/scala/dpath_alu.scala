@@ -3,27 +3,26 @@
 package rocket
 
 import Chisel._
-import Node._
 import Instructions._
 
 object ALU
 {
   val SZ_ALU_FN = 4
-  val FN_X    = Bits("b????")
-  val FN_ADD  = Bits(0)
-  val FN_SL   = Bits(1)
-  val FN_XOR  = Bits(4)
-  val FN_OR   = Bits(6)
-  val FN_AND  = Bits(7)
-  val FN_SR   = Bits(5)
-  val FN_SEQ  = Bits(8)
-  val FN_SNE  = Bits(9)
-  val FN_SUB  = Bits(10)
-  val FN_SRA  = Bits(11)
-  val FN_SLT  = Bits(12)
-  val FN_SGE  = Bits(13)
-  val FN_SLTU = Bits(14)
-  val FN_SGEU = Bits(15)
+  val FN_X    = BitPat("b????")
+  val FN_ADD  = UInt(0)
+  val FN_SL   = UInt(1)
+  val FN_XOR  = UInt(4)
+  val FN_OR   = UInt(6)
+  val FN_AND  = UInt(7)
+  val FN_SR   = UInt(5)
+  val FN_SEQ  = UInt(8)
+  val FN_SNE  = UInt(9)
+  val FN_SUB  = UInt(10)
+  val FN_SRA  = UInt(11)
+  val FN_SLT  = UInt(12)
+  val FN_SGE  = UInt(13)
+  val FN_SLTU = UInt(14)
+  val FN_SGEU = UInt(15)
 
   val FN_DIV  = FN_XOR
   val FN_DIVU = FN_SR

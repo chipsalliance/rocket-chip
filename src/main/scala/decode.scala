@@ -3,25 +3,17 @@
 package rocket
 
 import Chisel._
-import Node._
 
 object DecodeLogic
 {
-  def term(b: Bits) = {
-    val lit = b.litOf
-    if (lit.isZ) {
-      var (bits, mask, swidth) = Literal.parseLit(lit.toString)
-      new Term(BigInt(bits, 2), BigInt(2).pow(lit.getWidth)-(BigInt(mask, 2)+1))
-    } else {
-      new Term(lit.value)
-    }
-  }
+  def term(lit: BitPat) =
+    new Term(lit.value, BigInt(2).pow(lit.getWidth)-(lit.mask+1))
   def logic(addr: UInt, addrWidth: Int, cache: scala.collection.mutable.Map[Term,Bool], terms: Seq[Term]) = {
     terms.map { t =>
       cache.getOrElseUpdate(t, (if (t.mask == 0) addr else addr & Bits(BigInt(2).pow(addrWidth)-(t.mask+1), addrWidth)) === Bits(t.value, addrWidth))
     }.foldLeft(Bool(false))(_||_)
   }
-  def apply[T <: Bits](addr: UInt, default: T, mapping: Iterable[(UInt, T)]): T = {
+	def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)]): UInt = {
     val cache = caches.getOrElseUpdate(addr, collection.mutable.Map[Term,Bool]())
     val dterm = term(default)
     val (keys, values) = mapping.unzip
@@ -33,7 +25,7 @@ object DecodeLogic
       for (u <- t.tail)
         assert(!t.head._2.intersects(u._2), "DecodeLogic: keys " + t.head + " and " + u + " overlap")
 
-    val result = (0 until default.litOf.getWidth.max(values.map(_.litOf.getWidth).max)).map({ case (i: Int) =>
+    (0 until default.getWidth.max(values.map(_.getWidth).max)).map({ case (i: Int) =>
       val mint = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 1 }.map(_._1)
       val maxt = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 0 && ((t.value >> i) & 1) == 0 }.map(_._1)
       val dc = termvalues.filter { case (k,t) => ((t.mask >> i) & 1) == 1 }.map(_._1)
@@ -47,20 +39,19 @@ object DecodeLogic
         if (defbit == 0) bit else ~bit
       }
     }).reverse.reduceRight(Cat(_,_))
-    default.fromBits(result)
   }
-  def apply[T <: Bits](addr: UInt, default: Iterable[T], mappingIn: Iterable[(UInt, Iterable[T])]): Iterable[T] = {
-    val mapping = collection.mutable.ArrayBuffer.fill(default.size)(collection.mutable.ArrayBuffer[(UInt, T)]())
+  def apply(addr: UInt, default: Seq[BitPat], mappingIn: Iterable[(BitPat, Seq[BitPat])]): Seq[UInt] = {
+    val mapping = collection.mutable.ArrayBuffer.fill(default.size)(collection.mutable.ArrayBuffer[(BitPat, BitPat)]())
     for ((key, values) <- mappingIn)
       for ((value, i) <- values zipWithIndex)
         mapping(i) += key -> value
     for ((thisDefault, thisMapping) <- default zip mapping)
       yield apply(addr, thisDefault, thisMapping)
   }
+  def apply(addr: UInt, default: Seq[BitPat], mappingIn: List[(UInt, Seq[BitPat])]): Seq[UInt] =
+    apply(addr, default, mappingIn.map(m => (BitPat(m._1), m._2)).asInstanceOf[Iterable[(BitPat, Seq[BitPat])]])
   def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool =
-    apply(addr, Bool.DC, trues.map(_ -> Bool(true)) ++ falses.map(_ -> Bool(false)))
-  def apply(addr: UInt, tru: UInt, fals: UInt): Bool =
-    apply(addr, Seq(tru), Seq(fals))
+    apply(addr, BitPat.DC(1), trues.map(BitPat(_) -> BitPat("b1")) ++ falses.map(BitPat(_) -> BitPat("b0"))).toBool
   private val caches = collection.mutable.Map[UInt,collection.mutable.Map[Term,Bool]]()
 }
 

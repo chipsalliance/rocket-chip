@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE for license details
 
 package rocket
 
@@ -6,56 +6,12 @@ import Chisel._
 import Instructions._
 import uncore.constants.MemoryOpConstants._
 import ALU._
-import Util._
-
-class CtrlDpathIO extends CoreBundle
-{
-  // outputs to datapath
-  val sel_pc   = UInt(OUTPUT, 3)
-  val killd = Bool(OUTPUT)
-  val killm = Bool(OUTPUT)
-  val ren      = Vec.fill(2)(Bool(OUTPUT))
-  val ex_ctrl = new IntCtrlSigs().asOutput
-  val mem_ctrl = new IntCtrlSigs().asOutput
-  val csr_cmd = UInt(OUTPUT, CSR.SZ)
-  val ex_valid = Bool(OUTPUT)
-  val wb_wen   = Bool(OUTPUT)
-  val bypass = Vec.fill(2)(Bool(OUTPUT))
-  val bypass_src = Vec.fill(2)(Bits(OUTPUT, SZ_BYP))
-  val ll_ready = Bool(OUTPUT)
-  // exception handling
-  val retire = Bool(OUTPUT)
-  val exception = Bool(OUTPUT)
-  val cause    = UInt(OUTPUT, xLen)
-  // inputs from datapath
-  val inst    = Bits(INPUT, 32)
-  val mem_br_taken = Bool(INPUT)
-  val mem_misprediction  = Bool(INPUT)
-  val mem_npc_misaligned = Bool(INPUT)
-  val div_mul_rdy = Bool(INPUT)
-  val ll_wen = Bool(INPUT)
-  val ll_waddr = UInt(INPUT, 5)
-  val ex_waddr = UInt(INPUT, 5)
-  val mem_rs1_ra = Bool(INPUT)
-  val mem_waddr = UInt(INPUT, 5)
-  val wb_waddr = UInt(INPUT, 5)
-  val status = new MStatus().asInput
-  val fp_sboard_clr  = Bool(INPUT)
-  val fp_sboard_clra = UInt(INPUT, 5)
-  // inputs from csr file
-  val csr_replay = Bool(INPUT)
-  val csr_stall = Bool(INPUT)
-  val csr_xcpt = Bool(INPUT)
-  val eret = Bool(INPUT)
-  val interrupt = Bool(INPUT)
-  val interrupt_cause = UInt(INPUT, xLen)
-}
 
 abstract trait DecodeConstants
 {
   val xpr64 = Y
 
-  val decode_default =
+  val decode_default: List[BitPat] =
                 //               jal                                                               renf1             fence.i
                 //               | jalr                                                            | renf2           |
                 //         fp_val| | renx2                                                         | | renf3         |
@@ -66,7 +22,7 @@ abstract trait DecodeConstants
                 //   |     | | | | | | | |       |       |      |      |         | |         |     | | | | | | |     | | |
                 List(N,    X,X,X,X,X,X,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, X,X,X,X,X,X,CSR.X,X,X,X)
 
-  val table: Array[(UInt, List[UInt])]
+  val table: Array[(BitPat, List[BitPat])]
 }
 
 class IntCtrlSigs extends Bundle {
@@ -97,18 +53,19 @@ class IntCtrlSigs extends Bundle {
   val fence = Bool()
   val amo = Bool()
 
-  def decode(inst: UInt, table: Iterable[(UInt, List[UInt])]) = {
+  def decode(inst: UInt, table: Iterable[(BitPat, List[BitPat])]) = {
     val decoder = DecodeLogic(inst, XDecode.decode_default, table)
-    Vec(legal, fp, rocc, branch, jal, jalr, rxs2, rxs1, sel_alu2, sel_alu1,
-        sel_imm, alu_dw, alu_fn, mem, mem_cmd, mem_type,
-        rfs1, rfs2, rfs3, wfd, div, wxd, csr, fence_i, fence, amo) := decoder
+    val sigs = Seq(legal, fp, rocc, branch, jal, jalr, rxs2, rxs1, sel_alu2,
+                   sel_alu1, sel_imm, alu_dw, alu_fn, mem, mem_cmd, mem_type,
+                   rfs1, rfs2, rfs3, wfd, div, wxd, csr, fence_i, fence, amo)
+    sigs zip decoder map {case(s,d) => s := d}
     this
   }
 }
 
 object XDecode extends DecodeConstants
 {
-  val table = Array(
+  val table: Array[(BitPat, List[BitPat])] = Array(
                 //               jal                                                               renf1             fence.i
                 //               | jalr                                                            | renf2           |
                 //         fp_val| | renx2                                                         | | renf3         |
@@ -229,7 +186,7 @@ object XDecode extends DecodeConstants
 
 object FDecode extends DecodeConstants
 {
-  val table = Array(
+  val table: Array[(BitPat, List[BitPat])] = Array(
                 //               jal                                                               renf1             fence.i
                 //               | jalr                                                            | renf2           |
                 //         fp_val| | renx2                                                         | | renf3         |
@@ -300,7 +257,7 @@ object FDecode extends DecodeConstants
 
 object FDivSqrtDecode extends DecodeConstants
 {
-  val table = Array(
+  val table: Array[(BitPat, List[BitPat])] = Array(
     FDIV_S->    List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
     FDIV_D->    List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
     FSQRT_S->   List(Y,    Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,      MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
@@ -309,7 +266,7 @@ object FDivSqrtDecode extends DecodeConstants
 
 object RoCCDecode extends DecodeConstants
 {
-  val table = Array(
+  val table: Array[(BitPat, List[BitPat])] = Array(
                         //               jal                                                               renf1             fence.i
                         //               | jalr                                                            | renf2           |
                         //         fp_val| | renx2                                                         | | renf3         |
@@ -342,344 +299,4 @@ object RoCCDecode extends DecodeConstants
     CUSTOM3_RD->        List(Y,    N,Y,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,N,N,Y,CSR.N,N,N,N),
     CUSTOM3_RD_RS1->    List(Y,    N,Y,N,N,N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,N,N,Y,CSR.N,N,N,N),
     CUSTOM3_RD_RS1_RS2->List(Y,    N,Y,N,N,N,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,      MT_X, N,N,N,N,N,Y,CSR.N,N,N,N))
-}
-
-class Control extends CoreModule
-{
-  val io = new Bundle {
-    val dpath   = new CtrlDpathIO
-    val imem = new CPUFrontendIO
-    val dmem = new HellaCacheIO
-    val fpu = new CtrlFPUIO
-    val rocc = new RoCCInterface().flip
-  }
-
-  var decode_table = XDecode.table
-  if (!params(BuildFPU).isEmpty) decode_table ++= FDecode.table
-  if (!params(BuildFPU).isEmpty && params(FDivSqrt)) decode_table ++= FDivSqrtDecode.table
-  if (!params(BuildRoCC).isEmpty) decode_table ++= RoCCDecode.table
-
-  val id_ctrl = new IntCtrlSigs().decode(io.dpath.inst, decode_table)
-  val ex_ctrl = Reg(new IntCtrlSigs)
-  val mem_ctrl = Reg(new IntCtrlSigs)
-  val wb_ctrl = Reg(new IntCtrlSigs)
-
-  val ex_reg_xcpt_interrupt  = Reg(Bool())
-  val ex_reg_valid           = Reg(Bool())
-  val ex_reg_btb_hit         = Reg(Bool())
-  val ex_reg_btb_resp        = Reg(io.imem.btb_resp.bits.clone)
-  val ex_reg_xcpt            = Reg(Bool())
-  val ex_reg_flush_pipe      = Reg(Bool())
-  val ex_reg_load_use        = Reg(Bool())
-  val ex_reg_cause           = Reg(UInt())
-
-  val mem_reg_xcpt_interrupt  = Reg(Bool())
-  val mem_reg_valid           = Reg(Bool())
-  val mem_reg_btb_hit         = Reg(Bool())
-  val mem_reg_btb_resp        = Reg(io.imem.btb_resp.bits.clone)
-  val mem_reg_xcpt            = Reg(Bool())
-  val mem_reg_replay          = Reg(Bool())
-  val mem_reg_flush_pipe      = Reg(Bool())
-  val mem_reg_cause           = Reg(UInt())
-  val mem_reg_slow_bypass     = Reg(Bool())
-
-  val wb_reg_valid           = Reg(Bool())
-  val wb_reg_xcpt            = Reg(Bool())
-  val wb_reg_replay          = Reg(Bool())
-  val wb_reg_cause           = Reg(UInt())
-  val wb_reg_rocc_pending    = Reg(init=Bool(false))
-
-  val take_pc_wb = Bool()
-  val mem_misprediction = io.dpath.mem_misprediction && mem_reg_valid && (mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal)
-  val want_take_pc_mem = mem_reg_valid && (mem_misprediction || mem_reg_flush_pipe)
-  val take_pc_mem = want_take_pc_mem && !io.dpath.mem_npc_misaligned
-  val take_pc_mem_wb = take_pc_wb || take_pc_mem
-  val take_pc = take_pc_mem_wb
-  val ctrl_killd = Bool()
-  val ctrl_killx = Bool()
-  val ctrl_killm = Bool()
-
-  val id_raddr3 = io.dpath.inst(31,27)
-  val id_raddr2 = io.dpath.inst(24,20)
-  val id_raddr1 = io.dpath.inst(19,15)
-  val id_waddr  = io.dpath.inst(11,7)
-  val id_load_use = Bool()
-  val id_reg_fence = Reg(init=Bool(false))
-
-  val id_csr_en = id_ctrl.csr != CSR.N
-  val id_system_insn = id_ctrl.csr === CSR.I
-  val id_csr_ren = (id_ctrl.csr === CSR.S || id_ctrl.csr === CSR.C) && id_raddr1 === UInt(0)
-  val id_csr = Mux(id_csr_ren, CSR.R, id_ctrl.csr)
-  val id_csr_addr = io.dpath.inst(31,20)
-  // this is overly conservative
-  val safe_csrs = CSRs.sscratch :: CSRs.sepc :: CSRs.mscratch :: CSRs.mepc :: CSRs.mcause :: CSRs.mbadaddr :: Nil
-  val legal_csrs = collection.mutable.LinkedHashSet(CSRs.all:_*)
-  val id_csr_flush = id_system_insn || (id_csr_en && !id_csr_ren && !DecodeLogic(id_csr_addr, safe_csrs, legal_csrs -- safe_csrs))
-
-  val id_illegal_insn = !id_ctrl.legal ||
-    id_ctrl.fp && !io.dpath.status.fs.orR ||
-    id_ctrl.rocc && !io.dpath.status.xs.orR
-  // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
-  val id_amo_aq = io.dpath.inst(26)
-  val id_amo_rl = io.dpath.inst(25)
-  val id_fence_next = id_ctrl.fence || id_ctrl.amo && id_amo_rl
-  val id_mem_busy = !io.dmem.ordered || io.dmem.req.valid
-  val id_rocc_busy = Bool(!params(BuildRoCC).isEmpty) &&
-    (io.rocc.busy || ex_reg_valid && ex_ctrl.rocc ||
-     mem_reg_valid && mem_ctrl.rocc || wb_reg_valid && wb_ctrl.rocc)
-  id_reg_fence := id_fence_next || id_reg_fence && id_mem_busy
-  val id_do_fence = id_rocc_busy && id_ctrl.fence ||
-    id_mem_busy && (id_ctrl.amo && id_amo_aq || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc) || id_csr_en)
-
-  def checkExceptions(x: Seq[(Bool, UInt)]) =
-    (x.map(_._1).reduce(_||_), PriorityMux(x))
-
-  val (id_xcpt, id_cause) = checkExceptions(List(
-    (io.dpath.interrupt,                              io.dpath.interrupt_cause),
-    (io.imem.resp.bits.xcpt_if,                       UInt(Causes.fault_fetch)),
-    (id_illegal_insn,                                 UInt(Causes.illegal_instruction))))
-
-  ex_reg_valid := !ctrl_killd
-  ex_reg_xcpt := !ctrl_killd && id_xcpt
-  ex_reg_xcpt_interrupt := io.dpath.interrupt && !take_pc && io.imem.resp.valid
-  when (id_xcpt) { ex_reg_cause := id_cause }
-
-  when (!ctrl_killd) {
-    ex_ctrl := id_ctrl
-    ex_ctrl.csr := id_csr
-    ex_reg_btb_hit := io.imem.btb_resp.valid
-    when (io.imem.btb_resp.valid) { ex_reg_btb_resp := io.imem.btb_resp.bits }
-    ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush
-    ex_reg_load_use := id_load_use
-    ex_reg_xcpt := id_xcpt
-  }
-
-  // replay inst in ex stage
-  val wb_dcache_miss = wb_ctrl.mem && !io.dmem.resp.valid
-  val replay_ex_structural = ex_ctrl.mem && !io.dmem.req.ready ||
-                             ex_ctrl.div && !io.dpath.div_mul_rdy
-  val replay_ex_load_use = wb_dcache_miss && ex_reg_load_use
-  val replay_ex = ex_reg_valid && (replay_ex_structural || replay_ex_load_use)
-  ctrl_killx := take_pc_mem_wb || replay_ex || !ex_reg_valid
-  // detect 2-cycle load-use delay for LB/LH/SC
-  val ex_slow_bypass = ex_ctrl.mem_cmd === M_XSC || Vec(MT_B, MT_BU, MT_H, MT_HU).contains(ex_ctrl.mem_type)
-
-  val (ex_xcpt, ex_cause) = checkExceptions(List(
-    (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause),
-    (ex_ctrl.fp && io.fpu.illegal_rm,      UInt(Causes.illegal_instruction))))
-
-  mem_reg_valid := !ctrl_killx
-  mem_reg_replay := !take_pc_mem_wb && replay_ex
-  mem_reg_xcpt := !ctrl_killx && ex_xcpt
-  mem_reg_xcpt_interrupt := !take_pc_mem_wb && ex_reg_xcpt_interrupt
-  when (ex_xcpt) { mem_reg_cause := ex_cause }
-
-  when (!ctrl_killx) {
-    mem_ctrl := ex_ctrl
-    mem_reg_btb_hit := ex_reg_btb_hit
-    when (ex_reg_btb_hit) { mem_reg_btb_resp := ex_reg_btb_resp }
-    mem_reg_flush_pipe := ex_reg_flush_pipe
-    mem_reg_slow_bypass := ex_slow_bypass
-    mem_reg_xcpt := ex_xcpt
-  }
-
-  val (mem_xcpt, mem_cause) = checkExceptions(List(
-    (mem_reg_xcpt_interrupt || mem_reg_xcpt,              mem_reg_cause),
-    (want_take_pc_mem && io.dpath.mem_npc_misaligned,     UInt(Causes.misaligned_fetch)),
-    (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.ma.st, UInt(Causes.misaligned_store)),
-    (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.ma.ld, UInt(Causes.misaligned_load)),
-    (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.pf.st, UInt(Causes.fault_store)),
-    (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.pf.ld, UInt(Causes.fault_load))))
-
-  val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next.valid // structural hazard on writeback port
-  val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
-  val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
-  val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
-  ctrl_killm := killm_common || mem_xcpt || fpu_kill_mem
-
-  wb_reg_valid := !ctrl_killm
-  when (!ctrl_killm) { wb_ctrl := mem_ctrl }
-  wb_reg_replay := replay_mem && !take_pc_wb
-  wb_reg_xcpt := mem_xcpt && !take_pc_wb
-  when (mem_xcpt) { wb_reg_cause := mem_cause }
-
-  val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
-  val replay_wb_common =
-    io.dmem.resp.bits.nack || wb_reg_replay || io.dpath.csr_replay
-  val wb_rocc_val = wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
-  val replay_wb = replay_wb_common || wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
-
-  when (wb_rocc_val) { wb_reg_rocc_pending := !io.rocc.cmd.ready }
-  when (wb_reg_xcpt) { wb_reg_rocc_pending := Bool(false) }
-
-  class Scoreboard(n: Int)
-  {
-    def set(en: Bool, addr: UInt): Unit = update(en, _next | mask(en, addr))
-    def clear(en: Bool, addr: UInt): Unit = update(en, _next & ~mask(en, addr))
-    def read(addr: UInt): Bool = r(addr)
-    def readBypassed(addr: UInt): Bool = _next(addr)
-
-    private val r = Reg(init=Bits(0, n))
-    private var _next = r
-    private var ens = Bool(false)
-    private def mask(en: Bool, addr: UInt) = Mux(en, UInt(1) << addr, UInt(0))
-    private def update(en: Bool, update: UInt) = {
-      _next = update
-      ens = ens || en
-      when (ens) { r := _next }
-    }
-  }
-
-  val sboard = new Scoreboard(32)
-  sboard.clear(io.dpath.ll_wen, io.dpath.ll_waddr)
-
-  val id_stall_fpu = if (!params(BuildFPU).isEmpty) {
-    val fp_sboard = new Scoreboard(32)
-    fp_sboard.set((wb_dcache_miss && wb_ctrl.wfd || io.fpu.sboard_set) && io.dpath.retire, io.dpath.wb_waddr)
-    fp_sboard.clear(io.dpath.fp_sboard_clr, io.dpath.fp_sboard_clra)
-    fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
-
-    id_csr_en && !io.fpu.fcsr_rdy ||
-    io.fpu.dec.ren1 && fp_sboard.read(id_raddr1) ||
-    io.fpu.dec.ren2 && fp_sboard.read(id_raddr2) ||
-    io.fpu.dec.ren3 && fp_sboard.read(id_raddr3) ||
-    io.fpu.dec.wen  && fp_sboard.read(id_waddr)
-  } else Bool(false)
-
-  // write CAUSE CSR on an exception
-  io.dpath.exception := wb_reg_xcpt
-  io.dpath.cause := wb_reg_cause
-  val wb_xcpt = wb_reg_xcpt || io.dpath.csr_xcpt
-
-  // control transfer from ex/wb
-  take_pc_wb := replay_wb || wb_xcpt || io.dpath.eret
-
-  io.dpath.sel_pc :=
-    Mux(wb_xcpt || io.dpath.eret,     PC_CSR, // exception or [m|s]ret
-    Mux(replay_wb,                    PC_WB,  // replay
-                                      PC_MEM))
-
-  io.imem.btb_update.valid := mem_reg_valid && !io.dpath.mem_npc_misaligned && io.dpath.mem_misprediction && ((mem_ctrl.branch && io.dpath.mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal) && !take_pc_wb
-  io.imem.btb_update.bits.prediction.valid := mem_reg_btb_hit
-  io.imem.btb_update.bits.prediction.bits := mem_reg_btb_resp
-  io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
-  io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && io.dpath.mem_rs1_ra
-
-  io.imem.bht_update.valid := mem_reg_valid && mem_ctrl.branch && !take_pc_wb
-  io.imem.bht_update.bits.taken := io.dpath.mem_br_taken
-  io.imem.bht_update.bits.mispredict := io.dpath.mem_misprediction
-  io.imem.bht_update.bits.prediction.valid := mem_reg_btb_hit
-  io.imem.bht_update.bits.prediction.bits := mem_reg_btb_resp
-
-  io.imem.ras_update.valid := io.imem.btb_update.bits.isJump && !io.dpath.mem_npc_misaligned && !take_pc_wb
-  io.imem.ras_update.bits.isCall := mem_ctrl.wxd && io.dpath.mem_waddr(0)
-  io.imem.ras_update.bits.isReturn := mem_ctrl.jalr && io.dpath.mem_rs1_ra
-  io.imem.ras_update.bits.prediction.valid := mem_reg_btb_hit
-  io.imem.ras_update.bits.prediction.bits := mem_reg_btb_resp
-
-  io.imem.req.valid := take_pc
-
-  val bypassDst = Array(id_raddr1, id_raddr2)
-  val bypassSrc = Array.fill(NBYP)((Bool(true), UInt(0)))
-  bypassSrc(BYP_EX) = (ex_reg_valid && ex_ctrl.wxd, io.dpath.ex_waddr)
-  bypassSrc(BYP_MEM) = (mem_reg_valid && mem_ctrl.wxd && !mem_ctrl.mem, io.dpath.mem_waddr)
-  bypassSrc(BYP_DC) = (mem_reg_valid && mem_ctrl.wxd, io.dpath.mem_waddr)
-
-  val doBypass = bypassDst.map(d => bypassSrc.map(s => s._1 && s._2 === d))
-  for (i <- 0 until io.dpath.bypass.size) {
-    io.dpath.bypass(i) := doBypass(i).reduce(_||_)
-    io.dpath.bypass_src(i) := PriorityEncoder(doBypass(i))
-  }
-
-  // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
-  val id_renx1_not0 = id_ctrl.rxs1 && id_raddr1 != UInt(0)
-  val id_renx2_not0 = id_ctrl.rxs2 && id_raddr2 != UInt(0)
-  val id_wen_not0 = id_ctrl.wxd && id_waddr != UInt(0)
-  val ex_cannot_bypass = ex_ctrl.csr != CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc
-  val data_hazard_ex = ex_ctrl.wxd &&
-    (id_renx1_not0 && id_raddr1 === io.dpath.ex_waddr ||
-     id_renx2_not0 && id_raddr2 === io.dpath.ex_waddr ||
-     id_wen_not0   && id_waddr  === io.dpath.ex_waddr)
-  val fp_data_hazard_ex = ex_ctrl.wfd &&
-    (io.fpu.dec.ren1 && id_raddr1 === io.dpath.ex_waddr ||
-     io.fpu.dec.ren2 && id_raddr2 === io.dpath.ex_waddr ||
-     io.fpu.dec.ren3 && id_raddr3 === io.dpath.ex_waddr ||
-     io.fpu.dec.wen  && id_waddr  === io.dpath.ex_waddr)
-  val id_ex_hazard = ex_reg_valid && (data_hazard_ex && ex_cannot_bypass || fp_data_hazard_ex)
-
-  // stall for RAW/WAW hazards on CSRs, LB/LH, and mul/div in memory stage.
-  val mem_mem_cmd_bh =
-    if (params(FastLoadWord)) Bool(!params(FastLoadByte)) && mem_reg_slow_bypass
-    else Bool(true)
-  val mem_cannot_bypass = mem_ctrl.csr != CSR.N || mem_ctrl.mem && mem_mem_cmd_bh || mem_ctrl.div || mem_ctrl.fp || mem_ctrl.rocc
-  val data_hazard_mem = mem_ctrl.wxd &&
-    (id_renx1_not0 && id_raddr1 === io.dpath.mem_waddr ||
-     id_renx2_not0 && id_raddr2 === io.dpath.mem_waddr ||
-     id_wen_not0   && id_waddr  === io.dpath.mem_waddr)
-  val fp_data_hazard_mem = mem_ctrl.wfd &&
-    (io.fpu.dec.ren1 && id_raddr1 === io.dpath.mem_waddr ||
-     io.fpu.dec.ren2 && id_raddr2 === io.dpath.mem_waddr ||
-     io.fpu.dec.ren3 && id_raddr3 === io.dpath.mem_waddr ||
-     io.fpu.dec.wen  && id_waddr  === io.dpath.mem_waddr)
-  val id_mem_hazard = mem_reg_valid && (data_hazard_mem && mem_cannot_bypass || fp_data_hazard_mem)
-  id_load_use := mem_reg_valid && data_hazard_mem && mem_ctrl.mem
-
-  // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
-  val data_hazard_wb = wb_ctrl.wxd &&
-    (id_renx1_not0 && id_raddr1 === io.dpath.wb_waddr ||
-     id_renx2_not0 && id_raddr2 === io.dpath.wb_waddr ||
-     id_wen_not0   && id_waddr  === io.dpath.wb_waddr)
-  val fp_data_hazard_wb = wb_ctrl.wfd &&
-    (io.fpu.dec.ren1 && id_raddr1 === io.dpath.wb_waddr ||
-     io.fpu.dec.ren2 && id_raddr2 === io.dpath.wb_waddr ||
-     io.fpu.dec.ren3 && id_raddr3 === io.dpath.wb_waddr ||
-     io.fpu.dec.wen  && id_waddr  === io.dpath.wb_waddr)
-  val id_wb_hazard = wb_reg_valid && (data_hazard_wb && wb_set_sboard || fp_data_hazard_wb)
-
-  val id_sboard_hazard =
-    (id_renx1_not0 && sboard.readBypassed(id_raddr1) ||
-     id_renx2_not0 && sboard.readBypassed(id_raddr2) ||
-     id_wen_not0   && sboard.readBypassed(id_waddr))
-
-  sboard.set(wb_set_sboard && io.dpath.wb_wen, io.dpath.wb_waddr)
-
-  val ctrl_stalld =
-    id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
-    id_ctrl.fp && id_stall_fpu ||
-    id_ctrl.mem && !io.dmem.req.ready ||
-    Bool(!params(BuildRoCC).isEmpty) && wb_reg_rocc_pending && id_ctrl.rocc && !io.rocc.cmd.ready ||
-    id_do_fence ||
-    io.dpath.csr_stall
-  val ctrl_draind = io.dpath.interrupt
-  ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || ctrl_draind
-
-  io.dpath.killd := take_pc || ctrl_stalld && !ctrl_draind
-  io.imem.resp.ready := !ctrl_stalld || ctrl_draind
-  io.imem.invalidate := wb_reg_valid && wb_ctrl.fence_i
-
-  io.dpath.ren(1) := id_ctrl.rxs2
-  io.dpath.ren(0) := id_ctrl.rxs1
-  io.dpath.ex_ctrl := ex_ctrl
-  io.dpath.mem_ctrl := mem_ctrl
-  io.dpath.ex_valid := ex_reg_valid
-  io.dpath.ll_ready := !(wb_reg_valid && wb_ctrl.wxd)
-  io.dpath.retire := wb_reg_valid && !replay_wb && !io.dpath.csr_xcpt
-  io.dpath.wb_wen := io.dpath.retire && wb_ctrl.wxd
-  io.dpath.csr_cmd := Mux(wb_reg_valid, wb_ctrl.csr, CSR.N)
-  io.dpath.killm := killm_common
-
-  io.fpu.valid := !ctrl_killd && id_ctrl.fp
-  io.fpu.killx := ctrl_killx
-  io.fpu.killm := killm_common
-
-  io.dmem.req.valid     := ex_reg_valid && ex_ctrl.mem
-  io.dmem.req.bits.kill := killm_common || mem_xcpt
-  io.dmem.req.bits.cmd  := ex_ctrl.mem_cmd
-  io.dmem.req.bits.typ  := ex_ctrl.mem_type
-  io.dmem.req.bits.phys := Bool(false)
-  io.dmem.invalidate_lr := wb_xcpt
-
-  io.rocc.cmd.valid := wb_rocc_val
-  io.rocc.exception := wb_xcpt && io.dpath.status.xs.orR
-  io.rocc.s := io.dpath.status.prv.orR // should we just pass all of mstatus?
 }
