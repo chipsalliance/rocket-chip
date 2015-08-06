@@ -114,17 +114,27 @@ class MemIONASTISlaveIOConverter(cacheBlockOffsetBits: Int) extends MIFModule wi
 
   require(mifDataBits == nastiXDataBits, "Data sizes between LLC and MC don't agree")
   val (mif_cnt_out, mif_wrap_out) = Counter(io.mem.resp.fire(), mifDataBeats)
-  
+
+  // according to the spec, we can't send b until the last transfer on w
+  val b_ok = Reg(init = Bool(true))
+  when (io.nasti.aw.fire()) { b_ok := Bool(false) }
+  when (io.nasti.w.fire() && io.nasti.w.bits.last) { b_ok := Bool(true) }
+
+  val id_q = Module(new Queue(UInt(width = nastiWIdBits), 2))
+  id_q.io.enq.valid := io.nasti.aw.valid
+  id_q.io.enq.bits := io.nasti.aw.bits.id
+  id_q.io.deq.ready := io.nasti.b.ready && b_ok
+
   io.mem.req_cmd.bits.addr := Mux(io.nasti.aw.valid, io.nasti.aw.bits.addr, io.nasti.ar.bits.addr) >>
                                 UInt(cacheBlockOffsetBits)
   io.mem.req_cmd.bits.tag := Mux(io.nasti.aw.valid, io.nasti.aw.bits.id, io.nasti.ar.bits.id)
   io.mem.req_cmd.bits.rw := io.nasti.aw.valid
-  io.mem.req_cmd.valid := (io.nasti.aw.valid && io.nasti.b.ready) || io.nasti.ar.valid
+  io.mem.req_cmd.valid := (io.nasti.aw.valid && id_q.io.enq.ready) || io.nasti.ar.valid
   io.nasti.ar.ready := io.mem.req_cmd.ready && !io.nasti.aw.valid
-  io.nasti.aw.ready := io.mem.req_cmd.ready && io.nasti.b.ready
+  io.nasti.aw.ready := io.mem.req_cmd.ready && id_q.io.enq.ready
 
-  io.nasti.b.valid := io.nasti.aw.valid && io.mem.req_cmd.ready
-  io.nasti.b.bits.id := io.nasti.aw.bits.id
+  io.nasti.b.valid := id_q.io.deq.valid && b_ok
+  io.nasti.b.bits.id := id_q.io.deq.bits
   io.nasti.b.bits.resp := UInt(0)
 
   io.nasti.w.ready := io.mem.req_data.ready
