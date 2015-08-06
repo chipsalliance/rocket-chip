@@ -35,15 +35,13 @@ class DefaultConfig extends ChiselConfig (
       case MIFTagBits => Dump("MEM_TAG_BITS",
                           log2Up(site(NAcquireTransactors)+2) +
                           log2Up(site(NBanksPerMemoryChannel)) +
-                          log2Up(site(NMemoryChannels)) + /* TODO: Remove for multichannel Top */
-                          1)
+                          log2Up(site(NMemoryChannels)))
       case MIFDataBits => Dump("MEM_DATA_BITS", 128)
       case MIFAddrBits => Dump("MEM_ADDR_BITS", site(PAddrBits) - site(CacheBlockOffsetBits))
       case MIFDataBeats => site(TLDataBits)*site(TLDataBeats)/site(MIFDataBits)
       case NASTIDataBits => site(MIFDataBits)
-      case NASTIAddrBits => site(MIFAddrBits)
+      case NASTIAddrBits => site(PAddrBits)
       case NASTIIdBits => site(MIFTagBits)
-      case UseNASTI => false
       //Params used by all caches
       case NSets => findBy(CacheName)
       case NWays => findBy(CacheName)
@@ -72,6 +70,7 @@ class DefaultConfig extends ChiselConfig (
       case StoreDataQueueDepth => 17
       case ReplayQueueDepth => 16
       case NMSHRs => Knob("L1D_MSHRS")
+      case NIOMSHRs => 1
       case LRSCCycles => 32 
       //L2 Memory System Params
       case NAcquireTransactors => 7
@@ -119,6 +118,7 @@ class DefaultConfig extends ChiselConfig (
       case TLNClients => site(TLNCachingClients) + site(TLNCachelessClients)
       case TLDataBits => site(CacheBlockBytes)*8/site(TLDataBeats)
       case TLDataBeats => 4
+      case TLWriteMaskBits => (site(TLDataBits) - 1) / 8 + 1
       case TLNetworkIsOrderedP2P => false
       case TLNManagers => findBy(TLId)
       case TLNCachingClients => findBy(TLId)
@@ -133,7 +133,7 @@ class DefaultConfig extends ChiselConfig (
         case TLNCachelessClients => site(NTiles) + 1
         case TLCoherencePolicy => new MESICoherence(site(L2DirectoryRepresentation)) 
         case TLMaxManagerXacts => site(NAcquireTransactors) + 2
-        case TLMaxClientXacts => max(site(NMSHRs),
+        case TLMaxClientXacts => max(site(NMSHRs) + site(NIOMSHRs),
                                      if(site(BuildRoCC).isEmpty) 1 
                                        else site(RoCCMaxTaggedMemXacts))
         case TLMaxClientsPerPort => if(site(BuildRoCC).isEmpty) 1 else 3
@@ -155,6 +155,18 @@ class DefaultConfig extends ChiselConfig (
       case CacheBlockBytes => 64
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case UseBackupMemoryPort => true
+      case MMIOBase => BigInt(1 << 30) // 1 GB
+      case ExternalIOStart => 2 * site(MMIOBase)
+      case NASTIAddrMap => Seq(
+        ("mem", None, MemSize(site(MMIOBase), AddrMap.RWX)),
+        ("conf", None, Submap(site(ExternalIOStart) - site(MMIOBase),
+          ("csr0", None, MemSize(1 << 15, AddrMap.RW)),
+          ("scr", None, MemSize(site(HTIFNSCR) * 8, AddrMap.RW)))),
+        ("io", Some(site(ExternalIOStart)),
+          MemSize(2 * site(MMIOBase), AddrMap.RW)))
+      case NASTIAddrHashMap => new AddrHashMap(site(NASTIAddrMap))
+      case NASTINMasters => site(TLNManagers) + 1
+      case NASTINSlaves => site(NASTIAddrHashMap).nEntries
   }},
   knobValues = {
     case "NTILES" => 1
@@ -254,3 +266,7 @@ class SmallConfig extends ChiselConfig (
 class DefaultFPGASmallConfig extends ChiselConfig(new SmallConfig ++ new DefaultFPGAConfig)
 
 class ExampleSmallConfig extends ChiselConfig(new SmallConfig ++ new DefaultConfig)
+
+class MultibankConfig extends ChiselConfig(new With2Banks ++ new DefaultConfig)
+class MultibankL2Config extends ChiselConfig(
+  new With2Banks ++ new WithL2Cache ++ new DefaultConfig)
