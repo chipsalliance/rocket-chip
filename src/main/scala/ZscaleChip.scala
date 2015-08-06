@@ -3,6 +3,7 @@
 package rocketchip
 
 import Chisel._
+import junctions._
 import uncore._
 import rocket._
 import zscale._

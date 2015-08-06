@@ -69,7 +69,7 @@ run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets)
       } else { "\n" }
     }
 
-    val f = createOutputFile(s"${Driver.topComponent.name}.${Driver.chiselConfigClassName.get}.d")
+    val f = createOutputFile(s"${Driver.topComponent.get.name}.${Driver.chiselConfigClassName.get}.d")
     f.write(
       List(gen("asm", asmSuites.values.toSeq), gen("bmark", bmarkSuites.values.toSeq)).mkString("\n") +
       postscript.map(p => p._1 + " = " + p._2).mkString("\n")

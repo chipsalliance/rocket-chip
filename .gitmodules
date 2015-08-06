@@ -25,3 +25,6 @@
 [submodule "hwacha"]
 	path = hwacha
 	url = https://github.com/ucb-bar/hwacha
+[submodule "junctions"]
+	path = junctions
+	url = https://github.com/ucb-bar/junctions

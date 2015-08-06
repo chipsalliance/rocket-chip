@@ -3,6 +3,7 @@
 package rocketchip
 
 import Chisel._
+import junctions._
 import uncore._
 import rocket._
 import rocket.Util._
@@ -229,6 +230,7 @@ class ZscaleConfig extends ChiselConfig(new WithZscale ++ new DefaultConfig)
 
 class FPGAConfig extends ChiselConfig (
   (pname,site,here) => pname match {
+    case NAcquireTransactors => 4
     case UseBackupMemoryPort => false
   }
 )
