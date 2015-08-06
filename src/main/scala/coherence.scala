@@ -44,9 +44,9 @@ trait HasClientSideCoherencePolicy {
   // Client coherence states and their permissions
   val nClientStates: Int
   def clientStateWidth = log2Ceil(nClientStates)
-  val clientStatesWithReadPermission: Vec[UInt]
-  val clientStatesWithWritePermission: Vec[UInt]
-  val clientStatesWithDirtyData: Vec[UInt]
+  def clientStatesWithReadPermission: Vec[UInt]
+  def clientStatesWithWritePermission: Vec[UInt]
+  def clientStatesWithDirtyData: Vec[UInt]
 
   // Transaction initiation logic
   def isValid(meta: ClientMetadata): Bool
@@ -136,9 +136,9 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val nClientStates = 2
   val clientInvalid :: clientValid :: Nil = Enum(UInt(), nClientStates)
 
-  val clientStatesWithReadPermission = Vec(clientValid)
-  val clientStatesWithWritePermission = Vec(clientValid)
-  val clientStatesWithDirtyData = Vec(clientValid)
+  def clientStatesWithReadPermission = Vec(clientValid)
+  def clientStatesWithWritePermission = Vec(clientValid)
+  def clientStatesWithDirtyData = Vec(clientValid)
 
   def isValid (meta: ClientMetadata): Bool = meta.state != clientInvalid
 
@@ -227,9 +227,9 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val nClientStates = 3
   val clientInvalid :: clientExclusiveClean :: clientExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
 
-  val clientStatesWithReadPermission = Vec(clientExclusiveClean, clientExclusiveDirty)
-  val clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
-  val clientStatesWithDirtyData = Vec(clientExclusiveDirty)
+  def clientStatesWithReadPermission = Vec(clientExclusiveClean, clientExclusiveDirty)
+  def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
+  def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
 
   def isValid (meta: ClientMetadata) = meta.state != clientInvalid
 
@@ -329,9 +329,9 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val nClientStates = 3
   val clientInvalid :: clientShared :: clientExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
 
-  val clientStatesWithReadPermission = Vec(clientShared, clientExclusiveDirty)
-  val clientStatesWithWritePermission = Vec(clientExclusiveDirty)
-  val clientStatesWithDirtyData = Vec(clientExclusiveDirty)
+  def clientStatesWithReadPermission = Vec(clientShared, clientExclusiveDirty)
+  def clientStatesWithWritePermission = Vec(clientExclusiveDirty)
+  def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
 
   def isValid(meta: ClientMetadata): Bool = meta.state != clientInvalid
 
@@ -447,9 +447,9 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val nClientStates = 4
   val clientInvalid :: clientShared :: clientExclusiveClean :: clientExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
 
-  val clientStatesWithReadPermission = Vec(clientShared, clientExclusiveClean, clientExclusiveDirty)
-  val clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
-  val clientStatesWithDirtyData = Vec(clientExclusiveDirty)
+  def clientStatesWithReadPermission = Vec(clientShared, clientExclusiveClean, clientExclusiveDirty)
+  def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
+  def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
 
   def isValid (meta: ClientMetadata): Bool = meta.state != clientInvalid
 
@@ -562,9 +562,9 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   val nClientStates = 7
   val clientInvalid :: clientShared :: clientExclusiveClean :: clientExclusiveDirty :: clientSharedByTwo :: clientMigratoryClean :: clientMigratoryDirty :: Nil = Enum(UInt(), nClientStates)
 
-  val clientStatesWithReadPermission = Vec(clientShared, clientExclusiveClean, clientExclusiveDirty, clientSharedByTwo, clientMigratoryClean, clientMigratoryDirty)
-  val clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty, clientMigratoryClean, clientMigratoryDirty)
-  val clientStatesWithDirtyData = Vec(clientExclusiveDirty, clientMigratoryDirty)
+  def clientStatesWithReadPermission = Vec(clientShared, clientExclusiveClean, clientExclusiveDirty, clientSharedByTwo, clientMigratoryClean, clientMigratoryDirty)
+  def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty, clientMigratoryClean, clientMigratoryDirty)
+  def clientStatesWithDirtyData = Vec(clientExclusiveDirty, clientMigratoryDirty)
 
   def isValid (meta: ClientMetadata): Bool = meta.state != clientInvalid
 
