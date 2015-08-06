@@ -27,7 +27,7 @@ abstract class PhysicalNetwork extends Module
 class BasicCrossbar[T <: Data](n: Int, dType: T, count: Int = 1, needsLock: Option[PhysicalNetworkIO[T] => Bool] = None) extends PhysicalNetwork {
   val io = new BasicCrossbarIO(n, dType)
 
-  val rdyVecs = List.fill(n){Vec.fill(n)(Bool())}
+  val rdyVecs = List.fill(n){Vec.fill(n)(Wire(Bool()))}
 
   io.out.zip(rdyVecs).zipWithIndex.map{ case ((out, rdys), i) => {
     val rrarb = Module(new LockingRRArbiter(io.in(0).bits, n, count, needsLock))
