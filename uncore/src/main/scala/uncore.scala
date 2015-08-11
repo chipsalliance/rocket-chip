@@ -20,6 +20,7 @@ trait CoherenceAgentParameters extends UsesParameters {
   val innerTLParams = params.alterPartial({case TLId => params(InnerTLId)})
   val innerDataBeats = innerTLParams(TLDataBeats)
   val innerDataBits = innerTLParams(TLDataBits)
+  val innerWriteMaskBits = innerTLParams(TLWriteMaskBits)
   val innerBeatAddrBits = log2Up(innerDataBeats)
   val innerByteAddrBits = log2Up(innerDataBits/8)
   require(outerDataBeats == innerDataBeats) //TODO: must fix all xact_data Vecs to remove this requirement
