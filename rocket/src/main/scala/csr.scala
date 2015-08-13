@@ -156,21 +156,21 @@ class CSRFile extends CoreModule
   val host_pcr_req_valid = Reg(Bool()) // don't reset
   val host_pcr_req_fire = host_pcr_req_valid && !cpu_ren
   val host_pcr_rep_valid = Reg(Bool()) // don't reset
-  val host_pcr_bits = Reg(io.host.pcr_req.bits)
-  io.host.pcr_req.ready := !host_pcr_req_valid && !host_pcr_rep_valid
-  io.host.pcr_rep.valid := host_pcr_rep_valid
-  io.host.pcr_rep.bits := host_pcr_bits.data
-  when (io.host.pcr_req.fire()) {
+  val host_pcr_bits = Reg(io.host.pcr.req.bits)
+  io.host.pcr.req.ready := !host_pcr_req_valid && !host_pcr_rep_valid
+  io.host.pcr.resp.valid := host_pcr_rep_valid
+  io.host.pcr.resp.bits := host_pcr_bits.data
+  when (io.host.pcr.req.fire()) {
     host_pcr_req_valid := true
-    host_pcr_bits := io.host.pcr_req.bits
+    host_pcr_bits := io.host.pcr.req.bits
   }
   when (host_pcr_req_fire) {
     host_pcr_req_valid := false
     host_pcr_rep_valid := true
     host_pcr_bits.data := io.rw.rdata
   }
-  when (io.host.pcr_rep.fire()) { host_pcr_rep_valid := false }
-  
+  when (io.host.pcr.resp.fire()) { host_pcr_rep_valid := false }
+
   io.host.debug_stats_pcr := reg_stats // direct export up the hierarchy
 
   val read_mstatus = io.status.toBits
@@ -411,7 +411,7 @@ class CSRFile extends CoreModule
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
     when (decoded_addr(CSRs.instretw)) { reg_instret := wdata }
     when (decoded_addr(CSRs.mtimecmp)) { reg_mtimecmp := wdata; reg_mip.mtip := false }
-    when (decoded_addr(CSRs.mreset) /* XXX used by HTIF to write mtime */) { reg_time := wdata }
+    when (decoded_addr(CSRs.mtime))    { reg_time := wdata }
     when (decoded_addr(CSRs.mfromhost)){ when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
     when (decoded_addr(CSRs.mtohost))  { when (reg_tohost === UInt(0) || host_pcr_req_fire) { reg_tohost := wdata } }
     when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
