@@ -4,7 +4,7 @@ package uncore
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import uncore._
+import junctions.{SMIIO, MMIOBase}
 
 case object HTIFWidth extends Field[Int]
 case object HTIFNSCR extends Field[Int]
@@ -31,18 +31,10 @@ class HostIO extends HTIFBundle
   val debug_stats_pcr = Bool(OUTPUT)
 }
 
-class PCRReq extends Bundle
-{
-  val rw = Bool()
-  val addr = Bits(width = 12)
-  val data = Bits(width = 64)
-}
-
 class HTIFIO extends HTIFBundle {
   val reset = Bool(INPUT)
   val id = UInt(INPUT, log2Up(nCores))
-  val pcr_req = Decoupled(new PCRReq).flip
-  val pcr_rep = Decoupled(Bits(width = 64))
+  val pcr = new SMIIO(64, 12).flip
   val ipi_req = Decoupled(Bits(width = log2Up(nCores)))
   val ipi_rep = Decoupled(Bool()).flip
   val debug_stats_pcr = Bool(OUTPUT)
@@ -106,7 +98,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
 
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(UInt(), 6)
 
-  val pcr_addr = addr(io.cpu(0).pcr_req.bits.addr.getWidth-1, 0)
+  val pcr_addr = addr(io.cpu(0).pcr.req.bits.addr.getWidth-1, 0)
   val pcr_coreid = addr(log2Up(nCores)-1+20+1,20)
   val pcr_wdata = packet_ram(0)
 
@@ -184,38 +176,18 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     GetBlock(addr_block = init_addr))
   io.mem.grant.ready := Bool(true)
 
-  // real-time counter (which doesn't really belong here...)
-  val rtc = Reg(init=UInt(0,64))
-  val rtc_tick = Counter(params(RTCPeriod)).inc()
-  when (rtc_tick) { rtc := rtc + UInt(1) }
-
-  val pcrReadData = Reg(Bits(width = io.cpu(0).pcr_rep.bits.getWidth))
+  val pcrReadData = Reg(Bits(width = io.cpu(0).pcr.resp.bits.getWidth))
   for (i <- 0 until nCores) {
     val my_reset = Reg(init=Bool(true))
     val my_ipi = Reg(init=Bool(false))
 
     val cpu = io.cpu(i)
     val me = pcr_coreid === UInt(i)
-    cpu.pcr_req.valid := state === state_pcr_req && me && pcr_addr != UInt(pcr_RESET)
-    cpu.pcr_req.bits.rw := cmd === cmd_writecr
-    cpu.pcr_req.bits.addr := pcr_addr
-    cpu.pcr_req.bits.data := pcr_wdata
+    cpu.pcr.req.valid := state === state_pcr_req && me && pcr_addr != UInt(pcr_RESET)
+    cpu.pcr.req.bits.rw := cmd === cmd_writecr
+    cpu.pcr.req.bits.addr := pcr_addr
+    cpu.pcr.req.bits.data := pcr_wdata
     cpu.reset := my_reset
-
-    // use pcr port to update core's rtc value periodically
-    val rtc_sent = Reg(init=Bool(false))
-    val rtc_outstanding = Reg(init=Bool(false))
-    when (rtc_tick) { rtc_sent := Bool(false) }
-    when (cpu.pcr_rep.valid) { rtc_outstanding := Bool(false) }
-    when (rtc_outstanding) { cpu.pcr_req.valid := Bool(false) }
-    when (state != state_pcr_req && state != state_pcr_resp && !rtc_sent && !rtc_outstanding) {
-      cpu.pcr_req.valid := Bool(true)
-      cpu.pcr_req.bits.rw := Bool(true)
-      cpu.pcr_req.bits.addr := UInt(pcr_RESET) /* XXX this means write mtime */
-      cpu.pcr_req.bits.data := rtc
-      rtc_sent := cpu.pcr_req.ready
-      rtc_outstanding := cpu.pcr_req.ready
-    }
 
     when (cpu.ipi_rep.ready) {
       my_ipi := Bool(false)
@@ -228,7 +200,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
       }
     }
 
-    when (state === state_pcr_req && cpu.pcr_req.fire()) {
+    when (state === state_pcr_req && cpu.pcr.req.fire()) {
       state := state_pcr_resp
     }
     when (state === state_pcr_req && me && pcr_addr === UInt(pcr_RESET)) {
@@ -239,9 +211,9 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
       state := state_tx
     }
 
-    cpu.pcr_rep.ready := Bool(true)
-    when (state === state_pcr_resp && cpu.pcr_rep.valid) {
-      pcrReadData := cpu.pcr_rep.bits
+    cpu.pcr.resp.ready := Bool(true)
+    when (state === state_pcr_resp && cpu.pcr.resp.valid) {
+      pcrReadData := cpu.pcr.resp.bits
       state := state_tx
     }
   }
@@ -251,7 +223,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
   scr_rdata(0) := UInt(nCores)
-  scr_rdata(1) := UInt((BigInt(dataBits*dataBeats/8) << params(TLBlockAddrBits)) >> 20)
+  scr_rdata(1) := UInt(params(MMIOBase) >> 20)
 
   io.scr.wen := Bool(false)
   io.scr.wdata := pcr_wdata
