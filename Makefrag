@@ -5,7 +5,7 @@ endif
 
 MODEL := Top
 PROJECT := rocketchip
-CXX := g++
+CXX ?= g++
 CXXFLAGS := -O1
 
 SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
