@@ -265,7 +265,7 @@ object HellaQueue
 
 class MemIOArbiter(val arbN: Int) extends MIFModule {
   val io = new Bundle {
-    val inner = Vec.fill(arbN){new MemIO}.flip
+    val inner = Vec(new MemIO, arbN).flip
     val outer = new MemIO
   }
 

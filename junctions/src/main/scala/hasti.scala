@@ -74,7 +74,7 @@ class HASTIBus(amap: Seq[UInt=>Bool]) extends Module
 {
   val io = new Bundle {
     val master = new HASTIMasterIO().flip
-    val slaves = Vec.fill(amap.size){new HASTISlaveIO}.flip
+    val slaves = Vec(new HASTISlaveIO, amap.size).flip
   }
 
   // skid buffer
@@ -215,8 +215,8 @@ class HASTISlaveMux(n: Int) extends Module
 class HASTIXbar(nMasters: Int, addressMap: Seq[UInt=>Bool]) extends Module
 {
   val io = new Bundle {
-    val masters = Vec.fill(nMasters){new HASTIMasterIO}.flip
-    val slaves = Vec.fill(addressMap.size){new HASTISlaveIO}.flip
+    val masters = Vec(new HASTIMasterIO, nMasters).flip
+    val slaves = Vec(new HASTISlaveIO, addressMap.size).flip
   }
 
   val buses = List.fill(nMasters){Module(new HASTIBus(addressMap))}

@@ -66,7 +66,7 @@ class POCIBus(amap: Seq[UInt=>Bool]) extends Module
 {
   val io = new Bundle {
     val master = new POCIIO().flip
-    val slaves = Vec.fill(amap.size){new POCIIO}
+    val slaves = Vec(new POCIIO, amap.size)
   }
 
   val psels = PriorityEncoderOH(
