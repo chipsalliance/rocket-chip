@@ -51,7 +51,7 @@ class HTIFIO extends HTIFBundle {
 }
 
 class SCRIO extends HTIFBundle {
-  val rdata = Vec.fill(nSCR){Bits(INPUT, 64)}
+  val rdata = Vec(Bits(INPUT, 64), nSCR)
   val wen = Bool(OUTPUT)
   val waddr = UInt(OUTPUT, log2Up(nSCR))
   val wdata = Bits(OUTPUT, 64)
@@ -59,7 +59,7 @@ class SCRIO extends HTIFBundle {
 
 class HTIFModuleIO extends HTIFBundle {
     val host = new HostIO
-    val cpu = Vec.fill(nCores){new HTIFIO}.flip
+    val cpu = Vec(new HTIFIO, nCores).flip
     val mem = new ClientUncachedTileLinkIO
     val scr = new SCRIO
 }
