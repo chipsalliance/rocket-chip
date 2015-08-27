@@ -364,7 +364,7 @@ class TSHRFile extends L2HellaCacheModule with HasCoherenceAgentWiringHelpers {
   doInternalInputRouting(wb.io.wb.resp, trackerList.map(_.io.wb.resp))
 
   // Propagate incoherence flags
-  (trackerList.map(_.io.incoherent) :+ wb.io.incoherent) foreach { _ := io.incoherent.toBits }
+  (trackerList.map(_.io.incoherent) :+ wb.io.incoherent) foreach { _ := io.incoherent }
 
   // Handle acquire transaction initiation
   val trackerAcquireIOs = trackerList.map(_.io.inner.acquire)
@@ -525,7 +525,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int) extends L2XactTracker {
   io.data.write.bits.way_en := xact_way_en
   io.data.write.bits.addr_idx := xact.addr_block(idxMSB,idxLSB)
   io.data.write.bits.addr_beat := curr_write_beat
-  io.data.write.bits.wmask := SInt(-1)
+  io.data.write.bits.wmask := ~UInt(0, io.data.write.bits.wmask.getWidth)
   io.data.write.bits.data := data_buffer(curr_write_beat)
 
   // Send an acknowledgement
@@ -663,7 +663,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
                           wmask & Mux(xact.isBuiltInType(Acquire.putAtomicType),
                                         amoalu.io.out << xact.amo_shift_bits(),
                                         new_data)
-    wmask_buffer(beat) := SInt(-1)
+    wmask_buffer(beat) := ~UInt(0, wmask_buffer.head.getWidth)
     when(xact.is(Acquire.putAtomicType) && xact.addr_beat === beat) { amo_result := old_data }
   }
   def mergeDataInternal[T <: HasL2Data with HasL2BeatAddr](in: ValidIO[T]) {
@@ -1057,7 +1057,7 @@ class L2WritebackUnit(trackerId: Int) extends L2XactTracker {
     val coh = io.wb.req.bits.coh
     val needs_inner_probes = coh.inner.requiresProbesOnVoluntaryWriteback()
     when(needs_inner_probes) { pending_iprbs := coh.inner.full() & ~io.incoherent.toBits }
-    pending_reads := SInt(-1, width = innerDataBeats)
+    pending_reads := ~UInt(0, width = innerDataBeats)
     pending_resps := UInt(0)
     pending_orel_data := UInt(0)
     state := Mux(needs_inner_probes, s_inner_probe, s_busy)
