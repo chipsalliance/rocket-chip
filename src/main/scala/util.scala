@@ -62,7 +62,7 @@ class FlowThroughSerializer[T <: HasTileLinkData](gen: T, n: Int) extends Module
     val rbits = Reg{io.in.bits}
     val active = Reg(init=Bool(false))
 
-    val shifter = Vec.fill(n){Bits(width = narrowWidth)}
+    val shifter = Vec(Bits(width = narrowWidth), n)
     (0 until n).foreach { 
       i => shifter(i) := rbits.data((i+1)*narrowWidth-1,i*narrowWidth)
     }

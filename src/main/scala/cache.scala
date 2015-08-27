@@ -145,7 +145,7 @@ class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
   val io = new Bundle {
     val read = Decoupled(new MetaReadReq).flip
     val write = Decoupled(new MetaWriteReq(rstVal)).flip
-    val resp = Vec.fill(nWays){rstVal.cloneType.asOutput}
+    val resp = Vec(rstVal.cloneType.asOutput, nWays)
   }
   val rst_cnt = Reg(init=UInt(0, log2Up(nSets+1)))
   val rst = rst_cnt < UInt(nSets)
@@ -427,9 +427,9 @@ abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
   class CacheBlockBuffer { // TODO
     val buffer = Reg(Bits(width = params(CacheBlockBytes)*8))
 
-    def internal = Vec.fill(internalDataBeats){ Bits(width = rowBits) }.fromBits(buffer)
-    def inner = Vec.fill(innerDataBeats){ Bits(width = innerDataBits) }.fromBits(buffer)
-    def outer = Vec.fill(outerDataBeats){ Bits(width = outerDataBits) }.fromBits(buffer)
+    def internal = Vec(Bits(width = rowBits), internalDataBeats).fromBits(buffer)
+    def inner = Vec(Bits(width = innerDataBits), innerDataBeats).fromBits(buffer)
+    def outer = Vec(Bits(width = outerDataBits), outerDataBeats).fromBits(buffer)
   }
 
   def connectDataBeatCounter[S <: L2HellaCacheBundle](inc: Bool, data: S, beat: UInt, full_block: Bool) = {
@@ -492,7 +492,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int) extends L2XactTracker {
   val state = Reg(init=s_idle)
 
   val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
-  val data_buffer = Reg(init=Vec.fill(innerDataBeats){UInt(0, width = innerDataBits)})
+  val data_buffer = Reg(init=Vec(UInt(0, width = innerDataBits), innerDataBeats))
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact_old_meta = Reg{ new L2Metadata }
   val coh = xact_old_meta.coh
@@ -587,8 +587,8 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
 
   // State holding transaction metadata
   val xact = Reg(Bundle(new AcquireFromSrc, { case TLId => params(InnerTLId) }))
-  val data_buffer = Reg(init=Vec.fill(innerDataBeats){UInt(0, width = innerDataBits)})
-  val wmask_buffer = Reg(init=Vec.fill(innerDataBeats){UInt(0, width = innerDataBits/8)})
+  val data_buffer = Reg(init=Vec(UInt(0, width = innerDataBits), innerDataBeats))
+  val wmask_buffer = Reg(init=Vec(UInt(0, width = innerDataBits/8), innerDataBeats))
   val xact_tag_match = Reg{ Bool() }
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact_old_meta = Reg{ new L2Metadata }
@@ -980,7 +980,7 @@ class L2WritebackUnit(trackerId: Int) extends L2XactTracker {
   val state = Reg(init=s_idle)
 
   val xact = Reg(new L2WritebackReq)
-  val data_buffer = Reg(init=Vec.fill(innerDataBeats){UInt(0, width = innerDataBits)})
+  val data_buffer = Reg(init=Vec(UInt(0, width = innerDataBits), innerDataBeats))
   val xact_addr_block = Cat(xact.tag, xact.idx)
 
   val pending_irels =

@@ -1086,7 +1086,7 @@ trait TileLinkArbiterLike extends TileLinkParameters {
 /** Abstract base case for any Arbiters that have UncachedTileLinkIOs */
 abstract class UncachedTileLinkIOArbiter(val arbN: Int) extends Module with TileLinkArbiterLike {
   val io = new Bundle {
-    val in = Vec.fill(arbN){new UncachedTileLinkIO}.flip
+    val in = Vec(new UncachedTileLinkIO, arbN).flip
     val out = new UncachedTileLinkIO
   }
   hookupClientSource(io.in.map(_.acquire), io.out.acquire)
@@ -1097,7 +1097,7 @@ abstract class UncachedTileLinkIOArbiter(val arbN: Int) extends Module with Tile
 /** Abstract base case for any Arbiters that have cached TileLinkIOs */
 abstract class TileLinkIOArbiter(val arbN: Int) extends Module with TileLinkArbiterLike {
   val io = new Bundle {
-    val in = Vec.fill(arbN){new TileLinkIO}.flip
+    val in = Vec(new TileLinkIO, arbN).flip
     val out = new TileLinkIO
   }
   hookupClientSource(io.in.map(_.acquire), io.out.acquire)
@@ -1141,7 +1141,7 @@ class TileLinkIOArbiterThatUsesNewId(val n: Int) extends TileLinkIOArbiter(n) wi
 /** Concrete uncached client-side arbiter that appends the arbiter's port id to client_xact_id */
 class ClientUncachedTileLinkIOArbiter(val arbN: Int) extends Module with TileLinkArbiterLike with AppendsArbiterId {
   val io = new Bundle {
-    val in = Vec.fill(arbN){new ClientUncachedTileLinkIO}.flip
+    val in = Vec(new ClientUncachedTileLinkIO, arbN).flip
     val out = new ClientUncachedTileLinkIO
   }
   hookupClientSourceHeaderless(io.in.map(_.acquire), io.out.acquire)
@@ -1151,7 +1151,7 @@ class ClientUncachedTileLinkIOArbiter(val arbN: Int) extends Module with TileLin
 /** Concrete client-side arbiter that appends the arbiter's port id to client_xact_id */
 class ClientTileLinkIOArbiter(val arbN: Int) extends Module with TileLinkArbiterLike with AppendsArbiterId {
   val io = new Bundle {
-    val in = Vec.fill(arbN){new ClientTileLinkIO}.flip
+    val in = Vec(new ClientTileLinkIO, arbN).flip
     val out = new ClientTileLinkIO
   }
   hookupClientSourceHeaderless(io.in.map(_.acquire), io.out.acquire)
@@ -1461,7 +1461,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters 
     val (mif_cnt_out, mif_wrap_out) = Counter(mem_data_q.io.enq.fire(), mifDataBeats)
     val mif_done_out = Reg(init=Bool(false))
     val tl_buf_out = Reg(Vec(io.tl.acquire.bits.data, tlDataBeats))
-    val mif_buf_out = Vec.fill(mifDataBeats){ new MemData }
+    val mif_buf_out = Vec(new MemData, mifDataBeats)
     mif_buf_out := mif_buf_out.fromBits(tl_buf_out.toBits)
     val mif_prog_out = (mif_cnt_out+UInt(1, width = log2Up(mifDataBeats+1)))*UInt(mifDataBits)
     val tl_prog_out = tl_cnt_out*UInt(tlDataBits)
@@ -1611,7 +1611,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters 
     val (mif_cnt_in, mif_wrap_in) = Counter(io.mem.resp.fire(), mifDataBeats) // TODO: Assumes all resps have data
     val mif_done_in = Reg(init=Bool(false))
     val mif_buf_in = Reg(Vec(new MemData, mifDataBeats))
-    val tl_buf_in = Vec.fill(tlDataBeats){ io.tl.acquire.bits.data }
+    val tl_buf_in = Vec(io.tl.acquire.bits.data, tlDataBeats)
     tl_buf_in := tl_buf_in.fromBits(mif_buf_in.toBits)
     val tl_prog_in = (tl_cnt_in+UInt(1, width = log2Up(tlDataBeats+1)))*UInt(tlDataBits)
     val mif_prog_in = mif_cnt_in*UInt(mifDataBits)

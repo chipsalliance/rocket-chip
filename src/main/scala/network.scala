@@ -18,8 +18,8 @@ class PhysicalNetworkIO[T <: Data](n: Int, dType: T) extends Bundle {
 }
 
 class BasicCrossbarIO[T <: Data](n: Int, dType: T) extends Bundle {
-    val in  = Vec.fill(n){Decoupled(new PhysicalNetworkIO(n,dType))}.flip 
-    val out = Vec.fill(n){Decoupled(new PhysicalNetworkIO(n,dType))}
+    val in  = Vec(Decoupled(new PhysicalNetworkIO(n,dType)), n).flip 
+    val out = Vec(Decoupled(new PhysicalNetworkIO(n,dType)), n)
 }
 
 abstract class PhysicalNetwork extends Module
@@ -27,7 +27,7 @@ abstract class PhysicalNetwork extends Module
 class BasicCrossbar[T <: Data](n: Int, dType: T, count: Int = 1, needsLock: Option[PhysicalNetworkIO[T] => Bool] = None) extends PhysicalNetwork {
   val io = new BasicCrossbarIO(n, dType)
 
-  val rdyVecs = List.fill(n){Vec.fill(n)(Wire(Bool()))}
+  val rdyVecs = Seq.fill(n){Seq.fill(n)(Wire(Bool()))}
 
   io.out.zip(rdyVecs).zipWithIndex.map{ case ((out, rdys), i) => {
     val rrarb = Module(new LockingRRArbiter(io.in(0).bits, n, count, needsLock))
