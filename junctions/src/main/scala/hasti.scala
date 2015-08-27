@@ -115,7 +115,7 @@ class HASTIBus(amap: Seq[UInt=>Bool]) extends Module
     s.hreadyin := skb_valid || io.master.hready
   } }
 
-  val s1_hsels = Vec.fill(amap.size){Reg(init = Bool(false))}
+  val s1_hsels = Array.fill(amap.size){Reg(init = Bool(false))}
   val hreadyouts = io.slaves.map(_.hreadyout)
   val master_hready = s1_hsels.reduce(_||_) === Bool(false) || Mux1H(s1_hsels, hreadyouts)
 
@@ -145,39 +145,39 @@ class HASTIBus(amap: Seq[UInt=>Bool]) extends Module
 class HASTISlaveMux(n: Int) extends Module
 {
   val io = new Bundle {
-    val ins = Vec.fill(n){new HASTISlaveIO}
+    val ins = Vec(new HASTISlaveIO, n)
     val out = new HASTISlaveIO().flip
   }
 
   // skid buffers
-  val skb_valid = Vec.fill(n){Reg(init = Bool(false))}
-  val skb_haddr = Vec.fill(n){Reg(UInt(width = SZ_HADDR))}
-  val skb_hwrite = Vec.fill(n){Reg(Bool())}
-  val skb_hsize = Vec.fill(n){Reg(UInt(width = SZ_HSIZE))}
-  val skb_hburst = Vec.fill(n){Reg(UInt(width = SZ_HBURST))}
-  val skb_hprot = Vec.fill(n){Reg(UInt(width = SZ_HPROT))}
-  val skb_htrans = Vec.fill(n){Reg(UInt(width = SZ_HTRANS))}
-  val skb_hmastlock = Vec.fill(n){Reg(Bool())}
+  val skb_valid = Array.fill(n){Reg(init = Bool(false))}
+  val skb_haddr = Array.fill(n){Reg(UInt(width = SZ_HADDR))}
+  val skb_hwrite = Array.fill(n){Reg(Bool())}
+  val skb_hsize = Array.fill(n){Reg(UInt(width = SZ_HSIZE))}
+  val skb_hburst = Array.fill(n){Reg(UInt(width = SZ_HBURST))}
+  val skb_hprot = Array.fill(n){Reg(UInt(width = SZ_HPROT))}
+  val skb_htrans = Array.fill(n){Reg(UInt(width = SZ_HTRANS))}
+  val skb_hmastlock = Array.fill(n){Reg(Bool())}
 
   val requests = (io.ins zip skb_valid) map { case (in, v) => in.hsel && in.hreadyin || v }
   val grants = PriorityEncoderOH(requests)
 
-  val s1_grants = Vec.fill(n){Reg(init = Bool(true))}
+  val s1_grants = Array.fill(n){Reg(init = Bool(true))}
 
   (s1_grants zip grants) foreach { case (g1, g) =>
     when (io.out.hreadyout) { g1 := g }
   }
 
-  def sel[T <: Data](in: Vec[T], s1: Vec[T]) =
+  def sel[T <: Data](in: Seq[T], s1: Seq[T]) =
     Vec((skb_valid zip s1 zip in) map { case ((v, s), in) => Mux(v, s, in) })
 
-  io.out.haddr := Mux1H(grants, sel(Vec(io.ins.map(_.haddr)), skb_haddr))
-  io.out.hwrite := Mux1H(grants, sel(Vec(io.ins.map(_.hwrite)), skb_hwrite))
-  io.out.hsize := Mux1H(grants, sel(Vec(io.ins.map(_.hsize)), skb_hsize))
-  io.out.hburst := Mux1H(grants, sel(Vec(io.ins.map(_.hburst)), skb_hburst))
-  io.out.hprot := Mux1H(grants, sel(Vec(io.ins.map(_.hprot)), skb_hprot))
-  io.out.htrans := Mux1H(grants, sel(Vec(io.ins.map(_.htrans)), skb_htrans))
-  io.out.hmastlock := Mux1H(grants, sel(Vec(io.ins.map(_.hmastlock)), skb_hmastlock))
+  io.out.haddr := Mux1H(grants, sel(io.ins.map(_.haddr), skb_haddr))
+  io.out.hwrite := Mux1H(grants, sel(io.ins.map(_.hwrite), skb_hwrite))
+  io.out.hsize := Mux1H(grants, sel(io.ins.map(_.hsize), skb_hsize))
+  io.out.hburst := Mux1H(grants, sel(io.ins.map(_.hburst), skb_hburst))
+  io.out.hprot := Mux1H(grants, sel(io.ins.map(_.hprot), skb_hprot))
+  io.out.htrans := Mux1H(grants, sel(io.ins.map(_.htrans), skb_htrans))
+  io.out.hmastlock := Mux1H(grants, sel(io.ins.map(_.hmastlock), skb_hmastlock))
   io.out.hsel := grants.reduce(_||_)
 
   (io.ins zipWithIndex) map { case (in, i) => {
