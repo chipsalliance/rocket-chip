@@ -67,6 +67,7 @@ class ZscaleTop extends Module {
 
   val sys = Module(new ZscaleSystem)
   val bootmem = Module(new HASTISRAM(params(BootROMCapacity)/4))
+  bootmem.ram.setName("ram")
   val dram = Module(new HASTISRAM(params(DRAMCapacity)/4))
 
   sys.io.host <> io.host
