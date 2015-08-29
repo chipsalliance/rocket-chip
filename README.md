@@ -1,4 +1,4 @@
-Rocket Chip Generator
+Rocket Chip Generator [![Build Status](https://travis-ci.org/ucb-bar/rocket-chip.svg?branch=master)](https://travis-ci.org/ucb-bar/rocket-chip)
 =====================
 
 This repository contains the Rocket chip generator necessary to instantiate

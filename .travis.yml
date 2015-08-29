@@ -1,0 +1,69 @@
+language: scala
+# run on new infrastructure
+sudo: false
+cache: apt
+# packages needed to build riscv-tools
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-4.8
+      - g++-4.8
+      - gperf
+      - autoconf
+      - automake
+      - autotools-dev
+      - libmpc-dev
+      - libmpfr-dev
+      - libgmp-dev
+      - gawk
+      - build-essential
+      - bison
+      - flex
+      - texinfo
+
+env:
+  global:
+    - RISCV="/home/travis/riscv_install"
+    - PATH=$PATH:$RISCV/bin
+
+before_install:
+  # make install destination
+  - mkdir -p $RISCV
+  # don't do travis on riscv-tools
+  - rm riscv-tools/.travis.yml
+  # pull in needed repos from riscv-tools (travis isn't recursive)
+  - cd riscv-tools
+  - git submodule update --init riscv-fesvr
+  - git submodule update --init riscv-gnu-toolchain
+  - git submodule update --init riscv-tests
+  - cd riscv-tests
+  - git submodule update --init
+  - cd ../..
+  # use recently installed gcc
+  - export CXX=g++-4.8 CC=gcc-4.8
+
+script:
+  # test verilog
+  - cd vsim
+  - make verilog
+  - cd ../fsim
+  - make verilog
+  # build riscv-fesvr
+  - cd ../riscv-tools/riscv-fesvr
+  - mkdir build
+  - cd build
+  - ../configure --prefix=$RISCV
+  - make install
+  # build emulator
+  - cd ../../../emulator
+  - make
+  # build riscv-gcc
+  - cd ../riscv-tools/riscv-gnu-toolchain
+  - ./configure --prefix=$RISCV
+  - make -j 8 > build.gcc.out
+  # run riscv-tests
+  - cd ../../emulator
+  - make -j 8 run-asm-tests
+  - make -j 8 run-bmark-tests
