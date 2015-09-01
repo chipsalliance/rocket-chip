@@ -4,7 +4,7 @@ package uncore
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import junctions.{SMIIO, MMIOBase}
+import junctions.SMIIO
 
 case object HTIFWidth extends Field[Int]
 case object HTIFNSCR extends Field[Int]
@@ -16,6 +16,7 @@ abstract trait HTIFParameters extends UsesParameters {
   val dataBeats = params(TLDataBeats)
   val w = params(HTIFWidth)
   val nSCR = params(HTIFNSCR)
+  val scrAddrBits = log2Up(nSCR)
   val offsetBits = params(HTIFOffsetBits)
   val nCores = params(HTIFNCores)
 }
@@ -42,18 +43,11 @@ class HTIFIO extends HTIFBundle {
     // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work
 }
 
-class SCRIO extends HTIFBundle {
-  val rdata = Vec(Bits(INPUT, 64), nSCR)
-  val wen = Bool(OUTPUT)
-  val waddr = UInt(OUTPUT, log2Up(nSCR))
-  val wdata = Bits(OUTPUT, 64)
-}
-
 class HTIFModuleIO extends HTIFBundle {
     val host = new HostIO
     val cpu = Vec(new HTIFIO, nCores).flip
     val mem = new ClientUncachedTileLinkIO
-    val scr = new SCRIO
+    val scr = new SMIIO(64, scrAddrBits)
 }
 
 class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
@@ -200,9 +194,8 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
       }
     }
 
-    when (state === state_pcr_req && cpu.pcr.req.fire()) {
-      state := state_pcr_resp
-    }
+    when (cpu.pcr.req.fire()) { state := state_pcr_resp }
+
     when (state === state_pcr_req && me && pcr_addr === UInt(pcr_RESET)) {
       when (cmd === cmd_writecr) {
         my_reset := pcr_wdata(0)
@@ -218,19 +211,15 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     }
   }
 
-  val scr_addr = addr(log2Up(nSCR)-1, 0)
-  val scr_rdata = Wire(Vec(Bits(width=64), io.scr.rdata.size))
-  for (i <- 0 until scr_rdata.size)
-    scr_rdata(i) := io.scr.rdata(i)
-  scr_rdata(0) := UInt(nCores)
-  scr_rdata(1) := UInt(params(MMIOBase) >> 20)
+  io.scr.req.valid := (state === state_pcr_req && pcr_coreid.andR)
+  io.scr.req.bits.addr := addr(scrAddrBits - 1, 0).toUInt
+  io.scr.req.bits.data := pcr_wdata
+  io.scr.req.bits.rw := (cmd === cmd_writecr)
+  io.scr.resp.ready := Bool(true)
 
-  io.scr.wen := Bool(false)
-  io.scr.wdata := pcr_wdata
-  io.scr.waddr := scr_addr.toUInt
-  when (state === state_pcr_req && pcr_coreid.andR) {
-    io.scr.wen := cmd === cmd_writecr
-    pcrReadData := scr_rdata(scr_addr)
+  when (io.scr.req.fire()) { state := state_pcr_resp }
+  when (state === state_pcr_resp && io.scr.resp.valid) {
+    pcrReadData := io.scr.resp.bits
     state := state_tx
   }
 
