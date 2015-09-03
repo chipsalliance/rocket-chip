@@ -1,19 +1,21 @@
--include $(generated_dir)/Makefrag
-
 # check RISCV environment variable
 ifndef RISCV
 $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
 MODEL := Top
-CXX := g++
+PROJECT := rocketchip
+CXX ?= g++
 CXXFLAGS := -O1
 
 SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
 SHELL := /bin/bash
 
+CHISEL_ARGS := $(MODEL) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configInstance $(PROJECT).$(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
+
 src_path = src/main/scala
-chisel_srcs = $(base_dir)/$(src_path)/*.scala $(base_dir)/rocket/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala $(SRC_EXTENSION)
+default_submodules = . junctions uncore hardfloat rocket zscale
+chisel_srcs = $(addprefix $(base_dir)/,$(addsuffix /$(src_path)/*.scala,$(default_submodules)))
 
 disasm := 2>
 which_disasm := $(shell which spike-dasm)
@@ -22,26 +24,6 @@ ifneq ($(which_disasm),)
 endif
 
 timeout_cycles = 100000000
-
-#--------------------------------------------------------------------
-# Verilog Generation
-#--------------------------------------------------------------------
-
-$(generated_dir)/$(MODEL).$(CONFIG).v: $(chisel_srcs)
-	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate $(MODEL) --backend $(BACKEND) --targetDir $(generated_dir) --W0W --configDump --noInlineMem --configInstance rocketchip.$(CONFIG)"
-	cd $(generated_dir) && \
-	if [ -a $(MODEL).$(CONFIG).conf ]; then \
-	  $(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $(generated_dir)/$(MODEL).$(CONFIG).v; \
-	fi
-
-$(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(MODEL).$(CONFIG).v
-	echo "\`ifndef CONST_VH" > $@
-	echo "\`define CONST_VH" >> $@
-	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/`define \1 \2/' $(patsubst %.v,%.prm,$<) >> $@
-	echo "\`endif // CONST_VH" >> $@
-
-$(generated_dir)/memdessertMemDessert.$(CONFIG).v: $(base_dir)/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala
-	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "project rocketchip" "elaborate MemDessert --backend v --targetDir $(generated_dir) --W0W --moduleNamePrefix memdessert --configInstance rocketchip.$(CONFIG)"
 
 #--------------------------------------------------------------------
 # DRAMSim2

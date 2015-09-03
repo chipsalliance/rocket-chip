@@ -3,6 +3,7 @@
 package rocketchip
 
 import Chisel._
+import junctions._
 import uncore._
 import rocket._
 import rocket.Util._
@@ -215,9 +216,12 @@ class WithZscale extends ChiselConfig(
   (pname,site,here) => pname match {
     case BuildZscale => {
       TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
+      TestGeneration.addSuites(List(zscaleBmarks))
       (r: Bool) => Module(new Zscale(r), {case TLId => "L1ToL2"})
     }
     case UseZscale => true
+    case BootROMCapacity => Dump("BOOT_CAPACITY", 16*1024)
+    case DRAMCapacity => Dump("DRAM_CAPACITY", 64*1024*1024)
   }
 )
 
@@ -225,6 +229,7 @@ class ZscaleConfig extends ChiselConfig(new WithZscale ++ new DefaultConfig)
 
 class FPGAConfig extends ChiselConfig (
   (pname,site,here) => pname match {
+    case NAcquireTransactors => 4
     case UseBackupMemoryPort => false
   }
 )

@@ -3,6 +3,7 @@
 package rocketchip
 
 import Chisel._
+import junctions._
 import uncore._
 import rocket._
 import rocket.Util._
@@ -78,8 +79,6 @@ class Top extends Module with TopLevelParameters {
     val temp = Module(new ZscaleTop)
     io.host <> temp.io.host
   }
-
-  TestGeneration.generateMakefrag
 }
 
 class MultiChannelTop extends Module with TopLevelParameters {
@@ -104,9 +103,9 @@ class MultiChannelTop extends Module with TopLevelParameters {
   // Connect the uncore to the tile memory ports, HostIO and MemIO
   uncore.io.tiles_cached <> tileList.map(_.io.cached)
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached)
-  uncore.io.host <> io.host
-  uncore.io.mem <> io.mem
-  if(params(UseBackupMemoryPort)) { uncore.io.mem_backup_ctrl <> io.mem_backup_ctrl }
+  io.host <> uncore.io.host
+  io.mem <> uncore.io.mem
+  if(params(UseBackupMemoryPort)) { io.mem_backup_ctrl <> uncore.io.mem_backup_ctrl }
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -134,7 +133,7 @@ class Uncore extends Module with TopLevelParameters {
   // Wire the htif to the memory port(s) and host interface
   io.host.debug_stats_pcr := htif.io.host.debug_stats_pcr
   htif.io.cpu <> io.htif
-  outmemsys.io.mem <> io.mem
+  io.mem <> outmemsys.io.mem
   if(params(UseBackupMemoryPort)) {
     outmemsys.io.mem_backup_en := io.mem_backup_ctrl.en
     VLSIUtils.padOutHTIFWithDividedClock(htif.io, outmemsys.io.mem_backup, io.mem_backup_ctrl, io.host, htifW)
@@ -189,15 +188,15 @@ class OuterMemorySystem extends Module with TopLevelParameters {
       val arb = Module(new RocketChipTileLinkArbiter(managerDepths = backendBuffering))(outerTLParams)
       val conv = Module(new MemPipeIOTileLinkIOConverter(nMemReqs))(outerTLParams)
       arb.io.clients <> banks.map(_.outerTL)
-      conv.io.tl <> arb.io.managers.head
+      arb.io.managers.head <> conv.io.tl
       MemIOMemPipeIOConverter(conv.io.mem)
     } else {
       val arb = Module(new RocketChipTileLinkArbiter(managerDepths = backendBuffering))(outerTLParams)
       val conv1 = Module(new NASTIMasterIOTileLinkIOConverter)(outerTLParams)
-      val conv2 = Module(new MemIONASTISlaveIOConverter)
+      val conv2 = Module(new MemIONASTISlaveIOConverter(params(CacheBlockOffsetBits)))
       val conv3 = Module(new MemPipeIOMemIOConverter(nMemReqs))
       arb.io.clients <> banks.map(_.outerTL)
-      conv1.io.tl <> arb.io.managers.head
+      arb.io.managers.head <> conv1.io.tl
       conv2.io.nasti <> conv1.io.nasti
       conv3.io.cpu.req_cmd <> Queue(conv2.io.mem.req_cmd, 2)
       conv3.io.cpu.req_data <> Queue(conv2.io.mem.req_data, mifDataBeats)
@@ -208,6 +207,6 @@ class OuterMemorySystem extends Module with TopLevelParameters {
 
   // Create a SerDes for backup memory port
   if(params(UseBackupMemoryPort)) {
-    VLSIUtils.doOuterMemorySystemSerdes(mem_channels, io.mem, io.mem_backup, io.mem_backup_en, nMemChannels)
+    VLSIUtils.doOuterMemorySystemSerdes(mem_channels, io.mem, io.mem_backup, io.mem_backup_en, nMemChannels, params(HTIFWidth))
   } else { io.mem <> mem_channels }
 }
