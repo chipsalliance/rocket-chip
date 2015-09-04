@@ -18,7 +18,7 @@ default_submodules = . junctions uncore hardfloat rocket zscale
 chisel_srcs = $(addprefix $(base_dir)/,$(addsuffix /$(src_path)/*.scala,$(default_submodules)))
 
 disasm := 2>
-which_disasm := $(shell which spike-dasm)
+which_disasm := $(shell which spike-dasm 2> /dev/null)
 ifneq ($(which_disasm),)
 	disasm := 3>&1 1>&2 2>&3 | $(which_disasm) $(DISASM_EXTENSION) >
 endif
