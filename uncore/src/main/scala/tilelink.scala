@@ -1241,9 +1241,137 @@ trait HasDataBeatCounters {
   }
 }
 
+class ReorderQueueWrite[T <: Data](dType: T, tagWidth: Int) extends Bundle {
+  val data = dType.cloneType
+  val tag = UInt(width = tagWidth)
+
+  override def cloneType =
+    new ReorderQueueWrite(dType, tagWidth).asInstanceOf[this.type]
+}
+
+class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
+    extends Module {
+  val io = new Bundle {
+    val enq = Decoupled(new ReorderQueueWrite(dType, tagWidth)).flip
+    val deq = new Bundle {
+      val valid = Bool(INPUT)
+      val tag = UInt(INPUT, tagWidth)
+      val data = dType.cloneType.asOutput
+    }
+    val full = Bool(OUTPUT)
+  }
+
+  val roq_data  = Reg(Vec(dType.clone, size))
+  val roq_tags = Reg(Vec(UInt(width = tagWidth), size))
+  val roq_free = Reg(init = Fill(size, Bits(1, 1)))
+
+  val roq_enq_addr = PriorityEncoder(roq_free)
+  val roq_deq_addr = PriorityEncoder(roq_tags.map(_ === io.deq.tag))
+
+  io.enq.ready := roq_free.orR
+  io.deq.data := roq_data(roq_deq_addr)
+
+  when (io.enq.valid && io.enq.ready) {
+    roq_data(roq_enq_addr) := io.enq.bits.data
+    roq_tags(roq_enq_addr) := io.enq.bits.tag
+    roq_free(roq_enq_addr) := Bool(false)
+  }
+
+  when (io.deq.valid) {
+    roq_free(roq_deq_addr) := Bool(true)
+  }
+}
+
+class ClientTileLinkIOUnwrapperInfo extends Bundle {
+  val voluntary = Bool()
+  val builtin = Bool()
+}
+
+class ClientTileLinkIOUnwrapper extends TLModule {
+  val io = new Bundle {
+    val in = new ClientTileLinkIO().flip
+    val out = new ClientUncachedTileLinkIO
+  }
+
+  def needsRoqEnq(channel: HasTileLinkData): Bool =
+    !channel.hasMultibeatData() || channel.addr_beat === UInt(0)
+
+  def needsRoqDeq(channel: HasTileLinkData): Bool =
+    !channel.hasMultibeatData() || channel.addr_beat === UInt(tlDataBeats - 1)
+
+  val acqArb = Module(new LockingRRArbiter(new Acquire, 2, tlDataBeats,
+    Some((acq: Acquire) => acq.hasMultibeatData())))
+  val roqArb = Module(new RRArbiter(new ReorderQueueWrite(
+    new ClientTileLinkIOUnwrapperInfo, tlClientXactIdBits), 2))
+
+  val iacq = io.in.acquire.bits
+  val irel = io.in.release.bits
+  val ognt = io.out.grant.bits
+
+  val iacq_wait = needsRoqEnq(iacq) && !roqArb.io.in(0).ready
+  val irel_wait = needsRoqEnq(irel) && !roqArb.io.in(1).ready
+
+  roqArb.io.in(0).valid := io.in.acquire.valid && needsRoqEnq(iacq)
+  roqArb.io.in(0).bits.data.voluntary := Bool(false)
+  roqArb.io.in(0).bits.data.builtin := iacq.isBuiltInType()
+  roqArb.io.in(0).bits.tag := iacq.client_xact_id
+
+  acqArb.io.in(0).valid := io.in.acquire.valid && !iacq_wait
+  acqArb.io.in(0).bits := Acquire(
+    is_builtin_type = Bool(true),
+    a_type = Mux(iacq.isBuiltInType(),
+      iacq.a_type, Acquire.getBlockType),
+    client_xact_id = iacq.client_xact_id,
+    addr_block = iacq.addr_block,
+    addr_beat = iacq.addr_beat,
+    data = iacq.data,
+    union = Mux(iacq.isBuiltInType(),
+      iacq.union, Cat(Acquire.fullWriteMask, Bool(false))))
+  io.in.acquire.ready := acqArb.io.in(0).ready && !iacq_wait
+
+  roqArb.io.in(1).valid := io.in.release.valid && needsRoqEnq(iacq)
+  roqArb.io.in(1).bits.data.voluntary := irel.isVoluntary()
+  roqArb.io.in(1).bits.data.builtin := Bool(true)
+  roqArb.io.in(1).bits.tag := irel.client_xact_id
+
+  acqArb.io.in(1).valid := io.in.release.valid && !irel_wait
+  acqArb.io.in(1).bits := PutBlock(
+    client_xact_id = irel.client_xact_id,
+    addr_block = irel.addr_block,
+    addr_beat = irel.addr_beat,
+    data = irel.data,
+    wmask = Acquire.fullWriteMask)
+  io.in.release.ready := acqArb.io.in(1).ready && !irel_wait
+
+  io.out.acquire <> acqArb.io.out
+
+  val roq = Module(new ReorderQueue(
+    new ClientTileLinkIOUnwrapperInfo, tlClientXactIdBits, 4))
+  roq.io.enq <> roqArb.io.out
+  roq.io.deq.valid := io.out.grant.valid && needsRoqDeq(ognt)
+  roq.io.deq.tag := ognt.client_xact_id
+
+  val gnt_builtin = roq.io.deq.data.builtin
+  val gnt_voluntary = roq.io.deq.data.voluntary
+
+  io.in.grant.valid := io.out.grant.valid
+  io.in.grant.bits := Grant(
+    is_builtin_type = gnt_builtin,
+    g_type = MuxCase(ognt.g_type, Seq(
+      (!gnt_builtin, tlCoh.getExclusiveGrantType),
+      (gnt_voluntary, Grant.voluntaryAckType))),
+    client_xact_id = ognt.client_xact_id,
+    manager_xact_id = ognt.manager_xact_id,
+    addr_beat = ognt.addr_beat,
+    data = ognt.data)
+  io.out.grant.ready := io.in.grant.ready
+
+  io.in.probe.valid := Bool(false)
+}
+
 class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
   val io = new Bundle {
-    val tl = new ManagerTileLinkIO
+    val tl = new ClientUncachedTileLinkIO().flip
     val nasti = new NASTIMasterIO
   }
 
@@ -1254,9 +1382,6 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
   require(dstIdBits + tlClientXactIdBits < nastiXIdBits, "NASTIMasterIO converter is going truncate tags: " + dstIdBits + " + " + tlClientXactIdBits + " >= " + nastiXIdBits)
 
   io.tl.acquire.ready := Bool(false)
-  io.tl.probe.valid := Bool(false)
-  io.tl.release.ready := Bool(false)
-  io.tl.finish.ready := Bool(true)
 
   io.nasti.b.ready := Bool(false)
   io.nasti.r.ready := Bool(false)
@@ -1266,8 +1391,7 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
 
   val dst_off = dstIdBits + tlClientXactIdBits
   val acq_has_data = io.tl.acquire.bits.hasData()
-  val rel_has_data = io.tl.release.bits.hasData()
-  val is_write = io.tl.release.valid || (io.tl.acquire.valid && acq_has_data)
+  val is_write = io.tl.acquire.valid && acq_has_data
 
   // Decompose outgoing TL Acquires into NASTI address and data channels
   val active_out = Reg(init=Bool(false))
@@ -1275,38 +1399,18 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
   val tag_out = Reg(UInt(width = nastiXIdBits))
   val addr_out = Reg(UInt(width = nastiXAddrBits))
   val has_data = Reg(init=Bool(false))
-  val data_from_rel = Reg(init=Bool(false))
   val is_subblock = io.tl.acquire.bits.isSubBlockType()
-  val (tl_cnt_out, tl_wrap_out) =
-    Counter((io.tl.acquire.fire() && io.tl.acquire.bits.hasMultibeatData()) ||
-              (io.tl.release.fire() && rel_has_data), tlDataBeats)
+  val (tl_cnt_out, tl_wrap_out) = Counter(
+    io.tl.acquire.fire() && io.tl.acquire.bits.hasMultibeatData(), tlDataBeats)
   val tl_done_out = Reg(init=Bool(false))
 
-  val roq_size = 4
-  val roq_data  = Reg(Vec(UInt(width = tlByteAddrBits), roq_size))
-  val roq_tags = Reg(Vec(UInt(width = nastiRIdBits), roq_size))
-  val roq_free = Reg(init = Fill(roq_size, Bits(1, 1)))
-  val roq_full = !roq_free.orR
-
-  val roq_enq_addr = PriorityEncoder(roq_free)
-  val roq_enq_valid = io.tl.acquire.fire() && !acq_has_data && is_subblock
-  val roq_enq_data = io.tl.acquire.bits.addr_byte()
-  val roq_enq_tag = io.nasti.ar.bits.id
-
-  val roq_deq_tag = io.nasti.r.bits.id
-  val roq_deq_addr = PriorityEncoder(roq_tags.map(_ === roq_deq_tag))
-  val roq_deq_data = roq_data(roq_deq_addr)
-  val roq_deq_valid = io.nasti.r.fire() && !io.nasti.r.bits.id(0)
-
-  when (roq_enq_valid) {
-    roq_data(roq_enq_addr) := roq_enq_data
-    roq_tags(roq_enq_addr) := roq_enq_tag
-    roq_free(roq_enq_addr) := Bool(false)
-  }
-
-  when (roq_deq_valid) {
-    roq_free(roq_deq_addr) := Bool(true)
-  }
+  val roq = Module(new ReorderQueue(
+    UInt(width = tlByteAddrBits), nastiRIdBits, 4))
+  roq.io.enq.valid := io.tl.acquire.fire() && !acq_has_data && is_subblock
+  roq.io.enq.bits.tag := io.nasti.ar.bits.id
+  roq.io.enq.bits.data := io.tl.acquire.bits.addr_byte()
+  roq.io.deq.valid := io.nasti.r.fire() && !io.nasti.r.bits.id(0)
+  roq.io.deq.tag := io.nasti.r.bits.id
 
   io.nasti.ar.bits.id := tag_out
   io.nasti.ar.bits.addr := addr_out
@@ -1320,63 +1424,40 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
   io.nasti.ar.bits.region := UInt("b0000")
   io.nasti.ar.bits.user := UInt(0)
   io.nasti.aw.bits := io.nasti.ar.bits
-  io.nasti.w.bits.strb := Mux(data_from_rel, SInt(-1), io.tl.acquire.bits.wmask())
-  io.nasti.w.bits.data := Mux(data_from_rel, io.tl.release.bits.data, io.tl.acquire.bits.data)
+  io.nasti.w.bits.strb := io.tl.acquire.bits.wmask()
+  io.nasti.w.bits.data := io.tl.acquire.bits.data
   io.nasti.w.bits.last := tl_wrap_out || (io.tl.acquire.fire() && is_subblock)
 
   when(!active_out){
-    io.tl.release.ready := io.nasti.w.ready
-    io.tl.acquire.ready := io.nasti.w.ready && !io.tl.release.valid
-    io.nasti.w.valid := (io.tl.release.valid && rel_has_data) ||
-                        (io.tl.acquire.valid && acq_has_data)
-    when(io.nasti.w.ready && (io.tl.release.valid || io.tl.acquire.valid)) {
+    io.tl.acquire.ready := io.nasti.w.ready
+    io.nasti.w.valid := is_write
+    when(io.tl.acquire.fire()) {
       active_out := (!is_write && !io.nasti.ar.ready) ||
                     (is_write && !(io.nasti.aw.ready && io.nasti.w.ready)) ||
                     (io.nasti.w.valid && Bool(tlDataBeats > 1))
       io.nasti.aw.valid := is_write
       io.nasti.ar.valid := !is_write
       cmd_sent_out := (!is_write && io.nasti.ar.ready) || (is_write && io.nasti.aw.ready)
-      when(io.tl.release.valid) {
-        data_from_rel := Bool(true)
-        io.nasti.w.bits.data := io.tl.release.bits.data
-        io.nasti.w.bits.strb := SInt(-1)
-        val tag =  Cat(io.tl.release.bits.client_id,
-                       io.tl.release.bits.client_xact_id,
-                       io.tl.release.bits.isVoluntary())
-        val addr = io.tl.release.bits.full_addr()
+      // The last bit indicates to the Grant logic what g_type to send back
+      // For read, true = getDataBlockType, false = getDataBeatType
+      // For write, it should always be false, so that putAckType is sent
+      val tag = Cat(io.tl.acquire.bits.client_xact_id,
+                    !is_write && !is_subblock)
+      val addr = io.tl.acquire.bits.full_addr()
+      when(is_write) {
         io.nasti.aw.bits.id := tag
         io.nasti.aw.bits.addr := addr
-        io.nasti.aw.bits.len := UInt(tlDataBeats-1)
-        tag_out := tag
-        addr_out := addr
-        has_data := rel_has_data
-        tl_done_out := tl_wrap_out
-      } .elsewhen(io.tl.acquire.valid) {
-        data_from_rel := Bool(false)
-        io.nasti.w.bits.data := io.tl.acquire.bits.data
-        io.nasti.w.bits.strb := io.tl.acquire.bits.wmask()
-        // The last bit indicates to the Grant logic what g_type to send back
-        // For read, true = getDataBlockType, false = getDataBeatType
-        // For write, it should always be false, so that putAckType is sent
-        val tag = Cat(io.tl.acquire.bits.client_id,
-                      io.tl.acquire.bits.client_xact_id,
-                      !is_write && !is_subblock)
-        val addr = io.tl.acquire.bits.full_addr()
-        when(is_write) {
-          io.nasti.aw.bits.id := tag
-          io.nasti.aw.bits.addr := addr
-          io.nasti.aw.bits.len := Mux(!is_subblock, UInt(tlDataBeats-1), UInt(0))
-        } .otherwise {
-          io.nasti.ar.bits.id := tag
-          io.nasti.ar.bits.addr := addr
-          io.nasti.ar.bits.len := Mux(!is_subblock, UInt(tlDataBeats-1), UInt(0))
-          io.nasti.ar.bits.size := io.tl.acquire.bits.op_size()
-        }
-        tag_out := tag
-        addr_out := addr
-        has_data := acq_has_data
-        tl_done_out := tl_wrap_out || is_subblock
+        io.nasti.aw.bits.len := Mux(!is_subblock, UInt(tlDataBeats-1), UInt(0))
+      } .otherwise {
+        io.nasti.ar.bits.id := tag
+        io.nasti.ar.bits.addr := addr
+        io.nasti.ar.bits.len := Mux(!is_subblock, UInt(tlDataBeats-1), UInt(0))
+        io.nasti.ar.bits.size := io.tl.acquire.bits.op_size()
       }
+      tag_out := tag
+      addr_out := addr
+      has_data := acq_has_data
+      tl_done_out := tl_wrap_out || is_subblock
     }
   }
   when(active_out) {
@@ -1384,16 +1465,11 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
     io.nasti.aw.valid := !cmd_sent_out && has_data
     cmd_sent_out := cmd_sent_out || io.nasti.ar.fire() || io.nasti.aw.fire()
     when(has_data && !tl_done_out) {
-      when(data_from_rel) {
-        io.tl.release.ready := io.nasti.w.ready
-        io.nasti.w.valid := io.tl.release.valid
-      } .otherwise {
-        io.tl.acquire.ready := io.nasti.w.ready
-        io.nasti.w.valid := io.tl.acquire.valid
-      }
+      io.tl.acquire.ready := io.nasti.w.ready
+      io.nasti.w.valid := io.tl.acquire.valid
     }
     when(tl_wrap_out) { tl_done_out := Bool(true) }
-    when(cmd_sent_out && !roq_full && (!has_data || tl_done_out)) {
+    when(cmd_sent_out && roq.io.enq.ready && (!has_data || tl_done_out)) {
       active_out := Bool(false)
     }
   }
@@ -1410,12 +1486,11 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
 
   val r_aligned_data = Mux(io.nasti.r.bits.id(0),
     io.nasti.r.bits.data,
-    io.nasti.r.bits.data << Cat(roq_deq_data, UInt(0, 3)))
+    io.nasti.r.bits.data << Cat(roq.io.deq.data, UInt(0, 3)))
 
   gnt_arb.io.in(0).valid := io.nasti.r.valid
   io.nasti.r.ready := gnt_arb.io.in(0).ready
   gnt_arb.io.in(0).bits := Grant(
-    dst = (if(dstIdBits > 0) io.nasti.r.bits.id(dst_off, tlClientXactIdBits + 1) else UInt(0)),
     is_builtin_type = Bool(true),
     g_type = Mux(io.nasti.r.bits.id(0),
       Grant.getDataBlockType, Grant.getDataBeatType), // TODO: Assumes MI or MEI protocol
@@ -1427,11 +1502,12 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
   gnt_arb.io.in(1).valid := io.nasti.b.valid
   io.nasti.b.ready := gnt_arb.io.in(1).ready
   gnt_arb.io.in(1).bits := Grant(
-    dst = (if(dstIdBits > 0) io.nasti.b.bits.id(dst_off, tlClientXactIdBits + 1) else UInt(0)),
     is_builtin_type = Bool(true),
-    g_type = Mux(io.nasti.b.bits.id(0), Grant.voluntaryAckType, Grant.putAckType),
+    g_type = Grant.putAckType,
     client_xact_id = io.nasti.b.bits.id >> 1,
-    manager_xact_id = UInt(0))
+    manager_xact_id = UInt(0),
+    addr_beat = UInt(0),
+    data = Bits(0))
 }
 
 class MemPipeIOTileLinkIOConverter(outstanding: Int) extends MIFModule {
@@ -1513,8 +1589,7 @@ class MemIOTileLinkIOConverter(qDepth: Int) extends TLModule with MIFParameters 
       when(io.tl.release.valid) {
         active_out := Bool(true)
         cmd_sent_out := Bool(false)
-        tag_out := Cat(io.tl.release.bits.client_id,
-                       io.tl.release.bits.client_xact_id,
+        tag_out := Cat(io.tl.release.bits.client_xact_id,
                        io.tl.release.bits.isVoluntary())
         addr_out := io.tl.release.bits.addr_block
         has_data := rel_has_data

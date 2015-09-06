@@ -98,6 +98,7 @@ trait HasManagerSideCoherencePolicy extends HasDirectoryRepresentation {
   def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt
   def getProbeType(acq: Acquire, meta: ManagerMetadata): UInt
   def getGrantType(acq: Acquire, meta: ManagerMetadata): UInt
+  def getExclusiveGrantType(): UInt
 
   // Mutate ManagerMetadata based on messages or cmds
   def managerMetadataOnReset: ManagerMetadata
@@ -193,6 +194,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       probeInvalidate)
 
   def getGrantType(a: Acquire, meta: ManagerMetadata): UInt = grantExclusive
+  def getExclusiveGrantType(): UInt = grantExclusive
 
   def managerMetadataOnReset = ManagerMetadata()
 
@@ -295,6 +297,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       probeInvalidate)
 
   def getGrantType(a: Acquire, meta: ManagerMetadata): UInt = grantExclusive
+  def getExclusiveGrantType(): UInt = grantExclusive
 
   def managerMetadataOnReset = ManagerMetadata()
 
@@ -413,6 +416,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     Mux(a.a_type === acquireShared,
       Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
       grantExclusive)
+  def getExclusiveGrantType(): UInt = grantExclusive
 
   def managerMetadataOnReset = ManagerMetadata()
 
@@ -532,6 +536,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     Mux(a.a_type === acquireShared,
       Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
       grantExclusive)
+  def getExclusiveGrantType(): UInt = grantExclusive
 
   def managerMetadataOnReset = ManagerMetadata()
 
@@ -674,6 +679,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
         acquireShared    -> Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
         acquireExclusive -> grantExclusive,                                            
         acquireInvalidateOthers -> grantExclusiveAck))  //TODO: add this to MESI for broadcast?
+  def getExclusiveGrantType(): UInt = grantExclusive
 
   def managerMetadataOnReset = ManagerMetadata()
 
