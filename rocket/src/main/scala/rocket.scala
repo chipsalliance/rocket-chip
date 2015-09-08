@@ -492,7 +492,7 @@ class Rocket extends CoreModule
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
-  if (!params(BuildFPU).isEmpty) {
+  if (!params(BuildFPU).isEmpty && !params(BuildRoCC).isEmpty) {
     io.fpu.cp_req <> io.rocc.fpu_req
     io.fpu.cp_resp <> io.rocc.fpu_resp
   } else {
