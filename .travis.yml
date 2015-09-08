@@ -28,6 +28,13 @@ env:
     - RISCV="/home/travis/riscv_install"
     - PATH=$PATH:$RISCV/bin
 
+# blacklist private branches
+branches:
+  except:
+    - hwacha
+    - boom
+    - hurricane
+
 before_install:
   # make install destination
   - mkdir -p $RISCV
