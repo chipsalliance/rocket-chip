@@ -8,7 +8,7 @@ import uncore._
 class HellaCacheArbiter(n: Int) extends Module
 {
   val io = new Bundle {
-    val requestor = Vec.fill(n){new HellaCacheIO}.flip
+    val requestor = Vec(new HellaCacheIO, n).flip
     val mem = new HellaCacheIO
   }
 

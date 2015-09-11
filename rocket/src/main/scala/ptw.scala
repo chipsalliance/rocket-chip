@@ -54,7 +54,7 @@ class PTE extends CoreBundle {
 class PTW(n: Int) extends CoreModule
 {
   val io = new Bundle {
-    val requestor = Vec.fill(n){new TLBPTWIO}.flip
+    val requestor = Vec(new TLBPTWIO, n).flip
     val mem = new HellaCacheIO
     val dpath = new DatapathPTWIO
   }
