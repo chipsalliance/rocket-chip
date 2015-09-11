@@ -191,6 +191,15 @@ class MemIONASTISlaveIOConverter(cacheBlockOffsetBits: Int) extends MIFModule wi
   require(mifDataBits == nastiXDataBits, "Data sizes between LLC and MC don't agree")
   val (mif_cnt_out, mif_wrap_out) = Counter(io.mem.resp.fire(), mifDataBeats)
 
+  assert(!io.nasti.aw.valid || io.nasti.aw.bits.size === UInt(log2Up(mifDataBits/8)),
+    "NASTI data size does not match MemIO data size")
+  assert(!io.nasti.ar.valid || io.nasti.ar.bits.size === UInt(log2Up(mifDataBits/8)),
+    "NASTI data size does not match MemIO data size")
+  assert(!io.nasti.aw.valid || io.nasti.aw.bits.len === UInt(mifDataBeats - 1),
+    "NASTI length does not match number of MemIO beats")
+  assert(!io.nasti.ar.valid || io.nasti.ar.bits.len === UInt(mifDataBeats - 1),
+    "NASTI length does not match number of MemIO beats")
+
   // according to the spec, we can't send b until the last transfer on w
   val b_ok = Reg(init = Bool(true))
   when (io.nasti.aw.fire()) { b_ok := Bool(false) }
