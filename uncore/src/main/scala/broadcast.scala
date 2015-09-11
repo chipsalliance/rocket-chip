@@ -255,32 +255,42 @@ class BroadcastAcquireTracker(trackerId: Int) extends BroadcastXactTracker {
                             !io.irel().isVoluntary() &&
                             (state === s_probe)
 
-  val oacq_type = MuxLookup(state, Acquire.getBlockType, Seq(
-    (s_probe, Acquire.putBlockType),
-    (s_mem_write, Mux(subblock_type, Acquire.putType, Acquire.putBlockType)),
-    (s_mem_read, Mux(subblock_type, Acquire.getType, Acquire.getBlockType))))
-  val oacq_beat = MuxLookup(state, UInt(0), Seq(
-    (s_probe, io.irel().addr_beat),
-    (s_mem_write, Mux(subblock_type, xact.addr_beat, oacq_data_cnt)),
-    (s_mem_read, Mux(subblock_type, xact.addr_beat, UInt(0)))))
-  val oacq_data = MuxLookup(state, Bits(0), Seq(
-    (s_probe, io.irel().data),
-    (s_mem_write, Mux(subblock_type,
-      data_buffer(0), data_buffer(oacq_data_cnt)))))
-  val oacq_union = MuxLookup(state, Bits(0), Seq(
-    (s_probe, Acquire.fullWriteMask),
-    (s_mem_write, xact.wmask()),
-    (s_mem_read, Cat(xact.addr_byte(), xact.op_size(), M_XRD))))
-
-  io.outer.acquire.valid := Bool(false)
-  io.outer.acquire.bits := Bundle(Acquire(
-    is_builtin_type = Bool(true),
-    a_type = oacq_type,
+  val oacq_probe = PutBlock(
     client_xact_id = UInt(trackerId),
     addr_block = xact.addr_block,
-    addr_beat = oacq_beat,
-    data = oacq_data,
-    union = Cat(oacq_union, Bool(true))))(outerTLParams)
+    addr_beat = io.irel().addr_beat,
+    data = io.irel().data)
+
+  val oacq_write_beat = Put(
+    client_xact_id = UInt(trackerId),
+    addr_block = xact.addr_block,
+    addr_beat = xact.addr_beat,
+    data = data_buffer(0),
+    wmask = xact.wmask())
+
+  val oacq_write_block = PutBlock(
+    client_xact_id = UInt(trackerId),
+    addr_block = xact.addr_block,
+    addr_beat = oacq_data_cnt,
+    data = data_buffer(oacq_data_cnt))
+
+  val oacq_read_beat = Get(
+    client_xact_id = UInt(trackerId),
+    addr_block = xact.addr_block,
+    addr_beat = xact.addr_beat,
+    addr_byte = xact.addr_byte(),
+    operand_size = xact.op_size(),
+    alloc = Bool(false))
+
+  val oacq_read_block = GetBlock(
+    client_xact_id = UInt(trackerId),
+    addr_block = xact.addr_block)
+
+  io.outer.acquire.valid := Bool(false)
+  io.outer.acquire.bits := Mux(state === s_probe, oacq_probe,
+    Mux(state === s_mem_write,
+      Mux(subblock_type, oacq_write_beat, oacq_write_block),
+      Mux(subblock_type, oacq_read_beat, oacq_read_block)))
   io.outer.grant.ready := Bool(false)
 
   io.inner.probe.valid := Bool(false)
