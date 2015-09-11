@@ -11,6 +11,9 @@ class SMIReq(val dataWidth: Int, val addrWidth: Int) extends Bundle {
     new SMIReq(dataWidth, addrWidth).asInstanceOf[this.type]
 }
 
+/** Simple Memory Interface IO. Used to communicate with PCR and SCR
+ *  @param dataWidth the width in bits of the data field
+ *  @param addrWidth the width in bits of the addr field */
 class SMIIO(val dataWidth: Int, val addrWidth: Int) extends Bundle {
   val req = Decoupled(new SMIReq(dataWidth, addrWidth))
   val resp = Decoupled(Bits(width = dataWidth)).flip
@@ -26,6 +29,7 @@ abstract class SMIPeripheral extends Module {
   lazy val io = new SMIIO(dataWidth, addrWidth).flip
 }
 
+/** A simple sequential memory accessed through SMI */
 class SMIMem(val dataWidth: Int, val memDepth: Int) extends SMIPeripheral {
   // override
   val addrWidth = log2Up(memDepth)
@@ -35,9 +39,6 @@ class SMIMem(val dataWidth: Int, val memDepth: Int) extends SMIPeripheral {
   val ren = io.req.fire() && !io.req.bits.rw
   val wen = io.req.fire() && io.req.bits.rw
 
-  io.resp.valid := Reg(next = ren)
-  io.resp.bits := mem.read(io.req.bits.addr, ren)
-
   when (wen) { mem.write(io.req.bits.addr, io.req.bits.data) }
 
   val resp_valid = Reg(init = Bool(false))
@@ -46,9 +47,14 @@ class SMIMem(val dataWidth: Int, val memDepth: Int) extends SMIPeripheral {
   when (io.req.fire())  { resp_valid := Bool(true) }
 
   io.resp.valid := resp_valid
+  io.resp.bits := mem.read(io.req.bits.addr, ren)
   io.req.ready := !resp_valid
 }
 
+/** Arbitrate among several SMI clients
+ *  @param n the number of clients
+ *  @param dataWidth SMI data width
+ *  @param addrWidth SMI address width */
 class SMIArbiter(val n: Int, val dataWidth: Int, val addrWidth: Int)
     extends Module {
   val io = new Bundle {
@@ -243,6 +249,7 @@ class SMIIONASTIWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   when (io.b.fire()) { state := s_idle }
 }
 
+/** Convert NASTI protocol to SMI protocol */
 class SMIIONASTISlaveIOConverter(val dataWidth: Int, val addrWidth: Int)
     extends NASTIModule {
   val io = new Bundle {

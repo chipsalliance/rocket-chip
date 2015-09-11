@@ -226,6 +226,7 @@ class MemIONASTISlaveIOConverter(cacheBlockOffsetBits: Int) extends MIFModule wi
   io.mem.resp.ready := io.nasti.r.ready
 }
 
+/** Arbitrate among arbN masters requesting to a single slave */
 class NASTIArbiter(val arbN: Int) extends NASTIModule {
   val io = new Bundle {
     val master = Vec.fill(arbN) { new NASTISlaveIO }
@@ -292,7 +293,8 @@ class NASTIArbiter(val arbN: Int) extends NASTIModule {
   } else { io.slave <> io.master.head }
 }
 
-// TODO: More efficient implementation a/la Chisel Stdlib
+/** Locking RR arbiter for NASTI read data channel
+ *  Arbiter locks until last message in channel is sent */
 class NASTIReadDataArbiter(arbN: Int) extends NASTIModule {
   val io = new Bundle {
     val in = Vec.fill(arbN) { Decoupled(new NASTIReadDataChannel) }.flip
@@ -363,6 +365,9 @@ class NASTIErrorSlave extends NASTIModule {
   b_queue.io.deq.ready := io.b.ready && !draining
 }
 
+/** Take a single NASTI master and route its requests to various slaves
+ *  @param addrmap a sequence of base address + memory size pairs,
+ *  on for each slave interface */
 class NASTIRouter(addrmap: Seq[(BigInt, BigInt)]) extends NASTIModule {
   val nSlaves = addrmap.size
 
@@ -437,6 +442,11 @@ class NASTIRouter(addrmap: Seq[(BigInt, BigInt)]) extends NASTIModule {
   io.master.r <> r_arb.io.out
 }
 
+/** Crossbar between multiple NASTI masters and slaves
+ *  @param nMasters the number of NASTI masters
+ *  @param nSlaves the number of NASTI slaves
+ *  @param addrmap a sequence of base - size pairs;
+ *  size of addrmap should be nSlaves */
 class NASTICrossbar(nMasters: Int, nSlaves: Int, addrmap: Seq[(BigInt, BigInt)])
     extends NASTIModule {
   val io = new Bundle {
