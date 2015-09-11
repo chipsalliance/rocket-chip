@@ -43,6 +43,8 @@ abstract trait CoreParameters extends UsesParameters {
   val coreMaxAddrBits = math.max(ppnBits,vpnBits+1) + pgIdxBits
   val vaddrBitsExtended = vaddrBits + (vaddrBits < xLen).toInt
 
+  val EnableCommitLog = true
+
   if(params(FastLoadByte)) require(params(FastLoadWord))
 }
 
@@ -492,11 +494,9 @@ class Rocket extends CoreModule
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
-  val COMMITLOG = true
-
-  if (COMMITLOG) {
+  if (EnableCommitLog) {
     val pc = Wire(SInt(width=64))
-    pc := wb_reg_pc//.toSInt()
+    pc := wb_reg_pc
     val inst = wb_reg_inst
     val rd = RegNext(RegNext(RegNext(id_waddr)))
     val wfd = wb_ctrl.wfd
@@ -506,7 +506,7 @@ class Rocket extends CoreModule
     when (wb_valid) {
       // TODO add privileged level
       when (wfd) {
-        printf ("0x%x (0x%x) f%d\n", pc, inst, rd)
+        printf ("0x%x (0x%x) f%d p%d 0xXXXXXXXXXXXXXXXX\n", pc, inst, rd, rd+UInt(32))
       }
       .elsewhen (wxd && rd != UInt(0) && has_data) {
         printf ("0x%x (0x%x) x%d 0x%x\n", pc, inst, rd, rf_wdata)
