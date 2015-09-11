@@ -353,7 +353,7 @@ class FPUFMAPipe(val latency: Int, sigWidth: Int, expWidth: Int) extends Module
   io.out := Pipe(valid, res, latency-1)
 }
 
-class FPU extends Module
+class FPU extends CoreModule
 {
   val io = new FPUIO
 
@@ -383,7 +383,12 @@ class FPU extends Module
 
   // regfile
   val regfile = Mem(Bits(width = 65), 32)
-  when (load_wb) { regfile(load_wb_tag) := load_wb_data_recoded }
+  when (load_wb) { 
+    regfile(load_wb_tag) := load_wb_data_recoded 
+    if (EnableCommitLog) {
+      printf ("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + UInt(32), load_wb_data)
+    }
+  }
 
   val ex_ra1::ex_ra2::ex_ra3::Nil = List.fill(3)(Reg(UInt()))
   when (io.valid) {
@@ -459,7 +464,7 @@ class FPU extends Module
   val winfo = Reg(Vec(Bits(), maxLatency-1))
   val mem_wen = mem_reg_valid && (mem_ctrl.fma || mem_ctrl.fastpipe || mem_ctrl.fromint)
   val write_port_busy = RegEnable(mem_wen && (memLatencyMask & latencyMask(ex_ctrl, 1)).orR || (wen & latencyMask(ex_ctrl, 0)).orR, ex_reg_valid)
-  val mem_winfo = Cat(pipeid(mem_ctrl), mem_reg_inst(11,7))
+  val mem_winfo = Cat(mem_ctrl.single, pipeid(mem_ctrl), mem_reg_inst(11,7))
 
   for (i <- 0 until maxLatency-2) {
     when (wen(i+1)) { winfo(i) := winfo(i+1) }
@@ -477,10 +482,18 @@ class FPU extends Module
   }
 
   val waddr = Mux(divSqrt_wen, divSqrt_waddr, winfo(0)(4,0).toUInt)
-  val wsrc = winfo(0) >> 5
+  val wsrc = (winfo(0) >> 5)(1,0) // TODO: get rid of magic number on log(num_pipes)
   val wdata = Mux(divSqrt_wen, divSqrt_wdata, Vec(pipes.map(_.wdata))(wsrc))
   val wexc = Vec(pipes.map(_.wexc))(wsrc)
-  when (wen(0) || divSqrt_wen) { regfile(waddr) := wdata }
+  when (wen(0) || divSqrt_wen) { 
+    regfile(waddr) := wdata 
+    if (EnableCommitLog) {
+      val wdata_unrec_s = hardfloat.recodedFloatNToFloatN(wdata(64,0), 23, 9)
+      val wdata_unrec_d = hardfloat.recodedFloatNToFloatN(wdata(64,0), 52, 12)
+      val wb_single = (winfo(0) >> 5)(2) // TODO: get rid of magic numbers
+      printf ("f%d p%d 0x%x\n", waddr, waddr+ UInt(32), Mux(wb_single, wdata_unrec_s, wdata_unrec_d))
+    }
+  }
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
