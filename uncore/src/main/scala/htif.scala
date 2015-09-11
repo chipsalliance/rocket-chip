@@ -43,15 +43,13 @@ class HTIFIO extends HTIFBundle {
     // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work
 }
 
-class HTIFModuleIO extends HTIFBundle {
+class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
+  val io = new Bundle {
     val host = new HostIO
     val cpu = Vec(new HTIFIO, nCores).flip
     val mem = new ClientUncachedTileLinkIO
     val scr = new SMIIO(64, scrAddrBits)
-}
-
-class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
-  val io = new HTIFModuleIO
+  }
 
   io.host.debug_stats_pcr := io.cpu.map(_.debug_stats_pcr).reduce(_||_)
     // system is 'interesting' if any tile is 'interesting'
