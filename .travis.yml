@@ -65,7 +65,8 @@ script:
   - make install
   # build emulator
   - cd ../../../emulator
-  - make
+  - make -j 8
+  - make -j 8 debug
   # build riscv-gcc
   - cd ../riscv-tools/riscv-gnu-toolchain
   - ./configure --prefix=$RISCV
