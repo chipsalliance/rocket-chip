@@ -113,6 +113,75 @@ class NASTIReadDataChannel extends NASTIResponseChannel with HasNASTIData {
   val user = UInt(width = nastiRUserBits)
 }
 
+object NASTIWriteAddressChannel {
+  def apply(id: UInt, addr: UInt, size: UInt, len: UInt) = {
+    val aw = Wire(new NASTIWriteAddressChannel)
+    aw.id := id
+    aw.addr := addr
+    aw.len := len
+    aw.size := size
+    aw.burst := UInt("b01")
+    aw.lock := Bool(false)
+    aw.cache := UInt("b0000")
+    aw.prot := UInt("b000")
+    aw.qos := UInt("b0000")
+    aw.region := UInt("b0000")
+    aw.user := UInt(0)
+    aw
+  }
+}
+
+object NASTIReadAddressChannel {
+  def apply(id: UInt, addr: UInt, size: UInt, len: UInt) = {
+    val ar = Wire(new NASTIReadAddressChannel)
+    ar.id := id
+    ar.addr := addr
+    ar.len := len
+    ar.size := size
+    ar.burst := UInt("b01")
+    ar.lock := Bool(false)
+    ar.cache := UInt(0)
+    ar.prot := UInt(0)
+    ar.qos := UInt(0)
+    ar.region := UInt(0)
+    ar.user := UInt(0)
+    ar
+  }
+}
+
+object NASTIWriteDataChannel {
+  def apply(strb: UInt, data: UInt, last: Bool) = {
+    val w = Wire(new NASTIWriteDataChannel)
+    w.strb := strb
+    w.data := data
+    w.last := last
+    w.user := UInt(0)
+    w
+  }
+}
+
+object NASTIReadDataChannel {
+  def apply(id: UInt, data: UInt, last: Bool, resp: UInt = UInt(0)) = {
+    val r = Wire(new NASTIReadDataChannel)
+    r.id := id
+    r.data := data
+    r.last := last
+    r.resp := resp
+    r.user := UInt(0)
+    r
+  }
+}
+
+object NASTIWriteResponseChannel {
+  def apply(id: UInt, resp: UInt = UInt(0)) = {
+    val b = Wire(new NASTIWriteResponseChannel)
+    b.id := id
+    b.resp := resp
+    b.user := UInt(0)
+    b
+  }
+}
+
 class MemIONASTISlaveIOConverter(cacheBlockOffsetBits: Int) extends MIFModule with NASTIParameters {
   val io = new Bundle {
     val nasti = new NASTISlaveIO

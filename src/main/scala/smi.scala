@@ -121,10 +121,10 @@ class SMIIONASTIReadIOConverter(val dataWidth: Int, val addrWidth: Int)
   io.smi.resp.ready := (state === s_read)
 
   io.r.valid := (state === s_resp)
-  io.r.bits.resp := Bits(0)
-  io.r.bits.data := buffer.toBits
-  io.r.bits.id := id
-  io.r.bits.last := (nBeats === UInt(0))
+  io.r.bits := NASTIReadDataChannel(
+    id = id,
+    data = buffer.toBits,
+    last = (nBeats === UInt(0)))
 
   when (io.ar.fire()) {
     when (io.ar.bits.size < UInt(byteOffBits)) {
@@ -207,8 +207,7 @@ class SMIIONASTIWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   io.smi.req.bits.data := data(dataWidth - 1, 0)
   io.smi.resp.ready := (state === s_ack)
   io.b.valid := (state === s_resp)
-  io.b.bits.resp := Bits(0)
-  io.b.bits.id := id
+  io.b.bits := NASTIWriteResponseChannel(id)
 
   val jump = PriorityMux(strb(maxWordsPerBeat - 1, 1),
     (1 until maxWordsPerBeat).map(UInt(_)))
