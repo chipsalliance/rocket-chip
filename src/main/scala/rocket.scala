@@ -180,9 +180,9 @@ class Rocket extends CoreModule
 
   // execute stage
   val bypass_mux = Vec(bypass_sources.map(_._3))
-  val ex_reg_rs_bypass = Reg(Vec.fill(id_raddr.size)(Bool()))
-  val ex_reg_rs_lsb = Reg(Vec.fill(id_raddr.size)(Bits()))
-  val ex_reg_rs_msb = Reg(Vec.fill(id_raddr.size)(Bits()))
+  val ex_reg_rs_bypass = Reg(Vec(Bool(), id_raddr.size))
+  val ex_reg_rs_lsb = Reg(Vec(UInt(), id_raddr.size))
+  val ex_reg_rs_msb = Reg(Vec(UInt(), id_raddr.size))
   val ex_rs = for (i <- 0 until id_raddr.size)
     yield Mux(ex_reg_rs_bypass(i), bypass_mux(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
   val ex_imm = imm(ex_ctrl.sel_imm, ex_reg_inst)

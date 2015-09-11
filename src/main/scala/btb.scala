@@ -35,7 +35,7 @@ class RAS(nras: Int) {
 
   private val count = Reg(init=UInt(0,log2Up(nras+1)))
   private val pos = Reg(init=UInt(0,log2Up(nras)))
-  private val stack = Reg(Vec.fill(nras){UInt()})
+  private val stack = Reg(Vec(UInt(), nras))
 }
 
 class BHTResp extends Bundle with BTBParameters {

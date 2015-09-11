@@ -538,7 +538,7 @@ class DataArray extends L1HellaCacheModule {
   val io = new Bundle {
     val read = Decoupled(new L1DataReadReq).flip
     val write = Decoupled(new L1DataWriteReq).flip
-    val resp = Vec.fill(nWays){Bits(OUTPUT, encRowBits)}
+    val resp = Vec(Bits(OUTPUT, encRowBits), nWays)
   }
 
   val waddr = io.write.bits.addr >> rowOffBits
@@ -551,13 +551,12 @@ class DataArray extends L1HellaCacheModule {
       val resp = Wire(Vec(Bits(width = encRowBits), rowWords))
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
-        val array = SeqMem(Bits(width=encRowBits), nSets*refillCycles)
+        val array = SeqMem(Vec(Bits(width=encDataBits), rowWords), nSets*refillCycles)
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
-          val data = Fill(rowWords, io.write.bits.data(encDataBits*(p+1)-1,encDataBits*p))
-          val mask = FillInterleaved(encDataBits, wway_en)
-          array.write(waddr, data, mask)
+          val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(p+1)-1,encDataBits*p))
+          array.write(waddr, data, wway_en.toBools)
         }
-        resp(p) := array.read(raddr, rway_en.orR && io.read.valid)
+        resp(p) := array.read(raddr, rway_en.orR && io.read.valid).toBits
       }
       for (dw <- 0 until rowWords) {
         val r = Vec(resp.map(_(encDataBits*(dw+1)-1,encDataBits*dw)))
@@ -568,13 +567,13 @@ class DataArray extends L1HellaCacheModule {
       }
     }
   } else {
-    val wmask = FillInterleaved(encDataBits, io.write.bits.wmask)
     for (w <- 0 until nWays) {
-      val array = SeqMem(Bits(width=encRowBits), nSets*refillCycles)
+      val array = SeqMem(Vec(Bits(width=encDataBits), rowWords), nSets*refillCycles)
       when (io.write.bits.way_en(w) && io.write.valid) {
-        array.write(waddr, io.write.bits.data, wmask)
+        val data = Vec.tabulate(rowWords)(i => io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
+        array.write(waddr, data, io.write.bits.wmask.toBools)
       }
-      io.resp(w) := array.read(raddr, io.read.bits.way_en(w) && io.read.valid)
+      io.resp(w) := array.read(raddr, io.read.bits.way_en(w) && io.read.valid).toBits
     }
   }
 
@@ -749,7 +748,7 @@ class HellaCache extends L1HellaCacheModule {
 
   val s2_data = Wire(Vec(Bits(width=encRowBits), nWays))
   for (w <- 0 until nWays) {
-    val regs = Reg(Vec.fill(rowWords){Bits(width = encDataBits)})
+    val regs = Reg(Vec(Bits(width = encDataBits), rowWords))
     val en1 = s1_clk_en && s1_tag_eq_way(w)
     for (i <- 0 until regs.size) {
       val en = en1 && ((Bool(i == 0) || !Bool(doNarrowRead)) || s1_writeback)
