@@ -492,12 +492,46 @@ class Rocket extends CoreModule
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
-  printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
+  val COMMITLOG = true
+
+  if (COMMITLOG) {
+    val pc = Wire(SInt(width=64))
+    pc := wb_reg_pc//.toSInt()
+    val inst = wb_reg_inst
+    val rd = RegNext(RegNext(RegNext(id_waddr)))
+    val wfd = wb_ctrl.wfd
+    val wxd = wb_ctrl.wxd
+    val has_data = wb_wen && !wb_set_sboard
+
+    when (wb_valid) {
+      // TODO add privileged level
+      when (wfd) {
+        printf ("0x%x (0x%x) f%d\n", pc, inst, rd)
+      }
+      .elsewhen (wxd && rd != UInt(0) && has_data) {
+        printf ("0x%x (0x%x) x%d 0x%x\n", pc, inst, rd, rf_wdata)
+      }
+      .elsewhen (wxd && rd != UInt(0) && !has_data) {
+        printf ("0x%x (0x%x) x%d p%d 0xXXXXXXXXXXXXXXXX\n", pc, inst, rd, rd)
+      }
+      .otherwise { // !wxd || (wxd && rd == 0)
+        printf ("0x%x (0x%x)\n", pc, inst)
+      }
+    }
+
+    // ll write data
+    when (ll_wen) {
+      printf ("x%d p%d 0x%x\n", rf_waddr, rf_waddr, rf_wdata)
+    }
+  }
+  else {
+    printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          io.host.id, csr.io.time(32,0), wb_valid, wb_reg_pc,
          Mux(rf_wen, rf_waddr, UInt(0)), rf_wdata, rf_wen,
          wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
          wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),
          wb_reg_inst, wb_reg_inst)
+  }
 
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
