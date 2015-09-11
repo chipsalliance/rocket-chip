@@ -386,7 +386,7 @@ class FPU extends CoreModule
   when (load_wb) { 
     regfile(load_wb_tag) := load_wb_data_recoded 
     if (EnableCommitLog) {
-      printf ("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + UInt(32), load_wb_data) // TODO see what happens, either change spike to sext, or us or whatever.
+      printf ("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + UInt(32), load_wb_data)
     }
   }
 
