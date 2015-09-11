@@ -502,20 +502,20 @@ class Rocket extends CoreModule
     val wfd = wb_ctrl.wfd
     val wxd = wb_ctrl.wxd
     val has_data = wb_wen && !wb_set_sboard
+    val priv = csr.io.status.prv
 
     when (wb_valid) {
-      // TODO add privileged level
       when (wfd) {
-        printf ("0x%x (0x%x) f%d p%d 0xXXXXXXXXXXXXXXXX\n", pc, inst, rd, rd+UInt(32))
+        printf ("%d 0x%x (0x%x) f%d p%d 0xXXXXXXXXXXXXXXXX\n", priv, pc, inst, rd, rd+UInt(32))
       }
       .elsewhen (wxd && rd != UInt(0) && has_data) {
-        printf ("0x%x (0x%x) x%d 0x%x\n", pc, inst, rd, rf_wdata)
+        printf ("%d 0x%x (0x%x) x%d 0x%x\n", priv, pc, inst, rd, rf_wdata)
       }
       .elsewhen (wxd && rd != UInt(0) && !has_data) {
-        printf ("0x%x (0x%x) x%d p%d 0xXXXXXXXXXXXXXXXX\n", pc, inst, rd, rd)
+        printf ("%d 0x%x (0x%x) x%d p%d 0xXXXXXXXXXXXXXXXX\n", priv, pc, inst, rd, rd)
       }
       .otherwise { // !wxd || (wxd && rd == 0)
-        printf ("0x%x (0x%x)\n", pc, inst)
+        printf ("%d 0x%x (0x%x)\n", priv, pc, inst)
       }
     }
 
