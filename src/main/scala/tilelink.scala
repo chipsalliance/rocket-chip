@@ -656,7 +656,7 @@ object Grant {
       manager_xact_id: UInt,
       addr_beat: UInt,
       data: UInt): Grant = {
-    val gnt = new Grant
+    val gnt = Wire(new Grant)
     gnt.is_builtin_type := is_builtin_type
     gnt.g_type := g_type
     gnt.client_xact_id := client_xact_id
@@ -1346,7 +1346,7 @@ class ClientTileLinkIOUnwrapper extends TLModule {
   io.out.acquire <> acqArb.io.out
 
   val roq = Module(new ReorderQueue(
-    new ClientTileLinkIOUnwrapperInfo, tlClientXactIdBits, 4))
+    new ClientTileLinkIOUnwrapperInfo, tlClientXactIdBits, tlMaxClientsPerPort))
   roq.io.enq <> roqArb.io.out
   roq.io.deq.valid := io.out.grant.valid && needsRoqDeq(ognt)
   roq.io.deq.tag := ognt.client_xact_id
@@ -1374,6 +1374,15 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
     val tl = new ClientUncachedTileLinkIO().flip
     val nasti = new NASTIMasterIO
   }
+
+  private def opSizeToXSize(ops: UInt) = MuxLookup(ops, UInt("b111"), Seq(
+    MT_B  -> UInt(0),
+    MT_BU -> UInt(0),
+    MT_H  -> UInt(1),
+    MT_HU -> UInt(1),
+    MT_W  -> UInt(2),
+    MT_D  -> UInt(3),
+    MT_Q  -> UInt(log2Up(tlDataBytes))))
 
   val dataBits = tlDataBits*tlDataBeats 
   val dstIdBits = params(LNHeaderBits)
@@ -1405,28 +1414,23 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
   val tl_done_out = Reg(init=Bool(false))
 
   val roq = Module(new ReorderQueue(
-    UInt(width = tlByteAddrBits), nastiRIdBits, 4))
+    UInt(width = tlByteAddrBits), nastiRIdBits, tlMaxClientsPerPort))
   roq.io.enq.valid := io.tl.acquire.fire() && !acq_has_data && is_subblock
   roq.io.enq.bits.tag := io.nasti.ar.bits.id
   roq.io.enq.bits.data := io.tl.acquire.bits.addr_byte()
   roq.io.deq.valid := io.nasti.r.fire() && !io.nasti.r.bits.id(0)
   roq.io.deq.tag := io.nasti.r.bits.id
 
-  io.nasti.ar.bits.id := tag_out
-  io.nasti.ar.bits.addr := addr_out
-  io.nasti.ar.bits.len := Mux(has_data, UInt(tlDataBeats-1), UInt(0)) 
-  io.nasti.ar.bits.size := UInt(log2Ceil(tlDataBits))
-  io.nasti.ar.bits.burst := UInt("b01")
-  io.nasti.ar.bits.lock := Bool(false)
-  io.nasti.ar.bits.cache := UInt("b0000")
-  io.nasti.ar.bits.prot := UInt("b000")
-  io.nasti.ar.bits.qos := UInt("b0000")
-  io.nasti.ar.bits.region := UInt("b0000")
-  io.nasti.ar.bits.user := UInt(0)
+  io.nasti.ar.bits := NASTIReadAddressChannel(
+    id = tag_out,
+    addr = addr_out, 
+    size = UInt(log2Ceil(tlDataBytes)),
+    len = Mux(has_data, UInt(tlDataBeats - 1), UInt(0)))
   io.nasti.aw.bits := io.nasti.ar.bits
-  io.nasti.w.bits.strb := io.tl.acquire.bits.wmask()
-  io.nasti.w.bits.data := io.tl.acquire.bits.data
-  io.nasti.w.bits.last := tl_wrap_out || (io.tl.acquire.fire() && is_subblock)
+  io.nasti.w.bits := NASTIWriteDataChannel(
+    strb = io.tl.acquire.bits.wmask(),
+    data = io.tl.acquire.bits.data,
+    last = tl_wrap_out || (io.tl.acquire.fire() && is_subblock))
 
   when(!active_out){
     io.tl.acquire.ready := io.nasti.w.ready
@@ -1452,7 +1456,7 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
         io.nasti.ar.bits.id := tag
         io.nasti.ar.bits.addr := addr
         io.nasti.ar.bits.len := Mux(!is_subblock, UInt(tlDataBeats-1), UInt(0))
-        io.nasti.ar.bits.size := io.tl.acquire.bits.op_size()
+        io.nasti.ar.bits.size := opSizeToXSize(io.tl.acquire.bits.op_size())
       }
       tag_out := tag
       addr_out := addr
