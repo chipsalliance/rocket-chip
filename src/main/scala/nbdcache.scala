@@ -70,7 +70,7 @@ class HellaCacheResp extends HasCoreMemOp with HasCoreData {
   val nack = Bool() // comes 2 cycles after req.fire
   val replay = Bool()
   val has_data = Bool()
-  val data_subword = Bits(width = coreDataBits)
+  val data_word_bypass = Bits(width = coreDataBits)
   val store_data = Bits(width = coreDataBits)
 }
 
@@ -185,8 +185,7 @@ class IOMSHR(id: Int) extends L1HellaCacheModule {
   io.resp.valid := (state === s_resp)
   io.resp.bits := req
   io.resp.bits.has_data := isRead(req.cmd)
-  io.resp.bits.data := loadgen.word
-  io.resp.bits.data_subword := loadgen.byte
+  io.resp.bits.data := loadgen.byte
   io.resp.bits.store_data := req.data
   io.resp.bits.nack := Bool(false)
   io.resp.bits.replay := io.resp.valid
@@ -1019,8 +1018,7 @@ class HellaCache extends L1HellaCacheModule {
   cache_resp.valid := (s2_replay || s2_valid_masked && s2_hit) && !s2_data_correctable
   cache_resp.bits := s2_req
   cache_resp.bits.has_data := isRead(s2_req.cmd) || s2_sc
-  cache_resp.bits.data := loadgen.word
-  cache_resp.bits.data_subword := loadgen.byte | s2_sc_fail
+  cache_resp.bits.data := loadgen.byte | s2_sc_fail
   cache_resp.bits.store_data := s2_req.data
   cache_resp.bits.nack := s2_valid && s2_nack
   cache_resp.bits.replay := s2_replay
@@ -1033,6 +1031,7 @@ class HellaCache extends L1HellaCacheModule {
   mshrs.io.resp.ready := !cache_pass
 
   io.cpu.resp := Mux(cache_pass, cache_resp, uncache_resp)
+  io.cpu.resp.bits.data_word_bypass := loadgen.word
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next.valid := s1_replay && (s1_read || s1_sc)
   io.cpu.replay_next.bits := s1_req.tag

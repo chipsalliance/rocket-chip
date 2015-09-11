@@ -167,8 +167,8 @@ class Rocket extends CoreModule
     (id_illegal_insn,           UInt(Causes.illegal_instruction))))
 
   val dcache_bypass_data =
-    if(params(FastLoadByte)) io.dmem.resp.bits.data_subword
-    else if(params(FastLoadWord)) io.dmem.resp.bits.data
+    if(params(FastLoadByte)) io.dmem.resp.bits.data
+    else if(params(FastLoadWord)) io.dmem.resp.bits.data_word_bypass
     else wb_reg_wdata
 
   // detect bypass opportunities
@@ -364,7 +364,7 @@ class Rocket extends CoreModule
   val wb_wen = wb_valid && wb_ctrl.wxd
   val rf_wen = wb_wen || ll_wen 
   val rf_waddr = Mux(ll_wen, ll_waddr, wb_waddr)
-  val rf_wdata = Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data_subword,
+  val rf_wdata = Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data,
                  Mux(ll_wen, ll_wdata,
                  Mux(wb_ctrl.csr != CSR.N, csr.io.rw.rdata,
                  wb_reg_wdata)))
@@ -474,7 +474,7 @@ class Rocket extends CoreModule
   io.fpu.inst := id_inst
   io.fpu.fromint_data := ex_rs(0)
   io.fpu.dmem_resp_val := dmem_resp_valid && dmem_resp_fpu
-  io.fpu.dmem_resp_data := io.dmem.resp.bits.data
+  io.fpu.dmem_resp_data := io.dmem.resp.bits.data_word_bypass
   io.fpu.dmem_resp_type := io.dmem.resp.bits.typ
   io.fpu.dmem_resp_tag := dmem_resp_waddr
 
