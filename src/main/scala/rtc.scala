@@ -4,38 +4,6 @@ import Chisel._
 import junctions.{NASTIMasterIO, NASTIAddrHashMap, SMIIO}
 
 class RTC(pcr_MTIME: Int) extends Module {
-  private val nCores = params(HTIFNCores)
-
-  val io = new Bundle {
-    val smi = Vec.fill(nCores) { new SMIIO(64, 12) }
-  }
-
-  val rtc = Reg(init=UInt(0,64))
-  val rtc_tick = Counter(params(RTCPeriod)).inc()
-
-  for ((smi, i) <- io.smi.zipWithIndex) {
-    val rtc_sending = Reg(init = Bool(false))
-    val rtc_outstanding = Reg(init = Bool(false))
-
-    when (rtc_tick) {
-      rtc := rtc + UInt(1)
-      rtc_sending := Bool(true)
-      rtc_outstanding := Bool(true)
-    }
-    when (smi.req.fire())  { rtc_sending := Bool(false) }
-    when (smi.resp.fire()) { rtc_outstanding := Bool(false) }
-
-    assert(!rtc_tick || !rtc_outstanding, "Last rtc tick not yet sent")
-
-    smi.req.bits.addr := UInt(pcr_MTIME)
-    smi.req.bits.rw := Bool(true)
-    smi.req.bits.data := rtc
-    smi.req.valid := rtc_sending
-    smi.resp.ready := Bool(true)
-  }
-}
-
-class RTCNASTI(pcr_MTIME: Int) extends Module {
   val io = new NASTIMasterIO
 
   private val nCores = params(HTIFNCores)
