@@ -123,8 +123,8 @@ class CSRFile extends CoreModule
   val reg_fromhost = Reg(init=Bits(0, xLen))
   val reg_stats = Reg(init=Bool(false))
   val reg_time = Reg(UInt(width = xLen))
-  val reg_cycle = WideCounter(xLen)
   val reg_instret = WideCounter(xLen, io.retire)
+  val reg_cycle = if (EnableCommitLog) { reg_instret } else { WideCounter(xLen) }
   val reg_uarch_counters = io.uarch_counters.map(WideCounter(xLen, _))
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
