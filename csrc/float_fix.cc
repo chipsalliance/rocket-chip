@@ -6,13 +6,14 @@
 #include <sstream>
 
 
-// returns the bits in x[high:low] in the lowest positions 
+// returns the bits in x[high:low] in the lowest positions
 uint64_t BitRange(uint64_t x, int high, int low) {
   int high_gap = 64 - high;
   return x << high_gap >> (low + high_gap);
 }
 
 
+// will "unrecode" a single float within a double
 // uses magic numbers since can only handle float
 // logic from berkeley-hardfloat/src/main/scala/recodedFloatNToFloatN.scala
 uint64_t UnrecodeFloatFromDouble(uint64_t raw_input) {
@@ -44,14 +45,18 @@ uint64_t UnrecodeFloatFromDouble(uint64_t raw_input) {
 }
 
 
-// checks if possibly recoded float inside double if upper 31 bits set
+// checks if possibly recoded float inside double (upper 31 bits set)
 bool NestedFloatPossible(uint64_t raw_input) {
   const uint64_t mask = 0xfffffffe00000000;
   return (raw_input & mask) == mask;
 }
 
 
-// best effort at replacing floats with unrecoded versions
+// best effort at replacing the float writeback with unrecoded version
+// will only replace if (all of following met):
+//   - log lines differ between rocket and lspike
+//   - log line contains a floating point inst
+//   - unrecoding the writeback data as a single float makes them match
 void DiffAndFix(std::string rocket_filename, std::string lspike_filename) {
   std::ifstream rocket_log(rocket_filename);
   if (!rocket_log.is_open()) {
@@ -66,16 +71,19 @@ void DiffAndFix(std::string rocket_filename, std::string lspike_filename) {
   std::stringstream ss;
   ss << std::hex;
   std::string rocket_line, lspike_line;
-  while(getline(rocket_log,rocket_line) && getline(lspike_log,lspike_line)) {
-    if ((rocket_line != lspike_line) &&  // mismatch and includes fp inst
+  while (getline(rocket_log,rocket_line) && getline(lspike_log,lspike_line)) {
+    if ((rocket_line != lspike_line) &&
         (rocket_line.find(" f") != std::string::npos)) {
-      std::string fp_wb_str = rocket_line.substr(40, 16);
+      std::string fixed_line(rocket_line.c_str());  // deep copy
+      std::string fp_wb_str = fixed_line.substr(40, 16);
       uint64_t raw_fp;
       ss << fp_wb_str;
       ss >> raw_fp;
       if (NestedFloatPossible(raw_fp)) {
-        snprintf(const_cast<char*>(rocket_line.data()) + 40, 17,
+        snprintf(const_cast<char*>(fixed_line.data()) + 40, 17,
                  "%016" PRIx64, UnrecodeFloatFromDouble(raw_fp));
+        if (fixed_line == lspike_line)
+          rocket_line = fixed_line;
       }
     }
     printf("%s\n", rocket_line.c_str());
@@ -86,10 +94,11 @@ void DiffAndFix(std::string rocket_filename, std::string lspike_filename) {
 
 
 int main(int argc, char** argv) {
-  if (argc < 3) {
+  if (argc != 3) {
     std::cout << "Usage: float_fix rocket_output lspike_output" << std::endl;
     return -1;
   }
+  // std::cout << NestedFloatPossible(0xf0f0f0ff0f000000) << std::endl;
   DiffAndFix(std::string(argv[1]), std::string(argv[2]));
   return 0;
 }
