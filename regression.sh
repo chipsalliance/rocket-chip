@@ -21,6 +21,7 @@ git submodule status --recursive
 cd emulator; make CONFIG=$1; make CONFIG=$1 run-asm-tests; cd ..
 if [ $# -ge 2 ]
 then
+  cd emulator; make CONFIG=$1 debug; cd ..
   git clone git@github.com:ucb-bar/riscv-torture.git
   cd riscv-torture; git submodule update --init;
   if [ $# -eq 3 ]

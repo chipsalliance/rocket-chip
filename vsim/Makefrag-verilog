@@ -40,8 +40,8 @@ $(output_dir)/%.vpd: $(output_dir)/%.hex $(sim_dir)/dramsim2_ini $(simv_debug)
 $(output_dir)/%.saif: $(output_dir)/%.hex $(sim_dir)/dramsim2_ini $(simv_debug)
 	cd $(sim_dir) && rm -f $(output_dir)/pipe-$*.vcd && vcd2saif -input $(output_dir)/pipe-$*.vcd -pipe "$(exec_simv_debug) +dramsim +verbose +vcdfile=$(output_dir)/pipe-$*.vcd +max-cycles=$(bmark_timeout_cycles) +loadmem=$<" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
 
-run: run-asm-tests run-bmarks-test
-run-debug: run-asm-tests-debug run-bmarks-test-debug
+run: run-asm-tests run-bmark-tests
+run-debug: run-asm-tests-debug run-bmark-tests-debug
 run-fast: run-asm-tests-fast run-bmark-tests-fast
 
 .PHONY: run-asm-tests run-bmark-tests

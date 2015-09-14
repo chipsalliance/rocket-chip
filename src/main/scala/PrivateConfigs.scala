@@ -1,13 +1,14 @@
 package rocketchip
 
 import Chisel._
+import scala.collection.mutable.LinkedHashSet
 import uncore._
 import rocket._
 import hwacha._
 
 object HwachaTestSuites {
   import DefaultTestSuites._
-  val rv64uvNames = Set(
+  val rv64uvNames = LinkedHashSet(
     "wakeup", "fence", "vsetcfgi", "vsetcfg", "vsetvl", "keepcfg",
     "vmsa", "vmss", "vssd", "vssw", "vssh", "vssb",
     "vlsd", "vlsw", "vlswu", "vlsh", "vlshu", "vlsb", "vlsbu", 
@@ -19,7 +20,7 @@ object HwachaTestSuites {
     rv32uaNames ++ rv64uaNames 
   val rv64uvBasic = new AssemblyTestSuite("rv64uv", "rv64uv", rv64uvNames)(_)
   
-  val rv64uiVecNames = Set(
+  val rv64uiVecNames = LinkedHashSet(
     "addi", "add", "addiw", "addw", "and", "andi", "div", "divu", "divuw", "divw", 
     "mul", "mulw", "mulh", "mulhu", "mulhsu", "or", "ori", "rem", "remu", "remuw", "remw",
     "sll", "slli", "slliw", "sllw", "slt", "slti", "sltiu", "sltu",
@@ -28,11 +29,11 @@ object HwachaTestSuites {
 
   val rv64uiScalarVecNames = rv64uiVecNames.map("s"+_)
   val rv64uiScalarVecNamesV4 = rv64uiScalarVecNames -- rv64umNames.map("svec-" + _) --
-  Set("svec-div", "svec-divu", "svec-divuw", "svec-divw", "svec-mul", "svec-mulw", "svec-mulh", "svec-mulhu", "svec-mulhsu",
+  LinkedHashSet("svec-div", "svec-divu", "svec-divuw", "svec-divw", "svec-mul", "svec-mulw", "svec-mulh", "svec-mulhu", "svec-mulhsu",
       "svec-rem", "svec-remu", "svec-remuw", "svec-remw")
   val rv64uiScalerVec = new AssemblyTestSuite("rv64ui-svec", "rv64ui", rv64uiScalarVecNamesV4)(_)
 
-  val rv64ufVecNames = Set(
+  val rv64ufVecNames = LinkedHashSet(
     "fadd", "fcmp", "fdiv", "fclass", "fcvt", "fcvt_w", "fmadd", "fmin", "fsgnj").map("vec-" + _)
   val rv64ufVecNamesV4 = rv64ufVecNames -- Set("vec-fcmp", "vec-fcvt")
   val rv64ufVec = new AssemblyTestSuite("rv64uf-vec", "rv64uf", rv64ufVecNamesV4)(_) 
@@ -43,7 +44,7 @@ object HwachaTestSuites {
 
   val rv64uv = List(rv64ufScalarVec, rv64ufVec, rv64uiScalerVec, rv64uiVec, rv64uvBasic)
 
-  val rv64svNames = Set(
+  val rv64svNames = LinkedHashSet(
     "illegal_inst", "illegal_vt_inst", "illegal_vt_regid", "ma_utld", "ma_utsd", "ma_vld", "ma_vsd", "ma_vt_inst", "privileged_inst")
     val rv64svNamesV4 = rv64svNames -- Set(
     "illegal_inst", "illegal_vt_inst", "illegal_vt_regid", "ma_utld", "ma_utsd", "ma_vld", "ma_vsd", "ma_vt_inst", "privileged_inst")
