@@ -520,7 +520,7 @@ class Rocket extends CoreModule
     }
 
     // ll write data
-    when (ll_wen) {
+    when (ll_wen && rf_waddr != UInt(0)) {
       printf ("x%d p%d 0x%x\n", rf_waddr, rf_waddr, rf_wdata)
     }
   }
