@@ -386,7 +386,8 @@ class FPU extends CoreModule
   when (load_wb) { 
     regfile(load_wb_tag) := load_wb_data_recoded 
     if (EnableCommitLog) {
-      printf ("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + UInt(32), load_wb_data)
+      printf ("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + UInt(32),
+        Mux(load_wb_single, load_wb_data(31,0), load_wb_data))
     }
   }
 
@@ -492,7 +493,7 @@ class FPU extends CoreModule
       val wdata_unrec_d = hardfloat.recodedFloatNToFloatN(wdata(64,0), 52, 12)
       val wb_single = (winfo(0) >> 5)(0)
       printf ("f%d p%d 0x%x\n", waddr, waddr+ UInt(32),
-        Mux(wb_single, Cat(Fill(32, wdata_unrec_s(31)), wdata_unrec_s), wdata_unrec_d))
+        Mux(wb_single, Cat(UInt(0,32), wdata_unrec_s), wdata_unrec_d))
     }
   }
 
