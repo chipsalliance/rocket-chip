@@ -82,7 +82,8 @@ int main(int argc, char** argv)
     load_mem(mm->get_data(), loadmem);
 
   // Instantiate HTIF
-  htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
+  htif = new htif_emulator_t(memsz_mb,
+          std::vector<std::string>(argv + 1, argv + argc));
   int htif_bits = tile.Top__io_host_in_bits.width();
   assert(htif_bits % 8 == 0 && htif_bits <= val_n_bits());
 
