@@ -43,7 +43,9 @@ abstract trait CoreParameters extends UsesParameters {
   val coreMaxAddrBits = math.max(ppnBits,vpnBits+1) + pgIdxBits
   val vaddrBitsExtended = vaddrBits + (vaddrBits < xLen).toInt
 
-  val EnableCommitLog = true
+  // Print out log of committed instructions and their writeback values.
+  // Requires post-processing due to out-of-order writebacks.
+  val EnableCommitLog = false
 
   if(params(FastLoadByte)) require(params(FastLoadWord))
 }
@@ -514,12 +516,11 @@ class Rocket extends CoreModule
       .elsewhen (wxd && rd != UInt(0) && !has_data) {
         printf ("%d 0x%x (0x%x) x%d p%d 0xXXXXXXXXXXXXXXXX\n", priv, pc, inst, rd, rd)
       }
-      .otherwise { // !wxd || (wxd && rd == 0)
+      .otherwise {
         printf ("%d 0x%x (0x%x)\n", priv, pc, inst)
       }
     }
 
-    // ll write data
     when (ll_wen && rf_waddr != UInt(0)) {
       printf ("x%d p%d 0x%x\n", rf_waddr, rf_waddr, rf_wdata)
     }
