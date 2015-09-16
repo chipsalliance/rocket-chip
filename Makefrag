@@ -15,7 +15,7 @@ CHISEL_ARGS := $(MODEL) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) 
 
 src_path = src/main/scala
 default_submodules = . junctions uncore hardfloat rocket zscale
-chisel_srcs = $(addprefix $(base_dir)/,$(addsuffix /$(src_path)/*.scala,$(default_submodules)))
+chisel_srcs = $(addprefix $(base_dir)/,$(addsuffix /$(src_path)/*.scala,$(default_submodules) $(ROCKETCHIP_ADDONS)))
 
 disasm := 2>
 which_disasm := $(shell which spike-dasm 2> /dev/null)
