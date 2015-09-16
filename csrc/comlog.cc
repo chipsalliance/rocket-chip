@@ -72,6 +72,11 @@
 #include <array>
 #include <queue>
 #include <assert.h>
+#include <vector>
+
+
+// Maximum number of physical destination registers, 64 for Rocket
+const int kMaxPdst = 64;
 
 // data-structures
 
@@ -84,22 +89,10 @@ typedef struct RobEntry
 
 std::deque <RobEntry> rob;
 
-// partial entries are also stored in a side buffer, for faster CAM searching.
-// When a write-back occurs, it needs to search the ROB for the matching pdst
-// tag. But since that CAM search is generally painful in software (and the ROB
-// will be mostly full of ready-to-commit entries) let's only do the CAM search
-// on a smaller queue of still-busy entries. We will delete partial entries
-// once the write-back has returned. TODO... since there will only be one "pdst"
-// outstanding at a time, we could use a map for fast lookup instead of a
-// linear search.
 
-typedef struct PartialEntry
-{
-   RobEntry*   rob_entry;           // point to the ROB entry we correspond to
-   int         pdst;
-} PartialEntry;
-
-std::deque <PartialEntry> pdst_cam;
+// maps from physical destination register to rob entry waiting on it
+//   a value of nullptr implies there is no rob entry waiting on pdst
+std::vector<RobEntry*> pdst_to_rob(kMaxPdst, nullptr);
 
 
 // functions
@@ -126,11 +119,9 @@ void push (std::string& line)
 
    if (is_partial)
    {
-      PartialEntry new_entry = (PartialEntry)
-         { .rob_entry = &(rob.back()),
-           .pdst      = rob_entry.pdst
-         };
-      pdst_cam.push_back(new_entry);
+      assert (rob_entry.pdst < kMaxPdst);
+      assert (pdst_to_rob[rob_entry.pdst] == nullptr);
+      pdst_to_rob[rob_entry.pdst] = &(rob.back());
    }
 }
 
@@ -180,40 +171,21 @@ void writeback (std::string& line)
 {
    assert (line.at(0) == 'x' || line.at(0) == 'f');
 
-   int ldst = atoi(line.substr(1,2).c_str());
-   int idx = line.find_first_of('p');
+   size_t idx = line.find_first_of('p');
    assert (idx != std::string::npos);
    int pdst = atoi(line.substr(idx+1,2).c_str());
 
-   // search the partial queue for writeback, then modify the ROB entry, mark as ready
-   RobEntry* rob_entry;
-   bool found_entry = false;
-
-   // order of search doesn't matter; there should be a unique
-   // pdst identifier (to deal with WAW hazards).
-   // we then delete the entry once we've matched against it so
-   // future matches will be fast.
-   for (auto it = pdst_cam.begin(); it != pdst_cam.end();/*NOTE: no incrementation here*/ )
-   {
-      if (pdst == it->pdst)
-      {
-         // verify there is only ever one match!
-         assert (!found_entry);
-         rob_entry = it->rob_entry;
-         it = pdst_cam.erase(it);
-         found_entry = true;
-      }
-      else
-      {
-         ++it;
-      }
-   }
+   // search the partial queue for writeback
+   assert (pdst < kMaxPdst);
+   RobEntry* rob_entry = pdst_to_rob[pdst];
+   assert (rob_entry != nullptr);
+   pdst_to_rob[pdst] = nullptr;
 
    // update ROB
-   assert (found_entry);
    assert (rob_entry->str.length() > 32);
    std::string* rob_str = &(rob_entry->str);
 
+   // mark as ready
    rob_entry->ready = true;
    idx = line.find("0x");
    std::string wbdata = line.substr(idx+2,16);
