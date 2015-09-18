@@ -90,6 +90,8 @@ uint64_t UnrecodeFloatFromDouble(uint64_t raw_input) {
 //   - log line is a fld instruction
 //   - unrecoding the writeback data as a single float makes them match
 void DiffAndFix(std::string rocket_filename, std::string lspike_filename) {
+  if (rocket_filename == "-")
+    rocket_filename = "/dev/stdin";
   std::ifstream rocket_log(rocket_filename);
   if (!rocket_log.is_open()) {
     std::cout << "Couldn't open file " << rocket_filename << std::endl;
