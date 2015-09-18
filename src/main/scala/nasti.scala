@@ -348,6 +348,9 @@ class NASTIReadDataArbiter(arbN: Int) extends NASTIModule {
 class NASTIErrorSlave extends NASTIModule {
   val io = new NASTISlaveIO
 
+  when (io.ar.fire()) { printf("Invalid read address %x\n", io.ar.bits.addr) }
+  when (io.aw.fire()) { printf("Invalid write address %x\n", io.aw.bits.addr) }
+
   val r_queue = Module(new Queue(UInt(width = nastiRIdBits), 2))
   r_queue.io.enq.valid := io.ar.valid
   r_queue.io.enq.bits := io.ar.bits.id
