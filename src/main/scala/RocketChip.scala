@@ -61,7 +61,7 @@ class TopIO extends BasicTopIO {
 }
 
 class MultiChannelTopIO extends BasicTopIO with TopLevelParameters {
-  val mem = Vec.fill(nMemChannels){ new MemIO }
+  val mem = Vec(new MemIO, nMemChannels)
 }
 
 /** Top-level module for the chip */
@@ -116,10 +116,10 @@ class MultiChannelTop extends Module with TopLevelParameters {
 class Uncore extends Module with TopLevelParameters {
   val io = new Bundle {
     val host = new HostIO
-    val mem = Vec.fill(nMemChannels){ new MemIO }
-    val tiles_cached = Vec.fill(nTiles){new ClientTileLinkIO}.flip
-    val tiles_uncached = Vec.fill(nTiles){new ClientUncachedTileLinkIO}.flip
-    val htif = Vec.fill(nTiles){new HTIFIO}.flip
+    val mem = Vec(new MemIO, nMemChannels)
+    val tiles_cached = Vec(new ClientTileLinkIO, nTiles).flip
+    val tiles_uncached = Vec(new ClientUncachedTileLinkIO, nTiles).flip
+    val htif = Vec(new HTIFIO, nTiles).flip
     val mem_backup_ctrl = new MemBackupCtrlIO
   }
 
@@ -148,11 +148,11 @@ class Uncore extends Module with TopLevelParameters {
   */ 
 class OuterMemorySystem extends Module with TopLevelParameters {
   val io = new Bundle {
-    val tiles_cached = Vec.fill(nTiles){new ClientTileLinkIO}.flip
-    val tiles_uncached = Vec.fill(nTiles){new ClientUncachedTileLinkIO}.flip
+    val tiles_cached = Vec(new ClientTileLinkIO, nTiles).flip
+    val tiles_uncached = Vec(new ClientUncachedTileLinkIO, nTiles).flip
     val htif_uncached = (new ClientUncachedTileLinkIO).flip
-    val incoherent = Vec.fill(nTiles){Bool()}.asInput
-    val mem = Vec.fill(nMemChannels){ new MemIO }
+    val incoherent = Vec(Bool(), nTiles).asInput
+    val mem = Vec(new MemIO, nMemChannels)
     val mem_backup = new MemSerializedIO(htifW)
     val mem_backup_en = Bool(INPUT)
   }
