@@ -348,7 +348,7 @@ class FPUFMAPipe(val latency: Int, sigWidth: Int, expWidth: Int) extends Module
   fma.io.c := in.in3
 
   val res = Wire(new FPResult)
-  res.data := fma.io.out
+  res.data := Cat(SInt(-1, 32), fma.io.out)
   res.exc := fma.io.exceptionFlags
   io.out := Pipe(valid, res, latency-1)
 }
@@ -447,12 +447,12 @@ class FPU extends CoreModule
   val divSqrt_in_flight = Reg(init=Bool(false))
 
   // writeback arbitration
-  case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, wdata: UInt, wexc: UInt)
+  case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, res: FPResult)
   val pipes = List(
-    Pipe(fpmu, fpmu.latency, (c: FPUCtrlSigs) => c.fastpipe, fpmu.io.out.bits.data, fpmu.io.out.bits.exc),
-    Pipe(ifpu, ifpu.latency, (c: FPUCtrlSigs) => c.fromint, ifpu.io.out.bits.data, ifpu.io.out.bits.exc),
-    Pipe(sfma, sfma.latency, (c: FPUCtrlSigs) => c.fma && c.single, Cat(SInt(-1, 32), sfma.io.out.bits.data), sfma.io.out.bits.exc),
-    Pipe(dfma, dfma.latency, (c: FPUCtrlSigs) => c.fma && !c.single, dfma.io.out.bits.data, dfma.io.out.bits.exc))
+    Pipe(fpmu, fpmu.latency, (c: FPUCtrlSigs) => c.fastpipe, fpmu.io.out.bits),
+    Pipe(ifpu, ifpu.latency, (c: FPUCtrlSigs) => c.fromint, ifpu.io.out.bits),
+    Pipe(sfma, sfma.latency, (c: FPUCtrlSigs) => c.fma && c.single, sfma.io.out.bits),
+    Pipe(dfma, dfma.latency, (c: FPUCtrlSigs) => c.fma && !c.single, dfma.io.out.bits))
   def latencyMask(c: FPUCtrlSigs, offset: Int) = {
     require(pipes.forall(_.lat >= offset))
     pipes.map(p => Mux(p.cond(c), UInt(1 << p.lat-offset), UInt(0))).reduce(_|_)
@@ -484,8 +484,8 @@ class FPU extends CoreModule
 
   val waddr = Mux(divSqrt_wen, divSqrt_waddr, winfo(0)(4,0).toUInt)
   val wsrc = (winfo(0) >> 6)
-  val wdata = Mux(divSqrt_wen, divSqrt_wdata, Vec(pipes.map(_.wdata))(wsrc))
-  val wexc = Vec(pipes.map(_.wexc))(wsrc)
+  val wdata = Mux(divSqrt_wen, divSqrt_wdata, Vec(pipes.map(_.res.data))(wsrc))
+  val wexc = Vec(pipes.map(_.res.exc))(wsrc)
   when (wen(0) || divSqrt_wen) {
     regfile(waddr) := wdata 
     if (EnableCommitLog) {
