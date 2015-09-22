@@ -42,6 +42,7 @@ abstract trait CoreParameters extends UsesParameters {
   val coreDCacheReqTagBits = params(CoreDCacheReqTagBits)
   val coreMaxAddrBits = math.max(ppnBits,vpnBits+1) + pgIdxBits
   val vaddrBitsExtended = vaddrBits + (vaddrBits < xLen).toInt
+  val mmioBase = params(MMIOBase)
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
