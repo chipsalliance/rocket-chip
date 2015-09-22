@@ -238,7 +238,7 @@ class MemIONASTISlaveIOConverter(cacheBlockOffsetBits: Int) extends MIFModule wi
 /** Arbitrate among arbN masters requesting to a single slave */
 class NASTIArbiter(val arbN: Int) extends NASTIModule {
   val io = new Bundle {
-    val master = Vec.fill(arbN) { new NASTISlaveIO }
+    val master = Vec(new NASTISlaveIO, arbN)
     val slave = new NASTIMasterIO
   }
 
@@ -306,7 +306,7 @@ class NASTIArbiter(val arbN: Int) extends NASTIModule {
  *  Arbiter locks until last message in channel is sent */
 class NASTIReadDataArbiter(arbN: Int) extends NASTIModule {
   val io = new Bundle {
-    val in = Vec.fill(arbN) { Decoupled(new NASTIReadDataChannel) }.flip
+    val in = Vec(Decoupled(new NASTIReadDataChannel), arbN).flip
     val out = Decoupled(new NASTIReadDataChannel)
   }
 
@@ -402,7 +402,7 @@ class NASTIRouter(addrmap: Seq[(BigInt, BigInt)]) extends NASTIModule {
 
   val io = new Bundle {
     val master = new NASTISlaveIO
-    val slave = Vec.fill(nSlaves) { new NASTIMasterIO }
+    val slave = Vec(new NASTIMasterIO, nSlaves)
   }
 
   var ar_ready = Bool(false)
@@ -479,8 +479,8 @@ class NASTIRouter(addrmap: Seq[(BigInt, BigInt)]) extends NASTIModule {
 class NASTICrossbar(nMasters: Int, nSlaves: Int, addrmap: Seq[(BigInt, BigInt)])
     extends NASTIModule {
   val io = new Bundle {
-    val masters = Vec.fill(nMasters) { new NASTISlaveIO }
-    val slaves = Vec.fill(nSlaves) { new NASTIMasterIO }
+    val masters = Vec(new NASTISlaveIO, nMasters)
+    val slaves = Vec(new NASTIMasterIO, nSlaves)
   }
 
   val routers = Vec.fill(nMasters) { Module(new NASTIRouter(addrmap)).io }
@@ -594,8 +594,8 @@ case object NASTIAddrHashMap extends Field[AddrHashMap]
 class NASTIInterconnectIO(val nMasters: Int, val nSlaves: Int) extends Bundle {
   /* This is a bit confusing. The interconnect is a slave to the masters and
    * a master to the slaves. Hence why the declarations seem to be backwards. */
-  val masters = Vec.fill(nMasters) { new NASTISlaveIO }
-  val slaves = Vec.fill(nSlaves) { new NASTIMasterIO }
+  val masters = Vec(new NASTISlaveIO, nMasters)
+  val slaves = Vec(new NASTIMasterIO, nSlaves)
   override def cloneType =
     new NASTIInterconnectIO(nMasters, nSlaves).asInstanceOf[this.type]
 }
