@@ -1485,11 +1485,6 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
     }
   }
 
-  assert (!io.nasti.r.valid || !io.nasti.r.bits.resp(1),
-    "NASTI read response error")
-  assert (!io.nasti.b.valid || !io.nasti.b.bits.resp(1),
-    "NASTI write response error")
-
   // Aggregate incoming NASTI responses into TL Grants
   val (tl_cnt_in, tl_wrap_in) = Counter(io.tl.grant.fire() && io.tl.grant.bits.hasMultibeatData(), tlDataBeats)
   val gnt_arb = Module(new Arbiter(new GrantToDst, 2))
