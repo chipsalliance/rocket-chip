@@ -351,15 +351,32 @@ class NASTIErrorSlave extends NASTIModule {
   when (io.ar.fire()) { printf("Invalid read address %x\n", io.ar.bits.addr) }
   when (io.aw.fire()) { printf("Invalid write address %x\n", io.aw.bits.addr) }
 
-  val r_queue = Module(new Queue(UInt(width = nastiRIdBits), 2))
-  r_queue.io.enq.valid := io.ar.valid
-  r_queue.io.enq.bits := io.ar.bits.id
-  io.ar.ready := r_queue.io.enq.ready
-  io.r.valid := r_queue.io.deq.valid
-  io.r.bits.id := r_queue.io.deq.bits
+  val r_queue = Module(new Queue(new NASTIReadAddressChannel, 2))
+  r_queue.io.enq <> io.ar
+
+  val responding = Reg(init = Bool(false))
+  val beats_left = Reg(init = UInt(0, nastiXLenBits))
+
+  when (!responding && r_queue.io.deq.valid) {
+    responding := Bool(true)
+    beats_left := r_queue.io.deq.bits.len
+  }
+
+  io.r.valid := r_queue.io.deq.valid && responding
+  io.r.bits.id := r_queue.io.deq.bits.id
+  io.r.bits.data := UInt(0)
   io.r.bits.resp := Bits("b11")
-  io.r.bits.last := Bool(true)
-  r_queue.io.deq.ready := io.r.ready
+  io.r.bits.last := beats_left === UInt(0)
+
+  r_queue.io.deq.ready := io.r.fire() && io.r.bits.last
+
+  when (io.r.fire()) {
+    when (beats_left === UInt(0)) {
+      responding := Bool(false)
+    } .otherwise {
+      beats_left := beats_left - UInt(0)
+    }
+  }
 
   val draining = Reg(init = Bool(false))
   io.w.ready := draining
