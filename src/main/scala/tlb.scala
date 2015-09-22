@@ -157,20 +157,26 @@ class TLB extends TLBModule {
 
   val vm_enabled = io.ptw.status.vm(3) && priv_uses_vm
   val bad_va = io.req.bits.vpn(vpnBits) != io.req.bits.vpn(vpnBits-1)
+  val bad_pa = !vm_enabled && io.req.bits.vpn >= UInt(mmioBase >> vpnBits)
   // it's only a store hit if the dirty bit is set
   val tag_hits = tag_cam.io.hits & (dirty_array.toBits | ~Mux(io.req.bits.store, w_array, UInt(0)))
   val tag_hit = tag_hits.orR
   val tlb_hit = vm_enabled && tag_hit
   val tlb_miss = vm_enabled && !tag_hit && !bad_va
-  
+
   when (io.req.valid && tlb_hit) {
     plru.access(OHToUInt(tag_cam.io.hits))
   }
 
+  val addrMap = params(NASTIAddrHashMap)
+  val paddr = Cat(io.resp.ppn, UInt(0, pgIdxBits))
+  val addr_ok = addrMap.isValid(paddr)
+  val addr_prot = addrMap.getProt(paddr)
+
   io.req.ready := state === s_ready
-  io.resp.xcpt_ld := bad_va || tlb_hit && !(r_array & tag_cam.io.hits).orR
-  io.resp.xcpt_st := bad_va || tlb_hit && !(w_array & tag_cam.io.hits).orR
-  io.resp.xcpt_if := bad_va || tlb_hit && !(x_array & tag_cam.io.hits).orR
+  io.resp.xcpt_ld := !addr_ok || !addr_prot.r || bad_va || tlb_hit && !(r_array & tag_cam.io.hits).orR
+  io.resp.xcpt_st := !addr_ok || !addr_prot.w || bad_va || tlb_hit && !(w_array & tag_cam.io.hits).orR
+  io.resp.xcpt_if := !addr_ok || !addr_prot.x || bad_va || tlb_hit && !(x_array & tag_cam.io.hits).orR
   io.resp.miss := tlb_miss
   io.resp.ppn := Mux(vm_enabled && !io.req.bits.passthrough, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(params(PPNBits)-1,0))
   io.resp.hit_idx := tag_cam.io.hits
@@ -186,7 +192,7 @@ class TLB extends TLBModule {
   io.ptw.req.bits.store := r_req.store
   io.ptw.req.bits.fetch := r_req.instruction
 
-  when (io.req.fire() && tlb_miss) {
+  when (io.req.fire() && tlb_miss && addr_ok) {
     state := s_request
     r_refill_tag := lookup_tag
     r_refill_waddr := repl_waddr

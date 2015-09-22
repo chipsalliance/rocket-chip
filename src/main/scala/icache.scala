@@ -106,7 +106,9 @@ class Frontend(btb_updates_out_of_order: Boolean = false) extends FrontendModule
   icache.io.req.bits.idx := io.cpu.npc
   icache.io.invalidate := io.cpu.invalidate
   icache.io.req.bits.ppn := tlb.io.resp.ppn
-  icache.io.req.bits.kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss || io.ptw.invalidate
+  icache.io.req.bits.kill := io.cpu.req.valid ||
+    tlb.io.resp.miss || tlb.io.resp.xcpt_if ||
+    icmiss || io.ptw.invalidate
   icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icache.io.resp.valid)
