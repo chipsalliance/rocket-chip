@@ -58,7 +58,7 @@ class SMIMem(val dataWidth: Int, val memDepth: Int) extends SMIPeripheral {
 class SMIArbiter(val n: Int, val dataWidth: Int, val addrWidth: Int)
     extends Module {
   val io = new Bundle {
-    val in = Vec.fill(n) { new SMIIO(dataWidth, addrWidth) }.flip
+    val in = Vec(new SMIIO(dataWidth, addrWidth), n).flip
     val out = new SMIIO(dataWidth, addrWidth)
   }
 
