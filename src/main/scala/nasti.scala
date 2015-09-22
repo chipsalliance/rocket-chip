@@ -499,45 +499,58 @@ class NASTICrossbar(nMasters: Int, nSlaves: Int, addrmap: Seq[(BigInt, BigInt)])
 case object NASTINMasters extends Field[Int]
 case object NASTINSlaves extends Field[Int]
 
-object AddrMapTypes {
+object AddrMap {
   type AddrMapEntry = (String, Option[BigInt], MemRegion)
-  type AddrMap = Seq[AddrMapEntry]
+  type AddrMapSeq = Seq[AddrMapEntry]
+
+  val R = 0x4
+  val W = 0x2
+  val X = 0x1
+  val RW = R | W
+  val RX = R | X
+  val RWX = R | W | X
 }
-import AddrMapTypes._
+import AddrMap._
 
 abstract class MemRegion { def size: BigInt }
 
-case class MemSize(size: BigInt) extends MemRegion
-case class MemSubmap(size: BigInt, entries: AddrMap) extends MemRegion
+case class MemSize(size: BigInt, prot: Int) extends MemRegion
+case class MemSubmap(size: BigInt, entries: AddrMapSeq) extends MemRegion
 
 object Submap {
   def apply(size: BigInt, entries: AddrMapEntry*) =
     new MemSubmap(size, entries)
 }
 
-case class AddrHashMapEntry(port: Int, start: BigInt, size: BigInt)
+case class AddrHashMapEntry(port: Int, start: BigInt, size: BigInt, prot: Int)
 
-class AddrHashMap(addrmap: AddrMap) {
+class AddrMapProt extends Bundle {
+  val r = Bool()
+  val w = Bool()
+  val x = Bool()
+}
+
+class AddrHashMap(addrmap: AddrMapSeq) {
   val mapping = new HashMap[String, AddrHashMapEntry]
 
-  private def genPairs(addrmap: AddrMap): Seq[(String, AddrHashMapEntry)] = {
+  private def genPairs(addrmap: AddrMapSeq): Seq[(String, AddrHashMapEntry)] = {
     var ind = 0
     var base = BigInt(0)
     var pairs = Seq[(String, AddrHashMapEntry)]()
     addrmap.foreach { case (name, startOpt, region) =>
       region match {
-        case MemSize(size) => {
+        case MemSize(size, prot) => {
           if (!startOpt.isEmpty) base = startOpt.get
-          pairs = (name, AddrHashMapEntry(ind, base, size)) +: pairs
+          pairs = (name, AddrHashMapEntry(ind, base, size, prot)) +: pairs
           base += size
           ind += 1
         }
         case MemSubmap(size, submap) => {
           if (!startOpt.isEmpty) base = startOpt.get
           val subpairs = genPairs(submap).map {
-            case (subname, AddrHashMapEntry(subind, subbase, subsize)) =>
+            case (subname, AddrHashMapEntry(subind, subbase, subsize, prot)) =>
               (name + ":" + subname,
-                AddrHashMapEntry(ind + subind, base + subbase, subsize))
+                AddrHashMapEntry(ind + subind, base + subbase, subsize, prot))
           }
           pairs = subpairs ++ pairs
           ind += subpairs.size
@@ -553,16 +566,29 @@ class AddrHashMap(addrmap: AddrMap) {
   def nEntries: Int = mapping.size
   def apply(name: String): AddrHashMapEntry = mapping(name)
   def get(name: String): Option[AddrHashMapEntry] = mapping.get(name)
-  def sortedEntries(): Seq[(String, BigInt, BigInt)] = {
-    val arr = new Array[(String, BigInt, BigInt)](mapping.size)
-    mapping.foreach { case (name, AddrHashMapEntry(port, base, size)) =>
-      arr(port) = (name, base, size)
+  def sortedEntries(): Seq[(String, BigInt, BigInt, Int)] = {
+    val arr = new Array[(String, BigInt, BigInt, Int)](mapping.size)
+    mapping.foreach { case (name, AddrHashMapEntry(port, base, size, prot)) =>
+      arr(port) = (name, base, size, prot)
     }
     arr.toSeq
   }
+
+  def isValid(addr: UInt): Bool = {
+    sortedEntries().map { case (_, base, size, _) =>
+      addr >= UInt(base) && addr < UInt(base + size)
+    }.reduceLeft(_ || _)
+  }
+
+  def getProt(addr: UInt): AddrMapProt = {
+    Mux1H(sortedEntries().map { case (_, base, size, prot) =>
+      (addr >= UInt(base) && addr < UInt(base + size),
+        new AddrMapProt().fromBits(Bits(prot, 3)))
+    })
+  }
 }
 
-case object NASTIAddrMap extends Field[AddrMap]
+case object NASTIAddrMap extends Field[AddrMapSeq]
 case object NASTIAddrHashMap extends Field[AddrHashMap]
 
 class NASTIInterconnectIO(val nMasters: Int, val nSlaves: Int) extends Bundle {
@@ -583,11 +609,11 @@ abstract class NASTIInterconnect extends NASTIModule {
 
 class NASTIRecursiveInterconnect(
     val nMasters: Int, val nSlaves: Int,
-    addrmap: AddrMap, base: BigInt = 0) extends NASTIInterconnect {
+    addrmap: AddrMapSeq, base: BigInt = 0) extends NASTIInterconnect {
 
-  private def mapCountSlaves(addrmap: AddrMap): Int = {
+  private def mapCountSlaves(addrmap: AddrMapSeq): Int = {
     addrmap.map {
-      case (_, _, MemSize(_)) => 1
+      case (_, _, MemSize(_, _)) => 1
       case (_, _, MemSubmap(_, submap)) => mapCountSlaves(submap)
     }.reduceLeft(_ + _)
   }
@@ -618,7 +644,7 @@ class NASTIRecursiveInterconnect(
   addrmap.zip(realAddrMap).zipWithIndex.foreach {
     case (((_, _, region), (start, size)), i) => {
       region match {
-        case MemSize(_) =>
+        case MemSize(_, _) =>
           io.slaves(slaveInd) <> flatSlaves(i)
           slaveInd += 1
         case MemSubmap(_, submap) =>
