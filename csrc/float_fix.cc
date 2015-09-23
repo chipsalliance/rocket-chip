@@ -22,7 +22,7 @@
 
 // Returns the bits in x[high:low] in the lowest positions
 uint64_t BitRange(uint64_t x, int high, int low) {
-  int high_gap = 64 - high;
+  int high_gap = 63 - high;
   return x << high_gap >> (low + high_gap);
 }
 
@@ -56,27 +56,27 @@ bool NestedFloatPossible(uint64_t raw_input) {
 //   logic from berkeley-hardfloat/src/main/scala/recodedFloatNToFloatN.scala
 uint64_t UnrecodeFloatFromDouble(uint64_t raw_input) {
   uint64_t recoded_float = raw_input & 0x1ffffffff;  // lower 33 bits
-  uint64_t sign = BitRange(recoded_float, 31, 31);
-  uint64_t exp_in = BitRange(recoded_float, 30, 22);
-  uint64_t sig_in = BitRange(recoded_float, 21, 0);
+  uint64_t sign = BitRange(recoded_float, 32, 32);
+  uint64_t exp_in = BitRange(recoded_float, 31, 23);
+  uint64_t sig_in = BitRange(recoded_float, 22, 0);
 
   bool is_high_subnormal_in = BitRange(exp_in, 6, 0) < 2;
   bool is_subnormal = (BitRange(exp_in, 8, 6) == 1) ||
                      ((BitRange(exp_in, 8, 7) == 1) && is_high_subnormal_in);
-  bool is_normal = ((BitRange(exp_in, 8, 7) == 1) && !is_high_subnormal_in) ||
-                    (BitRange(exp_in, 8, 7) == 2);
+  bool is_normal = (BitRange(exp_in, 8, 7) == 1) && !is_high_subnormal_in ||
+                   (BitRange(exp_in, 8, 7) == 2);
   bool is_special = BitRange(exp_in, 8, 7) == 3;
   bool is_NaN = is_special && BitRange(exp_in, 6, 6);
 
   uint64_t denorm_shift_dist = 2 - BitRange(exp_in, 4, 0);
   uint64_t subnormal_sig_out = (0x400000 | sig_in) >> denorm_shift_dist;
-  uint64_t normal_exp_out = BitRange(exp_in, 7, 0) - 129;
+  uint8_t normal_exp_out = BitRange(exp_in, 7, 0) - 129;
 
   uint64_t exp_out = is_normal ? normal_exp_out : (is_special ? 255 : 0);
   uint64_t sig_out = is_normal || is_NaN ? sig_in :
-                      is_subnormal ? subnormal_sig_out : 0;
+                     is_subnormal ? subnormal_sig_out : 0;
 
-  uint64_t raw_output64 = (sign << 63) | (exp_out << 23) | sig_out;
+  uint64_t raw_output64 = (sign << 31) | (exp_out << 23) | sig_out;
   // assert((raw_output64 & 0xffffffff00000000) == uint64_t(0));
   // If this is not a recoded float, this will return gibberish, however,
   // the output will not match spike and thus the replacement will not happen.
