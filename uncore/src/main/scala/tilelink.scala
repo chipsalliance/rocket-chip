@@ -1369,15 +1369,15 @@ class ClientTileLinkIOUnwrapper extends TLModule {
   io.in.probe.valid := Bool(false)
 }
 
-class NASTIMasterIOTileLinkIOConverterInfo extends TLBundle {
+class NASTIIOTileLinkIOConverterInfo extends TLBundle {
   val byteOff = UInt(width = tlByteAddrBits)
   val subblock = Bool()
 }
 
-class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
+class NASTIIOTileLinkIOConverter extends TLModule with NASTIParameters {
   val io = new Bundle {
     val tl = new ClientUncachedTileLinkIO().flip
-    val nasti = new NASTIMasterIO
+    val nasti = new NASTIIO
   }
 
   private def opSizeToXSize(ops: UInt) = MuxLookup(ops, UInt("b111"), Seq(
@@ -1393,7 +1393,7 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
   val dstIdBits = params(LNHeaderBits)
   require(tlDataBits == nastiXDataBits, "Data sizes between LLC and MC don't agree") // TODO: remove this restriction
   require(tlDataBeats < (1 << nastiXLenBits), "Can't have that many beats")
-  require(dstIdBits + tlClientXactIdBits < nastiXIdBits, "NASTIMasterIO converter is going truncate tags: " + dstIdBits + " + " + tlClientXactIdBits + " >= " + nastiXIdBits)
+  require(dstIdBits + tlClientXactIdBits < nastiXIdBits, "NASTIIO converter is going truncate tags: " + dstIdBits + " + " + tlClientXactIdBits + " >= " + nastiXIdBits)
 
   io.tl.acquire.ready := Bool(false)
 
@@ -1419,7 +1419,7 @@ class NASTIMasterIOTileLinkIOConverter extends TLModule with NASTIParameters {
   val tl_done_out = Reg(init=Bool(false))
 
   val roq = Module(new ReorderQueue(
-    new NASTIMasterIOTileLinkIOConverterInfo,
+    new NASTIIOTileLinkIOConverterInfo,
     nastiRIdBits, tlMaxClientsPerPort))
 
   val (nasti_cnt_out, nasti_wrap_out) = Counter(
