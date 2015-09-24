@@ -1,10 +1,10 @@
 package uncore
 
 import Chisel._
-import junctions.{NASTIMasterIO, NASTIAddrHashMap, SMIIO}
+import junctions.{NASTIIO, NASTIAddrHashMap, SMIIO}
 
 class RTC(pcr_MTIME: Int) extends Module {
-  val io = new NASTIMasterIO
+  val io = new NASTIIO
 
   private val nCores = params(HTIFNCores)
   private val addrMap = params(NASTIAddrHashMap)
