@@ -62,8 +62,8 @@ class TopIO extends BasicTopIO {
 }
 
 class MultiChannelTopIO extends BasicTopIO with TopLevelParameters {
-  val mem = Vec(new NASTIMasterIO, nMemChannels)
-  val mmio = new NASTIMasterIO
+  val mem = Vec(new NASTIIO, nMemChannels)
+  val mmio = new NASTIIO
 }
 
 /** Top-level module for the chip */
@@ -73,7 +73,7 @@ class Top extends Module with TopLevelParameters {
   if(!params(UseZscale)) {
     val temp = Module(new MultiChannelTop)
     val arb = Module(new NASTIArbiter(nMemChannels))
-    val conv = Module(new MemIONASTISlaveIOConverter(params(CacheBlockOffsetBits)))
+    val conv = Module(new MemIONASTIIOConverter(params(CacheBlockOffsetBits)))
     arb.io.master <> temp.io.mem
     conv.io.nasti <> arb.io.slave
     io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
@@ -127,12 +127,12 @@ class MultiChannelTop extends Module with TopLevelParameters {
 class Uncore extends Module with TopLevelParameters {
   val io = new Bundle {
     val host = new HostIO
-    val mem = Vec(new NASTIMasterIO, nMemChannels)
+    val mem = Vec(new NASTIIO, nMemChannels)
     val tiles_cached = Vec(new ClientTileLinkIO, nTiles).flip
     val tiles_uncached = Vec(new ClientUncachedTileLinkIO, nTiles).flip
     val htif = Vec(new HTIFIO, nTiles).flip
     val mem_backup_ctrl = new MemBackupCtrlIO
-    val mmio = new NASTIMasterIO
+    val mmio = new NASTIIO
   }
 
   val htif = Module(new HTIF(CSRs.mreset)) // One HTIF module per chip
@@ -187,12 +187,12 @@ class OuterMemorySystem extends Module with TopLevelParameters {
     val tiles_uncached = Vec(new ClientUncachedTileLinkIO, nTiles).flip
     val htif_uncached = (new ClientUncachedTileLinkIO).flip
     val incoherent = Vec(Bool(), nTiles).asInput
-    val mem = Vec(new NASTIMasterIO, nMemChannels)
+    val mem = Vec(new NASTIIO, nMemChannels)
     val mem_backup = new MemSerializedIO(htifW)
     val mem_backup_en = Bool(INPUT)
     val pcr = Vec(new SMIIO(64, 12), nTiles)
     val scr = new SMIIO(64, scrAddrBits)
-    val mmio = new NASTIMasterIO
+    val mmio = new NASTIIO
   }
 
   // Create a simple L1toL2 NoC between the tiles+htif and the banks of outer memory
@@ -232,7 +232,7 @@ class OuterMemorySystem extends Module with TopLevelParameters {
 
   for ((bank, i) <- managerEndpoints.zipWithIndex) {
     val unwrap = Module(new ClientTileLinkIOUnwrapper)(outerTLParams)
-    val conv = Module(new NASTIMasterIOTileLinkIOConverter)(outerTLParams)
+    val conv = Module(new NASTIIOTileLinkIOConverter)(outerTLParams)
     unwrap.io.in <> bank.outerTL
     conv.io.tl <> unwrap.io.out
     interconnect.io.masters(i) <> conv.io.nasti
@@ -244,12 +244,12 @@ class OuterMemorySystem extends Module with TopLevelParameters {
   for (i <- 0 until nTiles) {
     val csrName = s"conf:csr$i"
     val csrPort = addrMap(csrName).port
-    val conv = Module(new SMIIONASTISlaveIOConverter(64, 12))
+    val conv = Module(new SMIIONASTIIOConverter(64, 12))
     conv.io.nasti <> interconnect.io.slaves(csrPort)
     io.pcr(i) <> conv.io.smi
   }
 
-  val conv = Module(new SMIIONASTISlaveIOConverter(64, scrAddrBits))
+  val conv = Module(new SMIIONASTIIOConverter(64, scrAddrBits))
   conv.io.nasti <> interconnect.io.slaves(addrMap("conf:scr").port)
   io.scr <> conv.io.smi
 
