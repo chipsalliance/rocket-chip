@@ -55,15 +55,13 @@ trait NASTIChannel extends NASTIBundle
 trait NASTIMasterToSlaveChannel extends NASTIChannel
 trait NASTISlaveToMasterChannel extends NASTIChannel
 
-class NASTIMasterIO extends Bundle {
+class NASTIIO extends Bundle {
   val aw = Decoupled(new NASTIWriteAddressChannel)
   val w  = Decoupled(new NASTIWriteDataChannel)
   val b  = Decoupled(new NASTIWriteResponseChannel).flip
   val ar = Decoupled(new NASTIReadAddressChannel)
   val r  = Decoupled(new NASTIReadDataChannel).flip
 }
-
-class NASTISlaveIO extends NASTIMasterIO { flip() }
 
 trait HasNASTIMetadata extends NASTIBundle {
   val addr   = UInt(width = nastiXAddrBits)
@@ -182,9 +180,9 @@ object NASTIWriteResponseChannel {
   }
 }
 
-class MemIONASTISlaveIOConverter(cacheBlockOffsetBits: Int) extends MIFModule with NASTIParameters {
+class MemIONASTIIOConverter(cacheBlockOffsetBits: Int) extends MIFModule with NASTIParameters {
   val io = new Bundle {
-    val nasti = new NASTISlaveIO
+    val nasti = (new NASTIIO).flip
     val mem = new MemIO
   }
 
@@ -238,8 +236,8 @@ class MemIONASTISlaveIOConverter(cacheBlockOffsetBits: Int) extends MIFModule wi
 /** Arbitrate among arbN masters requesting to a single slave */
 class NASTIArbiter(val arbN: Int) extends NASTIModule {
   val io = new Bundle {
-    val master = Vec(new NASTISlaveIO, arbN)
-    val slave = new NASTIMasterIO
+    val master = Vec(new NASTIIO, arbN).flip
+    val slave = new NASTIIO
   }
 
   if (arbN > 1) {
@@ -346,7 +344,7 @@ class NASTIReadDataArbiter(arbN: Int) extends NASTIModule {
 
 /** A slave that send decode error for every request it receives */
 class NASTIErrorSlave extends NASTIModule {
-  val io = new NASTISlaveIO
+  val io = (new NASTIIO).flip
 
   when (io.ar.fire()) { printf("Invalid read address %x\n", io.ar.bits.addr) }
   when (io.aw.fire()) { printf("Invalid write address %x\n", io.aw.bits.addr) }
@@ -401,8 +399,8 @@ class NASTIRouter(addrmap: Seq[(BigInt, BigInt)]) extends NASTIModule {
   val nSlaves = addrmap.size
 
   val io = new Bundle {
-    val master = new NASTISlaveIO
-    val slave = Vec(new NASTIMasterIO, nSlaves)
+    val master = (new NASTIIO).flip
+    val slave = Vec(new NASTIIO, nSlaves)
   }
 
   var ar_ready = Bool(false)
@@ -479,8 +477,8 @@ class NASTIRouter(addrmap: Seq[(BigInt, BigInt)]) extends NASTIModule {
 class NASTICrossbar(nMasters: Int, nSlaves: Int, addrmap: Seq[(BigInt, BigInt)])
     extends NASTIModule {
   val io = new Bundle {
-    val masters = Vec(new NASTISlaveIO, nMasters)
-    val slaves = Vec(new NASTIMasterIO, nSlaves)
+    val masters = Vec(new NASTIIO, nMasters).flip
+    val slaves = Vec(new NASTIIO, nSlaves)
   }
 
   val routers = Vec.fill(nMasters) { Module(new NASTIRouter(addrmap)).io }
@@ -594,8 +592,8 @@ case object NASTIAddrHashMap extends Field[AddrHashMap]
 class NASTIInterconnectIO(val nMasters: Int, val nSlaves: Int) extends Bundle {
   /* This is a bit confusing. The interconnect is a slave to the masters and
    * a master to the slaves. Hence why the declarations seem to be backwards. */
-  val masters = Vec(new NASTISlaveIO, nMasters)
-  val slaves = Vec(new NASTIMasterIO, nSlaves)
+  val masters = Vec(new NASTIIO, nMasters).flip
+  val slaves = Vec(new NASTIIO, nSlaves)
   override def cloneType =
     new NASTIInterconnectIO(nMasters, nSlaves).asInstanceOf[this.type]
 }

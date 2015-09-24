@@ -250,10 +250,10 @@ class SMIIONASTIWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
 }
 
 /** Convert NASTI protocol to SMI protocol */
-class SMIIONASTISlaveIOConverter(val dataWidth: Int, val addrWidth: Int)
+class SMIIONASTIIOConverter(val dataWidth: Int, val addrWidth: Int)
     extends NASTIModule {
   val io = new Bundle {
-    val nasti = new NASTISlaveIO
+    val nasti = (new NASTIIO).flip
     val smi = new SMIIO(dataWidth, addrWidth)
   }
 
