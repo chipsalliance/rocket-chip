@@ -151,10 +151,11 @@ class IOMSHR(id: Int) extends L1HellaCacheModule {
   }
 
   val req = Reg(new HellaCacheReq)
+  val req_cmd_sc = req.cmd === M_XSC
   val grant_word = Reg(UInt(width = wordBits))
 
   val storegen = new StoreGen(req.typ, req.addr, req.data)
-  val loadgen = new LoadGen(req.typ, req.addr, grant_word, Bool(false))
+  val loadgen = new LoadGen(req.typ, req.addr, grant_word, req_cmd_sc)
 
   val beat_offset = req.addr(beatOffBits - 1, wordOffBits)
   val beat_mask = (storegen.mask << Cat(beat_offset, UInt(0, wordOffBits)))
@@ -184,7 +185,7 @@ class IOMSHR(id: Int) extends L1HellaCacheModule {
   io.resp.valid := (state === s_resp)
   io.resp.bits := req
   io.resp.bits.has_data := isRead(req.cmd)
-  io.resp.bits.data := loadgen.byte
+  io.resp.bits.data := loadgen.byte | req_cmd_sc
   io.resp.bits.store_data := req.data
   io.resp.bits.nack := Bool(false)
   io.resp.bits.replay := io.resp.valid
@@ -735,7 +736,6 @@ class HellaCache extends L1HellaCacheModule {
   val s1_recycled = RegEnable(s2_recycle, Bool(false), s1_clk_en)
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
-  val s1_sc = s1_req.cmd === M_XSC
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
   val dtlb = Module(new TLB)
@@ -1032,7 +1032,7 @@ class HellaCache extends L1HellaCacheModule {
   io.cpu.resp := Mux(cache_pass, cache_resp, uncache_resp)
   io.cpu.resp.bits.data_word_bypass := loadgen.word
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
-  io.cpu.replay_next.valid := s1_replay && (s1_read || s1_sc)
+  io.cpu.replay_next.valid := s1_replay && s1_read
   io.cpu.replay_next.bits := s1_req.tag
 }
 
