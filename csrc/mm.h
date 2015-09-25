@@ -8,7 +8,7 @@
 #include <queue>
 
 const int LINE_SIZE = 64; // all cores assume this.
-const size_t MEM_SIZE = (sizeof(long) > 4 ? 4L : 1L) * 1024*1024*1024;
+const size_t MEM_SIZE = 1L * 1024*1024*1024;
 
 class mm_t
 {
