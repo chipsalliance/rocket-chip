@@ -112,7 +112,7 @@ class NASTIReadDataChannel extends NASTIResponseChannel with HasNASTIData {
 }
 
 object NASTIWriteAddressChannel {
-  def apply(id: UInt, addr: UInt, size: UInt, len: UInt) = {
+  def apply(id: UInt, addr: UInt, size: UInt, len: UInt = UInt(0)) = {
     val aw = Wire(new NASTIWriteAddressChannel)
     aw.id := id
     aw.addr := addr
@@ -130,7 +130,7 @@ object NASTIWriteAddressChannel {
 }
 
 object NASTIReadAddressChannel {
-  def apply(id: UInt, addr: UInt, size: UInt, len: UInt) = {
+  def apply(id: UInt, addr: UInt, size: UInt, len: UInt = UInt(0)) = {
     val ar = Wire(new NASTIReadAddressChannel)
     ar.id := id
     ar.addr := addr
@@ -148,7 +148,9 @@ object NASTIReadAddressChannel {
 }
 
 object NASTIWriteDataChannel {
-  def apply(strb: UInt, data: UInt, last: Bool) = {
+  private val strobeBits = new NASTIWriteDataChannel().nastiWStrobeBits
+  val fullStrobe = Fill(strobeBits, UInt(1, 1))
+  def apply(data: UInt, strb: UInt = fullStrobe, last: Bool = Bool(true)) = {
     val w = Wire(new NASTIWriteDataChannel)
     w.strb := strb
     w.data := data
@@ -159,7 +161,7 @@ object NASTIWriteDataChannel {
 }
 
 object NASTIReadDataChannel {
-  def apply(id: UInt, data: UInt, last: Bool, resp: UInt = UInt(0)) = {
+  def apply(id: UInt, data: UInt, last: Bool = Bool(true), resp: UInt = UInt(0)) = {
     val r = Wire(new NASTIReadDataChannel)
     r.id := id
     r.data := data
