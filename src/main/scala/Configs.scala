@@ -31,6 +31,7 @@ class DefaultConfig extends ChiselConfig (
       //HTIF Parameters
       case HTIFWidth => Dump("HTIF_WIDTH", 16)
       case HTIFNSCR => 64
+      case HTIFSCRDataBits => site(XLen)
       case HTIFOffsetBits => site(CacheBlockOffsetBits)
       case HTIFNCores => site(NTiles)
       //Memory Parameters

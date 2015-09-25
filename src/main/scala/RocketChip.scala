@@ -41,6 +41,8 @@ trait TopLevelParameters extends UsesParameters {
   val mifAddrBits = params(MIFAddrBits)
   val mifDataBeats = params(MIFDataBeats)
   val scrAddrBits = log2Up(params(HTIFNSCR))
+  val pcrAddrBits = 12
+  val xLen = params(XLen)
   require(lsb + log2Up(nBanks) < mifAddrBits)
 }
 
@@ -190,8 +192,8 @@ class OuterMemorySystem extends Module with TopLevelParameters {
     val mem = Vec(new NASTIIO, nMemChannels)
     val mem_backup = new MemSerializedIO(htifW)
     val mem_backup_en = Bool(INPUT)
-    val pcr = Vec(new SMIIO(64, 12), nTiles)
-    val scr = new SMIIO(64, scrAddrBits)
+    val pcr = Vec(new SMIIO(xLen, pcrAddrBits), nTiles)
+    val scr = new SMIIO(xLen, scrAddrBits)
     val mmio = new NASTIIO
   }
 
@@ -244,12 +246,12 @@ class OuterMemorySystem extends Module with TopLevelParameters {
   for (i <- 0 until nTiles) {
     val csrName = s"conf:csr$i"
     val csrPort = addrMap(csrName).port
-    val conv = Module(new SMIIONASTIIOConverter(64, 12))
+    val conv = Module(new SMIIONASTIIOConverter(xLen, pcrAddrBits))
     conv.io.nasti <> interconnect.io.slaves(csrPort)
     io.pcr(i) <> conv.io.smi
   }
 
-  val conv = Module(new SMIIONASTIIOConverter(64, scrAddrBits))
+  val conv = Module(new SMIIONASTIIOConverter(xLen, scrAddrBits))
   conv.io.nasti <> interconnect.io.slaves(addrMap("conf:scr").port)
   io.scr <> conv.io.smi
 
