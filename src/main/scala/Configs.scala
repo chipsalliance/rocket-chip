@@ -15,6 +15,16 @@ class DefaultConfig extends ChiselConfig (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
+    def genCsrAddrMap() = {
+      val xLen = site(XLen)
+      val nSCR = site(HTIFNSCR)
+      val csrSize = (1 << 12) * (xLen / 8)
+      val nTiles = site(NTiles)
+
+      (0 until nTiles)
+        .map(i => (s"csr$i", None, MemSize(csrSize, AddrMap.RW))) :+
+        ("scr", None, MemSize(nSCR * xLen / 8, AddrMap.RW))
+    }
     pname match {
       //
       case UseZscale => false
@@ -159,9 +169,8 @@ class DefaultConfig extends ChiselConfig (
       case ExternalIOStart => 2 * site(MMIOBase)
       case NASTIAddrMap => Seq(
         ("mem", None, MemSize(site(MMIOBase), AddrMap.RWX)),
-        ("conf", None, Submap(site(ExternalIOStart) - site(MMIOBase),
-          ("csr0", None, MemSize(1 << 15, AddrMap.RW)),
-          ("scr", None, MemSize(site(HTIFNSCR) * 8, AddrMap.RW)))),
+        ("conf", None, MemSubmap(site(ExternalIOStart) - site(MMIOBase),
+          genCsrAddrMap())),
         ("io", Some(site(ExternalIOStart)),
           MemSize(2 * site(MMIOBase), AddrMap.RW)))
       case NASTIAddrHashMap => new AddrHashMap(site(NASTIAddrMap))
