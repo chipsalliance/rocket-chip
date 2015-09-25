@@ -481,8 +481,8 @@ class NASTICrossbar(nMasters: Int, nSlaves: Int, addrmap: Seq[(BigInt, BigInt)])
     val slaves = Vec(new NASTIIO, nSlaves)
   }
 
-  val routers = Vec.fill(nMasters) { Module(new NASTIRouter(addrmap)).io }
-  val arbiters = Vec.fill(nSlaves) { Module(new NASTIArbiter(nMasters)).io }
+  val routers = Vec(nMasters, Module(new NASTIRouter(addrmap)).io)
+  val arbiters = Vec(nSlaves, Module(new NASTIArbiter(nMasters)).io)
 
   for (i <- 0 until nMasters) {
     routers(i).master <> io.masters(i)
