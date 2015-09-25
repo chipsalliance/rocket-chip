@@ -25,7 +25,10 @@ class htif_emulator_t : public htif_pthread_t
     htif_pthread_t::start();
   }
 
-  uint32_t mem_mb() { return _memsz_mb; }
+  uint32_t mem_mb() {
+    uint32_t scr_mb = htif_pthread_t::mem_mb();
+    return (_memsz_mb < scr_mb) ? _memsz_mb : scr_mb;
+  }
 
  private:
   uint32_t _memsz_mb;
