@@ -1261,14 +1261,14 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
     val full = Bool(OUTPUT)
   }
 
-  val roq_data  = Reg(Vec(dType.cloneType, size))
+  val roq_data = Reg(Vec(dType.cloneType, size))
   val roq_tags = Reg(Vec(UInt(width = tagWidth), size))
-  val roq_free = Reg(init = Fill(size, Bits(1, 1)))
+  val roq_free = Reg(init = Vec(size, Bool(true)))
 
   val roq_enq_addr = PriorityEncoder(roq_free)
   val roq_deq_addr = PriorityEncoder(roq_tags.map(_ === io.deq.tag))
 
-  io.enq.ready := roq_free.orR
+  io.enq.ready := roq_free.reduce(_ || _)
   io.deq.data := roq_data(roq_deq_addr)
 
   when (io.enq.valid && io.enq.ready) {
