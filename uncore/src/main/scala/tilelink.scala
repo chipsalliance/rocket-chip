@@ -1439,8 +1439,8 @@ class NASTIIOTileLinkIOConverter extends TLModule with NASTIParameters {
     len = Mux(has_data, UInt(tlDataBeats - 1), UInt(0)))
   io.nasti.aw.bits := io.nasti.ar.bits
   io.nasti.w.bits := NASTIWriteDataChannel(
-    strb = io.tl.acquire.bits.wmask(),
     data = io.tl.acquire.bits.data,
+    strb = io.tl.acquire.bits.wmask(),
     last = tl_wrap_out || (io.tl.acquire.fire() && is_subblock))
 
   when(!active_out){
