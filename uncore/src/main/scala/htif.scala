@@ -10,6 +10,7 @@ case object HTIFWidth extends Field[Int]
 case object HTIFNSCR extends Field[Int]
 case object HTIFOffsetBits extends Field[Int]
 case object HTIFNCores extends Field[Int]
+case object HTIFSCRDataBits extends Field[Int]
 
 abstract trait HTIFParameters extends UsesParameters {
   val dataBits = params(TLDataBits)
@@ -17,6 +18,8 @@ abstract trait HTIFParameters extends UsesParameters {
   val w = params(HTIFWidth)
   val nSCR = params(HTIFNSCR)
   val scrAddrBits = log2Up(nSCR)
+  val scrDataBits = params(HTIFSCRDataBits)
+  val scrDataBytes = scrDataBits / 8
   val offsetBits = params(HTIFOffsetBits)
   val nCores = params(HTIFNCores)
 }
@@ -35,7 +38,7 @@ class HostIO extends HTIFBundle
 class HTIFIO extends HTIFBundle {
   val reset = Bool(INPUT)
   val id = UInt(INPUT, log2Up(nCores))
-  val pcr = new SMIIO(64, 12).flip
+  val pcr = new SMIIO(scrDataBits, 12).flip
   val ipi_req = Decoupled(Bits(width = log2Up(nCores)))
   val ipi_rep = Decoupled(Bool()).flip
   val debug_stats_pcr = Bool(OUTPUT)
@@ -48,7 +51,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     val host = new HostIO
     val cpu = Vec(new HTIFIO, nCores).flip
     val mem = new ClientUncachedTileLinkIO
-    val scr = new SMIIO(64, scrAddrBits)
+    val scr = new SMIIO(scrDataBits, scrAddrBits)
   }
 
   io.host.debug_stats_pcr := io.cpu.map(_.debug_stats_pcr).reduce(_||_)

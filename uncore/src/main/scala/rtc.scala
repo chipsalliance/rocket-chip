@@ -1,16 +1,15 @@
 package uncore
 
 import Chisel._
-import junctions.{NASTIIO, NASTIAddrHashMap, SMIIO}
+import junctions._
 
-class RTC(pcr_MTIME: Int) extends Module {
+class RTC(pcr_MTIME: Int) extends Module with HTIFParameters {
   val io = new NASTIIO
 
-  private val nCores = params(HTIFNCores)
   private val addrMap = params(NASTIAddrHashMap)
 
   val addrTable = Vec.tabulate(nCores) { i =>
-    UInt(addrMap(s"conf:csr$i").start + pcr_MTIME * 8)
+    UInt(addrMap(s"conf:csr$i").start + pcr_MTIME * scrDataBytes)
   }
 
   val rtc = Reg(init=UInt(0,64))
