@@ -296,7 +296,9 @@ class NASTIArbiter(val arbN: Int) extends NASTIModule {
     io.slave.w.valid := io.master(w_chosen).w.valid && !w_done
 
     io.slave.ar <> ar_arb.io.out
-    io.slave.aw <> aw_arb.io.out
+
+    io.slave.aw.bits <> aw_arb.io.out.bits
+    io.slave.aw.valid := aw_arb.io.out.valid && w_done
     aw_arb.io.out.ready := io.slave.aw.ready && w_done
 
   } else { io.slave <> io.master.head }
