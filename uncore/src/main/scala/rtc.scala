@@ -17,12 +17,12 @@ class RTC(pcr_MTIME: Int) extends Module with HTIFParameters {
 
   val sending_addr = Reg(init = Bool(false))
   val sending_data = Reg(init = Bool(false))
-  val send_acked = Reg(init = Vec(nCores, Bool(true)))
+  val send_acked = Reg(init = Vec.fill(nCores)(Bool(true)))
   val coreId = Wire(UInt(width = log2Up(nCores)))
 
   when (rtc_tick) {
     rtc := rtc + UInt(1)
-    send_acked := Vec(nCores, Bool(false))
+    send_acked := Vec.fill(nCores)(Bool(false))
     sending_addr := Bool(true)
     sending_data := Bool(true)
   }
