@@ -116,7 +116,7 @@ class SMIIONASTIReadIOConverter(val dataWidth: Int, val addrWidth: Int)
   val recvInd = Reg(init = UInt(0, wordCountBits))
   val sendDone = Reg(init = Bool(false))
 
-  val buffer = Reg(init = Vec(maxWordsPerBeat, Bits(0, dataWidth)))
+  val buffer = Reg(init = Vec.fill(maxWordsPerBeat) { Bits(0, dataWidth) })
 
   io.ar.ready := (state === s_idle)
 
