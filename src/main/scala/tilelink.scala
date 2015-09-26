@@ -1263,7 +1263,7 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
 
   val roq_data = Reg(Vec(dType.cloneType, size))
   val roq_tags = Reg(Vec(UInt(width = tagWidth), size))
-  val roq_free = Reg(init = Vec(size, Bool(true)))
+  val roq_free = Reg(init = Vec.fill(size)(Bool(true)))
 
   val roq_enq_addr = PriorityEncoder(roq_free)
   val roq_deq_addr = PriorityEncoder(roq_tags.map(_ === io.deq.tag))
