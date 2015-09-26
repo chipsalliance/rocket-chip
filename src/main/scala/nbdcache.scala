@@ -670,7 +670,7 @@ class DataArray extends L1HellaCacheModule {
       for (p <- 0 until resp.size) {
         val array = SeqMem(Vec(Bits(width=encDataBits), rowWords), nSets*refillCycles)
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
-          val data = Vec(rowWords, io.write.bits.data(encDataBits*(p+1)-1,encDataBits*p))
+          val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(p+1)-1,encDataBits*p))
           array.write(waddr, data, wway_en.toBools)
         }
         resp(p) := array.read(raddr, rway_en.orR && io.read.valid).toBits

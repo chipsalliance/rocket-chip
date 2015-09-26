@@ -202,7 +202,7 @@ class ICache extends FrontendModule
   val tag_rdata = tag_array.read(s0_pgoff(untagBits-1,blockOffBits), !refill_done && s0_valid)
   when (refill_done) {
     val tag = code.encode(s2_tag).toUInt
-    tag_array.write(s2_idx, Vec(nWays, tag), Vec.tabulate(nWays)(repl_way === _))
+    tag_array.write(s2_idx, Vec.fill(nWays)(tag), Vec.tabulate(nWays)(repl_way === _))
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
