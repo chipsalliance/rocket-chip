@@ -148,8 +148,8 @@ object NASTIReadAddressChannel {
 }
 
 object NASTIWriteDataChannel {
-  private val strobeBits = new NASTIWriteDataChannel().nastiWStrobeBits
-  val fullStrobe = Fill(strobeBits, UInt(1, 1))
+  private def strobeBits = new NASTIWriteDataChannel().nastiWStrobeBits
+  def fullStrobe = Fill(strobeBits, UInt(1, 1))
   def apply(data: UInt, strb: UInt = fullStrobe, last: Bool = Bool(true)) = {
     val w = Wire(new NASTIWriteDataChannel)
     w.strb := strb
