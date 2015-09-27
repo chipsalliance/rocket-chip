@@ -155,9 +155,8 @@ class TLB extends TLBModule {
   val w_array = Mux(priv_s, sw_array.toBits, uw_array.toBits)
   val x_array = Mux(priv_s, sx_array.toBits, ux_array.toBits)
 
-  val vm_enabled = io.ptw.status.vm(3) && priv_uses_vm
+  val vm_enabled = io.ptw.status.vm(3) && priv_uses_vm && !io.req.bits.passthrough
   val bad_va = io.req.bits.vpn(vpnBits) != io.req.bits.vpn(vpnBits-1)
-  val bad_pa = !vm_enabled && io.req.bits.vpn >= UInt(mmioBase >> vpnBits)
   // it's only a store hit if the dirty bit is set
   val tag_hits = tag_cam.io.hits & (dirty_array.toBits | ~Mux(io.req.bits.store, w_array, UInt(0)))
   val tag_hit = tag_hits.orR
@@ -178,7 +177,7 @@ class TLB extends TLBModule {
   io.resp.xcpt_st := !addr_ok || !addr_prot.w || bad_va || tlb_hit && !(w_array & tag_cam.io.hits).orR
   io.resp.xcpt_if := !addr_ok || !addr_prot.x || bad_va || tlb_hit && !(x_array & tag_cam.io.hits).orR
   io.resp.miss := tlb_miss
-  io.resp.ppn := Mux(vm_enabled && !io.req.bits.passthrough, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(params(PPNBits)-1,0))
+  io.resp.ppn := Mux(vm_enabled, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(params(PPNBits)-1,0))
   io.resp.hit_idx := tag_cam.io.hits
 
   // clear invalid entries on access, or all entries on a TLB flush
