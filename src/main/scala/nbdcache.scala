@@ -1016,7 +1016,7 @@ class HellaCache extends L1HellaCacheModule {
   val cache_resp = Wire(Valid(new HellaCacheResp))
   cache_resp.valid := (s2_replay || s2_valid_masked && s2_hit) && !s2_data_correctable
   cache_resp.bits := s2_req
-  cache_resp.bits.has_data := isRead(s2_req.cmd) || s2_sc
+  cache_resp.bits.has_data := isRead(s2_req.cmd)
   cache_resp.bits.data := loadgen.byte | s2_sc_fail
   cache_resp.bits.store_data := s2_req.data
   cache_resp.bits.nack := s2_valid && s2_nack
