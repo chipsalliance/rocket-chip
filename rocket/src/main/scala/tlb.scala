@@ -191,7 +191,7 @@ class TLB extends TLBModule {
   io.ptw.req.bits.store := r_req.store
   io.ptw.req.bits.fetch := r_req.instruction
 
-  when (io.req.fire() && tlb_miss && addr_ok) {
+  when (io.req.fire() && tlb_miss) {
     state := s_request
     r_refill_tag := lookup_tag
     r_refill_waddr := repl_waddr
