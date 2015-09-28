@@ -103,6 +103,7 @@ class DefaultConfig extends ChiselConfig (
       case FetchWidth => 1
       case RetireWidth => 1
       case UseVM => true
+      case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
       case FastMulDiv => true
