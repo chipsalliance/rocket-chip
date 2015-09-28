@@ -947,7 +947,7 @@ class HellaCache extends L1HellaCacheModule {
                              narrow_grant.bits.client_xact_id < UInt(nMSHRs)
   writeArb.io.in(1).bits.addr := mshrs.io.refill.addr
   writeArb.io.in(1).bits.way_en := mshrs.io.refill.way_en
-  writeArb.io.in(1).bits.wmask := ~UInt(0, nWays)
+  writeArb.io.in(1).bits.wmask := ~UInt(0, rowWords)
   writeArb.io.in(1).bits.data := narrow_grant.bits.data(encRowBits-1,0)
   data.io.read <> readArb.io.out
   readArb.io.out.ready := !narrow_grant.valid || narrow_grant.ready // insert bubble if refill gets blocked
