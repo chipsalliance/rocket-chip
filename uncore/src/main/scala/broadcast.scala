@@ -257,7 +257,7 @@ class BroadcastAcquireTracker(trackerId: Int) extends BroadcastXactTracker {
 
   val oacq_probe = PutBlock(
     client_xact_id = UInt(trackerId),
-    addr_block = xact.addr_block,
+    addr_block = io.irel().addr_block,
     addr_beat = io.irel().addr_beat,
     data = io.irel().data)
 
