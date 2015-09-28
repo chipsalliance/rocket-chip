@@ -173,6 +173,7 @@ class CSRFile extends CoreModule
 
   io.host.debug_stats_pcr := reg_stats // direct export up the hierarchy
 
+  val read_time = if (params(UsePerfCounters)) reg_time else (reg_cycle: UInt)
   val read_mstatus = io.status.toBits
   val isa_string = "IMA" +
     (if (params(UseVM)) "S" else "") +
@@ -188,13 +189,11 @@ class CSRFile extends CoreModule
     CSRs.fcsr -> (if (!params(BuildFPU).isEmpty) Cat(reg_frm, reg_fflags) else UInt(0)),
     CSRs.cycle -> reg_cycle,
     CSRs.cyclew -> reg_cycle,
-    CSRs.instret -> reg_instret,
-    CSRs.instretw -> reg_instret,
-    CSRs.time -> reg_time,
-    CSRs.timew -> reg_time,
-    CSRs.stime -> reg_time,
-    CSRs.stimew -> reg_time,
-    CSRs.mtime -> reg_time,
+    CSRs.time -> read_time,
+    CSRs.timew -> read_time,
+    CSRs.stime -> read_time,
+    CSRs.stimew -> read_time,
+    CSRs.mtime -> read_time,
     CSRs.mcpuid -> UInt(cpuid),
     CSRs.mimpid -> UInt(impid),
     CSRs.mstatus -> read_mstatus,
@@ -213,6 +212,14 @@ class CSRFile extends CoreModule
     CSRs.stats -> reg_stats,
     CSRs.mtohost -> reg_tohost,
     CSRs.mfromhost -> reg_fromhost)
+
+  if (params(UsePerfCounters)) {
+    read_mapping += CSRs.instret -> reg_instret
+    read_mapping += CSRs.instretw -> reg_instret
+
+    for (i <- 0 until reg_uarch_counters.size)
+      read_mapping += (CSRs.uarch0 + i) -> reg_uarch_counters(i)
+  }
 
   if (params(UseVM)) {
     val read_sstatus = Wire(init=new SStatus().fromBits(read_mstatus))
@@ -240,9 +247,6 @@ class CSRFile extends CoreModule
     read_mapping += CSRs.sepc -> reg_sepc.sextTo(xLen)
     read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
   }
-
-  for (i <- 0 until reg_uarch_counters.size)
-    read_mapping += (CSRs.uarch0 + i) -> reg_uarch_counters(i)
 
   for (i <- 0 until params(NCustomMRWCSRs)) {
     val addr = 0x790 + i // turn 0x790 into parameter CustomMRWCSRBase?
@@ -341,7 +345,7 @@ class CSRFile extends CoreModule
 
   assert(PopCount(insn_ret :: insn_redirect_trap :: io.exception :: csr_xcpt :: io.csr_replay :: Nil) <= 1, "these conditions must be mutually exclusive")
 
-  when (reg_time >= reg_mtimecmp) {
+  when (read_time >= reg_mtimecmp) {
     reg_mip.mtip := true
   }
 
@@ -409,7 +413,8 @@ class CSRFile extends CoreModule
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
-    when (decoded_addr(CSRs.instretw)) { reg_instret := wdata }
+    if (params(UsePerfCounters))
+      when (decoded_addr(CSRs.instretw)) { reg_instret := wdata }
     when (decoded_addr(CSRs.mtimecmp)) { reg_mtimecmp := wdata; reg_mip.mtip := false }
     when (decoded_addr(CSRs.mtime))    { reg_time := wdata }
     when (decoded_addr(CSRs.mfromhost)){ when (reg_fromhost === UInt(0) || !host_pcr_req_fire) { reg_fromhost := wdata } }
