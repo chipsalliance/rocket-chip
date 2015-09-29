@@ -1,30 +1,37 @@
 [submodule "uncore"]
 	path = uncore
-	url = https://github.com/ucb-bar/uncore.git
+	url = git@github.com:ucb-bar/uncore.git
 [submodule "dramsim2"]
 	path = dramsim2
-	url = https://github.com/dramninjasUMD/DRAMSim2.git
+	url = git@github.com:dramninjasUMD/DRAMSim2.git
 [submodule "riscv-tools"]
 	path = riscv-tools
-	url = https://github.com/ucb-bar/esp-tools.git
+	url = git@github.com:ucb-bar/esp-tools.git
 [submodule "rocket"]
 	path = rocket
-	url = https://github.com/ucb-bar/rocket.git
+	url = git@github.com:ucb-bar/rocket.git
 [submodule "chisel"]
 	path = chisel
-	url = https://github.com/ucb-bar/chisel.git
+	url = git@github.com:ucb-bar/chisel.git
 [submodule "hardfloat"]
 	path = hardfloat
-	url = https://github.com/ucb-bar/berkeley-hardfloat.git
+	url = git@github.com:ucb-bar/berkeley-hardfloat.git
 [submodule "fpga-zynq"]
 	path = fpga-zynq
-	url = https://github.com/ucb-bar/fpga-zynq.git
+	url = git@github.com:ucb-bar/fpga-zynq.git
 [submodule "zscale"]
 	path = zscale
-	url = https://github.com/ucb-bar/zscale
+	url = git@github.com:ucb-bar/zscale
 [submodule "hwacha"]
 	path = hwacha
-	url = https://github.com/ucb-bar/hwacha
+	url = git@github.com:ucb-bar/hwacha
 [submodule "junctions"]
 	path = junctions
-	url = https://github.com/ucb-bar/junctions
+	url = git@github.com:ucb-bar/junctions
+[submodule "jackhammer"]
+	path = jackhammer
+	url = git@github.com:ucb-bar/jackhammer.git
+	branch = new-rocketchip
+[submodule "vlsi"]
+	path = vlsi
+	url = git@github.com:ucb-bar/vlsi.git

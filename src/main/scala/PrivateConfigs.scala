@@ -5,6 +5,7 @@ import scala.collection.mutable.LinkedHashSet
 import uncore._
 import rocket._
 import hwacha._
+import Chisel.Implicits._
 
 object HwachaTestSuites {
   import DefaultTestSuites._
@@ -70,5 +71,17 @@ class HwachaVLSIConfig extends ChiselConfig(new WithHwachaTests ++ new DefaultHw
 class HwachaFPGAConfig extends ChiselConfig(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2FPGAConfig) 
 class HwachaCPPConfig extends ChiselConfig(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2CPPConfig) 
 
-class EOS24Config extends ChiselConfig(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
+class EOS24Config extends ChiselConfig(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig) {
+  override val knobValues:Any=>Any = {
+    case "HWACHA_NSRAMRF_ENTRIES" => 256
+    case x => (new ChiselConfig(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
+  }
+
+  override val topConstraints:List[ViewSym=>Ex[Boolean]] = {
+    List(
+      {ex => (ex(HwachaNSRAMRFEntries) === 256 || ex(HwachaNSRAMRFEntries) === 512)}
+    )
+  }
+}
+
 class EOS24FPGAConfig extends ChiselConfig(new FPGAConfig ++ new EOS24Config)
