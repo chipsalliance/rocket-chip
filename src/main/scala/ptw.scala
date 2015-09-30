@@ -87,8 +87,8 @@ class PTW(n: Int) extends CoreModule
     val plru = new PseudoLRU(size)
     val valid = Reg(Vec(Bool(), size))
     val validBits = valid.toBits
-    val tags = Mem(UInt(width = paddrBits), size)
-    val data = Mem(UInt(width = ppnBits), size)
+    val tags = Mem(size, UInt(width = paddrBits))
+    val data = Mem(size, UInt(width = ppnBits))
 
     val hits = Vec(tags.map(_ === pte_addr)).toBits & validBits
     val hit = hits.orR

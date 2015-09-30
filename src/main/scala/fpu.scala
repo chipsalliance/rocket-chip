@@ -382,7 +382,7 @@ class FPU extends CoreModule
   val load_wb_data_recoded = Mux(load_wb_single, Cat(SInt(-1, 32), rec_s), rec_d)
 
   // regfile
-  val regfile = Mem(Bits(width = 65), 32)
+  val regfile = Mem(32, Bits(width = 65))
   when (load_wb) { 
     regfile(load_wb_tag) := load_wb_data_recoded 
     if (EnableCommitLog) {
