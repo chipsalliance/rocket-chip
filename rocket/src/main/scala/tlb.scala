@@ -33,7 +33,7 @@ class CAMIO extends TLBBundle {
 
 class RocketCAM extends TLBModule {
   val io = new CAMIO
-  val cam_tags = Mem(Bits(width = camTagBits), entries)
+  val cam_tags = Mem(entries, Bits(width = camTagBits))
 
   val vb_array = Reg(init=Bits(0, entries))
   when (io.write) {
@@ -109,7 +109,7 @@ class TLB extends TLBModule {
   val r_req = Reg(new TLBReq)
 
   val tag_cam = Module(new RocketCAM)
-  val tag_ram = Mem(io.ptw.resp.bits.pte.ppn, entries)
+  val tag_ram = Mem(entries, io.ptw.resp.bits.pte.ppn)
   
   val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUInt
   tag_cam.io.tag := lookup_tag

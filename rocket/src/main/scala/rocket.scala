@@ -571,7 +571,7 @@ class Rocket extends CoreModule
   }
 
   class RegFile {
-    private val rf = Mem(UInt(width = 64), 31)
+    private val rf = Mem(31, UInt(width = 64))
     private val reads = collection.mutable.ArrayBuffer[(UInt,UInt)]()
     private var canRead = true
     def read(addr: UInt) = {

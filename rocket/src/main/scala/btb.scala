@@ -69,7 +69,7 @@ class BHT(nbht: Int) {
     when (mispredict) { history := Cat(taken, d.history(nbhtbits-1,1)) }
   }
 
-  private val table = Mem(UInt(width = 2), nbht)
+  private val table = Mem(nbht, UInt(width = 2))
   val history = Reg(UInt(width = nbhtbits))
 }
 
@@ -134,18 +134,18 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
   }
 
   val idxValid = Reg(init=UInt(0, entries))
-  val idxs = Mem(UInt(width=matchBits), entries)
-  val idxPages = Mem(UInt(width=log2Up(nPages)), entries)
-  val tgts = Mem(UInt(width=matchBits), entries)
-  val tgtPages = Mem(UInt(width=log2Up(nPages)), entries)
-  val pages = Mem(UInt(width=vaddrBits-matchBits), nPages)
+  val idxs = Mem(entries, UInt(width=matchBits))
+  val idxPages = Mem(entries, UInt(width=log2Up(nPages)))
+  val tgts = Mem(entries, UInt(width=matchBits))
+  val tgtPages = Mem(entries, UInt(width=log2Up(nPages)))
+  val pages = Mem(nPages, UInt(width=vaddrBits-matchBits))
   val pageValid = Reg(init=UInt(0, nPages))
   val idxPagesOH = idxPages.map(UIntToOH(_)(nPages-1,0))
   val tgtPagesOH = tgtPages.map(UIntToOH(_)(nPages-1,0))
 
-  val useRAS = Reg(Vec(Bool(), entries))
-  val isJump = Reg(Vec(Bool(), entries))
-  val brIdx  = Mem(UInt(width=log2Up(params(FetchWidth))), entries)
+  val useRAS = Reg(Vec(entries, Bool()))
+  val isJump = Reg(Vec(entries, Bool()))
+  val brIdx  = Mem(entries, UInt(width=log2Up(params(FetchWidth))))
 
   private def page(addr: UInt) = addr >> matchBits
   private def pageMatch(addr: UInt) = {

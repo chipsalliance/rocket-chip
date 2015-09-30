@@ -387,7 +387,7 @@ class MSHRFile extends L1HellaCacheModule {
   val sdq_alloc_id = PriorityEncoder(~sdq_val(sdqDepth-1,0))
   val sdq_rdy = !sdq_val.andR
   val sdq_enq = io.req.valid && io.req.ready && cacheable && isWrite(io.req.bits.cmd)
-  val sdq = Mem(io.req.bits.data, sdqDepth)
+  val sdq = Mem(sdqDepth, io.req.bits.data)
   when (sdq_enq) { sdq(sdq_alloc_id) := io.req.bits.data }
 
   val idxMatch = Wire(Vec(Bool(), nMSHRs))
