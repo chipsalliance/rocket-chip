@@ -174,6 +174,7 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
   }
 
   val updateHit = r_btb_update.bits.prediction.valid
+  val nextRepl = Counter(r_btb_update.valid && !updateHit, entries)._1
 
   val useUpdatePageHit = updatePageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
@@ -196,7 +197,6 @@ class BTB(updates_out_of_order: Boolean = false) extends Module with BTBParamete
   when (r_btb_update.valid) {
     assert(io.req.bits.addr === r_btb_update.bits.target, "BTB request != I$ target")
 
-    val nextRepl = Counter(!updateHit, entries)._1
     val waddr =
       if (updates_out_of_order) Mux(updateHits.orR, OHToUInt(updateHits), nextRepl)
       else Mux(updateHit, r_btb_update.bits.prediction.bits.entry, nextRepl)
