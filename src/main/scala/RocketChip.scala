@@ -60,7 +60,7 @@ class BasicTopIO extends Bundle {
   val mem_backup_ctrl = new MemBackupCtrlIO
 }
 
-class TopIO extends BasicTopIO {
+class TopIO(implicit val p: Parameters) extends BasicTopIO {
   val mem = new MemIO
 }
 

@@ -6,9 +6,9 @@ import Chisel._
 import junctions._
 import uncore._
 
-class MemDessert extends Module {
-  val io = new MemDesserIO(params(HTIFWidth))
-  val x = Module(new MemDesser(params(HTIFWidth)))
+class MemDessert(implicit val p: Parameters) extends Module {
+  val io = new MemDesserIO(p(HTIFWidth))
+  val x = Module(new MemDesser(p(HTIFWidth)))
   io.narrow <> x.io.narrow
   io.wide <> x.io.wide
 }
