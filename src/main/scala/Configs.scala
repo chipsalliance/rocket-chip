@@ -15,15 +15,14 @@ class DefaultConfig extends ChiselConfig (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
-    def genCsrAddrMap() = {
-      val xLen = site(XLen)
-      val nSCR = site(HTIFNSCR)
-      val csrSize = (1 << 12) * (xLen / 8)
-      val nTiles = site(NTiles)
-
-      (0 until nTiles)
-        .map(i => (s"csr$i", None, MemSize(csrSize, AddrMap.RW))) :+
-        ("scr", None, MemSize(nSCR * xLen / 8, AddrMap.RW))
+    def genCsrAddrMap: AddrMap = {
+      val csrSize = (1 << 12) * (site(XLen) / 8)
+      val csrs = (0 until site(NTiles)).map{ i => 
+        AddrMapEntry(s"csr$i", None, MemSize(csrSize, AddrMapConsts.RW))
+      }
+      val scrSize = site(HTIFNSCR) * (site(XLen) / 8)
+      val scr = AddrMapEntry("scr", None, MemSize(scrSize, AddrMapConsts.RW))
+      new AddrMap(csrs :+ scr)
     }
     pname match {
       //
@@ -50,9 +49,10 @@ class DefaultConfig extends ChiselConfig (
       case MIFDataBits => Dump("MEM_DATA_BITS", 128)
       case MIFAddrBits => Dump("MEM_ADDR_BITS", site(PAddrBits) - site(CacheBlockOffsetBits))
       case MIFDataBeats => site(TLDataBits)*site(TLDataBeats)/site(MIFDataBits)
-      case NASTIDataBits => site(MIFDataBits)
-      case NASTIAddrBits => site(PAddrBits)
-      case NASTIIdBits => site(MIFTagBits)
+      case NastiBitWidths => NastiParameters(
+                               dataBits = site(MIFDataBits),
+                               addrBits = site(PAddrBits),
+                               idBits = site(MIFTagBits))
       //Params used by all caches
       case NSets => findBy(CacheName)
       case NWays => findBy(CacheName)
@@ -169,15 +169,10 @@ class DefaultConfig extends ChiselConfig (
       case UseBackupMemoryPort => true
       case MMIOBase => BigInt(1 << 30) // 1 GB
       case ExternalIOStart => 2 * site(MMIOBase)
-      case NASTIAddrMap => Seq(
-        ("mem", None, MemSize(site(MMIOBase), AddrMap.RWX)),
-        ("conf", None, MemSubmap(site(ExternalIOStart) - site(MMIOBase),
-          genCsrAddrMap())),
-        ("io", Some(site(ExternalIOStart)),
-          MemSize(2 * site(MMIOBase), AddrMap.RW)))
-      case NASTIAddrHashMap => new AddrHashMap(site(NASTIAddrMap))
-      case NASTINMasters => site(TLNManagers) + 1
-      case NASTINSlaves => site(NASTIAddrHashMap).nEntries
+      case NastiAddrMap => AddrMap(
+        AddrMapEntry("mem", None, MemSize(site(MMIOBase), AddrMapConsts.RWX)),
+        AddrMapEntry("conf", None, MemSubmap(site(ExternalIOStart) - site(MMIOBase), genCsrAddrMap)),
+        AddrMapEntry("io", Some(site(ExternalIOStart)), MemSize(2 * site(MMIOBase), AddrMapConsts.RW)))
   }},
   knobValues = {
     case "NTILES" => 1

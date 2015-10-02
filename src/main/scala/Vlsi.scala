@@ -15,16 +15,17 @@ class MemDessert extends Module {
 
 object VLSIUtils {
   def doOuterMemorySystemSerdes(
-      llcs: Seq[NASTIIO],
-      mems: Seq[NASTIIO],
+      llcs: Seq[NastiIO],
+      mems: Seq[NastiIO],
       backup: MemSerializedIO,
       en: Bool,
       nMemChannels: Int,
       htifWidth: Int,
-      blockOffsetBits: Int) {
+      blockOffsetBits: Int)
+      (implicit p: Parameters) {
 
-    val arb = Module(new NASTIArbiter(nMemChannels))
-    val conv = Module(new MemIONASTIIOConverter(blockOffsetBits))
+    val arb = Module(new NastiArbiter(nMemChannels))
+    val conv = Module(new MemIONastiIOConverter(blockOffsetBits))
     val mem_serdes = Module(new MemSerdes(htifWidth))
 
     conv.io.nasti <> arb.io.slave
