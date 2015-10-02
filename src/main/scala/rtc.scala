@@ -3,10 +3,10 @@ package uncore
 import Chisel._
 import junctions._
 
-class RTC(pcr_MTIME: Int) extends Module with HTIFParameters {
-  val io = new NASTIIO
+class RTC(pcr_MTIME: Int)(implicit val p: Parameters) extends Module with HTIFParameters {
+  val io = new NastiIO
 
-  private val addrMap = params(NASTIAddrHashMap)
+  private val addrMap = new AddrHashMap(params(NastiAddrMap))
 
   val addrTable = Vec.tabulate(nCores) { i =>
     UInt(addrMap(s"conf:csr$i").start + pcr_MTIME * scrDataBytes)
@@ -45,13 +45,13 @@ class RTC(pcr_MTIME: Int) extends Module with HTIFParameters {
   when (io.b.fire()) { send_acked(io.b.bits.id) := Bool(true) }
 
   io.aw.valid := sending_addr
-  io.aw.bits := NASTIWriteAddressChannel(
+  io.aw.bits := NastiWriteAddressChannel(
     id = coreId,
     addr = addrTable(coreId),
     size = UInt(log2Up(scrDataBytes)))
 
   io.w.valid := sending_data
-  io.w.bits := NASTIWriteDataChannel(data = rtc)
+  io.w.bits := NastiWriteDataChannel(data = rtc)
 
   io.b.ready := Bool(true)
   io.ar.valid := Bool(false)

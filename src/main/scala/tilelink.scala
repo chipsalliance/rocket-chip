@@ -1328,15 +1328,15 @@ class ClientTileLinkIOUnwrapper extends TLModule {
   io.in.probe.valid := Bool(false)
 }
 
-class NASTIIOTileLinkIOConverterInfo extends TLBundle {
+class NastiIOTileLinkIOConverterInfo extends TLBundle {
   val byteOff = UInt(width = tlByteAddrBits)
   val subblock = Bool()
 }
 
-class NASTIIOTileLinkIOConverter extends TLModule with NASTIParameters {
+class NastiIOTileLinkIOConverter(implicit val p: Parameters) extends TLModule with HasNastiParameters {
   val io = new Bundle {
     val tl = new ClientUncachedTileLinkIO().flip
-    val nasti = new NASTIIO
+    val nasti = new NastiIO
   }
 
   private def opSizeToXSize(ops: UInt) = MuxLookup(ops, UInt("b111"), Seq(
@@ -1352,7 +1352,7 @@ class NASTIIOTileLinkIOConverter extends TLModule with NASTIParameters {
   val dstIdBits = params(LNHeaderBits)
   require(tlDataBits == nastiXDataBits, "Data sizes between LLC and MC don't agree") // TODO: remove this restriction
   require(tlDataBeats < (1 << nastiXLenBits), "Can't have that many beats")
-  require(dstIdBits + tlClientXactIdBits < nastiXIdBits, "NASTIIO converter is going truncate tags: " + dstIdBits + " + " + tlClientXactIdBits + " >= " + nastiXIdBits)
+  require(dstIdBits + tlClientXactIdBits < nastiXIdBits, "NastiIO converter is going truncate tags: " + dstIdBits + " + " + tlClientXactIdBits + " >= " + nastiXIdBits)
 
   io.tl.acquire.ready := Bool(false)
 
@@ -1366,7 +1366,7 @@ class NASTIIOTileLinkIOConverter extends TLModule with NASTIParameters {
   val acq_has_data = io.tl.acquire.bits.hasData()
   val is_write = io.tl.acquire.valid && acq_has_data
 
-  // Decompose outgoing TL Acquires into NASTI address and data channels
+  // Decompose outgoing TL Acquires into Nasti address and data channels
   val active_out = Reg(init=Bool(false))
   val cmd_sent_out = Reg(init=Bool(false))
   val tag_out = Reg(UInt(width = nastiXIdBits))
@@ -1378,7 +1378,7 @@ class NASTIIOTileLinkIOConverter extends TLModule with NASTIParameters {
   val tl_done_out = Reg(init=Bool(false))
 
   val roq = Module(new ReorderQueue(
-    new NASTIIOTileLinkIOConverterInfo,
+    new NastiIOTileLinkIOConverterInfo,
     nastiRIdBits, tlMaxClientsPerPort))
 
   val (nasti_cnt_out, nasti_wrap_out) = Counter(
@@ -1391,13 +1391,13 @@ class NASTIIOTileLinkIOConverter extends TLModule with NASTIParameters {
   roq.io.deq.valid := io.nasti.r.fire() && (nasti_wrap_out || roq.io.deq.data.subblock)
   roq.io.deq.tag := io.nasti.r.bits.id
 
-  io.nasti.ar.bits := NASTIReadAddressChannel(
+  io.nasti.ar.bits := NastiReadAddressChannel(
     id = tag_out,
     addr = addr_out, 
     size = UInt(log2Ceil(tlDataBytes)),
     len = Mux(has_data, UInt(tlDataBeats - 1), UInt(0)))
   io.nasti.aw.bits := io.nasti.ar.bits
-  io.nasti.w.bits := NASTIWriteDataChannel(
+  io.nasti.w.bits := NastiWriteDataChannel(
     data = io.tl.acquire.bits.data,
     strb = io.tl.acquire.bits.wmask(),
     last = tl_wrap_out || (io.tl.acquire.fire() && is_subblock))
