@@ -48,9 +48,8 @@ trait HasNastiParameters {
 }
 
 abstract class NastiModule extends Module with HasNastiParameters
-abstract class NastiBundle(implicit val p: Parameters) extends Bundle with HasNastiParameters {
-  override def cloneType = this.getClass.getConstructors.head.newInstance(p).asInstanceOf[this.type]
-}
+abstract class NastiBundle(implicit p: Parameters) extends ParameterizedBundle()(p)
+  with HasNastiParameters
 
 abstract class NastiChannel(implicit p: Parameters) extends NastiBundle()(p)
 abstract class NastiMasterToSlaveChannel(implicit p: Parameters) extends NastiChannel()(p)
@@ -73,7 +72,7 @@ trait HasNastiData extends HasNastiParameters {
   val last = Bool()
 }
 
-class NastiIO(implicit p: Parameters) extends NastiBundle()(p) {
+class NastiIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val aw = Decoupled(new NastiWriteAddressChannel)
   val w  = Decoupled(new NastiWriteDataChannel)
   val b  = Decoupled(new NastiWriteResponseChannel).flip
