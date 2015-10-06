@@ -6,7 +6,7 @@ object bigIntPow2 {
   def apply(in: BigInt): Boolean = in > 0 && ((in & (in-1)) == 0)
 }
 
-class ParameterizedBundle(implicit val p: Parameters) extends Bundle {
+class ParameterizedBundle(implicit p: Parameters) extends Bundle {
   override def cloneType = this.getClass.getConstructors.head.newInstance(p).asInstanceOf[this.type]
 }
 

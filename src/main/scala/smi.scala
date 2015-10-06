@@ -88,7 +88,7 @@ class SMIArbiter(val n: Int, val dataWidth: Int, val addrWidth: Int)
 }
 
 class SMIIONastiReadIOConverter(val dataWidth: Int, val addrWidth: Int)
-                               (implicit val p: Parameters) extends NastiModule {
+                               (implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
     val ar = Decoupled(new NastiReadAddressChannel).flip
     val r = Decoupled(new NastiReadDataChannel)
@@ -170,7 +170,7 @@ class SMIIONastiReadIOConverter(val dataWidth: Int, val addrWidth: Int)
 }
 
 class SMIIONastiWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
-                                (implicit val p: Parameters) extends NastiModule {
+                                (implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
     val aw = Decoupled(new NastiWriteAddressChannel).flip
     val w = Decoupled(new NastiWriteDataChannel).flip
@@ -251,7 +251,7 @@ class SMIIONastiWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
 
 /** Convert Nasti protocol to SMI protocol */
 class SMIIONastiIOConverter(val dataWidth: Int, val addrWidth: Int)
-                           (implicit val p: Parameters) extends NastiModule {
+                           (implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
     val nasti = (new NastiIO).flip
     val smi = new SMIIO(dataWidth, addrWidth)
