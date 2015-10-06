@@ -23,17 +23,17 @@ case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Whether to use the slow backup memory port [VLSI] */
 case object UseBackupMemoryPort extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
-case object BuildL2CoherenceManager extends Field[() => CoherenceAgent]
+case object BuildL2CoherenceManager extends Field[Parameters => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
-case object BuildTiles extends Field[Seq[(Bool) => Tile]]
+case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
 /** Start address of the "io" region in the memory map */
 case object ExternalIOStart extends Field[BigInt]
 
 /** Utility trait for quick access to some relevant parameters */
-trait TopLevelParameters extends UsesParameters {
-  implicit val p: Parameters
-  lazy val htifW = p(HTIFWidth)
+trait HasTopLevelParameters extends HasHtifParameters {
   lazy val nTiles = p(NTiles)
+  lazy val htifW = w
+  lazy val csrAddrBits = 12
   lazy val nMemChannels = p(NMemoryChannels)
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
   lazy val nBanks = nMemChannels*nBanksPerMemChannel
@@ -41,8 +41,6 @@ trait TopLevelParameters extends UsesParameters {
   lazy val nMemReqs = p(NOutstandingMemReqsPerChannel)
   lazy val mifAddrBits = p(MIFAddrBits)
   lazy val mifDataBeats = p(MIFDataBeats)
-  lazy val scrAddrBits = log2Up(p(HTIFNSCR))
-  lazy val pcrAddrBits = 12
   lazy val xLen = p(XLen)
   //require(lsb + log2Up(nBanks) < mifAddrBits)
 }
@@ -55,23 +53,24 @@ class MemBackupCtrlIO extends Bundle {
 }
 
 /** Top-level io for the chip */
-class BasicTopIO extends Bundle {
+class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
+    with HasTopLevelParameters {
   val host = new HostIO
   val mem_backup_ctrl = new MemBackupCtrlIO
 }
 
-class TopIO(implicit val p: Parameters) extends BasicTopIO {
+class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = new MemIO
 }
 
-class MultiChannelTopIO(implicit val p: Parameters) extends BasicTopIO with TopLevelParameters {
+class MultiChannelTopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(new NastiIO, nMemChannels)
   val mmio = new NastiIO
 }
 
 /** Top-level module for the chip */
 //TODO: Remove this wrapper once multichannel DRAM controller is provided
-class Top extends Module with TopLevelParameters {
+class Top extends Module with HasTopLevelParameters {
   implicit val p = params
   val io = new TopIO
   if(!p(UseZscale)) {
@@ -95,24 +94,24 @@ class Top extends Module with TopLevelParameters {
   }
 }
 
-class MultiChannelTop(implicit val p: Parameters) extends Module with TopLevelParameters {
+class MultiChannelTop(implicit val p: Parameters) extends Module with HasTopLevelParameters {
   val io = new MultiChannelTopIO
 
   // Build an Uncore and a set of Tiles
   val innerTLParams = p.alterPartial({case TLId => "L1ToL2" })
-  val uncore = Module(new Uncore()(innerTLParams))(innerTLParams)
-  val tileList = uncore.io.htif zip p(BuildTiles) map { case(hl, bt) => bt(hl.reset) }
+  val uncore = Module(new Uncore()(innerTLParams))
+  val tileList = uncore.io.htif zip p(BuildTiles) map { case(hl, bt) => bt(hl.reset, p) }
 
   // Connect each tile to the HTIF
   uncore.io.htif.zip(tileList).zipWithIndex.foreach {
     case ((hl, tile), i) =>
       tile.io.host.id := UInt(i)
       tile.io.host.reset := Reg(next=Reg(next=hl.reset))
-      tile.io.host.pcr.req <> Queue(hl.pcr.req)
-      hl.pcr.resp <> Queue(tile.io.host.pcr.resp)
+      tile.io.host.csr.req <> Queue(hl.csr.req)
+      hl.csr.resp <> Queue(tile.io.host.csr.resp)
       hl.ipi_req <> Queue(tile.io.host.ipi_req)
       tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
-      hl.debug_stats_pcr := tile.io.host.debug_stats_pcr
+      hl.debug_stats_csr := tile.io.host.debug_stats_csr
   }
 
   // Connect the uncore to the tile memory ports, HostIO and MemIO
@@ -129,18 +128,18 @@ class MultiChannelTop(implicit val p: Parameters) extends Module with TopLevelPa
   * Usually this is clocked and/or place-and-routed separately from the Tiles.
   * Contains the Host-Target InterFace module (HTIF).
   */
-class Uncore(implicit val p: Parameters) extends Module with TopLevelParameters {
+class Uncore(implicit val p: Parameters) extends Module with HasTopLevelParameters {
   val io = new Bundle {
     val host = new HostIO
     val mem = Vec(new NastiIO, nMemChannels)
     val tiles_cached = Vec(new ClientTileLinkIO, nTiles).flip
     val tiles_uncached = Vec(new ClientUncachedTileLinkIO, nTiles).flip
-    val htif = Vec(new HTIFIO, nTiles).flip
+    val htif = Vec(new HtifIO, nTiles).flip
     val mem_backup_ctrl = new MemBackupCtrlIO
     val mmio = new NastiIO
   }
 
-  val htif = Module(new HTIF(CSRs.mreset)) // One HTIF module per chip
+  val htif = Module(new Htif(CSRs.mreset)) // One HTIF module per chip
   val outmemsys = Module(new OuterMemorySystem) // NoC, LLC and SerDes
   outmemsys.io.incoherent := htif.io.cpu.map(_.reset)
   outmemsys.io.htif_uncached <> htif.io.mem
@@ -152,25 +151,24 @@ class Uncore(implicit val p: Parameters) extends Module with TopLevelParameters 
     io.htif(i).id := htif.io.cpu(i).id
     htif.io.cpu(i).ipi_req <> io.htif(i).ipi_req
     io.htif(i).ipi_rep <> htif.io.cpu(i).ipi_rep
-    htif.io.cpu(i).debug_stats_pcr <> io.htif(i).debug_stats_pcr
+    htif.io.cpu(i).debug_stats_csr <> io.htif(i).debug_stats_csr
 
-    val pcr_arb = Module(new SMIArbiter(2, 64, 12))
-    pcr_arb.io.in(0) <> htif.io.cpu(i).pcr
-    pcr_arb.io.in(1) <> outmemsys.io.pcr(i)
-    io.htif(i).pcr <> pcr_arb.io.out
+    val csr_arb = Module(new SMIArbiter(2, xLen, csrAddrBits))
+    csr_arb.io.in(0) <> htif.io.cpu(i).csr
+    csr_arb.io.in(1) <> outmemsys.io.csr(i)
+    io.htif(i).csr <> csr_arb.io.out
   }
 
   // Arbitrate SCR access between MMIO and HTIF
-  val scrArb = Module(new SMIArbiter(2, 64, scrAddrBits))
   val scrFile = Module(new SCRFile)
-
+  val scrArb = Module(new SMIArbiter(2, scrDataBits, scrAddrBits))
   scrArb.io.in(0) <> htif.io.scr
   scrArb.io.in(1) <> outmemsys.io.scr
   scrFile.io.smi <> scrArb.io.out
   // scrFile.io.scr <> (... your SCR connections ...)
 
   // Wire the htif to the memory port(s) and host interface
-  io.host.debug_stats_pcr := htif.io.host.debug_stats_pcr
+  io.host.debug_stats_csr := htif.io.host.debug_stats_csr
   io.mem <> outmemsys.io.mem
   io.mmio <> outmemsys.io.mmio
   if(p(UseBackupMemoryPort)) {
@@ -186,7 +184,7 @@ class Uncore(implicit val p: Parameters) extends Module with TopLevelParameters 
 /** The whole outer memory hierarchy, including a NoC, some kind of coherence
   * manager agent, and a converter from TileLink to MemIO.
   */ 
-class OuterMemorySystem(implicit val p: Parameters) extends Module with TopLevelParameters {
+class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLevelParameters {
   val io = new Bundle {
     val tiles_cached = Vec(new ClientTileLinkIO, nTiles).flip
     val tiles_uncached = Vec(new ClientUncachedTileLinkIO, nTiles).flip
@@ -195,7 +193,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with TopLevel
     val mem = Vec(new NastiIO, nMemChannels)
     val mem_backup = new MemSerializedIO(htifW)
     val mem_backup_en = Bool(INPUT)
-    val pcr = Vec(new SMIIO(xLen, pcrAddrBits), nTiles)
+    val csr = Vec(new SMIIO(xLen, csrAddrBits), nTiles)
     val scr = new SMIIO(xLen, scrAddrBits)
     val mmio = new NastiIO
   }
@@ -214,7 +212,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with TopLevel
 
   // Create point(s) of coherence serialization
   val nManagers = nMemChannels * nBanksPerMemChannel
-  val managerEndpoints = List.fill(nManagers) { p(BuildL2CoherenceManager)()}
+  val managerEndpoints = List.fill(nManagers) { p(BuildL2CoherenceManager)(p)}
   managerEndpoints.foreach { _.incoherent := io.incoherent }
 
   // Wire the tiles and htif to the TileLink client ports of the L1toL2 network,
@@ -238,8 +236,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with TopLevel
   val interconnect = Module(new NastiTopInterconnect(nMasters, nSlaves)(p))
 
   for ((bank, i) <- managerEndpoints.zipWithIndex) {
-    val unwrap = Module(new ClientTileLinkIOUnwrapper)(outerTLParams)
-    val conv = Module(new NastiIOTileLinkIOConverter)(outerTLParams)
+    val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
+    val conv = Module(new NastiIOTileLinkIOConverter()(outerTLParams))
     unwrap.io.in <> bank.outerTL
     conv.io.tl <> unwrap.io.out
     interconnect.io.masters(i) <> conv.io.nasti
@@ -251,12 +249,12 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with TopLevel
   for (i <- 0 until nTiles) {
     val csrName = s"conf:csr$i"
     val csrPort = addrMap(csrName).port
-    val conv = Module(new SMIIONastiIOConverter(xLen, pcrAddrBits))
+    val conv = Module(new SMIIONastiIOConverter(xLen, csrAddrBits))
     conv.io.nasti <> interconnect.io.slaves(csrPort)
-    io.pcr(i) <> conv.io.smi
+    io.csr(i) <> conv.io.smi
   }
 
-  val conv = Module(new SMIIONastiIOConverter(xLen, scrAddrBits))
+  val conv = Module(new SMIIONastiIOConverter(scrDataBits, scrAddrBits))
   conv.io.nasti <> interconnect.io.slaves(addrMap("conf:scr").port)
   io.scr <> conv.io.smi
 
@@ -268,6 +266,6 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with TopLevel
   if(p(UseBackupMemoryPort)) {
     VLSIUtils.doOuterMemorySystemSerdes(
       mem_channels, io.mem, io.mem_backup, io.mem_backup_en,
-      nMemChannels, p(HTIFWidth), p(CacheBlockOffsetBits))
+      nMemChannels, htifW, p(CacheBlockOffsetBits))
   } else { io.mem <> mem_channels }
 }

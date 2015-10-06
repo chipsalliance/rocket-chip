@@ -20,19 +20,17 @@ class DefaultConfig extends ChiselConfig (
       val csrs = (0 until site(NTiles)).map{ i => 
         AddrMapEntry(s"csr$i", None, MemSize(csrSize, AddrMapConsts.RW))
       }
-      val scrSize = site(HTIFNSCR) * (site(XLen) / 8)
+      val scrSize = site(HtifKey).nSCR * (site(XLen) / 8)
       val scr = AddrMapEntry("scr", None, MemSize(scrSize, AddrMapConsts.RW))
       new AddrMap(csrs :+ scr)
     }
     pname match {
-      //
       case UseZscale => false
-      //HTIF Parameters
-      case HTIFWidth => Dump("HTIF_WIDTH", 16)
-      case HTIFNSCR => 64
-      case HTIFSCRDataBits => site(XLen)
-      case HTIFOffsetBits => site(CacheBlockOffsetBits)
-      case HTIFNCores => site(NTiles)
+      case HtifKey => HtifParameters(
+                       width = Dump("HTIF_WIDTH", 16),
+                       nSCR = 64,
+                       offsetBits = site(CacheBlockOffsetBits),
+                       nCores = site(NTiles))
       //Memory Parameters
       case PAddrBits => 32
       case PgIdxBits => 12
@@ -49,10 +47,10 @@ class DefaultConfig extends ChiselConfig (
       case MIFDataBits => Dump("MEM_DATA_BITS", 128)
       case MIFAddrBits => Dump("MEM_ADDR_BITS", site(PAddrBits) - site(CacheBlockOffsetBits))
       case MIFDataBeats => site(TLDataBits)*site(TLDataBeats)/site(MIFDataBits)
-      case NastiBitWidths => NastiParameters(
-                               dataBits = site(MIFDataBits),
-                               addrBits = site(PAddrBits),
-                               idBits = site(MIFTagBits))
+      case NastiKey => NastiParameters(
+                        dataBits = site(MIFDataBits),
+                        addrBits = site(PAddrBits),
+                        idBits = site(MIFTagBits))
       //Params used by all caches
       case NSets => findBy(CacheName)
       case NWays => findBy(CacheName)
@@ -74,8 +72,7 @@ class DefaultConfig extends ChiselConfig (
       case Replacer => () => new RandomReplacement(site(NWays))
       case AmoAluOperandBits => site(XLen)
       //L1InstCache
-      case NBTBEntries => 62
-      case NRAS => 2
+      case BtbKey => BtbParameters()
       //L1DataCache
       case WordBits => site(XLen)
       case StoreDataQueueDepth => 17
@@ -87,14 +84,18 @@ class DefaultConfig extends ChiselConfig (
       case NAcquireTransactors => 7
       case L2StoreDataQueueDepth => 1
       case L2DirectoryRepresentation => new NullRepresentation(site(TLNCachingClients))
-      case BuildL2CoherenceManager => () =>
-        Module(new L2BroadcastHub, { case InnerTLId => "L1ToL2"; case OuterTLId => "L2ToMC" })
+      case BuildL2CoherenceManager => (p: Parameters) =>
+        Module(new L2BroadcastHub()(p.alterPartial({
+          case InnerTLId => "L1ToL2"
+          case OuterTLId => "L2ToMC" })))
       //Tile Constants
       case BuildTiles => {
         TestGeneration.addSuites(rv64i.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64u.map(_(env))))
         TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
-        List.fill(site(NTiles)){ (r:Bool) => Module(new RocketTile(resetSignal = r), {case TLId => "L1ToL2"}) }
+        List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
+          Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1ToL2"})))
+        }
       }
       case BuildRoCC => None
       case NDCachePorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 1) 
@@ -108,12 +109,11 @@ class DefaultConfig extends ChiselConfig (
       case FastLoadByte => false
       case FastMulDiv => true
       case XLen => 64
-      case NMultXpr => 32
       case BuildFPU => {
         val env = if(site(UseVM)) List("p","pt","v") else List("p","pt")
         if(site(FDivSqrt)) TestGeneration.addSuites(env.map(rv64uf))
         else TestGeneration.addSuites(env.map(rv64ufNoDiv))
-        Some(() => Module(new FPU))
+        Some((p: Parameters) => Module(new FPU()(p)))
       }
       case FDivSqrt => true
       case SFMALatency => 2
@@ -209,11 +209,11 @@ class WithL2Cache extends ChiselConfig(
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(TLNCachingClients))
-    case BuildL2CoherenceManager => () =>
-      Module(new L2HellaCacheBank, {
+    case BuildL2CoherenceManager => (p: Parameters) =>
+      Module(new L2HellaCacheBank()(p.alterPartial({
          case CacheName => "L2Bank"
          case InnerTLId => "L1ToL2"
-         case OuterTLId => "L2ToMC"})
+         case OuterTLId => "L2ToMC"})))
   },
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048 }
 )
@@ -235,7 +235,7 @@ class WithZscale extends ChiselConfig(
     case BuildZscale => {
       TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
       TestGeneration.addSuites(List(zscaleBmarks))
-      (r: Bool) => Module(new Zscale(r), {case TLId => "L1ToL2"})
+      (r: Bool, p: Parameters) => Module(new Zscale(r)(p.alterPartial({case TLId => "L1ToL2"})))
     }
     case UseZscale => true
     case BootROMCapacity => Dump("BOOT_CAPACITY", 16*1024)
@@ -259,7 +259,7 @@ class SmallConfig extends ChiselConfig (
       case BuildFPU => None
       case FastMulDiv => false
       case NTLBEntries => 4
-      case NBTBEntries => 8
+      case BtbKey => BtbParameters(nEntries = 8)
     }},
   knobValues = {
     case "L1D_SETS" => 64

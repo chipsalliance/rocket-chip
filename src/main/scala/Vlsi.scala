@@ -7,8 +7,8 @@ import junctions._
 import uncore._
 
 class MemDessert(implicit val p: Parameters) extends Module {
-  val io = new MemDesserIO(p(HTIFWidth))
-  val x = Module(new MemDesser(p(HTIFWidth)))
+  val io = new MemDesserIO(p(HtifKey).width)
+  val x = Module(new MemDesser(p(HtifKey).width))
   io.narrow <> x.io.narrow
   io.wide <> x.io.wide
 }
