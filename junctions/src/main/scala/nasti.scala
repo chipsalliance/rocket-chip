@@ -4,9 +4,8 @@ package junctions
 import Chisel._
 import scala.math.max
 import scala.collection.mutable.ArraySeq
-import scala.collection.mutable.HashMap
 
-case object NastiBitWidths extends Field[NastiParameters]
+case object NastiKey extends Field[NastiParameters]
 case object NastiAddrMap extends Field[AddrMap]
 case object MMIOBase extends Field[BigInt]
 
@@ -14,7 +13,7 @@ case class NastiParameters(dataBits: Int, addrBits: Int, idBits: Int)
 
 trait HasNastiParameters {
   implicit val p: Parameters
-  val external = p(NastiBitWidths)
+  val external = p(NastiKey)
   val nastiXDataBits = external.dataBits
   val nastiWStrobeBits = nastiXDataBits / 8
   val nastiXAddrBits = external.addrBits
@@ -47,8 +46,9 @@ trait HasNastiParameters {
     UInt(128) -> UInt(7)))
 }
 
-abstract class NastiModule extends Module with HasNastiParameters
-abstract class NastiBundle(implicit p: Parameters) extends ParameterizedBundle()(p)
+abstract class NastiModule(implicit val p: Parameters) extends Module
+  with HasNastiParameters
+abstract class NastiBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasNastiParameters
 
 abstract class NastiChannel(implicit p: Parameters) extends NastiBundle()(p)
@@ -72,7 +72,7 @@ trait HasNastiData extends HasNastiParameters {
   val last = Bool()
 }
 
-class NastiIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
+class NastiIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val aw = Decoupled(new NastiWriteAddressChannel)
   val w  = Decoupled(new NastiWriteDataChannel)
   val b  = Decoupled(new NastiWriteResponseChannel).flip
@@ -190,7 +190,7 @@ object NastiWriteResponseChannel {
   }
 }
 
-class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit val p: Parameters) extends MIFModule
+class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) extends MIFModule
     with HasNastiParameters {
   val io = new Bundle {
     val nasti = (new NastiIO).flip
@@ -245,7 +245,7 @@ class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit val p: Parameter
 }
 
 /** Arbitrate among arbN masters requesting to a single slave */
-class NastiArbiter(val arbN: Int)(implicit val p: Parameters) extends NastiModule {
+class NastiArbiter(val arbN: Int)(implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
     val master = Vec(new NastiIO, arbN).flip
     val slave = new NastiIO
@@ -315,7 +315,7 @@ class NastiArbiter(val arbN: Int)(implicit val p: Parameters) extends NastiModul
 
 /** Locking RR arbiter for Nasti read data channel
  *  Arbiter locks until last message in channel is sent */
-class NastiReadDataArbiter(arbN: Int)(implicit val p: Parameters) extends NastiModule {
+class NastiReadDataArbiter(arbN: Int)(implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
     val in = Vec(Decoupled(new NastiReadDataChannel), arbN).flip
     val out = Decoupled(new NastiReadDataChannel)
@@ -356,7 +356,7 @@ class NastiReadDataArbiter(arbN: Int)(implicit val p: Parameters) extends NastiM
 }
 
 /** A slave that send decode error for every request it receives */
-class NastiErrorSlave(implicit val p: Parameters) extends NastiModule {
+class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
   val io = (new NastiIO).flip
 
   when (io.ar.fire()) { printf("Invalid read address %x\n", io.ar.bits.addr) }
@@ -408,7 +408,7 @@ class NastiErrorSlave(implicit val p: Parameters) extends NastiModule {
 /** Take a single Nasti master and route its requests to various slaves
  *  @param addrmap a sequence of base address + memory size pairs,
  *  on for each slave interface */
-class NastiRouter(addrmap: Seq[(BigInt, BigInt)])(implicit val p: Parameters) extends NastiModule {
+class NastiRouter(addrmap: Seq[(BigInt, BigInt)])(implicit p: Parameters) extends NastiModule {
   val nSlaves = addrmap.size
 
   val io = new Bundle {
@@ -488,7 +488,7 @@ class NastiRouter(addrmap: Seq[(BigInt, BigInt)])(implicit val p: Parameters) ex
  *  @param addrmap a sequence of base - size pairs;
  *  size of addrmap should be nSlaves */
 class NastiCrossbar(nMasters: Int, nSlaves: Int, addrmap: Seq[(BigInt, BigInt)])
-                   (implicit val p: Parameters) extends NastiModule {
+                   (implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
     val masters = Vec(new NastiIO, nMasters).flip
     val slaves = Vec(new NastiIO, nSlaves)
@@ -507,112 +507,6 @@ class NastiCrossbar(nMasters: Int, nSlaves: Int, addrmap: Seq[(BigInt, BigInt)])
   }
 }
 
-object AddrMapConsts {
-  val R = 0x4
-  val W = 0x2
-  val X = 0x1
-  val RW = R | W
-  val RX = R | X
-  val RWX = R | W | X
-}
-
-class AddrMapProt extends Bundle {
-  val r = Bool()
-  val w = Bool()
-  val x = Bool()
-}
-
-abstract class MemRegion { def size: BigInt }
-
-case class MemSize(size: BigInt, prot: Int) extends MemRegion
-
-case class MemSubmap(size: BigInt, entries: AddrMap) extends MemRegion
-
-//object Submap {
-//  def apply(size: BigInt, entries: AddrMapEntry*) =
-//    new MemSubmap(size, entries)
-//}
-
-case class AddrMapEntry(name: String, start: Option[BigInt], region: MemRegion)
-
-case class AddrHashMapEntry(port: Int, start: BigInt, size: BigInt, prot: Int)
-
-class AddrMap(entries: Seq[AddrMapEntry]) extends scala.collection.IndexedSeq[AddrMapEntry] {
-  
-  def apply(index: Int): AddrMapEntry = entries(index)
-
-  def length: Int = entries.size
-
-  def countSlaves: Int = {
-    this map { entry: AddrMapEntry => entry.region match {
-      case MemSize(_, _) => 1
-      case MemSubmap(_, submap) => submap.countSlaves
-    }} reduceLeft(_ + _)
-  }
-}
-
-object AddrMap {
-  def apply(elems: AddrMapEntry*): AddrMap = new AddrMap(elems)
-}
-
-class AddrHashMap(addrmap: AddrMap) {
-  val mapping = new HashMap[String, AddrHashMapEntry]
-
-  private def genPairs(am: AddrMap): Seq[(String, AddrHashMapEntry)] = {
-    var ind = 0
-    var base = BigInt(0)
-    var pairs = Seq[(String, AddrHashMapEntry)]()
-    am.foreach { case AddrMapEntry(name, startOpt, region) =>
-      region match {
-        case MemSize(size, prot) => {
-          if (!startOpt.isEmpty) base = startOpt.get
-          pairs = (name, AddrHashMapEntry(ind, base, size, prot)) +: pairs
-          base += size
-          ind += 1
-        }
-        case MemSubmap(size, submap) => {
-          if (!startOpt.isEmpty) base = startOpt.get
-          val subpairs = genPairs(submap).map {
-            case (subname, AddrHashMapEntry(subind, subbase, subsize, prot)) =>
-              (name + ":" + subname,
-                AddrHashMapEntry(ind + subind, base + subbase, subsize, prot))
-          }
-          pairs = subpairs ++ pairs
-          ind += subpairs.size
-          base += size
-        }
-      }
-    }
-    pairs
-  }
-
-  for ((name, ind) <- genPairs(addrmap)) { mapping(name) = ind }
-
-  def nEntries: Int = mapping.size
-  def apply(name: String): AddrHashMapEntry = mapping(name)
-  def get(name: String): Option[AddrHashMapEntry] = mapping.get(name)
-  def sortedEntries(): Seq[(String, BigInt, BigInt, Int)] = {
-    val arr = new Array[(String, BigInt, BigInt, Int)](mapping.size)
-    mapping.foreach { case (name, AddrHashMapEntry(port, base, size, prot)) =>
-      arr(port) = (name, base, size, prot)
-    }
-    arr.toSeq
-  }
-
-  def isValid(addr: UInt): Bool = {
-    sortedEntries().map { case (_, base, size, _) =>
-      addr >= UInt(base) && addr < UInt(base + size)
-    }.reduceLeft(_ || _)
-  }
-
-  def getProt(addr: UInt): AddrMapProt = {
-    Mux1H(sortedEntries().map { case (_, base, size, prot) =>
-      (addr >= UInt(base) && addr < UInt(base + size),
-        new AddrMapProt().fromBits(Bits(prot, 3)))
-    })
-  }
-}
-
 class NastiInterconnectIO(val nMasters: Int, val nSlaves: Int)
                          (implicit p: Parameters) extends Bundle {
   /* This is a bit confusing. The interconnect is a slave to the masters and
@@ -623,7 +517,7 @@ class NastiInterconnectIO(val nMasters: Int, val nSlaves: Int)
     new NastiInterconnectIO(nMasters, nSlaves).asInstanceOf[this.type]
 }
 
-abstract class NastiInterconnect extends NastiModule {
+abstract class NastiInterconnect(implicit p: Parameters) extends NastiModule()(p) {
   val nMasters: Int
   val nSlaves: Int
 
@@ -635,7 +529,7 @@ class NastiRecursiveInterconnect(
     val nSlaves: Int,
     addrmap: AddrMap,
     base: BigInt = 0)
-    (implicit val p: Parameters) extends NastiInterconnect {
+    (implicit p: Parameters) extends NastiInterconnect {
   var lastEnd = base
   var slaveInd = 0
   val levelSize = addrmap.size
@@ -678,7 +572,7 @@ class NastiRecursiveInterconnect(
 }
 
 class NastiTopInterconnect(val nMasters: Int, val nSlaves: Int)
-                          (implicit val p: Parameters) extends NastiInterconnect {
+                          (implicit p: Parameters) extends NastiInterconnect {
   val temp = Module(new NastiRecursiveInterconnect(nMasters, nSlaves, p(NastiAddrMap)))
 
   temp.io.masters.zip(io.masters).foreach { case (t, i) =>

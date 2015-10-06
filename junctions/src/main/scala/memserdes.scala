@@ -26,8 +26,8 @@ trait HasMIFParameters {
   val mifDataBeats = p(MIFDataBeats)
 }
  
-abstract class MIFModule extends Module with HasMIFParameters
-abstract class MIFBundle(implicit p: Parameters) extends ParameterizedBundle()(p)
+abstract class MIFModule(implicit val p: Parameters) extends Module with HasMIFParameters
+abstract class MIFBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasMIFParameters
 
 trait HasMemData extends HasMIFParameters {
@@ -46,9 +46,9 @@ class MemReqCmd(implicit p: Parameters) extends MIFBundle()(p) with HasMemAddr w
   val rw = Bool()
 }
 
-class MemTag(implicit p: Parameters) extends ParameterizedBundle()(p) with HasMemTag
-class MemData(implicit p: Parameters) extends ParameterizedBundle()(p) with HasMemData
-class MemResp(implicit p: Parameters) extends ParameterizedBundle()(p) with HasMemData with HasMemTag
+class MemTag(implicit p: Parameters) extends MIFBundle()(p) with HasMemTag
+class MemData(implicit p: Parameters) extends MIFBundle()(p) with HasMemData
+class MemResp(implicit p: Parameters) extends MIFBundle()(p) with HasMemData with HasMemTag
 
 class MemIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val req_cmd  = Decoupled(new MemReqCmd)
@@ -68,7 +68,7 @@ class MemSerializedIO(w: Int)(implicit p: Parameters) extends ParameterizedBundl
   //override def cloneType = new MemSerializedIO(w)(p).asInstanceOf[this.type]
 }
 
-class MemSerdes(w: Int)(implicit val p: Parameters) extends MIFModule
+class MemSerdes(w: Int)(implicit p: Parameters) extends MIFModule
 {
   val io = new Bundle {
     val wide = new MemIO().flip
@@ -154,7 +154,7 @@ class MemDesser(w: Int)(implicit p: Parameters) extends Module // test rig side
   val abits = io.wide.req_cmd.bits.toBits.getWidth
   val dbits = io.wide.req_data.bits.toBits.getWidth
   val rbits = io.wide.resp.bits.getWidth
-  val mifDataBeats = params(MIFDataBeats)
+  val mifDataBeats = p(MIFDataBeats)
 
   require(dbits >= abits && rbits >= dbits)
   val recv_cnt = Reg(init=UInt(0, log2Up((rbits+w-1)/w)))
@@ -214,7 +214,7 @@ class MemDesser(w: Int)(implicit p: Parameters) extends Module // test rig side
   io.narrow.resp.bits := dataq.io.deq.bits.toBits >> (recv_cnt * UInt(w))
 }
 
-class MemIOArbiter(val arbN: Int)(implicit val p: Parameters) extends MIFModule {
+class MemIOArbiter(val arbN: Int)(implicit p: Parameters) extends MIFModule {
   val io = new Bundle {
     val inner = Vec(new MemIO, arbN).flip
     val outer = new MemIO
@@ -273,7 +273,7 @@ object MemIOMemPipeIOConverter {
   }
 }
 
-class MemPipeIOMemIOConverter(numRequests: Int)(implicit val p: Parameters) extends MIFModule {
+class MemPipeIOMemIOConverter(numRequests: Int)(implicit p: Parameters) extends MIFModule {
   val io = new Bundle {
     val cpu = new MemIO().flip
     val mem = new MemPipeIO

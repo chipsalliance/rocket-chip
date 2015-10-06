@@ -1,1 +1,1 @@
-package object junctions extends HASTIConstants with POCIConstants
+package object junctions extends HastiConstants with PociConstants
