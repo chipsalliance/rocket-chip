@@ -6,32 +6,32 @@ import Chisel._
 import uncore._
 import Util._
 
-class PTWReq extends CoreBundle {
+class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val addr = UInt(width = vpnBits)
   val prv = Bits(width = 2)
   val store = Bool()
   val fetch = Bool()
 }
 
-class PTWResp extends CoreBundle {
+class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val error = Bool()
   val pte = new PTE
 }
 
-class TLBPTWIO extends CoreBundle {
+class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new PTWReq)
   val resp = Valid(new PTWResp).flip
   val status = new MStatus().asInput
   val invalidate = Bool(INPUT)
 }
 
-class DatapathPTWIO extends CoreBundle {
+class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
   val ptbr = UInt(INPUT, paddrBits)
   val invalidate = Bool(INPUT)
   val status = new MStatus().asInput
 }
 
-class PTE extends CoreBundle {
+class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   val ppn = Bits(width = ppnBits)
   val reserved_for_software = Bits(width = 3)
   val d = Bool()
@@ -51,8 +51,7 @@ class PTE extends CoreBundle {
     Mux(prv(0), Mux(fetch, sx(), Mux(store, sw(), sr())), Mux(fetch, ux(), Mux(store, uw(), ur())))
 }
 
-class PTW(n: Int) extends CoreModule
-{
+class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val requestor = Vec(new TLBPTWIO, n).flip
     val mem = new HellaCacheIO

@@ -9,17 +9,19 @@ import scala.math._
 
 case object NTLBEntries extends Field[Int]
 
-abstract trait TLBParameters extends CoreParameters {
-  val addrMap = new AddrHashMap(params(NastiAddrMap))
-  val entries = params(NTLBEntries)
+trait HasTLBParameters extends HasCoreParameters {
+  val addrMap = new AddrHashMap(p(NastiAddrMap))
+  val entries = p(NTLBEntries)
   val camAddrBits = ceil(log(entries)/log(2)).toInt
   val camTagBits = asIdBits + vpnBits
 }
 
-abstract class TLBBundle extends Bundle with TLBParameters
-abstract class TLBModule extends Module with TLBParameters
+abstract class TLBModule(implicit val p: Parameters) extends Module
+  with HasTLBParameters
+abstract class TLBBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
+  with HasTLBParameters
 
-class CAMIO extends TLBBundle {
+class CAMIO(implicit p: Parameters) extends TLBBundle()(p) {
     val clear        = Bool(INPUT)
     val clear_mask   = Bits(INPUT, entries)
     val tag          = Bits(INPUT, camTagBits)
@@ -32,7 +34,7 @@ class CAMIO extends TLBBundle {
     val write_addr    = UInt(INPUT, camAddrBits)
 }
 
-class RocketCAM extends TLBModule {
+class RocketCAM(implicit p: Parameters) extends TLBModule()(p) {
   val io = new CAMIO
   val cam_tags = Mem(entries, Bits(width = camTagBits))
 
@@ -75,7 +77,7 @@ class PseudoLRU(n: Int)
   }
 }
 
-class TLBReq extends CoreBundle {
+class TLBReq(implicit p: Parameters) extends CoreBundle()(p) {
   val asid = UInt(width = asIdBits)
   val vpn = UInt(width = vpnBits+1)
   val passthrough = Bool()
@@ -83,7 +85,7 @@ class TLBReq extends CoreBundle {
   val store = Bool()
 }
 
-class TLBRespNoHitIndex extends CoreBundle {
+class TLBRespNoHitIndex(implicit p: Parameters) extends CoreBundle()(p) {
   // lookup responses
   val miss = Bool(OUTPUT)
   val ppn = UInt(OUTPUT, ppnBits)
@@ -92,11 +94,11 @@ class TLBRespNoHitIndex extends CoreBundle {
   val xcpt_if = Bool(OUTPUT)
 }
 
-class TLBResp extends TLBRespNoHitIndex with TLBParameters {
+class TLBResp(implicit p: Parameters) extends TLBRespNoHitIndex()(p) with HasTLBParameters {
   val hit_idx = UInt(OUTPUT, entries)
 }
 
-class TLB extends TLBModule {
+class TLB(implicit p: Parameters) extends TLBModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new TLBReq).flip
     val resp = new TLBResp
@@ -177,7 +179,7 @@ class TLB extends TLBModule {
   io.resp.xcpt_st := !addr_ok || !addr_prot.w || bad_va || tlb_hit && !(w_array & tag_cam.io.hits).orR
   io.resp.xcpt_if := !addr_ok || !addr_prot.x || bad_va || tlb_hit && !(x_array & tag_cam.io.hits).orR
   io.resp.miss := tlb_miss
-  io.resp.ppn := Mux(vm_enabled, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(params(PPNBits)-1,0))
+  io.resp.ppn := Mux(vm_enabled, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(ppnBits-1,0))
   io.resp.hit_idx := tag_cam.io.hits
 
   // clear invalid entries on access, or all entries on a TLB flush

@@ -20,24 +20,21 @@ class RoCCInstruction extends Bundle
   val opcode = Bits(width = 7)
 }
 
-class RoCCCommand extends CoreBundle
-{
+class RoCCCommand(implicit p: Parameters) extends CoreBundle()(p) {
   val inst = new RoCCInstruction
   val rs1 = Bits(width = xLen)
   val rs2 = Bits(width = xLen)
 }
 
-class RoCCResponse extends CoreBundle
-{
+class RoCCResponse(implicit p: Parameters) extends CoreBundle()(p) {
   val rd = Bits(width = 5)
   val data = Bits(width = xLen)
 }
 
-class RoCCInterface extends Bundle
-{
+class RoCCInterface(implicit p: Parameters) extends Bundle {
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
-  val mem = new HellaCacheIO
+  val mem = new HellaCacheIO()(p.alterPartial({ case CacheName => "L1D" }))
   val busy = Bool(OUTPUT)
   val s = Bool(INPUT)
   val interrupt = Bool(OUTPUT)
@@ -51,15 +48,12 @@ class RoCCInterface extends Bundle
   val exception = Bool(INPUT)
 }
 
-abstract class RoCC extends CoreModule
-{
+abstract class RoCC(implicit p: Parameters) extends CoreModule()(p) {
   val io = new RoCCInterface
   io.mem.req.bits.phys := Bool(true) // don't perform address translation
 }
 
-class AccumulatorExample extends RoCC
-{
-  val n = 4
+class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
   val regfile = Mem(UInt(width = xLen), n)
   val busy = Reg(init=Vec(Bool(false), n))
 

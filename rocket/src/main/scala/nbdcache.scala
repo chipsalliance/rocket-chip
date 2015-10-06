@@ -14,11 +14,11 @@ case object NMSHRs extends Field[Int]
 case object NIOMSHRs extends Field[Int]
 case object LRSCCycles extends Field[Int]
 
-abstract trait L1HellaCacheParameters extends L1CacheParameters {
-  val wordBits = params(WordBits)
+trait HasL1HellaCacheParameters extends HasL1CacheParameters {
+  val wordBits = p(WordBits)
   val wordBytes = wordBits/8
   val wordOffBits = log2Up(wordBytes)
-  val beatBytes = params(CacheBlockBytes) / params(TLDataBeats)
+  val beatBytes = p(CacheBlockBytes) / p(TLDataBeats)
   val beatWords = beatBytes / wordBytes
   val beatOffBits = log2Up(beatBytes)
   val idxMSB = untagBits-1
@@ -29,43 +29,48 @@ abstract trait L1HellaCacheParameters extends L1CacheParameters {
   val doNarrowRead = coreDataBits * nWays % rowBits == 0
   val encDataBits = code.width(coreDataBits)
   val encRowBits = encDataBits*rowWords
-  val sdqDepth = params(StoreDataQueueDepth)
-  val nMSHRs = params(NMSHRs)
-  val nIOMSHRs = params(NIOMSHRs)
+  val sdqDepth = p(StoreDataQueueDepth)
+  val nMSHRs = p(NMSHRs)
+  val nIOMSHRs = p(NIOMSHRs)
 }
 
-abstract class L1HellaCacheBundle extends Bundle with L1HellaCacheParameters
-abstract class L1HellaCacheModule extends Module with L1HellaCacheParameters
+abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
+  with HasL1HellaCacheParameters
+abstract class L1HellaCacheBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
+  with HasL1HellaCacheParameters
 
-trait HasCoreMemOp extends CoreBundle {
+trait HasCoreMemOp extends HasCoreParameters {
   val addr = UInt(width = coreMaxAddrBits)
   val tag  = Bits(width = coreDCacheReqTagBits)
   val cmd  = Bits(width = M_SZ)
   val typ  = Bits(width = MT_SZ)
 }
 
-trait HasCoreData extends CoreBundle {
+trait HasCoreData extends HasCoreParameters {
   val data = Bits(width = coreDataBits)
 }
 
-trait HasSDQId extends CoreBundle with L1HellaCacheParameters {
+trait HasSDQId extends HasL1HellaCacheParameters {
   val sdq_id = UInt(width = log2Up(sdqDepth))
 }
 
-trait HasMissInfo extends CoreBundle with L1HellaCacheParameters {
+trait HasMissInfo extends HasL1HellaCacheParameters {
   val tag_match = Bool()
   val old_meta = new L1Metadata
   val way_en = Bits(width = nWays)
 }
 
-class HellaCacheReqInternal extends HasCoreMemOp {
+class HellaCacheReqInternal(implicit p: Parameters) extends L1HellaCacheBundle()(p)
+    with HasCoreMemOp {
   val kill = Bool()
   val phys = Bool()
 }
 
-class HellaCacheReq extends HellaCacheReqInternal with HasCoreData
+class HellaCacheReq(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData
 
-class HellaCacheResp extends HasCoreMemOp with HasCoreData {
+class HellaCacheResp(implicit p: Parameters) extends L1HellaCacheBundle()(p)
+    with HasCoreMemOp
+    with HasCoreData {
   val nack = Bool() // comes 2 cycles after req.fire
   val replay = Bool()
   val has_data = Bool()
@@ -84,7 +89,7 @@ class HellaCacheExceptions extends Bundle {
 }
 
 // interface between D$ and processor/DTLB
-class HellaCacheIO extends CoreBundle {
+class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new HellaCacheReq)
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Valid(Bits(width = coreDCacheReqTagBits)).flip
@@ -93,50 +98,51 @@ class HellaCacheIO extends CoreBundle {
   val ordered = Bool(INPUT)
 }
 
-class L1DataReadReq extends L1HellaCacheBundle {
+class L1DataReadReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val way_en = Bits(width = nWays)
   val addr   = Bits(width = untagBits)
 }
 
-class L1DataWriteReq extends L1DataReadReq {
+class L1DataWriteReq(implicit p: Parameters) extends L1DataReadReq()(p) {
   val wmask  = Bits(width = rowWords)
   val data   = Bits(width = encRowBits)
 }
 
-class L1RefillReq extends L1DataReadReq
+class L1RefillReq(implicit p: Parameters) extends L1DataReadReq()(p)
 
-class L1MetaReadReq extends MetaReadReq {
+class L1MetaReadReq(implicit p: Parameters) extends MetaReadReq {
   val tag = Bits(width = tagBits)
+  override def cloneType = new L1MetaReadReq()(p).asInstanceOf[this.type] //TODO remove
 }
 
-class L1MetaWriteReq extends 
+class L1MetaWriteReq(implicit p: Parameters) extends 
   MetaWriteReq[L1Metadata](new L1Metadata)
 
 object L1Metadata {
-  def apply(tag: Bits, coh: ClientMetadata) = {
+  def apply(tag: Bits, coh: ClientMetadata)(implicit p: Parameters) = {
     val meta = Wire(new L1Metadata)
     meta.tag := tag
     meta.coh := coh
     meta
   }
 }
-class L1Metadata extends Metadata with L1HellaCacheParameters {
+class L1Metadata(implicit p: Parameters) extends Metadata()(p) with HasL1HellaCacheParameters {
   val coh = new ClientMetadata
 }
 
-class Replay extends HellaCacheReqInternal with HasCoreData
-class ReplayInternal extends HellaCacheReqInternal with HasSDQId
+class Replay(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData
+class ReplayInternal(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasSDQId
 
-class MSHRReq extends Replay with HasMissInfo
-class MSHRReqInternal extends ReplayInternal with HasMissInfo
+class MSHRReq(implicit p: Parameters) extends Replay()(p) with HasMissInfo
+class MSHRReqInternal(implicit p: Parameters) extends ReplayInternal()(p) with HasMissInfo
 
-class ProbeInternal extends Probe with HasClientTransactionId
+class ProbeInternal(implicit p: Parameters) extends Probe()(p) with HasClientTransactionId
 
-class WritebackReq extends Release with CacheParameters {
+class WritebackReq(implicit p: Parameters) extends Release()(p) with HasCacheParameters {
   val way_en = Bits(width = nWays)
 }
 
-class IOMSHR(id: Int) extends L1HellaCacheModule {
+class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new HellaCacheReq).flip
     val acquire = Decoupled(new Acquire)
@@ -213,7 +219,7 @@ class IOMSHR(id: Int) extends L1HellaCacheModule {
   }
 }
 
-class MSHR(id: Int) extends L1HellaCacheModule {
+class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req_pri_val    = Bool(INPUT)
     val req_pri_rdy    = Bool(OUTPUT)
@@ -256,7 +262,7 @@ class MSHR(id: Int) extends L1HellaCacheModule {
   val (refill_cnt, refill_count_done) = Counter(io.mem_grant.valid && gnt_multi_data, refillCycles) // TODO: Zero width?
   val refill_done = io.mem_grant.valid && (!gnt_multi_data || refill_count_done)
 
-  val rpq = Module(new Queue(new ReplayInternal, params(ReplayQueueDepth)))
+  val rpq = Module(new Queue(new ReplayInternal, p(ReplayQueueDepth)))
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && !isPrefetch(io.req_bits.cmd)
   rpq.io.enq.bits := io.req_bits
   rpq.io.deq.ready := io.replay.ready && state === s_drain_rpq || state === s_invalid
@@ -362,7 +368,7 @@ class MSHR(id: Int) extends L1HellaCacheModule {
   }
 }
 
-class MSHRFile extends L1HellaCacheModule {
+class MSHRFile(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new MSHRReq).flip
     val resp = Decoupled(new HellaCacheResp)
@@ -498,7 +504,7 @@ class MSHRFile extends L1HellaCacheModule {
   }
 }
 
-class WritebackUnit extends L1HellaCacheModule {
+class WritebackUnit(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new WritebackReq).flip
     val meta_read = Decoupled(new L1MetaReadReq)
@@ -578,7 +584,7 @@ class WritebackUnit extends L1HellaCacheModule {
   } else { io.data_resp })
 }
 
-class ProbeUnit extends L1HellaCacheModule {
+class ProbeUnit(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new ProbeInternal).flip
     val rep = Decoupled(new Release)
@@ -653,7 +659,7 @@ class ProbeUnit extends L1HellaCacheModule {
   io.wb_req.bits.way_en := way_en
 }
 
-class DataArray extends L1HellaCacheModule {
+class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val read = Decoupled(new L1DataReadReq).flip
     val write = Decoupled(new L1DataWriteReq).flip
@@ -700,18 +706,18 @@ class DataArray extends L1HellaCacheModule {
   io.write.ready := Bool(true)
 }
 
-class HellaCache extends L1HellaCacheModule {
+class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val cpu = (new HellaCacheIO).flip
     val ptw = new TLBPTWIO()
     val mem = new ClientTileLinkIO
   }
  
-  require(params(LRSCCycles) >= 32) // ISA requires 16-insn LRSC sequences to succeed
+  require(p(LRSCCycles) >= 32) // ISA requires 16-insn LRSC sequences to succeed
   require(isPow2(nSets))
   require(isPow2(nWays)) // TODO: relax this
-  require(params(RowBits) <= params(TLDataBits))
-  require(paddrBits-blockOffBits == params(TLBlockAddrBits) )
+  require(p(RowBits) <= p(TLDataBits))
+  require(paddrBits-blockOffBits == p(TLBlockAddrBits) )
   require(untagBits <= pgIdxBits)
 
   val wb = Module(new WritebackUnit)
@@ -855,7 +861,7 @@ class HellaCache extends L1HellaCacheModule {
   when (lrsc_valid) { lrsc_count := lrsc_count - 1 }
   when (s2_valid_masked && s2_hit || s2_replay) {
     when (s2_lr) {
-      when (!lrsc_valid) { lrsc_count := params(LRSCCycles)-1 }
+      when (!lrsc_valid) { lrsc_count := p(LRSCCycles)-1 }
       lrsc_addr := s2_req.addr >> blockOffBits
     }
     when (s2_sc) {
@@ -899,7 +905,7 @@ class HellaCache extends L1HellaCacheModule {
   writeArb.io.in(0).bits.way_en :=  s3_way
 
   // replacement policy
-  val replacer = params(Replacer)()
+  val replacer = p(Replacer)()
   val s1_replaced_way_en = UIntToOH(replacer.way)
   val s2_replaced_way_en = UIntToOH(RegEnable(replacer.way, s1_clk_en))
   val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegEnable(meta.io.resp(w), s1_clk_en && s1_replaced_way_en(w))).toSeq)
@@ -1039,7 +1045,7 @@ class HellaCache extends L1HellaCacheModule {
 }
 
 // exposes a sane decoupled request interface
-class SimpleHellaCacheIF extends Module
+class SimpleHellaCacheIF(implicit p: Parameters) extends Module
 {
   val io = new Bundle {
     val requestor = new HellaCacheIO().flip
