@@ -353,8 +353,7 @@ class FPUFMAPipe(val latency: Int, sigWidth: Int, expWidth: Int) extends Module
   io.out := Pipe(valid, res, latency-1)
 }
 
-class FPU extends CoreModule
-{
+class FPU(implicit p: Parameters) extends CoreModule()(p) {
   val io = new FPUIO
 
   val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
@@ -385,7 +384,7 @@ class FPU extends CoreModule
   val regfile = Mem(32, Bits(width = 65))
   when (load_wb) { 
     regfile(load_wb_tag) := load_wb_data_recoded 
-    if (EnableCommitLog) {
+    if (enableCommitLog) {
       printf ("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + UInt(32),
         Mux(load_wb_single, load_wb_data(31,0), load_wb_data))
     }
@@ -415,11 +414,11 @@ class FPU extends CoreModule
   req.in3 := ex_rs3
   req.typ := ex_reg_inst(21,20)
 
-  val sfma = Module(new FPUFMAPipe(params(SFMALatency), 23, 9))
+  val sfma = Module(new FPUFMAPipe(p(SFMALatency), 23, 9))
   sfma.io.in.valid := ex_reg_valid && ex_ctrl.fma && ex_ctrl.single
   sfma.io.in.bits := req
 
-  val dfma = Module(new FPUFMAPipe(params(DFMALatency), 52, 12))
+  val dfma = Module(new FPUFMAPipe(p(DFMALatency), 52, 12))
   dfma.io.in.valid := ex_reg_valid && ex_ctrl.fma && !ex_ctrl.single
   dfma.io.in.bits := req
 
@@ -488,7 +487,7 @@ class FPU extends CoreModule
   val wexc = Vec(pipes.map(_.res.exc))(wsrc)
   when (wen(0) || divSqrt_wen) {
     regfile(waddr) := wdata 
-    if (EnableCommitLog) {
+    if (enableCommitLog) {
       val wdata_unrec_s = hardfloat.recodedFloatNToFloatN(wdata(64,0), 23, 9)
       val wdata_unrec_d = hardfloat.recodedFloatNToFloatN(wdata(64,0), 52, 12)
       val wb_single = (winfo(0) >> 5)(0)
@@ -518,7 +517,7 @@ class FPU extends CoreModule
 
   divSqrt_wdata := 0
   divSqrt_flags := 0
-  if (params(FDivSqrt)) {
+  if (p(FDivSqrt)) {
     val divSqrt_single = Reg(Bool())
     val divSqrt_rm = Reg(Bits())
     val divSqrt_flags_double = Reg(Bits())

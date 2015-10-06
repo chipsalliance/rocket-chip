@@ -5,7 +5,7 @@ package rocket
 import Chisel._
 import uncore._
 
-class HellaCacheArbiter(n: Int) extends Module
+class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 {
   val io = new Bundle {
     val requestor = Vec(new HellaCacheIO, n).flip
