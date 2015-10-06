@@ -42,7 +42,7 @@ object ZCounter {
   }
 }
 
-class FlowThroughSerializer[T <: HasTileLinkData](gen: T, n: Int) extends Module {
+class FlowThroughSerializer[T <: Bundle with HasTileLinkData](gen: T, n: Int) extends Module {
   val io = new Bundle {
     val in = Decoupled(gen).flip
     val out = Decoupled(gen)
@@ -96,7 +96,7 @@ class FlowThroughSerializer[T <: HasTileLinkData](gen: T, n: Int) extends Module
 }
 
 object FlowThroughSerializer {
-  def apply[T <: HasTileLinkData](in: DecoupledIO[T], n: Int): DecoupledIO[T] = {
+  def apply[T <: Bundle with HasTileLinkData](in: DecoupledIO[T], n: Int): DecoupledIO[T] = {
     val fs = Module(new FlowThroughSerializer(in.bits, n))
     fs.io.in.valid := in.valid
     fs.io.in.bits := in.bits

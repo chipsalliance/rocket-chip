@@ -4,57 +4,58 @@ package uncore
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import junctions.SMIIO
+import junctions._
 
-case object HTIFWidth extends Field[Int]
-case object HTIFNSCR extends Field[Int]
-case object HTIFOffsetBits extends Field[Int]
-case object HTIFNCores extends Field[Int]
-case object HTIFSCRDataBits extends Field[Int]
+case object HtifKey extends Field[HtifParameters]
 
-abstract trait HTIFParameters extends UsesParameters {
-  val dataBits = params(TLDataBits)
-  val dataBeats = params(TLDataBeats)
-  val w = params(HTIFWidth)
-  val nSCR = params(HTIFNSCR)
-  val scrAddrBits = log2Up(nSCR)
-  val scrDataBits = params(HTIFSCRDataBits)
-  val scrDataBytes = scrDataBits / 8
-  val offsetBits = params(HTIFOffsetBits)
-  val nCores = params(HTIFNCores)
+case class HtifParameters(width: Int, nCores: Int, offsetBits: Int, nSCR: Int = 64)
+
+trait HasHtifParameters {
+  implicit val p: Parameters
+  lazy val external = p(HtifKey)
+  lazy val dataBits = p(TLDataBits)
+  lazy val dataBeats = p(TLDataBeats)
+  lazy val w = external.width
+  lazy val nSCR = external.nSCR
+  lazy val scrAddrBits = log2Up(nSCR)
+  lazy val scrDataBits = 64
+  lazy val scrDataBytes = scrDataBits / 8
+  lazy val offsetBits = external.offsetBits
+  lazy val nCores = external.nCores
 }
 
-abstract class HTIFBundle extends Bundle with HTIFParameters
+abstract class HtifModule(implicit val p: Parameters) extends Module with HasHtifParameters
+abstract class HtifBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
+  with HasHtifParameters
 
-class HostIO extends HTIFBundle
-{
+class HostIO(implicit p: Parameters) extends HtifBundle()(p) {
   val clk = Bool(OUTPUT)
   val clk_edge = Bool(OUTPUT)
   val in = Decoupled(Bits(width = w)).flip
   val out = Decoupled(Bits(width = w))
-  val debug_stats_pcr = Bool(OUTPUT)
+  val debug_stats_csr = Bool(OUTPUT)
 }
 
-class HTIFIO extends HTIFBundle {
+class HtifIO(implicit p: Parameters) extends HtifBundle()(p) {
   val reset = Bool(INPUT)
   val id = UInt(INPUT, log2Up(nCores))
-  val pcr = new SMIIO(scrDataBits, 12).flip
+  val csr = new SMIIO(scrDataBits, 12).flip
   val ipi_req = Decoupled(Bits(width = log2Up(nCores)))
   val ipi_rep = Decoupled(Bool()).flip
-  val debug_stats_pcr = Bool(OUTPUT)
+  val debug_stats_csr = Bool(OUTPUT)
     // wired directly to stats register
     // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work
 }
 
-class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
+class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHtifParameters {
   val io = new Bundle {
     val host = new HostIO
-    val cpu = Vec(new HTIFIO, nCores).flip
+    val cpu = Vec(new HtifIO, nCores).flip
     val mem = new ClientUncachedTileLinkIO
     val scr = new SMIIO(scrDataBits, scrAddrBits)
   }
 
-  io.host.debug_stats_pcr := io.cpu.map(_.debug_stats_pcr).reduce(_||_)
+  io.host.debug_stats_csr := io.cpu.map(_.debug_stats_csr).reduce(_||_)
     // system is 'interesting' if any tile is 'interesting'
 
   val short_request_bits = 64
@@ -93,9 +94,9 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
 
   val cmd_readmem :: cmd_writemem :: cmd_readcr :: cmd_writecr :: cmd_ack :: cmd_nack :: Nil = Enum(UInt(), 6)
 
-  val pcr_addr = addr(io.cpu(0).pcr.req.bits.addr.getWidth-1, 0)
-  val pcr_coreid = addr(log2Up(nCores)-1+20+1,20)
-  val pcr_wdata = packet_ram(0)
+  val csr_addr = addr(io.cpu(0).csr.req.bits.addr.getWidth-1, 0)
+  val csr_coreid = addr(log2Up(nCores)-1+20+1,20)
+  val csr_wdata = packet_ram(0)
 
   val bad_mem_packet = size(offsetBits-1-3,0).orR || addr(offsetBits-1-3,0).orR
   val nack = Mux(cmd === cmd_readmem || cmd === cmd_writemem, bad_mem_packet,
@@ -114,7 +115,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   val tx_size = Mux(!nack && (cmd === cmd_readmem || cmd === cmd_readcr || cmd === cmd_writecr), size, UInt(0))
   val tx_done = io.host.out.ready && tx_subword_count.andR && (tx_word_count === tx_size || tx_word_count > UInt(0) && packet_ram_raddr.andR)
 
-  val state_rx :: state_pcr_req :: state_pcr_resp :: state_mem_rreq :: state_mem_wreq :: state_mem_rresp :: state_mem_wresp :: state_tx :: Nil = Enum(UInt(), 8)
+  val state_rx :: state_csr_req :: state_csr_resp :: state_mem_rreq :: state_mem_wreq :: state_mem_rresp :: state_mem_wresp :: state_tx :: Nil = Enum(UInt(), 8)
   val state = Reg(init=state_rx)
 
   val (cnt, cnt_done) = Counter((state === state_mem_wreq && io.mem.acquire.ready) ||
@@ -123,7 +124,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   when (state === state_rx && rx_done) {
     state := Mux(rx_cmd === cmd_readmem, state_mem_rreq,
              Mux(rx_cmd === cmd_writemem, state_mem_wreq,
-             Mux(rx_cmd === cmd_readcr || rx_cmd === cmd_writecr, state_pcr_req,
+             Mux(rx_cmd === cmd_readcr || rx_cmd === cmd_writecr, state_csr_req,
              state_tx)))
   }
   when (state === state_mem_wreq) {
@@ -171,17 +172,17 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
     GetBlock(addr_block = init_addr))
   io.mem.grant.ready := Bool(true)
 
-  val pcrReadData = Reg(Bits(width = io.cpu(0).pcr.resp.bits.getWidth))
+  val csrReadData = Reg(Bits(width = io.cpu(0).csr.resp.bits.getWidth))
   for (i <- 0 until nCores) {
     val my_reset = Reg(init=Bool(true))
     val my_ipi = Reg(init=Bool(false))
 
     val cpu = io.cpu(i)
-    val me = pcr_coreid === UInt(i)
-    cpu.pcr.req.valid := state === state_pcr_req && me && pcr_addr != UInt(pcr_RESET)
-    cpu.pcr.req.bits.rw := cmd === cmd_writecr
-    cpu.pcr.req.bits.addr := pcr_addr
-    cpu.pcr.req.bits.data := pcr_wdata
+    val me = csr_coreid === UInt(i)
+    cpu.csr.req.valid := state === state_csr_req && me && csr_addr != UInt(csr_RESET)
+    cpu.csr.req.bits.rw := cmd === cmd_writecr
+    cpu.csr.req.bits.addr := csr_addr
+    cpu.csr.req.bits.data := csr_wdata
     cpu.reset := my_reset
 
     when (cpu.ipi_rep.ready) {
@@ -195,32 +196,32 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
       }
     }
 
-    when (cpu.pcr.req.fire()) { state := state_pcr_resp }
+    when (cpu.csr.req.fire()) { state := state_csr_resp }
 
-    when (state === state_pcr_req && me && pcr_addr === UInt(pcr_RESET)) {
+    when (state === state_csr_req && me && csr_addr === UInt(csr_RESET)) {
       when (cmd === cmd_writecr) {
-        my_reset := pcr_wdata(0)
+        my_reset := csr_wdata(0)
       }
-      pcrReadData := my_reset.toBits
+      csrReadData := my_reset.toBits
       state := state_tx
     }
 
-    cpu.pcr.resp.ready := Bool(true)
-    when (state === state_pcr_resp && cpu.pcr.resp.valid) {
-      pcrReadData := cpu.pcr.resp.bits
+    cpu.csr.resp.ready := Bool(true)
+    when (state === state_csr_resp && cpu.csr.resp.valid) {
+      csrReadData := cpu.csr.resp.bits
       state := state_tx
     }
   }
 
-  io.scr.req.valid := (state === state_pcr_req && pcr_coreid.andR)
+  io.scr.req.valid := (state === state_csr_req && csr_coreid.andR)
   io.scr.req.bits.addr := addr(scrAddrBits - 1, 0).toUInt
-  io.scr.req.bits.data := pcr_wdata
+  io.scr.req.bits.data := csr_wdata
   io.scr.req.bits.rw := (cmd === cmd_writecr)
   io.scr.resp.ready := Bool(true)
 
-  when (io.scr.req.fire()) { state := state_pcr_resp }
-  when (state === state_pcr_resp && io.scr.resp.valid) {
-    pcrReadData := io.scr.resp.bits
+  when (io.scr.req.fire()) { state := state_csr_resp }
+  when (state === state_csr_resp && io.scr.resp.valid) {
+    csrReadData := io.scr.resp.bits
     state := state_tx
   }
 
@@ -228,7 +229,7 @@ class HTIF(pcr_RESET: Int) extends Module with HTIFParameters {
   val tx_cmd_ext = Cat(Bits(0, 4-tx_cmd.getWidth), tx_cmd)
   val tx_header = Cat(addr, seqno, tx_size, tx_cmd_ext)
   val tx_data = Mux(tx_word_count === UInt(0), tx_header,
-                Mux(cmd === cmd_readcr || cmd === cmd_writecr, pcrReadData,
+                Mux(cmd === cmd_readcr || cmd === cmd_writecr, csrReadData,
                 packet_ram(packet_ram_raddr)))
 
   io.host.in.ready := state === state_rx

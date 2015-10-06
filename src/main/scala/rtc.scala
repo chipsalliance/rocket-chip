@@ -3,17 +3,19 @@ package uncore
 import Chisel._
 import junctions._
 
-class RTC(pcr_MTIME: Int)(implicit val p: Parameters) extends Module with HTIFParameters {
+case object RTCPeriod extends Field[Int]
+
+class RTC(csr_MTIME: Int)(implicit p: Parameters) extends HtifModule {
   val io = new NastiIO
 
-  private val addrMap = new AddrHashMap(params(NastiAddrMap))
+  private val addrMap = new AddrHashMap(p(NastiAddrMap))
 
   val addrTable = Vec.tabulate(nCores) { i =>
-    UInt(addrMap(s"conf:csr$i").start + pcr_MTIME * scrDataBytes)
+    UInt(addrMap(s"conf:csr$i").start + csr_MTIME * scrDataBytes)
   }
 
-  val rtc = Reg(init=UInt(0,64))
-  val rtc_tick = Counter(params(RTCPeriod)).inc()
+  val rtc = Reg(init=UInt(0, scrDataBits))
+  val rtc_tick = Counter(p(RTCPeriod)).inc()
 
   val sending_addr = Reg(init = Bool(false))
   val sending_data = Reg(init = Bool(false))

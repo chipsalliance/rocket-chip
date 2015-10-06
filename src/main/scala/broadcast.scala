@@ -5,19 +5,20 @@ import Chisel._
 
 case object L2StoreDataQueueDepth extends Field[Int]
 
-trait BroadcastHubParameters extends CoherenceAgentParameters {
-  val sdqDepth = params(L2StoreDataQueueDepth)*innerDataBeats
+trait HasBroadcastHubParameters extends HasCoherenceAgentParameters {
+  val sdqDepth = p(L2StoreDataQueueDepth)*innerDataBeats
   val dqIdxBits = math.max(log2Up(nReleaseTransactors) + 1, log2Up(sdqDepth))
   val nDataQueueLocations = 3 //Stores, VoluntaryWBs, Releases
 }
 
-class DataQueueLocation extends Bundle with BroadcastHubParameters {
+class DataQueueLocation(implicit p: Parameters) extends CoherenceAgentBundle()(p)
+    with HasBroadcastHubParameters {
   val idx = UInt(width = dqIdxBits)
   val loc = UInt(width = log2Ceil(nDataQueueLocations))
 } 
 
 object DataQueueLocation {
-  def apply(idx: UInt, loc: UInt) = {
+  def apply(idx: UInt, loc: UInt)(implicit p: Parameters) = {
     val d = Wire(new DataQueueLocation)
     d.idx := idx
     d.loc := loc
@@ -25,12 +26,12 @@ object DataQueueLocation {
   }
 }
 
-class L2BroadcastHub extends ManagerCoherenceAgent
-    with BroadcastHubParameters {
+class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
+    with HasBroadcastHubParameters {
   val internalDataBits = new DataQueueLocation().getWidth
   val inStoreQueue :: inVolWBQueue :: inClientReleaseQueue :: Nil = Enum(UInt(), nDataQueueLocations)
 
-  val trackerTLParams = params.alterPartial({
+  val trackerTLParams = p.alterPartial({
     case TLDataBits => internalDataBits
     case TLWriteMaskBits => innerWriteMaskBits
   })
@@ -104,10 +105,10 @@ class L2BroadcastHub extends ManagerCoherenceAgent
   doInputRouting(io.inner.finish, trackerList.map(_.io.inner.finish))
 
   // Create an arbiter for the one memory port
-  val outer_arb = Module(new ClientUncachedTileLinkIOArbiter(trackerList.size),
-                         { case TLId => params(OuterTLId)
+  val outer_arb = Module(new ClientUncachedTileLinkIOArbiter(trackerList.size)(p.alterPartial(
+                         { case TLId => p(OuterTLId)
                            case TLDataBits => internalDataBits
-                           case TLWriteMaskBits => innerWriteMaskBits })
+                           case TLWriteMaskBits => innerWriteMaskBits })))
   outer_arb.io.in <> trackerList.map(_.io.outer)
   // Get the pending data out of the store data queue
   val outer_data_ptr = new DataQueueLocation().fromBits(outer_arb.io.out.acquire.bits.data)
@@ -127,15 +128,16 @@ class L2BroadcastHub extends ManagerCoherenceAgent
   }
 }
 
-class BroadcastXactTracker extends XactTracker {
+class BroadcastXactTracker(implicit p: Parameters) extends XactTracker()(p) {
   val io = new ManagerXactTrackerIO
 }
 
-class BroadcastVoluntaryReleaseTracker(trackerId: Int) extends BroadcastXactTracker {
+class BroadcastVoluntaryReleaseTracker(trackerId: Int)
+                                      (implicit p: Parameters) extends BroadcastXactTracker()(p) {
   val s_idle :: s_outer :: s_grant :: s_ack :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_idle)
 
-  val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
+  val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => p(InnerTLId); case TLDataBits => 0 }))
   val data_buffer = Reg(Vec(io.irel().data, innerDataBeats))
   val coh = ManagerMetadata.onReset
 
@@ -210,12 +212,13 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int) extends BroadcastXactTrac
   }
 }
 
-class BroadcastAcquireTracker(trackerId: Int) extends BroadcastXactTracker {
+class BroadcastAcquireTracker(trackerId: Int)
+                             (implicit p: Parameters) extends BroadcastXactTracker()(p) {
   val s_idle :: s_probe :: s_mem_read :: s_mem_write :: s_make_grant :: s_mem_resp :: s_ack :: Nil = Enum(UInt(), 7)
   val state = Reg(init=s_idle)
 
   val xact = Reg(Bundle(new AcquireFromSrc, {
-    case TLId => params(InnerTLId)
+    case TLId => p(InnerTLId)
     case TLDataBits => 0
     case TLWriteMaskBits => innerWriteMaskBits
   }))

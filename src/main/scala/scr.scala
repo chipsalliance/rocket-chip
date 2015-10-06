@@ -3,24 +3,24 @@ package uncore
 import Chisel._
 import junctions.{SMIIO, MMIOBase}
 
-class SCRIO extends HTIFBundle {
-  val rdata = Vec(Bits(INPUT, 64), nSCR)
+class SCRIO(implicit p: Parameters) extends HtifBundle()(p) {
+  val rdata = Vec(Bits(INPUT, scrDataBits), nSCR)
   val wen = Bool(OUTPUT)
   val waddr = UInt(OUTPUT, log2Up(nSCR))
-  val wdata = Bits(OUTPUT, 64)
+  val wdata = Bits(OUTPUT, scrDataBits)
 }
 
-class SCRFile extends Module with HTIFParameters {
+class SCRFile(implicit p: Parameters) extends HtifModule()(p) {
   val io = new Bundle {
-    val smi = new SMIIO(64, scrAddrBits).flip
+    val smi = new SMIIO(scrDataBits, scrAddrBits).flip
     val scr = new SCRIO
   }
 
-  val scr_rdata = Wire(Vec(Bits(width=64), io.scr.rdata.size))
+  val scr_rdata = Wire(Vec(Bits(width=scrDataBits), io.scr.rdata.size))
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
   scr_rdata(0) := UInt(nCores)
-  scr_rdata(1) := UInt(params(MMIOBase) >> 20)
+  scr_rdata(1) := UInt(p(MMIOBase) >> 20)
 
   val read_addr = Reg(init = UInt(0, scrAddrBits))
   val resp_valid = Reg(init = Bool(false))
