@@ -6,18 +6,18 @@ import Chisel._
 case object NReleaseTransactors extends Field[Int]
 case object NProbeTransactors extends Field[Int]
 case object NAcquireTransactors extends Field[Int]
-case object RTCPeriod extends Field[Int]
 
-trait CoherenceAgentParameters extends UsesParameters {
+trait HasCoherenceAgentParameters {
+  implicit val p: Parameters
   val nReleaseTransactors = 1
-  val nAcquireTransactors = params(NAcquireTransactors)
+  val nAcquireTransactors = p(NAcquireTransactors)
   val nTransactors = nReleaseTransactors + nAcquireTransactors
-  val outerTLParams = params.alterPartial({ case TLId => params(OuterTLId)})
+  val outerTLParams = p.alterPartial({ case TLId => p(OuterTLId)})
   val outerDataBeats = outerTLParams(TLDataBeats)
   val outerDataBits = outerTLParams(TLDataBits)
   val outerBeatAddrBits = log2Up(outerDataBeats)
   val outerByteAddrBits = log2Up(outerDataBits/8)
-  val innerTLParams = params.alterPartial({case TLId => params(InnerTLId)})
+  val innerTLParams = p.alterPartial({case TLId => p(InnerTLId)})
   val innerDataBeats = innerTLParams(TLDataBeats)
   val innerDataBits = innerTLParams(TLDataBits)
   val innerWriteMaskBits = innerTLParams(TLWriteMaskBits)
@@ -26,8 +26,10 @@ trait CoherenceAgentParameters extends UsesParameters {
   require(outerDataBeats == innerDataBeats) //TODO: must fix all xact_data Vecs to remove this requirement
 }
 
-abstract class CoherenceAgentBundle extends Bundle with CoherenceAgentParameters
-abstract class CoherenceAgentModule extends Module with CoherenceAgentParameters
+abstract class CoherenceAgentModule(implicit val p: Parameters) extends Module
+  with HasCoherenceAgentParameters
+abstract class CoherenceAgentBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
+   with HasCoherenceAgentParameters
 
 trait HasCoherenceAgentWiringHelpers {
   def doOutputArbitration[T <: TileLinkChannel](
@@ -39,7 +41,7 @@ trait HasCoherenceAgentWiringHelpers {
     arb.io.in <> ins
   }
 
-  def doInputRouting[T <: HasManagerTransactionId](
+  def doInputRouting[T <: Bundle with HasManagerTransactionId](
         in: DecoupledIO[T],
         outs: Seq[DecoupledIO[T]]) {
     val idx = in.bits.manager_xact_id
@@ -49,7 +51,7 @@ trait HasCoherenceAgentWiringHelpers {
   }
 }
 
-trait HasInnerTLIO extends CoherenceAgentBundle {
+trait HasInnerTLIO extends HasCoherenceAgentParameters {
   val inner = Bundle(new ManagerTileLinkIO)(innerTLParams)
   val incoherent = Vec(Bool(), inner.tlNCachingClients).asInput
   def iacq(dummy: Int = 0) = inner.acquire.bits
@@ -59,13 +61,13 @@ trait HasInnerTLIO extends CoherenceAgentBundle {
   def ifin(dummy: Int = 0) = inner.finish.bits
 }
 
-trait HasUncachedOuterTLIO extends CoherenceAgentBundle {
+trait HasUncachedOuterTLIO extends HasCoherenceAgentParameters {
   val outer = Bundle(new ClientUncachedTileLinkIO)(outerTLParams)
   def oacq(dummy: Int = 0) = outer.acquire.bits
   def ognt(dummy: Int = 0) = outer.grant.bits
 }
 
-trait HasCachedOuterTLIO extends CoherenceAgentBundle {
+trait HasCachedOuterTLIO extends HasCoherenceAgentParameters {
   val outer = Bundle(new ClientTileLinkIO)(outerTLParams)
   def oacq(dummy: Int = 0) = outer.acquire.bits
   def oprb(dummy: Int = 0) = outer.probe.bits
@@ -73,25 +75,29 @@ trait HasCachedOuterTLIO extends CoherenceAgentBundle {
   def ognt(dummy: Int = 0) = outer.grant.bits
 }
 
-class ManagerTLIO extends HasInnerTLIO with HasUncachedOuterTLIO
+class ManagerTLIO(implicit p: Parameters) extends CoherenceAgentBundle()(p)
+  with HasInnerTLIO
+  with HasUncachedOuterTLIO
 
-abstract class CoherenceAgent extends CoherenceAgentModule {
+abstract class CoherenceAgent(implicit p: Parameters) extends CoherenceAgentModule()(p) {
   def innerTL: ManagerTileLinkIO
   def outerTL: ClientTileLinkIO
   def incoherent: Vec[Bool]
 }
 
-abstract class ManagerCoherenceAgent extends CoherenceAgent
+abstract class ManagerCoherenceAgent(implicit p: Parameters) extends CoherenceAgent()(p)
     with HasCoherenceAgentWiringHelpers {
   val io = new ManagerTLIO
   def innerTL = io.inner
-  def outerTL = TileLinkIOWrapper(io.outer, outerTLParams)
+  def outerTL = TileLinkIOWrapper(io.outer)(outerTLParams)
   def incoherent = io.incoherent
 }
 
-class HierarchicalTLIO extends HasInnerTLIO with HasCachedOuterTLIO
+class HierarchicalTLIO(implicit p: Parameters) extends CoherenceAgentBundle()(p)
+  with HasInnerTLIO
+  with HasCachedOuterTLIO
 
-abstract class HierarchicalCoherenceAgent extends CoherenceAgent {
+abstract class HierarchicalCoherenceAgent(implicit p: Parameters) extends CoherenceAgent()(p) {
   val io = new HierarchicalTLIO
   def innerTL = io.inner
   def outerTL = io.outer
@@ -104,10 +110,14 @@ trait HasTrackerConflictIO extends Bundle {
   val has_release_match = Bool(OUTPUT)
 }
 
-class ManagerXactTrackerIO extends ManagerTLIO with HasTrackerConflictIO
-class HierarchicalXactTrackerIO extends HierarchicalTLIO with HasTrackerConflictIO
+class ManagerXactTrackerIO(implicit p: Parameters) extends ManagerTLIO()(p)
+  with HasTrackerConflictIO
 
-abstract class XactTracker extends CoherenceAgentModule with HasDataBeatCounters {
+class HierarchicalXactTrackerIO(implicit p: Parameters) extends HierarchicalTLIO()(p)
+  with HasTrackerConflictIO
+
+abstract class XactTracker(implicit p: Parameters) extends CoherenceAgentModule()(p)
+    with HasDataBeatCounters {
   def addPendingBitWhenBeat[T <: HasBeat](inc: Bool, in: T): UInt =
     Fill(in.tlDataBeats, inc) &  UIntToOH(in.addr_beat)
   def dropPendingBitWhenBeat[T <: HasBeat](dec: Bool, in: T): UInt =

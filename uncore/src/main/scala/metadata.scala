@@ -4,9 +4,8 @@ package uncore
 import Chisel._
 
 /** Base class to represent coherence information in clients and managers */
-abstract class CoherenceMetadata extends Bundle {
-  val co = params(TLCoherencePolicy)
-  val id = params(TLId)
+abstract class CoherenceMetadata(implicit p: Parameters) extends TLBundle()(p) {
+  val co = tlCoh
 }
 
 /** Stores the client-side coherence information,
@@ -14,7 +13,7 @@ abstract class CoherenceMetadata extends Bundle {
   * Its API can be used to make TileLink messages in response to
   * memory operations or [[uncore.Probe]] messages.
   */
-class ClientMetadata extends CoherenceMetadata {
+class ClientMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
   /** Actual state information stored in this bundle */
   val state = UInt(width = co.clientStateWidth)
 
@@ -53,8 +52,7 @@ class ClientMetadata extends CoherenceMetadata {
         a_type = co.getAcquireType(op_code, this),
         client_xact_id = client_xact_id,
         addr_block = addr_block,
-        union = Cat(op_code, Bool(true))),
-      { case TLId => id })
+        union = Cat(op_code, Bool(true)))(p))
   }
 
   /** Constructs a Release message based on this metadata on cache control op
@@ -76,7 +74,7 @@ class ClientMetadata extends CoherenceMetadata {
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
-      data = data), { case TLId => id })
+      data = data)(p))
   }
 
   /** Constructs a Release message based on this metadata on an eviction
@@ -114,7 +112,7 @@ class ClientMetadata extends CoherenceMetadata {
       client_xact_id = UInt(0),
       addr_block = prb.addr_block,
       addr_beat = addr_beat,
-      data = data), { case TLId => id })
+      data = data)(p))
   }
 
   /** New metadata after receiving a [[uncore.Grant]]
@@ -123,38 +121,38 @@ class ClientMetadata extends CoherenceMetadata {
     * @param pending the mem op that triggered this transaction
     */
   def onGrant(incoming: Grant, pending: UInt): ClientMetadata =
-    Bundle(co.clientMetadataOnGrant(incoming, pending, this), { case TLId => id })
+    co.clientMetadataOnGrant(incoming, pending, this)
 
   /** New metadata after receiving a [[uncore.Probe]]
     *
     * @param incoming the incoming [[uncore.Probe]]
     */
   def onProbe(incoming: Probe): ClientMetadata =
-    Bundle(co.clientMetadataOnProbe(incoming, this), { case TLId => id })
+    co.clientMetadataOnProbe(incoming, this)
 
   /** New metadata after a op_code hits this block
     *
     * @param op_code a memory operation from [[uncore.constants.MemoryOpConstants]]
     */
   def onHit(op_code: UInt): ClientMetadata =
-    Bundle(co.clientMetadataOnHit(op_code, this), { case TLId => id })
+    co.clientMetadataOnHit(op_code, this)
 
   /** New metadata after op_code releases permissions on this block
     *
     * @param op_code a memory operation from [[uncore.constants.MemoryOpConstants]]
     */
   def onCacheControl(op_code: UInt): ClientMetadata =
-    Bundle(co.clientMetadataOnCacheControl(op_code, this), { case TLId => id })
+    co.clientMetadataOnCacheControl(op_code, this)
 }
 
 /** Factories for ClientMetadata, including on reset */
 object ClientMetadata {
-  def apply(state: UInt) = {
+  def apply(state: UInt)(implicit p: Parameters) = {
     val meta = Wire(new ClientMetadata)
     meta.state := state
     meta
   }
-  def onReset = new ClientMetadata().co.clientMetadataOnReset
+  def onReset(implicit p: Parameters) = ClientMetadata(UInt(0))(p) // TODO: assumes clientInvalid === 0
 }
 
 /** Stores manager-side information about the status 
@@ -162,7 +160,7 @@ object ClientMetadata {
   *
   * Its API can be used to create [[uncore.Probe]] and [[uncore.Grant]] messages.
   */
-class ManagerMetadata extends CoherenceMetadata {
+class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
   // Currently no coherence policies assume manager-side state information
   // val state = UInt(width = co.masterStateWidth) TODO: Fix 0-width wires in Chisel
 
@@ -191,7 +189,7 @@ class ManagerMetadata extends CoherenceMetadata {
     * @param acq Acquire message triggering this Probe
     */
   def makeProbe(dst: UInt, acq: Acquire): ProbeToDst = 
-    Bundle(Probe(dst, co.getProbeType(acq, this), acq.addr_block), { case TLId => id })
+    Bundle(Probe(dst, co.getProbeType(acq, this), acq.addr_block)(p))
 
   /** Construct an appropriate [[uncore.ProbeToDst]] for a given mem op
     *
@@ -200,7 +198,7 @@ class ManagerMetadata extends CoherenceMetadata {
     * @param addr_block address of the cache block being probed
     */
   def makeProbe(dst: UInt, op_code: UInt, addr_block: UInt): ProbeToDst =
-    Bundle(Probe(dst, co.getProbeType(op_code, this), addr_block), { case TLId => id })
+    Bundle(Probe(dst, co.getProbeType(op_code, this), addr_block)(p))
 
   /** Construct an appropriate [[uncore.ProbeToDst]] for an eviction
     *
@@ -221,7 +219,7 @@ class ManagerMetadata extends CoherenceMetadata {
       is_builtin_type = Bool(true),
       g_type = Grant.voluntaryAckType,
       client_xact_id = rel.client_xact_id,
-      manager_xact_id = manager_xact_id), { case TLId => id })
+      manager_xact_id = manager_xact_id)(p))
   }
 
   /** Construct an appropriate [[uncore.GrantToDst]] to respond to an [[uncore.Acquire]]
@@ -247,7 +245,7 @@ class ManagerMetadata extends CoherenceMetadata {
       client_xact_id = acq.client_xact_id,
       manager_xact_id = manager_xact_id,
       addr_beat = addr_beat,
-      data = data), { case TLId => id })
+      data = data)(p))
   }
 
   /** Construct an [[uncore.GrantToDst]] to respond to an [[uncore.Acquire]] with some overrides
@@ -275,31 +273,31 @@ class ManagerMetadata extends CoherenceMetadata {
     * @param incoming the incoming [[uncore.ReleaseFromSrc]]
     */
   def onRelease(incoming: ReleaseFromSrc): ManagerMetadata =
-    Bundle(co.managerMetadataOnRelease(incoming, incoming.client_id, this), { case TLId => id })
+    co.managerMetadataOnRelease(incoming, incoming.client_id, this)
 
   /** New metadata after sending a [[uncore.GrantToDst]]
     *
     * @param outgoing the outgoing [[uncore.GrantToDst]]
     */
   def onGrant(outgoing: GrantToDst): ManagerMetadata =
-    Bundle(co.managerMetadataOnGrant(outgoing, outgoing.client_id, this), { case TLId => id })
+    co.managerMetadataOnGrant(outgoing, outgoing.client_id, this)
 }
 
 /** Factories for ManagerMetadata, including on reset */
 object ManagerMetadata {
-  def apply(sharers: UInt, state: UInt = UInt(width = 0)) = {
+  def apply(sharers: UInt, state: UInt = UInt(width = 0))(implicit p: Parameters) = {
     val meta = Wire(new ManagerMetadata)
     //meta.state := state TODO: Fix 0-width wires in Chisel 
     meta.sharers := sharers
     meta
   }
-  def apply() = {
+  def apply(implicit p: Parameters) = {
     val meta = Wire(new ManagerMetadata)
     //meta.state := UInt(width = 0) TODO: Fix 0-width wires in Chisel 
     meta.sharers := meta.co.dir.flush
     meta
   }
-  def onReset = new ManagerMetadata().co.managerMetadataOnReset
+  def onReset(implicit p: Parameters) = ManagerMetadata(p)
 }
 
 /** HierarchicalMetadata is used in a cache in a multi-level memory hierarchy
@@ -310,9 +308,9 @@ object ManagerMetadata {
   * applied by contextually mapping [[uncore.TLId]] to one of 
   * [[uncore.InnerTLId]] or [[uncore.OuterTLId]].
   */ 
-class HierarchicalMetadata extends CoherenceMetadata {
-  val inner: ManagerMetadata = Bundle(new ManagerMetadata, {case TLId => params(InnerTLId)})
-  val outer: ClientMetadata = Bundle(new ClientMetadata, {case TLId => params(OuterTLId)})
+class HierarchicalMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
+  val inner: ManagerMetadata = Bundle(new ManagerMetadata()(p.alterPartial({case TLId => p(InnerTLId)})))
+  val outer: ClientMetadata = Bundle(new ClientMetadata()(p.alterPartial({case TLId => p(OuterTLId)})))
   def ===(rhs: HierarchicalMetadata): Bool = 
     this.inner === rhs.inner && this.outer === rhs.outer
   def !=(rhs: HierarchicalMetadata): Bool = !this.===(rhs)
@@ -320,13 +318,15 @@ class HierarchicalMetadata extends CoherenceMetadata {
 
 /** Factories for HierarchicalMetadata, including on reset */
 object HierarchicalMetadata {
-  def apply(inner: ManagerMetadata, outer: ClientMetadata): HierarchicalMetadata = {
+  def apply(inner: ManagerMetadata, outer: ClientMetadata)
+           (implicit p: Parameters): HierarchicalMetadata = {
     val m = Wire(new HierarchicalMetadata)
     m.inner := inner
     m.outer := outer
     m
   }
-  def onReset: HierarchicalMetadata = apply(ManagerMetadata.onReset, ClientMetadata.onReset)
+  def onReset(implicit p: Parameters): HierarchicalMetadata = 
+    apply(ManagerMetadata.onReset, ClientMetadata.onReset)
 }
 
 /** Identifies the TLId of the inner network in a hierarchical cache controller */ 

@@ -18,23 +18,26 @@ case object CacheBlockBytes extends Field[Int]
 case object CacheBlockOffsetBits extends Field[Int]
 case object ECCCode extends Field[Option[Code]]
 
-abstract trait CacheParameters extends UsesParameters {
-  val nSets = params(NSets)
-  val blockOffBits = params(CacheBlockOffsetBits)
+trait HasCacheParameters {
+  implicit val p: Parameters
+  val nSets = p(NSets)
+  val blockOffBits = p(CacheBlockOffsetBits)
   val idxBits = log2Up(nSets)
   val untagBits = blockOffBits + idxBits
-  val tagBits = params(PAddrBits) - untagBits
-  val nWays = params(NWays)
+  val tagBits = p(PAddrBits) - untagBits
+  val nWays = p(NWays)
   val wayBits = log2Up(nWays)
   val isDM = nWays == 1
-  val rowBits = params(RowBits)
+  val rowBits = p(RowBits)
   val rowBytes = rowBits/8
   val rowOffBits = log2Up(rowBytes)
-  val code = params(ECCCode).getOrElse(new IdentityCode)
+  val code = p(ECCCode).getOrElse(new IdentityCode)
 }
 
-abstract class CacheBundle extends Bundle with CacheParameters
-abstract class CacheModule extends Module with CacheParameters
+abstract class CacheModule(implicit val p: Parameters) extends Module
+  with HasCacheParameters
+abstract class CacheBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
+  with HasCacheParameters
 
 class StoreGen(typ: UInt, addr: UInt, dat: UInt) {
   val byte = typ === MT_B || typ === MT_BU
@@ -66,8 +69,8 @@ class LoadGen(typ: UInt, addr: UInt, dat: UInt, zero: Bool) {
   val byte = Cat(Mux(zero || t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
 }
 
-class AMOALU extends CacheModule {
-  val operandBits = params(AmoAluOperandBits)
+class AMOALU(implicit p: Parameters) extends CacheModule()(p) {
+  val operandBits = p(AmoAluOperandBits)
   require(operandBits == 64)
   val io = new Bundle {
     val addr = Bits(INPUT, blockOffBits)
@@ -125,23 +128,23 @@ class RandomReplacement(ways: Int) extends ReplacementPolicy {
   def hit = {}
 }
 
-abstract class Metadata extends CacheBundle {
+abstract class Metadata(implicit p: Parameters) extends CacheBundle()(p) {
   val tag = Bits(width = tagBits)
   val coh: CoherenceMetadata
 }
 
-class MetaReadReq extends CacheBundle {
+class MetaReadReq(implicit p: Parameters) extends CacheBundle()(p) {
   val idx  = Bits(width = idxBits)
 }
 
-class MetaWriteReq[T <: Metadata](gen: T) extends MetaReadReq {
+class MetaWriteReq[T <: Metadata](gen: T)(implicit p: Parameters) extends MetaReadReq()(p) {
   val way_en = Bits(width = nWays)
   val data = gen.cloneType
-  override def cloneType = new MetaWriteReq(gen).asInstanceOf[this.type]
+  override def cloneType = new MetaWriteReq(gen)(p).asInstanceOf[this.type]
 }
 
-class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
-  val rstVal = makeRstVal()
+class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) extends CacheModule()(p) {
+  val rstVal = onReset()
   val io = new Bundle {
     val read = Decoupled(new MetaReadReq).flip
     val write = Decoupled(new MetaWriteReq(rstVal)).flip
@@ -166,24 +169,24 @@ class MetadataArray[T <: Metadata](makeRstVal: () => T) extends CacheModule {
   io.write.ready := !rst
 }
 
-abstract trait L2HellaCacheParameters extends CacheParameters with CoherenceAgentParameters {
+trait HasL2HellaCacheParameters extends HasCacheParameters with HasCoherenceAgentParameters {
   val idxMSB = idxBits-1
   val idxLSB = 0
-  val blockAddrBits = params(TLBlockAddrBits)
+  val blockAddrBits = p(TLBlockAddrBits)
   val refillCyclesPerBeat = outerDataBits/rowBits
   val refillCycles = refillCyclesPerBeat*outerDataBeats
-  val internalDataBeats = params(CacheBlockBytes)*8/rowBits
+  val internalDataBeats = p(CacheBlockBytes)*8/rowBits
   require(refillCyclesPerBeat == 1)
-  val amoAluOperandBits = params(AmoAluOperandBits)
+  val amoAluOperandBits = p(AmoAluOperandBits)
   require(amoAluOperandBits <= innerDataBits)
   require(rowBits == innerDataBits) // TODO: relax this by improving s_data_* states
-  val nSecondaryMisses = params(NSecondaryMisses)
+  val nSecondaryMisses = p(NSecondaryMisses)
   val isLastLevelCache = true
-  val ignoresWriteMask = !params(ECCCode).isEmpty
+  val ignoresWriteMask = !p(ECCCode).isEmpty
 }
 
-abstract class L2HellaCacheBundle extends Bundle with L2HellaCacheParameters
-abstract class L2HellaCacheModule extends Module with L2HellaCacheParameters {
+abstract class L2HellaCacheModule(implicit val p: Parameters) extends Module
+    with HasL2HellaCacheParameters {
   def doInternalOutputArbitration[T <: Data : ClassTag](
       out: DecoupledIO[T],
       ins: Seq[DecoupledIO[T]]) {
@@ -192,39 +195,42 @@ abstract class L2HellaCacheModule extends Module with L2HellaCacheParameters {
     arb.io.in <> ins 
   }
 
-  def doInternalInputRouting[T <: HasL2Id](in: ValidIO[T], outs: Seq[ValidIO[T]]) {
+  def doInternalInputRouting[T <: Bundle with HasL2Id](in: ValidIO[T], outs: Seq[ValidIO[T]]) {
     outs.map(_.bits := in.bits)
     outs.zipWithIndex.map { case (o,i) => o.valid := in.valid && in.bits.id === UInt(i) }
   }
 }
 
-trait HasL2Id extends Bundle with CoherenceAgentParameters {
+abstract class L2HellaCacheBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
+  with HasL2HellaCacheParameters
+
+trait HasL2Id extends HasCoherenceAgentParameters {
   val id = UInt(width  = log2Up(nTransactors + 1))
 }
 
-trait HasL2InternalRequestState extends L2HellaCacheBundle {
+trait HasL2InternalRequestState extends HasL2HellaCacheParameters {
   val tag_match = Bool()
   val meta = new L2Metadata
   val way_en = Bits(width = nWays)
 }
 
-trait HasL2BeatAddr extends L2HellaCacheBundle {
+trait HasL2BeatAddr extends HasL2HellaCacheParameters {
   val addr_beat = UInt(width = log2Up(refillCycles))
 }
 
-trait HasL2Data extends L2HellaCacheBundle 
+trait HasL2Data extends HasL2HellaCacheParameters
     with HasL2BeatAddr {
   val data = UInt(width = rowBits)
   def hasData(dummy: Int = 0) = Bool(true)
   def hasMultibeatData(dummy: Int = 0) = Bool(refillCycles > 1)
 }
 
-class L2Metadata extends Metadata with L2HellaCacheParameters {
+class L2Metadata(implicit p: Parameters) extends Metadata()(p) with HasL2HellaCacheParameters {
   val coh = new HierarchicalMetadata
 }
 
 object L2Metadata {
-  def apply(tag: Bits, coh: HierarchicalMetadata) = {
+  def apply(tag: Bits, coh: HierarchicalMetadata)(implicit p: Parameters) = {
     val meta = Wire(new L2Metadata)
     meta.tag := tag
     meta.coh := coh
@@ -232,31 +238,33 @@ object L2Metadata {
   }
 }
 
-class L2MetaReadReq extends MetaReadReq with HasL2Id {
+class L2MetaReadReq(implicit p: Parameters) extends MetaReadReq()(p) with HasL2Id {
   val tag = Bits(width = tagBits)
 }
 
-class L2MetaWriteReq extends MetaWriteReq[L2Metadata](new L2Metadata)
+class L2MetaWriteReq(implicit p: Parameters) extends MetaWriteReq[L2Metadata](new L2Metadata)(p)
     with HasL2Id {
   override def cloneType = new L2MetaWriteReq().asInstanceOf[this.type]
 }
 
-class L2MetaResp extends L2HellaCacheBundle
+class L2MetaResp(implicit p: Parameters) extends L2HellaCacheBundle()(p)
   with HasL2Id 
   with HasL2InternalRequestState
 
-trait HasL2MetaReadIO extends L2HellaCacheBundle {
+trait HasL2MetaReadIO extends HasL2HellaCacheParameters {
   val read = Decoupled(new L2MetaReadReq)
   val resp = Valid(new L2MetaResp).flip
 }
 
-trait HasL2MetaWriteIO extends L2HellaCacheBundle {
+trait HasL2MetaWriteIO extends HasL2HellaCacheParameters {
   val write = Decoupled(new L2MetaWriteReq)
 }
 
-class L2MetaRWIO extends L2HellaCacheBundle with HasL2MetaReadIO with HasL2MetaWriteIO
+class L2MetaRWIO(implicit p: Parameters) extends L2HellaCacheBundle()(p)
+  with HasL2MetaReadIO
+  with HasL2MetaWriteIO
 
-class L2MetadataArray extends L2HellaCacheModule {
+class L2MetadataArray(implicit p: Parameters) extends L2HellaCacheModule()(p) {
   val io = new L2MetaRWIO().flip
 
   def onReset = L2Metadata(UInt(0), HierarchicalMetadata.onReset)
@@ -274,7 +282,7 @@ class L2MetadataArray extends L2HellaCacheModule {
   val s2_tag_match = s2_tag_match_way.orR
   val s2_hit_coh = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEnable(meta.io.resp(w).coh, s1_clk_en)))
 
-  val replacer = params(Replacer)()
+  val replacer = p(Replacer)()
   val s1_replaced_way_en = UIntToOH(replacer.way)
   val s2_replaced_way_en = UIntToOH(RegEnable(replacer.way, s1_clk_en))
   val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => 
@@ -290,32 +298,36 @@ class L2MetadataArray extends L2HellaCacheModule {
   io.resp.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
 }
 
-class L2DataReadReq extends L2HellaCacheBundle 
+class L2DataReadReq(implicit p: Parameters) extends L2HellaCacheBundle()(p)
     with HasL2BeatAddr 
     with HasL2Id {
   val addr_idx = UInt(width = idxBits)
   val way_en = Bits(width = nWays)
 }
 
-class L2DataWriteReq extends L2DataReadReq 
+class L2DataWriteReq(implicit p: Parameters) extends L2DataReadReq()(p)
     with HasL2Data {
   val wmask  = Bits(width = rowBits/8)
 }
 
-class L2DataResp extends L2HellaCacheBundle with HasL2Id with HasL2Data
+class L2DataResp(implicit p: Parameters) extends L2HellaCacheBundle()(p)
+  with HasL2Id
+  with HasL2Data
 
-trait HasL2DataReadIO extends L2HellaCacheBundle { 
+trait HasL2DataReadIO extends HasL2HellaCacheParameters { 
   val read = Decoupled(new L2DataReadReq)
   val resp = Valid(new L2DataResp).flip
 }
 
-trait HasL2DataWriteIO extends L2HellaCacheBundle { 
+trait HasL2DataWriteIO extends HasL2HellaCacheParameters { 
   val write = Decoupled(new L2DataWriteReq)
 }
 
-class L2DataRWIO extends L2HellaCacheBundle with HasL2DataReadIO with HasL2DataWriteIO
+class L2DataRWIO(implicit p: Parameters) extends L2HellaCacheBundle()(p)
+  with HasL2DataReadIO
+  with HasL2DataWriteIO
 
-class L2DataArray(delay: Int) extends L2HellaCacheModule {
+class L2DataArray(delay: Int)(implicit p: Parameters) extends L2HellaCacheModule()(p) {
   val io = new L2DataRWIO().flip
 
   val array = SeqMem(Vec(Bits(width=8), rowBits/8), nWays*nSets*refillCycles)
@@ -333,7 +345,8 @@ class L2DataArray(delay: Int) extends L2HellaCacheModule {
   io.write.ready := Bool(true)
 }
 
-class L2HellaCacheBank extends HierarchicalCoherenceAgent with L2HellaCacheParameters {
+class L2HellaCacheBank(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p)
+    with HasL2HellaCacheParameters {
   require(isPow2(nSets))
   require(isPow2(nWays)) 
 
@@ -347,12 +360,13 @@ class L2HellaCacheBank extends HierarchicalCoherenceAgent with L2HellaCacheParam
   data.io <> tshrfile.io.data
 }
 
-class TSHRFileIO extends HierarchicalTLIO {
+class TSHRFileIO(implicit p: Parameters) extends HierarchicalTLIO()(p) {
   val meta = new L2MetaRWIO
   val data = new L2DataRWIO
 }
 
-class TSHRFile extends L2HellaCacheModule with HasCoherenceAgentWiringHelpers {
+class TSHRFile(implicit p: Parameters) extends L2HellaCacheModule()(p)
+    with HasCoherenceAgentWiringHelpers {
   val io = new TSHRFileIO
 
   // Create TSHRs for outstanding transactions
@@ -418,15 +432,16 @@ class TSHRFile extends L2HellaCacheModule with HasCoherenceAgentWiringHelpers {
 }
 
 
-class L2XactTrackerIO extends HierarchicalXactTrackerIO {
+class L2XactTrackerIO(implicit p: Parameters) extends HierarchicalXactTrackerIO()(p) {
   val data = new L2DataRWIO
   val meta = new L2MetaRWIO
   val wb = new L2WritebackIO
 }
 
-abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
+abstract class L2XactTracker(implicit p: Parameters) extends XactTracker()(p)
+    with HasL2HellaCacheParameters {
   class CacheBlockBuffer { // TODO
-    val buffer = Reg(Bits(width = params(CacheBlockBytes)*8))
+    val buffer = Reg(Bits(width = p(CacheBlockBytes)*8))
 
     def internal = Vec(Bits(width = rowBits), internalDataBeats).fromBits(buffer)
     def inner = Vec(Bits(width = innerDataBits), innerDataBeats).fromBits(buffer)
@@ -440,29 +455,29 @@ abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
     } else { (UInt(0), inc) }
   }
 
-  def connectInternalDataBeatCounter[T <: HasL2BeatAddr](
+  def connectInternalDataBeatCounter[T <: L2HellaCacheBundle with HasL2BeatAddr](
       in: DecoupledIO[T],
       beat: UInt = UInt(0),
       full_block: Bool = Bool(true)): (UInt, Bool) = {
     connectDataBeatCounter(in.fire(), in.bits, beat, full_block)
   }
 
-  def connectInternalDataBeatCounter[T <: HasL2Data](
+  def connectInternalDataBeatCounter[T <: L2HellaCacheBundle with HasL2Data](
       in: ValidIO[T],
       full_block: Bool): Bool = {
     connectDataBeatCounter(in.valid, in.bits, UInt(0), full_block)._2
   }
 
-  def addPendingBitInternal[T <: HasL2BeatAddr](in: DecoupledIO[T]) =
+  def addPendingBitInternal[T <: L2HellaCacheBundle with HasL2BeatAddr](in: DecoupledIO[T]) =
     Fill(in.bits.refillCycles, in.fire()) & UIntToOH(in.bits.addr_beat)
 
-  def addPendingBitInternal[T <: HasL2BeatAddr](in: ValidIO[T]) =
+  def addPendingBitInternal[T <: L2HellaCacheBundle with HasL2BeatAddr](in: ValidIO[T]) =
     Fill(in.bits.refillCycles, in.valid) & UIntToOH(in.bits.addr_beat)
 
-  def dropPendingBit[T <: HasL2BeatAddr] (in: DecoupledIO[T]) =
+  def dropPendingBit[T <: L2HellaCacheBundle with HasL2BeatAddr] (in: DecoupledIO[T]) =
     ~Fill(in.bits.refillCycles, in.fire()) | ~UIntToOH(in.bits.addr_beat)
 
-  def dropPendingBitInternal[T <: HasL2BeatAddr] (in: ValidIO[T]) =
+  def dropPendingBitInternal[T <: L2HellaCacheBundle with HasL2BeatAddr] (in: ValidIO[T]) =
     ~Fill(in.bits.refillCycles, in.valid) | ~UIntToOH(in.bits.addr_beat)
 
   def addPendingBitWhenBeatHasPartialWritemask(in: DecoupledIO[AcquireFromSrc]): UInt = {
@@ -474,10 +489,10 @@ abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
   def pinAllReadyValidLow[T <: Data](b: Bundle) {
     b.elements.foreach {
       _._2 match {
-        case d: DecoupledIO[T] =>
+        case d: DecoupledIO[_] =>
           if(d.ready.dir == OUTPUT) d.ready := Bool(false)
           else if(d.valid.dir == OUTPUT) d.valid := Bool(false)
-        case v: ValidIO[T] => if(v.valid.dir == OUTPUT) v.valid := Bool(false) 
+        case v: ValidIO[_] => if(v.valid.dir == OUTPUT) v.valid := Bool(false) 
         case b: Bundle => pinAllReadyValidLow(b)
         case _ =>
       }
@@ -485,14 +500,14 @@ abstract class L2XactTracker extends XactTracker with L2HellaCacheParameters {
   }
 }
 
-class L2VoluntaryReleaseTracker(trackerId: Int) extends L2XactTracker {
+class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTracker()(p) {
   val io = new L2XactTrackerIO
   pinAllReadyValidLow(io)
 
   val s_idle :: s_meta_read :: s_meta_resp :: s_busy :: s_meta_write :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_idle)
 
-  val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => params(InnerTLId); case TLDataBits => 0 }))
+  val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => p(InnerTLId); case TLDataBits => 0 }))
   val data_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerDataBits)))
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact_old_meta = Reg{ new L2Metadata }
@@ -579,7 +594,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int) extends L2XactTracker {
 }
 
 
-class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
+class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTracker()(p) {
   val io = new L2XactTrackerIO
   pinAllReadyValidLow(io)
 
@@ -587,7 +602,7 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
   val state = Reg(init=s_idle)
 
   // State holding transaction metadata
-  val xact = Reg(Bundle(new AcquireFromSrc, { case TLId => params(InnerTLId) }))
+  val xact = Reg(Bundle(new AcquireFromSrc, { case TLId => p(InnerTLId) }))
   val data_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerDataBits)))
   val wmask_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerDataBits/8)))
   val xact_tag_match = Reg{ Bool() }
@@ -667,15 +682,15 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
     wmask_buffer(beat) := ~UInt(0, wmask_buffer.head.getWidth)
     when(xact.is(Acquire.putAtomicType) && xact.addr_beat === beat) { amo_result := old_data }
   }
-  def mergeDataInternal[T <: HasL2Data with HasL2BeatAddr](in: ValidIO[T]) {
+  def mergeDataInternal[T <: L2HellaCacheBundle with HasL2Data with HasL2BeatAddr](in: ValidIO[T]) {
     when(in.valid) { mergeData(rowBits)(in.bits.addr_beat, in.bits.data) }
   }
-  def mergeDataInner[T <: HasTileLinkData with HasTileLinkBeatId](in: DecoupledIO[T]) {
+  def mergeDataInner[T <: TLBundle with HasTileLinkData with HasTileLinkBeatId](in: DecoupledIO[T]) {
     when(in.fire() && in.bits.hasData()) { 
       mergeData(innerDataBits)(in.bits.addr_beat, in.bits.data)
     }
   }
-  def mergeDataOuter[T <: HasTileLinkData with HasTileLinkBeatId](in: DecoupledIO[T]) {
+  def mergeDataOuter[T <: TLBundle with HasTileLinkData with HasTileLinkBeatId](in: DecoupledIO[T]) {
     when(in.fire() && in.bits.hasData()) { 
       mergeData(outerDataBits)(in.bits.addr_beat, in.bits.data)
     }
@@ -956,24 +971,24 @@ class L2AcquireTracker(trackerId: Int) extends L2XactTracker {
     "AcquireTracker accepted data beat from different network source than initial request.")
 }
 
-class L2WritebackReq extends L2Metadata with HasL2Id {
+class L2WritebackReq(implicit p: Parameters) extends L2Metadata()(p) with HasL2Id {
   val idx  = Bits(width = idxBits)
   val way_en = Bits(width = nWays)
 }
 
-class L2WritebackResp extends L2HellaCacheBundle with HasL2Id
+class L2WritebackResp(implicit p: Parameters) extends L2HellaCacheBundle()(p) with HasL2Id
 
-class L2WritebackIO extends L2HellaCacheBundle {
+class L2WritebackIO(implicit p: Parameters) extends L2HellaCacheBundle()(p) {
   val req = Decoupled(new L2WritebackReq)
   val resp = Valid(new L2WritebackResp).flip
 }
 
-class L2WritebackUnitIO extends HierarchicalXactTrackerIO {
+class L2WritebackUnitIO(implicit p: Parameters) extends HierarchicalXactTrackerIO()(p) {
   val wb = new L2WritebackIO().flip
   val data = new L2DataRWIO
 }
 
-class L2WritebackUnit(trackerId: Int) extends L2XactTracker {
+class L2WritebackUnit(trackerId: Int)(implicit p: Parameters) extends L2XactTracker()(p) {
   val io = new L2WritebackUnitIO
   pinAllReadyValidLow(io)
 

@@ -38,24 +38,25 @@ case object TLNetworkIsOrderedP2P extends Field[Boolean]
 case object TLWriteMaskBits extends Field[Int]
 
 /** Utility trait for building Modules and Bundles that use TileLink parameters */
-trait TileLinkParameters extends UsesParameters {
-  val tlCoh = params(TLCoherencePolicy)
-  val tlNManagers = params(TLNManagers)
-  val tlNClients = params(TLNClients)
-  val tlNCachingClients = params(TLNCachingClients)
-  val tlNCachelessClients = params(TLNCachelessClients)
+trait HasTileLinkParameters {
+  implicit val p: Parameters
+  val tlCoh = p(TLCoherencePolicy)
+  val tlNManagers = p(TLNManagers)
+  val tlNClients = p(TLNClients)
+  val tlNCachingClients = p(TLNCachingClients)
+  val tlNCachelessClients = p(TLNCachelessClients)
   val tlClientIdBits =  log2Up(tlNClients)
   val tlManagerIdBits =  log2Up(tlNManagers)
-  val tlMaxClientXacts = params(TLMaxClientXacts)
-  val tlMaxClientsPerPort = params(TLMaxClientsPerPort)
-  val tlMaxManagerXacts = params(TLMaxManagerXacts)
+  val tlMaxClientXacts = p(TLMaxClientXacts)
+  val tlMaxClientsPerPort = p(TLMaxClientsPerPort)
+  val tlMaxManagerXacts = p(TLMaxManagerXacts)
   val tlClientXactIdBits = log2Up(tlMaxClientXacts*tlMaxClientsPerPort)
   val tlManagerXactIdBits = log2Up(tlMaxManagerXacts)
-  val tlBlockAddrBits = params(TLBlockAddrBits)
-  val tlDataBits = params(TLDataBits)
+  val tlBlockAddrBits = p(TLBlockAddrBits)
+  val tlDataBits = p(TLDataBits)
   val tlDataBytes = tlDataBits/8
-  val tlDataBeats = params(TLDataBeats)
-  val tlWriteMaskBits = params(TLWriteMaskBits)
+  val tlDataBeats = p(TLDataBeats)
+  val tlWriteMaskBits = p(TLWriteMaskBits)
   val tlBeatAddrBits = log2Up(tlDataBeats)
   val tlByteAddrBits = log2Up(tlWriteMaskBits)
   val tlMemoryOpcodeBits = M_SZ
@@ -68,32 +69,34 @@ trait TileLinkParameters extends UsesParameters {
                                    tlMemoryOpcodeBits)) + 1
   val tlGrantTypeBits = max(log2Up(Grant.nBuiltInTypes), 
                               tlCoh.grantTypeWidth) + 1
-  val tlNetworkPreservesPointToPointOrdering = params(TLNetworkIsOrderedP2P)
+  val tlNetworkPreservesPointToPointOrdering = p(TLNetworkIsOrderedP2P)
   val tlNetworkDoesNotInterleaveBeats = true
-  val amoAluOperandBits = params(AmoAluOperandBits)
+  val amoAluOperandBits = p(AmoAluOperandBits)
 }
 
-abstract class TLBundle extends Bundle with TileLinkParameters
-abstract class TLModule extends Module with TileLinkParameters
+abstract class TLModule(implicit val p: Parameters) extends Module
+  with HasTileLinkParameters
+abstract class TLBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
+  with HasTileLinkParameters
 
 /** Base trait for all TileLink channels */
-trait TileLinkChannel extends TLBundle {
+abstract class TileLinkChannel(implicit p: Parameters) extends TLBundle()(p) {
   def hasData(dummy: Int = 0): Bool
   def hasMultibeatData(dummy: Int = 0): Bool
 }
 /** Directionality of message channel. Used to hook up logical network ports to physical network ports */
-trait ClientToManagerChannel extends TileLinkChannel
+abstract class ClientToManagerChannel(implicit p: Parameters) extends TileLinkChannel()(p)
 /** Directionality of message channel. Used to hook up logical network ports to physical network ports */
-trait ManagerToClientChannel extends TileLinkChannel
+abstract class ManagerToClientChannel(implicit p: Parameters) extends TileLinkChannel()(p)
 /** Directionality of message channel. Used to hook up logical network ports to physical network ports */
-trait ClientToClientChannel extends TileLinkChannel // Unused for now
+abstract class ClientToClientChannel(implicit p: Parameters) extends TileLinkChannel()(p) // Unused for now
 
 /** Common signals that are used in multiple channels.
   * These traits are useful for type parameterizing bundle wiring functions.
   */
 
 /** Address of a cache block. */
-trait HasCacheBlockAddress extends TLBundle {
+trait HasCacheBlockAddress extends HasTileLinkParameters {
   val addr_block = UInt(width = tlBlockAddrBits)
 
   def conflicts(that: HasCacheBlockAddress) = this.addr_block === that.addr_block
@@ -101,17 +104,17 @@ trait HasCacheBlockAddress extends TLBundle {
 }
 
 /** Sub-block address or beat id of multi-beat data */
-trait HasTileLinkBeatId extends TLBundle {
+trait HasTileLinkBeatId extends HasTileLinkParameters {
   val addr_beat = UInt(width = tlBeatAddrBits)
 }
 
 /* Client-side transaction id. Usually Miss Status Handling Register File index */
-trait HasClientTransactionId extends TLBundle {
+trait HasClientTransactionId extends HasTileLinkParameters {
   val client_xact_id = Bits(width = tlClientXactIdBits)
 }
 
 /** Manager-side transaction id. Usually Transaction Status Handling Register File index. */
-trait HasManagerTransactionId extends TLBundle {
+trait HasManagerTransactionId extends HasTileLinkParameters {
   val manager_xact_id = Bits(width = tlManagerXactIdBits)
 }
 
@@ -124,7 +127,7 @@ trait HasTileLinkData extends HasTileLinkBeatId {
 }
 
 /** The id of a client source or destination. Used in managers. */
-trait HasClientId extends TLBundle {
+trait HasClientId extends HasTileLinkParameters {
   val client_id = UInt(width = tlClientIdBits)
 }
 
@@ -138,7 +141,7 @@ trait HasClientId extends TLBundle {
   * PutAtomic built-in types. After sending an Acquire, clients must
   * wait for a manager to send them a [[uncore.Grant]] message in response.
   */
-class Acquire extends ClientToManagerChannel 
+class Acquire(implicit p: Parameters) extends ClientToManagerChannel()(p)
     with HasCacheBlockAddress 
     with HasClientTransactionId 
     with HasTileLinkData {
@@ -219,7 +222,7 @@ class Acquire extends ClientToManagerChannel
 }
 
 /** [[uncore.Acquire]] with an extra field stating its source id */
-class AcquireFromSrc extends Acquire with HasClientId
+class AcquireFromSrc(implicit p: Parameters) extends Acquire()(p) with HasClientId
 
 /** Contains definitions of the the built-in Acquire types and a factory
   * for [[uncore.Acquire]]
@@ -249,17 +252,18 @@ object Acquire {
   def typesWithMultibeatData = Vec(putBlockType)
   def typesOnSubBlocks = Vec(putType, getType, putAtomicType)
 
-  def fullWriteMask = SInt(-1, width = new Acquire().tlWriteMaskBits).toUInt
+  def fullWriteMask(implicit p: Parameters) = SInt(-1, width = p(TLWriteMaskBits)).toUInt
 
   // Most generic constructor
   def apply(
-      is_builtin_type: Bool,
-      a_type: Bits,
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0),
-      union: UInt = UInt(0)): Acquire = {
+        is_builtin_type: Bool,
+        a_type: Bits,
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt = UInt(0),
+        data: UInt = UInt(0),
+        union: UInt = UInt(0))
+      (implicit p: Parameters): Acquire = {
     val acq = Wire(new Acquire)
     acq.is_builtin_type := is_builtin_type
     acq.a_type := a_type
@@ -272,7 +276,7 @@ object Acquire {
   }
   // Copy constructor
   def apply(a: Acquire): Acquire = {
-    val acq = Wire(new Acquire)
+    val acq = Wire(new Acquire()(a.p))
     acq := a
     acq
   }
@@ -292,10 +296,11 @@ object Acquire {
   */
 object Get {
   def apply(
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt,
-      alloc: Bool = Bool(true)): Acquire = {
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt,
+        alloc: Bool = Bool(true))
+      (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.getType,
@@ -305,12 +310,13 @@ object Get {
       union = Cat(MT_Q, M_XRD, alloc))
   }
   def apply(
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt,
-      addr_byte: UInt,
-      operand_size: UInt,
-      alloc: Bool): Acquire = {
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt,
+        addr_byte: UInt,
+        operand_size: UInt,
+        alloc: Bool)
+      (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.getType,
@@ -332,9 +338,10 @@ object Get {
   */
 object GetBlock {
   def apply(
-      client_xact_id: UInt = UInt(0),
-      addr_block: UInt,
-      alloc: Bool = Bool(true)): Acquire = {
+        client_xact_id: UInt = UInt(0),
+        addr_block: UInt,
+        alloc: Bool = Bool(true))
+      (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.getBlockType,
@@ -352,8 +359,9 @@ object GetBlock {
   */
 object GetPrefetch {
   def apply(
-      client_xact_id: UInt,
-      addr_block: UInt): Acquire = {
+       client_xact_id: UInt,
+       addr_block: UInt)
+      (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.prefetchType,
@@ -376,11 +384,12 @@ object GetPrefetch {
   */
 object Put {
   def apply(
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt,
-      data: UInt,
-      wmask: UInt = Acquire.fullWriteMask): Acquire = {
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt,
+        data: UInt,
+        wmask: Option[UInt]= None)
+      (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.putType,
@@ -388,7 +397,7 @@ object Put {
       addr_beat = addr_beat,
       client_xact_id = client_xact_id,
       data = data,
-      union = Cat(wmask, Bool(true)))
+      union = Cat(wmask.getOrElse(Acquire.fullWriteMask), Bool(true)))
   }
 }
 
@@ -407,11 +416,12 @@ object Put {
   */
 object PutBlock {
   def apply(
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt,
-      data: UInt,
-      wmask: UInt): Acquire = {
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt,
+        data: UInt,
+        wmask: UInt)
+      (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.putBlockType,
@@ -422,11 +432,12 @@ object PutBlock {
       union = Cat(wmask, (wmask != Acquire.fullWriteMask)))
   }
   def apply(
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt,
-      data: UInt,
-      alloc: Bool = Bool(true)): Acquire = {
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt,
+        data: UInt,
+        alloc: Bool = Bool(true))
+      (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.putBlockType,
@@ -446,8 +457,9 @@ object PutBlock {
   */
 object PutPrefetch {
   def apply(
-      client_xact_id: UInt,
-      addr_block: UInt): Acquire = {
+        client_xact_id: UInt,
+        addr_block: UInt)
+      (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.prefetchType,
@@ -470,13 +482,14 @@ object PutPrefetch {
   */
 object PutAtomic {
   def apply(
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt,
-      addr_byte: UInt,
-      atomic_opcode: UInt,
-      operand_size: UInt,
-      data: UInt): Acquire = {
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt,
+        addr_byte: UInt,
+        atomic_opcode: UInt,
+        operand_size: UInt,
+        data: UInt)
+      (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
       a_type = Acquire.putAtomicType,
@@ -493,7 +506,7 @@ object PutAtomic {
   * The available types of Probes are customized by a particular
   * [[uncore.CoherencePolicy]].
   */
-class Probe extends ManagerToClientChannel 
+class Probe(implicit p: Parameters) extends ManagerToClientChannel()(p)
     with HasCacheBlockAddress {
   val p_type = UInt(width = tlCoh.probeTypeWidth)
 
@@ -503,7 +516,7 @@ class Probe extends ManagerToClientChannel
 }
 
 /** [[uncore.Probe]] with an extra field stating its destination id */
-class ProbeToDst extends Probe with HasClientId
+class ProbeToDst(implicit p: Parameters) extends Probe()(p) with HasClientId
 
 /** Contains factories for [[uncore.Probe]] and [[uncore.ProbeToDst]]
   *
@@ -515,13 +528,13 @@ class ProbeToDst extends Probe with HasClientId
   * @param addr_block address of the cache block
   */
 object Probe {
-  def apply(p_type: UInt, addr_block: UInt): Probe = {
+  def apply(p_type: UInt, addr_block: UInt)(implicit p: Parameters): Probe = {
     val prb = Wire(new Probe)
     prb.p_type := p_type
     prb.addr_block := addr_block
     prb
   }
-  def apply(dst: UInt, p_type: UInt, addr_block: UInt): ProbeToDst = {
+  def apply(dst: UInt, p_type: UInt, addr_block: UInt)(implicit p: Parameters): ProbeToDst = {
     val prb = Wire(new ProbeToDst)
     prb.client_id := dst
     prb.p_type := p_type
@@ -537,7 +550,7 @@ object Probe {
   * a particular [[uncore.CoherencePolicy]]. Releases may contain data or may be
   * simple acknowledgements. Voluntary Releases are acknowledged with [[uncore.Grant Grants]].
   */
-class Release extends ClientToManagerChannel 
+class Release(implicit p: Parameters) extends ClientToManagerChannel()(p)
     with HasCacheBlockAddress 
     with HasClientTransactionId 
     with HasTileLinkData {
@@ -555,7 +568,7 @@ class Release extends ClientToManagerChannel
 }
 
 /** [[uncore.Release]] with an extra field stating its source id */
-class ReleaseFromSrc extends Release with HasClientId
+class ReleaseFromSrc(implicit p: Parameters) extends Release()(p) with HasClientId
 
 /** Contains a [[uncore.Release]] factory
   *
@@ -571,12 +584,13 @@ class ReleaseFromSrc extends Release with HasClientId
   */
 object Release {
   def apply(
-      voluntary: Bool,
-      r_type: UInt,
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): Release = {
+        voluntary: Bool,
+        r_type: UInt,
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt = UInt(0),
+        data: UInt = UInt(0))
+      (implicit p: Parameters): Release = {
     val rel = Wire(new Release)
     rel.r_type := r_type
     rel.client_xact_id := client_xact_id
@@ -595,7 +609,7 @@ object Release {
   * coherence policies may also define custom Grant types. Grants may contain data
   * or may be simple acknowledgements. Grants are responded to with [[uncore.Finish]].
   */
-class Grant extends ManagerToClientChannel 
+class Grant(implicit p: Parameters) extends ManagerToClientChannel()(p)
     with HasTileLinkData 
     with HasClientTransactionId 
     with HasManagerTransactionId {
@@ -616,14 +630,14 @@ class Grant extends ManagerToClientChannel
   def isVoluntary(dummy: Int = 0): Bool = isBuiltInType() && (g_type === Grant.voluntaryAckType)
   def requiresAck(dummy: Int = 0): Bool = !Bool(tlNetworkPreservesPointToPointOrdering) && !isVoluntary()
   def makeFinish(dummy: Int = 0): Finish = {
-    val f = Wire(Bundle(new Finish, { case TLMaxManagerXacts => tlMaxManagerXacts }))
+    val f = Wire(Bundle(new Finish))
     f.manager_xact_id := this.manager_xact_id
     f
   }
 }
 
 /** [[uncore.Grant]] with an extra field stating its destination */
-class GrantToDst extends Grant with HasClientId
+class GrantToDst(implicit p: Parameters) extends Grant()(p) with HasClientId
 
 /** Contains definitions of the the built-in grant types and factories 
   * for [[uncore.Grant]] and [[uncore.GrantToDst]]
@@ -650,12 +664,13 @@ object Grant {
   def typesWithMultibeatData= Vec(getDataBlockType)
 
   def apply(
-      is_builtin_type: Bool,
-      g_type: UInt,
-      client_xact_id: UInt, 
-      manager_xact_id: UInt,
-      addr_beat: UInt,
-      data: UInt): Grant = {
+        is_builtin_type: Bool,
+        g_type: UInt,
+        client_xact_id: UInt, 
+        manager_xact_id: UInt,
+        addr_beat: UInt,
+        data: UInt)
+      (implicit p: Parameters): Grant = {
     val gnt = Wire(new Grant)
     gnt.is_builtin_type := is_builtin_type
     gnt.g_type := g_type
@@ -667,13 +682,14 @@ object Grant {
   }
 
   def apply(
-      dst: UInt,
-      is_builtin_type: Bool,
-      g_type: UInt,
-      client_xact_id: UInt,
-      manager_xact_id: UInt,
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): GrantToDst = {
+        dst: UInt,
+        is_builtin_type: Bool,
+        g_type: UInt,
+        client_xact_id: UInt,
+        manager_xact_id: UInt,
+        addr_beat: UInt = UInt(0),
+        data: UInt = UInt(0))
+      (implicit p: Parameters): GrantToDst = {
     val gnt = Wire(new GrantToDst)
     gnt.client_id := dst
     gnt.is_builtin_type := is_builtin_type
@@ -692,20 +708,21 @@ object Grant {
   * When a Finish message is received, a manager knows it is safe to begin
   * processing other transactions that touch the same cache block.
   */
-class Finish extends ClientToManagerChannel with HasManagerTransactionId {
+class Finish(implicit p: Parameters) extends ClientToManagerChannel()(p)
+    with HasManagerTransactionId {
   def hasData(dummy: Int = 0) = Bool(false)
   def hasMultibeatData(dummy: Int = 0) = Bool(false)
 }
 
 /** Complete IO definition for incoherent TileLink, including networking headers */
-class UncachedTileLinkIO extends TLBundle {
+class UncachedTileLinkIO(implicit p: Parameters) extends TLBundle()(p) {
   val acquire   = new DecoupledIO(new LogicalNetworkIO(new Acquire))
   val grant     = new DecoupledIO(new LogicalNetworkIO(new Grant)).flip
   val finish = new DecoupledIO(new LogicalNetworkIO(new Finish))
 }
 
 /** Complete IO definition for coherent TileLink, including networking headers */
-class TileLinkIO extends UncachedTileLinkIO {
+class TileLinkIO(implicit p: Parameters) extends UncachedTileLinkIO()(p) {
   val probe     = new DecoupledIO(new LogicalNetworkIO(new Probe)).flip
   val release   = new DecoupledIO(new LogicalNetworkIO(new Release))
 }
@@ -722,7 +739,7 @@ class TileLinkIO extends UncachedTileLinkIO {
   * assumption that a [[uncore.FinishUnit]] has been coupled to the TileLinkIO port
   * to deal with acking received [[uncore.Grant Grants]].
   */
-class ClientUncachedTileLinkIO extends TLBundle {
+class ClientUncachedTileLinkIO(implicit p: Parameters) extends TLBundle()(p) {
   val acquire   = new DecoupledIO(new Acquire)
   val grant     = new DecoupledIO(new Grant).flip
 }
@@ -730,7 +747,7 @@ class ClientUncachedTileLinkIO extends TLBundle {
 /** This version of TileLinkIO does not contain network headers. 
   * It is intended for use within client agents.
   */
-class ClientTileLinkIO extends ClientUncachedTileLinkIO {
+class ClientTileLinkIO(implicit p: Parameters) extends ClientUncachedTileLinkIO()(p) {
   val probe     = new DecoupledIO(new Probe).flip
   val release   = new DecoupledIO(new Release)
 }
@@ -749,7 +766,7 @@ class ClientTileLinkIO extends ClientUncachedTileLinkIO {
   * see Finished so they know when to allow new transactions on a cache
   * block to proceed.
   */
-class ManagerTileLinkIO extends TLBundle {
+class ManagerTileLinkIO(implicit p: Parameters) extends TLBundle()(p) {
   val acquire   = new DecoupledIO(new AcquireFromSrc).flip
   val grant     = new DecoupledIO(new GrantToDst)
   val finish    = new DecoupledIO(new Finish).flip
@@ -759,31 +776,21 @@ class ManagerTileLinkIO extends TLBundle {
 
 /** Utilities for safely wrapping a *UncachedTileLink by pinning probe.ready and release.valid low */
 object TileLinkIOWrapper {
-  def apply(utl: ClientUncachedTileLinkIO, p: Parameters): ClientTileLinkIO = {
-    val conv = Module(new ClientTileLinkIOWrapper)(p)
-    conv.io.in <> utl
+  def apply(tl: ClientUncachedTileLinkIO)(implicit p: Parameters): ClientTileLinkIO = {
+    val conv = Module(new ClientTileLinkIOWrapper)
+    conv.io.in <> tl
     conv.io.out
   }
-  def apply(utl: ClientUncachedTileLinkIO): ClientTileLinkIO = {
-    val conv = Module(new ClientTileLinkIOWrapper)
-    conv.io.in <> utl
+  def apply(tl: UncachedTileLinkIO)(implicit p: Parameters): TileLinkIO = {
+    val conv = Module(new TileLinkIOWrapper)
+    conv.io.in <> tl
     conv.io.out
   }
   def apply(tl: ClientTileLinkIO): ClientTileLinkIO = tl
-  def apply(utl: UncachedTileLinkIO, p: Parameters): TileLinkIO = {
-    val conv = Module(new TileLinkIOWrapper)(p)
-    conv.io.in <> utl
-    conv.io.out
-  }
-  def apply(utl: UncachedTileLinkIO): TileLinkIO = {
-    val conv = Module(new TileLinkIOWrapper)
-    conv.io.in <> utl
-    conv.io.out
-  }
   def apply(tl: TileLinkIO): TileLinkIO = tl
 }
 
-class TileLinkIOWrapper extends TLModule {
+class TileLinkIOWrapper(implicit p: Parameters) extends TLModule()(p) {
   val io = new Bundle {
     val in = new UncachedTileLinkIO().flip
     val out = new TileLinkIO
@@ -795,7 +802,7 @@ class TileLinkIOWrapper extends TLModule {
   io.out.release.valid := Bool(false)
 }
 
-class ClientTileLinkIOWrapper extends TLModule {
+class ClientTileLinkIOWrapper(implicit p: Parameters) extends TLModule()(p) {
   val io = new Bundle {
     val in = new ClientUncachedTileLinkIO().flip
     val out = new ClientTileLinkIO
@@ -809,14 +816,16 @@ class ClientTileLinkIOWrapper extends TLModule {
 /** Used to track metadata for transactions where multiple secondary misses have been merged
   * and handled by a single transaction tracker.
   */
-class SecondaryMissInfo extends TLBundle // TODO: add a_type to merge e.g. Get+GetBlocks, and/or HasClientId
+class SecondaryMissInfo(implicit p: Parameters) extends TLBundle()(p)
     with HasTileLinkBeatId
     with HasClientTransactionId
+// TODO: add a_type to merge e.g. Get+GetBlocks, and/or HasClientId
 
 /** A helper module that automatically issues [[uncore.Finish]] messages in repsonse
   * to [[uncore.Grant]] that it receives from a manager and forwards to a client
   */
-class FinishUnit(srcId: Int = 0, outstanding: Int = 2) extends TLModule with HasDataBeatCounters {
+class FinishUnit(srcId: Int = 0, outstanding: Int = 2)(implicit p: Parameters) extends TLModule()(p)
+    with HasDataBeatCounters {
   val io = new Bundle {
     val grant = Decoupled(new LogicalNetworkIO(new Grant)).flip
     val refill = Decoupled(new Grant)
@@ -862,12 +871,12 @@ class FinishUnit(srcId: Int = 0, outstanding: Int = 2) extends TLModule with Has
   }
 }
 
-class FinishQueueEntry extends TLBundle {
+class FinishQueueEntry(implicit p: Parameters) extends TLBundle()(p) {
     val fin = new Finish
-    val dst = UInt(width = log2Up(params(LNEndpoints)))
+    val dst = UInt(width = log2Up(p(LNEndpoints)))
 }
 
-class FinishQueue(entries: Int) extends Queue(new FinishQueueEntry, entries)
+class FinishQueue(entries: Int)(implicit p: Parameters) extends Queue(new FinishQueueEntry()(p), entries)
 
 /** A port to convert [[uncore.ClientTileLinkIO]].flip into [[uncore.TileLinkIO]]
   *
@@ -879,7 +888,8 @@ class FinishQueue(entries: Int) extends Queue(new FinishQueueEntry, entries)
   * @param clientId network port id of this agent
   * @param addrConvert how a physical address maps to a destination manager port id
   */
-class ClientTileLinkNetworkPort(clientId: Int, addrConvert: UInt => UInt) extends TLModule {
+class ClientTileLinkNetworkPort(clientId: Int, addrConvert: UInt => UInt)
+                               (implicit p: Parameters) extends TLModule()(p) {
   val io = new Bundle {
     val client = new ClientTileLinkIO().flip
     val network = new TileLinkIO
@@ -904,9 +914,10 @@ class ClientTileLinkNetworkPort(clientId: Int, addrConvert: UInt => UInt) extend
 
 object ClientTileLinkHeaderCreator {
   def apply[T <: ClientToManagerChannel with HasCacheBlockAddress](
-      in: DecoupledIO[T],
-      clientId: Int,
-      addrConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
+        in: DecoupledIO[T],
+        clientId: Int,
+        addrConvert: UInt => UInt)
+      (implicit p: Parameters): DecoupledIO[LogicalNetworkIO[T]] = {
     val out = Wire(new DecoupledIO(new LogicalNetworkIO(in.bits)))
     out.bits.payload := in.bits
     out.bits.header.src := UInt(clientId)
@@ -927,7 +938,8 @@ object ClientTileLinkHeaderCreator {
   * @param managerId the network port id of this agent
   * @param idConvert how a sharer id maps to a destination client port id
   */
-class ManagerTileLinkNetworkPort(managerId: Int, idConvert: UInt => UInt) extends TLModule {
+class ManagerTileLinkNetworkPort(managerId: Int, idConvert: UInt => UInt)
+                                (implicit p: Parameters) extends TLModule()(p) {
   val io = new Bundle {
     val manager = new ManagerTileLinkIO().flip
     val network = new TileLinkIO().flip
@@ -943,9 +955,10 @@ class ManagerTileLinkNetworkPort(managerId: Int, idConvert: UInt => UInt) extend
 
 object ManagerTileLinkHeaderCreator {
   def apply[T <: ManagerToClientChannel with HasClientId](
-      in: DecoupledIO[T],
-      managerId: Int,
-      idConvert: UInt => UInt): DecoupledIO[LogicalNetworkIO[T]] = {
+        in: DecoupledIO[T],
+        managerId: Int,
+        idConvert: UInt => UInt)
+      (implicit p: Parameters): DecoupledIO[LogicalNetworkIO[T]] = {
     val out = Wire(new DecoupledIO(new LogicalNetworkIO(in.bits)))
     out.bits.payload := in.bits
     out.bits.header.src := UInt(managerId)
@@ -960,7 +973,7 @@ object ManagerTileLinkHeaderCreator {
 case class TileLinkDepths(acq: Int, prb: Int, rel: Int, gnt: Int, fin: Int)
 
 /** Optionally enqueues each [[uncore.TileLinkChannel]] individually */
-class TileLinkEnqueuer(depths: TileLinkDepths) extends Module {
+class TileLinkEnqueuer(depths: TileLinkDepths)(implicit p: Parameters) extends Module {
   val io = new Bundle {
     val client = new TileLinkIO().flip
     val manager = new TileLinkIO
@@ -973,18 +986,18 @@ class TileLinkEnqueuer(depths: TileLinkDepths) extends Module {
 }
 
 object TileLinkEnqueuer {
-  def apply(in: TileLinkIO, depths: TileLinkDepths)(p: Parameters): TileLinkIO = {
-    val t = Module(new TileLinkEnqueuer(depths))(p)
+  def apply(in: TileLinkIO, depths: TileLinkDepths)(implicit p: Parameters): TileLinkIO = {
+    val t = Module(new TileLinkEnqueuer(depths))
     t.io.client <> in
     t.io.manager
   }
-  def apply(in: TileLinkIO, depth: Int)(p: Parameters): TileLinkIO = {
-    apply(in, TileLinkDepths(depth, depth, depth, depth, depth))(p)
+  def apply(in: TileLinkIO, depth: Int)(implicit p: Parameters): TileLinkIO = {
+    apply(in, TileLinkDepths(depth, depth, depth, depth, depth))
   }
 }
 
 /** Utility functions for constructing TileLinkIO arbiters */
-trait TileLinkArbiterLike extends TileLinkParameters {
+trait TileLinkArbiterLike extends HasTileLinkParameters {
   // Some shorthand type variables
   type ManagerSourcedWithId = ManagerToClientChannel with HasClientTransactionId
   type ClientSourcedWithId = ClientToManagerChannel with HasClientTransactionId
@@ -1086,7 +1099,8 @@ trait TileLinkArbiterLike extends TileLinkParameters {
 }
 
 /** Abstract base case for any Arbiters that have UncachedTileLinkIOs */
-abstract class UncachedTileLinkIOArbiter(val arbN: Int) extends Module with TileLinkArbiterLike {
+abstract class UncachedTileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) extends Module
+    with TileLinkArbiterLike {
   val io = new Bundle {
     val in = Vec(new UncachedTileLinkIO, arbN).flip
     val out = new UncachedTileLinkIO
@@ -1097,7 +1111,8 @@ abstract class UncachedTileLinkIOArbiter(val arbN: Int) extends Module with Tile
 }
 
 /** Abstract base case for any Arbiters that have cached TileLinkIOs */
-abstract class TileLinkIOArbiter(val arbN: Int) extends Module with TileLinkArbiterLike {
+abstract class TileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) extends Module
+    with TileLinkArbiterLike {
   val io = new Bundle {
     val in = Vec(new TileLinkIO, arbN).flip
     val out = new TileLinkIO
@@ -1133,15 +1148,15 @@ trait UsesNewId extends TileLinkArbiterLike {
 }
 
 // Now we can mix-in thevarious id-generation traits to make concrete arbiter classes
-class UncachedTileLinkIOArbiterThatAppendsArbiterId(val n: Int) extends UncachedTileLinkIOArbiter(n) with AppendsArbiterId
-class UncachedTileLinkIOArbiterThatPassesId(val n: Int) extends UncachedTileLinkIOArbiter(n) with PassesId
-class UncachedTileLinkIOArbiterThatUsesNewId(val n: Int) extends UncachedTileLinkIOArbiter(n) with UsesNewId
-class TileLinkIOArbiterThatAppendsArbiterId(val n: Int) extends TileLinkIOArbiter(n) with AppendsArbiterId
-class TileLinkIOArbiterThatPassesId(val n: Int) extends TileLinkIOArbiter(n) with PassesId
-class TileLinkIOArbiterThatUsesNewId(val n: Int) extends TileLinkIOArbiter(n) with UsesNewId
+class UncachedTileLinkIOArbiterThatAppendsArbiterId(val n: Int)(implicit p: Parameters) extends UncachedTileLinkIOArbiter(n)(p) with AppendsArbiterId
+class UncachedTileLinkIOArbiterThatPassesId(val n: Int)(implicit p: Parameters) extends UncachedTileLinkIOArbiter(n)(p) with PassesId
+class UncachedTileLinkIOArbiterThatUsesNewId(val n: Int)(implicit p: Parameters) extends UncachedTileLinkIOArbiter(n)(p) with UsesNewId
+class TileLinkIOArbiterThatAppendsArbiterId(val n: Int)(implicit p: Parameters) extends TileLinkIOArbiter(n)(p) with AppendsArbiterId
+class TileLinkIOArbiterThatPassesId(val n: Int)(implicit p: Parameters) extends TileLinkIOArbiter(n)(p) with PassesId
+class TileLinkIOArbiterThatUsesNewId(val n: Int)(implicit p: Parameters) extends TileLinkIOArbiter(n)(p) with UsesNewId
 
 /** Concrete uncached client-side arbiter that appends the arbiter's port id to client_xact_id */
-class ClientUncachedTileLinkIOArbiter(val arbN: Int) extends Module with TileLinkArbiterLike with AppendsArbiterId {
+class ClientUncachedTileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) extends Module with TileLinkArbiterLike with AppendsArbiterId {
   val io = new Bundle {
     val in = Vec(new ClientUncachedTileLinkIO, arbN).flip
     val out = new ClientUncachedTileLinkIO
@@ -1151,7 +1166,7 @@ class ClientUncachedTileLinkIOArbiter(val arbN: Int) extends Module with TileLin
 }
 
 /** Concrete client-side arbiter that appends the arbiter's port id to client_xact_id */
-class ClientTileLinkIOArbiter(val arbN: Int) extends Module with TileLinkArbiterLike with AppendsArbiterId {
+class ClientTileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) extends Module with TileLinkArbiterLike with AppendsArbiterId {
   val io = new Bundle {
     val in = Vec(new ClientTileLinkIO, arbN).flip
     val out = new ClientTileLinkIO
@@ -1246,7 +1261,7 @@ class ClientTileLinkIOUnwrapperInfo extends Bundle {
   val builtin = Bool()
 }
 
-class ClientTileLinkIOUnwrapper extends TLModule {
+class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
   val io = new Bundle {
     val in = new ClientTileLinkIO().flip
     val out = new ClientUncachedTileLinkIO
@@ -1328,12 +1343,13 @@ class ClientTileLinkIOUnwrapper extends TLModule {
   io.in.probe.valid := Bool(false)
 }
 
-class NastiIOTileLinkIOConverterInfo extends TLBundle {
+class NastiIOTileLinkIOConverterInfo(implicit p: Parameters) extends TLBundle()(p) {
   val byteOff = UInt(width = tlByteAddrBits)
   val subblock = Bool()
 }
 
-class NastiIOTileLinkIOConverter(implicit val p: Parameters) extends TLModule with HasNastiParameters {
+class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
+    with HasNastiParameters {
   val io = new Bundle {
     val tl = new ClientUncachedTileLinkIO().flip
     val nasti = new NastiIO
@@ -1349,7 +1365,7 @@ class NastiIOTileLinkIOConverter(implicit val p: Parameters) extends TLModule wi
     MT_Q  -> UInt(log2Up(tlDataBytes))))
 
   val dataBits = tlDataBits*tlDataBeats 
-  val dstIdBits = params(LNHeaderBits)
+  val dstIdBits = p(LNHeaderBits)
   require(tlDataBits == nastiXDataBits, "Data sizes between LLC and MC don't agree") // TODO: remove this restriction
   require(tlDataBeats < (1 << nastiXLenBits), "Can't have that many beats")
   require(dstIdBits + tlClientXactIdBits < nastiXIdBits, "NastiIO converter is going truncate tags: " + dstIdBits + " + " + tlClientXactIdBits + " >= " + nastiXIdBits)
