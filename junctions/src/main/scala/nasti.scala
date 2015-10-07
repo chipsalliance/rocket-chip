@@ -6,8 +6,6 @@ import scala.math.max
 import scala.collection.mutable.ArraySeq
 
 case object NastiKey extends Field[NastiParameters]
-case object NastiAddrMap extends Field[AddrMap]
-case object MMIOBase extends Field[BigInt]
 
 case class NastiParameters(dataBits: Int, addrBits: Int, idBits: Int)
 
@@ -571,9 +569,9 @@ class NastiRecursiveInterconnect(
   }
 }
 
-class NastiTopInterconnect(val nMasters: Int, val nSlaves: Int)
+class NastiTopInterconnect(val nMasters: Int, val nSlaves: Int, addrMap: AddrMap)
                           (implicit p: Parameters) extends NastiInterconnect {
-  val temp = Module(new NastiRecursiveInterconnect(nMasters, nSlaves, p(NastiAddrMap)))
+  val temp = Module(new NastiRecursiveInterconnect(nMasters, nSlaves, addrMap))
 
   temp.io.masters.zip(io.masters).foreach { case (t, i) =>
     t.ar <> i.ar

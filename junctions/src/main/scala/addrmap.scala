@@ -5,6 +5,33 @@ package junctions
 import Chisel._
 import scala.collection.mutable.HashMap
 
+case object PAddrBits extends Field[Int]
+case object VAddrBits extends Field[Int]
+case object PgIdxBits extends Field[Int]
+case object PgLevels extends Field[Int]
+case object PgLevelBits extends Field[Int]
+case object ASIdBits extends Field[Int]
+case object PPNBits extends Field[Int]
+case object VPNBits extends Field[Int]
+
+case object GlobalAddrMap extends Field[AddrMap]
+case object MMIOBase extends Field[BigInt]
+
+trait HasAddrMapParameters {
+  implicit val p: Parameters
+
+  val paddrBits = p(PAddrBits)
+  val vaddrBits = p(VAddrBits)
+  val pgIdxBits = p(PgIdxBits)
+  val ppnBits = p(PPNBits)
+  val vpnBits = p(VPNBits)
+  val pgLevels = p(PgLevels)
+  val pgLevelBits = p(PgLevelBits)
+  val asIdBits = p(ASIdBits)
+
+  val addrMap = new AddrHashMap(p(GlobalAddrMap))
+}
+
 abstract class MemRegion { def size: BigInt }
 
 case class MemSize(size: BigInt, prot: Int) extends MemRegion
