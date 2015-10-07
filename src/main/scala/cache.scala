@@ -11,7 +11,6 @@ case object NWays extends Field[Int]
 case object RowBits extends Field[Int]
 case object Replacer extends Field[() => ReplacementPolicy]
 case object AmoAluOperandBits extends Field[Int]
-case object L2DirectoryRepresentation extends Field[DirectoryRepresentation]
 case object NPrimaryMisses extends Field[Int]
 case object NSecondaryMisses extends Field[Int]
 case object CacheBlockBytes extends Field[Int]
@@ -168,6 +167,8 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
   io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
   io.write.ready := !rst
 }
+
+case object L2DirectoryRepresentation extends Field[DirectoryRepresentation]
 
 trait HasL2HellaCacheParameters extends HasCacheParameters with HasCoherenceAgentParameters {
   val idxMSB = idxBits-1
