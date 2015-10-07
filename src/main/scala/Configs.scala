@@ -169,7 +169,7 @@ class DefaultConfig extends ChiselConfig (
       case UseBackupMemoryPort => true
       case MMIOBase => BigInt(1 << 30) // 1 GB
       case ExternalIOStart => 2 * site(MMIOBase)
-      case NastiAddrMap => AddrMap(
+      case GlobalAddrMap => AddrMap(
         AddrMapEntry("mem", None, MemSize(site(MMIOBase), AddrMapConsts.RWX)),
         AddrMapEntry("conf", None, MemSubmap(site(ExternalIOStart) - site(MMIOBase), genCsrAddrMap)),
         AddrMapEntry("io", Some(site(ExternalIOStart)), MemSize(2 * site(MMIOBase), AddrMapConsts.RW)))

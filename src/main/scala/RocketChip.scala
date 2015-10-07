@@ -224,16 +224,17 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   val outerTLParams = p.alterPartial({ case TLId => "L2ToMC" })
   val backendBuffering = TileLinkDepths(0,0,0,0,0)
 
-  val addrMap = new AddrHashMap(p(NastiAddrMap))
+  val addrMap = p(GlobalAddrMap)
+  val addrHashMap = new AddrHashMap(addrMap)
   val nMasters = managerEndpoints.size + 1
-  val nSlaves = addrMap.nEntries
+  val nSlaves = addrHashMap.nEntries
 
   println("Generated Address Map")
-  for ((name, base, size, _) <- addrMap.sortedEntries) {
+  for ((name, base, size, _) <- addrHashMap.sortedEntries) {
     println(f"\t$name%s $base%x - ${base + size - 1}%x")
   }
 
-  val interconnect = Module(new NastiTopInterconnect(nMasters, nSlaves)(p))
+  val interconnect = Module(new NastiTopInterconnect(nMasters, nSlaves, addrMap)(p))
 
   for ((bank, i) <- managerEndpoints.zipWithIndex) {
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
@@ -248,17 +249,17 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
 
   for (i <- 0 until nTiles) {
     val csrName = s"conf:csr$i"
-    val csrPort = addrMap(csrName).port
+    val csrPort = addrHashMap(csrName).port
     val conv = Module(new SMIIONastiIOConverter(xLen, csrAddrBits))
     conv.io.nasti <> interconnect.io.slaves(csrPort)
     io.csr(i) <> conv.io.smi
   }
 
   val conv = Module(new SMIIONastiIOConverter(scrDataBits, scrAddrBits))
-  conv.io.nasti <> interconnect.io.slaves(addrMap("conf:scr").port)
+  conv.io.nasti <> interconnect.io.slaves(addrHashMap("conf:scr").port)
   io.scr <> conv.io.smi
 
-  io.mmio <> interconnect.io.slaves(addrMap("io").port)
+  io.mmio <> interconnect.io.slaves(addrHashMap("io").port)
 
   val mem_channels = interconnect.io.slaves.take(nMemChannels)
 
