@@ -22,17 +22,9 @@ case object CoreDataBits extends Field[Int]
 case object CoreDCacheReqTagBits extends Field[Int]
 case object NCustomMRWCSRs extends Field[Int]
 
-trait HasCoreParameters {
+trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
   val xLen = p(XLen)
-  val paddrBits = p(PAddrBits)
-  val vaddrBits = p(VAddrBits)
-  val pgIdxBits = p(PgIdxBits)
-  val ppnBits = p(PPNBits)
-  val vpnBits = p(VPNBits)
-  val pgLevels = p(PgLevels)
-  val pgLevelBits = p(PgLevelBits)
-  val asIdBits = p(ASIdBits)
 
   val retireWidth = p(RetireWidth)
   val fetchWidth = p(FetchWidth)

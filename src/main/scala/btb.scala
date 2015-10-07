@@ -10,7 +10,7 @@ case object BtbKey extends Field[BtbParameters]
 case class BtbParameters(nEntries: Int = 62, nRAS: Int = 2, updatesOutOfOrder: Boolean = false)
 
 abstract trait HasBtbParameters extends HasCoreParameters {
-  val matchBits = p(PgIdxBits)
+  val matchBits = pgIdxBits
   val entries = p(BtbKey).nEntries
   val nRAS = p(BtbKey).nRAS
   val updatesOutOfOrder = p(BtbKey).updatesOutOfOrder

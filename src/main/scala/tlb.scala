@@ -9,8 +9,7 @@ import scala.math._
 
 case object NTLBEntries extends Field[Int]
 
-trait HasTLBParameters extends HasCoreParameters {
-  val addrMap = new AddrHashMap(p(NastiAddrMap))
+trait HasTLBParameters extends HasAddrMapParameters {
   val entries = p(NTLBEntries)
   val camAddrBits = ceil(log(entries)/log(2)).toInt
   val camTagBits = asIdBits + vpnBits
