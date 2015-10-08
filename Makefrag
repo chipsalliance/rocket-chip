@@ -8,7 +8,14 @@ PROJECT := rocketchip
 CXX ?= g++
 CXXFLAGS := -O1
 
-SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
+# If chiselVersion is set in the environment, pass it as an explicit
+#  SBT property setting (to minimize the opportunity for invisible
+#  behavioral changes).
+ifneq (,$(chiselVersion))
+SBT_FLAGS += -DchiselVersion=$(chiselVersion)
+endif
+
+SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar $(SBT_FLAGS)
 SHELL := /bin/bash
 
 CHISEL_ARGS := $(MODEL) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configInstance $(PROJECT).$(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
