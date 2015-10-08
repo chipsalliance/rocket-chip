@@ -128,6 +128,7 @@ object DefaultTestSuites {
     "led", "mbist"))
 }
 
+<<<<<<< HEAD
 object TestGenerator extends App with FileSystemUtilities {
   val projectName = args(0)
   val topModuleName = args(1)
@@ -171,4 +172,11 @@ object TestGenerator extends App with FileSystemUtilities {
   val w = createOutputFile(configClassName + ".cst")
   w.write(world.getConstraints)
   w.close
+=======
+object TestGenerator extends App {
+  val gen = () => Class.forName("rocketchip."+args(0)).newInstance().asInstanceOf[Module]
+  //chiselMain.run(args.drop(1), gen)
+  Driver.elaborateWithConfigName(gen, args(1))
+  //TestGeneration.generateMakefrag
+>>>>>>> Add Chisel3 test harness
 }
