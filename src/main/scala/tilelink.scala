@@ -1488,88 +1488,90 @@ class TileLinkIONarrower(factor: Int) extends  TLModule {
     val out = Bundle(new ClientUncachedTileLinkIO)(outerParams)
   }
 
-  val iacq = io.in.acquire.bits
-  val ognt = io.out.grant.bits
+  if (factor > 1) {
+    val iacq = io.in.acquire.bits
+    val ognt = io.out.grant.bits
 
-  val stretch = iacq.a_type === Acquire.putBlockType
-  val shrink = iacq.a_type === Acquire.getBlockType
+    val stretch = iacq.a_type === Acquire.putBlockType
+    val shrink = iacq.a_type === Acquire.getBlockType
 
-  val acq_data_buffer = Reg(UInt(width = tlDataBits))
-  val acq_wmask_buffer = Reg(UInt(width = tlWriteMaskBits))
-  val acq_client_id = Reg(iacq.client_xact_id)
-  val acq_addr_block = Reg(iacq.addr_block)
-  val acq_addr_beat = Reg(iacq.addr_beat)
-  val oacq_ctr = Counter(factor)
+    val acq_data_buffer = Reg(UInt(width = tlDataBits))
+    val acq_wmask_buffer = Reg(UInt(width = tlWriteMaskBits))
+    val acq_client_id = Reg(iacq.client_xact_id)
+    val acq_addr_block = Reg(iacq.addr_block)
+    val acq_addr_beat = Reg(iacq.addr_beat)
+    val oacq_ctr = Counter(factor)
 
-  val get_block_acquire = GetBlock(
-    client_xact_id = iacq.client_xact_id,
-    addr_block = iacq.addr_block,
-    alloc = iacq.allocate())
+    val get_block_acquire = GetBlock(
+      client_xact_id = iacq.client_xact_id,
+      addr_block = iacq.addr_block,
+      alloc = iacq.allocate())
 
-  val put_block_acquire = PutBlock(
-    client_xact_id = acq_client_id,
-    addr_block = acq_addr_block,
-    addr_beat = if (factor > 1)
-                  Cat(acq_addr_beat, oacq_ctr.value)
-                else acq_addr_beat,
-    data = acq_data_buffer(outerDataBits - 1, 0),
-    wmask = acq_wmask_buffer(outerWriteMaskBits - 1, 0))
+    val put_block_acquire = PutBlock(
+      client_xact_id = acq_client_id,
+      addr_block = acq_addr_block,
+      addr_beat = if (factor > 1)
+                    Cat(acq_addr_beat, oacq_ctr.value)
+                  else acq_addr_beat,
+      data = acq_data_buffer(outerDataBits - 1, 0),
+      wmask = acq_wmask_buffer(outerWriteMaskBits - 1, 0))
 
-  val sending_put = Reg(init = Bool(false))
+    val sending_put = Reg(init = Bool(false))
 
-  io.out.acquire.bits := MuxBundle(iacq, Seq(
-    (sending_put, put_block_acquire),
-    (shrink, get_block_acquire)))
-  io.out.acquire.valid := sending_put || (io.in.acquire.valid && !stretch)
-  io.in.acquire.ready := !sending_put && (stretch || io.out.acquire.ready)
+    io.out.acquire.bits := MuxBundle(iacq, Seq(
+      (sending_put, put_block_acquire),
+      (shrink, get_block_acquire)))
+    io.out.acquire.valid := sending_put || (io.in.acquire.valid && !stretch)
+    io.in.acquire.ready := !sending_put && (stretch || io.out.acquire.ready)
 
-  when (io.in.acquire.fire() && stretch) {
-    acq_data_buffer := iacq.data
-    acq_wmask_buffer := iacq.wmask()
-    acq_client_id := iacq.client_xact_id
-    acq_addr_block := iacq.addr_block
-    acq_addr_beat := iacq.addr_beat
-    sending_put := Bool(true)
-  }
-
-  when (sending_put && io.out.acquire.ready) {
-    acq_data_buffer := acq_data_buffer >> outerDataBits
-    acq_wmask_buffer := acq_wmask_buffer >> outerWriteMaskBits
-    when (oacq_ctr.inc()) { sending_put := Bool(false) }
-  }
-
-  val ognt_block = ognt.hasMultibeatData()
-  val gnt_data_buffer = Reg(Vec(factor, UInt(width = outerDataBits)))
-  val gnt_client_id = Reg(ognt.client_xact_id)
-  val gnt_manager_id = Reg(ognt.manager_xact_id)
-
-  val ignt_ctr = Counter(tlDataBeats)
-  val ognt_ctr = Counter(factor)
-  val sending_get = Reg(init = Bool(false))
-
-  val get_block_grant = Grant(
-    is_builtin_type = Bool(true),
-    g_type = Grant.getDataBlockType,
-    client_xact_id = gnt_client_id,
-    manager_xact_id = gnt_manager_id,
-    addr_beat = ignt_ctr.value,
-    data = gnt_data_buffer.toBits)
-
-  io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
-  io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)
-  io.in.grant.bits := Mux(sending_get, get_block_grant, ognt)
-
-  when (io.out.grant.valid && ognt_block && !sending_get) {
-    gnt_data_buffer(ognt_ctr.value) := ognt.data
-    when (ognt_ctr.inc()) {
-      gnt_client_id := ognt.client_xact_id
-      gnt_manager_id := ognt.manager_xact_id
-      sending_get := Bool(true)
+    when (io.in.acquire.fire() && stretch) {
+      acq_data_buffer := iacq.data
+      acq_wmask_buffer := iacq.wmask()
+      acq_client_id := iacq.client_xact_id
+      acq_addr_block := iacq.addr_block
+      acq_addr_beat := iacq.addr_beat
+      sending_put := Bool(true)
     }
-  }
 
-  when (io.in.grant.ready && sending_get) {
-    ignt_ctr.inc()
-    sending_get := Bool(false)
-  }
+    when (sending_put && io.out.acquire.ready) {
+      acq_data_buffer := acq_data_buffer >> outerDataBits
+      acq_wmask_buffer := acq_wmask_buffer >> outerWriteMaskBits
+      when (oacq_ctr.inc()) { sending_put := Bool(false) }
+    }
+
+    val ognt_block = ognt.hasMultibeatData()
+    val gnt_data_buffer = Reg(Vec(factor, UInt(width = outerDataBits)))
+    val gnt_client_id = Reg(ognt.client_xact_id)
+    val gnt_manager_id = Reg(ognt.manager_xact_id)
+
+    val ignt_ctr = Counter(tlDataBeats)
+    val ognt_ctr = Counter(factor)
+    val sending_get = Reg(init = Bool(false))
+
+    val get_block_grant = Grant(
+      is_builtin_type = Bool(true),
+      g_type = Grant.getDataBlockType,
+      client_xact_id = gnt_client_id,
+      manager_xact_id = gnt_manager_id,
+      addr_beat = ignt_ctr.value,
+      data = gnt_data_buffer.toBits)
+
+    io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
+    io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)
+    io.in.grant.bits := Mux(sending_get, get_block_grant, ognt)
+
+    when (io.out.grant.valid && ognt_block && !sending_get) {
+      gnt_data_buffer(ognt_ctr.value) := ognt.data
+      when (ognt_ctr.inc()) {
+        gnt_client_id := ognt.client_xact_id
+        gnt_manager_id := ognt.manager_xact_id
+        sending_get := Bool(true)
+      }
+    }
+
+    when (io.in.grant.ready && sending_get) {
+      ignt_ctr.inc()
+      sending_get := Bool(false)
+    }
+  } else { io.out <> io.in }
 }
