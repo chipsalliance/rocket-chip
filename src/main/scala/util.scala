@@ -104,3 +104,44 @@ object FlowThroughSerializer {
     fs.io.out
   }
 } 
+
+class ReorderQueueWrite[T <: Data](dType: T, tagWidth: Int) extends Bundle {
+  val data = dType.cloneType
+  val tag = UInt(width = tagWidth)
+
+  override def cloneType =
+    new ReorderQueueWrite(dType, tagWidth).asInstanceOf[this.type]
+}
+
+class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
+    extends Module {
+  val io = new Bundle {
+    val enq = Decoupled(new ReorderQueueWrite(dType, tagWidth)).flip
+    val deq = new Bundle {
+      val valid = Bool(INPUT)
+      val tag = UInt(INPUT, tagWidth)
+      val data = dType.cloneType.asOutput
+    }
+    val full = Bool(OUTPUT)
+  }
+
+  val roq_data = Reg(Vec(dType.cloneType, size))
+  val roq_tags = Reg(Vec(UInt(width = tagWidth), size))
+  val roq_free = Reg(init = Vec.fill(size)(Bool(true)))
+
+  val roq_enq_addr = PriorityEncoder(roq_free)
+  val roq_deq_addr = PriorityEncoder(roq_tags.map(_ === io.deq.tag))
+
+  io.enq.ready := roq_free.reduce(_ || _)
+  io.deq.data := roq_data(roq_deq_addr)
+
+  when (io.enq.valid && io.enq.ready) {
+    roq_data(roq_enq_addr) := io.enq.bits.data
+    roq_tags(roq_enq_addr) := io.enq.bits.tag
+    roq_free(roq_enq_addr) := Bool(false)
+  }
+
+  when (io.deq.valid) {
+    roq_free(roq_deq_addr) := Bool(true)
+  }
+}
