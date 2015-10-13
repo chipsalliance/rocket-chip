@@ -49,7 +49,7 @@ class DefaultConfig extends ChiselConfig (
                           log2Up(site(NMemoryChannels)))
       case MIFDataBits => Dump("MEM_DATA_BITS", 128)
       case MIFAddrBits => Dump("MEM_ADDR_BITS", site(PAddrBits) - site(CacheBlockOffsetBits))
-      case MIFDataBeats => site(TLDataBits)*site(TLDataBeats)/site(MIFDataBits)
+      case MIFDataBeats => site(CacheBlockBytes) * 8 / site(MIFDataBits)
       case NASTIDataBits => site(MIFDataBits)
       case NASTIAddrBits => site(PAddrBits)
       case NASTIIdBits => site(MIFTagBits)

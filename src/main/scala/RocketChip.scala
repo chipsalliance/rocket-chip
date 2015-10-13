@@ -233,10 +233,17 @@ class OuterMemorySystem extends Module with TopLevelParameters {
   val interconnect = Module(new NASTITopInterconnect)
 
   for ((bank, i) <- managerEndpoints.zipWithIndex) {
+    val factor = params(TLDataBits) / params(MIFDataBits)
+    val outermostTLParams = outerTLParams.alterPartial({
+      case TLDataBeats => params(MIFDataBeats)
+      case TLDataBits => params(MIFDataBits)
+    })
     val unwrap = Module(new ClientTileLinkIOUnwrapper)(outerTLParams)
-    val conv = Module(new NASTIIOTileLinkIOConverter)(outerTLParams)
+    val narrow = Module(new TileLinkIONarrower(factor))(outerTLParams)
+    val conv = Module(new NASTIIOTileLinkIOConverter)(outermostTLParams)
     unwrap.io.in <> bank.outerTL
-    conv.io.tl <> unwrap.io.out
+    narrow.io.in <> unwrap.io.out
+    conv.io.tl <> narrow.io.out
     interconnect.io.masters(i) <> conv.io.nasti
   }
 
