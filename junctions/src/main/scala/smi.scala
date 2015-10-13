@@ -215,13 +215,14 @@ class SMIIONASTIWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   io.b.valid := (state === s_resp)
   io.b.bits := NASTIWriteResponseChannel(id)
 
-  val jump = PriorityMux(strb(maxWordsPerBeat - 1, 1),
-    (1 until maxWordsPerBeat).map(UInt(_)))
+  val jump = if (maxWordsPerBeat > 1)
+    PriorityMux(strb(maxWordsPerBeat - 1, 1),
+      (1 until maxWordsPerBeat).map(UInt(_)))
+    else UInt(1)
 
   when (io.aw.fire()) {
     addr := io.aw.bits.addr(addrOffBits - 1, byteOffBits)
     id := io.aw.bits.id
-    //size := io.aw.bits.size - UInt(byteOffBits)
     size := io.aw.bits.size
     last := Bool(false)
     state := s_data
