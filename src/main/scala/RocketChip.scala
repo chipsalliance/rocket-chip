@@ -68,7 +68,7 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 }
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
-  val mem = new MemIO
+  val mem = new NastiIO
 }
 
 class MultiChannelTopIO(implicit p: Parameters) extends BasicTopIO()(p) {
@@ -96,14 +96,18 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   val temp = Module(new MultiChannelTop)
   val arb = Module(new NastiArbiter(nMemChannels))
-  val conv = Module(new MemIONastiIOConverter(p(CacheBlockOffsetBits)))
   arb.io.master <> temp.io.mem
-  conv.io.nasti <> arb.io.slave
-  io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
-  io.mem.req_data <> Queue(conv.io.mem.req_data, mifDataBeats)
-  conv.io.mem.resp <> Queue(io.mem.resp, mifDataBeats)
+  io.mem.ar <> Queue(arb.io.slave.ar)
+  io.mem.aw <> Queue(arb.io.slave.aw)
+  io.mem.w  <> Queue(arb.io.slave.w)
+  arb.io.slave.r <> Queue(io.mem.r)
+  arb.io.slave.b <> Queue(io.mem.b)
   io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
   io.host <> temp.io.host
+
+  // Memory cache type should be normal non-cacheable bufferable
+  io.mem.ar.bits.cache := UInt("b0011")
+  io.mem.aw.bits.cache := UInt("b0011")
 
   // tie off the mmio port
   val errslave = Module(new NastiErrorSlave)
