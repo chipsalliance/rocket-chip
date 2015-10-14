@@ -173,7 +173,7 @@ case object L2DirectoryRepresentation extends Field[DirectoryRepresentation]
 trait HasL2HellaCacheParameters extends HasCacheParameters with HasCoherenceAgentParameters {
   val idxMSB = idxBits-1
   val idxLSB = 0
-  val blockAddrBits = p(TLBlockAddrBits)
+  //val blockAddrBits = p(TLBlockAddrBits)
   val refillCyclesPerBeat = outerDataBits/rowBits
   val refillCycles = refillCyclesPerBeat*outerDataBeats
   val internalDataBeats = p(CacheBlockBytes)*8/rowBits
@@ -419,7 +419,8 @@ class TSHRFile(implicit p: Parameters) extends L2HellaCacheModule()(p)
 
   // Create an arbiter for the one memory port
   val outerList = trackerList.map(_.io.outer) :+ wb.io.outer
-  val outer_arb = Module(new ClientTileLinkIOArbiter(outerList.size))(outerTLParams)
+  val outer_arb = Module(new ClientTileLinkIOArbiter(outerList.size)
+                                                    (p.alterPartial({ case TLId => p(OuterTLId)})))
   outer_arb.io.in <> outerList
   io.outer <> outer_arb.io.out
 
@@ -508,8 +509,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   val s_idle :: s_meta_read :: s_meta_resp :: s_busy :: s_meta_write :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_idle)
 
-  val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => p(InnerTLId); case TLDataBits => 0 }))
-  val data_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerDataBits)))
+  val xact = Reg(Bundle(new BufferedReleaseFromSrc()(p.alterPartial({case TLId => p(InnerTLId)}))))
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact_old_meta = Reg{ new L2Metadata }
   val coh = xact_old_meta.coh
@@ -525,7 +525,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   // Accept a voluntary Release (and any further beats of data)
   pending_irels := (pending_irels & dropPendingBitWhenBeatHasData(io.inner.release))
   io.inner.release.ready := state === s_idle || pending_irels.orR
-  when(io.inner.release.fire()) { data_buffer(io.irel().addr_beat) := io.irel().data }
+  when(io.inner.release.fire()) { xact.data_buffer(io.irel().addr_beat) := io.irel().data }
 
   // Begin a transaction by getting the current block metadata
   io.meta.read.valid := state === s_meta_read
@@ -543,7 +543,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   io.data.write.bits.addr_idx := xact.addr_block(idxMSB,idxLSB)
   io.data.write.bits.addr_beat := curr_write_beat
   io.data.write.bits.wmask := ~UInt(0, io.data.write.bits.wmask.getWidth)
-  io.data.write.bits.data := data_buffer(curr_write_beat)
+  io.data.write.bits.data := xact.data_buffer(curr_write_beat)
 
   // Send an acknowledgement
   io.inner.grant.valid := state === s_busy && pending_ignt && !pending_irels
@@ -603,8 +603,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val state = Reg(init=s_idle)
 
   // State holding transaction metadata
-  val xact = Reg(Bundle(new AcquireFromSrc, { case TLId => p(InnerTLId) }))
-  val data_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerDataBits)))
+  val xact = Reg(Bundle(new BufferedAcquireFromSrc()(p.alterPartial({ case TLId => p(InnerTLId) }))))
   val wmask_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerDataBits/8)))
   val xact_tag_match = Reg{ Bool() }
   val xact_way_en = Reg{ Bits(width = nWays) }
@@ -612,7 +611,8 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val pending_coh = Reg{ xact_old_meta.coh }
 
   // Secondary miss queue
-  val ignt_q = Module(new Queue(new SecondaryMissInfo, nSecondaryMisses))(innerTLParams)
+  val ignt_q = Module(new Queue(new SecondaryMissInfo()(p.alterPartial({ case TLId => p(InnerTLId) })),
+                  nSecondaryMisses))
 
   // State holding progress made on processing this transaction
   val iacq_data_done = connectIncomingDataBeatCounter(io.inner.acquire)
@@ -657,8 +657,8 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   amoalu.io.cmd := xact.op_code()
   amoalu.io.typ := xact.op_size()
   amoalu.io.lhs := io.data.resp.bits.data // default, overwritten by calls to mergeData
-  amoalu.io.rhs := data_buffer.head       // default, overwritten by calls to mergeData
-  val amo_result = xact.data // Reuse xact buffer space to store AMO result
+  amoalu.io.rhs := xact.data_buffer.head       // default, overwritten by calls to mergeData
+  val amo_result = Reg(init = UInt(0, xact.tlDataBits))
 
   // Utility functions for updating the data and metadata that will be kept in
   // the cache or granted to the original requestor after this transaction:
@@ -672,11 +672,11 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
 
   def mergeData(dataBits: Int)(beat: UInt, incoming: UInt) {
     val old_data = incoming     // Refilled, written back, or de-cached data
-    val new_data = data_buffer(beat) // Newly Put data is already in the buffer
+    val new_data = xact.data_buffer(beat) // Newly Put data is already in the buffer
     amoalu.io.lhs := old_data >> xact.amo_shift_bits()
     amoalu.io.rhs := new_data >> xact.amo_shift_bits()
     val wmask = FillInterleaved(8, wmask_buffer(beat))
-    data_buffer(beat) := ~wmask & old_data |
+    xact.data_buffer(beat) := ~wmask & old_data |
                           wmask & Mux(xact.isBuiltInType(Acquire.putAtomicType),
                                         amoalu.io.out << xact.amo_shift_bits(),
                                         new_data)
@@ -780,14 +780,12 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   // built-in Acquire from the inner TL to the outer TL
   io.outer.acquire.valid := state === s_outer_acquire &&
                             (xact.allocate() || !pending_puts(oacq_data_idx))
-  io.outer.acquire.bits := Mux(
-    xact.allocate(),
-    xact_old_meta.coh.outer.makeAcquire(
+  io.outer.acquire.bits := Mux(xact.allocate(), xact_old_meta.coh.outer, ClientMetadata.onReset)
+    .makeAcquire(
       client_xact_id = UInt(0),
       addr_block = xact.addr_block,
-      op_code = xact.op_code()),
-    Bundle(Acquire(xact))(outerTLParams))
-  io.oacq().data := data_buffer(oacq_data_idx)
+      op_code = xact.op_code())
+  io.oacq().data := xact.data_buffer(oacq_data_idx)
 
   // Handle the response from outer memory
   io.outer.grant.ready := state === s_busy
@@ -814,7 +812,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
                            manager_xact_id = UInt(trackerId), 
                            data = Mux(xact.is(Acquire.putAtomicType),
                                     amo_result,
-                                    data_buffer(ignt_data_idx)))
+                                    xact.data_buffer(ignt_data_idx)))
   io.inner.grant.bits.addr_beat := ignt_data_idx // override based on outgoing counter
 
   val pending_coh_on_ignt = HierarchicalMetadata(
@@ -864,7 +862,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   io.data.write.bits.addr_idx := xact.addr_block(idxMSB,idxLSB)
   io.data.write.bits.addr_beat := curr_write_beat
   io.data.write.bits.wmask := wmask_buffer(curr_write_beat)
-  io.data.write.bits.data := data_buffer(curr_write_beat)
+  io.data.write.bits.data := xact.data_buffer(curr_write_beat)
 
   // End a transaction by updating the block metadata
   io.meta.write.valid := state === s_meta_write
@@ -879,7 +877,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     val beat = io.iacq().addr_beat
     val wmask = io.iacq().wmask()
     val full = FillInterleaved(8, wmask)
-    data_buffer(beat) := (~full & data_buffer(beat)) | (full & io.iacq().data)
+    xact.data_buffer(beat) := (~full & xact.data_buffer(beat)) | (full & io.iacq().data)
     wmask_buffer(beat) := wmask | Mux(state === s_idle, Bits(0), wmask_buffer(beat))
   }
 
@@ -892,7 +890,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   // State machine updates and transaction handler metadata intialization
   when(state === s_idle && io.inner.acquire.valid) {
     xact := io.iacq()
-    xact.data := UInt(0)
+    amo_result := UInt(0)
     pending_puts := Mux( // Make sure to collect all data from a PutBlock
       io.iacq().isBuiltInType(Acquire.putBlockType),
       dropPendingBitWhenBeatHasData(io.inner.acquire),

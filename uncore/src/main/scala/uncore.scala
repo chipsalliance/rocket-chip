@@ -7,23 +7,31 @@ case object NReleaseTransactors extends Field[Int]
 case object NProbeTransactors extends Field[Int]
 case object NAcquireTransactors extends Field[Int]
 
+/** Identifies the TLId of the inner network in a hierarchical cache controller */ 
+case object InnerTLId extends Field[String]
+/** Identifies the TLId of the outer network in a hierarchical cache controller */ 
+case object OuterTLId extends Field[String]
+
 trait HasCoherenceAgentParameters {
   implicit val p: Parameters
   val nReleaseTransactors = 1
   val nAcquireTransactors = p(NAcquireTransactors)
   val nTransactors = nReleaseTransactors + nAcquireTransactors
-  val outerTLParams = p.alterPartial({ case TLId => p(OuterTLId)})
-  val outerDataBeats = outerTLParams(TLDataBeats)
-  val outerDataBits = outerTLParams(TLDataBits)
+  val outerTLId = p(OuterTLId)
+  val outerTLParams = p(TLKey(outerTLId))
+  val outerDataBeats = outerTLParams.dataBeats
+  val outerDataBits = outerTLParams.dataBits
   val outerBeatAddrBits = log2Up(outerDataBeats)
   val outerByteAddrBits = log2Up(outerDataBits/8)
-  val innerTLParams = p.alterPartial({case TLId => p(InnerTLId)})
-  val innerDataBeats = innerTLParams(TLDataBeats)
-  val innerDataBits = innerTLParams(TLDataBits)
-  val innerWriteMaskBits = innerTLParams(TLWriteMaskBits)
+  val outerWriteMaskBits = outerTLParams.writeMaskBits
+  val innerTLId = p(InnerTLId)
+  val innerTLParams = p(TLKey(innerTLId))
+  val innerDataBeats = innerTLParams.dataBeats
+  val innerDataBits = innerTLParams.dataBits
+  val innerWriteMaskBits = innerTLParams.writeMaskBits
   val innerBeatAddrBits = log2Up(innerDataBeats)
   val innerByteAddrBits = log2Up(innerDataBits/8)
-  require(outerDataBeats == innerDataBeats) //TODO: must fix all xact_data Vecs to remove this requirement
+  require(outerDataBeats == innerDataBeats) //TODO: fix all xact_data Vecs to remove this requirement
 }
 
 abstract class CoherenceAgentModule(implicit val p: Parameters) extends Module
@@ -52,7 +60,7 @@ trait HasCoherenceAgentWiringHelpers {
 }
 
 trait HasInnerTLIO extends HasCoherenceAgentParameters {
-  val inner = Bundle(new ManagerTileLinkIO)(innerTLParams)
+  val inner = Bundle(new ManagerTileLinkIO()(p.alterPartial({case TLId => p(InnerTLId)})))
   val incoherent = Vec(Bool(), inner.tlNCachingClients).asInput
   def iacq(dummy: Int = 0) = inner.acquire.bits
   def iprb(dummy: Int = 0) = inner.probe.bits
@@ -62,13 +70,13 @@ trait HasInnerTLIO extends HasCoherenceAgentParameters {
 }
 
 trait HasUncachedOuterTLIO extends HasCoherenceAgentParameters {
-  val outer = Bundle(new ClientUncachedTileLinkIO)(outerTLParams)
+  val outer = Bundle(new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => p(OuterTLId)})))
   def oacq(dummy: Int = 0) = outer.acquire.bits
   def ognt(dummy: Int = 0) = outer.grant.bits
 }
 
 trait HasCachedOuterTLIO extends HasCoherenceAgentParameters {
-  val outer = Bundle(new ClientTileLinkIO)(outerTLParams)
+  val outer = Bundle(new ClientTileLinkIO()(p.alterPartial({case TLId => p(OuterTLId)})))
   def oacq(dummy: Int = 0) = outer.acquire.bits
   def oprb(dummy: Int = 0) = outer.probe.bits
   def orel(dummy: Int = 0) = outer.release.bits
@@ -89,7 +97,7 @@ abstract class ManagerCoherenceAgent(implicit p: Parameters) extends CoherenceAg
     with HasCoherenceAgentWiringHelpers {
   val io = new ManagerTLIO
   def innerTL = io.inner
-  def outerTL = TileLinkIOWrapper(io.outer)(outerTLParams)
+  def outerTL = TileLinkIOWrapper(io.outer)(p.alterPartial({case TLId => p(OuterTLId)}))
   def incoherent = io.incoherent
 }
 
