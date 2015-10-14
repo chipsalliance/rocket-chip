@@ -5,58 +5,62 @@ import Chisel._
 import junctions._
 import scala.math.max
 
+case object TLId extends Field[String]
+case class TLKey(id: String) extends Field[TileLinkParameters]
+
 /** Parameters exposed to the top-level design, set based on 
   * external requirements or design space exploration
-  */
-/** Unique name per TileLink network*/
-case object TLId extends Field[String]
-/** Coherency policy used to define custom mesage types */
-case object TLCoherencePolicy extends Field[CoherencePolicy]
-/** Number of manager agents */
-case object TLNManagers extends Field[Int] 
-/** Number of client agents */
-case object TLNClients extends Field[Int]
-/** Number of client agents that cache data and use custom [[uncore.Acquire]] types */
-case object TLNCachingClients extends Field[Int]
-/** Number of client agents that do not cache data and use built-in [[uncore.Acquire]] types */
-case object TLNCachelessClients extends Field[Int]
-/** Maximum number of unique outstanding transactions per client */
-case object TLMaxClientXacts extends Field[Int]
-/** Maximum number of clients multiplexed onto a single port */
-case object TLMaxClientsPerPort extends Field[Int]
-/** Maximum number of unique outstanding transactions per manager */
-case object TLMaxManagerXacts extends Field[Int]
-/** Width of cache block addresses */
-case object TLBlockAddrBits extends Field[Int]
-/** Width of data beats */
-case object TLDataBits extends Field[Int]
-/** Number of data beats per cache block */
-case object TLDataBeats extends Field[Int]
-/** Whether the underlying physical network preserved point-to-point ordering of messages */
-case object TLNetworkIsOrderedP2P extends Field[Boolean]
-/** Number of bits in write mask (usually one per byte in beat) */
-case object TLWriteMaskBits extends Field[Int]
+  *
+  * Coherency policy used to define custom mesage types
+  * Number of manager agents
+  * Number of client agents that cache data and use custom [[uncore.Acquire]] types
+  * Number of client agents that do not cache data and use built-in [[uncore.Acquire]] types
+  * Maximum number of unique outstanding transactions per client
+  * Maximum number of clients multiplexed onto a single port
+  * Maximum number of unique outstanding transactions per manager
+  * Width of cache block addresses
+  * Total amount of data per cache block
+  * Number of data beats per cache block
+  **/
 
+case class TileLinkParameters(
+    coherencePolicy: CoherencePolicy,
+    nManagers: Int,
+    nCachingClients: Int,
+    nCachelessClients: Int,
+    maxClientXacts: Int,
+    maxClientsPerPort: Int,
+    maxManagerXacts: Int,
+    addrBits: Int,
+    dataBits: Int,
+    dataBeats: Int = 4)
+    (val dataBitsPerBeat: Int = dataBits / dataBeats,
+     val writeMaskBits: Int  = ((dataBits / dataBeats) - 1) / 8 + 1) {
+  val nClients = nCachingClients + nCachelessClients
+}
+
+  
 /** Utility trait for building Modules and Bundles that use TileLink parameters */
 trait HasTileLinkParameters {
   implicit val p: Parameters
-  val tlCoh = p(TLCoherencePolicy)
-  val tlNManagers = p(TLNManagers)
-  val tlNClients = p(TLNClients)
-  val tlNCachingClients = p(TLNCachingClients)
-  val tlNCachelessClients = p(TLNCachelessClients)
+  val tlExternal = p(TLKey(p(TLId)))
+  val tlCoh = tlExternal.coherencePolicy
+  val tlNManagers = tlExternal.nManagers
+  val tlNCachingClients = tlExternal.nCachingClients
+  val tlNCachelessClients = tlExternal.nCachelessClients
+  val tlNClients = tlExternal.nClients
   val tlClientIdBits =  log2Up(tlNClients)
   val tlManagerIdBits =  log2Up(tlNManagers)
-  val tlMaxClientXacts = p(TLMaxClientXacts)
-  val tlMaxClientsPerPort = p(TLMaxClientsPerPort)
-  val tlMaxManagerXacts = p(TLMaxManagerXacts)
+  val tlMaxClientXacts = tlExternal.maxClientXacts
+  val tlMaxClientsPerPort = tlExternal.maxClientsPerPort
+  val tlMaxManagerXacts = tlExternal.maxManagerXacts
   val tlClientXactIdBits = log2Up(tlMaxClientXacts*tlMaxClientsPerPort)
   val tlManagerXactIdBits = log2Up(tlMaxManagerXacts)
-  val tlBlockAddrBits = p(TLBlockAddrBits)
-  val tlDataBits = p(TLDataBits)
+  val tlBlockAddrBits = tlExternal.addrBits
+  val tlDataBeats = tlExternal.dataBeats
+  val tlDataBits = tlExternal.dataBitsPerBeat
   val tlDataBytes = tlDataBits/8
-  val tlDataBeats = p(TLDataBeats)
-  val tlWriteMaskBits = p(TLWriteMaskBits)
+  val tlWriteMaskBits = tlExternal.writeMaskBits
   val tlBeatAddrBits = log2Up(tlDataBeats)
   val tlByteAddrBits = log2Up(tlWriteMaskBits)
   val tlMemoryOpcodeBits = M_SZ
@@ -69,7 +73,8 @@ trait HasTileLinkParameters {
                                    tlMemoryOpcodeBits)) + 1
   val tlGrantTypeBits = max(log2Up(Grant.nBuiltInTypes), 
                               tlCoh.grantTypeWidth) + 1
-  val tlNetworkPreservesPointToPointOrdering = p(TLNetworkIsOrderedP2P)
+/** Whether the underlying physical network preserved point-to-point ordering of messages */
+  val tlNetworkPreservesPointToPointOrdering = false
   val tlNetworkDoesNotInterleaveBeats = true
   val amoAluOperandBits = p(AmoAluOperandBits)
 }
@@ -126,6 +131,11 @@ trait HasTileLinkData extends HasTileLinkBeatId {
   def hasMultibeatData(dummy: Int = 0): Bool
 }
 
+/** An entire cache block of data */
+trait HasTileLinkBlock extends HasTileLinkParameters {
+  val data_buffer = Vec(tlDataBeats, UInt(width = tlDataBits))
+}
+
 /** The id of a client source or destination. Used in managers. */
 trait HasClientId extends HasTileLinkParameters {
   val client_id = UInt(width = tlClientIdBits)
@@ -141,10 +151,10 @@ trait HasClientId extends HasTileLinkParameters {
   * PutAtomic built-in types. After sending an Acquire, clients must
   * wait for a manager to send them a [[uncore.Grant]] message in response.
   */
-class Acquire(implicit p: Parameters) extends ClientToManagerChannel()(p)
+class AcquireMetadata(implicit p: Parameters) extends ClientToManagerChannel()(p)
     with HasCacheBlockAddress 
-    with HasClientTransactionId 
-    with HasTileLinkData {
+    with HasClientTransactionId
+    with HasTileLinkBeatId {
   // Actual bundle fields:
   val is_builtin_type = Bool()
   val a_type = UInt(width = tlAcquireTypeBits)
@@ -221,8 +231,17 @@ class Acquire(implicit p: Parameters) extends ClientToManagerChannel()(p)
   }
 }
 
+/** [[uncore.AcquireMetadata]] with an extra field containing the data beat */
+class Acquire(implicit p: Parameters) extends AcquireMetadata()(p) with HasTileLinkData
+
+/** [[uncore.AcquireMetadata]] with an extra field containing the entire cache block */
+class BufferedAcquire(implicit p: Parameters) extends AcquireMetadata()(p) with HasTileLinkBlock
+
 /** [[uncore.Acquire]] with an extra field stating its source id */
 class AcquireFromSrc(implicit p: Parameters) extends Acquire()(p) with HasClientId
+
+/** [[uncore.BufferedAcquire]] with an extra field stating its source id */
+class BufferedAcquireFromSrc(implicit p: Parameters) extends BufferedAcquire()(p) with HasClientId 
 
 /** Contains definitions of the the built-in Acquire types and a factory
   * for [[uncore.Acquire]]
@@ -252,7 +271,7 @@ object Acquire {
   def typesWithMultibeatData = Vec(putBlockType)
   def typesOnSubBlocks = Vec(putType, getType, putAtomicType)
 
-  def fullWriteMask(implicit p: Parameters) = SInt(-1, width = p(TLWriteMaskBits)).toUInt
+  def fullWriteMask(implicit p: Parameters) = SInt(-1, width = p(TLKey(p(TLId))).writeMaskBits).toUInt
 
   // Most generic constructor
   def apply(
@@ -550,10 +569,10 @@ object Probe {
   * a particular [[uncore.CoherencePolicy]]. Releases may contain data or may be
   * simple acknowledgements. Voluntary Releases are acknowledged with [[uncore.Grant Grants]].
   */
-class Release(implicit p: Parameters) extends ClientToManagerChannel()(p)
+class ReleaseMetadata(implicit p: Parameters) extends ClientToManagerChannel()(p)
+    with HasTileLinkBeatId
     with HasCacheBlockAddress 
-    with HasClientTransactionId 
-    with HasTileLinkData {
+    with HasClientTransactionId {
   val r_type = UInt(width = tlCoh.releaseTypeWidth)
   val voluntary = Bool()
 
@@ -567,8 +586,17 @@ class Release(implicit p: Parameters) extends ClientToManagerChannel()(p)
   def full_addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, UInt(0, width = tlByteAddrBits))
 }
 
+/** [[uncore.ReleaseMetadata]] with an extra field containing the data beat */
+class Release(implicit p: Parameters) extends ReleaseMetadata()(p) with HasTileLinkData
+
+/** [[uncore.ReleaseMetadata]] with an extra field containing the entire cache block */
+class BufferedRelease(implicit p: Parameters) extends ReleaseMetadata()(p) with HasTileLinkBlock
+
 /** [[uncore.Release]] with an extra field stating its source id */
 class ReleaseFromSrc(implicit p: Parameters) extends Release()(p) with HasClientId
+
+/** [[uncore.BufferedRelease]] with an extra field stating its source id */
+class BufferedReleaseFromSrc(implicit p: Parameters) extends BufferedRelease()(p) with HasClientId
 
 /** Contains a [[uncore.Release]] factory
   *
@@ -609,8 +637,8 @@ object Release {
   * coherence policies may also define custom Grant types. Grants may contain data
   * or may be simple acknowledgements. Grants are responded to with [[uncore.Finish]].
   */
-class Grant(implicit p: Parameters) extends ManagerToClientChannel()(p)
-    with HasTileLinkData 
+class GrantMetadata(implicit p: Parameters) extends ManagerToClientChannel()(p)
+    with HasTileLinkBeatId
     with HasClientTransactionId 
     with HasManagerTransactionId {
   val is_builtin_type = Bool()
@@ -636,8 +664,17 @@ class Grant(implicit p: Parameters) extends ManagerToClientChannel()(p)
   }
 }
 
+/** [[uncore.GrantMetadata]] with an extra field containing a single beat of data */
+class Grant(implicit p: Parameters) extends GrantMetadata()(p) with HasTileLinkData
+
 /** [[uncore.Grant]] with an extra field stating its destination */
 class GrantToDst(implicit p: Parameters) extends Grant()(p) with HasClientId
+
+/** [[uncore.GrantMetadata]] with an extra field containing an entire cache block */
+class BufferedGrant(implicit p: Parameters) extends GrantMetadata()(p) with HasTileLinkBlock
+
+/** [[uncore.BufferedGrant]] with an extra field stating its destination */
+class BufferedGrantToDst(implicit p: Parameters) extends BufferedGrant()(p) with HasClientId
 
 /** Contains definitions of the the built-in grant types and factories 
   * for [[uncore.Grant]] and [[uncore.GrantToDst]]
@@ -1491,17 +1528,24 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     data = Bits(0))
 }
 
-class TileLinkIONarrower(factor: Int) extends  TLModule {
-  val outerParams = params.alterPartial({
-    case TLDataBeats => tlDataBeats * factor
-  })
-  val outerDataBeats = outerParams(TLDataBeats)
-  val outerDataBits = outerParams(TLDataBits)
-  val outerWriteMaskBits = outerParams(TLWriteMaskBits)
+class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Parameters) extends Module {
+  val innerParams = p(TLKey(innerTLId))
+  val outerParams = p(TLKey(outerTLId)) 
+  val innerDataBeats = innerParams.dataBeats
+  val innerDataBits = innerParams.dataBitsPerBeat
+  val innerWriteMaskBits = innerParams.writeMaskBits
+  val outerDataBeats = outerParams.dataBeats
+  val outerDataBits = outerParams.dataBitsPerBeat
+  val outerWriteMaskBits = outerParams.writeMaskBits
+  require(outerDataBeats >= innerDataBeats)
+  require(outerDataBeats % innerDataBeats == 0)
+  require(outerDataBits >= innerDataBits)
+
+  val factor = outerDataBeats / innerDataBeats
 
   val io = new Bundle {
-    val in = new ClientUncachedTileLinkIO().flip
-    val out = Bundle(new ClientUncachedTileLinkIO)(outerParams)
+    val in = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => innerTLId})).flip
+    val out = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => outerTLId}))
   }
 
   if (factor > 1) {
@@ -1511,8 +1555,8 @@ class TileLinkIONarrower(factor: Int) extends  TLModule {
     val stretch = iacq.a_type === Acquire.putBlockType
     val shrink = iacq.a_type === Acquire.getBlockType
 
-    val acq_data_buffer = Reg(UInt(width = tlDataBits))
-    val acq_wmask_buffer = Reg(UInt(width = tlWriteMaskBits))
+    val acq_data_buffer = Reg(UInt(width = innerDataBits))
+    val acq_wmask_buffer = Reg(UInt(width = innerWriteMaskBits))
     val acq_client_id = Reg(iacq.client_xact_id)
     val acq_addr_block = Reg(iacq.addr_block)
     val acq_addr_beat = Reg(iacq.addr_beat)
@@ -1560,7 +1604,7 @@ class TileLinkIONarrower(factor: Int) extends  TLModule {
     val gnt_client_id = Reg(ognt.client_xact_id)
     val gnt_manager_id = Reg(ognt.manager_xact_id)
 
-    val ignt_ctr = Counter(tlDataBeats)
+    val ignt_ctr = Counter(innerDataBeats)
     val ognt_ctr = Counter(factor)
     val sending_get = Reg(init = Bool(false))
 

@@ -176,7 +176,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
   def full(dummy: Int = 0): UInt = co.dir.full(this.sharers)
 
   /** Does this [[uncore.Acquire]] require [[uncore.Probe Probes]] to be sent */
-  def requiresProbes(acq: Acquire): Bool = co.requiresProbes(acq, this)
+  def requiresProbes(acq: AcquireMetadata): Bool = co.requiresProbes(acq, this)
   /** Does this memory op require [[uncore.Probe Probes]] to be sent */
   def requiresProbes(op_code: UInt): Bool = co.requiresProbes(op_code, this)
   /** Does an eviction require [[uncore.Probe Probes]] to be sent */
@@ -188,7 +188,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param dst Destination client id for this Probe
     * @param acq Acquire message triggering this Probe
     */
-  def makeProbe(dst: UInt, acq: Acquire): ProbeToDst = 
+  def makeProbe(dst: UInt, acq: AcquireMetadata): ProbeToDst = 
     Bundle(Probe(dst, co.getProbeType(acq, this), acq.addr_block)(p))
 
   /** Construct an appropriate [[uncore.ProbeToDst]] for a given mem op
@@ -213,7 +213,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param rel Release message being acknowledged by this Grant
     * @param manager_xact_id manager's transaction id
     */
-  def makeGrant(rel: ReleaseFromSrc, manager_xact_id: UInt): GrantToDst = {
+  def makeGrant(rel: ReleaseMetadata with HasClientId, manager_xact_id: UInt): GrantToDst = {
     Bundle(Grant(
       dst = rel.client_id,
       is_builtin_type = Bool(true),
@@ -232,7 +232,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param data data being refilled to the original requestor
     */
   def makeGrant(
-      acq: AcquireFromSrc,
+      acq: AcquireMetadata with HasClientId,
       manager_xact_id: UInt, 
       addr_beat: UInt = UInt(0),
       data: UInt = UInt(0)): GrantToDst = {
@@ -259,7 +259,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param data data being refilled to the original requestor
     */
   def makeGrant(
-      pri: AcquireFromSrc,
+      pri: AcquireMetadata with HasClientId,
       sec: SecondaryMissInfo,
       manager_xact_id: UInt, 
       data: UInt): GrantToDst = {
@@ -272,14 +272,14 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     *
     * @param incoming the incoming [[uncore.ReleaseFromSrc]]
     */
-  def onRelease(incoming: ReleaseFromSrc): ManagerMetadata =
+  def onRelease(incoming: ReleaseMetadata with HasClientId): ManagerMetadata =
     co.managerMetadataOnRelease(incoming, incoming.client_id, this)
 
   /** New metadata after sending a [[uncore.GrantToDst]]
     *
     * @param outgoing the outgoing [[uncore.GrantToDst]]
     */
-  def onGrant(outgoing: GrantToDst): ManagerMetadata =
+  def onGrant(outgoing: GrantMetadata with HasClientId): ManagerMetadata =
     co.managerMetadataOnGrant(outgoing, outgoing.client_id, this)
 }
 
@@ -328,8 +328,3 @@ object HierarchicalMetadata {
   def onReset(implicit p: Parameters): HierarchicalMetadata = 
     apply(ManagerMetadata.onReset, ClientMetadata.onReset)
 }
-
-/** Identifies the TLId of the inner network in a hierarchical cache controller */ 
-case object InnerTLId extends Field[String]
-/** Identifies the TLId of the outer network in a hierarchical cache controller */ 
-case object OuterTLId extends Field[String]

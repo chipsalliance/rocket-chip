@@ -12,23 +12,23 @@ case class HtifParameters(width: Int, nCores: Int, offsetBits: Int, nSCR: Int = 
 
 trait HasHtifParameters {
   implicit val p: Parameters
-  lazy val external = p(HtifKey)
-  lazy val dataBits = p(TLDataBits)
-  lazy val dataBeats = p(TLDataBeats)
-  lazy val w = external.width
-  lazy val nSCR = external.nSCR
-  lazy val scrAddrBits = log2Up(nSCR)
-  lazy val scrDataBits = 64
-  lazy val scrDataBytes = scrDataBits / 8
-  lazy val offsetBits = external.offsetBits
-  lazy val nCores = external.nCores
+  val external = p(HtifKey)
+  val dataBits = p(TLKey(p(TLId))).dataBitsPerBeat
+  val dataBeats = p(TLKey(p(TLId))).dataBeats
+  val w = external.width
+  val nSCR = external.nSCR
+  val scrAddrBits = log2Up(nSCR)
+  val scrDataBits = 64
+  val scrDataBytes = scrDataBits / 8
+  val offsetBits = external.offsetBits
+  val nCores = external.nCores
 }
 
 abstract class HtifModule(implicit val p: Parameters) extends Module with HasHtifParameters
 abstract class HtifBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasHtifParameters
 
-class HostIO(implicit p: Parameters) extends HtifBundle()(p) {
+class HostIO(w: Int) extends Bundle {
   val clk = Bool(OUTPUT)
   val clk_edge = Bool(OUTPUT)
   val in = Decoupled(Bits(width = w)).flip
@@ -49,7 +49,7 @@ class HtifIO(implicit p: Parameters) extends HtifBundle()(p) {
 
 class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHtifParameters {
   val io = new Bundle {
-    val host = new HostIO
+    val host = new HostIO(w)
     val cpu = Vec(new HtifIO, nCores).flip
     val mem = new ClientUncachedTileLinkIO
     val scr = new SMIIO(scrDataBits, scrAddrBits)

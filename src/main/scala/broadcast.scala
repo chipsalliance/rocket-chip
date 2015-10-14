@@ -31,17 +31,17 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
   val internalDataBits = new DataQueueLocation().getWidth
   val inStoreQueue :: inVolWBQueue :: inClientReleaseQueue :: Nil = Enum(UInt(), nDataQueueLocations)
 
-  val trackerTLParams = p.alterPartial({
-    case TLDataBits => internalDataBits
-    case TLWriteMaskBits => innerWriteMaskBits
+  val usingStoreDataQueue = p.alterPartial({
+    case TLKey(`innerTLId`) => innerTLParams.copy()(internalDataBits, innerWriteMaskBits)
+    case TLKey(`outerTLId`) => outerTLParams.copy()(internalDataBits, outerWriteMaskBits)
   })
 
   // Create SHRs for outstanding transactions
   val trackerList =
     (0 until nReleaseTransactors).map(id =>
-      Module(new BroadcastVoluntaryReleaseTracker(id))(trackerTLParams)) ++
+      Module(new BroadcastVoluntaryReleaseTracker(id)(usingStoreDataQueue))) ++
     (nReleaseTransactors until nTransactors).map(id =>
-      Module(new BroadcastAcquireTracker(id))(trackerTLParams))
+      Module(new BroadcastAcquireTracker(id)(usingStoreDataQueue)))
 
   // Propagate incoherence flags
   trackerList.map(_.io.incoherent := io.incoherent)
@@ -105,10 +105,8 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
   doInputRouting(io.inner.finish, trackerList.map(_.io.inner.finish))
 
   // Create an arbiter for the one memory port
-  val outer_arb = Module(new ClientUncachedTileLinkIOArbiter(trackerList.size)(p.alterPartial(
-                         { case TLId => p(OuterTLId)
-                           case TLDataBits => internalDataBits
-                           case TLWriteMaskBits => innerWriteMaskBits })))
+  val outer_arb = Module(new ClientUncachedTileLinkIOArbiter(trackerList.size)
+                    (usingStoreDataQueue.alterPartial({ case TLId => p(OuterTLId) })))
   outer_arb.io.in <> trackerList.map(_.io.outer)
   // Get the pending data out of the store data queue
   val outer_data_ptr = new DataQueueLocation().fromBits(outer_arb.io.out.acquire.bits.data)
@@ -137,8 +135,7 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int)
   val s_idle :: s_outer :: s_grant :: s_ack :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_idle)
 
-  val xact = Reg(Bundle(new ReleaseFromSrc, { case TLId => p(InnerTLId); case TLDataBits => 0 }))
-  val data_buffer = Reg(Vec(io.irel().data, innerDataBeats))
+  val xact = Reg(new BufferedReleaseFromSrc()(p.alterPartial({ case TLId => innerTLId })))
   val coh = ManagerMetadata.onReset
 
   val collect_irel_data = Reg(init=Bool(false))
@@ -161,17 +158,17 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int)
   io.inner.grant.bits := coh.makeGrant(xact, UInt(trackerId))
 
   //TODO: Use io.outer.release instead?
-  io.outer.acquire.bits := Bundle(
-    PutBlock( 
-      client_xact_id = UInt(trackerId),
-      addr_block = xact.addr_block,
-      addr_beat = oacq_data_cnt,
-      data = data_buffer(oacq_data_cnt)))(outerTLParams)
+  io.outer.acquire.bits := PutBlock( 
+                               client_xact_id = UInt(trackerId),
+                               addr_block = xact.addr_block,
+                               addr_beat = oacq_data_cnt,
+                               data = xact.data_buffer(oacq_data_cnt))
+                             (p.alterPartial({ case TLId => outerTLId }))
 
   when(collect_irel_data) {
     io.inner.release.ready := Bool(true)
     when(io.inner.release.valid) {
-      data_buffer(io.irel().addr_beat) := io.irel().data
+      xact.data_buffer(io.irel().addr_beat) := io.irel().data
       irel_data_valid := irel_data_valid.bitSet(io.irel().addr_beat, Bool(true))
     }
     when(irel_data_done) { collect_irel_data := Bool(false) }
@@ -182,7 +179,7 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int)
       io.inner.release.ready := Bool(true)
       when( io.inner.release.valid ) {
         xact := io.irel()
-        data_buffer(UInt(0)) := io.irel().data
+        xact.data_buffer(UInt(0)) := io.irel().data
         collect_irel_data := io.irel().hasMultibeatData()
         irel_data_valid := io.irel().hasData() << io.irel().addr_beat
         state := Mux(io.irel().hasData(), s_outer,
@@ -217,12 +214,7 @@ class BroadcastAcquireTracker(trackerId: Int)
   val s_idle :: s_probe :: s_mem_read :: s_mem_write :: s_make_grant :: s_mem_resp :: s_ack :: Nil = Enum(UInt(), 7)
   val state = Reg(init=s_idle)
 
-  val xact = Reg(Bundle(new AcquireFromSrc, {
-    case TLId => p(InnerTLId)
-    case TLDataBits => 0
-    case TLWriteMaskBits => innerWriteMaskBits
-  }))
-  val data_buffer = Reg(Vec(io.iacq().data, innerDataBeats))
+  val xact = Reg(new BufferedAcquireFromSrc()(p.alterPartial({ case TLId => innerTLId })))
   val coh = ManagerMetadata.onReset
 
   assert(!(state != s_idle && xact.isBuiltInType() && 
@@ -268,14 +260,14 @@ class BroadcastAcquireTracker(trackerId: Int)
     client_xact_id = UInt(trackerId),
     addr_block = xact.addr_block,
     addr_beat = xact.addr_beat,
-    data = data_buffer(0),
+    data = xact.data_buffer(0),
     wmask = xact.wmask())
 
   val oacq_write_block = PutBlock(
     client_xact_id = UInt(trackerId),
     addr_block = xact.addr_block,
     addr_beat = oacq_data_cnt,
-    data = data_buffer(oacq_data_cnt))
+    data = xact.data_buffer(oacq_data_cnt))
 
   val oacq_read_beat = Get(
     client_xact_id = UInt(trackerId),
@@ -321,7 +313,7 @@ class BroadcastAcquireTracker(trackerId: Int)
   when(collect_iacq_data) {
     io.inner.acquire.ready := Bool(true)
     when(io.inner.acquire.valid) {
-      data_buffer(io.iacq().addr_beat) := io.iacq().data
+      xact.data_buffer(io.iacq().addr_beat) := io.iacq().data
       iacq_data_valid := iacq_data_valid.bitSet(io.iacq().addr_beat, Bool(true))
     }
     when(iacq_data_done) { collect_iacq_data := Bool(false) }
@@ -338,7 +330,7 @@ class BroadcastAcquireTracker(trackerId: Int)
       io.inner.acquire.ready := Bool(true)
       when(io.inner.acquire.valid) {
         xact := io.iacq()
-        data_buffer(UInt(0)) := io.iacq().data
+        xact.data_buffer(UInt(0)) := io.iacq().data
         collect_iacq_data := io.iacq().hasMultibeatData()
         iacq_data_valid := io.iacq().hasData() << io.iacq().addr_beat
         val needs_probes = mask_incoherent.orR
