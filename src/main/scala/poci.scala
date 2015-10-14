@@ -2,13 +2,13 @@ package junctions
 
 import Chisel._
 
-abstract trait POCIConstants
+abstract trait PociConstants
 {
   val SZ_PADDR = 32
   val SZ_PDATA = 32
 }
 
-class POCIIO extends Bundle
+class PociIO extends Bundle
 {
   val paddr = UInt(OUTPUT, SZ_PADDR)
   val pwrite = Bool(OUTPUT)
@@ -20,11 +20,10 @@ class POCIIO extends Bundle
   val pslverr = Bool(INPUT)
 }
 
-class HASTItoPOCIBridge extends Module
-{
+class HastiToPociBridge(implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
-    val in = new HASTISlaveIO
-    val out = new POCIIO
+    val in = new HastiSlaveIO
+    val out = new PociIO
   }
 
   val s_idle :: s_setup :: s_access :: Nil = Enum(UInt(), 3)
@@ -62,11 +61,11 @@ class HASTItoPOCIBridge extends Module
   io.in.hresp := io.out.pslverr
 }
 
-class POCIBus(amap: Seq[UInt=>Bool]) extends Module
+class PociBus(amap: Seq[UInt=>Bool]) extends Module
 {
   val io = new Bundle {
-    val master = new POCIIO().flip
-    val slaves = Vec(new POCIIO, amap.size)
+    val master = new PociIO().flip
+    val slaves = Vec(new PociIO, amap.size)
   }
 
   val psels = PriorityEncoderOH(

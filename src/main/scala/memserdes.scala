@@ -4,68 +4,62 @@ package junctions
 import Chisel._
 import scala.math._
 
-case object PAddrBits extends Field[Int]
-case object VAddrBits extends Field[Int]
-case object PgIdxBits extends Field[Int]
-case object PgLevels extends Field[Int]
-case object PgLevelBits extends Field[Int]
-case object ASIdBits extends Field[Int]
-case object PPNBits extends Field[Int]
-case object VPNBits extends Field[Int]
-
 case object MIFAddrBits extends Field[Int]
 case object MIFDataBits extends Field[Int]
 case object MIFTagBits extends Field[Int]
 case object MIFDataBeats extends Field[Int]
 
-trait MIFParameters extends UsesParameters {
-  val mifTagBits = params(MIFTagBits)
-  val mifAddrBits = params(MIFAddrBits)
-  val mifDataBits = params(MIFDataBits)
-  val mifDataBeats = params(MIFDataBeats)
+trait HasMIFParameters {
+  implicit val p: Parameters
+  val mifTagBits = p(MIFTagBits)
+  val mifAddrBits = p(MIFAddrBits)
+  val mifDataBits = p(MIFDataBits)
+  val mifDataBeats = p(MIFDataBeats)
 }
  
-abstract class MIFBundle extends Bundle with MIFParameters
-abstract class MIFModule extends Module with MIFParameters
+abstract class MIFModule(implicit val p: Parameters) extends Module with HasMIFParameters
+abstract class MIFBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
+  with HasMIFParameters
 
-trait HasMemData extends MIFBundle {
+trait HasMemData extends HasMIFParameters {
   val data = Bits(width = mifDataBits)
 }
 
-trait HasMemAddr extends MIFBundle {
+trait HasMemAddr extends HasMIFParameters {
   val addr = UInt(width = mifAddrBits)
 }
 
-trait HasMemTag extends MIFBundle {
+trait HasMemTag extends HasMIFParameters {
   val tag = UInt(width = mifTagBits)
 }
 
-class MemReqCmd extends HasMemAddr with HasMemTag {
+class MemReqCmd(implicit p: Parameters) extends MIFBundle()(p) with HasMemAddr with HasMemTag {
   val rw = Bool()
 }
 
-class MemTag extends HasMemTag
-class MemData extends HasMemData
-class MemResp extends HasMemData with HasMemTag
+class MemTag(implicit p: Parameters) extends MIFBundle()(p) with HasMemTag
+class MemData(implicit p: Parameters) extends MIFBundle()(p) with HasMemData
+class MemResp(implicit p: Parameters) extends MIFBundle()(p) with HasMemData with HasMemTag
 
-class MemIO extends Bundle {
+class MemIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val req_cmd  = Decoupled(new MemReqCmd)
   val req_data = Decoupled(new MemData)
   val resp     = Decoupled(new MemResp).flip
 }
 
-class MemPipeIO extends Bundle {
+class MemPipeIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val req_cmd  = Decoupled(new MemReqCmd)
   val req_data = Decoupled(new MemData)
   val resp     = Valid(new MemResp).flip
 }
 
-class MemSerializedIO(w: Int) extends Bundle {
+class MemSerializedIO(w: Int)(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val req = Decoupled(Bits(width = w))
   val resp = Valid(Bits(width = w)).flip
+  //override def cloneType = new MemSerializedIO(w)(p).asInstanceOf[this.type]
 }
 
-class MemSerdes(w: Int) extends MIFModule
+class MemSerdes(w: Int)(implicit p: Parameters) extends MIFModule
 {
   val io = new Bundle {
     val wide = new MemIO().flip
@@ -140,18 +134,18 @@ class MemSerdes(w: Int) extends MIFModule
   io.wide.resp.bits := io.wide.resp.bits.fromBits(in_buf)
 }
 
-class MemDesserIO(w: Int) extends Bundle {
+class MemDesserIO(w: Int)(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val narrow = new MemSerializedIO(w).flip
   val wide = new MemIO
 }
 
-class MemDesser(w: Int) extends Module // test rig side
+class MemDesser(w: Int)(implicit p: Parameters) extends Module // test rig side
 {
   val io = new MemDesserIO(w)
   val abits = io.wide.req_cmd.bits.toBits.getWidth
   val dbits = io.wide.req_data.bits.toBits.getWidth
   val rbits = io.wide.resp.bits.getWidth
-  val mifDataBeats = params(MIFDataBeats)
+  val mifDataBeats = p(MIFDataBeats)
 
   require(dbits >= abits && rbits >= dbits)
   val recv_cnt = Reg(init=UInt(0, log2Up((rbits+w-1)/w)))
@@ -211,59 +205,7 @@ class MemDesser(w: Int) extends Module // test rig side
   io.narrow.resp.bits := dataq.io.deq.bits.toBits >> (recv_cnt * UInt(w))
 }
 
-class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module
-{
-  val io = new QueueIO(data, entries)
-  require(entries > 1)
-
-  val do_flow = Wire(Bool())
-  val do_enq = io.enq.fire() && !do_flow
-  val do_deq = io.deq.fire() && !do_flow
-
-  val maybe_full = Reg(init=Bool(false))
-  val enq_ptr = Counter(do_enq, entries)._1
-  val (deq_ptr, deq_done) = Counter(do_deq, entries)
-  when (do_enq != do_deq) { maybe_full := do_enq }
-
-  val ptr_match = enq_ptr === deq_ptr
-  val empty = ptr_match && !maybe_full
-  val full = ptr_match && maybe_full
-  val atLeastTwo = full || enq_ptr - deq_ptr >= UInt(2)
-  do_flow := empty && io.deq.ready
-
-  val ram = SeqMem(data, entries)
-  when (do_enq) { ram.write(enq_ptr, io.enq.bits) }
-
-  val ren = io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)
-  val raddr = Mux(io.deq.valid, Mux(deq_done, UInt(0), deq_ptr + UInt(1)), deq_ptr)
-  val ram_out_valid = Reg(next = ren)
-
-  io.deq.valid := Mux(empty, io.enq.valid, ram_out_valid)
-  io.enq.ready := !full
-  io.deq.bits := Mux(empty, io.enq.bits, ram.read(raddr, ren))
-}
-
-class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module
-{
-  val io = new QueueIO(data, entries)
-
-  val fq = Module(new HellaFlowQueue(entries)(data))
-  fq.io.enq <> io.enq
-  io.deq <> Queue(fq.io.deq, 1, pipe = true)
-}
-
-object HellaQueue
-{
-  def apply[T <: Data](enq: DecoupledIO[T], entries: Int) = {
-    val q = Module((new HellaQueue(entries)) { enq.bits })
-    q.io.enq.valid := enq.valid // not using <> so that override is allowed
-    q.io.enq.bits := enq.bits
-    enq.ready := q.io.enq.ready
-    q.io.deq
-  }
-}
-
-class MemIOArbiter(val arbN: Int) extends MIFModule {
+class MemIOArbiter(val arbN: Int)(implicit p: Parameters) extends MIFModule {
   val io = new Bundle {
     val inner = Vec(new MemIO, arbN).flip
     val outer = new MemIO
@@ -307,7 +249,7 @@ class MemIOArbiter(val arbN: Int) extends MIFModule {
 }
 
 object MemIOMemPipeIOConverter {
-  def apply(in: MemPipeIO): MemIO = {
+  def apply(in: MemPipeIO)(implicit p: Parameters): MemIO = {
     val out = Wire(new MemIO())
     in.resp.valid := out.resp.valid
     in.resp.bits := out.resp.bits
@@ -322,7 +264,7 @@ object MemIOMemPipeIOConverter {
   }
 }
 
-class MemPipeIOMemIOConverter(numRequests: Int) extends MIFModule {
+class MemPipeIOMemIOConverter(numRequests: Int)(implicit p: Parameters) extends MIFModule {
   val io = new Bundle {
     val cpu = new MemIO().flip
     val mem = new MemPipeIO

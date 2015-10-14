@@ -2,7 +2,7 @@ package junctions
 
 import Chisel._
 
-abstract trait HASTIConstants
+trait HastiConstants
 {
   val SZ_HTRANS     = 2
   val HTRANS_IDLE   = UInt(0, SZ_HTRANS)
@@ -27,16 +27,22 @@ abstract trait HASTIConstants
   val SZ_HSIZE = 3
   val SZ_HPROT = 4
 
-  // TODO: Parameterize
-  val SZ_HADDR = 32
-  val SZ_HDATA = 32
-
   def dgate(valid: Bool, b: UInt) = Fill(b.getWidth, valid) & b
 }
 
-class HASTIMasterIO extends Bundle
-{
-  val haddr     = UInt(OUTPUT, SZ_HADDR)
+trait HasHastiParameters {
+  implicit val p: Parameters
+  val hastiAddrBits = 32
+  val hastiDataBits = 32
+}
+
+abstract class HastiModule(implicit val p: Parameters) extends Module
+  with HasHastiParameters
+abstract class HastiBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
+  with HasHastiParameters
+
+class HastiMasterIO(implicit p: Parameters) extends HastiBundle()(p) {
+  val haddr     = UInt(OUTPUT, hastiAddrBits)
   val hwrite    = Bool(OUTPUT)
   val hsize     = UInt(OUTPUT, SZ_HSIZE)
   val hburst    = UInt(OUTPUT, SZ_HBURST)
@@ -44,16 +50,15 @@ class HASTIMasterIO extends Bundle
   val htrans    = UInt(OUTPUT, SZ_HTRANS)
   val hmastlock = Bool(OUTPUT)
 
-  val hwdata = Bits(OUTPUT, SZ_HDATA)
-  val hrdata = Bits(INPUT, SZ_HDATA)
+  val hwdata = Bits(OUTPUT, hastiDataBits)
+  val hrdata = Bits(INPUT, hastiDataBits)
 
   val hready = Bool(INPUT)
   val hresp  = UInt(INPUT, SZ_HRESP)
 }
 
-class HASTISlaveIO extends Bundle
-{
-  val haddr     = UInt(INPUT, SZ_HADDR)
+class HastiSlaveIO(implicit p: Parameters) extends HastiBundle()(p) {
+  val haddr     = UInt(INPUT, hastiAddrBits)
   val hwrite    = Bool(INPUT)
   val hsize     = UInt(INPUT, SZ_HSIZE)
   val hburst    = UInt(INPUT, SZ_HBURST)
@@ -61,8 +66,8 @@ class HASTISlaveIO extends Bundle
   val htrans    = UInt(INPUT, SZ_HTRANS)
   val hmastlock = Bool(INPUT)
 
-  val hwdata = Bits(INPUT, SZ_HDATA)
-  val hrdata = Bits(OUTPUT, SZ_HDATA)
+  val hwdata = Bits(INPUT, hastiDataBits)
+  val hrdata = Bits(OUTPUT, hastiDataBits)
 
   val hsel      = Bool(INPUT)
   val hreadyin  = Bool(INPUT)
@@ -70,23 +75,22 @@ class HASTISlaveIO extends Bundle
   val hresp     = UInt(OUTPUT, SZ_HRESP)
 }
 
-class HASTIBus(amap: Seq[UInt=>Bool]) extends Module
-{
+class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
-    val master = new HASTIMasterIO().flip
-    val slaves = Vec(new HASTISlaveIO, amap.size).flip
+    val master = new HastiMasterIO().flip
+    val slaves = Vec(new HastiSlaveIO, amap.size).flip
   }
 
   // skid buffer
   val skb_valid = Reg(init = Bool(false))
-  val skb_haddr = Reg(UInt(width = SZ_HADDR))
+  val skb_haddr = Reg(UInt(width = hastiAddrBits))
   val skb_hwrite = Reg(Bool())
   val skb_hsize = Reg(UInt(width = SZ_HSIZE))
   val skb_hburst = Reg(UInt(width = SZ_HBURST))
   val skb_hprot = Reg(UInt(width = SZ_HPROT))
   val skb_htrans = Reg(UInt(width = SZ_HTRANS))
   val skb_hmastlock = Reg(Bool())
-  val skb_hwdata = Reg(UInt(width = SZ_HDATA))
+  val skb_hwdata = Reg(UInt(width = hastiDataBits))
 
   val master_haddr = Mux(skb_valid, skb_haddr, io.master.haddr)
   val master_hwrite = Mux(skb_valid, skb_hwrite, io.master.hwrite)
@@ -142,16 +146,15 @@ class HASTIBus(amap: Seq[UInt=>Bool]) extends Module
   io.master.hresp := Mux1H(s1_hsels, io.slaves.map(_.hresp))
 }
 
-class HASTISlaveMux(n: Int) extends Module
-{
+class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
-    val ins = Vec(new HASTISlaveIO, n)
-    val out = new HASTISlaveIO().flip
+    val ins = Vec(new HastiSlaveIO, n)
+    val out = new HastiSlaveIO().flip
   }
 
   // skid buffers
   val skb_valid = Array.fill(n){Reg(init = Bool(false))}
-  val skb_haddr = Array.fill(n){Reg(UInt(width = SZ_HADDR))}
+  val skb_haddr = Array.fill(n){Reg(UInt(width = hastiAddrBits))}
   val skb_hwrite = Array.fill(n){Reg(Bool())}
   val skb_hsize = Array.fill(n){Reg(UInt(width = SZ_HSIZE))}
   val skb_hburst = Array.fill(n){Reg(UInt(width = SZ_HBURST))}
@@ -212,15 +215,15 @@ class HASTISlaveMux(n: Int) extends Module
   } }
 }
 
-class HASTIXbar(nMasters: Int, addressMap: Seq[UInt=>Bool]) extends Module
-{
+class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])
+               (implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
-    val masters = Vec(new HASTIMasterIO, nMasters).flip
-    val slaves = Vec(new HASTISlaveIO, addressMap.size).flip
+    val masters = Vec(new HastiMasterIO, nMasters).flip
+    val slaves = Vec(new HastiSlaveIO, addressMap.size).flip
   }
 
-  val buses = List.fill(nMasters){Module(new HASTIBus(addressMap))}
-  val muxes = List.fill(addressMap.size){Module(new HASTISlaveMux(nMasters))}
+  val buses = List.fill(nMasters){Module(new HastiBus(addressMap))}
+  val muxes = List.fill(addressMap.size){Module(new HastiSlaveMux(nMasters))}
 
   (buses.map(b => b.io.master) zip io.masters) foreach { case (b, m) => b <> m }
   (muxes.map(m => m.io.out)    zip io.slaves ) foreach { case (x, s) => x <> s }
@@ -229,11 +232,10 @@ class HASTIXbar(nMasters: Int, addressMap: Seq[UInt=>Bool]) extends Module
   }
 }
 
-class HASTISlaveToMaster extends Module
-{
+class HastiSlaveToMaster(implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
-    val in = new HASTISlaveIO
-    val out = new HASTIMasterIO
+    val in = new HastiSlaveIO
+    val out = new HastiMasterIO
   }
 
   io.out.haddr := io.in.haddr
