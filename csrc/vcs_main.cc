@@ -48,50 +48,95 @@ int main(int argc, char** argv)
 }
 
 void memory_tick(
-  vc_handle mem_req_val,
-  vc_handle mem_req_rdy,
-  vc_handle mem_req_store,
-  vc_handle mem_req_addr,
-  vc_handle mem_req_tag,
+  vc_handle ar_valid,
+  vc_handle ar_ready,
+  vc_handle ar_addr,
+  vc_handle ar_id,
+  vc_handle ar_size,
+  vc_handle ar_len,
 
-  vc_handle mem_req_data_val,
-  vc_handle mem_req_data_rdy,
-  vc_handle mem_req_data_bits,
+  vc_handle aw_valid,
+  vc_handle aw_ready,
+  vc_handle aw_addr,
+  vc_handle aw_id,
+  vc_handle aw_size,
+  vc_handle aw_len,
 
-  vc_handle mem_resp_val,
-  vc_handle mem_resp_rdy,
-  vc_handle mem_resp_tag,
-  vc_handle mem_resp_data)
+  vc_handle w_valid,
+  vc_handle w_ready,
+  vc_handle w_strb,
+  vc_handle w_data,
+  vc_handle w_last,
+
+  vc_handle r_valid,
+  vc_handle r_ready,
+  vc_handle r_resp,
+  vc_handle r_id,
+  vc_handle r_data,
+  vc_handle r_last,
+
+  vc_handle b_valid,
+  vc_handle b_ready,
+  vc_handle b_resp,
+  vc_handle b_id)
 {
-  uint32_t req_data[mm->get_word_size()/sizeof(uint32_t)];
+  uint32_t write_data[mm->get_word_size()/sizeof(uint32_t)];
   for (size_t i = 0; i < mm->get_word_size()/sizeof(uint32_t); i++)
-    req_data[i] = vc_4stVectorRef(mem_req_data_bits)[i].d;
+    write_data[i] = vc_4stVectorRef(w_data)[i].d;
 
-  vc_putScalar(mem_req_rdy, mm->req_cmd_ready());
-  vc_putScalar(mem_req_data_rdy, mm->req_data_ready());
-  vc_putScalar(mem_resp_val, mm->resp_valid());
+  vc_putScalar(ar_ready, mm->ar_ready());
+  vc_putScalar(aw_ready, mm->aw_ready());
+  vc_putScalar(w_ready, mm->w_ready());
+  vc_putScalar(b_valid, mm->b_valid());
+  vc_putScalar(r_valid, mm->r_valid());
+  vc_putScalar(r_last, mm->r_last());
 
   vec32 d[mm->get_word_size()/sizeof(uint32_t)];
+
   d[0].c = 0;
-  d[0].d = mm->resp_tag();
-  vc_put4stVector(mem_resp_tag, d);
+  d[0].d = mm->b_resp();
+  vc_put4stVector(b_resp, d);
+
+  d[0].c = 0;
+  d[0].d = mm->b_id();
+  vc_put4stVector(b_id, d);
+
+  d[0].c = 0;
+  d[0].d = mm->r_resp();
+  vc_put4stVector(r_resp, d);
+
+  d[0].c = 0;
+  d[0].d = mm->r_id();
+  vc_put4stVector(r_id, d);
 
   for (size_t i = 0; i < mm->get_word_size()/sizeof(uint32_t); i++)
   {
     d[i].c = 0;
-    d[i].d = ((uint32_t*)mm->resp_data())[i];
+    d[i].d = ((uint32_t*)mm->r_data())[i];
   }
-  vc_put4stVector(mem_resp_data, d);
+  vc_put4stVector(r_data, d);
 
   mm->tick
   (
-    vc_getScalar(mem_req_val),
-    vc_getScalar(mem_req_store),
-    vc_4stVectorRef(mem_req_addr)->d,
-    vc_4stVectorRef(mem_req_tag)->d,
-    vc_getScalar(mem_req_data_val),
-    req_data,
-    vc_getScalar(mem_resp_rdy)
+    vc_getScalar(ar_valid),
+    vc_4stVectorRef(ar_addr)->d,
+    vc_4stVectorRef(ar_id)->d,
+    vc_4stVectorRef(ar_size)->d,
+    vc_4stVectorRef(ar_len)->d,
+
+    vc_getScalar(aw_valid),
+    vc_4stVectorRef(aw_addr)->d,
+    vc_4stVectorRef(aw_id)->d,
+    vc_4stVectorRef(aw_size)->d,
+    vc_4stVectorRef(aw_len)->d,
+
+    vc_getScalar(w_valid),
+    vc_4stVectorRef(w_strb)->d,
+    write_data,
+    vc_getScalar(w_last),
+
+    vc_getScalar(r_ready),
+    vc_getScalar(b_ready)
   );
 }
 

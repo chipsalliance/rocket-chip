@@ -40,20 +40,22 @@ class DefaultConfig extends Config (
       case PPNBits => site(PAddrBits) - site(PgIdxBits)
       case VAddrBits => site(VPNBits) + site(PgIdxBits)
       case ASIdBits => 7
-      case MIFTagBits => Dump("MEM_TAG_BITS",
-                          // Bits needed at the L2 agent
-                          log2Up(site(NAcquireTransactors)+2) +
-                          // Bits added by NASTI interconnect
-                          log2Up(site(NMemoryChannels) * site(NBanksPerMemoryChannel) + 1) +
-                          // Bits added by final arbiter (not needed if true multichannel memory)
-                          log2Up(site(NMemoryChannels)))
-      case MIFDataBits => Dump("MEM_DATA_BITS", 128)
-      case MIFAddrBits => Dump("MEM_ADDR_BITS", site(PAddrBits) - site(CacheBlockOffsetBits))
+      case MIFTagBits => // Bits needed at the L2 agent
+                         log2Up(site(NAcquireTransactors)+2) +
+                         // Bits added by NASTI interconnect
+                         log2Up(site(NMemoryChannels) * site(NBanksPerMemoryChannel) + 1) +
+                         // Bits added by final arbiter (not needed if true multichannel memory)
+                         log2Up(site(NMemoryChannels))
+      case MIFDataBits => 64
+      case MIFAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
       case MIFDataBeats => site(CacheBlockBytes) * 8 / site(MIFDataBits)
-      case NastiKey => NastiParameters(
-                        dataBits = site(MIFDataBits),
-                        addrBits = site(PAddrBits),
-                        idBits = site(MIFTagBits))
+      case NastiKey => {
+        Dump("MEM_STRB_BITS", site(MIFDataBits) / 8)
+        NastiParameters(
+          dataBits = Dump("MEM_DATA_BITS", site(MIFDataBits)),
+          addrBits = Dump("MEM_ADDR_BITS", site(PAddrBits)),
+          idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
+      }
       //Params used by all caches
       case NSets => findBy(CacheName)
       case NWays => findBy(CacheName)

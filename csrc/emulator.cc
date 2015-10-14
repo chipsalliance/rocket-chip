@@ -69,10 +69,12 @@ int main(int argc, char** argv)
   srand(random_seed);
   tile.init(random_seed);
 
+  uint64_t mem_width = tile.Top__io_mem_r_bits_data.width() / 8;
+
   // Instantiate and initialize main memory
   mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
   try {
-  	 mm->init(memsz_mb*1024*1024, tile.Top__io_mem_resp_bits_data.width()/8, LINE_SIZE);
+  	 mm->init(memsz_mb*1024*1024, mem_width, LINE_SIZE);
   }
   catch (const std::bad_alloc& e) {
     fprintf(stderr,
@@ -104,11 +106,19 @@ int main(int argc, char** argv)
 
   while (!htif->done() && trace_count < max_cycles && ret == 0)
   {
-    tile.Top__io_mem_req_cmd_ready = LIT<1>(mm->req_cmd_ready());
-    tile.Top__io_mem_req_data_ready = LIT<1>(mm->req_data_ready());
-    tile.Top__io_mem_resp_valid = LIT<1>(mm->resp_valid());
-    tile.Top__io_mem_resp_bits_tag = LIT<64>(mm->resp_tag());
-    memcpy(tile.Top__io_mem_resp_bits_data.values, mm->resp_data(), tile.Top__io_mem_resp_bits_data.width()/8);
+    tile.Top__io_mem_ar_ready = LIT<1>(mm->ar_ready());
+    tile.Top__io_mem_aw_ready = LIT<1>(mm->aw_ready());
+    tile.Top__io_mem_w_ready = LIT<1>(mm->w_ready());
+
+    tile.Top__io_mem_b_valid = LIT<1>(mm->b_valid());
+    tile.Top__io_mem_b_bits_resp = LIT<64>(mm->b_resp());
+    tile.Top__io_mem_b_bits_id = LIT<64>(mm->b_id());
+
+    tile.Top__io_mem_r_valid = LIT<1>(mm->r_valid());
+    tile.Top__io_mem_r_bits_resp = LIT<64>(mm->r_resp());
+    tile.Top__io_mem_r_bits_id = LIT<64>(mm->r_id());
+    tile.Top__io_mem_r_bits_last = LIT<1>(mm->r_last());
+    memcpy(tile.Top__io_mem_r_bits_data.values, mm->r_data(), mem_width);
 
     try {
       tile.clock_lo(LIT<1>(0));
@@ -119,15 +129,25 @@ int main(int argc, char** argv)
     }
 
     mm->tick(
-      tile.Top__io_mem_req_cmd_valid.lo_word(),
-      tile.Top__io_mem_req_cmd_bits_rw.lo_word(),
-      tile.Top__io_mem_req_cmd_bits_addr.lo_word(),
-      tile.Top__io_mem_req_cmd_bits_tag.lo_word(),
+      tile.Top__io_mem_ar_valid.lo_word(),
+      tile.Top__io_mem_ar_bits_addr.lo_word(),
+      tile.Top__io_mem_ar_bits_id.lo_word(),
+      tile.Top__io_mem_ar_bits_size.lo_word(),
+      tile.Top__io_mem_ar_bits_len.lo_word(),
 
-      tile.Top__io_mem_req_data_valid.lo_word(),
-      tile.Top__io_mem_req_data_bits_data.values,
+      tile.Top__io_mem_aw_valid.lo_word(),
+      tile.Top__io_mem_aw_bits_addr.lo_word(),
+      tile.Top__io_mem_aw_bits_id.lo_word(),
+      tile.Top__io_mem_aw_bits_size.lo_word(),
+      tile.Top__io_mem_aw_bits_len.lo_word(),
 
-      tile.Top__io_mem_resp_ready.to_bool()
+      tile.Top__io_mem_w_valid.lo_word(),
+      tile.Top__io_mem_w_bits_strb.lo_word(),
+      tile.Top__io_mem_w_bits_data.values,
+      tile.Top__io_mem_w_bits_last.lo_word(),
+
+      tile.Top__io_mem_r_ready.to_bool(),
+      tile.Top__io_mem_b_ready.to_bool()
     );
 
     if (tile.Top__io_host_clk_edge.to_bool())
