@@ -87,11 +87,11 @@ class SMIArbiter(val n: Int, val dataWidth: Int, val addrWidth: Int)
   io.out.resp.ready := io.in(choice).resp.ready
 }
 
-class SMIIONASTIReadIOConverter(val dataWidth: Int, val addrWidth: Int)
-    extends NASTIModule {
+class SMIIONastiReadIOConverter(val dataWidth: Int, val addrWidth: Int)
+                               (implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
-    val ar = Decoupled(new NASTIReadAddressChannel).flip
-    val r = Decoupled(new NASTIReadDataChannel)
+    val ar = Decoupled(new NastiReadAddressChannel).flip
+    val r = Decoupled(new NastiReadDataChannel)
     val smi = new SMIIO(dataWidth, addrWidth)
   }
 
@@ -127,7 +127,7 @@ class SMIIONASTIReadIOConverter(val dataWidth: Int, val addrWidth: Int)
   io.smi.resp.ready := (state === s_read)
 
   io.r.valid := (state === s_resp)
-  io.r.bits := NASTIReadDataChannel(
+  io.r.bits := NastiReadDataChannel(
     id = id,
     data = buffer.toBits,
     last = (nBeats === UInt(0)))
@@ -169,12 +169,12 @@ class SMIIONASTIReadIOConverter(val dataWidth: Int, val addrWidth: Int)
   }
 }
 
-class SMIIONASTIWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
-    extends NASTIModule {
+class SMIIONastiWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
+                                (implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
-    val aw = Decoupled(new NASTIWriteAddressChannel).flip
-    val w = Decoupled(new NASTIWriteDataChannel).flip
-    val b = Decoupled(new NASTIWriteResponseChannel)
+    val aw = Decoupled(new NastiWriteAddressChannel).flip
+    val w = Decoupled(new NastiWriteDataChannel).flip
+    val b = Decoupled(new NastiWriteResponseChannel)
     val smi = new SMIIO(dataWidth, addrWidth)
   }
 
@@ -184,7 +184,7 @@ class SMIIONASTIWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   private val addrOffBits = addrWidth + byteOffBits
 
   assert(!io.aw.valid || io.aw.bits.size >= UInt(byteOffBits),
-    "NASTI size must be >= SMI size")
+    "Nasti size must be >= SMI size")
 
   val id = Reg(UInt(width = nastiWIdBits))
   val addr = Reg(UInt(width = addrWidth))
@@ -213,7 +213,7 @@ class SMIIONASTIWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   io.smi.req.bits.data := data(dataWidth - 1, 0)
   io.smi.resp.ready := (state === s_ack)
   io.b.valid := (state === s_resp)
-  io.b.bits := NASTIWriteResponseChannel(id)
+  io.b.bits := NastiWriteResponseChannel(id)
 
   val jump = if (maxWordsPerBeat > 1)
     PriorityMux(strb(maxWordsPerBeat - 1, 1),
@@ -250,21 +250,21 @@ class SMIIONASTIWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   when (io.b.fire()) { state := s_idle }
 }
 
-/** Convert NASTI protocol to SMI protocol */
-class SMIIONASTIIOConverter(val dataWidth: Int, val addrWidth: Int)
-    extends NASTIModule {
+/** Convert Nasti protocol to SMI protocol */
+class SMIIONastiIOConverter(val dataWidth: Int, val addrWidth: Int)
+                           (implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
-    val nasti = (new NASTIIO).flip
+    val nasti = (new NastiIO).flip
     val smi = new SMIIO(dataWidth, addrWidth)
   }
 
   require(isPow2(dataWidth), "SMI data width must be power of 2")
 
-  val reader = Module(new SMIIONASTIReadIOConverter(dataWidth, addrWidth))
+  val reader = Module(new SMIIONastiReadIOConverter(dataWidth, addrWidth))
   reader.io.ar <> io.nasti.ar
   io.nasti.r <> reader.io.r
 
-  val writer = Module(new SMIIONASTIWriteIOConverter(dataWidth, addrWidth))
+  val writer = Module(new SMIIONastiWriteIOConverter(dataWidth, addrWidth))
   writer.io.aw <> io.nasti.aw
   writer.io.w <> io.nasti.w
   io.nasti.b <> writer.io.b
