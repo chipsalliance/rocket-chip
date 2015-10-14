@@ -9,7 +9,7 @@ import Util._
 case object CoreName extends Field[String]
 case object NDCachePorts extends Field[Int]
 case object NPTWPorts extends Field[Int]
-case object BuildRoCC extends Field[Option[() => RoCC]]
+case object BuildRoCC extends Field[Option[Parameters => RoCC]]
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
@@ -51,7 +51,7 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   // If so specified, build an RoCC module and wire it in
   // otherwise, just hookup the icache
   io.uncached <> p(BuildRoCC).map { buildItHere =>
-    val rocc = buildItHere()
+    val rocc = buildItHere(p)
     val memArb = Module(new ClientTileLinkIOArbiter(3))
     val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
     core.io.rocc <> rocc.io
