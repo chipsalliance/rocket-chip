@@ -46,7 +46,7 @@ class DefaultConfig extends ChiselConfig (
                           log2Up(site(NMemoryChannels)))
       case MIFDataBits => Dump("MEM_DATA_BITS", 128)
       case MIFAddrBits => Dump("MEM_ADDR_BITS", site(PAddrBits) - site(CacheBlockOffsetBits))
-      case MIFDataBeats => site(TLDataBits)*site(TLDataBeats)/site(MIFDataBits)
+      case MIFDataBeats => site(TLKey("L2toMC")).dataBits/site(MIFDataBits)
       case NastiKey => NastiParameters(
                         dataBits = site(MIFDataBits),
                         addrBits = site(PAddrBits),
@@ -83,18 +83,18 @@ class DefaultConfig extends ChiselConfig (
       //L2 Memory System Params
       case NAcquireTransactors => 7
       case L2StoreDataQueueDepth => 1
-      case L2DirectoryRepresentation => new NullRepresentation(site(TLNCachingClients))
+      case L2DirectoryRepresentation => new NullRepresentation(site(NTiles))
       case BuildL2CoherenceManager => (p: Parameters) =>
         Module(new L2BroadcastHub()(p.alterPartial({
-          case InnerTLId => "L1ToL2"
-          case OuterTLId => "L2ToMC" })))
+          case InnerTLId => "L1toL2"
+          case OuterTLId => "L2toMC" })))
       //Tile Constants
       case BuildTiles => {
         TestGeneration.addSuites(rv64i.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64u.map(_(env))))
         TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
-          Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1ToL2"})))
+          Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
         }
       }
       case BuildRoCC => None
@@ -124,41 +124,33 @@ class DefaultConfig extends ChiselConfig (
       case NCustomMRWCSRs => 0
       //Uncore Paramters
       case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
-      case LNEndpoints => site(TLNManagers) + site(TLNClients)
-      case LNHeaderBits => log2Ceil(site(TLNManagers)) + log2Up(site(TLNClients))
-      case TLBlockAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
-      case TLNClients => site(TLNCachingClients) + site(TLNCachelessClients)
-      case TLDataBits => site(CacheBlockBytes)*8/site(TLDataBeats)
-      case TLDataBeats => 4
-      case TLWriteMaskBits => (site(TLDataBits) - 1) / 8 + 1
-      case TLNetworkIsOrderedP2P => false
-      case TLNManagers => findBy(TLId)
-      case TLNCachingClients => findBy(TLId)
-      case TLNCachelessClients => findBy(TLId)
-      case TLCoherencePolicy => findBy(TLId)
-      case TLMaxManagerXacts => findBy(TLId)
-      case TLMaxClientXacts => findBy(TLId)
-      case TLMaxClientsPerPort => findBy(TLId)
-      case "L1ToL2" => {
-        case TLNManagers => site(NBanksPerMemoryChannel)*site(NMemoryChannels)
-        case TLNCachingClients => site(NTiles)
-        case TLNCachelessClients => site(NTiles) + 1
-        case TLCoherencePolicy => new MESICoherence(site(L2DirectoryRepresentation)) 
-        case TLMaxManagerXacts => site(NAcquireTransactors) + 2
-        case TLMaxClientXacts => max(site(NMSHRs) + site(NIOMSHRs),
-                                     if(site(BuildRoCC).isEmpty) 1 
-                                       else site(RoCCMaxTaggedMemXacts))
-        case TLMaxClientsPerPort => if(site(BuildRoCC).isEmpty) 1 else 3
-      }:PF
-      case "L2ToMC" => {
-        case TLNManagers => 1
-        case TLNCachingClients => site(NBanksPerMemoryChannel)
-        case TLNCachelessClients => 0
-        case TLCoherencePolicy => new MEICoherence(new NullRepresentation(site(NBanksPerMemoryChannel)))
-        case TLMaxManagerXacts => 1
-        case TLMaxClientXacts => 1
-        case TLMaxClientsPerPort => site(NAcquireTransactors) + 2
-      }:PF
+      case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
+      case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
+                             log2Up(site(TLKey(site(TLId))).nClients)
+      case TLKey("L1toL2") => 
+        TileLinkParameters(
+          coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
+          nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels),
+          nCachingClients = site(NTiles),
+          nCachelessClients = site(NTiles) + 1,
+          maxClientXacts = max(site(NMSHRs) + site(NIOMSHRs),
+                                       if(site(BuildRoCC).isEmpty) 1 
+                                         else site(RoCCMaxTaggedMemXacts)),
+          maxClientsPerPort = if(site(BuildRoCC).isEmpty) 1 else 3,
+          maxManagerXacts = site(NAcquireTransactors) + 2,
+          addrBits = site(PAddrBits) - site(CacheBlockOffsetBits),
+          dataBits = site(CacheBlockBytes)*8)()
+      case TLKey("L2toMC") => 
+        TileLinkParameters(
+          coherencePolicy = new MEICoherence(new NullRepresentation(site(NBanksPerMemoryChannel))),
+          nManagers = 1,
+          nCachingClients = site(NBanksPerMemoryChannel),
+          nCachelessClients = 0,
+          maxClientXacts = 1,
+          maxClientsPerPort = site(NAcquireTransactors) + 2,
+          maxManagerXacts = 1,
+          addrBits = site(PAddrBits) - site(CacheBlockOffsetBits),
+          dataBits = site(CacheBlockBytes)*8)()
       case NTiles => Knob("NTILES")
       case NMemoryChannels => 1
       case NBanksPerMemoryChannel => Knob("NBANKS")
@@ -204,16 +196,16 @@ class WithL2Cache extends ChiselConfig(
                           site(NBanksPerMemoryChannel)*site(NMemoryChannels)) /
                             site(NWays)
       case NWays => Knob("L2_WAYS")
-      case RowBits => site(TLDataBits)
+      case RowBits => site(TLKey(site(TLId))).dataBits
     }: PartialFunction[Any,Any] 
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
-    case L2DirectoryRepresentation => new FullRepresentation(site(TLNCachingClients))
+    case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
     case BuildL2CoherenceManager => (p: Parameters) =>
       Module(new L2HellaCacheBank()(p.alterPartial({
          case CacheName => "L2Bank"
-         case InnerTLId => "L1ToL2"
-         case OuterTLId => "L2ToMC"})))
+         case InnerTLId => "L1toL2"
+         case OuterTLId => "L2toMC"})))
   },
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048 }
 )
@@ -235,7 +227,7 @@ class WithZscale extends ChiselConfig(
     case BuildZscale => {
       TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
       TestGeneration.addSuites(List(zscaleBmarks))
-      (r: Bool, p: Parameters) => Module(new Zscale(r)(p.alterPartial({case TLId => "L1ToL2"})))
+      (r: Bool, p: Parameters) => Module(new Zscale(r)(p.alterPartial({case TLId => "L1toL2"})))
     }
     case UseZscale => true
     case BootROMCapacity => Dump("BOOT_CAPACITY", 16*1024)

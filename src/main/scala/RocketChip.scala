@@ -30,9 +30,10 @@ case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
 case object ExternalIOStart extends Field[BigInt]
 
 /** Utility trait for quick access to some relevant parameters */
-trait HasTopLevelParameters extends HasHtifParameters {
+trait HasTopLevelParameters {
+  implicit val p: Parameters
   lazy val nTiles = p(NTiles)
-  lazy val htifW = w
+  lazy val htifW = p(HtifKey).width
   lazy val csrAddrBits = 12
   lazy val nMemChannels = p(NMemoryChannels)
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
@@ -42,6 +43,10 @@ trait HasTopLevelParameters extends HasHtifParameters {
   lazy val mifAddrBits = p(MIFAddrBits)
   lazy val mifDataBeats = p(MIFDataBeats)
   lazy val xLen = p(XLen)
+  lazy val nSCR =  p(HtifKey).nSCR
+  lazy val scrAddrBits = log2Up(nSCR)
+  lazy val scrDataBits = 64
+  lazy val scrDataBytes = scrDataBits / 8
   //require(lsb + log2Up(nBanks) < mifAddrBits)
 }
 
@@ -55,7 +60,7 @@ class MemBackupCtrlIO extends Bundle {
 /** Top-level io for the chip */
 class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
     with HasTopLevelParameters {
-  val host = new HostIO
+  val host = new HostIO(htifW)
   val mem_backup_ctrl = new MemBackupCtrlIO
 }
 
@@ -98,7 +103,7 @@ class MultiChannelTop(implicit val p: Parameters) extends Module with HasTopLeve
   val io = new MultiChannelTopIO
 
   // Build an Uncore and a set of Tiles
-  val innerTLParams = p.alterPartial({case TLId => "L1ToL2" })
+  val innerTLParams = p.alterPartial({case TLId => "L1toL2" })
   val uncore = Module(new Uncore()(innerTLParams))
   val tileList = uncore.io.htif zip p(BuildTiles) map { case(hl, bt) => bt(hl.reset, p) }
 
@@ -130,7 +135,7 @@ class MultiChannelTop(implicit val p: Parameters) extends Module with HasTopLeve
   */
 class Uncore(implicit val p: Parameters) extends Module with HasTopLevelParameters {
   val io = new Bundle {
-    val host = new HostIO
+    val host = new HostIO(htifW)
     val mem = Vec(new NastiIO, nMemChannels)
     val tiles_cached = Vec(new ClientTileLinkIO, nTiles).flip
     val tiles_uncached = Vec(new ClientUncachedTileLinkIO, nTiles).flip
@@ -221,7 +226,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   l1tol2net.io.managers <> managerEndpoints.map(_.innerTL)
 
   // Create a converter between TileLinkIO and MemIO for each channel
-  val outerTLParams = p.alterPartial({ case TLId => "L2ToMC" })
+  val outerTLParams = p.alterPartial({ case TLId => "L2toMC" })
   val backendBuffering = TileLinkDepths(0,0,0,0,0)
 
   val addrMap = p(GlobalAddrMap)

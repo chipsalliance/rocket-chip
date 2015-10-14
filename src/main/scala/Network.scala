@@ -31,8 +31,8 @@ abstract class RocketChipNetwork(
       clientDepths: TileLinkDepths, 
       managerDepths: TileLinkDepths)
     (implicit p: Parameters) extends TLModule()(p) {
-  val nClients = p(TLNClients)
-  val nManagers = p(TLNManagers)
+  val nClients = tlNClients
+  val nManagers = tlNManagers
   val io = new Bundle {
     val clients = Vec(new ClientTileLinkIO, nClients).flip
     val managers = Vec(new ManagerTileLinkIO, nManagers).flip
@@ -95,7 +95,7 @@ class RocketChipTileLinkCrossbar(
     (implicit p: Parameters)
       extends RocketChipNetwork(addrToManagerId, sharerToClientId, clientDepths, managerDepths)(p) {
   val n = p(LNEndpoints)
-  val count = p(TLDataBeats)
+  val count = tlDataBeats
   // Actually instantiate the particular networks required for TileLink
   val acqNet = Module(new BasicCrossbar(n, new Acquire, count, Some((a: PhysicalNetworkIO[Acquire]) => a.payload.hasMultibeatData())))
   val relNet = Module(new BasicCrossbar(n, new Release, count, Some((r: PhysicalNetworkIO[Release]) => r.payload.hasMultibeatData())))
