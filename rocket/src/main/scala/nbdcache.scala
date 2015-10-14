@@ -18,7 +18,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters {
   val wordBits = p(WordBits)
   val wordBytes = wordBits/8
   val wordOffBits = log2Up(wordBytes)
-  val beatBytes = p(CacheBlockBytes) / p(TLDataBeats)
+  val beatBytes = p(CacheBlockBytes) / outerDataBeats
   val beatWords = beatBytes / wordBytes
   val beatOffBits = log2Up(beatBytes)
   val idxMSB = untagBits-1
@@ -32,6 +32,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters {
   val sdqDepth = p(StoreDataQueueDepth)
   val nMSHRs = p(NMSHRs)
   val nIOMSHRs = p(NIOMSHRs)
+  val lrscCycles = p(LRSCCycles)
 }
 
 abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
@@ -713,11 +714,11 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     val mem = new ClientTileLinkIO
   }
  
-  require(p(LRSCCycles) >= 32) // ISA requires 16-insn LRSC sequences to succeed
+  require(lrscCycles >= 32) // ISA requires 16-insn LRSC sequences to succeed
   require(isPow2(nSets))
   require(isPow2(nWays)) // TODO: relax this
-  require(p(RowBits) <= p(TLDataBits))
-  require(paddrBits-blockOffBits == p(TLBlockAddrBits) )
+  require(rowBits <= outerDataBits)
+  require(paddrBits-blockOffBits == outerAddrBits)
   require(untagBits <= pgIdxBits)
 
   val wb = Module(new WritebackUnit)
@@ -861,7 +862,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   when (lrsc_valid) { lrsc_count := lrsc_count - 1 }
   when (s2_valid_masked && s2_hit || s2_replay) {
     when (s2_lr) {
-      when (!lrsc_valid) { lrsc_count := p(LRSCCycles)-1 }
+      when (!lrsc_valid) { lrsc_count := lrscCycles-1 }
       lrsc_addr := s2_req.addr >> blockOffBits
     }
     when (s2_sc) {
