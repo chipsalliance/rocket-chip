@@ -151,7 +151,18 @@ class DefaultConfig extends ChiselConfig (
           maxManagerXacts = 1,
           addrBits = site(PAddrBits) - site(CacheBlockOffsetBits),
           dataBits = site(CacheBlockBytes)*8)()
-      case TLKey("Outermost") => site(TLKey("L2toMC"))
+      case TLKey("Outermost") =>
+        TileLinkParameters(
+          coherencePolicy = new MEICoherence(new NullRepresentation(site(NBanksPerMemoryChannel))),
+          nManagers = 1,
+          nCachingClients = site(NBanksPerMemoryChannel),
+          nCachelessClients = 0,
+          maxClientXacts = 1,
+          maxClientsPerPort = site(NAcquireTransactors) + 2,
+          maxManagerXacts = 1,
+          addrBits = site(PAddrBits) - site(CacheBlockOffsetBits),
+          dataBits = site(CacheBlockBytes)*8,
+          dataBeats = site(MIFDataBeats))()
       case NTiles => Knob("NTILES")
       case NMemoryChannels => 1
       case NBanksPerMemoryChannel => Knob("NBANKS")
