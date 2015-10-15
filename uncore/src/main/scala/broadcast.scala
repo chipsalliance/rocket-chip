@@ -377,7 +377,7 @@ class BroadcastAcquireTracker(trackerId: Int)
       }
     }
     is(s_mem_write) { // Write data to outer memory
-      io.outer.acquire.valid := !pending_ognt_ack || !collect_iacq_data || iacq_data_valid(oacq_data_cnt)
+      io.outer.acquire.valid := !pending_ognt_ack && (!collect_iacq_data || iacq_data_valid(oacq_data_cnt))
       when(oacq_data_done) {
         pending_ognt_ack := Bool(true)
         state := Mux(pending_outer_read, s_mem_read, s_mem_resp)
