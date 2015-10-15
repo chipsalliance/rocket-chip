@@ -1537,9 +1537,11 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Param
   val outerDataBeats = outerParams.dataBeats
   val outerDataBits = outerParams.dataBitsPerBeat
   val outerWriteMaskBits = outerParams.writeMaskBits
+
   require(outerDataBeats >= innerDataBeats)
   require(outerDataBeats % innerDataBeats == 0)
-  require(outerDataBits >= innerDataBits)
+  require(outerDataBits <= innerDataBits)
+  require(outerDataBits * outerDataBeats == innerDataBits * innerDataBeats)
 
   val factor = outerDataBeats / innerDataBeats
 
@@ -1562,10 +1564,13 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Param
     val acq_addr_beat = Reg(iacq.addr_beat)
     val oacq_ctr = Counter(factor)
 
+    val outerConfig = p.alterPartial({ case TLId => outerTLId })
+    val innerConfig = p.alterPartial({ case TLId => innerTLId })
+
     val get_block_acquire = GetBlock(
       client_xact_id = iacq.client_xact_id,
       addr_block = iacq.addr_block,
-      alloc = iacq.allocate())
+      alloc = iacq.allocate())(outerConfig)
 
     val put_block_acquire = PutBlock(
       client_xact_id = acq_client_id,
@@ -1574,7 +1579,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Param
                     Cat(acq_addr_beat, oacq_ctr.value)
                   else acq_addr_beat,
       data = acq_data_buffer(outerDataBits - 1, 0),
-      wmask = acq_wmask_buffer(outerWriteMaskBits - 1, 0))
+      wmask = acq_wmask_buffer(outerWriteMaskBits - 1, 0))(outerConfig)
 
     val sending_put = Reg(init = Bool(false))
 
@@ -1614,7 +1619,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Param
       client_xact_id = gnt_client_id,
       manager_xact_id = gnt_manager_id,
       addr_beat = ignt_ctr.value,
-      data = gnt_data_buffer.toBits)
+      data = gnt_data_buffer.toBits)(innerConfig)
 
     io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
     io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)

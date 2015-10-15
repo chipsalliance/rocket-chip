@@ -250,24 +250,26 @@ class BroadcastAcquireTracker(trackerId: Int)
                             !io.irel().isVoluntary() &&
                             (state === s_probe)
 
+  val outerParams = p.alterPartial({ case TLId => outerTLId })
+
   val oacq_probe = PutBlock(
     client_xact_id = UInt(trackerId),
     addr_block = io.irel().addr_block,
     addr_beat = io.irel().addr_beat,
-    data = io.irel().data)
+    data = io.irel().data)(outerParams)
 
   val oacq_write_beat = Put(
     client_xact_id = UInt(trackerId),
     addr_block = xact.addr_block,
     addr_beat = xact.addr_beat,
     data = xact.data_buffer(0),
-    wmask = xact.wmask())
+    wmask = xact.wmask())(outerParams)
 
   val oacq_write_block = PutBlock(
     client_xact_id = UInt(trackerId),
     addr_block = xact.addr_block,
     addr_beat = oacq_data_cnt,
-    data = xact.data_buffer(oacq_data_cnt))
+    data = xact.data_buffer(oacq_data_cnt))(outerParams)
 
   val oacq_read_beat = Get(
     client_xact_id = UInt(trackerId),
@@ -275,11 +277,11 @@ class BroadcastAcquireTracker(trackerId: Int)
     addr_beat = xact.addr_beat,
     addr_byte = xact.addr_byte(),
     operand_size = xact.op_size(),
-    alloc = Bool(false))
+    alloc = Bool(false))(outerParams)
 
   val oacq_read_block = GetBlock(
     client_xact_id = UInt(trackerId),
-    addr_block = xact.addr_block)
+    addr_block = xact.addr_block)(outerParams)
 
   io.outer.acquire.valid := Bool(false)
   io.outer.acquire.bits := Mux(state === s_probe, oacq_probe,
