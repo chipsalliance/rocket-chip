@@ -38,79 +38,6 @@ abstract class CacheModule(implicit val p: Parameters) extends Module
 abstract class CacheBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasCacheParameters
 
-class StoreGen(typ: UInt, addr: UInt, dat: UInt) {
-  val byte = typ === MT_B || typ === MT_BU
-  val half = typ === MT_H || typ === MT_HU
-  val word = typ === MT_W || typ === MT_WU
-  def mask =
-    Mux(byte, Bits(  1) <<     addr(2,0),
-    Mux(half, Bits(  3) << Cat(addr(2,1), Bits(0,1)),
-    Mux(word, Bits( 15) << Cat(addr(2),   Bits(0,2)),
-              Bits(255))))
-  def data =
-    Mux(byte, Fill(8, dat( 7,0)),
-    Mux(half, Fill(4, dat(15,0)),
-                      wordData))
-  lazy val wordData =
-    Mux(word, Fill(2, dat(31,0)),
-                      dat)
-}
-
-class LoadGen(typ: UInt, addr: UInt, dat: UInt, zero: Bool) {
-  val t = new StoreGen(typ, addr, dat)
-  val sign = typ === MT_B || typ === MT_H || typ === MT_W || typ === MT_D
-
-  val wordShift = Mux(addr(2), dat(63,32), dat(31,0))
-  val word = Cat(Mux(t.word, Fill(32, sign && wordShift(31)), dat(63,32)), wordShift)
-  val halfShift = Mux(addr(1), word(31,16), word(15,0))
-  val half = Cat(Mux(t.half, Fill(48, sign && halfShift(15)), word(63,16)), halfShift)
-  val byteShift = Mux(zero, UInt(0), Mux(addr(0), half(15,8), half(7,0)))
-  val byte = Cat(Mux(zero || t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
-}
-
-class AMOALU(implicit p: Parameters) extends CacheModule()(p) {
-  val operandBits = p(AmoAluOperandBits)
-  require(operandBits == 64)
-  val io = new Bundle {
-    val addr = Bits(INPUT, blockOffBits)
-    val cmd = Bits(INPUT, M_SZ)
-    val typ = Bits(INPUT, MT_SZ)
-    val lhs = Bits(INPUT, operandBits)
-    val rhs = Bits(INPUT, operandBits)
-    val out = Bits(OUTPUT, operandBits)
-  }
-
-  val storegen = new StoreGen(io.typ, io.addr, io.rhs)
-  val rhs = storegen.wordData
-  
-  val sgned = io.cmd === M_XA_MIN || io.cmd === M_XA_MAX
-  val max = io.cmd === M_XA_MAX || io.cmd === M_XA_MAXU
-  val min = io.cmd === M_XA_MIN || io.cmd === M_XA_MINU
-  val word = io.typ === MT_W || io.typ === MT_WU || // Logic minimization:
-               io.typ === MT_B || io.typ === MT_BU
-
-  val mask = ~UInt(0,64) ^ (io.addr(2) << 31)
-  val adder_out = (io.lhs & mask).toUInt + (rhs & mask)
-
-  val cmp_lhs  = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
-  val cmp_rhs  = Mux(word && !io.addr(2), rhs(31), rhs(63))
-  val lt_lo = io.lhs(31,0) < rhs(31,0)
-  val lt_hi = io.lhs(63,32) < rhs(63,32)
-  val eq_hi = io.lhs(63,32) === rhs(63,32)
-  val lt = Mux(word, Mux(io.addr(2), lt_hi, lt_lo), lt_hi || eq_hi && lt_lo)
-  val less = Mux(cmp_lhs === cmp_rhs, lt, Mux(sgned, cmp_lhs, cmp_rhs))
-
-  val out = Mux(io.cmd === M_XA_ADD, adder_out,
-            Mux(io.cmd === M_XA_AND, io.lhs & rhs,
-            Mux(io.cmd === M_XA_OR,  io.lhs | rhs,
-            Mux(io.cmd === M_XA_XOR, io.lhs ^ rhs,
-            Mux(Mux(less, min, max), io.lhs,
-            storegen.data)))))
-
-  val wmask = FillInterleaved(8, storegen.mask)
-  io.out := wmask & out | ~wmask & io.lhs
-}
-
 abstract class ReplacementPolicy {
   def way: UInt
   def miss: Unit
@@ -652,12 +579,12 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
 
   // Provide a single ALU per tracker to merge Puts and AMOs with data being
   // refilled, written back, or extant in the cache
-  val amoalu = Module(new AMOALU)
+  val amoalu = Module(new AMOALU(rhsIsAligned = true))
   amoalu.io.addr := xact.full_addr()
   amoalu.io.cmd := xact.op_code()
   amoalu.io.typ := xact.op_size()
   amoalu.io.lhs := io.data.resp.bits.data // default, overwritten by calls to mergeData
-  amoalu.io.rhs := xact.data_buffer.head       // default, overwritten by calls to mergeData
+  amoalu.io.rhs := xact.data_buffer.head  // default, overwritten by calls to mergeData
   val amo_result = Reg(init = UInt(0, xact.tlDataBits))
 
   // Utility functions for updating the data and metadata that will be kept in
