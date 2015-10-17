@@ -161,8 +161,8 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val req_cmd_sc = req.cmd === M_XSC
   val grant_word = Reg(UInt(width = wordBits))
 
-  val storegen = new StoreGen(req.typ, req.addr, req.data)
-  val loadgen = new LoadGen(req.typ, req.addr, grant_word, req_cmd_sc)
+  val storegen = new StoreGen64(req.typ, req.addr, req.data)
+  val loadgen = new LoadGen64(req.typ, req.addr, grant_word, req_cmd_sc)
 
   val beat_offset = req.addr(beatOffBits - 1, wordOffBits)
   val beat_mask = (storegen.mask << Cat(beat_offset, UInt(0, wordOffBits)))
@@ -992,7 +992,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   // load data subword mux/sign extension
   val s2_data_word_prebypass = s2_data_uncorrected >> Cat(s2_word_idx, Bits(0,log2Up(coreDataBits)))
   val s2_data_word = Mux(s2_store_bypass, s2_store_bypass_data, s2_data_word_prebypass)
-  val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc)
+  val loadgen = new LoadGen64(s2_req.typ, s2_req.addr, s2_data_word, s2_sc)
   
   amoalu.io.addr := s2_req.addr
   amoalu.io.cmd := s2_req.cmd
