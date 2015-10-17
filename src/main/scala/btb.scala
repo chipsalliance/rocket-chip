@@ -7,7 +7,12 @@ import junctions._
 import Util._
 
 case object BtbKey extends Field[BtbParameters]
-case class BtbParameters(nEntries: Int = 62, nRAS: Int = 2, updatesOutOfOrder: Boolean = false)
+
+case class BtbParameters(
+  enabled: Boolean = true,
+  nEntries: Int = 62,
+  nRAS: Int = 2,
+  updatesOutOfOrder: Boolean = false)
 
 abstract trait HasBtbParameters extends HasCoreParameters {
   val matchBits = pgIdxBits
