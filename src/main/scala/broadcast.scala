@@ -32,8 +32,8 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
   val inStoreQueue :: inVolWBQueue :: inClientReleaseQueue :: Nil = Enum(UInt(), nDataQueueLocations)
 
   val usingStoreDataQueue = p.alterPartial({
-    case TLKey(`innerTLId`) => innerTLParams.copy()(internalDataBits, innerWriteMaskBits)
-    case TLKey(`outerTLId`) => outerTLParams.copy()(internalDataBits, outerWriteMaskBits)
+    case TLKey(`innerTLId`) => innerTLParams.copy(overrideDataBitsPerBeat = Some(internalDataBits))
+    case TLKey(`outerTLId`) => outerTLParams.copy(overrideDataBitsPerBeat = Some(internalDataBits))
   })
 
   // Create SHRs for outstanding transactions

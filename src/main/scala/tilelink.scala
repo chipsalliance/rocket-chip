@@ -33,10 +33,12 @@ case class TileLinkParameters(
     maxManagerXacts: Int,
     addrBits: Int,
     dataBits: Int,
-    dataBeats: Int = 4)
-    (val dataBitsPerBeat: Int = dataBits / dataBeats,
-     val writeMaskBits: Int  = ((dataBits / dataBeats) - 1) / 8 + 1) {
+    dataBeats: Int = 4,
+    overrideDataBitsPerBeat: Option[Int] = None
+    ) {
   val nClients = nCachingClients + nCachelessClients
+  val writeMaskBits: Int  = ((dataBits / dataBeats) - 1) / 8 + 1
+  val dataBitsPerBeat: Int = overrideDataBitsPerBeat.getOrElse(dataBits / dataBeats)
 }
 
   
