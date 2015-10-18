@@ -6,6 +6,7 @@ endif
 MODEL := Top
 PROJECT := rocketchip
 export ROCKETCHIP_ADDONS ?= hwacha
+DISASM_EXTENSION = --extension=hwacha
 CXX ?= g++
 CXXFLAGS := -O1
 
