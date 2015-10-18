@@ -6,32 +6,32 @@ import Chisel._
 import uncore._
 import Util._
 
-class PTWReq extends CoreBundle {
+class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val addr = UInt(width = vpnBits)
   val prv = Bits(width = 2)
   val store = Bool()
   val fetch = Bool()
 }
 
-class PTWResp extends CoreBundle {
+class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val error = Bool()
   val pte = new PTE
 }
 
-class TLBPTWIO extends CoreBundle {
+class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new PTWReq)
   val resp = Valid(new PTWResp).flip
   val status = new MStatus().asInput
   val invalidate = Bool(INPUT)
 }
 
-class DatapathPTWIO extends CoreBundle {
+class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
   val ptbr = UInt(INPUT, paddrBits)
   val invalidate = Bool(INPUT)
   val status = new MStatus().asInput
 }
 
-class PTE extends CoreBundle {
+class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   val ppn = Bits(width = ppnBits)
   val reserved_for_software = Bits(width = 3)
   val d = Bool()
@@ -51,10 +51,9 @@ class PTE extends CoreBundle {
     Mux(prv(0), Mux(fetch, sx(), Mux(store, sw(), sr())), Mux(fetch, ux(), Mux(store, uw(), ur())))
 }
 
-class PTW(n: Int) extends CoreModule
-{
+class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
-    val requestor = Vec.fill(n){new TLBPTWIO}.flip
+    val requestor = Vec(new TLBPTWIO, n).flip
     val mem = new HellaCacheIO
     val dpath = new DatapathPTWIO
   }
@@ -87,8 +86,8 @@ class PTW(n: Int) extends CoreModule
     val plru = new PseudoLRU(size)
     val valid = Reg(Vec(Bool(), size))
     val validBits = valid.toBits
-    val tags = Mem(UInt(width = paddrBits), size)
-    val data = Mem(UInt(width = ppnBits), size)
+    val tags = Mem(size, UInt(width = paddrBits))
+    val data = Mem(size, UInt(width = ppnBits))
 
     val hits = Vec(tags.map(_ === pte_addr)).toBits & validBits
     val hit = hits.orR
@@ -125,7 +124,7 @@ class PTW(n: Int) extends CoreModule
   val resp_err = state === s_error
   val resp_val = state === s_done || resp_err
 
-  val r_resp_ppn = io.mem.req.bits.addr >> UInt(pgIdxBits)
+  val r_resp_ppn = io.mem.req.bits.addr >> pgIdxBits
   val resp_ppn = Vec((0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn)(count)
 
   for (i <- 0 until io.requestor.size) {
