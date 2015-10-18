@@ -7,6 +7,7 @@ sim_dir = .
 output_dir = $(sim_dir)/output
 
 BACKEND = c
+#CONFIG ?= ZscaleConfig
 CONFIG ?= DefaultCPPConfig
 
 include $(base_dir)/Makefrag

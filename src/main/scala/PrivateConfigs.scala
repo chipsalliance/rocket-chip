@@ -62,7 +62,7 @@ class WithHwachaTests extends ChiselConfig(
       TestGeneration.addSuite(rv64sv("p"))
       TestGeneration.addVariable("SRC_EXTENSION", "$(base_dir)/hwacha/$(src_path)/*.scala")
       TestGeneration.addVariable("DISASM_EXTENSION", "--extension=hwacha")
-      Some(() => (Module(new Hwacha, { case CoreName => "Hwacha" })))
+      Some((p: Parameters) => (Module(new Hwacha()(p.alterPartial({ case CoreName => "Hwacha" })))))
     }
   }
 )

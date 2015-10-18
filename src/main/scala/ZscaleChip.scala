@@ -9,22 +9,22 @@ import rocket._
 import zscale._
 
 case object UseZscale extends Field[Boolean]
-case object BuildZscale extends Field[(Bool) => Zscale]
+case object BuildZscale extends Field[(Bool, Parameters) => Zscale]
 case object BootROMCapacity extends Field[Int]
 case object DRAMCapacity extends Field[Int]
 
-class ZscaleSystem extends Module {
+class ZscaleSystem(implicit p: Parameters)  extends Module {
   val io = new Bundle {
-    val host = new HTIFIO
-    val jtag = new HASTIMasterIO().flip
-    val bootmem = new HASTISlaveIO().flip
-    val dram = new HASTISlaveIO().flip
-    val spi = new HASTISlaveIO().flip
-    val led = new POCIIO
-    val corereset = new POCIIO
+    val host = new HtifIO
+    val jtag = new HastiMasterIO().flip
+    val bootmem = new HastiSlaveIO().flip
+    val dram = new HastiSlaveIO().flip
+    val spi = new HastiSlaveIO().flip
+    val led = new PociIO
+    val corereset = new PociIO
   }
 
-  val core = params(BuildZscale)(io.host.reset)
+  val core = p(BuildZscale)(io.host.reset, p)
 
   val bootmem_afn = (addr: UInt) => addr(31, 14) === UInt(0)
 
@@ -36,11 +36,11 @@ class ZscaleSystem extends Module {
   val led_afn = (addr: UInt) => addr(31) === UInt(1) && addr(30, 10) === UInt(0)
   val corereset_afn = (addr: UInt) => addr(31) === UInt(1) && addr(30, 10) === UInt(1)
 
-  val xbar = Module(new HASTIXbar(3, Seq(bootmem_afn, sbus_afn)))
-  val sadapter = Module(new HASTISlaveToMaster)
-  val sbus = Module(new HASTIBus(Seq(dram_afn, spi_afn, pbus_afn)))
-  val padapter = Module(new HASTItoPOCIBridge)
-  val pbus = Module(new POCIBus(Seq(led_afn, corereset_afn)))
+  val xbar = Module(new HastiXbar(3, Seq(bootmem_afn, sbus_afn)))
+  val sadapter = Module(new HastiSlaveToMaster)
+  val sbus = Module(new HastiBus(Seq(dram_afn, spi_afn, pbus_afn)))
+  val padapter = Module(new HastiToPociBridge)
+  val pbus = Module(new PociBus(Seq(led_afn, corereset_afn)))
 
   core.io.host <> io.host
   xbar.io.masters(0) <> io.jtag
@@ -60,14 +60,14 @@ class ZscaleSystem extends Module {
   io.corereset <> pbus.io.slaves(1)
 }
 
-class ZscaleTop extends Module {
+class ZscaleTop(implicit p: Parameters) extends Module {
   val io = new Bundle {
-    val host = new HTIFIO
+    val host = new HtifIO
   }
 
   val sys = Module(new ZscaleSystem)
-  val bootmem = Module(new HASTISRAM(params(BootROMCapacity)/4))
-  val dram = Module(new HASTISRAM(params(DRAMCapacity)/4))
+  val bootmem = Module(new HastiSRAM(p(BootROMCapacity)/4))
+  val dram = Module(new HastiSRAM(p(DRAMCapacity)/4))
 
   sys.io.host <> io.host
   bootmem.io <> sys.io.bootmem

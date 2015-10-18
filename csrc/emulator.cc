@@ -21,6 +21,7 @@ int main(int argc, char** argv)
   unsigned random_seed = (unsigned)time(NULL) ^ (unsigned)getpid();
   uint64_t max_cycles = -1;
   uint64_t trace_count = 0;
+  uint64_t start = 0;
   int ret = 0;
   const char* vcd = NULL;
   const char* loadmem = NULL;
@@ -46,6 +47,8 @@ int main(int argc, char** argv)
       max_cycles = atoll(argv[i]+12);
     else if (arg.substr(0, 9) == "+loadmem=")
       loadmem = argv[i]+9;
+    else if (arg.substr(0, 7) == "+start=")
+      start = atoll(argv[i]+7);
   }
 
   const int disasm_len = 24;
@@ -82,7 +85,8 @@ int main(int argc, char** argv)
     load_mem(mm->get_data(), loadmem);
 
   // Instantiate HTIF
-  htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
+  htif = new htif_emulator_t(memsz_mb,
+          std::vector<std::string>(argv + 1, argv + argc));
   int htif_bits = tile.Top__io_host_in_bits.width();
   assert(htif_bits % 8 == 0 && htif_bits <= val_n_bits());
 
@@ -140,10 +144,11 @@ int main(int argc, char** argv)
       tile.Top__io_host_out_ready = LIT<1>(1);
     }
 
-    if (log)
+    if (log && trace_count >= start)
       tile.print(stderr);
 
-    if (vcd)
+    // make sure we dump on cycle 0 to get dump_init
+    if (vcd && (trace_count == 0 || trace_count >= start))
       tile.dump(vcdfile, trace_count);
 
     tile.clock_hi(LIT<1>(0));
@@ -155,13 +160,17 @@ int main(int argc, char** argv)
 
   if (htif->exit_code())
   {
-    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %lld cycles\n", htif->exit_code(), random_seed, (long long)trace_count);
+    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", htif->exit_code(), random_seed, trace_count);
     ret = htif->exit_code();
   }
   else if (trace_count == max_cycles)
   {
-    fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %lld cycles\n", random_seed, (long long)trace_count);
+    fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %ld cycles\n", random_seed, trace_count);
     ret = 2;
+  }
+  else if (log)
+  {
+    fprintf(stderr, "Completed after %ld cycles\n", trace_count);
   }
 
   delete htif;

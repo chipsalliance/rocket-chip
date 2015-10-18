@@ -29,6 +29,7 @@ void htif_fini(vc_handle failure)
 int main(int argc, char** argv)
 {
   bool dramsim = false;
+  unsigned long memsz_mb = MEM_SIZE / (1024*1024);
 
   for (int i = 1; i < argc; i++)
   {
@@ -39,7 +40,8 @@ int main(int argc, char** argv)
   }
 
   mm = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-  htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
+  htif = new htif_emulator_t(memsz_mb,
+          std::vector<std::string>(argv + 1, argv + argc));
 
   vcs_main(argc, argv);
   abort(); // should never get here
