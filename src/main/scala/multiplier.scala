@@ -6,29 +6,35 @@ import Chisel._
 import ALU._
 import Util._
 
-class MultiplierReq extends CoreBundle {
+class MultiplierReq(dataBits: Int, tagBits: Int) extends Bundle {
   val fn = Bits(width = SZ_ALU_FN)
   val dw = Bits(width = SZ_DW)
-  val in1 = Bits(width = xLen)
-  val in2 = Bits(width = xLen)
-  val tag = UInt(width = log2Up(params(NMultXpr)))
+  val in1 = Bits(width = dataBits)
+  val in2 = Bits(width = dataBits)
+  val tag = UInt(width = tagBits)
+  override def cloneType = new MultiplierReq(dataBits, tagBits).asInstanceOf[this.type]
 }
 
-class MultiplierResp extends CoreBundle {
-  val data = Bits(width = xLen)
-  val tag = UInt(width = log2Up(params(NMultXpr)))
+class MultiplierResp(dataBits: Int, tagBits: Int) extends Bundle {
+  val data = Bits(width = dataBits)
+  val tag = UInt(width = tagBits)
+  override def cloneType = new MultiplierResp(dataBits, tagBits).asInstanceOf[this.type]
 }
 
-class MultiplierIO extends Bundle {
-  val req = Decoupled(new MultiplierReq).flip
+class MultiplierIO(dataBits: Int, tagBits: Int) extends Bundle {
+  val req = Decoupled(new MultiplierReq(dataBits, tagBits)).flip
   val kill = Bool(INPUT)
-  val resp = Decoupled(new MultiplierResp)
+  val resp = Decoupled(new MultiplierResp(dataBits, tagBits))
 }
 
-class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false) extends Module {
-  val io = new MultiplierIO
+class MulDiv(
+    width: Int,
+    nXpr: Int = 32,
+    unroll: Int = 1,
+    earlyOut: Boolean = false) extends Module {
+  val io = new MultiplierIO(width, log2Up(nXpr))
   val w = io.req.bits.in1.getWidth
-  val mulw = (w+mulUnroll-1)/mulUnroll*mulUnroll
+  val mulw = (w+unroll-1)/unroll*unroll
  
   val s_ready :: s_neg_inputs :: s_busy :: s_move_rem :: s_neg_output :: s_done :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_ready)
@@ -87,18 +93,18 @@ class MulDiv(mulUnroll: Int = 1, earlyOut: Boolean = false) extends Module {
     val mplier = mulReg(mulw-1,0)
     val accum = mulReg(2*mulw,mulw).toSInt
     val mpcand = divisor.toSInt
-    val prod = mplier(mulUnroll-1,0) * mpcand + accum
-    val nextMulReg = Cat(prod, mplier(mulw-1,mulUnroll)).toUInt
+    val prod = mplier(unroll-1,0) * mpcand + accum
+    val nextMulReg = Cat(prod, mplier(mulw-1,unroll)).toUInt
 
-    val eOutMask = (SInt(BigInt(-1) << mulw) >> (count * mulUnroll)(log2Up(mulw)-1,0))(mulw-1,0)
-    val eOut = Bool(earlyOut) && count != mulw/mulUnroll-1 && count != 0 &&
+    val eOutMask = (SInt(BigInt(-1) << mulw) >> (count * unroll)(log2Up(mulw)-1,0))(mulw-1,0)
+    val eOut = Bool(earlyOut) && count != mulw/unroll-1 && count != 0 &&
       !isHi && (mplier & ~eOutMask) === UInt(0)
-    val eOutRes = (mulReg >> (mulw - count * mulUnroll)(log2Up(mulw)-1,0))
+    val eOutRes = (mulReg >> (mulw - count * unroll)(log2Up(mulw)-1,0))
     val nextMulReg1 = Cat(nextMulReg(2*mulw,mulw), Mux(eOut, eOutRes, nextMulReg)(mulw-1,0))
     remainder := Cat(nextMulReg1 >> w, Bool(false), nextMulReg1(w-1,0))
 
     count := count + 1
-    when (eOut || count === mulw/mulUnroll-1) {
+    when (eOut || count === mulw/unroll-1) {
       state := Mux(isHi, s_move_rem, s_done)
     }
   }
