@@ -145,3 +145,13 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
     roq_free(roq_deq_addr) := Bool(true)
   }
 }
+
+object DecoupledHelper {
+  def apply(rvs: Bool*) = new DecoupledHelper(rvs)
+}
+
+class DecoupledHelper(val rvs: Seq[Bool]) {
+  def fire(exclude: Bool, includes: Bool*) = {
+    (rvs.filter(_ ne exclude) ++ includes).reduce(_ && _)
+  }
+}

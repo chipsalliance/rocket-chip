@@ -1320,15 +1320,28 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
   val irel = io.in.release.bits
   val ognt = io.out.grant.bits
 
-  val iacq_wait = needsRoqEnq(iacq) && !roqArb.io.in(0).ready
-  val irel_wait = needsRoqEnq(irel) && !roqArb.io.in(1).ready
+  val acq_roq_enq = needsRoqEnq(iacq)
+  val rel_roq_enq = needsRoqEnq(irel)
 
-  roqArb.io.in(0).valid := io.in.acquire.valid && needsRoqEnq(iacq)
+  val acq_roq_ready = !acq_roq_enq || roqArb.io.in(0).ready
+  val rel_roq_ready = !rel_roq_enq || roqArb.io.in(1).ready
+
+  val acq_helper = DecoupledHelper(
+    io.in.acquire.valid,
+    acq_roq_ready,
+    acqArb.io.in(0).ready)
+
+  val rel_helper = DecoupledHelper(
+    io.in.release.valid,
+    rel_roq_ready,
+    acqArb.io.in(1).ready)
+
+  roqArb.io.in(0).valid := acq_helper.fire(acq_roq_ready, acq_roq_enq)
   roqArb.io.in(0).bits.data.voluntary := Bool(false)
   roqArb.io.in(0).bits.data.builtin := iacq.isBuiltInType()
   roqArb.io.in(0).bits.tag := iacq.client_xact_id
 
-  acqArb.io.in(0).valid := io.in.acquire.valid && !iacq_wait
+  acqArb.io.in(0).valid := acq_helper.fire(acqArb.io.in(0).ready)
   acqArb.io.in(0).bits := Acquire(
     is_builtin_type = Bool(true),
     a_type = Mux(iacq.isBuiltInType(),
@@ -1339,21 +1352,21 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
     data = iacq.data,
     union = Mux(iacq.isBuiltInType(),
       iacq.union, Cat(Acquire.fullWriteMask, Bool(false))))
-  io.in.acquire.ready := acqArb.io.in(0).ready && !iacq_wait
+  io.in.acquire.ready := acq_helper.fire(io.in.acquire.valid)
 
-  roqArb.io.in(1).valid := io.in.release.valid && needsRoqEnq(iacq)
+  roqArb.io.in(1).valid := rel_helper.fire(rel_roq_ready, rel_roq_enq)
   roqArb.io.in(1).bits.data.voluntary := irel.isVoluntary()
   roqArb.io.in(1).bits.data.builtin := Bool(true)
   roqArb.io.in(1).bits.tag := irel.client_xact_id
 
-  acqArb.io.in(1).valid := io.in.release.valid && !irel_wait
+  acqArb.io.in(1).valid := rel_helper.fire(acqArb.io.in(1).ready)
   acqArb.io.in(1).bits := PutBlock(
     client_xact_id = irel.client_xact_id,
     addr_block = irel.addr_block,
     addr_beat = irel.addr_beat,
     data = irel.data,
     wmask = Acquire.fullWriteMask)
-  io.in.release.ready := acqArb.io.in(1).ready && !irel_wait
+  io.in.release.ready := rel_helper.fire(io.in.release.valid)
 
   io.out.acquire <> acqArb.io.out
 
