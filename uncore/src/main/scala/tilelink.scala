@@ -1421,22 +1421,16 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   require(tlDataBeats < (1 << nastiXLenBits), "Can't have that many beats")
   require(dstIdBits + tlClientXactIdBits < nastiXIdBits, "NastiIO converter is going truncate tags: " + dstIdBits + " + " + tlClientXactIdBits + " >= " + nastiXIdBits)
 
-  io.tl.acquire.ready := Bool(false)
-
-  io.nasti.b.ready := Bool(false)
-  io.nasti.r.ready := Bool(false)
-  io.nasti.ar.valid := Bool(false)
-  io.nasti.aw.valid := Bool(false)
-  io.nasti.w.valid := Bool(false)
-
   val dst_off = dstIdBits + tlClientXactIdBits
   val has_data = io.tl.acquire.bits.hasData()
-  val is_write = io.tl.acquire.valid && has_data
 
   val is_subblock = io.tl.acquire.bits.isSubBlockType()
   val is_multibeat = io.tl.acquire.bits.hasMultibeatData()
   val (tl_cnt_out, tl_wrap_out) = Counter(
     io.tl.acquire.fire() && is_multibeat, tlDataBeats)
+
+  val get_valid = io.tl.acquire.valid && !has_data
+  val put_valid = io.tl.acquire.valid && has_data
 
   // Reorder queue saves extra information needed to send correct
   // grant back to TL client
@@ -1444,10 +1438,26 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     new NastiIOTileLinkIOConverterInfo,
     nastiRIdBits, tlMaxClientsPerPort))
 
+  // For Get/GetBlock, make sure Reorder queue can accept new entry
+  val get_helper = DecoupledHelper(
+    get_valid,
+    roq.io.enq.ready,
+    io.nasti.ar.ready)
+
+  val w_inflight = Reg(init = Bool(false))
+
+  // For Put/PutBlock, make sure aw and w channel are both ready before
+  // we send the first beat
+  val aw_ready = w_inflight || io.nasti.aw.ready
+  val put_helper = DecoupledHelper(
+    put_valid,
+    aw_ready,
+    io.nasti.w.ready)
+
   val (nasti_cnt_out, nasti_wrap_out) = Counter(
     io.nasti.r.fire() && !roq.io.deq.data.subblock, tlDataBeats)
 
-  roq.io.enq.valid := io.tl.acquire.fire() && !has_data
+  roq.io.enq.valid := get_helper.fire(roq.io.enq.ready)
   roq.io.enq.bits.tag := io.nasti.ar.bits.id
   roq.io.enq.bits.data.byteOff := io.tl.acquire.bits.addr_byte()
   roq.io.enq.bits.data.subblock := is_subblock
@@ -1455,46 +1465,37 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   roq.io.deq.tag := io.nasti.r.bits.id
 
   // Decompose outgoing TL Acquires into Nasti address and data channels
+  io.nasti.ar.valid := get_helper.fire(io.nasti.ar.ready)
   io.nasti.ar.bits := NastiReadAddressChannel(
     id = io.tl.acquire.bits.client_xact_id,
-    addr = io.tl.acquire.bits.full_addr(), 
-    size = Mux(is_subblock, 
-      opSizeToXSize(io.tl.acquire.bits.op_size()), 
+    addr = io.tl.acquire.bits.full_addr(),
+    size = Mux(is_subblock,
+      opSizeToXSize(io.tl.acquire.bits.op_size()),
       UInt(log2Ceil(tlDataBytes))),
     len = Mux(is_subblock, UInt(0), UInt(tlDataBeats - 1)))
 
+  io.nasti.aw.valid := put_helper.fire(aw_ready, !w_inflight)
   io.nasti.aw.bits := NastiWriteAddressChannel(
     id = io.tl.acquire.bits.client_xact_id,
-    addr = io.tl.acquire.bits.full_addr(), 
+    addr = io.tl.acquire.bits.full_addr(),
     size = UInt(log2Ceil(tlDataBytes)),
     len = Mux(is_multibeat, UInt(tlDataBeats - 1), UInt(0)))
 
+  io.nasti.w.valid := put_helper.fire(io.nasti.w.ready)
   io.nasti.w.bits := NastiWriteDataChannel(
     data = io.tl.acquire.bits.data,
     strb = io.tl.acquire.bits.wmask(),
     last = tl_wrap_out || (io.tl.acquire.fire() && is_subblock))
 
-  val w_inflight = Reg(init = Bool(false))
+  io.tl.acquire.ready := Mux(has_data,
+    put_helper.fire(put_valid),
+    get_helper.fire(get_valid))
 
-  when (!w_inflight && io.tl.acquire.valid) {
-    when (has_data) {
-      // For Put/PutBlock, make sure aw and w channel are both ready before
-      // we send the first beat
-      io.tl.acquire.ready := io.nasti.aw.ready && io.nasti.w.ready
-      io.nasti.aw.valid := io.nasti.w.ready
-      io.nasti.w.valid := io.nasti.aw.ready
-      // For Putblock, use a different state for the subsequent beats
-      when (io.tl.acquire.ready && is_multibeat) { w_inflight := Bool(true) }
-    } .otherwise {
-      // For Get/GetBlock, make sure Reorder queue can accept new entry
-      io.tl.acquire.ready := io.nasti.ar.ready && roq.io.enq.ready
-      io.nasti.ar.valid := roq.io.enq.ready
-    }
+  when (!w_inflight && io.tl.acquire.fire() && is_multibeat) {
+    w_inflight := Bool(true)
   }
 
   when (w_inflight) {
-    io.nasti.w.valid := io.tl.acquire.valid
-    io.tl.acquire.ready := io.nasti.w.ready
     when (tl_wrap_out) { w_inflight := Bool(false) }
   }
 
