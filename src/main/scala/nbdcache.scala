@@ -718,7 +718,6 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   require(isPow2(nSets))
   require(isPow2(nWays)) // TODO: relax this
   require(rowBits <= outerDataBits)
-  require(paddrBits-blockOffBits == outerAddrBits)
   require(untagBits <= pgIdxBits)
 
   val wb = Module(new WritebackUnit)

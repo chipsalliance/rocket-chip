@@ -7,31 +7,33 @@ import uncore._
 import Util._
 
 case object CoreName extends Field[String]
-case object NDCachePorts extends Field[Int]
-case object NPTWPorts extends Field[Int]
 case object BuildRoCC extends Field[Option[Parameters => RoCC]]
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
+  val usingRocc = !p(BuildRoCC).isEmpty
+  val nDCachePorts = 2 + (if(!usingRocc) 0 else 1)
+  val nPTWPorts = 2 + (if(!usingRocc) 0 else 3)
+  val nCachedTileLinkPorts = 1
+  val nUncachedTileLinkPorts = 1 + (if(!usingRocc) 0 else p(RoccNMemChannels))
+  val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
   val io = new Bundle {
-    val cached = new ClientTileLinkIO
-    val uncached = new ClientUncachedTileLinkIO
+    val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
+    val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
     val host = new HtifIO
   }
 }
 
 class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(resetSignal)(p) {
-  //TODO
-  val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
-  val icache = Module(new Frontend()(p.alterPartial({
-                 case CacheName => "L1I"
-                 case CoreName => "Rocket" })))
-  val dcache = Module(new HellaCache()(dcacheParams))
-  val ptw = Module(new PTW(p(NPTWPorts))(dcacheParams))
   val core = Module(new Rocket()(p.alterPartial({ case CoreName => "Rocket" })))
+  val icache = Module(new Frontend()(p.alterPartial({
+    case CacheName => "L1I"
+    case CoreName => "Rocket" })))
+  val dcache = Module(new HellaCache()(dcacheParams))
+  val ptw = Module(new PTW(nPTWPorts)(dcacheParams))
 
   dcache.io.cpu.invalidate_lr := core.io.dmem.invalidate_lr // Bypass signal to dcache
-  val dcArb = Module(new HellaCacheArbiter(p(NDCachePorts))(dcacheParams))
+  val dcArb = Module(new HellaCacheArbiter(nDCachePorts)(dcacheParams))
   dcArb.io.requestor(0) <> ptw.io.mem
   dcArb.io.requestor(1) <> core.io.dmem
   dcache.io.cpu <> dcArb.io.mem
@@ -44,25 +46,24 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   core.io.ptw <> ptw.io.dpath
 
   //If so specified, build an FPU module and wire it in
-  p(BuildFPU) foreach { fpu => core.io.fpu <> fpu(p).io }
+  if (p(UseFPU)) core.io.fpu <> Module(new FPU()(p)).io
 
-  // Connect the caches and ROCC to the outer memory system
-  io.cached <> dcache.io.mem
-  // If so specified, build an RoCC module and wire it in
-  // otherwise, just hookup the icache
+   // Connect the caches and ROCC to the outer memory system
+  io.cached.head <> dcache.io.mem
+  // If so specified, build an RoCC module and wire it to core + TileLink ports,
+  // otherwise just hookup the icache
   io.uncached <> p(BuildRoCC).map { buildItHere =>
     val rocc = buildItHere(p)
-    val memArb = Module(new ClientTileLinkIOArbiter(3))
+    val iMemArb = Module(new ClientTileLinkIOArbiter(2))
     val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
     core.io.rocc <> rocc.io
     dcIF.io.requestor <> rocc.io.mem
     dcArb.io.requestor(2) <> dcIF.io.cache
-    memArb.io.in(0) <> icache.io.mem
-    memArb.io.in(1) <> rocc.io.imem
-    memArb.io.in(2) <> rocc.io.dmem
+    iMemArb.io.in(0) <> icache.io.mem
+    iMemArb.io.in(1) <> rocc.io.imem
     ptw.io.requestor(2) <> rocc.io.iptw
     ptw.io.requestor(3) <> rocc.io.dptw
     ptw.io.requestor(4) <> rocc.io.pptw
-    memArb.io.out
-  }.getOrElse(icache.io.mem)
+    rocc.io.dmem :+ iMemArb.io.out
+  }.getOrElse(List(icache.io.mem))
 }
