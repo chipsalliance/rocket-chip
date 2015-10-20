@@ -213,7 +213,7 @@ class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) e
   when (io.nasti.w.fire() && io.nasti.w.bits.last) { b_ok := Bool(true) }
 
   val id_q = Module(new Queue(UInt(width = nastiWIdBits), 2))
-  id_q.io.enq.valid := io.nasti.aw.valid
+  id_q.io.enq.valid := io.nasti.aw.valid && io.mem.req_cmd.ready
   id_q.io.enq.bits := io.nasti.aw.bits.id
   id_q.io.deq.ready := io.nasti.b.ready && b_ok
 
