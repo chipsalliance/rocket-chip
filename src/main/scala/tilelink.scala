@@ -31,7 +31,6 @@ case class TileLinkParameters(
     maxClientXacts: Int,
     maxClientsPerPort: Int,
     maxManagerXacts: Int,
-    addrBits: Int,
     dataBits: Int,
     dataBeats: Int = 4,
     overrideDataBitsPerBeat: Option[Int] = None
@@ -58,7 +57,7 @@ trait HasTileLinkParameters {
   val tlMaxManagerXacts = tlExternal.maxManagerXacts
   val tlClientXactIdBits = log2Up(tlMaxClientXacts*tlMaxClientsPerPort)
   val tlManagerXactIdBits = log2Up(tlMaxManagerXacts)
-  val tlBlockAddrBits = tlExternal.addrBits
+  val tlBlockAddrBits = p(PAddrBits) - p(CacheBlockOffsetBits)
   val tlDataBeats = tlExternal.dataBeats
   val tlDataBits = tlExternal.dataBitsPerBeat
   val tlDataBytes = tlDataBits/8
