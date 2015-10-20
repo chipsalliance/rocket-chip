@@ -125,7 +125,7 @@ module rocketTestHarness;
 `ifndef FPGA
     .io_host_clk(htif_clk),
     .io_host_clk_edge(),
-    .io_host_debug_stats_pcr(htif_out_stats_delay),
+    .io_host_debug_stats_csr(htif_out_stats_delay),
 
 `ifdef MEM_BACKUP_EN
     .io_mem_backup_ctrl_en(1'b1),
