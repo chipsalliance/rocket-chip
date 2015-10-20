@@ -17,7 +17,8 @@ object HwachaTestSuites {
     "vld", "vlw", "vlwu", "vlh", "vlhu", "vlb", "vlbu", "vlxd", "vlxw", "vlxwu", "vlxh", "vlxhu", "vlxb", "vlxbu", 
     "vsd", "vsw", "vsh", "vsb", "vsxd", "vsxw", "vsxh", "vsxb",
     "eidx", "imul", "fcvt", "vvadd_d", "vvadd_w", "vvadd_fd", "vvadd_fw", "vvmul_d",
-    "overlap", "sched_sreg_xbar", "sched_fadd", "sched_waw", "sched_war", "pointer") ++
+    "overlap", "sched_sreg_xbar", "sched_fadd", "sched_waw", "sched_war", "pointer",
+    "vld_pred", "vsd_pred", "eidx_pred") ++
     rv32uaNames ++ rv64uaNames 
   val rv64uvBasic = new AssemblyTestSuite("rv64uv", "rv64uv", rv64uvNames)(_)
   
