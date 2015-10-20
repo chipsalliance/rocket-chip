@@ -131,7 +131,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
-  val irq_rocc = Bool(!p(BuildRoCC).isEmpty) && io.rocc.interrupt
+  val irq_rocc = Bool(usingRoCC) && io.rocc.interrupt
 
   io.interrupt_cause := 0
   io.interrupt := io.interrupt_cause(xLen-1)

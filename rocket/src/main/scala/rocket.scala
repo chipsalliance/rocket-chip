@@ -7,7 +7,7 @@ import junctions._
 import uncore._
 import Util._
 
-case object BuildFPU extends Field[Option[Parameters => FPU]]
+case object UseFPU extends Field[Boolean]
 case object FDivSqrt extends Field[Boolean]
 case object XLen extends Field[Int]
 case object FetchWidth extends Field[Int]
@@ -26,25 +26,25 @@ trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
   val xLen = p(XLen)
 
+  val usingVM = p(UseVM)
+  val usingFPU = p(UseFPU)
+  val usingFDivSqrt = p(FDivSqrt)
+  val usingRoCC = !p(BuildRoCC).isEmpty
+  val usingFastMulDiv = p(FastMulDiv)
+  val fastLoadWord = p(FastLoadWord)
+  val fastLoadByte = p(FastLoadByte)
+
   val retireWidth = p(RetireWidth)
   val fetchWidth = p(FetchWidth)
   val coreInstBits = p(CoreInstBits)
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen
   val coreDataBytes = coreDataBits/8
-  val coreDCacheReqTagBits = p(CoreDCacheReqTagBits)
+  val coreDCacheReqTagBits = 7 + (2 + (if(!usingRoCC) 0 else 1))
   val coreMaxAddrBits = math.max(ppnBits,vpnBits+1) + pgIdxBits
   val vaddrBitsExtended = vaddrBits + (vaddrBits < xLen).toInt
   val mmioBase = p(MMIOBase)
   val nCustomMrwCsrs = p(NCustomMRWCSRs)
-
-  val usingVM = p(UseVM)
-  val usingFPU = !p(BuildFPU).isEmpty
-  val usingFDivSqrt = p(FDivSqrt)
-  val usingRoCC = !p(BuildRoCC).isEmpty
-  val usingFastMulDiv = p(FastMulDiv)
-  val fastLoadWord = p(FastLoadWord)
-  val fastLoadByte = p(FastLoadByte)
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
@@ -486,7 +486,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.dmem.req.bits.addr := Cat(vaSign(ex_rs(0), alu.io.adder_out), alu.io.adder_out(vaddrBits-1,0)).toUInt
   io.dmem.req.bits.tag := Cat(ex_waddr, ex_ctrl.fp)
   io.dmem.req.bits.data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
-  require(p(CoreDCacheReqTagBits) >= 6)
+  require(coreDCacheReqTagBits >= 6)
   io.dmem.invalidate_lr := wb_xcpt
 
   io.rocc.cmd.valid := wb_rocc_val
