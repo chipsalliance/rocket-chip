@@ -33,6 +33,8 @@ case object ExternalIOStart extends Field[BigInt]
 trait HasTopLevelParameters {
   implicit val p: Parameters
   lazy val nTiles = p(NTiles)
+  lazy val nCachedTilePorts = p(TLKey("L1toL2")).nCachingClients
+  lazy val nUncachedTilePorts = p(TLKey("L1toL2")).nCachelessClients - 1
   lazy val htifW = p(HtifKey).width
   lazy val csrAddrBits = 12
   lazy val nMemChannels = p(NMemoryChannels)
@@ -120,8 +122,8 @@ class MultiChannelTop(implicit val p: Parameters) extends Module with HasTopLeve
   }
 
   // Connect the uncore to the tile memory ports, HostIO and MemIO
-  uncore.io.tiles_cached <> tileList.map(_.io.cached)
-  uncore.io.tiles_uncached <> tileList.map(_.io.uncached)
+  uncore.io.tiles_cached <> tileList.map(_.io.cached).flatten
+  uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
   io.mem <> uncore.io.mem
   io.mmio <> uncore.io.mmio
@@ -133,12 +135,13 @@ class MultiChannelTop(implicit val p: Parameters) extends Module with HasTopLeve
   * Usually this is clocked and/or place-and-routed separately from the Tiles.
   * Contains the Host-Target InterFace module (HTIF).
   */
-class Uncore(implicit val p: Parameters) extends Module with HasTopLevelParameters {
+class Uncore(implicit val p: Parameters) extends Module
+    with HasTopLevelParameters {
   val io = new Bundle {
     val host = new HostIO(htifW)
     val mem = Vec(new NastiIO, nMemChannels)
-    val tiles_cached = Vec(new ClientTileLinkIO, nTiles).flip
-    val tiles_uncached = Vec(new ClientUncachedTileLinkIO, nTiles).flip
+    val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
+    val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val htif = Vec(new HtifIO, nTiles).flip
     val mem_backup_ctrl = new MemBackupCtrlIO
     val mmio = new NastiIO
@@ -191,8 +194,8 @@ class Uncore(implicit val p: Parameters) extends Module with HasTopLevelParamete
   */ 
 class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLevelParameters {
   val io = new Bundle {
-    val tiles_cached = Vec(new ClientTileLinkIO, nTiles).flip
-    val tiles_uncached = Vec(new ClientUncachedTileLinkIO, nTiles).flip
+    val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
+    val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val htif_uncached = (new ClientUncachedTileLinkIO).flip
     val incoherent = Vec(Bool(), nTiles).asInput
     val mem = Vec(new NastiIO, nMemChannels)
