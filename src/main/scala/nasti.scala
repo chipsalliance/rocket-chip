@@ -311,48 +311,6 @@ class NastiArbiter(val arbN: Int)(implicit p: Parameters) extends NastiModule {
   } else { io.slave <> io.master.head }
 }
 
-/** Locking RR arbiter for Nasti read data channel
- *  Arbiter locks until last message in channel is sent */
-class NastiReadDataArbiter(arbN: Int)(implicit p: Parameters) extends NastiModule {
-  val io = new Bundle {
-    val in = Vec(Decoupled(new NastiReadDataChannel), arbN).flip
-    val out = Decoupled(new NastiReadDataChannel)
-  }
-
-  def rotateLeft[T <: Data](norm: Vec[T], rot: UInt): Vec[T] = {
-    val n = norm.size
-    Vec.tabulate(n) { i =>
-      Mux(rot < UInt(n - i), norm(UInt(i) + rot), norm(rot - UInt(n - i)))
-    }
-  }
-
-  val lockIdx = Reg(init = UInt(0, log2Up(arbN)))
-  val locked = Reg(init = Bool(false))
-
-  // use rotation to give priority to the input after the last one granted
-  val choice = PriorityMux(
-    rotateLeft(Vec(io.in.map(_.valid)), lockIdx + UInt(1)),
-    rotateLeft(Vec((0 until arbN).map(UInt(_))), lockIdx + UInt(1)))
-
-  val chosen = Mux(locked, lockIdx, choice)
-
-  for (i <- 0 until arbN) {
-    io.in(i).ready := io.out.ready && chosen === UInt(i)
-  }
-
-  io.out.valid := io.in(chosen).valid
-  io.out.bits := io.in(chosen).bits
-
-  when (io.out.fire()) {
-    when (!locked) {
-      lockIdx := choice
-      locked := !io.out.bits.last
-    } .elsewhen (io.out.bits.last) {
-      locked := Bool(false)
-    }
-  }
-}
-
 /** A slave that send decode error for every request it receives */
 class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
   val io = (new NastiIO).flip
@@ -466,7 +424,10 @@ class NastiRouter(addrmap: Seq[(BigInt, BigInt)])(implicit p: Parameters) extend
   io.master.w.ready := w_ready || err_slave.io.w.ready
 
   val b_arb = Module(new RRArbiter(new NastiWriteResponseChannel, nSlaves + 1))
-  val r_arb = Module(new NastiReadDataArbiter(nSlaves + 1))
+  val r_arb = Module(new JunctionsPeekingArbiter(
+    new NastiReadDataChannel, nSlaves + 1,
+    // we can unlock if it's the last beat
+    (r: NastiReadDataChannel) => r.last))
 
   for (i <- 0 until nSlaves) {
     b_arb.io.in(i) <> io.slave(i).b
