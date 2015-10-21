@@ -6,7 +6,8 @@ import Chisel._
 import uncore._
 import Util._
 
-case object RoCCMaxTaggedMemXacts extends Field[Int]
+case object RoccMaxTaggedMemXacts extends Field[Int]
+case object RoccNMemChannels extends Field[Int]
 
 class RoCCInstruction extends Bundle
 {
@@ -41,7 +42,7 @@ class RoCCInterface(implicit p: Parameters) extends Bundle {
   
   // These should be handled differently, eventually
   val imem = new ClientUncachedTileLinkIO
-  val dmem = new ClientUncachedTileLinkIO
+  val dmem = Vec(p(RoccNMemChannels), new ClientUncachedTileLinkIO)
   val iptw = new TLBPTWIO
   val dptw = new TLBPTWIO
   val pptw = new TLBPTWIO
@@ -122,8 +123,8 @@ class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
 
   io.imem.acquire.valid := false
   io.imem.grant.ready := false
-  io.dmem.acquire.valid := false
-  io.dmem.grant.ready := false
+  io.dmem.head.acquire.valid := false
+  io.dmem.head.grant.ready := false
   io.iptw.req.valid := false
   io.dptw.req.valid := false
   io.pptw.req.valid := false
