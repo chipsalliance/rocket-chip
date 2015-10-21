@@ -7,7 +7,6 @@ import Util._
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
   val outerDataBeats = p(TLKey(p(TLId))).dataBeats
   val outerDataBits = p(TLKey(p(TLId))).dataBitsPerBeat
-  val outerAddrBits = p(TLKey(p(TLId))).addrBits
   val refillCyclesPerBeat = outerDataBits/rowBits
   val refillCycles = refillCyclesPerBeat*outerDataBeats
 }
