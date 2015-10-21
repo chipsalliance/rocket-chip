@@ -1313,8 +1313,12 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
 
   val acqArb = Module(new LockingRRArbiter(new Acquire, 2, tlDataBeats,
     Some((acq: Acquire) => acq.hasMultibeatData())))
-  val roqArb = Module(new RRArbiter(new ReorderQueueWrite(
-    new ClientTileLinkIOUnwrapperInfo, tlClientXactIdBits), 2))
+
+  val acqRoq = Module(new ReorderQueue(
+    Bool(), tlClientXactIdBits, tlMaxClientsPerPort))
+
+  val relRoq = Module(new ReorderQueue(
+    Bool(), tlClientXactIdBits, tlMaxClientsPerPort))
 
   val iacq = io.in.acquire.bits
   val irel = io.in.release.bits
@@ -1323,8 +1327,8 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
   val acq_roq_enq = needsRoqEnq(iacq)
   val rel_roq_enq = needsRoqEnq(irel)
 
-  val acq_roq_ready = !acq_roq_enq || roqArb.io.in(0).ready
-  val rel_roq_ready = !rel_roq_enq || roqArb.io.in(1).ready
+  val acq_roq_ready = !acq_roq_enq || acqRoq.io.enq.ready
+  val rel_roq_ready = !rel_roq_enq || relRoq.io.enq.ready
 
   val acq_helper = DecoupledHelper(
     io.in.acquire.valid,
@@ -1336,10 +1340,9 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
     rel_roq_ready,
     acqArb.io.in(1).ready)
 
-  roqArb.io.in(0).valid := acq_helper.fire(acq_roq_ready, acq_roq_enq)
-  roqArb.io.in(0).bits.data.voluntary := Bool(false)
-  roqArb.io.in(0).bits.data.builtin := iacq.isBuiltInType()
-  roqArb.io.in(0).bits.tag := iacq.client_xact_id
+  acqRoq.io.enq.valid := acq_helper.fire(acq_roq_ready, acq_roq_enq)
+  acqRoq.io.enq.bits.data := iacq.isBuiltInType()
+  acqRoq.io.enq.bits.tag := iacq.client_xact_id
 
   acqArb.io.in(0).valid := acq_helper.fire(acqArb.io.in(0).ready)
   acqArb.io.in(0).bits := Acquire(
@@ -1351,13 +1354,12 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
     addr_beat = iacq.addr_beat,
     data = iacq.data,
     union = Mux(iacq.isBuiltInType(),
-      iacq.union, Cat(Acquire.fullWriteMask, Bool(false))))
+      iacq.union, Cat(MT_Q, M_XRD, Bool(true))))
   io.in.acquire.ready := acq_helper.fire(io.in.acquire.valid)
 
-  roqArb.io.in(1).valid := rel_helper.fire(rel_roq_ready, rel_roq_enq)
-  roqArb.io.in(1).bits.data.voluntary := irel.isVoluntary()
-  roqArb.io.in(1).bits.data.builtin := Bool(true)
-  roqArb.io.in(1).bits.tag := irel.client_xact_id
+  relRoq.io.enq.valid := rel_helper.fire(rel_roq_ready, rel_roq_enq)
+  relRoq.io.enq.bits.data := irel.isVoluntary()
+  relRoq.io.enq.bits.tag := irel.client_xact_id
 
   acqArb.io.in(1).valid := rel_helper.fire(acqArb.io.in(1).ready)
   acqArb.io.in(1).bits := PutBlock(
@@ -1370,25 +1372,33 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
 
   io.out.acquire <> acqArb.io.out
 
-  val roq = Module(new ReorderQueue(
-    new ClientTileLinkIOUnwrapperInfo, tlClientXactIdBits, tlMaxClientsPerPort))
-  roq.io.enq <> roqArb.io.out
-  roq.io.deq.valid := io.out.grant.valid && needsRoqDeq(ognt)
-  roq.io.deq.tag := ognt.client_xact_id
+  acqRoq.io.deq.valid := io.out.grant.fire() && needsRoqDeq(ognt)
+  acqRoq.io.deq.tag := ognt.client_xact_id
 
-  val gnt_builtin = roq.io.deq.data.builtin
-  val gnt_voluntary = roq.io.deq.data.voluntary
+  relRoq.io.deq.valid := io.out.grant.fire() && needsRoqDeq(ognt)
+  relRoq.io.deq.tag := ognt.client_xact_id
 
-  io.in.grant.valid := io.out.grant.valid
-  io.in.grant.bits := Grant(
+  val gnt_builtin = acqRoq.io.deq.data
+  val gnt_voluntary = relRoq.io.deq.data
+
+  val acq_grant = Grant(
     is_builtin_type = gnt_builtin,
-    g_type = MuxCase(ognt.g_type, Seq(
-      (!gnt_builtin, tlCoh.getExclusiveGrantType),
-      (gnt_voluntary, Grant.voluntaryAckType))),
+    g_type = Mux(gnt_builtin, ognt.g_type, tlCoh.getExclusiveGrantType),
     client_xact_id = ognt.client_xact_id,
     manager_xact_id = ognt.manager_xact_id,
     addr_beat = ognt.addr_beat,
     data = ognt.data)
+
+  val rel_grant = Grant(
+    is_builtin_type = Bool(true),
+    g_type = Mux(gnt_voluntary, Grant.voluntaryAckType, ognt.g_type),
+    client_xact_id = ognt.client_xact_id,
+    manager_xact_id = ognt.manager_xact_id,
+    addr_beat = ognt.addr_beat,
+    data = ognt.data)
+
+  io.in.grant.valid := io.out.grant.valid
+  io.in.grant.bits := Mux(acqRoq.io.deq.matches, acq_grant, rel_grant)
   io.out.grant.ready := io.in.grant.ready
 
   io.in.probe.valid := Bool(false)
