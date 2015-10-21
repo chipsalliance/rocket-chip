@@ -230,6 +230,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
 
   // Create a converter between TileLinkIO and MemIO for each channel
   val outerTLParams = p.alterPartial({ case TLId => "L2toMC" })
+  val outermostTLParams = p.alterPartial({case TLId => "Outermost"})
   val backendBuffering = TileLinkDepths(0,0,0,0,0)
 
   val addrMap = p(GlobalAddrMap)
@@ -245,7 +246,6 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   val interconnect = Module(new NastiTopInterconnect(nMasters, nSlaves, addrMap)(p))
 
   for ((bank, i) <- managerEndpoints.zipWithIndex) {
-    val outermostTLParams = p.alterPartial({case TLId => "Outermost"})
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
     val narrow = Module(new TileLinkIONarrower("L2toMC", "Outermost"))
     val conv = Module(new NastiIOTileLinkIOConverter()(outermostTLParams))
