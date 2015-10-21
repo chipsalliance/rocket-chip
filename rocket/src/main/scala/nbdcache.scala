@@ -405,7 +405,7 @@ class MSHRFile(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val refillMux = Wire(Vec(new L1RefillReq, nMSHRs))
   val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, nMSHRs))
   val meta_write_arb = Module(new Arbiter(new L1MetaWriteReq, nMSHRs))
-  val mem_req_arb = Module(new JunctionsCountingArbiter(
+  val mem_req_arb = Module(new LockingArbiter(
                                   new Acquire,
                                   nMSHRs + nIOMSHRs,
                                   outerDataBeats,
@@ -948,7 +948,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   metaWriteArb.io.in(0) <> mshrs.io.meta_write
 
   // probes and releases
-  val releaseArb = Module(new JunctionsCountingArbiter(new Release, 2, outerDataBeats, (r: Release) => r.hasMultibeatData()))
+  val releaseArb = Module(new LockingArbiter(new Release, 2, outerDataBeats, (r: Release) => r.hasMultibeatData()))
   io.mem.release <> releaseArb.io.out
 
   prober.io.req.valid := io.mem.probe.valid && !lrsc_valid
