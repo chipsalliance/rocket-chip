@@ -20,14 +20,14 @@ trait HasCoherenceAgentParameters {
   val outerTLId = p(OuterTLId)
   val outerTLParams = p(TLKey(outerTLId))
   val outerDataBeats = outerTLParams.dataBeats
-  val outerDataBits = outerTLParams.dataBits
+  val outerDataBits = outerTLParams.dataBitsPerBeat
   val outerBeatAddrBits = log2Up(outerDataBeats)
   val outerByteAddrBits = log2Up(outerDataBits/8)
   val outerWriteMaskBits = outerTLParams.writeMaskBits
   val innerTLId = p(InnerTLId)
   val innerTLParams = p(TLKey(innerTLId))
   val innerDataBeats = innerTLParams.dataBeats
-  val innerDataBits = innerTLParams.dataBits
+  val innerDataBits = innerTLParams.dataBitsPerBeat
   val innerWriteMaskBits = innerTLParams.writeMaskBits
   val innerBeatAddrBits = log2Up(innerDataBeats)
   val innerByteAddrBits = log2Up(innerDataBits/8)
