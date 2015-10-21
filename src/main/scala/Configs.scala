@@ -193,7 +193,7 @@ class WithL2Cache extends ChiselConfig(
                           site(NBanksPerMemoryChannel)*site(NMemoryChannels)) /
                             site(NWays)
       case NWays => Knob("L2_WAYS")
-      case RowBits => site(TLKey(site(TLId))).dataBits
+      case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
     }: PartialFunction[Any,Any] 
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
