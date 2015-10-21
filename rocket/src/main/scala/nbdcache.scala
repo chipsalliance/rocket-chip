@@ -4,7 +4,7 @@ package rocket
 
 import Chisel._
 import uncore._
-import junctions.MMIOBase
+import junctions._
 import Util._
 
 case object WordBits extends Field[Int]
@@ -405,7 +405,7 @@ class MSHRFile(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val refillMux = Wire(Vec(new L1RefillReq, nMSHRs))
   val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, nMSHRs))
   val meta_write_arb = Module(new Arbiter(new L1MetaWriteReq, nMSHRs))
-  val mem_req_arb = Module(new LockingArbiter(
+  val mem_req_arb = Module(new JunctionsCountingArbiter(
                                   new Acquire,
                                   nMSHRs + nIOMSHRs,
                                   outerDataBeats,
@@ -597,53 +597,24 @@ class ProbeUnit(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     val block_state = new ClientMetadata().asInput
   }
 
-  val s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req :: s_release :: s_writeback_req :: s_writeback_resp :: s_meta_write :: Nil = Enum(UInt(), 8)
+  val (s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req ::
+       s_mshr_resp :: s_release :: s_writeback_req :: s_writeback_resp :: 
+       s_meta_write :: Nil) = Enum(UInt(), 9)
   val state = Reg(init=s_invalid)
   val old_coh = Reg(new ClientMetadata)
   val way_en = Reg(Bits())
   val req = Reg(new ProbeInternal)
   val tag_matches = way_en.orR
 
-  when (state === s_meta_write && io.meta_write.ready) {
-    state := s_invalid
-  }
-  when (state === s_writeback_resp && io.wb_req.ready) {
-    state := s_meta_write
-  }
-  when (state === s_writeback_req && io.wb_req.ready) {
-    state := s_writeback_resp
-  }
-  when (state === s_release && io.rep.ready) {
-    state := s_invalid
-    when (tag_matches) {
-      state := Mux(old_coh.requiresVoluntaryWriteback(), 
-                s_writeback_req, s_meta_write)
-    }
-  }
-  when (state === s_mshr_req) {
-    state := s_release
-    old_coh := io.block_state
-    way_en := io.way_en
-    when (!io.mshr_rdy) { state := s_meta_read }
-  }
-  when (state === s_meta_resp) {
-    state := s_mshr_req
-  }
-  when (state === s_meta_read && io.meta_read.ready) {
-    state := s_meta_resp
-  }
-  when (state === s_invalid && io.req.valid) {
-    state := s_meta_read
-    req := io.req.bits
-  }
-
   val miss_coh = ClientMetadata.onReset
   val reply_coh = Mux(tag_matches, old_coh, miss_coh)
   val reply = reply_coh.makeRelease(req)
   io.req.ready := state === s_invalid
-  io.rep.valid := state === s_release &&
-                  !(tag_matches && old_coh.requiresVoluntaryWriteback()) // Otherwise WBU will issue release
+  io.rep.valid := state === s_release
   io.rep.bits := reply
+
+  assert(!io.rep.valid || !io.rep.bits.hasData(),
+    "ProbeUnit should not send releases with data")
 
   io.meta_read.valid := state === s_meta_read
   io.meta_read.bits.idx := req.addr_block
@@ -658,6 +629,53 @@ class ProbeUnit(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.wb_req.valid := state === s_writeback_req
   io.wb_req.bits := reply
   io.wb_req.bits.way_en := way_en
+
+  // state === s_invalid
+  when (io.req.fire()) {
+    state := s_meta_read
+    req := io.req.bits
+  }
+
+  // state === s_meta_read
+  when (io.meta_read.fire()) {
+    state := s_meta_resp
+  }
+
+  // we need to wait one cycle for the metadata to be read from the array
+  when (state === s_meta_resp) {
+    state := s_mshr_req
+  }
+
+  when (state === s_mshr_req) {
+    state := s_mshr_resp
+    old_coh := io.block_state
+    way_en := io.way_en
+    // if the read didn't go through, we need to retry
+    when (!io.mshr_rdy) { state := s_meta_read }
+  }
+
+  when (state === s_mshr_resp) {
+    val needs_writeback = tag_matches && old_coh.requiresVoluntaryWriteback() 
+    state := Mux(needs_writeback, s_writeback_req, s_release)
+  }
+
+  when (state === s_release && io.rep.ready) {
+    state := Mux(tag_matches, s_meta_write, s_invalid)
+  }
+
+  // state === s_writeback_req
+  when (io.wb_req.fire()) {
+    state := s_writeback_resp
+  }
+
+  // wait for the writeback request to finish before updating the metadata
+  when (state === s_writeback_resp && io.wb_req.ready) {
+    state := s_meta_write
+  }
+
+  when (io.meta_write.fire()) {
+    state := s_invalid
+  }
 }
 
 class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
@@ -930,7 +948,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   metaWriteArb.io.in(0) <> mshrs.io.meta_write
 
   // probes and releases
-  val releaseArb = Module(new LockingArbiter(new Release, 2, outerDataBeats, (r: Release) => r.hasMultibeatData()))
+  val releaseArb = Module(new JunctionsCountingArbiter(new Release, 2, outerDataBeats, (r: Release) => r.hasMultibeatData()))
   io.mem.release <> releaseArb.io.out
 
   prober.io.req.valid := io.mem.probe.valid && !lrsc_valid
