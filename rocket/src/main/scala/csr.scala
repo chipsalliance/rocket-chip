@@ -5,6 +5,7 @@ package rocket
 import Chisel._
 import Util._
 import Instructions._
+import cde.{Parameters, Field}
 import uncore._
 import scala.math._
 

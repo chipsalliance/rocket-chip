@@ -3,6 +3,7 @@ package rocket
 import Chisel._
 import uncore._
 import Util._
+import cde.{Parameters, Field}
 
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
   val outerDataBeats = p(TLKey(p(TLId))).dataBeats

@@ -5,6 +5,7 @@ package rocket
 import Chisel._
 import uncore._
 import Util._
+import cde.{Parameters, Field}
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val addr = UInt(width = vpnBits)
