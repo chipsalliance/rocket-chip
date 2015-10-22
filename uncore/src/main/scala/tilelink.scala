@@ -4,6 +4,7 @@ package uncore
 import Chisel._
 import junctions._
 import scala.math.max
+import cde.{Parameters, Field}
 
 case object TLId extends Field[String]
 case class TLKey(id: String) extends Field[TileLinkParameters]
@@ -659,7 +660,7 @@ class GrantMetadata(implicit p: Parameters) extends ManagerToClientChannel()(p)
   def isVoluntary(dummy: Int = 0): Bool = isBuiltInType() && (g_type === Grant.voluntaryAckType)
   def requiresAck(dummy: Int = 0): Bool = !Bool(tlNetworkPreservesPointToPointOrdering) && !isVoluntary()
   def makeFinish(dummy: Int = 0): Finish = {
-    val f = Wire(Bundle(new Finish))
+    val f = Wire(new Finish)
     f.manager_xact_id := this.manager_xact_id
     f
   }

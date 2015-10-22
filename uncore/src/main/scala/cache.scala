@@ -4,6 +4,7 @@ package uncore
 import Chisel._
 import scala.reflect.ClassTag
 import junctions._
+import cde.{Parameters, Field}
 
 case object CacheName extends Field[String]
 case object NSets extends Field[Int]
@@ -436,7 +437,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   val s_idle :: s_meta_read :: s_meta_resp :: s_busy :: s_meta_write :: Nil = Enum(UInt(), 5)
   val state = Reg(init=s_idle)
 
-  val xact = Reg(Bundle(new BufferedReleaseFromSrc()(p.alterPartial({case TLId => p(InnerTLId)}))))
+  val xact = Reg(new BufferedReleaseFromSrc()(p.alterPartial({case TLId => p(InnerTLId)})))
   val xact_way_en = Reg{ Bits(width = nWays) }
   val xact_old_meta = Reg{ new L2Metadata }
   val coh = xact_old_meta.coh
@@ -530,7 +531,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val state = Reg(init=s_idle)
 
   // State holding transaction metadata
-  val xact = Reg(Bundle(new BufferedAcquireFromSrc()(p.alterPartial({ case TLId => p(InnerTLId) }))))
+  val xact = Reg(new BufferedAcquireFromSrc()(p.alterPartial({ case TLId => p(InnerTLId) })))
   val wmask_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerDataBits/8)))
   val xact_tag_match = Reg{ Bool() }
   val xact_way_en = Reg{ Bits(width = nWays) }

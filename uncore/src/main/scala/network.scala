@@ -2,6 +2,7 @@
 
 package uncore
 import Chisel._
+import cde.{Parameters, Field}
 
 case object LNEndpoints extends Field[Int]
 case object LNHeaderBits extends Field[Int]

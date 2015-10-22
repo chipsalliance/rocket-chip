@@ -2,6 +2,7 @@
 
 package uncore
 import Chisel._
+import cde.{Parameters, Field}
 
 case object L2StoreDataQueueDepth extends Field[Int]
 

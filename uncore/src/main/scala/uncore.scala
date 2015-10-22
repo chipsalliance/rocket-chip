@@ -2,6 +2,7 @@
 
 package uncore
 import Chisel._
+import cde.{Parameters, Field}
 
 case object NReleaseTransactors extends Field[Int]
 case object NProbeTransactors extends Field[Int]
@@ -60,7 +61,7 @@ trait HasCoherenceAgentWiringHelpers {
 }
 
 trait HasInnerTLIO extends HasCoherenceAgentParameters {
-  val inner = Bundle(new ManagerTileLinkIO()(p.alterPartial({case TLId => p(InnerTLId)})))
+  val inner = new ManagerTileLinkIO()(p.alterPartial({case TLId => p(InnerTLId)}))
   val incoherent = Vec(Bool(), inner.tlNCachingClients).asInput
   def iacq(dummy: Int = 0) = inner.acquire.bits
   def iprb(dummy: Int = 0) = inner.probe.bits
@@ -70,13 +71,13 @@ trait HasInnerTLIO extends HasCoherenceAgentParameters {
 }
 
 trait HasUncachedOuterTLIO extends HasCoherenceAgentParameters {
-  val outer = Bundle(new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => p(OuterTLId)})))
+  val outer = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => p(OuterTLId)}))
   def oacq(dummy: Int = 0) = outer.acquire.bits
   def ognt(dummy: Int = 0) = outer.grant.bits
 }
 
 trait HasCachedOuterTLIO extends HasCoherenceAgentParameters {
-  val outer = Bundle(new ClientTileLinkIO()(p.alterPartial({case TLId => p(OuterTLId)})))
+  val outer = new ClientTileLinkIO()(p.alterPartial({case TLId => p(OuterTLId)}))
   def oacq(dummy: Int = 0) = outer.acquire.bits
   def oprb(dummy: Int = 0) = outer.probe.bits
   def orel(dummy: Int = 0) = outer.release.bits
