@@ -6,6 +6,7 @@ import Chisel._
 import junctions._
 import uncore._
 import Util._
+import cde.{Parameters, Field}
 
 case object UseFPU extends Field[Boolean]
 case object FDivSqrt extends Field[Boolean]
