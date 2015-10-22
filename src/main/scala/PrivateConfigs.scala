@@ -80,7 +80,7 @@ class EOS24Config extends ChiselConfig(new With4Banks ++ new WithL2Capacity256 +
 
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = {
     List(
-      {ex => (ex(HwachaNSRAMRFEntries) === 256 || ex(HwachaNSRAMRFEntries) === 512)}
+      {ex => (ex(HwachaNSRAMRFEntries) === 256)}
     )
   }
 }
