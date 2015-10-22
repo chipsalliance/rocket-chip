@@ -4,6 +4,7 @@ package rocketchip
 
 import Chisel._
 import uncore._
+import cde.Parameters
 
 /** RocketChipNetworks combine a TileLink protocol with a particular physical
   * network implementation and chip layout.

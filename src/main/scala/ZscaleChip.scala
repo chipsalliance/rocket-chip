@@ -3,6 +3,7 @@
 package rocketchip
 
 import Chisel._
+import cde.{Parameters, Field}
 import junctions._
 import uncore._
 import rocket._

@@ -3,6 +3,7 @@
 package rocketchip
 
 import Chisel._
+import cde.{Parameters, Field}
 import junctions._
 import uncore._
 import rocket._
@@ -77,8 +78,8 @@ class MultiChannelTopIO(implicit p: Parameters) extends BasicTopIO()(p) {
 
 /** Top-level module for the chip */
 //TODO: Remove this wrapper once multichannel DRAM controller is provided
-class Top extends Module with HasTopLevelParameters {
-  implicit val p = params
+class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
+  implicit val p = topParams
   val io = new TopIO
   if(!p(UseZscale)) {
     val temp = Module(new MultiChannelTop)
