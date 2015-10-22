@@ -98,8 +98,7 @@ class DefaultConfig extends ChiselConfig (
         }
       }
       case BuildRoCC => None
-      case NDCachePorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 1) 
-      case NPTWPorts => 2 + (if(site(BuildRoCC).isEmpty) 0 else 3)
+      case RoccNMemChannels => 1
       //Rocket Core Constants
       case CoreName => "Rocket"
       case FetchWidth => 1
@@ -110,18 +109,17 @@ class DefaultConfig extends ChiselConfig (
       case FastLoadByte => false
       case FastMulDiv => true
       case XLen => 64
-      case BuildFPU => {
+      case UseFPU => {
         val env = if(site(UseVM)) List("p","pt","v") else List("p","pt")
         if(site(FDivSqrt)) TestGeneration.addSuites(env.map(rv64uf))
         else TestGeneration.addSuites(env.map(rv64ufNoDiv))
-        Some((p: Parameters) => Module(new FPU()(p)))
+        true
       }
       case FDivSqrt => true
       case SFMALatency => 2
       case DFMALatency => 3
       case CoreInstBits => 32
       case CoreDataBits => site(XLen)
-      case CoreDCacheReqTagBits => 7 + log2Up(here(NDCachePorts))
       case NCustomMRWCSRs => 0
       //Uncore Paramters
       case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
@@ -133,13 +131,12 @@ class DefaultConfig extends ChiselConfig (
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels),
           nCachingClients = site(NTiles),
-          nCachelessClients = site(NTiles) + 1,
+          nCachelessClients = 1 + site(NTiles) *
+                                (1 + (if(site(BuildRoCC).isEmpty) 0 else site(RoccNMemChannels))),
           maxClientXacts = max(site(NMSHRs) + site(NIOMSHRs),
-                                       if(site(BuildRoCC).isEmpty) 1 
-                                         else site(RoCCMaxTaggedMemXacts)),
-          maxClientsPerPort = if(site(BuildRoCC).isEmpty) 1 else 3,
+                               if(site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
+          maxClientsPerPort = if(site(BuildRoCC).isEmpty) 1 else 2,
           maxManagerXacts = site(NAcquireTransactors) + 2,
-          addrBits = site(PAddrBits) - site(CacheBlockOffsetBits),
           dataBits = site(CacheBlockBytes)*8)
       case TLKey("L2toMC") => 
         TileLinkParameters(
@@ -150,7 +147,6 @@ class DefaultConfig extends ChiselConfig (
           maxClientXacts = 1,
           maxClientsPerPort = site(NAcquireTransactors) + 2,
           maxManagerXacts = 1,
-          addrBits = site(PAddrBits) - site(CacheBlockOffsetBits),
           dataBits = site(CacheBlockBytes)*8)
       case TLKey("Outermost") => site(TLKey("L2toMC")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
@@ -198,7 +194,7 @@ class WithL2Cache extends ChiselConfig(
                           site(NBanksPerMemoryChannel)*site(NMemoryChannels)) /
                             site(NWays)
       case NWays => Knob("L2_WAYS")
-      case RowBits => site(TLKey(site(TLId))).dataBits
+      case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
     }: PartialFunction[Any,Any] 
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
@@ -250,7 +246,7 @@ class DefaultFPGAConfig extends ChiselConfig(new FPGAConfig ++ new DefaultConfig
 
 class SmallConfig extends ChiselConfig (
     topDefinitions = { (pname,site,here) => pname match {
-      case BuildFPU => None
+      case UseFPU => false
       case FastMulDiv => false
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 8)
