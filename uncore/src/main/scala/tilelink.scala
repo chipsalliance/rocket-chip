@@ -1295,11 +1295,6 @@ trait HasDataBeatCounters {
   }
 }
 
-class ClientTileLinkIOUnwrapperInfo extends Bundle {
-  val voluntary = Bool()
-  val builtin = Bool()
-}
-
 class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
   val io = new Bundle {
     val in = new ClientTileLinkIO().flip

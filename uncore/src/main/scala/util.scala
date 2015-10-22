@@ -131,7 +131,8 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
   val roq_free = Reg(init = Vec.fill(size)(Bool(true)))
 
   val roq_enq_addr = PriorityEncoder(roq_free)
-  val roq_matches = roq_tags.map(_ === io.deq.tag)
+  val roq_matches = roq_tags.zip(roq_free)
+    .map { case (tag, free) => tag === io.deq.tag && !free }
   val roq_deq_addr = PriorityEncoder(roq_matches)
 
   io.enq.ready := roq_free.reduce(_ || _)
