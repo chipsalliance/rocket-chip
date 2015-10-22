@@ -2,6 +2,7 @@
 
 package uncore
 import Chisel._
+import cde.{Parameters, Field}
 
 abstract class StoreGen(typ: UInt, addr: UInt, dat: UInt) {
   val byte = typ === MT_B || typ === MT_BU

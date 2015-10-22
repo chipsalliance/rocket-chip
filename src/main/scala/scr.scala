@@ -2,6 +2,7 @@ package uncore
 
 import Chisel._
 import junctions.{SMIIO, MMIOBase}
+import cde.Parameters
 
 class SCRIO(implicit p: Parameters) extends HtifBundle()(p) {
   val rdata = Vec(Bits(INPUT, scrDataBits), nSCR)

@@ -2,6 +2,7 @@
 
 package uncore
 import Chisel._
+import cde.{Parameters, Field}
 
 /** Base class to represent coherence information in clients and managers */
 abstract class CoherenceMetadata(implicit p: Parameters) extends TLBundle()(p) {
@@ -44,16 +45,15 @@ class ClientMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param op_code a memory operation from [[uncore.constants.MemoryOpConstants]]
     */
   def makeAcquire(
-      op_code: UInt,
-      client_xact_id: UInt,
-      addr_block: UInt): Acquire = {
-    Bundle(Acquire(
-        is_builtin_type = Bool(false),
-        a_type = co.getAcquireType(op_code, this),
-        client_xact_id = client_xact_id,
-        addr_block = addr_block,
-        union = Cat(op_code, Bool(true)))(p))
-  }
+        op_code: UInt,
+        client_xact_id: UInt,
+        addr_block: UInt): Acquire = 
+    Acquire(
+      is_builtin_type = Bool(false),
+      a_type = co.getAcquireType(op_code, this),
+      client_xact_id = client_xact_id,
+      addr_block = addr_block,
+      union = Cat(op_code, Bool(true)))(p)
 
   /** Constructs a Release message based on this metadata on cache control op
     *
@@ -63,19 +63,18 @@ class ClientMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param data data being written back
     */
   def makeVoluntaryRelease(
-      op_code: UInt,
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): Release = {
-    Bundle(Release(
+        op_code: UInt,
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt = UInt(0),
+        data: UInt = UInt(0)): Release =
+    Release(
       voluntary = Bool(true),
       r_type = co.getReleaseType(op_code, this),
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
-      data = data)(p))
-  }
+      data = data)(p)
 
   /** Constructs a Release message based on this metadata on an eviction
     *
@@ -85,10 +84,10 @@ class ClientMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param data data being written back
     */
   def makeVoluntaryWriteback(
-      client_xact_id: UInt,
-      addr_block: UInt,
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): Release =
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt = UInt(0),
+        data: UInt = UInt(0)): Release =
     makeVoluntaryRelease(
       op_code = M_FLUSH,
       client_xact_id = client_xact_id,
@@ -103,17 +102,16 @@ class ClientMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param data data being released
     */
   def makeRelease(
-      prb: Probe,
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): Release = {
-    Bundle(Release(
+        prb: Probe,
+        addr_beat: UInt = UInt(0),
+        data: UInt = UInt(0)): Release =
+    Release(
       voluntary = Bool(false),
       r_type = co.getReleaseType(prb, this),
       client_xact_id = UInt(0),
       addr_block = prb.addr_block,
       addr_beat = addr_beat,
-      data = data)(p))
-  }
+      data = data)(p)
 
   /** New metadata after receiving a [[uncore.Grant]]
     *
@@ -189,7 +187,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param acq Acquire message triggering this Probe
     */
   def makeProbe(dst: UInt, acq: AcquireMetadata): ProbeToDst = 
-    Bundle(Probe(dst, co.getProbeType(acq, this), acq.addr_block)(p))
+    Probe(dst, co.getProbeType(acq, this), acq.addr_block)(p)
 
   /** Construct an appropriate [[uncore.ProbeToDst]] for a given mem op
     *
@@ -198,7 +196,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param addr_block address of the cache block being probed
     */
   def makeProbe(dst: UInt, op_code: UInt, addr_block: UInt): ProbeToDst =
-    Bundle(Probe(dst, co.getProbeType(op_code, this), addr_block)(p))
+    Probe(dst, co.getProbeType(op_code, this), addr_block)(p)
 
   /** Construct an appropriate [[uncore.ProbeToDst]] for an eviction
     *
@@ -213,14 +211,13 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param rel Release message being acknowledged by this Grant
     * @param manager_xact_id manager's transaction id
     */
-  def makeGrant(rel: ReleaseMetadata with HasClientId, manager_xact_id: UInt): GrantToDst = {
-    Bundle(Grant(
+  def makeGrant(rel: ReleaseMetadata with HasClientId, manager_xact_id: UInt): GrantToDst =
+    Grant(
       dst = rel.client_id,
       is_builtin_type = Bool(true),
       g_type = Grant.voluntaryAckType,
       client_xact_id = rel.client_xact_id,
-      manager_xact_id = manager_xact_id)(p))
-  }
+      manager_xact_id = manager_xact_id)(p)
 
   /** Construct an appropriate [[uncore.GrantToDst]] to respond to an [[uncore.Acquire]]
     *
@@ -232,11 +229,11 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param data data being refilled to the original requestor
     */
   def makeGrant(
-      acq: AcquireMetadata with HasClientId,
-      manager_xact_id: UInt, 
-      addr_beat: UInt = UInt(0),
-      data: UInt = UInt(0)): GrantToDst = {
-    Bundle(Grant(
+        acq: AcquireMetadata with HasClientId,
+        manager_xact_id: UInt, 
+        addr_beat: UInt = UInt(0),
+        data: UInt = UInt(0)): GrantToDst =
+    Grant(
       dst = acq.client_id,
       is_builtin_type = acq.isBuiltInType(),
       g_type = Mux(acq.isBuiltInType(), 
@@ -245,8 +242,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
       client_xact_id = acq.client_xact_id,
       manager_xact_id = manager_xact_id,
       addr_beat = addr_beat,
-      data = data)(p))
-  }
+      data = data)(p)
 
   /** Construct an [[uncore.GrantToDst]] to respond to an [[uncore.Acquire]] with some overrides
     *
@@ -259,10 +255,10 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * @param data data being refilled to the original requestor
     */
   def makeGrant(
-      pri: AcquireMetadata with HasClientId,
-      sec: SecondaryMissInfo,
-      manager_xact_id: UInt, 
-      data: UInt): GrantToDst = {
+        pri: AcquireMetadata with HasClientId,
+        sec: SecondaryMissInfo,
+        manager_xact_id: UInt, 
+        data: UInt): GrantToDst = {
     val g = makeGrant(pri, manager_xact_id, sec.addr_beat, data)
     g.client_xact_id := sec.client_xact_id
     g
@@ -309,8 +305,8 @@ object ManagerMetadata {
   * [[uncore.InnerTLId]] or [[uncore.OuterTLId]].
   */ 
 class HierarchicalMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
-  val inner: ManagerMetadata = Bundle(new ManagerMetadata()(p.alterPartial({case TLId => p(InnerTLId)})))
-  val outer: ClientMetadata = Bundle(new ClientMetadata()(p.alterPartial({case TLId => p(OuterTLId)})))
+  val inner: ManagerMetadata = new ManagerMetadata()(p.alterPartial({case TLId => p(InnerTLId)}))
+  val outer: ClientMetadata = new ClientMetadata()(p.alterPartial({case TLId => p(OuterTLId)}))
   def ===(rhs: HierarchicalMetadata): Bool = 
     this.inner === rhs.inner && this.outer === rhs.outer
   def !=(rhs: HierarchicalMetadata): Bool = !this.===(rhs)

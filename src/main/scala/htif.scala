@@ -5,6 +5,7 @@ package uncore
 import Chisel._
 import Chisel.ImplicitConversions._
 import junctions._
+import cde.{Parameters, Field}
 
 case object HtifKey extends Field[HtifParameters]
 

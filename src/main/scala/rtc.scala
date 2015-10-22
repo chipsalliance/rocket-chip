@@ -2,6 +2,7 @@ package uncore
 
 import Chisel._
 import junctions._
+import cde.{Parameters, Field}
 
 case object RTCPeriod extends Field[Int]
 
