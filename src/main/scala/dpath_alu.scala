@@ -3,6 +3,7 @@
 package rocket
 
 import Chisel._
+import cde.{Parameters, Field}
 import Instructions._
 
 object ALU

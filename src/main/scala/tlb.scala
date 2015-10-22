@@ -6,6 +6,7 @@ import Chisel._
 import Util._
 import junctions._
 import scala.math._
+import cde.{Parameters, Field}
 
 case object NTLBEntries extends Field[Int]
 

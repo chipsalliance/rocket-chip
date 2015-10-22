@@ -5,6 +5,7 @@ package rocket
 import Chisel._
 import uncore._
 import Util._
+import cde.{Parameters, Field}
 
 case object RoccMaxTaggedMemXacts extends Field[Int]
 case object RoccNMemChannels extends Field[Int]

@@ -3,6 +3,7 @@ package rocket
 import Chisel._
 import uncore._
 import Util._
+import cde.{Parameters, Field}
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)

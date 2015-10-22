@@ -5,6 +5,7 @@ package rocket
 import Chisel._
 import uncore._
 import scala.math._
+import cde.{Parameters, Field}
 
 object Util {
   implicit def intToUInt(x: Int): UInt = UInt(x)
