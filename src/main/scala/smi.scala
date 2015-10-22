@@ -1,6 +1,7 @@
 package junctions
 
 import Chisel._
+import cde.Parameters
 
 class SMIReq(val dataWidth: Int, val addrWidth: Int) extends Bundle {
   val rw = Bool()
