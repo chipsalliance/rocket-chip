@@ -11,7 +11,7 @@ CXXFLAGS := -O1
 SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
 SHELL := /bin/bash
 
-CHISEL_ARGS := $(MODEL) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configInstance $(PROJECT).$(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
+CHISEL_ARGS := $(PROJECT) $(MODEL) $(CONFIG) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
 
 src_path = src/main/scala
 default_submodules = . junctions uncore hardfloat rocket zscale

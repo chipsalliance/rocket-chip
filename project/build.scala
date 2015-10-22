@@ -16,10 +16,11 @@ object BuildSettings extends Build {
   )
 
   lazy val chisel    = project
+  lazy val cde       = project in file("context-dependent-environments")
   lazy val hardfloat = project.dependsOn(chisel)
-  lazy val junctions = project.dependsOn(chisel)
+  lazy val junctions = project.dependsOn(chisel, cde)
   lazy val uncore    = project.dependsOn(junctions)
-  lazy val rocket    = project.dependsOn(hardfloat,uncore)
+  lazy val rocket    = project.dependsOn(hardfloat, uncore)
   lazy val zscale    = project.dependsOn(rocket)
   lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(zscale)
 

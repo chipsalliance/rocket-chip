@@ -10,8 +10,9 @@ import rocket.Util._
 import zscale._
 import scala.math.max
 import DefaultTestSuites._
+import cde.{Parameters, Config, Dump, Knob}
 
-class DefaultConfig extends ChiselConfig (
+class DefaultConfig extends Config (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
@@ -176,15 +177,15 @@ class DefaultConfig extends ChiselConfig (
 class DefaultVLSIConfig extends DefaultConfig
 class DefaultCPPConfig extends DefaultConfig
 
-class With2Cores extends ChiselConfig(knobValues = { case "NTILES" => 2 })
-class With4Cores extends ChiselConfig(knobValues = { case "NTILES" => 4 })
-class With8Cores extends ChiselConfig(knobValues = { case "NTILES" => 8 })
+class With2Cores extends Config(knobValues = { case "NTILES" => 2 })
+class With4Cores extends Config(knobValues = { case "NTILES" => 4 })
+class With8Cores extends Config(knobValues = { case "NTILES" => 8 })
 
-class With2Banks extends ChiselConfig(knobValues = { case "NBANKS" => 2 })
-class With4Banks extends ChiselConfig(knobValues = { case "NBANKS" => 4 })
-class With8Banks extends ChiselConfig(knobValues = { case "NBANKS" => 8 })
+class With2Banks extends Config(knobValues = { case "NBANKS" => 2 })
+class With4Banks extends Config(knobValues = { case "NBANKS" => 4 })
+class With8Banks extends Config(knobValues = { case "NBANKS" => 8 })
 
-class WithL2Cache extends ChiselConfig(
+class WithL2Cache extends Config(
   (pname,site,here) => pname match {
     case "L2_CAPACITY_IN_KB" => Knob("L2_CAPACITY_IN_KB")
     case "L2Bank" => {
@@ -207,19 +208,19 @@ class WithL2Cache extends ChiselConfig(
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048 }
 )
 
-class WithL2Capacity2048 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 2048 })
-class WithL2Capacity1024 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 1024 })
-class WithL2Capacity512 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 512 })
-class WithL2Capacity256 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 256 })
-class WithL2Capacity128 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 128 })
-class WithL2Capacity64 extends ChiselConfig(knobValues = { case "L2_CAPACITY_IN_KB" => 64 })
+class WithL2Capacity2048 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 2048 })
+class WithL2Capacity1024 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 1024 })
+class WithL2Capacity512 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 512 })
+class WithL2Capacity256 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 256 })
+class WithL2Capacity128 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 128 })
+class WithL2Capacity64 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 64 })
 
-class DefaultL2Config extends ChiselConfig(new WithL2Cache ++ new DefaultConfig)
-class DefaultL2VLSIConfig extends ChiselConfig(new WithL2Cache ++ new DefaultVLSIConfig)
-class DefaultL2CPPConfig extends ChiselConfig(new WithL2Cache ++ new DefaultCPPConfig)
-class DefaultL2FPGAConfig extends ChiselConfig(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
+class DefaultL2Config extends Config(new WithL2Cache ++ new DefaultConfig)
+class DefaultL2VLSIConfig extends Config(new WithL2Cache ++ new DefaultVLSIConfig)
+class DefaultL2CPPConfig extends Config(new WithL2Cache ++ new DefaultCPPConfig)
+class DefaultL2FPGAConfig extends Config(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
 
-class WithZscale extends ChiselConfig(
+class WithZscale extends Config(
   (pname,site,here) => pname match {
     case BuildZscale => {
       TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
@@ -232,18 +233,18 @@ class WithZscale extends ChiselConfig(
   }
 )
 
-class ZscaleConfig extends ChiselConfig(new WithZscale ++ new DefaultConfig)
+class ZscaleConfig extends Config(new WithZscale ++ new DefaultConfig)
 
-class FPGAConfig extends ChiselConfig (
+class FPGAConfig extends Config (
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
     case UseBackupMemoryPort => false
   }
 )
 
-class DefaultFPGAConfig extends ChiselConfig(new FPGAConfig ++ new DefaultConfig)
+class DefaultFPGAConfig extends Config(new FPGAConfig ++ new DefaultConfig)
 
-class SmallConfig extends ChiselConfig (
+class SmallConfig extends Config (
     topDefinitions = { (pname,site,here) => pname match {
       case UseFPU => false
       case FastMulDiv => false
@@ -258,10 +259,10 @@ class SmallConfig extends ChiselConfig (
   }
 )
 
-class DefaultFPGASmallConfig extends ChiselConfig(new SmallConfig ++ new DefaultFPGAConfig)
+class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGAConfig)
 
-class ExampleSmallConfig extends ChiselConfig(new SmallConfig ++ new DefaultConfig)
+class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
 
-class MultibankConfig extends ChiselConfig(new With2Banks ++ new DefaultConfig)
-class MultibankL2Config extends ChiselConfig(
+class MultibankConfig extends Config(new With2Banks ++ new DefaultConfig)
+class MultibankL2Config extends Config(
   new With2Banks ++ new WithL2Cache ++ new DefaultConfig)
