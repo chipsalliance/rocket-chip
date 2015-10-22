@@ -5,6 +5,7 @@ package rocket
 import Chisel._
 import uncore._
 import junctions._
+import cde.{Parameters, Field}
 import Util._
 
 case object WordBits extends Field[Int]
