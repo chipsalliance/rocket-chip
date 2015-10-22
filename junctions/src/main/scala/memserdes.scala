@@ -3,6 +3,7 @@
 package junctions
 import Chisel._
 import scala.math._
+import cde.{Parameters, Field}
 
 case object MIFAddrBits extends Field[Int]
 case object MIFDataBits extends Field[Int]

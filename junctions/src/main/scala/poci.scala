@@ -1,6 +1,7 @@
 package junctions
 
 import Chisel._
+import cde.{Parameters, Field}
 
 abstract trait PociConstants
 {
