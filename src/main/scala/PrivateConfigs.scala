@@ -1,11 +1,12 @@
 package rocketchip
 
-import Chisel._
+import Chisel.Module
+import cde._
+import cde.Implicits._
 import scala.collection.mutable.LinkedHashSet
 import uncore._
 import rocket._
 import hwacha._
-import Chisel.Implicits._
 
 object HwachaTestSuites {
   import DefaultTestSuites._
@@ -54,7 +55,7 @@ object HwachaTestSuites {
 }
 
 import HwachaTestSuites._
-class WithHwachaTests extends ChiselConfig(
+class WithHwachaTests extends Config(
   (pname,site,here) => pname match {
     case BuildRoCC => {
       TestGeneration.addSuites(rv64uv.map(_("p")))
@@ -68,14 +69,14 @@ class WithHwachaTests extends ChiselConfig(
   }
 )
 
-class HwachaVLSIConfig extends ChiselConfig(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2VLSIConfig)
-class HwachaFPGAConfig extends ChiselConfig(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2FPGAConfig) 
-class HwachaCPPConfig extends ChiselConfig(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2CPPConfig) 
+class HwachaVLSIConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2VLSIConfig)
+class HwachaFPGAConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2FPGAConfig) 
+class HwachaCPPConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2CPPConfig) 
 
-class EOS24Config extends ChiselConfig(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig) {
+class EOS24Config extends Config(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig) {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
-    case x => (new ChiselConfig(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
+    case x => (new Config(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
   }
 
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = {
@@ -85,4 +86,4 @@ class EOS24Config extends ChiselConfig(new With4Banks ++ new WithL2Capacity256 +
   }
 }
 
-class EOS24FPGAConfig extends ChiselConfig(new FPGAConfig ++ new EOS24Config)
+class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)

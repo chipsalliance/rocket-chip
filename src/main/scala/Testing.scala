@@ -144,7 +144,8 @@ object TestGenerator extends App with FileSystemUtilities {
         throwException(s"Could not find the cde.Config subclass you asked for " +
                         "(i.e. \"$configClassName\"), did you misspell it?", e)
     }
-  val paramsFromConfig: Parameters = Parameters.root(config.toInstance)
+  val world = config.toInstance
+  val paramsFromConfig: Parameters = Parameters.root(world)
 
   val gen = () => 
     Class.forName(s"$projectName.$topModuleName")
@@ -160,4 +161,10 @@ object TestGenerator extends App with FileSystemUtilities {
   val pdFile = createOutputFile(s"$topModuleName.$configClassName.prm")
   pdFile.write(ParameterDump.getDump)
   pdFile.close
+  val v = createOutputFile(configClassName + ".knb")
+  v.write(world.getKnobs)
+  v.close
+  val w = createOutputFile(configClassName + ".cst")
+  w.write(world.getConstraints)
+  w.close
 }
