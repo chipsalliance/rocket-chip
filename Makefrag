@@ -10,7 +10,7 @@ DISASM_EXTENSION = --extension=hwacha
 CXX ?= g++
 CXXFLAGS := -O1
 
-SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
+SBT := java -Xmx4096M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar
 SHELL := /bin/bash
 
 CHISEL_ARGS := $(PROJECT) $(MODEL) $(CONFIG) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
