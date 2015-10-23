@@ -36,8 +36,8 @@ trait HasAddrMapParameters {
 abstract class MemRegion { def size: BigInt }
 
 case class MemSize(size: BigInt, prot: Int) extends MemRegion
-
 case class MemSubmap(size: BigInt, entries: AddrMap) extends MemRegion
+case class MemChannels(size: BigInt, nchannels: Int, prot: Int) extends MemRegion
 
 object AddrMapConsts {
   val R = 0x4
@@ -68,6 +68,7 @@ class AddrMap(entries: Seq[AddrMapEntry]) extends scala.collection.IndexedSeq[Ad
     this map { entry: AddrMapEntry => entry.region match {
       case MemSize(_, _) => 1
       case MemSubmap(_, submap) => submap.countSlaves
+      case MemChannels(_, nchannels, _) => nchannels
     }} reduceLeft(_ + _)
   }
 }
@@ -100,6 +101,17 @@ class AddrHashMap(addrmap: AddrMap) {
           }
           pairs = subpairs ++ pairs
           ind += subpairs.size
+          base += size
+        }
+        // every channel gets the same base and size
+        case MemChannels(size, nchannels, prot) => {
+          if (!startOpt.isEmpty) base = startOpt.get
+          val subpairs = (0 until nchannels).map { i =>
+            val chname = name + ":" + i.toString
+            (chname, AddrHashMapEntry(ind + i, base, size, prot))
+          }
+          pairs = subpairs ++ pairs
+          ind += nchannels
           base += size
         }
       }

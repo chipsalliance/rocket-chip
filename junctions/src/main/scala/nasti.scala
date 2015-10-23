@@ -363,45 +363,32 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
 }
 
 /** Take a single Nasti master and route its requests to various slaves
- *  @param addrmap a sequence of base address + memory size pairs,
- *  on for each slave interface */
-class NastiRouter(addrmap: Seq[(BigInt, BigInt)])(implicit p: Parameters) extends NastiModule {
-  val nSlaves = addrmap.size
+ *  @param nSlaves the number of slaves
+ *  @param routeSel a function which takes an address and produces
+ *  a one-hot encoded selection of the slave to write to */
+class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
+    extends NastiModule {
 
   val io = new Bundle {
     val master = (new NastiIO).flip
     val slave = Vec(new NastiIO, nSlaves)
   }
 
+  val ar_route = routeSel(io.master.ar.bits.addr)
+  val aw_route = routeSel(io.master.aw.bits.addr)
+
   var ar_ready = Bool(false)
   var aw_ready = Bool(false)
   var w_ready = Bool(false)
-  var r_valid_addr = Bool(false)
-  var w_valid_addr = Bool(false)
 
-  addrmap.zip(io.slave).zipWithIndex.foreach { case (((base, size), s), i) =>
-    val bound = base + size
-
-    require(bigIntPow2(size),
-      s"Region size $size is not a power of 2")
-    require(base % size == 0,
-      f"Region base address $base%x not divisible by $size%d" )
-
-    val ar_addr = io.master.ar.bits.addr
-    val ar_match = ar_addr >= UInt(base) && ar_addr < UInt(bound)
-
-    s.ar.valid := io.master.ar.valid && ar_match
+  io.slave.zipWithIndex.foreach { case (s, i) =>
+    s.ar.valid := io.master.ar.valid && ar_route(i)
     s.ar.bits := io.master.ar.bits
-    ar_ready = ar_ready || (s.ar.ready && ar_match)
-    r_valid_addr = r_valid_addr || ar_match
+    ar_ready = ar_ready || (s.ar.ready && ar_route(i))
 
-    val aw_addr = io.master.aw.bits.addr
-    val aw_match = aw_addr >= UInt(base) && aw_addr < UInt(bound)
-
-    s.aw.valid := io.master.aw.valid && aw_match
+    s.aw.valid := io.master.aw.valid && aw_route(i)
     s.aw.bits := io.master.aw.bits
-    aw_ready = aw_ready || (s.aw.ready && aw_match)
-    w_valid_addr = w_valid_addr || aw_match
+    aw_ready = aw_ready || (s.aw.ready && aw_route(i))
 
     val chosen = Reg(init = Bool(false))
     when (s.aw.fire()) { chosen := Bool(true) }
@@ -412,16 +399,19 @@ class NastiRouter(addrmap: Seq[(BigInt, BigInt)])(implicit p: Parameters) extend
     w_ready = w_ready || (s.w.ready && chosen)
   }
 
+  val r_invalid = !ar_route.orR
+  val w_invalid = !aw_route.orR
+
   val err_slave = Module(new NastiErrorSlave)
-  err_slave.io.ar.valid := !r_valid_addr && io.master.ar.valid
+  err_slave.io.ar.valid := r_invalid && io.master.ar.valid
   err_slave.io.ar.bits := io.master.ar.bits
-  err_slave.io.aw.valid := !w_valid_addr && io.master.aw.valid
+  err_slave.io.aw.valid := w_invalid && io.master.aw.valid
   err_slave.io.aw.bits := io.master.aw.bits
   err_slave.io.w.valid := io.master.w.valid
   err_slave.io.w.bits := io.master.w.bits
 
-  io.master.ar.ready := ar_ready || (!r_valid_addr && err_slave.io.ar.ready)
-  io.master.aw.ready := aw_ready || (!w_valid_addr && err_slave.io.aw.ready)
+  io.master.ar.ready := ar_ready || (r_invalid && err_slave.io.ar.ready)
+  io.master.aw.ready := aw_ready || (w_invalid && err_slave.io.aw.ready)
   io.master.w.ready := w_ready || err_slave.io.w.ready
 
   val b_arb = Module(new RRArbiter(new NastiWriteResponseChannel, nSlaves + 1))
@@ -445,25 +435,48 @@ class NastiRouter(addrmap: Seq[(BigInt, BigInt)])(implicit p: Parameters) extend
 /** Crossbar between multiple Nasti masters and slaves
  *  @param nMasters the number of Nasti masters
  *  @param nSlaves the number of Nasti slaves
- *  @param addrmap a sequence of base - size pairs;
- *  size of addrmap should be nSlaves */
-class NastiCrossbar(nMasters: Int, nSlaves: Int, addrmap: Seq[(BigInt, BigInt)])
+ *  @param routeSel a function selecting the slave to route an address to */
+class NastiCrossbar(nMasters: Int, nSlaves: Int, routeSel: UInt => UInt)
                    (implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
     val masters = Vec(new NastiIO, nMasters).flip
     val slaves = Vec(new NastiIO, nSlaves)
   }
 
-  val routers = Vec.fill(nMasters) { Module(new NastiRouter(addrmap)).io }
-  val arbiters = Vec.fill(nSlaves) { Module(new NastiArbiter(nMasters)).io }
+  if (nMasters == 1) {
+    val router = Module(new NastiRouter(nSlaves, routeSel))
+    router.io.master <> io.masters.head
+    io.slaves <> router.io.slave
+  } else {
+    val routers = Vec.fill(nMasters) { Module(new NastiRouter(nSlaves, routeSel)).io }
+    val arbiters = Vec.fill(nSlaves) { Module(new NastiArbiter(nMasters)).io }
 
-  for (i <- 0 until nMasters) {
-    routers(i).master <> io.masters(i)
+    for (i <- 0 until nMasters) {
+      routers(i).master <> io.masters(i)
+    }
+
+    for (i <- 0 until nSlaves) {
+      arbiters(i).master <> Vec(routers.map(r => r.slave(i)))
+      io.slaves(i) <> arbiters(i).slave
+    }
   }
+}
 
-  for (i <- 0 until nSlaves) {
-    arbiters(i).master <> Vec(routers.map(r => r.slave(i)))
-    io.slaves(i) <> arbiters(i).slave
+object NastiMultiChannelRouter {
+  def apply(master: NastiIO, nChannels: Int)(implicit p: Parameters): Vec[NastiIO] = {
+    require(isPow2(nChannels), "Number of channels must be power of 2")
+    if (nChannels == 1) {
+      Vec(master)
+    } else {
+      val dataBytes = p(MIFDataBits) * p(MIFDataBeats) / 8
+      val selBits = log2Ceil(nChannels)
+      val routeSel = (addr: UInt) => {
+        Vec.tabulate(nChannels)(i => addr(selBits - 1, 0) === UInt(i)).toBits
+      }
+      val router = Module(new NastiRouter(nChannels, routeSel))
+      router.io.master <> master
+      router.io.slave
+    }
   }
 }
 
@@ -502,30 +515,40 @@ class NastiRecursiveInterconnect(
     lastEnd = start + size
   }
 
-  val flatSlaves = if (nMasters > 1) {
-    val xbar = Module(new NastiCrossbar(nMasters, levelSize, realAddrMap))
-    xbar.io.masters <> io.masters
-    xbar.io.slaves
-  } else {
-    val router = Module(new NastiRouter(realAddrMap))
-    router.io.master <> io.masters.head
-    router.io.slave
+  val routeSel = (addr: UInt) => {
+    Vec(realAddrMap.map { case (start, size) =>
+      require(bigIntPow2(size),
+        s"Region size $size is not a power of 2")
+      require(base % size == 0,
+        f"Region base address $base%x not divisible by $size%d" )
+
+      addr >= UInt(start) && addr < UInt(start + size)
+    }).toBits
   }
 
-  addrmap.zip(realAddrMap).zipWithIndex.foreach {
-    case ((entry, (start, size)), i) => {
+  val xbar = Module(new NastiCrossbar(nMasters, levelSize, routeSel))
+  xbar.io.masters <> io.masters
+
+  addrmap.zip(realAddrMap).zip(xbar.io.slaves).zipWithIndex.foreach {
+    case (((entry, (start, size)), xbarSlave), i) => {
       entry.region match {
         case MemSize(_, _) =>
-          io.slaves(slaveInd) <> flatSlaves(i)
+          io.slaves(slaveInd) <> xbarSlave
           slaveInd += 1
         case MemSubmap(_, submap) =>
           val subSlaves = submap.countSlaves
           val ic = Module(new NastiRecursiveInterconnect(1, subSlaves, submap, start))
-          ic.io.masters.head <> flatSlaves(i)
+          ic.io.masters.head <> xbarSlave
           io.slaves.drop(slaveInd).take(subSlaves).zip(ic.io.slaves).foreach {
             case (s, m) => s <> m
           }
           slaveInd += subSlaves
+        case MemChannels(_, nchannels, _) =>
+          val routerSlaves = NastiMultiChannelRouter(xbarSlave, nchannels)
+          io.slaves.drop(slaveInd).take(nchannels).zip(routerSlaves).foreach {
+            case (s, m) => s <> m
+          }
+          slaveInd += nchannels
       }
     }
   }
