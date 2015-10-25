@@ -81,25 +81,21 @@ class MultiChannelTopIO(implicit p: Parameters) extends BasicTopIO()(p) {
 class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   implicit val p = topParams
   val io = new TopIO
-  if(!p(UseZscale)) {
-    val temp = Module(new MultiChannelTop)
-    val arb = Module(new NastiArbiter(nMemChannels))
-    val conv = Module(new MemIONastiIOConverter(p(CacheBlockOffsetBits)))
-    arb.io.master <> temp.io.mem
-    conv.io.nasti <> arb.io.slave
-    io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
-    io.mem.req_data <> Queue(conv.io.mem.req_data, mifDataBeats)
-    conv.io.mem.resp <> Queue(io.mem.resp, mifDataBeats)
-    io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
-    io.host <> temp.io.host
 
-    // tie off the mmio port
-    val errslave = Module(new NastiErrorSlave)
-    errslave.io <> temp.io.mmio
-  } else {
-    val temp = Module(new ZscaleTop)
-    io.host <> temp.io.host
-  }
+  val temp = Module(new MultiChannelTop)
+  val arb = Module(new NastiArbiter(nMemChannels))
+  val conv = Module(new MemIONastiIOConverter(p(CacheBlockOffsetBits)))
+  arb.io.master <> temp.io.mem
+  conv.io.nasti <> arb.io.slave
+  io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
+  io.mem.req_data <> Queue(conv.io.mem.req_data, mifDataBeats)
+  conv.io.mem.resp <> Queue(io.mem.resp, mifDataBeats)
+  io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
+  io.host <> temp.io.host
+
+  // tie off the mmio port
+  val errslave = Module(new NastiErrorSlave)
+  errslave.io <> temp.io.mmio
 }
 
 class MultiChannelTop(implicit val p: Parameters) extends Module with HasTopLevelParameters {

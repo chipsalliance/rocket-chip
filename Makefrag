@@ -3,7 +3,7 @@ ifndef RISCV
 $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
-MODEL := Top
+MODEL ?= Top
 PROJECT := rocketchip
 CXX ?= g++
 CXXFLAGS := -O1

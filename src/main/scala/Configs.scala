@@ -26,7 +26,6 @@ class DefaultConfig extends Config (
       new AddrMap(csrs :+ scr)
     }
     pname match {
-      case UseZscale => false
       case HtifKey => HtifParameters(
                        width = Dump("HTIF_WIDTH", 16),
                        nSCR = 64,
@@ -225,9 +224,8 @@ class WithZscale extends Config(
     case BuildZscale => {
       TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
       TestGeneration.addSuites(List(zscaleBmarks))
-      (r: Bool, p: Parameters) => Module(new Zscale(r)(p.alterPartial({case TLId => "L1toL2"})))
+      (r: Bool, p: Parameters) => Module(new Zscale(r)(p))
     }
-    case UseZscale => true
     case BootROMCapacity => Dump("BOOT_CAPACITY", 16*1024)
     case DRAMCapacity => Dump("DRAM_CAPACITY", 64*1024*1024)
   }
