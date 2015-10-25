@@ -23,6 +23,8 @@ include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag
 -include $(generated_dir)/$(MODEL).$(CONFIG).d
 include $(base_dir)/vsim/Makefrag-verilog
+-include Makefrag-torture-def
+include $(base_dir)/vsim/Makefrag-torture
 
 all: $(simv)
 debug: $(simv_debug)
