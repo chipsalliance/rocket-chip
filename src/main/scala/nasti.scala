@@ -556,20 +556,3 @@ class NastiRecursiveInterconnect(
     }
   }
 }
-
-class NastiTopInterconnect(val nMasters: Int, val nSlaves: Int, addrMap: AddrMap)
-                          (implicit p: Parameters) extends NastiInterconnect {
-  val temp = Module(new NastiRecursiveInterconnect(nMasters, nSlaves, addrMap))
-
-  temp.io.masters.zip(io.masters).foreach { case (t, i) =>
-    t.ar <> i.ar
-    t.aw <> i.aw
-    // this queue is necessary to break up the aw - w dependence
-    // introduced by the TileLink -> Nasti converter
-    t.w <> Queue(i.w)
-    i.b <> t.b
-    i.r <> t.r
-  }
-  //temp.io.masters <> io.masters
-  io.slaves <> temp.io.slaves
-}
