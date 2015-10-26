@@ -123,7 +123,6 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
       val data = dType.cloneType.asOutput
       val matches = Bool(OUTPUT)
     }
-    val full = Bool(OUTPUT)
   }
 
   val roq_data = Reg(Vec(dType.cloneType, size))
