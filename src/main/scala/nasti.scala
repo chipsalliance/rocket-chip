@@ -469,9 +469,12 @@ object NastiMultiChannelRouter {
       Vec(master)
     } else {
       val dataBytes = p(MIFDataBits) * p(MIFDataBeats) / 8
+      val selOffset = log2Up(dataBytes)
       val selBits = log2Ceil(nChannels)
+      // Consecutive blocks route to alternating channels
       val routeSel = (addr: UInt) => {
-        Vec.tabulate(nChannels)(i => addr(selBits - 1, 0) === UInt(i)).toBits
+        val sel = addr(selOffset + selBits - 1, selOffset)
+        Vec.tabulate(nChannels)(i => sel === UInt(i)).toBits
       }
       val router = Module(new NastiRouter(nChannels, routeSel))
       router.io.master <> master
