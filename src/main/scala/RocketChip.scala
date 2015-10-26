@@ -76,30 +76,38 @@ class MultiChannelTopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mmio = new NastiIO
 }
 
+object TopUtils {
+  // Connect two Nasti interfaces with queues in-between
+  def connectNasti(outer: NastiIO, inner: NastiIO)(implicit p: Parameters) {
+    val mifDataBeats = p(MIFDataBeats)
+    outer.ar <> Queue(inner.ar)
+    outer.aw <> Queue(inner.aw)
+    outer.w  <> Queue(inner.w, mifDataBeats)
+    inner.r  <> Queue(outer.r, mifDataBeats)
+    inner.b  <> Queue(outer.b)
+  }
+}
+
 /** Top-level module for the chip */
 //TODO: Remove this wrapper once multichannel DRAM controller is provided
 class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   implicit val p = topParams
   val io = new TopIO
-  if(!p(UseZscale)) {
-    val temp = Module(new MultiChannelTop)
-    val arb = Module(new NastiArbiter(nMemChannels))
-    val conv = Module(new MemIONastiIOConverter(p(CacheBlockOffsetBits)))
-    arb.io.master <> temp.io.mem
-    conv.io.nasti <> arb.io.slave
-    io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
-    io.mem.req_data <> Queue(conv.io.mem.req_data, mifDataBeats)
-    conv.io.mem.resp <> Queue(io.mem.resp, mifDataBeats)
-    io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
-    io.host <> temp.io.host
 
-    // tie off the mmio port
-    val errslave = Module(new NastiErrorSlave)
-    errslave.io <> temp.io.mmio
-  } else {
-    val temp = Module(new ZscaleTop)
-    io.host <> temp.io.host
-  }
+  val temp = Module(new MultiChannelTop)
+  val arb = Module(new NastiArbiter(nMemChannels))
+  val conv = Module(new MemIONastiIOConverter(p(CacheBlockOffsetBits)))
+  arb.io.master <> temp.io.mem
+  conv.io.nasti <> arb.io.slave
+  io.mem.req_cmd <> Queue(conv.io.mem.req_cmd)
+  io.mem.req_data <> Queue(conv.io.mem.req_data, mifDataBeats)
+  conv.io.mem.resp <> Queue(io.mem.resp, mifDataBeats)
+  io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
+  io.host <> temp.io.host
+
+  // tie off the mmio port
+  val errslave = Module(new NastiErrorSlave)
+  errslave.io <> temp.io.mmio
 }
 
 class MultiChannelTop(implicit val p: Parameters) extends Module with HasTopLevelParameters {
@@ -244,7 +252,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     println(f"\t$name%s $base%x - ${base + size - 1}%x")
   }
 
-  val interconnect = Module(new NastiTopInterconnect(nMasters, nSlaves, addrMap)(p))
+  val interconnect = Module(new NastiRecursiveInterconnect(
+    nMasters, nSlaves, addrMap)(p))
 
   for ((bank, i) <- managerEndpoints.zipWithIndex) {
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
@@ -253,7 +262,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     unwrap.io.in <> bank.outerTL
     narrow.io.in <> unwrap.io.out
     conv.io.tl <> narrow.io.out
-    interconnect.io.masters(i) <> conv.io.nasti
+    TopUtils.connectNasti(interconnect.io.masters(i), conv.io.nasti)
   }
 
   val rtc = Module(new RTC(CSRs.mtime))

@@ -61,7 +61,8 @@ class ZscaleSystem(implicit p: Parameters)  extends Module {
   io.corereset <> pbus.io.slaves(1)
 }
 
-class ZscaleTop(implicit p: Parameters) extends Module {
+class ZscaleTop(topParams: Parameters) extends Module {
+  implicit val p = topParams.alterPartial({case TLId => "L1toL2" })
   val io = new Bundle {
     val host = new HtifIO
   }

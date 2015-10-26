@@ -3,7 +3,7 @@ ifndef RISCV
 $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
-MODEL := Top
+MODEL ?= Top
 PROJECT := rocketchip
 export ROCKETCHIP_ADDONS ?= hwacha
 DISASM_EXTENSION = --extension=hwacha
