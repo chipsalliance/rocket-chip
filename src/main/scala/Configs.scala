@@ -41,8 +41,11 @@ class DefaultConfig extends Config (
       case VAddrBits => site(VPNBits) + site(PgIdxBits)
       case ASIdBits => 7
       case MIFTagBits => Dump("MEM_TAG_BITS",
+                          // Bits needed at the L2 agent
                           log2Up(site(NAcquireTransactors)+2) +
-                          log2Up(site(NBanksPerMemoryChannel)) +
+                          // Bits added by NASTI interconnect
+                          log2Up(site(NMemoryChannels) * site(NBanksPerMemoryChannel) + 1) +
+                          // Bits added by final arbiter (not needed if true multichannel memory)
                           log2Up(site(NMemoryChannels)))
       case MIFDataBits => Dump("MEM_DATA_BITS", 128)
       case MIFAddrBits => Dump("MEM_ADDR_BITS", site(PAddrBits) - site(CacheBlockOffsetBits))
@@ -159,7 +162,7 @@ class DefaultConfig extends Config (
       case MMIOBase => BigInt(1 << 30) // 1 GB
       case ExternalIOStart => 2 * site(MMIOBase)
       case GlobalAddrMap => AddrMap(
-        AddrMapEntry("mem", None, MemSize(site(MMIOBase), AddrMapConsts.RWX)),
+        AddrMapEntry("mem", None, MemChannels(site(MMIOBase), site(NMemoryChannels), AddrMapConsts.RWX)),
         AddrMapEntry("conf", None, MemSubmap(site(ExternalIOStart) - site(MMIOBase), genCsrAddrMap)),
         AddrMapEntry("io", Some(site(ExternalIOStart)), MemSize(2 * site(MMIOBase), AddrMapConsts.RW)))
   }},
