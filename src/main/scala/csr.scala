@@ -293,7 +293,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   io.fatc := insn_sfence_vm
   io.evec := Mux(io.exception || csr_xcpt, (reg_mstatus.prv << 6) + MTVEC,
              Mux(maybe_insn_redirect_trap, reg_stvec.sextTo(vaddrBitsExtended),
-             Mux(reg_mstatus.prv(1), reg_mepc, reg_sepc)))
+             Mux(reg_mstatus.prv(1) || Bool(!p(UseVM)), reg_mepc, reg_sepc)))
   io.ptbr := reg_sptbr
   io.csr_xcpt := csr_xcpt
   io.eret := insn_ret || insn_redirect_trap
