@@ -6,7 +6,6 @@ import junctions._
 import scala.util.Random
 import cde.{Parameters, Field}
 
-case object BuildGenerator extends Field[(Int, Random, Parameters) => TileLinkGenerator]
 case object NGeneratorsPerTile extends Field[Int]
 case object NGeneratorTiles extends Field[Int]
 
@@ -17,22 +16,17 @@ trait HasGeneratorParams {
   val nGens = nGensPerTile * nGenTiles
 }
 
-abstract class TileLinkGenerator(rnd: Random)
+class UncachedTileLinkGenerator(id: Int)
     (implicit p: Parameters) extends TLModule()(p) with HasGeneratorParams {
-  val io = new Bundle {
-    val tl = new ClientTileLinkIO
-    val finished = Bool(OUTPUT)
-  }
-}
-
-class UncachedTileLinkGenerator(id: Int, rnd: Random)
-    (implicit p: Parameters) extends TileLinkGenerator(rnd)(p) {
 
   private val tlBlockOffset = tlBeatAddrBits + tlByteAddrBits
   private val maxAddress = (p(MMIOBase) >> tlBlockOffset).toInt
   private val totalRequests = maxAddress / nGens
 
-  def rndDataBeat(): UInt = { UInt(BigInt(tlDataBits, rnd), tlDataBits) }
+  val io = new Bundle {
+    val tl = new ClientUncachedTileLinkIO
+    val finished = Bool(OUTPUT)
+  }
 
   val (s_start :: s_put :: s_get :: s_finished :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = s_start)
@@ -88,9 +82,4 @@ class UncachedTileLinkGenerator(id: Int, rnd: Random)
   assert(!io.tl.grant.valid || state != s_get ||
     io.tl.grant.bits.data === get_data,
     "Get received incorrect data")
-
-  io.tl.release.valid := Bool(false)
-  io.tl.probe.ready := Bool(false)
-
-  assert(!io.tl.probe.valid, "Uncached generator cannot accept probes")
 }
