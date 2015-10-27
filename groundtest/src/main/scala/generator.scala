@@ -65,8 +65,11 @@ class UncachedTileLinkGenerator(id: Int, rnd: Random)
 
   io.finished := (state === s_finished)
 
-  val full_addr = Cat(addr_block, acq_beat, UInt(0, tlByteAddrBits))
-  val put_data = Cat(UInt(id, log2Up(nGens)), req_cnt, full_addr)
+  val acq_addr = Cat(addr_block, acq_beat, UInt(0, tlByteAddrBits))
+  val gnt_addr = Cat(addr_block, gnt_beat, UInt(0, tlByteAddrBits))
+  val data_prefix = Cat(UInt(id, log2Up(nGens)), req_cnt)
+  val put_data = Cat(data_prefix, acq_addr)
+  val get_data = Cat(data_prefix, gnt_addr)
 
   val put_acquire = PutBlock(
     client_xact_id = UInt(0),
@@ -83,7 +86,7 @@ class UncachedTileLinkGenerator(id: Int, rnd: Random)
   io.tl.grant.ready := !sending
 
   assert(!io.tl.grant.valid || state != s_get ||
-    io.tl.grant.bits.data === put_data,
+    io.tl.grant.bits.data === get_data,
     "Get received incorrect data")
 
   io.tl.release.valid := Bool(false)
