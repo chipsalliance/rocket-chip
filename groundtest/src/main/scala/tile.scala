@@ -6,6 +6,33 @@ import uncore._
 import scala.util.Random
 import cde.Parameters
 
+/** A "cache" that responds to probe requests with a release indicating
+ *  the block is not present */
+class DummyCache(implicit val p: Parameters) extends Module
+    with HasGeneratorParams {
+  val io = new ClientTileLinkIO
+
+  val req = Reg(new Probe)
+  val coh = ClientMetadata.onReset
+  val (s_probe :: s_release :: Nil) = Enum(Bits(), 2)
+  val state = Reg(init = s_probe)
+
+  io.acquire.valid := Bool(false)
+  io.probe.ready := (state === s_probe)
+  io.grant.ready := Bool(true)
+  io.release.valid := (state === s_release)
+  io.release.bits := coh.makeRelease(req)
+
+  when (io.probe.fire()) {
+    req := io.probe.bits
+    state := s_release
+  }
+
+  when (io.release.fire()) {
+    state := s_probe
+  }
+}
+
 class GeneratorTile(id: Int, resetSignal: Bool)
                    (implicit val p: Parameters) extends Tile(resetSignal)(p)
                    with HasGeneratorParams {
@@ -16,17 +43,12 @@ class GeneratorTile(id: Int, resetSignal: Bool)
   for (i <- 0 until nGensPerTile) {
     val genid = id * nGensPerTile + i
     val generator = Module(new UncachedTileLinkGenerator(genid))
-    arb.io.in(i) <> generator.io.tl
+    arb.io.in(i) <> generator.io.mem
     gen_finished(i) := generator.io.finished
   }
 
   io.uncached(0) <> arb.io.out
-  io.cached(0).acquire.valid := Bool(false)
-  io.cached(0).grant.ready := Bool(false)
-  io.cached(0).probe.ready := Bool(false)
-  io.cached(0).release.valid := Bool(false)
-
-  assert(!io.cached(0).probe.valid, "Shouldn't be receiving probes")
+  io.cached(0) <> Module(new DummyCache).io
 
   val all_done = gen_finished.reduce(_ && _)
 

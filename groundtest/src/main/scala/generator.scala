@@ -24,15 +24,15 @@ class UncachedTileLinkGenerator(id: Int)
   private val totalRequests = maxAddress / nGens
 
   val io = new Bundle {
-    val tl = new ClientUncachedTileLinkIO
+    val mem = new ClientUncachedTileLinkIO
     val finished = Bool(OUTPUT)
   }
 
   val (s_start :: s_put :: s_get :: s_finished :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = s_start)
 
-  val (acq_beat, acq_done) = Counter(io.tl.acquire.fire() && state === s_put, tlDataBeats)
-  val (gnt_beat, gnt_done) = Counter(io.tl.grant.fire() && state === s_get, tlDataBeats)
+  val (acq_beat, acq_done) = Counter(io.mem.acquire.fire() && state === s_put, tlDataBeats)
+  val (gnt_beat, gnt_done) = Counter(io.mem.grant.fire() && state === s_get, tlDataBeats)
   val (req_cnt, req_wrap) = Counter(gnt_done && state === s_get, totalRequests)
 
   val addr_block = Cat(req_cnt, UInt(id, log2Up(nGens)))
@@ -46,11 +46,11 @@ class UncachedTileLinkGenerator(id: Int)
 
   when (state === s_put) {
     when (acq_done) { sending := Bool(false) }
-    when (io.tl.grant.fire()) { sending := Bool(true); state := s_get }
+    when (io.mem.grant.fire()) { sending := Bool(true); state := s_get }
   }
 
   when (state === s_get) {
-    when (io.tl.acquire.fire()) { sending := Bool(false) }
+    when (io.mem.acquire.fire()) { sending := Bool(false) }
     when (gnt_done) {
       sending := Bool(true)
       state := Mux(req_wrap, s_finished, s_put)
@@ -75,11 +75,12 @@ class UncachedTileLinkGenerator(id: Int)
     client_xact_id = UInt(0),
     addr_block = addr_block)
 
-  io.tl.acquire.valid := sending
-  io.tl.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
-  io.tl.grant.ready := !sending
+  io.mem.acquire.valid := sending
+  io.mem.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
+  io.mem.grant.ready := !sending
 
-  assert(!io.tl.grant.valid || state != s_get ||
-    io.tl.grant.bits.data === get_data,
-    "Get received incorrect data")
+  assert(!io.mem.grant.valid || state != s_get ||
+    io.mem.grant.bits.data === get_data,
+    s"Get received incorrect data in generator ${id}")
 }
+
