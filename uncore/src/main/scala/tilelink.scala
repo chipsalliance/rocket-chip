@@ -1422,12 +1422,10 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     MT_Q  -> UInt(log2Up(tlDataBytes))))
 
   val dataBits = tlDataBits*tlDataBeats 
-  val dstIdBits = p(LNHeaderBits)
   require(tlDataBits == nastiXDataBits, "Data sizes between LLC and MC don't agree") // TODO: remove this restriction
   require(tlDataBeats < (1 << nastiXLenBits), "Can't have that many beats")
-  require(dstIdBits + tlClientXactIdBits < nastiXIdBits, "NastiIO converter is going truncate tags: " + dstIdBits + " + " + tlClientXactIdBits + " >= " + nastiXIdBits)
+  require(tlClientXactIdBits <= nastiXIdBits, "NastiIO converter is going truncate tags: " + tlClientXactIdBits + " > " + nastiXIdBits)
 
-  val dst_off = dstIdBits + tlClientXactIdBits
   val has_data = io.tl.acquire.bits.hasData()
 
   val is_subblock = io.tl.acquire.bits.isSubBlockType()
