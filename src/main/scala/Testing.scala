@@ -4,7 +4,7 @@ package rocketchip
 
 import Chisel._
 import scala.collection.mutable.LinkedHashSet
-import cde.{Parameters, ParameterDump, Config}
+import cde.{Parameters, ParameterDump, Config, Collector}
 
 abstract class RocketTestSuite {
   val dir: String
@@ -144,9 +144,9 @@ object TestGenerator extends App with FileSystemUtilities {
         throwException(s"Could not find the cde.Config subclass you asked for " +
                         "(i.e. \"$configClassName\"), did you misspell it?", e)
     }
-  val world = config.toInstance
+  val world = new Collector(config.topDefinitions,config.knobValues)
   val paramsFromConfig: Parameters = Parameters.root(world)
-
+  config.topConstraints.foreach(c => paramsFromConfig.constrain(c))
   val gen = () => 
     Class.forName(s"$projectName.$topModuleName")
       .getConstructor(classOf[cde.Parameters])
@@ -159,6 +159,8 @@ object TestGenerator extends App with FileSystemUtilities {
   TestGeneration.generateMakefrag(topModuleName, configClassName)
 
   val pdFile = createOutputFile(s"$topModuleName.$configClassName.prm")
+
+
   pdFile.write(ParameterDump.getDump)
   pdFile.close
   val v = createOutputFile(configClassName + ".knb")
