@@ -3,6 +3,7 @@ package groundtest
 import Chisel._
 import uncore._
 import junctions._
+import rocket._
 import scala.util.Random
 import cde.{Parameters, Field}
 
@@ -20,7 +21,7 @@ class UncachedTileLinkGenerator(id: Int)
     (implicit p: Parameters) extends TLModule()(p) with HasGeneratorParams {
 
   private val tlBlockOffset = tlBeatAddrBits + tlByteAddrBits
-  private val maxAddress = (p(MMIOBase) >> tlBlockOffset).toInt
+  private val maxAddress = (p(MMIOBase) >> tlBlockOffset).toInt / 2
   private val totalRequests = maxAddress / nGens
 
   val io = new Bundle {
@@ -81,6 +82,54 @@ class UncachedTileLinkGenerator(id: Int)
 
   assert(!io.mem.grant.valid || state != s_get ||
     io.mem.grant.bits.data === get_data,
-    s"Get received incorrect data in generator ${id}")
+    s"Get received incorrect data in uncached generator ${id}")
 }
 
+class HellaCacheGenerator(id: Int)
+    (implicit p: Parameters) extends L1HellaCacheModule()(p) with HasGeneratorParams {
+
+  private val wordOffset = log2Up(coreDataBits / 8)
+  private val maxAddress = (p(MMIOBase) >> wordOffset).toInt
+  private val startAddress = maxAddress / 2
+  private val totalRequests = (maxAddress - startAddress) / nGens
+
+  val io = new Bundle {
+    val finished = Bool(OUTPUT)
+    val mem = new HellaCacheIO
+  }
+
+  val (s_start :: s_write :: s_read :: s_finished :: Nil) = Enum(Bits(), 4)
+  val state = Reg(init = s_start)
+  val sending = Reg(init = Bool(false))
+
+  val (req_cnt, req_wrap) = Counter(
+    io.mem.resp.valid && io.mem.resp.bits.has_data, totalRequests)
+
+  val req_addr = UInt(startAddress) +
+                 Cat(req_cnt, UInt(id, log2Up(nGens)), UInt(0, wordOffset))
+  val req_data = Cat(UInt(id, log2Up(nGens)), req_cnt, req_addr)
+
+  io.mem.req.valid := sending
+  io.mem.req.bits.addr := req_addr
+  io.mem.req.bits.data := req_data
+  io.mem.req.bits.typ  := MT_D
+  io.mem.req.bits.cmd  := Mux(state === s_write, M_XWR, M_XRD)
+  io.mem.req.bits.tag  := UInt(0)
+  io.mem.req.bits.kill := Bool(false)
+  io.mem.req.bits.phys := Bool(true)
+
+  when (state === s_start) { sending := Bool(true); state := s_write }
+
+  when (io.mem.req.fire()) { sending := Bool(false) }
+
+  when (io.mem.resp.valid) {
+    sending := Bool(true)
+    state := Mux(state === s_write, s_read, s_write)
+  }
+
+  when (req_wrap) { sending := Bool(false); state := s_finished }
+
+  assert(!io.mem.resp.valid || !io.mem.resp.bits.has_data ||
+    io.mem.resp.bits.data === req_data,
+    s"Received incorrect data in cached generator ${id}")
+}
