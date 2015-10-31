@@ -310,7 +310,7 @@ class BroadcastAcquireTracker(trackerId: Int)
     "AcquireTracker accepted data beat from different client transaction than initial request.")
 
   assert(!(state === s_idle && io.inner.acquire.fire() &&
-    io.iacq().addr_beat != UInt(0)),
+    io.iacq().hasMultibeatData() && io.iacq().addr_beat != UInt(0)),
     "AcquireTracker initialized with a tail data beat.")
 
   when(collect_iacq_data) {
