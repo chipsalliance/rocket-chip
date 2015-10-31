@@ -68,12 +68,7 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 }
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
-  val mem = new NastiIO
-}
-
-class MultiChannelTopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(new NastiIO, nMemChannels)
-  val mmio = new NastiIO
 }
 
 object TopUtils {
@@ -93,29 +88,6 @@ object TopUtils {
 class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   implicit val p = topParams
   val io = new TopIO
-
-  val temp = Module(new MultiChannelTop)
-  val arb = Module(new NastiArbiter(nMemChannels))
-  arb.io.master <> temp.io.mem
-  io.mem.ar <> Queue(arb.io.slave.ar)
-  io.mem.aw <> Queue(arb.io.slave.aw)
-  io.mem.w  <> Queue(arb.io.slave.w)
-  arb.io.slave.r <> Queue(io.mem.r)
-  arb.io.slave.b <> Queue(io.mem.b)
-  io.mem_backup_ctrl <> temp.io.mem_backup_ctrl
-  io.host <> temp.io.host
-
-  // Memory cache type should be normal non-cacheable bufferable
-  io.mem.ar.bits.cache := UInt("b0011")
-  io.mem.aw.bits.cache := UInt("b0011")
-
-  // tie off the mmio port
-  val errslave = Module(new NastiErrorSlave)
-  errslave.io <> temp.io.mmio
-}
-
-class MultiChannelTop(implicit val p: Parameters) extends Module with HasTopLevelParameters {
-  val io = new MultiChannelTopIO
 
   // Build an Uncore and a set of Tiles
   val innerTLParams = p.alterPartial({case TLId => "L1toL2" })
@@ -139,8 +111,15 @@ class MultiChannelTop(implicit val p: Parameters) extends Module with HasTopLeve
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
   io.mem <> uncore.io.mem
-  io.mmio <> uncore.io.mmio
-  if(p(UseBackupMemoryPort)) { io.mem_backup_ctrl <> uncore.io.mem_backup_ctrl }
+  if (p(UseBackupMemoryPort)) { io.mem_backup_ctrl <> uncore.io.mem_backup_ctrl }
+
+  // Memory cache type should be normal non-cacheable bufferable
+  io.mem.map(_.ar.bits.cache := UInt("b0011"))
+  io.mem.map(_.aw.bits.cache := UInt("b0011"))
+
+  // tie off the mmio port
+  val errslave = Module(new NastiErrorSlave)
+  errslave.io <> uncore.io.mmio
 }
 
 /** Wrapper around everything that isn't a Tile.
