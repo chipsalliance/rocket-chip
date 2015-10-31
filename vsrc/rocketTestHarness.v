@@ -2,6 +2,7 @@
 
 extern "A" void htif_init
 (
+  input reg [31:0] n_mem_channel,
   input reg [31:0] htif_width,
   input reg [31:0] mem_width
 );
@@ -23,6 +24,8 @@ extern "A" void htif_tick
 
 extern "A" void memory_tick
 (
+  input  reg [31:0]               channel,
+
   input  reg                      ar_valid,
   output reg                      ar_ready,
   input  reg [`MEM_ADDR_BITS-1:0] ar_addr,
@@ -71,249 +74,24 @@ module rocketTestHarness;
 
   always #`CLOCK_PERIOD clk = ~clk;
 
-  wire ar_valid;
-  reg ar_ready;
-  wire [`MEM_ADDR_BITS-1:0] ar_addr;
-  wire [`MEM_ID_BITS-1:0] ar_id;
-  wire [2:0] ar_size;
-  wire [7:0] ar_len;
+  reg [  31:0] n_mem_channel = `N_MEM_CHANNELS;
+  reg [  31:0] htif_width = `HTIF_WIDTH;
+  reg [  31:0] mem_width = `MEM_DATA_BITS;
+  reg [  63:0] max_cycles = 0;
+  reg [  63:0] trace_count = 0;
+  reg [1023:0] loadmem = 0;
+  reg [1023:0] vcdplusfile = 0;
+  reg [1023:0] vcdfile = 0;
+  reg          stats_active = 0;
+  reg          stats_tracking = 0;
+  reg          verbose = 0;
+  integer      stderr = 32'h80000002;
 
-  wire aw_valid;
-  reg aw_ready;
-  wire [`MEM_ADDR_BITS-1:0] aw_addr;
-  wire [`MEM_ID_BITS-1:0] aw_id;
-  wire [2:0] aw_size;
-  wire [7:0] aw_len;
+`include `TBVFRAG
 
-  wire w_valid;
-  reg w_ready;
-  wire [`MEM_STRB_BITS-1:0] w_strb;
-  wire [`MEM_DATA_BITS-1:0] w_data;
-  wire w_last;
-
-  reg r_valid;
-  wire r_ready;
-  reg [1:0] r_resp;
-  reg [`MEM_ID_BITS-1:0] r_id;
-  reg [`MEM_DATA_BITS-1:0] r_data;
-  reg r_last;
-
-  reg b_valid;
-  wire b_ready;
-  reg [1:0] b_resp;
-  reg [`MEM_ID_BITS-1:0] b_id;
-
-  reg htif_out_ready;
-  wire htif_in_valid;
-  wire [`HTIF_WIDTH-1:0] htif_in_bits;
-  wire htif_in_ready, htif_out_valid;
-  wire [`HTIF_WIDTH-1:0] htif_out_bits;
-  wire htif_out_stats;
-
-  wire mem_bk_in_valid;
-  wire mem_bk_out_valid;
-  wire mem_bk_out_ready;
-  wire [`HTIF_WIDTH-1:0] mem_in_bits;
-
-  wire htif_clk;
-  wire #0.1 htif_in_valid_delay = htif_in_valid;
-  wire htif_in_ready_delay; assign #0.1 htif_in_ready = htif_in_ready_delay;
-  wire [`HTIF_WIDTH-1:0] #0.1 htif_in_bits_delay = htif_in_bits;
-
-  wire htif_out_valid_delay; assign #0.1 htif_out_valid = htif_out_valid_delay;
-  wire #0.1 htif_out_ready_delay = htif_out_ready;
-  wire [`HTIF_WIDTH-1:0] htif_out_bits_delay; assign #0.1 htif_out_bits = htif_out_bits_delay;
-  
-  wire htif_out_stats_delay; assign #0.1 htif_out_stats = htif_out_stats_delay;
-
-  wire ar_valid_delay; assign #0.1 ar_valid = ar_valid_delay;
-  wire #0.1 ar_ready_delay = ar_ready;
-  wire [`MEM_ADDR_BITS-1:0] ar_addr_delay; assign #0.1 ar_addr = ar_addr_delay;
-  wire [`MEM_ID_BITS-1:0] ar_id_delay; assign #0.1 ar_id = ar_id_delay;
-  wire [2:0] ar_size_delay; assign #0.1 ar_size = ar_size_delay;
-  wire [7:0] ar_len_delay; assign #0.1 ar_len = ar_len_delay;
-
-  wire aw_valid_delay; assign #0.1 aw_valid = aw_valid_delay;
-  wire #0.1 aw_ready_delay = aw_ready;
-  wire [`MEM_ADDR_BITS-1:0] aw_addr_delay; assign #0.1 aw_addr = aw_addr_delay;
-  wire [`MEM_ID_BITS-1:0] aw_id_delay; assign #0.1 aw_id = aw_id_delay;
-  wire [2:0] aw_size_delay; assign #0.1 aw_size = aw_size_delay;
-  wire [7:0] aw_len_delay; assign #0.1 aw_len = aw_len_delay;
-
-  wire w_valid_delay; assign #0.1 w_valid = w_valid_delay;
-  wire #0.1 w_ready_delay = w_ready;
-  wire [`MEM_STRB_BITS-1:0] w_strb_delay; assign #0.1 w_strb = w_strb_delay;
-  wire [`MEM_DATA_BITS-1:0] w_data_delay; assign #0.1 w_data = w_data_delay;
-  wire w_last_delay; assign #0.1 w_last = w_last_delay;
-
-  wire #0.1 r_valid_delay = r_valid;
-  wire r_ready_delay; assign #0.1 r_ready = r_ready_delay;
-  wire [1:0] #0.1 r_resp_delay = r_resp;
-  wire [`MEM_ID_BITS-1:0] #0.1 r_id_delay = r_id;
-  wire [`MEM_DATA_BITS-1:0] #0.1 r_data_delay = r_data;
-  wire #0.1 r_last_delay = r_last;
-
-  wire #0.1 b_valid_delay = b_valid;
-  wire b_ready_delay; assign #0.1 b_ready = b_ready_delay;
-  wire [1:0] #0.1 b_resp_delay = b_resp;
-  wire [`MEM_ID_BITS-1:0] #0.1 b_id_delay = b_id;
-
-  wire #0.1 mem_bk_out_ready_delay = mem_bk_out_ready;
-  wire #0.1 mem_bk_in_valid_delay = mem_bk_in_valid;
-  wire mem_bk_out_valid_delay; assign #0.1 mem_bk_out_valid = mem_bk_out_valid_delay;
-
-`ifdef FPGA
-  assign mem_bk_out_valid_delay = 1'b0;
-  assign htif_out_stats_delay = 1'b0;
-`endif
-
-  Top dut
-  (
-    .clk(clk),
-    .reset(reset),
-
-    .io_host_in_valid(htif_in_valid_delay),
-    .io_host_in_ready(htif_in_ready_delay),
-    .io_host_in_bits(htif_in_bits_delay),
-    .io_host_out_valid(htif_out_valid_delay),
-    .io_host_out_ready(htif_out_ready_delay),
-    .io_host_out_bits(htif_out_bits_delay),
-
-`ifndef FPGA
-    .io_host_clk(htif_clk),
-    .io_host_clk_edge(),
-    .io_host_debug_stats_csr(htif_out_stats_delay),
-
-`ifdef MEM_BACKUP_EN
-    .io_mem_backup_ctrl_en(1'b1),
-`else
-    .io_mem_backup_ctrl_en(1'b0),
-`endif // MEM_BACKUP_EN
-    .io_mem_backup_ctrl_in_valid(mem_bk_in_valid_delay),
-    .io_mem_backup_ctrl_out_ready(mem_bk_out_ready_delay),
-    .io_mem_backup_ctrl_out_valid(mem_bk_out_valid_delay),
-`else
-    .io_host_clk (),
-    .io_host_clk_edge (),
-    .io_host_debug_stats_csr (),
-
-    .io_mem_backup_ctrl_en (1'b0),
-    .io_mem_backup_ctrl_in_valid (1'b0),
-    .io_mem_backup_ctrl_out_ready (1'b0),
-    .io_mem_backup_ctrl_out_valid (),
-`endif // FPGA
-
-    .io_mem_ar_valid (ar_valid_delay),
-    .io_mem_ar_ready (ar_ready_delay),
-    .io_mem_ar_bits_addr (ar_addr_delay),
-    .io_mem_ar_bits_id (ar_id_delay),
-    .io_mem_ar_bits_size (ar_size_delay),
-    .io_mem_ar_bits_len (ar_len_delay),
-    .io_mem_ar_bits_burst (),
-    .io_mem_ar_bits_lock (),
-    .io_mem_ar_bits_cache (),
-    .io_mem_ar_bits_prot (),
-    .io_mem_ar_bits_qos (),
-    .io_mem_ar_bits_region (),
-    .io_mem_ar_bits_user (),
-
-    .io_mem_aw_valid (aw_valid_delay),
-    .io_mem_aw_ready (aw_ready_delay),
-    .io_mem_aw_bits_addr (aw_addr_delay),
-    .io_mem_aw_bits_id (aw_id_delay),
-    .io_mem_aw_bits_size (aw_size_delay),
-    .io_mem_aw_bits_len (aw_len_delay),
-    .io_mem_aw_bits_burst (),
-    .io_mem_aw_bits_lock (),
-    .io_mem_aw_bits_cache (),
-    .io_mem_aw_bits_prot (),
-    .io_mem_aw_bits_qos (),
-    .io_mem_aw_bits_region (),
-    .io_mem_aw_bits_user (),
-
-    .io_mem_w_valid (w_valid_delay),
-    .io_mem_w_ready (w_ready_delay),
-    .io_mem_w_bits_strb (w_strb_delay),
-    .io_mem_w_bits_data (w_data_delay),
-    .io_mem_w_bits_last (w_last_delay),
-    .io_mem_w_bits_user (),
-
-    .io_mem_r_valid (r_valid_delay),
-    .io_mem_r_ready (r_ready_delay),
-    .io_mem_r_bits_resp (r_resp_delay),
-    .io_mem_r_bits_id (r_id_delay),
-    .io_mem_r_bits_data (r_data_delay),
-    .io_mem_r_bits_last (r_last_delay),
-    .io_mem_r_bits_user (1'b0),
-
-    .io_mem_b_valid (b_valid_delay),
-    .io_mem_b_ready (b_ready_delay),
-    .io_mem_b_bits_resp (b_resp_delay),
-    .io_mem_b_bits_id (b_id_delay),
-    .io_mem_b_bits_user (1'b0)
-  );
-  
-`ifdef FPGA
-  assign htif_clk = clk;
-`endif
-
-  //-----------------------------------------------
-  // Memory interface
-
-  always @(negedge clk)
+  always @(posedge clk)
   begin
     r_reset <= reset;
-    if (reset || r_reset)
-    begin
-      ar_ready <= 1'b0;
-      aw_ready <= 1'b0;
-      w_ready <= 1'b0;
-      r_valid <= 1'b0;
-      r_resp <= 2'b0;
-      r_id <= {`MEM_ID_BITS {1'b0}};
-      r_data <= {`MEM_DATA_BITS {1'b0}};
-      r_last <= 1'b0;
-      b_valid <= 1'b0;
-      b_resp <= 2'b0;
-      b_id <= {`MEM_ID_BITS {1'b0}};
-    end
-    else
-    begin
-      memory_tick
-      (
-        ar_valid,
-        ar_ready,
-        ar_addr,
-        ar_id,
-        ar_size,
-        ar_len,
-
-        aw_valid,
-        aw_ready,
-        aw_addr,
-        aw_id,
-        aw_size,
-        aw_len,
-
-        w_valid,
-        w_ready,
-        w_strb,
-        w_data,
-        w_last,
-
-        r_valid,
-        r_ready,
-        r_resp,
-        r_id,
-        r_data,
-        r_last,
-
-        b_valid,
-        b_ready,
-        b_resp,
-        b_id
-      );
-    end
   end
 
   wire mem_bk_req_valid, mem_bk_req_rw, mem_bk_req_data_valid;
@@ -418,17 +196,6 @@ module rocketTestHarness;
 
   //-----------------------------------------------
   // Start the simulation
-  reg [  31:0] htif_width = `HTIF_WIDTH;
-  reg [  31:0] mem_width = `MEM_DATA_BITS;
-  reg [  63:0] max_cycles = 0;
-  reg [  63:0] trace_count = 0;
-  reg [1023:0] loadmem = 0;
-  reg [1023:0] vcdplusfile = 0;
-  reg [1023:0] vcdfile = 0;
-  reg          stats_active = 0;
-  reg          stats_tracking = 0;
-  reg          verbose = 0;
-  integer      stderr = 32'h80000002;
 
   // Some helper functions for turning on, stopping, and finishing stat tracking
   task start_stats;
@@ -474,7 +241,7 @@ module rocketTestHarness;
       $readmemh(loadmem, mem.ram);
 `endif
     verbose = $test$plusargs("verbose");
-    htif_init(htif_width, mem_width);
+    htif_init(n_mem_channel, htif_width, mem_width);
 `ifdef DEBUG
     stats_active = $test$plusargs("stats");
     if ($value$plusargs("vcdplusfile=%s", vcdplusfile))
@@ -549,29 +316,6 @@ module rocketTestHarness;
     if (verbose && mem_bk_req_valid && mem_bk_req_ready)
     begin
       $fdisplay(stderr, "MB: rw=%d addr=%x", mem_bk_req_rw, {mem_bk_req_addr,6'd0});
-    end
-  end
-
-  always @(posedge clk)
-  begin
-    if (verbose)
-    begin
-      if (ar_valid && ar_ready)
-      begin
-        $fdisplay(stderr, "MC: ar addr=%x", ar_addr);
-      end
-      if (aw_valid && aw_ready)
-      begin
-        $fdisplay(stderr, "MC: aw addr=%x", aw_addr);
-      end
-      if (w_valid && w_ready)
-      begin
-        $fdisplay(stderr, "MC: w data=%x", w_data);
-      end
-      if (r_valid && r_ready)
-      begin
-        $fdisplay(stderr, "MC: r data=%x", r_data);
-      end
     end
   end
 

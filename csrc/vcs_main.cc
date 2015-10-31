@@ -16,8 +16,10 @@ extern int vcs_main(int argc, char** argv);
 
 static htif_emulator_t* htif;
 static unsigned htif_bytes;
-static mm_t* mm;
+static unsigned mem_channels;
+static mm_t** mm;
 static const char* loadmem;
+static bool dramsim = false;
 
 void htif_fini(vc_handle failure)
 {
@@ -28,7 +30,6 @@ void htif_fini(vc_handle failure)
 
 int main(int argc, char** argv)
 {
-  bool dramsim = false;
   unsigned long memsz_mb = MEM_SIZE / (1024*1024);
 
   for (int i = 1; i < argc; i++)
@@ -39,7 +40,6 @@ int main(int argc, char** argv)
       loadmem = argv[i]+9;
   }
 
-  mm = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
   htif = new htif_emulator_t(memsz_mb,
           std::vector<std::string>(argv + 1, argv + argc));
 
@@ -48,6 +48,8 @@ int main(int argc, char** argv)
 }
 
 void memory_tick(
+  vc_handle channel,
+
   vc_handle ar_valid,
   vc_handle ar_ready,
   vc_handle ar_addr,
@@ -80,43 +82,15 @@ void memory_tick(
   vc_handle b_resp,
   vc_handle b_id)
 {
-  uint32_t write_data[mm->get_word_size()/sizeof(uint32_t)];
-  for (size_t i = 0; i < mm->get_word_size()/sizeof(uint32_t); i++)
+  int c = vc_4stVectorRef(channel)->d;
+  assert(c < mem_channels);
+  mm_t* mmc = mm[c];
+
+  uint32_t write_data[mmc->get_word_size()/sizeof(uint32_t)];
+  for (size_t i = 0; i < mmc->get_word_size()/sizeof(uint32_t); i++)
     write_data[i] = vc_4stVectorRef(w_data)[i].d;
 
-  vc_putScalar(ar_ready, mm->ar_ready());
-  vc_putScalar(aw_ready, mm->aw_ready());
-  vc_putScalar(w_ready, mm->w_ready());
-  vc_putScalar(b_valid, mm->b_valid());
-  vc_putScalar(r_valid, mm->r_valid());
-  vc_putScalar(r_last, mm->r_last());
-
-  vec32 d[mm->get_word_size()/sizeof(uint32_t)];
-
-  d[0].c = 0;
-  d[0].d = mm->b_resp();
-  vc_put4stVector(b_resp, d);
-
-  d[0].c = 0;
-  d[0].d = mm->b_id();
-  vc_put4stVector(b_id, d);
-
-  d[0].c = 0;
-  d[0].d = mm->r_resp();
-  vc_put4stVector(r_resp, d);
-
-  d[0].c = 0;
-  d[0].d = mm->r_id();
-  vc_put4stVector(r_id, d);
-
-  for (size_t i = 0; i < mm->get_word_size()/sizeof(uint32_t); i++)
-  {
-    d[i].c = 0;
-    d[i].d = ((uint32_t*)mm->r_data())[i];
-  }
-  vc_put4stVector(r_data, d);
-
-  mm->tick
+  mmc->tick
   (
     vc_getScalar(ar_valid),
     vc_4stVectorRef(ar_addr)->d,
@@ -138,16 +112,58 @@ void memory_tick(
     vc_getScalar(r_ready),
     vc_getScalar(b_ready)
   );
+
+  vc_putScalar(ar_ready, mmc->ar_ready());
+  vc_putScalar(aw_ready, mmc->aw_ready());
+  vc_putScalar(w_ready, mmc->w_ready());
+  vc_putScalar(b_valid, mmc->b_valid());
+  vc_putScalar(r_valid, mmc->r_valid());
+  vc_putScalar(r_last, mmc->r_last());
+
+  vec32 d[mmc->get_word_size()/sizeof(uint32_t)];
+
+  d[0].c = 0;
+  d[0].d = mmc->b_resp();
+  vc_put4stVector(b_resp, d);
+
+  d[0].c = 0;
+  d[0].d = mmc->b_id();
+  vc_put4stVector(b_id, d);
+
+  d[0].c = 0;
+  d[0].d = mmc->r_resp();
+  vc_put4stVector(r_resp, d);
+
+  d[0].c = 0;
+  d[0].d = mmc->r_id();
+  vc_put4stVector(r_id, d);
+
+  for (size_t i = 0; i < mmc->get_word_size()/sizeof(uint32_t); i++)
+  {
+    d[i].c = 0;
+    d[i].d = ((uint32_t*)mmc->r_data())[i];
+  }
+  vc_put4stVector(r_data, d);
 }
 
-void htif_init(vc_handle htif_width, vc_handle mem_width)
+void htif_init(
+  vc_handle n_mem_channel,
+  vc_handle htif_width, vc_handle mem_width)
 {
+  mem_channels = vc_4stVectorRef(n_mem_channel)->d;
+
   int mw = vc_4stVectorRef(mem_width)->d;
   assert(mw && (mw & (mw-1)) == 0);
-  mm->init(MEM_SIZE, mw/8, LINE_SIZE);
 
-  if (loadmem)
-    load_mem(mm->get_data(), loadmem);
+  mm = new mm_t*[mem_channels];
+
+  for (int i=0; i<mem_channels; i++) {
+    mm[i] = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
+    mm[i]->init(MEM_SIZE, mw/8, LINE_SIZE);
+
+    if (loadmem)
+      load_mem(mm[i]->get_data(), loadmem);
+  }
 
   vec32* w = vc_4stVectorRef(htif_width);
   assert(w->d <= 32 && w->d % 8 == 0); // htif_tick assumes data fits in a vec32
