@@ -190,6 +190,17 @@ class With2Banks extends Config(knobValues = { case "NBANKS" => 2 })
 class With4Banks extends Config(knobValues = { case "NBANKS" => 4 })
 class With8Banks extends Config(knobValues = { case "NBANKS" => 8 })
 
+class With2MemoryChannels extends Config(
+  (pname,site,here) => pname match {
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 2)
+  }
+)
+class With4MemoryChannels extends Config(
+  (pname,site,here) => pname match {
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 4)
+  }
+)
+
 class WithL2Cache extends Config(
   (pname,site,here) => pname match {
     case "L2_CAPACITY_IN_KB" => Knob("L2_CAPACITY_IN_KB")
