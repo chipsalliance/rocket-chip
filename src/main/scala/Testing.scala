@@ -157,6 +157,9 @@ object TestGenerator extends App with FileSystemUtilities {
   //Driver.elaborate(gen, configName = configClassName)
 
   TestGeneration.generateMakefrag(topModuleName, configClassName)
+  TestBenchGeneration.generateVerilogFragement(
+    topModuleName, configClassName,
+    paramsFromConfig(NMemoryChannels))
 
   val pdFile = createOutputFile(s"$topModuleName.$configClassName.prm")
 

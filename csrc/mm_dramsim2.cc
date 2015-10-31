@@ -17,27 +17,17 @@ using namespace DRAMSim;
 
 void mm_dramsim2_t::read_complete(unsigned id, uint64_t address, uint64_t clock_cycle)
 {
-  assert(req.count(address));
-  auto tag = req[address];
-  req.erase(address);
-
-  for (int i = 0; i < line_size/word_size; i++)
-  {
-    auto base = data + address + i*word_size;
-    auto dat = std::vector<char>(base, base + word_size);
-    resp.push(std::make_pair(tag, dat));
+  auto req = rreq[address];
+  for (int i = 0; i < req.len; i++) {
+    auto dat = read(address + i * req.size, req.size);
+    rresp.push(mm_rresp_t(req.id, dat, (i == req.len - 1)));
   }
-
-#ifdef DEBUG_DRAMSIM2
-  fprintf(stderr, "[Callback] read complete: id=%d , addr=0x%lx , cycle=%lu\n", id, address, clock_cycle);
-#endif
 }
 
 void mm_dramsim2_t::write_complete(unsigned id, uint64_t address, uint64_t clock_cycle)
 {
-#ifdef DEBUG_DRAMSIM2
-  fprintf(stderr, "[Callback] write complete: id=%d , addr=0x%lx , cycle=%lu\n", id, address, clock_cycle);
-#endif
+  auto b_id = wreq[address];
+  bresp.push(b_id);
 }
 
 void power_callback(double a, double b, double c, double d)
@@ -64,64 +54,64 @@ void mm_dramsim2_t::init(size_t sz, int wsz, int lsz)
 #endif
 }
 
-void mm_dramsim2_t::tick
-(
-  bool req_cmd_val,
-  bool req_cmd_store,
-  uint64_t req_cmd_addr,
-  uint64_t req_cmd_tag,
-  bool req_data_val,
-  void* req_data_bits,
-  bool resp_rdy
-)
+void mm_dramsim2_t::tick(
+  bool ar_valid,
+  uint64_t ar_addr,
+  uint64_t ar_id,
+  uint64_t ar_size,
+  uint64_t ar_len,
+
+  bool aw_valid,
+  uint64_t aw_addr,
+  uint64_t aw_id,
+  uint64_t aw_size,
+  uint64_t aw_len,
+
+  bool w_valid,
+  uint64_t w_strb,
+  void *w_data,
+  bool w_last,
+
+  bool r_ready,
+  bool b_ready)
 {
-  bool req_cmd_fire = req_cmd_val && req_cmd_ready();
-  bool req_data_fire = req_data_val && req_data_ready();
-  bool resp_fire = resp_valid() && resp_rdy;
-  assert(!(req_cmd_fire && req_data_fire));
+  bool ar_fire = ar_valid && ar_ready();
+  bool aw_fire = aw_valid && aw_ready();
+  bool w_fire = w_valid && w_ready();
+  bool r_fire = r_valid() && r_ready;
+  bool b_fire = b_valid() && b_ready;
 
-  if (resp_fire)
-    resp.pop();
-
-  if (req_cmd_fire)
-  {
-    // since the I$ can speculatively ask for address that are out of bounds
-    auto byte_addr = (req_cmd_addr * line_size) % size;
-
-    if (req_cmd_store)
-    {
-      store_inflight = 1;
-      store_addr = byte_addr;
-#ifdef DEBUG_DRAMSIM2
-      fprintf(stderr, "Starting store transaction (addr=%lx ; tag=%ld ; cyc=%ld)\n", store_addr, req_cmd_tag, cycle);
-#endif
-    }
-    else
-    {
-      assert(!req.count(byte_addr));
-      req[byte_addr] = req_cmd_tag;
-
-      mem->addTransaction(false, byte_addr);
-#ifdef DEBUG_DRAMSIM2
-      fprintf(stderr, "Adding load transaction (addr=%lx; cyc=%ld)\n", byte_addr, cycle);
-#endif
-    }
+  if (ar_fire) {
+    rreq[ar_addr] = mm_req_t(ar_id, 1 << ar_size, ar_len + 1, ar_addr);
+    mem->addTransaction(false, ar_addr);
   }
 
-  if (req_data_fire)
-  {
-    memcpy(data + store_addr + store_count*word_size, req_data_bits, word_size);
+  if (aw_fire) {
+    store_addr = aw_addr;
+    store_size = (1 << aw_size);
+    store_id = aw_id;
+    store_count = aw_len + 1;
+    store_inflight = true;
+  }
 
-    store_count = (store_count + 1) % (line_size/word_size);
-    if (store_count == 0)
-    { // last chunch of cache line arrived.
-      store_inflight = 0;
+  if (w_fire) {
+    write(store_addr, (uint8_t *) w_data, w_strb, store_size);
+    store_addr += store_size;
+    store_count--;
+
+    if (store_count == 0) {
+      store_inflight = false;
       mem->addTransaction(true, store_addr);
-#ifdef DEBUG_DRAMSIM2
-      fprintf(stderr, "Adding store transaction (addr=%lx; cyc=%ld)\n", store_addr, cycle);
-#endif
+      wreq[store_addr] = store_id;
+      assert(w_last);
     }
   }
+
+  if (b_fire)
+    bresp.pop();
+
+  if (r_fire)
+    rresp.pop();
 
   mem->update();
   cycle++;
