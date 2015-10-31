@@ -1535,15 +1535,20 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     data = Bits(0))
 }
 
-class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Parameters) extends Module {
+class TileLinkIONarrower(innerTLId: String, outerTLId: String)
+    (implicit p: Parameters) extends TLModule()(p) {
+
   val innerParams = p(TLKey(innerTLId))
   val outerParams = p(TLKey(outerTLId)) 
   val innerDataBeats = innerParams.dataBeats
   val innerDataBits = innerParams.dataBitsPerBeat
   val innerWriteMaskBits = innerParams.writeMaskBits
+  val innerByteAddrBits = log2Up(innerWriteMaskBits)
   val outerDataBeats = outerParams.dataBeats
   val outerDataBits = outerParams.dataBitsPerBeat
   val outerWriteMaskBits = outerParams.writeMaskBits
+  val outerBlockOffset = log2Up(outerDataBits / 8)
+  val outerByteAddrBits = log2Up(outerWriteMaskBits)
 
   require(outerDataBeats >= innerDataBeats)
   require(outerDataBeats % innerDataBeats == 0)
@@ -1563,6 +1568,8 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Param
 
     val stretch = iacq.a_type === Acquire.putBlockType
     val shrink = iacq.a_type === Acquire.getBlockType
+    val smallput = iacq.a_type === Acquire.putType
+    val smallget = iacq.a_type === Acquire.getType
 
     val acq_data_buffer = Reg(UInt(width = innerDataBits))
     val acq_wmask_buffer = Reg(UInt(width = innerWriteMaskBits))
@@ -1570,6 +1577,44 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Param
     val acq_addr_block = Reg(iacq.addr_block)
     val acq_addr_beat = Reg(iacq.addr_beat)
     val oacq_ctr = Counter(factor)
+
+    // this part of the address shifts from the inner byte address 
+    // to the outer beat address
+    val readshift = iacq.full_addr()(innerByteAddrBits - 1, outerByteAddrBits)
+    val outer_beat_addr = iacq.full_addr()(outerBlockOffset - 1, outerByteAddrBits)
+    val outer_byte_addr = iacq.full_addr()(outerByteAddrBits - 1, 0)
+
+    val mask_chunks = Vec.tabulate(factor) { i =>
+      val lsb = i * outerWriteMaskBits
+      val msb = (i + 1) * outerWriteMaskBits - 1
+      iacq.wmask()(msb, lsb)
+    }
+
+    val data_chunks = Vec.tabulate(factor) { i =>
+      val lsb = i * outerDataBits
+      val msb = (i + 1) * outerDataBits - 1
+      iacq.data(msb, lsb)
+    }
+
+    val beat_sel = Cat(mask_chunks.map(mask => mask.orR).reverse)
+
+    val smallput_data = Mux1H(beat_sel, data_chunks)
+    val smallput_wmask = Mux1H(beat_sel, mask_chunks)
+
+    assert(!io.in.acquire.valid || !smallput || PopCount(beat_sel) <= UInt(1),
+      "Can't perform Put wider than outer width")
+
+    val read_size_ok = MuxLookup(iacq.op_size(), Bool(false), Seq(
+      MT_B  -> Bool(true),
+      MT_BU -> Bool(true),
+      MT_H  -> Bool(outerDataBits >= 16),
+      MT_HU -> Bool(outerDataBits >= 16),
+      MT_W  -> Bool(outerDataBits >= 32),
+      MT_D  -> Bool(outerDataBits >= 64),
+      MT_Q  -> Bool(false)))
+
+    assert(!io.in.acquire.valid || !smallget || read_size_ok,
+      "Can't perform Get wider than outer width")
 
     val outerConfig = p.alterPartial({ case TLId => outerTLId })
     val innerConfig = p.alterPartial({ case TLId => innerTLId })
@@ -1588,13 +1633,48 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Param
       data = acq_data_buffer(outerDataBits - 1, 0),
       wmask = acq_wmask_buffer(outerWriteMaskBits - 1, 0))(outerConfig)
 
+    val get_acquire = Get(
+      client_xact_id = iacq.client_xact_id,
+      addr_block = iacq.addr_block,
+      addr_beat = outer_beat_addr,
+      addr_byte = outer_byte_addr,
+      operand_size = iacq.op_size(),
+      alloc = iacq.allocate())(outerConfig)
+
+    val put_acquire = Put(
+      client_xact_id = iacq.client_xact_id,
+      addr_block = iacq.addr_block,
+      addr_beat = outer_beat_addr,
+      data = smallput_data,
+      wmask = Some(smallput_wmask))(outerConfig)
+
     val sending_put = Reg(init = Bool(false))
+
+    val pass_valid = io.in.acquire.valid && !stretch && !smallget
+    val smallget_valid = smallget && io.in.acquire.valid
+
+    val smallget_roq = Module(new ReorderQueue(
+      readshift, tlClientXactIdBits, tlMaxClientsPerPort))
+
+    val smallget_helper = DecoupledHelper(
+      smallget_valid,
+      smallget_roq.io.enq.ready,
+      io.out.acquire.ready)
+
+    smallget_roq.io.enq.valid := smallget_helper.fire(smallget_roq.io.enq.ready)
+    smallget_roq.io.enq.bits.data := readshift
+    smallget_roq.io.enq.bits.tag := iacq.client_xact_id
 
     io.out.acquire.bits := MuxBundle(iacq, Seq(
       (sending_put, put_block_acquire),
-      (shrink, get_block_acquire)))
-    io.out.acquire.valid := sending_put || (io.in.acquire.valid && !stretch)
-    io.in.acquire.ready := !sending_put && (stretch || io.out.acquire.ready)
+      (shrink, get_block_acquire),
+      (smallput, put_acquire),
+      (smallget, get_acquire)))
+    io.out.acquire.valid := sending_put || pass_valid ||
+      smallget_helper.fire(io.out.acquire.ready)
+    io.in.acquire.ready := !sending_put && (stretch ||
+      (!smallget && io.out.acquire.ready) ||
+      smallget_helper.fire(smallget_valid))
 
     when (io.in.acquire.fire() && stretch) {
       acq_data_buffer := iacq.data
@@ -1628,9 +1708,26 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)(implicit p: Param
       addr_beat = ignt_ctr.value,
       data = gnt_data_buffer.toBits)(innerConfig)
 
+    val smallget_grant = ognt.g_type === Grant.getDataBeatType
+    val get_grant_shift = Cat(smallget_roq.io.deq.data,
+                              UInt(0, outerByteAddrBits + 3))
+
+    smallget_roq.io.deq.valid := io.out.grant.fire() && smallget_grant
+    smallget_roq.io.deq.tag := ognt.client_xact_id
+
+    val get_grant = Grant(
+      is_builtin_type = Bool(true),
+      g_type = Grant.getDataBeatType,
+      client_xact_id = ognt.client_xact_id,
+      manager_xact_id = ognt.manager_xact_id,
+      addr_beat = ognt.addr_beat,
+      data = ognt.data << get_grant_shift)(innerConfig)
+
     io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
     io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)
-    io.in.grant.bits := Mux(sending_get, get_block_grant, ognt)
+    io.in.grant.bits := MuxBundle(ognt, Seq(
+      sending_get -> get_block_grant,
+      smallget_grant -> get_grant))
 
     when (io.out.grant.valid && ognt_block && !sending_get) {
       gnt_data_buffer(ognt_ctr.value) := ognt.data
