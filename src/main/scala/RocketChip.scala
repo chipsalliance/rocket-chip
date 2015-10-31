@@ -171,13 +171,19 @@ class Uncore(implicit val p: Parameters) extends Module
   io.host.debug_stats_csr := htif.io.host.debug_stats_csr
   io.mem <> outmemsys.io.mem
   io.mmio <> outmemsys.io.mmio
-  if(p(UseBackupMemoryPort)) {
+  if (p(UseBackupMemoryPort)) {
     outmemsys.io.mem_backup_en := io.mem_backup_ctrl.en
     VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr,
       outmemsys.io.mem_backup, io.mem_backup_ctrl, io.host, htifW)
   } else {
-    htif.io.host.out <> io.host.out
-    htif.io.host.in <> io.host.in
+    val tie_mem_backup_io = new MemSerializedIO(htifW).asDirectionless
+    val tie_mem_backup_ctrl = new MemBackupCtrlIO().asDirectionless
+    tie_mem_backup_io.req.valid := Bool(false)
+    tie_mem_backup_ctrl.en := Bool(false)
+    tie_mem_backup_ctrl.in_valid := Bool(false)
+    tie_mem_backup_ctrl.out_ready := Bool(false)
+    VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr,
+      tie_mem_backup_io, tie_mem_backup_ctrl, io.host, htifW)
   }
 }
 

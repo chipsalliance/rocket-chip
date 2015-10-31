@@ -73,7 +73,19 @@ class HwachaVLSIConfig extends Config(new WithHwachaTests ++ new DefaultHwachaCo
 class HwachaFPGAConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2FPGAConfig) 
 class HwachaCPPConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2CPPConfig) 
 
-class EOS24Config extends Config(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig) {
+class EOS24Config extends Config(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
+class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)
+
+class WithoutBackupMemoryPort extends Config(
+  (pname,site,here) => pname match {
+    case UseBackupMemoryPort => false
+  }
+)
+
+class ISCA2016Config extends Config(
+  new WithoutBackupMemoryPort ++ new With2MemoryChannels ++
+  new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
+{
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
     case x => (new Config(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
@@ -85,5 +97,3 @@ class EOS24Config extends Config(new With4Banks ++ new WithL2Capacity256 ++ new 
     )
   }
 }
-
-class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)
