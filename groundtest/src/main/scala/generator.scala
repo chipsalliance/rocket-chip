@@ -93,8 +93,14 @@ class UncachedTileLinkGenerator(id: Int)
   io.mem.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
   io.mem.grant.ready := !sending
 
+  def wordFromBeat(addr: UInt, dat: UInt) = {
+    val offset = addr(tlByteAddrBits - 1, wordOffset)
+    val shift = Cat(offset, UInt(0, wordOffset + 3))
+    (dat >> shift)(wordBits - 1, 0)
+  }
+
   assert(!io.mem.grant.valid || state =/= s_get ||
-    io.mem.grant.bits.data(63, 0) === word_data,
+    wordFromBeat(full_addr, io.mem.grant.bits.data) === word_data,
     s"Get received incorrect data in uncached generator ${id}")
 }
 
