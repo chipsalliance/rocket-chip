@@ -1547,8 +1547,11 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
   val outerDataBeats = outerParams.dataBeats
   val outerDataBits = outerParams.dataBitsPerBeat
   val outerWriteMaskBits = outerParams.writeMaskBits
-  val outerBlockOffset = log2Up(outerDataBits / 8)
   val outerByteAddrBits = log2Up(outerWriteMaskBits)
+  val outerBeatAddrBits = log2Up(outerDataBeats)
+  val outerBlockOffset = outerBeatAddrBits + outerByteAddrBits
+  val outerMaxClients = outerParams.maxClientsPerPort
+  val outerIdBits = log2Up(outerParams.maxClientXacts * outerMaxClients)
 
   require(outerDataBeats >= innerDataBeats)
   require(outerDataBeats % innerDataBeats == 0)
@@ -1600,6 +1603,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
 
     val smallput_data = Mux1H(beat_sel, data_chunks)
     val smallput_wmask = Mux1H(beat_sel, mask_chunks)
+    val smallput_beat = Cat(iacq.addr_beat, PriorityEncoder(beat_sel))
 
     assert(!io.in.acquire.valid || !smallput || PopCount(beat_sel) <= UInt(1),
       "Can't perform Put wider than outer width")
@@ -1644,7 +1648,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
     val put_acquire = Put(
       client_xact_id = iacq.client_xact_id,
       addr_block = iacq.addr_block,
-      addr_beat = outer_beat_addr,
+      addr_beat = smallput_beat,
       data = smallput_data,
       wmask = Some(smallput_wmask))(outerConfig)
 
@@ -1654,7 +1658,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
     val smallget_valid = smallget && io.in.acquire.valid
 
     val smallget_roq = Module(new ReorderQueue(
-      readshift, tlClientXactIdBits, tlMaxClientsPerPort))
+      readshift, outerIdBits, outerMaxClients))
 
     val smallget_helper = DecoupledHelper(
       smallget_valid,
