@@ -39,31 +39,48 @@ class GeneratorTile(id: Int, resetSignal: Bool)
 
   val gen_finished = Wire(Vec(2 * nGensPerTile, Bool()))
 
-  val uncacheArb = Module(new ClientUncachedTileLinkIOArbiter(nGensPerTile))
-  val cacheArb = Module(new HellaCacheArbiter(nGensPerTile)(dcacheParams))
-  val cache = Module(new HellaCache()(dcacheParams))
+  if (genUncached) {
+    val uncacheArb = Module(new ClientUncachedTileLinkIOArbiter(nGensPerTile))
 
-  for (i <- 0 until nGensPerTile) {
-    val genid = id * nGensPerTile + i
-    val uncacheGen = Module(new UncachedTileLinkGenerator(genid))
-    val cacheGen = Module(new HellaCacheGenerator(genid)(dcacheParams))
-    val cacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))
-    uncacheArb.io.in(i) <> uncacheGen.io.mem
-    cacheIF.io.requestor <> cacheGen.io.mem
-    cacheArb.io.requestor(i) <> cacheIF.io.cache
-    gen_finished(2 * i) := uncacheGen.io.finished
-    gen_finished(2 * i + 1) := cacheGen.io.finished
+    for (i <- 0 until nGensPerTile) {
+      val genid = id * nGensPerTile + i
+      val uncacheGen = Module(new UncachedTileLinkGenerator(genid))
+      uncacheArb.io.in(i) <> uncacheGen.io.mem
+      gen_finished(2 * i) := uncacheGen.io.finished
+    }
+
+    io.uncached(0) <> uncacheArb.io.out
+  } else {
+    io.uncached(0).acquire.valid := Bool(false)
+    io.uncached(0).grant.ready := Bool(false)
+    for (i <- 0 until nGensPerTile) { gen_finished(2 * i) := Bool(false) }
   }
 
-  cache.io.ptw.req.ready := Bool(false)
-  cache.io.ptw.resp.valid := Bool(false)
-  cache.io.cpu <> cacheArb.io.mem
+  if (genCached) {
+    val cacheArb = Module(new HellaCacheArbiter(nGensPerTile)(dcacheParams))
+    val cache = Module(new HellaCache()(dcacheParams))
 
-  assert(!cache.io.ptw.req.valid, 
-    "Cache should not be using virtual addressing")
+    for (i <- 0 until nGensPerTile) {
+      val genid = id * nGensPerTile + i
+      val cacheGen = Module(new HellaCacheGenerator(genid)(dcacheParams))
+      val cacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))
+      cacheIF.io.requestor <> cacheGen.io.mem
+      cacheArb.io.requestor(i) <> cacheIF.io.cache
+      gen_finished(2 * i + 1) := cacheGen.io.finished
+    }
 
-  io.uncached(0) <> uncacheArb.io.out
-  io.cached(0) <> cache.io.mem
+    cache.io.ptw.req.ready := Bool(false)
+    cache.io.ptw.resp.valid := Bool(false)
+    cache.io.cpu <> cacheArb.io.mem
+
+    assert(!cache.io.ptw.req.valid, 
+      "Cache should not be using virtual addressing")
+
+    io.cached(0) <> cache.io.mem
+  } else {
+    io.cached(0) <> Module(new DummyCache).io
+    for (i <- 0 until nGensPerTile) { gen_finished(2 * i + 1) := Bool(true) }
+  }
 
   val all_done = gen_finished.reduce(_ && _)
 

@@ -9,12 +9,16 @@ import cde.{Parameters, Field}
 
 case object NGeneratorsPerTile extends Field[Int]
 case object NGeneratorTiles extends Field[Int]
+case object GenerateUncached extends Field[Boolean]
+case object GenerateCached extends Field[Boolean]
 
 trait HasGeneratorParams {
   implicit val p: Parameters
   val nGensPerTile = p(NGeneratorsPerTile)
   val nGenTiles = p(NGeneratorTiles)
   val nGens = nGensPerTile * nGenTiles
+  val genUncached = p(GenerateUncached)
+  val genCached = p(GenerateCached)
 }
 
 class UncachedTileLinkGenerator(id: Int)
