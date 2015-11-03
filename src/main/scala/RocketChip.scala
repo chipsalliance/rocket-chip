@@ -110,12 +110,14 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_cached <> tileList.map(_.io.cached).flatten
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
-  io.mem <> uncore.io.mem
   if (p(UseBackupMemoryPort)) { io.mem_backup_ctrl <> uncore.io.mem_backup_ctrl }
 
-  // Memory cache type should be normal non-cacheable bufferable
-  io.mem.map(_.ar.bits.cache := UInt("b0011"))
-  io.mem.map(_.aw.bits.cache := UInt("b0011"))
+  io.mem.zip(uncore.io.mem).foreach { case (outer, inner) =>
+    TopUtils.connectNasti(outer, inner)
+    // Memory cache type should be normal non-cacheable bufferable
+    outer.ar.bits.cache := UInt("b0011")
+    outer.aw.bits.cache := UInt("b0011")
+  }
 
   // tie off the mmio port
   val errslave = Module(new NastiErrorSlave)
