@@ -55,6 +55,7 @@ $(generated_dir_debug)/consts.$(CONFIG).h: $(generated_dir_debug)/$(MODEL).$(CON
 	echo "#ifndef __CONST_H__" > $@
 	echo "#define __CONST_H__" >> $@
 	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $(patsubst %.h,%.prm,$<) >> $@
+	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
 	echo "#endif // __CONST_H__" >> $@
 
 emu = emulator-$(MODEL)-$(CONFIG)

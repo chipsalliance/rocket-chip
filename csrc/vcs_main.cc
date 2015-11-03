@@ -159,10 +159,14 @@ void htif_init(
 
   for (int i=0; i<mem_channels; i++) {
     mm[i] = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-    mm[i]->init(MEM_SIZE, mw/8, LINE_SIZE);
+    mm[i]->init(MEM_SIZE / mem_channels, mw/8, LINE_SIZE);
+  }
 
-    if (loadmem)
-      load_mem(mm[i]->get_data(), loadmem);
+  if (loadmem) {
+    void *mems[mem_channels];
+    for (int i = 0; i < mem_channels; i++)
+      mems[i] = mm[i]->get_data();
+    load_mem(mems, loadmem, mem_channels);
   }
 
   vec32* w = vc_4stVectorRef(htif_width);

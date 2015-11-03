@@ -148,5 +148,5 @@ class mm_magic_t : public mm_t
   uint64_t cycle;
 };
 
-void load_mem(void* mem, const char* fn);
+void load_mem(void** mems, const char* fn, int channel);
 #endif
