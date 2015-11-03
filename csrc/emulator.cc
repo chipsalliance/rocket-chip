@@ -10,6 +10,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define MEM_SIZE_BITS 3
+#define MEM_LEN_BITS 8
+#define MEM_RESP_BITS 2
+
 htif_emulator_t* htif;
 void handle_sigterm(int sig)
 {
@@ -29,6 +33,7 @@ int main(int argc, char** argv)
   bool dramsim2 = false;
   bool log = false;
   uint64_t memsz_mb = MEM_SIZE / (1024*1024);
+  mm_t *mm[N_MEM_CHANNELS];
 
   for (int i = 1; i < argc; i++)
   {
@@ -69,22 +74,25 @@ int main(int argc, char** argv)
   srand(random_seed);
   tile.init(random_seed);
 
-  uint64_t mem_width = tile.Top__io_mem_0_r_bits_data.width() / 8;
+  uint64_t mem_width = MEM_DATA_BITS / 8;
 
   // Instantiate and initialize main memory
-  mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-  try {
-  	 mm->init(memsz_mb*1024*1024, mem_width, LINE_SIZE);
+  for (int i = 0; i < N_MEM_CHANNELS; i++) {
+    mm[i] = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
+    try {
+      mm[i]->init(memsz_mb*1024*1024, mem_width, LINE_SIZE);
+    } catch (const std::bad_alloc& e) {
+      fprintf(stderr,
+          "Failed to allocate %ld bytes (%ld MiB) of memory\n"
+          "Set smaller amount of memory using +memsize=<N> (in MiB)\n",
+              memsz_mb*1024*1024, memsz_mb);
+      exit(-1);
+    }
+
+    if (loadmem)
+      load_mem(mm[i]->get_data(), loadmem);
   }
-  catch (const std::bad_alloc& e) {
-    fprintf(stderr,
-  	   "Failed to allocate %ld bytes (%ld MiB) of memory\n"
-  		"Set smaller amount of memory using +memsize=<N> (in MiB)\n" , memsz_mb*1024*1024, memsz_mb
-  	 );
-    exit(-1);
-  }
-  if (loadmem)
-    load_mem(mm->get_data(), loadmem);
+
 
   // Instantiate HTIF
   htif = new htif_emulator_t(memsz_mb,
@@ -104,21 +112,58 @@ int main(int argc, char** argv)
     tile.clock_hi(LIT<1>(1));
   }
 
+  dat_t<1> *mem_ar_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_ar_ready[N_MEM_CHANNELS];
+  dat_t<MEM_ADDR_BITS> *mem_ar_bits_addr[N_MEM_CHANNELS];
+  dat_t<MEM_ID_BITS> *mem_ar_bits_id[N_MEM_CHANNELS];
+  dat_t<MEM_SIZE_BITS> *mem_ar_bits_size[N_MEM_CHANNELS];
+  dat_t<MEM_LEN_BITS> *mem_ar_bits_len[N_MEM_CHANNELS];
+
+  dat_t<1> *mem_aw_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_aw_ready[N_MEM_CHANNELS];
+  dat_t<MEM_ADDR_BITS> *mem_aw_bits_addr[N_MEM_CHANNELS];
+  dat_t<MEM_ID_BITS> *mem_aw_bits_id[N_MEM_CHANNELS];
+  dat_t<MEM_SIZE_BITS> *mem_aw_bits_size[N_MEM_CHANNELS];
+  dat_t<MEM_LEN_BITS> *mem_aw_bits_len[N_MEM_CHANNELS];
+
+  dat_t<1> *mem_w_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_w_ready[N_MEM_CHANNELS];
+  dat_t<MEM_DATA_BITS> *mem_w_bits_data[N_MEM_CHANNELS];
+  dat_t<MEM_STRB_BITS> *mem_w_bits_strb[N_MEM_CHANNELS];
+  dat_t<1> *mem_w_bits_last[N_MEM_CHANNELS];
+
+  dat_t<1> *mem_b_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_b_ready[N_MEM_CHANNELS];
+  dat_t<MEM_RESP_BITS> *mem_b_bits_resp[N_MEM_CHANNELS];
+  dat_t<MEM_ID_BITS> *mem_b_bits_id[N_MEM_CHANNELS];
+
+  dat_t<1> *mem_r_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_r_ready[N_MEM_CHANNELS];
+  dat_t<MEM_RESP_BITS> *mem_r_bits_resp[N_MEM_CHANNELS];
+  dat_t<MEM_ID_BITS> *mem_r_bits_id[N_MEM_CHANNELS];
+  dat_t<MEM_DATA_BITS> *mem_r_bits_data[N_MEM_CHANNELS];
+  dat_t<1> *mem_r_bits_last[N_MEM_CHANNELS];
+
+#include TBFRAG
+
   while (!htif->done() && trace_count < max_cycles && ret == 0)
   {
-    tile.Top__io_mem_0_ar_ready = LIT<1>(mm->ar_ready());
-    tile.Top__io_mem_0_aw_ready = LIT<1>(mm->aw_ready());
-    tile.Top__io_mem_0_w_ready = LIT<1>(mm->w_ready());
+    for (int i = 0; i < N_MEM_CHANNELS; i++) {
+      *mem_ar_ready[i] = LIT<1>(mm[i]->ar_ready());
+      *mem_aw_ready[i] = LIT<1>(mm[i]->aw_ready());
+      *mem_w_ready[i] = LIT<1>(mm[i]->w_ready());
 
-    tile.Top__io_mem_0_b_valid = LIT<1>(mm->b_valid());
-    tile.Top__io_mem_0_b_bits_resp = LIT<64>(mm->b_resp());
-    tile.Top__io_mem_0_b_bits_id = LIT<64>(mm->b_id());
+      *mem_b_valid[i] = LIT<1>(mm[i]->b_valid());
+      *mem_b_bits_resp[i] = LIT<64>(mm[i]->b_resp());
+      *mem_b_bits_id[i] = LIT<64>(mm[i]->b_id());
 
-    tile.Top__io_mem_0_r_valid = LIT<1>(mm->r_valid());
-    tile.Top__io_mem_0_r_bits_resp = LIT<64>(mm->r_resp());
-    tile.Top__io_mem_0_r_bits_id = LIT<64>(mm->r_id());
-    tile.Top__io_mem_0_r_bits_last = LIT<1>(mm->r_last());
-    memcpy(tile.Top__io_mem_0_r_bits_data.values, mm->r_data(), mem_width);
+      *mem_r_valid[i] = LIT<1>(mm[i]->r_valid());
+      *mem_r_bits_resp[i] = LIT<64>(mm[i]->r_resp());
+      *mem_r_bits_id[i] = LIT<64>(mm[i]->r_id());
+      *mem_r_bits_last[i] = LIT<1>(mm[i]->r_last());
+
+      memcpy(mem_r_bits_data[i]->values, mm[i]->r_data(), mem_width);
+    }
 
     try {
       tile.clock_lo(LIT<1>(0));
@@ -128,27 +173,29 @@ int main(int argc, char** argv)
       std::cerr << e.what() << std::endl;
     }
 
-    mm->tick(
-      tile.Top__io_mem_0_ar_valid.lo_word(),
-      tile.Top__io_mem_0_ar_bits_addr.lo_word(),
-      tile.Top__io_mem_0_ar_bits_id.lo_word(),
-      tile.Top__io_mem_0_ar_bits_size.lo_word(),
-      tile.Top__io_mem_0_ar_bits_len.lo_word(),
+    for (int i = 0; i < N_MEM_CHANNELS; i++) {
+      mm[i]->tick(
+        mem_ar_valid[i]->to_bool(),
+        mem_ar_bits_addr[i]->lo_word(),
+        mem_ar_bits_id[i]->lo_word(),
+        mem_ar_bits_size[i]->lo_word(),
+        mem_ar_bits_len[i]->lo_word(),
 
-      tile.Top__io_mem_0_aw_valid.lo_word(),
-      tile.Top__io_mem_0_aw_bits_addr.lo_word(),
-      tile.Top__io_mem_0_aw_bits_id.lo_word(),
-      tile.Top__io_mem_0_aw_bits_size.lo_word(),
-      tile.Top__io_mem_0_aw_bits_len.lo_word(),
+        mem_aw_valid[i]->to_bool(),
+        mem_aw_bits_addr[i]->lo_word(),
+        mem_aw_bits_id[i]->lo_word(),
+        mem_aw_bits_size[i]->lo_word(),
+        mem_aw_bits_len[i]->lo_word(),
 
-      tile.Top__io_mem_0_w_valid.lo_word(),
-      tile.Top__io_mem_0_w_bits_strb.lo_word(),
-      tile.Top__io_mem_0_w_bits_data.values,
-      tile.Top__io_mem_0_w_bits_last.lo_word(),
+        mem_w_valid[i]->to_bool(),
+        mem_w_bits_strb[i]->lo_word(),
+        mem_w_bits_data[i]->values,
+        mem_w_bits_last[i]->to_bool(),
 
-      tile.Top__io_mem_0_r_ready.to_bool(),
-      tile.Top__io_mem_0_b_ready.to_bool()
-    );
+        mem_r_ready[i]->to_bool(),
+        mem_b_ready[i]->to_bool()
+      );
+    }
 
     if (tile.Top__io_host_clk_edge.to_bool())
     {

@@ -280,3 +280,5 @@ class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
 class MultibankConfig extends Config(new With2Banks ++ new DefaultConfig)
 class MultibankL2Config extends Config(
   new With2Banks ++ new WithL2Cache ++ new DefaultConfig)
+
+class MultichannelConfig extends Config(new With2MemoryChannels ++ new DefaultConfig)

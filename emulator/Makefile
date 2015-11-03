@@ -32,17 +32,30 @@ $(generated_dir)/%.o: $(generated_dir)/%.cpp $(generated_dir)/%.h
 $(generated_dir_debug)/%.o: $(generated_dir_debug)/%.cpp $(generated_dir_debug)/%.h
 	$(CXX) $(CXXFLAGS) -I$(generated_dir_debug) -c -o $@ $<
 
-$(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(generated_dir)/$(MODEL).$(CONFIG).h
-	$(CXX) $(CXXFLAGS) -include $(generated_dir)/$(MODEL).$(CONFIG).h -I$(generated_dir) -c -o $@ $<
+$(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(generated_dir)/$(MODEL).$(CONFIG).h $(generated_dir)/consts.$(CONFIG).h
+	$(CXX) $(CXXFLAGS) -include $(generated_dir)/$(MODEL).$(CONFIG).h -include $(generated_dir)/consts.$(CONFIG).h -I$(generated_dir) -c -o $@ $<
 
-$(addsuffix .debug.o,$(CXXSRCS)): %.debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(generated_dir_debug)/$(MODEL).$(CONFIG).h
-	$(CXX) $(CXXFLAGS) -include $(generated_dir_debug)/$(MODEL).$(CONFIG).h -I$(generated_dir_debug) -c -o $@ $<
+$(addsuffix .debug.o,$(CXXSRCS)): %.debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(generated_dir_debug)/$(MODEL).$(CONFIG).h $(generated_dir_debug)/consts.$(CONFIG).h
+	$(CXX) $(CXXFLAGS) -include $(generated_dir_debug)/$(MODEL).$(CONFIG).h -include $(generated_dir_debug)/consts.$(CONFIG).h -I$(generated_dir_debug) -c -o $@ $<
 
 $(generated_dir)/$(MODEL).$(CONFIG).d $(generated_dir)/$(MODEL).$(CONFIG).h : $(chisel_srcs)
 	cd $(base_dir) && $(SBT) "project $(PROJECT)" "run $(CHISEL_ARGS) --noIoDebug"
 
 $(generated_dir_debug)/$(MODEL).$(CONFIG).h : $(chisel_srcs)
 	cd $(base_dir) && $(SBT) "project $(PROJECT)" "run $(CHISEL_ARGS)-debug  --debug --vcd --ioDebug"
+
+$(generated_dir)/consts.$(CONFIG).h: $(generated_dir)/$(MODEL).$(CONFIG).h
+	echo "#ifndef __CONST_H__" > $@
+	echo "#define __CONST_H__" >> $@
+	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $(patsubst %.h,%.prm,$<) >> $@
+	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
+	echo "#endif // __CONST_H__" >> $@
+
+$(generated_dir_debug)/consts.$(CONFIG).h: $(generated_dir_debug)/$(MODEL).$(CONFIG).h
+	echo "#ifndef __CONST_H__" > $@
+	echo "#define __CONST_H__" >> $@
+	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $(patsubst %.h,%.prm,$<) >> $@
+	echo "#endif // __CONST_H__" >> $@
 
 emu = emulator-$(MODEL)-$(CONFIG)
 $(emu): $(generated_dir)/$(MODEL).$(CONFIG).h $(OBJS) libdramsim.a
