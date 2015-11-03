@@ -316,7 +316,7 @@ class TSHRFile(implicit p: Parameters) extends L2HellaCacheModule()(p)
   val acquireMatches = Vec(trackerList.map(_.io.has_acquire_match)).toBits
   val acquireReadys = Vec(trackerAcquireIOs.map(_.ready)).toBits
   val acquire_idx = Mux(acquireMatches.orR,
-                      PriorityEncoder(acquireMatches),
+                      OHToUInt(acquireMatches),
                       PriorityEncoder(acquireReadys))
   val block_acquires = acquireConflicts.orR
   io.inner.acquire.ready := acquireReadys.orR && !block_acquires
@@ -325,18 +325,22 @@ class TSHRFile(implicit p: Parameters) extends L2HellaCacheModule()(p)
       tracker.bits := io.inner.acquire.bits
       tracker.valid := io.inner.acquire.valid && !block_acquires && (acquire_idx === UInt(i))
   }
+  assert(PopCount(acquireMatches) <= UInt(1),
+    "At most a single tracker should match for any given Acquire")
 
   // Wire releases from clients
   val trackerReleaseIOs = trackerList.map(_.io.inner.release) :+ wb.io.inner.release
   val releaseReadys = Vec(trackerReleaseIOs.map(_.ready)).toBits
   val releaseMatches = Vec(trackerList.map(_.io.has_release_match) :+ wb.io.has_release_match).toBits
-  val release_idx = PriorityEncoder(releaseMatches)
+  val release_idx = OHToUInt(releaseMatches)
   io.inner.release.ready := releaseReadys(release_idx)
   trackerReleaseIOs.zipWithIndex.foreach {
     case(tracker, i) =>
       tracker.bits := io.inner.release.bits
       tracker.valid := io.inner.release.valid && (release_idx === UInt(i))
   }
+  assert(PopCount(releaseMatches) <= UInt(nReleaseTransactors),
+    "At most a single tracker should match for any given Release")
   assert(!(io.inner.release.valid && !releaseMatches.orR),
     "Non-voluntary release should always have a Tracker waiting for it.")
 
