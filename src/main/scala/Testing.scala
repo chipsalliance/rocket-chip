@@ -152,7 +152,10 @@ object TestGenerator extends App with FileSystemUtilities {
   //Driver.elaborate(gen, configName = configClassName)
 
   TestGeneration.generateMakefrag(topModuleName, configClassName)
-  TestBenchGeneration.generateVerilogFragement(
+  TestBenchGeneration.generateVerilogFragment(
+    topModuleName, configClassName,
+    paramsFromConfig(NMemoryChannels))
+  TestBenchGeneration.generateCPPFragment(
     topModuleName, configClassName,
     paramsFromConfig(NMemoryChannels))
 
