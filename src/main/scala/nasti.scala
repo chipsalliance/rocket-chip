@@ -464,7 +464,6 @@ class NastiCrossbar(nMasters: Int, nSlaves: Int, routeSel: UInt => UInt)
 
 object NastiMultiChannelRouter {
   def apply(master: NastiIO, nChannels: Int)(implicit p: Parameters): Vec[NastiIO] = {
-    require(isPow2(nChannels), "Number of channels must be power of 2")
     if (nChannels == 1) {
       Vec(master)
     } else {
@@ -479,6 +478,47 @@ object NastiMultiChannelRouter {
       val router = Module(new NastiRouter(nChannels, routeSel))
       router.io.master <> master
       router.io.slave
+    }
+  }
+}
+
+
+class NastiMultiChannelRouter(nChannels: Int)
+    (implicit p: Parameters) extends NastiModule {
+  val io = new Bundle {
+    val master = (new NastiIO).flip
+    val slaves = Vec(new NastiIO, nChannels)
+  }
+
+  require(isPow2(nChannels), "Number of channels must be power of 2")
+
+  if (nChannels == 1) {
+    io.slaves.head <> io.master
+  } else {
+    val dataBytes = p(MIFDataBits) * p(MIFDataBeats) / 8
+    val selOffset = log2Up(dataBytes)
+    val selBits = log2Ceil(nChannels)
+    val blockOffset = selOffset + selBits
+
+    // Consecutive blocks route to alternating channels
+    val routeSel = (addr: UInt) => {
+      val sel = addr(blockOffset - 1, selOffset)
+      Vec.tabulate(nChannels)(i => sel === UInt(i)).toBits
+    }
+
+    val router = Module(new NastiRouter(nChannels, routeSel))
+    router.io.master <> io.master
+
+    def cutSelectBits(addr: UInt): UInt = {
+      Cat(addr(nastiXAddrBits - 1, blockOffset),
+          addr(selOffset - 1, 0))
+    }
+
+    io.slaves.zip(router.io.slave).foreach { case (outer, inner) =>
+      // Cut the selection bits out of the slave address channels
+      outer <> inner
+      outer.ar.bits.addr := cutSelectBits(inner.ar.bits.addr)
+      outer.aw.bits.addr := cutSelectBits(inner.aw.bits.addr)
     }
   }
 }
@@ -547,10 +587,10 @@ class NastiRecursiveInterconnect(
           }
           slaveInd += subSlaves
         case MemChannels(_, nchannels, _) =>
-          val routerSlaves = NastiMultiChannelRouter(xbarSlave, nchannels)
-          io.slaves.drop(slaveInd).take(nchannels).zip(routerSlaves).foreach {
-            case (s, m) => s <> m
-          }
+          val outChannels = Vec(io.slaves.drop(slaveInd).take(nchannels))
+          val router = Module(new NastiMultiChannelRouter(nchannels))
+          router.io.master <> xbarSlave
+          outChannels <> router.io.slaves
           slaveInd += nchannels
       }
     }
