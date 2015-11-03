@@ -43,9 +43,7 @@ class DefaultConfig extends Config (
       case MIFTagBits => // Bits needed at the L2 agent
                          log2Up(site(NAcquireTransactors)+2) +
                          // Bits added by NASTI interconnect
-                         log2Up(site(NMemoryChannels) * site(NBanksPerMemoryChannel) + 1) +
-                         // Bits added by final arbiter (not needed if true multichannel memory)
-                         log2Up(site(NMemoryChannels))
+                         log2Up(site(NMemoryChannels) * site(NBanksPerMemoryChannel) + 1)
       case MIFDataBits => 64
       case MIFAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
       case MIFDataBeats => site(CacheBlockBytes) * 8 / site(MIFDataBits)
