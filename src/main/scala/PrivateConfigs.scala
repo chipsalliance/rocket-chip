@@ -88,7 +88,8 @@ class ISCA2016Config extends Config(
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
-    case x => (new Config(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
+    // WithoutBackupMemoryPort not included here because it doesn't have knobs.
+    case x => (new Config(new With2MemoryChannels ++ new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
   }
 
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = {
