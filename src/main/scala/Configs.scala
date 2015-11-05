@@ -206,7 +206,7 @@ class WithL2Cache extends Config(
     case "L2Bank" => {
       case NSets => (((here[Int]("L2_CAPACITY_IN_KB")*1024) /
                         site(CacheBlockBytes)) /
-                          site(NBanksPerMemoryChannel)*site(NMemoryChannels)) /
+                          (site(NBanksPerMemoryChannel)*site(NMemoryChannels))) /
                             site(NWays)
       case NWays => Knob("L2_WAYS")
       case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
