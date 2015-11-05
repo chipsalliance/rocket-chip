@@ -73,7 +73,7 @@ class HwachaVLSIConfig extends Config(new WithHwachaTests ++ new DefaultHwachaCo
 class HwachaFPGAConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2FPGAConfig) 
 class HwachaCPPConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2CPPConfig) 
 
-class EOS24Config extends Config(new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
+class EOS24Config extends Config(new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
 class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)
 
 class WithoutBackupMemoryPort extends Config(
@@ -84,12 +84,12 @@ class WithoutBackupMemoryPort extends Config(
 
 class ISCA2016Config extends Config(
   new WithoutBackupMemoryPort ++ new With2MemoryChannels ++
-  new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
+  new With2BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
     // WithoutBackupMemoryPort not included here because it doesn't have knobs.
-    case x => (new Config(new With2MemoryChannels ++ new With4Banks ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
+    case x => (new Config(new With2MemoryChannels ++ new With2BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
   }
 
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = {
