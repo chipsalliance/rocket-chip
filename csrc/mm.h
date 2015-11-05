@@ -7,9 +7,6 @@
 #include <cstring>
 #include <queue>
 
-const int LINE_SIZE = 64; // all cores assume this.
-const size_t MEM_SIZE = 1L * 1024*1024*1024;
-
 void write_masked_data(
     uint8_t *base, uint8_t *data, uint64_t strb, uint64_t size);
 
@@ -148,5 +145,5 @@ class mm_magic_t : public mm_t
   uint64_t cycle;
 };
 
-void load_mem(void** mems, const char* fn, int channel);
+void load_mem(void** mems, const char* fn, int line_size, int nchannels);
 #endif

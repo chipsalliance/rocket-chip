@@ -117,7 +117,7 @@ void mm_magic_t::tick(
   cycle++;
 }
 
-void load_mem(void** mems, const char* fn, int nchannels)
+void load_mem(void** mems, const char* fn, int line_size, int nchannels)
 {
   char* m;
   ssize_t start = 0;
@@ -135,9 +135,9 @@ void load_mem(void** mems, const char* fn, int nchannels)
     for (ssize_t i = line.length()-2, j = 0; i >= 0; i -= 2, j++) {
       char data = (parse_nibble(line[i]) << 4) | parse_nibble(line[i+1]);
       ssize_t addr = start + j;
-      int channel = (addr / LINE_SIZE) % nchannels;
+      int channel = (addr / line_size) % nchannels;
       m = (char *) mems[channel];
-      addr = (addr / LINE_SIZE / nchannels) * LINE_SIZE + (addr % LINE_SIZE);
+      addr = (addr / line_size / nchannels) * line_size + (addr % line_size);
       m[addr] = data;
     }
     start += line.length()/2;

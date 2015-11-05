@@ -15,9 +15,8 @@ extern "C" {
 extern int vcs_main(int argc, char** argv);
 
 static htif_emulator_t* htif;
-static unsigned htif_bytes;
-static unsigned mem_channels;
-static mm_t** mm;
+static unsigned htif_bytes = HTIF_WIDTH / 8;
+static mm_t* mm[N_MEM_CHANNELS];
 static const char* loadmem;
 static bool dramsim = false;
 
@@ -42,6 +41,18 @@ int main(int argc, char** argv)
 
   htif = new htif_emulator_t(memsz_mb,
           std::vector<std::string>(argv + 1, argv + argc));
+
+  for (int i=0; i<N_MEM_CHANNELS; i++) {
+    mm[i] = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
+    mm[i]->init(MEM_SIZE / N_MEM_CHANNELS, MEM_DATA_BITS / 8, CACHE_BLOCK_BYTES);
+  }
+
+  if (loadmem) {
+    void *mems[N_MEM_CHANNELS];
+    for (int i = 0; i < N_MEM_CHANNELS; i++)
+      mems[i] = mm[i]->get_data();
+    load_mem(mems, loadmem, CACHE_BLOCK_BYTES, N_MEM_CHANNELS);
+  }
 
   vcs_main(argc, argv);
   abort(); // should never get here
@@ -83,7 +94,7 @@ void memory_tick(
   vc_handle b_id)
 {
   int c = vc_4stVectorRef(channel)->d;
-  assert(c < mem_channels);
+  assert(c < N_MEM_CHANNELS);
   mm_t* mmc = mm[c];
 
   uint32_t write_data[mmc->get_word_size()/sizeof(uint32_t)];
@@ -144,34 +155,6 @@ void memory_tick(
     d[i].d = ((uint32_t*)mmc->r_data())[i];
   }
   vc_put4stVector(r_data, d);
-}
-
-void htif_init(
-  vc_handle n_mem_channel,
-  vc_handle htif_width, vc_handle mem_width)
-{
-  mem_channels = vc_4stVectorRef(n_mem_channel)->d;
-
-  int mw = vc_4stVectorRef(mem_width)->d;
-  assert(mw && (mw & (mw-1)) == 0);
-
-  mm = new mm_t*[mem_channels];
-
-  for (int i=0; i<mem_channels; i++) {
-    mm[i] = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-    mm[i]->init(MEM_SIZE / mem_channels, mw/8, LINE_SIZE);
-  }
-
-  if (loadmem) {
-    void *mems[mem_channels];
-    for (int i = 0; i < mem_channels; i++)
-      mems[i] = mm[i]->get_data();
-    load_mem(mems, loadmem, mem_channels);
-  }
-
-  vec32* w = vc_4stVectorRef(htif_width);
-  assert(w->d <= 32 && w->d % 8 == 0); // htif_tick assumes data fits in a vec32
-  htif_bytes = w->d/8;
 }
 
 void htif_tick

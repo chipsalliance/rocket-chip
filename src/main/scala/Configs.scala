@@ -159,7 +159,7 @@ class DefaultConfig extends Config (
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case UseBackupMemoryPort => true
-      case MMIOBase => BigInt(1 << 30) // 1 GB
+      case MMIOBase => Dump("MEM_SIZE", BigInt(1 << 30)) // 1 GB
       case ExternalIOStart => 2 * site(MMIOBase)
       case GlobalAddrMap => AddrMap(
         AddrMapEntry("mem", None, MemChannels(site(MMIOBase), site(NMemoryChannels), AddrMapConsts.RWX)),

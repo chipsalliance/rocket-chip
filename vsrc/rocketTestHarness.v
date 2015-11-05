@@ -1,12 +1,5 @@
 // See LICENSE for license details.
 
-extern "A" void htif_init
-(
-  input reg [31:0] n_mem_channel,
-  input reg [31:0] htif_width,
-  input reg [31:0] mem_width
-);
-
 extern "A" void htif_fini(input reg failure);
 
 extern "A" void htif_tick
@@ -241,7 +234,6 @@ module rocketTestHarness;
       $readmemh(loadmem, mem.ram);
 `endif
     verbose = $test$plusargs("verbose");
-    htif_init(n_mem_channel, htif_width, mem_width);
 `ifdef DEBUG
     stats_active = $test$plusargs("stats");
     if ($value$plusargs("vcdplusfile=%s", vcdplusfile))

@@ -18,6 +18,9 @@ LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L. -ldramsim -lfes
 OBJS := $(addsuffix .o,$(CXXSRCS) $(MODEL).$(CONFIG))
 DEBUG_OBJS := $(addsuffix .debug.o,$(CXXSRCS) $(MODEL).$(CONFIG))
 
+model_header = $(generated_dir)/$(MODEL).$(CONFIG).h
+model_header_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).h
+
 $(MODEL).$(CONFIG).o: %.o: $(generated_dir)/%.h
 	$(MAKE) -j $(patsubst %.cpp,%.o,$(shell ls $(generated_dir)/$(MODEL).$(CONFIG)-*.cpp))
 	$(LD) -r $(patsubst %.cpp,%.o,$(shell ls $(generated_dir)/$(MODEL).$(CONFIG)-*.cpp)) -o $@
@@ -32,38 +35,24 @@ $(generated_dir)/%.o: $(generated_dir)/%.cpp $(generated_dir)/%.h
 $(generated_dir_debug)/%.o: $(generated_dir_debug)/%.cpp $(generated_dir_debug)/%.h
 	$(CXX) $(CXXFLAGS) -I$(generated_dir_debug) -c -o $@ $<
 
-$(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(generated_dir)/$(MODEL).$(CONFIG).h $(generated_dir)/consts.$(CONFIG).h
-	$(CXX) $(CXXFLAGS) -include $(generated_dir)/$(MODEL).$(CONFIG).h -include $(generated_dir)/consts.$(CONFIG).h -I$(generated_dir) -c -o $@ $<
+$(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(model_header) $(consts_header)
+	$(CXX) $(CXXFLAGS) -include $(model_header) -include $(consts_header) -I$(generated_dir) -c -o $@ $<
 
-$(addsuffix .debug.o,$(CXXSRCS)): %.debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(generated_dir_debug)/$(MODEL).$(CONFIG).h $(generated_dir_debug)/consts.$(CONFIG).h
-	$(CXX) $(CXXFLAGS) -include $(generated_dir_debug)/$(MODEL).$(CONFIG).h -include $(generated_dir_debug)/consts.$(CONFIG).h -I$(generated_dir_debug) -c -o $@ $<
+$(addsuffix .debug.o,$(CXXSRCS)): %.debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(model_header_debug) $(consts_header_debug)
+	$(CXX) $(CXXFLAGS) -include $(model_header_debug) -include $(consts_header_debug) -I$(generated_dir_debug) -c -o $@ $<
 
-$(generated_dir)/$(MODEL).$(CONFIG).d $(generated_dir)/$(MODEL).$(CONFIG).h : $(chisel_srcs)
+$(generated_dir)/$(MODEL).$(CONFIG).d $(model_header) $(params_file): $(chisel_srcs)
 	cd $(base_dir) && $(SBT) "project $(PROJECT)" "run $(CHISEL_ARGS) --noIoDebug"
 
-$(generated_dir_debug)/$(MODEL).$(CONFIG).h : $(chisel_srcs)
+$(model_header_debug) $(params_file_debug): $(chisel_srcs)
 	cd $(base_dir) && $(SBT) "project $(PROJECT)" "run $(CHISEL_ARGS)-debug  --debug --vcd --ioDebug"
 
-$(generated_dir)/consts.$(CONFIG).h: $(generated_dir)/$(MODEL).$(CONFIG).h
-	echo "#ifndef __CONST_H__" > $@
-	echo "#define __CONST_H__" >> $@
-	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $(patsubst %.h,%.prm,$<) >> $@
-	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
-	echo "#endif // __CONST_H__" >> $@
-
-$(generated_dir_debug)/consts.$(CONFIG).h: $(generated_dir_debug)/$(MODEL).$(CONFIG).h
-	echo "#ifndef __CONST_H__" > $@
-	echo "#define __CONST_H__" >> $@
-	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $(patsubst %.h,%.prm,$<) >> $@
-	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
-	echo "#endif // __CONST_H__" >> $@
-
 emu = emulator-$(MODEL)-$(CONFIG)
-$(emu): $(generated_dir)/$(MODEL).$(CONFIG).h $(OBJS) libdramsim.a
+$(emu): $(model_header) $(OBJS) libdramsim.a
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS)
 
 emu_debug = emulator-$(MODEL)-$(CONFIG)-debug
-$(emu_debug): $(generated_dir)/$(MODEL).$(CONFIG).d $(generated_dir_debug)/$(MODEL).$(CONFIG).h $(DEBUG_OBJS) libdramsim.a
+$(emu_debug): $(generated_dir)/$(MODEL).$(CONFIG).d $(model_header_debug) $(DEBUG_OBJS) libdramsim.a
 	$(CXX) $(CXXFLAGS) -o $@ $(DEBUG_OBJS) $(LDFLAGS)
 
 all: $(emu)
