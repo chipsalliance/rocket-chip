@@ -156,7 +156,7 @@ class DefaultConfig extends Config (
       case TLKey("Outermost") => site(TLKey("L2toMC")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
-      case NBanksPerMemoryChannel => Knob("NBANKS")
+      case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
       case NOutstandingMemReqsPerChannel => site(NBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
@@ -171,7 +171,7 @@ class DefaultConfig extends Config (
   }},
   knobValues = {
     case "NTILES" => 1
-    case "NBANKS" => 1
+    case "NBANKS_PER_MEM_CHANNEL" => 1
     case "L1D_MSHRS" => 2
     case "L1D_SETS" => 64
     case "L1D_WAYS" => 4
@@ -186,9 +186,9 @@ class With2Cores extends Config(knobValues = { case "NTILES" => 2 })
 class With4Cores extends Config(knobValues = { case "NTILES" => 4 })
 class With8Cores extends Config(knobValues = { case "NTILES" => 8 })
 
-class With2Banks extends Config(knobValues = { case "NBANKS" => 2 })
-class With4Banks extends Config(knobValues = { case "NBANKS" => 4 })
-class With8Banks extends Config(knobValues = { case "NBANKS" => 8 })
+class With2BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 2 })
+class With4BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 4 })
+class With8BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 8 })
 
 class With2MemoryChannels extends Config(
   (pname,site,here) => pname match {
@@ -278,8 +278,8 @@ class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGACo
 
 class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
 
-class MultibankConfig extends Config(new With2Banks ++ new DefaultConfig)
+class MultibankConfig extends Config(new With2BanksPerMemChannel ++ new DefaultConfig)
 class MultibankL2Config extends Config(
-  new With2Banks ++ new WithL2Cache ++ new DefaultConfig)
+  new With2BanksPerMemChannel ++ new WithL2Cache ++ new DefaultConfig)
 
 class MultichannelConfig extends Config(new With2MemoryChannels ++ new DefaultConfig)
