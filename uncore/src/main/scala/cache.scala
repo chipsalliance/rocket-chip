@@ -304,6 +304,7 @@ class TSHRFile(implicit p: Parameters) extends L2HellaCacheModule()(p)
   
   // WritebackUnit evicts data from L2, including invalidating L1s
   val wb = Module(new L2WritebackUnit(nTransactors))
+  val trackerAndWbIOs = trackerList.map(_.io) :+ wb.io
   doInternalOutputArbitration(wb.io.wb.req, trackerList.map(_.io.wb.req))
   doInternalInputRouting(wb.io.wb.resp, trackerList.map(_.io.wb.resp))
 
@@ -329,15 +330,12 @@ class TSHRFile(implicit p: Parameters) extends L2HellaCacheModule()(p)
     "At most a single tracker should match for any given Acquire")
 
   // Wire releases from clients
-  val trackerReleaseIOs = trackerList.map(_.io.inner.release) :+ wb.io.inner.release
-  val releaseReadys = Vec(trackerReleaseIOs.map(_.ready)).toBits
-  val releaseMatches = Vec(trackerList.map(_.io.has_release_match) :+ wb.io.has_release_match).toBits
-  val release_idx = OHToUInt(releaseMatches)
-  io.inner.release.ready := releaseReadys(release_idx)
-  trackerReleaseIOs.zipWithIndex.foreach {
-    case(tracker, i) =>
-      tracker.bits := io.inner.release.bits
-      tracker.valid := io.inner.release.valid && (release_idx === UInt(i))
+  val releaseReadys = Vec(trackerAndWbIOs.map(_.inner.release.ready)).toBits
+  val releaseMatches = Vec(trackerAndWbIOs.map(_.has_release_match)).toBits
+  io.inner.release.ready := (releaseMatches & releaseReadys).orR
+  trackerAndWbIOs foreach { tracker =>
+    tracker.inner.release.bits := io.inner.release.bits
+    tracker.inner.release.valid := io.inner.release.valid && tracker.has_release_match
   }
   assert(PopCount(releaseMatches) <= UInt(nReleaseTransactors),
     "At most a single tracker should match for any given Release")
