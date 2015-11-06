@@ -80,7 +80,7 @@ int main(int argc, char** argv)
   for (int i = 0; i < N_MEM_CHANNELS; i++) {
     mm[i] = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
     try {
-      mm[i]->init(memsz_mb*1024*1024, mem_width, LINE_SIZE);
+      mm[i]->init(memsz_mb*1024*1024 / N_MEM_CHANNELS, mem_width, CACHE_BLOCK_BYTES);
     } catch (const std::bad_alloc& e) {
       fprintf(stderr,
           "Failed to allocate %ld bytes (%ld MiB) of memory\n"
@@ -88,11 +88,14 @@ int main(int argc, char** argv)
               memsz_mb*1024*1024, memsz_mb);
       exit(-1);
     }
-
-    if (loadmem)
-      load_mem(mm[i]->get_data(), loadmem);
   }
 
+  if (loadmem) {
+    void *mems[N_MEM_CHANNELS];
+    for (int i = 0; i < N_MEM_CHANNELS; i++)
+      mems[i] = mm[i]->get_data();
+    load_mem(mems, loadmem, CACHE_BLOCK_BYTES, N_MEM_CHANNELS);
+  }
 
   // Instantiate HTIF
   htif = new htif_emulator_t(memsz_mb,
