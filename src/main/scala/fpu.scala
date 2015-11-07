@@ -325,7 +325,7 @@ class FPUFMAPipe(val latency: Int, sigWidth: Int, expWidth: Int) extends Module
     val in = Valid(new FPInput).flip
     val out = Valid(new FPResult)
   }
-  
+
   val width = sigWidth + expWidth
   val one = UInt(1) << (width-1)
   val zero = (io.in.bits.in1(width) ^ io.in.bits.in2(width)) << width
@@ -392,8 +392,8 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
 
   // regfile
   val regfile = Mem(32, Bits(width = 65))
-  when (load_wb) { 
-    regfile(load_wb_tag) := load_wb_data_recoded 
+  when (load_wb) {
+    regfile(load_wb_tag) := load_wb_data_recoded
     if (enableCommitLog) {
       printf ("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + UInt(32),
         Mux(load_wb_single, load_wb_data(31,0), load_wb_data))
@@ -462,7 +462,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
   val divSqrt_wdata = Wire(Bits())
   val divSqrt_flags = Wire(Bits())
   val divSqrt_in_flight = Reg(init=Bool(false))
-  val divSqrt_cp = Reg(init=Bool(false))
+  val divSqrt_killed = Reg(Bool())
 
   // writeback arbitration
   case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, res: FPResult)
@@ -505,7 +505,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
   val wcp = winfo(0)(6+log2Up(pipes.size))
   val wdata = Mux(divSqrt_wen, divSqrt_wdata, Vec(pipes.map(_.res.data))(wsrc))
   val wexc = Vec(pipes.map(_.res.exc))(wsrc)
-  when ((!wcp && wen(0)) || (!divSqrt_cp && divSqrt_wen)) { 
+  when ((!wcp && wen(0)) || divSqrt_wen) {
     regfile(waddr) := wdata
     if (enableCommitLog) {
       val wdata_unrec_s = hardfloat.recodedFloatNToFloatN(wdata(64,0), 23, 9)
@@ -515,9 +515,9 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
         Mux(wb_single, Cat(UInt(0,32), wdata_unrec_s), wdata_unrec_d))
     }
   }
-  when ((wcp && wen(0)) || (divSqrt_cp && divSqrt_wen)) { 
+  when (wcp && wen(0)) {
     io.cp_resp.bits.data := wdata
-    io.cp_resp.valid := Bool(true) 
+    io.cp_resp.valid := Bool(true)
   }
   io.cp_req.ready := !ex_reg_valid
 
@@ -551,8 +551,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
     val divSqrt = Module(new hardfloat.divSqrtRecodedFloat64)
     divSqrt_inReady := Mux(divSqrt.io.sqrtOp, divSqrt.io.inReady_sqrt, divSqrt.io.inReady_div)
     val divSqrt_outValid = divSqrt.io.outValid_div || divSqrt.io.outValid_sqrt
-    val divSqrt_wb_hazard = wen.orR
-    divSqrt.io.inValid := mem_reg_valid && !divSqrt_wb_hazard && !divSqrt_in_flight && (!io.killm || mem_cp_valid) && (mem_ctrl.div || mem_ctrl.sqrt)
+    divSqrt.io.inValid := mem_reg_valid && (mem_ctrl.div || mem_ctrl.sqrt)
     divSqrt.io.sqrtOp := mem_ctrl.sqrt
     divSqrt.io.a := fpiu.io.as_double.in1
     divSqrt.io.b := fpiu.io.as_double.in2
@@ -560,14 +559,14 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
 
     when (divSqrt.io.inValid && divSqrt_inReady) {
       divSqrt_in_flight := true
+      divSqrt_killed := killm
       divSqrt_single := mem_ctrl.single
       divSqrt_waddr := mem_reg_inst(11,7)
       divSqrt_rm := divSqrt.io.roundingMode
-      divSqrt_cp := mem_cp_valid
     }
 
     when (divSqrt_outValid) {
-      divSqrt_wen := true
+      divSqrt_wen := !divSqrt_killed
       divSqrt_wdata_double := divSqrt.io.out
       divSqrt_in_flight := false
       divSqrt_flags_double := divSqrt.io.exceptionFlags
