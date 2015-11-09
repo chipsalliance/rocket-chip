@@ -1035,6 +1035,29 @@ object TileLinkEnqueuer {
   }
 }
 
+class ClientTileLinkEnqueuer(depths: TileLinkDepths)(implicit p: Parameters) extends Module {
+  val io = new Bundle {
+    val inner = new ClientTileLinkIO().flip
+    val outer = new ClientTileLinkIO
+  }
+
+  io.outer.acquire <> (if(depths.acq > 0) Queue(io.inner.acquire, depths.acq) else io.inner.acquire)
+  io.inner.probe   <> (if(depths.prb > 0) Queue(io.outer.probe,   depths.prb) else io.outer.probe)
+  io.outer.release <> (if(depths.rel > 0) Queue(io.inner.release, depths.rel) else io.inner.release)
+  io.inner.grant   <> (if(depths.gnt > 0) Queue(io.outer.grant,   depths.gnt) else io.outer.grant)
+}
+
+object ClientTileLinkEnqueuer {
+  def apply(in: ClientTileLinkIO, depths: TileLinkDepths)(implicit p: Parameters): ClientTileLinkIO = {
+    val t = Module(new ClientTileLinkEnqueuer(depths))
+    t.io.inner <> in
+    t.io.outer
+  }
+  def apply(in: ClientTileLinkIO, depth: Int)(implicit p: Parameters): ClientTileLinkIO = {
+    apply(in, TileLinkDepths(depth, depth, depth, depth, depth))
+  }
+}
+
 /** Utility functions for constructing TileLinkIO arbiters */
 trait TileLinkArbiterLike extends HasTileLinkParameters {
   // Some shorthand type variables
