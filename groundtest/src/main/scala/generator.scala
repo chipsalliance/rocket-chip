@@ -19,6 +19,42 @@ trait HasGeneratorParams {
   val nGens = nGensPerTile * nGenTiles
   val genUncached = p(GenerateUncached)
   val genCached = p(GenerateCached)
+  val genTimeout = 4096
+}
+
+class Timer(initCount: Int) extends Module {
+  val io = new Bundle {
+    val start = Bool(INPUT)
+    val stop = Bool(INPUT)
+    val timeout = Bool(OUTPUT)
+  }
+
+  val countdown = Reg(UInt(width = log2Up(initCount)))
+  val active = Reg(init = Bool(false))
+
+  when (io.start) {
+    countdown := UInt(initCount - 1)
+    active := Bool(true)
+  }
+
+  when (io.stop) {
+    active := Bool(false)
+  }
+
+  when (active) {
+    countdown := countdown - UInt(1)
+  }
+
+  io.timeout := countdown === UInt(0)
+}
+
+object Timer {
+  def apply(initCount: Int, start: Bool, stop: Bool): Bool = {
+    val timer = Module(new Timer(initCount))
+    timer.io.start := start
+    timer.io.stop  := stop
+    timer.io.timeout
+  }
 }
 
 class UncachedTileLinkGenerator(id: Int)
@@ -59,6 +95,9 @@ class UncachedTileLinkGenerator(id: Int)
       state := Mux(req_wrap, s_finished, s_put)
     }
   }
+
+  val timeout = Timer(genTimeout, io.mem.acquire.fire(), io.mem.grant.fire())
+  assert(!timeout, s"Uncached generator ${id} timed out waiting for grant")
 
   io.finished := (state === s_finished)
 
@@ -116,6 +155,9 @@ class HellaCacheGenerator(id: Int)
     val finished = Bool(OUTPUT)
     val mem = new HellaCacheIO
   }
+
+  val timeout = Timer(genTimeout, io.mem.req.fire(), io.mem.resp.fire())
+  assert(!timeout, s"Cached generator ${id} timed out waiting for response")
 
   val (s_start :: s_write :: s_read :: s_finished :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = s_start)
