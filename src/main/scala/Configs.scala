@@ -8,6 +8,7 @@ import uncore._
 import rocket._
 import rocket.Util._
 import zscale._
+import groundtest._
 import scala.math.max
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob}
@@ -209,7 +210,7 @@ class WithL2Cache extends Config(
       case NWays => Knob("L2_WAYS")
       case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
     }: PartialFunction[Any,Any] 
-    case NAcquireTransactors => 2
+    case NAcquireTransactors => 3
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
     case BuildL2CoherenceManager => (p: Parameters) =>
@@ -246,6 +247,39 @@ class WithZscale extends Config(
 )
 
 class ZscaleConfig extends Config(new WithZscale ++ new DefaultConfig)
+
+class WithMemtest extends Config (
+  (pname, site, here) => pname match {
+    case TLKey("L1toL2") => 
+      TileLinkParameters(
+        coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
+        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels),
+        nCachingClients = site(NGeneratorTiles),
+        nCachelessClients = site(NGeneratorTiles) + 1,
+        maxClientXacts = 1,
+        maxClientsPerPort = site(NGeneratorsPerTile),
+        maxManagerXacts = site(NAcquireTransactors) + 2,
+        dataBits = site(CacheBlockBytes)*8)
+
+    case NTiles => site(NGeneratorTiles)
+
+    case NGeneratorTiles => 2
+    case NGeneratorsPerTile => 1
+    case GenerateUncached => true
+    case GenerateCached => true
+    case MaxGenerateRequests => 8192
+
+    case BuildTiles => {
+      (0 until site(NTiles)).map { i =>
+        (r: Bool, p: Parameters) => Module(
+          new GeneratorTile(i, r)
+            (p.alterPartial({case TLId => "L1toL2"})))
+      }
+    }
+  })
+
+class MemtestConfig extends Config(new WithMemtest ++ new DefaultConfig)
+class MemtestL2Config extends Config(new WithMemtest ++ new DefaultL2Config)
 
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {
