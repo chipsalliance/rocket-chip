@@ -568,6 +568,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val pending_writes = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_resps = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_ignt_data = Reg(init=Bits(0, width = io.inner.tlDataBeats))
+  val pending_ignt_ack = Reg(init = Bool(false))
   val pending_meta_write = Reg{ Bool() }
 
   val all_pending_done =
@@ -731,10 +732,15 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
                        addPendingBitWhenBeatHasData(io.inner.release) |
                        addPendingBitWhenBeatHasData(io.outer.grant) |
                        addPendingBitInternal(io.data.resp)
+  pending_ignt_ack := pending_ignt_ack |
+                      io.data.write.fire() |
+                      io.outer.grant.fire() && io.outer.grant.bits.hasData()
   ignt_q.io.deq.ready := ignt_data_done
   io.inner.grant.valid := state === s_busy &&
                           ignt_q.io.deq.valid &&
-                          (!io.ignt().hasData() || pending_ignt_data(ignt_data_idx))
+                          Mux(io.ignt().hasData(),
+                            pending_ignt_data(ignt_data_idx),
+                            pending_ignt_ack)
   // Make the Grant message using the data stored in the secondary miss queue
   io.inner.grant.bits := pending_coh.inner.makeGrant(
                            pri = xact,
@@ -833,6 +839,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     pending_writes := addPendingBitWhenBeatHasDataAndAllocs(io.inner.acquire)
     pending_resps := UInt(0)
     pending_ignt_data := UInt(0)
+    pending_ignt_ack := Bool(false)
     pending_meta_write := UInt(0)
     state := s_meta_read
   }
