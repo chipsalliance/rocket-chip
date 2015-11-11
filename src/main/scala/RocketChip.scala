@@ -250,7 +250,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
     val narrow = Module(new TileLinkIONarrower("L2toMC", "Outermost"))
     val conv = Module(new NastiIOTileLinkIOConverter()(outermostTLParams))
-    unwrap.io.in <> bank.outerTL
+    unwrap.io.in <> ClientTileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
     narrow.io.in <> unwrap.io.out
     conv.io.tl <> narrow.io.out
     TopUtils.connectNasti(interconnect.io.masters(i), conv.io.nasti)

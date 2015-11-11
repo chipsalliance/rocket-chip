@@ -38,3 +38,6 @@
 [submodule "context-dependent-environments"]
 	path = context-dependent-environments
 	url = https://github.com/ucb-bar/context-dependent-environments
+[submodule "groundtest"]
+	path = groundtest
+	url = https://github.com/ucb-bar/groundtest.git
