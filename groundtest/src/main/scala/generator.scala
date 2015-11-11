@@ -11,6 +11,7 @@ case object NGeneratorsPerTile extends Field[Int]
 case object NGeneratorTiles extends Field[Int]
 case object GenerateUncached extends Field[Boolean]
 case object GenerateCached extends Field[Boolean]
+case object MaxGenerateRequests extends Field[Int]
 
 trait HasGeneratorParams {
   implicit val p: Parameters
@@ -20,6 +21,7 @@ trait HasGeneratorParams {
   val genUncached = p(GenerateUncached)
   val genCached = p(GenerateCached)
   val genTimeout = 4096
+  val maxRequests = p(MaxGenerateRequests)
 }
 
 class Timer(initCount: Int) extends Module {
@@ -63,8 +65,6 @@ class UncachedTileLinkGenerator(id: Int)
   private val tlBlockOffset = tlBeatAddrBits + tlByteAddrBits
   private val wordBits = 64
   private val wordOffset = log2Up(wordBits / 8)
-  private val maxAddress = (p(MMIOBase) >> wordOffset).toInt / 2
-  private val totalRequests = maxAddress / nGens
 
   val io = new Bundle {
     val mem = new ClientUncachedTileLinkIO
@@ -74,7 +74,7 @@ class UncachedTileLinkGenerator(id: Int)
   val (s_start :: s_put :: s_get :: s_finished :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = s_start)
 
-  val (req_cnt, req_wrap) = Counter(io.mem.grant.fire() && state === s_get, totalRequests)
+  val (req_cnt, req_wrap) = Counter(io.mem.grant.fire() && state === s_get, maxRequests)
 
   val sending = Reg(init = Bool(false))
 
@@ -147,9 +147,7 @@ class HellaCacheGenerator(id: Int)
     (implicit p: Parameters) extends L1HellaCacheModule()(p) with HasGeneratorParams {
 
   private val wordOffset = log2Up(coreDataBits / 8)
-  private val maxAddress = (p(MMIOBase) >> wordOffset).toInt
-  private val startAddress = maxAddress / 2
-  private val totalRequests = (maxAddress - startAddress) / nGens
+  private val startAddress = (p(MMIOBase) >> wordOffset).toInt / 2
 
   val io = new Bundle {
     val finished = Bool(OUTPUT)
@@ -164,7 +162,7 @@ class HellaCacheGenerator(id: Int)
   val sending = Reg(init = Bool(false))
 
   val (req_cnt, req_wrap) = Counter(
-    io.mem.resp.valid && io.mem.resp.bits.has_data, totalRequests)
+    io.mem.resp.valid && io.mem.resp.bits.has_data, maxRequests)
 
   val req_addr = UInt(startAddress) +
                  Cat(req_cnt, UInt(id, log2Up(nGens)), UInt(0, wordOffset))
