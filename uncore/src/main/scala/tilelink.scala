@@ -402,6 +402,7 @@ object GetPrefetch {
   * @param addr_beat sub-block address (which beat)
   * @param data data being refilled to the original requestor
   * @param wmask per-byte write mask for this beat
+  * @param alloc hint whether the block should be allocated in intervening caches
   */
 object Put {
   def apply(
@@ -409,7 +410,8 @@ object Put {
         addr_block: UInt,
         addr_beat: UInt,
         data: UInt,
-        wmask: Option[UInt]= None)
+        wmask: Option[UInt]= None,
+        alloc: Bool = Bool(true))
       (implicit p: Parameters): Acquire = {
     Acquire(
       is_builtin_type = Bool(true),
@@ -418,7 +420,7 @@ object Put {
       addr_beat = addr_beat,
       client_xact_id = client_xact_id,
       data = data,
-      union = Cat(wmask.getOrElse(Acquire.fullWriteMask), Bool(true)))
+      union = Cat(wmask.getOrElse(Acquire.fullWriteMask), alloc))
   }
 }
 
