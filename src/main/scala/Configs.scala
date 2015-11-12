@@ -211,7 +211,7 @@ class WithL2Cache extends Config(
       case NWays => Knob("L2_WAYS")
       case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
     }: PartialFunction[Any,Any] 
-    case NAcquireTransactors => 3
+    case NAcquireTransactors => 2
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
     case BuildL2CoherenceManager => (p: Parameters) =>
