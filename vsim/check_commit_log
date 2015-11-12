@@ -124,15 +124,21 @@ for addr in sorted(vsim_srf.keys()):
 
 compare_keys('vrf', spike_vrf, vsim_vrf)
 for eidx in sorted(vsim_vrf.keys()):
-  compare_keys('vrf[%02d]' % eidx, spike_vrf[eidx], vsim_vrf[eidx])
-  for addr in sorted(vsim_vrf[eidx].keys()):
-    compare_data('vrf[%02d][%03d]' % (eidx, addr), spike_vrf[eidx][addr], vsim_vrf[eidx][addr])
+  try:
+    compare_keys('vrf[%02d]' % eidx, spike_vrf[eidx], vsim_vrf[eidx])
+    for addr in sorted(vsim_vrf[eidx].keys()):
+      compare_data('vrf[%02d][%03d]' % (eidx, addr), spike_vrf[eidx][addr], vsim_vrf[eidx][addr])
+  except KeyError:
+    print "something is very wrong with", eidx, addr
 
 compare_keys('prf', spike_prf, vsim_prf)
 for eidx in sorted(vsim_prf.keys()):
-  compare_keys('prf[%02d]' % eidx, spike_prf[eidx], vsim_prf[eidx])
-  for addr in sorted(vsim_prf[eidx].keys()):
-    compare_data('prf[%02d][%02d]' % (eidx, addr), spike_prf[eidx][addr], vsim_prf[eidx][addr])
+  try:
+    compare_keys('prf[%02d]' % eidx, spike_prf[eidx], vsim_prf[eidx])
+    for addr in sorted(vsim_prf[eidx].keys()):
+      compare_data('prf[%02d][%02d]' % (eidx, addr), spike_prf[eidx][addr], vsim_prf[eidx][addr])
+  except KeyError:
+    print "something is very wrong with", eidx, addr
 
 if diverged:
   print "DOESN'T MATCH: earliest cycle", cycle
