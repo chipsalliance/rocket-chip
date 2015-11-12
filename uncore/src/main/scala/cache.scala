@@ -628,6 +628,11 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     }
   }
 
+  def addPendingBitFromBufferedAcquire(xact: AcquireMetadata): UInt =
+    Mux(xact.hasMultibeatData(),
+      Fill(innerDataBeats, UInt(1, 1)),
+      UIntToOH(xact.addr_beat))
+
   // Actual transaction processing logic begins here:
   //
   // First, take care of accpeting new requires or secondary misses
@@ -732,9 +737,10 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
                        addPendingBitWhenBeatHasData(io.inner.release) |
                        addPendingBitWhenBeatHasData(io.outer.grant) |
                        addPendingBitInternal(io.data.resp)
+  // We can issue a grant for a pending write once the write is committed
   pending_ignt_ack := pending_ignt_ack |
                       io.data.write.fire() |
-                      io.outer.grant.fire() && io.outer.grant.bits.hasData()
+                      io.outer.grant.fire() && !io.outer.grant.bits.hasData()
   ignt_q.io.deq.ready := ignt_data_done
   io.inner.grant.valid := state === s_busy &&
                           ignt_q.io.deq.valid &&
@@ -869,6 +875,11 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
       val mask_incoherent = mask_self & ~io.incoherent.toBits
       pending_iprbs := mask_incoherent
     } 
+    // If the write is marked no-allocate but is already in the cache,
+    // we do, in fact, need to write the data to the cache
+    when (is_hit && !xact.allocate() && xact.hasData()) {
+      pending_writes := addPendingBitFromBufferedAcquire(xact)
+    }
     state := Mux(needs_writeback, s_wb_req,
                Mux(needs_inner_probes, s_inner_probe,
                   Mux(!is_hit, s_outer_acquire, s_busy)))
