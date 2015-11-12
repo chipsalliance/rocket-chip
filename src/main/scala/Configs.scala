@@ -210,7 +210,7 @@ class WithL2Cache extends Config(
       case NWays => Knob("L2_WAYS")
       case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
     }: PartialFunction[Any,Any] 
-    case NAcquireTransactors => 3
+    case NAcquireTransactors => 2
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
     case BuildL2CoherenceManager => (p: Parameters) =>
@@ -266,7 +266,7 @@ class WithMemtest extends Config (
     case NGeneratorTiles => 1
     case NGeneratorsPerTile => 1
     case GenerateUncached => true
-    case GenerateCached => true
+    case GenerateCached => false
     case MaxGenerateRequests => 8192
 
     case BuildTiles => {
