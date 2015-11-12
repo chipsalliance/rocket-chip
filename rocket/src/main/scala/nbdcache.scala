@@ -169,26 +169,33 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val beat_mask = (storegen.mask << Cat(beat_offset, UInt(0, wordOffBits)))
   val beat_data = Fill(beatWords, storegen.data)
 
-  val addr_byte = req.addr(beatOffBits - 1, 0)
-  val a_type = Mux(isRead(req.cmd), Acquire.getType, Acquire.putType)
-  val union = Mux(isRead(req.cmd),
-    Cat(addr_byte, req.typ, M_XRD), beat_mask)
-
   val s_idle :: s_acquire :: s_grant :: s_resp :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
 
   io.req.ready := (state === s_idle)
 
-  io.acquire.valid := (state === s_acquire)
-  io.acquire.bits := Acquire(
-    is_builtin_type = Bool(true),
-    a_type = a_type,
+  val addr_block = req.addr(paddrBits - 1, blockOffBits)
+  val addr_beat  = req.addr(blockOffBits - 1, beatOffBits)
+  val addr_byte  = req.addr(beatOffBits - 1, 0)
+
+  val get_acquire = Get(
     client_xact_id = UInt(id),
-    addr_block = req.addr(paddrBits - 1, blockOffBits),
-    addr_beat = req.addr(blockOffBits - 1, beatOffBits),
+    addr_block = addr_block,
+    addr_beat = addr_beat,
+    addr_byte = addr_byte,
+    operand_size = req.typ,
+    alloc = Bool(false))
+
+  val put_acquire = Put(
+    client_xact_id = UInt(id),
+    addr_block = addr_block,
+    addr_beat = addr_beat,
     data = beat_data,
-    // alloc bit should always be false
-    union = Cat(union, Bool(false)))
+    wmask = beat_mask,
+    alloc = Bool(false))
+
+  io.acquire.valid := (state === s_acquire)
+  io.acquire.bits := Mux(isRead(req.cmd), get_acquire, put_acquire)
 
   io.resp.valid := (state === s_resp)
   io.resp.bits := req
