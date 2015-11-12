@@ -118,7 +118,8 @@ class UncachedTileLinkGenerator(id: Int)
     addr_block = addr_block,
     addr_beat = addr_beat,
     data = beat_data,
-    wmask = Some(wmask))
+    wmask = Some(wmask),
+    alloc = req_cnt(0))
 
   val get_acquire = Get(
     client_xact_id = UInt(0),
@@ -126,7 +127,7 @@ class UncachedTileLinkGenerator(id: Int)
     addr_beat = addr_beat,
     addr_byte = addr_byte,
     operand_size = MT_D,
-    alloc = Bool(true))
+    alloc = req_cnt(0))
 
   io.mem.acquire.valid := sending
   io.mem.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
