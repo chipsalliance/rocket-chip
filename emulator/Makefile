@@ -70,7 +70,9 @@ test:
 # Run assembly tests and benchmarks
 #--------------------------------------------------------------------
 
+ifneq ($(MAKECMDGOALS),clean)
 -include $(generated_dir)/$(MODEL).$(CONFIG).d
+endif
 
 $(output_dir)/%.run: $(output_dir)/%.hex emulator-$(MODEL)-$(CONFIG)
 	./$(emu) +dramsim +max-cycles=$(timeout_cycles) +loadmem=$< none 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
