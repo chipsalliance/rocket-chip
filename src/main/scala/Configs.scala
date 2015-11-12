@@ -266,7 +266,7 @@ class WithMemtest extends Config (
     case NGeneratorTiles => 1
     case NGeneratorsPerTile => 1
     case GenerateUncached => true
-    case GenerateCached => false
+    case GenerateCached => true
     case MaxGenerateRequests => 8192
 
     case BuildTiles => {
