@@ -31,10 +31,7 @@ object HwachaTestSuites {
   val rv64uiVec = new AssemblyTestSuite("rv64ui-vec", "rv64ui", rv64uiVecNames)(_)
 
   val rv64uiScalarVecNames = rv64uiVecNames.map("s"+_)
-  val rv64uiScalarVecNamesV4 = rv64uiScalarVecNames -- rv64umNames.map("svec-" + _) --
-  LinkedHashSet("svec-div", "svec-divu", "svec-divuw", "svec-divw", "svec-mul", "svec-mulw", "svec-mulh", "svec-mulhu", "svec-mulhsu",
-      "svec-rem", "svec-remu", "svec-remuw", "svec-remw")
-  val rv64uiScalerVec = new AssemblyTestSuite("rv64ui-svec", "rv64ui", rv64uiScalarVecNamesV4)(_)
+  val rv64uiScalerVec = new AssemblyTestSuite("rv64ui-svec", "rv64ui", rv64uiScalarVecNames)(_)
 
   val rv64ufVecNames = LinkedHashSet(
     "fadd", "fcmp", "fdiv", "fclass", "fcvt", "fcvt_w", "fmadd", "fmin", "fsgnj").map("vec-" + _)

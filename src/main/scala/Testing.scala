@@ -118,7 +118,7 @@ object DefaultTestSuites {
   // TODO: "rv64ui-pm-lrsc", "rv64mi-pm-ipi",
 
   val rv64u = List(rv64ui, rv64um, rv64ua)
-  val rv64i = List(rv64ui, rv64si, rv64mi)
+  val rv64i = rv64u ++ List(rv64si, rv64mi)
 
   val bmarks = new BenchmarkTestSuite("basic", "$(base_dir)/riscv-tools/riscv-tests/benchmarks", LinkedHashSet(
     "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "spmv", "mt-vvadd", "mt-matmul", "pb-sgemm", "pb-spmv"))
