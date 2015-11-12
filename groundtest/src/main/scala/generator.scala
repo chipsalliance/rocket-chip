@@ -189,6 +189,8 @@ class HellaCacheGenerator(id: Int)
 
   when (req_wrap) { sending := Bool(false); state := s_finished }
 
+  io.finished := (state === s_finished)
+
   assert(!io.mem.resp.valid || !io.mem.resp.bits.has_data ||
     io.mem.resp.bits.data === req_data,
     s"Received incorrect data in cached generator ${id}")
