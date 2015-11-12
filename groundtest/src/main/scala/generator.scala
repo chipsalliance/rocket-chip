@@ -12,6 +12,7 @@ case object NGeneratorTiles extends Field[Int]
 case object GenerateUncached extends Field[Boolean]
 case object GenerateCached extends Field[Boolean]
 case object MaxGenerateRequests extends Field[Int]
+case object GeneratorStartAddress extends Field[Int]
 
 trait HasGeneratorParams {
   implicit val p: Parameters
@@ -22,6 +23,12 @@ trait HasGeneratorParams {
   val genCached = p(GenerateCached)
   val genTimeout = 4096
   val maxRequests = p(MaxGenerateRequests)
+  val startAddress = p(GeneratorStartAddress)
+  val genWordBits = p(WordBits)
+  val genWordBytes = genWordBits / 8
+  val wordOffset = log2Up(genWordBytes)
+
+  require(startAddress % genWordBytes == 0)
 }
 
 class Timer(initCount: Int) extends Module {
@@ -63,8 +70,6 @@ class UncachedTileLinkGenerator(id: Int)
     (implicit p: Parameters) extends TLModule()(p) with HasGeneratorParams {
 
   private val tlBlockOffset = tlBeatAddrBits + tlByteAddrBits
-  private val wordBits = 64
-  private val wordOffset = log2Up(wordBits / 8)
 
   val io = new Bundle {
     val mem = new ClientUncachedTileLinkIO
@@ -101,17 +106,23 @@ class UncachedTileLinkGenerator(id: Int)
 
   io.finished := (state === s_finished)
 
-  val full_addr = Cat(req_cnt, UInt(id, log2Up(nGens)), UInt(0, wordOffset))
+  val full_addr = UInt(startAddress) + Cat(
+    req_cnt, UInt(id, log2Ceil(nGens)),
+    (if (genCached) UInt(0, 1) else UInt(0, 0)),
+    UInt(0, wordOffset))
+
+  when (io.mem.acquire.fire()) { printf("Uncached sending %x\n", full_addr) }
+
   val addr_block = full_addr >> UInt(tlBlockOffset)
   val addr_beat = full_addr(tlBlockOffset - 1, tlByteAddrBits)
   val addr_byte = full_addr(tlByteAddrBits - 1, 0)
 
   val data_prefix = Cat(UInt(id, log2Up(nGens)), req_cnt)
-  val word_data = Wire(UInt(width = wordBits))
+  val word_data = Wire(UInt(width = genWordBits))
   word_data := Cat(data_prefix, full_addr)
-  val beat_data = Fill(tlDataBits / wordBits, word_data)
+  val beat_data = Fill(tlDataBits / genWordBits, word_data)
   val wshift = Cat(full_addr(tlByteAddrBits - 1, wordOffset), UInt(0, wordOffset))
-  val wmask = Fill(wordBits / 8, Bits(1, 1)) << wshift
+  val wmask = Fill(genWordBits / 8, Bits(1, 1)) << wshift
 
   val put_acquire = Put(
     client_xact_id = UInt(0),
@@ -119,7 +130,7 @@ class UncachedTileLinkGenerator(id: Int)
     addr_beat = addr_beat,
     data = beat_data,
     wmask = Some(wmask),
-    alloc = req_cnt(0))
+    alloc = Bool(false))
 
   val get_acquire = Get(
     client_xact_id = UInt(0),
@@ -127,7 +138,7 @@ class UncachedTileLinkGenerator(id: Int)
     addr_beat = addr_beat,
     addr_byte = addr_byte,
     operand_size = MT_D,
-    alloc = req_cnt(0))
+    alloc = Bool(false))
 
   io.mem.acquire.valid := sending
   io.mem.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
@@ -136,7 +147,7 @@ class UncachedTileLinkGenerator(id: Int)
   def wordFromBeat(addr: UInt, dat: UInt) = {
     val offset = addr(tlByteAddrBits - 1, wordOffset)
     val shift = Cat(offset, UInt(0, wordOffset + 3))
-    (dat >> shift)(wordBits - 1, 0)
+    (dat >> shift)(genWordBits - 1, 0)
   }
 
   assert(!io.mem.grant.valid || state =/= s_get ||
@@ -146,10 +157,6 @@ class UncachedTileLinkGenerator(id: Int)
 
 class HellaCacheGenerator(id: Int)
     (implicit p: Parameters) extends L1HellaCacheModule()(p) with HasGeneratorParams {
-
-  private val wordOffset = log2Up(coreDataBits / 8)
-  private val startAddress = (p(MMIOBase) >> wordOffset).toInt / 2
-
   val io = new Bundle {
     val finished = Bool(OUTPUT)
     val mem = new HellaCacheIO
@@ -165,8 +172,10 @@ class HellaCacheGenerator(id: Int)
   val (req_cnt, req_wrap) = Counter(
     io.mem.resp.valid && io.mem.resp.bits.has_data, maxRequests)
 
-  val req_addr = UInt(startAddress) +
-                 Cat(req_cnt, UInt(id, log2Up(nGens)), UInt(0, wordOffset))
+  val req_addr = UInt(startAddress) + Cat(
+    req_cnt, UInt(id, log2Ceil(nGens)),
+    (if (genUncached) UInt(1, 1) else UInt(0, 0)),
+    UInt(0, wordOffset))
   val req_data = Cat(UInt(id, log2Up(nGens)), req_cnt, req_addr)
 
   io.mem.req.valid := sending
