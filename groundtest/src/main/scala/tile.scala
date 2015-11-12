@@ -53,7 +53,7 @@ class GeneratorTile(id: Int, resetSignal: Bool)
   } else {
     io.uncached(0).acquire.valid := Bool(false)
     io.uncached(0).grant.ready := Bool(false)
-    for (i <- 0 until nGensPerTile) { gen_finished(2 * i) := Bool(false) }
+    for (i <- 0 until nGensPerTile) { gen_finished(2 * i) := Bool(true) }
   }
 
   if (genCached) {
