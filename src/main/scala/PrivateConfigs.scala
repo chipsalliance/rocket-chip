@@ -79,14 +79,20 @@ class WithoutBackupMemoryPort extends Config(
   }
 )
 
+class With4L2AcquireXacts extends Config(
+  (pname,site,here) => pname match {
+    case NAcquireTransactors => 4
+  }
+)
+
 class ISCA2016Config extends Config(
-  new WithoutBackupMemoryPort ++ new With2MemoryChannels ++
-  new With2BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
+  new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
+  new With4L2AcquireXacts ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
     // WithoutBackupMemoryPort not included here because it doesn't have knobs.
-    case x => (new Config(new With2MemoryChannels ++ new With2BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
+    case x => (new Config(new With2MemoryChannels ++ new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
   }
 
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = {
