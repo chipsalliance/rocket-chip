@@ -569,7 +569,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val pending_resps = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_ignt_data = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_ignt_ack = Reg(init = Bool(false))
-  val pending_meta_write = Reg{ Bool() }
+  val pending_meta_write = Reg(Bool())
 
   val all_pending_done =
     !(pending_reads.orR ||
@@ -817,7 +817,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   io.data.write.bits.data := xact.data_buffer(curr_write_beat)
 
   // End a transaction by updating the block metadata
-  io.meta.write.valid := (state === s_meta_write) && pending_meta_write
+  io.meta.write.valid := state === s_meta_write
   io.meta.write.bits.id := UInt(trackerId)
   io.meta.write.bits.idx := xact.addr_block(idxMSB,idxLSB)
   io.meta.write.bits.way_en := xact_way_en
@@ -856,7 +856,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     pending_resps := UInt(0)
     pending_ignt_data := UInt(0)
     pending_ignt_ack := Bool(false)
-    pending_meta_write := UInt(0)
+    pending_meta_write := Bool(false)
     state := s_meta_read
   }
   when(state === s_meta_read && io.meta.read.ready) { state := s_meta_resp }
@@ -911,11 +911,11 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     state := Mux(!skip_outer_acquire, s_outer_acquire, s_busy)
   }
   when(state === s_outer_acquire && oacq_data_done) { state := s_busy }
-  when(state === s_busy && all_pending_done) { state := s_meta_write  }
-  when(state === s_meta_write && (io.meta.write.ready || !pending_meta_write)) {
+  when(state === s_busy && all_pending_done) {
     wmask_buffer.foreach { w => w := UInt(0) }
-    state := s_idle
+    state := Mux(pending_meta_write, s_meta_write, s_idle)
   }
+  when(state === s_meta_write && io.meta.write.ready) { state := s_idle }
 
   // These IOs are used for routing in the parent
   val in_same_set = xact.addr_block(idxMSB,idxLSB) === io.iacq().addr_block(idxMSB,idxLSB)
