@@ -85,6 +85,18 @@ class With4L2AcquireXacts extends Config(
   }
 )
 
+class With2Lanes extends Config(
+  (pname,site,here) => pname match {
+    case HwachaNLanes => 2
+  }
+)
+
+class With4Lanes extends Config(
+  (pname,site,here) => pname match {
+    case HwachaNLanes => 4
+  }
+)
+
 class ISCA2016Config extends Config(
   new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
   new With4L2AcquireXacts ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
@@ -101,3 +113,6 @@ class ISCA2016Config extends Config(
     )
   }
 }
+
+class ISCA2016L2Config extends Config(new With2Lanes ++ new ISCA2016Config)
+class ISCA2016L4Config extends Config(new With4Lanes ++ new ISCA2016Config)
