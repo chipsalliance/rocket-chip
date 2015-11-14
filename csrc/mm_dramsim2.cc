@@ -42,7 +42,7 @@ void mm_dramsim2_t::init(size_t sz, int wsz, int lsz)
   dummy_data.resize(word_size);
 
   assert(size % (1024*1024) == 0);
-  mem = getMemorySystemInstance("DDR3_micron_64M_8B_x4_sg15.ini", "system.ini", "dramsim2_ini", "results", size/(1024*1024));
+  mem = getMemorySystemInstance("LPDDR3_test.ini", "lpddr3_system.ini", "dramsim2_ini", "results", size/(1024*1024));
 
   TransactionCompleteCB *read_cb = new Callback<mm_dramsim2_t, void, unsigned, uint64_t, uint64_t>(this, &mm_dramsim2_t::read_complete);
   TransactionCompleteCB *write_cb = new Callback<mm_dramsim2_t, void, unsigned, uint64_t, uint64_t>(this, &mm_dramsim2_t::write_complete);
