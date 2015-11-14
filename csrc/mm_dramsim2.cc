@@ -37,7 +37,6 @@ void power_callback(double a, double b, double c, double d)
 
 void mm_dramsim2_t::init(size_t sz, int wsz, int lsz)
 {
-  assert(lsz == 64); // assumed by dramsim2
   mm_t::init(sz, wsz, lsz);
 
   dummy_data.resize(word_size);

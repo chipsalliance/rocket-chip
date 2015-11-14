@@ -141,7 +141,8 @@ class DefaultConfig extends Config (
                                if(site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
           maxClientsPerPort = if(site(BuildRoCC).isEmpty) 1 else 2,
           maxManagerXacts = site(NAcquireTransactors) + 2,
-          dataBits = site(CacheBlockBytes)*8)
+          dataBits = site(CacheBlockBytes)*8,
+          dataBeats = 2)
       case TLKey("L2toMC") => 
         TileLinkParameters(
           coherencePolicy = new MEICoherence(new NullRepresentation(site(NBanksPerMemoryChannel))),
@@ -151,14 +152,15 @@ class DefaultConfig extends Config (
           maxClientXacts = 1,
           maxClientsPerPort = site(NAcquireTransactors) + 2,
           maxManagerXacts = 1,
-          dataBits = site(CacheBlockBytes)*8)
+          dataBits = site(CacheBlockBytes)*8,
+          dataBeats = 2)
       case TLKey("Outermost") => site(TLKey("L2toMC")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
       case NOutstandingMemReqsPerChannel => site(NBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
       case BankIdLSB => 0
-      case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
+      case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 32)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case UseBackupMemoryPort => true
       case MMIOBase => Dump("MEM_SIZE", BigInt(1 << 30)) // 1 GB
