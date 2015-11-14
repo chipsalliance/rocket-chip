@@ -22,9 +22,10 @@ vsim_prf = {}
 nvpr = 256
 nppr = 16
 nlanes = 1
-lstride = 3
+lstride = 1
+lstrip = 1<<lstride
 nstrip = 8
-lstrip = 2**lstride/nstrip
+nslices = 2
 cycle = 0
 
 def add_1d(d, addr, data):
@@ -39,7 +40,7 @@ def calc(npr, lid, bid, paddr, sid):
   strip_id = paddr/npr
   strip_id_div = strip_id/lstrip
   strip_id_rem = strip_id%lstrip
-  eidx = lid*(2**lstride) + strip_id_div*(2**lstride)*nlanes + strip_id_rem*nstrip + bid*2 + sid
+  eidx = ((((lid + strip_id_div) * lstrip) + strip_id_rem) * nstrip) + (bid*nslices) + sid
   addr = paddr%npr
   return (eidx, addr)
 
@@ -67,7 +68,7 @@ for l in vlog:
     nvpr = int(s[2].split('=')[1].split(']')[0])
     nppr = int(s[3].split('=')[1].split(']')[0])
     lstride = int(s[4].split('=')[1].split(']')[0])
-    lstrip = 2**lstride/8
+    lstrip = 1<<lstride
   if l.find('arf') != -1:
     s = l.split()
     add_1d(vsim_arf, int(s[2]), (cycle, s[3], l))
