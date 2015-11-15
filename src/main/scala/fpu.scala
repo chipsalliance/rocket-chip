@@ -632,7 +632,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
     val divSqrt = Module(new hardfloat.DivSqrtRecF64)
     divSqrt_inReady := Mux(divSqrt.io.sqrtOp, divSqrt.io.inReady_sqrt, divSqrt.io.inReady_div)
     val divSqrt_outValid = divSqrt.io.outValid_div || divSqrt.io.outValid_sqrt
-    divSqrt.io.inValid := mem_reg_valid && (mem_ctrl.div || mem_ctrl.sqrt)
+    divSqrt.io.inValid := mem_reg_valid && (mem_ctrl.div || mem_ctrl.sqrt) && !divSqrt_in_flight
     divSqrt.io.sqrtOp := mem_ctrl.sqrt
     divSqrt.io.a := fpiu.io.as_double.in1
     divSqrt.io.b := fpiu.io.as_double.in2
