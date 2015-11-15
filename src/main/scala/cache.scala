@@ -876,8 +876,10 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     val needs_inner_probes = tag_match && coh.inner.requiresProbes(xact)
     val should_update_meta = !tag_match && xact.allocate() ||
                              is_hit && pending_coh_on_hit != coh
+    // Determine any changes to the coherence metadata
     when (should_update_meta) { pending_meta_write := Bool(true) }
     pending_coh := Mux(is_hit, pending_coh_on_hit, Mux(tag_match, coh, pending_coh_on_miss))
+    // If we need to probe some clients, make a bitmask identifying them
     when (needs_inner_probes) {
       val full_sharers = coh.inner.full()
       val mask_self = Mux(
@@ -886,12 +888,17 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
         coh.inner.full() & ~UIntToOH(xact.client_id))
       val mask_incoherent = mask_self & ~io.incoherent.toBits
       pending_iprbs := mask_incoherent
-    } 
+    }
+    // If a prefetch is a hit, note that we have to ack it
+    when (is_hit && xact.isPrefetch()) {
+      pending_ignt_ack := Bool(true)
+    }
     // If the write is marked no-allocate but is already in the cache,
     // we do, in fact, need to write the data to the cache
     when (is_hit && !xact.allocate() && xact.hasData()) {
       pending_writes := addPendingBitFromBufferedAcquire(xact)
     }
+    // Next: request writeback, issue probes, query outer memory, or respond
     state := Mux(needs_writeback, s_wb_req,
                Mux(needs_inner_probes, s_inner_probe,
                   Mux(!is_hit, s_outer_acquire, s_busy)))
