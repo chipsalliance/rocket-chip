@@ -11,7 +11,7 @@ import hwacha._
 object HwachaTestSuites {
   import DefaultTestSuites._
   val rv64uvNames = LinkedHashSet(
-    "wakeup", "fence", "vsetcfgi", "vsetcfg", "vsetvl", "keepcfg",
+    "wakeup", "fence", "keepcfg",
     "vmsa", "vmss", "vssd", "vssw", "vssh", "vssb",
     "vlsd", "vlsw", "vlswu", "vlsh", "vlshu", "vlsb", "vlsbu", 
     "vsad", "vsaw", "vsah", "vsab", "vlad", "vlaw", "vlawu", "vlah", "vlahu", "vlab", "vlabu",
@@ -19,7 +19,7 @@ object HwachaTestSuites {
     "vsd", "vsw", "vsh", "vsb", "vsxd", "vsxw", "vsxh", "vsxb",
     "eidx", "imul", "fcvt", "vvadd_d", "vvadd_w", "vvadd_fd", "vvadd_fw", "vvmul_d",
     "overlap", "sched_sreg_xbar", "sched_fadd", "sched_waw", "sched_war", "pointer", "vcjal", "vfirst", "vfence",
-    "vld_pred", "vsd_pred", "vlx_empty", "vsx_empty", "vamo_empty", "eidx_pred") ++
+    "vl_empty", "vs_empty", "vlx_empty", "vsx_empty", "vamo_empty", "eidx_empty") ++
     rv32uaNames ++ rv64uaNames 
   val rv64uvBasic = new AssemblyTestSuite("rv64uv", "rv64uv", rv64uvNames)(_)
   
