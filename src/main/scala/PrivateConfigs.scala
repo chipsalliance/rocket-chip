@@ -97,9 +97,15 @@ class With4Lanes extends Config(
   }
 )
 
+class With32BtbEntires extends Config(
+  (pname,site,here) => pname match {
+    case BtbKey => BtbParameters(nEntries = 32)
+  }
+)
+
 class ISCA2016Config extends Config(
   new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
-  new With4L2AcquireXacts ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
+  new With4L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
