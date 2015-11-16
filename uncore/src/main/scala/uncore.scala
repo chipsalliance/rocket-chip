@@ -132,11 +132,11 @@ abstract class XactTracker(implicit p: Parameters) extends CoherenceAgentModule(
   def dropPendingBitWhenBeat[T <: HasBeat](dec: Bool, in: T): UInt =
     ~Fill(in.tlDataBeats, dec) | ~UIntToOH(in.addr_beat)
 
-  def addPendingBitWhenBeatHasData[T <: HasBeat](in: DecoupledIO[T]): UInt =
-    addPendingBitWhenBeat(in.fire() && in.bits.hasData(), in.bits)
+  def addPendingBitWhenBeatHasData[T <: HasBeat](in: DecoupledIO[T], inc: Bool = Bool(true)): UInt =
+    addPendingBitWhenBeat(in.fire() && in.bits.hasData() && inc, in.bits)
 
   def addPendingBitWhenBeatHasDataAndAllocs(in: DecoupledIO[AcquireFromSrc]): UInt =
-    addPendingBitWhenBeat(in.fire() && in.bits.hasData() && in.bits.allocate(), in.bits)
+    addPendingBitWhenBeatHasData(in, in.bits.allocate())
 
   def addPendingBitWhenBeatIsGetOrAtomic(in: DecoupledIO[AcquireFromSrc]): UInt = {
     val a = in.bits
@@ -144,6 +144,9 @@ abstract class XactTracker(implicit p: Parameters) extends CoherenceAgentModule(
       (Vec(Acquire.getType, Acquire.getBlockType, Acquire.putAtomicType).contains(a.a_type))
     addPendingBitWhenBeat(in.fire() && isGetOrAtomic, a)
   }
+
+  def addPendingBitsFromAcquire(a: SecondaryMissInfo): UInt =
+    Mux(a.hasMultibeatData(), Fill(a.tlDataBeats, UInt(1, 1)), UIntToOH(a.addr_beat))
 
   def dropPendingBitWhenBeatHasData[T <: HasBeat](in: DecoupledIO[T]): UInt =
     dropPendingBitWhenBeat(in.fire() && in.bits.hasData(), in.bits)
