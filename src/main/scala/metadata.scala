@@ -174,7 +174,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
   def full(dummy: Int = 0): UInt = co.dir.full(this.sharers)
 
   /** Does this [[uncore.Acquire]] require [[uncore.Probe Probes]] to be sent */
-  def requiresProbes(acq: AcquireMetadata): Bool = co.requiresProbes(acq, this)
+  def requiresProbes(acq: HasAcquireType): Bool = co.requiresProbes(acq, this)
   /** Does this memory op require [[uncore.Probe Probes]] to be sent */
   def requiresProbes(op_code: UInt): Bool = co.requiresProbes(op_code, this)
   /** Does an eviction require [[uncore.Probe Probes]] to be sent */
@@ -185,8 +185,17 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     *
     * @param dst Destination client id for this Probe
     * @param acq Acquire message triggering this Probe
+    * @param addr_block address of the cache block being probed
     */
-  def makeProbe(dst: UInt, acq: AcquireMetadata): ProbeToDst = 
+  def makeProbe(dst: UInt, acq: HasAcquireType, addr_block: UInt): ProbeToDst =
+    Probe(dst, co.getProbeType(acq, this), addr_block)(p)
+
+  /** Construct an appropriate [[uncore.ProbeToDst]] for a given [[uncore.Acquire]]
+    *
+    * @param dst Destination client id for this Probe
+    * @param acq Acquire message triggering this Probe
+    */
+  def makeProbe(dst: UInt, acq: AcquireMetadata): ProbeToDst =
     Probe(dst, co.getProbeType(acq, this), acq.addr_block)(p)
 
   /** Construct an appropriate [[uncore.ProbeToDst]] for a given mem op
@@ -236,9 +245,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     Grant(
       dst = acq.client_id,
       is_builtin_type = acq.isBuiltInType(),
-      g_type = Mux(acq.isBuiltInType(), 
-                     acq.getBuiltInGrantType(),
-                     co.getGrantType(acq, this)),
+      g_type = co.getGrantType(acq, this),
       client_xact_id = acq.client_xact_id,
       manager_xact_id = manager_xact_id,
       addr_beat = addr_beat,
@@ -249,19 +256,22 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
     * Used to respond to secondary misses merged into this transaction.
     * May contain single or multiple beats of data.
     *
-    * @param pri Primary miss's Acquire message, used to get g_type and dst
-    * @param sec Secondary miss info, used to get beat and client_xact_id
+    * @param sec Secondary miss info
     * @param manager_xact_id manager's transaction id
     * @param data data being refilled to the original requestor
     */
   def makeGrant(
-        pri: AcquireMetadata with HasClientId,
         sec: SecondaryMissInfo,
-        manager_xact_id: UInt, 
+        manager_xact_id: UInt,
         data: UInt): GrantToDst = {
-    val g = makeGrant(pri, manager_xact_id, sec.addr_beat, data)
-    g.client_xact_id := sec.client_xact_id
-    g
+    Grant(
+      dst = sec.client_id,
+      is_builtin_type = sec.isBuiltInType(),
+      g_type = co.getGrantType(sec, this),
+      client_xact_id = sec.client_xact_id,
+      manager_xact_id = manager_xact_id,
+      addr_beat = sec.addr_beat,
+      data = data)(p)
   }
     
   /** New metadata after receiving a [[uncore.ReleaseFromSrc]]

@@ -143,26 +143,11 @@ trait HasClientId extends HasTileLinkParameters {
   val client_id = UInt(width = tlClientIdBits)
 }
 
-/** TileLink channel bundle definitions */
-
-/** The Acquire channel is used to intiate coherence protocol transactions in
-  * order to gain access to a cache block's data with certain permissions
-  * enabled. Messages sent over this channel may be custom types defined by
-  * a [[uncore.CoherencePolicy]] for cached data accesse or may be built-in types
-  * used for uncached data accesses. Acquires may contain data for Put or
-  * PutAtomic built-in types. After sending an Acquire, clients must
-  * wait for a manager to send them a [[uncore.Grant]] message in response.
-  */
-class AcquireMetadata(implicit p: Parameters) extends ClientToManagerChannel()(p)
-    with HasCacheBlockAddress 
-    with HasClientTransactionId
-    with HasTileLinkBeatId {
-  // Actual bundle fields:
-  val is_builtin_type = Bool()
-  val a_type = UInt(width = tlAcquireTypeBits)
+trait HasAcquireUnion extends HasTileLinkParameters {
   val union = Bits(width = tlAcquireUnionBits)
 
   // Utility funcs for accessing subblock union:
+  def isBuiltInType(t: UInt): Bool
   val opCodeOff = 1
   val opSizeOff = tlMemoryOpcodeBits + opCodeOff
   val addrByteOff = tlMemoryOperandSizeBits + opSizeOff
@@ -177,22 +162,25 @@ class AcquireMetadata(implicit p: Parameters) extends ClientToManagerChannel()(p
   def op_size(dummy: Int = 0) = union(addrByteOff-1, opSizeOff)
   /** Byte address for [[uncore.PutAtomic]] operand */
   def addr_byte(dummy: Int = 0) = union(addrByteMSB-1, addrByteOff)
-  private def amo_offset(dummy: Int = 0) = addr_byte()(tlByteAddrBits-1, log2Up(amoAluOperandBits/8))
+  def amo_offset(dummy: Int = 0) = addr_byte()(tlByteAddrBits-1, log2Up(amoAluOperandBits/8))
   /** Bit offset of [[uncore.PutAtomic]] operand */
   def amo_shift_bits(dummy: Int = 0) = UInt(amoAluOperandBits)*amo_offset()
   /** Write mask for [[uncore.Put]], [[uncore.PutBlock]], [[uncore.PutAtomic]] */
-  def wmask(dummy: Int = 0) = 
+  def wmask(dummy: Int = 0): UInt = {
     Mux(isBuiltInType(Acquire.putAtomicType), 
       FillInterleaved(amoAluOperandBits/8, UIntToOH(amo_offset())),
       Mux(isBuiltInType(Acquire.putBlockType) || isBuiltInType(Acquire.putType),
         union(tlWriteMaskBits, 1),
         UInt(0, width = tlWriteMaskBits)))
+  }
   /** Full, beat-sized writemask */
   def full_wmask(dummy: Int = 0) = FillInterleaved(8, wmask())
-  /** Complete physical address for block, beat or operand */
-  def full_addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, this.addr_byte())
+}
 
-  // Other helper functions:
+trait HasAcquireType extends HasTileLinkParameters {
+  val is_builtin_type = Bool()
+  val a_type = UInt(width = tlAcquireTypeBits)
+
   /** Message type equality */
   def is(t: UInt) = a_type === t //TODO: make this more opaque; def ===?
 
@@ -219,31 +207,93 @@ class AcquireMetadata(implicit p: Parameters) extends ClientToManagerChannel()(p
     */
   def requiresSelfProbe(dummy: Int = 0) = Bool(false)
 
-  /** Mapping between each built-in Acquire type (defined in companion object)
-    * and a built-in Grant type.
-    */
-  def getBuiltInGrantType(dummy: Int = 0): UInt = {
-    MuxLookup(this.a_type, Grant.putAckType, Array(
-      Acquire.getType       -> Grant.getDataBeatType,
-      Acquire.getBlockType  -> Grant.getDataBlockType,
-      Acquire.putType       -> Grant.putAckType,
-      Acquire.putBlockType  -> Grant.putAckType,
-      Acquire.putAtomicType -> Grant.getDataBeatType,
-      Acquire.prefetchType  -> Grant.prefetchAckType))
-  }
+  /** Mapping between each built-in Acquire type and a built-in Grant type.  */
+  def getBuiltInGrantType(dummy: Int = 0): UInt = Acquire.getBuiltInGrantType(this.a_type)
+}
+
+trait HasProbeType extends HasTileLinkParameters {
+  val p_type = UInt(width = tlCoh.probeTypeWidth)
+
+  def is(t: UInt) = p_type === t
+  def hasData(dummy: Int = 0) = Bool(false)
+  def hasMultibeatData(dummy: Int = 0) = Bool(false)
+}
+
+trait HasReleaseType extends HasTileLinkParameters {
+  val voluntary = Bool()
+  val r_type = UInt(width = tlCoh.releaseTypeWidth)
+
+  def is(t: UInt) = r_type === t
+  def hasData(dummy: Int = 0) = tlCoh.releaseTypesWithData.contains(r_type)
+  def hasMultibeatData(dummy: Int = 0) = Bool(tlDataBeats > 1) &&
+                                           tlCoh.releaseTypesWithData.contains(r_type)
+  def isVoluntary(dummy: Int = 0) = voluntary
+  def requiresAck(dummy: Int = 0) = !Bool(tlNetworkPreservesPointToPointOrdering)
+}
+
+trait HasGrantType extends HasTileLinkParameters {
+  val is_builtin_type = Bool()
+  val g_type = UInt(width = tlGrantTypeBits)
+
+  // Helper funcs
+  def isBuiltInType(dummy: Int = 0): Bool = is_builtin_type
+  def isBuiltInType(t: UInt): Bool = is_builtin_type && g_type === t 
+  def is(t: UInt):Bool = g_type === t
+  def hasData(dummy: Int = 0): Bool = Mux(isBuiltInType(),
+                                        Grant.typesWithData.contains(g_type),
+                                        tlCoh.grantTypesWithData.contains(g_type))
+  def hasMultibeatData(dummy: Int = 0): Bool = 
+    Bool(tlDataBeats > 1) && Mux(isBuiltInType(),
+                               Grant.typesWithMultibeatData.contains(g_type),
+                               tlCoh.grantTypesWithData.contains(g_type))
+  def isVoluntary(dummy: Int = 0): Bool = isBuiltInType() && (g_type === Grant.voluntaryAckType)
+  def requiresAck(dummy: Int = 0): Bool = !Bool(tlNetworkPreservesPointToPointOrdering) && !isVoluntary()
+}
+
+/** TileLink channel bundle definitions */
+
+/** The Acquire channel is used to intiate coherence protocol transactions in
+  * order to gain access to a cache block's data with certain permissions
+  * enabled. Messages sent over this channel may be custom types defined by
+  * a [[uncore.CoherencePolicy]] for cached data accesse or may be built-in types
+  * used for uncached data accesses. Acquires may contain data for Put or
+  * PutAtomic built-in types. After sending an Acquire, clients must
+  * wait for a manager to send them a [[uncore.Grant]] message in response.
+  */
+class AcquireMetadata(implicit p: Parameters) extends ClientToManagerChannel
+    with HasCacheBlockAddress 
+    with HasClientTransactionId
+    with HasTileLinkBeatId
+    with HasAcquireType
+    with HasAcquireUnion {
+  /** Complete physical address for block, beat or operand */
+  def full_addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, this.addr_byte())
 }
 
 /** [[uncore.AcquireMetadata]] with an extra field containing the data beat */
-class Acquire(implicit p: Parameters) extends AcquireMetadata()(p) with HasTileLinkData
+class Acquire(implicit p: Parameters) extends AcquireMetadata
+  with HasTileLinkData
 
 /** [[uncore.AcquireMetadata]] with an extra field containing the entire cache block */
-class BufferedAcquire(implicit p: Parameters) extends AcquireMetadata()(p) with HasTileLinkBlock
+class BufferedAcquire(implicit p: Parameters) extends AcquireMetadata
+  with HasTileLinkBlock
 
 /** [[uncore.Acquire]] with an extra field stating its source id */
-class AcquireFromSrc(implicit p: Parameters) extends Acquire()(p) with HasClientId
+class AcquireFromSrc(implicit p: Parameters) extends Acquire
+  with HasClientId
 
 /** [[uncore.BufferedAcquire]] with an extra field stating its source id */
-class BufferedAcquireFromSrc(implicit p: Parameters) extends BufferedAcquire()(p) with HasClientId 
+class BufferedAcquireFromSrc(implicit p: Parameters) extends BufferedAcquire
+  with HasClientId 
+
+/** Used to track metadata for transactions where multiple secondary misses have been merged
+  * and handled by a single transaction tracker.
+  */
+class SecondaryMissInfo(implicit p: Parameters) extends TLBundle
+  with HasClientTransactionId
+  with HasTileLinkBeatId
+  with HasClientId
+  with HasAcquireType
 
 /** Contains definitions of the the built-in Acquire types and a factory
   * for [[uncore.Acquire]]
@@ -273,6 +323,33 @@ object Acquire {
   def typesWithMultibeatData = Vec(putBlockType)
   def typesOnSubBlocks = Vec(putType, getType, putAtomicType)
 
+  /** Mapping between each built-in Acquire type and a built-in Grant type. */
+  def getBuiltInGrantType(a_type: UInt): UInt = {
+    MuxLookup(a_type, Grant.putAckType, Array(
+      Acquire.getType       -> Grant.getDataBeatType,
+      Acquire.getBlockType  -> Grant.getDataBlockType,
+      Acquire.putType       -> Grant.putAckType,
+      Acquire.putBlockType  -> Grant.putAckType,
+      Acquire.putAtomicType -> Grant.getDataBeatType,
+      Acquire.prefetchType  -> Grant.prefetchAckType))
+  }
+
+  def makeUnion(
+        a_type: UInt,
+        addr_byte: UInt,
+        operand_size: UInt,
+        opcode: UInt,
+        wmask: UInt,
+        alloc: Bool): UInt = {
+    MuxLookup(a_type, UInt(0), Array(
+      Acquire.getType       -> Cat(addr_byte, operand_size, opcode, alloc),
+      Acquire.getBlockType  -> Cat(operand_size, opcode, alloc),
+      Acquire.putType       -> Cat(wmask, alloc),
+      Acquire.putBlockType  -> Cat(wmask, alloc),
+      Acquire.putAtomicType -> Cat(addr_byte, operand_size, opcode, alloc),
+      Acquire.prefetchType  -> Cat(opcode, alloc)))
+  }
+
   def fullWriteMask(implicit p: Parameters) = SInt(-1, width = p(TLKey(p(TLId))).writeMaskBits).toUInt
 
   // Most generic constructor
@@ -295,11 +372,36 @@ object Acquire {
     acq.union := union
     acq
   }
+
   // Copy constructor
   def apply(a: Acquire): Acquire = {
     val acq = Wire(new Acquire()(a.p))
     acq := a
     acq
+  }
+}
+
+object BuiltInAcquireBuilder {
+  def apply(
+        a_type: UInt,
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt = UInt(0),
+        data: UInt = UInt(0),
+        addr_byte: UInt = UInt(0),
+        operand_size: UInt = MT_Q,
+        opcode: UInt = UInt(0),
+        wmask: UInt = UInt(0),
+        alloc: Bool = Bool(true))
+      (implicit p: Parameters): Acquire = {
+    Acquire(
+        is_builtin_type = Bool(true),
+        a_type = a_type,
+        client_xact_id = client_xact_id,
+        addr_block = addr_block,
+        addr_beat = addr_beat,
+        data = data,
+        union = Acquire.makeUnion(a_type, addr_byte, operand_size, opcode, wmask, alloc))
   }
 }
 
@@ -322,13 +424,13 @@ object Get {
         addr_beat: UInt,
         alloc: Bool = Bool(true))
       (implicit p: Parameters): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
+    BuiltInAcquireBuilder(
       a_type = Acquire.getType,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
-      union = Cat(MT_Q, M_XRD, alloc))
+      opcode = M_XRD,
+      alloc = alloc)
   }
   def apply(
         client_xact_id: UInt,
@@ -338,13 +440,15 @@ object Get {
         operand_size: UInt,
         alloc: Bool)
       (implicit p: Parameters): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
+    BuiltInAcquireBuilder(
       a_type = Acquire.getType,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
-      union = Cat(addr_byte, operand_size, M_XRD, alloc))
+      addr_byte = addr_byte, 
+      operand_size = operand_size,
+      opcode = M_XRD,
+      alloc = alloc)
   }
 }
 
@@ -363,12 +467,12 @@ object GetBlock {
         addr_block: UInt,
         alloc: Bool = Bool(true))
       (implicit p: Parameters): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
+    BuiltInAcquireBuilder(
       a_type = Acquire.getBlockType,
       client_xact_id = client_xact_id, 
       addr_block = addr_block,
-      union = Cat(MT_Q, M_XRD, alloc))
+      opcode = M_XRD,
+      alloc = alloc)
   }
 }
 
@@ -383,13 +487,11 @@ object GetPrefetch {
        client_xact_id: UInt,
        addr_block: UInt)
       (implicit p: Parameters): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
+    BuiltInAcquireBuilder(
       a_type = Acquire.prefetchType,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
-      addr_beat = UInt(0),
-      union = Cat(MT_Q, M_XRD, Bool(true)))
+      opcode = M_XRD)
   }
 }
 
@@ -413,14 +515,14 @@ object Put {
         wmask: Option[UInt]= None,
         alloc: Bool = Bool(true))
       (implicit p: Parameters): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
+    BuiltInAcquireBuilder(
       a_type = Acquire.putType,
       addr_block = addr_block,
       addr_beat = addr_beat,
       client_xact_id = client_xact_id,
       data = data,
-      union = Cat(wmask.getOrElse(Acquire.fullWriteMask), alloc))
+      wmask = wmask.getOrElse(Acquire.fullWriteMask),
+      alloc = alloc)
   }
 }
 
@@ -445,14 +547,14 @@ object PutBlock {
         data: UInt,
         wmask: UInt)
       (implicit p: Parameters): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
+    BuiltInAcquireBuilder(
       a_type = Acquire.putBlockType,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
       data = data,
-      union = Cat(wmask, (wmask != Acquire.fullWriteMask)))
+      wmask = wmask,
+      alloc = (wmask != Acquire.fullWriteMask))
   }
   def apply(
         client_xact_id: UInt,
@@ -461,14 +563,14 @@ object PutBlock {
         data: UInt,
         alloc: Bool = Bool(true))
       (implicit p: Parameters): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
+    BuiltInAcquireBuilder(
       a_type = Acquire.putBlockType,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
       data = data,
-      union = Cat(Acquire.fullWriteMask, alloc))
+      wmask = Acquire.fullWriteMask,
+      alloc = alloc)
   }
 }
 
@@ -483,13 +585,11 @@ object PutPrefetch {
         client_xact_id: UInt,
         addr_block: UInt)
       (implicit p: Parameters): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
+    BuiltInAcquireBuilder(
       a_type = Acquire.prefetchType,
       client_xact_id = client_xact_id,
       addr_block = addr_block,
-      addr_beat = UInt(0),
-      union = Cat(M_XWR, Bool(true)))
+      opcode = M_XWR)
   }
 }
 
@@ -513,14 +613,15 @@ object PutAtomic {
         operand_size: UInt,
         data: UInt)
       (implicit p: Parameters): Acquire = {
-    Acquire(
-      is_builtin_type = Bool(true),
+    BuiltInAcquireBuilder(
       a_type = Acquire.putAtomicType,
       client_xact_id = client_xact_id, 
       addr_block = addr_block, 
       addr_beat = addr_beat, 
       data = data,
-      union = Cat(addr_byte, operand_size, atomic_opcode, Bool(true)))
+      addr_byte = addr_byte,
+      operand_size = operand_size,
+      opcode = atomic_opcode)
   }
 }
 
@@ -529,14 +630,9 @@ object PutAtomic {
   * The available types of Probes are customized by a particular
   * [[uncore.CoherencePolicy]].
   */
-class Probe(implicit p: Parameters) extends ManagerToClientChannel()(p)
-    with HasCacheBlockAddress {
-  val p_type = UInt(width = tlCoh.probeTypeWidth)
-
-  def is(t: UInt) = p_type === t
-  def hasData(dummy: Int = 0) = Bool(false)
-  def hasMultibeatData(dummy: Int = 0) = Bool(false)
-}
+class Probe(implicit p: Parameters) extends ManagerToClientChannel
+  with HasCacheBlockAddress 
+  with HasProbeType
 
 /** [[uncore.Probe]] with an extra field stating its destination id */
 class ProbeToDst(implicit p: Parameters) extends Probe()(p) with HasClientId
@@ -573,34 +669,29 @@ object Probe {
   * a particular [[uncore.CoherencePolicy]]. Releases may contain data or may be
   * simple acknowledgements. Voluntary Releases are acknowledged with [[uncore.Grant Grants]].
   */
-class ReleaseMetadata(implicit p: Parameters) extends ClientToManagerChannel()(p)
+class ReleaseMetadata(implicit p: Parameters) extends ClientToManagerChannel
     with HasTileLinkBeatId
     with HasCacheBlockAddress 
-    with HasClientTransactionId {
-  val r_type = UInt(width = tlCoh.releaseTypeWidth)
-  val voluntary = Bool()
-
-  // Helper funcs
-  def is(t: UInt) = r_type === t
-  def hasData(dummy: Int = 0) = tlCoh.releaseTypesWithData.contains(r_type)
-  //TODO: Assumes all releases write back full cache blocks:
-  def hasMultibeatData(dummy: Int = 0) = Bool(tlDataBeats > 1) && tlCoh.releaseTypesWithData.contains(r_type)
-  def isVoluntary(dummy: Int = 0) = voluntary
-  def requiresAck(dummy: Int = 0) = !Bool(tlNetworkPreservesPointToPointOrdering)
+    with HasClientTransactionId 
+    with HasReleaseType {
   def full_addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, UInt(0, width = tlByteAddrBits))
 }
 
 /** [[uncore.ReleaseMetadata]] with an extra field containing the data beat */
-class Release(implicit p: Parameters) extends ReleaseMetadata()(p) with HasTileLinkData
+class Release(implicit p: Parameters) extends ReleaseMetadata
+  with HasTileLinkData
 
 /** [[uncore.ReleaseMetadata]] with an extra field containing the entire cache block */
-class BufferedRelease(implicit p: Parameters) extends ReleaseMetadata()(p) with HasTileLinkBlock
+class BufferedRelease(implicit p: Parameters) extends ReleaseMetadata
+  with HasTileLinkBlock
 
 /** [[uncore.Release]] with an extra field stating its source id */
-class ReleaseFromSrc(implicit p: Parameters) extends Release()(p) with HasClientId
+class ReleaseFromSrc(implicit p: Parameters) extends Release
+  with HasClientId
 
 /** [[uncore.BufferedRelease]] with an extra field stating its source id */
-class BufferedReleaseFromSrc(implicit p: Parameters) extends BufferedRelease()(p) with HasClientId
+class BufferedReleaseFromSrc(implicit p: Parameters) extends BufferedRelease
+  with HasClientId
 
 /** Contains a [[uncore.Release]] factory
   *
@@ -641,26 +732,11 @@ object Release {
   * coherence policies may also define custom Grant types. Grants may contain data
   * or may be simple acknowledgements. Grants are responded to with [[uncore.Finish]].
   */
-class GrantMetadata(implicit p: Parameters) extends ManagerToClientChannel()(p)
+class GrantMetadata(implicit p: Parameters) extends ManagerToClientChannel
     with HasTileLinkBeatId
     with HasClientTransactionId 
-    with HasManagerTransactionId {
-  val is_builtin_type = Bool()
-  val g_type = UInt(width = tlGrantTypeBits)
-
-  // Helper funcs
-  def isBuiltInType(dummy: Int = 0): Bool = is_builtin_type
-  def isBuiltInType(t: UInt): Bool = is_builtin_type && g_type === t 
-  def is(t: UInt):Bool = g_type === t
-  def hasData(dummy: Int = 0): Bool = Mux(isBuiltInType(),
-                                        Grant.typesWithData.contains(g_type),
-                                        tlCoh.grantTypesWithData.contains(g_type))
-  def hasMultibeatData(dummy: Int = 0): Bool = 
-    Bool(tlDataBeats > 1) && Mux(isBuiltInType(),
-                               Grant.typesWithMultibeatData.contains(g_type),
-                               tlCoh.grantTypesWithData.contains(g_type))
-  def isVoluntary(dummy: Int = 0): Bool = isBuiltInType() && (g_type === Grant.voluntaryAckType)
-  def requiresAck(dummy: Int = 0): Bool = !Bool(tlNetworkPreservesPointToPointOrdering) && !isVoluntary()
+    with HasManagerTransactionId
+    with HasGrantType {
   def makeFinish(dummy: Int = 0): Finish = {
     val f = Wire(new Finish)
     f.manager_xact_id := this.manager_xact_id
@@ -669,16 +745,20 @@ class GrantMetadata(implicit p: Parameters) extends ManagerToClientChannel()(p)
 }
 
 /** [[uncore.GrantMetadata]] with an extra field containing a single beat of data */
-class Grant(implicit p: Parameters) extends GrantMetadata()(p) with HasTileLinkData
+class Grant(implicit p: Parameters) extends GrantMetadata
+  with HasTileLinkData
 
 /** [[uncore.Grant]] with an extra field stating its destination */
-class GrantToDst(implicit p: Parameters) extends Grant()(p) with HasClientId
+class GrantToDst(implicit p: Parameters) extends Grant
+  with HasClientId
 
 /** [[uncore.GrantMetadata]] with an extra field containing an entire cache block */
-class BufferedGrant(implicit p: Parameters) extends GrantMetadata()(p) with HasTileLinkBlock
+class BufferedGrant(implicit p: Parameters) extends GrantMetadata
+  with HasTileLinkBlock
 
 /** [[uncore.BufferedGrant]] with an extra field stating its destination */
-class BufferedGrantToDst(implicit p: Parameters) extends BufferedGrant()(p) with HasClientId
+class BufferedGrantToDst(implicit p: Parameters) extends BufferedGrant
+  with HasClientId
 
 /** Contains definitions of the the built-in grant types and factories 
   * for [[uncore.Grant]] and [[uncore.GrantToDst]]
@@ -853,14 +933,6 @@ class ClientTileLinkIOWrapper(implicit p: Parameters) extends TLModule()(p) {
   io.out.probe.ready := Bool(true)
   io.out.release.valid := Bool(false)
 }
-
-/** Used to track metadata for transactions where multiple secondary misses have been merged
-  * and handled by a single transaction tracker.
-  */
-class SecondaryMissInfo(implicit p: Parameters) extends TLBundle()(p)
-    with HasTileLinkBeatId
-    with HasClientTransactionId
-// TODO: add a_type to merge e.g. Get+GetBlocks, and/or HasClientId
 
 /** A helper module that automatically issues [[uncore.Finish]] messages in repsonse
   * to [[uncore.Grant]] that it receives from a manager and forwards to a client
@@ -1264,8 +1336,10 @@ trait HasDataBeatCounters {
   }
 
   /** Counter for beats on outgoing [[chisel.DecoupledIO]] */
-  def connectOutgoingDataBeatCounter[T <: TileLinkChannel](in: DecoupledIO[T], beat: UInt = UInt(0)): (UInt, Bool) =
-    connectDataBeatCounter(in.fire(), in.bits, beat)
+  def connectOutgoingDataBeatCounter[T <: TileLinkChannel](
+      out: DecoupledIO[T],
+      beat: UInt = UInt(0)): (UInt, Bool) =
+    connectDataBeatCounter(out.fire(), out.bits, beat)
 
   /** Returns done but not cnt. Use the addr_beat subbundle instead of cnt for beats on 
     * incoming channels in case of network reordering.

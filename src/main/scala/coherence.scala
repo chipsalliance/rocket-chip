@@ -70,13 +70,13 @@ trait HasClientSideCoherencePolicy {
   // Determine which custom message type to use
   def getAcquireType(cmd: UInt, meta: ClientMetadata): UInt
   def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt
-  def getReleaseType(p: Probe, meta: ClientMetadata): UInt
+  def getReleaseType(p: HasProbeType, meta: ClientMetadata): UInt
 
   // Mutate ClientMetadata based on messages or cmds
   def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata): ClientMetadata
   def clientMetadataOnCacheControl(cmd: UInt, meta: ClientMetadata): ClientMetadata 
-  def clientMetadataOnGrant(incoming: Grant, cmd: UInt, meta: ClientMetadata): ClientMetadata 
-  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata): ClientMetadata 
+  def clientMetadataOnGrant(incoming: HasGrantType, cmd: UInt, meta: ClientMetadata): ClientMetadata 
+  def clientMetadataOnProbe(incoming: HasProbeType, meta: ClientMetadata): ClientMetadata 
 }
 
 /** This API contains all functions required for manager coherence agents.
@@ -90,18 +90,18 @@ trait HasManagerSideCoherencePolicy extends HasDirectoryRepresentation {
   def masterStateWidth = log2Ceil(nManagerStates)
 
   // Transaction probing logic
-  def requiresProbes(acq: AcquireMetadata, meta: ManagerMetadata): Bool
+  def requiresProbes(acq: HasAcquireType, meta: ManagerMetadata): Bool
   def requiresProbes(cmd: UInt, meta: ManagerMetadata): Bool
 
   // Determine which custom message type to use in response
   def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt
-  def getProbeType(acq: AcquireMetadata, meta: ManagerMetadata): UInt
-  def getGrantType(acq: AcquireMetadata, meta: ManagerMetadata): UInt
+  def getProbeType(acq: HasAcquireType, meta: ManagerMetadata): UInt
+  def getGrantType(acq: HasAcquireType, meta: ManagerMetadata): UInt
   def getExclusiveGrantType(): UInt
 
   // Mutate ManagerMetadata based on messages or cmds
-  def managerMetadataOnRelease(incoming: ReleaseMetadata, src: UInt, meta: ManagerMetadata): ManagerMetadata
-  def managerMetadataOnGrant(outgoing: GrantMetadata, dst: UInt, meta: ManagerMetadata) =
+  def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata): ManagerMetadata
+  def managerMetadataOnGrant(outgoing: HasGrantType, dst: UInt, meta: ManagerMetadata) =
     ManagerMetadata(sharers=Mux(outgoing.isBuiltInType(), // Assumes all built-ins are uncached
                                 meta.sharers,
                                 dir.push(meta.sharers, dst)))(meta.p)
@@ -151,7 +151,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
 
-  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt =
+  def getReleaseType(incoming: HasProbeType, meta: ClientMetadata): UInt =
     MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
       probeInvalidate -> getReleaseType(M_FLUSH, meta),
       probeCopy       -> getReleaseType(M_CLEAN, meta)))
@@ -161,17 +161,17 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def clientMetadataOnCacheControl(cmd: UInt, meta: ClientMetadata) =
     ClientMetadata(Mux(cmd === M_FLUSH, clientInvalid, meta.state))(meta.p)
 
-  def clientMetadataOnGrant(incoming: Grant, cmd: UInt, meta: ClientMetadata) =
+  def clientMetadataOnGrant(incoming: HasGrantType, cmd: UInt, meta: ClientMetadata) =
     ClientMetadata(Mux(incoming.isBuiltInType(), clientInvalid, clientValid))(meta.p)
 
-  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) =
+  def clientMetadataOnProbe(incoming: HasProbeType, meta: ClientMetadata) =
     ClientMetadata(Mux(incoming.p_type === probeInvalidate,
                        clientInvalid, meta.state))(meta.p)
 
   // Manager states and functions:
   val nManagerStates = 0 // We don't actually need any states for this protocol
 
-  def requiresProbes(a: AcquireMetadata, meta: ManagerMetadata) = !dir.none(meta.sharers)
+  def requiresProbes(a: HasAcquireType, meta: ManagerMetadata) = !dir.none(meta.sharers)
 
   def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 
@@ -179,7 +179,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     MuxLookup(cmd, probeCopy, Array(
       M_FLUSH -> probeInvalidate))
 
-  def getProbeType(a: AcquireMetadata, meta: ManagerMetadata): UInt =
+  def getProbeType(a: HasAcquireType, meta: ManagerMetadata): UInt =
     Mux(a.isBuiltInType(), 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.getBlockType -> probeCopy, 
@@ -189,10 +189,11 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         Acquire.putAtomicType -> probeInvalidate)), 
       probeInvalidate)
 
-  def getGrantType(a: AcquireMetadata, meta: ManagerMetadata): UInt = grantExclusive
+  def getGrantType(a: HasAcquireType, meta: ManagerMetadata): UInt =
+    Mux(a.isBuiltInType(), Acquire.getBuiltInGrantType(a.a_type), grantExclusive)
   def getExclusiveGrantType(): UInt = grantExclusive
 
-  def managerMetadataOnRelease(incoming: ReleaseMetadata, src: UInt, meta: ManagerMetadata) = {
+  def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
     MuxBundle(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
@@ -240,7 +241,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
 
-  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt =
+  def getReleaseType(incoming: HasProbeType, meta: ClientMetadata): UInt =
     MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
       probeInvalidate -> getReleaseType(M_FLUSH, meta),
       probeDowngrade  -> getReleaseType(M_PRODUCE, meta),
@@ -255,12 +256,12 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         M_FLUSH -> clientInvalid,
         M_CLEAN -> Mux(meta.state === clientExclusiveDirty, clientExclusiveClean, meta.state))))(meta.p)
 
-  def clientMetadataOnGrant(incoming: Grant, cmd: UInt, meta: ClientMetadata) =
+  def clientMetadataOnGrant(incoming: HasGrantType, cmd: UInt, meta: ClientMetadata) =
     ClientMetadata(
       Mux(incoming.isBuiltInType(), clientInvalid,
         Mux(isWrite(cmd), clientExclusiveDirty, clientExclusiveClean)))(meta.p)
 
-  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) =
+  def clientMetadataOnProbe(incoming: HasProbeType, meta: ClientMetadata) =
     ClientMetadata(
       MuxLookup(incoming.p_type, meta.state, Array(
         probeInvalidate -> clientInvalid,
@@ -270,7 +271,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   // Manager states and functions:
   val nManagerStates = 0 // We don't actually need any states for this protocol
 
-  def requiresProbes(a: AcquireMetadata, meta: ManagerMetadata) = !dir.none(meta.sharers)
+  def requiresProbes(a: HasAcquireType, meta: ManagerMetadata) = !dir.none(meta.sharers)
   def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 
   def getProbeType(cmd: UInt, meta: ManagerMetadata): UInt =
@@ -278,7 +279,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_FLUSH -> probeInvalidate,
       M_PRODUCE -> probeDowngrade))
 
-  def getProbeType(a: AcquireMetadata, meta: ManagerMetadata): UInt =
+  def getProbeType(a: HasAcquireType, meta: ManagerMetadata): UInt =
     Mux(a.isBuiltInType(), 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.getBlockType -> probeCopy, 
@@ -288,10 +289,11 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         Acquire.putAtomicType -> probeInvalidate)),
       probeInvalidate)
 
-  def getGrantType(a: AcquireMetadata, meta: ManagerMetadata): UInt = grantExclusive
+  def getGrantType(a: HasAcquireType, meta: ManagerMetadata): UInt =
+    Mux(a.isBuiltInType(), Acquire.getBuiltInGrantType(a.a_type), grantExclusive)
   def getExclusiveGrantType(): UInt = grantExclusive
 
-  def managerMetadataOnRelease(incoming: ReleaseMetadata, src: UInt, meta: ManagerMetadata) = {
+  def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
     MuxBundle(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
@@ -339,7 +341,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
 
-  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt =
+  def getReleaseType(incoming: HasProbeType, meta: ClientMetadata): UInt =
     MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
       probeInvalidate -> getReleaseType(M_FLUSH, meta),
       probeDowngrade  -> getReleaseType(M_PRODUCE, meta),
@@ -355,7 +357,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         M_PRODUCE -> Mux(clientStatesWithWritePermission.contains(meta.state), 
                       clientShared, meta.state))))(meta.p)
 
-  def clientMetadataOnGrant(incoming: Grant, cmd: UInt, meta: ClientMetadata) =
+  def clientMetadataOnGrant(incoming: HasGrantType, cmd: UInt, meta: ClientMetadata) =
     ClientMetadata(
       Mux(incoming.isBuiltInType(), clientInvalid,
         MuxLookup(incoming.g_type, clientInvalid, Array(
@@ -363,7 +365,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
           grantExclusive -> clientExclusiveDirty,
           grantExclusiveAck -> clientExclusiveDirty))))(meta.p)
 
-  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) = 
+  def clientMetadataOnProbe(incoming: HasProbeType, meta: ClientMetadata) = 
     ClientMetadata(
       MuxLookup(incoming.p_type, meta.state, Array(
         probeInvalidate -> clientInvalid,
@@ -376,7 +378,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
                          //        notification msg to track clean drops)
                          //        Also could avoid probes on outer WBs.
 
-  def requiresProbes(a: AcquireMetadata, meta: ManagerMetadata) =
+  def requiresProbes(a: HasAcquireType, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false), 
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
         Mux(a.isBuiltInType(), a.hasData(), a.a_type != acquireShared)))
@@ -388,7 +390,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_FLUSH -> probeInvalidate,
       M_PRODUCE -> probeDowngrade))
 
-  def getProbeType(a: AcquireMetadata, meta: ManagerMetadata): UInt =
+  def getProbeType(a: HasAcquireType, meta: ManagerMetadata): UInt =
     Mux(a.isBuiltInType(), 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.getBlockType -> probeCopy, 
@@ -400,13 +402,14 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         acquireShared -> probeDowngrade,
         acquireExclusive -> probeInvalidate)))
 
-  def getGrantType(a: AcquireMetadata, meta: ManagerMetadata): UInt =
-    Mux(a.a_type === acquireShared,
-      Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
-      grantExclusive)
+  def getGrantType(a: HasAcquireType, meta: ManagerMetadata): UInt =
+    Mux(a.isBuiltInType(), Acquire.getBuiltInGrantType(a.a_type),
+      Mux(a.a_type === acquireShared,
+        Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
+        grantExclusive))
   def getExclusiveGrantType(): UInt = grantExclusive
 
-  def managerMetadataOnRelease(incoming: ReleaseMetadata, src: UInt, meta: ManagerMetadata) = {
+  def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
     MuxBundle(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
@@ -441,7 +444,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
   def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
 
-  def isValid (meta: ClientMetadata): Bool = meta.state != clientInvalid
+  def isValid(meta: ClientMetadata): Bool = meta.state != clientInvalid
 
   def getAcquireType(cmd: UInt, meta: ClientMetadata): UInt =
     Mux(isWriteIntent(cmd), acquireExclusive, acquireShared)
@@ -454,7 +457,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
 
-  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt =
+  def getReleaseType(incoming: HasProbeType, meta: ClientMetadata): UInt =
     MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
       probeInvalidate -> getReleaseType(M_FLUSH, meta),
       probeDowngrade  -> getReleaseType(M_PRODUCE, meta),
@@ -472,7 +475,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         M_CLEAN   -> Mux(meta.state === clientExclusiveDirty,
                       clientExclusiveClean, meta.state))))(meta.p)
 
-  def clientMetadataOnGrant(incoming: Grant, cmd: UInt, meta: ClientMetadata) =
+  def clientMetadataOnGrant(incoming: HasGrantType, cmd: UInt, meta: ClientMetadata) =
     ClientMetadata(
       Mux(incoming.isBuiltInType(), clientInvalid,
         MuxLookup(incoming.g_type, clientInvalid, Array(
@@ -480,7 +483,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
           grantExclusive -> Mux(isWrite(cmd), clientExclusiveDirty, clientExclusiveClean),
           grantExclusiveAck -> clientExclusiveDirty))))(meta.p)
 
-  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) =
+  def clientMetadataOnProbe(incoming: HasProbeType, meta: ClientMetadata) =
     ClientMetadata(
       MuxLookup(incoming.p_type, meta.state, Array(
         probeInvalidate -> clientInvalid,
@@ -493,7 +496,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
                          //        notification msg to track clean drops)
                          //        Also could avoid probes on outer WBs.
 
-  def requiresProbes(a: AcquireMetadata, meta: ManagerMetadata) =
+  def requiresProbes(a: HasAcquireType, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false), 
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
         Mux(a.isBuiltInType(), a.hasData(), a.a_type != acquireShared)))
@@ -505,7 +508,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       M_FLUSH -> probeInvalidate,
       M_PRODUCE -> probeDowngrade))
 
-  def getProbeType(a: AcquireMetadata, meta: ManagerMetadata): UInt =
+  def getProbeType(a: HasAcquireType, meta: ManagerMetadata): UInt =
     Mux(a.isBuiltInType(), 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.getBlockType -> probeCopy, 
@@ -517,13 +520,14 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         acquireShared -> probeDowngrade,
         acquireExclusive -> probeInvalidate)))
 
-  def getGrantType(a: AcquireMetadata, meta: ManagerMetadata): UInt =
-    Mux(a.a_type === acquireShared,
-      Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
-      grantExclusive)
+  def getGrantType(a: HasAcquireType, meta: ManagerMetadata): UInt =
+    Mux(a.isBuiltInType(), Acquire.getBuiltInGrantType(a.a_type),
+      Mux(a.a_type === acquireShared,
+        Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
+        grantExclusive))
   def getExclusiveGrantType(): UInt = grantExclusive
 
-  def managerMetadataOnRelease(incoming: ReleaseMetadata, src: UInt, meta: ManagerMetadata) = {
+  def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
     MuxBundle(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
@@ -569,7 +573,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
       M_CLEAN   -> Mux(dirty, releaseCopyData, releaseCopyAck)))
   }
 
-  def getReleaseType(incoming: Probe, meta: ClientMetadata): UInt = {
+  def getReleaseType(incoming: HasProbeType, meta: ClientMetadata): UInt = {
     val dirty = clientStatesWithDirtyData.contains(meta.state)
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
       probeInvalidate -> Mux(Vec(clientExclusiveDirty, clientMigratoryDirty).contains(meta.state),
@@ -605,7 +609,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
                        clientExclusiveDirty -> clientExclusiveClean,
                        clientMigratoryDirty -> clientMigratoryClean)))))(meta.p)
 
-  def clientMetadataOnGrant(incoming: Grant, cmd: UInt, meta: ClientMetadata) =
+  def clientMetadataOnGrant(incoming: HasGrantType, cmd: UInt, meta: ClientMetadata) =
     ClientMetadata(
       Mux(incoming.isBuiltInType(), clientInvalid,
         MuxLookup(incoming.g_type, clientInvalid, Array(
@@ -615,7 +619,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
           grantReadMigratory -> Mux(isWrite(cmd),
                                   clientMigratoryDirty, clientMigratoryClean)))))(meta.p)
 
-  def clientMetadataOnProbe(incoming: Probe, meta: ClientMetadata) =
+  def clientMetadataOnProbe(incoming: HasProbeType, meta: ClientMetadata) =
     ClientMetadata(
       MuxLookup(incoming.p_type, meta.state, Array(
         probeInvalidate -> clientInvalid,
@@ -631,7 +635,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   // Manager states and functions:
   val nManagerStates = 0 // TODO: we could add some states to reduce the number of message types
 
-  def requiresProbes(a: AcquireMetadata, meta: ManagerMetadata) =
+  def requiresProbes(a: HasAcquireType, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false),
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
         Mux(a.isBuiltInType(), a.hasData(), a.a_type != acquireShared)))
@@ -643,7 +647,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
       M_FLUSH -> probeInvalidate,
       M_PRODUCE -> probeDowngrade))
 
-  def getProbeType(a: AcquireMetadata, meta: ManagerMetadata): UInt =
+  def getProbeType(a: HasAcquireType, meta: ManagerMetadata): UInt =
     Mux(a.isBuiltInType(), 
       MuxLookup(a.a_type, probeCopy, Array(
         Acquire.getBlockType -> probeCopy, 
@@ -656,14 +660,15 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
         acquireExclusive -> probeInvalidate, 
         acquireInvalidateOthers -> probeInvalidateOthers)))
 
-  def getGrantType(a: AcquireMetadata, meta: ManagerMetadata): UInt =
+  def getGrantType(a: HasAcquireType, meta: ManagerMetadata): UInt =
+    Mux(a.isBuiltInType(), Acquire.getBuiltInGrantType(a.a_type),
       MuxLookup(a.a_type, grantShared, Array(
         acquireShared    -> Mux(!dir.none(meta.sharers), grantShared, grantExclusive),
         acquireExclusive -> grantExclusive,                                            
-        acquireInvalidateOthers -> grantExclusiveAck))  //TODO: add this to MESI for broadcast?
+        acquireInvalidateOthers -> grantExclusiveAck)))  //TODO: add this to MESI for broadcast?
   def getExclusiveGrantType(): UInt = grantExclusive
 
-  def managerMetadataOnRelease(incoming: ReleaseMetadata, src: UInt, meta: ManagerMetadata) = {
+  def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
     MuxBundle(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
