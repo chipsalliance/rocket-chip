@@ -231,7 +231,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   // Create a converter between TileLinkIO and MemIO for each channel
   val outerTLParams = p.alterPartial({ case TLId => "L2toMC" })
   val outermostTLParams = p.alterPartial({case TLId => "Outermost"})
-  val backendBuffering = TileLinkDepths(0,0,0,0,0)
+  val backendBuffering = TileLinkDepths(0,0,0,2,0)
 
   val addrMap = p(GlobalAddrMap)
   val addrHashMap = new AddrHashMap(addrMap)
