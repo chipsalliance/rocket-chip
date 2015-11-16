@@ -174,9 +174,9 @@ class DefaultConfig extends Config (
     case "NTILES" => 1
     case "NBANKS_PER_MEM_CHANNEL" => 1
     case "L1D_MSHRS" => 2
-    case "L1D_SETS" => 64
+    case "L1D_SETS" => 128
     case "L1D_WAYS" => 4
-    case "L1I_SETS" => 64
+    case "L1I_SETS" => 128
     case "L1I_WAYS" => 4
   }
 )
