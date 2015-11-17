@@ -213,7 +213,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   def sharerToClientId(sharerId: UInt) = sharerId
   def addrToBank(addr: Bits): UInt = if(nBanks > 1) addr(lsb + log2Up(nBanks) - 1, lsb) else UInt(0)
   val preBuffering = TileLinkDepths(2,2,2,2,2)
-  val postBuffering = TileLinkDepths(0,0,1,0,0) //TODO: had EOS24 crit path on inner.release
+  val postBuffering = TileLinkDepths(2,2,2,2,2)
   val l1tol2net = Module(
     if(nBanks == 1) new RocketChipTileLinkArbiter(sharerToClientId, preBuffering, postBuffering)
     else new RocketChipTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering, postBuffering))
@@ -231,7 +231,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   // Create a converter between TileLinkIO and MemIO for each channel
   val outerTLParams = p.alterPartial({ case TLId => "L2toMC" })
   val outermostTLParams = p.alterPartial({case TLId => "Outermost"})
-  val backendBuffering = TileLinkDepths(0,0,0,2,0)
+  val backendBuffering = TileLinkDepths(2,0,0,2,0)
 
   val addrMap = p(GlobalAddrMap)
   val addrHashMap = new AddrHashMap(addrMap)
