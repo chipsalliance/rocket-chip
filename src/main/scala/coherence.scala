@@ -186,6 +186,8 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         Acquire.putBlockType -> probeInvalidate,
         Acquire.getType -> probeCopy, 
         Acquire.putType -> probeInvalidate,
+        Acquire.getPrefetchType -> probeCopy,
+        Acquire.putPrefetchType -> probeInvalidate,
         Acquire.putAtomicType -> probeInvalidate)), 
       probeInvalidate)
 
@@ -286,6 +288,8 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         Acquire.putBlockType -> probeInvalidate,
         Acquire.getType -> probeCopy, 
         Acquire.putType -> probeInvalidate,
+        Acquire.getPrefetchType -> probeCopy,
+        Acquire.putPrefetchType -> probeInvalidate,
         Acquire.putAtomicType -> probeInvalidate)),
       probeInvalidate)
 
@@ -397,6 +401,8 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         Acquire.putBlockType -> probeInvalidate,
         Acquire.getType -> probeCopy, 
         Acquire.putType -> probeInvalidate,
+        Acquire.getPrefetchType -> probeCopy,
+        Acquire.putPrefetchType -> probeInvalidate,
         Acquire.putAtomicType -> probeInvalidate)),
       MuxLookup(a.a_type, probeCopy, Array(
         acquireShared -> probeDowngrade,
@@ -515,6 +521,8 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
         Acquire.putBlockType -> probeInvalidate,
         Acquire.getType -> probeCopy, 
         Acquire.putType -> probeInvalidate,
+        Acquire.getPrefetchType -> probeCopy,
+        Acquire.putPrefetchType -> probeInvalidate,
         Acquire.putAtomicType -> probeInvalidate)),
       MuxLookup(a.a_type, probeCopy, Array(
         acquireShared -> probeDowngrade,
@@ -654,6 +662,8 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
         Acquire.putBlockType -> probeInvalidate,
         Acquire.getType -> probeCopy, 
         Acquire.putType -> probeInvalidate,
+        Acquire.getPrefetchType -> probeCopy,
+        Acquire.putPrefetchType -> probeInvalidate,
         Acquire.putAtomicType -> probeInvalidate)),
       MuxLookup(a.a_type, probeCopy, Array(
         acquireShared -> probeDowngrade,
