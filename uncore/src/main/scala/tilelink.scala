@@ -79,6 +79,7 @@ trait HasTileLinkParameters {
   val tlNetworkPreservesPointToPointOrdering = false
   val tlNetworkDoesNotInterleaveBeats = true
   val amoAluOperandBits = p(AmoAluOperandBits)
+  val amoAluOperandBytes = amoAluOperandBits/8
 }
 
 abstract class TLModule(implicit val p: Parameters) extends Module
@@ -162,9 +163,9 @@ trait HasAcquireUnion extends HasTileLinkParameters {
   def op_size(dummy: Int = 0) = union(addrByteOff-1, opSizeOff)
   /** Byte address for [[uncore.PutAtomic]] operand */
   def addr_byte(dummy: Int = 0) = union(addrByteMSB-1, addrByteOff)
-  def amo_offset(dummy: Int = 0) = addr_byte()(tlByteAddrBits-1, log2Up(amoAluOperandBits/8))
+  def amo_offset(dummy: Int = 0) = addr_byte()(tlByteAddrBits-1, log2Up(amoAluOperandBytes))
   /** Bit offset of [[uncore.PutAtomic]] operand */
-  def amo_shift_bits(dummy: Int = 0) = UInt(amoAluOperandBits)*amo_offset()
+  def amo_shift_bytes(dummy: Int = 0) = UInt(amoAluOperandBytes)*amo_offset()
   /** Write mask for [[uncore.Put]], [[uncore.PutBlock]], [[uncore.PutAtomic]] */
   def wmask(dummy: Int = 0): UInt = {
     Mux(isBuiltInType(Acquire.putAtomicType), 
