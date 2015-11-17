@@ -203,6 +203,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mtdeleg -> UInt(0),
     CSRs.mreset -> UInt(0),
     CSRs.mtvec -> UInt(MTVEC),
+    CSRs.miobase -> UInt(p(junctions.MMIOBase)),
+    CSRs.mipi -> UInt(0),
     CSRs.mip -> reg_mip.toBits,
     CSRs.mie -> reg_mie.toBits,
     CSRs.mscratch -> reg_mscratch,
@@ -211,7 +213,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mcause -> reg_mcause,
     CSRs.mtimecmp -> reg_mtimecmp,
     CSRs.mhartid -> io.host.id,
-    CSRs.send_ipi -> io.host.id, /* don't care */
     CSRs.stats -> reg_stats,
     CSRs.mtohost -> reg_tohost,
     CSRs.mfromhost -> reg_fromhost)
@@ -353,9 +354,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
 
   io.time := reg_cycle
-  io.host.ipi_req.valid := cpu_wen && decoded_addr(CSRs.send_ipi)
-  io.host.ipi_req.bits := io.rw.wdata
-  io.csr_replay := io.host.ipi_req.valid && !io.host.ipi_req.ready
+  io.csr_replay := false
   io.csr_stall := reg_wfi
 
   when (host_csr_req_fire && !host_csr_bits.rw && decoded_addr(CSRs.mtohost)) { reg_tohost := UInt(0) }
@@ -399,6 +398,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
         reg_mip.stip := new_mip.stip
       }
       reg_mip.msip := new_mip.msip
+    }
+    when (decoded_addr(CSRs.mipi)) {
+      reg_mip.msip := true
     }
     when (decoded_addr(CSRs.mie)) {
       val new_mie = new MIP().fromBits(wdata)
@@ -448,9 +450,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       when (decoded_addr(CSRs.stvec))    { reg_stvec := ~(~wdata | (coreInstBytes-1)) }
     }
   }
-
-  io.host.ipi_rep.ready := true
-  when (io.host.ipi_rep.valid) { reg_mip.msip := true }
 
   when(this.reset) {
     reg_mstatus.zero1 := 0
