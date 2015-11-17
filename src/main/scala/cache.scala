@@ -541,7 +541,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val xact_old_meta = Reg{ new L2Metadata }
   val pending_coh = Reg{ xact_old_meta.coh }
   val xact_allocate = Reg{ Bool() }
-  val xact_amo_shift_bits =  Reg{ UInt() }
+  val xact_amo_shift_bytes =  Reg{ UInt() }
   val xact_op_code =  Reg{ UInt() }
   val xact_addr_byte =  Reg{ UInt() }
   val xact_op_size =  Reg{ UInt() }
@@ -629,12 +629,12 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   def mergeData(dataBits: Int)(beat: UInt, incoming: UInt) {
     val old_data = incoming     // Refilled, written back, or de-cached data
     val new_data = data_buffer(beat) // Newly Put data is already in the buffer
-    amoalu.io.lhs := old_data >> xact_amo_shift_bits
-    amoalu.io.rhs := new_data >> xact_amo_shift_bits
+    amoalu.io.lhs := old_data >> (xact_amo_shift_bytes << 3)
+    amoalu.io.rhs := new_data >> (xact_amo_shift_bytes << 3)
     val wmask = FillInterleaved(8, wmask_buffer(beat))
     data_buffer(beat) := ~wmask & old_data |
                           wmask & Mux(xact.isBuiltInType(Acquire.putAtomicType),
-                                        amoalu.io.out << xact_amo_shift_bits,
+                                        amoalu.io.out << (xact_amo_shift_bytes << 3),
                                         new_data)
     wmask_buffer(beat) := ~UInt(0, wmask_buffer.head.getWidth)
     when(xact.is(Acquire.putAtomicType) && xact.addr_beat === beat) { amo_result := old_data }
@@ -853,7 +853,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   when(state === s_idle && io.inner.acquire.valid) {
     xact_addr_block := io.iacq().addr_block
     xact_allocate := io.iacq().allocate()
-    xact_amo_shift_bits := io.iacq().amo_shift_bits()
+    xact_amo_shift_bytes := io.iacq().amo_shift_bytes()
     xact_op_code := io.iacq().op_code()
     xact_addr_byte := io.iacq().addr_byte()
     xact_op_size := io.iacq().op_size()
