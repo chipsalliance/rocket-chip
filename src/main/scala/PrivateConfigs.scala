@@ -85,6 +85,12 @@ class With4L2AcquireXacts extends Config(
   }
 )
 
+class With8L2AcquireXacts extends Config(
+  (pname,site,here) => pname match {
+    case NAcquireTransactors => 8
+  }
+)
+
 class With2Lanes extends Config(
   (pname,site,here) => pname match {
     case HwachaNLanes => 2
@@ -103,14 +109,22 @@ class With32BtbEntires extends Config(
   }
 )
 
+class Process28nmConfig extends Config(
+  (pname,site,here) => pname match {
+    case SFMALatency => 3
+    case DFMALatency => 4
+  }
+)
+
 class ISCA2016Config extends Config(
+  new Process28nmConfig ++
   new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
-  new With4L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
+  new With8L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
     // WithoutBackupMemoryPort not included here because it doesn't have knobs.
-    case x => (new Config(new With2MemoryChannels ++ new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
+    case x => (new Config(new With2MemoryChannels ++ new With2BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
   }
 
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = {
