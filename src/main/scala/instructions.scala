@@ -299,7 +299,8 @@ object CSRs {
   val mtohost = 0x780
   val mfromhost = 0x781
   val mreset = 0x782
-  val send_ipi = 0x783
+  val mipi = 0x783
+  val miobase = 0x784
   val cycleh = 0xc80
   val timeh = 0xc81
   val instreth = 0xc82
@@ -367,7 +368,8 @@ object CSRs {
     res += mtohost
     res += mfromhost
     res += mreset
-    res += send_ipi
+    res += mipi
+    res += miobase
     res.toArray
   }
   val all32 = {
