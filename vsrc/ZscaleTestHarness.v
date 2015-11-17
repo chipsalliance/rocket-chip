@@ -25,14 +25,7 @@ module ZscaleTestHarness;
     .io_host_csr_req_bits_data({dummy, 32'd0}),
     .io_host_csr_resp_ready(1'b1),
     .io_host_csr_resp_valid(csr_resp_valid),
-    .io_host_csr_resp_bits({dummy, csr_resp_bits}),
-    
-    .io_host_ipi_req_ready(1'b1),
-    .io_host_ipi_req_valid(),
-    .io_host_ipi_req_bits(),
-    .io_host_ipi_rep_ready(),
-    .io_host_ipi_rep_valid(1'b0),
-    .io_host_ipi_rep_bits()
+    .io_host_csr_resp_bits({dummy, csr_resp_bits})
   );
 
   reg [1023:0] loadmem = 0;

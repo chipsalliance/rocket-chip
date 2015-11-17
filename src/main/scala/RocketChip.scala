@@ -101,8 +101,6 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
       tile.io.host.reset := Reg(next=Reg(next=hl.reset))
       tile.io.host.csr.req <> Queue(hl.csr.req)
       hl.csr.resp <> Queue(tile.io.host.csr.resp)
-      hl.ipi_req <> Queue(tile.io.host.ipi_req)
-      tile.io.host.ipi_rep <> Queue(hl.ipi_rep)
       hl.debug_stats_csr := tile.io.host.debug_stats_csr
   }
 
@@ -151,8 +149,6 @@ class Uncore(implicit val p: Parameters) extends Module
   for (i <- 0 until nTiles) {
     io.htif(i).reset := htif.io.cpu(i).reset
     io.htif(i).id := htif.io.cpu(i).id
-    htif.io.cpu(i).ipi_req <> io.htif(i).ipi_req
-    io.htif(i).ipi_rep <> htif.io.cpu(i).ipi_rep
     htif.io.cpu(i).debug_stats_csr <> io.htif(i).debug_stats_csr
 
     val csr_arb = Module(new SMIArbiter(2, xLen, csrAddrBits))
