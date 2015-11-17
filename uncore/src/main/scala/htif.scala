@@ -41,8 +41,6 @@ class HtifIO(implicit p: Parameters) extends HtifBundle()(p) {
   val reset = Bool(INPUT)
   val id = UInt(INPUT, log2Up(nCores))
   val csr = new SMIIO(scrDataBits, 12).flip
-  val ipi_req = Decoupled(Bits(width = log2Up(nCores)))
-  val ipi_rep = Decoupled(Bool()).flip
   val debug_stats_csr = Bool(OUTPUT)
     // wired directly to stats register
     // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work
@@ -176,7 +174,6 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
   val csrReadData = Reg(Bits(width = io.cpu(0).csr.resp.bits.getWidth))
   for (i <- 0 until nCores) {
     val my_reset = Reg(init=Bool(true))
-    val my_ipi = Reg(init=Bool(false))
 
     val cpu = io.cpu(i)
     val me = csr_coreid === UInt(i)
@@ -185,17 +182,6 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
     cpu.csr.req.bits.addr := csr_addr
     cpu.csr.req.bits.data := csr_wdata
     cpu.reset := my_reset
-
-    when (cpu.ipi_rep.ready) {
-      my_ipi := Bool(false)
-    }
-    cpu.ipi_rep.valid := my_ipi
-    cpu.ipi_req.ready := Bool(true)
-    for (j <- 0 until nCores) {
-      when (io.cpu(j).ipi_req.valid && io.cpu(j).ipi_req.bits === UInt(i)) {
-        my_ipi := Bool(true)
-      }
-    }
 
     when (cpu.csr.req.fire()) { state := state_csr_resp }
 
