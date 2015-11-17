@@ -194,7 +194,8 @@ trait HasAcquireType extends HasTileLinkParameters {
   def isSubBlockType(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesOnSubBlocks.contains(a_type) 
 
   /** Is this message a built-in prefetch message */
-  def isPrefetch(dummy: Int = 0): Bool = isBuiltInType() && is(Acquire.prefetchType) 
+  def isPrefetch(dummy: Int = 0): Bool = isBuiltInType() &&
+                                           (is(Acquire.getPrefetchType) || is(Acquire.putPrefetchType))
 
   /** Does this message contain data? Assumes that no custom message types have data. */
   def hasData(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesWithData.contains(a_type)
@@ -314,12 +315,13 @@ class SecondaryMissInfo(implicit p: Parameters) extends TLBundle
 object Acquire {
   val nBuiltInTypes = 5
   //TODO: Use Enum
-  def getType       = UInt("b000") // Get a single beat of data
-  def getBlockType  = UInt("b001") // Get a whole block of data
-  def putType       = UInt("b010") // Put a single beat of data
-  def putBlockType  = UInt("b011") // Put a whole block of data
-  def putAtomicType = UInt("b100") // Perform an atomic memory op
-  def prefetchType  = UInt("b101") // Prefetch a whole block of data
+  def getType         = UInt("b000") // Get a single beat of data
+  def getBlockType    = UInt("b001") // Get a whole block of data
+  def putType         = UInt("b010") // Put a single beat of data
+  def putBlockType    = UInt("b011") // Put a whole block of data
+  def putAtomicType   = UInt("b100") // Perform an atomic memory op
+  def getPrefetchType = UInt("b101") // Prefetch a whole block of data
+  def putPrefetchType = UInt("b110") // Prefetch a whole block of data, with intent to write
   def typesWithData = Vec(putType, putBlockType, putAtomicType)
   def typesWithMultibeatData = Vec(putBlockType)
   def typesOnSubBlocks = Vec(putType, getType, putAtomicType)
@@ -332,7 +334,8 @@ object Acquire {
       Acquire.putType       -> Grant.putAckType,
       Acquire.putBlockType  -> Grant.putAckType,
       Acquire.putAtomicType -> Grant.getDataBeatType,
-      Acquire.prefetchType  -> Grant.prefetchAckType))
+      Acquire.getPrefetchType -> Grant.prefetchAckType,
+      Acquire.putPrefetchType -> Grant.prefetchAckType))
   }
 
   def makeUnion(
@@ -348,7 +351,8 @@ object Acquire {
       Acquire.putType       -> Cat(wmask, alloc),
       Acquire.putBlockType  -> Cat(wmask, alloc),
       Acquire.putAtomicType -> Cat(addr_byte, operand_size, opcode, alloc),
-      Acquire.prefetchType  -> Cat(opcode, alloc)))
+      Acquire.getPrefetchType -> Cat(M_XRD, alloc),
+      Acquire.putPrefetchType -> Cat(M_XWR, alloc)))
   }
 
   def fullWriteMask(implicit p: Parameters) = SInt(-1, width = p(TLKey(p(TLId))).writeMaskBits).toUInt
@@ -489,10 +493,9 @@ object GetPrefetch {
        addr_block: UInt)
       (implicit p: Parameters): Acquire = {
     BuiltInAcquireBuilder(
-      a_type = Acquire.prefetchType,
+      a_type = Acquire.getPrefetchType,
       client_xact_id = client_xact_id,
-      addr_block = addr_block,
-      opcode = M_XRD)
+      addr_block = addr_block)
   }
 }
 
@@ -587,10 +590,9 @@ object PutPrefetch {
         addr_block: UInt)
       (implicit p: Parameters): Acquire = {
     BuiltInAcquireBuilder(
-      a_type = Acquire.prefetchType,
+      a_type = Acquire.putPrefetchType,
       client_xact_id = client_xact_id,
-      addr_block = addr_block,
-      opcode = M_XWR)
+      addr_block = addr_block)
   }
 }
 

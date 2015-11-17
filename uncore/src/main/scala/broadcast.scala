@@ -219,7 +219,7 @@ class BroadcastAcquireTracker(trackerId: Int)
   val coh = ManagerMetadata.onReset
 
   assert(!(state != s_idle && xact.isBuiltInType() && 
-      Vec(Acquire.putAtomicType, Acquire.prefetchType).contains(xact.a_type)),
+      Vec(Acquire.putAtomicType, Acquire.getPrefetchType, Acquire.putPrefetchType).contains(xact.a_type)),
     "Broadcast Hub does not support PutAtomics or prefetches") // TODO
 
   val release_count = Reg(init=UInt(0, width = log2Up(io.inner.tlNCachingClients+1)))

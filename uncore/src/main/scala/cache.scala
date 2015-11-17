@@ -663,10 +663,11 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     val allowedTypes = List((Acquire.getType, Acquire.getType),
                        (Acquire.putType, Acquire.putType),
                        (Acquire.putBlockType, Acquire.putBlockType),
-                       (Acquire.prefetchType, Acquire.prefetchType),
-                       (Acquire.prefetchType, Acquire.getType),
-                       (Acquire.prefetchType, Acquire.putType),
-                       (Acquire.prefetchType, Acquire.putBlockType))
+                       (Acquire.getPrefetchType, Acquire.getPrefetchType),
+                       (Acquire.putPrefetchType, Acquire.putPrefetchType),
+                       (Acquire.getPrefetchType, Acquire.getType),
+                       (Acquire.putPrefetchType, Acquire.putType),
+                       (Acquire.putPrefetchType, Acquire.putBlockType))
     allowedTypes.map { case(a, b) => xact.isBuiltInType(a) && sec.isBuiltInType(b) }.reduce(_||_) &&
       xact_op_code === sec.op_code() &&
       sec.conflicts(xact_addr_block) &&
