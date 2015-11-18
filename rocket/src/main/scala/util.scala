@@ -21,6 +21,12 @@ object Util {
   implicit def booleanToIntConv(x: Boolean) = new AnyRef {
     def toInt: Int = if (x) 1 else 0
   }
+
+  def minUInt(values: Seq[UInt]): UInt =
+    values.reduce((a, b) => Mux(a < b, a, b))
+
+  def minUInt(first: UInt, rest: UInt*): UInt =
+    minUInt(first +: rest.toSeq)
 }
 
 import Util._

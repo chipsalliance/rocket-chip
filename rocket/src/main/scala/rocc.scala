@@ -50,6 +50,8 @@ class RoCCInterface(implicit p: Parameters) extends Bundle {
   val fpu_req = Decoupled(new FPInput)
   val fpu_resp = Decoupled(new FPResult).flip
   val exception = Bool(INPUT)
+
+  val dma = new DmaIO
 }
 
 abstract class RoCC(implicit p: Parameters) extends CoreModule()(p) {
