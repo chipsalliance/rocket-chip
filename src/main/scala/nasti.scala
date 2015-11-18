@@ -482,47 +482,6 @@ object NastiMultiChannelRouter {
   }
 }
 
-
-class NastiMultiChannelRouter(nChannels: Int)
-    (implicit p: Parameters) extends NastiModule {
-  val io = new Bundle {
-    val master = (new NastiIO).flip
-    val slaves = Vec(new NastiIO, nChannels)
-  }
-
-  require(isPow2(nChannels), "Number of channels must be power of 2")
-
-  if (nChannels == 1) {
-    io.slaves.head <> io.master
-  } else {
-    val dataBytes = p(MIFDataBits) * p(MIFDataBeats) / 8
-    val selOffset = log2Up(dataBytes)
-    val selBits = log2Ceil(nChannels)
-    val blockOffset = selOffset + selBits
-
-    // Consecutive blocks route to alternating channels
-    val routeSel = (addr: UInt) => {
-      val sel = addr(blockOffset - 1, selOffset)
-      Vec.tabulate(nChannels)(i => sel === UInt(i)).toBits
-    }
-
-    val router = Module(new NastiRouter(nChannels, routeSel))
-    router.io.master <> io.master
-
-    def cutSelectBits(addr: UInt): UInt = {
-      Cat(addr(nastiXAddrBits - 1, blockOffset),
-          addr(selOffset - 1, 0))
-    }
-
-    io.slaves.zip(router.io.slave).foreach { case (outer, inner) =>
-      // Cut the selection bits out of the slave address channels
-      outer <> inner
-      outer.ar.bits.addr := cutSelectBits(inner.ar.bits.addr)
-      outer.aw.bits.addr := cutSelectBits(inner.aw.bits.addr)
-    }
-  }
-}
-
 class NastiInterconnectIO(val nMasters: Int, val nSlaves: Int)
                          (implicit p: Parameters) extends Bundle {
   /* This is a bit confusing. The interconnect is a slave to the masters and
@@ -545,26 +504,26 @@ class NastiRecursiveInterconnect(
     val nSlaves: Int,
     addrmap: AddrMap,
     base: BigInt = 0)
-    (implicit p: Parameters) extends NastiInterconnect {
+    (implicit p: Parameters) extends NastiInterconnect()(p) {
   var lastEnd = base
   var slaveInd = 0
   val levelSize = addrmap.size
   val realAddrMap = new ArraySeq[(BigInt, BigInt)](addrmap.size)
 
-  addrmap.zipWithIndex.foreach { case (AddrMapEntry(_, startOpt, region), i) =>
+  addrmap.zipWithIndex.foreach { case (AddrMapEntry(name, startOpt, region), i) =>
     val start = startOpt.getOrElse(lastEnd)
     val size = region.size
     realAddrMap(i) = (start, size)
     lastEnd = start + size
+
+    require(bigIntPow2(size),
+      s"Region $name size $size is not a power of 2")
+    require(start % size == 0,
+      f"Region $name start address 0x$start%x not divisible by 0x$size%x" )
   }
 
   val routeSel = (addr: UInt) => {
     Vec(realAddrMap.map { case (start, size) =>
-      require(bigIntPow2(size),
-        s"Region size $size is not a power of 2")
-      require(base % size == 0,
-        f"Region base address $base%x not divisible by $size%d" )
-
       addr >= UInt(start) && addr < UInt(start + size)
     }).toBits
   }
@@ -580,19 +539,92 @@ class NastiRecursiveInterconnect(
           slaveInd += 1
         case MemSubmap(_, submap) =>
           val subSlaves = submap.countSlaves
+          val outputs = Vec(io.slaves.drop(slaveInd).take(subSlaves))
           val ic = Module(new NastiRecursiveInterconnect(1, subSlaves, submap, start))
           ic.io.masters.head <> xbarSlave
-          io.slaves.drop(slaveInd).take(subSlaves).zip(ic.io.slaves).foreach {
-            case (s, m) => s <> m
-          }
+          outputs <> ic.io.slaves
           slaveInd += subSlaves
         case MemChannels(_, nchannels, _) =>
-          val outChannels = Vec(io.slaves.drop(slaveInd).take(nchannels))
-          val router = Module(new NastiMultiChannelRouter(nchannels))
-          router.io.master <> xbarSlave
-          outChannels <> router.io.slaves
-          slaveInd += nchannels
+          require(nchannels == 1, "Recursive interconnect cannot handle MultiChannel interface")
+          io.slaves(slaveInd) <> xbarSlave
+          slaveInd += 1
       }
     }
   }
+}
+
+class ChannelHelper(nChannels: Int)
+    (implicit val p: Parameters) extends HasNastiParameters {
+
+  val dataBytes = p(MIFDataBits) * p(MIFDataBeats) / 8
+  val chanSelBits = log2Ceil(nChannels)
+  val selOffset = log2Up(dataBytes)
+  val blockOffset = selOffset + chanSelBits
+
+  def getSelect(addr: UInt) =
+    addr(blockOffset - 1, selOffset)
+
+  def getAddr(addr: UInt) =
+    Cat(addr(nastiXAddrBits - 1, blockOffset), addr(selOffset - 1, 0))
+}
+
+/** NASTI interconnect for multi-channel memory + regular IO
+ *  We do routing for the memory channels differently from the IO ports
+ *  Routing memory banks onto memory channels is done via arbiters
+ *  (N-to-1 correspondence between banks and channels)
+ *  Routing extra NASTI masters to memory requires a channel selecting router
+ *  Routing anything to IO just uses standard recursive interconnect
+ */
+class NastiPerformanceInterconnect(
+    nBanksPerChannel: Int,
+    nChannels: Int,
+    nExtraMasters: Int,
+    nExtraSlaves: Int,
+    addrmap: AddrMap)(implicit p: Parameters) extends NastiInterconnect()(p) {
+
+  val nBanks = nBanksPerChannel * nChannels
+  val nMasters = nBanks + nExtraMasters
+  val nSlaves = nChannels + nExtraSlaves
+
+  val split = addrmap.head.region.size
+  val iomap = new AddrMap(addrmap.tail)
+
+  def routeMemOrIO(addr: UInt): UInt = {
+    Cat(addr >= UInt(split), addr < UInt(split))
+  }
+
+  val chanHelper = new ChannelHelper(nChannels)
+
+  def connectChannel(outer: NastiIO, inner: NastiIO) {
+    outer <> inner
+    outer.ar.bits.addr := chanHelper.getAddr(inner.ar.bits.addr)
+    outer.aw.bits.addr := chanHelper.getAddr(inner.aw.bits.addr)
+  }
+
+  val topRouters = List.fill(nMasters){Module(new NastiRouter(2, routeMemOrIO(_)))}
+  topRouters.zip(io.masters).foreach {
+    case (router, master) => router.io.master <> master
+  }
+  val channelRouteFunc = (addr: UInt) => UIntToOH(chanHelper.getSelect(addr))
+  val channelXbar = Module(new NastiCrossbar(nExtraMasters, nChannels, channelRouteFunc))
+  channelXbar.io.masters <> topRouters.drop(nBanks).map(_.io.slave(0))
+
+  for (i <- 0 until nChannels) {
+    /* Bank assignments to channels are strided so that consecutive banks
+     * map to different channels. That way, consecutive cache lines also
+     * map to different channels */
+    val banks = (i until nBanks by nChannels).map(j => topRouters(j).io.slave(0))
+    val extra = channelXbar.io.slaves(i)
+
+    val channelArb = Module(new NastiArbiter(nBanksPerChannel + nExtraMasters))
+    channelArb.io.master <> (banks :+ extra)
+    connectChannel(io.slaves(i), channelArb.io.slave)
+  }
+
+  val ioslaves = Vec(io.slaves.drop(nChannels))
+  val iomasters = topRouters.map(_.io.slave(1))
+  val ioxbar = Module(new NastiRecursiveInterconnect(
+    nMasters, nExtraSlaves, iomap, split))
+  ioxbar.io.masters <> iomasters
+  ioslaves <> ioxbar.io.slaves
 }
