@@ -17,6 +17,10 @@ object MuxBundle {
   def apply[T <: Data] (default: T, mapping: Seq[(Bool, T)]): T = {
     mapping.reverse.foldLeft(default)((b, a) => Mux(a._1, a._2, b))
   }
+
+  def apply[S <: Data, T <: Data] (key: S, default: T, mapping: Seq[(S, T)]): T = {
+    apply(default, mapping.map{ case (a, b) => (a === key, b) })
+  }
 }
 
 // Produces 0-width value when counting to 1
