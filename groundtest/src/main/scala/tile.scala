@@ -3,6 +3,7 @@ package groundtest
 import Chisel._
 import rocket._
 import uncore._
+import junctions.SMIIO
 import scala.util.Random
 import cde.Parameters
 
@@ -30,6 +31,33 @@ class DummyCache(implicit val p: Parameters) extends Module
 
   when (io.release.fire()) {
     state := s_probe
+  }
+}
+
+class CSRHandler(implicit val p: Parameters) extends Module {
+  private val csrDataBits = 64
+  private val csrAddrBits = 12
+
+  val io = new Bundle {
+    val finished = Bool(INPUT)
+    val csr = new SMIIO(csrDataBits, csrAddrBits).flip
+  }
+
+  val csr_resp_valid = Reg(Bool()) // Don't reset
+  val csr_resp_data = Reg(UInt(width = csrDataBits))
+
+  io.csr.req.ready := Bool(true)
+  io.csr.resp.valid := csr_resp_valid
+  io.csr.resp.bits := csr_resp_data
+
+  when (io.csr.req.fire()) {
+    val req = io.csr.req.bits
+    csr_resp_valid := Bool(true)
+    csr_resp_data := Mux(req.addr === UInt(CSRs.mtohost), io.finished, req.data)
+  }
+
+  when (io.csr.resp.fire()) {
+    csr_resp_valid := Bool(false)
   }
 }
 
@@ -83,21 +111,8 @@ class GeneratorTile(id: Int, resetSignal: Bool)
   }
 
   val all_done = gen_finished.reduce(_ && _)
-
-  val csr_resp_valid = Reg(Bool()) // Don't reset
-  val csr_resp_data = Reg(io.host.csr.resp.bits)
-
-  io.host.csr.req.ready := Bool(true)
-  io.host.csr.resp.valid := csr_resp_valid
-  io.host.csr.resp.bits := csr_resp_data
-
-  when (io.host.csr.req.fire()) {
-    val req = io.host.csr.req.bits
-    csr_resp_valid := Bool(true)
-    csr_resp_data := Mux(req.addr === UInt(CSRs.mtohost), all_done, req.data)
-  }
-
-  when (io.host.csr.resp.fire()) {
-    csr_resp_valid := Bool(false)
-  }
+  val csr = Module(new CSRHandler)
+  csr.io.finished := all_done
+  csr.io.csr <> io.host.csr
 }
+
