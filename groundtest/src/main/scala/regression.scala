@@ -386,6 +386,7 @@ object RegressionTests {
 case object GroundTestRegressions extends Field[Parameters => Seq[Regression]]
 
 class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
+  disablePorts(mem = false, cache = false)
 
   val regressions = p(GroundTestRegressions)(p)
   val regressIOs = Vec(regressions.map(_.io))

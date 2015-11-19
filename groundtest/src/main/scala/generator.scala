@@ -151,28 +151,23 @@ class HellaCacheGenerator(id: Int)
     s"Received incorrect data in cached generator ${id}")
 }
 
-class GeneratorTest(id: Int)(implicit val p: Parameters)
+class GeneratorTest(id: Int)(implicit p: Parameters)
     extends GroundTest()(p) with HasGeneratorParams {
 
-  val gen_finished = Wire(Vec(2, Bool()))
+  disablePorts(mem = !genUncached, cache = !genCached)
+
+  val gen_finished = Wire(init = Vec.fill(2){Bool(true)})
 
   if (genUncached) {
     val uncacheGen = Module(new UncachedTileLinkGenerator(id))
     io.mem <> uncacheGen.io.mem
     gen_finished(0) := uncacheGen.io.finished
-  } else {
-    io.mem.acquire.valid := Bool(false)
-    io.mem.grant.ready := Bool(false)
-    gen_finished(0) := Bool(true)
   }
 
   if (genCached) {
     val cacheGen = Module(new HellaCacheGenerator(id))
     io.cache <> cacheGen.io.mem
     gen_finished(1) := cacheGen.io.finished
-  } else {
-    io.cache.req.valid := Bool(false)
-    gen_finished(1) := Bool(true)
   }
 
   io.finished := gen_finished.reduce(_ && _)

@@ -4,7 +4,7 @@ import Chisel._
 import uncore._
 import cde.{Parameters, Field}
 
-class CacheFillTest(implicit val p: Parameters) extends GroundTest()(p)
+class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
     with HasTileLinkParameters {
   val capacityKb: Int = p("L2_CAPACITY_IN_KB")
   val nblocks = capacityKb * 1024 / p(CacheBlockBytes)
@@ -13,6 +13,8 @@ class CacheFillTest(implicit val p: Parameters) extends GroundTest()(p)
 
   val inflight = Reg(init = Bool(false))
   val active = state === s_prefetch || state === s_retrieve
+
+  disablePorts(mem = false)
 
   val (xact_id, xact_flip) = Counter(io.mem.acquire.fire(), tlMaxClientXacts)
   val (req_block, round_done) = Counter(io.mem.acquire.fire(), nblocks)
@@ -39,5 +41,4 @@ class CacheFillTest(implicit val p: Parameters) extends GroundTest()(p)
   when (state === s_retrieve && round_done) { state := s_finished }
 
   io.finished := (state === s_finished)
-  io.cache.req.valid := Bool(false)
 }
