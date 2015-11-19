@@ -1637,6 +1637,9 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     manager_xact_id = UInt(0),
     addr_beat = UInt(0),
     data = Bits(0))
+
+  assert(!io.nasti.r.valid || io.nasti.r.bits.resp === UInt(0), "NASTI read error")
+  assert(!io.nasti.b.valid || io.nasti.b.bits.resp === UInt(0), "NASTI write error")
 }
 
 class TileLinkIONarrower(innerTLId: String, outerTLId: String)
