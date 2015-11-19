@@ -251,39 +251,57 @@ class WithZscale extends Config(
 
 class ZscaleConfig extends Config(new WithZscale ++ new DefaultConfig)
 
-class WithMemtest extends Config (
+class WithGroundTest extends Config(
   (pname, site, here) => pname match {
-    case TLKey("L1toL2") => 
+    case TLKey("L1toL2") =>
       TileLinkParameters(
         coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels),
-        nCachingClients = site(NGeneratorTiles),
-        nCachelessClients = site(NGeneratorTiles) + 1,
+        nCachingClients = site(NTiles),
+        nCachelessClients = site(NTiles) + 1,
         maxClientXacts = 1,
-        maxClientsPerPort = site(NGeneratorsPerTile),
+        maxClientsPerPort = site(GroundTestMaxXacts),
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
+    case BuildTiles => {
+      (0 until site(NTiles)).map { i =>
+        (r: Bool, p: Parameters) =>
+          Module(new GroundTestTile(i, r)
+            (p.alterPartial({case TLId => "L1toL2"})))
+      }
+    }
+    case GroundTestMaxXacts => 1
+  })
 
-    case NTiles => site(NGeneratorTiles)
-
-    case NGeneratorTiles => 1
-    case NGeneratorsPerTile => 1
+class WithMemtest extends Config(
+  (pname, site, here) => pname match {
+    case NGenerators => 1
     case GenerateUncached => true
     case GenerateCached => true
     case MaxGenerateRequests => 128
     case GeneratorStartAddress => 0
+    case BuildGroundTest =>
+      (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
 
-    case BuildTiles => {
-      (0 until site(NTiles)).map { i =>
-        (r: Bool, p: Parameters) => Module(
-          new GeneratorTile(i, r)
-            (p.alterPartial({case TLId => "L1toL2"})))
-      }
-    }
+    case NTiles => site(NGenerators)
   })
 
-class MemtestConfig extends Config(new WithMemtest ++ new DefaultConfig)
-class MemtestL2Config extends Config(new WithMemtest ++ new DefaultL2Config)
+class WithCacheFillTest extends Config(
+  (pname, site, here) => pname match {
+    case BuildGroundTest =>
+      (id: Int, p: Parameters) => Module(new CacheFillTest()(p))
+  },
+  knobValues = {
+    case "L2_WAYS" => 4
+    case "L2_CAPACITY_IN_KB" => 4
+  })
+
+class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
+class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
+class MemtestL2Config extends Config(
+  new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
+class CacheFillTestConfig extends Config(
+  new WithCacheFillTest ++ new WithL2Cache ++ new GroundTestConfig)
 
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {
@@ -329,7 +347,7 @@ class DualChannelDualBankL2Config extends Config(
 
 class MemtestDualChannelDualBankL2Config extends Config(
   new With2MemoryChannels ++ new With2BanksPerMemChannel ++
-  new WithMemtest ++ new WithL2Cache ++ new DefaultConfig)
+  new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 
 class WithAccumulatorExample extends Config(
   (pname, site, here) => pname match {
