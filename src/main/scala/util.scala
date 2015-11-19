@@ -42,6 +42,15 @@ object ZCounter {
   }
 }
 
+object TwoWayCounter {
+  def apply(up: Bool, down: Bool, max: Int): UInt = {
+    val cnt = Reg(init = UInt(0, log2Up(max+1)))
+    when (up && !down) { cnt := cnt + UInt(1) }
+    when (down && !up) { cnt := cnt - UInt(1) }
+    cnt
+  }
+}
+
 class FlowThroughSerializer[T <: Bundle with HasTileLinkData](gen: T, n: Int) extends Module {
   val io = new Bundle {
     val in = Decoupled(gen).flip
