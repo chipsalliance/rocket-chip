@@ -7,8 +7,7 @@ import rocket._
 import scala.util.Random
 import cde.{Parameters, Field}
 
-case object NGeneratorsPerTile extends Field[Int]
-case object NGeneratorTiles extends Field[Int]
+case object NGenerators extends Field[Int]
 case object GenerateUncached extends Field[Boolean]
 case object GenerateCached extends Field[Boolean]
 case object MaxGenerateRequests extends Field[Int]
@@ -16,9 +15,7 @@ case object GeneratorStartAddress extends Field[Int]
 
 trait HasGeneratorParams {
   implicit val p: Parameters
-  val nGensPerTile = p(NGeneratorsPerTile)
-  val nGenTiles = p(NGeneratorTiles)
-  val nGens = nGensPerTile * nGenTiles
+  val nGens = p(NGenerators)
   val genUncached = p(GenerateUncached)
   val genCached = p(GenerateCached)
   val genTimeout = 4096
@@ -127,7 +124,7 @@ class HellaCacheGenerator(id: Int)
     val mem = new HellaCacheIO
   }
 
-  val timeout = Timer(genTimeout, io.mem.req.fire(), io.mem.resp.fire())
+  val timeout = Timer(genTimeout, io.mem.req.fire(), io.mem.resp.valid)
   assert(!timeout, s"Cached generator ${id} timed out waiting for response")
 
   val (s_start :: s_write :: s_read :: s_finished :: Nil) = Enum(Bits(), 4)
@@ -168,4 +165,31 @@ class HellaCacheGenerator(id: Int)
   assert(!io.mem.resp.valid || !io.mem.resp.bits.has_data ||
     io.mem.resp.bits.data === req_data,
     s"Received incorrect data in cached generator ${id}")
+}
+
+class GeneratorTest(id: Int)(implicit val p: Parameters)
+    extends GroundTest()(p) with HasGeneratorParams {
+
+  val gen_finished = Wire(Vec(2, Bool()))
+
+  if (genUncached) {
+    val uncacheGen = Module(new UncachedTileLinkGenerator(id))
+    io.mem <> uncacheGen.io.mem
+    gen_finished(0) := uncacheGen.io.finished
+  } else {
+    io.mem.acquire.valid := Bool(false)
+    io.mem.grant.ready := Bool(false)
+    gen_finished(0) := Bool(true)
+  }
+
+  if (genCached) {
+    val cacheGen = Module(new HellaCacheGenerator(id))
+    io.cache <> cacheGen.io.mem
+    gen_finished(1) := cacheGen.io.finished
+  } else {
+    io.cache.req.valid := Bool(false)
+    gen_finished(1) := Bool(true)
+  }
+
+  io.finished := gen_finished.reduce(_ && _)
 }

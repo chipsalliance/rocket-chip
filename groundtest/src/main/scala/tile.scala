@@ -3,9 +3,12 @@ package groundtest
 import Chisel._
 import rocket._
 import uncore._
-import junctions.SMIIO
+import junctions.{SMIIO, ParameterizedBundle}
 import scala.util.Random
-import cde.Parameters
+import cde.{Parameters, Field}
+
+case object BuildGroundTest extends Field[(Int, Parameters) => GroundTest]
+case object GroundTestMaxXacts extends Field[Int]
 
 /** A "cache" that responds to probe requests with a release indicating
  *  the block is not present */
@@ -61,58 +64,28 @@ class CSRHandler(implicit val p: Parameters) extends Module {
   }
 }
 
-class GeneratorTile(id: Int, resetSignal: Bool)
-                   (implicit val p: Parameters) extends Tile(resetSignal)(p)
-                   with HasGeneratorParams {
-
-  val gen_finished = Wire(Vec(2 * nGensPerTile, Bool()))
-
-  if (genUncached) {
-    val uncacheArb = Module(new ClientUncachedTileLinkIOArbiter(nGensPerTile))
-
-    for (i <- 0 until nGensPerTile) {
-      val genid = id * nGensPerTile + i
-      val uncacheGen = Module(new UncachedTileLinkGenerator(genid))
-      uncacheArb.io.in(i) <> uncacheGen.io.mem
-      gen_finished(2 * i) := uncacheGen.io.finished
-    }
-
-    io.uncached(0) <> uncacheArb.io.out
-  } else {
-    io.uncached(0).acquire.valid := Bool(false)
-    io.uncached(0).grant.ready := Bool(false)
-    for (i <- 0 until nGensPerTile) { gen_finished(2 * i) := Bool(true) }
-  }
-
-  if (genCached) {
-    val cacheArb = Module(new HellaCacheArbiter(nGensPerTile)(dcacheParams))
-    val cache = Module(new HellaCache()(dcacheParams))
-
-    for (i <- 0 until nGensPerTile) {
-      val genid = id * nGensPerTile + i
-      val cacheGen = Module(new HellaCacheGenerator(genid)(dcacheParams))
-      val cacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))
-      cacheIF.io.requestor <> cacheGen.io.mem
-      cacheArb.io.requestor(i) <> cacheIF.io.cache
-      gen_finished(2 * i + 1) := cacheGen.io.finished
-    }
-
-    cache.io.ptw.req.ready := Bool(false)
-    cache.io.ptw.resp.valid := Bool(false)
-    cache.io.cpu <> cacheArb.io.mem
-
-    assert(!cache.io.ptw.req.valid, 
-      "Cache should not be using virtual addressing")
-
-    io.cached(0) <> cache.io.mem
-  } else {
-    io.cached(0) <> Module(new DummyCache).io
-    for (i <- 0 until nGensPerTile) { gen_finished(2 * i + 1) := Bool(true) }
-  }
-
-  val all_done = gen_finished.reduce(_ && _)
-  val csr = Module(new CSRHandler)
-  csr.io.finished := all_done
-  csr.io.csr <> io.host.csr
+class GroundTestIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
+  val cache = new HellaCacheIO
+  val mem = new ClientUncachedTileLinkIO
+  val finished = Bool(OUTPUT)
 }
 
+abstract class GroundTest(implicit p: Parameters) extends Module {
+  val io = new GroundTestIO
+}
+
+class GroundTestTile(id: Int, resetSignal: Bool)
+                   (implicit val p: Parameters) extends Tile(resetSignal)(p) {
+
+  val dcache = Module(new HellaCache()(dcacheParams))
+  val dcacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))
+  val test = p(BuildGroundTest)(id, dcacheParams)
+  io.uncached.head <> test.io.mem
+  dcacheIF.io.requestor <> test.io.cache
+  dcache.io.cpu <> dcacheIF.io.cache
+  io.cached.head <> dcache.io.mem
+
+  val csr = Module(new CSRHandler)
+  csr.io.finished := test.io.finished
+  csr.io.csr <> io.host.csr
+}
