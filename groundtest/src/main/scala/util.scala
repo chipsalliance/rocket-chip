@@ -25,7 +25,7 @@ class Timer(initCount: Int) extends Module {
     countdown := countdown - UInt(1)
   }
 
-  io.timeout := countdown === UInt(0)
+  io.timeout := countdown === UInt(0) && active
 }
 
 object Timer {
