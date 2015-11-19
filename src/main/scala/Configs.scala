@@ -287,6 +287,9 @@ class WithCacheFillTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new CacheFillTest()(p))
+  },
+  knobValues = {
+    case "L2_WAYS" => 4
     case "L2_CAPACITY_IN_KB" => 4
   })
 
