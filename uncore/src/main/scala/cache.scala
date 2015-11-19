@@ -205,10 +205,14 @@ class L2MetadataArray(implicit p: Parameters) extends L2HellaCacheModule()(p) {
   val s1_id = RegEnable(io.read.bits.id, io.read.valid)
   def wayMap[T <: Data](f: Int => T) = Vec((0 until nWays).map(f))
   val s1_clk_en = Reg(next = io.read.fire())
+  val s1_free_way = wayMap((w: Int) => !meta.io.resp(w).coh.outer.isValid())
   val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === s1_tag)
   val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && meta.io.resp(w).coh.outer.isValid()).toBits
+  val s2_free_way = RegEnable(s1_free_way, s1_clk_en)
   val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
+  val s2_free = s2_free_way.toBits.orR
+  val s2_free_way_en = PriorityEncoderOH(s2_free_way).toBits
   val s2_hit_coh = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEnable(meta.io.resp(w).coh, s1_clk_en)))
 
   val replacer = p(Replacer)()
@@ -216,7 +220,7 @@ class L2MetadataArray(implicit p: Parameters) extends L2HellaCacheModule()(p) {
   val s2_replaced_way_en = UIntToOH(RegEnable(replacer.way, s1_clk_en))
   val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => 
     RegEnable(meta.io.resp(w), s1_clk_en && s1_replaced_way_en(w))).toSeq)
-  when(!s2_tag_match) { replacer.miss }
+  when(!s2_tag_match && !s2_free) { replacer.miss }
 
   io.resp.valid := Reg(next = s1_clk_en)
   io.resp.bits.id := RegEnable(s1_id, s1_clk_en)
@@ -224,7 +228,9 @@ class L2MetadataArray(implicit p: Parameters) extends L2HellaCacheModule()(p) {
   io.resp.bits.meta := Mux(s2_tag_match, 
     L2Metadata(s2_repl_meta.tag, s2_hit_coh), 
     s2_repl_meta)
-  io.resp.bits.way_en := Mux(s2_tag_match, s2_tag_match_way, s2_replaced_way_en)
+  io.resp.bits.way_en := MuxCase(s2_replaced_way_en, Seq(
+    s2_tag_match -> s2_tag_match_way,
+    s2_free -> s2_free_way_en))
 }
 
 class L2DataReadReq(implicit p: Parameters) extends L2HellaCacheBundle()(p)
