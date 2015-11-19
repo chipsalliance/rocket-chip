@@ -239,8 +239,12 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     println(f"\t$name%s $base%x - ${base + size - 1}%x")
   }
 
-  val interconnect = Module(new NastiRecursiveInterconnect(
-    nMasters, nSlaves, addrMap)(p))
+  val interconnect = if (nMemChannels == 1)
+    Module(new NastiRecursiveInterconnect(
+      nMasters, nSlaves, addrMap))
+  else
+    Module(new NastiPerformanceInterconnect(
+      nBanksPerMemChannel, nMemChannels, 1, nSlaves - nMemChannels, addrMap))
 
   for ((bank, i) <- managerEndpoints.zipWithIndex) {
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))

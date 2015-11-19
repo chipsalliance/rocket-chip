@@ -313,8 +313,30 @@ class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGACo
 
 class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
 
-class MultibankConfig extends Config(new With2BanksPerMemChannel ++ new DefaultConfig)
-class MultibankL2Config extends Config(
+class DualBankConfig extends Config(new With2BanksPerMemChannel ++ new DefaultConfig)
+class DualBankL2Config extends Config(
   new With2BanksPerMemChannel ++ new WithL2Cache ++ new DefaultConfig)
 
-class MultichannelConfig extends Config(new With2MemoryChannels ++ new DefaultConfig)
+class DualChannelConfig extends Config(new With2MemoryChannels ++ new DefaultConfig)
+class DualChannelL2Config extends Config(
+  new With2MemoryChannels ++ new WithL2Cache ++ new DefaultConfig)
+
+class DualChannelDualBankConfig extends Config(
+  new With2MemoryChannels ++ new With2BanksPerMemChannel ++ new DefaultConfig)
+class DualChannelDualBankL2Config extends Config(
+  new With2MemoryChannels ++ new With2BanksPerMemChannel ++
+  new WithL2Cache ++ new DefaultConfig)
+
+class MemtestDualChannelDualBankL2Config extends Config(
+  new With2MemoryChannels ++ new With2BanksPerMemChannel ++
+  new WithMemtest ++ new WithL2Cache ++ new DefaultConfig)
+
+class WithAccumulatorExample extends Config(
+  (pname, site, here) => pname match {
+    case BuildRoCC => Some((p: Parameters) =>
+        Module(new AccumulatorExample()(p)))
+    case RoccMaxTaggedMemXacts => 1
+  })
+
+class AccumulatorExampleCPPConfig extends Config(new WithAccumulatorExample ++ new DefaultCPPConfig)
+class AccumulatorExampleVLSIConfig extends Config(new WithAccumulatorExample ++ new DefaultVLSIConfig)
