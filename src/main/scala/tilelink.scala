@@ -558,7 +558,7 @@ object PutBlock {
       addr_beat = addr_beat,
       data = data,
       wmask = wmask,
-      alloc = (wmask != Acquire.fullWriteMask))
+      alloc = Bool(true))
   }
   def apply(
         client_xact_id: UInt,
