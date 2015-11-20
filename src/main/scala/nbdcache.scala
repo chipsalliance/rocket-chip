@@ -1079,7 +1079,7 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
     val cache = new HellaCacheIO
   }
 
-  val replaying_cmb = Bool()
+  val replaying_cmb = Wire(Bool())
   val replaying = Reg(next = replaying_cmb, init = Bool(false))
   replaying_cmb := replaying
 
@@ -1099,10 +1099,10 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   val s1_req_fire = Reg(next=s0_req_fire)
   val s2_req_fire = Reg(next=s1_req_fire)
 
+  io.cache.req <> req_arb.io.out
   io.cache.req.bits.kill := s2_nack
   io.cache.req.bits.phys := Bool(true)
   io.cache.req.bits.data := RegEnable(req_arb.io.out.bits.data, s0_req_fire)
-  io.cache.req <> req_arb.io.out
 
 /* replay queues:
      replayq1 holds the older request.
