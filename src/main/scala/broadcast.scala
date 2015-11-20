@@ -270,7 +270,8 @@ class BroadcastAcquireTracker(trackerId: Int)
     client_xact_id = UInt(trackerId),
     addr_block = xact.addr_block,
     addr_beat = oacq_data_cnt,
-    data = xact.data_buffer(oacq_data_cnt))(outerParams)
+    data = xact.data_buffer(oacq_data_cnt),
+    wmask = xact.wmask_buffer(oacq_data_cnt))(outerParams)
 
   val oacq_read_beat = Get(
     client_xact_id = UInt(trackerId),
@@ -317,6 +318,7 @@ class BroadcastAcquireTracker(trackerId: Int)
     io.inner.acquire.ready := Bool(true)
     when(io.inner.acquire.valid) {
       xact.data_buffer(io.iacq().addr_beat) := io.iacq().data
+      xact.wmask_buffer(io.iacq().addr_beat) := io.iacq().wmask()
       iacq_data_valid := iacq_data_valid.bitSet(io.iacq().addr_beat, Bool(true))
     }
     when(iacq_data_done) { collect_iacq_data := Bool(false) }
@@ -334,6 +336,7 @@ class BroadcastAcquireTracker(trackerId: Int)
       when(io.inner.acquire.valid) {
         xact := io.iacq()
         xact.data_buffer(UInt(0)) := io.iacq().data
+        xact.wmask_buffer(UInt(0)) := io.iacq().wmask()
         collect_iacq_data := io.iacq().hasMultibeatData()
         iacq_data_valid := io.iacq().hasData() << io.iacq().addr_beat
         val needs_probes = mask_incoherent.orR
