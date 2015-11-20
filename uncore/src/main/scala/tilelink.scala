@@ -137,6 +137,7 @@ trait HasTileLinkData extends HasTileLinkBeatId {
 /** An entire cache block of data */
 trait HasTileLinkBlock extends HasTileLinkParameters {
   val data_buffer = Vec(tlDataBeats, UInt(width = tlDataBits))
+  val wmask_buffer = Vec(tlDataBeats, UInt(width = tlWriteMaskBits))
 }
 
 /** The id of a client source or destination. Used in managers. */
