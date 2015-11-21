@@ -118,7 +118,7 @@ class Process28nmConfig extends Config(
 
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
-  new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
+  new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
   new With8L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
