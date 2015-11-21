@@ -41,7 +41,7 @@ class UncachedTileLinkGenerator(id: Int)
   val (s_start :: s_put :: s_get :: s_finished :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = s_start)
 
-  val (req_cnt, req_wrap) = Counter(io.mem.grant.fire() && state === s_get, maxRequests)
+  val (req_cnt, req_wrap) = Counter(io.mem.grant.fire(), maxRequests)
 
   val sending = Reg(init = Bool(false))
 
@@ -50,18 +50,9 @@ class UncachedTileLinkGenerator(id: Int)
     state := s_put
   }
 
-  when (state === s_put) {
-    when (io.mem.acquire.fire()) { sending := Bool(false) }
-    when (io.mem.grant.fire()) { sending := Bool(true); state := s_get }
-  }
-
-  when (state === s_get) {
-    when (io.mem.acquire.fire()) { sending := Bool(false) }
-    when (io.mem.grant.fire()) {
-      sending := Bool(true)
-      state := Mux(req_wrap, s_finished, s_put)
-    }
-  }
+  when (io.mem.acquire.fire()) { sending := Bool(false) }
+  when (io.mem.grant.fire()) { sending := Bool(true) }
+  when (req_wrap) { state := Mux(state === s_put, s_get, s_finished) }
 
   val timeout = Timer(genTimeout, io.mem.acquire.fire(), io.mem.grant.fire())
   assert(!timeout, s"Uncached generator ${id} timed out waiting for grant")
@@ -72,8 +63,6 @@ class UncachedTileLinkGenerator(id: Int)
     req_cnt, UInt(id, log2Ceil(nGens)),
     (if (genCached) UInt(0, 1) else UInt(0, 0)),
     UInt(0, wordOffset))
-
-  when (io.mem.acquire.fire()) { printf("Uncached sending %x\n", full_addr) }
 
   val addr_block = full_addr >> UInt(tlBlockOffset)
   val addr_beat = full_addr(tlBlockOffset - 1, tlByteAddrBits)
@@ -102,9 +91,9 @@ class UncachedTileLinkGenerator(id: Int)
     operand_size = MT_D,
     alloc = Bool(false))
 
-  io.mem.acquire.valid := sending
+  io.mem.acquire.valid := sending && !io.finished
   io.mem.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
-  io.mem.grant.ready := !sending
+  io.mem.grant.ready := !sending && !io.finished
 
   def wordFromBeat(addr: UInt, dat: UInt) = {
     val offset = addr(tlByteAddrBits - 1, wordOffset)
@@ -131,8 +120,7 @@ class HellaCacheGenerator(id: Int)
   val state = Reg(init = s_start)
   val sending = Reg(init = Bool(false))
 
-  val (req_cnt, req_wrap) = Counter(
-    io.mem.resp.valid && io.mem.resp.bits.has_data, maxRequests)
+  val (req_cnt, req_wrap) = Counter(io.mem.resp.valid, maxRequests)
 
   val req_addr = UInt(startAddress) + Cat(
     req_cnt, UInt(id, log2Ceil(nGens)),
@@ -140,7 +128,7 @@ class HellaCacheGenerator(id: Int)
     UInt(0, wordOffset))
   val req_data = Cat(UInt(id, log2Up(nGens)), req_cnt, req_addr)
 
-  io.mem.req.valid := sending
+  io.mem.req.valid := sending && !io.finished
   io.mem.req.bits.addr := req_addr
   io.mem.req.bits.data := req_data
   io.mem.req.bits.typ  := MT_D
@@ -152,13 +140,9 @@ class HellaCacheGenerator(id: Int)
   when (state === s_start) { sending := Bool(true); state := s_write }
 
   when (io.mem.req.fire()) { sending := Bool(false) }
+  when (io.mem.resp.valid) { sending := Bool(true) }
 
-  when (io.mem.resp.valid) {
-    sending := Bool(true)
-    state := Mux(state === s_write, s_read, s_write)
-  }
-
-  when (req_wrap) { sending := Bool(false); state := s_finished }
+  when (req_wrap) { state := Mux(state === s_write, s_read, s_finished) }
 
   io.finished := (state === s_finished)
 
