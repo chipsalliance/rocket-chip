@@ -131,7 +131,7 @@ class ISCA2016Config extends Config(
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = {
     List(
       {ex => (ex(HwachaNSRAMRFEntries) === 256)},
-      {ex => (ex(HwachaBuildVRU) === true)}
+      {ex => (ex(HwachaBuildVRU) === true || ex(HwachaBuildVRU) === false)}
     )
   }
 }
