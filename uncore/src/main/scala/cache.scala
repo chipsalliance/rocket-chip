@@ -17,13 +17,15 @@ case object NSecondaryMisses extends Field[Int]
 case object CacheBlockBytes extends Field[Int]
 case object CacheBlockOffsetBits extends Field[Int]
 case object ECCCode extends Field[Option[Code]]
+case object SetIdxOffset extends Field[Int]
 
 trait HasCacheParameters {
   implicit val p: Parameters
   val nSets = p(NSets)
   val blockOffBits = p(CacheBlockOffsetBits)
+  val idxOffset = p(SetIdxOffset)
   val idxBits = log2Up(nSets)
-  val untagBits = blockOffBits + idxBits
+  val untagBits = blockOffBits + idxOffset + idxBits
   val tagBits = p(PAddrBits) - untagBits
   val nWays = p(NWays)
   val wayBits = log2Up(nWays)
@@ -99,8 +101,9 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
 case object L2DirectoryRepresentation extends Field[DirectoryRepresentation]
 
 trait HasL2HellaCacheParameters extends HasCacheParameters with HasCoherenceAgentParameters {
-  val idxMSB = idxBits-1
-  val idxLSB = 0
+  val idxLSB = idxOffset
+  val idxMSB = idxLSB + idxBits - 1
+  val tagLSB = idxLSB + idxBits
   //val blockAddrBits = p(TLBlockAddrBits)
   val refillCyclesPerBeat = outerDataBits/rowBits
   val refillCycles = refillCyclesPerBeat*outerDataBeats
@@ -467,7 +470,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   io.meta.read.valid := state === s_meta_read
   io.meta.read.bits.id := UInt(trackerId)
   io.meta.read.bits.idx := xact.addr_block(idxMSB,idxLSB)
-  io.meta.read.bits.tag := xact.addr_block >> UInt(idxBits)
+  io.meta.read.bits.tag := xact.addr_block >> UInt(tagLSB)
 
   // Write the voluntarily written back data to this cache
   pending_writes := (pending_writes & dropPendingBit(io.data.write)) |
@@ -491,7 +494,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   io.meta.write.bits.id := UInt(trackerId)
   io.meta.write.bits.idx := xact.addr_block(idxMSB,idxLSB)
   io.meta.write.bits.way_en := xact_way_en
-  io.meta.write.bits.data.tag := xact.addr_block >> UInt(idxBits)
+  io.meta.write.bits.data.tag := xact.addr_block >> UInt(tagLSB)
   io.meta.write.bits.data.coh.inner := xact_old_meta.coh.inner.onRelease(xact)
   io.meta.write.bits.data.coh.outer := Mux(xact.hasData(),
                                          xact_old_meta.coh.outer.onHit(M_XWR),
@@ -560,7 +563,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   // Some accessor wires derived from the the above state
   val xact = ignt_q.io.deq.bits
   val xact_addr_idx = xact_addr_block(idxMSB,idxLSB)
-  val xact_addr_tag = xact_addr_block >> UInt(idxBits)
+  val xact_addr_tag = xact_addr_block >> UInt(tagLSB)
 
   // Counters and scoreboard tracking progress made on processing this transaction
   val pending_irels = connectTwoWayBeatCounter(
