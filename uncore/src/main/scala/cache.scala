@@ -17,15 +17,16 @@ case object NSecondaryMisses extends Field[Int]
 case object CacheBlockBytes extends Field[Int]
 case object CacheBlockOffsetBits extends Field[Int]
 case object ECCCode extends Field[Option[Code]]
-case object SetIdxOffset extends Field[Int]
+case object CacheIdBits extends Field[Int]
+case object CacheId extends Field[Int]
 
 trait HasCacheParameters {
   implicit val p: Parameters
   val nSets = p(NSets)
   val blockOffBits = p(CacheBlockOffsetBits)
-  val idxOffset = p(SetIdxOffset)
+  val cacheIdBits = p(CacheIdBits)
   val idxBits = log2Up(nSets)
-  val untagBits = blockOffBits + idxOffset + idxBits
+  val untagBits = blockOffBits + cacheIdBits + idxBits
   val tagBits = p(PAddrBits) - untagBits
   val nWays = p(NWays)
   val wayBits = log2Up(nWays)
@@ -101,7 +102,8 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
 case object L2DirectoryRepresentation extends Field[DirectoryRepresentation]
 
 trait HasL2HellaCacheParameters extends HasCacheParameters with HasCoherenceAgentParameters {
-  val idxLSB = idxOffset
+  val cacheId = p(CacheId)
+  val idxLSB = cacheIdBits
   val idxMSB = idxLSB + idxBits - 1
   val tagLSB = idxLSB + idxBits
   //val blockAddrBits = p(TLBlockAddrBits)
@@ -979,7 +981,7 @@ class L2WritebackUnit(trackerId: Int)(implicit p: Parameters) extends L2XactTrac
 
   val xact = Reg(new L2WritebackReq)
   val data_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerDataBits)))
-  val xact_addr_block = Cat(xact.tag, xact.idx)
+  val xact_addr_block = Cat(xact.tag, xact.idx, UInt(cacheId, cacheIdBits))
 
   val pending_irels =
     connectTwoWayBeatCounter(max = io.inner.tlNCachingClients, up = io.inner.probe, down = io.inner.release)._1
