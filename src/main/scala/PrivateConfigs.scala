@@ -123,6 +123,12 @@ class Process28nmConfig extends Config(
   }
 )
 
+class WithoutConfPrec extends Config(
+  (pname,site,here) => pname match {
+    case HwachaConfPrec => false
+  }
+)
+
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
   new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
@@ -145,3 +151,8 @@ class ISCA2016Config extends Config(
 
 class ISCA2016L2Config extends Config(new With2Lanes ++ new ISCA2016Config)
 class ISCA2016L4Config extends Config(new With4Lanes ++ new ISCA2016Config)
+
+class ISCA2016LOVB4Config extends Config(new WithoutConfPrec ++ new With2BanksPerMemChannel ++ new ISCA2016Config)
+class ISCA2016LOVB8Config extends Config(new WithoutConfPrec ++ new ISCA2016Config)
+class ISCA2016HOVB4Config extends Config(new With2BanksPerMemChannel ++ new ISCA2016Config)
+class ISCA2016HOVB8Config extends Config(new ISCA2016Config)
