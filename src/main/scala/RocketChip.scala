@@ -24,7 +24,7 @@ case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Whether to use the slow backup memory port [VLSI] */
 case object UseBackupMemoryPort extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
-case object BuildL2CoherenceManager extends Field[Parameters => CoherenceAgent]
+case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
 case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
 /** Start address of the "io" region in the memory map */
@@ -216,7 +216,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
 
   // Create point(s) of coherence serialization
   val nManagers = nMemChannels * nBanksPerMemChannel
-  val managerEndpoints = List.fill(nManagers) { p(BuildL2CoherenceManager)(p)}
+  val managerEndpoints = List.tabulate(nManagers){id => p(BuildL2CoherenceManager)(id, p)}
   managerEndpoints.foreach { _.incoherent := io.incoherent }
 
   // Wire the tiles and htif to the TileLink client ports of the L1toL2 network,

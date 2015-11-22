@@ -60,17 +60,20 @@ class DefaultConfig extends Config (
       case NWays => findBy(CacheName)
       case RowBits => findBy(CacheName)
       case NTLBEntries => findBy(CacheName)
+      case CacheIdBits => findBy(CacheName)
       case "L1I" => {
         case NSets => Knob("L1I_SETS") //64
         case NWays => Knob("L1I_WAYS") //4
         case RowBits => 4*site(CoreInstBits)
         case NTLBEntries => 8
+        case CacheIdBits => 0
       }:PF
       case "L1D" => {
         case NSets => Knob("L1D_SETS") //64
         case NWays => Knob("L1D_WAYS") //4
         case RowBits => 2*site(CoreDataBits)
         case NTLBEntries => 8
+        case CacheIdBits => 0
       }:PF
       case ECCCode => None
       case Replacer => () => new RandomReplacement(site(NWays))
@@ -88,7 +91,7 @@ class DefaultConfig extends Config (
       case NAcquireTransactors => 7
       case L2StoreDataQueueDepth => 1
       case L2DirectoryRepresentation => new NullRepresentation(site(NTiles))
-      case BuildL2CoherenceManager => (p: Parameters) =>
+      case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
         Module(new L2BroadcastHub()(p.alterPartial({
           case InnerTLId => "L1toL2"
           case OuterTLId => "L2toMC" })))
@@ -212,15 +215,17 @@ class WithL2Cache extends Config(
                             site(NWays)
       case NWays => Knob("L2_WAYS")
       case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
+      case CacheIdBits => log2Ceil(site(NMemoryChannels) * site(NBanksPerMemoryChannel))
     }: PartialFunction[Any,Any] 
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
-    case BuildL2CoherenceManager => (p: Parameters) =>
+    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
       Module(new L2HellaCacheBank()(p.alterPartial({
-         case CacheName => "L2Bank"
-         case InnerTLId => "L1toL2"
-         case OuterTLId => "L2toMC"})))
+        case CacheId => id
+        case CacheName => "L2Bank"
+        case InnerTLId => "L1toL2"
+        case OuterTLId => "L2toMC"})))
   },
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048 }
 )
@@ -231,6 +236,10 @@ class WithL2Capacity512 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" =
 class WithL2Capacity256 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 256 })
 class WithL2Capacity128 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 128 })
 class WithL2Capacity64 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 64 })
+
+class With1L2Ways extends Config(knobValues = { case "L2_WAYS" => 1 })
+class With2L2Ways extends Config(knobValues = { case "L2_WAYS" => 2 })
+class With4L2Ways extends Config(knobValues = { case "L2_WAYS" => 4 })
 
 class DefaultL2Config extends Config(new WithL2Cache ++ new DefaultConfig)
 class DefaultL2VLSIConfig extends Config(new WithL2Cache ++ new DefaultVLSIConfig)
@@ -358,3 +367,7 @@ class WithAccumulatorExample extends Config(
 
 class AccumulatorExampleCPPConfig extends Config(new WithAccumulatorExample ++ new DefaultCPPConfig)
 class AccumulatorExampleVLSIConfig extends Config(new WithAccumulatorExample ++ new DefaultVLSIConfig)
+
+class SmallL2Config extends Config(
+  new With2MemoryChannels ++ new With4BanksPerMemChannel ++
+  new WithL2Capacity256 ++ new DefaultL2Config)
