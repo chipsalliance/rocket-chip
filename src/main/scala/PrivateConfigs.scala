@@ -125,14 +125,14 @@ class Process28nmConfig extends Config(
 
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
-  new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
-  new With16L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
+  new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
+  new With8L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
     case "HWACHA_BUILD_VRU" => true
     // WithoutBackupMemoryPort not included here because it doesn't have knobs.
-    case x => (new Config(new With2MemoryChannels ++ new With2BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
+    case x => (new Config(new With2MemoryChannels ++ new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
   }
 
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = {
