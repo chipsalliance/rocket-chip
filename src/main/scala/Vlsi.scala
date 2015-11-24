@@ -3,11 +3,12 @@
 package rocketchip
 
 import Chisel._
+import cde.Parameters
 import junctions._
 import uncore._
 
-class MemDessert extends Module {
-  implicit val p = params
+class MemDessert(topParams: Parameters) extends Module {
+  implicit val p = topParams
   val io = new MemDesserIO(p(HtifKey).width)
   val x = Module(new MemDesser(p(HtifKey).width))
   io.narrow <> x.io.narrow

@@ -3,7 +3,7 @@ ifndef RISCV
 $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
-MODEL := Top
+MODEL ?= Top
 PROJECT := rocketchip
 CXX ?= g++
 CXXFLAGS := -O1
@@ -18,10 +18,10 @@ endif
 SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar sbt-launch.jar $(SBT_FLAGS)
 SHELL := /bin/bash
 
-CHISEL_ARGS := $(MODEL) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configInstance $(PROJECT).$(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
+CHISEL_ARGS := $(PROJECT) $(MODEL) $(CONFIG) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
 
 src_path = src/main/scala
-default_submodules = . junctions uncore hardfloat rocket zscale
+default_submodules = . junctions uncore hardfloat rocket zscale groundtest
 chisel_srcs = $(addprefix $(base_dir)/,$(addsuffix /$(src_path)/*.scala,$(default_submodules) $(ROCKETCHIP_ADDONS)))
 
 disasm := 2>
@@ -51,3 +51,25 @@ $(sim_dir)/libdramsim.a: $(DRAMSIM_OBJS)
 
 %.riscv.hex: %
 	$(MAKE) -C $(dir $@) $(notdir $@)
+
+#---------------------------------------------------------------------
+# Constants Header Files
+#---------------------------------------------------------------------
+
+params_file = $(generated_dir)/$(MODEL).$(CONFIG).prm
+consts_header = $(generated_dir)/consts.$(CONFIG).h
+$(consts_header): $(params_file)
+	echo "#ifndef __CONST_H__" > $@
+	echo "#define __CONST_H__" >> $@
+	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
+	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
+	echo "#endif // __CONST_H__" >> $@
+
+params_file_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).prm
+consts_header_debug = $(generated_dir_debug)/consts.$(CONFIG).h
+$(consts_header_debug): $(params_file_debug)
+	echo "#ifndef __CONST_H__" > $@
+	echo "#define __CONST_H__" >> $@
+	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
+	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
+	echo "#endif // __CONST_H__" >> $@

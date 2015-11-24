@@ -4,6 +4,7 @@ package rocketchip
 
 import Chisel._
 import scala.collection.mutable.LinkedHashSet
+import cde.{Parameters, ParameterDump, Config}
 
 abstract class RocketTestSuite {
   val dir: String
@@ -52,7 +53,7 @@ object TestGeneration extends FileSystemUtilities{
   
   def addSuites(s: Seq[RocketTestSuite]) { s.foreach(addSuite) }
 
-  def generateMakefrag {
+  def generateMakefrag(topModuleName: String, configClassName: String) {
     def gen(kind: String, s: Seq[RocketTestSuite]) = {
       if(s.length > 0) {
         val targets = s.map(t => s"$$(${t.makeTargetName})").mkString(" ") 
@@ -67,8 +68,12 @@ run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets)
       } else { "\n" }
     }
 
-    val f = createOutputFile(s"${Driver.topComponent.get.name}.${Driver.chiselConfigClassName.get}.d")
-    f.write(List(gen("asm", asmSuites.values.toSeq), gen("bmark", bmarkSuites.values.toSeq)).mkString("\n"))
+    val f = createOutputFile(s"$topModuleName.$configClassName.d")
+    f.write(
+      List(
+        gen("asm", asmSuites.values.toSeq),
+        gen("bmark", bmarkSuites.values.toSeq)
+      ).mkString("\n"))
     f.close
   }
 }
@@ -123,8 +128,44 @@ object DefaultTestSuites {
     "led", "mbist"))
 }
 
-object TestGenerator extends App {
-  val gen = () => Class.forName("rocketchip."+args(0)).newInstance().asInstanceOf[Module]
-  chiselMain.run(args.drop(1), gen)
-  TestGeneration.generateMakefrag
+object TestGenerator extends App with FileSystemUtilities {
+  val projectName = args(0)
+  val topModuleName = args(1)
+  val configClassName = args(2)
+  val config = try {
+      Class.forName(s"$projectName.$configClassName").newInstance.asInstanceOf[Config]
+    } catch {
+      case e: java.lang.ClassNotFoundException =>
+        throwException(s"Could not find the cde.Config subclass you asked for " +
+                        "(i.e. \"$configClassName\"), did you misspell it?", e)
+    }
+  val world = config.toInstance
+  val paramsFromConfig: Parameters = Parameters.root(world)
+
+  val gen = () => 
+    Class.forName(s"$projectName.$topModuleName")
+      .getConstructor(classOf[cde.Parameters])
+      .newInstance(paramsFromConfig)
+      .asInstanceOf[Module]
+
+  chiselMain.run(args.drop(3), gen)
+  //Driver.elaborate(gen, configName = configClassName)
+
+  TestGeneration.generateMakefrag(topModuleName, configClassName)
+  TestBenchGeneration.generateVerilogFragment(
+    topModuleName, configClassName,
+    paramsFromConfig(NMemoryChannels))
+  TestBenchGeneration.generateCPPFragment(
+    topModuleName, configClassName,
+    paramsFromConfig(NMemoryChannels))
+
+  val pdFile = createOutputFile(s"$topModuleName.$configClassName.prm")
+  pdFile.write(ParameterDump.getDump)
+  pdFile.close
+  val v = createOutputFile(configClassName + ".knb")
+  v.write(world.getKnobs)
+  v.close
+  val w = createOutputFile(configClassName + ".cst")
+  w.write(world.getConstraints)
+  w.close
 }

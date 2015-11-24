@@ -9,11 +9,29 @@ set -ex
 echo "Starting Rocket-chip regression test"
 if [ $# -lt 1 ]
 then
-  echo "Usage: ./regression.sh config [torture_config] [torture_output_dir]"
+  echo "Usage: ./regression.sh [options] config [torture_config] [torture_output_dir]"
+  echo "  --master: A comma-seperated list of repositories to use the master of"
   exit
 fi
 
 git submodule update --init --recursive riscv-tools
+
+if [[ "$1" == "--master" ]]
+then
+  echo $2 | sed 's/,/\n/g' | while read repo
+  do
+    (
+      cd $repo
+      git fetch
+      git checkout master
+      git log --oneline | head -n5
+    )
+  done
+
+  shift
+  shift
+fi
+
 export RISCV="$(pwd)/install"; export PATH=$PATH:$RISCV/bin
 cd riscv-tools; ./build.sh; cd ..
 git submodule update --init 
