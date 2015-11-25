@@ -4,79 +4,50 @@ package uncore
 import Chisel._
 import cde.{Parameters, Field}
 
-abstract class StoreGen(typ: UInt, addr: UInt, dat: UInt) {
-  val byte = typ === MT_B || typ === MT_BU
-  val half = typ === MT_H || typ === MT_HU
-  val word = typ === MT_W || typ === MT_WU
-  
-  def mask: UInt
-  def data: UInt
-  def wordData: UInt
+class StoreGen(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) {
+  val size = typ(log2Up(log2Up(maxSize)+1)-1,0)
+  def misaligned =
+    (addr & ((UInt(1) << size) - UInt(1))(log2Up(maxSize)-1,0)).orR
+
+  def mask = {
+    var res = UInt(1)
+    for (i <- 0 until log2Up(maxSize)) {
+      val upper = Mux(addr(i), res, UInt(0)) | Mux(size >= UInt(i+1), UInt((BigInt(1) << (1 << i))-1), UInt(0))
+      val lower = Mux(addr(i), UInt(0), res)
+      res = Cat(upper, lower)
+    }
+    res
+  }
+
+  protected def genData(i: Int): UInt =
+    if (i >= log2Up(maxSize)) dat
+    else Mux(size === UInt(i), Fill(1 << (log2Up(maxSize)-i), dat((8 << i)-1,0)), genData(i+1))
+
+  def data = genData(0)
+  def wordData = genData(2)
 }
 
-class StoreGen64(typ: UInt, addr: UInt, dat: UInt) extends StoreGen(typ, addr, dat) {
-  def mask =
-    Mux(byte, Bits(  1) <<     addr(2,0),
-    Mux(half, Bits(  3) << Cat(addr(2,1), Bits(0,1)),
-    Mux(word, Bits( 15) << Cat(addr(2),   Bits(0,2)),
-              Bits(255))))
-
-  def data =
-    Mux(byte, Fill(8, dat( 7,0)),
-    Mux(half, Fill(4, dat(15,0)),
-                      wordData))
-  def wordData =
-    Mux(word, Fill(2, dat(31,0)),
-                      dat)
+class StoreGenAligned(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) extends StoreGen(typ, addr, dat, maxSize) {
+  override def genData(i: Int) = dat
 }
 
-class StoreGenAligned64(typ: UInt, addr: UInt, dat: UInt) extends StoreGen64(typ, addr, dat) {
-  override def data = dat
-  override def wordData = dat
-}
+class LoadGen(typ: UInt, addr: UInt, dat: UInt, zero: Bool, maxSize: Int) {
+  private val t = new StoreGen(typ, addr, dat, maxSize)
+  private val signed = typ.toSInt >= SInt(0)
 
-class StoreGen32(typ: UInt, addr: UInt, dat: UInt) extends StoreGen(typ, addr, dat){
-  override val word = typ === MT_W
+  private def genData(logMinSize: Int): UInt = {
+    var res = dat
+    for (i <- log2Up(maxSize)-1 to logMinSize by -1) {
+      val pos = 8 << i
+      val shifted = Mux(addr(i), res(2*pos-1,pos), res(pos-1,0))
+      val zeroed = if (i > 0) shifted else Mux(zero, UInt(0), shifted)
+      res = Cat(Mux(t.size === UInt(i), Fill(8*maxSize-pos, signed && zeroed(pos-1)), res(8*maxSize-1,pos)), zeroed)
+    }
+    res
+  }
 
-  def mask =
-    Mux(byte, Bits(  1) <<     addr(2,0),
-    Mux(half, Bits(  3) << Cat(addr(2,1), Bits(0,1)),
-              Bits( 15)))
-
-  def data =
-    Mux(byte, Fill(4, dat( 7,0)),
-    Mux(half, Fill(2, dat(15,0)),
-                      wordData))
-
-  def wordData = dat
-
-  def size =
-    Mux(byte, UInt("b000"),
-    Mux(half, UInt("b001"),
-              UInt("b010")))
-}
-
-class LoadGen64(typ: UInt, addr: UInt, dat: UInt, zero: Bool) {
-  val t = new StoreGen64(typ, addr, dat)
-  val sign = typ === MT_B || typ === MT_H || typ === MT_W || typ === MT_D
-
-  val wordShift = Mux(addr(2), dat(63,32), dat(31,0))
-  val word = Cat(Mux(t.word, Fill(32, sign && wordShift(31)), dat(63,32)), wordShift)
-  val halfShift = Mux(addr(1), word(31,16), word(15,0))
-  val half = Cat(Mux(t.half, Fill(48, sign && halfShift(15)), word(63,16)), halfShift)
-  val byteShift = Mux(zero, UInt(0), Mux(addr(0), half(15,8), half(7,0)))
-  val byte = Cat(Mux(zero || t.byte, Fill(56, sign && byteShift(7)), half(63,8)), byteShift)
-}
-
-class LoadGen32(typ: UInt, addr: UInt, dat: UInt) {
-  val t = new StoreGen32(typ, addr, dat)
-  val sign = typ === MT_B || typ === MT_H || typ === MT_W
-
-  val word = dat
-  val halfShift = Mux(addr(1), word(31,16), word(15,0))
-  val half = Cat(Mux(t.half, Fill(16, sign && halfShift(15)), word(31,16)), halfShift)
-  val byteShift = Mux(addr(0), half(15,8), half(7,0))
-  val byte = Cat(Mux(t.byte, Fill(24, sign && byteShift(7)), half(31,8)), byteShift)
+  def wordData = genData(2)
+  def data = genData(0)
 }
 
 class AMOALU(rhsIsAligned: Boolean = false)(implicit p: Parameters) extends CacheModule()(p) {
@@ -91,8 +62,9 @@ class AMOALU(rhsIsAligned: Boolean = false)(implicit p: Parameters) extends Cach
     val out = Bits(OUTPUT, operandBits)
   }
 
-  val storegen = if(rhsIsAligned) new StoreGenAligned64(io.typ, io.addr, io.rhs)
-                   else new StoreGen64(io.typ, io.addr, io.rhs)
+  val storegen =
+    if(rhsIsAligned) new StoreGenAligned(io.typ, io.addr, io.rhs, operandBits/8)
+    else new StoreGen(io.typ, io.addr, io.rhs, operandBits/8)
   val rhs = storegen.wordData
   
   val sgned = io.cmd === M_XA_MIN || io.cmd === M_XA_MAX
