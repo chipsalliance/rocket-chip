@@ -364,8 +364,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
-  val replay_wb_common =
-    io.dmem.resp.bits.nack || wb_reg_replay || csr.io.csr_replay
+  val replay_wb_common = io.dmem.resp.bits.nack || wb_reg_replay
   val wb_rocc_val = wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   val replay_wb = replay_wb_common || wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
   val wb_xcpt = wb_reg_xcpt || csr.io.csr_xcpt
