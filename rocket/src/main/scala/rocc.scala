@@ -56,12 +56,12 @@ abstract class RoCC(implicit p: Parameters) extends CoreModule()(p) {
 }
 
 class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
-  val regfile = Mem(UInt(width = xLen), n)
-  val busy = Reg(init=Vec(Bool(false), n))
+  val regfile = Mem(n, UInt(width = xLen))
+  val busy = Reg(init = Vec.fill(n){Bool(false)})
 
   val cmd = Queue(io.cmd)
   val funct = cmd.bits.inst.funct
-  val addr = cmd.bits.inst.rs2(log2Up(n)-1,0)
+  val addr = cmd.bits.rs2(log2Up(n)-1,0)
   val doWrite = funct === UInt(0)
   val doRead = funct === UInt(1)
   val doLoad = funct === UInt(2)
