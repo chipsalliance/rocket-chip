@@ -60,6 +60,47 @@ abstract class CoreModule(implicit val p: Parameters) extends Module
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasCoreParameters
 
+class RegFile(n: Int, w: Int, zero: Boolean = false) {
+  private val rf = Mem(n, UInt(width = w))
+  private def access(addr: UInt) = rf(~addr(log2Up(n)-1,0))
+  private val reads = collection.mutable.ArrayBuffer[(UInt,UInt)]()
+  private var canRead = true
+  def read(addr: UInt) = {
+    require(canRead)
+    reads += addr -> Wire(UInt())
+    reads.last._2 := Mux(Bool(zero) && addr === UInt(0), UInt(0), access(addr))
+    reads.last._2
+  }
+  def write(addr: UInt, data: UInt) = {
+    canRead = false
+    when (addr != UInt(0)) {
+      access(addr) := data
+      for ((raddr, rdata) <- reads)
+        when (addr === raddr) { rdata := data }
+    }
+  }
+}
+
+object ImmGen {
+  def apply(sel: UInt, inst: UInt) = {
+    val sign = Mux(sel === IMM_Z, SInt(0), inst(31).toSInt)
+    val b30_20 = Mux(sel === IMM_U, inst(30,20).toSInt, sign)
+    val b19_12 = Mux(sel != IMM_U && sel != IMM_UJ, sign, inst(19,12).toSInt)
+    val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
+              Mux(sel === IMM_UJ, inst(20).toSInt,
+              Mux(sel === IMM_SB, inst(7).toSInt, sign)))
+    val b10_5 = Mux(sel === IMM_U || sel === IMM_Z, Bits(0), inst(30,25))
+    val b4_1 = Mux(sel === IMM_U, Bits(0),
+               Mux(sel === IMM_S || sel === IMM_SB, inst(11,8),
+               Mux(sel === IMM_Z, inst(19,16), inst(24,21))))
+    val b0 = Mux(sel === IMM_S, inst(7),
+             Mux(sel === IMM_I, inst(20),
+             Mux(sel === IMM_Z, inst(15), Bits(0))))
+
+    Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).toSInt
+  }
+}
+
 class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val host = new HtifIO
@@ -131,7 +172,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val id_reg_fence = Reg(init=Bool(false))
   val id_ren = IndexedSeq(id_ctrl.rxs1, id_ctrl.rxs2)
   val id_raddr = IndexedSeq(id_raddr1, id_raddr2)
-  val rf = new RegFile
+  val rf = new RegFile(31, xLen)
   val id_rs = id_raddr.map(rf.read _)
   val ctrl_killd = Wire(Bool())
 
@@ -189,7 +230,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val ex_reg_rs_msb = Reg(Vec(UInt(), id_raddr.size))
   val ex_rs = for (i <- 0 until id_raddr.size)
     yield Mux(ex_reg_rs_bypass(i), bypass_mux(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
-  val ex_imm = imm(ex_ctrl.sel_imm, ex_reg_inst)
+  val ex_imm = ImmGen(ex_ctrl.sel_imm, ex_reg_inst)
   val ex_op1 = MuxLookup(ex_ctrl.sel_alu1, SInt(0), Seq(
     A1_RS1 -> ex_rs(0).toSInt,
     A1_PC -> ex_reg_pc.toSInt))
@@ -261,8 +302,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   // memory stage
   val mem_br_taken = mem_reg_wdata(0)
   val mem_br_target = mem_reg_pc.toSInt +
-    Mux(mem_ctrl.branch && mem_br_taken, imm(IMM_SB, mem_reg_inst),
-    Mux(mem_ctrl.jal, imm(IMM_UJ, mem_reg_inst), SInt(4)))
+    Mux(mem_ctrl.branch && mem_br_taken, ImmGen(IMM_SB, mem_reg_inst),
+    Mux(mem_ctrl.jal, ImmGen(IMM_UJ, mem_reg_inst), SInt(4)))
   val mem_int_wdata = Mux(mem_ctrl.jalr, mem_br_target, mem_reg_wdata.toSInt).toUInt
   val mem_npc = (Mux(mem_ctrl.jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(vaddrBits-1,0)).toSInt, mem_br_target) & SInt(-2)).toUInt
   val mem_wrong_npc = mem_npc != ex_reg_pc || !ex_reg_valid
@@ -541,24 +582,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   def checkHazards(targets: Seq[(Bool, UInt)], cond: UInt => Bool) =
     targets.map(h => h._1 && cond(h._2)).reduce(_||_)
 
-  def imm(sel: UInt, inst: UInt) = {
-    val sign = Mux(sel === IMM_Z, SInt(0), inst(31).toSInt)
-    val b30_20 = Mux(sel === IMM_U, inst(30,20).toSInt, sign)
-    val b19_12 = Mux(sel != IMM_U && sel != IMM_UJ, sign, inst(19,12).toSInt)
-    val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
-              Mux(sel === IMM_UJ, inst(20).toSInt,
-              Mux(sel === IMM_SB, inst(7).toSInt, sign)))
-    val b10_5 = Mux(sel === IMM_U || sel === IMM_Z, Bits(0), inst(30,25))
-    val b4_1 = Mux(sel === IMM_U, Bits(0),
-               Mux(sel === IMM_S || sel === IMM_SB, inst(11,8),
-               Mux(sel === IMM_Z, inst(19,16), inst(24,21))))
-    val b0 = Mux(sel === IMM_S, inst(7),
-             Mux(sel === IMM_I, inst(20),
-             Mux(sel === IMM_Z, inst(15), Bits(0))))
-    
-    Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).toSInt
-  }
-
   def vaSign(a0: UInt, ea: UInt) = {
     // efficient means to compress 64-bit VA into vaddrBits+1 bits
     // (VA is bad if VA(vaddrBits) != VA(vaddrBits-1))
@@ -567,26 +590,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     Mux(a === UInt(0) || a === UInt(1), e != UInt(0),
     Mux(a.toSInt === SInt(-1) || a.toSInt === SInt(-2), e.toSInt === SInt(-1),
     e(0)))
-  }
-
-  class RegFile {
-    private val rf = Mem(31, UInt(width = 64))
-    private val reads = collection.mutable.ArrayBuffer[(UInt,UInt)]()
-    private var canRead = true
-    def read(addr: UInt) = {
-      require(canRead)
-      reads += addr -> Wire(UInt())
-      reads.last._2 := rf(~addr)
-      reads.last._2
-    }
-    def write(addr: UInt, data: UInt) = {
-      canRead = false
-      when (addr != UInt(0)) {
-        rf(~addr) := data
-        for ((raddr, rdata) <- reads)
-          when (addr === raddr) { rdata := data }
-      }
-    }
   }
 
   class Scoreboard(n: Int)
