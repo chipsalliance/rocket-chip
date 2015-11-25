@@ -162,8 +162,8 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val req_cmd_sc = req.cmd === M_XSC
   val grant_word = Reg(UInt(width = wordBits))
 
-  val storegen = new StoreGen64(req.typ, req.addr, req.data)
-  val loadgen = new LoadGen64(req.typ, req.addr, grant_word, req_cmd_sc)
+  val storegen = new StoreGen(req.typ, req.addr, req.data, 8)
+  val loadgen = new LoadGen(req.typ, req.addr, grant_word, req_cmd_sc, 8)
 
   val beat_offset = req.addr(beatOffBits - 1, wordOffBits)
   val beat_mask = (storegen.mask << Cat(beat_offset, UInt(0, wordOffBits)))
@@ -200,7 +200,7 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.resp.valid := (state === s_resp)
   io.resp.bits := req
   io.resp.bits.has_data := isRead(req.cmd)
-  io.resp.bits.data := loadgen.byte | req_cmd_sc
+  io.resp.bits.data := loadgen.data | req_cmd_sc
   io.resp.bits.store_data := req.data
   io.resp.bits.nack := Bool(false)
   io.resp.bits.replay := io.resp.valid
@@ -815,11 +815,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     s2_req.cmd := s1_req.cmd
   }
 
-  val misaligned =
-    (((s1_req.typ === MT_H) || (s1_req.typ === MT_HU)) && (s1_req.addr(0) != Bits(0))) ||
-    (((s1_req.typ === MT_W) || (s1_req.typ === MT_WU)) && (s1_req.addr(1,0) != Bits(0))) ||
-    ((s1_req.typ === MT_D) && (s1_req.addr(2,0) != Bits(0)))
-    
+  val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), 8).misaligned
   io.cpu.xcpt.ma.ld := s1_read && misaligned
   io.cpu.xcpt.ma.st := s1_write && misaligned
   io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.xcpt_ld
@@ -1018,7 +1014,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   // load data subword mux/sign extension
   val s2_data_word_prebypass = s2_data_uncorrected >> Cat(s2_word_idx, Bits(0,log2Up(coreDataBits)))
   val s2_data_word = Mux(s2_store_bypass, s2_store_bypass_data, s2_data_word_prebypass)
-  val loadgen = new LoadGen64(s2_req.typ, s2_req.addr, s2_data_word, s2_sc)
+  val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc, 8)
   
   amoalu.io.addr := s2_req.addr
   amoalu.io.cmd := s2_req.cmd
@@ -1052,7 +1048,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   cache_resp.valid := (s2_replay || s2_valid_masked && s2_hit) && !s2_data_correctable
   cache_resp.bits := s2_req
   cache_resp.bits.has_data := isRead(s2_req.cmd)
-  cache_resp.bits.data := loadgen.byte | s2_sc_fail
+  cache_resp.bits.data := loadgen.data | s2_sc_fail
   cache_resp.bits.store_data := s2_req.data
   cache_resp.bits.nack := s2_valid && s2_nack
   cache_resp.bits.replay := s2_replay
@@ -1065,7 +1061,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   mshrs.io.resp.ready := !cache_pass
 
   io.cpu.resp := Mux(cache_pass, cache_resp, uncache_resp)
-  io.cpu.resp.bits.data_word_bypass := loadgen.word
+  io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next.valid := s1_replay && s1_read
   io.cpu.replay_next.bits := s1_req.tag
