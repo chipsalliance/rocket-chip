@@ -18,13 +18,41 @@ class DefaultConfig extends Config (
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
     def genCsrAddrMap: AddrMap = {
+      val deviceTree = AddrMapEntry("devicetree", None, MemSize(1 << 15, AddrMapConsts.R))
       val csrSize = (1 << 12) * (site(XLen) / 8)
       val csrs = (0 until site(NTiles)).map{ i => 
         AddrMapEntry(s"csr$i", None, MemSize(csrSize, AddrMapConsts.RW))
       }
       val scrSize = site(HtifKey).nSCR * (site(XLen) / 8)
       val scr = AddrMapEntry("scr", None, MemSize(scrSize, AddrMapConsts.RW))
-      new AddrMap(csrs :+ scr)
+      new AddrMap(deviceTree +: csrs :+ scr)
+    }
+    def makeDeviceTree() = {
+      val addrMap = new AddrHashMap(site(GlobalAddrMap))
+      val dt = new DeviceTreeGenerator
+      dt.beginNode("")
+      dt.addProp("#address-cells", 2)
+      dt.addProp("#size-cells", 2)
+      dt.addProp("model", "Rocket-Chip")
+        dt.beginNode("memory@0")
+          dt.addProp("device_type", "memory")
+          dt.addReg(0, site(MMIOBase).toLong)
+        dt.endNode()
+        dt.beginNode("cpus")
+          dt.addProp("#address-cells", 2)
+          dt.addProp("#size-cells", 2)
+          for (i <- 0 until site(NTiles)) {
+            val csrs = addrMap(s"conf:csr$i")
+            dt.beginNode(s"cpu@${csrs.start.toLong.toHexString}")
+              dt.addProp("device_type", "cpu")
+              dt.addProp("compatible", "riscv")
+              dt.addProp("isa", s"rv${site(XLen)}")
+              dt.addReg(csrs.start.toLong)
+            dt.endNode()
+          }
+        dt.endNode()
+      dt.endNode()
+      dt.toArray()
     }
     pname match {
       case HtifKey => HtifParameters(
@@ -165,6 +193,7 @@ class DefaultConfig extends Config (
       case UseBackupMemoryPort => true
       case MMIOBase => Dump("MEM_SIZE", BigInt(1 << 30)) // 1 GB
       case ExternalIOStart => 2 * site(MMIOBase)
+      case DeviceTree => makeDeviceTree()
       case GlobalAddrMap => AddrMap(
         AddrMapEntry("mem", None, MemChannels(site(MMIOBase), site(NMemoryChannels), AddrMapConsts.RWX)),
         AddrMapEntry("conf", None, MemSubmap(site(ExternalIOStart) - site(MMIOBase), genCsrAddrMap)),

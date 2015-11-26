@@ -165,6 +165,9 @@ class Uncore(implicit val p: Parameters) extends Module
   scrFile.io.smi <> scrArb.io.out
   // scrFile.io.scr <> (... your SCR connections ...)
 
+  val deviceTree = Module(new NastiROM(p(DeviceTree).toSeq))
+  deviceTree.io <> outmemsys.io.deviceTree
+
   // Wire the htif to the memory port(s) and host interface
   io.host.debug_stats_csr := htif.io.host.debug_stats_csr
   io.mem <> outmemsys.io.mem
@@ -194,6 +197,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val csr = Vec(new SMIIO(xLen, csrAddrBits), nTiles)
     val scr = new SMIIO(xLen, scrAddrBits)
     val mmio = new NastiIO
+    val deviceTree = new NastiIO
   }
 
   // Create a simple L1toL2 NoC between the tiles+htif and the banks of outer memory
@@ -266,6 +270,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   io.scr <> conv.io.smi
 
   io.mmio <> interconnect.io.slaves(addrHashMap("io").port)
+  io.deviceTree <> interconnect.io.slaves(addrHashMap("conf:devicetree").port)
 
   val mem_channels = interconnect.io.slaves.take(nMemChannels)
 
