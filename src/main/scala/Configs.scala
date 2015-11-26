@@ -132,8 +132,10 @@ class DefaultConfig extends Config (
           Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
         }
       }
-      case BuildRoCC => None
-      case RoccNMemChannels => 1
+      case BuildRoCC => Nil
+      case RoccAcceleratorMemChannels => site(BuildRoCC).map(_ => 1)
+      case RoccOpcodes => site(BuildRoCC).map(_ => OpcodeSet.all)
+      case RoccNMemChannels => site(RoccAcceleratorMemChannels).fold(0)(_ + _)
       //Rocket Core Constants
       case FetchWidth => 1
       case RetireWidth => 1
@@ -384,15 +386,20 @@ class MemtestDualChannelDualBankL2Config extends Config(
   new With2MemoryChannels ++ new With2BanksPerMemChannel ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 
-class WithAccumulatorExample extends Config(
+class WithRoccExample extends Config(
   (pname, site, here) => pname match {
-    case BuildRoCC => Some((p: Parameters) =>
-        Module(new AccumulatorExample()(p)))
+    case BuildRoCC => Seq(
+      (p: Parameters) => Module(new AccumulatorExample()(p)),
+      (p: Parameters) => Module(new TranslatorExample()(p)),
+      (p: Parameters) => Module(new CharacterCountExample()(p)))
     case RoccMaxTaggedMemXacts => 1
+    case RoccOpcodes => Seq(
+      OpcodeSet.custom0,
+      OpcodeSet.custom1,
+      OpcodeSet.custom2)
   })
 
-class AccumulatorExampleCPPConfig extends Config(new WithAccumulatorExample ++ new DefaultCPPConfig)
-class AccumulatorExampleVLSIConfig extends Config(new WithAccumulatorExample ++ new DefaultVLSIConfig)
+class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
 class SmallL2Config extends Config(
   new With2MemoryChannels ++ new With4BanksPerMemChannel ++
