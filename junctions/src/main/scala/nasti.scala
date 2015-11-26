@@ -342,7 +342,7 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
     when (beats_left === UInt(0)) {
       responding := Bool(false)
     } .otherwise {
-      beats_left := beats_left - UInt(0)
+      beats_left := beats_left - UInt(1)
     }
   }
 
