@@ -40,8 +40,9 @@ class LoadGen(typ: UInt, addr: UInt, dat: UInt, zero: Bool, maxSize: Int) {
     for (i <- log2Up(maxSize)-1 to logMinSize by -1) {
       val pos = 8 << i
       val shifted = Mux(addr(i), res(2*pos-1,pos), res(pos-1,0))
-      val zeroed = if (i > 0) shifted else Mux(zero, UInt(0), shifted)
-      res = Cat(Mux(t.size === UInt(i), Fill(8*maxSize-pos, signed && zeroed(pos-1)), res(8*maxSize-1,pos)), zeroed)
+      val doZero = Bool(i == 0) && zero
+      val zeroed = Mux(doZero, UInt(0), shifted)
+      res = Cat(Mux(t.size === UInt(i) || doZero, Fill(8*maxSize-pos, signed && zeroed(pos-1)), res(8*maxSize-1,pos)), zeroed)
     }
     res
   }
