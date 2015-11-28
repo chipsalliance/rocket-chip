@@ -8,15 +8,21 @@ import Util._
 import cde.{Parameters, Field}
 
 case object CoreName extends Field[String]
-case object BuildRoCC extends Field[Option[Parameters => RoCC]]
+case object BuildRoCC extends Field[Seq[Parameters => RoCC]]
+case object RoccOpcodes extends Field[Seq[OpcodeSet]]
+case object RoccAcceleratorMemChannels extends Field[Seq[Int]]
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
-  val usingRocc = !p(BuildRoCC).isEmpty
-  val nDCachePorts = 2 + (if(!usingRocc) 0 else 1)
-  val nPTWPorts = 2 + (if(!usingRocc) 0 else 3)
+  val buildRocc = p(BuildRoCC)
+  val roccOpcodes = p(RoccOpcodes)
+  val roccMemChannels = p(RoccAcceleratorMemChannels)
+  val usingRocc = !buildRocc.isEmpty
+  val nRocc = buildRocc.size
+  val nDCachePorts = 2 + nRocc
+  val nPTWPorts = 2 + 3 * nRocc
   val nCachedTileLinkPorts = 1
-  val nUncachedTileLinkPorts = 1 + (if(!usingRocc) 0 else p(RoccNMemChannels))
+  val nUncachedTileLinkPorts = 1 + p(RoccNMemChannels)
   val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
   val io = new Bundle {
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
@@ -53,18 +59,37 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   io.cached.head <> dcache.io.mem
   // If so specified, build an RoCC module and wire it to core + TileLink ports,
   // otherwise just hookup the icache
-  io.uncached <> p(BuildRoCC).map { buildItHere =>
-    val rocc = buildItHere(p)
-    val iMemArb = Module(new ClientTileLinkIOArbiter(2))
-    val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
-    core.io.rocc <> rocc.io
-    dcIF.io.requestor <> rocc.io.mem
-    dcArb.io.requestor(2) <> dcIF.io.cache
+  io.uncached <> (if (usingRocc) {
+    val iMemArb = Module(new ClientTileLinkIOArbiter(1 + nRocc))
     iMemArb.io.in(0) <> icache.io.mem
-    iMemArb.io.in(1) <> rocc.io.imem
-    ptw.io.requestor(2) <> rocc.io.iptw
-    ptw.io.requestor(3) <> rocc.io.dptw
-    ptw.io.requestor(4) <> rocc.io.pptw
-    rocc.io.dmem :+ iMemArb.io.out
-  }.getOrElse(List(icache.io.mem))
+
+    val respArb = Module(new RRArbiter(new RoCCResponse, nRocc))
+    core.io.rocc.resp <> respArb.io.out
+
+    val cmdRouter = Module(new RoccCommandRouter(roccOpcodes))
+    cmdRouter.io.in <> core.io.rocc.cmd
+
+    val roccs = buildRocc.zip(roccMemChannels).zipWithIndex.map {
+      case ((buildItHere, nchannels), i) =>
+        val accelParams = p.alterPartial({ case RoccNMemChannels => nchannels})
+        val rocc = buildItHere(accelParams)
+        val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
+        rocc.io.cmd <> cmdRouter.io.out(i)
+        rocc.io.s := core.io.rocc.s
+        rocc.io.exception := core.io.rocc.exception
+        dcIF.io.requestor <> rocc.io.mem
+        dcArb.io.requestor(2 + i) <> dcIF.io.cache
+        iMemArb.io.in(1 + i) <> rocc.io.imem
+        ptw.io.requestor(2 + 3 * i) <> rocc.io.iptw
+        ptw.io.requestor(3 + 3 * i) <> rocc.io.dptw
+        ptw.io.requestor(4 + 3 * i) <> rocc.io.pptw
+        rocc
+    }
+
+    core.io.rocc.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
+    core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
+    respArb.io.in <> roccs.map(rocc => Queue(rocc.io.resp))
+
+    roccs.flatMap(_.io.dmem) :+ iMemArb.io.out
+  } else { Seq(icache.io.mem) })
 }
