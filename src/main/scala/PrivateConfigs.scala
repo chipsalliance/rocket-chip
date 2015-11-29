@@ -3,7 +3,7 @@ package rocketchip
 import Chisel._
 import uncore._
 import rocket._
-import BOOM._
+import boom._
 import DefaultTestSuites._
 
 class WithAllBooms extends ChiselConfig(
