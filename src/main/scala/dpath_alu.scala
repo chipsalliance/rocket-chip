@@ -43,17 +43,15 @@ object ALU
 }
 import ALU._
 
-class ALUIO(implicit p: Parameters) extends CoreBundle()(p) {
-  val dw = Bits(INPUT, SZ_DW)
-  val fn = Bits(INPUT, SZ_ALU_FN)
-  val in2 = UInt(INPUT, xLen)
-  val in1 = UInt(INPUT, xLen)
-  val out = UInt(OUTPUT, xLen)
-  val adder_out = UInt(OUTPUT, xLen)
-}
-
-class ALU(implicit p: Parameters) extends Module {
-  val io = new ALUIO
+class ALU(implicit p: Parameters) extends CoreModule()(p) {
+  val io = new Bundle {
+    val dw = Bits(INPUT, SZ_DW)
+    val fn = Bits(INPUT, SZ_ALU_FN)
+    val in2 = UInt(INPUT, xLen)
+    val in1 = UInt(INPUT, xLen)
+    val out = UInt(OUTPUT, xLen)
+    val adder_out = UInt(OUTPUT, xLen)
+  }
 
   // ADD, SUB
   val sum = io.in1 + Mux(isSub(io.fn), -io.in2, io.in2)
@@ -61,19 +59,26 @@ class ALU(implicit p: Parameters) extends Module {
   // SLT, SLTU
   val cmp = cmpInverted(io.fn) ^
     Mux(cmpEq(io.fn), sum === UInt(0),
-    Mux(io.in1(63) === io.in2(63), sum(63),
-    Mux(cmpUnsigned(io.fn), io.in2(63), io.in1(63))))
+    Mux(io.in1(xLen-1) === io.in2(xLen-1), sum(xLen-1),
+    Mux(cmpUnsigned(io.fn), io.in2(xLen-1), io.in1(xLen-1))))
 
   // SLL, SRL, SRA
-  val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0)).toUInt
-  val shin_hi_32 = Mux(isSub(io.fn), Fill(32, io.in1(31)), UInt(0,32))
-  val shin_hi = Mux(io.dw === DW_64, io.in1(63,32), shin_hi_32)
-  val shin_r = Cat(shin_hi, io.in1(31,0))
+  val full_shamt = io.in2(log2Up(xLen)-1,0)
+
+  val (shamt, shin_r) =
+    if (xLen == 32) (full_shamt, io.in1)
+    else {
+      require(xLen == 64)
+      val shin_hi_32 = Fill(32, isSub(io.fn) && io.in1(31))
+      val shin_hi = Mux(io.dw === DW_64, io.in1(63,32), shin_hi_32)
+      val shamt = Cat(full_shamt(5) & (io.dw === DW_64), full_shamt(4,0))
+      (shamt, Cat(shin_hi, io.in1(31,0)))
+    }
   val shin = Mux(io.fn === FN_SR  || io.fn === FN_SRA, shin_r, Reverse(shin_r))
-  val shout_r = (Cat(isSub(io.fn) & shin(63), shin).toSInt >> shamt)(63,0)
+  val shout_r = (Cat(isSub(io.fn) & shin(xLen-1), shin).toSInt >> shamt)(xLen-1,0)
   val shout_l = Reverse(shout_r)
 
-  val out64 =
+  val out =
     Mux(io.fn === FN_ADD || io.fn === FN_SUB,  sum,
     Mux(io.fn === FN_SR  || io.fn === FN_SRA,  shout_r,
     Mux(io.fn === FN_SL,                       shout_l,
@@ -82,7 +87,10 @@ class ALU(implicit p: Parameters) extends Module {
     Mux(io.fn === FN_XOR,                      io.in1 ^ io.in2,
                 /* all comparisons */          cmp))))))
 
-  val out_hi = Mux(io.dw === DW_64, out64(63,32), Fill(32, out64(31)))
-  io.out := Cat(out_hi, out64(31,0)).toUInt
   io.adder_out := sum
+  io.out := out
+  if (xLen > 32) {
+    require(xLen == 64)
+    when (io.dw === DW_32) { io.out := Cat(Fill(32, out(31)), out(31,0)) }
+  }
 }

@@ -58,12 +58,12 @@ abstract class RoCC(implicit p: Parameters) extends CoreModule()(p) {
 }
 
 class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
-  val regfile = Mem(UInt(width = xLen), n)
-  val busy = Reg(init=Vec(Bool(false), n))
+  val regfile = Mem(n, UInt(width = xLen))
+  val busy = Reg(init = Vec.fill(n){Bool(false)})
 
   val cmd = Queue(io.cmd)
   val funct = cmd.bits.inst.funct
-  val addr = cmd.bits.inst.rs2(log2Up(n)-1,0)
+  val addr = cmd.bits.rs2(log2Up(n)-1,0)
   val doWrite = funct === UInt(0)
   val doRead = funct === UInt(1)
   val doLoad = funct === UInt(2)
@@ -129,4 +129,174 @@ class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
   io.iptw.req.valid := false
   io.dptw.req.valid := false
   io.pptw.req.valid := false
+}
+
+class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
+  val req_addr = Reg(UInt(width = coreMaxAddrBits))
+  val req_rd = Reg(io.resp.bits.rd)
+  val req_offset = req_addr(pgIdxBits - 1, 0)
+  val req_vpn = req_addr(coreMaxAddrBits - 1, pgIdxBits)
+  val ppn = Reg(UInt(width = ppnBits))
+  val error = Reg(Bool())
+
+  val s_idle :: s_ptw_req :: s_ptw_resp :: s_resp :: Nil = Enum(Bits(), 4)
+  val state = Reg(init = s_idle)
+
+  io.cmd.ready := (state === s_idle)
+
+  when (io.cmd.fire()) {
+    req_rd := io.cmd.bits.inst.rd
+    req_addr := io.cmd.bits.rs1
+    state := s_ptw_req
+  }
+
+  when (io.dptw.req.fire()) { state := s_ptw_resp }
+
+  when (state === s_ptw_resp && io.dptw.resp.valid) {
+    error := io.dptw.resp.bits.error
+    ppn := io.dptw.resp.bits.pte.ppn
+    state := s_resp
+  }
+
+  when (io.resp.fire()) { state := s_idle }
+
+  io.dptw.req.valid := (state === s_ptw_req)
+  io.dptw.req.bits.addr := req_vpn
+  io.dptw.req.bits.store := Bool(false)
+  io.dptw.req.bits.fetch := Bool(false)
+
+  io.resp.valid := (state === s_resp)
+  io.resp.bits.rd := req_rd
+  io.resp.bits.data := Mux(error, SInt(-1).toUInt, Cat(ppn, req_offset))
+
+  io.busy := (state =/= s_idle)
+  io.interrupt := Bool(false)
+  io.mem.req.valid := Bool(false)
+  io.dmem.head.acquire.valid := Bool(false)
+  io.dmem.head.grant.ready := Bool(false)
+  io.imem.acquire.valid := Bool(false)
+  io.imem.grant.ready := Bool(false)
+  io.iptw.req.valid := Bool(false)
+  io.pptw.req.valid := Bool(false)
+}
+
+class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
+    with HasTileLinkParameters {
+
+  private val blockOffset = tlBeatAddrBits + tlByteAddrBits
+
+  val needle = Reg(UInt(width = 8))
+  val addr = Reg(UInt(width = coreMaxAddrBits))
+  val count = Reg(UInt(width = xLen))
+  val resp_rd = Reg(io.resp.bits.rd)
+
+  val addr_block = addr(coreMaxAddrBits - 1, blockOffset)
+  val offset = addr(blockOffset - 1, 0)
+  val next_addr = (addr_block + UInt(1)) << UInt(blockOffset)
+
+  val s_idle :: s_acq :: s_gnt :: s_check :: s_resp :: Nil = Enum(Bits(), 5)
+  val state = Reg(init = s_idle)
+
+  val gnt = io.dmem.head.grant.bits
+  val recv_data = Reg(UInt(width = tlDataBits))
+  val recv_beat = Reg(UInt(width = tlBeatAddrBits))
+
+  val data_bytes = Vec.tabulate(tlDataBytes) { i => recv_data(8 * (i + 1) - 1, 8 * i) }
+  val zero_match = data_bytes.map(_ === UInt(0))
+  val needle_match = data_bytes.map(_ === needle)
+  val first_zero = PriorityEncoder(zero_match)
+
+  val chars_found = PopCount(needle_match.zipWithIndex.map {
+    case (matches, i) =>
+      val idx = Cat(recv_beat, UInt(i, tlByteAddrBits))
+      matches && idx >= offset && UInt(i) <= first_zero
+  })
+  val zero_found = zero_match.reduce(_ || _)
+  val finished = Reg(Bool())
+
+  io.cmd.ready := (state === s_idle)
+  io.resp.valid := (state === s_resp)
+  io.resp.bits.rd := resp_rd
+  io.resp.bits.data := count
+  io.dmem.head.acquire.valid := (state === s_acq)
+  io.dmem.head.acquire.bits := GetBlock(addr_block = addr_block)
+  io.dmem.head.grant.ready := (state === s_gnt)
+
+  when (io.cmd.fire()) {
+    addr := io.cmd.bits.rs1
+    needle := io.cmd.bits.rs2
+    resp_rd := io.cmd.bits.inst.rd
+    count := UInt(0)
+    finished := Bool(false)
+    state := s_acq
+  }
+
+  when (io.dmem.head.acquire.fire()) { state := s_gnt }
+
+  when (io.dmem.head.grant.fire()) {
+    recv_beat := gnt.addr_beat
+    recv_data := gnt.data
+    state := s_check
+  }
+
+  when (state === s_check) {
+    when (!finished) {
+      count := count + chars_found
+    }
+    when (zero_found) { finished := Bool(true) }
+    when (recv_beat === UInt(tlDataBeats - 1)) {
+      addr := next_addr
+      state := Mux(zero_found || finished, s_resp, s_acq)
+    } .otherwise {
+      state := s_gnt
+    }
+  }
+
+  when (io.resp.fire()) { state := s_idle }
+
+  io.busy := (state =/= s_idle)
+  io.interrupt := Bool(false)
+  io.mem.req.valid := Bool(false)
+  io.imem.acquire.valid := Bool(false)
+  io.imem.grant.ready := Bool(false)
+  io.dptw.req.valid := Bool(false)
+  io.iptw.req.valid := Bool(false)
+  io.pptw.req.valid := Bool(false)
+}
+
+class OpcodeSet(val opcodes: Seq[UInt]) {
+  def |(set: OpcodeSet) =
+    new OpcodeSet(this.opcodes ++ set.opcodes)
+
+  def matches(oc: UInt) = opcodes.map(_ === oc).reduce(_ || _)
+}
+
+object OpcodeSet {
+  val custom0 = new OpcodeSet(Seq(Bits("b0001011")))
+  val custom1 = new OpcodeSet(Seq(Bits("b0101011")))
+  val custom2 = new OpcodeSet(Seq(Bits("b1011011")))
+  val custom3 = new OpcodeSet(Seq(Bits("b1111011")))
+  val all = custom0 | custom1 | custom2 | custom3
+}
+
+class RoccCommandRouter(opcodes: Seq[OpcodeSet])(implicit p: Parameters)
+    extends CoreModule()(p) {
+  val io = new Bundle {
+    val in = Decoupled(new RoCCCommand).flip
+    val out = Vec(opcodes.size, Decoupled(new RoCCCommand))
+    val busy = Bool(OUTPUT)
+  }
+
+  val cmd = Queue(io.in)
+  val cmdReadys = io.out.zip(opcodes).map { case (out, opcode) =>
+    val me = opcode.matches(cmd.bits.inst.opcode)
+    out.valid := cmd.valid && me
+    out.bits := cmd.bits
+    out.ready && me
+  }
+  cmd.ready := cmdReadys.reduce(_ || _)
+  io.busy := cmd.valid
+
+  assert(PopCount(cmdReadys) <= UInt(1),
+    "Custom opcode matched for more than one accelerator")
 }
