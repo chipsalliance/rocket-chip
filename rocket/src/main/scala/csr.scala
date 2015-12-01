@@ -78,7 +78,6 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
     val wdata = Bits(INPUT, xLen)
   }
 
-  val csr_replay = Bool(OUTPUT)
   val csr_stall = Bool(OUTPUT)
   val csr_xcpt = Bool(OUTPUT)
   val eret = Bool(OUTPUT)
@@ -347,14 +346,13 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     reg_sepc := reg_mepc
   }
 
-  assert(PopCount(insn_ret :: insn_redirect_trap :: io.exception :: csr_xcpt :: io.csr_replay :: Nil) <= 1, "these conditions must be mutually exclusive")
+  assert(PopCount(insn_ret :: insn_redirect_trap :: io.exception :: csr_xcpt :: Nil) <= 1, "these conditions must be mutually exclusive")
 
   when (read_time >= reg_mtimecmp) {
     reg_mip.mtip := true
   }
 
   io.time := reg_cycle
-  io.csr_replay := false
   io.csr_stall := reg_wfi
 
   when (host_csr_req_fire && !host_csr_bits.rw && decoded_addr(CSRs.mtohost)) { reg_tohost := UInt(0) }
