@@ -239,7 +239,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     A2_IMM -> ex_imm,
     A2_FOUR -> SInt(4)))
 
-  val alu = Module(new ALU(xLen))
+  val alu = Module(new ALU)
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.toUInt

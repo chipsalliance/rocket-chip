@@ -43,7 +43,7 @@ object ALU
 }
 import ALU._
 
-class ALU(xLen: Int) extends Module {
+class ALU(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val dw = Bits(INPUT, SZ_DW)
     val fn = Bits(INPUT, SZ_ALU_FN)
