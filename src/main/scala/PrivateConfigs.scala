@@ -61,7 +61,7 @@ class WithHwachaTests extends Config(
       TestGeneration.addSuite(rv64sv("p"))
       TestGeneration.addVariable("SRC_EXTENSION", "$(base_dir)/hwacha/$(src_path)/*.scala")
       TestGeneration.addVariable("DISASM_EXTENSION", "--extension=hwacha")
-      Some((p: Parameters) => (Module(new Hwacha()(p.alterPartial({ case CoreName => "Hwacha" })))))
+      Seq((p: Parameters) => (Module(new Hwacha()(p.alterPartial({ case CoreName => "Hwacha" })))))
     }
   }
 )
