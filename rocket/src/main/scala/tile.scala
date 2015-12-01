@@ -52,8 +52,8 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   icache.io.cpu <> core.io.imem
   core.io.ptw <> ptw.io.dpath
 
-  //If so specified, build an FPU module and wire it in
-  if (p(UseFPU)) core.io.fpu <> Module(new FPU()(p)).io
+  val fpuOpt = if (p(UseFPU)) Some(Module(new FPU)) else None
+  fpuOpt.foreach(fpu => core.io.fpu <> fpu.io)
 
    // Connect the caches and ROCC to the outer memory system
   io.cached.head <> dcache.io.mem
@@ -85,6 +85,16 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
         ptw.io.requestor(4 + 3 * i) <> rocc.io.pptw
         rocc
     }
+
+    fpuOpt.foreach { fpu =>
+      val fpArb = Module(new InOrderArbiter(new FPInput, new FPResult, nRocc))
+      fpArb.io.in_req <> roccs.map(_.io.fpu_req)
+      roccs.zip(fpArb.io.in_resp).foreach {
+        case (rocc, fpu_resp) => rocc.io.fpu_resp <> fpu_resp
+      }
+      fpu.io.cp_req <> fpArb.io.out_req
+      fpArb.io.out_resp <> fpu.io.cp_resp
+    } 
 
     core.io.rocc.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
     core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)

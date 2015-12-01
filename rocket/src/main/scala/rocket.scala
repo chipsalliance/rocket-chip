@@ -537,13 +537,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
-  if (usingFPU && usingRoCC) {
-    io.fpu.cp_req <> io.rocc.fpu_req
-    io.fpu.cp_resp <> io.rocc.fpu_resp
-  } else {
-    io.fpu.cp_req.valid := Bool(false)
-  }
-
   if (enableCommitLog) {
     val pc = Wire(SInt(width=64))
     pc := wb_reg_pc
