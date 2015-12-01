@@ -313,15 +313,13 @@ class WithGroundTest extends Config(
 
 class WithMemtest extends Config(
   (pname, site, here) => pname match {
-    case NGenerators => 1
+    case NGenerators => site(NTiles)
     case GenerateUncached => true
     case GenerateCached => true
     case MaxGenerateRequests => 128
     case GeneratorStartAddress => 0
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
-
-    case NTiles => site(NGenerators)
   })
 
 class WithCacheFillTest extends Config(
@@ -383,8 +381,8 @@ class DualChannelDualBankL2Config extends Config(
   new With2MemoryChannels ++ new With2BanksPerMemChannel ++
   new WithL2Cache ++ new DefaultConfig)
 
-class MemtestDualChannelDualBankL2Config extends Config(
-  new With2MemoryChannels ++ new With2BanksPerMemChannel ++
+class FancyMemtestConfig extends Config(
+  new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 
 class WithRoccExample extends Config(
