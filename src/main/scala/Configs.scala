@@ -276,6 +276,7 @@ class DefaultL2FPGAConfig extends Config(new WithL2Capacity64 ++ new WithL2Cache
 
 class WithZscale extends Config(
   (pname,site,here) => pname match {
+    case XLen => 32
     case BuildZscale => {
       TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
       TestGeneration.addSuites(List(zscaleBmarks))
