@@ -11,6 +11,7 @@ case object CoreName extends Field[String]
 case object BuildRoCC extends Field[Seq[Parameters => RoCC]]
 case object RoccOpcodes extends Field[Seq[OpcodeSet]]
 case object RoccAcceleratorMemChannels extends Field[Seq[Int]]
+case object RoccUseFPU extends Field[Seq[Boolean]]
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
@@ -19,6 +20,8 @@ abstract class Tile(resetSignal: Bool = null)
   val roccMemChannels = p(RoccAcceleratorMemChannels)
   val usingRocc = !buildRocc.isEmpty
   val nRocc = buildRocc.size
+  val roccUseFPU = p(RoccUseFPU)
+  val nFPUPorts = roccUseFPU.filter(useFPU => useFPU).size
   val nDCachePorts = 2 + nRocc
   val nPTWPorts = 2 + 3 * nRocc
   val nCachedTileLinkPorts = 1
@@ -86,15 +89,20 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
         rocc
     }
 
-    fpuOpt.foreach { fpu =>
-      val fpArb = Module(new InOrderArbiter(new FPInput, new FPResult, nRocc))
-      fpArb.io.in_req <> roccs.map(_.io.fpu_req)
-      roccs.zip(fpArb.io.in_resp).foreach {
-        case (rocc, fpu_resp) => rocc.io.fpu_resp <> fpu_resp
+    if (nFPUPorts > 0) {
+      fpuOpt.foreach { fpu =>
+        val fpArb = Module(new InOrderArbiter(new FPInput, new FPResult, nFPUPorts))
+        val fp_roccs = roccs.zip(roccUseFPU)
+          .filter { case (_, useFPU) => useFPU }
+          .map { case (rocc, _) => rocc }
+        fpArb.io.in_req <> fp_roccs.map(_.io.fpu_req)
+        fp_roccs.zip(fpArb.io.in_resp).foreach {
+          case (rocc, fpu_resp) => rocc.io.fpu_resp <> fpu_resp
+        }
+        fpu.io.cp_req <> fpArb.io.out_req
+        fpArb.io.out_resp <> fpu.io.cp_resp
       }
-      fpu.io.cp_req <> fpArb.io.out_req
-      fpArb.io.out_resp <> fpu.io.cp_resp
-    } 
+    }
 
     core.io.rocc.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
     core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
