@@ -133,6 +133,7 @@ class DefaultConfig extends Config (
         }
       }
       case BuildRoCC => Nil
+      case RoccUseFPU => site(BuildRoCC).map(_ => false)
       case RoccAcceleratorMemChannels => site(BuildRoCC).map(_ => 1)
       case RoccOpcodes => site(BuildRoCC).map(_ => OpcodeSet.all)
       case RoccNMemChannels => site(RoccAcceleratorMemChannels).fold(0)(_ + _)
