@@ -61,7 +61,12 @@ class WithHwachaTests extends Config(
       TestGeneration.addSuite(rv64sv("p"))
       TestGeneration.addVariable("SRC_EXTENSION", "$(base_dir)/hwacha/$(src_path)/*.scala")
       TestGeneration.addVariable("DISASM_EXTENSION", "--extension=hwacha")
-      Seq((p: Parameters) => (Module(new Hwacha()(p.alterPartial({ case CoreName => "Hwacha" })))))
+      Seq(RoccParameters(
+        opcodes = OpcodeSet.custom0 | OpcodeSet.custom1,
+        generator = (p: Parameters) =>
+          (Module(new Hwacha()(p.alterPartial({ case CoreName => "Hwacha" })))),
+        nMemChannels = site(HwachaNLanes),
+        useFPU = true))
     }
   }
 )
