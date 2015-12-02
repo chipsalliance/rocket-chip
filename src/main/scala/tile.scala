@@ -13,15 +13,15 @@ case object BuildRoCC extends Field[Seq[RoccParameters]]
 case class RoccParameters(
   opcodes: OpcodeSet,
   generator: Parameters => RoCC,
-  nMemChannels: Int = 1)
+  nMemChannels: Int = 1,
+  useFPU: Boolean = false)
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
   val buildRocc = p(BuildRoCC)
   val usingRocc = !buildRocc.isEmpty
   val nRocc = buildRocc.size
-  val roccUseFPU = p(RoccUseFPU)
-  val nFPUPorts = roccUseFPU.filter(useFPU => useFPU).size
+  val nFPUPorts = buildRocc.filter(_.useFPU).size
   val nDCachePorts = 2 + nRocc
   val nPTWPorts = 2 + 3 * nRocc
   val nCachedTileLinkPorts = 1
@@ -73,32 +73,31 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
     val cmdRouter = Module(new RoccCommandRouter(roccOpcodes))
     cmdRouter.io.in <> core.io.rocc.cmd
 
-    val roccs = buildRocc.zipWithIndex.map {
-      case (RoccParameters(_, generator, nchannels), i) =>
-        val accelParams = p.alterPartial({ case RoccNMemChannels => nchannels })
-        val rocc = generator(accelParams)
-        val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
-        rocc.io.cmd <> cmdRouter.io.out(i)
-        rocc.io.s := core.io.rocc.s
-        rocc.io.exception := core.io.rocc.exception
-        dcIF.io.requestor <> rocc.io.mem
-        dcArb.io.requestor(2 + i) <> dcIF.io.cache
-        iMemArb.io.in(1 + i) <> rocc.io.imem
-        ptw.io.requestor(2 + 3 * i) <> rocc.io.iptw
-        ptw.io.requestor(3 + 3 * i) <> rocc.io.dptw
-        ptw.io.requestor(4 + 3 * i) <> rocc.io.pptw
-        rocc
+    val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
+      val rocc = accelParams.generator(
+        p.alterPartial({ case RoccNMemChannels => accelParams.nMemChannels }))
+      val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
+      rocc.io.cmd <> cmdRouter.io.out(i)
+      rocc.io.s := core.io.rocc.s
+      rocc.io.exception := core.io.rocc.exception
+      dcIF.io.requestor <> rocc.io.mem
+      dcArb.io.requestor(2 + i) <> dcIF.io.cache
+      iMemArb.io.in(1 + i) <> rocc.io.imem
+      ptw.io.requestor(2 + 3 * i) <> rocc.io.iptw
+      ptw.io.requestor(3 + 3 * i) <> rocc.io.dptw
+      ptw.io.requestor(4 + 3 * i) <> rocc.io.pptw
+      rocc
     }
 
     if (nFPUPorts > 0) {
       fpuOpt.foreach { fpu =>
         val fpArb = Module(new InOrderArbiter(new FPInput, new FPResult, nFPUPorts))
-        val fp_roccs = roccs.zip(roccUseFPU)
-          .filter { case (_, useFPU) => useFPU }
-          .map { case (rocc, _) => rocc }
-        fpArb.io.in_req <> fp_roccs.map(_.io.fpu_req)
+        val fp_roccs = roccs.zip(buildRocc)
+          .filter { case (_, params) => params.useFPU }
+          .map { case (rocc, _) => rocc.io }
+        fpArb.io.in_req <> fp_roccs.map(_.fpu_req)
         fp_roccs.zip(fpArb.io.in_resp).foreach {
-          case (rocc, fpu_resp) => rocc.io.fpu_resp <> fpu_resp
+          case (rocc, fpu_resp) => rocc.fpu_resp <> fpu_resp
         }
         fpu.io.cp_req <> fpArb.io.out_req
         fpArb.io.out_resp <> fpu.io.cp_resp
