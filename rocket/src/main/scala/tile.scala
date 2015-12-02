@@ -8,15 +8,16 @@ import Util._
 import cde.{Parameters, Field}
 
 case object CoreName extends Field[String]
-case object BuildRoCC extends Field[Seq[Parameters => RoCC]]
-case object RoccOpcodes extends Field[Seq[OpcodeSet]]
-case object RoccAcceleratorMemChannels extends Field[Seq[Int]]
+case object BuildRoCC extends Field[Seq[RoccParameters]]
+
+case class RoccParameters(
+  opcodes: OpcodeSet,
+  generator: Parameters => RoCC,
+  nMemChannels: Int = 1)
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
   val buildRocc = p(BuildRoCC)
-  val roccOpcodes = p(RoccOpcodes)
-  val roccMemChannels = p(RoccAcceleratorMemChannels)
   val usingRocc = !buildRocc.isEmpty
   val nRocc = buildRocc.size
   val nDCachePorts = 2 + nRocc
@@ -66,13 +67,14 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
     val respArb = Module(new RRArbiter(new RoCCResponse, nRocc))
     core.io.rocc.resp <> respArb.io.out
 
+    val roccOpcodes = buildRocc.map(_.opcodes)
     val cmdRouter = Module(new RoccCommandRouter(roccOpcodes))
     cmdRouter.io.in <> core.io.rocc.cmd
 
-    val roccs = buildRocc.zip(roccMemChannels).zipWithIndex.map {
-      case ((buildItHere, nchannels), i) =>
-        val accelParams = p.alterPartial({ case RoccNMemChannels => nchannels})
-        val rocc = buildItHere(accelParams)
+    val roccs = buildRocc.zipWithIndex.map {
+      case (RoccParameters(_, generator, nchannels), i) =>
+        val accelParams = p.alterPartial({ case RoccNMemChannels => nchannels })
+        val rocc = generator(accelParams)
         val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
         rocc.io.cmd <> cmdRouter.io.out(i)
         rocc.io.s := core.io.rocc.s
