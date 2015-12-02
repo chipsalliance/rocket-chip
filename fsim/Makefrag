@@ -15,7 +15,7 @@ sim_vsrcs = \
 # C sources
 
 sim_csrcs = \
-	$(base_dir)/csrc/vcs_main.cc \
+	$(base_dir)/csrc/vcs_main.$(TB).cc \
 	$(base_dir)/csrc/mm.cc \
 	$(base_dir)/csrc/mm_dramsim2.cc \
 
