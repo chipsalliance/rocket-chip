@@ -110,4 +110,11 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
 
     roccs.flatMap(_.io.dmem) :+ iMemArb.io.out
   } else { Seq(icache.io.mem) })
+
+  if (!usingRocc || nFPUPorts == 0) {
+    fpuOpt.foreach { fpu =>
+      fpu.io.cp_req.valid := Bool(false)
+      fpu.io.cp_resp.ready := Bool(false)
+    }
+  }
 }
