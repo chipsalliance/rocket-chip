@@ -133,10 +133,7 @@ class DefaultConfig extends Config (
         }
       }
       case BuildRoCC => Nil
-      case RoccUseFPU => site(BuildRoCC).map(_ => false)
-      case RoccAcceleratorMemChannels => site(BuildRoCC).map(_ => 1)
-      case RoccOpcodes => site(BuildRoCC).map(_ => OpcodeSet.all)
-      case RoccNMemChannels => site(RoccAcceleratorMemChannels).fold(0)(_ + _)
+      case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       //Rocket Core Constants
       case CoreName => "Rocket"
       case FetchWidth => 1
@@ -281,6 +278,7 @@ class DefaultL2FPGAConfig extends Config(new WithL2Capacity64 ++ new WithL2Cache
 class WithZscale extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
+    case UseFPU => false
     case BuildZscale => {
       TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
       TestGeneration.addSuites(List(zscaleBmarks))
@@ -317,15 +315,13 @@ class WithGroundTest extends Config(
 
 class WithMemtest extends Config(
   (pname, site, here) => pname match {
-    case NGenerators => 1
+    case NGenerators => site(NTiles)
     case GenerateUncached => true
     case GenerateCached => true
     case MaxGenerateRequests => 128
     case GeneratorStartAddress => 0
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
-
-    case NTiles => site(NGenerators)
   })
 
 class WithCacheFillTest extends Config(
@@ -387,21 +383,24 @@ class DualChannelDualBankL2Config extends Config(
   new With2MemoryChannels ++ new With2BanksPerMemChannel ++
   new WithL2Cache ++ new DefaultConfig)
 
-class MemtestDualChannelDualBankL2Config extends Config(
-  new With2MemoryChannels ++ new With2BanksPerMemChannel ++
+class FancyMemtestConfig extends Config(
+  new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 
 class WithRoccExample extends Config(
   (pname, site, here) => pname match {
     case BuildRoCC => Seq(
-      (p: Parameters) => Module(new AccumulatorExample()(p)),
-      (p: Parameters) => Module(new TranslatorExample()(p)),
-      (p: Parameters) => Module(new CharacterCountExample()(p)))
+      RoccParameters(
+        opcodes = OpcodeSet.custom0,
+        generator = (p: Parameters) => Module(new AccumulatorExample()(p))),
+      RoccParameters(
+        opcodes = OpcodeSet.custom1,
+        generator = (p: Parameters) => Module(new TranslatorExample()(p))),
+      RoccParameters(
+        opcodes = OpcodeSet.custom2,
+        generator = (p: Parameters) => Module(new CharacterCountExample()(p))))
+
     case RoccMaxTaggedMemXacts => 1
-    case RoccOpcodes => Seq(
-      OpcodeSet.custom0,
-      OpcodeSet.custom1,
-      OpcodeSet.custom2)
   })
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
