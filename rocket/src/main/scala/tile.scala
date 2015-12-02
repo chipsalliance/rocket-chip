@@ -13,13 +13,15 @@ case object BuildRoCC extends Field[Seq[RoccParameters]]
 case class RoccParameters(
   opcodes: OpcodeSet,
   generator: Parameters => RoCC,
-  nMemChannels: Int = 1)
+  nMemChannels: Int = 1,
+  useFPU: Boolean = false)
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
   val buildRocc = p(BuildRoCC)
   val usingRocc = !buildRocc.isEmpty
   val nRocc = buildRocc.size
+  val nFPUPorts = buildRocc.filter(_.useFPU).size
   val nDCachePorts = 2 + nRocc
   val nPTWPorts = 2 + 3 * nRocc
   val nCachedTileLinkPorts = 1
@@ -53,8 +55,8 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   icache.io.cpu <> core.io.imem
   core.io.ptw <> ptw.io.dpath
 
-  //If so specified, build an FPU module and wire it in
-  if (p(UseFPU)) core.io.fpu <> Module(new FPU()(p)).io
+  val fpuOpt = if (p(UseFPU)) Some(Module(new FPU)) else None
+  fpuOpt.foreach(fpu => core.io.fpu <> fpu.io)
 
    // Connect the caches and ROCC to the outer memory system
   io.cached.head <> dcache.io.mem
@@ -87,10 +89,32 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       rocc
     }
 
+    if (nFPUPorts > 0) {
+      fpuOpt.foreach { fpu =>
+        val fpArb = Module(new InOrderArbiter(new FPInput, new FPResult, nFPUPorts))
+        val fp_roccs = roccs.zip(buildRocc)
+          .filter { case (_, params) => params.useFPU }
+          .map { case (rocc, _) => rocc.io }
+        fpArb.io.in_req <> fp_roccs.map(_.fpu_req)
+        fp_roccs.zip(fpArb.io.in_resp).foreach {
+          case (rocc, fpu_resp) => rocc.fpu_resp <> fpu_resp
+        }
+        fpu.io.cp_req <> fpArb.io.out_req
+        fpArb.io.out_resp <> fpu.io.cp_resp
+      }
+    }
+
     core.io.rocc.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
     core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
     respArb.io.in <> roccs.map(rocc => Queue(rocc.io.resp))
 
     roccs.flatMap(_.io.dmem) :+ iMemArb.io.out
   } else { Seq(icache.io.mem) })
+
+  if (!usingRocc || nFPUPorts == 0) {
+    fpuOpt.foreach { fpu =>
+      fpu.io.cp_req.valid := Bool(false)
+      fpu.io.cp_resp.ready := Bool(false)
+    }
+  }
 }
