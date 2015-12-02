@@ -71,21 +71,20 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
     val cmdRouter = Module(new RoccCommandRouter(roccOpcodes))
     cmdRouter.io.in <> core.io.rocc.cmd
 
-    val roccs = buildRocc.zipWithIndex.map {
-      case (RoccParameters(_, generator, nchannels), i) =>
-        val accelParams = p.alterPartial({ case RoccNMemChannels => nchannels })
-        val rocc = generator(accelParams)
-        val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
-        rocc.io.cmd <> cmdRouter.io.out(i)
-        rocc.io.s := core.io.rocc.s
-        rocc.io.exception := core.io.rocc.exception
-        dcIF.io.requestor <> rocc.io.mem
-        dcArb.io.requestor(2 + i) <> dcIF.io.cache
-        iMemArb.io.in(1 + i) <> rocc.io.imem
-        ptw.io.requestor(2 + 3 * i) <> rocc.io.iptw
-        ptw.io.requestor(3 + 3 * i) <> rocc.io.dptw
-        ptw.io.requestor(4 + 3 * i) <> rocc.io.pptw
-        rocc
+    val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
+      val rocc = accelParams.generator(
+        p.alterPartial({ case RoccNMemChannels => accelParams.nMemChannels }))
+      val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
+      rocc.io.cmd <> cmdRouter.io.out(i)
+      rocc.io.s := core.io.rocc.s
+      rocc.io.exception := core.io.rocc.exception
+      dcIF.io.requestor <> rocc.io.mem
+      dcArb.io.requestor(2 + i) <> dcIF.io.cache
+      iMemArb.io.in(1 + i) <> rocc.io.imem
+      ptw.io.requestor(2 + 3 * i) <> rocc.io.iptw
+      ptw.io.requestor(3 + 3 * i) <> rocc.io.dptw
+      ptw.io.requestor(4 + 3 * i) <> rocc.io.pptw
+      rocc
     }
 
     core.io.rocc.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
