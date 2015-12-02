@@ -47,6 +47,8 @@ class RoCCInterface(implicit p: Parameters) extends Bundle {
   val iptw = new TLBPTWIO
   val dptw = new TLBPTWIO
   val pptw = new TLBPTWIO
+  val fpu_req = Decoupled(new FPInput)
+  val fpu_resp = Decoupled(new FPResult).flip
   val exception = Bool(INPUT)
 }
 
