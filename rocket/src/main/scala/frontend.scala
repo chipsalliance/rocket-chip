@@ -46,14 +46,15 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(btb.io.resp.bits)
   val s2_xcpt_if = Reg(init=Bool(false))
-  val icbuf = Module(new Queue(new ICacheResp, 1, pipe=true))
+  val s2_resp_valid = Wire(init=Bool(false))
+  val s2_resp_data = Wire(UInt(width = rowBits))
 
   val msb = vaddrBits-1
   val lsb = log2Up(fetchWidth*coreInstBytes)
   val btbTarget = Cat(btb.io.resp.bits.target(msb), btb.io.resp.bits.target)
   val ntpc_0 = s1_pc + UInt(coreInstBytes*fetchWidth)
   val ntpc = Cat(s1_pc(msb) & ntpc_0(msb), ntpc_0(msb,lsb), Bits(0,lsb)) // unsure
-  val icmiss = s2_valid && !icbuf.io.deq.valid
+  val icmiss = s2_valid && !s2_resp_valid
   val predicted_npc = Mux(btb.io.resp.bits.taken, btbTarget, ntpc)
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
   val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.resp.bits.taken && ((ntpc & rowBytes) === (s1_pc & rowBytes))
@@ -101,17 +102,29 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
     icmiss || io.ptw.invalidate
   icache.io.resp.ready := !stall && !s1_same_block
 
-  io.cpu.resp.valid := s2_valid && (s2_xcpt_if || icbuf.io.deq.valid)
+  io.cpu.resp.valid := s2_valid && (s2_xcpt_if || s2_resp_valid)
   io.cpu.resp.bits.pc := s2_pc
   io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
 
-  icbuf.io.enq <> icache.io.resp
-  icbuf.io.deq.ready := !stall && !s1_same_block
+  // if the ways are buffered, we don't need to buffer again
+  if (p(ICacheBufferWays)) {
+    icache.io.resp.ready := !stall && !s1_same_block
+
+    s2_resp_valid := icache.io.resp.valid
+    s2_resp_data := icache.io.resp.bits.datablock
+  } else {
+    val icbuf = Module(new Queue(new ICacheResp, 1, pipe=true))
+    icbuf.io.enq <> icache.io.resp
+    icbuf.io.deq.ready := !stall && !s1_same_block
+
+    s2_resp_valid := icbuf.io.deq.valid
+    s2_resp_data := icbuf.io.deq.bits.datablock
+  }
 
   require(fetchWidth * coreInstBytes <= rowBytes)
   val fetch_data =
-    if (fetchWidth * coreInstBytes == rowBytes) icbuf.io.deq.bits.datablock
-    else icbuf.io.deq.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(fetchWidth*coreInstBytes)) << log2Up(fetchWidth*coreInstBits))
+    if (fetchWidth * coreInstBytes == rowBytes) s2_resp_data
+    else s2_resp_data >> (s2_pc(log2Up(rowBytes)-1,log2Up(fetchWidth*coreInstBytes)) << log2Up(fetchWidth*coreInstBits))
 
   for (i <- 0 until fetchWidth) {
     io.cpu.resp.bits.data(i) := fetch_data(i*coreInstBits+coreInstBits-1, i*coreInstBits)
