@@ -42,8 +42,8 @@ class RoCCInterface(implicit p: Parameters) extends Bundle {
   val interrupt = Bool(OUTPUT)
   
   // These should be handled differently, eventually
-  val imem = new ClientUncachedTileLinkIO
-  val dmem = Vec(p(RoccNMemChannels), new ClientUncachedTileLinkIO)
+  val autl = new ClientUncachedTileLinkIO
+  val utl = Vec(p(RoccNMemChannels), new ClientUncachedTileLinkIO)
   val iptw = new TLBPTWIO
   val dptw = new TLBPTWIO
   val pptw = new TLBPTWIO
@@ -122,10 +122,8 @@ class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
   io.mem.invalidate_lr := false
 
-  io.imem.acquire.valid := false
-  io.imem.grant.ready := false
-  io.dmem.head.acquire.valid := false
-  io.dmem.head.grant.ready := false
+  io.autl.acquire.valid := false
+  io.autl.grant.ready := false
   io.iptw.req.valid := false
   io.dptw.req.valid := false
   io.pptw.req.valid := false
@@ -172,10 +170,8 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
-  io.dmem.head.acquire.valid := Bool(false)
-  io.dmem.head.grant.ready := Bool(false)
-  io.imem.acquire.valid := Bool(false)
-  io.imem.grant.ready := Bool(false)
+  io.autl.acquire.valid := Bool(false)
+  io.autl.grant.ready := Bool(false)
   io.iptw.req.valid := Bool(false)
   io.pptw.req.valid := Bool(false)
 }
@@ -197,7 +193,7 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
   val s_idle :: s_acq :: s_gnt :: s_check :: s_resp :: Nil = Enum(Bits(), 5)
   val state = Reg(init = s_idle)
 
-  val gnt = io.dmem.head.grant.bits
+  val gnt = io.autl.grant.bits
   val recv_data = Reg(UInt(width = tlDataBits))
   val recv_beat = Reg(UInt(width = tlBeatAddrBits))
 
@@ -218,9 +214,9 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
   io.resp.valid := (state === s_resp)
   io.resp.bits.rd := resp_rd
   io.resp.bits.data := count
-  io.dmem.head.acquire.valid := (state === s_acq)
-  io.dmem.head.acquire.bits := GetBlock(addr_block = addr_block)
-  io.dmem.head.grant.ready := (state === s_gnt)
+  io.autl.acquire.valid := (state === s_acq)
+  io.autl.acquire.bits := GetBlock(addr_block = addr_block)
+  io.autl.grant.ready := (state === s_gnt)
 
   when (io.cmd.fire()) {
     addr := io.cmd.bits.rs1
@@ -231,9 +227,9 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
     state := s_acq
   }
 
-  when (io.dmem.head.acquire.fire()) { state := s_gnt }
+  when (io.autl.acquire.fire()) { state := s_gnt }
 
-  when (io.dmem.head.grant.fire()) {
+  when (io.autl.grant.fire()) {
     recv_beat := gnt.addr_beat
     recv_data := gnt.data
     state := s_check
@@ -257,8 +253,6 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
-  io.imem.acquire.valid := Bool(false)
-  io.imem.grant.ready := Bool(false)
   io.dptw.req.valid := Bool(false)
   io.iptw.req.valid := Bool(false)
   io.pptw.req.valid := Bool(false)

@@ -13,7 +13,7 @@ case object BuildRoCC extends Field[Seq[RoccParameters]]
 case class RoccParameters(
   opcodes: OpcodeSet,
   generator: Parameters => RoCC,
-  nMemChannels: Int = 1,
+  nMemChannels: Int = 0,
   useFPU: Boolean = false)
 
 abstract class Tile(resetSignal: Bool = null)
@@ -63,8 +63,8 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   // If so specified, build an RoCC module and wire it to core + TileLink ports,
   // otherwise just hookup the icache
   io.uncached <> (if (usingRocc) {
-    val iMemArb = Module(new ClientTileLinkIOArbiter(1 + nRocc))
-    iMemArb.io.in(0) <> icache.io.mem
+    val uncachedArb = Module(new ClientTileLinkIOArbiter(1 + nRocc))
+    uncachedArb.io.in(0) <> icache.io.mem
 
     val respArb = Module(new RRArbiter(new RoCCResponse, nRocc))
     core.io.rocc.resp <> respArb.io.out
@@ -82,7 +82,7 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       rocc.io.exception := core.io.rocc.exception
       dcIF.io.requestor <> rocc.io.mem
       dcArb.io.requestor(2 + i) <> dcIF.io.cache
-      iMemArb.io.in(1 + i) <> rocc.io.imem
+      uncachedArb.io.in(1 + i) <> rocc.io.autl
       ptw.io.requestor(2 + 3 * i) <> rocc.io.iptw
       ptw.io.requestor(3 + 3 * i) <> rocc.io.dptw
       ptw.io.requestor(4 + 3 * i) <> rocc.io.pptw
@@ -108,7 +108,7 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
     core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
     respArb.io.in <> roccs.map(rocc => Queue(rocc.io.resp))
 
-    roccs.flatMap(_.io.dmem) :+ iMemArb.io.out
+    roccs.flatMap(_.io.utl) :+ uncachedArb.io.out
   } else { Seq(icache.io.mem) })
 
   if (!usingRocc || nFPUPorts == 0) {
