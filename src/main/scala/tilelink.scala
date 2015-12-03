@@ -981,7 +981,7 @@ class FinishUnit(srcId: Int = 0, outstanding: Int = 2)(implicit p: Parameters) e
     io.finish.valid := q.io.deq.valid
     q.io.deq.ready := io.finish.ready
 
-    io.refill.valid := io.grant.valid
+    io.refill.valid := (q.io.enq.ready || !g.requiresAck()) && io.grant.valid
     io.refill.bits := g
     io.grant.ready := (q.io.enq.ready || !g.requiresAck()) && io.refill.ready
     io.ready := q.io.enq.ready
