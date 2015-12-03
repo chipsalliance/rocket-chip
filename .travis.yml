@@ -27,6 +27,9 @@ env:
   global:
     - RISCV="/home/travis/riscv_install"
     - PATH=$PATH:$RISCV/bin
+  matrix:
+    - VCONFIG=DefaultVLSIConfig FCONFIG=DefaultFPGAConfig ECONFIG=DefaultCPPConfig
+    - VCONFIG=RoccExampleConfig FCONFIG=RoccExampleConfig ECONFIG=RoccExampleConfig
 
 # blacklist private branches
 branches:
@@ -54,9 +57,9 @@ before_install:
 script:
   # test verilog
   - cd vsim
-  - make verilog
+  - make CONFIG=$VCONFIG verilog
   - cd ../fsim
-  - make verilog
+  - make CONFIG=$FCONFIG verilog
   # build riscv-fesvr
   - cd ../riscv-tools/riscv-fesvr
   - mkdir build
@@ -65,12 +68,12 @@ script:
   - make install
   # build emulator
   - cd ../../../emulator
-  - make
+  - make -j 8 CONFIG=$ECONFIG
   # build riscv-gcc
   - cd ../riscv-tools/riscv-gnu-toolchain
   - ./configure --prefix=$RISCV
   - make -j 8 > build.gcc.out
   # run riscv-tests
   - cd ../../emulator
-  - make -j 8 run-asm-tests
-  - make -j 8 run-bmark-tests
+  - make -j 8 CONFIG=$ECONFIG run-asm-tests
+  - make CONFIG=$ECONFIG run-bmark-tests

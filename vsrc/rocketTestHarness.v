@@ -1,11 +1,5 @@
 // See LICENSE for license details.
 
-extern "A" void htif_init
-(
-  input reg [31:0] htif_width,
-  input reg [31:0] mem_width
-);
-
 extern "A" void htif_fini(input reg failure);
 
 extern "A" void htif_tick
@@ -23,22 +17,41 @@ extern "A" void htif_tick
 
 extern "A" void memory_tick
 (
-  input  reg                      mem_req_valid,
-  output reg                      mem_req_ready,
-  input  reg                      mem_req_store,
-  input  reg [`MEM_ADDR_BITS-1:0] mem_req_bits_addr,
-  input  reg [`MEM_TAG_BITS-1:0]  mem_req_bits_tag,
+  input  reg [31:0]               channel,
 
-  input  reg                      mem_req_data_valid,
-  output reg                      mem_req_data_ready,
-  input  reg [`MEM_DATA_BITS-1:0] mem_req_data_bits,
-  
-  output reg                      mem_resp_valid,
-  input reg                       mem_resp_ready,
-  output reg [`MEM_TAG_BITS-1:0]  mem_resp_bits_tag,
-  output reg [`MEM_DATA_BITS-1:0] mem_resp_bits_data
+  input  reg                      ar_valid,
+  output reg                      ar_ready,
+  input  reg [`MEM_ADDR_BITS-1:0] ar_addr,
+  input  reg [`MEM_ID_BITS-1:0]   ar_id,
+  input  reg [2:0]                ar_size,
+  input  reg [7:0]                ar_len,
+
+  input  reg                      aw_valid,
+  output reg                      aw_ready,
+  input  reg [`MEM_ADDR_BITS-1:0] aw_addr,
+  input  reg [`MEM_ID_BITS-1:0]   aw_id,
+  input  reg [2:0]                aw_size,
+  input  reg [7:0]                aw_len,
+
+  input  reg                      w_valid,
+  output reg                      w_ready,
+  input  reg [`MEM_STRB_BITS-1:0] w_strb,
+  input  reg [`MEM_DATA_BITS-1:0] w_data,
+  input  reg                      w_last,
+
+  output reg                      r_valid,
+  input  reg                      r_ready,
+  output reg [1:0]                r_resp,
+  output reg [`MEM_ID_BITS-1:0]   r_id,
+  output reg [`MEM_DATA_BITS-1:0] r_data,
+  output reg                      r_last,
+
+  output reg                      b_valid,
+  input  reg                      b_ready,
+  output reg [1:0]                b_resp,
+  output reg [`MEM_ID_BITS-1:0]   b_id
 );
-  
+
 module rocketTestHarness;
 
   reg [31:0] seed;
@@ -47,158 +60,39 @@ module rocketTestHarness;
   //-----------------------------------------------
   // Instantiate the processor
 
-  reg clk   = 0;
-  reg reset = 1;
+  reg clk   = 1'b0;
+  reg reset = 1'b1;
   reg r_reset;
-  reg start = 0;
+  reg start = 1'b0;
 
   always #`CLOCK_PERIOD clk = ~clk;
 
-  wire mem_req_valid;
-  reg mem_req_ready;
-  wire mem_req_bits_rw;
-  wire [`MEM_ADDR_BITS-1:0] mem_req_bits_addr;
-  wire [`MEM_TAG_BITS-1:0] mem_req_bits_tag;
+  reg [  31:0] n_mem_channel = `N_MEM_CHANNELS;
+  reg [  31:0] htif_width = `HTIF_WIDTH;
+  reg [  31:0] mem_width = `MEM_DATA_BITS;
+  reg [  63:0] max_cycles = 0;
+  reg [  63:0] trace_count = 0;
+  reg [1023:0] loadmem = 0;
+  reg [1023:0] vcdplusfile = 0;
+  reg [1023:0] vcdfile = 0;
+  reg          stats_active = 0;
+  reg          stats_tracking = 0;
+  reg          verbose = 0;
+  integer      stderr = 32'h80000002;
 
-  wire mem_req_data_valid;
-  reg mem_req_data_ready;
-  wire [`MEM_DATA_BITS-1:0] mem_req_data_bits;
+`include `TBVFRAG
 
-  reg mem_resp_valid;
-  wire mem_resp_ready;
-  reg [`MEM_TAG_BITS-1:0] mem_resp_bits_tag;
-  reg [`MEM_DATA_BITS-1:0] mem_resp_bits_data;
-
-  reg htif_out_ready;
-  wire htif_in_valid;
-  wire [`HTIF_WIDTH-1:0] htif_in_bits;
-  wire htif_in_ready, htif_out_valid;
-  wire [`HTIF_WIDTH-1:0] htif_out_bits;
-
-  wire mem_bk_in_valid;
-  wire mem_bk_out_valid;
-  wire mem_bk_out_ready;
-  wire [`HTIF_WIDTH-1:0] mem_in_bits;
-
-  wire htif_clk;
-  wire #0.1 htif_in_valid_delay = htif_in_valid;
-  wire htif_in_ready_delay; assign #0.1 htif_in_ready = htif_in_ready_delay;
-  wire [`HTIF_WIDTH-1:0] #0.1 htif_in_bits_delay = htif_in_bits;
-
-  wire htif_out_valid_delay; assign #0.1 htif_out_valid = htif_out_valid_delay;
-  wire #0.1 htif_out_ready_delay = htif_out_ready;
-  wire [`HTIF_WIDTH-1:0] htif_out_bits_delay; assign #0.1 htif_out_bits = htif_out_bits_delay;
-  
-  wire htif_out_stats_delay; assign #0.1 htif_out_stats = htif_out_stats_delay;
-
-  wire mem_req_valid_delay; assign #0.1 mem_req_valid = mem_req_valid_delay;
-  wire #0.1 mem_req_ready_delay = mem_req_ready;
-  wire [`MEM_TAG_BITS-1:0] mem_req_bits_tag_delay; assign #0.1 mem_req_bits_tag = mem_req_bits_tag_delay;
-  wire [`MEM_ADDR_BITS-1:0] mem_req_bits_addr_delay; assign #0.1 mem_req_bits_addr = mem_req_bits_addr_delay;
-  wire mem_req_bits_rw_delay; assign #0.1 mem_req_bits_rw = mem_req_bits_rw_delay;
-
-  wire mem_req_data_valid_delay; assign #0.1 mem_req_data_valid = mem_req_data_valid_delay;
-  wire #0.1 mem_req_data_ready_delay = mem_req_data_ready;
-  wire [`MEM_DATA_BITS-1:0] mem_req_data_bits_delay; assign #0.1 mem_req_data_bits = mem_req_data_bits_delay;
-
-  wire #0.1 mem_resp_valid_delay = mem_resp_valid;
-  wire mem_resp_ready_delay; assign #0.1 mem_resp_ready = mem_resp_ready_delay;
-  wire [`MEM_TAG_BITS-1:0] #0.1 mem_resp_bits_tag_delay = mem_resp_bits_tag;
-  wire [`MEM_DATA_BITS-1:0] #0.1 mem_resp_bits_data_delay = mem_resp_bits_data;
-
-  wire #0.1 mem_bk_out_ready_delay = mem_bk_out_ready;
-  wire #0.1 mem_bk_in_valid_delay = mem_bk_in_valid;
-  wire mem_bk_out_valid_delay; assign #0.1 mem_bk_out_valid = mem_bk_out_valid_delay;
-
-  Top dut
-  (
-    .clk(clk),
-    .reset(reset),
-
-    .io_host_in_valid(htif_in_valid_delay),
-    .io_host_in_ready(htif_in_ready_delay),
-    .io_host_in_bits(htif_in_bits_delay),
-    .io_host_out_valid(htif_out_valid_delay),
-    .io_host_out_ready(htif_out_ready_delay),
-    .io_host_out_bits(htif_out_bits_delay),
-
-`ifndef FPGA
-    .io_host_clk(htif_clk),
-    .io_host_clk_edge(),
-    .io_host_debug_stats_pcr(htif_out_stats_delay),
-
-`ifdef MEM_BACKUP_EN
-    .io_mem_backup_ctrl_en(1'b1),
-`else
-    .io_mem_backup_ctrl_en(1'b0),
-`endif
-    .io_mem_backup_ctrl_in_valid(mem_bk_in_valid_delay),
-    .io_mem_backup_ctrl_out_ready(mem_bk_out_ready_delay),
-    .io_mem_backup_ctrl_out_valid(mem_bk_out_valid_delay),
-`endif
-
-    .io_mem_req_cmd_valid(mem_req_valid_delay),
-    .io_mem_req_cmd_ready(mem_req_ready_delay),
-    .io_mem_req_cmd_bits_rw(mem_req_bits_rw_delay),
-    .io_mem_req_cmd_bits_addr(mem_req_bits_addr_delay),
-    .io_mem_req_cmd_bits_tag(mem_req_bits_tag_delay),
-
-    .io_mem_req_data_valid(mem_req_data_valid_delay),
-    .io_mem_req_data_ready(mem_req_data_ready_delay),
-    .io_mem_req_data_bits_data(mem_req_data_bits_delay),
-
-    .io_mem_resp_valid(mem_resp_valid_delay),
-    .io_mem_resp_ready(mem_resp_ready_delay),
-    .io_mem_resp_bits_tag(mem_resp_bits_tag_delay),
-    .io_mem_resp_bits_data(mem_resp_bits_data_delay)
-  );
-  
-`ifdef FPGA
-  assign htif_clk = clk;
-`endif
-
-  //-----------------------------------------------
-  // Memory interface
-
-  always @(negedge clk)
+  always @(posedge clk)
   begin
     r_reset <= reset;
-    if (reset || r_reset)
-    begin
-      mem_req_ready <= 0;
-      mem_req_data_ready <= 0;
-      mem_resp_valid <= 0;
-      mem_resp_bits_tag <= 0;
-      mem_resp_bits_data <= 0;
-    end
-    else
-    begin
-      memory_tick
-      (
-        mem_req_valid,
-        mem_req_ready,
-        mem_req_bits_rw,
-        mem_req_bits_addr,
-        mem_req_bits_tag,
-
-        mem_req_data_valid,
-        mem_req_data_ready,
-        mem_req_data_bits,
-        
-        mem_resp_valid,
-        mem_resp_ready,
-        mem_resp_bits_tag,
-        mem_resp_bits_data
-      );
-    end
   end
 
   wire mem_bk_req_valid, mem_bk_req_rw, mem_bk_req_data_valid;
-  wire [`MEM_TAG_BITS-1:0] mem_bk_req_tag;
+  wire [`MEM_ID_BITS-1:0] mem_bk_req_tag;
   wire [`MEM_ADDR_BITS-1:0] mem_bk_req_addr;
   wire [`MEM_DATA_BITS-1:0] mem_bk_req_data_bits;
   wire mem_bk_req_ready, mem_bk_req_data_ready, mem_bk_resp_valid;
-  wire [`MEM_TAG_BITS-1:0]  mem_bk_resp_tag;
+  wire [`MEM_ID_BITS-1:0]  mem_bk_resp_tag;
   wire [`MEM_DATA_BITS-1:0] mem_bk_resp_data;
 
 `ifdef MEM_BACKUP_EN
@@ -251,15 +145,16 @@ module rocketTestHarness;
   );
 `else
   // set dessert outputs to zero when !backupmem_en
-  assign mem_bk_out_ready = 0; 
-  assign mem_bk_in_valid = 0;
-  assign mem_in_bits = 0;   
-  assign mem_bk_req_valid = 0;
-  assign mem_bk_req_addr = 0; 
-  assign mem_bk_req_rw = 0;
-  assign mem_bk_req_tag = 0; 
-  assign mem_bk_req_data_valid = 0;
-  assign mem_bk_req_data_bits = 0; 
+  assign mem_bk_out_ready = 1'b0; 
+  assign mem_bk_in_valid = 1'b0;
+  assign mem_in_bits = {`HTIF_WIDTH {1'b0}};   
+  assign mem_bk_req_valid = 1'b0;
+  assign mem_bk_req_ready = 1'b0;
+  assign mem_bk_req_addr = {`MEM_ADDR_BITS {1'b0}}; 
+  assign mem_bk_req_rw = 1'b0;
+  assign mem_bk_req_tag = {`MEM_ID_BITS {1'b0}}; 
+  assign mem_bk_req_data_valid = 1'b0;
+  assign mem_bk_req_data_bits = 16'd0; 
 `endif
 
   reg htif_in_valid_premux;
@@ -294,17 +189,6 @@ module rocketTestHarness;
 
   //-----------------------------------------------
   // Start the simulation
-  reg [  31:0] htif_width = `HTIF_WIDTH;
-  reg [  31:0] mem_width = `MEM_DATA_BITS;
-  reg [  63:0] max_cycles = 0;
-  reg [  63:0] trace_count = 0;
-  reg [1023:0] loadmem = 0;
-  reg [1023:0] vcdplusfile = 0;
-  reg [1023:0] vcdfile = 0;
-  reg          stats_active = 0;
-  reg          stats_tracking = 0;
-  reg          verbose = 0;
-  integer      stderr = 32'h80000002;
 
   // Some helper functions for turning on, stopping, and finishing stat tracking
   task start_stats;
@@ -350,7 +234,6 @@ module rocketTestHarness;
       $readmemh(loadmem, mem.ram);
 `endif
     verbose = $test$plusargs("verbose");
-    htif_init(htif_width, mem_width);
 `ifdef DEBUG
     stats_active = $test$plusargs("stats");
     if ($value$plusargs("vcdplusfile=%s", vcdplusfile))
@@ -392,13 +275,13 @@ module rocketTestHarness;
     begin
       $fdisplay(stderr, "*** FAILED *** (%s) after %d simulation cycles", reason, trace_count);
       `VCDPLUSCLOSE
-      htif_fini(1);
+      htif_fini(1'b1);
     end
 
     if (exit == 1)
     begin
       `VCDPLUSCLOSE
-      htif_fini(0);
+      htif_fini(1'b0);
     end
   end
 
@@ -425,14 +308,6 @@ module rocketTestHarness;
     if (verbose && mem_bk_req_valid && mem_bk_req_ready)
     begin
       $fdisplay(stderr, "MB: rw=%d addr=%x", mem_bk_req_rw, {mem_bk_req_addr,6'd0});
-    end
-  end
-
-  always @(posedge clk)
-  begin
-    if (verbose && mem_req_valid && mem_req_ready)
-    begin
-      $fdisplay(stderr, "MC: rw=%d addr=%x", mem_req_bits_rw, {mem_req_bits_addr,6'd0});
     end
   end
 

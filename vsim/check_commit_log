@@ -1,0 +1,147 @@
+#! /usr/bin/env python
+
+import sys
+from sets import Set
+
+if len(sys.argv) < 3:
+  print "usage: %s <spike log> <vsim log>" % sys.argv[0]
+  exit(-1)
+
+slog = map(lambda x: x.strip(), open(sys.argv[1]).readlines())
+vlog = map(lambda x: x.strip(), open(sys.argv[2]).readlines())
+
+spike_arf = {}
+spike_srf = {}
+spike_vrf = {}
+spike_prf = {}
+vsim_arf = {}
+vsim_srf = {}
+vsim_vrf = {}
+vsim_prf = {}
+
+nvpr = 256
+nppr = 16
+nlanes = 1
+lstride = 1
+lstrip = 1<<lstride
+nstrip = 8
+nslices = 2
+cycle = 0
+
+def add_1d(d, addr, data):
+  if addr not in d.keys(): d[addr] = []
+  d[addr].append(data)
+
+def add_2d(d, eidx, addr, data):
+  if eidx not in d.keys(): d[eidx] = {}
+  add_1d(d[eidx], addr, data)
+
+def calc(npr, lid, bid, paddr, sid):
+  strip_id = paddr/npr
+  strip_id_div = strip_id/lstrip
+  strip_id_rem = strip_id%lstrip
+  eidx = ((((lid + strip_id_div) * lstrip) + strip_id_rem) * nstrip) + (bid*nslices) + sid
+  addr = paddr%npr
+  return (eidx, addr)
+
+for l in slog:
+  if l.find('arf') != -1:
+    s = l.split()
+    add_1d(spike_arf, int(s[2]), s[3])
+  if l.find('srf') != -1:
+    s = l.split()
+    add_1d(spike_srf, int(s[2]), s[3])
+  if l.find('vrf') != -1:
+    s = l.split()
+    add_2d(spike_vrf, int(s[2]), int(s[3]), s[4])
+  if l.find('prf') != -1:
+    s = l.split()
+    add_2d(spike_prf, int(s[2]), int(s[3]), s[4])
+
+for l in vlog:
+  if l.find('C0') == 0:
+    s = l.split()
+    cycle = int(s[1])
+  if l.find('VSETCFG') != -1:
+    s = l.split('[')
+    nlanes = int(s[1].split('=')[1].split(']')[0])
+    nvpr = int(s[2].split('=')[1].split(']')[0])
+    nppr = int(s[3].split('=')[1].split(']')[0])
+    lstride = int(s[4].split('=')[1].split(']')[0])
+    lstrip = 1<<lstride
+  if l.find('arf') != -1:
+    s = l.split()
+    add_1d(vsim_arf, int(s[2]), (cycle, s[3], l))
+  if l.find('srf') != -1:
+    s = l.split()
+    add_1d(vsim_srf, int(s[2]), (cycle, s[3], l))
+  if l.find('vrf') != -1:
+    s = l.split()
+    lid = int(s[2])
+    bid = int(s[3])
+    paddr = int(s[4])
+    sid = int(s[5])
+    (eidx, addr) = calc(nvpr, lid, bid, paddr, sid)
+    add_2d(vsim_vrf, eidx, addr, (cycle, s[6], l))
+  if l.find('prf') != -1:
+    s = l.split()
+    lid = int(s[2])
+    bid = int(s[3])
+    paddr = int(s[4])
+    sid = int(s[5])
+    (eidx, addr) = calc(nppr, lid, bid, paddr, sid)
+    add_2d(vsim_prf, eidx, addr, (cycle, s[6], l))
+
+def compare_keys(rf, s, v):
+  set_s = Set(s.keys())
+  set_v = Set(v.keys())
+  print "comparing", rf, set_s == set_v
+
+diverged = False
+
+def compare_data(rf, s, v):
+  global cycle, diverged
+  try:
+    for i in range(len(v)):
+      (c, d, l) = v[i]
+      print "matching %s, cycle %10d, vsim[%s] spike[%s] %s" % (rf, c, d, s[i], d == s[i])
+      if d != s[i] and cycle > c:
+        diverged = True
+        print l
+        cycle = c
+  except IndexError:
+    print "not matching number of writes"
+    print "vsim", v
+    print "spike", s
+
+compare_keys('arf', spike_arf, vsim_arf)
+for addr in sorted(vsim_arf.keys()):
+  compare_data('arf[%02d]' % addr, spike_arf[addr], vsim_arf[addr])
+
+compare_keys('srf', spike_srf, vsim_srf)
+for addr in sorted(vsim_srf.keys()):
+  if addr != 0:
+    compare_data('srf[%02d]' % addr, spike_srf[addr], vsim_srf[addr])
+
+compare_keys('vrf', spike_vrf, vsim_vrf)
+for eidx in sorted(vsim_vrf.keys()):
+  try:
+    compare_keys('vrf[%02d]' % eidx, spike_vrf[eidx], vsim_vrf[eidx])
+    for addr in sorted(vsim_vrf[eidx].keys()):
+      compare_data('vrf[%02d][%03d]' % (eidx, addr), spike_vrf[eidx][addr], vsim_vrf[eidx][addr])
+  except KeyError:
+    print "something is very wrong with", eidx, addr
+
+compare_keys('prf', spike_prf, vsim_prf)
+for eidx in sorted(vsim_prf.keys()):
+  try:
+    compare_keys('prf[%02d]' % eidx, spike_prf[eidx], vsim_prf[eidx])
+    for addr in sorted(vsim_prf[eidx].keys()):
+      compare_data('prf[%02d][%02d]' % (eidx, addr), spike_prf[eidx][addr], vsim_prf[eidx][addr])
+  except KeyError:
+    print "something is very wrong with", eidx, addr
+
+if diverged:
+  print "DOESN'T MATCH: earliest cycle", cycle
+else:
+  print "ZARRO BOOGS FOUND"
