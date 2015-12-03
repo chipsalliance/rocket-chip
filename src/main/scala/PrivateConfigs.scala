@@ -12,7 +12,7 @@ object HwachaTestSuites {
   import DefaultTestSuites._
   val rv64uvNames = LinkedHashSet(
     "wakeup", "fence", "keepcfg",
-    "vmsa", "vmss", "vssd", "vssw", "vssh", "vssb",
+    "vmca", "vmcs", "vssd", "vssw", "vssh", "vssb",
     "vlsd", "vlsw", "vlswu", "vlsh", "vlshu", "vlsb", "vlsbu", 
     "vsad", "vsaw", "vsah", "vsab", "vlad", "vlaw", "vlawu", "vlah", "vlahu", "vlab", "vlabu",
     "vld", "vlw", "vlwu", "vlh", "vlhu", "vlb", "vlbu", "vlxd", "vlxw", "vlxwu", "vlxh", "vlxhu", "vlxb", "vlxbu", 
