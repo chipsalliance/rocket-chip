@@ -89,6 +89,7 @@ class DefaultConfig extends Config (
       case RowBits => findBy(CacheName)
       case NTLBEntries => findBy(CacheName)
       case CacheIdBits => findBy(CacheName)
+      case ICacheBufferWays => Knob("L1I_BUFFER_WAYS")
       case "L1I" => {
         case NSets => Knob("L1I_SETS") //64
         case NWays => Knob("L1I_WAYS") //4
@@ -207,6 +208,7 @@ class DefaultConfig extends Config (
     case "L1D_WAYS" => 4
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 4
+    case "L1I_BUFFER_WAYS" => false
   }
 )
 class DefaultVLSIConfig extends DefaultConfig
