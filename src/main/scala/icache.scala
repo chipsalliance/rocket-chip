@@ -5,6 +5,8 @@ import uncore._
 import Util._
 import cde.{Parameters, Field}
 
+case object ICacheBufferWays extends Field[Boolean]
+
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
   val outerDataBeats = p(TLKey(p(TLId))).dataBeats
   val outerDataBits = p(TLKey(p(TLId))).dataBitsPerBeat
@@ -124,10 +126,18 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
     s1_dout(i) := 0
     when (s1_valid && rdy && !stall && (Bool(isDM) || s1_tag_match(i))) { s1_dout(i) := s1_rdata }
   }
-  io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
 
   // output signals
-  io.resp.valid := s1_hit
+  if (p(ICacheBufferWays)) {
+    val s2_hit = RegEnable(s1_hit, !stall)
+    val s2_tag_hit = RegEnable(s1_tag_hit, !stall)
+    val s2_dout = RegEnable(s1_dout, !stall)
+    io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
+    io.resp.valid := s2_hit
+  } else {
+    io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
+    io.resp.valid := s1_hit
+  }
   io.mem.acquire.valid := (state === s_request)
   io.mem.acquire.bits := GetBlock(addr_block = refill_addr >> blockOffBits)
 
