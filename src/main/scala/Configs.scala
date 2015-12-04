@@ -51,6 +51,13 @@ class DefaultConfig extends Config (
             dt.endNode()
           }
         dt.endNode()
+        val scrs = addrMap("conf:scr")
+        dt.beginNode(s"scr@${scrs.start.toLong.toHexString}")
+          dt.addProp("device_type", "scr")
+          dt.addProp("compatible", "riscv")
+          dt.addProp("protection", scrs.prot)
+          dt.addReg(scrs.start.toLong, scrs.size.toLong)
+        dt.endNode()
       dt.endNode()
       dt.toArray()
     }
