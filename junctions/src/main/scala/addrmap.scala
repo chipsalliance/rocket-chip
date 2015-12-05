@@ -40,18 +40,18 @@ case class MemSubmap(size: BigInt, entries: AddrMap) extends MemRegion
 case class MemChannels(size: BigInt, nchannels: Int, prot: Int) extends MemRegion
 
 object AddrMapConsts {
-  val R = 0x4
+  val R = 0x1
   val W = 0x2
-  val X = 0x1
+  val X = 0x4
   val RW = R | W
   val RX = R | X
   val RWX = R | W | X
 }
 
 class AddrMapProt extends Bundle {
-  val r = Bool()
-  val w = Bool()
   val x = Bool()
+  val w = Bool()
+  val r = Bool()
 }
 
 case class AddrMapEntry(name: String, start: Option[BigInt], region: MemRegion)
