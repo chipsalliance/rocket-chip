@@ -1773,7 +1773,8 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
       smallget_roq.io.enq.ready,
       io.out.acquire.ready)
 
-    smallget_roq.io.enq.valid := smallget_helper.fire(smallget_roq.io.enq.ready)
+    smallget_roq.io.enq.valid := smallget_helper.fire(
+      smallget_roq.io.enq.ready, !sending_put)
     smallget_roq.io.enq.bits.data := readshift
     smallget_roq.io.enq.bits.tag := iacq.client_xact_id
 
