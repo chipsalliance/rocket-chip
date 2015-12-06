@@ -3,7 +3,41 @@ import Keys._
 import complete._
 import complete.DefaultParsers._
 
+// A class to represent a subproject or a library dependency.
+// Cloned from Michael Bayne's post to Coderspiel on 9/29/2011.
+class MaybeLocal(locals :(String, String, String, String)*) {
+  // If we have a version string, assume it should be treated as a library.
+  def isLibrary(version: String) = version != ""
+
+  // Generate project dependencies if we shouldn't use a library.
+  def addDeps (p :Project): Project = (locals collect {
+    case (id, subp, domain, version) if (!isLibrary(version)) => symproj(file(id), subp)
+  }).foldLeft(p) { _ dependsOn _ }
+  def addDeps (n: String): Project = addDeps(Project(n, file(n)))
+
+  // Generate library dependencies if we should use a library.
+  def libDeps = locals collect {
+    case (id, subp, domain, version) if (isLibrary(version)) => domain %% id % version
+  }
+  private def symproj (dir :File, subproj :String = null) =
+    if (subproj == null) RootProject(dir) else ProjectRef(dir, subproj)
+}
+
 object BuildSettings extends Build {
+  // Return an SBT property value, or the default.
+  //  NOTE: Initially this was propOrEnvOrElse and returned
+  //  the property setting (if set), or the environment setting,
+  //  or the default if neither was set. This is too subtle and can
+  //  lead to confusion if subprojects aren't aware of it and use
+  //  a different algorithm. or the environment changes from one
+  //  project to the next
+  def propOrElse(name: String, default: String): String = {
+    sys.props.getOrElse(name, sys.env.getOrElse(name, default))
+  }
+  // Choose either a subproject or a library dependency on chisel
+  lazy val chiselFlavor = new MaybeLocal(
+    ("chisel", "chisel", "edu.berkeley.cs", propOrElse("chiselVersion", ""))
+  )
 
   override lazy val settings = super.settings ++ Seq(
     organization := "berkeley",
@@ -12,16 +46,15 @@ object BuildSettings extends Build {
     parallelExecution in Global := false,
     traceLevel   := 15,
     scalacOptions ++= Seq("-deprecation","-unchecked"),
-    libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+    libraryDependencies ++= chiselFlavor.libDeps ++ Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
   )
 
-  lazy val chisel     = project
   lazy val cde        = project in file("context-dependent-environments")
-  lazy val hardfloat  = project.dependsOn(chisel)
-  lazy val junctions  = project.dependsOn(chisel, cde)
-  lazy val uncore     = project.dependsOn(junctions)
-  lazy val rocket     = project.dependsOn(hardfloat, uncore)
-  lazy val zscale     = project.dependsOn(rocket)
+  lazy val hardfloat = chiselFlavor.addDeps("hardfloat")
+  lazy val junctions = chiselFlavor.addDeps("junctions").dependsOn(cde)
+  lazy val uncore    = project.dependsOn(junctions)
+  lazy val rocket    = project.dependsOn(hardfloat, uncore)
+  lazy val zscale    = project.dependsOn(rocket)
   lazy val groundtest = project.dependsOn(rocket)
   lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(zscale, groundtest)
 
