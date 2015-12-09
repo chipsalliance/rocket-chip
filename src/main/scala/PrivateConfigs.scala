@@ -84,15 +84,15 @@ class WithoutBackupMemoryPort extends Config(
   }
 )
 
-class With4L2AcquireXacts extends Config(
+class With5L2AcquireXacts extends Config(
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
   }
 )
 
-class With8L2AcquireXacts extends Config(
+class With9L2AcquireXacts extends Config(
   (pname,site,here) => pname match {
-    case NAcquireTransactors => 8
+    case NAcquireTransactors => 9
   }
 )
 
@@ -143,7 +143,7 @@ class VRU10Outstanding extends Config(
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
   new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
-  new With8L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
+  new With5L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
@@ -163,7 +163,17 @@ class ISCA2016Config extends Config(
 class ISCA2016L2Config extends Config(new With2Lanes ++ new ISCA2016Config)
 class ISCA2016L4Config extends Config(new With4Lanes ++ new ISCA2016Config)
 
-class ISCA2016LOVB4Config extends Config(new VRU10Outstanding ++ new WithoutConfPrec ++ new With2BanksPerMemChannel ++ new ISCA2016Config)
-class ISCA2016LOVB8Config extends Config(new WithoutConfPrec ++ new ISCA2016Config)
-class ISCA2016HOVB4Config extends Config(new VRU10Outstanding ++ new With2BanksPerMemChannel ++ new ISCA2016Config)
+class ISCA2016HOVB4Config extends Config(new With9L2AcquireXacts ++ new With2BanksPerMemChannel ++ new ISCA2016Config)
 class ISCA2016HOVB8Config extends Config(new ISCA2016Config)
+class ISCA2016LOVB4Config extends Config(new WithoutConfPrec ++ new ISCA2016HOVB4Config)
+class ISCA2016LOVB8Config extends Config(new WithoutConfPrec ++ new ISCA2016HOVB8Config)
+
+class ISCA2016HOVL2B4Config extends Config(new With2Lanes ++ new ISCA2016HOVB4Config)
+class ISCA2016HOVL2B8Config extends Config(new With2Lanes ++ new ISCA2016HOVB8Config)
+class ISCA2016LOVL2B4Config extends Config(new With2Lanes ++ new ISCA2016LOVB4Config)
+class ISCA2016LOVL2B8Config extends Config(new With2Lanes ++ new ISCA2016LOVB8Config)
+
+class ISCA2016HOVL4B4Config extends Config(new With4Lanes ++ new ISCA2016HOVB4Config)
+class ISCA2016HOVL4B8Config extends Config(new With4Lanes ++ new ISCA2016HOVB8Config)
+class ISCA2016LOVL4B4Config extends Config(new With4Lanes ++ new ISCA2016LOVB4Config)
+class ISCA2016LOVL4B8Config extends Config(new With4Lanes ++ new ISCA2016LOVB8Config)
