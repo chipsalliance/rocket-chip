@@ -3,13 +3,18 @@ package groundtest
 import Chisel._
 import uncore._
 import junctions.{MMIOBase, ParameterizedBundle}
-import cde.Parameters
+import rocket.HellaCacheIO
+import cde.{Parameters, Field}
 
-class RegressionIO(implicit val p: Parameters) extends GroundTestIO()(p) {
+class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val start = Bool(INPUT)
+  val cache = new HellaCacheIO
+  val mem = new ClientUncachedTileLinkIO
+  val finished = Bool(OUTPUT)
 }
 
-abstract class Regression(implicit val p: Parameters) extends Module {
+abstract class Regression(implicit val p: Parameters)
+    extends Module with HasTileLinkParameters {
   val io = new RegressionIO
 }
 
@@ -19,9 +24,7 @@ abstract class Regression(implicit val p: Parameters) extends Module {
  * same time. Repeating this sequence enough times will cause a queue to
  * get filled up and deadlock the system.
  */
-class IOGetAfterPutBlockRegression(implicit p: Parameters)
-    extends Regression()(p) with HasTileLinkParameters {
-
+class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(p) {
   val nRuns = 7
   val run = Reg(init = UInt(0, log2Up(nRuns + 1)))
 
@@ -71,10 +74,262 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters)
   io.finished := (run === UInt(nRuns))
 }
 
+/* This was a bug with merging two PutBlocks to the same address in the L2.
+ * The transactor would start accepting beats of the second transaction but
+ * acknowledge both of them when the first one finished.
+ * This caused the state to go funky since the next time around it would
+ * start the put in the middle */
+class PutBlockMergeRegression(implicit p: Parameters)
+    extends Regression()(p) with HasTileLinkParameters {
+  val s_idle :: s_put :: s_wait :: s_done :: Nil = Enum(Bits(), 4)
+  val state = Reg(init = s_idle)
+
+  io.cache.req.valid := Bool(false)
+
+  val l2params = p.alterPartial({ case CacheName => "L2Bank" })
+  val nSets = l2params(NSets)
+  val addr_blocks = Vec(UInt(0), UInt(0), UInt(nSets))
+  val nSteps = addr_blocks.size
+  val (acq_beat, acq_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
+  val (send_cnt, send_done) = Counter(acq_done, nSteps)
+  val (ack_cnt, ack_done) = Counter(io.mem.grant.fire(), nSteps)
+
+  io.mem.acquire.valid := (state === s_put)
+  io.mem.acquire.bits := PutBlock(
+    client_xact_id = send_cnt,
+    addr_block = addr_blocks(send_cnt),
+    addr_beat = acq_beat,
+    data = Cat(send_cnt, acq_beat))
+  io.mem.grant.ready := Bool(true)
+
+  when (state === s_idle && io.start) { state := s_put }
+  when (send_done) { state := s_wait }
+  when (ack_done) { state := s_done }
+
+  io.finished := (state === s_done)
+}
+
+/* Make sure the L2 does "the right thing" when a put is sent no-alloc but
+ * the block is already in cache. It should just treat the request as a
+ * regular allocating put */
+class NoAllocPutHitRegression(implicit p: Parameters) extends Regression()(p) {
+  val (s_idle :: s_prefetch :: s_put :: s_get ::
+       s_wait :: s_done :: Nil) = Enum(Bits(), 6)
+  val state = Reg(init = s_idle)
+
+  val acq = io.mem.acquire.bits
+  val gnt = io.mem.grant.bits
+
+  val (put_beat, put_done) = Counter(io.mem.acquire.fire() && acq.hasData(), tlDataBeats)
+  val acked = Reg(init = UInt(0, tlDataBeats + 2))
+
+  val addr_block = UInt(2)
+  val test_data = UInt(0x3446)
+
+  val prefetch_acq = GetPrefetch(
+    client_xact_id = UInt(0),
+    addr_block = addr_block)
+  val put_acq = PutBlock(
+    client_xact_id = UInt(1),
+    addr_block = addr_block,
+    addr_beat = put_beat,
+    data = test_data,
+    alloc = Bool(false))
+  val get_acq = GetBlock(
+    client_xact_id = UInt(2),
+    addr_block = addr_block)
+
+  io.mem.acquire.valid := (state === s_prefetch) || (state === s_get) || (state === s_put)
+  io.mem.acquire.bits := MuxBundle(get_acq, Seq(
+    (state === s_prefetch) -> prefetch_acq,
+    (state === s_put) -> put_acq))
+  io.mem.grant.ready := Bool(true)
+
+  when (state === s_idle && io.start) { state := s_prefetch }
+  when (state === s_prefetch && io.mem.acquire.ready) { state := s_put }
+  when (put_done) { state := s_get }
+  when (state === s_get && io.mem.acquire.ready) { state := s_wait }
+  when (state === s_wait && acked.andR) { state := s_done }
+
+  when (io.mem.grant.fire()) {
+    switch (gnt.client_xact_id) {
+      is (UInt(0)) { acked := acked | UInt(1 << tlDataBeats) }
+      is (UInt(1)) { acked := acked | UInt(1 << (tlDataBeats + 1)) }
+      is (UInt(2)) { acked := acked | UIntToOH(gnt.addr_beat) }
+    }
+  }
+
+  assert(!io.mem.grant.valid || !gnt.hasData() || gnt.data === test_data,
+    "NoAllocPutHitRegression: data does not match")
+
+  io.finished := (state === s_done)
+  io.cache.req.valid := Bool(false)
+}
+
+/* Make sure each no-alloc put triggers a request to outer memory.
+ * Unfortunately, there's no way to verify that this works except by looking
+ * at the waveform */
+class RepeatedNoAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
+  io.cache.req.valid := Bool(false)
+
+  val nPuts = 2
+  val (put_beat, put_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
+  val (req_cnt, req_done) = Counter(put_done, nPuts)
+
+  val sending = Reg(init = Bool(false))
+  val acked = Reg(init = UInt(0, nPuts))
+
+  when (!sending && io.start) { sending := Bool(true) }
+  when (sending && req_done) { sending := Bool(false) }
+
+  io.mem.acquire.valid := sending
+  io.mem.acquire.bits := PutBlock(
+    client_xact_id = req_cnt,
+    addr_block = UInt(5),
+    addr_beat = put_beat,
+    data = Cat(req_cnt, UInt(0, 8)),
+    alloc = Bool(false))
+  io.mem.grant.ready := Bool(true)
+
+  when (io.mem.grant.fire()) {
+    acked := acked | UIntToOH(io.mem.grant.bits.client_xact_id)
+  }
+
+  io.finished := acked.andR
+}
+
+/* Make sure write masking works properly. 
+ * This test assumes the memory is initialized to zero at the beginning.
+ * This is true for the test harnesses, but not on the FPGA.
+ * Technically, what should be done is to fill up a single set until the
+ * first block is evicted, and then do the write-masked puts.
+ * But this is annoying, and I doubt we will ever run these regression
+ * tests on the FPGA. So ... */
+class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()(p) {
+  io.cache.req.valid := Bool(false)
+
+  val s_idle :: s_put :: s_get :: s_wait :: s_done :: Nil = Enum(Bits(), 5)
+  val state = Reg(init = s_idle)
+
+  val nPuts = 2
+  val (put_beat, put_block_done) = Counter(
+    io.mem.acquire.fire() && io.mem.acquire.bits.hasData(), tlDataBeats)
+  val (put_cnt, puts_done) = Counter(put_block_done, nPuts)
+
+  val data_bytes = Vec.tabulate(nPuts) { i => UInt(i, 8) }
+  val data_beat = Fill(tlDataBytes, data_bytes(put_cnt))
+  val acked = Reg(init = UInt(0, nPuts + 1))
+
+  val put_acq = PutBlock(
+    client_xact_id = put_cnt,
+    addr_block = UInt(7),
+    addr_beat = put_beat,
+    data = data_beat,
+    wmask = UIntToOH(put_cnt))
+
+  val get_acq = Get(
+    client_xact_id = UInt(nPuts),
+    addr_block = UInt(7),
+    addr_beat = UInt(0),
+    addr_byte = UInt(0),
+    operand_size = MT_D,
+    alloc = Bool(false))
+
+  io.mem.acquire.valid := (state === s_put || state === s_get)
+  io.mem.acquire.bits := Mux(state === s_get, get_acq, put_acq)
+  io.mem.grant.ready := Bool(true)
+
+  when (io.mem.grant.fire()) {
+    acked := acked | UIntToOH(io.mem.grant.bits.client_xact_id)
+  }
+
+  when (state === s_idle && io.start) { state := s_put }
+  when (puts_done) { state := s_get }
+  when (state === s_get && io.mem.acquire.ready) { state := s_wait }
+  when (state === s_wait && acked.andR) { state := s_done }
+
+  io.finished := (state === s_done)
+
+  assert(!io.mem.grant.valid || !io.mem.grant.bits.hasData() ||
+         io.mem.grant.bits.data === data_bytes.toBits,
+         "WriteMaskedPutBlockRegression: data does not match")
+}
+
+/* Make sure a prefetch that hits returns immediately. */
+class PrefetchHitRegression(implicit p: Parameters) extends Regression()(p) {
+  io.cache.req.valid := Bool(false)
+
+  val sending = Reg(init = Bool(false))
+  val nPrefetches = 2
+  val (pf_cnt, pf_done) = Counter(io.mem.acquire.fire(), nPrefetches)
+  val acked = Reg(init = UInt(0, nPrefetches))
+
+  val acq_bits = Vec(
+    PutPrefetch(client_xact_id = UInt(0), addr_block = UInt(12)),
+    GetPrefetch(client_xact_id = UInt(1), addr_block = UInt(12)))
+
+  io.mem.acquire.valid := sending
+  io.mem.acquire.bits := acq_bits(pf_cnt)
+  io.mem.grant.ready := Bool(true)
+
+  when (io.mem.grant.fire()) {
+    acked := acked | UIntToOH(io.mem.grant.bits.client_xact_id)
+  }
+
+  when (!sending && io.start) { sending := Bool(true) }
+  when (sending && pf_done) { sending := Bool(false) }
+
+  io.finished := acked.andR
+}
+
+/* This tests the sort of access the pattern that Hwacha uses.
+ * Instead of using PutBlock/GetBlock, it uses word-sized puts and gets.
+ * Each request has the same client_xact_id, but there are multiple in flight.
+ * The responses therefore must come back in the order they are sent. */
+class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()(p) {
+  io.cache.req.valid := Bool(false)
+
+  val sending = Reg(init = Bool(false))
+  val finished = Reg(init = Bool(false))
+
+  val (send_cnt, send_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
+  val (recv_cnt, recv_done) = Counter(io.mem.grant.fire(), tlDataBeats)
+
+  when (!sending && io.start) { sending := Bool(true) }
+  when (send_done) { sending := Bool(false) }
+  when (recv_done) { finished := Bool(true) }
+
+  io.mem.acquire.valid := sending
+  io.mem.acquire.bits := Get(
+    client_xact_id = UInt(0),
+    addr_block = UInt(9),
+    addr_beat = send_cnt)
+  io.mem.grant.ready := !finished
+
+  io.finished := finished
+
+  assert(!io.mem.grant.valid || io.mem.grant.bits.addr_beat === recv_cnt,
+    "SequentialSameIdGetRegression: grant received out of order")
+}
+
+object RegressionTests {
+  def cacheRegressions(implicit p: Parameters) = Seq(
+    Module(new PutBlockMergeRegression),
+    Module(new NoAllocPutHitRegression),
+    Module(new RepeatedNoAllocPutRegression),
+    Module(new WriteMaskedPutBlockRegression),
+    Module(new PrefetchHitRegression),
+    Module(new SequentialSameIdGetRegression))
+  def broadcastRegressions(implicit p: Parameters) = Seq(
+    Module(new IOGetAfterPutBlockRegression),
+    Module(new WriteMaskedPutBlockRegression))
+}
+
+case object GroundTestRegressions extends Field[Parameters => Seq[Regression]]
+
 class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
 
-  val regressions = Seq(
-    Module(new IOGetAfterPutBlockRegression))
+  val regressions = p(GroundTestRegressions)(p)
   val regressIOs = Vec(regressions.map(_.io))
   val regress_idx = Reg(init = UInt(0, log2Up(regressions.size + 1)))
   val all_done = (regress_idx === UInt(regressions.size))
@@ -112,4 +367,6 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
 
   val timeout = Timer(5000, start, cur_regression.finished)
   assert(!timeout, "Regression timed out")
+
+  assert(!(all_done && io.mem.grant.valid), "Getting grant after test completion")
 }
