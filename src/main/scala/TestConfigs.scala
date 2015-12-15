@@ -51,10 +51,20 @@ class WithCacheFillTest extends Config(
     case "L2_CAPACITY_IN_KB" => 4
   })
 
-class WithRegressionTest extends Config(
+class WithBroadcastRegressionTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new RegressionTest()(p))
+    case GroundTestRegressions =>
+      (p: Parameters) => RegressionTests.broadcastRegressions(p)
+  })
+
+class WithCacheRegressionTest extends Config(
+  (pname, site, here) => pname match {
+    case BuildGroundTest =>
+      (id: Int, p: Parameters) => Module(new RegressionTest()(p))
+    case GroundTestRegressions =>
+      (p: Parameters) => RegressionTests.cacheRegressions(p)
   })
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
@@ -63,8 +73,10 @@ class MemtestL2Config extends Config(
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 class CacheFillTestConfig extends Config(
   new WithCacheFillTest ++ new WithL2Cache ++ new GroundTestConfig)
-class RegressionTestConfig extends Config(
-  new WithRegressionTest ++ new GroundTestConfig)
+class BroadcastRegressionTestConfig extends Config(
+  new WithBroadcastRegressionTest ++ new GroundTestConfig)
+class CacheRegressionTestConfig extends Config(
+  new WithCacheRegressionTest ++ new WithL2Cache ++ new GroundTestConfig)
 
 class FancyMemtestConfig extends Config(
   new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
