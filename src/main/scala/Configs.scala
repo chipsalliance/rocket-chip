@@ -261,9 +261,15 @@ class WithL2Cache extends Config(
         case CacheName => "L2Bank"
         case InnerTLId => "L1toL2"
         case OuterTLId => "L2toMC"})))
+    case L2Replacer => () => new SeqRandom(site(NWays))
   },
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048 }
 )
+
+class WithPLRU extends Config(
+  (pname, site, here) => pname match {
+    case L2Replacer => () => new SeqPLRU(site(NSets), site(NWays))
+  })
 
 class WithL2Capacity2048 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 2048 })
 class WithL2Capacity1024 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 1024 })
@@ -280,6 +286,8 @@ class DefaultL2Config extends Config(new WithL2Cache ++ new DefaultConfig)
 class DefaultL2VLSIConfig extends Config(new WithL2Cache ++ new DefaultVLSIConfig)
 class DefaultL2CPPConfig extends Config(new WithL2Cache ++ new DefaultCPPConfig)
 class DefaultL2FPGAConfig extends Config(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
+
+class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
 class WithZscale extends Config(
   (pname,site,here) => pname match {
