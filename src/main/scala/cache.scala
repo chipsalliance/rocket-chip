@@ -423,6 +423,18 @@ abstract class L2XactTracker(implicit p: Parameters) extends XactTracker()(p)
     addPendingBitWhenBeat(in.fire() && isPartial && Bool(ignoresWriteMask), a)
   }
 
+  def addOtherBits(en: Bool, nBits: Int): UInt =
+    Mux(en, Cat(Fill(nBits - 1, UInt(1, 1)), UInt(0, 1)), UInt(0, nBits))
+
+  def addPendingBitsOnFirstBeat(in: DecoupledIO[Acquire]): UInt =
+    addOtherBits(in.fire() &&
+                 in.bits.hasMultibeatData() &&
+                 in.bits.addr_beat === UInt(0),
+                 in.bits.tlDataBeats)
+
+  def dropPendingBitsOnFirstBeat(in: DecoupledIO[Acquire]): UInt =
+    ~addPendingBitsOnFirstBeat(in)
+
   def pinAllReadyValidLow[T <: Data](b: Bundle) {
     b.elements.foreach {
       _._2 match {
@@ -590,7 +602,6 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val pending_writes = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_resps = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val ignt_data_ready = Reg(init=Bits(0, width = io.inner.tlDataBeats))
-  val ignt_ack_ready = Reg(init = Bool(false))
   val pending_meta_write = Reg(init = Bool(false))
 
   // Used to decide when to escape from s_busy
@@ -676,7 +687,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     allowedTypes.map { case(a, b) => xact.isBuiltInType(a) && sec.isBuiltInType(b) }.reduce(_||_) &&
       xact_op_code === sec.op_code() &&
       sec.conflicts(xact_addr_block) &&
-      (xact_allocate || xact.isBuiltInType(Acquire.putBlockType))
+      xact_allocate
   }
 
   // Actual transaction processing logic begins here:
@@ -689,8 +700,11 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
                          !io.outer.grant.fire() &&
                          !io.data.resp.valid &&
                          ignt_q.io.enq.ready && ignt_q.io.deq.valid
+  val iacq_same_xact = xact.client_xact_id === io.iacq().client_xact_id &&
+                       xact.hasMultibeatData() && ignt_q.io.deq.valid &&
+                       pending_puts(io.iacq().addr_beat)
 
-  io.inner.acquire.ready := state === s_idle || iacq_can_merge
+  io.inner.acquire.ready := state === s_idle || iacq_can_merge || iacq_same_xact
 
   // Handling of primary and secondary misses' data and write mask merging
   when(io.inner.acquire.fire() && io.iacq().hasData()) {
@@ -702,12 +716,14 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
 
   // Enqueue some metadata information that we'll use to make coherence updates with later
   ignt_q.io.enq.valid := Mux(io.iacq().hasMultibeatData(),
-                             io.inner.acquire.fire() && state === s_idle,
+                             io.inner.acquire.fire() && io.iacq().addr_beat === UInt(0),
                              io.inner.acquire.fire())
   ignt_q.io.enq.bits := io.iacq()
 
   // Track whether any beats are missing from a PutBlock
-  pending_puts := (pending_puts & dropPendingBitWhenBeatHasData(io.inner.acquire))
+  pending_puts := (pending_puts &
+      dropPendingBitWhenBeatHasData(io.inner.acquire)) |
+      addPendingBitsOnFirstBeat(io.inner.acquire)
 
   // Begin a transaction by getting the current block metadata
   io.meta.read.valid := state === s_meta_read
@@ -796,7 +812,9 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
 
   // We write data to the cache at this level if it was Put here with allocate flag,
   // written back dirty, or refilled from outer memory.
-  pending_writes := (pending_writes & dropPendingBit(io.data.write)) |
+  pending_writes := (pending_writes &
+                      dropPendingBit(io.data.write) &
+                      dropPendingBitsOnFirstBeat(io.inner.acquire)) |
                       addPendingBitWhenBeatHasDataAndAllocs(io.inner.acquire) |
                       addPendingBitWhenBeatHasData(io.inner.release) |
                       addPendingBitWhenBeatHasData(io.outer.grant, xact_allocate)
@@ -818,10 +836,11 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
                        addPendingBitWhenBeatHasData(io.inner.release) |
                        addPendingBitWhenBeatHasData(io.outer.grant) |
                        addPendingBitInternal(io.data.resp)
-  // We can issue a grant for a pending write once the write is committed
-  ignt_ack_ready := ignt_ack_ready |
-                      io.data.write.fire() |
-                      io.outer.grant.fire() && !io.outer.grant.bits.hasData()
+  // We can issue a grant for a pending write once all data is
+  // received and committed to the data array or outer memory
+  val ignt_ack_ready = !(state === s_idle || state === s_meta_read ||
+    pending_puts.orR || pending_writes.orR || pending_ognt)
+
   ignt_q.io.deq.ready := ignt_data_done
   io.inner.grant.valid := state === s_busy &&
                           ignt_q.io.deq.valid &&
@@ -876,7 +895,6 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     pending_writes := addPendingBitWhenBeatHasDataAndAllocs(io.inner.acquire)
     pending_resps := UInt(0)
     ignt_data_ready := UInt(0)
-    ignt_ack_ready := Bool(false)
     pending_meta_write := Bool(false)
     state := s_meta_read
   }
@@ -888,8 +906,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     val coh = io.meta.resp.bits.meta.coh
     val tag_match = io.meta.resp.bits.tag_match
     val is_hit = (if(!isLastLevelCache) tag_match && coh.outer.isHit(xact_op_code)
-                  else xact.isBuiltInType(Acquire.putBlockType) ||
-                       tag_match && coh.outer.isValid())
+                  else tag_match && coh.outer.isValid())
     val needs_writeback = !tag_match &&
                           xact_allocate && 
                           (coh.outer.requiresVoluntaryWriteback() ||
@@ -910,14 +927,11 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
       val mask_incoherent = mask_self & ~io.incoherent.toBits
       pending_iprbs := mask_incoherent
     }
-    // If a prefetch is a hit, note that we should ack it ASAP
-    when (is_hit && xact.isPrefetch()) {
-      ignt_ack_ready := Bool(true)
-    }
     // If some kind of Put is marked no-allocate but is already in the cache,
     // we need to write its data to the data array
     when (is_hit && !xact_allocate && xact.hasData()) {
       pending_writes := addPendingBitsFromAcquire(xact)
+      xact_allocate := Bool(true)
     }
     // Next: request writeback, issue probes, query outer memory, or respond
     state := Mux(needs_writeback, s_wb_req,
@@ -950,7 +964,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   io.has_release_match := io.irel().conflicts(xact_addr_block) &&
                           !io.irel().isVoluntary() &&
                           io.inner.release.ready
-  io.has_acquire_match := iacq_can_merge
+  io.has_acquire_match := iacq_can_merge || iacq_same_xact
   io.has_acquire_conflict := in_same_set && (state =/= s_idle) && !io.has_acquire_match
   //TODO: relax from in_same_set to xact.conflicts(io.iacq())?
 }
