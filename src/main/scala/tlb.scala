@@ -7,6 +7,7 @@ import Util._
 import junctions._
 import scala.math._
 import cde.{Parameters, Field}
+import uncore.PseudoLRU
 
 case object NTLBEntries extends Field[Int]
 
@@ -52,29 +53,6 @@ class RocketCAM(implicit p: Parameters) extends TLBModule()(p) {
   io.valid_bits := vb_array
   io.hits := Vec(hits).toBits
   io.hit := io.hits.orR
-}
-
-class PseudoLRU(n: Int)
-{
-  val state = Reg(Bits(width = n))
-  def access(way: UInt) = {
-    var next_state = state
-    var idx = UInt(1,1)
-    for (i <- log2Up(n)-1 to 0 by -1) {
-      val bit = way(i)
-      val mask = (UInt(1,n) << idx)(n-1,0)
-      next_state = next_state & ~mask | Mux(bit, UInt(0), mask)
-      //next_state.bitSet(idx, !bit)
-      idx = Cat(idx, bit)
-    }
-    state := next_state
-  }
-  def replace = {
-    var idx = UInt(1,1)
-    for (i <- 0 until log2Up(n))
-      idx = Cat(idx, state(idx))
-    idx(log2Up(n)-1,0)
-  }
 }
 
 class TLBReq(implicit p: Parameters) extends CoreBundle()(p) {
