@@ -312,6 +312,62 @@ class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()
     "SequentialSameIdGetRegression: grant received out of order")
 }
 
+/* Test that a writeback will occur by writing nWays + 1 blocks to the same
+ * set. This assumes that there is only a single cache bank. If we want to
+ * test multibank configurations, we'll have to think of some other way to
+ * determine which banks are conflicting */
+class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
+  io.cache.req.valid := Bool(false)
+
+  val l2params = p.alterPartial({ case CacheName => "L2Bank" })
+  val nSets = l2params(NSets)
+  val nWays = l2params(NWays)
+
+  val addr_blocks = Vec.tabulate(nWays + 1) { i => UInt(i * nSets) }
+  val data = Vec.tabulate(nWays + 1) { i => UInt((i + 1) * 1423) }
+
+  val (put_beat, put_done) = Counter(
+    io.mem.acquire.fire() && io.mem.acquire.bits.hasData(), tlDataBeats)
+  val (get_beat, get_done) = Counter(
+    io.mem.grant.fire() && io.mem.grant.bits.hasData(), tlDataBeats)
+  val (put_cnt, _) = Counter(put_done, nWays + 1)
+  val (get_cnt, _) = Counter(
+    io.mem.acquire.fire() && !io.mem.acquire.bits.hasData(), nWays + 1)
+  val (ack_cnt, ack_done) = Counter(
+    io.mem.grant.fire() && !io.mem.grant.bits.hasData() || get_done, nWays + 1)
+
+  val s_idle :: s_put :: s_get :: s_done :: Nil = Enum(Bits(), 4)
+  val state = Reg(init = s_idle)
+  val sending = Reg(init = Bool(false))
+
+  io.mem.acquire.valid := sending
+  io.mem.acquire.bits := Mux(state === s_put,
+    PutBlock(
+      client_xact_id = UInt(0),
+      addr_block = addr_blocks(put_cnt),
+      addr_beat = put_beat,
+      data = data(put_cnt)),
+    GetBlock(
+      client_xact_id = UInt(0),
+      addr_block = addr_blocks(get_cnt)))
+  io.mem.grant.ready := !sending
+
+  when (state === s_idle && io.start) { state := s_put; sending := Bool(true) }
+  when (put_done || state === s_get && io.mem.acquire.fire()) {
+    sending := Bool(false)
+  }
+  when (get_done && !ack_done || state === s_put && io.mem.grant.fire()) {
+    sending := Bool(true)
+  }
+  when (ack_done) { state := Mux(state === s_put, s_get, s_done) }
+
+  io.finished := (state === s_done)
+
+  assert(!io.mem.grant.valid || !io.mem.grant.bits.hasData() ||
+    io.mem.grant.bits.data === data(ack_cnt),
+    "WritebackRegression: incorrect data")
+}
+
 object RegressionTests {
   def cacheRegressions(implicit p: Parameters) = Seq(
     Module(new PutBlockMergeRegression),
@@ -319,10 +375,12 @@ object RegressionTests {
     Module(new RepeatedNoAllocPutRegression),
     Module(new WriteMaskedPutBlockRegression),
     Module(new PrefetchHitRegression),
-    Module(new SequentialSameIdGetRegression))
+    Module(new SequentialSameIdGetRegression),
+    Module(new WritebackRegression))
   def broadcastRegressions(implicit p: Parameters) = Seq(
     Module(new IOGetAfterPutBlockRegression),
-    Module(new WriteMaskedPutBlockRegression))
+    Module(new WriteMaskedPutBlockRegression),
+    Module(new SequentialSameIdGetRegression))
 }
 
 case object GroundTestRegressions extends Field[Parameters => Seq[Regression]]
