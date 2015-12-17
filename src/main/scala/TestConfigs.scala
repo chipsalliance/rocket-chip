@@ -57,6 +57,7 @@ class WithBroadcastRegressionTest extends Config(
       (id: Int, p: Parameters) => Module(new RegressionTest()(p))
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.broadcastRegressions(p)
+    case GroundTestMaxXacts => 3
   })
 
 class WithCacheRegressionTest extends Config(
@@ -65,6 +66,7 @@ class WithCacheRegressionTest extends Config(
       (id: Int, p: Parameters) => Module(new RegressionTest()(p))
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.cacheRegressions(p)
+    case GroundTestMaxXacts => 3
   })
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
