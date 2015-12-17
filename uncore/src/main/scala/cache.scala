@@ -492,18 +492,6 @@ abstract class L2XactTracker(implicit p: Parameters) extends XactTracker()(p)
     addPendingBitWhenBeat(in.fire() && isPartial && Bool(ignoresWriteMask), a)
   }
 
-  def addOtherBits(en: Bool, nBits: Int): UInt =
-    Mux(en, Cat(Fill(nBits - 1, UInt(1, 1)), UInt(0, 1)), UInt(0, nBits))
-
-  def addPendingBitsOnFirstBeat(in: DecoupledIO[Acquire]): UInt =
-    addOtherBits(in.fire() &&
-                 in.bits.hasMultibeatData() &&
-                 in.bits.addr_beat === UInt(0),
-                 in.bits.tlDataBeats)
-
-  def dropPendingBitsOnFirstBeat(in: DecoupledIO[Acquire]): UInt =
-    ~addPendingBitsOnFirstBeat(in)
-
   def pinAllReadyValidLow[T <: Data](b: Bundle) {
     b.elements.foreach {
       _._2 match {
@@ -701,6 +689,18 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
       pending_coh := next
     }
   }
+
+  def addOtherBits(en: Bool, nBits: Int): UInt =
+    Mux(en, Cat(Fill(nBits - 1, UInt(1, 1)), UInt(0, 1)), UInt(0, nBits))
+
+  def addPendingBitsOnFirstBeat(in: DecoupledIO[Acquire]): UInt =
+    addOtherBits(in.fire() &&
+                 in.bits.hasMultibeatData() &&
+                 in.bits.addr_beat === UInt(0),
+                 in.bits.tlDataBeats)
+
+  def dropPendingBitsOnFirstBeat(in: DecoupledIO[Acquire]): UInt =
+    ~addPendingBitsOnFirstBeat(in)
 
   // Defined here because of Chisel default wire demands, used in s_meta_resp
   val pending_coh_on_hit = HierarchicalMetadata(
@@ -1008,17 +1008,12 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
                   Mux(!is_hit, s_outer_acquire, s_busy)))
   }
   when(state === s_wb_req && io.wb.req.ready) { state := s_wb_resp }
-  when(state === s_wb_resp && io.wb.resp.valid) {
-    // If we're overwriting the whole block in a last level cache we can
-    // just do it without fetching any data from memory
-    val skip_outer_acquire = Bool(isLastLevelCache) && xact.isBuiltInType(Acquire.putBlockType)
-    state := Mux(!skip_outer_acquire, s_outer_acquire, s_busy)
-  }
+  when(state === s_wb_resp && io.wb.resp.valid) { state := s_outer_acquire }
   when(state === s_inner_probe && !(pending_iprbs.orR || pending_irels)) {
     // Tag matches, so if this is the last level cache we can use the data without upgrading permissions
     val skip_outer_acquire = 
       (if(!isLastLevelCache) xact_old_meta.coh.outer.isHit(xact_op_code)
-       else xact.isBuiltInType(Acquire.putBlockType) || xact_old_meta.coh.outer.isValid())
+       else xact_old_meta.coh.outer.isValid())
     state := Mux(!skip_outer_acquire, s_outer_acquire, s_busy)
   }
   when(state === s_outer_acquire && oacq_data_done) { state := s_busy }
