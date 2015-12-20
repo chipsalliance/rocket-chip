@@ -32,6 +32,7 @@ int main(int argc, char** argv)
   FILE *vcdfile = NULL;
   bool dramsim2 = false;
   bool log = false;
+  bool print_cycles = false;
   uint64_t memsz_mb = MEM_SIZE / (1024*1024);
   mm_t *mm[N_MEM_CHANNELS];
 
@@ -54,6 +55,8 @@ int main(int argc, char** argv)
       loadmem = argv[i]+9;
     else if (arg.substr(0, 7) == "+start=")
       start = atoll(argv[i]+7);
+    else if (arg.substr(0, 12) == "+cycle-count")
+      print_cycles = true;
   }
 
   const int disasm_len = 24;
@@ -238,7 +241,7 @@ int main(int argc, char** argv)
     fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %ld cycles\n", random_seed, trace_count);
     ret = 2;
   }
-  else if (log)
+  else if (log || print_cycles)
   {
     fprintf(stderr, "Completed after %ld cycles\n", trace_count);
   }

@@ -33,7 +33,7 @@ object BuildSettings extends Build {
     addons := {
       val a = sys.env.getOrElse("ROCKETCHIP_ADDONS", "")
       println(s"Using addons: $a")
-      a.split(",")
+      a.split(" ")
     },
     unmanagedSourceDirectories in Compile ++= addons.value.map(baseDirectory.value / _ / "src/main/scala"),
     mainClass in (Compile, run) := Some("rocketchip.TestGenerator"),
