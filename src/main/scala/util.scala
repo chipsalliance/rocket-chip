@@ -17,6 +17,10 @@ object MuxBundle {
   def apply[T <: Data] (default: T, mapping: Seq[(Bool, T)]): T = {
     mapping.reverse.foldLeft(default)((b, a) => Mux(a._1, a._2, b))
   }
+
+  def apply[S <: Data, T <: Data] (key: S, default: T, mapping: Seq[(S, T)]): T = {
+    apply(default, mapping.map{ case (a, b) => (a === key, b) })
+  }
 }
 
 // Produces 0-width value when counting to 1
@@ -39,6 +43,15 @@ object ZCounter {
     var wrap: Bool = null
     when (cond) { wrap = c.inc() }
     (c.value, cond && wrap)
+  }
+}
+
+object TwoWayCounter {
+  def apply(up: Bool, down: Bool, max: Int): UInt = {
+    val cnt = Reg(init = UInt(0, log2Up(max+1)))
+    when (up && !down) { cnt := cnt + UInt(1) }
+    when (down && !up) { cnt := cnt - UInt(1) }
+    cnt
   }
 }
 

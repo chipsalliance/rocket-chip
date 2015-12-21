@@ -1386,14 +1386,11 @@ trait HasDataBeatCounters {
       down: DecoupledIO[S],
       beat: UInt = UInt(0),
       track: T => Bool = (t: T) => Bool(true)): (Bool, UInt, Bool, UInt, Bool) = {
-    val cnt = Reg(init = UInt(0, width = log2Up(max+1)))
     val (up_idx, up_done) = connectDataBeatCounter(up.fire(), up.bits, beat)
     val (down_idx, down_done) = connectDataBeatCounter(down.fire(), down.bits, beat)
     val do_inc = up_done && track(up.bits)
     val do_dec = down_done
-    cnt := Mux(do_dec,
-            Mux(do_inc, cnt, cnt - UInt(1)),
-            Mux(do_inc, cnt + UInt(1), cnt))
+    val cnt = TwoWayCounter(do_inc, do_dec, max)
     (cnt > UInt(0), up_idx, up_done, down_idx, down_done)
   }
 }
