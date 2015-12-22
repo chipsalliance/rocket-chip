@@ -14,7 +14,8 @@ case class RoccParameters(
   opcodes: OpcodeSet,
   generator: Parameters => RoCC,
   nMemChannels: Int = 0,
-  useFPU: Boolean = false)
+  useFPU: Boolean = false,
+  useDma: Boolean = false)
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
@@ -22,6 +23,7 @@ abstract class Tile(resetSignal: Bool = null)
   val usingRocc = !buildRocc.isEmpty
   val nRocc = buildRocc.size
   val nFPUPorts = buildRocc.filter(_.useFPU).size
+  val nDmaPorts = buildRocc.filter(_.useDma).size
   val nDCachePorts = 2 + nRocc
   val nPTWPorts = 2 + 3 * nRocc
   val nCachedTileLinkPorts = 1
@@ -31,6 +33,7 @@ abstract class Tile(resetSignal: Bool = null)
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
     val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
     val host = new HtifIO
+    val dma = new DmaIO
   }
 }
 
@@ -104,6 +107,14 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       }
     }
 
+    if (nDmaPorts > 0) {
+      val dmaArb = Module(new DmaArbiter(nDmaPorts))
+      dmaArb.io.in <> roccs.zip(buildRocc)
+        .filter { case (_, params) => params.useDma }
+        .map { case (rocc, _) => rocc.io.dma }
+      io.dma <> dmaArb.io.out
+    }
+
     core.io.rocc.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
     core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
     respArb.io.in <> roccs.map(rocc => Queue(rocc.io.resp))
@@ -116,5 +127,10 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       fpu.io.cp_req.valid := Bool(false)
       fpu.io.cp_resp.ready := Bool(false)
     }
+  }
+
+  if (!usingRocc || nDmaPorts == 0) {
+    io.dma.req.valid := Bool(false)
+    io.dma.resp.ready := Bool(false)
   }
 }
