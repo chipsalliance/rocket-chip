@@ -29,13 +29,17 @@ case object BuildL2CoherenceManager extends Field[(Int, Parameters) => Coherence
 case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
 /** Start address of the "io" region in the memory map */
 case object ExternalIOStart extends Field[BigInt]
+/** Enable DMA engine */
+case object UseDma extends Field[Boolean]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
   implicit val p: Parameters
+  lazy val useDma = p(UseDma)
   lazy val nTiles = p(NTiles)
   lazy val nCachedTilePorts = p(TLKey("L1toL2")).nCachingClients
-  lazy val nUncachedTilePorts = p(TLKey("L1toL2")).nCachelessClients - 1
+  lazy val nUncachedTilePorts =
+    p(TLKey("L1toL2")).nCachelessClients - (if (useDma) 2 else 1)
   lazy val htifW = p(HtifKey).width
   lazy val csrAddrBits = 12
   lazy val nMemChannels = p(NMemoryChannels)
@@ -109,6 +113,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
   if (p(UseBackupMemoryPort)) { io.mem_backup_ctrl <> uncore.io.mem_backup_ctrl }
+  if (p(UseDma)) { uncore.io.dma <> tileList.map(_.io.dma) }
 
   io.mem.zip(uncore.io.mem).foreach { case (outer, inner) =>
     TopUtils.connectNasti(outer, inner)
@@ -137,6 +142,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val htif = Vec(new HtifIO, nTiles).flip
     val mem_backup_ctrl = new MemBackupCtrlIO
     val mmio = new NastiIO
+    val dma = Vec(nTiles, new DmaIO).flip
   }
 
   val htif = Module(new Htif(CSRs.mreset)) // One HTIF module per chip
@@ -145,6 +151,11 @@ class Uncore(implicit val p: Parameters) extends Module
   outmemsys.io.htif_uncached <> htif.io.mem
   outmemsys.io.tiles_uncached <> io.tiles_uncached
   outmemsys.io.tiles_cached <> io.tiles_cached
+  if (p(UseDma)) {
+    val dma_arb = Module(new DmaArbiter(nTiles))
+    dma_arb.io.in <> io.dma
+    outmemsys.io.dma <> dma_arb.io.out
+  }
 
   for (i <- 0 until nTiles) {
     io.htif(i).reset := htif.io.cpu(i).reset
@@ -198,12 +209,18 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val scr = new SMIIO(xLen, scrAddrBits)
     val mmio = new NastiIO
     val deviceTree = new NastiIO
+    val dma = (new DmaIO).flip
   }
+
+  val dmaOpt = if (p(UseDma)) Some(Module(new DmaEngine)) else None
+  dmaOpt.foreach { dma => dma.io.dma <> io.dma }
 
   // Create a simple L1toL2 NoC between the tiles+htif and the banks of outer memory
   // Cached ports are first in client list, making sharerToClientId just an indentity function
   // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
-  val ordered_clients = (io.tiles_cached ++ (io.tiles_uncached :+ io.htif_uncached).map(TileLinkIOWrapper(_))) 
+  val ordered_clients = (io.tiles_cached ++
+    (io.tiles_uncached ++ dmaOpt.map(_.io.mem) :+ io.htif_uncached)
+      .map(TileLinkIOWrapper(_))) 
   def sharerToClientId(sharerId: UInt) = sharerId
   def addrToBank(addr: Bits): UInt = if(nBanks > 1) addr(lsb + log2Up(nBanks) - 1, lsb) else UInt(0)
   val preBuffering = TileLinkDepths(2,2,2,2,2)

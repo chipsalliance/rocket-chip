@@ -142,6 +142,10 @@ class DefaultConfig extends Config (
       }
       case BuildRoCC => Nil
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
+      case UseDma => false
+      case NDmaTransactors => 3
+      case NDmaClients => site(NTiles)
+      case NDmaXactsPerClient => site(NDmaTransactors)
       //Rocket Core Constants
       case FetchWidth => 1
       case RetireWidth => 1
@@ -173,11 +177,15 @@ class DefaultConfig extends Config (
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels),
           nCachingClients = site(NTiles),
-          nCachelessClients = 1 + site(NTiles) *
-                                (1 + (if(site(BuildRoCC).isEmpty) 0 else site(RoccNMemChannels))),
+          nCachelessClients = (if (site(UseDma)) 2 else 1) +
+                              site(NTiles) *
+                                (1 + (if(site(BuildRoCC).isEmpty) 0
+                                      else site(RoccNMemChannels))),
           maxClientXacts = max(site(NMSHRs) + site(NIOMSHRs),
-                               if(site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
-          maxClientsPerPort = if(site(BuildRoCC).isEmpty) 1 else 2,
+                               max(if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
+                                   if (site(UseDma)) 4 else 1)),
+          maxClientsPerPort = max(if (site(BuildRoCC).isEmpty) 1 else 2,
+                                  if (site(UseDma)) site(NDmaTransactors) else 1),
           maxManagerXacts = site(NAcquireTransactors) + 2,
           dataBits = site(CacheBlockBytes)*8)
       case TLKey("L2toMC") => 
@@ -364,6 +372,19 @@ class WithRoccExample extends Config(
   })
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
+
+class WithDmaController extends Config(
+  (pname, site, here) => pname match {
+    case UseDma => true
+    case BuildRoCC => Seq(
+        RoccParameters(
+          opcodes = OpcodeSet.custom2,
+          generator = (p: Parameters) => Module(new DmaController()(p)),
+          useDma = true))
+    case RoccMaxTaggedMemXacts => 1
+  })
+
+class DmaControllerConfig extends Config(new WithDmaController ++ new DefaultL2Config)
 
 class SmallL2Config extends Config(
   new With2MemoryChannels ++ new With4BanksPerMemChannel ++
