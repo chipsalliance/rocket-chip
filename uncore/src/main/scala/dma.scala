@@ -3,6 +3,7 @@ package uncore
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
+import junctions.NastiConstants._
 
 case object NDmaTransactors extends Field[Int]
 case object NDmaClients extends Field[Int]
@@ -16,6 +17,7 @@ trait HasDmaParameters {
   val dmaClientXactIdBits = log2Up(nDmaClients * nDmaXactsPerClient)
   val addrBits = p(PAddrBits)
   val dmaStatusBits = 2
+  val dmaWordSizeBits = 2
 }
 
 abstract class DmaModule(implicit val p: Parameters) extends Module with HasDmaParameters
@@ -27,6 +29,7 @@ class DmaRequest(implicit p: Parameters) extends DmaBundle()(p) {
   val source = UInt(width = addrBits)
   val dest = UInt(width = addrBits)
   val length = UInt(width = addrBits)
+  val size = UInt(width = dmaWordSizeBits)
 }
 
 class DmaResponse(implicit p: Parameters) extends DmaBundle()(p) {
@@ -35,23 +38,27 @@ class DmaResponse(implicit p: Parameters) extends DmaBundle()(p) {
 }
 
 object DmaRequest {
-  val DMA_CMD_SZ = 2
+  val DMA_CMD_SZ = 3
 
-  val DMA_CMD_COPY = UInt(0, DMA_CMD_SZ)
-  val DMA_CMD_PFR = UInt(2, DMA_CMD_SZ)
-  val DMA_CMD_PFW = UInt(3, DMA_CMD_SZ)
+  val DMA_CMD_COPY = UInt("b000")
+  val DMA_CMD_PFR  = UInt("b010")
+  val DMA_CMD_PFW  = UInt("b011")
+  val DMA_CMD_SIN  = UInt("b100")
+  val DMA_CMD_SOUT = UInt("b101")
 
   def apply(client_xact_id: UInt = UInt(0),
             cmd: UInt,
             source: UInt,
             dest: UInt,
-            length: UInt)(implicit p: Parameters): DmaRequest = {
+            length: UInt,
+            size: UInt = UInt(0))(implicit p: Parameters): DmaRequest = {
     val req = Wire(new DmaRequest)
     req.client_xact_id := client_xact_id
     req.cmd := cmd
     req.source := source
     req.dest := dest
     req.length := length
+    req.size := size
     req
   }
 }
@@ -62,19 +69,26 @@ class DmaIO(implicit p: Parameters) extends DmaBundle()(p) {
   val resp = Decoupled(new DmaResponse).flip
 }
 
+class DmaTrackerIO(implicit p: Parameters) extends DmaBundle()(p) {
+  val dma = (new DmaIO).flip
+  val inner = new ClientUncachedTileLinkIO
+  val outer = new NastiIO
+}
+
 class DmaEngine(implicit p: Parameters) extends DmaModule()(p) {
-  val io = new Bundle {
-    val dma = (new DmaIO).flip
-    val mem = new ClientUncachedTileLinkIO
-  }
+  val io = new DmaTrackerIO
 
   val trackers = List.fill(nDmaTransactors) { Module(new DmaTracker) }
   val reqReadys = Vec(trackers.map(_.io.dma.req.ready)).toBits
 
   if (nDmaTransactors > 1) {
-    val mem_arb = Module(new ClientUncachedTileLinkIOArbiter(nDmaTransactors))
-    mem_arb.io.in <> trackers.map(_.io.mem)
-    io.mem <> mem_arb.io.out
+    val inner_arb = Module(new ClientUncachedTileLinkIOArbiter(nDmaTransactors))
+    inner_arb.io.in <> trackers.map(_.io.inner)
+    io.inner <> inner_arb.io.out
+
+    val outer_arb = Module(new NastiArbiter(nDmaTransactors))
+    outer_arb.io.master <> trackers.map(_.io.outer)
+    io.outer <> outer_arb.io.slave
 
     val resp_arb = Module(new RRArbiter(new DmaResponse, nDmaTransactors))
     resp_arb.io.in <> trackers.map(_.io.dma.resp)
@@ -87,17 +101,15 @@ class DmaEngine(implicit p: Parameters) extends DmaModule()(p) {
     }
     io.dma.req.ready := reqReadys.orR
   } else {
-    io.mem <> trackers.head.io.mem
+    io.inner <> trackers.head.io.inner
+    io.outer <> trackers.head.io.outer
     io.dma <> trackers.head.io.dma
   }
 }
 
 class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
-    with HasTileLinkParameters {
-  val io = new Bundle {
-    val dma = (new DmaIO).flip
-    val mem = new ClientUncachedTileLinkIO
-  }
+    with HasTileLinkParameters with HasNastiParameters {
+  val io = new DmaTrackerIO
 
   private val blockOffset = tlBeatAddrBits + tlByteAddrBits
   private val blockBytes = tlDataBeats * tlDataBytes
@@ -117,23 +129,46 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
   val shift_dir = Reg(Bool())
 
   val bytes_left = Reg(UInt(width = addrBits))
+  val streaming = Reg(Bool())
+  val stream_addr = Reg(UInt(width = nastiXAddrBits))
+  val stream_len = Reg(UInt(width = nastiXLenBits))
+  val stream_size = Reg(UInt(width = nastiXSizeBits))
+  val stream_idx = Reg(UInt(width = blockOffset))
+  val stream_bytesel = MuxLookup(stream_size, UInt("b11111111"), Seq(
+    UInt("b00") -> UInt("b00000001"),
+    UInt("b01") -> UInt("b00000011"),
+    UInt("b10") -> UInt("b00001111")))
+  val stream_mask = FillInterleaved(8, stream_bytesel)
+  val stream_last = Reg(Bool())
 
-  val acq = io.mem.acquire.bits
-  val gnt = io.mem.grant.bits
+  val stream_word_bytes = UInt(1) << stream_size
+  val stream_beat_idx = stream_idx(blockOffset - 1, tlByteAddrBits)
+  val stream_byte_idx = stream_idx(tlByteAddrBits - 1, 0)
+  val stream_bitshift = Cat(stream_byte_idx, UInt(0, 3))
+  val stream_in_beat =
+    (((io.outer.r.bits.data & stream_mask) << stream_bitshift)) |
+    (data_buffer(stream_beat_idx) & ~(stream_mask << stream_bitshift))
+  val stream_out_word = data_buffer(stream_beat_idx) >> stream_bitshift
+  val stream_out_last = bytes_left === stream_word_bytes
+
+  val acq = io.inner.acquire.bits
+  val gnt = io.inner.grant.bits
 
   val (s_idle :: s_get :: s_put :: s_prefetch ::
-       s_wait :: s_resp :: Nil) = Enum(Bits(), 6)
+       s_stream_read_req :: s_stream_read_resp ::
+       s_stream_write_req :: s_stream_write_data :: s_stream_write_resp ::
+       s_wait :: s_resp :: Nil) = Enum(Bits(), 11)
   val state = Reg(init = s_idle)
 
   val (put_beat, put_done) = Counter(
-    io.mem.acquire.fire() && acq.hasData(), tlDataBeats)
+    io.inner.acquire.fire() && acq.hasData(), tlDataBeats)
 
   val put_mask = Vec.tabulate(tlDataBytes) { i =>
     val byte_index = Cat(put_beat, UInt(i, tlByteAddrBits))
     byte_index >= offset && byte_index < bytes_left
   }.toBits
 
-  val prefetch_sent = io.mem.acquire.fire() && io.mem.acquire.bits.isPrefetch()
+  val prefetch_sent = io.inner.acquire.fire() && io.inner.acquire.bits.isPrefetch()
   val prefetch_busy = Reg(init = UInt(0, tlMaxClientXacts))
   val (prefetch_id, _) = Counter(prefetch_sent, tlMaxClientXacts)
 
@@ -190,18 +225,39 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
 
   val resp_id = Reg(UInt(width = dmaClientXactIdBits))
 
-  io.mem.acquire.valid := (state === s_get) ||
+  io.inner.acquire.valid := (state === s_get) ||
                           (state === s_put && get_done) ||
                           (state === s_prefetch && !prefetch_busy(prefetch_id))
-  io.mem.acquire.bits := MuxBundle(
+  io.inner.acquire.bits := MuxBundle(
     state, prefetch_acquire, Seq(
       s_get -> get_acquire,
       s_put -> put_acquire))
-  io.mem.grant.ready := Bool(true)
+  io.inner.grant.ready := Bool(true)
   io.dma.req.ready := state === s_idle
   io.dma.resp.valid := state === s_resp
   io.dma.resp.bits.client_xact_id := resp_id
   io.dma.resp.bits.status := UInt(0)
+  io.outer.ar.valid := (state === s_stream_read_req)
+  io.outer.ar.bits := NastiReadAddressChannel(
+    id = UInt(0),
+    addr = stream_addr,
+    size = stream_size,
+    len  = stream_len,
+    burst = BURST_FIXED)
+  io.outer.r.ready := (state === s_stream_read_resp)
+
+  io.outer.aw.valid := (state === s_stream_write_req)
+  io.outer.aw.bits := NastiWriteAddressChannel(
+    id = UInt(0),
+    addr = stream_addr,
+    size = stream_size,
+    len  = stream_len,
+    burst = BURST_FIXED)
+  io.outer.w.valid := (state === s_stream_write_data) && get_done
+  io.outer.w.bits := NastiWriteDataChannel(
+    data = stream_out_word,
+    last = stream_out_last)
+  io.outer.b.ready := (state === s_stream_write_resp)
 
   when (io.dma.req.fire()) {
     val src_off = io.dma.req.bits.source(blockOffset - 1, 0)
@@ -219,25 +275,65 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
     put_inflight := Bool(false)
     get_half := UInt(0)
     put_half := UInt(0)
+    streaming := Bool(false)
+    stream_len := (io.dma.req.bits.length >> io.dma.req.bits.size) - UInt(1)
+    stream_size := io.dma.req.bits.size
+    stream_last := Bool(false)
 
     when (io.dma.req.bits.cmd === DMA_CMD_COPY) {
       state := s_get
-    } .otherwise {
+    } .elsewhen (io.dma.req.bits.cmd(2, 1) === UInt("b01")) {
       prefetch_put := io.dma.req.bits.cmd(0)
       state := s_prefetch
+    } .elsewhen (io.dma.req.bits.cmd === DMA_CMD_SIN) {
+      stream_addr := io.dma.req.bits.source
+      stream_idx := dst_off
+      streaming := Bool(true)
+      alignment := UInt(0)
+      state := s_stream_read_req
+    } .elsewhen (io.dma.req.bits.cmd === DMA_CMD_SOUT) {
+      stream_addr := io.dma.req.bits.dest
+      stream_idx := src_off
+      streaming := Bool(true)
+      bytes_left := io.dma.req.bits.length
+      state := s_stream_write_req
     }
   }
 
-  when (state === s_get && io.mem.acquire.ready) {
-    val bytes_in_buffer = UInt(blockBytes) - alignment
-    val extra_read = alignment > UInt(0) && !shift_dir && // dst_off < src_off
-                     get_half === UInt(0) && // this is the first block
-                     bytes_in_buffer < bytes_left // there is still more data left to fetch
+  when (io.outer.ar.fire()) { state := s_stream_read_resp }
+
+  when (io.outer.r.fire()) {
+    data_buffer(stream_beat_idx) := stream_in_beat
+    stream_idx := stream_idx + stream_word_bytes
+    val block_finished = stream_idx === UInt(blockBytes) - stream_word_bytes
+    when (block_finished || io.outer.r.bits.last) { state := s_put }
+  }
+
+  when (io.outer.aw.fire()) { state := s_get }
+
+  when (io.outer.w.fire()) {
+    stream_idx := stream_idx + stream_word_bytes
+    bytes_left := bytes_left - stream_word_bytes
+    val block_finished = stream_idx === UInt(blockBytes) - stream_word_bytes
+    when (stream_out_last) {
+      state := s_resp
+    } .elsewhen (block_finished) {
+      state := s_get
+    }
+  }
+
+  when (state === s_get && io.inner.acquire.ready) {
     get_inflight := get_inflight | FillInterleaved(tlDataBeats, UIntToOH(get_half))
-    get_half := get_half + UInt(1)
     src_block := src_block + UInt(1)
-    when (!extra_read) {
-      state := s_put
+    when (streaming) {
+      state := s_stream_write_data
+    } .otherwise {
+      val bytes_in_buffer = UInt(blockBytes) - alignment
+      val extra_read = alignment > UInt(0) && !shift_dir && // dst_off < src_off
+                       get_half === UInt(0) && // this is the first block
+                       bytes_in_buffer < bytes_left // there is still more data left to fetch
+      get_half := get_half + UInt(1)
+      when (!extra_read) { state := s_put }
     }
   }
 
@@ -252,7 +348,7 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
     }
   }
 
-  when (io.mem.grant.fire()) {
+  when (io.inner.grant.fire()) {
     when (gnt.g_type === Grant.prefetchAckType) {
       prefetch_busy := prefetch_busy & ~UIntToOH(gnt.client_xact_id)
     } .elsewhen (gnt.hasData()) {
@@ -266,8 +362,11 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
   }
 
   when (put_done) { // state === s_put
-    put_half := put_half + UInt(1)
+    when (!streaming) {
+      put_half := put_half + UInt(1)
+    }
     offset := UInt(0)
+    stream_idx := UInt(0)
     when (bytes_left < UInt(blockBytes)) {
       bytes_left := UInt(0)
     } .otherwise {
@@ -279,7 +378,9 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
   }
 
   when (state === s_wait && get_done && !put_inflight) {
-    state := Mux(bytes_left === UInt(0), s_resp, s_get)
+    state := MuxCase(s_get, Seq(
+      (bytes_left === UInt(0)) -> s_resp,
+      streaming -> s_stream_read_resp))
   }
 
   when (io.dma.resp.fire()) { state := s_idle }
