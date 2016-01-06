@@ -2,9 +2,11 @@ package groundtest
 
 import Chisel._
 import uncore._
+import uncore.DmaRequest._
 import rocket._
 import junctions.PAddrBits
 import cde.{Parameters, Field}
+import scala.math.max
 
 case class DmaTestCase(source: Int, dest: Int, length: Int)
 
@@ -16,9 +18,83 @@ object DmaTestCases {
   }
 }
 
+case class DmaStreamTestConfig(
+  source: Int, dest: Int, len: Int, size: Int)
+
 case object DmaTestSet extends Field[Seq[DmaTestCase]]
 case object DmaTestDataStart extends Field[Int]
 case object DmaTestDataStride extends Field[Int]
+
+case object DmaStreamLoopbackAddr extends Field[BigInt]
+case object DmaStreamTestSettings extends Field[DmaStreamTestConfig]
+
+class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
+    with HasDmaParameters with HasCoreParameters {
+  disablePorts(cache = false, dma = false, ptw = false)
+
+  val (s_start :: s_setup_req :: s_setup_wait ::
+       s_stream_out :: s_stream_in ::  s_stream_wait ::
+       s_check_req :: s_check_wait :: s_done :: Nil) = Enum(Bits(), 9)
+  val state = Reg(init = s_start)
+  val lo_base = p(DmaStreamLoopbackAddr)
+  val conf = p(DmaStreamTestSettings)
+
+  val test_data = Vec.tabulate(conf.len) { i => UInt(i * 8, conf.size * 8) }
+
+  val (req_index, req_done) = Counter(io.cache.req.fire(), conf.len)
+  val (resp_index, resp_done) = Counter(io.cache.resp.fire(), conf.len)
+
+  val out_req = ClientDmaRequest(
+    cmd = DMA_CMD_SOUT,
+    src_start = UInt(conf.source),
+    dst_start = UInt(lo_base),
+    segment_size = UInt(conf.len * conf.size),
+    word_size = UInt(log2Up(conf.size)))
+
+  val in_req = ClientDmaRequest(
+    cmd = DMA_CMD_SIN,
+    src_start = UInt(lo_base),
+    dst_start = UInt(conf.dest),
+    segment_size = UInt(conf.len * conf.size),
+    word_size = UInt(log2Up(conf.size)))
+
+  val frontend = Module(new DmaFrontend)
+  frontend.io.cpu.req.valid := (state === s_stream_out) || (state === s_stream_in)
+  frontend.io.cpu.req.bits := Mux(state === s_stream_out, out_req, in_req)
+
+  io.dma <> frontend.io.dma
+  io.ptw <> frontend.io.ptw
+
+  val cache_addr_base = Mux(state === s_setup_req, UInt(conf.source), UInt(conf.dest))
+
+  io.cache.req.valid := (state === s_setup_req) || (state === s_check_req)
+  io.cache.req.bits.addr := cache_addr_base + Cat(req_index, UInt(0, log2Up(conf.size)))
+  io.cache.req.bits.data := test_data(req_index)
+  io.cache.req.bits.typ  := UInt(log2Up(conf.size))
+  io.cache.req.bits.cmd  := Mux(state === s_setup_req, M_XWR, M_XRD)
+  io.cache.req.bits.kill := Bool(false)
+  io.cache.req.bits.phys := Bool(false)
+
+  when (state === s_start) { state := s_setup_req }
+  when (state === s_setup_req && req_done) { state := s_setup_wait }
+  when (state === s_check_req && req_done) { state := s_check_wait }
+  when (state === s_setup_wait && resp_done) { state := s_stream_out }
+  when (state === s_check_wait && resp_done) { state := s_done }
+
+  when (frontend.io.cpu.req.fire()) {
+    state := Mux(state === s_stream_out, s_stream_in, s_stream_wait)
+  }
+
+  val dma_done = (state === s_stream_wait) && !frontend.io.busy
+  when (dma_done) { state := s_check_req }
+
+  val resp_data = io.cache.resp.bits.data(conf.size * 8 - 1, 0)
+  assert(!io.cache.resp.valid || !io.cache.resp.bits.has_data ||
+         resp_data === test_data(resp_index),
+         "Result data streamed in does not match data streamed out")
+
+  io.finished := (state === s_done)
+}
 
 class DmaTest(implicit p: Parameters) extends GroundTest()(p)
     with HasDmaParameters with HasCoreParameters {
@@ -49,7 +125,7 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
   val frontend = Module(new DmaFrontend)
   frontend.io.cpu.req.valid := (state === s_copy_req)
   frontend.io.cpu.req.bits := ClientDmaRequest(
-    cmd = Mux(prefetch, DmaRequest.DMA_CMD_PFR, DmaRequest.DMA_CMD_COPY),
+    cmd = Mux(prefetch, DMA_CMD_PFR, DMA_CMD_COPY),
     src_start = sourceAddrs(testIdx),
     dst_start = destAddrs(testIdx),
     segment_size = transferLengths(testIdx))
