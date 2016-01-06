@@ -113,14 +113,29 @@ class NastiReadDataChannel(implicit p: Parameters) extends NastiResponseChannel(
   val user = UInt(width = nastiRUserBits)
 }
 
+object NastiConstants {
+  val BURST_FIXED = UInt("b00")
+  val BURST_INCR  = UInt("b01")
+  val BURST_WRAP  = UInt("b10")
+
+  val RESP_OKAY = UInt("b00")
+  val RESP_EXOKAY = UInt("b01")
+  val RESP_SLVERR = UInt("b10")
+  val RESP_DECERR = UInt("b11")
+}
+
+import NastiConstants._
+
 object NastiWriteAddressChannel {
-  def apply(id: UInt, addr: UInt, size: UInt, len: UInt = UInt(0))(implicit p: Parameters) = {
+  def apply(id: UInt, addr: UInt, size: UInt,
+      len: UInt = UInt(0), burst: UInt = BURST_INCR)
+      (implicit p: Parameters) = {
     val aw = Wire(new NastiWriteAddressChannel)
     aw.id := id
     aw.addr := addr
     aw.len := len
     aw.size := size
-    aw.burst := UInt("b01")
+    aw.burst := burst
     aw.lock := Bool(false)
     aw.cache := UInt("b0000")
     aw.prot := UInt("b000")
@@ -132,13 +147,15 @@ object NastiWriteAddressChannel {
 }
 
 object NastiReadAddressChannel {
-  def apply(id: UInt, addr: UInt, size: UInt, len: UInt = UInt(0))(implicit p: Parameters) = {
+  def apply(id: UInt, addr: UInt, size: UInt,
+      len: UInt = UInt(0), burst: UInt = BURST_INCR)
+      (implicit p: Parameters) = {
     val ar = Wire(new NastiReadAddressChannel)
     ar.id := id
     ar.addr := addr
     ar.len := len
     ar.size := size
-    ar.burst := UInt("b01")
+    ar.burst := burst
     ar.lock := Bool(false)
     ar.cache := UInt(0)
     ar.prot := UInt(0)
@@ -333,7 +350,7 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
   io.r.valid := r_queue.io.deq.valid && responding
   io.r.bits.id := r_queue.io.deq.bits.id
   io.r.bits.data := UInt(0)
-  io.r.bits.resp := Bits("b11")
+  io.r.bits.resp := RESP_DECERR
   io.r.bits.last := beats_left === UInt(0)
 
   r_queue.io.deq.ready := io.r.fire() && io.r.bits.last
