@@ -8,7 +8,7 @@ import cde.Parameters
 
 trait HasClientDmaParameters extends HasCoreParameters with HasDmaParameters {
   val dmaAddrBits = coreMaxAddrBits
-  val dmaSizeBits = coreMaxAddrBits
+  val dmaSegmentSizeBits = coreMaxAddrBits
   val dmaSegmentBits = 24
 }
 
@@ -21,10 +21,11 @@ class ClientDmaRequest(implicit p: Parameters) extends ClientDmaBundle()(p) {
   val cmd = UInt(width = DMA_CMD_SZ)
   val src_start  = UInt(width = dmaAddrBits)
   val dst_start  = UInt(width = dmaAddrBits)
-  val src_stride = UInt(width = dmaSizeBits)
-  val dst_stride = UInt(width = dmaSizeBits)
-  val segment_size = UInt(width = dmaSizeBits)
+  val src_stride = UInt(width = dmaSegmentSizeBits)
+  val dst_stride = UInt(width = dmaSegmentSizeBits)
+  val segment_size = UInt(width = dmaSegmentSizeBits)
   val nsegments  = UInt(width = dmaSegmentBits)
+  val word_size  = UInt(width = dmaWordSizeBits)
 }
 
 object ClientDmaRequest {
@@ -34,7 +35,8 @@ object ClientDmaRequest {
             segment_size: UInt,
             nsegments: UInt = UInt(1),
             src_stride: UInt = UInt(0),
-            dst_stride: UInt = UInt(0))
+            dst_stride: UInt = UInt(0),
+            word_size: UInt = UInt(0))
       (implicit p: Parameters) = {
     val req = Wire(new ClientDmaRequest)
     req.cmd := cmd
@@ -44,6 +46,7 @@ object ClientDmaRequest {
     req.dst_stride := dst_stride
     req.segment_size := segment_size
     req.nsegments := nsegments
+    req.word_size := word_size
     req
   }
 }
@@ -83,10 +86,16 @@ class DmaFrontend(implicit val p: Parameters)
   val vm_enabled = io.ptw.status.vm(3) && priv <= UInt(PRV_S)
 
   val cmd = Reg(UInt(width = DMA_CMD_SZ))
+  val adv_ptr = MuxLookup(cmd, UInt("b11"), Seq(
+    DMA_CMD_PFR -> UInt("b10"),
+    DMA_CMD_PFW -> UInt("b10"),
+    DMA_CMD_SIN -> UInt("b10"),
+    DMA_CMD_SOUT -> UInt("b01")))
 
-  val segment_size = Reg(UInt(width = dmaSizeBits))
-  val bytes_left = Reg(UInt(width = dmaSizeBits))
+  val segment_size = Reg(UInt(width = dmaSegmentSizeBits))
+  val bytes_left = Reg(UInt(width = dmaSegmentSizeBits))
   val segments_left = Reg(UInt(width = dmaSegmentBits))
+  val word_size = Reg(UInt(width = dmaWordSizeBits))
 
   val src_vaddr = Reg(UInt(width = dmaAddrBits))
   val dst_vaddr = Reg(UInt(width = dmaAddrBits))
@@ -97,8 +106,8 @@ class DmaFrontend(implicit val p: Parameters)
   val src_pglen = UInt(pgSize) - src_idx
   val dst_pglen = UInt(pgSize) - dst_idx
 
-  val src_stride = Reg(UInt(width = dmaSizeBits))
-  val dst_stride = Reg(UInt(width = dmaSizeBits))
+  val src_stride = Reg(UInt(width = dmaSegmentSizeBits))
+  val dst_stride = Reg(UInt(width = dmaSegmentSizeBits))
 
   val src_ppn = Reg(UInt(width = ppnBits))
   val dst_ppn = Reg(UInt(width = ppnBits))
@@ -145,8 +154,7 @@ class DmaFrontend(implicit val p: Parameters)
     to_translate := to_translate & ~recv_choice
 
     // getting the src translation
-    // if this is a prefetch, dst_ppn and src_ppn should be equal
-    when (recv_choice(0) || cmd(1)) {
+    when (recv_choice(0)) {
       src_ppn := io.ptw.resp.bits.pte.ppn
     } .otherwise {
       dst_ppn := io.ptw.resp.bits.pte.ppn
@@ -162,11 +170,13 @@ class DmaFrontend(implicit val p: Parameters)
     cmd = cmd,
     source = src_paddr,
     dest = dst_paddr,
-    length = tx_len)
+    length = tx_len,
+    size = word_size)
   io.dma.resp.ready := Bool(true)
 
   when (io.cpu.req.fire()) {
     val req = io.cpu.req.bits
+    val is_prefetch = req.cmd(2, 1) === UInt("b01")
     cmd := req.cmd
     src_vaddr := req.src_start
     dst_vaddr := req.dst_start
@@ -175,7 +185,8 @@ class DmaFrontend(implicit val p: Parameters)
     segment_size := req.segment_size
     segments_left := req.nsegments - UInt(1)
     bytes_left := req.segment_size
-    to_translate := Mux(req.cmd(1), UInt("b10"), UInt("b11"))
+    word_size := req.word_size
+    to_translate := Mux(is_prefetch, UInt("b10"), UInt("b11"))
     ptw_sent := UInt(0)
     state := Mux(vm_enabled, s_translate, s_dma_req)
   }
@@ -184,16 +195,20 @@ class DmaFrontend(implicit val p: Parameters)
     state := s_dma_req
   }
 
-  when (io.dma.req.fire()) {
-    src_vaddr := src_vaddr + tx_len
-    dst_vaddr := dst_vaddr + tx_len
-    bytes_left := bytes_left - tx_len
-    dma_busy := dma_busy | UIntToOH(dma_xact_id)
-    state := s_dma_update
-  }
+  def setBusyOnSend(req: DecoupledIO[DmaRequest]): UInt =
+    Mux(req.fire(), UIntToOH(req.bits.client_xact_id), UInt(0))
 
-  when (io.dma.resp.fire()) {
-    dma_busy := dma_busy & ~UIntToOH(io.dma.resp.bits.client_xact_id)
+  def clearBusyOnRecv(resp: DecoupledIO[DmaResponse]): UInt =
+    ~Mux(resp.fire(), UIntToOH(resp.bits.client_xact_id), UInt(0))
+
+  dma_busy := (dma_busy | setBusyOnSend(io.dma.req)) &
+                          clearBusyOnRecv(io.dma.resp)
+
+  when (io.dma.req.fire()) {
+    src_vaddr := src_vaddr + Mux(adv_ptr(0), tx_len, UInt(0))
+    dst_vaddr := dst_vaddr + Mux(adv_ptr(1), tx_len, UInt(0))
+    bytes_left := bytes_left - tx_len
+    state := s_dma_update
   }
 
   when (state === s_dma_update) {
@@ -211,16 +226,16 @@ class DmaFrontend(implicit val p: Parameters)
         state := Mux(vm_enabled, s_prepare, s_dma_req)
       }
     } .otherwise {
-      to_translate := Cat(dst_idx === UInt(0), !cmd(1) && src_idx === UInt(0))
+      to_translate := adv_ptr & Cat(dst_idx === UInt(0), src_idx === UInt(0))
       ptw_sent := UInt(0)
       state := s_translate
     }
   }
 
   when (state === s_prepare) {
-    to_translate := Cat(
+    to_translate := adv_ptr & Cat(
       dst_vpn =/= last_dst_vpn,
-      src_vpn =/= last_src_vpn && !cmd(1))
+      src_vpn =/= last_src_vpn)
     ptw_sent := UInt(0)
     state := s_translate
   }
@@ -235,35 +250,38 @@ object DmaCtrlRegNumbers {
   val DST_STRIDE = 1
   val SEGMENT_SIZE = 2
   val NSEGMENTS = 3
-  val RESP_STATUS = 4
+  val WORD_SIZE = 4
+  val RESP_STATUS = 5
 }
 import DmaCtrlRegNumbers._
 
 class DmaCtrlRegFile(implicit p: Parameters) extends ClientDmaModule()(p) {
-  private val nWriteRegs = 4
+  private val nWriteRegs = 5
   private val nReadRegs = 1
   private val nRegs = nWriteRegs + nReadRegs
 
   val io = new Bundle {
     val wen = Bool(INPUT)
     val addr = UInt(INPUT, log2Up(nRegs))
-    val wdata = UInt(INPUT, dmaSizeBits)
-    val rdata = UInt(OUTPUT, dmaSizeBits)
+    val wdata = UInt(INPUT, dmaSegmentSizeBits)
+    val rdata = UInt(OUTPUT, dmaSegmentSizeBits)
 
-    val src_stride = UInt(OUTPUT, dmaSizeBits)
-    val dst_stride = UInt(OUTPUT, dmaSizeBits)
-    val segment_size = UInt(OUTPUT, dmaSizeBits)
+    val src_stride = UInt(OUTPUT, dmaSegmentSizeBits)
+    val dst_stride = UInt(OUTPUT, dmaSegmentSizeBits)
+    val segment_size = UInt(OUTPUT, dmaSegmentSizeBits)
     val nsegments  = UInt(OUTPUT, dmaSegmentBits)
+    val word_size = UInt(OUTPUT, dmaWordSizeBits)
 
     val status = UInt(INPUT, dmaStatusBits)
   }
 
-  val regs = Reg(Vec(nWriteRegs, UInt(width = dmaSizeBits)))
+  val regs = Reg(Vec(nWriteRegs, UInt(width = dmaSegmentSizeBits)))
 
   io.src_stride := regs(SRC_STRIDE)
   io.dst_stride := regs(DST_STRIDE)
   io.segment_size := regs(SEGMENT_SIZE)
   io.nsegments := regs(NSEGMENTS)
+  io.word_size := regs(WORD_SIZE)
 
   when (io.wen && io.addr < UInt(nWriteRegs)) {
     regs.write(io.addr, io.wdata)
@@ -283,9 +301,9 @@ class DmaController(implicit p: Parameters) extends RoCC()(p)
 
   val cmd = Queue(io.cmd)
   val inst = cmd.bits.inst
-  val is_transfer = inst.funct < UInt(4)
-  val is_cr_write = inst.funct === UInt(4)
-  val is_cr_read  = inst.funct === UInt(5)
+  val is_transfer = inst.funct < UInt(8)
+  val is_cr_write = inst.funct === UInt(8)
+  val is_cr_read  = inst.funct === UInt(9)
   val is_cr_access = is_cr_write || is_cr_read
 
   val resp_rd = Reg(io.resp.bits.rd)
@@ -311,7 +329,8 @@ class DmaController(implicit p: Parameters) extends RoCC()(p)
     src_stride = crfile.io.src_stride,
     dst_stride = crfile.io.dst_stride,
     segment_size = crfile.io.segment_size,
-    nsegments = crfile.io.nsegments)
+    nsegments = crfile.io.nsegments,
+    word_size = crfile.io.word_size)
 
   cmd.ready := state === s_idle && (!is_transfer || frontend.io.cpu.req.ready)
   io.resp.valid := state === s_resp
