@@ -32,6 +32,10 @@ case object ExternalIOStart extends Field[BigInt]
 /** Enable DMA engine */
 case object UseDma extends Field[Boolean]
 
+case object UseStreamLoopback extends Field[Boolean]
+case object StreamLoopbackSize extends Field[Int]
+case object StreamLoopbackWidth extends Field[Int]
+
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
   implicit val p: Parameters
@@ -213,13 +217,12 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   }
 
   val dmaOpt = if (p(UseDma)) Some(Module(new DmaEngine)) else None
-  dmaOpt.foreach { dma => dma.io.dma <> io.dma }
 
   // Create a simple L1toL2 NoC between the tiles+htif and the banks of outer memory
   // Cached ports are first in client list, making sharerToClientId just an indentity function
   // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
   val ordered_clients = (io.tiles_cached ++
-    (io.tiles_uncached ++ dmaOpt.map(_.io.mem) :+ io.htif_uncached)
+    (io.tiles_uncached ++ dmaOpt.map(_.io.inner) :+ io.htif_uncached)
       .map(TileLinkIOWrapper(_))) 
   def sharerToClientId(sharerId: UInt) = sharerId
   def addrToBank(addr: Bits): UInt = if(nBanks > 1) addr(lsb + log2Up(nBanks) - 1, lsb) else UInt(0)
@@ -246,7 +249,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
 
   val addrMap = p(GlobalAddrMap)
   val addrHashMap = new AddrHashMap(addrMap)
-  val nMasters = managerEndpoints.size + 1
+  val nMasters = managerEndpoints.size + (if (dmaOpt.isEmpty) 1 else 2)
   val nSlaves = addrHashMap.nEntries
 
   println("Generated Address Map")
@@ -274,6 +277,11 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   val rtc = Module(new RTC(CSRs.mtime))
   interconnect.io.masters(nManagers) <> rtc.io
 
+  dmaOpt.foreach { dma =>
+    dma.io.dma <> io.dma
+    interconnect.io.masters(nManagers + 1) <> dma.io.outer
+  }
+
   for (i <- 0 until nTiles) {
     val csrName = s"conf:csr$i"
     val csrPort = addrHashMap(csrName).port
@@ -282,9 +290,17 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     io.csr(i) <> conv.io.smi
   }
 
-  val conv = Module(new SMIIONastiIOConverter(scrDataBits, scrAddrBits))
-  conv.io.nasti <> interconnect.io.slaves(addrHashMap("conf:scr").port)
-  io.scr <> conv.io.smi
+  val src_conv = Module(new SMIIONastiIOConverter(scrDataBits, scrAddrBits))
+  src_conv.io.nasti <> interconnect.io.slaves(addrHashMap("conf:scr").port)
+  io.scr <> src_conv.io.smi
+
+  if (p(UseStreamLoopback)) {
+    val lo_width = p(StreamLoopbackWidth)
+    val lo_size = p(StreamLoopbackSize)
+    val lo_conv = Module(new NastiIOStreamIOConverter(lo_width))
+    lo_conv.io.nasti <> interconnect.io.slaves(addrHashMap("devices:loopback").port)
+    lo_conv.io.stream.in <> Queue(lo_conv.io.stream.out, lo_size)
+  }
 
   io.mmio <> interconnect.io.slaves(addrHashMap("io").port)
   io.deviceTree <> interconnect.io.slaves(addrHashMap("conf:devicetree").port)

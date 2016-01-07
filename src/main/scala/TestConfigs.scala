@@ -4,6 +4,7 @@ import Chisel._
 import groundtest._
 import rocket._
 import uncore._
+import junctions._
 import cde.{Parameters, Config, Dump, Knob}
 import scala.math.max
 
@@ -87,6 +88,20 @@ class WithDmaTest extends Config(
     case DmaTestDataStride => 8
   })
 
+class WithDmaStreamTest extends Config(
+  (pname, site, here) => pname match {
+    case UseDma => true
+    case BuildGroundTest =>
+      (id: Int, p: Parameters) => Module(new DmaStreamTest()(p))
+    case DmaStreamLoopbackAddr => {
+      val addrMap = new AddrHashMap(site(GlobalAddrMap))
+      addrMap("devices:loopback").start
+    }
+    case DmaStreamTestSettings => DmaStreamTestConfig(
+      source = 0x10, dest = 0x28, len = 0x18,
+      size = site(StreamLoopbackWidth) / 8)
+  })
+
 class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
@@ -98,6 +113,7 @@ class BroadcastRegressionTestConfig extends Config(
 class CacheRegressionTestConfig extends Config(
   new WithCacheRegressionTest ++ new WithL2Cache ++ new GroundTestConfig)
 class DmaTestConfig extends Config(new WithDmaTest ++ new WithL2Cache ++ new GroundTestConfig)
+class DmaStreamTestConfig extends Config(new WithDmaStreamTest ++ new WithStreamLoopback ++ new WithL2Cache ++ new GroundTestConfig)
 
 class FancyMemtestConfig extends Config(
   new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
