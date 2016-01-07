@@ -555,12 +555,17 @@ class NastiRecursiveInterconnect(
           io.slaves(slaveInd) <> xbarSlave
           slaveInd += 1
         case MemSubmap(_, submap) =>
-          val subSlaves = submap.countSlaves
-          val outputs = Vec(io.slaves.drop(slaveInd).take(subSlaves))
-          val ic = Module(new NastiRecursiveInterconnect(1, subSlaves, submap, start))
-          ic.io.masters.head <> xbarSlave
-          outputs <> ic.io.slaves
-          slaveInd += subSlaves
+          if (submap.isEmpty) {
+            val err_slave = Module(new NastiErrorSlave)
+            err_slave.io <> xbarSlave
+          } else {
+            val subSlaves = submap.countSlaves
+            val outputs = Vec(io.slaves.drop(slaveInd).take(subSlaves))
+            val ic = Module(new NastiRecursiveInterconnect(1, subSlaves, submap, start))
+            ic.io.masters.head <> xbarSlave
+            outputs <> ic.io.slaves
+            slaveInd += subSlaves
+          }
         case MemChannels(_, nchannels, _) =>
           require(nchannels == 1, "Recursive interconnect cannot handle MultiChannel interface")
           io.slaves(slaveInd) <> xbarSlave
