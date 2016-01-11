@@ -318,9 +318,11 @@ object TestBenchGeneration extends FileSystemUtilities {
   end
 """ } mkString
 
+/*
     val f = createOutputFile(s"$topModuleName.$configClassName.tb.vfrag")
     f.write(defs + nasti_defs + delays + nasti_delays + instantiation + ticks)
     f.close
+*/
   }
 
   def generateCPPFragment(
@@ -361,8 +363,10 @@ object TestBenchGeneration extends FileSystemUtilities {
 
     """ }.mkString
 
+/*
     val f = createOutputFile(s"$topModuleName.$configClassName.tb.cpp")
     f.write(assigns)
     f.close
+*/
   }
 }
