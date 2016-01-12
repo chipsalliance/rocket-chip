@@ -52,6 +52,8 @@ class RoCCInterface(implicit p: Parameters) extends Bundle {
   val exception = Bool(INPUT)
 
   val dma = new DmaIO
+
+  override def cloneType = new RoCCInterface().asInstanceOf[this.type]
 }
 
 abstract class RoCC(implicit p: Parameters) extends CoreModule()(p) {
