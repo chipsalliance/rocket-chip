@@ -3,7 +3,7 @@ package groundtest
 import Chisel._
 import rocket._
 import uncore._
-import junctions.{SMIIO, ParameterizedBundle}
+import junctions.{SmiIO, ParameterizedBundle}
 import scala.util.Random
 import cde.{Parameters, Field}
 
@@ -81,7 +81,7 @@ class CSRHandler(implicit val p: Parameters) extends Module {
 
   val io = new Bundle {
     val finished = Bool(INPUT)
-    val csr = new SMIIO(csrDataBits, csrAddrBits).flip
+    val csr = new SmiIO(csrDataBits, csrAddrBits).flip
   }
 
   val csr_resp_valid = Reg(Bool()) // Don't reset
