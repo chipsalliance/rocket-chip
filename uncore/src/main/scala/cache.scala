@@ -80,7 +80,7 @@ class PseudoLRU(n: Int)
   def access(way: UInt) {
     state_reg := get_next_state(state_reg,way)
   }
-  def get_next_state(state: Bits, way: UInt) = {
+  def get_next_state(state: UInt, way: UInt) = {
     var next_state = state
     var idx = UInt(1,1)
     for (i <- log2Up(n)-1 to 0 by -1) {

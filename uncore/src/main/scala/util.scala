@@ -18,7 +18,7 @@ object MuxBundle {
     mapping.reverse.foldLeft(default)((b, a) => Mux(a._1, a._2, b))
   }
 
-  def apply[S <: Data, T <: Data] (key: S, default: T, mapping: Seq[(S, T)]): T = {
+  def apply[T <: Data] (key: UInt, default: T, mapping: Seq[(UInt, T)]): T = {
     apply(default, mapping.map{ case (a, b) => (a === key, b) })
   }
 }
