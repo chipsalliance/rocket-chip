@@ -43,7 +43,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
   val rdy = Wire(Bool())
 
   val refill_addr = Reg(UInt(width = paddrBits))
-  val s1_any_tag_hit = Bool()
+  val s1_any_tag_hit = Wire(Bool())
 
   val s1_valid = Reg(init=Bool(false))
   val s1_pgoff = Reg(UInt(width = pgIdxBits))
@@ -77,7 +77,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s1_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
-  val tag_array = SeqMem(Vec(Bits(width = entagbits), nWays), nSets)
+  val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = entagbits)))
   val tag_rdata = tag_array.read(s0_pgoff(untagBits-1,blockOffBits), !refill_done && s0_valid)
   when (refill_done) {
     val tag = code.encode(refill_tag).toUInt
@@ -92,13 +92,13 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
     vb_array := Bits(0)
     invalidated := Bool(true)
   }
-  val s1_disparity = Vec.fill(nWays){Bool()}
+  val s1_disparity = Wire(Vec(nWays, Bool()))
   for (i <- 0 until nWays)
     when (s1_valid && s1_disparity(i)) { vb_array := vb_array.bitSet(Cat(UInt(i), s1_idx), Bool(false)) }
 
-  val s1_tag_match = Vec.fill(nWays){Bool()}
-  val s1_tag_hit = Vec.fill(nWays){Bool()}
-  val s1_dout = Vec.fill(nWays){(Bits())}
+  val s1_tag_match = Wire(Vec(nWays, Bool()))
+  val s1_tag_hit = Wire(Vec(nWays, Bool()))
+  val s1_dout = Wire(Vec(nWays, Bits(width = rowBits)))
 
   for (i <- 0 until nWays) {
     val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
@@ -113,7 +113,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
   s1_any_tag_hit := s1_tag_hit.reduceLeft(_||_) && !s1_disparity.reduceLeft(_||_)
 
   for (i <- 0 until nWays) {
-    val data_array = SeqMem(Bits(width = code.width(rowBits)), nSets*refillCycles)
+    val data_array = SeqMem(nSets * refillCycles, Bits(width = code.width(rowBits)))
     val wen = narrow_grant.valid && repl_way === UInt(i)
     when (wen) {
       val e_d = code.encode(narrow_grant.bits.data).toUInt
