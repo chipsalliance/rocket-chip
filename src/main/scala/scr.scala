@@ -1,7 +1,7 @@
 package uncore
 
 import Chisel._
-import junctions.{SMIIO, MMIOBase}
+import junctions.{SmiIO, MMIOBase}
 import cde.Parameters
 
 class SCRIO(implicit p: Parameters) extends HtifBundle()(p) {
@@ -13,7 +13,7 @@ class SCRIO(implicit p: Parameters) extends HtifBundle()(p) {
 
 class SCRFile(implicit p: Parameters) extends HtifModule()(p) {
   val io = new Bundle {
-    val smi = new SMIIO(scrDataBits, scrAddrBits).flip
+    val smi = new SmiIO(scrDataBits, scrAddrBits).flip
     val scr = new SCRIO
   }
 

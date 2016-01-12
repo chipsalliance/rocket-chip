@@ -40,7 +40,7 @@ class HostIO(w: Int) extends Bundle {
 class HtifIO(implicit p: Parameters) extends HtifBundle()(p) {
   val reset = Bool(INPUT)
   val id = UInt(INPUT, log2Up(nCores))
-  val csr = new SMIIO(scrDataBits, 12).flip
+  val csr = new SmiIO(scrDataBits, 12).flip
   val debug_stats_csr = Bool(OUTPUT)
     // wired directly to stats register
     // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work
@@ -51,7 +51,7 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
     val host = new HostIO(w)
     val cpu = Vec(new HtifIO, nCores).flip
     val mem = new ClientUncachedTileLinkIO
-    val scr = new SMIIO(scrDataBits, scrAddrBits)
+    val scr = new SmiIO(scrDataBits, scrAddrBits)
   }
 
   io.host.debug_stats_csr := io.cpu.map(_.debug_stats_csr).reduce(_||_)
