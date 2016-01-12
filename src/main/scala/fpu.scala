@@ -452,7 +452,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
   val fp_decoder = Module(new FPUDecoder)
   fp_decoder.io.inst := io.inst
 
-  val cp_ctrl = new FPUCtrlSigs
+  val cp_ctrl = Wire(new FPUCtrlSigs)
   cp_ctrl <> io.cp_req.bits
   io.cp_resp.valid := Bool(false)
   io.cp_resp.bits.data := UInt(0)
