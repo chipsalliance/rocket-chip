@@ -166,7 +166,7 @@ class Uncore(implicit val p: Parameters) extends Module
     io.htif(i).id := htif.io.cpu(i).id
     htif.io.cpu(i).debug_stats_csr <> io.htif(i).debug_stats_csr
 
-    val csr_arb = Module(new SMIArbiter(2, xLen, csrAddrBits))
+    val csr_arb = Module(new SmiArbiter(2, xLen, csrAddrBits))
     csr_arb.io.in(0) <> htif.io.cpu(i).csr
     csr_arb.io.in(1) <> outmemsys.io.csr(i)
     io.htif(i).csr <> csr_arb.io.out
@@ -174,7 +174,7 @@ class Uncore(implicit val p: Parameters) extends Module
 
   // Arbitrate SCR access between MMIO and HTIF
   val scrFile = Module(new SCRFile)
-  val scrArb = Module(new SMIArbiter(2, scrDataBits, scrAddrBits))
+  val scrArb = Module(new SmiArbiter(2, scrDataBits, scrAddrBits))
   scrArb.io.in(0) <> htif.io.scr
   scrArb.io.in(1) <> outmemsys.io.scr
   scrFile.io.smi <> scrArb.io.out
@@ -209,8 +209,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val mem = Vec(new NastiIO, nMemChannels)
     val mem_backup = new MemSerializedIO(htifW)
     val mem_backup_en = Bool(INPUT)
-    val csr = Vec(new SMIIO(xLen, csrAddrBits), nTiles)
-    val scr = new SMIIO(xLen, scrAddrBits)
+    val csr = Vec(new SmiIO(xLen, csrAddrBits), nTiles)
+    val scr = new SmiIO(xLen, scrAddrBits)
     val mmio = new NastiIO
     val deviceTree = new NastiIO
     val dma = (new DmaIO).flip
@@ -285,12 +285,12 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   for (i <- 0 until nTiles) {
     val csrName = s"conf:csr$i"
     val csrPort = addrHashMap(csrName).port
-    val conv = Module(new SMIIONastiIOConverter(xLen, csrAddrBits))
+    val conv = Module(new SmiIONastiIOConverter(xLen, csrAddrBits))
     conv.io.nasti <> interconnect.io.slaves(csrPort)
     io.csr(i) <> conv.io.smi
   }
 
-  val src_conv = Module(new SMIIONastiIOConverter(scrDataBits, scrAddrBits))
+  val src_conv = Module(new SmiIONastiIOConverter(scrDataBits, scrAddrBits))
   src_conv.io.nasti <> interconnect.io.slaves(addrHashMap("conf:scr").port)
   io.scr <> src_conv.io.smi
 
