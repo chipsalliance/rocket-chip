@@ -398,7 +398,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       reg_mip.msip := new_mip.msip
     }
     when (decoded_addr(CSRs.mipi)) {
-      reg_mip.msip := true
+      reg_mip.msip := wdata(0)
     }
     when (decoded_addr(CSRs.mie)) {
       val new_mie = new MIP().fromBits(wdata)
