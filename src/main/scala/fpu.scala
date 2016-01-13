@@ -235,9 +235,7 @@ class FPToInt extends Module
 
   when (io.in.valid) {
     in := io.in.bits
-    when (io.in.bits.single && !io.in.bits.ldst && io.in.bits.cmd != FCMD_MV_XF &&
-          // need to also check toint because CVT_IF and SQRT overlap
-          !(io.in.bits.cmd === FCMD_CVT_IF && io.in.bits.toint)) {
+    when (io.in.bits.single && !io.in.bits.ldst && io.in.bits.cmd != FCMD_MV_XF) {
       in.in1 := in1_upconvert
       in.in2 := in2_upconvert
     }
@@ -258,23 +256,14 @@ class FPToInt extends Module
   val dcmp_out = (~in.rm & Cat(dcmp.io.lt, dcmp.io.eq)).orR
   val dcmp_exc = dcmp.io.exceptionFlags
 
-  val s2l = Module(new hardfloat.RecFNToIN(8, 24, 64))
-  val s2w = Module(new hardfloat.RecFNToIN(8, 24, 32))
-  s2l.io.in := in.in1
-  s2l.io.roundingMode := in.rm
-  s2l.io.signedOut := in.typ(0) ^ 1
-  s2w.io.in := in.in1
-  s2w.io.roundingMode := in.rm
-  s2w.io.signedOut := in.typ(0) ^ 1
-
   val d2l = Module(new hardfloat.RecFNToIN(11, 53, 64))
   val d2w = Module(new hardfloat.RecFNToIN(11, 53, 32))
   d2l.io.in := in.in1
   d2l.io.roundingMode := in.rm
-  d2l.io.signedOut := in.typ(0) ^ 1
+  d2l.io.signedOut := ~in.typ(0)
   d2w.io.in := in.in1
   d2w.io.roundingMode := in.rm
-  d2w.io.signedOut := in.typ(0) ^ 1
+  d2w.io.signedOut := ~in.typ(0)
 
   io.out.bits.toint := Mux(in.rm(0), classify_out, unrec_out)
   io.out.bits.store := unrec_out
@@ -285,15 +274,9 @@ class FPToInt extends Module
     io.out.bits.exc := dcmp_exc
   }
   when (in.cmd === FCMD_CVT_IF) {
-    when (in.single) {
-      io.out.bits.toint := Mux(in.typ(1), s2l.io.out, s2w.io.out.toSInt).toUInt
-      val sflags = Mux(in.typ(1), s2l.io.intExceptionFlags, s2w.io.intExceptionFlags)
-      io.out.bits.exc := Cat(sflags(2, 1).orR, UInt(0, 3), sflags(0))
-    } .otherwise {
-      io.out.bits.toint := Mux(in.typ(1), d2l.io.out, d2w.io.out.toSInt).toUInt
-      val dflags = Mux(in.typ(1), d2l.io.intExceptionFlags, d2w.io.intExceptionFlags)
-      io.out.bits.exc := Cat(dflags(2, 1).orR, UInt(0, 3), dflags(0))
-    }
+    io.out.bits.toint := Mux(in.typ(1), d2l.io.out.toSInt, d2w.io.out.toSInt).toUInt
+    val dflags = Mux(in.typ(1), d2l.io.intExceptionFlags, d2w.io.intExceptionFlags)
+    io.out.bits.exc := Cat(dflags(2, 1).orR, UInt(0, 3), dflags(0))
   }
 
   io.out.valid := valid
@@ -317,31 +300,26 @@ class IntToFP(val latency: Int) extends Module
     mux.data := Cat(SInt(-1, 32), hardfloat.recFNFromFN(8, 24, in.bits.in1))
   }
 
+  val longValue =
+    Mux(in.bits.typ(1), in.bits.in1.toSInt,
+    Mux(in.bits.typ(0), in.bits.in1(31,0).zext, in.bits.in1(31,0).toSInt))
   val l2s = Module(new hardfloat.INToRecFN(64, 8, 24))
-  val w2s = Module(new hardfloat.INToRecFN(32, 8, 24))
-  l2s.io.signedIn := in.bits.typ(0) ^ 1
-  l2s.io.in := in.bits.in1
+  l2s.io.signedIn := ~in.bits.typ(0)
+  l2s.io.in := longValue
   l2s.io.roundingMode := in.bits.rm
-  w2s.io.signedIn := in.bits.typ(0) ^ 1
-  w2s.io.in := in.bits.in1
-  w2s.io.roundingMode := in.bits.rm
 
   val l2d = Module(new hardfloat.INToRecFN(64, 11, 53))
-  val w2d = Module(new hardfloat.INToRecFN(32, 11, 53))
-  l2d.io.signedIn := in.bits.typ(0) ^ 1
-  l2d.io.in := in.bits.in1
+  l2d.io.signedIn := ~in.bits.typ(0)
+  l2d.io.in := longValue
   l2d.io.roundingMode := in.bits.rm
-  w2d.io.signedIn := in.bits.typ(0) ^ 1
-  w2d.io.in := in.bits.in1
-  w2d.io.roundingMode := in.bits.rm
 
   when (in.bits.cmd === FCMD_CVT_FI) {
     when (in.bits.single) {
-      mux.data := Cat(SInt(-1, 32), Mux(in.bits.typ(1), l2s.io.out, w2s.io.out))
-      mux.exc := Mux(in.bits.typ(1), l2s.io.exceptionFlags, w2s.io.exceptionFlags)
+      mux.data := Cat(SInt(-1, 32), l2s.io.out)
+      mux.exc := l2s.io.exceptionFlags
     }.otherwise {
-      mux.data := Mux(in.bits.typ(1), l2d.io.out, w2d.io.out)
-      mux.exc := Mux(in.bits.typ(1), l2d.io.exceptionFlags, w2d.io.exceptionFlags)
+      mux.data := l2d.io.out
+      mux.exc := l2d.io.exceptionFlags
     }
   }
 
