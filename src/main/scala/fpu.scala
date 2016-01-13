@@ -305,12 +305,12 @@ class IntToFP(val latency: Int) extends Module
     Mux(in.bits.typ(0), in.bits.in1(31,0).zext, in.bits.in1(31,0).toSInt))
   val l2s = Module(new hardfloat.INToRecFN(64, 8, 24))
   l2s.io.signedIn := ~in.bits.typ(0)
-  l2s.io.in := longValue
+  l2s.io.in := longValue.toUInt
   l2s.io.roundingMode := in.bits.rm
 
   val l2d = Module(new hardfloat.INToRecFN(64, 11, 53))
   l2d.io.signedIn := ~in.bits.typ(0)
-  l2d.io.in := longValue
+  l2d.io.in := longValue.toUInt
   l2d.io.roundingMode := in.bits.rm
 
   when (in.bits.cmd === FCMD_CVT_FI) {
