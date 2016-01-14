@@ -14,8 +14,8 @@ case class RoccParameters(
   opcodes: OpcodeSet,
   generator: Parameters => RoCC,
   nMemChannels: Int = 0,
-  useFPU: Boolean = false,
-  useDma: Boolean = false)
+  csrs: Seq[Int] = Nil,
+  useFPU: Boolean = false)
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
@@ -23,7 +23,6 @@ abstract class Tile(resetSignal: Bool = null)
   val usingRocc = !buildRocc.isEmpty
   val nRocc = buildRocc.size
   val nFPUPorts = buildRocc.filter(_.useFPU).size
-  val nDmaPorts = buildRocc.filter(_.useDma).size
   val nDCachePorts = 2 + nRocc
   val nPTWPorts = 2 + 3 * nRocc
   val nCachedTileLinkPorts = 1
@@ -77,12 +76,15 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
     cmdRouter.io.in <> core.io.rocc.cmd
 
     val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
-      val rocc = accelParams.generator(
-        p.alterPartial({ case RoccNMemChannels => accelParams.nMemChannels }))
+      val rocc = accelParams.generator(p.alterPartial({
+        case RoccNMemChannels => accelParams.nMemChannels
+        case RoccNCSRs => accelParams.csrs.size
+      }))
       val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
       rocc.io.cmd <> cmdRouter.io.out(i)
       rocc.io.s := core.io.rocc.s
       rocc.io.exception := core.io.rocc.exception
+      rocc.io.host_id := io.host.id
       dcIF.io.requestor <> rocc.io.mem
       dcArb.io.requestor(2 + i) <> dcIF.io.cache
       uncachedArb.io.in(1 + i) <> rocc.io.autl
@@ -107,17 +109,21 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       }
     }
 
-    if (nDmaPorts > 0) {
-      val dmaArb = Module(new DmaArbiter(nDmaPorts))
-      dmaArb.io.in <> roccs.zip(buildRocc)
-        .filter { case (_, params) => params.useDma }
-        .map { case (rocc, _) => rocc.io.dma }
-      io.dma <> dmaArb.io.out
-    }
-
     core.io.rocc.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
     core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
     respArb.io.in <> roccs.map(rocc => Queue(rocc.io.resp))
+
+    if (p(RoccNCSRs) > 0) {
+      core.io.rocc.csr.rdata <> roccs.map(_.io.csr.rdata).reduce(_ ++ _)
+      for ((rocc, accelParams) <- roccs.zip(buildRocc)) {
+        rocc.io.csr.waddr := core.io.rocc.csr.waddr
+        rocc.io.csr.wdata := core.io.rocc.csr.wdata
+        rocc.io.csr.wen := core.io.rocc.csr.wen &&
+          accelParams.csrs
+            .map(core.io.rocc.csr.waddr === UInt(_))
+            .reduce((a, b) => a || b)
+      }
+    }
 
     roccs.flatMap(_.io.utl) :+ uncachedArb.io.out
   } else { Seq(icache.io.mem) })
@@ -127,10 +133,5 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       fpu.io.cp_req.valid := Bool(false)
       fpu.io.cp_resp.ready := Bool(false)
     }
-  }
-
-  if (!usingRocc || nDmaPorts == 0) {
-    io.dma.req.valid := Bool(false)
-    io.dma.resp.ready := Bool(false)
   }
 }

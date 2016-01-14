@@ -9,6 +9,14 @@ import cde.{Parameters, Field}
 
 case object RoccMaxTaggedMemXacts extends Field[Int]
 case object RoccNMemChannels extends Field[Int]
+case object RoccNCSRs extends Field[Int]
+
+class RoCCCSRs(implicit p: Parameters) extends CoreBundle()(p) {
+  val rdata = Vec(nRoccCsrs, UInt(INPUT, xLen))
+  val waddr = UInt(OUTPUT, CSR.ADDRSZ)
+  val wdata = UInt(OUTPUT, xLen)
+  val wen = Bool(OUTPUT)
+}
 
 class RoCCInstruction extends Bundle
 {
@@ -33,7 +41,7 @@ class RoCCResponse(implicit p: Parameters) extends CoreBundle()(p) {
   val data = Bits(width = xLen)
 }
 
-class RoCCInterface(implicit p: Parameters) extends Bundle {
+class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
   val mem = new HellaCacheIO()(p.alterPartial({ case CacheName => "L1D" }))
@@ -50,8 +58,8 @@ class RoCCInterface(implicit p: Parameters) extends Bundle {
   val fpu_req = Decoupled(new FPInput)
   val fpu_resp = Decoupled(new FPResult).flip
   val exception = Bool(INPUT)
-
-  val dma = new DmaIO
+  val csr = (new RoCCCSRs).flip
+  val host_id = UInt(INPUT, log2Up(nCores))
 
   override def cloneType = new RoCCInterface().asInstanceOf[this.type]
 }

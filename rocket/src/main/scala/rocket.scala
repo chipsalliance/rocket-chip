@@ -46,6 +46,10 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val vaddrBitsExtended = vaddrBits + (vaddrBits < xLen).toInt
   val mmioBase = p(MMIOBase)
   val nCustomMrwCsrs = p(NCustomMRWCSRs)
+  val roccCsrs = if (p(BuildRoCC).isEmpty) Nil
+    else p(BuildRoCC).flatMap(_.csrs)
+  val nRoccCsrs = p(RoccNCSRs)
+  val nCores = p(HtifKey).nCores
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
