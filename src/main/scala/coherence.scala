@@ -139,7 +139,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def clientStatesWithWritePermission = Vec(clientValid)
   def clientStatesWithDirtyData = Vec(clientValid)
 
-  def isValid (meta: ClientMetadata): Bool = meta.state != clientInvalid
+  def isValid (meta: ClientMetadata): Bool = meta.state =/= clientInvalid
 
   def getAcquireType(cmd: UInt, meta: ClientMetadata): UInt = acquireExclusive
 
@@ -230,7 +230,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
   def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
 
-  def isValid (meta: ClientMetadata) = meta.state != clientInvalid
+  def isValid (meta: ClientMetadata) = meta.state =/= clientInvalid
 
   def getAcquireType(cmd: UInt, meta: ClientMetadata): UInt =
     Mux(isWriteIntent(cmd), acquireExclusiveDirty, acquireExclusiveClean)
@@ -332,7 +332,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def clientStatesWithWritePermission = Vec(clientExclusiveDirty)
   def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
 
-  def isValid(meta: ClientMetadata): Bool = meta.state != clientInvalid
+  def isValid(meta: ClientMetadata): Bool = meta.state =/= clientInvalid
 
   def getAcquireType(cmd: UInt, meta: ClientMetadata): UInt =
     Mux(isWriteIntent(cmd), acquireExclusive, acquireShared)
@@ -385,7 +385,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def requiresProbes(a: HasAcquireType, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false), 
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
-        Mux(a.isBuiltInType(), a.hasData(), a.a_type != acquireShared)))
+        Mux(a.isBuiltInType(), a.hasData(), a.a_type =/= acquireShared)))
 
   def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 
@@ -450,7 +450,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
   def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
 
-  def isValid(meta: ClientMetadata): Bool = meta.state != clientInvalid
+  def isValid(meta: ClientMetadata): Bool = meta.state =/= clientInvalid
 
   def getAcquireType(cmd: UInt, meta: ClientMetadata): UInt =
     Mux(isWriteIntent(cmd), acquireExclusive, acquireShared)
@@ -505,7 +505,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def requiresProbes(a: HasAcquireType, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false), 
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
-        Mux(a.isBuiltInType(), a.hasData(), a.a_type != acquireShared)))
+        Mux(a.isBuiltInType(), a.hasData(), a.a_type =/= acquireShared)))
 
   def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 
@@ -566,7 +566,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty, clientMigratoryClean, clientMigratoryDirty)
   def clientStatesWithDirtyData = Vec(clientExclusiveDirty, clientMigratoryDirty)
 
-  def isValid (meta: ClientMetadata): Bool = meta.state != clientInvalid
+  def isValid (meta: ClientMetadata): Bool = meta.state =/= clientInvalid
 
   def getAcquireType(cmd: UInt, meta: ClientMetadata): UInt =
     Mux(isWriteIntent(cmd), 
@@ -594,7 +594,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
                            releaseInvalidateAckMigratory, releaseInvalidateAck),
       probeInvalidateOthers -> Mux(clientSharedByTwo === meta.state,
                                  releaseInvalidateAckMigratory, releaseInvalidateAck),
-      probeDowngrade  -> Mux(meta.state != clientInvalid,
+      probeDowngrade  -> Mux(meta.state =/= clientInvalid,
                            releaseDowngradeAckHasCopy, releaseDowngradeAck),
       probeCopy       -> releaseCopyAck))
     Mux(dirty, with_data, without_data)
@@ -646,7 +646,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   def requiresProbes(a: HasAcquireType, meta: ManagerMetadata) =
     Mux(dir.none(meta.sharers), Bool(false),
       Mux(dir.one(meta.sharers), Bool(true), //TODO: for now we assume it's Exclusive
-        Mux(a.isBuiltInType(), a.hasData(), a.a_type != acquireShared)))
+        Mux(a.isBuiltInType(), a.hasData(), a.a_type =/= acquireShared)))
 
   def requiresProbes(cmd: UInt, meta: ManagerMetadata) = !dir.none(meta.sharers)
 

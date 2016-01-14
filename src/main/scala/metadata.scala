@@ -20,7 +20,7 @@ class ClientMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
 
   /** Metadata equality */
   def ===(rhs: ClientMetadata): Bool = this.state === rhs.state
-  def !=(rhs: ClientMetadata): Bool = !this.===(rhs)
+  def =/=(rhs: ClientMetadata): Bool = !this.===(rhs)
 
   /** Is the block's data present in this cache */
   def isValid(dummy: Int = 0): Bool = co.isValid(this)
@@ -168,7 +168,7 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
   /** Metadata equality */
   def ===(rhs: ManagerMetadata): Bool = //this.state === rhs.state && TODO: Fix 0-width wires in Chisel
                                          this.sharers === rhs.sharers
-  def !=(rhs: ManagerMetadata): Bool = !this.===(rhs)
+  def =/=(rhs: ManagerMetadata): Bool = !this.===(rhs)
 
   /** Converts the directory info into an N-hot sharer bitvector (i.e. full representation) */
   def full(dummy: Int = 0): UInt = co.dir.full(this.sharers)
@@ -319,7 +319,7 @@ class HierarchicalMetadata(implicit p: Parameters) extends CoherenceMetadata()(p
   val outer: ClientMetadata = new ClientMetadata()(p.alterPartial({case TLId => p(OuterTLId)}))
   def ===(rhs: HierarchicalMetadata): Bool = 
     this.inner === rhs.inner && this.outer === rhs.outer
-  def !=(rhs: HierarchicalMetadata): Bool = !this.===(rhs)
+  def =/=(rhs: HierarchicalMetadata): Bool = !this.===(rhs)
 }
 
 /** Factories for HierarchicalMetadata, including on reset */

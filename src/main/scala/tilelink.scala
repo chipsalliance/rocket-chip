@@ -1058,7 +1058,7 @@ trait TileLinkArbiterLike extends HasTileLinkParameters {
 abstract class UncachedTileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) extends Module
     with TileLinkArbiterLike {
   val io = new Bundle {
-    val in = Vec(new UncachedTileLinkIO, arbN).flip
+    val in = Vec(arbN, new UncachedTileLinkIO).flip
     val out = new UncachedTileLinkIO
   }
   hookupClientSource(io.in.map(_.acquire), io.out.acquire)
@@ -1070,7 +1070,7 @@ abstract class UncachedTileLinkIOArbiter(val arbN: Int)(implicit val p: Paramete
 abstract class TileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) extends Module
     with TileLinkArbiterLike {
   val io = new Bundle {
-    val in = Vec(new TileLinkIO, arbN).flip
+    val in = Vec(arbN, new TileLinkIO).flip
     val out = new TileLinkIO
   }
   hookupClientSource(io.in.map(_.acquire), io.out.acquire)
@@ -1114,7 +1114,7 @@ class TileLinkIOArbiterThatUsesNewId(val n: Int)(implicit p: Parameters) extends
 /** Concrete uncached client-side arbiter that appends the arbiter's port id to client_xact_id */
 class ClientUncachedTileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) extends Module with TileLinkArbiterLike with AppendsArbiterId {
   val io = new Bundle {
-    val in = Vec(new ClientUncachedTileLinkIO, arbN).flip
+    val in = Vec(arbN, new ClientUncachedTileLinkIO).flip
     val out = new ClientUncachedTileLinkIO
   }
   hookupClientSourceHeaderless(io.in.map(_.acquire), io.out.acquire)
@@ -1124,7 +1124,7 @@ class ClientUncachedTileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters)
 /** Concrete client-side arbiter that appends the arbiter's port id to client_xact_id */
 class ClientTileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) extends Module with TileLinkArbiterLike with AppendsArbiterId {
   val io = new Bundle {
-    val in = Vec(new ClientTileLinkIO, arbN).flip
+    val in = Vec(arbN, new ClientTileLinkIO).flip
     val out = new ClientTileLinkIO
   }
   hookupClientSourceHeaderless(io.in.map(_.acquire), io.out.acquire)

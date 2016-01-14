@@ -49,7 +49,7 @@ class HtifIO(implicit p: Parameters) extends HtifBundle()(p) {
 class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHtifParameters {
   val io = new Bundle {
     val host = new HostIO(w)
-    val cpu = Vec(new HtifIO, nCores).flip
+    val cpu = Vec(nCores, new HtifIO).flip
     val mem = new ClientUncachedTileLinkIO
     val scr = new SmiIO(scrDataBits, scrAddrBits)
   }
@@ -99,7 +99,7 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
 
   val bad_mem_packet = size(offsetBits-1-3,0).orR || addr(offsetBits-1-3,0).orR
   val nack = Mux(cmd === cmd_readmem || cmd === cmd_writemem, bad_mem_packet,
-             Mux(cmd === cmd_readcr || cmd === cmd_writecr, size != UInt(1),
+             Mux(cmd === cmd_readcr || cmd === cmd_writecr, size =/= UInt(1),
              Bool(true)))
 
   val tx_count = Reg(init=UInt(0, rx_count_w))
@@ -110,7 +110,7 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
     tx_count := tx_count + UInt(1)
   }
 
-  val rx_done = rx_word_done && Mux(rx_word_count === UInt(0), next_cmd != cmd_writemem && next_cmd != cmd_writecr, rx_word_count === size || rx_word_count(log2Up(packet_ram_depth)-1,0) === UInt(0))
+  val rx_done = rx_word_done && Mux(rx_word_count === UInt(0), next_cmd =/= cmd_writemem && next_cmd =/= cmd_writecr, rx_word_count === size || rx_word_count(log2Up(packet_ram_depth)-1,0) === UInt(0))
   val tx_size = Mux(!nack && (cmd === cmd_readmem || cmd === cmd_readcr || cmd === cmd_writecr), size, UInt(0))
   val tx_done = io.host.out.ready && tx_subword_count.andR && (tx_word_count === tx_size || tx_word_count > UInt(0) && packet_ram_raddr.andR)
 
@@ -147,7 +147,7 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
       rx_count := UInt(0)
       tx_count := UInt(0)
     }
-    state := Mux(cmd === cmd_readmem && pos != UInt(0), state_mem_rreq, state_rx)
+    state := Mux(cmd === cmd_readmem && pos =/= UInt(0), state_mem_rreq, state_rx)
   }
 
   val n = dataBits/short_request_bits
@@ -177,7 +177,7 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
 
     val cpu = io.cpu(i)
     val me = csr_coreid === UInt(i)
-    cpu.csr.req.valid := state === state_csr_req && me && csr_addr != UInt(csr_RESET)
+    cpu.csr.req.valid := state === state_csr_req && me && csr_addr =/= UInt(csr_RESET)
     cpu.csr.req.bits.rw := cmd === cmd_writecr
     cpu.csr.req.bits.addr := csr_addr
     cpu.csr.req.bits.data := csr_wdata

@@ -62,7 +62,7 @@ trait HasCoherenceAgentWiringHelpers {
 
 trait HasInnerTLIO extends HasCoherenceAgentParameters {
   val inner = new ManagerTileLinkIO()(p.alterPartial({case TLId => p(InnerTLId)}))
-  val incoherent = Vec(Bool(), inner.tlNCachingClients).asInput
+  val incoherent = Vec(inner.tlNCachingClients, Bool()).asInput
   def iacq(dummy: Int = 0) = inner.acquire.bits
   def iprb(dummy: Int = 0) = inner.probe.bits
   def irel(dummy: Int = 0) = inner.release.bits

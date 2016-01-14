@@ -102,7 +102,7 @@ class PseudoLRU(n: Int)
 }
 
 class SeqPLRU(n_sets: Int, n_ways: Int) extends SeqReplacementPolicy {
-  val state = SeqMem(Bits(width = n_ways-1), n_sets)
+  val state = SeqMem(n_sets, Bits(width = n_ways-1))
   val logic = new PseudoLRU(n_ways)
   val current_state = Wire(Bits())
   val plru_way = logic.get_replace_way(current_state)
@@ -141,7 +141,7 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
   val io = new Bundle {
     val read = Decoupled(new MetaReadReq).flip
     val write = Decoupled(new MetaWriteReq(rstVal)).flip
-    val resp = Vec(rstVal.cloneType, nWays).asOutput
+    val resp = Vec(nWays, rstVal.cloneType).asOutput
   }
   val rst_cnt = Reg(init=UInt(0, log2Up(nSets+1)))
   val rst = rst_cnt < UInt(nSets)
@@ -151,7 +151,7 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth
-  val tag_arr = SeqMem(Vec(UInt(width = metabits), nWays), nSets)
+  val tag_arr = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
   when (rst || io.write.valid) {
     tag_arr.write(waddr, Vec.fill(nWays)(wdata), wmask)
   }
@@ -333,7 +333,7 @@ class L2DataRWIO(implicit p: Parameters) extends L2HellaCacheBundle()(p)
 class L2DataArray(delay: Int)(implicit p: Parameters) extends L2HellaCacheModule()(p) {
   val io = new L2DataRWIO().flip
 
-  val array = SeqMem(Vec(Bits(width=8), rowBits/8), nWays*nSets*refillCycles)
+  val array = SeqMem(nWays*nSets*refillCycles, Vec(rowBits/8, Bits(width=8)))
   val ren = !io.write.valid && io.read.valid
   val raddr = Cat(OHToUInt(io.read.bits.way_en), io.read.bits.addr_idx, io.read.bits.addr_beat)
   val waddr = Cat(OHToUInt(io.write.bits.way_en), io.write.bits.addr_idx, io.write.bits.addr_beat)
@@ -449,9 +449,9 @@ abstract class L2XactTracker(implicit p: Parameters) extends XactTracker()(p)
   class CacheBlockBuffer { // TODO
     val buffer = Reg(Bits(width = p(CacheBlockBytes)*8))
 
-    def internal = Vec(Bits(width = rowBits), internalDataBeats).fromBits(buffer)
-    def inner = Vec(Bits(width = innerDataBits), innerDataBeats).fromBits(buffer)
-    def outer = Vec(Bits(width = outerDataBits), outerDataBeats).fromBits(buffer)
+    def internal = Vec(internalDataBeats, Bits(width = rowBits)).fromBits(buffer)
+    def inner = Vec(innerDataBeats, Bits(width = innerDataBits)).fromBits(buffer)
+    def outer = Vec(outerDataBeats, Bits(width = outerDataBits)).fromBits(buffer)
   }
 
   def connectDataBeatCounter[S <: L2HellaCacheBundle](inc: Bool, data: S, beat: UInt, full_block: Bool) = {
@@ -684,7 +684,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
 
   // Utility function for updating the metadata that will be kept in this cache
   def updatePendingCohWhen(flag: Bool, next: HierarchicalMetadata) {
-    when(flag && pending_coh != next) {
+    when(flag && pending_coh =/= next) {
       pending_meta_write := Bool(true)
       pending_coh := next
     }
@@ -982,7 +982,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
                              coh.inner.requiresProbesOnVoluntaryWriteback())
     val needs_inner_probes = tag_match && coh.inner.requiresProbes(xact)
     val should_update_meta = !tag_match && xact_allocate ||
-                             is_hit && pending_coh_on_hit != coh
+                             is_hit && pending_coh_on_hit =/= coh
     // Determine any changes to the coherence metadata
     when (should_update_meta) { pending_meta_write := Bool(true) }
     pending_coh := Mux(is_hit, pending_coh_on_hit, Mux(tag_match, coh, pending_coh_on_miss))
