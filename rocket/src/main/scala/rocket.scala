@@ -73,7 +73,7 @@ class RegFile(n: Int, w: Int, zero: Boolean = false) {
   }
   def write(addr: UInt, data: UInt) = {
     canRead = false
-    when (addr != UInt(0)) {
+    when (addr =/= UInt(0)) {
       access(addr) := data
       for ((raddr, rdata) <- reads)
         when (addr === raddr) { rdata := data }
@@ -85,7 +85,7 @@ object ImmGen {
   def apply(sel: UInt, inst: UInt) = {
     val sign = Mux(sel === IMM_Z, SInt(0), inst(31).toSInt)
     val b30_20 = Mux(sel === IMM_U, inst(30,20).toSInt, sign)
-    val b19_12 = Mux(sel != IMM_U && sel != IMM_UJ, sign, inst(19,12).toSInt)
+    val b19_12 = Mux(sel =/= IMM_U && sel =/= IMM_UJ, sign, inst(19,12).toSInt)
     val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
               Mux(sel === IMM_UJ, inst(20).toSInt,
               Mux(sel === IMM_SB, inst(7).toSInt, sign)))
@@ -177,7 +177,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val ctrl_killd = Wire(Bool())
 
   val csr = Module(new CSRFile)
-  val id_csr_en = id_ctrl.csr != CSR.N
+  val id_csr_en = id_ctrl.csr =/= CSR.N
   val id_system_insn = id_ctrl.csr === CSR.I
   val id_csr_ren = (id_ctrl.csr === CSR.S || id_ctrl.csr === CSR.C) && id_raddr1 === UInt(0)
   val id_csr = Mux(id_csr_ren, CSR.R, id_ctrl.csr)
@@ -225,9 +225,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   // execute stage
   val bypass_mux = Vec(bypass_sources.map(_._3))
-  val ex_reg_rs_bypass = Reg(Vec(Bool(), id_raddr.size))
-  val ex_reg_rs_lsb = Reg(Vec(UInt(), id_raddr.size))
-  val ex_reg_rs_msb = Reg(Vec(UInt(), id_raddr.size))
+  val ex_reg_rs_bypass = Reg(Vec(id_raddr.size, Bool()))
+  val ex_reg_rs_lsb = Reg(Vec(id_raddr.size, UInt()))
+  val ex_reg_rs_msb = Reg(Vec(id_raddr.size, UInt()))
   val ex_rs = for (i <- 0 until id_raddr.size)
     yield Mux(ex_reg_rs_bypass(i), bypass_mux(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
   val ex_imm = ImmGen(ex_ctrl.sel_imm, ex_reg_inst)
@@ -306,7 +306,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     Mux(mem_ctrl.jal, ImmGen(IMM_UJ, mem_reg_inst), SInt(4)))
   val mem_int_wdata = Mux(mem_ctrl.jalr, mem_br_target, mem_reg_wdata.toSInt).toUInt
   val mem_npc = (Mux(mem_ctrl.jalr, Cat(vaSign(mem_reg_wdata, mem_reg_wdata), mem_reg_wdata(vaddrBits-1,0)).toSInt, mem_br_target) & SInt(-2)).toUInt
-  val mem_wrong_npc = mem_npc != ex_reg_pc || !ex_reg_valid
+  val mem_wrong_npc = mem_npc =/= ex_reg_pc || !ex_reg_valid
   val mem_npc_misaligned = mem_npc(1)
   val mem_misprediction = mem_wrong_npc && mem_reg_valid && (mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal)
   val want_take_pc_mem = mem_reg_valid && (mem_misprediction || mem_reg_flush_pipe)
@@ -407,7 +407,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val rf_waddr = Mux(ll_wen, ll_waddr, wb_waddr)
   val rf_wdata = Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data,
                  Mux(ll_wen, ll_wdata,
-                 Mux(wb_ctrl.csr != CSR.N, csr.io.rw.rdata,
+                 Mux(wb_ctrl.csr =/= CSR.N, csr.io.rw.rdata,
                  wb_reg_wdata)))
   when (rf_wen) { rf.write(rf_waddr, rf_wdata) }
 
@@ -428,9 +428,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   csr.io.rw.cmd := Mux(wb_reg_valid, wb_ctrl.csr, CSR.N)
   csr.io.rw.wdata := wb_reg_wdata
 
-  val hazard_targets = Seq((id_ctrl.rxs1 && id_raddr1 != UInt(0), id_raddr1),
-                           (id_ctrl.rxs2 && id_raddr2 != UInt(0), id_raddr2),
-                           (id_ctrl.wxd && id_waddr != UInt(0), id_waddr))
+  val hazard_targets = Seq((id_ctrl.rxs1 && id_raddr1 =/= UInt(0), id_raddr1),
+                           (id_ctrl.rxs2 && id_raddr2 =/= UInt(0), id_raddr2),
+                           (id_ctrl.wxd  && id_waddr  =/= UInt(0), id_waddr))
   val fp_hazard_targets = Seq((io.fpu.dec.ren1, id_raddr1),
                               (io.fpu.dec.ren2, id_raddr2),
                               (io.fpu.dec.ren3, id_raddr3),
@@ -442,7 +442,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   sboard.set(wb_set_sboard && wb_wen, wb_waddr)
 
   // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
-  val ex_cannot_bypass = ex_ctrl.csr != CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc
+  val ex_cannot_bypass = ex_ctrl.csr =/= CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc
   val data_hazard_ex = ex_ctrl.wxd && checkHazards(hazard_targets, _ === ex_waddr)
   val fp_data_hazard_ex = ex_ctrl.wfd && checkHazards(fp_hazard_targets, _ === ex_waddr)
   val id_ex_hazard = ex_reg_valid && (data_hazard_ex && ex_cannot_bypass || fp_data_hazard_ex)
@@ -451,7 +451,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val mem_mem_cmd_bh =
     if (fastLoadWord) Bool(!fastLoadByte) && mem_reg_slow_bypass
     else Bool(true)
-  val mem_cannot_bypass = mem_ctrl.csr != CSR.N || mem_ctrl.mem && mem_mem_cmd_bh || mem_ctrl.div || mem_ctrl.fp || mem_ctrl.rocc
+  val mem_cannot_bypass = mem_ctrl.csr =/= CSR.N || mem_ctrl.mem && mem_mem_cmd_bh || mem_ctrl.div || mem_ctrl.fp || mem_ctrl.rocc
   val data_hazard_mem = mem_ctrl.wxd && checkHazards(hazard_targets, _ === mem_waddr)
   val fp_data_hazard_mem = mem_ctrl.wfd && checkHazards(fp_hazard_targets, _ === mem_waddr)
   val id_mem_hazard = mem_reg_valid && (data_hazard_mem && mem_cannot_bypass || fp_data_hazard_mem)
@@ -551,10 +551,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
       when (wfd) {
         printf ("%d 0x%x (0x%x) f%d p%d 0xXXXXXXXXXXXXXXXX\n", priv, pc, inst, rd, rd+UInt(32))
       }
-      .elsewhen (wxd && rd != UInt(0) && has_data) {
+      .elsewhen (wxd && rd =/= UInt(0) && has_data) {
         printf ("%d 0x%x (0x%x) x%d 0x%x\n", priv, pc, inst, rd, rf_wdata)
       }
-      .elsewhen (wxd && rd != UInt(0) && !has_data) {
+      .elsewhen (wxd && rd =/= UInt(0) && !has_data) {
         printf ("%d 0x%x (0x%x) x%d p%d 0xXXXXXXXXXXXXXXXX\n", priv, pc, inst, rd, rd)
       }
       .otherwise {
@@ -562,7 +562,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
       }
     }
 
-    when (ll_wen && rf_waddr != UInt(0)) {
+    when (ll_wen && rf_waddr =/= UInt(0)) {
       printf ("x%d p%d 0x%x\n", rf_waddr, rf_waddr, rf_wdata)
     }
   }
@@ -586,7 +586,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     // (VA is bad if VA(vaddrBits) != VA(vaddrBits-1))
     val a = a0 >> vaddrBits-1
     val e = ea(vaddrBits,vaddrBits-1)
-    Mux(a === UInt(0) || a === UInt(1), e != UInt(0),
+    Mux(a === UInt(0) || a === UInt(1), e =/= UInt(0),
     Mux(a.toSInt === SInt(-1) || a.toSInt === SInt(-2), e.toSInt === SInt(-1),
     e(0)))
   }
