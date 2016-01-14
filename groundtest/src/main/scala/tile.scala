@@ -115,7 +115,6 @@ abstract class GroundTest(implicit val p: Parameters) extends Module {
 
   def disablePorts(mem: Boolean = true,
                    cache: Boolean = true,
-                   dma: Boolean = true,
                    ptw: Boolean = true) {
     if (mem) {
       io.mem.acquire.valid := Bool(false)
@@ -123,10 +122,6 @@ abstract class GroundTest(implicit val p: Parameters) extends Module {
     }
     if (cache) {
       io.cache.req.valid := Bool(false)
-    }
-    if (dma) {
-      io.dma.req.valid := Bool(false)
-      io.dma.resp.ready := Bool(false)
     }
     if (ptw) {
       io.ptw.req.valid := Bool(false)
@@ -139,7 +134,6 @@ class GroundTestTile(id: Int, resetSignal: Bool)
 
   val test = p(BuildGroundTest)(id, dcacheParams)
   io.uncached.head <> test.io.mem
-  io.dma <> test.io.dma
 
   val dcache = Module(new HellaCache()(dcacheParams))
   val dcacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))

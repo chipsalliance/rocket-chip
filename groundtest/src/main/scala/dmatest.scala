@@ -4,7 +4,7 @@ import Chisel._
 import uncore._
 import uncore.DmaRequest._
 import rocket._
-import junctions.PAddrBits
+import junctions.{PAddrBits, HasAddrMapParameters}
 import cde.{Parameters, Field}
 import scala.math.max
 
@@ -25,18 +25,17 @@ case object DmaTestSet extends Field[Seq[DmaTestCase]]
 case object DmaTestDataStart extends Field[Int]
 case object DmaTestDataStride extends Field[Int]
 
-case object DmaStreamLoopbackAddr extends Field[BigInt]
 case object DmaStreamTestSettings extends Field[DmaStreamTestConfig]
 
 class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
-    with HasDmaParameters with HasCoreParameters {
-  disablePorts(cache = false, dma = false, ptw = false)
+    with HasDmaParameters with HasCoreParameters with HasAddrMapParameters {
+  disablePorts(cache = false, mem = false, ptw = false)
 
   val (s_start :: s_setup_req :: s_setup_wait ::
        s_stream_out :: s_stream_in ::  s_stream_wait ::
        s_check_req :: s_check_wait :: s_done :: Nil) = Enum(Bits(), 9)
   val state = Reg(init = s_start)
-  val lo_base = p(DmaStreamLoopbackAddr)
+  val lo_base = addrMap("devices:loopback").start
   val conf = p(DmaStreamTestSettings)
 
   val test_data = Vec.tabulate(conf.len) { i => UInt(i * 8, conf.size * 8) }
@@ -62,8 +61,8 @@ class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
   frontend.io.cpu.req.valid := (state === s_stream_out) || (state === s_stream_in)
   frontend.io.cpu.req.bits := Mux(state === s_stream_out, out_req, in_req)
 
-  io.dma <> frontend.io.dma
   io.ptw <> frontend.io.ptw
+  io.mem <> frontend.io.mem
 
   val cache_addr_base = Mux(state === s_setup_req, UInt(conf.source), UInt(conf.dest))
 
@@ -92,6 +91,8 @@ class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
   assert(!io.cache.resp.valid || !io.cache.resp.bits.has_data ||
          resp_data === test_data(resp_index),
          "Result data streamed in does not match data streamed out")
+  assert(!frontend.io.cpu.resp.valid || frontend.io.cpu.resp.bits.status === UInt(0),
+          "Frontend error response")
 
   io.finished := (state === s_done)
 }
@@ -106,7 +107,7 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
   private val wordBytes = wordBits / 8
   private val pAddrBits = p(PAddrBits)
 
-  disablePorts(cache = false, dma = false, ptw = false)
+  disablePorts(cache = false, mem = false, ptw = false)
 
   val sourceAddrs = Vec(testSet.map(test => UInt(test.source)))
   val destAddrs = Vec(testSet.map(test => UInt(test.dest)))
@@ -130,8 +131,8 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
     dst_start = destAddrs(testIdx),
     segment_size = transferLengths(testIdx))
 
-  io.dma <> frontend.io.dma
   io.ptw <> frontend.io.ptw
+  io.mem <> frontend.io.mem
 
   io.cache.req.valid := (state === s_fill_req) || (state === s_check_req)
   io.cache.req.bits.addr := req_addr
@@ -190,9 +191,8 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
 
   assert(!io.cache.resp.valid || !io.cache.resp.bits.has_data ||
     io.cache.resp.bits.data === req_data, "Received data does not match")
-
-  val dma_timeout = Timer(1000, io.dma.req.fire(), io.dma.resp.fire())
-  assert(!dma_timeout, "DMA request timed out")
+  assert(!frontend.io.cpu.resp.valid || frontend.io.cpu.resp.bits.status === UInt(0),
+          "Frontend error response")
 
   val cache_timeout = Timer(1000, io.cache.req.fire(), io.cache.resp.valid)
   assert(!cache_timeout, "Memory request timed out")
