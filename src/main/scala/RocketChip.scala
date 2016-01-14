@@ -76,7 +76,7 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 }
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
-  val mem = Vec(new NastiIO, nMemChannels)
+  val mem = Vec(nMemChannels, new NastiIO)
 }
 
 object TopUtils {
@@ -140,10 +140,10 @@ class Uncore(implicit val p: Parameters) extends Module
     with HasTopLevelParameters {
   val io = new Bundle {
     val host = new HostIO(htifW)
-    val mem = Vec(new NastiIO, nMemChannels)
+    val mem = Vec(nMemChannels, new NastiIO)
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
-    val htif = Vec(new HtifIO, nTiles).flip
+    val htif = Vec(nTiles, new HtifIO).flip
     val mem_backup_ctrl = new MemBackupCtrlIO
     val mmio = new NastiIO
     val dma = Vec(nTiles, new DmaIO).flip
@@ -205,11 +205,11 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val htif_uncached = (new ClientUncachedTileLinkIO).flip
-    val incoherent = Vec(Bool(), nTiles).asInput
-    val mem = Vec(new NastiIO, nMemChannels)
+    val incoherent = Vec(nTiles, Bool()).asInput
+    val mem = Vec(nMemChannels, new NastiIO)
     val mem_backup = new MemSerializedIO(htifW)
     val mem_backup_en = Bool(INPUT)
-    val csr = Vec(new SmiIO(xLen, csrAddrBits), nTiles)
+    val csr = Vec(nTiles, new SmiIO(xLen, csrAddrBits))
     val scr = new SmiIO(xLen, scrAddrBits)
     val mmio = new NastiIO
     val deviceTree = new NastiIO
