@@ -75,7 +75,7 @@ class FlowThroughSerializer[T <: Bundle with HasTileLinkData](gen: T, n: Int) ex
     val rbits = Reg{io.in.bits}
     val active = Reg(init=Bool(false))
 
-    val shifter = Vec(Bits(width = narrowWidth), n)
+    val shifter = Vec(n, Bits(width = narrowWidth))
     (0 until n).foreach { 
       i => shifter(i) := rbits.data((i+1)*narrowWidth-1,i*narrowWidth)
     }
@@ -138,8 +138,8 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
     }
   }
 
-  val roq_data = Reg(Vec(dType.cloneType, size))
-  val roq_tags = Reg(Vec(UInt(width = tagWidth), size))
+  val roq_data = Reg(Vec(size, dType.cloneType))
+  val roq_tags = Reg(Vec(size, UInt(width = tagWidth)))
   val roq_free = Reg(init = Vec.fill(size)(Bool(true)))
 
   val roq_enq_addr = PriorityEncoder(roq_free)

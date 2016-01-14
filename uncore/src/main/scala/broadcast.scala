@@ -48,7 +48,7 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
   trackerList.map(_.io.incoherent := io.incoherent)
 
   // Queue to store impending Put data
-  val sdq = Reg(Vec(io.iacq().data, sdqDepth))
+  val sdq = Reg(Vec(sdqDepth, io.iacq().data))
   val sdq_val = Reg(init=Bits(0, sdqDepth))
   val sdq_alloc_id = PriorityEncoder(~sdq_val)
   val sdq_rdy = !sdq_val.andR
@@ -77,7 +77,7 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
   val voluntary = io.irel().isVoluntary()
   val vwbdq_enq = io.inner.release.fire() && voluntary && io.irel().hasData()
   val (rel_data_cnt, rel_data_done) = Counter(vwbdq_enq, innerDataBeats) //TODO Zero width
-  val vwbdq = Reg(Vec(io.irel().data, innerDataBeats)) //TODO Assumes nReleaseTransactors == 1
+  val vwbdq = Reg(Vec(innerDataBeats, io.irel().data)) //TODO Assumes nReleaseTransactors == 1
   when(vwbdq_enq) { vwbdq(rel_data_cnt) := io.irel().data }
 
   // Handle releases, which might be voluntary and might have data
@@ -218,7 +218,7 @@ class BroadcastAcquireTracker(trackerId: Int)
   val xact = Reg(new BufferedAcquireFromSrc()(p.alterPartial({ case TLId => innerTLId })))
   val coh = ManagerMetadata.onReset
 
-  assert(!(state != s_idle && xact.isBuiltInType() && 
+  assert(!(state =/= s_idle && xact.isBuiltInType() && 
       Vec(Acquire.putAtomicType, Acquire.getPrefetchType, Acquire.putPrefetchType).contains(xact.a_type)),
     "Broadcast Hub does not support PutAtomics or prefetches") // TODO
 
@@ -243,7 +243,7 @@ class BroadcastAcquireTracker(trackerId: Int)
   val subblock_type = xact.isSubBlockType()
 
   io.has_acquire_conflict := xact.conflicts(io.iacq()) && 
-                              (state != s_idle) &&
+                              (state =/= s_idle) &&
                               !collect_iacq_data
   io.has_acquire_match := xact.conflicts(io.iacq()) &&
                               collect_iacq_data
@@ -302,16 +302,16 @@ class BroadcastAcquireTracker(trackerId: Int)
   io.inner.release.ready := Bool(false)
   io.inner.finish.ready := Bool(false)
 
-  assert(!(state != s_idle && collect_iacq_data && io.inner.acquire.fire() &&
-    io.iacq().client_id != xact.client_id),
+  assert(!(state =/= s_idle && collect_iacq_data && io.inner.acquire.fire() &&
+    io.iacq().client_id =/= xact.client_id),
     "AcquireTracker accepted data beat from different network source than initial request.")
 
-  assert(!(state != s_idle && collect_iacq_data && io.inner.acquire.fire() &&
-    io.iacq().client_xact_id != xact.client_xact_id),
+  assert(!(state =/= s_idle && collect_iacq_data && io.inner.acquire.fire() &&
+    io.iacq().client_xact_id =/= xact.client_xact_id),
     "AcquireTracker accepted data beat from different client transaction than initial request.")
 
   assert(!(state === s_idle && io.inner.acquire.fire() &&
-    io.iacq().hasMultibeatData() && io.iacq().addr_beat != UInt(0)),
+    io.iacq().hasMultibeatData() && io.iacq().addr_beat =/= UInt(0)),
     "AcquireTracker initialized with a tail data beat.")
 
   when(collect_iacq_data) {

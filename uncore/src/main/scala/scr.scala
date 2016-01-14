@@ -5,7 +5,7 @@ import junctions.{SmiIO, MMIOBase}
 import cde.Parameters
 
 class SCRIO(implicit p: Parameters) extends HtifBundle()(p) {
-  val rdata = Vec(Bits(INPUT, scrDataBits), nSCR)
+  val rdata = Vec(nSCR, Bits(INPUT, scrDataBits))
   val wen = Bool(OUTPUT)
   val waddr = UInt(OUTPUT, log2Up(nSCR))
   val wdata = Bits(OUTPUT, scrDataBits)
@@ -17,7 +17,7 @@ class SCRFile(implicit p: Parameters) extends HtifModule()(p) {
     val scr = new SCRIO
   }
 
-  val scr_rdata = Wire(Vec(Bits(width=scrDataBits), io.scr.rdata.size))
+  val scr_rdata = Wire(Vec(io.scr.rdata.size, Bits(width=scrDataBits)))
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
   scr_rdata(0) := UInt(nCores)
