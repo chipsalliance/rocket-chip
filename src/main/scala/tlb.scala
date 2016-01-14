@@ -193,3 +193,27 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
     state := s_ready
   }
 }
+
+class DecoupledTLB(implicit p: Parameters) extends Module {
+  val io = new Bundle {
+    val req = Decoupled(new TLBReq).flip
+    val resp = Decoupled(new TLBResp)
+    val ptw = new TLBPTWIO
+  }
+
+  val reqq = Queue(io.req)
+  val tlb = Module(new TLB)
+
+  val resp_helper = DecoupledHelper(
+    reqq.valid, tlb.io.req.ready, io.resp.ready)
+  val tlb_miss = tlb.io.resp.miss
+
+  tlb.io.req.valid := resp_helper.fire(tlb.io.req.ready)
+  tlb.io.req.bits := reqq.bits
+  reqq.ready := resp_helper.fire(reqq.valid, !tlb_miss)
+
+  io.resp.valid := resp_helper.fire(io.resp.ready, !tlb_miss)
+  io.resp.bits := tlb.io.resp
+
+  io.ptw <> tlb.io.ptw
+}

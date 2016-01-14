@@ -252,10 +252,14 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
 
   for (i <- 0 until nCustomMrwCsrs) {
-    val addr = 0x790 + i // turn 0x790 into parameter CustomMRWCSRBase?
-    require(addr >= 0x780 && addr <= 0x7ff, "custom MRW CSR address " + i + " is out of range")
+    val addr = CSRs.mrwbase + i
     require(!read_mapping.contains(addr), "custom MRW CSR address " + i + " is already in use")
     read_mapping += addr -> io.custom_mrw_csrs(i)
+  }
+
+  for ((addr, i) <- roccCsrs.zipWithIndex) {
+    require(!read_mapping.contains(addr), "RoCC: CSR address " + addr + " is already in use")
+    read_mapping += addr -> io.rocc.csr.rdata(i)
   }
 
   val addr = Mux(cpu_ren, io.rw.addr, host_csr_bits.addr)
@@ -448,6 +452,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       when (decoded_addr(CSRs.stvec))    { reg_stvec := ~(~wdata | (coreInstBytes-1)) }
     }
   }
+
+  io.rocc.csr.waddr := addr
+  io.rocc.csr.wdata := wdata
+  io.rocc.csr.wen := wen
 
   when(this.reset) {
     reg_mstatus.zero1 := 0
