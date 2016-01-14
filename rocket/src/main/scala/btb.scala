@@ -46,7 +46,7 @@ class RAS(nras: Int) {
 
   private val count = Reg(init=UInt(0,log2Up(nras+1)))
   private val pos = Reg(init=UInt(0,log2Up(nras)))
-  private val stack = Reg(Vec(UInt(), nras))
+  private val stack = Reg(Vec(nras, UInt()))
 }
 
 class BHTResp(implicit p: Parameters) extends BtbBundle()(p) {

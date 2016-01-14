@@ -87,8 +87,8 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val evec = UInt(OUTPUT, vaddrBitsExtended)
   val exception = Bool(INPUT)
   val retire = UInt(INPUT, log2Up(1+retireWidth))
-  val uarch_counters = Vec(UInt(INPUT, log2Up(1+retireWidth)), 16)
-  val custom_mrw_csrs = Vec(UInt(INPUT, xLen), nCustomMrwCsrs)
+  val uarch_counters = Vec(16, UInt(INPUT, log2Up(1+retireWidth)))
+  val custom_mrw_csrs = Vec(nCustomMrwCsrs, UInt(INPUT, xLen))
   val cause = UInt(INPUT, xLen)
   val pc = UInt(INPUT, vaddrBitsExtended)
   val fatc = Bool(OUTPUT)
@@ -149,11 +149,11 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   checkInterrupt(PRV_M, reg_mie.msip && reg_mip.msip, 0)
   checkInterrupt(PRV_S, reg_mie.stip && reg_mip.stip, 1)
   checkInterrupt(PRV_M, reg_mie.mtip && reg_mip.mtip, 1)
-  checkInterrupt(PRV_M, reg_fromhost != 0, 2)
+  checkInterrupt(PRV_M, reg_fromhost =/= 0, 2)
   checkInterrupt(PRV_M, irq_rocc, 3)
 
   val system_insn = io.rw.cmd === CSR.I
-  val cpu_ren = io.rw.cmd != CSR.N && !system_insn
+  val cpu_ren = io.rw.cmd =/= CSR.N && !system_insn
 
   val host_csr_req_valid = Reg(Bool()) // don't reset
   val host_csr_req_fire = host_csr_req_valid && !cpu_ren
@@ -266,7 +266,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val csr_addr_priv = io.rw.addr(9,8)
   val priv_sufficient = reg_mstatus.prv >= csr_addr_priv
   val read_only = io.rw.addr(11,10).andR
-  val cpu_wen = cpu_ren && io.rw.cmd != CSR.R && priv_sufficient
+  val cpu_wen = cpu_ren && io.rw.cmd =/= CSR.R && priv_sufficient
   val wen = cpu_wen && !read_only || host_csr_req_fire && host_csr_bits.rw
   val wdata = Mux(io.rw.cmd === CSR.W, io.rw.wdata,
               Mux(io.rw.cmd === CSR.C, io.rw.rdata & ~io.rw.wdata,

@@ -97,7 +97,7 @@ class MulDiv(
     val nextMulReg = Cat(prod, mplier(mulw-1,unroll)).toUInt
 
     val eOutMask = (SInt(BigInt(-1) << mulw) >> (count * unroll)(log2Up(mulw)-1,0))(mulw-1,0)
-    val eOut = Bool(earlyOut) && count != mulw/unroll-1 && count != 0 &&
+    val eOut = Bool(earlyOut) && count =/= mulw/unroll-1 && count =/= 0 &&
       !isHi && (mplier & ~eOutMask) === UInt(0)
     val eOutRes = (mulReg >> (mulw - count * unroll)(log2Up(mulw)-1,0))
     val nextMulReg1 = Cat(nextMulReg(2*mulw,mulw), Mux(eOut, eOutRes, nextMulReg)(mulw-1,0))
@@ -136,7 +136,7 @@ class MulDiv(
     isMul := cmdMul
     isHi := cmdHi
     count := 0
-    neg_out := !cmdMul && Mux(cmdHi, lhs_sign, lhs_sign != rhs_sign)
+    neg_out := !cmdMul && Mux(cmdHi, lhs_sign, lhs_sign =/= rhs_sign)
     divisor := Cat(rhs_sign, rhs_in)
     remainder := lhs_in
     req := io.req.bits

@@ -10,7 +10,7 @@ import junctions.ParameterizedBundle
 class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 {
   val io = new Bundle {
-    val requestor = Vec(new HellaCacheIO, n).flip
+    val requestor = Vec(n, new HellaCacheIO).flip
     val mem = new HellaCacheIO
   }
 

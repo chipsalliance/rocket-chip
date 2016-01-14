@@ -100,14 +100,14 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
   val tag_hit_addr = OHToUInt(tag_cam.io.hits)
   
   // permission bit arrays
-  val valid_array = Reg(Vec(Bool(), entries)) // PTE is valid (not equivalent to CAM tag valid bit!)
-  val ur_array = Reg(Vec(Bool(), entries)) // user read permission
-  val uw_array = Reg(Vec(Bool(), entries)) // user write permission
-  val ux_array = Reg(Vec(Bool(), entries)) // user execute permission
-  val sr_array = Reg(Vec(Bool(), entries)) // supervisor read permission
-  val sw_array = Reg(Vec(Bool(), entries)) // supervisor write permission
-  val sx_array = Reg(Vec(Bool(), entries)) // supervisor execute permission
-  val dirty_array = Reg(Vec(Bool(), entries)) // PTE dirty bit
+  val valid_array = Reg(Vec(entries, Bool())) // PTE is valid (not equivalent to CAM tag valid bit!)
+  val ur_array = Reg(Vec(entries, Bool())) // user read permission
+  val uw_array = Reg(Vec(entries, Bool())) // user write permission
+  val ux_array = Reg(Vec(entries, Bool())) // user execute permission
+  val sr_array = Reg(Vec(entries, Bool())) // supervisor read permission
+  val sw_array = Reg(Vec(entries, Bool())) // supervisor write permission
+  val sx_array = Reg(Vec(entries, Bool())) // supervisor execute permission
+  val dirty_array = Reg(Vec(entries, Bool())) // PTE dirty bit
   when (io.ptw.resp.valid) {
     val pte = io.ptw.resp.bits.pte
     tag_ram(r_refill_waddr) := pte.ppn
@@ -137,7 +137,7 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
   val x_array = Mux(priv_s, sx_array.toBits, ux_array.toBits)
 
   val vm_enabled = io.ptw.status.vm(3) && priv_uses_vm && !io.req.bits.passthrough
-  val bad_va = io.req.bits.vpn(vpnBits) != io.req.bits.vpn(vpnBits-1)
+  val bad_va = io.req.bits.vpn(vpnBits) =/= io.req.bits.vpn(vpnBits-1)
   // it's only a store hit if the dirty bit is set
   val tag_hits = tag_cam.io.hits & (dirty_array.toBits | ~Mux(io.req.bits.store, w_array, UInt(0)))
   val tag_hit = tag_hits.orR
