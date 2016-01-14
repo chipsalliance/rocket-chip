@@ -79,7 +79,7 @@ class HastiSlaveIO(implicit p: Parameters) extends HastiBundle()(p) {
 class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
     val master = new HastiMasterIO().flip
-    val slaves = Vec(new HastiSlaveIO, amap.size).flip
+    val slaves = Vec(amap.size, new HastiSlaveIO).flip
   }
 
   // skid buffer
@@ -149,7 +149,7 @@ class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModul
 
 class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
-    val ins = Vec(new HastiSlaveIO, n)
+    val ins = Vec(n, new HastiSlaveIO)
     val out = new HastiSlaveIO().flip
   }
 
@@ -219,8 +219,8 @@ class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
 class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])
                (implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
-    val masters = Vec(new HastiMasterIO, nMasters).flip
-    val slaves = Vec(new HastiSlaveIO, addressMap.size).flip
+    val masters = Vec(nMasters, new HastiMasterIO).flip
+    val slaves = Vec(addressMap.size, new HastiSlaveIO).flip
   }
 
   val buses = List.fill(nMasters){Module(new HastiBus(addressMap))}

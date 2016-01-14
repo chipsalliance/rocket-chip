@@ -54,7 +54,7 @@ class HastiToPociBridge(implicit p: Parameters) extends HastiModule()(p) {
 
   io.out.paddr := haddr_reg
   io.out.pwrite := hwrite_reg(0)
-  io.out.psel := (state != s_idle)
+  io.out.psel := (state =/= s_idle)
   io.out.penable := (state === s_access)
   io.out.pwdata := io.in.hwdata
   io.in.hrdata := io.out.prdata
@@ -66,7 +66,7 @@ class PociBus(amap: Seq[UInt=>Bool]) extends Module
 {
   val io = new Bundle {
     val master = new PociIO().flip
-    val slaves = Vec(new PociIO, amap.size)
+    val slaves = Vec(amap.size, new PociIO)
   }
 
   val psels = PriorityEncoderOH(

@@ -22,7 +22,7 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   val maybe_full = Reg(init=Bool(false))
   val enq_ptr = Counter(do_enq, entries)._1
   val (deq_ptr, deq_done) = Counter(do_deq, entries)
-  when (do_enq != do_deq) { maybe_full := do_enq }
+  when (do_enq =/= do_deq) { maybe_full := do_enq }
 
   val ptr_match = enq_ptr === deq_ptr
   val empty = ptr_match && !maybe_full
@@ -30,7 +30,7 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   val atLeastTwo = full || enq_ptr - deq_ptr >= UInt(2)
   do_flow := empty && io.deq.ready
 
-  val ram = SeqMem(data, entries)
+  val ram = SeqMem(entries, data)
   when (do_enq) { ram.write(enq_ptr, io.enq.bits) }
 
   val ren = io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)
@@ -66,7 +66,7 @@ abstract class JunctionsAbstractLockingArbiter[T <: Data](typ: T, arbN: Int)
     extends Module {
 
   val io = new Bundle {
-    val in = Vec(Decoupled(typ.cloneType), arbN).flip
+    val in = Vec(arbN, Decoupled(typ.cloneType)).flip
     val out = Decoupled(typ.cloneType)
   }
 

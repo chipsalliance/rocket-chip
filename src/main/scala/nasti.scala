@@ -263,7 +263,7 @@ class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) e
 /** Arbitrate among arbN masters requesting to a single slave */
 class NastiArbiter(val arbN: Int)(implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
-    val master = Vec(new NastiIO, arbN).flip
+    val master = Vec(arbN, new NastiIO).flip
     val slave = new NastiIO
   }
 
@@ -388,7 +388,7 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
 
   val io = new Bundle {
     val master = (new NastiIO).flip
-    val slave = Vec(new NastiIO, nSlaves)
+    val slave = Vec(nSlaves, new NastiIO)
   }
 
   val ar_route = routeSel(io.master.ar.bits.addr)
@@ -456,8 +456,8 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
 class NastiCrossbar(nMasters: Int, nSlaves: Int, routeSel: UInt => UInt)
                    (implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
-    val masters = Vec(new NastiIO, nMasters).flip
-    val slaves = Vec(new NastiIO, nSlaves)
+    val masters = Vec(nMasters, new NastiIO).flip
+    val slaves = Vec(nSlaves, new NastiIO)
   }
 
   if (nMasters == 1) {
@@ -503,8 +503,8 @@ class NastiInterconnectIO(val nMasters: Int, val nSlaves: Int)
                          (implicit p: Parameters) extends Bundle {
   /* This is a bit confusing. The interconnect is a slave to the masters and
    * a master to the slaves. Hence why the declarations seem to be backwards. */
-  val masters = Vec(new NastiIO, nMasters).flip
-  val slaves = Vec(new NastiIO, nSlaves)
+  val masters = Vec(nMasters, new NastiIO).flip
+  val slaves = Vec(nSlaves, new NastiIO)
   override def cloneType =
     new NastiInterconnectIO(nMasters, nSlaves).asInstanceOf[this.type]
 }

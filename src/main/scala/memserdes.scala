@@ -208,7 +208,7 @@ class MemDesser(w: Int)(implicit p: Parameters) extends Module // test rig side
 
 class MemIOArbiter(val arbN: Int)(implicit p: Parameters) extends MIFModule {
   val io = new Bundle {
-    val inner = Vec(new MemIO, arbN).flip
+    val inner = Vec(arbN, new MemIO).flip
     val outer = new MemIO
   }
 

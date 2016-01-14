@@ -59,7 +59,7 @@ class SmiMem(val dataWidth: Int, val memDepth: Int) extends SmiPeripheral {
 class SmiArbiter(val n: Int, val dataWidth: Int, val addrWidth: Int)
     extends Module {
   val io = new Bundle {
-    val in = Vec(new SmiIO(dataWidth, addrWidth), n).flip
+    val in = Vec(n, new SmiIO(dataWidth, addrWidth)).flip
     val out = new SmiIO(dataWidth, addrWidth)
   }
 
