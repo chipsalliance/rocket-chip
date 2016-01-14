@@ -54,7 +54,7 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
 
 class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
-    val requestor = Vec(new TLBPTWIO, n).flip
+    val requestor = Vec(n, new TLBPTWIO).flip
     val mem = new HellaCacheIO
     val dpath = new DatapathPTWIO
   }
@@ -85,7 +85,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val (pte_cache_hit, pte_cache_data) = {
     val size = log2Up(pgLevels * 2)
     val plru = new PseudoLRU(size)
-    val valid = Reg(Vec(Bool(), size))
+    val valid = Reg(Vec(size, Bool()))
     val validBits = valid.toBits
     val tags = Mem(size, UInt(width = paddrBits))
     val data = Mem(size, UInt(width = ppnBits))

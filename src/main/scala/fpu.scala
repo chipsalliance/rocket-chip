@@ -235,7 +235,7 @@ class FPToInt extends Module
 
   when (io.in.valid) {
     in := io.in.bits
-    when (io.in.bits.single && !io.in.bits.ldst && io.in.bits.cmd != FCMD_MV_XF) {
+    when (io.in.bits.single && !io.in.bits.ldst && io.in.bits.cmd =/= FCMD_MV_XF) {
       in.in1 := in1_upconvert
       in.in2 := in2_upconvert
     }
@@ -357,7 +357,7 @@ class FPToFP(val latency: Int) extends Module
   val issnan2 = isnan2 && ~Mux(in.bits.single, in.bits.in2(22), in.bits.in2(51))
   val minmax_exc = Cat(issnan1 || issnan2, Bits(0,4))
   val isMax = in.bits.rm(0)
-  val isLHS = isnan2 || isMax != io.lt && !isnan1
+  val isLHS = isnan2 || isMax =/= io.lt && !isnan1
 
   val mux = Wire(new FPResult)
   mux.exc := minmax_exc
@@ -539,7 +539,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
   val memLatencyMask = latencyMask(mem_ctrl, 2)
 
   val wen = Reg(init=Bits(0, maxLatency-1))
-  val winfo = Reg(Vec(Bits(), maxLatency-1))
+  val winfo = Reg(Vec(maxLatency-1, Bits()))
   val mem_wen = mem_reg_valid && (mem_ctrl.fma || mem_ctrl.fastpipe || mem_ctrl.fromint)
   val write_port_busy = RegEnable(mem_wen && (memLatencyMask & latencyMask(ex_ctrl, 1)).orR || (wen & latencyMask(ex_ctrl, 0)).orR, req_valid)
   val mem_winfo = Cat(mem_cp_valid, pipeid(mem_ctrl), mem_ctrl.single, mem_reg_inst(11,7)) //single only used for debugging

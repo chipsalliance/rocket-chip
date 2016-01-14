@@ -330,7 +330,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     }
   }
 
-  io.idx_match := (state != s_invalid) && idx_match
+  io.idx_match := (state =/= s_invalid) && idx_match
   io.refill.way_en := req.way_en
   io.refill.addr := (if(refillCycles > 1) Cat(req_idx, refill_cnt) else req_idx) << rowOffBits
   io.tag := req.addr >> untagBits
@@ -338,7 +338,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
   val meta_hazard = Reg(init=UInt(0,2))
-  when (meta_hazard != UInt(0)) { meta_hazard := meta_hazard + 1 }
+  when (meta_hazard =/= UInt(0)) { meta_hazard := meta_hazard + 1 }
   when (io.meta_write.fire()) { meta_hazard := 1 }
   io.probe_rdy := !idx_match || (!states_before_refill.contains(state) && meta_hazard === 0) 
 
@@ -405,12 +405,12 @@ class MSHRFile(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val sdq = Mem(sdqDepth, io.req.bits.data)
   when (sdq_enq) { sdq(sdq_alloc_id) := io.req.bits.data }
 
-  val idxMatch = Wire(Vec(Bool(), nMSHRs))
-  val tagList = Wire(Vec(Bits(width = tagBits), nMSHRs))
+  val idxMatch = Wire(Vec(nMSHRs, Bool()))
+  val tagList = Wire(Vec(nMSHRs, Bits(width = tagBits)))
   val tag_match = Mux1H(idxMatch, tagList) === io.req.bits.addr >> untagBits
 
-  val wbTagList = Wire(Vec(Bits(), nMSHRs))
-  val refillMux = Wire(Vec(new L1RefillReq, nMSHRs))
+  val wbTagList = Wire(Vec(nMSHRs, Bits()))
+  val refillMux = Wire(Vec(nMSHRs, new L1RefillReq))
   val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, nMSHRs))
   val meta_write_arb = Module(new Arbiter(new L1MetaWriteReq, nMSHRs))
   val mem_req_arb = Module(new LockingArbiter(
@@ -690,7 +690,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val read = Decoupled(new L1DataReadReq).flip
     val write = Decoupled(new L1DataWriteReq).flip
-    val resp = Vec(Bits(OUTPUT, encRowBits), nWays)
+    val resp = Vec(nWays, Bits(OUTPUT, encRowBits))
   }
 
   val waddr = io.write.bits.addr >> rowOffBits
@@ -700,10 +700,10 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     for (w <- 0 until nWays by rowWords) {
       val wway_en = io.write.bits.way_en(w+rowWords-1,w)
       val rway_en = io.read.bits.way_en(w+rowWords-1,w)
-      val resp = Wire(Vec(Bits(width = encRowBits), rowWords))
+      val resp = Wire(Vec(rowWords, Bits(width = encRowBits)))
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (p <- 0 until resp.size) {
-        val array = SeqMem(Vec(Bits(width=encDataBits), rowWords), nSets*refillCycles)
+        val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
           val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(p+1)-1,encDataBits*p))
           array.write(waddr, data, wway_en.toBools)
@@ -720,7 +720,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     }
   } else {
     for (w <- 0 until nWays) {
-      val array = SeqMem(Vec(Bits(width=encDataBits), rowWords), nSets*refillCycles)
+      val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
       when (io.write.bits.way_en(w) && io.write.valid) {
         val data = Vec.tabulate(rowWords)(i => io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
         array.write(waddr, data, io.write.bits.wmask.toBools)
@@ -760,7 +760,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
   val s2_killed = Reg(next=s1_valid && io.cpu.req.bits.kill)
   val s2_req = Reg(io.cpu.req.bits)
-  val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd != M_NOP
+  val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd =/= M_NOP
   val s2_recycle = Wire(Bool())
   val s2_valid_masked = Wire(Bool())
 
@@ -893,9 +893,9 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
   when (io.cpu.invalidate_lr) { lrsc_count := 0 }
 
-  val s2_data = Wire(Vec(Bits(width=encRowBits), nWays))
+  val s2_data = Wire(Vec(nWays, Bits(width=encRowBits)))
   for (w <- 0 until nWays) {
-    val regs = Reg(Vec(Bits(width = encDataBits), rowWords))
+    val regs = Reg(Vec(rowWords, Bits(width = encDataBits)))
     val en1 = s1_clk_en && s1_tag_eq_way(w)
     for (i <- 0 until regs.size) {
       val en = en1 && ((Bool(i == 0) || !Bool(doNarrowRead)) || s1_writeback)

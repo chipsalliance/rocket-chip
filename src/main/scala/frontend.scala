@@ -11,7 +11,7 @@ class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
 
 class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)  // ID stage PC
-  val data = Vec(Bits(width = coreInstBits), fetchWidth)
+  val data = Vec(fetchWidth, Bits(width = coreInstBits))
   val mask = Bits(width = fetchWidth)
   val xcpt_if = Bool()
 }
