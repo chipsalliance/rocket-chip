@@ -35,7 +35,7 @@ class SmiMem(val dataWidth: Int, val memDepth: Int) extends SmiPeripheral {
   // override
   val addrWidth = log2Up(memDepth)
 
-  val mem = SeqMem(Bits(width = dataWidth), memDepth)
+  val mem = SeqMem(memDepth, Bits(width = dataWidth))
 
   val ren = io.req.fire() && !io.req.bits.rw
   val wen = io.req.fire() && io.req.bits.rw
