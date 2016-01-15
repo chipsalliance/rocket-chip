@@ -1120,8 +1120,8 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
 
   // stash d$ request in stage 1 if nacked (newer request)
   replayq2.io.enq.valid := s2_req_fire && s3_nack
-  replayq2.io.enq.bits.data := io.cache.resp.bits.store_data
   replayq2.io.enq.bits <> io.cache.resp.bits
+  replayq2.io.enq.bits.data := io.cache.resp.bits.store_data
   replayq2.io.deq.ready := Bool(false)
 
   when (s2_nack) {
