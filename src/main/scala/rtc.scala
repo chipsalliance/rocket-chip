@@ -6,10 +6,10 @@ import cde.{Parameters, Field}
 
 case object RTCPeriod extends Field[Int]
 
-class RTC(csr_MTIME: Int)(implicit p: Parameters) extends HtifModule {
+class RTC(csr_MTIME: Int)(implicit p: Parameters) extends HtifModule
+    with HasAddrMapParameters {
   val io = new NastiIO
 
-  val addrMap = new AddrHashMap(p(GlobalAddrMap))
   val addrTable = Vec.tabulate(nCores) { i =>
     UInt(addrMap(s"conf:csr$i").start + csr_MTIME * scrDataBytes)
   }
@@ -60,5 +60,8 @@ class RTC(csr_MTIME: Int)(implicit p: Parameters) extends HtifModule {
   io.r.ready := Bool(false)
 
   assert(!rtc_tick || send_acked.reduce(_ && _),
-    s"Not all clocks were updated for rtc tick")
+    "Not all clocks were updated for rtc tick")
+
+  assert(!io.b.valid || io.b.bits.resp === UInt(0),
+    "RTC received NASTI error response")
 }
