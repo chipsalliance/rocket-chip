@@ -560,10 +560,11 @@ class NastiRecursiveInterconnect(
             err_slave.io <> xbarSlave
           } else {
             val subSlaves = submap.countSlaves
-            val outputs = Vec(io.slaves.drop(slaveInd).take(subSlaves))
+            val outputs = io.slaves.drop(slaveInd).take(subSlaves)
             val ic = Module(new NastiRecursiveInterconnect(1, subSlaves, submap, start))
             ic.io.masters.head <> xbarSlave
-            outputs <> ic.io.slaves
+            for ((o, s) <- outputs zip ic.io.slaves)
+              o <> s
             slaveInd += subSlaves
           }
         case MemChannels(_, nchannels, _) =>
