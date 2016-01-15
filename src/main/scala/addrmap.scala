@@ -30,14 +30,13 @@ trait HasAddrMapParameters {
   val pgLevelBits = p(PgLevelBits)
   val asIdBits = p(ASIdBits)
 
-  val addrMap = new AddrHashMap(p(GlobalAddrMap))
+  val addrMap = new AddrHashMap(p(GlobalAddrMap), p(MMIOBase))
 }
 
 abstract class MemRegion { def size: BigInt }
 
 case class MemSize(size: BigInt, prot: Int) extends MemRegion
 case class MemSubmap(size: BigInt, entries: AddrMap) extends MemRegion
-case class MemChannels(size: BigInt, nchannels: Int, prot: Int) extends MemRegion
 
 object AddrMapConsts {
   val R = 0x1
@@ -68,7 +67,6 @@ class AddrMap(entries: Seq[AddrMapEntry]) extends scala.collection.IndexedSeq[Ad
     this map { entry: AddrMapEntry => entry.region match {
       case MemSize(_, _) => 1
       case MemSubmap(_, submap) => submap.countSlaves
-      case MemChannels(_, nchannels, _) => nchannels
     }} reduceLeft(_ + _)
   }
 }
@@ -77,12 +75,12 @@ object AddrMap {
   def apply(elems: AddrMapEntry*): AddrMap = new AddrMap(elems)
 }
 
-class AddrHashMap(addrmap: AddrMap) {
+class AddrHashMap(addrmap: AddrMap, start: BigInt) {
   val mapping = new HashMap[String, AddrHashMapEntry]
 
-  private def genPairs(am: AddrMap): Seq[(String, AddrHashMapEntry)] = {
+  private def genPairs(am: AddrMap, start: BigInt): Seq[(String, AddrHashMapEntry)] = {
     var ind = 0
-    var base = BigInt(0)
+    var base = start
     var pairs = Seq[(String, AddrHashMapEntry)]()
     am.foreach { case AddrMapEntry(name, startOpt, region) =>
       region match {
@@ -94,24 +92,13 @@ class AddrHashMap(addrmap: AddrMap) {
         }
         case MemSubmap(size, submap) => {
           if (!startOpt.isEmpty) base = startOpt.get
-          val subpairs = genPairs(submap).map {
+          val subpairs = genPairs(submap, base).map {
             case (subname, AddrHashMapEntry(subind, subbase, subsize, prot)) =>
               (name + ":" + subname,
-                AddrHashMapEntry(ind + subind, base + subbase, subsize, prot))
+                AddrHashMapEntry(ind + subind, subbase, subsize, prot))
           }
           pairs = subpairs ++ pairs
           ind += subpairs.size
-          base += size
-        }
-        // every channel gets the same base and size
-        case MemChannels(size, nchannels, prot) => {
-          if (!startOpt.isEmpty) base = startOpt.get
-          val subpairs = (0 until nchannels).map { i =>
-            val chname = name + ":" + i.toString
-            (chname, AddrHashMapEntry(ind + i, base, size, prot))
-          }
-          pairs = subpairs ++ pairs
-          ind += nchannels
           base += size
         }
       }
@@ -119,7 +106,7 @@ class AddrHashMap(addrmap: AddrMap) {
     pairs
   }
 
-  for ((name, ind) <- genPairs(addrmap)) { mapping(name) = ind }
+  for ((name, ind) <- genPairs(addrmap, start)) { mapping(name) = ind }
 
   def nEntries: Int = mapping.size
   def apply(name: String): AddrHashMapEntry = mapping(name)
@@ -133,15 +120,18 @@ class AddrHashMap(addrmap: AddrMap) {
   }
 
   def isValid(addr: UInt): Bool = {
-    sortedEntries().map { case (_, base, size, _) =>
-      addr >= UInt(base) && addr < UInt(base + size)
+    addr < UInt(start) || sortedEntries().map {
+      case (_, base, size, _) =>
+        addr >= UInt(base) && addr < UInt(base + size)
     }.reduceLeft(_ || _)
   }
 
   def getProt(addr: UInt): AddrMapProt = {
-    Mux1H(sortedEntries().map { case (_, base, size, prot) =>
-      (addr >= UInt(base) && addr < UInt(base + size),
-        new AddrMapProt().fromBits(Bits(prot, 3)))
-    })
+    val protBits = Mux(addr < UInt(start),
+      Bits(AddrMapConsts.RWX, 3),
+      Mux1H(sortedEntries().map { case (_, base, size, prot) =>
+        (addr >= UInt(base) && addr < UInt(base + size), Bits(prot, 3))
+      }))
+    new AddrMapProt().fromBits(protBits)
   }
 }
