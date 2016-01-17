@@ -649,7 +649,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
     smallget_roq.io.enq.bits.data := readshift
     smallget_roq.io.enq.bits.tag := iacq.client_xact_id
 
-    io.out.acquire.bits := MuxBundle(iacq, Seq(
+    io.out.acquire.bits := MuxBundle(Wire(io.out.acquire.bits, init=iacq), Seq(
       (sending_put, put_block_acquire),
       (shrink, get_block_acquire),
       (smallput, put_acquire),
@@ -709,7 +709,8 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
 
     io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
     io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)
-    io.in.grant.bits := MuxBundle(ognt, Seq(
+
+    io.in.grant.bits := MuxBundle(Wire(io.in.grant.bits, init=ognt), Seq(
       sending_get -> get_block_grant,
       smallget_grant -> get_grant))
 
