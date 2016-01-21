@@ -143,3 +143,65 @@ class JunctionsCountingArbiter[T <: Data](
     }
   }
 }
+
+class ReorderQueueWrite[T <: Data](dType: T, tagWidth: Int) extends Bundle {
+  val data = dType.cloneType
+  val tag = UInt(width = tagWidth)
+
+  override def cloneType =
+    new ReorderQueueWrite(dType, tagWidth).asInstanceOf[this.type]
+}
+
+class ReorderEnqueueIO[T <: Data](dType: T, tagWidth: Int)
+  extends DecoupledIO(new ReorderQueueWrite(dType, tagWidth))
+
+class ReorderDequeueIO[T <: Data](dType: T, tagWidth: Int) extends Bundle {
+  val valid = Bool(INPUT)
+  val tag = UInt(INPUT, tagWidth)
+  val data = dType.cloneType.asOutput
+  val matches = Bool(OUTPUT)
+
+  override def cloneType =
+    new ReorderDequeueIO(dType, tagWidth).asInstanceOf[this.type]
+}
+
+class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
+    extends Module {
+  val io = new Bundle {
+    val enq = new ReorderEnqueueIO(dType, tagWidth).flip
+    val deq = new ReorderDequeueIO(dType, tagWidth)
+  }
+
+  val roq_data = Reg(Vec(size, dType.cloneType))
+  val roq_tags = Reg(Vec(size, UInt(width = tagWidth)))
+  val roq_free = Reg(init = Vec.fill(size)(Bool(true)))
+
+  val roq_enq_addr = PriorityEncoder(roq_free)
+  val roq_matches = roq_tags.zip(roq_free)
+    .map { case (tag, free) => tag === io.deq.tag && !free }
+  val roq_deq_addr = PriorityEncoder(roq_matches)
+
+  io.enq.ready := roq_free.reduce(_ || _)
+  io.deq.data := roq_data(roq_deq_addr)
+  io.deq.matches := roq_matches.reduce(_ || _)
+
+  when (io.enq.valid && io.enq.ready) {
+    roq_data(roq_enq_addr) := io.enq.bits.data
+    roq_tags(roq_enq_addr) := io.enq.bits.tag
+    roq_free(roq_enq_addr) := Bool(false)
+  }
+
+  when (io.deq.valid) {
+    roq_free(roq_deq_addr) := Bool(true)
+  }
+}
+
+object DecoupledHelper {
+  def apply(rvs: Bool*) = new DecoupledHelper(rvs)
+}
+
+class DecoupledHelper(val rvs: Seq[Bool]) {
+  def fire(exclude: Bool, includes: Bool*) = {
+    (rvs.filter(_ ne exclude) ++ includes).reduce(_ && _)
+  }
+}
