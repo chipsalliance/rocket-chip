@@ -87,3 +87,96 @@ class NastiIOStreamIOConverter(w: Int)(implicit p: Parameters) extends Module {
 
   when (io.nasti.b.fire()) { write_resp := Bool(false) }
 }
+
+class StreamNarrower(win: Int, wout: Int) extends Module {
+  require(win > wout, "Stream narrower input width must be larger than input width")
+  require(win % wout == 0, "Stream narrower input width must be multiple of output width")
+
+  val io = new Bundle {
+    val in = Decoupled(new StreamChannel(win)).flip
+    val out = Decoupled(new StreamChannel(wout))
+  }
+
+  val n_pieces = win / wout
+  val buffer = Reg(Bits(width = win))
+  val (piece_idx, pkt_done) = Counter(io.out.fire(), n_pieces)
+  val pieces = Vec.tabulate(n_pieces) { i => buffer(wout * (i + 1) - 1, wout * i) }
+  val last_piece = (piece_idx === UInt(n_pieces - 1))
+  val sending = Reg(init = Bool(false))
+  val in_last = Reg(Bool())
+
+  when (io.in.fire()) {
+    buffer := io.in.bits.data
+    in_last := io.in.bits.last
+    sending := Bool(true)
+  }
+  when (pkt_done) { sending := Bool(false) }
+
+  io.out.valid := sending
+  io.out.bits.data := pieces(piece_idx)
+  io.out.bits.last := in_last && last_piece
+  io.in.ready := !sending
+}
+
+class StreamExpander(win: Int, wout: Int) extends Module {
+  require(win < wout, "Stream expander input width must be smaller than input width")
+  require(wout % win == 0, "Stream narrower output width must be multiple of input width")
+
+  val io = new Bundle {
+    val in = Decoupled(new StreamChannel(win)).flip
+    val out = Decoupled(new StreamChannel(wout))
+  }
+
+  val n_pieces = wout / win
+  val buffer = Reg(Vec(n_pieces, UInt(width = win)))
+  val last = Reg(Bool())
+  val collecting = Reg(init = Bool(true))
+  val (piece_idx, pkt_done) = Counter(io.in.fire(), n_pieces)
+
+  when (io.in.fire()) { buffer(piece_idx) := io.in.bits.data }
+  when (pkt_done) { last := io.in.bits.last; collecting := Bool(false) }
+  when (io.out.fire()) { collecting := Bool(true) }
+
+  io.in.ready := collecting
+  io.out.valid := !collecting
+  io.out.bits.data := buffer.toBits
+  io.out.bits.last := last
+}
+
+object StreamUtils {
+  def connectStreams(a: StreamIO, b: StreamIO) {
+    a.in <> b.out
+    b.in <> a.out
+  }
+}
+
+trait Serializable {
+  def nbytes: Int
+}
+
+class Serializer[T <: Data with Serializable](typ: T) extends Module {
+  val io = new Bundle {
+    val in = Decoupled(typ).flip
+    val out = Decoupled(new StreamChannel(8))
+  }
+
+  val narrower = Module(new StreamNarrower(typ.nbytes * 8, 8))
+  narrower.io.in.bits.data := io.in.bits.toBits
+  narrower.io.in.bits.last := Bool(true)
+  narrower.io.in.valid := io.in.valid
+  io.in.ready := narrower.io.in.ready
+  io.out <> narrower.io.out
+}
+
+class Deserializer[T <: Data with Serializable](typ: T) extends Module {
+  val io = new Bundle {
+    val in = Decoupled(new StreamChannel(8)).flip
+    val out = Decoupled(typ)
+  }
+
+  val expander = Module(new StreamExpander(8, 8 * typ.nbytes))
+  expander.io.in <> io.in
+  io.out.valid := expander.io.out.valid
+  io.out.bits := typ.cloneType.fromBits(expander.io.out.bits.data)
+  expander.io.out.ready := io.out.ready
+}
