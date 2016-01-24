@@ -153,7 +153,11 @@ class ReorderQueueWrite[T <: Data](dType: T, tagWidth: Int) extends Bundle {
 }
 
 class ReorderEnqueueIO[T <: Data](dType: T, tagWidth: Int)
-  extends DecoupledIO(new ReorderQueueWrite(dType, tagWidth))
+  extends DecoupledIO(new ReorderQueueWrite(dType, tagWidth)) {
+
+  override def cloneType =
+    new ReorderEnqueueIO(dType, tagWidth).asInstanceOf[this.type]
+}
 
 class ReorderDequeueIO[T <: Data](dType: T, tagWidth: Int) extends Bundle {
   val valid = Bool(INPUT)
