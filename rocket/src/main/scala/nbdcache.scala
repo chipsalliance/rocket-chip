@@ -12,7 +12,6 @@ case object WordBits extends Field[Int]
 case object StoreDataQueueDepth extends Field[Int]
 case object ReplayQueueDepth extends Field[Int]
 case object NMSHRs extends Field[Int]
-case object NIOMSHRs extends Field[Int]
 case object LRSCCycles extends Field[Int]
 
 trait HasL1HellaCacheParameters extends HasL1CacheParameters {
@@ -32,7 +31,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters {
   val encRowBits = encDataBits*rowWords
   val sdqDepth = p(StoreDataQueueDepth)
   val nMSHRs = p(NMSHRs)
-  val nIOMSHRs = p(NIOMSHRs)
+  val nIOMSHRs = 1
   val lrscCycles = p(LRSCCycles)
 }
 
