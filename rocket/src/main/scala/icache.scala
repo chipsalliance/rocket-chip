@@ -121,10 +121,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
       else data_array.write(s1_idx, e_d)
     }
     val s0_raddr = s0_pgoff(untagBits-1,blockOffBits-(if(refillCycles > 1) refill_cnt.getWidth else 0))
-    val s1_rdata = data_array.read(s0_raddr, !wen && s0_valid)
-    // if s1_tag_match is critical, replace with partial tag check
-    s1_dout(i) := 0
-    when (s1_valid && rdy && !stall && (Bool(isDM) || s1_tag_match(i))) { s1_dout(i) := s1_rdata }
+    s1_dout(i) := data_array.read(s0_raddr, !wen && s0_valid)
   }
 
   // output signals
