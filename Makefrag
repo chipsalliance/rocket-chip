@@ -42,7 +42,7 @@ $(sim_dir)/libdramsim.a: $(DRAMSIM_OBJS)
 %.hex:
 	$(MAKE) -C $(dir $@) $(notdir $@)
 
-%.riscv.hex: %
+%.riscv.hex: %.riscv
 	$(MAKE) -C $(dir $@) $(notdir $@)
 
 #---------------------------------------------------------------------
