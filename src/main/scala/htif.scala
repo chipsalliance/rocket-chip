@@ -9,20 +9,22 @@ import cde.{Parameters, Field}
 
 case object HtifKey extends Field[HtifParameters]
 
-case class HtifParameters(width: Int, nCores: Int, offsetBits: Int, nSCR: Int = 64)
+case class HtifParameters(width: Int, nCores: Int, offsetBits: Int, csrDataBits: Int, nSCR: Int = 64)
 
 trait HasHtifParameters {
   implicit val p: Parameters
-  val external = p(HtifKey)
+  val htifExternal = p(HtifKey)
   val dataBits = p(TLKey(p(TLId))).dataBitsPerBeat
   val dataBeats = p(TLKey(p(TLId))).dataBeats
-  val w = external.width
-  val nSCR = external.nSCR
+  val w = htifExternal.width
+  val nSCR = htifExternal.nSCR
   val scrAddrBits = log2Up(nSCR)
   val scrDataBits = 64
   val scrDataBytes = scrDataBits / 8
-  val offsetBits = external.offsetBits
-  val nCores = external.nCores
+  val csrDataBits = htifExternal.csrDataBits
+  val csrDataBytes = csrDataBits / 8
+  val offsetBits = htifExternal.offsetBits
+  val nCores = htifExternal.nCores
 }
 
 abstract class HtifModule(implicit val p: Parameters) extends Module with HasHtifParameters
@@ -40,7 +42,7 @@ class HostIO(w: Int) extends Bundle {
 class HtifIO(implicit p: Parameters) extends HtifBundle()(p) {
   val reset = Bool(INPUT)
   val id = UInt(INPUT, log2Up(nCores))
-  val csr = new SmiIO(scrDataBits, 12).flip
+  val csr = new SmiIO(csrDataBits, 12).flip
   val debug_stats_csr = Bool(OUTPUT)
     // wired directly to stats register
     // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work

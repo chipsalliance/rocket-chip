@@ -19,8 +19,6 @@ trait HasDmaParameters {
   val addrBits = p(PAddrBits)
   val dmaStatusBits = 2
   val dmaWordSizeBits = 2
-  val csrDataBits = 64
-  val csrDataBytes = csrDataBits / 8
 }
 
 abstract class DmaModule(implicit val p: Parameters) extends Module with HasDmaParameters
@@ -82,8 +80,12 @@ class DmaTrackerIO(implicit p: Parameters) extends DmaBundle()(p) {
   val mmio = new NastiIO
 }
 
-class DmaManager(outstandingCSR: Int)(implicit p: Parameters) extends DmaModule()(p)
-    with HasNastiParameters with HasAddrMapParameters {
+class DmaManager(outstandingCSR: Int)(implicit p: Parameters)
+    extends DmaModule()(p)
+    with HasNastiParameters
+    with HasAddrMapParameters
+    with HasHtifParameters {
+
   val io = new Bundle {
     val ctrl = (new NastiIO).flip
     val mmio = new NastiIO
