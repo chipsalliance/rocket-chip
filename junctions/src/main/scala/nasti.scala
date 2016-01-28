@@ -12,12 +12,12 @@ case class NastiParameters(dataBits: Int, addrBits: Int, idBits: Int)
 
 trait HasNastiParameters {
   implicit val p: Parameters
-  val external = p(NastiKey)
-  val nastiXDataBits = external.dataBits
+  val nastiExternal = p(NastiKey)
+  val nastiXDataBits = nastiExternal.dataBits
   val nastiWStrobeBits = nastiXDataBits / 8
-  val nastiXAddrBits = external.addrBits
-  val nastiWIdBits = external.idBits
-  val nastiRIdBits = external.idBits
+  val nastiXAddrBits = nastiExternal.addrBits
+  val nastiWIdBits = nastiExternal.idBits
+  val nastiRIdBits = nastiExternal.idBits
   val nastiXIdBits = max(nastiWIdBits, nastiRIdBits)
   val nastiXUserBits = 1
   val nastiAWUserBits = nastiXUserBits
