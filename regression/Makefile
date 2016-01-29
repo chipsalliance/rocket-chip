@@ -1,8 +1,15 @@
-# The default target
-regression: vsim-asm-tests vsim-bmark-tests torture
+# The default target, which runs all regression targets.
+regression: vsim-regression fsim-regression emulator-regression
+
+# Regression targets for the various simulators.
+%-regression: %-asm-tests %-bmark-tests
 
 ifeq ($(CONFIG),)
-$(error Set CONFIG to the configuration to build)
+$(error Set CONFIG to the rocket-chip configuration to elaborate and test)
+endif
+
+ifeq ($(TORTURE_CONFIG),)
+$(error Set TORTURE_CONFIG to the torture configuration to run)
 endif
 
 # The top-level directory that contains rocket-chip
@@ -11,15 +18,38 @@ TOP ?= ..
 # The directory that the tools get built into.
 RISCV ?= install
 
+# Torture saves the failing tests into a directory, which defaults to just somehing inside the regressions directory.
+TORTURE_SAVE_DIR ?= torture-failures
+
+# Removes all the build stamps from the current config
+.PHONY: clean
+clean:
+	rm -rf stamps $(abspath $(RISCV))
+	$(MAKE) -C $(abspath $(TOP)/vsim) clean
+	$(MAKE) -C $(abspath $(TOP)/fsim) clean
+	$(MAKE) -C $(abspath $(TOP)/emulator) clean
+
 # These are the named regression targets.  While it's expected you run them in
 # this order, since there's dependencies for everything it doesn't actually
-# matter.
+# matter.  They're here to make running the various targets from the
+# commandline a bit cleaner.
 submodules: stamps/submodules.stamp
 tools: stamps/tools.stamp
-vsim: stamps/vsim.stamp
-vsim-asm-tests: stamps/vsim-asm-tests.stamp
-vsim-bmark-tests: stamps/vsim-bmark-tests.stamp
-torture: stamps/torture.stamp
+
+emulator-debug: stamps/$(CONFIG)/emulator-debug.stamp
+emulator-ndebug: stamps/$(CONFIG)/emulator-ndebug.stamp
+emulator-asm-tests: stamps/$(CONFIG)/emulator-asm-tests.stamp
+emulator-bmark-tests: stamps/$(CONFIG)/emulator-bmark-tests.stamp
+
+vsim-debug: stamps/$(CONFIG)/vsim-debug.stamp
+vsim-ndebug: stamps/$(CONFIG)/vsim-ndebug.stamp
+vsim-asm-tests: stamps/$(CONFIG)/vsim-asm-tests.stamp
+vsim-bmark-tests: stamps/$(CONFIG)/vsim-bmark-tests.stamp
+
+fsim-debug: stamps/$(CONFIG)/fsim-debug.stamp
+fsim-ndebug: stamps/$(CONFIG)/fsim-ndebug.stamp
+fsim-asm-tests: stamps/$(CONFIG)/fsim-asm-tests.stamp
+fsim-bmark-tests: stamps/$(CONFIG)/fsim-bmark-tests.stamp
 
 # Checks out all the rocket-chip submodules
 stamps/submodules.stamp:
@@ -33,19 +63,24 @@ stamps/tools.stamp: stamps/submodules.stamp
 	+cd $(abspath $(TOP))/riscv-tools; RISCV=$(abspath $(RISCV)) ./build.sh
 	touch $@
 
-# Builds the verilog RTL simulator
-stamps/vsim.stamp: stamps/submodules.stamp
+# Builds the various simulators
+stamps/$(CONFIG)/%-ndebug.stamp: stamps/submodules.stamp stamps/tools.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV))
+	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-ndebug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV))
 	touch $@
 
-# Runs some tests using the verilog RTL simulator
-stamps/vsim-asm-tests.stamp: stamps/vsim.stamp stamps/tools.stamp stamps/submodules.stamp
+stamps/$(CONFIG)/%-debug.stamp: stamps/submodules.stamp stamps/tools.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) run-asm-tests
+	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-debug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) debug
 	touch $@
 
-stamps/vsim-bmark-tests.stamp: stamps/vsim.stamp stamps/tools.stamp stamps/submodules.stamp
+# Runs tests on one of the simulators
+stamps/$(CONFIG)/%-asm-tests.stamp: stamps/$(CONFIG)/%-ndebug.stamp stamps/tools.stamp stamps/submodules.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) run-bmark-tests
+	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-asm-tests.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) run-asm-tests
+	touch $@
+
+stamps/$(CONFIG)/%-bmark-tests.stamp: stamps/$(CONFIG)/%-ndebug.stamp stamps/tools.stamp stamps/submodules.stamp
+	mkdir -p $(dir $@)
+	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-bmark-tests.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) run-bmark-tests
 	touch $@
