@@ -184,6 +184,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val cpuid = ((if (xLen == 32) BigInt(0) else BigInt(2)) << (xLen-2)) |
     isa_string.map(x => 1 << (x - 'A')).reduce(_|_)
   val impid = 1
+  val reg_mtvec = Reg(init = UInt(mtvecInit, xLen))
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
     CSRs.fflags -> (if (usingFPU) reg_fflags else UInt(0)),
@@ -201,7 +202,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mstatus -> read_mstatus,
     CSRs.mtdeleg -> UInt(0),
     CSRs.mreset -> UInt(0),
-    CSRs.mtvec -> UInt(MTVEC),
+    CSRs.mtvec -> reg_mtvec,
     CSRs.miobase -> UInt(p(junctions.MMIOBase)),
     CSRs.mipi -> UInt(0),
     CSRs.mip -> reg_mip.toBits,
@@ -295,7 +296,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   when (some_interrupt_pending) { reg_wfi := false }
 
   io.fatc := insn_sfence_vm
-  io.evec := Mux(io.exception || csr_xcpt, (reg_mstatus.prv << 6) + MTVEC,
+  io.evec := Mux(io.exception || csr_xcpt, (reg_mstatus.prv << 6) + reg_mtvec,
              Mux(maybe_insn_redirect_trap, reg_stvec.sextTo(vaddrBitsExtended),
              Mux(reg_mstatus.prv(1) || Bool(!p(UseVM)), reg_mepc, reg_sepc)))
   io.ptbr := reg_sptbr
@@ -427,6 +428,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     when (decoded_addr(CSRs.mfromhost)){ when (reg_fromhost === UInt(0) || !host_csr_req_fire) { reg_fromhost := wdata } }
     when (decoded_addr(CSRs.mtohost))  { when (reg_tohost === UInt(0) || host_csr_req_fire) { reg_tohost := wdata } }
     when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
+    when (decoded_addr(CSRs.mtvec))    { reg_mtvec := wdata & ~UInt("b11") }
     if (usingVM) {
       when (decoded_addr(CSRs.sstatus)) {
         val new_sstatus = new SStatus().fromBits(wdata)

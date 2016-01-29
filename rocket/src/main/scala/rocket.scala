@@ -22,6 +22,7 @@ case object CoreInstBits extends Field[Int]
 case object CoreDataBits extends Field[Int]
 case object CoreDCacheReqTagBits extends Field[Int]
 case object NCustomMRWCSRs extends Field[Int]
+case object MtvecInit extends Field[BigInt]
 
 trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
@@ -50,6 +51,8 @@ trait HasCoreParameters extends HasAddrMapParameters {
     else p(BuildRoCC).flatMap(_.csrs)
   val nRoccCsrs = p(RoccNCSRs)
   val nCores = p(HtifKey).nCores
+  val mtvecInit = p(MtvecInit)
+  val startAddr = mtvecInit + 0x100
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
