@@ -29,9 +29,9 @@ TORTURE_SAVE_DIR ?= torture-failures
 .PHONY: clean
 clean:
 	rm -rf stamps $(abspath $(RISCV))
-	$(MAKE) -C $(abspath $(TOP)/vsim) clean
-	$(MAKE) -C $(abspath $(TOP)/fsim) clean
-	$(MAKE) -C $(abspath $(TOP)/emulator) clean
+	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/vsim) clean
+	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/fsim) clean
+	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/emulator) clean
 
 # These are the named regression targets.  While it's expected you run them in
 # this order, since there's dependencies for everything it doesn't actually
