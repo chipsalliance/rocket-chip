@@ -73,12 +73,12 @@ stamps/tools.stamp: stamps/submodules.stamp
 # Builds the various simulators
 stamps/$(CONFIG)/%-ndebug.stamp: stamps/submodules.stamp stamps/tools.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-ndebug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV))
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-ndebug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV))
 	touch $@
 
 stamps/$(CONFIG)/%-debug.stamp: stamps/submodules.stamp stamps/tools.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-debug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) debug
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-debug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) debug
 	touch $@
 
 # Runs tests on one of the simulators
