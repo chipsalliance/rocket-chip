@@ -4,6 +4,10 @@ regression: vsim-regression fsim-regression emulator-regression
 # Regression targets for the various simulators.
 %-regression: %-asm-tests %-bmark-tests
 
+# Some targets can run torture
+vsim-regression: vsim-torture
+emulator-regression: emulator-torture
+
 ifeq ($(CONFIG),)
 $(error Set CONFIG to the rocket-chip configuration to elaborate and test)
 endif
@@ -40,16 +44,19 @@ emulator-debug: stamps/$(CONFIG)/emulator-debug.stamp
 emulator-ndebug: stamps/$(CONFIG)/emulator-ndebug.stamp
 emulator-asm-tests: stamps/$(CONFIG)/emulator-asm-tests.stamp
 emulator-bmark-tests: stamps/$(CONFIG)/emulator-bmark-tests.stamp
+emulator-torture: stamps/$(CONFIG)/emulator-torture-$(TORTURE_CONFIG).stamp
 
 vsim-debug: stamps/$(CONFIG)/vsim-debug.stamp
 vsim-ndebug: stamps/$(CONFIG)/vsim-ndebug.stamp
 vsim-asm-tests: stamps/$(CONFIG)/vsim-asm-tests.stamp
 vsim-bmark-tests: stamps/$(CONFIG)/vsim-bmark-tests.stamp
+vsim-torture: stamps/$(CONFIG)/vsim-torture-$(TORTURE_CONFIG).stamp
 
 fsim-debug: stamps/$(CONFIG)/fsim-debug.stamp
 fsim-ndebug: stamps/$(CONFIG)/fsim-ndebug.stamp
 fsim-asm-tests: stamps/$(CONFIG)/fsim-asm-tests.stamp
 fsim-bmark-tests: stamps/$(CONFIG)/fsim-bmark-tests.stamp
+fsim-torture: stamps/$(CONFIG)/fsim-torture-$(TORTURE_CONFIG).stamp
 
 # Checks out all the rocket-chip submodules
 stamps/submodules.stamp:
@@ -83,4 +90,16 @@ stamps/$(CONFIG)/%-asm-tests.stamp: stamps/$(CONFIG)/%-ndebug.stamp stamps/tools
 stamps/$(CONFIG)/%-bmark-tests.stamp: stamps/$(CONFIG)/%-ndebug.stamp stamps/tools.stamp stamps/submodules.stamp
 	mkdir -p $(dir $@)
 	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-bmark-tests.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) run-bmark-tests
+	touch $@
+
+# The torture tests run subtly differently on the different targets, so they
+# don't have pattern rules like everything else does.
+stamps/$(CONFIG)/vsim-torture-$(TORTURE_CONFIG).stamp: stamps/$(CONFIG)/vsim-debug.stamp stamps/$(CONFIG)/vsim-ndebug.stamp
+	mkdir -p $(dir $@)
+	$(MAKE) -C $(abspath $(TOP))/torture rnight RTL_CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) PATH="$(abspath $(RISCV)/bin:$(PATH))" OPTIONS="-C $(abspath $(TOP)/torture/config/$(TORTURE_CONFIG).config) -p $(abspath $(TORTURE_SAVE_DIR)) -m 30 -t 10"
+	touch $@
+
+stamps/$(CONFIG)/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/$(CONFIG)/emulator-debug.stamp stamps/$(CONFIG)/emulator-ndebug.stamp
+	mkdir -p $(dir $@)
+	$(MAKE) -C $(abspath $(TOP))/torture cnight RTL_CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) PATH="$(abspath $(RISCV)/bin:$(PATH))" OPTIONS="-C $(abspath $(TOP)/torture/config/$(TORTURE_CONFIG).config) -p $(abspath $(TORTURE_SAVE_DIR)) -m 30 -t 10"
 	touch $@
