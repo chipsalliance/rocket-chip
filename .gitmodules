@@ -31,3 +31,6 @@
 [submodule "groundtest"]
 	path = groundtest
 	url = https://github.com/ucb-bar/groundtest.git
+[submodule "torture"]
+	path = torture
+	url = https://github.com/ucb-bar/riscv-torture.git
