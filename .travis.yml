@@ -30,6 +30,7 @@ env:
   matrix:
     - VCONFIG=DefaultVLSIConfig FCONFIG=DefaultFPGAConfig ECONFIG=DefaultCPPConfig
     - VCONFIG=RoccExampleConfig FCONFIG=RoccExampleConfig ECONFIG=RoccExampleConfig
+    - VCONFIG=DmaControllerConfig FCONFIG=DmaControllerFPGAConfig ECONFIG=DmaControllerConfig
 
 # blacklist private branches
 branches:
