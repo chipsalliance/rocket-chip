@@ -53,7 +53,7 @@ object ClientDmaRequest {
 
 object ClientDmaResponse {
   val pagefault = UInt("b01")
-  val outer_err = UInt("b10")
+  val invalid_region = UInt("b10")
 
   def apply(status: UInt = UInt(0))(implicit p: Parameters) = {
     val resp = Wire(new ClientDmaResponse)
@@ -164,6 +164,12 @@ class DmaFrontend(implicit p: Parameters) extends CoreModule()(p)
       alloc = Bool(false))
   }
 
+  def check_region(cmd: UInt, src: UInt, dst: UInt): Bool = {
+    val dst_ok = Mux(cmd === DMA_CMD_SOUT, dst >= UInt(mmioBase), dst < UInt(mmioBase))
+    val src_ok = Mux(cmd === DMA_CMD_SIN,  src >= UInt(mmioBase), Bool(true))
+    dst_ok && src_ok
+  }
+
   tlb.io.req.valid := tlb_to_send.orR
   tlb.io.req.bits.vpn := Mux(tlb_to_send(0), src_vpn, dst_vpn)
   tlb.io.req.bits.passthrough := Bool(false)
@@ -227,7 +233,12 @@ class DmaFrontend(implicit p: Parameters) extends CoreModule()(p)
   }
 
   when (state === s_translate && !to_translate.orR) {
-    state := s_dma_req
+    when (check_region(cmd, src_paddr, dst_paddr)) {
+      state := s_dma_req
+    } .otherwise {
+      resp_status := ClientDmaResponse.invalid_region
+      state := s_finish
+    }
   }
 
   def setBusy(set: Bool, xact_id: UInt): UInt =
