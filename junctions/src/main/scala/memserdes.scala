@@ -57,7 +57,7 @@ class MemPipeIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
 class MemSerializedIO(w: Int)(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val req = Decoupled(Bits(width = w))
   val resp = Valid(Bits(width = w)).flip
-  //override def cloneType = new MemSerializedIO(w)(p).asInstanceOf[this.type]
+  override def cloneType = new MemSerializedIO(w)(p).asInstanceOf[this.type]
 }
 
 class MemSerdes(w: Int)(implicit p: Parameters) extends MIFModule
