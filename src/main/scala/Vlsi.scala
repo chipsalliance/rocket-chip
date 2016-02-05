@@ -11,7 +11,7 @@ class MemDessert(topParams: Parameters) extends Module {
   implicit val p = topParams
   val io = new MemDesserIO(p(HtifKey).width)
   val x = Module(new MemDesser(p(HtifKey).width))
-  io.narrow <> x.io.narrow
+  x.io.narrow <> io.narrow
   io.wide <> x.io.wide
 }
 
