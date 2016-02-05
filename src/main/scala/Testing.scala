@@ -136,8 +136,8 @@ object TestGenerator extends App with FileSystemUtilities {
       Class.forName(s"$projectName.$configClassName").newInstance.asInstanceOf[Config]
     } catch {
       case e: java.lang.ClassNotFoundException =>
-        throwException(s"Could not find the cde.Config subclass you asked for " +
-                        "(i.e. \"$configClassName\"), did you misspell it?", e)
+        throwException("Unable to find configClassName \"" + configClassName +
+                       "\", did you misspell it?", e)
     }
   val world = config.toInstance
   val paramsFromConfig: Parameters = Parameters.root(world)
