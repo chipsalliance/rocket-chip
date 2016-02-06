@@ -8,7 +8,17 @@ object bigIntPow2 {
 }
 
 class ParameterizedBundle(implicit p: Parameters) extends Bundle {
-  override def cloneType = this.getClass.getConstructors.head.newInstance(p).asInstanceOf[this.type]
+  override def cloneType = {
+    try {
+      this.getClass.getConstructors.head.newInstance(p).asInstanceOf[this.type]
+    } catch {
+      case e: java.lang.IllegalArgumentException =>
+        throwException("Unable to use ParamaterizedBundle.cloneType on " +
+                       this.getClass + ", probably because " + this.getClass +
+                       "() takes more than one argument.  Consider overriding " +
+                       "cloneType() on " + this.getClass, e)
+    }
+  }
 }
 
 class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
