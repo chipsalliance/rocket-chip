@@ -633,7 +633,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
 
     val divSqrt_toSingle = Module(new hardfloat.RecFNToRecFN(11, 53, 8, 24))
     divSqrt_toSingle.io.in := divSqrt_wdata_double
-    divSqrt_toSingle.io.roundingMode := ex_rm
+    divSqrt_toSingle.io.roundingMode := divSqrt_rm
     divSqrt_wdata := Mux(divSqrt_single, divSqrt_toSingle.io.out, divSqrt_wdata_double)
     divSqrt_flags := divSqrt_flags_double | Mux(divSqrt_single, divSqrt_toSingle.io.exceptionFlags, Bits(0))
   }
