@@ -258,8 +258,8 @@ class BTB(implicit p: Parameters) extends BtbModule {
     io.resp.bits.mask := UInt(1)
   } else {
     // note: btb_resp is clock gated, so the mask is only relevant for the io.resp.valid case
-    io.resp.bits.mask := Mux(io.resp.bits.taken, Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)),
-                                                 SInt(-1))
+    io.resp.bits.mask := Mux(io.resp.bits.taken, Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)).toSInt,
+                                                 SInt(-1)).toUInt
   }
 
   if (nBHT > 0) {
