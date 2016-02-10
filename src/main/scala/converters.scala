@@ -393,6 +393,7 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     MT_H  -> UInt(1),
     MT_HU -> UInt(1),
     MT_W  -> UInt(2),
+    MT_WU -> UInt(2),
     MT_D  -> UInt(3),
     MT_Q  -> UInt(log2Up(tlDataBytes))))
 
