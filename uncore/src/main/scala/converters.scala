@@ -515,6 +515,332 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   assert(!io.nasti.b.valid || io.nasti.b.bits.resp === UInt(0), "NASTI write error")
 }
 
+class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
+    with HasNastiParameters {
+  val io = new Bundle {
+    val nasti = (new NastiIO).flip
+    val tl = new ClientUncachedTileLinkIO
+  }
+
+  val (s_idle :: s_put :: Nil) = Enum(Bits(), 2)
+  val state = Reg(init = s_idle)
+
+  private val blockOffset = tlByteAddrBits + tlBeatAddrBits
+
+  val aw_req = Reg(new NastiWriteAddressChannel)
+
+  def is_singlebeat(chan: NastiAddressChannel): Bool =
+    chan.len === UInt(0)
+
+  def is_multibeat(chan: NastiAddressChannel): Bool =
+    chan.len === UInt(tlDataBeats - 1) && chan.size === UInt(log2Up(tlDataBytes))
+
+  def nasti_addr_block(chan: NastiAddressChannel): UInt =
+    chan.addr(nastiXAddrBits - 1, blockOffset)
+
+  def nasti_addr_beat(chan: NastiAddressChannel): UInt =
+    chan.addr(blockOffset - 1, tlByteAddrBits)
+
+  def nasti_addr_byte(chan: NastiAddressChannel): UInt =
+    chan.addr(tlByteAddrBits - 1, 0)
+
+  def nasti_operand_size(chan: NastiAddressChannel): UInt =
+    MuxLookup(chan.size, MT_Q, Seq(
+      UInt(0) -> MT_BU,
+      UInt(1) -> MT_HU,
+      UInt(2) -> MT_WU,
+      UInt(3) -> MT_D))
+
+  def size_mask(size: UInt): UInt =
+    (UInt(1) << (UInt(1) << size)) - UInt(1)
+
+  def nasti_wmask(aw: NastiWriteAddressChannel, w: NastiWriteDataChannel): UInt = {
+    val base = w.strb & size_mask(aw.size)
+    val addr_byte = nasti_addr_byte(aw)
+    base << addr_byte
+  }
+
+  def nasti_wdata(aw: NastiWriteAddressChannel, w: NastiWriteDataChannel): UInt = {
+    val base = w.data & FillInterleaved(8, size_mask(aw.size))
+    val addr_byte = nasti_addr_byte(aw)
+    base << Cat(addr_byte, UInt(0, 3))
+  }
+
+  def tl_last(gnt: GrantMetadata): Bool =
+    !gnt.hasMultibeatData() || gnt.addr_beat === UInt(tlDataBeats - 1)
+
+  def tl_b_grant(gnt: GrantMetadata): Bool =
+    gnt.g_type === Grant.putAckType
+
+  assert(!io.nasti.ar.valid ||
+    is_singlebeat(io.nasti.ar.bits) || is_multibeat(io.nasti.ar.bits),
+    "NASTI read transaction cannot convert to TileLInk")
+
+  assert(!io.nasti.aw.valid ||
+    is_singlebeat(io.nasti.aw.bits) || is_multibeat(io.nasti.aw.bits),
+    "NASTI write transaction cannot convert to TileLInk")
+
+  val put_count = Reg(init = UInt(0, tlBeatAddrBits))
+
+  when (io.nasti.aw.fire()) {
+    aw_req := io.nasti.aw.bits
+    state := s_put
+  }
+
+  when (io.nasti.w.fire()) {
+    put_count := put_count + UInt(1)
+    when (io.nasti.w.bits.last) {
+      put_count := UInt(0)
+      state := s_idle
+    }
+  }
+
+  val get_acquire = Mux(is_multibeat(io.nasti.ar.bits),
+    GetBlock(
+      client_xact_id = io.nasti.ar.bits.id,
+      addr_block = nasti_addr_block(io.nasti.ar.bits)),
+    Get(
+      client_xact_id = io.nasti.ar.bits.id,
+      addr_block = nasti_addr_block(io.nasti.ar.bits),
+      addr_beat = nasti_addr_beat(io.nasti.ar.bits),
+      addr_byte = nasti_addr_byte(io.nasti.ar.bits),
+      operand_size = nasti_operand_size(io.nasti.ar.bits),
+      alloc = Bool(false)))
+
+  val put_acquire = Mux(is_multibeat(aw_req),
+    PutBlock(
+      client_xact_id = aw_req.id,
+      addr_block = nasti_addr_block(aw_req),
+      addr_beat = put_count,
+      data = io.nasti.w.bits.data,
+      wmask = io.nasti.w.bits.strb),
+    Put(
+      client_xact_id = aw_req.id,
+      addr_block = nasti_addr_block(aw_req),
+      addr_beat = nasti_addr_beat(aw_req),
+      data = nasti_wdata(aw_req, io.nasti.w.bits),
+      wmask = nasti_wmask(aw_req, io.nasti.w.bits)))
+
+  io.tl.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
+  io.tl.acquire.valid := (state === s_idle && io.nasti.ar.valid) ||
+                         (state === s_put && io.nasti.w.valid)
+  io.nasti.ar.ready := (state === s_idle && io.tl.acquire.ready)
+  io.nasti.aw.ready := (state === s_idle && !io.nasti.ar.valid)
+  io.nasti.w.ready  := (state === s_put && io.tl.acquire.ready)
+
+  val acq = io.tl.acquire.bits
+  val nXacts = tlMaxClientXacts * tlMaxClientsPerPort
+  val get_align = Reg(Vec(nXacts, UInt(width = tlByteAddrBits)))
+  val is_narrow_get = acq.a_type === Acquire.getType
+
+  when (io.tl.acquire.fire() && is_narrow_get) {
+    get_align(acq.client_xact_id) := acq.addr_byte()
+  }
+
+  def tl_data(gnt: Grant): UInt =
+    Mux(gnt.g_type === Grant.getDataBeatType,
+      gnt.data >> Cat(get_align(gnt.client_xact_id), UInt(0, 3)),
+      gnt.data)
+
+  io.nasti.b.valid := io.tl.grant.valid && tl_b_grant(io.tl.grant.bits)
+  io.nasti.b.bits := NastiWriteResponseChannel(
+    id = io.tl.grant.bits.client_xact_id)
+
+  io.nasti.r.valid := io.tl.grant.valid && !tl_b_grant(io.tl.grant.bits)
+  io.nasti.r.bits := NastiReadDataChannel(
+    id = io.tl.grant.bits.client_xact_id,
+    data = tl_data(io.tl.grant.bits),
+    last = tl_last(io.tl.grant.bits))
+
+  io.tl.grant.ready := Mux(tl_b_grant(io.tl.grant.bits),
+    io.nasti.b.ready, io.nasti.r.ready)
+}
+
+class TileLinkIOWidener(innerTLId: String, outerTLId: String)
+    (implicit p: Parameters) extends TLModule()(p) {
+
+  val paddrBits = p(PAddrBits)
+  val innerParams = p(TLKey(innerTLId))
+  val outerParams = p(TLKey(outerTLId)) 
+  val innerDataBeats = innerParams.dataBeats
+  val innerDataBits = innerParams.dataBitsPerBeat
+  val innerWriteMaskBits = innerParams.writeMaskBits
+  val innerByteAddrBits = log2Up(innerWriteMaskBits)
+  val innerMaxXacts = innerParams.maxClientXacts * innerParams.maxClientsPerPort
+  val innerXactIdBits = log2Up(innerMaxXacts)
+  val outerDataBeats = outerParams.dataBeats
+  val outerDataBits = outerParams.dataBitsPerBeat
+  val outerWriteMaskBits = outerParams.writeMaskBits
+  val outerByteAddrBits = log2Up(outerWriteMaskBits)
+  val outerBeatAddrBits = log2Up(outerDataBeats)
+  val outerBlockOffset = outerBeatAddrBits + outerByteAddrBits
+  val outerMaxClients = outerParams.maxClientsPerPort
+  val outerClientIdBits = log2Up(outerParams.maxClientXacts * outerMaxClients)
+  val outerManagerIdBits = log2Up(outerParams.maxManagerXacts)
+  val outerBlockAddrBits = paddrBits - outerBlockOffset
+
+  require(outerDataBeats <= innerDataBeats)
+  require(outerDataBits >= innerDataBits)
+  require(outerDataBits % innerDataBits == 0)
+  require(outerDataBits * outerDataBeats == innerDataBits * innerDataBeats)
+
+  val factor = innerDataBeats / outerDataBeats
+
+  val io = new Bundle {
+    val in = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => innerTLId})).flip
+    val out = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => outerTLId}))
+  }
+
+  val iacq = io.in.acquire.bits
+  val ognt = io.out.grant.bits
+  val ignt = io.in.grant.bits
+
+  val shrink = iacq.a_type === Acquire.putBlockType
+  val stretch = ognt.g_type === Grant.getDataBlockType
+  val smallget = iacq.a_type === Acquire.getType
+  val smallput = iacq.a_type === Acquire.putType
+  val smallgnt = ognt.g_type === Grant.getDataBeatType
+
+  val sending_put = Reg(init = Bool(false))
+  val collecting = Reg(init = Bool(false))
+  val put_block = Reg(UInt(width = outerBlockAddrBits))
+  val put_id = Reg(UInt(width = outerClientIdBits))
+  val put_data = Reg(Vec(factor, UInt(width = innerDataBits)))
+  val put_wmask = Reg(Vec(factor, UInt(width = innerWriteMaskBits)))
+  val put_allocate = Reg(Bool())
+  val (put_beat, put_done) = Counter(io.out.acquire.fire() && iacq.hasMultibeatData(), outerDataBeats)
+  val (recv_idx, recv_done) = Counter(io.in.acquire.fire() && iacq.hasMultibeatData(), factor)
+
+  val in_addr = iacq.full_addr()
+  val out_addr_block = in_addr(paddrBits - 1, outerBlockOffset)
+  val out_addr_beat  = in_addr(outerBlockOffset - 1, outerByteAddrBits)
+  val out_addr_byte  = in_addr(outerByteAddrBits - 1, 0)
+
+  val switch_addr = in_addr(outerByteAddrBits - 1, innerByteAddrBits)
+  val smallget_switch = Reg(Vec(innerMaxXacts, switch_addr))
+
+  def align_data(addr: UInt, data: UInt): UInt =
+    data << Cat(addr, UInt(0, log2Up(innerDataBits)))
+
+  def align_wmask(addr: UInt, wmask: UInt): UInt =
+    wmask << Cat(addr, UInt(0, log2Up(innerWriteMaskBits)))
+
+  val get_acquire = Get(
+    client_xact_id = iacq.client_xact_id,
+    addr_block = out_addr_block,
+    addr_beat = out_addr_beat,
+    addr_byte = out_addr_byte,
+    operand_size = iacq.op_size(),
+    alloc = iacq.allocate())
+
+  val get_block_acquire = GetBlock(
+    client_xact_id = iacq.client_xact_id,
+    addr_block = out_addr_block,
+    alloc = iacq.allocate())
+
+  val put_acquire = Put(
+    client_xact_id = iacq.client_xact_id,
+    addr_block = out_addr_block,
+    addr_beat = out_addr_beat,
+    data = align_data(switch_addr, iacq.data),
+    wmask = align_wmask(switch_addr, iacq.wmask()),
+    alloc = iacq.allocate())
+
+  val put_block_acquire = PutBlock(
+    client_xact_id = put_id,
+    addr_block = put_block,
+    addr_beat = put_beat,
+    data = put_data.toBits,
+    wmask = put_wmask.toBits)
+
+  io.out.acquire.valid := sending_put || (!shrink && io.in.acquire.valid)
+  io.out.acquire.bits := MuxBundle(get_block_acquire, Seq(
+    sending_put -> put_block_acquire,
+    smallget -> get_acquire,
+    smallput -> put_acquire))
+  io.in.acquire.ready := !sending_put && (shrink || io.out.acquire.ready)
+
+  when (io.in.acquire.fire() && shrink) {
+    when (!collecting) {
+      put_block := out_addr_block
+      put_id := iacq.client_xact_id
+      put_allocate := iacq.allocate()
+      collecting := Bool(true)
+    }
+    put_data(recv_idx) := iacq.data
+    put_wmask(recv_idx) := iacq.wmask()
+  }
+
+  when (io.in.acquire.fire() && smallget) {
+    smallget_switch(iacq.client_xact_id) := switch_addr
+  }
+
+  when (recv_done) { sending_put := Bool(true) }
+  when (sending_put && io.out.acquire.ready) { sending_put := Bool(false) }
+  when (put_done) { collecting := Bool(false) }
+
+  val returning_data = Reg(init = Bool(false))
+  val (send_idx, send_done) = Counter(
+    io.in.grant.ready && returning_data, factor)
+
+  val gnt_beat = Reg(UInt(width = outerBeatAddrBits))
+  val gnt_client_id = Reg(UInt(width = outerClientIdBits))
+  val gnt_manager_id = Reg(UInt(width = outerManagerIdBits))
+  val gnt_data = Reg(UInt(width = outerDataBits))
+  val gnt_data_vec = Vec.tabulate(factor) { i =>
+    gnt_data(innerDataBits * (i + 1) - 1, innerDataBits * i)
+  }
+
+  when (io.out.grant.fire() && stretch) {
+    gnt_data := ognt.data
+    gnt_client_id := ognt.client_xact_id
+    gnt_manager_id := ognt.manager_xact_id
+    gnt_beat := ognt.addr_beat
+    returning_data := Bool(true)
+  }
+
+  when (send_done) { returning_data := Bool(false) }
+
+  def select_data(data: UInt, sel: UInt): UInt = {
+    val data_vec = Vec.tabulate(factor) { i =>
+      data(innerDataBits * (i + 1) - 1, innerDataBits * i)
+    }
+    data_vec(sel)
+  }
+
+  val gnt_switch = smallget_switch(ognt.client_xact_id)
+
+  val get_block_grant = Grant(
+    is_builtin_type = Bool(true),
+    g_type = Grant.getDataBlockType,
+    client_xact_id = gnt_client_id,
+    manager_xact_id = gnt_manager_id,
+    addr_beat = Cat(gnt_beat, send_idx),
+    data = gnt_data_vec(send_idx))
+
+  val get_grant = Grant(
+    is_builtin_type = Bool(true),
+    g_type = Grant.getDataBeatType,
+    client_xact_id = ognt.client_xact_id,
+    manager_xact_id = ognt.manager_xact_id,
+    addr_beat = Cat(ognt.addr_beat, gnt_switch),
+    data = select_data(ognt.data, gnt_switch))
+
+  val default_grant = Grant(
+    is_builtin_type = Bool(true),
+    g_type = ognt.g_type,
+    client_xact_id = ognt.client_xact_id,
+    manager_xact_id = ognt.manager_xact_id,
+    addr_beat = ognt.addr_beat,
+    data = ognt.data)
+
+  io.in.grant.valid := returning_data || (!stretch && io.out.grant.valid)
+  io.in.grant.bits := MuxBundle(default_grant, Seq(
+    returning_data -> get_block_grant,
+    smallgnt -> get_grant))
+  io.out.grant.ready := !returning_data && (stretch || io.in.grant.ready)
+}
+
 class TileLinkIONarrower(innerTLId: String, outerTLId: String)
     (implicit p: Parameters) extends TLModule()(p) {
 
@@ -594,6 +920,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
       MT_H  -> Bool(outerDataBits >= 16),
       MT_HU -> Bool(outerDataBits >= 16),
       MT_W  -> Bool(outerDataBits >= 32),
+      MT_WU -> Bool(outerDataBits >= 32),
       MT_D  -> Bool(outerDataBits >= 64),
       MT_Q  -> Bool(false)))
 
