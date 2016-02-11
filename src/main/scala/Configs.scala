@@ -221,15 +221,14 @@ class DefaultConfig extends Config (
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case UseBackupMemoryPort => true
-      case MMIOBase => Dump("MEM_SIZE", BigInt(1 << 30)) // 1 GB
-      case ExternalIOStart => 2 * site(MMIOBase)
+      case MMIOBase => Dump("MEM_SIZE", BigInt(1L << 30)) // 1 GB
       case DeviceTree => makeDeviceTree()
       case GlobalAddrMap => {
-        val extraSize = site(ExternalIOStart) - site(MMIOBase)
         AddrMap(
-          AddrMapEntry("conf", None, MemSubmap(extraSize / 2, genCsrAddrMap)),
-          AddrMapEntry("devices", None, MemSubmap(extraSize / 2, site(GlobalDeviceSet).getAddrMap)),
-          AddrMapEntry("io", Some(site(ExternalIOStart)), MemSize(2 * site(MMIOBase), AddrMapConsts.RW)))
+          AddrMapEntry("conf", None,
+            MemSubmap(BigInt(1L << 30), genCsrAddrMap)),
+          AddrMapEntry("devices", None,
+            MemSubmap(BigInt(1L << 31), site(GlobalDeviceSet).getAddrMap)))
       }
       case GlobalDeviceSet => {
         val devset = new DeviceSet

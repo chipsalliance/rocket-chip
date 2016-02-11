@@ -27,8 +27,6 @@ case object UseBackupMemoryPort extends Field[Boolean]
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
 case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
-/** Start address of the "io" region in the memory map */
-case object ExternalIOStart extends Field[BigInt]
 /** Enable DMA engine */
 case object UseDma extends Field[Boolean]
 
@@ -124,10 +122,6 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
     outer.ar.bits.cache := UInt("b0011")
     outer.aw.bits.cache := UInt("b0011")
   }
-
-  // tie off the mmio port
-  val errslave = Module(new NastiErrorSlave)
-  errslave.io <> uncore.io.mmio
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -179,7 +173,6 @@ class Uncore(implicit val p: Parameters) extends Module
   // Wire the htif to the memory port(s) and host interface
   io.host.debug_stats_csr := htif.io.host.debug_stats_csr
   io.mem <> outmemsys.io.mem
-  io.mmio <> outmemsys.io.mmio
   if(p(UseBackupMemoryPort)) {
     outmemsys.io.mem_backup_en := io.mem_backup_ctrl.en
     VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr,
@@ -204,7 +197,6 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val mem_backup_en = Bool(INPUT)
     val csr = Vec(nTiles, new SmiIO(xLen, csrAddrBits))
     val scr = new SmiIO(xLen, scrAddrBits)
-    val mmio = new NastiIO
     val deviceTree = new NastiIO
   }
 
@@ -307,7 +299,6 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     lo_conv.io.stream.in <> Queue(lo_conv.io.stream.out, lo_size)
   }
 
-  io.mmio <> mmio_ic.io.slaves(addrHashMap("io").port)
   io.deviceTree <> mmio_ic.io.slaves(addrHashMap("conf:devicetree").port)
 
   val mem_channels = mem_ic.io.slaves
