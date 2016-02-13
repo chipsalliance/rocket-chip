@@ -53,7 +53,6 @@ trait HasTopLevelParameters {
   lazy val mifDataBeats = p(MIFDataBeats)
   lazy val xLen = p(XLen)
   lazy val nSCR =  p(HtifKey).nSCR
-  lazy val nUncoreSCR = p(HtifKey).nUncoreSCR
   lazy val scrAddrBits = log2Up(nSCR)
   lazy val scrDataBits = 64
   lazy val scrDataBytes = scrDataBits / 8

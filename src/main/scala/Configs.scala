@@ -75,11 +75,9 @@ class DefaultConfig extends Config (
       case HtifKey => HtifParameters(
                        width = Dump("HTIF_WIDTH", 16),
                        nSCR = 64,
-                       nUncoreSCR = 64,
                        csrDataBits = site(XLen),
                        offsetBits = site(CacheBlockOffsetBits),
                        nCores = site(NTiles))
-      case GlobalScrMap => new ScrMap
       //Memory Parameters
       case PAddrBits => 32
       case PgIdxBits => 12
