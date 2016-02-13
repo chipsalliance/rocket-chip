@@ -79,7 +79,7 @@ class DefaultConfig extends Config (
                        csrDataBits = site(XLen),
                        offsetBits = site(CacheBlockOffsetBits),
                        nCores = site(NTiles))
-      case GlobalScrMap => ScrMap.global
+      case GlobalScrMap => new ScrMap
       //Memory Parameters
       case PAddrBits => 32
       case PgIdxBits => 12
