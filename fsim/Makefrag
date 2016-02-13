@@ -15,7 +15,7 @@ sim_vsrcs = \
 # C sources
 
 sim_csrcs = \
-	$(base_dir)/csrc/vcs_main.cc \
+	$(base_dir)/csrc/vcs_main.$(TB).cc \
 	$(base_dir)/csrc/mm.cc \
 	$(base_dir)/csrc/mm_dramsim2.cc \
 
@@ -40,9 +40,11 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	-CC "-I$(realpath $(base_dir))/dramsim2" \
 	-CC "-std=c++11" \
 	-CC "-Wl,-rpath,$(RISCV)/lib" \
+	-CC "-include $(consts_header)" \
 	-e vcs_main \
 	$(RISCV)/lib/libfesvr.so \
 	$(sim_dir)/libdramsim.a \
+	+incdir+$(generated_dir) \
 	+define+FPGA \
 	+define+CLOCK_PERIOD=0.5 $(sim_vsrcs) $(sim_csrcs) \
 	+define+PRINTF_COND=$(TB).verbose \
@@ -52,15 +54,17 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 # Build the simulator
 #--------------------------------------------------------------------
 
-simv = $(sim_dir)/simv-$(CONFIG)
-$(simv) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a
+simv = $(sim_dir)/simv-$(MODEL)-$(CONFIG)
+$(simv) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_header)
 	cd $(sim_dir) && \
+	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv) \
 	-debug_pp \
 
-simv_debug = $(sim_dir)/simv-$(CONFIG)-debug
-$(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a
+simv_debug = $(sim_dir)/simv-$(MODEL)-$(CONFIG)-debug
+$(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_header)
 	cd $(sim_dir) && \
+	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv_debug) \
 	+define+DEBUG -debug_pp \
 

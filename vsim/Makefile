@@ -21,7 +21,9 @@ TB ?= rocketTestHarness
 
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag
+ifneq ($(MAKECMDGOALS),clean)
 -include $(generated_dir)/$(MODEL).$(CONFIG).d
+endif
 include $(base_dir)/vsim/Makefrag-verilog
 
 all: $(simv)

@@ -4,6 +4,7 @@ package rocketchip
 
 import Chisel._
 import uncore._
+import cde.Parameters
 
 /** RocketChipNetworks combine a TileLink protocol with a particular physical
   * network implementation and chip layout.
@@ -26,34 +27,35 @@ import uncore._
   *        each channel on the manager side of the network
   */
 abstract class RocketChipNetwork(
-    addrToManagerId: UInt => UInt,
-    sharerToClientId: UInt => UInt,
-    clientDepths: TileLinkDepths, 
-    managerDepths: TileLinkDepths) extends TLModule {
-  val nClients = params(TLNClients)
-  val nManagers = params(TLNManagers)
+      addrToManagerId: UInt => UInt,
+      sharerToClientId: UInt => UInt,
+      clientDepths: TileLinkDepths, 
+      managerDepths: TileLinkDepths)
+    (implicit p: Parameters) extends TLModule()(p) {
+  val nClients = tlNClients
+  val nManagers = tlNManagers
   val io = new Bundle {
-    val clients = Vec.fill(nClients){new ClientTileLinkIO}.flip
-    val managers = Vec.fill(nManagers){new ManagerTileLinkIO}.flip
+    val clients = Vec(nClients, new ClientTileLinkIO).flip
+    val managers = Vec(nManagers, new ManagerTileLinkIO).flip
   }
 
   val clients = io.clients.zipWithIndex.map { 
     case (c, i) => {
-      val p = Module(new ClientTileLinkNetworkPort(i, addrToManagerId))
-      val q = Module(new TileLinkEnqueuer(clientDepths))
-      p.io.client <> c
-      q.io.client <> p.io.network
-      q.io.manager 
+      val port = Module(new ClientTileLinkNetworkPort(i, addrToManagerId))
+      val qs = Module(new TileLinkEnqueuer(clientDepths))
+      port.io.client <> c
+      qs.io.client <> port.io.network
+      qs.io.manager 
     }
   }
 
   val managers = io.managers.zipWithIndex.map {
     case (m, i) => {
-      val p = Module(new ManagerTileLinkNetworkPort(i, sharerToClientId))
-      val q = Module(new TileLinkEnqueuer(managerDepths))
-      p.io.manager <> m
-      p.io.network <> q.io.manager
-      q.io.client
+      val port = Module(new ManagerTileLinkNetworkPort(i, sharerToClientId))
+      val qs = Module(new TileLinkEnqueuer(managerDepths))
+      port.io.manager <> m
+      port.io.network <> qs.io.manager
+      qs.io.client
     }
   }
 }
@@ -61,10 +63,11 @@ abstract class RocketChipNetwork(
 /** A simple arbiter for each channel that also deals with header-based routing.
   * Assumes a single manager agent. */
 class RocketChipTileLinkArbiter(
-    sharerToClientId: UInt => UInt = (u: UInt) => u,
-    clientDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0), 
-    managerDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0))
-      extends RocketChipNetwork(u => UInt(0), sharerToClientId, clientDepths, managerDepths)
+      sharerToClientId: UInt => UInt = (u: UInt) => u,
+      clientDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0), 
+      managerDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0))
+    (implicit p: Parameters)
+      extends RocketChipNetwork(u => UInt(0), sharerToClientId, clientDepths, managerDepths)(p)
         with TileLinkArbiterLike
         with PassesId {
   val arbN = nClients
@@ -86,13 +89,14 @@ class RocketChipTileLinkArbiter(
   * port id are done automatically.
   */
 class RocketChipTileLinkCrossbar(
-    addrToManagerId: UInt => UInt = u => UInt(0),
-    sharerToClientId: UInt => UInt = u => u,
-    clientDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0), 
-    managerDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0))
-      extends RocketChipNetwork(addrToManagerId, sharerToClientId, clientDepths, managerDepths) {
-  val n = params(LNEndpoints)
-  val count = params(TLDataBeats)
+      addrToManagerId: UInt => UInt = u => UInt(0),
+      sharerToClientId: UInt => UInt = u => u,
+      clientDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0), 
+      managerDepths: TileLinkDepths = TileLinkDepths(0,0,0,0,0))
+    (implicit p: Parameters)
+      extends RocketChipNetwork(addrToManagerId, sharerToClientId, clientDepths, managerDepths)(p) {
+  val n = p(LNEndpoints)
+  val count = tlDataBeats
   // Actually instantiate the particular networks required for TileLink
   val acqNet = Module(new BasicCrossbar(n, new Acquire, count, Some((a: PhysicalNetworkIO[Acquire]) => a.payload.hasMultibeatData())))
   val relNet = Module(new BasicCrossbar(n, new Release, count, Some((r: PhysicalNetworkIO[Release]) => r.payload.hasMultibeatData())))

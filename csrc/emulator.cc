@@ -10,6 +10,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define MEM_SIZE_BITS 3
+#define MEM_LEN_BITS 8
+#define MEM_RESP_BITS 2
+
 htif_emulator_t* htif;
 void handle_sigterm(int sig)
 {
@@ -21,13 +25,16 @@ int main(int argc, char** argv)
   unsigned random_seed = (unsigned)time(NULL) ^ (unsigned)getpid();
   uint64_t max_cycles = -1;
   uint64_t trace_count = 0;
+  uint64_t start = 0;
   int ret = 0;
   const char* vcd = NULL;
   const char* loadmem = NULL;
   FILE *vcdfile = NULL;
   bool dramsim2 = false;
   bool log = false;
+  bool print_cycles = false;
   uint64_t memsz_mb = MEM_SIZE / (1024*1024);
+  mm_t *mm[N_MEM_CHANNELS];
 
   for (int i = 1; i < argc; i++)
   {
@@ -46,6 +53,10 @@ int main(int argc, char** argv)
       max_cycles = atoll(argv[i]+12);
     else if (arg.substr(0, 9) == "+loadmem=")
       loadmem = argv[i]+9;
+    else if (arg.substr(0, 7) == "+start=")
+      start = atoll(argv[i]+7);
+    else if (arg.substr(0, 12) == "+cycle-count")
+      print_cycles = true;
   }
 
   const int disasm_len = 24;
@@ -66,23 +77,32 @@ int main(int argc, char** argv)
   srand(random_seed);
   tile.init(random_seed);
 
+  uint64_t mem_width = MEM_DATA_BITS / 8;
+
   // Instantiate and initialize main memory
-  mm_t* mm = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-  try {
-  	 mm->init(memsz_mb*1024*1024, tile.Top__io_mem_resp_bits_data.width()/8, LINE_SIZE);
+  for (int i = 0; i < N_MEM_CHANNELS; i++) {
+    mm[i] = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
+    try {
+      mm[i]->init(memsz_mb*1024*1024 / N_MEM_CHANNELS, mem_width, CACHE_BLOCK_BYTES);
+    } catch (const std::bad_alloc& e) {
+      fprintf(stderr,
+          "Failed to allocate %ld bytes (%ld MiB) of memory\n"
+          "Set smaller amount of memory using +memsize=<N> (in MiB)\n",
+              memsz_mb*1024*1024, memsz_mb);
+      exit(-1);
+    }
   }
-  catch (const std::bad_alloc& e) {
-    fprintf(stderr,
-  	   "Failed to allocate %ld bytes (%ld MiB) of memory\n"
-  		"Set smaller amount of memory using +memsize=<N> (in MiB)\n" , memsz_mb*1024*1024, memsz_mb
-  	 );
-    exit(-1);
+
+  if (loadmem) {
+    void *mems[N_MEM_CHANNELS];
+    for (int i = 0; i < N_MEM_CHANNELS; i++)
+      mems[i] = mm[i]->get_data();
+    load_mem(mems, loadmem, CACHE_BLOCK_BYTES, N_MEM_CHANNELS);
   }
-  if (loadmem)
-    load_mem(mm->get_data(), loadmem);
 
   // Instantiate HTIF
-  htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
+  htif = new htif_emulator_t(memsz_mb,
+          std::vector<std::string>(argv + 1, argv + argc));
   int htif_bits = tile.Top__io_host_in_bits.width();
   assert(htif_bits % 8 == 0 && htif_bits <= val_n_bits());
 
@@ -98,13 +118,58 @@ int main(int argc, char** argv)
     tile.clock_hi(LIT<1>(1));
   }
 
+  dat_t<1> *mem_ar_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_ar_ready[N_MEM_CHANNELS];
+  dat_t<MEM_ADDR_BITS> *mem_ar_bits_addr[N_MEM_CHANNELS];
+  dat_t<MEM_ID_BITS> *mem_ar_bits_id[N_MEM_CHANNELS];
+  dat_t<MEM_SIZE_BITS> *mem_ar_bits_size[N_MEM_CHANNELS];
+  dat_t<MEM_LEN_BITS> *mem_ar_bits_len[N_MEM_CHANNELS];
+
+  dat_t<1> *mem_aw_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_aw_ready[N_MEM_CHANNELS];
+  dat_t<MEM_ADDR_BITS> *mem_aw_bits_addr[N_MEM_CHANNELS];
+  dat_t<MEM_ID_BITS> *mem_aw_bits_id[N_MEM_CHANNELS];
+  dat_t<MEM_SIZE_BITS> *mem_aw_bits_size[N_MEM_CHANNELS];
+  dat_t<MEM_LEN_BITS> *mem_aw_bits_len[N_MEM_CHANNELS];
+
+  dat_t<1> *mem_w_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_w_ready[N_MEM_CHANNELS];
+  dat_t<MEM_DATA_BITS> *mem_w_bits_data[N_MEM_CHANNELS];
+  dat_t<MEM_STRB_BITS> *mem_w_bits_strb[N_MEM_CHANNELS];
+  dat_t<1> *mem_w_bits_last[N_MEM_CHANNELS];
+
+  dat_t<1> *mem_b_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_b_ready[N_MEM_CHANNELS];
+  dat_t<MEM_RESP_BITS> *mem_b_bits_resp[N_MEM_CHANNELS];
+  dat_t<MEM_ID_BITS> *mem_b_bits_id[N_MEM_CHANNELS];
+
+  dat_t<1> *mem_r_valid[N_MEM_CHANNELS];
+  dat_t<1> *mem_r_ready[N_MEM_CHANNELS];
+  dat_t<MEM_RESP_BITS> *mem_r_bits_resp[N_MEM_CHANNELS];
+  dat_t<MEM_ID_BITS> *mem_r_bits_id[N_MEM_CHANNELS];
+  dat_t<MEM_DATA_BITS> *mem_r_bits_data[N_MEM_CHANNELS];
+  dat_t<1> *mem_r_bits_last[N_MEM_CHANNELS];
+
+#include TBFRAG
+
   while (!htif->done() && trace_count < max_cycles && ret == 0)
   {
-    tile.Top__io_mem_req_cmd_ready = LIT<1>(mm->req_cmd_ready());
-    tile.Top__io_mem_req_data_ready = LIT<1>(mm->req_data_ready());
-    tile.Top__io_mem_resp_valid = LIT<1>(mm->resp_valid());
-    tile.Top__io_mem_resp_bits_tag = LIT<64>(mm->resp_tag());
-    memcpy(tile.Top__io_mem_resp_bits_data.values, mm->resp_data(), tile.Top__io_mem_resp_bits_data.width()/8);
+    for (int i = 0; i < N_MEM_CHANNELS; i++) {
+      *mem_ar_ready[i] = LIT<1>(mm[i]->ar_ready());
+      *mem_aw_ready[i] = LIT<1>(mm[i]->aw_ready());
+      *mem_w_ready[i] = LIT<1>(mm[i]->w_ready());
+
+      *mem_b_valid[i] = LIT<1>(mm[i]->b_valid());
+      *mem_b_bits_resp[i] = LIT<64>(mm[i]->b_resp());
+      *mem_b_bits_id[i] = LIT<64>(mm[i]->b_id());
+
+      *mem_r_valid[i] = LIT<1>(mm[i]->r_valid());
+      *mem_r_bits_resp[i] = LIT<64>(mm[i]->r_resp());
+      *mem_r_bits_id[i] = LIT<64>(mm[i]->r_id());
+      *mem_r_bits_last[i] = LIT<1>(mm[i]->r_last());
+
+      memcpy(mem_r_bits_data[i]->values, mm[i]->r_data(), mem_width);
+    }
 
     try {
       tile.clock_lo(LIT<1>(0));
@@ -114,17 +179,29 @@ int main(int argc, char** argv)
       std::cerr << e.what() << std::endl;
     }
 
-    mm->tick(
-      tile.Top__io_mem_req_cmd_valid.lo_word(),
-      tile.Top__io_mem_req_cmd_bits_rw.lo_word(),
-      tile.Top__io_mem_req_cmd_bits_addr.lo_word(),
-      tile.Top__io_mem_req_cmd_bits_tag.lo_word(),
+    for (int i = 0; i < N_MEM_CHANNELS; i++) {
+      mm[i]->tick(
+        mem_ar_valid[i]->to_bool(),
+        mem_ar_bits_addr[i]->lo_word(),
+        mem_ar_bits_id[i]->lo_word(),
+        mem_ar_bits_size[i]->lo_word(),
+        mem_ar_bits_len[i]->lo_word(),
 
-      tile.Top__io_mem_req_data_valid.lo_word(),
-      tile.Top__io_mem_req_data_bits_data.values,
+        mem_aw_valid[i]->to_bool(),
+        mem_aw_bits_addr[i]->lo_word(),
+        mem_aw_bits_id[i]->lo_word(),
+        mem_aw_bits_size[i]->lo_word(),
+        mem_aw_bits_len[i]->lo_word(),
 
-      tile.Top__io_mem_resp_ready.to_bool()
-    );
+        mem_w_valid[i]->to_bool(),
+        mem_w_bits_strb[i]->lo_word(),
+        mem_w_bits_data[i]->values,
+        mem_w_bits_last[i]->to_bool(),
+
+        mem_r_ready[i]->to_bool(),
+        mem_b_ready[i]->to_bool()
+      );
+    }
 
     if (tile.Top__io_host_clk_edge.to_bool())
     {
@@ -140,10 +217,11 @@ int main(int argc, char** argv)
       tile.Top__io_host_out_ready = LIT<1>(1);
     }
 
-    if (log)
+    if (log && trace_count >= start)
       tile.print(stderr);
 
-    if (vcd)
+    // make sure we dump on cycle 0 to get dump_init
+    if (vcd && (trace_count == 0 || trace_count >= start))
       tile.dump(vcdfile, trace_count);
 
     tile.clock_hi(LIT<1>(0));
@@ -155,13 +233,17 @@ int main(int argc, char** argv)
 
   if (htif->exit_code())
   {
-    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %lld cycles\n", htif->exit_code(), random_seed, (long long)trace_count);
+    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", htif->exit_code(), random_seed, trace_count);
     ret = htif->exit_code();
   }
   else if (trace_count == max_cycles)
   {
-    fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %lld cycles\n", random_seed, (long long)trace_count);
+    fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %ld cycles\n", random_seed, trace_count);
     ret = 2;
+  }
+  else if (log || print_cycles)
+  {
+    fprintf(stderr, "Completed after %ld cycles\n", trace_count);
   }
 
   delete htif;
