@@ -27,14 +27,19 @@ class NastiIOStreamIOConverter(w: Int)(implicit p: Parameters) extends Module {
   val streamSize = UInt(log2Up(w / 8))
   assert(!io.nasti.ar.valid || io.nasti.ar.bits.size === streamSize,
          "read channel wrong size on stream")
-  assert(!io.nasti.ar.valid || io.nasti.ar.bits.burst === BURST_FIXED,
+  assert(!io.nasti.ar.valid || io.nasti.ar.bits.len === UInt(0) ||
+         io.nasti.ar.bits.burst === BURST_FIXED,
          "read channel wrong burst type on stream")
   assert(!io.nasti.aw.valid || io.nasti.aw.bits.size === streamSize,
          "write channel wrong size on stream")
-  assert(!io.nasti.aw.valid || io.nasti.aw.bits.burst === BURST_FIXED,
+  assert(!io.nasti.aw.valid || io.nasti.aw.bits.len === UInt(0) ||
+         io.nasti.aw.bits.burst === BURST_FIXED,
          "write channel wrong burst type on stream")
+  assert(!io.nasti.w.valid || io.nasti.w.bits.strb.andR,
+         "write channel cannot take partial writes")
 
   val read_id = Reg(io.nasti.ar.bits.id)
+  val read_cnt = Reg(io.nasti.ar.bits.len)
   val reading = Reg(init = Bool(false))
 
   io.nasti.ar.ready := !reading
@@ -46,11 +51,16 @@ class NastiIOStreamIOConverter(w: Int)(implicit p: Parameters) extends Module {
 
   when (io.nasti.ar.fire()) {
     read_id := io.nasti.ar.bits.id
+    read_cnt := io.nasti.ar.bits.len
     reading := Bool(true)
   }
 
-  when (io.nasti.r.fire() && io.nasti.r.bits.last) {
-    reading := Bool(false)
+  when (io.nasti.r.fire()) {
+    when (read_cnt === UInt(0)) {
+      reading := Bool(false)
+    } .otherwise {
+      read_cnt := read_cnt - UInt(1)
+    }
   }
 
   val write_id = Reg(io.nasti.aw.bits.id)
