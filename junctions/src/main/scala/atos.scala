@@ -97,6 +97,11 @@ class AtosRequest(implicit p: Parameters)
     typ === AtosRequest.arType || (typ === AtosRequest.wType && last())
 
   def nbytes: Int = atosRequestBytes
+
+  def resp_len(dummy: Int = 0) =
+    MuxLookup(typ, UInt(0), Seq(
+      AtosRequest.arType -> (len() + UInt(1)),
+      AtosRequest.awType -> UInt(1)))
 }
 
 object AtosResponse {
