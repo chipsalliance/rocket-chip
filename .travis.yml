@@ -29,6 +29,7 @@ env:
     - PATH=$PATH:$RISCV/bin
   matrix:
     - VCONFIG=DefaultVLSIConfig FCONFIG=DefaultFPGAConfig ECONFIG=DefaultCPPConfig
+    - VCONFIG=BOOMVLSIConfig FCONFIG=BOOMFPGAConfig ECONFIG=BOOMCPPConfig
     - VCONFIG=RoccExampleConfig FCONFIG=RoccExampleConfig ECONFIG=RoccExampleConfig
     - VCONFIG=DmaControllerConfig FCONFIG=DmaControllerFPGAConfig ECONFIG=DmaControllerConfig
 
@@ -36,7 +37,6 @@ env:
 branches:
   except:
     - hwacha
-    - boom
     - hurricane
 
 before_install:
