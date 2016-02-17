@@ -90,7 +90,7 @@ class DefaultConfig extends Config (
       case MIFTagBits => // Bits needed at the L2 agent
                          log2Up(site(NAcquireTransactors)+2) +
                          // Bits added by NASTI interconnect
-                         max(log2Up(site(NBanksPerMemoryChannel)),
+                         max(log2Up(site(MaxBanksPerMemoryChannel)),
                             (if (site(UseDma)) 3 else 2))
       case MIFDataBits => 64
       case MIFAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
@@ -216,7 +216,9 @@ class DefaultConfig extends Config (
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
-      case NOutstandingMemReqsPerChannel => site(NBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
+      case MemoryChannelMuxConfigs => Dump("MEMORY_CHANNEL_MUX_CONFIGS", List( site(NMemoryChannels) ))
+      case MaxBanksPerMemoryChannel => site(NBanksPerMemoryChannel) * site(NMemoryChannels) / site(MemoryChannelMuxConfigs).sortWith{_ < _}(0)
+      case NOutstandingMemReqsPerChannel => site(MaxBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
@@ -271,6 +273,11 @@ class With2MemoryChannels extends Config(
 class With4MemoryChannels extends Config(
   (pname,site,here) => pname match {
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 4)
+  }
+)
+class With8MemoryChannels extends Config(
+  (pname,site,here) => pname match {
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
   }
 )
 
@@ -430,3 +437,12 @@ class SmallL2Config extends Config(
 class SingleChannelBenchmarkConfig extends Config(new WithL2Capacity256 ++ new DefaultL2Config)
 class DualChannelBenchmarkConfig extends Config(new With2MemoryChannels ++ new SingleChannelBenchmarkConfig)
 class QuadChannelBenchmarkConfig extends Config(new With4MemoryChannels ++ new SingleChannelBenchmarkConfig)
+class OctoChannelBenchmarkConfig extends Config(new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
+
+class WithOneOrMaxChannels extends Config(
+  (pname, site, here) => pname match {
+    case MemoryChannelMuxConfigs => Dump("MEMORY_CHANNEL_MUX_CONFIGS", List(1, site(NMemoryChannels)))
+  }
+)
+
+class OneOrEightChannelBenchmarkConfig extends Config(new WithOneOrMaxChannels ++ new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)

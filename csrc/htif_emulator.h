@@ -7,12 +7,20 @@
 
 class htif_emulator_t : public htif_pthread_t
 {
+ int memory_channel_mux_select;
+
  public:
   htif_emulator_t(uint32_t memsz_mb, const std::vector<std::string>& args)
-    : htif_pthread_t(args)
+    : htif_pthread_t(args),
+      memory_channel_mux_select(0)
   {
     this->_memsz_mb = memsz_mb;
-  }
+
+    for (const auto& arg: args) {
+      if (!strncmp(arg.c_str(), "+memory_channel_mux_select=", 27))
+        memory_channel_mux_select = atoi(arg.c_str()+27);
+    }
+ }
 
   void set_clock_divisor(int divisor, int hold_cycles)
   {
@@ -22,6 +30,7 @@ class htif_emulator_t : public htif_pthread_t
   void start()
   {
     set_clock_divisor(5, 2);
+    write_cr(-1, UNCORE_SCR__MEMORY_CHANNEL_MUX_SELECT, memory_channel_mux_select);
     htif_pthread_t::start();
   }
 

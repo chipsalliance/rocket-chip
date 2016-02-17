@@ -17,6 +17,10 @@ case object NTiles extends Field[Int]
 case object NMemoryChannels extends Field[Int]
 /** Number of banks per memory channel */
 case object NBanksPerMemoryChannel extends Field[Int]
+/** Maximum number of banks per memory channel, when configurable */
+case object MaxBanksPerMemoryChannel extends Field[Int]
+/** Dynamic memory channel configurations */
+case object MemoryChannelMuxConfigs extends Field[List[Int]]
 /** Least significant bit of address used for bank partitioning */
 case object BankIdLSB extends Field[Int]
 /** Number of outstanding memory requests */
@@ -56,6 +60,7 @@ trait HasTopLevelParameters {
   lazy val scrAddrBits = log2Up(nSCR)
   lazy val scrDataBits = 64
   lazy val scrDataBytes = scrDataBits / 8
+  lazy val memoryChannelMuxConfigs = p(MemoryChannelMuxConfigs)
   //require(lsb + log2Up(nBanks) < mifAddrBits)
 }
 
@@ -167,6 +172,14 @@ class Uncore(implicit val p: Parameters) extends Module
   scrFile.io.smi <> scrArb.io.out
   // scrFile.io.scr <> (... your SCR connections ...)
 
+  // Configures the enabled memory channels.  This can't be changed while the
+  // chip is actively using memory, as it both drops Nasti messages and garbles
+  // all of memory.
+  val memory_channel_mux_select = scrFile.io.scr.attach(
+    Reg(UInt(width = log2Up(memoryChannelMuxConfigs.size))),
+    "MEMORY_CHANNEL_MUX_SELECT")
+  outmemsys.io.memory_channel_mux_select := memory_channel_mux_select
+
   val deviceTree = Module(new NastiROM(p(DeviceTree).toSeq))
   deviceTree.io <> outmemsys.io.deviceTree
 
@@ -195,6 +208,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val mem = Vec(nMemChannels, new NastiIO)
     val mem_backup = new MemSerializedIO(htifW)
     val mem_backup_en = Bool(INPUT)
+    val memory_channel_mux_select = UInt(INPUT, log2Up(memoryChannelMuxConfigs.size))
     val csr = Vec(nTiles, new SmiIO(xLen, csrAddrBits))
     val scr = new SmiIO(xLen, scrAddrBits)
     val deviceTree = new NastiIO
@@ -253,7 +267,20 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   }
 
   val mmio_ic = Module(new NastiRecursiveInterconnect(nMasters, nSlaves, addrMap, mmioBase))
-  val mem_ic = Module(new NastiMemoryInterconnect(nBanksPerMemChannel, nMemChannels))
+
+  val channelConfigs = p(MemoryChannelMuxConfigs)
+  Predef.assert(channelConfigs.sortWith(_ > _)(0) == nMemChannels,
+                "More memory channels elaborated than can be enabled")
+  val mem_ic =
+    if (channelConfigs.size == 1) {
+      val ic = Module(new NastiMemoryInterconnect(nBanksPerMemChannel, nMemChannels))
+      ic
+    } else {
+      val nBanks = nBanksPerMemChannel * nMemChannels
+      val ic = Module(new NastiMemorySelector(nBanks, nMemChannels, channelConfigs))
+      ic.io.select := io.memory_channel_mux_select
+      ic
+    }
 
   for ((bank, i) <- managerEndpoints.zipWithIndex) {
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
