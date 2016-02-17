@@ -14,7 +14,7 @@ SHELL := /bin/bash
 CHISEL_ARGS := $(PROJECT) $(MODEL) $(CONFIG) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
 
 src_path = src/main/scala
-default_submodules = . junctions uncore hardfloat rocket zscale groundtest
+default_submodules = . junctions uncore hardfloat rocket zscale groundtest context-dependent-environments
 chisel_srcs = $(addprefix $(base_dir)/,$(addsuffix /$(src_path)/*.scala,$(default_submodules) $(ROCKETCHIP_ADDONS)))
 
 disasm := 2>
