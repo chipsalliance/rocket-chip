@@ -224,10 +224,14 @@ class MultiWidthFifo(inW: Int, outW: Int, n: Int) extends Module {
   val io = new Bundle {
     val in = Decoupled(Bits(width = inW)).flip
     val out = Decoupled(Bits(width = outW))
+    val count = UInt(OUTPUT, log2Up(n + 1))
   }
 
   if (inW == outW) {
-    io.out <> Queue(io.in, n)
+    val q = Module(new Queue(Bits(width = inW), n))
+    q.io.enq <> io.in
+    io.out <> q.io.deq
+    io.count := q.io.count
   } else if (inW > outW) {
     val nBeats = inW / outW
 
@@ -257,6 +261,7 @@ class MultiWidthFifo(inW: Int, outW: Int, n: Int) extends Module {
     io.out.valid := size > UInt(0)
     io.out.bits := rdata(tail)
     io.in.ready := size < UInt(n)
+    io.count := size
   } else {
     val nBeats = outW / inW
 
@@ -282,7 +287,8 @@ class MultiWidthFifo(inW: Int, outW: Int, n: Int) extends Module {
       io.in.fire() -> (size + UInt(1)),
       io.out.fire() -> (size - UInt(nBeats))))
 
-    io.out.valid := size >= UInt(nBeats)
+    io.count := size >> UInt(log2Up(nBeats))
+    io.out.valid := io.count > UInt(0)
     io.out.bits := rdata(tail)
     io.in.ready := size < UInt(n * nBeats)
   }
