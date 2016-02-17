@@ -76,6 +76,7 @@ object VLSIUtils {
     hio.io.set_divisor.valid := scr.wen && (scr.waddr === UInt(63))
     hio.io.set_divisor.bits := scr.wdata
     scr.rdata(63) := hio.io.divisor
+    scr.allocate(63, "HTIF_IO_CLOCK_DIVISOR")
 
     hio.io.out_fast.valid := htif.out.valid || child.req.valid
     hio.io.out_fast.bits := Cat(htif.out.valid, Mux(htif.out.valid, htif.out.bits, child.req.bits))

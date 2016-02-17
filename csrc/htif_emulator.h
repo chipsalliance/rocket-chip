@@ -16,7 +16,7 @@ class htif_emulator_t : public htif_pthread_t
 
   void set_clock_divisor(int divisor, int hold_cycles)
   {
-    write_cr(-1, 63, divisor | hold_cycles << 16);
+    write_cr(-1, UNCORE_SCR__HTIF_IO_CLOCK_DIVISOR, divisor | hold_cycles << 16);
   }
 
   void start()

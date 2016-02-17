@@ -51,6 +51,7 @@ $(sim_dir)/libdramsim.a: $(DRAMSIM_OBJS)
 
 params_file = $(generated_dir)/$(MODEL).$(CONFIG).prm
 consts_header = $(generated_dir)/consts.$(CONFIG).h
+scr_header = $(generated_dir)/$(MODEL).$(CONFIG).scr_map.h
 $(consts_header): $(params_file)
 	echo "#ifndef __CONST_H__" > $@
 	echo "#define __CONST_H__" >> $@
