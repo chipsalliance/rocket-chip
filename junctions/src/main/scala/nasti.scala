@@ -596,3 +596,82 @@ class NastiMemoryInterconnect(
     connectChannel(io.slaves(i), channelArb.io.slave)
   }
 }
+
+/** Allows users to switch between various memory configurations.  Note that
+  * this is a dangerous operation: not only does switching the select input to
+  * this module violate Nasti, it also causes the memory of the machine to
+  * become garbled.  It's expected that select only changes at boot time, as
+  * part of the memory controller configuration. */
+class NastiMemorySelector(nBanks: Int, maxMemChannels: Int, configs: Seq[Int])(implicit p: Parameters) extends NastiModule()(p) {
+  val nMasters = nBanks
+  val nSlaves  = maxMemChannels
+  val nConfigs = configs.size
+
+  val io = new Bundle {
+    val masters = Vec(nMasters, new NastiIO).flip
+    val slaves  = Vec(nSlaves,  new NastiIO)
+    val select  = UInt(INPUT, width = log2Up(nConfigs))
+  }
+
+  def muxOnSelect(up: DecoupledIO[Bundle], dn: DecoupledIO[Bundle], active: Bool): Unit = {
+    when (active) { dn.bits  := up.bits  }
+    when (active) { up.ready := dn.ready }
+    when (active) { dn.valid := up.valid }
+  }
+
+  def muxOnSelect(up: NastiIO, dn: NastiIO, active: Bool): Unit = {
+    muxOnSelect(up.aw, dn.aw, active)
+    muxOnSelect(up.w,  dn.w,  active)
+    muxOnSelect(dn.b,  up.b,  active)
+    muxOnSelect(up.ar, dn.ar, active)
+    muxOnSelect(dn.r,  up.r,  active)
+  }
+
+  def muxOnSelect(up: Vec[NastiIO], dn: Vec[NastiIO], active: Bool) : Unit = {
+    for (i <- 0 until up.size)
+      muxOnSelect(up(i), dn(i), active)
+  }
+
+  /* Disconnects a vector of Nasti ports, which involves setting them to
+   * invalid.  Due to Chisel reasons, we need to also set the bits to 0 (since
+   * there can't be any unconnected inputs). */
+  def disconnectSlave(slave: Vec[NastiIO]) = {
+    slave.foreach{ m =>
+      m.aw.valid := Bool(false)
+      m.aw.bits  := m.aw.bits.fromBits( UInt(0) )
+      m.w.valid  := Bool(false)
+      m.w.bits   := m.w.bits.fromBits( UInt(0) )
+      m.b.ready  := Bool(false)
+      m.ar.valid := Bool(false)
+      m.ar.bits  := m.ar.bits.fromBits( UInt(0) )
+      m.r.ready  := Bool(false)
+    }
+  }
+
+  def disconnectMaster(master: Vec[NastiIO]) = {
+    master.foreach{ m =>
+      m.aw.ready := Bool(false)
+      m.w.ready  := Bool(false)
+      m.b.valid  := Bool(false)
+      m.b.bits   := m.b.bits.fromBits( UInt(0) )
+      m.ar.ready := Bool(false)
+      m.r.valid  := Bool(false)
+      m.r.bits   := m.r.bits.fromBits( UInt(0) )
+    }
+  }
+
+  /* Provides default wires on all our outputs. */
+  disconnectMaster(io.masters)
+  disconnectSlave(io.slaves)
+
+  /* Constructs interconnects for each of the layouts suggested by the
+   * configuration and switches between them based on the select input. */
+  configs.zipWithIndex.foreach{ case (nChannels, select) =>
+    val nBanksPerChannel = nBanks / nChannels
+    val ic = Module(new NastiMemoryInterconnect(nBanksPerChannel, nChannels))
+    disconnectMaster(ic.io.slaves)
+    disconnectSlave(ic.io.masters)
+    muxOnSelect(   io.masters, ic.io.masters, io.select === UInt(select))
+    muxOnSelect(ic.io.slaves,     io.slaves,  io.select === UInt(select))
+  }
+}
