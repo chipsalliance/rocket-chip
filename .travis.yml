@@ -52,6 +52,9 @@ before_install:
   - cd riscv-tests
   - git submodule update --init
   - cd ../..
+  - cd torture
+  - git submodule update --init
+  - cd ..
   # use recently installed gcc
   - export CXX=g++-4.8 CC=gcc-4.8
 
@@ -78,3 +81,7 @@ script:
   - cd ../../emulator
   - make -j 8 CONFIG=$ECONFIG run-asm-tests
   - make CONFIG=$ECONFIG run-bmark-tests
+  # run riscv-torture
+  - cd ../torture
+  - make RTL_CONFIG=$ECONFIG cnight
+
