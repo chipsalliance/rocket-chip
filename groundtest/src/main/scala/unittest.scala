@@ -75,10 +75,18 @@ class MultiWidthFifoTest extends UnitTest {
 
   io.finished := bl_finished && lb_finished
 
+  val bl_start_recv = Reg(next = bl_send_done)
+  val lb_start_recv = Reg(next = lb_send_done)
+
   assert(!little2big.io.out.valid || little2big.io.out.bits === lb_recv_data,
     "Little to Big data mismatch")
   assert(!big2little.io.out.valid || big2little.io.out.bits === bl_recv_data,
     "Bit to Little data mismatch")
+
+  assert(!lb_start_recv || little2big.io.count === UInt(4),
+    "Little to Big count incorrect")
+  assert(!bl_start_recv || big2little.io.count === UInt(8),
+    "Big to Little count incorrect")
 }
 
 class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
