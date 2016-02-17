@@ -602,16 +602,22 @@ class NastiMemoryInterconnect(
   * this module violate Nasti, it also causes the memory of the machine to
   * become garbled.  It's expected that select only changes at boot time, as
   * part of the memory controller configuration. */
-class NastiMemorySelector(nBanks: Int, maxMemChannels: Int, configs: Seq[Int])(implicit p: Parameters) extends NastiModule()(p) {
+class NastiMemorySelectorIO(val nBanks: Int, val maxMemChannels: Int, nConfigs: Int)
+                           (implicit p: Parameters)
+                           extends NastiInterconnectIO(nBanks, maxMemChannels) {
+  val select  = UInt(INPUT, width = log2Up(nConfigs))
+  override def cloneType =
+    new NastiMemorySelectorIO(nMasters, nSlaves, nConfigs).asInstanceOf[this.type]
+}
+
+class NastiMemorySelector(nBanks: Int, maxMemChannels: Int, configs: Seq[Int])
+                         (implicit p: Parameters)
+                         extends NastiInterconnect()(p) {
   val nMasters = nBanks
   val nSlaves  = maxMemChannels
   val nConfigs = configs.size
 
-  val io = new Bundle {
-    val masters = Vec(nMasters, new NastiIO).flip
-    val slaves  = Vec(nSlaves,  new NastiIO)
-    val select  = UInt(INPUT, width = log2Up(nConfigs))
-  }
+  override lazy val io = new NastiMemorySelectorIO(nBanks, maxMemChannels, nConfigs)
 
   def muxOnSelect(up: DecoupledIO[Bundle], dn: DecoupledIO[Bundle], active: Bool): Unit = {
     when (active) { dn.bits  := up.bits  }
