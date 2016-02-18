@@ -5,6 +5,7 @@ package uncore
 import Chisel._
 import Chisel.ImplicitConversions._
 import junctions._
+import junctions.NastiConstants._
 import cde.{Parameters, Field}
 
 case object HtifKey extends Field[HtifParameters]
@@ -224,4 +225,103 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
   io.host.in.ready := state === state_rx
   io.host.out.valid := state === state_tx
   io.host.out.bits := tx_data >> Cat(tx_count(log2Up(short_request_bits/w)-1,0), Bits(0, log2Up(w)))
+}
+
+class NastiIOHostIOConverter(htifW: Int)(implicit val p: Parameters)
+    extends Module with HasNastiParameters {
+  val io = new Bundle {
+    val nasti = (new NastiIO).flip
+    val host = new HostIO(htifW).flip
+    val reset = Bool(OUTPUT)
+  }
+
+  val raddr = io.nasti.ar.bits.addr(6, 2)
+  val waddr = io.nasti.aw.bits.addr(6, 2)
+
+
+  val DCOUNT_ADDR = 0x00
+  val RFIFO_ADDR  = 0x01
+
+  val WFIFO_ADDR = 0x00
+  val RESET_ADDR = 0x1f
+
+  val FIFO_DEPTH = 32
+
+  val fifo_ren = Reg(init = Bool(false))
+  val fifo_wen = Reg(init = Bool(false))
+
+  val fifo_rd_len = Reg(UInt(width = nastiXLenBits))
+  val fifo_rd_id = Reg(UInt(width = nastiXIdBits))
+  val fifo_wr_id = Reg(UInt(width = nastiXIdBits))
+  val fifo_wr_ack = Reg(init = Bool(false))
+
+  val rd_count = Reg(init = Bool(false))
+  val wr_reset = Reg(init = Bool(false))
+
+  when (io.nasti.ar.fire()) {
+    fifo_rd_len := io.nasti.ar.bits.len
+    fifo_rd_id := io.nasti.ar.bits.id
+    when (raddr === UInt(RFIFO_ADDR)) {
+      fifo_ren := Bool(true)
+    } .elsewhen (raddr === UInt(DCOUNT_ADDR)) {
+      rd_count := Bool(true)
+    }
+  }
+
+  when (io.nasti.r.fire()) {
+    when (io.nasti.r.bits.last) {
+      fifo_ren := Bool(false)
+      rd_count := Bool(false)
+    } .otherwise { fifo_rd_len := fifo_rd_len - UInt(1) }
+  }
+
+  when (io.nasti.aw.fire()) {
+    fifo_wr_id := io.nasti.aw.bits.id
+    when (waddr === UInt(WFIFO_ADDR)) {
+      fifo_wen := Bool(true)
+    } .elsewhen (waddr === UInt(RESET_ADDR)) {
+      wr_reset := Bool(true)
+    }
+  }
+
+  when (io.nasti.w.fire() && io.nasti.w.bits.last) {
+    fifo_wen := Bool(false)
+    wr_reset := Bool(false)
+    fifo_wr_ack := Bool(true)
+  }
+
+  when (io.nasti.b.fire()) { fifo_wr_ack := Bool(false) }
+
+  io.nasti.ar.ready := !fifo_ren
+  io.nasti.aw.ready := !fifo_wen && !fifo_wr_ack
+  io.nasti.b.valid := fifo_wr_ack
+  io.nasti.b.bits := NastiWriteResponseChannel(id = fifo_wr_id)
+
+  io.reset := io.nasti.w.valid && wr_reset
+
+  val hn_fifo = Module(new MultiWidthFifo(htifW, nastiXDataBits, FIFO_DEPTH))
+  hn_fifo.io.in <> io.host.out
+  hn_fifo.io.out.ready := fifo_ren && io.nasti.r.ready
+  io.nasti.r.valid := (fifo_ren && hn_fifo.io.out.valid) || rd_count
+  io.nasti.r.bits := NastiReadDataChannel(
+      id = fifo_rd_id,
+      data = Mux(fifo_ren, hn_fifo.io.out.bits, hn_fifo.io.count),
+      last = (fifo_rd_len === UInt(0)))
+
+  val nh_fifo = Module(new MultiWidthFifo(nastiXDataBits, htifW, FIFO_DEPTH))
+  io.host.in <> nh_fifo.io.out
+  nh_fifo.io.in.valid := fifo_wen && io.nasti.w.valid
+  nh_fifo.io.in.bits := io.nasti.w.bits.data
+  io.nasti.w.ready := (fifo_wen && nh_fifo.io.in.ready) || wr_reset
+
+  assert(!io.nasti.w.valid || io.nasti.w.bits.strb.andR,
+    "Nasti to HostIO converter cannot take partial writes")
+  assert(!io.nasti.ar.valid ||
+    io.nasti.ar.bits.len === UInt(0) ||
+    io.nasti.ar.bits.burst === BURST_FIXED,
+    "Nasti to HostIO converter can only take fixed bursts")
+  assert(!io.nasti.aw.valid ||
+    io.nasti.aw.bits.len === UInt(0) ||
+    io.nasti.aw.bits.burst === BURST_FIXED,
+    "Nasti to HostIO converter can only take fixed bursts")
 }
