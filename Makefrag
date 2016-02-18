@@ -13,10 +13,10 @@ CXXFLAGS := -O1
 SBT := java -Xmx8192M -Xss8M -XX:MaxPermSize=256M -jar sbt-launch.jar
 SHELL := /bin/bash
 
-CHISEL_ARGS := $(PROJECT) $(MODEL) $(CONFIG) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
+CHISEL_ARGS := $(PROJECT) $(MODEL) $(CONFIG) --W0W --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
 
 src_path = src/main/scala
-default_submodules = . junctions uncore hardfloat rocket zscale groundtest
+default_submodules = . junctions uncore hardfloat rocket zscale groundtest context-dependent-environments
 chisel_srcs = $(addprefix $(base_dir)/,$(addsuffix /$(src_path)/*.scala,$(default_submodules) $(ROCKETCHIP_ADDONS)))
 
 disasm := 2>
@@ -44,7 +44,7 @@ $(sim_dir)/libdramsim.a: $(DRAMSIM_OBJS)
 %.hex:
 	$(MAKE) -C $(dir $@) $(notdir $@)
 
-%.riscv.hex: %
+%.riscv.hex: %.riscv
 	$(MAKE) -C $(dir $@) $(notdir $@)
 
 #---------------------------------------------------------------------
@@ -53,6 +53,7 @@ $(sim_dir)/libdramsim.a: $(DRAMSIM_OBJS)
 
 params_file = $(generated_dir)/$(MODEL).$(CONFIG).prm
 consts_header = $(generated_dir)/consts.$(CONFIG).h
+scr_header = $(generated_dir)/$(MODEL).$(CONFIG).scr_map.h
 $(consts_header): $(params_file)
 	echo "#ifndef __CONST_H__" > $@
 	echo "#define __CONST_H__" >> $@

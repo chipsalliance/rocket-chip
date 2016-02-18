@@ -13,16 +13,16 @@ object HwachaTestSuites {
   val rv64uvNames = LinkedHashSet(
     "wakeup", "fence", "keepcfg",
     "vmca", "vmcs", "vssd", "vssw", "vssh", "vssb",
-    "vlsd", "vlsw", "vlswu", "vlsh", "vlshu", "vlsb", "vlsbu", 
+    "vlsd", "vlsw", "vlswu", "vlsh", "vlshu", "vlsb", "vlsbu",
     "vsad", "vsaw", "vsah", "vsab", "vlad", "vlaw", "vlawu", "vlah", "vlahu", "vlab", "vlabu",
-    "vld", "vlw", "vlwu", "vlh", "vlhu", "vlb", "vlbu", "vlxd", "vlxw", "vlxwu", "vlxh", "vlxhu", "vlxb", "vlxbu", 
+    "vld", "vlw", "vlwu", "vlh", "vlhu", "vlb", "vlbu", "vlxd", "vlxw", "vlxwu", "vlxh", "vlxhu", "vlxb", "vlxbu",
     "vsd", "vsw", "vsh", "vsb", "vsxd", "vsxw", "vsxh", "vsxb",
     "eidx", "imul", "fcvt", "vvadd_d", "vvadd_w", "vvadd_fd", "vvadd_fw", "vvmul_d",
     "overlap", "sched_sreg_xbar", "sched_fadd", "sched_waw", "sched_war", "pointer", "vcjal", "vfirst", "vfence",
     "vl_empty", "vs_empty", "vlx_empty", "vsx_empty", "vamo_empty", "eidx_empty") ++
-    rv32uaNames ++ rv64uaNames 
+    rv32uaNames ++ rv64uaNames
   val rv64uvBasic = new AssemblyTestSuite("rv64uv", "rv64uv", rv64uvNames)(_)
-  
+
   val rv64uiVecNames = LinkedHashSet(
     "addi", "add", "addiw", "addw", "and", "andi", "div", "divu", "divuw", "divw", 
     "mul", "mulw", "mulh", "mulhu", "mulhsu", "or", "ori", "rem", "remu", "remuw", "remw",
@@ -36,11 +36,11 @@ object HwachaTestSuites {
   val rv64ufVecNames = LinkedHashSet(
     "fadd", "fcmp", "fdiv", "fclass", "fcvt", "fcvt_w", "fmadd", "fmin", "fsgnj").map("vec-" + _)
   val rv64ufVecNamesV4 = rv64ufVecNames
-  val rv64ufVec = new AssemblyTestSuite("rv64uf-vec", "rv64uf", rv64ufVecNamesV4)(_) 
+  val rv64ufVec = new AssemblyTestSuite("rv64uf-vec", "rv64uf", rv64ufVecNamesV4)(_)
 
   val rv64ufScalarVecNames = rv64ufVecNames.map("s"+_)
   val rv64ufScalarVecNamesV4 = rv64ufScalarVecNames -- Set("svec-fdiv", "svec-fcmp")
-  val rv64ufScalarVec = new AssemblyTestSuite("rv64uf-svec", "rv64uf", rv64ufScalarVecNamesV4)(_) 
+  val rv64ufScalarVec = new AssemblyTestSuite("rv64uf-svec", "rv64uf", rv64ufScalarVecNamesV4)(_)
 
   val rv64uv = List(rv64ufScalarVec, rv64ufVec, rv64uiScalerVec, rv64uiVec, rv64uvBasic)
 
@@ -84,15 +84,15 @@ class WithoutBackupMemoryPort extends Config(
   }
 )
 
-class With4L2AcquireXacts extends Config(
+class With5L2AcquireXacts extends Config(
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
   }
 )
 
-class With8L2AcquireXacts extends Config(
+class With9L2AcquireXacts extends Config(
   (pname,site,here) => pname match {
-    case NAcquireTransactors => 8
+    case NAcquireTransactors => 9
   }
 )
 
@@ -143,7 +143,7 @@ class VRU10Outstanding extends Config(
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
   new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
-  new With8L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
+  new With5L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
@@ -163,7 +163,17 @@ class ISCA2016Config extends Config(
 class ISCA2016L2Config extends Config(new With2Lanes ++ new ISCA2016Config)
 class ISCA2016L4Config extends Config(new With4Lanes ++ new ISCA2016Config)
 
-class ISCA2016LOVB4Config extends Config(new VRU10Outstanding ++ new WithoutConfPrec ++ new With2BanksPerMemChannel ++ new ISCA2016Config)
-class ISCA2016LOVB8Config extends Config(new WithoutConfPrec ++ new ISCA2016Config)
-class ISCA2016HOVB4Config extends Config(new VRU10Outstanding ++ new With2BanksPerMemChannel ++ new ISCA2016Config)
+class ISCA2016HOVB4Config extends Config(new With9L2AcquireXacts ++ new With2BanksPerMemChannel ++ new ISCA2016Config)
 class ISCA2016HOVB8Config extends Config(new ISCA2016Config)
+class ISCA2016LOVB4Config extends Config(new WithoutConfPrec ++ new ISCA2016HOVB4Config)
+class ISCA2016LOVB8Config extends Config(new WithoutConfPrec ++ new ISCA2016HOVB8Config)
+
+class ISCA2016HOVL2B4Config extends Config(new With2Lanes ++ new ISCA2016HOVB4Config)
+class ISCA2016HOVL2B8Config extends Config(new With2Lanes ++ new ISCA2016HOVB8Config)
+class ISCA2016LOVL2B4Config extends Config(new With2Lanes ++ new ISCA2016LOVB4Config)
+class ISCA2016LOVL2B8Config extends Config(new With2Lanes ++ new ISCA2016LOVB8Config)
+
+class ISCA2016HOVL4B4Config extends Config(new With4Lanes ++ new ISCA2016HOVB4Config)
+class ISCA2016HOVL4B8Config extends Config(new With4Lanes ++ new ISCA2016HOVB8Config)
+class ISCA2016LOVL4B4Config extends Config(new With4Lanes ++ new ISCA2016LOVB4Config)
+class ISCA2016LOVL4B8Config extends Config(new With4Lanes ++ new ISCA2016LOVB8Config)

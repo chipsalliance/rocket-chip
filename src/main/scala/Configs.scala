@@ -28,7 +28,8 @@ class DefaultConfig extends Config (
       new AddrMap(deviceTree +: csrs :+ scr)
     }
     def makeDeviceTree() = {
-      val addrMap = new AddrHashMap(site(GlobalAddrMap))
+      val addrMap = new AddrHashMap(site(GlobalAddrMap), site(MMIOBase))
+      val devices = site(GlobalDeviceSet)
       val dt = new DeviceTreeGenerator
       dt.beginNode("")
       dt.addProp("#address-cells", 2)
@@ -58,6 +59,15 @@ class DefaultConfig extends Config (
           dt.addProp("protection", scrs.prot)
           dt.addReg(scrs.start.toLong, scrs.size.toLong)
         dt.endNode()
+        for (dev <- devices.toSeq) {
+          val entry = addrMap(s"devices:${dev.name}")
+          dt.beginNode(s"${dev.name}@${entry.start}")
+            dt.addProp("device_type", s"${dev.dtype}")
+            dt.addProp("compatible", "riscv")
+            dt.addProp("protection", entry.prot)
+            dt.addReg(entry.start.toLong, entry.size.toLong)
+          dt.endNode()
+        }
       dt.endNode()
       dt.toArray()
     }
@@ -65,6 +75,7 @@ class DefaultConfig extends Config (
       case HtifKey => HtifParameters(
                        width = Dump("HTIF_WIDTH", 16),
                        nSCR = 64,
+                       csrDataBits = site(XLen),
                        offsetBits = site(CacheBlockOffsetBits),
                        nCores = site(NTiles))
       //Memory Parameters
@@ -79,7 +90,8 @@ class DefaultConfig extends Config (
       case MIFTagBits => // Bits needed at the L2 agent
                          log2Up(site(NAcquireTransactors)+2) +
                          // Bits added by NASTI interconnect
-                         log2Up(site(NMemoryChannels) * site(NBanksPerMemoryChannel) + 1)
+                         max(log2Up(site(MaxBanksPerMemoryChannel)),
+                            (if (site(UseDma)) 3 else 2))
       case MIFDataBits => 64
       case MIFAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
       case MIFDataBeats => site(CacheBlockBytes) * 8 / site(MIFDataBits)
@@ -121,7 +133,6 @@ class DefaultConfig extends Config (
       case StoreDataQueueDepth => 17
       case ReplayQueueDepth => 16
       case NMSHRs => Knob("L1D_MSHRS")
-      case NIOMSHRs => 1
       case LRSCCycles => 32 
       //L2 Memory System Params
       case NAcquireTransactors => 7
@@ -142,6 +153,12 @@ class DefaultConfig extends Config (
       }
       case BuildRoCC => Nil
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
+      case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
+      case UseDma => false
+      case UseStreamLoopback => false
+      case NDmaTransactors => 3
+      case NDmaXacts => site(NDmaTransactors) * site(NTiles)
+      case NDmaClients => site(NTiles)
       //Rocket Core Constants
       case CoreName => "Rocket"
       case FetchWidth => 1
@@ -164,6 +181,7 @@ class DefaultConfig extends Config (
       case CoreInstBits => 32
       case CoreDataBits => site(XLen)
       case NCustomMRWCSRs => 0
+      case MtvecInit => BigInt(0x100)
       //Uncore Paramters
       case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
@@ -172,13 +190,17 @@ class DefaultConfig extends Config (
       case TLKey("L1toL2") => 
         TileLinkParameters(
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
-          nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels),
+          nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
           nCachingClients = site(NTiles),
-          nCachelessClients = 1 + site(NTiles) *
-                                (1 + (if(site(BuildRoCC).isEmpty) 0 else site(RoccNMemChannels))),
-          maxClientXacts = max(site(NMSHRs) + site(NIOMSHRs),
-                               if(site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
-          maxClientsPerPort = if(site(BuildRoCC).isEmpty) 1 else 2,
+          nCachelessClients = (if (site(UseDma)) 2 else 1) +
+                              site(NTiles) *
+                                (1 + (if(site(BuildRoCC).isEmpty) 0
+                                      else site(RoccNMemChannels))),
+          maxClientXacts = max(site(NMSHRs) + 1,
+                               max(if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
+                                   if (site(UseDma)) 4 else 1)),
+          maxClientsPerPort = max(if (site(BuildRoCC).isEmpty) 1 else 2,
+                                  if (site(UseDma)) site(NDmaTransactors) + 1 else 1),
           maxManagerXacts = site(NAcquireTransactors) + 2,
           dataBits = site(CacheBlockBytes)*8,
           dataBeats = 2)
@@ -197,18 +219,32 @@ class DefaultConfig extends Config (
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
-      case NOutstandingMemReqsPerChannel => site(NBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
+      case MemoryChannelMuxConfigs => Dump("MEMORY_CHANNEL_MUX_CONFIGS", List( site(NMemoryChannels) ))
+      case MaxBanksPerMemoryChannel => site(NBanksPerMemoryChannel) * site(NMemoryChannels) / site(MemoryChannelMuxConfigs).sortWith{_ < _}(0)
+      case NOutstandingMemReqsPerChannel => site(MaxBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 32)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case UseBackupMemoryPort => true
-      case MMIOBase => Dump("MEM_SIZE", BigInt(1 << 30)) // 1 GB
-      case ExternalIOStart => 2 * site(MMIOBase)
+      case MMIOBase => Dump("MEM_SIZE", BigInt(1L << 30)) // 1 GB
       case DeviceTree => makeDeviceTree()
-      case GlobalAddrMap => AddrMap(
-        AddrMapEntry("mem", None, MemChannels(site(MMIOBase), site(NMemoryChannels), AddrMapConsts.RWX)),
-        AddrMapEntry("conf", None, MemSubmap(site(ExternalIOStart) - site(MMIOBase), genCsrAddrMap)),
-        AddrMapEntry("io", Some(site(ExternalIOStart)), MemSize(2 * site(MMIOBase), AddrMapConsts.RW)))
+      case GlobalAddrMap => {
+        AddrMap(
+          AddrMapEntry("conf", None,
+            MemSubmap(BigInt(1L << 30), genCsrAddrMap)),
+          AddrMapEntry("devices", None,
+            MemSubmap(BigInt(1L << 31), site(GlobalDeviceSet).getAddrMap)))
+      }
+      case GlobalDeviceSet => {
+        val devset = new DeviceSet
+        if (site(UseStreamLoopback)) {
+          devset.addDevice("loopback", site(StreamLoopbackWidth) / 8, "stream")
+        }
+        if (site(UseDma)) {
+          devset.addDevice("dma", site(CacheBlockBytes), "dma")
+        }
+        devset
+      }
   }},
   knobValues = {
     case "NTILES" => 1
@@ -240,6 +276,11 @@ class With2MemoryChannels extends Config(
 class With4MemoryChannels extends Config(
   (pname,site,here) => pname match {
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 4)
+  }
+)
+class With8MemoryChannels extends Config(
+  (pname,site,here) => pname match {
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
   }
 )
 
@@ -368,6 +409,43 @@ class WithRoccExample extends Config(
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
+class WithDmaController extends Config(
+  (pname, site, here) => pname match {
+    case UseDma => true
+    case BuildRoCC => Seq(
+        RoccParameters(
+          opcodes = OpcodeSet.custom2,
+          generator = (p: Parameters) => Module(new DmaController()(p)),
+          csrs = Seq.range(
+            DmaCtrlRegNumbers.CSR_BASE,
+            DmaCtrlRegNumbers.CSR_END)))
+    case RoccMaxTaggedMemXacts => 1
+  })
+
+class WithStreamLoopback extends Config(
+  (pname, site, here) => pname match {
+    case UseStreamLoopback => true
+    case StreamLoopbackSize => 128
+    case StreamLoopbackWidth => 64
+  })
+
+class DmaControllerConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultL2Config)
+class DualCoreDmaControllerConfig extends Config(new With2Cores ++ new DmaControllerConfig)
+class DmaControllerFPGAConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultFPGAConfig)
+
 class SmallL2Config extends Config(
   new With2MemoryChannels ++ new With4BanksPerMemChannel ++
   new WithL2Capacity256 ++ new DefaultL2Config)
+
+class SingleChannelBenchmarkConfig extends Config(new WithL2Capacity256 ++ new DefaultL2Config)
+class DualChannelBenchmarkConfig extends Config(new With2MemoryChannels ++ new SingleChannelBenchmarkConfig)
+class QuadChannelBenchmarkConfig extends Config(new With4MemoryChannels ++ new SingleChannelBenchmarkConfig)
+class OctoChannelBenchmarkConfig extends Config(new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
+
+class WithOneOrMaxChannels extends Config(
+  (pname, site, here) => pname match {
+    case MemoryChannelMuxConfigs => Dump("MEMORY_CHANNEL_MUX_CONFIGS", List(1, site(NMemoryChannels)))
+  }
+)
+
+class OneOrEightChannelBenchmarkConfig extends Config(new WithOneOrMaxChannels ++ new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)

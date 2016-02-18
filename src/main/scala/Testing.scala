@@ -5,6 +5,7 @@ package rocketchip
 import Chisel._
 import scala.collection.mutable.LinkedHashSet
 import cde.{Parameters, ParameterDump, Config, Collector}
+import uncore.AllSCRFiles
 
 abstract class RocketTestSuite {
   val dir: String
@@ -121,7 +122,7 @@ object DefaultTestSuites {
   val rv64i = rv64u ++ List(rv64si, rv64mi)
 
   val bmarks = new BenchmarkTestSuite("basic", "$(base_dir)/riscv-tools/riscv-tests/benchmarks", LinkedHashSet(
-    "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "spmv", "mt-vvadd", "mt-matmul", "pb-sgemm", "pb-spmv", "vec-daxpy", "vec-dgemm-opt", "vec-hsaxpy", "vec-hsgemm-opt", "vec-saxpy", "vec-sdaxpy", "vec-sdgemm-opt", "vec-sgemm-naive", "vec-sgemm-opt", "vec-vvadd"))
+    "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "spmv", "mt-vvadd", "mt-matmul", "pb-sgemm", "pb-spmv", "vec-daxpy", "vec-dgemm-opt", "vec-hsaxpy", "vec-hgemm-opt", "vec-hsgemm-opt", "vec-saxpy", "vec-sdaxpy", "vec-sdgemm-opt", "vec-sgemm-naive", "vec-sgemm-opt", "vec-vvadd"))
 
   val mtBmarks = new BenchmarkTestSuite("mt", "$(base_dir)/riscv-tools/riscv-tests/mt",
     LinkedHashSet(((0 to 4).map("vvadd"+_) ++
@@ -141,8 +142,8 @@ object TestGenerator extends App with FileSystemUtilities {
       Class.forName(s"$projectName.$configClassName").newInstance.asInstanceOf[Config]
     } catch {
       case e: java.lang.ClassNotFoundException =>
-        throwException(s"Could not find the cde.Config subclass you asked for " +
-                        "(i.e. \"$configClassName\"), did you misspell it?", e)
+        throwException("Unable to find configClassName \"" + configClassName +
+                       "\", did you misspell it?", e)
     }
   val world = new Collector(config.topDefinitions,config.knobValues)
   val paramsFromConfig: Parameters = Parameters.root(world)
@@ -172,10 +173,13 @@ object TestGenerator extends App with FileSystemUtilities {
   val v = createOutputFile(configClassName + ".knb")
   v.write(world.getKnobs)
   v.close
-  val d = new java.io.FileOutputStream(Driver.targetDir + configClassName + ".dtb")
+  val d = new java.io.FileOutputStream(Driver.targetDir + "/" + configClassName + ".dtb")
   d.write(paramsFromConfig(DeviceTree))
   d.close
   val w = createOutputFile(configClassName + ".cst")
   w.write(world.getConstraints)
   w.close
+  val scr_map_hdr = createOutputFile(topModuleName + "." + configClassName + ".scr_map.h")
+  AllSCRFiles.foreach{ map => scr_map_hdr.write(map.as_c_header) }
+  scr_map_hdr.close
 }
