@@ -13,14 +13,14 @@ class WithGroundTest extends Config(
     case TLKey("L1toL2") =>
       TileLinkParameters(
         coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
-        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels),
+        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = site(NTiles),
         nCachelessClients = site(NTiles) + (if (site(UseDma)) 2 else 1),
-        maxClientXacts = max(site(NMSHRs) + site(NIOMSHRs),
+        maxClientXacts = max(site(NMSHRs) + 1,
                              max(site(GroundTestMaxXacts),
                                  if (site(UseDma)) 4 else 1)),
         maxClientsPerPort = max(if (site(BuildRoCC).isEmpty) 1 else 2,
-                                if (site(UseDma)) site(NDmaTransactors) else 1),
+                                if (site(UseDma)) site(NDmaTransactors) + 1 else 1),
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
@@ -93,13 +93,15 @@ class WithDmaStreamTest extends Config(
     case UseDma => true
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new DmaStreamTest()(p))
-    case DmaStreamLoopbackAddr => {
-      val addrMap = new AddrHashMap(site(GlobalAddrMap))
-      addrMap("devices:loopback").start
-    }
     case DmaStreamTestSettings => DmaStreamTestConfig(
       source = 0x10, dest = 0x28, len = 0x18,
       size = site(StreamLoopbackWidth) / 8)
+  })
+
+class WithNastiConverterTest extends Config(
+  (pname, site, here) => pname match {
+    case BuildGroundTest =>
+      (id: Int, p: Parameters) => Module(new NastiConverterTest()(p))
   })
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
@@ -114,6 +116,7 @@ class CacheRegressionTestConfig extends Config(
   new WithCacheRegressionTest ++ new WithL2Cache ++ new GroundTestConfig)
 class DmaTestConfig extends Config(new WithDmaTest ++ new WithL2Cache ++ new GroundTestConfig)
 class DmaStreamTestConfig extends Config(new WithDmaStreamTest ++ new WithStreamLoopback ++ new WithL2Cache ++ new GroundTestConfig)
+class NastiConverterTestConfig extends Config(new WithNastiConverterTest ++ new GroundTestConfig)
 
 class FancyMemtestConfig extends Config(
   new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++

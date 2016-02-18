@@ -14,11 +14,24 @@ extern "C" {
 
 extern int vcs_main(int argc, char** argv);
 
+static const int MEMORY_CHANNEL_MUX_CONFIGS[] = {
+#ifdef MEMORY_CHANNEL_MUX_CONFIGS__0
+  MEMORY_CHANNEL_MUX_CONFIGS__0,
+#endif
+#ifdef MEMORY_CHANNEL_MUX_CONFIGS__1
+  MEMORY_CHANNEL_MUX_CONFIGS__1,
+#endif
+#ifdef MEMORY_CHANNEL_MUX_CONFIGS__2
+#error "Add a preprocessor repeat macro"
+#endif
+};
+
 static htif_emulator_t* htif;
 static unsigned htif_bytes = HTIF_WIDTH / 8;
 static mm_t* mm[N_MEM_CHANNELS];
 static const char* loadmem;
 static bool dramsim = false;
+static int memory_channel_mux_select = 0;
 
 void htif_fini(vc_handle failure)
 {
@@ -37,21 +50,25 @@ int main(int argc, char** argv)
       dramsim = true;
     else if (!strncmp(argv[i], "+loadmem=", 9))
       loadmem = argv[i]+9;
+    else if (!strncmp(argv[i], "+memory_channel_mux_select=", 27))
+      memory_channel_mux_select = atoi(argv[i]+27);
   }
+
+  int enabled_mem_channels = MEMORY_CHANNEL_MUX_CONFIGS[memory_channel_mux_select];
 
   htif = new htif_emulator_t(memsz_mb,
           std::vector<std::string>(argv + 1, argv + argc));
 
   for (int i=0; i<N_MEM_CHANNELS; i++) {
     mm[i] = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
-    mm[i]->init(MEM_SIZE / N_MEM_CHANNELS, MEM_DATA_BITS / 8, CACHE_BLOCK_BYTES);
+    mm[i]->init(MEM_SIZE / enabled_mem_channels, MEM_DATA_BITS / 8, CACHE_BLOCK_BYTES);
   }
 
   if (loadmem) {
     void *mems[N_MEM_CHANNELS];
     for (int i = 0; i < N_MEM_CHANNELS; i++)
       mems[i] = mm[i]->get_data();
-    load_mem(mems, loadmem, CACHE_BLOCK_BYTES, N_MEM_CHANNELS);
+    load_mem(mems, loadmem, CACHE_BLOCK_BYTES, enabled_mem_channels);
   }
 
   vcs_main(argc, argv);

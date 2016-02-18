@@ -35,8 +35,8 @@ abstract class RocketChipNetwork(
   val nClients = tlNClients
   val nManagers = tlNManagers
   val io = new Bundle {
-    val clients = Vec(new ClientTileLinkIO, nClients).flip
-    val managers = Vec(new ManagerTileLinkIO, nManagers).flip
+    val clients = Vec(nClients, new ClientTileLinkIO).flip
+    val managers = Vec(nManagers, new ManagerTileLinkIO).flip
   }
 
   val clients = io.clients.zipWithIndex.map { 
