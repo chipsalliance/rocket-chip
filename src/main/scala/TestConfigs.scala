@@ -104,6 +104,12 @@ class WithNastiConverterTest extends Config(
       (id: Int, p: Parameters) => Module(new NastiConverterTest()(p))
   })
 
+class WithUnitTest extends Config(
+  (pname, site, here) => pname match {
+    case BuildGroundTest =>
+      (id: Int, p: Parameters) => Module(new UnitTestSuite()(p))
+  })
+
 class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
@@ -117,6 +123,7 @@ class CacheRegressionTestConfig extends Config(
 class DmaTestConfig extends Config(new WithDmaTest ++ new WithL2Cache ++ new GroundTestConfig)
 class DmaStreamTestConfig extends Config(new WithDmaStreamTest ++ new WithStreamLoopback ++ new WithL2Cache ++ new GroundTestConfig)
 class NastiConverterTestConfig extends Config(new WithNastiConverterTest ++ new GroundTestConfig)
+class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
 
 class FancyMemtestConfig extends Config(
   new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
