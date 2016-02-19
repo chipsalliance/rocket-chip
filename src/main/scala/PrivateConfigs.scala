@@ -56,6 +56,7 @@ class WithHwachaTests extends Config(
   (pname,site,here) => pname match {
     case BuildRoCC => {
       TestGeneration.addSuites(rv64uv.map(_("p")))
+      TestGeneration.addSuites(rv64uv.map(_("vp")))
       // no excep or vm in v4 yet
       //TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64uv.map(_(env))))
       TestGeneration.addSuite(rv64sv("p"))
