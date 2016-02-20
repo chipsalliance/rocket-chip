@@ -283,7 +283,8 @@ class PrefetchHitRegression(implicit p: Parameters) extends Regression()(p) {
 }
 
 /* This tests the sort of access the pattern that Hwacha uses.
- * Instead of using PutBlock/GetBlock, it uses word-sized puts and gets.
+ * Instead of using PutBlock/GetBlock, it uses word-sized puts and gets
+ * to the same block.
  * Each request has the same client_xact_id, but there are multiple in flight.
  * The responses therefore must come back in the order they are sent. */
 class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()(p) {
@@ -379,8 +380,7 @@ object RegressionTests {
     Module(new WritebackRegression))
   def broadcastRegressions(implicit p: Parameters) = Seq(
     Module(new IOGetAfterPutBlockRegression),
-    Module(new WriteMaskedPutBlockRegression),
-    Module(new SequentialSameIdGetRegression))
+    Module(new WriteMaskedPutBlockRegression))
 }
 
 case object GroundTestRegressions extends Field[Parameters => Seq[Regression]]
