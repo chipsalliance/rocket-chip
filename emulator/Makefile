@@ -39,7 +39,7 @@ $(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(mo
 	$(CXX) $(CXXFLAGS) -include $(scr_header) -include $(model_header) -include $(consts_header) -I$(generated_dir) -c -o $@ $<
 
 $(addsuffix .debug.o,$(CXXSRCS)): %.debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(model_header_debug) $(consts_header_debug)
-	$(CXX) $(CXXFLAGS) -include $(model_header_debug) -include $(consts_header_debug) -I$(generated_dir_debug) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) -include $(scr_header_debug) -include $(model_header_debug) -include $(consts_header_debug) -I$(generated_dir_debug) -c -o $@ $<
 
 $(generated_dir)/$(MODEL).$(CONFIG).d $(model_header) $(params_file): $(chisel_srcs)
 	cd $(base_dir) && $(SBT) "project $(PROJECT)" "run $(CHISEL_ARGS) --noIoDebug"
