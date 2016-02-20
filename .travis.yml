@@ -31,6 +31,8 @@ env:
     - VCONFIG=DefaultVLSIConfig FCONFIG=DefaultFPGAConfig ECONFIG=DefaultCPPConfig
     - VCONFIG=RoccExampleConfig FCONFIG=RoccExampleConfig ECONFIG=RoccExampleConfig
     - VCONFIG=DmaControllerConfig FCONFIG=DmaControllerFPGAConfig ECONFIG=DmaControllerConfig
+    - VCONFIG=MemtestConfig FCONFIG=MemtestConfig ECONFIG=MemtestConfig
+    - VCONFIG=MemtestL2Config FCONFIG=MemtestL2Config ECONFIG=MemtestL2Config
 
 # blacklist private branches
 branches:
@@ -76,5 +78,4 @@ script:
   - make -j 8 > build.gcc.out
   # run riscv-tests
   - cd ../../emulator
-  - make -j 8 CONFIG=$ECONFIG run-asm-tests
-  - make CONFIG=$ECONFIG run-bmark-tests
+  - make -j 8 CONFIG=$ECONFIG run
