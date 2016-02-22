@@ -28,15 +28,13 @@ import cde.{Parameters, Field}
 //   * A list of physical addresses from which an address is drawn when
 //     generating a fresh request.
 
-case object NumGens          extends Field[Int]
-case object NumReqsPerGen    extends Field[Int]
 case object AddressBag       extends Field[List[Int]]
 
 trait HasTraceGenParams {
   implicit val p: Parameters
-  val numGens             = p(NumGens)
+  val numGens             = p(NGenerators)
   val numBitsInId         = log2Up(numGens)
-  val numReqsPerGen       = p(NumReqsPerGen)
+  val numReqsPerGen       = p(MaxGenerateRequests)
   val memRespTimeout      = 4096
   val numBitsInWord       = p(WordBits)
   val numBytesInWord      = numBitsInWord / 8
