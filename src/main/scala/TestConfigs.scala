@@ -25,8 +25,8 @@ class WithGroundTest extends Config(
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
-      TestGeneration.addSuite(new AssemblyTestSuite("rv64ui", "rv64ui", LinkedHashSet("add"))("p"))
-      TestGeneration.addSuite(new BenchmarkTestSuite("basic", "$(base_dir)/riscv-tools/riscv-tests/benchmarks", LinkedHashSet("vvadd")))
+      TestGeneration.addSuite(new AssemblyUnitTestSuite)
+      TestGeneration.addSuite(new BenchmarkUnitTestSuite)
       (0 until site(NTiles)).map { i =>
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)

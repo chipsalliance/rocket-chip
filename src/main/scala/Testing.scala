@@ -29,6 +29,25 @@ run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($
 """
 }
 
+trait UnitTest extends RocketTestSuite {
+  override def postScript = s"""
+
+$$(addprefix $$(output_dir)/, $$(addsuffix .hex, $$($makeTargetName))):
+\tmkdir -p $$(output_dir)
+\ttouch $$@
+
+$$(addprefix $$(output_dir)/, $$($makeTargetName)):
+\tmkdir -p $$(output_dir)
+\ttouch $$@
+
+run-$makeTargetName: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $$($makeTargetName)))
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
+
+run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($makeTargetName)))
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^); echo;
+  """
+}
+
 class AssemblyTestSuite(makePrefix: String, toolsPrefix: String, val names: LinkedHashSet[String])(envName: String) extends RocketTestSuite {
   val dir = "$(base_dir)/riscv-tools/riscv-tests/isa"
   val makeTargetName = makePrefix + "-" + envName + "-asm-tests"
@@ -38,6 +57,18 @@ class AssemblyTestSuite(makePrefix: String, toolsPrefix: String, val names: Link
 class BenchmarkTestSuite(makePrefix: String, val dir: String, val names: LinkedHashSet[String]) extends RocketTestSuite {
   val makeTargetName = makePrefix + "-bmark-tests"
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$n.riscv").mkString(" \\\n") + postScript
+}
+
+class AssemblyUnitTestSuite extends AssemblyTestSuite("","",LinkedHashSet())("") with UnitTest {
+  override val dir = ""
+  override val names = LinkedHashSet[String]()
+  override val makeTargetName = "unit-test"
+  override def toString = s"$makeTargetName = unit-test\\\n" + postScript
+}
+
+class BenchmarkUnitTestSuite extends BenchmarkTestSuite("", "", LinkedHashSet()) with UnitTest {
+  override val makeTargetName = "unit-bmark-tests"
+  override def toString = s"$makeTargetName = unit-test\\\n" + postScript
 }
 
 object TestGeneration extends FileSystemUtilities{
