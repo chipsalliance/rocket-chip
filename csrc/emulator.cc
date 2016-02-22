@@ -14,6 +14,18 @@
 #define MEM_LEN_BITS 8
 #define MEM_RESP_BITS 2
 
+static const int MEMORY_CHANNEL_MUX_CONFIGS[] = {
+#ifdef MEMORY_CHANNEL_MUX_CONFIGS__0
+  MEMORY_CHANNEL_MUX_CONFIGS__0,
+#endif
+#ifdef MEMORY_CHANNEL_MUX_CONFIGS__1
+  MEMORY_CHANNEL_MUX_CONFIGS__1,
+#endif
+#ifdef MEMORY_CHANNEL_MUX_CONFIGS__2
+#error "Add a preprocessor repeat macro"
+#endif
+};
+
 htif_emulator_t* htif;
 void handle_sigterm(int sig)
 {
@@ -35,6 +47,7 @@ int main(int argc, char** argv)
   bool print_cycles = false;
   uint64_t memsz_mb = MEM_SIZE / (1024*1024);
   mm_t *mm[N_MEM_CHANNELS];
+  int memory_channel_mux_select;
 
   for (int i = 1; i < argc; i++)
   {
@@ -57,7 +70,11 @@ int main(int argc, char** argv)
       start = atoll(argv[i]+7);
     else if (arg.substr(0, 12) == "+cycle-count")
       print_cycles = true;
+    else if (arg.substr(0, 27) == "+memory_channel_mux_select=")
+      memory_channel_mux_select = atoi(argv[i]+27);
   }
+
+  int enabled_mem_channels = MEMORY_CHANNEL_MUX_CONFIGS[memory_channel_mux_select];
 
   const int disasm_len = 24;
   if (vcd)
@@ -83,7 +100,7 @@ int main(int argc, char** argv)
   for (int i = 0; i < N_MEM_CHANNELS; i++) {
     mm[i] = dramsim2 ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
     try {
-      mm[i]->init(memsz_mb*1024*1024 / N_MEM_CHANNELS, mem_width, CACHE_BLOCK_BYTES);
+      mm[i]->init(memsz_mb*1024*1024 / enabled_mem_channels, mem_width, CACHE_BLOCK_BYTES);
     } catch (const std::bad_alloc& e) {
       fprintf(stderr,
           "Failed to allocate %ld bytes (%ld MiB) of memory\n"
@@ -97,7 +114,7 @@ int main(int argc, char** argv)
     void *mems[N_MEM_CHANNELS];
     for (int i = 0; i < N_MEM_CHANNELS; i++)
       mems[i] = mm[i]->get_data();
-    load_mem(mems, loadmem, CACHE_BLOCK_BYTES, N_MEM_CHANNELS);
+    load_mem(mems, loadmem, CACHE_BLOCK_BYTES, enabled_mem_channels);
   }
 
   // Instantiate HTIF
