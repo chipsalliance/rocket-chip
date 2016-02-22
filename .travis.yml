@@ -35,6 +35,7 @@ env:
     - VCONFIG=MemtestL2Config FCONFIG=MemtestL2Config ECONFIG=MemtestL2Config
     - VCONFIG=BroadcastRegressionTestConfig FCONFIG=BroadcastRegressionTestConfig ECONFIG=BroadcastRegressionTestConfig
     - VCONFIG=CacheRegressionTestConfig FCONFIG=CacheRegressionTestConfig ECONFIG=CacheRegressionTestConfig
+    - VCONFIG=OneOrEightChannelBenchmarkConfig FCONFIG=OneOrEightChannelBenchmarkConfig ECONFIG=OneOrEightChannelsBenchmarkConfig
 
 # blacklist private branches
 branches:
