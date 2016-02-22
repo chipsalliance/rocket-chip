@@ -5,6 +5,7 @@ import groundtest._
 import rocket._
 import uncore._
 import junctions._
+import scala.collection.mutable.LinkedHashSet
 import cde.{Parameters, Config, Dump, Knob}
 import scala.math.max
 
@@ -24,6 +25,8 @@ class WithGroundTest extends Config(
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
+      TestGeneration.addSuite(new AssemblyTestSuite("rv64ui", "rv64ui", LinkedHashSet("add"))("p"))
+      TestGeneration.addSuite(new BenchmarkTestSuite("basic", "$(base_dir)/riscv-tools/riscv-tests/benchmarks", LinkedHashSet("vvadd")))
       (0 until site(NTiles)).map { i =>
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)
@@ -31,6 +34,7 @@ class WithGroundTest extends Config(
       }
     }
     case GroundTestMaxXacts => 1
+    case UseFPU => false
   })
 
 class WithMemtest extends Config(
