@@ -80,4 +80,5 @@ script:
   - make -j 8 > build.gcc.out
   # run riscv-tests
   - cd ../../emulator
-  - make -j 8 CONFIG=$ECONFIG run
+  - make -j 8 CONFIG=$ECONFIG run-asm-tests
+  - make CONFIG=$ECONFIG run-bmark-tests
