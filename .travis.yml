@@ -33,7 +33,8 @@ env:
     - VCONFIG=DmaControllerConfig FCONFIG=DmaControllerFPGAConfig ECONFIG=DmaControllerConfig
     - VCONFIG=MemtestConfig FCONFIG=MemtestConfig ECONFIG=MemtestConfig
     - VCONFIG=MemtestL2Config FCONFIG=MemtestL2Config ECONFIG=MemtestL2Config
-    - VCONFIG=OneOrEightChannelBenchmarkConfig FCONFIG=OneOrEightChannelBenchmarkConfig ECONFIG=OneOrEightChannelBenchmarkConfig
+    - VCONFIG=BroadcastRegressionTestConfig FCONFIG=BroadcastRegressionTestConfig ECONFIG=BroadcastRegressionTestConfig
+    - VCONFIG=CacheRegressionTestConfig FCONFIG=CacheRegressionTestConfig ECONFIG=CacheRegressionTestConfig
 
 # blacklist private branches
 branches:
