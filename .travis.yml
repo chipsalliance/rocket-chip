@@ -6,6 +6,7 @@ cache:
   directories:
     $HOME/.ivy2
     regression/install
+
 # packages needed to build riscv-tools
 addons:
   apt:
