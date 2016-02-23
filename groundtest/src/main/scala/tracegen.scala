@@ -1,7 +1,18 @@
-// Generate memory traces that result from random sequences of memory
-// operations.  These traces can then be validated by an external
-// tool.  A trace is a simply sequence of memory requests and
-// responses.
+// This file was originally written by Matthew Naylor, University of
+// Cambridge, based on code already present in the groundtest repo.
+//
+// This software was partly developed by the University of Cambridge
+// Computer Laboratory under DARPA/AFRL contract FA8750-10-C-0237
+// ("CTSRD"), as part of the DARPA CRASH research programme.
+// 
+// This software was partly developed by the University of Cambridge
+// Computer Laboratory under DARPA/AFRL contract FA8750-11-C-0249
+// ("MRC2"), as part of the DARPA MRC research programme.
+// 
+// This software was partly developed by the University of Cambridge
+// Computer Laboratory as part of the Rigorous Engineering of
+// Mainstream Systems (REMS) project, funded by EPSRC grant
+// EP/K008528/1.
 
 package groundtest
  
@@ -11,6 +22,15 @@ import junctions._
 import rocket._
 import scala.util.Random
 import cde.{Parameters, Field}
+
+// =======
+// Outline
+// =======
+
+// Generate memory traces that result from random sequences of memory
+// operations.  These traces can then be validated by an external
+// tool.  A trace is a simply sequence of memory requests and
+// responses.
 
 // ==========================
 // Trace-generator parameters

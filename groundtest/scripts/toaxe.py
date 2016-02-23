@@ -1,5 +1,25 @@
 #!/usr/bin/env python
 
+# This file was originally written by Matthew Naylor, University of
+# Cambridge.
+#
+# This software was partly developed by the University of Cambridge
+# Computer Laboratory under DARPA/AFRL contract FA8750-10-C-0237
+# ("CTSRD"), as part of the DARPA CRASH research programme.
+# 
+# This software was partly developed by the University of Cambridge
+# Computer Laboratory under DARPA/AFRL contract FA8750-11-C-0249
+# ("MRC2"), as part of the DARPA MRC research programme.
+# 
+# This software was partly developed by the University of Cambridge
+# Computer Laboratory as part of the Rigorous Engineering of
+# Mainstream Systems (REMS) project, funded by EPSRC grant
+# EP/K008528/1. 
+
+# -------
+# Outline
+# -------
+
 # This script takes memory-subsystem traces produced by the groundtest
 # trace generator (see tracegen.scala) and puts them into a format
 # that can be validated by the axe tool (see
