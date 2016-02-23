@@ -76,6 +76,7 @@ stamps/other-submodules.stamp:
 	git -C $(abspath $(TOP)) submodule update --init --recursive rocket
 	git -C $(abspath $(TOP)) submodule update --init --recursive torture
 	git -C $(abspath $(TOP)) submodule update --init --recursive uncore
+	git -C $(abspath $(TOP)) submodule update --init --recursive zscale
 	date > $@
 
 $(RISCV)/install.stamp:
