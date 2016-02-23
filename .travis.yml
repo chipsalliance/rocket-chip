@@ -1,7 +1,11 @@
 language: scala
 # run on new infrastructure
 sudo: false
-cache: apt
+cache:
+  apt: true
+  directories:
+    $HOME/.ivy2
+    regression/install
 # packages needed to build riscv-tools
 addons:
   apt:
