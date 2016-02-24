@@ -49,7 +49,7 @@ run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($
 }
 
 class AssemblyTestSuite(makePrefix: String, toolsPrefix: String, val names: LinkedHashSet[String])(envName: String) extends RocketTestSuite {
-  val dir = "$(base_dir)/riscv-tools/riscv-tests/isa"
+  val dir = "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/isa"
   val makeTargetName = makePrefix + "-" + envName + "-asm-tests"
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$toolsPrefix-$envName-$n").mkString(" \\\n") + postScript
 }
