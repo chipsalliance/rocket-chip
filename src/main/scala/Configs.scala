@@ -151,6 +151,9 @@ class DefaultConfig extends Config (
           Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
         }
       }
+      case UseVLS => false
+      case SplitMetadata => false
+      case NVLSCacheSegments => 1
       case BuildRoCC => Nil
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
@@ -239,6 +242,9 @@ class DefaultConfig extends Config (
         }
         if (site(UseDma)) {
           devset.addDevice("dma", site(CacheBlockBytes), "dma")
+        }
+	if (site(UseVLS)) {
+          devset.addDevice("vls", site(XLen) * site(NVLSCacheSegments) * 4, "vls")
         }
         devset
       }
@@ -446,3 +452,11 @@ class WithOneOrMaxChannels extends Config(
 )
 
 class OneOrEightChannelBenchmarkConfig extends Config(new WithOneOrMaxChannels ++ new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
+
+class WithVLS extends Config(
+  (pname, site, here) => pname match {
+    case UseVLS => true
+    case NVLSCacheSegments => 1
+  })
+
+class VLSTestConfig extends Config(new WithVLS ++ new DefaultL2Config)

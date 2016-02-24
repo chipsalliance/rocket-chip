@@ -318,6 +318,28 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   scr_conv.io.nasti <> mmio_ic.io.slaves(addrHashMap("conf:scr").port)
   io.scr <> scr_conv.io.smi
 
+  if (p(UseVLS)) {
+    val vlsName = s"devices:vls"
+    val vlsPort = addrHashMap(vlsName).port
+    val conv = Module(new SmiIONastiIOConverter(xLen, 17))
+    conv.io.nasti <> mmio_ic.io.slaves(vlsPort)
+    for ((bank, i) <- managerEndpoints.zipWithIndex) {
+      Predef.assert(bank.isInstanceOf[L2HellaCacheBank],
+             "VLS requires L2HellaCacheBank coherence manager") 
+      bank match {
+        case l2b : L2HellaCacheBank => {
+          if (i == 0) {
+            l2b.io.gconf <> conv.io.smi
+          } else {
+            l2b.io.gconf.req.valid := conv.io.smi.req.valid
+            l2b.io.gconf.req.bits := conv.io.smi.req.bits
+            l2b.io.gconf.resp.ready := Bool(true)
+          }
+        }
+      }
+    }
+  }
+
   if (p(UseStreamLoopback)) {
     val lo_width = p(StreamLoopbackWidth)
     val lo_size = p(StreamLoopbackSize)
