@@ -29,7 +29,7 @@ run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($
 """
 }
 
-trait UnitTest extends RocketTestSuite {
+trait GroundTestSuite extends RocketTestSuite {
   override def postScript = s"""
 
 $$(addprefix $$(output_dir)/, $$(addsuffix .hex, $$($makeTargetName))):
@@ -59,14 +59,14 @@ class BenchmarkTestSuite(makePrefix: String, val dir: String, val names: LinkedH
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$n.riscv").mkString(" \\\n") + postScript
 }
 
-class AssemblyUnitTestSuite extends AssemblyTestSuite("","",LinkedHashSet())("") with UnitTest {
+class AssemblyGroundTestSuite extends AssemblyTestSuite("","",LinkedHashSet())("") with GroundTestSuite {
   override val dir = ""
   override val names = LinkedHashSet[String]()
   override val makeTargetName = "unit-test"
   override def toString = s"$makeTargetName = unit-test\\\n" + postScript
 }
 
-class BenchmarkUnitTestSuite extends BenchmarkTestSuite("", "", LinkedHashSet()) with UnitTest {
+class BenchmarkGroundTestSuite extends BenchmarkTestSuite("", "", LinkedHashSet()) with GroundTestSuite {
   override val makeTargetName = "unit-bmark-tests"
   override def toString = s"$makeTargetName = unit-test\\\n" + postScript
 }

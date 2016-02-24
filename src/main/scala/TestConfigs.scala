@@ -25,8 +25,8 @@ class WithGroundTest extends Config(
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
-      TestGeneration.addSuite(new AssemblyUnitTestSuite)
-      TestGeneration.addSuite(new BenchmarkUnitTestSuite)
+      TestGeneration.addSuite(new AssemblyGroundTestSuite)
+      TestGeneration.addSuite(new BenchmarkGroundTestSuite)
       (0 until site(NTiles)).map { i =>
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)
