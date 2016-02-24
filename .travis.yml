@@ -48,6 +48,7 @@ env:
     - CONFIG=MemtestL2Config
     - CONFIG=BroadcastRegressionTestConfig
     - CONFIG=CacheRegressionTestConfig
+    - CONFIG=VLSTestConfig
 
 # blacklist private branches
 branches:
