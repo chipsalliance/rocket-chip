@@ -3,7 +3,7 @@
 package rocketchip
 
 import Chisel._
-import scala.collection.mutable.LinkedHashSet
+import scala.collection.mutable.{LinkedHashSet,LinkedHashMap}
 import cde.{Parameters, ParameterDump, Config}
 import uncore.AllSCRFiles
 
@@ -75,7 +75,7 @@ class BenchmarkGroundTestSuite extends BenchmarkTestSuite("", "", LinkedHashSet(
 
 object TestGeneration extends FileSystemUtilities{
   import scala.collection.mutable.HashMap
-  val asmSuites = new HashMap[String,AssemblyTestSuite]()
+  val asmSuites = new LinkedHashMap[String,AssemblyTestSuite]()
   val bmarkSuites = new  HashMap[String,BenchmarkTestSuite]()
 
   def addSuite(s: RocketTestSuite) {
