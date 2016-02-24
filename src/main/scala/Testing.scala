@@ -11,6 +11,7 @@ abstract class RocketTestSuite {
   val dir: String
   val makeTargetName: String
   val names: LinkedHashSet[String]
+  val envName: String
   def postScript = s"""
 
 $$(addprefix $$(output_dir)/, $$(addsuffix .hex, $$($makeTargetName))): $$(output_dir)/%.hex: $dir/%.hex
@@ -48,13 +49,14 @@ run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($
   """
 }
 
-class AssemblyTestSuite(makePrefix: String, toolsPrefix: String, val names: LinkedHashSet[String])(envName: String) extends RocketTestSuite {
+class AssemblyTestSuite(makePrefix: String, toolsPrefix: String, val names: LinkedHashSet[String])(val envName: String) extends RocketTestSuite {
   val dir = "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/isa"
   val makeTargetName = makePrefix + "-" + envName + "-asm-tests"
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$toolsPrefix-$envName-$n").mkString(" \\\n") + postScript
 }
 
 class BenchmarkTestSuite(makePrefix: String, val dir: String, val names: LinkedHashSet[String]) extends RocketTestSuite {
+  val envName = ""
   val makeTargetName = makePrefix + "-bmark-tests"
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$n.riscv").mkString(" \\\n") + postScript
 }
@@ -88,8 +90,20 @@ object TestGeneration extends FileSystemUtilities{
   def generateMakefrag(topModuleName: String, configClassName: String) {
     def gen(kind: String, s: Seq[RocketTestSuite]) = {
       if(s.length > 0) {
-        val targets = s.map(t => s"$$(${t.makeTargetName})").mkString(" ") 
-        s.map(_.toString).mkString("\n") + s"""
+        val envs = s.groupBy(_.envName)
+        val targets = s.map(t => s"$$(${t.makeTargetName})").mkString(" ")
+        s.map(_.toString).mkString("\n") +
+        envs.filterKeys(_ != "").map( {
+          case (env,envsuites) => {
+          val suites = envsuites.map(t => s"$$(${t.makeTargetName})").mkString(" ")
+        s"""
+run-$kind-$env-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $suites))
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
+run-$kind-$env-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $suites))
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^); echo;
+run-$kind-$env-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $suites))
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
+"""} } ).mkString("\n") + s"""
 run-$kind-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $targets))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
 run-$kind-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $targets))
