@@ -6,6 +6,17 @@ cache:
   directories:
     $HOME/.ivy2
     regression/install
+    chisel/target
+    context-dependent-environments/target
+    groundtest/target
+    hardfloat/target
+    junctions/target
+    project/project/target
+    project/target
+    rocket/target
+    target
+    uncore/target
+    zscale/target
 
 # packages needed to build riscv-tools
 addons:
