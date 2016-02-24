@@ -412,7 +412,8 @@ class TSHRFile(implicit p: Parameters) extends L2HellaCacheModule()(p)
   }
   assert(PopCount(releaseReadys) <= UInt(nReleaseTransactors),
     "At most a single tracker should match for any given Release")
-  assert(!(io.inner.release.valid && !releaseReadys.orR),
+  assert(!io.inner.release.valid ||
+         io.inner.release.bits.isVoluntary() || releaseReadys.orR,
     "Non-voluntary release should always have a Tracker waiting for it.")
 
   // Wire probe requests and grant reply to clients, finish acks from clients
