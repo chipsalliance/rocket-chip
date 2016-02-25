@@ -14,6 +14,7 @@ case class RoccParameters(
   opcodes: OpcodeSet,
   generator: Parameters => RoCC,
   nMemChannels: Int = 0,
+  nPTWPorts : Int = 0,
   csrs: Seq[Int] = Nil,
   useFPU: Boolean = false)
 
@@ -24,7 +25,7 @@ abstract class Tile(resetSignal: Bool = null)
   val nRocc = buildRocc.size
   val nFPUPorts = buildRocc.filter(_.useFPU).size
   val nDCachePorts = 2 + nRocc
-  val nPTWPorts = 2 + 3 * nRocc
+  val nPTWPorts = 2 + p(RoccNPTWPorts)
   val nCachedTileLinkPorts = 1
   val nUncachedTileLinkPorts = 1 + p(RoccNMemChannels)
   val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
@@ -78,6 +79,7 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
     val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
       val rocc = accelParams.generator(p.alterPartial({
         case RoccNMemChannels => accelParams.nMemChannels
+        case RoccNPTWPorts => accelParams.nPTWPorts
         case RoccNCSRs => accelParams.csrs.size
       }))
       val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
@@ -88,9 +90,6 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       dcIF.io.requestor <> rocc.io.mem
       dcArb.io.requestor(2 + i) <> dcIF.io.cache
       uncachedArb.io.in(1 + i) <> rocc.io.autl
-      ptw.io.requestor(2 + 3 * i) <> rocc.io.iptw
-      ptw.io.requestor(3 + 3 * i) <> rocc.io.dptw
-      ptw.io.requestor(4 + 3 * i) <> rocc.io.pptw
       rocc
     }
 
@@ -108,6 +107,8 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
         fpArb.io.out_resp <> fpu.io.cp_resp
       }
     }
+
+    ptw.io.requestor.drop(2) <> roccs.flatMap(_.io.ptw)
 
     core.io.rocc.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
     core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)

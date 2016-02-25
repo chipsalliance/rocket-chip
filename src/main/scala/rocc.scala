@@ -9,6 +9,7 @@ import cde.{Parameters, Field}
 
 case object RoccMaxTaggedMemXacts extends Field[Int]
 case object RoccNMemChannels extends Field[Int]
+case object RoccNPTWPorts extends Field[Int]
 case object RoccNCSRs extends Field[Int]
 
 class RoCCCSRs(implicit p: Parameters) extends CoreBundle()(p) {
@@ -52,9 +53,7 @@ class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
   // These should be handled differently, eventually
   val autl = new ClientUncachedTileLinkIO
   val utl = Vec(p(RoccNMemChannels), new ClientUncachedTileLinkIO)
-  val iptw = new TLBPTWIO
-  val dptw = new TLBPTWIO
-  val pptw = new TLBPTWIO
+  val ptw = Vec(p(RoccNPTWPorts), new TLBPTWIO)
   val fpu_req = Decoupled(new FPInput)
   val fpu_resp = Decoupled(new FPResult).flip
   val exception = Bool(INPUT)
@@ -136,9 +135,6 @@ class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
 
   io.autl.acquire.valid := false
   io.autl.grant.ready := false
-  io.iptw.req.valid := false
-  io.dptw.req.valid := false
-  io.pptw.req.valid := false
 }
 
 class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
@@ -160,20 +156,22 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
     state := s_ptw_req
   }
 
-  when (io.dptw.req.fire()) { state := s_ptw_resp }
+  private val ptw = io.ptw(0)
 
-  when (state === s_ptw_resp && io.dptw.resp.valid) {
-    error := io.dptw.resp.bits.error
-    ppn := io.dptw.resp.bits.pte.ppn
+  when (ptw.req.fire()) { state := s_ptw_resp }
+
+  when (state === s_ptw_resp && ptw.resp.valid) {
+    error := ptw.resp.bits.error
+    ppn := ptw.resp.bits.pte.ppn
     state := s_resp
   }
 
   when (io.resp.fire()) { state := s_idle }
 
-  io.dptw.req.valid := (state === s_ptw_req)
-  io.dptw.req.bits.addr := req_vpn
-  io.dptw.req.bits.store := Bool(false)
-  io.dptw.req.bits.fetch := Bool(false)
+  ptw.req.valid := (state === s_ptw_req)
+  ptw.req.bits.addr := req_vpn
+  ptw.req.bits.store := Bool(false)
+  ptw.req.bits.fetch := Bool(false)
 
   io.resp.valid := (state === s_resp)
   io.resp.bits.rd := req_rd
@@ -184,8 +182,6 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
   io.mem.req.valid := Bool(false)
   io.autl.acquire.valid := Bool(false)
   io.autl.grant.ready := Bool(false)
-  io.iptw.req.valid := Bool(false)
-  io.pptw.req.valid := Bool(false)
 }
 
 class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
@@ -265,9 +261,6 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
-  io.dptw.req.valid := Bool(false)
-  io.iptw.req.valid := Bool(false)
-  io.pptw.req.valid := Bool(false)
 }
 
 class OpcodeSet(val opcodes: Seq[UInt]) {
