@@ -96,7 +96,7 @@ class AtosRequest(implicit p: Parameters)
   def is_last(dummy: Int = 0) =
     typ === AtosRequest.arType || (typ === AtosRequest.wType && last())
 
-  def nbytes: Int = atosRequestBytes
+  def nbits: Int = atosRequestBits
 
   def resp_len(dummy: Int = 0) =
     MuxLookup(typ, UInt(0), Seq(
@@ -138,7 +138,7 @@ class AtosResponse(implicit p: Parameters)
 
   def is_last(dummy: Int = 0) = !has_data() || last
 
-  def nbytes: Int = atosResponseBytes
+  def nbits: Int = atosResponseBits
 }
 
 class AtosIO(implicit p: Parameters) extends AtosBundle()(p) {
@@ -288,4 +288,40 @@ class AtosManagerConverter(implicit p: Parameters) extends AtosModule()(p) {
 
   resp_enc.io.b <> io.nasti.b
   resp_enc.io.r <> io.nasti.r
+}
+
+class AtosSerializedIO(w: Int)(implicit p: Parameters) extends ParameterizedBundle()(p) {
+  val req = Decoupled(Bits(width = w))
+  val resp = Decoupled(Bits(width = w)).flip
+  override def cloneType = new AtosSerializedIO(w)(p).asInstanceOf[this.type]
+}
+
+class AtosSerdes(w: Int)(implicit p: Parameters) extends AtosModule()(p) {
+  val io = new Bundle {
+    val wide = (new AtosIO).flip
+    val narrow = new AtosSerializedIO(w)
+  }
+
+  val ser = Module(new Serializer(w, new AtosRequest))
+  ser.io.in <> io.wide.req
+  io.narrow.req <> ser.io.out
+
+  val des = Module(new Deserializer(w, new AtosResponse))
+  des.io.in <> io.narrow.resp
+  io.wide.resp <> des.io.out
+}
+
+class AtosDesser(w: Int)(implicit p: Parameters) extends AtosModule()(p) {
+  val io = new Bundle {
+    val narrow = new AtosSerializedIO(w).flip
+    val wide = new AtosIO
+  }
+
+  val des = Module(new Deserializer(w, new AtosRequest))
+  des.io.in <> io.narrow.req
+  io.wide.req <> des.io.out
+
+  val ser = Module(new Serializer(w, new AtosResponse))
+  ser.io.in <> io.wide.resp
+  io.narrow.resp <> ser.io.out
 }
