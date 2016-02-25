@@ -293,6 +293,8 @@ class AtosManagerConverter(implicit p: Parameters) extends AtosModule()(p) {
 class AtosSerializedIO(w: Int)(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val req = Decoupled(Bits(width = w))
   val resp = Decoupled(Bits(width = w)).flip
+  val clk = Bool(OUTPUT)
+  val clk_edge = Bool(OUTPUT)
   override def cloneType = new AtosSerializedIO(w)(p).asInstanceOf[this.type]
 }
 
