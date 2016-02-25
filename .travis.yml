@@ -41,13 +41,14 @@ addons:
 
 env:
   matrix:
-    - CONFIG=DefaultCPPConfig
+    - CONFIG=DefaultConfig
     - CONFIG=RoccExampleConfig
     - CONFIG=DmaControllerConfig
     - CONFIG=MemtestConfig
     - CONFIG=MemtestL2Config
     - CONFIG=BroadcastRegressionTestConfig
     - CONFIG=CacheRegressionTestConfig
+    - CONFIG=UnitTestConfig
 
 # blacklist private branches
 branches:

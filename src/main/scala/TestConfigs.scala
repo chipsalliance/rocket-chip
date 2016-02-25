@@ -25,8 +25,8 @@ class WithGroundTest extends Config(
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
-      TestGeneration.addSuite(new AssemblyUnitTestSuite)
-      TestGeneration.addSuite(new BenchmarkUnitTestSuite)
+      TestGeneration.addSuite(new AssemblyGroundTestSuite)
+      TestGeneration.addSuite(new BenchmarkGroundTestSuite)
       (0 until site(NTiles)).map { i =>
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)
@@ -114,6 +114,15 @@ class WithUnitTest extends Config(
       (id: Int, p: Parameters) => Module(new UnitTestSuite()(p))
   })
 
+class WithTraceGen extends Config(
+  (pname, site, here) => pname match {
+    case BuildGroundTest =>
+      (id: Int, p: Parameters) => Module(new GroundTestTraceGenerator(id)(p))
+    case NGenerators => site(NTiles)
+    case MaxGenerateRequests => 128
+    case AddressBag => List(0x8, 0x10, 0x108, 0x100008)
+  })
+
 class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
@@ -128,6 +137,7 @@ class DmaTestConfig extends Config(new WithDmaTest ++ new WithL2Cache ++ new Gro
 class DmaStreamTestConfig extends Config(new WithDmaStreamTest ++ new WithStreamLoopback ++ new WithL2Cache ++ new GroundTestConfig)
 class NastiConverterTestConfig extends Config(new WithNastiConverterTest ++ new GroundTestConfig)
 class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
+class TraceGenConfig extends Config(new With2Cores ++ new WithL2Cache ++ new WithTraceGen ++ new GroundTestConfig)
 
 class FancyMemtestConfig extends Config(
   new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
