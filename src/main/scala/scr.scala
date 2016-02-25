@@ -102,8 +102,6 @@ class SCRFile(prefix: String, baseAddress: BigInt)(implicit p: Parameters) exten
   val scr_rdata = Wire(Vec(io.scr.rdata.size, Bits(width=scrDataBits)))
   for (i <- 0 until scr_rdata.size)
     scr_rdata(i) := io.scr.rdata(i)
-  scr_rdata(0) := UInt(nCores); map.allocate(0, "N_CORES")
-  scr_rdata(1) := UInt(p(MMIOBase) >> 20); map.allocate(1, "MMIO_BASE")
 
   val read_addr = Reg(init = UInt(0, scrAddrBits))
   val resp_valid = Reg(init = Bool(false))
