@@ -681,3 +681,39 @@ class NastiMemorySelector(nBanks: Int, maxMemChannels: Int, configs: Seq[Int])
     muxOnSelect(ic.io.slaves,     io.slaves,  io.select === UInt(select))
   }
 }
+
+class NastiMemoryDemux(nRoutes: Int)(implicit p: Parameters) extends NastiModule()(p) {
+  val io = new Bundle {
+    val master = (new NastiIO).flip
+    val slaves = Vec(nRoutes, new NastiIO)
+    val select = UInt(INPUT, log2Up(nRoutes))
+  }
+
+  def connectReqChannel[T <: Data](idx: Int, out: DecoupledIO[T], in: DecoupledIO[T]) {
+    out.valid := in.valid && io.select === UInt(idx)
+    out.bits := in.bits
+    when (io.select === UInt(idx)) { in.ready := out.ready }
+  }
+
+  def connectRespChannel[T <: Data](idx: Int, out: DecoupledIO[T], in: DecoupledIO[T]) {
+    when (io.select === UInt(idx)) { out.valid := in.valid }
+    when (io.select === UInt(idx)) { out.bits := in.bits }
+    in.ready := out.ready && io.select === UInt(idx)
+  }
+
+  io.master.ar.ready := Bool(false)
+  io.master.aw.ready := Bool(false)
+  io.master.w.ready := Bool(false)
+  io.master.r.valid := Bool(false)
+  io.master.r.bits := NastiReadDataChannel(id = UInt(0), data = UInt(0))
+  io.master.b.valid := Bool(false)
+  io.master.b.bits := NastiWriteResponseChannel(id = UInt(0))
+
+  io.slaves.zipWithIndex.foreach { case (slave, i) =>
+    connectReqChannel(i, slave.ar, io.master.ar)
+    connectReqChannel(i, slave.aw, io.master.aw)
+    connectReqChannel(i, slave.w, io.master.w)
+    connectRespChannel(i, io.master.r, slave.r)
+    connectRespChannel(i, io.master.b, slave.b)
+  }
+}
