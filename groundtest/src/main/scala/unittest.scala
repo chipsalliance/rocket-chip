@@ -391,24 +391,16 @@ class AtosConverterTest(implicit p: Parameters) extends UnitTest {
   val frontend = Module(new AtosConverterTestFrontend)
   val backend = Module(new AtosConverterTestBackend)
 
-  val fe_ser = Module(new Serializer(new AtosRequest))
-  val fe_des = Module(new Deserializer(new AtosResponse))
-
-  val be_des = Module(new Deserializer(new AtosRequest))
-  val be_ser = Module(new Serializer(new AtosResponse))
+  val serdes = Module(new AtosSerdes(8))
+  val desser = Module(new AtosDesser(8))
 
   val client_conv = Module(new AtosClientConverter)
   val manager_conv = Module(new AtosManagerConverter)
 
   client_conv.io.nasti <> frontend.io.nasti
-  fe_ser.io.in <> client_conv.io.atos.req
-  client_conv.io.atos.resp <> fe_des.io.out
-
-  be_des.io.in <> fe_ser.io.out
-  fe_des.io.in <> be_ser.io.out
-
-  manager_conv.io.atos.req <> be_des.io.out
-  be_ser.io.in <> manager_conv.io.atos.resp
+  serdes.io.wide <> client_conv.io.atos
+  desser.io.narrow <> serdes.io.narrow
+  manager_conv.io.atos <> desser.io.wide
   backend.io.nasti <> manager_conv.io.nasti
 
   io.finished := frontend.io.finished && backend.io.finished
