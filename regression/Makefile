@@ -72,6 +72,7 @@ stamps/other-submodules.stamp:
 	git -C $(abspath $(TOP)) submodule update --init --recursive dramsim2
 	git -C $(abspath $(TOP)) submodule update --init --recursive groundtest
 	git -C $(abspath $(TOP)) submodule update --init --recursive hardfloat
+	git -C $(abspath $(TOP)) submodule update --init --recursive hwacha
 	git -C $(abspath $(TOP)) submodule update --init --recursive junctions
 	git -C $(abspath $(TOP)) submodule update --init --recursive rocket
 	git -C $(abspath $(TOP)) submodule update --init --recursive torture
