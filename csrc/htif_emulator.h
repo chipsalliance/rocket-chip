@@ -24,17 +24,17 @@ class htif_emulator_t : public htif_pthread_t
 
   void set_clock_divisor(int divisor, int hold_cycles)
   {
-#ifdef UNCORE_SCR__HTIF_IO_CLOCK_DIVISOR
+#ifdef UNCORE_SCR__HTIF_IO_CLOCK_DIVISOR__OFFSET
     /* We only want to write the HTIF clock divisor SCR on targets where it
      * actually exists (there isn't one on the FPGA, for example). */
-    write_cr(-1, UNCORE_SCR__HTIF_IO_CLOCK_DIVISOR, divisor | hold_cycles << 16);
+    write_cr(-1, UNCORE_SCR__HTIF_IO_CLOCK_DIVISOR__OFFSET, divisor | hold_cycles << 16);
 #endif
   }
 
   void start()
   {
     set_clock_divisor(5, 2);
-    write_cr(-1, UNCORE_SCR__MEMORY_CHANNEL_MUX_SELECT, memory_channel_mux_select);
+    write_cr(-1, UNCORE_SCR__MEMORY_CHANNEL_MUX_SELECT__OFFSET, memory_channel_mux_select);
     htif_pthread_t::start();
   }
 
