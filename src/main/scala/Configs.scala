@@ -153,6 +153,7 @@ class DefaultConfig extends Config (
       }
       case BuildRoCC => Nil
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
+      case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
       case UseDma => false
       case UseStreamLoopback => false
@@ -399,7 +400,8 @@ class WithRoccExample extends Config(
         generator = (p: Parameters) => Module(new AccumulatorExample()(p))),
       RoccParameters(
         opcodes = OpcodeSet.custom1,
-        generator = (p: Parameters) => Module(new TranslatorExample()(p))),
+        generator = (p: Parameters) => Module(new TranslatorExample()(p)),
+        nPTWPorts = 1),
       RoccParameters(
         opcodes = OpcodeSet.custom2,
         generator = (p: Parameters) => Module(new CharacterCountExample()(p))))
@@ -416,6 +418,7 @@ class WithDmaController extends Config(
         RoccParameters(
           opcodes = OpcodeSet.custom2,
           generator = (p: Parameters) => Module(new DmaController()(p)),
+          nPTWPorts = 1,
           csrs = Seq.range(
             DmaCtrlRegNumbers.CSR_BASE,
             DmaCtrlRegNumbers.CSR_END)))

@@ -165,7 +165,8 @@ class Uncore(implicit val p: Parameters) extends Module
   }
 
   // Arbitrate SCR access between MMIO and HTIF
-  val scrFile = Module(new SCRFile("UNCORE_SCR"))
+  val addrHashMap = new AddrHashMap(p(GlobalAddrMap), p(MMIOBase))
+  val scrFile = Module(new SCRFile("UNCORE_SCR",addrHashMap("conf:scr").start))
   val scrArb = Module(new SmiArbiter(2, scrDataBits, scrAddrBits))
   scrArb.io.in(0) <> htif.io.scr
   scrArb.io.in(1) <> outmemsys.io.scr
