@@ -64,19 +64,12 @@ fsim-asm-tests: stamps/$(CONFIG)/fsim-asm-tests.stamp
 fsim-bmark-tests: stamps/$(CONFIG)/fsim-bmark-tests.stamp
 fsim-torture: stamps/$(CONFIG)/fsim-torture-$(TORTURE_CONFIG).stamp
 
+submodule_names = chisel context-dependent-environments dramsim2 groundtest hardfloat junctions rocket torture uncore zscale $(ROCKETCHIP_ADDONS)
+
 # Checks out all the rocket-chip submodules
 stamps/other-submodules.stamp:
 	mkdir -p $(dir $@)
-	git -C $(abspath $(TOP)) submodule update --init --recursive chisel
-	git -C $(abspath $(TOP)) submodule update --init --recursive context-dependent-environments
-	git -C $(abspath $(TOP)) submodule update --init --recursive dramsim2
-	git -C $(abspath $(TOP)) submodule update --init --recursive groundtest
-	git -C $(abspath $(TOP)) submodule update --init --recursive hardfloat
-	git -C $(abspath $(TOP)) submodule update --init --recursive junctions
-	git -C $(abspath $(TOP)) submodule update --init --recursive rocket
-	git -C $(abspath $(TOP)) submodule update --init --recursive torture
-	git -C $(abspath $(TOP)) submodule update --init --recursive uncore
-	git -C $(abspath $(TOP)) submodule update --init --recursive zscale
+	git -C $(abspath $(TOP)) submodule update --init --recursive $(submodule_names)
 	date > $@
 
 $(RISCV)/install.stamp:
