@@ -350,8 +350,6 @@ class DmaCtrlRegFile(implicit val p: Parameters) extends Module
 class DmaController(implicit p: Parameters) extends RoCC()(p)
     with HasClientDmaParameters {
   io.mem.req.valid := Bool(false)
-  io.iptw.req.valid := Bool(false)
-  io.pptw.req.valid := Bool(false)
   io.resp.valid := Bool(false)
   io.interrupt := Bool(false)
 
@@ -373,7 +371,7 @@ class DmaController(implicit p: Parameters) extends RoCC()(p)
   io.csr.rdata(RESP_STATUS) := reg_status
 
   val frontend = Module(new DmaFrontend)
-  io.dptw <> frontend.io.ptw
+  io.ptw(0) <> frontend.io.ptw
   io.autl <> frontend.io.mem
   crfile.io.incr_outstanding := frontend.io.incr_outstanding
   frontend.io.host_id := io.host_id
