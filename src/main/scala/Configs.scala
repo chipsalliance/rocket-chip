@@ -444,12 +444,16 @@ class DualChannelBenchmarkConfig extends Config(new With2MemoryChannels ++ new S
 class QuadChannelBenchmarkConfig extends Config(new With4MemoryChannels ++ new SingleChannelBenchmarkConfig)
 class OctoChannelBenchmarkConfig extends Config(new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
 
+class EightChannelVLSIConfig extends Config(new With8MemoryChannels ++ new DefaultVLSIConfig)
+
 class WithOneOrMaxChannels extends Config(
   (pname, site, here) => pname match {
     case MemoryChannelMuxConfigs => Dump("MEMORY_CHANNEL_MUX_CONFIGS", List(1, site(NMemoryChannels)))
   }
 )
 class OneOrEightChannelBenchmarkConfig extends Config(new WithOneOrMaxChannels ++ new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
+class OneOrEightChannelVLSIConfig extends Config(new WithOneOrMaxChannels ++ new EightChannelVLSIConfig)
 
 class SimulateBackupMemConfig extends Config(){ Dump("MEM_BACKUP_EN", true) }
 class BackupMemVLSIConfig extends Config(new SimulateBackupMemConfig ++ new DefaultVLSIConfig)
+class OneOrEightChannelBackupMemVLSIConfig extends Config(new WithOneOrMaxChannels ++ new With8MemoryChannels ++ new BackupMemVLSIConfig)
