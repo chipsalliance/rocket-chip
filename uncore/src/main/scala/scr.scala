@@ -29,7 +29,8 @@ class SCRFileMap(prefix: String, maxAddress: Int, baseAddress: BigInt) {
 
   def as_c_header(): String = {
     addr2name.map{ case(address, name) =>
-      "#define " + prefix + "__" + name + " 0x%x".format(baseAddress + address)
+      "#define " + prefix + "__" + name + "__PADDR  0x%x".format(baseAddress + address)
+      "#define " + prefix + "__" + name + "__OFFSET 0x%x".format(address)
     }.mkString("\n") + "\n"
   }
 }
