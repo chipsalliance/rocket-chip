@@ -500,6 +500,7 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     manager_xact_id = UInt(0),
     addr_beat = Mux(roq.io.deq.data.subblock, roq.io.deq.data.addr_beat, tl_cnt_in),
     data = r_aligned_data)
+  assert(!gnt_arb.io.in(0).valid || roq.io.deq.matches, "NASTI tag error")
 
   gnt_arb.io.in(1).valid := io.nasti.b.valid
   io.nasti.b.ready := gnt_arb.io.in(1).ready
