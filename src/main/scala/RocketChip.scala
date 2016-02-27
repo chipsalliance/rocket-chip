@@ -334,6 +334,13 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   if(p(UseBackupMemoryPort)) {
     VLSIUtils.doOuterMemorySystemSerdes(
       mem_channels, io.mem, io.mem_backup, io.mem_backup_en,
-      nMemChannels, htifW, p(CacheBlockOffsetBits))
+      1, htifW, p(CacheBlockOffsetBits))
+    for (i <- 1 until nMemChannels) { io.mem(i) <> mem_channels(i) }
+    assert(!Vec(mem_channels.map{ io => io.r.valid }).toBits.orR ||
+           !io.mem_backup_en ||
+           Vec(channelConfigs.map{i => UInt(i)})(io.memory_channel_mux_select) === UInt(1),
+           "Backup memory port only works when 1 memory channel is enabled")
+    Predef.assert(channelConfigs.sortWith(_ < _)(0) == 1,
+                  "Backup memory port requires a single memory port mux config")
   } else { io.mem <> mem_channels }
 }

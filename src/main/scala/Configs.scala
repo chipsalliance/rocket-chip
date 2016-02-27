@@ -87,13 +87,15 @@ class DefaultConfig extends Config (
       case PPNBits => site(PAddrBits) - site(PgIdxBits)
       case VAddrBits => site(VPNBits) + site(PgIdxBits)
       case ASIdBits => 7
-      case MIFTagBits => // Bits needed at the L2 agent
+      case MIFTagBits => Dump("MIF_TAG_BITS",
+                         // Bits needed at the L2 agent
                          log2Up(site(NAcquireTransactors)+2) +
                          // Bits added by NASTI interconnect
                          max(log2Up(site(MaxBanksPerMemoryChannel)),
-                            (if (site(UseDma)) 3 else 2))
-      case MIFDataBits => 64
-      case MIFAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
+                            (if (site(UseDma)) 3 else 2)))
+      case MIFDataBits => Dump("MIF_DATA_BITS", 64)
+      case MIFAddrBits => Dump("MIF_ADDR_BITS",
+                               site(PAddrBits) - site(CacheBlockOffsetBits))
       case MIFDataBeats => site(CacheBlockBytes) * 8 / site(MIFDataBits)
       case NastiKey => {
         Dump("MEM_STRB_BITS", site(MIFDataBits) / 8)
@@ -442,10 +444,16 @@ class DualChannelBenchmarkConfig extends Config(new With2MemoryChannels ++ new S
 class QuadChannelBenchmarkConfig extends Config(new With4MemoryChannels ++ new SingleChannelBenchmarkConfig)
 class OctoChannelBenchmarkConfig extends Config(new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
 
+class EightChannelVLSIConfig extends Config(new With8MemoryChannels ++ new DefaultVLSIConfig)
+
 class WithOneOrMaxChannels extends Config(
   (pname, site, here) => pname match {
     case MemoryChannelMuxConfigs => Dump("MEMORY_CHANNEL_MUX_CONFIGS", List(1, site(NMemoryChannels)))
   }
 )
-
 class OneOrEightChannelBenchmarkConfig extends Config(new WithOneOrMaxChannels ++ new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
+class OneOrEightChannelVLSIConfig extends Config(new WithOneOrMaxChannels ++ new EightChannelVLSIConfig)
+
+class SimulateBackupMemConfig extends Config(){ Dump("MEM_BACKUP_EN", true) }
+class BackupMemVLSIConfig extends Config(new SimulateBackupMemConfig ++ new DefaultVLSIConfig)
+class OneOrEightChannelBackupMemVLSIConfig extends Config(new WithOneOrMaxChannels ++ new With8MemoryChannels ++ new BackupMemVLSIConfig)
