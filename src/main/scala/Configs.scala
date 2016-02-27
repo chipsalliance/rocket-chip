@@ -93,7 +93,7 @@ class DefaultConfig extends Config (
                          // Bits added by NASTI interconnect
                          max(log2Up(site(MaxBanksPerMemoryChannel)),
                             (if (site(UseDma)) 3 else 2)))
-      case MIFDataBits => Dump("MIF_DATA_BITS", 128)
+      case MIFDataBits => Dump("MIF_DATA_BITS", 64)
       case MIFAddrBits => Dump("MIF_ADDR_BITS",
                                site(PAddrBits) - site(CacheBlockOffsetBits))
       case MIFDataBeats => site(CacheBlockBytes) * 8 / site(MIFDataBits)
