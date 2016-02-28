@@ -44,3 +44,6 @@
 [submodule "torture"]
 	path = torture
 	url = https://github.com/ucb-bar/riscv-torture.git
+[submodule "dev-tools/axe"]
+	path = dev-tools/axe
+	url = https://github.com/CTSRD-CHERI/axe.git
