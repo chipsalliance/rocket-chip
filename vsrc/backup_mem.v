@@ -42,27 +42,27 @@ module BackupMemory
   input                       mem_req_valid,
   output                      mem_req_ready,
   input                       mem_req_rw,
-  input [`MEM_ADDR_BITS-1:0]  mem_req_addr,
-  input [`MEM_TAG_BITS-1:0]   mem_req_tag,
+  input [`MIF_ADDR_BITS-1:0]  mem_req_addr,
+  input [`MIF_TAG_BITS-1:0]   mem_req_tag,
 
   input                       mem_req_data_valid,
   output                      mem_req_data_ready,
-  input [`MEM_DATA_BITS-1:0]  mem_req_data_bits,
+  input [`MIF_DATA_BITS-1:0]  mem_req_data_bits,
 
   output reg                  mem_resp_valid,
-  output reg [`MEM_DATA_BITS-1:0] mem_resp_data,
-  output reg [`MEM_TAG_BITS-1:0] mem_resp_tag
+  output reg [`MIF_DATA_BITS-1:0] mem_resp_data,
+  output reg [`MIF_TAG_BITS-1:0] mem_resp_tag
 );
 
-  localparam DATA_CYCLES = 4;
+  localparam DATA_CYCLES = 8;
   localparam DEPTH = 2*1024*1024;
 
   reg [`ceilLog2(DATA_CYCLES)-1:0] cnt;
-  reg [`MEM_TAG_BITS-1:0] tag;
+  reg [`MIF_TAG_BITS-1:0] tag;
   reg state_busy, state_rw;
-  reg [`MEM_ADDR_BITS-1:0] addr;
+  reg [`MIF_ADDR_BITS-1:0] addr;
 
-  reg [`MEM_DATA_BITS-1:0] ram [DEPTH-1:0];
+  reg [127:0] ram [DEPTH-1:0];
   wire [`ceilLog2(DEPTH)-1:0] ram_addr = state_busy  ?         {addr[`ceilLog2(DEPTH/DATA_CYCLES)-1:0], cnt}
                                                      : {mem_req_addr[`ceilLog2(DEPTH/DATA_CYCLES)-1:0], cnt};
   wire do_read = mem_req_valid && mem_req_ready && !mem_req_rw || state_busy && !state_rw;
@@ -97,9 +97,15 @@ module BackupMemory
       cnt <= cnt + 1'b1;
 
     if (do_write)
-      ram[ram_addr] <= mem_req_data_bits;
+      if (ram_addr[0] == 1'b0)
+        ram[ram_addr/2][63:0] <= mem_req_data_bits;
+      else
+        ram[ram_addr/2][127:64] <= mem_req_data_bits;
     else
-      mem_resp_data <= ram[ram_addr];
+      if (ram_addr[0] == 1'b0)
+        mem_resp_data <= ram[ram_addr/2][63:0];
+      else
+        mem_resp_data <= ram[ram_addr/2][127:64];
 
     if (reset)
       mem_resp_valid <= 1'b0;

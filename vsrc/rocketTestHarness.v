@@ -88,12 +88,12 @@ module rocketTestHarness;
   end
 
   wire mem_bk_req_valid, mem_bk_req_rw, mem_bk_req_data_valid;
-  wire [`MEM_ID_BITS-1:0] mem_bk_req_tag;
-  wire [`MEM_ADDR_BITS-1:0] mem_bk_req_addr;
-  wire [`MEM_DATA_BITS-1:0] mem_bk_req_data_bits;
+  wire [`MIF_TAG_BITS-1:0] mem_bk_req_tag;
+  wire [`MIF_ADDR_BITS-1:0] mem_bk_req_addr;
+  wire [`MIF_DATA_BITS-1:0] mem_bk_req_data_bits;
   wire mem_bk_req_ready, mem_bk_req_data_ready, mem_bk_resp_valid;
-  wire [`MEM_ID_BITS-1:0]  mem_bk_resp_tag;
-  wire [`MEM_DATA_BITS-1:0] mem_bk_resp_data;
+  wire [`MIF_TAG_BITS-1:0]  mem_bk_resp_tag;
+  wire [`MIF_DATA_BITS-1:0] mem_bk_resp_data;
 
 `ifdef MEM_BACKUP_EN
   memdessertMemDessert dessert
@@ -150,9 +150,9 @@ module rocketTestHarness;
   assign mem_in_bits = {`HTIF_WIDTH {1'b0}};   
   assign mem_bk_req_valid = 1'b0;
   assign mem_bk_req_ready = 1'b0;
-  assign mem_bk_req_addr = {`MEM_ADDR_BITS {1'b0}}; 
+  assign mem_bk_req_addr = {`MIF_ADDR_BITS {1'b0}};
   assign mem_bk_req_rw = 1'b0;
-  assign mem_bk_req_tag = {`MEM_ID_BITS {1'b0}}; 
+  assign mem_bk_req_tag = {`MIF_TAG_BITS {1'b0}};
   assign mem_bk_req_data_valid = 1'b0;
   assign mem_bk_req_data_bits = 16'd0; 
 `endif
