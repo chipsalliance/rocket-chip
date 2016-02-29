@@ -27,7 +27,6 @@ env:
   global:
     - RISCV="/home/travis/riscv_install"
     - PATH=$PATH:$RISCV/bin
-    - export ROCKETCHIP_ADDONS="boom"
   matrix:
     - VCONFIG=DefaultVLSIConfig FCONFIG=DefaultFPGAConfig ECONFIG=DefaultCPPConfig
     - VCONFIG=BOOMVLSIConfig FCONFIG=BOOMFPGAConfig ECONFIG=BOOMCPPConfig
