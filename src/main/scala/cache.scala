@@ -20,6 +20,7 @@ case object CacheBlockOffsetBits extends Field[Int]
 case object ECCCode extends Field[Option[Code]]
 case object CacheIdBits extends Field[Int]
 case object CacheId extends Field[Int]
+case object SplitMetadata extends Field[Boolean]
 
 trait HasCacheParameters {
   implicit val p: Parameters
@@ -36,6 +37,7 @@ trait HasCacheParameters {
   val rowBytes = rowBits/8
   val rowOffBits = log2Up(rowBytes)
   val code = p(ECCCode).getOrElse(new IdentityCode)
+  val hasSplitMetadata = p(SplitMetadata)
 }
 
 abstract class CacheModule(implicit val p: Parameters) extends Module
@@ -128,10 +130,10 @@ abstract class Metadata(implicit p: Parameters) extends CacheBundle()(p) {
 
 class MetaReadReq(implicit p: Parameters) extends CacheBundle()(p) {
   val idx  = Bits(width = idxBits)
+  val way_en = Bits(width = nWays)
 }
 
 class MetaWriteReq[T <: Metadata](gen: T)(implicit p: Parameters) extends MetaReadReq()(p) {
-  val way_en = Bits(width = nWays)
   val data = gen.cloneType
   override def cloneType = new MetaWriteReq(gen)(p).asInstanceOf[this.type]
 }
@@ -148,16 +150,31 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
   val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
   val wdata = Mux(rst, rstVal, io.write.bits.data).toBits
   val wmask = Mux(rst, SInt(-1), io.write.bits.way_en.toSInt).toBools
+  val rmask = Mux(rst, SInt(-1), io.read.bits.way_en.toSInt).toBools
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth
-  val tag_arr = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
-  when (rst || io.write.valid) {
-    tag_arr.write(waddr, Vec.fill(nWays)(wdata), wmask)
+
+  if (hasSplitMetadata) {
+    val tag_arrs = List.fill(nWays){ SeqMem(nSets, UInt(width = metabits)) }
+    val tag_readout = Wire(Vec(nWays,rstVal.cloneType))
+    val tags_vec = Wire(Vec.fill(nWays)(UInt(width = metabits)))
+    (0 until nWays).foreach { (i) =>
+      when (rst || (io.write.valid && wmask(i))) {
+        tag_arrs(i).write(waddr, wdata)
+      }
+      tags_vec(i) := tag_arrs(i).read(io.read.bits.idx, io.read.valid && rmask(i))
+    }
+    io.resp := io.resp.fromBits(tags_vec.toBits)
+  } else {
+    val tag_arr = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
+    when (rst || io.write.valid) {
+      tag_arr.write(waddr, Vec.fill(nWays)(wdata), wmask)
+    }
+    val tags = tag_arr.read(io.read.bits.idx, io.read.valid).toBits
+    io.resp := io.resp.fromBits(tags)
   }
 
-  val tags = tag_arr.read(io.read.bits.idx, io.read.valid).toBits
-  io.resp := io.resp.fromBits(tags)
   io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
   io.write.ready := !rst
 }
@@ -268,13 +285,16 @@ class L2MetadataArray(implicit p: Parameters) extends L2HellaCacheModule()(p) {
   val meta = Module(new MetadataArray(onReset _))
   meta.io.read <> io.read
   meta.io.write <> io.write
-  
+  val way_en_1h = (Vec.fill(nWays){Bool(true)}).toBits
+  val s1_way_en_1h = RegEnable(way_en_1h, io.read.valid)
+  meta.io.read.bits.way_en := way_en_1h
+
   val s1_tag = RegEnable(io.read.bits.tag, io.read.valid)
   val s1_id = RegEnable(io.read.bits.id, io.read.valid)
   def wayMap[T <: Data](f: Int => T) = Vec((0 until nWays).map(f))
   val s1_clk_en = Reg(next = io.read.fire())
   val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === s1_tag)
-  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && meta.io.resp(w).coh.outer.isValid()).toBits
+  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && meta.io.resp(w).coh.outer.isValid() && s1_way_en_1h(w).toBool).toBits
   val s1_idx = RegEnable(io.read.bits.idx, io.read.valid) // deal with stalls?
   val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
