@@ -49,6 +49,7 @@ env:
     - CONFIG=BroadcastRegressionTestConfig
     - CONFIG=CacheRegressionTestConfig
     - CONFIG=UnitTestConfig
+    - CONFIG=SplitL2MetadataTestConfig
 
 # blacklist private branches
 branches:
