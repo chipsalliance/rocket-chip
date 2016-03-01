@@ -132,6 +132,8 @@ trait HasTileLinkData extends HasTileLinkBeatId {
 
   def hasData(dummy: Int = 0): Bool
   def hasMultibeatData(dummy: Int = 0): Bool
+  def first(dummy: Int = 0): Bool = Mux(hasMultibeatData(), addr_beat === UInt(0), Bool(true))
+  def last(dummy: Int = 0): Bool = Mux(hasMultibeatData(), addr_beat === UInt(tlDataBeats-1), Bool(true))
 }
 
 /** An entire cache block of data */
