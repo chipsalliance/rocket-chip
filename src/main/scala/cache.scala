@@ -789,9 +789,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   }
 
   // Enqueue some metadata information that we'll use to make coherence updates with later
-  ignt_q.io.enq.valid := Mux(io.iacq().hasMultibeatData(),
-                             io.inner.acquire.fire() && io.iacq().addr_beat === UInt(0),
-                             io.inner.acquire.fire())
+  ignt_q.io.enq.valid := io.inner.acquire.fire() && io.iacq().first()
   ignt_q.io.enq.bits := io.iacq()
 
   // Track whether any beats are missing from a PutBlock

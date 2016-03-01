@@ -275,12 +275,6 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
     val out = new ClientUncachedTileLinkIO
   }
 
-  def needsRoqEnq(channel: HasTileLinkData): Bool =
-    !channel.hasMultibeatData() || channel.addr_beat === UInt(0)
-
-  def needsRoqDeq(channel: HasTileLinkData): Bool =
-    !channel.hasMultibeatData() || channel.addr_beat === UInt(tlDataBeats - 1)
-
   val acqArb = Module(new LockingRRArbiter(new Acquire, 2, tlDataBeats,
     Some((acq: Acquire) => acq.hasMultibeatData())))
 
@@ -294,8 +288,8 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
   val irel = io.in.release.bits
   val ognt = io.out.grant.bits
 
-  val acq_roq_enq = needsRoqEnq(iacq)
-  val rel_roq_enq = needsRoqEnq(irel)
+  val acq_roq_enq = iacq.first()
+  val rel_roq_enq = irel.first()
 
   val acq_roq_ready = !acq_roq_enq || acqRoq.io.enq.ready
   val rel_roq_ready = !rel_roq_enq || relRoq.io.enq.ready
@@ -342,10 +336,10 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
 
   io.out.acquire <> acqArb.io.out
 
-  acqRoq.io.deq.valid := io.out.grant.fire() && needsRoqDeq(ognt)
+  acqRoq.io.deq.valid := io.out.grant.fire() && ognt.last()
   acqRoq.io.deq.tag := ognt.client_xact_id
 
-  relRoq.io.deq.valid := io.out.grant.fire() && needsRoqDeq(ognt)
+  relRoq.io.deq.valid := io.out.grant.fire() && ognt.last()
   relRoq.io.deq.tag := ognt.client_xact_id
 
   val gnt_builtin = acqRoq.io.deq.data
