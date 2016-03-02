@@ -935,7 +935,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
                               Mux(ognt_data_done,
                                 pending_coh_on_ognt.outer,
                                 pending_coh.outer))
-  updatePendingCohWhen(io.inner.grant.fire(), pending_coh_on_ignt)
+  updatePendingCohWhen(io.inner.grant.fire() && io.ignt().last(), pending_coh_on_ignt)
 
   // We must wait for as many Finishes as we sent Grants
   io.inner.finish.ready := state === s_busy
