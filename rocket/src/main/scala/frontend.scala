@@ -42,7 +42,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
   val s1_same_block = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
-  val s2_pc = Reg(init=UInt(startAddr))
+  val s2_pc = Reg(init=UInt(p(ResetVector)))
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(btb.io.resp.bits)
   val s2_xcpt_if = Reg(init=Bool(false))

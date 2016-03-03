@@ -46,10 +46,4 @@ trait ScalarOpConstants {
   val DW_32 = N
   val DW_64 = Y
   val DW_XPR = Y
-
-  val SZ_PRV = 2
-  val PRV_U = 0
-  val PRV_S = 1
-  val PRV_H = 2
-  val PRV_M = 3
 }

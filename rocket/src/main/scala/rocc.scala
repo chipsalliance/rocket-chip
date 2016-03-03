@@ -47,7 +47,7 @@ class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
   val resp = Decoupled(new RoCCResponse)
   val mem = new HellaCacheIO()(p.alterPartial({ case CacheName => "L1D" }))
   val busy = Bool(OUTPUT)
-  val s = Bool(INPUT)
+  val status = new MStatus().asInput
   val interrupt = Bool(OUTPUT)
   
   // These should be handled differently, eventually
@@ -142,8 +142,7 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
   val req_rd = Reg(io.resp.bits.rd)
   val req_offset = req_addr(pgIdxBits - 1, 0)
   val req_vpn = req_addr(coreMaxAddrBits - 1, pgIdxBits)
-  val ppn = Reg(UInt(width = ppnBits))
-  val error = Reg(Bool())
+  val pte = Reg(new PTE)
 
   val s_idle :: s_ptw_req :: s_ptw_resp :: s_resp :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
@@ -161,8 +160,7 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
   when (ptw.req.fire()) { state := s_ptw_resp }
 
   when (state === s_ptw_resp && ptw.resp.valid) {
-    error := ptw.resp.bits.error
-    ppn := ptw.resp.bits.pte.ppn
+    pte := ptw.resp.bits.pte
     state := s_resp
   }
 
@@ -175,7 +173,7 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
 
   io.resp.valid := (state === s_resp)
   io.resp.bits.rd := req_rd
-  io.resp.bits.data := Mux(error, SInt(-1).toUInt, Cat(ppn, req_offset))
+  io.resp.bits.data := Mux(pte.leaf(), Cat(pte.ppn, req_offset), ~UInt(0, xLen))
 
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
