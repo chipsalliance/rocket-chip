@@ -22,7 +22,9 @@ case object CoreInstBits extends Field[Int]
 case object CoreDataBits extends Field[Int]
 case object CoreDCacheReqTagBits extends Field[Int]
 case object NCustomMRWCSRs extends Field[Int]
+case object MtvecWritable extends Field[Boolean]
 case object MtvecInit extends Field[BigInt]
+case object ResetVector extends Field[BigInt]
 
 trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
@@ -51,8 +53,6 @@ trait HasCoreParameters extends HasAddrMapParameters {
     else p(BuildRoCC).flatMap(_.csrs)
   val nRoccCsrs = p(RoccNCSRs)
   val nCores = p(HtifKey).nCores
-  val mtvecInit = p(MtvecInit)
-  val startAddr = mtvecInit + 0x100
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
@@ -539,7 +539,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   io.rocc.cmd.valid := wb_rocc_val
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR
-  io.rocc.s := csr.io.status.prv.orR // should we just pass all of mstatus?
+  io.rocc.status := csr.io.status
   io.rocc.cmd.bits.inst := new RoCCInstruction().fromBits(wb_reg_inst)
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
   io.rocc.cmd.bits.rs2 := wb_reg_rs2

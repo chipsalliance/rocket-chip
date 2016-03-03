@@ -15,7 +15,6 @@ class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
-  val error = Bool()
   val pte = new PTE
 }
 
@@ -27,7 +26,7 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
-  val ptbr = UInt(INPUT, paddrBits)
+  val ptbr = UInt(INPUT, ppnBits)
   val invalidate = Bool(INPUT)
   val status = new MStatus().asInput
 }
@@ -59,7 +58,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val dpath = new DatapathPTWIO
   }
   
-  val s_ready :: s_req :: s_wait :: s_set_dirty :: s_wait_dirty :: s_done :: s_error :: Nil = Enum(UInt(), 7)
+  val s_ready :: s_req :: s_wait :: s_set_dirty :: s_wait_dirty :: s_done :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_ready)
   val count = Reg(UInt(width = log2Up(pgLevels)))
 
@@ -79,7 +78,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
     r_req_dest := arb.io.chosen
-    r_pte.ppn := io.dpath.ptbr(paddrBits-1,pgIdxBits)
+    r_pte.ppn := io.dpath.ptbr
   }
 
   val (pte_cache_hit, pte_cache_data) = {
@@ -122,16 +121,12 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.req.bits.kill := Bool(false)
   io.mem.req.bits.data := pte_wdata.toBits
   
-  val resp_err = state === s_error
-  val resp_val = state === s_done || resp_err
-
   val r_resp_ppn = io.mem.req.bits.addr >> pgIdxBits
   val resp_ppn = Vec((0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn)(count)
+  val resp_val = state === s_done
 
   for (i <- 0 until io.requestor.size) {
-    val me = r_req_dest === UInt(i)
-    io.requestor(i).resp.valid := resp_val && me
-    io.requestor(i).resp.bits.error := resp_err
+    io.requestor(i).resp.valid := resp_val && (r_req_dest === i)
     io.requestor(i).resp.bits.pte := r_pte
     io.requestor(i).resp.bits.pte.ppn := resp_ppn
     io.requestor(i).invalidate := io.dpath.invalidate
@@ -161,13 +156,13 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
         state := s_req
       }
       when (io.mem.resp.valid) {
-        state := s_error
+        state := s_done
+        when (pte.leaf() && set_dirty_bit) {
+          state := s_set_dirty
+        }
         when (pte.table() && count < pgLevels-1) {
           state := s_req
           count := count + 1
-        }
-        when (pte.leaf()) {
-          state := Mux(set_dirty_bit, s_set_dirty, s_done)
         }
       }
     }
@@ -185,9 +180,6 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
       }
     }
     is (s_done) {
-      state := s_ready
-    }
-    is (s_error) {
       state := s_ready
     }
   }
