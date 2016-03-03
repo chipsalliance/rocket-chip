@@ -136,6 +136,12 @@ class WithoutConfPrec extends Config(
   }
 )
 
+class WithSmallPredRF extends Config(
+  (pname,site,here) => pname match {
+    case HwachaNPredRFEntries => 128
+  }
+)
+
 class VRU10Outstanding extends Config(
   (pname,site,here) => pname match {
     case HwachaVRUThrottle => 10

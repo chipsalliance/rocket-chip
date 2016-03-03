@@ -278,7 +278,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   val mmio_ic = Module(new NastiRecursiveInterconnect(nMasters, nSlaves, addrMap, mmioBase))
 
   val channelConfigs = p(MemoryChannelMuxConfigs)
-  Predef.assert(channelConfigs.sortWith(_ > _)(0) == nMemChannels,
+  require(channelConfigs.sortWith(_ > _)(0) == nMemChannels,
                 "More memory channels elaborated than can be enabled")
   val mem_ic =
     if (channelConfigs.size == 1) {
@@ -344,11 +344,11 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
       mem_channels, io.mem, io.mem_backup, io.mem_backup_en,
       1, htifW, p(CacheBlockOffsetBits))
     for (i <- 1 until nMemChannels) { io.mem(i) <> mem_channels(i) }
-    assert(!Vec(mem_channels.map{ io => io.r.valid }).toBits.orR ||
-           !io.mem_backup_en ||
-           Vec(channelConfigs.map{i => UInt(i)})(io.memory_channel_mux_select) === UInt(1),
+    val mem_request = mem_channels.map(io => io.ar.valid || io.aw.valid).reduce(_ || _)
+    val config_nchannels = Vec(channelConfigs.map(i => UInt(i)))(io.memory_channel_mux_select)
+    assert(!mem_request || !io.mem_backup_en || config_nchannels === UInt(1),
            "Backup memory port only works when 1 memory channel is enabled")
-    Predef.assert(channelConfigs.sortWith(_ < _)(0) == 1,
+    require(channelConfigs.sortWith(_ < _)(0) == 1,
                   "Backup memory port requires a single memory port mux config")
   } else { io.mem <> mem_channels }
 }
