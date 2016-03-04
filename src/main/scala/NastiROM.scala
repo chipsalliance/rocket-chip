@@ -20,7 +20,7 @@ class NastiROM(contents: Seq[Byte])(implicit p: Parameters) extends Module {
   val rows = (contents.size + byteWidth - 1)/byteWidth + 1
   val rom = Vec.tabulate(rows) { i =>
     val slice = contents.slice(i*byteWidth, (i+1)*byteWidth)
-    UInt(slice.foldRight(BigInt(0)) { case (x,y) => (y << 8) + (x.toInt & 0xFF) })
+    UInt(slice.foldRight(BigInt(0)) { case (x,y) => (y << 8) + (x.toInt & 0xFF) }, byteWidth*8)
   }
   val rdata_word = rom(if (rows == 1) UInt(0) else ar.bits.addr(log2Up(contents.size)-1,log2Up(byteWidth)))
   val rdata = new LoadGen(Cat(UInt(1), ar.bits.size), ar.bits.addr, rdata_word, Bool(false), byteWidth).data
