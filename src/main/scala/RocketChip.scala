@@ -176,8 +176,8 @@ class Uncore(implicit val p: Parameters) extends Module
   scrArb.io.in(0) <> htif.io.scr
   scrArb.io.in(1) <> outmemsys.io.scr
   scrFile.io.smi <> scrArb.io.out
-  scrFile.io.scr.attach(UInt(nTiles), "N_CORES", false, true)
-  scrFile.io.scr.attach(UInt(p(MMIOBase) >> 20), "MMIO_BASE", false, true)
+  scrFile.io.scr.attach(Wire(init = UInt(nTiles)), "N_CORES")
+  scrFile.io.scr.attach(Wire(init = UInt(p(MMIOBase) >> 20)), "MMIO_BASE")
   // scrFile.io.scr <> (... your SCR connections ...)
 
   // Configures the enabled memory channels.  This can't be changed while the
