@@ -16,6 +16,9 @@ ifeq ($(TORTURE_CONFIG),)
 $(error Set TORTURE_CONFIG to the torture configuration to run)
 endif
 
+# The version of Chisel to use
+CHISEL_VERSION ?= 2
+
 # The top-level directory that contains rocket-chip
 TOP ?= ..
 
@@ -67,7 +70,7 @@ fsim-asm-tests: stamps/$(CONFIG)/fsim-asm-tests.stamp
 fsim-bmark-tests: stamps/$(CONFIG)/fsim-bmark-tests.stamp
 fsim-torture: stamps/$(CONFIG)/fsim-torture-$(TORTURE_CONFIG).stamp
 
-submodule_names = chisel context-dependent-environments dramsim2 groundtest hardfloat junctions rocket torture uncore zscale $(ROCKETCHIP_ADDONS)
+submodule_names = chisel2 chisel3 context-dependent-environments dramsim2 groundtest hardfloat junctions rocket torture uncore zscale $(ROCKETCHIP_ADDONS)
 
 # Checks out all the rocket-chip submodules
 stamps/other-submodules.stamp:
@@ -90,28 +93,28 @@ $(RISCV)/install.stamp:
 # Builds the various simulators
 stamps/$(CONFIG)/%-verilog.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-verilog.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) verilog
-	date > $@	
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-verilog.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
+	date > $@
 
 stamps/$(CONFIG)/%-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-ndebug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV))
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-ndebug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
 	date > $@
 
 stamps/$(CONFIG)/%-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-debug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) debug
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-debug.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
 	date > $@
 
 # Runs tests on one of the simulators
 stamps/$(CONFIG)/%-asm-tests.stamp: stamps/$(CONFIG)/%-ndebug.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-asm-tests.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) run-asm-tests
+	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-asm-tests.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests
 	date > $@
 
 stamps/$(CONFIG)/%-bmark-tests.stamp: stamps/$(CONFIG)/%-ndebug.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-bmark-tests.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) run-bmark-tests
+	$(MAKE) -C $(abspath $(TOP))/$(patsubst stamps/$(CONFIG)/%-bmark-tests.stamp,%,$@) CONFIG=$(CONFIG) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests
 	date > $@
 
 # The torture tests run subtly differently on the different targets, so they
