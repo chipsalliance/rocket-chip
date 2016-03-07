@@ -199,6 +199,7 @@ object ManagerTileLinkHeaderCreator {
   */
 trait HasDataBeatCounters {
   type HasBeat = TileLinkChannel with HasTileLinkBeatId
+  type HasId = TileLinkChannel with HasClientId
 
   /** Returns the current count on this channel and when a message is done
     * @param inc increment the counter (usually .valid or .fire())
@@ -259,11 +260,12 @@ trait HasDataBeatCounters {
       up: DecoupledIO[T],
       down: DecoupledIO[S],
       beat: UInt = UInt(0),
-      track: T => Bool = (t: T) => Bool(true)): (Bool, UInt, Bool, UInt, Bool) = {
+      trackUp: T => Bool = (t: T) => Bool(true),
+      trackDown: S => Bool = (s: S) => Bool(true)): (Bool, UInt, Bool, UInt, Bool) = {
     val (up_idx, up_done) = connectDataBeatCounter(up.fire(), up.bits, beat)
     val (down_idx, down_done) = connectDataBeatCounter(down.fire(), down.bits, beat)
-    val do_inc = up_done && track(up.bits)
-    val do_dec = down_done
+    val do_inc = up_done && trackUp(up.bits)
+    val do_dec = down_done && trackDown(down.bits)
     val cnt = TwoWayCounter(do_inc, do_dec, max)
     (cnt > UInt(0), up_idx, up_done, down_idx, down_done)
   }

@@ -52,26 +52,22 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
   val sdq_val = Reg(init=Bits(0, sdqDepth))
   val sdq_alloc_id = PriorityEncoder(~sdq_val)
   val sdq_rdy = !sdq_val.andR
-  val sdq_enq = io.inner.acquire.fire() && io.iacq().hasData()
+  val sdq_enq = trackerList.map(_.io.alloc.iacq).reduce(_||_) &&
+                  io.inner.acquire.fire() &&
+                  io.iacq().hasData() 
   when (sdq_enq) { sdq(sdq_alloc_id) := io.iacq().data }
 
   // Handle acquire transaction initiation
-  val trackerAcquireIOs = trackerList.map(_.io.inner.acquire)
-  val acquireConflicts = Vec(trackerList.map(_.io.has_acquire_conflict)).toBits
-  val acquireMatches = Vec(trackerList.map(_.io.has_acquire_match)).toBits
-  val acquireReadys = Vec(trackerAcquireIOs.map(_.ready)).toBits
-  val acquire_idx = Mux(acquireMatches.orR,
-                      PriorityEncoder(acquireMatches),
-                      PriorityEncoder(acquireReadys))
-
-  val block_acquires = acquireConflicts.orR || !sdq_rdy
-  io.inner.acquire.ready := acquireReadys.orR && !block_acquires
-  trackerAcquireIOs.zipWithIndex.foreach {
-    case(tracker, i) =>
-      tracker.bits := io.inner.acquire.bits
-      tracker.bits.data := DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
-      tracker.valid := io.inner.acquire.valid && !block_acquires && (acquire_idx === UInt(i))
+  val sdqLoc = List.fill(nTransactors) {
+    DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
   }
+  doInputRoutingWithAllocation(
+    io.inner.acquire,
+    trackerList.map(_.io.inner.acquire),
+    trackerList.map(_.io.matches.iacq),
+    trackerList.map(_.io.alloc.iacq),
+    Some(sdqLoc),
+    Some(sdq_rdy))
 
   // Queue to store impending Voluntary Release data
   val voluntary = io.irel().isVoluntary()
@@ -81,17 +77,16 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
   when(vwbdq_enq) { vwbdq(rel_data_cnt) := io.irel().data }
 
   // Handle releases, which might be voluntary and might have data
-  val trackerReleaseIOs = trackerList.map(_.io.inner.release)
-  val releaseReadys = Vec(trackerReleaseIOs.map(_.ready)).toBits
-  io.inner.release.ready := releaseReadys.orR
-  trackerReleaseIOs.zipWithIndex.foreach {
-    case(tracker, i) =>
-      tracker.valid := io.inner.release.valid
-      tracker.bits := io.inner.release.bits
-      tracker.bits.data := DataQueueLocation(rel_data_cnt,
-                                     (if(i < nReleaseTransactors) inVolWBQueue
-                                      else inClientReleaseQueue)).toBits
-  }
+  val vwbqLoc = (0 until nTransactors).map(i =>
+    (DataQueueLocation(rel_data_cnt,
+                       (if(i < nReleaseTransactors) inVolWBQueue
+                        else inClientReleaseQueue)).toBits))
+  doInputRoutingWithAllocation(
+    io.inner.release,
+    trackerList.map(_.io.inner.release),
+    trackerList.map(_.io.matches.irel),
+    trackerList.map(_.io.alloc.irel),
+    Some(vwbqLoc))
 
   // Wire probe requests and grant reply to clients, finish acks from clients
   // Note that we bypass the Grant data subbundles
@@ -162,12 +157,12 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int)
 
   // Send an acknowledgement
   io.inner.grant.valid := state === s_busy && pending_ignt && !pending_irels && io.outer.grant.valid
-  io.inner.grant.bits := coh.makeGrant(xact, UInt(trackerId))
+  io.inner.grant.bits := coh.makeGrant(xact)
   when(io.inner.grant.fire()) { pending_ignt := Bool(false) }
   io.outer.grant.ready := state === s_busy && io.inner.grant.ready
 
   // State machine updates and transaction handler metadata intialization
-  when(state === s_idle && io.inner.release.fire()) {
+  when(state === s_idle && io.inner.release.valid && io.alloc.irel) {
     xact := io.irel()
     when(io.irel().hasMultibeatData()) {
       pending_irels := dropPendingBitWhenBeatHasData(io.inner.release)
@@ -181,8 +176,9 @@ class BroadcastVoluntaryReleaseTracker(trackerId: Int)
   when(state === s_busy && all_pending_done) { state := s_idle }
 
   // These IOs are used for routing in the parent
-  io.has_acquire_match := Bool(false)
-  io.has_acquire_conflict := Bool(false)
+  io.matches.iacq := (state =/= s_idle) && xact.conflicts(io.iacq())
+  io.matches.irel := (state =/= s_idle) && xact.conflicts(io.irel()) && io.irel().isVoluntary()
+  io.matches.oprb := Bool(false)
 
   // Checks for illegal behavior
   assert(!(state === s_idle && io.inner.release.fire() && !io.irel().isVoluntary()),
@@ -221,11 +217,10 @@ class BroadcastAcquireTracker(trackerId: Int)
   val pending_outer_read_ = coh.makeGrant(io.iacq(), UInt(trackerId)).hasData()
   val subblock_type = xact.isSubBlockType()
 
-  io.has_acquire_conflict := xact.conflicts(io.iacq()) && 
-                              (state =/= s_idle) &&
-                              !collect_iacq_data
-  io.has_acquire_match := xact.conflicts(io.iacq()) &&
-                              collect_iacq_data
+  // These IOs are used for routing in the parent
+  io.matches.iacq := (state =/= s_idle) && xact.conflicts(io.iacq())
+  io.matches.irel := (state =/= s_idle) && xact.conflicts(io.irel()) && !io.irel().isVoluntary()
+  io.matches.oprb := Bool(false)
 
   val outerParams = p.alterPartial({ case TLId => outerTLId })
 
@@ -286,7 +281,7 @@ class BroadcastAcquireTracker(trackerId: Int)
     io.iacq().client_xact_id =/= xact.client_xact_id),
     "AcquireTracker accepted data beat from different client transaction than initial request.")
 
-  assert(!(state === s_idle && io.inner.acquire.fire() &&
+  assert(!(state === s_idle && io.inner.acquire.fire() && io.alloc.iacq &&
     io.iacq().hasMultibeatData() && io.iacq().addr_beat =/= UInt(0)),
     "AcquireTracker initialized with a tail data beat.")
 
@@ -309,7 +304,7 @@ class BroadcastAcquireTracker(trackerId: Int)
   switch (state) {
     is(s_idle) {
       io.inner.acquire.ready := Bool(true)
-      when(io.inner.acquire.valid) {
+      when(io.inner.acquire.valid && io.alloc.iacq) {
         xact := io.iacq()
         xact.data_buffer(UInt(0)) := io.iacq().data
         xact.wmask_buffer(UInt(0)) := io.iacq().wmask()
@@ -333,7 +328,7 @@ class BroadcastAcquireTracker(trackerId: Int)
       }
 
       // Handle releases, which may have data to be written back
-      val matches = xact.conflicts(io.irel()) && !io.irel().isVoluntary()
+      val matches = io.matches.irel 
       io.inner.release.ready := (!io.irel().hasData() || io.outer.acquire.ready) && matches
       when(io.inner.release.valid && matches) {
         when(io.irel().hasData()) {

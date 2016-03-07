@@ -227,7 +227,11 @@ trait HasProbeType extends HasTileLinkParameters {
   def hasMultibeatData(dummy: Int = 0) = Bool(false)
 }
 
-trait HasReleaseType extends HasTileLinkParameters {
+trait MightBeVoluntary {
+  def isVoluntary(dummy: Int = 0): Bool
+}
+
+trait HasReleaseType extends HasTileLinkParameters with MightBeVoluntary {
   val voluntary = Bool()
   val r_type = UInt(width = tlCoh.releaseTypeWidth)
 
@@ -239,7 +243,7 @@ trait HasReleaseType extends HasTileLinkParameters {
   def requiresAck(dummy: Int = 0) = !Bool(tlNetworkPreservesPointToPointOrdering)
 }
 
-trait HasGrantType extends HasTileLinkParameters {
+trait HasGrantType extends HasTileLinkParameters with MightBeVoluntary {
   val is_builtin_type = Bool()
   val g_type = UInt(width = tlGrantTypeBits)
 
@@ -720,8 +724,8 @@ object Release {
         r_type: UInt,
         client_xact_id: UInt,
         addr_block: UInt,
-        addr_beat: UInt = UInt(0),
-        data: UInt = UInt(0))
+        addr_beat: UInt,
+        data: UInt)
       (implicit p: Parameters): Release = {
     val rel = Wire(new Release)
     rel.r_type := r_type
@@ -730,6 +734,26 @@ object Release {
     rel.addr_beat := addr_beat
     rel.data := data
     rel.voluntary := voluntary
+    rel
+  }
+
+  def apply(
+        src: UInt,
+        voluntary: Bool,
+        r_type: UInt,
+        client_xact_id: UInt,
+        addr_block: UInt,
+        addr_beat: UInt = UInt(0),
+        data: UInt = UInt(0))
+      (implicit p: Parameters): ReleaseFromSrc = {
+    val rel = Wire(new ReleaseFromSrc)
+    rel.client_id := src
+    rel.voluntary := voluntary
+    rel.r_type := r_type
+    rel.client_xact_id := client_xact_id
+    rel.addr_block := addr_block
+    rel.addr_beat := addr_beat
+    rel.data := data
     rel
   }
 }
