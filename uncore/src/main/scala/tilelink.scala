@@ -1110,8 +1110,15 @@ abstract class TileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) exte
 trait AppendsArbiterId extends TileLinkArbiterLike {
   def clientSourcedClientXactId(in: ClientSourcedWithId, id: Int) =
     Cat(in.client_xact_id, UInt(id, log2Up(arbN)))
-  def managerSourcedClientXactId(in: ManagerSourcedWithId) = 
-    in.client_xact_id >> log2Up(arbN)
+  def managerSourcedClientXactId(in: ManagerSourcedWithId) = {
+    /* This shouldn't be necessary, but Chisel3 doesn't emit correct Verilog
+     * when right shifting by too many bits.  See
+     * https://github.com/ucb-bar/firrtl/issues/69 */
+    if (in.client_xact_id.getWidth > log2Up(arbN))
+      in.client_xact_id >> log2Up(arbN)
+    else
+      UInt(0)
+  }
   def arbIdx(in: ManagerSourcedWithId) = in.client_xact_id(log2Up(arbN)-1,0).toUInt
 }
 
