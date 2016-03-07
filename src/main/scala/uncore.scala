@@ -59,6 +59,38 @@ trait HasCoherenceAgentWiringHelpers {
     outs.zipWithIndex.map { case (o,i) => o.valid := in.valid && idx === UInt(i) }
     in.ready := Vec(outs.map(_.ready)).read(idx)
   }
+
+  /** Broadcasts valid messages on this channel to all trackers,
+    * but includes logic to allocate a new tracker in the case where
+    * no previously allocated tracker matches the new req's addr.
+    *
+    * When a match is reported, if ready is high the new transaction
+    * is merged; when ready is low the transaction is being blocked.
+    * When no match is reported, any high readys are presumed to be
+    * from trackers that are available for allocation, and one is
+    * assigned via alloc based on priority; f no readys are high then
+    * all trackers are busy with other transactions.
+    */ 
+  def doInputRoutingWithAllocation[T <: TileLinkChannel with HasTileLinkData](
+        in: DecoupledIO[T],
+        outs: Seq[DecoupledIO[T]],
+        matches: Seq[Bool],
+        allocs: Seq[Bool],
+        dataOverrides: Option[Seq[UInt]] = None,
+        allocOverride: Option[Bool] = None) {
+    val ready_bits = Vec(outs.map(_.ready)).toBits
+    val alloc_bits = PriorityEncoderOH(ready_bits)
+    val match_bits = Vec(matches).toBits
+    val no_matches = !match_bits.orR
+    val do_alloc = allocOverride.getOrElse(Bool(true))
+    in.ready := Mux(no_matches, ready_bits.orR, (match_bits & ready_bits).orR) && do_alloc
+    outs.zip(allocs).zipWithIndex.foreach { case((out, a), i) =>
+      out.valid := in.valid
+      out.bits := in.bits
+      dataOverrides foreach { d => out.bits.data := d(i) }
+      a := alloc_bits(i) & no_matches & do_alloc
+    }
+  }
 }
 
 trait HasInnerTLIO extends HasCoherenceAgentParameters {
@@ -114,23 +146,38 @@ abstract class HierarchicalCoherenceAgent(implicit p: Parameters) extends Cohere
   def incoherent = io.incoherent
 }
 
-trait HasTrackerConflictIO extends Bundle {
-  val has_acquire_conflict = Bool(OUTPUT)
-  val has_acquire_match = Bool(OUTPUT)
+trait HasTrackerAllocationIO extends Bundle {
+  val matches = new Bundle {
+    val iacq = Bool(OUTPUT)
+    val irel = Bool(OUTPUT)
+    val oprb = Bool(OUTPUT)
+  }
+  val alloc = new Bundle {
+    val iacq = Bool(INPUT)
+    val irel = Bool(INPUT)
+    val oprb = Bool(INPUT)
+  }
 }
 
 class ManagerXactTrackerIO(implicit p: Parameters) extends ManagerTLIO()(p)
-  with HasTrackerConflictIO
+  with HasTrackerAllocationIO
 
 class HierarchicalXactTrackerIO(implicit p: Parameters) extends HierarchicalTLIO()(p)
-  with HasTrackerConflictIO
+  with HasTrackerAllocationIO
 
 abstract class XactTracker(implicit p: Parameters) extends CoherenceAgentModule()(p)
     with HasDataBeatCounters {
   def addPendingBitWhenBeat[T <: HasBeat](inc: Bool, in: T): UInt =
     Fill(in.tlDataBeats, inc) &  UIntToOH(in.addr_beat)
+
   def dropPendingBitWhenBeat[T <: HasBeat](dec: Bool, in: T): UInt =
     ~Fill(in.tlDataBeats, dec) | ~UIntToOH(in.addr_beat)
+
+  def addPendingBitWhenId[T <: HasClientId](inc: Bool, in: T): UInt =
+    Fill(in.tlNCachingClients, inc) &  UIntToOH(in.client_id)
+
+  def dropPendingBitWhenId[T <: HasClientId](dec: Bool, in: T): UInt =
+    ~Fill(in.tlNCachingClients, dec) | ~UIntToOH(in.client_id)
 
   def addPendingBitWhenBeatHasData[T <: HasBeat](in: DecoupledIO[T], inc: Bool = Bool(true)): UInt =
     addPendingBitWhenBeat(in.fire() && in.bits.hasData() && inc, in.bits)
@@ -151,8 +198,17 @@ abstract class XactTracker(implicit p: Parameters) extends CoherenceAgentModule(
   def dropPendingBitWhenBeatHasData[T <: HasBeat](in: DecoupledIO[T]): UInt =
     dropPendingBitWhenBeat(in.fire() && in.bits.hasData(), in.bits)
 
-  def dropPendingBitAtDest(in: DecoupledIO[ProbeToDst]): UInt =
-    ~Fill(in.bits.tlNCachingClients, in.fire()) | ~UIntToOH(in.bits.client_id)
+  def dropPendingBitAtDest[T <: HasId](in: DecoupledIO[T]): UInt =
+    dropPendingBitWhenId(in.fire(), in.bits)
+
+  def dropPendingBitAtDestWhenVoluntary[T <: HasId with MightBeVoluntary](in: DecoupledIO[T]): UInt =
+    dropPendingBitWhenId(in.fire() && in.bits.isVoluntary(), in.bits)
+
+  def addPendingBitAtSrc[T <: HasId](in: DecoupledIO[T]): UInt =
+    addPendingBitWhenId(in.fire(), in.bits)
+
+  def addPendingBitAtSrcWhenVoluntary[T <: HasId with MightBeVoluntary](in: DecoupledIO[T]): UInt =
+    addPendingBitWhenId(in.fire() && in.bits.isVoluntary(), in.bits)
 
   def pinAllReadyValidLow[T <: Data](b: Bundle) {
     b.elements.foreach {

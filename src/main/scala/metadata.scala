@@ -218,15 +218,14 @@ class ManagerMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
   /** Construct an appropriate [[uncore.GrantToDst]] to acknowledge an [[uncore.Release]]
     *
     * @param rel Release message being acknowledged by this Grant
-    * @param manager_xact_id manager's transaction id
     */
-  def makeGrant(rel: ReleaseMetadata with HasClientId, manager_xact_id: UInt): GrantToDst =
+  def makeGrant(rel: ReleaseMetadata with HasClientId): GrantToDst =
     Grant(
       dst = rel.client_id,
       is_builtin_type = Bool(true),
       g_type = Grant.voluntaryAckType,
       client_xact_id = rel.client_xact_id,
-      manager_xact_id = manager_xact_id)(p)
+      manager_xact_id = UInt(0))(p)
 
   /** Construct an appropriate [[uncore.GrantToDst]] to respond to an [[uncore.Acquire]]
     *
