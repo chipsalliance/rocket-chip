@@ -1116,7 +1116,10 @@ class L2WritebackUnit(trackerId: Int)(implicit p: Parameters) extends L2XactTrac
   val xact_vol_irel_src = Reg{ io.irel().client_id }
   val xact_vol_irel_client_xact_id = Reg{ io.irel().client_xact_id }
 
-  val xact_addr_block = Cat(xact.tag, xact.idx, UInt(cacheId, cacheIdBits))
+  val xact_addr_block = if (cacheIdBits == 0)
+                          Cat(xact.tag, xact.idx)
+                        else
+                          Cat(xact.tag, xact.idx, UInt(cacheId, cacheIdBits))
   val xact_vol_irel = Release(
                         src = xact_vol_irel_src,
                         voluntary = Bool(true),
