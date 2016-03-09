@@ -27,6 +27,8 @@ case object BankIdLSB extends Field[Int]
 case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Whether to use the slow backup memory port [VLSI] */
 case object UseBackupMemoryPort extends Field[Boolean]
+/** Whether to divide HTIF clock */
+case object UseHtifClockDiv extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
@@ -120,6 +122,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
   if (p(UseBackupMemoryPort)) { io.mem_backup_ctrl <> uncore.io.mem_backup_ctrl }
+  else { uncore.io.mem_backup_ctrl.en := Bool(false) }
 
   io.mem.zip(uncore.io.mem).foreach { case (outer, inner) =>
     TopUtils.connectNasti(outer, inner)
@@ -189,7 +192,7 @@ class Uncore(implicit val p: Parameters) extends Module
   // Wire the htif to the memory port(s) and host interface
   io.host.debug_stats_csr := htif.io.host.debug_stats_csr
   io.mem <> outmemsys.io.mem
-  if(p(UseBackupMemoryPort)) {
+  if(p(UseHtifClockDiv)) {
     outmemsys.io.mem_backup_en := io.mem_backup_ctrl.en
     VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr,
       outmemsys.io.mem_backup, io.mem_backup_ctrl, io.host, htifW)
@@ -344,5 +347,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
            "Backup memory port only works when 1 memory channel is enabled")
     require(channelConfigs.sortWith(_ < _)(0) == 1,
                   "Backup memory port requires a single memory port mux config")
-  } else { io.mem <> mem_channels }
+  } else {
+    io.mem <> mem_channels
+    io.mem_backup.req.valid := Bool(false)
+  }
 }

@@ -228,7 +228,8 @@ class DefaultConfig extends Config (
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
-      case UseBackupMemoryPort => true
+      case UseBackupMemoryPort => false
+      case UseHtifClockDiv => true
       case MMIOBase => Dump("MEM_SIZE", BigInt(1L << 30)) // 1 GB
       case DeviceTree => makeDeviceTree()
       case GlobalAddrMap => {
@@ -356,7 +357,7 @@ class ZscaleConfig extends Config(new WithZscale ++ new DefaultConfig)
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
-    case UseBackupMemoryPort => false
+    case UseHtifClockDiv => false
   }
 )
 
