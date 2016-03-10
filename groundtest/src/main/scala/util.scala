@@ -22,12 +22,10 @@ class Timer(initCount: Int) extends Module {
     countdown := UInt(initCount - 1)
     active := Bool(true)
   }
-
-  when (io.stop) {
+  .elsewhen (io.stop) {
     active := Bool(false)
   }
-
-  when (active) {
+  .elsewhen (active) {
     countdown := countdown - UInt(1)
   }
 
@@ -64,12 +62,11 @@ class DynamicTimer(width: Int) extends Module {
     countdown := io.period
     active := Bool(true)
   }
+  .elsewhen (io.stop) {
+    active := Bool(false)
+  }
   .elsewhen (active) {
     countdown := countdown - UInt(1)
-  }
-
-  when (io.stop) {
-    active := Bool(false)
   }
 
   io.timeout := countdown === UInt(0) && active
