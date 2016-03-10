@@ -17,12 +17,18 @@ case object NTiles extends Field[Int]
 case object NMemoryChannels extends Field[Int]
 /** Number of banks per memory channel */
 case object NBanksPerMemoryChannel extends Field[Int]
+/** Maximum number of banks per memory channel, when configurable */
+case object MaxBanksPerMemoryChannel extends Field[Int]
+/** Dynamic memory channel configurations */
+case object MemoryChannelMuxConfigs extends Field[List[Int]]
 /** Least significant bit of address used for bank partitioning */
 case object BankIdLSB extends Field[Int]
 /** Number of outstanding memory requests */
 case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Whether to use the slow backup memory port [VLSI] */
 case object UseBackupMemoryPort extends Field[Boolean]
+/** Whether to divide HTIF clock */
+case object UseHtifClockDiv extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
@@ -56,6 +62,7 @@ trait HasTopLevelParameters {
   lazy val scrAddrBits = log2Up(nSCR)
   lazy val scrDataBits = 64
   lazy val scrDataBytes = scrDataBits / 8
+  lazy val memoryChannelMuxConfigs = p(MemoryChannelMuxConfigs)
   //require(lsb + log2Up(nBanks) < mifAddrBits)
 }
 
@@ -115,6 +122,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
   if (p(UseBackupMemoryPort)) { io.mem_backup_ctrl <> uncore.io.mem_backup_ctrl }
+  else { uncore.io.mem_backup_ctrl.en := Bool(false) }
 
   io.mem.zip(uncore.io.mem).foreach { case (outer, inner) =>
     TopUtils.connectNasti(outer, inner)
@@ -160,12 +168,23 @@ class Uncore(implicit val p: Parameters) extends Module
   }
 
   // Arbitrate SCR access between MMIO and HTIF
-  val scrFile = Module(new SCRFile)
+  val addrHashMap = new AddrHashMap(p(GlobalAddrMap), p(MMIOBase))
+  val scrFile = Module(new SCRFile("UNCORE_SCR",addrHashMap("conf:scr").start))
   val scrArb = Module(new SmiArbiter(2, scrDataBits, scrAddrBits))
   scrArb.io.in(0) <> htif.io.scr
   scrArb.io.in(1) <> outmemsys.io.scr
   scrFile.io.smi <> scrArb.io.out
+  scrFile.io.scr.attach(UInt(nTiles), "N_CORES", false, true)
+  scrFile.io.scr.attach(UInt(p(MMIOBase) >> 20), "MMIO_BASE", false, true)
   // scrFile.io.scr <> (... your SCR connections ...)
+
+  // Configures the enabled memory channels.  This can't be changed while the
+  // chip is actively using memory, as it both drops Nasti messages and garbles
+  // all of memory.
+  val memory_channel_mux_select = scrFile.io.scr.attach(
+    Reg(UInt(width = log2Up(memoryChannelMuxConfigs.size))),
+    "MEMORY_CHANNEL_MUX_SELECT")
+  outmemsys.io.memory_channel_mux_select := memory_channel_mux_select
 
   val deviceTree = Module(new NastiROM(p(DeviceTree).toSeq))
   deviceTree.io <> outmemsys.io.deviceTree
@@ -173,7 +192,7 @@ class Uncore(implicit val p: Parameters) extends Module
   // Wire the htif to the memory port(s) and host interface
   io.host.debug_stats_csr := htif.io.host.debug_stats_csr
   io.mem <> outmemsys.io.mem
-  if(p(UseBackupMemoryPort)) {
+  if(p(UseHtifClockDiv)) {
     outmemsys.io.mem_backup_en := io.mem_backup_ctrl.en
     VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr,
       outmemsys.io.mem_backup, io.mem_backup_ctrl, io.host, htifW)
@@ -195,6 +214,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val mem = Vec(nMemChannels, new NastiIO)
     val mem_backup = new MemSerializedIO(htifW)
     val mem_backup_en = Bool(INPUT)
+    val memory_channel_mux_select = UInt(INPUT, log2Up(memoryChannelMuxConfigs.size))
     val csr = Vec(nTiles, new SmiIO(xLen, csrAddrBits))
     val scr = new SmiIO(xLen, scrAddrBits)
     val deviceTree = new NastiIO
@@ -253,7 +273,20 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   }
 
   val mmio_ic = Module(new NastiRecursiveInterconnect(nMasters, nSlaves, addrMap, mmioBase))
-  val mem_ic = Module(new NastiMemoryInterconnect(nBanksPerMemChannel, nMemChannels))
+
+  val channelConfigs = p(MemoryChannelMuxConfigs)
+  require(channelConfigs.sortWith(_ > _)(0) == nMemChannels,
+                "More memory channels elaborated than can be enabled")
+  val mem_ic =
+    if (channelConfigs.size == 1) {
+      val ic = Module(new NastiMemoryInterconnect(nBanksPerMemChannel, nMemChannels))
+      ic
+    } else {
+      val nBanks = nBanksPerMemChannel * nMemChannels
+      val ic = Module(new NastiMemorySelector(nBanks, nMemChannels, channelConfigs))
+      ic.io.select := io.memory_channel_mux_select
+      ic
+    }
 
   for ((bank, i) <- managerEndpoints.zipWithIndex) {
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
@@ -306,6 +339,16 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   if(p(UseBackupMemoryPort)) {
     VLSIUtils.doOuterMemorySystemSerdes(
       mem_channels, io.mem, io.mem_backup, io.mem_backup_en,
-      nMemChannels, htifW, p(CacheBlockOffsetBits))
-  } else { io.mem <> mem_channels }
+      1, htifW, p(CacheBlockOffsetBits))
+    for (i <- 1 until nMemChannels) { io.mem(i) <> mem_channels(i) }
+    val mem_request = mem_channels.map(io => io.ar.valid || io.aw.valid).reduce(_ || _)
+    val config_nchannels = Vec(channelConfigs.map(i => UInt(i)))(io.memory_channel_mux_select)
+    assert(!mem_request || !io.mem_backup_en || config_nchannels === UInt(1),
+           "Backup memory port only works when 1 memory channel is enabled")
+    require(channelConfigs.sortWith(_ < _)(0) == 1,
+                  "Backup memory port requires a single memory port mux config")
+  } else {
+    io.mem <> mem_channels
+    io.mem_backup.req.valid := Bool(false)
+  }
 }

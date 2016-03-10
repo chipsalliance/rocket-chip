@@ -40,6 +40,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	-CC "-std=c++11" \
 	-CC "-Wl,-rpath,$(RISCV)/lib" \
 	-CC "-include $(consts_header)" \
+	-CC "-include $(scr_header)" \
 	-e vcs_main \
 	$(RISCV)/lib/libfesvr.so \
 	$(sim_dir)/libdramsim.a \
@@ -65,8 +66,6 @@ $(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_heade
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv_debug) \
 	+define+DEBUG -debug_pp \
-
-#	+define+MEM_BACKUP_EN \
 
 #--------------------------------------------------------------------
 # Run

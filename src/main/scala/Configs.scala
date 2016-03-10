@@ -87,13 +87,15 @@ class DefaultConfig extends Config (
       case PPNBits => site(PAddrBits) - site(PgIdxBits)
       case VAddrBits => site(VPNBits) + site(PgIdxBits)
       case ASIdBits => 7
-      case MIFTagBits => // Bits needed at the L2 agent
+      case MIFTagBits => Dump("MIF_TAG_BITS",
+                         // Bits needed at the L2 agent
                          log2Up(site(NAcquireTransactors)+2) +
                          // Bits added by NASTI interconnect
-                         max(log2Up(site(NBanksPerMemoryChannel)),
-                            (if (site(UseDma)) 3 else 2))
-      case MIFDataBits => 64
-      case MIFAddrBits => site(PAddrBits) - site(CacheBlockOffsetBits)
+                         max(log2Up(site(MaxBanksPerMemoryChannel)),
+                            (if (site(UseDma)) 3 else 2)))
+      case MIFDataBits => Dump("MIF_DATA_BITS", 64)
+      case MIFAddrBits => Dump("MIF_ADDR_BITS",
+                               site(PAddrBits) - site(CacheBlockOffsetBits))
       case MIFDataBeats => site(CacheBlockBytes) * 8 / site(MIFDataBits)
       case NastiKey => {
         Dump("MEM_STRB_BITS", site(MIFDataBits) / 8)
@@ -108,6 +110,7 @@ class DefaultConfig extends Config (
       case RowBits => findBy(CacheName)
       case NTLBEntries => findBy(CacheName)
       case CacheIdBits => findBy(CacheName)
+      case SplitMetadata => findBy(CacheName)
       case ICacheBufferWays => Knob("L1I_BUFFER_WAYS")
       case "L1I" => {
         case NSets => Knob("L1I_SETS") //64
@@ -115,6 +118,7 @@ class DefaultConfig extends Config (
         case RowBits => 4*site(CoreInstBits)
         case NTLBEntries => 8
         case CacheIdBits => 0
+	case SplitMetadata => false
       }:PF
       case "L1D" => {
         case NSets => Knob("L1D_SETS") //64
@@ -122,6 +126,7 @@ class DefaultConfig extends Config (
         case RowBits => 2*site(CoreDataBits)
         case NTLBEntries => 8
         case CacheIdBits => 0
+	case SplitMetadata => false
       }:PF
       case ECCCode => None
       case Replacer => () => new RandomReplacement(site(NWays))
@@ -153,6 +158,7 @@ class DefaultConfig extends Config (
       }
       case BuildRoCC => Nil
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
+      case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
       case UseDma => false
       case UseStreamLoopback => false
@@ -216,11 +222,14 @@ class DefaultConfig extends Config (
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
-      case NOutstandingMemReqsPerChannel => site(NBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
+      case MemoryChannelMuxConfigs => Dump("MEMORY_CHANNEL_MUX_CONFIGS", List( site(NMemoryChannels) ))
+      case MaxBanksPerMemoryChannel => site(NBanksPerMemoryChannel) * site(NMemoryChannels) / site(MemoryChannelMuxConfigs).sortWith{_ < _}(0)
+      case NOutstandingMemReqsPerChannel => site(MaxBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
-      case UseBackupMemoryPort => true
+      case UseBackupMemoryPort => false
+      case UseHtifClockDiv => true
       case MMIOBase => Dump("MEM_SIZE", BigInt(1L << 30)) // 1 GB
       case DeviceTree => makeDeviceTree()
       case GlobalAddrMap => {
@@ -273,6 +282,11 @@ class With4MemoryChannels extends Config(
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 4)
   }
 )
+class With8MemoryChannels extends Config(
+  (pname,site,here) => pname match {
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
+  }
+)
 
 class WithL2Cache extends Config(
   (pname,site,here) => pname match {
@@ -285,6 +299,7 @@ class WithL2Cache extends Config(
       case NWays => Knob("L2_WAYS")
       case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
       case CacheIdBits => log2Ceil(site(NMemoryChannels) * site(NBanksPerMemoryChannel))
+      case SplitMetadata => Knob("L2_SPLIT_METADATA")
     }: PartialFunction[Any,Any] 
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
@@ -297,7 +312,7 @@ class WithL2Cache extends Config(
         case OuterTLId => "L2toMC"})))
     case L2Replacer => () => new SeqRandom(site(NWays))
   },
-  knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048 }
+  knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048; case "L2_SPLIT_METADATA" => false }
 )
 
 class WithPLRU extends Config(
@@ -342,7 +357,7 @@ class ZscaleConfig extends Config(new WithZscale ++ new DefaultConfig)
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
-    case UseBackupMemoryPort => false
+    case UseHtifClockDiv => false
   }
 )
 
@@ -389,7 +404,8 @@ class WithRoccExample extends Config(
         generator = (p: Parameters) => Module(new AccumulatorExample()(p))),
       RoccParameters(
         opcodes = OpcodeSet.custom1,
-        generator = (p: Parameters) => Module(new TranslatorExample()(p))),
+        generator = (p: Parameters) => Module(new TranslatorExample()(p)),
+        nPTWPorts = 1),
       RoccParameters(
         opcodes = OpcodeSet.custom2,
         generator = (p: Parameters) => Module(new CharacterCountExample()(p))))
@@ -406,6 +422,7 @@ class WithDmaController extends Config(
         RoccParameters(
           opcodes = OpcodeSet.custom2,
           generator = (p: Parameters) => Module(new DmaController()(p)),
+          nPTWPorts = 1,
           csrs = Seq.range(
             DmaCtrlRegNumbers.CSR_BASE,
             DmaCtrlRegNumbers.CSR_END)))
@@ -430,3 +447,21 @@ class SmallL2Config extends Config(
 class SingleChannelBenchmarkConfig extends Config(new WithL2Capacity256 ++ new DefaultL2Config)
 class DualChannelBenchmarkConfig extends Config(new With2MemoryChannels ++ new SingleChannelBenchmarkConfig)
 class QuadChannelBenchmarkConfig extends Config(new With4MemoryChannels ++ new SingleChannelBenchmarkConfig)
+class OctoChannelBenchmarkConfig extends Config(new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
+
+class EightChannelVLSIConfig extends Config(new With8MemoryChannels ++ new DefaultVLSIConfig)
+
+class WithOneOrMaxChannels extends Config(
+  (pname, site, here) => pname match {
+    case MemoryChannelMuxConfigs => Dump("MEMORY_CHANNEL_MUX_CONFIGS", List(1, site(NMemoryChannels)))
+  }
+)
+class OneOrEightChannelBenchmarkConfig extends Config(new WithOneOrMaxChannels ++ new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
+class OneOrEightChannelVLSIConfig extends Config(new WithOneOrMaxChannels ++ new EightChannelVLSIConfig)
+
+class SimulateBackupMemConfig extends Config(){ Dump("MEM_BACKUP_EN", true) }
+class BackupMemVLSIConfig extends Config(new SimulateBackupMemConfig ++ new DefaultVLSIConfig)
+class OneOrEightChannelBackupMemVLSIConfig extends Config(new WithOneOrMaxChannels ++ new With8MemoryChannels ++ new BackupMemVLSIConfig)
+
+class WithSplitL2Metadata extends Config(knobValues = { case "L2_SPLIT_METADATA" => true })
+class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new DefaultL2Config)

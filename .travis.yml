@@ -1,7 +1,23 @@
 language: scala
 # run on new infrastructure
 sudo: false
-cache: apt
+cache:
+  apt: true
+  directories:
+    $HOME/.ivy2
+    regression/install
+    chisel/target
+    context-dependent-environments/target
+    groundtest/target
+    hardfloat/target
+    junctions/target
+    project/project/target
+    project/target
+    rocket/target
+    target
+    uncore/target
+    zscale/target
+
 # packages needed to build riscv-tools
 addons:
   apt:
@@ -24,14 +40,17 @@ addons:
       - texinfo
 
 env:
-  global:
-    - RISCV="/home/travis/riscv_install"
-    - PATH=$PATH:$RISCV/bin
   matrix:
-    - VCONFIG=DefaultVLSIConfig FCONFIG=DefaultFPGAConfig ECONFIG=DefaultCPPConfig
-    - VCONFIG=BOOMVLSIConfig FCONFIG=BOOMFPGAConfig ECONFIG=BOOMCPPConfig
-    - VCONFIG=RoccExampleConfig FCONFIG=RoccExampleConfig ECONFIG=RoccExampleConfig
-    - VCONFIG=DmaControllerConfig FCONFIG=DmaControllerFPGAConfig ECONFIG=DmaControllerConfig
+    - CONFIG=DefaultConfig
+    - CONFIG=BOOMConfig
+    - CONFIG=RoccExampleConfig
+    - CONFIG=DmaControllerConfig
+    - CONFIG=MemtestConfig
+    - CONFIG=MemtestL2Config
+    - CONFIG=BroadcastRegressionTestConfig
+    - CONFIG=CacheRegressionTestConfig
+    - CONFIG=UnitTestConfig
+    - CONFIG=SplitL2MetadataTestConfig
 
 # blacklist private branches
 branches:
@@ -40,41 +59,15 @@ branches:
     - hurricane
 
 before_install:
-  # make install destination
-  - mkdir -p $RISCV
-  # don't do travis on riscv-tools
   - rm riscv-tools/.travis.yml
-  # pull in needed repos from riscv-tools (travis isn't recursive)
-  - cd riscv-tools
-  - git submodule update --init riscv-fesvr
-  - git submodule update --init riscv-gnu-toolchain
-  - git submodule update --init riscv-tests
-  - cd riscv-tests
-  - git submodule update --init
-  - cd ../..
-  # use recently installed gcc
   - export CXX=g++-4.8 CC=gcc-4.8
 
 script:
-  # test verilog
-  - cd vsim
-  - make CONFIG=$VCONFIG verilog
-  - cd ../fsim
-  - make CONFIG=$FCONFIG verilog
-  # build riscv-fesvr
-  - cd ../riscv-tools/riscv-fesvr
-  - mkdir build
-  - cd build
-  - ../configure --prefix=$RISCV
-  - make install
-  # build emulator
-  - cd ../../../emulator
-  - make -j 8 CONFIG=$ECONFIG
-  # build riscv-gcc
-  - cd ../riscv-tools/riscv-gnu-toolchain
-  - ./configure --prefix=$RISCV
-  - make -j 8 > build.gcc.out
-  # run riscv-tests
-  - cd ../../emulator
-  - make -j 8 CONFIG=$ECONFIG run-asm-tests
-  - make CONFIG=$ECONFIG run-bmark-tests
+  - make vsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
+  - make fsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
+  - make emulator-ndebug -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
+  - make emulator-asm-tests   -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
+  - make emulator-bmark-tests -C regression CONFIG=$CONFIG TORTURE_CONFIG=default -j1
+
+before_cache:
+  - ls -tr regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
