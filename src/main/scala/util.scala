@@ -75,7 +75,7 @@ class FlowThroughSerializer[T <: Bundle with HasTileLinkData](gen: T, n: Int) ex
     val rbits = Reg{io.in.bits}
     val active = Reg(init=Bool(false))
 
-    val shifter = Vec(n, Bits(width = narrowWidth))
+    val shifter = Wire(Vec(n, Bits(width = narrowWidth)))
     (0 until n).foreach { 
       i => shifter(i) := rbits.data((i+1)*narrowWidth-1,i*narrowWidth)
     }
