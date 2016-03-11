@@ -293,7 +293,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val decoded_addr = read_mapping map { case (k, v) => k -> (addr === k) }
 
   val addr_valid = decoded_addr.values.reduce(_||_)
-  val fp_csr = decoded_addr(CSRs.fflags) || decoded_addr(CSRs.frm) || decoded_addr(CSRs.fcsr)
+  val fp_csr =
+    if (usingFPU) decoded_addr(CSRs.fflags) || decoded_addr(CSRs.frm) || decoded_addr(CSRs.fcsr)
+    else Bool(false)
   val csr_addr_priv = io.rw.addr(9,8)
   val priv_sufficient = reg_mstatus.prv >= csr_addr_priv
   val read_only = io.rw.addr(11,10).andR
@@ -442,9 +444,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       reg_mip.msip := wdata(0)
     }
     when (decoded_addr(CSRs.mie))      { reg_mie := wdata & supported_interrupts }
-    when (decoded_addr(CSRs.fflags))   { reg_fflags := wdata }
-    when (decoded_addr(CSRs.frm))      { reg_frm := wdata }
-    when (decoded_addr(CSRs.fcsr))     { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
     when (decoded_addr(CSRs.mepc))     { reg_mepc := ~(~wdata | (coreInstBytes-1)) }
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     if (p(MtvecWritable))
@@ -456,6 +455,11 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     when (decoded_addr(CSRs.mfromhost)){ when (reg_fromhost === UInt(0) || !host_csr_req_fire) { reg_fromhost := wdata } }
     when (decoded_addr(CSRs.mtohost))  { when (reg_tohost === UInt(0) || host_csr_req_fire) { reg_tohost := wdata } }
     when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
+    if (usingFPU) {
+      when (decoded_addr(CSRs.fflags)) { reg_fflags := wdata }
+      when (decoded_addr(CSRs.frm))    { reg_frm := wdata }
+      when (decoded_addr(CSRs.fcsr))   { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
+    }
     if (usingVM) {
       when (decoded_addr(CSRs.sstatus)) {
         val new_sstatus = new MStatus().fromBits(wdata)
