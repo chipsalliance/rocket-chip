@@ -784,8 +784,8 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   }
 
   // These IOs are used for routing in the parent
-  val iacq_in_same_set = inSameSet(xact_addr_idx, io.iacq().addr_block)
-  val irel_in_same_set = inSameSet(xact_addr_idx,io.irel().addr_block)
+  val iacq_in_same_set = inSameSet(xact_addr_block, io.iacq().addr_block)
+  val irel_in_same_set = inSameSet(xact_addr_block, io.irel().addr_block)
   val before_wb_alloc = Vec(s_meta_read, s_meta_resp, s_wb_req).contains(state)
   io.matches.iacq := (state =/= s_idle) && iacq_in_same_set
   io.matches.irel := (state =/= s_idle) && 
