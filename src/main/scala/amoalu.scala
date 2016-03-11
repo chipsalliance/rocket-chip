@@ -53,7 +53,7 @@ class LoadGen(typ: UInt, addr: UInt, dat: UInt, zero: Bool, maxSize: Int) {
 
 class AMOALU(rhsIsAligned: Boolean = false)(implicit p: Parameters) extends CacheModule()(p) {
   val operandBits = p(AmoAluOperandBits)
-  require(operandBits == 64)
+  require(operandBits == 32 || operandBits == 64)
   val io = new Bundle {
     val addr = Bits(INPUT, blockOffBits)
     val cmd = Bits(INPUT, M_SZ)
@@ -74,16 +74,24 @@ class AMOALU(rhsIsAligned: Boolean = false)(implicit p: Parameters) extends Cach
   val word = io.typ === MT_W || io.typ === MT_WU || // Logic minimization:
                io.typ === MT_B || io.typ === MT_BU
 
-  val mask = ~UInt(0,64) ^ (io.addr(2) << 31)
-  val adder_out = (io.lhs & mask).toUInt + (rhs & mask)
+  val adder_out =
+    if (operandBits == 32) io.lhs + rhs
+    else {
+      val mask = ~UInt(0,64) ^ (io.addr(2) << 31)
+      (io.lhs & mask).toUInt + (rhs & mask)
+    }
 
-  val cmp_lhs  = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
-  val cmp_rhs  = Mux(word && !io.addr(2), rhs(31), rhs(63))
-  val lt_lo = io.lhs(31,0) < rhs(31,0)
-  val lt_hi = io.lhs(63,32) < rhs(63,32)
-  val eq_hi = io.lhs(63,32) === rhs(63,32)
-  val lt = Mux(word, Mux(io.addr(2), lt_hi, lt_lo), lt_hi || eq_hi && lt_lo)
-  val less = Mux(cmp_lhs === cmp_rhs, lt, Mux(sgned, cmp_lhs, cmp_rhs))
+  val less =
+    if (operandBits == 32) Mux(io.lhs(31) === rhs(31), io.lhs < rhs, Mux(sgned, io.lhs(31), io.rhs(31)))
+    else {
+      val cmp_lhs = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
+      val cmp_rhs = Mux(word && !io.addr(2), rhs(31), rhs(63))
+      val lt_lo = io.lhs(31,0) < rhs(31,0)
+      val lt_hi = io.lhs(63,32) < rhs(63,32)
+      val eq_hi = io.lhs(63,32) === rhs(63,32)
+      val lt = Mux(word, Mux(io.addr(2), lt_hi, lt_lo), lt_hi || eq_hi && lt_lo)
+      Mux(cmp_lhs === cmp_rhs, lt, Mux(sgned, cmp_lhs, cmp_rhs))
+    }
 
   val out = Mux(io.cmd === M_XA_ADD, adder_out,
             Mux(io.cmd === M_XA_AND, io.lhs & rhs,
