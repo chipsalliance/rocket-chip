@@ -162,12 +162,13 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_tohost = Reg(init=Bits(0, xLen))
   val reg_fromhost = Reg(init=Bits(0, xLen))
   val reg_stats = Reg(init=Bool(false))
-  val reg_time = Reg(UInt(width = xLen))
-  val reg_instret = WideCounter(xLen, io.retire)
-  val reg_cycle: UInt = if (enableCommitLog) { reg_instret } else { WideCounter(xLen) }
   val reg_uarch_counters = io.uarch_counters.map(WideCounter(xLen, _))
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
+
+  val reg_time = Reg(UInt(width = 64)) // regardless of XLEN
+  val reg_instret = WideCounter(64, io.retire)
+  val reg_cycle: UInt = if (enableCommitLog) { reg_instret } else { WideCounter(64) }
 
   val mip = Wire(init=reg_mip)
   mip.host := (reg_fromhost =/= 0)
@@ -275,6 +276,20 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     read_mapping += CSRs.mstime_delta -> UInt(0)
     read_mapping += CSRs.mscycle_delta -> UInt(0)
     read_mapping += CSRs.msinstret_delta -> UInt(0)
+  }
+
+  if (xLen == 32) {
+    read_mapping += CSRs.mtimeh -> (reg_time >> 32)
+    read_mapping += CSRs.mcycleh -> (reg_cycle >> 32)
+    read_mapping += CSRs.minstreth -> (reg_instret >> 32)
+    read_mapping += CSRs.mutime_deltah -> UInt(0)
+    read_mapping += CSRs.mucycle_deltah -> UInt(0)
+    read_mapping += CSRs.muinstret_deltah -> UInt(0)
+    if (usingVM) {
+      read_mapping += CSRs.mstime_deltah -> UInt(0)
+      read_mapping += CSRs.mscycle_deltah -> UInt(0)
+      read_mapping += CSRs.msinstret_deltah -> UInt(0)
+    }
   }
 
   for (i <- 0 until nCustomMrwCsrs) {
