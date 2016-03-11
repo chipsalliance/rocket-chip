@@ -138,15 +138,15 @@ class FPUDecoder extends Module
   sigs zip decoder map {case(s,d) => s := d}
 }
 
-class FPUIO extends Bundle {
+class FPUIO(implicit p: Parameters) extends CoreBundle {
   val inst = Bits(INPUT, 32)
-  val fromint_data = Bits(INPUT, 64)
+  val fromint_data = Bits(INPUT, xLen)
 
   val fcsr_rm = Bits(INPUT, FPConstants.RM_SZ)
   val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ))
 
   val store_data = Bits(OUTPUT, 64)
-  val toint_data = Bits(OUTPUT, 64)
+  val toint_data = Bits(OUTPUT, xLen)
 
   val dmem_resp_val = Bool(INPUT)
   val dmem_resp_type = Bits(INPUT, 3)
@@ -414,6 +414,7 @@ class FPUFMAPipe(val latency: Int, expWidth: Int, sigWidth: Int) extends Module
 }
 
 class FPU(implicit p: Parameters) extends CoreModule()(p) {
+  require(xLen == 64, "RV32 Rocket FP support missing")
   val io = new FPUIO
 
   val ex_reg_valid = Reg(next=io.valid, init=Bool(false))

@@ -11,7 +11,7 @@ import uncore.PseudoLRU
 
 case object NTLBEntries extends Field[Int]
 
-trait HasTLBParameters extends HasAddrMapParameters {
+trait HasTLBParameters extends HasCoreParameters {
   val entries = p(NTLBEntries)
   val camAddrBits = log2Ceil(entries)
   val camTagBits = asIdBits + vpnBits
@@ -57,7 +57,7 @@ class RocketCAM(implicit p: Parameters) extends TLBModule()(p) {
 
 class TLBReq(implicit p: Parameters) extends CoreBundle()(p) {
   val asid = UInt(width = asIdBits)
-  val vpn = UInt(width = vpnBits+1)
+  val vpn = UInt(width = vpnBitsExtended)
   val passthrough = Bool()
   val instruction = Bool()
   val store = Bool()
@@ -138,7 +138,9 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
   val x_array = Mux(priv_s, sx_array.toBits, ux_array.toBits)
 
   val vm_enabled = io.ptw.status.vm(3) && priv_uses_vm && !io.req.bits.passthrough
-  val bad_va = io.req.bits.vpn(vpnBits) =/= io.req.bits.vpn(vpnBits-1)
+  val bad_va =
+    if (vpnBits == vpnBitsExtended) Bool(false)
+    else io.req.bits.vpn(vpnBits) =/= io.req.bits.vpn(vpnBits-1)
   // it's only a store hit if the dirty bit is set
   val tag_hits = tag_cam.io.hits & (dirty_array.toBits | ~Mux(io.req.bits.store, w_array, UInt(0)))
   val tag_hit = tag_hits.orR

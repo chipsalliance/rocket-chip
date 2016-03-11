@@ -161,8 +161,8 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val req_cmd_sc = req.cmd === M_XSC
   val grant_word = Reg(UInt(width = wordBits))
 
-  val storegen = new StoreGen(req.typ, req.addr, req.data, 8)
-  val loadgen = new LoadGen(req.typ, req.addr, grant_word, req_cmd_sc, 8)
+  val storegen = new StoreGen(req.typ, req.addr, req.data, wordBits/8)
+  val loadgen = new LoadGen(req.typ, req.addr, grant_word, req_cmd_sc, wordBits/8)
 
   val beat_offset = req.addr(beatOffBits - 1, wordOffBits)
   val beat_mask = (storegen.mask << Cat(beat_offset, UInt(0, wordOffBits)))
@@ -814,7 +814,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     s2_req.cmd := s1_req.cmd
   }
 
-  val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), 8).misaligned
+  val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBits/8).misaligned
   io.cpu.xcpt.ma.ld := s1_read && misaligned
   io.cpu.xcpt.ma.st := s1_write && misaligned
   io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.xcpt_ld
@@ -1013,7 +1013,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   // load data subword mux/sign extension
   val s2_data_word_prebypass = s2_data_uncorrected >> Cat(s2_word_idx, Bits(0,log2Up(coreDataBits)))
   val s2_data_word = Mux(s2_store_bypass, s2_store_bypass_data, s2_data_word_prebypass)
-  val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc, 8)
+  val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc, wordBits/8)
   
   amoalu.io.addr := s2_req.addr
   amoalu.io.cmd := s2_req.cmd
