@@ -137,6 +137,15 @@ object DefaultTestSuites {
   val rv32uaNames = LinkedHashSet("amoadd_w", "amoand_w", "amoor_w", "amoxor_w", "amoswap_w", "amomax_w", "amomaxu_w", "amomin_w", "amominu_w")
   val rv32ua = new AssemblyTestSuite("rv32ua", "rv32ui", rv32uaNames)(_)
 
+  val rv32siNames = LinkedHashSet("csr", "ma_fetch", "scall", "sbreak", "wfi")
+  val rv32si = new AssemblyTestSuite("rv32si", "rv32si", rv32siNames)(_)
+
+  val rv32miNames = LinkedHashSet("csr", "mcsr", "wfi", "dirty", "illegal", "ma_addr", "ma_fetch", "sbreak", "scall", "timer")
+  val rv32mi = new AssemblyTestSuite("rv32mi", "rv32mi", rv32miNames)(_)
+
+  val rv32u = List(rv32ui, rv32um, rv32ua)
+  val rv32i = List(rv32ui, rv32si, rv32mi)
+
   val rv64uiNames = LinkedHashSet("addw", "addiw", "ld", "lwu", "sd", "slliw", "sllw", "sltiu", "sltu", "sraiw", "sraw", "srliw", "srlw", "subw")
   val rv64ui = new AssemblyTestSuite("rv64ui", "rv64ui", rv32uiNames ++ rv64uiNames)(_)
 
@@ -150,10 +159,10 @@ object DefaultTestSuites {
   val rv64uf = new AssemblyTestSuite("rv64uf", "rv64uf", rv64ufNames)(_)
   val rv64ufNoDiv = new AssemblyTestSuite("rv64uf", "rv64uf", rv64ufNames - "fdiv")(_)
 
-  val rv64siNames = LinkedHashSet("csr", "illegal", "ma_fetch", "ma_addr", "scall", "sbreak", "wfi")
+  val rv64siNames = rv32siNames
   val rv64si = new AssemblyTestSuite("rv64si", "rv64si", rv64siNames)(_)
 
-  val rv64miNames = LinkedHashSet("csr", "mcsr", "wfi", "dirty", "illegal", "ma_addr", "ma_fetch", "sbreak", "scall", "timer")
+  val rv64miNames = rv32miNames
   val rv64mi = new AssemblyTestSuite("rv64mi", "rv64mi", rv64miNames)(_)
 
   // TODO: "rv64ui-pm-lrsc", "rv64mi-pm-ipi",

@@ -149,8 +149,11 @@ class DefaultConfig extends Config (
           case OuterTLId => "L2toMC" })))
       //Tile Constants
       case BuildTiles => {
-        TestGeneration.addSuites(rv64i.map(_("p")))
-        TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64u.map(_(env))))
+        val (rvi, rvu) =
+          if (site(XLen) == 64) (rv64i, rv64u)
+          else (rv32i, rv32u)
+        TestGeneration.addSuites(rvi.map(_("p")))
+        TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
@@ -352,6 +355,13 @@ class WithZscale extends Config(
   }
 )
 
+class WithRV32 extends Config(
+  (pname,site,here) => pname match {
+    case XLen => 32
+    case UseFPU => false
+  }
+)
+
 class ZscaleConfig extends Config(new WithZscale ++ new DefaultConfig)
 
 class FPGAConfig extends Config (
@@ -379,6 +389,8 @@ class SmallConfig extends Config (
 )
 
 class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGAConfig)
+
+class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
 
