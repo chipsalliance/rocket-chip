@@ -118,7 +118,7 @@ class DefaultConfig extends Config (
         case RowBits => 4*site(CoreInstBits)
         case NTLBEntries => 8
         case CacheIdBits => 0
-	case SplitMetadata => false
+        case SplitMetadata => false
       }:PF
       case "L1D" => {
         case NSets => Knob("L1D_SETS") //64
@@ -126,7 +126,7 @@ class DefaultConfig extends Config (
         case RowBits => 2*site(CoreDataBits)
         case NTLBEntries => 8
         case CacheIdBits => 0
-	case SplitMetadata => false
+        case SplitMetadata => false
       }:PF
       case ECCCode => None
       case Replacer => () => new RandomReplacement(site(NWays))
