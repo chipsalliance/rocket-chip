@@ -51,6 +51,7 @@ class RTC(csr_MTIME: Int)(implicit p: Parameters) extends HtifModule
     id = coreId,
     addr = addrTable(coreId),
     size = UInt(log2Up(csrDataBytes)))
+  require(p(MIFMasterTagBits) >= log2Up(nCores))
 
   io.w.valid := sending_data
   io.w.bits := NastiWriteDataChannel(data = rtc)
