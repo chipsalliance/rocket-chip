@@ -59,10 +59,23 @@ class UncachedTileLinkGenerator(id: Int)
 
   io.finished := (state === s_finished)
 
-  val full_addr = UInt(startAddress) + Cat(
-    req_cnt, UInt(id, log2Ceil(nGens)),
-    (if (genCached) UInt(0, 1) else UInt(0, 0)),
-    UInt(0, wordOffset))
+  val part_of_full_addr =
+    if (genCached) {
+      Cat(req_cnt,
+          UInt(0, width = 1),
+          UInt(0, wordOffset))
+    } else {
+      Cat(req_cnt,
+          UInt(0, wordOffset))
+    }
+  val another_part_of_full_addr =
+    if (log2Ceil(nGens) > 0) {
+      Cat(UInt(id, log2Ceil(nGens)),
+          part_of_full_addr)
+    } else {
+      part_of_full_addr
+    }
+  val full_addr = UInt(startAddress) + another_part_of_full_addr
 
   val addr_block = full_addr >> UInt(tlBlockOffset)
   val addr_beat = full_addr(tlBlockOffset - 1, tlByteAddrBits)
@@ -122,10 +135,25 @@ class HellaCacheGenerator(id: Int)
 
   val (req_cnt, req_wrap) = Counter(io.mem.resp.valid, maxRequests)
 
-  val req_addr = UInt(startAddress) + Cat(
-    req_cnt, UInt(id, log2Ceil(nGens)),
-    (if (genUncached) UInt(1, 1) else UInt(0, 0)),
-    UInt(0, wordOffset))
+  val part_of_req_addr =
+       if (log2Ceil(nGens) > 0) {
+         if (genUncached) {
+           Cat(UInt(id, log2Ceil(nGens)),
+               UInt(1, width = 1),
+               UInt(0, wordOffset))
+         } else {
+           Cat(UInt(id, log2Ceil(nGens)),
+               UInt(0, wordOffset))
+         }
+       } else {
+         if (genUncached) {
+           Cat(UInt(1, width = 1),
+               UInt(0, wordOffset))
+         } else {
+           UInt(0, wordOffset)
+         }
+       }
+  val req_addr = UInt(startAddress) + Cat(req_cnt, part_of_req_addr)
   val req_data = Cat(UInt(id, log2Up(nGens)), req_cnt, req_addr)
 
   io.mem.req.valid := sending && !io.finished
