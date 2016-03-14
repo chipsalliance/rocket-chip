@@ -38,6 +38,8 @@ class HostIO(w: Int) extends Bundle {
   val in = Decoupled(Bits(width = w)).flip
   val out = Decoupled(Bits(width = w))
   val debug_stats_csr = Bool(OUTPUT)
+
+  override def cloneType = new HostIO(w).asInstanceOf[this.type]
 }
 
 class HtifIO(implicit p: Parameters) extends HtifBundle()(p) {
@@ -234,6 +236,8 @@ class NastiIOHostIOConverter(htifW: Int)(implicit val p: Parameters)
     val host = new HostIO(htifW).flip
     val reset = Bool(OUTPUT)
   }
+
+  def cloneType = new NastiIOHostIOConverter(htifW).asInstanceOf[this.type]
 
   val raddr = io.nasti.ar.bits.addr(6, 2)
   val waddr = io.nasti.aw.bits.addr(6, 2)
