@@ -220,8 +220,8 @@ object TestGenerator extends App with FileSystemUtilities {
   val v = createOutputFile(configClassName + ".knb")
   v.write(world.getKnobs)
   v.close
-  val d = new java.io.FileOutputStream(Driver.targetDir + "/" + configClassName + ".dtb")
-  d.write(paramsFromConfig(DeviceTree))
+  val d = new java.io.FileOutputStream(Driver.targetDir + "/" + configClassName + ".cfg")
+  d.write(paramsFromConfig(ConfigString))
   d.close
   val w = createOutputFile(configClassName + ".cst")
   w.write(world.getConstraints)

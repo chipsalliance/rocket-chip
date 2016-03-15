@@ -35,6 +35,8 @@ case object BuildL2CoherenceManager extends Field[(Int, Parameters) => Coherence
 case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
 /** Enable DMA engine */
 case object UseDma extends Field[Boolean]
+/** A string describing on-chip devices, readable by target software */
+case object ConfigString extends cde.Field[Array[Byte]]
 
 case object UseStreamLoopback extends Field[Boolean]
 case object StreamLoopbackSize extends Field[Int]
@@ -186,7 +188,7 @@ class Uncore(implicit val p: Parameters) extends Module
     "MEMORY_CHANNEL_MUX_SELECT")
   outmemsys.io.memory_channel_mux_select := memory_channel_mux_select
 
-  val deviceTree = Module(new NastiROM(p(DeviceTree).toSeq))
+  val deviceTree = Module(new NastiROM(p(ConfigString).toSeq))
   deviceTree.io <> outmemsys.io.deviceTree
 
   // Wire the htif to the memory port(s) and host interface
@@ -267,10 +269,13 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   val nMasters = (if (dmaOpt.isEmpty) 2 else 3)
   val nSlaves = addrHashMap.nEntries
 
+  // TODO: the code to print this stuff should live somewhere else
   println("Generated Address Map")
   for ((name, base, size, _) <- addrHashMap.sortedEntries) {
     println(f"\t$name%s $base%x - ${base + size - 1}%x")
   }
+  println("Generated Configuration String")
+  println(new String(p(ConfigString)))
 
   val mmio_ic = Module(new NastiRecursiveInterconnect(nMasters, nSlaves, addrMap, mmioBase))
 
