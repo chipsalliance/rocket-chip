@@ -58,7 +58,6 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val s2_valid = Reg(next = req_arb.io.out.valid)
 
   val s2_resp = Wire(new PTWResp)
-  s2_resp.error := Bool(false)
   s2_resp.pte.ppn := s2_ppn
   s2_resp.pte.reserved_for_software := UInt(0)
   s2_resp.pte.d := Bool(true)
@@ -69,9 +68,8 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.requestors.zipWithIndex.foreach { case (requestor, i) =>
     requestor.resp.valid := s2_valid && s2_chosen === UInt(i)
     requestor.resp.bits := s2_resp
-    requestor.status.mprv := Bool(false)
     requestor.status.vm := UInt("b01000")
-    requestor.status.prv := UInt(PRV_S)
+    requestor.status.prv := UInt(PRV.S)
   }
 }
 
