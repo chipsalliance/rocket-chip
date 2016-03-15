@@ -27,49 +27,33 @@ class DefaultConfig extends Config (
       val scr = AddrMapEntry("scr", None, MemSize(scrSize, AddrMapConsts.RW))
       new AddrMap(deviceTree +: csrs :+ scr)
     }
-    def makeDeviceTree() = {
+    def makeConfigString() = {
       val addrMap = new AddrHashMap(site(GlobalAddrMap), site(MMIOBase))
-      val devices = site(GlobalDeviceSet)
-      val dt = new DeviceTreeGenerator
-      dt.beginNode("")
-      dt.addProp("#address-cells", 2)
-      dt.addProp("#size-cells", 2)
-      dt.addProp("model", "Rocket-Chip")
-        dt.beginNode("memory@0")
-          dt.addProp("device_type", "memory")
-          dt.addReg(0, site(MMIOBase).toLong)
-        dt.endNode()
-        dt.beginNode("cpus")
-          dt.addProp("#address-cells", 2)
-          dt.addProp("#size-cells", 2)
-          for (i <- 0 until site(NTiles)) {
-            val csrs = addrMap(s"conf:csr$i")
-            dt.beginNode(s"cpu@${csrs.start.toLong.toHexString}")
-              dt.addProp("device_type", "cpu")
-              dt.addProp("compatible", "riscv")
-              dt.addProp("isa", s"rv${site(XLen)}")
-              dt.addReg(csrs.start.toLong)
-            dt.endNode()
-          }
-        dt.endNode()
-        val scrs = addrMap("conf:scr")
-        dt.beginNode(s"scr@${scrs.start.toLong.toHexString}")
-          dt.addProp("device_type", "scr")
-          dt.addProp("compatible", "riscv")
-          dt.addProp("protection", scrs.prot)
-          dt.addReg(scrs.start.toLong, scrs.size.toLong)
-        dt.endNode()
-        for (dev <- devices.toSeq) {
-          val entry = addrMap(s"devices:${dev.name}")
-          dt.beginNode(s"${dev.name}@${entry.start}")
-            dt.addProp("device_type", s"${dev.dtype}")
-            dt.addProp("compatible", "riscv")
-            dt.addProp("protection", entry.prot)
-            dt.addReg(entry.start.toLong, entry.size.toLong)
-          dt.endNode()
-        }
-      dt.endNode()
-      dt.toArray()
+      val xLen = site(XLen)
+      val res = new StringBuilder
+      res append  "platform {\n"
+      res append  "  vendor ucb;\n"
+      res append  "  arch rocket;\n"
+      res append  "};\n"
+      res append  "ram {\n"
+      res append  "  0 {\n"
+      res append  "    addr 0;\n"
+      res append s"    size 0x${site(MMIOBase).toString(16)};\n"
+      res append  "  };\n"
+      res append  "};\n"
+      res append  "core {\n"
+      for (i <- 0 until site(NTiles)) {
+        val csrAddr = addrMap(s"conf:csr$i").start
+        res append s"  $i {\n"
+        res append  "    0 {\n"
+        res append s"      isa rv$xLen;\n"
+        res append s"      addr 0x${csrAddr.toString(16)};\n"
+        res append  "    };\n"
+        res append  "  };\n"
+      }
+      res append  "};\n"
+      res append '\u0000'
+      res.toString.getBytes
     }
     pname match {
       case HtifKey => HtifParameters(
@@ -189,7 +173,9 @@ class DefaultConfig extends Config (
       case CoreInstBits => 32
       case CoreDataBits => site(XLen)
       case NCustomMRWCSRs => 0
-      case MtvecInit => BigInt(0x100)
+      case ResetVector => BigInt(0x0)
+      case MtvecInit => BigInt(0x8)
+      case MtvecWritable => false
       //Uncore Paramters
       case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
@@ -234,7 +220,7 @@ class DefaultConfig extends Config (
       case UseBackupMemoryPort => false
       case UseHtifClockDiv => true
       case MMIOBase => Dump("MEM_SIZE", BigInt(1L << 30)) // 1 GB
-      case DeviceTree => makeDeviceTree()
+      case ConfigString => makeConfigString()
       case GlobalAddrMap => {
         AddrMap(
           AddrMapEntry("conf", None,
