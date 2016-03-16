@@ -29,6 +29,9 @@ RISCV ?= install/$(TOOLS_HASH)
 # Torture saves the failing tests into a directory, which defaults to just somehing inside the regressions directory.
 TORTURE_SAVE_DIR ?= torture-failures
 
+# Include top-level makefrag for options like rocketchip_addons
+include $(TOP)/Makefrag
+
 # Removes all the build stamps from the current config
 .PHONY: clean
 clean:
