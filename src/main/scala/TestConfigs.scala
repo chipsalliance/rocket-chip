@@ -8,6 +8,7 @@ import junctions._
 import scala.collection.mutable.LinkedHashSet
 import cde.{Parameters, Config, Dump, Knob}
 import scala.math.max
+import ConfigUtils._
 
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
@@ -17,9 +18,9 @@ class WithGroundTest extends Config(
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = site(NTiles),
         nCachelessClients = site(NTiles) + (if (site(UseDma)) 2 else 1),
-        maxClientXacts = max(site(NMSHRs) + 1,
-                             max(site(GroundTestMaxXacts),
-                                 if (site(UseDma)) 4 else 1)),
+        maxClientXacts = max_int(site(NMSHRs) + 1,
+                            if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
+                            if (site(UseDma)) 4 else 1),
         maxClientsPerPort = max(if (site(BuildRoCC).isEmpty) 1 else 2,
                                 if (site(UseDma)) site(NDmaTransactors) + 1 else 1),
         maxManagerXacts = site(NAcquireTransactors) + 2,

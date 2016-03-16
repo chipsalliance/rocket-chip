@@ -13,6 +13,13 @@ import scala.math.max
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob}
 
+object ConfigUtils {
+  def max_int(values: Int*): Int = {
+    values.reduce((a, b) => max(a, b))
+  }
+}
+import ConfigUtils._
+
 class DefaultConfig extends Config (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
@@ -77,11 +84,10 @@ class DefaultConfig extends Config (
                          // Bits added by NASTI interconnect
                          max(log2Up(site(MaxBanksPerMemoryChannel)),
                             (if (site(UseDma)) 3 else 2)))
-      case MIFMasterTagBits => log2Up(max(
+      case MIFMasterTagBits => log2Up(max_int(
                                   site(NTiles),
-                                  max(
-                                    site(NAcquireTransactors)+2,
-                                    site(NDmaTransactors))))
+                                  site(NAcquireTransactors)+2,
+                                  site(NDmaTransactors)))
       case MIFDataBits => Dump("MIF_DATA_BITS", 64)
       case MIFAddrBits => Dump("MIF_ADDR_BITS",
                                site(PAddrBits) - site(CacheBlockOffsetBits))
@@ -195,9 +201,9 @@ class DefaultConfig extends Config (
                               site(NTiles) *
                                 (1 + (if(site(BuildRoCC).isEmpty) 0
                                       else site(RoccNMemChannels))),
-          maxClientXacts = max(site(NMSHRs) + 1,
-                               max(if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
-                                   if (site(UseDma)) 4 else 1)),
+          maxClientXacts = max_int(site(NMSHRs) + 1,
+                              if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
+                              if (site(UseDma)) 4 else 1),
           maxClientsPerPort = max(if (site(BuildRoCC).isEmpty) 1 else 2,
                                   if (site(UseDma)) site(NDmaTransactors) + 1 else 1),
           maxManagerXacts = site(NAcquireTransactors) + 2,
