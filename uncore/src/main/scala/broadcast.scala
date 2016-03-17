@@ -52,9 +52,11 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
   val sdq_val = Reg(init=Bits(0, sdqDepth))
   val sdq_alloc_id = PriorityEncoder(~sdq_val)
   val sdq_rdy = !sdq_val.andR
-  val sdq_enq = trackerList.map(_.io.alloc.iacq).reduce(_||_) &&
-                  io.inner.acquire.fire() &&
-                  io.iacq().hasData() 
+  val sdq_enq = trackerList.map( t =>
+                  (t.io.alloc.iacq || t.io.matches.iacq) &&
+                    t.io.inner.acquire.fire() &&
+                    t.io.iacq().hasData()
+                ).reduce(_||_)
   when (sdq_enq) { sdq(sdq_alloc_id) := io.iacq().data }
 
   // Handle acquire transaction initiation
