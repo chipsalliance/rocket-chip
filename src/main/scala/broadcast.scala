@@ -202,7 +202,9 @@ class BroadcastAcquireTracker(trackerId: Int)
   val release_count = Reg(init=UInt(0, width = log2Up(io.inner.tlNCachingClients+1)))
   val pending_probes = Reg(init=Bits(0, width = io.inner.tlNCachingClients))
   val curr_p_id = PriorityEncoder(pending_probes)
-  val mask_self = coh.full().bitSet(io.inner.acquire.bits.client_id, io.inner.acquire.bits.requiresSelfProbe())
+  val mask_self = SInt(-1, width = io.inner.tlNCachingClients)
+                    .toUInt
+                    .bitSet(io.inner.acquire.bits.client_id, io.inner.acquire.bits.requiresSelfProbe())
   val mask_incoherent = mask_self & ~io.incoherent.toBits
 
   val collect_iacq_data = Reg(init=Bool(false))
