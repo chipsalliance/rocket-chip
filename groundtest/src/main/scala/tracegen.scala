@@ -45,25 +45,34 @@ import cde.{Parameters, Field}
 //
 //   * The desired number of requests to be sent by each generator.
 //
-//   * A list of physical addresses from which an address is drawn when
-//     generating a fresh request.
+//   * A bag of physical addresses, shared by all cores, from which an
+//     address can be drawn when generating a fresh request.
+//
+//   * A number of random 'extra addresses', local to each core, from
+//     which an address can be drawn when generating a fresh request.
+//     (This is a way to generate a wider range of addresses without having
+//     to repeatedly recompile with a different address bag.)
 
-case object AddressBag       extends Field[List[Int]]
+case object AddressBag extends Field[List[Int]]
 
 trait HasTraceGenParams {
   implicit val p: Parameters
   val numGens             = p(NGenerators)
   val numBitsInId         = log2Up(numGens)
   val numReqsPerGen       = p(MaxGenerateRequests)
-  val memRespTimeout      = 4096
+  val memRespTimeout      = 1024
   val numBitsInWord       = p(WordBits)
   val numBytesInWord      = numBitsInWord / 8
   val numBitsInWordOffset = log2Up(numBytesInWord)
   val addressBag          = p(AddressBag)
-  val logNumAddrsInTrace  = log2Up(addressBag.length)
+  val addressBagLen       = addressBag.length
+  val logAddressBagLen    = log2Up(addressBagLen)
+  val genExtraAddrs       = false
+  val logNumExtraAddrs    = 1
+  val numExtraAddrs       = 1 << logNumExtraAddrs
 
   require(numBytesInWord * 8 == numBitsInWord)
-  require(1 << logNumAddrsInTrace == addressBag.length)
+  require((1 << logAddressBagLen) == addressBagLen)
 }
 
 // ============
@@ -173,23 +182,50 @@ class TraceGenerator(id: Int)
   // Random addresses
   // ----------------
   
-  // Address list taken from module parameters.
-
-  val numAddrsInTrace = 1 << logNumAddrsInTrace
+  // Address bag, shared by all cores, taken from module parameters.
+  // In addition, there is a per-core random selection of extra addresses.
 
   val bagOfAddrs = addressBag.map(x => UInt(x, numBitsInWord))
 
+  val extraAddrs = (0 to numExtraAddrs-1).
+                   map(i => Reg(UInt(width = 16)))
+
   // A random index into the address bag.
 
-  val randAddrIndex = Module(new LCG(logNumAddrsInTrace)).io.out
+  val randAddrBagIndex = Module(new LCG(logAddressBagLen)).io.out
 
   // A random address from the address bag.
 
-  val addrIndices = (0 to numAddrsInTrace-1).
-                    map(i => UInt(i, logNumAddrsInTrace))
+  val addrBagIndices = (0 to addressBagLen-1).
+                    map(i => UInt(i, logAddressBagLen))
   
-  val randAddr = MuxLookup(randAddrIndex, UInt(0),
-                   addrIndices.zip(bagOfAddrs))
+  val randAddrFromBag = MuxLookup(randAddrBagIndex, UInt(0),
+                          addrBagIndices.zip(bagOfAddrs))
+
+  // Random address from the address bag or the extra addresses.
+
+  val randAddr =
+        if (! genExtraAddrs) {
+          randAddrFromBag
+        }
+        else {
+          // A random index into the extra addresses.
+
+          val randExtraAddrIndex = Module(new LCG(logNumExtraAddrs)).io.out
+
+          // A random address from the extra addresses.
+
+          val extraAddrIndices = (0 to numExtraAddrs-1).
+                                 map(i => UInt(i, logNumExtraAddrs))
+  
+          val randAddrFromExtra = Cat(UInt(0),
+                MuxLookup(randExtraAddrIndex, UInt(0),
+                  extraAddrIndices.zip(extraAddrs)), UInt(0, 3))
+
+          Frequency(List(
+            (1, randAddrFromBag),
+            (1, randAddrFromExtra)))
+        }
 
   // Random opcodes
   // --------------
@@ -205,19 +241,12 @@ class TraceGenerator(id: Int)
   // Distribution specified as a list of (frequency,value) pairs.
   // NOTE: frequencies must sum to a power of two.
 
-  //val randOp = Frequency(List(
-  //  (10, opLoad),
-  //  (10, opStore),
-  //  (4,  opFence),
-  //  (3,  opLRSC),
-  //  (3,  opSwap),
-  //  (2,  opDelay)))
-
-  // For now, just generate loads and stores as this is enough to
-  // expose strange behaviour.
   val randOp = Frequency(List(
-    (15, opLoad),
-    (15, opStore),
+    (10, opLoad),
+    (10, opStore),
+    (4,  opFence),
+    (3,  opLRSC),
+    (3,  opSwap),
     (2,  opDelay)))
 
   // Request/response tags
@@ -319,7 +348,7 @@ class TraceGenerator(id: Int)
         opInProgress := UInt(1)
       }
       // Wait until all requests have had a response
-      .elsewhen (io.mem.ordered && reqCount === respCount) {
+      .elsewhen (reqCount === respCount) {
         // Emit fence response
         printf("%d: fence-resp @%d\n", tid, cycleCount)
         // Move on to a new operation
@@ -397,7 +426,8 @@ class TraceGenerator(id: Int)
         }
       }
       // Delay finished, send SC request
-      when (opInProgress === UInt(3)) {
+      //when (opInProgress === UInt(3)) {
+      when (opInProgress === UInt(3) && !reqValid && reqCount === respCount) {
         when (canSendFreshReq) {
           // Set command, but leave address
           // i.e. use same address as LR did
@@ -487,18 +517,26 @@ class TraceGenerator(id: Int)
   }
 
   // Response timeouts
-  // -----------------
-  //
-  // Raise an error if a response takes too long to come back.
+  // ---------------------------
 
-  val timeout = Timer(memRespTimeout, io.mem.req.fire(), io.mem.resp.valid)
-  assert(!timeout, s"Trace generator ${id} timed out waiting for response")
+  // Raise an error if a response takes too long to come back
+  val timeout = Timer(memRespTimeout, sendFreshReq, io.mem.resp.valid)
+  assert(!timeout, s"Core ${id}: response timeout")
 
   // Termination condition
   // ---------------------
 
-  io.finished := reqCount  === UInt(numReqsPerGen) &&
-                 respCount === UInt(numReqsPerGen)
+  val done = reqCount  === UInt(numReqsPerGen) &&
+             respCount === UInt(numReqsPerGen)
+
+  val donePulse = done && !Reg(init = Bool(false), next = done)
+
+  // Emit that this thread has completed
+  when (donePulse) {
+    printf(s"FINISHED ${numGens}\n")
+  }
+
+  io.finished := Bool(false)
 }
 
 // =======================
