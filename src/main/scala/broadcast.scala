@@ -60,6 +60,10 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
   when (sdq_enq) { sdq(sdq_alloc_id) := io.iacq().data }
 
   // Handle acquire transaction initiation
+  val irel_vs_iacq_conflict =
+        io.inner.acquire.valid &&
+        io.inner.release.valid &&
+        io.irel().conflicts(io.iacq())
   val sdqLoc = List.fill(nTransactors) {
     DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
   }
@@ -69,7 +73,7 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
     trackerList.map(_.io.matches.iacq),
     trackerList.map(_.io.alloc.iacq),
     Some(sdqLoc),
-    Some(sdq_rdy))
+    Some(sdq_rdy && !irel_vs_iacq_conflict))
 
   // Queue to store impending Voluntary Release data
   val voluntary = io.irel().isVoluntary()
