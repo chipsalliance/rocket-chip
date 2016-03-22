@@ -884,9 +884,6 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
     val acq_addr_beat = Reg(iacq.addr_beat)
     val oacq_ctr = Counter(factor)
 
-    // this part of the address shifts from the inner byte address 
-    // to the outer beat address
-    val readshift = iacq.full_addr()(innerByteAddrBits - 1, outerByteAddrBits)
     val outer_beat_addr = iacq.full_addr()(outerBlockOffset - 1, outerByteAddrBits)
     val outer_byte_addr = iacq.full_addr()(outerByteAddrBits - 1, 0)
 
@@ -958,32 +955,15 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
 
     val sending_put = Reg(init = Bool(false))
 
-    val pass_valid = io.in.acquire.valid && !stretch && !smallget
-    val smallget_valid = smallget && io.in.acquire.valid
-
-    val smallget_roq = Module(new ReorderQueue(
-      readshift, outerIdBits, outerMaxClients))
-
-    val smallget_helper = DecoupledHelper(
-      smallget_valid,
-      smallget_roq.io.enq.ready,
-      io.out.acquire.ready)
-
-    smallget_roq.io.enq.valid := smallget_helper.fire(
-      smallget_roq.io.enq.ready, !sending_put)
-    smallget_roq.io.enq.bits.data := readshift
-    smallget_roq.io.enq.bits.tag := iacq.client_xact_id
+    val pass_valid = io.in.acquire.valid && !stretch
 
     io.out.acquire.bits := MuxBundle(Wire(io.out.acquire.bits, init=iacq), Seq(
       (sending_put, put_block_acquire),
       (shrink, get_block_acquire),
       (smallput, put_acquire),
       (smallget, get_acquire)))
-    io.out.acquire.valid := sending_put || pass_valid ||
-      smallget_helper.fire(io.out.acquire.ready)
-    io.in.acquire.ready := !sending_put && (stretch ||
-      (!smallget && io.out.acquire.ready) ||
-      smallget_helper.fire(smallget_valid))
+    io.out.acquire.valid := sending_put || pass_valid
+    io.in.acquire.ready := !sending_put && (stretch || io.out.acquire.ready)
 
     when (io.in.acquire.fire() && stretch) {
       acq_data_buffer := iacq.data
@@ -1018,11 +998,9 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
       data = gnt_data_buffer.toBits)(innerConfig)
 
     val smallget_grant = ognt.g_type === Grant.getDataBeatType
-    val get_grant_shift = Cat(smallget_roq.io.deq.data,
-                              UInt(0, outerByteAddrBits + 3))
-
-    smallget_roq.io.deq.valid := io.out.grant.fire() && smallget_grant
-    smallget_roq.io.deq.tag := ognt.client_xact_id
+    val get_grant_align = io.out.grant.bits.addr_beat(
+      innerByteAddrBits - outerByteAddrBits - 1, 0)
+    val get_grant_shift = Cat(get_grant_align, UInt(0, outerByteAddrBits + 3))
 
     val get_grant = Grant(
       is_builtin_type = Bool(true),
