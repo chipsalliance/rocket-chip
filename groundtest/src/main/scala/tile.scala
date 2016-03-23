@@ -70,6 +70,7 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     requestor.resp.bits := s2_resp
     requestor.status.vm := UInt("b01000")
     requestor.status.prv := UInt(PRV.S)
+    requestor.invalidate := Bool(false)
   }
 }
 
