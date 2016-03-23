@@ -180,8 +180,16 @@ def main():
     lineCount = lineCount+1
 
   # Print statistics
-  scSuccessRate = str(scSuccessCount/float(scCount))[0:6]
-  loadExtRate = str(loadExtCount/float(loadCount))[0:6]
+  if (scCount > 0 ):
+    scSuccessRate = str(scSuccessCount/float(scCount))[0:6]
+  else :
+    scSuccessRate = "N/A"
+
+  if (loadCount > 0):
+    loadExtRate = str(loadExtCount/float(loadCount))[0:6]
+  else :
+    loadExtRate = "N/A"
+
   print("# LRSC_Success_Rate=" + scSuccessRate)
   if statsFile != None:
     statsFile.write("LRSC_Success_Rate=" + scSuccessRate + "\n")
