@@ -198,60 +198,71 @@ class RepeatedNoAllocPutRegression(implicit p: Parameters) extends Regression()(
   io.finished := acked.andR
 }
 
-/* Make sure write masking works properly. 
- * This test assumes the memory is initialized to zero at the beginning.
- * This is true for the test harnesses, but not on the FPGA.
- * Technically, what should be done is to fill up a single set until the
- * first block is evicted, and then do the write-masked puts.
- * But this is annoying, and I doubt we will ever run these regression
- * tests on the FPGA. So ... */
+/* Make sure write masking works properly by writing a block of data
+ * piece by piece */
 class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()(p) {
   io.cache.req.valid := Bool(false)
 
-  val s_idle :: s_put :: s_get :: s_wait :: s_done :: Nil = Enum(Bits(), 5)
+  val (s_idle :: s_put_send :: s_put_ack :: s_stall ::
+       s_get_send :: s_get_ack :: s_done :: Nil) = Enum(Bits(), 7)
   val state = Reg(init = s_idle)
+  val post_stall_state = Reg(init = s_idle)
 
-  val nPuts = 2
+  val gnt = io.mem.grant.bits
+  val acq = io.mem.acquire.bits
+
+  val stage = Reg(init = UInt(0, 1))
+
   val (put_beat, put_block_done) = Counter(
-    io.mem.acquire.fire() && io.mem.acquire.bits.hasData(), tlDataBeats)
-  val (put_cnt, puts_done) = Counter(put_block_done, nPuts)
+    io.mem.acquire.fire() && acq.hasData(), tlDataBeats)
 
-  val data_bytes = Vec.tabulate(nPuts) { i => UInt(i, 8) }
-  val data_beat = Fill(tlDataBytes, data_bytes(put_cnt))
-  val acked = Reg(init = UInt(0, nPuts + 1))
-
-  val put_acq = PutBlock(
-    client_xact_id = put_cnt,
-    addr_block = UInt(7),
-    addr_beat = put_beat,
-    data = data_beat,
-    wmask = UIntToOH(put_cnt))
-
-  val get_acq = Get(
-    client_xact_id = UInt(nPuts),
-    addr_block = UInt(7),
-    addr_beat = UInt(0),
-    addr_byte = UInt(0),
-    operand_size = MT_D,
-    alloc = Bool(false))
-
-  io.mem.acquire.valid := (state === s_put || state === s_get)
-  io.mem.acquire.bits := Mux(state === s_get, get_acq, put_acq)
-  io.mem.grant.ready := Bool(true)
-
-  when (io.mem.grant.fire()) {
-    acked := acked | UIntToOH(io.mem.grant.bits.client_xact_id)
+  val data_beats = Vec.tabulate(tlDataBeats) {
+    i => UInt(0x3001040 + i * 4, tlDataBits)
   }
 
-  when (state === s_idle && io.start) { state := s_put }
-  when (puts_done) { state := s_get }
-  when (state === s_get && io.mem.acquire.ready) { state := s_wait }
-  when (state === s_wait && acked.andR) { state := s_done }
+  val put_acq = PutBlock(
+    client_xact_id = UInt(0),
+    addr_block = UInt(7),
+    addr_beat = put_beat,
+    data = Mux(put_beat(0) === stage, data_beats(put_beat), UInt(0)),
+    wmask = Mux(put_beat(0) === stage, Acquire.fullWriteMask, Bits(0)))
+
+  val get_acq = GetBlock(
+    client_xact_id = UInt(0),
+    addr_block = UInt(6) + stage)
+
+  io.mem.acquire.valid := (state === s_put_send || state === s_get_send)
+  io.mem.acquire.bits := Mux(state === s_get_send, get_acq, put_acq)
+  io.mem.grant.ready := (state === s_put_ack || state === s_get_ack)
+
+  val (get_cnt, get_done) = Counter(
+    io.mem.grant.fire() && gnt.hasData(), tlDataBeats)
+
+  val (stall_cnt, stall_done) = Counter(state === s_stall, 16)
+
+  when (state === s_idle && io.start) { state := s_put_send }
+  when (put_block_done) { state := s_put_ack }
+  when (state === s_put_ack && io.mem.grant.valid) {
+    post_stall_state := s_get_send
+    state := s_stall
+  }
+  when (stall_done) { state := post_stall_state }
+  when (state === s_get_send && io.mem.acquire.ready) { state := s_get_ack }
+  when (get_done) {
+    // do a read in-between the two put-blocks to overwrite the data buffer
+    when (stage === UInt(0)) {
+      stage := stage + UInt(1)
+      post_stall_state := s_put_send
+      state := s_stall
+    } .otherwise { state := s_done }
+  }
 
   io.finished := (state === s_done)
 
-  assert(!io.mem.grant.valid || !io.mem.grant.bits.hasData() ||
-         io.mem.grant.bits.data === data_bytes.toBits,
+  assert(!io.mem.grant.valid ||
+         !io.mem.grant.bits.hasData() ||
+         stage === UInt(0) ||
+         io.mem.grant.bits.data === data_beats(get_cnt),
          "WriteMaskedPutBlockRegression: data does not match")
 }
 
