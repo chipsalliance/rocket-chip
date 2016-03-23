@@ -9,6 +9,7 @@ import cde.{Parameters, Field}
 
 case object BuildGroundTest extends Field[(Int, Parameters) => GroundTest]
 case object GroundTestMaxXacts extends Field[Int]
+case object GroundTestCSRs extends Field[Seq[Int]]
 
 /** A "cache" that responds to probe requests with a release indicating
  *  the block is not present */
@@ -81,6 +82,7 @@ class CSRHandler(implicit val p: Parameters) extends Module {
   val io = new Bundle {
     val finished = Bool(INPUT)
     val csr = new SmiIO(csrDataBits, csrAddrBits).flip
+    val rocc = new RoCCCSRs
   }
 
   val csr_resp_valid = Reg(Bool()) // Don't reset
@@ -90,15 +92,31 @@ class CSRHandler(implicit val p: Parameters) extends Module {
   io.csr.resp.valid := csr_resp_valid
   io.csr.resp.bits := csr_resp_data
 
+  val req = io.csr.req.bits
+  val csr_list = p(GroundTestCSRs)
+  val rocc_csr = csr_list.map(num => req.addr === UInt(num))
+                         .foldLeft(Bool(false))(_ || _)
+
+  val default_csr_rdata = Mux(req.addr === UInt(CSRs.mtohost), io.finished, req.data)
+  val csr_rdata = csr_list.zipWithIndex.foldLeft(default_csr_rdata) {
+    (res, pair) => pair match {
+      case (csrnum, i) => Mux(
+        req.addr === UInt(csrnum), io.rocc.rdata(i), res)
+    }
+  }
+
   when (io.csr.req.fire()) {
-    val req = io.csr.req.bits
     csr_resp_valid := Bool(true)
-    csr_resp_data := Mux(req.addr === UInt(CSRs.mtohost), io.finished, req.data)
+    csr_resp_data := csr_rdata
   }
 
   when (io.csr.resp.fire()) {
     csr_resp_valid := Bool(false)
   }
+
+  io.rocc.waddr := req.addr
+  io.rocc.wdata := req.data
+  io.rocc.wen := io.csr.req.valid && req.rw && rocc_csr
 }
 
 class GroundTestIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
@@ -106,6 +124,7 @@ class GroundTestIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val mem = new ClientUncachedTileLinkIO
   val dma = new DmaIO
   val ptw = new TLBPTWIO
+  val csr = (new RoCCCSRs).flip
   val finished = Bool(OUTPUT)
 }
 
@@ -143,6 +162,9 @@ class GroundTestTile(id: Int, resetSignal: Bool)
   val csr = Module(new CSRHandler)
   csr.io.finished := test.io.finished
   csr.io.csr <> io.host.csr
+  if (!p(GroundTestCSRs).isEmpty) {
+    test.io.csr <> csr.io.rocc
+  }
 
   val ptw = Module(new DummyPTW(2))
   ptw.io.requestors(0) <> test.io.ptw

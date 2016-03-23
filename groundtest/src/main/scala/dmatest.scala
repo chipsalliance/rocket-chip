@@ -27,6 +27,28 @@ case object DmaTestDataStride extends Field[Int]
 
 case object DmaStreamTestSettings extends Field[DmaStreamTestConfig]
 
+class DmaStatusReg(implicit val p: Parameters) extends Module
+    with HasDmaParameters with HasTileLinkParameters {
+
+  val io = new Bundle {
+    val csr = (new RoCCCSRs).flip
+    val incr_outstanding = Bool(INPUT)
+    val xact_outstanding = Bool(OUTPUT)
+    val resp_status = UInt(OUTPUT, dmaStatusBits)
+  }
+
+  val status_reg = Reg(UInt(width = dmaStatusBits))
+
+  val outstanding_cnt = TwoWayCounter(
+    io.incr_outstanding, io.csr.wen, tlMaxClientXacts)
+
+  when (io.csr.wen) { status_reg := io.csr.wdata }
+
+  io.xact_outstanding := outstanding_cnt > UInt(0)
+  io.resp_status := status_reg
+  io.csr.rdata(0) := status_reg
+}
+
 class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
     with HasDmaParameters with HasCoreParameters with HasAddrMapParameters {
   disablePorts(cache = false, mem = false, ptw = false)
@@ -64,6 +86,10 @@ class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
   io.ptw <> frontend.io.ptw
   io.mem <> frontend.io.mem
 
+  val status_reg = Module(new DmaStatusReg)
+  status_reg.io.csr <> io.csr
+  status_reg.io.incr_outstanding := frontend.io.incr_outstanding
+
   val cache_addr_base = Mux(state === s_setup_req, UInt(conf.source), UInt(conf.dest))
 
   io.cache.req.valid := (state === s_setup_req) || (state === s_check_req)
@@ -84,7 +110,9 @@ class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
     state := Mux(state === s_stream_out, s_stream_in, s_stream_wait)
   }
 
-  val dma_done = (state === s_stream_wait) && !frontend.io.busy
+  val dma_done = (state === s_stream_wait) &&
+    !frontend.io.busy && !status_reg.io.xact_outstanding
+
   when (dma_done) { state := s_check_req }
 
   val resp_data = io.cache.resp.bits.data(conf.size * 8 - 1, 0)
@@ -134,6 +162,12 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
   io.ptw <> frontend.io.ptw
   io.mem <> frontend.io.mem
 
+  val status_reg = Module(new DmaStatusReg)
+  status_reg.io.csr <> io.csr
+  status_reg.io.incr_outstanding := frontend.io.incr_outstanding
+
+  val dma_done = !frontend.io.busy && !status_reg.io.xact_outstanding
+
   io.cache.req.valid := (state === s_fill_req) || (state === s_check_req)
   io.cache.req.bits.addr := req_addr
   io.cache.req.bits.data := req_data
@@ -162,7 +196,7 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
 
   when (frontend.io.cpu.req.fire()) { state := s_copy_wait }
 
-  when (state === s_copy_wait && !frontend.io.busy) {
+  when (state === s_copy_wait && dma_done) {
     req_addr := destAddrs(testIdx)
     req_data := UInt(dataStart)
     bytes_left := transferLengths(testIdx)
