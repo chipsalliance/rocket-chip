@@ -199,7 +199,7 @@ class Uncore(implicit val p: Parameters) extends Module
     VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr,
       outmemsys.io.mem_backup, io.mem_backup_ctrl, io.host, htifW)
   } else {
-    htif.io.host.out <> io.host.out
+    io.host.out <> htif.io.host.out
     htif.io.host.in <> io.host.in
   }
 }

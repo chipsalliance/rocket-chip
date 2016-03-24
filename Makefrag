@@ -8,10 +8,16 @@ PROJECT := rocketchip
 CXX ?= g++
 CXXFLAGS := -O1
 
-SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=256M -jar sbt-launch.jar
+CHISEL_VERSION=2
+
+SBT := CHISEL_SUBMODULE="chisel$(CHISEL_VERSION)" java -Xmx2048M -Xss8M -XX:MaxPermSize=256M -jar sbt-launch.jar
 SHELL := /bin/bash
 
+ifeq ($(CHISEL_VERSION),2)
 CHISEL_ARGS := $(PROJECT) $(MODEL) $(CONFIG) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
+else
+CHISEL_ARGS := --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
+endif
 
 src_path = src/main/scala
 default_submodules = . junctions uncore hardfloat rocket zscale groundtest context-dependent-environments
