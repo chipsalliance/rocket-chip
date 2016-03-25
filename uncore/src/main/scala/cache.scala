@@ -508,7 +508,7 @@ abstract class L2XactTracker(implicit p: Parameters) extends XactTracker()(p)
   def addPendingBitWhenBeatHasPartialWritemask(in: DecoupledIO[AcquireFromSrc]): UInt = {
     val a = in.bits
     val isPartial = a.wmask() =/= Acquire.fullWriteMask
-    addPendingBitWhenBeat(in.fire() && isPartial && Bool(ignoresWriteMask), a)
+    addPendingBitWhenBeat(in.fire() && (isPartial || Bool(ignoresWriteMask)), a)
   }
 }
 
