@@ -415,18 +415,24 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
     regress.mem.grant.bits := io.mem.grant.bits
     regress.cache.req.ready := io.cache.req.ready && me
     regress.cache.resp.valid := io.cache.resp.valid && me
+    regress.cache.resp.bits := io.cache.resp.bits
+    regress.cache.xcpt := io.cache.xcpt
+    regress.cache.ordered := io.cache.ordered
+    regress.cache.replay_next.valid := io.cache.replay_next.valid && me
+    regress.cache.replay_next.bits := io.cache.replay_next.bits
   }
 
   val cur_regression = regressIOs(regress_idx)
   val cur_acquire = cur_regression.mem.acquire
   val cur_grant = cur_regression.mem.grant
-  val cur_cache_req = cur_regression.cache.req
+  val cur_cache = cur_regression.cache
 
   io.mem.acquire.valid := cur_acquire.valid
   io.mem.acquire.bits := cur_acquire.bits
   io.mem.grant.ready := cur_grant.ready
-  io.cache.req.valid := cur_cache_req.valid
-  io.cache.req.bits := cur_cache_req.bits
+  io.cache.req.valid := cur_cache.req.valid
+  io.cache.req.bits := cur_cache.req.bits
+  io.cache.invalidate_lr := cur_cache.invalidate_lr
 
   when (cur_regression.finished && !all_done) {
     start := Bool(true)
