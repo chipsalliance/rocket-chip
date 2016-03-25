@@ -757,7 +757,6 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s1_clk_en = Reg(Bool())
 
   val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
-  val s2_killed = Reg(next=s1_valid && io.cpu.req.bits.kill)
   val s2_req = Reg(io.cpu.req.bits)
   val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd =/= M_NOP
   val s2_recycle = Wire(Bool())
@@ -1055,11 +1054,9 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val uncache_resp = Wire(Valid(new HellaCacheResp))
   uncache_resp.bits := mshrs.io.resp.bits
   uncache_resp.valid := mshrs.io.resp.valid
+  mshrs.io.resp.ready := Reg(next= !(s1_valid || s1_replay))
 
-  val cache_pass = s2_valid || s2_killed || s2_replay
-  mshrs.io.resp.ready := !cache_pass
-
-  io.cpu.resp := Mux(cache_pass, cache_resp, uncache_resp)
+  io.cpu.resp := Mux(mshrs.io.resp.ready, uncache_resp, cache_resp)
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next.valid := s1_replay && s1_read
