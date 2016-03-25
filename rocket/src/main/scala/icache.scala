@@ -104,8 +104,6 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
     val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
     val tag_out = tag_rdata(i)
     val s1_tag_disparity = code.decode(tag_out).error
-    when (s1_valid && rdy && !stall) {
-    }
     s1_tag_match(i) := tag_out(tagBits-1,0) === s1_tag
     s1_tag_hit(i) := s1_vb && s1_tag_match(i)
     s1_disparity(i) := s1_vb && (s1_tag_disparity || code.decode(s1_dout(i)).error)
