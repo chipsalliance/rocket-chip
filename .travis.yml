@@ -63,7 +63,7 @@ before_install:
   - export CXX=g++-4.8 CC=gcc-4.8
 
 script:
-  - make vsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
+  - make vsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default CHISEL_VERSION=3
   - make fsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
   - make emulator-ndebug -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
   - make emulator-asm-tests   -C regression CONFIG=$CONFIG TORTURE_CONFIG=default

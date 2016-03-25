@@ -15,7 +15,7 @@ mem_gen = $(base_dir)/vsim/vlsi_mem_gen
 sim_dir = .
 output_dir = $(sim_dir)/output
 
-BACKEND ?= rocketchip.RocketChipBackend
+BACKEND ?= v
 CONFIG ?= DefaultVLSIConfig
 TB ?= rocketTestHarness
 

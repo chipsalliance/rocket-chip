@@ -2,22 +2,52 @@
 # Verilog Generation
 #--------------------------------------------------------------------
 
-$(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).d : $(chisel_srcs)
+ifeq ($(CHISEL_VERSION),2)
+$(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).d $(generated_dir)/$(MODEL).$(CONFIG).prm : $(chisel_srcs)
 	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "run $(CHISEL_ARGS) --configDump --noInlineMem"
 	cd $(generated_dir) && \
 	if [ -a $(MODEL).$(CONFIG).conf ]; then \
 	  $(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $(generated_dir)/$(MODEL).$(CONFIG).v; \
 	fi
 
-$(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(MODEL).$(CONFIG).v
+$(generated_dir)/memdessertMemDessert.$(CONFIG).v $(generated_dir)/memdessertMemDessert.$(CONFIG).d: $(base_dir)/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala
+	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "run $(PROJECT) MemDessert $(CONFIG) --backend v --targetDir $(generated_dir) --W0W --moduleNamePrefix memdessert --configName $(CONFIG)"
+
+else
+
+FIRRTL ?= $(base_dir)/firrtl/utils/bin/firrtl
+
+$(FIRRTL):
+	$(MAKE) -C $(base_dir)/firrtl root_dir=$(base_dir)/firrtl build
+
+# If I don't mark these as .SECONDARY then make will delete these internal
+# files.
+.SECONDARY: $(generated_dir)/$(MODEL).$(CONFIG).fir
+.SECONDARY: $(generated_dir)/MemDessert.$(CONFIG).fir
+
+$(generated_dir)/%.$(CONFIG).fir: $(chisel_srcs)
+	mkdir -p $(dir $@)
+	cd $(base_dir) && $(SBT) "run $(PROJECT) $(patsubst %.$(CONFIG).fir,%,$(notdir $@)) $(CONFIG) $(CHISEL_ARGS) --configDump --noInlineMem"
+	mv $(patsubst %.$(CONFIG).fir,%.fir,$@) $@
+
+$(generated_dir)/%.v $(generated_dir)/%.prm: $(generated_dir)/%.fir $(FIRRTL)
+	mkdir -p $(dir $@)
+	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $@ -X verilog
+
+$(generated_dir)/memdessertMemDessert.$(CONFIG).v: $(generated_dir)/MemDessert.$(CONFIG).v
+	cat $(filter %.v,$^) \
+		| sed 's@MemDessert@memdessertMemDessert@g' \
+		| sed 's@Queue@memdessetQueue@g' \
+		> $@
+
+endif
+
+$(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(MODEL).$(CONFIG).prm
 	echo "\`ifndef CONST_VH" > $@
 	echo "\`define CONST_VH" >> $@
 	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/`define \1 \2/' $(patsubst %.v,%.prm,$<) >> $@
 	echo "\`define TBVFRAG \"$(MODEL).$(CONFIG).tb.vfrag\"" >> $@
 	echo "\`endif // CONST_VH" >> $@
-
-$(generated_dir)/memdessertMemDessert.$(CONFIG).v $(generated_dir)/memdessertMemDessert.$(CONFIG).d: $(base_dir)/$(src_path)/*.scala $(base_dir)/uncore/$(src_path)/*.scala
-	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "run $(PROJECT) MemDessert $(CONFIG) --backend v --targetDir $(generated_dir) --W0W --moduleNamePrefix memdessert --configName $(CONFIG)"
 
 #--------------------------------------------------------------------
 # Run
