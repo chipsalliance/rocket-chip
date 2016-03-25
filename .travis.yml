@@ -43,7 +43,6 @@ env:
   matrix:
     - CONFIG=DefaultConfig
     - CONFIG=RoccExampleConfig
-    - CONFIG=DmaControllerConfig
     - CONFIG=MemtestConfig
     - CONFIG=MemtestL2Config
     - CONFIG=BroadcastRegressionTestConfig
