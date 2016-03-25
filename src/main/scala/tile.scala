@@ -125,10 +125,12 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   require(uncachedPorts.size == nUncachedTileLinkPorts)
   require(cachedPorts.size == nCachedTileLinkPorts)
 
-  val ptw = Module(new PTW(ptwPorts.size)(dcacheParams))
-  ptw.io.requestor <> ptwPorts
-  ptw.io.mem +=: dcPorts
-  core.io.ptw <> ptw.io.dpath
+  if (p(UseVM)) {
+    val ptw = Module(new PTW(ptwPorts.size)(dcacheParams))
+    ptw.io.requestor <> ptwPorts
+    ptw.io.mem +=: dcPorts
+    core.io.ptw <> ptw.io.dpath
+  }
 
   val dcArb = Module(new HellaCacheArbiter(dcPorts.size)(dcacheParams))
   dcArb.io.requestor <> dcPorts
