@@ -137,7 +137,7 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
   val w_array = Mux(priv_s, sw_array.toBits & pum_ok, uw_array.toBits)
   val x_array = Mux(priv_s, sx_array.toBits, ux_array.toBits)
 
-  val vm_enabled = io.ptw.status.vm(3) && priv_uses_vm && !io.req.bits.passthrough
+  val vm_enabled = Bool(usingVM) && io.ptw.status.vm(3) && priv_uses_vm && !io.req.bits.passthrough
   val bad_va =
     if (vpnBits == vpnBitsExtended) Bool(false)
     else io.req.bits.vpn(vpnBits) =/= io.req.bits.vpn(vpnBits-1)
@@ -174,26 +174,28 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
   io.ptw.req.bits.store := r_req.store
   io.ptw.req.bits.fetch := r_req.instruction
 
-  when (io.req.fire() && tlb_miss) {
-    state := s_request
-    r_refill_tag := lookup_tag
-    r_refill_waddr := repl_waddr
-    r_req := io.req.bits
-  }
-  when (state === s_request) {
-    when (io.ptw.invalidate) {
+  if (usingVM) {
+    when (io.req.fire() && tlb_miss) {
+      state := s_request
+      r_refill_tag := lookup_tag
+      r_refill_waddr := repl_waddr
+      r_req := io.req.bits
+    }
+    when (state === s_request) {
+      when (io.ptw.invalidate) {
+        state := s_ready
+      }
+      when (io.ptw.req.ready) {
+        state := s_wait
+        when (io.ptw.invalidate) { state := s_wait_invalidate }
+      }
+    }
+    when (state === s_wait && io.ptw.invalidate) {
+      state := s_wait_invalidate
+    }
+    when (io.ptw.resp.valid) {
       state := s_ready
     }
-    when (io.ptw.req.ready) {
-      state := s_wait
-      when (io.ptw.invalidate) { state := s_wait_invalidate }
-    }
-  }
-  when (state === s_wait && io.ptw.invalidate) {
-    state := s_wait_invalidate
-  }
-  when (io.ptw.resp.valid) {
-    state := s_ready
   }
 }
 
