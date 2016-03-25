@@ -376,12 +376,16 @@ class SmallConfig extends Config (
       case FastMulDiv => false
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 8)
+      case StoreDataQueueDepth => 2
+      case ReplayQueueDepth => 2
+      case NAcquireTransactors => 2
     }},
   knobValues = {
     case "L1D_SETS" => 64
     case "L1D_WAYS" => 1
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 1
+    case "L1D_MSHRS" => 1
   }
 )
 
