@@ -39,7 +39,7 @@ class RTC(csr_MTIME: Int)(implicit p: Parameters) extends HtifModule
     coreId := addr_send_cnt
   } else {
     when (io.aw.fire()) { sending_addr := Bool(false) }
-    when (io.w.fire()) { sending_addr := Bool(false) }
+    when (io.w.fire()) { sending_data := Bool(false) }
 
     coreId := UInt(0)
   }
