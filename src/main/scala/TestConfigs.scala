@@ -35,6 +35,8 @@ class WithGroundTest extends Config(
       }
     }
     case GroundTestMaxXacts => 1
+    case GroundTestCSRs => Nil
+    case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
   })
 
@@ -101,6 +103,8 @@ class WithDmaStreamTest extends Config(
     case DmaStreamTestSettings => DmaStreamTestConfig(
       source = 0x10, dest = 0x28, len = 0x18,
       size = site(StreamLoopbackWidth) / 8)
+    case GroundTestCSRs =>
+      Seq(DmaCtrlRegNumbers.CSR_BASE + DmaCtrlRegNumbers.OUTSTANDING)
   })
 
 class WithNastiConverterTest extends Config(
