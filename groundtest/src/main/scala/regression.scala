@@ -215,16 +215,13 @@ class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()
 
   val (put_beat, put_block_done) = Counter(
     io.mem.acquire.fire() && acq.hasData(), tlDataBeats)
-
-  val data_beats = Vec.tabulate(tlDataBeats) {
-    i => UInt(0x3001040 + i * 4, tlDataBits)
-  }
+  val put_data = UInt(0x30010040, tlDataBits) + (put_beat << UInt(2))
 
   val put_acq = PutBlock(
     client_xact_id = UInt(0),
     addr_block = UInt(7),
     addr_beat = put_beat,
-    data = Mux(put_beat(0) === stage, data_beats(put_beat), UInt(0)),
+    data = Mux(put_beat(0) === stage, put_data, UInt(0)),
     wmask = Mux(put_beat(0) === stage, Acquire.fullWriteMask, Bits(0)))
 
   val get_acq = GetBlock(
@@ -237,6 +234,7 @@ class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()
 
   val (get_cnt, get_done) = Counter(
     io.mem.grant.fire() && gnt.hasData(), tlDataBeats)
+  val get_data = UInt(0x30010040, tlDataBits) + (get_cnt << UInt(2))
 
   val (stall_cnt, stall_done) = Counter(state === s_stall, 16)
 
@@ -262,7 +260,7 @@ class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()
   assert(!io.mem.grant.valid ||
          !io.mem.grant.bits.hasData() ||
          stage === UInt(0) ||
-         io.mem.grant.bits.data === data_beats(get_cnt),
+         io.mem.grant.bits.data === get_data,
          "WriteMaskedPutBlockRegression: data does not match")
 }
 
