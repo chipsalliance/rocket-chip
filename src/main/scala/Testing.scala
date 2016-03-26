@@ -187,6 +187,12 @@ object TestGenerator extends App with FileSystemUtilities {
   val projectName = args(0)
   val topModuleName = args(1)
   val configClassName = args(2)
+  val chiselVersion = try {
+    args(3).toInt
+  } catch {
+    case e => throwException("4th argument must be CHISEL_VERSION")
+  }
+  require(chiselVersion == 2 || chiselVersion == 3)
   val config = try {
       Class.forName(s"$projectName.$configClassName").newInstance.asInstanceOf[Config]
     } catch {
@@ -209,7 +215,8 @@ object TestGenerator extends App with FileSystemUtilities {
   TestGeneration.generateMakefrag(topModuleName, configClassName)
   TestBenchGeneration.generateVerilogFragment(
     topModuleName, configClassName,
-    paramsFromConfig(NMemoryChannels))
+    paramsFromConfig(NMemoryChannels),
+    chiselVersion)
   TestBenchGeneration.generateCPPFragment(
     topModuleName, configClassName,
     paramsFromConfig(NMemoryChannels))
