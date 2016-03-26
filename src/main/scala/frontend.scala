@@ -131,7 +131,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
 
   val all_ones = UInt((1 << (fetchWidth+1))-1)
   val msk_pc = if (fetchWidth == 1) all_ones else all_ones << s2_pc(log2Up(fetchWidth) -1+2,2)
-  io.cpu.resp.bits.mask := Mux(s2_btb_resp_valid, msk_pc & s2_btb_resp_bits.mask, msk_pc)
+  io.cpu.resp.bits.mask := msk_pc
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
 
   io.cpu.btb_resp.valid := s2_btb_resp_valid
