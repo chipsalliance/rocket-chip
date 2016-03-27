@@ -115,8 +115,8 @@ class RASUpdate(implicit p: Parameters) extends BtbBundle()(p) {
 
 //  - "bridx" is the low-order PC bits of the predicted branch (after
 //     shifting off the lowest log(inst_bytes) bits off).
-//  - "resp.mask" provides a mask of valid instructions (instructions are
-//     masked off by the predicted taken branch).
+//  - "mask" provides a mask of valid instructions (instructions are
+//     masked off by the predicted taken branch from the BTB).
 class BTBResp(implicit p: Parameters) extends BtbBundle()(p) {
   val taken = Bool()
   val mask = Bits(width = fetchWidth)
