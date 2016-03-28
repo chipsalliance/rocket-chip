@@ -17,12 +17,11 @@ class WithGroundTest extends Config(
         coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = site(NTiles),
-        nCachelessClients = site(NTiles) + (if (site(UseDma)) 2 else 1),
-        maxClientXacts = max_int(site(NMSHRs) + 1,
-                            if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
-                            if (site(UseDma)) 4 else 1),
-        maxClientsPerPort = max(if (site(BuildRoCC).isEmpty) 1 else 2,
-                                if (site(UseDma)) site(NDmaTransactors) + 1 else 1),
+        nCachelessClients = site(NTiles) + site(ExtraL1Clients),
+        maxClientXacts = max(
+          site(NMSHRs) + 1,
+          if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
+        maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
@@ -81,7 +80,6 @@ class WithCacheRegressionTest extends Config(
 
 class WithDmaTest extends Config(
   (pname, site, here) => pname match {
-    case UseDma => true
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new DmaTest()(p))
     case DmaTestSet => DmaTestCases(
@@ -97,7 +95,6 @@ class WithDmaTest extends Config(
 
 class WithDmaStreamTest extends Config(
   (pname, site, here) => pname match {
-    case UseDma => true
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new DmaStreamTest()(p))
     case DmaStreamTestSettings => DmaStreamTestConfig(
