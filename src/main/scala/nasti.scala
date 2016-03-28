@@ -408,8 +408,8 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
     aw_ready = aw_ready || (s.aw.ready && aw_route(i))
 
     val chosen = Reg(init = Bool(false))
-    when (s.aw.fire()) { chosen := Bool(true) }
     when (s.w.fire() && s.w.bits.last) { chosen := Bool(false) }
+    when (s.aw.fire()) { chosen := Bool(true) }
 
     s.w.valid := io.master.w.valid && chosen
     s.w.bits := io.master.w.bits
