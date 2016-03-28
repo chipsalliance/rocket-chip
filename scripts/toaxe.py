@@ -180,20 +180,16 @@ def main():
     lineCount = lineCount+1
 
   # Print statistics
-  if (scCount > 0 ):
+  if (scCount > 0):
     scSuccessRate = str(scSuccessCount/float(scCount))[0:6]
-  else :
-    scSuccessRate = "N/A"
+    print("# LRSC_Success_Rate=" + scSuccessRate)
 
-  if (loadCount > 0):
-    loadExtRate = str(loadExtCount/float(loadCount))[0:6]
-  else :
-    loadExtRate = "N/A"
-
-  print("# LRSC_Success_Rate=" + scSuccessRate)
   if statsFile != None:
-    statsFile.write("LRSC_Success_Rate=" + scSuccessRate + "\n")
-    statsFile.write("Load_External_Rate=" + loadExtRate + "\n")
+    if (scCount > 0):
+      statsFile.write("LRSC_Success_Rate=" + scSuccessRate + "\n")
+    if (loadCount > 0):
+      loadExtRate = str(loadExtCount/float(loadCount))[0:6]
+      statsFile.write("Load_External_Rate=" + loadExtRate + "\n")
     statsFile.close()
 
   # Print address map in comments
