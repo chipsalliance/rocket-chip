@@ -42,18 +42,21 @@ The usual Make targets run-asm-tests and run-bmark-tests still work for these co
 
 ## Using TraceGenConfig
 
-The trace generator in groundtest (tracegen.scala) has the ability to generate random memory-subsystem traces, i.e. random sequences of memory requests, along with their responses. The idea is that these traces can be validated by an external checker, such as [axe](https://github.com/CTSRD-CHERI/axe).
+The trace generator in groundtest
+([tracegen.scala](https://github.com/ucb-bar/groundtest/blob/master/src/main/scala/tracegen.scala)) has the ability to generate random memory-subsystem traces, i.e. random sequences of memory requests, along with their responses. The idea is that these traces can be validated by an external checker, such as [axe](https://github.com/CTSRD-CHERI/axe).
 
 Putting the generator and the checker together, we can automatically search for invalid traces, i.e. possible bugs in the memory subsystem. This is useful for intensive testing, but also debugging: it is possible to search for simple failing cases.
 
 ### Quick Reference
 
-The tracegen+check.sh script (included in rocket-chip/scripts) provides an automated way to run a number of randomized tests. The number of tests, initial seed, and other parameters can be set via environment variables or the command line, see the script for more details. 
+The [tracegen+check.sh](https://github.com/ucb-bar/rocket-chip/blob/master/scripts/tracegen%2Bcheck.sh) script (included in rocket-chip/scripts) provides an automated way to run a number of randomized tests. The number of tests, initial seed, and other parameters can be set via environment variables or the command line, see the script for more details. 
+
+The examples that follow assume that the rocket-chip/scripts directory is
+in your PATH and that rocket-chip is your current working directory.
 
 ```
-> cd emulator
 > make CONFIG=TraceGenConfig
-> ../scripts/tracegen+check.sh
+> tracegen+check.sh
 Testing against WMO model:
  
        0: .......... .......... .......... .......... .......... 
@@ -66,14 +69,15 @@ Load-external rate: 47%
 
 ### Running Manually
 
-```
-(in rocket-chip)
+To run a single test with a specified random seed:
 
-cd emulator
-make CONFIG=TraceGenConfig
-../scripts/tracegen.py ./emulator-Top-TraceGenConfig 1 2>&1 trace.log
-../scripts/toaxe.py trace.log > trace.axe
-axe check WMO trace.axe
+```
+> cd emulator
+> make CONFIG=TraceGenConfig
+> tracegen.py ./emulator-Top-TraceGenConfig 1 > trace.log
+> toaxe.py trace.log > trace.axe
+> axe check WMO trace.axe
+OK
 ```
 
 ### Longer Explanation
@@ -81,7 +85,7 @@ axe check WMO trace.axe
 Suppose we have built the Rocket Chip emulator with the TraceGenConfig configuration as above. Running it using the tracegen.py wrapper script with a few command-line options gives us a random trace:
 
 ```
-  > ../scripts/tracegen.py ./emulator-Top-TraceGenConfig 1
+  > tracegen.py ./emulator-Top-TraceGenConfig 1
   1: load-req     0x0000000008 #0 @64
   1: store-req  5 0x0000100008 #1 @65
   1: store-req  7 0x0000000010 #2 @66
@@ -106,17 +110,18 @@ Main points:
 - the numeric command-line option sets the random seed;
 - the first number on each line of the trace is the core id;
 - \#N denotes a request-id N;
-- \@T denotes a time T in clock cycles;
+- @T denotes a time T in clock cycles;
 - hex numbers denote addresses;
 - remaining decimal numbers denote values being loaded or stored;
 - the value written by every store is unique (this simplifies trace checking and reasoning);
 - this trace contains only loads, stores and responses, but the generator (and axe) also support LR/SC pairs, atomics, and fences.
 
 
-We convert these traces to axe format using the toaxe.py script available in rocket-chip/scripts.
+We convert these traces to axe format using the
+[toaxe.py](https://github.com/ucb-bar/rocket-chip/blob/master/scripts/tracegen%2Bcheck.sh) script available in rocket-chip/scripts.
 
 ```
-  > ../scripts/tracegen.py ./emulator-Top-TraceGenConfig 1 2>&1 | ../scripts/toaxe.py -
+  > tracegen.py ./emulator-Top-TraceGenConfig 1 | toaxe.py -
   # &M[2] == 0x0000000010
   # &M[0] == 0x0000000008
   # &M[3] == 0x0000000108
@@ -134,89 +139,13 @@ We convert these traces to axe format using the toaxe.py script available in roc
 
 Main points:
 
-- Chisel printfs go to stdout, hence the re-direction 2>&1;
 - lines begining # are comments, showing the addresses being used;
 - after @ are the optional begin and end times of the operation.
 
-Axe traces can be validated using the axe tool (must be downloaded and installed seperately):
+Axe traces can be validated using the [axe](https://github.com/CTSRD-CHERI/axe) tool (must be downloaded and installed seperately):
 ```
-  > ../scripts/tracegen.py ./emulator-Top-TraceGenConfig 1 2>&1 | ../scripts/toaxe.py -| axe check SC -
-  OK
-```
-
-Axe reports that this trace is valid according to the SC model, i.e. sequential consistency.
-
-For intensive testing, we can put the above command into a for-loop that changes the seed on each iteration.
-
-```bash
-  #!/bin/bash
-  # FILE "isit"
-
-  MODEL=$1
-  for I in {1..10000}; do
-    OUT=`../scripts/tracegen.py ./emulator-Top-TraceGenConfig $I 2>&1 | ../scripts/toaxe.py - | axe check $MODEL -`
-    if [ "$OUT" == "NO" ]; then
-      echo Not $MODEL, seed=$I
-      exit
-    fi
-  done
-  echo Passed $I tests
-```
-
-We can now ask: is the memory-subsystem SC?
-
-```
-  > isit SC
-  Not SC, seed=13
-```
-
-We can view the counter-example by running the emulator with seed of 13:
-
-```
-> ../scripts/tracegen.py ./emulator-Top-TraceGenConfig 13 2>&1 | ../scripts/toaxe.py - | axe check SC -
-NO
-```
-
-However the resulting trace is rather long. One option is to the adjust the generator's compile-time parameters to produce smaller traces. Here, we pipe the trace through [axe-shrink](https://github.com/CTSRD-CHERI/axe/blob/master/src/axe-shrink.py) which tries to find the smallest subset of the trace the violates the given model.
-
-```
-  > ../scripts/tracegen.py ./emulator-Top-TraceGenConfig 13 | & cat - | ../scripts/toaxe.py - | axe-shrink.py SC -
-Pass 0
-Omitted 258 of 276         
-Pass 1
-Omitted 268 of 276         
-Pass 2
-Omitted 268 of 276         
-0: M[1] := 58 @ 231:
-0: M[2] := 68 @ 244:
-0: { M[2] == 68; M[2] := 76} @ 257:
-1: { M[2] == 76; M[2] := 13} @ 198:
-1: M[1] := 17 @ 237:
-1: { M[2] == 13; M[2] := 19} @ 262:
-0: M[2] == 19 @ 505:543
-0: M[1] == 58 @ 506:508
-```
-
-One possible explanation for this behavior is that core 1 performs its writes out of order. This kind of reordering is allowed by the SPARC PSO model:
-
-```
-  > ../scripts/tracegen.py ./emulator-Top-TraceGenConfig 13 | & cat - | ../scripts/toaxe.py - | axe check PSO -
+> tracegen.py ./emulator-Top-TraceGenConfig 1 | toaxe.py - | axe check WMO -
 OK
 ```
 
-Now we ask: is the memory-subsystem PSO?
-
-```
-  > isit PSO
-  Not PSO, seed=96
-```
-
-At the time of writing, rocket-chip appears to satisfy WMO
-```
-  > isit WMO
-  Passed 10000 tests
-```
-
-This concludes the quick demo.
-  
-
+Axe reports that this trace is valid according to the WMO model.
