@@ -8,7 +8,6 @@ import cde.{Parameters, Field}
 case object MIFAddrBits extends Field[Int]
 case object MIFDataBits extends Field[Int]
 case object MIFTagBits extends Field[Int]
-case object MIFMasterTagBits extends Field[Int]
 case object MIFDataBeats extends Field[Int]
 
 trait HasMIFParameters {
