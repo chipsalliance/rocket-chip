@@ -42,7 +42,9 @@ addons:
 env:
   matrix:
     - CONFIG=DefaultConfig
+    - CONFIG=DefaultL2Config
     - CONFIG=RoccExampleConfig
+    - CONFIG=DualCoreConfig
     - CONFIG=MemtestConfig
     - CONFIG=MemtestL2Config
     - CONFIG=BroadcastRegressionTestConfig
