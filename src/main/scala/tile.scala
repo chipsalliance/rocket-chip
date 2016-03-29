@@ -114,7 +114,7 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
     uncachedPorts ++= roccs.flatMap(_.io.utl)
   }
 
-  val uncachedArb = Module(new ClientTileLinkIOArbiter(uncachedArbPorts.size))
+  val uncachedArb = Module(new ClientUncachedTileLinkIOArbiter(uncachedArbPorts.size))
   uncachedArb.io.in <> uncachedArbPorts
   uncachedArb.io.out +=: uncachedPorts
 
