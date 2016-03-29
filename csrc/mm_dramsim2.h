@@ -86,9 +86,9 @@ class mm_dramsim2_t : public mm_t
   uint64_t store_count;
   std::vector<char> dummy_data;
   std::queue<uint64_t> bresp;
-  std::map<uint64_t, uint64_t> wreq;
+  std::map<uint64_t, std::queue<uint64_t> > wreq;
 
-  std::map<uint64_t, mm_req_t> rreq;
+  std::map<uint64_t, std::queue<mm_req_t> > rreq;
   std::queue<mm_rresp_t> rresp;
 
   void read_complete(unsigned id, uint64_t address, uint64_t clock_cycle);
