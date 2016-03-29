@@ -18,7 +18,7 @@ else
 FIRRTL ?= $(base_dir)/firrtl/utils/bin/firrtl
 
 $(FIRRTL):
-	$(MAKE) -C $(base_dir)/firrtl root_dir=$(base_dir)/firrtl build
+	$(MAKE) -C $(base_dir)/firrtl root_dir=$(base_dir)/firrtl build-scala
 
 # If I don't mark these as .SECONDARY then make will delete these internal
 # files.
