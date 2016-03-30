@@ -208,7 +208,8 @@ class DefaultConfig extends Config (
           dataBits = site(CacheBlockBytes)*8)
       case TLKey("L2toMC") => 
         TileLinkParameters(
-          coherencePolicy = new MEICoherence(new NullRepresentation(site(NBanksPerMemoryChannel))),
+          coherencePolicy = new MEICoherence(
+            new NullRepresentation(site(NBanksPerMemoryChannel))),
           nManagers = 1,
           nCachingClients = site(NBanksPerMemoryChannel),
           nCachelessClients = 0,
@@ -217,6 +218,20 @@ class DefaultConfig extends Config (
           maxManagerXacts = 1,
           dataBits = site(CacheBlockBytes)*8)
       case TLKey("Outermost") => site(TLKey("L2toMC")).copy(dataBeats = site(MIFDataBeats))
+      case TLKey("L2toMMIO") => {
+        val addrMap = new AddrHashMap(site(GlobalAddrMap), site(MMIOBase))
+        TileLinkParameters(
+          coherencePolicy = new MICoherence(
+            new NullRepresentation(site(NBanksPerMemoryChannel))),
+          nManagers = addrMap.nEntries,
+          nCachingClients = 0,
+          nCachelessClients = 1,
+          maxClientXacts = 4,
+          maxClientsPerPort = 1,
+          maxManagerXacts = 1,
+          dataBits = site(CacheBlockBytes) * 8)
+      }
+      case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
