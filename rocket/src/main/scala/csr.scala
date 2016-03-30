@@ -440,7 +440,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       }
 
       if (usingVM) {
-        val vm_on = if (xLen == 32) 8 else 9
+        require(if (xLen == 32) pgLevels == 2 else pgLevels > 2 && pgLevels < 6)
+        val vm_on = 6 + pgLevels // TODO Sv48 support should imply Sv39 support
         when (new_mstatus.vm === 0) { reg_mstatus.vm := 0 }
         when (new_mstatus.vm === vm_on) { reg_mstatus.vm := vm_on }
       }
