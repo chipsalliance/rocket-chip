@@ -28,10 +28,6 @@
 [submodule "junctions"]
 	path = junctions
 	url = git@github.com:ucb-bar/junctions
-[submodule "jackhammer"]
-	path = jackhammer
-	url = git@github.com:ucb-bar/jackhammer.git
-	branch = new-rocketchip
 [submodule "vlsi"]
 	path = vlsi
 	url = git@github.com:ucb-bar/vlsi.git
