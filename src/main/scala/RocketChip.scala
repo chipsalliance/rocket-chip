@@ -248,9 +248,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   val mmioManager = Module(new MMIOTileLinkManager()(p.alterPartial({
     case TLId => "L1toL2"
     case InnerTLId => "L1toL2"
-    case OuterTLId => "L2toMC"
+    case OuterTLId => "L2toMMIO"
   })))
-
 
   // Wire the tiles and htif to the TileLink client ports of the L1toL2 network,
   // and coherence manager(s) to the other side
@@ -273,8 +272,6 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   }
   println("Generated Configuration String")
   println(new String(p(ConfigString)))
-
-  val mmio_ic = Module(new NastiRecursiveInterconnect(1, nSlaves, addrMap, mmioBase))
 
   val channelConfigs = p(MemoryChannelMuxConfigs)
   require(channelConfigs.sortWith(_ > _)(0) == nMemChannels,
@@ -300,34 +297,46 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     TopUtils.connectNasti(mem_ic.io.masters(i), conv.io.nasti)
   }
 
-  val mmio_narrow = Module(new TileLinkIONarrower("L2toMC", "Outermost"))
-  val mmio_conv = Module(new NastiIOTileLinkIOConverter()(outermostTLParams))
-  mmio_narrow.io.in <> mmioManager.io.outer
-  mmio_conv.io.tl <> mmio_narrow.io.out
-  TopUtils.connectNasti(mmio_ic.io.masters(0), mmio_conv.io.nasti)
+  val mmioOutermostTLParams = p.alterPartial({case TLId => "MMIO_Outermost"})
 
+  val mmio_narrow = Module(new TileLinkIONarrower("L2toMMIO", "MMIO_Outermost"))
+  val mmio_net = Module(new TileLinkRecursiveInterconnect(
+    1, addrHashMap.nEntries, addrMap, mmioBase)(mmioOutermostTLParams))
+
+  //val mmio_conv = Module(new NastiIOTileLinkIOConverter()(outermostTLParams))
+  mmio_narrow.io.in <> mmioManager.io.outer
+  mmio_net.io.in.head <> mmio_narrow.io.out
+
+  def connectTilelinkNasti(nasti: NastiIO, tl: ClientUncachedTileLinkIO) = {
+    val conv = Module(new NastiIOTileLinkIOConverter()(mmioOutermostTLParams))
+    conv.io.tl <> tl
+    TopUtils.connectNasti(nasti, conv.io.nasti)
+  }
 
   for (i <- 0 until nTiles) {
     val csrName = s"conf:csr$i"
     val csrPort = addrHashMap(csrName).port
     val conv = Module(new SmiIONastiIOConverter(xLen, csrAddrBits))
-    conv.io.nasti <> mmio_ic.io.slaves(csrPort)
+    connectTilelinkNasti(conv.io.nasti, mmio_net.io.out(csrPort))
     io.csr(i) <> conv.io.smi
   }
 
+  val scrPort = addrHashMap("conf:scr").port
   val scr_conv = Module(new SmiIONastiIOConverter(scrDataBits, scrAddrBits))
-  scr_conv.io.nasti <> mmio_ic.io.slaves(addrHashMap("conf:scr").port)
+  connectTilelinkNasti(scr_conv.io.nasti, mmio_net.io.out(scrPort))
   io.scr <> scr_conv.io.smi
 
   if (p(UseStreamLoopback)) {
     val lo_width = p(StreamLoopbackWidth)
     val lo_size = p(StreamLoopbackSize)
     val lo_conv = Module(new NastiIOStreamIOConverter(lo_width))
-    lo_conv.io.nasti <> mmio_ic.io.slaves(addrHashMap("devices:loopback").port)
+    val lo_port = addrHashMap("devices:loopback").port
+    connectTilelinkNasti(lo_conv.io.nasti, mmio_net.io.out(lo_port))
     lo_conv.io.stream.in <> Queue(lo_conv.io.stream.out, lo_size)
   }
 
-  io.deviceTree <> mmio_ic.io.slaves(addrHashMap("conf:devicetree").port)
+  val dtPort = addrHashMap("conf:devicetree").port
+  connectTilelinkNasti(io.deviceTree, mmio_net.io.out(dtPort))
 
   val mem_channels = mem_ic.io.slaves
   // Create a SerDes for backup memory port
