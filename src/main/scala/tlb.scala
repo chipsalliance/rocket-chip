@@ -83,14 +83,14 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
     val ptw = new TLBPTWIO
   }
 
-  val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(UInt(), 4)
-  val state = Reg(init=s_ready)
-  val r_refill_tag = Reg(UInt())
-  val r_refill_waddr = Reg(UInt())
-  val r_req = Reg(new TLBReq)
-
   val tag_cam = Module(new RocketCAM)
   val tag_ram = Mem(entries, io.ptw.resp.bits.pte.ppn)
+
+  val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(UInt(), 4)
+  val state = Reg(init=s_ready)
+  val r_refill_tag = Reg(tag_cam.io.write_tag)
+  val r_refill_waddr = Reg(tag_cam.io.write_addr)
+  val r_req = Reg(new TLBReq)
   
   val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn).toUInt
   tag_cam.io.tag := lookup_tag
