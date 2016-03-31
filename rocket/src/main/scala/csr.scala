@@ -357,15 +357,17 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     io.status.sd_rv32 := io.status.sd
 
   when (io.exception || csr_xcpt) {
-    val ldst_badaddr = {
-      val (upper, lower) = Split(io.rw.wdata, vaddrBits)
-      val sign = Mux(lower.toSInt < SInt(0), upper.andR, upper.orR)
-      Cat(sign, lower)
-    }
+    def compressVAddr(addr: UInt) =
+      if (vaddrBitsExtended == vaddrBits) addr
+      else {
+        val (upper, lower) = Split(addr, vaddrBits)
+        val sign = Mux(lower.toSInt < SInt(0), upper.andR, upper.orR)
+        Cat(sign, lower)
+      }
     val ldst =
       cause === Causes.fault_load || cause === Causes.misaligned_load ||
       cause === Causes.fault_store || cause === Causes.misaligned_store
-    val badaddr = Mux(ldst, ldst_badaddr, io.pc)
+    val badaddr = Mux(ldst, compressVAddr(io.rw.wdata), io.pc)
     val epc = ~(~io.pc | (coreInstBytes-1))
     val pie = read_mstatus(reg_mstatus.prv)
 
