@@ -625,9 +625,9 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val xact_op_code =  Reg{ UInt() }
   val xact_addr_byte =  Reg{ UInt() }
   val xact_op_size =  Reg{ UInt() }
-  val xact_vol_irel_r_type = Reg{ io.irel().r_type }
-  val xact_vol_irel_src = Reg{ io.irel().client_id }
-  val xact_vol_irel_client_xact_id = Reg{ io.irel().client_xact_id }
+  val xact_vol_ir_r_type = Reg{ io.irel().r_type }
+  val xact_vol_ir_src = Reg{ io.irel().client_id }
+  val xact_vol_ir_client_xact_id = Reg{ io.irel().client_xact_id }
 
   // Miss queue holds transaction metadata used to make grants
   val ignt_q = Module(new Queue(
@@ -639,10 +639,10 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val xact_addr_idx = xact_addr_block(idxMSB,idxLSB)
   val xact_addr_tag = xact_addr_block >> UInt(tagLSB)
   val xact_vol_irel = Release(
-                        src = xact_vol_irel_src,
+                        src = xact_vol_ir_src,
                         voluntary = Bool(true),
-                        r_type = xact_vol_irel_r_type,
-                        client_xact_id = xact_vol_irel_client_xact_id,
+                        r_type = xact_vol_ir_r_type,
+                        client_xact_id = xact_vol_ir_client_xact_id,
                         addr_block = xact_addr_block)
                         (p.alterPartial({ case TLId => p(InnerTLId) }))
                       
@@ -876,9 +876,9 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   updatePendingCohWhen(io.inner.release.fire(), pending_coh_on_irel)
   mergeDataInner(io.inner.release)
   when(io.inner.release.fire() && irel_can_merge) {
-    xact_vol_irel_r_type := io.irel().r_type
-    xact_vol_irel_src := io.irel().client_id
-    xact_vol_irel_client_xact_id := io.irel().client_xact_id
+    xact_vol_ir_r_type := io.irel().r_type
+    xact_vol_ir_src := io.irel().client_id
+    xact_vol_ir_client_xact_id := io.irel().client_xact_id
   }
 
   // Handle misses or coherence permission upgrades by initiating a new transaction in the outer memory:
@@ -1112,19 +1112,19 @@ class L2WritebackUnit(trackerId: Int)(implicit p: Parameters) extends L2XactTrac
 
   val xact = Reg(new L2WritebackReq)
   val data_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerDataBits)))
-  val xact_vol_irel_r_type = Reg{ io.irel().r_type }
-  val xact_vol_irel_src = Reg{ io.irel().client_id }
-  val xact_vol_irel_client_xact_id = Reg{ io.irel().client_xact_id }
+  val xact_vol_ir_r_type = Reg{ io.irel().r_type }
+  val xact_vol_ir_src = Reg{ io.irel().client_id }
+  val xact_vol_ir_client_xact_id = Reg{ io.irel().client_xact_id }
 
   val xact_addr_block = if (cacheIdBits == 0)
                           Cat(xact.tag, xact.idx)
                         else
                           Cat(xact.tag, xact.idx, UInt(cacheId, cacheIdBits))
   val xact_vol_irel = Release(
-                        src = xact_vol_irel_src,
+                        src = xact_vol_ir_src,
                         voluntary = Bool(true),
-                        r_type = xact_vol_irel_r_type,
-                        client_xact_id = xact_vol_irel_client_xact_id,
+                        r_type = xact_vol_ir_r_type,
+                        client_xact_id = xact_vol_ir_client_xact_id,
                         addr_block = xact_addr_block)
 
   val pending_irels = connectTwoWayBeatCounter(
@@ -1189,9 +1189,9 @@ class L2WritebackUnit(trackerId: Int)(implicit p: Parameters) extends L2XactTrac
     xact.coh := pending_coh_on_irel
     when(io.irel().hasData()) { data_buffer(io.irel().addr_beat) := io.irel().data }
     when(irel_can_merge) {
-      xact_vol_irel_r_type := io.irel().r_type
-      xact_vol_irel_src := io.irel().client_id
-      xact_vol_irel_client_xact_id := io.irel().client_xact_id
+      xact_vol_ir_r_type := io.irel().r_type
+      xact_vol_ir_src := io.irel().client_id
+      xact_vol_ir_client_xact_id := io.irel().client_xact_id
     }
   }
 
