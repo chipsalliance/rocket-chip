@@ -583,7 +583,7 @@ class WritebackUnit(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     //   then buffer enough data_resps to make a whole beat
     val data_buf = Reg(Bits())
     when(active && r2_data_req_fired && !beat_done) {
-      data_buf := Cat(io.data_resp, data_buf((refillCyclesPerBeat-1)*encRowBits-1, encRowBits))
+      data_buf := Cat(io.data_resp, data_buf((refillCyclesPerBeat)*encRowBits-1, encRowBits))
       buf_v := (if(refillCyclesPerBeat > 2)
                   Cat(UInt(1), buf_v(refillCyclesPerBeat-2,1))
                 else UInt(1))
