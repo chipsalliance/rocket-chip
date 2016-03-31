@@ -7,11 +7,7 @@ import Chisel._
 object TestBenchGeneration extends FileSystemUtilities {
   def generateVerilogFragment(
     topModuleName: String, configClassName: String,
-    nMemChannel: Int, chiselVersion: Int) = {
-
-    // Chisel 3 uses $ during name expansion whereas Chisel 2 uses _
-    require(chiselVersion == 2 || chiselVersion == 3)
-    val delim = if (chiselVersion == 3) "$" else "_"
+    nMemChannel: Int) = {
 
     // YUNSUP:
     // I originally wrote this using a 2d wire array, but of course Synopsys'
@@ -167,54 +163,54 @@ object TestBenchGeneration extends FileSystemUtilities {
 """ } mkString
 
     val nasti_connections = (0 until nMemChannel) map { i => s"""
-    .io${delim}mem${delim}${i}${delim}ar${delim}valid (ar_valid_delay_$i),
-    .io${delim}mem${delim}${i}${delim}ar${delim}ready (ar_ready_delay_$i),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}addr (ar_addr_delay_$i),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}id (ar_id_delay_$i),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}size (ar_size_delay_$i),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}len (ar_len_delay_$i),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}burst (),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}lock (),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}cache (),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}prot (),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}qos (),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}region (),
-    .io${delim}mem${delim}${i}${delim}ar${delim}bits${delim}user (),
+    .io_mem_${i}_ar_valid (ar_valid_delay_$i),
+    .io_mem_${i}_ar_ready (ar_ready_delay_$i),
+    .io_mem_${i}_ar_bits_addr (ar_addr_delay_$i),
+    .io_mem_${i}_ar_bits_id (ar_id_delay_$i),
+    .io_mem_${i}_ar_bits_size (ar_size_delay_$i),
+    .io_mem_${i}_ar_bits_len (ar_len_delay_$i),
+    .io_mem_${i}_ar_bits_burst (),
+    .io_mem_${i}_ar_bits_lock (),
+    .io_mem_${i}_ar_bits_cache (),
+    .io_mem_${i}_ar_bits_prot (),
+    .io_mem_${i}_ar_bits_qos (),
+    .io_mem_${i}_ar_bits_region (),
+    .io_mem_${i}_ar_bits_user (),
 
-    .io${delim}mem${delim}${i}${delim}aw${delim}valid (aw_valid_delay_$i),
-    .io${delim}mem${delim}${i}${delim}aw${delim}ready (aw_ready_delay_$i),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}addr (aw_addr_delay_$i),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}id (aw_id_delay_$i),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}size (aw_size_delay_$i),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}len (aw_len_delay_$i),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}burst (),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}lock (),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}cache (),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}prot (),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}qos (),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}region (),
-    .io${delim}mem${delim}${i}${delim}aw${delim}bits${delim}user (),
+    .io_mem_${i}_aw_valid (aw_valid_delay_$i),
+    .io_mem_${i}_aw_ready (aw_ready_delay_$i),
+    .io_mem_${i}_aw_bits_addr (aw_addr_delay_$i),
+    .io_mem_${i}_aw_bits_id (aw_id_delay_$i),
+    .io_mem_${i}_aw_bits_size (aw_size_delay_$i),
+    .io_mem_${i}_aw_bits_len (aw_len_delay_$i),
+    .io_mem_${i}_aw_bits_burst (),
+    .io_mem_${i}_aw_bits_lock (),
+    .io_mem_${i}_aw_bits_cache (),
+    .io_mem_${i}_aw_bits_prot (),
+    .io_mem_${i}_aw_bits_qos (),
+    .io_mem_${i}_aw_bits_region (),
+    .io_mem_${i}_aw_bits_user (),
 
-    .io${delim}mem${delim}${i}${delim}w${delim}valid (w_valid_delay_$i),
-    .io${delim}mem${delim}${i}${delim}w${delim}ready (w_ready_delay_$i),
-    .io${delim}mem${delim}${i}${delim}w${delim}bits${delim}strb (w_strb_delay_$i),
-    .io${delim}mem${delim}${i}${delim}w${delim}bits${delim}data (w_data_delay_$i),
-    .io${delim}mem${delim}${i}${delim}w${delim}bits${delim}last (w_last_delay_$i),
-    .io${delim}mem${delim}${i}${delim}w${delim}bits${delim}user (),
+    .io_mem_${i}_w_valid (w_valid_delay_$i),
+    .io_mem_${i}_w_ready (w_ready_delay_$i),
+    .io_mem_${i}_w_bits_strb (w_strb_delay_$i),
+    .io_mem_${i}_w_bits_data (w_data_delay_$i),
+    .io_mem_${i}_w_bits_last (w_last_delay_$i),
+    .io_mem_${i}_w_bits_user (),
 
-    .io${delim}mem${delim}${i}${delim}r${delim}valid (r_valid_delay_$i),
-    .io${delim}mem${delim}${i}${delim}r${delim}ready (r_ready_delay_$i),
-    .io${delim}mem${delim}${i}${delim}r${delim}bits${delim}resp (r_resp_delay_$i),
-    .io${delim}mem${delim}${i}${delim}r${delim}bits${delim}id (r_id_delay_$i),
-    .io${delim}mem${delim}${i}${delim}r${delim}bits${delim}data (r_data_delay_$i),
-    .io${delim}mem${delim}${i}${delim}r${delim}bits${delim}last (r_last_delay_$i),
-    .io${delim}mem${delim}${i}${delim}r${delim}bits${delim}user (1'b0),
+    .io_mem_${i}_r_valid (r_valid_delay_$i),
+    .io_mem_${i}_r_ready (r_ready_delay_$i),
+    .io_mem_${i}_r_bits_resp (r_resp_delay_$i),
+    .io_mem_${i}_r_bits_id (r_id_delay_$i),
+    .io_mem_${i}_r_bits_data (r_data_delay_$i),
+    .io_mem_${i}_r_bits_last (r_last_delay_$i),
+    .io_mem_${i}_r_bits_user (1'b0),
 
-    .io${delim}mem${delim}${i}${delim}b${delim}valid (b_valid_delay_$i),
-    .io${delim}mem${delim}${i}${delim}b${delim}ready (b_ready_delay_$i),
-    .io${delim}mem${delim}${i}${delim}b${delim}bits${delim}resp (b_resp_delay_$i),
-    .io${delim}mem${delim}${i}${delim}b${delim}bits${delim}id (b_id_delay_$i),
-    .io${delim}mem${delim}${i}${delim}b${delim}bits${delim}user (1'b0),
+    .io_mem_${i}_b_valid (b_valid_delay_$i),
+    .io_mem_${i}_b_ready (b_ready_delay_$i),
+    .io_mem_${i}_b_bits_resp (b_resp_delay_$i),
+    .io_mem_${i}_b_bits_id (b_id_delay_$i),
+    .io_mem_${i}_b_bits_user (1'b0),
 
 """ } mkString
 
@@ -233,35 +229,35 @@ object TestBenchGeneration extends FileSystemUtilities {
     $nasti_connections
 
 `ifndef FPGA
-    .io${delim}host${delim}clk(htif_clk),
-    .io${delim}host${delim}clk_edge(),
-    .io${delim}host${delim}debug_stats_csr(htif_out_stats_delay),
+    .io_host_clk(htif_clk),
+    .io_host_clk_edge(),
+    .io_host_debug_stats_csr(htif_out_stats_delay),
 
 `ifdef MEM_BACKUP_EN
-    .io${delim}mem_backup_ctrl${delim}en(1'b1),
+    .io_mem_backup_ctrl_en(1'b1),
 `else
-    .io${delim}mem_backup_ctrl${delim}en(1'b0),
+    .io_mem_backup_ctrl_en(1'b0),
 `endif // MEM_BACKUP_EN
-    .io${delim}mem_backup_ctrl${delim}in_valid(mem_bk_in_valid_delay),
-    .io${delim}mem_backup_ctrl${delim}out_ready(mem_bk_out_ready_delay),
-    .io${delim}mem_backup_ctrl${delim}out_valid(mem_bk_out_valid_delay),
+    .io_mem_backup_ctrl_in_valid(mem_bk_in_valid_delay),
+    .io_mem_backup_ctrl_out_ready(mem_bk_out_ready_delay),
+    .io_mem_backup_ctrl_out_valid(mem_bk_out_valid_delay),
 `else
-    .io${delim}host${delim}clk (),
-    .io${delim}host${delim}clk_edge (),
-    .io${delim}host${delim}debug_stats_csr (),
+    .io_host_clk (),
+    .io_host_clk_edge (),
+    .io_host_debug_stats_csr (),
 
-    .io${delim}mem_backup_ctrl${delim}en (1'b0),
-    .io${delim}mem_backup_ctrl${delim}in_valid (1'b0),
-    .io${delim}mem_backup_ctrl${delim}out_ready (1'b0),
-    .io${delim}mem_backup_ctrl${delim}out_valid (),
+    .io_mem_backup_ctrl_en (1'b0),
+    .io_mem_backup_ctrl_in_valid (1'b0),
+    .io_mem_backup_ctrl_out_ready (1'b0),
+    .io_mem_backup_ctrl_out_valid (),
 `endif // FPGA
 
-    .io${delim}host${delim}in${delim}valid(htif_in_valid_delay),
-    .io${delim}host${delim}in${delim}ready(htif_in_ready_delay),
-    .io${delim}host${delim}in${delim}bits(htif_in_bits_delay),
-    .io${delim}host${delim}out${delim}valid(htif_out_valid_delay),
-    .io${delim}host${delim}out${delim}ready(htif_out_ready_delay),
-    .io${delim}host${delim}out${delim}bits(htif_out_bits_delay)
+    .io_host_in_valid(htif_in_valid_delay),
+    .io_host_in_ready(htif_in_ready_delay),
+    .io_host_in_bits(htif_in_bits_delay),
+    .io_host_out_valid(htif_out_valid_delay),
+    .io_host_out_ready(htif_out_ready_delay),
+    .io_host_out_bits(htif_out_bits_delay)
   );
 """
 
