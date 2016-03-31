@@ -158,7 +158,7 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
   if (hasSplitMetadata) {
     val tag_arrs = List.fill(nWays){ SeqMem(nSets, UInt(width = metabits)) }
     val tag_readout = Wire(Vec(nWays,rstVal.cloneType))
-    val tags_vec = Wire(Vec.fill(nWays)(UInt(width = metabits)))
+    val tags_vec = Wire(Vec(nWays, UInt(width = metabits)))
     (0 until nWays).foreach { (i) =>
       when (rst || (io.write.valid && wmask(i))) {
         tag_arrs(i).write(waddr, wdata)
