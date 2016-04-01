@@ -1150,8 +1150,10 @@ class ClientUncachedTileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters)
     val in = Vec(arbN, new ClientUncachedTileLinkIO).flip
     val out = new ClientUncachedTileLinkIO
   }
-  hookupClientSourceHeaderless(io.in.map(_.acquire), io.out.acquire)
-  hookupManagerSourceHeaderlessWithId(io.in.map(_.grant), io.out.grant)
+  if (arbN > 1) {
+    hookupClientSourceHeaderless(io.in.map(_.acquire), io.out.acquire)
+    hookupManagerSourceHeaderlessWithId(io.in.map(_.grant), io.out.grant)
+  } else { io.out <> io.in.head }
 }
 
 /** Concrete client-side arbiter that appends the arbiter's port id to client_xact_id */
@@ -1160,8 +1162,10 @@ class ClientTileLinkIOArbiter(val arbN: Int)(implicit val p: Parameters) extends
     val in = Vec(arbN, new ClientTileLinkIO).flip
     val out = new ClientTileLinkIO
   }
-  hookupClientSourceHeaderless(io.in.map(_.acquire), io.out.acquire)
-  hookupClientSourceHeaderless(io.in.map(_.release), io.out.release)
-  hookupManagerSourceBroadcast(io.in.map(_.probe), io.out.probe)
-  hookupManagerSourceHeaderlessWithId(io.in.map(_.grant), io.out.grant)
+  if (arbN > 1) {
+    hookupClientSourceHeaderless(io.in.map(_.acquire), io.out.acquire)
+    hookupClientSourceHeaderless(io.in.map(_.release), io.out.release)
+    hookupManagerSourceBroadcast(io.in.map(_.probe), io.out.probe)
+    hookupManagerSourceHeaderlessWithId(io.in.map(_.grant), io.out.grant)
+  } else { io.out <> io.in.head }
 }
