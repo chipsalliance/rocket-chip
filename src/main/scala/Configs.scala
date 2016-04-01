@@ -219,7 +219,7 @@ class DefaultConfig extends Config (
           dataBits = site(CacheBlockBytes)*8)
       case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
         maxClientXacts = site(NAcquireTransactors) + 2,
-        maxClientsPerPort = site(NBanksPerMemoryChannel),
+        maxClientsPerPort = site(MaxBanksPerMemoryChannel),
         dataBeats = site(MIFDataBeats))
       case TLKey("L2toMMIO") => {
         val addrMap = new AddrHashMap(site(GlobalAddrMap), site(MMIOBase))
