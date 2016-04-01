@@ -217,7 +217,10 @@ class DefaultConfig extends Config (
           maxClientsPerPort = site(NAcquireTransactors) + 2,
           maxManagerXacts = 1,
           dataBits = site(CacheBlockBytes)*8)
-      case TLKey("Outermost") => site(TLKey("L2toMC")).copy(dataBeats = site(MIFDataBeats))
+      case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
+        maxClientXacts = site(NAcquireTransactors) + 2,
+        maxClientsPerPort = site(NBanksPerMemoryChannel),
+        dataBeats = site(MIFDataBeats))
       case TLKey("L2toMMIO") => {
         val addrMap = new AddrHashMap(site(GlobalAddrMap), site(MMIOBase))
         TileLinkParameters(
