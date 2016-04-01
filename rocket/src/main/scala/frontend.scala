@@ -34,7 +34,6 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
     val mem = new ClientUncachedTileLinkIO
   }
 
-  val btb = Module(new BTB)
   val icache = Module(new ICache)
   val tlb = Module(new TLB)
 
@@ -44,20 +43,19 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=UInt(p(ResetVector)))
   val s2_btb_resp_valid = Reg(init=Bool(false))
-  val s2_btb_resp_bits = Reg(btb.io.resp.bits)
+  val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_xcpt_if = Reg(init=Bool(false))
   val s2_resp_valid = Wire(init=Bool(false))
   val s2_resp_data = Wire(UInt(width = rowBits))
 
-  val msb = vaddrBits-1
-  val lsb = log2Up(fetchWidth*coreInstBytes)
-  val btbTarget = Cat(btb.io.resp.bits.target(msb), btb.io.resp.bits.target)
-  val ntpc_0 = s1_pc + UInt(coreInstBytes*fetchWidth)
-  val ntpc = Cat(s1_pc(msb) & ntpc_0(msb), ntpc_0(msb,lsb), Bits(0,lsb)) // unsure
+  val ntpc_0 = ~(~s1_pc | (coreInstBytes*fetchWidth-1)) + UInt(coreInstBytes*fetchWidth)
+  val ntpc = // don't increment PC into virtual address space hole
+    if (vaddrBitsExtended == vaddrBits) ntpc_0
+    else Cat(s1_pc(vaddrBits-1) & ntpc_0(vaddrBits-1), ntpc_0)
+  val predicted_npc = Wire(init = ntpc)
   val icmiss = s2_valid && !s2_resp_valid
-  val predicted_npc = Mux(btb.io.resp.bits.taken, btbTarget, ntpc)
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
-  val s0_same_block = !icmiss && !io.cpu.req.valid && !btb.io.resp.bits.taken && ((ntpc & rowBytes) === (s1_pc & rowBytes))
+  val s0_same_block = Wire(init = !icmiss && !io.cpu.req.valid && ((ntpc & rowBytes) === (s1_pc & rowBytes)))
 
   val stall = io.cpu.resp.valid && !io.cpu.resp.ready
   when (!stall) {
@@ -66,8 +64,6 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
     s2_valid := !icmiss
     when (!icmiss) {
       s2_pc := s1_pc
-      s2_btb_resp_valid := btb.io.resp.valid
-      when (btb.io.resp.valid) { s2_btb_resp_bits := btb.io.resp.bits }
       s2_xcpt_if := tlb.io.resp.xcpt_if
     }
   }
@@ -77,12 +73,24 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
     s2_valid := Bool(false)
   }
 
-  btb.io.req.valid := !stall && !icmiss
-  btb.io.req.bits.addr := s1_pc
-  btb.io.btb_update := io.cpu.btb_update
-  btb.io.bht_update := io.cpu.bht_update
-  btb.io.ras_update := io.cpu.ras_update
-  btb.io.invalidate := io.cpu.invalidate || io.ptw.invalidate
+  if (p(BtbKey).nEntries > 0) {
+    val btb = Module(new BTB)
+    btb.io.req.valid := false
+    btb.io.req.bits.addr := s1_pc
+    btb.io.btb_update := io.cpu.btb_update
+    btb.io.bht_update := io.cpu.bht_update
+    btb.io.ras_update := io.cpu.ras_update
+    btb.io.invalidate := io.cpu.invalidate || io.ptw.invalidate
+    when (!stall && !icmiss) {
+      btb.io.req.valid := true
+      s2_btb_resp_valid := btb.io.resp.valid
+      s2_btb_resp_bits := btb.io.resp.bits
+    }
+    when (btb.io.resp.bits.taken) {
+      predicted_npc := btb.io.resp.bits.target.sextTo(vaddrBitsExtended)
+      s0_same_block := Bool(false)
+    }
+  }
 
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := !stall && !icmiss
