@@ -10,7 +10,6 @@ import Util._
 case object BtbKey extends Field[BtbParameters]
 
 case class BtbParameters(
-  enabled: Boolean = true,
   nEntries: Int = 62,
   nRAS: Int = 2,
   updatesOutOfOrder: Boolean = false)
