@@ -342,7 +342,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val fq = Module(new FinishQueue(1))
   val g = io.mem_grant.bits
-  val can_finish = state === s_invalid || state === s_refill_req || state === s_refill_resp
+  val can_finish = state === s_invalid || state === s_refill_req
   fq.io.enq.valid := io.mem_grant.valid && g.requiresAck() && refill_done
   fq.io.enq.bits := g.makeFinish()
   io.mem_finish.valid := fq.io.deq.valid && can_finish
