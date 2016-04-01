@@ -785,6 +785,17 @@ class Grant(implicit p: Parameters) extends GrantMetadata
 class GrantToDst(implicit p: Parameters) extends Grant
   with HasClientId
 
+/** [[uncore.Grant]] with an extra field stating its destination */
+class GrantFromSrc(implicit p: Parameters) extends Grant
+    with HasClientId {
+  override def makeFinish(dummy: Int = 0): FinishToDst = {
+    val f = Wire(new FinishToDst)
+    f.manager_xact_id := this.manager_xact_id
+    f.client_id := this.client_id
+    f
+  }
+}
+
 /** [[uncore.GrantMetadata]] with an extra field containing an entire cache block */
 class BufferedGrant(implicit p: Parameters) extends GrantMetadata
   with HasTileLinkBlock
@@ -868,6 +879,10 @@ class Finish(implicit p: Parameters) extends ClientToManagerChannel()(p)
   def hasMultibeatData(dummy: Int = 0) = Bool(false)
 }
 
+/** [[uncore.Finish]] with an extra field stating its destination */
+class FinishToDst(implicit p: Parameters) extends Finish
+  with HasClientId
+
 /** Complete IO definition for incoherent TileLink, including networking headers */
 class UncachedTileLinkIO(implicit p: Parameters) extends TLBundle()(p) {
   val acquire   = new DecoupledIO(new LogicalNetworkIO(new Acquire))
@@ -901,9 +916,12 @@ class ClientUncachedTileLinkIO(implicit p: Parameters) extends TLBundle()(p) {
 /** This version of TileLinkIO does not contain network headers. 
   * It is intended for use within client agents.
   */
-class ClientTileLinkIO(implicit p: Parameters) extends ClientUncachedTileLinkIO()(p) {
+class ClientTileLinkIO(implicit p: Parameters) extends TLBundle()(p) {
+  val acquire   = new DecoupledIO(new Acquire)
   val probe     = new DecoupledIO(new Probe).flip
   val release   = new DecoupledIO(new Release)
+  val grant     = new DecoupledIO(new GrantFromSrc).flip
+  val finish    = new DecoupledIO(new FinishToDst)
 }
 
 /** This version of TileLinkIO does not contain network headers, but

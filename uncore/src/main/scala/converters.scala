@@ -77,12 +77,12 @@ class FinishUnit(srcId: Int = 0, outstanding: Int = 2)(implicit p: Parameters) e
     }
     val q = Module(new FinishQueue(outstanding))
     q.io.enq.valid := io.grant.fire() && g.requiresAck() && (!g.hasMultibeatData() || done)
-    q.io.enq.bits.fin := g.makeFinish()
-    q.io.enq.bits.dst := io.grant.bits.header.src
+    q.io.enq.bits := g.makeFinish()
+    q.io.enq.bits.client_id := io.grant.bits.header.src
 
     io.finish.bits.header.src := UInt(srcId)
-    io.finish.bits.header.dst := q.io.deq.bits.dst
-    io.finish.bits.payload := q.io.deq.bits.fin
+    io.finish.bits.header.dst := q.io.deq.bits.client_id
+    io.finish.bits.payload := q.io.deq.bits
     io.finish.valid := q.io.deq.valid
     q.io.deq.ready := io.finish.ready
 
@@ -93,19 +93,15 @@ class FinishUnit(srcId: Int = 0, outstanding: Int = 2)(implicit p: Parameters) e
   }
 }
 
-class FinishQueueEntry(implicit p: Parameters) extends TLBundle()(p) {
-    val fin = new Finish
-    val dst = UInt(width = log2Up(p(LNEndpoints)))
-}
-
-class FinishQueue(entries: Int)(implicit p: Parameters) extends Queue(new FinishQueueEntry()(p), entries)
+class FinishQueue(entries: Int)(implicit p: Parameters) extends Queue(new FinishToDst()(p), entries)
 
 /** A port to convert [[uncore.ClientTileLinkIO]].flip into [[uncore.TileLinkIO]]
   *
   * Creates network headers for [[uncore.Acquire]] and [[uncore.Release]] messages,
   * calculating header.dst and filling in header.src.
   * Strips headers from [[uncore.Probe Probes]].
-  * Responds to [[uncore.Grant]] by automatically issuing [[uncore.Finish]] to the granting managers.
+  * Passes [[uncore.GrantFromSrc]] and accepts [[uncore.FinishFromDst]] in response,
+  * setting up the headers for each.
   *
   * @param clientId network port id of this agent
   * @param addrConvert how a physical address maps to a destination manager port id
@@ -117,24 +113,64 @@ class ClientTileLinkNetworkPort(clientId: Int, addrConvert: UInt => UInt)
     val network = new TileLinkIO
   }
 
+  val acq_with_header = ClientTileLinkHeaderCreator(io.client.acquire, clientId, addrConvert)
+  val rel_with_header = ClientTileLinkHeaderCreator(io.client.release, clientId, addrConvert)
+  val fin_with_header = ClientTileLinkHeaderCreator(io.client.finish, clientId)
+  val prb_without_header = DecoupledLogicalNetworkIOUnwrapper(io.network.probe)
+  val gnt_without_header = DecoupledLogicalNetworkIOUnwrapper(io.network.grant)
+
+  io.network.acquire <> acq_with_header
+  io.network.release <> rel_with_header
+  io.network.finish <> fin_with_header
+  io.client.probe <> prb_without_header
+  io.client.grant.bits.client_id := io.network.grant.bits.header.src
+  io.client.grant <> gnt_without_header
+}
+
+/** A port to convert [[uncore.ClientUncachedTileLinkIO]].flip into [[uncore.TileLinkIO]]
+  *
+  * Creates network headers for [[uncore.Acquire]] and [[uncore.Release]] messages,
+  * calculating header.dst and filling in header.src.
+  * Responds to [[uncore.Grant]] by automatically issuing [[uncore.Finish]] to the granting managers.
+  *
+  * @param clientId network port id of this agent
+  * @param addrConvert how a physical address maps to a destination manager port id
+  */
+class ClientUncachedTileLinkNetworkPort(clientId: Int, addrConvert: UInt => UInt)
+                               (implicit p: Parameters) extends TLModule()(p) {
+  val io = new Bundle {
+    val client = new ClientUncachedTileLinkIO().flip
+    val network = new TileLinkIO
+  }
+
   val finisher = Module(new FinishUnit(clientId))
   finisher.io.grant <> io.network.grant
   io.network.finish <> finisher.io.finish
 
   val acq_with_header = ClientTileLinkHeaderCreator(io.client.acquire, clientId, addrConvert)
-  val rel_with_header = ClientTileLinkHeaderCreator(io.client.release, clientId, addrConvert)
-  val prb_without_header = DecoupledLogicalNetworkIOUnwrapper(io.network.probe)
   val gnt_without_header = finisher.io.refill
 
   io.network.acquire.bits := acq_with_header.bits
   io.network.acquire.valid := acq_with_header.valid && finisher.io.ready
   acq_with_header.ready := io.network.acquire.ready && finisher.io.ready
-  io.network.release <> rel_with_header
-  io.client.probe <> prb_without_header
   io.client.grant <> gnt_without_header
+  io.network.probe.ready :=  Bool(false)
+  io.network.release.valid := Bool(false)
 }
 
 object ClientTileLinkHeaderCreator {
+  def apply[T <: ClientToManagerChannel with HasClientId](
+        in: DecoupledIO[T],
+        clientId: Int)
+      (implicit p: Parameters): DecoupledIO[LogicalNetworkIO[T]] = {
+    val out = Wire(new DecoupledIO(new LogicalNetworkIO(in.bits)))
+    out.bits.payload := in.bits
+    out.bits.header.src := UInt(clientId)
+    out.bits.header.dst := in.bits.client_id
+    out.valid := in.valid
+    in.ready := out.ready
+    out
+  }
   def apply[T <: ClientToManagerChannel with HasCacheBlockAddress](
         in: DecoupledIO[T],
         clientId: Int,
@@ -1098,5 +1134,5 @@ class MMIOTileLinkManager(implicit p: Parameters)
   io.inner.grant.bits.client_id := gnt_xact.client_id
   io.inner.grant.bits.client_xact_id := gnt_xact.client_xact_id
   io.inner.grant.bits.manager_xact_id := io.ognt().client_xact_id
-  io.inner.finish.ready := xact_pending(io.inner.finish.bits.manager_xact_id)
+  io.inner.finish.ready := Bool(true)
 }
