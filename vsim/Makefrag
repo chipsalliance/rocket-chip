@@ -46,7 +46,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	$(sim_dir)/libdramsim.a \
 	+incdir+$(generated_dir) \
 	+define+CLOCK_PERIOD=0.5 $(sim_vsrcs) $(sim_csrcs) \
-	+define+PRINTF_COND=$(TB).verbose \
+	+define+PRINTF_COND=$(TB).printf_cond \
 	+libext+.v \
 
 #--------------------------------------------------------------------
