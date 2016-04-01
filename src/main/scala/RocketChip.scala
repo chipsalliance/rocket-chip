@@ -228,9 +228,6 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   // Create a simple L1toL2 NoC between the tiles+htif and the banks of outer memory
   // Cached ports are first in client list, making sharerToClientId just an indentity function
   // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
-  val ordered_clients = (io.tiles_cached ++
-    (io.tiles_uncached ++ Seq(rtc.io, io.htif_uncached))
-      .map(TileLinkIOWrapper(_))) 
   def sharerToClientId(sharerId: UInt) = sharerId
   def addrToBank(addr: Bits): UInt = {
     Mux(addr.toUInt < UInt(mmioBase >> log2Up(p(CacheBlockBytes))),
@@ -238,8 +235,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
       UInt(nBanks))
   }
   val preBuffering = TileLinkDepths(2,2,2,2,2)
-  val postBuffering = TileLinkDepths(0,0,1,0,0) //TODO: had EOS24 crit path on inner.release
-  val l1tol2net = Module(new RocketChipTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering, postBuffering))
+  val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering))
 
   // Create point(s) of coherence serialization
   val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}
@@ -253,7 +249,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
 
   // Wire the tiles and htif to the TileLink client ports of the L1toL2 network,
   // and coherence manager(s) to the other side
-  l1tol2net.io.clients <> ordered_clients
+  l1tol2net.io.clients_cached <> io.tiles_cached
+  l1tol2net.io.clients_uncached <> io.tiles_uncached ++ Seq(rtc.io, io.htif_uncached)
   l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
 
   // Create a converter between TileLinkIO and MemIO for each channel
