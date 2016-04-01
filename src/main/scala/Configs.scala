@@ -105,7 +105,7 @@ class DefaultConfig extends Config (
       case "L1I" => {
         case NSets => Knob("L1I_SETS") //64
         case NWays => Knob("L1I_WAYS") //4
-        case RowBits => 4*site(CoreInstBits)
+        case RowBits => site(TLKey("L1toL2")).dataBitsPerBeat
         case NTLBEntries => 8
         case CacheIdBits => 0
         case SplitMetadata => false
@@ -113,7 +113,7 @@ class DefaultConfig extends Config (
       case "L1D" => {
         case NSets => Knob("L1D_SETS") //64
         case NWays => Knob("L1D_WAYS") //4
-        case RowBits => 2*site(CoreDataBits)
+        case RowBits => site(TLKey("L1toL2")).dataBitsPerBeat
         case NTLBEntries => 8
         case CacheIdBits => 0
         case SplitMetadata => false
