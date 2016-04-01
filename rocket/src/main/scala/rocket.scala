@@ -316,7 +316,11 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val mem_npc = (Mux(mem_ctrl.jalr, encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).toSInt, mem_br_target) & SInt(-2)).toUInt
   val mem_wrong_npc = mem_npc =/= ex_reg_pc || !ex_reg_valid
   val mem_npc_misaligned = mem_npc(1)
-  val mem_misprediction = mem_wrong_npc && mem_reg_valid && (mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal)
+  val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
+  val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal
+  val mem_misprediction =
+    if (p(BtbKey).nEntries == 0) mem_cfi_taken
+    else mem_cfi && mem_wrong_npc
   val want_take_pc_mem = mem_reg_valid && (mem_misprediction || mem_reg_flush_pipe)
   take_pc_mem := want_take_pc_mem && !mem_npc_misaligned
 
@@ -496,7 +500,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.imem.invalidate := wb_reg_valid && wb_ctrl.fence_i
   io.imem.resp.ready := !ctrl_stalld || csr.io.interrupt
 
-  io.imem.btb_update.valid := mem_reg_valid && !mem_npc_misaligned && mem_wrong_npc && ((mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal) && !take_pc_wb
+  io.imem.btb_update.valid := mem_reg_valid && !mem_npc_misaligned && mem_wrong_npc && mem_cfi_taken && !take_pc_wb
   io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
   io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && mem_reg_inst(19,15) === BitPat("b00??1")
   io.imem.btb_update.bits.pc := mem_reg_pc
