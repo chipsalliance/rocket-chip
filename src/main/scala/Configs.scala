@@ -368,6 +368,7 @@ class WithZscale extends Config(
 class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
+    case UseVM => false
     case UseFPU => false
   }
 )
@@ -388,7 +389,7 @@ class SmallConfig extends Config (
       case UseFPU => false
       case FastMulDiv => false
       case NTLBEntries => 4
-      case BtbKey => BtbParameters(nEntries = 8)
+      case BtbKey => BtbParameters(nEntries = 0)
       case StoreDataQueueDepth => 2
       case ReplayQueueDepth => 2
       case NAcquireTransactors => 2
@@ -404,7 +405,7 @@ class SmallConfig extends Config (
 
 class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGAConfig)
 
-class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
+class DefaultRV32Config extends Config(new SmallConfig ++ new WithRV32 ++ new DefaultConfig)
 
 class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
 
