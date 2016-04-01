@@ -28,20 +28,18 @@ abstract class PhysicalNetwork extends Module
 class BasicCrossbar[T <: Data](n: Int, dType: T, count: Int = 1, needsLock: Option[PhysicalNetworkIO[T] => Bool] = None) extends PhysicalNetwork {
   val io = new BasicCrossbarIO(n, dType)
 
-  val rdyVecs = Seq.fill(n){Seq.fill(n)(Wire(Bool()))}
+  io.in.foreach { _.ready := Bool(false) }
 
-  io.out.zip(rdyVecs).zipWithIndex.map{ case ((out, rdys), i) => {
+  io.out.zipWithIndex.map{ case (out, i) => {
     val rrarb = Module(new LockingRRArbiter(io.in(0).bits, n, count, needsLock))
-    (rrarb.io.in, io.in, rdys).zipped.map{ case (arb, in, rdy) => {
-      arb.valid := in.valid && (in.bits.header.dst === UInt(i)) 
+    (rrarb.io.in, io.in).zipped.map{ case (arb, in) => {
+      val destined = in.bits.header.dst === UInt(i)
+      arb.valid := in.valid && destined
       arb.bits := in.bits
-      rdy := arb.ready && (in.bits.header.dst === UInt(i))
+      when (arb.ready && destined) { in.ready := Bool(true) }
     }}
     out <> rrarb.io.out
   }}
-  for(i <- 0 until n) {
-    io.in(i).ready := rdyVecs.map(r => r(i)).reduceLeft(_||_)
-  }
 }
 
 abstract class LogicalNetwork extends Module
