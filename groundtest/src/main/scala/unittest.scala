@@ -198,12 +198,92 @@ class MultiWidthFifoTest extends UnitTest {
     "Big to Little count incorrect")
 }
 
+class SmiIONastiIOConverterTestDriver(implicit p: Parameters) extends Module {
+  val io = new Bundle {
+    val nasti = new NastiIO
+    val start = Bool(INPUT)
+    val finished = Bool(OUTPUT)
+  }
+
+  val nChecks = 32
+  val count = Reg(init = UInt(0, log2Up(nChecks)))
+  val addr = Cat(count, UInt(0, 2))
+  val data = Fill(4, count)
+
+  val (s_idle :: s_waddr :: s_wdata :: s_wresp :: s_raddr :: s_rresp ::
+       s_finished :: Nil) = Enum(Bits(), 7)
+  val state = Reg(init = s_idle)
+
+  when (state === s_idle && io.start) { state := s_waddr }
+  when (io.nasti.aw.fire()) { state := s_wdata }
+  when (io.nasti.w.fire()) { state := s_wresp }
+  when (io.nasti.b.fire()) {
+    count := count + UInt(1)
+    when (count === UInt(nChecks - 1)) {
+      state := s_raddr
+    } .otherwise {
+      state := s_waddr
+    }
+  }
+
+  when (io.nasti.ar.fire()) { state := s_rresp }
+  when (io.nasti.r.fire()) {
+    count := count + UInt(1)
+    when (count === UInt(nChecks - 1)) {
+      state := s_finished
+    } .otherwise {
+      state := s_raddr
+    }
+  }
+
+  io.nasti.aw.valid := (state === s_waddr)
+  io.nasti.aw.bits := NastiWriteAddressChannel(
+    id = UInt(0),
+    addr = addr,
+    size = UInt("b010"))
+
+  io.nasti.w.valid := (state === s_wdata)
+  io.nasti.w.bits := NastiWriteDataChannel(
+    data = Mux(count(0), data << UInt(32), data)
+  )
+
+  io.nasti.b.ready := (state === s_wresp)
+
+  io.nasti.ar.valid := (state === s_raddr)
+  io.nasti.ar.bits := NastiReadAddressChannel(
+    id = UInt(0),
+    addr = addr,
+    size = UInt("b010"))
+
+  io.nasti.r.ready := (state === s_rresp)
+
+  assert(!io.nasti.r.valid ||
+    Mux(count(0),
+      io.nasti.r.bits.data(63, 32) === data,
+      io.nasti.r.bits.data(31, 0) === data),
+    "Test Driver got incorrect data")
+
+  io.finished := (state === s_finished)
+}
+
+class SmiIONastiIOConverterTest(implicit p: Parameters) extends UnitTest {
+  val smimem = Module(new SmiMem(32, 64))
+  val conv = Module(new SmiIONastiIOConverter(32, 6))
+  val driver = Module(new SmiIONastiIOConverterTestDriver)
+
+  conv.io.nasti <> driver.io.nasti
+  smimem.io <> conv.io.smi
+  driver.io.start := io.start
+  io.finished := driver.io.finished
+}
+
 class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
   disablePorts()
 
   val tests = Seq(
     Module(new MultiWidthFifoTest),
-    Module(new NastiIOHostIOConverterTest))
+    Module(new NastiIOHostIOConverterTest),
+    Module(new SmiIONastiIOConverterTest))
 
   val s_idle :: s_start :: s_wait :: Nil = Enum(Bits(), 3)
   val state = Reg(init = s_idle)
