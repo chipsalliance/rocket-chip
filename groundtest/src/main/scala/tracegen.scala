@@ -470,8 +470,6 @@ class TraceGenerator(id: Int)
   io.mem.req.bits.typ  := MT_D
   io.mem.req.bits.cmd  := reqCmd
   io.mem.req.bits.tag  := reqTag
-  io.mem.req.bits.kill := Bool(false)
-  io.mem.req.bits.phys := Bool(true)
 
   // On cycle when request is actually sent, print it
   when (io.mem.req.fire()) {

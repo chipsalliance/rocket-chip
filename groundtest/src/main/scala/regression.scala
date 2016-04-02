@@ -53,8 +53,6 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
   io.cache.req.bits.typ := MT_W
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)
-  io.cache.req.bits.kill := Bool(false)
-  io.cache.req.bits.phys := Bool(true)
 
   when (put_done) { put_sent := Bool(true) }
   when (io.cache.req.fire()) { get_sent := Bool(true) }

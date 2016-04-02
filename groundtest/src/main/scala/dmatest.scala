@@ -97,8 +97,6 @@ class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
   io.cache.req.bits.data := test_data(req_index)
   io.cache.req.bits.typ  := UInt(log2Up(conf.size))
   io.cache.req.bits.cmd  := Mux(state === s_setup_req, M_XWR, M_XRD)
-  io.cache.req.bits.kill := Bool(false)
-  io.cache.req.bits.phys := Bool(false)
 
   when (state === s_start) { state := s_setup_req }
   when (state === s_setup_req && req_done) { state := s_setup_wait }
@@ -173,8 +171,6 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
   io.cache.req.bits.data := req_data
   io.cache.req.bits.typ  := MT_W
   io.cache.req.bits.cmd  := Mux(state === s_fill_req, M_XWR, M_XRD)
-  io.cache.req.bits.kill := Bool(false)
-  io.cache.req.bits.phys := Bool(false)
 
   when (state === s_start) {
     req_addr := sourceAddrs(testIdx)

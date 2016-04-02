@@ -162,8 +162,6 @@ class HellaCacheGenerator(id: Int)
   io.mem.req.bits.typ  := MT_D
   io.mem.req.bits.cmd  := Mux(state === s_write, M_XWR, M_XRD)
   io.mem.req.bits.tag  := UInt(0)
-  io.mem.req.bits.kill := Bool(false)
-  io.mem.req.bits.phys := Bool(true)
 
   when (state === s_start) { sending := Bool(true); state := s_write }
 
