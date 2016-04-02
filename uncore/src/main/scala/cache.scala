@@ -524,12 +524,13 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   val xact_old_meta = Reg{ new L2Metadata }
   val coh = xact_old_meta.coh
 
-  val pending_irels = Reg(init=Bits(0, width = io.inner.tlDataBeats))
+  val pending_irel_beats = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_writes = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_ignt = Reg(init=Bool(false))
 
   val all_pending_done =
     !(pending_writes.orR ||
+      pending_irel_beats.orR ||
       pending_ignt)
 
   // These IOs are used for routing in the parent
@@ -538,8 +539,8 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   io.matches.oprb := (state =/= s_idle) && io.oprb().conflicts(xact)
 
   // Accept a voluntary Release (and any further beats of data)
-  pending_irels := (pending_irels & dropPendingBitWhenBeatHasData(io.inner.release))
-  io.inner.release.ready := ((state === s_idle) && io.irel().isVoluntary()) || pending_irels.orR
+  pending_irel_beats := (pending_irel_beats & dropPendingBitWhenBeatHasData(io.inner.release))
+  io.inner.release.ready := ((state === s_idle) && io.irel().isVoluntary()) || pending_irel_beats.orR
   when(io.inner.release.fire()) { xact.data_buffer(io.irel().addr_beat) := io.irel().data }
 
   // Begin a transaction by getting the current block metadata
@@ -561,7 +562,7 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   io.data.write.bits.data := xact.data_buffer(curr_write_beat)
 
   // Send an acknowledgement
-  io.inner.grant.valid := state === s_busy && pending_ignt && !pending_irels
+  io.inner.grant.valid := state === s_busy && pending_ignt && !pending_irel_beats.orR
   io.inner.grant.bits := coh.inner.makeGrant(xact)
   when(io.inner.grant.fire()) { pending_ignt := Bool(false) }
 
@@ -579,11 +580,9 @@ class L2VoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters) extends 
   // State machine updates and transaction handler metadata intialization
   when(state === s_idle && io.inner.release.valid && io.alloc.irel) {
     xact := io.irel()
-    when(io.irel().hasMultibeatData()) {
-      pending_irels := dropPendingBitWhenBeatHasData(io.inner.release)
-    }. otherwise { 
-      pending_irels := UInt(0)
-    }
+    pending_irel_beats := Mux(io.irel().hasMultibeatData(),
+                            dropPendingBitWhenBeatHasData(io.inner.release),
+                            UInt(0))
     pending_writes := addPendingBitWhenBeatHasData(io.inner.release)
     pending_ignt := io.irel().requiresAck()
     state := s_meta_read
@@ -680,6 +679,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val pending_puts = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_iprbs = Reg(init = Bits(0, width = io.inner.tlNCachingClients))
   val pending_reads = Reg(init=Bits(0, width = io.inner.tlDataBeats))
+  val pending_irel_beats = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_writes = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val pending_resps = Reg(init=Bits(0, width = io.inner.tlDataBeats))
   val ignt_data_ready = Reg(init=Bits(0, width = io.inner.tlDataBeats))
@@ -691,6 +691,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
       pending_writes.orR ||
       pending_resps.orR ||
       pending_puts.orR ||
+      pending_irel_beats.orR ||
       pending_ognt ||
       ignt_q.io.count > UInt(0) ||
       pending_vol_ignt ||
@@ -879,7 +880,11 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
     xact_vol_ir_r_type := io.irel().r_type
     xact_vol_ir_src := io.irel().client_id
     xact_vol_ir_client_xact_id := io.irel().client_xact_id
+    pending_irel_beats := Mux(io.irel().hasMultibeatData(),
+                            dropPendingBitWhenBeatHasData(io.inner.release),
+                            UInt(0))
   }
+  pending_irel_beats := (pending_irel_beats & dropPendingBitWhenBeatHasData(io.inner.release))
 
   // Handle misses or coherence permission upgrades by initiating a new transaction in the outer memory:
   //
