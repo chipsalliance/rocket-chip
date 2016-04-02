@@ -50,6 +50,7 @@ env:
     - CONFIG=MemoryMuxMemtestConfig
     - CONFIG=BroadcastRegressionTestConfig
     - CONFIG=CacheRegressionTestConfig
+    - CONFIG=NastiConverterTestConfig
     - CONFIG=UnitTestConfig
     - CONFIG=SplitL2MetadataTestConfig
 
