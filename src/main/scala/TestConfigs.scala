@@ -142,7 +142,7 @@ class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
 class TraceGenConfig extends Config(new With2Cores ++ new WithL2Cache ++ new WithTraceGen ++ new GroundTestConfig)
 
 class FancyMemtestConfig extends Config(
-  new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
+  new With2Cores ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 
 class MemoryMuxMemtestConfig extends Config(

@@ -11,14 +11,12 @@
 
 struct mm_req_t {
   uint64_t id;
-  uint64_t size;
   uint64_t len;
   uint64_t addr;
 
-  mm_req_t(uint64_t id, uint64_t size, uint64_t len, uint64_t addr)
+  mm_req_t(uint64_t id, uint64_t len, uint64_t addr)
   {
     this->id = id;
-    this->size = size;
     this->len = len;
     this->addr = addr;
   }
@@ -26,7 +24,6 @@ struct mm_req_t {
   mm_req_t()
   {
     this->id = 0;
-    this->size = 0;
     this->len = 0;
     this->addr = 0;
   }

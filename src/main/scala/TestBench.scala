@@ -300,15 +300,15 @@ object TestBenchGeneration extends FileSystemUtilities {
     begin
       if (ar_valid_$i && ar_ready_$i)
       begin
-        $$fdisplay(stderr, "MC$i: ar addr=%x", ar_addr_$i);
+        $$fdisplay(stderr, "MC$i: ar addr=%x size=%x", ar_addr_$i, ar_size_$i);
       end
       if (aw_valid_$i && aw_ready_$i)
       begin
-        $$fdisplay(stderr, "MC$i: aw addr=%x", aw_addr_$i);
+        $$fdisplay(stderr, "MC$i: aw addr=%x size=%x", aw_addr_$i, aw_size_$i);
       end
       if (w_valid_$i && w_ready_$i)
       begin
-        $$fdisplay(stderr, "MC$i: w data=%x", w_data_$i);
+        $$fdisplay(stderr, "MC$i: w data=%x strb=%x", w_data_$i, w_strb_$i);
       end
       if (r_valid_$i && r_ready_$i)
       begin
