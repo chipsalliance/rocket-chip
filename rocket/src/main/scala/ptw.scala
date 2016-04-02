@@ -118,8 +118,8 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.req.bits.cmd  := Mux(state === s_set_dirty, M_XA_OR, M_XRD)
   io.mem.req.bits.typ  := MT_D
   io.mem.req.bits.addr := pte_addr
-  io.mem.req.bits.kill := Bool(false)
-  io.mem.req.bits.data := pte_wdata.toBits
+  io.mem.s1_data := pte_wdata.toBits
+  io.mem.s1_kill := Bool(false)
   
   val r_resp_ppn = io.mem.req.bits.addr >> pgIdxBits
   val resp_ppn = Vec((0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn)(count)
@@ -152,7 +152,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
       }
     }
     is (s_wait) {
-      when (io.mem.resp.bits.nack) {
+      when (io.mem.s2_nack) {
         state := s_req
       }
       when (io.mem.resp.valid) {
@@ -172,7 +172,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
       }
     }
     is (s_wait_dirty) {
-      when (io.mem.resp.bits.nack) {
+      when (io.mem.s2_nack) {
         state := s_set_dirty
       }
       when (io.mem.resp.valid) {

@@ -21,20 +21,26 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
   for (i <- 1 until n)
     io.requestor(i).req.ready := io.requestor(i-1).req.ready && !io.requestor(i-1).req.valid
 
-  io.mem.req.bits := io.requestor(n-1).req.bits
-  io.mem.req.bits.tag := Cat(io.requestor(n-1).req.bits.tag, UInt(n-1, log2Up(n)))
-  for (i <- n-2 to 0 by -1) {
+  for (i <- n-1 to 0 by -1) {
     val req = io.requestor(i).req
-    when (req.valid) {
+    def connect_s0() = {
       io.mem.req.bits.cmd := req.bits.cmd
       io.mem.req.bits.typ := req.bits.typ
       io.mem.req.bits.addr := req.bits.addr
       io.mem.req.bits.phys := req.bits.phys
       io.mem.req.bits.tag := Cat(req.bits.tag, UInt(i, log2Up(n)))
     }
-    when (r_valid(i)) {
-      io.mem.req.bits.kill := req.bits.kill
-      io.mem.req.bits.data := req.bits.data
+    def connect_s1() = {
+      io.mem.s1_kill := io.requestor(i).s1_kill
+      io.mem.s1_data := io.requestor(i).s1_data
+    }
+
+    if (i == n-1) {
+      connect_s0()
+      connect_s1()
+    } else {
+      when (req.valid) { connect_s0() }
+      when (r_valid(i)) { connect_s1() }
     }
   }
 
@@ -44,10 +50,9 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
     resp.valid := io.mem.resp.valid && tag_hit
     io.requestor(i).xcpt := io.mem.xcpt
     io.requestor(i).ordered := io.mem.ordered
+    io.requestor(i).s2_nack := io.mem.s2_nack && tag_hit
     resp.bits := io.mem.resp.bits
     resp.bits.tag := io.mem.resp.bits.tag >> log2Up(n)
-    resp.bits.nack := io.mem.resp.bits.nack && tag_hit
-    resp.bits.replay := io.mem.resp.bits.replay && tag_hit
 
     io.requestor(i).replay_next.valid := io.mem.replay_next.valid &&
       io.mem.replay_next.bits(log2Up(n)-1,0) === UInt(i)
