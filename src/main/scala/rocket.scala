@@ -376,7 +376,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
-  val replay_wb_common = io.dmem.resp.bits.nack || wb_reg_replay
+  val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val wb_rocc_val = wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   val replay_wb = replay_wb_common || wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
   val wb_xcpt = wb_reg_xcpt || csr.io.csr_xcpt
@@ -388,9 +388,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   // writeback arbitration
   val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
   val dmem_resp_fpu =  io.dmem.resp.bits.tag(0).toBool
-  val dmem_resp_waddr = io.dmem.resp.bits.tag.toUInt()(5,1)
+  val dmem_resp_waddr = io.dmem.resp.bits.tag >> 1
   val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
-  val dmem_resp_replay = io.dmem.resp.bits.replay && io.dmem.resp.bits.has_data
+  val dmem_resp_replay = dmem_resp_valid && io.dmem.resp.bits.replay
 
   div.io.resp.ready := !(wb_reg_valid && wb_ctrl.wxd)
   val ll_wdata = Wire(init = div.io.resp.bits.data)
@@ -532,14 +532,15 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.fpu.dmem_resp_tag := dmem_resp_waddr
 
   io.dmem.req.valid     := ex_reg_valid && ex_ctrl.mem
-  io.dmem.req.bits.kill := killm_common || mem_xcpt
+  val ex_dcache_tag = Cat(ex_waddr, ex_ctrl.fp)
+  require(coreDCacheReqTagBits >= ex_dcache_tag.getWidth)
+  io.dmem.req.bits.tag  := ex_dcache_tag
   io.dmem.req.bits.cmd  := ex_ctrl.mem_cmd
   io.dmem.req.bits.typ  := ex_ctrl.mem_type
   io.dmem.req.bits.phys := Bool(false)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
-  io.dmem.req.bits.tag := Cat(ex_waddr, ex_ctrl.fp)
-  io.dmem.req.bits.data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
-  require(coreDCacheReqTagBits >= 6)
+  io.dmem.s1_kill := killm_common || mem_xcpt
+  io.dmem.s1_data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
   io.dmem.invalidate_lr := wb_xcpt
 
   io.rocc.cmd.valid := wb_rocc_val

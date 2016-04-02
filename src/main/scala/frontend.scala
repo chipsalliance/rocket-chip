@@ -104,10 +104,8 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.idx := io.cpu.npc
   icache.io.invalidate := io.cpu.invalidate
-  icache.io.req.bits.ppn := tlb.io.resp.ppn
-  icache.io.req.bits.kill := io.cpu.req.valid ||
-    tlb.io.resp.miss || tlb.io.resp.xcpt_if ||
-    icmiss || io.ptw.invalidate
+  icache.io.s1_ppn := tlb.io.resp.ppn
+  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || tlb.io.resp.xcpt_if || icmiss || io.ptw.invalidate
 
   io.cpu.resp.valid := s2_valid && (s2_xcpt_if || s2_resp_valid)
   io.cpu.resp.bits.pc := s2_pc

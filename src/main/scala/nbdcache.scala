@@ -33,6 +33,11 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters {
   val nMSHRs = p(NMSHRs)
   val nIOMSHRs = 1
   val lrscCycles = p(LRSCCycles)
+
+  require(lrscCycles >= 32) // ISA requires 16-insn LRSC sequences to succeed
+  require(isPow2(nSets))
+  require(rowBits <= outerDataBits)
+  require(untagBits <= pgIdxBits)
 }
 
 abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
@@ -63,7 +68,6 @@ trait HasMissInfo extends HasL1HellaCacheParameters {
 
 class HellaCacheReqInternal(implicit p: Parameters) extends L1HellaCacheBundle()(p)
     with HasCoreMemOp {
-  val kill = Bool()
   val phys = Bool()
 }
 
@@ -72,7 +76,6 @@ class HellaCacheReq(implicit p: Parameters) extends HellaCacheReqInternal()(p) w
 class HellaCacheResp(implicit p: Parameters) extends L1HellaCacheBundle()(p)
     with HasCoreMemOp
     with HasCoreData {
-  val nack = Bool() // comes 2 cycles after req.fire
   val replay = Bool()
   val has_data = Bool()
   val data_word_bypass = Bits(width = coreDataBits)
@@ -92,6 +95,10 @@ class HellaCacheExceptions extends Bundle {
 // interface between D$ and processor/DTLB
 class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new HellaCacheReq)
+  val s1_kill = Bool(OUTPUT) // kill previous cycle's req
+  val s1_data = Bits(OUTPUT, coreDataBits) // data for previous cycle's req
+  val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
+
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Valid(Bits(width = coreDCacheReqTagBits)).flip
   val xcpt = (new HellaCacheExceptions).asInput
@@ -207,8 +214,7 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.resp.bits.has_data := isRead(req.cmd)
   io.resp.bits.data := loadgen.data | req_cmd_sc
   io.resp.bits.store_data := req.data
-  io.resp.bits.nack := Bool(false)
-  io.resp.bits.replay := io.resp.valid
+  io.resp.bits.replay := Bool(true)
 
   when (io.req.fire()) {
     req := io.req.bits
@@ -764,11 +770,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     val mem = new ClientTileLinkIO
   }
  
-  require(lrscCycles >= 32) // ISA requires 16-insn LRSC sequences to succeed
-  require(isPow2(nSets))
   require(isPow2(nWays)) // TODO: relax this
-  require(rowBits <= outerDataBits)
-  require(untagBits <= pgIdxBits)
 
   val wb = Module(new WritebackUnit)
   val prober = Module(new ProbeUnit)
@@ -777,7 +779,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.cpu.req.ready := Bool(true)
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_req = Reg(io.cpu.req.bits)
-  val s1_valid_masked = s1_valid && !io.cpu.req.bits.kill
+  val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_replay = Reg(init=Bool(false))
   val s1_clk_en = Reg(Bool())
 
@@ -826,12 +828,11 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s1_addr = Cat(dtlb.io.resp.ppn, s1_req.addr(pgIdxBits-1,0))
 
   when (s1_clk_en) {
-    s2_req.kill := s1_req.kill
     s2_req.typ := s1_req.typ
     s2_req.phys := s1_req.phys
     s2_req.addr := s1_addr
     when (s1_write) {
-      s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, io.cpu.req.bits.data)
+      s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, io.cpu.s1_data)
     }
     when (s1_recycled) { s2_req.data := s1_req.data }
     s2_req.tag := s1_req.tag
@@ -1075,7 +1076,6 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   cache_resp.bits.has_data := isRead(s2_req.cmd)
   cache_resp.bits.data := loadgen.data | s2_sc_fail
   cache_resp.bits.store_data := s2_req.data
-  cache_resp.bits.nack := s2_valid && s2_nack
   cache_resp.bits.replay := s2_replay
 
   val uncache_resp = Wire(Valid(new HellaCacheResp))
@@ -1083,6 +1083,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   uncache_resp.valid := mshrs.io.resp.valid
   mshrs.io.resp.ready := Reg(next= !(s1_valid || s1_replay))
 
+  io.cpu.s2_nack := s2_valid && s2_nack
   io.cpu.resp := Mux(mshrs.io.resp.ready, uncache_resp, cache_resp)
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
@@ -1111,17 +1112,15 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   req_arb.io.in(1).bits := io.requestor.req.bits
   io.requestor.req.ready := !replaying_cmb && req_arb.io.in(1).ready
 
-  val s2_nack = io.cache.resp.bits.nack
-  val s3_nack = Reg(next=s2_nack)
-
   val s0_req_fire = io.cache.req.fire()
   val s1_req_fire = Reg(next=s0_req_fire)
   val s2_req_fire = Reg(next=s1_req_fire)
+  val s3_nack = Reg(next=io.cache.s2_nack)
 
   io.cache.req <> req_arb.io.out
-  io.cache.req.bits.kill := s2_nack
   io.cache.req.bits.phys := Bool(true)
-  io.cache.req.bits.data := RegEnable(req_arb.io.out.bits.data, s0_req_fire)
+  io.cache.s1_kill := io.cache.s2_nack
+  io.cache.s1_data := RegEnable(req_arb.io.out.bits.data, s0_req_fire)
 
 /* replay queues:
      replayq1 holds the older request.
@@ -1147,13 +1146,13 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   replayq2.io.enq.bits.data := io.cache.resp.bits.store_data
   replayq2.io.deq.ready := Bool(false)
 
-  when (s2_nack) {
+  when (io.cache.s2_nack) {
     replayq1.io.enq.valid := Bool(true)
     replaying_cmb := Bool(true)
   }
 
   // when replaying request got sunk into the d$
-  when (s2_req_fire && Reg(next=Reg(next=replaying_cmb)) && !s2_nack) {
+  when (s2_req_fire && Reg(next=Reg(next=replaying_cmb)) && !io.cache.s2_nack) {
     // see if there's a stashed request in replayq2
     when (replayq2.io.deq.valid) {
       replayq1.io.enq.valid := Bool(true)

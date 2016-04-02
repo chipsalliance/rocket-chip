@@ -16,8 +16,6 @@ trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
 
 class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) {
   val idx = UInt(width = pgIdxBits)
-  val ppn = UInt(width = ppnBits) // delayed one cycle
-  val kill = Bool() // delayed one cycle
 }
 
 class ICacheResp(implicit p: Parameters) extends CoreBundle()(p) with HasL1CacheParameters {
@@ -28,6 +26,9 @@ class ICacheResp(implicit p: Parameters) extends CoreBundle()(p) with HasL1Cache
 class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CacheParameters {
   val io = new Bundle {
     val req = Valid(new ICacheReq).flip
+    val s1_ppn = UInt(INPUT, ppnBits) // delayed one cycle w.r.t. req
+    val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
+
     val resp = Decoupled(new ICacheResp)
     val invalidate = Bool(INPUT)
     val mem = new ClientUncachedTileLinkIO
@@ -47,18 +48,18 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
 
   val s1_valid = Reg(init=Bool(false))
   val s1_pgoff = Reg(UInt(width = pgIdxBits))
-  val s1_addr = Cat(io.req.bits.ppn, s1_pgoff).toUInt
+  val s1_addr = Cat(io.s1_ppn, s1_pgoff).toUInt
   val s1_tag = s1_addr(tagBits+untagBits-1,untagBits)
 
   val s0_valid = io.req.valid || s1_valid && stall
   val s0_pgoff = Mux(s1_valid && stall, s1_pgoff, io.req.bits.idx)
 
-  s1_valid := io.req.valid && rdy || s1_valid && stall && !io.req.bits.kill
+  s1_valid := io.req.valid && rdy || s1_valid && stall && !io.s1_kill
   when (io.req.valid && rdy) {
     s1_pgoff := io.req.bits.idx
   }
 
-  val out_valid = s1_valid && !io.req.bits.kill && state === s_ready
+  val out_valid = s1_valid && !io.s1_kill && state === s_ready
   val s1_idx = s1_addr(untagBits-1,blockOffBits)
   val s1_offset = s1_addr(blockOffBits-1,0)
   val s1_hit = out_valid && s1_any_tag_hit
