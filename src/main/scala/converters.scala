@@ -408,7 +408,6 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
 
 class NastiIOTileLinkIOConverterInfo(implicit p: Parameters) extends TLBundle()(p) {
   val addr_beat = UInt(width = tlBeatAddrBits)
-  val byteOff = UInt(width = tlByteAddrBits)
   val subblock = Bool()
 }
 
@@ -472,7 +471,6 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   roq.io.enq.valid := get_helper.fire(roq.io.enq.ready)
   roq.io.enq.bits.tag := io.nasti.ar.bits.id
   roq.io.enq.bits.data.addr_beat := io.tl.acquire.bits.addr_beat
-  roq.io.enq.bits.data.byteOff := io.tl.acquire.bits.addr_byte()
   roq.io.enq.bits.data.subblock := is_subblock
   roq.io.deq.valid := io.nasti.r.fire() && (nasti_wrap_out || roq.io.deq.data.subblock)
   roq.io.deq.tag := io.nasti.r.bits.id
@@ -518,10 +516,6 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   val gnt_arb = Module(new Arbiter(new GrantToDst, 2))
   io.tl.grant <> gnt_arb.io.out
 
-  val r_aligned_data = Mux(roq.io.deq.data.subblock,
-    io.nasti.r.bits.data << Cat(roq.io.deq.data.byteOff, UInt(0, 3)),
-    io.nasti.r.bits.data)
-
   gnt_arb.io.in(0).valid := io.nasti.r.valid
   io.nasti.r.ready := gnt_arb.io.in(0).ready
   gnt_arb.io.in(0).bits := Grant(
@@ -531,7 +525,7 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     client_xact_id = io.nasti.r.bits.id,
     manager_xact_id = UInt(0),
     addr_beat = Mux(roq.io.deq.data.subblock, roq.io.deq.data.addr_beat, tl_cnt_in),
-    data = r_aligned_data)
+    data = io.nasti.r.bits.data)
   assert(!gnt_arb.io.in(0).valid || roq.io.deq.matches, "NASTI tag error")
 
   gnt_arb.io.in(1).valid := io.nasti.b.valid
