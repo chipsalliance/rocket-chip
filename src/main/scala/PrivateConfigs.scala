@@ -142,12 +142,6 @@ class WithSmallPredRF extends Config(
   }
 )
 
-class VRU10Outstanding extends Config(
-  (pname,site,here) => pname match {
-    case HwachaVRUThrottle => 10
-  }
-)
-
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
   new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
