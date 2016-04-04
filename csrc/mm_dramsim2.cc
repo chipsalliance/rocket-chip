@@ -17,17 +17,19 @@ using namespace DRAMSim;
 
 void mm_dramsim2_t::read_complete(unsigned id, uint64_t address, uint64_t clock_cycle)
 {
-  auto req = rreq[address];
+  auto req = rreq[address].front();
   for (int i = 0; i < req.len; i++) {
     auto dat = read(address + i * req.size, req.size);
     rresp.push(mm_rresp_t(req.id, dat, (i == req.len - 1)));
   }
+  rreq[address].pop();
 }
 
 void mm_dramsim2_t::write_complete(unsigned id, uint64_t address, uint64_t clock_cycle)
 {
-  auto b_id = wreq[address];
+  auto b_id = wreq[address].front();
   bresp.push(b_id);
+  wreq[address].pop();
 }
 
 void power_callback(double a, double b, double c, double d)
@@ -82,7 +84,7 @@ void mm_dramsim2_t::tick(
   bool b_fire = b_valid() && b_ready;
 
   if (ar_fire) {
-    rreq[ar_addr] = mm_req_t(ar_id, 1 << ar_size, ar_len + 1, ar_addr);
+    rreq[ar_addr].push(mm_req_t(ar_id, 1 << ar_size, ar_len + 1, ar_addr));
     mem->addTransaction(false, ar_addr);
   }
 
@@ -102,7 +104,7 @@ void mm_dramsim2_t::tick(
     if (store_count == 0) {
       store_inflight = false;
       mem->addTransaction(true, store_addr);
-      wreq[store_addr] = store_id;
+      wreq[store_addr].push(store_id);
       assert(w_last);
     }
   }
