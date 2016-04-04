@@ -198,9 +198,9 @@ class MultiWidthFifoTest extends UnitTest {
     "Big to Little count incorrect")
 }
 
-class SmiIONastiIOConverterTestDriver(implicit p: Parameters) extends Module {
+class TileLinkToSmiConverterTestDriver(implicit p: Parameters) extends Module {
   val io = new Bundle {
-    val nasti = new NastiIO
+    val mem = new ClientUncachedTileLinkIO
     val start = Bool(INPUT)
     val finished = Bool(OUTPUT)
   }
@@ -210,69 +210,79 @@ class SmiIONastiIOConverterTestDriver(implicit p: Parameters) extends Module {
   val addr = Cat(count, UInt(0, 2))
   val data = Fill(4, count)
 
-  val (s_idle :: s_waddr :: s_wdata :: s_wresp :: s_raddr :: s_rresp ::
-       s_finished :: Nil) = Enum(Bits(), 7)
+  val (s_idle :: s_wreq :: s_wresp :: s_rreq :: s_rresp ::
+       s_finished :: Nil) = Enum(Bits(), 6)
   val state = Reg(init = s_idle)
 
-  when (state === s_idle && io.start) { state := s_waddr }
-  when (io.nasti.aw.fire()) { state := s_wdata }
-  when (io.nasti.w.fire()) { state := s_wresp }
-  when (io.nasti.b.fire()) {
+  when (state === s_idle && io.start) { state := s_wreq }
+  when (state === s_wreq && io.mem.acquire.ready) { state := s_wresp }
+  when (state === s_wresp && io.mem.grant.valid) {
     count := count + UInt(1)
     when (count === UInt(nChecks - 1)) {
-      state := s_raddr
+      state := s_rreq
     } .otherwise {
-      state := s_waddr
+      state := s_wreq
     }
   }
 
-  when (io.nasti.ar.fire()) { state := s_rresp }
-  when (io.nasti.r.fire()) {
+  when (state === s_rreq && io.mem.acquire.ready) { state := s_rresp }
+  when (state === s_rresp && io.mem.grant.valid) {
     count := count + UInt(1)
     when (count === UInt(nChecks - 1)) {
       state := s_finished
     } .otherwise {
-      state := s_raddr
+      state := s_rreq
     }
   }
 
-  io.nasti.aw.valid := (state === s_waddr)
-  io.nasti.aw.bits := NastiWriteAddressChannel(
-    id = UInt(0),
-    addr = addr,
-    size = UInt("b010"))
+  val blockOffsetBits = p(CacheBlockOffsetBits)
+  val byteAddrBits = log2Up(p(TLKey(p(TLId))).writeMaskBits)
 
-  io.nasti.w.valid := (state === s_wdata)
-  io.nasti.w.bits := NastiWriteDataChannel(
-    data = Mux(count(0), data << UInt(32), data)
-  )
+  io.mem.acquire.valid := (state === s_wreq) || (state === s_rreq)
+  io.mem.acquire.bits := Mux(state === s_wreq,
+    Put(
+      client_xact_id = UInt(0),
+      addr_block = addr >> UInt(blockOffsetBits),
+      addr_beat = addr(blockOffsetBits - 1, byteAddrBits),
+      data = Mux(count(0), data << UInt(32), data),
+      wmask = FillInterleaved(4, UIntToOH(count(0)))),
+    Get(
+      client_xact_id = UInt(0),
+      addr_block = addr >> UInt(blockOffsetBits),
+      addr_beat = addr(blockOffsetBits - 1, byteAddrBits),
+      addr_byte = addr(byteAddrBits - 1, 0),
+      operand_size = MT_W,
+      alloc = Bool(false)))
+  io.mem.grant.ready := (state === s_wresp) || (state === s_rresp)
 
-  io.nasti.b.ready := (state === s_wresp)
-
-  io.nasti.ar.valid := (state === s_raddr)
-  io.nasti.ar.bits := NastiReadAddressChannel(
-    id = UInt(0),
-    addr = addr,
-    size = UInt("b010"))
-
-  io.nasti.r.ready := (state === s_rresp)
-
-  assert(!io.nasti.r.valid ||
+  assert(!io.mem.grant.valid || !io.mem.grant.bits.hasData() ||
     Mux(count(0),
-      io.nasti.r.bits.data(63, 32) === data,
-      io.nasti.r.bits.data(31, 0) === data),
+      io.mem.grant.bits.data(63, 32) === data,
+      io.mem.grant.bits.data(31, 0) === data),
     "Test Driver got incorrect data")
 
   io.finished := (state === s_finished)
 }
 
-class SmiIONastiIOConverterTest(implicit p: Parameters) extends UnitTest {
-  val smimem = Module(new SmiMem(32, 64))
-  val conv = Module(new SmiIONastiIOConverter(32, 6))
-  val driver = Module(new SmiIONastiIOConverterTestDriver)
+class TileLinkToSmiConverterTest(implicit p: Parameters) extends UnitTest {
+  val outermostParams = p.alterPartial({ case TLId => "Outermost" })
 
-  conv.io.nasti <> driver.io.nasti
-  smimem.io <> conv.io.smi
+  val smimem = Module(new SmiMem(32, 64))
+  val conv1 = Module(new NastiIOTileLinkIOConverter()(outermostParams))
+  val conv2 = Module(new SmiIONastiIOConverter(32, 6))
+  val driver = Module(new TileLinkToSmiConverterTestDriver()(outermostParams))
+
+  def decoupledNastiConnect(outer: NastiIO, inner: NastiIO) {
+    outer.ar <> Queue(inner.ar)
+    outer.aw <> Queue(inner.aw)
+    outer.w  <> Queue(inner.w)
+    inner.r  <> Queue(outer.r)
+    inner.b  <> Queue(outer.b)
+  }
+
+  conv1.io.tl <> driver.io.mem
+  decoupledNastiConnect(conv2.io.nasti, conv1.io.nasti)
+  smimem.io <> conv2.io.smi
   driver.io.start := io.start
   io.finished := driver.io.finished
 }
@@ -283,7 +293,7 @@ class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
   val tests = Seq(
     Module(new MultiWidthFifoTest),
     Module(new NastiIOHostIOConverterTest),
-    Module(new SmiIONastiIOConverterTest))
+    Module(new TileLinkToSmiConverterTest))
 
   val s_idle :: s_start :: s_wait :: Nil = Enum(Bits(), 3)
   val state = Reg(init = s_idle)
