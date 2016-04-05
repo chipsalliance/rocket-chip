@@ -584,13 +584,7 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
   def nasti_wmask(aw: NastiWriteAddressChannel, w: NastiWriteDataChannel): UInt = {
     val base = w.strb & size_mask(aw.size)
     val addr_byte = nasti_addr_byte(aw)
-    base << addr_byte
-  }
-
-  def nasti_wdata(aw: NastiWriteAddressChannel, w: NastiWriteDataChannel): UInt = {
-    val base = w.data & FillInterleaved(8, size_mask(aw.size))
-    val addr_byte = nasti_addr_byte(aw)
-    base << Cat(addr_byte, UInt(0, 3))
+    w.strb & (size_mask(aw.size) << addr_byte)
   }
 
   def tl_last(gnt: GrantMetadata): Bool =
@@ -645,7 +639,7 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
       client_xact_id = aw_req.id,
       addr_block = nasti_addr_block(aw_req),
       addr_beat = nasti_addr_beat(aw_req),
-      data = nasti_wdata(aw_req, io.nasti.w.bits),
+      data = io.nasti.w.bits.data,
       wmask = nasti_wmask(aw_req, io.nasti.w.bits)))
 
   io.tl.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
@@ -655,19 +649,7 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
   io.nasti.aw.ready := (state === s_idle && !io.nasti.ar.valid)
   io.nasti.w.ready  := (state === s_put && io.tl.acquire.ready)
 
-  val acq = io.tl.acquire.bits
   val nXacts = tlMaxClientXacts * tlMaxClientsPerPort
-  val get_align = Reg(Vec(nXacts, UInt(width = tlByteAddrBits)))
-  val is_narrow_get = acq.a_type === Acquire.getType
-
-  when (io.tl.acquire.fire() && is_narrow_get) {
-    get_align(acq.client_xact_id) := acq.addr_byte()
-  }
-
-  def tl_data(gnt: Grant): UInt =
-    Mux(gnt.g_type === Grant.getDataBeatType,
-      gnt.data >> Cat(get_align(gnt.client_xact_id), UInt(0, 3)),
-      gnt.data)
 
   io.nasti.b.valid := io.tl.grant.valid && tl_b_grant(io.tl.grant.bits)
   io.nasti.b.bits := NastiWriteResponseChannel(
@@ -676,7 +658,7 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
   io.nasti.r.valid := io.tl.grant.valid && !tl_b_grant(io.tl.grant.bits)
   io.nasti.r.bits := NastiReadDataChannel(
     id = io.tl.grant.bits.client_xact_id,
-    data = tl_data(io.tl.grant.bits),
+    data = io.tl.grant.bits.data,
     last = tl_last(io.tl.grant.bits))
 
   io.tl.grant.ready := Mux(tl_b_grant(io.tl.grant.bits),
