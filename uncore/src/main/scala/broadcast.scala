@@ -73,7 +73,8 @@ class L2BroadcastHub(implicit p: Parameters) extends ManagerCoherenceAgent()(p)
     trackerList.map(_.io.matches.iacq),
     trackerList.map(_.io.alloc.iacq),
     Some(sdqLoc),
-    Some(sdq_rdy && !irel_vs_iacq_conflict))
+    Some(sdq_rdy && !irel_vs_iacq_conflict),
+    Some(sdq_rdy))
 
   // Queue to store impending Voluntary Release data
   val voluntary = io.irel().isVoluntary()

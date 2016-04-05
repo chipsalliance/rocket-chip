@@ -77,18 +77,20 @@ trait HasCoherenceAgentWiringHelpers {
         matches: Seq[Bool],
         allocs: Seq[Bool],
         dataOverrides: Option[Seq[UInt]] = None,
-        allocOverride: Option[Bool] = None) {
+        allocOverride: Option[Bool] = None,
+        matchOverride: Option[Bool] = None) {
     val ready_bits = Vec(outs.map(_.ready)).toBits
     val alloc_bits = PriorityEncoderOH(ready_bits)
     val match_bits = Vec(matches).toBits
     val no_matches = !match_bits.orR
-    val do_alloc = allocOverride.getOrElse(Bool(true))
-    in.ready := Mux(no_matches, ready_bits.orR, (match_bits & ready_bits).orR) && do_alloc
+    val alloc_ok = allocOverride.getOrElse(Bool(true))
+    val match_ok = matchOverride.getOrElse(Bool(true))
+    in.ready := Mux(no_matches, ready_bits.orR, (match_bits & ready_bits).orR) && alloc_ok && match_ok
     outs.zip(allocs).zipWithIndex.foreach { case((out, a), i) =>
-      out.valid := in.valid
+      out.valid := in.valid && match_ok
       out.bits := in.bits
       dataOverrides foreach { d => out.bits.data := d(i) }
-      a := alloc_bits(i) & no_matches & do_alloc
+      a := alloc_bits(i) & no_matches & alloc_ok
     }
   }
 }
