@@ -376,6 +376,45 @@ class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
     "WritebackRegression: incorrect data")
 }
 
+class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p) {
+  val (s_idle :: s_put :: s_putblock :: s_wait ::
+       s_finished :: Nil) = Enum(Bits(), 5)
+  val state = Reg(init = s_idle)
+
+  io.cache.req.valid := Bool(false)
+
+  val (put_block_beat, put_block_done) = Counter(
+    state === s_putblock && io.mem.acquire.ready, tlDataBeats)
+
+  val put_acquire = Put(
+    client_xact_id = UInt(0),
+    addr_block = UInt(0),
+    addr_beat = UInt(0),
+    data = UInt(0),
+    wmask = UInt((1 << 8) - 1))
+
+  val put_block_acquire = PutBlock(
+    client_xact_id = UInt(1),
+    addr_block = UInt(1),
+    addr_beat = put_block_beat,
+    data = UInt(0))
+
+  val put_acked = Reg(init = UInt(0, 2))
+
+  val (ack_cnt, all_acked) = Counter(io.mem.grant.fire(), 2)
+
+  io.mem.acquire.valid := (state === s_put) || (state === s_putblock)
+  io.mem.acquire.bits := Mux(state === s_put, put_acquire, put_block_acquire)
+  io.mem.grant.ready := (state === s_wait)
+
+  when (state === s_idle && io.start) { state := s_put }
+  when (state === s_put && io.mem.acquire.ready) { state := s_putblock }
+  when (put_block_done) { state := s_wait }
+  when (all_acked) { state := s_finished }
+
+  io.finished := (state === s_finished)
+}
+
 object RegressionTests {
   def cacheRegressions(implicit p: Parameters) = Seq(
     Module(new PutBlockMergeRegression),
@@ -384,10 +423,12 @@ object RegressionTests {
     Module(new WriteMaskedPutBlockRegression),
     Module(new PrefetchHitRegression),
     Module(new SequentialSameIdGetRegression),
-    Module(new WritebackRegression))
+    Module(new WritebackRegression),
+    Module(new PutBeforePutBlockRegression))
   def broadcastRegressions(implicit p: Parameters) = Seq(
     Module(new IOGetAfterPutBlockRegression),
-    Module(new WriteMaskedPutBlockRegression))
+    Module(new WriteMaskedPutBlockRegression),
+    Module(new PutBeforePutBlockRegression))
 }
 
 case object GroundTestRegressions extends Field[Parameters => Seq[Regression]]
