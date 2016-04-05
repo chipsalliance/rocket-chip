@@ -453,10 +453,6 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
     regress.cache.req.ready := io.cache.req.ready && me
     regress.cache.resp.valid := io.cache.resp.valid && me
     regress.cache.resp.bits := io.cache.resp.bits
-    regress.cache.xcpt := io.cache.xcpt
-    regress.cache.ordered := io.cache.ordered
-    regress.cache.replay_next.valid := io.cache.replay_next.valid && me
-    regress.cache.replay_next.bits := io.cache.replay_next.bits
   }
 
   val cur_regression = regressIOs(regress_idx)
