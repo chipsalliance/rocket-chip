@@ -227,6 +227,17 @@ object ManagerTileLinkHeaderCreator {
   }
 }
 
+class BeatCounterStatus extends Bundle {
+  val idx = UInt()
+  val done = Bool()
+}
+
+class TwoWayBeatCounterStatus extends Bundle {
+  val pending = Bool()
+  val up = new BeatCounterStatus()
+  val down = new BeatCounterStatus()
+}
+
 /** Utility trait containing wiring functions to keep track of how many data beats have 
   * been sent or recieved over a particular [[uncore.TileLinkChannel]] or pair of channels. 
   *
@@ -283,27 +294,31 @@ trait HasDataBeatCounters {
   /** Provides counters on two channels, as well a meta-counter that tracks how many
     * messages have been sent over the up channel but not yet responded to over the down channel
     *
-    * @param max max number of outstanding ups with no down
+    * @param status bundle of status of the counters
     * @param up outgoing channel
     * @param down incoming channel
+    * @param max max number of outstanding ups with no down
     * @param beat overrides cnts on single-beat messages
     * @param track whether up's message should be tracked
     * @return a tuple containing whether their are outstanding messages, up's count,
     *         up's done, down's count, down's done
     */
-  def connectTwoWayBeatCounter[T <: TileLinkChannel, S <: TileLinkChannel](
-      max: Int,
+  def connectTwoWayBeatCounters[T <: TileLinkChannel, S <: TileLinkChannel](
+      status: TwoWayBeatCounterStatus,
       up: DecoupledIO[T],
       down: DecoupledIO[S],
+      max: Int = 1,
       beat: UInt = UInt(0),
       trackUp: T => Bool = (t: T) => Bool(true),
-      trackDown: S => Bool = (s: S) => Bool(true)): (Bool, UInt, Bool, UInt, Bool) = {
-    val (up_idx, up_done) = connectDataBeatCounter(up.fire(), up.bits, beat)
-    val (down_idx, down_done) = connectDataBeatCounter(down.fire(), down.bits, beat)
-    val do_inc = up_done && trackUp(up.bits)
-    val do_dec = down_done && trackDown(down.bits)
-    val cnt = TwoWayCounter(do_inc, do_dec, max)
-    (cnt > UInt(0), up_idx, up_done, down_idx, down_done)
+      trackDown: S => Bool = (s: S) => Bool(true)) {
+    val (up_idx, up_done) = connectDataBeatCounter(up.fire() && trackUp(up.bits), up.bits, beat)
+    val (dn_idx, dn_done) = connectDataBeatCounter(down.fire() && trackDown(down.bits), down.bits, beat)
+    val cnt = TwoWayCounter(up_done, dn_done, max)
+    status.pending := cnt > UInt(0)
+    status.up.idx := up_idx
+    status.up.done := up_done
+    status.down.idx := dn_idx
+    status.down.done := dn_done
   }
 }
 
@@ -391,9 +406,10 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
     addr_beat = ognt.addr_beat,
     data = ognt.data)
 
+  assert(!io.in.release.valid || io.in.release.bits.isVoluntary(), "Unwrapper can only process voluntary releases.")
   val rel_grant = Grant(
     is_builtin_type = Bool(true),
-    g_type = Mux(gnt_voluntary, Grant.voluntaryAckType, ognt.g_type),
+    g_type = Grant.voluntaryAckType, // We should only every be working with voluntary releases
     client_xact_id = ognt.client_xact_id,
     manager_xact_id = ognt.manager_xact_id,
     addr_beat = ognt.addr_beat,

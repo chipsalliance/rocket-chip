@@ -132,8 +132,8 @@ trait HasTileLinkData extends HasTileLinkBeatId {
 
   def hasData(dummy: Int = 0): Bool
   def hasMultibeatData(dummy: Int = 0): Bool
-  def first(dummy: Int = 0): Bool = Mux(hasMultibeatData(), addr_beat === UInt(0), Bool(true))
-  def last(dummy: Int = 0): Bool = Mux(hasMultibeatData(), addr_beat === UInt(tlDataBeats-1), Bool(true))
+  def first(dummy: Int = 0): Bool = !hasMultibeatData() ||  addr_beat === UInt(0)
+  def last(dummy: Int = 0): Bool = !hasMultibeatData() || addr_beat === UInt(tlDataBeats-1)
 }
 
 /** An entire cache block of data */
@@ -186,6 +186,10 @@ trait HasAcquireUnion extends HasTileLinkParameters {
   }
   /** Full, beat-sized writemask */
   def full_wmask(dummy: Int = 0) = FillInterleaved(8, wmask())
+
+  /** Is this message a built-in read message */
+  def hasPartialWritemask(dummy: Int = 0): Bool = wmask() =/= Acquire.fullWriteMask
+
 }
 
 trait HasAcquireType extends HasTileLinkParameters {
@@ -207,17 +211,18 @@ trait HasAcquireType extends HasTileLinkParameters {
   def isPrefetch(dummy: Int = 0): Bool = isBuiltInType() &&
                                            (is(Acquire.getPrefetchType) || is(Acquire.putPrefetchType))
 
+  /** Is this message a built-in atomic message */
+  def isAtomic(dummy: Int = 0): Bool = isBuiltInType() && is(Acquire.putAtomicType)
+
+  /** Is this message a built-in read message */
+  def isGet(dummy: Int = 0): Bool = isBuiltInType() && (is(Acquire.getType) || is(Acquire.getBlockType))
+
   /** Does this message contain data? Assumes that no custom message types have data. */
   def hasData(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesWithData.contains(a_type)
 
   /** Does this message contain multiple beats of data? Assumes that no custom message types have data. */
   def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && isBuiltInType() &&
                                            Acquire.typesWithMultibeatData.contains(a_type)
-
-  /** Does this message require the manager to probe the client the very client that sent it?
-    * Needed if multiple caches are attached to the same port.
-    */
-  def requiresSelfProbe(dummy: Int = 0) = Bool(false)
 
   /** Mapping between each built-in Acquire type and a built-in Grant type.  */
   def getBuiltInGrantType(dummy: Int = 0): UInt = Acquire.getBuiltInGrantType(this.a_type)

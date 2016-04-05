@@ -47,13 +47,14 @@ class ClientMetadata(implicit p: Parameters) extends CoherenceMetadata()(p) {
   def makeAcquire(
         op_code: UInt,
         client_xact_id: UInt,
-        addr_block: UInt): Acquire = 
+        addr_block: UInt): Acquire = {
     Acquire(
       is_builtin_type = Bool(false),
       a_type = co.getAcquireType(op_code, this),
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       union = Cat(op_code, Bool(true)))(p)
+  }
 
   /** Constructs a Release message based on this metadata on cache control op
     *
