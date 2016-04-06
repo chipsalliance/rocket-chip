@@ -51,8 +51,9 @@ Putting the generator and the checker together, we can automatically search for 
 
 The [tracegen+check.sh](https://github.com/ucb-bar/rocket-chip/blob/master/scripts/tracegen%2Bcheck.sh) script (included in rocket-chip/scripts) provides an automated way to run a number of randomized tests. The number of tests, initial seed, and other parameters can be set via environment variables or the command line, see the script for more details. 
 
-The examples that follow assume that the rocket-chip/scripts directory is
-in your PATH and that rocket-chip is your current working directory.
+The examples that follow assume that the `groundtest/scripts`
+directory is in your `PATH` and that `rocket-chip/emulator` is your
+current working directory.
 
 ```
 > make CONFIG=TraceGenConfig
@@ -72,7 +73,6 @@ Load-external rate: 47%
 To run a single test with a specified random seed:
 
 ```
-> cd emulator
 > make CONFIG=TraceGenConfig
 > tracegen.py ./emulator-Top-TraceGenConfig 1 > trace.log
 > toaxe.py trace.log > trace.axe
