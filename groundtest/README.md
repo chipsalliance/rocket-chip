@@ -49,7 +49,7 @@ Putting the generator and the checker together, we can automatically search for 
 
 ### Quick Reference
 
-The [tracegen+check.sh](https://github.com/ucb-bar/rocket-chip/blob/master/scripts/tracegen%2Bcheck.sh) script (included in rocket-chip/scripts) provides an automated way to run a number of randomized tests. The number of tests, initial seed, and other parameters can be set via environment variables or the command line, see the script for more details. 
+The [tracegen+check.sh](https://github.com/ucb-bar/groundtest/blob/master/scripts/tracegen%2Bcheck.sh) script provides an automated way to run a number of randomized tests. The number of tests, initial seed, and other parameters can be set via environment variables or the command line, see the script for more details. 
 
 The examples that follow assume that the `groundtest/scripts`
 directory is in your `PATH` and that `rocket-chip/emulator` is your
@@ -118,7 +118,7 @@ Main points:
 
 
 We convert these traces to axe format using the
-[toaxe.py](https://github.com/ucb-bar/rocket-chip/blob/master/scripts/tracegen%2Bcheck.sh) script available in rocket-chip/scripts.
+[toaxe.py](https://github.com/ucb-bar/groundtest/blob/master/scripts/toaxe.py) script.
 
 ```
   > tracegen.py ./emulator-Top-TraceGenConfig 1 | toaxe.py -
