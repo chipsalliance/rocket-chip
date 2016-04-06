@@ -48,7 +48,7 @@ object TestBenchGeneration extends FileSystemUtilities {
   reg w_ready_$i;
   wire [`MEM_STRB_BITS-1:0] w_strb_$i;
   wire [`MEM_DATA_BITS-1:0] w_data_$i;
-  wire w_last;
+  wire w_last_$i;
 
   reg r_valid_$i;
   wire r_ready_$i;
