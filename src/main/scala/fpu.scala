@@ -9,8 +9,8 @@ import FPConstants._
 import uncore.constants.MemoryOpConstants._
 import cde.{Parameters, Field}
 
-case object SFMALatency
-case object DFMALatency
+case object SFMALatency extends Field[Int]
+case object DFMALatency extends Field[Int]
 
 object FPConstants
 {
