@@ -15,7 +15,7 @@ mem_gen = $(base_dir)/fsim/fpga_mem_gen
 sim_dir = .
 output_dir = $(sim_dir)/output
 
-BACKEND ?= fpga
+BACKEND ?= v
 CONFIG ?= DefaultFPGAConfig
 TB ?= rocketTestHarness
 

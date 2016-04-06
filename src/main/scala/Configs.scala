@@ -13,6 +13,13 @@ import scala.math.max
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob}
 
+object ConfigUtils {
+  def max_int(values: Int*): Int = {
+    values.reduce((a, b) => max(a, b))
+  }
+}
+import ConfigUtils._
+
 class DefaultConfig extends Config (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
@@ -27,49 +34,33 @@ class DefaultConfig extends Config (
       val scr = AddrMapEntry("scr", None, MemSize(scrSize, AddrMapConsts.RW))
       new AddrMap(deviceTree +: csrs :+ scr)
     }
-    def makeDeviceTree() = {
+    def makeConfigString() = {
       val addrMap = new AddrHashMap(site(GlobalAddrMap), site(MMIOBase))
-      val devices = site(GlobalDeviceSet)
-      val dt = new DeviceTreeGenerator
-      dt.beginNode("")
-      dt.addProp("#address-cells", 2)
-      dt.addProp("#size-cells", 2)
-      dt.addProp("model", "Rocket-Chip")
-        dt.beginNode("memory@0")
-          dt.addProp("device_type", "memory")
-          dt.addReg(0, site(MMIOBase).toLong)
-        dt.endNode()
-        dt.beginNode("cpus")
-          dt.addProp("#address-cells", 2)
-          dt.addProp("#size-cells", 2)
-          for (i <- 0 until site(NTiles)) {
-            val csrs = addrMap(s"conf:csr$i")
-            dt.beginNode(s"cpu@${csrs.start.toLong.toHexString}")
-              dt.addProp("device_type", "cpu")
-              dt.addProp("compatible", "riscv")
-              dt.addProp("isa", s"rv${site(XLen)}")
-              dt.addReg(csrs.start.toLong)
-            dt.endNode()
-          }
-        dt.endNode()
-        val scrs = addrMap("conf:scr")
-        dt.beginNode(s"scr@${scrs.start.toLong.toHexString}")
-          dt.addProp("device_type", "scr")
-          dt.addProp("compatible", "riscv")
-          dt.addProp("protection", scrs.prot)
-          dt.addReg(scrs.start.toLong, scrs.size.toLong)
-        dt.endNode()
-        for (dev <- devices.toSeq) {
-          val entry = addrMap(s"devices:${dev.name}")
-          dt.beginNode(s"${dev.name}@${entry.start}")
-            dt.addProp("device_type", s"${dev.dtype}")
-            dt.addProp("compatible", "riscv")
-            dt.addProp("protection", entry.prot)
-            dt.addReg(entry.start.toLong, entry.size.toLong)
-          dt.endNode()
-        }
-      dt.endNode()
-      dt.toArray()
+      val xLen = site(XLen)
+      val res = new StringBuilder
+      res append  "platform {\n"
+      res append  "  vendor ucb;\n"
+      res append  "  arch rocket;\n"
+      res append  "};\n"
+      res append  "ram {\n"
+      res append  "  0 {\n"
+      res append  "    addr 0;\n"
+      res append s"    size 0x${site(MMIOBase).toString(16)};\n"
+      res append  "  };\n"
+      res append  "};\n"
+      res append  "core {\n"
+      for (i <- 0 until site(NTiles)) {
+        val csrAddr = addrMap(s"conf:csr$i").start
+        res append s"  $i {\n"
+        res append  "    0 {\n"
+        res append s"      isa rv$xLen;\n"
+        res append s"      addr 0x${csrAddr.toString(16)};\n"
+        res append  "    };\n"
+        res append  "  };\n"
+      }
+      res append  "};\n"
+      res append '\u0000'
+      res.toString.getBytes
     }
     pname match {
       case HtifKey => HtifParameters(
@@ -89,10 +80,14 @@ class DefaultConfig extends Config (
       case ASIdBits => 7
       case MIFTagBits => Dump("MIF_TAG_BITS",
                          // Bits needed at the L2 agent
-                         log2Up(site(NAcquireTransactors)+2) +
+                         site(MIFMasterTagBits) + 
                          // Bits added by NASTI interconnect
                          max(log2Up(site(MaxBanksPerMemoryChannel)),
                             (if (site(UseDma)) 3 else 2)))
+      case MIFMasterTagBits => log2Up(max_int(
+                                  site(NTiles),
+                                  site(NAcquireTransactors)+2,
+                                  site(NDmaTransactors)))
       case MIFDataBits => Dump("MIF_DATA_BITS", 64)
       case MIFAddrBits => Dump("MIF_ADDR_BITS",
                                site(PAddrBits) - site(CacheBlockOffsetBits))
@@ -118,7 +113,7 @@ class DefaultConfig extends Config (
         case RowBits => 4*site(CoreInstBits)
         case NTLBEntries => 8
         case CacheIdBits => 0
-	case SplitMetadata => false
+        case SplitMetadata => false
       }:PF
       case "L1D" => {
         case NSets => Knob("L1D_SETS") //64
@@ -126,7 +121,7 @@ class DefaultConfig extends Config (
         case RowBits => 2*site(CoreDataBits)
         case NTLBEntries => 8
         case CacheIdBits => 0
-	case SplitMetadata => false
+        case SplitMetadata => false
       }:PF
       case ECCCode => None
       case Replacer => () => new RandomReplacement(site(NWays))
@@ -149,8 +144,11 @@ class DefaultConfig extends Config (
           case OuterTLId => "L2toMC" })))
       //Tile Constants
       case BuildTiles => {
-        TestGeneration.addSuites(rv64i.map(_("p")))
-        TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64u.map(_(env))))
+        val (rvi, rvu) =
+          if (site(XLen) == 64) (rv64i, rv64u)
+          else (rv32i, rv32u)
+        TestGeneration.addSuites(rvi.map(_("p")))
+        TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
@@ -187,7 +185,9 @@ class DefaultConfig extends Config (
       case CoreInstBits => 32
       case CoreDataBits => site(XLen)
       case NCustomMRWCSRs => 0
-      case MtvecInit => BigInt(0x100)
+      case ResetVector => BigInt(0x0)
+      case MtvecInit => BigInt(0x8)
+      case MtvecWritable => false
       //Uncore Paramters
       case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
@@ -202,9 +202,9 @@ class DefaultConfig extends Config (
                               site(NTiles) *
                                 (1 + (if(site(BuildRoCC).isEmpty) 0
                                       else site(RoccNMemChannels))),
-          maxClientXacts = max(site(NMSHRs) + 1,
-                               max(if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
-                                   if (site(UseDma)) 4 else 1)),
+          maxClientXacts = max_int(site(NMSHRs) + 1,
+                              if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
+                              if (site(UseDma)) 4 else 1),
           maxClientsPerPort = max(if (site(BuildRoCC).isEmpty) 1 else 2,
                                   if (site(UseDma)) site(NDmaTransactors) + 1 else 1),
           maxManagerXacts = site(NAcquireTransactors) + 2,
@@ -231,9 +231,10 @@ class DefaultConfig extends Config (
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 32)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
-      case UseBackupMemoryPort => true
+      case UseBackupMemoryPort => false
+      case UseHtifClockDiv => true
       case MMIOBase => Dump("MEM_SIZE", BigInt(1L << 30)) // 1 GB
-      case DeviceTree => makeDeviceTree()
+      case ConfigString => makeConfigString()
       case GlobalAddrMap => {
         AddrMap(
           AddrMapEntry("conf", None,
@@ -354,12 +355,19 @@ class WithZscale extends Config(
   }
 )
 
+class WithRV32 extends Config(
+  (pname,site,here) => pname match {
+    case XLen => 32
+    case UseFPU => false
+  }
+)
+
 class ZscaleConfig extends Config(new WithZscale ++ new DefaultConfig)
 
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
-    case UseBackupMemoryPort => false
+    case UseHtifClockDiv => false
   }
 )
 
@@ -371,16 +379,22 @@ class SmallConfig extends Config (
       case FastMulDiv => false
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 8)
+      case StoreDataQueueDepth => 2
+      case ReplayQueueDepth => 2
+      case NAcquireTransactors => 2
     }},
   knobValues = {
     case "L1D_SETS" => 64
     case "L1D_WAYS" => 1
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 1
+    case "L1D_MSHRS" => 1
   }
 )
 
 class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGAConfig)
+
+class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
 

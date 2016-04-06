@@ -27,12 +27,16 @@ case object BankIdLSB extends Field[Int]
 case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Whether to use the slow backup memory port [VLSI] */
 case object UseBackupMemoryPort extends Field[Boolean]
+/** Whether to divide HTIF clock */
+case object UseHtifClockDiv extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
 case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
 /** Enable DMA engine */
 case object UseDma extends Field[Boolean]
+/** A string describing on-chip devices, readable by target software */
+case object ConfigString extends cde.Field[Array[Byte]]
 
 case object UseStreamLoopback extends Field[Boolean]
 case object StreamLoopbackSize extends Field[Int]
@@ -120,6 +124,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).reduce(_++_)
   io.host <> uncore.io.host
   if (p(UseBackupMemoryPort)) { io.mem_backup_ctrl <> uncore.io.mem_backup_ctrl }
+  else { uncore.io.mem_backup_ctrl.en := Bool(false) }
 
   io.mem.zip(uncore.io.mem).foreach { case (outer, inner) =>
     TopUtils.connectNasti(outer, inner)
@@ -171,8 +176,8 @@ class Uncore(implicit val p: Parameters) extends Module
   scrArb.io.in(0) <> htif.io.scr
   scrArb.io.in(1) <> outmemsys.io.scr
   scrFile.io.smi <> scrArb.io.out
-  scrFile.io.scr.attach(UInt(nTiles), "N_CORES", false, true)
-  scrFile.io.scr.attach(UInt(p(MMIOBase) >> 20), "MMIO_BASE", false, true)
+  scrFile.io.scr.attach(Wire(init = UInt(nTiles)), "N_CORES")
+  scrFile.io.scr.attach(Wire(init = UInt(p(MMIOBase) >> 20)), "MMIO_BASE")
   // scrFile.io.scr <> (... your SCR connections ...)
 
   // Configures the enabled memory channels.  This can't be changed while the
@@ -183,25 +188,19 @@ class Uncore(implicit val p: Parameters) extends Module
     "MEMORY_CHANNEL_MUX_SELECT")
   outmemsys.io.memory_channel_mux_select := memory_channel_mux_select
 
-  val deviceTree = Module(new NastiROM(p(DeviceTree).toSeq))
+  val deviceTree = Module(new NastiROM(p(ConfigString).toSeq))
   deviceTree.io <> outmemsys.io.deviceTree
 
   // Wire the htif to the memory port(s) and host interface
   io.host.debug_stats_csr := htif.io.host.debug_stats_csr
   io.mem <> outmemsys.io.mem
-  if(p(UseBackupMemoryPort)) {
+  if(p(UseHtifClockDiv)) {
     outmemsys.io.mem_backup_en := io.mem_backup_ctrl.en
     VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr,
       outmemsys.io.mem_backup, io.mem_backup_ctrl, io.host, htifW)
   } else {
-    val tie_mem_backup_io = new MemSerializedIO(htifW).asDirectionless
-    val tie_mem_backup_ctrl = new MemBackupCtrlIO().asDirectionless
-    tie_mem_backup_io.req.valid := Bool(false)
-    tie_mem_backup_ctrl.en := Bool(false)
-    tie_mem_backup_ctrl.in_valid := Bool(false)
-    tie_mem_backup_ctrl.out_ready := Bool(false)
-    VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr,
-      tie_mem_backup_io, tie_mem_backup_ctrl, io.host, htifW)
+    io.host.out <> htif.io.host.out
+    htif.io.host.in <> io.host.in
   }
 }
 
@@ -270,10 +269,13 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   val nMasters = (if (dmaOpt.isEmpty) 2 else 3)
   val nSlaves = addrHashMap.nEntries
 
+  // TODO: the code to print this stuff should live somewhere else
   println("Generated Address Map")
   for ((name, base, size, _) <- addrHashMap.sortedEntries) {
     println(f"\t$name%s $base%x - ${base + size - 1}%x")
   }
+  println("Generated Configuration String")
+  println(new String(p(ConfigString)))
 
   val mmio_ic = Module(new NastiRecursiveInterconnect(nMasters, nSlaves, addrMap, mmioBase))
 
@@ -350,5 +352,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
            "Backup memory port only works when 1 memory channel is enabled")
     require(channelConfigs.sortWith(_ < _)(0) == 1,
                   "Backup memory port requires a single memory port mux config")
-  } else { io.mem <> mem_channels }
+  } else {
+    io.mem <> mem_channels
+    io.mem_backup.req.valid := Bool(false)
+  }
 }
