@@ -80,14 +80,9 @@ class DefaultConfig extends Config (
       case ASIdBits => 7
       case MIFTagBits => Dump("MIF_TAG_BITS",
                          // Bits needed at the L2 agent
-                         site(MIFMasterTagBits) + 
+                         log2Up(site(NAcquireTransactors)+2) +
                          // Bits added by NASTI interconnect
-                         max(log2Up(site(MaxBanksPerMemoryChannel)),
-                            (if (site(UseDma)) 3 else 2)))
-      case MIFMasterTagBits => log2Up(max_int(
-                                  site(NTiles),
-                                  site(NAcquireTransactors)+2,
-                                  site(NDmaTransactors)))
+                         log2Up(site(MaxBanksPerMemoryChannel)))
       case MIFDataBits => Dump("MIF_DATA_BITS", 64)
       case MIFAddrBits => Dump("MIF_ADDR_BITS",
                                site(PAddrBits) - site(CacheBlockOffsetBits))
@@ -149,7 +144,7 @@ class DefaultConfig extends Config (
           else (rv32i, rv32u)
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
+        TestGeneration.addSuite(bmarks)
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
         }
@@ -158,7 +153,6 @@ class DefaultConfig extends Config (
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
-      case UseDma => false
       case UseStreamLoopback => false
       case NDmaTransactors => 3
       case NDmaXacts => site(NDmaTransactors) * site(NTiles)
@@ -193,20 +187,24 @@ class DefaultConfig extends Config (
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
+      case ExtraL1Clients => 2 // RTC and HTIF
       case TLKey("L1toL2") => 
         TileLinkParameters(
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
           nCachingClients = site(NTiles),
-          nCachelessClients = (if (site(UseDma)) 2 else 1) +
+          nCachelessClients = site(ExtraL1Clients) +
                               site(NTiles) *
                                 (1 + (if(site(BuildRoCC).isEmpty) 0
                                       else site(RoccNMemChannels))),
-          maxClientXacts = max_int(site(NMSHRs) + 1,
-                              if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
-                              if (site(UseDma)) 4 else 1),
-          maxClientsPerPort = max(if (site(BuildRoCC).isEmpty) 1 else 2,
-                                  if (site(UseDma)) site(NDmaTransactors) + 1 else 1),
+          maxClientXacts = max_int(
+              // L1 cache
+              site(NMSHRs) + 1,
+              // RoCC
+              if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
+              // RTC
+              site(NTiles)),
+          maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
           maxManagerXacts = site(NAcquireTransactors) + 2,
           dataBits = site(CacheBlockBytes)*8,
           dataBeats = 2)
@@ -246,9 +244,6 @@ class DefaultConfig extends Config (
         val devset = new DeviceSet
         if (site(UseStreamLoopback)) {
           devset.addDevice("loopback", site(StreamLoopbackWidth) / 8, "stream")
-        }
-        if (site(UseDma)) {
-          devset.addDevice("dma", site(CacheBlockBytes), "dma")
         }
         devset
       }
@@ -433,7 +428,6 @@ class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
 class WithDmaController extends Config(
   (pname, site, here) => pname match {
-    case UseDma => true
     case BuildRoCC => Seq(
         RoccParameters(
           opcodes = OpcodeSet.custom2,
@@ -453,7 +447,6 @@ class WithStreamLoopback extends Config(
   })
 
 class DmaControllerConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultL2Config)
-class DualCoreDmaControllerConfig extends Config(new With2Cores ++ new DmaControllerConfig)
 class DmaControllerFPGAConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultFPGAConfig)
 
 class SmallL2Config extends Config(
@@ -481,3 +474,5 @@ class OneOrEightChannelBackupMemVLSIConfig extends Config(new WithOneOrMaxChanne
 
 class WithSplitL2Metadata extends Config(knobValues = { case "L2_SPLIT_METADATA" => true })
 class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new DefaultL2Config)
+
+class DualCoreConfig extends Config(new With2Cores ++ new DefaultConfig)
