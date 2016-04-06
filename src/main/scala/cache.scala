@@ -927,8 +927,9 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
                        dropPendingBit(io.data.read) &
                        dropPendingBitWhenBeatHasData(io.inner.release) &
                        dropPendingBitWhenBeatHasData(io.outer.grant)) |
-                     addPendingBitWhenBeatIsGetOrAtomic(io.inner.acquire) |
-                     addPendingBitWhenBeatHasPartialWritemask(io.inner.acquire)
+                     (~ignt_data_ready & (
+                       addPendingBitWhenBeatIsGetOrAtomic(io.inner.acquire) |
+                       addPendingBitWhenBeatHasPartialWritemask(io.inner.acquire)))
   val curr_read_beat = PriorityEncoder(pending_reads)
   io.data.read.valid := state === s_busy && pending_reads.orR && !pending_ognt
   io.data.read.bits.id := UInt(trackerId)
