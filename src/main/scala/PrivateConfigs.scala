@@ -36,7 +36,7 @@ class SmallBOOMConfig  extends Config(new WithSmallBOOMs  ++ new WithAllBooms ++
 class MediumBOOMConfig extends Config(new WithMediumBOOMs ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultL2Config)
 class MegaBOOMConfig   extends Config(new WithMegaBOOMs   ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultL2Config)
 
-class BOOMConfig extends Config(new WithMediumBOOMs ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultL2Config)
+class BOOMConfig extends Config(new WithMediumBOOMs ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new WithL2Capacity1024 ++ new DefaultL2Config)
 class BOOMVLSIConfig extends Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultVLSIConfig ++ new WithNoBoomCounters)
 class BOOMFPGAConfig extends Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultFPGAConfig)
 class BOOMCPPConfig extends  Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultCPPConfig)
