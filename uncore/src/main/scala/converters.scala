@@ -78,10 +78,10 @@ class FinishUnit(srcId: Int = 0, outstanding: Int = 2)(implicit p: Parameters) e
     val q = Module(new FinishQueue(outstanding))
     q.io.enq.valid := io.grant.fire() && g.requiresAck() && (!g.hasMultibeatData() || done)
     q.io.enq.bits := g.makeFinish()
-    q.io.enq.bits.client_id := io.grant.bits.header.src
+    q.io.enq.bits.manager_id := io.grant.bits.header.src
 
     io.finish.bits.header.src := UInt(srcId)
-    io.finish.bits.header.dst := q.io.deq.bits.client_id
+    io.finish.bits.header.dst := q.io.deq.bits.manager_id
     io.finish.bits.payload := q.io.deq.bits
     io.finish.valid := q.io.deq.valid
     q.io.deq.ready := io.finish.ready
@@ -123,7 +123,7 @@ class ClientTileLinkNetworkPort(clientId: Int, addrConvert: UInt => UInt)
   io.network.release <> rel_with_header
   io.network.finish <> fin_with_header
   io.client.probe <> prb_without_header
-  io.client.grant.bits.client_id := io.network.grant.bits.header.src
+  io.client.grant.bits.manager_id := io.network.grant.bits.header.src
   io.client.grant <> gnt_without_header
 }
 
@@ -159,14 +159,14 @@ class ClientUncachedTileLinkNetworkPort(clientId: Int, addrConvert: UInt => UInt
 }
 
 object ClientTileLinkHeaderCreator {
-  def apply[T <: ClientToManagerChannel with HasClientId](
+  def apply[T <: ClientToManagerChannel with HasManagerId](
         in: DecoupledIO[T],
         clientId: Int)
       (implicit p: Parameters): DecoupledIO[LogicalNetworkIO[T]] = {
     val out = Wire(new DecoupledIO(new LogicalNetworkIO(in.bits)))
     out.bits.payload := in.bits
     out.bits.header.src := UInt(clientId)
-    out.bits.header.dst := in.bits.client_id
+    out.bits.header.dst := in.bits.manager_id
     out.valid := in.valid
     in.ready := out.ready
     out

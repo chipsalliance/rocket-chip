@@ -147,6 +147,10 @@ trait HasClientId extends HasTileLinkParameters {
   val client_id = UInt(width = tlClientIdBits)
 }
 
+trait HasManagerId extends HasTileLinkParameters {
+  val manager_id = UInt(width = tlManagerIdBits)
+}
+
 trait HasAcquireUnion extends HasTileLinkParameters {
   val union = Bits(width = tlAcquireUnionBits)
 
@@ -787,11 +791,11 @@ class GrantToDst(implicit p: Parameters) extends Grant
 
 /** [[uncore.Grant]] with an extra field stating its destination */
 class GrantFromSrc(implicit p: Parameters) extends Grant
-    with HasClientId {
+    with HasManagerId {
   override def makeFinish(dummy: Int = 0): FinishToDst = {
     val f = Wire(new FinishToDst)
     f.manager_xact_id := this.manager_xact_id
-    f.client_id := this.client_id
+    f.manager_id := this.manager_id
     f
   }
 }
@@ -881,7 +885,7 @@ class Finish(implicit p: Parameters) extends ClientToManagerChannel()(p)
 
 /** [[uncore.Finish]] with an extra field stating its destination */
 class FinishToDst(implicit p: Parameters) extends Finish
-  with HasClientId
+  with HasManagerId
 
 /** Complete IO definition for incoherent TileLink, including networking headers */
 class UncachedTileLinkIO(implicit p: Parameters) extends TLBundle()(p) {
