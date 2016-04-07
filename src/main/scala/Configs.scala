@@ -105,7 +105,7 @@ class DefaultConfig extends Config (
       case "L1I" => {
         case NSets => Knob("L1I_SETS") //64
         case NWays => Knob("L1I_WAYS") //4
-        case RowBits => 4*site(CoreInstBits)
+        case RowBits => site(TLKey("L1toL2")).dataBitsPerBeat
         case NTLBEntries => 8
         case CacheIdBits => 0
         case SplitMetadata => false
@@ -113,7 +113,7 @@ class DefaultConfig extends Config (
       case "L1D" => {
         case NSets => Knob("L1D_SETS") //64
         case NWays => Knob("L1D_WAYS") //4
-        case RowBits => 2*site(CoreDataBits)
+        case RowBits => site(TLKey("L1toL2")).dataBitsPerBeat
         case NTLBEntries => 8
         case CacheIdBits => 0
         case SplitMetadata => false
@@ -206,20 +206,36 @@ class DefaultConfig extends Config (
               site(NTiles)),
           maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
           maxManagerXacts = site(NAcquireTransactors) + 2,
-          dataBits = site(CacheBlockBytes)*8,
-          dataBeats = 2)
+          dataBits = site(CacheBlockBytes)*8)
       case TLKey("L2toMC") => 
         TileLinkParameters(
-          coherencePolicy = new MEICoherence(new NullRepresentation(site(NBanksPerMemoryChannel))),
+          coherencePolicy = new MEICoherence(
+            new NullRepresentation(site(NBanksPerMemoryChannel))),
           nManagers = 1,
           nCachingClients = site(NBanksPerMemoryChannel),
           nCachelessClients = 0,
           maxClientXacts = 1,
           maxClientsPerPort = site(NAcquireTransactors) + 2,
           maxManagerXacts = 1,
-          dataBits = site(CacheBlockBytes)*8,
-          dataBeats = 2)
-      case TLKey("Outermost") => site(TLKey("L2toMC")).copy(dataBeats = site(MIFDataBeats))
+          dataBits = site(CacheBlockBytes)*8)
+      case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
+        maxClientXacts = site(NAcquireTransactors) + 2,
+        maxClientsPerPort = site(MaxBanksPerMemoryChannel),
+        dataBeats = site(MIFDataBeats))
+      case TLKey("L2toMMIO") => {
+        val addrMap = new AddrHashMap(site(GlobalAddrMap), site(MMIOBase))
+        TileLinkParameters(
+          coherencePolicy = new MICoherence(
+            new NullRepresentation(site(NBanksPerMemoryChannel))),
+          nManagers = addrMap.nEntries,
+          nCachingClients = 0,
+          nCachelessClients = 1,
+          maxClientXacts = 4,
+          maxClientsPerPort = 1,
+          maxManagerXacts = 1,
+          dataBits = site(CacheBlockBytes) * 8)
+      }
+      case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
@@ -227,7 +243,7 @@ class DefaultConfig extends Config (
       case MaxBanksPerMemoryChannel => site(NBanksPerMemoryChannel) * site(NMemoryChannels) / site(MemoryChannelMuxConfigs).sortWith{_ < _}(0)
       case NOutstandingMemReqsPerChannel => site(MaxBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
       case BankIdLSB => 0
-      case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 32)
+      case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case UseBackupMemoryPort => false
       case UseHtifClockDiv => true
@@ -252,9 +268,9 @@ class DefaultConfig extends Config (
     case "NTILES" => 1
     case "NBANKS_PER_MEM_CHANNEL" => 1
     case "L1D_MSHRS" => 2
-    case "L1D_SETS" => 128
+    case "L1D_SETS" => 64
     case "L1D_WAYS" => 4
-    case "L1I_SETS" => 128
+    case "L1I_SETS" => 64
     case "L1I_WAYS" => 4
     case "L1I_BUFFER_WAYS" => false
   }
@@ -353,6 +369,7 @@ class WithZscale extends Config(
 class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
+    case UseVM => false
     case UseFPU => false
   }
 )
@@ -373,7 +390,7 @@ class SmallConfig extends Config (
       case UseFPU => false
       case FastMulDiv => false
       case NTLBEntries => 4
-      case BtbKey => BtbParameters(nEntries = 8)
+      case BtbKey => BtbParameters(nEntries = 0)
       case StoreDataQueueDepth => 2
       case ReplayQueueDepth => 2
       case NAcquireTransactors => 2
@@ -389,7 +406,7 @@ class SmallConfig extends Config (
 
 class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGAConfig)
 
-class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
+class DefaultRV32Config extends Config(new SmallConfig ++ new WithRV32 ++ new DefaultConfig)
 
 class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
 

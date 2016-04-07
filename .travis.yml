@@ -46,7 +46,8 @@ env:
     - CONFIG=RoccExampleConfig
     - CONFIG=DualCoreConfig
     - CONFIG=MemtestConfig
-    - CONFIG=MemtestL2Config
+    - CONFIG=FancyMemtestConfig
+    - CONFIG=MemoryMuxMemtestConfig
     - CONFIG=BroadcastRegressionTestConfig
     - CONFIG=CacheRegressionTestConfig
     - CONFIG=UnitTestConfig
