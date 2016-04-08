@@ -7,12 +7,6 @@
 #include <cstring>
 #include <queue>
 
-void write_masked_data(
-    uint8_t *base, uint8_t *data, uint64_t strb, uint64_t size);
-
-void write_masked_data(
-    uint8_t *base, uint8_t *data, uint64_t strb, uint64_t size);
-
 class mm_t
 {
  public:
@@ -61,7 +55,7 @@ class mm_t
   virtual size_t get_line_size() { return line_size; }
 
   void write(uint64_t addr, uint8_t *data, uint64_t strb, uint64_t size);
-  std::vector<char> read(uint64_t addr, uint64_t size);
+  std::vector<char> read(uint64_t addr);
 
   virtual ~mm_t();
 
