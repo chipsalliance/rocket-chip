@@ -8,7 +8,8 @@ trait HasAtosParameters extends HasNastiParameters {
   // round up to a multiple of 32
   def roundup(n: Int) = 32 * ((n - 1) / 32 + 1)
 
-  val atosUnionBits = max(nastiXDataBits + nastiWStrobeBits + 1,
+  val atosUnionBits = max(
+    nastiXIdBits + nastiXDataBits + nastiWStrobeBits + 1,
     nastiXIdBits + nastiXBurstBits +
     nastiXSizeBits + nastiXLenBits + nastiXAddrBits)
   val atosIdBits = nastiXIdBits
@@ -16,11 +17,13 @@ trait HasAtosParameters extends HasNastiParameters {
   val atosRespBits = nastiXRespBits
   val atosDataBits = nastiXDataBits
 
-  val atosLenOffset = nastiXAddrBits
+  val atosAddrOffset = atosIdBits
+  val atosLenOffset = atosIdBits + nastiXAddrBits
   val atosSizeOffset = atosLenOffset + nastiXLenBits
   val atosBurstOffset = atosSizeOffset + nastiXSizeBits
-  val atosIdOffset = atosBurstOffset + nastiXBurstBits
-  val atosStrobeOffset = nastiXDataBits
+
+  val atosDataOffset = atosIdBits
+  val atosStrobeOffset = nastiXDataBits + atosIdBits
   val atosLastOffset = atosStrobeOffset + nastiWStrobeBits
 
   val atosRequestBits = roundup(atosTypBits + atosUnionBits)
@@ -49,13 +52,13 @@ object AtosRequest {
   }
 
   def apply(ar: NastiReadAddressChannel)(implicit p: Parameters): AtosRequest =
-    apply(arType, Cat(ar.id, ar.burst, ar.size, ar.len, ar.addr))
+    apply(arType, Cat(ar.burst, ar.size, ar.len, ar.addr, ar.id))
 
   def apply(aw: NastiWriteAddressChannel)(implicit p: Parameters): AtosRequest =
-    apply(awType, Cat(aw.id, aw.burst, aw.size, aw.len, aw.addr))
+    apply(awType, Cat(aw.burst, aw.size, aw.len, aw.addr, aw.id))
 
   def apply(w: NastiWriteDataChannel)(implicit p: Parameters): AtosRequest =
-    apply(wType, Cat(w.last, w.strb, w.data))
+    apply(wType, Cat(w.last, w.strb, w.data, w.id))
 }
 
 class AtosRequest(implicit p: Parameters)
@@ -63,11 +66,8 @@ class AtosRequest(implicit p: Parameters)
   val typ = UInt(width = atosTypBits)
   val union = UInt(width = atosUnionBits)
 
-  def id(dummy: Int = 0) =
-    union(atosIdOffset + nastiXIdBits - 1, atosIdOffset)
-
   def burst(dummy: Int = 0) =
-    union(atosIdOffset - 1, atosBurstOffset)
+    union(atosUnionBits - 1, atosBurstOffset)
 
   def size(dummy: Int = 0) =
     union(atosBurstOffset - 1, atosSizeOffset)
@@ -76,10 +76,13 @@ class AtosRequest(implicit p: Parameters)
     union(atosSizeOffset - 1, atosLenOffset)
 
   def addr(dummy: Int = 0) =
-    union(atosLenOffset - 1, 0)
+    union(atosLenOffset - 1, atosAddrOffset)
+
+  def id(dummy: Int = 0) =
+    union(atosIdBits - 1, 0)
 
   def data(dummy: Int = 0) =
-    union(nastiXDataBits - 1, 0)
+    union(atosStrobeOffset - 1, atosDataOffset)
 
   def strb(dummy: Int = 0) =
     union(atosLastOffset - 1, atosStrobeOffset)
@@ -241,6 +244,7 @@ class AtosRequestDecoder(implicit p: Parameters) extends AtosModule()(p) {
 
   io.w.valid := io.req.valid && is_w
   io.w.bits := NastiWriteDataChannel(
+    id = io.req.bits.id(),
     data = io.req.bits.data(),
     strb = io.req.bits.strb(),
     last = io.req.bits.last())
