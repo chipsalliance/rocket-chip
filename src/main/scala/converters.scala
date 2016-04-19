@@ -494,6 +494,7 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
 
   io.nasti.w.valid := put_helper.fire(io.nasti.w.ready)
   io.nasti.w.bits := NastiWriteDataChannel(
+    id = io.tl.acquire.bits.client_xact_id,
     data = io.tl.acquire.bits.data,
     strb = io.tl.acquire.bits.wmask(),
     last = tl_wrap_out || (io.tl.acquire.fire() && is_subblock))
