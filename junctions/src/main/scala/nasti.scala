@@ -93,6 +93,7 @@ class NastiWriteAddressChannel(implicit p: Parameters) extends NastiAddressChann
 
 class NastiWriteDataChannel(implicit p: Parameters) extends NastiMasterToSlaveChannel()(p)
     with HasNastiData {
+  val id   = UInt(width = nastiWIdBits)
   val strb = UInt(width = nastiWStrobeBits)
   val user = UInt(width = nastiWUserBits)
 }
@@ -167,7 +168,8 @@ object NastiReadAddressChannel {
 }
 
 object NastiWriteDataChannel {
-  def apply(data: UInt, last: Bool = Bool(true))(implicit p: Parameters): NastiWriteDataChannel = {
+  def apply(data: UInt, last: Bool = Bool(true), id: UInt = UInt(0))
+           (implicit p: Parameters): NastiWriteDataChannel = {
     val w = Wire(new NastiWriteDataChannel)
     w.strb := Fill(w.nastiWStrobeBits, UInt(1, 1))
     w.data := data
@@ -175,9 +177,9 @@ object NastiWriteDataChannel {
     w.user := UInt(0)
     w
   }
-  def apply(data: UInt, strb: UInt, last: Bool)
+  def apply(data: UInt, strb: UInt, last: Bool, id: UInt)
            (implicit p: Parameters): NastiWriteDataChannel = {
-    val w = apply(data, last)
+    val w = apply(data, last, id)
     w.strb := strb
     w
   }
