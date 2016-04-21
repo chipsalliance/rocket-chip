@@ -534,7 +534,7 @@ class NastiRecursiveInterconnect(
   addrmap.zip(realAddrMap).zip(xbar.io.slaves).zipWithIndex.foreach {
     case (((entry, (start, size)), xbarSlave), i) => {
       entry.region match {
-        case MemSize(_, _) =>
+        case MemSize(_, _, _) =>
           io.slaves(slaveInd) <> xbarSlave
           slaveInd += 1
         case MemSubmap(_, submap) =>
