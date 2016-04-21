@@ -1,7 +1,7 @@
 package uncore
 
 import Chisel._
-import junctions.{SmiIO, MMIOBase}
+import junctions.SmiIO
 import cde.Parameters
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
