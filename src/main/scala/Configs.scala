@@ -35,9 +35,10 @@ class DefaultConfig extends Config (
       new AddrMap(deviceTree +: csrs :+ scr)
     }
     def makeConfigString() = {
-      val addrMap = new AddrHashMap(site(GlobalAddrMap), site(MMIOBase))
+      val addrMap = new AddrHashMap(site(GlobalAddrMap))
       val xLen = site(XLen)
       val res = new StringBuilder
+      val memSize = addrMap(s"mem").size
       res append  "platform {\n"
       res append  "  vendor ucb;\n"
       res append  "  arch rocket;\n"
@@ -45,7 +46,7 @@ class DefaultConfig extends Config (
       res append  "ram {\n"
       res append  "  0 {\n"
       res append  "    addr 0;\n"
-      res append s"    size 0x${site(MMIOBase).toString(16)};\n"
+      res append s"    size 0x${memSize.toString(16)};\n"
       res append  "  };\n"
       res append  "};\n"
       res append  "core {\n"
@@ -222,11 +223,11 @@ class DefaultConfig extends Config (
         maxClientsPerPort = site(MaxBanksPerMemoryChannel),
         dataBeats = site(MIFDataBeats))
       case TLKey("L2toMMIO") => {
-        val addrMap = new AddrHashMap(site(GlobalAddrMap), site(MMIOBase))
+        val addrMap = new AddrHashMap(site(GlobalAddrMap))
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = addrMap.nEntries,
+          nManagers = addrMap.nEntries - 1,
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 4,
@@ -246,10 +247,12 @@ class DefaultConfig extends Config (
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case UseBackupMemoryPort => false
       case UseHtifClockDiv => true
-      case MMIOBase => Dump("MEM_SIZE", BigInt(1L << 30)) // 1 GB
       case ConfigString => makeConfigString()
       case GlobalAddrMap => {
+        val memsize = BigInt(1L << 30)
+        Dump("MEM_SIZE", memsize)
         AddrMap(
+          AddrMapEntry("mem", None, MemSize(memsize, AddrMapConsts.RWX, true)),
           AddrMapEntry("conf", None,
             MemSubmap(BigInt(1L << 30), genCsrAddrMap)),
           AddrMapEntry("devices", None,
