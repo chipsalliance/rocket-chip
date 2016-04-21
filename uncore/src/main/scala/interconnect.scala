@@ -291,7 +291,7 @@ class TileLinkRecursiveInterconnect(
   addrmap.zip(realAddrMap).zip(xbar.io.out).zipWithIndex.foreach {
     case (((entry, (start, size)), xbarOut), i) => {
       entry.region match {
-        case MemSize(_, _) =>
+        case MemSize(_, _, _) =>
           io.out(outInd) <> xbarOut
           outInd += 1
         case MemSubmap(_, submap) =>
