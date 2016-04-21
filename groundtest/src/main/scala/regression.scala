@@ -2,7 +2,7 @@ package groundtest
 
 import Chisel._
 import uncore._
-import junctions.{MMIOBase, ParameterizedBundle}
+import junctions.{ParameterizedBundle, HasAddrMapParameters}
 import rocket.HellaCacheIO
 import cde.{Parameters, Field}
 
@@ -14,7 +14,7 @@ class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) 
 }
 
 abstract class Regression(implicit val p: Parameters)
-    extends Module with HasTileLinkParameters {
+    extends Module with HasTileLinkParameters with HasAddrMapParameters {
   val io = new RegressionIO
 }
 
@@ -49,7 +49,7 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
   io.mem.grant.ready := Bool(true)
 
   io.cache.req.valid := !get_sent && started
-  io.cache.req.bits.addr := UInt(p(MMIOBase))
+  io.cache.req.bits.addr := UInt(addrMap("conf:devicetree").start)
   io.cache.req.bits.typ := MT_W
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)
