@@ -8,6 +8,7 @@ import Instructions._
 import cde.{Parameters, Field}
 import uncore._
 import scala.math._
+import junctions.{AddrHashMap, GlobalAddrMap}
 
 class MStatus extends Bundle {
   val prv = UInt(width = PRV.SZ) // not truly part of mstatus, but convenient
@@ -227,7 +228,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.misa -> UInt(isa),
     CSRs.mstatus -> read_mstatus,
     CSRs.mtvec -> reg_mtvec,
-    CSRs.mcfgaddr -> UInt(p(junctions.MMIOBase)),
+    CSRs.mcfgaddr -> UInt(addrMap("mem").size),
     CSRs.mipi -> reg_mip.msip,
     CSRs.mip -> read_mip,
     CSRs.mie -> reg_mie,

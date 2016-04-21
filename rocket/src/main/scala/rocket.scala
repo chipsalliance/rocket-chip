@@ -48,7 +48,6 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val vpnBitsExtended = vpnBits + (vaddrBits < xLen).toInt
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
-  val mmioBase = p(MMIOBase)
   val nCustomMrwCsrs = p(NCustomMRWCSRs)
   val roccCsrs = if (p(BuildRoCC).isEmpty) Nil
     else p(BuildRoCC).flatMap(_.csrs)
