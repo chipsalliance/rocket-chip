@@ -3,7 +3,7 @@ package rocket
 import Chisel._
 import uncore._
 import uncore.DmaRequest._
-import junctions.ParameterizedBundle
+import junctions.{ParameterizedBundle, AddrHashMap, GlobalAddrMap}
 import cde.Parameters
 
 trait HasClientDmaParameters extends HasCoreParameters with HasDmaParameters {
@@ -165,8 +165,10 @@ class DmaFrontend(implicit p: Parameters) extends CoreModule()(p)
   }
 
   def check_region(cmd: UInt, src: UInt, dst: UInt): Bool = {
-    val dst_ok = Mux(cmd === DMA_CMD_SOUT, dst >= UInt(mmioBase), dst < UInt(mmioBase))
-    val src_ok = Mux(cmd === DMA_CMD_SIN,  src >= UInt(mmioBase), Bool(true))
+    val src_cacheable = addrMap.isCacheable(src)
+    val dst_cacheable = addrMap.isCacheable(dst)
+    val dst_ok = Mux(cmd === DMA_CMD_SOUT, !dst_cacheable, dst_cacheable)
+    val src_ok = Mux(cmd === DMA_CMD_SIN,  !src_cacheable, Bool(true))
     dst_ok && src_ok
   }
 
