@@ -107,6 +107,7 @@ class PortedTileLinkCrossbar(
     (implicit p: Parameters)
       extends PortedTileLinkNetwork(addrToManagerId, sharerToClientId, clientDepths, managerDepths)(p) {
   val n = p(LNEndpoints)
+  val phyHdrWidth = log2Up(n)
   val count = tlDataBeats
   // Actually instantiate the particular networks required for TileLink
   val acqNet = Module(new BasicCrossbar(n, new Acquire, count, Some((a: PhysicalNetworkIO[Acquire]) => a.payload.hasMultibeatData())))
@@ -134,12 +135,12 @@ class PortedTileLinkCrossbar(
   }
   def managerToCrossbarShim[T <: Data](in: LNIO[T]): PNIO[T] = {
     val out = DefaultToPhysicalShim(n, in)
-    out.bits.header.dst := in.bits.header.dst + UInt(nManagers)
+    out.bits.header.dst := in.bits.header.dst + UInt(nManagers, phyHdrWidth)
     out
   }
   def clientToCrossbarShim[T <: Data](in: LNIO[T]): PNIO[T] = {
     val out = DefaultToPhysicalShim(n, in)
-    out.bits.header.src := in.bits.header.src + UInt(nManagers)
+    out.bits.header.src := in.bits.header.src + UInt(nManagers, phyHdrWidth)
     out
   }
 
