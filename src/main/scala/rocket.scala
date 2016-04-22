@@ -496,7 +496,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     Mux(wb_xcpt || csr.io.eret, csr.io.evec,     // exception or [m|s]ret
     Mux(replay_wb,              wb_reg_pc,       // replay
                                 mem_npc)).toUInt // mispredicted branch
-  io.imem.invalidate := wb_reg_valid && wb_ctrl.fence_i
+  io.imem.flush_icache := wb_reg_valid && wb_ctrl.fence_i
+  io.imem.flush_tlb := csr.io.fatc
   io.imem.resp.ready := !ctrl_stalld || csr.io.interrupt
 
   io.imem.btb_update.valid := mem_reg_valid && !mem_npc_misaligned && mem_wrong_npc && mem_cfi_taken && !take_pc_wb

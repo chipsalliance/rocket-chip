@@ -23,7 +23,8 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val btb_update = Valid(new BTBUpdate)
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
-  val invalidate = Bool(OUTPUT)
+  val flush_icache = Bool(OUTPUT)
+  val flush_tlb = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
 }
 
@@ -80,7 +81,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
     btb.io.btb_update := io.cpu.btb_update
     btb.io.bht_update := io.cpu.bht_update
     btb.io.ras_update := io.cpu.ras_update
-    btb.io.invalidate := io.cpu.invalidate || io.ptw.invalidate
+    btb.io.invalidate := io.cpu.flush_icache || io.cpu.flush_tlb // virtual tags
     when (!stall && !icmiss) {
       btb.io.req.valid := true
       s2_btb_resp_valid := btb.io.resp.valid
@@ -103,7 +104,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   io.mem <> icache.io.mem
   icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.idx := io.cpu.npc
-  icache.io.invalidate := io.cpu.invalidate
+  icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_ppn := tlb.io.resp.ppn
   icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || tlb.io.resp.xcpt_if || icmiss || io.ptw.invalidate
 
