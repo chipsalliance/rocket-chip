@@ -162,7 +162,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   val reg_tohost = Reg(init=Bits(0, xLen))
   val reg_fromhost = Reg(init=Bits(0, xLen))
-  val reg_stats = Reg(init=Bool(false))
   val reg_uarch_counters = io.uarch_counters.map(WideCounter(xLen, _))
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
@@ -204,8 +203,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
   when (io.host.csr.resp.fire()) { host_csr_rep_valid := false }
 
-  io.host.debug_stats_csr := reg_stats // direct export up the hierarchy
-
   val isa_string = "IMA" +
     (if (usingVM) "S" else "") +
     (if (usingFPU) "FDG" else "") +
@@ -240,7 +237,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mcause -> reg_mcause,
     CSRs.mtimecmp -> reg_mtimecmp,
     CSRs.mhartid -> io.host.id,
-    CSRs.stats -> reg_stats,
     CSRs.mtohost -> reg_tohost,
     CSRs.mfromhost -> reg_fromhost)
 
@@ -473,7 +469,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     when (decoded_addr(CSRs.mtime))    { reg_time := wdata }
     when (decoded_addr(CSRs.mfromhost)){ when (reg_fromhost === UInt(0) || !host_csr_req_fire) { reg_fromhost := wdata } }
     when (decoded_addr(CSRs.mtohost))  { when (reg_tohost === UInt(0) || host_csr_req_fire) { reg_tohost := wdata } }
-    when (decoded_addr(CSRs.stats))    { reg_stats := wdata(0) }
     if (usingFPU) {
       when (decoded_addr(CSRs.fflags)) { reg_fflags := wdata }
       when (decoded_addr(CSRs.frm))    { reg_frm := wdata }
