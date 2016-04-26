@@ -170,9 +170,15 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val grant_word = Reg(UInt(width = wordBits))
   val fq = Module(new FinishQueue(1))
 
+  val s_idle :: s_acquire :: s_grant :: s_resp :: s_finish :: Nil = Enum(Bits(), 5)
+  val state = Reg(init = s_idle)
+  io.req.ready := (state === s_idle)
+
   fq.io.enq.valid := io.grant.valid && io.grant.bits.requiresAck()
   fq.io.enq.bits := io.grant.bits.makeFinish()
-  io.finish <> fq.io.deq
+  io.finish.valid := fq.io.deq.valid && (state === s_finish)
+  io.finish.bits := fq.io.deq.bits
+  fq.io.deq.ready := io.finish.ready && (state === s_finish)
 
   val storegen = new StoreGen(req.typ, req.addr, req.data, wordBytes)
   val loadgen = new LoadGen(req.typ, req.addr, grant_word, req_cmd_sc, wordBytes)
@@ -180,11 +186,6 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val beat_offset = req.addr(beatOffBits - 1, wordOffBits)
   val beat_mask = (storegen.mask << Cat(beat_offset, UInt(0, wordOffBits)))
   val beat_data = Fill(beatWords, storegen.data)
-
-  val s_idle :: s_acquire :: s_grant :: s_resp :: s_finish :: Nil = Enum(Bits(), 5)
-  val state = Reg(init = s_idle)
-
-  io.req.ready := (state === s_idle)
 
   val addr_block = req.addr(paddrBits - 1, blockOffBits)
   val addr_beat  = req.addr(blockOffBits - 1, beatOffBits)
