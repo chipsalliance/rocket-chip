@@ -1011,9 +1011,6 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
       data = gnt_data_buffer.toBits)(innerConfig)
 
     val smallget_grant = ognt.g_type === Grant.getDataBeatType
-    val get_grant_align = io.out.grant.bits.addr_beat(
-      innerByteAddrBits - outerByteAddrBits - 1, 0)
-    val get_grant_shift = Cat(get_grant_align, UInt(0, outerByteAddrBits + 3))
 
     val get_grant = Grant(
       is_builtin_type = Bool(true),
@@ -1021,7 +1018,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
       client_xact_id = ognt.client_xact_id,
       manager_xact_id = ognt.manager_xact_id,
       addr_beat = ognt.addr_beat >> UInt(log2Up(factor)),
-      data = ognt.data << get_grant_shift)(innerConfig)
+      data = Fill(factor, ognt.data))(innerConfig)
 
     io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
     io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)
