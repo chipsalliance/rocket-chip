@@ -25,7 +25,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters {
   val idxLSB = blockOffBits
   val offsetmsb = idxLSB-1
   val offsetlsb = wordOffBits
-  val rowWords = rowBits/wordBits 
+  val rowWords = rowBits/wordBits
   val doNarrowRead = coreDataBits * nWays % rowBits == 0
   val encDataBits = code.width(coreDataBits)
   val encRowBits = encDataBits*rowWords
@@ -37,7 +37,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters {
   require(lrscCycles >= 32) // ISA requires 16-insn LRSC sequences to succeed
   require(isPow2(nSets))
   require(rowBits <= outerDataBits)
-  require(untagBits <= pgIdxBits)
+  require(!usingVM || untagBits <= pgIdxBits)
 }
 
 abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
@@ -800,7 +800,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val dtlb = Module(new TLB)
   io.ptw <> dtlb.io.ptw
-  dtlb.io.req.valid := s1_valid_masked && s1_readwrite && !s1_req.phys
+  dtlb.io.req.valid := s1_valid_masked && s1_readwrite
   dtlb.io.req.bits.passthrough := s1_req.phys
   dtlb.io.req.bits.asid := UInt(0)
   dtlb.io.req.bits.vpn := s1_req.addr >> pgIdxBits
@@ -866,7 +866,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   writeArb.io.out.ready := data.io.write.ready
   data.io.write.bits := writeArb.io.out.bits
   val wdata_encoded = (0 until rowWords).map(i => code.encode(writeArb.io.out.bits.data(coreDataBits*(i+1)-1,coreDataBits*i)))
-  data.io.write.bits.data := Vec(wdata_encoded).toBits
+  data.io.write.bits.data := Cat(wdata_encoded.reverse)
 
   // tag read for new requests
   metaReadArb.io.in(4).valid := io.cpu.req.valid
