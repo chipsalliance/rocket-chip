@@ -37,7 +37,6 @@ class HostIO(w: Int) extends Bundle {
   val clk_edge = Bool(OUTPUT)
   val in = Decoupled(Bits(width = w)).flip
   val out = Decoupled(Bits(width = w))
-  val debug_stats_csr = Bool(OUTPUT)
 
   override def cloneType = new HostIO(w).asInstanceOf[this.type]
 }
@@ -46,9 +45,6 @@ class HtifIO(implicit p: Parameters) extends HtifBundle()(p) {
   val reset = Bool(INPUT)
   val id = UInt(INPUT, log2Up(nCores))
   val csr = new SmiIO(csrDataBits, 12).flip
-  val debug_stats_csr = Bool(OUTPUT)
-    // wired directly to stats register
-    // expected to be used to quickly indicate to testbench to do logging b/c in 'interesting' work
 }
 
 class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHtifParameters {
@@ -58,9 +54,6 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
     val mem = new ClientUncachedTileLinkIO
     val scr = new SmiIO(scrDataBits, scrAddrBits)
   }
-
-  io.host.debug_stats_csr := io.cpu.map(_.debug_stats_csr).reduce(_||_)
-    // system is 'interesting' if any tile is 'interesting'
 
   val short_request_bits = 64
   val long_request_bits = short_request_bits + dataBits*dataBeats
