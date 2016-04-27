@@ -156,7 +156,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_sbadaddr = Reg(UInt(width = vaddrBitsExtended))
   val reg_sscratch = Reg(Bits(width = xLen))
   val reg_stvec = Reg(UInt(width = vaddrBits))
-  val reg_mtimecmp = Reg(Bits(width = xLen))
   val reg_sptbr = Reg(UInt(width = ppnBits))
   val reg_wfi = Reg(init=Bool(false))
 
@@ -166,7 +165,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
-  val reg_time = Reg(UInt(width = 64)) // regardless of XLEN
   val reg_instret = WideCounter(64, io.retire)
   val reg_cycle: UInt = if (enableCommitLog) { reg_instret } else { WideCounter(64) }
 
@@ -215,7 +213,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mimpid -> UInt(0),
     CSRs.marchid -> UInt(0),
     CSRs.mvendorid -> UInt(0),
-    CSRs.mtime -> reg_time,
     CSRs.mcycle -> reg_cycle,
     CSRs.minstret -> reg_instret,
     CSRs.mucounteren -> UInt(0),
@@ -235,7 +232,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mepc -> reg_mepc.sextTo(xLen),
     CSRs.mbadaddr -> reg_mbadaddr.sextTo(xLen),
     CSRs.mcause -> reg_mcause,
-    CSRs.mtimecmp -> reg_mtimecmp,
     CSRs.mhartid -> io.host.id,
     CSRs.mtohost -> reg_tohost,
     CSRs.mfromhost -> reg_fromhost)
@@ -276,7 +272,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
 
   if (xLen == 32) {
-    read_mapping += CSRs.mtimeh -> (reg_time >> 32)
     read_mapping += CSRs.mcycleh -> (reg_cycle >> 32)
     read_mapping += CSRs.minstreth -> (reg_instret >> 32)
     read_mapping += CSRs.mutime_deltah -> UInt(0)
@@ -404,10 +399,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   assert(PopCount(insn_ret :: io.exception :: csr_xcpt :: Nil) <= 1, "these conditions must be mutually exclusive")
 
-  when (reg_time >= reg_mtimecmp) {
-    reg_mip.mtip := true
-  }
-
+  reg_mip.mtip := io.host.timerIRQ
   io.time := reg_cycle
   io.csr_stall := reg_wfi
 
@@ -465,8 +457,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata >> 2 << 2 }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
-    when (decoded_addr(CSRs.mtimecmp)) { reg_mtimecmp := wdata; reg_mip.mtip := false }
-    when (decoded_addr(CSRs.mtime))    { reg_time := wdata }
     when (decoded_addr(CSRs.mfromhost)){ when (reg_fromhost === UInt(0) || !host_csr_req_fire) { reg_fromhost := wdata } }
     when (decoded_addr(CSRs.mtohost))  { when (reg_tohost === UInt(0) || host_csr_req_fire) { reg_tohost := wdata } }
     if (usingFPU) {
