@@ -505,21 +505,20 @@ class NastiRecursiveInterconnect(
   var lastEnd = base
   var slaveInd = 0
   val levelSize = addrmap.size
-  val realAddrMap = new ArraySeq[(BigInt, BigInt)](addrmap.size)
 
-  addrmap.zipWithIndex.foreach { case (AddrMapEntry(name, startOpt, region), i) =>
-    val start = startOpt.getOrElse(lastEnd)
+  val realAddrMap = addrmap map { case AddrMapEntry(name, region) =>
+    val start = lastEnd
     val size = region.size
 
-    require(bigIntPow2(size),
+    require(isPow2(size),
       s"Region $name size $size is not a power of 2")
     require(start % size == 0,
       f"Region $name start address 0x$start%x not divisible by 0x$size%x" )
     require(start >= lastEnd,
       f"Region $name start address 0x$start%x before previous region end")
 
-    realAddrMap(i) = (start, size)
     lastEnd = start + size
+    (start, size)
   }
 
   val routeSel = (addr: UInt) => {

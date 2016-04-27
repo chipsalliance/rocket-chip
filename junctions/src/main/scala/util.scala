@@ -3,10 +3,6 @@ package junctions
 import Chisel._
 import cde.Parameters
 
-object bigIntPow2 {
-  def apply(in: BigInt): Boolean = in > 0 && ((in & (in-1)) == 0)
-}
-
 class ParameterizedBundle(implicit p: Parameters) extends Bundle {
   override def cloneType = {
     try {
