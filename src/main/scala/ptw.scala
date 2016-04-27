@@ -120,6 +120,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.req.bits.addr := pte_addr
   io.mem.s1_data := pte_wdata.toBits
   io.mem.s1_kill := Bool(false)
+  io.mem.invalidate_lr := Bool(false)
   
   val r_resp_ppn = io.mem.req.bits.addr >> pgIdxBits
   val resp_ppn = Vec((0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn)(count)

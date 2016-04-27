@@ -47,7 +47,6 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   val uncachedArbPorts = collection.mutable.ArrayBuffer(icache.io.mem)
   val uncachedPorts = collection.mutable.ArrayBuffer[ClientUncachedTileLinkIO]()
   val cachedPorts = collection.mutable.ArrayBuffer(dcache.io.mem)
-  dcache.io.cpu.invalidate_lr := core.io.dmem.invalidate_lr // Bypass signal to dcache
   io.host <> core.io.host
   icache.io.cpu <> core.io.imem
 
