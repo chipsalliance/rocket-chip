@@ -32,10 +32,17 @@ trait HasAddrMapParameters {
   val addrMap = new AddrHashMap(p(GlobalAddrMap))
 }
 
-abstract class MemRegion { def size: BigInt }
+abstract class MemRegion {
+  def size: BigInt
+  def numSlaves: Int
+}
 
-case class MemSize(size: BigInt, prot: Int, cacheable: Boolean = false) extends MemRegion
-case class MemSubmap(size: BigInt, entries: AddrMap) extends MemRegion
+case class MemSize(size: BigInt, prot: Int, cacheable: Boolean = false) extends MemRegion {
+  def numSlaves = 1
+}
+case class MemSubmap(size: BigInt, entries: AddrMap) extends MemRegion {
+  val numSlaves = entries.countSlaves
+}
 
 object AddrMapConsts {
   val R = 0x1
@@ -57,17 +64,11 @@ case class AddrMapEntry(name: String, start: Option[BigInt], region: MemRegion)
 case class AddrHashMapEntry(port: Int, start: BigInt, size: BigInt, prot: Int, cacheable: Boolean)
 
 class AddrMap(entries: Seq[AddrMapEntry]) extends scala.collection.IndexedSeq[AddrMapEntry] {
-  
   def apply(index: Int): AddrMapEntry = entries(index)
 
   def length: Int = entries.size
 
-  def countSlaves: Int = {
-    this map { entry: AddrMapEntry => entry.region match {
-      case MemSize(_, _, _) => 1
-      case MemSubmap(_, submap) => submap.countSlaves
-    }} reduceLeft(_ + _)
-  }
+  def countSlaves: Int = entries.map(_.region.numSlaves).foldLeft(0)(_ + _)
 
   override def tail: AddrMap = new AddrMap(entries.tail)
 }
