@@ -6,7 +6,7 @@ import rocket._
 import uncore._
 import junctions._
 import scala.collection.mutable.LinkedHashSet
-import cde.{Parameters, Config, Dump, Knob}
+import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 import scala.math.max
 import ConfigUtils._
 
@@ -37,6 +37,7 @@ class WithGroundTest extends Config(
     case GroundTestCSRs => Nil
     case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
+    case _ => throw new CDEMatchError
   })
 
 class WithMemtest extends Config(
@@ -48,16 +49,19 @@ class WithMemtest extends Config(
     case GeneratorStartAddress => 0
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
+    case _ => throw new CDEMatchError
   })
 
 class WithCacheFillTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new CacheFillTest()(p))
+    case _ => throw new CDEMatchError
   },
   knobValues = {
     case "L2_WAYS" => 4
     case "L2_CAPACITY_IN_KB" => 4
+    case _ => throw new CDEMatchError
   })
 
 class WithBroadcastRegressionTest extends Config(
@@ -67,6 +71,7 @@ class WithBroadcastRegressionTest extends Config(
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.broadcastRegressions(p)
     case GroundTestMaxXacts => 3
+    case _ => throw new CDEMatchError
   })
 
 class WithCacheRegressionTest extends Config(
@@ -76,6 +81,7 @@ class WithCacheRegressionTest extends Config(
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.cacheRegressions(p)
     case GroundTestMaxXacts => 3
+    case _ => throw new CDEMatchError
   })
 
 class WithDmaTest extends Config(
@@ -91,6 +97,7 @@ class WithDmaTest extends Config(
       (0x00800008, 0x00800008, 64))
     case DmaTestDataStart => 0x3012CC00
     case DmaTestDataStride => 8
+    case _ => throw new CDEMatchError
   })
 
 class WithDmaStreamTest extends Config(
@@ -102,18 +109,21 @@ class WithDmaStreamTest extends Config(
       size = site(StreamLoopbackWidth) / 8)
     case GroundTestCSRs =>
       Seq(DmaCtrlRegNumbers.CSR_BASE + DmaCtrlRegNumbers.OUTSTANDING)
+    case _ => throw new CDEMatchError
   })
 
 class WithNastiConverterTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new NastiConverterTest()(p))
+    case _ => throw new CDEMatchError
   })
 
 class WithUnitTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new UnitTestSuite()(p))
+    case _ => throw new CDEMatchError
   })
 
 class WithTraceGen extends Config(
@@ -123,6 +133,7 @@ class WithTraceGen extends Config(
     case NGenerators => site(NTiles)
     case MaxGenerateRequests => 128
     case AddressBag => List(0x8, 0x10, 0x108, 0x100008)
+    case _ => throw new CDEMatchError
   })
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
@@ -142,7 +153,7 @@ class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
 class TraceGenConfig extends Config(new With2Cores ++ new WithL2Cache ++ new WithTraceGen ++ new GroundTestConfig)
 
 class FancyMemtestConfig extends Config(
-  new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
+  new With2Cores ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 
 class MemoryMuxMemtestConfig extends Config(
