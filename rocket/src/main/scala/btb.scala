@@ -177,12 +177,6 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val updatePageHit = pageMatch(r_btb_update.bits.pc)
   val updateHits = tagMatch(r_btb_update.bits.pc, updatePageHit)
 
-  private var lfsr = LFSR16(r_btb_update.valid)
-  def rand(width: Int) = {
-    lfsr = lfsr(lfsr.getWidth-1,1)
-    Random.oneHot(width, lfsr)
-  }
-
   val updateHit = r_btb_update.bits.prediction.valid
   val nextRepl = Counter(r_btb_update.valid && !updateHit, entries)._1
 
