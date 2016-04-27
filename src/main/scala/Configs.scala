@@ -25,23 +25,22 @@ class DefaultConfig extends Config (
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
     def genCsrAddrMap: AddrMap = {
-      val deviceTree = AddrMapEntry("devicetree", None, MemSize(1 << 15, AddrMapConsts.R))
-      val csrSize = (1 << 12) * (site(XLen) / 8)
-      val csrs = (0 until site(NTiles)).map{ i => 
-        AddrMapEntry(s"csr$i", None, MemSize(csrSize, AddrMapConsts.RW))
-      }
-      val scrSize = site(HtifKey).nSCR * (site(XLen) / 8)
-      val scr = AddrMapEntry("scr", None, MemSize(scrSize, AddrMapConsts.RW))
-      new AddrMap(deviceTree +: csrs :+ scr)
+      val deviceTree = AddrMapEntry("devicetree", MemSize(1 << 15, AddrMapConsts.R))
+      val rtc = AddrMapEntry("rtc", MemSize(1 << 12, AddrMapConsts.RW))
+      new AddrMap(Seq(deviceTree, rtc))
     }
     def makeConfigString() = {
       val addrMap = new AddrHashMap(site(GlobalAddrMap))
       val xLen = site(XLen)
       val res = new StringBuilder
-      val memSize = addrMap(s"mem").size
+      val memSize = addrMap("mem").size
+      val rtcAddr = addrMap("conf:rtc").start
       res append  "platform {\n"
       res append  "  vendor ucb;\n"
       res append  "  arch rocket;\n"
+      res append  "};\n"
+      res append  "rtc {\n"
+      res append s"  addr 0x${rtcAddr.toString(16)};\n"
       res append  "};\n"
       res append  "ram {\n"
       res append  "  0 {\n"
@@ -51,11 +50,11 @@ class DefaultConfig extends Config (
       res append  "};\n"
       res append  "core {\n"
       for (i <- 0 until site(NTiles)) {
-        val csrAddr = addrMap(s"conf:csr$i").start
+        val timecmpAddr = rtcAddr + 8*(i+1)
         res append s"  $i {\n"
         res append  "    0 {\n"
         res append s"      isa rv$xLen;\n"
-        res append s"      addr 0x${csrAddr.toString(16)};\n"
+        res append s"      timecmp 0x${timecmpAddr.toString(16)};\n"
         res append  "    };\n"
         res append  "  };\n"
       }
@@ -187,7 +186,7 @@ class DefaultConfig extends Config (
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
-      case ExtraL1Clients => 2 // RTC and HTIF
+      case ExtraL1Clients => 1 // HTIF // TODO not really a parameter
       case TLKey("L1toL2") => 
         TileLinkParameters(
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
@@ -201,9 +200,7 @@ class DefaultConfig extends Config (
               // L1 cache
               site(NMSHRs) + 1,
               // RoCC
-              if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts),
-              // RTC
-              site(NTiles)),
+              if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
           maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
           maxManagerXacts = site(NAcquireTransactors) + 2,
           dataBits = site(CacheBlockBytes)*8)
@@ -245,18 +242,15 @@ class DefaultConfig extends Config (
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
-      case UseBackupMemoryPort => false
       case UseHtifClockDiv => true
       case ConfigString => makeConfigString()
       case GlobalAddrMap => {
         val memsize = BigInt(1L << 30)
         Dump("MEM_SIZE", memsize)
         AddrMap(
-          AddrMapEntry("mem", None, MemSize(memsize, AddrMapConsts.RWX, true)),
-          AddrMapEntry("conf", None,
-            MemSubmap(BigInt(1L << 30), genCsrAddrMap)),
-          AddrMapEntry("devices", None,
-            MemSubmap(BigInt(1L << 31), site(GlobalDeviceSet).getAddrMap)))
+          AddrMapEntry("mem", MemSize(memsize, AddrMapConsts.RWX, true)),
+          AddrMapEntry("conf", MemSubmap(BigInt(1L << 30), genCsrAddrMap)),
+          AddrMapEntry("devices", MemSubmap(BigInt(1L << 31), site(GlobalDeviceSet).getAddrMap)))
       }
       case GlobalDeviceSet => {
         val devset = new DeviceSet

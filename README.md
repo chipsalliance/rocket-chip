@@ -365,7 +365,6 @@ Top.DefaultVLSIConfig.conf file:
     Top.DefaultVLSIConfig.prm
     Top.DefaultVLSIConfig.v
     consts.DefaultVLSIConfig.vh
-    memdessertMemDessert.DefaultVLSIConfig.v
     $ cat $ROCKETCHIP/vsim/generated-src/*.conf
     name MetadataArray_tag_arr depth 128 width 84 ports mwrite,read mask_gran 21
     name ICache_tag_array depth 128 width 38 ports mrw mask_gran 19

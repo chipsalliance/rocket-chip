@@ -22,7 +22,6 @@ object TestBenchGeneration extends FileSystemUtilities {
   wire [`HTIF_WIDTH-1:0] htif_in_bits;
   wire htif_in_ready, htif_out_valid;
   wire [`HTIF_WIDTH-1:0] htif_out_bits;
-  wire htif_out_stats;
 
   wire mem_bk_in_valid;
   wire mem_bk_out_valid;
@@ -73,12 +72,6 @@ object TestBenchGeneration extends FileSystemUtilities {
   wire htif_out_valid_delay;
   wire htif_out_ready_delay;
   wire [`HTIF_WIDTH-1:0] htif_out_bits_delay;
-  
-  wire htif_out_stats_delay;
-
-  wire mem_bk_out_ready_delay;
-  wire mem_bk_in_valid_delay;
-  wire mem_bk_out_valid_delay;
 
   assign #0.1 htif_in_valid_delay = htif_in_valid;
   assign #0.1 htif_in_ready = htif_in_ready_delay;
@@ -87,12 +80,6 @@ object TestBenchGeneration extends FileSystemUtilities {
   assign #0.1 htif_out_valid = htif_out_valid_delay;
   assign #0.1 htif_out_ready_delay = htif_out_ready;
   assign #0.1 htif_out_bits = htif_out_bits_delay;
-  
-  assign #0.1 htif_out_stats = htif_out_stats_delay;
-
-  assign #0.1 mem_bk_out_ready_delay = mem_bk_out_ready;
-  assign #0.1 mem_bk_in_valid_delay = mem_bk_in_valid;
-  assign #0.1 mem_bk_out_valid = mem_bk_out_valid_delay;
 """
 
     val nasti_delays = (0 until nMemChannel) map { i => s"""
@@ -216,8 +203,6 @@ object TestBenchGeneration extends FileSystemUtilities {
 
     val instantiation = s"""
 `ifdef FPGA
-  assign mem_bk_out_valid_delay = 1'b0;
-  assign htif_out_stats_delay = 1'b0;
   assign htif_clk = clk;
 `endif
 
@@ -231,25 +216,9 @@ object TestBenchGeneration extends FileSystemUtilities {
 `ifndef FPGA
     .io_host_clk(htif_clk),
     .io_host_clk_edge(),
-    .io_host_debug_stats_csr(htif_out_stats_delay),
-
-`ifdef MEM_BACKUP_EN
-    .io_mem_backup_ctrl_en(1'b1),
-`else
-    .io_mem_backup_ctrl_en(1'b0),
-`endif // MEM_BACKUP_EN
-    .io_mem_backup_ctrl_in_valid(mem_bk_in_valid_delay),
-    .io_mem_backup_ctrl_out_ready(mem_bk_out_ready_delay),
-    .io_mem_backup_ctrl_out_valid(mem_bk_out_valid_delay),
 `else
     .io_host_clk (),
     .io_host_clk_edge (),
-    .io_host_debug_stats_csr (),
-
-    .io_mem_backup_ctrl_en (1'b0),
-    .io_mem_backup_ctrl_in_valid (1'b0),
-    .io_mem_backup_ctrl_out_ready (1'b0),
-    .io_mem_backup_ctrl_out_valid (),
 `endif // FPGA
 
     .io_host_in_valid(htif_in_valid_delay),

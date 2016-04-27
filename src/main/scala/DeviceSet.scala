@@ -29,7 +29,7 @@ class DeviceSet {
     val entries = devices.map { case Device(name, size, _, readable, writeable) =>
       val prot = (if (readable) R else 0) | (if (writeable) W else 0)
       val realsize = roundup(size)
-      new AddrMapEntry(name, None, new MemSize(realsize, prot))
+      new AddrMapEntry(name, new MemSize(realsize, prot))
     }
     new AddrMap(entries)
   }

@@ -111,7 +111,6 @@ int main(int argc, char** argv)
   // reset for one host_clk cycle to handle pipelined reset
   tile.Top__io_host_in_valid = LIT<1>(0);
   tile.Top__io_host_out_ready = LIT<1>(0);
-  tile.Top__io_mem_backup_ctrl_en = LIT<1>(0);
   for (int i = 0; i < 3; i += tile.Top__io_host_clk_edge.to_bool())
   {
     tile.clock_lo(LIT<1>(1));
