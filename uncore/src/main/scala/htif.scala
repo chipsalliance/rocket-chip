@@ -44,6 +44,7 @@ class HostIO(w: Int) extends Bundle {
 class HtifIO(implicit p: Parameters) extends HtifBundle()(p) {
   val reset = Bool(INPUT)
   val id = UInt(INPUT, log2Up(nCores))
+  val timerIRQ = Bool(INPUT)
   val csr = new SmiIO(csrDataBits, 12).flip
 }
 

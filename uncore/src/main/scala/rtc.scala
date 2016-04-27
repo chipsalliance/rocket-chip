@@ -6,59 +6,45 @@ import cde.{Parameters, Field}
 
 case object RTCPeriod extends Field[Int]
 
-class RTC(csr_MTIME: Int)(implicit p: Parameters) extends HtifModule
+class RTC(nHarts: Int)(implicit val p: Parameters) extends Module
     with HasTileLinkParameters
     with HasAddrMapParameters {
-  val io = new ClientUncachedTileLinkIO
-
-  val addrTable = Vec.tabulate(nCores) { i =>
-    UInt(addrMap(s"conf:csr$i").start + csr_MTIME * csrDataBytes, p(PAddrBits))
+  val io = new Bundle {
+    val tl = new ClientUncachedTileLinkIO().flip
+    val irqs = Vec(nHarts, Bool()).asOutput
   }
 
-  val rtc = Reg(init=UInt(0, csrDataBits))
-  val rtc_tick = Counter(p(RTCPeriod)).inc()
+  val w = 64
+  val regs = Reg(Vec(nHarts+1, UInt(width = w)))
+  require(w == tlDataBits) // TODO relax this constraint for narrower TL
 
-  val sending = Reg(init = Bool(false))
-  val send_acked = Reg(init = Vec.fill(nCores)(Bool(true)))
-  val coreId = Wire(UInt(width = log2Up(nCores)))
+  val acq = Queue(io.tl.acquire, 1)
 
-  when (rtc_tick) {
-    rtc := rtc + UInt(1)
-    send_acked := Vec.fill(nCores)(Bool(false))
-    sending := Bool(true)
-  }
+  val full_addr = acq.bits.full_addr()
+  val byte_addr = full_addr(log2Up(w/8)-1,0)
+  val size = w/8*(nHarts+1)
+  val addr = full_addr(log2Up(size)-1,log2Up(w/8))
+  val rdata = regs(addr)
+  val wdata = acq.bits.data
+  val read = acq.bits.a_type === Acquire.getType
+  val write = acq.bits.a_type === Acquire.putType
+  val wmask = acq.bits.full_wmask()
+  assert(!acq.valid || read || write, "unsupported RTC operation")
 
-  if (nCores > 1) {
-    val (send_cnt, send_done) = Counter(io.acquire.fire(), nCores)
+  io.tl.grant.valid := acq.valid
+  acq.ready := io.tl.grant.ready
+  io.tl.grant.bits := Grant(
+    is_builtin_type = Bool(true),
+    g_type = acq.bits.getBuiltInGrantType(),
+    client_xact_id = acq.bits.client_xact_id,
+    manager_xact_id = UInt(0),
+    addr_beat = UInt(0),
+    data = rdata)
 
-    when (send_done) { sending := Bool(false) }
+  for ((irq, cmp) <- io.irqs zip regs.tail)
+    irq := (regs(0) >= cmp)
 
-    coreId := send_cnt
-  } else {
-    when (io.acquire.fire()) { sending := Bool(false) }
-
-    coreId := UInt(0)
-  }
-
-  when (io.grant.fire()) { send_acked(io.grant.bits.client_xact_id) := Bool(true) }
-
-  val addr_full = addrTable(coreId)
-  val addr_block = addr_full(p(PAddrBits) - 1, p(CacheBlockOffsetBits))
-  val addr_beat = addr_full(p(CacheBlockOffsetBits) - 1, tlByteAddrBits)
-  val addr_byte = addr_full(tlByteAddrBits - 1, 0)
-  val wmask = Fill(csrDataBytes, UInt(1, 1)) << addr_byte
-
-  io.acquire.valid := sending
-  io.acquire.bits := Put(
-    client_xact_id = coreId,
-    addr_block = addr_block,
-    addr_beat = addr_beat,
-    wmask = wmask,
-    data = Fill(tlDataBytes / csrDataBytes, rtc))
-  io.grant.ready := Bool(true)
-
-  require(tlClientXactIdBits >= log2Up(nCores))
-
-  assert(!rtc_tick || send_acked.reduce(_ && _),
-    "Not all clocks were updated for rtc tick")
+  when (Counter(p(RTCPeriod)).inc()) { regs(0) := regs(0) + UInt(1) }
+  when (acq.valid && write) { regs(addr) := wdata & wmask | rdata & ~wmask }
+  when (reset) { regs(0) := UInt(0) }
 }
