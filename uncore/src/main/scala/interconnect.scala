@@ -257,27 +257,25 @@ abstract class TileLinkInterconnect(implicit p: Parameters) extends TLModule()(p
 }
 
 class TileLinkRecursiveInterconnect(
-    val nInner: Int, val nOuter: Int,
-    addrmap: AddrMap, base: BigInt)
+    val nInner: Int, addrmap: AddrMap, base: BigInt)
     (implicit p: Parameters) extends TileLinkInterconnect()(p) {
   var lastEnd = base
-  var outInd = 0
   val levelSize = addrmap.size
-  val realAddrMap = new ArraySeq[(BigInt, BigInt)](addrmap.size)
+  val nOuter = addrmap.countSlaves
 
-  addrmap.zipWithIndex.foreach { case (AddrMapEntry(name, startOpt, region), i) =>
-    val start = startOpt.getOrElse(lastEnd)
+  val realAddrMap = addrmap map { case AddrMapEntry(name, region) =>
+    val start = lastEnd
     val size = region.size
 
-    require(bigIntPow2(size),
+    require(isPow2(size),
       s"Region $name size $size is not a power of 2")
     require(start % size == 0,
       f"Region $name start address 0x$start%x not divisible by 0x$size%x" )
     require(start >= lastEnd,
       f"Region $name start address 0x$start%x before previous region end")
 
-    realAddrMap(i) = (start, size)
     lastEnd = start + size
+    (start, size)
   }
 
   val routeSel = (addr: UInt) => {
@@ -289,25 +287,19 @@ class TileLinkRecursiveInterconnect(
   val xbar = Module(new ClientUncachedTileLinkIOCrossbar(nInner, levelSize, routeSel))
   xbar.io.in <> io.in
 
-  addrmap.zip(realAddrMap).zip(xbar.io.out).zipWithIndex.foreach {
+  io.out <> addrmap.zip(realAddrMap).zip(xbar.io.out).zipWithIndex.flatMap {
     case (((entry, (start, size)), xbarOut), i) => {
       entry.region match {
         case MemSize(_, _, _) =>
-          io.out(outInd) <> xbarOut
-          outInd += 1
+          Some(xbarOut)
+        case MemSubmap(_, submap) if submap.isEmpty =>
+          xbarOut.acquire.ready := Bool(false)
+          xbarOut.grant.valid := Bool(false)
+          None
         case MemSubmap(_, submap) =>
-          if (submap.isEmpty) {
-            xbarOut.acquire.ready := Bool(false)
-            xbarOut.grant.valid := Bool(false)
-          } else {
-            val subSlaves = submap.countSlaves
-            val outputs = io.out.drop(outInd).take(subSlaves)
-            val ic = Module(new TileLinkRecursiveInterconnect(1, subSlaves, submap, start))
-            ic.io.in.head <> xbarOut
-            for ((o, s) <- outputs zip ic.io.out)
-              o <> s
-            outInd += subSlaves
-          }
+          val ic = Module(new TileLinkRecursiveInterconnect(1, submap, start))
+          ic.io.in.head <> xbarOut
+          ic.io.out
       }
     }
   }
