@@ -160,5 +160,5 @@ object Random
   private def round(x: Double): Int =
     if (x.toInt.toDouble == x) x.toInt else (x.toInt + 1) & -2
   private def partition(value: UInt, slices: Int) =
-    Vec.tabulate(slices)(i => value < round((i << value.getWidth).toDouble / slices))
+    Seq.tabulate(slices)(i => value < round((i << value.getWidth).toDouble / slices))
 }
