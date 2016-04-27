@@ -59,7 +59,7 @@ class AddrMapProt extends Bundle {
   val r = Bool()
 }
 
-case class AddrMapEntry(name: String, start: Option[BigInt], region: MemRegion)
+case class AddrMapEntry(name: String, region: MemRegion)
 
 case class AddrHashMapEntry(port: Int, start: BigInt, size: BigInt, prot: Int, cacheable: Boolean)
 
@@ -84,26 +84,20 @@ class AddrHashMap(addrmap: AddrMap, start: BigInt = BigInt(0)) {
     var ind = 0
     var base = start
     var pairs = Seq[(String, AddrHashMapEntry)]()
-    am.foreach { case AddrMapEntry(name, startOpt, region) =>
-      region match {
-        case MemSize(size, prot, cacheable) => {
-          if (!startOpt.isEmpty) base = startOpt.get
-          pairs = (name, AddrHashMapEntry(ind, base, size, prot, cacheable)) +: pairs
-          base += size
-          ind += 1
+    am.foreach {
+      case AddrMapEntry(name, MemSize(size, prot, cacheable)) =>
+        pairs = (name, AddrHashMapEntry(ind, base, size, prot, cacheable)) +: pairs
+        base += size
+        ind += 1
+      case AddrMapEntry(name, MemSubmap(size, submap)) =>
+        val subpairs = genPairs(submap, base).map {
+          case (subname, AddrHashMapEntry(subind, subbase, subsize, prot, cacheable)) =>
+            (name + ":" + subname,
+              AddrHashMapEntry(ind + subind, subbase, subsize, prot, cacheable))
         }
-        case MemSubmap(size, submap) => {
-          if (!startOpt.isEmpty) base = startOpt.get
-          val subpairs = genPairs(submap, base).map {
-            case (subname, AddrHashMapEntry(subind, subbase, subsize, prot, cacheable)) =>
-              (name + ":" + subname,
-                AddrHashMapEntry(ind + subind, subbase, subsize, prot, cacheable))
-          }
-          pairs = subpairs ++ pairs
-          ind += subpairs.size
-          base += size
-        }
-      }
+        pairs = subpairs ++ pairs
+        ind += subpairs.size
+        base += size
     }
     pairs
   }
