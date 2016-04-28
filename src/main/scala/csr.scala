@@ -222,7 +222,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.misa -> UInt(isa),
     CSRs.mstatus -> read_mstatus,
     CSRs.mtvec -> reg_mtvec,
-    CSRs.mcfgaddr -> UInt(addrMap("mem").size),
+    CSRs.mcfgaddr -> UInt(addrMap("io:int:configstring").start),
     CSRs.mipi -> reg_mip.msip,
     CSRs.mip -> read_mip,
     CSRs.mie -> reg_mie,
