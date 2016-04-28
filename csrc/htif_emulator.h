@@ -34,7 +34,6 @@ class htif_emulator_t : public htif_pthread_t
   void start()
   {
     set_clock_divisor(5, 2);
-    write_cr(-1, UNCORE_SCR__MEMORY_CHANNEL_MUX_SELECT__OFFSET, memory_channel_mux_select);
     htif_pthread_t::start();
   }
 

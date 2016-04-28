@@ -4,7 +4,6 @@ import Chisel.log2Ceil
 import cde.{Parameters, Field}
 import scala.collection.mutable.HashMap
 import junctions._
-import junctions.AddrMapConsts._
 
 case object GlobalDeviceSet extends Field[DeviceSet]
 
@@ -27,9 +26,9 @@ class DeviceSet {
   def getAddrMap: AddrMap = {
     val devices = this.toSeq.sortWith((a, b) => a.size > b.size)
     val entries = devices.map { case Device(name, size, _, readable, writeable) =>
-      val prot = (if (readable) R else 0) | (if (writeable) W else 0)
+      val prot = (if (readable) AddrMapProt.R else 0) | (if (writeable) AddrMapProt.W else 0)
       val realsize = roundup(size)
-      new AddrMapEntry(name, new MemSize(realsize, prot))
+      AddrMapEntry(name, MemSize(size, roundup(size), MemAttr(prot)))
     }
     new AddrMap(entries)
   }

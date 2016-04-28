@@ -155,7 +155,3 @@ class TraceGenConfig extends Config(new With2Cores ++ new WithL2Cache ++ new Wit
 class FancyMemtestConfig extends Config(
   new With2Cores ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
-
-class MemoryMuxMemtestConfig extends Config(
-  new With2MemoryChannels ++ new WithOneOrMaxChannels ++
-  new WithMemtest ++ new GroundTestConfig)

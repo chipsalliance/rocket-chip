@@ -17,10 +17,6 @@ case object NTiles extends Field[Int]
 case object NMemoryChannels extends Field[Int]
 /** Number of banks per memory channel */
 case object NBanksPerMemoryChannel extends Field[Int]
-/** Maximum number of banks per memory channel, when configurable */
-case object MaxBanksPerMemoryChannel extends Field[Int]
-/** Dynamic memory channel configurations */
-case object MemoryChannelMuxConfigs extends Field[List[Int]]
 /** Least significant bit of address used for bank partitioning */
 case object BankIdLSB extends Field[Int]
 /** Number of outstanding memory requests */
@@ -61,7 +57,6 @@ trait HasTopLevelParameters {
   lazy val scrAddrBits = log2Up(nSCR)
   lazy val scrDataBits = 64
   lazy val scrDataBytes = scrDataBits / 8
-  lazy val memoryChannelMuxConfigs = p(MemoryChannelMuxConfigs)
   //require(lsb + log2Up(nBanks) < mifAddrBits)
 }
 
@@ -80,6 +75,7 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(nMemChannels, new NastiIO)
+  val mmio = new NastiIO
 }
 
 object TopUtils {
@@ -125,9 +121,11 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
 
+  io.mmio <> uncore.io.mmio
   io.mem.zip(uncore.io.mem).foreach { case (outer, inner) =>
-    TopUtils.connectNasti(outer, inner)
+    outer <> inner
     // Memory cache type should be normal non-cacheable bufferable
+    // TODO why is this happening here?  Would 0000 (device) be OK instead?
     outer.ar.bits.cache := UInt("b0011")
     outer.aw.bits.cache := UInt("b0011")
   }
@@ -165,22 +163,13 @@ class Uncore(implicit val p: Parameters) extends Module
 
   val addrMap = p(GlobalAddrMap)
   val addrHashMap = new AddrHashMap(addrMap)
-  val memSize = addrHashMap("mem").size
   val scrFile = Module(new SCRFile("UNCORE_SCR", 0))
   scrFile.io.smi <> htif.io.scr
   scrFile.io.scr.attach(Wire(init = UInt(nTiles)), "N_CORES")
-  scrFile.io.scr.attach(Wire(init = UInt(memSize >> 20)), "MMIO_BASE")
+  scrFile.io.scr.attach(Wire(init = UInt(addrHashMap("io:int:configstring").start >> 20)), "MMIO_BASE")
   // scrFile.io.scr <> (... your SCR connections ...)
 
   buildMMIONetwork(p.alterPartial({case TLId => "MMIO_Outermost"}))
-
-  // Configures the enabled memory channels.  This can't be changed while the
-  // chip is actively using memory, as it both drops Nasti messages and garbles
-  // all of memory.
-  val memory_channel_mux_select = scrFile.io.scr.attach(
-    Reg(UInt(width = log2Up(memoryChannelMuxConfigs.size))),
-    "MEMORY_CHANNEL_MUX_SELECT")
-  outmemsys.io.memory_channel_mux_select := memory_channel_mux_select
 
   // Wire the htif to the memory port(s) and host interface
   io.mem <> outmemsys.io.mem
@@ -191,31 +180,26 @@ class Uncore(implicit val p: Parameters) extends Module
   }
 
   def buildMMIONetwork(implicit p: Parameters) = {
+    val (ioBase, ioAddrMap) = addrHashMap.subMap("io")
+    val ioAddrHashMap = new AddrHashMap(ioAddrMap, ioBase)
+
     val mmioNarrower = Module(new TileLinkIONarrower("L2toMMIO", "MMIO_Outermost"))
-    val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, addrMap.tail, memSize))
+    val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap, ioBase))
 
     mmioNarrower.io.in <> outmemsys.io.mmio
     mmioNetwork.io.in.head <> mmioNarrower.io.out
 
-    if (p(UseStreamLoopback)) {
-      val lo_width = p(StreamLoopbackWidth)
-      val lo_size = p(StreamLoopbackSize)
-      val lo_conv = Module(new NastiIOStreamIOConverter(lo_width))
-      val lo_port = addrHashMap("devices:loopback").port - 1
-      TopUtils.connectTilelinkNasti(lo_conv.io.nasti, mmioNetwork.io.out(lo_port))
-      lo_conv.io.stream.in <> Queue(lo_conv.io.stream.out, lo_size)
-    }
-
     val rtc = Module(new RTC(p(NTiles)))
-    val rtcAddr = addrHashMap("conf:rtc")
-    val rtcPort = rtcAddr.port - 1
-    require(rtc.size <= rtcAddr.size)
-    rtc.io.tl <> mmioNetwork.io.out(rtcPort)
+    val rtcAddr = ioAddrHashMap("int:rtc")
+    require(rtc.size <= rtcAddr.region.size)
+    rtc.io.tl <> mmioNetwork.io.out(rtcAddr.port)
     io.timerIRQs := rtc.io.irqs
 
     val deviceTree = Module(new ROMSlave(p(ConfigString).toSeq))
-    val dtPort = addrHashMap("conf:devicetree").port - 1
-    deviceTree.io <> mmioNetwork.io.out(dtPort)
+    val deviceTreeAddr = ioAddrHashMap("int:configstring")
+    deviceTree.io <> mmioNetwork.io.out(deviceTreeAddr.port)
+
+    TopUtils.connectTilelinkNasti(io.mmio, mmioNetwork.io.out(ioAddrHashMap("ext").port))
   }
 }
 
@@ -229,7 +213,6 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val htif_uncached = (new ClientUncachedTileLinkIO).flip
     val incoherent = Vec(nTiles, Bool()).asInput
     val mem = Vec(nMemChannels, new NastiIO)
-    val memory_channel_mux_select = UInt(INPUT, log2Up(memoryChannelMuxConfigs.size))
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
   }
 
@@ -272,34 +255,20 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
 
   // TODO: the code to print this stuff should live somewhere else
   println("Generated Address Map")
-  for ((name, base, size, _, _) <- addrHashMap.sortedEntries) {
-    println(f"\t$name%s $base%x - ${base + size - 1}%x")
+  for ((name, base, region) <- addrHashMap.sortedEntries) {
+    println(f"\t$name%s $base%x - ${base + region.size - 1}%x")
   }
   println("Generated Configuration String")
   println(new String(p(ConfigString)))
 
-  val channelConfigs = p(MemoryChannelMuxConfigs)
-  require(channelConfigs.sortWith(_ > _)(0) == nMemChannels,
-                "More memory channels elaborated than can be enabled")
-  val mem_ic =
-    if (channelConfigs.size == 1) {
-      val ic = Module(new TileLinkMemoryInterconnect(
-        nBanksPerMemChannel, nMemChannels)(outermostTLParams))
-      ic
-    } else {
-      val nBanks = nBanksPerMemChannel * nMemChannels
-      val ic = Module(new TileLinkMemorySelector(
-        nBanks, nMemChannels, channelConfigs)(outermostTLParams))
-      ic.io.select := io.memory_channel_mux_select
-      ic
-    }
+  val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, nMemChannels)(outermostTLParams))
 
-  for ((bank, i) <- managerEndpoints.zipWithIndex) {
+  for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
     val narrow = Module(new TileLinkIONarrower("L2toMC", "Outermost"))
     unwrap.io.in <> ClientTileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
     narrow.io.in <> unwrap.io.out
-    mem_ic.io.in(i) <> narrow.io.out
+    icPort <> narrow.io.out
   }
 
   for ((nasti, tl) <- io.mem zip mem_ic.io.out)
