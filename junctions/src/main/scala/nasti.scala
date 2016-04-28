@@ -502,53 +502,33 @@ class NastiRecursiveInterconnect(
     val nMasters: Int, val nSlaves: Int,
     addrmap: AddrMap, base: BigInt)
     (implicit p: Parameters) extends NastiInterconnect()(p) {
-  var lastEnd = base
-  var slaveInd = 0
   val levelSize = addrmap.size
 
-  val realAddrMap = addrmap map { case AddrMapEntry(name, region) =>
-    val start = lastEnd
-    val size = region.size
-
-    require(isPow2(size),
-      s"Region $name size $size is not a power of 2")
-    require(start % size == 0,
-      f"Region $name start address 0x$start%x not divisible by 0x$size%x" )
-    require(start >= lastEnd,
-      f"Region $name start address 0x$start%x before previous region end")
-
-    lastEnd = start + size
-    (start, size)
-  }
-
+  val addrHashMap = new AddrHashMap(addrmap, base)
   val routeSel = (addr: UInt) => {
-    Vec(realAddrMap.map { case (start, size) =>
-      addr >= UInt(start) && addr < UInt(start + size)
-    }).toBits
+    Cat(addrmap.map { case entry =>
+      val hashEntry = addrHashMap(entry.name)
+      addr >= UInt(hashEntry.start) && addr < UInt(hashEntry.start + hashEntry.region.size)
+    }.reverse)
   }
 
   val xbar = Module(new NastiCrossbar(nMasters, levelSize, routeSel))
   xbar.io.masters <> io.masters
 
-  addrmap.zip(realAddrMap).zip(xbar.io.slaves).zipWithIndex.foreach {
-    case (((entry, (start, size)), xbarSlave), i) => {
+  io.slaves <> addrmap.zip(xbar.io.slaves).flatMap {
+    case (entry, xbarSlave) => {
       entry.region match {
-        case MemSize(_, _, _) =>
-          io.slaves(slaveInd) <> xbarSlave
-          slaveInd += 1
+        case _: MemSize =>
+          Some(xbarSlave)
+        case MemSubmap(_, submap) if submap.isEmpty =>
+          val err_slave = Module(new NastiErrorSlave)
+          err_slave.io <> xbarSlave
+          None
         case MemSubmap(_, submap) =>
-          if (submap.isEmpty) {
-            val err_slave = Module(new NastiErrorSlave)
-            err_slave.io <> xbarSlave
-          } else {
-            val subSlaves = submap.countSlaves
-            val outputs = io.slaves.drop(slaveInd).take(subSlaves)
-            val ic = Module(new NastiRecursiveInterconnect(1, subSlaves, submap, start))
-            ic.io.masters.head <> xbarSlave
-            for ((o, s) <- outputs zip ic.io.slaves)
-              o <> s
-            slaveInd += subSlaves
-          }
+          val subSlaves = submap.countSlaves
+          val ic = Module(new NastiRecursiveInterconnect(1, subSlaves, submap, addrHashMap(entry.name).start))
+          ic.io.masters.head <> xbarSlave
+          ic.io.slaves
       }
     }
   }
