@@ -259,45 +259,31 @@ abstract class TileLinkInterconnect(implicit p: Parameters) extends TLModule()(p
 class TileLinkRecursiveInterconnect(
     val nInner: Int, addrmap: AddrMap, base: BigInt)
     (implicit p: Parameters) extends TileLinkInterconnect()(p) {
-  var lastEnd = base
   val levelSize = addrmap.size
   val nOuter = addrmap.countSlaves
 
-  val realAddrMap = addrmap map { case AddrMapEntry(name, region) =>
-    val start = lastEnd
-    val size = region.size
-
-    require(isPow2(size),
-      s"Region $name size $size is not a power of 2")
-    require(start % size == 0,
-      f"Region $name start address 0x$start%x not divisible by 0x$size%x" )
-    require(start >= lastEnd,
-      f"Region $name start address 0x$start%x before previous region end")
-
-    lastEnd = start + size
-    (start, size)
-  }
-
+  val addrHashMap = new AddrHashMap(addrmap, base)
   val routeSel = (addr: UInt) => {
-    Cat(realAddrMap.map { case (start, size) =>
-      addr >= UInt(start) && addr < UInt(start + size)
+    Cat(addrmap.map { case entry =>
+      val hashEntry = addrHashMap(entry.name)
+      addr >= UInt(hashEntry.start) && addr < UInt(hashEntry.start + hashEntry.region.size)
     }.reverse)
   }
 
   val xbar = Module(new ClientUncachedTileLinkIOCrossbar(nInner, levelSize, routeSel))
   xbar.io.in <> io.in
 
-  io.out <> addrmap.zip(realAddrMap).zip(xbar.io.out).zipWithIndex.flatMap {
-    case (((entry, (start, size)), xbarOut), i) => {
+  io.out <> addrmap.zip(xbar.io.out).flatMap {
+    case (entry, xbarOut) => {
       entry.region match {
-        case MemSize(_, _, _) =>
+        case _: MemSize =>
           Some(xbarOut)
         case MemSubmap(_, submap) if submap.isEmpty =>
           xbarOut.acquire.ready := Bool(false)
           xbarOut.grant.valid := Bool(false)
           None
         case MemSubmap(_, submap) =>
-          val ic = Module(new TileLinkRecursiveInterconnect(1, submap, start))
+          val ic = Module(new TileLinkRecursiveInterconnect(1, submap, addrHashMap(entry.name).start))
           ic.io.in.head <> xbarOut
           ic.io.out
       }
