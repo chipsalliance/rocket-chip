@@ -251,3 +251,89 @@ class HastiSlaveToMaster(implicit p: Parameters) extends HastiModule()(p) {
   io.in.hreadyout := io.out.hready
   io.in.hresp := io.out.hresp
 }
+
+class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule()(p)
+    with HasNastiParameters {
+  val io = new Bundle {
+    val nasti = new NastiIO().flip
+    val hasti = new HastiMasterIO
+  }
+
+  require(hastiAddrBits == nastiXAddrBits)
+  require(hastiDataBits == nastiXDataBits)
+
+  val s_idle :: s_read :: s_write :: s_write_resp :: Nil = Enum(Bits(), 4)
+  val state = Reg(init = s_idle)
+
+  val addr = Reg(UInt(width = hastiAddrBits))
+  val id = Reg(UInt(width = nastiXIdBits))
+  val size = Reg(UInt(width = nastiXSizeBits))
+  val len = Reg(UInt(width = nastiXLenBits))
+  val data = Reg(UInt(width = nastiXDataBits))
+  val first = Reg(init = Bool(false))
+  val rvalid = Reg(init = Bool(false))
+
+  io.nasti.aw.ready := (state === s_idle)
+  io.nasti.ar.ready := (state === s_idle) && !io.nasti.aw.valid
+  io.nasti.w.ready := (state === s_write) && io.hasti.hready
+  io.nasti.b.valid := (state === s_write_resp)
+  io.nasti.b.bits := NastiWriteResponseChannel(id = id)
+  io.nasti.r.valid := (state === s_read) && io.hasti.hready && !first
+  io.nasti.r.bits := NastiReadDataChannel(
+    id = id,
+    data = io.hasti.hrdata,
+    last = (len === UInt(0)))
+
+
+  io.hasti.haddr := addr
+  io.hasti.hsize := size
+  io.hasti.hwrite := (state === s_write)
+  io.hasti.hburst := HBURST_INCR
+  io.hasti.hprot := UInt(0)
+  io.hasti.hwdata := data
+  io.hasti.htrans := MuxLookup(state, HTRANS_IDLE, Seq(
+    s_write -> Mux(io.nasti.w.valid,
+      Mux(first, HTRANS_NONSEQ, HTRANS_SEQ),
+      Mux(first, HTRANS_IDLE, HTRANS_BUSY)),
+    s_read -> MuxCase(HTRANS_BUSY, Seq(
+      first -> HTRANS_NONSEQ,
+      (len === UInt(0)) -> HTRANS_IDLE,
+      io.nasti.r.ready -> HTRANS_SEQ))))
+
+  when (io.nasti.aw.fire()) {
+    first := Bool(true)
+    addr := io.nasti.aw.bits.addr
+    id := io.nasti.aw.bits.id
+    size := io.nasti.aw.bits.size
+    state := s_write
+  }
+
+  when (io.nasti.ar.fire()) {
+    first := Bool(true)
+    addr := io.nasti.ar.bits.addr
+    id := io.nasti.ar.bits.id
+    size := io.nasti.ar.bits.size
+    len := io.nasti.ar.bits.len
+    state := s_read
+  }
+
+  when (io.nasti.w.fire()) {
+    first := Bool(false)
+    addr := addr + (UInt(1) << size)
+    data := io.nasti.w.bits.data
+    when (io.nasti.w.bits.last) { state := s_write_resp }
+  }
+
+  when (io.nasti.b.fire()) { state := s_idle }
+
+  when (state === s_read && first) {
+    first := Bool(false)
+    addr := addr + (UInt(1) << size)
+  }
+
+  when (io.nasti.r.fire()) {
+    addr := addr + (UInt(1) << size)
+    len := len - UInt(1)
+    when (len === UInt(0)) { state := s_idle }
+  }
+}
