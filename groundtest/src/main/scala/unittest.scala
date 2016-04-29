@@ -13,6 +13,80 @@ abstract class UnitTest extends Module {
   }
 }
 
+class HastiTestDriver(implicit p: Parameters) extends NastiModule {
+  val io = new Bundle {
+    val nasti = new NastiIO
+    val finished = Bool(OUTPUT)
+    val start = Bool(INPUT)
+  }
+
+  val (write_cnt, write_done) = Counter(io.nasti.w.fire(), 8)
+  val (read_cnt, read_done) = Counter(io.nasti.r.fire(), 8)
+
+  val write_data = UInt(0x1000, 32) | write_cnt
+  val expected_data = UInt(0x1000, 32) | read_cnt
+
+  val (s_idle :: s_write_addr :: s_write_data :: s_write_stall :: s_write_resp ::
+       s_read_addr :: s_read_data :: s_read_stall :: s_done :: Nil) = Enum(Bits(), 9)
+  val state = Reg(init = s_idle)
+
+  io.nasti.aw.valid := (state === s_write_addr)
+  io.nasti.aw.bits := NastiWriteAddressChannel(
+    id = UInt(0),
+    addr = UInt(0),
+    size = UInt("b010"),
+    len = UInt(7))
+
+  io.nasti.w.valid := (state === s_write_data)
+  io.nasti.w.bits := NastiWriteDataChannel(
+    data = Cat(write_data, write_data),
+    last = (write_cnt === UInt(7)))
+
+  io.nasti.b.ready := (state === s_write_resp)
+
+  io.nasti.ar.valid := (state === s_read_addr)
+  io.nasti.ar.bits := NastiReadAddressChannel(
+    id = UInt(0),
+    addr = UInt(0),
+    size = UInt("b010"),
+    len = UInt(7))
+
+  io.nasti.r.ready := (state === s_read_data)
+
+  io.finished := (state === s_done)
+
+  when (state === s_idle && io.start) { state := s_write_addr }
+  when (io.nasti.aw.fire()) { state := s_write_data }
+  when (io.nasti.w.fire()) { state := s_write_stall }
+  when (state === s_write_stall) { state := s_write_data }
+  when (write_done) { state := s_write_resp }
+  when (io.nasti.b.fire()) { state := s_read_addr }
+  when (io.nasti.ar.fire()) { state := s_read_data }
+  when (io.nasti.r.fire()) { state := s_read_stall }
+  when (state === s_read_stall) { state := s_read_data }
+  when (read_done) { state := s_done }
+
+  val read_data = Mux(read_cnt(0),
+    io.nasti.r.bits.data(63, 32),
+    io.nasti.r.bits.data(31, 0))
+
+  assert(!io.nasti.r.valid || read_data === expected_data,
+    "HastiTest got wrong data")
+}
+
+class HastiTest(implicit p: Parameters) extends UnitTest {
+  val sram = Module(new HastiRAM(8))
+  val bus = Module(new HastiBus(Seq(a => Bool(true))))
+  val conv = Module(new HastiMasterIONastiIOConverter)
+  val driver = Module(new HastiTestDriver)
+
+  bus.io.slaves(0) <> sram.io
+  bus.io.master <> conv.io.hasti
+  conv.io.nasti <> driver.io.nasti
+  io.finished := driver.io.finished
+  driver.io.start := io.start
+}
+
 class NastiDemuxDriver(n: Int)(implicit p: Parameters) extends Module {
   val io = new Bundle {
     val start = Bool(INPUT)
@@ -519,7 +593,8 @@ class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
     Module(new NastiIOHostIOConverterTest),
     Module(new TileLinkToSmiConverterTest),
     Module(new AtosConverterTest),
-    Module(new NastiMemoryDemuxTest))
+    Module(new NastiMemoryDemuxTest),
+    Module(new HastiTest))
 
   val s_idle :: s_start :: s_wait :: Nil = Enum(Bits(), 3)
   val state = Reg(init = s_idle)
