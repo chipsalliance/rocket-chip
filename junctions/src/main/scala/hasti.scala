@@ -31,10 +31,14 @@ trait HastiConstants
   def dgate(valid: Bool, b: UInt) = Fill(b.getWidth, valid) & b
 }
 
+case class HastiParameters(dataBits: Int, addrBits: Int)
+case object HastiKey extends Field[HastiParameters]
+
 trait HasHastiParameters {
   implicit val p: Parameters
-  val hastiAddrBits = 32
-  val hastiDataBits = 32
+  val hastiParams = p(HastiKey)
+  val hastiAddrBits = hastiParams.addrBits
+  val hastiDataBits = hastiParams.dataBits
 }
 
 abstract class HastiModule(implicit val p: Parameters) extends Module
