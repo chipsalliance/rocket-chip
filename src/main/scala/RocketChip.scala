@@ -218,6 +218,10 @@ class Uncore(implicit val p: Parameters) extends Module
     val bootROMAddr = ioAddrHashMap("int:bootrom")
     bootROM.io <> mmioNetwork.io.out(bootROMAddr.port)
 
+    val debugModule = Module(new ROMSlave(Seq())) // TODO
+    val debugModuleAddr = ioAddrHashMap("int:debug")
+    debugModule.io <> mmioNetwork.io.out(debugModuleAddr.port)
+
     TopUtils.connectTilelinkNasti(io.mmio, mmioNetwork.io.out(ioAddrHashMap("ext").port))
   }
 }
