@@ -227,11 +227,9 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 
   when (state === s_grant && io.grant.valid) {
+    state := s_resp
     when (isRead(req.cmd)) {
       grant_word := wordFromBeat(req.addr, io.grant.bits.data)
-      state := s_resp
-    } .otherwise {
-      state := s_idle
     }
   }
 
