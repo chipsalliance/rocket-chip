@@ -152,13 +152,12 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
   }
 
   val paddr = Cat(io.resp.ppn, UInt(0, pgIdxBits))
-  val addr_ok = addrMap.isValid(paddr)
   val addr_prot = addrMap.getProt(paddr)
 
   io.req.ready := state === s_ready
-  io.resp.xcpt_ld := !addr_ok || !addr_prot.r || bad_va || tlb_hit && !(r_array & tag_cam.io.hits).orR
-  io.resp.xcpt_st := !addr_ok || !addr_prot.w || bad_va || tlb_hit && !(w_array & tag_cam.io.hits).orR
-  io.resp.xcpt_if := !addr_ok || !addr_prot.x || bad_va || tlb_hit && !(x_array & tag_cam.io.hits).orR
+  io.resp.xcpt_ld := bad_va || (!tlb_miss && !addr_prot.r) || (tlb_hit && !(r_array & tag_cam.io.hits).orR)
+  io.resp.xcpt_st := bad_va || (!tlb_miss && !addr_prot.w) || (tlb_hit && !(w_array & tag_cam.io.hits).orR)
+  io.resp.xcpt_if := bad_va || (!tlb_miss && !addr_prot.x) || (tlb_hit && !(x_array & tag_cam.io.hits).orR)
   io.resp.miss := tlb_miss
   io.resp.ppn := Mux(vm_enabled, Mux1H(tag_cam.io.hits, tag_ram), io.req.bits.vpn(ppnBits-1,0))
   io.resp.hit_idx := tag_cam.io.hits
