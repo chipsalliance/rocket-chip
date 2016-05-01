@@ -93,6 +93,27 @@ object TopUtils {
     conv.io.tl <> tl
     TopUtils.connectNasti(nasti, conv.io.nasti)
   }
+  def makeBootROM()(implicit p: Parameters) = {
+    val rom = java.nio.ByteBuffer.allocate(32)
+    rom.order(java.nio.ByteOrder.LITTLE_ENDIAN)
+
+    // for now, have the reset vector jump straight to memory
+    val addrHashMap = new AddrHashMap(p(GlobalAddrMap))
+    val resetToMemDist = addrHashMap("mem").start - p(ResetVector)
+    require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
+    val configStringAddr = p(ResetVector).toInt + rom.capacity
+
+    rom.putInt(0x00000297 + resetToMemDist.toInt) // auipc t0, &mem - &here
+    rom.putInt(0x00028067)                        // jr t0
+    rom.putInt(0)                                 // reserved
+    rom.putInt(configStringAddr)                  // pointer to config string
+    rom.putInt(0)                                 // default trap vector
+    rom.putInt(0)                                 //   ...
+    rom.putInt(0)                                 //   ...
+    rom.putInt(0)                                 //   ...
+
+    rom.array() ++ p(ConfigString).toSeq
+  }
 }
 
 /** Top-level module for the chip */
@@ -165,8 +186,6 @@ class Uncore(implicit val p: Parameters) extends Module
   val addrHashMap = new AddrHashMap(addrMap)
   val scrFile = Module(new SCRFile("UNCORE_SCR", 0))
   scrFile.io.smi <> htif.io.scr
-  scrFile.io.scr.attach(Wire(init = UInt(nTiles)), "N_CORES")
-  scrFile.io.scr.attach(Wire(init = UInt(addrHashMap("io:int:configstring").start >> 20)), "MMIO_BASE")
   // scrFile.io.scr <> (... your SCR connections ...)
 
   buildMMIONetwork(p.alterPartial({case TLId => "MMIO_Outermost"}))
@@ -195,9 +214,9 @@ class Uncore(implicit val p: Parameters) extends Module
     rtc.io.tl <> mmioNetwork.io.out(rtcAddr.port)
     io.timerIRQs := rtc.io.irqs
 
-    val deviceTree = Module(new ROMSlave(p(ConfigString).toSeq))
-    val deviceTreeAddr = ioAddrHashMap("int:configstring")
-    deviceTree.io <> mmioNetwork.io.out(deviceTreeAddr.port)
+    val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
+    val bootROMAddr = ioAddrHashMap("int:bootrom")
+    bootROM.io <> mmioNetwork.io.out(bootROMAddr.port)
 
     TopUtils.connectTilelinkNasti(io.mmio, mmioNetwork.io.out(ioAddrHashMap("ext").port))
   }

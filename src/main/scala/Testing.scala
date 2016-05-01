@@ -140,7 +140,7 @@ object DefaultTestSuites {
   val rv32siNames = LinkedHashSet("csr", "ma_fetch", "scall", "sbreak", "wfi")
   val rv32si = new AssemblyTestSuite("rv32si", "rv32si", rv32siNames)(_)
 
-  val rv32miNames = LinkedHashSet("csr", "mcsr", "wfi", "dirty", "illegal", "ma_addr", "ma_fetch", "sbreak", "scall", "timer")
+  val rv32miNames = LinkedHashSet("csr", "mcsr", "wfi", "dirty", "illegal", "ma_addr", "ma_fetch", "sbreak", "scall")
   val rv32mi = new AssemblyTestSuite("rv32mi", "rv32mi", rv32miNames)(_)
 
   val rv32u = List(rv32ui, rv32um, rv32ua)

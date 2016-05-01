@@ -30,8 +30,6 @@ void htif_fini(vc_handle failure)
 
 int main(int argc, char** argv)
 {
-  unsigned long memsz_mb = MEM_SIZE / (1024*1024);
-
   for (int i = 1; i < argc; i++)
   {
     if (!strcmp(argv[i], "+dramsim"))
@@ -42,8 +40,7 @@ int main(int argc, char** argv)
       memory_channel_mux_select = atoi(argv[i]+27);
   }
 
-  htif = new htif_emulator_t(memsz_mb,
-          std::vector<std::string>(argv + 1, argv + argc));
+  htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
 
   for (int i=0; i<N_MEM_CHANNELS; i++) {
     mm[i] = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
@@ -107,13 +104,13 @@ void memory_tick(
   mmc->tick
   (
     vc_getScalar(ar_valid),
-    vc_4stVectorRef(ar_addr)->d,
+    vc_4stVectorRef(ar_addr)->d - MEM_BASE,
     vc_4stVectorRef(ar_id)->d,
     vc_4stVectorRef(ar_size)->d,
     vc_4stVectorRef(ar_len)->d,
 
     vc_getScalar(aw_valid),
-    vc_4stVectorRef(aw_addr)->d,
+    vc_4stVectorRef(aw_addr)->d - MEM_BASE,
     vc_4stVectorRef(aw_id)->d,
     vc_4stVectorRef(aw_size)->d,
     vc_4stVectorRef(aw_len)->d,

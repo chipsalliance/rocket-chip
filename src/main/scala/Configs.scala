@@ -25,25 +25,32 @@ class DefaultConfig extends Config (
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
     lazy val internalIOAddrMap: AddrMap = {
-      val deviceTree = AddrMapEntry("configstring", MemSize(1<<13, 1<<12, MemAttr(AddrMapProt.R)))
+      val debugModule = AddrMapEntry("debug", MemSize(1<<12, 1<<12, MemAttr(0)))
+      val bootROM = AddrMapEntry("bootrom", MemSize(1<<13, 1<<12, MemAttr(AddrMapProt.RX)))
       val rtc = AddrMapEntry("rtc", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
-      new AddrMap(Seq(deviceTree, rtc))
+      new AddrMap(Seq(debugModule, bootROM, rtc))
     }
-    lazy val globalAddrMap: AddrMap = {
-      val memSize = 1L << 30
-      val memAlign = 1L << 31
-      val extIOSize = 1L << 29
+    lazy val (globalAddrMap, globalAddrHashMap) = {
+      val memSize = 1L << 31
+      val memAlign = 1L << 30
+      val extIOSize = 1L << 30
       val mem = MemSize(memSize, memAlign, MemAttr(AddrMapProt.RWX, true))
       val io = AddrMap(
         AddrMapEntry("int", MemSubmap(internalIOAddrMap.computeSize, internalIOAddrMap)),
         AddrMapEntry("ext", MemSize(extIOSize, extIOSize, MemAttr(AddrMapProt.RWX))))
+      val addrMap = AddrMap(
+        AddrMapEntry("io", MemSubmap(io.computeSize, io)),
+        AddrMapEntry("mem", mem))
+
+      val addrHashMap = new AddrHashMap(addrMap)
+      Dump("MEM_BASE", addrHashMap("mem").start)
       Dump("MEM_SIZE", memSize)
-      AddrMap(
-        AddrMapEntry("mem", mem),
-        AddrMapEntry("io", MemSubmap(io.computeSize, io)))
+      Dump("IO_BASE", addrHashMap("io:ext").start)
+      Dump("IO_SIZE", extIOSize)
+      (addrMap, addrHashMap)
     }
     def makeConfigString() = {
-      val addrMap = new AddrHashMap(globalAddrMap)
+      val addrMap = globalAddrHashMap
       val xLen = site(XLen)
       val res = new StringBuilder
       res append  "platform {\n"
@@ -155,7 +162,7 @@ class DefaultConfig extends Config (
           if (site(XLen) == 64) (rv64i, rv64u)
           else (rv32i, rv32u)
         TestGeneration.addSuites(rvi.map(_("p")))
-        TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rvu.map(_(env))))
+        TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuite(bmarks)
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
@@ -178,7 +185,7 @@ class DefaultConfig extends Config (
       case FastMulDiv => true
       case XLen => 64
       case UseFPU => {
-        val env = if(site(UseVM)) List("p","pt","v") else List("p","pt")
+        val env = if(site(UseVM)) List("p","v") else List("p")
         if(site(FDivSqrt)) TestGeneration.addSuites(env.map(rv64uf))
         else TestGeneration.addSuites(env.map(rv64ufNoDiv))
         true
@@ -189,9 +196,9 @@ class DefaultConfig extends Config (
       case CoreInstBits => 32
       case CoreDataBits => site(XLen)
       case NCustomMRWCSRs => 0
-      case ResetVector => BigInt(0x0)
-      case MtvecInit => BigInt(0x8)
-      case MtvecWritable => false
+      case ResetVector => BigInt(0x1000)
+      case MtvecInit => BigInt(0x1010)
+      case MtvecWritable => true
       //Uncore Paramters
       case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
