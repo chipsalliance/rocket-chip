@@ -222,7 +222,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.misa -> UInt(isa),
     CSRs.mstatus -> read_mstatus,
     CSRs.mtvec -> reg_mtvec,
-    CSRs.mcfgaddr -> UInt(addrMap("io:int:configstring").start),
     CSRs.mipi -> reg_mip.msip,
     CSRs.mip -> read_mip,
     CSRs.mie -> reg_mie,
@@ -334,10 +333,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     Mux(insn_call, reg_mstatus.prv + Causes.user_ecall,
     Mux[UInt](insn_break, Causes.breakpoint, Causes.illegal_instruction)))
   val cause_lsbs = cause(log2Up(xLen)-1,0)
-  val can_delegate = Bool(p(UseVM)) && reg_mstatus.prv < PRV.M
-  val delegate = can_delegate && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
+  val delegate = Bool(p(UseVM)) && reg_mstatus.prv < PRV.M && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
   val tvec = Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec)
-  val epc = Mux(can_delegate, reg_sepc, reg_mepc)
+  val epc = Mux(Bool(p(UseVM)) && !csr_addr_priv(1), reg_sepc, reg_mepc)
   io.fatc := insn_sfence_vm
   io.evec := Mux(io.exception || csr_xcpt, tvec, epc)
   io.ptbr := reg_sptbr
@@ -383,7 +381,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
   
   when (insn_ret) {
-    when (can_delegate) {
+    when (Bool(p(UseVM)) && !csr_addr_priv(1)) {
       when (reg_mstatus.spp.toBool) { reg_mstatus.sie := reg_mstatus.spie }
       reg_mstatus.spie := false
       reg_mstatus.spp := PRV.U
