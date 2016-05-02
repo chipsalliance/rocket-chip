@@ -11,8 +11,6 @@ import rocket.Util._
 
 /** Top-level parameters of RocketChip, values set in e.g. PublicConfigs.scala */
 
-/** Number of tiles */
-case object NTiles extends Field[Int]
 /** Number of memory channels */
 case object NMemoryChannels extends Field[Int]
 /** Number of banks per memory channel */
@@ -130,11 +128,19 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   // Connect each tile to the HTIF
   uncore.io.htif.zip(tileList).zipWithIndex.foreach {
     case ((hl, tile), i) =>
-      tile.io.host.timerIRQ := uncore.io.timerIRQs(i)
+      // TODO remove
       tile.io.host.id := UInt(i)
       tile.io.host.reset := Reg(next=Reg(next=hl.reset))
       tile.io.host.csr.req <> Queue(hl.csr.req)
       hl.csr.resp <> Queue(tile.io.host.csr.resp)
+
+      // TODO move this into PRCI
+      tile.io.prci.interrupts.mtip := uncore.io.timerIRQs(i)
+      tile.io.prci.interrupts.msip := Bool(false)
+      tile.io.prci.interrupts.meip := Bool(false)
+      tile.io.prci.interrupts.seip := Bool(false)
+      tile.io.prci.id := UInt(i)
+      tile.io.prci.reset := Reg(next=Reg(next=hl.reset))
   }
 
   // Connect the uncore to the tile memory ports, HostIO and MemIO
