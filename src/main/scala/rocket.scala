@@ -110,7 +110,7 @@ object ImmGen {
 
 class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
-    val host = new HtifIO
+    val prci = new PRCICoreIO().flip
     val imem  = new FrontendIO()(p.alterPartial({case CacheName => "L1I" }))
     val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => "L1D" }))
     val ptw = new DatapathPTWIO().flip
@@ -426,7 +426,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   csr.io.exception := wb_reg_xcpt
   csr.io.cause := wb_reg_cause
   csr.io.retire := wb_valid
-  io.host <> csr.io.host
+  csr.io.prci <> io.prci
   io.fpu.fcsr_rm := csr.io.fcsr_rm
   csr.io.fcsr_flags := io.fpu.fcsr_flags
   csr.io.rocc <> io.rocc
@@ -581,7 +581,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   }
   else {
     printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         io.host.id, csr.io.time(31,0), wb_valid, wb_reg_pc,
+         io.prci.id, csr.io.time(31,0), wb_valid, wb_reg_pc,
          Mux(rf_wen, rf_waddr, UInt(0)), rf_wdata, rf_wen,
          wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
          wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),
