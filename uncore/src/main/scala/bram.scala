@@ -2,6 +2,7 @@ package uncore
 
 import Chisel._
 import cde.{Parameters, Field}
+import junctions._
 
 class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
   with HasTileLinkParameters {
@@ -61,4 +62,48 @@ class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
 
   val stall = multibeat || (io.grant.valid && !io.grant.ready)
   io.acquire.ready := !stall
+}
+
+class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
+  val io = new HastiSlaveIO
+
+  val hastiDataBytes = hastiDataBits/8
+
+  val wdata = Vec.tabulate(hastiDataBytes)(i => io.hwdata(8*(i+1)-1,8*i))
+  val waddr = Reg(UInt(width = hastiAddrBits))
+  val wvalid = Reg(init = Bool(false))
+  val wsize = Reg(UInt(width = SZ_HSIZE))
+  val ram = SeqMem(depth, Vec(hastiDataBytes, Bits(width = 8)))
+
+  val max_wsize = log2Ceil(hastiDataBytes)
+  val wmask_lut = MuxLookup(wsize, SInt(-1, hastiDataBytes).asUInt,
+    (0 until max_wsize).map(1 << _).map(sz => (UInt(sz) -> UInt((1 << sz << sz) - 1))))
+  val wmask = (wmask_lut << waddr(max_wsize - 1, 0))(hastiDataBytes - 1, 0)
+
+  val is_trans = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
+  val raddr = io.haddr >> UInt(2)
+  val ren = is_trans && !io.hwrite
+  val bypass = Reg(init = Bool(false))
+  val last_wdata = Reg(next = wdata)
+  val last_wmask = Reg(next = wmask)
+
+  when (is_trans && io.hwrite) {
+    waddr := io.haddr
+    wsize := io.hsize
+    wvalid := Bool(true)
+  } .otherwise { wvalid := Bool(false) }
+
+  when (ren) { bypass := wvalid && (waddr >> UInt(2)) === raddr }
+
+  when (wvalid) {
+    ram.write(waddr >> UInt(2), wdata, wmask.toBools)
+  }
+
+  val rdata = ram.read(raddr, ren)
+  io.hrdata := Cat(rdata.zip(wmask.toBools).zip(wdata).map {
+    case ((rbyte, wsel), wbyte) => Mux(wsel && bypass, wbyte, rbyte)
+  }.reverse)
+
+  io.hreadyout := Bool(true)
+  io.hresp := HRESP_OKAY
 }
