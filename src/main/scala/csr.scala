@@ -144,7 +144,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_mie = Reg(init=UInt(0, xLen))
   val reg_mideleg = Reg(init=UInt(0, xLen))
   val reg_medeleg = Reg(init=UInt(0, xLen))
-  val reg_mip = Reg(init=new MIP().fromBits(0))
+  val reg_mip = Reg(new MIP)
   val reg_mepc = Reg(UInt(width = vaddrBitsExtended))
   val reg_mcause = Reg(Bits(width = xLen))
   val reg_mbadaddr = Reg(UInt(width = vaddrBitsExtended))
@@ -201,7 +201,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.misa -> UInt(isa),
     CSRs.mstatus -> read_mstatus,
     CSRs.mtvec -> reg_mtvec,
-    CSRs.mipi -> reg_mip.msip,
     CSRs.mip -> read_mip,
     CSRs.mie -> reg_mie,
     CSRs.mideleg -> reg_mideleg,
@@ -415,10 +414,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
         reg_mip.ssip := new_mip.ssip
         reg_mip.stip := new_mip.stip
       }
-      reg_mip.msip := new_mip.msip
-    }
-    when (decoded_addr(CSRs.mipi)) {
-      reg_mip.msip := wdata(0)
     }
     when (decoded_addr(CSRs.mie))      { reg_mie := wdata & supported_interrupts }
     when (decoded_addr(CSRs.mepc))     { reg_mepc := ~(~wdata | (coreInstBytes-1)) }
