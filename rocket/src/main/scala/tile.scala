@@ -30,7 +30,8 @@ abstract class Tile(resetSignal: Bool = null)
   val io = new Bundle {
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
     val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
-    val host = new HtifIO
+    val host = new HtifIO // Unused, but temporarily extant for zscale/groundtest
+    val prci = new PRCICoreIO().flip
     val dma = new DmaIO
   }
 }
@@ -47,7 +48,7 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   val uncachedArbPorts = collection.mutable.ArrayBuffer(icache.io.mem)
   val uncachedPorts = collection.mutable.ArrayBuffer[ClientUncachedTileLinkIO]()
   val cachedPorts = collection.mutable.ArrayBuffer(dcache.io.mem)
-  io.host <> core.io.host
+  core.io.prci <> io.prci
   icache.io.cpu <> core.io.imem
 
   val fpuOpt = if (p(UseFPU)) Some(Module(new FPU)) else None
@@ -71,7 +72,7 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       rocc.io.cmd <> cmdRouter.io.out(i)
       rocc.io.status := core.io.rocc.status
       rocc.io.exception := core.io.rocc.exception
-      rocc.io.host_id := io.host.id
+      rocc.io.host_id := io.prci.id
       dcIF.io.requestor <> rocc.io.mem
       dcPorts += dcIF.io.cache
       uncachedArbPorts += rocc.io.autl
@@ -141,4 +142,9 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       fpu.io.cp_resp.ready := Bool(false)
     }
   }
+
+  // TODO remove
+  io.host.csr.resp.valid := io.host.csr.req.valid
+  io.host.csr.req.ready := io.host.csr.resp.ready
+  io.host.csr.resp.bits := UInt(0)
 }
