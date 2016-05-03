@@ -8,7 +8,7 @@ import Instructions._
 import cde.{Parameters, Field}
 import uncore._
 import scala.math._
-import junctions.{AddrHashMap, GlobalAddrMap}
+import junctions.AddrHashMap
 
 class MStatus extends Bundle {
   val prv = UInt(width = PRV.SZ) // not truly part of mstatus, but convenient
