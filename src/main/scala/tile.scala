@@ -30,7 +30,6 @@ abstract class Tile(resetSignal: Bool = null)
   val io = new Bundle {
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
     val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
-    val host = new HtifIO // Unused, but temporarily extant for zscale/groundtest
     val prci = new PRCITileIO().flip
     val dma = new DmaIO
   }
@@ -142,9 +141,4 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       fpu.io.cp_resp.ready := Bool(false)
     }
   }
-
-  // TODO remove
-  io.host.csr.resp.valid := io.host.csr.req.valid
-  io.host.csr.req.ready := io.host.csr.resp.ready
-  io.host.csr.resp.bits := UInt(0)
 }
