@@ -142,7 +142,7 @@ class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 class CacheFillTestConfig extends Config(
-  new WithCacheFillTest ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
 class BroadcastRegressionTestConfig extends Config(
   new WithBroadcastRegressionTest ++ new GroundTestConfig)
 class CacheRegressionTestConfig extends Config(
