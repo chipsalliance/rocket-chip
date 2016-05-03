@@ -125,7 +125,7 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
   val plru = new PseudoLRU(entries)
   val repl_waddr = Mux(has_invalid_entry, invalid_entry, plru.replace)
 
-  val do_mprv = io.ptw.status.prv === PRV.M && io.ptw.status.mprv && !io.req.bits.instruction
+  val do_mprv = io.ptw.status.mprv && !io.req.bits.instruction
   val priv = Mux(do_mprv, io.ptw.status.mpp, io.ptw.status.prv)
   val priv_s = priv === PRV.S
   val priv_uses_vm = priv <= PRV.S
