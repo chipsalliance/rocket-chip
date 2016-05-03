@@ -126,21 +126,13 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   val tileList = uncore.io.htif zip p(BuildTiles) map { case(hl, bt) => bt(hl.reset, p) }
 
   // Connect each tile to the HTIF
-  uncore.io.htif.zip(tileList).zipWithIndex.foreach {
-    case ((hl, tile), i) =>
-      // TODO remove
-      tile.io.host.id := UInt(i)
-      tile.io.host.reset := Reg(next=Reg(next=hl.reset))
-      tile.io.host.csr.req <> Queue(hl.csr.req)
-      hl.csr.resp <> Queue(tile.io.host.csr.resp)
-
-      // TODO move this into PRCI
-      tile.io.prci.interrupts.mtip := uncore.io.timerIRQs(i)
-      tile.io.prci.interrupts.msip := Bool(false)
-      tile.io.prci.interrupts.meip := Bool(false)
-      tile.io.prci.interrupts.seip := Bool(false)
-      tile.io.prci.id := UInt(i)
-      tile.io.prci.reset := Reg(next=Reg(next=hl.reset))
+  for (((hl, prci), tile) <- uncore.io.htif zip uncore.io.prci zip tileList) {
+    tile.io.prci <> prci
+    // TODO remove HTIF
+    tile.io.host.id := prci.id
+    tile.io.host.reset := prci.reset
+    tile.io.host.csr.req <> Queue(hl.csr.req)
+    hl.csr.resp <> Queue(tile.io.host.csr.resp)
   }
 
   // Connect the uncore to the tile memory ports, HostIO and MemIO
@@ -171,7 +163,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val htif = Vec(nTiles, new HtifIO).flip
-    val timerIRQs = Vec(nTiles, Bool()).asOutput
+    val prci = Vec(nTiles, new PRCITileIO).asOutput
     val mmio = new NastiIO
   }
 
@@ -218,7 +210,21 @@ class Uncore(implicit val p: Parameters) extends Module
     val rtcAddr = ioAddrHashMap("int:rtc")
     require(rtc.size <= rtcAddr.region.size)
     rtc.io.tl <> mmioNetwork.io.out(rtcAddr.port)
-    io.timerIRQs := rtc.io.irqs
+
+    for (i <- 0 until nTiles) {
+      val prci = Module(new PRCI)
+      val prciAddr = ioAddrHashMap(s"int:prci$i")
+      prci.io.tl <> mmioNetwork.io.out(prciAddr.port)
+
+      prci.io.id := UInt(i)
+      prci.io.interrupts.mtip := rtc.io.irqs(i)
+      prci.io.interrupts.meip := Bool(false)
+      prci.io.interrupts.seip := Bool(false)
+      prci.io.interrupts.debug := Bool(false)
+
+      io.prci(i) := prci.io.tile
+      io.prci(i).reset := Reg(next=Reg(next=htif.io.cpu(i).reset)) // TODO
+    }
 
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
     val bootROMAddr = ioAddrHashMap("int:bootrom")

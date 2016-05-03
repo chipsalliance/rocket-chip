@@ -25,10 +25,13 @@ class DefaultConfig extends Config (
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
     lazy val internalIOAddrMap: AddrMap = {
-      val debugModule = AddrMapEntry("debug", MemSize(1<<12, 1<<12, MemAttr(0)))
-      val bootROM = AddrMapEntry("bootrom", MemSize(1<<13, 1<<12, MemAttr(AddrMapProt.RX)))
-      val rtc = AddrMapEntry("rtc", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
-      new AddrMap(Seq(debugModule, bootROM, rtc))
+      val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
+      entries += AddrMapEntry("debug", MemSize(1<<12, 1<<12, MemAttr(0)))
+      entries += AddrMapEntry("bootrom", MemSize(1<<13, 1<<12, MemAttr(AddrMapProt.RX)))
+      entries += AddrMapEntry("rtc", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
+      for (i <- 0 until site(NTiles))
+        entries += AddrMapEntry(s"prci$i", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
+      new AddrMap(entries)
     }
     lazy val (globalAddrMap, globalAddrHashMap) = {
       val memSize = 1L << 31
@@ -70,10 +73,12 @@ class DefaultConfig extends Config (
       for (i <- 0 until site(NTiles)) {
         val isa = s"rv${site(XLen)}ima${if (site(UseFPU)) "fd" else ""}"
         val timecmpAddr = addrMap("io:int:rtc").start + 8*(i+1)
+        val prciAddr = addrMap(s"io:int:prci$i").start
         res append s"  $i {\n"
         res append  "    0 {\n"
         res append s"      isa $isa;\n"
         res append s"      timecmp 0x${timecmpAddr.toString(16)};\n"
+        res append s"      ipi 0x${prciAddr.toString(16)};\n"
         res append  "    };\n"
         res append  "  };\n"
       }
