@@ -6,11 +6,12 @@ import junctions._
 import cde.Parameters
 
 abstract class NastiTest(implicit val p: Parameters) extends Module
-    with HasNastiParameters with HasMIFParameters {
+    with HasNastiParameters with HasMIFParameters with HasAddrMapParameters {
   val io = new Bundle {
     val finished = Bool(OUTPUT)
     val mem = new NastiIO
   }
+  val memStart = addrMap("mem").start
 }
 
 class NastiBlockTest(implicit p: Parameters) extends NastiTest()(p) {
@@ -29,7 +30,7 @@ class NastiBlockTest(implicit p: Parameters) extends NastiTest()(p) {
   io.mem.aw.valid := (state === s_write_req) && !addr_sent
   io.mem.aw.bits := NastiWriteAddressChannel(
     id = UInt(0),
-    addr = UInt(0),
+    addr = UInt(memStart),
     len = UInt(mifDataBeats - 1),
     size = UInt(log2Up(mifDataBits / 8)))
 
@@ -43,7 +44,7 @@ class NastiBlockTest(implicit p: Parameters) extends NastiTest()(p) {
   io.mem.ar.valid := (state === s_read_req)
   io.mem.ar.bits := NastiReadAddressChannel(
     id = UInt(1),
-    addr = UInt(0),
+    addr = UInt(memStart),
     len = UInt(mifDataBeats - 1),
     size = UInt(log2Up(mifDataBits / 8)))
 
@@ -77,7 +78,7 @@ class NastiSmallTest(implicit p: Parameters) extends NastiTest()(p) {
   io.mem.aw.valid := (state === s_write_addr)
   io.mem.aw.bits := NastiWriteAddressChannel(
     id = UInt(0),
-    addr = UInt(0x20C),
+    addr = UInt(memStart + 0x20C),
     len = UInt(0),
     size = UInt("b010"))
 
@@ -89,7 +90,7 @@ class NastiSmallTest(implicit p: Parameters) extends NastiTest()(p) {
   io.mem.ar.valid := (state === s_read_req)
   io.mem.ar.bits := NastiReadAddressChannel(
     id = UInt(1),
-    addr = UInt(0x20C),
+    addr = UInt(memStart + 0x20C),
     len = UInt(0),
     size = UInt("b010"))
 

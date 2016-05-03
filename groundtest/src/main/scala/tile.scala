@@ -3,7 +3,7 @@ package groundtest
 import Chisel._
 import rocket._
 import uncore._
-import junctions.{SmiIO, ParameterizedBundle}
+import junctions._
 import scala.util.Random
 import cde.{Parameters, Field}
 
@@ -75,61 +75,19 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   }
 }
 
-class CSRHandler(implicit val p: Parameters) extends Module {
-  private val csrDataBits = 64
-  private val csrAddrBits = 12
-
-  val io = new Bundle {
-    val finished = Bool(INPUT)
-    val csr = new SmiIO(csrDataBits, csrAddrBits).flip
-    val rocc = new RoCCCSRs
-  }
-
-  val csr_resp_valid = Reg(Bool()) // Don't reset
-  val csr_resp_data = Reg(UInt(width = csrDataBits))
-
-  io.csr.req.ready := Bool(true)
-  io.csr.resp.valid := csr_resp_valid
-  io.csr.resp.bits := csr_resp_data
-
-  val req = io.csr.req.bits
-  val csr_list = p(GroundTestCSRs)
-  val rocc_csr = csr_list.map(num => req.addr === UInt(num))
-                         .foldLeft(Bool(false))(_ || _)
-
-  val default_csr_rdata = Mux(req.addr === UInt(CSRs.mtohost), io.finished, req.data)
-  val csr_rdata = csr_list.zipWithIndex.foldLeft(default_csr_rdata) {
-    (res, pair) => pair match {
-      case (csrnum, i) => Mux(
-        req.addr === UInt(csrnum), io.rocc.rdata(i), res)
-    }
-  }
-
-  when (io.csr.req.fire()) {
-    csr_resp_valid := Bool(true)
-    csr_resp_data := csr_rdata
-  }
-
-  when (io.csr.resp.fire()) {
-    csr_resp_valid := Bool(false)
-  }
-
-  io.rocc.waddr := req.addr
-  io.rocc.wdata := req.data
-  io.rocc.wen := io.csr.req.valid && req.rw && rocc_csr
-}
-
 class GroundTestIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val cache = new HellaCacheIO
   val mem = new ClientUncachedTileLinkIO
   val dma = new DmaIO
   val ptw = new TLBPTWIO
-  val csr = (new RoCCCSRs).flip
   val finished = Bool(OUTPUT)
 }
 
-abstract class GroundTest(implicit val p: Parameters) extends Module {
+abstract class GroundTest(implicit val p: Parameters) extends Module
+    with HasAddrMapParameters {
   val io = new GroundTestIO
+  val memStart = addrMap("mem").start
+  val memStartBlock = memStart >> p(CacheBlockOffsetBits)
 
   def disablePorts(mem: Boolean = true,
                    cache: Boolean = true,
@@ -147,11 +105,36 @@ abstract class GroundTest(implicit val p: Parameters) extends Module {
   }
 }
 
+class GroundTestFinisher(implicit p: Parameters) extends TLModule()(p) {
+  val io = new Bundle {
+    val finished = Bool(INPUT)
+    val mem = new ClientUncachedTileLinkIO
+  }
+
+  val addrBits = p(PAddrBits)
+  val offsetBits = tlBeatAddrBits + tlByteAddrBits
+  val tohostAddr = UInt("h80001000")
+
+  val s_idle :: s_write_tohost :: s_wait :: Nil = Enum(Bits(), 3)
+  val state = Reg(init = s_idle)
+
+  when (state === s_idle && io.finished) { state := s_write_tohost }
+  when (io.mem.acquire.fire()) { state := s_wait }
+
+  io.mem.acquire.valid := (state === s_write_tohost)
+  io.mem.acquire.bits := Put(
+    client_xact_id = UInt(0),
+    addr_block = tohostAddr(addrBits - 1, offsetBits),
+    addr_beat = tohostAddr(offsetBits - 1, tlByteAddrBits),
+    data = UInt(1),
+    wmask = SInt(-1, 8).asUInt)
+  io.mem.grant.ready := (state === s_wait)
+}
+
 class GroundTestTile(id: Int, resetSignal: Bool)
                    (implicit val p: Parameters) extends Tile(resetSignal)(p) {
 
   val test = p(BuildGroundTest)(id, dcacheParams)
-  io.uncached.head <> test.io.mem
 
   val dcache = Module(new HellaCache()(dcacheParams))
   val dcacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))
@@ -159,14 +142,15 @@ class GroundTestTile(id: Int, resetSignal: Bool)
   dcache.io.cpu <> dcacheIF.io.cache
   io.cached.head <> dcache.io.mem
 
-  val csr = Module(new CSRHandler)
-  csr.io.finished := test.io.finished
-  csr.io.csr <> io.host.csr
-  if (!p(GroundTestCSRs).isEmpty) {
-    test.io.csr <> csr.io.rocc
-  }
-
   val ptw = Module(new DummyPTW(2))
   ptw.io.requestors(0) <> test.io.ptw
   ptw.io.requestors(1) <> dcache.io.ptw
+
+  val finisher = Module(new GroundTestFinisher)
+  finisher.io.finished := test.io.finished
+
+  val memArb = Module(new ClientUncachedTileLinkIOArbiter(2))
+  memArb.io.in(0) <> test.io.mem
+  memArb.io.in(1) <> finisher.io.mem
+  io.uncached.head <> memArb.io.out
 }

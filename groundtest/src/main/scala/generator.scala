@@ -11,7 +11,7 @@ case object NGenerators extends Field[Int]
 case object GenerateUncached extends Field[Boolean]
 case object GenerateCached extends Field[Boolean]
 case object MaxGenerateRequests extends Field[Int]
-case object GeneratorStartAddress extends Field[Int]
+case object GeneratorStartAddress extends Field[BigInt]
 
 trait HasGeneratorParams {
   implicit val p: Parameters
@@ -25,7 +25,7 @@ trait HasGeneratorParams {
   val genWordBytes = genWordBits / 8
   val wordOffset = log2Up(genWordBytes)
 
-  require(startAddress % genWordBytes == 0)
+  require(startAddress % BigInt(genWordBytes) == 0)
 }
 
 class UncachedTileLinkGenerator(id: Int)

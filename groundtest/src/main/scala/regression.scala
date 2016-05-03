@@ -15,6 +15,8 @@ class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) 
 
 abstract class Regression(implicit val p: Parameters)
     extends Module with HasTileLinkParameters with HasAddrMapParameters {
+  val memStart = addrMap("mem").start
+  val memStartBlock = memStart >> p(CacheBlockOffsetBits)
   val io = new RegressionIO
 }
 
@@ -43,13 +45,13 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
   io.mem.acquire.valid := !put_sent && started
   io.mem.acquire.bits := PutBlock(
     client_xact_id = UInt(0),
-    addr_block = UInt(0),
+    addr_block = UInt(memStartBlock),
     addr_beat = put_beat,
     data = UInt(0))
   io.mem.grant.ready := Bool(true)
 
   io.cache.req.valid := !get_sent && started
-  io.cache.req.bits.addr := UInt(addrMap("conf:devicetree").start)
+  io.cache.req.bits.addr := UInt(addrMap("io:int:bootrom").start)
   io.cache.req.bits.typ := MT_W
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)
@@ -86,7 +88,7 @@ class PutBlockMergeRegression(implicit p: Parameters)
 
   val l2params = p.alterPartial({ case CacheName => "L2Bank" })
   val nSets = l2params(NSets)
-  val addr_blocks = Vec(UInt(0), UInt(0), UInt(nSets))
+  val addr_blocks = Vec(Seq(0, 0, nSets).map(num => UInt(num + memStartBlock)))
   val nSteps = addr_blocks.size
   val (acq_beat, acq_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
   val (send_cnt, send_done) = Counter(acq_done, nSteps)
@@ -121,7 +123,7 @@ class NoAllocPutHitRegression(implicit p: Parameters) extends Regression()(p) {
   val (put_beat, put_done) = Counter(io.mem.acquire.fire() && acq.hasData(), tlDataBeats)
   val acked = Reg(init = UInt(0, tlDataBeats + 2))
 
-  val addr_block = UInt(2)
+  val addr_block = UInt(memStartBlock + 2)
   val test_data = UInt(0x3446)
 
   val prefetch_acq = GetPrefetch(
@@ -183,7 +185,7 @@ class RepeatedNoAllocPutRegression(implicit p: Parameters) extends Regression()(
   io.mem.acquire.valid := sending
   io.mem.acquire.bits := PutBlock(
     client_xact_id = req_cnt,
-    addr_block = UInt(5),
+    addr_block = UInt(memStartBlock + 5),
     addr_beat = put_beat,
     data = Cat(req_cnt, UInt(0, 8)),
     alloc = Bool(false))
@@ -217,14 +219,14 @@ class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()
 
   val put_acq = PutBlock(
     client_xact_id = UInt(0),
-    addr_block = UInt(7),
+    addr_block = UInt(memStartBlock + 7),
     addr_beat = put_beat,
     data = Mux(put_beat(0) === stage, put_data, UInt(0)),
     wmask = Mux(put_beat(0) === stage, Acquire.fullWriteMask, Bits(0)))
 
   val get_acq = GetBlock(
     client_xact_id = UInt(0),
-    addr_block = UInt(6) + stage)
+    addr_block = UInt(memStartBlock + 6) + stage)
 
   io.mem.acquire.valid := (state === s_put_send || state === s_get_send)
   io.mem.acquire.bits := Mux(state === s_get_send, get_acq, put_acq)
@@ -272,8 +274,8 @@ class PrefetchHitRegression(implicit p: Parameters) extends Regression()(p) {
   val acked = Reg(init = UInt(0, nPrefetches))
 
   val acq_bits = Vec(
-    PutPrefetch(client_xact_id = UInt(0), addr_block = UInt(12)),
-    GetPrefetch(client_xact_id = UInt(1), addr_block = UInt(12)))
+    PutPrefetch(client_xact_id = UInt(0), addr_block = UInt(memStartBlock + 12)),
+    GetPrefetch(client_xact_id = UInt(1), addr_block = UInt(memStartBlock + 12)))
 
   io.mem.acquire.valid := sending
   io.mem.acquire.bits := acq_bits(pf_cnt)
@@ -310,7 +312,7 @@ class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()
   io.mem.acquire.valid := sending
   io.mem.acquire.bits := Get(
     client_xact_id = UInt(0),
-    addr_block = UInt(9),
+    addr_block = UInt(memStartBlock + 9),
     addr_beat = send_cnt)
   io.mem.grant.ready := !finished
 
@@ -331,7 +333,7 @@ class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
   val nSets = l2params(NSets)
   val nWays = l2params(NWays)
 
-  val addr_blocks = Vec.tabulate(nWays + 1) { i => UInt(i * nSets) }
+  val addr_blocks = Vec.tabulate(nWays + 1) { i => UInt(memStartBlock + i * nSets) }
   val data = Vec.tabulate(nWays + 1) { i => UInt((i + 1) * 1423) }
 
   val (put_beat, put_done) = Counter(
@@ -388,14 +390,14 @@ class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p
 
   val put_acquire = Put(
     client_xact_id = UInt(0),
-    addr_block = UInt(0),
+    addr_block = UInt(memStartBlock),
     addr_beat = UInt(0),
     data = UInt(0),
     wmask = UInt((1 << 8) - 1))
 
   val put_block_acquire = PutBlock(
     client_xact_id = UInt(1),
-    addr_block = UInt(1),
+    addr_block = UInt(memStartBlock + 1),
     addr_beat = put_block_beat,
     data = UInt(0))
 

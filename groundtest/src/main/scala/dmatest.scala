@@ -87,7 +87,7 @@ class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
   io.mem <> frontend.io.mem
 
   val status_reg = Module(new DmaStatusReg)
-  status_reg.io.csr <> io.csr
+  //status_reg.io.csr <> io.csr
   status_reg.io.incr_outstanding := frontend.io.incr_outstanding
 
   val cache_addr_base = Mux(state === s_setup_req, UInt(conf.source), UInt(conf.dest))
@@ -161,7 +161,7 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
   io.mem <> frontend.io.mem
 
   val status_reg = Module(new DmaStatusReg)
-  status_reg.io.csr <> io.csr
+  //status_reg.io.csr <> io.csr
   status_reg.io.incr_outstanding := frontend.io.incr_outstanding
 
   val dma_done = !frontend.io.busy && !status_reg.io.xact_outstanding
