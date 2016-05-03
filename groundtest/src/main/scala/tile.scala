@@ -10,6 +10,7 @@ import cde.{Parameters, Field}
 case object BuildGroundTest extends Field[(Int, Parameters) => GroundTest]
 case object GroundTestMaxXacts extends Field[Int]
 case object GroundTestCSRs extends Field[Seq[Int]]
+case object TohostAddrs extends Field[Seq[BigInt]]
 
 /** A "cache" that responds to probe requests with a release indicating
  *  the block is not present */
@@ -113,15 +114,19 @@ class GroundTestFinisher(implicit p: Parameters) extends TLModule()(p) {
 
   val addrBits = p(PAddrBits)
   val offsetBits = tlBeatAddrBits + tlByteAddrBits
-  val tohostAddr = UInt("h80001000")
+  val tohostAddrs = Vec(p(TohostAddrs).map(addr => UInt(addr)))
 
-  val s_idle :: s_write_tohost :: s_wait :: Nil = Enum(Bits(), 3)
+  val (send_cnt, send_done) = Counter(io.mem.grant.fire(), tohostAddrs.size)
+  val tohostAddr = tohostAddrs(send_cnt)
+
+  val s_idle :: s_write :: s_wait :: s_done :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
 
-  when (state === s_idle && io.finished) { state := s_write_tohost }
+  when (state === s_idle && io.finished) { state := s_write }
   when (io.mem.acquire.fire()) { state := s_wait }
+  when (io.mem.grant.fire()) { state := Mux(send_done, s_done, s_write) }
 
-  io.mem.acquire.valid := (state === s_write_tohost)
+  io.mem.acquire.valid := (state === s_write)
   io.mem.acquire.bits := Put(
     client_xact_id = UInt(0),
     addr_block = tohostAddr(addrBits - 1, offsetBits),
