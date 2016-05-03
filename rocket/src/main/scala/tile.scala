@@ -31,7 +31,7 @@ abstract class Tile(resetSignal: Bool = null)
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
     val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
     val host = new HtifIO // Unused, but temporarily extant for zscale/groundtest
-    val prci = new PRCICoreIO().flip
+    val prci = new PRCITileIO().flip
     val dma = new DmaIO
   }
 }
