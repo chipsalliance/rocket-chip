@@ -3,7 +3,7 @@ package rocket
 import Chisel._
 import uncore._
 import uncore.DmaRequest._
-import junctions.{ParameterizedBundle, AddrHashMap, GlobalAddrMap}
+import junctions.{ParameterizedBundle, AddrHashMap}
 import cde.Parameters
 
 trait HasClientDmaParameters extends HasCoreParameters with HasDmaParameters {
