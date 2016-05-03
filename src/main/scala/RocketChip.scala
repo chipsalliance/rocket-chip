@@ -123,16 +123,11 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   // Build an Uncore and a set of Tiles
   val innerTLParams = p.alterPartial({case TLId => "L1toL2" })
   val uncore = Module(new Uncore()(innerTLParams))
-  val tileList = uncore.io.htif zip p(BuildTiles) map { case(hl, bt) => bt(hl.reset, p) }
+  val tileList = uncore.io.prci zip p(BuildTiles) map { case(prci, tile) => tile(prci.reset, p) }
 
   // Connect each tile to the HTIF
-  for (((hl, prci), tile) <- uncore.io.htif zip uncore.io.prci zip tileList) {
+  for ((prci, tile) <- uncore.io.prci zip tileList) {
     tile.io.prci <> prci
-    // TODO remove HTIF
-    tile.io.host.id := prci.id
-    tile.io.host.reset := prci.reset
-    tile.io.host.csr.req <> Queue(hl.csr.req)
-    hl.csr.resp <> Queue(tile.io.host.csr.resp)
   }
 
   // Connect the uncore to the tile memory ports, HostIO and MemIO
@@ -162,7 +157,6 @@ class Uncore(implicit val p: Parameters) extends Module
     val mem = Vec(nMemChannels, new NastiIO)
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
-    val htif = Vec(nTiles, new HtifIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
     val mmio = new NastiIO
   }
@@ -173,12 +167,6 @@ class Uncore(implicit val p: Parameters) extends Module
   outmemsys.io.htif_uncached <> htif.io.mem
   outmemsys.io.tiles_uncached <> io.tiles_uncached
   outmemsys.io.tiles_cached <> io.tiles_cached
-
-  for (i <- 0 until nTiles) {
-    io.htif(i).reset := htif.io.cpu(i).reset
-    io.htif(i).id := htif.io.cpu(i).id
-    io.htif(i).csr <> htif.io.cpu(i).csr
-  }
 
   val addrMap = p(GlobalAddrMap)
   val addrHashMap = p(GlobalAddrHashMap)
@@ -195,6 +183,9 @@ class Uncore(implicit val p: Parameters) extends Module
   } else {
     io.host <> htif.io.host
   }
+
+  // Tie off HTIF CSR ports
+  htif.io.cpu.foreach { _.csr.resp.valid := Bool(false) }
 
   def buildMMIONetwork(implicit p: Parameters) = {
     val (ioBase, ioAddrMap) = addrHashMap.subMap("io")
