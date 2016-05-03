@@ -214,6 +214,8 @@ class ClientUncachedTileLinkIORouter(
     new Grant, nOuter, tlDataBeats, Some((gnt: Grant) => gnt.hasMultibeatData())))
   gnt_arb.io.in <> io.out.map(_.grant)
   io.in.grant <> gnt_arb.io.out
+
+  assert(!io.in.acquire.valid || acq_route.orR, "No valid route")
 }
 
 class TileLinkInterconnectIO(val nInner: Int, val nOuter: Int)
