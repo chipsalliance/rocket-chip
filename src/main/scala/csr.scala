@@ -76,7 +76,7 @@ object CSR
 }
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle {
-  val prci = new PRCICoreIO().flip
+  val prci = new PRCITileIO().flip
   val rw = new Bundle {
     val addr = UInt(INPUT, CSR.ADDRSZ)
     val cmd = Bits(INPUT, CSR.SZ)

@@ -110,7 +110,7 @@ object ImmGen {
 
 class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
-    val prci = new PRCICoreIO().flip
+    val prci = new PRCITileIO().flip
     val imem  = new FrontendIO()(p.alterPartial({case CacheName => "L1I" }))
     val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => "L1D" }))
     val ptw = new DatapathPTWIO().flip
