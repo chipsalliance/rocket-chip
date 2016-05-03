@@ -23,7 +23,7 @@ class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
   io.mem.acquire.bits := Mux(state === s_prefetch,
     GetPrefetch(xact_id, UInt(memStartBlock) + req_block),
     GetBlock(xact_id, UInt(memStartBlock) + req_block))
-  io.mem.grant.ready := active
+  io.mem.grant.ready := inflight
 
   when (io.mem.acquire.fire()) {
     inflight := Bool(true)
