@@ -137,7 +137,7 @@ class GroundTestFinisher(implicit p: Parameters) extends TLModule()(p) {
 }
 
 class GroundTestTile(id: Int, resetSignal: Bool)
-                   (implicit val p: Parameters) extends Tile(resetSignal)(p) {
+                    (implicit val p: Parameters) extends Tile(resetSignal)(p) {
 
   val test = p(BuildGroundTest)(id, dcacheParams)
 
@@ -151,11 +151,14 @@ class GroundTestTile(id: Int, resetSignal: Bool)
   ptw.io.requestors(0) <> test.io.ptw
   ptw.io.requestors(1) <> dcache.io.ptw
 
-  val finisher = Module(new GroundTestFinisher)
-  finisher.io.finished := test.io.finished
+  // Only Tile 0 needs to write tohost
+  if (id == 0) {
+    val finisher = Module(new GroundTestFinisher)
+    finisher.io.finished := test.io.finished
 
-  val memArb = Module(new ClientUncachedTileLinkIOArbiter(2))
-  memArb.io.in(0) <> test.io.mem
-  memArb.io.in(1) <> finisher.io.mem
-  io.uncached.head <> memArb.io.out
+    val memArb = Module(new ClientUncachedTileLinkIOArbiter(2))
+    memArb.io.in(0) <> test.io.mem
+    memArb.io.in(1) <> finisher.io.mem
+    io.uncached.head <> memArb.io.out
+  } else { io.uncached.head <> test.io.mem }
 }
