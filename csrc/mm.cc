@@ -10,11 +10,7 @@
 void mm_t::write(uint64_t addr, uint8_t *data, uint64_t strb, uint64_t size)
 {
   strb &= ((1 << size) - 1) << (addr % word_size);
-
-  if (addr > this->size) {
-    fprintf(stderr, "Invalid write address %lx\n", addr);
-    exit(EXIT_FAILURE);
-  }
+  addr %= this->size;
 
   uint8_t *base = this->data + (addr / word_size) * word_size;
   for (int i = 0; i < word_size; i++) {
@@ -26,10 +22,7 @@ void mm_t::write(uint64_t addr, uint8_t *data, uint64_t strb, uint64_t size)
 
 std::vector<char> mm_t::read(uint64_t addr)
 {
-  if (addr > this->size) {
-    fprintf(stderr, "Invalid read address %lx\n", addr);
-    exit(EXIT_FAILURE);
-  }
+  addr %= this->size;
 
   uint8_t *base = this->data + addr;
   return std::vector<char>(base, base + word_size);

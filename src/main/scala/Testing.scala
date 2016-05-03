@@ -30,25 +30,6 @@ run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($
 """
 }
 
-trait GroundTestSuite extends RocketTestSuite {
-  override def postScript = s"""
-
-$$(addprefix $$(output_dir)/, $$(addsuffix .hex, $$($makeTargetName))):
-\tmkdir -p $$(output_dir)
-\ttouch $$@
-
-$$(addprefix $$(output_dir)/, $$($makeTargetName)):
-\tmkdir -p $$(output_dir)
-\ttouch $$@
-
-run-$makeTargetName: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $$($makeTargetName)))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
-
-run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($makeTargetName)))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^); echo;
-  """
-}
-
 class AssemblyTestSuite(makePrefix: String, toolsPrefix: String, val names: LinkedHashSet[String])(val envName: String) extends RocketTestSuite {
   val dir = "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/isa"
   val makeTargetName = makePrefix + "-" + envName + "-asm-tests"
@@ -59,18 +40,6 @@ class BenchmarkTestSuite(makePrefix: String, val dir: String, val names: LinkedH
   val envName = ""
   val makeTargetName = makePrefix + "-bmark-tests"
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$n.riscv").mkString(" \\\n") + postScript
-}
-
-class AssemblyGroundTestSuite extends AssemblyTestSuite("","",LinkedHashSet())("") with GroundTestSuite {
-  override val dir = ""
-  override val names = LinkedHashSet[String]()
-  override val makeTargetName = "unit-test"
-  override def toString = s"$makeTargetName = unit-test\\\n" + postScript
-}
-
-class BenchmarkGroundTestSuite extends BenchmarkTestSuite("", "", LinkedHashSet()) with GroundTestSuite {
-  override val makeTargetName = "unit-bmark-tests"
-  override def toString = s"$makeTargetName = unit-test\\\n" + postScript
 }
 
 object TestGeneration extends FileSystemUtilities{
@@ -165,6 +134,9 @@ object DefaultTestSuites {
   val rv64miNames = rv32miNames
   val rv64mi = new AssemblyTestSuite("rv64mi", "rv64mi", rv64miNames)(_)
 
+  val rvallNames = LinkedHashSet("empty")
+  val rvall = new AssemblyTestSuite("rvall", "rvall", rvallNames)(_)
+
   // TODO: "rv64ui-pm-lrsc", "rv64mi-pm-ipi",
 
   val rv64u = List(rv64ui, rv64um, rv64ua)
@@ -172,6 +144,10 @@ object DefaultTestSuites {
 
   val bmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "median", "multiply", "qsort", "towers", "vvadd", "mm", "dhrystone", "spmv", "mt-vvadd", "mt-matmul"))
+
+  val emptyBmarks = new BenchmarkTestSuite("empty",
+    "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks",
+    LinkedHashSet("empty"))
 
   val mtBmarks = new BenchmarkTestSuite("mt", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/mt",
     LinkedHashSet(((0 to 4).map("vvadd"+_) ++

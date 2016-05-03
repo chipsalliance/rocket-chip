@@ -243,7 +243,7 @@ class DefaultConfig extends Config (
         maxClientsPerPort = site(NBanksPerMemoryChannel),
         dataBeats = site(MIFDataBeats))
       case TLKey("L2toMMIO") => {
-        val addrMap = new AddrHashMap(site(GlobalAddrMap))
+        val addrMap = globalAddrHashMap
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
@@ -266,6 +266,7 @@ class DefaultConfig extends Config (
       case UseHtifClockDiv => true
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
+      case GlobalAddrHashMap => globalAddrHashMap
       case _ => throw new CDEMatchError
   }},
   knobValues = {

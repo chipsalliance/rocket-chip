@@ -96,7 +96,7 @@ object TopUtils {
     rom.order(java.nio.ByteOrder.LITTLE_ENDIAN)
 
     // for now, have the reset vector jump straight to memory
-    val addrHashMap = new AddrHashMap(p(GlobalAddrMap))
+    val addrHashMap = p(GlobalAddrHashMap)
     val resetToMemDist = addrHashMap("mem").start - p(ResetVector)
     require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
     val configStringAddr = p(ResetVector).toInt + rom.capacity
@@ -181,7 +181,7 @@ class Uncore(implicit val p: Parameters) extends Module
   }
 
   val addrMap = p(GlobalAddrMap)
-  val addrHashMap = new AddrHashMap(addrMap)
+  val addrHashMap = p(GlobalAddrHashMap)
   val scrFile = Module(new SCRFile("UNCORE_SCR", 0))
   scrFile.io.smi <> htif.io.scr
   // scrFile.io.scr <> (... your SCR connections ...)
@@ -251,7 +251,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
   }
 
-  val addrHashMap = new AddrHashMap(p(GlobalAddrMap))
+  val addrHashMap = p(GlobalAddrHashMap)
 
   // Create a simple L1toL2 NoC between the tiles+htif and the banks of outer memory
   // Cached ports are first in client list, making sharerToClientId just an indentity function

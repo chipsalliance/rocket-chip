@@ -21,12 +21,12 @@ class WithGroundTest extends Config(
         maxClientXacts = max(
           site(NMSHRs) + 1,
           if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
-        maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
+        maxClientsPerPort = 2,
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
-      TestGeneration.addSuite(new AssemblyGroundTestSuite)
-      TestGeneration.addSuite(new BenchmarkGroundTestSuite)
+      TestGeneration.addSuite(DefaultTestSuites.rvall("p"))
+      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
       (0 until site(NTiles)).map { i =>
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)
@@ -35,6 +35,7 @@ class WithGroundTest extends Config(
     }
     case GroundTestMaxXacts => 1
     case GroundTestCSRs => Nil
+    case TohostAddrs => Seq("80001000", "80001300").map(s => BigInt(s, 16))
     case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
     case _ => throw new CDEMatchError
@@ -46,7 +47,7 @@ class WithMemtest extends Config(
     case GenerateUncached => true
     case GenerateCached => true
     case MaxGenerateRequests => 128
-    case GeneratorStartAddress => 0
+    case GeneratorStartAddress => site(GlobalAddrHashMap)("mem").start
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
     case _ => throw new CDEMatchError
