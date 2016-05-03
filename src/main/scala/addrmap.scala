@@ -16,6 +16,7 @@ case object PPNBits extends Field[Int]
 case object VPNBits extends Field[Int]
 
 case object GlobalAddrMap extends Field[AddrMap]
+case object GlobalAddrHashMap extends Field[AddrHashMap]
 
 trait HasAddrMapParameters {
   implicit val p: Parameters
@@ -29,7 +30,7 @@ trait HasAddrMapParameters {
   val pgLevelBits = p(PgLevelBits)
   val asIdBits = p(ASIdBits)
 
-  val addrMap = new AddrHashMap(p(GlobalAddrMap))
+  val addrMap = p(GlobalAddrHashMap)
 }
 
 case class MemAttr(prot: Int, cacheable: Boolean = false)
