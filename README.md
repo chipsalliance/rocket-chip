@@ -22,18 +22,26 @@ the RISC-V Rocket Core. For more information on Rocket Chip, please consult our 
     $ git clone https://github.com/ucb-bar/rocket-chip.git
     $ cd rocket-chip
     $ git submodule update --init
-    $ cd riscv-tools
-    $ git submodule update --init --recursive riscv-tests
 
 ### Setting up the RISCV environment variable
 
 To build the rocket-chip repository, you must point the RISCV
-environment variable to your riscv-tools installation directory. If you
-do not yet have riscv-tools installed, please follow the directions in
-the
-[riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
+environment variable to your riscv-tools installation directory. 
 
     $ export RISCV=/path/to/riscv/toolchain/installation
+    
+The riscv-tools repository is already included in 
+rocket-chip as a git submodule. You **must** build this version 
+of riscv-tools:
+
+    $ cd rocket-chip/riscv-tools
+    $ git submodule update --init --recursive
+    $ export RISCV=/path/to/install/riscv/toolchain
+    $ ./build.sh
+   
+For more information (or if you run into any issues), please consult the
+[riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
+
 
 ### Building The Project
 
