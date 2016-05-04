@@ -23,10 +23,10 @@ $$(addprefix $$(output_dir)/, $$($makeTargetName)): $$(output_dir)/%: $dir/%
 \tln -fs $$< $$@
 
 run-$makeTargetName: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $$($makeTargetName)))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
 
 run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($makeTargetName)))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^); echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^) /dev/null; echo;
 """
 }
 
@@ -67,18 +67,18 @@ object TestGeneration extends FileSystemUtilities{
           val suites = envsuites.map(t => s"$$(${t.makeTargetName})").mkString(" ")
         s"""
 run-$kind-$env-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $suites))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
 run-$kind-$env-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $suites))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^); echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^) /dev/null; echo;
 run-$kind-$env-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $suites))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
 """} } ).mkString("\n") + s"""
 run-$kind-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $targets))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
 run-$kind-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $targets))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^); echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^) /dev/null; echo;
 run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
 """
       } else { "\n" }
     }
@@ -134,8 +134,9 @@ object DefaultTestSuites {
   val rv64miNames = rv32miNames
   val rv64mi = new AssemblyTestSuite("rv64mi", "rv64mi", rv64miNames)(_)
 
-  val rvallNames = LinkedHashSet("empty")
-  val rvall = new AssemblyTestSuite("rvall", "rvall", rvallNames)(_)
+  val groundtestNames = LinkedHashSet("simple")
+  val groundtest64 = new AssemblyTestSuite("groundtest", "rv64ui", groundtestNames)(_)
+  val groundtest32 = new AssemblyTestSuite("groundtest", "rv32ui", groundtestNames)(_)
 
   // TODO: "rv64ui-pm-lrsc", "rv64mi-pm-ipi",
 
@@ -146,8 +147,7 @@ object DefaultTestSuites {
     "median", "multiply", "qsort", "towers", "vvadd", "mm", "dhrystone", "spmv", "mt-vvadd", "mt-matmul"))
 
   val emptyBmarks = new BenchmarkTestSuite("empty",
-    "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks",
-    LinkedHashSet("empty"))
+    "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet.empty)
 
   val mtBmarks = new BenchmarkTestSuite("mt", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/mt",
     LinkedHashSet(((0 to 4).map("vvadd"+_) ++

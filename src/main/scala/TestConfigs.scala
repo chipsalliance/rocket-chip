@@ -25,7 +25,11 @@ class WithGroundTest extends Config(
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
-      TestGeneration.addSuite(DefaultTestSuites.rvall("p"))
+      val groundtest = if (site(XLen) == 64)
+        DefaultTestSuites.groundtest64
+      else
+        DefaultTestSuites.groundtest32
+      TestGeneration.addSuite(groundtest("p"))
       TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
       (0 until site(NTiles)).map { i =>
         (r: Bool, p: Parameters) =>
