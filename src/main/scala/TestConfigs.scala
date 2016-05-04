@@ -39,7 +39,7 @@ class WithGroundTest extends Config(
     }
     case GroundTestMaxXacts => 1
     case GroundTestCSRs => Nil
-    case TohostAddrs => Seq("80001000", "80001300").map(s => BigInt(s, 16))
+    case TohostAddr => BigInt("80001000", 16)
     case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
     case _ => throw new CDEMatchError
