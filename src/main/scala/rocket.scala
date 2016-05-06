@@ -429,7 +429,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   csr.io.prci <> io.prci
   io.fpu.fcsr_rm := csr.io.fcsr_rm
   csr.io.fcsr_flags := io.fpu.fcsr_flags
-  csr.io.rocc <> io.rocc
+  io.rocc.csr <> csr.io.rocc.csr
+  csr.io.rocc.interrupt <> io.rocc.interrupt
   csr.io.pc := wb_reg_pc
   csr.io.uarch_counters.foreach(_ := Bool(false))
   io.ptw.ptbr := csr.io.ptbr
