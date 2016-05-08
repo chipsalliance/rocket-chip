@@ -102,11 +102,7 @@ class DefaultConfig extends Config (
       case PPNBits => site(PAddrBits) - site(PgIdxBits)
       case VAddrBits => site(VPNBits) + site(PgIdxBits)
       case ASIdBits => 7
-      case MIFTagBits => Dump("MIF_TAG_BITS",
-                         // Bits needed at the L2 agent
-                         log2Up(site(NAcquireTransactors)+2) +
-                         // Bits added by NASTI interconnect
-                         log2Up(site(NBanksPerMemoryChannel)))
+      case MIFTagBits => Dump("MIF_TAG_BITS", 5)
       case MIFDataBits => Dump("MIF_DATA_BITS", 64)
       case MIFAddrBits => Dump("MIF_ADDR_BITS",
                                site(PAddrBits) - site(CacheBlockOffsetBits))

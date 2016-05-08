@@ -101,17 +101,27 @@ void memory_tick(
   for (size_t i = 0; i < mmc->get_word_size()/sizeof(uint32_t); i++)
     write_data[i] = vc_4stVectorRef(w_data)[i].d;
 
+  uint32_t aw_id_val, ar_id_val;
+
+  if (MEM_ID_BITS == 1) {
+    aw_id_val = vc_getScalar(aw_id);
+    ar_id_val = vc_getScalar(ar_id);
+  } else {
+    aw_id_val = vc_4stVectorRef(aw_id)->d;
+    ar_id_val = vc_4stVectorRef(ar_id)->d;
+  }
+
   mmc->tick
   (
     vc_getScalar(ar_valid),
     vc_4stVectorRef(ar_addr)->d - MEM_BASE,
-    vc_4stVectorRef(ar_id)->d,
+    ar_id_val,
     vc_4stVectorRef(ar_size)->d,
     vc_4stVectorRef(ar_len)->d,
 
     vc_getScalar(aw_valid),
     vc_4stVectorRef(aw_addr)->d - MEM_BASE,
-    vc_4stVectorRef(aw_id)->d,
+    aw_id_val,
     vc_4stVectorRef(aw_size)->d,
     vc_4stVectorRef(aw_len)->d,
 
@@ -138,16 +148,21 @@ void memory_tick(
   vc_put4stVector(b_resp, d);
 
   d[0].c = 0;
-  d[0].d = mmc->b_id();
-  vc_put4stVector(b_id, d);
-
-  d[0].c = 0;
   d[0].d = mmc->r_resp();
   vc_put4stVector(r_resp, d);
 
-  d[0].c = 0;
-  d[0].d = mmc->r_id();
-  vc_put4stVector(r_id, d);
+  if (MEM_ID_BITS > 1) {
+    d[0].c = 0;
+    d[0].d = mmc->b_id();
+    vc_put4stVector(b_id, d);
+
+    d[0].c = 0;
+    d[0].d = mmc->r_id();
+    vc_put4stVector(r_id, d);
+  } else {
+    vc_putScalar(b_id, mmc->b_id());
+    vc_putScalar(r_id, mmc->r_id());
+  }
 
   for (size_t i = 0; i < mmc->get_word_size()/sizeof(uint32_t); i++)
   {
