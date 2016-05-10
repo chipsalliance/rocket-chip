@@ -29,6 +29,10 @@ case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
 case object ConfigString extends Field[Array[Byte]]
 /** Number of L1 clients besides the CPU cores */
 case object ExtraL1Clients extends Field[Int] 
+/** Number of external interrupt sources */
+case object NExtInterrupts extends Field[Int]
+/** Interrupt controller configuration */
+case object PLICKey extends Field[PLICConfig]
 
 case object UseStreamLoopback extends Field[Boolean]
 case object StreamLoopbackSize extends Field[Int]
@@ -74,6 +78,7 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(nMemChannels, new NastiIO)
   val mmio = new NastiIO
+  val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
 }
 
 object TopUtils {
@@ -134,6 +139,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_cached <> tileList.map(_.io.cached).flatten
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
+  uncore.io.interrupts <> io.interrupts
 
   io.mmio <> uncore.io.mmio
   io.mem.zip(uncore.io.mem).foreach { case (outer, inner) =>
@@ -159,6 +165,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
     val mmio = new NastiIO
+    val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   }
 
   val htif = Module(new Htif(CSRs.mreset)) // One HTIF module per chip
@@ -202,6 +209,15 @@ class Uncore(implicit val p: Parameters) extends Module
     require(rtc.size <= rtcAddr.region.size)
     rtc.io.tl <> mmioNetwork.io.out(rtcAddr.port)
 
+    val plic = Module(new PLIC(p(PLICKey)))
+    val plicAddr = ioAddrHashMap("int:plic")
+    plic.io.tl <> mmioNetwork.io.out(plicAddr.port)
+    for (i <- 0 until io.interrupts.size) {
+      val gateway = Module(new LevelGateway)
+      gateway.io.interrupt := io.interrupts(i)
+      plic.io.devices(i) <> gateway.io.plic
+    }
+
     for (i <- 0 until nTiles) {
       val prci = Module(new PRCI)
       val prciAddr = ioAddrHashMap(s"int:prci$i")
@@ -209,8 +225,8 @@ class Uncore(implicit val p: Parameters) extends Module
 
       prci.io.id := UInt(i)
       prci.io.interrupts.mtip := rtc.io.irqs(i)
-      prci.io.interrupts.meip := Bool(false)
-      prci.io.interrupts.seip := Bool(false)
+      prci.io.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
+      prci.io.interrupts.seip := plic.io.harts(plic.cfg.context(i, 'S'))
       prci.io.interrupts.debug := Bool(false)
 
       io.prci(i) := prci.io.tile
