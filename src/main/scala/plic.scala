@@ -86,12 +86,12 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
   val maxDevs = Wire(Vec(cfg.nHarts, UInt(width = log2Up(pending.size))))
   for (hart <- 0 until cfg.nHarts) {
     val effectivePriority =
-      for (((p, en), pri) <- pending zip enables(hart).toBools zip priority)
+      for (((p, en), pri) <- (pending zip enables(hart).toBools zip priority).tail)
         yield Cat(p && en, pri)
-    val (maxPri, maxDev) = findMax(effectivePriority)
+    val (_, maxDev) = findMax(Cat(UInt(1), threshold(hart)) +: effectivePriority)
 
-    io.harts(hart) := Reg(next = maxPri > Cat(UInt(1), threshold(hart)))
-    maxDevs(hart) := maxDev
+    maxDevs(hart) := Reg(next = maxDev)
+    io.harts(hart) := maxDevs(hart) =/= 0
   }
 
   val acq = Queue(io.tl.acquire, 1)
@@ -105,14 +105,11 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
     else (addr - cfg.hartBase)(log2Up(cfg.hartOffset(cfg.nHarts))-1,log2Up(cfg.hartOffset(1)))
   val hart = Wire(init = claimant)
   val myMaxDev = maxDevs(claimant) + UInt(0) // XXX FIRRTL bug w/o the + UInt(0)
-  val myThresh = Cat(UInt(0, 16-threshold(0).getWidth), threshold(claimant))
   val myEnables = enables(hart) >> 1 << 1
-  val rdata_fast = Wire(init = myEnables)
-  val rdata = Wire(init = rdata_fast)
-  val masked_wdata = (acq.bits.data & acq.bits.full_wmask()) | (rdata_fast & ~acq.bits.full_wmask())
+  val rdata = Wire(init = Cat(myMaxDev, UInt(0, 16-threshold(0).getWidth), threshold(claimant)))
+  val masked_wdata = (acq.bits.data & acq.bits.full_wmask()) | (rdata & ~acq.bits.full_wmask())
 
   when (addr >= cfg.hartBase) {
-    rdata := Cat(myMaxDev, myThresh)
     when (read && addr(log2Ceil(cfg.claimOffset))) {
       pending(myMaxDev) := false
     }.elsewhen (write && acq.bits.wmask()(cfg.claimOffset)) {
@@ -123,6 +120,7 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
       when (write) { threshold(claimant) := thresh }
     }
   }.elsewhen (addr >= cfg.enableBase) {
+    rdata := myEnables
     if (cfg.nHarts > 1)
       hart := (addr - cfg.enableBase)(log2Up(cfg.enableOffset(cfg.nHarts))-1,log2Up(cfg.enableOffset(1)))
     require(enables.size <= tlDataBits) // TODO this can be relaxed
@@ -133,7 +131,7 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
         if (tlDataBytes >= pending.size) Bool(true)
         else addr(log2Up(pending.size)-1,log2Up(tlDataBytes)) === i/tlDataBytes
       when (cond) {
-        rdata_fast := Cat(pending.slice(i, i + tlDataBytes).map(p => Cat(UInt(0, 7), p)).reverse)
+        rdata := Cat(pending.slice(i, i + tlDataBytes).map(p => Cat(UInt(0, 7), p)).reverse)
         for (j <- 0 until (tlDataBytes min (pending.size - i))) {
           when (write) { pending(i+j) := masked_wdata(j * 8) }
         }
@@ -147,7 +145,7 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
         if (regsPerBeat >= priority.size) Bool(true)
         else addr(log2Up(priority.size)+regAddrBits-1,log2Up(tlDataBytes)) === i/regsPerBeat
       when (cond) {
-        rdata_fast := Cat(priority.slice(i, i + regsPerBeat).map(p => Cat(UInt(0, 16-p.getWidth), p)).reverse)
+        rdata := Cat(priority.slice(i, i + regsPerBeat).map(p => Cat(UInt(0, 16-p.getWidth), p)).reverse)
         for (j <- 0 until (regsPerBeat min (priority.size - i))) {
           when (write) { priority(i+j) := masked_wdata >> (j * (8 << regAddrBits)) }
         }
