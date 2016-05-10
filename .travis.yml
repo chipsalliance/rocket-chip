@@ -43,12 +43,14 @@ env:
   matrix:
     - CONFIG=DefaultConfig
     - CONFIG=BOOMConfig
+    - CONFIG=DefaultL2Config
     - CONFIG=RoccExampleConfig
-    - CONFIG=DmaControllerConfig
+    - CONFIG=DualCoreConfig
     - CONFIG=MemtestConfig
-    - CONFIG=MemtestL2Config
+    - CONFIG=FancyMemtestConfig
     - CONFIG=BroadcastRegressionTestConfig
     - CONFIG=CacheRegressionTestConfig
+    - CONFIG=NastiConverterTestConfig
     - CONFIG=UnitTestConfig
     - CONFIG=SplitL2MetadataTestConfig
 
@@ -63,7 +65,7 @@ before_install:
   - export CXX=g++-4.8 CC=gcc-4.8
 
 script:
-  - make vsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
+  - make vsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default CHISEL_VERSION=3
   - make fsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
   - make emulator-ndebug -C regression CONFIG=$CONFIG TORTURE_CONFIG=default
   - make emulator-asm-tests   -C regression CONFIG=$CONFIG TORTURE_CONFIG=default

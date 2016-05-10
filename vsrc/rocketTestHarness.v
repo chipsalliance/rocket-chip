@@ -75,9 +75,8 @@ module rocketTestHarness;
   reg [1023:0] loadmem = 0;
   reg [1023:0] vcdplusfile = 0;
   reg [1023:0] vcdfile = 0;
-  reg          stats_active = 0;
-  reg          stats_tracking = 0;
   reg          verbose = 0;
+  wire         printf_cond = verbose && !reset;
   integer      stderr = 32'h80000002;
 
 `include `TBVFRAG
@@ -87,81 +86,11 @@ module rocketTestHarness;
     r_reset <= reset;
   end
 
-  wire mem_bk_req_valid, mem_bk_req_rw, mem_bk_req_data_valid;
-  wire [`MIF_TAG_BITS-1:0] mem_bk_req_tag;
-  wire [`MIF_ADDR_BITS-1:0] mem_bk_req_addr;
-  wire [`MIF_DATA_BITS-1:0] mem_bk_req_data_bits;
-  wire mem_bk_req_ready, mem_bk_req_data_ready, mem_bk_resp_valid;
-  wire [`MIF_TAG_BITS-1:0]  mem_bk_resp_tag;
-  wire [`MIF_DATA_BITS-1:0] mem_bk_resp_data;
-
-`ifdef MEM_BACKUP_EN
-  memdessertMemDessert dessert
-  (
-    .clk(htif_clk),
-    .reset(reset),
-
-    .io_narrow_req_valid(mem_bk_out_valid),
-    .io_narrow_req_ready(mem_bk_out_ready),
-    .io_narrow_req_bits(htif_out_bits),
-
-    .io_narrow_resp_valid(mem_bk_in_valid),
-    .io_narrow_resp_bits(mem_in_bits),
-
-    .io_wide_req_cmd_valid(mem_bk_req_valid),
-    .io_wide_req_cmd_ready(mem_bk_req_ready),
-    .io_wide_req_cmd_bits_rw(mem_bk_req_rw),
-    .io_wide_req_cmd_bits_addr(mem_bk_req_addr),
-    .io_wide_req_cmd_bits_tag(mem_bk_req_tag),
-
-    .io_wide_req_data_valid(mem_bk_req_data_valid),
-    .io_wide_req_data_ready(mem_bk_req_data_ready),
-    .io_wide_req_data_bits_data(mem_bk_req_data_bits),
-
-    .io_wide_resp_valid(mem_bk_resp_valid),
-    .io_wide_resp_ready(),
-    .io_wide_resp_bits_data(mem_bk_resp_data),
-    .io_wide_resp_bits_tag(mem_bk_resp_tag)
-  );
-
-  BackupMemory mem
-  (
-    .clk(htif_clk),
-    .reset(reset),
-
-    .mem_req_valid(mem_bk_req_valid),
-    .mem_req_ready(mem_bk_req_ready),
-    .mem_req_rw(mem_bk_req_rw),
-    .mem_req_addr(mem_bk_req_addr),
-    .mem_req_tag(mem_bk_req_tag),
-
-    .mem_req_data_valid(mem_bk_req_data_valid),
-    .mem_req_data_ready(mem_bk_req_data_ready),
-    .mem_req_data_bits(mem_bk_req_data_bits),
-
-    .mem_resp_valid(mem_bk_resp_valid),
-    .mem_resp_data(mem_bk_resp_data),
-    .mem_resp_tag(mem_bk_resp_tag)
-  );
-`else
-  // set dessert outputs to zero when !backupmem_en
-  assign mem_bk_out_ready = 1'b0; 
-  assign mem_bk_in_valid = 1'b0;
-  assign mem_in_bits = {`HTIF_WIDTH {1'b0}};   
-  assign mem_bk_req_valid = 1'b0;
-  assign mem_bk_req_ready = 1'b0;
-  assign mem_bk_req_addr = {`MIF_ADDR_BITS {1'b0}};
-  assign mem_bk_req_rw = 1'b0;
-  assign mem_bk_req_tag = {`MIF_TAG_BITS {1'b0}};
-  assign mem_bk_req_data_valid = 1'b0;
-  assign mem_bk_req_data_bits = 16'd0; 
-`endif
-
   reg htif_in_valid_premux;
   reg [`HTIF_WIDTH-1:0] htif_in_bits_premux;
-  assign htif_in_bits = mem_bk_in_valid ? mem_in_bits : htif_in_bits_premux;
-  assign htif_in_valid = htif_in_valid_premux && !mem_bk_in_valid;
-  wire htif_in_ready_premux = htif_in_ready && !mem_bk_in_valid;
+  assign htif_in_bits = htif_in_bits_premux;
+  assign htif_in_valid = htif_in_valid_premux;
+  wire htif_in_ready_premux = htif_in_ready;
   reg [31:0] exit = 0;
 
   always @(posedge htif_clk)
@@ -190,40 +119,6 @@ module rocketTestHarness;
   //-----------------------------------------------
   // Start the simulation
 
-  // Some helper functions for turning on, stopping, and finishing stat tracking
-  task start_stats;
-  begin
-    if(!reset || !stats_active)
-      begin
-`ifdef DEBUG
-      if(vcdplusfile)
-      begin
-        $vcdpluson(0);
-        $vcdplusmemon(0);
-      end
-      if(vcdfile)
-      begin
-        $dumpon;
-      end
-`endif
-      assign stats_tracking = 1;
-    end
-  end
-  endtask
-  task stop_stats;
-  begin
-`ifdef DEBUG
-    $vcdplusoff; $dumpoff;
-`endif
-    assign stats_tracking = 0;
-  end
-  endtask
-`ifdef DEBUG
-`define VCDPLUSCLOSE $vcdplusclose; $dumpoff;
-`else
-`define VCDPLUSCLOSE
-`endif
-
   // Read input arguments and initialize
   initial
   begin
@@ -235,27 +130,22 @@ module rocketTestHarness;
 `endif
     verbose = $test$plusargs("verbose");
 `ifdef DEBUG
-    stats_active = $test$plusargs("stats");
     if ($value$plusargs("vcdplusfile=%s", vcdplusfile))
     begin
       $vcdplusfile(vcdplusfile);
+      $vcdpluson(0);
+      $vcdplusmemon(0);
     end
+
     if ($value$plusargs("vcdfile=%s", vcdfile))
     begin
       $dumpfile(vcdfile);
       $dumpvars(0, dut);
+      $dumpon;
     end
-    if (!stats_active)
-    begin
-      start_stats;
-    end
-    else
-    begin
-      if(vcdfile)
-      begin
-        $dumpoff;
-      end
-    end
+`define VCDPLUSCLOSE $vcdplusclose; $dumpoff;
+`else
+`define VCDPLUSCLOSE
 `endif
 
     // Strobe reset
@@ -282,32 +172,6 @@ module rocketTestHarness;
     begin
       `VCDPLUSCLOSE
       htif_fini(1'b0);
-    end
-  end
-
-  //-----------------------------------------------
-  // Tracing code
-
-  always @(posedge clk)
-  begin
-    if(stats_active)
-    begin
-      if(!stats_tracking && htif_out_stats)
-      begin
-        start_stats;
-      end
-      if(stats_tracking && !htif_out_stats)
-      begin
-        stop_stats;
-      end
-    end
-  end
-
-  always @(posedge htif_clk)
-  begin
-    if (verbose && mem_bk_req_valid && mem_bk_req_ready)
-    begin
-      $fdisplay(stderr, "MB: rw=%d addr=%x", mem_bk_req_rw, {mem_bk_req_addr,6'd0});
     end
   end
 

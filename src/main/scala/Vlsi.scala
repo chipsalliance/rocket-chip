@@ -7,14 +7,6 @@ import cde.Parameters
 import junctions._
 import uncore._
 
-class MemDessert(topParams: Parameters) extends Module {
-  implicit val p = topParams
-  val io = new MemDesserIO(p(HtifKey).width)
-  val x = Module(new MemDesser(p(HtifKey).width))
-  x.io.narrow <> io.narrow
-  io.wide <> x.io.wide
-}
-
 object VLSIUtils {
   def doOuterMemorySystemSerdes(
       llcs: Seq[NastiIO],
@@ -65,6 +57,30 @@ object VLSIUtils {
     }
   }
 
+  private def makeHTIFClockDivider(scr: SCRIO, host: HostIO, htifW: Int) = {
+    val hio = Module((new SlowIO(512)) { Bits(width = htifW) })
+    hio.io.set_divisor.valid := scr.wen && (scr.waddr === UInt(63))
+    hio.io.set_divisor.bits := scr.wdata
+    scr.rdata(63) := hio.io.divisor
+    scr.allocate(63, "HTIF_IO_CLOCK_DIVISOR")
+    host.clk := hio.io.clk_slow
+    host.clk_edge := Reg(next=host.clk && !Reg(next=host.clk))
+    hio
+  }
+
+  def padOutHTIFWithDividedClock(
+      htif: HostIO,
+      scr: SCRIO,
+      host: HostIO,
+      htifW: Int) {
+    val hio = makeHTIFClockDivider(scr, host, htifW)
+
+    hio.io.out_fast <> htif.out
+    host.out <> hio.io.out_slow
+    hio.io.in_slow <> host.in
+    htif.in <> hio.io.in_fast
+  }
+
   def padOutHTIFWithDividedClock(
       htif: HostIO,
       scr: SCRIO,
@@ -72,11 +88,7 @@ object VLSIUtils {
       parent: MemBackupCtrlIO,
       host: HostIO,
       htifW: Int) {
-    val hio = Module((new SlowIO(512)) { Bits(width = htifW+1) })
-    hio.io.set_divisor.valid := scr.wen && (scr.waddr === UInt(63))
-    hio.io.set_divisor.bits := scr.wdata
-    scr.rdata(63) := hio.io.divisor
-    scr.allocate(63, "HTIF_IO_CLOCK_DIVISOR")
+    val hio = makeHTIFClockDivider(scr, host, htifW+1)
 
     hio.io.out_fast.valid := htif.out.valid || child.req.valid
     hio.io.out_fast.bits := Cat(htif.out.valid, Mux(htif.out.valid, htif.out.bits, child.req.bits))
@@ -96,7 +108,5 @@ object VLSIUtils {
     htif.in.valid := hio.io.in_fast.valid && !hio.io.in_fast.bits(htifW)
     htif.in.bits := hio.io.in_fast.bits
     hio.io.in_fast.ready := Mux(hio.io.in_fast.bits(htifW), Bool(true), htif.in.ready)
-    host.clk := hio.io.clk_slow
-    host.clk_edge := Reg(next=host.clk && !Reg(next=host.clk))
   }
 }

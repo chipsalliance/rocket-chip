@@ -22,7 +22,6 @@ object TestBenchGeneration extends FileSystemUtilities {
   wire [`HTIF_WIDTH-1:0] htif_in_bits;
   wire htif_in_ready, htif_out_valid;
   wire [`HTIF_WIDTH-1:0] htif_out_bits;
-  wire htif_out_stats;
 
   wire mem_bk_in_valid;
   wire mem_bk_out_valid;
@@ -48,7 +47,7 @@ object TestBenchGeneration extends FileSystemUtilities {
   reg w_ready_$i;
   wire [`MEM_STRB_BITS-1:0] w_strb_$i;
   wire [`MEM_DATA_BITS-1:0] w_data_$i;
-  wire w_last;
+  wire w_last_$i;
 
   reg r_valid_$i;
   wire r_ready_$i;
@@ -73,12 +72,6 @@ object TestBenchGeneration extends FileSystemUtilities {
   wire htif_out_valid_delay;
   wire htif_out_ready_delay;
   wire [`HTIF_WIDTH-1:0] htif_out_bits_delay;
-  
-  wire htif_out_stats_delay;
-
-  wire mem_bk_out_ready_delay;
-  wire mem_bk_in_valid_delay;
-  wire mem_bk_out_valid_delay;
 
   assign #0.1 htif_in_valid_delay = htif_in_valid;
   assign #0.1 htif_in_ready = htif_in_ready_delay;
@@ -87,12 +80,6 @@ object TestBenchGeneration extends FileSystemUtilities {
   assign #0.1 htif_out_valid = htif_out_valid_delay;
   assign #0.1 htif_out_ready_delay = htif_out_ready;
   assign #0.1 htif_out_bits = htif_out_bits_delay;
-  
-  assign #0.1 htif_out_stats = htif_out_stats_delay;
-
-  assign #0.1 mem_bk_out_ready_delay = mem_bk_out_ready;
-  assign #0.1 mem_bk_in_valid_delay = mem_bk_in_valid;
-  assign #0.1 mem_bk_out_valid = mem_bk_out_valid_delay;
 """
 
     val nasti_delays = (0 until nMemChannel) map { i => s"""
@@ -216,8 +203,6 @@ object TestBenchGeneration extends FileSystemUtilities {
 
     val instantiation = s"""
 `ifdef FPGA
-  assign mem_bk_out_valid_delay = 1'b0;
-  assign htif_out_stats_delay = 1'b0;
   assign htif_clk = clk;
 `endif
 
@@ -231,25 +216,9 @@ object TestBenchGeneration extends FileSystemUtilities {
 `ifndef FPGA
     .io_host_clk(htif_clk),
     .io_host_clk_edge(),
-    .io_host_debug_stats_csr(htif_out_stats_delay),
-
-`ifdef MEM_BACKUP_EN
-    .io_mem_backup_ctrl_en(1'b1),
-`else
-    .io_mem_backup_ctrl_en(1'b0),
-`endif // MEM_BACKUP_EN
-    .io_mem_backup_ctrl_in_valid(mem_bk_in_valid_delay),
-    .io_mem_backup_ctrl_out_ready(mem_bk_out_ready_delay),
-    .io_mem_backup_ctrl_out_valid(mem_bk_out_valid_delay),
 `else
     .io_host_clk (),
     .io_host_clk_edge (),
-    .io_host_debug_stats_csr (),
-
-    .io_mem_backup_ctrl_en (1'b0),
-    .io_mem_backup_ctrl_in_valid (1'b0),
-    .io_mem_backup_ctrl_out_ready (1'b0),
-    .io_mem_backup_ctrl_out_valid (),
 `endif // FPGA
 
     .io_host_in_valid(htif_in_valid_delay),
@@ -300,15 +269,15 @@ object TestBenchGeneration extends FileSystemUtilities {
     begin
       if (ar_valid_$i && ar_ready_$i)
       begin
-        $$fdisplay(stderr, "MC$i: ar addr=%x", ar_addr_$i);
+        $$fdisplay(stderr, "MC$i: ar addr=%x size=%x", ar_addr_$i, ar_size_$i);
       end
       if (aw_valid_$i && aw_ready_$i)
       begin
-        $$fdisplay(stderr, "MC$i: aw addr=%x", aw_addr_$i);
+        $$fdisplay(stderr, "MC$i: aw addr=%x size=%x", aw_addr_$i, aw_size_$i);
       end
       if (w_valid_$i && w_ready_$i)
       begin
-        $$fdisplay(stderr, "MC$i: w data=%x", w_data_$i);
+        $$fdisplay(stderr, "MC$i: w data=%x strb=%x", w_data_$i, w_strb_$i);
       end
       if (r_valid_$i && r_ready_$i)
       begin

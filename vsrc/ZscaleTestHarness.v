@@ -33,6 +33,7 @@ module ZscaleTestHarness;
   reg [  63:0] max_cycles = 0;
   reg [  63:0] trace_count = 0;
   reg          verbose = 0;
+  wire         printf_cond = verbose && !reset;
   integer      stderr = 32'h80000002;
   integer      i;
   reg [127:0]  image [8191:0];

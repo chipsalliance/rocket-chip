@@ -2,7 +2,7 @@ Rocket Chip Generator [![Build Status](https://travis-ci.org/ucb-bar/rocket-chip
 =====================
 
 This repository contains the Rocket chip generator necessary to instantiate
-the RISC-V Rocket Core.
+the RISC-V Rocket Core. For more information on Rocket Chip, please consult our [technical report](http://www.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-17.html).
 
 ## Table of Contents
 
@@ -365,7 +365,6 @@ Top.DefaultVLSIConfig.conf file:
     Top.DefaultVLSIConfig.prm
     Top.DefaultVLSIConfig.v
     consts.DefaultVLSIConfig.vh
-    memdessertMemDessert.DefaultVLSIConfig.v
     $ cat $ROCKETCHIP/vsim/generated-src/*.conf
     name MetadataArray_tag_arr depth 128 width 84 ports mwrite,read mask_gran 21
     name ICache_tag_array depth 128 width 38 ports mrw mask_gran 19
@@ -448,3 +447,8 @@ post, so please stay tuned.
 - Huy Vo
 - Andrew Waterman
 
+## <a name="attribution"></a> Attribution
+
+If used for research, please cite Rocket Chip by the technical report:
+
+Krste Asanović, Rimas Avižienis, Jonathan Bachrach, Scott Beamer, David Biancolin, Christopher Celio, Henry Cook, Palmer Dabbelt, John Hauser, Adam Izraelevitz, Sagar Karandikar, Benjamin Keller, Donggyu Kim, John Koenig, Yunsup Lee, Eric Love, Martin Maas, Albert Magyar, Howard Mao, Miquel Moreto, Albert Ou, David Patterson, Brian Richards, Colin Schmidt, Stephen Twigg, Huy Vo, and Andrew Waterman, _[The Rocket Chip Generator](http://www.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-17.html)_, Technical Report UCB/EECS-2016-17, EECS Department, University of California, Berkeley, April 2016
