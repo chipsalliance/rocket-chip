@@ -19,6 +19,8 @@ case object NBanksPerMemoryChannel extends Field[Int]
 case object BankIdLSB extends Field[Int]
 /** Number of outstanding memory requests */
 case object NOutstandingMemReqsPerChannel extends Field[Int]
+/** Number of exteral MMIO ports */
+case object NExtMMIOChannels extends Field[Int]
 /** Whether to divide HTIF clock */
 case object UseHtifClockDiv extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
@@ -77,8 +79,8 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(nMemChannels, new NastiIO)
-  val mmio = new NastiIO
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
+  val mmio = Vec(p(NExtMMIOChannels), new NastiIO)
 }
 
 object TopUtils {
@@ -142,13 +144,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.interrupts <> io.interrupts
 
   io.mmio <> uncore.io.mmio
-  io.mem.zip(uncore.io.mem).foreach { case (outer, inner) =>
-    outer <> inner
-    // Memory cache type should be normal non-cacheable bufferable
-    // TODO why is this happening here?  Would 0000 (device) be OK instead?
-    outer.ar.bits.cache := UInt("b0011")
-    outer.aw.bits.cache := UInt("b0011")
-  }
+  io.mem <> uncore.io.mem
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -164,7 +160,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
-    val mmio = new NastiIO
+    val mmio = Vec(p(NExtMMIOChannels), new NastiIO)
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   }
 
@@ -241,7 +237,12 @@ class Uncore(implicit val p: Parameters) extends Module
     val debugModuleAddr = ioAddrHashMap("int:debug")
     debugModule.io <> mmioNetwork.io.out(debugModuleAddr.port)
 
-    TopUtils.connectTilelinkNasti(io.mmio, mmioNetwork.io.out(ioAddrHashMap("ext").port))
+    val mmioEndpoint = p(NExtMMIOChannels) match {
+      case 0 => Module(new NastiErrorSlave).io
+      case 1 => io.mmio(0)
+      // The memory map presently has only one external I/O region
+    }
+    TopUtils.connectTilelinkNasti(mmioEndpoint, mmioNetwork.io.out(ioAddrHashMap("ext").port))
   }
 }
 
@@ -313,6 +314,11 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     icPort <> narrow.io.out
   }
 
-  for ((nasti, tl) <- io.mem zip mem_ic.io.out)
+  for ((nasti, tl) <- io.mem zip mem_ic.io.out) {
     TopUtils.connectTilelinkNasti(nasti, tl)(outermostTLParams)
+    // Memory cache type should be normal non-cacheable bufferable
+    // TODO why is this happening here?  Would 0000 (device) be OK instead?
+    nasti.ar.bits.cache := UInt("b0011")
+    nasti.aw.bits.cache := UInt("b0011")
+  }
 }

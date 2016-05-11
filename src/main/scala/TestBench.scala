@@ -180,6 +180,7 @@ object TestBenchGeneration extends FileSystemUtilities {
 
     .io_mem_${i}_w_valid (w_valid_delay_$i),
     .io_mem_${i}_w_ready (w_ready_delay_$i),
+    .io_mem_${i}_w_bits_id (),
     .io_mem_${i}_w_bits_strb (w_strb_delay_$i),
     .io_mem_${i}_w_bits_data (w_data_delay_$i),
     .io_mem_${i}_w_bits_last (w_last_delay_$i),

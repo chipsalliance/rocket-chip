@@ -215,6 +215,7 @@ class DefaultConfig extends Config (
         true
       }
       case NExtInterrupts => 2
+      case NExtMMIOChannels => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), site(NExtInterrupts))
       case FDivSqrt => true
       case SFMALatency => 2
