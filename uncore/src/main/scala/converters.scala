@@ -204,10 +204,10 @@ class ManagerTileLinkNetworkPort(managerId: Int, idConvert: UInt => UInt)
   }
   io.network.grant <> ManagerTileLinkHeaderCreator(io.manager.grant, managerId, (u: UInt) => u)
   io.network.probe <> ManagerTileLinkHeaderCreator(io.manager.probe, managerId, idConvert)
-  io.manager.acquire.bits.client_id := io.network.acquire.bits.header.src
   io.manager.acquire <> DecoupledLogicalNetworkIOUnwrapper(io.network.acquire)
-  io.manager.release.bits.client_id := io.network.release.bits.header.src
+  io.manager.acquire.bits.client_id := io.network.acquire.bits.header.src
   io.manager.release <> DecoupledLogicalNetworkIOUnwrapper(io.network.release)
+  io.manager.release.bits.client_id := io.network.release.bits.header.src
   io.manager.finish <> DecoupledLogicalNetworkIOUnwrapper(io.network.finish)
 }
 
