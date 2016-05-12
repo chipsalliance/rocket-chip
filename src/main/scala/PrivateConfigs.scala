@@ -11,7 +11,7 @@ class WithAllBooms extends Config(
   (pname,site,here) => pname match {
     case BuildTiles => {
       TestGeneration.addSuites(rv64i.map(_("p")))
-      TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64u.map(_(env))))
+      TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rv64u.map(_(env))))
       TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
       List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
          Module(new BOOMTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
