@@ -81,13 +81,6 @@ class HwachaCPPConfig extends Config(new WithHwachaTests ++ new DefaultHwachaCon
 class EOS24Config extends Config(new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
 class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)
 
-class WithoutBackupMemoryPort extends Config(
-  (pname,site,here) => pname match {
-    case UseBackupMemoryPort => false
-    case _ => throw new CDEMatchError
-  }
-)
-
 class With5L2AcquireXacts extends Config(
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
@@ -155,13 +148,12 @@ class WithSmallPredRF extends Config(
 
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
-  new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
+  new With2MemoryChannels ++ new With4BanksPerMemChannel ++
   new With5L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
     case "HWACHA_BUILD_VRU" => true
-    // WithoutBackupMemoryPort not included here because it doesn't have knobs.
     case x => (new Config(new With2MemoryChannels ++ new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
     case _ => throw new CDEMatchError
   }

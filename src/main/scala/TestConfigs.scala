@@ -21,12 +21,16 @@ class WithGroundTest extends Config(
         maxClientXacts = max(
           site(NMSHRs) + 1,
           if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
-        maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
+        maxClientsPerPort = 2,
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
-      TestGeneration.addSuite(new AssemblyGroundTestSuite)
-      TestGeneration.addSuite(new BenchmarkGroundTestSuite)
+      val groundtest = if (site(XLen) == 64)
+        DefaultTestSuites.groundtest64
+      else
+        DefaultTestSuites.groundtest32
+      TestGeneration.addSuite(groundtest("p"))
+      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
       (0 until site(NTiles)).map { i =>
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)
@@ -35,6 +39,7 @@ class WithGroundTest extends Config(
     }
     case GroundTestMaxXacts => 1
     case GroundTestCSRs => Nil
+    case TohostAddr => BigInt("80001000", 16)
     case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
     case _ => throw new CDEMatchError
@@ -46,7 +51,7 @@ class WithMemtest extends Config(
     case GenerateUncached => true
     case GenerateCached => true
     case MaxGenerateRequests => 128
-    case GeneratorStartAddress => 0
+    case GeneratorStartAddress => site(GlobalAddrHashMap)("mem").start
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
     case _ => throw new CDEMatchError
@@ -141,7 +146,7 @@ class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 class CacheFillTestConfig extends Config(
-  new WithCacheFillTest ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
 class BroadcastRegressionTestConfig extends Config(
   new WithBroadcastRegressionTest ++ new GroundTestConfig)
 class CacheRegressionTestConfig extends Config(
@@ -155,7 +160,3 @@ class TraceGenConfig extends Config(new With2Cores ++ new WithL2Cache ++ new Wit
 class FancyMemtestConfig extends Config(
   new With2Cores ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
-
-class MemoryMuxMemtestConfig extends Config(
-  new With2MemoryChannels ++ new WithOneOrMaxChannels ++
-  new WithMemtest ++ new GroundTestConfig)

@@ -8,9 +8,7 @@
 sim_vsrcs = \
 	$(generated_dir)/$(MODEL).$(CONFIG).v \
 	$(generated_dir)/consts.$(CONFIG).vh \
-	$(generated_dir)/memdessertMemDessert.$(CONFIG).v \
 	$(base_dir)/vsrc/$(TB).v \
-	$(base_dir)/vsrc/backup_mem.v \
 
 # C sources
 

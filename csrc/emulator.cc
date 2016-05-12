@@ -101,8 +101,7 @@ int main(int argc, char** argv)
   }
 
   // Instantiate HTIF
-  htif = new htif_emulator_t(memsz_mb,
-          std::vector<std::string>(argv + 1, argv + argc));
+  htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
   int htif_bits = tile.Top__io_host_in_bits.width();
   assert(htif_bits % 8 == 0 && htif_bits <= val_n_bits());
 
@@ -111,7 +110,6 @@ int main(int argc, char** argv)
   // reset for one host_clk cycle to handle pipelined reset
   tile.Top__io_host_in_valid = LIT<1>(0);
   tile.Top__io_host_out_ready = LIT<1>(0);
-  tile.Top__io_mem_backup_ctrl_en = LIT<1>(0);
   for (int i = 0; i < 3; i += tile.Top__io_host_clk_edge.to_bool())
   {
     tile.clock_lo(LIT<1>(1));
@@ -182,13 +180,13 @@ int main(int argc, char** argv)
     for (int i = 0; i < N_MEM_CHANNELS; i++) {
       mm[i]->tick(
         mem_ar_valid[i]->to_bool(),
-        mem_ar_bits_addr[i]->lo_word(),
+        mem_ar_bits_addr[i]->lo_word() - MEM_BASE,
         mem_ar_bits_id[i]->lo_word(),
         mem_ar_bits_size[i]->lo_word(),
         mem_ar_bits_len[i]->lo_word(),
 
         mem_aw_valid[i]->to_bool(),
-        mem_aw_bits_addr[i]->lo_word(),
+        mem_aw_bits_addr[i]->lo_word() - MEM_BASE,
         mem_aw_bits_id[i]->lo_word(),
         mem_aw_bits_size[i]->lo_word(),
         mem_aw_bits_len[i]->lo_word(),

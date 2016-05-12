@@ -47,7 +47,6 @@ env:
     - CONFIG=DualCoreConfig
     - CONFIG=MemtestConfig
     - CONFIG=FancyMemtestConfig
-    - CONFIG=MemoryMuxMemtestConfig
     - CONFIG=BroadcastRegressionTestConfig
     - CONFIG=CacheRegressionTestConfig
     - CONFIG=NastiConverterTestConfig
