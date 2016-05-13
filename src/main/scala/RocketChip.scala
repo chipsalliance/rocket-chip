@@ -222,7 +222,8 @@ class Uncore(implicit val p: Parameters) extends Module
       prci.io.id := UInt(i)
       prci.io.interrupts.mtip := rtc.io.irqs(i)
       prci.io.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
-      prci.io.interrupts.seip := plic.io.harts(plic.cfg.context(i, 'S'))
+      if (p(UseVM))
+        prci.io.interrupts.seip := plic.io.harts(plic.cfg.context(i, 'S'))
       prci.io.interrupts.debug := Bool(false)
 
       io.prci(i) := prci.io.tile
