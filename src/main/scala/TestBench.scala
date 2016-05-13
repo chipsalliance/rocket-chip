@@ -3,12 +3,12 @@
 package rocketchip
 
 import Chisel._
+import cde.Parameters
 
 object TestBenchGeneration extends FileSystemUtilities {
   def generateVerilogFragment(
-    topModuleName: String, configClassName: String,
-    nMemChannel: Int) = {
-
+      topModuleName: String, configClassName: String, p: Parameters) = {
+    val nMemChannel = p(NMemoryChannels)
     // YUNSUP:
     // I originally wrote this using a 2d wire array, but of course Synopsys'
     // DirectC implementation totally chokes on it when the 2d array is
@@ -180,6 +180,7 @@ object TestBenchGeneration extends FileSystemUtilities {
 
     .io_mem_${i}_w_valid (w_valid_delay_$i),
     .io_mem_${i}_w_ready (w_ready_delay_$i),
+    .io_mem_${i}_w_bits_id (),
     .io_mem_${i}_w_bits_strb (w_strb_delay_$i),
     .io_mem_${i}_w_bits_data (w_data_delay_$i),
     .io_mem_${i}_w_bits_last (w_last_delay_$i),
@@ -201,6 +202,10 @@ object TestBenchGeneration extends FileSystemUtilities {
 
 """ } mkString
 
+    val interrupts = (0 until p(NExtInterrupts)) map { i => s"""
+    .io_interrupts_$i (1'b0),
+""" } mkString
+
     val instantiation = s"""
 `ifdef FPGA
   assign htif_clk = clk;
@@ -212,6 +217,8 @@ object TestBenchGeneration extends FileSystemUtilities {
     .reset(reset),
 
     $nasti_connections
+
+    $interrupts
 
 `ifndef FPGA
     .io_host_clk(htif_clk),
@@ -293,7 +300,8 @@ object TestBenchGeneration extends FileSystemUtilities {
   }
 
   def generateCPPFragment(
-      topModuleName: String, configClassName: String, nMemChannel: Int) {
+      topModuleName: String, configClassName: String, p: Parameters) = {
+    val nMemChannel = p(NMemoryChannels)
 
     val assigns = (0 until nMemChannel).map { i => s"""
       mem_ar_valid[$i] = &tile.Top__io_mem_${i}_ar_valid;
@@ -330,8 +338,13 @@ object TestBenchGeneration extends FileSystemUtilities {
 
     """ }.mkString
 
+    val interrupts = (0 until p(NExtInterrupts)) map { i => s"""
+      tile.Top__io_interrupts_$i = LIT<1>(0);
+""" } mkString
+
     val f = createOutputFile(s"$topModuleName.$configClassName.tb.cpp")
     f.write(assigns)
+    f.write(interrupts)
     f.close
   }
 }

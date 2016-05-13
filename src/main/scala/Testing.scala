@@ -189,11 +189,9 @@ object TestGenerator extends App with FileSystemUtilities {
 
   TestGeneration.generateMakefrag(topModuleName, configClassName)
   TestBenchGeneration.generateVerilogFragment(
-    topModuleName, configClassName,
-    paramsFromConfig(NMemoryChannels))
+    topModuleName, configClassName, paramsFromConfig)
   TestBenchGeneration.generateCPPFragment(
-    topModuleName, configClassName,
-    paramsFromConfig(NMemoryChannels))
+    topModuleName, configClassName, paramsFromConfig)
 
   val pdFile = createOutputFile(s"$topModuleName.$configClassName.prm")
 

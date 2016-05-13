@@ -27,10 +27,11 @@ class DefaultConfig extends Config (
     lazy val internalIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
       entries += AddrMapEntry("debug", MemSize(1<<12, 1<<12, MemAttr(0)))
-      entries += AddrMapEntry("bootrom", MemSize(1<<13, 1<<12, MemAttr(AddrMapProt.RX)))
+      entries += AddrMapEntry("bootrom", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("rtc", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
       for (i <- 0 until site(NTiles))
         entries += AddrMapEntry(s"prci$i", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("plic", MemSize(1<<22, 1<<22, MemAttr(AddrMapProt.RW)))
       new AddrMap(entries)
     }
     lazy val (globalAddrMap, globalAddrHashMap) = {
@@ -54,11 +55,18 @@ class DefaultConfig extends Config (
     }
     def makeConfigString() = {
       val addrMap = globalAddrHashMap
+      val plicAddr = addrMap(s"io:int:plic").start
+      val plicInfo = site(PLICKey)
       val xLen = site(XLen)
       val res = new StringBuilder
       res append  "platform {\n"
       res append  "  vendor ucb;\n"
       res append  "  arch rocket;\n"
+      res append  "};\n"
+      res append  "plic {\n"
+      res append s"  priority 0x${plicAddr.toString(16)};\n"
+      res append s"  pending 0x${(plicAddr + plicInfo.pendingBase).toString(16)};\n"
+      res append s"  ndevs ${plicInfo.nDevices};\n"
       res append  "};\n"
       res append  "rtc {\n"
       res append s"  addr 0x${addrMap("io:int:rtc").start.toString(16)};\n"
@@ -79,6 +87,18 @@ class DefaultConfig extends Config (
         res append s"      isa $isa;\n"
         res append s"      timecmp 0x${timecmpAddr.toString(16)};\n"
         res append s"      ipi 0x${prciAddr.toString(16)};\n"
+        res append s"      plic {\n"
+        res append s"        m {\n"
+        res append s"         ie 0x${(plicAddr + plicInfo.enableAddr(i, 'M')).toString(16)};\n"
+        res append s"         thresh 0x${(plicAddr + plicInfo.threshAddr(i, 'M')).toString(16)};\n"
+        res append s"         claim 0x${(plicAddr + plicInfo.claimAddr(i, 'M')).toString(16)};\n"
+        res append s"        };\n"
+        res append s"        s {\n"
+        res append s"         ie 0x${(plicAddr + plicInfo.enableAddr(i, 'S')).toString(16)};\n"
+        res append s"         thresh 0x${(plicAddr + plicInfo.threshAddr(i, 'S')).toString(16)};\n"
+        res append s"         claim 0x${(plicAddr + plicInfo.claimAddr(i, 'S')).toString(16)};\n"
+        res append s"        };\n"
+        res append s"      };\n"
         res append  "    };\n"
         res append  "  };\n"
       }
@@ -102,11 +122,7 @@ class DefaultConfig extends Config (
       case PPNBits => site(PAddrBits) - site(PgIdxBits)
       case VAddrBits => site(VPNBits) + site(PgIdxBits)
       case ASIdBits => 7
-      case MIFTagBits => Dump("MIF_TAG_BITS",
-                         // Bits needed at the L2 agent
-                         log2Up(site(NAcquireTransactors)+2) +
-                         // Bits added by NASTI interconnect
-                         log2Up(site(NBanksPerMemoryChannel)))
+      case MIFTagBits => Dump("MIF_TAG_BITS", 5)
       case MIFDataBits => Dump("MIF_DATA_BITS", 64)
       case MIFAddrBits => Dump("MIF_ADDR_BITS",
                                site(PAddrBits) - site(CacheBlockOffsetBits))
@@ -199,6 +215,9 @@ class DefaultConfig extends Config (
         else TestGeneration.addSuites(env.map(rv64ufNoDiv))
         true
       }
+      case NExtInterrupts => 2
+      case NExtMMIOChannels => 0
+      case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), site(NExtInterrupts))
       case FDivSqrt => true
       case SFMALatency => 2
       case DFMALatency => 3
