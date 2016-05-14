@@ -352,7 +352,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.pf.st, UInt(Causes.fault_store)),
     (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.pf.ld, UInt(Causes.fault_load))))
 
-  val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next.valid // structural hazard on writeback port
+  val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
   val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
   val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid

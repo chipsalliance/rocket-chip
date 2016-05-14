@@ -100,7 +100,7 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
 
   val resp = Valid(new HellaCacheResp).flip
-  val replay_next = Valid(Bits(width = coreDCacheReqTagBits)).flip
+  val replay_next = Bool(INPUT)
   val xcpt = (new HellaCacheExceptions).asInput
   val invalidate_lr = Bool(OUTPUT)
   val ordered = Bool(INPUT)
@@ -157,6 +157,7 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     val grant = Valid(new GrantFromSrc).flip
     val finish = Decoupled(new FinishToDst)
     val resp = Decoupled(new HellaCacheResp)
+    val replay_next = Bool(OUTPUT)
   }
 
   def wordFromBeat(addr: UInt, dat: UInt) = {
@@ -210,6 +211,7 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.acquire.valid := (state === s_acquire)
   io.acquire.bits := Mux(isRead(req.cmd), get_acquire, put_acquire)
 
+  io.replay_next := (state === s_grant) || io.resp.valid && !io.resp.ready
   io.resp.valid := (state === s_resp)
   io.resp.bits := req
   io.resp.bits.has_data := isRead(req.cmd)
@@ -418,6 +420,7 @@ class MSHRFile(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
     val probe_rdy = Bool(OUTPUT)
     val fence_rdy = Bool(OUTPUT)
+    val replay_next = Bool(OUTPUT)
   }
 
   // determine if the request is cacheable or not
@@ -501,6 +504,7 @@ class MSHRFile(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val resp_arb = Module(new Arbiter(new HellaCacheResp, nIOMSHRs))
 
   var mmio_rdy = Bool(false)
+  io.replay_next := Bool(false)
 
   for (i <- 0 until nIOMSHRs) {
     val id = nMSHRs + i
@@ -522,6 +526,7 @@ class MSHRFile(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     resp_arb.io.in(i) <> mshr.io.resp
 
     when (!mshr.io.req.ready) { io.fence_rdy := Bool(false) }
+    when (mshr.io.replay_next) { io.replay_next := Bool(true) }
   }
 
   mmio_alloc_arb.io.out.ready := io.req.valid && !cacheable
@@ -1086,8 +1091,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.cpu.resp := Mux(mshrs.io.resp.ready, uncache_resp, cache_resp)
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
-  io.cpu.replay_next.valid := s1_replay && s1_read
-  io.cpu.replay_next.bits := s1_req.tag
+  io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
 }
 
 // exposes a sane decoupled request interface
