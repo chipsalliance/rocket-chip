@@ -70,7 +70,7 @@ fsim-asm-tests: stamps/$(CONFIG)/fsim-asm-tests.stamp
 fsim-bmark-tests: stamps/$(CONFIG)/fsim-bmark-tests.stamp
 fsim-torture: stamps/$(CONFIG)/fsim-torture-$(TORTURE_CONFIG).stamp
 
-submodule_names = chisel2 chisel3 context-dependent-environments dramsim2 firrtl groundtest hardfloat junctions rocket torture uncore zscale $(ROCKETCHIP_ADDONS)
+submodule_names = chisel2 chisel3 context-dependent-environments dramsim2 firrtl groundtest hardfloat junctions rocket torture uncore $(ROCKETCHIP_ADDONS)
 
 # Checks out all the rocket-chip submodules
 stamps/other-submodules.stamp:

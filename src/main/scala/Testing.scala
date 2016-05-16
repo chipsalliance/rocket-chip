@@ -154,9 +154,6 @@ object DefaultTestSuites {
     List("ad","ae","af","ag","ai","ak","al","am","an","ap","aq","ar","at","av","ay","az",
          "bb","bc","bf","bh","bj","bk","bm","bo","br","bs","ce","cf","cg","ci","ck","cl",
          "cm","cs","cv","cy","dc","df","dm","do","dr","ds","du","dv").map(_+"_matmul")): _*))
-
-  val zscaleBmarks = new BenchmarkTestSuite("zscale", "$(base_dir)/zscale/sw", LinkedHashSet(
-    "led", "mbist"))
 }
 
 object TestGenerator extends App with FileSystemUtilities {
