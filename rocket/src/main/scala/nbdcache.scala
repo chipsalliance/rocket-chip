@@ -208,8 +208,17 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     wmask = beat_mask,
     alloc = Bool(false))
 
+  val putAtomic_acquire = PutAtomic(
+    client_xact_id = UInt(id),
+    addr_block = addr_block,
+    addr_beat = addr_beat,
+    addr_byte = addr_byte,
+    atomic_opcode = req.cmd,
+    operand_size = req.typ,
+    data = beat_data)
+
   io.acquire.valid := (state === s_acquire)
-  io.acquire.bits := Mux(isRead(req.cmd), get_acquire, put_acquire)
+  io.acquire.bits := Mux(isAMO(req.cmd), putAtomic_acquire, Mux(isRead(req.cmd), get_acquire, put_acquire))
 
   io.replay_next := (state === s_grant) || io.resp.valid && !io.resp.ready
   io.resp.valid := (state === s_resp)
