@@ -91,7 +91,6 @@ class HastiSlaveIO(implicit p: Parameters) extends HastiBundle()(p) {
   val hrdata = Bits(OUTPUT, hastiDataBits)
 
   val hsel   = Bool(INPUT)
-  val hreadyin  = Bool(INPUT) // !!! non-standard signal
   val hready = Bool(OUTPUT)
   val hresp  = UInt(OUTPUT, SZ_HRESP)
 }
@@ -323,7 +322,7 @@ class HastiSlaveToMaster(implicit p: Parameters) extends HastiModule()(p) {
     val out = new HastiMasterIO
   }
 
-  io.out.htrans    := Mux(io.in.hsel && io.in.hreadyin, io.in.htrans, HTRANS_IDLE)
+  io.out.htrans    := Mux(io.in.hsel, io.in.htrans, HTRANS_IDLE)
   io.out.hmastlock := io.in.hmastlock
   io.out.haddr     := io.in.haddr
   io.out.hwrite    := io.in.hwrite

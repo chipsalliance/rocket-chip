@@ -23,7 +23,7 @@ class HastiToPociBridge(implicit p: Parameters) extends HastiModule()(p) {
 
   val s_idle :: s_setup :: s_access :: Nil = Enum(UInt(), 3)
   val state = Reg(init = s_idle)
-  val transfer = io.in.hsel & io.in.hreadyin & io.in.htrans(1)
+  val transfer = io.in.hsel & io.in.htrans(1)
 
   switch (state) {
     is (s_idle) {
