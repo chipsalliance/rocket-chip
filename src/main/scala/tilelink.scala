@@ -987,6 +987,7 @@ class ClientTileLinkEnqueuer(depths: TileLinkDepths)(implicit p: Parameters) ext
   io.inner.probe   <> (if(depths.prb > 0) Queue(io.outer.probe,   depths.prb) else io.outer.probe)
   io.outer.release <> (if(depths.rel > 0) Queue(io.inner.release, depths.rel) else io.inner.release)
   io.inner.grant   <> (if(depths.gnt > 0) Queue(io.outer.grant,   depths.gnt) else io.outer.grant)
+  io.outer.finish  <> (if(depths.fin > 0) Queue(io.inner.finish,  depths.fin) else io.inner.finish)
 }
 
 object ClientTileLinkEnqueuer {
