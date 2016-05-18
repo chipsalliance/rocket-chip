@@ -72,6 +72,10 @@ class HastiMasterIO(implicit p: Parameters) extends HastiBundle()(p) {
 
   val hready = Bool(INPUT)
   val hresp  = UInt(INPUT, SZ_HRESP)
+
+  def isNSeq(dummy:Int=0) = htrans === HTRANS_NONSEQ // SEQ does not start a NEW request
+  def isHold(dummy:Int=0) = htrans === HTRANS_BUSY || htrans === HTRANS_SEQ
+  def isIdle(dummy:Int=0) = htrans === HTRANS_IDLE || htrans === HTRANS_BUSY
 }
 
 class HastiSlaveIO(implicit p: Parameters) extends HastiBundle()(p) {
