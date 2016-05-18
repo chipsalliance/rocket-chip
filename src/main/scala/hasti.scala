@@ -86,10 +86,10 @@ class HastiSlaveIO(implicit p: Parameters) extends HastiBundle()(p) {
   val hwdata = Bits(INPUT, hastiDataBits)
   val hrdata = Bits(OUTPUT, hastiDataBits)
 
-  val hsel      = Bool(INPUT)
-  val hreadyin  = Bool(INPUT)
-  val hreadyout = Bool(OUTPUT)
-  val hresp     = UInt(OUTPUT, SZ_HRESP)
+  val hsel   = Bool(INPUT)
+  val hreadyin  = Bool(INPUT) // !!! non-standard signal
+  val hready = Bool(OUTPUT)
+  val hresp  = UInt(OUTPUT, SZ_HRESP)
 }
 
 class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModule()(p) {
@@ -137,11 +137,11 @@ class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModul
   } }
 
   val s1_hsels = Array.fill(amap.size){Reg(init = Bool(false))}
-  val hreadyouts = io.slaves.map(_.hreadyout)
-  val master_hready = s1_hsels.reduce(_||_) === Bool(false) || Mux1H(s1_hsels, hreadyouts)
+  val hreadys = io.slaves.map(_.hready)
+  val master_hready = s1_hsels.reduce(_||_) === Bool(false) || Mux1H(s1_hsels, hreadys)
 
   when (master_hready) {
-    val skid = s1_hsels.reduce(_||_) && (hsels zip hreadyouts).map{ case (s, r) => s && !r }.reduce(_||_)
+    val skid = s1_hsels.reduce(_||_) && (hsels zip hreadys).map{ case (s, r) => s && !r }.reduce(_||_)
     skb_valid := skid
     when (skid) {
       skb_haddr := io.master.haddr
@@ -185,7 +185,7 @@ class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
   val s1_grants = Array.fill(n){Reg(init = Bool(true))}
 
   (s1_grants zip grants) foreach { case (g1, g) =>
-    when (io.out.hreadyout) { g1 := g }
+    when (io.out.hready) { g1 := g }
   }
 
   def sel[T <: Data](in: Seq[T], s1: Seq[T]) =
@@ -201,7 +201,7 @@ class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
   io.out.hsel := grants.reduce(_||_)
 
   (io.ins zipWithIndex) map { case (in, i) => {
-    when (io.out.hreadyout) {
+    when (io.out.hready) {
       when (grants(i)) {
         skb_valid(i) := Bool(false)
       }
@@ -222,12 +222,12 @@ class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
   } }
 
   io.out.hwdata := Mux1H(s1_grants, io.ins.map(_.hwdata))
-  io.out.hreadyin := io.out.hreadyout
+  io.out.hreadyin := io.out.hready
 
   (io.ins zipWithIndex) foreach { case (in, i) => {
     val g1 = s1_grants(i)
     in.hrdata := dgate(g1, io.out.hrdata)
-    in.hreadyout := io.out.hreadyout && (!skb_valid(i) || g1)
+    in.hready := io.out.hready && (!skb_valid(i) || g1)
     in.hresp := dgate(g1, io.out.hresp)
   } }
 }
@@ -264,7 +264,7 @@ class HastiSlaveToMaster(implicit p: Parameters) extends HastiModule()(p) {
   io.out.hmastlock := io.in.hmastlock
   io.out.hwdata := io.in.hwdata
   io.in.hrdata := io.out.hrdata
-  io.in.hreadyout := io.out.hready
+  io.in.hready := io.out.hready
   io.in.hresp := io.out.hresp
 }
 
