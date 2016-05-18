@@ -3,20 +3,14 @@ package junctions
 import Chisel._
 import cde.{Parameters, Field}
 
-abstract trait PociConstants
+class PociIO(implicit p: Parameters) extends HastiBundle()(p)
 {
-  val SZ_PADDR = 32
-  val SZ_PDATA = 32
-}
-
-class PociIO extends Bundle
-{
-  val paddr = UInt(OUTPUT, SZ_PADDR)
+  val paddr = UInt(OUTPUT, hastiAddrBits)
   val pwrite = Bool(OUTPUT)
   val psel = Bool(OUTPUT)
   val penable = Bool(OUTPUT)
-  val pwdata = UInt(OUTPUT, SZ_PDATA)
-  val prdata = UInt(INPUT, SZ_PDATA)
+  val pwdata = UInt(OUTPUT, hastiDataBits)
+  val prdata = UInt(INPUT, hastiDataBits)
   val pready = Bool(INPUT)
   val pslverr = Bool(INPUT)
 }
@@ -45,7 +39,7 @@ class HastiToPociBridge(implicit p: Parameters) extends HastiModule()(p) {
     }
   }
 
-  val haddr_reg = Reg(UInt(width = SZ_PADDR))
+  val haddr_reg = Reg(UInt(width = hastiAddrBits))
   val hwrite_reg = Reg(UInt(width = 1))
   when (transfer) {
     haddr_reg  := io.in.haddr
@@ -62,7 +56,7 @@ class HastiToPociBridge(implicit p: Parameters) extends HastiModule()(p) {
   io.in.hresp := io.out.pslverr
 }
 
-class PociBus(amap: Seq[UInt=>Bool]) extends Module
+class PociBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModule()(p)
 {
   val io = new Bundle {
     val master = new PociIO().flip
