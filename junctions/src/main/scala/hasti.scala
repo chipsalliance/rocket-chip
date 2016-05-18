@@ -59,16 +59,16 @@ abstract class HastiBundle(implicit val p: Parameters) extends ParameterizedBund
   with HasHastiParameters
 
 class HastiMasterIO(implicit p: Parameters) extends HastiBundle()(p) {
-  val haddr     = UInt(OUTPUT, hastiAddrBits)
-  val hwrite    = Bool(OUTPUT)
-  val hsize     = UInt(OUTPUT, SZ_HSIZE)
-  val hburst    = UInt(OUTPUT, SZ_HBURST)
-  val hprot     = UInt(OUTPUT, SZ_HPROT)
   val htrans    = UInt(OUTPUT, SZ_HTRANS)
   val hmastlock = Bool(OUTPUT)
+  val haddr     = UInt(OUTPUT, hastiAddrBits)
+  val hwrite    = Bool(OUTPUT)
+  val hburst    = UInt(OUTPUT, SZ_HBURST)
+  val hsize     = UInt(OUTPUT, SZ_HSIZE)
+  val hprot     = UInt(OUTPUT, SZ_HPROT)
 
   val hwdata = Bits(OUTPUT, hastiDataBits)
-  val hrdata = Bits(INPUT, hastiDataBits)
+  val hrdata = Bits(INPUT,  hastiDataBits)
 
   val hready = Bool(INPUT)
   val hresp  = UInt(INPUT, SZ_HRESP)
@@ -79,15 +79,15 @@ class HastiMasterIO(implicit p: Parameters) extends HastiBundle()(p) {
 }
 
 class HastiSlaveIO(implicit p: Parameters) extends HastiBundle()(p) {
-  val haddr     = UInt(INPUT, hastiAddrBits)
-  val hwrite    = Bool(INPUT)
-  val hsize     = UInt(INPUT, SZ_HSIZE)
-  val hburst    = UInt(INPUT, SZ_HBURST)
-  val hprot     = UInt(INPUT, SZ_HPROT)
   val htrans    = UInt(INPUT, SZ_HTRANS)
   val hmastlock = Bool(INPUT)
+  val haddr     = UInt(INPUT, hastiAddrBits)
+  val hwrite    = Bool(INPUT)
+  val hburst    = UInt(INPUT, SZ_HBURST)
+  val hsize     = UInt(INPUT, SZ_HSIZE)
+  val hprot     = UInt(INPUT, SZ_HPROT)
 
-  val hwdata = Bits(INPUT, hastiDataBits)
+  val hwdata = Bits(INPUT,  hastiDataBits)
   val hrdata = Bits(OUTPUT, hastiDataBits)
 
   val hsel   = Bool(INPUT)
@@ -319,21 +319,21 @@ class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
 
 class HastiSlaveToMaster(implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
-    val in = new HastiSlaveIO
+    val in  = new HastiSlaveIO
     val out = new HastiMasterIO
   }
 
-  io.out.haddr := io.in.haddr
-  io.out.hwrite := io.in.hwrite
-  io.out.hsize := io.in.hsize
-  io.out.hburst := io.in.hburst
-  io.out.hprot := io.in.hprot
-  io.out.htrans := Mux(io.in.hsel && io.in.hreadyin, io.in.htrans, HTRANS_IDLE)
+  io.out.htrans    := Mux(io.in.hsel && io.in.hreadyin, io.in.htrans, HTRANS_IDLE)
   io.out.hmastlock := io.in.hmastlock
-  io.out.hwdata := io.in.hwdata
+  io.out.haddr     := io.in.haddr
+  io.out.hwrite    := io.in.hwrite
+  io.out.hburst    := io.in.hburst
+  io.out.hsize     := io.in.hsize
+  io.out.hprot     := io.in.hprot
+  io.out.hwdata    := io.in.hwdata
   io.in.hrdata := io.out.hrdata
   io.in.hready := io.out.hready
-  io.in.hresp := io.out.hresp
+  io.in.hresp  := io.out.hresp
 }
 
 class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule()(p)
