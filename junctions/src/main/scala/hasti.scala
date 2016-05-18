@@ -5,28 +5,39 @@ import cde.{Parameters, Field}
 
 trait HastiConstants
 {
+  // Values for htrans
   val SZ_HTRANS     = 2
-  val HTRANS_IDLE   = UInt(0, SZ_HTRANS)
-  val HTRANS_BUSY   = UInt(1, SZ_HTRANS)
-  val HTRANS_NONSEQ = UInt(2, SZ_HTRANS)
-  val HTRANS_SEQ    = UInt(3, SZ_HTRANS)
+  val HTRANS_IDLE   = UInt(0, SZ_HTRANS) // No transfer requested, not in a burst
+  val HTRANS_BUSY   = UInt(1, SZ_HTRANS) // No transfer requested, in a burst
+  val HTRANS_NONSEQ = UInt(2, SZ_HTRANS) // First (potentially only) request in a burst
+  val HTRANS_SEQ    = UInt(3, SZ_HTRANS) // Following requests in a burst
 
+  // Values for hburst
   val SZ_HBURST     = 3
-  val HBURST_SINGLE = UInt(0, SZ_HBURST)
-  val HBURST_INCR   = UInt(1, SZ_HBURST)
-  val HBURST_WRAP4  = UInt(2, SZ_HBURST)
-  val HBURST_INCR4  = UInt(3, SZ_HBURST)
-  val HBURST_WRAP8  = UInt(4, SZ_HBURST)
-  val HBURST_INCR8  = UInt(5, SZ_HBURST)
-  val HBURST_WRAP16 = UInt(6, SZ_HBURST)
-  val HBURST_INCR16 = UInt(7, SZ_HBURST)
+  val HBURST_SINGLE = UInt(0, SZ_HBURST) // Single access (no burst)
+  val HBURST_INCR   = UInt(1, SZ_HBURST) // Incrementing burst of arbitrary length, not crossing 1KB
+  val HBURST_WRAP4  = UInt(2, SZ_HBURST) // 4-beat wrapping burst
+  val HBURST_INCR4  = UInt(3, SZ_HBURST) // 4-beat incrementing burst
+  val HBURST_WRAP8  = UInt(4, SZ_HBURST) // 8-beat wrapping burst
+  val HBURST_INCR8  = UInt(5, SZ_HBURST) // 8-beat incrementing burst
+  val HBURST_WRAP16 = UInt(6, SZ_HBURST) // 16-beat wrapping burst
+  val HBURST_INCR16 = UInt(7, SZ_HBURST) // 16-beat incrementing burst
 
+  // Values for hresp
   val SZ_HRESP      = 1
   val HRESP_OKAY    = UInt(0, SZ_HRESP)
   val HRESP_ERROR   = UInt(1, SZ_HRESP)
 
+  // Values for hsize are identical to TileLink MT_SZ
+  // ie: 8*2^SZ_HSIZE bit transfers
   val SZ_HSIZE = 3
+  
+  // Values for hprot (a bitmask)
   val SZ_HPROT = 4
+  def HPROT_DATA       = UInt("b0001") // Data access or Opcode fetch
+  def HPROT_PRIVILEGED = UInt("b0010") // Privileged or User access
+  def HPROT_BUFFERABLE = UInt("b0100") // Bufferable or non-bufferable
+  def HPROT_CACHEABLE  = UInt("b1000") // Cacheable or non-cacheable
 
   def dgate(valid: Bool, b: UInt) = Fill(b.getWidth, valid) & b
 }
