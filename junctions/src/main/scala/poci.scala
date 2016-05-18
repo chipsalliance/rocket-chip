@@ -52,7 +52,7 @@ class HastiToPociBridge(implicit p: Parameters) extends HastiModule()(p) {
   io.out.penable := (state === s_access)
   io.out.pwdata := io.in.hwdata
   io.in.hrdata := io.out.prdata
-  io.in.hreadyout := ((state === s_access) & io.out.pready) | (state === s_idle)
+  io.in.hready := ((state === s_access) & io.out.pready) | (state === s_idle)
   io.in.hresp := io.out.pslverr
 }
 
