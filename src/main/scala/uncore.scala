@@ -133,7 +133,7 @@ abstract class ManagerCoherenceAgent(implicit p: Parameters) extends CoherenceAg
     with HasCoherenceAgentWiringHelpers {
   val io = new ManagerTLIO
   def innerTL = io.inner
-  lazy val outerTL = TileLinkIOWrapper(io.outer)(p.alterPartial({case TLId => p(OuterTLId)}))
+  def outerTL = TileLinkIOWrapper(io.outer)(p.alterPartial({case TLId => p(OuterTLId)}))
   def incoherent = io.incoherent
 }
 
