@@ -87,7 +87,7 @@ trait HasCoherenceAgentWiringHelpers {
     val match_ok = matchOverride.getOrElse(Bool(true))
     in.ready := Mux(no_matches, ready_bits.orR, (match_bits & ready_bits).orR) && alloc_ok && match_ok
     outs.zip(allocs).zipWithIndex.foreach { case((out, a), i) =>
-      out.valid := in.valid && match_ok
+      out.valid := in.valid && match_ok && alloc_ok
       out.bits := in.bits
       dataOverrides foreach { d => out.bits.data := d(i) }
       a := alloc_bits(i) & no_matches & alloc_ok
