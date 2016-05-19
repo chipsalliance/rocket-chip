@@ -7,7 +7,6 @@ import junctions._
 import uncore._
 import rocket._
 import rocket.Util._
-import zscale._
 import groundtest._
 import scala.math.max
 import DefaultTestSuites._
@@ -388,21 +387,6 @@ class DefaultL2FPGAConfig extends Config(new WithL2Capacity64 ++ new WithL2Cache
 
 class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
-class WithZscale extends Config(
-  (pname,site,here) => pname match {
-    case XLen => 32
-    case UseFPU => false
-    case BuildZscale => {
-      TestGeneration.addSuites(List(rv32ui("p"), rv32um("p")))
-      TestGeneration.addSuites(List(zscaleBmarks))
-      (r: Bool, p: Parameters) => Module(new Zscale(r)(p))
-    }
-    case BootROMCapacity => Dump("BOOT_CAPACITY", 16*1024)
-    case DRAMCapacity => Dump("DRAM_CAPACITY", 64*1024*1024)
-    case _ => throw new CDEMatchError
-  }
-)
-
 class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
@@ -411,8 +395,6 @@ class WithRV32 extends Config(
     case _ => throw new CDEMatchError
   }
 )
-
-class ZscaleConfig extends Config(new WithZscale ++ new DefaultConfig)
 
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {

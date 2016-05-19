@@ -19,9 +19,6 @@
 [submodule "fpga-zynq"]
 	path = fpga-zynq
 	url = git@github.com:ucb-bar/fpga-zynq.git
-[submodule "zscale"]
-	path = zscale
-	url = git@github.com:ucb-bar/zscale
 [submodule "hwacha"]
 	path = hwacha
 	url = git@github.com:ucb-bar/hwacha

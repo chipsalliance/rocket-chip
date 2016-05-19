@@ -24,7 +24,7 @@ CHISEL_ARGS := --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configN
 endif
 
 src_path = src/main/scala
-default_submodules = . junctions uncore hardfloat rocket zscale groundtest context-dependent-environments
+default_submodules = . junctions uncore hardfloat rocket groundtest context-dependent-environments
 chisel_srcs = $(addprefix $(base_dir)/,$(addsuffix /$(src_path)/*.scala,$(default_submodules) $(ROCKETCHIP_ADDONS)))
 
 disasm := 2>

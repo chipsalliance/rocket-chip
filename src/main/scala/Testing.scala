@@ -23,10 +23,10 @@ $$(addprefix $$(output_dir)/, $$($makeTargetName)): $$(output_dir)/%: $dir/%
 \tln -fs $$< $$@
 
 run-$makeTargetName: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $$($makeTargetName)))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$^ /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 
 run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($makeTargetName)))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^) /dev/null; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$(patsubst %.vpd,%.out,$$^) /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 """
 }
 
@@ -70,18 +70,18 @@ object TestGeneration extends FileSystemUtilities{
           val suites = envsuites.map(t => s"$$(${t.makeTargetName})").mkString(" ")
         s"""
 run-$kind-$env-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $suites))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$^ /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 run-$kind-$env-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $suites))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^) /dev/null; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$(patsubst %.vpd,%.out,$$^) /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 run-$kind-$env-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $suites))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$^ /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 """} } ).mkString("\n") + s"""
 run-$kind-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $targets))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$^ /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 run-$kind-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $targets))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$(patsubst %.vpd,%.out,$$^) /dev/null; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$(patsubst %.vpd,%.out,$$^) /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets))
-\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if /\\*{3}(.{8})\\*{3}(.*)/' $$^ /dev/null; echo;
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$^ /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 """
       } else { "\n" }
     }
@@ -159,9 +159,6 @@ object DefaultTestSuites {
     List("ad","ae","af","ag","ai","ak","al","am","an","ap","aq","ar","at","av","ay","az",
          "bb","bc","bf","bh","bj","bk","bm","bo","br","bs","ce","cf","cg","ci","ck","cl",
          "cm","cs","cv","cy","dc","df","dm","do","dr","ds","du","dv").map(_+"_matmul")): _*))
-
-  val zscaleBmarks = new BenchmarkTestSuite("zscale", "$(base_dir)/zscale/sw", LinkedHashSet(
-    "led", "mbist"))
 }
 
 object TestGenerator extends App with FileSystemUtilities {

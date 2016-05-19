@@ -16,7 +16,6 @@ cache:
     rocket/target
     target
     uncore/target
-    zscale/target
 
 # packages needed to build riscv-tools
 addons:
