@@ -1171,4 +1171,9 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   }
 
   io.requestor.resp := io.cache.resp
+
+  assert(!Reg(next = io.cache.req.fire()) ||
+         !(io.cache.xcpt.ma.ld || io.cache.xcpt.ma.st ||
+           io.cache.xcpt.pf.ld || io.cache.xcpt.pf.st),
+         "SimpleHellaCacheIF exception")
 }
