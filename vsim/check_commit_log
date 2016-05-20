@@ -19,7 +19,7 @@ vsim_srf = {}
 vsim_vrf = {}
 vsim_prf = {}
 
-nvpr = 256
+nvdpr = 256
 nppr = 16
 nlanes = 1
 lstride = 1
@@ -36,11 +36,22 @@ def add_2d(d, eidx, addr, data):
   if eidx not in d.keys(): d[eidx] = {}
   add_1d(d[eidx], addr, data)
 
-def calc(npr, lid, bid, paddr, sid):
+def calc_v(npr, lid, bid, paddr, sid):
   strip_id = paddr/npr
   strip_id_div = strip_id/lstrip
   strip_id_rem = strip_id%lstrip
   eidx = ((((lid + strip_id_div) * lstrip) + strip_id_rem) * nstrip) + (bid*nslices) + sid
+  addr = paddr%npr
+  return (eidx, addr)
+
+def calc_p(npr, lid, bid, paddr, sid):
+  strip_id = paddr/npr
+  strip_id_div = strip_id/lstrip
+  strip_id_rem = strip_id%lstrip
+  strip_eidx_comp = ((((lid + strip_id_div) * lstrip) + strip_id_rem) * nstrip*(nstrip/nslices))
+  bank_eidx_comp = bid*nslices
+  sid_eidx_comp = ((sid/nslices)*nstrip)+(sid%nslices)
+  eidx = strip_eidx_comp + bank_eidx_comp + sid_eidx_comp
   addr = paddr%npr
   return (eidx, addr)
 
@@ -65,9 +76,11 @@ for l in vlog:
   if l.find('VSETCFG') != -1:
     s = l.split('[')
     nlanes = int(s[1].split('=')[1].split(']')[0])
-    nvpr = int(s[2].split('=')[1].split(']')[0])
-    nppr = int(s[3].split('=')[1].split(']')[0])
-    lstride = int(s[4].split('=')[1].split(']')[0])
+    nvdpr = int(s[2].split('=')[1].split(']')[0])
+    nvwpr = int(s[3].split('=')[1].split(']')[0])
+    nvhpr = int(s[4].split('=')[1].split(']')[0])
+    nppr = int(s[5].split('=')[1].split(']')[0])
+    lstride = int(s[6].split('=')[1].split(']')[0])
     lstrip = 1<<lstride
   if l.find('arf') != -1:
     s = l.split()
@@ -81,7 +94,7 @@ for l in vlog:
     bid = int(s[3])
     paddr = int(s[4])
     sid = int(s[5])
-    (eidx, addr) = calc(nvpr, lid, bid, paddr, sid)
+    (eidx, addr) = calc_v(nvdpr, lid, bid, paddr, sid)
     add_2d(vsim_vrf, eidx, addr, (cycle, s[6], l))
   if l.find('prf') != -1:
     s = l.split()
@@ -89,7 +102,7 @@ for l in vlog:
     bid = int(s[3])
     paddr = int(s[4])
     sid = int(s[5])
-    (eidx, addr) = calc(nppr, lid, bid, paddr, sid)
+    (eidx, addr) = calc_p(nppr, lid, bid, paddr, sid)
     add_2d(vsim_prf, eidx, addr, (cycle, s[6], l))
 
 def compare_keys(rf, s, v):
