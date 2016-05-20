@@ -185,7 +185,9 @@ class TraceGenerator(id: Int)
   // Address bag, shared by all cores, taken from module parameters.
   // In addition, there is a per-core random selection of extra addresses.
 
-  val bagOfAddrs = addressBag.map(x => UInt(x, numBitsInWord))
+  val addrHashMap = p(GlobalAddrHashMap)
+  val memStart = addrHashMap("mem").start
+  val bagOfAddrs = addressBag.map(x => UInt(memStart + x, numBitsInWord))
 
   val extraAddrs = (0 to numExtraAddrs-1).
                    map(i => Reg(UInt(width = 16)))
