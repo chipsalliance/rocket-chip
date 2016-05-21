@@ -180,8 +180,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val system_insn = io.rw.cmd === CSR.I
   val cpu_ren = io.rw.cmd =/= CSR.N && !system_insn
 
-  val isa_string = "IMA" +
+  val isa_string = "IM" +
     (if (usingVM) "S" else "") +
+    (if (usingAtomics) "A" else "") +
     (if (usingFPU) "FD" else "") +
     (if (usingRoCC) "X" else "")
   val isa = ((if (xLen == 32) BigInt(0) else BigInt(2)) << (xLen-2)) |
