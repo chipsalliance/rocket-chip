@@ -40,13 +40,15 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
   val icache = Module(new Frontend()(p.alterPartial({
     case CacheName => "L1I"
     case CoreName => "Rocket" })))
-  val dcache = Module(new HellaCache()(dcacheParams))
+  val dcache =
+    if (p(NMSHRs) == 0) Module(new DCache()(dcacheParams)).io
+    else Module(new HellaCache()(dcacheParams)).io
 
-  val ptwPorts = collection.mutable.ArrayBuffer(icache.io.ptw, dcache.io.ptw)
+  val ptwPorts = collection.mutable.ArrayBuffer(icache.io.ptw, dcache.ptw)
   val dcPorts = collection.mutable.ArrayBuffer(core.io.dmem)
   val uncachedArbPorts = collection.mutable.ArrayBuffer(icache.io.mem)
   val uncachedPorts = collection.mutable.ArrayBuffer[ClientUncachedTileLinkIO]()
-  val cachedPorts = collection.mutable.ArrayBuffer(dcache.io.mem)
+  val cachedPorts = collection.mutable.ArrayBuffer(dcache.mem)
   core.io.prci <> io.prci
   icache.io.cpu <> core.io.imem
 
@@ -133,7 +135,7 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
 
   val dcArb = Module(new HellaCacheArbiter(dcPorts.size)(dcacheParams))
   dcArb.io.requestor <> dcPorts
-  dcache.io.cpu <> dcArb.io.mem
+  dcache.cpu <> dcArb.io.mem
 
   if (!usingRocc || nFPUPorts == 0) {
     fpuOpt.foreach { fpu =>
