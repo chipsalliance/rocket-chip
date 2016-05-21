@@ -14,7 +14,8 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
     val mem = new HellaCacheIO
   }
 
-  val r_valid = io.requestor.map(r => Reg(next=r.req.valid))
+  val s1_id = Reg(UInt())
+  val s2_id = Reg(next=s1_id)
 
   io.mem.invalidate_lr := io.requestor.map(_.invalidate_lr).reduce(_||_)
   io.mem.req.valid := io.requestor.map(_.req.valid).reduce(_||_)
@@ -30,6 +31,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       io.mem.req.bits.addr := req.bits.addr
       io.mem.req.bits.phys := req.bits.phys
       io.mem.req.bits.tag := Cat(req.bits.tag, UInt(i, log2Up(n)))
+      s1_id := UInt(i)
     }
     def connect_s1() = {
       io.mem.s1_kill := io.requestor(i).s1_kill
@@ -41,7 +43,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       connect_s1()
     } else {
       when (req.valid) { connect_s0() }
-      when (r_valid(i)) { connect_s1() }
+      when (s1_id === UInt(i)) { connect_s1() }
     }
   }
 
@@ -51,7 +53,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
     resp.valid := io.mem.resp.valid && tag_hit
     io.requestor(i).xcpt := io.mem.xcpt
     io.requestor(i).ordered := io.mem.ordered
-    io.requestor(i).s2_nack := io.mem.s2_nack && tag_hit
+    io.requestor(i).s2_nack := io.mem.s2_nack && s2_id === UInt(i)
     resp.bits := io.mem.resp.bits
     resp.bits.tag := io.mem.resp.bits.tag >> log2Up(n)
 
