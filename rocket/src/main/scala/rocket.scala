@@ -14,6 +14,7 @@ case object XLen extends Field[Int]
 case object FetchWidth extends Field[Int]
 case object RetireWidth extends Field[Int]
 case object UseVM extends Field[Boolean]
+case object UseAtomics extends Field[Boolean]
 case object UsePerfCounters extends Field[Boolean]
 case object FastLoadWord extends Field[Boolean]
 case object FastLoadByte extends Field[Boolean]
@@ -32,6 +33,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
 
   val usingVM = p(UseVM)
   val usingFPU = p(UseFPU)
+  val usingAtomics = p(UseAtomics)
   val usingFDivSqrt = p(FDivSqrt)
   val usingRoCC = !p(BuildRoCC).isEmpty
   val usingFastMulDiv = p(FastMulDiv)
@@ -119,6 +121,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   var decode_table = new XDecode().table
+  if (usingAtomics) decode_table ++= new ADecode().table
   if (usingFPU) decode_table ++= new FDecode().table
   if (usingFPU && usingFDivSqrt) decode_table ++= new FDivSqrtDecode().table
   if (usingRoCC) decode_table ++= new RoCCDecode().table
