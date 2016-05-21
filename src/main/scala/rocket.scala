@@ -483,10 +483,13 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     id_csr_en && !io.fpu.fcsr_rdy || checkHazards(fp_hazard_targets, fp_sboard.read _)
   } else Bool(false)
 
+  val dcache_blocked = Reg(Bool())
+  dcache_blocked := !io.dmem.req.ready && (io.dmem.req.valid || dcache_blocked)
+
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
     id_ctrl.fp && id_stall_fpu ||
-    id_ctrl.mem && Reg(next = !io.dmem.req.ready) ||
+    id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
     Bool(usingRoCC) && wb_reg_rocc_pending && id_ctrl.rocc && !io.rocc.cmd.ready ||
     id_do_fence ||
     csr.io.csr_stall
