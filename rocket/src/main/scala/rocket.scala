@@ -505,7 +505,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
                                 mem_npc)).toUInt // mispredicted branch
   io.imem.flush_icache := wb_reg_valid && wb_ctrl.fence_i
   io.imem.flush_tlb := csr.io.fatc
-  io.imem.resp.ready := !ctrl_stalld || csr.io.interrupt
+  io.imem.resp.ready := !ctrl_stalld || csr.io.interrupt || take_pc_mem
 
   io.imem.btb_update.valid := mem_reg_valid && !mem_npc_misaligned && mem_wrong_npc && mem_cfi_taken && !take_pc_wb
   io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
