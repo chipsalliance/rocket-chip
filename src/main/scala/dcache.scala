@@ -76,7 +76,8 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s_ready :: s_grant_wait :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: Nil = Enum(UInt(), 8)
   val grant_wait = Reg(init=Bool(false))
   val release_state = Reg(init=s_ready)
-  val pstore_valid = Reg(init=Bool(false))
+  val pstore1_valid = Wire(Bool())
+  val pstore2_valid = Reg(Bool())
   val inWriteback = release_state === s_voluntary_writeback || release_state === s_probe_rep_dirty
   io.cpu.req.ready := (release_state === s_ready) && !grant_wait && !s1_nack
 
@@ -124,7 +125,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s2_hit = s2_hit_way.orR && s2_hit_state.isHit(s2_req.cmd)
   val s2_hit_dirty = s2_hit && s2_hit_state.requiresVoluntaryWriteback()
   val s2_valid_hit = s2_valid_masked && s2_hit
-  val s2_valid_miss = s2_valid_masked && !s2_hit && !pstore_valid
+  val s2_valid_miss = s2_valid_masked && !s2_hit && !(pstore1_valid || pstore2_valid)
   val s2_repl = RegEnable(meta.io.resp(replacer.way), s1_valid_not_nacked)
   val s2_repl_dirty = s2_repl.coh.requiresVoluntaryWriteback()
   io.cpu.s2_nack := s2_valid && !s2_valid_hit
@@ -141,29 +142,50 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     io.cpu.resp.valid),
       "DCache exception occurred - cache response not killed.")
 
-  // committed stores
-  val s2_store_valid = s2_valid_hit && isWrite(s2_req.cmd)
-  val s2_store_data = RegEnable(io.cpu.s1_data, s1_valid && s1_write)
-  val s2_storegen = new StoreGen(s2_req.typ, s2_req.addr, s2_store_data, wordBytes)
-  val s2_storegen_data = Wire(init = s2_storegen.data)
-  val pstore_drain = s2_store_valid || releaseInFlight || io.cpu.s2_nack || !(io.cpu.req.valid && isRead(io.cpu.req.bits.cmd))
-  pstore_valid := s2_store_valid || (pstore_valid && !pstore_drain)
-  val pstore_addr = RegEnable(s2_req.addr, s2_store_valid)
-  val pstore_way = RegEnable(s2_hit_way, s2_store_valid)
-  val pstore_data = RegEnable(s2_storegen_data, s2_store_valid)
-  val pstore_mask = RegEnable(s2_storegen.mask, s2_store_valid)
-  dataArb.io.in(0).valid := pstore_valid && pstore_drain
+  // pending store buffer
+  val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
+  val pstore1_typ = RegEnable(s1_req.typ, s1_valid_not_nacked && s1_write)
+  val pstore1_addr = RegEnable(s1_paddr, s1_valid_not_nacked && s1_write)
+  val pstore1_data = RegEnable(io.cpu.s1_data, s1_valid_not_nacked && s1_write)
+  val pstore1_storegen = new StoreGen(pstore1_typ, pstore1_addr, pstore1_data, wordBytes)
+  val pstore1_storegen_data = Wire(init = pstore1_storegen.data)
+  val pstore1_amo = Bool(usingAtomics) && isRead(pstore1_cmd)
+  val pstore_drain_structural = pstore1_valid && pstore2_valid && ((s1_valid && s1_write) || pstore1_amo)
+  val pstore_drain_opportunistic = !(io.cpu.req.valid && isRead(io.cpu.req.bits.cmd))
+  val pstore_drain_on_miss = releaseInFlight || io.cpu.s2_nack
+  val pstore_drain =
+    Bool(usingAtomics) && pstore_drain_structural ||
+    (((pstore1_valid && !pstore1_amo) || pstore2_valid) && (pstore_drain_opportunistic || pstore_drain_on_miss))
+  val pstore1_way = Wire(init=s2_hit_way)
+  pstore1_valid := {
+    val s2_store_valid = s2_valid_hit && isWrite(s2_req.cmd)
+    val pstore1_held = Reg(Bool())
+    val pstore1_held_way = RegEnable(s2_hit_way, s2_store_valid)
+    when (pstore1_held) { pstore1_way := pstore1_held_way }
+    pstore1_held := (s2_store_valid || pstore1_held) && pstore2_valid && !pstore_drain
+    s2_store_valid || pstore1_held
+  }
+  val advance_pstore1 = pstore1_valid && (!pstore2_valid || pstore_drain)
+  pstore2_valid := pstore2_valid && !pstore_drain || advance_pstore1
+  val pstore2_addr = RegEnable(pstore1_addr, advance_pstore1)
+  val pstore2_way = RegEnable(pstore1_way, advance_pstore1)
+  val pstore2_storegen_data = RegEnable(pstore1_storegen_data, advance_pstore1)
+  val pstore2_storegen_mask = RegEnable(pstore1_storegen.mask, advance_pstore1)
+  dataArb.io.in(0).valid := pstore_drain
   dataArb.io.in(0).bits.write := true
-  dataArb.io.in(0).bits.addr := pstore_addr
-  dataArb.io.in(0).bits.way_en := pstore_way
-  dataArb.io.in(0).bits.wdata := Fill(rowWords, pstore_data)
-  dataArb.io.in(0).bits.wmask := pstore_mask << (if (rowOffBits > offsetlsb) (pstore_addr(rowOffBits-1,offsetlsb) << wordOffBits) else UInt(0))
+  dataArb.io.in(0).bits.addr := Mux(pstore2_valid, pstore2_addr, pstore1_addr)
+  dataArb.io.in(0).bits.way_en := Mux(pstore2_valid, pstore2_way, pstore1_way)
+  dataArb.io.in(0).bits.wdata := Fill(rowWords, Mux(pstore2_valid, pstore2_storegen_data, pstore1_storegen_data))
+  val pstore_mask_shift =
+    if (rowOffBits > offsetlsb) Mux(pstore2_valid, pstore2_addr, pstore1_addr)(rowOffBits-1,offsetlsb) << wordOffBits
+    else UInt(0)
+  dataArb.io.in(0).bits.wmask := Mux(pstore2_valid, pstore2_storegen_mask, pstore1_storegen.mask) << pstore_mask_shift
 
   // store->load RAW hazard detection
   val s1_idx = s1_req.addr(idxMSB, wordOffBits)
   val s1_raw_hazard = s1_read &&
-    ((s2_store_valid && s2_req.addr(idxMSB, wordOffBits) === s1_idx) ||
-     (pstore_valid && pstore_addr(idxMSB, wordOffBits) === s1_idx))
+    ((pstore1_valid && pstore1_addr(idxMSB, wordOffBits) === s1_idx) ||
+     (pstore2_valid && pstore2_addr(idxMSB, wordOffBits) === s1_idx))
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   val s2_new_hit_state = s2_hit_state.onHit(s2_req.cmd)
@@ -291,7 +313,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc, wordBytes)
   io.cpu.resp.bits.data := loadgen.data
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
-  io.cpu.resp.bits.store_data := s2_store_data
+  io.cpu.resp.bits.store_data := pstore1_data
 
   // AMOs
   if (usingAtomics) {
@@ -300,7 +322,10 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     amoalu.io.cmd := s2_req.cmd
     amoalu.io.typ := s2_req.typ
     amoalu.io.lhs := s2_data_word
-    amoalu.io.rhs := s2_store_data
-    s2_storegen_data := amoalu.io.out
+    amoalu.io.rhs := pstore1_data
+    pstore1_storegen_data := amoalu.io.out
+  } else {
+    assert(!(s1_valid_masked && isRead(s1_req.cmd) && isWrite(s1_req.cmd)), "unsupported D$ operation")
+    assert(!pstore_drain_structural, "???")
   }
 }
