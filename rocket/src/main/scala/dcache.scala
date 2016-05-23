@@ -106,7 +106,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val s1_paddr = Cat(tlb.io.resp.ppn, s1_req.addr(pgIdxBits-1,0))
   val s1_tag = Mux(s1_probe || inWriteback, probe_bits.addr_block >> idxBits, s1_paddr(paddrBits-1, untagBits))
-  val s1_hit_way = meta.io.resp.map(r => r.coh.isValid() && r.tag === s1_tag)
+  val s1_hit_way = Cat(meta.io.resp.map(r => r.coh.isValid() && r.tag === s1_tag).reverse)
   val s1_hit_state = Mux1H(s1_hit_way, meta.io.resp.map(_.coh))
   val s1_data = Mux1H(s1_hit_way, data.io.resp) // retime into s2 if critical
 
@@ -120,7 +120,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     s2_req.addr := s1_paddr
   }
   val s2_data = RegEnable(s1_data, s1_valid || inWriteback)
-  val s2_hit_way = RegEnable(Cat(s1_hit_way.reverse), s1_valid_not_nacked || s1_probe)
+  val s2_hit_way = RegEnable(s1_hit_way, s1_valid_not_nacked || s1_probe)
   val s2_hit_state = RegEnable(s1_hit_state, s1_valid_not_nacked || s1_probe)
   val s2_hit = s2_hit_way.orR && s2_hit_state.isHit(s2_req.cmd)
   val s2_hit_dirty = s2_hit && s2_hit_state.requiresVoluntaryWriteback()
@@ -147,6 +147,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val pstore1_typ = RegEnable(s1_req.typ, s1_valid_not_nacked && s1_write)
   val pstore1_addr = RegEnable(s1_paddr, s1_valid_not_nacked && s1_write)
   val pstore1_data = RegEnable(io.cpu.s1_data, s1_valid_not_nacked && s1_write)
+  val pstore1_way = RegEnable(s1_hit_way, s1_valid_not_nacked && s1_write)
   val pstore1_storegen = new StoreGen(pstore1_typ, pstore1_addr, pstore1_data, wordBytes)
   val pstore1_storegen_data = Wire(init = pstore1_storegen.data)
   val pstore1_amo = Bool(usingAtomics) && isRead(pstore1_cmd)
@@ -156,12 +157,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val pstore_drain =
     Bool(usingAtomics) && pstore_drain_structural ||
     (((pstore1_valid && !pstore1_amo) || pstore2_valid) && (pstore_drain_opportunistic || pstore_drain_on_miss))
-  val pstore1_way = Wire(init=s2_hit_way)
   pstore1_valid := {
     val s2_store_valid = s2_valid_hit && isWrite(s2_req.cmd)
     val pstore1_held = Reg(Bool())
-    val pstore1_held_way = RegEnable(s2_hit_way, s2_store_valid)
-    when (pstore1_held) { pstore1_way := pstore1_held_way }
     pstore1_held := (s2_store_valid || pstore1_held) && pstore2_valid && !pstore_drain
     s2_store_valid || pstore1_held
   }
