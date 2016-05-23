@@ -38,7 +38,7 @@ class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
   val rdata = bram.read(raddr, ren)
   val wdata = io.acquire.bits.data
   val wmask = io.acquire.bits.wmask()
-  assert(!io.acquire.valid || wmask === Fill(tlDataBytes, Bool(true)),
+  assert(!wen || (wmask === Fill(tlDataBytes, Bool(true))),
     "bram: subblock writes not supported")
   when (wen) {
     bram.write(s0_addr, wdata)
