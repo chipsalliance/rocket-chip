@@ -142,6 +142,20 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     io.cpu.resp.valid),
       "DCache exception occurred - cache response not killed.")
 
+  // load reservations
+  val s2_lr = Bool(usingAtomics) && s2_req.cmd === M_XLR
+  val s2_sc = Bool(usingAtomics) && s2_req.cmd === M_XSC
+  val lrscCount = Reg(init=UInt(0))
+  val lrscValid = lrscCount > 0
+  val lrscAddr = Reg(UInt())
+  val s2_sc_fail = s2_sc && !(lrscValid && lrscAddr === (s2_req.addr >> blockOffBits))
+  when (s2_valid_hit && s2_lr) {
+    lrscCount := lrscCycles - 1
+    lrscAddr := s2_req.addr >> blockOffBits
+  }
+  when (lrscValid) { lrscCount := lrscCount - 1 }
+  when ((s2_valid_hit && s2_sc) || io.cpu.invalidate_lr) { lrscCount := 0 }
+
   // pending store buffer
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
   val pstore1_typ = RegEnable(s1_req.typ, s1_valid_not_nacked && s1_write)
@@ -158,7 +172,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     Bool(usingAtomics) && pstore_drain_structural ||
     (((pstore1_valid && !pstore1_amo) || pstore2_valid) && (pstore_drain_opportunistic || pstore_drain_on_miss))
   pstore1_valid := {
-    val s2_store_valid = s2_valid_hit && isWrite(s2_req.cmd)
+    val s2_store_valid = s2_valid_hit && isWrite(s2_req.cmd) && !s2_sc_fail
     val pstore1_held = Reg(Bool())
     pstore1_held := (s2_store_valid || pstore1_held) && pstore2_valid && !pstore_drain
     s2_store_valid || pstore1_held
@@ -228,8 +242,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   metaWriteArb.io.in(1).bits.data.tag := s2_req.addr(paddrBits-1, untagBits)
 
   // probe
-  metaReadArb.io.in(0).valid := io.mem.probe.valid
-  io.mem.probe.ready := metaReadArb.io.in(0).ready && !releaseInFlight && !s1_valid && (!s2_valid || s2_valid_hit)
+  val block_probe = releaseInFlight || lrscValid || (s2_valid_hit && s2_lr)
+  metaReadArb.io.in(0).valid := io.mem.probe.valid && !block_probe
+  io.mem.probe.ready := metaReadArb.io.in(0).ready && !block_probe && !s1_valid && (!s2_valid || s2_valid_hit)
   metaReadArb.io.in(0).bits.idx := io.mem.probe.bits.addr_block
   metaReadArb.io.in(0).bits.way_en := ~UInt(0, nWays)
 
@@ -305,11 +320,10 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.cpu.ordered := !(s1_valid || s2_valid || grant_wait)
 
   // load data subword mux/sign extension
-  val s2_sc = Bool(false)
   val s2_word_idx = s2_req.addr(log2Up(rowWords*coreDataBytes)-1, log2Up(wordBytes))
   val s2_data_word = s2_data >> Cat(s2_word_idx, UInt(0, log2Up(coreDataBits)))
   val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc, wordBytes)
-  io.cpu.resp.bits.data := loadgen.data
+  io.cpu.resp.bits.data := loadgen.data | s2_sc_fail
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.resp.bits.store_data := pstore1_data
 
