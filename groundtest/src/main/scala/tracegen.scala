@@ -186,8 +186,9 @@ class TraceGenerator(id: Int)
   // In addition, there is a per-core random selection of extra addresses.
 
   val addrHashMap = p(GlobalAddrHashMap)
-  val memStart = addrHashMap("mem").start
-  val bagOfAddrs = addressBag.map(x => UInt(memStart + x, numBitsInWord))
+  val baseAddr = addrHashMap("mem").start + 0x01000000
+
+  val bagOfAddrs = addressBag.map(x => UInt(x, numBitsInWord))
 
   val extraAddrs = (0 to numExtraAddrs-1).
                    map(i => Reg(UInt(width = 16)))
@@ -467,7 +468,7 @@ class TraceGenerator(id: Int)
 
   // Wire up interface to memory
   io.mem.req.valid     := reqValid
-  io.mem.req.bits.addr := reqAddr
+  io.mem.req.bits.addr := reqAddr + UInt(baseAddr)
   io.mem.req.bits.data := reqData
   io.mem.req.bits.typ  := MT_D
   io.mem.req.bits.cmd  := reqCmd
