@@ -134,9 +134,6 @@ class BaseConfig extends Config (
           addrBits = Dump("MEM_ADDR_BITS", site(PAddrBits)),
           idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
       }
-      case HastiKey => HastiParameters(
-                        dataBits = site(XLen),
-                        addrBits = site(PAddrBits))
       //Params used by all caches
       case NSets => findBy(CacheName)
       case NWays => findBy(CacheName)
@@ -240,11 +237,15 @@ class BaseConfig extends Config (
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
       case ExtraL1Clients => 1 // HTIF // TODO not really a parameter
-      case HastiId => "TL"
+      case HastiId => "Ext"
       case HastiKey("TL") =>
         HastiParameters(
           addrBits = site(PAddrBits),
           dataBits = site(TLKey(site(TLId))).dataBits / site(TLKey(site(TLId))).dataBeats)
+      case HastiKey("Ext") =>
+        HastiParameters(
+          addrBits = site(PAddrBits),
+          dataBits = site(XLen))
       case TLKey("L1toL2") => 
         TileLinkParameters(
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
