@@ -32,11 +32,12 @@ trait HastiConstants
 }
 
 case class HastiParameters(dataBits: Int, addrBits: Int)
-case object HastiKey extends Field[HastiParameters]
+case object HastiId extends Field[String]
+case class HastiKey(id: String) extends Field[HastiParameters]
 
 trait HasHastiParameters {
   implicit val p: Parameters
-  val hastiParams = p(HastiKey)
+  val hastiParams = p(HastiKey(p(HastiId)))
   val hastiAddrBits = hastiParams.addrBits
   val hastiDataBits = hastiParams.dataBits
 }
