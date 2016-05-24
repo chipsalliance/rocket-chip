@@ -149,8 +149,8 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
   val rst = rst_cnt < UInt(nSets)
   val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
   val wdata = Mux(rst, rstVal, io.write.bits.data).toBits
-  val wmask = Mux(rst, SInt(-1), io.write.bits.way_en.toSInt).toBools
-  val rmask = Mux(rst, SInt(-1), io.read.bits.way_en.toSInt).toBools
+  val wmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.write.bits.way_en.toSInt).toBools
+  val rmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.read.bits.way_en.toSInt).toBools
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth
