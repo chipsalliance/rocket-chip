@@ -230,14 +230,24 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     data = Fill(beatWords, pstore1_storegen.data),
     wmask = pstore1_storegen.mask << (s2_req.addr(beatOffBits-1, wordOffBits) << wordOffBits),
     alloc = Bool(false))
+  val uncachedPutAtomicMessage = PutAtomic(
+    client_xact_id = UInt(0),
+    addr_block = s2_req.addr(paddrBits-1, blockOffBits),
+    addr_beat = s2_req.addr(blockOffBits-1, beatOffBits),
+    addr_byte = s2_req.addr(beatOffBits-1, 0),
+    atomic_opcode = s2_req.cmd,
+    operand_size = s2_req.typ,
+    data = Fill(beatWords, pstore1_storegen.data))
   io.mem.acquire.valid := ((s2_valid_cached_miss && !s2_victim_dirty) || s2_valid_uncached) && fq.io.enq.ready
   io.mem.acquire.bits := cachedGetMessage
   when (s2_uncached) {
     assert(!s2_valid_masked || !s2_hit, "cache hit on uncached access")
     io.mem.acquire.bits := uncachedGetMessage
     when (isWrite(s2_req.cmd)) {
-      assert(!s2_valid || !isRead(s2_req.cmd), "uncached AMOs are unsupported")
       io.mem.acquire.bits := uncachedPutMessage
+      when (pstore1_amo) {
+        io.mem.acquire.bits := uncachedPutAtomicMessage
+      }
     }
   }
   when (io.mem.acquire.fire()) { grant_wait := true }
