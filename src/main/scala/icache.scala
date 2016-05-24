@@ -14,8 +14,8 @@ trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
   val refillCycles = refillCyclesPerBeat*outerDataBeats
 }
 
-class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) {
-  val idx = UInt(width = pgIdxBits)
+class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1CacheParameters {
+  val addr = UInt(width = vaddrBits)
 }
 
 class ICacheResp(implicit p: Parameters) extends CoreBundle()(p) with HasL1CacheParameters {
@@ -35,7 +35,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
   }
   require(isPow2(nSets) && isPow2(nWays))
   require(isPow2(coreInstBytes))
-  require(pgIdxBits >= untagBits)
+  require(!usingVM || pgIdxBits >= untagBits)
 
   val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_ready)
@@ -47,27 +47,26 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
   val s1_any_tag_hit = Wire(Bool())
 
   val s1_valid = Reg(init=Bool(false))
-  val s1_pgoff = Reg(UInt(width = pgIdxBits))
-  val s1_addr = Cat(io.s1_ppn, s1_pgoff).toUInt
-  val s1_tag = s1_addr(tagBits+untagBits-1,untagBits)
+  val s1_vaddr = Reg(UInt())
+  val s1_paddr = Cat(io.s1_ppn, s1_vaddr(pgIdxBits-1,0)).toUInt
+  val s1_tag = s1_paddr(tagBits+untagBits-1,untagBits)
 
   val s0_valid = io.req.valid || s1_valid && stall
-  val s0_pgoff = Mux(s1_valid && stall, s1_pgoff, io.req.bits.idx)
+  val s0_vaddr = Mux(s1_valid && stall, s1_vaddr, io.req.bits.addr)
 
   s1_valid := io.req.valid && rdy || s1_valid && stall && !io.s1_kill
   when (io.req.valid && rdy) {
-    s1_pgoff := io.req.bits.idx
+    s1_vaddr := io.req.bits.addr
   }
 
   val out_valid = s1_valid && !io.s1_kill && state === s_ready
-  val s1_idx = s1_addr(untagBits-1,blockOffBits)
-  val s1_offset = s1_addr(blockOffBits-1,0)
+  val s1_idx = s1_vaddr(untagBits-1,blockOffBits)
   val s1_hit = out_valid && s1_any_tag_hit
   val s1_miss = out_valid && !s1_any_tag_hit
   rdy := state === s_ready && !s1_miss
 
   when (s1_valid && state === s_ready && s1_miss) {
-    refill_addr := s1_addr
+    refill_addr := s1_paddr
   }
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
 
@@ -79,7 +78,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
   val repl_way = if (isDM) UInt(0) else LFSR16(s1_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
   val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = entagbits)))
-  val tag_rdata = tag_array.read(s0_pgoff(untagBits-1,blockOffBits), !refill_done && s0_valid)
+  val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   when (refill_done) {
     val tag = code.encode(refill_tag).toUInt
     tag_array.write(s1_idx, Vec.fill(nWays)(tag), Vec.tabulate(nWays)(repl_way === _))
@@ -102,7 +101,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
   val s1_dout = Wire(Vec(nWays, Bits(width = rowBits)))
 
   for (i <- 0 until nWays) {
-    val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_pgoff(untagBits-1,blockOffBits))).toBool
+    val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), s1_vaddr(untagBits-1,blockOffBits))).toBool
     val tag_out = tag_rdata(i)
     val s1_tag_disparity = code.decode(tag_out).error
     s1_tag_match(i) := tag_out(tagBits-1,0) === s1_tag
@@ -119,7 +118,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
       if(refillCycles > 1) data_array.write(Cat(s1_idx, refill_cnt), e_d)
       else data_array.write(s1_idx, e_d)
     }
-    val s0_raddr = s0_pgoff(untagBits-1,blockOffBits-(if(refillCycles > 1) refill_cnt.getWidth else 0))
+    val s0_raddr = s0_vaddr(untagBits-1,blockOffBits-(if(refillCycles > 1) refill_cnt.getWidth else 0))
     s1_dout(i) := data_array.read(s0_raddr, !wen && s0_valid)
   }
 
