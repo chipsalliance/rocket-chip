@@ -387,9 +387,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   // AMOs
   if (usingAtomics) {
     val amoalu = Module(new AMOALU)
-    amoalu.io.addr := s2_req.addr
-    amoalu.io.cmd := s2_req.cmd
-    amoalu.io.typ := s2_req.typ
+    amoalu.io.addr := pstore1_addr
+    amoalu.io.cmd := pstore1_cmd
+    amoalu.io.typ := pstore1_typ
     amoalu.io.lhs := s2_data_word
     amoalu.io.rhs := pstore1_data
     pstore1_storegen_data := amoalu.io.out
