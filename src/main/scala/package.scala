@@ -1,1 +1,1 @@
-package object junctions extends HastiConstants
+package object junctions

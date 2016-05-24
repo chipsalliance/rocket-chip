@@ -3,7 +3,7 @@ package junctions
 import Chisel._
 import cde.{Parameters, Field}
 
-trait HastiConstants
+object HastiConstants
 {
   // Values for htrans
   val SZ_HTRANS     = 2
@@ -41,6 +41,8 @@ trait HastiConstants
 
   def dgate(valid: Bool, b: UInt) = Fill(b.getWidth, valid) & b
 }
+
+import HastiConstants._
 
 case class HastiParameters(dataBits: Int, addrBits: Int)
 case object HastiId extends Field[String]
