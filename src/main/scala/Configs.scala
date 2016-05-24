@@ -239,6 +239,11 @@ class BaseConfig extends Config (
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
       case ExtraL1Clients => 1 // HTIF // TODO not really a parameter
+      case HastiId => "TL"
+      case HastiKey("TL") =>
+        HastiParameters(
+          addrBits = site(PAddrBits),
+          dataBits = site(TLKey(site(TLId))).dataBits / site(TLKey(site(TLId))).dataBeats)
       case TLKey("L1toL2") => 
         TileLinkParameters(
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
