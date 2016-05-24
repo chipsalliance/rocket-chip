@@ -171,7 +171,6 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
   }
   
   val nSlaves = addressMap.size
-  // !!! handle hmastlock
   
   // Setup diversions infront of each master
   val diversions = Seq.tabulate(nMasters) { m => Module(new MasterDiversion) }
@@ -180,6 +179,10 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
   // Handy short-hand
   val masters = diversions map (_.io.out)
   val slaves  = io.slaves
+  
+  // Lock status of the crossbar
+  val lockedM = Reg(init = Vec.fill(nMasters)(Bool(false)))
+  val isLocked = lockedM.reduce(_ || _)
   
   // This matrix governs the master-slave connections in the address phase
   // It is indexed by addressPhaseGrantSM(slave)(master)
@@ -247,11 +250,12 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
       .reduce(_ || _) }
   
   // Requested access to slaves from masters (pre-arbitration)
+  // NOTE: quash any request that requires bus ownership or conflicts with isLocked
   // NOTE: isNSeq does NOT include SEQ; thus, masters who are midburst do not
   // request access to a new slave. They stay tied to the old and do not get two.
   // NOTE: if a master was waited, it must repeat the same request as last cycle;
   // thus, it will request the same slave and not end up with two (unless buggy).
-  val NSeq = Vec(masters.map(_.isNSeq()))
+  val NSeq = Vec((lockedM zip masters) map { case(l, m) => m.isNSeq() && ((!isLocked && !m.hmastlock) || l) })
   val requestSM = Vec.tabulate(nSlaves) { s => Vec.tabulate(nMasters) { m => matchMS(m)(s) && NSeq(m) && !bubbleM(m) } }
   
   // Select at most one master request per slave (lowest index = highest priority)
@@ -281,7 +285,7 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
   (slaves zip addressPhaseGrantSM) foreach { case (s, g) => {
     s.htrans    := Mux1H(g, masters.map(_.htrans)) // defaults to HTRANS_IDLE (0)
     s.haddr     := Mux1H(g, masters.map(_.haddr))
-    s.hmastlock := Mux1H(g, masters.map(_.hmastlock)) // !!! use global crossbar lock state
+    s.hmastlock := isLocked
     s.hwrite    := Mux1H(g, masters.map(_.hwrite))
     s.hsize     := Mux1H(g, masters.map(_.hsize))
     s.hburst    := Mux1H(g, masters.map(_.hburst))
@@ -293,6 +297,20 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
   (slaves zip dataPhaseGrantSM) foreach { case (s, g) => {
     s.hwdata := Mux1H(g, masters.map(_.hwdata))
   } }
+  
+  // When no master-slave connections are active, a master can take-over the bus
+  val canLock = !addressPhaseGrantSM.map({ v => v.reduce(_ || _) }).reduce(_ || _)
+  
+  // Lowest index highest priority for lock arbitration
+  val reqLock = masters.map(_.hmastlock)
+  val winLock = PriorityEncoderOH(reqLock)
+  
+  // Lock arbitration
+  when (isLocked) {
+    lockedM := (lockedM zip reqLock) map { case (a,b) => a && b }
+  } .elsewhen (canLock) {
+    lockedM := winLock
+  }
 }
 
 class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModule()(p) {
