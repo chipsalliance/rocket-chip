@@ -51,6 +51,8 @@ trait HasHastiParameters {
   val hastiParams = p(HastiKey(p(HastiId)))
   val hastiAddrBits = hastiParams.addrBits
   val hastiDataBits = hastiParams.dataBits
+  val hastiDataBytes = hastiDataBits/8
+  val hastiAlignment = log2Up(hastiDataBytes)
 }
 
 abstract class HastiModule(implicit val p: Parameters) extends Module
@@ -419,4 +421,87 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
     len := len - UInt(1)
     when (len === UInt(0)) { state := s_idle }
   }
+}
+
+class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
+  val io = new HastiSlaveIO
+  
+  // This is a test SRAM with random delays
+  val ready = LFSR16(Bool(true))(0) // Bool(true)
+  
+  // Calculate the bitmask of which bytes are being accessed
+  val mask_decode = Vec.tabulate(hastiAlignment+1) (UInt(_) <= io.hsize)
+  val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Up(i+1)) }
+  val mask_shift  = mask_wide.toBits().asUInt() << io.haddr(hastiAlignment-1,0)
+  
+  // The request had better have been aligned! (AHB-lite requires this)
+  assert ((io.haddr & mask_decode.toBits()(hastiAlignment,1).asUInt) === UInt(0))
+  
+  // The mask and address during the address phase
+  val a_request   = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
+  val a_mask      = mask_shift(hastiDataBytes-1, 0)
+  val a_address   = io.haddr >> UInt(hastiAlignment)
+  val a_write     = io.hwrite
+  
+  // The data phase signals
+  val d_read  = RegEnable(a_request && !a_write, Bool(false), ready)
+  val d_mask  = RegEnable(a_mask, ready && a_request)
+  val d_wdata = Vec.tabulate(hastiDataBytes) { i => io.hwdata(8*(i+1)-1, 8*i) }
+  
+  // AHB writes must occur during the data phase; this poses a structural
+  // hazard with reads which must occur during the address phase. To solve
+  // this problem, we delay the writes until there is a free cycle.
+  //
+  // The idea is to record the address information from address phase and
+  // then as soon as possible flush the pending write. This cannot be done
+  // on a cycle when there is an address phase read, but on any other cycle
+  // the write will execute. In the case of reads following a write, the
+  // result must bypass data from the pending write into the read if they
+  // happen to have matching address.
+  
+  // Remove this once HoldUnless is in chisel3
+  def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
+  
+  // Pending write?
+  val p_valid     = RegInit(Bool(false))
+  val p_address   = Reg(a_address)
+  val p_mask      = Reg(a_mask)
+  val p_latch_d   = RegNext(ready && a_request && a_write, Bool(false))
+  val p_wdata     = holdUnless(d_wdata, p_latch_d)
+  
+  // Use single-ported memory with byte-write enable
+  val mem = SeqMem(depth, Vec(hastiDataBytes, Bits(width = 8)))
+  
+  // Decide is the SRAM port is used for reading or (potentially) writing
+  val read = ready && a_request && !a_write
+  // In case we are stalled, we need to hold the read data
+  val d_rdata = holdUnless(mem.read(a_address, read), RegNext(read))
+  // Whenever the port is not needed for reading, execute pending writes
+  when (!read) {
+    when (p_valid) { mem.write(p_address, p_wdata, p_mask.toBools) }
+    p_valid := Bool(false)
+  }
+  
+  // Record the request for later?
+  when (ready && a_request && a_write) {
+    p_valid   := Bool(true)
+    p_address := a_address
+    p_mask    := a_mask
+  }
+  
+  // Does the read need to be muxed with the previous write?
+  val a_bypass = a_address === p_address && p_valid
+  val d_bypass = RegEnable(a_bypass, ready && a_request)
+  
+  // Mux in data from the pending write
+  val muxdata = Vec((p_mask.toBools zip (p_wdata zip d_rdata))
+                    map { case (m, (p, r)) => Mux(d_bypass && m, p, r) })
+  // Wipe out any data the master should not see (for testing)
+  val outdata = Vec((d_mask.toBools zip muxdata)
+                    map { case (m, p) => Mux(d_read && ready && m, p, Bits(0)) })
+
+  // Finally, the outputs
+  io.hrdata := outdata.toBits()
+  io.hready := ready
+  io.hresp  := HRESP_OKAY
 }
