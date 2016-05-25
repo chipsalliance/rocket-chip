@@ -3,42 +3,58 @@ package junctions
 import Chisel._
 import cde.{Parameters, Field}
 
-trait HastiConstants
+object HastiConstants
 {
+  // Values for htrans
   val SZ_HTRANS     = 2
-  val HTRANS_IDLE   = UInt(0, SZ_HTRANS)
-  val HTRANS_BUSY   = UInt(1, SZ_HTRANS)
-  val HTRANS_NONSEQ = UInt(2, SZ_HTRANS)
-  val HTRANS_SEQ    = UInt(3, SZ_HTRANS)
+  val HTRANS_IDLE   = UInt(0, SZ_HTRANS) // No transfer requested, not in a burst
+  val HTRANS_BUSY   = UInt(1, SZ_HTRANS) // No transfer requested, in a burst
+  val HTRANS_NONSEQ = UInt(2, SZ_HTRANS) // First (potentially only) request in a burst
+  val HTRANS_SEQ    = UInt(3, SZ_HTRANS) // Following requests in a burst
 
+  // Values for hburst
   val SZ_HBURST     = 3
-  val HBURST_SINGLE = UInt(0, SZ_HBURST)
-  val HBURST_INCR   = UInt(1, SZ_HBURST)
-  val HBURST_WRAP4  = UInt(2, SZ_HBURST)
-  val HBURST_INCR4  = UInt(3, SZ_HBURST)
-  val HBURST_WRAP8  = UInt(4, SZ_HBURST)
-  val HBURST_INCR8  = UInt(5, SZ_HBURST)
-  val HBURST_WRAP16 = UInt(6, SZ_HBURST)
-  val HBURST_INCR16 = UInt(7, SZ_HBURST)
+  val HBURST_SINGLE = UInt(0, SZ_HBURST) // Single access (no burst)
+  val HBURST_INCR   = UInt(1, SZ_HBURST) // Incrementing burst of arbitrary length, not crossing 1KB
+  val HBURST_WRAP4  = UInt(2, SZ_HBURST) // 4-beat wrapping burst
+  val HBURST_INCR4  = UInt(3, SZ_HBURST) // 4-beat incrementing burst
+  val HBURST_WRAP8  = UInt(4, SZ_HBURST) // 8-beat wrapping burst
+  val HBURST_INCR8  = UInt(5, SZ_HBURST) // 8-beat incrementing burst
+  val HBURST_WRAP16 = UInt(6, SZ_HBURST) // 16-beat wrapping burst
+  val HBURST_INCR16 = UInt(7, SZ_HBURST) // 16-beat incrementing burst
 
+  // Values for hresp
   val SZ_HRESP      = 1
   val HRESP_OKAY    = UInt(0, SZ_HRESP)
   val HRESP_ERROR   = UInt(1, SZ_HRESP)
 
+  // Values for hsize are identical to TileLink MT_SZ
+  // ie: 8*2^SZ_HSIZE bit transfers
   val SZ_HSIZE = 3
+  
+  // Values for hprot (a bitmask)
   val SZ_HPROT = 4
+  def HPROT_DATA       = UInt("b0001") // Data access or Opcode fetch
+  def HPROT_PRIVILEGED = UInt("b0010") // Privileged or User access
+  def HPROT_BUFFERABLE = UInt("b0100") // Bufferable or non-bufferable
+  def HPROT_CACHEABLE  = UInt("b1000") // Cacheable or non-cacheable
 
   def dgate(valid: Bool, b: UInt) = Fill(b.getWidth, valid) & b
 }
 
+import HastiConstants._
+
 case class HastiParameters(dataBits: Int, addrBits: Int)
-case object HastiKey extends Field[HastiParameters]
+case object HastiId extends Field[String]
+case class HastiKey(id: String) extends Field[HastiParameters]
 
 trait HasHastiParameters {
   implicit val p: Parameters
-  val hastiParams = p(HastiKey)
+  val hastiParams = p(HastiKey(p(HastiId)))
   val hastiAddrBits = hastiParams.addrBits
   val hastiDataBits = hastiParams.dataBits
+  val hastiDataBytes = hastiDataBits/8
+  val hastiAlignment = log2Up(hastiDataBytes)
 }
 
 abstract class HastiModule(implicit val p: Parameters) extends Module
@@ -47,37 +63,256 @@ abstract class HastiBundle(implicit val p: Parameters) extends ParameterizedBund
   with HasHastiParameters
 
 class HastiMasterIO(implicit p: Parameters) extends HastiBundle()(p) {
-  val haddr     = UInt(OUTPUT, hastiAddrBits)
-  val hwrite    = Bool(OUTPUT)
-  val hsize     = UInt(OUTPUT, SZ_HSIZE)
-  val hburst    = UInt(OUTPUT, SZ_HBURST)
-  val hprot     = UInt(OUTPUT, SZ_HPROT)
   val htrans    = UInt(OUTPUT, SZ_HTRANS)
   val hmastlock = Bool(OUTPUT)
+  val haddr     = UInt(OUTPUT, hastiAddrBits)
+  val hwrite    = Bool(OUTPUT)
+  val hburst    = UInt(OUTPUT, SZ_HBURST)
+  val hsize     = UInt(OUTPUT, SZ_HSIZE)
+  val hprot     = UInt(OUTPUT, SZ_HPROT)
 
   val hwdata = Bits(OUTPUT, hastiDataBits)
-  val hrdata = Bits(INPUT, hastiDataBits)
+  val hrdata = Bits(INPUT,  hastiDataBits)
 
   val hready = Bool(INPUT)
   val hresp  = UInt(INPUT, SZ_HRESP)
+
+  def isNSeq(dummy:Int=0) = htrans === HTRANS_NONSEQ // SEQ does not start a NEW request
+  def isHold(dummy:Int=0) = htrans === HTRANS_BUSY || htrans === HTRANS_SEQ
+  def isIdle(dummy:Int=0) = htrans === HTRANS_IDLE || htrans === HTRANS_BUSY
 }
 
 class HastiSlaveIO(implicit p: Parameters) extends HastiBundle()(p) {
-  val haddr     = UInt(INPUT, hastiAddrBits)
-  val hwrite    = Bool(INPUT)
-  val hsize     = UInt(INPUT, SZ_HSIZE)
-  val hburst    = UInt(INPUT, SZ_HBURST)
-  val hprot     = UInt(INPUT, SZ_HPROT)
   val htrans    = UInt(INPUT, SZ_HTRANS)
   val hmastlock = Bool(INPUT)
+  val haddr     = UInt(INPUT, hastiAddrBits)
+  val hwrite    = Bool(INPUT)
+  val hburst    = UInt(INPUT, SZ_HBURST)
+  val hsize     = UInt(INPUT, SZ_HSIZE)
+  val hprot     = UInt(INPUT, SZ_HPROT)
 
-  val hwdata = Bits(INPUT, hastiDataBits)
+  val hwdata = Bits(INPUT,  hastiDataBits)
   val hrdata = Bits(OUTPUT, hastiDataBits)
 
-  val hsel      = Bool(INPUT)
-  val hreadyin  = Bool(INPUT)
-  val hreadyout = Bool(OUTPUT)
-  val hresp     = UInt(OUTPUT, SZ_HRESP)
+  val hsel   = Bool(INPUT)
+  val hready = Bool(OUTPUT)
+  val hresp  = UInt(OUTPUT, SZ_HRESP)
+}
+
+/* A diverted master is told hready when his address phase goes nowhere.
+ * In this case, we buffer his address phase request and replay it later.
+ * NOTE: this must optimize to nothing when divert is constantly false.
+ */
+class MasterDiversion(implicit p: Parameters) extends HastiModule()(p) {
+  val io = new Bundle {
+    val in     = (new HastiMasterIO).flip
+    val out    = (new HastiMasterIO)
+    val divert = Bool(INPUT)
+  }
+  
+  val full   = Reg(init = Bool(false))
+  val buffer = Reg(new HastiMasterIO)
+  
+  when (io.out.hready) {
+    full := Bool(false)
+  }
+  when (io.divert) {
+    full := Bool(true)
+    buffer := io.in
+  }
+  
+  // If the master is diverted, he must also have been told hready
+  assert (!io.divert || io.in.hready);
+  
+  // Replay the request we diverted
+  io.out.htrans    := Mux(full, buffer.htrans,    io.in.htrans)
+  io.out.hmastlock := Mux(full, buffer.hmastlock, io.in.hmastlock)
+  io.out.haddr     := Mux(full, buffer.haddr,     io.in.haddr)
+  io.out.hwrite    := Mux(full, buffer.hwrite,    io.in.hwrite)
+  io.out.hburst    := Mux(full, buffer.hburst,    io.in.hburst)
+  io.out.hsize     := Mux(full, buffer.hsize,     io.in.hsize)
+  io.out.hprot     := Mux(full, buffer.hprot,     io.in.hprot)
+  io.out.hwdata    := Mux(full, buffer.hwdata,    io.in.hwdata)
+  
+  // Pass slave response back
+  io.in.hrdata := io.out.hrdata
+  io.in.hresp  := io.out.hresp
+  io.in.hready := io.out.hready && !full // Block master while we steal his address phase
+}
+
+/* Masters with lower index have priority over higher index masters.
+ * However, a lower priority master will retain control of a slave when EITHER:
+ *   1. a burst is in progress (switching slaves mid-burst violates AHB-lite at slave)
+ *   2. a transfer was waited (the standard forbids changing requests in this case)
+ *
+ * If a master raises hmastlock, it will be waited until no other master has inflight
+ * requests; then, it acquires exclusive control of the crossbar until hmastlock is low.
+ *
+ * To implement an AHB-lite crossbar, it is important to realize that requests and
+ * responses are coupled. Unlike modern bus protocols where the response data has flow
+ * control independent of the request data, in AHB-lite, both flow at the same time at
+ * the sole discretion of the slave via the hready signal. The address and data are
+ * delivered on two back-to-back cycles, the so-called address and data phases.
+ *
+ * Masters can only be connected to a single slave at a time. If a master had two different
+ * slave connections on the address and data phases, there would be two independent hready
+ * signals. An AHB-lite slave can assume that data flows when it asserts hready. If the data
+ * slave deasserts hready while the address slave asserts hready, the master is put in the
+ * impossible position of being in data phase on two slaves at once. For this reason, when
+ * a master issues back-to-back accesses to distinct slaves, we inject a pipeline bubble
+ * between the two requests to limit the master to just a single slave at a time.
+ *
+ * Conversely, a slave CAN have two masters attached to it. This is unproblematic, because
+ * the only signal which governs data flow is hready. Thus, both masters can be stalled
+ * safely by the single slave.
+ */
+class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModule()(p) {
+  val io = new Bundle {
+    val masters = Vec(nMasters,        new HastiMasterIO).flip
+    val slaves  = Vec(addressMap.size, new HastiSlaveIO).flip
+  }
+  
+  val nSlaves = addressMap.size
+  
+  // Setup diversions infront of each master
+  val diversions = Seq.tabulate(nMasters) { m => Module(new MasterDiversion) }
+  (io.masters zip diversions) foreach { case (m, d) => d.io.in <> m }
+  
+  // Handy short-hand
+  val masters = diversions map (_.io.out)
+  val slaves  = io.slaves
+  
+  // Lock status of the crossbar
+  val lockedM = Reg(init = Vec.fill(nMasters)(Bool(false)))
+  val isLocked = lockedM.reduce(_ || _)
+  
+  // This matrix governs the master-slave connections in the address phase
+  // It is indexed by addressPhaseGrantSM(slave)(master)
+  // It is guaranteed to have at most one 'true' per column and per row
+  val addressPhaseGrantSM = Wire(Vec(nSlaves, Vec(nMasters, Bool())))
+  // This matrix governs the master-slave connections in the data phase
+  // It is guaranteed to have at most one 'true' per column and per row
+  val dataPhaseGrantSM    = Reg (init = Vec.fill(nSlaves)(Vec.fill(nMasters)(Bool(false))))
+  // This matrix is the union of the address and data phases.
+  // It is transposed with respect to the two previous matrices.
+  // It is guaranteed to contain at most one 'true' per master row.
+  // However, two 'true's per slave column are permitted.
+  val unionGrantMS = Vec.tabulate(nMasters) { m => Vec.tabulate(nSlaves) { s => 
+                       addressPhaseGrantSM(s)(m) || dataPhaseGrantSM(s)(m) } }
+  
+  // Confirm the guarantees made above
+  def justOnce(v: Vec[Bool]) = v.fold(Bool(false)) { case (p, v) =>
+    assert (!p || !v)
+    p || v
+  }
+  addressPhaseGrantSM foreach { s => justOnce(s) }
+  unionGrantMS        foreach { s => justOnce(s) }
+  
+  // Data phase follows address phase whenever the slave is ready
+  (slaves zip (dataPhaseGrantSM zip addressPhaseGrantSM)) foreach { case (s, (d, a)) =>
+    when (s.hready) { d := a }
+  }
+  
+  // Record the grant state from the previous cycle; needed in case we hold access
+  val priorAddressPhaseGrantSM = RegNext(addressPhaseGrantSM)
+  
+  // If a master says BUSY or SEQ, it is in the middle of a burst.
+  // In this case, it MUST stay attached to the same slave as before.
+  // Otherwise, it would violate the AHB-lite specification as seen by
+  // the slave, which is guaranteed a complete burst of the promised length.
+  // One case where this matters is preventing preemption of low-prio masters.
+  // NOTE: this exposes a slave to bad addresses when a master is buggy
+  val holdBurstM = Vec(masters map { _.isHold() })
+  
+  // Transform the burst hold requirement from master indexing to slave indexing
+  // We use the previous cycle's binding because the master continues the prior burst
+  val holdBurstS = Vec(priorAddressPhaseGrantSM map { m => Mux1H(m, holdBurstM) })
+  
+  // If a slave says !hready to a request, it must retain the same master next cycle.
+  // The AHB-lite specification requires that a waited transfer remain unchanged.
+  // If we preempted a waited master, the new master's request could potentially differ.
+  val holdBusyS = RegNext(Vec(slaves map { s => !s.hready && s.hsel }))
+  
+  // Combine the above two grounds to determine if the slave retains its prior master
+  val holdS = Vec((holdBurstS zip holdBusyS) map ({ case (a,b) => a||b }))
+  
+  // Determine which master addresses match which slaves
+  val matchMS = Vec(masters map { m => Vec(addressMap map { afn => afn(m.haddr) }) })
+  // Detect requests to nowhere; we need to allow progress in this case
+  val nowhereM = Vec(matchMS map { s => !s.reduce(_ || _) })
+  
+  // Detect if we need to inject a pipeline bubble between the master requests.
+  // Divert masters already granted a data phase different from next request.
+  // NOTE: if only one slave, matchMS is always true => bubble always false
+  //       => the diversion registers are optimized away as they are unread
+  // NOTE: bubble => dataPhase => have an hready signal
+  val bubbleM =
+    Vec.tabulate(nMasters) { m =>
+      Vec.tabulate(nSlaves) { s => dataPhaseGrantSM(s)(m) && !matchMS(m)(s) }
+      .reduce(_ || _) }
+  
+  // Requested access to slaves from masters (pre-arbitration)
+  // NOTE: quash any request that requires bus ownership or conflicts with isLocked
+  // NOTE: isNSeq does NOT include SEQ; thus, masters who are midburst do not
+  // request access to a new slave. They stay tied to the old and do not get two.
+  // NOTE: if a master was waited, it must repeat the same request as last cycle;
+  // thus, it will request the same slave and not end up with two (unless buggy).
+  val NSeq = Vec((lockedM zip masters) map { case(l, m) => m.isNSeq() && ((!isLocked && !m.hmastlock) || l) })
+  val requestSM = Vec.tabulate(nSlaves) { s => Vec.tabulate(nMasters) { m => matchMS(m)(s) && NSeq(m) && !bubbleM(m) } }
+  
+  // Select at most one master request per slave (lowest index = highest priority)
+  val selectedRequestSM = Vec(requestSM map { m => Vec(PriorityEncoderOH(m)) })
+  
+  // Calculate new crossbar interconnect state
+  addressPhaseGrantSM := Vec((holdS zip (priorAddressPhaseGrantSM zip selectedRequestSM))
+                             map { case (h, (p, r)) => Mux(h, p, r) })
+
+  // If we diverted a master, we need to absorb his address phase to replay later
+  for (m <- 0 until nMasters) {
+    diversions(m).io.divert := bubbleM(m) && NSeq(m) && masters(m).hready
+  }
+  
+  // Master muxes (address and data phase are the same)
+  (masters zip (unionGrantMS zip nowhereM)) foreach { case (m, (g, n)) => {
+    // If the master is connected to a slave, the slave determines hready.
+    // However, if no slave is connected, for progress report ready anyway, if:
+    //   bad address (swallow request) OR idle (permit stupid slaves to move FSM)
+    val autoready = n || m.isIdle()
+    m.hready := Mux1H(g, slaves.map(_.hready ^ autoready)) ^ autoready
+    m.hrdata := Mux1H(g, slaves.map(_.hrdata))
+    m.hresp  := Mux1H(g, slaves.map(_.hresp))
+  } }
+  
+  // Slave address phase muxes
+  (slaves zip addressPhaseGrantSM) foreach { case (s, g) => {
+    s.htrans    := Mux1H(g, masters.map(_.htrans)) // defaults to HTRANS_IDLE (0)
+    s.haddr     := Mux1H(g, masters.map(_.haddr))
+    s.hmastlock := isLocked
+    s.hwrite    := Mux1H(g, masters.map(_.hwrite))
+    s.hsize     := Mux1H(g, masters.map(_.hsize))
+    s.hburst    := Mux1H(g, masters.map(_.hburst))
+    s.hprot     := Mux1H(g, masters.map(_.hprot))
+    s.hsel      := g.reduce(_ || _)
+  } }
+  
+  // Slave data phase muxes
+  (slaves zip dataPhaseGrantSM) foreach { case (s, g) => {
+    s.hwdata := Mux1H(g, masters.map(_.hwdata))
+  } }
+  
+  // When no master-slave connections are active, a master can take-over the bus
+  val canLock = !addressPhaseGrantSM.map({ v => v.reduce(_ || _) }).reduce(_ || _)
+  
+  // Lowest index highest priority for lock arbitration
+  val reqLock = masters.map(_.hmastlock)
+  val winLock = PriorityEncoderOH(reqLock)
+  
+  // Lock arbitration
+  when (isLocked) {
+    lockedM := (lockedM zip reqLock) map { case (a,b) => a && b }
+  } .elsewhen (canLock) {
+    lockedM := winLock
+  }
 }
 
 class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModule()(p) {
@@ -86,69 +321,9 @@ class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModul
     val slaves = Vec(amap.size, new HastiSlaveIO).flip
   }
 
-  // skid buffer
-  val skb_valid = Reg(init = Bool(false))
-  val skb_haddr = Reg(UInt(width = hastiAddrBits))
-  val skb_hwrite = Reg(Bool())
-  val skb_hsize = Reg(UInt(width = SZ_HSIZE))
-  val skb_hburst = Reg(UInt(width = SZ_HBURST))
-  val skb_hprot = Reg(UInt(width = SZ_HPROT))
-  val skb_htrans = Reg(UInt(width = SZ_HTRANS))
-  val skb_hmastlock = Reg(Bool())
-  val skb_hwdata = Reg(UInt(width = hastiDataBits))
-
-  val master_haddr = Mux(skb_valid, skb_haddr, io.master.haddr)
-  val master_hwrite = Mux(skb_valid, skb_hwrite, io.master.hwrite)
-  val master_hsize = Mux(skb_valid, skb_hsize, io.master.hsize)
-  val master_hburst = Mux(skb_valid, skb_hburst, io.master.hburst)
-  val master_hprot = Mux(skb_valid, skb_hprot, io.master.hprot)
-  val master_htrans = Mux(skb_valid, skb_htrans, io.master.htrans)
-  val master_hmastlock = Mux(skb_valid, skb_hmastlock, io.master.hmastlock)
-  val master_hwdata = Mux(skb_valid, skb_hwdata, io.master.hwdata)
-
-  val hsels = PriorityEncoderOH(
-    (io.slaves zip amap) map { case (s, afn) => {
-      s.haddr := master_haddr
-      s.hwrite := master_hwrite
-      s.hsize := master_hsize
-      s.hburst := master_hburst
-      s.hprot := master_hprot
-      s.htrans := master_htrans
-      s.hmastlock := master_hmastlock
-      s.hwdata := master_hwdata
-      afn(master_haddr) && master_htrans.orR
-    }})
-
-  (io.slaves zip hsels) foreach { case (s, hsel) => {
-    s.hsel := hsel
-    s.hreadyin := skb_valid || io.master.hready
-  } }
-
-  val s1_hsels = Array.fill(amap.size){Reg(init = Bool(false))}
-  val hreadyouts = io.slaves.map(_.hreadyout)
-  val master_hready = s1_hsels.reduce(_||_) === Bool(false) || Mux1H(s1_hsels, hreadyouts)
-
-  when (master_hready) {
-    val skid = s1_hsels.reduce(_||_) && (hsels zip hreadyouts).map{ case (s, r) => s && !r }.reduce(_||_)
-    skb_valid := skid
-    when (skid) {
-      skb_haddr := io.master.haddr
-      skb_hwrite := io.master.hwrite
-      skb_hsize := io.master.hsize
-      skb_hburst := io.master.hburst
-      skb_hprot := io.master.hprot
-      skb_htrans := io.master.htrans
-      skb_hmastlock := io.master.hmastlock
-    }
-
-    (s1_hsels zip hsels) foreach { case (s1, s) =>
-      s1 := s
-    }
-  }
-
-  io.master.hready := !skb_valid && master_hready
-  io.master.hrdata := Mux1H(s1_hsels, io.slaves.map(_.hrdata))
-  io.master.hresp := Mux1H(s1_hsels, io.slaves.map(_.hresp))
+  val bar = Module(new HastiXbar(1, amap))
+  io.master <> bar.io.masters(0)
+  io.slaves <> bar.io.slaves
 }
 
 class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
@@ -156,104 +331,30 @@ class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
     val ins = Vec(n, new HastiSlaveIO)
     val out = new HastiSlaveIO().flip
   }
-
-  // skid buffers
-  val skb_valid = Array.fill(n){Reg(init = Bool(false))}
-  val skb_haddr = Array.fill(n){Reg(UInt(width = hastiAddrBits))}
-  val skb_hwrite = Array.fill(n){Reg(Bool())}
-  val skb_hsize = Array.fill(n){Reg(UInt(width = SZ_HSIZE))}
-  val skb_hburst = Array.fill(n){Reg(UInt(width = SZ_HBURST))}
-  val skb_hprot = Array.fill(n){Reg(UInt(width = SZ_HPROT))}
-  val skb_htrans = Array.fill(n){Reg(UInt(width = SZ_HTRANS))}
-  val skb_hmastlock = Array.fill(n){Reg(Bool())}
-
-  val requests = (io.ins zip skb_valid) map { case (in, v) => in.hsel && in.hreadyin || v }
-  val grants = PriorityEncoderOH(requests)
-
-  val s1_grants = Array.fill(n){Reg(init = Bool(true))}
-
-  (s1_grants zip grants) foreach { case (g1, g) =>
-    when (io.out.hreadyout) { g1 := g }
-  }
-
-  def sel[T <: Data](in: Seq[T], s1: Seq[T]) =
-    Vec((skb_valid zip s1 zip in) map { case ((v, s), in) => Mux(v, s, in) })
-
-  io.out.haddr := Mux1H(grants, sel(io.ins.map(_.haddr), skb_haddr))
-  io.out.hwrite := Mux1H(grants, sel(io.ins.map(_.hwrite), skb_hwrite))
-  io.out.hsize := Mux1H(grants, sel(io.ins.map(_.hsize), skb_hsize))
-  io.out.hburst := Mux1H(grants, sel(io.ins.map(_.hburst), skb_hburst))
-  io.out.hprot := Mux1H(grants, sel(io.ins.map(_.hprot), skb_hprot))
-  io.out.htrans := Mux1H(grants, sel(io.ins.map(_.htrans), skb_htrans))
-  io.out.hmastlock := Mux1H(grants, sel(io.ins.map(_.hmastlock), skb_hmastlock))
-  io.out.hsel := grants.reduce(_||_)
-
-  (io.ins zipWithIndex) map { case (in, i) => {
-    when (io.out.hreadyout) {
-      when (grants(i)) {
-        skb_valid(i) := Bool(false)
-      }
-      when (!grants(i) && !skb_valid(i)) {
-        val valid = in.hsel && in.hreadyin
-        skb_valid(i) := valid
-        when (valid) { // clock-gate
-          skb_haddr(i) := in.haddr
-          skb_hwrite(i) := in.hwrite
-          skb_hsize(i) := in.hsize
-          skb_hburst(i) := in.hburst
-          skb_hprot(i) := in.hprot
-          skb_htrans(i) := in.htrans
-          skb_hmastlock(i) := in.hmastlock
-        }
-      }
-    }
-  } }
-
-  io.out.hwdata := Mux1H(s1_grants, io.ins.map(_.hwdata))
-  io.out.hreadyin := io.out.hreadyout
-
-  (io.ins zipWithIndex) foreach { case (in, i) => {
-    val g1 = s1_grants(i)
-    in.hrdata := dgate(g1, io.out.hrdata)
-    in.hreadyout := io.out.hreadyout && (!skb_valid(i) || g1)
-    in.hresp := dgate(g1, io.out.hresp)
-  } }
-}
-
-class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])
-               (implicit p: Parameters) extends HastiModule()(p) {
-  val io = new Bundle {
-    val masters = Vec(nMasters, new HastiMasterIO).flip
-    val slaves = Vec(addressMap.size, new HastiSlaveIO).flip
-  }
-
-  val buses = List.fill(nMasters){Module(new HastiBus(addressMap))}
-  val muxes = List.fill(addressMap.size){Module(new HastiSlaveMux(nMasters))}
-
-  (buses.map(b => b.io.master) zip io.masters) foreach { case (b, m) => b <> m }
-  (muxes.map(m => m.io.out)    zip io.slaves ) foreach { case (x, s) => x <> s }
-  for (m <- 0 until nMasters; s <- 0 until addressMap.size) yield {
-    buses(m).io.slaves(s) <> muxes(s).io.ins(m)
-  }
+  
+  val amap = Seq({ (_:UInt) => Bool(true)})
+  val bar = Module(new HastiXbar(n, amap))
+  io.ins <> bar.io.masters
+  io.out <> bar.io.slaves(0)
 }
 
 class HastiSlaveToMaster(implicit p: Parameters) extends HastiModule()(p) {
   val io = new Bundle {
-    val in = new HastiSlaveIO
+    val in  = new HastiSlaveIO
     val out = new HastiMasterIO
   }
 
-  io.out.haddr := io.in.haddr
-  io.out.hwrite := io.in.hwrite
-  io.out.hsize := io.in.hsize
-  io.out.hburst := io.in.hburst
-  io.out.hprot := io.in.hprot
-  io.out.htrans := Mux(io.in.hsel && io.in.hreadyin, io.in.htrans, HTRANS_IDLE)
+  io.out.htrans    := Mux(io.in.hsel, io.in.htrans, HTRANS_IDLE)
   io.out.hmastlock := io.in.hmastlock
-  io.out.hwdata := io.in.hwdata
+  io.out.haddr     := io.in.haddr
+  io.out.hwrite    := io.in.hwrite
+  io.out.hburst    := io.in.hburst
+  io.out.hsize     := io.in.hsize
+  io.out.hprot     := io.in.hprot
+  io.out.hwdata    := io.in.hwdata
   io.in.hrdata := io.out.hrdata
-  io.in.hreadyout := io.out.hready
-  io.in.hresp := io.out.hresp
+  io.in.hready := io.out.hready
+  io.in.hresp  := io.out.hresp
 }
 
 class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule()(p)
@@ -340,4 +441,87 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
     len := len - UInt(1)
     when (len === UInt(0)) { state := s_idle }
   }
+}
+
+class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
+  val io = new HastiSlaveIO
+  
+  // This is a test SRAM with random delays
+  val ready = LFSR16(Bool(true))(0) // Bool(true)
+  
+  // Calculate the bitmask of which bytes are being accessed
+  val mask_decode = Vec.tabulate(hastiAlignment+1) (UInt(_) <= io.hsize)
+  val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Up(i+1)) }
+  val mask_shift  = mask_wide.toBits().asUInt() << io.haddr(hastiAlignment-1,0)
+  
+  // The request had better have been aligned! (AHB-lite requires this)
+  assert ((io.haddr & mask_decode.toBits()(hastiAlignment,1).asUInt) === UInt(0))
+  
+  // The mask and address during the address phase
+  val a_request   = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
+  val a_mask      = mask_shift(hastiDataBytes-1, 0)
+  val a_address   = io.haddr >> UInt(hastiAlignment)
+  val a_write     = io.hwrite
+  
+  // The data phase signals
+  val d_read  = RegEnable(a_request && !a_write, Bool(false), ready)
+  val d_mask  = RegEnable(a_mask, ready && a_request)
+  val d_wdata = Vec.tabulate(hastiDataBytes) { i => io.hwdata(8*(i+1)-1, 8*i) }
+  
+  // AHB writes must occur during the data phase; this poses a structural
+  // hazard with reads which must occur during the address phase. To solve
+  // this problem, we delay the writes until there is a free cycle.
+  //
+  // The idea is to record the address information from address phase and
+  // then as soon as possible flush the pending write. This cannot be done
+  // on a cycle when there is an address phase read, but on any other cycle
+  // the write will execute. In the case of reads following a write, the
+  // result must bypass data from the pending write into the read if they
+  // happen to have matching address.
+  
+  // Remove this once HoldUnless is in chisel3
+  def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
+  
+  // Pending write?
+  val p_valid     = RegInit(Bool(false))
+  val p_address   = Reg(a_address)
+  val p_mask      = Reg(a_mask)
+  val p_latch_d   = RegNext(ready && a_request && a_write, Bool(false))
+  val p_wdata     = holdUnless(d_wdata, p_latch_d)
+  
+  // Use single-ported memory with byte-write enable
+  val mem = SeqMem(depth, Vec(hastiDataBytes, Bits(width = 8)))
+  
+  // Decide is the SRAM port is used for reading or (potentially) writing
+  val read = ready && a_request && !a_write
+  // In case we are stalled, we need to hold the read data
+  val d_rdata = holdUnless(mem.read(a_address, read), RegNext(read))
+  // Whenever the port is not needed for reading, execute pending writes
+  when (!read) {
+    when (p_valid) { mem.write(p_address, p_wdata, p_mask.toBools) }
+    p_valid := Bool(false)
+  }
+  
+  // Record the request for later?
+  when (ready && a_request && a_write) {
+    p_valid   := Bool(true)
+    p_address := a_address
+    p_mask    := a_mask
+  }
+  
+  // Does the read need to be muxed with the previous write?
+  val a_bypass = a_address === p_address && p_valid
+  val d_bypass = RegEnable(a_bypass, ready && a_request)
+  
+  // Mux in data from the pending write
+  val muxdata = Vec((p_mask.toBools zip (p_wdata zip d_rdata))
+                    map { case (m, (p, r)) => Mux(d_bypass && m, p, r) })
+  // Wipe out any data the master should not see (for testing)
+  val outdata = Vec((d_mask.toBools zip muxdata)
+                    map { case (m, p) => Mux(d_read && ready && m, p, Bits(0)) })
+
+  // Finally, the outputs
+  io.hrdata := outdata.toBits()
+  io.hready := ready
+  io.hresp  := HRESP_OKAY
 }
