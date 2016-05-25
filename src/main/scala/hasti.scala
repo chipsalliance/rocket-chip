@@ -459,9 +459,12 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   
   // The mask and address during the address phase
   val a_request   = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
-  val a_mask      = mask_shift(hastiDataBytes-1, 0)
+  val a_mask      = Wire(UInt(width = hastiDataBytes))
   val a_address   = io.haddr >> UInt(hastiAlignment)
   val a_write     = io.hwrite
+
+  // for backwards compatibility with chisel2, we needed a static width in definition
+  a_mask := mask_shift(hastiDataBytes-1, 0)
   
   // The data phase signals
   val d_read  = RegEnable(a_request && !a_write, Bool(false), ready)
