@@ -3,6 +3,7 @@ package uncore
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
+import HastiConstants._
 
 class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
   with HasTileLinkParameters {
@@ -67,8 +68,6 @@ class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
 class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
   val io = new HastiSlaveIO
 
-  val hastiDataBytes = hastiDataBits/8
-
   val wdata = Vec.tabulate(hastiDataBytes)(i => io.hwdata(8*(i+1)-1,8*i))
   val waddr = Reg(UInt(width = hastiAddrBits))
   val wvalid = Reg(init = Bool(false))
@@ -104,6 +103,6 @@ class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
     case ((rbyte, wsel), wbyte) => Mux(wsel && bypass, wbyte, rbyte)
   }.reverse)
 
-  io.hreadyout := Bool(true)
+  io.hready := Bool(true)
   io.hresp := HRESP_OKAY
 }
