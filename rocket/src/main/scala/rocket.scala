@@ -120,11 +120,15 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     val rocc = new RoCCInterface().flip
   }
 
-  var decode_table = new XDecode().table
-  if (usingAtomics) decode_table ++= new ADecode().table
-  if (usingFPU) decode_table ++= new FDecode().table
-  if (usingFPU && usingFDivSqrt) decode_table ++= new FDivSqrtDecode().table
-  if (usingRoCC) decode_table ++= new RoCCDecode().table
+  val decode_table = {
+    (if (true) new MDecode +: (if (xLen > 32) Seq(new M64Decode) else Nil) else Nil) ++:
+    (if (usingAtomics) new ADecode +: (if (xLen > 32) Seq(new A64Decode) else Nil) else Nil) ++:
+    (if (usingFPU) new FDecode +: (if (xLen > 32) Seq(new F64Decode) else Nil) else Nil) ++:
+    (if (usingFPU && usingFDivSqrt) Some(new FDivSqrtDecode) else None) ++:
+    (if (usingRoCC) Some(new RoCCDecode) else None) ++:
+    (if (xLen > 32) Some(new I64Decode) else None) ++:
+    Seq(new IDecode)
+  } flatMap(_.table)
 
   val ex_ctrl = Reg(new IntCtrlSigs)
   val mem_ctrl = Reg(new IntCtrlSigs)
