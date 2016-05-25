@@ -1,3 +1,5 @@
+git:
+  submodules: false
 language: scala
 # run on new infrastructure
 sudo: false
@@ -6,16 +8,6 @@ cache:
   directories:
     $HOME/.ivy2
     regression/install
-    chisel/target
-    context-dependent-environments/target
-    groundtest/target
-    hardfloat/target
-    junctions/target
-    project/project/target
-    project/target
-    rocket/target
-    target
-    uncore/target
 
 # packages needed to build riscv-tools
 addons:
@@ -60,7 +52,6 @@ branches:
     - hurricane
 
 before_install:
-  - rm riscv-tools/.travis.yml
   - export CXX=g++-4.8 CC=gcc-4.8
 
 script:
