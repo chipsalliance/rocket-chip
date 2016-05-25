@@ -7,7 +7,7 @@ sim_dir = .
 output_dir = $(sim_dir)/output
 
 BACKEND = c
-CONFIG ?= DefaultCPPConfig
+CONFIG ?= DefaultConfig
 
 include $(base_dir)/Makefrag
 

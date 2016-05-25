@@ -19,7 +19,7 @@ object ConfigUtils {
 }
 import ConfigUtils._
 
-class DefaultConfig extends Config (
+class BaseConfig extends Config (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
@@ -78,7 +78,7 @@ class DefaultConfig extends Config (
       res append  "};\n"
       res append  "core {\n"
       for (i <- 0 until site(NTiles)) {
-        val isa = s"rv${site(XLen)}ima${if (site(UseFPU)) "fd" else ""}"
+        val isa = s"rv${site(XLen)}im${if (site(UseAtomics)) "a" else ""}${if (site(UseFPU)) "fd" else ""}"
         val timecmpAddr = addrMap("io:int:rtc").start + 8*(i+1)
         val prciAddr = addrMap(s"io:int:prci$i").start
         res append s"  $i {\n"
@@ -215,6 +215,11 @@ class DefaultConfig extends Config (
         else TestGeneration.addSuites(env.map(rv64ufNoDiv))
         true
       }
+      case UseAtomics => {
+        val env = if(site(UseVM)) List("p","v") else List("p")
+        TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64ua else rv32ua))
+        true
+      }
       case NExtInterrupts => 2
       case NExtMMIOChannels => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), site(NExtInterrupts))
@@ -304,8 +309,7 @@ class DefaultConfig extends Config (
     case _ => throw new CDEMatchError
   }
 )
-class DefaultVLSIConfig extends DefaultConfig
-class DefaultCPPConfig extends DefaultConfig
+class DefaultConfig extends Config(new WithBlockingL1 ++ new BaseConfig)
 
 class With2Cores extends Config(knobValues = { case "NTILES" => 2; case _ => throw new CDEMatchError })
 class With4Cores extends Config(knobValues = { case "NTILES" => 4; case _ => throw new CDEMatchError })
@@ -379,9 +383,7 @@ class With1L2Ways extends Config(knobValues = { case "L2_WAYS" => 1; case _ => t
 class With2L2Ways extends Config(knobValues = { case "L2_WAYS" => 2; case _ => throw new CDEMatchError })
 class With4L2Ways extends Config(knobValues = { case "L2_WAYS" => 4; case _ => throw new CDEMatchError })
 
-class DefaultL2Config extends Config(new WithL2Cache ++ new DefaultConfig)
-class DefaultL2VLSIConfig extends Config(new WithL2Cache ++ new DefaultVLSIConfig)
-class DefaultL2CPPConfig extends Config(new WithL2Cache ++ new DefaultCPPConfig)
+class DefaultL2Config extends Config(new WithL2Cache ++ new BaseConfig)
 class DefaultL2FPGAConfig extends Config(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
 
 class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
@@ -390,6 +392,7 @@ class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
     case UseVM => false
+    case UseAtomics => false
     case UseFPU => false
     case _ => throw new CDEMatchError
   }
@@ -403,7 +406,14 @@ class FPGAConfig extends Config (
   }
 )
 
-class DefaultFPGAConfig extends Config(new FPGAConfig ++ new DefaultConfig)
+class WithBlockingL1 extends Config (
+  knobValues = {
+    case "L1D_MSHRS" => 0
+    case _ => throw new CDEMatchError
+  }
+)
+
+class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 
 class SmallConfig extends Config (
     topDefinitions = { (pname,site,here) => pname match {
@@ -421,30 +431,30 @@ class SmallConfig extends Config (
     case "L1D_WAYS" => 1
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 1
-    case "L1D_MSHRS" => 1
+    case "L1D_MSHRS" => 0
     case _ => throw new CDEMatchError
   }
 )
 
 class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGAConfig)
 
-class DefaultRV32Config extends Config(new SmallConfig ++ new WithRV32 ++ new DefaultConfig)
+class DefaultRV32Config extends Config(new SmallConfig ++ new WithRV32 ++ new BaseConfig)
 
-class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
+class ExampleSmallConfig extends Config(new SmallConfig ++ new BaseConfig)
 
-class DualBankConfig extends Config(new With2BanksPerMemChannel ++ new DefaultConfig)
+class DualBankConfig extends Config(new With2BanksPerMemChannel ++ new BaseConfig)
 class DualBankL2Config extends Config(
-  new With2BanksPerMemChannel ++ new WithL2Cache ++ new DefaultConfig)
+  new With2BanksPerMemChannel ++ new WithL2Cache ++ new BaseConfig)
 
-class DualChannelConfig extends Config(new With2MemoryChannels ++ new DefaultConfig)
+class DualChannelConfig extends Config(new With2MemoryChannels ++ new BaseConfig)
 class DualChannelL2Config extends Config(
-  new With2MemoryChannels ++ new WithL2Cache ++ new DefaultConfig)
+  new With2MemoryChannels ++ new WithL2Cache ++ new BaseConfig)
 
 class DualChannelDualBankConfig extends Config(
-  new With2MemoryChannels ++ new With2BanksPerMemChannel ++ new DefaultConfig)
+  new With2MemoryChannels ++ new With2BanksPerMemChannel ++ new BaseConfig)
 class DualChannelDualBankL2Config extends Config(
   new With2MemoryChannels ++ new With2BanksPerMemChannel ++
-  new WithL2Cache ++ new DefaultConfig)
+  new WithL2Cache ++ new BaseConfig)
 
 class WithRoccExample extends Config(
   (pname, site, here) => pname match {
@@ -464,7 +474,7 @@ class WithRoccExample extends Config(
     case _ => throw new CDEMatchError
   })
 
-class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
+class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
 
 class WithDmaController extends Config(
   (pname, site, here) => pname match {
@@ -500,9 +510,9 @@ class DualChannelBenchmarkConfig extends Config(new With2MemoryChannels ++ new S
 class QuadChannelBenchmarkConfig extends Config(new With4MemoryChannels ++ new SingleChannelBenchmarkConfig)
 class OctoChannelBenchmarkConfig extends Config(new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
 
-class EightChannelVLSIConfig extends Config(new With8MemoryChannels ++ new DefaultVLSIConfig)
+class EightChannelConfig extends Config(new With8MemoryChannels ++ new BaseConfig)
 
 class WithSplitL2Metadata extends Config(knobValues = { case "L2_SPLIT_METADATA" => true; case _ => throw new CDEMatchError })
 class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new DefaultL2Config)
 
-class DualCoreConfig extends Config(new With2Cores ++ new DefaultConfig)
+class DualCoreConfig extends Config(new With2Cores ++ new BaseConfig)

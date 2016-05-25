@@ -16,7 +16,7 @@ sim_dir = .
 output_dir = $(sim_dir)/output
 
 BACKEND ?= v
-CONFIG ?= DefaultVLSIConfig
+CONFIG ?= DefaultConfig
 TB ?= rocketTestHarness
 
 include $(base_dir)/Makefrag

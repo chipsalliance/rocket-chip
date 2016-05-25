@@ -141,7 +141,7 @@ class WithTraceGen extends Config(
     case _ => throw new CDEMatchError
   })
 
-class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
+class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
