@@ -262,12 +262,16 @@ class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) e
   io.mem.resp.ready := io.nasti.r.ready
 }
 
+class NastiArbiterIO(arbN: Int)(implicit p: Parameters) extends Bundle {
+  val master = Vec(arbN, new NastiIO).flip
+  val slave = new NastiIO
+  override def cloneType =
+    new NastiArbiterIO(arbN).asInstanceOf[this.type]
+}
+
 /** Arbitrate among arbN masters requesting to a single slave */
 class NastiArbiter(val arbN: Int)(implicit p: Parameters) extends NastiModule {
-  val io = new Bundle {
-    val master = Vec(arbN, new NastiIO).flip
-    val slave = new NastiIO
-  }
+  val io = new NastiArbiterIO(arbN)
 
   if (arbN > 1) {
     val arbIdBits = log2Up(arbN)
@@ -381,6 +385,13 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
   b_queue.io.deq.ready := io.b.ready && !draining
 }
 
+class NastiRouterIO(nSlaves: Int)(implicit p: Parameters) extends Bundle {
+  val master = (new NastiIO).flip
+  val slave = Vec(nSlaves, new NastiIO)
+  override def cloneType =
+    new NastiRouterIO(nSlaves).asInstanceOf[this.type]
+}
+
 /** Take a single Nasti master and route its requests to various slaves
  *  @param nSlaves the number of slaves
  *  @param routeSel a function which takes an address and produces
@@ -388,10 +399,7 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
 class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
     extends NastiModule {
 
-  val io = new Bundle {
-    val master = (new NastiIO).flip
-    val slave = Vec(nSlaves, new NastiIO)
-  }
+  val io = new NastiRouterIO(nSlaves)
 
   val ar_route = routeSel(io.master.ar.bits.addr)
   val aw_route = routeSel(io.master.aw.bits.addr)
