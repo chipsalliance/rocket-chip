@@ -241,7 +241,7 @@ class AHBBusMaster(implicit val p: Parameters) extends Module
   val hmastlock = Reg(init = Bool(false))
   val hwrite    = Reg(Bool())
   val hburst    = Reg(UInt())
-  val hsize     = Reg(UInt())
+  val hsize     = Reg(init = UInt(0, width = SZ_HSIZE))
   val hprot     = Reg(UInt())
   val hwdata0   = Reg(Bits())
   val hwdata1   = Reg(Bits())
