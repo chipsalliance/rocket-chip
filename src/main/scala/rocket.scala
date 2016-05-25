@@ -14,6 +14,7 @@ case object XLen extends Field[Int]
 case object FetchWidth extends Field[Int]
 case object RetireWidth extends Field[Int]
 case object UseVM extends Field[Boolean]
+case object UseUser extends Field[Boolean]
 case object UseAtomics extends Field[Boolean]
 case object UsePerfCounters extends Field[Boolean]
 case object FastLoadWord extends Field[Boolean]
@@ -32,6 +33,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val xLen = p(XLen)
 
   val usingVM = p(UseVM)
+  val usingUser = p(UseUser)
   val usingFPU = p(UseFPU)
   val usingAtomics = p(UseAtomics)
   val usingFDivSqrt = p(FDivSqrt)

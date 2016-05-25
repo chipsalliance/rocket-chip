@@ -363,7 +363,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       reg_mstatus.prv := reg_mstatus.spp
     }.otherwise {
       when (reg_mstatus.mpp(1)) { reg_mstatus.mie := reg_mstatus.mpie }
-      when (reg_mstatus.mpp(0)) { reg_mstatus.sie := reg_mstatus.mpie }
+      .elsewhen (Bool(usingVM) && reg_mstatus.mpp(0)) { reg_mstatus.sie := reg_mstatus.mpie }
       reg_mstatus.mpie := false
       reg_mstatus.mpp := PRV.U
       reg_mstatus.prv := reg_mstatus.mpp
@@ -388,7 +388,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       reg_mstatus.mie := new_mstatus.mie
       reg_mstatus.mpie := new_mstatus.mpie
 
-      val supportedModes = Vec((PRV.M :: PRV.U :: (if (usingVM) List(PRV.S) else Nil)).map(UInt(_)))
+      val supportedModes = Vec((PRV.M +: (if (usingUser) Some(PRV.U) else None) ++: (if (usingVM) Seq(PRV.S) else Nil)).map(UInt(_)))
       if (supportedModes.size > 1) {
         reg_mstatus.mprv := new_mstatus.mprv
         when (supportedModes contains new_mstatus.mpp) { reg_mstatus.mpp := new_mstatus.mpp }
@@ -459,4 +459,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.csr.waddr := io.rw.addr
   io.rocc.csr.wdata := wdata
   io.rocc.csr.wen := wen
+
+  if (!usingUser) {
+    reg_mstatus.mpp := PRV.M
+    reg_mstatus.prv := PRV.M
+    reg_mstatus.mprv := false
+  }
 }
