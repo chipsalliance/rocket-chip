@@ -204,6 +204,7 @@ class BaseConfig extends Config (
       case FetchWidth => 1
       case RetireWidth => 1
       case UseVM => true
+      case UseUser => true
       case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
@@ -392,6 +393,7 @@ class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
     case UseVM => false
+    case UseUser => false
     case UseAtomics => false
     case UseFPU => false
     case _ => throw new CDEMatchError
