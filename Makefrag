@@ -12,7 +12,7 @@ CHISEL_VERSION ?= 2
 CHISEL_SUBMODULE ?= chisel$(CHISEL_VERSION)
 export CHISEL_SUBMODULE
 
-SBT ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -jar sbt-launch.jar
+SBT ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
 
 ifeq ($(CHISEL_VERSION),2)
