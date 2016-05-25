@@ -144,6 +144,9 @@ class GroundTestTile(id: Int, resetSignal: Bool)
   dcache.io.cpu <> dcacheIF.io.cache
   io.cached.head <> dcache.io.mem
 
+  // SimpleHellaCacheIF leaves invalidate_lr dangling, so we wire it to false
+  dcache.io.cpu.invalidate_lr := Bool(false)
+
   val ptw = Module(new DummyPTW(2))
   ptw.io.requestors(0) <> test.io.ptw
   ptw.io.requestors(1) <> dcache.io.ptw
