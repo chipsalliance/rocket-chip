@@ -218,7 +218,7 @@ class BaseConfig extends Config (
         true
       }
       case NExtInterrupts => 2
-      case NExtMMIOChannels => 0
+      case NExtMMIOAXIChannels => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
