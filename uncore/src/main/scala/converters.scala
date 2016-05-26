@@ -747,6 +747,24 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
     io.nasti.b.ready, io.nasti.r.ready)
 }
 
+object TileLinkWidthAdapter {
+  def apply(in: ClientUncachedTileLinkIO, out: ClientUncachedTileLinkIO)(implicit p: Parameters): Unit = {
+    require(out.tlDataBits * out.tlDataBeats == in.tlDataBits * in.tlDataBeats)
+
+    if (out.tlDataBits > in.tlDataBits) {
+      val widener = Module(new TileLinkIOWidener(in.p(TLId), out.p(TLId)))
+      widener.io.in <> in
+      out <> widener.io.out
+    } else if (out.tlDataBits < in.tlDataBits) {
+      val narrower = Module(new TileLinkIOWidener(in.p(TLId), out.p(TLId)))
+      narrower.io.in <> in
+      out <> narrower.io.out
+    } else {
+      out <> in
+    }
+  }
+}
+
 class TileLinkIOWidener(innerTLId: String, outerTLId: String)
     (implicit p: Parameters) extends TLModule()(p) {
 
