@@ -229,12 +229,15 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     addr_byte = s2_req.addr(beatOffBits-1, 0),
     operand_size = s2_req.typ,
     alloc = Bool(false))
+  val uncachedPutOffset = // TODO zero-width
+    if (beatBytes > wordBytes) s2_req.addr(beatOffBits-1, wordOffBits)
+    else UInt(0)
   val uncachedPutMessage = Put(
     client_xact_id = UInt(0),
     addr_block = s2_req.addr(paddrBits-1, blockOffBits),
     addr_beat = s2_req.addr(blockOffBits-1, beatOffBits),
     data = Fill(beatWords, pstore1_storegen.data),
-    wmask = pstore1_storegen.mask << (s2_req.addr(beatOffBits-1, wordOffBits) << wordOffBits),
+    wmask = pstore1_storegen.mask << (uncachedPutOffset << wordOffBits),
     alloc = Bool(false))
   val uncachedPutAtomicMessage = PutAtomic(
     client_xact_id = UInt(0),
@@ -377,7 +380,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 
   // load data subword mux/sign extension
-  val s2_word_idx = s2_req.addr(log2Up(rowWords*coreDataBytes)-1, log2Up(wordBytes))
+  val s2_word_idx = // TODO zero-width
+    if (rowBits > wordBits) s2_req.addr(log2Up(rowBits/8)-1, log2Up(wordBytes))
+    else UInt(0)
   val s2_data_word = s2_data >> Cat(s2_word_idx, UInt(0, log2Up(coreDataBits)))
   val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc, wordBytes)
   io.cpu.resp.bits.data := loadgen.data | s2_sc_fail
