@@ -342,7 +342,7 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
   when (io.ar.fire()) { printf("Invalid read address %x\n", io.ar.bits.addr) }
   when (io.aw.fire()) { printf("Invalid write address %x\n", io.aw.bits.addr) }
 
-  val r_queue = Module(new Queue(new NastiReadAddressChannel, 2))
+  val r_queue = Module(new Queue(new NastiReadAddressChannel, 1))
   r_queue.io.enq <> io.ar
 
   val responding = Reg(init = Bool(false))
@@ -375,7 +375,7 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
   when (io.aw.fire()) { draining := Bool(true) }
   when (io.w.fire() && io.w.bits.last) { draining := Bool(false) }
 
-  val b_queue = Module(new Queue(UInt(width = nastiWIdBits), 2))
+  val b_queue = Module(new Queue(UInt(width = nastiWIdBits), 1))
   b_queue.io.enq.valid := io.aw.valid && !draining
   b_queue.io.enq.bits := io.aw.bits.id
   io.aw.ready := b_queue.io.enq.ready && !draining
