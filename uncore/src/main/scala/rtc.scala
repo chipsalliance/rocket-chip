@@ -26,8 +26,8 @@ class RTC(nHarts: Int)(implicit val p: Parameters) extends Module
   val addr = full_addr(log2Up(size)-1,log2Up(w/8))
   val rdata = regs(addr)
   val wdata = acq.bits.data
-  val read = acq.bits.a_type === Acquire.getType
-  val write = acq.bits.a_type === Acquire.putType
+  val read = acq.bits.isBuiltInType(Acquire.getType)
+  val write = acq.bits.isBuiltInType(Acquire.putType)
   val wmask = acq.bits.full_wmask()
   assert(!acq.valid || read || write, "unsupported RTC operation")
 
