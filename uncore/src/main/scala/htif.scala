@@ -150,12 +150,14 @@ class Htif(csr_RESET: Int)(implicit val p: Parameters) extends Module with HasHt
 
   val n = dataBits/short_request_bits
   val mem_req_data = (0 until n).map { i =>
-    val ui = UInt(i, log2Up(n))
+    def addr(offset: UInt) =
+      if (dataBits == short_request_bits) offset
+      else Cat(offset, UInt(i, log2Up(n)))
     when (state === state_mem_rresp && io.mem.grant.valid) {
-      packet_ram(Cat(io.mem.grant.bits.addr_beat, ui)) := 
+      packet_ram(addr(io.mem.grant.bits.addr_beat)) :=
         io.mem.grant.bits.data((i+1)*short_request_bits-1, i*short_request_bits)
     }
-    packet_ram(Cat(cnt, ui))
+    packet_ram(addr(cnt))
   }.reverse.reduce(_##_)
 
   val init_addr = addr.toUInt >> (offsetBits-3)
