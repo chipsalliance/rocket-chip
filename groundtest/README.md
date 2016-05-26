@@ -14,14 +14,17 @@ out waiting for the response.
 
 The groundtest package defines a GroundTestTile, which extends a rocket-chip Tile.
 A number of Configs in rocket-chip instantiate GroundTestTile(s) in place of 
-other types of Tiles, (see rocket-chip/src/main/scala/TestConfigs.scala). 
+other types of Tiles (see rocket-chip/src/main/scala/TestConfigs.scala). 
 
-Running a ground test can be achieved in rocket-chip by:
+Running a ground test can be achieved in rocket-chip as follows
+(assuming the `build.sh` script in the
+`rocket-chip/riscv-tools` directory has already been run).
 
 ```
 cd emulator
 make CONFIG=<GroundTestConfigName>
-./emulator-Top-<GroundTestConfigName> <other args>
+ln -s ../riscv-tools/riscv-tests/build/isa/rv64ui-p-simple
+./emulator-Top-<GroundTestConfigName> rv64ui-p-simple <other args>
 ```
 
 Currently the Configs which include GroundTestTile(s) are:
