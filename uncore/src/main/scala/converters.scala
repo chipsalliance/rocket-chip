@@ -878,9 +878,6 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
   val gnt_client_id = Reg(UInt(width = outerClientIdBits))
   val gnt_manager_id = Reg(UInt(width = outerManagerIdBits))
   val gnt_data = Reg(UInt(width = outerDataBits))
-  val gnt_data_vec = Vec.tabulate(factor) { i =>
-    gnt_data(innerDataBits * (i + 1) - 1, innerDataBits * i)
-  }
 
   when (io.out.grant.fire() && stretch) {
     gnt_data := ognt.data
@@ -892,12 +889,8 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
 
   when (send_done) { returning_data := Bool(false) }
 
-  def select_data(data: UInt, sel: UInt): UInt = {
-    val data_vec = Vec.tabulate(factor) { i =>
-      data(innerDataBits * (i + 1) - 1, innerDataBits * i)
-    }
-    data_vec(sel)
-  }
+  def select_data(data: UInt, sel: UInt): UInt =
+    data >> (sel << log2Up(innerDataBits))
 
   val gnt_switch = smallget_switch(ognt.client_xact_id)
 
@@ -907,7 +900,7 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
     client_xact_id = gnt_client_id,
     manager_xact_id = gnt_manager_id,
     addr_beat = Cat(gnt_beat, send_idx),
-    data = gnt_data_vec(send_idx))
+    data = select_data(gnt_data, send_idx))
 
   val get_grant = Grant(
     is_builtin_type = Bool(true),
