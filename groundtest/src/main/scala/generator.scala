@@ -85,7 +85,7 @@ class UncachedTileLinkGenerator(id: Int)
   val word_data = Wire(UInt(width = genWordBits))
   word_data := Cat(data_prefix, full_addr)
   val beat_data = Fill(tlDataBits / genWordBits, word_data)
-  val wshift = Cat(full_addr(tlByteAddrBits - 1, wordOffset), UInt(0, wordOffset))
+  val wshift = Cat(beatOffset(full_addr), UInt(0, wordOffset))
   val wmask = Fill(genWordBits / 8, Bits(1, 1)) << wshift
 
   val put_acquire = Put(
@@ -109,14 +109,17 @@ class UncachedTileLinkGenerator(id: Int)
   io.mem.grant.ready := !sending && !io.finished
 
   def wordFromBeat(addr: UInt, dat: UInt) = {
-    val offset = addr(tlByteAddrBits - 1, wordOffset)
-    val shift = Cat(offset, UInt(0, wordOffset + 3))
+    val shift = Cat(beatOffset(addr), UInt(0, wordOffset + 3))
     (dat >> shift)(genWordBits - 1, 0)
   }
 
   assert(!io.mem.grant.valid || state =/= s_get ||
     wordFromBeat(full_addr, io.mem.grant.bits.data) === word_data,
     s"Get received incorrect data in uncached generator ${id}")
+
+  def beatOffset(addr: UInt) = // TODO zero-width
+    if (tlByteAddrBits > wordOffset) addr(tlByteAddrBits - 1, wordOffset)
+    else UInt(0)
 }
 
 class HellaCacheGenerator(id: Int)
