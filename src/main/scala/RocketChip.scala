@@ -20,7 +20,7 @@ case object BankIdLSB extends Field[Int]
 /** Number of outstanding memory requests */
 case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Number of exteral MMIO ports */
-case object NExtMMIOChannels extends Field[Int]
+case object NExtMMIOAXIChannels extends Field[Int]
 /** Whether to divide HTIF clock */
 case object UseHtifClockDiv extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
@@ -80,7 +80,7 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(nMemChannels, new NastiIO)
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
-  val mmio = Vec(p(NExtMMIOChannels), new NastiIO)
+  val mmio = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val debug = new DebugBusIO()(p).flip
 }
 
@@ -161,7 +161,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
-    val mmio = Vec(p(NExtMMIOChannels), new NastiIO)
+    val mmio = Vec(p(NExtMMIOAXIChannels), new NastiIO)
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debugBus = new DebugBusIO()(p).flip
   }
@@ -229,7 +229,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
-    val mmioEndpoint = p(NExtMMIOChannels) match {
+    val mmioEndpoint = p(NExtMMIOAXIChannels) match {
       case 0 => Module(new NastiErrorSlave).io
       case 1 => io.mmio(0)
       // The memory map presently has only one external I/O region
