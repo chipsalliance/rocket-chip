@@ -21,6 +21,7 @@ case object BankIdLSB extends Field[Int]
 case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Number of exteral MMIO ports */
 case object NExtMMIOAXIChannels extends Field[Int]
+case object NExtMMIOAHBChannels extends Field[Int]
 /** Whether to divide HTIF clock */
 case object UseHtifClockDiv extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
@@ -81,6 +82,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(nMemChannels, new NastiIO)
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
+  val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
   val debug = new DebugBusIO()(p).flip
 }
 
@@ -145,6 +147,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.debugBus <> io.debug
 
   io.mmio_axi <> uncore.io.mmio_axi
+  io.mmio_ahb <> uncore.io.mmio_ahb
   io.mem <> uncore.io.mem
 }
 
@@ -162,6 +165,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
     val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
+    val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debugBus = new DebugBusIO()(p).flip
   }
@@ -228,12 +232,23 @@ class Uncore(implicit val p: Parameters) extends Module
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
-    val mmioEndpoint = p(NExtMMIOAXIChannels) match {
-      case 0 => Module(new NastiErrorSlave).io
-      case 1 => io.mmio_axi(0)
-      // The memory map presently has only one external I/O region
+    // The memory map presently has only one external I/O region
+    val ext = mmioNetwork.port("ext")
+    val mmio_axi = p(NExtMMIOAXIChannels)
+    val mmio_ahb = p(NExtMMIOAHBChannels)
+    require (mmio_axi + mmio_ahb <= 1)
+    
+    if (mmio_ahb == 1) {
+      val ahb = Module(new AHBBridge)
+      io.mmio_ahb(0) <> ahb.io.ahb
+      ahb.io.tl <> ext
+    } else {
+      val mmioEndpoint = mmio_axi match {
+        case 0 => Module(new NastiErrorSlave).io
+        case 1 => io.mmio_axi(0)
+      }
+      TopUtils.connectTilelinkNasti(mmioEndpoint, ext)
     }
-    TopUtils.connectTilelinkNasti(mmioEndpoint, mmioNetwork.port("ext"))
   }
 }
 
