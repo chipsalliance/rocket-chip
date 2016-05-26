@@ -158,13 +158,11 @@ class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)
   val sequencer = Module(new NastiSequencer(tests.size))
   val converter = Module(new TileLinkIONastiIOConverter()(
     p.alterPartial { case TLId => "Outermost" }))
-  val widener = Module(new TileLinkIOWidener("Outermost", "L1toL2"))
 
   sequencer.io.in <> tests.map(_.io.mem)
   sequencer.io.finished := tests.map(_.io.finished)
   converter.io.nasti <> sequencer.io.out
-  widener.io.in <> converter.io.tl
-  io.mem <> widener.io.out
+  TileLinkWidthAdapter(converter.io.tl, io.mem)
 
   io.finished := tests.map(_.io.finished).reduce(_ && _)
 }
