@@ -80,7 +80,7 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(nMemChannels, new NastiIO)
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
-  val mmio = Vec(p(NExtMMIOAXIChannels), new NastiIO)
+  val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val debug = new DebugBusIO()(p).flip
 }
 
@@ -144,7 +144,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.interrupts <> io.interrupts
   uncore.io.debugBus <> io.debug
 
-  io.mmio <> uncore.io.mmio
+  io.mmio_axi <> uncore.io.mmio_axi
   io.mem <> uncore.io.mem
 }
 
@@ -161,7 +161,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
-    val mmio = Vec(p(NExtMMIOAXIChannels), new NastiIO)
+    val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debugBus = new DebugBusIO()(p).flip
   }
@@ -231,7 +231,7 @@ class Uncore(implicit val p: Parameters) extends Module
 
     val mmioEndpoint = p(NExtMMIOAXIChannels) match {
       case 0 => Module(new NastiErrorSlave).io
-      case 1 => io.mmio(0)
+      case 1 => io.mmio_axi(0)
       // The memory map presently has only one external I/O region
     }
     TopUtils.connectTilelinkNasti(mmioEndpoint, mmioNetwork.port("ext"))
