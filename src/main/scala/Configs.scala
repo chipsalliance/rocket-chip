@@ -260,6 +260,7 @@ class BaseConfig extends Config (
               if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
           maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
           maxManagerXacts = site(NAcquireTransactors) + 2,
+          dataBeats = site(MIFDataBeats),
           dataBits = site(CacheBlockBytes)*8)
       case TLKey("L2toMC") => 
         TileLinkParameters(
@@ -271,6 +272,7 @@ class BaseConfig extends Config (
           maxClientXacts = 1,
           maxClientsPerPort = site(NAcquireTransactors) + 2,
           maxManagerXacts = 1,
+          dataBeats = site(MIFDataBeats),
           dataBits = site(CacheBlockBytes)*8)
       case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
         maxClientXacts = site(NAcquireTransactors) + 2,
@@ -287,6 +289,7 @@ class BaseConfig extends Config (
           maxClientXacts = 4,
           maxClientsPerPort = 1,
           maxManagerXacts = 1,
+          dataBeats = site(MIFDataBeats),
           dataBits = site(CacheBlockBytes) * 8)
       }
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))

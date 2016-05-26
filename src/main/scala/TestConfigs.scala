@@ -23,6 +23,7 @@ class WithGroundTest extends Config(
           if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
         maxClientsPerPort = 2,
         maxManagerXacts = site(NAcquireTransactors) + 2,
+        dataBeats = site(MIFDataBeats),
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
       val groundtest = if (site(XLen) == 64)
@@ -42,6 +43,7 @@ class WithGroundTest extends Config(
     case TohostAddr => BigInt("80001000", 16)
     case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
+    case UseAtomics => true
     case _ => throw new CDEMatchError
   })
 
