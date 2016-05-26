@@ -19,19 +19,34 @@ class PhysicalNetworkIO[T <: Data](n: Int, dType: T) extends Bundle {
 }
 
 class BasicCrossbarIO[T <: Data](n: Int, dType: T) extends Bundle {
-    val in  = Vec(n, Decoupled(new PhysicalNetworkIO(n,dType))).flip 
-    val out = Vec(n, Decoupled(new PhysicalNetworkIO(n,dType)))
+  val in  = Vec(n, Decoupled(new PhysicalNetworkIO(n,dType))).flip
+  val out = Vec(n, Decoupled(new PhysicalNetworkIO(n,dType)))
 }
 
 abstract class PhysicalNetwork extends Module
 
-class BasicCrossbar[T <: Data](n: Int, dType: T, count: Int = 1, needsLock: Option[PhysicalNetworkIO[T] => Bool] = None) extends PhysicalNetwork {
-  val io = new BasicCrossbarIO(n, dType)
+case class CrossbarConfig[T <: Data](n: Int, dType: T, count: Int = 1, needsLock: Option[PhysicalNetworkIO[T] => Bool] = None)
 
+abstract class AbstractCrossbar[T <: Data](conf: CrossbarConfig[T]) extends PhysicalNetwork {
+  val io = new BasicCrossbarIO(conf.n, conf.dType)
+}
+
+class BasicBus[T <: Data](conf: CrossbarConfig[T]) extends AbstractCrossbar(conf) {
+  val arb = Module(new LockingRRArbiter(io.in(0).bits, conf.n, conf.count, conf.needsLock))
+  arb.io.in <> io.in
+
+  arb.io.out.ready := io.out(arb.io.out.bits.header.dst).ready
+  for ((out, i) <- io.out zipWithIndex) {
+    out.valid := arb.io.out.valid && arb.io.out.bits.header.dst === UInt(i)
+    out.bits := arb.io.out.bits
+  }
+}
+
+class BasicCrossbar[T <: Data](conf: CrossbarConfig[T]) extends AbstractCrossbar(conf) {
   io.in.foreach { _.ready := Bool(false) }
 
   io.out.zipWithIndex.map{ case (out, i) => {
-    val rrarb = Module(new LockingRRArbiter(io.in(0).bits, n, count, needsLock))
+    val rrarb = Module(new LockingRRArbiter(io.in(0).bits, conf.n, conf.count, conf.needsLock))
     (rrarb.io.in, io.in).zipped.map{ case (arb, in) => {
       val destined = in.bits.header.dst === UInt(i)
       arb.valid := in.valid && destined
