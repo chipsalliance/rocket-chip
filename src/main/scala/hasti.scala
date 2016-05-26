@@ -322,8 +322,8 @@ class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModul
   }
 
   val bar = Module(new HastiXbar(1, amap))
-  io.master <> bar.io.masters(0)
-  io.slaves <> bar.io.slaves
+  bar.io.masters(0) <> io.master
+  bar.io.slaves <> io.slaves
 }
 
 class HastiSlaveMux(n: Int)(implicit p: Parameters) extends HastiModule()(p) {
