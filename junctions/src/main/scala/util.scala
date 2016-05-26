@@ -182,7 +182,7 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
     val deq = new ReorderDequeueIO(dType, tagWidth)
   }
 
-  val roq_data = Reg(Vec(size, dType.cloneType))
+  val roq_data = Mem(size, dType.cloneType)
   val roq_tags = Reg(Vec(size, UInt(width = tagWidth)))
   val roq_free = Reg(init = Vec.fill(size)(Bool(true)))
 
