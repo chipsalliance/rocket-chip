@@ -160,9 +160,12 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     val replay_next = Bool(OUTPUT)
   }
 
+  def beatOffset(addr: UInt) = // TODO zero-width
+    if (beatOffBits > wordOffBits) addr(beatOffBits - 1, wordOffBits)
+    else UInt(0)
+
   def wordFromBeat(addr: UInt, dat: UInt) = {
-    val offset = addr(beatOffBits - 1, wordOffBits)
-    val shift = Cat(offset, UInt(0, wordOffBits + log2Up(wordBytes)))
+    val shift = Cat(beatOffset(addr), UInt(0, wordOffBits + log2Up(wordBytes)))
     (dat >> shift)(wordBits - 1, 0)
   }
 
@@ -184,8 +187,7 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val storegen = new StoreGen(req.typ, req.addr, req.data, wordBytes)
   val loadgen = new LoadGen(req.typ, req.addr, grant_word, req_cmd_sc, wordBytes)
 
-  val beat_offset = req.addr(beatOffBits - 1, wordOffBits)
-  val beat_mask = (storegen.mask << Cat(beat_offset, UInt(0, wordOffBits)))
+  val beat_mask = (storegen.mask << Cat(beatOffset(req.addr), UInt(0, wordOffBits)))
   val beat_data = Fill(beatWords, storegen.data)
 
   val addr_block = req.addr(paddrBits - 1, blockOffBits)
@@ -958,7 +960,9 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 
   writeArb.io.in(0).bits.addr := s3_req.addr
-  val rowIdx = s3_req.addr(rowOffBits-1,offsetlsb).toUInt
+  val rowIdx =
+    if (rowOffBits > offsetlsb) s3_req.addr(rowOffBits-1,offsetlsb).toUInt
+    else UInt(0)
   val rowWMask = UInt(1) << (if(rowOffBits > offsetlsb) rowIdx else UInt(0))
   writeArb.io.in(0).bits.wmask := rowWMask
   writeArb.io.in(0).bits.data := Fill(rowWords, s3_req.data)
