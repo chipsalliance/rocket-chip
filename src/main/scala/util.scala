@@ -8,6 +8,7 @@ import scala.math._
 import cde.{Parameters, Field}
 
 object Util {
+  implicit def uintToBitPat(x: UInt): BitPat = BitPat(x)
   implicit def intToUInt(x: Int): UInt = UInt(x)
   implicit def booleanToBool(x: Boolean): Bits = Bool(x)
   implicit def intSeqToUIntSeq(x: Seq[Int]): Seq[UInt] = x.map(UInt(_))
