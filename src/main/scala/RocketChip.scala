@@ -194,11 +194,8 @@ class Uncore(implicit val p: Parameters) extends Module
     val (ioBase, ioAddrMap) = addrHashMap.subMap("io")
     val ioAddrHashMap = new AddrHashMap(ioAddrMap, ioBase)
 
-    val mmioNarrower = Module(new TileLinkIONarrower("L2toMMIO", "MMIO_Outermost"))
     val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap, ioBase))
-
-    mmioNarrower.io.in <> outmemsys.io.mmio
-    mmioNetwork.io.in.head <> mmioNarrower.io.out
+    TileLinkWidthAdapter(outmemsys.io.mmio, mmioNetwork.io.in.head)
 
     val rtc = Module(new RTC(p(NTiles)))
     val rtcAddr = ioAddrHashMap("int:rtc")
@@ -309,10 +306,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
 
   for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
-    val narrow = Module(new TileLinkIONarrower("L2toMC", "Outermost"))
     unwrap.io.in <> ClientTileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
-    narrow.io.in <> unwrap.io.out
-    icPort <> narrow.io.out
+    TileLinkWidthAdapter(unwrap.io.out, icPort)
   }
 
   for ((nasti, tl) <- io.mem zip mem_ic.io.out) {
