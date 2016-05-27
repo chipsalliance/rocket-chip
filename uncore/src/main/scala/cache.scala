@@ -952,6 +952,7 @@ class L2AcquireTracker(trackerId: Int)(implicit p: Parameters) extends L2XactTra
   val curr_write_beat = PriorityEncoder(pending_writes)
   io.data.write.valid := state === s_busy &&
                            pending_writes.orR &&
+                           !pending_puts.orR &&
                            !pending_ognt &&
                            !pending_reads(curr_write_beat) &&
                            !pending_resps(curr_write_beat)
