@@ -12,9 +12,10 @@ out waiting for the response.
 
 ## Configuring Rocket-Chip with groundtest
 
-The groundtest package defines a GroundTestTile, which extends a rocket-chip Tile.
-A number of Configs in rocket-chip instantiate GroundTestTile(s) in place of 
-other types of Tiles (see rocket-chip/src/main/scala/TestConfigs.scala). 
+The groundtest package defines a GroundTestTile, which extends a
+rocket-chip Tile.  A number of Configs in rocket-chip instantiate
+GroundTestTile(s) in place of other types of Tiles (see
+[TestConfigs.scala](https://github.com/ucb-bar/rocket-chip/blob/master/src/main/scala/TestConfigs.scala)).
 
 Running a ground test can be achieved in rocket-chip as follows
 (assuming the `build.sh` script in the
@@ -54,9 +55,15 @@ Putting the generator and the checker together, we can automatically search for 
 
 The [tracegen+check.sh](https://github.com/ucb-bar/groundtest/blob/master/scripts/tracegen%2Bcheck.sh) script provides an automated way to run a number of randomized tests. The number of tests, initial seed, and other parameters can be set via environment variables or the command line, see the script for more details. 
 
-The examples that follow assume that the `groundtest/scripts`
-directory is in your `PATH` and that `rocket-chip/emulator` is your
-current working directory.
+Before running the script, first ensure that:
+
+- the file `rocket-chip/riscv-tools/riscv-tests/build/isa/rv64ui-p-simple`
+  exists (this is produced by the `build.sh` script in the
+  `rocket-chip/riscv-tools` directory);
+- `rocket-chip/groundtest/scripts` in your `PATH`;
+- `rocket-chip/emulator` is your current working directory.
+
+Now the script can be run as follows.
 
 ```
 > make CONFIG=TraceGenConfig
@@ -67,28 +74,20 @@ Testing against WMO model:
       50: .......... .......... .......... .......... ..........
 
 OK, passed 100 tests
-LR/SC success rate: 2%
-Load-external rate: 47%
+LR/SC success rate: 88%
+Load-external rate: 45%
 ```
 
 ### Running Manually
 
-To run a single test with a specified random seed:
+Suppose we have built the Rocket Chip emulator with the TraceGenConfig
+configuration as above. Running it using the
+[tracegen.py](https://github.com/ucb-bar/groundtest/blob/master/scripts/tracegen.py)
+wrapper script with a few command-line options gives us a random
+trace:
 
 ```
-> make CONFIG=TraceGenConfig
-> tracegen.py ./emulator-Top-TraceGenConfig 1 > trace.log
-> toaxe.py trace.log > trace.axe
-> axe check WMO trace.axe
-OK
-```
-
-### Longer Explanation
-
-Suppose we have built the Rocket Chip emulator with the TraceGenConfig configuration as above. Running it using the tracegen.py wrapper script with a few command-line options gives us a random trace:
-
-```
-  > tracegen.py ./emulator-Top-TraceGenConfig 1
+  > tracegen.py ./emulator-Top-TraceGenConfig 1 rv64ui-p-simple
   1: load-req     0x0000000008 #0 @64
   1: store-req  5 0x0000100008 #1 @65
   1: store-req  7 0x0000000010 #2 @66
@@ -110,7 +109,7 @@ Suppose we have built the Rocket Chip emulator with the TraceGenConfig configura
 
 Main points:
 
-- the numeric command-line option sets the random seed;
+- the second command-line option sets the random seed;
 - the first number on each line of the trace is the core id;
 - \#N denotes a request-id N;
 - @T denotes a time T in clock cycles;
@@ -124,7 +123,7 @@ We convert these traces to axe format using the
 [toaxe.py](https://github.com/ucb-bar/groundtest/blob/master/scripts/toaxe.py) script.
 
 ```
-  > tracegen.py ./emulator-Top-TraceGenConfig 1 | toaxe.py -
+  > tracegen.py ./emulator-Top-TraceGenConfig 1 rv64ui-p-simple | toaxe.py -
   # &M[2] == 0x0000000010
   # &M[0] == 0x0000000008
   # &M[3] == 0x0000000108
@@ -147,7 +146,7 @@ Main points:
 
 Axe traces can be validated using the [axe](https://github.com/CTSRD-CHERI/axe) tool (must be downloaded and installed seperately):
 ```
-> tracegen.py ./emulator-Top-TraceGenConfig 1 | toaxe.py - | axe check WMO -
+> tracegen.py ./emulator-Top-TraceGenConfig 1 rv64ui-p-simple | toaxe.py - | axe check WMO -
 OK
 ```
 
