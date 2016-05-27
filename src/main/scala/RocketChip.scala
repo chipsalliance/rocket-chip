@@ -87,11 +87,11 @@ object TopUtils {
   // Connect two Nasti interfaces with queues in-between
   def connectNasti(outer: NastiIO, inner: NastiIO)(implicit p: Parameters) {
     val mifDataBeats = p(MIFDataBeats)
-    outer.ar <> Queue(inner.ar)
-    outer.aw <> Queue(inner.aw)
-    outer.w  <> Queue(inner.w, mifDataBeats)
-    inner.r  <> Queue(outer.r, mifDataBeats)
-    inner.b  <> Queue(outer.b)
+    outer.ar <> Queue(inner.ar, 1)
+    outer.aw <> Queue(inner.aw, 1)
+    outer.w  <> Queue(inner.w)
+    inner.r  <> Queue(outer.r)
+    inner.b  <> Queue(outer.b, 1)
   }
   def connectTilelinkNasti(nasti: NastiIO, tl: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
     val conv = Module(new NastiIOTileLinkIOConverter())
@@ -272,7 +272,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
       if (nBanks > 1) addr(lsb + log2Up(nBanks) - 1, lsb) else UInt(0),
       UInt(nBanks))
   }
-  val preBuffering = TileLinkDepths(2,2,2,2,2)
+  val preBuffering = TileLinkDepths(1,1,2,2,0)
   val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering))
 
   // Create point(s) of coherence serialization
