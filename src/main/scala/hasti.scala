@@ -396,6 +396,7 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
   io.hasti.hburst := HBURST_INCR
   io.hasti.hprot := UInt(0)
   io.hasti.hwdata := data
+  io.hasti.hmastlock := Bool(false)
   io.hasti.htrans := MuxLookup(state, HTRANS_IDLE, Seq(
     s_write -> Mux(io.nasti.w.valid,
       Mux(first, HTRANS_NONSEQ, HTRANS_SEQ),
