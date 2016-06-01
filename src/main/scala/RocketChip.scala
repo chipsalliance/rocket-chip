@@ -143,7 +143,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   val io = new TopIO
 
   // Build an Uncore and a set of Tiles
-  val innerTLParams = p.alterPartial({case TLId => "L1toL2" })
+  val innerTLParams = p.alterPartial({case HastiId => "TL" case TLId => "L1toL2" })
   val uncore = Module(new Uncore()(innerTLParams))
   val tileList = uncore.io.prci zip p(BuildTiles) map { case(prci, tile) => tile(prci.reset, p) }
 
@@ -256,7 +256,7 @@ class Uncore(implicit val p: Parameters) extends Module
     require (mmio_axi + mmio_ahb <= 1)
     
     if (mmio_ahb == 1) {
-      val ahb = Module(new AHBBridge)
+      val ahb = Module(new AHBBridge(true)) // with atomics
       io.mmio_ahb(0) <> ahb.io.ahb
       ahb.io.tl <> ext
     } else {
@@ -344,7 +344,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   
   // Abuse the fact that zip takes the shorter of the two lists
   for ((ahb, tl) <- io.mem_ahb zip mem_ic.io.out) {
-    val bridge = Module(new AHBBridge)
+    val bridge = Module(new AHBBridge(false)) // no atomics
     ahb <> bridge.io.ahb
     bridge.io.tl <> tl
   }
