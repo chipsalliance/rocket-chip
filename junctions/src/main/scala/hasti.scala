@@ -122,7 +122,8 @@ class MasterDiversion(implicit p: Parameters) extends HastiModule()(p) {
   }
   
   // If the master is diverted, he must also have been told hready
-  assert (!io.divert || io.in.hready);
+  assert (!io.divert || io.in.hready,
+    "Diverted but not ready");
   
   // Replay the request we diverted
   io.out.htrans    := Mux(full, buffer.htrans,    io.in.htrans)
@@ -370,7 +371,7 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
   require(hastiAddrBits == nastiXAddrBits)
   require(hastiDataBits == nastiXDataBits)
 
-  val r_queue = Module(new Queue(new NastiReadDataChannel, 2))
+  val r_queue = Module(new Queue(new NastiReadDataChannel, 2, pipe = true))
 
   val s_idle :: s_read :: s_write :: s_write_resp :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
@@ -384,7 +385,7 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
   val is_rtrans = (state === s_read) &&
                   (io.hasti.htrans === HTRANS_SEQ ||
                    io.hasti.htrans === HTRANS_NONSEQ)
-  val rvalid = Reg(is_rtrans, io.hasti.hready)
+  val rvalid = RegEnable(is_rtrans, Bool(false), io.hasti.hready)
 
   io.nasti.aw.ready := (state === s_idle)
   io.nasti.ar.ready := (state === s_idle) && !io.nasti.aw.valid
@@ -415,7 +416,7 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
       Mux(first, HTRANS_IDLE, HTRANS_BUSY)),
     s_read -> MuxCase(HTRANS_BUSY, Seq(
       first -> HTRANS_NONSEQ,
-      io.nasti.r.ready -> HTRANS_SEQ))))
+      (r_queue.io.count <= UInt(1)) -> HTRANS_SEQ))))
 
   when (io.nasti.aw.fire()) {
     first := Bool(true)
@@ -443,7 +444,7 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
 
   when (io.nasti.b.fire()) { state := s_idle }
 
-  when (is_rtrans) {
+  when (is_rtrans && io.hasti.hready) {
     first := Bool(false)
     addr := addr + (UInt(1) << size)
     len := len - UInt(1)
@@ -463,7 +464,9 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   val mask_shift  = mask_wide.toBits().asUInt() << io.haddr(hastiAlignment-1,0)
   
   // The request had better have been aligned! (AHB-lite requires this)
-  assert ((io.haddr & mask_decode.toBits()(hastiAlignment,1).asUInt) === UInt(0))
+  assert (io.htrans === HTRANS_IDLE || io.htrans === HTRANS_BUSY ||
+    (io.haddr & mask_decode.toBits()(hastiAlignment,1).asUInt) === UInt(0),
+    "HASTI request not aligned")
   
   // The mask and address during the address phase
   val a_request   = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
