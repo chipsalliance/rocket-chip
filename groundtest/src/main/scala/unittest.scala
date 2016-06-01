@@ -77,7 +77,7 @@ class HastiTestDriver(implicit p: Parameters) extends NastiModule {
 }
 
 class HastiTest(implicit p: Parameters) extends UnitTest {
-  val sram = Module(new HastiRAM(8))
+  val sram = Module(new HastiTestSRAM(8))
   val bus = Module(new HastiBus(Seq(a => Bool(true))))
   val conv = Module(new HastiMasterIONastiIOConverter)
   val driver = Module(new HastiTestDriver)
