@@ -76,15 +76,13 @@ class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
 
   val max_wsize = log2Ceil(hastiDataBytes)
   val wmask_lut = MuxLookup(wsize, SInt(-1, hastiDataBytes).asUInt,
-    (0 until max_wsize).map(1 << _).map(sz => (UInt(sz) -> UInt((1 << sz << sz) - 1))))
+    (0 until max_wsize).map(sz => (UInt(sz) -> UInt((1 << (1 << sz)) - 1))))
   val wmask = (wmask_lut << waddr(max_wsize - 1, 0))(hastiDataBytes - 1, 0)
 
   val is_trans = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
   val raddr = io.haddr >> UInt(2)
   val ren = is_trans && !io.hwrite
   val bypass = Reg(init = Bool(false))
-  val last_wdata = Reg(next = wdata)
-  val last_wmask = Reg(next = wmask)
 
   when (is_trans && io.hwrite) {
     waddr := io.haddr
