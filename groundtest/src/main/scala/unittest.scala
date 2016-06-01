@@ -30,6 +30,8 @@ class HastiTestDriver(implicit p: Parameters) extends NastiModule {
        s_read_addr :: s_read_data :: s_read_stall :: s_done :: Nil) = Enum(Bits(), 9)
   val state = Reg(init = s_idle)
 
+  val (stall_cnt, stall_done) = Counter(state === s_read_stall, 2)
+
   io.nasti.aw.valid := (state === s_write_addr)
   io.nasti.aw.bits := NastiWriteAddressChannel(
     id = UInt(0),
@@ -63,7 +65,7 @@ class HastiTestDriver(implicit p: Parameters) extends NastiModule {
   when (io.nasti.b.fire()) { state := s_read_addr }
   when (io.nasti.ar.fire()) { state := s_read_data }
   when (io.nasti.r.fire()) { state := s_read_stall }
-  when (state === s_read_stall) { state := s_read_data }
+  when (stall_done) { state := s_read_data }
   when (read_done) { state := s_done }
 
   val read_data = Mux(read_cnt(0),
