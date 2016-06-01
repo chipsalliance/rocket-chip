@@ -410,7 +410,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   when (!io.meta_read.ready) {
     rpq.io.deq.ready := Bool(false)
-    io.replay.bits.cmd := M_NOP
+    io.replay.bits.cmd := M_FLUSH_ALL /* nop */
   }
 }
 
@@ -800,7 +800,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
   val s2_req = Reg(io.cpu.req.bits)
-  val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd =/= M_NOP
+  val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd =/= M_FLUSH_ALL
   val s2_recycle = Wire(Bool())
   val s2_valid_masked = Wire(Bool())
 
