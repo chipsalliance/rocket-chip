@@ -88,7 +88,7 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 }
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
-  val mem = Vec(nMemChannels, new NastiIO)
+  val mem_axi = Vec(nMemChannels, new NastiIO)
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
@@ -157,7 +157,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   io.mmio_axi <> uncore.io.mmio_axi
   io.mmio_ahb <> uncore.io.mmio_ahb
-  io.mem <> uncore.io.mem
+  io.mem_axi <> uncore.io.mem_axi
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -169,7 +169,7 @@ class Uncore(implicit val p: Parameters) extends Module
     with HasTopLevelParameters {
   val io = new Bundle {
     val host = new HostIO(htifW)
-    val mem = Vec(nMemChannels, new NastiIO)
+    val mem_axi = Vec(nMemChannels, new NastiIO)
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
@@ -193,7 +193,7 @@ class Uncore(implicit val p: Parameters) extends Module
   buildMMIONetwork(p.alterPartial({case TLId => "MMIO_Outermost"}))
 
   // Wire the htif to the memory port(s) and host interface
-  io.mem <> outmemsys.io.mem
+  io.mem_axi <> outmemsys.io.mem_axi
   if(p(UseHtifClockDiv)) {
     VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr, io.host, htifW)
   } else {
@@ -270,7 +270,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val htif_uncached = (new ClientUncachedTileLinkIO).flip
     val incoherent = Vec(nTiles, Bool()).asInput
-    val mem = Vec(nMemChannels, new NastiIO)
+    val mem_axi = Vec(nMemChannels, new NastiIO)
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
   }
 
@@ -325,7 +325,7 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     TileLinkWidthAdapter(unwrap.io.out, icPort)
   }
 
-  for ((nasti, tl) <- io.mem zip mem_ic.io.out) {
+  for ((nasti, tl) <- io.mem_axi zip mem_ic.io.out) {
     TopUtils.connectTilelinkNasti(nasti, tl)(outermostTLParams)
     // Memory cache type should be normal non-cacheable bufferable
     // TODO why is this happening here?  Would 0000 (device) be OK instead?
