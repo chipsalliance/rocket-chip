@@ -128,7 +128,7 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
   val do_mprv = io.ptw.status.mprv && !io.req.bits.instruction
   val priv = Mux(do_mprv, io.ptw.status.mpp, io.ptw.status.prv)
   val priv_s = priv === PRV.S
-  val priv_uses_vm = priv <= PRV.S
+  val priv_uses_vm = priv <= PRV.S && !io.ptw.status.debug
   val req_xwr = Cat(!r_req.store, r_req.store, !(r_req.instruction || r_req.store))
 
   val ur_bits = ur_array.toBits

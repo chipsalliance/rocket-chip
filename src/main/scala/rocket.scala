@@ -15,6 +15,7 @@ case object FetchWidth extends Field[Int]
 case object RetireWidth extends Field[Int]
 case object UseVM extends Field[Boolean]
 case object UseUser extends Field[Boolean]
+case object UseDebug extends Field[Boolean]
 case object UseAtomics extends Field[Boolean]
 case object UsePerfCounters extends Field[Boolean]
 case object FastLoadWord extends Field[Boolean]
@@ -34,6 +35,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
 
   val usingVM = p(UseVM)
   val usingUser = p(UseUser)
+  val usingDebug = p(UseDebug)
   val usingFPU = p(UseFPU)
   val usingAtomics = p(UseAtomics)
   val usingFDivSqrt = p(FDivSqrt)
@@ -129,6 +131,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     (if (usingFPU && usingFDivSqrt) Some(new FDivSqrtDecode) else None) ++:
     (if (usingRoCC) Some(new RoCCDecode) else None) ++:
     (if (xLen > 32) Some(new I64Decode) else None) ++:
+    (if (usingVM) Some(new SDecode) else None) ++:
+    (if (usingDebug) Some(new DebugDecode) else None) ++:
     Seq(new IDecode)
   } flatMap(_.table)
 

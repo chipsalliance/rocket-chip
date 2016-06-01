@@ -98,6 +98,7 @@ object Instructions {
   def SRET               = BitPat("b00010000001000000000000001110011")
   def HRET               = BitPat("b00100000001000000000000001110011")
   def MRET               = BitPat("b00110000001000000000000001110011")
+  def DRET               = BitPat("b01111011001000000000000001110011")
   def SFENCE_VM          = BitPat("b000100000100?????000000001110011")
   def WFI                = BitPat("b00010000010100000000000001110011")
   def CSRRW              = BitPat("b?????????????????001?????1110011")
@@ -272,7 +273,6 @@ object CSRs {
   val mcause = 0x342
   val mbadaddr = 0x343
   val mip = 0x344
-  val mipi = 0x345
   val mucounteren = 0x310
   val mscounteren = 0x311
   val mucycle_delta = 0x700
@@ -281,6 +281,9 @@ object CSRs {
   val mscycle_delta = 0x704
   val mstime_delta = 0x705
   val msinstret_delta = 0x706
+  val dcsr = 0x7b0
+  val dpc = 0x7b1
+  val dscratch = 0x7b2
   val mcycle = 0xf00
   val mtime = 0xf01
   val minstret = 0xf02
@@ -289,8 +292,6 @@ object CSRs {
   val marchid = 0xf12
   val mimpid = 0xf13
   val mhartid = 0xf14
-  val mtohost = 0x7c0
-  val mfromhost = 0x7c1
   val mreset = 0x7c2
   val cycleh = 0xc80
   val timeh = 0xc81
@@ -302,6 +303,7 @@ object CSRs {
   val mstime_deltah = 0x785
   val msinstret_deltah = 0x786
   val mcycleh = 0xf80
+  val mtimeh = 0xf81
   val minstreth = 0xf82
   val all = {
     val res = collection.mutable.ArrayBuffer[Int]()
@@ -334,7 +336,6 @@ object CSRs {
     res += mcause
     res += mbadaddr
     res += mip
-    res += mipi
     res += mucounteren
     res += mscounteren
     res += mucycle_delta
@@ -343,6 +344,9 @@ object CSRs {
     res += mscycle_delta
     res += mstime_delta
     res += msinstret_delta
+    res += dcsr
+    res += dpc
+    res += dscratch
     res += mcycle
     res += mtime
     res += minstret
@@ -351,8 +355,6 @@ object CSRs {
     res += marchid
     res += mimpid
     res += mhartid
-    res += mtohost
-    res += mfromhost
     res += mreset
     res.toArray
   }
@@ -368,6 +370,7 @@ object CSRs {
     res += mstime_deltah
     res += msinstret_deltah
     res += mcycleh
+    res += mtimeh
     res += minstreth
     res.toArray
   }
