@@ -218,7 +218,7 @@ class DefaultConfig extends Config (
       case NExtInterrupts => 2
       case NExtMMIOChannels => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), site(NExtInterrupts))
-      case DMKey   => new DefaultDebugModuleConfig(site(XLen))
+      case DMKey   => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
       case SFMALatency => 2
       case DFMALatency => 3
