@@ -11,8 +11,17 @@ import rocket.Util._
 
 /** Top-level parameters of RocketChip, values set in e.g. PublicConfigs.scala */
 
+/** Options for memory bus interface */
+object BusType {
+  sealed trait EnumVal
+  case object AXI extends EnumVal
+  case object AHB extends EnumVal
+  val busTypes = Seq(AXI, AHB)
+}
+
 /** Number of memory channels */
 case object NMemoryChannels extends Field[Int]
+case object TMemoryChannels extends Field[BusType.EnumVal]
 /** Number of banks per memory channel */
 case object NBanksPerMemoryChannel extends Field[Int]
 /** Least significant bit of address used for bank partitioning */
