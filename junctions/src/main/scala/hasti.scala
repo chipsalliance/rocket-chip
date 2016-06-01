@@ -54,7 +54,7 @@ trait HasHastiParameters {
   val hastiAddrBits = hastiParams.addrBits
   val hastiDataBits = hastiParams.dataBits
   val hastiDataBytes = hastiDataBits/8
-  val hastiAlignment = log2Up(hastiDataBytes)
+  val hastiAlignment = log2Ceil(hastiDataBytes)
 }
 
 abstract class HastiModule(implicit val p: Parameters) extends Module
@@ -461,12 +461,15 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   // Calculate the bitmask of which bytes are being accessed
   val mask_decode = Vec.tabulate(hastiAlignment+1) (UInt(_) <= io.hsize)
   val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Up(i+1)) }
-  val mask_shift  = mask_wide.toBits().asUInt() << io.haddr(hastiAlignment-1,0)
+  val mask_shift  = if (hastiAlignment == 0) UInt(1) else
+                    mask_wide.toBits().asUInt() << io.haddr(hastiAlignment-1,0)
   
   // The request had better have been aligned! (AHB-lite requires this)
-  assert (io.htrans === HTRANS_IDLE || io.htrans === HTRANS_BUSY ||
-    (io.haddr & mask_decode.toBits()(hastiAlignment,1).asUInt) === UInt(0),
-    "HASTI request not aligned")
+  if (hastiAlignment >= 1) {
+    assert (io.htrans === HTRANS_IDLE || io.htrans === HTRANS_BUSY ||
+      (io.haddr & mask_decode.toBits()(hastiAlignment,1).asUInt) === UInt(0),
+      "HASTI request not aligned")
+  }
   
   // The mask and address during the address phase
   val a_request   = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
