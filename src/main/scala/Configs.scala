@@ -424,6 +424,12 @@ class WithBlockingL1 extends Config (
   }
 )
 
+class WithAHB extends Config(
+  (pname, site, here) => pname match {
+    case TMemoryChannels     => BusType.AHB
+    case NExtMMIOAHBChannels => 1
+  })
+
 class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 
 class SmallConfig extends Config (
