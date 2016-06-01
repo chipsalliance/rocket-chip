@@ -370,6 +370,8 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
   require(hastiAddrBits == nastiXAddrBits)
   require(hastiDataBits == nastiXDataBits)
 
+  val r_queue = Module(new Queue(new NastiReadDataChannel, 2))
+
   val s_idle :: s_read :: s_write :: s_write_resp :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
 
@@ -379,19 +381,26 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
   val len = Reg(UInt(width = nastiXLenBits))
   val data = Reg(UInt(width = nastiXDataBits))
   val first = Reg(init = Bool(false))
-  val rvalid = Reg(init = Bool(false))
+  val is_rtrans = (state === s_read) &&
+                  (io.hasti.htrans === HTRANS_SEQ ||
+                   io.hasti.htrans === HTRANS_NONSEQ)
+  val rvalid = Reg(next = is_rtrans)
 
   io.nasti.aw.ready := (state === s_idle)
   io.nasti.ar.ready := (state === s_idle) && !io.nasti.aw.valid
   io.nasti.w.ready := (state === s_write) && io.hasti.hready
   io.nasti.b.valid := (state === s_write_resp)
   io.nasti.b.bits := NastiWriteResponseChannel(id = id)
-  io.nasti.r.valid := (state === s_read) && io.hasti.hready && !first
-  io.nasti.r.bits := NastiReadDataChannel(
+  io.nasti.r <> r_queue.io.deq
+
+  r_queue.io.enq.valid := io.hasti.hready && rvalid
+  r_queue.io.enq.bits := NastiReadDataChannel(
     id = id,
     data = io.hasti.hrdata,
     last = (len === UInt(0)))
 
+  assert(!r_queue.io.enq.valid || r_queue.io.enq.ready,
+    "HASTI -> NASTI converter queue overflow")
 
   io.hasti.haddr := addr
   io.hasti.hsize := size
@@ -406,7 +415,6 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
       Mux(first, HTRANS_IDLE, HTRANS_BUSY)),
     s_read -> MuxCase(HTRANS_BUSY, Seq(
       first -> HTRANS_NONSEQ,
-      (len === UInt(0)) -> HTRANS_IDLE,
       io.nasti.r.ready -> HTRANS_SEQ))))
 
   when (io.nasti.aw.fire()) {
@@ -435,12 +443,8 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
 
   when (io.nasti.b.fire()) { state := s_idle }
 
-  when (state === s_read && first) {
+  when (is_rtrans) {
     first := Bool(false)
-    addr := addr + (UInt(1) << size)
-  }
-
-  when (io.nasti.r.fire()) {
     addr := addr + (UInt(1) << size)
     len := len - UInt(1)
     when (len === UInt(0)) { state := s_idle }
