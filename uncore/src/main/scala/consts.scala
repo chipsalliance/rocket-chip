@@ -26,7 +26,7 @@ trait MemoryOpConstants {
   val M_PFR     = UInt("b00010"); // prefetch with intent to read
   val M_PFW     = UInt("b00011"); // prefetch with intent to write
   val M_XA_SWAP = UInt("b00100");
-  val M_NOP     = UInt("b00101");
+  val M_FLUSH_ALL = UInt("b00101")  // flush all lines
   val M_XLR     = UInt("b00110");
   val M_XSC     = UInt("b00111");
   val M_XA_ADD  = UInt("b01000");
