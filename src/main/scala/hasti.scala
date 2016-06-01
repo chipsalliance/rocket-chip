@@ -384,7 +384,7 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
   val is_rtrans = (state === s_read) &&
                   (io.hasti.htrans === HTRANS_SEQ ||
                    io.hasti.htrans === HTRANS_NONSEQ)
-  val rvalid = Reg(next = is_rtrans)
+  val rvalid = Reg(is_rtrans, io.hasti.hready)
 
   io.nasti.aw.ready := (state === s_idle)
   io.nasti.ar.ready := (state === s_idle) && !io.nasti.aw.valid
