@@ -296,6 +296,7 @@ class BaseConfig extends Config (
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
+      case TMemoryChannels => BusType.AXI
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
       case NOutstandingMemReqsPerChannel => site(NBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
       case BankIdLSB => 0
