@@ -30,7 +30,7 @@ class AHBRequestIO(implicit p: Parameters) extends HastiMasterIO
 }
 
 // AHB stage1: translate TileLink Acquires into AHBRequests
-class AHBTileLinkIn(implicit val p: Parameters) extends Module
+class AHBTileLinkIn(supportAtomics: Boolean = false)(implicit val p: Parameters) extends Module
     with HasHastiParameters
     with HasTileLinkParameters
     with HasAddrMapParameters {
@@ -50,13 +50,13 @@ class AHBTileLinkIn(implicit val p: Parameters) extends Module
   }
   
   // Bursts start at 0 and wrap-around back to 0
-  val finalBurst = SInt(-1, width = log2Up(tlDataBeats)).asUInt
-  val firstBurst = UInt(0,  width = log2Up(tlDataBeats))
+  val finalBurst = UInt(tlDataBeats-1, width = log2Up(tlDataBeats)).asUInt
+  val firstBurst = UInt(0,             width = log2Up(tlDataBeats))
   val next_wmask = Wire(UInt(width = tlDataBytes)) // calculated below
   
   // State variables for processing more complicated TileLink Acquires
   val s_atom_r :: s_atom_idle1 :: s_atom_w :: s_atom_idle2 :: Nil = Enum(UInt(), 4)
-  val atom_state = Reg(init = s_atom_r)
+  val atom_state = Reg(init = s_atom_r) // never changes if !supportAtomics
   val done_wmask = Reg(init = UInt(0, width = tlDataBytes))
   val burst      = Reg(init = firstBurst)
   
@@ -65,7 +65,7 @@ class AHBTileLinkIn(implicit val p: Parameters) extends Module
   val isReadBurst  = io.acquire.bits.is(Acquire.getBlockType)
   val isWriteBurst = io.acquire.bits.is(Acquire.putBlockType)
   val isBurst      = isWriteBurst || isReadBurst
-  val isAtomic     = io.acquire.bits.is(Acquire.putAtomicType)
+  val isAtomic     = io.acquire.bits.is(Acquire.putAtomicType) && Bool(supportAtomics)
   val isPut        = io.acquire.bits.is(Acquire.putType)
   
   // Final states?
@@ -97,7 +97,11 @@ class AHBTileLinkIn(implicit val p: Parameters) extends Module
   // Advance the burst state
   // We assume here that TileLink gives us all putBlock beats with nothing between them
   when (io.request.ready && io.acquire.valid && isBurst) {
-    burst := burst + UInt(1) // overflow => wraps around to 0
+    when (last_burst) {
+      burst := UInt(0)
+    } .otherwise {
+      burst := burst + UInt(1)
+    }
   }
   
   // Advance the atomic state machine
@@ -140,7 +144,7 @@ class AHBTileLinkIn(implicit val p: Parameters) extends Module
   val addr_burst = Mux(isReadBurst, addr_beat + burst, addr_beat)
   val addr_byte  = Mux(isPut, put_addr, io.acquire.bits.addr_byte())
   val ahbAddr    = Cat(addr_block, addr_burst, addr_byte)
-  val ahbSize    = Mux(isPut, put_size, Mux(isBurst, UInt(log2Up(tlDataBytes)), io.acquire.bits.op_size()))
+  val ahbSize    = Mux(isPut, put_size, Mux(isBurst, UInt(log2Ceil(tlDataBytes)), io.acquire.bits.op_size()))
   
   val ahbBurst = MuxLookup(io.acquire.bits.a_type, HBURST_SINGLE, Array(
     Acquire.getType         -> HBURST_SINGLE,
@@ -221,10 +225,12 @@ class AHBTileLinkIn(implicit val p: Parameters) extends Module
   assert(!io.acquire.valid || !isBurst || burst === firstBurst || debugBurst === addr_burst - burst, "TileLink putBlock beats not sequential")
   // We better not get an incomplete TileLink acquire
   assert(!io.acquire.valid || isBurst  || burst === firstBurst, "TileLink never completed a putBlock")
+  // If we disabled atomic support, we better not see a request
+  assert(!io.acquire.bits.is(Acquire.putAtomicType) || Bool(supportAtomics))
 }
 
 // AHB stage2: execute AHBRequests
-class AHBBusMaster(implicit val p: Parameters) extends Module
+class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) extends Module
     with HasHastiParameters
     with HasTileLinkParameters
     with HasAddrMapParameters {
@@ -325,7 +331,7 @@ class AHBBusMaster(implicit val p: Parameters) extends Module
     addr_beat0      := io.request.bits.addr_beat
   }
   
-  // Execute Atomic ops
+  // Execute Atomic ops; unused and optimized away if !supportAtomics
   val amo_p = p.alterPartial({
     case CacheBlockOffsetBits => hastiAddrBits
     case AmoAluOperandBits    => hastiDataBits
@@ -340,7 +346,7 @@ class AHBBusMaster(implicit val p: Parameters) extends Module
   // Transfer bulk data phase
   // NOTE: this introduces no bubbles because addrReady is a superset of dataReady
   when (dataReady) {
-    hwdata1         := alu.io.out  // hwdata1 := hwdata0
+    hwdata1         := Mux(Bool(supportAtomics), alu.io.out, hwdata0)
     respondTL1      := respondTL0
     latchAtom1      := latchAtom0
     g_type1         := g_type0
@@ -367,7 +373,7 @@ class AHBBusMaster(implicit val p: Parameters) extends Module
   assert(!io.ahb.hresp, "AHB hresp error detected and cannot be reported via TileLink")
 }
 
-class AHBBridge(implicit val p: Parameters) extends Module
+class AHBBridge(supportAtomics: Boolean = true)(implicit val p: Parameters) extends Module
     with HasHastiParameters
     with HasTileLinkParameters
     with HasAddrMapParameters {
@@ -383,11 +389,11 @@ class AHBBridge(implicit val p: Parameters) extends Module
   // AHB does not permit bursts to cross a 1KB boundary
   require (tlDataBits * tlDataBeats <= 1024*8)
   // tlDataBytes must be a power of 2
-  require (1 << log2Up(tlDataBytes) == tlDataBytes)
+  require (1 << log2Ceil(tlDataBytes) == tlDataBytes)
   
   // Create the sub-blocks
-  val fsm = Module(new AHBTileLinkIn)
-  val bus = Module(new AHBBusMaster)
+  val fsm = Module(new AHBTileLinkIn(supportAtomics))
+  val bus = Module(new AHBBusMaster(supportAtomics))
   val pad = Module(new Queue(new Grant, 4))
   
   fsm.io.acquire <> Queue(io.tl.acquire, 2) // Pipe is also acceptable
