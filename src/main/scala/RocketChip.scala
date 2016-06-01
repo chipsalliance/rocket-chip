@@ -59,7 +59,10 @@ trait HasTopLevelParameters {
     p(TLKey("L1toL2")).nCachelessClients - p(ExtraL1Clients)
   lazy val htifW = p(HtifKey).width
   lazy val csrAddrBits = 12
+  lazy val tMemChannels = p(TMemoryChannels)
   lazy val nMemChannels = p(NMemoryChannels)
+  lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
+  lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
   lazy val nBanks = nMemChannels*nBanksPerMemChannel
   lazy val lsb = p(BankIdLSB)
@@ -88,7 +91,8 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 }
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
-  val mem_axi = Vec(nMemChannels, new NastiIO)
+  val mem_axi = Vec(nMemAXIChannels, new NastiIO)
+  val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
@@ -158,6 +162,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   io.mmio_axi <> uncore.io.mmio_axi
   io.mmio_ahb <> uncore.io.mmio_ahb
   io.mem_axi <> uncore.io.mem_axi
+  io.mem_ahb <> uncore.io.mem_ahb
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -169,7 +174,8 @@ class Uncore(implicit val p: Parameters) extends Module
     with HasTopLevelParameters {
   val io = new Bundle {
     val host = new HostIO(htifW)
-    val mem_axi = Vec(nMemChannels, new NastiIO)
+    val mem_axi = Vec(nMemAXIChannels, new NastiIO)
+    val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
@@ -194,6 +200,7 @@ class Uncore(implicit val p: Parameters) extends Module
 
   // Wire the htif to the memory port(s) and host interface
   io.mem_axi <> outmemsys.io.mem_axi
+  io.mem_ahb <> outmemsys.io.mem_ahb
   if(p(UseHtifClockDiv)) {
     VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr, io.host, htifW)
   } else {
@@ -271,7 +278,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val htif_uncached = (new ClientUncachedTileLinkIO).flip
     val incoherent = Vec(nTiles, Bool()).asInput
-    val mem_axi = Vec(nMemChannels, new NastiIO)
+    val mem_axi = Vec(nMemAXIChannels, new NastiIO)
+    val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
   }
 
@@ -332,5 +340,12 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     // TODO why is this happening here?  Would 0000 (device) be OK instead?
     nasti.ar.bits.cache := UInt("b0011")
     nasti.aw.bits.cache := UInt("b0011")
+  }
+  
+  // Abuse the fact that zip takes the shorter of the two lists
+  for ((ahb, tl) <- io.mem_ahb zip mem_ic.io.out) {
+    val bridge = Module(new AHBBridge)
+    ahb <> bridge.io.ahb
+    bridge.io.tl <> tl
   }
 }
