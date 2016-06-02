@@ -19,7 +19,7 @@ class ROMSlave(contents: Seq[Byte])(implicit val p: Parameters) extends Module
   when (io.acquire.fire()) { addr_beat := io.acquire.bits.addr_beat }
 
   val byteWidth = tlDataBits / 8
-  val rows = (contents.size + byteWidth - 1)/byteWidth + 1
+  val rows = (contents.size + byteWidth - 1)/byteWidth
   val rom = Vec.tabulate(rows) { i =>
     val slice = contents.slice(i*byteWidth, (i+1)*byteWidth)
     UInt(slice.foldRight(BigInt(0)) { case (x,y) => (y << 8) + (x.toInt & 0xFF) }, byteWidth*8)
@@ -52,7 +52,7 @@ class NastiROM(contents: Seq[Byte])(implicit p: Parameters) extends Module {
   io.b.valid := Bool(false)
 
   val byteWidth = io.r.bits.nastiXDataBits / 8
-  val rows = (contents.size + byteWidth - 1)/byteWidth + 1
+  val rows = (contents.size + byteWidth - 1)/byteWidth
   val rom = Vec.tabulate(rows) { i =>
     val slice = contents.slice(i*byteWidth, (i+1)*byteWidth)
     UInt(slice.foldRight(BigInt(0)) { case (x,y) => (y << 8) + (x.toInt & 0xFF) }, byteWidth*8)
