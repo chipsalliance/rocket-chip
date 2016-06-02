@@ -802,7 +802,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
     // Inspired by ROMSlave
     val romContents = cfg.debugRomContents.get
     val romByteWidth = tlDataBits / 8
-    val romRows =  Math.ceil((romContents.size + romByteWidth)/romByteWidth).toInt
+    val romRows = (romContents.size + romByteWidth - 1)/romByteWidth
     val romMem = Vec.tabulate(romRows) { ii =>
       val slice = romContents.slice(ii*romByteWidth, (ii+1)*romByteWidth)
       UInt(slice.foldRight(BigInt(0)) { case (x,y) => ((y << 8) + (x.toInt & 0xFF))}, width = romByteWidth*8)
