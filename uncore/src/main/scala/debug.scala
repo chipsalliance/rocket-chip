@@ -417,7 +417,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   val haltnotStatus = Wire(Vec(numHaltnotStatus, Bits(width = 32)))
   val rdHaltnotStatus = Wire(Bits(width = 32))
 
-  val haltnotSummary = Vec(haltnotStatus.map(_.orR)).toBits
+  val haltnotSummary = Cat(haltnotStatus.map(_.orR).reverse)
 
   // --- Debug RAM
 
@@ -539,7 +539,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   }
 
   for (ii <- 0 until numHaltnotStatus) {
-    haltnotStatus(ii) := Vec(haltnotRegs.slice(ii * 32, (ii + 1) * 32)).toBits
+    haltnotStatus(ii) := Cat(haltnotRegs.slice(ii * 32, (ii + 1) * 32).reverse)
   }
 
   //--------------------------------------------------------------
