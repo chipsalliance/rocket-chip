@@ -6,7 +6,6 @@ import Chisel._
 
 import junctions._
 import cde.{Parameters, Config, Field}
-import Math.{ceil, max, min}
 
 // *****************************************
 // Constants which are interesting even
@@ -413,12 +412,12 @@ class DebugModule ()(implicit val p:cde.Parameters)
   val interruptRegs = Reg(init=Vec.fill(cfg.nComponents){Bool(false)})
 
   val haltnotRegs     = Reg(init=Vec.fill(cfg.nComponents){Bool(false)})
-  val numHaltnotStatus = (Math.ceil(cfg.nComponents / 32)).toInt
+  val numHaltnotStatus = ((cfg.nComponents - 1) / 32) + 1
 
   val haltnotStatus = Wire(Vec(numHaltnotStatus, Bits(width = 32)))
   val rdHaltnotStatus = Wire(Bits(width = 32))
-  
-  val haltnotSummary = Wire(Bits(width = 32))
+
+  val haltnotSummary = Vec(haltnotStatus.map(_.orR)).toBits
 
   // --- Debug RAM
 
@@ -540,19 +539,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   }
 
   for (ii <- 0 until numHaltnotStatus) {
-    for (jj <- 0 until 32) {
-      val component = ii * 32 + jj
-      if (component < cfg.nComponents){
-        haltnotStatus(ii)(jj) := haltnotRegs(component)
-      } else {
-        haltnotStatus(ii)(jj) := Bool(false)
-      }
-    }
-  }
-
-  haltnotSummary := Bits(0)
-  for (ii <- 0 until numHaltnotStatus) {
-    haltnotSummary(ii) := haltnotStatus(ii).orR
+    haltnotStatus(ii) := Vec(haltnotRegs.slice(ii * 32, (ii + 1) * 32)).toBits
   }
 
   //--------------------------------------------------------------
