@@ -21,7 +21,6 @@ object Util {
       else Cat(Fill(n - x.getWidth, x(x.getWidth-1)), x)
   }
 
-  implicit def intToUnsigned(x: Int): Unsigned = new Unsigned(x)
   implicit def booleanToIntConv(x: Boolean) = new AnyRef {
     def toInt: Int = if (x) 1 else 0
   }
