@@ -593,7 +593,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   sbRamWrData := sbWrData
 
   require (dbRamAddrWidth >= ramAddrWidth)    // SB accesses less than 32 bits Not Implemented.
-  val dbRamWrMask = Vec.fill(1 << (dbRamAddrWidth - ramAddrWidth)){Fill(dbRamDataWidth, UInt(1, width=1))}
+  val dbRamWrMask = Wire(init=Vec.fill(1 << (dbRamAddrWidth - ramAddrWidth)){Fill(dbRamDataWidth, UInt(1, width=1))})
 
   if (dbRamDataWidth < ramDataWidth){
 
