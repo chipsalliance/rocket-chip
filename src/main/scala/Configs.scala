@@ -25,7 +25,7 @@ class BaseConfig extends Config (
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
     lazy val internalIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
-      entries += AddrMapEntry("debug", MemSize(1<<12, 1<<12, MemAttr(0)))
+      entries += AddrMapEntry("debug", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RWX)))
       entries += AddrMapEntry("bootrom", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("rtc", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
       for (i <- 0 until site(NTiles))
@@ -205,6 +205,7 @@ class BaseConfig extends Config (
       case RetireWidth => 1
       case UseVM => true
       case UseUser => true
+      case UseDebug => true
       case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
@@ -224,6 +225,7 @@ class BaseConfig extends Config (
       case NExtInterrupts => 2
       case NExtMMIOChannels => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), site(NExtInterrupts))
+      case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
       case SFMALatency => 2
       case DFMALatency => 3
