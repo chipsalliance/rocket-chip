@@ -4,6 +4,7 @@ package rocketchip
 
 import Chisel._
 import cde.Parameters
+import uncore.{DbBusConsts, DMKey}
 
 object TestBenchGeneration extends FileSystemUtilities {
   def generateVerilogFragment(
@@ -206,6 +207,22 @@ object TestBenchGeneration extends FileSystemUtilities {
     .io_interrupts_$i (1'b0),
 """ } mkString
 
+    val daw = p(DMKey).nDebugBusAddrSize
+    val dow = DbBusConsts.dbOpSize
+    val ddw = DbBusConsts.dbDataSize
+    val debug_bus = s"""
+  .io_debug_req_ready( ),
+  .io_debug_req_valid(1'b0),
+  .io_debug_req_bits_addr($daw'b0),
+  .io_debug_req_bits_op($dow'b0),
+  .io_debug_req_bits_data($ddw'b0),
+  .io_debug_resp_ready(1'b0),
+  .io_debug_resp_valid( ),
+  .io_debug_resp_bits_resp( ),
+  .io_debug_resp_bits_data( ),
+"""
+
+
     val instantiation = s"""
 `ifdef FPGA
   assign htif_clk = clk;
@@ -219,6 +236,8 @@ object TestBenchGeneration extends FileSystemUtilities {
     $nasti_connections
 
     $interrupts
+
+    $debug_bus
 
 `ifndef FPGA
     .io_host_clk(htif_clk),

@@ -81,6 +81,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(nMemChannels, new NastiIO)
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   val mmio = Vec(p(NExtMMIOChannels), new NastiIO)
+  val debug = new DebugBusIO()(p).flip
 }
 
 object TopUtils {
@@ -142,6 +143,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
   uncore.io.interrupts <> io.interrupts
+  uncore.io.debugBus <> io.debug
 
   io.mmio <> uncore.io.mmio
   io.mem <> uncore.io.mem
@@ -162,6 +164,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val prci = Vec(nTiles, new PRCITileIO).asOutput
     val mmio = Vec(p(NExtMMIOChannels), new NastiIO)
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
+    val debugBus = new DebugBusIO()(p).flip
   }
 
   val htif = Module(new Htif(CSRs.mreset)) // One HTIF module per chip
@@ -211,6 +214,11 @@ class Uncore(implicit val p: Parameters) extends Module
       plic.io.devices(i) <> gateway.io.plic
     }
 
+    val debugModule = Module(new DebugModule)
+    val debugModuleAddr = ioAddrHashMap("int:debug")
+    debugModule.io.tl <> mmioNetwork.io.out(debugModuleAddr.port)
+    debugModule.io.db <> io.debugBus
+
     for (i <- 0 until nTiles) {
       val prci = Module(new PRCI)
       val prciAddr = ioAddrHashMap(s"int:prci$i")
@@ -221,7 +229,7 @@ class Uncore(implicit val p: Parameters) extends Module
       prci.io.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
       if (p(UseVM))
         prci.io.interrupts.seip := plic.io.harts(plic.cfg.context(i, 'S'))
-      prci.io.interrupts.debug := Bool(false)
+      prci.io.interrupts.debug := debugModule.io.debugInterrupts(i)
 
       io.prci(i) := prci.io.tile
       io.prci(i).reset := Reg(next=Reg(next=htif.io.cpu(i).reset)) // TODO
@@ -230,10 +238,6 @@ class Uncore(implicit val p: Parameters) extends Module
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
     val bootROMAddr = ioAddrHashMap("int:bootrom")
     bootROM.io <> mmioNetwork.io.out(bootROMAddr.port)
-
-    val debugModule = Module(new ROMSlave(Seq())) // TODO
-    val debugModuleAddr = ioAddrHashMap("int:debug")
-    debugModule.io <> mmioNetwork.io.out(debugModuleAddr.port)
 
     val mmioEndpoint = p(NExtMMIOChannels) match {
       case 0 => Module(new NastiErrorSlave).io

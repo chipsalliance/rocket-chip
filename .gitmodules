@@ -6,7 +6,7 @@
 	url = https://github.com/dramninjasUMD/DRAMSim2.git
 [submodule "riscv-tools"]
 	path = riscv-tools
-	url = https://github.com/ucb-bar/riscv-tools.git
+	url = https://github.com/riscv/riscv-tools.git
 [submodule "rocket"]
 	path = rocket
 	url = https://github.com/ucb-bar/rocket.git
