@@ -95,9 +95,9 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
   }
 
   val acq = Queue(io.tl.acquire, 1)
-  val read = acq.valid && acq.bits.isBuiltInType(Acquire.getType)
-  val write = acq.valid && acq.bits.isBuiltInType(Acquire.putType)
-  assert(!acq.valid || read || write, "unsupported PLIC operation")
+  val read = acq.fire() && acq.bits.isBuiltInType(Acquire.getType)
+  val write = acq.fire() && acq.bits.isBuiltInType(Acquire.putType)
+  assert(!acq.fire() || read || write, "unsupported PLIC operation")
   val addr = acq.bits.full_addr()(log2Up(cfg.size)-1,0)
 
   val claimant =
@@ -114,10 +114,10 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
       pending(myMaxDev) := false
     }.elsewhen (write && acq.bits.wmask()(cfg.claimOffset)) {
       val dev = (acq.bits.data >> (8 * cfg.claimOffset))(log2Up(pending.size)-1,0)
-      when (write && myEnables(dev)) { io.devices(dev-1).complete := true }
+      when (myEnables(dev)) { io.devices(dev-1).complete := true }
     }.elsewhen (write) {
       val thresh = acq.bits.data(log2Up(pending.size)-1,0)
-      when (write) { threshold(claimant) := thresh }
+      threshold(claimant) := thresh
     }
   }.elsewhen (addr >= cfg.enableBase) {
     rdata := myEnables
