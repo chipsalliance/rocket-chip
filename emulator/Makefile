@@ -7,7 +7,6 @@ sim_dir = .
 output_dir = $(sim_dir)/output
 
 BACKEND = c
-#CONFIG ?= ZscaleConfig
 CONFIG ?= DefaultCPPConfig
 
 include $(base_dir)/Makefrag
@@ -74,19 +73,19 @@ ifneq ($(MAKECMDGOALS),clean)
 -include $(generated_dir)/$(MODEL).$(CONFIG).d
 endif
 
-$(output_dir)/%.run: $(output_dir)/%.hex emulator-$(MODEL)-$(CONFIG)
-	./$(emu) +dramsim +max-cycles=$(timeout_cycles) +loadmem=$< none 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
+$(output_dir)/%.run: $(output_dir)/% emulator-$(MODEL)-$(CONFIG)
+	./$(emu) +dramsim +max-cycles=$(timeout_cycles) $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
 
-$(output_dir)/%.out: $(output_dir)/%.hex emulator-$(MODEL)-$(CONFIG)
-	./$(emu) +dramsim +max-cycles=$(timeout_cycles) +verbose +loadmem=$< none $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
+$(output_dir)/%.out: $(output_dir)/% emulator-$(MODEL)-$(CONFIG)
+	./$(emu) +dramsim +max-cycles=$(timeout_cycles) +verbose $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
 
-$(output_dir)/%.vcd: $(output_dir)/%.hex emulator-$(MODEL)-$(CONFIG)-debug
-	./$(emu_debug) +dramsim +max-cycles=$(timeout_cycles) +verbose -v$@ +loadmem=$< none $(disasm) $(patsubst %.vcd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+$(output_dir)/%.vcd: $(output_dir)/% emulator-$(MODEL)-$(CONFIG)-debug
+	./$(emu_debug) +dramsim +max-cycles=$(timeout_cycles) +verbose -v$@ $< $(disasm) $(patsubst %.vcd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
-$(output_dir)/%.vpd: $(output_dir)/%.hex emulator-$(MODEL)-$(CONFIG)-debug
+$(output_dir)/%.vpd: $(output_dir)/% emulator-$(MODEL)-$(CONFIG)-debug
 	rm -rf $@.vcd && mkfifo $@.vcd
 	vcd2vpd $@.vcd $@ > /dev/null &
-	./$(emu_debug) +dramsim +max-cycles=$(timeout_cycles) +verbose -v$@.vcd +loadmem=$< none $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+	./$(emu_debug) +dramsim +max-cycles=$(timeout_cycles) +verbose -v$@.vcd $< $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
 run: run-asm-tests run-bmark-tests
 run-debug: run-asm-tests-debug run-bmark-tests-debug

@@ -8,22 +8,21 @@ object BuildSettings extends Build {
   override lazy val settings = super.settings ++ Seq(
     organization := "berkeley",
     version      := "1.2",
-    scalaVersion := "2.11.6",
+    scalaVersion := "2.11.7",
     parallelExecution in Global := false,
     traceLevel   := 15,
     scalacOptions ++= Seq("-deprecation","-unchecked"),
     libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
   )
 
-  lazy val chisel     = project
+  lazy val chisel     = project in file(sys.env.getOrElse("CHISEL_SUBMODULE", "chisel2"))
   lazy val cde        = project in file("context-dependent-environments")
   lazy val hardfloat  = project.dependsOn(chisel)
   lazy val junctions  = project.dependsOn(chisel, cde)
   lazy val uncore     = project.dependsOn(junctions)
   lazy val rocket     = project.dependsOn(hardfloat, uncore)
-  lazy val zscale     = project.dependsOn(rocket)
   lazy val groundtest = project.dependsOn(rocket)
-  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(zscale, groundtest)
+  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(groundtest)
 
   lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
   lazy val make = inputKey[Unit]("trigger backend-specific makefile command")

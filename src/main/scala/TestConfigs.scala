@@ -6,8 +6,9 @@ import rocket._
 import uncore._
 import junctions._
 import scala.collection.mutable.LinkedHashSet
-import cde.{Parameters, Config, Dump, Knob}
+import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 import scala.math.max
+import ConfigUtils._
 
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
@@ -16,17 +17,20 @@ class WithGroundTest extends Config(
         coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = site(NTiles),
-        nCachelessClients = site(NTiles) + (if (site(UseDma)) 2 else 1),
-        maxClientXacts = max(site(NMSHRs) + 1,
-                             max(site(GroundTestMaxXacts),
-                                 if (site(UseDma)) 4 else 1)),
-        maxClientsPerPort = max(if (site(BuildRoCC).isEmpty) 1 else 2,
-                                if (site(UseDma)) site(NDmaTransactors) + 1 else 1),
+        nCachelessClients = site(NTiles) + site(ExtraL1Clients),
+        maxClientXacts = max(
+          site(NMSHRs) + 1,
+          if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
+        maxClientsPerPort = 2,
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
-      TestGeneration.addSuite(new AssemblyGroundTestSuite)
-      TestGeneration.addSuite(new BenchmarkGroundTestSuite)
+      val groundtest = if (site(XLen) == 64)
+        DefaultTestSuites.groundtest64
+      else
+        DefaultTestSuites.groundtest32
+      TestGeneration.addSuite(groundtest("p"))
+      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
       (0 until site(NTiles)).map { i =>
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)
@@ -34,7 +38,11 @@ class WithGroundTest extends Config(
       }
     }
     case GroundTestMaxXacts => 1
+    case GroundTestCSRs => Nil
+    case TohostAddr => BigInt("80001000", 16)
+    case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
+    case _ => throw new CDEMatchError
   })
 
 class WithMemtest extends Config(
@@ -43,19 +51,22 @@ class WithMemtest extends Config(
     case GenerateUncached => true
     case GenerateCached => true
     case MaxGenerateRequests => 128
-    case GeneratorStartAddress => 0
+    case GeneratorStartAddress => site(GlobalAddrHashMap)("mem").start
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
+    case _ => throw new CDEMatchError
   })
 
 class WithCacheFillTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new CacheFillTest()(p))
+    case _ => throw new CDEMatchError
   },
   knobValues = {
     case "L2_WAYS" => 4
     case "L2_CAPACITY_IN_KB" => 4
+    case _ => throw new CDEMatchError
   })
 
 class WithBroadcastRegressionTest extends Config(
@@ -65,6 +76,7 @@ class WithBroadcastRegressionTest extends Config(
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.broadcastRegressions(p)
     case GroundTestMaxXacts => 3
+    case _ => throw new CDEMatchError
   })
 
 class WithCacheRegressionTest extends Config(
@@ -74,11 +86,11 @@ class WithCacheRegressionTest extends Config(
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.cacheRegressions(p)
     case GroundTestMaxXacts => 3
+    case _ => throw new CDEMatchError
   })
 
 class WithDmaTest extends Config(
   (pname, site, here) => pname match {
-    case UseDma => true
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new DmaTest()(p))
     case DmaTestSet => DmaTestCases(
@@ -90,28 +102,33 @@ class WithDmaTest extends Config(
       (0x00800008, 0x00800008, 64))
     case DmaTestDataStart => 0x3012CC00
     case DmaTestDataStride => 8
+    case _ => throw new CDEMatchError
   })
 
 class WithDmaStreamTest extends Config(
   (pname, site, here) => pname match {
-    case UseDma => true
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new DmaStreamTest()(p))
     case DmaStreamTestSettings => DmaStreamTestConfig(
       source = 0x10, dest = 0x28, len = 0x18,
       size = site(StreamLoopbackWidth) / 8)
+    case GroundTestCSRs =>
+      Seq(DmaCtrlRegNumbers.CSR_BASE + DmaCtrlRegNumbers.OUTSTANDING)
+    case _ => throw new CDEMatchError
   })
 
 class WithNastiConverterTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new NastiConverterTest()(p))
+    case _ => throw new CDEMatchError
   })
 
 class WithUnitTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new UnitTestSuite()(p))
+    case _ => throw new CDEMatchError
   })
 
 class WithTraceGen extends Config(
@@ -121,6 +138,7 @@ class WithTraceGen extends Config(
     case NGenerators => site(NTiles)
     case MaxGenerateRequests => 128
     case AddressBag => List(0x8, 0x10, 0x108, 0x100008)
+    case _ => throw new CDEMatchError
   })
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
@@ -128,7 +146,7 @@ class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 class CacheFillTestConfig extends Config(
-  new WithCacheFillTest ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
 class BroadcastRegressionTestConfig extends Config(
   new WithBroadcastRegressionTest ++ new GroundTestConfig)
 class CacheRegressionTestConfig extends Config(
@@ -140,5 +158,5 @@ class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
 class TraceGenConfig extends Config(new With2Cores ++ new WithL2Cache ++ new WithTraceGen ++ new GroundTestConfig)
 
 class FancyMemtestConfig extends Config(
-  new With2Cores ++ new With2MemoryChannels ++ new With2BanksPerMemChannel ++
+  new With2Cores ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)

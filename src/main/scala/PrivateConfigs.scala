@@ -70,6 +70,7 @@ class WithHwachaTests extends Config(
         nPTWPorts = 2 + site(HwachaNLanes), // icache + vru + vmus
         useFPU = true))
     }
+    case _ => throw new CDEMatchError
   }
 )
 
@@ -80,27 +81,24 @@ class HwachaCPPConfig extends Config(new WithHwachaTests ++ new DefaultHwachaCon
 class EOS24Config extends Config(new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
 class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)
 
-class WithoutBackupMemoryPort extends Config(
-  (pname,site,here) => pname match {
-    case UseBackupMemoryPort => false
-  }
-)
-
 class With5L2AcquireXacts extends Config(
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
+    case _ => throw new CDEMatchError
   }
 )
 
 class With9L2AcquireXacts extends Config(
   (pname,site,here) => pname match {
     case NAcquireTransactors => 9
+    case _ => throw new CDEMatchError
   }
 )
 
 class With16L2AcquireXacts extends Config(
   (pname,site,here) => pname match {
     case NAcquireTransactors => 16
+    case _ => throw new CDEMatchError
   }
 )
 
@@ -108,18 +106,21 @@ class With16L2AcquireXacts extends Config(
 class With2Lanes extends Config(
   (pname,site,here) => pname match {
     case HwachaNLanes => 2
+    case _ => throw new CDEMatchError
   }
 )
 
 class With4Lanes extends Config(
   (pname,site,here) => pname match {
     case HwachaNLanes => 4
+    case _ => throw new CDEMatchError
   }
 )
 
 class With32BtbEntires extends Config(
   (pname,site,here) => pname match {
     case BtbKey => BtbParameters(nEntries = 32)
+    case _ => throw new CDEMatchError
   }
 )
 
@@ -127,31 +128,34 @@ class Process28nmConfig extends Config(
   (pname,site,here) => pname match {
     case SFMALatency => 3
     case DFMALatency => 4
+    case _ => throw new CDEMatchError
   }
 )
 
 class WithoutConfPrec extends Config(
   (pname,site,here) => pname match {
     case HwachaConfPrec => false
+    case _ => throw new CDEMatchError
   }
 )
 
-class VRU10Outstanding extends Config(
+class WithSmallPredRF extends Config(
   (pname,site,here) => pname match {
-    case HwachaVRUThrottle => 10
+    case HwachaNPredRFEntries => 128
+    case _ => throw new CDEMatchError
   }
 )
 
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
-  new WithoutBackupMemoryPort ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
+  new With2MemoryChannels ++ new With4BanksPerMemChannel ++
   new With5L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
     case "HWACHA_BUILD_VRU" => true
-    // WithoutBackupMemoryPort not included here because it doesn't have knobs.
     case x => (new Config(new With2MemoryChannels ++ new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
+    case _ => throw new CDEMatchError
   }
 
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = {

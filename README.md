@@ -2,7 +2,7 @@ Rocket Chip Generator [![Build Status](https://travis-ci.org/ucb-bar/rocket-chip
 =====================
 
 This repository contains the Rocket chip generator necessary to instantiate
-the RISC-V Rocket Core.
+the RISC-V Rocket Core. For more information on Rocket Chip, please consult our [technical report](http://www.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-17.html).
 
 ## Table of Contents
 
@@ -22,18 +22,26 @@ the RISC-V Rocket Core.
     $ git clone https://github.com/ucb-bar/rocket-chip.git
     $ cd rocket-chip
     $ git submodule update --init
-    $ cd riscv-tools
-    $ git submodule update --init --recursive riscv-tests
 
 ### Setting up the RISCV environment variable
 
 To build the rocket-chip repository, you must point the RISCV
-environment variable to your riscv-tools installation directory. If you
-do not yet have riscv-tools installed, please follow the directions in
-the
-[riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
+environment variable to your riscv-tools installation directory. 
 
     $ export RISCV=/path/to/riscv/toolchain/installation
+    
+The riscv-tools repository is already included in 
+rocket-chip as a git submodule. You **must** build this version 
+of riscv-tools:
+
+    $ cd rocket-chip/riscv-tools
+    $ git submodule update --init --recursive
+    $ export RISCV=/path/to/install/riscv/toolchain
+    $ ./build.sh
+   
+For more information (or if you run into any issues), please consult the
+[riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
+
 
 ### Building The Project
 
@@ -365,7 +373,6 @@ Top.DefaultVLSIConfig.conf file:
     Top.DefaultVLSIConfig.prm
     Top.DefaultVLSIConfig.v
     consts.DefaultVLSIConfig.vh
-    memdessertMemDessert.DefaultVLSIConfig.v
     $ cat $ROCKETCHIP/vsim/generated-src/*.conf
     name MetadataArray_tag_arr depth 128 width 84 ports mwrite,read mask_gran 21
     name ICache_tag_array depth 128 width 38 ports mrw mask_gran 19
@@ -448,3 +455,8 @@ post, so please stay tuned.
 - Huy Vo
 - Andrew Waterman
 
+## <a name="attribution"></a> Attribution
+
+If used for research, please cite Rocket Chip by the technical report:
+
+Krste Asanović, Rimas Avižienis, Jonathan Bachrach, Scott Beamer, David Biancolin, Christopher Celio, Henry Cook, Palmer Dabbelt, John Hauser, Adam Izraelevitz, Sagar Karandikar, Benjamin Keller, Donggyu Kim, John Koenig, Yunsup Lee, Eric Love, Martin Maas, Albert Magyar, Howard Mao, Miquel Moreto, Albert Ou, David Patterson, Brian Richards, Colin Schmidt, Stephen Twigg, Huy Vo, and Andrew Waterman, _[The Rocket Chip Generator](http://www.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-17.html)_, Technical Report UCB/EECS-2016-17, EECS Department, University of California, Berkeley, April 2016

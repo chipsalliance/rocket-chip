@@ -9,28 +9,23 @@
 
 void mm_t::write(uint64_t addr, uint8_t *data, uint64_t strb, uint64_t size)
 {
-  if (addr > this->size) {
-    fprintf(stderr, "Invalid write address %lx\n", addr);
-    exit(EXIT_FAILURE);
-  }
+  strb &= ((1 << size) - 1) << (addr % word_size);
+  addr %= this->size;
 
-  uint8_t *base = this->data + addr;
-  for (int i = 0; i < size; i++) {
+  uint8_t *base = this->data + (addr / word_size) * word_size;
+  for (int i = 0; i < word_size; i++) {
     if (strb & 1)
       base[i] = data[i];
     strb >>= 1;
   }
 }
 
-std::vector<char> mm_t::read(uint64_t addr, uint64_t size)
+std::vector<char> mm_t::read(uint64_t addr)
 {
-  if (addr > this->size) {
-    fprintf(stderr, "Invalid read address %lx\n", addr);
-    exit(EXIT_FAILURE);
-  }
+  addr %= this->size;
 
   uint8_t *base = this->data + addr;
-  return std::vector<char>(base, base + size);
+  return std::vector<char>(base, base + word_size);
 }
 
 void mm_t::init(size_t sz, int wsz, int lsz)
@@ -81,19 +76,19 @@ void mm_magic_t::tick(
   bool b_fire = b_valid() && b_ready;
 
   if (ar_fire) {
-    uint64_t word_size = (1 << ar_size);
+    uint64_t start_addr = (ar_addr / word_size) * word_size;
     for (int i = 0; i <= ar_len; i++) {
-      auto dat = read(ar_addr + i * word_size, word_size);
+      auto dat = read(start_addr + i * word_size);
       rresp.push(mm_rresp_t(ar_id, dat, i == ar_len));
     }
   }
 
   if (aw_fire) {
     store_addr = aw_addr;
-    store_size = (1 << aw_size);
     store_id = aw_id;
-    store_inflight = true;
     store_count = aw_len + 1;
+    store_size = 1 << aw_size;
+    store_inflight = true;
   }
 
   if (w_fire) {
