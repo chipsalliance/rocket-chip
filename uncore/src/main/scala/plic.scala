@@ -49,7 +49,7 @@ case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriori
 
   require(nDevices > 0 && nDevices <= maxDevices)
   require(nHarts > 0 && nHarts <= maxHarts)
-  require(nPriorities > 0 && nPriorities <= nDevices)
+  require(nPriorities >= 0 && nPriorities <= nDevices)
 }
 
 /** Platform-Level Interrupt Controller */
@@ -62,7 +62,9 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
     val tl = new ClientUncachedTileLinkIO().flip
   }
 
-  val priority = Reg(Vec(cfg.nDevices+1, UInt(width=log2Up(cfg.nPriorities+1))))
+  val priority =
+    if (cfg.nPriorities > 0) Reg(Vec(cfg.nDevices+1, UInt(width=log2Up(cfg.nPriorities+1))))
+    else Wire(init=Vec.fill(cfg.nDevices+1)(UInt(1)))
   val pending = Reg(init=Vec.fill(cfg.nDevices+1){Bool(false)})
   val enables = Reg(Vec(cfg.nHarts, UInt(width = cfg.nDevices+1)))
   val threshold = Reg(Vec(cfg.nHarts, UInt(width = log2Up(cfg.nPriorities+1))))
@@ -147,7 +149,7 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
       when (cond) {
         rdata := Cat(priority.slice(i, i + regsPerBeat).map(p => Cat(UInt(0, 16-p.getWidth), p)).reverse)
         for (j <- 0 until (regsPerBeat min (priority.size - i))) {
-          when (write) { priority(i+j) := masked_wdata >> (j * (8 << regAddrBits)) }
+          if (cfg.nPriorities > 0) when (write) { priority(i+j) := masked_wdata >> (j * (8 << regAddrBits)) }
         }
       }
     }
