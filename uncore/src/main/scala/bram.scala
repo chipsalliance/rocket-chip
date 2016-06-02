@@ -74,13 +74,13 @@ class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
   val wsize = Reg(UInt(width = SZ_HSIZE))
   val ram = SeqMem(depth, Vec(hastiDataBytes, Bits(width = 8)))
 
-  val max_wsize = log2Ceil(hastiDataBytes)
+  val max_size = log2Ceil(hastiDataBytes)
   val wmask_lut = MuxLookup(wsize, SInt(-1, hastiDataBytes).asUInt,
-    (0 until max_wsize).map(sz => (UInt(sz) -> UInt((1 << (1 << sz)) - 1))))
-  val wmask = (wmask_lut << waddr(max_wsize - 1, 0))(hastiDataBytes - 1, 0)
+    (0 until max_size).map(sz => (UInt(sz) -> UInt((1 << (1 << sz)) - 1))))
+  val wmask = (wmask_lut << waddr(max_size - 1, 0))(hastiDataBytes - 1, 0)
 
   val is_trans = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
-  val raddr = io.haddr >> UInt(2)
+  val raddr = io.haddr >> UInt(max_size)
   val ren = is_trans && !io.hwrite
   val bypass = Reg(init = Bool(false))
 
@@ -90,10 +90,10 @@ class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
     wvalid := Bool(true)
   } .otherwise { wvalid := Bool(false) }
 
-  when (ren) { bypass := wvalid && (waddr >> UInt(2)) === raddr }
+  when (ren) { bypass := wvalid && (waddr >> UInt(max_size)) === raddr }
 
   when (wvalid) {
-    ram.write(waddr >> UInt(2), wdata, wmask.toBools)
+    ram.write(waddr >> UInt(max_size), wdata, wmask.toBools)
   }
 
   val rdata = ram.read(raddr, ren)
