@@ -432,8 +432,8 @@ class DebugModule ()(implicit val p:cde.Parameters)
   val sbRamAddrWidth    = log2Up((cfg.nDebugRamBytes * 8) / sbRamDataWidth)
   val sbRamAddrOffset   = log2Up(tlDataBits/8)
 
-  val ramDataWidth = max(dbRamDataWidth, sbRamDataWidth)
-  val ramAddrWidth  = min(dbRamAddrWidth, sbRamAddrWidth)
+  val ramDataWidth = dbRamDataWidth max sbRamDataWidth
+  val ramAddrWidth  = dbRamAddrWidth min sbRamAddrWidth
   val ramMem    = Mem(1 << ramAddrWidth , UInt(width=ramDataWidth))
   val ramAddr   = Wire(UInt(width=ramAddrWidth))
   val ramRdData = Wire(UInt(width=ramDataWidth))

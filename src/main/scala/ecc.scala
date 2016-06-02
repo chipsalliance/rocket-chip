@@ -47,7 +47,7 @@ class ParityCode extends Code
 class SECCode extends Code
 {
   def width(k: Int) = {
-    val m = new Unsigned(k).log2 + 1
+    val m = log2Floor(k) + 1
     k + m + (if((1 << m) < m+k+1) 1 else 0)
   }
   def encode(x: UInt) = {
