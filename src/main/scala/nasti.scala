@@ -506,37 +506,29 @@ abstract class NastiInterconnect(implicit p: Parameters) extends NastiModule()(p
   lazy val io = new NastiInterconnectIO(nMasters, nSlaves)
 }
 
-class NastiRecursiveInterconnect(
-    val nMasters: Int, val nSlaves: Int,
-    addrmap: AddrMap, base: BigInt)
+class NastiRecursiveInterconnect(val nMasters: Int, addrMap: AddrMap)
     (implicit p: Parameters) extends NastiInterconnect()(p) {
-  val levelSize = addrmap.size
+  def port(name: String) = io.slaves(addrMap.port(name))
+  val nSlaves = addrMap.numSlaves
+  val routeSel = (addr: UInt) =>
+    Cat(addrMap.entries.map(e => addrMap(e.name).containsAddress(addr)).reverse)
 
-  val addrHashMap = new AddrHashMap(addrmap, base)
-  val routeSel = (addr: UInt) => {
-    Cat(addrmap.map { case entry =>
-      val hashEntry = addrHashMap(entry.name)
-      addr >= UInt(hashEntry.start) && addr < UInt(hashEntry.start + hashEntry.region.size)
-    }.reverse)
-  }
-
-  val xbar = Module(new NastiCrossbar(nMasters, levelSize, routeSel))
+  val xbar = Module(new NastiCrossbar(nMasters, addrMap.length, routeSel))
   xbar.io.masters <> io.masters
 
-  io.slaves <> addrmap.zip(xbar.io.slaves).flatMap {
+  io.slaves <> addrMap.entries.zip(xbar.io.slaves).flatMap {
     case (entry, xbarSlave) => {
       entry.region match {
-        case _: MemSize =>
-          Some(xbarSlave)
-        case MemSubmap(_, submap) if submap.isEmpty =>
+        case submap: AddrMap if submap.entries.isEmpty =>
           val err_slave = Module(new NastiErrorSlave)
           err_slave.io <> xbarSlave
           None
-        case MemSubmap(_, submap) =>
-          val subSlaves = submap.countSlaves
-          val ic = Module(new NastiRecursiveInterconnect(1, subSlaves, submap, addrHashMap(entry.name).start))
+        case submap: AddrMap =>
+          val ic = Module(new NastiRecursiveInterconnect(1, submap))
           ic.io.masters.head <> xbarSlave
           ic.io.slaves
+        case r: MemRange =>
+          Some(xbarSlave)
       }
     }
   }
