@@ -214,9 +214,13 @@ class DefaultDebugModuleConfig (val ncomponents : Int, val xlen:Int)
     extends DebugModuleConfig(
       nComponents = ncomponents,
       nDebugBusAddrSize = 5,
+      // While smaller numbers are theoretically
+      // possible as noted in the Spec,
+      // the ROM image would need to be
+      // adjusted accordingly.
       nDebugRamBytes = xlen match{
-        case 32  => 28
-        case 64  => 40
+        case 32  => 64 
+        case 64  => 64
         case 128 => 64
       },
       debugRomContents = Some(DsbBusConsts.defaultRomContents),
@@ -888,8 +892,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
     Acquire.getType, Acquire.getBlockType, Acquire.putType, Acquire.putBlockType
   ).map(sbAcqReg.isBuiltInType _)
 
-  val sbMultibeat = sbReg_getblk
-
+  val sbMultibeat = sbReg_getblk & sbAcqValidReg;
 
   val sbBeatInc1 = sbAcqReg.addr_beat + UInt(1)
  
