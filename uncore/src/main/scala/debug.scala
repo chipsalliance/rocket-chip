@@ -353,6 +353,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
     val access32      = Bool()
     val access16      = Bool()
     val accesss8      = Bool()
+    val dramsize      = UInt(width = 6)
     val haltsum       = Bool()
     val reserved1     = Bits(width = 3)
     val authenticated = Bool()
@@ -572,12 +573,13 @@ class DebugModule ()(implicit val p:cde.Parameters)
   DMINFORdData.access32      := Bool(cfg.hasAccess32)
   DMINFORdData.access16      := Bool(cfg.hasAccess16)
   DMINFORdData.accesss8      := Bool(cfg.hasAccess8)
+  DMINFORdData.dramsize      := Bits((cfg.nDebugRamBytes >> 2) - 1) // Size in 32-bit words minus 1.
   DMINFORdData.haltsum       := Bool(cfg.hasHaltSum)
   DMINFORdData.reserved1     := Bits(0)
-  DMINFORdData.authenticated := Bool(true) // Not Implemented.
+  DMINFORdData.authenticated := Bool(true)  // Not Implemented.
   DMINFORdData.authbusy      := Bool(false) // Not Implemented.
   DMINFORdData.authtype      := UInt(cfg.authType.id)
-  DMINFORdData.version       := UInt(0)
+  DMINFORdData.version       := UInt(1)     // Conforms to RISC-V Debug Spec
 
   HALTSUMRdData.serialfull  := Bool(false) // Not Implemented
   HALTSUMRdData.serialvalid := Bool(false) // Not Implemented
