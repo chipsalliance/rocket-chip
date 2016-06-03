@@ -53,7 +53,7 @@ class WithMemtest extends Config(
     case GenerateUncached => true
     case GenerateCached => true
     case MaxGenerateRequests => 128
-    case GeneratorStartAddress => site(GlobalAddrHashMap)("mem").start
+    case GeneratorStartAddress => site(GlobalAddrMap)("mem").start
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
     case _ => throw new CDEMatchError

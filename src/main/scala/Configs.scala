@@ -25,35 +25,34 @@ class BaseConfig extends Config (
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
     lazy val internalIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
-      entries += AddrMapEntry("debug", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RWX)))
-      entries += AddrMapEntry("bootrom", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RX)))
-      entries += AddrMapEntry("rtc", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
+      entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
+      entries += AddrMapEntry("rtc", MemSize(4096, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("plic", MemRange(0x40000000, 4096 * 1024, MemAttr(AddrMapProt.RW)))
       for (i <- 0 until site(NTiles))
-        entries += AddrMapEntry(s"prci$i", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
-      entries += AddrMapEntry("plic", MemSize(1<<22, 1<<22, MemAttr(AddrMapProt.RW)))
+        entries += AddrMapEntry(s"prci$i", MemSize(4096, MemAttr(AddrMapProt.RW)))
       new AddrMap(entries)
     }
-    lazy val (globalAddrMap, globalAddrHashMap) = {
-      val memSize = 1L << 31
-      val memAlign = 1L << 30
-      val extIOSize = 1L << 30
-      val mem = MemSize(memSize, memAlign, MemAttr(AddrMapProt.RWX, true))
+    lazy val globalAddrMap = {
+      val memBase = 0x80000000L
+      val memSize = 0x80000000L
+      val extIOBase = 0x60000000L
+      val extIOSize = 0x20000000L
       val io = AddrMap(
-        AddrMapEntry("int", MemSubmap(internalIOAddrMap.computeSize, internalIOAddrMap)),
-        AddrMapEntry("ext", MemSize(extIOSize, extIOSize, MemAttr(AddrMapProt.RWX))))
+        AddrMapEntry("int", internalIOAddrMap),
+        AddrMapEntry("ext", MemRange(extIOBase, extIOSize, MemAttr(AddrMapProt.RWX))))
       val addrMap = AddrMap(
-        AddrMapEntry("io", MemSubmap(io.computeSize, io)),
-        AddrMapEntry("mem", mem))
+        AddrMapEntry("io", io),
+        AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true))))
 
-      val addrHashMap = new AddrHashMap(addrMap)
-      Dump("MEM_BASE", addrHashMap("mem").start)
+      Dump("MEM_BASE", addrMap("mem").start)
       Dump("MEM_SIZE", memSize)
-      Dump("IO_BASE", addrHashMap("io:ext").start)
+      Dump("IO_BASE", addrMap("io:ext").start)
       Dump("IO_SIZE", extIOSize)
-      (addrMap, addrHashMap)
+      addrMap
     }
     def makeConfigString() = {
-      val addrMap = globalAddrHashMap
+      val addrMap = globalAddrMap
       val plicAddr = addrMap(s"io:int:plic").start
       val plicInfo = site(PLICKey)
       val xLen = site(XLen)
@@ -73,7 +72,7 @@ class BaseConfig extends Config (
       res append  "ram {\n"
       res append  "  0 {\n"
       res append s"    addr 0x${addrMap("mem").start.toString(16)};\n"
-      res append s"    size 0x${addrMap("mem").region.size.toString(16)};\n"
+      res append s"    size 0x${addrMap("mem").size.toString(16)};\n"
       res append  "  };\n"
       res append  "};\n"
       res append  "core {\n"
@@ -224,7 +223,7 @@ class BaseConfig extends Config (
       }
       case NExtInterrupts => 2
       case NExtMMIOChannels => 0
-      case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), site(NExtInterrupts))
+      case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
       case SFMALatency => 2
@@ -281,11 +280,10 @@ class BaseConfig extends Config (
         maxClientsPerPort = site(NBanksPerMemoryChannel),
         dataBeats = site(MIFDataBeats))
       case TLKey("L2toMMIO") => {
-        val addrMap = globalAddrHashMap
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = addrMap.nEntries - 1,
+          nManagers = globalAddrMap.subMap("io").flatten.size,
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 4,
@@ -305,7 +303,6 @@ class BaseConfig extends Config (
       case UseHtifClockDiv => true
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
-      case GlobalAddrHashMap => globalAddrHashMap
       case _ => throw new CDEMatchError
   }},
   knobValues = {
