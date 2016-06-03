@@ -840,9 +840,9 @@ class DebugModule ()(implicit val p:cde.Parameters)
 
     // Pick out the correct word based on the address.
     val sbWrDataWords = Vec.tabulate (tlDataBits / 32) {ii => sbWrData((ii+1)*32 - 1, ii*32)}
-    val sbWrMaskWords = Vec.tabulate(tlDataBits/32) {ii => sbWrMask ((ii+1)*32 -1, ii*32)}
+    val sbWrMaskWords = Vec.tabulate (tlDataBits / 32) {ii => sbWrMask ((ii+1)*32 -1, ii*32)}
 
-    val sbWrSelTop = log2Up(tlDataBits/8)
+    val sbWrSelTop = log2Up(tlDataBits/8) - 1
     val sbWrSelBottom = 2
 
     SETHALTNOTWrData  := sbWrDataWords(SETHALTNOT(sbWrSelTop, sbWrSelBottom))
@@ -852,13 +852,13 @@ class DebugModule ()(implicit val p:cde.Parameters)
       sbRamWrEn := sbWrEn
       sbRamRdEn := sbRdEn
     }
- 
-    SETHALTNOTWrEn := sbAddr(sbAddrWidth - 1, sbWrSelTop) === SETHALTNOT(sbAddrWidth-1, sbWrSelTop) &&
-    sbWrMaskWords(SETHALTNOT(sbWrSelTop, sbWrSelBottom)).orR &&
+
+    SETHALTNOTWrEn := sbAddr(sbAddrWidth - 1, sbWrSelTop + 1) === SETHALTNOT(sbAddrWidth-1, sbWrSelTop + 1) &&
+    (sbWrMaskWords(SETHALTNOT(sbWrSelTop, sbWrSelBottom))).orR &&
     sbWrEn
 
-    CLEARDEBINTWrEn := sbAddr(sbAddrWidth - 1, sbWrSelTop) === CLEARDEBINT(sbAddrWidth-1, sbWrSelTop) &&
-    sbWrMaskWords(CLEARDEBINT(sbWrSelTop, sbWrSelBottom)).orR &&
+    CLEARDEBINTWrEn := sbAddr(sbAddrWidth - 1, sbWrSelTop + 1) === CLEARDEBINT(sbAddrWidth-1, sbWrSelTop + 1) &&
+    (sbWrMaskWords(CLEARDEBINT(sbWrSelTop, sbWrSelBottom))).orR &&
     sbWrEn
 
   }
