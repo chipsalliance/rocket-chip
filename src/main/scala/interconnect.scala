@@ -258,36 +258,29 @@ abstract class TileLinkInterconnect(implicit p: Parameters) extends TLModule()(p
   lazy val io = new TileLinkInterconnectIO(nInner, nOuter)
 }
 
-class TileLinkRecursiveInterconnect(
-    val nInner: Int, addrmap: AddrMap, base: BigInt)
+class TileLinkRecursiveInterconnect(val nInner: Int, addrMap: AddrMap)
     (implicit p: Parameters) extends TileLinkInterconnect()(p) {
-  val levelSize = addrmap.size
-  val nOuter = addrmap.countSlaves
+  def port(name: String) = io.out(addrMap.port(name))
+  val nOuter = addrMap.numSlaves
+  val routeSel = (addr: UInt) =>
+    Cat(addrMap.entries.map(e => addrMap(e.name).containsAddress(addr)).reverse)
 
-  val addrHashMap = new AddrHashMap(addrmap, base)
-  val routeSel = (addr: UInt) => {
-    Cat(addrmap.map { case entry =>
-      val hashEntry = addrHashMap(entry.name)
-      addr >= UInt(hashEntry.start) && addr < UInt(hashEntry.start + hashEntry.region.size)
-    }.reverse)
-  }
-
-  val xbar = Module(new ClientUncachedTileLinkIOCrossbar(nInner, levelSize, routeSel))
+  val xbar = Module(new ClientUncachedTileLinkIOCrossbar(nInner, addrMap.length, routeSel))
   xbar.io.in <> io.in
 
-  io.out <> addrmap.zip(xbar.io.out).flatMap {
+  io.out <> addrMap.entries.zip(xbar.io.out).flatMap {
     case (entry, xbarOut) => {
       entry.region match {
-        case _: MemSize =>
-          Some(xbarOut)
-        case MemSubmap(_, submap) if submap.isEmpty =>
+        case submap: AddrMap if submap.isEmpty =>
           xbarOut.acquire.ready := Bool(false)
           xbarOut.grant.valid := Bool(false)
           None
-        case MemSubmap(_, submap) =>
-          val ic = Module(new TileLinkRecursiveInterconnect(1, submap, addrHashMap(entry.name).start))
+        case submap: AddrMap =>
+          val ic = Module(new TileLinkRecursiveInterconnect(1, submap))
           ic.io.in.head <> xbarOut
           ic.io.out
+        case _ =>
+          Some(xbarOut)
       }
     }
   }
