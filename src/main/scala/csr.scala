@@ -8,7 +8,7 @@ import Instructions._
 import cde.{Parameters, Field}
 import uncore._
 import scala.math._
-import junctions.AddrHashMap
+import junctions.AddrMap
 
 class MStatus extends Bundle {
   val debug = Bool() // not truly part of mstatus, but convenient
