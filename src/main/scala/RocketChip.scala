@@ -104,8 +104,7 @@ object TopUtils {
     rom.order(java.nio.ByteOrder.LITTLE_ENDIAN)
 
     // for now, have the reset vector jump straight to memory
-    val addrHashMap = p(GlobalAddrHashMap)
-    val resetToMemDist = addrHashMap("mem").start - p(ResetVector)
+    val resetToMemDist = p(GlobalAddrMap)("mem").start - p(ResetVector)
     require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
     val configStringAddr = p(ResetVector).toInt + rom.capacity
 
@@ -174,8 +173,6 @@ class Uncore(implicit val p: Parameters) extends Module
   outmemsys.io.tiles_uncached <> io.tiles_uncached
   outmemsys.io.tiles_cached <> io.tiles_cached
 
-  val addrMap = p(GlobalAddrMap)
-  val addrHashMap = p(GlobalAddrHashMap)
   val scrFile = Module(new SCRFile("UNCORE_SCR", 0))
   scrFile.io.smi <> htif.io.scr
   // scrFile.io.scr <> (... your SCR connections ...)
@@ -194,20 +191,16 @@ class Uncore(implicit val p: Parameters) extends Module
   htif.io.cpu.foreach { _.csr.resp.valid := Bool(false) }
 
   def buildMMIONetwork(implicit p: Parameters) = {
-    val (ioBase, ioAddrMap) = addrHashMap.subMap("io")
-    val ioAddrHashMap = new AddrHashMap(ioAddrMap, ioBase)
+    val ioAddrMap = p(GlobalAddrMap).subMap("io")
 
-    val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap, ioBase))
+    val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap))
     TileLinkWidthAdapter(outmemsys.io.mmio, mmioNetwork.io.in.head)
 
     val rtc = Module(new RTC(p(NTiles)))
-    val rtcAddr = ioAddrHashMap("int:rtc")
-    require(rtc.size <= rtcAddr.region.size)
-    rtc.io.tl <> mmioNetwork.io.out(rtcAddr.port)
+    rtc.io.tl <> mmioNetwork.port("int:rtc")
 
     val plic = Module(new PLIC(p(PLICKey)))
-    val plicAddr = ioAddrHashMap("int:plic")
-    plic.io.tl <> mmioNetwork.io.out(plicAddr.port)
+    plic.io.tl <> mmioNetwork.port("int:plic")
     for (i <- 0 until io.interrupts.size) {
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := io.interrupts(i)
@@ -215,14 +208,12 @@ class Uncore(implicit val p: Parameters) extends Module
     }
 
     val debugModule = Module(new DebugModule)
-    val debugModuleAddr = ioAddrHashMap("int:debug")
-    debugModule.io.tl <> mmioNetwork.io.out(debugModuleAddr.port)
+    debugModule.io.tl <> mmioNetwork.port("int:debug")
     debugModule.io.db <> io.debugBus
 
     for (i <- 0 until nTiles) {
       val prci = Module(new PRCI)
-      val prciAddr = ioAddrHashMap(s"int:prci$i")
-      prci.io.tl <> mmioNetwork.io.out(prciAddr.port)
+      prci.io.tl <> mmioNetwork.port(s"int:prci$i")
 
       prci.io.id := UInt(i)
       prci.io.interrupts.mtip := rtc.io.irqs(i)
@@ -236,15 +227,14 @@ class Uncore(implicit val p: Parameters) extends Module
     }
 
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
-    val bootROMAddr = ioAddrHashMap("int:bootrom")
-    bootROM.io <> mmioNetwork.io.out(bootROMAddr.port)
+    bootROM.io <> mmioNetwork.port("int:bootrom")
 
     val mmioEndpoint = p(NExtMMIOChannels) match {
       case 0 => Module(new NastiErrorSlave).io
       case 1 => io.mmio(0)
       // The memory map presently has only one external I/O region
     }
-    TopUtils.connectTilelinkNasti(mmioEndpoint, mmioNetwork.io.out(ioAddrHashMap("ext").port))
+    TopUtils.connectTilelinkNasti(mmioEndpoint, mmioNetwork.port("ext"))
   }
 }
 
@@ -261,14 +251,12 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
   }
 
-  val addrHashMap = p(GlobalAddrHashMap)
-
   // Create a simple L1toL2 NoC between the tiles+htif and the banks of outer memory
   // Cached ports are first in client list, making sharerToClientId just an indentity function
   // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
   def sharerToClientId(sharerId: UInt) = sharerId
   def addrToBank(addr: UInt): UInt = {
-    val isMemory = addrHashMap.isInRegion("mem", addr << log2Up(p(CacheBlockBytes)))
+    val isMemory = p(GlobalAddrMap).isInRegion("mem", addr << log2Up(p(CacheBlockBytes)))
     Mux(isMemory,
       if (nBanks > 1) addr(lsb + log2Up(nBanks) - 1, lsb) else UInt(0),
       UInt(nBanks))
@@ -300,8 +288,8 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
 
   // TODO: the code to print this stuff should live somewhere else
   println("Generated Address Map")
-  for ((name, base, region) <- addrHashMap.sortedEntries) {
-    println(f"\t$name%s $base%x - ${base + region.size - 1}%x")
+  for ((name, region) <- p(GlobalAddrMap).flatten) {
+    println(f"\t$name%s ${region.start}%x - ${region.start + region.size - 1}%x")
   }
   println("Generated Configuration String")
   println(new String(p(ConfigString)))
