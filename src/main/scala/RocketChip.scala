@@ -211,18 +211,17 @@ class Uncore(implicit val p: Parameters) extends Module
     debugModule.io.tl <> mmioNetwork.port("int:debug")
     debugModule.io.db <> io.debugBus
 
+    val prci = Module(new PRCI)
+    prci.io.tl <> mmioNetwork.port("int:prci")
+    io.prci := prci.io.tiles
+
     for (i <- 0 until nTiles) {
-      val prci = Module(new PRCI)
-      prci.io.tl <> mmioNetwork.port(s"int:prci$i")
-
-      prci.io.id := UInt(i)
-      prci.io.interrupts.mtip := rtc.io.irqs(i)
-      prci.io.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
+      prci.io.interrupts(i).mtip := rtc.io.irqs(i)
+      prci.io.interrupts(i).meip := plic.io.harts(plic.cfg.context(i, 'M'))
       if (p(UseVM))
-        prci.io.interrupts.seip := plic.io.harts(plic.cfg.context(i, 'S'))
-      prci.io.interrupts.debug := debugModule.io.debugInterrupts(i)
+        prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
+      prci.io.interrupts(i).debug := debugModule.io.debugInterrupts(i)
 
-      io.prci(i) := prci.io.tile
       io.prci(i).reset := Reg(next=Reg(next=htif.io.cpu(i).reset)) // TODO
     }
 

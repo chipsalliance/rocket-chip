@@ -28,9 +28,8 @@ class BaseConfig extends Config (
       entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
       entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("rtc", MemSize(4096, MemAttr(AddrMapProt.RW)))
-      entries += AddrMapEntry("plic", MemRange(0x40000000, 4096 * 1024, MemAttr(AddrMapProt.RW)))
-      for (i <- 0 until site(NTiles))
-        entries += AddrMapEntry(s"prci$i", MemSize(4096, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
       new AddrMap(entries)
     }
     lazy val globalAddrMap = {
@@ -53,7 +52,8 @@ class BaseConfig extends Config (
     }
     def makeConfigString() = {
       val addrMap = globalAddrMap
-      val plicAddr = addrMap(s"io:int:plic").start
+      val plicAddr = addrMap("io:int:plic").start
+      val prciAddr = addrMap("io:int:prci").start
       val plicInfo = site(PLICKey)
       val xLen = site(XLen)
       val res = new StringBuilder
@@ -79,12 +79,11 @@ class BaseConfig extends Config (
       for (i <- 0 until site(NTiles)) {
         val isa = s"rv${site(XLen)}im${if (site(UseAtomics)) "a" else ""}${if (site(UseFPU)) "fd" else ""}"
         val timecmpAddr = addrMap("io:int:rtc").start + 8*(i+1)
-        val prciAddr = addrMap(s"io:int:prci$i").start
         res append s"  $i {\n"
         res append  "    0 {\n"
         res append s"      isa $isa;\n"
         res append s"      timecmp 0x${timecmpAddr.toString(16)};\n"
-        res append s"      ipi 0x${prciAddr.toString(16)};\n"
+        res append s"      ipi 0x${(prciAddr + 4*i).toString(16)};\n"
         res append s"      plic {\n"
         res append s"        m {\n"
         res append s"         ie 0x${(plicAddr + plicInfo.enableAddr(i, 'M')).toString(16)};\n"
