@@ -21,9 +21,10 @@ trait HasGeneratorParams {
   val genTimeout = 4096
   val maxRequests = p(MaxGenerateRequests)
   val startAddress = p(GeneratorStartAddress)
-  val genWordBits = p(WordBits)
+  val genWordBits = 32
   val genWordBytes = genWordBits / 8
   val wordOffset = log2Up(genWordBytes)
+  val wordSize = MT_WU
 
   require(startAddress % BigInt(genWordBytes) == 0)
 }
@@ -101,7 +102,7 @@ class UncachedTileLinkGenerator(id: Int)
     addr_block = addr_block,
     addr_beat = addr_beat,
     addr_byte = addr_byte,
-    operand_size = MT_D,
+    operand_size = wordSize,
     alloc = Bool(false))
 
   io.mem.acquire.valid := sending && !io.finished
@@ -157,12 +158,12 @@ class HellaCacheGenerator(id: Int)
          }
        }
   val req_addr = UInt(startAddress) + Cat(req_cnt, part_of_req_addr)
-  val req_data = Cat(UInt(id, log2Up(nGens)), req_cnt, req_addr)
+  val req_data = Cat(UInt(id, log2Up(nGens)), req_addr)
 
   io.mem.req.valid := sending && !io.finished
   io.mem.req.bits.addr := req_addr
   io.mem.req.bits.data := req_data
-  io.mem.req.bits.typ  := MT_D
+  io.mem.req.bits.typ  := wordSize
   io.mem.req.bits.cmd  := Mux(state === s_write, M_XWR, M_XRD)
   io.mem.req.bits.tag  := UInt(0)
 
@@ -176,7 +177,7 @@ class HellaCacheGenerator(id: Int)
   io.finished := (state === s_finished)
 
   assert(!io.mem.resp.valid || !io.mem.resp.bits.has_data ||
-    io.mem.resp.bits.data === req_data,
+    io.mem.resp.bits.data(genWordBits - 1, 0) === req_data,
     s"Received incorrect data in cached generator ${id}")
 }
 
