@@ -133,9 +133,6 @@ class BaseConfig extends Config (
           addrBits = Dump("MEM_ADDR_BITS", site(PAddrBits)),
           idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
       }
-      case HastiKey => HastiParameters(
-                        dataBits = site(XLen),
-                        addrBits = site(PAddrBits))
       //Params used by all caches
       case NSets => findBy(CacheName)
       case NWays => findBy(CacheName)
@@ -221,7 +218,8 @@ class BaseConfig extends Config (
         true
       }
       case NExtInterrupts => 2
-      case NExtMMIOChannels => 0
+      case NExtMMIOAXIChannels => 0
+      case NExtMMIOAHBChannels => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
@@ -239,11 +237,15 @@ class BaseConfig extends Config (
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
       case ExtraL1Clients => 1 // HTIF // TODO not really a parameter
-      case HastiId => "TL"
+      case HastiId => "Ext"
       case HastiKey("TL") =>
         HastiParameters(
           addrBits = site(PAddrBits),
           dataBits = site(TLKey(site(TLId))).dataBits / site(TLKey(site(TLId))).dataBeats)
+      case HastiKey("Ext") =>
+        HastiParameters(
+          addrBits = site(PAddrBits),
+          dataBits = site(XLen))
       case TLKey("L1toL2") => 
         TileLinkParameters(
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
@@ -294,6 +296,7 @@ class BaseConfig extends Config (
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
+      case TMemoryChannels => BusType.AXI
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
       case NOutstandingMemReqsPerChannel => site(NBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
       case BankIdLSB => 0
@@ -420,6 +423,12 @@ class WithBlockingL1 extends Config (
     case _ => throw new CDEMatchError
   }
 )
+
+class WithAHB extends Config(
+  (pname, site, here) => pname match {
+    case TMemoryChannels     => BusType.AHB
+    case NExtMMIOAHBChannels => 1
+  })
 
 class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 
