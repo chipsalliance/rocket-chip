@@ -13,18 +13,25 @@ abstract class UnitTest extends Module {
   }
 }
 
-class HastiTestDriver(implicit p: Parameters) extends NastiModule {
+class MemoryTestDriver(name: String, dataWidth: Int, burstLen: Int, nBursts: Int)
+    (implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
     val nasti = new NastiIO
     val finished = Bool(OUTPUT)
     val start = Bool(INPUT)
   }
 
-  val (write_cnt, write_done) = Counter(io.nasti.w.fire(), 8)
-  val (read_cnt, read_done) = Counter(io.nasti.r.fire(), 8)
+  val dataBytes = dataWidth / 8
+  val nastiDataBytes = nastiXDataBits / 8
 
-  val write_data = UInt(0x1000, 32) | write_cnt
-  val expected_data = UInt(0x1000, 32) | read_cnt
+  val (write_cnt, write_done) = Counter(io.nasti.w.fire(), burstLen)
+  val (read_cnt, read_done) = Counter(io.nasti.r.fire(), burstLen)
+  val (req_cnt, reqs_done) = Counter(read_done, nBursts)
+
+  val req_addr = Cat(req_cnt, UInt(0, log2Up(burstLen * dataBytes)))
+
+  val write_data    = UInt(0x10000000L, dataWidth) | Cat(req_cnt, write_cnt)
+  val expected_data = UInt(0x10000000L, dataWidth) | Cat(req_cnt, read_cnt)
 
   val (s_idle :: s_write_addr :: s_write_data :: s_write_stall :: s_write_resp ::
        s_read_addr :: s_read_data :: s_read_stall :: s_done :: Nil) = Enum(Bits(), 9)
@@ -35,23 +42,23 @@ class HastiTestDriver(implicit p: Parameters) extends NastiModule {
   io.nasti.aw.valid := (state === s_write_addr)
   io.nasti.aw.bits := NastiWriteAddressChannel(
     id = UInt(0),
-    addr = UInt(0),
-    size = UInt("b010"),
-    len = UInt(7))
+    addr = req_addr,
+    size = UInt(log2Up(dataBytes)),
+    len = UInt(burstLen - 1))
 
   io.nasti.w.valid := (state === s_write_data)
   io.nasti.w.bits := NastiWriteDataChannel(
     data = Cat(write_data, write_data),
-    last = (write_cnt === UInt(7)))
+    last = (write_cnt === UInt(burstLen - 1)))
 
   io.nasti.b.ready := (state === s_write_resp)
 
   io.nasti.ar.valid := (state === s_read_addr)
   io.nasti.ar.bits := NastiReadAddressChannel(
     id = UInt(0),
-    addr = UInt(0),
-    size = UInt("b010"),
-    len = UInt(7))
+    addr = req_addr,
+    size = UInt(log2Up(dataBytes)),
+    len = UInt(burstLen - 1))
 
   io.nasti.r.ready := (state === s_read_data)
 
@@ -66,21 +73,29 @@ class HastiTestDriver(implicit p: Parameters) extends NastiModule {
   when (io.nasti.ar.fire()) { state := s_read_data }
   when (io.nasti.r.fire()) { state := s_read_stall }
   when (stall_done) { state := s_read_data }
-  when (read_done) { state := s_done }
+  when (read_done) { state := s_write_addr }
+  when (reqs_done) { state := s_done }
 
-  val read_data = Mux(read_cnt(0),
-    io.nasti.r.bits.data(63, 32),
-    io.nasti.r.bits.data(31, 0))
+  val full_addr = req_addr + (read_cnt << UInt(log2Up(dataBytes)))
+  val byteshift = full_addr(log2Up(nastiDataBytes) - 1, 0)
+  val bitshift = Cat(byteshift, UInt(0, 3))
+  val read_data = (io.nasti.r.bits.data >> bitshift) & Fill(dataWidth, UInt(1, 1))
 
   assert(!io.nasti.r.valid || read_data === expected_data,
-    "HastiTest got wrong data")
+    s"MemoryTestDriver for $name got wrong data")
+
+  val ar_timeout = Timer(1024, io.nasti.ar.fire(), io.nasti.r.fire())
+  val aw_timeout = Timer(1024, io.nasti.aw.fire(), io.nasti.b.fire())
+
+  assert(!ar_timeout && !aw_timeout,
+    s"MemoryTestDriver for $name timed out")
 }
 
 class HastiTest(implicit p: Parameters) extends UnitTest {
   val sram = Module(new HastiTestSRAM(8))
   val bus = Module(new HastiBus(Seq(a => Bool(true))))
   val conv = Module(new HastiMasterIONastiIOConverter)
-  val driver = Module(new HastiTestDriver)
+  val driver = Module(new MemoryTestDriver("HastiTest", 32, 8, 2))
 
   bus.io.slaves(0) <> sram.io
   bus.io.master <> conv.io.hasti
