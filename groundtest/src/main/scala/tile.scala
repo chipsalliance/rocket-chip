@@ -134,7 +134,7 @@ class GroundTestFinisher(implicit p: Parameters) extends TLModule()(p) {
 }
 
 class GroundTestTile(id: Int, resetSignal: Bool)
-                    (implicit val p: Parameters) extends Tile(resetSignal)(p) {
+                    (implicit val p: Parameters) extends Tile(resetSignal = resetSignal)(p) {
 
   val test = p(BuildGroundTest)(id, dcacheParams)
 
