@@ -47,6 +47,31 @@ class WithGroundTest extends Config(
     case _ => throw new CDEMatchError
   })
 
+class WithComparator extends Config(
+  (pname, site, here) => pname match {
+    case TLKey("L1toL2") =>
+      TileLinkParameters(
+        coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
+        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
+        nCachingClients = 1,
+        nCachelessClients = 1 + site(ComparatorKey).targets.size + site(ExtraL1Clients),
+        maxClientXacts = 2,
+        maxClientsPerPort = 1,
+        maxManagerXacts = site(NAcquireTransactors) + 2,
+        dataBeats = site(MIFDataBeats),
+        dataBits = site(CacheBlockBytes)*8)
+    case BuildTiles =>
+      Seq((r: Bool, p: Parameters) => Module(new ComparatorTile(r)(p.alterPartial({case TLId => "L1toL2"}))))
+    case ComparatorKey => ComparatorParameters(
+      targets    = Seq(0x80001000L, 0x80000000L),
+      width      = 8,
+      operations = 1000,
+      atomics    = true)
+    case RoccNMemChannels => site(ComparatorKey).targets.size // Work-around bad rocket<>tile dependency
+    case TohostAddr => BigInt("80001000", 16) // quit test by writing here
+    case _ => throw new CDEMatchError
+  })
+
 class WithMemtest extends Config(
   (pname, site, here) => pname match {
     case NGenerators => site(NTiles)
@@ -143,6 +168,7 @@ class WithTraceGen extends Config(
     case _ => throw new CDEMatchError
   })
 
+class ComparatorConfig extends Config(new WithComparator ++ new BaseConfig)
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
