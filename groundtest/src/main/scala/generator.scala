@@ -176,8 +176,17 @@ class HellaCacheGenerator(id: Int)
 
   io.finished := (state === s_finished)
 
+  def data_match(recv: Bits, expected: Bits): Bool = {
+    val recv_resized = Wire(Bits(width = genWordBits))
+    val exp_resized = Wire(Bits(width = genWordBits))
+
+    recv_resized := recv
+    exp_resized := expected
+    recv_resized === exp_resized
+  }
+
   assert(!io.mem.resp.valid || !io.mem.resp.bits.has_data ||
-    io.mem.resp.bits.data(genWordBits - 1, 0) === req_data,
+    data_match(io.mem.resp.bits.data, req_data),
     s"Received incorrect data in cached generator ${id}")
 }
 
