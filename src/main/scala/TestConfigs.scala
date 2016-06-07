@@ -44,7 +44,7 @@ class WithGroundTest extends Config(
     case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
     case UseAtomics => true
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithMemtest extends Config(
@@ -56,19 +56,19 @@ class WithMemtest extends Config(
     case GeneratorStartAddress => site(GlobalAddrMap)("mem").start
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithCacheFillTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new CacheFillTest()(p))
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   },
   knobValues = {
     case "L2_WAYS" => 4
     case "L2_CAPACITY_IN_KB" => 4
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithBroadcastRegressionTest extends Config(
@@ -78,7 +78,7 @@ class WithBroadcastRegressionTest extends Config(
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.broadcastRegressions(p)
     case GroundTestMaxXacts => 3
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithCacheRegressionTest extends Config(
@@ -88,7 +88,7 @@ class WithCacheRegressionTest extends Config(
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.cacheRegressions(p)
     case GroundTestMaxXacts => 3
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithDmaTest extends Config(
@@ -104,7 +104,7 @@ class WithDmaTest extends Config(
       (0x00800008, 0x00800008, 64))
     case DmaTestDataStart => 0x3012CC00
     case DmaTestDataStride => 8
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithDmaStreamTest extends Config(
@@ -116,21 +116,21 @@ class WithDmaStreamTest extends Config(
       size = site(StreamLoopbackWidth) / 8)
     case GroundTestCSRs =>
       Seq(DmaCtrlRegNumbers.CSR_BASE + DmaCtrlRegNumbers.OUTSTANDING)
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithNastiConverterTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new NastiConverterTest()(p))
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithUnitTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new UnitTestSuite()(p))
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithTraceGen extends Config(
@@ -140,7 +140,7 @@ class WithTraceGen extends Config(
     case NGenerators => site(NTiles)
     case MaxGenerateRequests => 128
     case AddressBag => List(0x8, 0x10, 0x108, 0x100008)
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
