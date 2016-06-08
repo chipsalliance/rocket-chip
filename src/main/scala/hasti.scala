@@ -474,7 +474,7 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   // The mask and address during the address phase
   val a_request   = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
   val a_mask      = Wire(UInt(width = hastiDataBytes))
-  val a_address   = io.haddr >> UInt(hastiAlignment)
+  val a_address   = io.haddr(depth-1, hastiAlignment)
   val a_write     = io.hwrite
 
   // for backwards compatibility with chisel2, we needed a static width in definition
@@ -507,7 +507,7 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   val p_wdata     = holdUnless(d_wdata, p_latch_d)
   
   // Use single-ported memory with byte-write enable
-  val mem = SeqMem(depth, Vec(hastiDataBytes, Bits(width = 8)))
+  val mem = SeqMem(1 << (depth-hastiAlignment), Vec(hastiDataBytes, Bits(width = 8)))
   
   // Decide is the SRAM port is used for reading or (potentially) writing
   val read = ready && a_request && !a_write
