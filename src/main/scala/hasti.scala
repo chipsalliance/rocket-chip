@@ -273,23 +273,20 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
     diversions(m).io.divert := bubbleM(m) && NSeq(m) && masters(m).hready
   }
   
-  def dotProduct(g: Seq[Bool], v: Seq[UInt]) =
-    (g zip v) map { case (gg, ss) => Mux(gg, ss, ss.fromBits(UInt(0))) } reduce (_|_)
-
   // Master muxes (address and data phase are the same)
   (masters zip (unionGrantMS zip nowhereM)) foreach { case (m, (g, n)) => {
     // If the master is connected to a slave, the slave determines hready.
     // However, if no slave is connected, for progress report ready anyway, if:
     //   bad address (swallow request) OR idle (permit stupid slaves to move FSM)
     val autoready = n || m.isIdle()
-    m.hready := dotProduct(g, slaves.map(_.hready ^ autoready)) ^ autoready
+    m.hready := Mux1H(g, slaves.map(_.hready ^ autoready)) ^ autoready
     m.hrdata := Mux1H(g, slaves.map(_.hrdata))
     m.hresp  := Mux1H(g, slaves.map(_.hresp))
   } }
   
   // Slave address phase muxes
   (slaves zip addressPhaseGrantSM) foreach { case (s, g) => {
-    s.htrans    := dotProduct(g, masters.map(_.htrans)) // defaults to HTRANS_IDLE (0)
+    s.htrans    := Mux1H(g, masters.map(_.htrans)) // defaults to HTRANS_IDLE (0)
     s.haddr     := Mux1H(g, masters.map(_.haddr))
     s.hmastlock := isLocked
     s.hwrite    := Mux1H(g, masters.map(_.hwrite))
