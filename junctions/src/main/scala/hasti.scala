@@ -252,14 +252,18 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
       Vec.tabulate(nSlaves) { s => dataPhaseGrantSM(s)(m) && !matchMS(m)(s) }
       .reduce(_ || _) }
   
+  // Block any request that requires bus ownership or conflicts with isLocked
+  val blockedM = 
+    Vec((lockedM zip masters) map { case(l, m) => !l && (isLocked || m.hmastlock) })
+  
   // Requested access to slaves from masters (pre-arbitration)
-  // NOTE: quash any request that requires bus ownership or conflicts with isLocked
   // NOTE: isNSeq does NOT include SEQ; thus, masters who are midburst do not
   // request access to a new slave. They stay tied to the old and do not get two.
   // NOTE: if a master was waited, it must repeat the same request as last cycle;
   // thus, it will request the same slave and not end up with two (unless buggy).
-  val NSeq = Vec((lockedM zip masters) map { case(l, m) => m.isNSeq() && ((!isLocked && !m.hmastlock) || l) })
-  val requestSM = Vec.tabulate(nSlaves) { s => Vec.tabulate(nMasters) { m => matchMS(m)(s) && NSeq(m) && !bubbleM(m) } }
+  val NSeq = masters.map(_.isNSeq())
+  val requestSM = Vec.tabulate(nSlaves) { s => Vec.tabulate(nMasters) { m => 
+    matchMS(m)(s) && NSeq(m) && !bubbleM(m) && !blockedM(m) } }
   
   // Select at most one master request per slave (lowest index = highest priority)
   val selectedRequestSM = Vec(requestSM map { m => Vec(PriorityEncoderOH(m)) })
@@ -268,25 +272,26 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
   addressPhaseGrantSM := Vec((holdS zip (priorAddressPhaseGrantSM zip selectedRequestSM))
                              map { case (h, (p, r)) => Mux(h, p, r) })
 
-  // If we diverted a master, we need to absorb his address phase to replay later
   for (m <- 0 until nMasters) {
-    diversions(m).io.divert := bubbleM(m) && NSeq(m) && masters(m).hready
+    // If the master is connected to a slave, the slave determines hready.
+    // However, if no slave is connected, for progress report ready anyway, if:
+    //   bad address (swallow request) OR idle (permit stupid masters to move FSM)
+    val autoready = nowhereM(m) || masters(m).isIdle()
+    val hready = Mux1H(unionGrantMS(m), slaves.map(_.hready ^ autoready)) ^ autoready
+    masters(m).hready := hready
+    // If we diverted a master, we need to absorb his address phase to replay later
+    diversions(m).io.divert := (bubbleM(m) || blockedM(m)) && NSeq(m) && hready
   }
   
   // Master muxes (address and data phase are the same)
-  (masters zip (unionGrantMS zip nowhereM)) foreach { case (m, (g, n)) => {
-    // If the master is connected to a slave, the slave determines hready.
-    // However, if no slave is connected, for progress report ready anyway, if:
-    //   bad address (swallow request) OR idle (permit stupid slaves to move FSM)
-    val autoready = n || m.isIdle()
-    m.hready := Mux1H(g, slaves.map(_.hready ^ autoready)) ^ autoready
+  (masters zip unionGrantMS) foreach { case (m, g) => {
     m.hrdata := Mux1H(g, slaves.map(_.hrdata))
     m.hresp  := Mux1H(g, slaves.map(_.hresp))
   } }
   
   // Slave address phase muxes
   (slaves zip addressPhaseGrantSM) foreach { case (s, g) => {
-    s.htrans    := Mux1H(g, masters.map(_.htrans)) // defaults to HTRANS_IDLE (0)
+    s.htrans    := Mux1H(g, masters.map(_.htrans))
     s.haddr     := Mux1H(g, masters.map(_.haddr))
     s.hmastlock := isLocked
     s.hwrite    := Mux1H(g, masters.map(_.hwrite))
