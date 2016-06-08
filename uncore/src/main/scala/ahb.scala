@@ -140,9 +140,10 @@ class AHBTileLinkIn(supportAtomics: Boolean = false)(implicit val p: Parameters)
   
   // Calculate the address, with consideration to put fragments and bursts
   val addr_block = io.acquire.bits.addr_block
-  val addr_beat  = io.acquire.bits.addr_beat
-  val addr_burst = Mux(isReadBurst, addr_beat + burst, addr_beat)
+  val addr_beatin= io.acquire.bits.addr_beat
+  val addr_burst = Mux(isReadBurst, addr_beatin + burst, addr_beatin)
   val addr_byte  = Mux(isPut, put_addr, io.acquire.bits.addr_byte())
+  val addr_beat  = Mux(isWriteBurst, UInt(0), addr_burst)
   val ahbAddr    = Cat(addr_block, addr_burst, addr_byte)
   val ahbSize    = Mux(isPut, put_size, Mux(isBurst, UInt(log2Ceil(tlDataBytes)), io.acquire.bits.op_size()))
   
@@ -185,7 +186,7 @@ class AHBTileLinkIn(supportAtomics: Boolean = false)(implicit val p: Parameters)
     Acquire.getType         -> Bool(true),
     Acquire.getBlockType    -> Bool(true),
     Acquire.putType         -> last_wmask,
-    Acquire.putBlockType    -> Bool(true),
+    Acquire.putBlockType    -> last_burst,
     Acquire.putAtomicType   -> MuxLookup(atom_state, Bool(false), Array(
       s_atom_r              -> Bool(true), // they want the old data
       s_atom_idle1          -> Bool(false),
@@ -212,11 +213,13 @@ class AHBTileLinkIn(supportAtomics: Boolean = false)(implicit val p: Parameters)
   io.request.bits.is_builtin_type := Bool(true)
   io.request.bits.g_type          := io.acquire.bits.getBuiltInGrantType()
   io.request.bits.client_xact_id  := io.acquire.bits.client_xact_id
-  io.request.bits.addr_beat       := addr_burst
+  io.request.bits.addr_beat       := addr_beat
 
   val debugBurst = Reg(UInt())
-  debugBurst := addr_burst - burst
-
+  when (io.request.valid) {
+    debugBurst := addr_burst - burst
+  }
+  
   // We only support built-in TileLink requests
   assert(!io.acquire.valid || io.acquire.bits.is_builtin_type, "AHB bridge only supports builtin TileLink types")
   // Ensure alignment of address to size
@@ -336,7 +339,7 @@ class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) 
     case CacheBlockOffsetBits => hastiAddrBits
     case AmoAluOperandBits    => hastiDataBits
   })
-  val alu = Module(new AMOALU(rhsIsAligned = false)(amo_p))
+  val alu = Module(new AMOALU(rhsIsAligned = true)(amo_p))
   alu.io.addr := haddr
   alu.io.cmd  := cmd
   alu.io.typ  := hsize
