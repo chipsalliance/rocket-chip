@@ -23,7 +23,9 @@ class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
     multibeat := s0_getblk
   }
 
-  val s0_valid = io.acquire.valid || multibeat
+
+  val last = Wire(Bool())
+  val s0_valid = io.acquire.valid || (multibeat && !last)
   val s1_valid = Reg(next = s0_valid, init = Bool(false))
   val s1_acq = RegEnable(io.acquire.bits, fire_acq)
 
@@ -32,7 +34,7 @@ class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
   val s1_addr = Cat(s1_acq.addr_block, s1_beat)
   val raddr = Mux(multibeat, s1_addr, s0_addr)
 
-  val last = (s1_acq.addr_beat === UInt(tlDataBeats-1))
+  last := (s1_acq.addr_beat === UInt(tlDataBeats-1))
   val ren = (io.acquire.valid && (s0_get || s0_getblk)) || (multibeat && !last)
   val wen = (io.acquire.valid && (s0_put || s0_putblk))
 
