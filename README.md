@@ -107,7 +107,7 @@ the rocket-chip repository:
 
 * **chisel**
 ([https://github.com/ucb-bar/chisel](https://github.com/ucb-bar/chisel)):
-At Berkeley, we write RTL in Chisel. For those whom are not familiar
+At Berkeley, we write RTL in Chisel. For those who are not familiar
 with Chisel, please go take a look at
 [http://chisel.eecs.berkeley.edu](http://chisel.eecs.berkeley.edu). We
 have submoduled a specific git commit tag of the Chisel compiler rather
