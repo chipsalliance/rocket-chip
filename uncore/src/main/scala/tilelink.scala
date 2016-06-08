@@ -358,13 +358,25 @@ object Acquire {
         operand_size: UInt,
         opcode: UInt,
         wmask: UInt,
-        alloc: Bool): UInt = {
+        alloc: Bool)
+      (implicit p: Parameters): UInt = {
+        
+    val tlExternal = p(TLKey(p(TLId)))
+    val tlWriteMaskBits = tlExternal.writeMaskBits
+    val tlByteAddrBits = log2Up(tlWriteMaskBits)
+    
+    // These had better be the right size when we cat them together!
+    val my_addr_byte = (UInt(0, tlByteAddrBits) | addr_byte)(tlByteAddrBits-1, 0)
+    val my_operand_size = (UInt(0, MT_SZ) | operand_size)(MT_SZ-1, 0)
+    val my_opcode = (UInt(0, M_SZ) | opcode)(M_SZ-1, 0)
+    val my_wmask = (UInt(0, tlWriteMaskBits) | wmask)(tlWriteMaskBits-1, 0)
+    
     MuxLookup(a_type, UInt(0), Array(
-      Acquire.getType       -> Cat(addr_byte, operand_size, opcode, alloc),
-      Acquire.getBlockType  -> Cat(operand_size, opcode, alloc),
-      Acquire.putType       -> Cat(wmask, alloc),
-      Acquire.putBlockType  -> Cat(wmask, alloc),
-      Acquire.putAtomicType -> Cat(addr_byte, operand_size, opcode, alloc),
+      Acquire.getType       -> Cat(my_addr_byte, my_operand_size, my_opcode, alloc),
+      Acquire.getBlockType  -> Cat(my_operand_size, my_opcode, alloc),
+      Acquire.putType       -> Cat(my_wmask, alloc),
+      Acquire.putBlockType  -> Cat(my_wmask, alloc),
+      Acquire.putAtomicType -> Cat(my_addr_byte, my_operand_size, my_opcode, alloc),
       Acquire.getPrefetchType -> Cat(M_XRD, alloc),
       Acquire.putPrefetchType -> Cat(M_XWR, alloc)))
   }
