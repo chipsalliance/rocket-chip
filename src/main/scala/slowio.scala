@@ -26,8 +26,8 @@ class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
   }
   io.divisor := (hold << 16) | divisor
 
-  val count = Reg(init = UInt(0, log2Up(divisor_max)))
-  val myclock = Reg(init = Bool(false))
+  val count = Reg{UInt(width = log2Up(divisor_max))}
+  val myclock = Reg{Bool()}
   count := count + UInt(1)
 
   val rising = count === (divisor >> 1)
