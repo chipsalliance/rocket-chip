@@ -756,7 +756,7 @@ object TileLinkWidthAdapter {
       widener.io.in <> in
       out <> widener.io.out
     } else if (out.tlDataBits < in.tlDataBits) {
-      val narrower = Module(new TileLinkIOWidener(in.p(TLId), out.p(TLId)))
+      val narrower = Module(new TileLinkIONarrower(in.p(TLId), out.p(TLId)))
       narrower.io.in <> in
       out <> narrower.io.out
     } else {
@@ -961,9 +961,9 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
   val outerMaxClients = outerParams.maxClientsPerPort
   val outerIdBits = log2Up(outerParams.maxClientXacts * outerMaxClients)
 
-  require(outerDataBeats >= innerDataBeats)
+  require(outerDataBeats > innerDataBeats)
   require(outerDataBeats % innerDataBeats == 0)
-  require(outerDataBits <= innerDataBits)
+  require(outerDataBits < innerDataBits)
   require(outerDataBits * outerDataBeats == innerDataBits * innerDataBeats)
 
   val factor = outerDataBeats / innerDataBeats
@@ -973,166 +973,164 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
     val out = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => outerTLId}))
   }
 
-  if (factor > 1) {
-    val iacq = io.in.acquire.bits
-    val ognt = io.out.grant.bits
+  val iacq = io.in.acquire.bits
+  val ognt = io.out.grant.bits
 
-    val stretch = iacq.a_type === Acquire.putBlockType
-    val shrink = iacq.a_type === Acquire.getBlockType
-    val smallput = iacq.a_type === Acquire.putType
-    val smallget = iacq.a_type === Acquire.getType
+  val stretch = iacq.a_type === Acquire.putBlockType
+  val shrink = iacq.a_type === Acquire.getBlockType
+  val smallput = iacq.a_type === Acquire.putType
+  val smallget = iacq.a_type === Acquire.getType
 
-    val acq_data_buffer = Reg(UInt(width = innerDataBits))
-    val acq_wmask_buffer = Reg(UInt(width = innerWriteMaskBits))
-    val acq_client_id = Reg(iacq.client_xact_id)
-    val acq_addr_block = Reg(iacq.addr_block)
-    val acq_addr_beat = Reg(iacq.addr_beat)
-    val oacq_ctr = Counter(factor)
+  val acq_data_buffer = Reg(UInt(width = innerDataBits))
+  val acq_wmask_buffer = Reg(UInt(width = innerWriteMaskBits))
+  val acq_client_id = Reg(iacq.client_xact_id)
+  val acq_addr_block = Reg(iacq.addr_block)
+  val acq_addr_beat = Reg(iacq.addr_beat)
+  val oacq_ctr = Counter(factor)
 
-    val outer_beat_addr = iacq.full_addr()(outerBlockOffset - 1, outerByteAddrBits)
-    val outer_byte_addr = iacq.full_addr()(outerByteAddrBits - 1, 0)
+  val outer_beat_addr = iacq.full_addr()(outerBlockOffset - 1, outerByteAddrBits)
+  val outer_byte_addr = iacq.full_addr()(outerByteAddrBits - 1, 0)
 
-    val mask_chunks = Vec.tabulate(factor) { i =>
-      val lsb = i * outerWriteMaskBits
-      val msb = (i + 1) * outerWriteMaskBits - 1
-      iacq.wmask()(msb, lsb)
+  val mask_chunks = Vec.tabulate(factor) { i =>
+    val lsb = i * outerWriteMaskBits
+    val msb = (i + 1) * outerWriteMaskBits - 1
+    iacq.wmask()(msb, lsb)
+  }
+
+  val data_chunks = Vec.tabulate(factor) { i =>
+    val lsb = i * outerDataBits
+    val msb = (i + 1) * outerDataBits - 1
+    iacq.data(msb, lsb)
+  }
+
+  val beat_sel = Cat(mask_chunks.map(mask => mask.orR).reverse)
+
+  val smallput_data = Mux1H(beat_sel, data_chunks)
+  val smallput_wmask = Mux1H(beat_sel, mask_chunks)
+  val smallput_beat = Cat(iacq.addr_beat, PriorityEncoder(beat_sel))
+
+  assert(!io.in.acquire.valid || !smallput || PopCount(beat_sel) <= UInt(1),
+    "Can't perform Put wider than outer width")
+
+  val read_size_ok = MuxLookup(iacq.op_size(), Bool(false), Seq(
+    MT_B  -> Bool(true),
+    MT_BU -> Bool(true),
+    MT_H  -> Bool(outerDataBits >= 16),
+    MT_HU -> Bool(outerDataBits >= 16),
+    MT_W  -> Bool(outerDataBits >= 32),
+    MT_WU -> Bool(outerDataBits >= 32),
+    MT_D  -> Bool(outerDataBits >= 64),
+    MT_Q  -> Bool(false)))
+
+  assert(!io.in.acquire.valid || !smallget || read_size_ok,
+    "Can't perform Get wider than outer width")
+
+  val outerConfig = p.alterPartial({ case TLId => outerTLId })
+  val innerConfig = p.alterPartial({ case TLId => innerTLId })
+
+  val get_block_acquire = GetBlock(
+    client_xact_id = iacq.client_xact_id,
+    addr_block = iacq.addr_block,
+    alloc = iacq.allocate())(outerConfig)
+
+  val put_block_acquire = PutBlock(
+    client_xact_id = acq_client_id,
+    addr_block = acq_addr_block,
+    addr_beat = if (factor > 1)
+                  Cat(acq_addr_beat, oacq_ctr.value)
+                else acq_addr_beat,
+    data = acq_data_buffer(outerDataBits - 1, 0),
+    wmask = acq_wmask_buffer(outerWriteMaskBits - 1, 0))(outerConfig)
+
+  val get_acquire = Get(
+    client_xact_id = iacq.client_xact_id,
+    addr_block = iacq.addr_block,
+    addr_beat = outer_beat_addr,
+    addr_byte = outer_byte_addr,
+    operand_size = iacq.op_size(),
+    alloc = iacq.allocate())(outerConfig)
+
+  val put_acquire = Put(
+    client_xact_id = iacq.client_xact_id,
+    addr_block = iacq.addr_block,
+    addr_beat = smallput_beat,
+    data = smallput_data,
+    wmask = Some(smallput_wmask))(outerConfig)
+
+  val sending_put = Reg(init = Bool(false))
+
+  val pass_valid = io.in.acquire.valid && !stretch
+
+  io.out.acquire.bits := MuxBundle(Wire(io.out.acquire.bits, init=iacq), Seq(
+    (sending_put, put_block_acquire),
+    (shrink, get_block_acquire),
+    (smallput, put_acquire),
+    (smallget, get_acquire)))
+  io.out.acquire.valid := sending_put || pass_valid
+  io.in.acquire.ready := !sending_put && (stretch || io.out.acquire.ready)
+
+  when (io.in.acquire.fire() && stretch) {
+    acq_data_buffer := iacq.data
+    acq_wmask_buffer := iacq.wmask()
+    acq_client_id := iacq.client_xact_id
+    acq_addr_block := iacq.addr_block
+    acq_addr_beat := iacq.addr_beat
+    sending_put := Bool(true)
+  }
+
+  when (sending_put && io.out.acquire.ready) {
+    acq_data_buffer := acq_data_buffer >> outerDataBits
+    acq_wmask_buffer := acq_wmask_buffer >> outerWriteMaskBits
+    when (oacq_ctr.inc()) { sending_put := Bool(false) }
+  }
+
+  val ognt_block = ognt.hasMultibeatData()
+  val gnt_data_buffer = Reg(Vec(factor, UInt(width = outerDataBits)))
+  val gnt_client_id = Reg(ognt.client_xact_id)
+  val gnt_manager_id = Reg(ognt.manager_xact_id)
+
+  val ignt_ctr = Counter(innerDataBeats)
+  val ognt_ctr = Counter(factor)
+  val sending_get = Reg(init = Bool(false))
+
+  val get_block_grant = Grant(
+    is_builtin_type = Bool(true),
+    g_type = Grant.getDataBlockType,
+    client_xact_id = gnt_client_id,
+    manager_xact_id = gnt_manager_id,
+    addr_beat = ignt_ctr.value,
+    data = gnt_data_buffer.toBits)(innerConfig)
+
+  val smallget_grant = ognt.g_type === Grant.getDataBeatType
+
+  val get_grant = Grant(
+    is_builtin_type = Bool(true),
+    g_type = Grant.getDataBeatType,
+    client_xact_id = ognt.client_xact_id,
+    manager_xact_id = ognt.manager_xact_id,
+    addr_beat = ognt.addr_beat >> UInt(log2Up(factor)),
+    data = Fill(factor, ognt.data))(innerConfig)
+
+  io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
+  io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)
+
+  io.in.grant.bits := MuxBundle(Wire(io.in.grant.bits, init=ognt), Seq(
+    sending_get -> get_block_grant,
+    smallget_grant -> get_grant))
+
+  when (io.out.grant.valid && ognt_block && !sending_get) {
+    gnt_data_buffer(ognt_ctr.value) := ognt.data
+    when (ognt_ctr.inc()) {
+      gnt_client_id := ognt.client_xact_id
+      gnt_manager_id := ognt.manager_xact_id
+      sending_get := Bool(true)
     }
+  }
 
-    val data_chunks = Vec.tabulate(factor) { i =>
-      val lsb = i * outerDataBits
-      val msb = (i + 1) * outerDataBits - 1
-      iacq.data(msb, lsb)
-    }
-
-    val beat_sel = Cat(mask_chunks.map(mask => mask.orR).reverse)
-
-    val smallput_data = Mux1H(beat_sel, data_chunks)
-    val smallput_wmask = Mux1H(beat_sel, mask_chunks)
-    val smallput_beat = Cat(iacq.addr_beat, PriorityEncoder(beat_sel))
-
-    assert(!io.in.acquire.valid || !smallput || PopCount(beat_sel) <= UInt(1),
-      "Can't perform Put wider than outer width")
-
-    val read_size_ok = MuxLookup(iacq.op_size(), Bool(false), Seq(
-      MT_B  -> Bool(true),
-      MT_BU -> Bool(true),
-      MT_H  -> Bool(outerDataBits >= 16),
-      MT_HU -> Bool(outerDataBits >= 16),
-      MT_W  -> Bool(outerDataBits >= 32),
-      MT_WU -> Bool(outerDataBits >= 32),
-      MT_D  -> Bool(outerDataBits >= 64),
-      MT_Q  -> Bool(false)))
-
-    assert(!io.in.acquire.valid || !smallget || read_size_ok,
-      "Can't perform Get wider than outer width")
-
-    val outerConfig = p.alterPartial({ case TLId => outerTLId })
-    val innerConfig = p.alterPartial({ case TLId => innerTLId })
-
-    val get_block_acquire = GetBlock(
-      client_xact_id = iacq.client_xact_id,
-      addr_block = iacq.addr_block,
-      alloc = iacq.allocate())(outerConfig)
-
-    val put_block_acquire = PutBlock(
-      client_xact_id = acq_client_id,
-      addr_block = acq_addr_block,
-      addr_beat = if (factor > 1)
-                    Cat(acq_addr_beat, oacq_ctr.value)
-                  else acq_addr_beat,
-      data = acq_data_buffer(outerDataBits - 1, 0),
-      wmask = acq_wmask_buffer(outerWriteMaskBits - 1, 0))(outerConfig)
-
-    val get_acquire = Get(
-      client_xact_id = iacq.client_xact_id,
-      addr_block = iacq.addr_block,
-      addr_beat = outer_beat_addr,
-      addr_byte = outer_byte_addr,
-      operand_size = iacq.op_size(),
-      alloc = iacq.allocate())(outerConfig)
-
-    val put_acquire = Put(
-      client_xact_id = iacq.client_xact_id,
-      addr_block = iacq.addr_block,
-      addr_beat = smallput_beat,
-      data = smallput_data,
-      wmask = Some(smallput_wmask))(outerConfig)
-
-    val sending_put = Reg(init = Bool(false))
-
-    val pass_valid = io.in.acquire.valid && !stretch
-
-    io.out.acquire.bits := MuxBundle(Wire(io.out.acquire.bits, init=iacq), Seq(
-      (sending_put, put_block_acquire),
-      (shrink, get_block_acquire),
-      (smallput, put_acquire),
-      (smallget, get_acquire)))
-    io.out.acquire.valid := sending_put || pass_valid
-    io.in.acquire.ready := !sending_put && (stretch || io.out.acquire.ready)
-
-    when (io.in.acquire.fire() && stretch) {
-      acq_data_buffer := iacq.data
-      acq_wmask_buffer := iacq.wmask()
-      acq_client_id := iacq.client_xact_id
-      acq_addr_block := iacq.addr_block
-      acq_addr_beat := iacq.addr_beat
-      sending_put := Bool(true)
-    }
-
-    when (sending_put && io.out.acquire.ready) {
-      acq_data_buffer := acq_data_buffer >> outerDataBits
-      acq_wmask_buffer := acq_wmask_buffer >> outerWriteMaskBits
-      when (oacq_ctr.inc()) { sending_put := Bool(false) }
-    }
-
-    val ognt_block = ognt.hasMultibeatData()
-    val gnt_data_buffer = Reg(Vec(factor, UInt(width = outerDataBits)))
-    val gnt_client_id = Reg(ognt.client_xact_id)
-    val gnt_manager_id = Reg(ognt.manager_xact_id)
-
-    val ignt_ctr = Counter(innerDataBeats)
-    val ognt_ctr = Counter(factor)
-    val sending_get = Reg(init = Bool(false))
-
-    val get_block_grant = Grant(
-      is_builtin_type = Bool(true),
-      g_type = Grant.getDataBlockType,
-      client_xact_id = gnt_client_id,
-      manager_xact_id = gnt_manager_id,
-      addr_beat = ignt_ctr.value,
-      data = gnt_data_buffer.toBits)(innerConfig)
-
-    val smallget_grant = ognt.g_type === Grant.getDataBeatType
-
-    val get_grant = Grant(
-      is_builtin_type = Bool(true),
-      g_type = Grant.getDataBeatType,
-      client_xact_id = ognt.client_xact_id,
-      manager_xact_id = ognt.manager_xact_id,
-      addr_beat = ognt.addr_beat >> UInt(log2Up(factor)),
-      data = Fill(factor, ognt.data))(innerConfig)
-
-    io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
-    io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)
-
-    io.in.grant.bits := MuxBundle(Wire(io.in.grant.bits, init=ognt), Seq(
-      sending_get -> get_block_grant,
-      smallget_grant -> get_grant))
-
-    when (io.out.grant.valid && ognt_block && !sending_get) {
-      gnt_data_buffer(ognt_ctr.value) := ognt.data
-      when (ognt_ctr.inc()) {
-        gnt_client_id := ognt.client_xact_id
-        gnt_manager_id := ognt.manager_xact_id
-        sending_get := Bool(true)
-      }
-    }
-
-    when (io.in.grant.ready && sending_get) {
-      ignt_ctr.inc()
-      sending_get := Bool(false)
-    }
-  } else { io.out <> io.in }
+  when (io.in.grant.ready && sending_get) {
+    ignt_ctr.inc()
+    sending_get := Bool(false)
+  }
 }
 
 class MMIOTileLinkManagerData(implicit p: Parameters)
