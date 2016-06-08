@@ -270,6 +270,8 @@ class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) 
   val respondTL1      = Reg(init = Bool(false))
   val latchAtom0      = Reg(init = Bool(false))
   val latchAtom1      = Reg(init = Bool(false))
+  val executeAHB0     = Reg(init = Bool(false))
+  val executeAHB1     = Reg(init = Bool(false))
   val bubble          = Reg(init = Bool(true)) // nothing useful in address phase
   val cmd             = Reg(Bits())
   val g_type0         = Reg(UInt())
@@ -281,8 +283,8 @@ class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) 
   val grant1          = Reg(new Grant)
   
   // It is allowed to progress from Idle/Busy during a wait state
-  val addrReady = io.ahb.hready || bubble
-  val dataReady = io.ahb.hready
+  val addrReady = io.ahb.hready || bubble || (!executeAHB1 && !executeAHB0)
+  val dataReady = io.ahb.hready || !executeAHB1
   
   // Only accept a new AHBRequest if we have enough buffer space in the pad
   // to accomodate a persistent drop in TileLink's grant.ready
@@ -311,10 +313,12 @@ class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) 
     when (io.request.fire()) {
       respondTL0 := io.request.bits.respondTL
       latchAtom0 := io.request.bits.latchAtom
+      executeAHB0:= io.request.bits.executeAHB
       bubble     := Bool(false)
     } .otherwise {
       respondTL0 := Bool(false)
       latchAtom0 := Bool(false)
+      executeAHB0:= Bool(false)
       bubble     := Bool(true) // an atom-injected Idle is not a bubble!
     }
   }
@@ -347,11 +351,17 @@ class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) 
   alu.io.lhs  := hrdata
   
   // Transfer bulk data phase
-  // NOTE: this introduces no bubbles because addrReady is a superset of dataReady
   when (dataReady) {
+    when (addrReady) {
+      respondTL1    := respondTL0
+      latchAtom1    := latchAtom0
+      executeAHB1   := executeAHB0
+    } .otherwise {
+      respondTL1    := Bool(false)
+      latchAtom1    := Bool(false)
+      executeAHB1   := Bool(false)
+    }
     hwdata1         := Mux(Bool(supportAtomics), alu.io.out, hwdata0)
-    respondTL1      := respondTL0
-    latchAtom1      := latchAtom0
     g_type1         := g_type0
     client_xact_id1 := client_xact_id0
     addr_beat1      := addr_beat0
