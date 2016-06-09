@@ -62,7 +62,7 @@ module rocketTestHarness;
 
   reg clk   = 1'b0;
   reg reset = 1'b1;
-  reg r_reset;
+  reg r_reset = 1'b1;
   reg start = 1'b0;
 
   always #`CLOCK_PERIOD clk = ~clk;

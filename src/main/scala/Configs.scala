@@ -105,6 +105,8 @@ class BaseConfig extends Config (
       res append '\u0000'
       res.toString.getBytes
     }
+    lazy val innerDataBits = site(MIFDataBits)
+    lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
     pname match {
       case HtifKey => HtifParameters(
                        width = Dump("HTIF_WIDTH", 16),
@@ -202,6 +204,7 @@ class BaseConfig extends Config (
       case UseVM => true
       case UseUser => true
       case UseDebug => true
+      case NBreakpoints => 1
       case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
@@ -247,7 +250,7 @@ class BaseConfig extends Config (
         HastiParameters(
           addrBits = site(PAddrBits),
           dataBits = site(XLen))
-      case TLKey("L1toL2") => 
+      case TLKey("DefaultL1toL2") =>
         TileLinkParameters(
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
@@ -263,9 +266,10 @@ class BaseConfig extends Config (
               if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
           maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
           maxManagerXacts = site(NAcquireTransactors) + 2,
-          dataBeats = site(MIFDataBeats),
+          dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes)*8)
-      case TLKey("L2toMC") => 
+      case TLKey("L1toL2") => site(TLKey("DefaultL1toL2")).copy()
+      case TLKey("DefaultL2toMC") =>
         TileLinkParameters(
           coherencePolicy = new MEICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
@@ -275,13 +279,14 @@ class BaseConfig extends Config (
           maxClientXacts = 1,
           maxClientsPerPort = site(NAcquireTransactors) + 2,
           maxManagerXacts = 1,
-          dataBeats = site(MIFDataBeats),
+          dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes)*8)
+      case TLKey("L2toMC") => site(TLKey("DefaultL2toMC")).copy()
       case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
         maxClientXacts = site(NAcquireTransactors) + 2,
         maxClientsPerPort = site(NBanksPerMemoryChannel),
         dataBeats = site(MIFDataBeats))
-      case TLKey("L2toMMIO") => {
+      case TLKey("DefaultL2toMMIO") => {
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
@@ -291,9 +296,10 @@ class BaseConfig extends Config (
           maxClientXacts = 4,
           maxClientsPerPort = 1,
           maxManagerXacts = 1,
-          dataBeats = site(MIFDataBeats),
+          dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes) * 8)
       }
+      case TLKey("L2toMMIO") => site(TLKey("DefaultL2toMMIO")).copy()
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
@@ -306,7 +312,7 @@ class BaseConfig extends Config (
       case UseHtifClockDiv => true
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
-      case field => throw new CDEMatchError(field)
+      case _ => throw new CDEMatchError
   }},
   knobValues = {
     case "NTILES" => 1
@@ -317,35 +323,35 @@ class BaseConfig extends Config (
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 4
     case "L1I_BUFFER_WAYS" => false
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   }
 )
 class DefaultConfig extends Config(new WithBlockingL1 ++ new BaseConfig)
 
-class With2Cores extends Config(knobValues = { case "NTILES" => 2; case field => throw new CDEMatchError(field) })
-class With4Cores extends Config(knobValues = { case "NTILES" => 4; case field => throw new CDEMatchError(field) })
-class With8Cores extends Config(knobValues = { case "NTILES" => 8; case field => throw new CDEMatchError(field) })
+class With2Cores extends Config(knobValues = { case "NTILES" => 2; case _ => throw new CDEMatchError })
+class With4Cores extends Config(knobValues = { case "NTILES" => 4; case _ => throw new CDEMatchError })
+class With8Cores extends Config(knobValues = { case "NTILES" => 8; case _ => throw new CDEMatchError })
 
-class With2BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 2; case field => throw new CDEMatchError(field) })
-class With4BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 4; case field => throw new CDEMatchError(field) })
-class With8BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 8; case field => throw new CDEMatchError(field) })
+class With2BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 2; case _ => throw new CDEMatchError })
+class With4BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 4; case _ => throw new CDEMatchError })
+class With8BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 8; case _ => throw new CDEMatchError })
 
 class With2MemoryChannels extends Config(
   (pname,site,here) => pname match {
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 2)
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   }
 )
 class With4MemoryChannels extends Config(
   (pname,site,here) => pname match {
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 4)
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   }
 )
 class With8MemoryChannels extends Config(
   (pname,site,here) => pname match {
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   }
 )
 
@@ -372,27 +378,27 @@ class WithL2Cache extends Config(
         case InnerTLId => "L1toL2"
         case OuterTLId => "L2toMC"})))
     case L2Replacer => () => new SeqRandom(site(NWays))
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   },
-  knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048; case "L2_SPLIT_METADATA" => false; case field => throw new CDEMatchError(field) }
+  knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048; case "L2_SPLIT_METADATA" => false; case _ => throw new CDEMatchError }
 )
 
 class WithPLRU extends Config(
   (pname, site, here) => pname match {
     case L2Replacer => () => new SeqPLRU(site(NSets), site(NWays))
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
-class WithL2Capacity2048 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 2048; case field => throw new CDEMatchError(field) })
-class WithL2Capacity1024 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 1024; case field => throw new CDEMatchError(field) })
-class WithL2Capacity512 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 512; case field => throw new CDEMatchError(field) })
-class WithL2Capacity256 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 256; case field => throw new CDEMatchError(field) })
-class WithL2Capacity128 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 128; case field => throw new CDEMatchError(field) })
-class WithL2Capacity64 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 64; case field => throw new CDEMatchError(field) })
+class WithL2Capacity2048 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 2048; case _ => throw new CDEMatchError })
+class WithL2Capacity1024 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 1024; case _ => throw new CDEMatchError })
+class WithL2Capacity512 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 512; case _ => throw new CDEMatchError })
+class WithL2Capacity256 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 256; case _ => throw new CDEMatchError })
+class WithL2Capacity128 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 128; case _ => throw new CDEMatchError })
+class WithL2Capacity64 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 64; case _ => throw new CDEMatchError })
 
-class With1L2Ways extends Config(knobValues = { case "L2_WAYS" => 1; case field => throw new CDEMatchError(field) })
-class With2L2Ways extends Config(knobValues = { case "L2_WAYS" => 2; case field => throw new CDEMatchError(field) })
-class With4L2Ways extends Config(knobValues = { case "L2_WAYS" => 4; case field => throw new CDEMatchError(field) })
+class With1L2Ways extends Config(knobValues = { case "L2_WAYS" => 1; case _ => throw new CDEMatchError })
+class With2L2Ways extends Config(knobValues = { case "L2_WAYS" => 2; case _ => throw new CDEMatchError })
+class With4L2Ways extends Config(knobValues = { case "L2_WAYS" => 4; case _ => throw new CDEMatchError })
 
 class DefaultL2Config extends Config(new WithL2Cache ++ new BaseConfig)
 class DefaultL2FPGAConfig extends Config(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
@@ -406,7 +412,7 @@ class WithRV32 extends Config(
     case UseUser => false
     case UseAtomics => false
     case UseFPU => false
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   }
 )
 
@@ -414,14 +420,14 @@ class FPGAConfig extends Config (
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
     case UseHtifClockDiv => false
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   }
 )
 
 class WithBlockingL1 extends Config (
   knobValues = {
     case "L1D_MSHRS" => 0
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   }
 )
 
@@ -442,7 +448,7 @@ class SmallConfig extends Config (
       case StoreDataQueueDepth => 2
       case ReplayQueueDepth => 2
       case NAcquireTransactors => 2
-      case field => throw new CDEMatchError(field)
+      case _ => throw new CDEMatchError
     }},
   knobValues = {
     case "L1D_SETS" => 64
@@ -450,7 +456,7 @@ class SmallConfig extends Config (
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 1
     case "L1D_MSHRS" => 0
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   }
 )
 
@@ -489,7 +495,7 @@ class WithRoccExample extends Config(
         generator = (p: Parameters) => Module(new CharacterCountExample()(p))))
 
     case RoccMaxTaggedMemXacts => 1
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
@@ -505,7 +511,7 @@ class WithDmaController extends Config(
             DmaCtrlRegNumbers.CSR_BASE,
             DmaCtrlRegNumbers.CSR_END)))
     case RoccMaxTaggedMemXacts => 1
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class WithStreamLoopback extends Config(
@@ -513,7 +519,7 @@ class WithStreamLoopback extends Config(
     case UseStreamLoopback => true
     case StreamLoopbackSize => 128
     case StreamLoopbackWidth => 64
-    case field => throw new CDEMatchError(field)
+    case _ => throw new CDEMatchError
   })
 
 class DmaControllerConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultL2Config)
@@ -530,7 +536,7 @@ class OctoChannelBenchmarkConfig extends Config(new With8MemoryChannels ++ new S
 
 class EightChannelConfig extends Config(new With8MemoryChannels ++ new BaseConfig)
 
-class WithSplitL2Metadata extends Config(knobValues = { case "L2_SPLIT_METADATA" => true; case field => throw new CDEMatchError(field) })
+class WithSplitL2Metadata extends Config(knobValues = { case "L2_SPLIT_METADATA" => true; case _ => throw new CDEMatchError })
 class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new DefaultL2Config)
 
 class DualCoreConfig extends Config(new With2Cores ++ new BaseConfig)

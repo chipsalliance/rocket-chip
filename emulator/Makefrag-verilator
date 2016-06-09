@@ -1,0 +1,57 @@
+#--------------------------------------------------------------------
+# Verilator Generation 
+#--------------------------------------------------------------------
+
+firrtl = $(generated_dir)/$(MODEL).$(CONFIG).fir
+firrtl_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).fir
+verilog = $(generated_dir)/$(MODEL).$(CONFIG).v
+verilog_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).v
+
+FIRRTL ?= $(base_dir)/firrtl/utils/bin/firrtl
+
+$(FIRRTL):
+	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
+
+.SECONDARY: $(firrtl) $(firrtl_debug) $(verilog) $(verilog_debug)
+
+$(firrtl) $(params_file) $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs)
+	mkdir -p $(dir $@)
+	cd $(base_dir) && $(SBT) "run $(PROJECT) $(MODEL) $(CONFIG) --targetDir $(generated_dir)"
+	mv $(generated_dir)/$(MODEL).fir $(generated_dir)/$(MODEL).$(CONFIG).fir
+
+$(firrtl_debug) $(params_file_debug): $(chisel_srcs)
+	mkdir -p $(dir $@)
+	cd $(base_dir) && $(SBT) "run $(PROJECT) $(MODEL) $(CONFIG) --targetDir $(generated_dir_debug)"
+	mv $(generated_dir_debug)/$(MODEL).fir $(generated_dir_debug)/$(MODEL).$(CONFIG).fir
+
+%.v: %.fir $(FIRRTL)
+	mkdir -p $(dir $@)
+	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $@ -X verilog
+
+VERILATOR := verilator --cc --exe
+VERILATOR_FLAGS := --top-module $(MODEL) +define+PRINTF_COND=$(MODEL).reset --assert \
+	-Wno-UNSIGNED -Wno-COMBDLY -Wno-MULTIDRIVEN -Wno-WIDTH -Wno-STMTDLY -Wno-SELRANGE -Wno-IMPLICIT
+cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
+
+model_header = $(generated_dir)/$(MODEL).$(CONFIG)/V$(MODEL).h
+model_header_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG)/V$(MODEL).h
+
+$(addsuffix .o,$(CXXSRCS)): %.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(consts_header)
+	$(CXX) $(CXXFLAGS) -DVERILATOR -I$(generated_dir) -c -o $@ $<
+
+$(addsuffix .debug.o,$(CXXSRCS)): %.debug.o: $(base_dir)/csrc/%.cc $(base_dir)/csrc/*.h $(consts_header_debug)
+	$(CXX) $(CXXFLAGS) -DVERILATOR -I$(generated_dir_debug) -c -o $@ $<
+
+$(emu): $(verilog) $(cppfiles) libdramsim.a $(consts_header)
+	mkdir -p $(generated_dir)/$(MODEL).$(CONFIG)
+	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir)/$(MODEL).$(CONFIG) \
+	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
+	-CFLAGS "$(CXXFLAGS) -DVERILATOR -I$(generated_dir) -include $(model_header) -include $(consts_header) -include $(scr_header)"
+	$(MAKE) -C $(generated_dir)/$(MODEL).$(CONFIG) -f V$(MODEL).mk
+
+$(emu_debug): $(verilog_debug) $(cppfiles) libdramsim.a $(consts_header_debug) $(generated_dir)/$(MODEL).$(CONFIG).d
+	mkdir -p $(generated_dir_debug)/$(MODEL).$(CONFIG)
+	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir_debug)/$(MODEL).$(CONFIG)  --trace \
+	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
+	-CFLAGS "$(CXXFLAGS) -DVERILATOR -I$(generated_dir_debug) -include $(model_header_debug) -include $(consts_header_debug) -include $(scr_header_debug)"
+	$(MAKE) -C $(generated_dir_debug)/$(MODEL).$(CONFIG) -f V$(MODEL).mk

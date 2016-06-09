@@ -20,7 +20,7 @@ object HwachaTestSuites {
     "eidx", "imul", "fcvt", "vvadd_d", "vvadd_w", "vvadd_fd", "vvadd_fw", "vvmul_d",
     "overlap", "sched_sreg_xbar", "sched_fadd", "sched_waw", "sched_war", "pointer", "vcjal", "vfirst", "vfence",
     "vl_empty", "vs_empty", "vlx_empty", "vsx_empty", "vamo_empty", "eidx_empty") ++
-    rv32uaNames ++ rv64uaNames
+    (rv32uaNames -- Set("lrsc")) ++ (rv64uaNames -- Set("lrsc"))
   val rv64uvBasic = new AssemblyTestSuite("rv64uv", "rv64uv", rv64uvNames)(_)
 
   val rv64uiVecNames = LinkedHashSet(
@@ -54,6 +54,9 @@ object HwachaTestSuites {
 import HwachaTestSuites._
 class WithHwachaTests extends Config(
   (pname,site,here) => pname match {
+    case TLKey("L1toL2") => site(TLKey("DefaultL1toL2")).copy(dataBeats = 4)
+    case TLKey("L2toMC") => site(TLKey("DefaultL2toMC")).copy(dataBeats = 4)
+    case TLKey("L2toMMIO") => site(TLKey("DefaultL2toMMIO")).copy(dataBeats = 4)
     case BuildRoCC => {
       TestGeneration.addSuites(rv64uv.map(_("p")))
       TestGeneration.addSuites(rv64uv.map(_("vp")))

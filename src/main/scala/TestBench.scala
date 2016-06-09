@@ -323,6 +323,7 @@ object TestBenchGeneration extends FileSystemUtilities {
     val nMemChannel = p(NMemoryChannels)
 
     val assigns = (0 until nMemChannel).map { i => s"""
+#ifndef VERILATOR
       mem_ar_valid[$i] = &tile.Top__io_mem_axi_${i}_ar_valid;
       mem_ar_ready[$i] = &tile.Top__io_mem_axi_${i}_ar_ready;
       mem_ar_bits_addr[$i] = &tile.Top__io_mem_axi_${i}_ar_bits_addr;
@@ -354,11 +355,55 @@ object TestBenchGeneration extends FileSystemUtilities {
       mem_r_bits_id[$i] = &tile.Top__io_mem_axi_${i}_r_bits_id;
       mem_r_bits_data[$i] = &tile.Top__io_mem_axi_${i}_r_bits_data;
       mem_r_bits_last[$i] = &tile.Top__io_mem_axi_${i}_r_bits_last;
+#else
+      mem_ar_valid[$i] = &tile.io_mem_axi_${i}_ar_valid;
+      mem_ar_ready[$i] = &tile.io_mem_axi_${i}_ar_ready;
+      mem_ar_bits_addr[$i] = &tile.io_mem_axi_${i}_ar_bits_addr;
+      mem_ar_bits_id[$i] = &tile.io_mem_axi_${i}_ar_bits_id;
+      mem_ar_bits_size[$i] = &tile.io_mem_axi_${i}_ar_bits_size;
+      mem_ar_bits_len[$i] = &tile.io_mem_axi_${i}_ar_bits_len;
 
+      mem_aw_valid[$i] = &tile.io_mem_axi_${i}_aw_valid;
+      mem_aw_ready[$i] = &tile.io_mem_axi_${i}_aw_ready;
+      mem_aw_bits_addr[$i] = &tile.io_mem_axi_${i}_aw_bits_addr;
+      mem_aw_bits_id[$i] = &tile.io_mem_axi_${i}_aw_bits_id;
+      mem_aw_bits_size[$i] = &tile.io_mem_axi_${i}_aw_bits_size;
+      mem_aw_bits_len[$i] = &tile.io_mem_axi_${i}_aw_bits_len;
+
+      mem_w_valid[$i] = &tile.io_mem_axi_${i}_w_valid;
+      mem_w_ready[$i] = &tile.io_mem_axi_${i}_w_ready;
+#if MEM_DATA_BITS > 64
+      mem_w_bits_data[$i] = tile.io_mem_axi_${i}_w_bits_data;
+#else
+      mem_w_bits_data[$i] = &tile.io_mem_axi_${i}_w_bits_data;
+#endif
+      mem_w_bits_strb[$i] = &tile.io_mem_axi_${i}_w_bits_strb;
+      mem_w_bits_last[$i] = &tile.io_mem_axi_${i}_w_bits_last;
+
+      mem_b_valid[$i] = &tile.io_mem_axi_${i}_b_valid;
+      mem_b_ready[$i] = &tile.io_mem_axi_${i}_b_ready;
+      mem_b_bits_resp[$i] = &tile.io_mem_axi_${i}_b_bits_resp;
+      mem_b_bits_id[$i] = &tile.io_mem_axi_${i}_b_bits_id;
+
+      mem_r_valid[$i] = &tile.io_mem_axi_${i}_r_valid;
+      mem_r_ready[$i] = &tile.io_mem_axi_${i}_r_ready;
+      mem_r_bits_resp[$i] = &tile.io_mem_axi_${i}_r_bits_resp;
+      mem_r_bits_id[$i] = &tile.io_mem_axi_${i}_r_bits_id;
+#if MEM_DATA_BITS > 64
+      mem_r_bits_data[$i] = tile.io_mem_axi_${i}_r_bits_data;
+#else
+      mem_r_bits_data[$i] = &tile.io_mem_axi_${i}_r_bits_data;
+#endif
+      mem_r_bits_last[$i] = &tile.io_mem_axi_${i}_r_bits_last;
+#endif
     """ }.mkString
 
     val interrupts = (0 until p(NExtInterrupts)) map { i => s"""
+#ifndef VERILATOR
       tile.Top__io_interrupts_$i = LIT<1>(0);
+#else
+      tile.io_interrupts_$i = 0;
+#endif
 """ } mkString
 
     val f = createOutputFile(s"$topModuleName.$configClassName.tb.cpp")

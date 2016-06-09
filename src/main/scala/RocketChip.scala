@@ -242,7 +242,9 @@ class Uncore(implicit val p: Parameters) extends Module
         prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
       prci.io.interrupts(i).debug := debugModule.io.debugInterrupts(i)
 
-      io.prci(i).reset := Reg(next=Reg(next=htif.io.cpu(i).reset)) // TODO
+      io.prci(i).reset := reset || Reg(init = Bool(true),
+                            next=Reg(init = Bool(true),
+                              next=htif.io.cpu(i).reset)) // TODO
     }
 
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
