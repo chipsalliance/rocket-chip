@@ -171,6 +171,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   val wb_reg_valid           = Reg(Bool())
   val wb_reg_xcpt            = Reg(Bool())
+  val wb_reg_mem_xcpt        = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
   val wb_reg_cause           = Reg(UInt())
   val wb_reg_rocc_pending    = Reg(init=Bool(false))
@@ -369,15 +370,18 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     }
   }
 
+  val (mem_new_xcpt, mem_new_cause) = checkExceptions(List(
+    (mem_reg_load && bpu.io.xcpt_ld,         UInt(Causes.breakpoint)),
+    (mem_reg_store && bpu.io.xcpt_st,        UInt(Causes.breakpoint)),
+    (want_take_pc_mem && mem_npc_misaligned, UInt(Causes.misaligned_fetch)),
+    (mem_ctrl.mem && io.dmem.xcpt.ma.st,     UInt(Causes.misaligned_store)),
+    (mem_ctrl.mem && io.dmem.xcpt.ma.ld,     UInt(Causes.misaligned_load)),
+    (mem_ctrl.mem && io.dmem.xcpt.pf.st,     UInt(Causes.fault_store)),
+    (mem_ctrl.mem && io.dmem.xcpt.pf.ld,     UInt(Causes.fault_load))))
+
   val (mem_xcpt, mem_cause) = checkExceptions(List(
-    (mem_reg_xcpt_interrupt || mem_reg_xcpt,              mem_reg_cause),
-    (mem_reg_valid && mem_reg_load && bpu.io.xcpt_ld,     UInt(Causes.breakpoint)),
-    (mem_reg_valid && mem_reg_store && bpu.io.xcpt_st,    UInt(Causes.breakpoint)),
-    (want_take_pc_mem && mem_npc_misaligned,              UInt(Causes.misaligned_fetch)),
-    (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.ma.st, UInt(Causes.misaligned_store)),
-    (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.ma.ld, UInt(Causes.misaligned_load)),
-    (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.pf.st, UInt(Causes.fault_store)),
-    (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.pf.ld, UInt(Causes.fault_load))))
+    (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
+    (mem_reg_valid && mem_new_xcpt,          mem_new_cause)))
 
   val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
@@ -390,6 +394,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   wb_reg_valid := !ctrl_killm
   wb_reg_replay := replay_mem && !take_pc_wb
   wb_reg_xcpt := mem_xcpt && !take_pc_wb
+  wb_reg_mem_xcpt := mem_reg_valid && mem_new_xcpt && !(mem_reg_xcpt_interrupt || mem_reg_xcpt)
   when (mem_xcpt) { wb_reg_cause := mem_cause }
   when (mem_reg_valid || mem_reg_replay || mem_reg_xcpt_interrupt) {
     wb_ctrl := mem_ctrl
@@ -459,6 +464,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.rocc.csr <> csr.io.rocc.csr
   csr.io.rocc.interrupt <> io.rocc.interrupt
   csr.io.pc := wb_reg_pc
+  csr.io.badaddr := Mux(wb_reg_mem_xcpt, encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata), wb_reg_pc)
   csr.io.uarch_counters.foreach(_ := Bool(false))
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.invalidate := csr.io.fatc
@@ -625,7 +631,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   def checkHazards(targets: Seq[(Bool, UInt)], cond: UInt => Bool) =
     targets.map(h => h._1 && cond(h._2)).reduce(_||_)
 
-  def encodeVirtualAddress(a0: UInt, ea: UInt) = if (xLen == 32) ea else {
+  def encodeVirtualAddress(a0: UInt, ea: UInt) = if (vaddrBitsExtended == vaddrBits) ea else {
     // efficient means to compress 64-bit VA into vaddrBits+1 bits
     // (VA is bad if VA(vaddrBits) != VA(vaddrBits-1))
     val a = a0 >> vaddrBits-1

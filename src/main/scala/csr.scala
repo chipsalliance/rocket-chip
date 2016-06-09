@@ -118,6 +118,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val custom_mrw_csrs = Vec(nCustomMrwCsrs, UInt(INPUT, xLen))
   val cause = UInt(INPUT, xLen)
   val pc = UInt(INPUT, vaddrBitsExtended)
+  val badaddr = UInt(INPUT, vaddrBitsExtended)
   val fatc = Bool(OUTPUT)
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
@@ -365,7 +366,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     Mux[UInt](insn_break, Causes.breakpoint, Causes.illegal_instruction)))
   val cause_lsbs = cause(log2Up(xLen)-1,0)
   val causeIsDebugInt = cause(xLen-1) && cause_lsbs === debugIntCause
-  val causeIsDebugBreak = insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
+  val causeIsDebugBreak = cause === Causes.breakpoint && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
   val trapToDebug = Bool(usingDebug) && (causeIsDebugInt || causeIsDebugBreak || reg_debug)
   val delegate = Bool(p(UseVM)) && reg_mstatus.prv < PRV.M && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
   val debugTVec = Mux(reg_debug, UInt(0x808), UInt(0x800))
@@ -383,17 +384,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     io.status.sd_rv32 := io.status.sd
 
   when (io.exception || csr_xcpt) {
-    def compressVAddr(addr: UInt) =
-      if (vaddrBitsExtended == vaddrBits) addr
-      else {
-        val (upper, lower) = Split(addr, vaddrBits)
-        val sign = Mux(lower.toSInt < SInt(0), upper.andR, upper.orR)
-        Cat(sign, lower)
-      }
-    val ldst =
-      cause === Causes.fault_load || cause === Causes.misaligned_load ||
-      cause === Causes.fault_store || cause === Causes.misaligned_store
-    val badaddr = Mux(ldst, compressVAddr(io.rw.wdata), io.pc)
     val epc = ~(~io.pc | (coreInstBytes-1))
     val pie = read_mstatus(reg_mstatus.prv)
 
@@ -405,7 +395,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }.elsewhen (delegate) {
       reg_sepc := epc
       reg_scause := cause
-      reg_sbadaddr := badaddr
+      reg_sbadaddr := io.badaddr
       reg_mstatus.spie := pie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
@@ -413,7 +403,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }.otherwise {
       reg_mepc := epc
       reg_mcause := cause
-      reg_mbadaddr := badaddr
+      reg_mbadaddr := io.badaddr
       reg_mstatus.mpie := pie
       reg_mstatus.mpp := reg_mstatus.prv
       reg_mstatus.mie := false
