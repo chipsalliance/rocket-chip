@@ -287,20 +287,20 @@ Now take a look in the emulator/generated-src directory. You will find
 Chisel generated C++ code.
 
     $ ls $ROCKETCHIP/emulator/generated-src
-    Top.DefaultCPPConfig-0.cpp
-    Top.DefaultCPPConfig-0.o
-    Top.DefaultCPPConfig-1.cpp
-    Top.DefaultCPPConfig-1.o
-    Top.DefaultCPPConfig-2.cpp
-    Top.DefaultCPPConfig-2.o
-    Top.DefaultCPPConfig-3.cpp
-    Top.DefaultCPPConfig-3.o
-    Top.DefaultCPPConfig-4.cpp
-    Top.DefaultCPPConfig-4.o
-    Top.DefaultCPPConfig-5.cpp
-    Top.DefaultCPPConfig-5.o
-    Top.DefaultCPPConfig.cpp
-    Top.DefaultCPPConfig.h
+    Top.DefaultConfig-0.cpp
+    Top.DefaultConfig-0.o
+    Top.DefaultConfig-1.cpp
+    Top.DefaultConfig-1.o
+    Top.DefaultConfig-2.cpp
+    Top.DefaultConfig-2.o
+    Top.DefaultConfig-3.cpp
+    Top.DefaultConfig-3.o
+    Top.DefaultConfig-4.cpp
+    Top.DefaultConfig-4.o
+    Top.DefaultConfig-5.cpp
+    Top.DefaultConfig-5.o
+    Top.DefaultConfig.cpp
+    Top.DefaultConfig.h
     emulator.h
     emulator_api.h
     emulator_mod.h
@@ -366,13 +366,13 @@ You can generate Verilog for your VLSI flow with the following commands:
     $ make verilog
 
 Now take a look at vsim/generated-src, and the contents of the
-Top.DefaultVLSIConfig.conf file:
+Top.DefaultConfig.conf file:
 
     $ cd $ROCKETCHIP/vsim/generated-src
-    Top.DefaultVLSIConfig.conf
-    Top.DefaultVLSIConfig.prm
-    Top.DefaultVLSIConfig.v
-    consts.DefaultVLSIConfig.vh
+    Top.DefaultConfig.conf
+    Top.DefaultConfig.prm
+    Top.DefaultConfig.v
+    consts.DefaultConfig.vh
     $ cat $ROCKETCHIP/vsim/generated-src/*.conf
     name MetadataArray_tag_arr depth 128 width 84 ports mwrite,read mask_gran 21
     name ICache_tag_array depth 128 width 38 ports mrw mask_gran 19
@@ -387,7 +387,7 @@ script with the generated configuration file as an argument, which will
 fill in the Verilog for the SRAMs. Currently, the $(mem\_gen) script
 points to vsim/vlsi\_mem\_gen, which simply instantiates behavioral
 SRAMs.  You will see those SRAMs being appended at the end of
-vsim/generated-src/Top.DefaultVLSIConfig.v. To target vendor-specific
+vsim/generated-src/Top.DefaultConfig.v. To target vendor-specific
 SRAMs, you will need to make necessary changes to vsim/vlsi\_mem\_gen.
 
 Similarly, if you have access to VCS, you can run assembly tests and
@@ -403,20 +403,17 @@ tests and benchmarks.
 
 ## <a name="param"></a> How can I parameterize my Rocket chip?
 
-By now, you probably figured out that all generated files have a
-configuration name attached, e.g. DefaultCPPConfig and
-DefaultVLSIConfig. Take a look at src/main/scala/Configs.scala.
-Search for NSets and NWays defined in DefaultConfig. You can change
-those numbers to get a Rocket core with different cache parameters. For
-example, by changing L1I, NWays to 4, you will get a 32KB 4-way
-set-associative L1 instruction cache rather than a 16KB 2-way
-set-associative L1 instruction cache. By searching further for
-DefaultVLSIConfig and DefaultCPPConfig, you will see that currently both
-are set to be identical to DefaultConfig.
+By now, you probably figured out that all generated files have a configuration
+name attached, e.g. DefaultConfig. Take a look at
+src/main/scala/Configs.scala. Search for NSets and NWays defined in
+BaseConfig. You can change those numbers to get a Rocket core with different
+cache parameters. For example, by changing L1I, NWays to 4, you will get
+a 32KB 4-way set-associative L1 instruction cache rather than a 16KB 2-way
+set-associative L1 instruction cache.
 
 Further down, you will be able to see two FPGA configurations:
 DefaultFPGAConfig and DefaultFPGASmallConfig. DefaultFPGAConfig inherits from
-DefaultConfig, but overrides the low-performance memory port (i.e., backup
+BaseConfig, but overrides the low-performance memory port (i.e., backup
 memory port) to be turned off. This is because the high-performance memory
 port is directly connected to the high-performance AXI interface on the ZYNQ
 FPGA. DefaultFPGASmallConfig inherits from DefaultFPGAConfig, but changes the
@@ -426,12 +423,12 @@ This small configuration is used for the Zybo FPGA board, which has the
 smallest ZYNQ part.
 
 Towards the end, you can also find that ExampleSmallConfig inherits all
-parameters from DefaultConfig but overrides the same parameters of
+parameters from BaseConfig but overrides the same parameters of
 SmallConfig.
 
 Now take a look at fsim/Makefile and vsim/Makefile. Search for the
 CONFIG variable. DefaultFPGAConfig is used for the FPGA build, while
-DefaultVLSIConfig is used for the VLSI build. You can also change the
+DefaultConfig is used for the VLSI build. You can also change the
 CONFIG variable on the make command line:
 
     $ cd $ROCKETCHIP/vsim

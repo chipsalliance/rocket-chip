@@ -23,6 +23,7 @@ class WithGroundTest extends Config(
           if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
         maxClientsPerPort = 2,
         maxManagerXacts = site(NAcquireTransactors) + 2,
+        dataBeats = site(MIFDataBeats),
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
       val groundtest = if (site(XLen) == 64)
@@ -42,7 +43,8 @@ class WithGroundTest extends Config(
     case TohostAddr => BigInt("80001000", 16)
     case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
-    case _ => throw new CDEMatchError
+    case UseAtomics => true
+    case field => throw new CDEMatchError(field)
   })
 
 class WithMemtest extends Config(
@@ -51,22 +53,22 @@ class WithMemtest extends Config(
     case GenerateUncached => true
     case GenerateCached => true
     case MaxGenerateRequests => 128
-    case GeneratorStartAddress => site(GlobalAddrHashMap)("mem").start
+    case GeneratorStartAddress => site(GlobalAddrMap)("mem").start
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   })
 
 class WithCacheFillTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new CacheFillTest()(p))
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   },
   knobValues = {
     case "L2_WAYS" => 4
     case "L2_CAPACITY_IN_KB" => 4
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   })
 
 class WithBroadcastRegressionTest extends Config(
@@ -76,7 +78,7 @@ class WithBroadcastRegressionTest extends Config(
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.broadcastRegressions(p)
     case GroundTestMaxXacts => 3
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   })
 
 class WithCacheRegressionTest extends Config(
@@ -86,7 +88,7 @@ class WithCacheRegressionTest extends Config(
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.cacheRegressions(p)
     case GroundTestMaxXacts => 3
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   })
 
 class WithDmaTest extends Config(
@@ -102,7 +104,7 @@ class WithDmaTest extends Config(
       (0x00800008, 0x00800008, 64))
     case DmaTestDataStart => 0x3012CC00
     case DmaTestDataStride => 8
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   })
 
 class WithDmaStreamTest extends Config(
@@ -114,21 +116,21 @@ class WithDmaStreamTest extends Config(
       size = site(StreamLoopbackWidth) / 8)
     case GroundTestCSRs =>
       Seq(DmaCtrlRegNumbers.CSR_BASE + DmaCtrlRegNumbers.OUTSTANDING)
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   })
 
 class WithNastiConverterTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new NastiConverterTest()(p))
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   })
 
 class WithUnitTest extends Config(
   (pname, site, here) => pname match {
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new UnitTestSuite()(p))
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   })
 
 class WithTraceGen extends Config(
@@ -138,10 +140,10 @@ class WithTraceGen extends Config(
     case NGenerators => site(NTiles)
     case MaxGenerateRequests => 128
     case AddressBag => List(0x8, 0x10, 0x108, 0x100008)
-    case _ => throw new CDEMatchError
+    case field => throw new CDEMatchError(field)
   })
 
-class GroundTestConfig extends Config(new WithGroundTest ++ new DefaultConfig)
+class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)

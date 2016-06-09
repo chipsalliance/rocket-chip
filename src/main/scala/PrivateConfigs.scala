@@ -74,11 +74,10 @@ class WithHwachaTests extends Config(
   }
 )
 
-class HwachaVLSIConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2VLSIConfig)
-class HwachaFPGAConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2FPGAConfig) 
-class HwachaCPPConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2CPPConfig) 
+class HwachaConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2Config)
+class HwachaFPGAConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2FPGAConfig)
 
-class EOS24Config extends Config(new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)
+class EOS24Config extends Config(new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaConfig)
 class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)
 
 class With5L2AcquireXacts extends Config(
@@ -149,12 +148,12 @@ class WithSmallPredRF extends Config(
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
   new With2MemoryChannels ++ new With4BanksPerMemChannel ++
-  new With5L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaVLSIConfig)
+  new With5L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
     case "HWACHA_BUILD_VRU" => true
-    case x => (new Config(new With2MemoryChannels ++ new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaVLSIConfig)).knobValues(x)
+    case x => (new Config(new With2MemoryChannels ++ new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaConfig)).knobValues(x)
     case _ => throw new CDEMatchError
   }
 

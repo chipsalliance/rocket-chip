@@ -108,7 +108,7 @@ object DefaultTestSuites {
   val rv32umNames = LinkedHashSet("mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu")
   val rv32um = new AssemblyTestSuite("rv32um", "rv32ui", rv32umNames)(_)
 
-  val rv32uaNames = LinkedHashSet("amoadd_w", "amoand_w", "amoor_w", "amoxor_w", "amoswap_w", "amomax_w", "amomaxu_w", "amomin_w", "amominu_w")
+  val rv32uaNames = LinkedHashSet("lrsc", "amoadd_w", "amoand_w", "amoor_w", "amoxor_w", "amoswap_w", "amomax_w", "amomaxu_w", "amomin_w", "amominu_w")
   val rv32ua = new AssemblyTestSuite("rv32ua", "rv32ui", rv32uaNames)(_)
 
   val rv32siNames = LinkedHashSet("csr", "ma_fetch", "scall", "sbreak", "wfi")
@@ -117,7 +117,7 @@ object DefaultTestSuites {
   val rv32miNames = LinkedHashSet("csr", "mcsr", "dirty", "illegal", "ma_addr", "ma_fetch", "sbreak", "scall")
   val rv32mi = new AssemblyTestSuite("rv32mi", "rv32mi", rv32miNames)(_)
 
-  val rv32u = List(rv32ui, rv32um, rv32ua)
+  val rv32u = List(rv32ui, rv32um)
   val rv32i = List(rv32ui, rv32si, rv32mi)
 
   val rv64uiNames = LinkedHashSet("addw", "addiw", "ld", "lwu", "sd", "slliw", "sllw", "sltiu", "sltu", "sraiw", "sraw", "srliw", "srlw", "subw")
@@ -145,8 +145,8 @@ object DefaultTestSuites {
 
   // TODO: "rv64ui-pm-lrsc", "rv64mi-pm-ipi",
 
-  val rv64u = List(rv64ui, rv64um, rv64ua)
-  val rv64i = rv64u ++ List(rv64si, rv64mi)
+  val rv64u = List(rv64ui, rv64um)
+  val rv64i = List(rv64ui, rv64si, rv64mi)
 
   val bmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "spmv", "mt-vvadd", "mt-matmul", "pb-spmv", "vec-daxpy", "vec-dgemm-opt", "vec-hsaxpy", "vec-hgemm-opt", "vec-hsgemm-opt", "vec-saxpy", "vec-sdaxpy", "vec-sdgemm-opt", "vec-sgemm-naive", "vec-sgemm-opt", "vec-vvadd"))
