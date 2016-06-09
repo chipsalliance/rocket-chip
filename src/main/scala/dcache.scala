@@ -71,7 +71,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s1_req = Reg(io.cpu.req.bits)
   when (metaReadArb.io.out.valid) {
     s1_req := io.cpu.req.bits
-    s1_req.addr := Cat(io.cpu.req.bits.addr >> pgIdxBits, metaReadArb.io.out.bits.idx, io.cpu.req.bits.addr(blockOffBits-1,0))
+    s1_req.addr := Cat(io.cpu.req.bits.addr >> untagBits, metaReadArb.io.out.bits.idx, io.cpu.req.bits.addr(blockOffBits-1,0))
   }
   val s1_read = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
