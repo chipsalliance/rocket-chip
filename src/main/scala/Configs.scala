@@ -203,6 +203,7 @@ class BaseConfig extends Config (
       case UseVM => true
       case UseUser => true
       case UseDebug => true
+      case NBreakpoints => 1
       case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
