@@ -454,7 +454,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   val dbRamRdEn   = Wire(Bool())
 
   val sbRamAddr   = Wire(UInt(width=sbRamAddrWidth))
-  val sbRamRdData = Reg (UInt(width=sbRamDataWidth))
+  val sbRamRdData = Wire (UInt(width=sbRamDataWidth))
   val sbRamWrData = Wire(UInt(width=sbRamDataWidth))
   val sbRamWrEn   = Wire(Bool())
   val sbRamRdEn   = Wire(Bool())
