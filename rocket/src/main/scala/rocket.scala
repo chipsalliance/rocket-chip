@@ -28,6 +28,7 @@ case object NCustomMRWCSRs extends Field[Int]
 case object MtvecWritable extends Field[Boolean]
 case object MtvecInit extends Field[BigInt]
 case object ResetVector extends Field[BigInt]
+case object NBreakpoints extends Field[Int]
 
 trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
@@ -160,6 +161,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val mem_reg_flush_pipe      = Reg(Bool())
   val mem_reg_cause           = Reg(UInt())
   val mem_reg_slow_bypass     = Reg(Bool())
+  val mem_reg_load            = Reg(Bool())
+  val mem_reg_store           = Reg(Bool())
   val mem_reg_pc = Reg(UInt())
   val mem_reg_inst = Reg(Bits())
   val mem_reg_wdata = Reg(Bits())
@@ -222,8 +225,15 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val id_do_fence = id_rocc_busy && id_ctrl.fence ||
     id_mem_busy && (id_ctrl.amo && id_amo_aq || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc) || id_csr_en)
 
+  val bpu = Module(new BreakpointUnit)
+  bpu.io.bpcontrol := csr.io.bpcontrol
+  bpu.io.bpaddress := csr.io.bpaddress
+  bpu.io.pc := id_pc
+  bpu.io.ea := mem_reg_wdata
+
   val (id_xcpt, id_cause) = checkExceptions(List(
     (csr.io.interrupt,          csr.io.interrupt_cause),
+    (bpu.io.xcpt_if,            UInt(Causes.breakpoint)),
     (io.imem.resp.bits.xcpt_if, UInt(Causes.fault_fetch)),
     (id_illegal_insn,           UInt(Causes.illegal_instruction))))
 
@@ -344,6 +354,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   when (ex_reg_valid || ex_reg_xcpt_interrupt) {
     mem_ctrl := ex_ctrl
+    mem_reg_load := ex_ctrl.mem && isRead(ex_ctrl.mem_cmd)
+    mem_reg_store := ex_ctrl.mem && isWrite(ex_ctrl.mem_cmd)
     mem_reg_btb_hit := ex_reg_btb_hit
     when (ex_reg_btb_hit) { mem_reg_btb_resp := ex_reg_btb_resp }
     mem_reg_flush_pipe := ex_reg_flush_pipe
@@ -359,6 +371,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt,              mem_reg_cause),
+    (mem_reg_valid && mem_reg_load && bpu.io.xcpt_ld,     UInt(Causes.breakpoint)),
+    (mem_reg_valid && mem_reg_store && bpu.io.xcpt_st,    UInt(Causes.breakpoint)),
     (want_take_pc_mem && mem_npc_misaligned,              UInt(Causes.misaligned_fetch)),
     (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.ma.st, UInt(Causes.misaligned_store)),
     (mem_reg_valid && mem_ctrl.mem && io.dmem.xcpt.ma.ld, UInt(Causes.misaligned_load)),

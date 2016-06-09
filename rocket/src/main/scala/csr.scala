@@ -7,7 +7,6 @@ import Util._
 import Instructions._
 import cde.{Parameters, Field}
 import uncore._
-import scala.math._
 import junctions.AddrMap
 
 class MStatus extends Bundle {
@@ -126,6 +125,8 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val rocc = new RoCCInterface().flip
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
+  val bpcontrol = Vec(p(NBreakpoints), new BPControl).asOutput
+  val bpaddress = Vec(p(NBreakpoints), UInt(width = vaddrBits)).asOutput
 }
 
 class CSRFile(implicit p: Parameters) extends CoreModule()(p)
@@ -171,6 +172,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_dpc = Reg(UInt(width = vaddrBitsExtended))
   val reg_dscratch = Reg(UInt(width = xLen))
 
+  val reg_tdrselect = Reg(init=UInt(0, log2Up(p(NBreakpoints))))
+  val reg_bpcontrol = Reg(Vec(p(NBreakpoints), new BPControl))
+  val reg_bpaddress = Reg(Vec(p(NBreakpoints), UInt(width = vaddrBits)))
+
   val reg_mie = Reg(init=UInt(0, xLen))
   val reg_mideleg = Reg(init=UInt(0, xLen))
   val reg_medeleg = Reg(init=UInt(0, xLen))
@@ -208,6 +213,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val interruptCause = interruptMSB + PriorityEncoder(all_interrupts)
   io.interrupt := all_interrupts.orR
   io.interrupt_cause := interruptCause
+  io.bpcontrol := reg_bpcontrol
+  io.bpaddress := reg_bpaddress
 
   val debugIntCause = reg_mip.getWidth
   // debug interrupts are only masked by being in debug mode
@@ -229,6 +236,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val read_mstatus = io.status.toBits()(xLen-1,0)
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
+    CSRs.tdrselect -> reg_tdrselect,
+    CSRs.tdrdata1 -> (if (p(NBreakpoints) > 0) reg_bpcontrol(reg_tdrselect).toBits else UInt(0)),
+    CSRs.tdrdata2 -> (if (p(NBreakpoints) > 0) reg_bpaddress(reg_tdrselect) else UInt(0)),
     CSRs.mimpid -> UInt(0),
     CSRs.marchid -> UInt(0),
     CSRs.mvendorid -> UInt(0),
@@ -324,7 +334,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     if (usingFPU) decoded_addr(CSRs.fflags) || decoded_addr(CSRs.frm) || decoded_addr(CSRs.fcsr)
     else Bool(false)
   val csr_debug = Bool(usingDebug) && io.rw.addr(5)
-  val csr_addr_priv = Cat(io.rw.addr(5), io.rw.addr(9,8))
+  val csr_addr_priv = Cat(io.rw.addr(6,5).andR, io.rw.addr(9,8))
   val priv_sufficient = Cat(reg_debug, reg_mstatus.prv) >= csr_addr_priv
   val read_only = io.rw.addr(11,10).andR
   val cpu_wen = cpu_ren && io.rw.cmd =/= CSR.R && priv_sufficient
@@ -523,10 +533,20 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata & delegable_interrupts }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata & delegable_exceptions }
     }
+    if (p(NBreakpoints) > 0) {
+      when (decoded_addr(CSRs.tdrselect)) { reg_tdrselect := Mux(wdata(log2Up(p(NBreakpoints))-1,0) >= UInt(p(NBreakpoints)), UInt(0), wdata(log2Up(p(NBreakpoints))-1,0)) }
+      when (decoded_addr(CSRs.tdrdata1)) {
+        val newBPC = new BPControl().fromBits(wdata)
+        reg_bpcontrol(reg_tdrselect) := newBPC
+        reg_bpcontrol(reg_tdrselect).matchcond := newBPC.matchcond | 1 /* exact/range only */
+      }
+      when (decoded_addr(CSRs.tdrdata2)) { reg_bpaddress(reg_tdrselect) := wdata }
+    }
   }
 
   reg_mip := io.prci.interrupts
   reg_dcsr.debugint := io.prci.interrupts.debug
+  reg_dcsr.hwbpcount := UInt(p(NBreakpoints))
 
   io.rocc.csr.waddr := io.rw.addr
   io.rocc.csr.wdata := wdata
@@ -536,5 +556,17 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     reg_mstatus.mpp := PRV.M
     reg_mstatus.prv := PRV.M
     reg_mstatus.mprv := false
+  }
+
+  for (bpc <- reg_bpcontrol) {
+    bpc.h := false
+    if (!usingVM) bpc.s := false
+    if (!usingUser) bpc.u := false
+    if (!usingVM && !usingUser) bpc.m := true
+    when (reset) {
+      bpc.r := false
+      bpc.w := false
+      bpc.x := false
+    }
   }
 }

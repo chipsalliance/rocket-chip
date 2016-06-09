@@ -281,6 +281,10 @@ object CSRs {
   val mscycle_delta = 0x704
   val mstime_delta = 0x705
   val msinstret_delta = 0x706
+  val tdrselect = 0x7a0
+  val tdrdata1 = 0x7a1
+  val tdrdata2 = 0x7a2
+  val tdrdata3 = 0x7a3
   val dcsr = 0x7b0
   val dpc = 0x7b1
   val dscratch = 0x7b2
@@ -344,6 +348,10 @@ object CSRs {
     res += mscycle_delta
     res += mstime_delta
     res += msinstret_delta
+    res += tdrselect
+    res += tdrdata1
+    res += tdrdata2
+    res += tdrdata3
     res += dcsr
     res += dpc
     res += dscratch
