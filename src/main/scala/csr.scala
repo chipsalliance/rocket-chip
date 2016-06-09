@@ -501,6 +501,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     if (usingDebug) {
       when (decoded_addr(CSRs.dcsr)) {
         val new_dcsr = new DCSR().fromBits(wdata)
+        reg_dcsr.halt := new_dcsr.halt
         reg_dcsr.ebreakm := new_dcsr.ebreakm
         if (usingVM) reg_dcsr.ebreaks := new_dcsr.ebreaks
         if (usingUser) reg_dcsr.ebreaku := new_dcsr.ebreaku
