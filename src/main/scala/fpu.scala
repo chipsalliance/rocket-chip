@@ -561,7 +561,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   val waddr = Mux(divSqrt_wen, divSqrt_waddr, winfo(0)(4,0).toUInt)
-  val wsrc = (winfo(0) >> 6)
+  val wsrc = (winfo(0) >> 6)(log2Up(pipes.size) - 1,0)
   val wcp = winfo(0)(6+log2Up(pipes.size))
   val wdata = Mux(divSqrt_wen, divSqrt_wdata, Vec(pipes.map(_.res.data))(wsrc))
   val wexc = Vec(pipes.map(_.res.exc))(wsrc)
