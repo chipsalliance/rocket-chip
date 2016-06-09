@@ -389,11 +389,16 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
 
   io.out.acquire <> acqArb.io.out
 
-  acqRoq.io.deq.valid := io.out.grant.fire() && ognt.last()
+  val grant_deq_roq = io.out.grant.fire() && ognt.last()
+
+  acqRoq.io.deq.valid := acqRoq.io.deq.matches && grant_deq_roq
   acqRoq.io.deq.tag := ognt.client_xact_id
 
-  relRoq.io.deq.valid := io.out.grant.fire() && ognt.last()
+  relRoq.io.deq.valid := !acqRoq.io.deq.matches && grant_deq_roq
   relRoq.io.deq.tag := ognt.client_xact_id
+
+  assert(!grant_deq_roq || acqRoq.io.deq.matches || relRoq.io.deq.matches,
+    "TileLink Unwrapper: client_xact_id mismatch")
 
   val gnt_builtin = acqRoq.io.deq.data
   val gnt_voluntary = relRoq.io.deq.data
@@ -622,8 +627,11 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     manager_xact_id = UInt(0),
     addr_beat = Mux(roq.io.deq.data.subblock, roq.io.deq.data.addr_beat, tl_cnt_in),
     data = io.nasti.r.bits.data)
-  assert(!gnt_arb.io.in(0).valid || roq.io.deq.matches, "NASTI tag error")
-  assert(!gnt_arb.io.in(0).valid || get_id_mapper.io.resp.matches, "NASTI tag error")
+
+  assert(!roq.io.deq.valid || roq.io.deq.matches,
+    "TL -> NASTI converter ReorderQueue: NASTI tag error")
+  assert(!gnt_arb.io.in(0).valid || get_id_mapper.io.resp.matches,
+    "TL -> NASTI ID Mapper: NASTI tag error")
 
   gnt_arb.io.in(1).valid := io.nasti.b.valid
   io.nasti.b.ready := gnt_arb.io.in(1).ready
