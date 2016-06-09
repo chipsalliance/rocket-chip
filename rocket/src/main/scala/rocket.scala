@@ -227,6 +227,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     id_mem_busy && (id_ctrl.amo && id_amo_aq || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc) || id_csr_en)
 
   val bpu = Module(new BreakpointUnit)
+  bpu.io.status := csr.io.status
   bpu.io.bpcontrol := csr.io.bpcontrol
   bpu.io.bpaddress := csr.io.bpaddress
   bpu.io.pc := id_pc

@@ -19,6 +19,7 @@ class BPControl extends Bundle {
 
 class BreakpointUnit(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
+    val status = new MStatus().asInput
     val bpcontrol = Vec(p(NBreakpoints), new BPControl).asInput
     val bpaddress = Vec(p(NBreakpoints), UInt(width = vaddrBits)).asInput
     val pc = UInt(INPUT, vaddrBits)
@@ -38,8 +39,10 @@ class BreakpointUnit(implicit p: Parameters) extends CoreModule()(p) {
       mask = Cat(mask(i-1) && bpa(i-1), mask)
 
     def matches(x: UInt) = (~x | mask) === (~bpa | mask)
-    when (matches(io.pc) && bpc.x) { io.xcpt_if := true }
-    when (matches(io.ea) && bpc.r) { io.xcpt_ld := true }
-    when (matches(io.ea) && bpc.w) { io.xcpt_st := true }
+    when (Cat(bpc.m, bpc.h, bpc.s, bpc.u)(io.status.prv)) {
+      when (matches(io.pc) && bpc.x) { io.xcpt_if := true }
+      when (matches(io.ea) && bpc.r) { io.xcpt_ld := true }
+      when (matches(io.ea) && bpc.w) { io.xcpt_st := true }
+    }
   }
 }
