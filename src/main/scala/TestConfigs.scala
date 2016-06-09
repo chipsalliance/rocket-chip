@@ -20,7 +20,7 @@ class WithGroundTest extends Config(
         nCachelessClients = site(NTiles) + site(ExtraL1Clients),
         maxClientXacts = max(
           site(NMSHRs) + 1,
-          if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
+          site(GroundTestMaxXacts)),
         maxClientsPerPort = 2,
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBeats = site(MIFDataBeats),
