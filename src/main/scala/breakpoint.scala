@@ -6,8 +6,20 @@ import Chisel._
 import Util._
 import cde.Parameters
 
-class BPControl extends Bundle {
-  val matchcond = UInt(width = 2)
+class TDRSelect(implicit p: Parameters) extends CoreBundle()(p) {
+  val tdrmode = Bool()
+  val reserved = UInt(width = xLen - 1 - log2Up(nTDR))
+  val tdrindex = UInt(width = log2Up(nTDR))
+
+  def nTDR = p(NBreakpoints)
+}
+
+class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
+  val tdrtype = UInt(width = 4)
+  val bpamaskmax = UInt(width = 5)
+  val reserved = UInt(width = xLen-28)
+  val bpaction = UInt(width = 8)
+  val bpmatch = UInt(width = 4)
   val m = Bool()
   val h = Bool()
   val s = Bool()
@@ -15,6 +27,9 @@ class BPControl extends Bundle {
   val r = Bool()
   val w = Bool()
   val x = Bool()
+
+  def tdrType = 1
+  def bpaMaskMax = 4
 }
 
 class BreakpointUnit(implicit p: Parameters) extends CoreModule()(p) {
@@ -34,8 +49,8 @@ class BreakpointUnit(implicit p: Parameters) extends CoreModule()(p) {
   io.xcpt_st := false
 
   for (((bpc, bpa), i) <- io.bpcontrol zip io.bpaddress zipWithIndex) {
-    var mask: UInt = bpc.matchcond(1)
-    for (i <- 1 until log2Ceil(16))
+    var mask: UInt = bpc.bpmatch(1)
+    for (i <- 1 until bpc.bpaMaskMax)
       mask = Cat(mask(i-1) && bpa(i-1), mask)
 
     def matches(x: UInt) = (~x | mask) === (~bpa | mask)
