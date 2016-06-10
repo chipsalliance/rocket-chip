@@ -464,21 +464,11 @@ class TileLinkToSmiConverterTest(implicit p: Parameters) extends UnitTest {
   val outermostParams = p.alterPartial({ case TLId => "Outermost" })
 
   val smimem = Module(new SmiMem(32, 64))
-  val conv1 = Module(new NastiIOTileLinkIOConverter()(outermostParams))
-  val conv2 = Module(new SmiIONastiIOConverter(32, 6))
+  val conv = Module(new SmiIOTileLinkIOConverter(32, 6)(outermostParams))
   val driver = Module(new TileLinkToSmiConverterTestDriver()(outermostParams))
 
-  def decoupledNastiConnect(outer: NastiIO, inner: NastiIO) {
-    outer.ar <> Queue(inner.ar)
-    outer.aw <> Queue(inner.aw)
-    outer.w  <> Queue(inner.w)
-    inner.r  <> Queue(outer.r)
-    inner.b  <> Queue(outer.b)
-  }
-
-  conv1.io.tl <> driver.io.mem
-  decoupledNastiConnect(conv2.io.nasti, conv1.io.nasti)
-  smimem.io <> conv2.io.smi
+  conv.io.tl <> driver.io.mem
+  smimem.io <> conv.io.smi
   driver.io.start := io.start
   io.finished := driver.io.finished
 }
