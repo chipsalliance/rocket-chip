@@ -1133,6 +1133,7 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   val s2_req_fire = Reg(next=s1_req_fire)
   val s3_nack = Reg(next=io.cache.s2_nack)
 
+  io.cache.invalidate_lr := io.requestor.invalidate_lr
   io.cache.req <> req_arb.io.out
   io.cache.req.bits.phys := Bool(true)
   io.cache.s1_kill := io.cache.s2_nack
