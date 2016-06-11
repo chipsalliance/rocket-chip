@@ -126,8 +126,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val rocc = new RoCCInterface().flip
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
-  val bpcontrol = Vec(p(NBreakpoints), new BPControl).asOutput
-  val bpaddress = Vec(p(NBreakpoints), UInt(width = vaddrBits)).asOutput
+  val bp = Vec(p(NBreakpoints), new BP).asOutput
 }
 
 class CSRFile(implicit p: Parameters) extends CoreModule()(p)
@@ -174,8 +173,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_dscratch = Reg(UInt(width = xLen))
 
   val reg_tdrselect = Reg(new TDRSelect)
-  val reg_bpcontrol = Reg(Vec(p(NBreakpoints), new BPControl))
-  val reg_bpaddress = Reg(Vec(p(NBreakpoints), UInt(width = vaddrBits)))
+  val reg_bp = Reg(Vec(1 << log2Up(p(NBreakpoints)), new BP))
 
   val reg_mie = Reg(init=UInt(0, xLen))
   val reg_mideleg = Reg(init=UInt(0, xLen))
@@ -214,8 +212,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val interruptCause = interruptMSB + PriorityEncoder(all_interrupts)
   io.interrupt := all_interrupts.orR
   io.interrupt_cause := interruptCause
-  io.bpcontrol := reg_bpcontrol
-  io.bpaddress := reg_bpaddress
+  io.bp := reg_bp take p(NBreakpoints)
 
   val debugIntCause = reg_mip.getWidth
   // debug interrupts are only masked by being in debug mode
@@ -238,8 +235,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
     CSRs.tdrselect -> reg_tdrselect.toBits,
-    CSRs.tdrdata1 -> (if (p(NBreakpoints) > 0) reg_bpcontrol(reg_tdrselect.tdrindex).toBits else UInt(0)),
-    CSRs.tdrdata2 -> (if (p(NBreakpoints) > 0) reg_bpaddress(reg_tdrselect.tdrindex) else UInt(0)),
+    CSRs.tdrdata1 -> reg_bp(reg_tdrselect.tdrindex).control.toBits,
+    CSRs.tdrdata2 -> reg_bp(reg_tdrselect.tdrindex).address,
     CSRs.mimpid -> UInt(0),
     CSRs.marchid -> UInt(0),
     CSRs.mvendorid -> UInt(0),
@@ -340,9 +337,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val read_only = io.rw.addr(11,10).andR
   val cpu_wen = cpu_ren && io.rw.cmd =/= CSR.R && priv_sufficient
   val wen = cpu_wen && !read_only
-  val wdata = Mux(io.rw.cmd === CSR.S, io.rw.rdata | io.rw.wdata,
-              Mux(io.rw.cmd === CSR.C, io.rw.rdata & ~io.rw.wdata,
-              io.rw.wdata))
+
+  val wdata = (Mux((io.rw.cmd === CSR.S || io.rw.cmd === CSR.C), io.rw.rdata, UInt(0)) |
+               Mux(io.rw.cmd =/= CSR.C, io.rw.wdata, UInt(0))) &
+              ~Mux(io.rw.cmd === CSR.C, io.rw.wdata, UInt(0))
 
   val do_system_insn = priv_sufficient && system_insn
   val opcode = UInt(1) << io.rw.addr(2,0)
@@ -525,15 +523,17 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata & delegable_exceptions }
     }
     if (p(NBreakpoints) > 0) {
-      val canWrite = reg_tdrselect.tdrmode || reg_debug
       val newTDR = new TDRSelect().fromBits(wdata)
-      when (decoded_addr(CSRs.tdrselect) && newTDR.tdrindex < newTDR.nTDR) { reg_tdrselect.tdrindex := newTDR.tdrindex }
-      when (decoded_addr(CSRs.tdrdata1) && canWrite) {
-        val newBPC = new BPControl().fromBits(wdata)
-        reg_bpcontrol(reg_tdrselect.tdrindex) := newBPC
-        reg_bpcontrol(reg_tdrselect.tdrindex).bpmatch := newBPC.bpmatch & 2 /* exact/NAPOT only */
+      when (decoded_addr(CSRs.tdrselect)) { reg_tdrselect.tdrindex := newTDR.tdrindex }
+
+      when (reg_tdrselect.tdrmode || reg_debug) {
+        when (decoded_addr(CSRs.tdrdata1)) {
+          val newBPC = new BPControl().fromBits(wdata)
+          reg_bp(reg_tdrselect.tdrindex).control := newBPC
+          reg_bp(reg_tdrselect.tdrindex).control.bpmatch := newBPC.bpmatch & 2 /* exact/NAPOT only */
+        }
+        when (decoded_addr(CSRs.tdrdata2)) { reg_bp(reg_tdrselect.tdrindex).address := wdata }
       }
-      when (decoded_addr(CSRs.tdrdata2) && canWrite) { reg_bpaddress(reg_tdrselect.tdrindex) := wdata }
     }
   }
 
@@ -553,7 +553,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   reg_tdrselect.reserved := 0
   reg_tdrselect.tdrmode := true // TODO support D-mode breakpoint theft
-  for (bpc <- reg_bpcontrol) {
+  if (reg_bp.isEmpty) reg_tdrselect.tdrindex := 0
+  for (bpc <- reg_bp map {_.control}) {
     bpc.tdrtype := bpc.tdrType
     bpc.bpamaskmax := bpc.bpaMaskMax
     bpc.reserved := 0
@@ -568,4 +569,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       bpc.x := false
     }
   }
+  for (bp <- reg_bp drop p(NBreakpoints))
+    bp := new BP().fromBits(0)
 }

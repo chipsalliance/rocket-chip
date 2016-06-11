@@ -30,13 +30,28 @@ class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
 
   def tdrType = 1
   def bpaMaskMax = 4
+  def enabled(mstatus: MStatus) = Cat(m, h, s, u)(mstatus.prv)
+}
+
+class BP(implicit p: Parameters) extends CoreBundle()(p) {
+  val control = new BPControl
+  val address = UInt(width = vaddrBits)
+
+  def mask(dummy: Int = 0) = {
+    var mask: UInt = control.bpmatch(1)
+    for (i <- 1 until control.bpaMaskMax)
+      mask = Cat(mask(i-1) && address(i-1), mask)
+    mask
+  }
+
+  def pow2AddressMatch(x: UInt) =
+    (~x | mask()) === (~address | mask())
 }
 
 class BreakpointUnit(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val status = new MStatus().asInput
-    val bpcontrol = Vec(p(NBreakpoints), new BPControl).asInput
-    val bpaddress = Vec(p(NBreakpoints), UInt(width = vaddrBits)).asInput
+    val bp = Vec(p(NBreakpoints), new BP).asInput
     val pc = UInt(INPUT, vaddrBits)
     val ea = UInt(INPUT, vaddrBits)
     val xcpt_if = Bool(OUTPUT)
@@ -48,16 +63,20 @@ class BreakpointUnit(implicit p: Parameters) extends CoreModule()(p) {
   io.xcpt_ld := false
   io.xcpt_st := false
 
-  for (((bpc, bpa), i) <- io.bpcontrol zip io.bpaddress zipWithIndex) {
-    var mask: UInt = bpc.bpmatch(1)
-    for (i <- 1 until bpc.bpaMaskMax)
-      mask = Cat(mask(i-1) && bpa(i-1), mask)
+  for (bp <- io.bp) {
+    when (bp.control.enabled(io.status)) {
+      when (bp.pow2AddressMatch(io.pc) && bp.control.x) { io.xcpt_if := true }
+      when (bp.pow2AddressMatch(io.ea) && bp.control.r) { io.xcpt_ld := true }
+      when (bp.pow2AddressMatch(io.ea) && bp.control.w) { io.xcpt_st := true }
+    }
+  }
 
-    def matches(x: UInt) = (~x | mask) === (~bpa | mask)
-    when (Cat(bpc.m, bpc.h, bpc.s, bpc.u)(io.status.prv)) {
-      when (matches(io.pc) && bpc.x) { io.xcpt_if := true }
-      when (matches(io.ea) && bpc.r) { io.xcpt_ld := true }
-      when (matches(io.ea) && bpc.w) { io.xcpt_st := true }
+  if (!io.bp.isEmpty) for ((bpl, bph) <- io.bp zip io.bp.tail) {
+    def matches(x: UInt) = !(x < bpl.address) && x < bph.address
+    when (bph.control.enabled(io.status) && bph.control.bpmatch === 1) {
+      when (matches(io.pc) && bph.control.x) { io.xcpt_if := true }
+      when (matches(io.ea) && bph.control.r) { io.xcpt_ld := true }
+      when (matches(io.ea) && bph.control.w) { io.xcpt_st := true }
     }
   }
 }
