@@ -228,8 +228,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   val bpu = Module(new BreakpointUnit)
   bpu.io.status := csr.io.status
-  bpu.io.bpcontrol := csr.io.bpcontrol
-  bpu.io.bpaddress := csr.io.bpaddress
+  bpu.io.bp := csr.io.bp
   bpu.io.pc := id_pc
   bpu.io.ea := mem_reg_wdata
 
