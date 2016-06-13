@@ -166,6 +166,63 @@ class NoAllocPutHitRegression(implicit p: Parameters) extends Regression()(p) {
   io.cache.req.valid := Bool(false)
 }
 
+/** Make sure L2 does the right thing when multiple puts are sent for the
+ *  same block, but only the first one has the alloc bit set. */
+class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
+  val (s_idle :: s_put_send :: s_put_wait ::
+       s_get_send :: s_get_wait :: s_done :: Nil) = Enum(Bits(), 6)
+  val state = Reg(init = s_idle)
+
+  val put_data = Vec(
+    UInt("h0000000011111111"),
+    UInt("h2222222200000000"),
+    UInt("h3333333333333333"))
+  val put_wmask = Vec(UInt("h0f"), UInt("hf0"), UInt("hff"))
+  val put_beat = Vec(UInt(0), UInt(0), UInt(2))
+
+  val (put_acq_id, put_acq_done) = Counter(
+    state === s_put_send && io.mem.acquire.ready, 3)
+  val (put_gnt_cnt, put_gnt_done) = Counter(
+    state === s_put_wait && io.mem.grant.valid, 3)
+
+  val get_data = Vec(UInt("h2222222211111111"), UInt("h3333333333333333"))
+  val get_beat = Vec(UInt(0), UInt(2))
+
+  val (get_acq_id, get_acq_done) = Counter(
+    state === s_get_send && io.mem.acquire.ready, 2)
+  val (get_gnt_cnt, get_gnt_done) = Counter(
+    state === s_get_wait && io.mem.grant.valid, 2)
+
+  val put_acquire = Put(
+    client_xact_id = put_acq_id,
+    addr_block = UInt(memStartBlock),
+    addr_beat = put_beat(put_acq_id),
+    data = put_data(put_acq_id),
+    wmask = put_wmask(put_acq_id),
+    alloc = (put_acq_id === UInt(0)))
+
+  val get_acquire = Get(
+    client_xact_id = get_acq_id,
+    addr_block = UInt(memStartBlock),
+    addr_beat = get_beat(get_acq_id))
+
+  io.mem.acquire.valid := (state === s_put_send) || (state === s_get_send)
+  io.mem.acquire.bits := Mux(state === s_put_send, put_acquire, get_acquire)
+  io.mem.grant.ready := (state === s_put_wait) || (state === s_get_wait)
+
+  when (state === s_idle && io.start) { state := s_put_send }
+  when (put_acq_done) { state := s_put_wait }
+  when (put_gnt_done) { state := s_get_send }
+  when (get_acq_done) { state := s_get_wait }
+  when (get_gnt_done) { state := s_done }
+
+  io.finished := (state === s_done)
+
+  assert(state =/= s_get_wait || !io.mem.grant.valid ||
+         io.mem.grant.bits.data === get_data(io.mem.grant.bits.client_xact_id),
+         "MixedAllocPutRegression: data mismatch")
+}
+
 /* Make sure each no-alloc put triggers a request to outer memory.
  * Unfortunately, there's no way to verify that this works except by looking
  * at the waveform */
@@ -426,7 +483,8 @@ object RegressionTests {
     Module(new PrefetchHitRegression),
     Module(new SequentialSameIdGetRegression),
     Module(new WritebackRegression),
-    Module(new PutBeforePutBlockRegression))
+    Module(new PutBeforePutBlockRegression),
+    Module(new MixedAllocPutRegression))
   def broadcastRegressions(implicit p: Parameters) = Seq(
     Module(new IOGetAfterPutBlockRegression),
     Module(new WriteMaskedPutBlockRegression),
