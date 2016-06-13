@@ -9,6 +9,8 @@ import cde.{Parameters, Field}
 
 case object CoreName extends Field[String]
 case object BuildRoCC extends Field[Seq[RoccParameters]]
+case object NCachedTileLinkPorts extends Field[Int]
+case object NUncachedTileLinkPorts extends Field[Int]
 
 case class RoccParameters(
   opcodes: OpcodeSet,
@@ -20,22 +22,23 @@ case class RoccParameters(
 
 abstract class Tile(resetSignal: Bool = null)
                    (implicit p: Parameters) extends Module(_reset = resetSignal) {
-  val buildRocc = p(BuildRoCC)
-  val usingRocc = !buildRocc.isEmpty
-  val nRocc = buildRocc.size
-  val nFPUPorts = buildRocc.filter(_.useFPU).size
-  val nCachedTileLinkPorts = 1
-  val nUncachedTileLinkPorts = 1 + p(RoccNMemChannels)
+  val nCachedTileLinkPorts = p(NCachedTileLinkPorts)
+  val nUncachedTileLinkPorts = p(NUncachedTileLinkPorts)
   val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
+
   val io = new Bundle {
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
     val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
     val prci = new PRCITileIO().flip
-    val dma = new DmaIO
   }
 }
 
 class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(resetSignal)(p) {
+  val buildRocc = p(BuildRoCC)
+  val usingRocc = !buildRocc.isEmpty
+  val nRocc = buildRocc.size
+  val nFPUPorts = buildRocc.filter(_.useFPU).size
+
   val core = Module(new Rocket()(p.alterPartial({ case CoreName => "Rocket" })))
   val icache = Module(new Frontend()(p.alterPartial({
     case CacheName => "L1I"
