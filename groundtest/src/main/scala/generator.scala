@@ -7,17 +7,12 @@ import rocket._
 import scala.util.Random
 import cde.{Parameters, Field}
 
-case object NGenerators extends Field[Int]
-case object GenerateUncached extends Field[Boolean]
-case object GenerateCached extends Field[Boolean]
 case object MaxGenerateRequests extends Field[Int]
 case object GeneratorStartAddress extends Field[BigInt]
 
-trait HasGeneratorParams {
+trait HasGeneratorParameters extends HasGroundTestParameters {
   implicit val p: Parameters
-  val nGens = p(NGenerators)
-  val genUncached = p(GenerateUncached)
-  val genCached = p(GenerateCached)
+  val nGens = p(NTiles) * (nUncached + nCached)
   val genTimeout = 4096
   val maxRequests = p(MaxGenerateRequests)
   val startAddress = p(GeneratorStartAddress)
@@ -30,7 +25,7 @@ trait HasGeneratorParams {
 }
 
 class UncachedTileLinkGenerator(id: Int)
-    (implicit p: Parameters) extends TLModule()(p) with HasGeneratorParams {
+    (implicit p: Parameters) extends TLModule()(p) with HasGeneratorParameters {
 
   private val tlBlockOffset = tlBeatAddrBits + tlByteAddrBits
 
@@ -61,22 +56,13 @@ class UncachedTileLinkGenerator(id: Int)
   io.finished := (state === s_finished)
 
   val part_of_full_addr =
-    if (genCached) {
-      Cat(req_cnt,
-          UInt(0, width = 1),
-          UInt(0, wordOffset))
-    } else {
-      Cat(req_cnt,
-          UInt(0, wordOffset))
-    }
-  val another_part_of_full_addr =
     if (log2Ceil(nGens) > 0) {
       Cat(UInt(id, log2Ceil(nGens)),
-          part_of_full_addr)
+          UInt(0, wordOffset))
     } else {
-      part_of_full_addr
+      UInt(0, wordOffset)
     }
-  val full_addr = UInt(startAddress) + another_part_of_full_addr
+  val full_addr = UInt(startAddress) + Cat(req_cnt, part_of_full_addr)
 
   val addr_block = full_addr >> UInt(tlBlockOffset)
   val addr_beat = full_addr(tlBlockOffset - 1, tlByteAddrBits)
@@ -124,7 +110,7 @@ class UncachedTileLinkGenerator(id: Int)
 }
 
 class HellaCacheGenerator(id: Int)
-    (implicit p: Parameters) extends L1HellaCacheModule()(p) with HasGeneratorParams {
+    (implicit p: Parameters) extends L1HellaCacheModule()(p) with HasGeneratorParameters {
   val io = new Bundle {
     val finished = Bool(OUTPUT)
     val mem = new HellaCacheIO
@@ -140,23 +126,12 @@ class HellaCacheGenerator(id: Int)
   val (req_cnt, req_wrap) = Counter(io.mem.resp.valid, maxRequests)
 
   val part_of_req_addr =
-       if (log2Ceil(nGens) > 0) {
-         if (genUncached) {
-           Cat(UInt(id, log2Ceil(nGens)),
-               UInt(1, width = 1),
-               UInt(0, wordOffset))
-         } else {
-           Cat(UInt(id, log2Ceil(nGens)),
-               UInt(0, wordOffset))
-         }
-       } else {
-         if (genUncached) {
-           Cat(UInt(1, width = 1),
-               UInt(0, wordOffset))
-         } else {
-           UInt(0, wordOffset)
-         }
-       }
+    if (log2Ceil(nGens) > 0) {
+      Cat(UInt(id, log2Ceil(nGens)),
+          UInt(0, wordOffset))
+    } else {
+      UInt(0, wordOffset)
+    }
   val req_addr = UInt(startAddress) + Cat(req_cnt, part_of_req_addr)
   val req_data = Cat(UInt(id, log2Up(nGens)), req_addr)
 
@@ -191,23 +166,23 @@ class HellaCacheGenerator(id: Int)
 }
 
 class GeneratorTest(id: Int)(implicit p: Parameters)
-    extends GroundTest()(p) with HasGeneratorParams {
+    extends GroundTest()(p) with HasGeneratorParameters {
 
-  disablePorts(mem = !genUncached, cache = !genCached)
+  val totalGens = nUncached + nCached
 
-  val gen_finished = Wire(init = Vec.fill(2){Bool(true)})
-
-  if (genUncached) {
-    val uncacheGen = Module(new UncachedTileLinkGenerator(id))
-    io.mem <> uncacheGen.io.mem
-    gen_finished(0) := uncacheGen.io.finished
+  val cached = List.tabulate(nCached) { i =>
+    val realId = id * totalGens + i
+    Module(new HellaCacheGenerator(realId))
   }
 
-  if (genCached) {
-    val cacheGen = Module(new HellaCacheGenerator(id))
-    io.cache <> cacheGen.io.mem
-    gen_finished(1) := cacheGen.io.finished
+  val uncached = List.tabulate(nUncached) { i =>
+    val realId = id * totalGens + nCached + i
+    Module(new UncachedTileLinkGenerator(realId))
   }
 
+  io.cache <> cached.map(_.io.mem)
+  io.mem <> uncached.map(_.io.mem)
+
+  val gen_finished = cached.map(_.io.finished) ++ uncached.map(_.io.finished)
   io.finished := gen_finished.reduce(_ && _)
 }

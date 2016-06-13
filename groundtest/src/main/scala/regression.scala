@@ -494,8 +494,6 @@ object RegressionTests {
 case object GroundTestRegressions extends Field[Parameters => Seq[Regression]]
 
 class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
-  disablePorts(mem = false, cache = false)
-
   val regressions = p(GroundTestRegressions)(p)
   val regressIOs = Vec(regressions.map(_.io))
   val regress_idx = Reg(init = UInt(0, log2Up(regressions.size + 1)))
@@ -507,12 +505,12 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   regressIOs.zipWithIndex.foreach { case (regress, i) =>
     val me = regress_idx === UInt(i)
     regress.start := me && start
-    regress.mem.acquire.ready := io.mem.acquire.ready && me
-    regress.mem.grant.valid := io.mem.grant.valid && me
-    regress.mem.grant.bits := io.mem.grant.bits
-    regress.cache.req.ready := io.cache.req.ready && me
-    regress.cache.resp.valid := io.cache.resp.valid && me
-    regress.cache.resp.bits := io.cache.resp.bits
+    regress.mem.acquire.ready := io.mem.head.acquire.ready && me
+    regress.mem.grant.valid   := io.mem.head.grant.valid && me
+    regress.mem.grant.bits    := io.mem.head.grant.bits
+    regress.cache.req.ready   := io.cache.head.req.ready && me
+    regress.cache.resp.valid  := io.cache.head.resp.valid && me
+    regress.cache.resp.bits   := io.cache.head.resp.bits
   }
 
   val cur_regression = regressIOs(regress_idx)
@@ -520,12 +518,12 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   val cur_grant = cur_regression.mem.grant
   val cur_cache = cur_regression.cache
 
-  io.mem.acquire.valid := cur_acquire.valid
-  io.mem.acquire.bits := cur_acquire.bits
-  io.mem.grant.ready := cur_grant.ready
-  io.cache.req.valid := cur_cache.req.valid
-  io.cache.req.bits := cur_cache.req.bits
-  io.cache.invalidate_lr := cur_cache.invalidate_lr
+  io.mem.head.acquire.valid := cur_acquire.valid
+  io.mem.head.acquire.bits := cur_acquire.bits
+  io.mem.head.grant.ready := cur_grant.ready
+  io.cache.head.req.valid := cur_cache.req.valid
+  io.cache.head.req.bits := cur_cache.req.bits
+  io.cache.head.invalidate_lr := cur_cache.invalidate_lr
 
   when (cur_regression.finished && !all_done) {
     start := Bool(true)
@@ -537,5 +535,6 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   val timeout = Timer(5000, start, cur_regression.finished)
   assert(!timeout, "Regression timed out")
 
-  assert(!(all_done && io.mem.grant.valid), "Getting grant after test completion")
+  assert(!(all_done && io.mem.head.grant.valid),
+    "Getting grant after test completion")
 }

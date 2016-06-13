@@ -57,7 +57,7 @@ case object AddressBag extends Field[List[Int]]
 
 trait HasTraceGenParams {
   implicit val p: Parameters
-  val numGens             = p(NGenerators)
+  val numGens             = p(NTiles)
   val numBitsInId         = log2Up(numGens)
   val numReqsPerGen       = p(MaxGenerateRequests)
   val memRespTimeout      = 1024
@@ -547,10 +547,8 @@ class TraceGenerator(id: Int)
 class GroundTestTraceGenerator(id: Int)(implicit p: Parameters)
     extends GroundTest()(p) with HasTraceGenParams {
 
-  disablePorts(cache = false)
-
   val traceGen = Module(new TraceGenerator(id))
-  io.cache <> traceGen.io.mem
+  io.cache.head <> traceGen.io.mem
 
   io.finished := traceGen.io.finished
 }

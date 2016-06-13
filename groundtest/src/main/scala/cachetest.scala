@@ -16,15 +16,13 @@ class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
   val xact_pending = Reg(init = UInt(0, tlMaxClientXacts))
   val xact_id = PriorityEncoder(~xact_pending)
 
-  disablePorts(mem = false)
+  val (req_block, round_done) = Counter(io.mem.head.acquire.fire(), nblocks)
 
-  val (req_block, round_done) = Counter(io.mem.acquire.fire(), nblocks)
-
-  io.mem.acquire.valid := active && !xact_pending.andR
-  io.mem.acquire.bits := Mux(state === s_prefetch,
+  io.mem.head.acquire.valid := active && !xact_pending.andR
+  io.mem.head.acquire.bits := Mux(state === s_prefetch,
     GetPrefetch(xact_id, UInt(memStartBlock) + req_block),
     GetBlock(xact_id, UInt(memStartBlock) + req_block))
-  io.mem.grant.ready := xact_pending.orR
+  io.mem.head.grant.ready := xact_pending.orR
 
   def add_pending(acq: DecoupledIO[Acquire]): UInt =
     Mux(acq.fire(), UIntToOH(acq.bits.client_xact_id), UInt(0))
@@ -36,8 +34,8 @@ class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
   }
 
   xact_pending := (xact_pending |
-    add_pending(io.mem.acquire)) &
-    remove_pending(io.mem.grant)
+    add_pending(io.mem.head.acquire)) &
+    remove_pending(io.mem.head.grant)
 
   when (state === s_start) { state := s_prefetch }
   when (state === s_prefetch && round_done) { state := s_retrieve }

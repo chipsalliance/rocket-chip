@@ -151,8 +151,6 @@ class NastiSequencer(n: Int)(implicit p: Parameters) extends Module {
 
 class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)
     with HasNastiParameters {
-  disablePorts(mem = false)
-
   val tests = Seq(Module(new NastiBlockTest), Module(new NastiSmallTest))
 
   val sequencer = Module(new NastiSequencer(tests.size))
@@ -162,7 +160,7 @@ class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)
   sequencer.io.in <> tests.map(_.io.mem)
   sequencer.io.finished := tests.map(_.io.finished)
   converter.io.nasti <> sequencer.io.out
-  TileLinkWidthAdapter(converter.io.tl, io.mem)
+  TileLinkWidthAdapter(converter.io.tl, io.mem.head)
 
   io.finished := tests.map(_.io.finished).reduce(_ && _)
 }

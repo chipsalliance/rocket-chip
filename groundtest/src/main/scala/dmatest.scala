@@ -51,8 +51,6 @@ class DmaStatusReg(implicit val p: Parameters) extends Module
 
 class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
     with HasDmaParameters with HasCoreParameters with HasAddrMapParameters {
-  disablePorts(cache = false, mem = false, ptw = false)
-
   val (s_start :: s_setup_req :: s_setup_wait ::
        s_stream_out :: s_stream_in ::  s_stream_wait ::
        s_check_req :: s_check_wait :: s_done :: Nil) = Enum(Bits(), 9)
@@ -62,8 +60,8 @@ class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
 
   val test_data = Vec.tabulate(conf.len) { i => UInt(i * 8, conf.size * 8) }
 
-  val (req_index, req_done) = Counter(io.cache.req.fire(), conf.len)
-  val (resp_index, resp_done) = Counter(io.cache.resp.fire(), conf.len)
+  val (req_index, req_done) = Counter(io.cache.head.req.fire(), conf.len)
+  val (resp_index, resp_done) = Counter(io.cache.head.resp.fire(), conf.len)
 
   val out_req = ClientDmaRequest(
     cmd = DMA_CMD_SOUT,
@@ -83,20 +81,21 @@ class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
   frontend.io.cpu.req.valid := (state === s_stream_out) || (state === s_stream_in)
   frontend.io.cpu.req.bits := Mux(state === s_stream_out, out_req, in_req)
 
-  io.ptw <> frontend.io.ptw
-  io.mem <> frontend.io.mem
+  io.ptw.head <> frontend.io.ptw
+  io.mem.head <> frontend.io.mem
 
   val status_reg = Module(new DmaStatusReg)
   //status_reg.io.csr <> io.csr
   status_reg.io.incr_outstanding := frontend.io.incr_outstanding
 
   val cache_addr_base = Mux(state === s_setup_req, UInt(conf.source), UInt(conf.dest))
+  val cache_req = io.cache.head.req
 
-  io.cache.req.valid := (state === s_setup_req) || (state === s_check_req)
-  io.cache.req.bits.addr := cache_addr_base + Cat(req_index, UInt(0, log2Up(conf.size)))
-  io.cache.req.bits.data := test_data(req_index)
-  io.cache.req.bits.typ  := UInt(log2Up(conf.size))
-  io.cache.req.bits.cmd  := Mux(state === s_setup_req, M_XWR, M_XRD)
+  cache_req.valid := (state === s_setup_req) || (state === s_check_req)
+  cache_req.bits.addr := cache_addr_base + Cat(req_index, UInt(0, log2Up(conf.size)))
+  cache_req.bits.data := test_data(req_index)
+  cache_req.bits.typ  := UInt(log2Up(conf.size))
+  cache_req.bits.cmd  := Mux(state === s_setup_req, M_XWR, M_XRD)
 
   when (state === s_start) { state := s_setup_req }
   when (state === s_setup_req && req_done) { state := s_setup_wait }
@@ -113,8 +112,8 @@ class DmaStreamTest(implicit p: Parameters) extends GroundTest()(p)
 
   when (dma_done) { state := s_check_req }
 
-  val resp_data = io.cache.resp.bits.data(conf.size * 8 - 1, 0)
-  assert(!io.cache.resp.valid || !io.cache.resp.bits.has_data ||
+  val resp_data = io.cache.head.resp.bits.data(conf.size * 8 - 1, 0)
+  assert(!io.cache.head.resp.valid || !io.cache.head.resp.bits.has_data ||
          resp_data === test_data(resp_index),
          "Result data streamed in does not match data streamed out")
   assert(!frontend.io.cpu.resp.valid || frontend.io.cpu.resp.bits.status === UInt(0),
@@ -132,8 +131,6 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
   private val wordBits = 32
   private val wordBytes = wordBits / 8
   private val pAddrBits = p(PAddrBits)
-
-  disablePorts(cache = false, mem = false, ptw = false)
 
   val sourceAddrs = Vec(testSet.map(test => UInt(test.source)))
   val destAddrs = Vec(testSet.map(test => UInt(test.dest)))
@@ -157,8 +154,8 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
     dst_start = destAddrs(testIdx),
     segment_size = transferLengths(testIdx))
 
-  io.ptw <> frontend.io.ptw
-  io.mem <> frontend.io.mem
+  io.ptw.head <> frontend.io.ptw
+  io.mem.head <> frontend.io.mem
 
   val status_reg = Module(new DmaStatusReg)
   //status_reg.io.csr <> io.csr
@@ -166,11 +163,13 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
 
   val dma_done = !frontend.io.busy && !status_reg.io.xact_outstanding
 
-  io.cache.req.valid := (state === s_fill_req) || (state === s_check_req)
-  io.cache.req.bits.addr := req_addr
-  io.cache.req.bits.data := req_data
-  io.cache.req.bits.typ  := MT_W
-  io.cache.req.bits.cmd  := Mux(state === s_fill_req, M_XWR, M_XRD)
+  val cache_resp = io.cache.head.resp
+  val cache_req = io.cache.head.req
+  cache_req.valid := (state === s_fill_req) || (state === s_check_req)
+  cache_req.bits.addr := req_addr
+  cache_req.bits.data := req_data
+  cache_req.bits.typ  := MT_W
+  cache_req.bits.cmd  := Mux(state === s_fill_req, M_XWR, M_XRD)
 
   when (state === s_start) {
     req_addr := sourceAddrs(testIdx)
@@ -179,13 +178,13 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
     state := s_fill_req
   }
 
-  when (io.cache.req.fire()) {
+  when (cache_req.fire()) {
     req_addr := req_addr + UInt(wordBytes)
     bytes_left := bytes_left - UInt(wordBytes)
     state := Mux(state === s_fill_req, s_fill_resp, s_check_resp)
   }
 
-  when (state === s_fill_resp && io.cache.resp.valid) {
+  when (state === s_fill_resp && cache_resp.valid) {
     req_data := req_data + UInt(dataStride)
     state := Mux(bytes_left === UInt(0), s_copy_req, s_fill_req)
   }
@@ -199,7 +198,7 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
     state := s_check_req
   }
 
-  when (state === s_check_resp && io.cache.resp.valid) {
+  when (state === s_check_resp && cache_resp.valid) {
     req_data := req_data + UInt(dataStride)
     when (bytes_left > UInt(0)) {
       state := s_check_req
@@ -219,11 +218,11 @@ class DmaTest(implicit p: Parameters) extends GroundTest()(p)
     require(length % wordBytes == 0, "transfer length must be word-aligned")
   }
 
-  assert(!io.cache.resp.valid || !io.cache.resp.bits.has_data ||
-    io.cache.resp.bits.data === req_data, "Received data does not match")
+  assert(!cache_resp.valid || !cache_resp.bits.has_data ||
+    cache_resp.bits.data === req_data, "Received data does not match")
   assert(!frontend.io.cpu.resp.valid || frontend.io.cpu.resp.bits.status === UInt(0),
           "Frontend error response")
 
-  val cache_timeout = Timer(1000, io.cache.req.fire(), io.cache.resp.valid)
+  val cache_timeout = Timer(1000, cache_req.fire(), cache_resp.valid)
   assert(!cache_timeout, "Memory request timed out")
 }

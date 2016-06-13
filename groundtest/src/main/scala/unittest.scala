@@ -593,8 +593,6 @@ class AtosConverterTest(implicit p: Parameters) extends UnitTest {
 }
 
 class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
-  disablePorts()
-
   val tests = Seq(
     Module(new MultiWidthFifoTest),
     Module(new NastiIOHostIOConverterTest),

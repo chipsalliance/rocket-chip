@@ -5,12 +5,26 @@ import rocket._
 import uncore._
 import junctions._
 import scala.util.Random
+import scala.collection.mutable.ListBuffer
 import cde.{Parameters, Field}
 
 case object BuildGroundTest extends Field[(Int, Parameters) => GroundTest]
 case object GroundTestMaxXacts extends Field[Int]
 case object GroundTestCSRs extends Field[Seq[Int]]
 case object TohostAddr extends Field[BigInt]
+
+case object GroundTestCachedClients extends Field[Int]
+case object GroundTestUncachedClients extends Field[Int]
+case object GroundTestNPTW extends Field[Int]
+
+trait HasGroundTestParameters extends HasAddrMapParameters {
+  implicit val p: Parameters
+  val nUncached = p(GroundTestUncachedClients)
+  val nCached = p(GroundTestCachedClients)
+  val nPTW = p(GroundTestNPTW)
+  val memStart = addrMap("mem").start
+  val memStartBlock = memStart >> p(CacheBlockOffsetBits)
+}
 
 /** A "cache" that responds to probe requests with a release indicating
  *  the block is not present */
@@ -27,6 +41,7 @@ class DummyCache(implicit val p: Parameters) extends Module {
   io.grant.ready := Bool(true)
   io.release.valid := (state === s_release)
   io.release.bits := coh.makeRelease(req)
+  io.finish.valid := Bool(false)
 
   when (io.probe.fire()) {
     req := io.probe.bits
@@ -76,34 +91,17 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   }
 }
 
-class GroundTestIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
-  val cache = new HellaCacheIO
-  val mem = new ClientUncachedTileLinkIO
-  val dma = new DmaIO
-  val ptw = new TLBPTWIO
+class GroundTestIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
+    with HasGroundTestParameters {
+  val cache = Vec(nCached, new HellaCacheIO)
+  val mem = Vec(nUncached, new ClientUncachedTileLinkIO)
+  val ptw = Vec(nPTW, new TLBPTWIO)
   val finished = Bool(OUTPUT)
 }
 
 abstract class GroundTest(implicit val p: Parameters) extends Module
-    with HasAddrMapParameters {
+    with HasGroundTestParameters {
   val io = new GroundTestIO
-  val memStart = addrMap("mem").start
-  val memStartBlock = memStart >> p(CacheBlockOffsetBits)
-
-  def disablePorts(mem: Boolean = true,
-                   cache: Boolean = true,
-                   ptw: Boolean = true) {
-    if (mem) {
-      io.mem.acquire.valid := Bool(false)
-      io.mem.grant.ready := Bool(false)
-    }
-    if (cache) {
-      io.cache.req.valid := Bool(false)
-    }
-    if (ptw) {
-      io.ptw.req.valid := Bool(false)
-    }
-  }
 }
 
 class GroundTestFinisher(implicit p: Parameters) extends TLModule()(p) {
@@ -134,31 +132,51 @@ class GroundTestFinisher(implicit p: Parameters) extends TLModule()(p) {
 }
 
 class GroundTestTile(id: Int, resetSignal: Bool)
-                    (implicit val p: Parameters) extends Tile(resetSignal = resetSignal)(p) {
+                    (implicit val p: Parameters)
+                    extends Tile(resetSignal = resetSignal)(p)
+                    with HasGroundTestParameters {
 
   val test = p(BuildGroundTest)(id, dcacheParams)
 
-  val dcache = Module(new HellaCache()(dcacheParams))
-  val dcacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))
-  dcacheIF.io.requestor <> test.io.cache
-  dcache.io.cpu <> dcacheIF.io.cache
-  io.cached.head <> dcache.io.mem
+  val ptwPorts = ListBuffer.empty ++= test.io.ptw
+  val memPorts = ListBuffer.empty ++= test.io.mem
 
-  // SimpleHellaCacheIF leaves invalidate_lr dangling, so we wire it to false
-  dcache.io.cpu.invalidate_lr := Bool(false)
+  if (nCached > 0) {
+    val dcache = Module(new HellaCache()(dcacheParams))
+    val dcacheArb = Module(new HellaCacheArbiter(nCached)(dcacheParams))
 
-  val ptw = Module(new DummyPTW(2))
-  ptw.io.requestors(0) <> test.io.ptw
-  ptw.io.requestors(1) <> dcache.io.ptw
+    dcacheArb.io.requestor.zip(test.io.cache).foreach {
+      case (requestor, cache) =>
+        val dcacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))
+        dcacheIF.io.requestor <> cache
+        requestor <> dcacheIF.io.cache
+    }
+    dcache.io.cpu <> dcacheArb.io.mem
+    io.cached.head <> dcache.io.mem
+
+    // SimpleHellaCacheIF leaves invalidate_lr dangling, so we wire it to false
+    dcache.io.cpu.invalidate_lr := Bool(false)
+
+    ptwPorts += dcache.io.ptw
+  } else {
+    val dcache = Module(new DummyCache)
+    io.cached.head <> dcache.io
+  }
 
   // Only Tile 0 needs to write tohost
   if (id == 0) {
     val finisher = Module(new GroundTestFinisher)
     finisher.io.finished := test.io.finished
+    memPorts += finisher.io.mem
+  }
 
-    val memArb = Module(new ClientUncachedTileLinkIOArbiter(2))
-    memArb.io.in(0) <> test.io.mem
-    memArb.io.in(1) <> finisher.io.mem
-    io.uncached.head <> memArb.io.out
-  } else { io.uncached.head <> test.io.mem }
+  if (ptwPorts.size > 0) {
+    val ptw = Module(new DummyPTW(ptwPorts.size))
+    ptw.io.requestors <> ptwPorts
+  }
+
+  require(memPorts.size == io.uncached.size)
+  if (memPorts.size > 0) {
+    io.uncached <> memPorts
+  }
 }
