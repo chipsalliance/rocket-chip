@@ -39,8 +39,6 @@ case object BuildL2CoherenceManager extends Field[(Int, Parameters) => Coherence
 case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
 /** A string describing on-chip devices, readable by target software */
 case object ConfigString extends Field[Array[Byte]]
-/** Number of L1 clients besides the CPU cores */
-case object ExtraL1Clients extends Field[Int] 
 /** Number of external interrupt sources */
 case object NExtInterrupts extends Field[Int]
 /** Interrupt controller configuration */
@@ -54,9 +52,8 @@ case object StreamLoopbackWidth extends Field[Int]
 trait HasTopLevelParameters {
   implicit val p: Parameters
   lazy val nTiles = p(NTiles)
-  lazy val nCachedTilePorts = p(TLKey("L1toL2")).nCachingClients
-  lazy val nUncachedTilePorts =
-    p(TLKey("L1toL2")).nCachelessClients - p(ExtraL1Clients)
+  lazy val nCachedTilePorts = p(NCachedTileLinkPorts)
+  lazy val nUncachedTilePorts = p(NUncachedTileLinkPorts) - 1
   lazy val htifW = p(HtifKey).width
   lazy val csrAddrBits = 12
   lazy val tMemChannels = p(TMemoryChannels)
@@ -143,13 +140,26 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   val io = new TopIO
 
   // Build an Uncore and a set of Tiles
-  val innerTLParams = p.alterPartial({case HastiId => "TL" case TLId => "L1toL2" })
-  val uncore = Module(new Uncore()(innerTLParams))
-  val tileList = uncore.io.prci zip p(BuildTiles) map { case(prci, tile) => tile(prci.reset, p) }
+  val tileResets = Wire(Vec(nTiles, Bool()))
+  val tileList = p(BuildTiles).zip(tileResets).map {
+    case (tile, rst) => tile(rst, p)
+  }
+  val nCachedPorts = tileList.map(tile => tile.io.cached.size).reduce(_ + _)
+  val nUncachedPorts = tileList.map(tile => tile.io.uncached.size).reduce(_ + _)
 
-  // Connect each tile to the HTIF
-  for ((prci, tile) <- uncore.io.prci zip tileList) {
-    tile.io.prci <> prci
+  val innerTLParams = p.alterPartial({
+    case HastiId => "TL"
+    case TLId => "L1toL2"
+    case NCachedTileLinkPorts => nCachedPorts
+    case NUncachedTileLinkPorts => nUncachedPorts + 1 // 1 for HTIF
+  })
+
+  val uncore = Module(new Uncore()(innerTLParams))
+
+  uncore.io.prci.zip(tileResets).zip(tileList).foreach {
+    case ((prci, rst), tile) =>
+      rst := prci.reset
+      tile.io.prci <> prci
   }
 
   // Connect the uncore to the tile memory ports, HostIO and MemIO
@@ -172,6 +182,8 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   */
 class Uncore(implicit val p: Parameters) extends Module
     with HasTopLevelParameters {
+
+
   val io = new Bundle {
     val host = new HostIO(htifW)
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)

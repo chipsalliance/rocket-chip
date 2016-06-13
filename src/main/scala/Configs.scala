@@ -178,6 +178,8 @@ class BaseConfig extends Config (
         Module(new L2BroadcastHub()(p.alterPartial({
           case InnerTLId => "L1toL2"
           case OuterTLId => "L2toMC" })))
+      case NCachedTileLinkPorts => 1
+      case NUncachedTileLinkPorts => 1
       //Tile Constants
       case BuildTiles => {
         val (rvi, rvu) =
@@ -187,7 +189,10 @@ class BaseConfig extends Config (
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuite(bmarks)
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
-          Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
+          Module(new RocketTile(resetSignal = r)(p.alterPartial({
+            case TLId => "L1toL2"
+            case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)
+          })))
         }
       }
       case BuildRoCC => Nil
@@ -239,7 +244,6 @@ class BaseConfig extends Config (
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
-      case ExtraL1Clients => 1 // HTIF // TODO not really a parameter
       case HastiId => "Ext"
       case HastiKey("TL") =>
         HastiParameters(
@@ -253,11 +257,8 @@ class BaseConfig extends Config (
         TileLinkParameters(
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-          nCachingClients = site(NTiles),
-          nCachelessClients = site(ExtraL1Clients) +
-                              site(NTiles) *
-                                (1 + (if(site(BuildRoCC).isEmpty) 0
-                                      else site(RoccNMemChannels))),
+          nCachingClients = site(NCachedTileLinkPorts),
+          nCachelessClients = site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
               site(NMSHRs) + 1,
@@ -324,29 +325,18 @@ class BaseConfig extends Config (
 )
 class DefaultConfig extends Config(new WithBlockingL1 ++ new BaseConfig)
 
-class With2Cores extends Config(knobValues = { case "NTILES" => 2; case _ => throw new CDEMatchError })
-class With4Cores extends Config(knobValues = { case "NTILES" => 4; case _ => throw new CDEMatchError })
-class With8Cores extends Config(knobValues = { case "NTILES" => 8; case _ => throw new CDEMatchError })
+class WithNCores(n: Int) extends Config(
+  knobValues = { case"NTILES" => n; case _ => throw new CDEMatchError })
 
-class With2BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 2; case _ => throw new CDEMatchError })
-class With4BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 4; case _ => throw new CDEMatchError })
-class With8BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 8; case _ => throw new CDEMatchError })
+class WithNBanksPerMemChannel(n: Int) extends Config(
+  knobValues = {
+    case "NBANKS_PER_MEM_CHANNEL" => n;
+    case _ => throw new CDEMatchError
+  })
 
-class With2MemoryChannels extends Config(
+class WithNMemoryChannels(n: Int) extends Config(
   (pname,site,here) => pname match {
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", 2)
-    case _ => throw new CDEMatchError
-  }
-)
-class With4MemoryChannels extends Config(
-  (pname,site,here) => pname match {
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", 4)
-    case _ => throw new CDEMatchError
-  }
-)
-class With8MemoryChannels extends Config(
-  (pname,site,here) => pname match {
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", n)
     case _ => throw new CDEMatchError
   }
 )
@@ -385,19 +375,21 @@ class WithPLRU extends Config(
     case _ => throw new CDEMatchError
   })
 
-class WithL2Capacity2048 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 2048; case _ => throw new CDEMatchError })
-class WithL2Capacity1024 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 1024; case _ => throw new CDEMatchError })
-class WithL2Capacity512 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 512; case _ => throw new CDEMatchError })
-class WithL2Capacity256 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 256; case _ => throw new CDEMatchError })
-class WithL2Capacity128 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 128; case _ => throw new CDEMatchError })
-class WithL2Capacity64 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 64; case _ => throw new CDEMatchError })
+class WithL2Capacity(size_kb: Int) extends Config(
+  knobValues = {
+    case "L2_CAPACITY_IN_KB" => size_kb
+    case _ => throw new CDEMatchError
+  })
 
-class With1L2Ways extends Config(knobValues = { case "L2_WAYS" => 1; case _ => throw new CDEMatchError })
-class With2L2Ways extends Config(knobValues = { case "L2_WAYS" => 2; case _ => throw new CDEMatchError })
-class With4L2Ways extends Config(knobValues = { case "L2_WAYS" => 4; case _ => throw new CDEMatchError })
+class WithNL2Ways(n: Int) extends Config(
+  knobValues = {
+    case "L2_WAYS" => n
+    case _ => throw new CDEMatchError
+  })
 
 class DefaultL2Config extends Config(new WithL2Cache ++ new BaseConfig)
-class DefaultL2FPGAConfig extends Config(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
+class DefaultL2FPGAConfig extends Config(
+  new WithL2Capacity(64) ++ new WithL2Cache ++ new DefaultFPGAConfig)
 
 class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
@@ -462,18 +454,20 @@ class DefaultRV32Config extends Config(new SmallConfig ++ new WithRV32 ++ new Ba
 
 class ExampleSmallConfig extends Config(new SmallConfig ++ new BaseConfig)
 
-class DualBankConfig extends Config(new With2BanksPerMemChannel ++ new BaseConfig)
+class DualBankConfig extends Config(
+  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
 class DualBankL2Config extends Config(
-  new With2BanksPerMemChannel ++ new WithL2Cache ++ new BaseConfig)
+  new WithNBanksPerMemChannel(2) ++ new WithL2Cache ++ new BaseConfig)
 
-class DualChannelConfig extends Config(new With2MemoryChannels ++ new BaseConfig)
+class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new BaseConfig)
 class DualChannelL2Config extends Config(
-  new With2MemoryChannels ++ new WithL2Cache ++ new BaseConfig)
+  new WithNMemoryChannels(2) ++ new WithL2Cache ++ new BaseConfig)
 
 class DualChannelDualBankConfig extends Config(
-  new With2MemoryChannels ++ new With2BanksPerMemChannel ++ new BaseConfig)
+  new WithNMemoryChannels(2) ++
+  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
 class DualChannelDualBankL2Config extends Config(
-  new With2MemoryChannels ++ new With2BanksPerMemChannel ++
+  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(2) ++
   new WithL2Cache ++ new BaseConfig)
 
 class WithRoccExample extends Config(
@@ -522,17 +516,17 @@ class DmaControllerConfig extends Config(new WithDmaController ++ new WithStream
 class DmaControllerFPGAConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultFPGAConfig)
 
 class SmallL2Config extends Config(
-  new With2MemoryChannels ++ new With4BanksPerMemChannel ++
-  new WithL2Capacity256 ++ new DefaultL2Config)
+  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
+  new WithL2Capacity(256) ++ new DefaultL2Config)
 
-class SingleChannelBenchmarkConfig extends Config(new WithL2Capacity256 ++ new DefaultL2Config)
-class DualChannelBenchmarkConfig extends Config(new With2MemoryChannels ++ new SingleChannelBenchmarkConfig)
-class QuadChannelBenchmarkConfig extends Config(new With4MemoryChannels ++ new SingleChannelBenchmarkConfig)
-class OctoChannelBenchmarkConfig extends Config(new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
+class SingleChannelBenchmarkConfig extends Config(new WithL2Capacity(256) ++ new DefaultL2Config)
+class DualChannelBenchmarkConfig extends Config(new WithNMemoryChannels(2) ++ new SingleChannelBenchmarkConfig)
+class QuadChannelBenchmarkConfig extends Config(new WithNMemoryChannels(4) ++ new SingleChannelBenchmarkConfig)
+class OctoChannelBenchmarkConfig extends Config(new WithNMemoryChannels(8) ++ new SingleChannelBenchmarkConfig)
 
-class EightChannelConfig extends Config(new With8MemoryChannels ++ new BaseConfig)
+class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new BaseConfig)
 
 class WithSplitL2Metadata extends Config(knobValues = { case "L2_SPLIT_METADATA" => true; case _ => throw new CDEMatchError })
 class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new DefaultL2Config)
 
-class DualCoreConfig extends Config(new With2Cores ++ new BaseConfig)
+class DualCoreConfig extends Config(new WithNCores(2) ++ new BaseConfig)

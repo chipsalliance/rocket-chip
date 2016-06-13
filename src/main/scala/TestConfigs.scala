@@ -16,12 +16,12 @@ class WithGroundTest extends Config(
       TileLinkParameters(
         coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-        nCachingClients = site(NTiles),
-        nCachelessClients = site(NTiles) + site(ExtraL1Clients),
+        nCachingClients = site(NCachedTileLinkPorts),
+        nCachelessClients = site(NUncachedTileLinkPorts),
         maxClientXacts = max(
           site(NMSHRs) + 1,
           site(GroundTestMaxXacts)),
-        maxClientsPerPort = 2,
+        maxClientsPerPort = 1,
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBeats = site(MIFDataBeats),
         dataBits = site(CacheBlockBytes)*8)
@@ -34,16 +34,22 @@ class WithGroundTest extends Config(
       TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
       (0 until site(NTiles)).map { i =>
         (r: Bool, p: Parameters) =>
-          Module(new GroundTestTile(i, r)
-            (p.alterPartial({case TLId => "L1toL2"})))
+          Module(new GroundTestTile(i, r)(p.alterPartial({
+            case TLId => "L1toL2"
+            case NUncachedTileLinkPorts =>
+              (if (i == 0) 1 else 0) + p(GroundTestUncachedClients)
+          })))
       }
     }
+    case GroundTestCachedClients => 0
+    case GroundTestUncachedClients => 0
+    case GroundTestNPTW => 0
     case GroundTestMaxXacts => 1
     case GroundTestCSRs => Nil
     case TohostAddr => BigInt("80001000", 16)
     case RoccNCSRs => site(GroundTestCSRs).size
     case UseFPU => false
-    case UseAtomics => true
+    case UseAtomics => false
     case _ => throw new CDEMatchError
   })
 
@@ -53,32 +59,57 @@ class WithComparator extends Config(
       TileLinkParameters(
         coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-        nCachingClients = 1,
-        nCachelessClients = 1 + site(ComparatorKey).targets.size + site(ExtraL1Clients),
+        nCachingClients = site(NCachedTileLinkPorts),
+        nCachelessClients = site(NUncachedTileLinkPorts),
         maxClientXacts = 2,
         maxClientsPerPort = 1,
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBeats = site(MIFDataBeats),
         dataBits = site(CacheBlockBytes)*8)
-    case BuildTiles =>
-      Seq((r: Bool, p: Parameters) => Module(new ComparatorTile(r)(p.alterPartial({case TLId => "L1toL2"}))))
+    case BuildTiles => {
+      val groundtest = if (site(XLen) == 64)
+        DefaultTestSuites.groundtest64
+      else
+        DefaultTestSuites.groundtest32
+      TestGeneration.addSuite(groundtest("p"))
+      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
+      Seq((r: Bool, p: Parameters) => Module(new ComparatorTile(r)(
+        p.alterPartial({
+          case TLId => "L1toL2"
+          case NUncachedTileLinkPorts => 1 + site(ComparatorKey).targets.size
+        }))))
+    }
     case ComparatorKey => ComparatorParameters(
-      targets    = Seq(0x80001000L, 0x80000000L),
+      targets    = Seq(0L, 0x100L).map(site(GlobalAddrMap)("mem").start.longValue + _),
       width      = 8,
       operations = 1000,
-      atomics    = true)
-    case RoccNMemChannels => site(ComparatorKey).targets.size // Work-around bad rocket<>tile dependency
+      atomics    = site(UseAtomics),
+      prefetches = site("COMPARATOR_PREFETCHES"))
+    case NUncachedTileLinkPorts => 1 + site(ComparatorKey).targets.size
     case TohostAddr => BigInt("80001000", 16) // quit test by writing here
+    case UseFPU => false
+    case UseAtomics => false
+    case "COMPARATOR_PREFETCHES" => false
     case _ => throw new CDEMatchError
+  })
+
+class WithAtomics extends Config(
+  (pname, site, here) => pname match {
+    case UseAtomics => true
+  })
+
+class WithPrefetches extends Config(
+  (pname, site, here) => pname match {
+    case "COMPARATOR_PREFETCHES" => true
   })
 
 class WithMemtest extends Config(
   (pname, site, here) => pname match {
-    case NGenerators => site(NTiles)
-    case GenerateUncached => true
-    case GenerateCached => true
+    case GroundTestCachedClients => 1
+    case GroundTestUncachedClients => 1
+    case GroundTestNPTW => 0
     case MaxGenerateRequests => 128
-    case GeneratorStartAddress => site(GlobalAddrMap)("mem").start
+    case GeneratorStartAddress => site(TohostAddr) + BigInt(site(CacheBlockBytes))
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GeneratorTest(id)(p))
     case _ => throw new CDEMatchError
@@ -86,6 +117,7 @@ class WithMemtest extends Config(
 
 class WithCacheFillTest extends Config(
   (pname, site, here) => pname match {
+    case GroundTestUncachedClients => 1
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new CacheFillTest()(p))
     case _ => throw new CDEMatchError
@@ -98,6 +130,8 @@ class WithCacheFillTest extends Config(
 
 class WithBroadcastRegressionTest extends Config(
   (pname, site, here) => pname match {
+    case GroundTestCachedClients => 1
+    case GroundTestUncachedClients => 1
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new RegressionTest()(p))
     case GroundTestRegressions =>
@@ -108,16 +142,20 @@ class WithBroadcastRegressionTest extends Config(
 
 class WithCacheRegressionTest extends Config(
   (pname, site, here) => pname match {
+    case GroundTestCachedClients => 1
+    case GroundTestUncachedClients => 1
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new RegressionTest()(p))
     case GroundTestRegressions =>
       (p: Parameters) => RegressionTests.cacheRegressions(p)
-    case GroundTestMaxXacts => 3
+    case GroundTestMaxXacts => 5
     case _ => throw new CDEMatchError
   })
 
 class WithDmaTest extends Config(
   (pname, site, here) => pname match {
+    case GroundTestNPTW => 1
+    case GroundTestUncachedClients => 1
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new DmaTest()(p))
     case DmaTestSet => DmaTestCases(
@@ -134,6 +172,8 @@ class WithDmaTest extends Config(
 
 class WithDmaStreamTest extends Config(
   (pname, site, here) => pname match {
+    case GroundTestNPTW => 1
+    case GroundTestUncachedClients => 1
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new DmaStreamTest()(p))
     case DmaStreamTestSettings => DmaStreamTestConfig(
@@ -146,6 +186,7 @@ class WithDmaStreamTest extends Config(
 
 class WithNastiConverterTest extends Config(
   (pname, site, here) => pname match {
+    case GroundTestUncachedClients => 1
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new NastiConverterTest()(p))
     case _ => throw new CDEMatchError
@@ -160,15 +201,18 @@ class WithUnitTest extends Config(
 
 class WithTraceGen extends Config(
   (pname, site, here) => pname match {
+    case GroundTestCachedClients => 1
     case BuildGroundTest =>
       (id: Int, p: Parameters) => Module(new GroundTestTraceGenerator(id)(p))
-    case NGenerators => site(NTiles)
     case MaxGenerateRequests => 128
     case AddressBag => List(0x8, 0x10, 0x108, 0x100008)
     case _ => throw new CDEMatchError
   })
 
 class ComparatorConfig extends Config(new WithComparator ++ new BaseConfig)
+class ComparatorL2Config extends Config(
+  new WithAtomics ++ new WithPrefetches ++
+  new WithL2Cache ++ new ComparatorConfig)
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
@@ -183,8 +227,22 @@ class DmaTestConfig extends Config(new WithDmaTest ++ new WithL2Cache ++ new Gro
 class DmaStreamTestConfig extends Config(new WithDmaStreamTest ++ new WithStreamLoopback ++ new WithL2Cache ++ new GroundTestConfig)
 class NastiConverterTestConfig extends Config(new WithNastiConverterTest ++ new GroundTestConfig)
 class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
-class TraceGenConfig extends Config(new With2Cores ++ new WithL2Cache ++ new WithTraceGen ++ new GroundTestConfig)
+class TraceGenConfig extends Config(new WithNCores(2) ++ new WithL2Cache ++ new WithTraceGen ++ new GroundTestConfig)
+
+class WithNCachedGenerators(n: Int) extends Config(
+  (pname, site, here) => pname match {
+    case GroundTestCachedClients => n
+    case _ => throw new CDEMatchError
+  })
+
+class WithNUncachedGenerators(n: Int) extends Config(
+  (pname, site, here) => pname match {
+    case GroundTestUncachedClients => n
+    case _ => throw new CDEMatchError
+  })
 
 class FancyMemtestConfig extends Config(
-  new With2Cores ++ new With2MemoryChannels ++ new With4BanksPerMemChannel ++
+  new WithNCachedGenerators(1) ++ new WithNUncachedGenerators(2) ++
+  new WithNCores(2) ++
+  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)

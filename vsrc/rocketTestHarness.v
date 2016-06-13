@@ -170,6 +170,8 @@ module rocketTestHarness;
 
     if (exit == 1)
     begin
+      if (verbose)
+        $fdisplay(stderr, "Completed after %d simulation cycles", trace_count);
       `VCDPLUSCLOSE
       htif_fini(1'b0);
     end

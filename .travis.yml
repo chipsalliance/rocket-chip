@@ -43,6 +43,8 @@ env:
     - CONFIG=NastiConverterTestConfig       CHISEL_VERSION=3
     - CONFIG=UnitTestConfig                 CHISEL_VERSION=3
     - CONFIG=SplitL2MetadataTestConfig      CHISEL_VERSION=3
+    - CONFIG=ComparatorConfig               CHISEL_VERSION=3
+    - CONFIG=ComparatorL2Config             CHISEL_VERSION=3
 
 # blacklist private branches
 branches:
