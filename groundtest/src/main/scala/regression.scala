@@ -512,44 +512,56 @@ case object GroundTestRegressions extends Field[Parameters => Seq[Regression]]
 
 class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   val regressions = p(GroundTestRegressions)(p)
-  val regressIOs = Vec(regressions.map(_.io))
   val regress_idx = Reg(init = UInt(0, log2Up(regressions.size + 1)))
+  val cur_finished = Wire(init = Bool(false))
   val all_done = (regress_idx === UInt(regressions.size))
   val start = Reg(init = Bool(true))
 
-  when (start) { start := Bool(false) }
+  // default output values
+  io.mem.head.acquire.valid := Bool(false)
+  io.mem.head.acquire.bits := GetBlock(
+    client_xact_id = UInt(0),
+    addr_block = UInt(0))
+  io.mem.head.grant.ready := Bool(false)
+  io.cache.head.req.valid := Bool(false)
+  io.cache.head.req.bits.addr := UInt(0)
+  io.cache.head.req.bits.typ := MT_D
+  io.cache.head.req.bits.cmd := M_XRD
+  io.cache.head.req.bits.tag := UInt(0)
+  io.cache.head.req.bits.phys := Bool(true)
+  io.cache.head.req.bits.data := UInt(0)
+  io.cache.head.invalidate_lr := Bool(false)
 
-  regressIOs.zipWithIndex.foreach { case (regress, i) =>
+  regressions.zipWithIndex.foreach { case (regress, i) =>
     val me = regress_idx === UInt(i)
-    regress.start := me && start
-    regress.mem.acquire.ready := io.mem.head.acquire.ready && me
-    regress.mem.grant.valid   := io.mem.head.grant.valid && me
-    regress.mem.grant.bits    := io.mem.head.grant.bits
-    regress.cache.req.ready   := io.cache.head.req.ready && me
-    regress.cache.resp.valid  := io.cache.head.resp.valid && me
-    regress.cache.resp.bits   := io.cache.head.resp.bits
+    regress.io.start := me && start
+    regress.io.mem.acquire.ready := io.mem.head.acquire.ready && me
+    regress.io.mem.grant.valid   := io.mem.head.grant.valid && me
+    regress.io.mem.grant.bits    := io.mem.head.grant.bits
+    regress.io.cache.req.ready   := io.cache.head.req.ready && me
+    regress.io.cache.resp.valid  := io.cache.head.resp.valid && me
+    regress.io.cache.resp.bits   := io.cache.head.resp.bits
+
+    when (me) {
+      io.mem.head.acquire.valid := regress.io.mem.acquire.valid
+      io.mem.head.acquire.bits := regress.io.mem.acquire.bits
+      io.mem.head.grant.ready := regress.io.mem.grant.ready
+      io.cache.head.req.valid := regress.io.cache.req.valid
+      io.cache.head.req.bits := regress.io.cache.req.bits
+      io.cache.head.invalidate_lr := regress.io.cache.invalidate_lr
+      cur_finished := regress.io.finished
+    }
   }
 
-  val cur_regression = regressIOs(regress_idx)
-  val cur_acquire = cur_regression.mem.acquire
-  val cur_grant = cur_regression.mem.grant
-  val cur_cache = cur_regression.cache
-
-  io.mem.head.acquire.valid := cur_acquire.valid
-  io.mem.head.acquire.bits := cur_acquire.bits
-  io.mem.head.grant.ready := cur_grant.ready
-  io.cache.head.req.valid := cur_cache.req.valid
-  io.cache.head.req.bits := cur_cache.req.bits
-  io.cache.head.invalidate_lr := cur_cache.invalidate_lr
-
-  when (cur_regression.finished && !all_done) {
+  when (cur_finished && !all_done) {
     start := Bool(true)
     regress_idx := regress_idx + UInt(1)
   }
+  when (start) { start := Bool(false) }
 
   io.finished := all_done
 
-  val timeout = Timer(5000, start, cur_regression.finished)
+  val timeout = Timer(5000, start, cur_finished)
   assert(!timeout, "Regression timed out")
 
   assert(!(all_done && io.mem.head.grant.valid),
