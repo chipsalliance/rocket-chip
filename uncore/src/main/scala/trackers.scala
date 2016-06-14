@@ -385,7 +385,7 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
   def innerAcquire(can_alloc: Bool, next: UInt) {
 
     // Enqueue some metadata information that we'll use to make coherence updates with later
-    ignt_q.io.enq.valid := iacq_is_allocating || (iacq_is_merging && !iacq_same_xact)
+    ignt_q.io.enq.valid := iacq_is_allocating || (iacq_is_merging && io.iacq().first())
     ignt_q.io.enq.bits := io.iacq()
 
     // Use the outputs of the queue to make further messages
