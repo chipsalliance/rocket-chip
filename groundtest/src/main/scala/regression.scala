@@ -181,21 +181,23 @@ class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
   val put_beat = Vec(UInt(0), UInt(0), UInt(2))
 
   val (put_acq_id, put_acq_done) = Counter(
-    state === s_put_send && io.mem.acquire.ready, 3)
+    state === s_put_send && io.mem.acquire.ready, put_data.size)
   val (put_gnt_cnt, put_gnt_done) = Counter(
-    state === s_put_wait && io.mem.grant.valid, 3)
+    state === s_put_wait && io.mem.grant.valid, put_data.size)
 
   val get_data = Vec(UInt("h2222222211111111"), UInt("h3333333333333333"))
   val get_beat = Vec(UInt(0), UInt(2))
 
   val (get_acq_id, get_acq_done) = Counter(
-    state === s_get_send && io.mem.acquire.ready, 2)
+    state === s_get_send && io.mem.acquire.ready, get_data.size)
   val (get_gnt_cnt, get_gnt_done) = Counter(
-    state === s_get_wait && io.mem.grant.valid, 2)
+    state === s_get_wait && io.mem.grant.valid, get_data.size)
+
+  val blockAddr = memStartBlock + 15
 
   val put_acquire = Put(
     client_xact_id = put_acq_id,
-    addr_block = UInt(memStartBlock),
+    addr_block = UInt(blockAddr),
     addr_beat = put_beat(put_acq_id),
     data = put_data(put_acq_id),
     wmask = put_wmask(put_acq_id),
@@ -203,7 +205,7 @@ class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
 
   val get_acquire = Get(
     client_xact_id = get_acq_id,
-    addr_block = UInt(memStartBlock),
+    addr_block = UInt(blockAddr),
     addr_beat = get_beat(get_acq_id))
 
   io.mem.acquire.valid := (state === s_put_send) || (state === s_get_send)
