@@ -18,6 +18,17 @@ abstract class Regression(implicit val p: Parameters)
   val memStart = addrMap("mem").start
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
   val io = new RegressionIO
+
+  def disableCache() {
+    io.cache.req.valid := Bool(false)
+    io.cache.req.bits.addr := UInt(memStart)
+    io.cache.req.bits.typ  := MT_D
+    io.cache.req.bits.cmd  := M_XRD
+    io.cache.req.bits.tag  := UInt(0)
+    io.cache.req.bits.data := Bits(0)
+    io.cache.req.bits.phys := Bool(true)
+    io.cache.invalidate_lr := Bool(false)
+  }
 }
 
 /**
@@ -55,6 +66,7 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
   io.cache.req.bits.typ := MT_W
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)
+  io.cache.invalidate_lr := Bool(false)
 
   when (put_done) { put_sent := Bool(true) }
   when (io.cache.req.fire()) { get_sent := Bool(true) }
@@ -84,7 +96,7 @@ class PutBlockMergeRegression(implicit p: Parameters)
   val s_idle :: s_put :: s_wait :: s_done :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
 
-  io.cache.req.valid := Bool(false)
+  disableCache()
 
   val l2params = p.alterPartial({ case CacheName => "L2Bank" })
   val nSets = l2params(NSets)
@@ -163,7 +175,8 @@ class NoAllocPutHitRegression(implicit p: Parameters) extends Regression()(p) {
     "NoAllocPutHitRegression: data does not match")
 
   io.finished := (state === s_done)
-  io.cache.req.valid := Bool(false)
+
+  disableCache()
 }
 
 /** Make sure L2 does the right thing when multiple puts are sent for the
@@ -223,13 +236,15 @@ class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
   assert(state =/= s_get_wait || !io.mem.grant.valid ||
          io.mem.grant.bits.data === get_data(io.mem.grant.bits.client_xact_id),
          "MixedAllocPutRegression: data mismatch")
+
+  disableCache()
 }
 
 /* Make sure each no-alloc put triggers a request to outer memory.
  * Unfortunately, there's no way to verify that this works except by looking
  * at the waveform */
 class RepeatedNoAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
-  io.cache.req.valid := Bool(false)
+  disableCache()
 
   val nPuts = 2
   val (put_beat, put_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
@@ -260,7 +275,7 @@ class RepeatedNoAllocPutRegression(implicit p: Parameters) extends Regression()(
 /* Make sure write masking works properly by writing a block of data
  * piece by piece */
 class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()(p) {
-  io.cache.req.valid := Bool(false)
+  disableCache()
 
   val (s_idle :: s_put_send :: s_put_ack :: s_stall ::
        s_get_send :: s_get_ack :: s_done :: Nil) = Enum(Bits(), 7)
@@ -325,7 +340,7 @@ class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()
 
 /* Make sure a prefetch that hits returns immediately. */
 class PrefetchHitRegression(implicit p: Parameters) extends Regression()(p) {
-  io.cache.req.valid := Bool(false)
+  disableCache()
 
   val sending = Reg(init = Bool(false))
   val nPrefetches = 2
@@ -356,7 +371,7 @@ class PrefetchHitRegression(implicit p: Parameters) extends Regression()(p) {
  * Each request has the same client_xact_id, but there are multiple in flight.
  * The responses therefore must come back in the order they are sent. */
 class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()(p) {
-  io.cache.req.valid := Bool(false)
+  disableCache()
 
   val sending = Reg(init = Bool(false))
   val finished = Reg(init = Bool(false))
@@ -386,7 +401,7 @@ class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()
  * test multibank configurations, we'll have to think of some other way to
  * determine which banks are conflicting */
 class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
-  io.cache.req.valid := Bool(false)
+  disableCache()
 
   val l2params = p.alterPartial({ case CacheName => "L2Bank" })
   val nSets = l2params(NSets)
@@ -442,7 +457,7 @@ class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p
        s_finished :: Nil) = Enum(Bits(), 5)
   val state = Reg(init = s_idle)
 
-  io.cache.req.valid := Bool(false)
+  disableCache()
 
   val (put_block_beat, put_block_done) = Counter(
     state === s_putblock && io.mem.acquire.ready, tlDataBeats)
