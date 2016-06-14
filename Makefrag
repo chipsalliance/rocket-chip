@@ -8,7 +8,7 @@ PROJECT := rocketchip
 CXX ?= g++
 CXXFLAGS := -O1
 
-CHISEL_VERSION ?= 2
+CHISEL_VERSION ?= 3
 export CHISEL_VERSION
 
 SBT ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
