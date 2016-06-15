@@ -79,8 +79,10 @@ trait HasPendingBitHelpers extends HasDataBeatCounters {
   def addPendingBitWhenBeatHasData[T <: HasBeat](in: DecoupledIO[T], inc: Bool = Bool(true)): UInt =
     addPendingBitWhenBeat(in.fire() && in.bits.hasData() && inc, in.bits)
 
-  def addPendingBitWhenBeatHasDataAndAllocs(in: DecoupledIO[AcquireFromSrc]): UInt =
-    addPendingBitWhenBeatHasData(in, in.bits.allocate())
+  def addPendingBitWhenBeatHasDataAndAllocs(
+      in: DecoupledIO[AcquireFromSrc],
+      alloc_override: Bool = Bool(false)): UInt =
+    addPendingBitWhenBeatHasData(in, in.bits.allocate() || alloc_override)
 
   def addPendingBitWhenBeatNeedsRead(in: DecoupledIO[AcquireFromSrc], inc: Bool = Bool(true)): UInt = {
     val a = in.bits
