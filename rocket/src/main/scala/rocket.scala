@@ -297,7 +297,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     ex_ctrl.csr := id_csr
     ex_reg_btb_hit := io.imem.btb_resp.valid
     when (io.imem.btb_resp.valid) { ex_reg_btb_resp := io.imem.btb_resp.bits }
-    ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush
+    ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush || csr.io.singleStep
     ex_reg_load_use := id_load_use
 
     for (i <- 0 until id_raddr.size) {
