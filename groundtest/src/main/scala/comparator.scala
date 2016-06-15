@@ -45,9 +45,8 @@ object LFSR64
 object NoiseMaker
 {
   def apply(wide: Int, increment: Bool = Bool(true)): UInt = {
-    val output = Wire(Vec((wide+63)/64, UInt()))
-    output.zipWithIndex.foreach { case (v,i) => v := LFSR64() }
-    output.toBits()(wide-1, 0)
+    val lfsrs = Seq.fill((wide+63)/64) { LFSR64() }
+    Cat(lfsrs)(wide-1,0)
   }
 }
 
@@ -119,28 +118,27 @@ class ComparatorSource(implicit val p: Parameters) extends Module
   val putPrefetch = PutPrefetch(client_xact_id, addr_block)
   val getPrefetch = GetPrefetch(client_xact_id, addr_block)
   val optAtomic = if (atomics) putAtomic else put
-  
-  // Generate a random a_type
-  io.out.bits := (new Acquire).fromBits(MuxLookup(NoiseMaker(3), get.toBits, Array(
-    UInt("b000") -> get.toBits,
-    UInt("b001") -> getBlock.toBits,
-    UInt("b010") -> put.toBits,
-    UInt("b011") -> putBlock.toBits,
-    UInt("b100") -> optAtomic.toBits,
-    UInt("b101") -> getPrefetch.toBits,
-    UInt("b110") -> putPrefetch.toBits)))
-  
+
   // We must initially putBlock all of memory to have a consistent starting state
   val final_addr_block = addr_block_mask + UInt(1)
   val wipe_addr_block  = RegInit(UInt(0, width = tlBlockAddrBits))
   val done_wipe        = wipe_addr_block === final_addr_block
+
+  io.out.bits := Mux(!done_wipe,
+    // Override whatever else we were going to do if we are wiping
+    PutBlock(client_xact_id, wipe_addr_block, UInt(0), data),
+    // Generate a random a_type
+    MuxBundle(NoiseMaker(3), get, Array(
+      UInt("b000") -> get,
+      UInt("b001") -> getBlock,
+      UInt("b010") -> put,
+      UInt("b011") -> putBlock,
+      UInt("b100") -> optAtomic,
+      UInt("b101") -> getPrefetch,
+      UInt("b110") -> putPrefetch)))
   
-  // Override whatever else we were going to do if we are wiping
-  when (!done_wipe) {
-    io.out.bits := PutBlock(client_xact_id, wipe_addr_block, UInt(0), data, SInt(-1, tlDataBytes).asUInt)
-    when (valid) {
-      wipe_addr_block := wipe_addr_block + UInt(1)
-    }
+  when (!done_wipe && valid) {
+    wipe_addr_block := wipe_addr_block + UInt(1)
   }
 }
 
@@ -250,7 +248,7 @@ class ComparatorSink(implicit val p: Parameters) extends Module
   def check(g: Grant) = {
     assert (g.is_builtin_type, "grant not builtin")
     assert (base.g_type === g.g_type, "g_type mismatch")
-    assert (base.addr_beat === g.addr_beat || !g.is(Grant.getDataBlockType), "addr_beat mismatch")
+    assert (base.addr_beat === g.addr_beat || !g.hasData(), "addr_beat mismatch")
     assert (base.data === g.data || !g.hasData(), "data mismatch")
   }
   when (all_valid) {
