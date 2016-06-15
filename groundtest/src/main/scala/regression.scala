@@ -182,50 +182,60 @@ class NoAllocPutHitRegression(implicit p: Parameters) extends Regression()(p) {
 /** Make sure L2 does the right thing when multiple puts are sent for the
  *  same block, but only the first one has the alloc bit set. */
 class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
-  val (s_idle :: s_put_send :: s_put_wait ::
-       s_get_send :: s_get_wait :: s_done :: Nil) = Enum(Bits(), 6)
+  val (s_idle :: s_pf_send :: s_pf_wait :: s_put_send :: s_put_wait ::
+       s_get_send :: s_get_wait :: s_done :: Nil) = Enum(Bits(), 8)
   val state = Reg(init = s_idle)
 
-  val put_data = Vec(
-    UInt("h0000000011111111"),
-    UInt("h2222222200000000"),
-    UInt("h3333333333333333"))
-  val put_wmask = Vec(UInt("h0f"), UInt("hf0"), UInt("hff"))
-  val put_beat = Vec(UInt(0), UInt(0), UInt(2))
+  /** We have to test two cases: one when the block is already cached
+   *  and one when the block is not yet cached.
+   *  We use prefetching to assure the first case. */
+  val test_data = Vec(
+    UInt("h2222222211111111"),
+    UInt("h3333333333333333"),
+    UInt("h4444444444444444"),
+    UInt("h5555555555555555"))
+  val test_alloc = Vec(Bool(false), Bool(false), Bool(true), Bool(false))
+  val test_block = Vec(
+    Seq.fill(2) { UInt(memStartBlock + 15) } ++
+    Seq.fill(2) { UInt(memStartBlock + 16) })
+  val test_beat = Vec(UInt(0), UInt(2), UInt(1), UInt(2))
 
   val (put_acq_id, put_acq_done) = Counter(
-    state === s_put_send && io.mem.acquire.ready, put_data.size)
+    state === s_put_send && io.mem.acquire.ready, test_data.size)
   val (put_gnt_cnt, put_gnt_done) = Counter(
-    state === s_put_wait && io.mem.grant.valid, put_data.size)
-
-  val get_data = Vec(UInt("h2222222211111111"), UInt("h3333333333333333"))
-  val get_beat = Vec(UInt(0), UInt(2))
+    state === s_put_wait && io.mem.grant.valid, test_data.size)
 
   val (get_acq_id, get_acq_done) = Counter(
-    state === s_get_send && io.mem.acquire.ready, get_data.size)
+    state === s_get_send && io.mem.acquire.ready, test_data.size)
   val (get_gnt_cnt, get_gnt_done) = Counter(
-    state === s_get_wait && io.mem.grant.valid, get_data.size)
+    state === s_get_wait && io.mem.grant.valid, test_data.size)
 
-  val blockAddr = memStartBlock + 15
+  val pf_acquire = PutPrefetch(
+    client_xact_id = UInt(0),
+    addr_block = UInt(memStartBlock + 15))
 
   val put_acquire = Put(
     client_xact_id = put_acq_id,
-    addr_block = UInt(blockAddr),
-    addr_beat = put_beat(put_acq_id),
-    data = put_data(put_acq_id),
-    wmask = put_wmask(put_acq_id),
-    alloc = (put_acq_id === UInt(0)))
+    addr_block = test_block(put_acq_id),
+    addr_beat = test_beat(put_acq_id),
+    data = test_data(put_acq_id),
+    wmask = Acquire.fullWriteMask,
+    alloc = test_alloc(put_acq_id))
 
   val get_acquire = Get(
     client_xact_id = get_acq_id,
-    addr_block = UInt(blockAddr),
-    addr_beat = get_beat(get_acq_id))
+    addr_block = test_block(get_acq_id),
+    addr_beat = test_beat(get_acq_id))
 
-  io.mem.acquire.valid := (state === s_put_send) || (state === s_get_send)
-  io.mem.acquire.bits := Mux(state === s_put_send, put_acquire, get_acquire)
-  io.mem.grant.ready := (state === s_put_wait) || (state === s_get_wait)
+  io.mem.acquire.valid := (state === s_pf_send) || (state === s_put_send) || (state === s_get_send)
+  io.mem.acquire.bits := MuxBundle(state, pf_acquire, Seq(
+    s_put_send -> put_acquire,
+    s_get_send -> get_acquire))
+  io.mem.grant.ready := (state === s_pf_wait) || (state === s_put_wait) || (state === s_get_wait)
 
-  when (state === s_idle && io.start) { state := s_put_send }
+  when (state === s_idle && io.start) { state := s_pf_send }
+  when (state === s_pf_send && io.mem.acquire.ready) { state := s_pf_wait }
+  when (state === s_pf_wait && io.mem.grant.valid) { state := s_put_send }
   when (put_acq_done) { state := s_put_wait }
   when (put_gnt_done) { state := s_get_send }
   when (get_acq_done) { state := s_get_wait }
@@ -234,7 +244,7 @@ class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
   io.finished := (state === s_done)
 
   assert(state =/= s_get_wait || !io.mem.grant.valid ||
-         io.mem.grant.bits.data === get_data(io.mem.grant.bits.client_xact_id),
+         io.mem.grant.bits.data === test_data(io.mem.grant.bits.client_xact_id),
          "MixedAllocPutRegression: data mismatch")
 
   disableCache()
