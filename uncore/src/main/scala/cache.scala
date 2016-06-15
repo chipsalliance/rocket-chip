@@ -824,7 +824,9 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
   // First, take care of accpeting new acquires or secondary misses
   // Handling of primary and secondary misses' data and write mask merging
   def iacq_can_merge = acquiresAreMergeable(io.iacq()) &&
-                         state =/= s_idle && state =/= s_meta_write &&
+                         state =/= s_idle &&
+                         state =/= s_meta_resp &&
+                         state =/= s_meta_write &&
                          !all_pending_done &&
                          !io.inner.release.fire() &&
                          !io.outer.grant.fire() &&
@@ -919,11 +921,14 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
     add_pending_bit = addPendingBitWhenBeatNeedsRead(io.inner.acquire, Bool(alwaysWriteFullBeat)),
     block_pending_read = ognt_counter.pending)
 
+  // No override for first accepted acquire
+  val alloc_override = xact_allocate && (state =/= s_idle)
+
   // Do write
   // We write data to the cache at this level if it was Put here with allocate flag,
   // written back dirty, or refilled from outer memory.
   writeDataArray(
-    add_pending_bit = (addPendingBitWhenBeatHasDataAndAllocs(io.inner.acquire) |
+    add_pending_bit = (addPendingBitWhenBeatHasDataAndAllocs(io.inner.acquire, alloc_override) |
                         addPendingBitWhenBeatHasData(io.inner.release) |
                         addPendingBitWhenBeatHasData(io.outer.grant, xact_allocate)),
     block_pending_write = (ognt_counter.pending ||
