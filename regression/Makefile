@@ -81,7 +81,7 @@ stamps/other-submodules.stamp:
 $(RISCV)/install.stamp:
 	mkdir -p $(dir $@)
 	git -C $(abspath $(TOP)) submodule update --init riscv-tools
-	rm $(abspath $(TOP))/riscv-tools/.travis.yml
+	rm -f $(abspath $(TOP))/riscv-tools/.travis.yml
 	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-gnu-toolchain
 	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-isa-sim
 	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-fesvr
