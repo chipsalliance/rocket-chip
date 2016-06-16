@@ -78,7 +78,7 @@ class BufferlessBroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Par
   outerRelease(coh = outer_coh.onHit(M_XWR))
   io.outer.grant.ready := state === s_busy && io.inner.grant.ready // bypass data
 
-  quiesce()
+  quiesce() {}
 }
 
 class BufferlessBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
@@ -137,5 +137,5 @@ class BufferlessBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
   when(iacq_is_allocating) { initializeProbes() }
 
   // Wait for everything to quiesce
-  quiesce()
+  quiesce() {}
 }

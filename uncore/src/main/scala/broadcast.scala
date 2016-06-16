@@ -122,7 +122,7 @@ class BufferedBroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Param
     coh = outer_coh.onHit(M_XWR),
     data = data_buffer(vol_ognt_counter.up.idx))
 
-  quiesce()
+  quiesce() {}
 }
 
 class BufferedBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
@@ -189,13 +189,11 @@ class BufferedBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
     external_pending = pending_orel || ognt_counter.pending || vol_ognt_counter.pending)
 
   when(iacq_is_allocating) {
-    wmask_buffer.foreach { w => w := UInt(0) } // This is the only reg that must be clear in s_idle
     initializeProbes()
   }
 
-  initDataInner(io.inner.acquire)
+  initDataInner(io.inner.acquire, iacq_is_allocating || iacq_is_merging)
 
   // Wait for everything to quiesce
-  quiesce()
-
+  quiesce() { clearWmaskBuffer() }
 }
