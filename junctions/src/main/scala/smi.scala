@@ -139,7 +139,10 @@ class SmiIONastiReadIOConverter(val dataWidth: Int, val addrWidth: Int)
     }
     nBeats := io.nasti.ar.bits.len
     addr := io.nasti.ar.bits.addr(addrOffBits - 1, byteOffBits)
-    recvInd := io.nasti.ar.bits.addr(wordCountBits + byteOffBits - 1, byteOffBits)
+    if (maxWordsPerBeat > 1)
+      recvInd := io.nasti.ar.bits.addr(wordCountBits + byteOffBits - 1, byteOffBits)
+    else
+      recvInd := UInt(0)
     id := io.nasti.ar.bits.id
     state := s_read
   }
