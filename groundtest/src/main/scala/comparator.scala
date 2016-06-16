@@ -11,7 +11,8 @@ case class ComparatorParameters(
   targets:    Seq[Long], 
   width:      Int,
   operations: Int,
-  atomics:    Boolean)
+  atomics:    Boolean,
+  prefetches: Boolean)
 case object ComparatorKey extends Field[ComparatorParameters]
 
 trait HasComparatorParameters {
@@ -22,6 +23,7 @@ trait HasComparatorParameters {
   val targetWidth = comparatorParams.width
   val nOperations = comparatorParams.operations
   val atomics     = comparatorParams.atomics
+  val prefetches  = comparatorParams.prefetches
 }
 
 object LFSR64
@@ -113,11 +115,18 @@ class ComparatorSource(implicit val p: Parameters) extends Module
   val get         = Get(client_xact_id, addr_block, addr_beat, get_addr_byte, get_operand_size, Bool(false))
   val getBlock    = GetBlock(client_xact_id, addr_block)
   val put         = Put(client_xact_id, addr_block, addr_beat, data, wmask)
-  val putBlock    = PutBlock(client_xact_id, addr_block, UInt(0), data, SInt(-1, tlDataBytes).asUInt)
-  val putAtomic   = PutAtomic(client_xact_id, addr_block, addr_beat, atomic_addr_byte, atomic_opcode, atomic_operand_size, data)
-  val putPrefetch = PutPrefetch(client_xact_id, addr_block)
-  val getPrefetch = GetPrefetch(client_xact_id, addr_block)
-  val optAtomic = if (atomics) putAtomic else put
+  val putBlock    = PutBlock(client_xact_id, addr_block, UInt(0), data)
+  val putAtomic   = if (atomics)
+    PutAtomic(client_xact_id, addr_block, addr_beat,
+      atomic_addr_byte, atomic_opcode, atomic_operand_size, data)
+    else put
+  val putPrefetch = if (prefetches)
+    PutPrefetch(client_xact_id, addr_block)
+    else put
+  val getPrefetch = if (prefetches)
+    GetPrefetch(client_xact_id, addr_block)
+    else get
+  val a_type_sel  = NoiseMaker(3)
 
   // We must initially putBlock all of memory to have a consistent starting state
   val final_addr_block = addr_block_mask + UInt(1)
@@ -128,17 +137,60 @@ class ComparatorSource(implicit val p: Parameters) extends Module
     // Override whatever else we were going to do if we are wiping
     PutBlock(client_xact_id, wipe_addr_block, UInt(0), data),
     // Generate a random a_type
-    MuxBundle(NoiseMaker(3), get, Array(
+    MuxBundle(a_type_sel, get, Array(
       UInt("b000") -> get,
       UInt("b001") -> getBlock,
       UInt("b010") -> put,
       UInt("b011") -> putBlock,
-      UInt("b100") -> optAtomic,
+      UInt("b100") -> putAtomic,
       UInt("b101") -> getPrefetch,
       UInt("b110") -> putPrefetch)))
   
   when (!done_wipe && valid) {
     wipe_addr_block := wipe_addr_block + UInt(1)
+  }
+
+  val idx = Reg(init = UInt(0, log2Up(nOperations)))
+  when (valid && !finished) {
+    when (!done_wipe) {
+      printf("[acq %d]: PutBlock(addr_block = %x, data = %x)\n",
+        idx, wipe_addr_block, data)
+    } .otherwise {
+      switch (a_type_sel) {
+        is (UInt("b000")) {
+          printf("[acq %d]: Get(addr_block = %x, addr_beat = %x, addr_byte = %x, op_size = %x)\n",
+            idx, addr_block, addr_beat, get_addr_byte, get_operand_size)
+        }
+        is (UInt("b001")) {
+          printf("[acq %d]: GetBlock(addr_block = %x)\n", idx, addr_block)
+        }
+        is (UInt("b010")) {
+          printf("[acq %d]: Put(addr_block = %x, addr_beat = %x, data = %x, wmask = %x)\n",
+            idx, addr_block, addr_beat, data, wmask)
+        }
+        is (UInt("b011")) {
+          printf("[acq %d]: PutBlock(addr_block = %x, data = %x)\n", idx, addr_block, data)
+        }
+        is (UInt("b100")) {
+          if (atomics) {
+            printf("[acq %d]: PutAtomic(addr_block = %x, addr_beat = %x, addr_byte = %x, " +
+                   "opcode = %x, op_size = %x, data = %x)\n",
+                   idx, addr_block, addr_beat, atomic_addr_byte,
+                   atomic_opcode, atomic_operand_size, data)
+          } else {
+            printf("[acq %d]: Put(addr_block = %x, addr_beat = %x, data = %x, wmask = %x)\n",
+              idx, addr_block, addr_beat, data, wmask)
+          }
+        }
+        is (UInt("b101")) {
+          printf("[acq %d]: GetPrefetch(addr_block = %x)\n", idx, addr_block)
+        }
+        is (UInt("b110")) {
+          printf("[acq %d]: PutPrefetch(addr_block = %x)\n", idx, addr_block)
+        }
+      }
+    }
+    idx := idx + UInt(1)
   }
 }
 
@@ -226,6 +278,10 @@ class ComparatorClient(val target: Long)(implicit val p: Parameters) extends Mod
   }
   
   io.finished := !buffer.valid && !issued.reduce(_ || _)
+
+  val (idx, acq_done) = Counter(
+    io.tl.acquire.fire() && io.tl.acquire.bits.first(), nOperations)
+  debug(idx)
 }
 
 class ComparatorSink(implicit val p: Parameters) extends Module
@@ -245,14 +301,28 @@ class ComparatorSink(implicit val p: Parameters) extends Module
   queues.foreach(_.ready := all_valid)
   
   val base = queues(0).bits
+  val idx = Reg(init = UInt(0, log2Up(nOperations)))
+
   def check(g: Grant) = {
+    when (g.hasData() && base.data =/= g.data) {
+      printf("%d: %x =/= %x, g_type = %x\n", idx, base.data, g.data, g.g_type)
+    }
+
     assert (g.is_builtin_type, "grant not builtin")
     assert (base.g_type === g.g_type, "g_type mismatch")
     assert (base.addr_beat === g.addr_beat || !g.hasData(), "addr_beat mismatch")
     assert (base.data === g.data || !g.hasData(), "data mismatch")
   }
   when (all_valid) {
-    queues.map(_.bits).foreach(check)
+    // Skip the results generated by the block wiping
+    when (base.hasData()) {
+      printf("[gnt %d]: g_type = %x, addr_beat = %x, data = %x\n",
+        idx, base.g_type, base.addr_beat, base.data)
+    } .otherwise {
+      printf("[gnt %d]: g_type = %x\n", idx, base.g_type)
+    }
+    queues.drop(1).map(_.bits).foreach(check)
+    idx := idx + UInt(1)
   }
 }
 
