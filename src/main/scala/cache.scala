@@ -752,7 +752,7 @@ class CacheVoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters)
     pending_writes := addPendingBitWhenBeatHasData(io.inner.release)
   }
 
-  quiesce(s_meta_write)
+  quiesce(s_meta_write) {}
 
   // Checks for illegal behavior
   assert(!(state === s_meta_resp && io.meta.resp.valid && !io.meta.resp.bits.tag_match),
@@ -962,7 +962,6 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
 
   // Initialize more transaction metadata. Pla
   when(iacq_is_allocating) {
-    wmask_buffer.foreach { w => w := UInt(0) } // This is the only reg that must be clear in s_idle
     amo_result := UInt(0)
     pending_meta_write := Bool(false)
     pending_reads := Mux( // Pick out the specific beats of data that need to be read
@@ -973,10 +972,10 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
     pending_resps := UInt(0)
   }
 
-  initDataInner(io.inner.acquire)
+  initDataInner(io.inner.acquire, iacq_is_allocating || iacq_is_merging)
 
   // Wait for everything to quiesce
-  quiesce(Mux(pending_meta_write, s_meta_write, s_idle))
+  quiesce(Mux(pending_meta_write, s_meta_write, s_idle)) { clearWmaskBuffer() }
 }
 
 class L2WritebackReq(implicit p: Parameters) extends L2Metadata()(p) with HasL2Id {
@@ -1056,7 +1055,7 @@ class L2WritebackUnit(val trackerId: Int)(implicit p: Parameters) extends XactTr
   io.wb.resp.valid := state === s_busy && all_pending_done
   io.wb.resp.bits.id := xact_id
 
-  quiesce()
+  quiesce() {}
 
   def full_representation = io.wb.req.bits.coh.inner.full()
   // State machine updates and transaction handler metadata intialization

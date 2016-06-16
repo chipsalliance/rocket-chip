@@ -28,9 +28,12 @@ abstract class XactTracker(implicit p: Parameters) extends CoherenceAgentModule(
   override val s_idle :: s_meta_read :: s_meta_resp :: s_wb_req :: s_wb_resp :: s_inner_probe :: s_outer_acquire :: s_busy :: s_meta_write :: Nil = Enum(UInt(), 9)
   val state = Reg(init=s_idle)
 
-  def quiesce(next: UInt = s_idle) {
+  def quiesce(next: UInt = s_idle)(restore: => Unit) {
     all_pending_done := !scoreboard.foldLeft(Bool(false))(_||_)
-    when(state === s_busy && all_pending_done) { state := next }
+    when(state === s_busy && all_pending_done) {
+      state := next
+      restore
+    }
   }
 
   def pinAllReadyValidLow[T <: Data](b: Bundle) {
@@ -129,8 +132,8 @@ trait HasDataBuffer extends HasCoherenceAgentParameters {
 
   type TLDataBundle = TLBundle with HasTileLinkData with HasTileLinkBeatId
 
-  def initDataInner[T <: Acquire](in: DecoupledIO[T]) {
-    when(in.fire() && in.bits.hasData()) { 
+  def initDataInner[T <: Acquire](in: DecoupledIO[T], alloc: Bool) {
+    when(in.fire() && in.bits.hasData() && alloc) { 
       data_buffer(in.bits.addr_beat) := in.bits.data
     }
   }
@@ -156,8 +159,8 @@ trait HasDataBuffer extends HasCoherenceAgentParameters {
 trait HasByteWriteMaskBuffer extends HasDataBuffer { 
   val wmask_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerWriteMaskBits)))
 
-  override def initDataInner[T <: Acquire](in: DecoupledIO[T]) {
-    when(in.fire() && in.bits.hasData()) { 
+  override def initDataInner[T <: Acquire](in: DecoupledIO[T], alloc: Bool) {
+    when(in.fire() && in.bits.hasData() && alloc) { 
       val beat = in.bits.addr_beat
       val full = FillInterleaved(8, in.bits.wmask())
       data_buffer(beat) := (~full & data_buffer(beat)) | (full & in.bits.data)
@@ -170,6 +173,10 @@ trait HasByteWriteMaskBuffer extends HasDataBuffer {
     val new_data = data_buffer(beat) // Newly Put data is already in the buffer
     val wmask = FillInterleaved(8, wmask_buffer(beat))
     data_buffer(beat) := ~wmask & old_data | wmask & new_data
+  }
+
+  def clearWmaskBuffer() {
+    wmask_buffer.foreach { w => w := UInt(0) }
   }
 }
 
