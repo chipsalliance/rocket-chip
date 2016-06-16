@@ -9,62 +9,74 @@ class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
   with HasTileLinkParameters {
   val io = new ClientUncachedTileLinkIO().flip
 
-  val bram = SeqMem(depth, Bits(width = tlDataBits))
+  val bram = SeqMem(depth, Vec(tlDataBytes, UInt(width = 8)))
 
-  val (s0_get :: s0_getblk :: s0_put :: s0_putblk :: Nil) = Seq(
+  val s_idle :: s_getblk :: s_putblk :: s_resp :: Nil = Enum(Bits(), 4)
+  val state = Reg(init = s_idle)
+
+  val acq = io.acquire.bits
+  val r_acq = Reg(new AcquireMetadata)
+
+  val (is_get :: is_getblk :: is_put :: is_putblk :: Nil) = Seq(
       Acquire.getType, Acquire.getBlockType, Acquire.putType, Acquire.putBlockType
-    ).map(io.acquire.bits.isBuiltInType _)
+    ).map(acq.isBuiltInType _)
 
-  val fire_acq = io.acquire.fire()
-  val fire_gnt = io.grant.fire()
+  val beats = Reg(UInt(width = tlBeatAddrBits))
 
-  val multibeat = Reg(init = Bool(false))
-  when (fire_acq) {
-    multibeat := s0_getblk
-  }
-
-
-  val last = Wire(Bool())
-  val s0_valid = io.acquire.valid || (multibeat && !last)
-  val s1_valid = Reg(next = s0_valid, init = Bool(false))
-  val s1_acq = RegEnable(io.acquire.bits, fire_acq)
-
-  val s0_addr = Cat(io.acquire.bits.addr_block, io.acquire.bits.addr_beat)
-  val s1_beat = s1_acq.addr_beat + Mux(io.grant.ready, UInt(1), UInt(0))
-  val s1_addr = Cat(s1_acq.addr_block, s1_beat)
-  val raddr = Mux(multibeat, s1_addr, s0_addr)
-
-  last := (s1_acq.addr_beat === UInt(tlDataBeats-1))
-  val ren = (io.acquire.valid && (s0_get || s0_getblk)) || (multibeat && !last)
-  val wen = (io.acquire.valid && (s0_put || s0_putblk))
-
-  val rdata = bram.read(raddr, ren)
-  val wdata = io.acquire.bits.data
-  val wmask = io.acquire.bits.wmask()
-  assert(!wen || (wmask === Fill(tlDataBytes, Bool(true))),
-    "bram: subblock writes not supported")
-  when (wen) {
-    bram.write(s0_addr, wdata)
-  }
-
-  when (multibeat && fire_gnt) {
-    s1_acq.addr_beat := s1_beat
-    when (last) {
-      multibeat := Bool(false)
+  when (io.acquire.fire()) {
+    r_acq := acq
+    when (is_get || is_put || acq.isPrefetch()) {
+      state := s_resp
+    }
+    when (is_getblk) {
+      beats := UInt(tlDataBeats - 1)
+      state := s_getblk
+    }
+    /** Need to collect the rest of the beats.
+     *  Beat 0 has already been accepted. */
+    when (is_putblk) {
+      beats := UInt(tlDataBeats - 2)
+      state := s_putblk
     }
   }
 
-  io.grant.valid := s1_valid
+  when (state === s_getblk && io.grant.ready) {
+    r_acq.addr_beat := r_acq.addr_beat + UInt(1)
+    beats := beats - UInt(1)
+    when (beats === UInt(0)) { state := s_idle }
+  }
+
+  when (state === s_putblk && io.acquire.valid) {
+    beats := beats - UInt(1)
+    when (beats === UInt(0)) { state := s_resp }
+  }
+
+  when (state === s_resp && io.grant.ready) { state := s_idle }
+
+  val acq_addr = Cat(acq.addr_block, acq.addr_beat)
+  val r_acq_addr = Cat(r_acq.addr_block, r_acq.addr_beat)
+
+  val ren = (io.acquire.fire() && (is_get || is_getblk)) ||
+            (state === s_getblk && io.grant.ready)
+  val raddr = Mux(state === s_idle, acq_addr,
+    Mux(io.grant.ready, r_acq_addr + UInt(1), r_acq_addr))
+  val rdata = bram.read(raddr, ren)
+
+  val wen = (io.acquire.fire() && (is_put || is_putblk))
+  val wdata = Vec.tabulate(tlDataBytes) { i => acq.data((i+1)*8-1, i*8) }
+  val wmask = Vec.tabulate(tlWriteMaskBits) { i => acq.wmask()(i) }
+
+  when (wen) { bram.write(acq_addr, wdata, wmask) }
+
+  io.grant.valid := (state === s_resp) || (state === s_getblk)
   io.grant.bits := Grant(
     is_builtin_type = Bool(true),
-    g_type = s1_acq.getBuiltInGrantType(),
-    client_xact_id = s1_acq.client_xact_id,
+    g_type = r_acq.getBuiltInGrantType(),
+    client_xact_id = r_acq.client_xact_id,
     manager_xact_id = UInt(0),
-    addr_beat = s1_acq.addr_beat,
-    data = rdata)
-
-  val stall = multibeat || (io.grant.valid && !io.grant.ready)
-  io.acquire.ready := !stall
+    addr_beat = r_acq.addr_beat,
+    data = rdata.toBits)
+  io.acquire.ready := (state === s_idle) || (state === s_putblk)
 }
 
 class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
