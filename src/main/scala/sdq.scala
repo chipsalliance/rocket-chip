@@ -45,7 +45,7 @@ trait HasStoreDataQueue extends HasStoreDataQueueParameters {
   lazy val sdq_alloc_id = PriorityEncoder(~sdq_val)
   lazy val sdq_rdy = !sdq_val.andR
   lazy val sdq_enq = trackerIOsList.map( t =>
-                  (t.alloc_iacq.should || t.alloc_iacq.matches) &&
+                  (t.alloc.iacq.should || t.alloc.iacq.matches) &&
                     t.inner.acquire.fire() &&
                     t.iacq().hasData()
                 ).reduce(_||_)

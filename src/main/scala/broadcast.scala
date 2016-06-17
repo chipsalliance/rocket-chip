@@ -34,14 +34,14 @@ class L2BroadcastHub(implicit p: Parameters) extends HierarchicalCoherenceAgent(
   doInputRoutingWithAllocation(
     in = io.inner.acquire,
     outs = trackerList.map(_.io.inner.acquire),
-    allocs = trackerList.map(_.io.alloc_iacq),
+    allocs = trackerList.map(_.io.alloc.iacq),
     allocOverride = !irel_vs_iacq_conflict)
 
   // Handle releases, which might be voluntary and might have data
   doInputRoutingWithAllocation(
     in = io.inner.release,
     outs = trackerList.map(_.io.inner.release),
-    allocs = trackerList.map(_.io.alloc_irel))
+    allocs = trackerList.map(_.io.alloc.irel))
 
   // Wire probe requests and grant reply to clients, finish acks from clients
   doOutputArbitration(io.inner.probe, trackerList.map(_.io.inner.probe))
@@ -71,7 +71,7 @@ abstract class BroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Para
   pinAllReadyValidLow(io)
 
   // Checks for illegal behavior
-  assert(!(state === s_idle && io.inner.release.fire() && io.alloc_irel.should && !io.irel().isVoluntary()),
+  assert(!(state === s_idle && io.inner.release.fire() && io.alloc.irel.should && !io.irel().isVoluntary()),
     "VoluntaryReleaseTracker accepted Release that wasn't voluntary!")
 }
 
@@ -88,7 +88,7 @@ abstract class BroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
 
   // Checks for illegal behavior
   // TODO: this could be allowed, but is a useful check against allocation gone wild
-  assert(!(state === s_idle && io.inner.acquire.fire() && io.alloc_iacq.should &&
+  assert(!(state === s_idle && io.inner.acquire.fire() && io.alloc.iacq.should &&
     io.iacq().hasMultibeatData() && !io.iacq().first()),
     "AcquireTracker initialized with a tail data beat.")
 
@@ -105,7 +105,7 @@ class BufferedBroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Param
 
   // Tell the parent if any incoming messages conflict with the ongoing transaction
   routeInParent()
-  io.alloc_iacq.can := Bool(false)
+  io.alloc.iacq.can := Bool(false)
 
   // Start transaction by accepting inner release
   innerRelease(block_vol_ignt = pending_orel || vol_ognt_counter.pending)
@@ -130,7 +130,7 @@ class BufferedBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
 
   // Setup IOs used for routing in the parent
   routeInParent()
-  io.alloc_irel.can := Bool(false)
+  io.alloc.irel.can := Bool(false)
 
   // First, take care of accpeting new acquires or secondary misses
   // Handling of primary and secondary misses' data and write mask merging

@@ -11,9 +11,11 @@ class TrackerAllocation extends Bundle {
 }
 
 trait HasTrackerAllocationIO extends Bundle {
-  val alloc_iacq = new TrackerAllocation
-  val alloc_irel = new TrackerAllocation
-  val alloc_oprb = new TrackerAllocation
+  val alloc = new Bundle {
+    val iacq = new TrackerAllocation
+    val irel = new TrackerAllocation
+    val oprb = new TrackerAllocation
+  }
 }
 
 class ManagerXactTrackerIO(implicit p: Parameters) extends ManagerTLIO()(p)
@@ -221,7 +223,7 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
 
   def irel_can_merge: Bool
   def irel_same_xact: Bool
-  def irel_is_allocating: Bool = state === s_idle && io.alloc_irel.should && io.inner.release.valid
+  def irel_is_allocating: Bool = state === s_idle && io.alloc.irel.should && io.inner.release.valid
   def irel_is_merging: Bool = (irel_can_merge || irel_same_xact) && io.inner.release.valid
 
   def innerRelease(block_vol_ignt: Bool = Bool(false), next: UInt = s_busy) {
@@ -230,11 +232,10 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
       up = io.inner.release,
       down = io.inner.grant,
       trackUp = (r: Release) => {
-        Mux(state === s_idle, io.alloc_irel.should, io.alloc_irel.matches) && r.isVoluntary() && r.requiresAck()
+        Mux(state === s_idle, io.alloc.irel.should, io.alloc.irel.matches) && r.isVoluntary() && r.requiresAck()
       },
       trackDown = (g: Grant) => (state =/= s_idle) && g.isVoluntary())
 
-    pending_irel_data := (pending_irel_data & dropPendingBitWhenBeatHasData(io.inner.release))
 
     when(irel_is_allocating) {
       xact_addr_block := io.irel().addr_block
@@ -242,7 +243,7 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
     }
 
     when(io.inner.release.fire()) {
-      when(io.alloc_irel.should || (irel_can_merge && io.irel().first())) {
+      when(io.alloc.irel.should || (irel_can_merge && io.irel().first())) {
         xact_vol_ir_r_type := io.irel().r_type
         xact_vol_ir_src := io.irel().client_id
         xact_vol_ir_client_xact_id := io.irel().client_xact_id
@@ -250,6 +251,10 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
                                dropPendingBitWhenBeatHasData(io.inner.release),
                                UInt(0))
       }
+    }
+
+    when (irel_is_merging) {
+      pending_irel_data := (pending_irel_data & dropPendingBitWhenBeatHasData(io.inner.release))
     }
 
     io.inner.grant.valid := Vec(s_wb_req, s_wb_resp, s_inner_probe, s_busy).contains(state) &&
@@ -276,9 +281,11 @@ trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
       add_pending_data_bits: UInt = UInt(0),
       add_pending_send_bit: Bool = Bool(false)) {
 
-    pending_orel_data := (pending_orel_data & dropPendingBitWhenBeatHasData(io.outer.release)) |
-                          addPendingBitWhenBeatHasData(io.inner.release) |
-                          add_pending_data_bits
+    when (state =/= s_idle || io.alloc.irel.should) {
+      pending_orel_data := (pending_orel_data & dropPendingBitWhenBeatHasData(io.outer.release)) |
+                            addPendingBitWhenBeatHasData(io.inner.release) |
+                            add_pending_data_bits
+    }
     when (add_pending_send_bit) { pending_orel_send := Bool(true) }
     when (io.outer.release.fire()) { pending_orel_send := Bool(false) }
 
@@ -352,12 +359,12 @@ trait RoutesInParent extends HasBlockAddressBuffer
   def routeInParent(iacqMatches: AddrComparison = exactAddrMatch,
             irelMatches: AddrComparison = exactAddrMatch,
             oprbMatches: AddrComparison = exactAddrMatch) {
-    io.alloc_iacq.matches := (state =/= s_idle) && iacqMatches(io.iacq())
-    io.alloc_irel.matches := (state =/= s_idle) && irelMatches(io.irel())
-    io.alloc_oprb.matches := (state =/= s_idle) && oprbMatches(io.oprb())
-    io.alloc_iacq.can := state === s_idle
-    io.alloc_irel.can := state === s_idle
-    io.alloc_oprb.can := Bool(false)
+    io.alloc.iacq.matches := (state =/= s_idle) && iacqMatches(io.iacq())
+    io.alloc.irel.matches := (state =/= s_idle) && irelMatches(io.irel())
+    io.alloc.oprb.matches := (state =/= s_idle) && oprbMatches(io.oprb())
+    io.alloc.iacq.can := state === s_idle
+    io.alloc.irel.can := state === s_idle
+    io.alloc.oprb.can := Bool(false)
   }
 }
 
@@ -390,7 +397,7 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
       pending_put_data(io.iacq().addr_beat)
   }
   def iacq_can_merge: Bool
-  def iacq_is_allocating: Bool = state === s_idle && io.alloc_iacq.should && io.inner.acquire.valid
+  def iacq_is_allocating: Bool = state === s_idle && io.alloc.iacq.should && io.inner.acquire.valid
   def iacq_is_merging: Bool = (iacq_can_merge || iacq_same_xact) && io.inner.acquire.valid
 
   def innerAcquire(can_alloc: Bool, next: UInt) {
@@ -405,9 +412,11 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
     pending_ignt := ignt_q.io.count > UInt(0)
 
     // Track whether any beats are missing from a PutBlock
-    pending_put_data := (pending_put_data &
-        dropPendingBitWhenBeatHasData(io.inner.acquire)) |
-        addPendingBitsOnFirstBeat(io.inner.acquire)
+    when (state =/= s_idle || io.alloc.iacq.should) {
+      pending_put_data := (pending_put_data &
+          dropPendingBitWhenBeatHasData(io.inner.acquire)) |
+          addPendingBitsOnFirstBeat(io.inner.acquire)
+    }
 
     // Intialize transaction metadata for accepted Acquire
     when(iacq_is_allocating) {
