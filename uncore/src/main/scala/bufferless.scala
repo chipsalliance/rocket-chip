@@ -35,7 +35,7 @@ class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoheren
   doInputRoutingWithAllocation(
     in = io.inner.acquire,
     outs = trackerList.map(_.io.inner.acquire),
-    allocs = trackerList.map(_.io.alloc_iacq),
+    allocs = trackerList.map(_.io.alloc.iacq),
     allocOverride = !irel_vs_iacq_conflict)
   io.outer.acquire.bits.data := io.inner.acquire.bits.data
   io.outer.acquire.bits.addr_beat := io.inner.acquire.bits.addr_beat
@@ -44,7 +44,7 @@ class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoheren
   doInputRoutingWithAllocation(
     in = io.inner.release,
     outs = trackerList.map(_.io.inner.release),
-    allocs = trackerList.map(_.io.alloc_irel))
+    allocs = trackerList.map(_.io.alloc.irel))
   io.outer.release.bits.data := io.inner.release.bits.data
   io.outer.release.bits.addr_beat := io.inner.release.bits.addr_beat
 
@@ -63,7 +63,7 @@ class BufferlessBroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Par
 
   // Tell the parent if any incoming messages conflict with the ongoing transaction
   routeInParent()
-  io.alloc_iacq.can := Bool(false)
+  io.alloc.iacq.can := Bool(false)
 
   // Start transaction by accepting inner release
   innerRelease(block_vol_ignt = pending_orel || vol_ognt_counter.pending)
@@ -86,7 +86,7 @@ class BufferlessBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
 
   // Setup IOs used for routing in the parent
   routeInParent()
-  io.alloc_irel.can := Bool(false)
+  io.alloc.irel.can := Bool(false)
 
   // First, take care of accpeting new acquires or secondary misses
   // Handling of primary and secondary misses' data and write mask merging

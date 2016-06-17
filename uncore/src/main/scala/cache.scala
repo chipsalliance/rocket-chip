@@ -476,19 +476,19 @@ class TSHRFile(implicit p: Parameters) extends L2HellaCacheModule()(p)
   doInputRoutingWithAllocation(
     in = io.inner.acquire,
     outs = trackerList.map(_.io.inner.acquire),
-    allocs = trackerList.map(_.io.alloc_iacq),
+    allocs = trackerList.map(_.io.alloc.iacq),
     allocOverride = !irel_vs_iacq_conflict)
 
-  assert(PopCount(trackerList.map(_.io.alloc_iacq.should)) <= UInt(1),
+  assert(PopCount(trackerList.map(_.io.alloc.iacq.should)) <= UInt(1),
     "At most a single tracker should now be allocated for any given Acquire")
 
   // Wire releases from clients
   doInputRoutingWithAllocation(
     in = io.inner.release,
     outs = trackerAndWbIOs.map(_.inner.release),
-    allocs = trackerAndWbIOs.map(_.alloc_irel))
+    allocs = trackerAndWbIOs.map(_.alloc.irel))
 
-  assert(PopCount(trackerAndWbIOs.map(_.alloc_irel.should)) <= UInt(1),
+  assert(PopCount(trackerAndWbIOs.map(_.alloc.irel.should)) <= UInt(1),
     "At most a single tracker should now be allocated for any given Release")
 
   // Wire probe requests and grant reply to clients, finish acks from clients
@@ -570,9 +570,14 @@ trait ReadsFromOuterCacheDataArray extends HasCoherenceMetadataBuffer
 
   def readDataArray(drop_pending_bit: UInt,
                     add_pending_bit: UInt = UInt(0),
-                    block_pending_read: Bool = Bool(false)) {
+                    block_pending_read: Bool = Bool(false),
+                    can_update_pending: Bool = Bool(true)) {
     val port = io.data
-    pending_reads := (pending_reads & dropPendingBit(port.read) & drop_pending_bit) | add_pending_bit
+    when (can_update_pending) {
+      pending_reads := (pending_reads &
+        dropPendingBit(port.read) & drop_pending_bit) |
+        add_pending_bit
+    }
     port.read.valid := state === s_busy && pending_reads.orR && !block_pending_read
     port.read.bits := L2DataReadReq(
                         id = UInt(trackerId),
@@ -598,9 +603,13 @@ trait WritesToOuterCacheDataArray extends HasCoherenceMetadataBuffer
   val curr_write_beat = PriorityEncoder(pending_writes)
 
   def writeDataArray(add_pending_bit: UInt = UInt(0),
-                     block_pending_write: Bool = Bool(false)) {
+                     block_pending_write: Bool = Bool(false),
+                     can_update_pending: Bool = Bool(true)) {
     val port = io.data
-    pending_writes := (pending_writes & dropPendingBit(port.write)) | add_pending_bit
+    when (can_update_pending) {
+      pending_writes := (pending_writes & dropPendingBit(port.write)) |
+                         add_pending_bit
+    }
     port.write.valid := state === s_busy && pending_writes.orR && !block_pending_write
     port.write.bits := L2DataWriteReq(
                         id = UInt(trackerId),
@@ -720,7 +729,7 @@ class CacheVoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters)
 
   // Avoid metatdata races with writebacks
   routeInParent(iacqMatches = inSameSet(_, xact_addr_block))
-  io.alloc_iacq.can := Bool(false)
+  io.alloc.iacq.can := Bool(false)
 
   // Initialize and accept pending Release beats
   innerRelease(
@@ -733,7 +742,8 @@ class CacheVoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters)
   metaRead(io.meta, s_busy)
 
   // Write the voluntarily written back data to this cache
-  writeDataArray(add_pending_bit = addPendingBitWhenBeatHasData(io.inner.release))
+  writeDataArray(add_pending_bit = addPendingBitWhenBeatHasData(io.inner.release),
+    can_update_pending = state =/= s_idle || io.alloc.irel.should)
 
   // End a transaction by updating the block metadata
   metaWrite(
@@ -801,7 +811,7 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
     iacqMatches = inSameSet(_, xact_addr_block),
     irelMatches = (irel: HasCacheBlockAddress) => 
       Mux(before_wb_alloc, inSameSet(irel, xact_addr_block), exactAddrMatch(irel)))
-  io.alloc_irel.can := Bool(false)
+  io.alloc.irel.can := Bool(false)
 
   // TileLink allows for Gets-under-Get
   // and Puts-under-Put, and either may also merge with a preceding prefetch
@@ -919,7 +929,8 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
     drop_pending_bit = (dropPendingBitWhenBeatHasData(io.inner.release) &
                          dropPendingBitWhenBeatHasData(io.outer.grant)),
     add_pending_bit = addPendingBitWhenBeatNeedsRead(io.inner.acquire, Bool(alwaysWriteFullBeat)),
-    block_pending_read = ognt_counter.pending)
+    block_pending_read = ognt_counter.pending,
+    can_update_pending = state =/= s_idle || io.alloc.irel.should)
 
   // No override for first accepted acquire
   val alloc_override = xact_allocate && (state =/= s_idle)
@@ -934,7 +945,8 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
     block_pending_write = (ognt_counter.pending ||
                             pending_put_data.orR ||
                             pending_reads(curr_write_beat) ||
-                            pending_resps(curr_write_beat)))
+                            pending_resps(curr_write_beat)),
+    can_update_pending = state =/= s_idle || io.alloc.iacq.should || io.alloc.irel.should)
 
   // Acknowledge or respond with data
   innerGrant(
