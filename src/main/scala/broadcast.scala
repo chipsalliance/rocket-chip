@@ -113,14 +113,13 @@ class BufferedBroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Param
   // A release beat can be accepted if we are idle, if its a mergeable transaction, or if its a tail beat
   io.inner.release.ready := state === s_idle || irel_can_merge || irel_same_xact
 
-  when(irel_is_allocating) { pending_orel := io.irel().hasData() }
-
   when(io.inner.release.fire()) { data_buffer(io.irel().addr_beat) := io.irel().data }
 
   // Dispatch outer release
   outerRelease(
     coh = outer_coh.onHit(M_XWR),
-    data = data_buffer(vol_ognt_counter.up.idx))
+    data = data_buffer(vol_ognt_counter.up.idx),
+    add_pending_send_bit = irel_is_allocating)
 
   quiesce() {}
 }

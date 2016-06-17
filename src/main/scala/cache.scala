@@ -1045,11 +1045,16 @@ class L2WritebackUnit(val trackerId: Int)(implicit p: Parameters) extends XactTr
   // If a release didn't write back data, have to read it from data array
   readDataArray(drop_pending_bit = dropPendingBitWhenBeatHasData(io.inner.release))
 
+  val coh = io.wb.req.bits.coh
+  val needs_inner_probes = coh.inner.requiresProbesOnVoluntaryWriteback()
+  val needs_outer_release = coh.outer.requiresVoluntaryWriteback()
+
   // Once the data is buffered we can write it back to outer memory
   outerRelease(
     coh = outer_coh,
     data = data_buffer(vol_ognt_counter.up.idx),
-    add_pending_bit = addPendingBitInternal(io.data.resp))
+    add_pending_data_bits = addPendingBitInternal(io.data.resp),
+    add_pending_send_bit = io.wb.req.fire() && needs_outer_release)
 
   // Respond to the initiating transaction handler signalling completion of the writeback
   io.wb.resp.valid := state === s_busy && all_pending_done
@@ -1064,14 +1069,9 @@ class L2WritebackUnit(val trackerId: Int)(implicit p: Parameters) extends XactTr
     xact_way_en := io.wb.req.bits.way_en
     xact_addr_block := (if (cacheIdBits == 0) Cat(io.wb.req.bits.tag, io.wb.req.bits.idx)
                         else Cat(io.wb.req.bits.tag, io.wb.req.bits.idx, UInt(cacheId, cacheIdBits)))
-    val coh = io.wb.req.bits.coh
-    val needs_inner_probes = coh.inner.requiresProbesOnVoluntaryWriteback()
-    val needs_outer_release = coh.outer.requiresVoluntaryWriteback()
     when(needs_inner_probes) { initializeProbes() }
     pending_reads := Mux(needs_outer_release, ~UInt(0, width = innerDataBeats), UInt(0))
     pending_resps := UInt(0)
-    pending_orel := needs_outer_release
-    //pending_orel_data := UInt(0)
     pending_coh := coh
     state := Mux(needs_inner_probes, s_inner_probe, s_busy)
   }

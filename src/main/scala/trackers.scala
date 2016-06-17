@@ -264,18 +264,23 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
 }
 
 trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
-  val pending_orel = Reg(init=Bool(false))
+  val pending_orel_send = Reg(init=Bool(false))
   val pending_orel_data = Reg(init=Bits(0, width = innerDataBeats))
   val vol_ognt_counter = Wire(new TwoWayBeatCounterStatus)
+  val pending_orel = pending_orel_send || pending_orel_data.orR || vol_ognt_counter.pending
 
   def outerRelease(
       coh: ClientMetadata,
       buffering: Bool = Bool(true),
       data: UInt = io.irel().data,
-      add_pending_bit: UInt = UInt(0)) {
+      add_pending_data_bits: UInt = UInt(0),
+      add_pending_send_bit: Bool = Bool(false)) {
+
     pending_orel_data := (pending_orel_data & dropPendingBitWhenBeatHasData(io.outer.release)) |
                           addPendingBitWhenBeatHasData(io.inner.release) |
-                          add_pending_bit
+                          add_pending_data_bits
+    when (add_pending_send_bit) { pending_orel_send := Bool(true) }
+    when (io.outer.release.fire()) { pending_orel_send := Bool(false) }
 
     connectTwoWayBeatCounters(
         status = vol_ognt_counter,
@@ -290,16 +295,13 @@ trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
                                       pending_orel_data(vol_ognt_counter.up.idx),
                                       io.inner.release.valid),
                                   pending_orel)
-        
+
 
     io.outer.release.bits := coh.makeVoluntaryWriteback(
       client_xact_id = UInt(0), // TODO was tracker id, but not needed?
       addr_block = xact_addr_block,
       addr_beat = vol_ognt_counter.up.idx,
       data = data)
-
-    when(pending_orel_data.orR) { pending_orel := Bool(true) }
-    when(vol_ognt_counter.up.done) { pending_orel := Bool(false) }
 
     io.outer.grant.ready := state === s_busy
 
