@@ -25,6 +25,8 @@
 #include "emulator_type.h"
 
 htif_emulator_t* htif;
+bool verbose;
+
 void handle_sigterm(int sig)
 {
   htif->stop();
@@ -41,7 +43,6 @@ int main(int argc, char** argv)
   const char* loadmem = NULL;
   FILE *vcdfile = NULL;
   bool dramsim2 = false;
-  bool log = false;
   bool print_cycles = false;
   uint64_t memsz_mb = MEM_SIZE / (1024*1024);
   mm_t *mm[N_MEM_CHANNELS];
@@ -58,7 +59,7 @@ int main(int argc, char** argv)
     else if (arg == "+dramsim")
       dramsim2 = true;
     else if (arg == "+verbose")
-      log = true;
+      verbose = true;
     else if (arg.substr(0, 12) == "+max-cycles=")
       max_cycles = atoll(argv[i]+12);
     else if (arg.substr(0, 9) == "+loadmem=")
@@ -304,7 +305,7 @@ int main(int argc, char** argv)
       tile.Top__io_host_out_ready = LIT<1>(1);
     }
 
-    if (log && (trace_count >> 1) >= start)
+    if (verbose && (trace_count >> 1) >= start)
       tile.print(stderr);
 
     // make sure we dump on cycle 0 to get dump_init
@@ -356,7 +357,7 @@ int main(int argc, char** argv)
     fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %ld cycles\n", random_seed, trace_count >> 1);
     ret = 2;
   }
-  else if (log || print_cycles)
+  else if (verbose || print_cycles)
   {
     fprintf(stderr, "Completed after %ld cycles\n", trace_count >> 1);
   }

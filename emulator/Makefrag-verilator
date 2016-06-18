@@ -56,8 +56,9 @@ verilator/verilator-$(VERILATOR_VERSION).tar.gz:
 
 # Run Verilator to produce a fast binary to emulate this circuit.
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
-VERILATOR_FLAGS := --top-module $(MODEL) +define+PRINTF_COND=$(MODEL).reset --assert \
-	-Wno-UNSIGNED -Wno-COMBDLY -Wno-MULTIDRIVEN -Wno-WIDTH -Wno-STMTDLY -Wno-SELRANGE -Wno-IMPLICIT
+VERILATOR_FLAGS := --top-module $(MODEL) +define+PRINTF_COND=\$$c\(\"verbose\"\) --assert \
+	-Wno-UNSIGNED -Wno-COMBDLY -Wno-MULTIDRIVEN -Wno-WIDTH -Wno-STMTDLY -Wno-SELRANGE -Wno-IMPLICIT \
+  -CFLAGS "$(CXXFLAGS) -DVERILATOR -include $(base_dir)/csrc/verilator.h"
 cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
 
 model_header = $(generated_dir)/$(MODEL).$(CONFIG)/V$(MODEL).h
@@ -73,12 +74,12 @@ $(emu): $(verilog) $(cppfiles) libdramsim.a $(consts_header) $(INSTALLED_VERILAT
 	mkdir -p $(generated_dir)/$(MODEL).$(CONFIG)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir)/$(MODEL).$(CONFIG) \
 	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
-	-CFLAGS "$(CXXFLAGS) -DVERILATOR -I$(generated_dir) -include $(model_header) -include $(consts_header) -include $(scr_header)"
+	-CFLAGS "-I$(generated_dir) -include $(model_header) -include $(consts_header) -include $(scr_header)"
 	$(MAKE) -C $(generated_dir)/$(MODEL).$(CONFIG) -f V$(MODEL).mk
 
 $(emu_debug): $(verilog_debug) $(cppfiles) libdramsim.a $(consts_header_debug) $(generated_dir)/$(MODEL).$(CONFIG).d $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir_debug)/$(MODEL).$(CONFIG)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir_debug)/$(MODEL).$(CONFIG)  --trace \
 	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
-	-CFLAGS "$(CXXFLAGS) -DVERILATOR -I$(generated_dir_debug) -include $(model_header_debug) -include $(consts_header_debug) -include $(scr_header_debug)"
+	-CFLAGS "-I$(generated_dir_debug) -include $(model_header_debug) -include $(consts_header_debug) -include $(scr_header_debug)"
 	$(MAKE) -C $(generated_dir_debug)/$(MODEL).$(CONFIG) -f V$(MODEL).mk
