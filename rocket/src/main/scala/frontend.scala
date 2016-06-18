@@ -96,7 +96,6 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := !stall && !icmiss
   tlb.io.req.bits.vpn := s1_pc >> pgIdxBits
-  tlb.io.req.bits.asid := UInt(0)
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.instruction := Bool(true)
   tlb.io.req.bits.store := Bool(false)

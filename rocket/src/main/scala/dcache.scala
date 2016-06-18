@@ -104,7 +104,6 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := s1_valid_masked && s1_readwrite
   tlb.io.req.bits.passthrough := s1_req.phys
-  tlb.io.req.bits.asid := 0
   tlb.io.req.bits.vpn := s1_req.addr >> pgIdxBits
   tlb.io.req.bits.instruction := false
   tlb.io.req.bits.store := s1_write

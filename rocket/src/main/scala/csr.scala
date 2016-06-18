@@ -71,6 +71,12 @@ class MIP extends Bundle {
   val usip = Bool()
 }
 
+class PTBR(implicit p: Parameters) extends CoreBundle()(p) {
+  require(maxPAddrBits - pgIdxBits + asIdBits <= xLen)
+  val asid = UInt(width = asIdBits)
+  val ppn = UInt(width = maxPAddrBits - pgIdxBits)
+}
+
 object PRV
 {
   val SZ = 2
@@ -110,7 +116,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val singleStep = Bool(OUTPUT)
 
   val status = new MStatus().asOutput
-  val ptbr = UInt(OUTPUT, paddrBits)
+  val ptbr = new PTBR().asOutput
   val evec = UInt(OUTPUT, vaddrBitsExtended)
   val exception = Bool(INPUT)
   val retire = UInt(INPUT, log2Up(1+retireWidth))
@@ -197,7 +203,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_sbadaddr = Reg(UInt(width = vaddrBitsExtended))
   val reg_sscratch = Reg(Bits(width = xLen))
   val reg_stvec = Reg(UInt(width = vaddrBits))
-  val reg_sptbr = Reg(UInt(width = ppnBits))
+  val reg_sptbr = Reg(new PTBR)
   val reg_wfi = Reg(init=Bool(false))
 
   val reg_uarch_counters = io.uarch_counters.map(WideCounter(xLen, _))
@@ -297,8 +303,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     read_mapping += CSRs.sscratch -> reg_sscratch
     read_mapping += CSRs.scause -> reg_scause
     read_mapping += CSRs.sbadaddr -> reg_sbadaddr.sextTo(xLen)
-    read_mapping += CSRs.sptbr -> reg_sptbr
-    read_mapping += CSRs.sasid -> UInt(0)
+    read_mapping += CSRs.sptbr -> reg_sptbr.toBits
     read_mapping += CSRs.sepc -> reg_sepc.sextTo(xLen)
     read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
     read_mapping += CSRs.mscounteren -> UInt(0)
@@ -522,7 +527,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       }
       when (decoded_addr(CSRs.sie))      { reg_mie := (reg_mie & ~reg_mideleg) | (wdata & reg_mideleg) }
       when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
-      when (decoded_addr(CSRs.sptbr))    { reg_sptbr := wdata }
+      when (decoded_addr(CSRs.sptbr))    { reg_sptbr.ppn := wdata(ppnBits-1,0) }
       when (decoded_addr(CSRs.sepc))     { reg_sepc := wdata >> log2Up(coreInstBytes) << log2Up(coreInstBytes) }
       when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata >> 2 << 2 }
       when (decoded_addr(CSRs.scause))   { reg_scause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
@@ -559,6 +564,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     reg_mstatus.mprv := false
   }
 
+  reg_sptbr.asid := 0
   reg_tdrselect.reserved := 0
   reg_tdrselect.tdrmode := true // TODO support D-mode breakpoint theft
   if (reg_bp.isEmpty) reg_tdrselect.tdrindex := 0

@@ -21,12 +21,13 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new PTWReq)
   val resp = Valid(new PTWResp).flip
-  val status = new MStatus().asInput
+  val ptbr = new PTBR().asInput
   val invalidate = Bool(INPUT)
+  val status = new MStatus().asInput
 }
 
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
-  val ptbr = UInt(INPUT, ppnBits)
+  val ptbr = new PTBR().asInput
   val invalidate = Bool(INPUT)
   val status = new MStatus().asInput
 }
@@ -78,7 +79,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
     r_req_dest := arb.io.chosen
-    r_pte.ppn := io.dpath.ptbr
+    r_pte.ppn := io.dpath.ptbr.ppn
   }
 
   val (pte_cache_hit, pte_cache_data) = {
@@ -130,6 +131,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     io.requestor(i).resp.valid := resp_val && (r_req_dest === i)
     io.requestor(i).resp.bits.pte := r_pte
     io.requestor(i).resp.bits.pte.ppn := resp_ppn
+    io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).status := io.dpath.status
   }
