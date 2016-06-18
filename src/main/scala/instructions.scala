@@ -259,7 +259,6 @@ object CSRs {
   val sbadaddr = 0x143
   val sip = 0x144
   val sptbr = 0x180
-  val sasid = 0x181
   val scycle = 0xd00
   val stime = 0xd01
   val sinstret = 0xd02
@@ -326,7 +325,6 @@ object CSRs {
     res += sbadaddr
     res += sip
     res += sptbr
-    res += sasid
     res += scycle
     res += stime
     res += sinstret

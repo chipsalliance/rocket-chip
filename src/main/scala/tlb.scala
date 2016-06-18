@@ -56,7 +56,6 @@ class RocketCAM(implicit p: Parameters) extends TLBModule()(p) {
 }
 
 class TLBReq(implicit p: Parameters) extends CoreBundle()(p) {
-  val asid = UInt(width = asIdBits)
   val vpn = UInt(width = vpnBitsExtended)
   val passthrough = Bool()
   val instruction = Bool()
@@ -92,7 +91,7 @@ class TLB(implicit p: Parameters) extends TLBModule()(p) {
   val r_refill_waddr = Reg(tag_cam.io.write_addr)
   val r_req = Reg(new TLBReq)
   
-  val lookup_tag = Cat(io.req.bits.asid, io.req.bits.vpn(vpnBits-1,0)).toUInt
+  val lookup_tag = Cat(io.ptw.ptbr.asid, io.req.bits.vpn(vpnBits-1,0)).toUInt
   tag_cam.io.tag := lookup_tag
   tag_cam.io.write := state === s_wait && io.ptw.resp.valid
   tag_cam.io.write_tag := r_refill_tag

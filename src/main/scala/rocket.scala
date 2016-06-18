@@ -66,7 +66,13 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val enableCommitLog = false
   val usingPerfCounters = p(UsePerfCounters)
 
-  if (fastLoadByte) require(fastLoadWord)
+  val maxPAddrBits = xLen match {
+    case 32 => 34
+    case 64 => 50
+  }
+
+  require(paddrBits < maxPAddrBits)
+  require(!fastLoadByte || fastLoadWord)
 }
 
 abstract class CoreModule(implicit val p: Parameters) extends Module

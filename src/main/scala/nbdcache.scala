@@ -817,7 +817,6 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.ptw <> dtlb.io.ptw
   dtlb.io.req.valid := s1_valid_masked && s1_readwrite
   dtlb.io.req.bits.passthrough := s1_req.phys
-  dtlb.io.req.bits.asid := UInt(0)
   dtlb.io.req.bits.vpn := s1_req.addr >> pgIdxBits
   dtlb.io.req.bits.instruction := Bool(false)
   dtlb.io.req.bits.store := s1_write
