@@ -632,7 +632,7 @@ class BRAMSlaveDriver(implicit val p: Parameters) extends Module
     state === s_pf_stall || state === s_put_stall || state === s_get_stall, 4)
 
   io.mem.acquire.valid := (state === s_pf_req) || (state === s_put_req) || (state === s_get_req)
-  io.mem.acquire.bits := MuxBundle(state, get_acquire, Seq(
+  io.mem.acquire.bits := MuxLookup(state, get_acquire, Seq(
     s_pf_req -> pf_acquire,
     s_put_req -> put_acquire))
   io.mem.grant.ready := (state === s_pf_resp) || (state === s_put_resp) || (state === s_get_resp)

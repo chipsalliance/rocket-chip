@@ -137,7 +137,7 @@ class ComparatorSource(implicit val p: Parameters) extends Module
     // Override whatever else we were going to do if we are wiping
     PutBlock(client_xact_id, wipe_addr_block, UInt(0), data),
     // Generate a random a_type
-    MuxBundle(a_type_sel, get, Array(
+    MuxLookup(a_type_sel, get, Array(
       UInt("b000") -> get,
       UInt("b001") -> getBlock,
       UInt("b010") -> put,

@@ -152,7 +152,7 @@ class NoAllocPutHitRegression(implicit p: Parameters) extends Regression()(p) {
     addr_block = addr_block)
 
   io.mem.acquire.valid := (state === s_prefetch) || (state === s_get) || (state === s_put)
-  io.mem.acquire.bits := MuxBundle(get_acq, Seq(
+  io.mem.acquire.bits := MuxCase(get_acq, Seq(
     (state === s_prefetch) -> prefetch_acq,
     (state === s_put) -> put_acq))
   io.mem.grant.ready := Bool(true)
@@ -228,7 +228,7 @@ class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
     addr_beat = test_beat(get_acq_id))
 
   io.mem.acquire.valid := (state === s_pf_send) || (state === s_put_send) || (state === s_get_send)
-  io.mem.acquire.bits := MuxBundle(state, pf_acquire, Seq(
+  io.mem.acquire.bits := MuxLookup(state, pf_acquire, Seq(
     s_put_send -> put_acquire,
     s_get_send -> get_acquire))
   io.mem.grant.ready := (state === s_pf_wait) || (state === s_put_wait) || (state === s_get_wait)
