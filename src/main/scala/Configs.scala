@@ -529,4 +529,5 @@ class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new BaseCo
 class WithSplitL2Metadata extends Config(knobValues = { case "L2_SPLIT_METADATA" => true; case _ => throw new CDEMatchError })
 class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new DefaultL2Config)
 
-class DualCoreConfig extends Config(new WithNCores(2) ++ new BaseConfig)
+class DualCoreConfig extends Config(
+  new WithNCores(2) ++ new WithL2Cache ++ new BaseConfig)
