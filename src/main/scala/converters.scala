@@ -887,7 +887,7 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
     wmask = put_wmask.toBits)
 
   io.out.acquire.valid := sending_put || (!shrink && io.in.acquire.valid)
-  io.out.acquire.bits := MuxBundle(get_block_acquire, Seq(
+  io.out.acquire.bits := MuxCase(get_block_acquire, Seq(
     sending_put -> put_block_acquire,
     smallget -> get_acquire,
     smallput -> put_acquire))
@@ -961,7 +961,7 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
     data = ognt.data)
 
   io.in.grant.valid := returning_data || (!stretch && io.out.grant.valid)
-  io.in.grant.bits := MuxBundle(default_grant, Seq(
+  io.in.grant.bits := MuxCase(default_grant, Seq(
     returning_data -> get_block_grant,
     smallgnt -> get_grant))
   io.out.grant.ready := !returning_data && (stretch || io.in.grant.ready)
@@ -1085,7 +1085,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
 
   val pass_valid = io.in.acquire.valid && !stretch
 
-  io.out.acquire.bits := MuxBundle(Wire(io.out.acquire.bits, init=iacq), Seq(
+  io.out.acquire.bits := MuxCase(Wire(io.out.acquire.bits, init=iacq), Seq(
     (sending_put, put_block_acquire),
     (shrink, get_block_acquire),
     (smallput, put_acquire),
@@ -1138,7 +1138,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
   io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
   io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)
 
-  io.in.grant.bits := MuxBundle(Wire(io.in.grant.bits, init=ognt), Seq(
+  io.in.grant.bits := MuxCase(Wire(io.in.grant.bits, init=ognt), Seq(
     sending_get -> get_block_grant,
     smallget_grant -> get_grant))
 

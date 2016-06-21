@@ -4,16 +4,6 @@ package uncore
 
 import Chisel._
 
-object MuxBundle {
-  def apply[T <: Data] (default: T, mapping: Seq[(Bool, T)]): T = {
-    mapping.reverse.foldLeft(default)((b, a) => Mux(a._1, a._2, b))
-  }
-
-  def apply[T <: Data] (key: UInt, default: T, mapping: Seq[(UInt, T)]): T = {
-    apply(default, mapping.map{ case (a, b) => (a === key, b) })
-  }
-}
-
 // Produces 0-width value when counting to 1
 class ZCounter(val n: Int) {
   val value = Reg(init=UInt(0, log2Ceil(n)))

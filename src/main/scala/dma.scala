@@ -369,7 +369,7 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
   io.mem.acquire.valid := (state === s_get) ||
                           (state === s_put && get_done) ||
                           (state === s_prefetch && !prefetch_busy(prefetch_id))
-  io.mem.acquire.bits := MuxBundle(
+  io.mem.acquire.bits := MuxLookup(
     state, prefetch_acquire, Seq(
       s_get -> get_acquire,
       s_put -> put_acquire))

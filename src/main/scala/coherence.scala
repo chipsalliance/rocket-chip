@@ -197,7 +197,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
 
   def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
-    MuxBundle(meta, Array(
+    MuxCase(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
       incoming.is(releaseInvalidateAck)  -> popped))
   }
@@ -299,7 +299,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
 
   def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
-    MuxBundle(meta, Array(
+    MuxCase(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
       incoming.is(releaseInvalidateAck)  -> popped))
   }
@@ -417,7 +417,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
 
   def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
-    MuxBundle(meta, Array(
+    MuxCase(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
       incoming.is(releaseInvalidateAck)  -> popped))
   }
@@ -537,7 +537,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
 
   def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
-    MuxBundle(meta, Array(
+    MuxCase(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
       incoming.is(releaseInvalidateAck)  -> popped))
   }
@@ -680,7 +680,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
 
   def managerMetadataOnRelease(incoming: HasReleaseType, src: UInt, meta: ManagerMetadata) = {
     val popped = ManagerMetadata(sharers=dir.pop(meta.sharers, src))(meta.p)
-    MuxBundle(meta, Array(
+    MuxCase(meta, Array(
       incoming.is(releaseInvalidateData) -> popped,
       incoming.is(releaseInvalidateAck)  -> popped,
       incoming.is(releaseInvalidateDataMigratory) -> popped,
