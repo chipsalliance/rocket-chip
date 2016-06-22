@@ -216,8 +216,14 @@ class BaseConfig extends Config (
       case XLen => 64
       case UseFPU => {
         val env = if(site(UseVM)) List("p","v") else List("p")
-        if(site(FDivSqrt)) TestGeneration.addSuites(env.map(rv64uf))
-        else TestGeneration.addSuites(env.map(rv64ufNoDiv))
+        if(site(FDivSqrt)) {
+          TestGeneration.addSuites(env.map(rv64uf))
+          TestGeneration.addSuites(env.map(rv64ud))
+        }
+        else {
+          TestGeneration.addSuites(env.map(rv64ufNoDiv))
+          TestGeneration.addSuites(env.map(rv64udNoDiv))
+        }
         true
       }
       case UseAtomics => {
