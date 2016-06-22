@@ -79,6 +79,12 @@ module rocketTestHarness;
   wire         printf_cond = verbose && !reset;
   integer      stderr = 32'h80000002;
 
+  reg htif_out_ready;
+  reg htif_in_valid;
+  reg [`HTIF_WIDTH-1:0] htif_in_bits;
+  wire htif_in_ready, htif_out_valid;
+  wire [`HTIF_WIDTH-1:0] htif_out_bits;
+
 `include `TBVFRAG
 
   always @(posedge clk)
@@ -86,18 +92,13 @@ module rocketTestHarness;
     r_reset <= reset;
   end
 
-  reg htif_in_valid_premux;
-  reg [`HTIF_WIDTH-1:0] htif_in_bits_premux;
-  assign htif_in_bits = htif_in_bits_premux;
-  assign htif_in_valid = htif_in_valid_premux;
-  wire htif_in_ready_premux = htif_in_ready;
   reg [31:0] exit = 0;
 
   always @(posedge htif_clk)
   begin
     if (reset || r_reset)
     begin
-      htif_in_valid_premux <= 0;
+      htif_in_valid <= 0;
       htif_out_ready <= 0;
       exit <= 0;
     end
@@ -105,9 +106,9 @@ module rocketTestHarness;
     begin
       htif_tick
       (
-        htif_in_valid_premux,
-        htif_in_ready_premux,
-        htif_in_bits_premux,
+        htif_in_valid,
+        htif_in_ready,
+        htif_in_bits,
         htif_out_valid,
         htif_out_ready,
         htif_out_bits,
@@ -123,11 +124,6 @@ module rocketTestHarness;
   initial
   begin
     $value$plusargs("max-cycles=%d", max_cycles);
-`ifdef MEM_BACKUP_EN
-    $value$plusargs("loadmem=%s", loadmem);
-    if (loadmem)
-      $readmemh(loadmem, mem.ram);
-`endif
     verbose = $test$plusargs("verbose");
 `ifdef DEBUG
     if ($value$plusargs("vcdplusfile=%s", vcdplusfile))

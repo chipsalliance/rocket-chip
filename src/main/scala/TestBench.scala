@@ -17,18 +17,6 @@ object TestBenchGeneration extends FileSystemUtilities {
     // bit collection on the DirectC side.  I had to individually define the
     // wires.
 
-    val defs = s"""
-  reg htif_out_ready;
-  wire htif_in_valid;
-  wire [`HTIF_WIDTH-1:0] htif_in_bits;
-  wire htif_in_ready, htif_out_valid;
-  wire [`HTIF_WIDTH-1:0] htif_out_bits;
-
-  wire mem_bk_in_valid;
-  wire mem_bk_out_valid;
-  wire mem_bk_out_ready;
-  wire [`HTIF_WIDTH-1:0] mem_in_bits;
-"""
     val nasti_defs = (0 until nMemChannel) map { i => s"""
   wire ar_valid_$i;
   reg ar_ready_$i;
@@ -314,7 +302,7 @@ object TestBenchGeneration extends FileSystemUtilities {
 """ } mkString
 
     val f = createOutputFile(s"$topModuleName.$configClassName.tb.vfrag")
-    f.write(defs + nasti_defs + delays + nasti_delays + instantiation + ticks)
+    f.write(nasti_defs + delays + nasti_delays + instantiation + ticks)
     f.close
   }
 
