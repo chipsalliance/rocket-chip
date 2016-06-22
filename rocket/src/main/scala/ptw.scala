@@ -58,6 +58,8 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val mem = new HellaCacheIO
     val dpath = new DatapathPTWIO
   }
+
+  require(usingAtomics, "PTW requires atomic memory operations")
   
   val s_ready :: s_req :: s_wait :: s_set_dirty :: s_wait_dirty :: s_done :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_ready)
