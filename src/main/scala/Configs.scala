@@ -427,7 +427,7 @@ class WithAHB extends Config(
 
 class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 
-class SmallConfig extends Config (
+class WithSmallCores extends Config (
     topDefinitions = { (pname,site,here) => pname match {
       case UseFPU => false
       case FastMulDiv => false
@@ -448,11 +448,9 @@ class SmallConfig extends Config (
   }
 )
 
-class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGAConfig)
-
-class DefaultRV32Config extends Config(new SmallConfig ++ new WithRV32 ++ new BaseConfig)
-
-class ExampleSmallConfig extends Config(new SmallConfig ++ new BaseConfig)
+class DefaultFPGASmallConfig extends Config(new WithSmallCores ++ new DefaultFPGAConfig)
+class DefaultSmallConfig extends Config(new WithSmallCores ++ new BaseConfig)
+class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultSmallConfig)
 
 class DualBankConfig extends Config(
   new WithNBanksPerMemChannel(2) ++ new BaseConfig)
