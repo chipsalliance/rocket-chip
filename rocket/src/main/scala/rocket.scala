@@ -343,13 +343,13 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     Mux(mem_ctrl.jal, ImmGen(IMM_UJ, mem_reg_inst), SInt(4)))
   val mem_int_wdata = Mux(mem_ctrl.jalr, mem_br_target, mem_reg_wdata.toSInt).toUInt
   val mem_npc = (Mux(mem_ctrl.jalr, encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).toSInt, mem_br_target) & SInt(-2)).toUInt
-  val mem_wrong_npc = mem_npc =/= ex_reg_pc || !ex_reg_valid
+  val mem_wrong_npc = Mux(ex_reg_valid, mem_npc =/= ex_reg_pc, Mux(io.imem.resp.valid, mem_npc =/= id_pc, Bool(true)))
   val mem_npc_misaligned = mem_npc(1)
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal
   val mem_misprediction =
     if (p(BtbKey).nEntries == 0) mem_cfi_taken
-    else mem_cfi && mem_wrong_npc
+    else mem_wrong_npc
   val want_take_pc_mem = mem_reg_valid && (mem_misprediction || mem_reg_flush_pipe)
   take_pc_mem := want_take_pc_mem && !mem_npc_misaligned
 
