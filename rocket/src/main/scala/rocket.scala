@@ -306,6 +306,11 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush || csr.io.singleStep
     ex_reg_load_use := id_load_use
 
+    when (id_ctrl.jalr && csr.io.status.debug) {
+      ex_reg_flush_pipe := true
+      ex_ctrl.fence_i := true
+    }
+
     for (i <- 0 until id_raddr.size) {
       val do_bypass = id_bypass_src(i).reduce(_||_)
       val bypass_src = PriorityEncoder(id_bypass_src(i))
