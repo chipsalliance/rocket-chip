@@ -223,7 +223,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val all_interrupts = m_interrupts | s_interrupts
   val interruptMSB = BigInt(1) << (xLen-1)
   val interruptCause = interruptMSB + PriorityEncoder(all_interrupts)
-  io.interrupt := all_interrupts.orR || reg_singleStepped
+  io.interrupt := all_interrupts.orR && !io.singleStep || reg_singleStepped
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take p(NBreakpoints)
 
