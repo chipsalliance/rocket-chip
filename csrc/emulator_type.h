@@ -1,10 +1,15 @@
 // See LICENSE for license details.
 
 #ifndef VERILATOR
-#define bool_t dat_t<1>
+# define bool_t dat_t<1>
+# define values(x) ((x)->values)
+# define field(name) &(tile.Top__ ## name)
 #else
-#define bool_t CData
+# define bool_t CData
+# define values(x) (x)
+# define field(name) &(tile.name)
 #endif
+#define value(x) (*values(x))
 
 #ifndef VERILATOR
 #define mem_addr_t dat_t<MEM_ADDR_BITS>

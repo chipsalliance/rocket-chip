@@ -53,8 +53,7 @@ trait HasTopLevelParameters {
   implicit val p: Parameters
   lazy val nTiles = p(NTiles)
   lazy val nCachedTilePorts = p(NCachedTileLinkPorts)
-  lazy val nUncachedTilePorts = p(NUncachedTileLinkPorts) - 1
-  lazy val htifW = p(HtifKey).width
+  lazy val nUncachedTilePorts = p(NUncachedTileLinkPorts)
   lazy val csrAddrBits = 12
   lazy val tMemChannels = p(TMemoryChannels)
   lazy val nMemChannels = p(NMemoryChannels)
@@ -83,9 +82,7 @@ class MemBackupCtrlIO extends Bundle {
 
 /** Top-level io for the chip */
 class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
-    with HasTopLevelParameters {
-  val host = new HostIO(htifW)
-}
+    with HasTopLevelParameters
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
@@ -120,8 +117,10 @@ object TopUtils {
     require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
     val configStringAddr = p(ResetVector).toInt + rom.capacity
 
-    rom.putInt(0x00000297 + resetToMemDist.toInt) // auipc t0, &mem - &here
-    rom.putInt(0x00028067)                        // jr t0
+    // This boot ROM doesn't know about any boot devices, so it just spins,
+    // waiting for the debugger to load a program and change the PC.
+    rom.putInt(0x0000006f)                        // loop forever
+    rom.putInt(0)                                 // reserved
     rom.putInt(0)                                 // reserved
     rom.putInt(configStringAddr)                  // pointer to config string
     rom.putInt(0)                                 // default trap vector
@@ -151,7 +150,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
     case HastiId => "TL"
     case TLId => "L1toL2"
     case NCachedTileLinkPorts => nCachedPorts
-    case NUncachedTileLinkPorts => nUncachedPorts + 1 // 1 for HTIF
+    case NUncachedTileLinkPorts => nUncachedPorts
   })
 
   val uncore = Module(new Uncore()(innerTLParams))
@@ -165,7 +164,6 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   // Connect the uncore to the tile memory ports, HostIO and MemIO
   uncore.io.tiles_cached <> tileList.map(_.io.cached).flatten
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
-  io.host <> uncore.io.host
   uncore.io.interrupts <> io.interrupts
   uncore.io.debugBus <> io.debug
 
@@ -185,7 +183,6 @@ class Uncore(implicit val p: Parameters) extends Module
 
 
   val io = new Bundle {
-    val host = new HostIO(htifW)
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)
     val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
@@ -197,30 +194,15 @@ class Uncore(implicit val p: Parameters) extends Module
     val debugBus = new DebugBusIO()(p).flip
   }
 
-  val htif = Module(new Htif(CSRs.mreset)) // One HTIF module per chip
   val outmemsys = Module(new OuterMemorySystem) // NoC, LLC and SerDes
-  outmemsys.io.incoherent := htif.io.cpu.map(_.reset)
-  outmemsys.io.htif_uncached <> htif.io.mem
+  outmemsys.io.incoherent foreach (_ := false)
   outmemsys.io.tiles_uncached <> io.tiles_uncached
   outmemsys.io.tiles_cached <> io.tiles_cached
 
-  val scrFile = Module(new SCRFile("UNCORE_SCR", 0))
-  scrFile.io.smi <> htif.io.scr
-  // scrFile.io.scr <> (... your SCR connections ...)
-
   buildMMIONetwork(p.alterPartial({case TLId => "MMIO_Outermost"}))
 
-  // Wire the htif to the memory port(s) and host interface
   io.mem_axi <> outmemsys.io.mem_axi
   io.mem_ahb <> outmemsys.io.mem_ahb
-  if(p(UseHtifClockDiv)) {
-    VLSIUtils.padOutHTIFWithDividedClock(htif.io.host, scrFile.io.scr, io.host, htifW)
-  } else {
-    io.host <> htif.io.host
-  }
-
-  // Tie off HTIF CSR ports
-  htif.io.cpu.foreach { _.csr.resp.valid := Bool(false) }
 
   def buildMMIONetwork(implicit p: Parameters) = {
     val ioAddrMap = p(GlobalAddrMap).subMap("io")
@@ -254,9 +236,7 @@ class Uncore(implicit val p: Parameters) extends Module
         prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
       prci.io.interrupts(i).debug := debugModule.io.debugInterrupts(i)
 
-      io.prci(i).reset := reset || Reg(init = Bool(true),
-                            next=Reg(init = Bool(true),
-                              next=htif.io.cpu(i).reset)) // TODO
+      io.prci(i).reset := reset
     }
 
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
@@ -289,14 +269,13 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   val io = new Bundle {
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
-    val htif_uncached = (new ClientUncachedTileLinkIO).flip
     val incoherent = Vec(nTiles, Bool()).asInput
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)
     val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
   }
 
-  // Create a simple L1toL2 NoC between the tiles+htif and the banks of outer memory
+  // Create a simple L1toL2 NoC between the tiles and the banks of outer memory
   // Cached ports are first in client list, making sharerToClientId just an indentity function
   // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
   def sharerToClientId(sharerId: UInt) = sharerId
@@ -320,10 +299,10 @@ class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLe
   })))
   io.mmio <> mmioManager.io.outer
 
-  // Wire the tiles and htif to the TileLink client ports of the L1toL2 network,
+  // Wire the tiles to the TileLink client ports of the L1toL2 network,
   // and coherence manager(s) to the other side
   l1tol2net.io.clients_cached <> io.tiles_cached
-  l1tol2net.io.clients_uncached <> io.tiles_uncached ++ Seq(io.htif_uncached)
+  l1tol2net.io.clients_uncached <> io.tiles_uncached
   l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
 
   // Create a converter between TileLinkIO and MemIO for each channel

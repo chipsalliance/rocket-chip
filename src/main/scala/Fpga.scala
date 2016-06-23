@@ -18,10 +18,8 @@ class ZynqAdapter(implicit val p: Parameters) extends Module
 
   val io = new Bundle {
     val nasti = new NastiIO()(adapterParams).flip
-    val host = new HostIO(htifW).flip
     val reset = Bool(OUTPUT)
   }
 
-  val conv = Module(new NastiIOHostIOConverter(htifW)(adapterParams))
-  io <> conv.io
+  require(false, "TODO reimplement using debug port, not HTIF")
 }

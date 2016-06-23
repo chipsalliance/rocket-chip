@@ -262,12 +262,12 @@ class BaseConfig extends Config (
       case TLKey("L1toL2") => 
         TileLinkParameters(
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
-          nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
+          nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
           nCachelessClients = site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
-              site(NMSHRs) + 1,
+              site(NMSHRs) + 1 /* IOMSHR */,
               // RoCC
               if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
           maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
