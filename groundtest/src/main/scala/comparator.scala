@@ -355,7 +355,7 @@ class ComparatorTile(resetSignal: Bool)(implicit val p: Parameters) extends Tile
 {
   // Make sure we are configured correctly
   require (nCachedTileLinkPorts == 1)
-  require (nUncachedTileLinkPorts == nTargets + 1)
+  require (nUncachedTileLinkPorts == nTargets)
   
   val core = Module(new ComparatorCore)
   
