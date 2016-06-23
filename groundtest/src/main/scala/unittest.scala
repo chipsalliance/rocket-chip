@@ -209,113 +209,6 @@ class NastiMemoryDemuxTest(implicit p: Parameters) extends UnitTest {
   }
 }
 
-class NastiToHostTestDriver(htifW: Int)(implicit p: Parameters) extends Module {
-  val io = new Bundle {
-    val finished = Bool(OUTPUT)
-    val start = Bool(INPUT)
-    val nasti = new NastiIO
-    val reset = Bool(INPUT)
-  }
-
-  val DCOUNT_ADDR = 0x00
-  val RFIFO_ADDR  = 0x04
-
-  val WFIFO_ADDR = 0x00
-  val RESET_ADDR = 0x7c
-
-  val (s_idle :: s_fifo_wr_addr :: s_fifo_wr_data :: s_fifo_wr_resp ::
-       s_rst_wr_addr :: s_rst_wr_data :: s_rst_wr_resp ::
-       s_cnt_rd_addr :: s_cnt_rd_data :: s_fifo_rd_addr :: s_fifo_rd_data ::
-       s_done :: Nil) = Enum(Bits(), 12)
-  val state = Reg(init = s_idle)
-
-  val nBeats = 4
-  val (wr_cnt, wr_done) = Counter(
-    state === s_fifo_wr_data && io.nasti.w.ready, nBeats)
-  val (rd_cnt, rd_done) = Counter(
-    state === s_fifo_rd_data && io.nasti.r.valid, nBeats)
-
-  val test_data = Vec.tabulate(nBeats) { i => UInt(i * 0x304, 32) }
-
-  io.nasti.ar.valid := (state === s_cnt_rd_addr) || (state === s_fifo_rd_addr)
-  io.nasti.ar.bits := NastiReadAddressChannel(
-    id = UInt(0),
-    addr = Mux(state === s_cnt_rd_addr, UInt(DCOUNT_ADDR), UInt(RFIFO_ADDR)),
-    len = Mux(state === s_cnt_rd_addr, UInt(0), UInt(nBeats - 1)),
-    size = UInt("b010"),
-    burst = BURST_FIXED)
-
-  io.nasti.aw.valid := (state === s_fifo_wr_addr) || (state === s_rst_wr_addr)
-  io.nasti.aw.bits := NastiWriteAddressChannel(
-    id = UInt(0),
-    addr = Mux(state === s_rst_wr_addr, UInt(RESET_ADDR), UInt(WFIFO_ADDR)),
-    len = Mux(state === s_rst_wr_addr, UInt(0), UInt(nBeats - 1)),
-    size = UInt("b010"),
-    burst = BURST_FIXED)
-
-  io.nasti.w.valid := (state === s_fifo_wr_data) || (state === s_rst_wr_data)
-  io.nasti.w.bits := NastiWriteDataChannel(
-    data = Mux(state === s_rst_wr_data, UInt(0), test_data(wr_cnt)),
-    last = Mux(state === s_rst_wr_data, Bool(true), (wr_cnt === UInt(nBeats - 1))))
-
-  io.nasti.r.ready := (state === s_fifo_rd_data) || (state === s_cnt_rd_data)
-  io.nasti.b.ready := (state === s_fifo_wr_resp) || (state === s_rst_wr_resp)
-
-  when (state === s_idle && io.start) { state := s_fifo_wr_addr }
-
-  when (io.nasti.ar.fire()) {
-    state := Mux(state === s_fifo_rd_addr, s_fifo_rd_data, s_cnt_rd_data)
-  }
-
-  when (io.nasti.aw.fire()) {
-    state := Mux(state === s_fifo_wr_addr, s_fifo_wr_data, s_rst_wr_data)
-  }
-
-  when (wr_done) { state := s_fifo_wr_resp }
-  when (state === s_rst_wr_data && io.nasti.w.ready) {
-    state := s_rst_wr_resp
-  }
-
-  when (io.nasti.b.fire()) {
-    state := Mux(state === s_fifo_wr_resp, s_rst_wr_addr, s_cnt_rd_addr)
-  }
-
-  when (state === s_cnt_rd_data && io.nasti.r.valid) {
-    state := s_fifo_rd_addr
-  }
-  when (rd_done) { state := s_done }
-
-  io.finished := (state === s_done)
-
-  assert(state =/= s_fifo_rd_data || !io.nasti.r.valid ||
-    io.nasti.r.bits.data === test_data(rd_cnt),
-    "NastiIO to HostIO result does not match")
-
-  assert(state =/= s_cnt_rd_data || !io.nasti.r.valid ||
-    io.nasti.r.bits.data === UInt(nBeats),
-    "NastiIO to HostIO count is not correct")
-
-  assert(state =/= s_rst_wr_data || !io.nasti.w.ready || io.reset,
-    "NastiIO to HostIO reset did not fire")
-}
-
-class NastiIOHostIOConverterTest(implicit p: Parameters) extends UnitTest {
-  val conv = Module(new NastiIOHostIOConverter(16)(p.alterPartial({
-    case NastiKey => NastiParameters(
-      dataBits = 32,
-      addrBits = p(PAddrBits),
-      idBits = 5)
-  })))
-  val driver = Module(new NastiToHostTestDriver(16))
-  conv.io.nasti <> driver.io.nasti
-  conv.io.host.out.bits := conv.io.host.in.bits
-  conv.io.host.out.valid := conv.io.host.in.valid
-  conv.io.host.in.ready := conv.io.host.out.ready
-  driver.io.reset := conv.io.reset
-  driver.io.start := io.start
-  io.finished := driver.io.finished
-}
-
 class MultiWidthFifoTest extends UnitTest {
   val big2little = Module(new MultiWidthFifo(16, 8, 8))
   val little2big = Module(new MultiWidthFifo(8, 16, 4))
@@ -669,7 +562,6 @@ class BRAMSlaveTest(implicit val p: Parameters) extends UnitTest
 class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
   val tests = Seq(
     Module(new MultiWidthFifoTest),
-    Module(new NastiIOHostIOConverterTest),
     Module(new TileLinkToSmiConverterTest),
     Module(new AtosConverterTest),
     Module(new NastiMemoryDemuxTest),
