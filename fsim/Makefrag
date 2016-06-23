@@ -67,8 +67,6 @@ $(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_heade
 	$(VCS) $(VCS_OPTS) -o $(simv_debug) \
 	+define+DEBUG -debug_pp \
 
-#	+define+MEM_BACKUP_EN \
-
 #--------------------------------------------------------------------
 # Run
 #--------------------------------------------------------------------
