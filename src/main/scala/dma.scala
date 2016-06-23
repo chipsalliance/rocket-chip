@@ -83,8 +83,7 @@ class DmaTrackerIO(implicit p: Parameters) extends DmaBundle()(p) {
 class DmaManager(outstandingCSR: Int)(implicit p: Parameters)
     extends DmaModule()(p)
     with HasNastiParameters
-    with HasAddrMapParameters
-    with HasHtifParameters {
+    with HasAddrMapParameters {
 
   val io = new Bundle {
     val ctrl = (new NastiIO).flip
@@ -168,7 +167,9 @@ class DmaManager(outstandingCSR: Int)(implicit p: Parameters)
   }
 
   val addrTable = Vec.tabulate(nDmaClients) { i =>
-    UInt(addrMap(s"conf:csr$i").start + outstandingCSR * csrDataBytes)
+    //UInt(addrMap(s"conf:csr$i").start + outstandingCSR * csrDataBytes)
+    require(false, "CSR MMIO ports no longer exist")
+    UInt(0)
   }
 
   io.mmio.ar.valid := Bool(false)
@@ -176,7 +177,7 @@ class DmaManager(outstandingCSR: Int)(implicit p: Parameters)
   io.mmio.aw.bits := NastiWriteAddressChannel(
     id = UInt(0),
     addr = addrTable(resp_client_id),
-    size = UInt(log2Up(csrDataBytes)))
+    size = { require(false, "CSR MMIO ports no longer exist"); UInt(0) })
   io.mmio.w.valid := resp_wdata_pending
   io.mmio.w.bits := NastiWriteDataChannel(data = resp_status)
   io.mmio.b.ready := resp_wresp_pending
