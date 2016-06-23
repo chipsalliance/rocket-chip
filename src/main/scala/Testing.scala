@@ -5,7 +5,6 @@ package rocketchip
 import Chisel._
 import scala.collection.mutable.{LinkedHashSet,LinkedHashMap}
 import cde.{Parameters, ParameterDump, Config}
-import uncore.AllSCRFiles
 
 abstract class RocketTestSuite {
   val dir: String
@@ -201,7 +200,4 @@ object TestGenerator extends App with FileSystemUtilities {
   val w = createOutputFile(configClassName + ".cst")
   w.write(world.getConstraints)
   w.close
-  val scr_map_hdr = createOutputFile(topModuleName + "." + configClassName + ".scr_map.h")
-  AllSCRFiles.foreach{ map => scr_map_hdr.write(map.as_c_header) }
-  scr_map_hdr.close
 }

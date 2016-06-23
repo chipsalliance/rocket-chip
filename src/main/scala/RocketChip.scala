@@ -31,8 +31,6 @@ case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Number of exteral MMIO ports */
 case object NExtMMIOAXIChannels extends Field[Int]
 case object NExtMMIOAHBChannels extends Field[Int]
-/** Whether to divide HTIF clock */
-case object UseHtifClockDiv extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
@@ -66,11 +64,6 @@ trait HasTopLevelParameters {
   lazy val mifAddrBits = p(MIFAddrBits)
   lazy val mifDataBeats = p(MIFDataBeats)
   lazy val xLen = p(XLen)
-  lazy val nSCR =  p(HtifKey).nSCR
-  lazy val scrAddrBits = log2Up(nSCR)
-  lazy val scrDataBits = 64
-  lazy val scrDataBytes = scrDataBits / 8
-  //require(lsb + log2Up(nBanks) < mifAddrBits)
 }
 
 class MemBackupCtrlIO extends Bundle {
@@ -176,7 +169,6 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 /** Wrapper around everything that isn't a Tile.
   *
   * Usually this is clocked and/or place-and-routed separately from the Tiles.
-  * Contains the Host-Target InterFace module (HTIF).
   */
 class Uncore(implicit val p: Parameters) extends Module
     with HasTopLevelParameters {

@@ -108,12 +108,6 @@ class BaseConfig extends Config (
     lazy val innerDataBits = site(MIFDataBits)
     lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
     pname match {
-      case HtifKey => HtifParameters(
-                       width = Dump("HTIF_WIDTH", 16),
-                       nSCR = 64,
-                       csrDataBits = site(XLen),
-                       offsetBits = site(CacheBlockOffsetBits),
-                       nCores = site(NTiles))
       //Memory Parameters
       case PAddrBits => 32
       case PgIdxBits => 12
@@ -312,7 +306,6 @@ class BaseConfig extends Config (
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
-      case UseHtifClockDiv => true
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
       case _ => throw new CDEMatchError
@@ -413,7 +406,6 @@ class WithRV32 extends Config(
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
-    case UseHtifClockDiv => false
     case _ => throw new CDEMatchError
   }
 )
