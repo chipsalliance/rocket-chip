@@ -59,7 +59,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val roccCsrs = if (p(BuildRoCC).isEmpty) Nil
     else p(BuildRoCC).flatMap(_.csrs)
   val nRoccCsrs = p(RoccNCSRs)
-  val nCores = p(HtifKey).nCores
+  val nCores = p(NTiles)
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
