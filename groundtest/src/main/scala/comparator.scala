@@ -358,12 +358,12 @@ class ComparatorTile(resetSignal: Bool)(implicit val p: Parameters) extends Tile
   require (nUncachedTileLinkPorts == nTargets + 1)
   
   val core = Module(new ComparatorCore)
-  val finisher = Module(new GroundTestFinisher)
   
   // Connect 0..nTargets-1 to core
   (io.uncached zip core.io.uncached) map { case (u, c) => u <> c }
-  io.uncached(nTargets) <> finisher.io.mem
-  finisher.io.finished := core.io.finished
+  when (core.io.finished) {
+    stop()
+  }
   
   // Work-around cachedClients must be >= 1 issue
   io.cached(0).acquire.valid   := Bool(false)

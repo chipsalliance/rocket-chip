@@ -104,33 +104,6 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestFinisher(implicit p: Parameters) extends TLModule()(p) {
-  val io = new Bundle {
-    val finished = Bool(INPUT)
-    val mem = new ClientUncachedTileLinkIO
-  }
-
-  val addrBits = p(PAddrBits)
-  val offsetBits = tlBeatAddrBits + tlByteAddrBits
-  val tohostAddr = UInt(p(TohostAddr), addrBits)
-
-  val s_idle :: s_write :: s_wait :: s_done :: Nil = Enum(Bits(), 4)
-  val state = Reg(init = s_idle)
-
-  when (state === s_idle && io.finished) { state := s_write }
-  when (io.mem.acquire.fire()) { state := s_wait }
-  when (io.mem.grant.fire()) { state := s_done }
-
-  io.mem.acquire.valid := (state === s_write)
-  io.mem.acquire.bits := Put(
-    client_xact_id = UInt(0),
-    addr_block = tohostAddr(addrBits - 1, offsetBits),
-    addr_beat = tohostAddr(offsetBits - 1, tlByteAddrBits),
-    data = UInt(1),
-    wmask = SInt(-1, 8).asUInt)
-  io.mem.grant.ready := (state === s_wait)
-}
-
 class GroundTestTile(id: Int, resetSignal: Bool)
                     (implicit val p: Parameters)
                     extends Tile(resetSignal = resetSignal)(p)
@@ -165,9 +138,9 @@ class GroundTestTile(id: Int, resetSignal: Bool)
 
   // Only Tile 0 needs to write tohost
   if (id == 0) {
-    val finisher = Module(new GroundTestFinisher)
-    finisher.io.finished := test.io.finished
-    memPorts += finisher.io.mem
+    when (test.io.finished) {
+      stop()
+    }
   }
 
   if (ptwPorts.size > 0) {
