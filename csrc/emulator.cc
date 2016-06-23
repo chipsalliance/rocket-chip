@@ -25,6 +25,7 @@
 #include "emulator_type.h"
 
 static dtm_t* dtm;
+static uint64_t trace_count = 0;
 bool verbose;
 
 void handle_sigterm(int sig)
@@ -32,11 +33,15 @@ void handle_sigterm(int sig)
   dtm->stop();
 }
 
+double sc_time_stamp()
+{
+  return trace_count;
+}
+
 int main(int argc, char** argv)
 {
   unsigned random_seed = (unsigned)time(NULL) ^ (unsigned)getpid();
   uint64_t max_cycles = -1;
-  uint64_t trace_count = 0;
   uint64_t start = 0;
   int ret = 0;
   const char* vcd = NULL;
@@ -179,7 +184,7 @@ int main(int argc, char** argv)
 
 #include TBFRAG
 
-  while (!dtm->done() && (trace_count >> 1) < max_cycles && ret == 0)
+  while (!dtm->done() && trace_count < max_cycles && ret == 0)
   {
     for (int i = 0; i < N_MEM_CHANNELS; i++) {
       value(mem_ar_ready[i]) = mm[i]->ar_ready();
@@ -212,13 +217,12 @@ int main(int argc, char** argv)
       tile.eval();
       // make sure we dump on cycle 0 to get dump_init
 #if VM_TRACE
-      if (tfp && ((trace_count >> 1) == 0 || (trace_count >> 1) >= start))
-        tfp->dump(trace_count);
+      if (tfp && (trace_count == 0 || trace_count >= start))
+        tfp->dump(trace_count * 2);
 #endif
 #endif
-      trace_count++;
     } catch (std::runtime_error& e) {
-      max_cycles = trace_count >> 1; // terminate cleanly after this cycle
+      max_cycles = trace_count; // terminate cleanly after this cycle
       ret = 1;
       std::cerr << e.what() << std::endl;
     }
@@ -258,20 +262,20 @@ int main(int argc, char** argv)
     }
 
 #ifndef VERILATOR
-    if (verbose && (trace_count >> 1) >= start)
+    if (verbose && trace_count >= start)
       tile.print(stderr);
 
     // make sure we dump on cycle 0 to get dump_init
-    if (vcd && ((trace_count >> 1) == 0 || (trace_count >> 1) >= start))
-      tile.dump(vcdfile, trace_count >> 1);
+    if (vcd && (trace_count == 0 || trace_count >= start))
+      tile.dump(vcdfile, trace_count);
 
     tile.clock_hi(LIT<1>(0));
 #else
     tile.clk = 1;
     tile.eval();
 #if VM_TRACE
-    if (tfp && ((trace_count >> 1) == 0 || (trace_count >> 1) >= start))
-      tfp->dump(trace_count);
+    if (tfp && (trace_count == 0 || trace_count >= start))
+      tfp->dump(trace_count * 2 + 1);
 #endif
 #endif
     trace_count++;
@@ -288,17 +292,17 @@ int main(int argc, char** argv)
 
   if (dtm->exit_code())
   {
-    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", dtm->exit_code(), random_seed, trace_count >> 1);
+    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", dtm->exit_code(), random_seed, trace_count);
     ret = dtm->exit_code();
   }
-  else if ((trace_count >> 1) == max_cycles)
+  else if (trace_count == max_cycles)
   {
-    fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %ld cycles\n", random_seed, trace_count >> 1);
+    fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %ld cycles\n", random_seed, trace_count);
     ret = 2;
   }
   else if (verbose || print_cycles)
   {
-    fprintf(stderr, "Completed after %ld cycles\n", trace_count >> 1);
+    fprintf(stderr, "Completed after %ld cycles\n", trace_count);
   }
 
   delete dtm;

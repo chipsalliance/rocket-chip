@@ -36,8 +36,7 @@ class WithGroundTest extends Config(
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)(p.alterPartial({
             case TLId => "L1toL2"
-            case NUncachedTileLinkPorts =>
-              (if (i == 0) 1 else 0) + p(GroundTestUncachedClients)
+            case NUncachedTileLinkPorts => p(GroundTestUncachedClients)
           })))
       }
     }
@@ -76,7 +75,7 @@ class WithComparator extends Config(
       Seq((r: Bool, p: Parameters) => Module(new ComparatorTile(r)(
         p.alterPartial({
           case TLId => "L1toL2"
-          case NUncachedTileLinkPorts => 1 + site(ComparatorKey).targets.size
+          case NUncachedTileLinkPorts => site(ComparatorKey).targets.size
         }))))
     }
     case ComparatorKey => ComparatorParameters(
