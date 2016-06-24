@@ -11,6 +11,25 @@
 #include <sstream>
 #include <iterator>
 
+namespace {
+
+  // Remove args that will confuse dtm, such as those that require two tokens, like VCS code coverage "-cm line+cond"
+std::vector<std::string> filter_argv_for_dtm(int argc, char** argv)
+{
+  std::vector<std::string> out;
+  for (int i = 1; i < argc; ++i) { // start with 1 to skip my executable name
+    if (!strncmp(argv[i], "-cm", 3)) {
+      ++i; // skip this one and the next one
+    }
+    else {
+      out.push_back(argv[i]);
+    }
+  }
+  return out;
+}
+
+}
+
 extern "C" {
 
 extern int vcs_main(int argc, char** argv);
@@ -33,7 +52,7 @@ int main(int argc, char** argv)
       memory_channel_mux_select = atoi(argv[i]+27);
   }
 
-  dtm = new dtm_t(std::vector<std::string>(argv + 1, argv + argc));
+  dtm = new dtm_t(filter_argv_for_dtm(argc, argv));
 
   for (int i=0; i<N_MEM_CHANNELS; i++) {
     mm[i] = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
