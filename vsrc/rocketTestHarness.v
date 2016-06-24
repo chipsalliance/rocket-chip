@@ -1,7 +1,5 @@
 // See LICENSE for license details.
 
-extern "A" void do_exit(input reg failure);
-
 extern "A" void debug_tick
 (
   output reg        debug_req_valid,
@@ -159,7 +157,7 @@ module rocketTestHarness;
     begin
       $fdisplay(stderr, "*** FAILED *** (%s) after %d simulation cycles", reason, trace_count);
       `VCDPLUSCLOSE
-      do_exit(1'b1);
+      $fatal;
     end
 
     if (exit == 1)
@@ -167,7 +165,7 @@ module rocketTestHarness;
       if (verbose)
         $fdisplay(stderr, "Completed after %d simulation cycles", trace_count);
       `VCDPLUSCLOSE
-      do_exit(1'b0);
+      $finish;
     end
   end
 

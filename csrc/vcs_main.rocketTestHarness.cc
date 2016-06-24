@@ -21,11 +21,6 @@ static const char* loadmem;
 static bool dramsim = false;
 static int memory_channel_mux_select = 0;
 
-void do_exit(vc_handle failure)
-{
-  exit(vc_getScalar(failure));
-}
-
 int main(int argc, char** argv)
 {
   for (int i = 1; i < argc; i++)
