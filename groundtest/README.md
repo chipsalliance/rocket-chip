@@ -30,17 +30,14 @@ ln -s ../riscv-tools/riscv-tests/build/isa/rv64ui-p-simple
 
 Currently the Configs which include GroundTestTile(s) are:
 
-- GroundTestConfig
 - MemtestConfig
 - MemtestL2Config
-- CacheFillTestConfig
 - BroadcastRegressionTestConfig
 - CacheRegressionTestConfig
-- DmaTestConfig
-- DmaStreamTestConfig
-- NastiConverterTestConfig
-- UnitTestConfig 
-- TraceGenConfig 
+- UnitTestConfig
+- TraceGenConfig
+- ComparatorConfig
+- ComparatorL2Config
 
 The usual Make targets run-asm-tests and run-bmark-tests still work for these configurations, though they don't do much.
 
