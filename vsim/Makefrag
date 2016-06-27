@@ -67,6 +67,8 @@ $(simv) $(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(cons
 # Run
 #--------------------------------------------------------------------
 
+VCS_RUN_OPTS = -q +ntb_random_seed_automatic -cm line+cond -cm_name $*
+
 seed = $(shell date +%s)
-exec_simv = $(simv) -q +ntb_random_seed_automatic -cm line+cond -cm_name $*
-exec_simv_debug = $(simv_debug) -q +ntb_random_seed_automatic
+exec_simv = $(simv) $(VCS_RUN_OPTS)
+exec_simv_debug = $(simv_debug) $(VCS_RUN_OPTS)
