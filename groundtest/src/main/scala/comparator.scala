@@ -326,14 +326,11 @@ class ComparatorSink(implicit val p: Parameters) extends Module
   }
 }
 
-class ComparatorCore(implicit val p: Parameters) extends Module
+class ComparatorCore(implicit p: Parameters) extends GroundTest()(p)
     with HasComparatorParameters
-    with HasTileLinkParameters
-{
-  val io = new Bundle {
-    val uncached = Vec(nTargets, new ClientUncachedTileLinkIO)
-    val finished = Bool(OUTPUT)
-  }
+    with HasTileLinkParameters {
+
+  require (io.mem.size == nTargets)
   
   val source = Module(new ComparatorSource)
   val sink   = Module(new ComparatorSink)
@@ -341,35 +338,10 @@ class ComparatorCore(implicit val p: Parameters) extends Module
     val client = Module(new ComparatorClient(target))
     assert (client.io.in.ready) // must accept
     client.io.in := source.io.out
-    io.uncached(index) <> client.io.tl
+    io.mem(index) <> client.io.tl
     sink.io.in(index) <> client.io.out
     client
   }
   
   io.finished := source.io.finished && sink.io.finished && clients.map(_.io.finished).reduce(_ && _)
-}
-
-class ComparatorTile(resetSignal: Bool)(implicit val p: Parameters) extends Tile(resetSignal)(p)
-  with HasComparatorParameters
-  with HasTileLinkParameters
-{
-  // Make sure we are configured correctly
-  require (nCachedTileLinkPorts == 1)
-  require (nUncachedTileLinkPorts == nTargets)
-  
-  val core = Module(new ComparatorCore)
-  
-  // Connect 0..nTargets-1 to core
-  (io.uncached zip core.io.uncached) map { case (u, c) => u <> c }
-  when (core.io.finished) {
-    stop()
-  }
-  
-  // Work-around cachedClients must be >= 1 issue
-  io.cached(0).acquire.valid   := Bool(false)
-  io.cached(0).grant.ready     := Bool(false)
-  io.cached(0).finish.valid    := Bool(false)
-  io.cached(0).probe.ready     := io.cached(0).release.ready
-  io.cached(0).release.valid   := io.cached(0).probe.valid
-  io.cached(0).release.bits    := ClientMetadata.onReset.makeRelease(io.cached(0).probe.bits)
 }
