@@ -26,33 +26,6 @@ trait HasGroundTestParameters extends HasAddrMapParameters {
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
 }
 
-/** A "cache" that responds to probe requests with a release indicating
- *  the block is not present */
-class DummyCache(implicit val p: Parameters) extends Module {
-  val io = new ClientTileLinkIO
-
-  val req = Reg(new Probe)
-  val coh = ClientMetadata.onReset
-  val (s_probe :: s_release :: Nil) = Enum(Bits(), 2)
-  val state = Reg(init = s_probe)
-
-  io.acquire.valid := Bool(false)
-  io.probe.ready := (state === s_probe)
-  io.grant.ready := Bool(true)
-  io.release.valid := (state === s_release)
-  io.release.bits := coh.makeRelease(req)
-  io.finish.valid := Bool(false)
-
-  when (io.probe.fire()) {
-    req := io.probe.bits
-    state := s_release
-  }
-
-  when (io.release.fire()) {
-    state := s_probe
-  }
-}
-
 class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val requestors = Vec(n, new TLBPTWIO).flip
@@ -131,9 +104,6 @@ class GroundTestTile(id: Int, resetSignal: Bool)
     dcache.io.cpu.invalidate_lr := Bool(false)
 
     ptwPorts += dcache.io.ptw
-  } else {
-    val dcache = Module(new DummyCache)
-    io.cached.head <> dcache.io
   }
 
   // Only Tile 0 needs to write tohost
