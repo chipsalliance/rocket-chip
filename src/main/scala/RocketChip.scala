@@ -186,7 +186,9 @@ class Uncore(implicit val p: Parameters) extends Module
     val debugBus = new DebugBusIO()(p).flip
   }
 
-  val outmemsys = Module(new OuterMemorySystem) // NoC, LLC and SerDes
+  val outmemsys = if (nCachedTilePorts + nUncachedTilePorts > 0)
+    Module(new OuterMemorySystem) // NoC, LLC and SerDes
+  else Module(new DummyOuterMemorySystem)
   outmemsys.io.incoherent foreach (_ := false)
   outmemsys.io.tiles_uncached <> io.tiles_uncached
   outmemsys.io.tiles_cached <> io.tiles_cached
@@ -254,19 +256,48 @@ class Uncore(implicit val p: Parameters) extends Module
   }
 }
 
-/** The whole outer memory hierarchy, including a NoC, some kind of coherence
-  * manager agent, and a converter from TileLink to MemIO.
-  */ 
-class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLevelParameters {
+abstract class AbstractOuterMemorySystem(implicit val p: Parameters)
+    extends Module with HasTopLevelParameters {
   val io = new Bundle {
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
-    val incoherent = Vec(nTiles, Bool()).asInput
+    val incoherent = Vec(nCachedTilePorts, Bool()).asInput
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)
     val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
   }
+}
 
+/** Use in place of OuterMemorySystem if there are no clients to connect. */
+class DummyOuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemorySystem()(p) {
+  require(nCachedTilePorts + nUncachedTilePorts == 0)
+
+  io.mem_axi.foreach { axi =>
+    axi.ar.valid := Bool(false)
+    axi.aw.valid := Bool(false)
+    axi.w.valid := Bool(false)
+    axi.r.ready := Bool(false)
+    axi.b.ready := Bool(false)
+  }
+
+  io.mem_ahb.foreach { ahb =>
+    ahb.htrans := UInt(0)
+    ahb.hmastlock := Bool(false)
+    ahb.hwrite := Bool(false)
+    ahb.haddr := UInt(0)
+    ahb.hburst := UInt(0)
+    ahb.hsize := UInt(0)
+    ahb.hprot := UInt(0)
+  }
+
+  io.mmio.acquire.valid := Bool(false)
+  io.mmio.grant.ready := Bool(false)
+}
+
+/** The whole outer memory hierarchy, including a NoC, some kind of coherence
+  * manager agent, and a converter from TileLink to MemIO.
+  */ 
+class OuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemorySystem()(p) {
   // Create a simple L1toL2 NoC between the tiles and the banks of outer memory
   // Cached ports are first in client list, making sharerToClientId just an indentity function
   // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)

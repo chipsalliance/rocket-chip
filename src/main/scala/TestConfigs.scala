@@ -36,6 +36,8 @@ class WithGroundTest extends Config(
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)(p.alterPartial({
             case TLId => "L1toL2"
+            case NCachedTileLinkPorts =>
+              if (p(GroundTestCachedClients) > 0) 1 else 0
             case NUncachedTileLinkPorts => p(GroundTestUncachedClients)
           })))
       }
