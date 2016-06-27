@@ -53,18 +53,21 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 #--------------------------------------------------------------------
 
 simv = $(sim_dir)/simv-$(MODEL)-$(CONFIG)
+simv_debug = $(sim_dir)/simv-$(MODEL)-$(CONFIG)-debug
+
+$(simv_debug): VCS_OPTS += +define+DEBUG
+
 $(simv) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_header)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $@ \
 	-debug_pp \
 
-simv_debug = $(sim_dir)/simv-$(MODEL)-$(CONFIG)-debug
 $(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_header)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $@ \
-	+define+DEBUG -debug_pp \
+	-debug_pp \
 
 #--------------------------------------------------------------------
 # Run
