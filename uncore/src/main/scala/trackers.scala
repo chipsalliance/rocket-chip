@@ -247,14 +247,14 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
         xact_vol_ir_r_type := io.irel().r_type
         xact_vol_ir_src := io.irel().client_id
         xact_vol_ir_client_xact_id := io.irel().client_xact_id
+        // If this release has data, set all the pending bits except the first.
+        // Otherwise, clear all the pending bits
         pending_irel_data := Mux(io.irel().hasMultibeatData(),
                                dropPendingBitWhenBeatHasData(io.inner.release),
                                UInt(0))
+      } .elsewhen (irel_same_xact) {
+        pending_irel_data := (pending_irel_data & dropPendingBitWhenBeatHasData(io.inner.release))
       }
-    }
-
-    when (irel_is_merging) {
-      pending_irel_data := (pending_irel_data & dropPendingBitWhenBeatHasData(io.inner.release))
     }
 
     io.inner.grant.valid := Vec(s_wb_req, s_wb_resp, s_inner_probe, s_busy).contains(state) &&
