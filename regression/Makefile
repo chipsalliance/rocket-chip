@@ -170,32 +170,32 @@ stamps/%/fsim-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 # Runs tests on one of the simulators
 stamps/%/emulator-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$(patsubst stamps/%/emulator-asm-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$(patsubst stamps/%/emulator-asm-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
 	date > $@
 
 stamps/%/emulator-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$(patsubst stamps/%/emulator-bmark-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$(patsubst stamps/%/emulator-bmark-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
 	date > $@
 
 stamps/%/vsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(patsubst stamps/%/vsim-asm-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(patsubst stamps/%/vsim-asm-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
 	date > $@
 
 stamps/%/vsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(patsubst stamps/%/vsim-bmark-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(patsubst stamps/%/vsim-bmark-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
 	date > $@
 
 stamps/%/fsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$(patsubst stamps/%/fsim-asm-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests
+	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$(patsubst stamps/%/fsim-asm-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
 	date > $@
 
 stamps/%/fsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$(patsubst stamps/%/fsim-bmark-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests
+	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$(patsubst stamps/%/fsim-bmark-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
 	date > $@
 
 # The torture tests run subtly differently on the different targets, so they
