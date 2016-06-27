@@ -31,7 +31,6 @@ verilog: $(sim_vsrcs)
 VCS = vcs -full64
 
 VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1ns/10ps -quiet \
-        -cm line+cond \
 	+rad +v2k +vcs+lic+wait \
 	+vc+list -CC "-I$(VCS_HOME)/include" \
 	-CC "-I$(RISCV)/include" \
@@ -67,8 +66,14 @@ $(simv) $(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(cons
 # Run
 #--------------------------------------------------------------------
 
-VCS_RUN_OPTS = -q +ntb_random_seed_automatic -cm line+cond -cm_name $*
+VCS_RUN_OPTS = -q +ntb_random_seed_automatic
 
 seed = $(shell date +%s)
 exec_simv = $(simv) $(VCS_RUN_OPTS)
 exec_simv_debug = $(simv_debug) $(VCS_RUN_OPTS)
+
+
+ifdef COVERAGE
+VCS_OPTS += -cm line+cond
+VCS_RUN_OPTS += -cm line+cond -cm_name $*
+endif
