@@ -3,6 +3,7 @@
 package uncore
 import Chisel._
 import cde.{Parameters, Field}
+import scala.math.max
 
 class TrackerAllocation extends Bundle {
   val matches = Bool(OUTPUT)
@@ -321,30 +322,41 @@ trait EmitsInnerProbes extends HasBlockAddressBuffer
     with HasPendingBitHelpers {
   def io: HierarchicalXactTrackerIO
 
-  val pending_iprbs = Reg(UInt(width = innerNCachingClients))
+  val needs_probes = (innerNCachingClients > 0)
+  val pending_iprbs = Reg(UInt(width = max(innerNCachingClients, 1)))
   val curr_probe_dst = PriorityEncoder(pending_iprbs)
-  val irel_counter = Wire(new TwoWayBeatCounterStatus)
 
   def full_representation: UInt
-  def initializeProbes() { pending_iprbs := full_representation & ~io.incoherent.toBits }
+  def initializeProbes() {
+    if (needs_probes)
+      pending_iprbs := full_representation & ~io.incoherent.toBits
+    else
+      pending_iprbs := UInt(0)
+  }
   def irel_same_xact = io.irel().conflicts(xact_addr_block) &&
                          !io.irel().isVoluntary() &&
                          state === s_inner_probe 
 
   def innerProbe(prb: Probe, next: UInt) {
-    pending_iprbs := pending_iprbs & dropPendingBitAtDest(io.inner.probe)
-    io.inner.probe.valid := state === s_inner_probe && pending_iprbs.orR
-    io.inner.probe.bits := prb
-    
-    connectTwoWayBeatCounters(
-      status = irel_counter,
-      up = io.inner.probe,
-      down = io.inner.release,
-      max = innerNCachingClients,
-      trackDown = (r: Release) => (state =/= s_idle) && !r.isVoluntary())
+    if (needs_probes) {
+      val irel_counter = Wire(new TwoWayBeatCounterStatus)
 
-    when(state === s_inner_probe && !(pending_iprbs.orR || irel_counter.pending)) {
-      state := next
+      pending_iprbs := pending_iprbs & dropPendingBitAtDest(io.inner.probe)
+      io.inner.probe.valid := state === s_inner_probe && pending_iprbs.orR
+      io.inner.probe.bits := prb
+
+      connectTwoWayBeatCounters(
+        status = irel_counter,
+        up = io.inner.probe,
+        down = io.inner.release,
+        max = innerNCachingClients,
+        trackDown = (r: Release) => (state =/= s_idle) && !r.isVoluntary())
+
+      when(state === s_inner_probe && !(pending_iprbs.orR || irel_counter.pending)) {
+        state := next
+      }
+    } else {
+      when (state === s_inner_probe) { state := next }
     }
 
     //N.B. no pending bits added to scoreboard because all handled in s_inner_probe
