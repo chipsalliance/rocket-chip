@@ -45,7 +45,8 @@ $(output_dir)/%.run: $(output_dir)/% $(sim_dir)/dramsim2_ini $(simv)
 	cd $(sim_dir) && $(exec_simv) +dramsim +max-cycles=$(timeout_cycles) $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
 
 $(output_dir)/%.out: $(output_dir)/% $(sim_dir)/dramsim2_ini $(simv)
-	cd $(sim_dir) && $(exec_simv) +dramsim +verbose +max-cycles=$(timeout_cycles) $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
+	cd $(sim_dir) && $(exec_simv) -cm line+cond -cm_name $* +dramsim +verbose +max-cycles=$(timeout_cycles) $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
+#	cd $(sim_dir) && $(exec_simv)                           +dramsim +verbose +max-cycles=$(timeout_cycles) $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
 
 $(output_dir)/%.vcd: $(output_dir)/% $(sim_dir)/dramsim2_ini $(simv_debug)
 	cd $(sim_dir) && $(exec_simv_debug) +dramsim +verbose +vcdfile=$@ +max-cycles=$(timeout_cycles) $< $(disasm) $(patsubst %.vcd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
