@@ -3,8 +3,12 @@
 package rocket
 
 import Chisel._
-import uncore._
 import junctions._
+import uncore.tilelink._
+import uncore.agents._
+import uncore.coherence._
+import uncore.util._
+import uncore.constants._
 import cde.{Parameters, Field}
 import Util._
 
@@ -250,7 +254,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     addr_block = s2_req.addr(paddrBits-1, blockOffBits),
     addr_beat = s2_req.addr(blockOffBits-1, beatOffBits),
     data = Fill(beatWords, pstore1_storegen.data),
-    wmask = pstore1_storegen.mask << (uncachedPutOffset << wordOffBits),
+    wmask = Some(pstore1_storegen.mask << (uncachedPutOffset << wordOffBits)),
     alloc = Bool(false))
   val uncachedPutAtomicMessage = PutAtomic(
     client_xact_id = UInt(0),

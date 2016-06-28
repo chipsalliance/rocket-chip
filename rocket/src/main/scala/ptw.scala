@@ -3,7 +3,8 @@
 package rocket
 
 import Chisel._
-import uncore._
+import uncore.agents._
+import uncore.constants._
 import Util._
 import cde.{Parameters, Field}
 
