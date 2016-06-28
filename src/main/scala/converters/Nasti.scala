@@ -319,7 +319,7 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
       addr_block = nasti_addr_block(aw_req),
       addr_beat = put_count,
       data = io.nasti.w.bits.data,
-      wmask = io.nasti.w.bits.strb),
+      wmask = Some(io.nasti.w.bits.strb)),
     Put(
       client_xact_id = aw_req.id,
       addr_block = nasti_addr_block(aw_req),

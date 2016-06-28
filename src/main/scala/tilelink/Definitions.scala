@@ -585,22 +585,7 @@ object PutBlock {
         addr_block: UInt,
         addr_beat: UInt,
         data: UInt,
-        wmask: UInt)
-      (implicit p: Parameters): Acquire = {
-    BuiltInAcquireBuilder(
-      a_type = Acquire.putBlockType,
-      client_xact_id = client_xact_id,
-      addr_block = addr_block,
-      addr_beat = addr_beat,
-      data = data,
-      wmask = wmask,
-      alloc = Bool(true))
-  }
-  def apply(
-        client_xact_id: UInt,
-        addr_block: UInt,
-        addr_beat: UInt,
-        data: UInt,
+        wmask: Option[UInt] = None,
         alloc: Bool = Bool(true))
       (implicit p: Parameters): Acquire = {
     BuiltInAcquireBuilder(
@@ -609,7 +594,7 @@ object PutBlock {
       addr_block = addr_block,
       addr_beat = addr_beat,
       data = data,
-      wmask = Acquire.fullWriteMask,
+      wmask = wmask.getOrElse(Acquire.fullWriteMask),
       alloc = alloc)
   }
 }
