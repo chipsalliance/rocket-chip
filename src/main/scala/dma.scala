@@ -1,8 +1,11 @@
 package rocket
 
 import Chisel._
-import uncore._
-import uncore.DmaRequest._
+import uncore.tilelink._
+import uncore.devices._
+import uncore.devices.DmaRequest._
+import uncore.agents._
+import uncore.util._
 import junctions.{ParameterizedBundle, AddrMap}
 import cde.Parameters
 

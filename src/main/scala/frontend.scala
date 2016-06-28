@@ -1,7 +1,7 @@
 package rocket
 
 import Chisel._
-import uncore._
+import uncore.tilelink._
 import Util._
 import cde.{Parameters, Field}
 

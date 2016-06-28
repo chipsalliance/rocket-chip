@@ -3,7 +3,6 @@
 package rocket
 
 import Chisel._
-import uncore._
 import cde.{Parameters, Field}
 import junctions.{ParameterizedBundle, DecoupledHelper}
 

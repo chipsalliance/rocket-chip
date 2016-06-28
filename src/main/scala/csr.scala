@@ -6,7 +6,7 @@ import Chisel._
 import Util._
 import Instructions._
 import cde.{Parameters, Field}
-import uncore._
+import uncore.devices._
 import junctions.AddrMap
 
 class MStatus extends Bundle {

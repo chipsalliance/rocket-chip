@@ -7,7 +7,8 @@ import Util._
 import junctions._
 import scala.math._
 import cde.{Parameters, Field}
-import uncore.PseudoLRU
+import uncore.agents.PseudoLRU
+import uncore.coherence._
 
 case object NTLBEntries extends Field[Int]
 

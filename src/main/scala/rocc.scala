@@ -3,7 +3,9 @@
 package rocket
 
 import Chisel._
-import uncore._
+import uncore.tilelink._
+import uncore.constants._
+import uncore.agents.CacheName
 import Util._
 import cde.{Parameters, Field}
 

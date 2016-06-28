@@ -3,8 +3,12 @@
 package rocket
 
 import Chisel._
-import uncore._
 import junctions._
+import uncore.tilelink._
+import uncore.coherence._
+import uncore.agents._
+import uncore.util._
+import uncore.constants._
 import cde.{Parameters, Field}
 import Util._
 
@@ -207,7 +211,7 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     addr_block = addr_block,
     addr_beat = addr_beat,
     data = beat_data,
-    wmask = beat_mask,
+    wmask = Some(beat_mask),
     alloc = Bool(false))
 
   val putAtomic_acquire = PutAtomic(
@@ -453,10 +457,10 @@ class MSHRFile(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val meta_read_arb = Module(new Arbiter(new L1MetaReadReq, nMSHRs))
   val meta_write_arb = Module(new Arbiter(new L1MetaWriteReq, nMSHRs))
   val mem_req_arb = Module(new LockingArbiter(
-                                  new Acquire,
-                                  nMSHRs + nIOMSHRs,
-                                  outerDataBeats,
-                                  (a: Acquire) => a.hasMultibeatData()))
+                                new Acquire,
+                                nMSHRs + nIOMSHRs,
+                                outerDataBeats,
+                                Some((a: Acquire) => a.hasMultibeatData())))
   val mem_finish_arb = Module(new Arbiter(new FinishToDst, nMSHRs + nIOMSHRs))
   val wb_req_arb = Module(new Arbiter(new WritebackReq, nMSHRs))
   val replay_arb = Module(new Arbiter(new ReplayInternal, nMSHRs))
@@ -994,7 +998,9 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   metaWriteArb.io.in(0) <> mshrs.io.meta_write
 
   // probes and releases
-  val releaseArb = Module(new LockingArbiter(new Release, 2, outerDataBeats, (r: Release) => r.hasMultibeatData()))
+  val releaseArb = Module(new LockingArbiter(
+                                new Release, 2, outerDataBeats,
+                                Some((r: Release) => r.hasMultibeatData())))
   io.mem.release <> releaseArb.io.out
 
   prober.io.req.valid := io.mem.probe.valid && !lrsc_valid

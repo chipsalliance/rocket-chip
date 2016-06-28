@@ -4,7 +4,9 @@ package rocket
 
 import Chisel._
 import junctions._
-import uncore._
+import uncore.devices._
+import uncore.agents.CacheName
+import uncore.constants._
 import Util._
 import cde.{Parameters, Field}
 
