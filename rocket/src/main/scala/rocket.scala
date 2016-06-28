@@ -180,7 +180,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val wb_reg_mem_xcpt        = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
   val wb_reg_cause           = Reg(UInt())
-  val wb_reg_rocc_pending    = Reg(init=Bool(false))
   val wb_reg_pc = Reg(UInt())
   val wb_reg_inst = Reg(Bits())
   val wb_reg_wdata = Reg(Bits())
@@ -419,13 +418,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
-  val wb_rocc_val = wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   val replay_wb = replay_wb_common || wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
   val wb_xcpt = wb_reg_xcpt || csr.io.csr_xcpt
   take_pc_wb := replay_wb || wb_xcpt || csr.io.eret
-
-  when (wb_rocc_val) { wb_reg_rocc_pending := !io.rocc.cmd.ready }
-  when (wb_reg_xcpt) { wb_reg_rocc_pending := Bool(false) }
 
   // writeback arbitration
   val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
@@ -529,12 +524,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   val dcache_blocked = Reg(Bool())
   dcache_blocked := !io.dmem.req.ready && (io.dmem.req.valid || dcache_blocked)
+  val rocc_blocked = Reg(Bool())
+  rocc_blocked := !wb_reg_xcpt && !io.rocc.cmd.ready && (io.rocc.cmd.valid || rocc_blocked)
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
-    Bool(usingRoCC) && wb_reg_rocc_pending && id_ctrl.rocc && !io.rocc.cmd.ready ||
+    id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
     id_do_fence ||
     csr.io.csr_stall
   ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || csr.io.interrupt
@@ -591,7 +588,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.dmem.s1_data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
   io.dmem.invalidate_lr := wb_xcpt
 
-  io.rocc.cmd.valid := wb_rocc_val
+  io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR
   io.rocc.status := csr.io.status
   io.rocc.cmd.bits.inst := new RoCCInstruction().fromBits(wb_reg_inst)
