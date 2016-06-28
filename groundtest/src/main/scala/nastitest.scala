@@ -1,7 +1,8 @@
 package groundtest
 
 import Chisel._
-import uncore._
+import uncore.tilelink._
+import uncore.converters._
 import junctions._
 import cde.Parameters
 

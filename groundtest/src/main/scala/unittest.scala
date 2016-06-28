@@ -3,7 +3,10 @@ package groundtest
 import Chisel._
 import junctions._
 import junctions.NastiConstants._
-import uncore._
+import uncore.tilelink._
+import uncore.converters._
+import uncore.constants._
+import uncore.devices._
 import cde.Parameters
 
 abstract class UnitTest extends Module {
@@ -334,7 +337,7 @@ class TileLinkToSmiConverterTestDriver(implicit p: Parameters) extends Module {
       addr_block = addr >> UInt(blockOffsetBits),
       addr_beat = addr(blockOffsetBits - 1, byteAddrBits),
       data = Mux(count(0), data << UInt(32), data),
-      wmask = FillInterleaved(4, UIntToOH(count(0)))),
+      wmask = Some(FillInterleaved(4, UIntToOH(count(0))))),
     Get(
       client_xact_id = UInt(0),
       addr_block = addr >> UInt(blockOffsetBits),

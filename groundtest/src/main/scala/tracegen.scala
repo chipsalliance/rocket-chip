@@ -17,7 +17,9 @@
 package groundtest
  
 import Chisel._
-import uncore._
+import uncore.tilelink._
+import uncore.constants._
+import uncore.devices.NTiles
 import junctions._
 import rocket._
 import scala.util.Random

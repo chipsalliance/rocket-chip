@@ -2,7 +2,7 @@ package groundtest
 
 import Chisel._
 import rocket._
-import uncore._
+import uncore.tilelink._
 import junctions._
 import scala.util.Random
 import scala.collection.mutable.ListBuffer

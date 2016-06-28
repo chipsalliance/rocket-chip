@@ -1,8 +1,11 @@
 package groundtest
 
 import Chisel._
-import uncore._
-import uncore.DmaRequest._
+import uncore.tilelink._
+import uncore.devices._
+import uncore.devices.DmaRequest._
+import uncore.util._
+import uncore.constants._
 import rocket._
 import junctions.{PAddrBits, HasAddrMapParameters}
 import cde.{Parameters, Field}

@@ -1,7 +1,8 @@
 package groundtest
 
 import Chisel._
-import uncore._
+import uncore.tilelink._
+import uncore.constants._
 import junctions._
 import rocket._
 import scala.util.Random
@@ -114,7 +115,7 @@ class ComparatorSource(implicit val p: Parameters) extends Module
   // Random transactions
   val get         = Get(client_xact_id, addr_block, addr_beat, get_addr_byte, get_operand_size, Bool(false))
   val getBlock    = GetBlock(client_xact_id, addr_block)
-  val put         = Put(client_xact_id, addr_block, addr_beat, data, wmask)
+  val put         = Put(client_xact_id, addr_block, addr_beat, data, Some(wmask))
   val putBlock    = PutBlock(client_xact_id, addr_block, UInt(0), data)
   val putAtomic   = if (atomics)
     PutAtomic(client_xact_id, addr_block, addr_beat,

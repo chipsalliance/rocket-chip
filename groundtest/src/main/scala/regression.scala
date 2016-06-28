@@ -1,7 +1,9 @@
 package groundtest
 
 import Chisel._
-import uncore._
+import uncore.tilelink._
+import uncore.constants._
+import uncore.agents._
 import junctions.{ParameterizedBundle, HasAddrMapParameters}
 import rocket.HellaCacheIO
 import cde.{Parameters, Field}
@@ -219,7 +221,6 @@ class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
     addr_block = test_block(put_acq_id),
     addr_beat = test_beat(put_acq_id),
     data = test_data(put_acq_id),
-    wmask = Acquire.fullWriteMask,
     alloc = test_alloc(put_acq_id))
 
   val get_acquire = Get(
@@ -306,7 +307,7 @@ class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()
     addr_block = UInt(memStartBlock + 7),
     addr_beat = put_beat,
     data = Mux(put_beat(0) === stage, put_data, UInt(0)),
-    wmask = Mux(put_beat(0) === stage, Acquire.fullWriteMask, Bits(0)))
+    wmask = Some(Mux(put_beat(0) === stage, Acquire.fullWriteMask, Bits(0))))
 
   val get_acq = GetBlock(
     client_xact_id = UInt(0),
@@ -477,7 +478,7 @@ class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p
     addr_block = UInt(memStartBlock),
     addr_beat = UInt(0),
     data = UInt(0),
-    wmask = UInt((1 << 8) - 1))
+    wmask = Some(UInt((1 << 8) - 1)))
 
   val put_block_acquire = PutBlock(
     client_xact_id = UInt(1),
