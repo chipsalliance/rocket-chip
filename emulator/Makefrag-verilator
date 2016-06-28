@@ -53,7 +53,7 @@ verilator/verilator-$(VERILATOR_VERSION).tar.gz:
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
 VERILATOR_FLAGS := --top-module $(MODEL) +define+PRINTF_COND=\$$c\(\"verbose\"\) --assert \
 	-Wno-UNSIGNED -Wno-COMBDLY -Wno-MULTIDRIVEN -Wno-WIDTH -Wno-STMTDLY -Wno-SELRANGE -Wno-IMPLICIT \
-  -CFLAGS "$(CXXFLAGS) -DVERILATOR -include $(base_dir)/csrc/verilator.h"
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -include $(base_dir)/csrc/verilator.h"
 cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
 
 model_header = $(generated_dir)/$(MODEL).$(CONFIG)/V$(MODEL).h
