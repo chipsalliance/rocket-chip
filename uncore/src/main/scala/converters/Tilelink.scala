@@ -107,8 +107,7 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
     client_xact_id = irel.client_xact_id,
     addr_block = irel.addr_block,
     addr_beat = irel.addr_beat,
-    data = irel.data,
-    wmask = Acquire.fullWriteMask)
+    data = irel.data)
   io.in.release.ready := rel_helper.fire(io.in.release.valid)
 
   io.out.acquire <> acqArb.io.out
@@ -264,7 +263,7 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
     addr_block = put_block,
     addr_beat = put_beat,
     data = put_data.toBits,
-    wmask = put_wmask.toBits)
+    wmask = Some(put_wmask.toBits))
 
   io.out.acquire.valid := sending_put || (!shrink && io.in.acquire.valid)
   io.out.acquire.bits := MuxCase(get_block_acquire, Seq(
@@ -444,7 +443,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
                   Cat(acq_addr_beat, oacq_ctr.value)
                 else acq_addr_beat,
     data = acq_data_buffer(outerDataBits - 1, 0),
-    wmask = acq_wmask_buffer(outerWriteMaskBits - 1, 0))(outerConfig)
+    wmask = Some(acq_wmask_buffer(outerWriteMaskBits - 1, 0)))(outerConfig)
 
   val get_acquire = Get(
     client_xact_id = iacq.client_xact_id,

@@ -354,7 +354,7 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
     addr_block = dst_block,
     addr_beat = put_beat,
     data = put_data,
-    wmask = put_mask)
+    wmask = Some(put_mask))
 
   val get_acquire = GetBlock(
     client_xact_id = get_half,
