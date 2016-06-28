@@ -3,7 +3,10 @@ package rocketchip
 import Chisel._
 import groundtest._
 import rocket._
-import uncore._
+import uncore.tilelink._
+import uncore.coherence._
+import uncore.agents._
+import uncore.devices.NTiles
 import junctions._
 import scala.collection.mutable.LinkedHashSet
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}

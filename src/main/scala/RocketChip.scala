@@ -5,7 +5,12 @@ package rocketchip
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
-import uncore._
+import uncore.tilelink._
+import uncore.coherence._
+import uncore.agents._
+import uncore.devices._
+import uncore.util._
+import uncore.converters._
 import rocket._
 import rocket.Util._
 
