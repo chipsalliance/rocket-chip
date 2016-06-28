@@ -74,6 +74,7 @@ exec_simv_debug = $(simv_debug) $(VCS_RUN_OPTS)
 
 
 ifdef COVERAGE
-VCS_OPTS += -cm line+cond
-VCS_RUN_OPTS += -cm line+cond -cm_name $*
+VCS_OPTS += -cm line+cond+fsm -cm_fsmopt sequence -cm_fsmcfg fsm.cfg
+# Note: vcs_main.rocketTestHarness.cc function filter_argv_for_dtm() expects every -cm* option to take one parameter
+VCS_RUN_OPTS += -cm line+cond+fsm -cm_name $*
 endif
