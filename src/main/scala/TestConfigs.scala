@@ -36,6 +36,8 @@ class WithGroundTest extends Config(
         (r: Bool, p: Parameters) =>
           Module(new GroundTestTile(i, r)(p.alterPartial({
             case TLId => "L1toL2"
+            case NCachedTileLinkPorts =>
+              if (p(GroundTestCachedClients) > 0) 1 else 0
             case NUncachedTileLinkPorts => p(GroundTestUncachedClients)
           })))
       }
@@ -54,37 +56,15 @@ class WithGroundTest extends Config(
 
 class WithComparator extends Config(
   (pname, site, here) => pname match {
-    case TLKey("L1toL2") =>
-      TileLinkParameters(
-        coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
-        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-        nCachingClients = site(NCachedTileLinkPorts),
-        nCachelessClients = site(NUncachedTileLinkPorts),
-        maxClientXacts = 2,
-        maxClientsPerPort = 1,
-        maxManagerXacts = site(NAcquireTransactors) + 2,
-        dataBeats = site(MIFDataBeats),
-        dataBits = site(CacheBlockBytes)*8)
-    case BuildTiles => {
-      val groundtest = if (site(XLen) == 64)
-        DefaultTestSuites.groundtest64
-      else
-        DefaultTestSuites.groundtest32
-      TestGeneration.addSuite(groundtest("p"))
-      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-      Seq((r: Bool, p: Parameters) => Module(new ComparatorTile(r)(
-        p.alterPartial({
-          case TLId => "L1toL2"
-          case NUncachedTileLinkPorts => site(ComparatorKey).targets.size
-        }))))
-    }
+    case GroundTestUncachedClients => site(ComparatorKey).targets.size
+    case BuildGroundTest =>
+      (id: Int, p: Parameters) => Module(new ComparatorCore()(p))
     case ComparatorKey => ComparatorParameters(
       targets    = Seq(0L, 0x100L).map(site(GlobalAddrMap)("mem").start.longValue + _),
       width      = 8,
       operations = 1000,
       atomics    = site(UseAtomics),
       prefetches = site("COMPARATOR_PREFETCHES"))
-    case NUncachedTileLinkPorts => 1 + site(ComparatorKey).targets.size
     case TohostAddr => BigInt("80001000", 16) // quit test by writing here
     case UseFPU => false
     case UseAtomics => false
@@ -208,7 +188,7 @@ class WithTraceGen extends Config(
     case _ => throw new CDEMatchError
   })
 
-class ComparatorConfig extends Config(new WithComparator ++ new BaseConfig)
+class ComparatorConfig extends Config(new WithComparator ++ new GroundTestConfig)
 class ComparatorL2Config extends Config(
   new WithAtomics ++ new WithPrefetches ++
   new WithL2Cache ++ new ComparatorConfig)

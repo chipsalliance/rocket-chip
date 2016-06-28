@@ -27,7 +27,6 @@ class BaseConfig extends Config (
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
       entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
       entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
-      entries += AddrMapEntry("rtc", MemSize(4096, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
       new AddrMap(entries)
@@ -57,17 +56,13 @@ class BaseConfig extends Config (
       val plicInfo = site(PLICKey)
       val xLen = site(XLen)
       val res = new StringBuilder
-      res append  "platform {\n"
-      res append  "  vendor ucb;\n"
-      res append  "  arch rocket;\n"
-      res append  "};\n"
       res append  "plic {\n"
       res append s"  priority 0x${plicAddr.toString(16)};\n"
       res append s"  pending 0x${(plicAddr + plicInfo.pendingBase).toString(16)};\n"
       res append s"  ndevs ${plicInfo.nDevices};\n"
       res append  "};\n"
       res append  "rtc {\n"
-      res append s"  addr 0x${addrMap("io:int:rtc").start.toString(16)};\n"
+      res append s"  addr 0x${(prciAddr + PRCI.time).toString(16)};\n"
       res append  "};\n"
       res append  "ram {\n"
       res append  "  0 {\n"
@@ -78,12 +73,11 @@ class BaseConfig extends Config (
       res append  "core {\n"
       for (i <- 0 until site(NTiles)) {
         val isa = s"rv${site(XLen)}im${if (site(UseAtomics)) "a" else ""}${if (site(UseFPU)) "fd" else ""}"
-        val timecmpAddr = addrMap("io:int:rtc").start + 8*(i+1)
         res append s"  $i {\n"
         res append  "    0 {\n"
         res append s"      isa $isa;\n"
-        res append s"      timecmp 0x${timecmpAddr.toString(16)};\n"
-        res append s"      ipi 0x${(prciAddr + 4*i).toString(16)};\n"
+        res append s"      timecmp 0x${(prciAddr + PRCI.timecmp(i)).toString(16)};\n"
+        res append s"      ipi 0x${(prciAddr + PRCI.msip(i)).toString(16)};\n"
         res append s"      plic {\n"
         res append s"        m {\n"
         res append s"         ie 0x${(plicAddr + plicInfo.enableAddr(i, 'M')).toString(16)};\n"
