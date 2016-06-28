@@ -41,6 +41,8 @@ case object ConfigString extends Field[Array[Byte]]
 case object NExtInterrupts extends Field[Int]
 /** Interrupt controller configuration */
 case object PLICKey extends Field[PLICConfig]
+/** Number of clock cycles per RTC tick */
+case object RTCPeriod extends Field[Int]
 
 case object UseStreamLoopback extends Field[Boolean]
 case object StreamLoopbackSize extends Field[Int]
@@ -204,9 +206,6 @@ class Uncore(implicit val p: Parameters) extends Module
     val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap))
     TileLinkWidthAdapter(outmemsys.io.mmio, mmioNetwork.io.in.head)
 
-    val rtc = Module(new RTC(p(NTiles)))
-    rtc.io.tl <> mmioNetwork.port("int:rtc")
-
     val plic = Module(new PLIC(p(PLICKey)))
     plic.io.tl <> mmioNetwork.port("int:plic")
     for (i <- 0 until io.interrupts.size) {
@@ -222,9 +221,9 @@ class Uncore(implicit val p: Parameters) extends Module
     val prci = Module(new PRCI)
     prci.io.tl <> mmioNetwork.port("int:prci")
     io.prci := prci.io.tiles
+    prci.io.rtcTick := Counter(p(RTCPeriod)).inc() // placeholder for real RTC
 
     for (i <- 0 until nTiles) {
-      prci.io.interrupts(i).mtip := rtc.io.irqs(i)
       prci.io.interrupts(i).meip := plic.io.harts(plic.cfg.context(i, 'M'))
       if (p(UseVM))
         prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
