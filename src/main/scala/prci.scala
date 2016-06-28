@@ -12,7 +12,6 @@ import cde.{Parameters, Field}
 case object NTiles extends Field[Int]
 
 class PRCIInterrupts extends Bundle {
-  val mtip = Bool()
   val meip = Bool()
   val seip = Bool()
   val debug = Bool()
@@ -22,10 +21,20 @@ class PRCITileIO(implicit p: Parameters) extends Bundle {
   val reset = Bool(OUTPUT)
   val id = UInt(OUTPUT, log2Up(p(NTiles)))
   val interrupts = new PRCIInterrupts {
+    val mtip = Bool()
     val msip = Bool()
   }.asOutput
 
   override def cloneType: this.type = new PRCITileIO().asInstanceOf[this.type]
+}
+
+object PRCI {
+  def msip(hart: Int) = hart * msipBytes
+  def timecmp(hart: Int) = 0x4000 + hart * timecmpBytes
+  def time = 0xbff8
+  def msipBytes = 4
+  def timecmpBytes = 8
+  def size = 0xc000
 }
 
 /** Power, Reset, Clock, Interrupt */
@@ -36,16 +45,20 @@ class PRCI(implicit val p: Parameters) extends Module
     val interrupts = Vec(p(NTiles), new PRCIInterrupts).asInput
     val tl = new ClientUncachedTileLinkIO().flip
     val tiles = Vec(p(NTiles), new PRCITileIO)
+    val rtcTick = Bool(INPUT)
   }
 
-  val ipi = Reg(init=Vec.fill(p(NTiles))(Bool(false)))
+  val timeWidth = 64
+  val timecmp = Reg(Vec(p(NTiles), UInt(width = timeWidth)))
+  val time = Reg(init=UInt(0, timeWidth))
+  when (io.rtcTick) { time := time + UInt(1) }
+
+  val ipi = Reg(init=Vec.fill(p(NTiles))(UInt(0, 32)))
 
   val acq = Queue(io.tl.acquire, 1)
-  val addr = acq.bits.full_addr()
+  val addr = acq.bits.full_addr()(log2Ceil(PRCI.size)-1,0)
   val read = acq.bits.isBuiltInType(Acquire.getType)
-  val write = acq.bits.isBuiltInType(Acquire.putType)
   val rdata = Wire(init=UInt(0))
-  val masked_wdata = (acq.bits.data & acq.bits.full_wmask()) | (rdata & ~acq.bits.full_wmask())
   io.tl.grant.valid := acq.valid
   acq.ready := io.tl.grant.ready
   io.tl.grant.bits := Grant(
@@ -56,25 +69,58 @@ class PRCI(implicit val p: Parameters) extends Module
     addr_beat = UInt(0),
     data = rdata)
 
-  when (write) {
-    val ipiRegBytes = 4
-    val regsPerBeat = tlDataBytes/ipiRegBytes
-    val word =
-      if (regsPerBeat >= ipi.size) UInt(0)
-      else addr(log2Up(ipi.size*ipiRegBytes)-1,log2Up(tlDataBytes))
-    for (i <- 0 until ipi.size by regsPerBeat) {
-      when (word === i/regsPerBeat) {
-        rdata := Cat(ipi.slice(i, i + regsPerBeat).map(p => Cat(UInt(0, 8*ipiRegBytes-1), p)).reverse)
-        for (j <- 0 until (regsPerBeat min (ipi.size - i))) {
-          when (write) { ipi(i+j) := masked_wdata(j*8*ipiRegBytes) }
-        }
-      }
-    }
+  when (addr(log2Floor(PRCI.time))) {
+    require(log2Floor(PRCI.timecmp(p(NTiles)-1)) < log2Floor(PRCI.time))
+    rdata := load(Vec(time + UInt(0)), acq.bits)
+  }.elsewhen (addr >= PRCI.timecmp(0)) {
+    rdata := store(timecmp, acq.bits)
+  }.otherwise {
+    rdata := store(ipi, acq.bits) & Fill(tlDataBits/32, UInt(1, 32))
   }
 
   for ((tile, i) <- io.tiles zipWithIndex) {
     tile.interrupts := io.interrupts(i)
-    tile.interrupts.msip := ipi(i)
+    tile.interrupts.msip := ipi(i)(0)
+    tile.interrupts.mtip := time >= timecmp(i)
     tile.id := UInt(i)
+  }
+
+  // TODO generalize these to help other TL slaves
+  def load(v: Vec[UInt], acq: Acquire): UInt = {
+    val w = v.head.getWidth
+    val a = acq.full_addr()
+    require(isPow2(w) && w >= 8)
+    if (w > tlDataBits) {
+      (v(a(log2Up(w/8*v.size)-1,log2Up(w/8))) >> a(log2Up(w/8)-1,log2Up(tlDataBytes)))(tlDataBits-1,0)
+    } else {
+      val row = for (i <- 0 until v.size by tlDataBits/w)
+        yield Cat(v.slice(i, i + tlDataBits/w).reverse)
+      if (row.size == 1) row.head
+      else Vec(row)(a(log2Up(w/8*v.size)-1,log2Up(tlDataBytes)))
+    }
+  }
+
+  def store(v: Vec[UInt], acq: Acquire): UInt = {
+    val w = v.head.getWidth
+    require(isPow2(w) && w >= 8)
+    val a = acq.full_addr()
+    val rdata = load(v, acq)
+    val wdata = (acq.data & acq.full_wmask()) | (rdata & ~acq.full_wmask())
+    if (w <= tlDataBits) {
+      val word =
+        if (tlDataBits/w >= v.size) UInt(0)
+        else a(log2Up(w/8*v.size)-1,log2Up(tlDataBytes))
+      for (i <- 0 until v.size) {
+        when (acq.isBuiltInType(Acquire.putType) && word === i/(tlDataBits/w)) {
+          val base = i % (tlDataBits/w)
+          v(i) := wdata >> (w * (i % (tlDataBits/w)))
+        }
+      }
+    } else {
+      val i = a(log2Up(w/8*v.size)-1,log2Up(w/8))
+      val mask = FillInterleaved(tlDataBits, UIntToOH(a(log2Up(w/8)-1,log2Up(tlDataBytes))))
+      v(i) := (wdata & mask) | (v(i) & ~mask)
+    }
+    rdata
   }
 }
