@@ -327,6 +327,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   // replay inst in ex stage?
+  val ex_pc_valid = ex_reg_valid || ex_reg_xcpt_interrupt
   val wb_dcache_miss = wb_ctrl.mem && !io.dmem.resp.valid
   val replay_ex_structural = ex_ctrl.mem && !io.dmem.req.ready ||
                              ex_ctrl.div && !div.io.req.ready
@@ -347,7 +348,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     Mux(mem_ctrl.jal, ImmGen(IMM_UJ, mem_reg_inst), SInt(4)))
   val mem_int_wdata = Mux(mem_ctrl.jalr, mem_br_target, mem_reg_wdata.toSInt).toUInt
   val mem_npc = (Mux(mem_ctrl.jalr, encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).toSInt, mem_br_target) & SInt(-2)).toUInt
-  val mem_wrong_npc = Mux(ex_reg_valid, mem_npc =/= ex_reg_pc, Mux(io.imem.resp.valid, mem_npc =/= id_pc, Bool(true)))
+  val mem_wrong_npc = Mux(ex_pc_valid, mem_npc =/= ex_reg_pc, Mux(io.imem.resp.valid, mem_npc =/= id_pc, Bool(true)))
   val mem_npc_misaligned = mem_npc(1)
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal
@@ -363,7 +364,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   mem_reg_xcpt_interrupt := !take_pc_mem_wb && ex_reg_xcpt_interrupt
   when (ex_xcpt) { mem_reg_cause := ex_cause }
 
-  when (ex_reg_valid || ex_reg_xcpt_interrupt) {
+  when (ex_pc_valid) {
     mem_ctrl := ex_ctrl
     mem_reg_load := ex_ctrl.mem && isRead(ex_ctrl.mem_cmd)
     mem_reg_store := ex_ctrl.mem && isWrite(ex_ctrl.mem_cmd)
