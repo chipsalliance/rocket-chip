@@ -15,7 +15,7 @@ case object GeneratorStartAddress extends Field[BigInt]
 trait HasGeneratorParameters extends HasGroundTestParameters {
   implicit val p: Parameters
   val nGens = p(NTiles) * (nUncached + nCached)
-  val genTimeout = 4096
+  val genTimeout = 8192
   val maxRequests = p(MaxGenerateRequests)
   val startAddress = p(GeneratorStartAddress)
   val genWordBits = 32
@@ -114,8 +114,8 @@ class UncachedTileLinkGenerator(id: Int)
 class HellaCacheGenerator(id: Int)
     (implicit p: Parameters) extends L1HellaCacheModule()(p) with HasGeneratorParameters {
   val io = new Bundle {
-    val finished = Bool(OUTPUT)
     val mem = new HellaCacheIO
+    val finished = Bool(OUTPUT)
   }
 
   val timeout = Timer(genTimeout, io.mem.req.fire(), io.mem.resp.valid)
