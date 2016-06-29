@@ -16,12 +16,12 @@ else
 # files.
 .SECONDARY: $(generated_dir)/$(MODEL).$(CONFIG).fir
 
-$(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs)
+$(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)/%.prm: $(chisel_srcs)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(PROJECT) $(patsubst %.$(CONFIG).fir,%,$(patsubst %.d,%.fir,$(notdir $@))) $(CONFIG) $(CHISEL_ARGS) --configDump --noInlineMem"
 	mv $(generated_dir)/$(MODEL).fir $(generated_dir)/$(MODEL).$(CONFIG).fir
 
-$(generated_dir)/%.v $(generated_dir)/%.prm: $(generated_dir)/%.fir $(FIRRTL_JAR)
+$(generated_dir)/%.v: $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
 	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $@ -X verilog
 
