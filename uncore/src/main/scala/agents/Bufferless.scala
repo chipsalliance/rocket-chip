@@ -79,8 +79,7 @@ class BufferlessBroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Par
     (!io.irel().hasData() || io.outer.release.ready)
 
   // Dispatch outer release
-  outerRelease(coh = outer_coh.onHit(M_XWR))
-  io.outer.grant.ready := state === s_busy && io.inner.grant.ready // bypass data
+  outerRelease(coh = outer_coh.onHit(M_XWR), buffering = Bool(false))
 
   quiesce() {}
 }
@@ -128,15 +127,20 @@ class BufferlessBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
   // Send outer request for miss
   outerAcquire(
     caching = !xact_iacq.isBuiltInType(),
+    block_outer_acquire = vol_ognt_counter.pending,
     buffering = Bool(false),
     coh = outer_coh,
     next = s_busy)
 
   // Handle the response from outer memory
-  io.outer.grant.ready := state === s_busy && io.inner.grant.ready // bypass data
+  when (ognt_counter.pending && io.ognt().hasData()) {
+    io.outer.grant.ready := io.inner.grant.ready // bypass data
+  }
 
   // Acknowledge or respond with data
-  innerGrant(external_pending = pending_orel || ognt_counter.pending || vol_ognt_counter.pending)
+  innerGrant(
+    external_pending = pending_orel || vol_ognt_counter.pending,
+    buffering = Bool(false))
 
   when(iacq_is_allocating) { initializeProbes() }
 
