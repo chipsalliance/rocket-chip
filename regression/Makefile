@@ -124,88 +124,88 @@ $(RISCV)/install.stamp:
 # Builds the various simulators
 stamps/%/emulator-verilog.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$(patsubst stamps/%/emulator-verilog.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
 	date > $@
 
 stamps/%/emulator-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$(patsubst stamps/%/emulator-ndebug.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
 	date > $@
 
 stamps/%/emulator-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$(patsubst stamps/%/emulator-debug.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
 	date > $@
 
 stamps/%/vsim-verilog.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(patsubst stamps/%/vsim-verilog.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
 	date > $@
 
 stamps/%/vsim-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(patsubst stamps/%/vsim-ndebug.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
 	date > $@
 
 stamps/%/vsim-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(patsubst stamps/%/vsim-debug.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
 	date > $@
 
 stamps/%/fsim-verilog.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$(patsubst stamps/%/fsim-verilog.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
 	date > $@
 
 stamps/%/fsim-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$(patsubst stamps/%/fsim-ndebug.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
 	date > $@
 
 stamps/%/fsim-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$(patsubst stamps/%/fsim-debug.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
 	date > $@
 
 # Runs tests on one of the simulators
 stamps/%/emulator-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$(patsubst stamps/%/emulator-asm-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
 	date > $@
 
 stamps/%/emulator-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$(patsubst stamps/%/emulator-bmark-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
 	date > $@
 
 stamps/%/vsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(patsubst stamps/%/vsim-asm-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
 	date > $@
 
 stamps/%/vsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$(patsubst stamps/%/vsim-bmark-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
 	date > $@
 
 stamps/%/fsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$(patsubst stamps/%/fsim-asm-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
 	date > $@
 
 stamps/%/fsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$(patsubst stamps/%/fsim-bmark-tests.stamp,%,$@) RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
 	date > $@
 
 # The torture tests run subtly differently on the different targets, so they
 # don't have pattern rules like everything else does.
 stamps/%/vsim-torture-$(TORTURE_CONFIG).stamp: stamps/%/vsim-debug.stamp stamps/%/vsim-ndebug.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/torture rnight RTL_CONFIG=$(patsubst stamps/%/vsim-debug.stamp,%,$<) RISCV=$(abspath $(RISCV)) PATH="$(abspath $(RISCV)/bin:$(PATH))" OPTIONS="-C $(abspath $(TOP)/torture/config/$(TORTURE_CONFIG).config) -p $(abspath $(TORTURE_SAVE_DIR)) -m 30 -t 10"
+	$(MAKE) -C $(abspath $(TOP))/torture rnight RTL_CONFIG=$* RISCV=$(abspath $(RISCV)) PATH="$(abspath $(RISCV)/bin:$(PATH))" OPTIONS="-C $(abspath $(TOP)/torture/config/$(TORTURE_CONFIG).config) -p $(abspath $(TORTURE_SAVE_DIR)) -m 30 -t 10"
 	date > $@
 
 stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp stamps/%/emulator-ndebug.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/torture cnight RTL_CONFIG=$(patsubst stamps/%/emulator-debug.stamp,%,$<) RISCV=$(abspath $(RISCV)) PATH="$(abspath $(RISCV)/bin:$(PATH))" OPTIONS="-C $(abspath $(TOP)/torture/config/$(TORTURE_CONFIG).config) -p $(abspath $(TORTURE_SAVE_DIR)) -m 30 -t 10"
+	$(MAKE) -C $(abspath $(TOP))/torture cnight RTL_CONFIG=$* RISCV=$(abspath $(RISCV)) PATH="$(abspath $(RISCV)/bin:$(PATH))" OPTIONS="-C $(abspath $(TOP)/torture/config/$(TORTURE_CONFIG).config) -p $(abspath $(TORTURE_SAVE_DIR)) -m 30 -t 10"
 	date > $@
