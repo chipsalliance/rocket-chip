@@ -955,7 +955,7 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
   innerGrant(
     data = Mux(xact_iacq.isAtomic(), amo_result, data_buffer(ignt_data_idx)),
     external_pending = pending_writes.orR || ognt_counter.pending,
-    add = addPendingBitInternal(io.data.resp))
+    add_pending_bits = addPendingBitInternal(io.data.resp))
 
   updatePendingCohWhen(io.inner.grant.fire() && io.ignt().last(), pending_coh_on_ignt)
 

@@ -287,9 +287,10 @@ trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
       add_pending_send_bit: Bool = Bool(false)) {
 
     when (state =/= s_idle || io.alloc.irel.should) {
-      pending_orel_data := (pending_orel_data & dropPendingBitWhenBeatHasData(io.outer.release)) |
-                            addPendingBitWhenBeatHasData(io.inner.release) |
-                            add_pending_data_bits
+      pending_orel_data := (pending_orel_data |
+          addPendingBitWhenBeatHasData(io.inner.release) |
+          add_pending_data_bits) &
+        dropPendingBitWhenBeatHasData(io.outer.release)
     }
     when (add_pending_send_bit) { pending_orel_send := Bool(true) }
     when (io.outer.release.fire()) { pending_orel_send := Bool(false) }
@@ -301,13 +302,13 @@ trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
         trackUp = (r: Release) => r.isVoluntary() && r.requiresAck(),
         trackDown = (g: Grant) => g.isVoluntary())
 
-    io.outer.release.valid := state === s_busy &&
-                                Mux(io.orel().hasData(),
-                                  Mux(buffering, 
-                                      pending_orel_data(vol_ognt_counter.up.idx),
-                                      io.inner.release.valid),
-                                  pending_orel)
-
+    io.outer.release.valid := Mux(buffering,
+      (state === s_busy) && Mux(io.orel().hasData(),
+        pending_orel_data(vol_ognt_counter.up.idx),
+        pending_orel_send),
+      // only writebacks need to be forwarded to the outer interface
+      (io.alloc.irel.should || io.alloc.irel.matches) &&
+        io.irel().hasData() && io.inner.release.valid)
 
     io.outer.release.bits := coh.makeVoluntaryWriteback(
       client_xact_id = UInt(0), // TODO was tracker id, but not needed?
@@ -315,7 +316,7 @@ trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
       addr_beat = vol_ognt_counter.up.idx,
       data = data)
 
-    io.outer.grant.ready := state === s_busy
+    when (vol_ognt_counter.pending) { io.outer.grant.ready := Bool(true) }
 
     scoreboard += (pending_orel, vol_ognt_counter.pending)
   }
@@ -457,7 +458,8 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
   def innerGrant(
       data: UInt = io.ognt().data,
       external_pending: Bool = Bool(false),
-      add: UInt = UInt(0)) {
+      buffering: Bool = Bool(true),
+      add_pending_bits: UInt = UInt(0)) {
     // Track the number of outstanding inner.finishes
     connectTwoWayBeatCounters(
       status = ifin_counter,
@@ -471,14 +473,13 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
       pending_ignt_data := (pending_ignt_data & dropPendingBitWhenBeatHasData(io.inner.grant)) |
                            addPendingBitWhenBeatHasData(io.inner.release) |
                            addPendingBitWhenBeatHasData(io.outer.grant) |
-                           add
+                           add_pending_bits
     }
 
-    // We can issue a grant for a pending write once all data is
-    // received and committed to the data array or outer memory
-    val ignt_ack_ready = !(state === s_idle ||
-                           state === s_meta_read ||
-                           pending_put_data.orR)
+    // Have we finished receiving the complete inner acquire transaction?
+    val iacq_finished = !(state === s_idle ||
+                          state === s_meta_read ||
+                          pending_put_data.orR)
 
     val ignt_from_iacq = inner_coh.makeGrant(
                             sec = ignt_q.io.deq.bits,
@@ -495,8 +496,10 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
       io.inner.grant.bits := ignt_from_iacq
       io.inner.grant.bits.addr_beat := ignt_data_idx // override based on outgoing counter
       when (state === s_busy && pending_ignt) {
-        io.inner.grant.valid := !external_pending && 
-                                  Mux(io.ignt().hasData(), pending_ignt_data(ignt_data_idx), ignt_ack_ready)
+        io.inner.grant.valid := !external_pending && Mux(buffering,
+          Mux(io.ignt().hasData(),
+            pending_ignt_data(ignt_data_idx), iacq_finished),
+          io.outer.grant.valid)
       }
     }
 
@@ -519,6 +522,7 @@ trait EmitsOuterAcquires extends AcceptsInnerAcquires {
   def outerAcquire(
       caching: Bool,
       coh: ClientMetadata,
+      block_outer_acquire: Bool = Bool(false),
       buffering: Bool = Bool(true),
       data: UInt = io.iacq().data,
       wmask: UInt = io.iacq().wmask(),
@@ -533,6 +537,7 @@ trait EmitsOuterAcquires extends AcceptsInnerAcquires {
       trackDown = (g: Grant) => !g.isVoluntary())
 
     io.outer.acquire.valid := state === s_outer_acquire &&
+                                !block_outer_acquire &&
                                 (xact_allocate || 
                                   Mux(buffering,
                                       !pending_put_data(ognt_counter.up.idx),
@@ -559,7 +564,7 @@ trait EmitsOuterAcquires extends AcceptsInnerAcquires {
 
     when(state === s_outer_acquire && ognt_counter.up.done) { state := next }
 
-    io.outer.grant.ready := state === s_busy
+    when (ognt_counter.pending) { io.outer.grant.ready := Bool(true) }
 
     scoreboard += ognt_counter.pending
   }
