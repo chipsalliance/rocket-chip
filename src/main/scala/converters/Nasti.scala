@@ -164,11 +164,31 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
       UInt(log2Ceil(tlDataBytes))),
     len = Mux(is_subblock, UInt(0), UInt(tlDataBeats - 1)))
 
+  def mask_helper(all_inside_0: Seq[Bool], defsize: Int): (Seq[Bool], UInt, UInt) = {
+    val len = all_inside_0.size
+    if (len == 1) {
+      (Seq(Bool(true)), UInt(0), UInt(defsize))
+    } else {
+      val sub_inside_0 = Seq.tabulate (len/2) { i => all_inside_0(2*i) && all_inside_0(2*i+1) }
+      val (sub_outside_0, sub_offset, sub_size) = mask_helper(sub_inside_0, defsize+1)
+      val all_outside_0 = Seq.tabulate (len) { i => sub_outside_0(i/2) && all_inside_0(i^1) }
+      val odd_outside_0 = Seq.tabulate (len/2) { i => all_outside_0(2*i+1) }
+      val odd_outside = odd_outside_0.reduce (_ || _)
+      val all_outside = all_outside_0.reduce (_ || _)
+      val offset = Cat(sub_offset, odd_outside.toBits)
+      val size = Mux(all_outside, UInt(defsize), sub_size)
+      (all_outside_0, offset, size)
+    }
+  }
+
+  val all_inside_0 = (~io.tl.acquire.bits.wmask()).toBools
+  val (_, put_offset, put_size) = mask_helper(all_inside_0, 0)
+
   io.nasti.aw.valid := put_helper.fire(aw_ready, !w_inflight)
   io.nasti.aw.bits := NastiWriteAddressChannel(
     id = put_id_mapper.io.req.nasti_id,
-    addr = io.tl.acquire.bits.full_addr(),
-    size = UInt(log2Ceil(tlDataBytes)),
+    addr = io.tl.acquire.bits.full_addr()| put_offset,
+    size = put_size,
     len = Mux(is_multibeat, UInt(tlDataBeats - 1), UInt(0)))
 
   io.nasti.w.valid := put_helper.fire(io.nasti.w.ready)
