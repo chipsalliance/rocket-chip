@@ -151,20 +151,21 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
 }
 
 object TileLinkWidthAdapter {
-  def apply(in: ClientUncachedTileLinkIO, out: ClientUncachedTileLinkIO)(implicit p: Parameters): Unit = {
-    require(out.tlDataBits * out.tlDataBeats == in.tlDataBits * in.tlDataBeats)
-
-    if (out.tlDataBits > in.tlDataBits) {
-      val widener = Module(new TileLinkIOWidener(in.p(TLId), out.p(TLId)))
+  def apply(in: ClientUncachedTileLinkIO, outerId: String)(implicit p: Parameters) = {
+    val outerDataBits = p(TLKey(outerId)).dataBitsPerBeat
+    if (outerDataBits > in.tlDataBits) {
+      val widener = Module(new TileLinkIOWidener(in.p(TLId), outerId))
       widener.io.in <> in
-      out <> widener.io.out
-    } else if (out.tlDataBits < in.tlDataBits) {
-      val narrower = Module(new TileLinkIONarrower(in.p(TLId), out.p(TLId)))
+      widener.io.out
+    } else if (outerDataBits < in.tlDataBits) {
+      val narrower = Module(new TileLinkIONarrower(in.p(TLId), outerId))
       narrower.io.in <> in
-      out <> narrower.io.out
-    } else {
-      out <> in
-    }
+      narrower.io.out
+    } else { in }
+  }
+  def apply(out: ClientUncachedTileLinkIO, in: ClientUncachedTileLinkIO)(implicit p: Parameters): Unit = {
+    require(out.tlDataBits * out.tlDataBeats == in.tlDataBits * in.tlDataBeats)
+    out <> apply(in, out.p(TLId))
   }
 }
 
