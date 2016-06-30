@@ -252,12 +252,8 @@ following:
     }
 
     
-There are 5 major I/O ports coming out of the top-level module:
+There are 4 major I/O ports coming out of the top-level module:
 
-* **Host-target interface (host)**: The host system talks to the
-target machine via this host-target interface. We serialize a simple
-protocol over this parameterized interface. This interface is slated
-for removal in the near future.
 * **Debug interface (debug)**:
 The debug interface can be used to both debug the processor as
 it is executing, and to read and write memory. It is slated to repalce the

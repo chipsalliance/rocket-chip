@@ -4,7 +4,10 @@ package rocketchip
 
 import Chisel._
 import junctions._
-import uncore._
+import uncore.tilelink._
+import uncore.coherence._
+import uncore.agents._
+import uncore.devices._
 import rocket._
 import rocket.Util._
 import groundtest._

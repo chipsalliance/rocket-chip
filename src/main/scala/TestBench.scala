@@ -4,7 +4,7 @@ package rocketchip
 
 import Chisel._
 import cde.Parameters
-import uncore.{DbBusConsts, DMKey}
+import uncore.devices.{DbBusConsts, DMKey}
 
 object TestBenchGeneration extends FileSystemUtilities {
   def generateVerilogFragment(

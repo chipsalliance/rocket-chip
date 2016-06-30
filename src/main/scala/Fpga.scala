@@ -1,7 +1,7 @@
 package rocketchip
 
 import Chisel._
-import uncore._
+import uncore.tilelink._
 import junctions._
 import cde.Parameters
 
