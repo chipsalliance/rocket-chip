@@ -7,26 +7,30 @@ import Chisel._
 // ============
 
 // Timer with a statically-specified period.
+// Can take multiple inflight start-stop events with ID
+// Will continue to count down so long as at least one inflight event
 
-class Timer(initCount: Int) extends Module {
+class Timer(initCount: Int, maxInflight: Int) extends Module {
   val io = new Bundle {
-    val start = Bool(INPUT)
-    val stop = Bool(INPUT)
+    val start = Valid(UInt(width = log2Up(maxInflight))).flip
+    val stop = Valid(UInt(width = log2Up(maxInflight))).flip
     val timeout = Bool(OUTPUT)
   }
 
+  val inflight = Reg(init = Vec.fill(maxInflight) { Bool(false) })
   val countdown = Reg(UInt(width = log2Up(initCount)))
-  val active = Reg(init = Bool(false))
+  val active = inflight.reduce(_ || _)
 
-  when (io.start) {
-    countdown := UInt(initCount - 1)
-    active := Bool(true)
-  }
-  .elsewhen (io.stop) {
-    active := Bool(false)
-  }
-  .elsewhen (active) {
+  when (active) {
     countdown := countdown - UInt(1)
+  }
+
+  when (io.start.valid) {
+    inflight(io.start.bits) := Bool(true)
+    countdown := UInt(initCount - 1)
+  }
+  when (io.stop.valid) {
+    inflight(io.stop.bits) := Bool(false)
   }
 
   io.timeout := countdown === UInt(0) && active
@@ -34,9 +38,11 @@ class Timer(initCount: Int) extends Module {
 
 object Timer {
   def apply(initCount: Int, start: Bool, stop: Bool): Bool = {
-    val timer = Module(new Timer(initCount))
-    timer.io.start := start
-    timer.io.stop  := stop
+    val timer = Module(new Timer(initCount, 1))
+    timer.io.start.valid := start
+    timer.io.start.bits  := UInt(0)
+    timer.io.stop.valid  := stop
+    timer.io.stop.bits   := UInt(0)
     timer.io.timeout
   }
 }

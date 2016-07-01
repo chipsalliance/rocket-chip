@@ -283,6 +283,13 @@ class ComparatorClient(val target: Long)(implicit val p: Parameters) extends Mod
   val (idx, acq_done) = Counter(
     io.tl.acquire.fire() && io.tl.acquire.bits.first(), nOperations)
   debug(idx)
+
+  val timer = Module(new Timer(8192, xacts))
+  timer.io.start.valid := io.tl.acquire.fire() && io.tl.acquire.bits.first()
+  timer.io.start.bits  := xact_id
+  timer.io.stop.valid  := io.tl.grant.fire() && io.tl.grant.bits.first()
+  timer.io.stop.bits   := io.tl.grant.bits.client_xact_id
+  assert(!timer.io.timeout, "Comparator TL client timed out")
 }
 
 class ComparatorSink(implicit val p: Parameters) extends Module
