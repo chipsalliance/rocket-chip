@@ -205,6 +205,7 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
   }
 
   val iacq = io.in.acquire.bits
+  val oacq = io.out.acquire.bits
   val ognt = io.out.grant.bits
   val ignt = io.in.grant.bits
 
@@ -221,7 +222,7 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
   val put_data = Reg(Vec(factor, UInt(width = innerDataBits)))
   val put_wmask = Reg(Vec(factor, UInt(width = innerWriteMaskBits)))
   val put_allocate = Reg(Bool())
-  val (put_beat, put_done) = Counter(io.out.acquire.fire() && iacq.hasMultibeatData(), outerDataBeats)
+  val (put_beat, put_done) = Counter(io.out.acquire.fire() && oacq.hasMultibeatData(), outerDataBeats)
   val (recv_idx, recv_done) = Counter(io.in.acquire.fire() && iacq.hasMultibeatData(), factor)
 
   val in_addr = iacq.full_addr()
