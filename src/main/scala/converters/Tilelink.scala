@@ -238,18 +238,20 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
   def align_wmask(addr: UInt, wmask: UInt): UInt =
     wmask << Cat(addr, UInt(0, log2Up(innerWriteMaskBits)))
 
+  val outerConfig = p.alterPartial({ case TLId => outerTLId })
+
   val get_acquire = Get(
     client_xact_id = iacq.client_xact_id,
     addr_block = out_addr_block,
     addr_beat = out_addr_beat,
     addr_byte = out_addr_byte,
     operand_size = iacq.op_size(),
-    alloc = iacq.allocate())
+    alloc = iacq.allocate())(outerConfig)
 
   val get_block_acquire = GetBlock(
     client_xact_id = iacq.client_xact_id,
     addr_block = out_addr_block,
-    alloc = iacq.allocate())
+    alloc = iacq.allocate())(outerConfig)
 
   val put_acquire = Put(
     client_xact_id = iacq.client_xact_id,
@@ -257,14 +259,14 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
     addr_beat = out_addr_beat,
     data = align_data(switch_addr, iacq.data),
     wmask = Some(align_wmask(switch_addr, iacq.wmask())),
-    alloc = iacq.allocate())
+    alloc = iacq.allocate())(outerConfig)
 
   val put_block_acquire = PutBlock(
     client_xact_id = put_id,
     addr_block = put_block,
     addr_beat = put_beat,
     data = put_data.toBits,
-    wmask = Some(put_wmask.toBits))
+    wmask = Some(put_wmask.toBits))(outerConfig)
 
   io.out.acquire.valid := sending_put || (!shrink && io.in.acquire.valid)
   io.out.acquire.bits := MuxCase(get_block_acquire, Seq(
@@ -316,13 +318,15 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
 
   val gnt_switch = smallget_switch(ognt.client_xact_id)
 
+  val innerConfig = p.alterPartial({ case TLId => innerTLId })
+
   val get_block_grant = Grant(
     is_builtin_type = Bool(true),
     g_type = Grant.getDataBlockType,
     client_xact_id = gnt_client_id,
     manager_xact_id = gnt_manager_id,
     addr_beat = Cat(gnt_beat, send_idx),
-    data = select_data(gnt_data, send_idx))
+    data = select_data(gnt_data, send_idx))(innerConfig)
 
   val get_grant = Grant(
     is_builtin_type = Bool(true),
@@ -330,7 +334,7 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
     client_xact_id = ognt.client_xact_id,
     manager_xact_id = ognt.manager_xact_id,
     addr_beat = Cat(ognt.addr_beat, gnt_switch),
-    data = select_data(ognt.data, gnt_switch))
+    data = select_data(ognt.data, gnt_switch))(innerConfig)
 
   val default_grant = Grant(
     is_builtin_type = Bool(true),
@@ -338,7 +342,7 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
     client_xact_id = ognt.client_xact_id,
     manager_xact_id = ognt.manager_xact_id,
     addr_beat = ognt.addr_beat,
-    data = ognt.data)
+    data = ognt.data)(innerConfig)
 
   io.in.grant.valid := returning_data || (!stretch && io.out.grant.valid)
   io.in.grant.bits := MuxCase(default_grant, Seq(
