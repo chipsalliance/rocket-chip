@@ -97,9 +97,13 @@ class BufferlessBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
     can_alloc = Bool(false),
     next = s_inner_probe)
 
-  val iacq_could_accept = state === s_outer_acquire || iacq_can_merge || iacq_same_xact
-  io.inner.acquire.ready := iacq_could_accept && 
-    (!io.iacq().hasData() || io.outer.acquire.fire())
+  // We are never going to merge anything in the bufferless hub
+  // Therefore, we only need to concern ourselves with the allocated
+  // transaction and (in case of PutBlock) subsequent tail beats
+  val iacq_can_forward = iacq_same_xact && !vol_ognt_counter.pending
+  io.inner.acquire.ready := Mux(io.iacq().hasData(),
+    state === s_outer_acquire && iacq_can_forward,
+    state === s_idle && io.alloc.iacq.should)
 
   // Track which clients yet need to be probed and make Probe message
   innerProbe(
