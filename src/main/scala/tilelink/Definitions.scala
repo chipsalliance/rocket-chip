@@ -293,7 +293,10 @@ class AcquireMetadata(implicit p: Parameters) extends ClientToManagerChannel
     with HasAcquireType
     with HasAcquireUnion {
   /** Complete physical address for block, beat or operand */
-  def full_addr(dummy: Int = 0) = Cat(this.addr_block, this.addr_beat, this.addr_byte())
+  def full_addr(dummy: Int = 0) =
+    Cat(this.addr_block, this.addr_beat,
+      Mux(isBuiltInType() && Acquire.typesWithAddrByte.contains(this.a_type),
+        this.addr_byte(), UInt(0, tlByteAddrBits)))
 }
 
 /** [[uncore.AcquireMetadata]] with an extra field containing the data beat */
@@ -349,6 +352,7 @@ object Acquire {
   def typesWithData = Vec(putType, putBlockType, putAtomicType)
   def typesWithMultibeatData = Vec(putBlockType)
   def typesOnSubBlocks = Vec(putType, getType, putAtomicType)
+  def typesWithAddrByte = Vec(getType, putAtomicType)
 
   /** Mapping between each built-in Acquire type and a built-in Grant type. */
   def getBuiltInGrantType(a_type: UInt): UInt = {
