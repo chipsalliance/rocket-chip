@@ -228,7 +228,7 @@ object TestBenchGeneration extends FileSystemUtilities {
 
 
     val instantiation = s"""
-  Top dut
+  ${topModuleName} dut
   (
     .clk(clk),
     .reset(reset),
