@@ -26,7 +26,7 @@ class WithGroundTest extends Config(
           site(GroundTestMaxXacts)),
         maxClientsPerPort = 1,
         maxManagerXacts = site(NAcquireTransactors) + 2,
-        dataBeats = site(MIFDataBeats),
+        dataBeats = 8,
         dataBits = site(CacheBlockBytes)*8)
     case BuildTiles => {
       val groundtest = if (site(XLen) == 64)
@@ -228,3 +228,6 @@ class FancyMemtestConfig extends Config(
   new WithNCores(2) ++
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
+
+class MIF128BitComparatorConfig extends Config(
+  new WithMIFDataBits(128) ++ new ComparatorConfig)

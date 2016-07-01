@@ -102,7 +102,7 @@ class BaseConfig extends Config (
       res append '\u0000'
       res.toString.getBytes
     }
-    lazy val innerDataBits = site(MIFDataBits)
+    lazy val innerDataBits = 64
     lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
     pname match {
       //Memory Parameters
@@ -225,6 +225,7 @@ class BaseConfig extends Config (
       case NExtInterrupts => 2
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
+      case NExtMMIOTLChannels  => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
@@ -420,6 +421,12 @@ class WithAHB extends Config(
     case NExtMMIOAHBChannels => 1
   })
 
+class WithTL extends Config(
+  (pname, site, here) => pname match {
+    case TMemoryChannels     => BusType.TL
+    case NExtMMIOTLChannels  => 1
+  })
+
 class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 
 class WithSmallCores extends Config (
@@ -482,6 +489,14 @@ class WithRoccExample extends Config(
   })
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
+
+class WithMIFDataBits(n: Int) extends Config(
+  (pname, site, here) => pname match {
+    case MIFDataBits => Dump("MIF_DATA_BITS", n)
+  })
+
+class MIF128BitConfig extends Config(
+  new WithMIFDataBits(128) ++ new BaseConfig)
 
 class WithDmaController extends Config(
   (pname, site, here) => pname match {

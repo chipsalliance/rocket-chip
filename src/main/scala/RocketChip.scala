@@ -21,7 +21,8 @@ object BusType {
   sealed trait EnumVal
   case object AXI extends EnumVal
   case object AHB extends EnumVal
-  val busTypes = Seq(AXI, AHB)
+  case object TL  extends EnumVal
+  val busTypes = Seq(AXI, AHB, TL)
 }
 
 /** Number of memory channels */
@@ -36,6 +37,7 @@ case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Number of exteral MMIO ports */
 case object NExtMMIOAXIChannels extends Field[Int]
 case object NExtMMIOAHBChannels extends Field[Int]
+case object NExtMMIOTLChannels  extends Field[Int]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
@@ -64,6 +66,7 @@ trait HasTopLevelParameters {
   lazy val nMemChannels = p(NMemoryChannels)
   lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
+  lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
   lazy val nBanks = nMemChannels*nBanksPerMemChannel
   lazy val lsb = p(BankIdLSB)
@@ -71,6 +74,8 @@ trait HasTopLevelParameters {
   lazy val mifAddrBits = p(MIFAddrBits)
   lazy val mifDataBeats = p(MIFDataBeats)
   lazy val xLen = p(XLen)
+  lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
+  lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
 }
 
 class MemBackupCtrlIO extends Bundle {
@@ -87,9 +92,11 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
+  val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
+  val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
   val debug = new DebugBusIO()(p).flip
 }
 
@@ -107,6 +114,11 @@ object TopUtils {
     val conv = Module(new NastiIOTileLinkIOConverter())
     conv.io.tl <> tl
     TopUtils.connectNasti(nasti, conv.io.nasti)
+  }
+  def connectTilelink(
+      outer: ClientUncachedTileLinkIO, inner: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
+    outer.acquire <> Queue(inner.acquire)
+    inner.grant <> Queue(outer.grant)
   }
   def makeBootROM()(implicit p: Parameters) = {
     val rom = java.nio.ByteBuffer.allocate(32)
@@ -169,8 +181,10 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   io.mmio_axi <> uncore.io.mmio_axi
   io.mmio_ahb <> uncore.io.mmio_ahb
+  io.mmio_tl <> uncore.io.mmio_tl
   io.mem_axi <> uncore.io.mem_axi
   io.mem_ahb <> uncore.io.mem_ahb
+  io.mem_tl <> uncore.io.mem_tl
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -180,15 +194,16 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 class Uncore(implicit val p: Parameters) extends Module
     with HasTopLevelParameters {
 
-
   val io = new Bundle {
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)
     val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
+    val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
     val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
     val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
+    val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debugBus = new DebugBusIO()(p).flip
   }
@@ -200,16 +215,38 @@ class Uncore(implicit val p: Parameters) extends Module
   outmemsys.io.tiles_uncached <> io.tiles_uncached
   outmemsys.io.tiles_cached <> io.tiles_cached
 
-  buildMMIONetwork(p.alterPartial({case TLId => "MMIO_Outermost"}))
+  buildMMIONetwork(p.alterPartial({case TLId => "L2toMMIO"}))
 
   io.mem_axi <> outmemsys.io.mem_axi
   io.mem_ahb <> outmemsys.io.mem_ahb
+  io.mem_tl  <> outmemsys.io.mem_tl
+
+  def connectExternalMMIO(ext: ClientUncachedTileLinkIO)(implicit p: Parameters) {
+    val mmio_axi = p(NExtMMIOAXIChannels)
+    val mmio_ahb = p(NExtMMIOAHBChannels)
+    val mmio_tl  = p(NExtMMIOTLChannels)
+
+    require (mmio_axi + mmio_ahb + mmio_tl <= 1)
+    if (mmio_ahb == 1) {
+      val ahb = Module(new AHBBridge(true)) // with atomics
+      io.mmio_ahb.head <> ahb.io.ahb
+      ahb.io.tl <> ext
+    } else if (mmio_tl == 1) {
+      TopUtils.connectTilelink(io.mmio_tl.head, ext)
+    } else {
+      val mmioEndpoint = mmio_axi match {
+        case 0 => Module(new NastiErrorSlave).io
+        case 1 => io.mmio_axi.head
+      }
+      TopUtils.connectTilelinkNasti(mmioEndpoint, ext)
+    }
+  }
 
   def buildMMIONetwork(implicit p: Parameters) = {
     val ioAddrMap = p(GlobalAddrMap).subMap("io")
 
     val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap))
-    TileLinkWidthAdapter(outmemsys.io.mmio, mmioNetwork.io.in.head)
+    mmioNetwork.io.in.head <> outmemsys.io.mmio
 
     val plic = Module(new PLIC(p(PLICKey)))
     plic.io.tl <> mmioNetwork.port("int:plic")
@@ -241,22 +278,8 @@ class Uncore(implicit val p: Parameters) extends Module
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
     // The memory map presently has only one external I/O region
-    val ext = mmioNetwork.port("ext")
-    val mmio_axi = p(NExtMMIOAXIChannels)
-    val mmio_ahb = p(NExtMMIOAHBChannels)
-    require (mmio_axi + mmio_ahb <= 1)
-    
-    if (mmio_ahb == 1) {
-      val ahb = Module(new AHBBridge(true)) // with atomics
-      io.mmio_ahb(0) <> ahb.io.ahb
-      ahb.io.tl <> ext
-    } else {
-      val mmioEndpoint = mmio_axi match {
-        case 0 => Module(new NastiErrorSlave).io
-        case 1 => io.mmio_axi(0)
-      }
-      TopUtils.connectTilelinkNasti(mmioEndpoint, ext)
-    }
+    val ext = TileLinkWidthAdapter(mmioNetwork.port("ext"), "MMIO_Outermost")
+    connectExternalMMIO(ext)(outermostMMIOParams)
   }
 }
 
@@ -268,6 +291,7 @@ abstract class AbstractOuterMemorySystem(implicit val p: Parameters)
     val incoherent = Vec(nCachedTilePorts, Bool()).asInput
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)
     val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
+    val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
   }
 }
@@ -292,6 +316,11 @@ class DummyOuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemory
     ahb.hburst := UInt(0)
     ahb.hsize := UInt(0)
     ahb.hprot := UInt(0)
+  }
+
+  io.mem_tl.foreach { tl =>
+    tl.acquire.valid := Bool(false)
+    tl.grant.ready := Bool(false)
   }
 
   io.mmio.acquire.valid := Bool(false)
@@ -350,7 +379,7 @@ class OuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemorySyste
   for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
     val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
     unwrap.io.in <> ClientTileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
-    TileLinkWidthAdapter(unwrap.io.out, icPort)
+    TileLinkWidthAdapter(icPort, unwrap.io.out)
   }
 
   for ((nasti, tl) <- io.mem_axi zip mem_ic.io.out) {
@@ -366,5 +395,9 @@ class OuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemorySyste
     val bridge = Module(new AHBBridge(false)) // no atomics
     ahb <> bridge.io.ahb
     bridge.io.tl <> tl
+  }
+
+  for ((mem_tl, tl) <- io.mem_tl zip mem_ic.io.out) {
+    TopUtils.connectTilelink(mem_tl, tl)
   }
 }
