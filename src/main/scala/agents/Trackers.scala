@@ -407,12 +407,10 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
   val pending_put_data = Reg(init=Bits(0, width = innerDataBeats))
   val pending_ignt_data = Reg(init=Bits(0, width = innerDataBeats))
 
-  def iacq_same_xact: Bool = {
+  def iacq_same_xact: Bool =
     (xact_iacq.client_xact_id === io.iacq().client_xact_id) &&
-      xact_iacq.hasMultibeatData() &&
-      pending_ignt &&
-      pending_put_data(io.iacq().addr_beat)
-  }
+      (xact_iacq.client_id === io.iacq().client_id) &&
+      pending_ignt
   def iacq_can_merge: Bool
   def iacq_is_allocating: Bool = state === s_idle && io.alloc.iacq.should && io.inner.acquire.valid
   def iacq_is_merging: Bool = (iacq_can_merge || iacq_same_xact) && io.inner.acquire.valid
@@ -420,7 +418,9 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
   def innerAcquire(can_alloc: Bool, next: UInt) {
 
     // Enqueue some metadata information that we'll use to make coherence updates with later
-    ignt_q.io.enq.valid := iacq_is_allocating || (iacq_is_merging && io.iacq().first())
+    ignt_q.io.enq.valid := iacq_is_allocating ||
+                           (!iacq_same_xact && pending_ignt &&
+                             io.inner.acquire.fire() && io.iacq().first())
     ignt_q.io.enq.bits := io.iacq()
 
     // Use the outputs of the queue to make further messages
@@ -496,10 +496,12 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
       io.inner.grant.bits := ignt_from_iacq
       io.inner.grant.bits.addr_beat := ignt_data_idx // override based on outgoing counter
       when (state === s_busy && pending_ignt) {
-        io.inner.grant.valid := !external_pending && Mux(buffering,
+        io.inner.grant.valid := !external_pending && 
           Mux(io.ignt().hasData(),
-            pending_ignt_data(ignt_data_idx), iacq_finished),
-          io.outer.grant.valid)
+            Mux(buffering,
+              pending_ignt_data(ignt_data_idx),
+              io.outer.grant.valid),
+            iacq_finished)
       }
     }
 
@@ -536,12 +538,17 @@ trait EmitsOuterAcquires extends AcceptsInnerAcquires {
       beat = xact_addr_beat,
       trackDown = (g: Grant) => !g.isVoluntary())
 
-    io.outer.acquire.valid := state === s_outer_acquire &&
-                                !block_outer_acquire &&
-                                (xact_allocate || 
-                                  Mux(buffering,
-                                      !pending_put_data(ognt_counter.up.idx),
-                                      io.inner.acquire.valid))
+    io.outer.acquire.valid :=
+      state === s_outer_acquire && !block_outer_acquire &&
+        (xact_allocate ||
+          Mux(buffering,
+            !pending_put_data(ognt_counter.up.idx),
+            // If not buffering, we should only send an outer acquire if
+            // the ignt_q is not empty (pending_ignt) and the enqueued
+            // transaction does not have data or we are receiving the
+            // inner acquire and it is the same transaction as the one enqueued.
+            pending_ignt && (!xact_iacq.hasData() ||
+              (io.inner.acquire.valid && iacq_same_xact))))
 
     io.outer.acquire.bits :=
       Mux(caching,
