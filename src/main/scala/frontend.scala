@@ -81,7 +81,6 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
     btb.io.btb_update := io.cpu.btb_update
     btb.io.bht_update := io.cpu.bht_update
     btb.io.ras_update := io.cpu.ras_update
-    btb.io.invalidate := false
     when (!stall && !icmiss) {
       btb.io.req.valid := true
       s2_btb_resp_valid := btb.io.resp.valid
