@@ -161,7 +161,7 @@ class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)
   sequencer.io.in <> tests.map(_.io.mem)
   sequencer.io.finished := tests.map(_.io.finished)
   converter.io.nasti <> sequencer.io.out
-  TileLinkWidthAdapter(converter.io.tl, io.mem.head)
+  TileLinkWidthAdapter(io.mem.head, converter.io.tl)
 
   io.finished := tests.map(_.io.finished).reduce(_ && _)
 }
