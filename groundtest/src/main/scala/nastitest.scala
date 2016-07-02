@@ -148,6 +148,20 @@ class NastiSequencer(n: Int)(implicit p: Parameters) extends Module {
     in.r.valid  := io.out.r.valid && me
     in.r.bits   := io.out.r.bits
   }
+
+  val r_timer = Module(new Timer(1000, 2))
+  r_timer.io.start.valid := io.out.ar.fire()
+  r_timer.io.start.bits := io.out.ar.bits.id
+  r_timer.io.stop.valid := io.out.r.fire() && io.out.r.bits.last
+  r_timer.io.stop.bits := io.out.r.bits.id
+  assert(!r_timer.io.timeout, "NASTI Read timed out")
+
+  val w_timer = Module(new Timer(1000, 2))
+  w_timer.io.start.valid := io.out.aw.fire()
+  w_timer.io.start.bits := io.out.aw.bits.id
+  w_timer.io.stop.valid := io.out.b.fire()
+  w_timer.io.stop.bits := io.out.b.bits.id
+  assert(!w_timer.io.timeout, "NASTI Write timed out")
 }
 
 class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)
