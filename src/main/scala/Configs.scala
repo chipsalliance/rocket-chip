@@ -497,6 +497,8 @@ class WithMIFDataBits(n: Int) extends Config(
 
 class MIF128BitConfig extends Config(
   new WithMIFDataBits(128) ++ new BaseConfig)
+class MIF32BitConfig extends Config(
+  new WithMIFDataBits(32) ++ new BaseConfig)
 
 class WithDmaController extends Config(
   (pname, site, here) => pname match {

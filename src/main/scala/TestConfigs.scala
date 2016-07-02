@@ -231,3 +231,10 @@ class FancyMemtestConfig extends Config(
 
 class MIF128BitComparatorConfig extends Config(
   new WithMIFDataBits(128) ++ new ComparatorConfig)
+class MIF128BitMemtestConfig extends Config(
+  new WithMIFDataBits(128) ++ new MemtestConfig)
+
+class MIF32BitComparatorConfig extends Config(
+  new WithMIFDataBits(32) ++ new ComparatorConfig)
+class MIF32BitMemtestConfig extends Config(
+  new WithMIFDataBits(32) ++ new MemtestConfig)
