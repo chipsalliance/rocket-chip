@@ -90,9 +90,7 @@ class PseudoLRU(n: Int)
     var idx = UInt(1,1)
     for (i <- log2Up(n)-1 to 0 by -1) {
       val bit = way(i)
-      val mask = (UInt(1,n) << idx)(n-1,0)
-      next_state = next_state & ~mask | Mux(bit, UInt(0), mask)
-      //next_state.bitSet(idx, !bit)
+      next_state = next_state.bitSet(idx, !bit)
       idx = Cat(idx, bit)
     }
     next_state
