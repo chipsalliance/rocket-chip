@@ -244,11 +244,16 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
 
     when(irel_is_allocating) {
       xact_addr_block := io.irel().addr_block
+      // Set all of them to pending in the beginning as a precaution
+      // If it turns out we don't need some or all of the beats, they will
+      // be overridden below
+      pending_irel_data := ~UInt(0, innerDataBeats)
       state := next
     }
 
-    when(io.inner.release.fire()) {
-      when(io.alloc.irel.should || (irel_can_merge && io.irel().first())) {
+    val irel_fire = (irel_is_allocating || irel_is_merging) && io.inner.release.ready
+    when (irel_fire) {
+      when (io.irel().first()) {
         xact_vol_ir_r_type := io.irel().r_type
         xact_vol_ir_src := io.irel().client_id
         xact_vol_ir_client_xact_id := io.irel().client_xact_id
@@ -307,7 +312,7 @@ trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
         pending_orel_data(vol_ognt_counter.up.idx),
         pending_orel_send),
       // only writebacks need to be forwarded to the outer interface
-      (io.alloc.irel.should || io.alloc.irel.matches) &&
+      state =/= s_idle && io.alloc.irel.matches &&
         io.irel().hasData() && io.inner.release.valid)
 
     io.outer.release.bits := coh.makeVoluntaryWriteback(

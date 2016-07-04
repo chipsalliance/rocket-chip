@@ -74,9 +74,9 @@ class BufferlessBroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Par
 
   // A release beat can be accepted if we are idle, if its a mergeable transaction, or if its a tail beat
   // and if the outer relase path is clear 
-  val irel_could_accept = state === s_idle || irel_can_merge || irel_same_xact
-  io.inner.release.ready := irel_could_accept &&
-    (!io.irel().hasData() || io.outer.release.ready)
+  io.inner.release.ready := Mux(io.irel().hasData(),
+    (state =/= s_idle) && (irel_can_merge || irel_same_xact) && io.outer.release.ready,
+    (state === s_idle) || irel_can_merge || irel_same_xact)
 
   // Dispatch outer release
   outerRelease(coh = outer_coh.onHit(M_XWR), buffering = Bool(false))
