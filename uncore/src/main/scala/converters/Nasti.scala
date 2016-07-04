@@ -187,8 +187,9 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   io.nasti.aw.valid := put_helper.fire(aw_ready, !w_inflight)
   io.nasti.aw.bits := NastiWriteAddressChannel(
     id = put_id_mapper.io.req.out_id,
-    addr = io.tl.acquire.bits.full_addr()| put_offset,
-    size = put_size,
+    addr = io.tl.acquire.bits.full_addr() |
+           Mux(is_multibeat, UInt(0), put_offset),
+    size = Mux(is_multibeat, UInt(log2Ceil(tlDataBytes)), put_size),
     len = Mux(is_multibeat, UInt(tlDataBeats - 1), UInt(0)))
 
   io.nasti.w.valid := put_helper.fire(io.nasti.w.ready)
