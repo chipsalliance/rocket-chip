@@ -416,15 +416,17 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
     (xact_iacq.client_xact_id === io.iacq().client_xact_id) &&
       (xact_iacq.client_id === io.iacq().client_id) &&
       pending_ignt
+  def iacq_same_xact_multibeat = iacq_same_xact && io.iacq().hasMultibeatData()
   def iacq_can_merge: Bool
   def iacq_is_allocating: Bool = state === s_idle && io.alloc.iacq.should && io.inner.acquire.valid
   def iacq_is_merging: Bool = (iacq_can_merge || iacq_same_xact) && io.inner.acquire.valid
 
   def innerAcquire(can_alloc: Bool, next: UInt) {
+    val iacq_matches_head = iacq_same_xact && xact_iacq.addr_beat === io.iacq().addr_beat
 
     // Enqueue some metadata information that we'll use to make coherence updates with later
     ignt_q.io.enq.valid := iacq_is_allocating ||
-                           (!iacq_same_xact && pending_ignt &&
+                           (!iacq_matches_head && pending_ignt &&
                              io.inner.acquire.fire() && io.iacq().first())
     ignt_q.io.enq.bits := io.iacq()
 

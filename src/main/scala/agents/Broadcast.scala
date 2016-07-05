@@ -142,7 +142,7 @@ class BufferedBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
     can_alloc = Bool(false),
     next = s_inner_probe)
 
-  io.inner.acquire.ready := state === s_idle || iacq_can_merge || iacq_same_xact
+  io.inner.acquire.ready := state === s_idle || iacq_can_merge || iacq_same_xact_multibeat
 
   // Track which clients yet need to be probed and make Probe message
   // If a writeback occurs, we can forward its data via the buffer,
