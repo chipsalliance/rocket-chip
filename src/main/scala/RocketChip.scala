@@ -97,6 +97,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
   val debug = new DebugBusIO()(p).flip
+  val smibit = Bool(OUTPUT)
 }
 
 object TopUtils {
@@ -163,6 +164,9 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   io.mmio_ahb <> uncore.io.mmio_ahb
   io.mem_axi <> uncore.io.mem_axi
   io.mem_ahb <> uncore.io.mem_ahb
+  
+  io.smibit := uncore.io.smibit
+  printf("Top.io.smibit: %d\n", io.smibit)
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -183,6 +187,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debugBus = new DebugBusIO()(p).flip
+    val smibit = Bool(OUTPUT)
   }
 
   val htif = Module(new Htif(CSRs.mreset)) // One HTIF module per chip
@@ -249,6 +254,12 @@ class Uncore(implicit val p: Parameters) extends Module
 
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
     bootROM.io <> mmioNetwork.port("int:bootrom")
+
+    val ioexample = Module(new SmiExample)
+    val ioexample2smi = Module(new SmiIOTileLinkIOConverter(64, 10))
+    ioexample2smi.io.tl <> mmioNetwork.port("int:smiexample")
+    ioexample.io.smi <> ioexample2smi.io.smi
+    io.smibit := ioexample.io.iobit
 
     // The memory map presently has only one external I/O region
     val ext = mmioNetwork.port("ext")

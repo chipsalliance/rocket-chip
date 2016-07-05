@@ -30,6 +30,7 @@ class BaseConfig extends Config (
       entries += AddrMapEntry("rtc", MemSize(4096, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("smiexample", MemSize(1024, MemAttr(AddrMapProt.RW)))
       new AddrMap(entries)
     }
     lazy val globalAddrMap = {
