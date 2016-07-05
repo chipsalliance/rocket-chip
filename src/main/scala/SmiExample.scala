@@ -20,7 +20,7 @@ class SmiExample(implicit p: Parameters) extends HtifModule()(p) {
     resp_valid := Bool(false)
   }
 
-  val read_addr = Reg(init = UInt(width=10))
+  val read_addr = Reg(UInt(width=10))
   when (io.smi.req.fire()) {
     read_addr := io.smi.req.bits.addr
     resp_valid := Bool(true)
