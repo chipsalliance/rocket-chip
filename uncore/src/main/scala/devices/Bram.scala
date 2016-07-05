@@ -10,74 +10,78 @@ class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
   with HasTileLinkParameters {
   val io = new ClientUncachedTileLinkIO().flip
 
-  val bram = SeqMem(depth, Vec(tlDataBytes, UInt(width = 8)))
+  val bram = SeqMem(depth, Bits(width = tlDataBits))
 
-  val s_idle :: s_getblk :: s_putblk :: s_resp :: Nil = Enum(Bits(), 4)
-  val state = Reg(init = s_idle)
+  val fire_acq = io.acquire.fire()
+  val fire_gnt = io.grant.fire()
 
-  val acq = io.acquire.bits
-  val r_acq = Reg(new AcquireMetadata)
+  val state_getblk = Reg(init = Bool(false))
+  val state_putblk = Reg(init = Bool(false))
+  val state_init = !(state_getblk || state_putblk)
 
-  val (is_get :: is_getblk :: is_put :: is_putblk :: Nil) = Seq(
-      Acquire.getType, Acquire.getBlockType, Acquire.putType, Acquire.putBlockType
-    ).map(acq.isBuiltInType _)
+  private def last(acq: AcquireMetadata) =
+    (acq.addr_beat === UInt(tlDataBeats-1))
 
-  val beats = Reg(UInt(width = tlBeatAddrBits))
+  val s0_acq = io.acquire.bits
+  val s0_last = last(s0_acq)
 
-  when (io.acquire.fire()) {
-    r_acq := acq
-    when (is_get || is_put || acq.isPrefetch()) {
-      state := s_resp
-    }
-    when (is_getblk) {
-      beats := UInt(tlDataBeats - 1)
-      state := s_getblk
-    }
-    /** Need to collect the rest of the beats.
-     *  Beat 0 has already been accepted. */
-    when (is_putblk) {
-      beats := UInt(tlDataBeats - 2)
-      state := s_putblk
-    }
-  }
+  val s1_acq = RegEnable(s0_acq, fire_acq)
+  val s1_last = last(s1_acq)
 
-  when (state === s_getblk && io.grant.ready) {
-    r_acq.addr_beat := r_acq.addr_beat + UInt(1)
-    beats := beats - UInt(1)
-    when (beats === UInt(0)) { state := s_idle }
-  }
+  val (is_get :: is_getblk :: is_put :: is_putblk :: Nil) =
+    Seq(Acquire.getType, Acquire.getBlockType,
+      Acquire.putType, Acquire.putBlockType).map(s0_acq.isBuiltInType _)
 
-  when (state === s_putblk && io.acquire.valid) {
-    beats := beats - UInt(1)
-    when (beats === UInt(0)) { state := s_resp }
-  }
+  val is_read = is_get || is_getblk
+  val is_write = is_put || is_putblk
+  val ren_getblk = state_getblk && !s1_last
 
-  when (state === s_resp && io.grant.ready) { state := s_idle }
+  val s0_valid = (fire_acq && (!is_putblk || s0_last)) || ren_getblk
+  val s1_valid = RegNext(s0_valid, Bool(false))
 
-  val acq_addr = Cat(acq.addr_block, acq.addr_beat)
-  val r_acq_addr = Cat(r_acq.addr_block, r_acq.addr_beat)
+  val ren = (fire_acq && is_read) || ren_getblk
+  val wen = (fire_acq && is_write)
 
-  val ren = (io.acquire.fire() && (is_get || is_getblk)) ||
-            (state === s_getblk && io.grant.ready)
-  val raddr = Mux(state === s_idle, acq_addr,
-    Mux(io.grant.ready, r_acq_addr + UInt(1), r_acq_addr))
+  val s0_addr = Cat(s0_acq.addr_block, s0_acq.addr_beat)
+  val s1_addr_beat = s1_acq.addr_beat + Mux(io.grant.ready, UInt(1), UInt(0))
+  val s1_addr = Cat(s1_acq.addr_block, s1_addr_beat)
+
+  val raddr = Mux(state_getblk, s1_addr, s0_addr)
+  val waddr = s0_addr
+
   val rdata = bram.read(raddr, ren)
+  val wdata = s0_acq.data
+  val wmask = s0_acq.wmask()
+  when (wen) {
+    bram.write(waddr, wdata)
+    assert(wmask.andR, "BRAMSlave: partial write masks not supported")
+  }
 
-  val wen = (io.acquire.fire() && (is_put || is_putblk))
-  val wdata = Vec.tabulate(tlDataBytes) { i => acq.data((i+1)*8-1, i*8) }
-  val wmask = Vec.tabulate(tlWriteMaskBits) { i => acq.wmask()(i) }
+  val stall = io.grant.valid && !io.grant.ready
+  io.acquire.ready := state_init && !stall
 
-  when (wen) { bram.write(acq_addr, wdata, wmask) }
+  when (fire_acq) {
+    state_getblk := is_getblk
+    state_putblk := is_putblk && s0_last
+  }
 
-  io.grant.valid := (state === s_resp) || (state === s_getblk)
+  when (state_getblk && fire_gnt) {
+    s1_acq.addr_beat := s1_addr_beat
+    state_getblk := !s1_last
+  }
+
+  when (state_putblk && fire_gnt) {
+    state_putblk := Bool(false)
+  }
+
+  io.grant.valid := s1_valid
   io.grant.bits := Grant(
     is_builtin_type = Bool(true),
-    g_type = r_acq.getBuiltInGrantType(),
-    client_xact_id = r_acq.client_xact_id,
+    g_type = s1_acq.getBuiltInGrantType(),
+    client_xact_id = s1_acq.client_xact_id,
     manager_xact_id = UInt(0),
-    addr_beat = r_acq.addr_beat,
-    data = rdata.toBits)
-  io.acquire.ready := (state === s_idle) || (state === s_putblk)
+    addr_beat = s1_acq.addr_beat,
+    data = rdata)
 }
 
 class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
