@@ -42,7 +42,9 @@ class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoheren
     allocs = trackerList.map(_.io.alloc.iacq),
     allocOverride = Some(!irel_vs_iacq_conflict))
   io.outer.acquire.bits.data := io.inner.acquire.bits.data
-  io.outer.acquire.bits.addr_beat := io.inner.acquire.bits.addr_beat
+  when (io.oacq().hasData()) {
+    io.outer.acquire.bits.addr_beat := io.inner.acquire.bits.addr_beat
+  }
 
   // Handle releases, which might be voluntary and might have data
   doInputRoutingWithAllocation(
@@ -50,7 +52,9 @@ class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoheren
     outs = trackerList.map(_.io.inner.release),
     allocs = trackerList.map(_.io.alloc.irel))
   io.outer.release.bits.data := io.inner.release.bits.data
-  io.outer.release.bits.addr_beat := io.inner.release.bits.addr_beat
+  when (io.orel().hasData()) {
+    io.outer.release.bits.addr_beat := io.inner.release.bits.addr_beat
+  }
 
   // Wire probe requests and grant reply to clients, finish acks from clients
   doOutputArbitration(io.inner.probe, trackerList.map(_.io.inner.probe))
@@ -102,7 +106,7 @@ class BufferlessBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
   // transaction and (in case of PutBlock) subsequent tail beats
   val iacq_can_forward = iacq_same_xact && !vol_ognt_counter.pending
   io.inner.acquire.ready := Mux(io.iacq().hasData(),
-    state === s_outer_acquire && iacq_can_forward,
+    state === s_outer_acquire && iacq_can_forward && io.outer.acquire.ready,
     state === s_idle && io.alloc.iacq.should)
 
   // Track which clients yet need to be probed and make Probe message
