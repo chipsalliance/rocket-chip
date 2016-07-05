@@ -152,7 +152,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
 
   val useRAS = Reg(UInt(width = entries))
   val isJump = Reg(UInt(width = entries))
-  val brIdx  = Reg(Vec(entries, UInt(width=log2Up(fetchWidth))))
+  val brIdx = if (fetchWidth > 1) Reg(Vec(entries, UInt(width=log2Up(fetchWidth)))) else Seq(UInt(0))
 
   private def page(addr: UInt) = addr >> matchBits
   private def pageMatch(addr: UInt) = {
@@ -214,11 +214,8 @@ class BTB(implicit p: Parameters) extends BtbModule {
     val mask = UIntToOH(waddr)
     useRAS := Mux(r_btb_update.bits.isReturn, useRAS | mask, useRAS & ~mask)
     isJump := Mux(r_btb_update.bits.isJump, isJump | mask, isJump & ~mask)
-    if (fetchWidth == 1) {
-      brIdx(waddr) := UInt(0)
-    } else {
+    if (fetchWidth > 1)
       brIdx(waddr) := r_btb_update.bits.br_pc >> log2Up(coreInstBytes)
-    }
 
     require(nPages % 2 == 0)
     val idxWritesEven = !idxPageUpdate(0)
@@ -237,9 +234,8 @@ class BTB(implicit p: Parameters) extends BtbModule {
   io.resp.bits.taken := io.resp.valid
   io.resp.bits.target := Cat(Mux1H(Mux1H(hitsVec, tgtPagesOH), pages), Mux1H(hitsVec, tgts))
   io.resp.bits.entry := OHToUInt(hits)
-  io.resp.bits.bridx := brIdx(io.resp.bits.entry)
-  io.resp.bits.mask := Mux(io.resp.bits.taken, Cat((UInt(1) << brIdx(io.resp.bits.entry))-1, UInt(1)).toSInt,
-                                               SInt(-1)).toUInt
+  io.resp.bits.bridx := Mux1H(hitsVec, brIdx)
+  io.resp.bits.mask := Cat((UInt(1) << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, UInt(0)))-1, UInt(1))
 
   if (nBHT > 0) {
     val bht = new BHT(nBHT)
