@@ -262,7 +262,7 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
         pending_irel_data := Mux(io.irel().hasMultibeatData(),
                                dropPendingBitWhenBeatHasData(io.inner.release),
                                UInt(0))
-      } .elsewhen (irel_same_xact) {
+      } .otherwise {
         pending_irel_data := (pending_irel_data & dropPendingBitWhenBeatHasData(io.inner.release))
       }
     }
