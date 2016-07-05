@@ -848,7 +848,8 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
     can_alloc = Bool(true),
     next = s_meta_read)
 
-  io.inner.acquire.ready := state === s_idle || iacq_can_merge || iacq_same_xact
+  io.inner.acquire.ready := state === s_idle || iacq_can_merge ||
+                            iacq_same_xact_multibeat
 
   // Begin a transaction by getting the current block metadata
   // Defined here because of Chisel default wire demands, used in s_meta_resp
