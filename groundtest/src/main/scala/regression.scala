@@ -31,6 +31,11 @@ abstract class Regression(implicit val p: Parameters)
     io.cache.req.bits.phys := Bool(true)
     io.cache.invalidate_lr := Bool(false)
   }
+
+  def disableMem() {
+    io.mem.acquire.valid := Bool(false)
+    io.mem.grant.ready := Bool(false)
+  }
 }
 
 /**
@@ -463,6 +468,49 @@ class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
     "WritebackRegression: incorrect data")
 }
 
+class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
+  disableMem()
+
+  val l1params = p.alterPartial({ case CacheName => "L1D" })
+  val nSets = l1params(NSets)
+  val nWays = l1params(NWays)
+  val blockOffset = l1params(CacheBlockOffsetBits)
+
+  val startBlock = memStartBlock + 10
+  val addr_blocks = Vec.tabulate(nWays + 1) { i => UInt(startBlock + i * nSets) }
+  val data = Vec.tabulate(nWays + 1) { i => UInt((i + 1) * 1522) }
+  val (req_idx, req_done) = Counter(io.cache.req.fire(), nWays + 1)
+  val (resp_idx, resp_done) = Counter(io.cache.resp.valid, nWays + 1)
+
+  val sending = Reg(init = Bool(false))
+  val s_idle :: s_write :: s_read :: s_done :: Nil = Enum(Bits(), 4)
+  val state = Reg(init = s_idle)
+
+  io.cache.req.valid := sending && (state === s_write || state === s_read)
+  io.cache.req.bits.addr := Cat(addr_blocks(req_idx), UInt(0, blockOffset))
+  io.cache.req.bits.typ := MT_D
+  io.cache.req.bits.cmd := Mux(state === s_write, M_XWR, M_XRD)
+  io.cache.req.bits.tag := UInt(0)
+  io.cache.req.bits.data := data(req_idx)
+  io.cache.req.bits.phys := Bool(true)
+  io.cache.invalidate_lr := Bool(false)
+
+  when (state === s_idle) {
+    sending := Bool(true)
+    state := s_write
+  }
+
+  when (resp_done) { state := Mux(state === s_write, s_read, s_done) }
+  when (io.cache.req.fire()) { sending := Bool(false) }
+  when (io.cache.resp.valid) { sending := Bool(true) }
+
+  io.finished := (state === s_done)
+
+  assert(!io.cache.resp.valid || !io.cache.resp.bits.has_data ||
+         io.cache.resp.bits.data === data(resp_idx),
+         "ReleaseRegression: data mismatch")
+}
+
 class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p) {
   val (s_idle :: s_put :: s_putblock :: s_wait ::
        s_finished :: Nil) = Enum(Bits(), 5)
@@ -512,11 +560,13 @@ object RegressionTests {
     Module(new SequentialSameIdGetRegression),
     Module(new WritebackRegression),
     Module(new PutBeforePutBlockRegression),
-    Module(new MixedAllocPutRegression))
+    Module(new MixedAllocPutRegression),
+    Module(new ReleaseRegression))
   def broadcastRegressions(implicit p: Parameters) = Seq(
     Module(new IOGetAfterPutBlockRegression),
     Module(new WriteMaskedPutBlockRegression),
-    Module(new PutBeforePutBlockRegression))
+    Module(new PutBeforePutBlockRegression),
+    Module(new ReleaseRegression))
 }
 
 case object GroundTestRegressions extends Field[Parameters => Seq[Regression]]
