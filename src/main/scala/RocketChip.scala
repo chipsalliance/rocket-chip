@@ -35,6 +35,7 @@ case object BankIdLSB extends Field[Int]
 /** Number of outstanding memory requests */
 case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Number of exteral MMIO ports */
+case object ExtMMIOPorts extends Field[AddrMap]
 case object NExtMMIOAXIChannels extends Field[Int]
 case object NExtMMIOAHBChannels extends Field[Int]
 case object NExtMMIOTLChannels  extends Field[Int]
@@ -226,24 +227,27 @@ class Uncore(implicit val p: Parameters) extends Module
   io.mem_ahb <> outmemsys.io.mem_ahb
   io.mem_tl  <> outmemsys.io.mem_tl
 
-  def connectExternalMMIO(ext: ClientUncachedTileLinkIO)(implicit p: Parameters) {
-    val mmio_axi = p(NExtMMIOAXIChannels)
-    val mmio_ahb = p(NExtMMIOAHBChannels)
-    val mmio_tl  = p(NExtMMIOTLChannels)
-
-    require (mmio_axi + mmio_ahb + mmio_tl <= 1)
-    if (mmio_ahb == 1) {
-      val ahb = Module(new AHBBridge(true)) // with atomics
-      io.mmio_ahb.head <> ahb.io.ahb
-      ahb.io.tl <> ext
-    } else if (mmio_tl == 1) {
-      TopUtils.connectTilelink(io.mmio_tl.head, ext)
-    } else {
-      val mmioEndpoint = mmio_axi match {
-        case 0 => Module(new NastiErrorSlave).io
-        case 1 => io.mmio_axi.head
+  def connectExternalMMIO(ports: Seq[ClientUncachedTileLinkIO])(implicit p: Parameters) {
+    val mmio_axi_start = 0
+    val mmio_axi_end   = mmio_axi_start + p(NExtMMIOAXIChannels)
+    val mmio_ahb_start = mmio_axi_end
+    val mmio_ahb_end   = mmio_ahb_start + p(NExtMMIOAHBChannels)
+    val mmio_tl_start  = mmio_ahb_end
+    val mmio_tl_end    = mmio_tl_start  + p(NExtMMIOTLChannels)
+    require (mmio_tl_end == ports.size)
+    
+    for (i <- 0 until ports.size) {
+      if (mmio_axi_start <= i && i < mmio_axi_end) {
+        TopUtils.connectTilelinkNasti(io.mmio_axi(i-mmio_axi_start), ports(i))
+      } else if (mmio_ahb_start <= i && i < mmio_ahb_end) {
+        val ahbBridge = Module(new AHBBridge(true))
+        io.mmio_ahb(i-mmio_ahb_start) <> ahbBridge.io.ahb
+        ahbBridge.io.tl <> ports(i)
+      } else if (mmio_tl_start <= i && i < mmio_tl_end) {
+        TopUtils.connectTilelink(io.mmio_tl(i-mmio_tl_start), ports(i))
+      } else {
+        TopUtils.connectTilelinkNasti(Module(new NastiErrorSlave).io, ports(i))
       }
-      TopUtils.connectTilelinkNasti(mmioEndpoint, ext)
     }
   }
 
@@ -282,23 +286,9 @@ class Uncore(implicit val p: Parameters) extends Module
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
-    require(io.mmio_ahb.size + io.mmio_axi.size + io.mmio_tl.size <= 1,
-      "Maximum of 1 external MMIO channel supported for now")
-
-    io.mmio_ahb.foreach { ahb =>
-      val ext = TileLinkWidthAdapter(mmioNetwork.port("ext"), "MMIO_Outermost")
-      TopUtils.connectTilelinkAhb(ahb, ext)(outermostMMIOParams)
-    }
-
-    io.mmio_axi.foreach { axi =>
-      val ext = TileLinkWidthAdapter(mmioNetwork.port("ext"), "MMIO_Outermost")
-      TopUtils.connectTilelinkNasti(axi, ext)(outermostMMIOParams)
-    }
-
-    io.mmio_tl.foreach { tl =>
-      val ext = TileLinkWidthAdapter(mmioNetwork.port("ext"), "MMIO_Outermost")
-      TopUtils.connectTilelink(tl, ext)(outermostMMIOParams)
-    }
+    // The memory map presently has only one external I/O region
+    val ext = p(ExtMMIOPorts).entries.map(port => TileLinkWidthAdapter(mmioNetwork.port(port.name), "MMIO_Outermost"))
+    connectExternalMMIO(ext)(outermostMMIOParams)
   }
 }
 

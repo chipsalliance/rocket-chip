@@ -38,25 +38,10 @@ class BaseConfig extends Config (
     }
     lazy val globalAddrMap = {
       val memBase = 0x80000000L
-      val memSize = 0x80000000L
-
-      val ioMap = ListBuffer(AddrMapEntry("int", internalIOAddrMap))
-
-      val nMMIOChannels =
-        site(NExtMMIOAXIChannels) +
-        site(NExtMMIOAHBChannels) +
-        site(NExtMMIOTLChannels)
-
-      if (nMMIOChannels > 0) {
-        val extIOBase = 0x60000000L
-        val extIOSize = 0x20000000L
-        ioMap += AddrMapEntry("ext", MemRange(extIOBase, extIOSize, MemAttr(AddrMapProt.RWX)))
-        Dump("IO_BASE", extIOBase)
-        Dump("IO_SIZE", extIOSize)
-      }
-
+      val memSize = 0x10000000L
+      val io = AddrMap((AddrMapEntry("int", internalIOAddrMap) +: site(ExtMMIOPorts).entries):_*)
       val addrMap = AddrMap(
-        AddrMapEntry("io", new AddrMap(ioMap.toSeq)),
+        AddrMapEntry("io", io),
         AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true))))
 
       Dump("MEM_BASE", addrMap("mem").start)
@@ -231,6 +216,12 @@ class BaseConfig extends Config (
         true
       }
       case NExtInterrupts => 2
+      case ExtMMIOPorts => AddrMap()
+/*
+        AddrMap(
+          AddrMapEntry("cfg", MemRange(0x50000000L, 0x04000000L, MemAttr(AddrMapProt.RW))),
+          AddrMapEntry("ext", MemRange(0x60000000L, 0x20000000L, MemAttr(AddrMapProt.RWX))))
+*/
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0
