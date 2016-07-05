@@ -168,19 +168,14 @@ object NastiReadAddressChannel {
 }
 
 object NastiWriteDataChannel {
-  def apply(data: UInt, last: Bool = Bool(true), id: UInt = UInt(0))
+  def apply(data: UInt, strb: Option[UInt] = None,
+            last: Bool = Bool(true), id: UInt = UInt(0))
            (implicit p: Parameters): NastiWriteDataChannel = {
     val w = Wire(new NastiWriteDataChannel)
-    w.strb := Fill(w.nastiWStrobeBits, UInt(1, 1))
+    w.strb := strb.getOrElse(Fill(w.nastiWStrobeBits, UInt(1, 1)))
     w.data := data
     w.last := last
     w.user := UInt(0)
-    w
-  }
-  def apply(data: UInt, strb: UInt, last: Bool, id: UInt)
-           (implicit p: Parameters): NastiWriteDataChannel = {
-    val w = apply(data, last, id)
-    w.strb := strb
     w
   }
 }

@@ -246,7 +246,7 @@ class AtosRequestDecoder(implicit p: Parameters) extends AtosModule()(p) {
   io.w.bits := NastiWriteDataChannel(
     id = io.req.bits.id(),
     data = io.req.bits.data(),
-    strb = io.req.bits.strb(),
+    strb = Some(io.req.bits.strb()),
     last = io.req.bits.last())
 
   io.req.ready := (io.ar.ready && is_ar) ||
