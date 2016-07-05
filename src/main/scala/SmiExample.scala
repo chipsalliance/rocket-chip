@@ -36,6 +36,5 @@ class SmiExample(implicit p: Parameters) extends HtifModule()(p) {
   }
   io.smi.resp.bits := mem(read_addr)
 
-  printf("mem %d", mem(0))
   io.iobit := mem(0)(0)
 }
