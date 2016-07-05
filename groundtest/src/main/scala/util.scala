@@ -53,15 +53,15 @@ object Timer {
 
 // Timer with a dynamically-settable period.
 
-class DynamicTimer(width: Int) extends Module {
+class DynamicTimer(w: Int) extends Module {
   val io = new Bundle {
     val start   = Bool(INPUT)
-    val period  = UInt(INPUT, width)
+    val period  = UInt(INPUT, w)
     val stop    = Bool(INPUT)
     val timeout = Bool(OUTPUT)
   }
 
-  val countdown = Reg(init = UInt(0, width))
+  val countdown = Reg(init = UInt(0, w))
   val active = Reg(init = Bool(false))
 
   when (io.start) {
@@ -104,14 +104,14 @@ class LCG16 extends Module {
 // An n-bit psuedo-random generator made from many instances of a
 // 16-bit LCG.  Parameter 'width' must be larger than 0.
 
-class LCG(val width : Int) extends Module {
+class LCG(val w : Int) extends Module {
   val io = new Bundle { 
-    val out = UInt(OUTPUT, width) 
+    val out = UInt(OUTPUT, w) 
   } 
-  require(width > 0)
-  val numLCG16s : Int = (width+15)/16
+  require(w > 0)
+  val numLCG16s : Int = (w+15)/16
   val outs = List.fill(numLCG16s)(Module(new LCG16()).io.out)
-  io.out := Cat( outs(0)((width%16)-1, 0)
+  io.out := Cat( outs(0)((w%16)-1, 0)
                , outs.drop(1) : _*)
 }
 

@@ -62,7 +62,7 @@ trait HasTraceGenParams {
   val numGens             = p(NTiles)
   val numBitsInId         = log2Up(numGens)
   val numReqsPerGen       = p(MaxGenerateRequests)
-  val memRespTimeout      = 1024
+  val memRespTimeout      = 8192
   val numBitsInWord       = p(WordBits)
   val numBytesInWord      = numBitsInWord / 8
   val numBitsInWordOffset = log2Up(numBytesInWord)

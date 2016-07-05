@@ -33,12 +33,12 @@ import subprocess
 import re
 
 def main():
-  if len(sys.argv) != 4:
-    sys.stderr.write("Usage: tracegen.py EMULATOR SEED ELF\n")
+  if len(sys.argv) != 3:
+    sys.stderr.write("Usage: tracegen.py EMULATOR SEED\n")
     sys.exit(-1)
 
   p = subprocess.Popen([sys.argv[1],
-         "+verbose", "-s" + sys.argv[2], sys.argv[3]],
+         "+verbose", "-s" + sys.argv[2]],
          stderr=subprocess.PIPE, stdout=subprocess.PIPE)
   if p == None:
     sys.stderr.write("File not found: " + sys.argv[1] + "\n")

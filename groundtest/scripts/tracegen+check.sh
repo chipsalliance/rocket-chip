@@ -37,7 +37,6 @@ AXE=${AXE-axe}
 MODEL=${MODEL-WMO}
 LOG_DIR=${LOG_DIR-tracegen-log}
 TRACE_STATS=${TRACE_STATS-tracestats.py}
-ELF_FILE=${ELF_FILE-../riscv-tools/riscv-tests/build/isa/rv64ui-p-simple}
 
 ###############################################################################
 
@@ -73,12 +72,6 @@ fi
 
 if [ ! `command -v $TRACE_STATS` ]; then
   echo Please add \'tracestats.py\' to your PATH
-  exit -1
-fi
-
-if [ ! -f $ELF_FILE ]; then
-  echo Can\'t find dummy elf file for ground tests
-  echo Please run build.sh in riscv-tools to produce \'rv64ui-p-simple\'
   exit -1
 fi
 
@@ -119,7 +112,7 @@ for (( I = $START_SEED; I <= $END_SEED; I++ )); do
   fi
 
   # Generate trace
-  $TRACE_GEN $EMU $I $ELF_FILE > $LOG/trace.txt
+  $TRACE_GEN $EMU $I > $LOG/trace.txt
   if [ ! $? -eq 0 ]; then
     echo -e "\n\nError: emulator returned non-zero exit code"
     echo See $LOG/trace.txt for details
