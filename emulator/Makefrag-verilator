@@ -56,7 +56,7 @@ verilator/verilator-$(VERILATOR_VERSION).tar.gz:
 
 # Run Verilator to produce a fast binary to emulate this circuit.
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
-VERILATOR_FLAGS := --top-module $(MODEL) +define+PRINTF_COND=$(MODEL).reset --assert \
+VERILATOR_FLAGS := --top-module $(MODEL) +define+PRINTF_COND=!$(MODEL).reset --assert \
 	-Wno-UNSIGNED -Wno-COMBDLY -Wno-MULTIDRIVEN -Wno-WIDTH -Wno-STMTDLY -Wno-SELRANGE -Wno-IMPLICIT
 cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
 
