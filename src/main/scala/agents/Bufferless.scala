@@ -36,24 +36,26 @@ class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoheren
     io.inner.release.valid &&
     io.irel().conflicts(io.iacq())
 
+  val iacq = Queue(io.inner.acquire, 1, pipe=true)
   doInputRoutingWithAllocation(
-    in = io.inner.acquire,
+    in = iacq,
     outs = trackerList.map(_.io.inner.acquire),
     allocs = trackerList.map(_.io.alloc.iacq),
     allocOverride = Some(!irel_vs_iacq_conflict))
-  io.outer.acquire.bits.data := io.inner.acquire.bits.data
+  io.outer.acquire.bits.data := iacq.bits.data
   when (io.oacq().hasData()) {
-    io.outer.acquire.bits.addr_beat := io.inner.acquire.bits.addr_beat
+    io.outer.acquire.bits.addr_beat := iacq.bits.addr_beat
   }
 
   // Handle releases, which might be voluntary and might have data
+  val irel = Queue(io.inner.release, 1, pipe=true)
   doInputRoutingWithAllocation(
-    in = io.inner.release,
+    in = irel,
     outs = trackerList.map(_.io.inner.release),
     allocs = trackerList.map(_.io.alloc.irel))
-  io.outer.release.bits.data := io.inner.release.bits.data
+  io.outer.release.bits.data := irel.bits.data
   when (io.orel().hasData()) {
-    io.outer.release.bits.addr_beat := io.inner.release.bits.addr_beat
+    io.outer.release.bits.addr_beat := irel.bits.addr_beat
   }
 
   // Wire probe requests and grant reply to clients, finish acks from clients
