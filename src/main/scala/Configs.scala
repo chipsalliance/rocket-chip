@@ -366,6 +366,14 @@ class WithL2Cache extends Config(
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048; case "L2_SPLIT_METADATA" => false; case _ => throw new CDEMatchError }
 )
 
+class WithBufferlessBroadcastHub extends Config(
+  (pname, site, here) => pname match {
+    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
+      Module(new BufferlessBroadcastHub()(p.alterPartial({
+        case InnerTLId => "L1toL2"
+        case OuterTLId => "L2toMC" })))
+  })
+
 class WithPLRU extends Config(
   (pname, site, here) => pname match {
     case L2Replacer => () => new SeqPLRU(site(NSets), site(NWays))
@@ -387,6 +395,9 @@ class WithNL2Ways(n: Int) extends Config(
 class DefaultL2Config extends Config(new WithL2Cache ++ new BaseConfig)
 class DefaultL2FPGAConfig extends Config(
   new WithL2Capacity(64) ++ new WithL2Cache ++ new DefaultFPGAConfig)
+
+class DefaultBufferlessConfig extends Config(
+  new WithBufferlessBroadcastHub ++ new BaseConfig)
 
 class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 

@@ -195,14 +195,20 @@ class ComparatorConfig extends Config(new WithComparator ++ new GroundTestConfig
 class ComparatorL2Config extends Config(
   new WithAtomics ++ new WithPrefetches ++
   new WithL2Cache ++ new ComparatorConfig)
+class ComparatorBufferlessConfig extends Config(
+  new WithBufferlessBroadcastHub ++ new ComparatorConfig)
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
+class MemtestBufferlessConfig extends Config(
+  new WithMemtest ++ new WithBufferlessBroadcastHub ++ new GroundTestConfig)
 class CacheFillTestConfig extends Config(
   new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
 class BroadcastRegressionTestConfig extends Config(
   new WithBroadcastRegressionTest ++ new GroundTestConfig)
+class BufferlessRegressionTestConfig extends Config(
+  new WithBufferlessBroadcastHub ++ new BroadcastRegressionTestConfig)
 class CacheRegressionTestConfig extends Config(
   new WithCacheRegressionTest ++ new WithL2Cache ++ new GroundTestConfig)
 class DmaTestConfig extends Config(new WithDmaTest ++ new WithL2Cache ++ new GroundTestConfig)
@@ -223,11 +229,12 @@ class WithNUncachedGenerators(n: Int) extends Config(
     case _ => throw new CDEMatchError
   })
 
+// Test ALL the things
 class FancyMemtestConfig extends Config(
   new WithNCachedGenerators(1) ++ new WithNUncachedGenerators(2) ++
-  new WithNCores(2) ++
+  new WithNCores(2) ++ new WithMemtest ++
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
-  new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithSplitL2Metadata ++ new WithL2Cache ++ new GroundTestConfig)
 
 class MIF128BitComparatorConfig extends Config(
   new WithMIFDataBits(128) ++ new ComparatorConfig)
