@@ -225,6 +225,7 @@ class BaseConfig extends Config (
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0
+      case NExtBusAXIChannels => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
@@ -255,7 +256,7 @@ class BaseConfig extends Config (
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
-          nCachelessClients = site(NUncachedTileLinkPorts),
+          nCachelessClients = site(NExtBusAXIChannels) + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
               site(NMSHRs) + 1 /* IOMSHR */,

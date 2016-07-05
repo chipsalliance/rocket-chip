@@ -39,6 +39,7 @@ case object ExtMMIOPorts extends Field[AddrMap]
 case object NExtMMIOAXIChannels extends Field[Int]
 case object NExtMMIOAHBChannels extends Field[Int]
 case object NExtMMIOTLChannels  extends Field[Int]
+case object NExtBusAXIChannels extends Field[Int]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
@@ -95,6 +96,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
   val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
+  val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
   val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
@@ -191,6 +193,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   io.mem_axi <> uncore.io.mem_axi
   io.mem_ahb <> uncore.io.mem_ahb
   io.mem_tl <> uncore.io.mem_tl
+  uncore.io.bus_axi <> io.bus_axi
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -207,6 +210,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
+    val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
     val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
     val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
     val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
@@ -226,6 +230,7 @@ class Uncore(implicit val p: Parameters) extends Module
   io.mem_axi <> outmemsys.io.mem_axi
   io.mem_ahb <> outmemsys.io.mem_ahb
   io.mem_tl  <> outmemsys.io.mem_tl
+  outmemsys.io.bus_axi <> io.bus_axi
 
   def connectExternalMMIO(ports: Seq[ClientUncachedTileLinkIO])(implicit p: Parameters) {
     val mmio_axi_start = 0
@@ -301,6 +306,7 @@ abstract class AbstractOuterMemorySystem(implicit val p: Parameters)
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)
     val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
     val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
+    val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
   }
 }
@@ -364,10 +370,16 @@ class OuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemorySyste
   })))
   io.mmio <> mmioManager.io.outer
 
+  val bus_in = io.bus_axi.map { ext_nasti =>
+    val converter = Module(new TileLinkIONastiIOConverter)
+    converter.io.nasti <> ext_nasti
+    converter.io.tl
+  }
+
   // Wire the tiles to the TileLink client ports of the L1toL2 network,
   // and coherence manager(s) to the other side
   l1tol2net.io.clients_cached <> io.tiles_cached
-  l1tol2net.io.clients_uncached <> io.tiles_uncached
+  l1tol2net.io.clients_uncached <> io.tiles_uncached ++ bus_in
   l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
 
   // Create a converter between TileLinkIO and MemIO for each channel
