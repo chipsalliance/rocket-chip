@@ -20,7 +20,7 @@ class SmiExample(implicit p: Parameters) extends HtifModule()(p) {
     resp_valid := Bool(false)
   }
 
-  val read_addr = Reg(init = UInt(width=10))
+  val read_addr = Reg(UInt(width=10))
   when (io.smi.req.fire()) {
     read_addr := io.smi.req.bits.addr
     resp_valid := Bool(true)
@@ -31,6 +31,9 @@ class SmiExample(implicit p: Parameters) extends HtifModule()(p) {
 
   // Whatever you want to do in SMI
   val mem = Reg(Vec(1024, UInt(width = 64)))
+  when (reset) {
+    mem(0) := UInt(0)
+  }
   when (io.smi.req.fire() && io.smi.req.bits.rw) {
     mem(io.smi.req.bits.addr) := ~io.smi.req.bits.data
   }
