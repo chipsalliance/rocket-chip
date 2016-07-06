@@ -380,13 +380,16 @@ trait RoutesInParent extends HasBlockAddressBuffer
   def exactAddrMatch(a: HasCacheBlockAddress): Bool = a.conflicts(xact_addr_block)
   def routeInParent(iacqMatches: AddrComparison = exactAddrMatch,
             irelMatches: AddrComparison = exactAddrMatch,
-            oprbMatches: AddrComparison = exactAddrMatch) {
+            oprbMatches: AddrComparison = exactAddrMatch,
+            iacqCanAlloc: Bool = Bool(false),
+            irelCanAlloc: Bool = Bool(false),
+            oprbCanAlloc: Bool = Bool(false)) {
     io.alloc.iacq.matches := (state =/= s_idle) && iacqMatches(io.iacq())
     io.alloc.irel.matches := (state =/= s_idle) && irelMatches(io.irel())
     io.alloc.oprb.matches := (state =/= s_idle) && oprbMatches(io.oprb())
-    io.alloc.iacq.can := state === s_idle
-    io.alloc.irel.can := state === s_idle
-    io.alloc.oprb.can := Bool(false)
+    io.alloc.iacq.can := state === s_idle && iacqCanAlloc
+    io.alloc.irel.can := state === s_idle && irelCanAlloc
+    io.alloc.oprb.can := state === s_idle && oprbCanAlloc
   }
 }
 
