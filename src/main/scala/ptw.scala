@@ -9,8 +9,10 @@ import Util._
 import cde.{Parameters, Field}
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
-  val addr = UInt(width = vpnBits)
   val prv = Bits(width = 2)
+  val pum = Bool()
+  val mxr = Bool()
+  val addr = UInt(width = vpnBits)
   val store = Bool()
   val fetch = Bool()
 }
@@ -34,23 +36,32 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
-  val ppn = Bits(width = ppnBits)
-  val reserved_for_software = Bits(width = 3)
+  val reserved_for_hardware = Bits(width = 16)
+  val ppn = UInt(width = 38)
+  val reserved_for_software = Bits(width = 2)
   val d = Bool()
+  val a = Bool()
+  val g = Bool()
+  val u = Bool()
+  val x = Bool()
+  val w = Bool()
   val r = Bool()
-  val typ = Bits(width = 4)
   val v = Bool()
 
-  def table(dummy: Int = 0) = v && typ < 2
-  def leaf(dummy: Int = 0) = v && typ >= 2
-  def ur(dummy: Int = 0) = leaf() && typ < 8
-  def uw(dummy: Int = 0) = ur() && typ(0)
-  def ux(dummy: Int = 0) = ur() && typ(1)
-  def sr(dummy: Int = 0) = leaf()
-  def sw(dummy: Int = 0) = leaf() && typ(0)
-  def sx(dummy: Int = 0) = v && typ >= 4 && typ(1)
-  def access_ok(prv: Bits, store: Bool, fetch: Bool) =
-    Mux(prv(0), Mux(fetch, sx(), Mux(store, sw(), sr())), Mux(fetch, ux(), Mux(store, uw(), ur())))
+  def table(dummy: Int = 0) = v && !r && !w && !x
+  def leaf(dummy: Int = 0) = v && (r || (x && !w))
+  def ur(dummy: Int = 0) = sr() && u
+  def uw(dummy: Int = 0) = sw() && u
+  def ux(dummy: Int = 0) = sx() && u
+  def sr(dummy: Int = 0) = leaf() && r
+  def sw(dummy: Int = 0) = leaf() && w
+  def sx(dummy: Int = 0) = leaf() && x
+
+  def access_ok(req: PTWReq) = {
+    val perm_ok = Mux(req.fetch, x, Mux(req.store, w, r || (x && req.mxr)))
+    val priv_ok = Mux(u, !req.pum, req.prv(0))
+    leaf() && priv_ok && perm_ok
+  }
 }
 
 class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
@@ -106,14 +117,13 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     (hit, Mux1H(hits, data))
   }
 
-  val perm_ok = pte.access_ok(r_req.prv, r_req.store, r_req.fetch)
-  val set_dirty_bit = perm_ok && (!pte.r || (r_req.store && !pte.d))
+  val set_dirty_bit = pte.access_ok(r_req) && (!pte.a || (r_req.store && !pte.d))
   when (io.mem.resp.valid && state === s_wait && !set_dirty_bit) {
     r_pte := pte
   }
 
   val pte_wdata = Wire(init=new PTE().fromBits(0))
-  pte_wdata.r := true
+  pte_wdata.a := true
   pte_wdata.d := r_req.store
   
   io.mem.req.valid     := state === s_req || state === s_set_dirty
@@ -162,7 +172,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
       }
       when (io.mem.resp.valid) {
         state := s_done
-        when (pte.leaf() && set_dirty_bit) {
+        when (set_dirty_bit) {
           state := s_set_dirty
         }
         when (pte.table() && count < pgLevels-1) {

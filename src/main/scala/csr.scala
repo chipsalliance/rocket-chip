@@ -17,7 +17,8 @@ class MStatus extends Bundle {
   val sd_rv32 = Bool()
   val zero2 = UInt(width = 2)
   val vm = UInt(width = 5)
-  val zero1 = UInt(width = 5)
+  val zero1 = UInt(width = 4)
+  val mxr = Bool()
   val pum = Bool()
   val mprv = Bool()
   val xs = UInt(width = 2)
@@ -463,6 +464,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
         reg_mstatus.mprv := new_mstatus.mprv
         when (supportedModes contains new_mstatus.mpp) { reg_mstatus.mpp := new_mstatus.mpp }
         if (supportedModes.size > 2) {
+          reg_mstatus.mxr := new_mstatus.mxr
           reg_mstatus.pum := new_mstatus.pum
           reg_mstatus.spp := new_mstatus.spp
           reg_mstatus.spie := new_mstatus.spie
