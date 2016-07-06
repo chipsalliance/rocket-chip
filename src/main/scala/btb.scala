@@ -157,7 +157,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   private def page(addr: UInt) = addr >> matchBits
   private def pageMatch(addr: UInt) = {
     val p = page(addr)
-    Vec(pages.map(_ === p)).toBits
+    pages.map(_ === p).toBits
   }
   private def tagMatch(addr: UInt, pgMatch: UInt) = {
     val idxMatch = idxs.map(_ === addr(matchBits-1,0))

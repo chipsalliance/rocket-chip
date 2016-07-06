@@ -13,7 +13,6 @@ object Util {
   implicit def bigIntToUInt(x: BigInt): UInt = UInt(x)
   implicit def booleanToBool(x: Boolean): Bits = Bool(x)
   implicit def intSeqToUIntSeq(x: Seq[Int]): Seq[UInt] = x.map(UInt(_))
-  implicit def seqToVec[T <: Data](x: Seq[T]): Vec[T] = Vec(x)
   implicit def wcToUInt(c: WideCounter): UInt = c.value
   implicit def sextToConv(x: UInt) = new AnyRef {
     def sextTo(n: Int): UInt =
@@ -23,6 +22,20 @@ object Util {
 
   implicit def booleanToIntConv(x: Boolean) = new AnyRef {
     def toInt: Int = if (x) 1 else 0
+  }
+
+  implicit class SeqToAugmentedSeq[T <: Data](val x: Seq[T]) extends AnyVal {
+    def apply(idx: UInt): T = {
+      if (x.size == 1) {
+        x.head
+      } else {
+        val half = 1 << (log2Ceil(x.size) - 1)
+        val newIdx = idx & (half - 1)
+        Mux(idx >= UInt(half), x.drop(half)(newIdx), x.take(half)(newIdx))
+      }
+    }
+
+    def toBits(): UInt = Cat(x.map(_.toBits).reverse)
   }
 
   def minUInt(values: Seq[UInt]): UInt =

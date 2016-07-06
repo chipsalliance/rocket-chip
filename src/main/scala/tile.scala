@@ -105,7 +105,7 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
     respArb.io.in <> roccs.map(rocc => Queue(rocc.io.resp))
 
     if (p(RoccNCSRs) > 0) {
-      core.io.rocc.csr.rdata <> roccs.map(_.io.csr.rdata).reduce(_ ++ _)
+      core.io.rocc.csr.rdata <> roccs.flatMap(_.io.csr.rdata)
       for ((rocc, accelParams) <- roccs.zip(buildRocc)) {
         rocc.io.csr.waddr := core.io.rocc.csr.waddr
         rocc.io.csr.wdata := core.io.rocc.csr.wdata

@@ -884,7 +884,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   writeArb.io.out.ready := data.io.write.ready
   data.io.write.bits := writeArb.io.out.bits
   val wdata_encoded = (0 until rowWords).map(i => code.encode(writeArb.io.out.bits.data(coreDataBits*(i+1)-1,coreDataBits*i)))
-  data.io.write.bits.data := Cat(wdata_encoded.reverse)
+  data.io.write.bits.data := wdata_encoded.toBits
 
   // tag read for new requests
   metaReadArb.io.in(4).valid := io.cpu.req.valid
@@ -948,10 +948,10 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
   val s2_data_muxed = Mux1H(s2_tag_match_way, s2_data)
   val s2_data_decoded = (0 until rowWords).map(i => code.decode(s2_data_muxed(encDataBits*(i+1)-1,encDataBits*i)))
-  val s2_data_corrected = Vec(s2_data_decoded.map(_.corrected)).toBits
-  val s2_data_uncorrected = Vec(s2_data_decoded.map(_.uncorrected)).toBits
+  val s2_data_corrected = s2_data_decoded.map(_.corrected).toBits
+  val s2_data_uncorrected = s2_data_decoded.map(_.uncorrected).toBits
   val s2_word_idx = if(doNarrowRead) UInt(0) else s2_req.addr(log2Up(rowWords*coreDataBytes)-1,log2Up(wordBytes))
-  val s2_data_correctable = Vec(s2_data_decoded.map(_.correctable)).toBits()(s2_word_idx)
+  val s2_data_correctable = s2_data_decoded.map(_.correctable).toBits()(s2_word_idx)
 
   // store/amo hits
   s3_valid := (s2_valid_masked && s2_hit || s2_replay) && !s2_sc_fail && isWrite(s2_req.cmd)
