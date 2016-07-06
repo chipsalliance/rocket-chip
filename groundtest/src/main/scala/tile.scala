@@ -51,8 +51,12 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   s2_resp.pte.ppn := s2_ppn
   s2_resp.pte.reserved_for_software := UInt(0)
   s2_resp.pte.d := Bool(true)
-  s2_resp.pte.r := Bool(false)
-  s2_resp.pte.typ := UInt("b0101")
+  s2_resp.pte.a := Bool(false)
+  s2_resp.pte.g := Bool(false)
+  s2_resp.pte.u := Bool(true)
+  s2_resp.pte.r := Bool(true)
+  s2_resp.pte.w := Bool(true)
+  s2_resp.pte.x := Bool(false)
   s2_resp.pte.v := Bool(true)
 
   io.requestors.zipWithIndex.foreach { case (requestor, i) =>
