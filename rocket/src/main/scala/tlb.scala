@@ -56,12 +56,11 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   val hits = hitsVec.toBits
   
   // permission bit arrays
-  val ur_array = Reg(UInt(width = entries)) // user read permission
-  val uw_array = Reg(UInt(width = entries)) // user write permission
-  val ux_array = Reg(UInt(width = entries)) // user execute permission
-  val sr_array = Reg(UInt(width = entries)) // supervisor read permission
-  val sw_array = Reg(UInt(width = entries)) // supervisor write permission
-  val sx_array = Reg(UInt(width = entries)) // supervisor execute permission
+  val pte_array = Reg(new PTE)
+  val u_array = Reg(UInt(width = entries)) // user permission
+  val sw_array = Reg(UInt(width = entries)) // write permission
+  val sx_array = Reg(UInt(width = entries)) // execute permission
+  val sr_array = Reg(UInt(width = entries)) // read permission
   val dirty_array = Reg(UInt(width = entries)) // PTE dirty bit
   when (io.ptw.resp.valid) {
     val pte = io.ptw.resp.bits.pte
@@ -70,9 +69,7 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
 
     val mask = UIntToOH(r_refill_waddr)
     valid := valid | mask
-    ur_array := Mux(pte.ur(), ur_array | mask, ur_array & ~mask)
-    uw_array := Mux(pte.uw(), uw_array | mask, uw_array & ~mask)
-    ux_array := Mux(pte.ux(), ux_array | mask, ux_array & ~mask)
+    u_array := Mux(pte.u, u_array | mask, u_array & ~mask)
     sr_array := Mux(pte.sr(), sr_array | mask, sr_array & ~mask)
     sw_array := Mux(pte.sw(), sw_array | mask, sw_array & ~mask)
     sx_array := Mux(pte.sx(), sx_array | mask, sx_array & ~mask)
@@ -88,10 +85,10 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   val priv_s = priv === PRV.S
   val priv_uses_vm = priv <= PRV.S && !io.ptw.status.debug
 
-  val pum_ok = ~Mux(io.ptw.status.pum, ur_array, UInt(0))
-  val r_array = Mux(priv_s, sr_array & pum_ok, ur_array)
-  val w_array = Mux(priv_s, sw_array & pum_ok, uw_array)
-  val x_array = Mux(priv_s, sx_array, ux_array)
+  val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.pum, u_array, UInt(0)), u_array)
+  val w_array = priv_ok & sw_array
+  val x_array = priv_ok & sx_array
+  val r_array = priv_ok & (sr_array | Mux(io.ptw.status.mxr, x_array, UInt(0)))
 
   val vm_enabled = Bool(usingVM) && io.ptw.status.vm(3) && priv_uses_vm && !io.req.bits.passthrough
   val bad_va =
@@ -118,8 +115,8 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   io.resp.ppn := Mux(vm_enabled, Mux1H(hitsVec, ppns), io.req.bits.vpn(ppnBits-1,0))
 
   io.ptw.req.valid := state === s_request
+  io.ptw.req.bits := io.ptw.status
   io.ptw.req.bits.addr := r_refill_tag
-  io.ptw.req.bits.prv := io.ptw.status.prv
   io.ptw.req.bits.store := r_req.store
   io.ptw.req.bits.fetch := r_req.instruction
 
