@@ -97,6 +97,18 @@ class WithMemtest extends Config(
     case _ => throw new CDEMatchError
   })
 
+class WithNCachedGenerators(n: Int) extends Config(
+  (pname, site, here) => pname match {
+    case GroundTestCachedClients => n
+    case _ => throw new CDEMatchError
+  })
+
+class WithNUncachedGenerators(n: Int) extends Config(
+  (pname, site, here) => pname match {
+    case GroundTestUncachedClients => n
+    case _ => throw new CDEMatchError
+  })
+
 class WithCacheFillTest extends Config(
   (pname, site, here) => pname match {
     case GroundTestUncachedClients => 1
@@ -191,50 +203,49 @@ class WithTraceGen extends Config(
     case _ => throw new CDEMatchError
   })
 
+class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
+
 class ComparatorConfig extends Config(new WithComparator ++ new GroundTestConfig)
 class ComparatorL2Config extends Config(
   new WithAtomics ++ new WithPrefetches ++
   new WithL2Cache ++ new ComparatorConfig)
 class ComparatorBufferlessConfig extends Config(
   new WithBufferlessBroadcastHub ++ new ComparatorConfig)
-class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
+
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
   new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
 class MemtestBufferlessConfig extends Config(
   new WithMemtest ++ new WithBufferlessBroadcastHub ++ new GroundTestConfig)
-class CacheFillTestConfig extends Config(
-  new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
-class BroadcastRegressionTestConfig extends Config(
-  new WithBroadcastRegressionTest ++ new GroundTestConfig)
-class BufferlessRegressionTestConfig extends Config(
-  new WithBufferlessBroadcastHub ++ new BroadcastRegressionTestConfig)
-class CacheRegressionTestConfig extends Config(
-  new WithCacheRegressionTest ++ new WithL2Cache ++ new GroundTestConfig)
-class DmaTestConfig extends Config(new WithDmaTest ++ new WithL2Cache ++ new GroundTestConfig)
-class DmaStreamTestConfig extends Config(new WithDmaStreamTest ++ new WithStreamLoopback ++ new WithL2Cache ++ new GroundTestConfig)
-class NastiConverterTestConfig extends Config(new WithNastiConverterTest ++ new GroundTestConfig)
-class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
-class TraceGenConfig extends Config(new WithNCores(2) ++ new WithL2Cache ++ new WithTraceGen ++ new GroundTestConfig)
-
-class WithNCachedGenerators(n: Int) extends Config(
-  (pname, site, here) => pname match {
-    case GroundTestCachedClients => n
-    case _ => throw new CDEMatchError
-  })
-
-class WithNUncachedGenerators(n: Int) extends Config(
-  (pname, site, here) => pname match {
-    case GroundTestUncachedClients => n
-    case _ => throw new CDEMatchError
-  })
-
 // Test ALL the things
 class FancyMemtestConfig extends Config(
   new WithNCachedGenerators(1) ++ new WithNUncachedGenerators(2) ++
   new WithNCores(2) ++ new WithMemtest ++
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
   new WithSplitL2Metadata ++ new WithL2Cache ++ new GroundTestConfig)
+
+class CacheFillTestConfig extends Config(
+  new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
+
+class BroadcastRegressionTestConfig extends Config(
+  new WithBroadcastRegressionTest ++ new GroundTestConfig)
+class BufferlessRegressionTestConfig extends Config(
+  new WithBufferlessBroadcastHub ++ new BroadcastRegressionTestConfig)
+class CacheRegressionTestConfig extends Config(
+  new WithCacheRegressionTest ++ new WithL2Cache ++ new GroundTestConfig)
+
+class DmaTestConfig extends Config(new WithDmaTest ++ new WithL2Cache ++ new GroundTestConfig)
+class DmaStreamTestConfig extends Config(new WithDmaStreamTest ++ new WithStreamLoopback ++ new WithL2Cache ++ new GroundTestConfig)
+class NastiConverterTestConfig extends Config(new WithNastiConverterTest ++ new GroundTestConfig)
+
+class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
+
+class TraceGenConfig extends Config(
+  new WithNCores(2) ++ new WithTraceGen ++ new GroundTestConfig)
+class TraceGenBufferlessConfig extends Config(
+  new WithBufferlessBroadcastHub ++ new TraceGenConfig)
+class TraceGenL2Config extends Config(
+  new WithL2Cache ++ new TraceGenConfig)
 
 class MIF128BitComparatorConfig extends Config(
   new WithMIFDataBits(128) ++ new ComparatorConfig)
