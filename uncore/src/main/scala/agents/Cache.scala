@@ -729,8 +729,9 @@ class CacheVoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters)
   pinAllReadyValidLow(io)
 
   // Avoid metatdata races with writebacks
-  routeInParent(iacqMatches = inSameSet(_, xact_addr_block))
-  io.alloc.iacq.can := Bool(false)
+  routeInParent(
+    iacqMatches = inSameSet(_, xact_addr_block),
+    irelCanAlloc = Bool(true))
 
   // Initialize and accept pending Release beats
   innerRelease(
@@ -811,8 +812,8 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
   routeInParent(
     iacqMatches = inSameSet(_, xact_addr_block),
     irelMatches = (irel: HasCacheBlockAddress) => 
-      Mux(before_wb_alloc, inSameSet(irel, xact_addr_block), exactAddrMatch(irel)))
-  io.alloc.irel.can := Bool(false)
+      Mux(before_wb_alloc, inSameSet(irel, xact_addr_block), exactAddrMatch(irel)),
+    iacqCanAlloc = Bool(true))
 
   // TileLink allows for Gets-under-Get
   // and Puts-under-Put, and either may also merge with a preceding prefetch

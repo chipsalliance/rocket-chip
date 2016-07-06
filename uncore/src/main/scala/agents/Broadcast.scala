@@ -108,8 +108,7 @@ class BufferedBroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Param
     with HasDataBuffer {
 
   // Tell the parent if any incoming messages conflict with the ongoing transaction
-  routeInParent()
-  io.alloc.iacq.can := Bool(false)
+  routeInParent(irelCanAlloc = Bool(true))
 
   // Start transaction by accepting inner release
   innerRelease(block_vol_ignt = pending_orel || vol_ognt_counter.pending)
@@ -133,8 +132,7 @@ class BufferedBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
     with HasByteWriteMaskBuffer {
 
   // Setup IOs used for routing in the parent
-  routeInParent()
-  io.alloc.irel.can := Bool(false)
+  routeInParent(iacqCanAlloc = Bool(true))
 
   // First, take care of accpeting new acquires or secondary misses
   // Handling of primary and secondary misses' data and write mask merging
