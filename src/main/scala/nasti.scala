@@ -71,6 +71,17 @@ trait HasNastiData extends HasNastiParameters {
   val last = Bool()
 }
 
+class NastiReadIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
+  val ar = Decoupled(new NastiReadAddressChannel)
+  val r  = Decoupled(new NastiReadDataChannel).flip
+}
+
+class NastiWriteIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
+  val aw = Decoupled(new NastiWriteAddressChannel)
+  val w  = Decoupled(new NastiWriteDataChannel)
+  val b  = Decoupled(new NastiWriteResponseChannel).flip
+}
+
 class NastiIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val aw = Decoupled(new NastiWriteAddressChannel)
   val w  = Decoupled(new NastiWriteDataChannel)
