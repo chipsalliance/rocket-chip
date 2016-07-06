@@ -65,50 +65,72 @@ class NastiBlockTest(implicit p: Parameters) extends NastiTest()(p) {
 
   assert(!io.mem.r.valid || io.mem.r.bits.data === data_beats(r_count),
     "NASTI Block Test: results do not match")
+
+  val timeout = Timer(8192, state === s_start, io.finished)
+  assert(!timeout, "NastiBlockTest timed out")
 }
 
 class NastiSmallTest(implicit p: Parameters) extends NastiTest()(p) {
+  val mifDataBytes = mifDataBits / 8
 
-  val (s_start :: s_write_addr :: s_write_data :: s_write_resp ::
-       s_read_req :: s_read_resp :: s_finish :: Nil) = Enum(Bits(), 7)
+  val (s_start :: s_write_addr :: s_write_data ::
+       s_read  :: s_wait :: s_finish :: Nil) = Enum(Bits(), 6)
   val state = Reg(init = s_start)
 
-  val write_acked = Reg(init = Bool(false))
-  val ref_data = UInt(0x35abffcd, mifDataBits)
+  val nTests = 8
+  val ref_data = Vec.tabulate(nTests) { i => UInt(0x35abffcd + i, 32) }
+
+  val (write_idx, write_done) = Counter(io.mem.w.fire(), nTests)
+  val write_addr = UInt(memStart + 0x200) + Cat(write_idx, UInt(0, 2))
+  val write_data = Fill(mifDataBits / 32, ref_data(write_idx))
+  val write_align = write_addr(log2Up(mifDataBytes) - 1, 0)
+  val write_mask = UInt("h0f") << write_align
+
+  val (read_idx, read_done) = Counter(io.mem.ar.fire(), nTests)
+  val read_addr = UInt(memStart + 0x200) + Cat(read_idx, UInt(0, 2))
+  val (read_resp_idx,  read_resp_done)  = Counter(io.mem.r.fire(), nTests)
 
   io.mem.aw.valid := (state === s_write_addr)
   io.mem.aw.bits := NastiWriteAddressChannel(
     id = UInt(0),
-    addr = UInt(memStart + 0x20C),
+    addr = write_addr,
     len = UInt(0),
     size = UInt("b010"))
 
   io.mem.w.valid := (state === s_write_data)
   io.mem.w.bits := NastiWriteDataChannel(
-    data = ref_data << UInt(32),
+    data = write_data,
+    strb = Some(write_mask),
     last = Bool(true))
 
-  io.mem.ar.valid := (state === s_read_req)
+  io.mem.ar.valid := (state === s_read)
   io.mem.ar.bits := NastiReadAddressChannel(
-    id = UInt(1),
-    addr = UInt(memStart + 0x20C),
+    id = UInt(0),
+    addr = read_addr,
     len = UInt(0),
     size = UInt("b010"))
 
-  io.mem.r.ready := (state === s_read_resp)
-  io.mem.b.ready := (state === s_write_resp)
+  io.mem.r.ready := Bool(true)
+  io.mem.b.ready := Bool(true)
 
   when (state === s_start) { state := s_write_addr }
   when (io.mem.aw.fire()) { state := s_write_data  }
-  when (io.mem.w.fire()) { state := s_write_resp }
-  when (io.mem.b.fire()) { state := s_read_req }
-  when (io.mem.ar.fire()) { state := s_read_resp }
-  when (io.mem.r.fire()) { state := s_finish }
+  when (io.mem.w.fire()) { state := s_write_addr }
+  when (write_done) { state := s_read }
+  when (read_done) { state := s_wait }
+  when (read_resp_done) { state := s_finish }
 
   io.finished := (state === s_finish)
 
-  assert(!io.mem.r.valid || io.mem.r.bits.data(63, 32) === ref_data,
+  val readShiftBits = log2Ceil(mifDataBits / 32)
+  val read_shift = Cat(read_resp_idx(readShiftBits - 1, 0), UInt(0, 5))
+  val read_data = (io.mem.r.bits.data >> read_shift)(31, 0)
+
+  assert(!io.mem.r.valid || read_data === ref_data(read_resp_idx),
     "NASTI Small Test: results do not match")
+
+  val timeout = Timer(8192, state === s_start, io.finished)
+  assert(!timeout, "NastiSmallTest timed out")
 }
 
 class NastiSequencer(n: Int)(implicit p: Parameters) extends Module {
