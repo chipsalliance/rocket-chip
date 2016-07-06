@@ -147,6 +147,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val tgts = Reg(Vec(entries, UInt(width=matchBits)))
   val tgtPages = Reg(Vec(entries, UInt(width=log2Up(nPages))))
   val pages = Reg(Vec(nPages, UInt(width=vaddrBits-matchBits)))
+  val pageValid = Reg(init = UInt(0, nPages))
   val idxPagesOH = idxPages.map(UIntToOH(_)(nPages-1,0))
   val tgtPagesOH = tgtPages.map(UIntToOH(_)(nPages-1,0))
 
@@ -157,12 +158,12 @@ class BTB(implicit p: Parameters) extends BtbModule {
   private def page(addr: UInt) = addr >> matchBits
   private def pageMatch(addr: UInt) = {
     val p = page(addr)
-    pages.map(_ === p).toBits
+    pageValid & pages.map(_ === p).toBits
   }
   private def tagMatch(addr: UInt, pgMatch: UInt) = {
-    val idxMatch = idxs.map(_ === addr(matchBits-1,0))
-    val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR)
-    (idxPageMatch zip idxMatch) map { case (p, i) => p && i }
+    val idxMatch = idxs.map(_ === addr(matchBits-1,0)).toBits
+    val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR).toBits
+    idxMatch & idxPageMatch
   }
 
   val r_btb_update = Pipe(io.btb_update)
@@ -172,16 +173,20 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val hitsVec = tagMatch(io.req.bits.addr, pageHit)
   val hits = hitsVec.toBits
   val updatePageHit = pageMatch(r_btb_update.bits.pc)
-  val updateHits = tagMatch(r_btb_update.bits.pc, updatePageHit)
 
-  val updateHit = r_btb_update.bits.prediction.valid
-  val nextRepl = Reg(UInt(width = log2Ceil(entries)))
-  when (r_btb_update.valid && !updateHit) { nextRepl := Mux(nextRepl === entries-1 && Bool(!isPow2(entries)), 0,  nextRepl + 1) }
-  val nextPageRepl = Reg(UInt(width = log2Ceil(nPages)))
+  val updateHits = tagMatch(r_btb_update.bits.pc, updatePageHit)
+  val updateHit = if (updatesOutOfOrder) updateHits.orR else r_btb_update.bits.prediction.valid
+  val updateHitAddr = if (updatesOutOfOrder) OHToUInt(updateHits) else r_btb_update.bits.prediction.bits.entry
+
+  // guarantee one-hotness of idx after reset
+  val resetting = Reg(init = Bool(true))
+  val (nextRepl, wrap) = Counter(resetting || (r_btb_update.valid && !updateHit), entries)
+  when (wrap) { resetting := false }
 
   val useUpdatePageHit = updatePageHit.orR
   val usePageHit = pageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
+  val nextPageRepl = Reg(UInt(width = log2Ceil(nPages)))
   val idxPageRepl = Mux(usePageHit, Cat(pageHit(nPages-2,0), pageHit(nPages-1)), UIntToOH(nextPageRepl))
   val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
@@ -199,18 +204,15 @@ class BTB(implicit p: Parameters) extends BtbModule {
     nextPageRepl := Mux(next >= nPages, next(0), next)
   }
 
-  when (r_btb_update.valid) {
-    assert(io.req.bits.addr === r_btb_update.bits.target, "BTB request != I$ target")
+  when (r_btb_update.valid || resetting) {
+    assert(resetting || io.req.bits.addr === r_btb_update.bits.target, "BTB request != I$ target")
 
-    val waddr =
-      if (updatesOutOfOrder) Mux(updateHits.reduce(_|_), OHToUInt(updateHits), nextRepl)
-      else Mux(updateHit, r_btb_update.bits.prediction.bits.entry, nextRepl)
-
-    idxs(waddr) := r_btb_update.bits.pc
+    val waddr = Mux(updateHit && !resetting, updateHitAddr, nextRepl)
+    val mask = UIntToOH(waddr)
+    idxs(waddr) := Mux(resetting, Cat(r_btb_update.bits.pc >> log2Ceil(entries), nextRepl), r_btb_update.bits.pc)
     tgts(waddr) := update_target
     idxPages(waddr) := idxPageUpdate
     tgtPages(waddr) := tgtPageUpdate
-    val mask = UIntToOH(waddr)
     useRAS := Mux(r_btb_update.bits.isReturn, useRAS | mask, useRAS & ~mask)
     isJump := Mux(r_btb_update.bits.isJump, isJump | mask, isJump & ~mask)
     if (fetchWidth > 1)
@@ -227,6 +229,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
       Mux(idxWritesEven, page(r_btb_update.bits.pc), page(update_target)))
     writeBank(1, 2, Mux(idxWritesEven, tgtPageReplEn, idxPageReplEn),
       Mux(idxWritesEven, page(update_target), page(r_btb_update.bits.pc)))
+    pageValid := pageValid | tgtPageReplEn | idxPageReplEn
   }
 
   io.resp.valid := hits.orR
