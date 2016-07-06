@@ -474,7 +474,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   csr.io.rocc.interrupt <> io.rocc.interrupt
   csr.io.pc := wb_reg_pc
   csr.io.badaddr := Mux(wb_reg_mem_xcpt, encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata), wb_reg_pc)
-  csr.io.uarch_counters.foreach(_ := Bool(false))
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.invalidate := csr.io.fatc
   io.ptw.status := csr.io.status

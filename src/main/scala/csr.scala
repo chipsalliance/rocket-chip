@@ -121,7 +121,6 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val evec = UInt(OUTPUT, vaddrBitsExtended)
   val exception = Bool(INPUT)
   val retire = UInt(INPUT, log2Up(1+retireWidth))
-  val uarch_counters = Vec(16, UInt(INPUT, log2Up(1+retireWidth)))
   val custom_mrw_csrs = Vec(nCustomMrwCsrs, UInt(INPUT, xLen))
   val cause = UInt(INPUT, xLen)
   val pc = UInt(INPUT, vaddrBitsExtended)
@@ -207,7 +206,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_sptbr = Reg(new PTBR)
   val reg_wfi = Reg(init=Bool(false))
 
-  val reg_uarch_counters = io.uarch_counters.map(WideCounter(xLen, _))
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
