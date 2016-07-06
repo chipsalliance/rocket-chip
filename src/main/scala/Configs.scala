@@ -8,6 +8,7 @@ import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
 import uncore.devices._
+import uncore.converters._
 import rocket._
 import rocket.Util._
 import groundtest._
@@ -307,6 +308,7 @@ class BaseConfig extends Config (
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
       case EnableL2Logging => false
+      case NastiResponseBufferDepth => site(MIFDataBeats) * site(NAcquireTransactors)
       case _ => throw new CDEMatchError
   }},
   knobValues = {
