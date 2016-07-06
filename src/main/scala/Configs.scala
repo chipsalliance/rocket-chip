@@ -306,6 +306,7 @@ class BaseConfig extends Config (
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
+      case EnableL2Logging => false
       case _ => throw new CDEMatchError
   }},
   knobValues = {
