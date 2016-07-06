@@ -116,7 +116,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val s1_paddr = Cat(tlb.io.resp.ppn, s1_req.addr(pgIdxBits-1,0))
   val s1_tag = Mux(s1_probe, probe_bits.addr_block >> idxBits, s1_paddr(paddrBits-1, untagBits))
-  val s1_hit_way = Cat(meta.io.resp.map(r => r.coh.isValid() && r.tag === s1_tag).reverse)
+  val s1_hit_way = meta.io.resp.map(r => r.coh.isValid() && r.tag === s1_tag).toBits
   val s1_hit_state = ClientMetadata.onReset.fromBits(
     meta.io.resp.map(r => Mux(r.tag === s1_tag, r.coh.toBits, UInt(0)))
     .reduce (_|_))

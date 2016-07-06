@@ -81,7 +81,8 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val r_req_dest = Reg(Bits())
   val r_pte = Reg(new PTE)
   
-  val vpn_idx = Vec((0 until pgLevels).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0)))(count)
+  val vpn_idxs = (0 until pgLevels).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
+  val vpn_idx = vpn_idxs(count)
 
   val arb = Module(new RRArbiter(new PTWReq, n))
   arb.io.in <> io.requestor.map(_.req)
@@ -103,7 +104,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val tags = Reg(Vec(size, UInt(width = paddrBits)))
     val data = Reg(Vec(size, UInt(width = ppnBits)))
 
-    val hits = Vec(tags.map(_ === pte_addr)).toBits & valid
+    val hits = tags.map(_ === pte_addr).toBits & valid
     val hit = hits.orR
     when (io.mem.resp.valid && pte.table() && !hit) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
@@ -136,7 +137,8 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.invalidate_lr := Bool(false)
   
   val r_resp_ppn = io.mem.req.bits.addr >> pgIdxBits
-  val resp_ppn = Vec((0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn)(count)
+  val resp_ppns = (0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn
+  val resp_ppn = resp_ppns(count)
   val resp_val = state === s_done
 
   for (i <- 0 until io.requestor.size) {
