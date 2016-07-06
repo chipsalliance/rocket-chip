@@ -182,9 +182,8 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val useUpdatePageHit = updatePageHit.orR
   val usePageHit = pageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
-  val idxPageRepl = UIntToOH(nextPageRepl)
-  val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit,
-                        Mux(usePageHit, Cat(pageHit(nPages-2,0), pageHit(nPages-1)), idxPageRepl))
+  val idxPageRepl = Mux(usePageHit, Cat(pageHit(nPages-2,0), pageHit(nPages-1)), UIntToOH(nextPageRepl))
+  val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
   val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, UInt(0))
 
