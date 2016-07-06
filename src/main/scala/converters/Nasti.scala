@@ -6,8 +6,10 @@ import uncore.tilelink._
 import uncore.constants._
 import cde.Parameters
 
-class IdMapper(val inIdBits: Int, val outIdBits: Int)
-    (implicit val p: Parameters) extends Module {
+class IdMapper(val inIdBits: Int, val outIdBits: Int,
+               val forceMapping: Boolean = false)
+              (implicit val p: Parameters) extends Module {
+
   val io = new Bundle {
     val req = new Bundle {
       val valid  = Bool(INPUT)
@@ -18,51 +20,44 @@ class IdMapper(val inIdBits: Int, val outIdBits: Int)
     val resp = new Bundle {
       val valid   = Bool(INPUT)
       val matches = Bool(OUTPUT)
-      val out_id  = UInt(INPUT, inIdBits)
-      val in_id   = UInt(OUTPUT, outIdBits)
+      val out_id  = UInt(INPUT, outIdBits)
+      val in_id   = UInt(OUTPUT, inIdBits)
     }
   }
   val maxInXacts = 1 << inIdBits
 
-  if (inIdBits <= outIdBits) {
+  if (inIdBits <= outIdBits && !forceMapping) {
     io.req.ready := Bool(true)
     io.req.out_id := io.req.in_id
     io.resp.matches := Bool(true)
     io.resp.in_id := io.resp.out_id
-  } else if (outIdBits <= 2) {
-    val nQueues = 1 << outIdBits
-    val entriesPerQueue = (maxInXacts - 1) / nQueues + 1
-    val (req_out_id, req_out_flip) = Counter(io.req.valid && io.req.ready, nQueues)
-    io.req.ready := Bool(false)
-    io.resp.matches := Bool(false)
-    io.resp.in_id := UInt(0)
-    io.req.out_id := req_out_id
-    for (i <- 0 until nQueues) {
-      val queue = Module(new Queue(UInt(width = inIdBits), entriesPerQueue))
-      queue.io.enq.valid := io.req.valid && req_out_id === UInt(i)
-      queue.io.enq.bits := io.req.in_id
-      when (req_out_id === UInt(i)) { io.req.ready := queue.io.enq.ready }
-
-      queue.io.deq.ready := io.resp.valid && io.resp.out_id === UInt(i)
-      when (io.resp.out_id === UInt(i)) {
-        io.resp.matches := queue.io.deq.valid
-        io.resp.in_id := queue.io.deq.bits
-      }
-    }
   } else {
-    val maxOutId = 1 << outIdBits
-    val (req_out_id, req_nasti_flip) = Counter(io.req.valid && io.req.ready, maxOutId)
-    val roq = Module(new ReorderQueue(
-      UInt(width = inIdBits), outIdBits, maxInXacts))
-    roq.io.enq.valid := io.req.valid
-    roq.io.enq.bits.data := io.req.in_id
-    roq.io.enq.bits.tag := req_out_id
-    io.req.ready := roq.io.enq.ready
-    io.req.out_id := req_out_id
-    roq.io.deq.valid := io.resp.valid
-    roq.io.deq.tag := io.resp.out_id
-    io.resp.in_id := roq.io.deq.data
-    io.resp.matches := roq.io.deq.matches
+    val nInXacts = 1 << inIdBits
+    val nOutXacts = 1 << outIdBits
+
+    val out_id_free = Reg(init = Vec.fill(nOutXacts){Bool(true)})
+    val next_out_id = PriorityEncoder(out_id_free)
+    val id_mapping = Reg(Vec(nInXacts, UInt(0, outIdBits)))
+    val id_valid = Reg(init = Vec.fill(nOutXacts){Bool(false)})
+
+    val req_fire = io.req.valid && io.req.ready
+    when (req_fire) {
+      out_id_free(io.req.out_id) := Bool(false)
+      id_valid(io.req.in_id) := Bool(true)
+      id_mapping(io.req.in_id) := io.req.out_id
+    }
+    when (io.resp.valid) {
+      out_id_free(io.resp.out_id) := Bool(true)
+      id_valid(io.resp.in_id) := Bool(false)
+    }
+
+    io.req.ready := out_id_free.reduce(_ || _) && !id_valid(io.req.in_id)
+    io.req.out_id := next_out_id
+
+    val id_matches = id_mapping.map(_ === io.resp.out_id)
+    val id_matches_valid = id_matches.zip(id_valid).map { case (m, v) => m && v }
+    io.resp.matches := id_matches_valid.reduce(_ || _)
+    io.resp.in_id := PriorityEncoder(id_matches_valid)
   }
 }
 
@@ -309,8 +304,8 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
     "NASTI write transaction cannot convert to TileLInk")
 
   val put_count = Reg(init = UInt(0, tlBeatAddrBits))
-  val get_id_mapper = Module(new IdMapper(nastiXIdBits, tlClientXactIdBits))
-  val put_id_mapper = Module(new IdMapper(nastiXIdBits, tlClientXactIdBits))
+  val get_id_mapper = Module(new IdMapper(nastiXIdBits, tlClientXactIdBits, true))
+  val put_id_mapper = Module(new IdMapper(nastiXIdBits, tlClientXactIdBits, true))
 
   when (io.nasti.aw.fire()) {
     aw_req := io.nasti.aw.bits
