@@ -568,8 +568,7 @@ class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
     Module(new TileLinkToSmiConverterTest),
     Module(new AtosConverterTest),
     Module(new NastiMemoryDemuxTest),
-    Module(new HastiTest),
-    Module(new BRAMSlaveTest))
+    Module(new HastiTest))
 
   val s_idle :: s_start :: s_wait :: Nil = Enum(Bits(), 3)
   val state = Reg(init = s_idle)
