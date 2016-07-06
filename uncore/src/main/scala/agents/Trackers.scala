@@ -6,8 +6,10 @@ import Chisel._
 import uncore.coherence._
 import uncore.tilelink._
 import uncore.util._
-import cde.Parameters
+import cde.{Field, Parameters}
 import scala.math.max
+
+case object EnableL2Logging extends Field[Boolean]
 
 class TrackerAllocation extends Bundle {
   val matches = Bool(OUTPUT)
@@ -265,6 +267,12 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
       } .otherwise {
         pending_irel_data := (pending_irel_data & dropPendingBitWhenBeatHasData(io.inner.release))
       }
+      if (p(EnableL2Logging)) {
+        when (io.irel().hasData()) {
+          printf("[release] addr_block=%x addr_beat=%d data=%x\n",
+                  io.irel().addr_block, io.irel().addr_beat, io.irel().data)
+        }
+      }
     }
 
     io.inner.grant.valid := Vec(s_wb_req, s_wb_resp, s_inner_probe, s_busy).contains(state) &&
@@ -484,6 +492,13 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
                            addPendingBitWhenBeatHasData(io.inner.release) |
                            addPendingBitWhenBeatHasData(io.outer.grant) |
                            add_pending_bits
+    }
+
+    if (p(EnableL2Logging)) {
+      when (io.inner.grant.fire() && io.ignt().hasData()) {
+        printf("[get] addr_block=%x addr_beat=%d data=%x\n",
+          xact_addr_block, io.ignt().addr_beat, io.ignt().data)
+      }
     }
 
     // Have we finished receiving the complete inner acquire transaction?
