@@ -91,8 +91,7 @@ class SmiArbiter(val n: Int, val dataWidth: Int, val addrWidth: Int)
 class SmiIONastiReadIOConverter(val dataWidth: Int, val addrWidth: Int)
                                (implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
-    val ar = Decoupled(new NastiReadAddressChannel).flip
-    val r = Decoupled(new NastiReadDataChannel)
+    val nasti = new NastiReadIO().flip
     val smi = new SmiIO(dataWidth, addrWidth)
   }
 
@@ -118,7 +117,7 @@ class SmiIONastiReadIOConverter(val dataWidth: Int, val addrWidth: Int)
 
   val buffer = Reg(init = Vec.fill(maxWordsPerBeat) { Bits(0, dataWidth) })
 
-  io.ar.ready := (state === s_idle)
+  io.nasti.ar.ready := (state === s_idle)
 
   io.smi.req.valid := (state === s_read) && !sendDone
   io.smi.req.bits.rw := Bool(false)
@@ -126,22 +125,22 @@ class SmiIONastiReadIOConverter(val dataWidth: Int, val addrWidth: Int)
 
   io.smi.resp.ready := (state === s_read)
 
-  io.r.valid := (state === s_resp)
-  io.r.bits := NastiReadDataChannel(
+  io.nasti.r.valid := (state === s_resp)
+  io.nasti.r.bits := NastiReadDataChannel(
     id = id,
     data = buffer.toBits,
     last = (nBeats === UInt(0)))
 
-  when (io.ar.fire()) {
-    when (io.ar.bits.size < UInt(byteOffBits)) {
+  when (io.nasti.ar.fire()) {
+    when (io.nasti.ar.bits.size < UInt(byteOffBits)) {
       nWords := UInt(0)
     } .otherwise {
-      nWords := calcWordCount(io.ar.bits.size)
+      nWords := calcWordCount(io.nasti.ar.bits.size)
     }
-    nBeats := io.ar.bits.len
-    addr := io.ar.bits.addr(addrOffBits - 1, byteOffBits)
-    recvInd := io.ar.bits.addr(wordCountBits + byteOffBits - 1, byteOffBits)
-    id := io.ar.bits.id
+    nBeats := io.nasti.ar.bits.len
+    addr := io.nasti.ar.bits.addr(addrOffBits - 1, byteOffBits)
+    recvInd := io.nasti.ar.bits.addr(wordCountBits + byteOffBits - 1, byteOffBits)
+    id := io.nasti.ar.bits.id
     state := s_read
   }
 
@@ -157,22 +156,20 @@ class SmiIONastiReadIOConverter(val dataWidth: Int, val addrWidth: Int)
     when (nWords === UInt(0)) { state := s_resp }
   }
 
-  when (io.r.fire()) {
+  when (io.nasti.r.fire()) {
     recvInd := UInt(0)
     sendDone := Bool(false)
     // clear all the registers in the buffer
     buffer.foreach(_ := Bits(0))
     nBeats := nBeats - UInt(1)
-    state := Mux(io.r.bits.last, s_idle, s_read)
+    state := Mux(io.nasti.r.bits.last, s_idle, s_read)
   }
 }
 
 class SmiIONastiWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
                                 (implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
-    val aw = Decoupled(new NastiWriteAddressChannel).flip
-    val w = Decoupled(new NastiWriteDataChannel).flip
-    val b = Decoupled(new NastiWriteResponseChannel)
+    val nasti = new NastiWriteIO().flip
     val smi = new SmiIO(dataWidth, addrWidth)
   }
 
@@ -182,7 +179,7 @@ class SmiIONastiWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   private val addrOffBits = addrWidth + byteOffBits
   private val nastiByteOffBits = log2Ceil(nastiXDataBits / 8)
 
-  assert(!io.aw.valid || io.aw.bits.size >= UInt(byteOffBits),
+  assert(!io.nasti.aw.valid || io.nasti.aw.bits.size >= UInt(byteOffBits),
     "Nasti size must be >= Smi size")
 
   val id = Reg(UInt(width = nastiWIdBits))
@@ -203,39 +200,39 @@ class SmiIONastiWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   val s_idle :: s_data :: s_send :: s_ack :: s_resp :: Nil = Enum(Bits(), 5)
   val state = Reg(init = s_idle)
 
-  io.aw.ready := (state === s_idle)
-  io.w.ready := (state === s_data)
+  io.nasti.aw.ready := (state === s_idle)
+  io.nasti.w.ready := (state === s_data)
   io.smi.req.valid := (state === s_send) && strb(0)
   io.smi.req.bits.rw := Bool(true)
   io.smi.req.bits.addr := addr
   io.smi.req.bits.data := data(dataWidth - 1, 0)
   io.smi.resp.ready := (state === s_ack)
-  io.b.valid := (state === s_resp)
-  io.b.bits := NastiWriteResponseChannel(id)
+  io.nasti.b.valid := (state === s_resp)
+  io.nasti.b.bits := NastiWriteResponseChannel(id)
 
   val jump = if (maxWordsPerBeat > 1)
     PriorityMux(strb(maxWordsPerBeat - 1, 1),
       (1 until maxWordsPerBeat).map(UInt(_)))
     else UInt(1)
 
-  when (io.aw.fire()) {
+  when (io.nasti.aw.fire()) {
     if (dataWidth == nastiXDataBits) {
-      addr := io.aw.bits.addr(addrOffBits - 1, byteOffBits)
+      addr := io.nasti.aw.bits.addr(addrOffBits - 1, byteOffBits)
     } else {
-      addr := Cat(io.aw.bits.addr(addrOffBits - 1, nastiByteOffBits),
+      addr := Cat(io.nasti.aw.bits.addr(addrOffBits - 1, nastiByteOffBits),
                   UInt(0, nastiByteOffBits - byteOffBits))
     }
-    offset := io.aw.bits.addr(nastiByteOffBits - 1, 0)
-    id := io.aw.bits.id
-    size := io.aw.bits.size
+    offset := io.nasti.aw.bits.addr(nastiByteOffBits - 1, 0)
+    id := io.nasti.aw.bits.id
+    size := io.nasti.aw.bits.size
     last := Bool(false)
     state := s_data
   }
 
-  when (io.w.fire()) {
-    last := io.w.bits.last
-    strb := makeStrobe(offset, size, io.w.bits.strb)
-    data := io.w.bits.data
+  when (io.nasti.w.fire()) {
+    last := io.nasti.w.bits.last
+    strb := makeStrobe(offset, size, io.nasti.w.bits.strb)
+    data := io.nasti.w.bits.data
     state := s_send
   }
 
@@ -251,7 +248,7 @@ class SmiIONastiWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
 
   when (io.smi.resp.fire()) { state := s_resp }
 
-  when (io.b.fire()) { state := s_idle }
+  when (io.nasti.b.fire()) { state := s_idle }
 }
 
 /** Convert Nasti protocol to Smi protocol */
@@ -267,13 +264,10 @@ class SmiIONastiIOConverter(val dataWidth: Int, val addrWidth: Int)
     "SMI data width must be less than or equal to NASTI data width")
 
   val reader = Module(new SmiIONastiReadIOConverter(dataWidth, addrWidth))
-  reader.io.ar <> io.nasti.ar
-  io.nasti.r <> reader.io.r
+  reader.io.nasti <> io.nasti
 
   val writer = Module(new SmiIONastiWriteIOConverter(dataWidth, addrWidth))
-  writer.io.aw <> io.nasti.aw
-  writer.io.w <> io.nasti.w
-  io.nasti.b <> writer.io.b
+  writer.io.nasti <> io.nasti
 
   val arb = Module(new SmiArbiter(2, dataWidth, addrWidth))
   arb.io.in(0) <> reader.io.smi
