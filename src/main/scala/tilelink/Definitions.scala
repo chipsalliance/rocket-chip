@@ -183,8 +183,9 @@ trait HasAcquireUnion extends HasTileLinkParameters {
   /** Write mask for [[uncore.Put]], [[uncore.PutBlock]], [[uncore.PutAtomic]] */
   def wmask(dummy: Int = 0): UInt = {
     val is_amo   = isBuiltInType(Acquire.putAtomicType)
-    val amo_sel  = if (tlByteAddrBits > log2Up(amoAluOperandBytes)) UIntToOH(amo_offset()) else UInt(1)
-    val amo_mask = FillInterleaved(amoAluOperandBytes, amo_sel)
+    val amo_mask = if (tlByteAddrBits > log2Up(amoAluOperandBytes))
+                     FillInterleaved(amoAluOperandBytes, UIntToOH(amo_offset()))
+                   else Acquire.fullWriteMask
     val is_put   = isBuiltInType(Acquire.putBlockType) || isBuiltInType(Acquire.putType)
     val put_mask = union(tlWriteMaskBits, 1)
     Mux(is_amo, amo_mask, Mux(is_put, put_mask, UInt(0)))
