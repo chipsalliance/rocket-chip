@@ -12,7 +12,7 @@ abstract class NastiTest(implicit val p: Parameters) extends Module
     val finished = Bool(OUTPUT)
     val mem = new NastiIO
   }
-  val memStart = addrMap("mem").start
+  val memStart = addrMap("mem").start + 0x40000
 }
 
 class NastiBlockTest(implicit p: Parameters) extends NastiTest()(p) {
@@ -65,9 +65,6 @@ class NastiBlockTest(implicit p: Parameters) extends NastiTest()(p) {
 
   assert(!io.mem.r.valid || io.mem.r.bits.data === data_beats(r_count),
     "NASTI Block Test: results do not match")
-
-  val timeout = Timer(8192, state === s_start, io.finished)
-  assert(!timeout, "NastiBlockTest timed out")
 }
 
 class NastiSmallTest(implicit p: Parameters) extends NastiTest()(p) {
@@ -77,7 +74,7 @@ class NastiSmallTest(implicit p: Parameters) extends NastiTest()(p) {
        s_read  :: s_wait :: s_finish :: Nil) = Enum(Bits(), 6)
   val state = Reg(init = s_start)
 
-  val nTests = 8
+  val nTests = 512
   val ref_data = Vec.tabulate(nTests) { i => UInt(0x35abffcd + i, 32) }
 
   val (write_idx, write_done) = Counter(io.mem.w.fire(), nTests)
@@ -128,9 +125,6 @@ class NastiSmallTest(implicit p: Parameters) extends NastiTest()(p) {
 
   assert(!io.mem.r.valid || read_data === ref_data(read_resp_idx),
     "NASTI Small Test: results do not match")
-
-  val timeout = Timer(8192, state === s_start, io.finished)
-  assert(!timeout, "NastiSmallTest timed out")
 }
 
 class NastiSequencer(n: Int)(implicit p: Parameters) extends Module {
