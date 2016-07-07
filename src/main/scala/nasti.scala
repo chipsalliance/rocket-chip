@@ -186,6 +186,7 @@ object NastiWriteDataChannel {
     w.strb := strb.getOrElse(Fill(w.nastiWStrobeBits, UInt(1, 1)))
     w.data := data
     w.last := last
+    w.id   := id
     w.user := UInt(0)
     w
   }
