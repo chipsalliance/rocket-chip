@@ -367,7 +367,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     insn_call || insn_break
 
   when (insn_wfi) { reg_wfi := true }
-  when (read_mip.orR) { reg_wfi := false }
+  when (pending_interrupts.orR) { reg_wfi := false }
 
   val cause =
     Mux(!io.csr_xcpt, io.cause,
