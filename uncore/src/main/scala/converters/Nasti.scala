@@ -428,14 +428,14 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
 
   io.nasti.b.valid := io.tl.grant.valid && tl_b_grant(io.tl.grant.bits)
   io.nasti.b.bits := NastiWriteResponseChannel(
-    id = put_id_mapper.io.req.out_id)
+    id = put_id_mapper.io.resp.in_id)
 
   assert(!io.nasti.b.valid || put_id_mapper.io.resp.matches,
     "Put ID does not match")
 
   io.nasti.r.valid := io.tl.grant.valid && !tl_b_grant(io.tl.grant.bits)
   io.nasti.r.bits := NastiReadDataChannel(
-    id = get_id_mapper.io.req.out_id,
+    id = get_id_mapper.io.resp.in_id,
     data = io.tl.grant.bits.data,
     last = tl_last(io.tl.grant.bits))
 
