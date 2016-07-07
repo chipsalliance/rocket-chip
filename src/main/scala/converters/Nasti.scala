@@ -40,7 +40,7 @@ class IdMapper(val inIdBits: Int, val outIdBits: Int,
     val out_id_free = Reg(init = Vec.fill(nOutXacts){Bool(true)})
     val next_out_id = PriorityEncoder(out_id_free)
     val id_mapping = Reg(Vec(nInXacts, UInt(0, outIdBits)))
-    val id_valid = Reg(init = Vec.fill(nOutXacts){Bool(false)})
+    val id_valid = Reg(init = Vec.fill(nInXacts){Bool(false)})
 
     val req_fire = io.req.valid && io.req.ready
     when (req_fire) {
@@ -236,7 +236,8 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     id = put_id_mapper.io.req.out_id,
     data = io.tl.acquire.bits.data,
     strb = Some(io.tl.acquire.bits.wmask()),
-    last = tl_wrap_out || (io.tl.acquire.fire() && is_subblock))
+    last = Mux(w_inflight,
+      tl_cnt_out === UInt(tlDataBeats - 1), !is_multibeat))
 
   io.tl.acquire.ready := Mux(has_data,
     put_helper.fire(put_valid),
