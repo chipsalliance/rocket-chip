@@ -241,7 +241,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     (if (usingAtomics) "A" else "") +
     (if (usingFPU) "FD" else "") +
     (if (usingRoCC) "X" else "")
-  val isa = ((if (xLen == 32) BigInt(0) else BigInt(2)) << (xLen-2)) |
+  val isa = (BigInt(log2Ceil(xLen) - 4) << (xLen-2)) |
     isa_string.map(x => 1 << (x - 'A')).reduce(_|_)
   val read_mstatus = io.status.toBits()(xLen-1,0)
 
