@@ -44,7 +44,6 @@ int main(int argc, char** argv)
   uint64_t max_cycles = -1;
   uint64_t start = 0;
   int ret = 0;
-  const char* vcd = NULL;
   const char* loadmem = NULL;
   FILE *vcdfile = NULL;
   bool dramsim2 = false;
@@ -55,9 +54,12 @@ int main(int argc, char** argv)
   for (int i = 1; i < argc; i++)
   {
     std::string arg = argv[i];
-    if (arg.substr(0, 2) == "-v")
-      vcd = argv[i]+2;
-    else if (arg.substr(0, 9) == "+memsize=")
+    if (arg.substr(0, 2) == "-v") {
+      const char* filename = argv[i]+2;
+      vcdfile = strcmp(filename, "-") == 0 ? stdout : fopen(filename, "w");
+      if (!vcdfile)
+        abort();
+    } else if (arg.substr(0, 9) == "+memsize=")
       memsz_mb = atoll(argv[i]+9);
     else if (arg.substr(0, 2) == "-s")
       random_seed = atoi(argv[i]+2);
@@ -75,38 +77,26 @@ int main(int argc, char** argv)
       print_cycles = true;
   }
 
-  const int disasm_len = 24;
+  srand(random_seed);
+  srand48(random_seed);
 
 #ifndef VERILATOR
-  if (vcd)
-  {
-    // Create a VCD file
-    vcdfile = strcmp(vcd, "-") == 0 ? stdout : fopen(vcd, "w");
-    assert(vcdfile);
-    fprintf(vcdfile, "$scope module Testbench $end\n");
-    fprintf(vcdfile, "$var reg %d NDISASM_WB wb_instruction $end\n", disasm_len*8);
-    fprintf(vcdfile, "$var reg 64 NCYCLE cycle $end\n");
-    fprintf(vcdfile, "$upscope $end\n");
-  }
-
-  // The chisel generated code
   Top_t tile;
   tile.init(random_seed);
 #else
+  Verilated::randReset(2);
   VTop tile;
+
 #if VM_TRACE
-  VerilatedVcdC *tfp = NULL;
-  if (vcd) {
-    tfp = new VerilatedVcdC;
-    Verilated::traceEverOn(true); // Verilator must compute traced signals
-    VL_PRINTF("Enabling waves... (%s)\n", vcd);
-    tile.trace(tfp, 99);  // Trace 99 levels of hierarchy
-    tfp->open(vcd); // Open the dump file
+  Verilated::traceEverOn(true); // Verilator must compute traced signals
+  std::unique_ptr<VerilatedVcdFILE> vcdfd(new VerilatedVcdFILE(vcdfile));
+  std::unique_ptr<VerilatedVcdC> tfp(new VerilatedVcdC(vcdfd.get()));
+  if (vcdfile) {
+    tile.trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
+    tfp->open("");
   }
 #endif
 #endif
-  srand(random_seed);
-
 
   uint64_t mem_width = MEM_DATA_BITS / 8;
 
@@ -266,7 +256,7 @@ int main(int argc, char** argv)
       tile.print(stderr);
 
     // make sure we dump on cycle 0 to get dump_init
-    if (vcd && (trace_count == 0 || trace_count >= start))
+    if (vcdfile && (trace_count == 0 || trace_count >= start))
       tile.dump(vcdfile, trace_count);
 
     tile.clock_hi(LIT<1>(0));
@@ -281,14 +271,15 @@ int main(int argc, char** argv)
     trace_count++;
   }
 
-#ifndef VERILATOR
-  if (vcd) fclose(vcdfile);
-#else
+#ifdef VERILATOR
 #if VM_TRACE
-  if (tfp) tfp->close();
-  delete tfp;
+  if (tfp)
+    tfp->close();
 #endif
 #endif
+
+  if (vcdfile)
+    fclose(vcdfile);
 
   if (dtm->exit_code())
   {
