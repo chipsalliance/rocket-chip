@@ -5,6 +5,7 @@ package uncore.coherence
 import Chisel._
 import uncore.tilelink._
 import uncore.constants._
+import uncore.Util._
 
 /** The entire CoherencePolicy API consists of the following three traits:
   * HasCustomTileLinkMessageTypes, used to define custom messages
@@ -32,8 +33,8 @@ trait HasCustomTileLinkMessageTypes {
   def grantTypeWidth = log2Up(nGrantTypes)
 
   val acquireTypesWithData = Nil // Only built-in Acquire types have data for now
-  def releaseTypesWithData: Vec[UInt]
-  def grantTypesWithData: Vec[UInt]
+  def releaseTypesWithData: Seq[UInt]
+  def grantTypesWithData: Seq[UInt]
 }
 
 /** This API contains all functions required for client coherence agents.
@@ -47,16 +48,16 @@ trait HasClientSideCoherencePolicy {
   // Client coherence states and their permissions
   val nClientStates: Int
   def clientStateWidth = log2Ceil(nClientStates)
-  def clientStatesWithReadPermission: Vec[UInt]
-  def clientStatesWithWritePermission: Vec[UInt]
-  def clientStatesWithDirtyData: Vec[UInt]
+  def clientStatesWithReadPermission: Seq[UInt]
+  def clientStatesWithWritePermission: Seq[UInt]
+  def clientStatesWithDirtyData: Seq[UInt]
 
   // Transaction initiation logic
   def isValid(meta: ClientMetadata): Bool
   def isHit(cmd: UInt, meta: ClientMetadata): Bool = {
     Mux(isWriteIntent(cmd), 
-      clientStatesWithWritePermission.contains(meta.state),
-      clientStatesWithReadPermission.contains(meta.state))
+      meta.state isOneOf clientStatesWithWritePermission,
+      meta.state isOneOf clientStatesWithReadPermission)
   }
   //TODO: Assumes all states with write permissions also have read permissions
   def requiresAcquireOnSecondaryMiss(
@@ -68,7 +69,7 @@ trait HasClientSideCoherencePolicy {
   //TODO: Assumes all cache ctrl ops writeback dirty data, and
   //      doesn't issue transaction when e.g. downgrading Exclusive to Shared:
   def requiresReleaseOnCacheControl(cmd: UInt, meta: ClientMetadata): Bool =
-    clientStatesWithDirtyData.contains(meta.state) 
+    meta.state isOneOf clientStatesWithDirtyData
 
   // Determine which custom message type to use
   def getAcquireType(cmd: UInt, meta: ClientMetadata): UInt
@@ -131,23 +132,23 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val releaseInvalidateData :: releaseCopyData :: releaseInvalidateAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantExclusive :: Nil = Enum(UInt(), nGrantTypes)
 
-  def releaseTypesWithData = Vec(releaseInvalidateData, releaseCopyData)
-  def grantTypesWithData = Vec(grantExclusive)
+  def releaseTypesWithData = Seq(releaseInvalidateData, releaseCopyData)
+  def grantTypesWithData = Seq(grantExclusive)
 
   // Client states and functions
   val nClientStates = 2
   val clientInvalid :: clientValid :: Nil = Enum(UInt(), nClientStates)
 
-  def clientStatesWithReadPermission = Vec(clientValid)
-  def clientStatesWithWritePermission = Vec(clientValid)
-  def clientStatesWithDirtyData = Vec(clientValid)
+  def clientStatesWithReadPermission = Seq(clientValid)
+  def clientStatesWithWritePermission = Seq(clientValid)
+  def clientStatesWithDirtyData = Seq(clientValid)
 
   def isValid (meta: ClientMetadata): Bool = meta.state =/= clientInvalid
 
   def getAcquireType(cmd: UInt, meta: ClientMetadata): UInt = acquireExclusive
 
   def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
-    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    val dirty = meta.state isOneOf clientStatesWithDirtyData
     MuxLookup(cmd, releaseCopyAck, Array(
       M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
       M_PRODUCE -> Mux(dirty, releaseCopyData, releaseCopyAck),
@@ -222,16 +223,16 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantExclusive :: Nil = Enum(UInt(), nGrantTypes)
 
-  def releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  def grantTypesWithData = Vec(grantExclusive)
+  def releaseTypesWithData = Seq(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  def grantTypesWithData = Seq(grantExclusive)
 
   // Client states and functions
   val nClientStates = 3
   val clientInvalid :: clientExclusiveClean :: clientExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
 
-  def clientStatesWithReadPermission = Vec(clientExclusiveClean, clientExclusiveDirty)
-  def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
-  def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
+  def clientStatesWithReadPermission = Seq(clientExclusiveClean, clientExclusiveDirty)
+  def clientStatesWithWritePermission = Seq(clientExclusiveClean, clientExclusiveDirty)
+  def clientStatesWithDirtyData = Seq(clientExclusiveDirty)
 
   def isValid (meta: ClientMetadata) = meta.state =/= clientInvalid
 
@@ -239,7 +240,7 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     Mux(isWriteIntent(cmd), acquireExclusiveDirty, acquireExclusiveClean)
 
   def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
-    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    val dirty = meta.state isOneOf clientStatesWithDirtyData
     MuxLookup(cmd, releaseCopyAck, Array(
       M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
       M_PRODUCE -> Mux(dirty, releaseDowngradeData, releaseDowngradeAck),
@@ -324,16 +325,16 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantShared :: grantExclusive :: grantExclusiveAck :: Nil = Enum(UInt(), nGrantTypes)
 
-  def releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  def grantTypesWithData = Vec(grantShared, grantExclusive)
+  def releaseTypesWithData = Seq(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  def grantTypesWithData = Seq(grantShared, grantExclusive)
 
   // Client states and functions
   val nClientStates = 3
   val clientInvalid :: clientShared :: clientExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
 
-  def clientStatesWithReadPermission = Vec(clientShared, clientExclusiveDirty)
-  def clientStatesWithWritePermission = Vec(clientExclusiveDirty)
-  def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
+  def clientStatesWithReadPermission = Seq(clientShared, clientExclusiveDirty)
+  def clientStatesWithWritePermission = Seq(clientExclusiveDirty)
+  def clientStatesWithDirtyData = Seq(clientExclusiveDirty)
 
   def isValid(meta: ClientMetadata): Bool = meta.state =/= clientInvalid
 
@@ -341,7 +342,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     Mux(isWriteIntent(cmd), acquireExclusive, acquireShared)
 
   def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
-    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    val dirty = meta.state isOneOf clientStatesWithDirtyData
     MuxLookup(cmd, releaseCopyAck, Array(
       M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
       M_PRODUCE -> Mux(dirty, releaseDowngradeData, releaseDowngradeAck),
@@ -361,7 +362,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     ClientMetadata(
       MuxLookup(cmd, meta.state, Array(
         M_FLUSH   -> clientInvalid,
-        M_PRODUCE -> Mux(clientStatesWithWritePermission.contains(meta.state), 
+        M_PRODUCE -> Mux(meta.state isOneOf clientStatesWithWritePermission,
                       clientShared, meta.state))))(meta.p)
 
   def clientMetadataOnGrant(incoming: HasGrantType, cmd: UInt, meta: ClientMetadata) =
@@ -442,16 +443,16 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
   val grantShared :: grantExclusive :: grantExclusiveAck :: Nil = Enum(UInt(), nGrantTypes)
 
-  def releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
-  def grantTypesWithData = Vec(grantShared, grantExclusive)
+  def releaseTypesWithData = Seq(releaseInvalidateData, releaseDowngradeData, releaseCopyData)
+  def grantTypesWithData = Seq(grantShared, grantExclusive)
 
   // Client states and functions
   val nClientStates = 4
   val clientInvalid :: clientShared :: clientExclusiveClean :: clientExclusiveDirty :: Nil = Enum(UInt(), nClientStates)
 
-  def clientStatesWithReadPermission = Vec(clientShared, clientExclusiveClean, clientExclusiveDirty)
-  def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty)
-  def clientStatesWithDirtyData = Vec(clientExclusiveDirty)
+  def clientStatesWithReadPermission = Seq(clientShared, clientExclusiveClean, clientExclusiveDirty)
+  def clientStatesWithWritePermission = Seq(clientExclusiveClean, clientExclusiveDirty)
+  def clientStatesWithDirtyData = Seq(clientExclusiveDirty)
 
   def isValid(meta: ClientMetadata): Bool = meta.state =/= clientInvalid
 
@@ -459,7 +460,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     Mux(isWriteIntent(cmd), acquireExclusive, acquireShared)
 
   def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
-    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    val dirty = meta.state isOneOf clientStatesWithDirtyData
     MuxLookup(cmd, releaseCopyAck, Array(
       M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
       M_PRODUCE -> Mux(dirty, releaseDowngradeData, releaseDowngradeAck),
@@ -479,7 +480,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     ClientMetadata(
       MuxLookup(cmd, meta.state, Array(
         M_FLUSH   -> clientInvalid,
-        M_PRODUCE -> Mux(clientStatesWithWritePermission.contains(meta.state), 
+        M_PRODUCE -> Mux(meta.state isOneOf clientStatesWithWritePermission,
                       clientShared, meta.state),
         M_CLEAN   -> Mux(meta.state === clientExclusiveDirty,
                       clientExclusiveClean, meta.state))))(meta.p)
@@ -558,16 +559,16 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: releaseDowngradeDataMigratory :: releaseDowngradeAckHasCopy :: releaseInvalidateDataMigratory :: releaseInvalidateAckMigratory :: Nil = Enum(UInt(), nReleaseTypes)
   val grantShared :: grantExclusive :: grantExclusiveAck :: grantReadMigratory :: Nil = Enum(UInt(), nGrantTypes)
 
-  def releaseTypesWithData = Vec(releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
-  def grantTypesWithData = Vec(grantShared, grantExclusive, grantReadMigratory)
+  def releaseTypesWithData = Seq(releaseInvalidateData, releaseDowngradeData, releaseCopyData, releaseInvalidateDataMigratory, releaseDowngradeDataMigratory)
+  def grantTypesWithData = Seq(grantShared, grantExclusive, grantReadMigratory)
 
   // Client states and functions
   val nClientStates = 7
   val clientInvalid :: clientShared :: clientExclusiveClean :: clientExclusiveDirty :: clientSharedByTwo :: clientMigratoryClean :: clientMigratoryDirty :: Nil = Enum(UInt(), nClientStates)
 
-  def clientStatesWithReadPermission = Vec(clientShared, clientExclusiveClean, clientExclusiveDirty, clientSharedByTwo, clientMigratoryClean, clientMigratoryDirty)
-  def clientStatesWithWritePermission = Vec(clientExclusiveClean, clientExclusiveDirty, clientMigratoryClean, clientMigratoryDirty)
-  def clientStatesWithDirtyData = Vec(clientExclusiveDirty, clientMigratoryDirty)
+  def clientStatesWithReadPermission = Seq(clientShared, clientExclusiveClean, clientExclusiveDirty, clientSharedByTwo, clientMigratoryClean, clientMigratoryDirty)
+  def clientStatesWithWritePermission = Seq(clientExclusiveClean, clientExclusiveDirty, clientMigratoryClean, clientMigratoryDirty)
+  def clientStatesWithDirtyData = Seq(clientExclusiveDirty, clientMigratoryDirty)
 
   def isValid (meta: ClientMetadata): Bool = meta.state =/= clientInvalid
 
@@ -577,7 +578,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
       acquireShared)
 
   def getReleaseType(cmd: UInt, meta: ClientMetadata): UInt = {
-    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    val dirty = meta.state isOneOf clientStatesWithDirtyData
     MuxLookup(cmd, releaseCopyAck, Array(
       M_FLUSH   -> Mux(dirty, releaseInvalidateData, releaseInvalidateAck),
       M_PRODUCE -> Mux(dirty, releaseDowngradeData, releaseDowngradeAck),
@@ -585,9 +586,9 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
   }
 
   def getReleaseType(incoming: HasProbeType, meta: ClientMetadata): UInt = {
-    val dirty = clientStatesWithDirtyData.contains(meta.state)
+    val dirty = meta.state isOneOf clientStatesWithDirtyData
     val with_data = MuxLookup(incoming.p_type, releaseInvalidateData, Array(
-      probeInvalidate -> Mux(Vec(clientExclusiveDirty, clientMigratoryDirty).contains(meta.state),
+      probeInvalidate -> Mux(meta.state isOneOf (clientExclusiveDirty, clientMigratoryDirty),
                           releaseInvalidateDataMigratory, releaseInvalidateData),
       probeDowngrade -> Mux(meta.state === clientMigratoryDirty,
                           releaseDowngradeDataMigratory, releaseDowngradeData),
@@ -614,7 +615,7 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
     ClientMetadata(
       MuxLookup(cmd, meta.state, Array(
         M_FLUSH   -> clientInvalid,
-        M_PRODUCE -> Mux(clientStatesWithWritePermission.contains(meta.state), 
+        M_PRODUCE -> Mux(meta.state isOneOf clientStatesWithWritePermission,
                        clientShared, meta.state),
         M_CLEAN   -> MuxLookup(meta.state, meta.state, Array(
                        clientExclusiveDirty -> clientExclusiveClean,

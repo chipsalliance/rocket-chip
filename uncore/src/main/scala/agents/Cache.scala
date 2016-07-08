@@ -9,6 +9,7 @@ import uncore.util.AMOALU
 import uncore.coherence._
 import uncore.tilelink._
 import uncore.constants._
+import uncore.Util._
 import cde.{Parameters, Field}
 
 case object CacheName extends Field[String]
@@ -807,7 +808,7 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
 
 
   // Setup IOs used for routing in the parent
-  val before_wb_alloc = Vec(s_meta_read, s_meta_resp, s_wb_req).contains(state)
+  val before_wb_alloc = state isOneOf (s_meta_read, s_meta_resp, s_wb_req)
 
   routeInParent(
     iacqMatches = inSameSet(_, xact_addr_block),
@@ -899,7 +900,7 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
 
   def irel_can_merge = io.irel().conflicts(xact_addr_block) &&
                          io.irel().isVoluntary() &&
-                         !Vec(s_idle, s_meta_read, s_meta_resp, s_meta_write).contains(state) &&
+                         !state.isOneOf(s_idle, s_meta_read, s_meta_resp, s_meta_write) &&
                          !all_pending_done &&
                          !io.outer.grant.fire() &&
                          !io.inner.grant.fire() &&

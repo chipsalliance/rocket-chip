@@ -6,6 +6,7 @@ import Chisel._
 import uncore.coherence._
 import uncore.tilelink._
 import uncore.util._
+import uncore.Util._
 import cde.{Field, Parameters}
 import scala.math.max
 
@@ -275,7 +276,7 @@ trait AcceptsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
       }
     }
 
-    io.inner.grant.valid := Vec(s_wb_req, s_wb_resp, s_inner_probe, s_busy).contains(state) &&
+    io.inner.grant.valid := state.isOneOf(s_wb_req, s_wb_resp, s_inner_probe, s_busy) &&
                               vol_ignt_counter.pending &&
                               !(pending_irel_data.orR || block_vol_ignt)
 

@@ -4,6 +4,7 @@ package uncore.tilelink
 import Chisel._
 import junctions._
 import uncore.coherence.CoherencePolicy
+import uncore.Util._
 import scala.math.max
 import uncore.constants._
 import cde.{Parameters, Field}
@@ -211,7 +212,7 @@ trait HasAcquireType extends HasTileLinkParameters {
   def isBuiltInType(t: UInt): Bool = is_builtin_type && a_type === t 
 
   /** Does this message refer to subblock operands using info in the Acquire.union subbundle */ 
-  def isSubBlockType(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesOnSubBlocks.contains(a_type) 
+  def isSubBlockType(dummy: Int = 0): Bool = isBuiltInType() && a_type.isOneOf(Acquire.typesOnSubBlocks)
 
   /** Is this message a built-in prefetch message */
   def isPrefetch(dummy: Int = 0): Bool = isBuiltInType() &&
@@ -224,11 +225,11 @@ trait HasAcquireType extends HasTileLinkParameters {
   def isGet(dummy: Int = 0): Bool = isBuiltInType() && (is(Acquire.getType) || is(Acquire.getBlockType))
 
   /** Does this message contain data? Assumes that no custom message types have data. */
-  def hasData(dummy: Int = 0): Bool = isBuiltInType() && Acquire.typesWithData.contains(a_type)
+  def hasData(dummy: Int = 0): Bool = isBuiltInType() && a_type.isOneOf(Acquire.typesWithData)
 
   /** Does this message contain multiple beats of data? Assumes that no custom message types have data. */
   def hasMultibeatData(dummy: Int = 0): Bool = Bool(tlDataBeats > 1) && isBuiltInType() &&
-                                           Acquire.typesWithMultibeatData.contains(a_type)
+                                           a_type.isOneOf(Acquire.typesWithMultibeatData)
 
   /** Mapping between each built-in Acquire type and a built-in Grant type.  */
   def getBuiltInGrantType(dummy: Int = 0): UInt = Acquire.getBuiltInGrantType(this.a_type)
@@ -251,9 +252,9 @@ trait HasReleaseType extends HasTileLinkParameters with MightBeVoluntary {
   val r_type = UInt(width = tlCoh.releaseTypeWidth)
 
   def is(t: UInt) = r_type === t
-  def hasData(dummy: Int = 0) = tlCoh.releaseTypesWithData.contains(r_type)
+  def hasData(dummy: Int = 0) = r_type.isOneOf(tlCoh.releaseTypesWithData)
   def hasMultibeatData(dummy: Int = 0) = Bool(tlDataBeats > 1) &&
-                                           tlCoh.releaseTypesWithData.contains(r_type)
+                                           r_type.isOneOf(tlCoh.releaseTypesWithData)
   def isVoluntary(dummy: Int = 0) = voluntary
   def requiresAck(dummy: Int = 0) = !Bool(tlNetworkPreservesPointToPointOrdering)
 }
@@ -267,12 +268,12 @@ trait HasGrantType extends HasTileLinkParameters with MightBeVoluntary {
   def isBuiltInType(t: UInt): Bool = is_builtin_type && g_type === t 
   def is(t: UInt):Bool = g_type === t
   def hasData(dummy: Int = 0): Bool = Mux(isBuiltInType(),
-                                        Grant.typesWithData.contains(g_type),
-                                        tlCoh.grantTypesWithData.contains(g_type))
+                                        g_type.isOneOf(Grant.typesWithData),
+                                        g_type.isOneOf(tlCoh.grantTypesWithData))
   def hasMultibeatData(dummy: Int = 0): Bool = 
     Bool(tlDataBeats > 1) && Mux(isBuiltInType(),
-                               Grant.typesWithMultibeatData.contains(g_type),
-                               tlCoh.grantTypesWithData.contains(g_type))
+                               g_type.isOneOf(Grant.typesWithMultibeatData),
+                               g_type.isOneOf(tlCoh.grantTypesWithData))
   def isVoluntary(dummy: Int = 0): Bool = isBuiltInType() && (g_type === Grant.voluntaryAckType)
   def requiresAck(dummy: Int = 0): Bool = !Bool(tlNetworkPreservesPointToPointOrdering) && !isVoluntary()
 }
@@ -296,7 +297,7 @@ class AcquireMetadata(implicit p: Parameters) extends ClientToManagerChannel
   /** Complete physical address for block, beat or operand */
   def full_addr(dummy: Int = 0) =
     Cat(this.addr_block, this.addr_beat,
-      Mux(isBuiltInType() && Acquire.typesWithAddrByte.contains(this.a_type),
+      Mux(isBuiltInType() && this.a_type.isOneOf(Acquire.typesWithAddrByte),
         this.addr_byte(), UInt(0, tlByteAddrBits)))
 }
 
