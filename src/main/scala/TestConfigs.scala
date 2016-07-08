@@ -149,6 +149,9 @@ class WithNastiConverterTest extends Config(
     case GroundTestKey => Seq.fill(site(NTiles)) {
       GroundTestTileSettings(uncached = 1)
     }
+    case GeneratorKey => GeneratorParameters(
+      maxRequests = 128,
+      startAddress = site(GlobalAddrMap)("mem").start)
     case BuildGroundTest =>
       (p: Parameters) => Module(new NastiConverterTest()(p))
     case _ => throw new CDEMatchError
@@ -207,6 +210,11 @@ class CacheRegressionTestConfig extends Config(
   new WithCacheRegressionTest ++ new WithL2Cache ++ new GroundTestConfig)
 
 class NastiConverterTestConfig extends Config(new WithNastiConverterTest ++ new GroundTestConfig)
+class FancyNastiConverterTestConfig extends Config(
+  new WithNCores(2) ++ new WithNastiConverterTest ++
+  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
+  new WithL2Cache ++ new GroundTestConfig)
+
 class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
 
 class TraceGenConfig extends Config(
@@ -225,3 +233,23 @@ class MIF32BitComparatorConfig extends Config(
   new WithMIFDataBits(32) ++ new ComparatorConfig)
 class MIF32BitMemtestConfig extends Config(
   new WithMIFDataBits(32) ++ new MemtestConfig)
+
+class WithPCIeMockupTest extends Config(
+  (pname, site, here) => pname match {
+    case NTiles => 2
+    case GroundTestKey => Seq(
+      GroundTestTileSettings(1, 1),
+      GroundTestTileSettings(1))
+    case GeneratorKey => GeneratorParameters(
+      maxRequests = 128,
+      startAddress = site(GlobalAddrMap)("mem").start)
+    case BuildGroundTest =>
+      (p: Parameters) => {
+        val id = p(GroundTestId)
+        if (id == 0) Module(new GeneratorTest()(p))
+        else Module(new NastiConverterTest()(p))
+      }
+    case _ => throw new CDEMatchError
+  })
+class PCIeMockupTestConfig extends Config(
+  new WithPCIeMockupTest ++ new GroundTestConfig)
