@@ -212,7 +212,8 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   // Aggregate incoming NASTI responses into TL Grants
   val (tl_cnt_in, tl_wrap_in) = Counter(
     io.tl.grant.fire() && io.tl.grant.bits.hasMultibeatData(), tlDataBeats)
-  val gnt_arb = Module(new Arbiter(new GrantToDst, 2))
+  val gnt_arb = Module(new LockingArbiter(new GrantToDst, 2,
+    tlDataBeats, Some((gnt: GrantToDst) => gnt.hasMultibeatData())))
   io.tl.grant <> gnt_arb.io.out
 
   gnt_arb.io.in(0).valid := io.nasti.r.valid
