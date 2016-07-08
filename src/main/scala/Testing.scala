@@ -146,8 +146,11 @@ object DefaultTestSuites {
   val rv64u = List(rv64ui, rv64um)
   val rv64i = List(rv64ui, rv64si, rv64mi)
 
-  val bmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
-    "median", "multiply", "qsort", "towers", "vvadd", "mm", "dhrystone", "spmv", "mt-vvadd", "mt-matmul"))
+  val benchmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
+    "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "mt-matmul"))
+
+  val rv32udBenchmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
+    "mm", "spmv", "mt-vvadd"))
 
   val emptyBmarks = new BenchmarkTestSuite("empty",
     "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet.empty)

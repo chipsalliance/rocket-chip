@@ -179,7 +179,7 @@ class BaseConfig extends Config (
           else (rv32i, rv32u)
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuite(bmarks)
+        TestGeneration.addSuite(benchmarks)
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
@@ -208,11 +208,11 @@ class BaseConfig extends Config (
       case XLen => 64
       case UseFPU => {
         val env = if(site(UseVM)) List("p","v") else List("p")
+        TestGeneration.addSuite(rv32udBenchmarks)
         if(site(FDivSqrt)) {
           TestGeneration.addSuites(env.map(rv64uf))
           TestGeneration.addSuites(env.map(rv64ud))
-        }
-        else {
+        } else {
           TestGeneration.addSuites(env.map(rv64ufNoDiv))
           TestGeneration.addSuites(env.map(rv64udNoDiv))
         }
