@@ -13,6 +13,7 @@ import rocket._
 import rocket.Util._
 import groundtest._
 import scala.math.max
+import scala.collection.mutable.ListBuffer
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
@@ -38,19 +39,28 @@ class BaseConfig extends Config (
     lazy val globalAddrMap = {
       val memBase = 0x80000000L
       val memSize = 0x80000000L
-      val extIOBase = 0x60000000L
-      val extIOSize = 0x20000000L
-      val io = AddrMap(
-        AddrMapEntry("int", internalIOAddrMap),
-        AddrMapEntry("ext", MemRange(extIOBase, extIOSize, MemAttr(AddrMapProt.RWX))))
+
+      val ioMap = ListBuffer(AddrMapEntry("int", internalIOAddrMap))
+
+      val nMMIOChannels =
+        site(NExtMMIOAXIChannels) +
+        site(NExtMMIOAHBChannels) +
+        site(NExtMMIOTLChannels)
+
+      if (nMMIOChannels > 0) {
+        val extIOBase = 0x60000000L
+        val extIOSize = 0x20000000L
+        ioMap += AddrMapEntry("ext", MemRange(extIOBase, extIOSize, MemAttr(AddrMapProt.RWX)))
+        Dump("IO_BASE", extIOBase)
+        Dump("IO_SIZE", extIOSize)
+      }
+
       val addrMap = AddrMap(
-        AddrMapEntry("io", io),
+        AddrMapEntry("io", new AddrMap(ioMap.toSeq)),
         AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true))))
 
       Dump("MEM_BASE", addrMap("mem").start)
       Dump("MEM_SIZE", memSize)
-      Dump("IO_BASE", addrMap("io:ext").start)
-      Dump("IO_SIZE", extIOSize)
       addrMap
     }
     def makeConfigString() = {

@@ -115,6 +115,11 @@ object TopUtils {
     conv.io.tl <> tl
     TopUtils.connectNasti(nasti, conv.io.nasti)
   }
+  def connectTilelinkAhb(ahb: HastiMasterIO, tl: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
+    val bridge = Module(new AHBBridge(true))
+    bridge.io.tl <> tl
+    bridge.io.ahb
+  }
   def connectTilelink(
       outer: ClientUncachedTileLinkIO, inner: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
     outer.acquire <> Queue(inner.acquire)
@@ -277,9 +282,23 @@ class Uncore(implicit val p: Parameters) extends Module
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
-    // The memory map presently has only one external I/O region
-    val ext = TileLinkWidthAdapter(mmioNetwork.port("ext"), "MMIO_Outermost")
-    connectExternalMMIO(ext)(outermostMMIOParams)
+    require(io.mmio_ahb.size + io.mmio_axi.size + io.mmio_tl.size <= 1,
+      "Maximum of 1 external MMIO channel supported for now")
+
+    io.mmio_ahb.foreach { ahb =>
+      val ext = TileLinkWidthAdapter(mmioNetwork.port("ext"), "MMIO_Outermost")
+      TopUtils.connectTilelinkAhb(ahb, ext)(outermostMMIOParams)
+    }
+
+    io.mmio_axi.foreach { axi =>
+      val ext = TileLinkWidthAdapter(mmioNetwork.port("ext"), "MMIO_Outermost")
+      TopUtils.connectTilelinkNasti(axi, ext)(outermostMMIOParams)
+    }
+
+    io.mmio_tl.foreach { tl =>
+      val ext = TileLinkWidthAdapter(mmioNetwork.port("ext"), "MMIO_Outermost")
+      TopUtils.connectTilelink(tl, ext)(outermostMMIOParams)
+    }
   }
 }
 
