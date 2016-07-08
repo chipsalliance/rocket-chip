@@ -191,9 +191,6 @@ class BaseConfig extends Config (
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
-      case NDmaTransactors => 3
-      case NDmaXacts => site(NDmaTransactors) * site(NTiles)
-      case NDmaClients => site(NTiles)
       //Rocket Core Constants
       case FetchWidth => 1
       case RetireWidth => 1
@@ -513,20 +510,6 @@ class MIF128BitConfig extends Config(
 class MIF32BitConfig extends Config(
   new WithMIFDataBits(32) ++ new BaseConfig)
 
-class WithDmaController extends Config(
-  (pname, site, here) => pname match {
-    case BuildRoCC => Seq(
-        RoccParameters(
-          opcodes = OpcodeSet.custom2,
-          generator = (p: Parameters) => Module(new DmaController()(p)),
-          nPTWPorts = 1,
-          csrs = Seq.range(
-            DmaCtrlRegNumbers.CSR_BASE,
-            DmaCtrlRegNumbers.CSR_END)))
-    case RoccMaxTaggedMemXacts => 1
-    case _ => throw new CDEMatchError
-  })
-
 class WithStreamLoopback extends Config(
   (pname, site, here) => pname match {
     case UseStreamLoopback => true
@@ -534,9 +517,6 @@ class WithStreamLoopback extends Config(
     case StreamLoopbackWidth => 64
     case _ => throw new CDEMatchError
   })
-
-class DmaControllerConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultL2Config)
-class DmaControllerFPGAConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultFPGAConfig)
 
 class SmallL2Config extends Config(
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
