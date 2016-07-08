@@ -61,7 +61,7 @@ trait HasTraceGenParams {
   implicit val p: Parameters
   val numGens             = p(NTiles)
   val numBitsInId         = log2Up(numGens)
-  val numReqsPerGen       = p(MaxGenerateRequests)
+  val numReqsPerGen       = p(GeneratorKey).maxRequests
   val memRespTimeout      = 8192
   val numBitsInWord       = p(WordBits)
   val numBytesInWord      = numBitsInWord / 8
@@ -546,10 +546,10 @@ class TraceGenerator(id: Int)
 // Trace-generator wrapper
 // =======================
 
-class GroundTestTraceGenerator(id: Int)(implicit p: Parameters)
+class GroundTestTraceGenerator(implicit p: Parameters)
     extends GroundTest()(p) with HasTraceGenParams {
 
-  val traceGen = Module(new TraceGenerator(id))
+  val traceGen = Module(new TraceGenerator(p(GroundTestId)))
   io.cache.head <> traceGen.io.mem
 
   io.finished := traceGen.io.finished

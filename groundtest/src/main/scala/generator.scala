@@ -9,15 +9,21 @@ import rocket._
 import scala.util.Random
 import cde.{Parameters, Field}
 
-case object MaxGenerateRequests extends Field[Int]
-case object GeneratorStartAddress extends Field[BigInt]
+case class GeneratorParameters(
+  maxRequests: Int,
+  startAddress: BigInt)
+case object GeneratorKey extends Field[GeneratorParameters]
 
 trait HasGeneratorParameters extends HasGroundTestParameters {
   implicit val p: Parameters
-  val nGens = p(NTiles) * (nUncached + nCached)
+
+  val genParams = p(GeneratorKey)
+  val nGens = p(GroundTestKey).map(
+    cs => cs.uncached + cs.cached).reduce(_ + _)
   val genTimeout = 8192
-  val maxRequests = p(MaxGenerateRequests)
-  val startAddress = p(GeneratorStartAddress)
+  val maxRequests = genParams.maxRequests
+  val startAddress = genParams.startAddress
+
   val genWordBits = 32
   val genWordBytes = genWordBits / 8
   val wordOffset = log2Up(genWordBytes)
@@ -167,18 +173,20 @@ class HellaCacheGenerator(id: Int)
     s"Received incorrect data in cached generator ${id}")
 }
 
-class GeneratorTest(id: Int)(implicit p: Parameters)
+class GeneratorTest(implicit p: Parameters)
     extends GroundTest()(p) with HasGeneratorParameters {
 
-  val totalGens = nUncached + nCached
+  val idStart = p(GroundTestKey).take(tileId)
+    .map(settings => settings.cached + settings.uncached)
+    .foldLeft(0)(_ + _)
 
   val cached = List.tabulate(nCached) { i =>
-    val realId = id * totalGens + i
+    val realId = idStart + i
     Module(new HellaCacheGenerator(realId))
   }
 
   val uncached = List.tabulate(nUncached) { i =>
-    val realId = id * totalGens + nCached + i
+    val realId = idStart + nCached + i
     Module(new UncachedTileLinkGenerator(realId))
   }
 

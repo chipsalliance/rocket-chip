@@ -8,20 +8,21 @@ import scala.util.Random
 import scala.collection.mutable.ListBuffer
 import cde.{Parameters, Field}
 
-case object BuildGroundTest extends Field[(Int, Parameters) => GroundTest]
-case object GroundTestMaxXacts extends Field[Int]
-case object GroundTestCSRs extends Field[Seq[Int]]
-case object TohostAddr extends Field[BigInt]
+case object BuildGroundTest extends Field[Parameters => GroundTest]
 
-case object GroundTestCachedClients extends Field[Int]
-case object GroundTestUncachedClients extends Field[Int]
-case object GroundTestNPTW extends Field[Int]
+case class GroundTestTileSettings(
+  uncached: Int = 0, cached: Int = 0, ptw: Int = 0,
+  maxXacts: Int = 1, csrs: Int = 0)
+case object GroundTestKey extends Field[Seq[GroundTestTileSettings]]
+case object GroundTestId extends Field[Int]
 
 trait HasGroundTestParameters extends HasAddrMapParameters {
   implicit val p: Parameters
-  val nUncached = p(GroundTestUncachedClients)
-  val nCached = p(GroundTestCachedClients)
-  val nPTW = p(GroundTestNPTW)
+  val tileId = p(GroundTestId)
+  val tileSettings = p(GroundTestKey)(tileId)
+  val nUncached = tileSettings.uncached
+  val nCached = tileSettings.cached
+  val nPTW = tileSettings.ptw
   val memStart = addrMap("mem").start
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
 }
@@ -81,12 +82,12 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestTile(id: Int, resetSignal: Bool)
+class GroundTestTile(resetSignal: Bool)
                     (implicit val p: Parameters)
                     extends Tile(resetSignal = resetSignal)(p)
                     with HasGroundTestParameters {
 
-  val test = p(BuildGroundTest)(id, dcacheParams)
+  val test = p(BuildGroundTest)(dcacheParams)
 
   val ptwPorts = ListBuffer.empty ++= test.io.ptw
   val memPorts = ListBuffer.empty ++= test.io.mem
@@ -112,12 +113,7 @@ class GroundTestTile(id: Int, resetSignal: Bool)
     ptwPorts += dcache_io.ptw
   }
 
-  // Only Tile 0 needs to write tohost
-  if (id == 0) {
-    when (test.io.finished) {
-      stop()
-    }
-  }
+  when (test.io.finished) { stop() }
 
   if (ptwPorts.size > 0) {
     val ptw = Module(new DummyPTW(ptwPorts.size))
