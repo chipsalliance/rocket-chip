@@ -92,7 +92,9 @@ class GroundTestTile(id: Int, resetSignal: Bool)
   val memPorts = ListBuffer.empty ++= test.io.mem
 
   if (nCached > 0) {
-    val dcache = Module(new HellaCache()(dcacheParams))
+    val dcache_io =
+      if (p(NMSHRs) == 0) Module(new DCache()(dcacheParams)).io
+      else Module(new HellaCache()(dcacheParams)).io
     val dcacheArb = Module(new HellaCacheArbiter(nCached)(dcacheParams))
 
     dcacheArb.io.requestor.zip(test.io.cache).foreach {
@@ -101,13 +103,13 @@ class GroundTestTile(id: Int, resetSignal: Bool)
         dcacheIF.io.requestor <> cache
         requestor <> dcacheIF.io.cache
     }
-    dcache.io.cpu <> dcacheArb.io.mem
-    io.cached.head <> dcache.io.mem
+    dcache_io.cpu <> dcacheArb.io.mem
+    io.cached.head <> dcache_io.mem
 
     // SimpleHellaCacheIF leaves invalidate_lr dangling, so we wire it to false
-    dcache.io.cpu.invalidate_lr := Bool(false)
+    dcache_io.cpu.invalidate_lr := Bool(false)
 
-    ptwPorts += dcache.io.ptw
+    ptwPorts += dcache_io.ptw
   }
 
   // Only Tile 0 needs to write tohost
