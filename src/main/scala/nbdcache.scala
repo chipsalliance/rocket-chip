@@ -1112,6 +1112,49 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
 }
 
+class ReplayQueue(depth: Int)(implicit p: Parameters) extends Module {
+  val io = new Bundle {
+    val req = Decoupled(new HellaCacheReq).flip
+    val nack = Bool(INPUT)
+    val resp_valid = Bool(INPUT)
+    val replay = Decoupled(new HellaCacheReq)
+  }
+
+  val nacked = Reg(init = UInt(0, depth))
+  val inflight = Reg(init = UInt(0, depth))
+  val reqs = Reg(Vec(depth, new HellaCacheReq))
+  val ordering = Reg(Vec(depth, UInt(width = log2Up(depth))))
+  val pop_ordering = io.nack || io.resp_valid
+  val push_ordering = io.req.fire() || io.replay.fire()
+  val (ordering_head, _) = Counter(pop_ordering, depth)
+  val (ordering_tail, _) = Counter(push_ordering, depth)
+
+  val order_onehot = UIntToOH(ordering(ordering_head))
+  val next_inflight = PriorityEncoder(~inflight)
+  val next_inflight_onehot = PriorityEncoderOH(~inflight)
+  val next_replay = PriorityEncoder(nacked)
+  val next_replay_onehot = PriorityEncoderOH(nacked)
+
+  io.replay.valid := nacked.orR
+  io.replay.bits := Mux1H(next_replay_onehot, reqs)
+  io.req.ready := !inflight.andR
+
+
+  nacked := (nacked | Mux(io.nack, order_onehot, UInt(0))) &
+                      ~Mux(io.replay.fire(), next_replay_onehot, UInt(0))
+
+  inflight := (inflight | Mux(io.req.fire(), next_inflight_onehot, UInt(0))) &
+                          ~Mux(io.resp_valid, order_onehot, UInt(0))
+
+  when (io.req.fire()) {
+    ordering(ordering_tail) := next_inflight
+    reqs(next_inflight) := io.req.bits
+  }
+  when (io.replay.fire()) {
+    ordering(ordering_tail) := next_replay
+  }
+}
+
 // exposes a sane decoupled request interface
 class SimpleHellaCacheIF(implicit p: Parameters) extends Module
 {
@@ -1120,23 +1163,24 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
     val cache = new HellaCacheIO
   }
 
-  val replaying_cmb = Wire(Bool())
-  val replaying = Reg(next = replaying_cmb, init = Bool(false))
-  replaying_cmb := replaying
-
-  val replayq1 = Module(new Queue(new HellaCacheReq, 1, flow = true))
-  val replayq2 = Module(new Queue(new HellaCacheReq, 1))
+  val replayq = Module(new ReplayQueue(2))
   val req_arb = Module(new Arbiter(new HellaCacheReq, 2))
 
-  req_arb.io.in(0) <> replayq1.io.deq
-  req_arb.io.in(1).valid := !replaying_cmb && io.requestor.req.valid
+  val req_helper = DecoupledHelper(
+    req_arb.io.in(1).ready,
+    replayq.io.req.ready,
+    io.requestor.req.valid)
+
+  req_arb.io.in(0) <> replayq.io.replay
+  req_arb.io.in(1).valid := req_helper.fire(req_arb.io.in(1).ready)
   req_arb.io.in(1).bits := io.requestor.req.bits
-  io.requestor.req.ready := !replaying_cmb && req_arb.io.in(1).ready
+  io.requestor.req.ready := req_helper.fire(io.requestor.req.valid)
+  replayq.io.req.valid := req_helper.fire(replayq.io.req.ready)
+  replayq.io.req.bits := io.requestor.req.bits
 
   val s0_req_fire = io.cache.req.fire()
-  val s1_req_fire = Reg(next=s0_req_fire)
-  val s2_req_fire = Reg(next=s1_req_fire)
-  val s3_nack = Reg(next=io.cache.s2_nack)
+  val s1_req_fire = Reg(next = s0_req_fire)
+  val s2_req_fire = Reg(next = s1_req_fire)
 
   io.cache.invalidate_lr := io.requestor.invalidate_lr
   io.cache.req <> req_arb.io.out
@@ -1144,51 +1188,8 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   io.cache.s1_kill := io.cache.s2_nack
   io.cache.s1_data := RegEnable(req_arb.io.out.bits.data, s0_req_fire)
 
-/* replay queues:
-     replayq1 holds the older request.
-     replayq2 holds the newer request (for the first nack).
-     We need to split the queues like this for the case where the older request
-     goes through but gets nacked, while the newer request stalls.
-     If this happens, the newer request will go through before the older one.
-     We don't need to check replayq1.io.enq.ready and replayq2.io.enq.ready as
-     there will only be two requests going through at most.
-*/
-
-  // stash d$ request in stage 2 if nacked (older request)
-  replayq1.io.enq.valid := Bool(false)
-  replayq1.io.enq.bits.cmd := io.cache.resp.bits.cmd
-  replayq1.io.enq.bits.typ := io.cache.resp.bits.typ
-  replayq1.io.enq.bits.addr := io.cache.resp.bits.addr
-  replayq1.io.enq.bits.data := io.cache.resp.bits.store_data
-  replayq1.io.enq.bits.tag := io.cache.resp.bits.tag
-
-  // stash d$ request in stage 1 if nacked (newer request)
-  replayq2.io.enq.valid := s2_req_fire && s3_nack
-  replayq2.io.enq.bits <> io.cache.resp.bits
-  replayq2.io.enq.bits.data := io.cache.resp.bits.store_data
-  replayq2.io.deq.ready := Bool(false)
-
-  when (io.cache.s2_nack) {
-    replayq1.io.enq.valid := Bool(true)
-    replaying_cmb := Bool(true)
-  }
-
-  // when replaying request got sunk into the d$
-  when (s2_req_fire && Reg(next=Reg(next=replaying_cmb)) && !io.cache.s2_nack) {
-    // see if there's a stashed request in replayq2
-    when (replayq2.io.deq.valid) {
-      replayq1.io.enq.valid := Bool(true)
-      replayq1.io.enq.bits.cmd := replayq2.io.deq.bits.cmd
-      replayq1.io.enq.bits.typ := replayq2.io.deq.bits.typ
-      replayq1.io.enq.bits.addr := replayq2.io.deq.bits.addr
-      replayq1.io.enq.bits.data := replayq2.io.deq.bits.data
-      replayq1.io.enq.bits.tag := replayq2.io.deq.bits.tag
-      replayq2.io.deq.ready := Bool(true)
-    } .otherwise {
-      replaying_cmb := Bool(false)
-    }
-  }
-
+  replayq.io.nack := io.cache.s2_nack && s2_req_fire
+  replayq.io.resp_valid := io.cache.resp.valid
   io.requestor.resp := io.cache.resp
 
   assert(!Reg(next = io.cache.req.fire()) ||
