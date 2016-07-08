@@ -6,6 +6,7 @@ import Chisel._
 import uncore.coherence._
 import uncore.tilelink._
 import uncore.constants._
+import uncore.Util._
 import cde.Parameters
 
 class L2BroadcastHub(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p) {
@@ -155,7 +156,7 @@ class BufferedBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
   // and/or write back dirty data, and may be unexpected voluntary releases
   def irel_can_merge = io.irel().conflicts(xact_addr_block) &&
                          io.irel().isVoluntary() &&
-                         !Vec(s_idle, s_meta_write).contains(state) &&
+                         !state.isOneOf(s_idle, s_meta_write) &&
                          !all_pending_done &&
                          !io.outer.grant.fire() &&
                          !io.inner.grant.fire() &&
