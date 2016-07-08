@@ -308,7 +308,6 @@ class BaseConfig extends Config (
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
       case EnableL2Logging => false
-      case NastiResponseBufferDepth => site(MIFDataBeats) * site(NAcquireTransactors)
       case _ => throw new CDEMatchError
   }},
   knobValues = {
