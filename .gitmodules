@@ -1,6 +1,3 @@
-[submodule "uncore"]
-	path = uncore
-	url = https://github.com/ucb-bar/uncore.git
 [submodule "dramsim2"]
 	path = dramsim2
 	url = https://github.com/dramninjasUMD/DRAMSim2.git
