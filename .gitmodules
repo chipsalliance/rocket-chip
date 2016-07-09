@@ -10,9 +10,6 @@
 [submodule "rocket"]
 	path = rocket
 	url = https://github.com/ucb-bar/rocket.git
-[submodule "chisel"]
-	path = chisel2
-	url = https://github.com/ucb-bar/chisel.git
 [submodule "hardfloat"]
 	path = hardfloat
 	url = https://github.com/ucb-bar/berkeley-hardfloat.git
