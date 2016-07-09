@@ -129,9 +129,11 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
   val s2_valid_masked = s2_valid && Reg(next = !s1_nack)
   val s2_req = Reg(io.cpu.req.bits)
+  val s2_uncached = Reg(Bool())
   when (s1_valid_not_nacked || s1_flush_valid) {
     s2_req := s1_req
     s2_req.addr := s1_paddr
+    s2_uncached := !tlb.io.resp.cacheable
   }
   val s2_read = isRead(s2_req.cmd)
   val s2_write = isWrite(s2_req.cmd)
@@ -145,7 +147,6 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s2_hit = s2_hit_state.isHit(s2_req.cmd)
   val s2_valid_hit = s2_valid_masked && s2_readwrite && s2_hit
   val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_hit && !(pstore1_valid || pstore2_valid) && !release_ack_wait
-  val s2_uncached = !addrMap.isCacheable(s2_req.addr)
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached
   val s2_victimize = s2_valid_cached_miss || s2_flush_valid
   val s2_valid_uncached = s2_valid_miss && s2_uncached

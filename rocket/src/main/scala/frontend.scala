@@ -7,6 +7,7 @@ import cde.{Parameters, Field}
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
+  val speculative = Bool()
 }
 
 class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
@@ -14,6 +15,7 @@ class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val data = Vec(fetchWidth, Bits(width = coreInstBits))
   val mask = Bits(width = fetchWidth)
   val xcpt_if = Bool()
+  val replay = Bool()
 }
 
 class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
@@ -40,13 +42,15 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
 
   val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
   val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
+  val s1_speculative = Reg(Bool())
   val s1_same_block = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=UInt(p(ResetVector)))
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_xcpt_if = Reg(init=Bool(false))
-  val s2_resp_valid = Wire(init=Bool(false))
+  val s2_speculative = Reg(init=Bool(false))
+  val s2_resp_valid = Wire(Bool())
   val s2_resp_data = Wire(UInt(width = rowBits))
 
   val ntpc_0 = ~(~s1_pc | (coreInstBytes*fetchWidth-1)) + UInt(coreInstBytes*fetchWidth)
@@ -62,15 +66,18 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   when (!stall) {
     s1_same_block := s0_same_block && !tlb.io.resp.miss
     s1_pc_ := npc
+    s1_speculative := Mux(icmiss, s2_speculative, true)
     s2_valid := !icmiss
     when (!icmiss) {
       s2_pc := s1_pc
+      s2_speculative := s1_speculative && !tlb.io.resp.cacheable
       s2_xcpt_if := tlb.io.resp.xcpt_if
     }
   }
   when (io.cpu.req.valid) {
     s1_same_block := Bool(false)
     s1_pc_ := io.cpu.req.bits.pc
+    s1_speculative := io.cpu.req.bits.speculative
     s2_valid := Bool(false)
   }
 
@@ -105,8 +112,9 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_ppn := tlb.io.resp.ppn
   icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || tlb.io.resp.xcpt_if || icmiss || io.cpu.flush_tlb
+  icache.io.s2_kill := s2_speculative
 
-  io.cpu.resp.valid := s2_valid && (s2_xcpt_if || s2_resp_valid)
+  io.cpu.resp.valid := s2_valid && (s2_resp_valid || s2_speculative || s2_xcpt_if)
   io.cpu.resp.bits.pc := s2_pc
   io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
 
@@ -138,6 +146,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   val msk_pc = if (fetchWidth == 1) all_ones else all_ones << s2_pc(log2Up(fetchWidth) -1+2,2)
   io.cpu.resp.bits.mask := msk_pc
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
+  io.cpu.resp.bits.replay := s2_speculative && !s2_resp_valid && !s2_xcpt_if
 
   io.cpu.btb_resp.valid := s2_btb_resp_valid
   io.cpu.btb_resp.bits := s2_btb_resp_bits

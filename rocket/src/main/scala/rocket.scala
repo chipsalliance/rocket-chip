@@ -157,6 +157,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val ex_reg_flush_pipe      = Reg(Bool())
   val ex_reg_load_use        = Reg(Bool())
   val ex_reg_cause           = Reg(UInt())
+  val ex_reg_replay = Reg(Bool())
   val ex_reg_pc = Reg(UInt())
   val ex_reg_inst = Reg(Bits())
 
@@ -295,8 +296,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   div.io.req.bits.tag := ex_waddr
 
   ex_reg_valid := !ctrl_killd
+  ex_reg_replay := !take_pc && io.imem.resp.valid && io.imem.resp.bits.replay
   ex_reg_xcpt := !ctrl_killd && id_xcpt
-  ex_reg_xcpt_interrupt := csr.io.interrupt && !take_pc && io.imem.resp.valid
+  ex_reg_xcpt_interrupt := !take_pc && io.imem.resp.valid && csr.io.interrupt
   when (id_xcpt) { ex_reg_cause := id_cause }
 
   when (!ctrl_killd) {
@@ -323,18 +325,18 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
       }
     }
   }
-  when (!ctrl_killd || csr.io.interrupt) {
+  when (!ctrl_killd || csr.io.interrupt || io.imem.resp.bits.replay) {
     ex_reg_inst := id_inst
     ex_reg_pc := id_pc
   }
 
   // replay inst in ex stage?
-  val ex_pc_valid = ex_reg_valid || ex_reg_xcpt_interrupt
+  val ex_pc_valid = ex_reg_valid || ex_reg_replay || ex_reg_xcpt_interrupt
   val wb_dcache_miss = wb_ctrl.mem && !io.dmem.resp.valid
   val replay_ex_structural = ex_ctrl.mem && !io.dmem.req.ready ||
                              ex_ctrl.div && !div.io.req.ready
   val replay_ex_load_use = wb_dcache_miss && ex_reg_load_use
-  val replay_ex = ex_reg_valid && (replay_ex_structural || replay_ex_load_use)
+  val replay_ex = ex_reg_replay || (ex_reg_valid && (replay_ex_structural || replay_ex_load_use))
   val ctrl_killx = take_pc_mem_wb || replay_ex || !ex_reg_valid
   // detect 2-cycle load-use delay for LB/LH/SC
   val ex_slow_bypass = ex_ctrl.mem_cmd === M_XSC || Vec(MT_B, MT_BU, MT_H, MT_HU).contains(ex_ctrl.mem_type)
@@ -536,9 +538,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
     id_do_fence ||
     csr.io.csr_stall
-  ctrl_killd := !io.imem.resp.valid || take_pc || ctrl_stalld || csr.io.interrupt
+  ctrl_killd := !io.imem.resp.valid || io.imem.resp.bits.replay || take_pc || ctrl_stalld || csr.io.interrupt
 
   io.imem.req.valid := take_pc
+  io.imem.req.bits.speculative := !take_pc_wb
   io.imem.req.bits.pc :=
     Mux(wb_xcpt || csr.io.eret, csr.io.evec,     // exception or [m|s]ret
     Mux(replay_wb,              wb_reg_pc,       // replay

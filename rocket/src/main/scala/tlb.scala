@@ -32,6 +32,7 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val xcpt_ld = Bool(OUTPUT)
   val xcpt_st = Bool(OUTPUT)
   val xcpt_if = Bool(OUTPUT)
+  val cacheable = Bool(OUTPUT)
 }
 
 class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
@@ -111,6 +112,7 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   io.resp.xcpt_ld := bad_va || (!tlb_miss && !addr_prot.r) || (tlb_hit && !(r_array & hits).orR)
   io.resp.xcpt_st := bad_va || (!tlb_miss && !addr_prot.w) || (tlb_hit && !(w_array & hits).orR)
   io.resp.xcpt_if := bad_va || (!tlb_miss && !addr_prot.x) || (tlb_hit && !(x_array & hits).orR)
+  io.resp.cacheable := addrMap.isCacheable(paddr)
   io.resp.miss := tlb_miss
   io.resp.ppn := Mux(vm_enabled, Mux1H(hitsVec, ppns), io.req.bits.vpn(ppnBits-1,0))
 

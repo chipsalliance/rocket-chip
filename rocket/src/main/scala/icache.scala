@@ -30,6 +30,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
     val req = Valid(new ICacheReq).flip
     val s1_ppn = UInt(INPUT, ppnBits) // delayed one cycle w.r.t. req
     val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
+    val s2_kill = Bool(INPUT) // delayed two cycles; prevents I$ miss emission
 
     val resp = Decoupled(new ICacheResp)
     val invalidate = Bool(INPUT)
@@ -67,7 +68,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
   val s1_miss = out_valid && !s1_any_tag_hit
   rdy := state === s_ready && !s1_miss
 
-  when (s1_valid && state === s_ready && s1_miss) {
+  when (s1_miss && state === s_ready) {
     refill_addr := s1_paddr
   }
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
@@ -135,7 +136,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
     io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
     io.resp.valid := s1_hit
   }
-  io.mem.acquire.valid := (state === s_request)
+  io.mem.acquire.valid := state === s_request && !io.s2_kill
   io.mem.acquire.bits := GetBlock(addr_block = refill_addr >> blockOffBits)
 
   // control state machine
@@ -146,6 +147,7 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
     }
     is (s_request) {
       when (io.mem.acquire.ready) { state := s_refill_wait }
+      when (io.s2_kill) { state := s_ready }
     }
     is (s_refill_wait) {
       when (io.mem.grant.valid) { state := s_refill }
