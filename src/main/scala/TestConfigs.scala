@@ -253,3 +253,23 @@ class WithPCIeMockupTest extends Config(
   })
 class PCIeMockupTestConfig extends Config(
   new WithPCIeMockupTest ++ new GroundTestConfig)
+
+class WithDirectMemtest extends Config(
+  (pname, site, here) => {
+    val nGens = 8
+    pname match {
+      case GroundTestId => 0
+      case GroundTestKey => Seq(GroundTestTileSettings(uncached = nGens))
+      case GeneratorKey => GeneratorParameters(
+        maxRequests = 1024,
+        startAddress = 0)
+      // Kind of a Hack
+      case NAcquireTransactors => nGens - 2
+      case MIFTagBits => Dump("MIF_TAG_BITS", 2)
+      case NBanksPerMemoryChannel => nGens
+      case _ => throw new CDEMatchError
+    }
+  })
+
+class DirectMemtestConfig extends Config(
+  new WithDirectMemtest ++ new GroundTestConfig)
