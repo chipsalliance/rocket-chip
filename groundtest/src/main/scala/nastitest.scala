@@ -44,7 +44,7 @@ class NastiGenerator(id: Int)(implicit val p: Parameters) extends Module
 
   io.mem.aw.valid := (state === s_write_addr)
   io.mem.aw.bits := NastiWriteAddressChannel(
-    id = UInt(0),
+    id = write_idx(nastiXIdBits - 1, 0),
     addr = write_addr,
     len = UInt(0),
     size = UInt(log2Ceil(genWordBytes)))
