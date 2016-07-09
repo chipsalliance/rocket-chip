@@ -1,27 +1,12 @@
-[submodule "uncore"]
-	path = uncore
-	url = https://github.com/ucb-bar/uncore.git
 [submodule "dramsim2"]
 	path = dramsim2
 	url = https://github.com/dramninjasUMD/DRAMSim2.git
 [submodule "riscv-tools"]
 	path = riscv-tools
 	url = https://github.com/riscv/riscv-tools.git
-[submodule "rocket"]
-	path = rocket
-	url = https://github.com/ucb-bar/rocket.git
-[submodule "chisel"]
-	path = chisel2
-	url = https://github.com/ucb-bar/chisel.git
 [submodule "hardfloat"]
 	path = hardfloat
 	url = https://github.com/ucb-bar/berkeley-hardfloat.git
-[submodule "fpga-zynq"]
-	path = fpga-zynq
-	url = https://github.com/ucb-bar/fpga-zynq.git
-[submodule "junctions"]
-	path = junctions
-	url = https://github.com/ucb-bar/junctions
 [submodule "context-dependent-environments"]
 	path = context-dependent-environments
 	url = https://github.com/ucb-bar/context-dependent-environments
