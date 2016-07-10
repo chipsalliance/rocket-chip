@@ -50,6 +50,8 @@ case object UseStreamLoopback extends Field[Boolean]
 case object StreamLoopbackSize extends Field[Int]
 case object StreamLoopbackWidth extends Field[Int]
 
+case object SmiExampleAddrBits extends Field[BigInt]
+
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
   implicit val p: Parameters
@@ -256,7 +258,7 @@ class Uncore(implicit val p: Parameters) extends Module
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
     val ioexample = Module(new SmiExample)
-    val ioexample2smi = Module(new SmiIOTileLinkIOConverter(64, 10))
+    val ioexample2smi = Module(new SmiIOTileLinkIOConverter(64, p(SmiExampleAddrBits)))
     ioexample2smi.io.tl <> mmioNetwork.port("int:smiexample")
     ioexample.io.smi <> ioexample2smi.io.smi
     io.smibit := ioexample.io.iobit
