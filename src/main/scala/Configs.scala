@@ -30,7 +30,7 @@ class BaseConfig extends Config (
       entries += AddrMapEntry("rtc", MemSize(4096, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
-      entries += AddrMapEntry("smiexample", MemSize(1024, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("smiexample", MemSize(BigInt(1) << site(SmiExampleAddrBits), MemAttr(AddrMapProt.RW)))
       new AddrMap(entries)
     }
     lazy val globalAddrMap = {
@@ -75,6 +75,10 @@ class BaseConfig extends Config (
       res append s"    addr 0x${addrMap("mem").start.toString(16)};\n"
       res append s"    size 0x${addrMap("mem").size.toString(16)};\n"
       res append  "  };\n"
+      res append  "};\n"
+      res append  "smiexample {\n"
+      res append s"  addr 0x${internalIOAddrMap("smiexample").start.toString(16)};\n"
+      res append s"  size 0x${internalIOAddrMap("smiexample").size.toString(16)};\n"
       res append  "};\n"
       res append  "core {\n"
       for (i <- 0 until site(NTiles)) {
@@ -309,6 +313,7 @@ class BaseConfig extends Config (
       case UseHtifClockDiv => true
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
+      case SmiExampleAddrBits => 10
       case _ => throw new CDEMatchError
   }},
   knobValues = {
