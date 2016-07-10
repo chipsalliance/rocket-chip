@@ -22,7 +22,22 @@ object TestBenchGeneration {
     val ddw = DbBusConsts.dbDataSize
     val drw = DbBusConsts.dbRespSize
 
+    val debugSyncDefs = if (p(AsyncDebugBus)) s"""
+
+  wire   debug_clk;
+  wire   debug_rst;
+
+"""
+    else s"""
+
+`define VERILOG_DEBUG_SYNC
+
+"""
+
     val debugDefs = s"""
+
+  $debugSyncDefs
+
   wire debug_req_valid_delay;
   reg debug_req_valid;
   assign #0.1 debug_req_valid_delay = debug_req_valid;
@@ -54,9 +69,16 @@ object TestBenchGeneration {
 
   wire [${ddw-1}:0] debug_resp_bits_data, debug_resp_bits_data_delay;
   assign #0.1 debug_resp_bits_data = debug_resp_bits_data_delay;
+""" 
+
+    val debugSyncBus = if (p(AsyncDebugBus)) s"""
+   .io_debug_clk(debug_clk),
+   .io_debug_rst(debug_reset),
 """
+    else ""
 
     val debugBus = s"""
+    $debugSyncBus
     .io_debug_req_ready(debug_req_ready_delay),
     .io_debug_req_valid(debug_req_valid_delay),
     .io_debug_req_bits_addr(debug_req_bits_addr_delay),
@@ -67,7 +89,8 @@ object TestBenchGeneration {
     .io_debug_resp_bits_resp(debug_resp_bits_resp_delay),
     .io_debug_resp_bits_data(debug_resp_bits_data_delay)
 """
-    val nasti_defs = (0 until nMemChannel) map { i => s"""
+
+val nasti_defs = (0 until nMemChannel) map { i => s"""
   wire ar_valid_$i;
   reg ar_ready_$i;
   wire [`MEM_ADDR_BITS-1:0] ar_addr_$i;

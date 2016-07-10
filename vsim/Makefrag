@@ -16,6 +16,14 @@ sim_csrcs = \
 	$(base_dir)/csrc/mm.cc \
 	$(base_dir)/csrc/mm_dramsim2.cc \
 
+ifeq ($(TB), rocketDTMTestHarness)
+	sim_csrcs += $(base_dir)/csrc/jtag_vpi.c
+	sim_vsrcs += $(base_dir)/vsrc/jtag_vpi.v
+	sim_vsrcs += $(base_dir)/vsrc/AsyncFifo.v
+	sim_vsrcs += $(base_dir)/vsrc/DebugTransportModuleJtag.v
+endif
+
+
 #--------------------------------------------------------------------
 # Build Verilog
 #--------------------------------------------------------------------
@@ -30,6 +38,8 @@ verilog: $(sim_vsrcs)
 
 VCS = vcs -full64
 
+
+             
 VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1ns/10ps -quiet \
 	+rad +v2k +vcs+lic+wait \
 	+vc+list -CC "-I$(VCS_HOME)/include" \
@@ -48,18 +58,28 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+define+RANDOMIZE \
 	+libext+.v \
 
+ifeq ($(TB), rocketDTMTestHarness)
+        VCS_OPTS += +vpi
+	VCS_OPTS += -P $(base_dir)/vsrc/jtag_vpi.tab
+        VCS_OPTS += -CC "-DVCS_VPI"
+endif
+
 #--------------------------------------------------------------------
 # Build the simulator
 #--------------------------------------------------------------------
 
-simv = $(sim_dir)/simv-$(MODEL)-$(CONFIG)
+ifeq ($(TB), rocketDTMTestHarness)
+	TB_ = DTM-
+endif
+
+simv = $(sim_dir)/simv-$(TB_)$(MODEL)-$(CONFIG)
 $(simv) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_header)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv) \
 	-debug_pp \
 
-simv_debug = $(sim_dir)/simv-$(MODEL)-$(CONFIG)-debug
+simv_debug = $(sim_dir)/simv-$(TB_)$(MODEL)-$(CONFIG)-debug
 $(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_header)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
