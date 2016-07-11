@@ -202,7 +202,7 @@ The torture test code is used to generate randomized instruction streams which
 are then run as code on the rocket core(s). These are constrained random tests
 to stress-test both the core and uncore portions of the design.
 
-### <a name="what_toplevel"></a>The Submodules
+### <a name="what_toplevel"></a>The Top Level Module
 
 Next, take a look at rocket-chip's src/main/scala directory.
 This directory has the Chisel source files including the top level
