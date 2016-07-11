@@ -251,6 +251,7 @@ class WithPCIeMockupTest extends Config(
       }
     case _ => throw new CDEMatchError
   })
+
 class PCIeMockupTestConfig extends Config(
   new WithPCIeMockupTest ++ new GroundTestConfig)
 
@@ -258,7 +259,6 @@ class WithDirectMemtest extends Config(
   (pname, site, here) => {
     val nGens = 8
     pname match {
-      case GroundTestId => 0
       case GroundTestKey => Seq(GroundTestTileSettings(uncached = nGens))
       case GeneratorKey => GeneratorParameters(
         maxRequests = 1024,
@@ -267,9 +267,36 @@ class WithDirectMemtest extends Config(
       case NAcquireTransactors => nGens - 2
       case MIFTagBits => Dump("MIF_TAG_BITS", 2)
       case NBanksPerMemoryChannel => nGens
+      case BuildGroundTest =>
+        (p: Parameters) => Module(new GeneratorTest()(p))
       case _ => throw new CDEMatchError
     }
   })
 
+class WithDirectComparator extends Config(
+  (pname, site, here) => pname match {
+    case GroundTestKey => Seq.fill(site(NTiles)) {
+      GroundTestTileSettings(uncached = site(ComparatorKey).targets.size)
+    }
+    case BuildGroundTest =>
+      (p: Parameters) => Module(new ComparatorCore()(p))
+    case ComparatorKey => ComparatorParameters(
+      targets    = Seq(0L, 0x100L),
+      width      = 8,
+      operations = 1000,
+      atomics    = site(UseAtomics),
+      prefetches = site("COMPARATOR_PREFETCHES"))
+    case UseFPU => false
+    case UseAtomics => false
+    case "COMPARATOR_PREFETCHES" => false
+    // Hax Hax Hax
+    case NAcquireTransactors => 0
+    case MIFTagBits => Dump("MIF_TAG_BITS", 2)
+    case NBanksPerMemoryChannel => site(ComparatorKey).targets.size
+    case _ => throw new CDEMatchError
+  })
+
 class DirectMemtestConfig extends Config(
   new WithDirectMemtest ++ new GroundTestConfig)
+class DirectComparatorConfig extends Config(
+  new WithDirectComparator ++ new GroundTestConfig)
