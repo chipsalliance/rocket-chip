@@ -307,6 +307,7 @@ class BaseConfig extends Config (
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
       case EnableL2Logging => false
+      case ExportGroundTestStatus => false
       case _ => throw new CDEMatchError
   }},
   knobValues = {
@@ -416,6 +417,7 @@ class WithRV32 extends Config(
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
+    case ExportGroundTestStatus => true
     case _ => throw new CDEMatchError
   }
 )

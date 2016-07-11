@@ -300,3 +300,8 @@ class DirectMemtestConfig extends Config(
   new WithDirectMemtest ++ new GroundTestConfig)
 class DirectComparatorConfig extends Config(
   new WithDirectComparator ++ new GroundTestConfig)
+
+class DirectMemtestFPGAConfig extends Config(
+  new FPGAConfig ++ new DirectMemtestConfig)
+class DirectComparatorFPGAConfig extends Config(
+  new FPGAConfig ++ new DirectComparatorConfig)
