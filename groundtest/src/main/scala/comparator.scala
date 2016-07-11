@@ -189,6 +189,10 @@ class ComparatorSource(implicit val p: Parameters) extends Module
         is (UInt("b110")) {
           printf("[acq %d]: PutPrefetch(addr_block = %x)\n", idx, addr_block)
         }
+        is (UInt("b111")) {
+          printf("[acq %d]: Get(addr_block = %x, addr_beat = %x, addr_byte = %x, op_size = %x)\n",
+            idx, addr_block, addr_beat, get_addr_byte, get_operand_size)
+        }
       }
     }
     idx := idx + UInt(1)
@@ -241,8 +245,9 @@ class ComparatorClient(val target: Long)(implicit val p: Parameters) extends Mod
   io.tl.acquire.bits.addr_block := buffer.bits.addr_block + offset
   io.tl.acquire.bits.client_xact_id := xact_id
   when (isMultiOut) {
+    val multiplier = beatOut + UInt(1, tlBeatAddrBits + 1)
     io.tl.acquire.bits.addr_beat := beatOut
-    io.tl.acquire.bits.data := buffer.bits.data * (beatOut + UInt(1)) // mix the data up a bit
+    io.tl.acquire.bits.data := buffer.bits.data * multiplier // mix the data up a bit
   }
   
   when (io.tl.acquire.fire()) {
@@ -281,7 +286,7 @@ class ComparatorClient(val target: Long)(implicit val p: Parameters) extends Mod
   io.finished := !buffer.valid && !issued.reduce(_ || _)
 
   val (idx, acq_done) = Counter(
-    io.tl.acquire.fire() && io.tl.acquire.bits.first(), nOperations)
+    io.tl.acquire.fire() && io.tl.acquire.bits.last(), nOperations)
   debug(idx)
 
   val timer = Module(new Timer(8192, xacts))
