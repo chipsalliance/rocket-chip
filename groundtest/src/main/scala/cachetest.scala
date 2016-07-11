@@ -43,5 +43,7 @@ class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
   when (state === s_prefetch && round_done) { state := s_retrieve }
   when (state === s_retrieve && round_done) { state := s_finished }
 
-  io.finished := (state === s_finished)
+  io.status.finished := (state === s_finished)
+  io.status.timeout.valid := Bool(false)
+  io.status.error.valid := Bool(false)
 }

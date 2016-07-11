@@ -16,6 +16,11 @@ case class GroundTestTileSettings(
 case object GroundTestKey extends Field[Seq[GroundTestTileSettings]]
 case object GroundTestId extends Field[Int]
 
+trait HasGroundTestConstants {
+  val timeoutCodeBits = 4
+  val errorCodeBits = 4
+}
+
 trait HasGroundTestParameters extends HasAddrMapParameters {
   implicit val p: Parameters
   val tileId = p(GroundTestId)
@@ -69,12 +74,18 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   }
 }
 
+class GroundTestStatus extends Bundle with HasGroundTestConstants {
+  val finished = Bool(OUTPUT)
+  val timeout = Valid(UInt(width = timeoutCodeBits))
+  val error = Valid(UInt(width = errorCodeBits))
+}
+
 class GroundTestIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
     with HasGroundTestParameters {
   val cache = Vec(nCached, new HellaCacheIO)
   val mem = Vec(nUncached, new ClientUncachedTileLinkIO)
   val ptw = Vec(nPTW, new TLBPTWIO)
-  val finished = Bool(OUTPUT)
+  val status = new GroundTestStatus
 }
 
 abstract class GroundTest(implicit val p: Parameters) extends Module
@@ -113,7 +124,7 @@ class GroundTestTile(resetSignal: Bool)
     ptwPorts += dcache_io.ptw
   }
 
-  when (test.io.finished) { stop() }
+  when (test.io.status.finished) { stop() }
 
   if (ptwPorts.size > 0) {
     val ptw = Module(new DummyPTW(ptwPorts.size))

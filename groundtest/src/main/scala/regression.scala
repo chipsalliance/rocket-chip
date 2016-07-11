@@ -13,6 +13,7 @@ class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) 
   val cache = new HellaCacheIO
   val mem = new ClientUncachedTileLinkIO
   val finished = Bool(OUTPUT)
+  val errored = Bool(OUTPUT)
 }
 
 abstract class Regression(implicit val p: Parameters)
@@ -178,10 +179,11 @@ class NoAllocPutHitRegression(implicit p: Parameters) extends Regression()(p) {
     }
   }
 
-  assert(!io.mem.grant.valid || !gnt.hasData() || gnt.data === test_data,
-    "NoAllocPutHitRegression: data does not match")
+  val data_mismatch = io.mem.grant.fire() && gnt.hasData() && gnt.data =/= test_data
+  assert(!data_mismatch, "NoAllocPutHitRegression: data does not match")
 
   io.finished := (state === s_done)
+  io.errored := data_mismatch
 
   disableCache()
 }
@@ -249,9 +251,10 @@ class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
 
   io.finished := (state === s_done)
 
-  assert(state =/= s_get_wait || !io.mem.grant.valid ||
-         io.mem.grant.bits.data === test_data(io.mem.grant.bits.client_xact_id),
-         "MixedAllocPutRegression: data mismatch")
+  val data_mismatch = state === s_get_wait && io.mem.grant.fire() &&
+    io.mem.grant.bits.data =/= test_data(io.mem.grant.bits.client_xact_id)
+  assert(!data_mismatch, "MixedAllocPutRegression: data mismatch")
+  io.errored := data_mismatch
 
   disableCache()
 }
@@ -347,11 +350,10 @@ class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()
 
   io.finished := (state === s_done)
 
-  assert(!io.mem.grant.valid ||
-         !io.mem.grant.bits.hasData() ||
-         stage === UInt(0) ||
-         io.mem.grant.bits.data === get_data,
-         "WriteMaskedPutBlockRegression: data does not match")
+  val data_mismatch = io.mem.grant.fire() && io.mem.grant.bits.hasData() &&
+                      state =/= UInt(0) && io.mem.grant.bits.data =/= get_data
+  assert(!data_mismatch, "WriteMaskedPutBlockRegression: data does not match")
+  io.errored := data_mismatch
 }
 
 /* Make sure a prefetch that hits returns immediately. */
@@ -379,6 +381,7 @@ class PrefetchHitRegression(implicit p: Parameters) extends Regression()(p) {
   when (sending && pf_done) { sending := Bool(false) }
 
   io.finished := acked.andR
+  io.errored := Bool(false)
 }
 
 /* This tests the sort of access the pattern that Hwacha uses.
@@ -408,8 +411,9 @@ class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()
 
   io.finished := finished
 
-  assert(!io.mem.grant.valid || io.mem.grant.bits.addr_beat === recv_cnt,
-    "SequentialSameIdGetRegression: grant received out of order")
+  val beat_mismatch = io.mem.grant.fire() && io.mem.grant.bits.addr_beat =/= recv_cnt
+  assert(!beat_mismatch, "SequentialSameIdGetRegression: grant received out of order")
+  io.errored := beat_mismatch
 }
 
 /* Test that a writeback will occur by writing nWays + 1 blocks to the same
@@ -463,9 +467,10 @@ class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
 
   io.finished := (state === s_done)
 
-  assert(!io.mem.grant.valid || !io.mem.grant.bits.hasData() ||
-    io.mem.grant.bits.data === data(ack_cnt),
-    "WritebackRegression: incorrect data")
+  val data_mismatch = io.mem.grant.fire() && io.mem.grant.bits.hasData() &&
+                      io.mem.grant.bits.data =/= data(ack_cnt)
+  assert(!data_mismatch, "WritebackRegression: incorrect data")
+  io.errored := data_mismatch
 }
 
 class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
@@ -506,9 +511,10 @@ class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
 
   io.finished := (state === s_done)
 
-  assert(!io.cache.resp.valid || !io.cache.resp.bits.has_data ||
-         io.cache.resp.bits.data === data(resp_idx),
-         "ReleaseRegression: data mismatch")
+  val data_mismatch = io.cache.resp.valid && io.cache.resp.bits.has_data &&
+                      io.cache.resp.bits.data =/= data(resp_idx)
+  assert(!data_mismatch, "ReleaseRegression: data mismatch")
+  io.errored := data_mismatch
 }
 
 class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p) {
@@ -548,6 +554,7 @@ class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p
   when (all_acked) { state := s_finished }
 
   io.finished := (state === s_finished)
+  io.errored := Bool(false)
 }
 
 object RegressionTests {
@@ -610,6 +617,8 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
       io.cache.head.req.valid := regress.io.cache.req.valid
       io.cache.head.req.bits := regress.io.cache.req.bits
       io.cache.head.invalidate_lr := regress.io.cache.invalidate_lr
+      io.status.error.valid := regress.io.errored
+      io.status.error.bits := UInt(i)
       cur_finished := regress.io.finished
     }
   }
@@ -620,11 +629,18 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   }
   when (start) { start := Bool(false) }
 
-  io.finished := all_done
-
   val timeout = Timer(5000, start, cur_finished)
   assert(!timeout, "Regression timed out")
 
+  io.status.finished := all_done
+  io.status.timeout.valid := timeout
+  io.status.timeout.bits := UInt(0)
+
   assert(!(all_done && io.mem.head.grant.valid),
     "Getting grant after test completion")
+
+  when (all_done) {
+    io.status.error.valid := io.mem.head.grant.valid
+    io.status.error.bits := UInt(regressions.size)
+  }
 }

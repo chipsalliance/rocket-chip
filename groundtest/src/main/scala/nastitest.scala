@@ -13,7 +13,7 @@ class NastiGenerator(id: Int)(implicit val p: Parameters) extends Module
     with HasGeneratorParameters {
 
   val io = new Bundle {
-    val finished = Bool(OUTPUT)
+    val status = new GroundTestStatus
     val mem = new NastiIO
   }
 
@@ -65,7 +65,7 @@ class NastiGenerator(id: Int)(implicit val p: Parameters) extends Module
   io.mem.r.ready := Bool(true)
   io.mem.b.ready := Bool(true)
 
-  io.finished := (state === s_finish)
+  io.status.finished := (state === s_finish)
 
   val (read_resp_idx,  read_resp_done)  = Counter(io.mem.r.fire(), maxRequests)
   val read_resp_addr = UInt(startAddress) + Cat(read_resp_idx, part_of_addr)
@@ -73,8 +73,10 @@ class NastiGenerator(id: Int)(implicit val p: Parameters) extends Module
   val read_shift = Cat(read_offset, UInt(0, 3))
   val read_data = (io.mem.r.bits.data >> read_shift)(genWordBits - 1, 0)
 
-  assert(!io.mem.r.valid || read_data === ref_data(read_resp_idx),
-    "NASTI Test: results do not match")
+  val data_mismatch = io.mem.r.valid && read_data =/= ref_data(read_resp_idx)
+  assert(!data_mismatch, "NASTI Test: results do not match")
+  io.status.error.valid := data_mismatch
+  io.status.error.bits := UInt(1)
 
   when (state === s_start) { state := s_write_addr }
   when (io.mem.aw.fire()) { state := s_write_data  }
@@ -96,6 +98,9 @@ class NastiGenerator(id: Int)(implicit val p: Parameters) extends Module
   w_timer.io.stop.valid := io.mem.b.fire()
   w_timer.io.stop.bits := io.mem.b.bits.id
   assert(!w_timer.io.timeout, "NASTI Write timed out")
+
+  io.status.timeout.valid := r_timer.io.timeout || w_timer.io.timeout
+  io.status.timeout.bits := Mux(r_timer.io.timeout, UInt(1), UInt(2))
 }
 
 class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)
@@ -112,5 +117,5 @@ class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)
 
   converter.io.nasti <> test.io.mem
   TileLinkWidthAdapter(io.mem.head, converter.io.tl)
-  io.finished := test.io.finished
+  io.status := test.io.status
 }

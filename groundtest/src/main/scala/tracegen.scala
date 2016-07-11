@@ -178,6 +178,7 @@ class TraceGenerator(id: Int)
                                 with HasTraceGenParams {
   val io = new Bundle {
     val finished = Bool(OUTPUT)
+    val timeout = Bool(OUTPUT)
     val mem = new HellaCacheIO
   }
 
@@ -540,6 +541,7 @@ class TraceGenerator(id: Int)
   }
 
   io.finished := Bool(false)
+  io.timeout := timeout
 }
 
 // =======================
@@ -552,5 +554,8 @@ class GroundTestTraceGenerator(implicit p: Parameters)
   val traceGen = Module(new TraceGenerator(p(GroundTestId)))
   io.cache.head <> traceGen.io.mem
 
-  io.finished := traceGen.io.finished
+  io.status.finished := traceGen.io.finished
+  io.status.timeout.valid := traceGen.io.timeout
+  io.status.timeout.bits := UInt(0)
+  io.status.error.valid := Bool(false)
 }

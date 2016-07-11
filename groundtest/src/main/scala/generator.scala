@@ -39,7 +39,7 @@ class UncachedTileLinkGenerator(id: Int)
 
   val io = new Bundle {
     val mem = new ClientUncachedTileLinkIO
-    val finished = Bool(OUTPUT)
+    val status = new GroundTestStatus
   }
 
   val (s_start :: s_put :: s_get :: s_finished :: Nil) = Enum(Bits(), 4)
@@ -61,7 +61,9 @@ class UncachedTileLinkGenerator(id: Int)
   val timeout = Timer(genTimeout, io.mem.acquire.fire(), io.mem.grant.fire())
   assert(!timeout, s"Uncached generator ${id} timed out waiting for grant")
 
-  io.finished := (state === s_finished)
+  io.status.finished := (state === s_finished)
+  io.status.timeout.valid := timeout
+  io.status.timeout.bits := UInt(id)
 
   val part_of_full_addr =
     if (log2Ceil(nGens) > 0) {
@@ -99,17 +101,22 @@ class UncachedTileLinkGenerator(id: Int)
     operand_size = wordSize,
     alloc = Bool(false))
 
-  io.mem.acquire.valid := sending && !io.finished
+  io.mem.acquire.valid := sending && !io.status.finished
   io.mem.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
-  io.mem.grant.ready := !sending && !io.finished
+  io.mem.grant.ready := !sending && !io.status.finished
 
   def wordFromBeat(addr: UInt, dat: UInt) = {
     val shift = Cat(beatOffset(addr), UInt(0, wordOffset + 3))
     (dat >> shift)(genWordBits - 1, 0)
   }
 
-  assert(!io.mem.grant.valid || state =/= s_get ||
-    wordFromBeat(full_addr, io.mem.grant.bits.data) === word_data,
+  val data_mismatch = io.mem.grant.fire() && state === s_get &&
+    wordFromBeat(full_addr, io.mem.grant.bits.data) =/= word_data
+
+  io.status.error.valid := data_mismatch
+  io.status.error.bits := UInt(id)
+
+  assert(!data_mismatch,
     s"Get received incorrect data in uncached generator ${id}")
 
   def beatOffset(addr: UInt) = // TODO zero-width
@@ -121,11 +128,13 @@ class HellaCacheGenerator(id: Int)
     (implicit p: Parameters) extends L1HellaCacheModule()(p) with HasGeneratorParameters {
   val io = new Bundle {
     val mem = new HellaCacheIO
-    val finished = Bool(OUTPUT)
+    val status = new GroundTestStatus
   }
 
   val timeout = Timer(genTimeout, io.mem.req.fire(), io.mem.resp.valid)
   assert(!timeout, s"Cached generator ${id} timed out waiting for response")
+  io.status.timeout.valid := timeout
+  io.status.timeout.bits := UInt(id)
 
   val (s_start :: s_write :: s_read :: s_finished :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = s_start)
@@ -143,7 +152,7 @@ class HellaCacheGenerator(id: Int)
   val req_addr = UInt(startAddress) + Cat(req_cnt, part_of_req_addr)
   val req_data = Cat(UInt(id, log2Up(nGens)), req_addr)
 
-  io.mem.req.valid := sending && !io.finished
+  io.mem.req.valid := sending && !io.status.finished
   io.mem.req.bits.addr := req_addr
   io.mem.req.bits.data := req_data
   io.mem.req.bits.typ  := wordSize
@@ -157,7 +166,7 @@ class HellaCacheGenerator(id: Int)
 
   when (req_wrap) { state := Mux(state === s_write, s_read, s_finished) }
 
-  io.finished := (state === s_finished)
+  io.status.finished := (state === s_finished)
 
   def data_match(recv: Bits, expected: Bits): Bool = {
     val recv_resized = Wire(Bits(width = genWordBits))
@@ -168,8 +177,13 @@ class HellaCacheGenerator(id: Int)
     recv_resized === exp_resized
   }
 
-  assert(!io.mem.resp.valid || !io.mem.resp.bits.has_data ||
-    data_match(io.mem.resp.bits.data, req_data),
+  val data_mismatch = io.mem.resp.valid && io.mem.resp.bits.has_data &&
+    !data_match(io.mem.resp.bits.data, req_data)
+
+  io.status.error.valid := data_mismatch
+  io.status.error.bits := UInt(id)
+
+  assert(!data_mismatch,
     s"Received incorrect data in cached generator ${id}")
 }
 
@@ -193,6 +207,6 @@ class GeneratorTest(implicit p: Parameters)
   io.cache <> cached.map(_.io.mem)
   io.mem <> uncached.map(_.io.mem)
 
-  val gen_finished = cached.map(_.io.finished) ++ uncached.map(_.io.finished)
-  io.finished := gen_finished.reduce(_ && _)
+  val gen_debug = cached.map(_.io.status) ++ uncached.map(_.io.status)
+  io.status := DebugCombiner(gen_debug)
 }

@@ -576,10 +576,16 @@ class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
   when (state === s_idle) { state := s_start }
   when (state === s_start) { state := s_wait }
 
+  io.status.timeout.valid := Bool(false)
   tests.zipWithIndex.foreach { case (mod, i) =>
     mod.io.start := (state === s_start)
     val timeout = Timer(1000, mod.io.start, mod.io.finished)
     assert(!timeout, s"UnitTest $i timed out")
+    when (timeout) {
+      io.status.timeout.valid := Bool(true)
+      io.status.timeout.bits := UInt(i)
+    }
   }
-  io.finished := tests.map(_.io.finished).reduce(_ && _)
+  io.status.finished := tests.map(_.io.finished).reduce(_ && _)
+  io.status.error.valid := Bool(false)
 }

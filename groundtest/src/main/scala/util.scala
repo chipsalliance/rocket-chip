@@ -154,3 +154,26 @@ object Frequency {
     return result
   }
 }
+
+object ValidMux {
+  def apply[T <: Data](v1: ValidIO[T], v2: ValidIO[T]*): ValidIO[T] = {
+    apply(v1 +: v2.toSeq)
+  }
+  def apply[T <: Data](valids: Seq[ValidIO[T]]): ValidIO[T] = {
+    val out = Wire(Valid(valids.head.bits))
+    out.valid := valids.map(_.valid).reduce(_ || _)
+    out.bits := MuxCase(valids.head.bits,
+      valids.map(v => (v.valid -> v.bits)))
+    out
+  }
+}
+
+object DebugCombiner {
+  def apply(debugs: Seq[GroundTestStatus]): GroundTestStatus = {
+    val out = Wire(new GroundTestStatus)
+    out.finished := debugs.map(_.finished).reduce(_ || _)
+    out.timeout  := ValidMux(debugs.map(_.timeout))
+    out.error    := ValidMux(debugs.map(_.error))
+    out
+  }
+}
