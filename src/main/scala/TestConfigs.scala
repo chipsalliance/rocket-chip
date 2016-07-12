@@ -255,6 +255,17 @@ class WithPCIeMockupTest extends Config(
 class PCIeMockupTestConfig extends Config(
   new WithPCIeMockupTest ++ new GroundTestConfig)
 
+class WithDirectGroundTest extends Config(
+  (pname, site, here) => pname match {
+    case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
+      maxClientXacts = site(GroundTestKey)(0).maxXacts,
+      maxClientsPerPort = site(NBanksPerMemoryChannel),
+      dataBeats = site(MIFDataBeats))
+    case MIFTagBits => Dump("MIF_TAG_BITS", 2)
+    case NBanksPerMemoryChannel => site(GroundTestKey)(0).uncached
+    case _ => throw new CDEMatchError
+  })
+
 class WithDirectMemtest extends Config(
   (pname, site, here) => {
     val nGens = 8
@@ -263,10 +274,6 @@ class WithDirectMemtest extends Config(
       case GeneratorKey => GeneratorParameters(
         maxRequests = 1024,
         startAddress = 0)
-      // Kind of a Hack
-      case NAcquireTransactors => nGens - 2
-      case MIFTagBits => Dump("MIF_TAG_BITS", 2)
-      case NBanksPerMemoryChannel => nGens
       case BuildGroundTest =>
         (p: Parameters) => Module(new GeneratorTest()(p))
       case _ => throw new CDEMatchError
@@ -289,17 +296,15 @@ class WithDirectComparator extends Config(
     case UseFPU => false
     case UseAtomics => false
     case "COMPARATOR_PREFETCHES" => false
-    // Hax Hax Hax
-    case NAcquireTransactors => 0
-    case MIFTagBits => Dump("MIF_TAG_BITS", 2)
-    case NBanksPerMemoryChannel => site(ComparatorKey).targets.size
     case _ => throw new CDEMatchError
   })
 
+class DirectGroundTestConfig extends Config(
+  new WithDirectGroundTest ++ new GroundTestConfig)
 class DirectMemtestConfig extends Config(
-  new WithDirectMemtest ++ new GroundTestConfig)
+  new WithDirectMemtest ++ new DirectGroundTestConfig)
 class DirectComparatorConfig extends Config(
-  new WithDirectComparator ++ new GroundTestConfig)
+  new WithDirectComparator ++ new DirectGroundTestConfig)
 
 class DirectMemtestFPGAConfig extends Config(
   new FPGAConfig ++ new DirectMemtestConfig)
