@@ -180,10 +180,20 @@ class ComparatorSource(implicit val p: Parameters) extends Module
           }
         }
         is (UInt("b101")) {
-          printf("[acq %d]: GetPrefetch(addr_block = %x)\n", idx, addr_block)
+          if (prefetches) {
+            printf("[acq %d]: GetPrefetch(addr_block = %x)\n", idx, addr_block)
+          } else {
+            printf("[acq %d]: Get(addr_block = %x, addr_beat = %x, addr_byte = %x, op_size = %x)\n",
+              idx, addr_block, addr_beat, get_addr_byte, get_operand_size)
+          }
         }
         is (UInt("b110")) {
-          printf("[acq %d]: PutPrefetch(addr_block = %x)\n", idx, addr_block)
+          if (prefetches) {
+            printf("[acq %d]: PutPrefetch(addr_block = %x)\n", idx, addr_block)
+          } else {
+            printf("[acq %d]: Put(addr_block = %x, addr_beat = %x, data = %x, wmask = %x)\n",
+              idx, addr_block, addr_beat, data, wmask)
+          }
         }
         is (UInt("b111")) {
           printf("[acq %d]: Get(addr_block = %x, addr_beat = %x, addr_byte = %x, op_size = %x)\n",
