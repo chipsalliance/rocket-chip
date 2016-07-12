@@ -1,18 +1,19 @@
 // See LICENSE for license details.
 
-extern "A" void htif_fini(input reg failure);
-
-extern "A" void htif_tick
+extern "A" void debug_tick
 (
-  output reg                    htif_in_valid,
-  input  reg                    htif_in_ready,
-  output reg  [`HTIF_WIDTH-1:0] htif_in_bits,
+  output reg        debug_req_valid,
+  input  reg        debug_req_ready,
+  output reg [ 4:0] debug_req_bits_addr,
+  output reg [ 1:0] debug_req_bits_op,
+  output reg [33:0] debug_req_bits_data,
 
-  input  reg                    htif_out_valid,
-  output reg                    htif_out_ready,
-  input  reg  [`HTIF_WIDTH-1:0] htif_out_bits,
+  input  reg        debug_resp_valid,
+  output reg        debug_resp_ready,
+  input  reg [ 1:0] debug_resp_bits_resp,
+  input  reg [33:0] debug_resp_bits_data,
 
-  output reg  [31:0]            exit
+  output reg [31:0] exit
 );
 
 extern "A" void memory_tick
@@ -68,7 +69,6 @@ module rocketTestHarness;
   always #`CLOCK_PERIOD clk = ~clk;
 
   reg [  31:0] n_mem_channel = `N_MEM_CHANNELS;
-  reg [  31:0] htif_width = `HTIF_WIDTH;
   reg [  31:0] mem_width = `MEM_DATA_BITS;
   reg [  63:0] max_cycles = 0;
   reg [  63:0] trace_count = 0;
@@ -86,31 +86,28 @@ module rocketTestHarness;
     r_reset <= reset;
   end
 
-  reg htif_in_valid_premux;
-  reg [`HTIF_WIDTH-1:0] htif_in_bits_premux;
-  assign htif_in_bits = htif_in_bits_premux;
-  assign htif_in_valid = htif_in_valid_premux;
-  wire htif_in_ready_premux = htif_in_ready;
   reg [31:0] exit = 0;
 
-  always @(posedge htif_clk)
+  always @(posedge clk)
   begin
     if (reset || r_reset)
     begin
-      htif_in_valid_premux <= 0;
-      htif_out_ready <= 0;
-      exit <= 0;
+      debug_req_valid <= 0;
+      debug_resp_ready <= 0;
     end
     else
     begin
-      htif_tick
+      debug_tick
       (
-        htif_in_valid_premux,
-        htif_in_ready_premux,
-        htif_in_bits_premux,
-        htif_out_valid,
-        htif_out_ready,
-        htif_out_bits,
+        debug_req_valid,
+        debug_req_ready,
+        debug_req_bits_addr,
+        debug_req_bits_op,
+        debug_req_bits_data,
+        debug_resp_valid,
+        debug_resp_ready,
+        debug_resp_bits_resp,
+        debug_resp_bits_data,
         exit
       );
     end
@@ -123,11 +120,6 @@ module rocketTestHarness;
   initial
   begin
     $value$plusargs("max-cycles=%d", max_cycles);
-`ifdef MEM_BACKUP_EN
-    $value$plusargs("loadmem=%s", loadmem);
-    if (loadmem)
-      $readmemh(loadmem, mem.ram);
-`endif
     verbose = $test$plusargs("verbose");
 `ifdef DEBUG
     if ($value$plusargs("vcdplusfile=%s", vcdplusfile))
@@ -165,13 +157,15 @@ module rocketTestHarness;
     begin
       $fdisplay(stderr, "*** FAILED *** (%s) after %d simulation cycles", reason, trace_count);
       `VCDPLUSCLOSE
-      htif_fini(1'b1);
+      $fatal;
     end
 
     if (exit == 1)
     begin
+      if (verbose)
+        $fdisplay(stderr, "Completed after %d simulation cycles", trace_count);
       `VCDPLUSCLOSE
-      htif_fini(1'b0);
+      $finish;
     end
   end
 

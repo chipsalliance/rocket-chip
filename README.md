@@ -81,13 +81,27 @@ Similarly, to generate VLSI-synthesizable verilog (output will be in `vsim/gener
     $ cd vsim
     $ make verilog
 
-### Updating To A Newer Version Of Chisel
 
-To grab a newer version of chisel:
+### Keeping Your Repo Up-to-Date
 
-    $ git submodule update --init
-    $ cd chisel
+If you are trying to keep your repo up to date with this github repo,
+you also need to keep the submodules and tools up to date.
+
+    $ # Get the newest versions of the files in this repo
     $ git pull origin master
+    $ # Make sure the submodules have the correct versions
+    $ git submodule update --init --recursive
+
+If riscv-tools version changes, you should recompile and install riscv-tools according to the directions in the [riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
+
+    $ cd riscv-tools
+    $ ./build.sh
+
+If firrtl version changes and you are using Chisel3, you may need to clean and recompile:
+
+    $ cd firrtl
+    $ sbt clean
+    $ sbt assembly
 
 ## <a name="what"></a> What's in the Rocket chip generator repository?
 
@@ -101,11 +115,12 @@ at Berkeley, the ability to compose a subset of private and public
 sub-repositories on a per-chip basis is a killer feature of git
 submodule.
 
-So, which submodules are actually included in this chip's repository?
+### <a name="what_submodules"></a>The Submodules
+
 Here's a look at all the git submodules that are currently tracked in
 the rocket-chip repository:
 
-* **chisel**
+* **chisel2**
 ([https://github.com/ucb-bar/chisel](https://github.com/ucb-bar/chisel)):
 At Berkeley, we write RTL in Chisel. For those who are not familiar
 with Chisel, please go take a look at
@@ -117,6 +132,17 @@ and hence it was easiest to use submodule to track bleeding edge commits
 to Chisel, which contained a bunch of new features and bug fixes. As
 Chisel gets more stable, we will likely replace this submodule with an
 external dependency.
+* **chisel3**
+([https://github.com/ucb-bar/chisel3](https://github.com/ucb-bar/chisel3)):
+Chisel3 is a newer version of Chisel, which is based on FIRRTL. The Chisel
+code in this repository is generally compatible with both Chisel2 and Chisel3.
+The [chisel3/README](https://github.com/ucb-bar/chisel3/blob/master/README.md).gives 
+instructions on how to build your design with Chisel3 instead of Chisel2.
+* **firrtl**
+([https://github.com/ucb-bar/firrtl](https://github.com/ucb-bar/firrtl)):
+FIRRTL (Flexible Internal Representation for RTL) is the intermediate format
+which Chisel3 is based upon. The Chisel3 compiler generates a FIRRTL representation,
+from which the final product (Verilog code, C code, etc) is generated.
 * **rocket**
 ([https://github.com/ucb-bar/rocket](https://github.com/ucb-bar/rocket)):
 The rocket repository holds the actual source code of the Rocket core.
@@ -129,8 +155,12 @@ core within a memory system and connects it to the outside world.
 ([https://github.com/ucb-bar/uncore](https://github.com/ucb-bar/uncore)):
 This repository implements the uncore logic, such as the coherence hub
 (the agent that keeps multiple L1 D$ coherent). The definition of the
-coherent interfaces between tiles ("tilelink") and the interface to the
-host machine ("htif")  also live in this repository.
+coherent interfaces between tiles ("tilelink") and the debug interface
+also live in this repository.
+* **junctions**
+([https://github.com/ucb-bar/junctions](https://github.com/ucb-bar/junctions)):
+This repository contains code and
+converters for various bus protocols and interfaces. 
 * **hardfloat**
 ([https://github.com/ucb-bar/berkeley-hardfloat](https://github.com/ucb-bar/berkeley-hardfloat)):
 This repository holds the parameterized IEEE 754-2008 compliant
@@ -142,6 +172,12 @@ has an additional bit) to handle subnormal numbers more efficiently in
 the processor. Please take a look at the
 [README](https://github.com/ucb-bar/berkeley-hardfloat/blob/master/README.md)
 in the repository for more information.
+* **context-dependent-environments**
+([https://github.com/ucb-bar/context-dependent-environments](https://github.com/ucb-bar/context-dependent-environments)):
+The rocket-chip Chisel code is highly parameterizable, and utilizes the classes in 
+this subrepo to set and pass parameters to different levels of the design. Note that in 
+Chisel2, this was handled by Chisel itself, but has been moved into a seperate
+library for use with Chisel3. 
 * **dramsim2**
 ([https://github.com/dramninjasUMD/DRAMSim2](https://github.com/dramninjasUMD/DRAMSim2)):
 Currently, the DRAM memory system is implemented in the testbench. We
@@ -155,9 +191,22 @@ committed in the rocket-chip repository.
 We tag a version of riscv-tools that works with the RTL committed in the
 rocket-chip repository.  Once the software toolchain stabilizes, we
 might turn this submodule into an external dependency.
+* **groundtest**
+([https://github.com/ucb-bar/groundtest](https://github.com/ucb-bar/groundtest)):
+This repository contains code which can test the uncore by generating randomized
+instruction streams. It replaces the rocket processor with an instruction
+stream generator to stress-test the uncore portions of the design.
+* **torture**
+([https://github.com/ucb-bar/torture](https://github.com/ucb-bar/torture)):
+The torture test code is used to generate randomized instruction streams which
+are then run as code on the rocket core(s). These are constrained random tests
+to stress-test both the core and uncore portions of the design.
 
-Next, take a look at rocket-chip's src/main/scala directory. There are a
-couple Chisel source files including RocketChip.scala, which
+### <a name="what_toplevel"></a>The Top Level Module
+
+Next, take a look at rocket-chip's src/main/scala directory.
+This directory has the Chisel source files including the top level
+RocketChip.scala, which
 instantiates both a Rocket core and the uncore logic, and then glues
 them together. Here's a brief overview of source files found in the
 rocket-chip repository:
@@ -184,37 +233,42 @@ down to Verilog. Pretty neat huh?
 implements logic to interface with an arbitrary number of slow
 single-ended digital I/Os when implementing a test chip.
 
-Now you should take a look at the top-level I/O pins. Open up
+Take a look at the top-level I/O pins. Open up
 src/main/scala/RocketChip.scala, and search for TopIO. You will read the
-following (note, HostIO is defined in uncore/src/main/scala/htif.scala,
-and MemIO is defined in uncore/src/main/scala/memserdes.scala):
+following:
 
-    class TopIO extends Bundle {
-      val host    = new HostIO
-      val mem     = new MemIO
-      val mem_backup_en = Bool(INPUT)
-      val in_mem_ready = Bool(OUTPUT)
-      val in_mem_valid = Bool(INPUT)
-      val out_mem_ready = Bool(INPUT)
-      val out_mem_valid = Bool(OUTPUT)
+    /** Top-level io for the chip */
+    class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
+        with HasTopLevelParameters
+
+    class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
+
+      val mem_axi = Vec(nMemAXIChannels, new NastiIO)
+      val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
+      val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
+      val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
+      val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
+      val debug = new DebugBusIO()(p).flip
     }
 
-There are 3 major I/O ports coming out of the top-level module:
+    
+There are 4 major I/O ports coming out of the top-level module:
 
-* **Host-target interface (HostIO)**: The host system talks to the
-target machine via this host-target interface. We serialize a simple
-protocol over this parameterized interface. More details will come.
-* **High-performance memory interface (MemIO, mem\_backup\_en=false)**:
-When mem\_backup\_en is tied low, all memory requests from the processor
-comes out the MemIO port. The MemIO port uses the same uncore clock, and
+* **Debug interface (debug)**:
+The debug interface can be used to both debug the processor as
+it is executing, and to read and write memory. It is slated to repalce the
+host interface in the near future.
+* **High-performance memory interface (mem_*) **:
+Memory requests from the processor comes out the mem_* ports.
+Depending on the configuration of the design, these may be visible as
+AXI or AHB protocol. The mem_* port(s) uses the same uncore clock, and
 is intended to be connected to something on the same chip.
-* **Low-performance memory interface (parts of HostIO, in\_mem\_\*,
-out\_mem\_\*, mem\_backup\_en=true)**: When mem\_backup\_en is tied
-high, all memory requests from the processor comes out the
-low-performance memory interface. To save actual pins on a test chip, we
-multiplex the data pins of the host-target interface with the serialized
-low-performance memory port. That's the reason why you only see the
-control pins (in\_mem\_* and out\_mem\_*).
+* ** Memory mapped I/O interface (mmio_*) **:
+The optional mmio_* interfaces can be used to communicate with devices
+on the chip but outside of the rocket-chip boundary. Depending on the
+configuration of the design, these may be visible as AXI or AHB.
+* ** Interrupts interface (interrupts) **: This interface is used to
+deliver external interrupts to the processor core.
 
 Of course, there's a lot more in the actual submodules, but hopefully
 this would be enough to get you started with using the Rocket chip
@@ -227,7 +281,7 @@ list.
 
 Chisel can generate code for three targets: a high-performance
 cycle-accurate C++ emulator, Verilog optimized for FPGAs, and Verilog
-for VLSI. The Rocket chip generator can target all three backends.  You
+for VLSI. The rocket-chip generator can target all three backends.  You
 will need a Java runtime installed on your machine, since Chisel is
 overlaid on top of [Scala](http://www.scala-lang.org/). Chisel RTL (i.e.
 rocket-chip source code) is a Scala program executing on top of your
@@ -314,7 +368,7 @@ emulator/output/rv64ui-p-add.out:
     C0: 484 [1] pc=[0000000213c] W[r29=000000007fff8000][1] R[r31=ffffffff80007ffe] R[r31=0000000000000005] inst=[7fff8eb7] lui t3, 0x7fff8
     C0: 485 [0] pc=[00000002140] W[r 0=0000000000000000][0] R[r 0=0000000000000000] R[r 0=0000000000000000] inst=[00000000] unknown
 
-This means at cycle 483, core 0, the first [1] shows that there's a
+The first [1] at cycle 483, core 0, shows that there's a
 valid instruction at PC 0x2138 in the writeback stage, which is
 0x002081b3 (add s1, ra, s0). The second [1] tells us that the register
 file is writing r3 with the corresponding value 0x7fff7fff. When the add
@@ -442,6 +496,18 @@ Or, even by defining CONFIG as an environment variable:
 This parameterization is one of the many strengths of processor
 generators written in Chisel, and will be more detailed in a future blog
 post, so please stay tuned.
+
+To override specific configuration items, such as the number of external interrupts,
+you can create your own Configuration(s) and compose them with Config's ++ operator
+
+    class WithNExtInterrupts extends Config (nExt: Int) {
+      (pname, site, here) => pname match {
+      case (NExtInterrupts => nExt)
+      }
+    } 
+    class MyConfig extends Config (new WithNExtInterrupts(16) ++ new DefaultSmallConfig)
+
+Then you can build as usual with CONFIG=MyConfig.
 
 ## <a name="contributors"></a> Contributors
 

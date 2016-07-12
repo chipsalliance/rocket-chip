@@ -32,17 +32,8 @@ addons:
 
 env:
   matrix:
-    - CONFIG=DefaultConfig                  CHISEL_VERSION=3
-    - CONFIG=DefaultL2Config                CHISEL_VERSION=3
-    - CONFIG=RoccExampleConfig              CHISEL_VERSION=3
-    - CONFIG=DualCoreConfig                 CHISEL_VERSION=3
-    - CONFIG=MemtestConfig                  CHISEL_VERSION=3
-    - CONFIG=FancyMemtestConfig             CHISEL_VERSION=3
-    - CONFIG=BroadcastRegressionTestConfig  CHISEL_VERSION=3
-    - CONFIG=CacheRegressionTestConfig      CHISEL_VERSION=3
-    - CONFIG=NastiConverterTestConfig       CHISEL_VERSION=3
-    - CONFIG=UnitTestConfig                 CHISEL_VERSION=3
-    - CONFIG=SplitL2MetadataTestConfig      CHISEL_VERSION=3
+    - SUITE=RocketSuite     CHISEL_VERSION=3
+    - SUITE=GroundtestSuite CHISEL_VERSION=3
 
 # blacklist private branches
 branches:
@@ -55,11 +46,11 @@ before_install:
   - export CXX=g++-4.8 CC=gcc-4.8
 
 script:
-  - make vsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
-  - make fsim-verilog -C regression CONFIG=$CONFIG TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
-  - make emulator-ndebug -C regression CONFIG=$CONFIG TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
-  - make emulator-asm-tests   -C regression CONFIG=$CONFIG TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
-  - make emulator-bmark-tests -C regression CONFIG=$CONFIG TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION -j1
+  - make vsim-verilog -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
+  - make fsim-verilog -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
+  - make emulator-ndebug -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
+  - make emulator-asm-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
+  - make emulator-bmark-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION -j1
 
 before_cache:
   - ls -tr regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf

@@ -1,8 +1,9 @@
 // See LICENSE for license details.
 
-#include "htif_emulator.h"
 #include "mm.h"
 #include "mm_dramsim2.h"
+#include <fesvr/dtm.h>
+#include <assert.h>
 #include <DirectC.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,19 +15,11 @@ extern "C" {
 
 extern int vcs_main(int argc, char** argv);
 
-static htif_emulator_t* htif;
-static unsigned htif_bytes = HTIF_WIDTH / 8;
+static dtm_t* dtm;
 static mm_t* mm[N_MEM_CHANNELS];
 static const char* loadmem;
 static bool dramsim = false;
 static int memory_channel_mux_select = 0;
-
-void htif_fini(vc_handle failure)
-{
-  delete htif;
-  htif = NULL;
-  exit(vc_getScalar(failure));
-}
 
 int main(int argc, char** argv)
 {
@@ -40,7 +33,7 @@ int main(int argc, char** argv)
       memory_channel_mux_select = atoi(argv[i]+27);
   }
 
-  htif = new htif_emulator_t(std::vector<std::string>(argv + 1, argv + argc));
+  dtm = new dtm_t(std::vector<std::string>(argv + 1, argv + argc));
 
   for (int i=0; i<N_MEM_CHANNELS; i++) {
     mm[i] = dramsim ? (mm_t*)(new mm_dramsim2_t) : (mm_t*)(new mm_magic_t);
@@ -172,36 +165,45 @@ void memory_tick(
   vc_put4stVector(r_data, d);
 }
 
-void htif_tick
+void debug_tick
 (
-  vc_handle htif_in_valid,
-  vc_handle htif_in_ready,
-  vc_handle htif_in_bits,
-  vc_handle htif_out_valid,
-  vc_handle htif_out_ready,
-  vc_handle htif_out_bits,
+  vc_handle debug_req_valid,
+  vc_handle debug_req_ready,
+  vc_handle debug_req_bits_addr,
+  vc_handle debug_req_bits_op,
+  vc_handle debug_req_bits_data,
+  vc_handle debug_resp_valid,
+  vc_handle debug_resp_ready,
+  vc_handle debug_resp_bits_resp,
+  vc_handle debug_resp_bits_data,
   vc_handle exit
 )
 {
-  static bool peek_in_valid;
-  static uint32_t peek_in_bits;
-  if (vc_getScalar(htif_in_ready))
-    peek_in_valid = htif->recv_nonblocking(&peek_in_bits, htif_bytes);
+  vec32 tmp[2];
+  dtm_t::resp resp_bits;
+  vc_get4stVector(debug_resp_bits_resp, tmp);
+  resp_bits.resp = tmp[0].d;
+  vc_get4stVector(debug_resp_bits_data, tmp);
+  resp_bits.data = tmp[0].d | ((uint64_t)tmp[1].d << 32);
 
-  vc_putScalar(htif_out_ready, 1);
-  if (vc_getScalar(htif_out_valid))
-  {
-    vec32* bits = vc_4stVectorRef(htif_out_bits);
-    htif->send(&bits->d, htif_bytes);
-  }
+  dtm->tick
+  (
+    vc_getScalar(debug_req_ready),
+    vc_getScalar(debug_resp_valid),
+    resp_bits
+  );
 
-  vec32 bits = {0, 0};
-  bits.d = peek_in_bits;
-  vc_put4stVector(htif_in_bits, &bits);
-  vc_putScalar(htif_in_valid, peek_in_valid);
-
-  bits.d = htif->done() ? (htif->exit_code() << 1 | 1) : 0;
-  vc_put4stVector(exit, &bits);
+  vc_putScalar(debug_resp_ready, dtm->resp_ready());
+  vc_putScalar(debug_req_valid, dtm->req_valid());
+  tmp[0].d = dtm->req_bits().addr;
+  vc_put4stVector(debug_req_bits_addr, tmp);
+  tmp[0].d = dtm->req_bits().op;
+  vc_put4stVector(debug_req_bits_op, tmp);
+  tmp[0].d = dtm->req_bits().data;
+  tmp[1].d = dtm->req_bits().data >> 32;
+  vc_put4stVector(debug_req_bits_data, tmp);
+  tmp[0].d = dtm->done() ? (dtm->exit_code() << 1 | 1) : 0;
+  vc_put4stVector(exit, tmp);
 }
 
 }
