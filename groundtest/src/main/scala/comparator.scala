@@ -48,7 +48,7 @@ object LFSR64
 object NoiseMaker
 {
   def apply(wide: Int, increment: Bool = Bool(true)): UInt = {
-    val lfsrs = Seq.fill((wide+63)/64) { LFSR64() }
+    val lfsrs = Seq.fill((wide+63)/64) { LFSR64(increment) }
     Cat(lfsrs)(wide-1,0)
   }
 }
@@ -64,7 +64,7 @@ class ComparatorSource(implicit val p: Parameters) extends Module
     with HasTileLinkParameters
 {
   val io = new Bundle {
-    val out = Valid(new Acquire)
+    val out = Decoupled(new Acquire)
     val finished = Bool(OUTPUT)
   }
   
@@ -81,18 +81,19 @@ class ComparatorSource(implicit val p: Parameters) extends Module
   io.out.valid := !finished && valid
   
   // Generate random operand sizes
-  val raw_operand_size = NoiseMaker(2) | UInt(0, M_SZ)
+  val inc = io.out.fire()
+  val raw_operand_size = NoiseMaker(2, inc) | UInt(0, M_SZ)
   val max_operand_size = UInt(log2Up(tlDataBytes))
   val get_operand_size = Mux(raw_operand_size > max_operand_size, max_operand_size, raw_operand_size)
-  val atomic_operand_size = Mux(NoiseMaker(1)(0), MT_W, MT_D)
+  val atomic_operand_size = Mux(NoiseMaker(1, inc)(0), MT_W, MT_D)
   
   // Generate random, but valid addr_bytes
-  val raw_addr_byte = NoiseMaker(tlByteAddrBits)
+  val raw_addr_byte = NoiseMaker(tlByteAddrBits, inc)
   val get_addr_byte    = raw_addr_byte & ~MaskMaker(tlByteAddrBits, get_operand_size)
   val atomic_addr_byte = raw_addr_byte & ~MaskMaker(tlByteAddrBits, atomic_operand_size)
   
   // Only allow some of the possible choices (M_XA_MAXU untested)
-  val atomic_opcode = MuxLookup(NoiseMaker(3), M_XA_SWAP, Array(
+  val atomic_opcode = MuxLookup(NoiseMaker(3, inc), M_XA_SWAP, Array(
     UInt("b000") -> M_XA_ADD,
     UInt("b001") -> M_XA_XOR,
     UInt("b010") -> M_XA_OR,
@@ -106,10 +107,10 @@ class ComparatorSource(implicit val p: Parameters) extends Module
   val addr_block_mask = MaskMaker(tlBlockAddrBits, UInt(targetWidth-tlBeatAddrBits-tlByteAddrBits))
   
   // Generate some random values
-  val addr_block = NoiseMaker(tlBlockAddrBits) & addr_block_mask
-  val addr_beat  = NoiseMaker(tlBeatAddrBits)
-  val wmask      = NoiseMaker(tlDataBytes)
-  val data       = NoiseMaker(tlDataBits)
+  val addr_block = NoiseMaker(tlBlockAddrBits, inc) & addr_block_mask
+  val addr_beat  = NoiseMaker(tlBeatAddrBits, inc)
+  val wmask      = NoiseMaker(tlDataBytes, inc)
+  val data       = NoiseMaker(tlDataBits, inc)
   val client_xact_id = UInt(0) // filled by Client
   
   // Random transactions
@@ -127,7 +128,7 @@ class ComparatorSource(implicit val p: Parameters) extends Module
   val getPrefetch = if (prefetches)
     GetPrefetch(client_xact_id, addr_block)
     else get
-  val a_type_sel  = NoiseMaker(3)
+  val a_type_sel  = NoiseMaker(3, inc)
 
   // We must initially putBlock all of memory to have a consistent starting state
   val final_addr_block = addr_block_mask + UInt(1)
@@ -152,7 +153,7 @@ class ComparatorSource(implicit val p: Parameters) extends Module
   }
 
   val idx = Reg(init = UInt(0, log2Up(nOperations)))
-  when (valid && !finished) {
+  when (io.out.fire()) {
     when (!done_wipe) {
       printf("[acq %d]: PutBlock(addr_block = %x, data = %x)\n",
         idx, wipe_addr_block, data)
@@ -213,15 +214,13 @@ class ComparatorClient(val target: Long)(implicit val p: Parameters) extends Mod
 
   val xacts = tlMaxClientXacts
   val offset = (UInt(target) >> UInt(tlBeatAddrBits+tlByteAddrBits))
-  
+
   // Track the status of inflight requests
   val issued  = RegInit(Vec.fill(xacts) {Bool(false)})
   val ready   = RegInit(Vec.fill(xacts) {Bool(false)})
   val result  = Reg(Vec(xacts, new Grant))
   
-  // Big enough to never stall the broadcast Source
-  // (test code not synthesized => big SRAMs are OK)
-  val buffer = Queue(io.in, nOperations)
+  val buffer = Queue(io.in, xacts)
   val queue  = Module(new Queue(io.tl.acquire.bits.client_xact_id, xacts))
   
   val isMultiOut = buffer.bits.hasMultibeatData()
@@ -246,9 +245,9 @@ class ComparatorClient(val target: Long)(implicit val p: Parameters) extends Mod
   io.tl.acquire.bits.addr_block := buffer.bits.addr_block + offset
   io.tl.acquire.bits.client_xact_id := xact_id
   when (isMultiOut) {
-    val multiplier = beatOut + UInt(1, tlBeatAddrBits + 1)
+    val dataOut = (buffer.bits.data << beatOut) + buffer.bits.data // mix the data up a bit
     io.tl.acquire.bits.addr_beat := beatOut
-    io.tl.acquire.bits.data := buffer.bits.data * multiplier // mix the data up a bit
+    io.tl.acquire.bits.data := dataOut
   }
   
   when (io.tl.acquire.fire()) {
@@ -364,10 +363,10 @@ class ComparatorCore(implicit p: Parameters) extends GroundTest()(p)
   
   val source = Module(new ComparatorSource)
   val sink   = Module(new ComparatorSink)
+  val broadcast = Broadcaster(source.io.out, nTargets)
   val clients = targets.zipWithIndex.map { case (target, index) =>
     val client = Module(new ComparatorClient(target))
-    assert (client.io.in.ready) // must accept
-    client.io.in := source.io.out
+    client.io.in <> broadcast(index)
     io.mem(index) <> client.io.tl
     sink.io.in(index) <> client.io.out
     client
