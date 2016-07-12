@@ -251,7 +251,7 @@ class Uncore(implicit val p: Parameters) extends Module
       } else if (mmio_tl_start <= i && i < mmio_tl_end) {
         TopUtils.connectTilelink(io.mmio_tl(i-mmio_tl_start), ports(i))
       } else {
-        TopUtils.connectTilelinkNasti(Module(new NastiErrorSlave).io, ports(i))
+        require(false, "Unconnected external MMIO port")
       }
     }
   }

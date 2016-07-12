@@ -39,7 +39,7 @@ class BaseConfig extends Config (
     lazy val globalAddrMap = {
       val memBase = 0x80000000L
       val memSize = 0x10000000L
-      val io = AddrMap((AddrMapEntry("int", internalIOAddrMap) +: site(ExtMMIOPorts).entries):_*)
+      val io = new AddrMap(AddrMapEntry("int", internalIOAddrMap) +: site(ExtMMIOPorts).entries)
       val addrMap = AddrMap(
         AddrMapEntry("io", io),
         AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true))))
