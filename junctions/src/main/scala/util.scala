@@ -175,34 +175,57 @@ class ReorderDequeueIO[T <: Data](dType: T, tagWidth: Int) extends Bundle {
     new ReorderDequeueIO(dType, tagWidth).asInstanceOf[this.type]
 }
 
-class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Int)
+class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
     extends Module {
   val io = new Bundle {
     val enq = new ReorderEnqueueIO(dType, tagWidth).flip
     val deq = new ReorderDequeueIO(dType, tagWidth)
   }
 
-  val roq_data = Mem(size, dType.cloneType)
-  val roq_tags = Reg(Vec(size, UInt(width = tagWidth)))
-  val roq_free = Reg(init = Vec.fill(size)(Bool(true)))
+  val tagSpaceSize = 1 << tagWidth
+  val actualSize = size.getOrElse(tagSpaceSize)
 
-  val roq_enq_addr = PriorityEncoder(roq_free)
-  val roq_matches = roq_tags.zip(roq_free)
-    .map { case (tag, free) => tag === io.deq.tag && !free }
-  val roq_deq_addr = PriorityEncoder(roq_matches)
+  if (tagSpaceSize > actualSize) {
+    val roq_data = Mem(actualSize, dType)
+    val roq_tags = Reg(Vec(actualSize, UInt(width = tagWidth)))
+    val roq_free = Reg(init = Vec.fill(actualSize)(Bool(true)))
 
-  io.enq.ready := roq_free.reduce(_ || _)
-  io.deq.data := roq_data(roq_deq_addr)
-  io.deq.matches := roq_matches.reduce(_ || _)
+    val roq_enq_addr = PriorityEncoder(roq_free)
+    val roq_matches = roq_tags.zip(roq_free)
+      .map { case (tag, free) => tag === io.deq.tag && !free }
+    val roq_deq_addr = PriorityEncoder(roq_matches)
 
-  when (io.enq.valid && io.enq.ready) {
-    roq_data(roq_enq_addr) := io.enq.bits.data
-    roq_tags(roq_enq_addr) := io.enq.bits.tag
-    roq_free(roq_enq_addr) := Bool(false)
-  }
+    io.enq.ready := roq_free.reduce(_ || _)
+    io.deq.data := roq_data(roq_deq_addr)
+    io.deq.matches := roq_matches.reduce(_ || _)
 
-  when (io.deq.valid) {
-    roq_free(roq_deq_addr) := Bool(true)
+    when (io.enq.valid && io.enq.ready) {
+      roq_data(roq_enq_addr) := io.enq.bits.data
+      roq_tags(roq_enq_addr) := io.enq.bits.tag
+      roq_free(roq_enq_addr) := Bool(false)
+    }
+
+    when (io.deq.valid) {
+      roq_free(roq_deq_addr) := Bool(true)
+    }
+
+    println("Warning: inferring a CAM for ReorderQueue")
+  } else {
+    val roq_data = Mem(tagSpaceSize, dType)
+    val roq_free = Reg(init = Vec.fill(tagSpaceSize)(Bool(true)))
+
+    io.enq.ready := roq_free(io.enq.bits.tag)
+    io.deq.data := roq_data(io.deq.tag)
+    io.deq.matches := !roq_free(io.deq.tag)
+
+    when (io.enq.valid && io.enq.ready) {
+      roq_data(io.enq.bits.tag) := io.enq.bits.data
+      roq_free(io.enq.bits.tag) := Bool(false)
+    }
+
+    when (io.deq.valid) {
+      roq_free(io.deq.tag) := Bool(true)
+    }
   }
 }
 
