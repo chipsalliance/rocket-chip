@@ -5,6 +5,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.constants._
 import cde.Parameters
+import scala.math.min
 
 class IdMapper(val inIdBits: Int, val outIdBits: Int,
                val forceMapping: Boolean = false)
@@ -33,7 +34,8 @@ class IdMapper(val inIdBits: Int, val outIdBits: Int,
     io.resp.in_id := io.resp.out_id
   } else {
     val nInXacts = 1 << inIdBits
-    val nOutXacts = 1 << outIdBits
+    // No point in allowing more out xacts than in xacts
+    val nOutXacts = min(1 << outIdBits, nInXacts)
 
     val out_id_free = Reg(init = Vec.fill(nOutXacts){Bool(true)})
     val in_id_free = Reg(init = Vec.fill(nInXacts){Bool(true)})
@@ -95,12 +97,11 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   val get_valid = io.tl.acquire.valid && !has_data
   val put_valid = io.tl.acquire.valid && has_data
 
-  val tlMaxXacts = tlMaxClientXacts * tlMaxClientsPerPort
-
   // Reorder queue saves extra information needed to send correct
   // grant back to TL client
+  val roqIdBits = min(tlClientXactIdBits, nastiXIdBits)
   val roq = Module(new ReorderQueue(
-    new NastiIOTileLinkIOConverterInfo, nastiRIdBits, Some(tlMaxXacts)))
+    new NastiIOTileLinkIOConverterInfo, roqIdBits))
 
   val get_id_mapper = Module(new IdMapper(tlClientXactIdBits, nastiXIdBits))
   val put_id_mapper = Module(new IdMapper(tlClientXactIdBits, nastiXIdBits))
