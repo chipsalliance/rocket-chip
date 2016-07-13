@@ -341,7 +341,7 @@ class ComparatorSink(implicit val p: Parameters) extends Module
     assert (base.data === g.data || !g.hasData(), "data mismatch")
 
     assert_conds.zipWithIndex.foreach { case (cond, i) =>
-      when (cond) {
+      when (!cond) {
         io.error.valid := Bool(true)
         io.error.bits := UInt(i)
       }
