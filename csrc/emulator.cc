@@ -30,6 +30,11 @@ void handle_sigterm(int sig)
   htif->stop();
 }
 
+double sc_time_stamp()
+{
+  return 0;
+}
+
 int main(int argc, char** argv)
 {
   unsigned random_seed = (unsigned)time(NULL) ^ (unsigned)getpid();
