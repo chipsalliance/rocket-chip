@@ -36,28 +36,26 @@ class IdMapper(val inIdBits: Int, val outIdBits: Int,
     val nOutXacts = 1 << outIdBits
 
     val out_id_free = Reg(init = Vec.fill(nOutXacts){Bool(true)})
+    val in_id_free = Reg(init = Vec.fill(nInXacts){Bool(true)})
     val next_out_id = PriorityEncoder(out_id_free)
-    val id_mapping = Reg(Vec(nInXacts, UInt(0, outIdBits)))
-    val id_valid = Reg(init = Vec.fill(nInXacts){Bool(false)})
+    val id_mapping = Reg(Vec(nOutXacts, UInt(0, inIdBits)))
 
     val req_fire = io.req.valid && io.req.ready
     when (req_fire) {
       out_id_free(io.req.out_id) := Bool(false)
-      id_valid(io.req.in_id) := Bool(true)
-      id_mapping(io.req.in_id) := io.req.out_id
+      in_id_free(io.req.in_id) := Bool(false)
+      id_mapping(io.req.out_id) := io.req.in_id
     }
     when (io.resp.valid) {
       out_id_free(io.resp.out_id) := Bool(true)
-      id_valid(io.resp.in_id) := Bool(false)
+      in_id_free(io.resp.in_id) := Bool(true)
     }
 
-    io.req.ready := out_id_free.reduce(_ || _) && !id_valid(io.req.in_id)
+    io.req.ready := out_id_free.reduce(_ || _) && in_id_free(io.req.in_id)
     io.req.out_id := next_out_id
 
-    val id_matches = id_mapping.map(_ === io.resp.out_id)
-    val id_matches_valid = id_matches.zip(id_valid).map { case (m, v) => m && v }
-    io.resp.matches := id_matches_valid.reduce(_ || _)
-    io.resp.in_id := PriorityEncoder(id_matches_valid)
+    io.resp.in_id := id_mapping(io.resp.out_id)
+    io.resp.matches := !out_id_free(io.resp.out_id)
   }
 }
 
@@ -102,7 +100,7 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   // Reorder queue saves extra information needed to send correct
   // grant back to TL client
   val roq = Module(new ReorderQueue(
-    new NastiIOTileLinkIOConverterInfo, nastiRIdBits, tlMaxXacts))
+    new NastiIOTileLinkIOConverterInfo, nastiRIdBits, Some(tlMaxXacts)))
 
   val get_id_mapper = Module(new IdMapper(tlClientXactIdBits, nastiXIdBits))
   val put_id_mapper = Module(new IdMapper(tlClientXactIdBits, nastiXIdBits))

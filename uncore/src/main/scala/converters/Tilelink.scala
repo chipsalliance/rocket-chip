@@ -55,11 +55,8 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
   val acqArb = Module(new LockingRRArbiter(new Acquire, 2, tlDataBeats,
     Some((acq: Acquire) => acq.hasMultibeatData())))
 
-  val acqRoq = Module(new ReorderQueue(
-    Bool(), tlClientXactIdBits, tlMaxClientsPerPort))
-
-  val relRoq = Module(new ReorderQueue(
-    Bool(), tlClientXactIdBits, tlMaxClientsPerPort))
+  val acqRoq = Module(new ReorderQueue(Bool(), tlClientXactIdBits))
+  val relRoq = Module(new ReorderQueue(Bool(), tlClientXactIdBits))
 
   val iacq = io.in.acquire.bits
   val irel = io.in.release.bits
