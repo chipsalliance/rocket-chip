@@ -705,3 +705,33 @@ class NastiMemoryDemux(nRoutes: Int)(implicit p: Parameters) extends NastiModule
     connectRespChannel(i, io.master.b, slave.b)
   }
 }
+
+object AsyncNastiTo {
+  // source(master) is in our clock domain, output is in the 'to' clock domain
+  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
+    val sink = Wire(new NastiIO)
+
+    sink.aw <> AsyncDecoupledTo(to_clock, to_reset, source.aw, depth, sync)
+    sink.ar <> AsyncDecoupledTo(to_clock, to_reset, source.ar, depth, sync)
+    sink.w  <> AsyncDecoupledTo(to_clock, to_reset, source.w,  depth, sync)
+    source.b <> AsyncDecoupledFrom(to_clock, to_reset, sink.b, depth, sync)
+    source.r <> AsyncDecoupledFrom(to_clock, to_reset, sink.r, depth, sync)
+
+    sink
+  }
+}
+
+object AsyncNastiFrom {
+  // source(master) is in the 'from' clock domain, output is in our clock domain
+  def apply[T <: Data](from_clock: Clock, from_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
+    val sink = Wire(new NastiIO)
+
+    sink.aw <> AsyncDecoupledFrom(from_clock, from_reset, source.aw, depth, sync)
+    sink.ar <> AsyncDecoupledFrom(from_clock, from_reset, source.ar, depth, sync)
+    sink.w  <> AsyncDecoupledFrom(from_clock, from_reset, source.w,  depth, sync)
+    source.b <> AsyncDecoupledTo(from_clock, from_reset, sink.b, depth, sync)
+    source.r <> AsyncDecoupledTo(from_clock, from_reset, sink.r, depth, sync)
+
+    sink
+  }
+}
