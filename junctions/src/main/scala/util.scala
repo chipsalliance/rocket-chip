@@ -186,17 +186,17 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
   val actualSize = size.getOrElse(tagSpaceSize)
 
   if (tagSpaceSize > actualSize) {
-    val roq_data = Mem(actualSize, dType)
+    val roq_data = Reg(Vec(actualSize, dType))
     val roq_tags = Reg(Vec(actualSize, UInt(width = tagWidth)))
     val roq_free = Reg(init = Vec.fill(actualSize)(Bool(true)))
 
     val roq_enq_addr = PriorityEncoder(roq_free)
     val roq_matches = roq_tags.zip(roq_free)
       .map { case (tag, free) => tag === io.deq.tag && !free }
-    val roq_deq_addr = PriorityEncoder(roq_matches)
+    val roq_deq_onehot = PriorityEncoderOH(roq_matches)
 
     io.enq.ready := roq_free.reduce(_ || _)
-    io.deq.data := roq_data(roq_deq_addr)
+    io.deq.data := Mux1H(roq_deq_onehot, roq_data)
     io.deq.matches := roq_matches.reduce(_ || _)
 
     when (io.enq.valid && io.enq.ready) {
@@ -206,10 +206,10 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
     }
 
     when (io.deq.valid) {
-      roq_free(roq_deq_addr) := Bool(true)
+      roq_free(OHToUInt(roq_deq_onehot)) := Bool(true)
     }
 
-    println("Warning: inferring a CAM for ReorderQueue")
+    println(s"Warning - using a CAM for ReorderQueue, tagBits: ${tagWidth} size: ${actualSize}")
   } else {
     val roq_data = Mem(tagSpaceSize, dType)
     val roq_free = Reg(init = Vec.fill(tagSpaceSize)(Bool(true)))
