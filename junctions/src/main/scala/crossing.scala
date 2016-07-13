@@ -2,8 +2,8 @@ package junctions
 import Chisel._
 
 class Crossing[T <: Data](gen: T, enq_sync: Boolean, deq_sync: Boolean) extends Bundle {
-    val enq = Decoupled(gen.cloneType).flip()
-    val deq = Decoupled(gen.cloneType)
+    val enq = Decoupled(gen).flip()
+    val deq = Decoupled(gen)
     val enq_clock = if (enq_sync) Some(Clock(INPUT)) else None
     val deq_clock = if (deq_sync) Some(Clock(INPUT)) else None
     val enq_reset = if (enq_sync) Some(Bool(INPUT))  else None
@@ -24,15 +24,15 @@ class AsyncHandshakeSource[T <: Data](gen: T, sync: Int, clock: Clock, reset: Bo
     extends Module(_clock = clock, _reset = reset) {
   val io = new Bundle {
     // These come from the source clock domain
-    val enq  = Decoupled(gen.cloneType).flip()
+    val enq  = Decoupled(gen).flip()
     // These cross to the sink clock domain
-    val bits = gen.cloneType
+    val bits = gen.cloneType.asOutput
     val push = Bool(OUTPUT)
     val pop  = Bool(INPUT)
   }
 
   val ready = RegInit(Bool(true))
-  val bits = Reg(gen.cloneType)
+  val bits = Reg(gen)
   val push = RegInit(Bool(false))
 
   io.enq.ready := ready
@@ -57,15 +57,15 @@ class AsyncHandshakeSink[T <: Data](gen: T, sync: Int, clock: Clock, reset: Bool
     extends Module(_clock = clock, _reset = reset) {
   val io = new Bundle {
     // These cross to the source clock domain
-    val bits = gen.cloneType.flip()
+    val bits = gen.cloneType.asInput
     val push = Bool(INPUT)
     val pop  = Bool(OUTPUT)
     // These go to the sink clock domain
-    val deq = Decoupled(gen.cloneType)
+    val deq = Decoupled(gen)
   }
 
   val valid = RegInit(Bool(false))
-  val bits  = Reg(gen.cloneType)
+  val bits  = Reg(gen)
   val pop   = RegInit(Bool(false))
 
   io.deq.valid := valid
