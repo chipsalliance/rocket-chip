@@ -53,10 +53,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   val s2_resp_valid = Wire(Bool())
   val s2_resp_data = Wire(UInt(width = rowBits))
 
-  val ntpc_0 = ~(~s1_pc | (coreInstBytes*fetchWidth-1)) + UInt(coreInstBytes*fetchWidth)
-  val ntpc = // don't increment PC into virtual address space hole
-    if (vaddrBitsExtended == vaddrBits) ntpc_0
-    else Cat(s1_pc(vaddrBits-1) & ntpc_0(vaddrBits-1), ntpc_0)
+  val ntpc = ~(~s1_pc | (coreInstBytes*fetchWidth-1)) + UInt(coreInstBytes*fetchWidth)
   val predicted_npc = Wire(init = ntpc)
   val icmiss = s2_valid && !s2_resp_valid
   val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
