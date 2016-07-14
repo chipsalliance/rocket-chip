@@ -8,7 +8,7 @@ import uncore.converters._
 import uncore.constants._
 import cde.Parameters
 
-class TileLinkToSmiConverterTestDriver(implicit p: Parameters) extends Module {
+class SmiConverterTestDriver(implicit p: Parameters) extends Module {
   val io = new Bundle {
     val mem = new ClientUncachedTileLinkIO
     val start = Bool(INPUT)
@@ -74,12 +74,12 @@ class TileLinkToSmiConverterTestDriver(implicit p: Parameters) extends Module {
   io.finished := (state === s_finished)
 }
 
-class TileLinkToSmiConverterTest(implicit p: Parameters) extends UnitTest {
+class SmiConverterTest(implicit p: Parameters) extends UnitTest {
   val outermostParams = p.alterPartial({ case TLId => "Outermost" })
 
   val smimem = Module(new SmiMem(32, 64))
   val conv = Module(new SmiIOTileLinkIOConverter(32, 6)(outermostParams))
-  val driver = Module(new TileLinkToSmiConverterTestDriver()(outermostParams))
+  val driver = Module(new SmiConverterTestDriver()(outermostParams))
 
   conv.io.tl <> driver.io.mem
   smimem.io <> conv.io.smi
