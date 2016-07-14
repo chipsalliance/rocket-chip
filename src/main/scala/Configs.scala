@@ -129,7 +129,6 @@ class BaseConfig extends Config (
       case NTLBEntries => findBy(CacheName)
       case CacheIdBits => findBy(CacheName)
       case SplitMetadata => findBy(CacheName)
-      case ICacheBufferWays => Knob("L1I_BUFFER_WAYS")
       case "L1I" => {
         case NSets => Knob("L1I_SETS") //64
         case NWays => Knob("L1I_WAYS") //4
@@ -318,7 +317,6 @@ class BaseConfig extends Config (
     case "L1D_WAYS" => 4
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 4
-    case "L1I_BUFFER_WAYS" => false
     case _ => throw new CDEMatchError
   }
 )
