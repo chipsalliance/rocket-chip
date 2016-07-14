@@ -8,7 +8,7 @@ import uncore.converters._
 import uncore.constants._
 import uncore.devices._
 import groundtest.common._
-import cde.Parameters
+import cde.{Field, Parameters}
 
 abstract class UnitTest extends Module {
   val io = new Bundle {
@@ -95,13 +95,10 @@ class MemoryTestDriver(name: String, dataWidth: Int, burstLen: Int, nBursts: Int
     s"MemoryTestDriver for $name timed out")
 }
 
+case object UnitTests extends Field[Parameters => Seq[UnitTest]]
+
 class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
-  val tests = Seq(
-    Module(new MultiWidthFifoTest),
-    Module(new TileLinkToSmiConverterTest),
-    Module(new AtosConverterTest),
-    Module(new NastiMemoryDemuxTest),
-    Module(new HastiTest))
+  val tests = p(UnitTests)(p)
 
   val s_idle :: s_start :: s_wait :: Nil = Enum(Bits(), 3)
   val state = Reg(init = s_idle)
