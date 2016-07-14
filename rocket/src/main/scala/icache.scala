@@ -7,8 +7,6 @@ import uncore.util._
 import Util._
 import cde.{Parameters, Field}
 
-case object ICacheBufferWays extends Field[Boolean]
-
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
   val outerDataBeats = p(TLKey(p(TLId))).dataBeats
   val outerDataBits = p(TLKey(p(TLId))).dataBitsPerBeat
@@ -25,7 +23,7 @@ class ICacheResp(implicit p: Parameters) extends CoreBundle()(p) with HasL1Cache
   val datablock = Bits(width = rowBits)
 }
 
-class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CacheParameters {
+class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with HasL1CacheParameters {
   val io = new Bundle {
     val req = Valid(new ICacheReq).flip
     val s1_ppn = UInt(INPUT, ppnBits) // delayed one cycle w.r.t. req
@@ -126,15 +124,16 @@ class ICache(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePara
   }
 
   // output signals
-  if (p(ICacheBufferWays)) {
-    val s2_hit = RegEnable(s1_hit, !stall)
-    val s2_tag_hit = RegEnable(s1_tag_hit, !stall)
-    val s2_dout = RegEnable(s1_dout, !stall)
-    io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
-    io.resp.valid := s2_hit
-  } else {
-    io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
-    io.resp.valid := s1_hit
+  latency match {
+    case 1 =>
+      io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
+      io.resp.valid := s1_hit
+    case 2 =>
+      val s2_hit = RegEnable(s1_hit, !stall)
+      val s2_tag_hit = RegEnable(s1_tag_hit, !stall)
+      val s2_dout = RegEnable(s1_dout, !stall)
+      io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
+      io.resp.valid := s2_hit
   }
   io.mem.acquire.valid := state === s_request && !io.s2_kill
   io.mem.acquire.bits := GetBlock(addr_block = refill_addr >> blockOffBits)
