@@ -2,6 +2,8 @@ package rocketchip
 
 import Chisel._
 import groundtest._
+import groundtest.unittests._
+import groundtest.common._
 import rocket._
 import uncore.tilelink._
 import uncore.coherence._
@@ -162,6 +164,17 @@ class WithUnitTest extends Config(
     case GroundTestKey => Seq.fill(site(NTiles)) { GroundTestTileSettings() }
     case BuildGroundTest =>
       (p: Parameters) => Module(new UnitTestSuite()(p))
+    case UnitTests => (testParams: Parameters) => {
+      implicit val p = testParams
+      Seq(
+        Module(new MultiWidthFifoTest),
+        Module(new SmiConverterTest),
+        Module(new AtosConverterTest),
+        Module(new NastiMemoryDemuxTest),
+        Module(new ROMSlaveTest),
+        Module(new TileLinkRAMTest),
+        Module(new HastiTest))
+    }
     case _ => throw new CDEMatchError
   })
 
