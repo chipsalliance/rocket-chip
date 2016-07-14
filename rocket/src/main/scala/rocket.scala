@@ -423,7 +423,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
-  val replay_wb = replay_wb_common || wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
+  val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
+  val replay_wb = replay_wb_common || replay_wb_rocc
   val wb_xcpt = wb_reg_xcpt || csr.io.csr_xcpt
   take_pc_wb := replay_wb || wb_xcpt || csr.io.eret
 
@@ -455,7 +456,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     ll_wen := Bool(true)
   }
 
-  val wb_valid = wb_reg_valid && !replay_wb && !csr.io.csr_xcpt
+  val wb_valid = wb_reg_valid && !replay_wb && !wb_xcpt
   val wb_wen = wb_valid && wb_ctrl.wxd
   val rf_wen = wb_wen || ll_wen 
   val rf_waddr = Mux(ll_wen, ll_waddr, wb_waddr)
