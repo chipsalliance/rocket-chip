@@ -6,6 +6,7 @@ import uncore.constants._
 import uncore.agents._
 import junctions.{ParameterizedBundle, HasAddrMapParameters}
 import rocket.HellaCacheIO
+import groundtest.common._
 import cde.{Parameters, Field}
 
 class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
