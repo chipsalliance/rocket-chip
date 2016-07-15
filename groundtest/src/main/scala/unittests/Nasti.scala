@@ -2,10 +2,57 @@ package groundtest.unittests
 
 import Chisel._
 import junctions._
-import uncore.devices._
-import uncore.tilelink._
+import junctions.NastiConstants._
 import groundtest.common._
 import cde.Parameters
+
+class AtosConverterTestBackend(implicit p: Parameters) extends NastiModule()(p) {
+  val io = new Bundle {
+    val nasti = (new NastiIO).flip
+    val finished = Bool(OUTPUT)
+  }
+
+  val (s_waddr :: s_wdata :: s_wresp ::
+       s_raddr :: s_rresp :: s_done :: Nil) = Enum(Bits(), 6)
+  val state = Reg(init = s_waddr)
+
+  val n_words = 4
+  val test_data = Reg(Vec(n_words, UInt(width = nastiXDataBits)))
+  val req_id = Reg(UInt(width = nastiXIdBits))
+
+  val (w_count, w_last) = Counter(io.nasti.w.fire(), n_words)
+  val (r_count, r_last) = Counter(io.nasti.r.fire(), n_words)
+
+  when (io.nasti.aw.fire()) {
+    req_id := io.nasti.aw.bits.id
+    state := s_wdata
+  }
+  when (io.nasti.w.fire()) {
+    test_data(w_count) := io.nasti.w.bits.data
+    when (io.nasti.w.bits.last) { state := s_wresp }
+  }
+  when (io.nasti.b.fire()) { state := s_raddr }
+  when (io.nasti.ar.fire()) {
+    req_id := io.nasti.ar.bits.id
+    state := s_rresp
+  }
+  when (io.nasti.r.fire() && io.nasti.r.bits.last) { state := s_done }
+
+  io.nasti.aw.ready := (state === s_waddr)
+  io.nasti.w.ready := (state === s_wdata)
+  io.nasti.ar.ready := (state === s_raddr)
+
+  io.nasti.b.valid := (state === s_wresp)
+  io.nasti.b.bits := NastiWriteResponseChannel(id = req_id)
+
+  io.nasti.r.valid := (state === s_rresp)
+  io.nasti.r.bits := NastiReadDataChannel(
+    id = req_id,
+    data = test_data(r_count),
+    last = r_last)
+
+  io.finished := (state === s_done)
+}
 
 class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
     (implicit p: Parameters) extends NastiModule {
@@ -98,39 +145,24 @@ class HastiTest(implicit p: Parameters) extends UnitTest {
   driver.io.start := io.start
 }
 
-class ROMSlaveTest(implicit p: Parameters) extends UnitTest {
-  val romdata = Seq(
-    BigInt("01234567deadbeef", 16),
-    BigInt("ab32fee8d00dfeed", 16))
-  val rombytes = romdata.map(_.toByteArray.reverse).flatten
-  val rom = Module(new ROMSlave(rombytes))
-  val driver = Module(new DriverSet(
-    (driverParams: Parameters) => {
-      implicit val p = driverParams
-      Seq(
-        Module(new GetMultiWidthDriver),
-        Module(new GetSweepDriver(romdata)),
-        Module(new GetBlockSweepDriver(romdata)))
-    }))
-  rom.io <> driver.io.mem
-  driver.io.start := io.start
-  io.finished := driver.io.finished
+class AtosConverterTest(implicit val p: Parameters) extends UnitTest
+    with HasNastiParameters {
+  val frontend = Module(new NastiDriver(nastiXDataBits, 4, 1))
+  val backend = Module(new AtosConverterTestBackend)
+
+  val serdes = Module(new AtosSerdes(8))
+  val desser = Module(new AtosDesser(8))
+
+  val client_conv = Module(new AtosClientConverter)
+  val manager_conv = Module(new AtosManagerConverter)
+
+  client_conv.io.nasti <> frontend.io.nasti
+  serdes.io.wide <> client_conv.io.atos
+  desser.io.narrow <> serdes.io.narrow
+  manager_conv.io.atos <> desser.io.wide
+  backend.io.nasti <> manager_conv.io.nasti
+
+  io.finished := frontend.io.finished && backend.io.finished
 }
 
-class TileLinkRAMTest(implicit val p: Parameters)
-    extends UnitTest with HasTileLinkParameters {
 
-  val depth = 2 * tlDataBeats
-  val ram = Module(new TileLinkTestRAM(depth))
-  val driver = Module(new DriverSet(
-    (driverParams: Parameters) => {
-      implicit val p = driverParams
-      Seq(
-        Module(new PutSweepDriver(depth)),
-        Module(new PutMaskDriver),
-        Module(new PutBlockSweepDriver(depth / tlDataBeats)))
-    }))
-  ram.io <> driver.io.mem
-  driver.io.start := io.start
-  io.finished := driver.io.finished
-}
