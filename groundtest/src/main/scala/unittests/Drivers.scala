@@ -306,6 +306,85 @@ class PutBlockSweepDriver(val n: Int)(implicit p: Parameters)
          "PutBlockSweep: data does not match expected")
 }
 
+class PutAtomicDriver(implicit p: Parameters) extends Driver()(p) {
+  val s_idle :: s_put :: s_atomic :: s_get :: s_done :: Nil = Enum(Bits(), 5)
+  val state = Reg(init = s_idle)
+  val sending = Reg(init = Bool(false))
+
+  val put_acquire = Put(
+    client_xact_id = UInt(0),
+    addr_block = UInt(0),
+    addr_beat = UInt(0),
+    // Put 15 in bytes 3:2
+    data = UInt(15 << 16),
+    wmask = Some(UInt(0x0c)))
+
+  val amo_acquire = PutAtomic(
+    client_xact_id = UInt(0),
+    addr_block = UInt(0),
+    addr_beat = UInt(0),
+    addr_byte = UInt(2),
+    atomic_opcode = M_XA_ADD,
+    operand_size = MT_H,
+    data = UInt(3 << 16))
+
+  val get_acquire = Get(
+    client_xact_id = UInt(0),
+    addr_block = UInt(0),
+    addr_beat = UInt(0))
+
+  io.finished := (state === s_done)
+  io.mem.acquire.valid := sending
+  io.mem.acquire.bits := MuxLookup(state, get_acquire, Seq(
+    s_put -> put_acquire,
+    s_atomic -> amo_acquire,
+    s_get -> get_acquire))
+  io.mem.grant.ready := !sending
+
+  when (io.mem.acquire.fire()) { sending := Bool(false) }
+
+  when (state === s_idle && io.start) {
+    state := s_put
+    sending := Bool(true)
+  }
+  when (io.mem.grant.fire()) {
+    when (state === s_put) { sending := Bool(true); state := s_atomic }
+    when (state === s_atomic) { sending := Bool(true); state := s_get }
+    when (state === s_get) { state := s_done }
+  }
+
+  assert(!io.mem.grant.valid || !io.mem.grant.bits.hasData() ||
+         io.mem.grant.bits.data(31, 16) === UInt(18))
+}
+
+class PrefetchDriver(implicit p: Parameters) extends Driver()(p) {
+  val s_idle :: s_put_pf :: s_get_pf :: s_done :: Nil = Enum(Bits(), 4)
+  val state = Reg(init = s_idle)
+  val sending = Reg(init = Bool(false))
+
+  when (state === s_idle) {
+    sending := Bool(true)
+    state := s_put_pf
+  }
+
+  when (io.mem.acquire.fire()) { sending := Bool(false) }
+  when (io.mem.grant.fire()) {
+    when (state === s_put_pf) { sending := Bool(true); state := s_get_pf }
+    when (state === s_get_pf) { state := s_done }
+  }
+
+  io.finished := (state === s_done)
+  io.mem.acquire.valid := sending
+  io.mem.acquire.bits := Mux(state === s_put_pf,
+    PutPrefetch(
+      client_xact_id = UInt(0),
+      addr_block = UInt(0)),
+    GetPrefetch(
+      client_xact_id = UInt(0),
+      addr_block = UInt(0)))
+  io.mem.grant.ready := !sending
+}
+
 class DriverSet(driverGen: Parameters => Seq[Driver])(implicit p: Parameters)
     extends Driver()(p) {
   val s_start :: s_run :: s_done :: Nil = Enum(Bits(), 3)

@@ -26,7 +26,8 @@ class SmiConverterTest(implicit val p: Parameters) extends UnitTest
       Seq(
         Module(new PutSweepDriver(tlDepth)),
         Module(new PutMaskDriver(smiWidth / 8)),
-        Module(new PutBlockSweepDriver(tlDepth / tlDataBeats)))
+        Module(new PutBlockSweepDriver(tlDepth / tlDataBeats)),
+        Module(new GetMultiWidthDriver))
     })(outermostParams))
 
   conv.io.tl <> driver.io.mem
@@ -66,7 +67,10 @@ class TileLinkRAMTest(implicit val p: Parameters)
       Seq(
         Module(new PutSweepDriver(depth)),
         Module(new PutMaskDriver),
-        Module(new PutBlockSweepDriver(depth / tlDataBeats)))
+        Module(new PutAtomicDriver),
+        Module(new PutBlockSweepDriver(depth / tlDataBeats)),
+        Module(new PrefetchDriver),
+        Module(new GetMultiWidthDriver))
     }))
   ram.io <> driver.io.mem
   driver.io.start := io.start
