@@ -165,7 +165,7 @@ class PutSweepDriver(val n: Int)(implicit p: Parameters) extends Driver()(p) {
     (UInt(0), get_cnt)
   }
 
-  val dataRep = tlDataBits / log2Up(n)
+  val dataRep = (tlDataBits - 1) / log2Up(n) + 1
   val put_data = Fill(dataRep, put_cnt)(tlDataBits - 1, 0)
   val get_data = Fill(dataRep, get_cnt)(tlDataBits - 1, 0)
 
@@ -202,15 +202,25 @@ class PutSweepDriver(val n: Int)(implicit p: Parameters) extends Driver()(p) {
 /**
  * Tests that write-masked single-beat puts work correctly by putting
  * data with steadily smaller write-masks to the same beat.
+ * @param minBytes the smallest number of bytes that can be in the writemask
  */
-class PutMaskDriver(implicit p: Parameters) extends Driver()(p) {
+class PutMaskDriver(minBytes: Int = 1)(implicit p: Parameters) extends Driver()(p) {
   val (s_idle :: s_put_req :: s_put_resp ::
        s_get_req :: s_get_resp :: s_done :: Nil) = Enum(Bits(), 6)
   val state = Reg(init = s_idle)
   val nbytes = Reg(UInt(width = log2Up(tlWriteMaskBits) + 1))
   val wmask = (UInt(1) << nbytes) - UInt(1)
   val wdata = Fill(tlDataBits / 8, Wire(UInt(width = 8), init = nbytes))
-  val expected = UInt("h0808080804040201")
+  // TL data bytes down to minBytes logarithmically by 2
+  val expected = (log2Ceil(tlDataBits / 8) to log2Ceil(minBytes) by -1)
+    .map(1 << _).foldLeft(UInt(0, tlDataBits)) {
+      // Change the lower nbytes of the value
+      (value, nbytes) => {
+        val mask = UInt((BigInt(1) << (nbytes * 8)) - BigInt(1), tlDataBits)
+        val wval = Fill(tlDataBits / 8, UInt(nbytes, 8))
+        (value & ~mask) | (wval & mask)
+      }
+    }
 
   when (state === s_idle && io.start) {
     state := s_put_req
@@ -221,7 +231,7 @@ class PutMaskDriver(implicit p: Parameters) extends Driver()(p) {
   }
   when (state === s_put_resp && io.mem.grant.valid) {
     nbytes := nbytes >> UInt(1)
-    state := Mux(nbytes === UInt(1), s_get_req, s_put_req)
+    state := Mux(nbytes === UInt(minBytes), s_get_req, s_put_req)
   }
   when (state === s_get_req && io.mem.acquire.ready) {
     state := s_get_resp
