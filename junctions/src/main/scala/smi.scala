@@ -240,16 +240,18 @@ class SmiIONastiWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   }
 
   when (state === s_send) {
-    when (strb === UInt(0)) {
-      state := Mux(last, s_ack, s_data)
-    } .elsewhen (io.smi.req.ready || !strb(0)) {
+    when (io.smi.req.ready || !strb(0)) {
       strb := strb >> jump
       data := data >> Cat(jump, UInt(0, log2Up(dataWidth)))
       addr := addr + jump
+      when (strb(0)) { state := s_ack }
     }
   }
 
-  when (io.smi.resp.fire()) { state := s_resp }
+  when (io.smi.resp.fire()) {
+    state := Mux(strb === UInt(0),
+              Mux(last, s_resp, s_data), s_send)
+  }
 
   when (io.nasti.b.fire()) { state := s_idle }
 }
