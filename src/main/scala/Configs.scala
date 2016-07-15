@@ -195,7 +195,8 @@ class BaseConfig extends Config (
       case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
-      case FastMulDiv => true
+      case MulDivUnroll => 8
+      case DivEarlyOut => true
       case XLen => 64
       case UseFPU => {
         val env = if(site(UseVM)) List("p","v") else List("p")
@@ -444,7 +445,8 @@ class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 class WithSmallCores extends Config (
     topDefinitions = { (pname,site,here) => pname match {
       case UseFPU => false
-      case FastMulDiv => false
+      case MulDivUnroll => 1
+      case DivEarlyOut => false  
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 0)
       case StoreDataQueueDepth => 2
