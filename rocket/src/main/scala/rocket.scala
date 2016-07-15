@@ -22,7 +22,8 @@ case object UseAtomics extends Field[Boolean]
 case object UsePerfCounters extends Field[Boolean]
 case object FastLoadWord extends Field[Boolean]
 case object FastLoadByte extends Field[Boolean]
-case object FastMulDiv extends Field[Boolean]
+case object MulUnroll extends Field[Int]
+case object DivEarlyOut extends Field[Boolean]
 case object CoreInstBits extends Field[Int]
 case object CoreDataBits extends Field[Int]
 case object CoreDCacheReqTagBits extends Field[Int]
@@ -43,7 +44,8 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val usingAtomics = p(UseAtomics)
   val usingFDivSqrt = p(FDivSqrt)
   val usingRoCC = !p(BuildRoCC).isEmpty
-  val usingFastMulDiv = p(FastMulDiv)
+  val mulUnroll = p(MulUnroll)
+  val divEarlyOut = p(DivEarlyOut)
   val fastLoadWord = p(FastLoadWord)
   val fastLoadByte = p(FastLoadByte)
 
@@ -286,8 +288,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   
   // multiplier and divider
   val div = Module(new MulDiv(width = xLen,
-                              unroll = if(usingFastMulDiv) 8 else 1,
-                              earlyOut = usingFastMulDiv))
+                              unroll = mulUnroll,
+                              earlyOut = divEarlyOut))
+
   div.io.req.valid := ex_reg_valid && ex_ctrl.div
   div.io.req.bits.dw := ex_ctrl.alu_dw
   div.io.req.bits.fn := ex_ctrl.alu_fn
