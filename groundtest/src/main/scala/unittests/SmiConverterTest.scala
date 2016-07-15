@@ -2,7 +2,6 @@ package groundtest.unittests
 
 import Chisel._
 import junctions._
-import junctions.NastiConstants._
 import uncore.tilelink._
 import uncore.converters._
 import uncore.constants._
