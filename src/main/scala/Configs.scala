@@ -195,7 +195,7 @@ class BaseConfig extends Config (
       case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
-      case MulDivUnroll => 8
+      case MulUnroll => 8
       case DivEarlyOut => true
       case XLen => 64
       case UseFPU => {
@@ -445,7 +445,7 @@ class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 class WithSmallCores extends Config (
     topDefinitions = { (pname,site,here) => pname match {
       case UseFPU => false
-      case MulDivUnroll => 1
+      case MulUnroll => 1
       case DivEarlyOut => false  
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 0)
