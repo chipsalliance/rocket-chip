@@ -4,6 +4,7 @@ import Chisel._
 import cde.{Parameters, Field}
 import junctions._
 import uncore.tilelink._
+import uncore.util._
 import HastiConstants._
 
 class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
@@ -122,4 +123,63 @@ class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
 
   io.hready := Bool(true)
   io.hresp := HRESP_OKAY
+}
+
+/**
+ * This RAM is not meant to be particularly performant.
+ * It just supports the entire range of uncached TileLink operations in the
+ * simplest way possible.
+ */
+class TileLinkTestRAM(depth: Int)(implicit val p: Parameters) extends Module
+    with HasTileLinkParameters {
+  val io = new ClientUncachedTileLinkIO().flip
+
+  val ram = Mem(depth, UInt(width = tlDataBits))
+
+  val responding = Reg(init = Bool(false))
+  val acq = io.acquire.bits
+  val r_acq = Reg(io.acquire.bits)
+  val acq_addr = Cat(acq.addr_block, acq.addr_beat)
+  val r_acq_addr = Cat(r_acq.addr_block, r_acq.addr_beat)
+
+  when (io.acquire.fire() && io.acquire.bits.last()) {
+    r_acq := io.acquire.bits
+    responding := Bool(true)
+  }
+
+  when (io.grant.fire()) {
+    val is_getblk = r_acq.isBuiltInType(Acquire.getBlockType)
+    val last_beat = r_acq.addr_beat === UInt(tlDataBeats - 1)
+    when (is_getblk && !last_beat) {
+      r_acq.addr_beat := r_acq.addr_beat + UInt(1)
+    } .otherwise { responding := Bool(false) }
+  }
+
+  io.acquire.ready := !responding
+  io.grant.valid := responding
+  io.grant.bits := Grant(
+    is_builtin_type = Bool(true),
+    g_type = r_acq.getBuiltInGrantType(),
+    client_xact_id = r_acq.client_xact_id,
+    manager_xact_id = UInt(0),
+    addr_beat = r_acq.addr_beat,
+    data = ram(r_acq_addr))
+
+  val old_data = ram(acq_addr)
+  val new_data = acq.data
+
+  val amo_shift_bits = acq.amo_shift_bytes() << UInt(3)
+  val amoalu = Module(new AMOALU)
+  amoalu.io.addr := Cat(acq.addr_block, acq.addr_beat, acq.addr_byte())
+  amoalu.io.cmd := acq.op_code()
+  amoalu.io.typ := acq.op_size()
+  amoalu.io.lhs := old_data >> amo_shift_bits
+  amoalu.io.rhs := new_data >> amo_shift_bits
+
+  val result = Mux(acq.isAtomic(), amoalu.io.out << amo_shift_bits, new_data)
+  val wmask = FillInterleaved(8, acq.wmask())
+
+  when (io.acquire.fire() && acq.hasData()) {
+    ram(acq_addr) := (old_data & ~wmask) | (result & wmask)
+  }
 }
