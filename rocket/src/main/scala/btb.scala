@@ -142,18 +142,18 @@ class BTB(implicit p: Parameters) extends BtbModule {
     val ras_update = Valid(new RASUpdate).flip
   }
 
-  val idxs = Reg(Vec(entries, UInt(width=matchBits)))
+  val idxs = Reg(Vec(entries, UInt(width=matchBits - log2Up(coreInstBytes))))
   val idxPages = Reg(Vec(entries, UInt(width=log2Up(nPages))))
-  val tgts = Reg(Vec(entries, UInt(width=matchBits)))
+  val tgts = Reg(Vec(entries, UInt(width=matchBits - log2Up(coreInstBytes))))
   val tgtPages = Reg(Vec(entries, UInt(width=log2Up(nPages))))
-  val pages = Reg(Vec(nPages, UInt(width=vaddrBits-matchBits)))
+  val pages = Reg(Vec(nPages, UInt(width=vaddrBits - matchBits)))
   val pageValid = Reg(init = UInt(0, nPages))
   val idxPagesOH = idxPages.map(UIntToOH(_)(nPages-1,0))
   val tgtPagesOH = tgtPages.map(UIntToOH(_)(nPages-1,0))
 
   val useRAS = Reg(UInt(width = entries))
   val isJump = Reg(UInt(width = entries))
-  val brIdx = if (fetchWidth > 1) Reg(Vec(entries, UInt(width=log2Up(fetchWidth)))) else Seq(UInt(0))
+  val brIdx = Reg(Vec(entries, UInt(width=log2Up(fetchWidth))))
 
   private def page(addr: UInt) = addr >> matchBits
   private def pageMatch(addr: UInt) = {
@@ -161,7 +161,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
     pageValid & pages.map(_ === p).toBits
   }
   private def tagMatch(addr: UInt, pgMatch: UInt) = {
-    val idxMatch = idxs.map(_ === addr(matchBits-1,0)).toBits
+    val idxMatch = idxs.map(_ === addr(matchBits-1, log2Up(coreInstBytes))).toBits
     val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR).toBits
     idxMatch & idxPageMatch
   }
@@ -209,8 +209,9 @@ class BTB(implicit p: Parameters) extends BtbModule {
 
     val waddr = Mux(updateHit && !resetting, updateHitAddr, nextRepl)
     val mask = UIntToOH(waddr)
-    idxs(waddr) := Mux(resetting, Cat(r_btb_update.bits.pc >> log2Ceil(entries), nextRepl), r_btb_update.bits.pc)
-    tgts(waddr) := update_target
+    val newIdx = r_btb_update.bits.pc(matchBits-1, log2Up(coreInstBytes))
+    idxs(waddr) := Mux(resetting, Cat(newIdx >> log2Ceil(entries), nextRepl), newIdx)
+    tgts(waddr) := update_target(matchBits-1, log2Up(coreInstBytes))
     idxPages(waddr) := idxPageUpdate
     tgtPages(waddr) := tgtPageUpdate
     useRAS := Mux(r_btb_update.bits.isReturn, useRAS | mask, useRAS & ~mask)
@@ -234,7 +235,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
 
   io.resp.valid := hits.orR
   io.resp.bits.taken := io.resp.valid
-  io.resp.bits.target := Cat(Mux1H(Mux1H(hitsVec, tgtPagesOH), pages), Mux1H(hitsVec, tgts))
+  io.resp.bits.target := Cat(Mux1H(Mux1H(hitsVec, tgtPagesOH), pages), Mux1H(hitsVec, tgts) << log2Up(coreInstBytes))
   io.resp.bits.entry := OHToUInt(hits)
   io.resp.bits.bridx := Mux1H(hitsVec, brIdx)
   io.resp.bits.mask := Cat((UInt(1) << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, UInt(0)))-1, UInt(1))
