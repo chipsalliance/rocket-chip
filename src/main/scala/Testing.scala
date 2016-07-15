@@ -95,7 +95,7 @@ run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets)
 object DefaultTestSuites {
   val rv32uiNames = LinkedHashSet(
     "simple", "add", "addi", "and", "andi", "auipc", "beq", "bge", "bgeu", "blt", "bltu", "bne", "fence_i", 
-    "j", "jal", "jalr", "lb", "lbu", "lh", "lhu", "lui", "lw", "or", "ori", "sb", "sh", "sw", "sll", "slli",
+    "jal", "jalr", "lb", "lbu", "lh", "lhu", "lui", "lw", "or", "ori", "sb", "sh", "sw", "sll", "slli",
     "slt", "slti", "sra", "srai", "srl", "srli", "sub", "xor", "xori")
   val rv32ui = new AssemblyTestSuite("rv32ui", rv32uiNames)(_)
 
