@@ -6,54 +6,6 @@ import junctions.NastiConstants._
 import groundtest.common._
 import cde.Parameters
 
-class AtosConverterTestBackend(implicit p: Parameters) extends NastiModule()(p) {
-  val io = new Bundle {
-    val nasti = (new NastiIO).flip
-    val finished = Bool(OUTPUT)
-  }
-
-  val (s_waddr :: s_wdata :: s_wresp ::
-       s_raddr :: s_rresp :: s_done :: Nil) = Enum(Bits(), 6)
-  val state = Reg(init = s_waddr)
-
-  val n_words = 4
-  val test_data = Reg(Vec(n_words, UInt(width = nastiXDataBits)))
-  val req_id = Reg(UInt(width = nastiXIdBits))
-
-  val (w_count, w_last) = Counter(io.nasti.w.fire(), n_words)
-  val (r_count, r_last) = Counter(io.nasti.r.fire(), n_words)
-
-  when (io.nasti.aw.fire()) {
-    req_id := io.nasti.aw.bits.id
-    state := s_wdata
-  }
-  when (io.nasti.w.fire()) {
-    test_data(w_count) := io.nasti.w.bits.data
-    when (io.nasti.w.bits.last) { state := s_wresp }
-  }
-  when (io.nasti.b.fire()) { state := s_raddr }
-  when (io.nasti.ar.fire()) {
-    req_id := io.nasti.ar.bits.id
-    state := s_rresp
-  }
-  when (io.nasti.r.fire() && io.nasti.r.bits.last) { state := s_done }
-
-  io.nasti.aw.ready := (state === s_waddr)
-  io.nasti.w.ready := (state === s_wdata)
-  io.nasti.ar.ready := (state === s_raddr)
-
-  io.nasti.b.valid := (state === s_wresp)
-  io.nasti.b.bits := NastiWriteResponseChannel(id = req_id)
-
-  io.nasti.r.valid := (state === s_rresp)
-  io.nasti.r.bits := NastiReadDataChannel(
-    id = req_id,
-    data = test_data(r_count),
-    last = r_last)
-
-  io.finished := (state === s_done)
-}
-
 class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
     (implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
@@ -132,17 +84,53 @@ class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
     s"NastiDriver for $name timed out")
 }
 
-class HastiTest(implicit p: Parameters) extends UnitTest {
-  val sram = Module(new HastiTestSRAM(8))
-  val bus = Module(new HastiBus(Seq(a => Bool(true))))
-  val conv = Module(new HastiMasterIONastiIOConverter)
-  val driver = Module(new NastiDriver(32, 8, 2))
 
-  bus.io.slaves(0) <> sram.io
-  bus.io.master <> conv.io.hasti
-  conv.io.nasti <> driver.io.nasti
-  io.finished := driver.io.finished
-  driver.io.start := io.start
+class AtosConverterTestBackend(implicit p: Parameters) extends NastiModule()(p) {
+  val io = new Bundle {
+    val nasti = (new NastiIO).flip
+    val finished = Bool(OUTPUT)
+  }
+
+  val (s_waddr :: s_wdata :: s_wresp ::
+       s_raddr :: s_rresp :: s_done :: Nil) = Enum(Bits(), 6)
+  val state = Reg(init = s_waddr)
+
+  val n_words = 4
+  val test_data = Reg(Vec(n_words, UInt(width = nastiXDataBits)))
+  val req_id = Reg(UInt(width = nastiXIdBits))
+
+  val (w_count, w_last) = Counter(io.nasti.w.fire(), n_words)
+  val (r_count, r_last) = Counter(io.nasti.r.fire(), n_words)
+
+  when (io.nasti.aw.fire()) {
+    req_id := io.nasti.aw.bits.id
+    state := s_wdata
+  }
+  when (io.nasti.w.fire()) {
+    test_data(w_count) := io.nasti.w.bits.data
+    when (io.nasti.w.bits.last) { state := s_wresp }
+  }
+  when (io.nasti.b.fire()) { state := s_raddr }
+  when (io.nasti.ar.fire()) {
+    req_id := io.nasti.ar.bits.id
+    state := s_rresp
+  }
+  when (io.nasti.r.fire() && io.nasti.r.bits.last) { state := s_done }
+
+  io.nasti.aw.ready := (state === s_waddr)
+  io.nasti.w.ready := (state === s_wdata)
+  io.nasti.ar.ready := (state === s_raddr)
+
+  io.nasti.b.valid := (state === s_wresp)
+  io.nasti.b.bits := NastiWriteResponseChannel(id = req_id)
+
+  io.nasti.r.valid := (state === s_rresp)
+  io.nasti.r.bits := NastiReadDataChannel(
+    id = req_id,
+    data = test_data(r_count),
+    last = r_last)
+
+  io.finished := (state === s_done)
 }
 
 class AtosConverterTest(implicit val p: Parameters) extends UnitTest
@@ -161,8 +149,22 @@ class AtosConverterTest(implicit val p: Parameters) extends UnitTest
   desser.io.narrow <> serdes.io.narrow
   manager_conv.io.atos <> desser.io.wide
   backend.io.nasti <> manager_conv.io.nasti
+  frontend.io.start := io.start
 
   io.finished := frontend.io.finished && backend.io.finished
+}
+
+class HastiTest(implicit p: Parameters) extends UnitTest {
+  val sram = Module(new HastiTestSRAM(8))
+  val bus = Module(new HastiBus(Seq(a => Bool(true))))
+  val conv = Module(new HastiMasterIONastiIOConverter)
+  val driver = Module(new NastiDriver(32, 8, 2))
+
+  bus.io.slaves(0) <> sram.io
+  bus.io.master <> conv.io.hasti
+  conv.io.nasti <> driver.io.nasti
+  io.finished := driver.io.finished
+  driver.io.start := io.start
 }
 
 
