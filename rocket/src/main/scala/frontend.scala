@@ -115,17 +115,13 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
 
   require(fetchWidth * coreInstBytes <= rowBytes)
-  val fetch_data = // TODO zero-width
-    if (fetchWidth * coreInstBytes == rowBytes) icache.io.resp.bits.datablock
-    else icache.io.resp.bits.datablock >> (s2_pc(log2Up(rowBytes)-1,log2Up(fetchWidth*coreInstBytes)) << log2Up(fetchWidth*coreInstBits))
+  val fetch_data = icache.io.resp.bits.datablock >> (s2_pc.extract(log2Up(rowBytes)-1,log2Up(fetchWidth*coreInstBytes)) << log2Up(fetchWidth*coreInstBits))
 
   for (i <- 0 until fetchWidth) {
     io.cpu.resp.bits.data(i) := fetch_data(i*coreInstBits+coreInstBits-1, i*coreInstBits)
   }
 
-  val all_ones = UInt((1 << (fetchWidth+1))-1)
-  val msk_pc = if (fetchWidth == 1) all_ones else all_ones << s2_pc(log2Up(fetchWidth) -1+2,2)
-  io.cpu.resp.bits.mask := msk_pc
+  io.cpu.resp.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Up(fetchWidth)+log2Up(coreInstBytes)-1, log2Up(coreInstBytes))
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
   io.cpu.resp.bits.replay := s2_speculative && !icache.io.resp.valid && !s2_xcpt_if
 

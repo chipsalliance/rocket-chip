@@ -164,9 +164,7 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     val replay_next = Bool(OUTPUT)
   }
 
-  def beatOffset(addr: UInt) = // TODO zero-width
-    if (beatOffBits > wordOffBits) addr(beatOffBits - 1, wordOffBits)
-    else UInt(0)
+  def beatOffset(addr: UInt) = addr.extract(beatOffBits - 1, wordOffBits)
 
   def wordFromBeat(addr: UInt, dat: UInt) = {
     val shift = Cat(beatOffset(addr), UInt(0, wordOffBits + log2Up(wordBytes)))
@@ -300,7 +298,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
                     (Vec(s_refill_req, s_refill_resp).contains(state) &&
                       !cmd_requires_second_acquire))
   val gnt_multi_data = io.mem_grant.bits.hasMultibeatData()
-  val (refill_cnt, refill_count_done) = Counter(io.mem_grant.valid && gnt_multi_data, refillCycles) // TODO: Zero width?
+  val (refill_cnt, refill_count_done) = Counter(io.mem_grant.valid && gnt_multi_data, refillCycles)
   val refill_done = io.mem_grant.valid && (!gnt_multi_data || refill_count_done)
 
   val rpq = Module(new Queue(new ReplayInternal, p(ReplayQueueDepth)))
@@ -373,7 +371,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   io.idx_match := (state =/= s_invalid) && idx_match
   io.refill.way_en := req.way_en
-  io.refill.addr := (if(refillCycles > 1) Cat(req_idx, refill_cnt) else req_idx) << rowOffBits
+  io.refill.addr := ((req_idx << log2Ceil(refillCycles)) | refill_cnt) << rowOffBits
   io.tag := req.addr >> untagBits
   io.req_pri_rdy := state === s_invalid
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
@@ -963,11 +961,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 
   writeArb.io.in(0).bits.addr := s3_req.addr
-  val rowIdx =
-    if (rowOffBits > offsetlsb) s3_req.addr(rowOffBits-1,offsetlsb).toUInt
-    else UInt(0)
-  val rowWMask = UInt(1) << (if(rowOffBits > offsetlsb) rowIdx else UInt(0))
-  writeArb.io.in(0).bits.wmask := rowWMask
+  writeArb.io.in(0).bits.wmask := UIntToOH(s3_req.addr.extract(rowOffBits-1,offsetlsb))
   writeArb.io.in(0).bits.data := Fill(rowWords, s3_req.data)
   writeArb.io.in(0).valid := s3_valid
   writeArb.io.in(0).bits.way_en :=  s3_way

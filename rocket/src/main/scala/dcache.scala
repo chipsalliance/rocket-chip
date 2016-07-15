@@ -216,9 +216,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   dataArb.io.in(0).bits.addr := Mux(pstore2_valid, pstore2_addr, pstore1_addr)
   dataArb.io.in(0).bits.way_en := Mux(pstore2_valid, pstore2_way, pstore1_way)
   dataArb.io.in(0).bits.wdata := Fill(rowWords, Mux(pstore2_valid, pstore2_storegen_data, pstore1_storegen_data))
-  val pstore_mask_shift =
-    if (rowOffBits > offsetlsb) Mux(pstore2_valid, pstore2_addr, pstore1_addr)(rowOffBits-1,offsetlsb) << wordOffBits
-    else UInt(0)
+  val pstore_mask_shift = Mux(pstore2_valid, pstore2_addr, pstore1_addr).extract(rowOffBits-1,offsetlsb) << wordOffBits
   dataArb.io.in(0).bits.wmask := Mux(pstore2_valid, pstore2_storegen_mask, pstore1_storegen.mask) << pstore_mask_shift
 
   // store->load RAW hazard detection
@@ -247,9 +245,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     addr_byte = s2_req.addr(beatOffBits-1, 0),
     operand_size = s2_req.typ,
     alloc = Bool(false))
-  val uncachedPutOffset = // TODO zero-width
-    if (beatBytes > wordBytes) s2_req.addr(beatOffBits-1, wordOffBits)
-    else UInt(0)
+  val uncachedPutOffset = s2_req.addr.extract(beatOffBits-1, wordOffBits)
   val uncachedPutMessage = Put(
     client_xact_id = UInt(0),
     addr_block = s2_req.addr(paddrBits-1, blockOffBits),
@@ -402,9 +398,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 
   // load data subword mux/sign extension
-  val s2_word_idx = // TODO zero-width
-    if (rowBits > wordBits) s2_req.addr(log2Up(rowBits/8)-1, log2Up(wordBytes))
-    else UInt(0)
+  val s2_word_idx = s2_req.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes))
   val s2_data_word = s2_data >> Cat(s2_word_idx, UInt(0, log2Up(coreDataBits)))
   val loadgen = new LoadGen(s2_req.typ, s2_req.addr, s2_data_word, s2_sc, wordBytes)
   io.cpu.resp.bits.data := loadgen.data | s2_sc_fail

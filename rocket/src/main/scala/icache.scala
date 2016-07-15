@@ -72,7 +72,7 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
 
   val narrow_grant = FlowThroughSerializer(io.mem.grant, refillCyclesPerBeat)
-  val (refill_cnt, refill_wrap) = Counter(narrow_grant.fire(), refillCycles) //TODO Zero width wire
+  val (refill_cnt, refill_wrap) = Counter(narrow_grant.fire(), refillCycles)
   val refill_done = state === s_refill && refill_wrap
   narrow_grant.ready := Bool(true)
 
@@ -116,10 +116,9 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
     val wen = narrow_grant.valid && repl_way === UInt(i)
     when (wen) {
       val e_d = code.encode(narrow_grant.bits.data).toUInt
-      if(refillCycles > 1) data_array.write(Cat(s1_idx, refill_cnt), e_d)
-      else data_array.write(s1_idx, e_d)
+      data_array.write((s1_idx << log2Ceil(refillCycles)) | refill_cnt, e_d)
     }
-    val s0_raddr = s0_vaddr(untagBits-1,blockOffBits-(if(refillCycles > 1) refill_cnt.getWidth else 0))
+    val s0_raddr = s0_vaddr(untagBits-1,blockOffBits-log2Ceil(refillCycles))
     s1_dout(i) := data_array.read(s0_raddr, !wen && s0_valid)
   }
 

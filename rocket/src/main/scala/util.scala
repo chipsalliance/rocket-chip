@@ -14,10 +14,16 @@ object Util {
   implicit def booleanToBool(x: Boolean): Bits = Bool(x)
   implicit def intSeqToUIntSeq(x: Seq[Int]): Seq[UInt] = x.map(UInt(_))
   implicit def wcToUInt(c: WideCounter): UInt = c.value
-  implicit def sextToConv(x: UInt) = new AnyRef {
+
+  implicit class UIntToAugmentedUInt(val x: UInt) extends AnyVal {
     def sextTo(n: Int): UInt =
       if (x.getWidth == n) x
       else Cat(Fill(n - x.getWidth, x(x.getWidth-1)), x)
+
+    def extract(hi: Int, lo: Int): UInt = {
+      if (hi == lo-1) UInt(0)
+      else x(hi, lo)
+    }
   }
 
   implicit def booleanToIntConv(x: Boolean) = new AnyRef {
