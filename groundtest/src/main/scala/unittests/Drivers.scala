@@ -274,7 +274,7 @@ class PutBlockSweepDriver(val n: Int)(implicit p: Parameters)
     state === s_get_resp && io.mem.grant.valid, tlDataBeats)
   val (get_cnt, get_done) = Counter(get_beat_done, n)
 
-  val dataRep = tlDataBits / (log2Up(n) + tlBeatAddrBits)
+  val dataRep = (tlDataBits - 1) / (log2Up(n) + tlBeatAddrBits) + 1
   val put_data = Fill(dataRep, Cat(put_cnt, put_beat))(tlDataBits - 1, 0)
   val get_data = Fill(dataRep, Cat(get_cnt, get_beat))(tlDataBits - 1, 0)
 
