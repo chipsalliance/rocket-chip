@@ -405,9 +405,8 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
   assert(!r_queue.io.enq.valid || r_queue.io.enq.ready,
     "NASTI -> HASTI converter queue overflow")
 
-  val next_count = r_queue.io.count +
-                    r_queue.io.enq.valid -
-                    r_queue.io.deq.ready
+  // How many read requests have we not delivered a response for yet?
+  val pending_count = r_queue.io.count + rvalid
 
   io.hasti.haddr := addr
   io.hasti.hsize := size
@@ -422,7 +421,7 @@ class HastiMasterIONastiIOConverter(implicit p: Parameters) extends HastiModule(
       Mux(first, HTRANS_IDLE, HTRANS_BUSY)),
     s_read -> MuxCase(HTRANS_BUSY, Seq(
       first -> HTRANS_NONSEQ,
-      (next_count <= UInt(1)) -> HTRANS_SEQ))))
+      (pending_count <= UInt(1)) -> HTRANS_SEQ))))
 
   when (io.nasti.aw.fire()) {
     first := Bool(true)
