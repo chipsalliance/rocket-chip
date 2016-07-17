@@ -144,14 +144,14 @@ class TagMan(val logNumTags : Int) extends Module {
   val inUse = List.fill(numTags)(Reg(init = Bool(false)))
 
   // Mapping from each tag to its 'inUse' bit
-  val inUseMap = (0 to numTags-1).map(i => BitPat(UInt(i))).zip(inUse)
+  val inUseMap = (0 to numTags-1).map(i => UInt(i)).zip(inUse)
 
   // Next tag to offer
   val nextTag = Reg(init = UInt(0, logNumTags))
   io.tagOut := nextTag
 
   // Is the next tag available?
-  io.available := ~Lookup(nextTag, Bool(true), inUseMap)
+  io.available := ~MuxLookup(nextTag, Bool(true), inUseMap)
 
   // When user takes a tag
   when (io.take) {
