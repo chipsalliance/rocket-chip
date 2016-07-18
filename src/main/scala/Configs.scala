@@ -191,6 +191,7 @@ class BaseConfig extends Config (
       case UseVM => true
       case UseUser => true
       case UseDebug => true
+      case AsyncDebugBus => false
       case NBreakpoints => 1
       case UsePerfCounters => true
       case FastLoadWord => true
@@ -216,6 +217,7 @@ class BaseConfig extends Config (
         true
       }
       case NExtInterrupts => 2
+      case AsyncMMIOChannels => false
       case ExtMMIOPorts => AddrMap()
 /*
         AddrMap(
@@ -225,6 +227,7 @@ class BaseConfig extends Config (
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0
+      case AsyncBusChannels => false
       case NExtBusAXIChannels => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
@@ -297,6 +300,7 @@ class BaseConfig extends Config (
       }
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
+      case AsyncMemChannels => false
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
       case TMemoryChannels => BusType.AXI
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")

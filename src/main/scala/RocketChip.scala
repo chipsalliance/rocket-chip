@@ -26,6 +26,7 @@ object BusType {
 }
 
 /** Number of memory channels */
+case object AsyncMemChannels extends Field[Boolean]
 case object NMemoryChannels extends Field[Int]
 case object TMemoryChannels extends Field[BusType.EnumVal]
 /** Number of banks per memory channel */
@@ -35,10 +36,12 @@ case object BankIdLSB extends Field[Int]
 /** Number of outstanding memory requests */
 case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** Number of exteral MMIO ports */
+case object AsyncMMIOChannels extends Field[Boolean]
 case object ExtMMIOPorts extends Field[AddrMap]
 case object NExtMMIOAXIChannels extends Field[Int]
 case object NExtMMIOAHBChannels extends Field[Int]
 case object NExtMMIOTLChannels  extends Field[Int]
+case object AsyncBusChannels extends Field[Boolean]
 case object NExtBusAXIChannels extends Field[Int]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
@@ -52,6 +55,7 @@ case object NExtInterrupts extends Field[Int]
 case object PLICKey extends Field[PLICConfig]
 /** Number of clock cycles per RTC tick */
 case object RTCPeriod extends Field[Int]
+case object AsyncDebugBus extends Field[Boolean]
 
 case object UseStreamLoopback extends Field[Boolean]
 case object StreamLoopbackSize extends Field[Int]
@@ -92,14 +96,22 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
     with HasTopLevelParameters
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
+  val mem_clk = if (p(AsyncMemChannels)) Some(Vec(nMemChannels, Clock(INPUT))) else None
+  val mem_rst = if (p(AsyncMemChannels)) Some(Vec(nMemChannels, Bool (INPUT))) else None
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
   val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
+  val bus_clk = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Clock(INPUT))) else None
+  val bus_rst = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Bool (INPUT))) else None
   val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
+  val mmio_clk = if (p(AsyncMMIOChannels)) Some(Vec(p(NExtMMIOAXIChannels), Clock(INPUT))) else None
+  val mmio_rst = if (p(AsyncMMIOChannels)) Some(Vec(p(NExtMMIOAXIChannels), Bool (INPUT))) else None
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
   val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
+  val debug_clk = if (p(AsyncDebugBus)) Some(Clock(INPUT)) else None
+  val debug_rst = if (p(AsyncDebugBus)) Some(Bool(INPUT)) else None
   val debug = new DebugBusIO()(p).flip
 }
 
@@ -185,15 +197,20 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_cached <> tileList.map(_.io.cached).flatten
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   uncore.io.interrupts <> io.interrupts
-  uncore.io.debugBus <> io.debug
+  uncore.io.debugBus <>
+    (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug) else io.debug)
 
-  io.mmio_axi <> uncore.io.mmio_axi
+  for (i <- 0 until p(NExtMMIOAXIChannels))
+    io.mmio_axi(i) <> (if (p(AsyncMMIOChannels)) AsyncNastiTo((io.mmio_clk.get)(i), (io.mmio_rst.get)(i), uncore.io.mmio_axi(i)) else uncore.io.mmio_axi(i))
   io.mmio_ahb <> uncore.io.mmio_ahb
   io.mmio_tl <> uncore.io.mmio_tl
-  io.mem_axi <> uncore.io.mem_axi
+  
+  for (i <- 0 until nMemAXIChannels)
+    io.mem_axi(i) <> (if (p(AsyncMemChannels)) AsyncNastiTo((io.mem_clk.get)(i), (io.mem_rst.get)(i), uncore.io.mem_axi(i)) else uncore.io.mem_axi(i))
   io.mem_ahb <> uncore.io.mem_ahb
   io.mem_tl <> uncore.io.mem_tl
-  uncore.io.bus_axi <> io.bus_axi
+  for (i <- 0 until p(NExtBusAXIChannels))
+    uncore.io.bus_axi(i) <> (if (p(AsyncDebugBus)) AsyncNastiFrom((io.bus_clk.get)(i), (io.bus_rst.get)(i), io.bus_axi(i)) else io.bus_axi(i))
 }
 
 /** Wrapper around everything that isn't a Tile.
