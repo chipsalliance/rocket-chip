@@ -983,3 +983,21 @@ class DebugModule ()(implicit val p:cde.Parameters)
   io.fullreset := CONTROLReg.fullreset
 
 }
+
+object AsyncDebugBusFrom { // OutsideClockDomain
+  def apply(from_clock: Clock, from_reset: Bool, source: DebugBusIO, depth: Int = 0, sync: Int = 2)(implicit p: Parameters): DebugBusIO = {
+    val sink = Wire(new DebugBusIO)
+    sink.req <> AsyncDecoupledFrom(from_clock, from_reset, source.req)
+    source.resp <> AsyncDecoupledTo(from_clock, from_reset, sink.resp)
+    sink
+  }
+}
+
+object AsyncDebugBusTo { // OutsideClockDomain
+  def apply(to_clock: Clock, to_reset: Bool, source: DebugBusIO, depth: Int = 0, sync: Int = 2)(implicit p: Parameters): DebugBusIO = {
+    val sink = Wire(new DebugBusIO)
+    sink.req <> AsyncDecoupledTo(to_clock, to_reset, source.req)
+    source.resp <> AsyncDecoupledFrom(to_clock, to_reset, sink.resp)
+    sink
+  }
+}
