@@ -76,7 +76,6 @@ class RocketTile(resetSignal: Bool = null)(implicit p: Parameters) extends Tile(
       }))
       val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
       rocc.io.cmd <> cmdRouter.io.out(i)
-      rocc.io.status := core.io.rocc.status
       rocc.io.exception := core.io.rocc.exception
       rocc.io.host_id := io.prci.id
       dcIF.io.requestor <> rocc.io.mem
