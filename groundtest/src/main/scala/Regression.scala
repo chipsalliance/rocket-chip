@@ -352,7 +352,7 @@ class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()
   io.finished := (state === s_done)
 
   val data_mismatch = io.mem.grant.fire() && io.mem.grant.bits.hasData() &&
-                      state =/= UInt(0) && io.mem.grant.bits.data =/= get_data
+                      stage =/= UInt(0) && io.mem.grant.bits.data =/= get_data
   assert(!data_mismatch, "WriteMaskedPutBlockRegression: data does not match")
   io.errored := data_mismatch
 }
