@@ -158,7 +158,7 @@ class MICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def getReleaseType(incoming: HasProbeType, meta: ClientMetadata): UInt =
     MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
       probeInvalidate -> getReleaseType(M_FLUSH, meta),
-      probeCopy       -> getReleaseType(M_CLEAN, meta)))
+      probeCopy       -> getReleaseType(M_FLUSH, meta)))
 
   def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) = meta
 
@@ -250,8 +250,8 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
   def getReleaseType(incoming: HasProbeType, meta: ClientMetadata): UInt =
     MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
       probeInvalidate -> getReleaseType(M_FLUSH, meta),
-      probeDowngrade  -> getReleaseType(M_PRODUCE, meta),
-      probeCopy       -> getReleaseType(M_CLEAN, meta)))
+      probeDowngrade  -> getReleaseType(M_FLUSH, meta),
+      probeCopy       -> getReleaseType(M_FLUSH, meta)))
 
   def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) = 
     ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, meta.state))(meta.p)
@@ -271,8 +271,8 @@ class MEICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     ClientMetadata(
       MuxLookup(incoming.p_type, meta.state, Array(
         probeInvalidate -> clientInvalid,
-        probeDowngrade  -> clientExclusiveClean,
-        probeCopy       -> meta.state)))(meta.p)
+        probeDowngrade  -> clientInvalid,
+        probeCopy       -> clientInvalid)))(meta.p)
 
   // Manager states and functions:
   val nManagerStates = 0 // We don't actually need any states for this protocol
@@ -353,7 +353,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
       probeInvalidate -> getReleaseType(M_FLUSH, meta),
       probeDowngrade  -> getReleaseType(M_PRODUCE, meta),
-      probeCopy       -> getReleaseType(M_CLEAN, meta)))
+      probeCopy       -> getReleaseType(M_PRODUCE, meta)))
 
   def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) =
     ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, meta.state))(meta.p)
@@ -378,7 +378,7 @@ class MSICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       MuxLookup(incoming.p_type, meta.state, Array(
         probeInvalidate -> clientInvalid,
         probeDowngrade  -> clientShared,
-        probeCopy       -> meta.state)))(meta.p)
+        probeCopy       -> clientShared)))(meta.p)
 
   // Manager states and functions:
   val nManagerStates = 0 // TODO: We could add a Shared state to avoid probing
@@ -471,7 +471,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
     MuxLookup(incoming.p_type, releaseInvalidateAck, Array(
       probeInvalidate -> getReleaseType(M_FLUSH, meta),
       probeDowngrade  -> getReleaseType(M_PRODUCE, meta),
-      probeCopy       -> getReleaseType(M_CLEAN, meta)))
+      probeCopy       -> getReleaseType(M_PRODUCE, meta)))
 
   def clientMetadataOnHit(cmd: UInt, meta: ClientMetadata) =
     ClientMetadata(Mux(isWrite(cmd), clientExclusiveDirty, meta.state))(meta.p)
@@ -498,7 +498,7 @@ class MESICoherence(dir: DirectoryRepresentation) extends CoherencePolicy(dir) {
       MuxLookup(incoming.p_type, meta.state, Array(
         probeInvalidate -> clientInvalid,
         probeDowngrade  -> clientShared,
-        probeCopy       -> meta.state)))(meta.p)
+        probeCopy       -> clientShared)))(meta.p)
 
   // Manager states and functions:
   val nManagerStates = 0 // TODO: We could add a Shared state to avoid probing
@@ -598,9 +598,10 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
                            releaseInvalidateAckMigratory, releaseInvalidateAck),
       probeInvalidateOthers -> Mux(clientSharedByTwo === meta.state,
                                  releaseInvalidateAckMigratory, releaseInvalidateAck),
-      probeDowngrade  -> Mux(meta.state =/= clientInvalid,
-                           releaseDowngradeAckHasCopy, releaseDowngradeAck),
-      probeCopy       -> releaseCopyAck))
+      probeDowngrade -> Mux(meta.state =/= clientInvalid,
+                         releaseDowngradeAckHasCopy, releaseDowngradeAck),
+      probeCopy -> Mux(meta.state =/= clientInvalid,
+                     releaseDowngradeAckHasCopy, releaseDowngradeAck)))
     Mux(dirty, with_data, without_data)
   }
 
@@ -631,18 +632,20 @@ class MigratoryCoherence(dir: DirectoryRepresentation) extends CoherencePolicy(d
           grantReadMigratory -> Mux(isWrite(cmd),
                                   clientMigratoryDirty, clientMigratoryClean)))))(meta.p)
 
-  def clientMetadataOnProbe(incoming: HasProbeType, meta: ClientMetadata) =
+  def clientMetadataOnProbe(incoming: HasProbeType, meta: ClientMetadata) = {
+    val downgradeState = MuxLookup(meta.state, clientShared, Array(
+                              clientExclusiveClean -> clientSharedByTwo,
+                              clientExclusiveDirty -> clientSharedByTwo,
+                              clientSharedByTwo    -> clientShared,
+                              clientMigratoryClean -> clientSharedByTwo,
+                              clientMigratoryDirty -> clientInvalid))
     ClientMetadata(
       MuxLookup(incoming.p_type, meta.state, Array(
         probeInvalidate -> clientInvalid,
         probeInvalidateOthers -> clientInvalid,
-        probeCopy -> meta.state,
-        probeDowngrade -> MuxLookup(meta.state, clientShared, Array(
-                                clientExclusiveClean -> clientSharedByTwo,
-                                clientExclusiveDirty -> clientSharedByTwo,
-                                clientSharedByTwo    -> clientShared,
-                                clientMigratoryClean -> clientSharedByTwo,
-                                clientMigratoryDirty -> clientInvalid)))))(meta.p)
+        probeDowngrade -> downgradeState,
+        probeCopy -> downgradeState)))(meta.p)
+  }
 
   // Manager states and functions:
   val nManagerStates = 0 // TODO: we could add some states to reduce the number of message types
