@@ -91,17 +91,17 @@ class NastiGenerator(id: Int)(implicit val p: Parameters) extends Module
   r_timer.io.start.bits := io.mem.ar.bits.id
   r_timer.io.stop.valid := io.mem.r.fire() && io.mem.r.bits.last
   r_timer.io.stop.bits := io.mem.r.bits.id
-  assert(!r_timer.io.timeout, "NASTI Read timed out")
+  assert(!r_timer.io.timeout.valid, "NASTI Read timed out")
 
   val w_timer = Module(new Timer(1000, 2))
   w_timer.io.start.valid := io.mem.aw.fire()
   w_timer.io.start.bits := io.mem.aw.bits.id
   w_timer.io.stop.valid := io.mem.b.fire()
   w_timer.io.stop.bits := io.mem.b.bits.id
-  assert(!w_timer.io.timeout, "NASTI Write timed out")
+  assert(!w_timer.io.timeout.valid, "NASTI Write timed out")
 
-  io.status.timeout.valid := r_timer.io.timeout || w_timer.io.timeout
-  io.status.timeout.bits := Mux(r_timer.io.timeout, UInt(1), UInt(2))
+  io.status.timeout.valid := r_timer.io.timeout.valid || w_timer.io.timeout.valid
+  io.status.timeout.bits := Mux(r_timer.io.timeout.valid, UInt(1), UInt(2))
 }
 
 class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)

@@ -73,6 +73,7 @@ trait HasTraceGenParams {
   val genExtraAddrs       = false
   val logNumExtraAddrs    = 1
   val numExtraAddrs       = 1 << logNumExtraAddrs
+  val maxTags             = 8
 
   require(numBytesInWord * 8 == numBitsInWord)
   require((1 << logAddressBagLen) == addressBagLen)
@@ -183,6 +184,14 @@ class TraceGenerator(id: Int)
     val mem = new HellaCacheIO
   }
 
+  val reqTimer = Module(new Timer(8192, maxTags))
+  reqTimer.io.start.valid := io.mem.req.fire()
+  reqTimer.io.start.bits := io.mem.req.bits.tag
+  reqTimer.io.stop.valid := io.mem.resp.valid
+  reqTimer.io.stop.bits := io.mem.resp.bits.tag
+
+  assert(!reqTimer.io.timeout.valid, s"TraceGen core ${id}: request timed out")
+
   // Random addresses
   // ----------------
   
@@ -264,7 +273,7 @@ class TraceGenerator(id: Int)
   // "tag", used to match each response with its corresponding request.
 
   // Create a tag manager giving out unique 3-bit tags
-  val tagMan = Module(new TagMan(3))
+  val tagMan = Module(new TagMan(log2Ceil(maxTags)))
 
   // Default inputs
   tagMan.io.take  := Bool(false);
@@ -455,7 +464,7 @@ class TraceGenerator(id: Int)
 
   when (sendFreshReq) {
     // Grab a unique tag for the request
-    reqTag := Cat(UInt(0), tagMan.io.tagOut)
+    reqTag := tagMan.io.tagOut
     tagMan.io.take := Bool(true)
     // Fill in unique data
     reqData := Cat(nextData, tid)
@@ -521,13 +530,6 @@ class TraceGenerator(id: Int)
     respCount := respCount + UInt(1)
   }
 
-  // Response timeouts
-  // ---------------------------
-
-  // Raise an error if a response takes too long to come back
-  val timeout = Timer(memRespTimeout, sendFreshReq, io.mem.resp.valid)
-  assert(!timeout, s"Core ${id}: response timeout")
-
   // Termination condition
   // ---------------------
 
@@ -542,7 +544,7 @@ class TraceGenerator(id: Int)
   }
 
   io.finished := Bool(false)
-  io.timeout := timeout
+  io.timeout := reqTimer.io.timeout.valid
 }
 
 // =======================

@@ -8,13 +8,13 @@ import Chisel._
 
 // Timer with a statically-specified period.
 // Can take multiple inflight start-stop events with ID
-// Will continue to count down so long as at least one inflight event
+// Will continue to count down as long as at least one event is inflight
 
 class Timer(initCount: Int, maxInflight: Int) extends Module {
   val io = new Bundle {
     val start = Valid(UInt(width = log2Up(maxInflight))).flip
     val stop = Valid(UInt(width = log2Up(maxInflight))).flip
-    val timeout = Bool(OUTPUT)
+    val timeout = Valid(UInt(width = log2Up(maxInflight)))
   }
 
   val inflight = Reg(init = Vec.fill(maxInflight) { Bool(false) })
@@ -33,7 +33,11 @@ class Timer(initCount: Int, maxInflight: Int) extends Module {
     inflight(io.stop.bits) := Bool(false)
   }
 
-  io.timeout := countdown === UInt(0) && active
+  io.timeout.valid := countdown === UInt(0) && active
+  io.timeout.bits := PriorityEncoder(inflight)
+
+  assert(!io.stop.valid || inflight(io.stop.bits),
+         "Timer stop for transaction that's not inflight")
 }
 
 object Timer {
@@ -43,7 +47,7 @@ object Timer {
     timer.io.start.bits  := UInt(0)
     timer.io.stop.valid  := stop
     timer.io.stop.bits   := UInt(0)
-    timer.io.timeout
+    timer.io.timeout.valid
   }
 }
 
