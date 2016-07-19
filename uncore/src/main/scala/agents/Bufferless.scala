@@ -30,13 +30,15 @@ class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoheren
   outer_arb.io.in <> outerList
   io.outer <> outer_arb.io.out
 
+  val iacq = Queue(io.inner.acquire, 1, pipe=true)
+  val irel = Queue(io.inner.release, 1, pipe=true)
+
   // Handle acquire transaction initiation
   val irel_vs_iacq_conflict =
-    io.inner.acquire.valid &&
-    io.inner.release.valid &&
-    io.irel().conflicts(io.iacq())
+    iacq.valid &&
+    irel.valid &&
+    irel.bits.conflicts(iacq.bits)
 
-  val iacq = Queue(io.inner.acquire, 1, pipe=true)
   doInputRoutingWithAllocation(
     in = iacq,
     outs = trackerList.map(_.io.inner.acquire),
@@ -48,7 +50,6 @@ class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoheren
   }
 
   // Handle releases, which might be voluntary and might have data
-  val irel = Queue(io.inner.release, 1, pipe=true)
   doInputRoutingWithAllocation(
     in = irel,
     outs = trackerList.map(_.io.inner.release),
