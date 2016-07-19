@@ -501,7 +501,7 @@ class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
   io.cache.req.bits.phys := Bool(true)
   io.cache.invalidate_lr := Bool(false)
 
-  when (state === s_idle) {
+  when (state === s_idle && io.start) {
     sending := Bool(true)
     state := s_write
   }
