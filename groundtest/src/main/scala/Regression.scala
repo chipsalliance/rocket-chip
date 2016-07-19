@@ -622,6 +622,10 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
       io.status.error.bits := UInt(i)
       cur_finished := regress.io.finished
     }
+
+    when (regress.io.start) {
+      printf(s"Starting regression ${regress.getClass.getSimpleName}\n")
+    }
   }
 
   when (cur_finished && !all_done) {

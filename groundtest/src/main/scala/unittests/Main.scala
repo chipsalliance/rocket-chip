@@ -17,7 +17,7 @@ abstract class UnitTest extends Module {
   }
 
   when (io.start) {
-    printf(s"Started UnitTest ${this.getClass.getName}\n")
+    printf(s"Started UnitTest ${this.getClass.getSimpleName}\n")
   }
 }
 
@@ -43,7 +43,7 @@ class UnitTestSuite(implicit p: Parameters) extends GroundTest()(p) {
   tests.zipWithIndex.foreach { case (mod, i) =>
     mod.io.start := (state === s_start) && test_idx === UInt(i)
     val timeout = Timer(1000, mod.io.start, mod.io.finished)
-    assert(!timeout, s"UnitTest ${mod.getClass.getName} timed out")
+    assert(!timeout, s"UnitTest ${mod.getClass.getSimpleName} timed out")
     when (timeout) {
       io.status.timeout.valid := Bool(true)
       io.status.timeout.bits := UInt(i)
