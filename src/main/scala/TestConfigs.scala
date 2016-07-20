@@ -179,17 +179,28 @@ class WithUnitTest extends Config(
   })
 
 class WithTraceGen extends Config(
-  (pname, site, here) => pname match {
+  topDefinitions = (pname, site, here) => pname match {
     case GroundTestKey => Seq.fill(site(NTiles)) {
       GroundTestTileSettings(cached = 1)
     }
     case BuildGroundTest =>
       (p: Parameters) => Module(new GroundTestTraceGenerator()(p))
     case GeneratorKey => GeneratorParameters(
-      maxRequests = 128,
+      maxRequests = 256,
       startAddress = 0)
-    case AddressBag => List(0x8, 0x10, 0x108, 0x100008)
+    case AddressBag => {
+      val nSets = 16
+      val nWays = 1
+      val blockOffset = site(CacheBlockOffsetBits)
+      List.tabulate(2 * nWays) { i =>
+        Seq.tabulate(2) { j => (i * nSets + j * 8) << blockOffset }
+      }.flatten
+    }
     case _ => throw new CDEMatchError
+  },
+  knobValues = {
+    case "L1D_SETS" => 16
+    case "L1D_WAYS" => 1
   })
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
