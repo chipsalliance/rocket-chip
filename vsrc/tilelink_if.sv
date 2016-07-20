@@ -37,5 +37,37 @@ interface tilelink_if(input clk, input reset); //{
     logic [63:0] release_bits_data;
     logic        release_bits_client_id;
 
+cover_acquire: cover property ( @(posedge clk) acquire_ready && acquire_valid );
+cover_grant:   cover property ( @(posedge clk) grant_ready && grant_valid );
+cover_probe:   cover property ( @(posedge clk) probe_ready && probe_valid );
+cover_release: cover property ( @(posedge clk) release_ready && release_valid );
+cover_finish:  cover property ( @(posedge clk) finish_ready && finish_valid );
+
+covergroup acquire_type_cg
+    @(posedge clk iff (acquire_ready && acquire_valid));
+    coverpoint acquire_bits_a_type;
+endgroup
+
+covergroup grant_type_cg
+    @(posedge clk iff (grant_ready && grant_valid));
+    coverpoint grant_bits_g_type;
+endgroup
+
+covergroup probe_type_cg
+    @(posedge clk iff (probe_ready && probe_valid));
+    coverpoint probe_bits_p_type;
+endgroup
+
+covergroup release_type_cg
+    @(posedge clk iff (release_ready && release_valid));
+    coverpoint release_bits_r_type;
+endgroup
+
+
+acquire_type_cg acquire_type = new;
+grant_type_cg grant_type = new;
+probe_type_cg probe_type = new;
+release_type_cg release_type = new;
+
 endinterface: tilelink_if //}
 
