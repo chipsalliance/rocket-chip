@@ -208,7 +208,7 @@ class TraceGenerator(id: Int)
 
   // A random index into the address bag.
 
-  val randAddrBagIndex = Module(new LCG(logAddressBagLen)).io.out
+  val randAddrBagIndex = LCG(logAddressBagLen)
 
   // A random address from the address bag.
 
@@ -227,7 +227,7 @@ class TraceGenerator(id: Int)
         else {
           // A random index into the extra addresses.
 
-          val randExtraAddrIndex = Module(new LCG(logNumExtraAddrs)).io.out
+          val randExtraAddrIndex = LCG(logNumExtraAddrs)
 
           // A random address from the extra addresses.
 
@@ -299,7 +299,7 @@ class TraceGenerator(id: Int)
   val delayTimer = Module(new DynamicTimer(16))
 
   // Used to generate a random delay period
-  val randDelayBase = Module(new LCG16()).io.out
+  val randDelayBase = LCG16()
 
   // Random delay period: usually small, occasionally big
   val randDelay = Frequency(List(

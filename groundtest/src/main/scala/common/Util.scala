@@ -71,11 +71,9 @@ class DynamicTimer(w: Int) extends Module {
   when (io.start) {
     countdown := io.period
     active := Bool(true)
-  }
-  .elsewhen (io.stop) {
+  } .elsewhen (io.stop || countdown === UInt(0)) {
     active := Bool(false)
-  }
-  .elsewhen (active) {
+  } .elsewhen (active) {
     countdown := countdown - UInt(1)
   }
 
@@ -95,9 +93,12 @@ class DynamicTimer(w: Int) extends Module {
 class LCG16 extends Module { 
   val io = new Bundle { 
     val out = UInt(OUTPUT, 16) 
+    val inc = Bool(INPUT)
   } 
   val state = Reg(UInt(width = 32))
-  state := state * UInt(1103515245, 32) + UInt(12345, 32)
+  when (io.inc) {
+    state := state * UInt(1103515245, 32) + UInt(12345, 32)
+  }
   io.out := state(30, 15)
 } 
  
@@ -108,15 +109,31 @@ class LCG16 extends Module {
 // An n-bit psuedo-random generator made from many instances of a
 // 16-bit LCG.  Parameter 'width' must be larger than 0.
 
-class LCG(val w : Int) extends Module {
+class LCG(val w: Int) extends Module {
   val io = new Bundle { 
     val out = UInt(OUTPUT, w) 
+    val inc = Bool(INPUT)
   } 
   require(w > 0)
   val numLCG16s : Int = (w+15)/16
-  val outs = List.fill(numLCG16s)(Module(new LCG16()).io.out)
-  io.out := Cat( outs(0)((w%16)-1, 0)
-               , outs.drop(1) : _*)
+  val outs = Seq.fill(numLCG16s) { LCG16(io.inc) }
+  io.out := Cat(outs)
+}
+
+object LCG16 {
+  def apply(inc: Bool = Bool(true)): UInt = {
+    val lcg = Module(new LCG16)
+    lcg.io.inc := inc
+    lcg.io.out
+  }
+}
+
+object LCG {
+  def apply(w: Int, inc: Bool = Bool(true)): UInt = {
+    val lcg = Module(new LCG(w))
+    lcg.io.inc := inc
+    lcg.io.out
+  }
 }
 
 // ======================
@@ -145,7 +162,7 @@ object Frequency {
     result := UInt(0)
 
     // Random value
-    val randVal = Module(new LCG(log2Up(total))).io.out
+    val randVal = LCG(log2Up(total))
 
     // Pick return value
     var count = firstFreq
