@@ -8,6 +8,8 @@ sim_vsrcs = \
 	$(generated_dir)/$(MODEL).$(CONFIG).v \
 	$(generated_dir)/consts.$(CONFIG).vh \
 	$(base_dir)/vsrc/$(TB).v \
+	$(base_dir)/vsrc/tilelink_if.sv \
+        
 
 # C sources
 
