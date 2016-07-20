@@ -554,6 +554,9 @@ class TraceGenerator(id: Int)
 class GroundTestTraceGenerator(implicit p: Parameters)
     extends GroundTest()(p) with HasTraceGenParams {
 
+  require(io.mem.size == 0)
+  require(io.cache.size == 1)
+
   val traceGen = Module(new TraceGenerator(p(GroundTestId)))
   io.cache.head <> traceGen.io.mem
 
