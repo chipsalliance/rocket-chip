@@ -11,78 +11,53 @@ class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
   with HasTileLinkParameters {
   val io = new ClientUncachedTileLinkIO().flip
 
-  val bram = SeqMem(depth, Bits(width = tlDataBits))
+  // For TL2:
+  // supportsAcquire = false
+  // supportsMultibeat = false
+  // supportsHint = false
+  // supportsAtomic = false
 
-  val fire_acq = io.acquire.fire()
-  val fire_gnt = io.grant.fire()
+  // Timing-wise, we assume the input is coming out of registers
+  // since you probably needed a TileLinkFragmenter infront of us
 
-  val state_getblk = Reg(init = Bool(false))
-  val state_putblk = Reg(init = Bool(false))
-  val state_init = !(state_getblk || state_putblk)
+  // Thus, only one pipeline stage: the grant result
+  val g_valid = RegInit(Bool(false))
+  val g_bits = Reg(new Grant)
 
-  private def last(acq: AcquireMetadata) =
-    (acq.addr_beat === UInt(tlDataBeats-1))
+  // Just pass the pipeline straight through
+  io.grant.valid := g_valid
+  io.grant.bits := g_bits
+  io.acquire.ready := !g_valid || io.grant.ready
 
-  val s0_acq = io.acquire.bits
-  val s0_last = last(s0_acq)
+  val acq_get  = io.acquire.bits.isBuiltInType(Acquire.getType)
+  val acq_put  = io.acquire.bits.isBuiltInType(Acquire.putType)
+  val acq_addr = Cat(io.acquire.bits.addr_block, io.acquire.bits.addr_beat)
 
-  val s1_acq = RegEnable(s0_acq, fire_acq)
-  val s1_last = last(s1_acq)
+  val bram = Mem(depth, Bits(width = tlDataBits))
 
-  val (is_get :: is_getblk :: is_put :: is_putblk :: Nil) =
-    Seq(Acquire.getType, Acquire.getBlockType,
-      Acquire.putType, Acquire.putBlockType).map(s0_acq.isBuiltInType _)
+  val ren = acq_get && io.acquire.fire()
+  val wen = acq_put && io.acquire.fire()
 
-  val is_read = is_get || is_getblk
-  val is_write = is_put || is_putblk
-  val ren_getblk = state_getblk && !s1_last
+  when (io.grant.fire()) {
+    g_valid := Bool(false)
+  }
 
-  val s0_valid = (fire_acq && (!is_putblk || s0_last)) || ren_getblk
-  val s1_valid = RegNext(s0_valid, Bool(false))
+  when (io.acquire.fire()) {
+    g_valid := Bool(true)
+    g_bits := Grant(
+      is_builtin_type = Bool(true),
+      g_type = io.acquire.bits.getBuiltInGrantType(),
+      client_xact_id = io.acquire.bits.client_xact_id,
+      manager_xact_id = UInt(0),
+      addr_beat = io.acquire.bits.addr_beat,
+      data = UInt(0))
+  }
 
-  val ren = (fire_acq && is_read) || ren_getblk
-  val wen = (fire_acq && is_write)
-
-  val s0_addr = Cat(s0_acq.addr_block, s0_acq.addr_beat)
-  val s1_addr_beat = s1_acq.addr_beat + Mux(io.grant.ready, UInt(1), UInt(0))
-  val s1_addr = Cat(s1_acq.addr_block, s1_addr_beat)
-
-  val raddr = Mux(state_getblk, s1_addr, s0_addr)
-  val waddr = s0_addr
-
-  val rdata = bram.read(raddr, ren)
-  val wdata = s0_acq.data
-  val wmask = s0_acq.wmask()
   when (wen) {
-    bram.write(waddr, wdata)
-    assert(wmask.andR, "BRAMSlave: partial write masks not supported")
+    bram.write(acq_addr, io.acquire.bits.data)
+    assert(io.acquire.bits.wmask().andR, "BRAMSlave: partial write masks not supported")
   }
-
-  val stall = io.grant.valid && !io.grant.ready
-  io.acquire.ready := state_init && !stall
-
-  when (fire_acq) {
-    state_getblk := is_getblk
-    state_putblk := is_putblk && s0_last
-  }
-
-  when (state_getblk && fire_gnt) {
-    s1_acq.addr_beat := s1_addr_beat
-    state_getblk := !s1_last
-  }
-
-  when (state_putblk && fire_gnt) {
-    state_putblk := Bool(false)
-  }
-
-  io.grant.valid := s1_valid
-  io.grant.bits := Grant(
-    is_builtin_type = Bool(true),
-    g_type = s1_acq.getBuiltInGrantType(),
-    client_xact_id = s1_acq.client_xact_id,
-    manager_xact_id = UInt(0),
-    addr_beat = s1_acq.addr_beat,
-    data = rdata)
+  io.grant.bits.data := RegEnable(bram.read(acq_addr), ren)
 }
 
 class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
