@@ -127,6 +127,19 @@ covergroup release_type_cg
 endgroup
 release_type_cg release_type_i = new;
 
+// HACK consider reset in all these
+logic acquire_has_wmask;
+assign acquire_has_wmask = (acquire_type == putType) || (acquire_type == putBlockType); // HACK use inside
+logic [7:0] acquire_wmask;
+assign acquire_wmask = acquire_bits_union[8:1];
+covergroup acquire_wmask_cg
+    @(posedge clk iff (acquire_ready && acquire_valid && acquire_has_wmask));
+    coverpoint acquire_wmask {
+        bins all[] = { [0:$] };
+    }
+endgroup
+acquire_wmask_cg acquire_wmask_i = new;
+
 
 endinterface: tilelink_if //}
 
