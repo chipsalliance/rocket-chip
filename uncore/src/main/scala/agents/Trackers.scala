@@ -294,13 +294,28 @@ trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
   val pending_orel_data = Reg(init=Bits(0, width = innerDataBeats))
   val vol_ognt_counter = Wire(new TwoWayBeatCounterStatus)
   val pending_orel = pending_orel_send || pending_orel_data.orR || vol_ognt_counter.pending
+  val sending_orel = Reg(init = Bool(false))
+
+  // Block acceptance of inner releases if we have already started sending
+  // outer releases, but have not yet sent out the beat corresponding to the
+  // inner release. This function must be included in io.inner.release.ready
+  // if it is possible to start accepting a new inner release as the previous
+  // outer release is still being sent. DO NOT include this in the
+  // io.inner.release.ready if the releases are not buffered
+  // (i.e. io.inner.release and io.outer.release combinationally linked).
+  def blockInnerRelease(rel: ReleaseMetadata = io.irel()): Bool = {
+    val waiting_to_send = sending_orel && pending_orel_data(rel.addr_beat)
+    val sending_now = io.outer.release.fire() && rel.addr_beat === io.orel().addr_beat
+    rel.hasData() && (waiting_to_send || sending_now)
+  }
 
   def outerRelease(
       coh: ClientMetadata,
       buffering: Bool = Bool(true),
       data: UInt = io.irel().data,
       add_pending_data_bits: UInt = UInt(0),
-      add_pending_send_bit: Bool = Bool(false)) {
+      add_pending_send_bit: Bool = Bool(false),
+      block_orel: Bool = Bool(false)) {
 
     when (state =/= s_idle || io.alloc.irel.should) {
       pending_orel_data := (pending_orel_data |
@@ -309,7 +324,11 @@ trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
         dropPendingBitWhenBeatHasData(io.outer.release)
     }
     when (add_pending_send_bit) { pending_orel_send := Bool(true) }
-    when (io.outer.release.fire()) { pending_orel_send := Bool(false) }
+    when (io.outer.release.fire()) {
+      when (io.outer.release.bits.first()) { sending_orel := Bool(true) }
+      when (io.outer.release.bits.last())  { sending_orel := Bool(false) }
+      pending_orel_send := Bool(false)
+    }
 
     connectTwoWayBeatCounters(
         status = vol_ognt_counter,
@@ -318,7 +337,7 @@ trait EmitsVoluntaryReleases extends HasVoluntaryReleaseMetadataBuffer {
         trackUp = (r: Release) => r.isVoluntary() && r.requiresAck(),
         trackDown = (g: Grant) => g.isVoluntary())
 
-    io.outer.release.valid := Mux(buffering,
+    io.outer.release.valid := !block_orel && Mux(buffering,
       (state === s_busy) && Mux(io.orel().hasData(),
         pending_orel_data(vol_ognt_counter.up.idx),
         pending_orel_send),

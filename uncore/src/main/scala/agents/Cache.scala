@@ -1050,7 +1050,8 @@ class L2WritebackUnit(val trackerId: Int)(implicit p: Parameters) extends XactTr
                          io.irel().isVoluntary() &&
                          (state =/= s_idle) &&
                          !(state === s_busy && all_pending_done) &&
-                         !vol_ignt_counter.pending
+                         !vol_ignt_counter.pending &&
+                         !blockInnerRelease()
 
   io.inner.release.ready := irel_can_merge || irel_same_xact
 

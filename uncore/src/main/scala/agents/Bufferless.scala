@@ -120,6 +120,7 @@ class BufferlessBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
   def irel_can_merge = io.irel().conflicts(xact_addr_block) &&
                          io.irel().isVoluntary() &&
                          !vol_ignt_counter.pending &&
+                         !(io.irel().hasData() && ognt_counter.pending) &&
                          (state =/= s_idle)
 
   innerRelease(block_vol_ignt = vol_ognt_counter.pending) 
@@ -131,7 +132,8 @@ class BufferlessBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
   // If there was a writeback, forward it outwards
   outerRelease(
     coh = outer_coh.onHit(M_XWR),
-    buffering = Bool(false))
+    buffering = Bool(false),
+    block_orel = !irel_could_accept)
 
   // Send outer request for miss
   outerAcquire(

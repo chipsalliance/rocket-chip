@@ -160,7 +160,8 @@ class BufferedBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
                          !all_pending_done &&
                          !io.outer.grant.fire() &&
                          !io.inner.grant.fire() &&
-                         !vol_ignt_counter.pending
+                         !vol_ignt_counter.pending &&
+                         !blockInnerRelease()
 
   innerRelease(block_vol_ignt = vol_ognt_counter.pending) 
 
