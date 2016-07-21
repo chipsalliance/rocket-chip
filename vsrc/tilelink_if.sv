@@ -38,23 +38,34 @@ interface tilelink_if(input clk, input reset); //{
     logic        release_bits_client_id;
 
 
-    // From uncore/src/main/scala/tilelink/Definitions.scala object Acquire:
-    typedef enum logic [2:0] {
-        getType         = 3'b000,
-        getBlockType    = 3'b001,
-        putType         = 3'b010,
-        putBlockType    = 3'b011,
-        putAtomicType   = 3'b100,
-        getPrefetchType = 3'b101,
-        putPrefetchType = 3'b110
+    // From uncore/src/main/scala/coherence/Policies.scala:
+    //// val acquireShared :: acquireExclusive :: Nil = Enum(UInt(), nAcquireTypes)
+    //// val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
+    //// val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
+    //// val grantShared :: grantExclusive :: grantExclusiveAck :: Nil = Enum(UInt(), nGrantTypes)
+
+    // Builtin types come from uncore/src/main/scala/tilelink/Definitions.scala object Acquire:
+    typedef enum logic [3:0] {
+        acquireShared   = 4'b0000,
+        acquireExclusive= 4'b0001,
+        getType         = 4'b1000,
+        getBlockType    = 4'b1001,
+        putType         = 4'b1010,
+        putBlockType    = 4'b1011,
+        putAtomicType   = 4'b1100,
+        getPrefetchType = 4'b1101,
+        putPrefetchType = 4'b1110
     } acquire_type_e;
 
-    typedef enum logic [2:0] {
-        voluntaryAckType = 3'b000,
-        prefetchAckType  = 3'b001,
-        putAckType       = 3'b011,
-        getDataBeatType  = 3'b100,
-        getDataBlockType = 3'b101
+    typedef enum logic [3:0] {
+        grantShared      = 4'b0000,
+        grantExclusive   = 4'b0001,
+        grantExclusiveAck= 4'b0010,
+        voluntaryAckType = 4'b1000,
+        prefetchAckType  = 4'b1001,
+        putAckType       = 4'b1011,
+        getDataBeatType  = 4'b1100,
+        getDataBlockType = 4'b1101
     } grant_type_e;
 
 
@@ -67,7 +78,7 @@ cover_finish:  cover property ( @(posedge clk) finish_ready && finish_valid );
 
 // Cover all different values for *type fields:
 acquire_type_e acquire_type;
-assign acquire_type = acquire_type_e'(acquire_bits_a_type);
+assign acquire_type = acquire_type_e'({acquire_bits_is_builtin_type, acquire_bits_a_type});
 
 covergroup acquire_type_cg
     @(posedge clk iff (acquire_ready && acquire_valid));
@@ -75,7 +86,7 @@ covergroup acquire_type_cg
 endgroup
 
 grant_type_e grant_type;
-assign grant_type = grant_type_e'(grant_bits_g_type);
+assign grant_type = grant_type_e'({grant_bits_is_builtin_type, grant_bits_g_type});
 covergroup grant_type_cg
     @(posedge clk iff (grant_ready && grant_valid));
     coverpoint grant_type;
