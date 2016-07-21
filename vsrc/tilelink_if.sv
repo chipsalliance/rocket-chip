@@ -128,7 +128,7 @@ endgroup
 release_type_cg release_type_i = new;
 
 logic acquire_has_wmask;
-assign acquire_has_wmask = (acquire_type == putType) || (acquire_type == putBlockType); // HACK use inside
+assign acquire_has_wmask = (acquire_type inside {putType, putBlockType});
 logic [7:0] acquire_wmask;
 assign acquire_wmask = acquire_bits_union[8:1];
 covergroup acquire_wmask_cg
