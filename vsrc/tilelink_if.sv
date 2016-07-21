@@ -38,7 +38,7 @@ interface tilelink_if(input clk, input reset); //{
     logic        release_bits_client_id;
 
 
-    // From uncore/src/main/scala/coherence/Policies.scala:
+    // From uncore/src/main/scala/coherence/Policies.scala class MESICoherence:
     //// val acquireShared :: acquireExclusive :: Nil = Enum(UInt(), nAcquireTypes)
     //// val probeInvalidate :: probeDowngrade :: probeCopy :: Nil = Enum(UInt(), nProbeTypes)
     //// val releaseInvalidateData :: releaseDowngradeData :: releaseCopyData :: releaseInvalidateAck :: releaseDowngradeAck :: releaseCopyAck :: Nil = Enum(UInt(), nReleaseTypes)
@@ -68,6 +68,20 @@ interface tilelink_if(input clk, input reset); //{
         getDataBlockType = 4'b1101
     } grant_type_e;
 
+    typedef enum logic [1:0] {
+        probeInvalidate = 2'd0,
+        probeDowngrade  = 2'd1,
+        probeCopy       = 2'd2
+    } probe_type_e;
+
+    typedef enum logic [2:0] {
+        releaseInvalidateData = 3'd0,
+        releaseDowngradeData  = 3'd1,
+        releaseCopyData       = 3'd2,
+        releaseInvalidateAck  = 3'd3,
+        releaseDowngradeAck   = 3'd4,
+        releaseCopyAck        = 3'd5
+    } release_type_e;
 
 // Trivial coverage: at least one transaction in each channel
 cover_acquire: cover property ( @(posedge clk) acquire_ready && acquire_valid );
@@ -92,14 +106,19 @@ covergroup grant_type_cg
     coverpoint grant_type;
 endgroup
 
+
+probe_type_e probe_type;
+assign probe_type = probe_type_e'(probe_bits_p_type);
 covergroup probe_type_cg
     @(posedge clk iff (probe_ready && probe_valid));
-    coverpoint probe_bits_p_type;
+    coverpoint probe_type;
 endgroup
 
+release_type_e release_type;
+assign release_type = release_type_e'(release_bits_r_type);
 covergroup release_type_cg
     @(posedge clk iff (release_ready && release_valid));
-    coverpoint release_bits_r_type;
+    coverpoint release_type;
 endgroup
 
 
