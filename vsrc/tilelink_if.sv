@@ -94,7 +94,7 @@ cover_finish:  cover property ( @(posedge clk) finish_ready && finish_valid );
 acquire_type_e acquire_type;
 assign acquire_type = acquire_type_e'({acquire_bits_is_builtin_type, acquire_bits_a_type});
 covergroup acquire_type_cg
-    @(posedge clk iff (acquire_ready && acquire_valid));
+    @(posedge clk iff (!reset && acquire_ready && acquire_valid));
     coverpoint acquire_type;
 endgroup
 acquire_type_cg acquire_type_i = new;
@@ -103,7 +103,7 @@ acquire_type_cg acquire_type_i = new;
 grant_type_e grant_type;
 assign grant_type = grant_type_e'({grant_bits_is_builtin_type, grant_bits_g_type});
 covergroup grant_type_cg
-    @(posedge clk iff (grant_ready && grant_valid));
+    @(posedge clk iff (!reset && grant_ready && grant_valid));
     coverpoint grant_type;
 endgroup
 grant_type_cg grant_type_i = new;
@@ -113,7 +113,7 @@ grant_type_cg grant_type_i = new;
 probe_type_e probe_type;
 assign probe_type = probe_type_e'(probe_bits_p_type);
 covergroup probe_type_cg
-    @(posedge clk iff (probe_ready && probe_valid));
+    @(posedge clk iff (!reset && probe_ready && probe_valid));
     coverpoint probe_type;
 endgroup
 probe_type_cg probe_type_i = new;
@@ -122,18 +122,17 @@ probe_type_cg probe_type_i = new;
 release_type_e release_type;
 assign release_type = release_type_e'(release_bits_r_type);
 covergroup release_type_cg
-    @(posedge clk iff (release_ready && release_valid));
+    @(posedge clk iff (!reset && release_ready && release_valid));
     coverpoint release_type;
 endgroup
 release_type_cg release_type_i = new;
 
-// HACK consider reset in all these
 logic acquire_has_wmask;
 assign acquire_has_wmask = (acquire_type == putType) || (acquire_type == putBlockType); // HACK use inside
 logic [7:0] acquire_wmask;
 assign acquire_wmask = acquire_bits_union[8:1];
 covergroup acquire_wmask_cg
-    @(posedge clk iff (acquire_ready && acquire_valid && acquire_has_wmask));
+    @(posedge clk iff (!reset && acquire_ready && acquire_valid && acquire_has_wmask));
     coverpoint acquire_wmask {
         bins all[] = { [0:$] };
     }
