@@ -37,15 +37,32 @@ interface tilelink_if(input clk, input reset); //{
     logic [63:0] release_bits_data;
     logic        release_bits_client_id;
 
+
+    // From uncore/src/main/scala/tilelink/Definitions.scala object Acquire:
+    typedef enum logic [2:0] {
+        getType         = 3'b000,
+        getBlockType    = 3'b001,
+        putType         = 3'b010,
+        putBlockType    = 3'b011,
+        putAtomicType   = 3'b100,
+        getPrefetchType = 3'b101,
+        putPrefetchType = 3'b110
+    } acquire_type_e;
+
+// Trivial coverage: at least one transaction in each channel
 cover_acquire: cover property ( @(posedge clk) acquire_ready && acquire_valid );
 cover_grant:   cover property ( @(posedge clk) grant_ready && grant_valid );
 cover_probe:   cover property ( @(posedge clk) probe_ready && probe_valid );
 cover_release: cover property ( @(posedge clk) release_ready && release_valid );
 cover_finish:  cover property ( @(posedge clk) finish_ready && finish_valid );
 
+// Cover all different values for *type fields:
+acquire_type_e acquire_type;
+assign acquire_type = acquire_type_e'(acquire_bits_a_type);
+
 covergroup acquire_type_cg
     @(posedge clk iff (acquire_ready && acquire_valid));
-    coverpoint acquire_bits_a_type;
+    coverpoint acquire_type;
 endgroup
 
 covergroup grant_type_cg
@@ -64,10 +81,10 @@ covergroup release_type_cg
 endgroup
 
 
-acquire_type_cg acquire_type = new;
-grant_type_cg grant_type = new;
-probe_type_cg probe_type = new;
-release_type_cg release_type = new;
+acquire_type_cg acquire_type_i = new;
+grant_type_cg grant_type_i = new;
+probe_type_cg probe_type_i = new;
+release_type_cg release_type_i = new;
 
 endinterface: tilelink_if //}
 
