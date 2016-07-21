@@ -19,6 +19,15 @@ import cde.{Parameters, Field, Config}
   *   - The outer transaction ID is large enough to handle all possible inner
   *     transaction IDs, such that no remapping state must be maintained.
   *
+  * This bridge DOES NOT keep the uncached channel coherent with the cached
+  * channel. Uncached requests to blocks cached by the L1 will not probe the L1.
+  * As a result, uncached reads to cached blocks will get stale data until
+  * the L1 performs a voluntary writeback, and uncached writes to cached blocks
+  * will get lost, as the voluntary writeback from the L1 will overwrite the
+  * changes. If your tile relies on probing the L1 data cache in order to
+  * share data between the instruction cache and data cache (e.g. you are using
+  * a non-blocking L1 D$) or if the tile has uncached channels capable of
+  * writes (e.g. Hwacha and other RoCC accelerators), DO NOT USE THIS BRIDGE.
   */
 
 class ManagerToClientStatelessBridge(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p) {
