@@ -57,15 +57,15 @@ interface tilelink_if(input clk, input reset); //{
         putPrefetchType = 4'b1110
     } acquire_type_e;
 
-    typedef enum logic [3:0] {
-        grantShared      = 4'b0000,
-        grantExclusive   = 4'b0001,
-        grantExclusiveAck= 4'b0010,
-        voluntaryAckType = 4'b1000,
-        prefetchAckType  = 4'b1001,
-        putAckType       = 4'b1011,
-        getDataBeatType  = 4'b1100,
-        getDataBlockType = 4'b1101
+    typedef enum logic [4:0] {
+        grantShared      = 5'b00000,
+        grantExclusive   = 5'b00001,
+        grantExclusiveAck= 5'b00010,
+        voluntaryAckType = 5'b10000,
+        prefetchAckType  = 5'b10001,
+        putAckType       = 5'b10011,
+        getDataBeatType  = 5'b10100,
+        getDataBlockType = 5'b10101
     } grant_type_e;
 
     typedef enum logic [1:0] {
