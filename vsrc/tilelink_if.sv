@@ -49,6 +49,15 @@ interface tilelink_if(input clk, input reset); //{
         putPrefetchType = 3'b110
     } acquire_type_e;
 
+    typedef enum logic [2:0] {
+        voluntaryAckType = 3'b000,
+        prefetchAckType  = 3'b001,
+        putAckType       = 3'b011,
+        getDataBeatType  = 3'b100,
+        getDataBlockType = 3'b101
+    } grant_type_e;
+
+
 // Trivial coverage: at least one transaction in each channel
 cover_acquire: cover property ( @(posedge clk) acquire_ready && acquire_valid );
 cover_grant:   cover property ( @(posedge clk) grant_ready && grant_valid );
@@ -65,9 +74,11 @@ covergroup acquire_type_cg
     coverpoint acquire_type;
 endgroup
 
+grant_type_e grant_type;
+assign grant_type = grant_type_e'(grant_bits_g_type);
 covergroup grant_type_cg
     @(posedge clk iff (grant_ready && grant_valid));
-    coverpoint grant_bits_g_type;
+    coverpoint grant_type;
 endgroup
 
 covergroup probe_type_cg
