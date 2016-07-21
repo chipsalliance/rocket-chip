@@ -151,4 +151,11 @@ abstract class HierarchicalCoherenceAgent(implicit p: Parameters) extends Cohere
   def innerTL = io.inner
   def outerTL = io.outer
   def incoherent = io.incoherent
+
+  // TODO: Remove this function (and all its calls) when we support probing the L2
+  def disconnectOuterProbeAndFinish() {
+    io.outer.probe.ready := Bool(false)
+    io.outer.finish.valid := Bool(false)
+    assert(!io.outer.probe.valid, "L2 agent got illegal probe")
+  }
 }

@@ -54,6 +54,8 @@ class L2BroadcastHub(implicit p: Parameters) extends HierarchicalCoherenceAgent(
   doOutputArbitration(io.inner.grant, trackerList.map(_.io.inner.grant))
 
   doInputRouting(io.inner.finish, trackerList.map(_.io.inner.finish))
+
+  disconnectOuterProbeAndFinish()
 }
 
 class BroadcastXactTracker(implicit p: Parameters) extends XactTracker()(p) {

@@ -67,6 +67,8 @@ class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoheren
   io.inner.grant.bits.addr_beat := io.outer.grant.bits.addr_beat
 
   doInputRouting(io.inner.finish, trackerList.map(_.io.inner.finish))
+
+  disconnectOuterProbeAndFinish()
 }
 
 class BufferlessBroadcastVoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters)

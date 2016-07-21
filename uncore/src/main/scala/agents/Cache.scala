@@ -442,6 +442,8 @@ class L2HellaCacheBank(implicit p: Parameters) extends HierarchicalCoherenceAgen
   tshrfile.io.incoherent <> io.incoherent
   meta.io <> tshrfile.io.meta
   data.io <> tshrfile.io.data
+
+  disconnectOuterProbeAndFinish()
 }
 
 class TSHRFileIO(implicit p: Parameters) extends HierarchicalTLIO()(p)

@@ -66,5 +66,6 @@ class ManagerToClientStatelessBridge(implicit p: Parameters) extends Hierarchica
 
   io.inner.probe.valid := Bool(false)
   io.inner.finish.ready := Bool(true)
-}
 
+  disconnectOuterProbeAndFinish()
+}
