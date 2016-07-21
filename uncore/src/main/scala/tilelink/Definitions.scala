@@ -342,7 +342,7 @@ class SecondaryMissInfo(implicit p: Parameters) extends TLBundle
   * @param union additional fields used for uncached types
   */
 object Acquire {
-  val nBuiltInTypes = 5
+  val nBuiltInTypes = 7
   //TODO: Use Enum
   def getType         = UInt("b000") // Get a single beat of data
   def getBlockType    = UInt("b001") // Get a whole block of data
