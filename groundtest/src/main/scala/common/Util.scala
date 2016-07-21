@@ -192,7 +192,7 @@ object ValidMux {
 object DebugCombiner {
   def apply(debugs: Seq[GroundTestStatus]): GroundTestStatus = {
     val out = Wire(new GroundTestStatus)
-    out.finished := debugs.map(_.finished).reduce(_ || _)
+    out.finished := debugs.map(_.finished).reduce(_ && _)
     out.timeout  := ValidMux(debugs.map(_.timeout))
     out.error    := ValidMux(debugs.map(_.error))
     out
