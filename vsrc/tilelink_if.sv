@@ -93,8 +93,10 @@ cover_finish:  cover property ( @(posedge clk) finish_ready && finish_valid );
 // Cover all different values for *type fields:
 acquire_type_e acquire_type;
 assign acquire_type = acquire_type_e'({acquire_bits_is_builtin_type, acquire_bits_a_type});
+wire acquire_hasMultibeatData = acquire_type inside {putBlockType};
+wire acquire_first_beat = !acquire_hasMultibeatData || (acquire_bits_addr_beat == 0);
 covergroup acquire_type_cg
-    @(posedge clk iff (!reset && acquire_ready && acquire_valid));
+    @(posedge clk iff (!reset && acquire_ready && acquire_valid && acquire_first_beat));
     coverpoint acquire_type;
 endgroup
 acquire_type_cg acquire_type_i = new;
@@ -102,8 +104,10 @@ acquire_type_cg acquire_type_i = new;
 
 grant_type_e grant_type;
 assign grant_type = grant_type_e'({grant_bits_is_builtin_type, grant_bits_g_type});
+wire grant_hasMultibeatData = grant_type inside {getDataBlockType, grantShared, grantExclusive};
+wire grant_first_beat = !grant_hasMultibeatData || (grant_bits_addr_beat == 0);
 covergroup grant_type_cg
-    @(posedge clk iff (!reset && grant_ready && grant_valid));
+    @(posedge clk iff (!reset && grant_ready && grant_valid && grant_first_beat));
     coverpoint grant_type;
 endgroup
 grant_type_cg grant_type_i = new;
@@ -112,6 +116,7 @@ grant_type_cg grant_type_i = new;
 
 probe_type_e probe_type;
 assign probe_type = probe_type_e'(probe_bits_p_type);
+// Note: probe hasMultibeatData is always 0
 covergroup probe_type_cg
     @(posedge clk iff (!reset && probe_ready && probe_valid));
     coverpoint probe_type;
@@ -121,8 +126,10 @@ probe_type_cg probe_type_i = new;
 
 release_type_e release_type;
 assign release_type = release_type_e'(release_bits_r_type);
+wire release_hasMultibeatData = release_type inside {releaseInvalidateData, releaseDowngradeData, releaseCopyData};
+wire release_first_beat = !release_hasMultibeatData || (release_bits_addr_beat == 0);
 covergroup release_type_cg
-    @(posedge clk iff (!reset && release_ready && release_valid));
+    @(posedge clk iff (!reset && release_ready && release_valid && release_first_beat));
     coverpoint release_type;
 endgroup
 release_type_cg release_type_i = new;
