@@ -238,6 +238,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   val isa_string = "IM" +
     (if (usingVM) "S" else "") +
+    (if (usingUser) "U" else "") +
     (if (usingAtomics) "A" else "") +
     (if (usingFPU) "FD" else "") +
     (if (usingRoCC) "X" else "")
