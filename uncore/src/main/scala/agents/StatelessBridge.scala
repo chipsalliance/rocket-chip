@@ -31,22 +31,20 @@ import cde.{Parameters, Field, Config}
   */
 
 class ManagerToClientStatelessBridge(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p) {
+  val icid = io.inner.tlClientIdBits
+  val ixid = io.inner.tlClientXactIdBits
+  val oxid = io.outer.tlClientXactIdBits
 
-  val icid = io.inner.acquire.bits.client_id.getWidth
-  val ixid = io.inner.acquire.bits.client_xact_id.getWidth
-  val oxid = io.outer.acquire.bits.client_xact_id.getWidth
+  val innerCoh = io.inner.tlCoh.getClass
+  val outerCoh = io.outer.tlCoh.getClass
 
   // Stateless Bridge is only usable in certain constrained situations.
   // Sanity check its usage here.
-  // Additional requirements are that the inner and outer Coherence policies
-  // are the same (e.g. MEI != MESI), and that NTiles == 1,
-  // but this is not checked here.
-  require (p(NTiles) == 1)
 
+  require(io.inner.tlNCachingClients <= 1)
   require(icid + ixid <= oxid)
-  require(icid == io.inner.release.bits.client_id.getWidth)
-  require(ixid == io.inner.release.bits.client_xact_id.getWidth)
-  require(oxid == io.outer.release.bits.client_xact_id.getWidth)
+  require(innerCoh eq outerCoh,
+    s"Coherence policies do not match: inner is ${innerCoh.getSimpleName}, outer is ${outerCoh.getSimpleName}")
 
   io.outer.acquire.valid := io.inner.acquire.valid
   io.inner.acquire.ready := io.outer.acquire.ready
