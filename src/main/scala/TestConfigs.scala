@@ -19,7 +19,9 @@ class WithGroundTest extends Config(
   (pname, site, here) => pname match {
     case TLKey("L1toL2") =>
       TileLinkParameters(
-        coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
+        coherencePolicy = (if (site(NCachedTileLinkPorts) <= 1)
+          new MEICoherence(site(L2DirectoryRepresentation)) else
+            new MESICoherence(site(L2DirectoryRepresentation))),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = site(NCachedTileLinkPorts),
         nCachelessClients = site(NUncachedTileLinkPorts),
@@ -211,12 +213,16 @@ class ComparatorL2Config extends Config(
   new WithL2Cache ++ new ComparatorConfig)
 class ComparatorBufferlessConfig extends Config(
   new WithBufferlessBroadcastHub ++ new ComparatorConfig)
+class ComparatorStatelessConfig extends Config(
+  new WithStatelessBridge ++ new ComparatorConfig)
 
 class MemtestConfig extends Config(new WithMemtest ++ new GroundTestConfig)
 class MemtestL2Config extends Config(
-  new WithMemtest ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithL2Cache ++ new MemtestConfig)
 class MemtestBufferlessConfig extends Config(
-  new WithMemtest ++ new WithBufferlessBroadcastHub ++ new GroundTestConfig)
+  new WithBufferlessBroadcastHub ++ new MemtestConfig)
+class MemtestStatelessConfig extends Config(
+  new WithNGenerators(0, 1) ++ new WithStatelessBridge ++ new MemtestConfig)
 // Test ALL the things
 class FancyMemtestConfig extends Config(
   new WithNGenerators(1, 2) ++ new WithNCores(2) ++ new WithMemtest ++

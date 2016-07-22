@@ -256,7 +256,7 @@ class BaseConfig extends Config (
           dataBits = site(XLen))
       case TLKey("L1toL2") =>
         TileLinkParameters(
-          coherencePolicy = (if (site(NTiles) == 1)
+          coherencePolicy = (if (site(NCachedTileLinkPorts) <= 1)
             new MEICoherence(site(L2DirectoryRepresentation)) else
               new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
@@ -381,12 +381,28 @@ class WithBufferlessBroadcastHub extends Config(
         case OuterTLId => "L2toMC" })))
   })
 
+/**
+ * WARNING!!! IGNORE AT YOUR OWN PERIL!!!
+ *
+ * There is a very restrictive set of conditions under which the stateless
+ * bridge will function properly. There can only be a single tile. This tile
+ * MUST use the blocking data cache (L1D_MSHRS == 0) and MUST NOT have an
+ * uncached channel capable of writes (i.e. a RoCC accelerator).
+ *
+ * This is because the stateless bridge CANNOT generate probes, so if your
+ * system depends on coherence between channels in any way,
+ * DO NOT use this configuration.
+ */
 class WithStatelessBridge extends Config (
-  (pname, site, here) => pname match {
+  topDefinitions = (pname, site, here) => pname match {
     case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
       Module(new ManagerToClientStatelessBridge()(p.alterPartial({
         case InnerTLId => "L1toL2"
         case OuterTLId => "L2toMC" })))
+  },
+  knobValues = {
+    case "L1D_MSHRS" => 0
+    case _ => throw new CDEMatchError
   }
 )
 

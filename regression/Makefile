@@ -48,9 +48,9 @@ CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig RoccExampleConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
-CONFIGS=MemtestConfig MemtestBufferlessConfig FancyMemtestConfig \
+CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
 	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
-	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config \
+	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig \
 	UnitTestConfig
 endif
 
