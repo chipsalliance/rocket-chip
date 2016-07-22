@@ -44,7 +44,7 @@ $(error Set SUITE to the regression suite you want to run)
 endif
 
 ifeq ($(SUITE),RocketSuite)
-CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig RoccExampleConfig
+CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig RoccExampleConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)

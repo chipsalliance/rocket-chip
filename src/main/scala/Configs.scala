@@ -169,11 +169,11 @@ class BaseConfig extends Config (
       //Tile Constants
       case BuildTiles => {
         val (rvi, rvu) =
-          if (site(XLen) == 64) (rv64i, rv64u)
-          else (rv32i, rv32u)
+          if (site(XLen) == 64) ((if (site(UseVM)) rv64i else rv64pi), rv64u)
+          else ((if (site(UseVM)) rv32i else rv32pi), rv32u)
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuite(benchmarks)
+        TestGeneration.addSuite(if (site(UseVM)) benchmarks else emptyBmarks)
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
@@ -569,3 +569,7 @@ class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new De
 
 class DualCoreConfig extends Config(
   new WithNCores(2) ++ new WithL2Cache ++ new BaseConfig)
+
+class TinyConfig extends Config(
+  new WithRV32 ++ new WithSmallCores ++
+  new WithStatelessBridge ++ new BaseConfig)
