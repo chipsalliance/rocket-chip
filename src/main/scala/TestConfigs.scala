@@ -17,11 +17,12 @@ import ConfigUtils._
 
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
-    case TLKey("L1toL2") =>
+    case TLKey("L1toL2") => {
+      val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
       TileLinkParameters(
-        coherencePolicy = (if (site(NCachedTileLinkPorts) <= 1)
-          new MEICoherence(site(L2DirectoryRepresentation)) else
-            new MESICoherence(site(L2DirectoryRepresentation))),
+        coherencePolicy = (
+          if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
+          else new MESICoherence(site(L2DirectoryRepresentation))),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = site(NCachedTileLinkPorts),
         nCachelessClients = site(NUncachedTileLinkPorts),
@@ -32,6 +33,7 @@ class WithGroundTest extends Config(
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBeats = 8,
         dataBits = site(CacheBlockBytes)*8)
+    }
     case BuildTiles => {
       val groundtest = if (site(XLen) == 64)
         DefaultTestSuites.groundtest64

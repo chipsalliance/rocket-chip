@@ -254,11 +254,12 @@ class BaseConfig extends Config (
         HastiParameters(
           addrBits = site(PAddrBits),
           dataBits = site(XLen))
-      case TLKey("L1toL2") =>
+      case TLKey("L1toL2") => {
+        val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
         TileLinkParameters(
-          coherencePolicy = (if (site(NCachedTileLinkPorts) <= 1)
-            new MEICoherence(site(L2DirectoryRepresentation)) else
-              new MESICoherence(site(L2DirectoryRepresentation))),
+          coherencePolicy = (
+            if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
+            else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
           nCachelessClients = site(NExtBusAXIChannels) + site(NUncachedTileLinkPorts),
@@ -271,6 +272,7 @@ class BaseConfig extends Config (
           maxManagerXacts = site(NAcquireTransactors) + 2,
           dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes)*8)
+      }
       case TLKey("L2toMC") => 
         TileLinkParameters(
           coherencePolicy = new MEICoherence(
