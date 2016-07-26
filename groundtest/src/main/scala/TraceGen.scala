@@ -547,6 +547,64 @@ class TraceGenerator(id: Int)
   io.timeout := reqTimer.io.timeout.valid
 }
 
+class NoiseGenerator(implicit val p: Parameters) extends Module
+    with HasTraceGenParams
+    with HasTileLinkParameters {
+  val io = new Bundle {
+    val mem = new ClientUncachedTileLinkIO
+    val finished = Bool(INPUT)
+  }
+
+  val idBits = tlClientXactIdBits
+  val xact_id_free = Reg(UInt(width = idBits), init = ~UInt(0, idBits))
+  val xact_id_onehot = PriorityEncoderOH(xact_id_free)
+
+  val timer = Module(new DynamicTimer(8))
+  timer.io.start := io.mem.acquire.fire()
+  timer.io.period := LCG(8, io.mem.acquire.fire())
+  timer.io.stop := Bool(false)
+
+  val s_start :: s_send :: s_wait :: s_done :: Nil = Enum(Bits(), 4)
+  val state = Reg(init = s_start)
+
+  when (state === s_start) { state := s_send }
+  when (io.mem.acquire.fire()) { state := s_wait }
+  when (state === s_wait) {
+    when (timer.io.timeout) { state := s_send }
+    when (io.finished) { state := s_done }
+  }
+
+  val acq_id = OHToUInt(xact_id_onehot)
+  val gnt_id = io.mem.grant.bits.client_xact_id
+
+  xact_id_free := (xact_id_free &
+                    ~Mux(io.mem.acquire.fire(), xact_id_onehot, UInt(0))) |
+                    Mux(io.mem.grant.fire(), UIntToOH(gnt_id), UInt(0))
+
+  val tlBlockOffset = tlBeatAddrBits + tlByteAddrBits
+  val addr_idx = LCG(logAddressBagLen, io.mem.acquire.fire())
+  val addr_bag = Vec(addressBag.map(
+    addr => UInt(addr >> tlBlockOffset, tlBlockAddrBits)))
+  val addr_block = addr_bag(addr_idx)
+  val addr_beat = LCG(tlBeatAddrBits, io.mem.acquire.fire())
+  val acq_select = LCG(1, io.mem.acquire.fire())
+
+  val get_acquire = Get(
+    client_xact_id = acq_id,
+    addr_block = addr_block,
+    addr_beat = addr_beat)
+  val put_acquire = Put(
+    client_xact_id = acq_id,
+    addr_block = addr_block,
+    addr_beat = addr_beat,
+    data = UInt(0),
+    wmask = Some(UInt(0)))
+
+  io.mem.acquire.valid := (state === s_send) && xact_id_free.orR
+  io.mem.acquire.bits := Mux(acq_select(0), get_acquire, put_acquire)
+  io.mem.grant.ready := !xact_id_free(gnt_id)
+}
+
 // =======================
 // Trace-generator wrapper
 // =======================
@@ -554,11 +612,17 @@ class TraceGenerator(id: Int)
 class GroundTestTraceGenerator(implicit p: Parameters)
     extends GroundTest()(p) with HasTraceGenParams {
 
-  require(io.mem.size == 0)
+  require(io.mem.size <= 1)
   require(io.cache.size == 1)
 
   val traceGen = Module(new TraceGenerator(p(GroundTestId)))
   io.cache.head <> traceGen.io.mem
+
+  if (io.mem.size == 1) {
+    val noiseGen = Module(new NoiseGenerator)
+    io.mem.head <> noiseGen.io.mem
+    noiseGen.io.finished := traceGen.io.finished
+  }
 
   io.status.finished := traceGen.io.finished
   io.status.timeout.valid := traceGen.io.timeout
