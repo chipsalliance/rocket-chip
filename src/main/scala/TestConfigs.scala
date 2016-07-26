@@ -185,7 +185,7 @@ class WithUnitTest extends Config(
 class WithTraceGen extends Config(
   topDefinitions = (pname, site, here) => pname match {
     case GroundTestKey => Seq.fill(site(NTiles)) {
-      GroundTestTileSettings(cached = 1)
+      GroundTestTileSettings(uncached = 1, cached = 1)
     }
     case BuildGroundTest =>
       (p: Parameters) => Module(new GroundTestTraceGenerator()(p))
@@ -193,7 +193,7 @@ class WithTraceGen extends Config(
       maxRequests = 256,
       startAddress = 0)
     case AddressBag => {
-      val nSets = 16
+      val nSets = 32 // L2 NSets
       val nWays = 1
       val blockOffset = site(CacheBlockOffsetBits)
       List.tabulate(2 * nWays) { i =>
@@ -205,6 +205,8 @@ class WithTraceGen extends Config(
   knobValues = {
     case "L1D_SETS" => 16
     case "L1D_WAYS" => 1
+    case "L2_CAPACITY_IN_KB" => 32 * 64 / 1024
+    case "L2_WAYS"  => 1
   })
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
@@ -254,6 +256,7 @@ class TraceGenConfig extends Config(
 class TraceGenBufferlessConfig extends Config(
   new WithBufferlessBroadcastHub ++ new TraceGenConfig)
 class TraceGenL2Config extends Config(
+  new WithNL2Ways(1) ++ new WithL2Capacity(32 * 64 / 1024) ++
   new WithL2Cache ++ new TraceGenConfig)
 
 class MIF128BitComparatorConfig extends Config(
