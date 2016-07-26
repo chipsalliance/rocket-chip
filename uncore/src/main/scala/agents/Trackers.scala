@@ -7,6 +7,7 @@ import uncore.coherence._
 import uncore.tilelink._
 import uncore.util._
 import uncore.Util._
+import junctions._
 import cde.{Field, Parameters}
 import scala.math.max
 
@@ -18,12 +19,18 @@ class TrackerAllocation extends Bundle {
   val should = Bool(INPUT)
 }
 
+class TrackerAllocationIO(implicit val p: Parameters)
+    extends ParameterizedBundle()(p)
+    with HasCacheBlockAddress {
+  val iacq = new TrackerAllocation
+  val irel = new TrackerAllocation
+  val oprb = new TrackerAllocation
+  val idle = Bool(OUTPUT)
+}
+
 trait HasTrackerAllocationIO extends Bundle {
-  val alloc = new Bundle {
-    val iacq = new TrackerAllocation
-    val irel = new TrackerAllocation
-    val oprb = new TrackerAllocation
-  }
+  implicit val p: Parameters
+  val alloc = new TrackerAllocationIO
 }
 
 class ManagerXactTrackerIO(implicit p: Parameters) extends ManagerTLIO()(p)
@@ -420,6 +427,8 @@ trait RoutesInParent extends HasBlockAddressBuffer
     io.alloc.iacq.can := state === s_idle && iacqCanAlloc
     io.alloc.irel.can := state === s_idle && irelCanAlloc
     io.alloc.oprb.can := state === s_idle && oprbCanAlloc
+    io.alloc.addr_block := xact_addr_block
+    io.alloc.idle := state === s_idle
   }
 }
 
