@@ -282,6 +282,12 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(UInt(), 9)
   val state = Reg(init=s_invalid)
 
+  def stateIsOneOf(check_states: Seq[UInt]): Bool =
+    check_states.map(state === _).reduce(_ || _)
+
+  def stateIsOneOf(st1: UInt, st2: UInt*): Bool =
+    stateIsOneOf(st1 +: st2)
+
   val new_coh_state = Reg(init=ClientMetadata.onReset)
   val req = Reg(new MSHRReqInternal())
   val req_idx = req.addr(untagBits-1,blockOffBits)
@@ -292,14 +298,17 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   // Acquires on the same block for now.
   val cmd_requires_second_acquire = 
     req.old_meta.coh.requiresAcquireOnSecondaryMiss(req.cmd, io.req_bits.cmd)
-  val states_before_refill = Vec(s_wb_req, s_wb_resp, s_meta_clear)
-  val sec_rdy = idx_match &&
-                  (states_before_refill.contains(state) ||
-                    (Vec(s_refill_req, s_refill_resp).contains(state) &&
-                      !cmd_requires_second_acquire))
+  // Track whether or not a secondary acquire will cause the coherence state
+  // to go from clean to dirty.
+  val dirties_coh = Reg(Bool())
+  val states_before_refill = Seq(s_wb_req, s_wb_resp, s_meta_clear)
   val gnt_multi_data = io.mem_grant.bits.hasMultibeatData()
   val (refill_cnt, refill_count_done) = Counter(io.mem_grant.valid && gnt_multi_data, refillCycles)
   val refill_done = io.mem_grant.valid && (!gnt_multi_data || refill_count_done)
+  val sec_rdy = idx_match &&
+                  (stateIsOneOf(states_before_refill) ||
+                    (stateIsOneOf(s_refill_req, s_refill_resp) &&
+                      !cmd_requires_second_acquire && !refill_done))
 
   val rpq = Module(new Queue(new ReplayInternal, p(ReplayQueueDepth)))
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && !isPrefetch(io.req_bits.cmd)
@@ -308,7 +317,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val coh_on_grant = req.old_meta.coh.onGrant(
                           incoming = io.mem_grant.bits,
-                          pending = req.cmd)
+                          pending = Mux(dirties_coh, M_XWR, req.cmd))
   val coh_on_hit =  io.req_bits.old_meta.coh.onHit(io.req_bits.cmd)
 
   when (state === s_drain_rpq && !rpq.io.deq.valid) {
@@ -344,10 +353,12 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     when(cmd_requires_second_acquire) {
       req.cmd := io.req_bits.cmd
     }
+    dirties_coh := dirties_coh || isWrite(io.req_bits.cmd)
   }
   when (io.req_pri_val && io.req_pri_rdy) {
     val coh = io.req_bits.old_meta.coh
     req := io.req_bits
+    dirties_coh := isWrite(io.req_bits.cmd)
     when (io.req_bits.tag_match) {
       when(coh.isHit(io.req_bits.cmd)) { // set dirty bit
         state := s_meta_write_req
@@ -379,7 +390,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val meta_hazard = Reg(init=UInt(0,2))
   when (meta_hazard =/= UInt(0)) { meta_hazard := meta_hazard + 1 }
   when (io.meta_write.fire()) { meta_hazard := 1 }
-  io.probe_rdy := !idx_match || (!states_before_refill.contains(state) && meta_hazard === 0) 
+  io.probe_rdy := !idx_match || (!stateIsOneOf(states_before_refill) && meta_hazard === 0) 
 
   io.meta_write.valid := state === s_meta_write_req || state === s_meta_clear
   io.meta_write.bits.idx := req_idx
