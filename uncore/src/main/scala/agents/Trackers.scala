@@ -26,6 +26,7 @@ class TrackerAllocationIO(implicit val p: Parameters)
   val irel = new TrackerAllocation
   val oprb = new TrackerAllocation
   val idle = Bool(OUTPUT)
+  override val addr_block = UInt(OUTPUT, tlBlockAddrBits)
 }
 
 trait HasTrackerAllocationIO extends Bundle {
