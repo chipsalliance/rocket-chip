@@ -442,8 +442,7 @@ class TraceGenerator(id: Int)
         }
       }
       // Delay finished, send SC request
-      //when (opInProgress === UInt(3)) {
-      when (opInProgress === UInt(3) && !reqValid && reqCount === respCount) {
+      when (opInProgress === UInt(3)) {
         when (canSendFreshReq) {
           // Set command, but leave address
           // i.e. use same address as LR did
