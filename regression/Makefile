@@ -44,13 +44,13 @@ $(error Set SUITE to the regression suite you want to run)
 endif
 
 ifeq ($(SUITE),RocketSuite)
-CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig RoccExampleConfig
+CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig RoccExampleConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
-CONFIGS=MemtestConfig MemtestBufferlessConfig FancyMemtestConfig \
+CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
 	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
-	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config \
+	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig \
 	UnitTestConfig
 endif
 
