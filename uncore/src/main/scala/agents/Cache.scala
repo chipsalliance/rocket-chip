@@ -82,6 +82,7 @@ class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
 
 class PseudoLRU(n: Int)
 {
+  require(isPow2(n))
   val state_reg = Reg(Bits(width = n))
   def access(way: UInt) {
     state_reg := get_next_state(state_reg,way)
