@@ -33,7 +33,7 @@ trait ScalarOpConstants {
 
   val A2_X    = BitPat("b??")
   val A2_ZERO = UInt(0, 2)
-  val A2_FOUR = UInt(1, 2)
+  val A2_SIZE = UInt(1, 2)
   val A2_RS2  = UInt(2, 2)
   val A2_IMM  = UInt(3, 2)
 

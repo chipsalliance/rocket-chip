@@ -99,6 +99,9 @@ object DefaultTestSuites {
     "slt", "slti", "sra", "srai", "srl", "srli", "sub", "xor", "xori")
   val rv32ui = new AssemblyTestSuite("rv32ui", rv32uiNames)(_)
 
+  val rv32ucNames = LinkedHashSet("rvc")
+  val rv32uc = new AssemblyTestSuite("rv32uc", rv32ucNames)(_)
+
   val rv32umNames = LinkedHashSet("mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu")
   val rv32um = new AssemblyTestSuite("rv32um", rv32umNames)(_)
 
@@ -124,6 +127,9 @@ object DefaultTestSuites {
   val rv64uaNames = rv32uaNames.map(_.replaceAll("_w","_d"))
   val rv64ua = new AssemblyTestSuite("rv64ua", rv32uaNames ++ rv64uaNames)(_)
 
+  val rv64ucNames = rv32ucNames
+  val rv64uc = new AssemblyTestSuite("rv64uc", rv64ucNames)(_)
+
   val rv64ufNames = LinkedHashSet("ldst", "move", "fsgnj", "fcmp", "fcvt", "fcvt_w", "fclass", "fadd", "fdiv", "fmin", "fmadd")
   val rv64uf = new AssemblyTestSuite("rv64uf", rv64ufNames)(_)
   val rv64ufNoDiv = new AssemblyTestSuite("rv64uf", rv64ufNames - "fdiv")(_)
@@ -148,10 +154,10 @@ object DefaultTestSuites {
   val rv64i = List(rv64ui, rv64si, rv64mi)
   val rv64pi = List(rv64ui, rv64mi)
 
-  val benchmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
+  val benchmarks = new BenchmarkTestSuite("rvi", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "mt-matmul"))
 
-  val rv32udBenchmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
+  val rv32udBenchmarks = new BenchmarkTestSuite("rvd", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "mm", "spmv", "mt-vvadd"))
 
   val emptyBmarks = new BenchmarkTestSuite("empty",

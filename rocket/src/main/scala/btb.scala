@@ -233,7 +233,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   io.resp.bits.taken := true
   io.resp.bits.target := Cat(Mux1H(Mux1H(hitsVec, tgtPagesOH), pages), Mux1H(hitsVec, tgts) << log2Up(coreInstBytes))
   io.resp.bits.entry := OHToUInt(hits)
-  io.resp.bits.bridx := Mux1H(hitsVec, brIdx)
+  io.resp.bits.bridx := (if (fetchWidth > 1) Mux1H(hitsVec, brIdx) else UInt(0))
   io.resp.bits.mask := Cat((UInt(1) << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, UInt(0)))-1, UInt(1))
 
   if (nBHT > 0) {
