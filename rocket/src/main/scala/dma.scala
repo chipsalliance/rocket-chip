@@ -125,7 +125,7 @@ class DmaFrontend(implicit p: Parameters) extends CoreModule()(p)
   val last_src_vpn = Reg(UInt(width = vpnBits))
   val last_dst_vpn = Reg(UInt(width = vpnBits))
 
-  val tx_len = Util.minUInt(src_pglen, dst_pglen, bytes_left)
+  val tx_len = src_pglen min dst_pglen min bytes_left
 
   val dma_busy = Reg(init = UInt(0, tlMaxClientXacts))
   val dma_xact_id = PriorityEncoder(~dma_busy)

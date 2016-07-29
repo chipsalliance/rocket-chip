@@ -44,12 +44,6 @@ object Util {
     def toBits(): UInt = Cat(x.map(_.toBits).reverse)
   }
 
-  def minUInt(values: Seq[UInt]): UInt =
-    values.reduce((a, b) => Mux(a < b, a, b))
-
-  def minUInt(first: UInt, rest: UInt*): UInt =
-    minUInt(first +: rest.toSeq)
-
   implicit class UIntIsOneOf(val x: UInt) extends AnyVal {
     def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).reduce(_||_)
 
