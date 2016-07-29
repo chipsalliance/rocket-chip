@@ -38,6 +38,7 @@ of riscv-tools:
     $ git submodule update --init --recursive
     $ export RISCV=/path/to/install/riscv/toolchain
     $ ./build.sh
+    $ ./build-rv32im.sh (if you are using RV32).
    
 For more information (or if you run into any issues), please consult the
 [riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
@@ -96,6 +97,7 @@ If riscv-tools version changes, you should recompile and install riscv-tools acc
 
     $ cd riscv-tools
     $ ./build.sh
+    $ ./build-rv32im.sh (if you are using RV32)
 
 If firrtl version changes and you are using Chisel3, you may need to clean and recompile:
 
@@ -143,24 +145,6 @@ instructions on how to build your design with Chisel3 instead of Chisel2.
 FIRRTL (Flexible Internal Representation for RTL) is the intermediate format
 which Chisel3 is based upon. The Chisel3 compiler generates a FIRRTL representation,
 from which the final product (Verilog code, C code, etc) is generated.
-* **rocket**
-([https://github.com/ucb-bar/rocket](https://github.com/ucb-bar/rocket)):
-The rocket repository holds the actual source code of the Rocket core.
-Note that the L1 blocking I$ and the L1 non-blocking D$ are considered
-part of the core, and hence we keep the L1 cache source code in this
-repository. This repository is not meant to stand alone; it needs to be
-included in a chip repository (e.g.  rocket-chip) that instantiates the
-core within a memory system and connects it to the outside world.
-* **uncore**
-([https://github.com/ucb-bar/uncore](https://github.com/ucb-bar/uncore)):
-This repository implements the uncore logic, such as the coherence hub
-(the agent that keeps multiple L1 D$ coherent). The definition of the
-coherent interfaces between tiles ("tilelink") and the debug interface
-also live in this repository.
-* **junctions**
-([https://github.com/ucb-bar/junctions](https://github.com/ucb-bar/junctions)):
-This repository contains code and
-converters for various bus protocols and interfaces. 
 * **hardfloat**
 ([https://github.com/ucb-bar/berkeley-hardfloat](https://github.com/ucb-bar/berkeley-hardfloat)):
 This repository holds the parameterized IEEE 754-2008 compliant
@@ -182,25 +166,47 @@ library for use with Chisel3.
 ([https://github.com/dramninjasUMD/DRAMSim2](https://github.com/dramninjasUMD/DRAMSim2)):
 Currently, the DRAM memory system is implemented in the testbench. We
 use dramsim2 to emulate DRAM timing.
-* **fpga-zynq**
-([https://github.com/ucb-bar/fpga-zynq](https://github.com/ucb-bar/fpga-zynq)):
-We also tag a version of the FPGA infrastructure that works with the RTL
-committed in the rocket-chip repository.
 * **riscv-tools**
 ([https://github.com/riscv/riscv-tools](https://github.com/riscv/riscv-tools)):
 We tag a version of riscv-tools that works with the RTL committed in the
 rocket-chip repository.  Once the software toolchain stabilizes, we
 might turn this submodule into an external dependency.
-* **groundtest**
-([https://github.com/ucb-bar/groundtest](https://github.com/ucb-bar/groundtest)):
-This repository contains code which can test the uncore by generating randomized
-instruction streams. It replaces the rocket processor with an instruction
-stream generator to stress-test the uncore portions of the design.
 * **torture**
 ([https://github.com/ucb-bar/torture](https://github.com/ucb-bar/torture)):
 The torture test code is used to generate randomized instruction streams which
 are then run as code on the rocket core(s). These are constrained random tests
 to stress-test both the core and uncore portions of the design.
+
+### <a name="what_submodules"></a>The Sub Packages
+
+In addition to submodules, which are tracked as different git repositories,
+the rocket-chip Chisel code base is factored into a number of Scala packages. 
+Here is a brief description
+of what can be found in each package:
+
+* **rocket**
+([https://github.com/ucb-bar/rocket](https://github.com/ucb-bar/rocket)):
+The rocket repository holds the actual source code of the Rocket core.
+Note that the L1 blocking I$ and the L1 non-blocking D$ are considered
+part of the core, and hence we keep the L1 cache source code in this
+repository. This repository is not meant to stand alone; it needs to be
+included in a chip repository (e.g.  rocket-chip) that instantiates the
+core within a memory system and connects it to the outside world.
+* **uncore**
+([https://github.com/ucb-bar/uncore](https://github.com/ucb-bar/uncore)):
+This repository implements the uncore logic, such as the coherence hub
+(the agent that keeps multiple L1 D$ coherent). The definition of the
+coherent interfaces between tiles ("tilelink") and the debug interface
+also live in this repository.
+* **junctions**
+([https://github.com/ucb-bar/junctions](https://github.com/ucb-bar/junctions)):
+This repository contains code and
+converters for various bus protocols and interfaces. 
+* **groundtest**
+([https://github.com/ucb-bar/groundtest](https://github.com/ucb-bar/groundtest)):
+This repository contains code which can test the uncore by generating randomized
+instruction streams. It replaces the rocket processor with an instruction
+stream generator to stress-test the uncore portions of the design.
 
 ### <a name="what_toplevel"></a>The Top Level Module
 
@@ -256,22 +262,21 @@ There are 4 major I/O ports coming out of the top-level module:
 
 * **Debug interface (debug)**:
 The debug interface can be used to both debug the processor as
-it is executing, and to read and write memory. It is slated to repalce the
-host interface in the near future.
-* **High-performance memory interface (mem_*) **:
-Memory requests from the processor comes out the mem_* ports.
+it is executing, and to read and write memory. 
+* **High-performance memory interface (mem_\*)**:
+Memory requests from the processor comes out the mem_\* ports.
 Depending on the configuration of the design, these may be visible as
-AXI or AHB protocol. The mem_* port(s) uses the same uncore clock, and
+AXI or AHB protocol. The mem_\* port(s) uses the same uncore clock, and
 is intended to be connected to something on the same chip.
-* ** Memory mapped I/O interface (mmio_*) **:
-The optional mmio_* interfaces can be used to communicate with devices
+* **Memory mapped I/O interface (mmio_\*)**:
+The optional mmio_\* interfaces can be used to communicate with devices
 on the chip but outside of the rocket-chip boundary. Depending on the
 configuration of the design, these may be visible as AXI or AHB.
-* ** Interrupts interface (interrupts) **: This interface is used to
+* **Interrupts interface (interrupts)**: This interface is used to
 deliver external interrupts to the processor core.
 
-Of course, there's a lot more in the actual submodules, but hopefully
-this would be enough to get you started with using the Rocket chip
+Of course, there's a lot more in the submodules, but
+this should be enough to get you started with the Rocket chip
 generator. We will keep documenting more about our designs in the
 respective README of each submodules, release notes, and even blog
 posts. In the mean time, please post questions to the hw-dev mailing
