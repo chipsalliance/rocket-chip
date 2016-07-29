@@ -105,9 +105,10 @@ trait HasPendingBitHelpers extends HasDataBeatCounters {
       alloc_override: Bool = Bool(false)): UInt =
     addPendingBitWhenBeatHasData(in, in.bits.allocate() || alloc_override)
 
-  def addPendingBitWhenBeatNeedsRead(in: DecoupledIO[AcquireFromSrc], inc: Bool = Bool(true)): UInt = {
+  def addPendingBitWhenBeatNeedsRead(in: DecoupledIO[AcquireFromSrc],
+      always: Bool = Bool(true), unless: Bool = Bool(false)): UInt = {
     val a = in.bits
-    val needs_read = (a.isGet() || a.isAtomic() || a.hasPartialWritemask()) || inc
+    val needs_read = !unless && (a.isGet() || a.isAtomic() || a.hasPartialWritemask()) || always
     addPendingBitWhenBeat(in.fire() && needs_read, a)
   }
 
@@ -176,6 +177,7 @@ trait HasDataBuffer extends HasCoherenceAgentParameters {
 
 trait HasByteWriteMaskBuffer extends HasDataBuffer { 
   val wmask_buffer = Reg(init=Vec.fill(innerDataBeats)(UInt(0, width = innerWriteMaskBits)))
+  val data_valid = Vec(wmask_buffer.map(wmask => wmask.andR))
 
   override def initDataInner[T <: Acquire](in: DecoupledIO[T], alloc: Bool) {
     when(in.fire() && in.bits.hasData() && alloc) { 
@@ -190,7 +192,8 @@ trait HasByteWriteMaskBuffer extends HasDataBuffer {
     val old_data = incoming     // Refilled, written back, or de-cached data
     val new_data = data_buffer(beat) // Newly Put data is already in the buffer
     val wmask = FillInterleaved(8, wmask_buffer(beat))
-    data_buffer(beat) := ~wmask & old_data | wmask & new_data
+    data_buffer(beat) := (~wmask & old_data) | (wmask & new_data)
+    wmask_buffer(beat) := ~UInt(0, innerWriteMaskBits)
   }
 
   def clearWmaskBuffer() {
@@ -520,10 +523,10 @@ trait AcceptsInnerAcquires extends HasAcquireMetadataBuffer
 
     // Track which beats are ready for response
     when(!iacq_is_allocating) {
-      pending_ignt_data := (pending_ignt_data & dropPendingBitWhenBeatHasData(io.inner.grant)) |
-                           addPendingBitWhenBeatHasData(io.inner.release) |
-                           addPendingBitWhenBeatHasData(io.outer.grant) |
-                           add_pending_bits
+      pending_ignt_data := pending_ignt_data |
+                             addPendingBitWhenBeatHasData(io.inner.release) |
+                             addPendingBitWhenBeatHasData(io.outer.grant) |
+                             add_pending_bits
     }
 
     if (p(EnableL2Logging)) {

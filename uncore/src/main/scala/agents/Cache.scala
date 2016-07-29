@@ -612,9 +612,8 @@ trait ReadsFromOuterCacheDataArray extends HasCoherenceMetadataBuffer
                     can_update_pending: Bool = Bool(true)) {
     val port = io.data
     when (can_update_pending) {
-      pending_reads := (pending_reads &
-        dropPendingBit(port.read) & drop_pending_bit) |
-        add_pending_bit
+      pending_reads := (pending_reads | add_pending_bit) &
+        dropPendingBit(port.read) & drop_pending_bit
     }
     port.read.valid := state === s_busy && pending_reads.orR && !block_pending_read
     port.read.bits := L2DataReadReq(
@@ -690,6 +689,7 @@ trait HasAMOALU extends HasAcquireMetadataBuffer
     val wmask = FillInterleaved(8, wmask_buffer(beat))
     data_buffer(beat) := ~wmask & old_data |
                           wmask & Mux(xact_iacq.isAtomic(), amoalu.io.out << amo_shift_bits, new_data)
+    wmask_buffer(beat) := ~UInt(0, innerWriteMaskBits)
     when(xact_iacq.isAtomic() && xact_addr_beat === beat) { amo_result := old_data }
   }
 }
@@ -795,7 +795,7 @@ class CacheVoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters)
                   xact_old_meta.coh.outer)),
     s_idle)
 
-  when(io.inner.release.fire()) { data_buffer(io.irel().addr_beat) := io.irel().data }
+  mergeDataInner(io.inner.release)
 
   when(irel_is_allocating) {
     pending_writes := addPendingBitWhenBeatHasData(io.inner.release)
@@ -966,7 +966,10 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
   readDataArray(
     drop_pending_bit = (dropPendingBitWhenBeatHasData(io.inner.release) &
                          dropPendingBitWhenBeatHasData(io.outer.grant)),
-    add_pending_bit = addPendingBitWhenBeatNeedsRead(io.inner.acquire, Bool(alwaysWriteFullBeat)),
+    add_pending_bit = addPendingBitWhenBeatNeedsRead(
+      io.inner.acquire,
+      always = Bool(alwaysWriteFullBeat),
+      unless = data_valid(io.iacq().addr_beat)),
     block_pending_read = ognt_counter.pending,
     can_update_pending = state =/= s_idle || io.alloc.irel.should)
 
@@ -1118,7 +1121,6 @@ class L2WritebackUnit(val trackerId: Int)(implicit p: Parameters) extends XactTr
     data = data_buffer(vol_ognt_counter.up.idx),
     add_pending_data_bits = addPendingBitInternal(io.data.resp),
     add_pending_send_bit = io.meta.resp.valid && needs_outer_release)
-
 
   // Respond to the initiating transaction handler signalling completion of the writeback
   io.wb.resp.valid := state === s_busy && all_pending_done
