@@ -155,8 +155,10 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s2_victim_state = Mux(s2_hit_state.isValid() && !s2_flush_valid, s2_hit_state, RegEnable(meta.io.resp(s1_victim_way).coh, s1_valid_not_nacked || s1_flush_valid))
   val s2_victim_valid = s2_victim_state.isValid()
   val s2_victim_dirty = s2_victim_state.requiresVoluntaryWriteback()
+  val s2_new_hit_state = s2_hit_state.onHit(s2_req.cmd)
+  val s2_update_meta = s2_hit_state =/= s2_new_hit_state
   io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && io.mem.acquire.ready)
-  when (s2_valid && !s2_valid_hit) { s1_nack := true }
+  when (s2_valid && (!s2_valid_hit || s2_update_meta)) { s1_nack := true }
 
   // exceptions
   val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).misaligned
@@ -226,8 +228,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
      (pstore2_valid && pstore2_addr(idxMSB, wordOffBits) === s1_idx))
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
-  val s2_new_hit_state = s2_hit_state.onHit(s2_req.cmd)
-  metaWriteArb.io.in(0).valid := (s2_valid_hit && s2_hit_state =/= s2_new_hit_state) || (s2_victimize && !s2_victim_dirty)
+  metaWriteArb.io.in(0).valid := (s2_valid_hit && s2_update_meta) || (s2_victimize && !s2_victim_dirty)
   metaWriteArb.io.in(0).bits.way_en := s2_victim_way
   metaWriteArb.io.in(0).bits.idx := s2_req.addr(idxMSB, idxLSB)
   metaWriteArb.io.in(0).bits.data.coh := Mux(s2_hit, s2_new_hit_state, ClientMetadata.onReset)
