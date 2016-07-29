@@ -397,6 +397,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     val epc = ~(~io.pc | (coreInstBytes-1))
     val pie = read_mstatus(reg_mstatus.prv)
 
+    val write_badaddr = cause isOneOf (Causes.breakpoint,
+      Causes.misaligned_load, Causes.misaligned_store, Causes.misaligned_fetch,
+      Causes.fault_load, Causes.fault_store, Causes.fault_fetch)
+
     when (trapToDebug) {
       reg_debug := true
       reg_dpc := epc
@@ -405,7 +409,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }.elsewhen (delegate) {
       reg_sepc := epc
       reg_scause := cause
-      reg_sbadaddr := io.badaddr
+      when (write_badaddr) { reg_sbadaddr := io.badaddr }
       reg_mstatus.spie := pie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
@@ -413,7 +417,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }.otherwise {
       reg_mepc := epc
       reg_mcause := cause
-      reg_mbadaddr := io.badaddr
+      when (write_badaddr) { reg_mbadaddr := io.badaddr }
       reg_mstatus.mpie := pie
       reg_mstatus.mpp := reg_mstatus.prv
       reg_mstatus.mie := false
