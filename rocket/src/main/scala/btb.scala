@@ -62,11 +62,11 @@ class BHTResp(implicit p: Parameters) extends BtbBundle()(p) {
 //    - each counter corresponds with the address of the fetch packet ("fetch pc").
 //    - updated when a branch resolves (and BTB was a hit for that branch).
 //      The updating branch must provide its "fetch pc".
-class BHT(nbht: Int)(implicit p: Parameters) {
+class BHT(nbht: Int)(implicit val p: Parameters) extends HasCoreParameters {
   val nbhtbits = log2Up(nbht)
   def get(addr: UInt, update: Bool): BHTResp = {
     val res = Wire(new BHTResp)
-    val index = addr(nbhtbits+1,2) ^ history
+    val index = addr(nbhtbits+1, log2Up(coreInstBytes)) ^ history
     res.value := table(index)
     res.history := history
     val taken = res.value(0)
@@ -74,7 +74,7 @@ class BHT(nbht: Int)(implicit p: Parameters) {
     res
   }
   def update(addr: UInt, d: BHTResp, taken: Bool, mispredict: Bool): Unit = {
-    val index = addr(nbhtbits+1,2) ^ d.history
+    val index = addr(nbhtbits+1, log2Up(coreInstBytes)) ^ d.history
     table(index) := Cat(taken, (d.value(1) & d.value(0)) | ((d.value(1) | d.value(0)) & taken))
     when (mispredict) { history := Cat(taken, d.history(nbhtbits-1,1)) }
   }
