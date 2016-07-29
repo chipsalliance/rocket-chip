@@ -81,7 +81,7 @@ class UncachedTileLinkGenerator(id: Int)
 
   val data_prefix = Cat(UInt(id, log2Up(nGens)), req_cnt)
   val word_data = Wire(UInt(width = genWordBits))
-  word_data := Cat(data_prefix, full_addr)
+  word_data := Cat(data_prefix, part_of_full_addr)
   val beat_data = Fill(tlDataBits / genWordBits, word_data)
   val wshift = Cat(beatOffset(full_addr), UInt(0, wordOffset))
   val wmask = Fill(genWordBits / 8, Bits(1, 1)) << wshift
@@ -151,7 +151,7 @@ class HellaCacheGenerator(id: Int)
       UInt(0, wordOffset)
     }
   val req_addr = UInt(startAddress) + Cat(req_cnt, part_of_req_addr)
-  val req_data = Cat(UInt(id, log2Up(nGens)), req_addr)
+  val req_data = Cat(UInt(id, log2Up(nGens)), req_cnt, part_of_req_addr)
 
   io.mem.req.valid := sending && !io.status.finished
   io.mem.req.bits.addr := req_addr
