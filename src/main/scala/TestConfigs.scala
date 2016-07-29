@@ -196,17 +196,17 @@ class WithTraceGen extends Config(
       val nSets = 32 // L2 NSets
       val nWays = 1
       val blockOffset = site(CacheBlockOffsetBits)
-      List.tabulate(2 * nWays) { i =>
+      val baseAddr = site(GlobalAddrMap)("mem").start
+      List.tabulate(4 * nWays) { i =>
         Seq.tabulate(2) { j => (i * nSets + j * 8) << blockOffset }
-      }.flatten
+      }.flatten.map(addr => baseAddr + BigInt(addr))
     }
+    case UseAtomics => true
     case _ => throw new CDEMatchError
   },
   knobValues = {
     case "L1D_SETS" => 16
     case "L1D_WAYS" => 1
-    case "L2_CAPACITY_IN_KB" => 32 * 64 / 1024
-    case "L2_WAYS"  => 1
   })
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
