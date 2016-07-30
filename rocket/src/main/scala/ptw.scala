@@ -88,7 +88,13 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   arb.io.in <> io.requestor.map(_.req)
   arb.io.out.ready := state === s_ready
 
-  val pte = new PTE().fromBits(io.mem.resp.bits.data)
+  val pte = {
+    val tmp = new PTE().fromBits(io.mem.resp.bits.data)
+    val res = Wire(init = new PTE().fromBits(io.mem.resp.bits.data))
+    res.ppn := tmp.ppn(ppnBits-1, 0)
+    when ((tmp.ppn >> ppnBits) =/= 0) { res.v := false }
+    res
+  }
   val pte_addr = Cat(r_pte.ppn, vpn_idx).toUInt << log2Up(xLen/8)
 
   when (arb.io.out.fire()) {
@@ -136,15 +142,11 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.s1_kill := Bool(false)
   io.mem.invalidate_lr := Bool(false)
   
-  val r_resp_ppn = io.mem.req.bits.addr >> pgIdxBits
-  val resp_ppns = (0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn
-  val resp_ppn = resp_ppns(count)
-  val resp_val = state === s_done
-
+  val resp_ppns = (0 until pgLevels-1).map(i => Cat(pte_addr >> (pgIdxBits + pgLevelBits*(pgLevels-i-1)), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ (pte_addr >> pgIdxBits)
   for (i <- 0 until io.requestor.size) {
-    io.requestor(i).resp.valid := resp_val && (r_req_dest === i)
+    io.requestor(i).resp.valid := state === s_done && (r_req_dest === i)
     io.requestor(i).resp.bits.pte := r_pte
-    io.requestor(i).resp.bits.pte.ppn := resp_ppn
+    io.requestor(i).resp.bits.pte.ppn := resp_ppns(count)
     io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).status := io.dpath.status
