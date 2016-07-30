@@ -15,7 +15,7 @@ object BuildSettings extends Build {
     libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
   )
 
-  lazy val chisel = project in file("chisel" + sys.env.getOrElse("CHISEL_VERSION", 2))
+  lazy val chisel = project in file("chisel" + sys.env.getOrElse("CHISEL_VERSION", 3))
   lazy val cde        = project in file("context-dependent-environments")
   lazy val hardfloat  = project.dependsOn(chisel)
   lazy val junctions  = project.dependsOn(chisel, cde)
