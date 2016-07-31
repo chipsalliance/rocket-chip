@@ -124,8 +124,8 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
 
   require(fetchWidth * coreInstBytes <= rowBytes && isPow2(fetchWidth))
-  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc.extract(log2Up(rowBytes)-1,log2Up(fetchWidth*coreInstBytes)) << log2Up(fetchWidth*coreInstBits))
-  io.cpu.resp.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Up(fetchWidth)+log2Up(coreInstBytes)-1, log2Up(coreInstBytes))
+  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc.extract(log2Ceil(rowBytes)-1,log2Ceil(fetchWidth*coreInstBytes)) << log2Ceil(fetchWidth*coreInstBits))
+  io.cpu.resp.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
   io.cpu.resp.bits.xcpt_if := s2_xcpt_if
   io.cpu.resp.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt_if
   io.cpu.resp.bits.btb.valid := s2_btb_resp_valid
