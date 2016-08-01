@@ -128,7 +128,7 @@ class SmiIONastiReadIOConverter(val dataWidth: Int, val addrWidth: Int)
   io.nasti.r.valid := (state === s_resp)
   io.nasti.r.bits := NastiReadDataChannel(
     id = id,
-    data = buffer.toBits,
+    data = buffer.asUInt,
     last = (nBeats === UInt(0)))
 
   when (io.nasti.ar.fire()) {
@@ -192,7 +192,7 @@ class SmiIONastiWriteIOConverter(val dataWidth: Int, val addrWidth: Int)
   def makeStrobe(offset: UInt, size: UInt, strb: UInt) = {
     val sizemask = (UInt(1) << (UInt(1) << size)) - UInt(1)
     val bytemask = strb & (sizemask << offset)
-    Vec.tabulate(maxWordsPerBeat){i => bytemask(dataBytes * i)}.toBits
+    Vec.tabulate(maxWordsPerBeat){i => bytemask(dataBytes * i)}.asUInt
   }
 
   val size = Reg(UInt(width = nastiXSizeBits))

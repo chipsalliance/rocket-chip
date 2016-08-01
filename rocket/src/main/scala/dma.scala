@@ -154,7 +154,7 @@ class DmaFrontend(implicit p: Parameters) extends CoreModule()(p)
       source = source,
       dest = dest,
       length = length,
-      size = size).toBits
+      size = size).asUInt
     val data_beats = Vec(tlDataBeats, UInt(width = tlDataBits)).fromBits(data_blob)
     val base_addr = addrMap("devices:dma").start
     val addr_block = UInt(base_addr >> (tlBeatAddrBits + tlByteAddrBits))
@@ -341,7 +341,7 @@ class DmaCtrlRegFile(implicit val p: Parameters) extends Module
   io.word_size := regs(WORD_SIZE)
 
   when (io.wen && waddr < UInt(nWriteRegs)) {
-    regs.write(waddr, io.wdata)
+    regs(waddr) := io.wdata
   }
 
   val outstanding_cnt = TwoWayCounter(

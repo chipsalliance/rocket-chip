@@ -77,7 +77,7 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
       (shamt, Cat(shin_hi, io.in1(31,0)))
     }
   val shin = Mux(io.fn === FN_SR  || io.fn === FN_SRA, shin_r, Reverse(shin_r))
-  val shout_r = (Cat(isSub(io.fn) & shin(xLen-1), shin).toSInt >> shamt)(xLen-1,0)
+  val shout_r = (Cat(isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
   val shout_l = Reverse(shout_r)
   val shout = Mux(io.fn === FN_SR || io.fn === FN_SRA, shout_r, UInt(0)) |
               Mux(io.fn === FN_SL,                     shout_l, UInt(0))

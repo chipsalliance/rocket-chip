@@ -52,7 +52,7 @@ trait HasStoreDataQueue extends HasStoreDataQueueParameters {
                 ).reduce(_||_)
 
   lazy val sdqLoc = List.fill(nTransactors) {
-    DataQueueLocation(sdq_alloc_id, inStoreQueue).toBits
+    DataQueueLocation(sdq_alloc_id, inStoreQueue).asUInt
   }
 
   /*
@@ -74,7 +74,7 @@ trait HasStoreDataQueue extends HasStoreDataQueueParameters {
   lazy val vwbqLoc = (0 until nTransactors).map(i =>
     (DataQueueLocation(rel_data_cnt,
                        (if(i < nReleaseTransactors) inVolWBQueue
-                        else inClientReleaseQueue)).toBits))
+                        else inClientReleaseQueue)).asUInt))
   /*
   doInputRoutingWithAllocation(
     io.inner.release,

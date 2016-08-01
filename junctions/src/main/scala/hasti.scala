@@ -467,12 +467,12 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   val mask_decode = Vec.tabulate(hastiAlignment+1) (UInt(_) <= io.hsize)
   val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Up(i+1)) }
   val mask_shift  = if (hastiAlignment == 0) UInt(1) else
-                    mask_wide.toBits().asUInt() << io.haddr(hastiAlignment-1,0)
+                    mask_wide.asUInt() << io.haddr(hastiAlignment-1,0)
   
   // The request had better have been aligned! (AHB-lite requires this)
   if (hastiAlignment >= 1) {
     assert (io.htrans === HTRANS_IDLE || io.htrans === HTRANS_BUSY ||
-      (io.haddr & mask_decode.toBits()(hastiAlignment,1).asUInt) === UInt(0),
+      (io.haddr & mask_decode.asUInt()(hastiAlignment,1)) === UInt(0),
       "HASTI request not aligned")
   }
   
@@ -543,7 +543,7 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
                     map { case (m, p) => Mux(d_read && ready && m, p, Bits(0)) })
 
   // Finally, the outputs
-  io.hrdata := outdata.toBits()
+  io.hrdata := outdata.asUInt
   io.hready := ready
   io.hresp  := HRESP_OKAY
 }

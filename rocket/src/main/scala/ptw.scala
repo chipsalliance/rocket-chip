@@ -95,7 +95,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     when ((tmp.ppn >> ppnBits) =/= 0) { res.v := false }
     res
   }
-  val pte_addr = Cat(r_pte.ppn, vpn_idx).toUInt << log2Up(xLen/8)
+  val pte_addr = Cat(r_pte.ppn, vpn_idx) << log2Up(xLen/8)
 
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
@@ -110,7 +110,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val tags = Reg(Vec(size, UInt(width = paddrBits)))
     val data = Reg(Vec(size, UInt(width = ppnBits)))
 
-    val hits = tags.map(_ === pte_addr).toBits & valid
+    val hits = tags.map(_ === pte_addr).asUInt & valid
     val hit = hits.orR
     when (io.mem.resp.valid && pte.table() && !hit) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
@@ -138,7 +138,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.req.bits.cmd  := Mux(state === s_set_dirty, M_XA_OR, M_XRD)
   io.mem.req.bits.typ  := MT_D
   io.mem.req.bits.addr := pte_addr
-  io.mem.s1_data := pte_wdata.toBits
+  io.mem.s1_data := pte_wdata.asUInt
   io.mem.s1_kill := Bool(false)
   io.mem.invalidate_lr := Bool(false)
   

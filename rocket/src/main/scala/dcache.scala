@@ -34,7 +34,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       val data = Vec.tabulate(rowBytes)(i => io.req.bits.wdata(8*(i+1)-1, 8*i))
       array.write(addr, data, io.req.bits.wmask.toBools)
     }
-    io.resp(w) := array.read(addr, valid && !io.req.bits.write).toBits
+    io.resp(w) := array.read(addr, valid && !io.req.bits.write).asUInt
   }
 }
 
@@ -116,9 +116,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val s1_paddr = Cat(tlb.io.resp.ppn, s1_req.addr(pgIdxBits-1,0))
   val s1_tag = Mux(s1_probe, probe_bits.addr_block >> idxBits, s1_paddr(paddrBits-1, untagBits))
-  val s1_hit_way = meta.io.resp.map(r => r.coh.isValid() && r.tag === s1_tag).toBits
+  val s1_hit_way = meta.io.resp.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
   val s1_hit_state = ClientMetadata.onReset.fromBits(
-    meta.io.resp.map(r => Mux(r.tag === s1_tag, r.coh.toBits, UInt(0)))
+    meta.io.resp.map(r => Mux(r.tag === s1_tag, r.coh.asUInt, UInt(0)))
     .reduce (_|_))
   val s1_data_way = Mux(inWriteback, releaseWay, s1_hit_way)
   val s1_data = Mux1H(s1_data_way, data.io.resp) // retime into s2 if critical

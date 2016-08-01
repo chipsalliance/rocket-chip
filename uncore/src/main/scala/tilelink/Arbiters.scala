@@ -144,7 +144,7 @@ trait AppendsArbiterId extends TileLinkArbiterLike {
     else
       UInt(0)
   }
-  def arbIdx(in: ManagerSourcedWithId) = in.client_xact_id(log2Up(arbN)-1,0).toUInt
+  def arbIdx(in: ManagerSourcedWithId) = in.client_xact_id(log2Up(arbN)-1,0)
 }
 
 /** Uses the client_xact_id as is (assumes it has been set to port index) */

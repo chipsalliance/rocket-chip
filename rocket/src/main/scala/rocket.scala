@@ -113,12 +113,12 @@ class RegFile(n: Int, w: Int, zero: Boolean = false) {
 
 object ImmGen {
   def apply(sel: UInt, inst: UInt) = {
-    val sign = Mux(sel === IMM_Z, SInt(0), inst(31).toSInt)
-    val b30_20 = Mux(sel === IMM_U, inst(30,20).toSInt, sign)
-    val b19_12 = Mux(sel =/= IMM_U && sel =/= IMM_UJ, sign, inst(19,12).toSInt)
+    val sign = Mux(sel === IMM_Z, SInt(0), inst(31).asSInt)
+    val b30_20 = Mux(sel === IMM_U, inst(30,20).asSInt, sign)
+    val b19_12 = Mux(sel =/= IMM_U && sel =/= IMM_UJ, sign, inst(19,12).asSInt)
     val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
-              Mux(sel === IMM_UJ, inst(20).toSInt,
-              Mux(sel === IMM_SB, inst(7).toSInt, sign)))
+              Mux(sel === IMM_UJ, inst(20).asSInt,
+              Mux(sel === IMM_SB, inst(7).asSInt, sign)))
     val b10_5 = Mux(sel === IMM_U || sel === IMM_Z, Bits(0), inst(30,25))
     val b4_1 = Mux(sel === IMM_U, Bits(0),
                Mux(sel === IMM_S || sel === IMM_SB, inst(11,8),
@@ -127,7 +127,7 @@ object ImmGen {
              Mux(sel === IMM_I, inst(20),
              Mux(sel === IMM_Z, inst(15), Bits(0))))
 
-    Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).toSInt
+    Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).asSInt
   }
 }
 
@@ -285,18 +285,18 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     yield Mux(ex_reg_rs_bypass(i), bypass_mux(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
   val ex_imm = ImmGen(ex_ctrl.sel_imm, ex_reg_inst)
   val ex_op1 = MuxLookup(ex_ctrl.sel_alu1, SInt(0), Seq(
-    A1_RS1 -> ex_rs(0).toSInt,
-    A1_PC -> ex_reg_pc.toSInt))
+    A1_RS1 -> ex_rs(0).asSInt,
+    A1_PC -> ex_reg_pc.asSInt))
   val ex_op2 = MuxLookup(ex_ctrl.sel_alu2, SInt(0), Seq(
-    A2_RS2 -> ex_rs(1).toSInt,
+    A2_RS2 -> ex_rs(1).asSInt,
     A2_IMM -> ex_imm,
     A2_SIZE -> Mux(ex_reg_rvc, SInt(2), SInt(4))))
 
   val alu = Module(new ALU)
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
-  alu.io.in2 := ex_op2.toUInt
-  alu.io.in1 := ex_op1.toUInt
+  alu.io.in2 := ex_op2.asUInt
+  alu.io.in1 := ex_op1.asUInt
   
   // multiplier and divider
   val div = Module(new MulDiv(width = xLen,
@@ -372,14 +372,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   // memory stage
   val mem_br_taken = mem_reg_wdata(0)
-  val mem_br_target = mem_reg_pc.toSInt +
+  val mem_br_target = mem_reg_pc.asSInt +
     Mux(mem_ctrl.branch && mem_br_taken, ImmGen(IMM_SB, mem_reg_inst),
     Mux(mem_ctrl.jal, ImmGen(IMM_UJ, mem_reg_inst),
     Mux(mem_reg_rvc, SInt(2), SInt(4))))
-  val mem_npc = (Mux(mem_ctrl.jalr, encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).toSInt, mem_br_target) & SInt(-2)).toUInt
+  val mem_npc = (Mux(mem_ctrl.jalr, encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).asSInt, mem_br_target) & SInt(-2)).asUInt
   val mem_wrong_npc = Mux(ex_pc_valid, mem_npc =/= ex_reg_pc, Mux(ibuf.io.inst(0).valid, mem_npc =/= ibuf.io.pc, Bool(true)))
   val mem_npc_misaligned = if (usingCompressed) Bool(false) else mem_npc(1)
-  val mem_int_wdata = Mux(!mem_reg_xcpt && (mem_ctrl.jalr ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.toSInt).toUInt
+  val mem_int_wdata = Mux(!mem_reg_xcpt && (mem_ctrl.jalr ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.asSInt).asUInt
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal
   val mem_misprediction =
@@ -569,9 +569,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.imem.req.valid := take_pc
   io.imem.req.bits.speculative := !take_pc_wb
   io.imem.req.bits.pc :=
-    Mux(wb_xcpt || csr.io.eret, csr.io.evec,     // exception or [m|s]ret
-    Mux(replay_wb,              wb_reg_pc,       // replay
-                                mem_npc)).toUInt // mispredicted branch
+    Mux(wb_xcpt || csr.io.eret, csr.io.evec, // exception or [m|s]ret
+    Mux(replay_wb,              wb_reg_pc,   // replay
+                                mem_npc))    // mispredicted branch
   io.imem.flush_icache := wb_reg_valid && wb_ctrl.fence_i && !io.dmem.s2_nack
   io.imem.flush_tlb := csr.io.fatc
 
@@ -676,10 +676,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     // efficient means to compress 64-bit VA into vaddrBits+1 bits
     // (VA is bad if VA(vaddrBits) != VA(vaddrBits-1))
     val a = a0 >> vaddrBits-1
-    val e = ea(vaddrBits,vaddrBits-1).toSInt
+    val e = ea(vaddrBits,vaddrBits-1).asSInt
     val msb =
       Mux(a === UInt(0) || a === UInt(1), e =/= SInt(0),
-      Mux(a.toSInt === SInt(-1) || a.toSInt === SInt(-2), e === SInt(-1), e(0)))
+      Mux(a.asSInt === SInt(-1) || a.asSInt === SInt(-2), e === SInt(-1), e(0)))
     Cat(msb, ea(vaddrBits-1,0))
   }
 

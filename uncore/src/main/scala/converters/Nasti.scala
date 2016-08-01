@@ -170,7 +170,7 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
       val odd_outside_0 = Seq.tabulate (len/2) { i => all_outside_0(2*i+1) }
       val odd_outside = odd_outside_0.reduce (_ || _)
       val all_outside = all_outside_0.reduce (_ || _)
-      val offset = Cat(sub_offset, odd_outside.toBits)
+      val offset = Cat(sub_offset, odd_outside)
       val size = Mux(all_outside, UInt(defsize), sub_size)
       (all_outside_0, offset, size)
     }

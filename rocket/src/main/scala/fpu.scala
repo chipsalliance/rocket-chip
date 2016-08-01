@@ -274,7 +274,7 @@ class FPToInt extends Module
     io.out.bits.exc := dcmp_exc
   }
   when (in.cmd === FCMD_CVT_IF) {
-    io.out.bits.toint := Mux(in.typ(1), d2l.io.out.toSInt, d2w.io.out.toSInt).toUInt
+    io.out.bits.toint := Mux(in.typ(1), d2l.io.out.asSInt, d2w.io.out.asSInt).asUInt
     val dflags = Mux(in.typ(1), d2l.io.intExceptionFlags, d2w.io.intExceptionFlags)
     io.out.bits.exc := Cat(dflags(2, 1).orR, UInt(0, 3), dflags(0))
   }
@@ -301,16 +301,16 @@ class IntToFP(val latency: Int) extends Module
   }
 
   val longValue =
-    Mux(in.bits.typ(1), in.bits.in1.toSInt,
-    Mux(in.bits.typ(0), in.bits.in1(31,0).zext, in.bits.in1(31,0).toSInt))
+    Mux(in.bits.typ(1), in.bits.in1.asSInt,
+    Mux(in.bits.typ(0), in.bits.in1(31,0).zext, in.bits.in1(31,0).asSInt))
   val l2s = Module(new hardfloat.INToRecFN(64, 8, 24))
   l2s.io.signedIn := ~in.bits.typ(0)
-  l2s.io.in := longValue.toUInt
+  l2s.io.in := longValue.asUInt
   l2s.io.roundingMode := in.bits.rm
 
   val l2d = Module(new hardfloat.INToRecFN(64, 11, 53))
   l2d.io.signedIn := ~in.bits.typ(0)
-  l2d.io.in := longValue.toUInt
+  l2d.io.in := longValue.asUInt
   l2d.io.roundingMode := in.bits.rm
 
   when (in.bits.cmd === FCMD_CVT_FI) {
@@ -539,14 +539,21 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
   val maxLatency = pipes.map(_.lat).max
   val memLatencyMask = latencyMask(mem_ctrl, 2)
 
+  class WBInfo extends Bundle {
+    val rd = UInt(width = 5)
+    val single = Bool()
+    val cp = Bool()
+    val pipeid = UInt(width = log2Ceil(pipes.size))
+    override def cloneType: this.type = new WBInfo().asInstanceOf[this.type]
+  }
+
   val wen = Reg(init=Bits(0, maxLatency-1))
-  val winfo = Reg(Vec(maxLatency-1, Bits()))
+  val wbInfo = Reg(Vec(maxLatency-1, new WBInfo))
   val mem_wen = mem_reg_valid && (mem_ctrl.fma || mem_ctrl.fastpipe || mem_ctrl.fromint)
   val write_port_busy = RegEnable(mem_wen && (memLatencyMask & latencyMask(ex_ctrl, 1)).orR || (wen & latencyMask(ex_ctrl, 0)).orR, req_valid)
-  val mem_winfo = Cat(mem_cp_valid, pipeid(mem_ctrl), mem_ctrl.single, mem_reg_inst(11,7)) //single only used for debugging
 
   for (i <- 0 until maxLatency-2) {
-    when (wen(i+1)) { winfo(i) := winfo(i+1) }
+    when (wen(i+1)) { wbInfo(i) := wbInfo(i+1) }
   }
   wen := wen >> 1
   when (mem_wen) {
@@ -555,27 +562,27 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
     }
     for (i <- 0 until maxLatency-1) {
       when (!write_port_busy && memLatencyMask(i)) {
-        winfo(i) := mem_winfo
+        wbInfo(i).cp := mem_cp_valid
+        wbInfo(i).single := mem_ctrl.single
+        wbInfo(i).pipeid := pipeid(mem_ctrl)
+        wbInfo(i).rd := mem_reg_inst(11,7)
       }
     }
   }
 
-  val waddr = Mux(divSqrt_wen, divSqrt_waddr, winfo(0)(4,0).toUInt)
-  val wsrc = (winfo(0) >> 6)(log2Up(pipes.size) - 1,0)
-  val wcp = winfo(0)(6+log2Up(pipes.size))
-  val wdata = Mux(divSqrt_wen, divSqrt_wdata, (pipes.map(_.res.data): Seq[UInt])(wsrc))
-  val wexc = (pipes.map(_.res.exc): Seq[UInt])(wsrc)
-  when ((!wcp && wen(0)) || divSqrt_wen) {
+  val waddr = Mux(divSqrt_wen, divSqrt_waddr, wbInfo(0).rd)
+  val wdata = Mux(divSqrt_wen, divSqrt_wdata, (pipes.map(_.res.data): Seq[UInt])(wbInfo(0).pipeid))
+  val wexc = (pipes.map(_.res.exc): Seq[UInt])(wbInfo(0).pipeid)
+  when ((!wbInfo(0).cp && wen(0)) || divSqrt_wen) {
     regfile(waddr) := wdata
     if (enableCommitLog) {
       val wdata_unrec_s = hardfloat.fNFromRecFN(8, 24, wdata(64,0))
       val wdata_unrec_d = hardfloat.fNFromRecFN(11, 53, wdata(64,0))
-      val wb_single = (winfo(0) >> 5)(0)
       printf ("f%d p%d 0x%x\n", waddr, waddr+ UInt(32),
-        Mux(wb_single, Cat(UInt(0,32), wdata_unrec_s), wdata_unrec_d))
+        Mux(wbInfo(0).single, Cat(UInt(0,32), wdata_unrec_s), wdata_unrec_d))
     }
   }
-  when (wcp && wen(0)) {
+  when (wbInfo(0).cp && wen(0)) {
     io.cp_resp.bits.data := wdata
     io.cp_resp.valid := Bool(true)
   }
@@ -595,7 +602,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
   io.dec <> fp_decoder.io.sigs
   def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(Bool(false))(_||_)
   io.sboard_set := wb_reg_valid && !wb_cp_valid && Reg(next=useScoreboard(_._1.cond(mem_ctrl)) || mem_ctrl.div || mem_ctrl.sqrt)
-  io.sboard_clr := !wb_cp_valid && (divSqrt_wen || (wen(0) && useScoreboard(x => wsrc === UInt(x._2))))
+  io.sboard_clr := !wb_cp_valid && (divSqrt_wen || (wen(0) && useScoreboard(x => wbInfo(0).pipeid === UInt(x._2))))
   io.sboard_clra := waddr
   // we don't currently support round-max-magnitude (rm=4)
   io.illegal_rm := ex_rm(2) && ex_ctrl.round

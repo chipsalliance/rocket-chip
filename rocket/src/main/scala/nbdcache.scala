@@ -408,7 +408,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   io.mem_req.valid := state === s_refill_req && fq.io.enq.ready
   io.mem_req.bits := req.old_meta.coh.makeAcquire(
-                       addr_block = Cat(io.tag, req_idx).toUInt,
+                       addr_block = Cat(io.tag, req_idx),
                        client_xact_id = Bits(id),
                        op_code = req.cmd)
 
@@ -419,7 +419,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.replay.valid := state === s_drain_rpq && rpq.io.deq.valid
   io.replay.bits := rpq.io.deq.bits
   io.replay.bits.phys := Bool(true)
-  io.replay.bits.addr := Cat(io.tag, req_idx, rpq.io.deq.bits.addr(blockOffBits-1,0)).toUInt
+  io.replay.bits.addr := Cat(io.tag, req_idx, rpq.io.deq.bits.addr(blockOffBits-1,0))
 
   when (!io.meta_read.ready) {
     rpq.io.deq.ready := Bool(false)
@@ -766,14 +766,14 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
           val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(p+1)-1,encDataBits*p))
           array.write(waddr, data, wway_en.toBools)
         }
-        resp(p) := array.read(raddr, rway_en.orR && io.read.valid).toBits
+        resp(p) := array.read(raddr, rway_en.orR && io.read.valid).asUInt
       }
       for (dw <- 0 until rowWords) {
         val r = Vec(resp.map(_(encDataBits*(dw+1)-1,encDataBits*dw)))
         val resp_mux =
           if (r.size == 1) r
           else Vec(r(r_raddr(rowOffBits-1,wordOffBits)), r.tail:_*)
-        io.resp(w+dw) := resp_mux.toBits
+        io.resp(w+dw) := resp_mux.asUInt
       }
     }
   } else {
@@ -783,7 +783,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
         val data = Vec.tabulate(rowWords)(i => io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
         array.write(waddr, data, io.write.bits.wmask.toBools)
       }
-      io.resp(w) := array.read(raddr, io.read.bits.way_en(w) && io.read.valid).toBits
+      io.resp(w) := array.read(raddr, io.read.bits.way_en(w) && io.read.valid).asUInt
     }
   }
 
@@ -893,7 +893,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   writeArb.io.out.ready := data.io.write.ready
   data.io.write.bits := writeArb.io.out.bits
   val wdata_encoded = (0 until rowWords).map(i => code.encode(writeArb.io.out.bits.data(coreDataBits*(i+1)-1,coreDataBits*i)))
-  data.io.write.bits.data := wdata_encoded.toBits
+  data.io.write.bits.data := wdata_encoded.asUInt
 
   // tag read for new requests
   metaReadArb.io.in(4).valid := io.cpu.req.valid
@@ -915,8 +915,8 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   // tag check and way muxing
   def wayMap[T <: Data](f: Int => T) = Vec((0 until nWays).map(f))
-  val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === (s1_addr >> untagBits)).toBits
-  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && meta.io.resp(w).coh.isValid()).toBits
+  val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === (s1_addr >> untagBits)).asUInt
+  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && meta.io.resp(w).coh.isValid()).asUInt
   s1_clk_en := metaReadArb.io.out.valid //TODO: should be metaReadArb.io.out.fire(), but triggers Verilog backend bug
   val s1_writeback = s1_clk_en && !s1_valid && !s1_replay
   val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
@@ -953,14 +953,14 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       val en = en1 && ((Bool(i == 0) || !Bool(doNarrowRead)) || s1_writeback)
       when (en) { regs(i) := data.io.resp(w) >> encDataBits*i }
     }
-    s2_data(w) := regs.toBits
+    s2_data(w) := regs.asUInt
   }
   val s2_data_muxed = Mux1H(s2_tag_match_way, s2_data)
   val s2_data_decoded = (0 until rowWords).map(i => code.decode(s2_data_muxed(encDataBits*(i+1)-1,encDataBits*i)))
-  val s2_data_corrected = s2_data_decoded.map(_.corrected).toBits
-  val s2_data_uncorrected = s2_data_decoded.map(_.uncorrected).toBits
+  val s2_data_corrected = s2_data_decoded.map(_.corrected).asUInt
+  val s2_data_uncorrected = s2_data_decoded.map(_.uncorrected).asUInt
   val s2_word_idx = if(doNarrowRead) UInt(0) else s2_req.addr(log2Up(rowWords*coreDataBytes)-1,log2Up(wordBytes))
-  val s2_data_correctable = s2_data_decoded.map(_.correctable).toBits()(s2_word_idx)
+  val s2_data_correctable = s2_data_decoded.map(_.correctable).asUInt()(s2_word_idx)
 
   // store/amo hits
   s3_valid := (s2_valid_masked && s2_hit || s2_replay) && !s2_sc_fail && isWrite(s2_req.cmd)

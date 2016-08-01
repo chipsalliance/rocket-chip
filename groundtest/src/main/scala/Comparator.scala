@@ -57,7 +57,7 @@ object NoiseMaker
 object MaskMaker
 {
   def apply(wide: Int, bits: UInt): UInt = 
-    Vec.tabulate(wide) {UInt(_) < bits} .toBits() .asUInt()
+    Vec.tabulate(wide) {UInt(_) < bits} .asUInt
 }
 
 class ComparatorSource(implicit val p: Parameters) extends Module

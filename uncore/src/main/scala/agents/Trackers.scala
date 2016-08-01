@@ -380,7 +380,7 @@ trait EmitsInnerProbes extends HasBlockAddressBuffer
   def full_representation: UInt
   def initializeProbes() {
     if (needs_probes)
-      pending_iprbs := full_representation & ~io.incoherent.toBits
+      pending_iprbs := full_representation & ~io.incoherent.asUInt
     else
       pending_iprbs := UInt(0)
   }

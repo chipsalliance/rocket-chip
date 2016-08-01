@@ -57,7 +57,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   val predicted_npc = Wire(init = ntpc)
   val predicted_taken = Wire(init = Bool(false))
   val icmiss = s2_valid && !icache.io.resp.valid
-  val npc = Mux(icmiss, s2_pc, predicted_npc).toUInt
+  val npc = Mux(icmiss, s2_pc, predicted_npc)
   val s0_same_block = !predicted_taken && !icmiss && !io.cpu.req.valid && ntpc_same_block
 
   val stall = io.cpu.resp.valid && !io.cpu.resp.ready

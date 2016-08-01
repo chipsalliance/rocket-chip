@@ -41,7 +41,7 @@ object Util {
       }
     }
 
-    def toBits(): UInt = Cat(x.map(_.toBits).reverse)
+    def asUInt(): UInt = Cat(x.map(_.asUInt).reverse)
   }
 
   implicit class UIntIsOneOf(val x: UInt) extends AnyVal {
@@ -167,7 +167,7 @@ object Random
   def apply(mod: Int): UInt = apply(mod, randomizer)
   def oneHot(mod: Int, random: UInt): UInt = {
     if (isPow2(mod)) UIntToOH(random(log2Up(mod)-1,0))
-    else PriorityEncoderOH(partition(apply(1 << log2Up(mod*8), random), mod)).toBits
+    else PriorityEncoderOH(partition(apply(1 << log2Up(mod*8), random), mod)).asUInt
   }
   def oneHot(mod: Int): UInt = oneHot(mod, randomizer)
 

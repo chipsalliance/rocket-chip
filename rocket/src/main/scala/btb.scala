@@ -160,11 +160,11 @@ class BTB(implicit p: Parameters) extends BtbModule {
   private def page(addr: UInt) = addr >> matchBits
   private def pageMatch(addr: UInt) = {
     val p = page(addr)
-    pageValid & pages.map(_ === p).toBits
+    pageValid & pages.map(_ === p).asUInt
   }
   private def tagMatch(addr: UInt, pgMatch: UInt) = {
-    val idxMatch = idxs.map(_ === addr(matchBits-1, log2Up(coreInstBytes))).toBits
-    val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR).toBits
+    val idxMatch = idxs.map(_ === addr(matchBits-1, log2Up(coreInstBytes))).asUInt
+    val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR).asUInt
     idxMatch & idxPageMatch & isValid
   }
 
@@ -173,7 +173,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
 
   val pageHit = pageMatch(io.req.bits.addr)
   val hitsVec = tagMatch(io.req.bits.addr, pageHit)
-  val hits = hitsVec.toBits
+  val hits = hitsVec.asUInt
   val updatePageHit = pageMatch(r_btb_update.bits.pc)
 
   val updateHits = tagMatch(r_btb_update.bits.pc, updatePageHit)

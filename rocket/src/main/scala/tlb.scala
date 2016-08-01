@@ -52,9 +52,9 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   val r_refill_waddr = Reg(UInt(width = log2Ceil(entries)))
   val r_req = Reg(new TLBReq)
   
-  val lookup_tag = Cat(io.ptw.ptbr.asid, io.req.bits.vpn(vpnBits-1,0)).toUInt
+  val lookup_tag = Cat(io.ptw.ptbr.asid, io.req.bits.vpn(vpnBits-1,0))
   val hitsVec = (0 until entries).map(i => valid(i) && tags(i) === lookup_tag)
-  val hits = hitsVec.toBits
+  val hits = hitsVec.asUInt
   
   // permission bit arrays
   val pte_array = Reg(new PTE)

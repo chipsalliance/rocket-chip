@@ -8,6 +8,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.converters._
 import uncore.coherence._
+import uncore.Util._
 
 case object NReleaseTransactors extends Field[Int]
 case object NProbeTransactors extends Field[Int]
@@ -59,7 +60,7 @@ trait HasCoherenceAgentWiringHelpers {
     val idx = in.bits.manager_xact_id
     outs.map(_.bits := in.bits)
     outs.zipWithIndex.map { case (o,i) => o.valid := in.valid && idx === UInt(i) }
-    in.ready := Vec(outs.map(_.ready)).read(idx)
+    in.ready := outs.map(_.ready).apply(idx)
   }
 
   /** Broadcasts valid messages on this channel to all trackers,
@@ -82,10 +83,10 @@ trait HasCoherenceAgentWiringHelpers {
         dataOverrides: Option[Seq[UInt]] = None,
         allocOverride: Option[Bool] = None,
         matchOverride: Option[Bool] = None) {
-    val ready_bits = Vec(outs.map(_.ready)).toBits
-    val can_alloc_bits = Vec(allocs.map(_.can)).toBits
+    val ready_bits = outs.map(_.ready).asUInt
+    val can_alloc_bits = allocs.map(_.can).asUInt
     val should_alloc_bits = PriorityEncoderOH(can_alloc_bits)
-    val match_bits = Vec(allocs.map(_.matches)).toBits
+    val match_bits = allocs.map(_.matches).asUInt
     val no_matches = !match_bits.orR
     val alloc_ok = allocOverride.getOrElse(Bool(true))
     val match_ok = matchOverride.getOrElse(Bool(true))

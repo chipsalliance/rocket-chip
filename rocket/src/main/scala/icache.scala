@@ -49,7 +49,7 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
 
   val s1_valid = Reg(init=Bool(false))
   val s1_vaddr = Reg(UInt())
-  val s1_paddr = Cat(io.s1_ppn, s1_vaddr(pgIdxBits-1,0)).toUInt
+  val s1_paddr = Cat(io.s1_ppn, s1_vaddr(pgIdxBits-1,0))
   val s1_tag = s1_paddr(tagBits+untagBits-1,untagBits)
 
   val s0_valid = io.req.valid || s1_valid && stall
@@ -81,7 +81,7 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
   val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = entagbits)))
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   when (refill_done) {
-    val tag = code.encode(refill_tag).toUInt
+    val tag = code.encode(refill_tag)
     tag_array.write(s1_idx, Vec.fill(nWays)(tag), Vec.tabulate(nWays)(repl_way === _))
   }
 
@@ -115,7 +115,7 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
     val data_array = SeqMem(nSets * refillCycles, Bits(width = code.width(rowBits)))
     val wen = narrow_grant.valid && repl_way === UInt(i)
     when (wen) {
-      val e_d = code.encode(narrow_grant.bits.data).toUInt
+      val e_d = code.encode(narrow_grant.bits.data)
       data_array.write((s1_idx << log2Ceil(refillCycles)) | refill_cnt, e_d)
     }
     val s0_raddr = s0_vaddr(untagBits-1,blockOffBits-log2Ceil(refillCycles))

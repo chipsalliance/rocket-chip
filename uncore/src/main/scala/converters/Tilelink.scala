@@ -263,8 +263,8 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
     client_xact_id = put_id,
     addr_block = put_block,
     addr_beat = put_beat,
-    data = put_data.toBits,
-    wmask = Some(put_wmask.toBits))(outerConfig)
+    data = put_data.asUInt,
+    wmask = Some(put_wmask.asUInt))(outerConfig)
 
   io.out.acquire.valid := sending_put || (!shrink && io.in.acquire.valid)
   io.out.acquire.bits := MuxCase(get_block_acquire, Seq(
@@ -505,7 +505,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
     client_xact_id = gnt_client_id,
     manager_xact_id = gnt_manager_id,
     addr_beat = ignt_ctr.value,
-    data = gnt_data_buffer.toBits)(innerConfig)
+    data = gnt_data_buffer.asUInt)(innerConfig)
 
   val smallget_grant = ognt.g_type === Grant.getDataBeatType
 

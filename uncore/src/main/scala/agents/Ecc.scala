@@ -3,6 +3,7 @@
 package uncore.agents
 
 import Chisel._
+import uncore.Util._
 
 abstract class Decoding
 {
@@ -63,24 +64,23 @@ class SECCode extends Code
       } else
         x(mapping(i))
     }
-    Vec(y).toBits
+    y.asUInt
   }
   def decode(y: UInt) = new Decoding {
     val n = y.getWidth
     require(n > 0 && !isPow2(n))
 
     val p2 = for (i <- 0 until log2Up(n)) yield 1 << i
-    val syndrome = p2 map { i =>
+    val syndrome = (p2 map { i =>
       val r = for (j <- 1 to n; if (j & i) != 0)
         yield y(j-1)
       r reduce (_^_)
-    }
-    val s = Vec(syndrome).toBits
+    }).asUInt
 
-    private def swizzle(z: UInt) = Vec((1 to n).filter(i => !isPow2(i)).map(i => z(i-1))).toBits
+    private def swizzle(z: UInt) = (1 to n).filter(i => !isPow2(i)).map(i => z(i-1)).asUInt
     def uncorrected = swizzle(y)
-    def corrected = swizzle(((y.toUInt << 1) ^ UIntToOH(s)) >> 1)
-    def correctable = s.orR
+    def corrected = swizzle(((y << 1) ^ UIntToOH(syndrome)) >> 1)
+    def correctable = syndrome.orR
     def uncorrectable = Bool(false)
   }
   private def mapping(i: Int) = i-1-log2Up(i)

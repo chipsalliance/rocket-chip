@@ -21,8 +21,8 @@ class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
   val hold = Reg(init=UInt(divisor_max/4-1))
   val h_shadow = Reg(init=UInt(divisor_max/4-1))
   when (io.set_divisor.valid) {
-    d_shadow := io.set_divisor.bits(log2Up(divisor_max)-1, 0).toUInt
-    h_shadow := io.set_divisor.bits(log2Up(divisor_max)-1+16, 16).toUInt
+    d_shadow := io.set_divisor.bits(log2Up(divisor_max)-1, 0)
+    h_shadow := io.set_divisor.bits(log2Up(divisor_max)-1+16, 16)
   }
   io.divisor := (hold << 16) | divisor
 
