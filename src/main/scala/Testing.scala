@@ -41,7 +41,7 @@ class BenchmarkTestSuite(makePrefix: String, val dir: String, val names: LinkedH
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$n.riscv").mkString(" \\\n") + postScript
 }
 
-object TestGeneration extends FileSystemUtilities{
+object TestGeneration {
   import scala.collection.mutable.HashMap
   val asmSuites = new LinkedHashMap[String,AssemblyTestSuite]()
   val bmarkSuites = new  HashMap[String,BenchmarkTestSuite]()
@@ -90,6 +90,9 @@ run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets)
       ).mkString("\n"))
     f.close
   }
+
+  def createOutputFile(name: String) =
+    new java.io.FileWriter(s"${Driver.targetDir}/$name")
 }
 
 object DefaultTestSuites {
@@ -170,7 +173,7 @@ object DefaultTestSuites {
          "cm","cs","cv","cy","dc","df","dm","do","dr","ds","du","dv").map(_+"_matmul")): _*))
 }
 
-object TestGenerator extends App with FileSystemUtilities {
+object TestGenerator extends App {
   val projectName = args(0)
   val topModuleName = args(1)
   val configClassName = args(2)
@@ -199,16 +202,16 @@ object TestGenerator extends App with FileSystemUtilities {
   TestBenchGeneration.generateCPPFragment(
     topModuleName, configClassName, paramsFromConfig)
 
-  val pdFile = createOutputFile(s"$topModuleName.$configClassName.prm")
+  val pdFile = TestGeneration.createOutputFile(s"$topModuleName.$configClassName.prm")
   pdFile.write(ParameterDump.getDump)
   pdFile.close
-  val v = createOutputFile(configClassName + ".knb")
+  val v = TestGeneration.createOutputFile(configClassName + ".knb")
   v.write(world.getKnobs)
   v.close
   val d = new java.io.FileOutputStream(Driver.targetDir + "/" + configClassName + ".cfg")
   d.write(paramsFromConfig(ConfigString))
   d.close
-  val w = createOutputFile(configClassName + ".cst")
+  val w = TestGeneration.createOutputFile(configClassName + ".cst")
   w.write(world.getConstraints)
   w.close
 }
