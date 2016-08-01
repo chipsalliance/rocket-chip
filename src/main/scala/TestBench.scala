@@ -6,7 +6,7 @@ import Chisel._
 import cde.Parameters
 import uncore.devices.{DbBusConsts, DMKey}
 
-object TestBenchGeneration extends FileSystemUtilities {
+object TestBenchGeneration {
   def generateVerilogFragment(
       topModuleName: String, configClassName: String, p: Parameters) = {
     val nMemChannel = p(NMemoryChannels)
@@ -298,7 +298,7 @@ object TestBenchGeneration extends FileSystemUtilities {
   end
 """ } mkString
 
-    val f = createOutputFile(s"$topModuleName.$configClassName.tb.vfrag")
+    val f = TestGeneration.createOutputFile(s"$topModuleName.$configClassName.tb.vfrag")
     f.write(debugDefs + nasti_defs + nasti_delays + instantiation + ticks)
     f.close
   }
@@ -391,7 +391,7 @@ object TestBenchGeneration extends FileSystemUtilities {
 #endif
 """ } mkString
 
-    val f = createOutputFile(s"$topModuleName.$configClassName.tb.cpp")
+    val f = TestGeneration.createOutputFile(s"$topModuleName.$configClassName.tb.cpp")
     f.write(assigns)
     f.write(interrupts)
     f.close

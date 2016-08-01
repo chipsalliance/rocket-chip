@@ -66,8 +66,8 @@ class MemSerdes(w: Int)(implicit p: Parameters) extends MIFModule
     val wide = new MemIO().flip
     val narrow = new MemSerializedIO(w)
   }
-  val abits = io.wide.req_cmd.bits.toBits.getWidth
-  val dbits = io.wide.req_data.bits.toBits.getWidth
+  val abits = io.wide.req_cmd.bits.asUInt.getWidth
+  val dbits = io.wide.req_data.bits.asUInt.getWidth
   val rbits = io.wide.resp.bits.getWidth
 
   val out_buf = Reg(Bits())
@@ -85,10 +85,10 @@ class MemSerdes(w: Int)(implicit p: Parameters) extends MIFModule
     out_buf := out_buf >> UInt(w)
   }
   when (io.wide.req_cmd.valid && io.wide.req_cmd.ready) {
-    out_buf := io.wide.req_cmd.bits.toBits
+    out_buf := io.wide.req_cmd.bits.asUInt
   }
   when (io.wide.req_data.valid && io.wide.req_data.ready) {
-    out_buf := io.wide.req_data.bits.toBits
+    out_buf := io.wide.req_data.bits.asUInt
   }
 
   io.wide.req_cmd.ready := state === s_idle
@@ -143,8 +143,8 @@ class MemDesserIO(w: Int)(implicit p: Parameters) extends ParameterizedBundle()(
 class MemDesser(w: Int)(implicit p: Parameters) extends Module // test rig side
 {
   val io = new MemDesserIO(w)
-  val abits = io.wide.req_cmd.bits.toBits.getWidth
-  val dbits = io.wide.req_data.bits.toBits.getWidth
+  val abits = io.wide.req_cmd.bits.asUInt.getWidth
+  val dbits = io.wide.req_data.bits.asUInt.getWidth
   val rbits = io.wide.resp.bits.getWidth
   val mifDataBeats = p(MIFDataBeats)
 
@@ -203,7 +203,7 @@ class MemDesser(w: Int)(implicit p: Parameters) extends Module // test rig side
   dataq.io.deq.ready := recv_cnt === UInt((rbits-1)/w)
 
   io.narrow.resp.valid := dataq.io.deq.valid
-  io.narrow.resp.bits := dataq.io.deq.bits.toBits >> (recv_cnt * UInt(w))
+  io.narrow.resp.bits := dataq.io.deq.bits.asUInt >> (recv_cnt * UInt(w))
 }
 
 class MemIOArbiter(val arbN: Int)(implicit p: Parameters) extends MIFModule {
@@ -239,7 +239,7 @@ class MemIOArbiter(val arbN: Int)(implicit p: Parameters) extends MIFModule {
     io.outer.resp.ready := Bool(false)
     for (i <- 0 until arbN) {
       io.inner(i).resp.valid := Bool(false)
-      when(io.outer.resp.bits.tag(log2Up(arbN)-1,0).toUInt === UInt(i)) {
+      when(io.outer.resp.bits.tag(log2Up(arbN)-1,0) === UInt(i)) {
         io.inner(i).resp.valid := io.outer.resp.valid
         io.outer.resp.ready := io.inner(i).resp.ready
       }

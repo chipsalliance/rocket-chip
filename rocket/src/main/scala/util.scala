@@ -41,14 +41,14 @@ object Util {
       }
     }
 
-    def toBits(): UInt = Cat(x.map(_.toBits).reverse)
+    def asUInt(): UInt = Cat(x.map(_.asUInt).reverse)
   }
 
-  def minUInt(values: Seq[UInt]): UInt =
-    values.reduce((a, b) => Mux(a < b, a, b))
+  implicit class UIntIsOneOf(val x: UInt) extends AnyVal {
+    def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).reduce(_||_)
 
-  def minUInt(first: UInt, rest: UInt*): UInt =
-    minUInt(first +: rest.toSeq)
+    def isOneOf(u1: UInt, u2: UInt*): Bool = isOneOf(u1 +: u2.toSeq)
+  }
 }
 
 import Util._
@@ -167,7 +167,7 @@ object Random
   def apply(mod: Int): UInt = apply(mod, randomizer)
   def oneHot(mod: Int, random: UInt): UInt = {
     if (isPow2(mod)) UIntToOH(random(log2Up(mod)-1,0))
-    else PriorityEncoderOH(partition(apply(1 << log2Up(mod*8), random), mod)).toBits
+    else PriorityEncoderOH(partition(apply(1 << log2Up(mod*8), random), mod)).asUInt
   }
   def oneHot(mod: Int): UInt = oneHot(mod, randomizer)
 

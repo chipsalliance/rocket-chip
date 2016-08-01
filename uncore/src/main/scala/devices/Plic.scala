@@ -154,7 +154,7 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
     val word =
       if (tlDataBytes >= pending.size) UInt(0)
       else addr(log2Up(pending.size)-1,log2Up(tlDataBytes))
-    rdata := pending.toBits >> (word * tlDataBits)
+    rdata := pending.asUInt >> (word * tlDataBits)
   }.otherwise {
     val regsPerBeat = tlDataBytes >> log2Up(cfg.priorityBytes)
     val word =

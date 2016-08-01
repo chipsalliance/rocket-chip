@@ -7,7 +7,7 @@ import uncore.tilelink._
 import uncore.agents._
 import uncore.coherence._
 
-object UncoreBuilder extends App with FileSystemUtilities {
+object UncoreBuilder extends App {
   val topModuleName = args(0)
   val configClassName = args(1)
   val config = try {
@@ -28,7 +28,7 @@ object UncoreBuilder extends App with FileSystemUtilities {
 
   chiselMain.run(args.drop(2), gen)
 
-  val pdFile = createOutputFile(s"$topModuleName.prm")
+  val pdFile = new java.io.FileWriter(s"${Driver.targetDir}/$topModuleName.prm")
   pdFile.write(ParameterDump.getDump)
   pdFile.close
 

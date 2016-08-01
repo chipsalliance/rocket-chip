@@ -224,14 +224,11 @@ case class DebugModuleConfig (
 
   val hasHaltSum = (nComponents > 64) || (nSerialPorts > 0)
 
-  val hasDebugRom = debugRomContents match{
-    case Some(_) => true
-    case None => false
-  }
+  val hasDebugRom = debugRomContents.nonEmpty
 
   if (hasDebugRom) {
-    require (debugRomContents.size > 0)
-    require (debugRomContents.size <= 512)
+    require (debugRomContents.get.size > 0)
+    require (debugRomContents.get.size <= 512)
   }
 
   require (nNDResetCycles > 0)
@@ -647,15 +644,15 @@ class DebugModule ()(implicit val p:cde.Parameters)
 
   sbRamRdData := ramRdData
 
-  ramWrMask := Mux(sbRamWrEn, sbWrMask, dbRamWrMask.toBits())
+  ramWrMask := Mux(sbRamWrEn, sbWrMask, dbRamWrMask.asUInt)
 
   assert (!((dbRamWrEn | dbRamRdEn) & (sbRamRdEn | sbRamWrEn)), "Stall logic should have prevented concurrent SB/DB RAM Access")
 
   // Make copies of DB RAM data before writing.
   val dbRamWrDataVec = Fill(1 << (dbRamAddrWidth - ramAddrWidth), dbRamWrData)
   ramWrData := Mux(sbRamWrEn,
-    (ramWrMask & sbRamWrData          ) | (~ramWrMask & ramRdData),
-    (ramWrMask & dbRamWrDataVec.toBits) | (~ramWrMask & ramRdData))
+    (ramWrMask & sbRamWrData   ) | (~ramWrMask & ramRdData),
+    (ramWrMask & dbRamWrDataVec) | (~ramWrMask & ramRdData))
 
   ramAddr   := Mux(sbRamWrEn | sbRamRdEn, sbRamAddr,
     dbRamAddr >> (dbRamAddrWidth - ramAddrWidth))
@@ -700,7 +697,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
     // haltnot   handled in other logic
     if (cfg.hasBusMaster){
       // buserror is set 'until 0 is written to any bit in this field'. 
-      CONTROLReg.buserror      := Mux((CONTROLWrData.buserror === SInt(-1).toBits), CONTROLReg.buserror, UInt(0))
+      CONTROLReg.buserror      := Mux(CONTROLWrData.buserror.andR, CONTROLReg.buserror, UInt(0))
       CONTROLReg.autoincrement := CONTROLWrData.autoincrement
       CONTROLReg.access        := CONTROLWrData.access
     }
@@ -743,15 +740,15 @@ class DebugModule ()(implicit val p:cde.Parameters)
 
   dbRamRdEn := Bool(false)
   when ((dbReq.addr >> 4) === Bits(0)) {       // 0x00 - 0x0F Debug RAM
-    dbRdData  := RAMRdData.toBits()
+    dbRdData  := RAMRdData.asUInt
     dbRamRdEn := dbRdEn
   }.elsewhen (dbReq.addr === DMCONTROL) {
-    dbRdData := CONTROLRdData.toBits()
+    dbRdData := CONTROLRdData.asUInt
   }.elsewhen (dbReq.addr === DMINFO) {
-    dbRdData := DMINFORdData.toBits()
+    dbRdData := DMINFORdData.asUInt
   }.elsewhen (dbReq.addr === HALTSUM) {
     if (cfg.hasHaltSum){
-      dbRdData := HALTSUMRdData.toBits()
+      dbRdData := HALTSUMRdData.asUInt
     } else {
       dbRdData := UInt(0)
     }

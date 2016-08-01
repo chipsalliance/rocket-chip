@@ -34,7 +34,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       val data = Vec.tabulate(rowBytes)(i => io.req.bits.wdata(8*(i+1)-1, 8*i))
       array.write(addr, data, io.req.bits.wmask.toBools)
     }
-    io.resp(w) := array.read(addr, valid && !io.req.bits.write).toBits
+    io.resp(w) := array.read(addr, valid && !io.req.bits.write).asUInt
   }
 }
 
@@ -116,9 +116,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val s1_paddr = Cat(tlb.io.resp.ppn, s1_req.addr(pgIdxBits-1,0))
   val s1_tag = Mux(s1_probe, probe_bits.addr_block >> idxBits, s1_paddr(paddrBits-1, untagBits))
-  val s1_hit_way = meta.io.resp.map(r => r.coh.isValid() && r.tag === s1_tag).toBits
+  val s1_hit_way = meta.io.resp.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
   val s1_hit_state = ClientMetadata.onReset.fromBits(
-    meta.io.resp.map(r => Mux(r.tag === s1_tag, r.coh.toBits, UInt(0)))
+    meta.io.resp.map(r => Mux(r.tag === s1_tag, r.coh.asUInt, UInt(0)))
     .reduce (_|_))
   val s1_data_way = Mux(inWriteback, releaseWay, s1_hit_way)
   val s1_data = Mux1H(s1_data_way, data.io.resp) // retime into s2 if critical
@@ -155,8 +155,10 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s2_victim_state = Mux(s2_hit_state.isValid() && !s2_flush_valid, s2_hit_state, RegEnable(meta.io.resp(s1_victim_way).coh, s1_valid_not_nacked || s1_flush_valid))
   val s2_victim_valid = s2_victim_state.isValid()
   val s2_victim_dirty = s2_victim_state.requiresVoluntaryWriteback()
+  val s2_new_hit_state = s2_hit_state.onHit(s2_req.cmd)
+  val s2_update_meta = s2_hit_state =/= s2_new_hit_state
   io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && io.mem.acquire.ready)
-  when (s2_valid && !s2_valid_hit) { s1_nack := true }
+  when (s2_valid && (!s2_valid_hit || s2_update_meta)) { s1_nack := true }
 
   // exceptions
   val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).misaligned
@@ -226,8 +228,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
      (pstore2_valid && pstore2_addr(idxMSB, wordOffBits) === s1_idx))
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
-  val s2_new_hit_state = s2_hit_state.onHit(s2_req.cmd)
-  metaWriteArb.io.in(0).valid := (s2_valid_hit && s2_hit_state =/= s2_new_hit_state) || (s2_victimize && !s2_victim_dirty)
+  metaWriteArb.io.in(0).valid := (s2_valid_hit && s2_update_meta) || (s2_victimize && !s2_victim_dirty)
   metaWriteArb.io.in(0).bits.way_en := s2_victim_way
   metaWriteArb.io.in(0).bits.idx := s2_req.addr(idxMSB, idxLSB)
   metaWriteArb.io.in(0).bits.data.coh := Mux(s2_hit, s2_new_hit_state, ClientMetadata.onReset)

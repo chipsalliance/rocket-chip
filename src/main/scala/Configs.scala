@@ -186,7 +186,7 @@ class BaseConfig extends Config (
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
       //Rocket Core Constants
-      case FetchWidth => 1
+      case FetchWidth => if (site(UseCompressed)) 2 else 1
       case RetireWidth => 1
       case UseVM => true
       case UseUser => true
@@ -216,6 +216,11 @@ class BaseConfig extends Config (
         TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64ua else rv32ua))
         true
       }
+      case UseCompressed => {
+        val env = if(site(UseVM)) List("p","v") else List("p")
+        TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64uc else rv32uc))
+        true
+      }
       case NExtInterrupts => 2
       case AsyncMMIOChannels => false
       case ExtMMIOPorts => AddrMap()
@@ -234,7 +239,7 @@ class BaseConfig extends Config (
       case FDivSqrt => true
       case SFMALatency => 2
       case DFMALatency => 3
-      case CoreInstBits => 32
+      case CoreInstBits => if (site(UseCompressed)) 16 else 32
       case CoreDataBits => site(XLen)
       case NCustomMRWCSRs => 0
       case ResetVector => BigInt(0x1000)

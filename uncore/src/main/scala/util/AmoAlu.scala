@@ -36,7 +36,7 @@ class StoreGenAligned(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) extends St
 
 class LoadGen(typ: UInt, addr: UInt, dat: UInt, zero: Bool, maxSize: Int) {
   private val t = new StoreGen(typ, addr, dat, maxSize)
-  private val signed = typ.toSInt >= SInt(0)
+  private val signed = typ.asSInt >= SInt(0)
 
   private def genData(logMinSize: Int): UInt = {
     var res = dat
@@ -82,7 +82,7 @@ class AMOALU(rhsIsAligned: Boolean = false)(implicit p: Parameters) extends Modu
     if (operandBits == 32) io.lhs + rhs
     else {
       val mask = ~UInt(0,64) ^ (io.addr(2) << 31)
-      (io.lhs & mask).toUInt + (rhs & mask)
+      (io.lhs & mask) + (rhs & mask)
     }
 
   val less =

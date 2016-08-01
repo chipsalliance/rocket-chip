@@ -56,7 +56,7 @@ import cde.{Parameters, Field}
 //     (This is a way to generate a wider range of addresses without having
 //     to repeatedly recompile with a different address bag.)
 
-case object AddressBag extends Field[List[Int]]
+case object AddressBag extends Field[List[BigInt]]
 
 trait HasTraceGenParams {
   implicit val p: Parameters
@@ -480,7 +480,7 @@ class TraceGenerator(id: Int)
 
   // Wire up interface to memory
   io.mem.req.valid     := reqValid
-  io.mem.req.bits.addr := reqAddr + UInt(baseAddr)
+  io.mem.req.bits.addr := reqAddr
   io.mem.req.bits.data := reqData
   io.mem.req.bits.typ  := MT_D
   io.mem.req.bits.cmd  := reqCmd

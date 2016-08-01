@@ -5,6 +5,7 @@ import cde.{Parameters, Field}
 import junctions._
 import junctions.NastiConstants._
 import uncore.tilelink._
+import uncore.Util._
 
 case object NDmaTransactors extends Field[Int]
 case object NDmaXacts extends Field[Int]
@@ -104,7 +105,7 @@ class DmaManager(outstandingCSR: Int)(implicit p: Parameters)
   val ctrl_regs = Reg(Vec(nCtrlWords, UInt(width = nastiXDataBits)))
   val ctrl_idx = Reg(UInt(width = log2Up(nCtrlWords)))
   val ctrl_done = Reg(Bool())
-  val ctrl_blob = ctrl_regs.toBits
+  val ctrl_blob = ctrl_regs.asUInt
   val ctrl_id = Reg(UInt(width = nastiXIdBits))
 
   val sizeOffset = 3 * addrBits
@@ -228,7 +229,7 @@ class DmaTrackerFile(implicit p: Parameters) extends DmaModule()(p) {
   }
 
   val trackers = List.fill(nDmaTransactors) { Module(new DmaTracker) }
-  val reqReadys = Vec(trackers.map(_.io.dma.req.ready)).toBits
+  val reqReadys = trackers.map(_.io.dma.req.ready).asUInt
 
   io.mem <> trackers.map(_.io.mem)
   io.mmio <> trackers.map(_.io.mmio)
@@ -305,10 +306,10 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
   val (put_beat, put_done) = Counter(
     io.mem.acquire.fire() && acq.hasData(), tlDataBeats)
 
-  val put_mask = Vec.tabulate(tlDataBytes) { i =>
+  val put_mask = Seq.tabulate(tlDataBytes) { i =>
     val byte_index = Cat(put_beat, UInt(i, tlByteAddrBits))
     byte_index >= offset && byte_index < bytes_left
-  }.toBits
+  }.asUInt
 
   val prefetch_sent = io.mem.acquire.fire() && io.mem.acquire.bits.isPrefetch()
   val prefetch_busy = Reg(init = UInt(0, tlMaxClientXacts))
@@ -324,14 +325,14 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
     (value >> sel)(0)
 
   when (alignment === UInt(0)) {
-    put_data := data_buffer.read(base_index)
+    put_data := data_buffer(base_index)
   } .elsewhen (shift_dir) {
     val shift_index = base_index - beat_align
     when (bit_align === UInt(0)) {
-      put_data := data_buffer.read(shift_index)
+      put_data := data_buffer(shift_index)
     } .otherwise {
-      val upper_bits = data_buffer.read(shift_index)
-      val lower_bits = data_buffer.read(shift_index - UInt(1))
+      val upper_bits = data_buffer(shift_index)
+      val lower_bits = data_buffer(shift_index - UInt(1))
       val upper_shifted = upper_bits << bit_align
       val lower_shifted = lower_bits >> rev_align
       put_data := upper_shifted | lower_shifted
@@ -339,10 +340,10 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
   } .otherwise {
     val shift_index = base_index + beat_align
     when (bit_align === UInt(0)) {
-      put_data := data_buffer.read(shift_index)
+      put_data := data_buffer(shift_index)
     } .otherwise {
-      val upper_bits = data_buffer.read(shift_index + UInt(1))
-      val lower_bits = data_buffer.read(shift_index)
+      val upper_bits = data_buffer(shift_index + UInt(1))
+      val lower_bits = data_buffer(shift_index)
       val upper_shifted = upper_bits << rev_align
       val lower_shifted = lower_bits >> bit_align
       put_data := upper_shifted | lower_shifted
@@ -502,7 +503,7 @@ class DmaTracker(implicit p: Parameters) extends DmaModule()(p)
       val write_half = gnt.client_xact_id(0)
       val write_idx = Cat(write_half, gnt.addr_beat)
       get_inflight := get_inflight & ~UIntToOH(write_idx)
-      data_buffer.write(write_idx, gnt.data)
+      data_buffer(write_idx) := gnt.data
     } .otherwise {
       put_inflight := Bool(false)
     }

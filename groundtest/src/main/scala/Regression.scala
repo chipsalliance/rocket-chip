@@ -558,6 +558,129 @@ class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p
   io.errored := Bool(false)
 }
 
+/**
+ * Make sure that multiple gets to the same line and beat are merged
+ * correctly, even if it is a cache miss.
+ */
+class MergedGetRegression(implicit p: Parameters) extends Regression()(p) {
+  disableCache()
+
+  val l2params = p.alterPartial({ case CacheName => "L2Bank" })
+  val nSets = l2params(NSets)
+  val nWays = l2params(NWays)
+
+  val (s_idle :: s_put :: s_get :: s_done :: Nil) = Enum(Bits(), 4)
+  val state = Reg(init = s_idle)
+
+  // Write NWays + 1 different conflicting lines to force an eviction of the first line
+  val (put_acq_cnt, put_acq_done) = Counter(state === s_put && io.mem.acquire.fire(), nWays + 1)
+  val (put_gnt_cnt, put_gnt_done) = Counter(state === s_put && io.mem.grant.fire(), nWays + 1)
+  val put_addr = UInt(memStartBlock) + Cat(put_acq_cnt, UInt(0, log2Up(nSets)))
+
+  val (get_acq_cnt, get_acq_done) = Counter(state === s_get && io.mem.acquire.fire(), 2)
+  val (get_gnt_cnt, get_gnt_done) = Counter(state === s_get && io.mem.grant.fire(), 2)
+  val sending = Reg(init = Bool(false))
+
+  when (state === s_idle && io.start) { state := s_put; sending := Bool(true) }
+  when (state === s_put) {
+    when (io.mem.acquire.fire()) { sending := Bool(false) }
+    when (io.mem.grant.fire()) { sending := Bool(true) }
+    when (put_gnt_done) { state := s_get }
+  }
+  when (state === s_get) {
+    when (get_acq_done) { sending := Bool(false) }
+    when (get_gnt_done) { state := s_done }
+  }
+
+  io.mem.acquire.valid := sending
+  io.mem.acquire.bits := Mux(state === s_put,
+    Put(
+      client_xact_id = UInt(0),
+      addr_block = put_addr,
+      addr_beat = UInt(3),
+      data = UInt("hdabb9321")),
+    Get(
+      client_xact_id = get_acq_cnt,
+      addr_block = UInt(memStartBlock),
+      addr_beat = UInt(3)))
+  io.mem.grant.ready := !sending
+
+  val data_mismatch = io.mem.grant.valid && io.mem.grant.bits.hasData() &&
+                      io.mem.grant.bits.data =/= UInt("hdabb9321")
+  assert(!data_mismatch, "RepeatedGetRegression: wrong data back")
+
+  io.finished := state === s_done
+  io.errored := data_mismatch
+}
+
+/**
+ * Make sure that multiple puts to the same line and beat are merged
+ * correctly, even if there is a release from the L1
+ */
+class MergedPutRegression(implicit p: Parameters) extends Regression()(p)
+    with HasTileLinkParameters {
+  val (s_idle :: s_cache_req :: s_cache_wait ::
+       s_put :: s_get :: s_done :: Nil) = Enum(Bits(), 6)
+  val state = Reg(init = s_idle)
+
+  io.cache.req.valid := (state === s_cache_req)
+  io.cache.req.bits.cmd := M_XWR
+  io.cache.req.bits.typ := MT_D
+  io.cache.req.bits.addr := UInt(memStart)
+  io.cache.req.bits.data := UInt(1)
+  io.cache.req.bits.tag := UInt(0)
+
+  val sending = Reg(init = Bool(false))
+  val delaying = Reg(init = Bool(false))
+  val (put_cnt, put_done) = Counter(io.mem.acquire.fire(), tlMaxClientXacts)
+  val (delay_cnt, delay_done) = Counter(delaying, 8)
+  val put_acked = Reg(UInt(width = 3), init = UInt(0))
+
+  io.mem.acquire.valid := sending && !delaying
+  io.mem.acquire.bits := Mux(state === s_put,
+    Put(
+      client_xact_id = put_cnt,
+      addr_block = UInt(memStartBlock),
+      addr_beat = UInt(0),
+      data = put_cnt + UInt(2)),
+    Get(
+      client_xact_id = UInt(0),
+      addr_block = UInt(memStartBlock),
+      addr_beat = UInt(0)))
+  io.mem.grant.ready := Bool(true)
+
+  when (state === s_idle && io.start) { state := s_cache_req }
+  when (io.cache.req.fire()) { state := s_cache_wait }
+  when (io.cache.resp.valid) { state := s_put; sending := Bool(true) }
+
+  when (io.mem.acquire.fire()) {
+    delaying := Bool(true)
+    when (put_done || state === s_get) { sending := Bool(false) }
+  }
+  when (delay_done) { delaying := Bool(false) }
+
+  when (io.mem.grant.fire()) {
+    when (state === s_put) {
+      put_acked := put_acked | UIntToOH(io.mem.grant.bits.client_xact_id)
+    }
+    when (state === s_get) { state := s_done }
+  }
+
+  when (state === s_put && put_acked.andR) {
+    state := s_get
+    sending := Bool(true)
+  }
+
+  val expected_data = UInt(2 + tlMaxClientXacts - 1)
+  val data_mismatch = io.mem.grant.valid && io.mem.grant.bits.hasData() &&
+    io.mem.grant.bits.data =/= expected_data
+
+  assert(!data_mismatch, "MergedPutRegression: data mismatch")
+
+  io.finished := (state === s_done)
+  io.errored := data_mismatch
+}
+
 object RegressionTests {
   def cacheRegressions(implicit p: Parameters) = Seq(
     Module(new PutBlockMergeRegression),
@@ -569,7 +692,9 @@ object RegressionTests {
     Module(new WritebackRegression),
     Module(new PutBeforePutBlockRegression),
     Module(new MixedAllocPutRegression),
-    Module(new ReleaseRegression))
+    Module(new ReleaseRegression),
+    Module(new MergedGetRegression),
+    Module(new MergedPutRegression))
   def broadcastRegressions(implicit p: Parameters) = Seq(
     Module(new IOGetAfterPutBlockRegression),
     Module(new WriteMaskedPutBlockRegression),

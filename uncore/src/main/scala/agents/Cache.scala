@@ -151,9 +151,9 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
   val rst_cnt = Reg(init=UInt(0, log2Up(nSets+1)))
   val rst = rst_cnt < UInt(nSets)
   val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
-  val wdata = Mux(rst, rstVal, io.write.bits.data).toBits
-  val wmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.write.bits.way_en.toSInt).toBools
-  val rmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.read.bits.way_en.toSInt).toBools
+  val wdata = Mux(rst, rstVal, io.write.bits.data).asUInt
+  val wmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.write.bits.way_en.asSInt).toBools
+  val rmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.read.bits.way_en.asSInt).toBools
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth
@@ -161,21 +161,18 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
   if (hasSplitMetadata) {
     val tag_arrs = List.fill(nWays){ SeqMem(nSets, UInt(width = metabits)) }
     val tag_readout = Wire(Vec(nWays,rstVal.cloneType))
-    val tags_vec = Wire(Vec(nWays, UInt(width = metabits)))
     (0 until nWays).foreach { (i) =>
       when (rst || (io.write.valid && wmask(i))) {
         tag_arrs(i).write(waddr, wdata)
       }
-      tags_vec(i) := tag_arrs(i).read(io.read.bits.idx, io.read.valid && rmask(i))
+      io.resp(i) := rstVal.fromBits(tag_arrs(i).read(io.read.bits.idx, io.read.valid && rmask(i)))
     }
-    io.resp := io.resp.fromBits(tags_vec.toBits)
   } else {
     val tag_arr = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
     when (rst || io.write.valid) {
       tag_arr.write(waddr, Vec.fill(nWays)(wdata), wmask)
     }
-    val tags = tag_arr.read(io.read.bits.idx, io.read.valid).toBits
-    io.resp := io.resp.fromBits(tags)
+    io.resp := tag_arr.read(io.read.bits.idx, io.read.valid).map(rstVal.fromBits(_))
   }
 
   io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
@@ -329,7 +326,7 @@ class L2MetadataArray(implicit p: Parameters) extends L2HellaCacheModule()(p) {
   val meta = Module(new MetadataArray(onReset _))
   meta.io.read <> io.read
   meta.io.write <> io.write
-  val way_en_1h = (Vec.fill(nWays){Bool(true)}).toBits
+  val way_en_1h = UInt((BigInt(1) << nWays) - 1)
   val s1_way_en_1h = RegEnable(way_en_1h, io.read.valid)
   meta.io.read.bits.way_en := way_en_1h
 
@@ -338,7 +335,7 @@ class L2MetadataArray(implicit p: Parameters) extends L2HellaCacheModule()(p) {
   def wayMap[T <: Data](f: Int => T) = Vec((0 until nWays).map(f))
   val s1_clk_en = Reg(next = io.read.fire())
   val s1_tag_eq_way = wayMap((w: Int) => meta.io.resp(w).tag === s1_tag)
-  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && meta.io.resp(w).coh.outer.isValid() && s1_way_en_1h(w).toBool).toBits
+  val s1_tag_match_way = wayMap((w: Int) => s1_tag_eq_way(w) && meta.io.resp(w).coh.outer.isValid() && s1_way_en_1h(w).toBool).asUInt
   val s1_idx = RegEnable(io.read.bits.idx, io.read.valid) // deal with stalls?
   val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
@@ -445,7 +442,7 @@ class L2DataArray(delay: Int)(implicit p: Parameters) extends L2HellaCacheModule
 
   val r_req = Pipe(io.read.fire(), io.read.bits)
   io.resp := Pipe(r_req.valid, r_req.bits, delay)
-  io.resp.bits.data := Pipe(r_req.valid, array.read(raddr, ren).toBits, delay).bits
+  io.resp.bits.data := Pipe(r_req.valid, array.read(raddr, ren).asUInt, delay).bits
   io.read.ready := !io.write.valid
   io.write.ready := Bool(true)
 }
@@ -612,9 +609,8 @@ trait ReadsFromOuterCacheDataArray extends HasCoherenceMetadataBuffer
                     can_update_pending: Bool = Bool(true)) {
     val port = io.data
     when (can_update_pending) {
-      pending_reads := (pending_reads &
-        dropPendingBit(port.read) & drop_pending_bit) |
-        add_pending_bit
+      pending_reads := (pending_reads | add_pending_bit) &
+        dropPendingBit(port.read) & drop_pending_bit
     }
     port.read.valid := state === s_busy && pending_reads.orR && !block_pending_read
     port.read.bits := L2DataReadReq(
@@ -690,6 +686,7 @@ trait HasAMOALU extends HasAcquireMetadataBuffer
     val wmask = FillInterleaved(8, wmask_buffer(beat))
     data_buffer(beat) := ~wmask & old_data |
                           wmask & Mux(xact_iacq.isAtomic(), amoalu.io.out << amo_shift_bits, new_data)
+    wmask_buffer(beat) := ~UInt(0, innerWriteMaskBits)
     when(xact_iacq.isAtomic() && xact_addr_beat === beat) { amo_result := old_data }
   }
 }
@@ -795,7 +792,7 @@ class CacheVoluntaryReleaseTracker(trackerId: Int)(implicit p: Parameters)
                   xact_old_meta.coh.outer)),
     s_idle)
 
-  when(io.inner.release.fire()) { data_buffer(io.irel().addr_beat) := io.irel().data }
+  mergeDataInner(io.inner.release)
 
   when(irel_is_allocating) {
     pending_writes := addPendingBitWhenBeatHasData(io.inner.release)
@@ -966,7 +963,10 @@ class CacheAcquireTracker(trackerId: Int)(implicit p: Parameters)
   readDataArray(
     drop_pending_bit = (dropPendingBitWhenBeatHasData(io.inner.release) &
                          dropPendingBitWhenBeatHasData(io.outer.grant)),
-    add_pending_bit = addPendingBitWhenBeatNeedsRead(io.inner.acquire, Bool(alwaysWriteFullBeat)),
+    add_pending_bit = addPendingBitWhenBeatNeedsRead(
+      io.inner.acquire,
+      always = Bool(alwaysWriteFullBeat),
+      unless = data_valid(io.iacq().addr_beat)),
     block_pending_read = ognt_counter.pending,
     can_update_pending = state =/= s_idle || io.alloc.irel.should)
 
@@ -1118,7 +1118,6 @@ class L2WritebackUnit(val trackerId: Int)(implicit p: Parameters) extends XactTr
     data = data_buffer(vol_ognt_counter.up.idx),
     add_pending_data_bits = addPendingBitInternal(io.data.resp),
     add_pending_send_bit = io.meta.resp.valid && needs_outer_release)
-
 
   // Respond to the initiating transaction handler signalling completion of the writeback
   io.wb.resp.valid := state === s_busy && all_pending_done

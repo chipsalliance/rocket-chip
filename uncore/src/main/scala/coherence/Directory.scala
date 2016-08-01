@@ -28,7 +28,7 @@ class NullRepresentation(nClients: Int) extends DirectoryRepresentation(1) {
   def one(s: UInt) = Bool(false)
   def count(s: UInt) = UInt(nClients)
   def next(s: UInt) = UInt(0)
-  def full(s: UInt) = SInt(-1, width = nClients).toUInt
+  def full(s: UInt) = SInt(-1, width = nClients).asUInt
 }
 
 class FullRepresentation(nClients: Int) extends DirectoryRepresentation(nClients) {

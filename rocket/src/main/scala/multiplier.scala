@@ -94,10 +94,10 @@ class MulDiv(
   when (state === s_busy && isMul) {
     val mulReg = Cat(remainder(2*mulw+1,w+1),remainder(w-1,0))
     val mplier = mulReg(mulw-1,0)
-    val accum = mulReg(2*mulw,mulw).toSInt
-    val mpcand = divisor.toSInt
+    val accum = mulReg(2*mulw,mulw).asSInt
+    val mpcand = divisor.asSInt
     val prod = mplier(unroll-1,0) * mpcand + accum
-    val nextMulReg = Cat(prod, mplier(mulw-1,unroll)).toUInt
+    val nextMulReg = Cat(prod, mplier(mulw-1,unroll))
 
     val eOutMask = (SInt(BigInt(-1) << mulw) >> (count * unroll)(log2Up(mulw)-1,0))(mulw-1,0)
     val eOut = Bool(earlyOut) && count =/= mulw/unroll-1 && count =/= 0 &&

@@ -139,7 +139,7 @@ class StreamExpander(win: Int, wout: Int) extends Module {
 
   io.in.ready := collecting
   io.out.valid := !collecting
-  io.out.bits.data := buffer.toBits
+  io.out.bits.data := buffer.asUInt
   io.out.bits.last := last
 }
 
@@ -161,7 +161,7 @@ class Serializer[T <: Data with Serializable](w: Int, typ: T) extends Module {
   }
 
   val narrower = Module(new StreamNarrower(typ.nbits, w))
-  narrower.io.in.bits.data := io.in.bits.toBits
+  narrower.io.in.bits.data := io.in.bits.asUInt
   narrower.io.in.bits.last := Bool(true)
   narrower.io.in.valid := io.in.valid
   io.in.ready := narrower.io.in.ready

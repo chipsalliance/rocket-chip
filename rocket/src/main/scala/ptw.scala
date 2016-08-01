@@ -88,8 +88,14 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   arb.io.in <> io.requestor.map(_.req)
   arb.io.out.ready := state === s_ready
 
-  val pte = new PTE().fromBits(io.mem.resp.bits.data)
-  val pte_addr = Cat(r_pte.ppn, vpn_idx).toUInt << log2Up(xLen/8)
+  val pte = {
+    val tmp = new PTE().fromBits(io.mem.resp.bits.data)
+    val res = Wire(init = new PTE().fromBits(io.mem.resp.bits.data))
+    res.ppn := tmp.ppn(ppnBits-1, 0)
+    when ((tmp.ppn >> ppnBits) =/= 0) { res.v := false }
+    res
+  }
+  val pte_addr = Cat(r_pte.ppn, vpn_idx) << log2Up(xLen/8)
 
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
@@ -104,7 +110,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val tags = Reg(Vec(size, UInt(width = paddrBits)))
     val data = Reg(Vec(size, UInt(width = ppnBits)))
 
-    val hits = tags.map(_ === pte_addr).toBits & valid
+    val hits = tags.map(_ === pte_addr).asUInt & valid
     val hit = hits.orR
     when (io.mem.resp.valid && pte.table() && !hit) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
@@ -132,19 +138,15 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.req.bits.cmd  := Mux(state === s_set_dirty, M_XA_OR, M_XRD)
   io.mem.req.bits.typ  := MT_D
   io.mem.req.bits.addr := pte_addr
-  io.mem.s1_data := pte_wdata.toBits
+  io.mem.s1_data := pte_wdata.asUInt
   io.mem.s1_kill := Bool(false)
   io.mem.invalidate_lr := Bool(false)
   
-  val r_resp_ppn = io.mem.req.bits.addr >> pgIdxBits
-  val resp_ppns = (0 until pgLevels-1).map(i => Cat(r_resp_ppn >> pgLevelBits*(pgLevels-i-1), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ r_resp_ppn
-  val resp_ppn = resp_ppns(count)
-  val resp_val = state === s_done
-
+  val resp_ppns = (0 until pgLevels-1).map(i => Cat(pte_addr >> (pgIdxBits + pgLevelBits*(pgLevels-i-1)), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ (pte_addr >> pgIdxBits)
   for (i <- 0 until io.requestor.size) {
-    io.requestor(i).resp.valid := resp_val && (r_req_dest === i)
+    io.requestor(i).resp.valid := state === s_done && (r_req_dest === i)
     io.requestor(i).resp.bits.pte := r_pte
-    io.requestor(i).resp.bits.pte.ppn := resp_ppn
+    io.requestor(i).resp.bits.pte.ppn := resp_ppns(count)
     io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).status := io.dpath.status

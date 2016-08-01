@@ -91,7 +91,7 @@ object CSR
 {
   // commands
   val SZ = 3
-  val X = BitPat.DC(SZ)
+  val X = BitPat.dontCare(SZ)
   val N = UInt(0,SZ)
   val W = UInt(1,SZ)
   val S = UInt(2,SZ)
@@ -164,7 +164,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     del.mtip := false
     del.meip := false
 
-    (sup.toBits, del.toBits)
+    (sup.asUInt, del.asUInt)
   }
   val delegable_exceptions = UInt(Seq(
     Causes.misaligned_fetch,
@@ -214,7 +214,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   val mip = Wire(init=reg_mip)
   mip.rocc := io.rocc.interrupt
-  val read_mip = mip.toBits & supported_interrupts
+  val read_mip = mip.asUInt & supported_interrupts
 
   val pending_interrupts = read_mip & reg_mie
   val m_interrupts = Mux(!reg_debug && (reg_mstatus.prv < PRV.M || (reg_mstatus.prv === PRV.M && reg_mstatus.mie)), pending_interrupts & ~reg_mideleg, UInt(0))
@@ -244,11 +244,11 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     (if (usingRoCC) "X" else "")
   val isa = (BigInt(log2Ceil(xLen) - 4) << (xLen-2)) |
     isa_string.map(x => 1 << (x - 'A')).reduce(_|_)
-  val read_mstatus = io.status.toBits()(xLen-1,0)
+  val read_mstatus = io.status.asUInt()(xLen-1,0)
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
-    CSRs.tdrselect -> reg_tdrselect.toBits,
-    CSRs.tdrdata1 -> reg_bp(reg_tdrselect.tdrindex).control.toBits,
+    CSRs.tdrselect -> reg_tdrselect.asUInt,
+    CSRs.tdrdata1 -> reg_bp(reg_tdrselect.tdrindex).control.asUInt,
     CSRs.tdrdata2 -> reg_bp(reg_tdrselect.tdrindex).address,
     CSRs.mimpid -> UInt(0),
     CSRs.marchid -> UInt(0),
@@ -273,9 +273,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mhartid -> io.prci.id)
 
   if (usingDebug) {
-    read_mapping += CSRs.dcsr -> reg_dcsr.toBits
-    read_mapping += CSRs.dpc -> reg_dpc.toBits
-    read_mapping += CSRs.dscratch -> reg_dscratch.toBits
+    read_mapping += CSRs.dcsr -> reg_dcsr.asUInt
+    read_mapping += CSRs.dpc -> reg_dpc.asUInt
+    read_mapping += CSRs.dscratch -> reg_dscratch.asUInt
   }
 
   if (usingFPU) {
@@ -297,13 +297,13 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     read_sstatus.mie := 0
     read_sstatus.hie := 0
 
-    read_mapping += CSRs.sstatus -> (read_sstatus.toBits())(xLen-1,0)
-    read_mapping += CSRs.sip -> read_sip.toBits
-    read_mapping += CSRs.sie -> read_sie.toBits
+    read_mapping += CSRs.sstatus -> (read_sstatus.asUInt())(xLen-1,0)
+    read_mapping += CSRs.sip -> read_sip.asUInt
+    read_mapping += CSRs.sie -> read_sie.asUInt
     read_mapping += CSRs.sscratch -> reg_sscratch
     read_mapping += CSRs.scause -> reg_scause
     read_mapping += CSRs.sbadaddr -> reg_sbadaddr.sextTo(xLen)
-    read_mapping += CSRs.sptbr -> reg_sptbr.toBits
+    read_mapping += CSRs.sptbr -> reg_sptbr.asUInt
     read_mapping += CSRs.sepc -> reg_sepc.sextTo(xLen)
     read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
     read_mapping += CSRs.mscounteren -> UInt(0)
@@ -397,6 +397,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     val epc = ~(~io.pc | (coreInstBytes-1))
     val pie = read_mstatus(reg_mstatus.prv)
 
+    val write_badaddr = cause isOneOf (Causes.breakpoint,
+      Causes.misaligned_load, Causes.misaligned_store, Causes.misaligned_fetch,
+      Causes.fault_load, Causes.fault_store, Causes.fault_fetch)
+
     when (trapToDebug) {
       reg_debug := true
       reg_dpc := epc
@@ -405,7 +409,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }.elsewhen (delegate) {
       reg_sepc := epc
       reg_scause := cause
-      reg_sbadaddr := io.badaddr
+      when (write_badaddr) { reg_sbadaddr := io.badaddr }
       reg_mstatus.spie := pie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
@@ -413,7 +417,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }.otherwise {
       reg_mepc := epc
       reg_mcause := cause
-      reg_mbadaddr := io.badaddr
+      when (write_badaddr) { reg_mbadaddr := io.badaddr }
       reg_mstatus.mpie := pie
       reg_mstatus.mpp := reg_mstatus.prv
       reg_mstatus.mie := false

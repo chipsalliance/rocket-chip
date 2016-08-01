@@ -41,7 +41,7 @@ class BenchmarkTestSuite(makePrefix: String, val dir: String, val names: LinkedH
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$n.riscv").mkString(" \\\n") + postScript
 }
 
-object TestGeneration extends FileSystemUtilities{
+object TestGeneration {
   import scala.collection.mutable.HashMap
   val asmSuites = new LinkedHashMap[String,AssemblyTestSuite]()
   val bmarkSuites = new  HashMap[String,BenchmarkTestSuite]()
@@ -90,6 +90,9 @@ run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets)
       ).mkString("\n"))
     f.close
   }
+
+  def createOutputFile(name: String) =
+    new java.io.FileWriter(s"${Driver.targetDir}/$name")
 }
 
 object DefaultTestSuites {
@@ -98,6 +101,9 @@ object DefaultTestSuites {
     "jal", "jalr", "lb", "lbu", "lh", "lhu", "lui", "lw", "or", "ori", "sb", "sh", "sw", "sll", "slli",
     "slt", "slti", "sra", "srai", "srl", "srli", "sub", "xor", "xori")
   val rv32ui = new AssemblyTestSuite("rv32ui", rv32uiNames)(_)
+
+  val rv32ucNames = LinkedHashSet("rvc")
+  val rv32uc = new AssemblyTestSuite("rv32uc", rv32ucNames)(_)
 
   val rv32umNames = LinkedHashSet("mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu")
   val rv32um = new AssemblyTestSuite("rv32um", rv32umNames)(_)
@@ -124,6 +130,9 @@ object DefaultTestSuites {
   val rv64uaNames = rv32uaNames.map(_.replaceAll("_w","_d"))
   val rv64ua = new AssemblyTestSuite("rv64ua", rv32uaNames ++ rv64uaNames)(_)
 
+  val rv64ucNames = rv32ucNames
+  val rv64uc = new AssemblyTestSuite("rv64uc", rv64ucNames)(_)
+
   val rv64ufNames = LinkedHashSet("ldst", "move", "fsgnj", "fcmp", "fcvt", "fcvt_w", "fclass", "fadd", "fdiv", "fmin", "fmadd")
   val rv64uf = new AssemblyTestSuite("rv64uf", rv64ufNames)(_)
   val rv64ufNoDiv = new AssemblyTestSuite("rv64uf", rv64ufNames - "fdiv")(_)
@@ -148,10 +157,10 @@ object DefaultTestSuites {
   val rv64i = List(rv64ui, rv64si, rv64mi)
   val rv64pi = List(rv64ui, rv64mi)
 
-  val benchmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
+  val benchmarks = new BenchmarkTestSuite("rvi", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "mt-matmul"))
 
-  val rv32udBenchmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
+  val rv32udBenchmarks = new BenchmarkTestSuite("rvd", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "mm", "spmv", "mt-vvadd"))
 
   val emptyBmarks = new BenchmarkTestSuite("empty",
@@ -164,7 +173,7 @@ object DefaultTestSuites {
          "cm","cs","cv","cy","dc","df","dm","do","dr","ds","du","dv").map(_+"_matmul")): _*))
 }
 
-object TestGenerator extends App with FileSystemUtilities {
+object TestGenerator extends App {
   val projectName = args(0)
   val topModuleName = args(1)
   val configClassName = args(2)
@@ -193,16 +202,16 @@ object TestGenerator extends App with FileSystemUtilities {
   TestBenchGeneration.generateCPPFragment(
     topModuleName, configClassName, paramsFromConfig)
 
-  val pdFile = createOutputFile(s"$topModuleName.$configClassName.prm")
+  val pdFile = TestGeneration.createOutputFile(s"$topModuleName.$configClassName.prm")
   pdFile.write(ParameterDump.getDump)
   pdFile.close
-  val v = createOutputFile(configClassName + ".knb")
+  val v = TestGeneration.createOutputFile(configClassName + ".knb")
   v.write(world.getKnobs)
   v.close
   val d = new java.io.FileOutputStream(Driver.targetDir + "/" + configClassName + ".cfg")
   d.write(paramsFromConfig(ConfigString))
   d.close
-  val w = createOutputFile(configClassName + ".cst")
+  val w = TestGeneration.createOutputFile(configClassName + ".cst")
   w.write(world.getConstraints)
   w.close
 }
