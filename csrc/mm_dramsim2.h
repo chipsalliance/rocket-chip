@@ -9,26 +9,6 @@
 #include <queue>
 #include <stdint.h>
 
-struct mm_req_t {
-  uint64_t id;
-  uint64_t len;
-  uint64_t addr;
-
-  mm_req_t(uint64_t id, uint64_t len, uint64_t addr)
-  {
-    this->id = id;
-    this->len = len;
-    this->addr = addr;
-  }
-
-  mm_req_t()
-  {
-    this->id = 0;
-    this->len = 0;
-    this->addr = 0;
-  }
-};
-
 class mm_dramsim2_t : public mm_t
 {
  public:
@@ -85,7 +65,7 @@ class mm_dramsim2_t : public mm_t
   std::queue<uint64_t> bresp;
   std::map<uint64_t, std::queue<uint64_t> > wreq;
 
-  std::map<uint64_t, std::queue<mm_req_t> > rreq;
+  std::map<uint64_t, std::queue<mm_rresp_t> > rreq;
   std::queue<mm_rresp_t> rresp;
 
   void read_complete(unsigned id, uint64_t address, uint64_t clock_cycle);

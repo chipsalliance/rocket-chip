@@ -8,10 +8,12 @@ import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
 import uncore.devices._
+import uncore.converters._
 import rocket._
 import rocket.Util._
 import groundtest._
 import scala.math.max
+import scala.collection.mutable.ListBuffer
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
@@ -36,20 +38,14 @@ class BaseConfig extends Config (
     }
     lazy val globalAddrMap = {
       val memBase = 0x80000000L
-      val memSize = 0x80000000L
-      val extIOBase = 0x60000000L
-      val extIOSize = 0x20000000L
-      val io = AddrMap(
-        AddrMapEntry("int", internalIOAddrMap),
-        AddrMapEntry("ext", MemRange(extIOBase, extIOSize, MemAttr(AddrMapProt.RWX))))
+      val memSize = 0x10000000L
+      val io = new AddrMap(AddrMapEntry("int", internalIOAddrMap) +: site(ExtMMIOPorts).entries)
       val addrMap = AddrMap(
         AddrMapEntry("io", io),
         AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true))))
 
       Dump("MEM_BASE", addrMap("mem").start)
       Dump("MEM_SIZE", memSize)
-      Dump("IO_BASE", addrMap("io:ext").start)
-      Dump("IO_SIZE", extIOSize)
       addrMap
     }
     def makeConfigString() = {
@@ -102,7 +98,7 @@ class BaseConfig extends Config (
       res append '\u0000'
       res.toString.getBytes
     }
-    lazy val innerDataBits = site(MIFDataBits)
+    lazy val innerDataBits = 64
     lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
     pname match {
       //Memory Parameters
@@ -133,7 +129,6 @@ class BaseConfig extends Config (
       case NTLBEntries => findBy(CacheName)
       case CacheIdBits => findBy(CacheName)
       case SplitMetadata => findBy(CacheName)
-      case ICacheBufferWays => Knob("L1I_BUFFER_WAYS")
       case "L1I" => {
         case NSets => Knob("L1I_SETS") //64
         case NWays => Knob("L1I_WAYS") //4
@@ -174,11 +169,11 @@ class BaseConfig extends Config (
       //Tile Constants
       case BuildTiles => {
         val (rvi, rvu) =
-          if (site(XLen) == 64) (rv64i, rv64u)
-          else (rv32i, rv32u)
+          if (site(XLen) == 64) ((if (site(UseVM)) rv64i else rv64pi), rv64u)
+          else ((if (site(UseVM)) rv32i else rv32pi), rv32u)
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuite(bmarks)
+        TestGeneration.addSuite(if (site(UseVM)) benchmarks else emptyBmarks)
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
@@ -190,28 +185,27 @@ class BaseConfig extends Config (
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
-      case NDmaTransactors => 3
-      case NDmaXacts => site(NDmaTransactors) * site(NTiles)
-      case NDmaClients => site(NTiles)
       //Rocket Core Constants
       case FetchWidth => 1
       case RetireWidth => 1
       case UseVM => true
       case UseUser => true
       case UseDebug => true
+      case AsyncDebugBus => false
       case NBreakpoints => 1
       case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
-      case FastMulDiv => true
+      case MulUnroll => 8
+      case DivEarlyOut => true
       case XLen => 64
       case UseFPU => {
         val env = if(site(UseVM)) List("p","v") else List("p")
+        TestGeneration.addSuite(rv32udBenchmarks)
         if(site(FDivSqrt)) {
           TestGeneration.addSuites(env.map(rv64uf))
           TestGeneration.addSuites(env.map(rv64ud))
-        }
-        else {
+        } else {
           TestGeneration.addSuites(env.map(rv64ufNoDiv))
           TestGeneration.addSuites(env.map(rv64udNoDiv))
         }
@@ -223,8 +217,18 @@ class BaseConfig extends Config (
         true
       }
       case NExtInterrupts => 2
+      case AsyncMMIOChannels => false
+      case ExtMMIOPorts => AddrMap()
+/*
+        AddrMap(
+          AddrMapEntry("cfg", MemRange(0x50000000L, 0x04000000L, MemAttr(AddrMapProt.RW))),
+          AddrMapEntry("ext", MemRange(0x60000000L, 0x20000000L, MemAttr(AddrMapProt.RWX))))
+*/
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
+      case NExtMMIOTLChannels  => 0
+      case AsyncBusChannels => false
+      case NExtBusAXIChannels => 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
@@ -250,12 +254,15 @@ class BaseConfig extends Config (
         HastiParameters(
           addrBits = site(PAddrBits),
           dataBits = site(XLen))
-      case TLKey("L1toL2") => 
+      case TLKey("L1toL2") => {
+        val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
         TileLinkParameters(
-          coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
+          coherencePolicy = (
+            if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
+            else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
-          nCachelessClients = site(NUncachedTileLinkPorts),
+          nCachelessClients = site(NExtBusAXIChannels) + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
               site(NMSHRs) + 1 /* IOMSHR */,
@@ -265,6 +272,7 @@ class BaseConfig extends Config (
           maxManagerXacts = site(NAcquireTransactors) + 2,
           dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes)*8)
+      }
       case TLKey("L2toMC") => 
         TileLinkParameters(
           coherencePolicy = new MEICoherence(
@@ -296,6 +304,7 @@ class BaseConfig extends Config (
       }
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
+      case AsyncMemChannels => false
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
       case TMemoryChannels => BusType.AXI
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
@@ -305,6 +314,8 @@ class BaseConfig extends Config (
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
+      case EnableL2Logging => false
+      case ExportGroundTestStatus => false
       case _ => throw new CDEMatchError
   }},
   knobValues = {
@@ -315,7 +326,6 @@ class BaseConfig extends Config (
     case "L1D_WAYS" => 4
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 4
-    case "L1I_BUFFER_WAYS" => false
     case _ => throw new CDEMatchError
   }
 )
@@ -365,6 +375,39 @@ class WithL2Cache extends Config(
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048; case "L2_SPLIT_METADATA" => false; case _ => throw new CDEMatchError }
 )
 
+class WithBufferlessBroadcastHub extends Config(
+  (pname, site, here) => pname match {
+    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
+      Module(new BufferlessBroadcastHub()(p.alterPartial({
+        case InnerTLId => "L1toL2"
+        case OuterTLId => "L2toMC" })))
+  })
+
+/**
+ * WARNING!!! IGNORE AT YOUR OWN PERIL!!!
+ *
+ * There is a very restrictive set of conditions under which the stateless
+ * bridge will function properly. There can only be a single tile. This tile
+ * MUST use the blocking data cache (L1D_MSHRS == 0) and MUST NOT have an
+ * uncached channel capable of writes (i.e. a RoCC accelerator).
+ *
+ * This is because the stateless bridge CANNOT generate probes, so if your
+ * system depends on coherence between channels in any way,
+ * DO NOT use this configuration.
+ */
+class WithStatelessBridge extends Config (
+  topDefinitions = (pname, site, here) => pname match {
+    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
+      Module(new ManagerToClientStatelessBridge()(p.alterPartial({
+        case InnerTLId => "L1toL2"
+        case OuterTLId => "L2toMC" })))
+  },
+  knobValues = {
+    case "L1D_MSHRS" => 0
+    case _ => throw new CDEMatchError
+  }
+)
+
 class WithPLRU extends Config(
   (pname, site, here) => pname match {
     case L2Replacer => () => new SeqPLRU(site(NSets), site(NWays))
@@ -387,6 +430,9 @@ class DefaultL2Config extends Config(new WithL2Cache ++ new BaseConfig)
 class DefaultL2FPGAConfig extends Config(
   new WithL2Capacity(64) ++ new WithL2Cache ++ new DefaultFPGAConfig)
 
+class DefaultBufferlessConfig extends Config(
+  new WithBufferlessBroadcastHub ++ new BaseConfig)
+
 class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
 class WithRV32 extends Config(
@@ -403,6 +449,7 @@ class WithRV32 extends Config(
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
+    case ExportGroundTestStatus => true
     case _ => throw new CDEMatchError
   }
 )
@@ -420,12 +467,19 @@ class WithAHB extends Config(
     case NExtMMIOAHBChannels => 1
   })
 
+class WithTL extends Config(
+  (pname, site, here) => pname match {
+    case TMemoryChannels     => BusType.TL
+    case NExtMMIOTLChannels  => 1
+  })
+
 class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 
 class WithSmallCores extends Config (
     topDefinitions = { (pname,site,here) => pname match {
       case UseFPU => false
-      case FastMulDiv => false
+      case MulUnroll => 1
+      case DivEarlyOut => false  
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 0)
       case StoreDataQueueDepth => 2
@@ -483,19 +537,15 @@ class WithRoccExample extends Config(
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
 
-class WithDmaController extends Config(
+class WithMIFDataBits(n: Int) extends Config(
   (pname, site, here) => pname match {
-    case BuildRoCC => Seq(
-        RoccParameters(
-          opcodes = OpcodeSet.custom2,
-          generator = (p: Parameters) => Module(new DmaController()(p)),
-          nPTWPorts = 1,
-          csrs = Seq.range(
-            DmaCtrlRegNumbers.CSR_BASE,
-            DmaCtrlRegNumbers.CSR_END)))
-    case RoccMaxTaggedMemXacts => 1
-    case _ => throw new CDEMatchError
+    case MIFDataBits => Dump("MIF_DATA_BITS", n)
   })
+
+class MIF128BitConfig extends Config(
+  new WithMIFDataBits(128) ++ new BaseConfig)
+class MIF32BitConfig extends Config(
+  new WithMIFDataBits(32) ++ new BaseConfig)
 
 class WithStreamLoopback extends Config(
   (pname, site, here) => pname match {
@@ -504,9 +554,6 @@ class WithStreamLoopback extends Config(
     case StreamLoopbackWidth => 64
     case _ => throw new CDEMatchError
   })
-
-class DmaControllerConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultL2Config)
-class DmaControllerFPGAConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultFPGAConfig)
 
 class SmallL2Config extends Config(
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
@@ -524,3 +571,7 @@ class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new De
 
 class DualCoreConfig extends Config(
   new WithNCores(2) ++ new WithL2Cache ++ new BaseConfig)
+
+class TinyConfig extends Config(
+  new WithRV32 ++ new WithSmallCores ++
+  new WithStatelessBridge ++ new BaseConfig)
