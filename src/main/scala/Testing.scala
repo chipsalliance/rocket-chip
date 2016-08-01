@@ -178,12 +178,9 @@ object TestGenerator extends App {
   val topModuleName = args(1)
   val configClassName = args(2)
 
-  val aggregateConfigs = configClassName.split('_').reverse
+  val aggregateConfigs = configClassName.split('_')
 
-  var finalConfig = new Config()
-  var ii = 0;
-  for (ii <- 0 to (aggregateConfigs.length - 1)) {
-    val currentConfigName = aggregateConfigs(ii);
+  val finalConfig = aggregateConfigs.foldRight(new Config()) { case (currentConfigName, finalConfig) =>
     val currentConfig = try {
       Class.forName(s"$projectName.$currentConfigName").newInstance.asInstanceOf[Config]
     } catch {
@@ -192,7 +189,7 @@ object TestGenerator extends App {
           "\" of configClassName \"" + configClassName +
           "\", did you misspell it?", e)
     }
-    finalConfig = currentConfig ++ finalConfig
+    currentConfig ++ finalConfig
   }
 
   val world = (new Config(finalConfig)).toInstance
