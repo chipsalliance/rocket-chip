@@ -177,14 +177,26 @@ object TestGenerator extends App {
   val projectName = args(0)
   val topModuleName = args(1)
   val configClassName = args(2)
-  val config = try {
-      Class.forName(s"$projectName.$configClassName").newInstance.asInstanceOf[Config]
+
+  val aggregateConfigs = configClassName.split('_').reverse
+
+  var finalConfig = new Config()
+  var ii = 0;
+  for (ii <- 0 to (aggregateConfigs.length - 1)) {
+    val currentConfigName = aggregateConfigs(ii);
+    val currentConfig = try {
+      Class.forName(s"$projectName.$currentConfigName").newInstance.asInstanceOf[Config]
     } catch {
       case e: java.lang.ClassNotFoundException =>
-        throwException("Unable to find configClassName \"" + configClassName +
-                       "\", did you misspell it?", e)
+        throwException("Unable to find part \"" + currentConfigName +
+          "\" of configClassName \"" + configClassName +
+          "\", did you misspell it?", e)
     }
-  val world = config.toInstance
+    finalConfig = currentConfig ++ finalConfig
+  }
+
+  val world = (new Config(finalConfig)).toInstance
+
   val paramsFromConfig: Parameters = Parameters.root(world)
 
   val gen = () => 
