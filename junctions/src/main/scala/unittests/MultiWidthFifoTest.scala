@@ -1,4 +1,4 @@
-package groundtest.unittests
+package junctions.unittests
 
 import Chisel._
 import junctions._

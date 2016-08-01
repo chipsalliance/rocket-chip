@@ -2,14 +2,14 @@ package rocketchip
 
 import Chisel._
 import groundtest._
-import groundtest.unittests._
-import groundtest.common._
 import rocket._
 import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
 import uncore.devices.NTiles
+import uncore.unittests._
 import junctions._
+import junctions.unittests._
 import scala.collection.mutable.LinkedHashSet
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 import scala.math.max
@@ -44,7 +44,7 @@ class WithGroundTest extends Config(
       (0 until site(NTiles)).map { i =>
         val tileSettings = site(GroundTestKey)(i)
         (r: Bool, p: Parameters) => {
-          Module(new GroundTestTile(r)(p.alterPartial({
+          Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
             case GroundTestId => i
             case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
@@ -56,6 +56,7 @@ class WithGroundTest extends Config(
     }
     case UseFPU => false
     case UseAtomics => false
+    case UseCompressed => false
     case _ => throw new CDEMatchError
   })
 
@@ -165,20 +166,30 @@ class WithNastiConverterTest extends Config(
 
 class WithUnitTest extends Config(
   (pname, site, here) => pname match {
-    case GroundTestKey => Seq.fill(site(NTiles)) { GroundTestTileSettings() }
-    case BuildGroundTest =>
-      (p: Parameters) => Module(new UnitTestSuite()(p))
-    case UnitTests => (testParams: Parameters) => {
-      implicit val p = testParams
-      Seq(
-        Module(new MultiWidthFifoTest),
-        Module(new SmiConverterTest),
-        Module(new AtosConverterTest),
-        Module(new NastiMemoryDemuxTest),
-        Module(new ROMSlaveTest),
-        Module(new TileLinkRAMTest),
-        Module(new HastiTest))
+    case BuildTiles => {
+      val groundtest = if (site(XLen) == 64)
+        DefaultTestSuites.groundtest64
+      else
+        DefaultTestSuites.groundtest32
+      TestGeneration.addSuite(groundtest("p"))
+      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
+      (0 until site(NTiles)).map { i =>
+        (r: Bool, p: Parameters) => {
+          Module(new UnitTestTile(resetSignal = r)(p.alterPartial({
+            case TLId => "L1toL2"
+            case NCachedTileLinkPorts => 0
+            case NUncachedTileLinkPorts => 0
+            case RoccNCSRs => 0
+          })))
+        }
+      }
     }
+    case UnitTests => (testParams: Parameters) =>
+      JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams)
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 0)
+    case UseFPU => false
+    case UseAtomics => false
+    case UseCompressed => false
     case _ => throw new CDEMatchError
   })
 
@@ -249,7 +260,7 @@ class FancyNastiConverterTestConfig extends Config(
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
   new WithL2Cache ++ new GroundTestConfig)
 
-class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
+class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
 
 class TraceGenConfig extends Config(
   new WithNCores(2) ++ new WithTraceGen ++ new GroundTestConfig)

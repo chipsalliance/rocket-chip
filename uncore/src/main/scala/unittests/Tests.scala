@@ -1,12 +1,11 @@
-package groundtest.unittests
-
+package uncore.unittests
 
 import Chisel._
 import junctions._
+import junctions.unittests._
 import uncore.devices._
 import uncore.tilelink._
 import uncore.converters._
-import groundtest.common._
 import cde.Parameters
 
 class SmiConverterTest(implicit val p: Parameters) extends UnitTest
@@ -75,4 +74,12 @@ class TileLinkRAMTest(implicit val p: Parameters)
   ram.io <> driver.io.mem
   driver.io.start := io.start
   io.finished := driver.io.finished
+}
+
+object UncoreUnitTests {
+  def apply(implicit p: Parameters): Seq[UnitTest] =
+    Seq(
+      Module(new SmiConverterTest),
+      Module(new ROMSlaveTest),
+      Module(new TileLinkRAMTest))
 }

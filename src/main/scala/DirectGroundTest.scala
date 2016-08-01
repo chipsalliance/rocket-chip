@@ -3,7 +3,6 @@ package rocketchip
 import Chisel._
 import cde.{Parameters, Field}
 import groundtest._
-import groundtest.common._
 import uncore.tilelink._
 import uncore.agents._
 

@@ -1,9 +1,8 @@
-package groundtest.unittests
+package junctions.unittests
 
 import Chisel._
 import junctions._
 import junctions.NastiConstants._
-import groundtest.common._
 import cde.Parameters
 
 class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
@@ -76,12 +75,6 @@ class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
 
   assert(!io.nasti.r.valid || read_data === expected_data,
     s"NastiDriver got wrong data")
-
-  val ar_timeout = Timer(1024, io.nasti.ar.fire(), io.nasti.r.fire())
-  val aw_timeout = Timer(1024, io.nasti.aw.fire(), io.nasti.b.fire())
-
-  assert(!ar_timeout && !aw_timeout,
-    s"NastiDriver for $name timed out")
 }
 
 
