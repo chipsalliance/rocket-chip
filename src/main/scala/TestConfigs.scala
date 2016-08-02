@@ -57,6 +57,7 @@ class WithGroundTest extends Config(
     case UseFPU => false
     case UseAtomics => false
     case UseCompressed => false
+    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
     case _ => throw new CDEMatchError
   })
 
@@ -190,6 +191,7 @@ class WithUnitTest extends Config(
     case UseFPU => false
     case UseAtomics => false
     case UseCompressed => false
+    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
     case _ => throw new CDEMatchError
   })
 

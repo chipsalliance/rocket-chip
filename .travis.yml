@@ -49,8 +49,7 @@ script:
   - make vsim-verilog -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
   - make fsim-verilog -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
   - make emulator-ndebug -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
-  - make emulator-asm-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
-  - make emulator-bmark-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION -j1
+  - make emulator-regression-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
 
 before_cache:
   - ls -tr regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf

@@ -44,7 +44,7 @@ $(error Set SUITE to the regression suite you want to run)
 endif
 
 ifeq ($(SUITE),RocketSuite)
-CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig RoccExampleConfig
+CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
@@ -65,12 +65,14 @@ EMU_DEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-debug.sta
 EMU_NDEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-ndebug.stamp)
 EMU_ASM_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-asm-tests.stamp)
 EMU_BMARK_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-bmark-tests.stamp)
+EMU_REGRESSION_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-regression-tests.stamp)
 EMU_TORTURE_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-torture-$(TORTURE_CONFIG).stamp)
 
 emulator-debug: $(EMU_DEBUG_STAMPS)
 emulator-ndebug: $(EMU_NDEBUG_STAMPS)
 emulator-asm-tests: $(EMU_ASM_TEST_STAMPS)
 emulator-bmark-tests: $(EMU_BMARK_TEST_STAMPS)
+emulator-regression-tests: $(EMU_REGRESSION_TEST_STAMPS)
 emulator-torture: $(EMU_TORTURE_STAMPS)
 
 VSIM_VERILOG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/vsim-verilog.stamp)
@@ -78,6 +80,7 @@ VSIM_DEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/vsim-debug.stamp)
 VSIM_NDEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/vsim-ndebug.stamp)
 VSIM_ASM_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/vsim-asm-tests.stamp)
 VSIM_BMARK_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/vsim-bmark-tests.stamp)
+VSIM_REGRESSION_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/vsim-regression-tests.stamp)
 VSIM_TORTURE_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/vsim-torture-$(TORTURE_CONFIG).stamp)
 
 vsim-verilog: $(VSIM_VERILOG_STAMPS)
@@ -85,6 +88,7 @@ vsim-debug: $(VSIM_DEBUG_STAMPS)
 vsim-ndebug: $(VSIM_NDEBUG_STAMPS)
 vsim-asm-tests: $(VSIM_ASM_TEST_STAMPS)
 vsim-bmark-tests: $(VSIM_BMARK_TEST_STAMPS)
+vsim-regression-tests: $(VSIM_REGRESSION_TEST_STAMPS)
 vsim-torture: $(VSIM_TORTURE_STAMPS)
 
 FSIM_VERILOG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-verilog.stamp)
@@ -92,6 +96,7 @@ FSIM_DEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-debug.stamp)
 FSIM_NDEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-ndebug.stamp)
 FSIM_ASM_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-asm-tests.stamp)
 FSIM_BMARK_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-bmark-tests.stamp)
+FSIM_REGRESSION_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-regression-tests.stamp)
 FSIM_TORTURE_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-torture-$(TORTURE_CONFIG).stamp)
 
 fsim-verilog: $(FSIM_VERILOG_STAMPS)
@@ -99,6 +104,7 @@ fsim-debug: $(FSIM_DEBUG_STAMPS)
 fsim-ndebug: $(FSIM_NDEBUG_STAMPS)
 fsim-asm-tests: $(FSIM_ASM_TEST_STAMPS)
 fsim-bmark-tests: $(FSIM_BMARK_TEST_STAMPS)
+fsim-regression-tests: $(FSIM_REGRESSION_TEST_STAMPS)
 fsim-torture: $(FSIM_TORTURE_STAMPS)
 
 submodule_names = chisel2 chisel3 context-dependent-environments dramsim2 firrtl groundtest hardfloat junctions rocket torture uncore $(ROCKETCHIP_ADDONS)
@@ -179,6 +185,11 @@ stamps/%/emulator-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/inst
 	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
 	date > $@
 
+stamps/%/emulator-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
+	mkdir -p $(dir $@)
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-regression-tests-fast
+	date > $@
+
 stamps/%/vsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
 	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
@@ -189,6 +200,11 @@ stamps/%/vsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.
 	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
 	date > $@
 
+stamps/%/vsim-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
+	mkdir -p $(dir $@)
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-regression-tests-fast
+	date > $@
+
 stamps/%/fsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
 	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
@@ -197,6 +213,11 @@ stamps/%/fsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.st
 stamps/%/fsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
 	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
+	date > $@
+
+stamps/%/fsim-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
+	mkdir -p $(dir $@)
+	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-regression-tests-fast
 	date > $@
 
 # The torture tests run subtly differently on the different targets, so they
