@@ -807,7 +807,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.cpu.req.ready := Bool(true)
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_req = Reg(io.cpu.req.bits)
-  val s1_valid_masked = s1_valid && !io.cpu.s1_kill
+  val s1_valid_masked = s1_valid && !io.cpu.s1_kill && !io.cpu.xcpt.asUInt.orR
   val s1_replay = Reg(init=Bool(false))
   val s1_clk_en = Reg(Bool())
 
@@ -871,11 +871,6 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.cpu.xcpt.ma.st := s1_write && misaligned
   io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.xcpt_ld
   io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
-
-  assert (!(Reg(next=
-    (io.cpu.xcpt.ma.ld || io.cpu.xcpt.ma.st || io.cpu.xcpt.pf.ld || io.cpu.xcpt.pf.st)) &&
-    s2_valid_masked),
-      "DCache exception occurred - cache response not killed.")
 
   // tags
   def onReset = L1Metadata(UInt(0), ClientMetadata.onReset)

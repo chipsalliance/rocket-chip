@@ -411,9 +411,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     }
   }
 
+  val mem_breakpoint = (mem_reg_load && bpu.io.xcpt_ld) || (mem_reg_store && bpu.io.xcpt_st)
   val (mem_new_xcpt, mem_new_cause) = checkExceptions(List(
-    (mem_reg_load && bpu.io.xcpt_ld,     UInt(Causes.breakpoint)),
-    (mem_reg_store && bpu.io.xcpt_st,    UInt(Causes.breakpoint)),
+    (mem_breakpoint,                     UInt(Causes.breakpoint)),
     (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch)),
     (mem_ctrl.mem && io.dmem.xcpt.ma.st, UInt(Causes.misaligned_store)),
     (mem_ctrl.mem && io.dmem.xcpt.ma.ld, UInt(Causes.misaligned_load)),
@@ -617,9 +617,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.dmem.req.bits.typ  := ex_ctrl.mem_type
   io.dmem.req.bits.phys := Bool(false)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
-  io.dmem.s1_kill := killm_common || mem_xcpt
-  io.dmem.s1_data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
   io.dmem.invalidate_lr := wb_xcpt
+  io.dmem.s1_data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
+  io.dmem.s1_kill := killm_common || mem_breakpoint
+  when (mem_xcpt && !io.dmem.s1_kill) {
+    assert(io.dmem.xcpt.asUInt.orR) // make sure s1_kill is exhaustive
+  }
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR
