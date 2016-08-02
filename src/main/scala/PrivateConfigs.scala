@@ -1,7 +1,11 @@
 package rocketchip
 
 import Chisel._
-import uncore._
+import uncore.tilelink._
+import uncore.coherence._
+import uncore.agents._
+import uncore.devices._
+import uncore.converters._
 import rocket._
 import boom._
 import DefaultTestSuites._
@@ -12,7 +16,7 @@ class WithAllBooms extends Config(
     case BuildTiles => {
       TestGeneration.addSuites(rv64i.map(_("p")))
       TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rv64u.map(_(env))))
-      TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, bmarks) else List(bmarks))
+      TestGeneration.addSuites(if(site(NTiles) > 1) List(mtBmarks, benchmarks) else List(benchmarks))
       List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
          Module(new BOOMTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
     }
@@ -32,14 +36,13 @@ class WithAllBooms extends Config(
 //          else           new BOOMTile(resetSignal = r)
 //        }, {case TLId => "L1ToL2"})}}})
 
-class SmallBOOMConfig  extends Config(new WithSmallBOOMs  ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultConfig)
+class SmallBOOMConfig  extends Config(new WithSmallBOOMs  ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new BaseConfig)
 class MediumBOOMConfig extends Config(new WithMediumBOOMs ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultL2Config)
 class MegaBOOMConfig   extends Config(new WithMegaBOOMs   ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultL2Config)
 
-class BOOMConfig extends Config(new WithMediumBOOMs ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new WithL2Capacity1024 ++ new DefaultL2Config)
-class BOOMVLSIConfig extends Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultVLSIConfig ++ new WithNoBoomCounters)
+class BOOMConfig extends Config(new WithMediumBOOMs ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new WithL2Capacity(1024) ++ new DefaultL2Config)
+class BOOML1Config extends  Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new BaseConfig)
 class BOOMFPGAConfig extends Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultFPGAConfig)
-class BOOMCPPConfig extends  Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultCPPConfig)
 
 //class HeterogenousBoomConfig extends Config(new WithBoomAndRocketAlternating ++ new BOOMFPGAConfig)
 

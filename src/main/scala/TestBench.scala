@@ -3,12 +3,13 @@
 package rocketchip
 
 import Chisel._
+import cde.Parameters
+import uncore.devices.{DbBusConsts, DMKey}
 
 object TestBenchGeneration extends FileSystemUtilities {
   def generateVerilogFragment(
-    topModuleName: String, configClassName: String,
-    nMemChannel: Int) = {
-
+      topModuleName: String, configClassName: String, p: Parameters) = {
+    val nMemChannel = p(NMemoryChannels)
     // YUNSUP:
     // I originally wrote this using a 2d wire array, but of course Synopsys'
     // DirectC implementation totally chokes on it when the 2d array is
@@ -16,17 +17,55 @@ object TestBenchGeneration extends FileSystemUtilities {
     // bit collection on the DirectC side.  I had to individually define the
     // wires.
 
-    val defs = s"""
-  reg htif_out_ready;
-  wire htif_in_valid;
-  wire [`HTIF_WIDTH-1:0] htif_in_bits;
-  wire htif_in_ready, htif_out_valid;
-  wire [`HTIF_WIDTH-1:0] htif_out_bits;
+    val daw = p(DMKey).nDebugBusAddrSize
+    val dow = DbBusConsts.dbOpSize
+    val ddw = DbBusConsts.dbDataSize
+    val drw = DbBusConsts.dbRespSize
 
-  wire mem_bk_in_valid;
-  wire mem_bk_out_valid;
-  wire mem_bk_out_ready;
-  wire [`HTIF_WIDTH-1:0] mem_in_bits;
+    val debugDefs = s"""
+  wire debug_req_valid_delay;
+  reg debug_req_valid;
+  assign #0.1 debug_req_valid_delay = debug_req_valid;
+
+  wire debug_req_ready, debug_req_ready_delay;
+  assign #0.1 debug_req_ready = debug_req_ready_delay;
+
+  wire [${daw-1}:0] debug_req_bits_addr_delay;
+  reg [${daw-1}:0] debug_req_bits_addr;
+  assign #0.1 debug_req_bits_addr_delay = debug_req_bits_addr;
+
+  wire [${dow-1}:0] debug_req_bits_op_delay;
+  reg [${dow-1}:0] debug_req_bits_op;
+  assign #0.1 debug_req_bits_op_delay = debug_req_bits_op;
+
+  wire [${ddw-1}:0] debug_req_bits_data_delay;
+  reg [${ddw-1}:0] debug_req_bits_data;
+  assign #0.1 debug_req_bits_data_delay = debug_req_bits_data;
+
+  wire debug_resp_valid, debug_resp_valid_delay;
+  assign #0.1 debug_resp_valid = debug_resp_valid_delay;
+
+  wire debug_resp_ready_delay;
+  reg debug_resp_ready;
+  assign #0.1 debug_resp_ready_delay = debug_resp_ready;
+
+  wire [${drw-1}:0] debug_resp_bits_resp, debug_resp_bits_resp_delay;
+  assign #0.1 debug_resp_bits_resp = debug_resp_bits_resp_delay;
+
+  wire [${ddw-1}:0] debug_resp_bits_data, debug_resp_bits_data_delay;
+  assign #0.1 debug_resp_bits_data = debug_resp_bits_data_delay;
+"""
+
+    val debugBus = s"""
+    .io_debug_req_ready(debug_req_ready_delay),
+    .io_debug_req_valid(debug_req_valid_delay),
+    .io_debug_req_bits_addr(debug_req_bits_addr_delay),
+    .io_debug_req_bits_op(debug_req_bits_op_delay),
+    .io_debug_req_bits_data(debug_req_bits_data_delay),
+    .io_debug_resp_ready(debug_resp_ready_delay),
+    .io_debug_resp_valid(debug_resp_valid_delay),
+    .io_debug_resp_bits_resp(debug_resp_bits_resp_delay),
+    .io_debug_resp_bits_data(debug_resp_bits_data_delay)
 """
     val nasti_defs = (0 until nMemChannel) map { i => s"""
   wire ar_valid_$i;
@@ -62,25 +101,6 @@ object TestBenchGeneration extends FileSystemUtilities {
   reg [`MEM_ID_BITS-1:0] b_id_$i;
 
 """ } mkString
-
-    val delays = s"""
-  wire htif_clk;
-  wire htif_in_valid_delay;
-  wire htif_in_ready_delay;
-  wire [`HTIF_WIDTH-1:0] htif_in_bits_delay;
-
-  wire htif_out_valid_delay;
-  wire htif_out_ready_delay;
-  wire [`HTIF_WIDTH-1:0] htif_out_bits_delay;
-
-  assign #0.1 htif_in_valid_delay = htif_in_valid;
-  assign #0.1 htif_in_ready = htif_in_ready_delay;
-  assign #0.1 htif_in_bits_delay = htif_in_bits;
-
-  assign #0.1 htif_out_valid = htif_out_valid_delay;
-  assign #0.1 htif_out_ready_delay = htif_out_ready;
-  assign #0.1 htif_out_bits = htif_out_bits_delay;
-"""
 
     val nasti_delays = (0 until nMemChannel) map { i => s"""
   wire ar_valid_delay_$i;
@@ -150,83 +170,74 @@ object TestBenchGeneration extends FileSystemUtilities {
 """ } mkString
 
     val nasti_connections = (0 until nMemChannel) map { i => s"""
-    .io_mem_${i}_ar_valid (ar_valid_delay_$i),
-    .io_mem_${i}_ar_ready (ar_ready_delay_$i),
-    .io_mem_${i}_ar_bits_addr (ar_addr_delay_$i),
-    .io_mem_${i}_ar_bits_id (ar_id_delay_$i),
-    .io_mem_${i}_ar_bits_size (ar_size_delay_$i),
-    .io_mem_${i}_ar_bits_len (ar_len_delay_$i),
-    .io_mem_${i}_ar_bits_burst (),
-    .io_mem_${i}_ar_bits_lock (),
-    .io_mem_${i}_ar_bits_cache (),
-    .io_mem_${i}_ar_bits_prot (),
-    .io_mem_${i}_ar_bits_qos (),
-    .io_mem_${i}_ar_bits_region (),
-    .io_mem_${i}_ar_bits_user (),
+    .io_mem_axi_${i}_ar_valid (ar_valid_delay_$i),
+    .io_mem_axi_${i}_ar_ready (ar_ready_delay_$i),
+    .io_mem_axi_${i}_ar_bits_addr (ar_addr_delay_$i),
+    .io_mem_axi_${i}_ar_bits_id (ar_id_delay_$i),
+    .io_mem_axi_${i}_ar_bits_size (ar_size_delay_$i),
+    .io_mem_axi_${i}_ar_bits_len (ar_len_delay_$i),
+    .io_mem_axi_${i}_ar_bits_burst (),
+    .io_mem_axi_${i}_ar_bits_lock (),
+    .io_mem_axi_${i}_ar_bits_cache (),
+    .io_mem_axi_${i}_ar_bits_prot (),
+    .io_mem_axi_${i}_ar_bits_qos (),
+    .io_mem_axi_${i}_ar_bits_region (),
+    .io_mem_axi_${i}_ar_bits_user (),
 
-    .io_mem_${i}_aw_valid (aw_valid_delay_$i),
-    .io_mem_${i}_aw_ready (aw_ready_delay_$i),
-    .io_mem_${i}_aw_bits_addr (aw_addr_delay_$i),
-    .io_mem_${i}_aw_bits_id (aw_id_delay_$i),
-    .io_mem_${i}_aw_bits_size (aw_size_delay_$i),
-    .io_mem_${i}_aw_bits_len (aw_len_delay_$i),
-    .io_mem_${i}_aw_bits_burst (),
-    .io_mem_${i}_aw_bits_lock (),
-    .io_mem_${i}_aw_bits_cache (),
-    .io_mem_${i}_aw_bits_prot (),
-    .io_mem_${i}_aw_bits_qos (),
-    .io_mem_${i}_aw_bits_region (),
-    .io_mem_${i}_aw_bits_user (),
+    .io_mem_axi_${i}_aw_valid (aw_valid_delay_$i),
+    .io_mem_axi_${i}_aw_ready (aw_ready_delay_$i),
+    .io_mem_axi_${i}_aw_bits_addr (aw_addr_delay_$i),
+    .io_mem_axi_${i}_aw_bits_id (aw_id_delay_$i),
+    .io_mem_axi_${i}_aw_bits_size (aw_size_delay_$i),
+    .io_mem_axi_${i}_aw_bits_len (aw_len_delay_$i),
+    .io_mem_axi_${i}_aw_bits_burst (),
+    .io_mem_axi_${i}_aw_bits_lock (),
+    .io_mem_axi_${i}_aw_bits_cache (),
+    .io_mem_axi_${i}_aw_bits_prot (),
+    .io_mem_axi_${i}_aw_bits_qos (),
+    .io_mem_axi_${i}_aw_bits_region (),
+    .io_mem_axi_${i}_aw_bits_user (),
 
-    .io_mem_${i}_w_valid (w_valid_delay_$i),
-    .io_mem_${i}_w_ready (w_ready_delay_$i),
-    .io_mem_${i}_w_bits_strb (w_strb_delay_$i),
-    .io_mem_${i}_w_bits_data (w_data_delay_$i),
-    .io_mem_${i}_w_bits_last (w_last_delay_$i),
-    .io_mem_${i}_w_bits_user (),
+    .io_mem_axi_${i}_w_valid (w_valid_delay_$i),
+    .io_mem_axi_${i}_w_ready (w_ready_delay_$i),
+    .io_mem_axi_${i}_w_bits_id (),
+    .io_mem_axi_${i}_w_bits_strb (w_strb_delay_$i),
+    .io_mem_axi_${i}_w_bits_data (w_data_delay_$i),
+    .io_mem_axi_${i}_w_bits_last (w_last_delay_$i),
+    .io_mem_axi_${i}_w_bits_user (),
 
-    .io_mem_${i}_r_valid (r_valid_delay_$i),
-    .io_mem_${i}_r_ready (r_ready_delay_$i),
-    .io_mem_${i}_r_bits_resp (r_resp_delay_$i),
-    .io_mem_${i}_r_bits_id (r_id_delay_$i),
-    .io_mem_${i}_r_bits_data (r_data_delay_$i),
-    .io_mem_${i}_r_bits_last (r_last_delay_$i),
-    .io_mem_${i}_r_bits_user (1'b0),
+    .io_mem_axi_${i}_r_valid (r_valid_delay_$i),
+    .io_mem_axi_${i}_r_ready (r_ready_delay_$i),
+    .io_mem_axi_${i}_r_bits_resp (r_resp_delay_$i),
+    .io_mem_axi_${i}_r_bits_id (r_id_delay_$i),
+    .io_mem_axi_${i}_r_bits_data (r_data_delay_$i),
+    .io_mem_axi_${i}_r_bits_last (r_last_delay_$i),
+    .io_mem_axi_${i}_r_bits_user (1'b0),
 
-    .io_mem_${i}_b_valid (b_valid_delay_$i),
-    .io_mem_${i}_b_ready (b_ready_delay_$i),
-    .io_mem_${i}_b_bits_resp (b_resp_delay_$i),
-    .io_mem_${i}_b_bits_id (b_id_delay_$i),
-    .io_mem_${i}_b_bits_user (1'b0),
+    .io_mem_axi_${i}_b_valid (b_valid_delay_$i),
+    .io_mem_axi_${i}_b_ready (b_ready_delay_$i),
+    .io_mem_axi_${i}_b_bits_resp (b_resp_delay_$i),
+    .io_mem_axi_${i}_b_bits_id (b_id_delay_$i),
+    .io_mem_axi_${i}_b_bits_user (1'b0),
 
 """ } mkString
 
-    val instantiation = s"""
-`ifdef FPGA
-  assign htif_clk = clk;
-`endif
+    val interrupts = (0 until p(NExtInterrupts)) map { i => s"""
+    .io_interrupts_$i (1'b0),
+""" } mkString
 
-  Top dut
+
+    val instantiation = s"""
+  ${topModuleName} dut
   (
     .clk(clk),
     .reset(reset),
 
     $nasti_connections
 
-`ifndef FPGA
-    .io_host_clk(htif_clk),
-    .io_host_clk_edge(),
-`else
-    .io_host_clk (),
-    .io_host_clk_edge (),
-`endif // FPGA
+    $interrupts
 
-    .io_host_in_valid(htif_in_valid_delay),
-    .io_host_in_ready(htif_in_ready_delay),
-    .io_host_in_bits(htif_in_bits_delay),
-    .io_host_out_valid(htif_out_valid_delay),
-    .io_host_out_ready(htif_out_ready_delay),
-    .io_host_out_bits(htif_out_bits_delay)
+    $debugBus
   );
 """
 
@@ -288,50 +299,101 @@ object TestBenchGeneration extends FileSystemUtilities {
 """ } mkString
 
     val f = createOutputFile(s"$topModuleName.$configClassName.tb.vfrag")
-    f.write(defs + nasti_defs + delays + nasti_delays + instantiation + ticks)
+    f.write(debugDefs + nasti_defs + nasti_delays + instantiation + ticks)
     f.close
   }
 
   def generateCPPFragment(
-      topModuleName: String, configClassName: String, nMemChannel: Int) {
+      topModuleName: String, configClassName: String, p: Parameters) = {
+    val nMemChannel = p(NMemoryChannels)
 
     val assigns = (0 until nMemChannel).map { i => s"""
-      mem_ar_valid[$i] = &tile.Top__io_mem_${i}_ar_valid;
-      mem_ar_ready[$i] = &tile.Top__io_mem_${i}_ar_ready;
-      mem_ar_bits_addr[$i] = &tile.Top__io_mem_${i}_ar_bits_addr;
-      mem_ar_bits_id[$i] = &tile.Top__io_mem_${i}_ar_bits_id;
-      mem_ar_bits_size[$i] = &tile.Top__io_mem_${i}_ar_bits_size;
-      mem_ar_bits_len[$i] = &tile.Top__io_mem_${i}_ar_bits_len;
+#ifndef VERILATOR
+      mem_ar_valid[$i] = &tile.Top__io_mem_axi_${i}_ar_valid;
+      mem_ar_ready[$i] = &tile.Top__io_mem_axi_${i}_ar_ready;
+      mem_ar_bits_addr[$i] = &tile.Top__io_mem_axi_${i}_ar_bits_addr;
+      mem_ar_bits_id[$i] = &tile.Top__io_mem_axi_${i}_ar_bits_id;
+      mem_ar_bits_size[$i] = &tile.Top__io_mem_axi_${i}_ar_bits_size;
+      mem_ar_bits_len[$i] = &tile.Top__io_mem_axi_${i}_ar_bits_len;
 
-      mem_aw_valid[$i] = &tile.Top__io_mem_${i}_aw_valid;
-      mem_aw_ready[$i] = &tile.Top__io_mem_${i}_aw_ready;
-      mem_aw_bits_addr[$i] = &tile.Top__io_mem_${i}_aw_bits_addr;
-      mem_aw_bits_id[$i] = &tile.Top__io_mem_${i}_aw_bits_id;
-      mem_aw_bits_size[$i] = &tile.Top__io_mem_${i}_aw_bits_size;
-      mem_aw_bits_len[$i] = &tile.Top__io_mem_${i}_aw_bits_len;
+      mem_aw_valid[$i] = &tile.Top__io_mem_axi_${i}_aw_valid;
+      mem_aw_ready[$i] = &tile.Top__io_mem_axi_${i}_aw_ready;
+      mem_aw_bits_addr[$i] = &tile.Top__io_mem_axi_${i}_aw_bits_addr;
+      mem_aw_bits_id[$i] = &tile.Top__io_mem_axi_${i}_aw_bits_id;
+      mem_aw_bits_size[$i] = &tile.Top__io_mem_axi_${i}_aw_bits_size;
+      mem_aw_bits_len[$i] = &tile.Top__io_mem_axi_${i}_aw_bits_len;
 
-      mem_w_valid[$i] = &tile.Top__io_mem_${i}_w_valid;
-      mem_w_ready[$i] = &tile.Top__io_mem_${i}_w_ready;
-      mem_w_bits_data[$i] = &tile.Top__io_mem_${i}_w_bits_data;
-      mem_w_bits_strb[$i] = &tile.Top__io_mem_${i}_w_bits_strb;
-      mem_w_bits_last[$i] = &tile.Top__io_mem_${i}_w_bits_last;
+      mem_w_valid[$i] = &tile.Top__io_mem_axi_${i}_w_valid;
+      mem_w_ready[$i] = &tile.Top__io_mem_axi_${i}_w_ready;
+      mem_w_bits_data[$i] = &tile.Top__io_mem_axi_${i}_w_bits_data;
+      mem_w_bits_strb[$i] = &tile.Top__io_mem_axi_${i}_w_bits_strb;
+      mem_w_bits_last[$i] = &tile.Top__io_mem_axi_${i}_w_bits_last;
 
-      mem_b_valid[$i] = &tile.Top__io_mem_${i}_b_valid;
-      mem_b_ready[$i] = &tile.Top__io_mem_${i}_b_ready;
-      mem_b_bits_resp[$i] = &tile.Top__io_mem_${i}_b_bits_resp;
-      mem_b_bits_id[$i] = &tile.Top__io_mem_${i}_b_bits_id;
+      mem_b_valid[$i] = &tile.Top__io_mem_axi_${i}_b_valid;
+      mem_b_ready[$i] = &tile.Top__io_mem_axi_${i}_b_ready;
+      mem_b_bits_resp[$i] = &tile.Top__io_mem_axi_${i}_b_bits_resp;
+      mem_b_bits_id[$i] = &tile.Top__io_mem_axi_${i}_b_bits_id;
 
-      mem_r_valid[$i] = &tile.Top__io_mem_${i}_r_valid;
-      mem_r_ready[$i] = &tile.Top__io_mem_${i}_r_ready;
-      mem_r_bits_resp[$i] = &tile.Top__io_mem_${i}_r_bits_resp;
-      mem_r_bits_id[$i] = &tile.Top__io_mem_${i}_r_bits_id;
-      mem_r_bits_data[$i] = &tile.Top__io_mem_${i}_r_bits_data;
-      mem_r_bits_last[$i] = &tile.Top__io_mem_${i}_r_bits_last;
+      mem_r_valid[$i] = &tile.Top__io_mem_axi_${i}_r_valid;
+      mem_r_ready[$i] = &tile.Top__io_mem_axi_${i}_r_ready;
+      mem_r_bits_resp[$i] = &tile.Top__io_mem_axi_${i}_r_bits_resp;
+      mem_r_bits_id[$i] = &tile.Top__io_mem_axi_${i}_r_bits_id;
+      mem_r_bits_data[$i] = &tile.Top__io_mem_axi_${i}_r_bits_data;
+      mem_r_bits_last[$i] = &tile.Top__io_mem_axi_${i}_r_bits_last;
+#else
+      mem_ar_valid[$i] = &tile.io_mem_axi_${i}_ar_valid;
+      mem_ar_ready[$i] = &tile.io_mem_axi_${i}_ar_ready;
+      mem_ar_bits_addr[$i] = &tile.io_mem_axi_${i}_ar_bits_addr;
+      mem_ar_bits_id[$i] = &tile.io_mem_axi_${i}_ar_bits_id;
+      mem_ar_bits_size[$i] = &tile.io_mem_axi_${i}_ar_bits_size;
+      mem_ar_bits_len[$i] = &tile.io_mem_axi_${i}_ar_bits_len;
 
+      mem_aw_valid[$i] = &tile.io_mem_axi_${i}_aw_valid;
+      mem_aw_ready[$i] = &tile.io_mem_axi_${i}_aw_ready;
+      mem_aw_bits_addr[$i] = &tile.io_mem_axi_${i}_aw_bits_addr;
+      mem_aw_bits_id[$i] = &tile.io_mem_axi_${i}_aw_bits_id;
+      mem_aw_bits_size[$i] = &tile.io_mem_axi_${i}_aw_bits_size;
+      mem_aw_bits_len[$i] = &tile.io_mem_axi_${i}_aw_bits_len;
+
+      mem_w_valid[$i] = &tile.io_mem_axi_${i}_w_valid;
+      mem_w_ready[$i] = &tile.io_mem_axi_${i}_w_ready;
+#if MEM_DATA_BITS > 64
+      mem_w_bits_data[$i] = tile.io_mem_axi_${i}_w_bits_data;
+#else
+      mem_w_bits_data[$i] = &tile.io_mem_axi_${i}_w_bits_data;
+#endif
+      mem_w_bits_strb[$i] = &tile.io_mem_axi_${i}_w_bits_strb;
+      mem_w_bits_last[$i] = &tile.io_mem_axi_${i}_w_bits_last;
+
+      mem_b_valid[$i] = &tile.io_mem_axi_${i}_b_valid;
+      mem_b_ready[$i] = &tile.io_mem_axi_${i}_b_ready;
+      mem_b_bits_resp[$i] = &tile.io_mem_axi_${i}_b_bits_resp;
+      mem_b_bits_id[$i] = &tile.io_mem_axi_${i}_b_bits_id;
+
+      mem_r_valid[$i] = &tile.io_mem_axi_${i}_r_valid;
+      mem_r_ready[$i] = &tile.io_mem_axi_${i}_r_ready;
+      mem_r_bits_resp[$i] = &tile.io_mem_axi_${i}_r_bits_resp;
+      mem_r_bits_id[$i] = &tile.io_mem_axi_${i}_r_bits_id;
+#if MEM_DATA_BITS > 64
+      mem_r_bits_data[$i] = tile.io_mem_axi_${i}_r_bits_data;
+#else
+      mem_r_bits_data[$i] = &tile.io_mem_axi_${i}_r_bits_data;
+#endif
+      mem_r_bits_last[$i] = &tile.io_mem_axi_${i}_r_bits_last;
+#endif
     """ }.mkString
+
+    val interrupts = (0 until p(NExtInterrupts)) map { i => s"""
+#ifndef VERILATOR
+      tile.Top__io_interrupts_$i = LIT<1>(0);
+#else
+      tile.io_interrupts_$i = 0;
+#endif
+""" } mkString
 
     val f = createOutputFile(s"$topModuleName.$configClassName.tb.cpp")
     f.write(assigns)
+    f.write(interrupts)
     f.close
   }
 }

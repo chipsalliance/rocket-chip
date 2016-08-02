@@ -38,13 +38,14 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	-CC "-std=c++11" \
 	-CC "-Wl,-rpath,$(RISCV)/lib" \
 	-CC "-include $(consts_header)" \
-	-CC "-include $(scr_header)" \
 	-e vcs_main \
 	$(RISCV)/lib/libfesvr.so \
 	$(sim_dir)/libdramsim.a \
+	-sverilog \
 	+incdir+$(generated_dir) \
 	+define+CLOCK_PERIOD=0.5 $(sim_vsrcs) $(sim_csrcs) \
 	+define+PRINTF_COND=$(TB).printf_cond \
+	+define+RANDOMIZE \
 	+libext+.v \
 
 #--------------------------------------------------------------------

@@ -12,23 +12,18 @@ $(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).d $(ge
 
 else
 
-FIRRTL ?= $(base_dir)/firrtl/utils/bin/firrtl
-
-$(FIRRTL):
-	$(MAKE) -C $(base_dir)/firrtl root_dir=$(base_dir)/firrtl build-scala
-
 # If I don't mark these as .SECONDARY then make will delete these internal
 # files.
 .SECONDARY: $(generated_dir)/$(MODEL).$(CONFIG).fir
 
-$(generated_dir)/%.$(CONFIG).fir: $(chisel_srcs)
+$(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)/%.prm: $(chisel_srcs)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "run $(PROJECT) $(patsubst %.$(CONFIG).fir,%,$(notdir $@)) $(CONFIG) $(CHISEL_ARGS) --configDump --noInlineMem"
-	mv $(patsubst %.$(CONFIG).fir,%.fir,$@) $@
+	cd $(base_dir) && $(SBT) "run $(PROJECT) $(notdir $*) $(CONFIG) $(CHISEL_ARGS) --configDump --noInlineMem"
+	mv $(generated_dir)/$(MODEL).fir $(generated_dir)/$(MODEL).$(CONFIG).fir
 
-$(generated_dir)/%.v $(generated_dir)/%.prm: $(generated_dir)/%.fir $(FIRRTL)
+$(generated_dir)/%.v: $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $@ -X verilog
+	$(FIRRTL) -i $< -o $@ -X verilog
 
 endif
 
