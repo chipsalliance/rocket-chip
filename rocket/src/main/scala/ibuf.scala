@@ -27,7 +27,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
   }
 
   // This module is meant to be more general, but it's not there yet
-  require(fetchWidth == (if (usingCompressed) 2 else 1))
+  require(decodeWidth == 1)
 
   val n = fetchWidth - 1
   val nBufValid = if (n == 0) UInt(0) else Reg(init=UInt(0, log2Ceil(fetchWidth)))
@@ -78,7 +78,6 @@ class IBuf(implicit p: Parameters) extends CoreModule {
   val bufMask = UIntToOH(nBufValid) - 1
   val xcpt_if = valid & (Mux(buf.xcpt_if, bufMask, UInt(0)) | Mux(io.imem.bits.xcpt_if, ~bufMask, UInt(0)))
   val ic_replay = valid & (Mux(buf.replay, bufMask, UInt(0)) | Mux(io.imem.bits.replay, ~bufMask, UInt(0)))
-  val boundaries = findInsnBoundaries(inst)
   val ibufBTBHitMask = Mux(ibufBTBHit, UIntToOH(ibufBTBResp.bridx), UInt(0))
   val icBTBHitMask = Mux(io.imem.bits.btb.valid, UIntToOH(io.imem.bits.btb.bits.bridx +& nBufValid - pcWordBits), UInt(0))
   val btbHitMask = ibufBTBHitMask & bufMask | icBTBHitMask & ~bufMask
@@ -129,13 +128,5 @@ class IBuf(implicit p: Parameters) extends CoreModule {
     require(in.getWidth % coreInstBits == 0)
     val data = Cat(Fill((1 << (log2Ceil(r) + 1)) - r, in >> (r-1)*coreInstBits), in)
     data >> (dist << log2Ceil(coreInstBits))
-  }
-
-  def findInsnBoundaries(insns: UInt): Seq[Bool] = {
-    def isRVC(insn: UInt) = if (usingCompressed) insn(1,0) =/= 3 else Bool(false)
-    val end = collection.mutable.ArrayBuffer(isRVC(insns))
-    for (i <- 1 until insns.getWidth/16)
-      end += !end.head || isRVC(insns(i*16+1,i*16))
-    end
   }
 }
