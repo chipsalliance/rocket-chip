@@ -42,9 +42,13 @@ clean:
 ifeq ($(SUITE),)
 $(error Set SUITE to the regression suite you want to run)
 endif
-
+ 
 ifeq ($(SUITE),RocketSuite)
 CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig RoccExampleConfig
+endif
+ 
+ifeq ($(SUITE),BOOMSuite)
+CONFIGS=BOOMConfig BOOML1Config
 endif
 
 ifeq ($(SUITE),GroundtestSuite)

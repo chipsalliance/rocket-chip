@@ -69,7 +69,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
 
   // fetchWidth doubled, but coreInstBytes halved, for RVC
   require(fetchWidth == retireWidth * (4 / coreInstBytes))
-  require(retireWidth == 1)
+  //require(retireWidth == 1)
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.

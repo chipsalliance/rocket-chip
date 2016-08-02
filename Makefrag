@@ -5,6 +5,7 @@ endif
 
 MODEL ?= Top
 PROJECT := rocketchip
+export ROCKETCHIP_ADDONS ?= boom
 CXX ?= g++
 CXXFLAGS := -O1
 

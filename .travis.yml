@@ -33,6 +33,7 @@ addons:
 env:
   matrix:
     - SUITE=RocketSuite     CHISEL_VERSION=3
+    - SUITE=BOOMSuite       CHISEL_VERSION=3
     - SUITE=GroundtestSuite CHISEL_VERSION=3
 
 # blacklist private branches
