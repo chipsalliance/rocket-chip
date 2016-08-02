@@ -68,8 +68,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val nCores = p(NTiles)
 
   // fetchWidth doubled, but coreInstBytes halved, for RVC
-  require(fetchWidth == retireWidth * (4 / coreInstBytes))
-  require(retireWidth == 1)
+  val decodeWidth = fetchWidth / (if (usingCompressed) 2 else 1)
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
@@ -208,6 +207,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   ibuf.io.imem <> io.imem.resp
   ibuf.io.kill := take_pc
 
+  require(decodeWidth == 1 /* TODO */ && retireWidth == decodeWidth)
   val id_ctrl = Wire(new IntCtrlSigs()).decode(id_inst(0), decode_table)
   val id_raddr3 = id_expanded_inst(0).rs3
   val id_raddr2 = id_expanded_inst(0).rs2
