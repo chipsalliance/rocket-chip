@@ -76,6 +76,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val s_ready :: s_req :: s_wait :: s_set_dirty :: s_wait_dirty :: s_done :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_ready)
   val count = Reg(UInt(width = log2Up(pgLevels)))
+  val s1_kill = Reg(next = Bool(false))
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
@@ -121,12 +122,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
     when (io.dpath.invalidate) { valid := 0 }
 
-    (hit, Mux1H(hits, data))
-  }
-
-  val set_dirty_bit = pte.access_ok(r_req) && (!pte.a || (r_req.store && !pte.d))
-  when (io.mem.resp.valid && state === s_wait && !set_dirty_bit) {
-    r_pte := pte
+    (hit && count < pgLevels-1, Mux1H(hits, data))
   }
 
   val pte_wdata = Wire(init=new PTE().fromBits(0))
@@ -139,7 +135,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.req.bits.typ  := MT_D
   io.mem.req.bits.addr := pte_addr
   io.mem.s1_data := pte_wdata.asUInt
-  io.mem.s1_kill := Bool(false)
+  io.mem.s1_kill := s1_kill
   io.mem.invalidate_lr := Bool(false)
   
   val resp_ppns = (0 until pgLevels-1).map(i => Cat(pte_addr >> (pgIdxBits + pgLevelBits*(pgLevels-i-1)), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ (pte_addr >> pgIdxBits)
@@ -161,8 +157,8 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
       count := UInt(0)
     }
     is (s_req) {
-      when (pte_cache_hit && count < pgLevels-1) {
-        io.mem.req.valid := false
+      when (pte_cache_hit) {
+        s1_kill := true
         state := s_req
         count := count + 1
         r_pte.ppn := pte_cache_data
@@ -176,8 +172,10 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
       }
       when (io.mem.resp.valid) {
         state := s_done
-        when (set_dirty_bit) {
+        when (pte.access_ok(r_req) && (!pte.a || (r_req.store && !pte.d))) {
           state := s_set_dirty
+        }.otherwise {
+          r_pte := pte
         }
         when (pte.table() && count < pgLevels-1) {
           state := s_req
