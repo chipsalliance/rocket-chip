@@ -72,8 +72,8 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   require(usingAtomics, "PTW requires atomic memory operations")
-  
-  val s_ready :: s_req :: s_wait :: s_set_dirty :: s_wait_dirty :: s_done :: Nil = Enum(UInt(), 6)
+
+  val s_ready :: s_req :: s_wait1 :: s_wait2 :: s_set_dirty :: s_wait1_dirty :: s_wait2_dirty :: s_done :: Nil = Enum(UInt(), 8)
   val state = Reg(init=s_ready)
   val count = Reg(UInt(width = log2Up(pgLevels)))
   val s1_kill = Reg(next = Bool(false))
@@ -96,7 +96,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     when ((tmp.ppn >> ppnBits) =/= 0) { res.v := false }
     res
   }
-  val pte_addr = Cat(r_pte.ppn, vpn_idx) << log2Up(xLen/8)
+  val pte_addr = Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
 
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
@@ -132,7 +132,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.req.valid     := state === s_req || state === s_set_dirty
   io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := Mux(state === s_set_dirty, M_XA_OR, M_XRD)
-  io.mem.req.bits.typ  := MT_D
+  io.mem.req.bits.typ  := log2Ceil(xLen/8)
   io.mem.req.bits.addr := pte_addr
   io.mem.s1_data := pte_wdata.asUInt
   io.mem.s1_kill := s1_kill
@@ -163,10 +163,17 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
         count := count + 1
         r_pte.ppn := pte_cache_data
       }.elsewhen (io.mem.req.ready) {
-        state := s_wait
+        state := s_wait1
       }
     }
-    is (s_wait) {
+    is (s_wait1) {
+      state := s_wait2
+      when (io.mem.xcpt.pf.ld) {
+        r_pte.v := false
+        state := s_done
+      }
+    }
+    is (s_wait2) {
       when (io.mem.s2_nack) {
         state := s_req
       }
@@ -185,10 +192,17 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     }
     is (s_set_dirty) {
       when (io.mem.req.ready) {
-        state := s_wait_dirty
+        state := s_wait1_dirty
       }
     }
-    is (s_wait_dirty) {
+    is (s_wait1_dirty) {
+      state := s_wait2_dirty
+      when (io.mem.xcpt.pf.st) {
+        r_pte.v := false
+        state := s_done
+      }
+    }
+    is (s_wait2_dirty) {
       when (io.mem.s2_nack) {
         state := s_set_dirty
       }
