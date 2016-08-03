@@ -56,10 +56,7 @@ case object PLICKey extends Field[PLICConfig]
 /** Number of clock cycles per RTC tick */
 case object RTCPeriod extends Field[Int]
 case object AsyncDebugBus extends Field[Boolean]
-
-case object UseStreamLoopback extends Field[Boolean]
-case object StreamLoopbackSize extends Field[Int]
-case object StreamLoopbackWidth extends Field[Int]
+case object ExtraMMIODevices extends Field[AddrMap]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
@@ -254,7 +251,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val mmio_tl_start  = mmio_ahb_end
     val mmio_tl_end    = mmio_tl_start  + p(NExtMMIOTLChannels)
     require (mmio_tl_end == ports.size)
-    
+
     for (i <- 0 until ports.size) {
       if (mmio_axi_start <= i && i < mmio_axi_end) {
         TopUtils.connectTilelinkNasti(io.mmio_axi(i-mmio_axi_start), ports(i))
@@ -328,7 +325,12 @@ class Uncore(implicit val p: Parameters) extends Module
     val bootROM = Module(new ROMSlave(makeBootROM()))
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
-    // The memory map presently has only one external I/O region
+    if (ioAddrMap.contains("int:testram")) {
+      val ramSize = ioAddrMap("int:testram").size.intValue
+      val testram = Module(new TileLinkTestRAM(ramSize))
+      testram.io <> mmioNetwork.port("int:testram")
+    }
+
     val ext = p(ExtMMIOPorts).entries.map(port => TileLinkWidthAdapter(mmioNetwork.port(port.name), "MMIO_Outermost"))
     connectExternalMMIO(ext)(outermostMMIOParams)
   }

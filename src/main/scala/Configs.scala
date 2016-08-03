@@ -34,6 +34,7 @@ class BaseConfig extends Config (
       entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
+      entries ++= site(ExtraMMIODevices).entries
       new AddrMap(entries)
     }
     lazy val globalAddrMap = {
@@ -93,6 +94,13 @@ class BaseConfig extends Config (
         res append s"      };\n"
         res append  "    };\n"
         res append  "  };\n"
+      }
+      for (device <- site(ExtraMMIODevices).entries) {
+        val deviceEntry = addrMap("io:int:" + device.name)
+        res append s"  ${device.name} {\n"
+        res append s"    addr 0x${deviceEntry.start.toString(16)};\n"
+        res append s"    size 0x${deviceEntry.size.toString(16)};\n"
+        res append s"  };\n"
       }
       res append  "};\n"
       res append '\u0000'
@@ -223,6 +231,7 @@ class BaseConfig extends Config (
       }
       case NExtInterrupts => 2
       case AsyncMMIOChannels => false
+      case ExtraMMIODevices => AddrMap()
       case ExtMMIOPorts => AddrMap()
 /*
         AddrMap(
@@ -585,14 +594,6 @@ class MIF128BitConfig extends Config(
 class MIF32BitConfig extends Config(
   new WithMIFDataBits(32) ++ new BaseConfig)
 
-class WithStreamLoopback extends Config(
-  (pname, site, here) => pname match {
-    case UseStreamLoopback => true
-    case StreamLoopbackSize => 128
-    case StreamLoopbackWidth => 64
-    case _ => throw new CDEMatchError
-  })
-
 class SmallL2Config extends Config(
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
   new WithL2Capacity(256) ++ new DefaultL2Config)
@@ -613,3 +614,9 @@ class DualCoreConfig extends Config(
 class TinyConfig extends Config(
   new WithRV32 ++ new WithSmallCores ++
   new WithStatelessBridge ++ new BaseConfig)
+
+class WithTestRAM extends Config(
+  (pname, site, here) => pname match {
+    case ExtraMMIODevices => AddrMap(
+      AddrMapEntry("testram", MemSize(0x1000, MemAttr(AddrMapProt.RW))))
+  })

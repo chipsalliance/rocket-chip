@@ -130,6 +130,10 @@ class TileLinkTestRAM(depth: Int)(implicit val p: Parameters) extends Module
     } .otherwise { responding := Bool(false) }
   }
 
+  val old_data = ram(acq_addr)
+  val new_data = acq.data
+  val r_old_data = RegEnable(old_data, io.acquire.fire())
+
   io.acquire.ready := !responding
   io.grant.valid := responding
   io.grant.bits := Grant(
@@ -138,13 +142,10 @@ class TileLinkTestRAM(depth: Int)(implicit val p: Parameters) extends Module
     client_xact_id = r_acq.client_xact_id,
     manager_xact_id = UInt(0),
     addr_beat = r_acq.addr_beat,
-    data = ram(r_acq_addr))
-
-  val old_data = ram(acq_addr)
-  val new_data = acq.data
+    data = Mux(r_acq.isAtomic(), r_old_data, ram(r_acq_addr)))
 
   val amo_shift_bits = acq.amo_shift_bytes() << UInt(3)
-  val amoalu = Module(new AMOALU)
+  val amoalu = Module(new AMOALU(rhsIsAligned = true))
   amoalu.io.addr := Cat(acq.addr_block, acq.addr_beat, acq.addr_byte())
   amoalu.io.cmd := acq.op_code()
   amoalu.io.typ := acq.op_size()

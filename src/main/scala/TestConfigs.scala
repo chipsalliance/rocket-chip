@@ -69,7 +69,7 @@ class WithComparator extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new ComparatorCore()(p))
     case ComparatorKey => ComparatorParameters(
-      targets    = Seq(0L, 0x100L).map(site(GlobalAddrMap)("mem").start.longValue + _),
+      targets    = Seq("mem", "io:int:testram").map(name => site(GlobalAddrMap)(name).start.longValue),
       width      = 8,
       operations = 1000,
       atomics    = site(UseAtomics),
@@ -224,7 +224,8 @@ class WithTraceGen extends Config(
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
 
-class ComparatorConfig extends Config(new WithComparator ++ new GroundTestConfig)
+class ComparatorConfig extends Config(
+  new WithTestRAM ++ new WithComparator ++ new GroundTestConfig)
 class ComparatorL2Config extends Config(
   new WithAtomics ++ new WithPrefetches ++
   new WithL2Cache ++ new ComparatorConfig)

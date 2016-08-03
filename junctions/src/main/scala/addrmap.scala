@@ -125,6 +125,7 @@ class AddrMap(entriesIn: Seq[AddrMapEntry], val start: BigInt = BigInt(0)) exten
   }
 
   def apply(name: String): MemRegion = mapping(name)
+  def contains(name: String): Boolean = mapping.contains(name)
   def port(name: String): Int = slavePorts(name)
   def subMap(name: String): AddrMap = mapping(name).asInstanceOf[AddrMap]
   def isInRegion(name: String, addr: UInt): Bool = mapping(name).containsAddress(addr)
