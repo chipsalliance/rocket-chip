@@ -86,6 +86,76 @@ class AsyncHandshakeSink[T <: Data](gen: T, sync: Int, clock: Clock, reset: Bool
   }
 }
 
+class AsyncFIFOSource[T <: Data](gen: T, sync: Int, depth: Int, clock: Clock, reset: Bool)
+    extends Module(_clock = clock, _reset = reset) {
+  val io = new Bundle {
+    // These come from the source clock domain
+    val enq  = Decoupled(gen).flip()
+    // These cross to the sink clock domain
+    val bits = gen.cloneType.asOutput
+    val wptr = UInt(OUTPUT, width = log2Up(depth)+1)
+    val rptr = UInt(INPUT, width = log2Up(depth)+1)
+    val raddr = UInt(INPUT, width = log2Up(depth))
+  }
+  require (depth >= 4) // Required based on how the gray code is currently checked
+  require (isPow2(depth))
+
+  val rptr_sync = ShiftRegister(io.rptr, depth)
+
+  val wbinnext = Wire(UInt(width = log2Up(depth)+1))
+  val wgraynext = Wire(UInt(width = log2Up(depth)+1))
+  val wbin = Reg(wbinnext)
+  val waddr = wbin(log2Up(depth)-1,0)
+
+  val wfull_val = (
+    (wgraynext(log2Up(depth)) =/= rptr_sync(log2Up(depth))) &
+    (wgraynext(log2Up(depth)-1) =/= rptr_sync(log2Up(depth)-1)) &
+    (wgraynext(log2Up(depth)-2,0) === rptr_sync(log2Up(depth)-2,0)) )
+  val wfull = Reg(wfull_val, init=Bool(true))
+
+  wbinnext := wbin + (io.enq.valid & !wfull)
+  wgraynext := (wbinnext>>1) ^ wbinnext
+
+  io.wptr := Reg(wgraynext)
+  io.enq.ready := !wfull
+
+  val mem = Mem(depth,io.enq.bits)
+  when (io.enq.valid & !wfull) { mem(waddr) := io.enq.bits }
+  io.bits := mem(io.raddr)
+}
+
+class AsyncFIFOSink[T <: Data](gen: T, sync: Int, depth: Int, clock: Clock, reset: Bool) 
+    extends Module(_clock = clock, _reset = reset) {
+  val io = new Bundle {
+    // These cross to the source clock domain
+    val bits = gen.cloneType.asInput
+    val wptr = UInt(INPUT, width = log2Up(depth)+1)
+    val rptr = UInt(OUTPUT, width = log2Up(depth)+1)
+    val raddr = UInt(OUTPUT, width = log2Up(depth))
+    // These go to the sink clock domain
+    val deq = Decoupled(gen)
+  }
+  require (depth >= 2)
+  require (isPow2(depth))
+ 
+  val wptr_sync = ShiftRegister(io.wptr, depth)
+
+  val rbinnext = Wire(UInt(width = log2Up(depth)+1))
+  val rgraynext = Wire(UInt(width = log2Up(depth)+1))
+  val rbin = Reg(rbinnext)
+  
+  val rempty_val = (rgraynext === wptr_sync)
+  val rempty = Reg(rempty_val)
+
+  rbinnext := rbin + (io.deq.ready & !rempty)
+  rgraynext := (rbinnext>>1) ^ rbinnext
+ 
+  io.raddr := rbin(log2Up(depth)-1,0)
+  io.rptr := Reg(rgraynext)
+  io.deq.valid := !rempty
+  io.deq.bits := io.bits
+}
+
 class AsyncHandshake[T <: Data](gen: T, sync: Int = 2) extends Module {
   val io = new Crossing(gen, true, true)
   require (sync >= 2)
@@ -101,11 +171,29 @@ class AsyncHandshake[T <: Data](gen: T, sync: Int = 2) extends Module {
   source.io.pop := sink.io.pop
 }
 
+class AsyncFIFO[T <: Data](gen: T, sync: Int = 2, depth: Int = 2) extends Module {
+  val io = new Crossing(gen, true, true)
+  require (sync >= 2)
+
+  val source = Module(new AsyncFIFOSource(gen, sync, depth, io.enq_clock.get, io.enq_reset.get))
+  val sink   = Module(new AsyncFIFOSink  (gen, sync, depth, io.deq_clock.get, io.deq_reset.get))
+
+  source.io.enq <> io.enq
+  io.deq <> sink.io.deq
+
+  sink.io.bits := source.io.bits
+  sink.io.wptr := source.io.wptr
+  source.io.raddr := sink.io.raddr
+  source.io.rptr := sink.io.rptr
+}
+
 class AsyncDecoupledTo[T <: Data](gen: T, depth: Int = 0, sync: Int = 2) extends Module {
   val io = new Crossing(gen, false, true)
 
-  // !!! if depth == 0 { use Handshake } else { use AsyncFIFO }
-  val crossing = Module(new AsyncHandshake(gen, sync)).io
+  val crossing = {
+    if (depth == 0) { Module(new AsyncHandshake(gen, sync)).io }
+    else { Module(new AsyncFIFO(gen, sync, depth)).io }
+  }
   crossing.enq_clock.get := clock
   crossing.enq_reset.get := reset
   crossing.enq <> io.enq
@@ -128,8 +216,10 @@ object AsyncDecoupledTo {
 class AsyncDecoupledFrom[T <: Data](gen: T, depth: Int = 0, sync: Int = 2) extends Module {
   val io = new Crossing(gen, true, false)
 
-  // !!! if depth == 0 { use Handshake } else { use AsyncFIFO }
-  val crossing = Module(new AsyncHandshake(gen, sync)).io
+  val crossing = {
+    if (depth == 0) { Module(new AsyncHandshake(gen, sync)).io }
+    else { Module(new AsyncFIFO(gen, sync, depth)).io }
+  }
   crossing.enq_clock.get := io.enq_clock.get
   crossing.enq_reset.get := io.enq_reset.get
   crossing.enq <> io.enq
