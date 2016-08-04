@@ -708,7 +708,7 @@ class NastiMemoryDemux(nRoutes: Int)(implicit p: Parameters) extends NastiModule
 
 object AsyncNastiTo {
   // source(master) is in our clock domain, output is in the 'to' clock domain
-  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
+  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 4, sync: Int = 2)(implicit p: Parameters): NastiIO = {
     val sink = Wire(new NastiIO)
 
     sink.aw <> AsyncDecoupledTo(to_clock, to_reset, source.aw, depth, sync)
@@ -723,7 +723,7 @@ object AsyncNastiTo {
 
 object AsyncNastiFrom {
   // source(master) is in the 'from' clock domain, output is in our clock domain
-  def apply[T <: Data](from_clock: Clock, from_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
+  def apply[T <: Data](from_clock: Clock, from_reset: Bool, source: NastiIO, depth: Int = 4, sync: Int = 2)(implicit p: Parameters): NastiIO = {
     val sink = Wire(new NastiIO)
 
     sink.aw <> AsyncDecoupledFrom(from_clock, from_reset, source.aw, depth, sync)
