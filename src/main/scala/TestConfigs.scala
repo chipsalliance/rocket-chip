@@ -210,8 +210,9 @@ class WithTraceGen extends Config(
       val nWays = 1
       val blockOffset = site(CacheBlockOffsetBits)
       val baseAddr = site(GlobalAddrMap)("mem").start
+      val nBeats = site(MIFDataBeats)
       List.tabulate(4 * nWays) { i =>
-        Seq.tabulate(2) { j => (i * nSets + j * 8) << blockOffset }
+        Seq.tabulate(nBeats) { j => (j * 8) + ((i * nSets) << blockOffset) }
       }.flatten.map(addr => baseAddr + BigInt(addr))
     }
     case UseAtomics => true
