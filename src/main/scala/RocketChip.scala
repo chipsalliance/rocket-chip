@@ -56,7 +56,6 @@ case object PLICKey extends Field[PLICConfig]
 /** Number of clock cycles per RTC tick */
 case object RTCPeriod extends Field[Int]
 case object AsyncDebugBus extends Field[Boolean]
-case object ExtraMMIODevices extends Field[AddrMap]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
@@ -110,6 +109,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val debug_clk = if (p(AsyncDebugBus)) Some(Clock(INPUT)) else None
   val debug_rst = if (p(AsyncDebugBus)) Some(Bool(INPUT)) else None
   val debug = new DebugBusIO()(p).flip
+  val extra = p(ExtraTopPorts)(p)
 }
 
 object TopUtils {
@@ -205,6 +205,8 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
     (if (p(AsyncBusChannels))
       asyncAxiFrom(io.bus_clk.get, io.bus_rst.get, io.bus_axi)
     else io.bus_axi)
+
+  io.extra <> uncore.io.extra
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -227,6 +229,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debugBus = new DebugBusIO()(p).flip
+    val extra = p(ExtraTopPorts)(p)
   }
 
   val outmemsys = if (nCachedTilePorts + nUncachedTilePorts > 0)
@@ -325,10 +328,8 @@ class Uncore(implicit val p: Parameters) extends Module
     val bootROM = Module(new ROMSlave(makeBootROM()))
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
-    if (ioAddrMap.contains("int:testram")) {
-      val ramSize = ioAddrMap("int:testram").size.intValue
-      val testram = Module(new TileLinkTestRAM(ramSize))
-      testram.io <> mmioNetwork.port("int:testram")
+    for (device <- p(ExtraDevices)) {
+      device.builder(mmioNetwork.port("int:" + device.addrMapEntry.name), io.extra, p)
     }
 
     val ext = p(ExtMMIOPorts).entries.map(port => TileLinkWidthAdapter(mmioNetwork.port(port.name), "MMIO_Outermost"))

@@ -34,7 +34,7 @@ class BaseConfig extends Config (
       entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
-      entries ++= site(ExtraMMIODevices).entries
+      entries ++= site(ExtraDevices).map(_.addrMapEntry)
       new AddrMap(entries)
     }
     lazy val globalAddrMap = {
@@ -95,12 +95,10 @@ class BaseConfig extends Config (
         res append  "    };\n"
         res append  "  };\n"
       }
-      for (device <- site(ExtraMMIODevices).entries) {
-        val deviceEntry = addrMap("io:int:" + device.name)
-        res append s"  ${device.name} {\n"
-        res append s"    addr 0x${deviceEntry.start.toString(16)};\n"
-        res append s"    size 0x${deviceEntry.size.toString(16)};\n"
-        res append s"  };\n"
+      for (device <- site(ExtraDevices)) {
+        val deviceName = device.addrMapEntry.name
+        val deviceRegion = addrMap("io:int:" + deviceName)
+        res.append(device.makeConfigString(deviceRegion))
       }
       res append  "};\n"
       res append '\u0000'
@@ -231,7 +229,8 @@ class BaseConfig extends Config (
       }
       case NExtInterrupts => 2
       case AsyncMMIOChannels => false
-      case ExtraMMIODevices => AddrMap()
+      case ExtraDevices => Nil
+      case ExtraTopPorts => (p: Parameters) => new Bundle
       case ExtMMIOPorts => AddrMap()
 /*
         AddrMap(
@@ -617,6 +616,15 @@ class TinyConfig extends Config(
 
 class WithTestRAM extends Config(
   (pname, site, here) => pname match {
-    case ExtraMMIODevices => AddrMap(
-      AddrMapEntry("testram", MemSize(0x1000, MemAttr(AddrMapProt.RW))))
+    case ExtraDevices => {
+      class TestRAMDevice extends Device {
+        val ramSize = 0x1000
+        def builder(port: ClientUncachedTileLinkIO, extra: Bundle, p: Parameters) {
+          val testram = Module(new TileLinkTestRAM(ramSize)(p))
+          testram.io <> port
+        }
+        def addrMapEntry = AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW)))
+      }
+      Seq(new TestRAMDevice)
+    }
   })
