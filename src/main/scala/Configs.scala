@@ -315,6 +315,7 @@ class BaseConfig extends Config (
           dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes) * 8)
       }
+      case BootROMFile => "./bootrom/bootrom.img"
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
       case AsyncMemChannels => false

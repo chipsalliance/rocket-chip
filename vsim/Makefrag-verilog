@@ -16,7 +16,7 @@ else
 # files.
 .SECONDARY: $(generated_dir)/$(MODEL).$(CONFIG).fir
 
-$(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)/%.prm: $(chisel_srcs)
+$(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)/%.prm: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(PROJECT) $(notdir $*) $(CONFIG) $(CHISEL_ARGS) --configDump --noInlineMem"
 	mv $(generated_dir)/$(MODEL).fir $(generated_dir)/$(MODEL).$(CONFIG).fir

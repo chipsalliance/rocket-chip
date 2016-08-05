@@ -4,7 +4,7 @@ package rocketchip
 
 import Chisel._
 import scala.collection.mutable.{LinkedHashSet,LinkedHashMap}
-import cde.{Parameters, ParameterDump, Config, Field}
+import cde.{Parameters, ParameterDump, Config, Field, CDEMatchError}
 
 case object RegressionTestNames extends Field[LinkedHashSet[String]]
 
@@ -203,8 +203,7 @@ object TestGenerator extends App {
     }
     currentConfig ++ finalConfig
   }
-
-  val world = (new Config(finalConfig)).toInstance
+  val world = finalConfig.toInstance
 
   val paramsFromConfig: Parameters = Parameters.root(world)
 
