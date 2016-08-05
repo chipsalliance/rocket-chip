@@ -26,7 +26,7 @@ case object UseHtifClockDiv extends Field[Boolean]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
-case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
+case object BuildTiles extends Field[Seq[(Clock, Bool, Parameters) => Tile]]
 /** A string describing on-chip devices, readable by target software */
 case object ConfigString extends Field[Array[Byte]]
 /** Number of L1 clients besides the CPU cores */
@@ -81,6 +81,8 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem = Vec(nMemChannels, new NastiIO)
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   val mmio = Vec(p(NExtMMIOChannels), new NastiIO)
+  val core_clk = Vec(p(NTiles) - 1, Clock()).asInput
+  val oms_clk = Clock().asInput
 }
 
 object TopUtils {
@@ -129,8 +131,14 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   // Build an Uncore and a set of Tiles
   val innerTLParams = p.alterPartial({case TLId => "L1toL2" })
-  val uncore = Module(new Uncore()(innerTLParams))
-  val tileList = uncore.io.prci zip p(BuildTiles) map { case(prci, tile) => tile(prci.reset, p) }
+  val syncedReset = RegNext(RegNext(reset))
+  val uncore = Module(new Uncore(resetSignal = syncedReset)(innerTLParams))
+  val tileList = uncore.io.prci.zip(p(BuildTiles)).zipWithIndex.map
+  {
+    case((prci, tile), i) =>
+      if(i == nTiles-1) tile(clock, prci.reset, p) // PMU is on same clock as uncore
+      else tile(io.core_clk(i), prci.reset, p)
+  }
 
   // Connect each tile to the HTIF
   for ((prci, tile) <- uncore.io.prci zip tileList) {
@@ -142,6 +150,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   io.host <> uncore.io.host
   uncore.io.interrupts <> io.interrupts
+  uncore.io.oms_clk := io.oms_clk
 
   io.mmio <> uncore.io.mmio
   io.mem <> uncore.io.mem
@@ -152,7 +161,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   * Usually this is clocked and/or place-and-routed separately from the Tiles.
   * Contains the Host-Target InterFace module (HTIF).
   */
-class Uncore(implicit val p: Parameters) extends Module
+class Uncore(resetSignal:Bool = null)(implicit val p: Parameters) extends Module(_reset = resetSignal)
     with HasTopLevelParameters {
   val io = new Bundle {
     val host = new HostIO(htifW)
@@ -162,10 +171,13 @@ class Uncore(implicit val p: Parameters) extends Module
     val prci = Vec(nTiles, new PRCITileIO).asOutput
     val mmio = Vec(p(NExtMMIOChannels), new NastiIO)
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
+    val core_clk = Vec(p(NTiles) - 1, Clock()).asInput
+    val oms_clk = Clock().asInput
   }
 
   val htif = Module(new Htif(CSRs.mreset)) // One HTIF module per chip
-  val outmemsys = Module(new OuterMemorySystem) // NoC, LLC and SerDes
+  val oms_reset = RegNext(RegNext(reset))
+  val outmemsys = Module(new OuterMemorySystem(clockSignal = io.oms_clk, resetSignal = oms_reset)) // NoC, LLC and SerDes
   outmemsys.io.incoherent := htif.io.cpu.map(_.reset)
   outmemsys.io.htif_uncached <> htif.io.mem
   outmemsys.io.tiles_uncached <> io.tiles_uncached
@@ -227,7 +239,10 @@ class Uncore(implicit val p: Parameters) extends Module
       prci.io.interrupts.debug := Bool(false)
 
       io.prci(i) := prci.io.tile
-      io.prci(i).reset := Reg(next=Reg(next=htif.io.cpu(i).reset)) // TODO
+      if( i == (nTiles - 1))
+        io.prci(i).reset := htif.io.cpu(i).reset // TODO PMU core does not need sync
+      else
+        io.prci(i).reset := Reg(next=Reg(next=htif.io.cpu(i).reset)) // TODO
     }
 
     val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
@@ -250,7 +265,8 @@ class Uncore(implicit val p: Parameters) extends Module
 /** The whole outer memory hierarchy, including a NoC, some kind of coherence
   * manager agent, and a converter from TileLink to MemIO.
   */ 
-class OuterMemorySystem(implicit val p: Parameters) extends Module with HasTopLevelParameters {
+class OuterMemorySystem(clockSignal: Clock = null, resetSignal: Bool = null)(implicit val p: Parameters)
+    extends Module(Option(clockSignal), Option(resetSignal)) with HasTopLevelParameters {
   val io = new Bundle {
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip

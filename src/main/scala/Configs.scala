@@ -189,8 +189,8 @@ class DefaultConfig extends Config (
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuite(bmarks)
-        List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
-          Module(new RocketTile(resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
+        List.fill(site(NTiles)){ (c: Clock, r: Bool, p: Parameters) =>
+          Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
         }
       }
       case BuildRoCC => Nil
