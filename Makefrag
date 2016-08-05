@@ -17,7 +17,7 @@ SHELL := /bin/bash
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
 FIRRTL ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Driver
 
-$(FIRRTL_JAR):
+$(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
 
 ifeq ($(CHISEL_VERSION),2)
