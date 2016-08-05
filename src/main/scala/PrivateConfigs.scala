@@ -4,7 +4,8 @@ import Chisel.Module
 import cde._
 import cde.Implicits._
 import scala.collection.mutable.LinkedHashSet
-import uncore._
+import uncore.tilelink._
+import uncore.agents._
 import rocket._
 import hwacha._
 
@@ -21,34 +22,40 @@ object HwachaTestSuites {
     "overlap", "sched_sreg_xbar", "sched_fadd", "sched_waw", "sched_war", "pointer", "vcjal", "vfirst", "vfence",
     "vl_empty", "vs_empty", "vlx_empty", "vsx_empty", "vamo_empty", "eidx_empty") ++
     (rv32uaNames -- Set("lrsc")) ++ (rv64uaNames -- Set("lrsc"))
-  val rv64uvBasic = new AssemblyTestSuite("rv64uv", "rv64uv", rv64uvNames)(_)
+  val rv64uvBasic = new AssemblyTestSuite("rv64uv", rv64uvNames)(_)
 
   val rv64uiVecNames = LinkedHashSet(
-    "addi", "add", "addiw", "addw", "and", "andi", "div", "divu", "divuw", "divw", 
-    "mul", "mulw", "mulh", "mulhu", "mulhsu", "or", "ori", "rem", "remu", "remuw", "remw",
+    "addi", "add", "addiw", "addw", "and", "andi", "or", "ori",
     "sll", "slli", "slliw", "sllw", "slt", "slti", "sltiu", "sltu",
     "sra", "srai", "sraiw", "sraw", "srl", "srli", "srliw", "srlw", "sub", "subw", "xor", "xori").map("vec-" + _)
-  val rv64uiVec = new AssemblyTestSuite("rv64ui-vec", "rv64ui", rv64uiVecNames)(_)
+  val rv64uiVec = new AssemblyTestSuite("rv64ui", rv64uiVecNames)(_)
 
   val rv64uiScalarVecNames = rv64uiVecNames.map("s"+_)
-  val rv64uiScalerVec = new AssemblyTestSuite("rv64ui-svec", "rv64ui", rv64uiScalarVecNames)(_)
+  val rv64uiScalarVec = new AssemblyTestSuite("rv64ui", rv64uiScalarVecNames)(_)
+
+  val rv64umVecNames = DefaultTestSuites.rv64umNames.map("vec-" + _)
+  val rv64umVec = new AssemblyTestSuite("rv64um", rv64umVecNames)(_)
+  val rv64umScalarVecNames = rv64umVecNames.map("s"+_)
+  val rv64umScalarVec = new AssemblyTestSuite("rv64um", rv64umScalarVecNames)(_)
 
   val rv64ufVecNames = LinkedHashSet(
     "fadd", "fcmp", "fdiv", "fclass", "fcvt", "fcvt_w", "fmadd", "fmin", "fsgnj").map("vec-" + _)
   val rv64ufVecNamesV4 = rv64ufVecNames
-  val rv64ufVec = new AssemblyTestSuite("rv64uf-vec", "rv64uf", rv64ufVecNamesV4)(_)
+  val rv64ufVec = new AssemblyTestSuite("rv64uf", rv64ufVecNamesV4)(_)
+  val rv64udVec = new AssemblyTestSuite("rv64ud", rv64ufVecNamesV4)(_)
 
   val rv64ufScalarVecNames = rv64ufVecNames.map("s"+_)
   val rv64ufScalarVecNamesV4 = rv64ufScalarVecNames -- Set("svec-fdiv", "svec-fcmp")
-  val rv64ufScalarVec = new AssemblyTestSuite("rv64uf-svec", "rv64uf", rv64ufScalarVecNamesV4)(_)
+  val rv64ufScalarVec = new AssemblyTestSuite("rv64uf", rv64ufScalarVecNamesV4)(_)
+  val rv64udScalarVec = new AssemblyTestSuite("rv64ud", rv64ufScalarVecNamesV4)(_)
 
-  val rv64uv = List(rv64ufScalarVec, rv64ufVec, rv64uiScalerVec, rv64uiVec, rv64uvBasic)
+  val rv64uv = List(rv64ufScalarVec, rv64ufVec, rv64udScalarVec, rv64udVec, rv64uiScalarVec, rv64uiVec, rv64umScalarVec, rv64umVec, rv64uvBasic)
 
   val rv64svNames = LinkedHashSet(
     "illegal_inst", "illegal_vt_inst", "illegal_vt_regid", "ma_utld", "ma_utsd", "ma_vld", "ma_vsd", "ma_vt_inst", "privileged_inst")
     val rv64svNamesV4 = rv64svNames -- Set(
     "illegal_inst", "illegal_vt_inst", "illegal_vt_regid", "ma_utld", "ma_utsd", "ma_vld", "ma_vsd", "ma_vt_inst", "privileged_inst")
-  val rv64sv = new AssemblyTestSuite("rv64sv", "rv64sv", rv64svNamesV4)(_)
+  val rv64sv = new AssemblyTestSuite("rv64sv", rv64svNamesV4)(_)
 }
 
 import HwachaTestSuites._
@@ -80,7 +87,7 @@ class WithHwachaTests extends Config(
 class HwachaConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2Config)
 class HwachaFPGAConfig extends Config(new WithHwachaTests ++ new DefaultHwachaConfig ++ new DefaultL2FPGAConfig)
 
-class EOS24Config extends Config(new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaConfig)
+class EOS24Config extends Config(new WithNBanksPerMemChannel(4) ++ new WithL2Capacity(256) ++ new HwachaConfig)
 class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)
 
 class With5L2AcquireXacts extends Config(
@@ -150,13 +157,13 @@ class WithSmallPredRF extends Config(
 
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
-  new With2MemoryChannels ++ new With4BanksPerMemChannel ++
-  new With5L2AcquireXacts ++ new WithL2Capacity256 ++ new With32BtbEntires ++ new HwachaConfig)
+  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
+  new With5L2AcquireXacts ++ new WithL2Capacity(256) ++ new With32BtbEntires ++ new HwachaConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
     case "HWACHA_BUILD_VRU" => true
-    case x => (new Config(new With2MemoryChannels ++ new With4BanksPerMemChannel ++ new WithL2Capacity256 ++ new HwachaConfig)).knobValues(x)
+    case x => (new Config(new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++ new WithL2Capacity(256) ++ new HwachaConfig)).knobValues(x)
     case _ => throw new CDEMatchError
   }
 
@@ -171,7 +178,7 @@ class ISCA2016Config extends Config(
 class ISCA2016L2Config extends Config(new With2Lanes ++ new ISCA2016Config)
 class ISCA2016L4Config extends Config(new With4Lanes ++ new ISCA2016Config)
 
-class ISCA2016HOVB4Config extends Config(new With9L2AcquireXacts ++ new With2BanksPerMemChannel ++ new ISCA2016Config)
+class ISCA2016HOVB4Config extends Config(new With9L2AcquireXacts ++ new WithNBanksPerMemChannel(2) ++ new ISCA2016Config)
 class ISCA2016HOVB8Config extends Config(new ISCA2016Config)
 class ISCA2016LOVB4Config extends Config(new WithoutConfPrec ++ new ISCA2016HOVB4Config)
 class ISCA2016LOVB8Config extends Config(new WithoutConfPrec ++ new ISCA2016HOVB8Config)
