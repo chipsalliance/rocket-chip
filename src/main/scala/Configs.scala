@@ -4,11 +4,16 @@ package rocketchip
 
 import Chisel._
 import junctions._
-import uncore._
+import uncore.tilelink._
+import uncore.coherence._
+import uncore.agents._
+import uncore.devices._
+import uncore.converters._
 import rocket._
 import rocket.Util._
 import groundtest._
 import scala.math.max
+import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
@@ -19,73 +24,59 @@ object ConfigUtils {
 }
 import ConfigUtils._
 
-class DefaultConfig extends Config (
+class BaseConfig extends Config (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
     lazy val internalIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
-      entries += AddrMapEntry("debug", MemSize(1<<12, 1<<12, MemAttr(0)))
-      entries += AddrMapEntry("bootrom", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RX)))
-      entries += AddrMapEntry("rtc", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
-      for (i <- 0 until site(NTiles))
-        entries += AddrMapEntry(s"prci$i", MemSize(1<<12, 1<<12, MemAttr(AddrMapProt.RW)))
-      entries += AddrMapEntry("plic", MemSize(1<<22, 1<<22, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
+      entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
+      entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
       new AddrMap(entries)
     }
-    lazy val (globalAddrMap, globalAddrHashMap) = {
-      val memSize = 1L << 31
-      val memAlign = 1L << 30
-      val extIOSize = 1L << 30
-      val mem = MemSize(memSize, memAlign, MemAttr(AddrMapProt.RWX, true))
-      val io = AddrMap(
-        AddrMapEntry("int", MemSubmap(internalIOAddrMap.computeSize, internalIOAddrMap)),
-        AddrMapEntry("ext", MemSize(extIOSize, extIOSize, MemAttr(AddrMapProt.RWX))))
+    lazy val globalAddrMap = {
+      val memBase = 0x80000000L
+      val memSize = 0x10000000L
+      val io = new AddrMap(AddrMapEntry("int", internalIOAddrMap) +: site(ExtMMIOPorts).entries)
       val addrMap = AddrMap(
-        AddrMapEntry("io", MemSubmap(io.computeSize, io)),
-        AddrMapEntry("mem", mem))
+        AddrMapEntry("io", io),
+        AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true))))
 
-      val addrHashMap = new AddrHashMap(addrMap)
-      Dump("MEM_BASE", addrHashMap("mem").start)
+      Dump("MEM_BASE", addrMap("mem").start)
       Dump("MEM_SIZE", memSize)
-      Dump("IO_BASE", addrHashMap("io:ext").start)
-      Dump("IO_SIZE", extIOSize)
-      (addrMap, addrHashMap)
+      addrMap
     }
     def makeConfigString() = {
-      val addrMap = globalAddrHashMap
-      val plicAddr = addrMap(s"io:int:plic").start
+      val addrMap = globalAddrMap
+      val plicAddr = addrMap("io:int:plic").start
+      val prciAddr = addrMap("io:int:prci").start
       val plicInfo = site(PLICKey)
       val xLen = site(XLen)
       val res = new StringBuilder
-      res append  "platform {\n"
-      res append  "  vendor ucb;\n"
-      res append  "  arch rocket;\n"
-      res append  "};\n"
       res append  "plic {\n"
       res append s"  priority 0x${plicAddr.toString(16)};\n"
       res append s"  pending 0x${(plicAddr + plicInfo.pendingBase).toString(16)};\n"
       res append s"  ndevs ${plicInfo.nDevices};\n"
       res append  "};\n"
       res append  "rtc {\n"
-      res append s"  addr 0x${addrMap("io:int:rtc").start.toString(16)};\n"
+      res append s"  addr 0x${(prciAddr + PRCI.time).toString(16)};\n"
       res append  "};\n"
       res append  "ram {\n"
       res append  "  0 {\n"
       res append s"    addr 0x${addrMap("mem").start.toString(16)};\n"
-      res append s"    size 0x${addrMap("mem").region.size.toString(16)};\n"
+      res append s"    size 0x${addrMap("mem").size.toString(16)};\n"
       res append  "  };\n"
       res append  "};\n"
       res append  "core {\n"
       for (i <- 0 until site(NTiles)) {
-        val isa = s"rv${site(XLen)}ima${if (site(UseFPU)) "fd" else ""}"
-        val timecmpAddr = addrMap("io:int:rtc").start + 8*(i+1)
-        val prciAddr = addrMap(s"io:int:prci$i").start
+        val isa = s"rv${site(XLen)}im${if (site(UseAtomics)) "a" else ""}${if (site(UseFPU)) "fd" else ""}"
         res append s"  $i {\n"
         res append  "    0 {\n"
         res append s"      isa $isa;\n"
-        res append s"      timecmp 0x${timecmpAddr.toString(16)};\n"
-        res append s"      ipi 0x${prciAddr.toString(16)};\n"
+        res append s"      timecmp 0x${(prciAddr + PRCI.timecmp(i)).toString(16)};\n"
+        res append s"      ipi 0x${(prciAddr + PRCI.msip(i)).toString(16)};\n"
         res append s"      plic {\n"
         res append s"        m {\n"
         res append s"         ie 0x${(plicAddr + plicInfo.enableAddr(i, 'M')).toString(16)};\n"
@@ -107,13 +98,9 @@ class DefaultConfig extends Config (
       res append '\u0000'
       res.toString.getBytes
     }
+    lazy val innerDataBits = 64
+    lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
     pname match {
-      case HtifKey => HtifParameters(
-                       width = Dump("HTIF_WIDTH", 16),
-                       nSCR = 64,
-                       csrDataBits = site(XLen),
-                       offsetBits = site(CacheBlockOffsetBits),
-                       nCores = site(NTiles))
       //Memory Parameters
       case PAddrBits => 32
       case PgIdxBits => 12
@@ -135,9 +122,6 @@ class DefaultConfig extends Config (
           addrBits = Dump("MEM_ADDR_BITS", site(PAddrBits)),
           idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
       }
-      case HastiKey => HastiParameters(
-                        dataBits = site(XLen),
-                        addrBits = site(PAddrBits))
       //Params used by all caches
       case NSets => findBy(CacheName)
       case NWays => findBy(CacheName)
@@ -145,7 +129,6 @@ class DefaultConfig extends Config (
       case NTLBEntries => findBy(CacheName)
       case CacheIdBits => findBy(CacheName)
       case SplitMetadata => findBy(CacheName)
-      case ICacheBufferWays => Knob("L1I_BUFFER_WAYS")
       case "L1I" => {
         case NSets => Knob("L1I_SETS") //64
         case NWays => Knob("L1I_WAYS") //4
@@ -181,48 +164,83 @@ class DefaultConfig extends Config (
         Module(new L2BroadcastHub()(p.alterPartial({
           case InnerTLId => "L1toL2"
           case OuterTLId => "L2toMC" })))
+      case NCachedTileLinkPorts => 1
+      case NUncachedTileLinkPorts => 1
       //Tile Constants
       case BuildTiles => {
         val (rvi, rvu) =
-          if (site(XLen) == 64) (rv64i, rv64u)
-          else (rv32i, rv32u)
+          if (site(XLen) == 64) ((if (site(UseVM)) rv64i else rv64pi), rv64u)
+          else ((if (site(UseVM)) rv32i else rv32pi), rv32u)
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuite(bmarks)
+        TestGeneration.addSuite(if (site(UseVM)) benchmarks else emptyBmarks)
         List.fill(site(NTiles)){ (c: Clock, r: Bool, p: Parameters) =>
-          Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({case TLId => "L1toL2"})))
+          Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({
+            case TLId => "L1toL2"
+            case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)
+          })))
         }
       }
       case BuildRoCC => Nil
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
-      case NDmaTransactors => 3
-      case NDmaXacts => site(NDmaTransactors) * site(NTiles)
-      case NDmaClients => site(NTiles)
       //Rocket Core Constants
       case CoreName => "Rocket"
-      case FetchWidth => 1
+      case FetchWidth => if (site(UseCompressed)) 2 else 1
       case RetireWidth => 1
       case UseVM => true
+      case UseUser => true
+      case UseDebug => true
+      case AsyncDebugBus => false
+      case NBreakpoints => 1
       case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
-      case FastMulDiv => true
+      case MulUnroll => 8
+      case DivEarlyOut => true
       case XLen => 64
       case UseFPU => {
         val env = if(site(UseVM)) List("p","v") else List("p")
-        if(site(FDivSqrt)) TestGeneration.addSuites(env.map(rv64uf))
-        else TestGeneration.addSuites(env.map(rv64ufNoDiv))
+        TestGeneration.addSuite(rv32udBenchmarks)
+        if(site(FDivSqrt)) {
+          TestGeneration.addSuites(env.map(rv64uf))
+          TestGeneration.addSuites(env.map(rv64ud))
+        } else {
+          TestGeneration.addSuites(env.map(rv64ufNoDiv))
+          TestGeneration.addSuites(env.map(rv64udNoDiv))
+        }
+        true
+      }
+      case UseAtomics => {
+        val env = if(site(UseVM)) List("p","v") else List("p")
+        TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64ua else rv32ua))
+        true
+      }
+      case UseCompressed => {
+        val env = if(site(UseVM)) List("p","v") else List("p")
+        TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64uc else rv32uc))
         true
       }
       case NExtInterrupts => 2
-      case NExtMMIOChannels => 0
-      case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), site(NExtInterrupts))
+      case AsyncMMIOChannels => false
+      case ExtMMIOPorts => AddrMap()
+/*
+        AddrMap(
+          AddrMapEntry("cfg", MemRange(0x50000000L, 0x04000000L, MemAttr(AddrMapProt.RW))),
+          AddrMapEntry("ext", MemRange(0x60000000L, 0x20000000L, MemAttr(AddrMapProt.RWX))))
+*/
+      case NExtMMIOAXIChannels => 0
+      case NExtMMIOAHBChannels => 0
+      case NExtMMIOTLChannels  => 0
+      case AsyncBusChannels => false
+      case NExtBusAXIChannels => 0
+      case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
+      case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
       case SFMALatency => 2
       case DFMALatency => 3
-      case CoreInstBits => 32
+      case CoreInstBits => if (site(UseCompressed)) 16 else 32
       case CoreDataBits => site(XLen)
       case NCustomMRWCSRs => 0
       case ResetVector => BigInt(0x1000)
@@ -233,25 +251,35 @@ class DefaultConfig extends Config (
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
-      case ExtraL1Clients => 1 // HTIF // TODO not really a parameter
-      case TLKey("L1toL2") => 
+      case HastiId => "Ext"
+      case HastiKey("TL") =>
+        HastiParameters(
+          addrBits = site(PAddrBits),
+          dataBits = site(TLKey(site(TLId))).dataBits / site(TLKey(site(TLId))).dataBeats)
+      case HastiKey("Ext") =>
+        HastiParameters(
+          addrBits = site(PAddrBits),
+          dataBits = site(XLen))
+      case TLKey("DefaultL1toL2") => {
+        val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
         TileLinkParameters(
-          coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
-          nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-          nCachingClients = site(NTiles),
-          nCachelessClients = site(ExtraL1Clients) +
-                              site(NTiles) *
-                                (1 + (if(site(BuildRoCC).isEmpty) 0
-                                      else site(RoccNMemChannels))),
+          coherencePolicy = (
+            if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
+            else new MESICoherence(site(L2DirectoryRepresentation))),
+          nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
+          nCachingClients = site(NCachedTileLinkPorts),
+          nCachelessClients = site(NExtBusAXIChannels) + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
-              site(NMSHRs) + 1,
+              site(NMSHRs) + 1 /* IOMSHR */,
               // RoCC
               if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
           maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
           maxManagerXacts = site(NAcquireTransactors) + 2,
-          dataBits = site(CacheBlockBytes)*8)
-      case TLKey("L2toMC") => 
+          dataBeats = innerDataBeats,
+          dataBits = site(CacheBlockBytes)*8) }
+      case TLKey("L1toL2") => site(TLKey("DefaultL1toL2")).copy()
+      case TLKey("DefaultL2toMC") =>
         TileLinkParameters(
           coherencePolicy = new MEICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
@@ -261,36 +289,67 @@ class DefaultConfig extends Config (
           maxClientXacts = 1,
           maxClientsPerPort = site(NAcquireTransactors) + 2,
           maxManagerXacts = 1,
+          dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes)*8)
+      case TLKey("L2toMC") => site(TLKey("DefaultL2toMC")).copy()
       case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
         maxClientXacts = site(NAcquireTransactors) + 2,
         maxClientsPerPort = site(NBanksPerMemoryChannel),
         dataBeats = site(MIFDataBeats))
-      case TLKey("L2toMMIO") => {
-        val addrMap = globalAddrHashMap
+      case TLKey("DefaultL2toMMIO") => {
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = addrMap.nEntries - 1,
+          nManagers = globalAddrMap.subMap("io").flatten.size,
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 4,
           maxClientsPerPort = 1,
           maxManagerXacts = 1,
+          dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes) * 8)
       }
+      case TLKey("L2toMMIO") => site(TLKey("DefaultL2toMMIO")).copy()
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
+      case AsyncMemChannels => false
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
+      case TMemoryChannels => BusType.AXI
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
       case NOutstandingMemReqsPerChannel => site(NBanksPerMemoryChannel)*(site(NAcquireTransactors)+2)
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
-      case UseHtifClockDiv => true
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
-      case GlobalAddrHashMap => globalAddrHashMap
+      case EnableL2Logging => false
+      case ExportGroundTestStatus => false
+      case RegressionTestNames => LinkedHashSet(
+        "rv64ud-v-fcvt",
+        "rv64ud-p-fdiv",
+        "rv64ud-v-fadd",
+        "rv64uf-v-fadd",
+        "rv64um-v-mul",
+        "rv64mi-p-breakpoint",
+        "rv64uc-v-rvc",
+        "rv64ud-v-structural",
+        "rv64si-p-wfi",
+        "rv64um-v-divw",
+        "rv64ua-v-lrsc",
+        "rv64ui-v-fence_i",
+        "rv64ud-v-fcvt_w",
+        "rv64uf-v-fmin",
+        "rv64ui-v-sb",
+        "rv64ua-v-amomax_d",
+        "rv64ud-v-move",
+        "rv64ud-v-fclass",
+        "rv64ua-v-amoand_d",
+        "rv64ua-v-amoxor_d",
+        "rv64si-p-sbreak",
+        "rv64ud-v-fmadd",
+        "rv64uf-v-ldst",
+        "rv64um-v-mulh",
+        "rv64si-p-dirty")
       case _ => throw new CDEMatchError
   }},
   knobValues = {
@@ -301,36 +360,23 @@ class DefaultConfig extends Config (
     case "L1D_WAYS" => 4
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 4
-    case "L1I_BUFFER_WAYS" => false
     case _ => throw new CDEMatchError
   }
 )
-class DefaultVLSIConfig extends DefaultConfig
-class DefaultCPPConfig extends DefaultConfig
+class DefaultConfig extends Config(new WithBlockingL1 ++ new BaseConfig)
 
-class With2Cores extends Config(knobValues = { case "NTILES" => 2; case _ => throw new CDEMatchError })
-class With4Cores extends Config(knobValues = { case "NTILES" => 4; case _ => throw new CDEMatchError })
-class With8Cores extends Config(knobValues = { case "NTILES" => 8; case _ => throw new CDEMatchError })
+class WithNCores(n: Int) extends Config(
+  knobValues = { case"NTILES" => n; case _ => throw new CDEMatchError })
 
-class With2BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 2; case _ => throw new CDEMatchError })
-class With4BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 4; case _ => throw new CDEMatchError })
-class With8BanksPerMemChannel extends Config(knobValues = { case "NBANKS_PER_MEM_CHANNEL" => 8; case _ => throw new CDEMatchError })
-
-class With2MemoryChannels extends Config(
-  (pname,site,here) => pname match {
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", 2)
+class WithNBanksPerMemChannel(n: Int) extends Config(
+  knobValues = {
+    case "NBANKS_PER_MEM_CHANNEL" => n;
     case _ => throw new CDEMatchError
-  }
-)
-class With4MemoryChannels extends Config(
+  })
+
+class WithNMemoryChannels(n: Int) extends Config(
   (pname,site,here) => pname match {
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", 4)
-    case _ => throw new CDEMatchError
-  }
-)
-class With8MemoryChannels extends Config(
-  (pname,site,here) => pname match {
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", n)
     case _ => throw new CDEMatchError
   }
 )
@@ -363,27 +409,63 @@ class WithL2Cache extends Config(
   knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048; case "L2_SPLIT_METADATA" => false; case _ => throw new CDEMatchError }
 )
 
+class WithBufferlessBroadcastHub extends Config(
+  (pname, site, here) => pname match {
+    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
+      Module(new BufferlessBroadcastHub()(p.alterPartial({
+        case InnerTLId => "L1toL2"
+        case OuterTLId => "L2toMC" })))
+  })
+
+/**
+ * WARNING!!! IGNORE AT YOUR OWN PERIL!!!
+ *
+ * There is a very restrictive set of conditions under which the stateless
+ * bridge will function properly. There can only be a single tile. This tile
+ * MUST use the blocking data cache (L1D_MSHRS == 0) and MUST NOT have an
+ * uncached channel capable of writes (i.e. a RoCC accelerator).
+ *
+ * This is because the stateless bridge CANNOT generate probes, so if your
+ * system depends on coherence between channels in any way,
+ * DO NOT use this configuration.
+ */
+class WithStatelessBridge extends Config (
+  topDefinitions = (pname, site, here) => pname match {
+    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
+      Module(new ManagerToClientStatelessBridge()(p.alterPartial({
+        case InnerTLId => "L1toL2"
+        case OuterTLId => "L2toMC" })))
+  },
+  knobValues = {
+    case "L1D_MSHRS" => 0
+    case _ => throw new CDEMatchError
+  }
+)
+
 class WithPLRU extends Config(
   (pname, site, here) => pname match {
     case L2Replacer => () => new SeqPLRU(site(NSets), site(NWays))
     case _ => throw new CDEMatchError
   })
 
-class WithL2Capacity2048 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 2048; case _ => throw new CDEMatchError })
-class WithL2Capacity1024 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 1024; case _ => throw new CDEMatchError })
-class WithL2Capacity512 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 512; case _ => throw new CDEMatchError })
-class WithL2Capacity256 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 256; case _ => throw new CDEMatchError })
-class WithL2Capacity128 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 128; case _ => throw new CDEMatchError })
-class WithL2Capacity64 extends Config(knobValues = { case "L2_CAPACITY_IN_KB" => 64; case _ => throw new CDEMatchError })
+class WithL2Capacity(size_kb: Int) extends Config(
+  knobValues = {
+    case "L2_CAPACITY_IN_KB" => size_kb
+    case _ => throw new CDEMatchError
+  })
 
-class With1L2Ways extends Config(knobValues = { case "L2_WAYS" => 1; case _ => throw new CDEMatchError })
-class With2L2Ways extends Config(knobValues = { case "L2_WAYS" => 2; case _ => throw new CDEMatchError })
-class With4L2Ways extends Config(knobValues = { case "L2_WAYS" => 4; case _ => throw new CDEMatchError })
+class WithNL2Ways(n: Int) extends Config(
+  knobValues = {
+    case "L2_WAYS" => n
+    case _ => throw new CDEMatchError
+  })
 
-class DefaultL2Config extends Config(new WithL2Cache ++ new DefaultConfig)
-class DefaultL2VLSIConfig extends Config(new WithL2Cache ++ new DefaultVLSIConfig)
-class DefaultL2CPPConfig extends Config(new WithL2Cache ++ new DefaultCPPConfig)
-class DefaultL2FPGAConfig extends Config(new WithL2Capacity64 ++ new WithL2Cache ++ new DefaultFPGAConfig)
+class DefaultL2Config extends Config(new WithL2Cache ++ new BaseConfig)
+class DefaultL2FPGAConfig extends Config(
+  new WithL2Capacity(64) ++ new WithL2Cache ++ new DefaultFPGAConfig)
+
+class DefaultBufferlessConfig extends Config(
+  new WithBufferlessBroadcastHub ++ new BaseConfig)
 
 class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
@@ -391,7 +473,16 @@ class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
     case UseVM => false
+    case UseUser => false
+    case UseAtomics => false
     case UseFPU => false
+    case RegressionTestNames => LinkedHashSet(
+      "rv32mi-p-ma_addr",
+      "rv32mi-p-csr",
+      "rv32ui-p-sh",
+      "rv32ui-p-lh",
+      "rv32mi-p-sbreak",
+      "rv32ui-p-sll")
     case _ => throw new CDEMatchError
   }
 )
@@ -399,17 +490,37 @@ class WithRV32 extends Config(
 class FPGAConfig extends Config (
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
-    case UseHtifClockDiv => false
+    case ExportGroundTestStatus => true
     case _ => throw new CDEMatchError
   }
 )
 
-class DefaultFPGAConfig extends Config(new FPGAConfig ++ new DefaultConfig)
+class WithBlockingL1 extends Config (
+  knobValues = {
+    case "L1D_MSHRS" => 0
+    case _ => throw new CDEMatchError
+  }
+)
 
-class SmallConfig extends Config (
+class WithAHB extends Config(
+  (pname, site, here) => pname match {
+    case TMemoryChannels     => BusType.AHB
+    case NExtMMIOAHBChannels => 1
+  })
+
+class WithTL extends Config(
+  (pname, site, here) => pname match {
+    case TMemoryChannels     => BusType.TL
+    case NExtMMIOTLChannels  => 1
+  })
+
+class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
+
+class WithSmallCores extends Config (
     topDefinitions = { (pname,site,here) => pname match {
       case UseFPU => false
-      case FastMulDiv => false
+      case MulUnroll => 1
+      case DivEarlyOut => false  
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 0)
       case StoreDataQueueDepth => 2
@@ -422,30 +533,30 @@ class SmallConfig extends Config (
     case "L1D_WAYS" => 1
     case "L1I_SETS" => 64
     case "L1I_WAYS" => 1
-    case "L1D_MSHRS" => 1
+    case "L1D_MSHRS" => 0
     case _ => throw new CDEMatchError
   }
 )
 
-class DefaultFPGASmallConfig extends Config(new SmallConfig ++ new DefaultFPGAConfig)
+class DefaultFPGASmallConfig extends Config(new WithSmallCores ++ new DefaultFPGAConfig)
+class DefaultSmallConfig extends Config(new WithSmallCores ++ new BaseConfig)
+class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultSmallConfig)
 
-class DefaultRV32Config extends Config(new SmallConfig ++ new WithRV32 ++ new DefaultConfig)
-
-class ExampleSmallConfig extends Config(new SmallConfig ++ new DefaultConfig)
-
-class DualBankConfig extends Config(new With2BanksPerMemChannel ++ new DefaultConfig)
+class DualBankConfig extends Config(
+  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
 class DualBankL2Config extends Config(
-  new With2BanksPerMemChannel ++ new WithL2Cache ++ new DefaultConfig)
+  new WithNBanksPerMemChannel(2) ++ new WithL2Cache ++ new BaseConfig)
 
-class DualChannelConfig extends Config(new With2MemoryChannels ++ new DefaultConfig)
+class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new BaseConfig)
 class DualChannelL2Config extends Config(
-  new With2MemoryChannels ++ new WithL2Cache ++ new DefaultConfig)
+  new WithNMemoryChannels(2) ++ new WithL2Cache ++ new BaseConfig)
 
 class DualChannelDualBankConfig extends Config(
-  new With2MemoryChannels ++ new With2BanksPerMemChannel ++ new DefaultConfig)
+  new WithNMemoryChannels(2) ++
+  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
 class DualChannelDualBankL2Config extends Config(
-  new With2MemoryChannels ++ new With2BanksPerMemChannel ++
-  new WithL2Cache ++ new DefaultConfig)
+  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(2) ++
+  new WithL2Cache ++ new BaseConfig)
 
 class WithRoccExample extends Config(
   (pname, site, here) => pname match {
@@ -465,21 +576,17 @@ class WithRoccExample extends Config(
     case _ => throw new CDEMatchError
   })
 
-class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
+class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
 
-class WithDmaController extends Config(
+class WithMIFDataBits(n: Int) extends Config(
   (pname, site, here) => pname match {
-    case BuildRoCC => Seq(
-        RoccParameters(
-          opcodes = OpcodeSet.custom2,
-          generator = (p: Parameters) => Module(new DmaController()(p)),
-          nPTWPorts = 1,
-          csrs = Seq.range(
-            DmaCtrlRegNumbers.CSR_BASE,
-            DmaCtrlRegNumbers.CSR_END)))
-    case RoccMaxTaggedMemXacts => 1
-    case _ => throw new CDEMatchError
+    case MIFDataBits => Dump("MIF_DATA_BITS", n)
   })
+
+class MIF128BitConfig extends Config(
+  new WithMIFDataBits(128) ++ new BaseConfig)
+class MIF32BitConfig extends Config(
+  new WithMIFDataBits(32) ++ new BaseConfig)
 
 class WithStreamLoopback extends Config(
   (pname, site, here) => pname match {
@@ -489,21 +596,23 @@ class WithStreamLoopback extends Config(
     case _ => throw new CDEMatchError
   })
 
-class DmaControllerConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultL2Config)
-class DmaControllerFPGAConfig extends Config(new WithDmaController ++ new WithStreamLoopback ++ new DefaultFPGAConfig)
-
 class SmallL2Config extends Config(
-  new With2MemoryChannels ++ new With4BanksPerMemChannel ++
-  new WithL2Capacity256 ++ new DefaultL2Config)
+  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
+  new WithL2Capacity(256) ++ new DefaultL2Config)
 
-class SingleChannelBenchmarkConfig extends Config(new WithL2Capacity256 ++ new DefaultL2Config)
-class DualChannelBenchmarkConfig extends Config(new With2MemoryChannels ++ new SingleChannelBenchmarkConfig)
-class QuadChannelBenchmarkConfig extends Config(new With4MemoryChannels ++ new SingleChannelBenchmarkConfig)
-class OctoChannelBenchmarkConfig extends Config(new With8MemoryChannels ++ new SingleChannelBenchmarkConfig)
+class SingleChannelBenchmarkConfig extends Config(new WithL2Capacity(256) ++ new DefaultL2Config)
+class DualChannelBenchmarkConfig extends Config(new WithNMemoryChannels(2) ++ new SingleChannelBenchmarkConfig)
+class QuadChannelBenchmarkConfig extends Config(new WithNMemoryChannels(4) ++ new SingleChannelBenchmarkConfig)
+class OctoChannelBenchmarkConfig extends Config(new WithNMemoryChannels(8) ++ new SingleChannelBenchmarkConfig)
 
-class EightChannelVLSIConfig extends Config(new With8MemoryChannels ++ new DefaultVLSIConfig)
+class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new BaseConfig)
 
 class WithSplitL2Metadata extends Config(knobValues = { case "L2_SPLIT_METADATA" => true; case _ => throw new CDEMatchError })
 class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new DefaultL2Config)
 
-class DualCoreConfig extends Config(new With2Cores ++ new DefaultConfig)
+class DualCoreConfig extends Config(
+  new WithNCores(2) ++ new WithL2Cache ++ new BaseConfig)
+
+class TinyConfig extends Config(
+  new WithRV32 ++ new WithSmallCores ++
+  new WithStatelessBridge ++ new BaseConfig)

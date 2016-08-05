@@ -17,13 +17,12 @@ using namespace DRAMSim;
 
 void mm_dramsim2_t::read_complete(unsigned id, uint64_t address, uint64_t clock_cycle)
 {
-  auto req = rreq[address].front();
-  uint64_t start_addr = (address / word_size) * word_size;
-  for (int i = 0; i < req.len; i++) {
-    auto dat = read(start_addr + i * word_size);
-    rresp.push(mm_rresp_t(req.id, dat, (i == req.len - 1)));
-  }
-  rreq[address].pop();
+  mm_rresp_t resp;
+  do {
+    resp = rreq[address].front();
+    rresp.push(resp);
+    rreq[address].pop();
+  } while (!resp.last);
 }
 
 void mm_dramsim2_t::write_complete(unsigned id, uint64_t address, uint64_t clock_cycle)
@@ -84,7 +83,11 @@ void mm_dramsim2_t::tick(
   bool b_fire = b_valid() && b_ready;
 
   if (ar_fire) {
-    rreq[ar_addr].push(mm_req_t(ar_id, ar_len + 1, ar_addr));
+    uint64_t start_addr = (ar_addr / word_size) * word_size;
+    for (int i = 0; i <= ar_len; i++) {
+      auto dat = read(start_addr + i * word_size);
+      rreq[ar_addr].push(mm_rresp_t(ar_id, dat, (i == ar_len)));
+    }
     mem->addTransaction(false, ar_addr);
   }
 

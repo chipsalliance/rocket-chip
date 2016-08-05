@@ -19,16 +19,13 @@ class DeviceSet {
   def addDevice(dev: Device): Unit =
     deviceMap(dev.name) = dev
 
-  private def roundup(size: Int): Int = (1 << log2Ceil(size))
-
   def toSeq: Seq[Device] = deviceMap.values.toSeq
 
   def getAddrMap: AddrMap = {
     val devices = this.toSeq.sortWith((a, b) => a.size > b.size)
     val entries = devices.map { case Device(name, size, _, readable, writeable) =>
       val prot = (if (readable) AddrMapProt.R else 0) | (if (writeable) AddrMapProt.W else 0)
-      val realsize = roundup(size)
-      AddrMapEntry(name, MemSize(size, roundup(size), MemAttr(prot)))
+      AddrMapEntry(name, MemSize(size, MemAttr(prot)))
     }
     new AddrMap(entries)
   }
