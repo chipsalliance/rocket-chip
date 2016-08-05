@@ -104,6 +104,28 @@ class BaseConfig extends Config (
       res append '\u0000'
       res.toString.getBytes
     }
+    def makeBootROM(implicit p: Parameters) = {
+      val rom = java.nio.ByteBuffer.allocate(32)
+      rom.order(java.nio.ByteOrder.LITTLE_ENDIAN)
+
+      // for now, have the reset vector jump straight to memory
+      val resetToMemDist = p(GlobalAddrMap)("mem").start - p(ResetVector)
+      require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
+      val configStringAddr = p(ResetVector).toInt + rom.capacity
+
+      // This boot ROM doesn't know about any boot devices, so it just spins,
+      // waiting for the debugger to load a program and change the PC.
+      rom.putInt(0x0000006f)                        // loop forever
+      rom.putInt(0)                                 // reserved
+      rom.putInt(0)                                 // reserved
+      rom.putInt(configStringAddr)                  // pointer to config string
+      rom.putInt(0)                                 // default trap vector
+      rom.putInt(0)                                 //   ...
+      rom.putInt(0)                                 //   ...
+      rom.putInt(0)                                 //   ...
+
+      rom.array() ++ p(ConfigString).toSeq
+    }
     lazy val innerDataBits = 64
     lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
     pname match {
@@ -326,6 +348,10 @@ class BaseConfig extends Config (
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case ConfigString => makeConfigString()
+      case BuildBootROM => (buildParams: Parameters) => {
+        implicit val p = buildParams
+        Module(new ROMSlave(makeBootROM)).io
+      }
       case GlobalAddrMap => globalAddrMap
       case EnableL2Logging => false
       case ExportGroundTestStatus => false

@@ -56,6 +56,7 @@ case object PLICKey extends Field[PLICConfig]
 /** Number of clock cycles per RTC tick */
 case object RTCPeriod extends Field[Int]
 case object AsyncDebugBus extends Field[Boolean]
+case object BuildBootROM extends Field[Parameters => ClientUncachedTileLinkIO]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
@@ -270,29 +271,6 @@ class Uncore(implicit val p: Parameters) extends Module
     }
   }
 
-  def makeBootROM()(implicit p: Parameters) = {
-    val rom = java.nio.ByteBuffer.allocate(32)
-    rom.order(java.nio.ByteOrder.LITTLE_ENDIAN)
-
-    // for now, have the reset vector jump straight to memory
-    val resetToMemDist = p(GlobalAddrMap)("mem").start - p(ResetVector)
-    require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
-    val configStringAddr = p(ResetVector).toInt + rom.capacity
-
-    // This boot ROM doesn't know about any boot devices, so it just spins,
-    // waiting for the debugger to load a program and change the PC.
-    rom.putInt(0x0000006f)                        // loop forever
-    rom.putInt(0)                                 // reserved
-    rom.putInt(0)                                 // reserved
-    rom.putInt(configStringAddr)                  // pointer to config string
-    rom.putInt(0)                                 // default trap vector
-    rom.putInt(0)                                 //   ...
-    rom.putInt(0)                                 //   ...
-    rom.putInt(0)                                 //   ...
-
-    rom.array() ++ p(ConfigString).toSeq
-  }
-
   def buildMMIONetwork(implicit p: Parameters) = {
     val ioAddrMap = p(GlobalAddrMap).subMap("io")
 
@@ -325,8 +303,8 @@ class Uncore(implicit val p: Parameters) extends Module
       io.prci(i).reset := reset
     }
 
-    val bootROM = Module(new ROMSlave(makeBootROM()))
-    bootROM.io <> mmioNetwork.port("int:bootrom")
+    val bootROM = p(BuildBootROM)(p)
+    bootROM <> mmioNetwork.port("int:bootrom")
 
     for (device <- p(ExtraDevices)) {
       device.builder(mmioNetwork.port("int:" + device.addrMapEntry.name), io.extra, p)
