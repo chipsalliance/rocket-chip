@@ -154,8 +154,8 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   val tileResets = Wire(Vec(nTiles, Bool()))
   val tileList = p(BuildTiles).zip(tileResets).zipWithIndex.map {
     case ((tile, rst), i) => 
-      if(i == nTiles-1) tile(clock, prci.reset, p) // PMU is on same clock as uncore
-      tile(core_clk(i), rst, p)
+      if (i == nTiles-1) tile(clock, rst, p) // PMU is on same clock as uncore
+      else tile(io.core_clk(i), rst, p)
   }
   val nCachedPorts = tileList.map(tile => tile.io.cached.size).reduce(_ + _)
   val nUncachedPorts = tileList.map(tile => tile.io.uncached.size).reduce(_ + _)
