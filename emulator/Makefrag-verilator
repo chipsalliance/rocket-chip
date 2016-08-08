@@ -21,7 +21,7 @@ $(generated_dir_debug)/%.$(CONFIG).fir $(generated_dir_debug)/%.$(CONFIG).prm $(
 
 %.v: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $@ -X verilog
+	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $@ -X verilog || (rm -f $@ && exit 1)
 
 # Build and install our own Verilator, to work around versionining issues.
 VERILATOR_VERSION=3.884
