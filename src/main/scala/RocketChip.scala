@@ -102,8 +102,8 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
   val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
-  val core_clk = Vec(p(NTiles) - 1, Clock()).asInput
-  val oms_clk = Clock().asInput
+  val core_clk = Vec(p(NTiles) - 1, Clock(INPUT))
+  val oms_clk = Clock(INPUT)
   val bus_clk = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Clock(INPUT))) else None
   val bus_rst = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Bool (INPUT))) else None
   val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
@@ -144,6 +144,17 @@ object TopUtils {
   }
 }
 
+class ResetSync(r: Bool, c: Clock, lat: Int = 2) extends Module(_clock = c) {
+  val io = new Bundle {
+    val reset_sync = Bool(OUTPUT)
+  }
+  io.reset_sync := ShiftRegister(r,lat)
+}
+object ResetSync {
+  def apply(r: Bool, c: Clock): Bool = 
+    Module(new ResetSync(r,c,2)).io.reset_sync
+}
+
 /** Top-level module for the chip */
 //TODO: Remove this wrapper once multichannel DRAM controller is provided
 class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
@@ -155,6 +166,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   val tileList = p(BuildTiles).zip(tileResets).zipWithIndex.map {
     case ((tile, rst), i) => 
       if (i == nTiles-1) tile(clock, rst, p) // PMU is on same clock as uncore
+      // else tile(io.core_clk(i), ResetSync(rst,io.core_clk(i)), p) - TODOHurricane - fix ResetSync
       else tile(io.core_clk(i), rst, p)
   }
   val nCachedPorts = tileList.map(tile => tile.io.cached.size).reduce(_ + _)
@@ -167,11 +179,12 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
     case NUncachedTileLinkPorts => nUncachedPorts
   })
 
-  val syncedReset = RegNext(RegNext(reset))
-  val uncore = Module(new Uncore(resetSignal = syncedReset)(innerTLParams))
+  //val resetSync = ResetSync(reset, clock) // TODOHurricane - this seems to generate invalid firrtl
+  val resetSync = reset
+  val uncore = Module(new Uncore(resetSignal = resetSync)(innerTLParams))
   
   (uncore.io.prci, tileResets, tileList).zipped.foreach {
-    case (prci, rst, tile) =>
+    case (prci, rst, tile) => 
       rst := prci.reset
       tile.io.prci <> prci
   }
@@ -241,7 +254,8 @@ class Uncore(resetSignal:Bool = null)(implicit val p: Parameters) extends Module
     val oms_clk = Clock().asInput
   }
 
-  val oms_reset = RegNext(RegNext(reset))
+  // val oms_reset = ResetSync(reset, io.oms_clk) // TODOHurricane - oms_reset should come from a control register
+  val oms_reset = reset // TODOHurricane - above line generates invalid firrtl
   val outmemsys = if (nCachedTilePorts + nUncachedTilePorts > 0)
     Module(new OuterMemorySystem(clockSignal = io.oms_clk, resetSignal = oms_reset)) // NoC, LLC and SerDes
   else Module(new DummyOuterMemorySystem)
@@ -332,7 +346,7 @@ class Uncore(resetSignal:Bool = null)(implicit val p: Parameters) extends Module
         prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
       prci.io.interrupts(i).debug := debugModule.io.debugInterrupts(i)
 
-      io.prci(i).reset := reset // TODO synchronize resets
+      io.prci(i).reset := reset // TODOHurricane - I think this just passes uncore reset through to the cores - should cores have their own reset CRs?
     }
 
     val bootROM = Module(new ROMSlave(makeBootROM()))

@@ -65,5 +65,5 @@ class PMUConfig extends Config(
 
 class HurricaneUpstreamConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new With2Lanes ++ new With9L2AcquireXacts ++ new WithL2Capacity(512) ++ new WithNBanksPerMemChannel(4) ++ new Process28nmConfig ++ new HwachaConfig)
 
-class HurricaneUpstreamTinyConfig extends Config(new PMUConfig ++ new WithSmallCores ++ new WithL2Capacity(64) ++ new Process28nmConfig ++ new HwachaConfig)
+class HurricaneUpstreamTinyConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new WithL2Capacity(64) ++ new Process28nmConfig ++ new HwachaConfig ++ new WithSmallCores)
 

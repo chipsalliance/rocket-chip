@@ -233,6 +233,9 @@ object TestBenchGeneration {
     .clk(clk),
     .reset(reset),
 
+    .io_core_clk_0(clk),
+    .io_oms_clk(clk),
+
     $nasti_connections
 
     $interrupts
