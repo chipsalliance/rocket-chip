@@ -2,6 +2,7 @@ import sbt._
 import Keys._
 import complete._
 import complete.DefaultParsers._
+import xerial.sbt.Pack._
 
 object BuildSettings extends Build {
 
@@ -28,7 +29,7 @@ object BuildSettings extends Build {
   lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
   val setMake = NotSpace ~ ( Space ~> NotSpace )
 
-  val chipSettings = Seq(
+  val chipSettings = packAutoSettings ++ Seq(
     addons := {
       val a = sys.env.getOrElse("ROCKETCHIP_ADDONS", "")
       println(s"Using addons: $a")
