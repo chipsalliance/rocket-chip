@@ -23,7 +23,7 @@ $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)
 
 $(generated_dir)/%.v: $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) -i $< -o $@ -X verilog
+	$(FIRRTL) -i $< -o $@ -X verilog || (rm -f $@ && exit 1)
 
 endif
 
