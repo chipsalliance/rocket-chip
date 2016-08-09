@@ -1235,8 +1235,9 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   replayq.io.resp := io.cache.resp
   io.requestor.resp := io.cache.resp
 
-  assert(!Reg(next = io.cache.req.fire()) ||
-         !(io.cache.xcpt.ma.ld || io.cache.xcpt.ma.st ||
-           io.cache.xcpt.pf.ld || io.cache.xcpt.pf.st),
-         "SimpleHellaCacheIF exception")
+  val xcpt_valid = Reg(next = io.cache.req.fire())
+  assert(!xcpt_valid || !(io.cache.xcpt.ma.ld || io.cache.xcpt.ma.st),
+         "SimpleHellaCacheIF: misaligned access")
+  assert(!xcpt_valid || !(io.cache.xcpt.pf.ld || io.cache.xcpt.pf.st),
+         "SimpleHellaCacheIF: page fault")
 }

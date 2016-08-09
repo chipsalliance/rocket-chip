@@ -134,6 +134,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.req.bits.cmd  := Mux(state === s_set_dirty, M_XA_OR, M_XRD)
   io.mem.req.bits.typ  := log2Ceil(xLen/8)
   io.mem.req.bits.addr := pte_addr
+  io.mem.req.bits.tag  := UInt(0)
   io.mem.s1_data := pte_wdata.asUInt
   io.mem.s1_kill := s1_kill
   io.mem.invalidate_lr := Bool(false)
