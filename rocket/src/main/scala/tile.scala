@@ -138,6 +138,7 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
     core.io.ptw <> ptw.io.dpath
   }
 
+  require(dcPorts.size == core.dcacheArbPorts)
   val dcArb = Module(new HellaCacheArbiter(dcPorts.size)(dcacheParams))
   dcArb.io.requestor <> dcPorts
   dcache.cpu <> dcArb.io.mem

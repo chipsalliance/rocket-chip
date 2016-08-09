@@ -51,7 +51,7 @@ abstract class L1HellaCacheBundle(implicit val p: Parameters) extends junctions.
 
 trait HasCoreMemOp extends HasCoreParameters {
   val addr = UInt(width = coreMaxAddrBits)
-  val tag  = Bits(width = coreDCacheReqTagBits)
+  val tag  = Bits(width = dcacheReqTagBits)
   val cmd  = Bits(width = M_SZ)
   val typ  = Bits(width = MT_SZ)
 }
