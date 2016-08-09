@@ -13,6 +13,8 @@ import uncore.util._
 import uncore.converters._
 import rocket._
 import rocket.Util._
+import java.nio.{ByteBuffer,ByteOrder}
+import java.nio.file.{Files, Paths}
 
 /** Top-level parameters of RocketChip, values set in e.g. PublicConfigs.scala */
 
@@ -56,10 +58,7 @@ case object PLICKey extends Field[PLICConfig]
 /** Number of clock cycles per RTC tick */
 case object RTCPeriod extends Field[Int]
 case object AsyncDebugBus extends Field[Boolean]
-
-case object UseStreamLoopback extends Field[Boolean]
-case object StreamLoopbackSize extends Field[Int]
-case object StreamLoopbackWidth extends Field[Int]
+case object BootROMFile extends Field[String]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
@@ -113,6 +112,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val debug_clk = if (p(AsyncDebugBus)) Some(Clock(INPUT)) else None
   val debug_rst = if (p(AsyncDebugBus)) Some(Bool(INPUT)) else None
   val debug = new DebugBusIO()(p).flip
+  val extra = p(ExtraTopPorts)(p)
 }
 
 object TopUtils {
@@ -140,28 +140,6 @@ object TopUtils {
     outer.acquire <> Queue(inner.acquire)
     inner.grant <> Queue(outer.grant)
   }
-  def makeBootROM()(implicit p: Parameters) = {
-    val rom = java.nio.ByteBuffer.allocate(32)
-    rom.order(java.nio.ByteOrder.LITTLE_ENDIAN)
-
-    // for now, have the reset vector jump straight to memory
-    val resetToMemDist = p(GlobalAddrMap)("mem").start - p(ResetVector)
-    require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
-    val configStringAddr = p(ResetVector).toInt + rom.capacity
-
-    // This boot ROM doesn't know about any boot devices, so it just spins,
-    // waiting for the debugger to load a program and change the PC.
-    rom.putInt(0x0000006f)                        // loop forever
-    rom.putInt(0)                                 // reserved
-    rom.putInt(0)                                 // reserved
-    rom.putInt(configStringAddr)                  // pointer to config string
-    rom.putInt(0)                                 // default trap vector
-    rom.putInt(0)                                 //   ...
-    rom.putInt(0)                                 //   ...
-    rom.putInt(0)                                 //   ...
-
-    rom.array() ++ p(ConfigString).toSeq
-  }
 }
 
 /** Top-level module for the chip */
@@ -187,8 +165,8 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   val uncore = Module(new Uncore()(innerTLParams))
 
-  uncore.io.prci.zip(tileResets).zip(tileList).foreach {
-    case ((prci, rst), tile) =>
+  (uncore.io.prci, tileResets, tileList).zipped.foreach {
+    case (prci, rst, tile) =>
       rst := prci.reset
       tile.io.prci <> prci
   }
@@ -198,19 +176,40 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   uncore.io.interrupts <> io.interrupts
   uncore.io.debugBus <>
-    (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug) else io.debug)
+    (if (p(AsyncDebugBus))
+      AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug)
+    else io.debug)
 
-  for (i <- 0 until p(NExtMMIOAXIChannels))
-    io.mmio_axi(i) <> (if (p(AsyncMMIOChannels)) AsyncNastiTo((io.mmio_clk.get)(i), (io.mmio_rst.get)(i), uncore.io.mmio_axi(i)) else uncore.io.mmio_axi(i))
+  def asyncAxiTo(clocks: Seq[Clock], resets: Seq[Bool], inner_axis: Seq[NastiIO]): Seq[NastiIO] =
+    (clocks, resets, inner_axis).zipped.map {
+      case (clk, rst, in_axi) => AsyncNastiTo(clk, rst, in_axi)
+    }
+
+  def asyncAxiFrom(clocks: Seq[Clock], resets: Seq[Bool], outer_axis: Seq[NastiIO]): Seq[NastiIO] =
+    (clocks, resets, outer_axis).zipped.map {
+      case (clk, rst, out_axi) => AsyncNastiFrom(clk, rst, out_axi)
+    }
+
+  io.mmio_axi <>
+    (if (p(AsyncMMIOChannels))
+      asyncAxiTo(io.mmio_clk.get, io.mmio_rst.get, uncore.io.mmio_axi)
+    else uncore.io.mmio_axi)
   io.mmio_ahb <> uncore.io.mmio_ahb
   io.mmio_tl <> uncore.io.mmio_tl
-  
-  for (i <- 0 until nMemAXIChannels)
-    io.mem_axi(i) <> (if (p(AsyncMemChannels)) AsyncNastiTo((io.mem_clk.get)(i), (io.mem_rst.get)(i), uncore.io.mem_axi(i)) else uncore.io.mem_axi(i))
+
+  io.mem_axi <>
+    (if (p(AsyncMemChannels))
+      asyncAxiTo(io.mem_clk.get, io.mem_rst.get, uncore.io.mem_axi)
+    else uncore.io.mem_axi)
   io.mem_ahb <> uncore.io.mem_ahb
   io.mem_tl <> uncore.io.mem_tl
-  for (i <- 0 until p(NExtBusAXIChannels))
-    uncore.io.bus_axi(i) <> (if (p(AsyncDebugBus)) AsyncNastiFrom((io.bus_clk.get)(i), (io.bus_rst.get)(i), io.bus_axi(i)) else io.bus_axi(i))
+
+  uncore.io.bus_axi <>
+    (if (p(AsyncBusChannels))
+      asyncAxiFrom(io.bus_clk.get, io.bus_rst.get, io.bus_axi)
+    else io.bus_axi)
+
+  io.extra <> uncore.io.extra
 }
 
 /** Wrapper around everything that isn't a Tile.
@@ -233,6 +232,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debugBus = new DebugBusIO()(p).flip
+    val extra = p(ExtraTopPorts)(p)
   }
 
   val outmemsys = if (nCachedTilePorts + nUncachedTilePorts > 0)
@@ -257,7 +257,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val mmio_tl_start  = mmio_ahb_end
     val mmio_tl_end    = mmio_tl_start  + p(NExtMMIOTLChannels)
     require (mmio_tl_end == ports.size)
-    
+
     for (i <- 0 until ports.size) {
       if (mmio_axi_start <= i && i < mmio_axi_end) {
         TopUtils.connectTilelinkNasti(io.mmio_axi(i-mmio_axi_start), ports(i))
@@ -271,6 +271,23 @@ class Uncore(implicit val p: Parameters) extends Module
         require(false, "Unconnected external MMIO port")
       }
     }
+  }
+
+  def makeBootROM()(implicit p: Parameters) = {
+    val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
+    val rom = ByteBuffer.wrap(romdata)
+
+    rom.order(ByteOrder.LITTLE_ENDIAN)
+
+    // for now, have the reset vector jump straight to memory
+    val resetToMemDist = p(GlobalAddrMap)("mem").start - p(ResetVector)
+    require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
+    val configStringAddr = p(ResetVector).toInt + rom.capacity
+
+    require(rom.getInt(12) == 0,
+      "Config string address position should not be occupied by code")
+    rom.putInt(12, configStringAddr)
+    rom.array() ++ p(ConfigString).toSeq
   }
 
   def buildMMIONetwork(implicit p: Parameters) = {
@@ -305,10 +322,13 @@ class Uncore(implicit val p: Parameters) extends Module
       io.prci(i).reset := reset
     }
 
-    val bootROM = Module(new ROMSlave(TopUtils.makeBootROM()))
+    val bootROM = Module(new ROMSlave(makeBootROM()))
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
-    // The memory map presently has only one external I/O region
+    for (device <- p(ExtraDevices)) {
+      device.builder(mmioNetwork.port("int:" + device.addrMapEntry.name), io.extra, p)
+    }
+
     val ext = p(ExtMMIOPorts).entries.map(port => TileLinkWidthAdapter(mmioNetwork.port(port.name), "MMIO_Outermost"))
     connectExternalMMIO(ext)(outermostMMIOParams)
   }

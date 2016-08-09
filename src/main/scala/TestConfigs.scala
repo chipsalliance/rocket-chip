@@ -2,14 +2,14 @@ package rocketchip
 
 import Chisel._
 import groundtest._
-import groundtest.unittests._
-import groundtest.common._
 import rocket._
 import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
 import uncore.devices.NTiles
+import uncore.unittests._
 import junctions._
+import junctions.unittests._
 import scala.collection.mutable.LinkedHashSet
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 import scala.math.max
@@ -44,7 +44,7 @@ class WithGroundTest extends Config(
       (0 until site(NTiles)).map { i =>
         val tileSettings = site(GroundTestKey)(i)
         (r: Bool, p: Parameters) => {
-          Module(new GroundTestTile(r)(p.alterPartial({
+          Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
             case GroundTestId => i
             case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
@@ -56,6 +56,8 @@ class WithGroundTest extends Config(
     }
     case UseFPU => false
     case UseAtomics => false
+    case UseCompressed => false
+    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
     case _ => throw new CDEMatchError
   })
 
@@ -67,7 +69,7 @@ class WithComparator extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new ComparatorCore()(p))
     case ComparatorKey => ComparatorParameters(
-      targets    = Seq(0L, 0x100L).map(site(GlobalAddrMap)("mem").start.longValue + _),
+      targets    = Seq("mem", "io:int:testram").map(name => site(GlobalAddrMap)(name).start.longValue),
       width      = 8,
       operations = 1000,
       atomics    = site(UseAtomics),
@@ -165,20 +167,31 @@ class WithNastiConverterTest extends Config(
 
 class WithUnitTest extends Config(
   (pname, site, here) => pname match {
-    case GroundTestKey => Seq.fill(site(NTiles)) { GroundTestTileSettings() }
-    case BuildGroundTest =>
-      (p: Parameters) => Module(new UnitTestSuite()(p))
-    case UnitTests => (testParams: Parameters) => {
-      implicit val p = testParams
-      Seq(
-        Module(new MultiWidthFifoTest),
-        Module(new SmiConverterTest),
-        Module(new AtosConverterTest),
-        Module(new NastiMemoryDemuxTest),
-        Module(new ROMSlaveTest),
-        Module(new TileLinkRAMTest),
-        Module(new HastiTest))
+    case BuildTiles => {
+      val groundtest = if (site(XLen) == 64)
+        DefaultTestSuites.groundtest64
+      else
+        DefaultTestSuites.groundtest32
+      TestGeneration.addSuite(groundtest("p"))
+      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
+      (0 until site(NTiles)).map { i =>
+        (r: Bool, p: Parameters) => {
+          Module(new UnitTestTile(resetSignal = r)(p.alterPartial({
+            case TLId => "L1toL2"
+            case NCachedTileLinkPorts => 0
+            case NUncachedTileLinkPorts => 0
+            case RoccNCSRs => 0
+          })))
+        }
+      }
     }
+    case UnitTests => (testParams: Parameters) =>
+      JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams)
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 0)
+    case UseFPU => false
+    case UseAtomics => false
+    case UseCompressed => false
+    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
     case _ => throw new CDEMatchError
   })
 
@@ -197,8 +210,9 @@ class WithTraceGen extends Config(
       val nWays = 1
       val blockOffset = site(CacheBlockOffsetBits)
       val baseAddr = site(GlobalAddrMap)("mem").start
+      val nBeats = site(MIFDataBeats)
       List.tabulate(4 * nWays) { i =>
-        Seq.tabulate(2) { j => (i * nSets + j * 8) << blockOffset }
+        Seq.tabulate(nBeats) { j => (j * 8) + ((i * nSets) << blockOffset) }
       }.flatten.map(addr => baseAddr + BigInt(addr))
     }
     case UseAtomics => true
@@ -211,7 +225,8 @@ class WithTraceGen extends Config(
 
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
 
-class ComparatorConfig extends Config(new WithComparator ++ new GroundTestConfig)
+class ComparatorConfig extends Config(
+  new WithTestRAM ++ new WithComparator ++ new GroundTestConfig)
 class ComparatorL2Config extends Config(
   new WithAtomics ++ new WithPrefetches ++
   new WithL2Cache ++ new ComparatorConfig)
@@ -249,7 +264,7 @@ class FancyNastiConverterTestConfig extends Config(
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
   new WithL2Cache ++ new GroundTestConfig)
 
-class UnitTestConfig extends Config(new WithUnitTest ++ new GroundTestConfig)
+class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
 
 class TraceGenConfig extends Config(
   new WithNCores(2) ++ new WithTraceGen ++ new GroundTestConfig)

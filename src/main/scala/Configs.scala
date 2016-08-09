@@ -13,7 +13,7 @@ import rocket._
 import rocket.Util._
 import groundtest._
 import scala.math.max
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
@@ -34,6 +34,7 @@ class BaseConfig extends Config (
       entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
+      entries ++= site(ExtraDevices).map(_.addrMapEntry)
       new AddrMap(entries)
     }
     lazy val globalAddrMap = {
@@ -93,6 +94,11 @@ class BaseConfig extends Config (
         res append s"      };\n"
         res append  "    };\n"
         res append  "  };\n"
+      }
+      for (device <- site(ExtraDevices)) {
+        val deviceName = device.addrMapEntry.name
+        val deviceRegion = addrMap("io:int:" + deviceName)
+        res.append(device.makeConfigString(deviceRegion))
       }
       res append  "};\n"
       res append '\u0000'
@@ -223,6 +229,8 @@ class BaseConfig extends Config (
       }
       case NExtInterrupts => 2
       case AsyncMMIOChannels => false
+      case ExtraDevices => Nil
+      case ExtraTopPorts => (p: Parameters) => new Bundle
       case ExtMMIOPorts => AddrMap()
 /*
         AddrMap(
@@ -307,6 +315,7 @@ class BaseConfig extends Config (
           dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes) * 8)
       }
+      case BootROMFile => "./bootrom/bootrom.img"
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
       case NTiles => Knob("NTILES")
       case AsyncMemChannels => false
@@ -321,6 +330,32 @@ class BaseConfig extends Config (
       case GlobalAddrMap => globalAddrMap
       case EnableL2Logging => false
       case ExportGroundTestStatus => false
+      case RegressionTestNames => LinkedHashSet(
+        "rv64ud-v-fcvt",
+        "rv64ud-p-fdiv",
+        "rv64ud-v-fadd",
+        "rv64uf-v-fadd",
+        "rv64um-v-mul",
+        "rv64mi-p-breakpoint",
+        "rv64uc-v-rvc",
+        "rv64ud-v-structural",
+        "rv64si-p-wfi",
+        "rv64um-v-divw",
+        "rv64ua-v-lrsc",
+        "rv64ui-v-fence_i",
+        "rv64ud-v-fcvt_w",
+        "rv64uf-v-fmin",
+        "rv64ui-v-sb",
+        "rv64ua-v-amomax_d",
+        "rv64ud-v-move",
+        "rv64ud-v-fclass",
+        "rv64ua-v-amoand_d",
+        "rv64ua-v-amoxor_d",
+        "rv64si-p-sbreak",
+        "rv64ud-v-fmadd",
+        "rv64uf-v-ldst",
+        "rv64um-v-mulh",
+        "rv64si-p-dirty")
       case _ => throw new CDEMatchError
   }},
   knobValues = {
@@ -447,6 +482,13 @@ class WithRV32 extends Config(
     case UseUser => false
     case UseAtomics => false
     case UseFPU => false
+    case RegressionTestNames => LinkedHashSet(
+      "rv32mi-p-ma_addr",
+      "rv32mi-p-csr",
+      "rv32ui-p-sh",
+      "rv32ui-p-lh",
+      "rv32mi-p-sbreak",
+      "rv32ui-p-sll")
     case _ => throw new CDEMatchError
   }
 )
@@ -552,14 +594,6 @@ class MIF128BitConfig extends Config(
 class MIF32BitConfig extends Config(
   new WithMIFDataBits(32) ++ new BaseConfig)
 
-class WithStreamLoopback extends Config(
-  (pname, site, here) => pname match {
-    case UseStreamLoopback => true
-    case StreamLoopbackSize => 128
-    case StreamLoopbackWidth => 64
-    case _ => throw new CDEMatchError
-  })
-
 class SmallL2Config extends Config(
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
   new WithL2Capacity(256) ++ new DefaultL2Config)
@@ -580,3 +614,18 @@ class DualCoreConfig extends Config(
 class TinyConfig extends Config(
   new WithRV32 ++ new WithSmallCores ++
   new WithStatelessBridge ++ new BaseConfig)
+
+class WithTestRAM extends Config(
+  (pname, site, here) => pname match {
+    case ExtraDevices => {
+      class TestRAMDevice extends Device {
+        val ramSize = 0x1000
+        def builder(port: ClientUncachedTileLinkIO, extra: Bundle, p: Parameters) {
+          val testram = Module(new TileLinkTestRAM(ramSize)(p))
+          testram.io <> port
+        }
+        def addrMapEntry = AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW)))
+      }
+      Seq(new TestRAMDevice)
+    }
+  })

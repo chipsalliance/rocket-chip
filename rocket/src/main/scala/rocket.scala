@@ -68,8 +68,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val nCores = p(NTiles)
 
   // fetchWidth doubled, but coreInstBytes halved, for RVC
-  require(fetchWidth == retireWidth * (4 / coreInstBytes))
-  //require(retireWidth == 1)
+  val decodeWidth = fetchWidth / (if (usingCompressed) 2 else 1)
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
@@ -208,6 +207,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   ibuf.io.imem <> io.imem.resp
   ibuf.io.kill := take_pc
 
+  require(decodeWidth == 1 /* TODO */ && retireWidth == decodeWidth)
   val id_ctrl = Wire(new IntCtrlSigs()).decode(id_inst(0), decode_table)
   val id_raddr3 = id_expanded_inst(0).rs3
   val id_raddr2 = id_expanded_inst(0).rs2
@@ -411,9 +411,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     }
   }
 
+  val mem_breakpoint = (mem_reg_load && bpu.io.xcpt_ld) || (mem_reg_store && bpu.io.xcpt_st)
   val (mem_new_xcpt, mem_new_cause) = checkExceptions(List(
-    (mem_reg_load && bpu.io.xcpt_ld,     UInt(Causes.breakpoint)),
-    (mem_reg_store && bpu.io.xcpt_st,    UInt(Causes.breakpoint)),
+    (mem_breakpoint,                     UInt(Causes.breakpoint)),
     (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch)),
     (mem_ctrl.mem && io.dmem.xcpt.ma.st, UInt(Causes.misaligned_store)),
     (mem_ctrl.mem && io.dmem.xcpt.ma.ld, UInt(Causes.misaligned_load)),
@@ -577,7 +577,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
 
   ibuf.io.inst(0).ready := !ctrl_stalld || csr.io.interrupt
 
-  io.imem.btb_update.valid := (mem_reg_replay && mem_reg_btb_hit) || (mem_reg_valid && !take_pc_wb && mem_wrong_npc)
+  io.imem.btb_update.valid := (mem_reg_replay && mem_reg_btb_hit) || (mem_reg_valid && !take_pc_wb && (mem_cfi_taken || !mem_cfi) && mem_wrong_npc)
   io.imem.btb_update.bits.isValid := !mem_reg_replay && mem_cfi
   io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
   io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && mem_reg_inst(19,15) === BitPat("b00??1")
@@ -617,9 +617,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.dmem.req.bits.typ  := ex_ctrl.mem_type
   io.dmem.req.bits.phys := Bool(false)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
-  io.dmem.s1_kill := killm_common || mem_xcpt
-  io.dmem.s1_data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
   io.dmem.invalidate_lr := wb_xcpt
+  io.dmem.s1_data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
+  io.dmem.s1_kill := killm_common || mem_breakpoint
+  when (mem_xcpt && !io.dmem.s1_kill) {
+    assert(io.dmem.xcpt.asUInt.orR) // make sure s1_kill is exhaustive
+  }
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR

@@ -112,7 +112,7 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
     if (cfg.nHarts == 1) UInt(0)
     else (addr - cfg.hartBase)(log2Up(cfg.hartOffset(cfg.nHarts))-1,log2Up(cfg.hartOffset(1)))
   val hart = Wire(init = claimant)
-  val myMaxDev = maxDevs(claimant) + UInt(0) // XXX FIRRTL bug w/o the + UInt(0)
+  val myMaxDev = maxDevs(claimant)
   val myEnables = enables(hart)
   val rdata = Wire(init = UInt(0, tlDataBits))
   val masked_wdata = (acq.bits.data & acq.bits.full_wmask()) | (rdata & ~acq.bits.full_wmask())

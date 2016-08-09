@@ -1,4 +1,4 @@
-package groundtest.common
+package groundtest
 
 import Chisel._
 import rocket._

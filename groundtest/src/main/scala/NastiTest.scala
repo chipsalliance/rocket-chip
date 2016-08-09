@@ -4,7 +4,6 @@ import Chisel._
 import uncore.tilelink._
 import uncore.converters._
 import junctions._
-import groundtest.common._
 import cde.Parameters
 
 class NastiGenerator(id: Int)(implicit val p: Parameters) extends Module

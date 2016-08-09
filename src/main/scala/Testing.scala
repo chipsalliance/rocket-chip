@@ -4,7 +4,9 @@ package rocketchip
 
 import Chisel._
 import scala.collection.mutable.{LinkedHashSet,LinkedHashMap}
-import cde.{Parameters, ParameterDump, Config}
+import cde.{Parameters, ParameterDump, Config, Field, CDEMatchError}
+
+case object RegressionTestNames extends Field[LinkedHashSet[String]]
 
 abstract class RocketTestSuite {
   val dir: String
@@ -41,15 +43,24 @@ class BenchmarkTestSuite(makePrefix: String, val dir: String, val names: LinkedH
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$n.riscv").mkString(" \\\n") + postScript
 }
 
+class RegressionTestSuite(val names: LinkedHashSet[String]) extends RocketTestSuite {
+  val envName = ""
+  val dir = "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/isa"
+  val makeTargetName = "regression-tests"
+  override def toString = s"$makeTargetName = \\\n" + names.mkString(" \\\n")
+}
+
 object TestGeneration {
   import scala.collection.mutable.HashMap
   val asmSuites = new LinkedHashMap[String,AssemblyTestSuite]()
-  val bmarkSuites = new  HashMap[String,BenchmarkTestSuite]()
+  val bmarkSuites = new LinkedHashMap[String,BenchmarkTestSuite]()
+  val regressionSuites = new LinkedHashMap[String,RegressionTestSuite]()
 
   def addSuite(s: RocketTestSuite) {
     s match {
       case a: AssemblyTestSuite => asmSuites += (a.makeTargetName -> a)
       case b: BenchmarkTestSuite => bmarkSuites += (b.makeTargetName -> b)
+      case r: RegressionTestSuite => regressionSuites += (r.makeTargetName -> r)
     }
   }
   
@@ -86,7 +97,8 @@ run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets)
     f.write(
       List(
         gen("asm", asmSuites.values.toSeq),
-        gen("bmark", bmarkSuites.values.toSeq)
+        gen("bmark", bmarkSuites.values.toSeq),
+        gen("regression", regressionSuites.values.toSeq)
       ).mkString("\n"))
     f.close
   }
@@ -191,8 +203,7 @@ object TestGenerator extends App {
     }
     currentConfig ++ finalConfig
   }
-
-  val world = (new Config(finalConfig)).toInstance
+  val world = finalConfig.toInstance
 
   val paramsFromConfig: Parameters = Parameters.root(world)
 
@@ -204,6 +215,8 @@ object TestGenerator extends App {
 
   chiselMain.run(args.drop(3), gen)
   //Driver.elaborate(gen, configName = configClassName)
+
+  TestGeneration.addSuite(new RegressionTestSuite(paramsFromConfig(RegressionTestNames)))
 
   TestGeneration.generateMakefrag(topModuleName, configClassName)
   TestBenchGeneration.generateVerilogFragment(

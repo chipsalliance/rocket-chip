@@ -5,7 +5,6 @@ import uncore.tilelink._
 import uncore.constants._
 import junctions._
 import rocket._
-import groundtest.common._
 import scala.util.Random
 import cde.{Parameters, Field}
 

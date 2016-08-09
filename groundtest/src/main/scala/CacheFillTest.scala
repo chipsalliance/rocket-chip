@@ -4,7 +4,6 @@ import Chisel._
 import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
-import groundtest.common._
 import cde.{Parameters, Field}
 
 class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
