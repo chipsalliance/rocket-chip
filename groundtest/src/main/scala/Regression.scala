@@ -25,7 +25,7 @@ abstract class Regression(implicit val p: Parameters)
   def disableCache() {
     io.cache.req.valid := Bool(false)
     io.cache.req.bits.addr := UInt(memStart)
-    io.cache.req.bits.typ  := MT_D
+    io.cache.req.bits.typ  := UInt(0)
     io.cache.req.bits.cmd  := M_XRD
     io.cache.req.bits.tag  := UInt(0)
     io.cache.req.bits.data := Bits(0)
@@ -71,7 +71,7 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
 
   io.cache.req.valid := !get_sent && started
   io.cache.req.bits.addr := UInt(addrMap("io:int:bootrom").start)
-  io.cache.req.bits.typ := MT_W
+  io.cache.req.bits.typ := UInt(log2Ceil(32 / 8))
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)
   io.cache.invalidate_lr := Bool(false)
@@ -493,7 +493,7 @@ class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
 
   io.cache.req.valid := sending && (state === s_write || state === s_read)
   io.cache.req.bits.addr := Cat(addr_blocks(req_idx), UInt(0, blockOffset))
-  io.cache.req.bits.typ := MT_D
+  io.cache.req.bits.typ := UInt(log2Ceil(64 / 8))
   io.cache.req.bits.cmd := Mux(state === s_write, M_XWR, M_XRD)
   io.cache.req.bits.tag := UInt(0)
   io.cache.req.bits.data := data(req_idx)
@@ -624,7 +624,7 @@ class MergedPutRegression(implicit p: Parameters) extends Regression()(p)
 
   io.cache.req.valid := (state === s_cache_req)
   io.cache.req.bits.cmd := M_XWR
-  io.cache.req.bits.typ := MT_D
+  io.cache.req.bits.typ := UInt(log2Ceil(64 / 8))
   io.cache.req.bits.addr := UInt(memStart)
   io.cache.req.bits.data := UInt(1)
   io.cache.req.bits.tag := UInt(0)
@@ -718,7 +718,7 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   io.mem.head.grant.ready := Bool(false)
   io.cache.head.req.valid := Bool(false)
   io.cache.head.req.bits.addr := UInt(0)
-  io.cache.head.req.bits.typ := MT_D
+  io.cache.head.req.bits.typ := UInt(log2Ceil(64 / 8))
   io.cache.head.req.bits.cmd := M_XRD
   io.cache.head.req.bits.tag := UInt(0)
   io.cache.head.req.bits.phys := Bool(true)

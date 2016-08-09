@@ -73,16 +73,6 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     val nasti = new NastiIO
   }
 
-  private def opSizeToXSize(ops: UInt) = MuxLookup(ops, UInt("b111"), Seq(
-    MT_B  -> UInt(0),
-    MT_BU -> UInt(0),
-    MT_H  -> UInt(1),
-    MT_HU -> UInt(1),
-    MT_W  -> UInt(2),
-    MT_WU -> UInt(2),
-    MT_D  -> UInt(3),
-    MT_Q  -> UInt(log2Up(tlDataBytes))))
-
   val dataBits = tlDataBits*tlDataBeats 
   require(tlDataBits == nastiXDataBits, "Data sizes between LLC and MC don't agree") // TODO: remove this restriction
   require(tlDataBeats < (1 << nastiXLenBits), "Can't have that many beats")
@@ -155,7 +145,7 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     id = get_id_mapper.io.req.out_id,
     addr = io.tl.acquire.bits.full_addr(),
     size = Mux(is_subblock,
-      opSizeToXSize(io.tl.acquire.bits.op_size()),
+      io.tl.acquire.bits.op_size(),
       UInt(log2Ceil(tlDataBytes))),
     len = Mux(is_subblock, UInt(0), UInt(tlDataBeats - 1)))
 
@@ -276,13 +266,6 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
   def nasti_addr_byte(chan: NastiAddressChannel): UInt =
     chan.addr(tlByteAddrBits - 1, 0)
 
-  def nasti_operand_size(chan: NastiAddressChannel): UInt =
-    MuxLookup(chan.size, MT_Q, Seq(
-      UInt(0) -> MT_BU,
-      UInt(1) -> MT_HU,
-      UInt(2) -> MT_WU,
-      UInt(3) -> MT_D))
-
   def size_mask(size: UInt): UInt =
     (UInt(1) << (UInt(1) << size)) - UInt(1)
 
@@ -333,7 +316,7 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
       addr_block = nasti_addr_block(io.nasti.ar.bits),
       addr_beat = nasti_addr_beat(io.nasti.ar.bits),
       addr_byte = nasti_addr_byte(io.nasti.ar.bits),
-      operand_size = nasti_operand_size(io.nasti.ar.bits),
+      operand_size = io.nasti.ar.bits.size,
       alloc = Bool(false)))
 
   val put_acquire = Mux(is_multibeat(aw_req),

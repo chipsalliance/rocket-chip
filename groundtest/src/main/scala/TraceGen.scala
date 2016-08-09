@@ -481,7 +481,7 @@ class TraceGenerator(id: Int)
   io.mem.req.valid     := reqValid
   io.mem.req.bits.addr := reqAddr
   io.mem.req.bits.data := reqData
-  io.mem.req.bits.typ  := MT_D
+  io.mem.req.bits.typ  := UInt(log2Ceil(numBytesInWord))
   io.mem.req.bits.cmd  := reqCmd
   io.mem.req.bits.tag  := reqTag
 

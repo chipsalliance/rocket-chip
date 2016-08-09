@@ -91,8 +91,7 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
     addr_block = iacq.addr_block,
     addr_beat = iacq.addr_beat,
     data = iacq.data,
-    union = Mux(iacq.isBuiltInType(),
-      iacq.union, Cat(MT_Q, M_XRD, Bool(true))))
+    union = iacq.union)
   io.in.acquire.ready := acq_helper.fire(io.in.acquire.valid)
 
   relRoq.io.enq.valid := rel_helper.fire(rel_roq_ready, rel_roq_enq)
@@ -418,16 +417,7 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String)
   assert(!io.in.acquire.valid || !smallput || PopCount(beat_sel) <= UInt(1),
     "Can't perform Put wider than outer width")
 
-  val read_size_ok = MuxLookup(iacq.op_size(), Bool(false), Seq(
-    MT_B  -> Bool(true),
-    MT_BU -> Bool(true),
-    MT_H  -> Bool(outerDataBits >= 16),
-    MT_HU -> Bool(outerDataBits >= 16),
-    MT_W  -> Bool(outerDataBits >= 32),
-    MT_WU -> Bool(outerDataBits >= 32),
-    MT_D  -> Bool(outerDataBits >= 64),
-    MT_Q  -> Bool(false)))
-
+  val read_size_ok = iacq.op_size() <= UInt(log2Ceil(outerDataBits / 8))
   assert(!io.in.acquire.valid || !smallget || read_size_ok,
     "Can't perform Get wider than outer width")
 

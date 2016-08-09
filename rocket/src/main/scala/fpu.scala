@@ -443,7 +443,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
 
   // load response
   val load_wb = Reg(next=io.dmem_resp_val)
-  val load_wb_single = RegEnable(io.dmem_resp_type === MT_W || io.dmem_resp_type === MT_WU, io.dmem_resp_val)
+  val load_wb_single = RegEnable(!io.dmem_resp_type(0), io.dmem_resp_val)
   val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
   val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
   val rec_s = hardfloat.recFNFromFN(8, 24, load_wb_data)
