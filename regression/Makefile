@@ -1,5 +1,5 @@
 # The default target, which runs all regression targets.
-regression: vsim-regression fsim-regression emulator-regression
+regression: vsim-regression emulator-regression
 
 # Regression targets for the various simulators.
 %-regression: %-asm-tests %-bmark-tests
@@ -36,7 +36,6 @@ include $(TOP)/Makefrag
 clean:
 	rm -rf stamps $(abspath $(RISCV))
 	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/vsim) clean
-	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/fsim) clean
 	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/emulator) clean
 
 ifeq ($(SUITE),)
@@ -91,22 +90,6 @@ vsim-bmark-tests: $(VSIM_BMARK_TEST_STAMPS)
 vsim-regression-tests: $(VSIM_REGRESSION_TEST_STAMPS)
 vsim-torture: $(VSIM_TORTURE_STAMPS)
 
-FSIM_VERILOG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-verilog.stamp)
-FSIM_DEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-debug.stamp)
-FSIM_NDEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-ndebug.stamp)
-FSIM_ASM_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-asm-tests.stamp)
-FSIM_BMARK_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-bmark-tests.stamp)
-FSIM_REGRESSION_TEST_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-regression-tests.stamp)
-FSIM_TORTURE_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/fsim-torture-$(TORTURE_CONFIG).stamp)
-
-fsim-verilog: $(FSIM_VERILOG_STAMPS)
-fsim-debug: $(FSIM_DEBUG_STAMPS)
-fsim-ndebug: $(FSIM_NDEBUG_STAMPS)
-fsim-asm-tests: $(FSIM_ASM_TEST_STAMPS)
-fsim-bmark-tests: $(FSIM_BMARK_TEST_STAMPS)
-fsim-regression-tests: $(FSIM_REGRESSION_TEST_STAMPS)
-fsim-torture: $(FSIM_TORTURE_STAMPS)
-
 submodule_names = chisel2 chisel3 context-dependent-environments dramsim2 firrtl groundtest hardfloat junctions rocket torture uncore $(ROCKETCHIP_ADDONS)
 
 # Checks out all the rocket-chip submodules
@@ -157,21 +140,6 @@ stamps/%/vsim-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 stamps/%/vsim-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
 	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
-	date > $@
-
-stamps/%/fsim-verilog.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
-	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
-	date > $@
-
-stamps/%/fsim-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
-	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
-	date > $@
-
-stamps/%/fsim-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
-	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
 	date > $@
 
 # Runs tests on one of the simulators

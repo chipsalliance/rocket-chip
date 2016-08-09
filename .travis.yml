@@ -47,7 +47,6 @@ before_install:
 
 script:
   - make vsim-verilog -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
-  - make fsim-verilog -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
   - make emulator-ndebug -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
   - make emulator-regression-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
 
