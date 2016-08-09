@@ -108,7 +108,8 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     get_id_ready)
 
   val w_inflight = Reg(init = Bool(false))
-  val w_id = Reg(init = UInt(0, nastiXIdBits))
+  val w_id_reg = Reg(init = UInt(0, nastiXIdBits))
+  val w_id = Mux(w_inflight, w_id_reg, put_id_mapper.io.req.out_id)
 
   // For Put/PutBlock, make sure aw and w channel are both ready before
   // we send the first beat
@@ -191,7 +192,7 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
 
   when (!w_inflight && io.tl.acquire.fire() && is_multibeat) {
     w_inflight := Bool(true)
-    w_id := put_id_mapper.io.req.out_id
+    w_id_reg := w_id
   }
 
   when (w_inflight) {
