@@ -45,7 +45,8 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val usingAtomics = p(UseAtomics)
   val usingCompressed = p(UseCompressed)
   val usingFDivSqrt = p(FDivSqrt)
-  val usingRoCC = !p(BuildRoCC).isEmpty
+  val nRoCC = p(BuildRoCC).size
+  val usingRoCC = nRoCC > 0
   val mulUnroll = p(MulUnroll)
   val divEarlyOut = p(DivEarlyOut)
   val fastLoadWord = p(FastLoadWord)
@@ -57,7 +58,10 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen
   val coreDataBytes = coreDataBits/8
-  val coreDCacheReqTagBits = 7 + (2 + (if(!usingRoCC) 0 else 1))
+  val coreMaxDCacheXacts = 64 // 32 int registers and 32 fp registers
+  val coreDCacheReqTagBits = log2Up(coreMaxDCacheXacts) +
+                             // Bits for the arbiter (pipeline + ptw + RoCC accelerators)
+                             log2Up(1 + (if (usingVM) 1 else 0) + nRoCC)
   val vpnBitsExtended = vpnBits + (vaddrBits < xLen).toInt
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended

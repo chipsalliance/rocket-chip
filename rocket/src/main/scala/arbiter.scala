@@ -6,16 +6,23 @@ import Chisel._
 import cde.{Parameters, Field}
 import junctions.{ParameterizedBundle, DecoupledHelper}
 
-class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
+class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends CoreModule()(p)
 {
   val io = new Bundle {
     val requestor = Vec(n, new HellaCacheIO).flip
     val mem = new HellaCacheIO
   }
 
+  for (requestor <- io.requestor) {
+    assert(!requestor.req.valid || requestor.req.bits.tag < UInt(coreMaxDCacheXacts),
+      s"HellaCacheArbiter: request tag exceeds coreMaxDCacheXacts ($coreMaxDCacheXacts)")
+  }
+
   if (n == 1) {
     io.mem <> io.requestor.head
   } else {
+    require(log2Up(n) + log2Up(coreMaxDCacheXacts) >= coreDCacheReqTagBits)
+
     val s1_id = Reg(UInt())
     val s2_id = Reg(next=s1_id)
 
