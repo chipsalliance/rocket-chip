@@ -41,7 +41,7 @@ class BaseConfig extends Config (
       val memSize = 0x10000000L
 
       val intern = AddrMapEntry("int", internalIOAddrMap)
-      val extern = AddrMapEntry("ext", MemRange(0x50000000L, 0x30000000L, MemAttr(AddrMapProt.RWX)))
+      val extern = AddrMapEntry("ext", site(ExtAddrMap).toRange)
       val ioMap = if (site(ExportMMIOPort)) AddrMap(intern, extern) else AddrMap(intern)
 
       val addrMap = AddrMap(

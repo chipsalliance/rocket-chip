@@ -78,15 +78,16 @@ class AddrMap(entriesIn: Seq[AddrMapEntry], val start: BigInt = BigInt(0)) exten
   def isEmpty = entries.isEmpty
   def length = entries.size
   def numSlaves = entries.map(_.region.numSlaves).foldLeft(0)(_ + _)
-  def attr = ???
 
   private val slavePorts = HashMap[String, Int]()
   private val mapping = HashMap[String, MemRegion]()
 
-  val (size: BigInt, entries: Seq[AddrMapEntry]) = {
+  val (size: BigInt, entries: Seq[AddrMapEntry], attr: MemAttr) = {
     var ind = 0
     var base = start
     var rebasedEntries = collection.mutable.ArrayBuffer[AddrMapEntry]()
+    var prot = 0
+    var cacheable = true
     for (AddrMapEntry(name, r) <- entriesIn) {
       if (r.start != 0) {
         val align = BigInt(1) << log2Ceil(r.size)
@@ -112,8 +113,10 @@ class AddrMap(entriesIn: Seq[AddrMapEntry], val start: BigInt = BigInt(0)) exten
 
       ind += r.numSlaves
       base += r.size
+      prot |= r.attr.prot
+      cacheable &&= r.attr.cacheable
     }
-    (base - start, rebasedEntries)
+    (base - start, rebasedEntries, MemAttr(prot, cacheable))
   }
 
   val flatten: Seq[(String, MemRange)] = {
@@ -123,6 +126,7 @@ class AddrMap(entriesIn: Seq[AddrMapEntry], val start: BigInt = BigInt(0)) exten
     arr
   }
 
+  def toRange: MemRange = MemRange(start, size, attr)
   def apply(name: String): MemRegion = mapping(name)
   def contains(name: String): Boolean = mapping.contains(name)
   def port(name: String): Int = slavePorts(name)
