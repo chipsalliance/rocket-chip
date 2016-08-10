@@ -44,22 +44,11 @@ case object ExtMMIOPorts extends Field[Seq[AddrMapEntry]]
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
   implicit val p: Parameters
-  lazy val nTiles = p(NTiles)
-  lazy val nCachedTilePorts = p(NCachedTileLinkPorts)
-  lazy val nUncachedTilePorts = p(NUncachedTileLinkPorts)
-  lazy val csrAddrBits = 12
   lazy val tMemChannels = p(TMemoryChannels)
   lazy val nMemChannels = p(NMemoryChannels)
   lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
-  lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
-  lazy val nBanks = nMemChannels*nBanksPerMemChannel
-  lazy val lsb = p(BankIdLSB)
-  lazy val nMemReqs = p(NOutstandingMemReqsPerChannel)
-  lazy val mifAddrBits = p(MIFAddrBits)
-  lazy val mifDataBeats = p(MIFDataBeats)
-  lazy val xLen = p(XLen)
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
   lazy val exportBus = p(ExportBusPort)

@@ -8,10 +8,8 @@ import uncore.agents._
 
 case object ExportGroundTestStatus extends Field[Boolean]
 
-class DirectGroundTestTop(topParams: Parameters) extends Module
-    with HasTopLevelParameters {
-  implicit val p = topParams
-  val io = new TopIO {
+class DirectGroundTestCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
+  override val io = new CoreplexIO {
     // Need to export this for FPGA testing, but not for simulator
     val status = if (p(ExportGroundTestStatus)) Some(new GroundTestStatus) else None
   }
@@ -20,8 +18,8 @@ class DirectGroundTestTop(topParams: Parameters) extends Module
   io.debug.req.ready := Bool(false)
   io.debug.resp.valid := Bool(false)
 
-  require(io.mmio_axi.isEmpty && io.mmio_ahb.isEmpty && io.mmio_tl.isEmpty)
-  require(io.mem_ahb.isEmpty && io.mem_tl.isEmpty)
+  require(!exportMMIO)
+  require(!exportBus)
   require(nMemChannels == 1)
   require(nTiles == 1)
 
@@ -39,9 +37,8 @@ class DirectGroundTestTop(topParams: Parameters) extends Module
     nBanksPerMemChannel, nMemChannels)(outermostParams))
 
   mem_ic.io.in <> test.io.mem
-  io.mem_axi.zip(mem_ic.io.out).foreach { case (nasti, tl) =>
-    TopUtils.connectTilelinkNasti(nasti, tl)(outermostParams)
-  }
+  io.mem <> mem_ic.io.out
+
   io.status.map { status =>
     val s_running :: s_finished :: s_errored :: s_timeout :: Nil = Enum(Bits(), 4)
     val state = Reg(init = s_running)

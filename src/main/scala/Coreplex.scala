@@ -41,12 +41,27 @@ case object ExportBusPort extends Field[Boolean]
 /** Function for building Coreplex */
 case object BuildCoreplex extends Field[Parameters => Coreplex]
 
+trait HasCoreplexParameters {
+  implicit val p: Parameters
+  lazy val nTiles = p(NTiles)
+  lazy val nCachedTilePorts = p(NCachedTileLinkPorts)
+  lazy val nUncachedTilePorts = p(NUncachedTileLinkPorts)
+  lazy val nMemChannels = p(NMemoryChannels)
+  lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
+  lazy val nBanks = nMemChannels*nBanksPerMemChannel
+  lazy val lsb = p(BankIdLSB)
+  lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
+  lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
+  lazy val exportBus = p(ExportBusPort)
+  lazy val exportMMIO = p(ExportMMIOPort)
+}
+
 /** Wrapper around everything that isn't a Tile.
   *
   * Usually this is clocked and/or place-and-routed separately from the Tiles.
   */
 class Uncore(implicit val p: Parameters) extends Module
-    with HasTopLevelParameters {
+    with HasCoreplexParameters {
 
   val io = new Bundle {
     val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
@@ -60,7 +75,7 @@ class Uncore(implicit val p: Parameters) extends Module
   }
 
   val outmemsys = if (nCachedTilePorts + nUncachedTilePorts > 0)
-    Module(new OuterMemorySystem) // NoC, LLC and SerDes
+    Module(new DefaultOuterMemorySystem) // NoC, LLC and SerDes
   else Module(new DummyOuterMemorySystem)
   outmemsys.io.incoherent foreach (_ := false)
   outmemsys.io.tiles_uncached <> io.tiles_uncached
@@ -126,8 +141,8 @@ class Uncore(implicit val p: Parameters) extends Module
   }
 }
 
-abstract class AbstractOuterMemorySystem(implicit val p: Parameters)
-    extends Module with HasTopLevelParameters {
+abstract class OuterMemorySystem(implicit val p: Parameters)
+    extends Module with HasCoreplexParameters {
   val io = new Bundle {
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
@@ -139,7 +154,7 @@ abstract class AbstractOuterMemorySystem(implicit val p: Parameters)
 }
 
 /** Use in place of OuterMemorySystem if there are no clients to connect. */
-class DummyOuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemorySystem()(p) {
+class DummyOuterMemorySystem(implicit p: Parameters) extends OuterMemorySystem()(p) {
   require(nCachedTilePorts + nUncachedTilePorts == 0)
   require(io.bus.isEmpty)
 
@@ -155,7 +170,7 @@ class DummyOuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemory
 /** The whole outer memory hierarchy, including a NoC, some kind of coherence
   * manager agent, and a converter from TileLink to MemIO.
   */ 
-class OuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemorySystem()(p) {
+class DefaultOuterMemorySystem(implicit p: Parameters) extends OuterMemorySystem()(p) {
   // Create a simple L1toL2 NoC between the tiles and the banks of outer memory
   // Cached ports are first in client list, making sharerToClientId just an indentity function
   // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
@@ -212,15 +227,18 @@ class OuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemorySyste
   io.mem <> mem_ic.io.out
 }
 
+class CoreplexIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
+    with HasCoreplexParameters {
+  val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
+  val bus = if (p(ExportBusPort)) Some(new ClientUncachedTileLinkIO().flip) else None
+  val mmio = if(p(ExportMMIOPort)) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
+  val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
+  val debug = new DebugBusIO()(p).flip
+}
+
 abstract class Coreplex(implicit val p: Parameters) extends Module
-    with HasTopLevelParameters {
-  val io = new Bundle {
-    val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
-    val bus = if (p(ExportBusPort)) Some(new ClientUncachedTileLinkIO().flip) else None
-    val mmio = if(p(ExportMMIOPort)) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
-    val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
-    val debug = new DebugBusIO()(p).flip
-  }
+    with HasCoreplexParameters {
+  val io = new CoreplexIO
 }
 
 class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
