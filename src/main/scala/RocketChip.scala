@@ -40,7 +40,6 @@ case object AsyncMMIOChannels extends Field[Boolean]
 
 /** External address map settings */
 case object ExtMMIOPorts extends Field[Seq[AddrMapEntry]]
-case object ExtAddrMap extends Field[AddrMap]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
@@ -225,7 +224,7 @@ class Periphery(implicit val p: Parameters) extends Module
   }
 
   def buildMMIONetwork(implicit p: Parameters) = {
-    val extAddrMap = p(ExtAddrMap)
+    val extAddrMap = p(GlobalAddrMap).subMap("io:ext")
 
     val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, extAddrMap))
     mmioNetwork.io.in.head <> io.mmio_in.get

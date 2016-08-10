@@ -36,12 +36,17 @@ class BaseConfig extends Config (
       entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
       new AddrMap(entries)
     }
+    lazy val externalAddrMap = new AddrMap(
+      site(ExtraDevices).map(_.addrMapEntry) ++
+      site(ExtMMIOPorts),
+      start = BigInt("50000000", 16),
+      collapse = true)
     lazy val globalAddrMap = {
       val memBase = 0x80000000L
       val memSize = 0x10000000L
 
       val intern = AddrMapEntry("int", internalIOAddrMap)
-      val extern = AddrMapEntry("ext", site(ExtAddrMap).toRange)
+      val extern = AddrMapEntry("ext", externalAddrMap)
       val ioMap = if (site(ExportMMIOPort)) AddrMap(intern, extern) else AddrMap(intern)
 
       val addrMap = AddrMap(
@@ -54,7 +59,6 @@ class BaseConfig extends Config (
     }
     def makeConfigString() = {
       val addrMap = globalAddrMap
-      val extAddrMap = site(ExtAddrMap)
       val plicAddr = addrMap("io:int:plic").start
       val prciAddr = addrMap("io:int:prci").start
       val plicInfo = site(PLICKey)
@@ -101,7 +105,7 @@ class BaseConfig extends Config (
       }
       for (device <- site(ExtraDevices)) {
         val deviceName = device.addrMapEntry.name
-        val deviceRegion = extAddrMap(deviceName)
+        val deviceRegion = addrMap("io:ext:" + deviceName)
         res.append(device.makeConfigString(deviceRegion))
       }
       res append  "};\n"
@@ -237,10 +241,6 @@ class BaseConfig extends Config (
       case ExtraDevices => Nil
       case ExtraTopPorts => (p: Parameters) => new Bundle
       case ExtMMIOPorts => Nil
-      case ExtAddrMap => new AddrMap(
-        site(ExtraDevices).map(_.addrMapEntry) ++
-        site(ExtMMIOPorts),
-        start = BigInt("50000000", 16))
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0

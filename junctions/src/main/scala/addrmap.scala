@@ -74,7 +74,10 @@ object AddrMap {
   def apply(elems: AddrMapEntry*): AddrMap = new AddrMap(elems)
 }
 
-class AddrMap(entriesIn: Seq[AddrMapEntry], val start: BigInt = BigInt(0)) extends MemRegion {
+class AddrMap(
+    entriesIn: Seq[AddrMapEntry],
+    val start: BigInt = BigInt(0),
+    val collapse: Boolean = false) extends MemRegion {
   private val slavePorts = HashMap[String, Int]()
   private val mapping = HashMap[String, MemRegion]()
 
@@ -99,19 +102,27 @@ class AddrMap(entriesIn: Seq[AddrMapEntry], val start: BigInt = BigInt(0)) exten
 
       r match {
         case r: AddrMap =>
-          val subMap = new AddrMap(r.entries, base)
+          val subMap = new AddrMap(r.entries, base, r.collapse)
           rebasedEntries += AddrMapEntry(name, subMap)
           mapping += name -> subMap
           mapping ++= subMap.mapping.map { case (k, v) => s"$name:$k" -> v }
-          slavePorts ++= subMap.slavePorts.map { case (k, v) => s"$name:$k" -> (ind + v) }
+          if (r.collapse) {
+            slavePorts += (name -> ind)
+            ind += 1
+          } else {
+            slavePorts ++= subMap.slavePorts.map {
+              case (k, v) => s"$name:$k" -> (ind + v)
+            }
+            ind += r.numSlaves
+          }
         case _ =>
           val e = MemRange(base, r.size, r.attr)
           rebasedEntries += AddrMapEntry(name, e)
           mapping += name -> e
           slavePorts += name -> ind
+          ind += r.numSlaves
       }
 
-      ind += r.numSlaves
       base += r.size
       prot |= r.attr.prot
       cacheable &&= r.attr.cacheable
