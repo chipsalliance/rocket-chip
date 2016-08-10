@@ -3,14 +3,18 @@ package rocketchip
 import Chisel._
 import junctions.unittests.UnitTestSuite
 import rocket.Tile
+import uncore.tilelink.TLId
 import cde.Parameters
 
-class UnitTestTile(clockSignal: Clock = null, resetSignal: Bool = null)
-    (implicit p: Parameters) extends Tile(clockSignal, resetSignal)(p) {
+class UnitTestCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
+  require(!exportMMIO)
+  require(!exportBus)
+  require(nMemChannels == 0)
 
-  require(io.cached.size == 0)
-  require(io.uncached.size == 0)
+  io.debug.req.ready := Bool(false)
+  io.debug.resp.valid := Bool(false)
 
-  val tests = Module(new UnitTestSuite)
+  val l1params = p.alterPartial({ case TLId => "L1toL2" })
+  val tests = Module(new UnitTestSuite()(l1params))
   when (tests.io.finished) { stop() }
 }

@@ -168,23 +168,14 @@ class WithNastiConverterTest extends Config(
 
 class WithUnitTest extends Config(
   (pname, site, here) => pname match {
-    case BuildTiles => {
+    case BuildCoreplex => {
       val groundtest = if (site(XLen) == 64)
         DefaultTestSuites.groundtest64
       else
         DefaultTestSuites.groundtest32
       TestGeneration.addSuite(groundtest("p"))
       TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-      (0 until site(NTiles)).map { i =>
-        (r: Bool, p: Parameters) => {
-          Module(new UnitTestTile(resetSignal = r)(p.alterPartial({
-            case TLId => "L1toL2"
-            case NCachedTileLinkPorts => 0
-            case NUncachedTileLinkPorts => 0
-            case RoccNCSRs => 0
-          })))
-        }
-      }
+      (p: Parameters) => Module(new UnitTestCoreplex(p))
     }
     case UnitTests => (testParams: Parameters) =>
       JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams)
