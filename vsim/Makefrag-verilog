@@ -23,7 +23,12 @@ $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)
 
 $(generated_dir)/%.v: $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) -i $< -o $@ -X verilog
+	$(FIRRTL) -i $< -o $@ -X verilog --inferRW Top --subMem Top
+
+$(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v: $(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).conf $(mem_gen)
+	cd $(generated_dir) && \
+	cp $(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v && \
+	$(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v; \
 
 endif
 
