@@ -34,15 +34,18 @@ class BaseConfig extends Config (
       entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
-      entries ++= site(ExtraDevices).map(_.addrMapEntry)
       new AddrMap(entries)
     }
     lazy val globalAddrMap = {
       val memBase = 0x80000000L
       val memSize = 0x10000000L
-      val io = new AddrMap(AddrMapEntry("int", internalIOAddrMap) +: site(ExtMMIOPorts).entries)
+
+      val intern = AddrMapEntry("int", internalIOAddrMap)
+      val extern = AddrMapEntry("ext", MemRange(0x50000000L, 0x30000000L, MemAttr(AddrMapProt.RWX)))
+      val ioMap = if (site(ExportMMIOPort)) AddrMap(intern, extern) else AddrMap(intern)
+
       val addrMap = AddrMap(
-        AddrMapEntry("io", io),
+        AddrMapEntry("io", ioMap),
         AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true))))
 
       Dump("MEM_BASE", addrMap("mem").start)
@@ -51,6 +54,7 @@ class BaseConfig extends Config (
     }
     def makeConfigString() = {
       val addrMap = globalAddrMap
+      val extAddrMap = site(ExtAddrMap)
       val plicAddr = addrMap("io:int:plic").start
       val prciAddr = addrMap("io:int:prci").start
       val plicInfo = site(PLICKey)
@@ -97,7 +101,7 @@ class BaseConfig extends Config (
       }
       for (device <- site(ExtraDevices)) {
         val deviceName = device.addrMapEntry.name
-        val deviceRegion = addrMap("io:int:" + deviceName)
+        val deviceRegion = extAddrMap(deviceName)
         res.append(device.makeConfigString(deviceRegion))
       }
       res append  "};\n"
@@ -188,6 +192,7 @@ class BaseConfig extends Config (
         }
       }
       case BuildRoCC => Nil
+      case BuildCoreplex => (p: Parameters) => Module(new DefaultCoreplex(p))
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
@@ -231,17 +236,18 @@ class BaseConfig extends Config (
       case AsyncMMIOChannels => false
       case ExtraDevices => Nil
       case ExtraTopPorts => (p: Parameters) => new Bundle
-      case ExtMMIOPorts => AddrMap()
-/*
-        AddrMap(
-          AddrMapEntry("cfg", MemRange(0x50000000L, 0x04000000L, MemAttr(AddrMapProt.RW))),
-          AddrMapEntry("ext", MemRange(0x60000000L, 0x20000000L, MemAttr(AddrMapProt.RWX))))
-*/
+      case ExtMMIOPorts => Nil
+      case ExtAddrMap => new AddrMap(
+        site(ExtraDevices).map(_.addrMapEntry) ++
+        site(ExtMMIOPorts),
+        start = BigInt("50000000", 16))
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0
+      case ExportMMIOPort => (site(ExtraDevices).size + site(ExtMMIOPorts).size) > 0
       case AsyncBusChannels => false
       case NExtBusAXIChannels => 0
+      case ExportBusPort => site(NExtBusAXIChannels) > 0
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case FDivSqrt => true
