@@ -313,18 +313,18 @@ class PutAtomicDriver(implicit p: Parameters) extends Driver()(p) {
     client_xact_id = UInt(0),
     addr_block = UInt(0),
     addr_beat = UInt(0),
-    // Put 15 in bytes 3:2
-    data = UInt(15 << 16),
-    wmask = Some(UInt(0x0c)))
+    // Put 15 in bytes 7:4
+    data = UInt(15L << 32),
+    wmask = Some(UInt(0xf0)))
 
   val amo_acquire = PutAtomic(
     client_xact_id = UInt(0),
     addr_block = UInt(0),
     addr_beat = UInt(0),
-    addr_byte = UInt(2),
+    addr_byte = UInt(4),
     atomic_opcode = M_XA_ADD,
-    operand_size = UInt(log2Ceil(16 / 8)),
-    data = UInt(3 << 16))
+    operand_size = UInt(log2Ceil(32 / 8)),
+    data = UInt(3L << 32))
 
   val get_acquire = Get(
     client_xact_id = UInt(0),
@@ -351,8 +351,8 @@ class PutAtomicDriver(implicit p: Parameters) extends Driver()(p) {
     when (state === s_get) { state := s_done }
   }
 
-  assert(!io.mem.grant.valid || !io.mem.grant.bits.hasData() ||
-         io.mem.grant.bits.data(31, 16) === UInt(18))
+  assert(!io.mem.grant.valid || state =/= s_get ||
+         io.mem.grant.bits.data(63, 32) === UInt(18))
 }
 
 class PrefetchDriver(implicit p: Parameters) extends Driver()(p) {

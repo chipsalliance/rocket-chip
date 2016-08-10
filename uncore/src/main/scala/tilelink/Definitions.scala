@@ -399,6 +399,10 @@ object Acquire {
   }
 
   def fullWriteMask(implicit p: Parameters) = SInt(-1, width = p(TLKey(p(TLId))).writeMaskBits).asUInt
+  def fullOperandSize(implicit p: Parameters) = {
+    val dataBits = p(TLKey(p(TLId))).dataBitsPerBeat
+    UInt(log2Ceil(dataBits / 8))
+  }
 
   // Most generic constructor
   def apply(
@@ -477,6 +481,7 @@ object Get {
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
+      operand_size = Acquire.fullOperandSize,
       opcode = M_XRD,
       alloc = alloc)
   }
@@ -519,6 +524,7 @@ object GetBlock {
       a_type = Acquire.getBlockType,
       client_xact_id = client_xact_id, 
       addr_block = addr_block,
+      operand_size = Acquire.fullOperandSize,
       opcode = M_XRD,
       alloc = alloc)
   }
