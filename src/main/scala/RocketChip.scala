@@ -144,15 +144,19 @@ object TopUtils {
   }
 }
 
-class ResetSync(r: Bool, c: Clock, lat: Int = 2) extends Module(_clock = c) {
+class ResetSync(c: Clock, lat: Int = 2) extends Module(_clock = c) {
   val io = new Bundle {
+    val reset = Bool(INPUT)
     val reset_sync = Bool(OUTPUT)
   }
-  io.reset_sync := ShiftRegister(r,lat)
+  io.reset_sync := ShiftRegister(io.reset,lat)
 }
 object ResetSync {
-  def apply(r: Bool, c: Clock): Bool = 
-    Module(new ResetSync(r,c,2)).io.reset_sync
+  def apply(r: Bool, c: Clock): Bool =  {
+    val sync = Module(new ResetSync(c,2))
+    sync.io.reset := r
+    sync.io.reset_sync
+  }
 }
 
 /** Top-level module for the chip */
@@ -166,8 +170,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   val tileList = p(BuildTiles).zip(tileResets).zipWithIndex.map {
     case ((tile, rst), i) => 
       if (i == nTiles-1) tile(clock, rst, p) // PMU is on same clock as uncore
-      // else tile(io.core_clk(i), ResetSync(rst,io.core_clk(i)), p) - TODOHurricane - fix ResetSync
-      else tile(io.core_clk(i), rst, p)
+      else tile(io.core_clk(i), ResetSync(rst,io.core_clk(i)), p)
   }
   val nCachedPorts = tileList.map(tile => tile.io.cached.size).reduce(_ + _)
   val nUncachedPorts = tileList.map(tile => tile.io.uncached.size).reduce(_ + _)
@@ -178,10 +181,9 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
     case NCachedTileLinkPorts => nCachedPorts
     case NUncachedTileLinkPorts => nUncachedPorts
   })
-
-  //val resetSync = ResetSync(reset, clock) // TODOHurricane - this seems to generate invalid firrtl
-  val resetSync = reset
-  val uncore = Module(new Uncore(resetSignal = resetSync)(innerTLParams))
+ 
+  // HurricaneTODO - synchronize top-level uncore reset at ChipTop
+  val uncore = Module(new Uncore()(innerTLParams))
   
   (uncore.io.prci, tileResets, tileList).zipped.foreach {
     case (prci, rst, tile) => 
@@ -254,8 +256,7 @@ class Uncore(resetSignal:Bool = null)(implicit val p: Parameters) extends Module
     val oms_clk = Clock().asInput
   }
 
-  // val oms_reset = ResetSync(reset, io.oms_clk) // TODOHurricane - oms_reset should come from a control register
-  val oms_reset = reset // TODOHurricane - above line generates invalid firrtl
+  val oms_reset = ResetSync(reset, io.oms_clk) // TODOHurricane - oms_reset should come from a control register
   val outmemsys = if (nCachedTilePorts + nUncachedTilePorts > 0)
     Module(new OuterMemorySystem(clockSignal = io.oms_clk, resetSignal = oms_reset)) // NoC, LLC and SerDes
   else Module(new DummyOuterMemorySystem)
