@@ -155,6 +155,7 @@ stamps/%/emulator-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/inst
 
 stamps/%/emulator-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) clean-run-output
 	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-regression-tests-fast
 	date > $@
 
@@ -170,22 +171,8 @@ stamps/%/vsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.
 
 stamps/%/vsim-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) clean-run-output
 	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-regression-tests-fast
-	date > $@
-
-stamps/%/fsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
-	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
-	date > $@
-
-stamps/%/fsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
-	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
-	date > $@
-
-stamps/%/fsim-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
-	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/fsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-regression-tests-fast
 	date > $@
 
 # The torture tests run subtly differently on the different targets, so they
