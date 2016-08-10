@@ -192,8 +192,11 @@ class OuterMemorySystem(implicit p: Parameters) extends AbstractOuterMemorySyste
 
   // TODO: the code to print this stuff should live somewhere else
   println("Generated Address Map")
-  for ((name, region) <- p(GlobalAddrMap).flatten) {
-    println(f"\t$name%s ${region.start}%x - ${region.start + region.size - 1}%x")
+  for (entry <- p(GlobalAddrMap).flatten) {
+    val name = entry.name
+    val start = entry.region.start
+    val end = entry.region.start + entry.region.size - 1
+    println(f"\t$name%s $start%x - $end%x")
   }
   println("Generated Configuration String")
   println(new String(p(ConfigString)))

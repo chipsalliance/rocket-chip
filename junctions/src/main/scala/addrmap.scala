@@ -75,12 +75,12 @@ object AddrMap {
 }
 
 class AddrMap(entriesIn: Seq[AddrMapEntry], val start: BigInt = BigInt(0)) extends MemRegion {
-  def isEmpty = entries.isEmpty
-  def length = entries.size
-  def numSlaves = entries.map(_.region.numSlaves).foldLeft(0)(_ + _)
-
   private val slavePorts = HashMap[String, Int]()
   private val mapping = HashMap[String, MemRegion]()
+
+  def isEmpty = entries.isEmpty
+  def length = entries.size
+  def numSlaves = slavePorts.size
 
   val (size: BigInt, entries: Seq[AddrMapEntry], attr: MemAttr) = {
     var ind = 0
@@ -119,11 +119,11 @@ class AddrMap(entriesIn: Seq[AddrMapEntry], val start: BigInt = BigInt(0)) exten
     (base - start, rebasedEntries, MemAttr(prot, cacheable))
   }
 
-  val flatten: Seq[(String, MemRange)] = {
-    val arr = new Array[(String, MemRange)](slavePorts.size)
-    for ((name, port) <- slavePorts)
-      arr(port) = (name, mapping(name).asInstanceOf[MemRange])
-    arr
+  val flatten: Seq[AddrMapEntry] = {
+    mapping.toSeq.map {
+      case (name, range: MemRange) => Some(AddrMapEntry(name, range))
+      case _ => None
+    }.flatten.sortBy(_.region.start)
   }
 
   def toRange: MemRange = MemRange(start, size, attr)
@@ -134,20 +134,19 @@ class AddrMap(entriesIn: Seq[AddrMapEntry], val start: BigInt = BigInt(0)) exten
   def isInRegion(name: String, addr: UInt): Bool = mapping(name).containsAddress(addr)
 
   def isCacheable(addr: UInt): Bool = {
-    flatten.filter(_._2.attr.cacheable).map { case (_, region) =>
-      region.containsAddress(addr)
-    }.foldLeft(Bool(false))(_ || _)
+    flatten.filter(_.region.attr.cacheable).map(
+      _.region.containsAddress(addr)
+    ).foldLeft(Bool(false))(_ || _)
   }
 
   def isValid(addr: UInt): Bool = {
-    flatten.map { case (_, region) =>
-      region.containsAddress(addr)
-    }.foldLeft(Bool(false))(_ || _)
+    flatten.map(_.region.containsAddress(addr)).foldLeft(Bool(false))(_ || _)
   }
 
   def getProt(addr: UInt): AddrMapProt = {
-    val protForRegion = flatten.map { case (_, region) =>
-      Mux(region.containsAddress(addr), UInt(region.attr.prot, AddrMapProt.SZ), UInt(0))
+    val protForRegion = flatten.map { entry =>
+      Mux(entry.region.containsAddress(addr),
+        UInt(entry.region.attr.prot, AddrMapProt.SZ), UInt(0))
     }
     new AddrMapProt().fromBits(protForRegion.reduce(_|_))
   }

@@ -312,7 +312,7 @@ class BaseConfig extends Config (
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = globalAddrMap.subMap("io").flatten.size,
+          nManagers = globalAddrMap.subMap("io").numSlaves,
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 4,
