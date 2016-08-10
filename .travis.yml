@@ -46,7 +46,6 @@ before_install:
   - export CXX=g++-4.8 CC=gcc-4.8
 
 script:
-  - make vsim-verilog -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
   - make emulator-ndebug -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
   - make emulator-regression-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
 
