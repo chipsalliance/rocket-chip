@@ -9,6 +9,9 @@ import uncore.agents._
 import rocket._
 import hwacha._
 
+class VectorAssemblyTestSuite(prefix: String, names: LinkedHashSet[String])(env: String) extends AssemblyTestSuite(prefix, names)(env + "-vec")
+class ScalarVectorAssemblyTestSuite(prefix: String, names: LinkedHashSet[String])(env: String) extends AssemblyTestSuite(prefix, names)(env + "-svec")
+
 object HwachaTestSuites {
   import DefaultTestSuites._
   val rv64uvNames = LinkedHashSet(
@@ -24,30 +27,22 @@ object HwachaTestSuites {
     (rv32uaNames -- Set("lrsc")) ++ (rv64uaNames -- Set("lrsc"))
   val rv64uvBasic = new AssemblyTestSuite("rv64uv", rv64uvNames)(_)
 
-  val rv64uiVecNames = LinkedHashSet(
-    "addi", "add", "addiw", "addw", "and", "andi", "or", "ori",
-    "sll", "slli", "slliw", "sllw", "slt", "slti", "sltiu", "sltu",
-    "sra", "srai", "sraiw", "sraw", "srl", "srli", "srliw", "srlw", "sub", "subw", "xor", "xori").map("vec-" + _)
-  val rv64uiVec = new AssemblyTestSuite("rv64ui", rv64uiVecNames)(_)
+  val rv64uiVecNames = rv32uiNames ++ rv64uiNames -- Set("simple", "auipc", "lui", "fence_i",
+    "beq", "bge", "bgeu", "blt", "bltu", "bne", "jal", "jalr",
+    "lb", "lbu", "lh", "lhu", "lw", "lwu", "ld", "sb", "sh", "sw", "sd")
+  val rv64uiVec = new VectorAssemblyTestSuite("rv64ui", rv64uiVecNames)(_)
+  val rv64uiScalarVec = new ScalarVectorAssemblyTestSuite("rv64ui", rv64uiVecNames)(_)
 
-  val rv64uiScalarVecNames = rv64uiVecNames.map("s"+_)
-  val rv64uiScalarVec = new AssemblyTestSuite("rv64ui", rv64uiScalarVecNames)(_)
+  val rv64umVec = new VectorAssemblyTestSuite("rv64um", rv64umNames)(_)
+  val rv64umScalarVec = new ScalarVectorAssemblyTestSuite("rv64um", rv64umNames)(_)
 
-  val rv64umVecNames = DefaultTestSuites.rv64umNames.map("vec-" + _)
-  val rv64umVec = new AssemblyTestSuite("rv64um", rv64umVecNames)(_)
-  val rv64umScalarVecNames = rv64umVecNames.map("s"+_)
-  val rv64umScalarVec = new AssemblyTestSuite("rv64um", rv64umScalarVecNames)(_)
+  val rv64ufVecNames = rv64ufNames -- Set("ldst", "move")
+  val rv64ufVec = new VectorAssemblyTestSuite("rv64uf", rv64ufVecNames)(_)
+  val rv64udVec = new VectorAssemblyTestSuite("rv64ud", rv64ufVecNames)(_)
 
-  val rv64ufVecNames = LinkedHashSet(
-    "fadd", "fcmp", "fdiv", "fclass", "fcvt", "fcvt_w", "fmadd", "fmin", "fsgnj").map("vec-" + _)
-  val rv64ufVecNamesV4 = rv64ufVecNames
-  val rv64ufVec = new AssemblyTestSuite("rv64uf", rv64ufVecNamesV4)(_)
-  val rv64udVec = new AssemblyTestSuite("rv64ud", rv64ufVecNamesV4)(_)
-
-  val rv64ufScalarVecNames = rv64ufVecNames.map("s"+_)
-  val rv64ufScalarVecNamesV4 = rv64ufScalarVecNames -- Set("svec-fdiv", "svec-fcmp")
-  val rv64ufScalarVec = new AssemblyTestSuite("rv64uf", rv64ufScalarVecNamesV4)(_)
-  val rv64udScalarVec = new AssemblyTestSuite("rv64ud", rv64ufScalarVecNamesV4)(_)
+  val rv64ufScalarVecNames = rv64ufVecNames -- Set("fdiv", "fcmp") // unsupported by current scalar unit
+  val rv64ufScalarVec = new ScalarVectorAssemblyTestSuite("rv64uf", rv64ufScalarVecNames)(_)
+  val rv64udScalarVec = new ScalarVectorAssemblyTestSuite("rv64ud", rv64ufScalarVecNames)(_)
 
   val rv64uv = List(rv64ufScalarVec, rv64ufVec, rv64udScalarVec, rv64udVec, rv64uiScalarVec, rv64uiVec, rv64umScalarVec, rv64umVec, rv64uvBasic)
 
