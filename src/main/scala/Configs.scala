@@ -222,6 +222,7 @@ class BaseConfig extends Config (
         TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64uc else rv32uc))
         true
       }
+      case NarrowWidth => 8
       case NExtInterrupts => 2
       case AsyncMMIOChannels => false
       case ExtMMIOPorts => AddrMap()

@@ -144,21 +144,6 @@ object TopUtils {
   }
 }
 
-class ResetSync(c: Clock, lat: Int = 2) extends Module(_clock = c) {
-  val io = new Bundle {
-    val reset = Bool(INPUT)
-    val reset_sync = Bool(OUTPUT)
-  }
-  io.reset_sync := ShiftRegister(io.reset,lat)
-}
-object ResetSync {
-  def apply(r: Bool, c: Clock): Bool =  {
-    val sync = Module(new ResetSync(c,2))
-    sync.io.reset := r
-    sync.io.reset_sync
-  }
-}
-
 /** Top-level module for the chip */
 //TODO: Remove this wrapper once multichannel DRAM controller is provided
 class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
