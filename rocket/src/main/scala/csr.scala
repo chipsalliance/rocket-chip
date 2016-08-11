@@ -326,7 +326,14 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
 
   for (i <- 0 until nCustomMrwCsrs) {
-    val addr = 0xff0 + i
+    val addr = 0xcc0 + i
+    require(addr < (1 << CSR.ADDRSZ))
+    require(!read_mapping.contains(addr), "custom MRW CSR address " + i + " is already in use")
+    read_mapping += addr -> io.custom_mrw_csrs(i)
+  }
+
+  for (i <- 0 until nCustomMrwCsrs) {
+    val addr = 0xfc0 + i
     require(addr < (1 << CSR.ADDRSZ))
     require(!read_mapping.contains(addr), "custom MRW CSR address " + i + " is already in use")
     read_mapping += addr -> io.custom_mrw_csrs(i)
