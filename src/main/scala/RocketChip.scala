@@ -10,6 +10,7 @@ import uncore.devices._
 import uncore.util._
 import uncore.converters._
 import rocket._
+import coreplex._
 
 /** Top-level parameters of RocketChip, values set in e.g. PublicConfigs.scala */
 
@@ -24,8 +25,6 @@ object BusType {
 
 /** Memory channel controls */
 case object TMemoryChannels extends Field[BusType.EnumVal]
-/** Number of outstanding memory requests */
-case object NOutstandingMemReqsPerChannel extends Field[Int]
 /** External MMIO controls */
 case object NExtMMIOAXIChannels extends Field[Int]
 case object NExtMMIOAHBChannels extends Field[Int]
@@ -37,9 +36,12 @@ case object AsyncBusChannels extends Field[Boolean]
 case object AsyncDebugBus extends Field[Boolean]
 case object AsyncMemChannels extends Field[Boolean]
 case object AsyncMMIOChannels extends Field[Boolean]
-
 /** External address map settings */
 case object ExtMMIOPorts extends Field[Seq[AddrMapEntry]]
+/** Function for building Coreplex */
+case object BuildCoreplex extends Field[Parameters => Coreplex]
+/** Function for connecting coreplex extra ports to top-level extra ports */
+case object ConnectExtraPorts extends Field[(Bundle, Bundle, Parameters) => Unit]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
@@ -162,6 +164,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
     else io.bus_axi)
 
   io.extra <> periphery.io.extra
+  p(ConnectExtraPorts)(io.extra, coreplex.io.extra, p)
 }
 
 class Periphery(implicit val p: Parameters) extends Module

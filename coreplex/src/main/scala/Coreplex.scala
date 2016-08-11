@@ -1,4 +1,4 @@
-package rocketchip
+package coreplex
 
 import Chisel._
 import cde.{Parameters, Field}
@@ -38,8 +38,8 @@ case object BootROMFile extends Field[String]
 case object ExportMMIOPort extends Field[Boolean]
 /** Expose an additional bus master port */
 case object ExportBusPort extends Field[Boolean]
-/** Function for building Coreplex */
-case object BuildCoreplex extends Field[Parameters => Coreplex]
+/** Extra top-level ports exported from the coreplex */
+case object ExtraCoreplexPorts extends Field[Parameters => Bundle]
 
 trait HasCoreplexParameters {
   implicit val p: Parameters
@@ -234,6 +234,7 @@ class CoreplexIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
   val mmio = if(p(ExportMMIOPort)) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   val debug = new DebugBusIO()(p).flip
+  val extra = p(ExtraCoreplexPorts)(p)
 }
 
 abstract class Coreplex(implicit val p: Parameters) extends Module

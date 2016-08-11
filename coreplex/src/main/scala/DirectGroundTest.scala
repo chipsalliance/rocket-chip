@@ -1,4 +1,4 @@
-package rocketchip
+package coreplex
 
 import Chisel._
 import cde.{Parameters, Field}
@@ -9,10 +9,6 @@ import uncore.agents._
 case object ExportGroundTestStatus extends Field[Boolean]
 
 class DirectGroundTestCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
-  override val io = new CoreplexIO {
-    // Need to export this for FPGA testing, but not for simulator
-    val status = if (p(ExportGroundTestStatus)) Some(new GroundTestStatus) else None
-  }
 
   // Not using the debug 
   io.debug.req.ready := Bool(false)
@@ -39,7 +35,9 @@ class DirectGroundTestCoreplex(topParams: Parameters) extends Coreplex()(topPara
   mem_ic.io.in <> test.io.mem
   io.mem <> mem_ic.io.out
 
-  io.status.map { status =>
+  if (p(ExportGroundTestStatus)) {
+    val status = io.extra.asInstanceOf[GroundTestStatus]
+
     val s_running :: s_finished :: s_errored :: s_timeout :: Nil = Enum(Bits(), 4)
     val state = Reg(init = s_running)
     val error_code = Reg(status.error.bits)

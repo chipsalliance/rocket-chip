@@ -1,4 +1,4 @@
-package rocketchip
+package coreplex
 
 import Chisel._
 import junctions.unittests.UnitTestSuite

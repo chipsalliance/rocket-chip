@@ -23,7 +23,8 @@ object BuildSettings extends Build {
   lazy val uncore     = project.dependsOn(junctions)
   lazy val rocket     = project.dependsOn(hardfloat, uncore)
   lazy val groundtest = project.dependsOn(rocket)
-  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(groundtest)
+  lazy val coreplex   = project.dependsOn(groundtest)
+  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(coreplex)
 
   lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
   lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
