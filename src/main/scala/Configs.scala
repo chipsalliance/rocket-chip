@@ -94,12 +94,12 @@ class BasePlatformConfig extends Config (
         res append  "    };\n"
         res append  "  };\n"
       }
+      res append  "};\n"
       for (device <- site(ExtraDevices)) {
         val deviceName = device.addrMapEntry.name
         val deviceRegion = addrMap("io:ext:" + deviceName)
         res.append(device.makeConfigString(deviceRegion))
       }
-      res append  "};\n"
       res append '\u0000'
       res.toString.getBytes
     }
