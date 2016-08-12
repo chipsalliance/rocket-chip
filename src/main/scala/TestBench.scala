@@ -226,15 +226,16 @@ object TestBenchGeneration {
     .io_interrupts_$i (1'b0),
 """ } mkString
 
+    val clocks = if (p(MultiClock)) ".io_core_clk_0(clk),\n" else ""
 
     val instantiation = s"""
   ${topModuleName} dut
   (
-    .clk(clk),
     .reset(reset),
-
-    .io_core_clk_0(clk),
+    .clk(clk),
     .io_oms_clk(clk),
+
+    $clocks
 
     $nasti_connections
 

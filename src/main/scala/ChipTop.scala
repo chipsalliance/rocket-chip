@@ -16,14 +16,13 @@ import uncore.converters._
 import rocket._
 import rocket.Util._
 
-case object NarrowWidth extends Field[Int]
-
 class NarrowIO(val w: Int) extends Bundle {
   val out = Decoupled(UInt(width = w))
   val in = Decoupled(UInt(width = w)).flip
   val host_clk = Bool(OUTPUT)
   val host_write_sync = Bool(OUTPUT)
   val host_read_sync = Bool(OUTPUT)
+  override def cloneType = new NarrowIO(w).asInstanceOf[this.type]
 }
 
 class ChipIO(implicit p: Parameters) extends BasicTopIO()(p) {
@@ -53,7 +52,7 @@ class ChipTop(topParams: Parameters) extends Module with HasTopLevelParameters {
 
 class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
-    val nasti = new NastiIO
+    val nasti = (new NastiIO).flip
     val narrow = new NarrowIO(w)
   }
 
@@ -75,7 +74,8 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
   val wBits = writePorts.map(_.bits.asUInt)
   val wWidth = wBits.map(_.getWidth)
   val wBeats = wWidth.map(x => (math.ceil(x.toFloat / w)).toInt)
-  val wData = Vec(wBeats.map(x => Vec(x,UInt(width=w))))
+  val wData = Wire(Vec(writePorts.length,Vec(wBeats.reduceLeft(max),UInt(width=w))))
+  // [ben] wData widths are too wide, but a Chisel3 bug prevents us from doing this properly
 
   wData.zipWithIndex.map { case(data,i) => {
     for (j <- 0 until wBeats(i)-1)
@@ -121,6 +121,9 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
   wReady.map(_ := Bool(false))
   rValid.map(_ := Bool(false))
 
+  io.narrow.out.bits := wData(waddr_dec)(wxferCount(waddr_dec))
+  rData(raddr_dec)(rxferCount(raddr_dec)) := io.narrow.in.bits
+
   when (rise_edge) { // Write on the rising edge
     when (waddr === UInt(0)) { // Write logic
       wadvance := Bool(true)
@@ -131,7 +134,6 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
         wadvance := Bool(false)
         out_valid := Bool(false)
         when (wxferCount(waddr_dec) < wxferDone(waddr_dec)) {
-          io.narrow.out.bits := wData(waddr_dec)(wxferCount(waddr_dec))
           wxferCount(waddr_dec) := wxferCount(waddr_dec) + UInt(1)
           when (wxferCount(waddr_dec) === (wxferDone(waddr_dec))) {
             wxferCount(waddr_dec) := UInt(0)
@@ -166,7 +168,6 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
     when ((raddr =/= UInt(0))) { // Read logic
       when (rxfer) {
         when (rxferCount(raddr) < rxferDone(raddr)) {
-          rData(raddr_dec)(rxferCount(raddr_dec)) := io.narrow.in.bits
           rxferCount(raddr_dec) := rxferCount(raddr_dec) + UInt(1)
           when (rxferCount(raddr_dec) === (rxferDone(raddr_dec))) {
             rxferCount(raddr_dec) := UInt(0)
@@ -183,10 +184,13 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
   }
 }
 
-class NastiDeserializer(val w: Int)(implicit p: Parameters) extends NastiModule {
+class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelParameters{
+  implicit val p = topParams
+  val w = p(NarrowWidth)
+
   val io = new Bundle {
-    val nasti = (new NastiIO).flip
-    val narrow = (new NarrowIO(w)).flip
+    val nasti = new NastiIO
+    val narrow = new NarrowIO(w)
   }
 
   val div_clk = ShiftRegister(io.narrow.host_clk,2) 
@@ -201,11 +205,13 @@ class NastiDeserializer(val w: Int)(implicit p: Parameters) extends NastiModule 
   val wBits = writePorts.map(_.bits.asUInt)
   val wWidth = wBits.map(_.getWidth)
   val wBeats = wWidth.map(x => (math.ceil(x.toFloat / w)).toInt)
-  val wData = Vec(wBeats.map(x => Vec(x,UInt(width=w))))
-
+  val wData = Wire(Vec(writePorts.length,Vec(wBeats.reduceLeft(max),UInt(width=w))))
+  // [ben] wData widths are too wide, but a Chisel3 bug prevents us from doing this properly
+  
   wData.zipWithIndex.map { case(data,i) => {
-    for (j <- 0 until wBeats(i)-1)
+    for (j <- 0 until wBeats(i)-1) {
       data(j) := wBits(i)(((j+1)*w)-1,j*w)
+    }
     data(wBeats(i)-1) := Cat(UInt(0,w - (wWidth(i) % w)), wBits(i)(wWidth(i)-1,(wBeats(i)-1)*w))
   }}
 
@@ -215,7 +221,7 @@ class NastiDeserializer(val w: Int)(implicit p: Parameters) extends NastiModule 
   val rBits = readPorts.map(_.bits.asUInt)
   val rWidth = rBits.map(_.getWidth)
   val rBeats = rWidth.map(x => (math.ceil(x.toFloat / w)).toInt)
-  val rData = Vec(rBeats.map(x => Vec(x,Reg(UInt(width=w)))))
+  val rData = Wire(Vec(readPorts.length,Vec(rBeats.reduceLeft(max),Reg(UInt(width=w)))))
 
   rData.zipWithIndex.map { case(data,i) => {
     readPorts(i) := readPorts(i).cloneType.fromBits(data.reduceLeft[UInt] { (a,b) => Cat(b,a) })
@@ -247,6 +253,9 @@ class NastiDeserializer(val w: Int)(implicit p: Parameters) extends NastiModule 
   val wsync = Reg(init=Bool(false))
   val rsync = Reg(init=Bool(false))
 
+  io.narrow.out.bits := wData(waddr_dec)(wxferCount(waddr_dec))
+  rData(raddr_dec)(rxferCount(raddr_dec)) := io.narrow.in.bits
+
   when (rise_edge) { // Write on the rising edge
     when (~wsync) { // Write logic
       wadvance := Bool(false)
@@ -259,7 +268,6 @@ class NastiDeserializer(val w: Int)(implicit p: Parameters) extends NastiModule 
         wadvance := Bool(false)
         out_valid := Bool(false)
         when (wxferCount(waddr_dec) < wxferDone(waddr_dec)) {
-          io.narrow.out.bits := wData(waddr_dec)(wxferCount(waddr_dec))
           wxferCount(waddr_dec) := wxferCount(waddr_dec) + UInt(1)
           when (wxferCount(waddr_dec) === (wxferDone(waddr_dec))) {
             wxferCount(waddr_dec) := UInt(0)
@@ -306,7 +314,6 @@ class NastiDeserializer(val w: Int)(implicit p: Parameters) extends NastiModule 
     } .elsewhen ((raddr =/= UInt(0))) {
       when (rxfer) {
         when (rxferCount(raddr) < rxferDone(raddr)) {
-          rData(raddr_dec)(rxferCount(raddr_dec)) := io.narrow.in.bits
           rxferCount(raddr_dec) := rxferCount(raddr_dec) + UInt(1)
           when (rxferCount(raddr_dec) === (rxferDone(raddr_dec))) {
             rxferCount(raddr_dec) := UInt(0)

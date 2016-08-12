@@ -13,9 +13,11 @@ import groundtest._
 import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import DefaultTestSuites._
-import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
+import cde.{Parameters, Config, Dump, Knob, CDEMatchError, Field}
 import hwacha._
 
+case object NarrowWidth extends Field[Int]
+case object MultiClock extends Field[Bool]
 
 class PMUConfig extends Config(
   topDefinitions = (pname,site,here) => pname match {
@@ -60,10 +62,17 @@ class PMUConfig extends Config(
         }
       }
     case _ => throw new CDEMatchError
+  }
+)
+
+class MultiClockConfig extends Config(
+  topDefinitions = (pname,site,here) => pname match {
+    case MultiClock => true
+    case _ => throw new CDEMatchError
     }
   )
 
-class HurricaneUpstreamConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new With2Lanes ++ new With9L2AcquireXacts ++ new WithL2Capacity(512) ++ new WithNBanksPerMemChannel(4) ++ new Process28nmConfig ++ new HwachaConfig)
+class HurricaneUpstreamConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new With2Lanes ++ new With9L2AcquireXacts ++ new WithL2Capacity(512) ++ new WithNBanksPerMemChannel(4) ++ new Process28nmConfig ++ new MultiClockConfig ++ new HwachaConfig)
 
-class HurricaneUpstreamTinyConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new WithL2Capacity(64) ++ new Process28nmConfig ++ new HwachaConfig ++ new WithSmallCores)
+class HurricaneUpstreamTinyConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new WithL2Capacity(64) ++ new Process28nmConfig ++ new HwachaConfig ++ new MultiClockConfig ++ new WithSmallCores)
 
