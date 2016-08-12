@@ -17,8 +17,8 @@ import rocket._
 import rocket.Util._
 
 class NarrowIO(val w: Int) extends Bundle {
-  val out = Decoupled(UInt(width = w))
-  val in = Decoupled(UInt(width = w)).flip
+  val chipToWorld = Decoupled(UInt(width = w))
+  val worldToChip = Decoupled(UInt(width = w)).flip
   val host_clk = Bool(OUTPUT)
   val host_write_sync = Bool(OUTPUT)
   val host_read_sync = Bool(OUTPUT)
@@ -39,10 +39,10 @@ class ChipTop(topParams: Parameters) extends Module with HasTopLevelParameters {
   require(nMemAXIChannels == 1)
   
   val rocketChip = Module(new Top(p))
-  val ser = Module(new NastiSerializer(8,8))
+  val ser = Module(new NastiSerializer(w = p(NarrowWidth), divide = 8))
 
-  io.interrupts <> rocketChip.io.interrupts
-  io.debug <> rocketChip.io.debug
+  rocketChip.io.interrupts <> io.interrupts
+  rocketChip.io.debug <> io.debug
   io.mem_narrow <> ser.io.narrow
   ser.io.nasti <> rocketChip.io.mem_axi(0)
 
@@ -89,7 +89,7 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
   val rBits = readPorts.map(_.bits.asUInt)
   val rWidth = rBits.map(_.getWidth)
   val rBeats = rWidth.map(x => (math.ceil(x.toFloat / w)).toInt)
-  val rData = Vec(rBeats.map(x => Vec(x,Reg(UInt(width=w)))))
+  val rData = Wire(Vec(readPorts.length,Vec(rBeats.reduceLeft(max),Reg(UInt(width=w)))))
 
   rData.zipWithIndex.map { case(data,i) => {
     readPorts(i) := readPorts(i).cloneType.fromBits(data.reduceLeft[UInt] { (a,b) => Cat(b,a) })
@@ -113,16 +113,16 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
   val rxferDone = Vec(rBeats.map(UInt(_)))
 
   val out_valid = Reg(init=Bool(false))
-  io.narrow.out.valid := out_valid
+  io.narrow.chipToWorld.valid := out_valid
 
   val in_ready = Reg(init=Bool(false))
-  io.narrow.in.ready := in_ready
+  io.narrow.worldToChip.ready := in_ready
 
   wReady.map(_ := Bool(false))
   rValid.map(_ := Bool(false))
 
-  io.narrow.out.bits := wData(waddr_dec)(wxferCount(waddr_dec))
-  rData(raddr_dec)(rxferCount(raddr_dec)) := io.narrow.in.bits
+  io.narrow.chipToWorld.bits := wData(waddr_dec)(wxferCount(waddr_dec))
+  rData(raddr_dec)(rxferCount(raddr_dec)) := io.narrow.worldToChip.bits
 
   when (rise_edge) { // Write on the rising edge
     when (waddr === UInt(0)) { // Write logic
@@ -161,7 +161,7 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
   }
 
   when (fall_edge) { // Read on the falling edge
-    when ((waddr =/= UInt(0)) && ~wxfer && out_valid && io.narrow.out.ready) { // Write logic
+    when ((waddr =/= UInt(0)) && ~wxfer && out_valid && io.narrow.chipToWorld.ready) { // Write logic
       wxfer := Bool(true)
       wadvance := Bool(false)
     }
@@ -176,7 +176,7 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
             radvance := Bool(true)
           }
         }
-      } .elsewhen (io.narrow.in.valid && in_ready) {
+      } .elsewhen (io.narrow.worldToChip.valid && in_ready) {
         rxfer := Bool(true)
         radvance := Bool(false)
       }
@@ -184,13 +184,13 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
   }
 }
 
-class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelParameters{
+class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelParameters {
   implicit val p = topParams
   val w = p(NarrowWidth)
 
   val io = new Bundle {
-    val nasti = new NastiIO
-    val narrow = new NarrowIO(w)
+    val mem_axi_0 = new NastiIO
+    val narrow = (new NarrowIO(w)).flip
   }
 
   val div_clk = ShiftRegister(io.narrow.host_clk,2) 
@@ -199,7 +199,7 @@ class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelPa
   val rise_edge = (~div_clk_reg & div_clk)
   val fall_edge = (div_clk_reg & ~div_clk)
 
-  val writePorts = Seq(io.nasti.b, io.nasti.r)
+  val writePorts = Seq(io.mem_axi_0.b, io.mem_axi_0.r)
   val wValid = Vec(writePorts.map(_.valid))
   val wReady = Vec(writePorts.map(_.ready))
   val wBits = writePorts.map(_.bits.asUInt)
@@ -215,7 +215,7 @@ class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelPa
     data(wBeats(i)-1) := Cat(UInt(0,w - (wWidth(i) % w)), wBits(i)(wWidth(i)-1,(wBeats(i)-1)*w))
   }}
 
-  val readPorts = Seq(io.nasti.aw, io.nasti.w, io.nasti.ar)
+  val readPorts = Seq(io.mem_axi_0.aw, io.mem_axi_0.w, io.mem_axi_0.ar)
   val rValid = Vec(readPorts.map(_.valid))
   val rReady = Vec(readPorts.map(_.ready))
   val rBits = readPorts.map(_.bits.asUInt)
@@ -242,10 +242,10 @@ class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelPa
   val rxferDone = Vec(rBeats.map(UInt(_)))
 
   val out_valid = Reg(init=Bool(false))
-  io.narrow.out.valid := out_valid
+  io.narrow.worldToChip.valid := out_valid
 
   val in_ready = Reg(init=Bool(false))
-  io.narrow.in.ready := in_ready
+  io.narrow.chipToWorld.ready := in_ready
 
   wReady.map(_ := Bool(false))
   rValid.map(_ := Bool(false))
@@ -253,8 +253,8 @@ class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelPa
   val wsync = Reg(init=Bool(false))
   val rsync = Reg(init=Bool(false))
 
-  io.narrow.out.bits := wData(waddr_dec)(wxferCount(waddr_dec))
-  rData(raddr_dec)(rxferCount(raddr_dec)) := io.narrow.in.bits
+  io.narrow.worldToChip.bits := wData(waddr_dec)(wxferCount(waddr_dec))
+  rData(raddr_dec)(rxferCount(raddr_dec)) := io.narrow.chipToWorld.bits
 
   when (rise_edge) { // Write on the rising edge
     when (~wsync) { // Write logic
@@ -302,7 +302,7 @@ class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelPa
         wsync := Bool(true)
         wadvance := Bool(true)
       }
-    } .elsewhen ((waddr =/= UInt(0)) && ~wxfer && out_valid && io.narrow.out.ready) {
+    } .elsewhen ((waddr =/= UInt(0)) && ~wxfer && out_valid && io.narrow.worldToChip.ready) {
       wxfer := Bool(true)
       wadvance := Bool(false)
     }
@@ -322,7 +322,7 @@ class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelPa
             radvance := Bool(true)
           }
         }
-      } .elsewhen (io.narrow.in.valid && in_ready) {
+      } .elsewhen (io.narrow.chipToWorld.valid && in_ready) {
         rxfer := Bool(true)
         radvance := Bool(false)
       }

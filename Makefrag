@@ -3,6 +3,14 @@ ifndef RISCV
 $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
+PLATFORM ?= Default
+
+ifeq ($(PLATFORM),Narrow)
+MODEL ?= ChipTop
+else
+MODEL ?= Top
+endif
+
 MODEL ?= Top
 PROJECT := rocketchip
 export ROCKETCHIP_ADDONS ?= hwacha

@@ -4,7 +4,7 @@ package rocketchip
 
 import Chisel._
 import cde.Parameters
-import uncore.devices.{DbBusConsts, DMKey}
+import uncore.devices.{DbBusConsts, DMKey, NTiles}
 
 object TestBenchGeneration {
   def generateVerilogFragment(
@@ -67,6 +67,20 @@ object TestBenchGeneration {
     .io_debug_resp_bits_resp(debug_resp_bits_resp_delay),
     .io_debug_resp_bits_data(debug_resp_bits_data_delay)
 """
+
+    val narrow_defs = s"""
+  wire chipToWorld_ready;
+  wire chipToWorld_valid;
+  wire [`NARROW_IF_WIDTH-1:0] chipToWorld_bits;
+  wire worldToChip_ready;
+  wire worldToChip_valid;
+  wire [`NARROW_IF_WIDTH-1:0] worldToChip_bits;
+  wire host_clk;
+  wire write_sync;
+  wire read_sync;
+
+"""
+
     val nasti_defs = (0 until nMemChannel) map { i => s"""
   wire ar_valid_$i;
   reg ar_ready_$i;
@@ -101,6 +115,29 @@ object TestBenchGeneration {
   reg [`MEM_ID_BITS-1:0] b_id_$i;
 
 """ } mkString
+
+    val narrow_delays = s"""
+  wire chipToWorld_ready_delay;
+  wire chipToWorld_valid_delay;
+  wire [`NARROW_IF_WIDTH-1:0] chipToWorld_bits_delay;
+  wire worldToChip_ready_delay;
+  wire worldToChip_valid_delay;
+  wire [`NARROW_IF_WIDTH-1:0] worldToChip_bits_delay;
+  wire host_clk_delay;
+  wire write_sync_delay;
+  wire read_sync_delay;
+
+  assign #0.1 chipToWorld_ready_delay = chipToWorld_ready;
+  assign #0.1 chipToWorld_valid = chipToWorld_valid_delay;
+  assign #0.1 chipToWorld_bits = chipToWorld_bits_delay;
+  assign #0.1 worldToChip_ready = worldToChip_ready_delay;
+  assign #0.1 worldToChip_valid_delay = worldToChip_valid;
+  assign #0.1 worldToChip_bits_delay = worldToChip_bits;
+  assign #0.1 host_clk = host_clk_delay;
+  assign #0.1 write_sync = write_sync_delay;
+  assign #0.1 read_sync = read_sync_delay;
+
+"""
 
     val nasti_delays = (0 until nMemChannel) map { i => s"""
   wire ar_valid_delay_$i;
@@ -169,6 +206,30 @@ object TestBenchGeneration {
 
 """ } mkString
 
+    val narrow_connections = s"""
+    .io_mem_narrow_chipToWorld_ready (chipToWorld_ready_delay),
+    .io_mem_narrow_chipToWorld_valid (chipToWorld_valid_delay),
+    .io_mem_narrow_chipToWorld_bits (chipToWorld_bits_delay),
+    .io_mem_narrow_worldToChip_ready (worldToChip_ready_delay),
+    .io_mem_narrow_worldToChip_valid (worldToChip_valid_delay),
+    .io_mem_narrow_worldToChip_bits (worldToChip_bits_delay),
+    .io_mem_narrow_host_clk (host_clk_delay),
+    .io_mem_narrow_host_write_sync (write_sync_delay),
+    .io_mem_narrow_host_read_sync (read_sync_delay),
+
+"""
+    val narrow_connections_testside = s"""
+    .io_narrow_chipToWorld_ready (chipToWorld_ready),
+    .io_narrow_chipToWorld_valid (chipToWorld_valid),
+    .io_narrow_chipToWorld_bits (chipToWorld_bits),
+    .io_narrow_worldToChip_ready (worldToChip_ready),
+    .io_narrow_worldToChip_valid (worldToChip_valid),
+    .io_narrow_worldToChip_bits (worldToChip_bits),
+    .io_narrow_host_clk (host_clk),
+    .io_narrow_host_write_sync (write_sync),
+    .io_narrow_host_read_sync (read_sync),
+
+"""
     val nasti_connections = (0 until nMemChannel) map { i => s"""
     .io_mem_axi_${i}_ar_valid (ar_valid_delay_$i),
     .io_mem_axi_${i}_ar_ready (ar_ready_delay_$i),
@@ -226,14 +287,39 @@ object TestBenchGeneration {
     .io_interrupts_$i (1'b0),
 """ } mkString
 
-    val clocks = if (p(MultiClock)) ".io_core_clk_0(clk),\n" else ""
+    val clocks = "    .io_oms_clk(clk)," ++ (if (p(NTiles)>1) (0 until (p(NTiles)-1)) map { i => s"""
+    .io_core_clk_${i},
+""" } mkString else "")
 
-    val instantiation = s"""
+    val instantiation = if (p(NarrowIF)) s"""
   ${topModuleName} dut
   (
     .reset(reset),
     .clk(clk),
-    .io_oms_clk(clk),
+
+    $narrow_connections
+
+    $interrupts
+
+    $debugBus
+  );
+
+  NastiDeserializer dessert
+  (
+
+    $narrow_connections_testside
+
+    $nasti_connections
+
+    .reset(reset),
+    .clk(clk)
+
+  );
+""" else s"""
+  ${topModuleName} dut
+  (
+    .reset(reset),
+    .clk(clk),
 
     $clocks
 
@@ -303,7 +389,10 @@ object TestBenchGeneration {
 """ } mkString
 
     val f = TestGeneration.createOutputFile(s"$topModuleName.$configClassName.tb.vfrag")
-    f.write(debugDefs + nasti_defs + nasti_delays + instantiation + ticks)
+    if (p(NarrowIF))
+      f.write(debugDefs + nasti_defs + narrow_defs + nasti_delays + narrow_delays + instantiation + ticks)
+    else
+      f.write(debugDefs + nasti_defs + nasti_delays + instantiation + ticks)
     f.close
   }
 

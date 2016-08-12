@@ -9,6 +9,10 @@ sim_vsrcs = \
 	$(generated_dir)/consts.$(CONFIG).vh \
 	$(base_dir)/vsrc/$(TB).v \
 
+ifeq ($(PLATFORM),Narrow)
+sim_vsrcs += $(generated_dir)/NastiDeserializer.$(CONFIG).v
+endif
+
 # C sources
 
 sim_csrcs = \

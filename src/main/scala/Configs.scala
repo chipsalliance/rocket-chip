@@ -350,8 +350,7 @@ class BaseConfig extends Config (
         "rv64uf-v-ldst",
         "rv64um-v-mulh",
         "rv64si-p-dirty")
-      case NarrowWidth => 8
-      case MultiClock => false
+      case NarrowIF => false
       case _ => throw new CDEMatchError
   }},
   knobValues = {
