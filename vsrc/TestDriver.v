@@ -45,6 +45,13 @@ module TestDriver;
   integer stderr = 32'h80000002;
   always @(posedge clk)
   begin
+    trace_count = trace_count + 1;
+`ifdef GATE_LEVEL
+    if (verbose)
+    begin
+      $fdisplay(stderr, "C: %10d", trace_count-1);
+    end
+`endif
     if (!reset)
     begin
       if (max_cycles > 0 && trace_count > max_cycles)
@@ -68,17 +75,6 @@ module TestDriver;
         $finish;
       end
     end
-  end
-
-  always @(posedge clk)
-  begin
-    trace_count = trace_count + 1;
-`ifdef GATE_LEVEL
-    if (verbose)
-    begin
-      $fdisplay(stderr, "C: %10d", trace_count-1);
-    end
-`endif
   end
 
   TestHarness testHarness(
