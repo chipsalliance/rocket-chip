@@ -45,13 +45,14 @@ module TestDriver;
   integer stderr = 32'h80000002;
   always @(posedge clk)
   begin
-    trace_count = trace_count + 1;
 `ifdef GATE_LEVEL
     if (verbose)
     begin
-      $fdisplay(stderr, "C: %10d", trace_count-1);
+      $fdisplay(stderr, "C: %10d", trace_count);
     end
 `endif
+
+    trace_count = trace_count + 1;
     if (!reset)
     begin
       if (max_cycles > 0 && trace_count > max_cycles)
