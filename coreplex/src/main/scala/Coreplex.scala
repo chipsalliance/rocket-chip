@@ -50,6 +50,7 @@ trait HasCoreplexParameters {
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
   lazy val nBanks = nMemChannels*nBanksPerMemChannel
   lazy val lsb = p(BankIdLSB)
+  lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
   lazy val exportBus = p(ExportBusPort)
@@ -68,7 +69,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
-    val bus = if (exportBus) Some(new ClientUncachedTileLinkIO().flip) else None
+    val bus = if (exportBus) Some(new ClientUncachedTileLinkIO()(innerParams).flip) else None
     val mmio = if (exportMMIO) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debug = new DebugBusIO()(p).flip
@@ -146,7 +147,7 @@ abstract class OuterMemorySystem(implicit val p: Parameters)
   val io = new Bundle {
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
-    val bus = if (exportBus) Some(new ClientUncachedTileLinkIO().flip) else None
+    val bus = if (exportBus) Some(new ClientUncachedTileLinkIO()(innerParams).flip) else None
     val incoherent = Vec(nCachedTilePorts, Bool()).asInput
     val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
@@ -230,7 +231,7 @@ class DefaultOuterMemorySystem(implicit p: Parameters) extends OuterMemorySystem
 class CoreplexIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
     with HasCoreplexParameters {
   val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
-  val bus = if (p(ExportBusPort)) Some(new ClientUncachedTileLinkIO().flip) else None
+  val bus = if (p(ExportBusPort)) Some(new ClientUncachedTileLinkIO()(innerParams).flip) else None
   val mmio = if(p(ExportMMIOPort)) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
   val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   val debug = new DebugBusIO()(p).flip
