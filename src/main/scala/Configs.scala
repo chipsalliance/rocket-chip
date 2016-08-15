@@ -28,8 +28,7 @@ class BasePlatformConfig extends Config (
       new AddrMap(entries)
     }
     lazy val externalAddrMap = new AddrMap(
-      site(ExtraDevices).map(_.addrMapEntry) ++
-      site(ExtMMIOPorts),
+      site(ExtIOAddrMapEntries),
       start = BigInt("50000000", 16),
       collapse = true)
     lazy val globalAddrMap = {
@@ -126,6 +125,8 @@ class BasePlatformConfig extends Config (
       case ExtraDevices => Nil
       case ExtraTopPorts => (p: Parameters) => new Bundle
       case ExtMMIOPorts => Nil
+      case ExtIOAddrMapEntries =>
+        site(ExtraDevices).map(_.addrMapEntry) ++ site(ExtMMIOPorts)
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0
