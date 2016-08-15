@@ -38,6 +38,8 @@ class UnitTestSuite(implicit p: Parameters) extends Module {
   }
 
   val timer = Module(new Timer(1000, tests.size))
+  timer.io.start.valid := Bool(false)
+  timer.io.stop.valid := Bool(false)
 
   tests.zipWithIndex.foreach { case (mod, i) =>
     mod.io.start := (state === s_start) && test_idx === UInt(i)

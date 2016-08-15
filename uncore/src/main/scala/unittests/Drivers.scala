@@ -22,13 +22,11 @@ class GetMultiWidthDriver(implicit p: Parameters) extends Driver()(p) {
   val s_start :: s_send :: s_recv :: s_done :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_start)
 
-  val size = Reg(UInt(width = MT_SZ))
-  val ref = Reg(UInt(width = 64))
-  val bytemask = MuxLookup(size, UInt(0), Seq(
-    MT_D -> UInt("hff"),
-    MT_W -> UInt("h0f"),
-    MT_H -> UInt("h03"),
-    MT_B -> UInt("h01")))
+  val w = 64
+  val initialSize = UInt(log2Ceil(w/8))
+  val size = Reg(UInt(width = log2Ceil(log2Ceil(w/8)+1)))
+  val ref = Reg(UInt(width = w))
+  val bytemask = (UInt(1) << (UInt(1) << size)) - UInt(1)
   val bitmask = FillInterleaved(8, bytemask)
 
   io.mem.acquire.valid := (state === s_send)
@@ -42,20 +40,20 @@ class GetMultiWidthDriver(implicit p: Parameters) extends Driver()(p) {
   io.mem.grant.ready := (state === s_recv)
 
   when (state === s_start && io.start) {
-    size := MT_D
+    size := initialSize
     state := s_send
   }
 
   when (io.mem.acquire.fire()) { state := s_recv }
   when (io.mem.grant.fire()) {
-    when (size === MT_D) { ref := io.mem.grant.bits.data }
+    when (size === initialSize) { ref := io.mem.grant.bits.data }
     size := size - UInt(1)
-    state := Mux(size === MT_B, s_done, s_send)
+    state := Mux(size === UInt(0), s_done, s_send)
   }
 
   io.finished := state === s_done
 
-  assert(!io.mem.grant.valid || size === MT_D ||
+  assert(!io.mem.grant.valid || size === initialSize ||
          (io.mem.grant.bits.data & bitmask) === (ref & bitmask),
          "GetMultiWidth: smaller get does not match larger get")
 }
@@ -315,18 +313,18 @@ class PutAtomicDriver(implicit p: Parameters) extends Driver()(p) {
     client_xact_id = UInt(0),
     addr_block = UInt(0),
     addr_beat = UInt(0),
-    // Put 15 in bytes 3:2
-    data = UInt(15 << 16),
-    wmask = Some(UInt(0x0c)))
+    // Put 15 in bytes 7:4
+    data = UInt(15L << 32),
+    wmask = Some(UInt(0xf0)))
 
   val amo_acquire = PutAtomic(
     client_xact_id = UInt(0),
     addr_block = UInt(0),
     addr_beat = UInt(0),
-    addr_byte = UInt(2),
+    addr_byte = UInt(4),
     atomic_opcode = M_XA_ADD,
-    operand_size = MT_H,
-    data = UInt(3 << 16))
+    operand_size = UInt(log2Ceil(32 / 8)),
+    data = UInt(3L << 32))
 
   val get_acquire = Get(
     client_xact_id = UInt(0),
@@ -353,8 +351,8 @@ class PutAtomicDriver(implicit p: Parameters) extends Driver()(p) {
     when (state === s_get) { state := s_done }
   }
 
-  assert(!io.mem.grant.valid || !io.mem.grant.bits.hasData() ||
-         io.mem.grant.bits.data(31, 16) === UInt(18))
+  assert(!io.mem.grant.valid || state =/= s_get ||
+         io.mem.grant.bits.data(63, 32) === UInt(18))
 }
 
 class PrefetchDriver(implicit p: Parameters) extends Driver()(p) {

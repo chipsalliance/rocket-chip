@@ -27,7 +27,6 @@ case object MulUnroll extends Field[Int]
 case object DivEarlyOut extends Field[Boolean]
 case object CoreInstBits extends Field[Int]
 case object CoreDataBits extends Field[Int]
-case object CoreDCacheReqTagBits extends Field[Int]
 case object NCustomMRWCSRs extends Field[Int]
 case object MtvecWritable extends Field[Boolean]
 case object MtvecInit extends Field[BigInt]
@@ -57,7 +56,9 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen
   val coreDataBytes = coreDataBits/8
-  val coreDCacheReqTagBits = 7 + (2 + (if(!usingRoCC) 0 else 1))
+  val dcacheArbPorts = 1 + (if (usingVM) 1 else 0) + p(BuildRoCC).size
+  val coreDCacheReqTagBits = 6
+  val dcacheReqTagBits = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
   val vpnBitsExtended = vpnBits + (vaddrBits < xLen).toInt
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended

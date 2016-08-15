@@ -2,6 +2,7 @@ import sbt._
 import Keys._
 import complete._
 import complete.DefaultParsers._
+import xerial.sbt.Pack._
 
 object BuildSettings extends Build {
 
@@ -22,20 +23,21 @@ object BuildSettings extends Build {
   lazy val uncore     = project.dependsOn(junctions)
   lazy val rocket     = project.dependsOn(hardfloat, uncore)
   lazy val groundtest = project.dependsOn(rocket)
-  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(groundtest)
+  lazy val coreplex   = project.dependsOn(groundtest)
+  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(coreplex)
 
   lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
   lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
   val setMake = NotSpace ~ ( Space ~> NotSpace )
 
-  val chipSettings = Seq(
+  val chipSettings = packAutoSettings ++ Seq(
     addons := {
       val a = sys.env.getOrElse("ROCKETCHIP_ADDONS", "")
       println(s"Using addons: $a")
       a.split(" ")
     },
     unmanagedSourceDirectories in Compile ++= addons.value.map(baseDirectory.value / _ / "src/main/scala"),
-    mainClass in (Compile, run) := Some("rocketchip.TestGenerator"),
+    mainClass in (Compile, run) := Some("rocketchip.RocketChipGenerator"),
     make := {
       val jobs = java.lang.Runtime.getRuntime.availableProcessors
       val (makeDir, target) = setMake.parsed

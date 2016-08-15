@@ -19,7 +19,7 @@ SHELL := /bin/bash
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
 FIRRTL ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Driver
 
-$(FIRRTL_JAR):
+$(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
 
 ifeq ($(CHISEL_VERSION),2)
@@ -29,7 +29,7 @@ CHISEL_ARGS := --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configN
 endif
 
 src_path = src/main/scala
-default_submodules = . junctions uncore hardfloat rocket groundtest context-dependent-environments
+default_submodules = . junctions uncore hardfloat rocket groundtest coreplex context-dependent-environments
 chisel_srcs = $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(wildcard $(base_dir)/$(submodule)/$(src_path)/*.scala))
 chisel_srcs += $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(wildcard $(base_dir)/$(submodule)/$(src_path)/*/*.scala))
 
@@ -40,6 +40,8 @@ ifneq ($(which_disasm),)
 endif
 
 timeout_cycles = 100000000
+
+bootrom_img = $(base_dir)/bootrom/bootrom.img
 
 #--------------------------------------------------------------------
 # DRAMSim2
@@ -82,3 +84,6 @@ $(consts_header_debug): $(params_file_debug)
 	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
 	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
 	echo "#endif // __CONST_H__" >> $@
+
+clean-run-output:
+	rm -f $(output_dir)/{*.out,*.run,*.vpd}

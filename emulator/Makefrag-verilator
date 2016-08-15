@@ -9,12 +9,12 @@ verilog_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).v
 
 .SECONDARY: $(firrtl) $(firrtl_debug) $(verilog) $(verilog_debug)
 
-$(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).prm $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs)
+$(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).prm $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(PROJECT) $(MODEL) $(CONFIG) --targetDir $(generated_dir)"
 	mv $(generated_dir)/$(MODEL).fir $(generated_dir)/$(MODEL).$(CONFIG).fir
 
-$(generated_dir_debug)/%.$(CONFIG).fir $(generated_dir_debug)/%.$(CONFIG).prm $(generated_dir_debug)/%.$(CONFIG).d: $(chisel_srcs)
+$(generated_dir_debug)/%.$(CONFIG).fir $(generated_dir_debug)/%.$(CONFIG).prm $(generated_dir_debug)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(PROJECT) $(MODEL) $(CONFIG) --targetDir $(generated_dir_debug)"
 	mv $(generated_dir_debug)/$(MODEL).fir $(generated_dir_debug)/$(MODEL).$(CONFIG).fir

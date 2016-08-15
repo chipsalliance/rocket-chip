@@ -94,15 +94,12 @@ class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
 
   when (io.mem.resp.valid) {
     regfile(memRespTag) := io.mem.resp.bits.data
+    busy(memRespTag) := Bool(false)
   }
 
   // control
   when (io.mem.req.fire()) {
     busy(addr) := Bool(true)
-  }
-
-  when (io.mem.resp.valid) {
-    busy(memRespTag) := Bool(false)
   }
 
   val doResp = cmd.bits.inst.xd
@@ -175,7 +172,7 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
 
   io.resp.valid := (state === s_resp)
   io.resp.bits.rd := req_rd
-  io.resp.bits.data := Mux(pte.leaf(), Cat(pte.ppn, req_offset), ~UInt(0, xLen))
+  io.resp.bits.data := Mux(pte.leaf(), Cat(pte.ppn, req_offset), SInt(-1, xLen).asUInt)
 
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)

@@ -64,7 +64,12 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   val mpu_ppn = Mux(do_refill, refill_ppn, passthrough_ppn)
   val prot = addrMap.getProt(mpu_ppn << pgIdxBits)
   val cacheable = addrMap.isCacheable(mpu_ppn << pgIdxBits)
-  require(addrMap.flatten.forall { case (n, r) => (r.start | r.size) % (1 << pgIdxBits) == 0 })
+  def pgaligned(r: MemRegion) = {
+    val pgsize = 1 << pgIdxBits
+    (r.start % pgsize) == 0 && (r.size % pgsize) == 0
+  }
+  require(addrMap.flatten.forall(e => pgaligned(e.region)),
+    "MemoryMap regions must be page-aligned")
   
   val lookup_tag = Cat(io.ptw.ptbr.asid, io.req.bits.vpn(vpnBits-1,0))
   val vm_enabled = Bool(usingVM) && io.ptw.status.vm(3) && priv_uses_vm && !io.req.bits.passthrough
