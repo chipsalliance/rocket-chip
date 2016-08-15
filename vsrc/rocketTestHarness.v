@@ -77,6 +77,7 @@ module rocketTestHarness;
   reg [1023:0] vcdfile = 0;
   reg          verbose = 0;
   wire         printf_cond = verbose && !reset;
+  wire         stop_cond = !reset;
   integer      stderr = 32'h80000002;
 
 `include `TBVFRAG
