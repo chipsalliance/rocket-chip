@@ -51,6 +51,10 @@ object HwachaTestSuites {
     val rv64svNamesV4 = rv64svNames -- Set(
     "illegal_inst", "illegal_vt_inst", "illegal_vt_regid", "ma_utld", "ma_utsd", "ma_vld", "ma_vsd", "ma_vt_inst", "privileged_inst")
   val rv64sv = new AssemblyTestSuite("rv64sv", rv64svNamesV4)(_)
+
+  val hwachaBmarks = new BenchmarkTestSuite("hwacha", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
+    "pb-spmv", "vec-daxpy", "vec-dgemm-opt", "vec-hsaxpy", "vec-hgemm-opt", "vec-hsgemm-opt", "vec-saxpy", "vec-sdaxpy", "vec-sdgemm-opt", "vec-sgemm-naive", "vec-sgemm-opt", "vec-vvadd"))
+
 }
 
 import HwachaTestSuites._
@@ -65,6 +69,7 @@ class WithHwachaTests extends Config(
       // no excep or vm in v4 yet
       //TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64uv.map(_(env))))
       TestGeneration.addSuite(rv64sv("p"))
+      TestGeneration.addSuite(hwachaBmarks)
       TestGeneration.addVariable("SRC_EXTENSION", "$(base_dir)/hwacha/$(src_path)/*.scala")
       TestGeneration.addVariable("DISASM_EXTENSION", "--extension=hwacha")
       Seq(RoccParameters(

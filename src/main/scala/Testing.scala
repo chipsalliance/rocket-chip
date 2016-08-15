@@ -177,9 +177,6 @@ object DefaultTestSuites {
   val benchmarks = new BenchmarkTestSuite("rvi", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "mt-matmul"))
 
-  val bmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
-    "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "spmv", "mt-vvadd", "mt-matmul", "pb-spmv", "vec-daxpy", "vec-dgemm-opt", "vec-hsaxpy", "vec-hgemm-opt", "vec-hsgemm-opt", "vec-saxpy", "vec-sdaxpy", "vec-sdgemm-opt", "vec-sgemm-naive", "vec-sgemm-opt", "vec-vvadd"))
-
   val rv32udBenchmarks = new BenchmarkTestSuite("rvd", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "mm", "spmv", "mt-vvadd"))
 
