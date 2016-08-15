@@ -125,7 +125,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   val io = new TopIO
 
   val coreplex = p(BuildCoreplex)(p)
-  val periphery = Module(new Periphery)
+  val periphery = Module(new Periphery()(innerParams))
 
   if (exportMMIO) { periphery.io.mmio_in.get <> coreplex.io.mmio.get }
   periphery.io.mem_in <> coreplex.io.mem
