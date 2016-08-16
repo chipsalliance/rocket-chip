@@ -18,7 +18,6 @@ case class RoccParameters(
   generator: Parameters => RoCC,
   nMemChannels: Int = 0,
   nPTWPorts : Int = 0,
-  csrs: Seq[Int] = Nil,
   useFPU: Boolean = false)
 
 abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
@@ -70,12 +69,10 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
       val rocc = accelParams.generator(p.alterPartial({
         case RoccNMemChannels => accelParams.nMemChannels
         case RoccNPTWPorts => accelParams.nPTWPorts
-        case RoccNCSRs => accelParams.csrs.size
       }))
       val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
       rocc.io.cmd <> cmdRouter.io.out(i)
       rocc.io.exception := core.io.rocc.exception
-      rocc.io.host_id := io.prci.id
       dcIF.io.requestor <> rocc.io.mem
       dcPorts += dcIF.io.cache
       uncachedArbPorts += rocc.io.autl
@@ -100,18 +97,6 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
     core.io.rocc.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
     core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
     respArb.io.in <> roccs.map(rocc => Queue(rocc.io.resp))
-
-    if (p(RoccNCSRs) > 0) {
-      core.io.rocc.csr.rdata <> roccs.flatMap(_.io.csr.rdata)
-      for ((rocc, accelParams) <- roccs.zip(buildRocc)) {
-        rocc.io.csr.waddr := core.io.rocc.csr.waddr
-        rocc.io.csr.wdata := core.io.rocc.csr.wdata
-        rocc.io.csr.wen := core.io.rocc.csr.wen &&
-          accelParams.csrs
-            .map(core.io.rocc.csr.waddr === UInt(_))
-            .reduce((a, b) => a || b)
-      }
-    }
 
     ptwPorts ++= roccs.flatMap(_.io.ptw)
     uncachedPorts ++= roccs.flatMap(_.io.utl)

@@ -63,9 +63,6 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
   val nCustomMrwCsrs = p(NCustomMRWCSRs)
-  val roccCsrs = if (p(BuildRoCC).isEmpty) Nil
-    else p(BuildRoCC).flatMap(_.csrs)
-  val nRoccCsrs = p(RoccNCSRs)
   val nCores = p(NTiles)
 
   // fetchWidth doubled, but coreInstBytes halved, for RVC
@@ -499,7 +496,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   csr.io.prci <> io.prci
   io.fpu.fcsr_rm := csr.io.fcsr_rm
   csr.io.fcsr_flags := io.fpu.fcsr_flags
-  io.rocc.csr <> csr.io.rocc.csr
   csr.io.rocc.interrupt <> io.rocc.interrupt
   csr.io.pc := wb_reg_pc
   csr.io.badaddr := encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata)

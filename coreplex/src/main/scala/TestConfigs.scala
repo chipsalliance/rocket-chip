@@ -49,7 +49,6 @@ class WithGroundTest extends Config(
             case GroundTestId => i
             case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
             case NUncachedTileLinkPorts => tileSettings.uncached
-            case RoccNCSRs => tileSettings.csrs
           })))
         }
       }
