@@ -76,8 +76,8 @@ object TestBenchGeneration {
   wire worldToChip_valid;
   wire [`NARROW_IF_WIDTH-1:0] worldToChip_bits;
   wire host_clk;
-  wire write_sync;
-  wire read_sync;
+  wire chipToWorld_sync;
+  wire worldToChip_sync;
 
 """
 
@@ -124,8 +124,8 @@ object TestBenchGeneration {
   wire worldToChip_valid_delay;
   wire [`NARROW_IF_WIDTH-1:0] worldToChip_bits_delay;
   wire host_clk_delay;
-  wire write_sync_delay;
-  wire read_sync_delay;
+  wire chipToWorld_sync_delay;
+  wire worldToChip_sync_delay;
 
   assign #0.1 chipToWorld_ready_delay = chipToWorld_ready;
   assign #0.1 chipToWorld_valid = chipToWorld_valid_delay;
@@ -134,8 +134,8 @@ object TestBenchGeneration {
   assign #0.1 worldToChip_valid_delay = worldToChip_valid;
   assign #0.1 worldToChip_bits_delay = worldToChip_bits;
   assign #0.1 host_clk = host_clk_delay;
-  assign #0.1 write_sync = write_sync_delay;
-  assign #0.1 read_sync = read_sync_delay;
+  assign #0.1 chipToWorld_sync = chipToWorld_sync_delay;
+  assign #0.1 worldToChip_sync = worldToChip_sync_delay;
 
 """
 
@@ -214,8 +214,8 @@ object TestBenchGeneration {
     .io_mem_narrow_worldToChip_valid (worldToChip_valid_delay),
     .io_mem_narrow_worldToChip_bits (worldToChip_bits_delay),
     .io_mem_narrow_host_clk (host_clk_delay),
-    .io_mem_narrow_host_write_sync (write_sync_delay),
-    .io_mem_narrow_host_read_sync (read_sync_delay),
+    .io_mem_narrow_chipToWorld_sync (chipToWorld_sync_delay),
+    .io_mem_narrow_worldToChip_sync (worldToChip_sync_delay),
 
 """
     val narrow_connections_testside = s"""
@@ -226,8 +226,8 @@ object TestBenchGeneration {
     .io_narrow_worldToChip_valid (worldToChip_valid),
     .io_narrow_worldToChip_bits (worldToChip_bits),
     .io_narrow_host_clk (host_clk),
-    .io_narrow_host_write_sync (write_sync),
-    .io_narrow_host_read_sync (read_sync),
+    .io_narrow_chipToWorld_sync (chipToWorld_sync),
+    .io_narrow_worldToChip_sync (worldToChip_sync),
 
 """
     val nasti_connections = (0 until nMemChannel) map { i => s"""
