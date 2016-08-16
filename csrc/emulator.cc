@@ -64,14 +64,14 @@ int main(int argc, char** argv)
   srand48(random_seed);
 
   Verilated::randReset(2);
-  VTestHarness tile;
+  VTestHarness *tile = new VTestHarness;
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals
   std::unique_ptr<VerilatedVcdFILE> vcdfd(new VerilatedVcdFILE(vcdfile));
   std::unique_ptr<VerilatedVcdC> tfp(new VerilatedVcdC(vcdfd.get()));
   if (vcdfile) {
-    tile.trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
+    tile->trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
     tfp->open("");
   }
 #endif
@@ -82,25 +82,25 @@ int main(int argc, char** argv)
 
   // reset for several cycles to handle pipelined reset
   for (int i = 0; i < 10; i++) {
-    tile.reset = 1;
-    tile.clk = 0;
-    tile.eval();
-    tile.clk = 1;
-    tile.eval();
-    tile.reset = 0;
+    tile->reset = 1;
+    tile->clk = 0;
+    tile->eval();
+    tile->clk = 1;
+    tile->eval();
+    tile->reset = 0;
   }
 
-  while (!dtm->done() && !tile.io_success && trace_count < max_cycles) {
-    tile.clk = 0;
-    tile.eval();
+  while (!dtm->done() && !tile->io_success && trace_count < max_cycles) {
+    tile->clk = 0;
+    tile->eval();
 #if VM_TRACE
     bool dump = tfp && trace_count >= start;
     if (dump)
       tfp->dump(trace_count * 2);
 #endif
 
-    tile.clk = 1;
-    tile.eval();
+    tile->clk = 1;
+    tile->eval();
 #if VM_TRACE
     if (dump)
       tfp->dump(trace_count * 2 + 1);
@@ -132,6 +132,7 @@ int main(int argc, char** argv)
   }
 
   delete dtm;
+  delete tile;
 
   return ret;
 }
