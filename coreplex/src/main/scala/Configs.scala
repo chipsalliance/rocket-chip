@@ -101,7 +101,6 @@ class BaseCoreplexConfig extends Config (
       case BuildRoCC => Nil
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
-      case RoccNCSRs => site(BuildRoCC).map(_.csrs.size).foldLeft(0)(_ + _)
       //Rocket Core Constants
       case FetchWidth => if (site(UseCompressed)) 2 else 1
       case RetireWidth => 1

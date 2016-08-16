@@ -332,11 +332,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     read_mapping += addr -> io.custom_mrw_csrs(i)
   }
 
-  for ((addr, i) <- roccCsrs.zipWithIndex) {
-    require(!read_mapping.contains(addr), "RoCC: CSR address " + addr + " is already in use")
-    read_mapping += addr -> io.rocc.csr.rdata(i)
-  }
-
   val decoded_addr = read_mapping map { case (k, v) => k -> (io.rw.addr === k) }
 
   val addr_valid = decoded_addr.values.reduce(_||_)
@@ -558,10 +553,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   reg_mip := io.prci.interrupts
   reg_dcsr.debugint := io.prci.interrupts.debug
   reg_dcsr.hwbpcount := UInt(p(NBreakpoints))
-
-  io.rocc.csr.waddr := io.rw.addr
-  io.rocc.csr.wdata := wdata
-  io.rocc.csr.wen := wen
 
   if (!usingUser) {
     reg_mstatus.mpp := PRV.M

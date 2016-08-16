@@ -11,8 +11,7 @@ import cde.{Parameters, Field}
 case object BuildGroundTest extends Field[Parameters => GroundTest]
 
 case class GroundTestTileSettings(
-  uncached: Int = 0, cached: Int = 0, ptw: Int = 0,
-  maxXacts: Int = 1, csrs: Int = 0)
+  uncached: Int = 0, cached: Int = 0, ptw: Int = 0, maxXacts: Int = 1)
 case object GroundTestKey extends Field[Seq[GroundTestTileSettings]]
 case object GroundTestId extends Field[Int]
 
