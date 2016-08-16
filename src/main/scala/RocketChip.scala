@@ -122,10 +122,14 @@ object TopUtils {
 //TODO: Remove this wrapper once multichannel DRAM controller is provided
 class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   implicit val p = topParams
-  val io = new TopIO
 
   val coreplex = p(BuildCoreplex)(p)
   val periphery = Module(new Periphery()(innerParams))
+
+  val io = new TopIO {
+    val success = if (coreplex.hasSuccessFlag) Some(Bool(OUTPUT)) else None
+  }
+  io.success zip coreplex.io.success map { case (x, y) => x := y }
 
   if (exportMMIO) { periphery.io.mmio_in.get <> coreplex.io.mmio.get }
   periphery.io.mem_in <> coreplex.io.mem

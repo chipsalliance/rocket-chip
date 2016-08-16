@@ -9,7 +9,6 @@ import uncore.agents._
 case object ExportGroundTestStatus extends Field[Boolean]
 
 class DirectGroundTestCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
-
   // Not using the debug 
   io.debug.req.ready := Bool(false)
   io.debug.resp.valid := Bool(false)
@@ -26,8 +25,6 @@ class DirectGroundTestCoreplex(topParams: Parameters) extends Coreplex()(topPara
   require(test.io.cache.size == 0)
   require(test.io.mem.size == nBanksPerMemChannel)
   require(test.io.ptw.size == 0)
-
-  when (test.io.status.finished) { stop() }
 
   val mem_ic = Module(new TileLinkMemoryInterconnect(
     nBanksPerMemChannel, nMemChannels)(outermostParams))
@@ -59,4 +56,7 @@ class DirectGroundTestCoreplex(topParams: Parameters) extends Coreplex()(topPara
     status.timeout.valid := (state === s_timeout)
     status.timeout.bits := timeout_code
   }
+
+  override def hasSuccessFlag = true
+  io.success.get := test.io.status.finished
 }

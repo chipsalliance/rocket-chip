@@ -26,11 +26,13 @@ abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
   val nUncachedTileLinkPorts = p(NUncachedTileLinkPorts)
   val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
 
-  val io = new Bundle {
+  class TileIO extends Bundle {
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
     val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
     val prci = new PRCITileIO().flip
   }
+
+  val io = new TileIO
 }
 
 class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)

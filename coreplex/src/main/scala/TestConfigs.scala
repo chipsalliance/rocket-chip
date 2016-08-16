@@ -15,51 +15,6 @@ import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 import scala.math.max
 import ConfigUtils._
 
-class WithGroundTest extends Config(
-  (pname, site, here) => pname match {
-    case TLKey("L1toL2") => {
-      val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
-      TileLinkParameters(
-        coherencePolicy = (
-          if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
-          else new MESICoherence(site(L2DirectoryRepresentation))),
-        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-        nCachingClients = site(NCachedTileLinkPorts),
-        nCachelessClients = site(NUncachedTileLinkPorts),
-        maxClientXacts = ((site(NMSHRs) + 1) +:
-                           site(GroundTestKey).map(_.maxXacts))
-                             .reduce(max(_, _)),
-        maxClientsPerPort = 1,
-        maxManagerXacts = site(NAcquireTransactors) + 2,
-        dataBeats = 8,
-        dataBits = site(CacheBlockBytes)*8)
-    }
-    case BuildTiles => {
-      val groundtest = if (site(XLen) == 64)
-        DefaultTestSuites.groundtest64
-      else
-        DefaultTestSuites.groundtest32
-      TestGeneration.addSuite(groundtest("p"))
-      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-      (0 until site(NTiles)).map { i =>
-        val tileSettings = site(GroundTestKey)(i)
-        (r: Bool, p: Parameters) => {
-          Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
-            case TLId => "L1toL2"
-            case GroundTestId => i
-            case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
-            case NUncachedTileLinkPorts => tileSettings.uncached
-          })))
-        }
-      }
-    }
-    case UseFPU => false
-    case UseAtomics => false
-    case UseCompressed => false
-    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
-    case _ => throw new CDEMatchError
-  })
-
 class WithComparator extends Config(
   (pname, site, here) => pname match {
     case GroundTestKey => Seq.fill(site(NTiles)) {

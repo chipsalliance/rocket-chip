@@ -228,18 +228,19 @@ class DefaultOuterMemorySystem(implicit p: Parameters) extends OuterMemorySystem
   io.mem <> mem_ic.io.out
 }
 
-class CoreplexIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
-    with HasCoreplexParameters {
-  val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
-  val bus = if (p(ExportBusPort)) Some(new ClientUncachedTileLinkIO()(innerParams).flip) else None
-  val mmio = if(p(ExportMMIOPort)) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
-  val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
-  val debug = new DebugBusIO()(p).flip
-  val extra = p(ExtraCoreplexPorts)(p)
-}
-
 abstract class Coreplex(implicit val p: Parameters) extends Module
     with HasCoreplexParameters {
+  class CoreplexIO(implicit val p: Parameters) extends Bundle {
+    val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
+    val bus = if (p(ExportBusPort)) Some(new ClientUncachedTileLinkIO()(innerParams).flip) else None
+    val mmio = if(p(ExportMMIOPort)) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
+    val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
+    val debug = new DebugBusIO()(p).flip
+    val extra = p(ExtraCoreplexPorts)(p)
+    val success: Option[Bool] = if (hasSuccessFlag) Some(Bool(OUTPUT)) else None
+  }
+
+  def hasSuccessFlag: Boolean = false
   val io = new CoreplexIO
 }
 
@@ -275,4 +276,9 @@ class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
   if (exportBus) { uncore.io.bus.get <> io.bus.get }
   if (exportMMIO) { io.mmio.get <> uncore.io.mmio.get }
   io.mem <> uncore.io.mem
+}
+
+class GroundTestCoreplex(topParams: Parameters) extends DefaultCoreplex(topParams) {
+  override def hasSuccessFlag = true
+  io.success.get := tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
 }

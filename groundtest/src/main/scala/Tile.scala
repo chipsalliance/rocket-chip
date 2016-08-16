@@ -97,6 +97,10 @@ class GroundTestTile(resetSignal: Bool)
                     extends Tile(resetSignal = resetSignal)(p)
                     with HasGroundTestParameters {
 
+  override val io = new TileIO {
+    val success = Bool(OUTPUT)
+  }
+
   val test = p(BuildGroundTest)(dcacheParams)
 
   val ptwPorts = ListBuffer.empty ++= test.io.ptw
@@ -123,8 +127,6 @@ class GroundTestTile(resetSignal: Bool)
     ptwPorts += dcache_io.ptw
   }
 
-  when (test.io.status.finished) { stop() }
-
   if (ptwPorts.size > 0) {
     val ptw = Module(new DummyPTW(ptwPorts.size))
     ptw.io.requestors <> ptwPorts
@@ -134,4 +136,6 @@ class GroundTestTile(resetSignal: Bool)
   if (memPorts.size > 0) {
     io.uncached <> memPorts
   }
+
+  io.success := test.io.status.finished
 }
