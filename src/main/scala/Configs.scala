@@ -259,4 +259,11 @@ class WithTestRAM extends Config(
       }
       Seq(new TestRAMDevice)
     }
-  })
+  }
+)
+
+class WithAsyncDebugBus extends Config (
+  (pname, site, here) => pname match {
+     case AsyncDebugBus => true
+  }
+)
