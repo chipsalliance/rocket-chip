@@ -322,6 +322,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     ex_ctrl.csr := id_csr
     when (id_xcpt) { // pass PC down ALU writeback pipeline for badaddr
       ex_ctrl.alu_fn := ALU.FN_ADD
+      ex_ctrl.alu_dw := DW_XPR
       ex_ctrl.sel_alu1 := A1_PC
       ex_ctrl.sel_alu2 := A2_ZERO
       when (!bpu.io.xcpt_if && !ibuf.io.inst(0).bits.pf0 && ibuf.io.inst(0).bits.pf1) { // PC+2

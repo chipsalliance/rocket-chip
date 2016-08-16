@@ -55,7 +55,7 @@ trait ScalarOpConstants {
 
   val SZ_DW = 1
   val DW_X  = X
-  val DW_32 = N
-  val DW_64 = Y
-  val DW_XPR = Y
+  val DW_32 = Bool(false)
+  val DW_64 = Bool(true)
+  val DW_XPR = DW_64
 }
