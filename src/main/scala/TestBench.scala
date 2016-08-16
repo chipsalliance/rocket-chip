@@ -299,8 +299,6 @@ object TestBenchGeneration {
 
     $narrow_connections
 
-    $interrupts
-
     $debugBus
   );
 

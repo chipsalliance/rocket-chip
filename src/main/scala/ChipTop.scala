@@ -27,7 +27,6 @@ class NarrowIO(val w: Int) extends Bundle {
 
 class ChipIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem_narrow = new NarrowIO(p(NarrowWidth))
-  val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
   val debug = new DebugBusIO()(p).flip // TODO - this should become JTAG
   // TODO - add clock inputs and wire them into ClockTop and then top level
 }
@@ -41,7 +40,7 @@ class ChipTop(topParams: Parameters) extends Module with HasTopLevelParameters {
   val rocketChip = Module(new Top(p))
   val ser = Module(new NastiSerializer(w = p(NarrowWidth), divide = 8))
 
-  rocketChip.io.interrupts <> io.interrupts
+  rocketChip.io.interrupts.map(_ := Bool(false))
   rocketChip.io.debug <> io.debug
   io.mem_narrow <> ser.io.narrow
   ser.io.nasti <> rocketChip.io.mem_axi(0)
