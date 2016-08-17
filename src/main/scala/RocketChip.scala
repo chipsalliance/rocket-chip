@@ -43,6 +43,8 @@ case object ExtIOAddrMapEntries extends Field[Seq[AddrMapEntry]]
 case object BuildCoreplex extends Field[Parameters => Coreplex]
 /** Function for connecting coreplex extra ports to top-level extra ports */
 case object ConnectExtraPorts extends Field[(Bundle, Bundle, Parameters) => Unit]
+/** Specifies the size of external memory */
+case object ExtMemSize extends Field[Long]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {

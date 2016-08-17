@@ -33,7 +33,7 @@ class BasePlatformConfig extends Config (
       collapse = true)
     lazy val globalAddrMap = {
       val memBase = 0x80000000L
-      val memSize = 0x10000000L
+      val memSize = site(ExtMemSize)
 
       val intern = AddrMapEntry("int", internalIOAddrMap)
       val extern = AddrMapEntry("ext", externalAddrMap)
@@ -44,7 +44,6 @@ class BasePlatformConfig extends Config (
         AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true))))
 
       Dump("MEM_BASE", addrMap("mem").start)
-      Dump("MEM_SIZE", memSize)
       addrMap
     }
     def makeConfigString() = {
@@ -149,6 +148,7 @@ class BasePlatformConfig extends Config (
       case AsyncMemChannels => false
       case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
       case TMemoryChannels => BusType.AXI
+      case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
       case ConfigString => makeConfigString()
       case GlobalAddrMap => globalAddrMap
       case _ => throw new CDEMatchError
@@ -182,6 +182,12 @@ class WithNMemoryChannels(n: Int) extends Config(
   }
 )
 
+class WithExtMemSize(n: Long) extends Config(
+  (pname,site,here) => pname match {
+    case ExtMemSize => Dump("MEM_SIZE", n)
+    case _ => throw new CDEMatchError
+  }
+)
 class WithAHB extends Config(
   (pname, site, here) => pname match {
     case TMemoryChannels     => BusType.AHB
