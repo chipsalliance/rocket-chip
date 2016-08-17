@@ -62,10 +62,7 @@ class BaseCoreplexConfig extends Config (
       //L1InstCache
       case BtbKey => BtbParameters()
       //L1DataCache
-      case StoreDataQueueDepth => 17
-      case ReplayQueueDepth => 16
-      case NMSHRs => Knob("L1D_MSHRS")
-      case LRSCCycles => 32 
+      case DCacheKey => DCacheConfig(nMSHRs = site(Knob("L1D_MSHRS")))
       //L2 Memory System Params
       case AmoAluOperandBits => site(XLen)
       case NAcquireTransactors => 7
@@ -144,7 +141,7 @@ class BaseCoreplexConfig extends Config (
           nCachelessClients = site(NExternalClients) + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
-              site(NMSHRs) + 1 /* IOMSHR */,
+              site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
               // RoCC
               if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
           maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
@@ -349,8 +346,6 @@ class WithSmallCores extends Config (
       case FPUKey => None
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 0)
-      case StoreDataQueueDepth => 2
-      case ReplayQueueDepth => 2
       case NAcquireTransactors => 2
       case _ => throw new CDEMatchError
     }},

@@ -51,7 +51,7 @@ class WithGroundTest extends Config(
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = site(NCachedTileLinkPorts),
         nCachelessClients = site(NExternalClients) + site(NUncachedTileLinkPorts),
-        maxClientXacts = ((site(NMSHRs) + 1) +:
+        maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
                            site(GroundTestKey).map(_.maxXacts))
                              .reduce(max(_, _)),
         maxClientsPerPort = 1,

@@ -44,9 +44,7 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
 
   val core = Module(new Rocket)
   val icache = Module(new Frontend()(p.alterPartial({ case CacheName => "L1I" })))
-  val dcache =
-    if (p(NMSHRs) == 0) Module(new DCache()(dcacheParams)).io
-    else Module(new HellaCache()(dcacheParams)).io
+  val dcache = HellaCache(p(DCacheKey))(dcacheParams)
 
   val ptwPorts = collection.mutable.ArrayBuffer(icache.io.ptw, dcache.ptw)
   val dcPorts = collection.mutable.ArrayBuffer(core.io.dmem)

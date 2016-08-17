@@ -107,9 +107,7 @@ class GroundTestTile(resetSignal: Bool)
   val memPorts = ListBuffer.empty ++= test.io.mem
 
   if (nCached > 0) {
-    val dcache_io =
-      if (p(NMSHRs) == 0) Module(new DCache()(dcacheParams)).io
-      else Module(new HellaCache()(dcacheParams)).io
+    val dcache_io = HellaCache(p(DCacheKey))(dcacheParams)
     val dcacheArb = Module(new HellaCacheArbiter(nCached)(dcacheParams))
 
     dcacheArb.io.requestor.zip(test.io.cache).foreach {
