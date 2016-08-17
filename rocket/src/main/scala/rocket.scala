@@ -10,11 +10,11 @@ import uncore.constants._
 import Util._
 import cde.{Parameters, Field}
 
-case object UseFPU extends Field[Boolean]
-case object FDivSqrt extends Field[Boolean]
 case object XLen extends Field[Int]
 case object FetchWidth extends Field[Int]
 case object RetireWidth extends Field[Int]
+case object FPUKey extends Field[Option[FPUConfig]]
+case object MulDivKey extends Field[Option[MulDivConfig]]
 case object UseVM extends Field[Boolean]
 case object UseUser extends Field[Boolean]
 case object UseDebug extends Field[Boolean]
@@ -22,8 +22,6 @@ case object UseAtomics extends Field[Boolean]
 case object UseCompressed extends Field[Boolean]
 case object FastLoadWord extends Field[Boolean]
 case object FastLoadByte extends Field[Boolean]
-case object MulUnroll extends Field[Int]
-case object DivEarlyOut extends Field[Boolean]
 case object CoreInstBits extends Field[Int]
 case object NCustomMRWCSRs extends Field[Int]
 case object MtvecWritable extends Field[Boolean]
@@ -38,13 +36,11 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val usingVM = p(UseVM)
   val usingUser = p(UseUser) || usingVM
   val usingDebug = p(UseDebug)
-  val usingFPU = p(UseFPU)
+  val usingMulDiv = p(MulDivKey).nonEmpty
+  val usingFPU = p(FPUKey).nonEmpty
   val usingAtomics = p(UseAtomics)
   val usingCompressed = p(UseCompressed)
-  val usingFDivSqrt = p(FDivSqrt)
   val usingRoCC = !p(BuildRoCC).isEmpty
-  val mulUnroll = p(MulUnroll)
-  val divEarlyOut = p(DivEarlyOut)
   val fastLoadWord = p(FastLoadWord)
   val fastLoadByte = p(FastLoadByte)
 
@@ -144,10 +140,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   val decode_table = {
-    (if (true) new MDecode +: (if (xLen > 32) Seq(new M64Decode) else Nil) else Nil) ++:
+    (if (usingMulDiv) new MDecode +: (if (xLen > 32) Seq(new M64Decode) else Nil) else Nil) ++:
     (if (usingAtomics) new ADecode +: (if (xLen > 32) Seq(new A64Decode) else Nil) else Nil) ++:
     (if (usingFPU) new FDecode +: (if (xLen > 32) Seq(new F64Decode) else Nil) else Nil) ++:
-    (if (usingFPU && usingFDivSqrt) Some(new FDivSqrtDecode) else None) ++:
     (if (usingRoCC) Some(new RoCCDecode) else None) ++:
     (if (xLen > 32) Some(new I64Decode) else None) ++:
     (if (usingVM) Some(new SDecode) else None) ++:
@@ -302,10 +297,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   alu.io.in1 := ex_op1.asUInt
   
   // multiplier and divider
-  val div = Module(new MulDiv(width = xLen,
-                              unroll = mulUnroll,
-                              earlyOut = divEarlyOut))
-
+  val div = Module(new MulDiv(p(MulDivKey).getOrElse(MulDivConfig()), width = xLen))
   div.io.req.valid := ex_reg_valid && ex_ctrl.div
   div.io.req.bits.dw := ex_ctrl.alu_dw
   div.io.req.bits.fn := ex_ctrl.alu_fn

@@ -56,7 +56,7 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
   core.io.prci <> io.prci
   icache.io.cpu <> core.io.imem
 
-  val fpuOpt = if (p(UseFPU)) Some(Module(new FPU)) else None
+  val fpuOpt = p(FPUKey).map(cfg => Module(new FPU(cfg)))
   fpuOpt.foreach(fpu => core.io.fpu <> fpu.io)
 
   if (usingRocc) {
@@ -127,7 +127,7 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
   dcArb.io.requestor <> dcPorts
   dcache.cpu <> dcArb.io.mem
 
-  if (!usingRocc || nFPUPorts == 0) {
+  if (nFPUPorts == 0) {
     fpuOpt.foreach { fpu =>
       fpu.io.cp_req.valid := Bool(false)
       fpu.io.cp_resp.ready := Bool(false)

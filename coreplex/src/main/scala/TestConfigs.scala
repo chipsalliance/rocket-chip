@@ -29,7 +29,7 @@ class WithComparator extends Config(
       operations = 1000,
       atomics    = site(UseAtomics),
       prefetches = site("COMPARATOR_PREFETCHES"))
-    case UseFPU => false
+    case FPUConfig => None
     case UseAtomics => false
     case "COMPARATOR_PREFETCHES" => false
     case _ => throw new CDEMatchError
@@ -193,7 +193,7 @@ class WithDirectComparator extends Config(
       operations = 1000,
       atomics    = site(UseAtomics),
       prefetches = site("COMPARATOR_PREFETCHES"))
-    case UseFPU => false
+    case FPUConfig => None
     case UseAtomics => false
     case "COMPARATOR_PREFETCHES" => false
     case _ => throw new CDEMatchError

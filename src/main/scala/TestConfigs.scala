@@ -30,7 +30,7 @@ class WithUnitTest extends Config(
     case UnitTests => (testParams: Parameters) =>
       JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams)
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 0)
-    case UseFPU => false
+    case FPUKey => None
     case UseAtomics => false
     case UseCompressed => false
     case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
@@ -78,7 +78,7 @@ class WithGroundTest extends Config(
         }
       }
     }
-    case UseFPU => false
+    case FPUKey => None
     case UseAtomics => false
     case UseCompressed => false
     case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
@@ -199,6 +199,7 @@ class WithBusMasterTest extends Config(
       }
       Seq(new BusMasterDevice)
     }
+    case _ => throw new CDEMatchError
   })
 
 class BusMasterTestConfig extends Config(new WithBusMasterTest ++ new GroundTestConfig)

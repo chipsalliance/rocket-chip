@@ -10,8 +10,11 @@ import uncore.constants.MemoryOpConstants._
 import uncore.util._
 import cde.{Parameters, Field}
 
-case object SFMALatency extends Field[Int]
-case object DFMALatency extends Field[Int]
+case class FPUConfig(
+  divSqrt: Boolean = true,
+  sfmaLatency: Int = 2,
+  dfmaLatency: Int = 3
+)
 
 object FPConstants
 {
@@ -414,7 +417,7 @@ class FPUFMAPipe(val latency: Int, expWidth: Int, sigWidth: Int) extends Module
   io.out := Pipe(valid, res, latency-1)
 }
 
-class FPU(implicit p: Parameters) extends CoreModule()(p) {
+class FPU(cfg: FPUConfig)(implicit p: Parameters) extends CoreModule()(p) {
   require(xLen == 64, "RV32 Rocket FP support missing")
   val io = new FPUIO
 
@@ -489,11 +492,11 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
   req.in3 := Mux(ex_reg_valid, ex_rs3, cp_rs3)
   req.typ := Mux(ex_reg_valid, ex_reg_inst(21,20), io.cp_req.bits.typ)
 
-  val sfma = Module(new FPUFMAPipe(p(SFMALatency), 8, 24))
+  val sfma = Module(new FPUFMAPipe(cfg.sfmaLatency, 8, 24))
   sfma.io.in.valid := req_valid && ex_ctrl.fma && ex_ctrl.single
   sfma.io.in.bits := req
 
-  val dfma = Module(new FPUFMAPipe(p(DFMALatency), 11, 53))
+  val dfma = Module(new FPUFMAPipe(cfg.dfmaLatency, 11, 53))
   dfma.io.in.valid := req_valid && ex_ctrl.fma && !ex_ctrl.single
   dfma.io.in.bits := req
 
@@ -610,7 +613,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
 
   divSqrt_wdata := 0
   divSqrt_flags := 0
-  if (p(FDivSqrt)) {
+  if (cfg.divSqrt) {
     val divSqrt_single = Reg(Bool())
     val divSqrt_rm = Reg(Bits())
     val divSqrt_flags_double = Reg(Bits())
@@ -645,5 +648,7 @@ class FPU(implicit p: Parameters) extends CoreModule()(p) {
     divSqrt_toSingle.io.roundingMode := divSqrt_rm
     divSqrt_wdata := Mux(divSqrt_single, divSqrt_toSingle.io.out, divSqrt_wdata_double)
     divSqrt_flags := divSqrt_flags_double | Mux(divSqrt_single, divSqrt_toSingle.io.exceptionFlags, Bits(0))
+  } else {
+    when (ex_ctrl.div || ex_ctrl.sqrt) { io.illegal_rm := true }
   }
 }

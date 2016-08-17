@@ -79,6 +79,18 @@ class BaseCoreplexConfig extends Config (
       case NUncachedTileLinkPorts => 1
       //Tile Constants
       case BuildTiles => {
+        val env = if(site(UseVM)) List("p","v") else List("p")
+        site(FPUKey) foreach { case cfg =>
+          TestGeneration.addSuite(rv32udBenchmarks)
+          TestGeneration.addSuites(env.map(rv64ufNoDiv))
+          TestGeneration.addSuites(env.map(rv64udNoDiv))
+          if (cfg.divSqrt) {
+            TestGeneration.addSuites(env.map(rv64uf))
+            TestGeneration.addSuites(env.map(rv64ud))
+          }
+        }
+        if (site(UseAtomics)) TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64ua else rv32ua))
+        if (site(UseCompressed)) TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64uc else rv32uc))
         val (rvi, rvu) =
           if (site(XLen) == 64) ((if (site(UseVM)) rv64i else rv64pi), rv64u)
           else ((if (site(UseVM)) rv32i else rv32pi), rv32u)
@@ -105,36 +117,13 @@ class BaseCoreplexConfig extends Config (
       case NBreakpoints => 1
       case FastLoadWord => true
       case FastLoadByte => false
-      case MulUnroll => 8
-      case DivEarlyOut => true
       case XLen => 64
-      case UseFPU => {
-        val env = if(site(UseVM)) List("p","v") else List("p")
-        TestGeneration.addSuite(rv32udBenchmarks)
-        if(site(FDivSqrt)) {
-          TestGeneration.addSuites(env.map(rv64uf))
-          TestGeneration.addSuites(env.map(rv64ud))
-        } else {
-          TestGeneration.addSuites(env.map(rv64ufNoDiv))
-          TestGeneration.addSuites(env.map(rv64udNoDiv))
-        }
-        true
-      }
-      case UseAtomics => {
-        val env = if(site(UseVM)) List("p","v") else List("p")
-        TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64ua else rv32ua))
-        true
-      }
-      case UseCompressed => {
-        val env = if(site(UseVM)) List("p","v") else List("p")
-        TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64uc else rv32uc))
-        true
-      }
+      case FPUKey => Some(FPUConfig())
+      case MulDivKey => Some(MulDivConfig())
+      case UseAtomics => true
+      case UseCompressed => true
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
-      case FDivSqrt => true
-      case SFMALatency => 2
-      case DFMALatency => 3
       case NCustomMRWCSRs => 0
       case ResetVector => BigInt(0x1000)
       case MtvecInit => BigInt(0x1010)
@@ -336,7 +325,7 @@ class WithRV32 extends Config(
     case UseVM => false
     case UseUser => false
     case UseAtomics => false
-    case UseFPU => false
+    case FPUKey => None
     case RegressionTestNames => LinkedHashSet(
       "rv32mi-p-ma_addr",
       "rv32mi-p-csr",
@@ -357,9 +346,7 @@ class WithBlockingL1 extends Config (
 
 class WithSmallCores extends Config (
     topDefinitions = { (pname,site,here) => pname match {
-      case UseFPU => false
-      case MulUnroll => 1
-      case DivEarlyOut => false  
+      case FPUKey => None
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 0)
       case StoreDataQueueDepth => 2

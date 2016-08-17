@@ -69,7 +69,7 @@ class BasePlatformConfig extends Config (
       res append  "};\n"
       res append  "core {\n"
       for (i <- 0 until site(NTiles)) {
-        val isa = s"rv${site(XLen)}im${if (site(UseAtomics)) "a" else ""}${if (site(UseFPU)) "fd" else ""}"
+        val isa = s"rv${site(XLen)}im${if (site(UseAtomics)) "a" else ""}${if (site(FPUKey).nonEmpty) "fd" else ""}"
         res append s"  $i {\n"
         res append  "    0 {\n"
         res append s"      isa $isa;\n"

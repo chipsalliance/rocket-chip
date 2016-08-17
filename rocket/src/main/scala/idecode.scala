@@ -277,12 +277,7 @@ class F64Decode(implicit val p: Parameters) extends DecodeConstants
     FCVT_S_L->  List(Y,Y,N,N,N,N,N,Y,A2_X,   A1_RS1, IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,Y,N,N,CSR.N,N,N,N),
     FCVT_D_L->  List(Y,Y,N,N,N,N,N,Y,A2_X,   A1_RS1, IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,Y,N,N,CSR.N,N,N,N),
     FCVT_S_LU-> List(Y,Y,N,N,N,N,N,Y,A2_X,   A1_RS1, IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,Y,N,N,CSR.N,N,N,N),
-    FCVT_D_LU-> List(Y,Y,N,N,N,N,N,Y,A2_X,   A1_RS1, IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,Y,N,N,CSR.N,N,N,N))
-}
-
-class FDivSqrtDecode(implicit val p: Parameters) extends DecodeConstants
-{
-  val table: Array[(BitPat, List[BitPat])] = Array(
+    FCVT_D_LU-> List(Y,Y,N,N,N,N,N,Y,A2_X,   A1_RS1, IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,Y,N,N,CSR.N,N,N,N),
     FDIV_S->    List(Y,Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
     FDIV_D->    List(Y,Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),
     FSQRT_S->   List(Y,Y,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, Y,Y,N,Y,N,N,CSR.N,N,N,N),

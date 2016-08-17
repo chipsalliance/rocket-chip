@@ -27,14 +27,16 @@ class MultiplierIO(dataBits: Int, tagBits: Int) extends Bundle {
   val resp = Decoupled(new MultiplierResp(dataBits, tagBits))
 }
 
-class MulDiv(
-    width: Int,
-    nXpr: Int = 32,
-    unroll: Int = 1,
-    earlyOut: Boolean = false) extends Module {
+case class MulDivConfig(
+  mulUnroll: Int = 1,
+  mulEarlyOut: Boolean = false,
+  divEarlyOut: Boolean = false
+)
+
+class MulDiv(cfg: MulDivConfig, width: Int, nXpr: Int = 32) extends Module {
   val io = new MultiplierIO(width, log2Up(nXpr))
   val w = io.req.bits.in1.getWidth
-  val mulw = (w+unroll-1)/unroll*unroll
+  val mulw = (w + cfg.mulUnroll - 1) / cfg.mulUnroll * cfg.mulUnroll
  
   val s_ready :: s_neg_inputs :: s_busy :: s_move_rem :: s_neg_output :: s_done :: Nil = Enum(UInt(), 6)
   val state = Reg(init=s_ready)
@@ -96,18 +98,18 @@ class MulDiv(
     val mplier = mulReg(mulw-1,0)
     val accum = mulReg(2*mulw,mulw).asSInt
     val mpcand = divisor.asSInt
-    val prod = mplier(unroll-1,0) * mpcand + accum
-    val nextMulReg = Cat(prod, mplier(mulw-1,unroll))
+    val prod = mplier(cfg.mulUnroll-1, 0) * mpcand + accum
+    val nextMulReg = Cat(prod, mplier(mulw-1, cfg.mulUnroll))
 
-    val eOutMask = (SInt(BigInt(-1) << mulw) >> (count * unroll)(log2Up(mulw)-1,0))(mulw-1,0)
-    val eOut = Bool(earlyOut) && count =/= mulw/unroll-1 && count =/= 0 &&
+    val eOutMask = (SInt(BigInt(-1) << mulw) >> (count * cfg.mulUnroll)(log2Up(mulw)-1,0))(mulw-1,0)
+    val eOut = Bool(cfg.mulEarlyOut) && count =/= mulw/cfg.mulUnroll-1 && count =/= 0 &&
       !isHi && (mplier & ~eOutMask) === UInt(0)
-    val eOutRes = (mulReg >> (mulw - count * unroll)(log2Up(mulw)-1,0))
+    val eOutRes = (mulReg >> (mulw - count * cfg.mulUnroll)(log2Up(mulw)-1,0))
     val nextMulReg1 = Cat(nextMulReg(2*mulw,mulw), Mux(eOut, eOutRes, nextMulReg)(mulw-1,0))
     remainder := Cat(nextMulReg1 >> w, Bool(false), nextMulReg1(w-1,0))
 
     count := count + 1
-    when (eOut || count === mulw/unroll-1) {
+    when (eOut || count === mulw/cfg.mulUnroll-1) {
       state := Mux(isHi, s_move_rem, s_done)
     }
   }
@@ -124,7 +126,7 @@ class MulDiv(
     val eOutPos = UInt(w-1) + divisorMSB - dividendMSB
     val eOutZero = divisorMSB > dividendMSB
     val eOut = count === 0 && less /* not divby0 */ && (eOutPos > 0 || eOutZero)
-    when (Bool(earlyOut) && eOut) {
+    when (Bool(cfg.divEarlyOut) && eOut) {
       val shift = Mux(eOutZero, UInt(w-1), eOutPos(log2Up(w)-1,0))
       remainder := remainder(w-1,0) << shift
       count := shift
