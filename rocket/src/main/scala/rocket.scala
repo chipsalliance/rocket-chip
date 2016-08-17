@@ -38,7 +38,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val xLen = p(XLen)
 
   val usingVM = p(UseVM)
-  val usingUser = p(UseUser)
+  val usingUser = p(UseUser) || usingVM
   val usingDebug = p(UseDebug)
   val usingFPU = p(UseFPU)
   val usingAtomics = p(UseAtomics)
