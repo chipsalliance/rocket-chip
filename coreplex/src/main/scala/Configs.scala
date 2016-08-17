@@ -32,12 +32,7 @@ class BaseCoreplexConfig extends Config (
     pname match {
       //Memory Parameters
       case PAddrBits => 32
-      case PgIdxBits => 12
       case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
-      case PgLevelBits => site(PgIdxBits) - log2Up(site(XLen)/8)
-      case VPNBits => site(PgLevels) * site(PgLevelBits)
-      case PPNBits => site(PAddrBits) - site(PgIdxBits)
-      case VAddrBits => site(VPNBits) + site(PgIdxBits)
       case ASIdBits => 7
       //Params used by all caches
       case NSets => findBy(CacheName)
@@ -64,16 +59,15 @@ class BaseCoreplexConfig extends Config (
       }:PF
       case ECCCode => None
       case Replacer => () => new RandomReplacement(site(NWays))
-      case AmoAluOperandBits => site(XLen)
       //L1InstCache
       case BtbKey => BtbParameters()
       //L1DataCache
-      case WordBits => site(XLen)
       case StoreDataQueueDepth => 17
       case ReplayQueueDepth => 16
       case NMSHRs => Knob("L1D_MSHRS")
       case LRSCCycles => 32 
       //L2 Memory System Params
+      case AmoAluOperandBits => site(XLen)
       case NAcquireTransactors => 7
       case L2StoreDataQueueDepth => 1
       case L2DirectoryRepresentation => new NullRepresentation(site(NTiles))
@@ -102,13 +96,13 @@ class BaseCoreplexConfig extends Config (
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       //Rocket Core Constants
+      case CoreInstBits => if (site(UseCompressed)) 16 else 32
       case FetchWidth => if (site(UseCompressed)) 2 else 1
       case RetireWidth => 1
       case UseVM => true
       case UseUser => true
       case UseDebug => true
       case NBreakpoints => 1
-      case UsePerfCounters => true
       case FastLoadWord => true
       case FastLoadByte => false
       case MulUnroll => 8
@@ -141,8 +135,6 @@ class BaseCoreplexConfig extends Config (
       case FDivSqrt => true
       case SFMALatency => 2
       case DFMALatency => 3
-      case CoreInstBits => if (site(UseCompressed)) 16 else 32
-      case CoreDataBits => site(XLen)
       case NCustomMRWCSRs => 0
       case ResetVector => BigInt(0x1000)
       case MtvecInit => BigInt(0x1010)

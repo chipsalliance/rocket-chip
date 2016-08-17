@@ -344,9 +344,8 @@ class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) 
   // Execute Atomic ops; unused and optimized away if !supportAtomics
   val amo_p = p.alterPartial({
     case CacheBlockOffsetBits => hastiAddrBits
-    case AmoAluOperandBits    => hastiDataBits
   })
-  val alu = Module(new AMOALU(rhsIsAligned = true)(amo_p))
+  val alu = Module(new AMOALU(hastiDataBits, rhsIsAligned = true)(amo_p))
   alu.io.addr := haddr
   alu.io.cmd  := cmd
   alu.io.typ  := hsize

@@ -11,6 +11,8 @@ import uncore.agents.PseudoLRU
 import uncore.coherence._
 import uncore.util._
 
+case object PgLevels extends Field[Int]
+case object ASIdBits extends Field[Int]
 case object NTLBEntries extends Field[Int]
 
 trait HasTLBParameters extends HasCoreParameters {

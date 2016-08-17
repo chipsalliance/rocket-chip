@@ -12,14 +12,13 @@ import uncore.constants._
 import cde.{Parameters, Field}
 import Util._
 
-case object WordBits extends Field[Int]
 case object StoreDataQueueDepth extends Field[Int]
 case object ReplayQueueDepth extends Field[Int]
 case object NMSHRs extends Field[Int]
 case object LRSCCycles extends Field[Int]
 
 trait HasL1HellaCacheParameters extends HasL1CacheParameters {
-  val wordBits = p(WordBits)
+  val wordBits = xLen // really, xLen max fLen
   val wordBytes = wordBits/8
   val wordOffBits = log2Up(wordBytes)
   val beatBytes = p(CacheBlockBytes) / outerDataBeats
@@ -953,7 +952,7 @@ class HellaCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   // store/amo hits
   s3_valid := (s2_valid_masked && s2_hit || s2_replay) && !s2_sc_fail && isWrite(s2_req.cmd)
-  val amoalu = Module(new AMOALU)
+  val amoalu = Module(new AMOALU(xLen))
   when ((s2_valid || s2_replay) && (isWrite(s2_req.cmd) || s2_data_correctable)) {
     s3_req := s2_req
     s3_req.data := Mux(s2_data_correctable, s2_data_corrected, amoalu.io.out)

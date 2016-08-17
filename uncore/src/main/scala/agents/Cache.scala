@@ -664,7 +664,7 @@ trait HasAMOALU extends HasAcquireMetadataBuffer
 
   // Provide a single ALU per tracker to merge Puts and AMOs with data being
   // refilled, written back, or extant in the cache
-  val amoalu = Module(new AMOALU(rhsIsAligned = true))
+  val amoalu = Module(new AMOALU(amoAluOperandBits, rhsIsAligned = true))
   val amo_result = Reg(init = UInt(0, innerDataBits))
   
   def initializeAMOALUIOs() {

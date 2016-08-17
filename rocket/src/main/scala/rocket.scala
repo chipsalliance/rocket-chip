@@ -20,13 +20,11 @@ case object UseUser extends Field[Boolean]
 case object UseDebug extends Field[Boolean]
 case object UseAtomics extends Field[Boolean]
 case object UseCompressed extends Field[Boolean]
-case object UsePerfCounters extends Field[Boolean]
 case object FastLoadWord extends Field[Boolean]
 case object FastLoadByte extends Field[Boolean]
 case object MulUnroll extends Field[Int]
 case object DivEarlyOut extends Field[Boolean]
 case object CoreInstBits extends Field[Int]
-case object CoreDataBits extends Field[Int]
 case object NCustomMRWCSRs extends Field[Int]
 case object MtvecWritable extends Field[Boolean]
 case object MtvecInit extends Field[BigInt]
@@ -59,6 +57,14 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val dcacheArbPorts = 1 + (if (usingVM) 1 else 0) + p(BuildRoCC).size
   val coreDCacheReqTagBits = 6
   val dcacheReqTagBits = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
+
+  def pgIdxBits = 12
+  def pgLevelBits = 10 - log2Ceil(xLen / 32)
+  def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
+  def ppnBits = paddrBits - pgIdxBits
+  def vpnBits = vaddrBits - pgIdxBits
+  val pgLevels = p(PgLevels)
+  val asIdBits = p(ASIdBits)
   val vpnBitsExtended = vpnBits + (vaddrBits < xLen).toInt
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
@@ -71,7 +77,6 @@ trait HasCoreParameters extends HasAddrMapParameters {
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
   val enableCommitLog = false
-  val usingPerfCounters = p(UsePerfCounters)
 
   val maxPAddrBits = xLen match {
     case 32 => 34

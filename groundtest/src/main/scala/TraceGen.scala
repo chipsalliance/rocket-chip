@@ -63,7 +63,7 @@ trait HasTraceGenParams {
   val numBitsInId         = log2Up(numGens)
   val numReqsPerGen       = p(GeneratorKey).maxRequests
   val memRespTimeout      = 8192
-  val numBitsInWord       = p(WordBits)
+  val numBitsInWord       = p(XLen)
   val numBytesInWord      = numBitsInWord / 8
   val numBitsInWordOffset = log2Up(numBytesInWord)
   val addressBag          = p(AddressBag)

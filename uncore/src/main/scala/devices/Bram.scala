@@ -145,7 +145,7 @@ class TileLinkTestRAM(depth: Int)(implicit val p: Parameters) extends Module
     data = Mux(r_acq.isAtomic(), r_old_data, ram(r_acq_addr)))
 
   val amo_shift_bits = acq.amo_shift_bytes() << UInt(3)
-  val amoalu = Module(new AMOALU(rhsIsAligned = true))
+  val amoalu = Module(new AMOALU(amoAluOperandBits, rhsIsAligned = true))
   amoalu.io.addr := Cat(acq.addr_block, acq.addr_beat, acq.addr_byte())
   amoalu.io.cmd := acq.op_code()
   amoalu.io.typ := acq.op_size()

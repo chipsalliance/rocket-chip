@@ -53,12 +53,10 @@ class LoadGen(typ: UInt, signed: Bool, addr: UInt, dat: UInt, zero: Bool, maxSiz
   def data = genData(0)
 }
 
-class AMOALU(rhsIsAligned: Boolean = false)(implicit p: Parameters) extends Module {
-  val operandBits = p(AmoAluOperandBits)
-  val blockOffBits = p(CacheBlockOffsetBits)
+class AMOALU(operandBits: Int, rhsIsAligned: Boolean = false)(implicit p: Parameters) extends Module {
   require(operandBits == 32 || operandBits == 64)
   val io = new Bundle {
-    val addr = Bits(INPUT, blockOffBits)
+    val addr = Bits(INPUT, log2Ceil(operandBits/8))
     val cmd = Bits(INPUT, M_SZ)
     val typ = Bits(INPUT, log2Ceil(log2Ceil(operandBits/8) + 1))
     val lhs = Bits(INPUT, operandBits)
