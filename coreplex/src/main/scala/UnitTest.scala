@@ -16,5 +16,7 @@ class UnitTestCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
 
   val l1params = p.alterPartial({ case TLId => "L1toL2" })
   val tests = Module(new UnitTestSuite()(l1params))
-  when (tests.io.finished) { stop() }
+
+  override def hasSuccessFlag = true
+  io.success.get := tests.io.finished
 }

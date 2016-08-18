@@ -144,6 +144,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   reset_mstatus.prv := PRV.M
   val reg_mstatus = Reg(init=reset_mstatus)
 
+  val new_prv = Wire(init = reg_mstatus.prv)
+  reg_mstatus.prv := legalizePrivilege(new_prv)
+
   val reset_dcsr = Wire(init=new DCSR().fromBits(0))
   reset_dcsr.xdebugver := 1
   reset_dcsr.prv := PRV.M
@@ -332,11 +335,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     read_mapping += addr -> io.custom_mrw_csrs(i)
   }
 
-  for ((addr, i) <- roccCsrs.zipWithIndex) {
-    require(!read_mapping.contains(addr), "RoCC: CSR address " + addr + " is already in use")
-    read_mapping += addr -> io.rocc.csr.rdata(i)
-  }
-
   val decoded_addr = read_mapping map { case (k, v) => k -> (io.rw.addr === k) }
 
   val addr_valid = decoded_addr.values.reduce(_||_)
@@ -405,7 +403,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       reg_debug := true
       reg_dpc := epc
       reg_dcsr.cause := Mux(reg_singleStepped, UInt(4), Mux(causeIsDebugInt, UInt(3), UInt(1)))
-      reg_dcsr.prv := reg_mstatus.prv
+      reg_dcsr.prv := trimPrivilege(reg_mstatus.prv)
     }.elsewhen (delegate) {
       reg_sepc := epc
       reg_scause := cause
@@ -413,33 +411,33 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       reg_mstatus.spie := pie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
-      reg_mstatus.prv := PRV.S
+      new_prv := PRV.S
     }.otherwise {
       reg_mepc := epc
       reg_mcause := cause
       when (write_badaddr) { reg_mbadaddr := io.badaddr }
       reg_mstatus.mpie := pie
-      reg_mstatus.mpp := reg_mstatus.prv
+      reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
       reg_mstatus.mie := false
-      reg_mstatus.prv := PRV.M
+      new_prv := PRV.M
     }
   }
-  
+
   when (insn_ret) {
     when (Bool(p(UseVM)) && !csr_addr_priv(1)) {
       when (reg_mstatus.spp.toBool) { reg_mstatus.sie := reg_mstatus.spie }
       reg_mstatus.spie := false
       reg_mstatus.spp := PRV.U
-      reg_mstatus.prv := reg_mstatus.spp
+      new_prv := reg_mstatus.spp
     }.elsewhen (csr_debug) {
-      reg_mstatus.prv := reg_dcsr.prv
+      new_prv := reg_dcsr.prv
       reg_debug := false
     }.otherwise {
       when (reg_mstatus.mpp(1)) { reg_mstatus.mie := reg_mstatus.mpie }
       .elsewhen (Bool(usingVM) && reg_mstatus.mpp(0)) { reg_mstatus.sie := reg_mstatus.mpie }
       reg_mstatus.mpie := false
-      reg_mstatus.mpp := PRV.U
-      reg_mstatus.prv := reg_mstatus.mpp
+      reg_mstatus.mpp := legalizePrivilege(PRV.U)
+      new_prv := reg_mstatus.mpp
     }
   }
 
@@ -455,18 +453,16 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     reg_fflags := reg_fflags | io.fcsr_flags.bits
   }
 
-  val supportedModes = Vec((PRV.M +: (if (usingUser) Some(PRV.U) else None) ++: (if (usingVM) Seq(PRV.S) else Nil)).map(UInt(_)))
-
   when (wen) {
     when (decoded_addr(CSRs.mstatus)) {
       val new_mstatus = new MStatus().fromBits(wdata)
       reg_mstatus.mie := new_mstatus.mie
       reg_mstatus.mpie := new_mstatus.mpie
 
-      if (supportedModes.size > 1) {
+      if (usingUser) {
         reg_mstatus.mprv := new_mstatus.mprv
-        when (supportedModes contains new_mstatus.mpp) { reg_mstatus.mpp := new_mstatus.mpp }
-        if (supportedModes.size > 2) {
+        reg_mstatus.mpp := trimPrivilege(new_mstatus.mpp)
+        if (usingVM) {
           reg_mstatus.mxr := new_mstatus.mxr
           reg_mstatus.pum := new_mstatus.pum
           reg_mstatus.spp := new_mstatus.spp
@@ -511,7 +507,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
         reg_dcsr.ebreakm := new_dcsr.ebreakm
         if (usingVM) reg_dcsr.ebreaks := new_dcsr.ebreaks
         if (usingUser) reg_dcsr.ebreaku := new_dcsr.ebreaku
-        if (supportedModes.size > 1) reg_dcsr.prv := new_dcsr.prv
+        if (usingUser) reg_dcsr.prv := trimPrivilege(new_dcsr.prv)
       }
       when (decoded_addr(CSRs.dpc))      { reg_dpc := ~(~wdata | (coreInstBytes-1)) }
       when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
@@ -559,16 +555,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   reg_dcsr.debugint := io.prci.interrupts.debug
   reg_dcsr.hwbpcount := UInt(p(NBreakpoints))
 
-  io.rocc.csr.waddr := io.rw.addr
-  io.rocc.csr.wdata := wdata
-  io.rocc.csr.wen := wen
-
-  if (!usingUser) {
-    reg_mstatus.mpp := PRV.M
-    reg_mstatus.prv := PRV.M
-    reg_mstatus.mprv := false
-  }
-
   reg_sptbr.asid := 0
   reg_tdrselect.reserved := 0
   reg_tdrselect.tdrmode := true // TODO support D-mode breakpoint theft
@@ -590,4 +576,13 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
   for (bp <- reg_bp drop p(NBreakpoints))
     bp := new BP().fromBits(0)
+
+  def legalizePrivilege(priv: UInt): UInt =
+    if (usingVM) Mux(priv === PRV.H, PRV.U, priv)
+    else if (usingUser) Fill(2, priv(0))
+    else PRV.M
+
+  def trimPrivilege(priv: UInt): UInt =
+    if (usingVM) priv
+    else legalizePrivilege(priv)
 }

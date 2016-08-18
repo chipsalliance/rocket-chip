@@ -77,10 +77,6 @@ object RocketChipGenerator extends App {
 
   TestGeneration.addSuite(new RegressionTestSuite(paramsFromConfig(RegressionTestNames)))
   TestGeneration.generateMakefrag(topModuleName, configClassName)
-  TestBenchGeneration.generateVerilogFragment(
-    topModuleName, configClassName, paramsFromConfig)
-  TestBenchGeneration.generateCPPFragment(
-    topModuleName, configClassName, paramsFromConfig)
 
   dumpParameters(s"$topModuleName.$configClassName.prm")
   dumpKnobs(configClassName, world)

@@ -1,17 +1,6 @@
 #--------------------------------------------------------------------
 # Verilog Generation
 #--------------------------------------------------------------------
-
-ifeq ($(CHISEL_VERSION),2)
-$(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).d $(generated_dir)/$(MODEL).$(CONFIG).prm : $(chisel_srcs)
-	cd $(base_dir) && mkdir -p $(generated_dir) && $(SBT) "run $(CHISEL_ARGS) --configDump --noInlineMem"
-	cd $(generated_dir) && \
-	if [ -a $(MODEL).$(CONFIG).conf ]; then \
-	  $(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $(generated_dir)/$(MODEL).$(CONFIG).v; \
-	fi
-
-else
-
 # If I don't mark these as .SECONDARY then make will delete these internal
 # files.
 .SECONDARY: $(generated_dir)/$(MODEL).$(CONFIG).fir
@@ -25,36 +14,30 @@ $(generated_dir)/%.v: $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
 	$(FIRRTL) -i $< -o $@ -X verilog
 
-endif
-
 $(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(MODEL).$(CONFIG).prm
 	echo "\`ifndef CONST_VH" > $@
 	echo "\`define CONST_VH" >> $@
 	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/`define \1 \2/' $(patsubst %.v,%.prm,$<) >> $@
-	echo "\`define TBVFRAG \"$(MODEL).$(CONFIG).tb.vfrag\"" >> $@
 	echo "\`endif // CONST_VH" >> $@
 
 #--------------------------------------------------------------------
 # Run
 #--------------------------------------------------------------------
 
-$(sim_dir)/dramsim2_ini:
-	ln -s $(base_dir)/emulator/dramsim2_ini $(sim_dir)/dramsim2_ini
+$(output_dir)/%.run: $(output_dir)/% $(simv)
+	cd $(sim_dir) && $(exec_simv) +max-cycles=$(timeout_cycles) $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
 
-$(output_dir)/%.run: $(output_dir)/% $(sim_dir)/dramsim2_ini $(simv)
-	cd $(sim_dir) && $(exec_simv) +dramsim +max-cycles=$(timeout_cycles) $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
+$(output_dir)/%.out: $(output_dir)/% $(simv)
+	cd $(sim_dir) && $(exec_simv) +verbose +max-cycles=$(timeout_cycles) $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
 
-$(output_dir)/%.out: $(output_dir)/% $(sim_dir)/dramsim2_ini $(simv)
-	cd $(sim_dir) && $(exec_simv) +dramsim +verbose +max-cycles=$(timeout_cycles) $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
+$(output_dir)/%.vcd: $(output_dir)/% $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +verbose +vcdfile=$@ +max-cycles=$(timeout_cycles) $< $(disasm) $(patsubst %.vcd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
-$(output_dir)/%.vcd: $(output_dir)/% $(sim_dir)/dramsim2_ini $(simv_debug)
-	cd $(sim_dir) && $(exec_simv_debug) +dramsim +verbose +vcdfile=$@ +max-cycles=$(timeout_cycles) $< $(disasm) $(patsubst %.vcd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+$(output_dir)/%.vpd: $(output_dir)/% $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +verbose +vcdplusfile=$@ +max-cycles=$(timeout_cycles) $< $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
-$(output_dir)/%.vpd: $(output_dir)/% $(sim_dir)/dramsim2_ini $(simv_debug)
-	cd $(sim_dir) && $(exec_simv_debug) +dramsim +verbose +vcdplusfile=$@ +max-cycles=$(timeout_cycles) $< $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
-
-$(output_dir)/%.saif: $(output_dir)/% $(sim_dir)/dramsim2_ini $(simv_debug)
-	cd $(sim_dir) && rm -f $(output_dir)/pipe-$*.vcd && vcd2saif -input $(output_dir)/pipe-$*.vcd -pipe "$(exec_simv_debug) +dramsim +verbose +vcdfile=$(output_dir)/pipe-$*.vcd +max-cycles=$(bmark_timeout_cycles) $<" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
+$(output_dir)/%.saif: $(output_dir)/% $(simv_debug)
+	cd $(sim_dir) && rm -f $(output_dir)/pipe-$*.vcd && vcd2saif -input $(output_dir)/pipe-$*.vcd -pipe "$(exec_simv_debug) +verbose +vcdfile=$(output_dir)/pipe-$*.vcd +max-cycles=$(bmark_timeout_cycles) $<" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
 
 run: run-asm-tests run-bmark-tests
 run-debug: run-asm-tests-debug run-bmark-tests-debug

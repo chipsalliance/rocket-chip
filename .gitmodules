@@ -1,12 +1,6 @@
-[submodule "dramsim2"]
-	path = dramsim2
-	url = git@github.com:dramninjasUMD/DRAMSim2.git
 [submodule "riscv-tools"]
 	path = riscv-tools
 	url = git@github.com:ucb-bar/esp-tools.git
-[submodule "chisel"]
-	path = chisel2
-	url = https://github.com/ucb-bar/chisel.git
 [submodule "hardfloat"]
 	path = hardfloat
 	url = git@github.com:ucb-bar/berkeley-hardfloat.git

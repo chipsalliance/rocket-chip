@@ -38,7 +38,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val xLen = p(XLen)
 
   val usingVM = p(UseVM)
-  val usingUser = p(UseUser)
+  val usingUser = p(UseUser) || usingVM
   val usingDebug = p(UseDebug)
   val usingFPU = p(UseFPU)
   val usingAtomics = p(UseAtomics)
@@ -63,9 +63,6 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
   val nCustomMrwCsrs = p(NCustomMRWCSRs)
-  val roccCsrs = if (p(BuildRoCC).isEmpty) Nil
-    else p(BuildRoCC).flatMap(_.csrs)
-  val nRoccCsrs = p(RoccNCSRs)
   val nCores = p(NTiles)
 
   // fetchWidth doubled, but coreInstBytes halved, for RVC
@@ -325,6 +322,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     ex_ctrl.csr := id_csr
     when (id_xcpt) { // pass PC down ALU writeback pipeline for badaddr
       ex_ctrl.alu_fn := ALU.FN_ADD
+      ex_ctrl.alu_dw := DW_XPR
       ex_ctrl.sel_alu1 := A1_PC
       ex_ctrl.sel_alu2 := A2_ZERO
       when (!bpu.io.xcpt_if && !ibuf.io.inst(0).bits.pf0 && ibuf.io.inst(0).bits.pf1) { // PC+2
@@ -499,7 +497,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   csr.io.prci <> io.prci
   io.fpu.fcsr_rm := csr.io.fcsr_rm
   csr.io.fcsr_flags := io.fpu.fcsr_flags
-  io.rocc.csr <> csr.io.rocc.csr
   csr.io.rocc.interrupt <> io.rocc.interrupt
   csr.io.pc := wb_reg_pc
   csr.io.badaddr := encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata)

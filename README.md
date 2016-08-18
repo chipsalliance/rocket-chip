@@ -117,8 +117,8 @@ submodule.
 Here's a look at all the git submodules that are currently tracked in
 the rocket-chip repository:
 
-* **chisel2**
-([https://github.com/ucb-bar/chisel](https://github.com/ucb-bar/chisel)):
+* **chisel3**
+([https://github.com/ucb-bar/chisel3](https://github.com/ucb-bar/chisel3)):
 At Berkeley, we write RTL in Chisel. For those who are not familiar
 with Chisel, please go take a look at
 [http://chisel.eecs.berkeley.edu](http://chisel.eecs.berkeley.edu). We
@@ -129,12 +129,6 @@ and hence it was easiest to use submodule to track bleeding edge commits
 to Chisel, which contained a bunch of new features and bug fixes. As
 Chisel gets more stable, we will likely replace this submodule with an
 external dependency.
-* **chisel3**
-([https://github.com/ucb-bar/chisel3](https://github.com/ucb-bar/chisel3)):
-Chisel3 is a newer version of Chisel, which is based on FIRRTL. The Chisel
-code in this repository is generally compatible with both Chisel2 and Chisel3.
-The [chisel3/README](https://github.com/ucb-bar/chisel3/blob/master/README.md).gives 
-instructions on how to build your design with Chisel3 instead of Chisel2.
 * **firrtl**
 ([https://github.com/ucb-bar/firrtl](https://github.com/ucb-bar/firrtl)):
 FIRRTL (Flexible Internal Representation for RTL) is the intermediate format
@@ -157,10 +151,6 @@ The rocket-chip Chisel code is highly parameterizable, and utilizes the classes 
 this subrepo to set and pass parameters to different levels of the design. Note that in 
 Chisel2, this was handled by Chisel itself, but has been moved into a seperate
 library for use with Chisel3. 
-* **dramsim2**
-([https://github.com/dramninjasUMD/DRAMSim2](https://github.com/dramninjasUMD/DRAMSim2)):
-Currently, the DRAM memory system is implemented in the testbench. We
-use dramsim2 to emulate DRAM timing.
 * **riscv-tools**
 ([https://github.com/riscv/riscv-tools](https://github.com/riscv/riscv-tools)):
 We tag a version of riscv-tools that works with the RTL committed in the

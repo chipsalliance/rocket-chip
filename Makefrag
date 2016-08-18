@@ -3,15 +3,12 @@ ifndef RISCV
 $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
-MODEL ?= Top
+MODEL ?= TestHarness
 PROJECT := rocketchip
 export ROCKETCHIP_ADDONS ?= hwacha
 DISASM_EXTENSION = --extension=hwacha
 CXX ?= g++
 CXXFLAGS := -O1
-
-CHISEL_VERSION ?= 3
-export CHISEL_VERSION
 
 SBT ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
@@ -22,11 +19,7 @@ FIRRTL ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Drive
 $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
 
-ifeq ($(CHISEL_VERSION),2)
-CHISEL_ARGS := $(PROJECT) $(MODEL) $(CONFIG) --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
-else
-CHISEL_ARGS := --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configName $(CONFIG) --compileInitializationUnoptimized --targetDir $(generated_dir)
-endif
+CHISEL_ARGS := --targetDir $(generated_dir)
 
 src_path = src/main/scala
 default_submodules = . junctions uncore hardfloat rocket groundtest coreplex context-dependent-environments
@@ -42,16 +35,6 @@ endif
 timeout_cycles = 100000000
 
 bootrom_img = $(base_dir)/bootrom/bootrom.img
-
-#--------------------------------------------------------------------
-# DRAMSim2
-#--------------------------------------------------------------------
-
-DRAMSIM_OBJS := $(patsubst %.cpp,%.o,$(wildcard $(base_dir)/dramsim2/*.cpp))
-$(DRAMSIM_OBJS): %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -DNO_STORAGE -DNO_OUTPUT -Dmain=nomain -c -o $@ $<
-$(sim_dir)/libdramsim.a: $(DRAMSIM_OBJS)
-	ar rcs $@ $^
 
 #--------------------------------------------------------------------
 # Build Tests
@@ -73,7 +56,6 @@ $(consts_header): $(params_file)
 	echo "#ifndef __CONST_H__" > $@
 	echo "#define __CONST_H__" >> $@
 	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
-	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
 	echo "#endif // __CONST_H__" >> $@
 
 params_file_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).prm
@@ -82,7 +64,6 @@ $(consts_header_debug): $(params_file_debug)
 	echo "#ifndef __CONST_H__" > $@
 	echo "#define __CONST_H__" >> $@
 	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
-	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
 	echo "#endif // __CONST_H__" >> $@
 
 clean-run-output:

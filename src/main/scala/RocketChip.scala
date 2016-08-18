@@ -52,6 +52,7 @@ trait HasTopLevelParameters {
   lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
+  lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
   lazy val exportBus = p(ExportBusPort)
@@ -121,10 +122,14 @@ object TopUtils {
 //TODO: Remove this wrapper once multichannel DRAM controller is provided
 class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   implicit val p = topParams
-  val io = new TopIO
 
   val coreplex = p(BuildCoreplex)(p)
-  val periphery = Module(new Periphery)
+  val periphery = Module(new Periphery()(innerParams))
+
+  val io = new TopIO {
+    val success = if (coreplex.hasSuccessFlag) Some(Bool(OUTPUT)) else None
+  }
+  io.success zip coreplex.io.success map { case (x, y) => x := y }
 
   if (exportMMIO) { periphery.io.mmio_in.get <> coreplex.io.mmio.get }
   periphery.io.mem_in <> coreplex.io.mem
@@ -172,7 +177,7 @@ class Periphery(implicit val p: Parameters) extends Module
     with HasTopLevelParameters {
   val io = new Bundle {
     val mem_in  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams)).flip
-    val bus_out = if (exportBus) Some(new ClientUncachedTileLinkIO) else None
+    val bus_out = if (exportBus) Some(new ClientUncachedTileLinkIO()(innerParams)) else None
     val mmio_in = if (exportMMIO) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams).flip) else None
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)
     val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)

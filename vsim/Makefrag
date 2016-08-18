@@ -8,13 +8,12 @@ sim_vsrcs = \
 	$(generated_dir)/$(MODEL).$(CONFIG).v \
 	$(generated_dir)/consts.$(CONFIG).vh \
 	$(base_dir)/vsrc/$(TB).v \
+	$(base_dir)/vsrc/SimDTM.v \
 
 # C sources
 
 sim_csrcs = \
-	$(base_dir)/csrc/vcs_main.$(TB).cc \
-	$(base_dir)/csrc/mm.cc \
-	$(base_dir)/csrc/mm_dramsim2.cc \
+	$(base_dir)/csrc/SimDTM.cc \
 
 #--------------------------------------------------------------------
 # Build Verilog
@@ -34,17 +33,15 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+rad +v2k +vcs+lic+wait \
 	+vc+list -CC "-I$(VCS_HOME)/include" \
 	-CC "-I$(RISCV)/include" \
-	-CC "-I$(realpath $(base_dir))/dramsim2" \
 	-CC "-std=c++11" \
 	-CC "-Wl,-rpath,$(RISCV)/lib" \
 	-CC "-include $(consts_header)" \
-	-e vcs_main \
 	$(RISCV)/lib/libfesvr.so \
-	$(sim_dir)/libdramsim.a \
 	-sverilog \
 	+incdir+$(generated_dir) \
 	+define+CLOCK_PERIOD=0.5 $(sim_vsrcs) $(sim_csrcs) \
 	+define+PRINTF_COND=$(TB).printf_cond \
+	+define+STOP_COND=!$(TB).reset \
 	+define+RANDOMIZE \
 	+libext+.v \
 
@@ -53,14 +50,14 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 #--------------------------------------------------------------------
 
 simv = $(sim_dir)/simv-$(MODEL)-$(CONFIG)
-$(simv) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_header)
+$(simv) : $(sim_vsrcs) $(sim_csrcs) $(consts_header)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv) \
 	-debug_pp \
 
 simv_debug = $(sim_dir)/simv-$(MODEL)-$(CONFIG)-debug
-$(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(sim_dir)/libdramsim.a $(consts_header)
+$(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(consts_header)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv_debug) \
