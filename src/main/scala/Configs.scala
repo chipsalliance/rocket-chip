@@ -132,7 +132,7 @@ class BasePlatformConfig extends Config (
       case ExportMMIOPort => (site(ExtraDevices).size + site(ExtMMIOPorts).size) > 0
       case AsyncBusChannels => false
       case NExtBusAXIChannels => 0
-      case NBusPorts => if (site(NExtBusAXIChannels) > 1) 1 else 0
+      case NExternalClients => if (site(NExtBusAXIChannels) > 1) 1 else 0
       case ConnectExtraPorts =>
         (out: Bundle, in: Bundle, p: Parameters) => out <> in
 
