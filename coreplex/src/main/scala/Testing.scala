@@ -1,10 +1,10 @@
 // See LICENSE for license details.
 
-package rocketchip
+package coreplex
 
 import Chisel._
 import scala.collection.mutable.{LinkedHashSet,LinkedHashMap}
-import cde.{Parameters, ParameterDump, Config, Field}
+import cde.{Parameters, ParameterDump, Config, Field, CDEMatchError}
 
 case object RegressionTestNames extends Field[LinkedHashSet[String]]
 
@@ -177,9 +177,6 @@ object DefaultTestSuites {
   val benchmarks = new BenchmarkTestSuite("rvi", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "mt-matmul"))
 
-  val bmarks = new BenchmarkTestSuite("basic", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
-    "median", "multiply", "qsort", "towers", "vvadd", "dhrystone", "spmv", "mt-vvadd", "mt-matmul", "pb-spmv", "vec-daxpy", "vec-dgemm-opt", "vec-hsaxpy", "vec-hgemm-opt", "vec-hsgemm-opt", "vec-saxpy", "vec-sdaxpy", "vec-sdgemm-opt", "vec-sgemm-naive", "vec-sgemm-opt", "vec-vvadd"))
-
   val rv32udBenchmarks = new BenchmarkTestSuite("rvd", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "mm", "spmv", "mt-vvadd"))
 
@@ -191,58 +188,4 @@ object DefaultTestSuites {
     List("ad","ae","af","ag","ai","ak","al","am","an","ap","aq","ar","at","av","ay","az",
          "bb","bc","bf","bh","bj","bk","bm","bo","br","bs","ce","cf","cg","ci","ck","cl",
          "cm","cs","cv","cy","dc","df","dm","do","dr","ds","du","dv").map(_+"_matmul")): _*))
-}
-
-object TestGenerator extends App {
-  val projectName = args(0)
-  val topModuleName = args(1)
-  val configClassName = args(2)
-
-  val aggregateConfigs = configClassName.split('_')
-
-  val finalConfig = aggregateConfigs.foldRight(new Config()) { case (currentConfigName, finalConfig) =>
-    val currentConfig = try {
-      Class.forName(s"$projectName.$currentConfigName").newInstance.asInstanceOf[Config]
-    } catch {
-      case e: java.lang.ClassNotFoundException =>
-        throwException("Unable to find part \"" + currentConfigName +
-          "\" of configClassName \"" + configClassName +
-          "\", did you misspell it?", e)
-    }
-    currentConfig ++ finalConfig
-  }
-
-  val world = (new Config(finalConfig)).toInstance
-
-  val paramsFromConfig: Parameters = Parameters.root(world)
-  //config.topConstraints.foreach(c => paramsFromConfig.constrain(c))
-  val gen = () => 
-    Class.forName(s"$projectName.$topModuleName")
-      .getConstructor(classOf[cde.Parameters])
-      .newInstance(paramsFromConfig)
-      .asInstanceOf[Module]
-
-  chiselMain.run(args.drop(3), gen)
-  //Driver.elaborate(gen, configName = configClassName)
-
-  TestGeneration.addSuite(new RegressionTestSuite(paramsFromConfig(RegressionTestNames)))
-
-  TestGeneration.generateMakefrag(topModuleName, configClassName)
-  TestBenchGeneration.generateVerilogFragment(
-    topModuleName, configClassName, paramsFromConfig)
-  TestBenchGeneration.generateCPPFragment(
-    topModuleName, configClassName, paramsFromConfig)
-
-  val pdFile = TestGeneration.createOutputFile(s"$topModuleName.$configClassName.prm")
-  pdFile.write(ParameterDump.getDump)
-  pdFile.close
-  val v = TestGeneration.createOutputFile(configClassName + ".knb")
-  v.write(world.getKnobs)
-  v.close
-  val d = new java.io.FileOutputStream(Driver.targetDir + "/" + configClassName + ".cfg")
-  d.write(paramsFromConfig(ConfigString))
-  d.close
-  val w = TestGeneration.createOutputFile(configClassName + ".cst")
-  w.write(world.getConstraints)
-  w.close
 }

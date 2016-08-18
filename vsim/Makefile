@@ -17,7 +17,7 @@ output_dir = $(sim_dir)/output
 
 BACKEND ?= v
 CONFIG ?= DefaultConfig
-TB ?= rocketTestHarness
+TB ?= TestDriver
 
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag

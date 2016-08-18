@@ -7,6 +7,18 @@ import Chisel._
 import scala.math._
 
 trait ScalarOpConstants {
+  val MT_SZ = 3
+  val MT_X  = BitPat("b???")
+  val MT_B  = UInt("b000")
+  val MT_H  = UInt("b001")
+  val MT_W  = UInt("b010")
+  val MT_D  = UInt("b011")
+  val MT_BU = UInt("b100")
+  val MT_HU = UInt("b101")
+  val MT_WU = UInt("b110")
+  def mtSize(mt: UInt) = mt(MT_SZ-2, 0)
+  def mtSigned(mt: UInt) = !mt(MT_SZ-1)
+
   val SZ_BR = 3
   val BR_X    = BitPat("b???")
   val BR_EQ   = UInt(0, 3)
@@ -43,7 +55,7 @@ trait ScalarOpConstants {
 
   val SZ_DW = 1
   val DW_X  = X
-  val DW_32 = N
-  val DW_64 = Y
-  val DW_XPR = Y
+  val DW_32 = Bool(false)
+  val DW_64 = Bool(true)
+  val DW_XPR = DW_64
 }

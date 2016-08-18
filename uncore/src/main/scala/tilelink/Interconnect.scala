@@ -276,7 +276,7 @@ class TileLinkRecursiveInterconnect(val nInner: Int, addrMap: AddrMap)
           xbarOut.acquire.ready := Bool(false)
           xbarOut.grant.valid := Bool(false)
           None
-        case submap: AddrMap =>
+        case submap: AddrMap if !submap.collapse =>
           val ic = Module(new TileLinkRecursiveInterconnect(1, submap))
           ic.io.in.head <> xbarOut
           ic.io.out

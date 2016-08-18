@@ -34,9 +34,8 @@ class StoreGenAligned(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) extends St
   override def genData(i: Int) = dat
 }
 
-class LoadGen(typ: UInt, addr: UInt, dat: UInt, zero: Bool, maxSize: Int) {
-  private val t = new StoreGen(typ, addr, dat, maxSize)
-  private val signed = typ.asSInt >= SInt(0)
+class LoadGen(typ: UInt, signed: Bool, addr: UInt, dat: UInt, zero: Bool, maxSize: Int) {
+  private val size = new StoreGen(typ, addr, dat, maxSize).size
 
   private def genData(logMinSize: Int): UInt = {
     var res = dat
@@ -45,7 +44,7 @@ class LoadGen(typ: UInt, addr: UInt, dat: UInt, zero: Bool, maxSize: Int) {
       val shifted = Mux(addr(i), res(2*pos-1,pos), res(pos-1,0))
       val doZero = Bool(i == 0) && zero
       val zeroed = Mux(doZero, UInt(0), shifted)
-      res = Cat(Mux(t.size === UInt(i) || doZero, Fill(8*maxSize-pos, signed && zeroed(pos-1)), res(8*maxSize-1,pos)), zeroed)
+      res = Cat(Mux(size === UInt(i) || doZero, Fill(8*maxSize-pos, signed && zeroed(pos-1)), res(8*maxSize-1,pos)), zeroed)
     }
     res
   }
@@ -61,7 +60,7 @@ class AMOALU(rhsIsAligned: Boolean = false)(implicit p: Parameters) extends Modu
   val io = new Bundle {
     val addr = Bits(INPUT, blockOffBits)
     val cmd = Bits(INPUT, M_SZ)
-    val typ = Bits(INPUT, MT_SZ)
+    val typ = Bits(INPUT, log2Ceil(log2Ceil(operandBits/8) + 1))
     val lhs = Bits(INPUT, operandBits)
     val rhs = Bits(INPUT, operandBits)
     val out = Bits(OUTPUT, operandBits)
@@ -75,8 +74,6 @@ class AMOALU(rhsIsAligned: Boolean = false)(implicit p: Parameters) extends Modu
   val sgned = io.cmd === M_XA_MIN || io.cmd === M_XA_MAX
   val max = io.cmd === M_XA_MAX || io.cmd === M_XA_MAXU
   val min = io.cmd === M_XA_MIN || io.cmd === M_XA_MINU
-  val word = io.typ === MT_W || io.typ === MT_WU || // Logic minimization:
-               io.typ === MT_B || io.typ === MT_BU
 
   val adder_out =
     if (operandBits == 32) io.lhs + rhs
@@ -88,6 +85,7 @@ class AMOALU(rhsIsAligned: Boolean = false)(implicit p: Parameters) extends Modu
   val less =
     if (operandBits == 32) Mux(io.lhs(31) === rhs(31), io.lhs < rhs, Mux(sgned, io.lhs(31), io.rhs(31)))
     else {
+      val word = !io.typ(0)
       val cmp_lhs = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
       val cmp_rhs = Mux(word && !io.addr(2), rhs(31), rhs(63))
       val lt_lo = io.lhs(31,0) < rhs(31,0)

@@ -72,7 +72,7 @@ trait HasTileLinkParameters {
   val tlBeatAddrBits = log2Up(tlDataBeats)
   val tlByteAddrBits = log2Up(tlWriteMaskBits)
   val tlMemoryOpcodeBits = M_SZ
-  val tlMemoryOperandSizeBits = MT_SZ
+  val tlMemoryOperandSizeBits = log2Ceil(log2Ceil(tlWriteMaskBits) + 1)
   val tlAcquireTypeBits = max(log2Up(Acquire.nBuiltInTypes), 
                               tlCoh.acquireTypeWidth)
   val tlAcquireUnionBits = max(tlWriteMaskBits,
@@ -380,10 +380,11 @@ object Acquire {
     val tlExternal = p(TLKey(p(TLId)))
     val tlWriteMaskBits = tlExternal.writeMaskBits
     val tlByteAddrBits = log2Up(tlWriteMaskBits)
+    val tlMemoryOperandSizeBits = log2Ceil(log2Ceil(tlWriteMaskBits) + 1)
     
     // These had better be the right size when we cat them together!
     val my_addr_byte = (UInt(0, tlByteAddrBits) | addr_byte)(tlByteAddrBits-1, 0)
-    val my_operand_size = (UInt(0, MT_SZ) | operand_size)(MT_SZ-1, 0)
+    val my_operand_size = (UInt(0, tlMemoryOperandSizeBits) | operand_size)(tlMemoryOperandSizeBits-1, 0)
     val my_opcode = (UInt(0, M_SZ) | opcode)(M_SZ-1, 0)
     val my_wmask = (UInt(0, tlWriteMaskBits) | wmask)(tlWriteMaskBits-1, 0)
     
@@ -398,6 +399,10 @@ object Acquire {
   }
 
   def fullWriteMask(implicit p: Parameters) = SInt(-1, width = p(TLKey(p(TLId))).writeMaskBits).asUInt
+  def fullOperandSize(implicit p: Parameters) = {
+    val dataBits = p(TLKey(p(TLId))).dataBitsPerBeat
+    UInt(log2Ceil(dataBits / 8))
+  }
 
   // Most generic constructor
   def apply(
@@ -436,7 +441,7 @@ object BuiltInAcquireBuilder {
         addr_beat: UInt = UInt(0),
         data: UInt = UInt(0),
         addr_byte: UInt = UInt(0),
-        operand_size: UInt = MT_Q,
+        operand_size: UInt = UInt(0),
         opcode: UInt = UInt(0),
         wmask: UInt = UInt(0),
         alloc: Bool = Bool(true))
@@ -476,6 +481,7 @@ object Get {
       client_xact_id = client_xact_id,
       addr_block = addr_block,
       addr_beat = addr_beat,
+      operand_size = Acquire.fullOperandSize,
       opcode = M_XRD,
       alloc = alloc)
   }
@@ -518,6 +524,7 @@ object GetBlock {
       a_type = Acquire.getBlockType,
       client_xact_id = client_xact_id, 
       addr_block = addr_block,
+      operand_size = Acquire.fullOperandSize,
       opcode = M_XRD,
       alloc = alloc)
   }

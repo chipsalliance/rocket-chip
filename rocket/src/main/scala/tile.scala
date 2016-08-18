@@ -9,7 +9,6 @@ import uncore.devices._
 import Util._
 import cde.{Parameters, Field}
 
-case object CoreName extends Field[String]
 case object BuildRoCC extends Field[Seq[RoccParameters]]
 case object NCachedTileLinkPorts extends Field[Int]
 case object NUncachedTileLinkPorts extends Field[Int]
@@ -19,7 +18,6 @@ case class RoccParameters(
   generator: Parameters => RoCC,
   nMemChannels: Int = 0,
   nPTWPorts : Int = 0,
-  csrs: Seq[Int] = Nil,
   useFPU: Boolean = false)
 
 abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
@@ -28,11 +26,13 @@ abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
   val nUncachedTileLinkPorts = p(NUncachedTileLinkPorts)
   val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
 
-  val io = new Bundle {
+  class TileIO extends Bundle {
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
     val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
     val prci = new PRCITileIO().flip
   }
+
+  val io = new TileIO
 }
 
 class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
@@ -42,10 +42,8 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
   val nRocc = buildRocc.size
   val nFPUPorts = buildRocc.filter(_.useFPU).size
 
-  val core = Module(new Rocket()(p.alterPartial({ case CoreName => "Rocket" })))
-  val icache = Module(new Frontend()(p.alterPartial({
-    case CacheName => "L1I"
-    case CoreName => "Rocket" })))
+  val core = Module(new Rocket)
+  val icache = Module(new Frontend()(p.alterPartial({ case CacheName => "L1I" })))
   val dcache =
     if (p(NMSHRs) == 0) Module(new DCache()(dcacheParams)).io
     else Module(new HellaCache()(dcacheParams)).io
@@ -73,12 +71,10 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
       val rocc = accelParams.generator(p.alterPartial({
         case RoccNMemChannels => accelParams.nMemChannels
         case RoccNPTWPorts => accelParams.nPTWPorts
-        case RoccNCSRs => accelParams.csrs.size
       }))
       val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
       rocc.io.cmd <> cmdRouter.io.out(i)
       rocc.io.exception := core.io.rocc.exception
-      rocc.io.host_id := io.prci.id
       dcIF.io.requestor <> rocc.io.mem
       dcPorts += dcIF.io.cache
       uncachedArbPorts += rocc.io.autl
@@ -104,18 +100,6 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
     core.io.rocc.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
     respArb.io.in <> roccs.map(rocc => Queue(rocc.io.resp))
 
-    if (p(RoccNCSRs) > 0) {
-      core.io.rocc.csr.rdata <> roccs.flatMap(_.io.csr.rdata)
-      for ((rocc, accelParams) <- roccs.zip(buildRocc)) {
-        rocc.io.csr.waddr := core.io.rocc.csr.waddr
-        rocc.io.csr.wdata := core.io.rocc.csr.wdata
-        rocc.io.csr.wen := core.io.rocc.csr.wen &&
-          accelParams.csrs
-            .map(core.io.rocc.csr.waddr === UInt(_))
-            .reduce((a, b) => a || b)
-      }
-    }
-
     ptwPorts ++= roccs.flatMap(_.io.ptw)
     uncachedPorts ++= roccs.flatMap(_.io.utl)
   }
@@ -138,6 +122,7 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
     core.io.ptw <> ptw.io.dpath
   }
 
+  require(dcPorts.size == core.dcacheArbPorts)
   val dcArb = Module(new HellaCacheArbiter(dcPorts.size)(dcacheParams))
   dcArb.io.requestor <> dcPorts
   dcache.cpu <> dcArb.io.mem

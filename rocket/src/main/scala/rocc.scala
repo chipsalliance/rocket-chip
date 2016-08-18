@@ -12,14 +12,6 @@ import cde.{Parameters, Field}
 case object RoccMaxTaggedMemXacts extends Field[Int]
 case object RoccNMemChannels extends Field[Int]
 case object RoccNPTWPorts extends Field[Int]
-case object RoccNCSRs extends Field[Int]
-
-class RoCCCSRs(implicit p: Parameters) extends CoreBundle()(p) {
-  val rdata = Vec(nRoccCsrs, UInt(INPUT, xLen))
-  val waddr = UInt(OUTPUT, CSR.ADDRSZ)
-  val wdata = UInt(OUTPUT, xLen)
-  val wen = Bool(OUTPUT)
-}
 
 class RoCCInstruction extends Bundle
 {
@@ -59,8 +51,6 @@ class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
   val fpu_req = Decoupled(new FPInput)
   val fpu_resp = Decoupled(new FPResult).flip
   val exception = Bool(INPUT)
-  val csr = (new RoCCCSRs).flip
-  val host_id = UInt(INPUT, log2Up(nCores))
 
   override def cloneType = new RoCCInterface().asInstanceOf[this.type]
 }
@@ -94,15 +84,12 @@ class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
 
   when (io.mem.resp.valid) {
     regfile(memRespTag) := io.mem.resp.bits.data
+    busy(memRespTag) := Bool(false)
   }
 
   // control
   when (io.mem.req.fire()) {
     busy(addr) := Bool(true)
-  }
-
-  when (io.mem.resp.valid) {
-    busy(memRespTag) := Bool(false)
   }
 
   val doResp = cmd.bits.inst.xd
@@ -175,7 +162,7 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
 
   io.resp.valid := (state === s_resp)
   io.resp.bits.rd := req_rd
-  io.resp.bits.data := Mux(pte.leaf(), Cat(pte.ppn, req_offset), ~UInt(0, xLen))
+  io.resp.bits.data := Mux(pte.leaf(), Cat(pte.ppn, req_offset), SInt(-1, xLen).asUInt)
 
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
