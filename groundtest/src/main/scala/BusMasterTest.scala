@@ -8,6 +8,13 @@ import uncore.Util._
 import junctions.HasAddrMapParameters
 import cde.Parameters
 
+/**
+ * An example bus mastering devices that writes some preset data to memory.
+ * When it receives an MMIO put request, it starts writing out the data.
+ * When it receives an MMIO get request, it responds with the progress of
+ * the write. A grant data of 1 means it is still writing, grant data 0 
+ * means it has finished.
+ */
 class ExampleBusMaster(implicit val p: Parameters) extends Module
     with HasAddrMapParameters
     with HasTileLinkParameters {

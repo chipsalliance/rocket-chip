@@ -242,8 +242,8 @@ class Periphery(implicit val p: Parameters) extends Module
       } else None
 
       val buildParams = p.alterPartial({
-        case InnerTLId => "L2toMMIO"
-        case OuterTLId => "L1toL2"
+        case InnerTLId => "L2toMMIO" // Device MMIO port
+        case OuterTLId => "L1toL2"   // Device client port
       })
 
       device.builder(mmioPort, clientPort, io.extra, buildParams)
