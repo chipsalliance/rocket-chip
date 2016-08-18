@@ -15,7 +15,8 @@ abstract class Device {
     mmioPort: Option[ClientUncachedTileLinkIO],
     clientPort: Option[ClientUncachedTileLinkIO],
     extra: Bundle, p: Parameters): Unit
-  def addrMapEntry: AddrMapEntry
+  def addrMapEntry: AddrMapEntry =
+    throw new UnsupportedOperationException("no addrMapEntry defined")
   def makeConfigString(region: MemRegion): String = {
     s"${addrMapEntry.name} {\n" +
     s"  addr 0x${region.start.toString(16)};\n" +

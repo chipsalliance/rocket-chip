@@ -263,16 +263,17 @@ class WithTestRAM extends Config(
     case ExtraDevices => {
       class TestRAMDevice extends Device {
         val ramSize = 0x1000
-        def builder(
-            sPort: Option[ClientUncachedTileLinkIO],
-            mPort: Option[ClientUncachedTileLinkIO],
-            extra: Bundle, p: Parameters) {
-          val testram = Module(new TileLinkTestRAM(ramSize)(p))
-          testram.io <> sPort.get
-        }
-        def addrMapEntry = AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW)))
         def hasClientPort = false
         def hasMMIOPort = true
+        def builder(
+            mmioPort: Option[ClientUncachedTileLinkIO],
+            clientPort: Option[ClientUncachedTileLinkIO],
+            extra: Bundle, p: Parameters) {
+          val testram = Module(new TileLinkTestRAM(ramSize)(p))
+          testram.io <> mmioPort.get
+        }
+        override def addrMapEntry =
+          AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW)))
       }
       Seq(new TestRAMDevice)
     }
