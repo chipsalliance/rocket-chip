@@ -94,9 +94,11 @@ class BasePlatformConfig extends Config (
       }
       res append  "};\n"
       for (device <- site(ExtraDevices)) {
-        val deviceName = device.addrMapEntry.name
-        val deviceRegion = addrMap("io:ext:" + deviceName)
-        res.append(device.makeConfigString(deviceRegion))
+        if (device.hasMMIOPort) {
+          val deviceName = device.addrMapEntry.name
+          val deviceRegion = addrMap("io:ext:" + deviceName)
+          res.append(device.makeConfigString(deviceRegion))
+        }
       }
       res append '\u0000'
       res.toString.getBytes
@@ -125,14 +127,18 @@ class BasePlatformConfig extends Config (
       case ExtraTopPorts => (p: Parameters) => new Bundle
       case ExtMMIOPorts => Nil
       case ExtIOAddrMapEntries =>
-        site(ExtraDevices).map(_.addrMapEntry) ++ site(ExtMMIOPorts)
+        site(ExtraDevices)
+          .filter(_.hasMMIOPort)
+          .map(_.addrMapEntry) ++
+        site(ExtMMIOPorts)
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0
-      case ExportMMIOPort => (site(ExtraDevices).size + site(ExtMMIOPorts).size) > 0
+      case ExportMMIOPort => (site(ExtraDevices).filter(_.hasMMIOPort).size + site(ExtMMIOPorts).size) > 0
       case AsyncBusChannels => false
       case NExtBusAXIChannels => 0
-      case NExternalClients => if (site(NExtBusAXIChannels) > 1) 1 else 0
+      case NExternalClients => (if (site(NExtBusAXIChannels) > 1) 1 else 0) +
+                                site(ExtraDevices).filter(_.hasClientPort).size
       case ConnectExtraPorts =>
         (out: Bundle, in: Bundle, p: Parameters) => out <> in
 
@@ -257,11 +263,16 @@ class WithTestRAM extends Config(
     case ExtraDevices => {
       class TestRAMDevice extends Device {
         val ramSize = 0x1000
-        def builder(port: ClientUncachedTileLinkIO, extra: Bundle, p: Parameters) {
+        def builder(
+            sPort: Option[ClientUncachedTileLinkIO],
+            mPort: Option[ClientUncachedTileLinkIO],
+            extra: Bundle, p: Parameters) {
           val testram = Module(new TileLinkTestRAM(ramSize)(p))
-          testram.io <> port
+          testram.io <> sPort.get
         }
         def addrMapEntry = AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW)))
+        def hasClientPort = false
+        def hasMMIOPort = true
       }
       Seq(new TestRAMDevice)
     }

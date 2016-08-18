@@ -190,14 +190,15 @@ class Periphery(implicit val p: Parameters) extends Module
     val extra = p(ExtraTopPorts)(p)
   }
 
-  require(io.clients_out.size <= 1)
+  var client_ind = 0
 
-  if (io.clients_out.size > 0) {
+  if (io.bus_axi.size > 0) {
     val conv = Module(new TileLinkIONastiIOConverter)
-    val arb = Module(new NastiArbiter(p(NExtBusAXIChannels)))
+    val arb = Module(new NastiArbiter(io.bus_axi.size))
     arb.io.master <> io.bus_axi
     conv.io.nasti <> conv.io.tl
     io.clients_out.head <> conv.io.tl
+    client_ind += 1
   }
 
   def connectExternalMMIO(ports: Seq[ClientUncachedTileLinkIO])(implicit p: Parameters) {
@@ -231,7 +232,15 @@ class Periphery(implicit val p: Parameters) extends Module
     mmioNetwork.io.in.head <> io.mmio_in.get
 
     for (device <- p(ExtraDevices)) {
-      device.builder(mmioNetwork.port(device.addrMapEntry.name), io.extra, p)
+      val mmioPort = if (device.hasMMIOPort) 
+        Some(mmioNetwork.port(device.addrMapEntry.name)) else None
+
+      val clientPort = if (device.hasClientPort) {
+        client_ind += 1
+        Some(io.clients_out(client_ind - 1))
+      } else None
+
+      device.builder(mmioPort, clientPort, io.extra, p)
     }
 
     val ext = p(ExtMMIOPorts).map(
