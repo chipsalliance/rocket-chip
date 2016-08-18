@@ -36,8 +36,8 @@ case object RTCPeriod extends Field[Int]
 case object BootROMFile extends Field[String]
 /** Export an external MMIO slave port */
 case object ExportMMIOPort extends Field[Boolean]
-/** Expose an additional bus master port */
-case object ExportBusPort extends Field[Boolean]
+/** Expose additional bus master ports */
+case object NBusPorts extends Field[Int]
 /** Extra top-level ports exported from the coreplex */
 case object ExtraCoreplexPorts extends Field[Parameters => Bundle]
 
@@ -53,7 +53,7 @@ trait HasCoreplexParameters {
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
-  lazy val exportBus = p(ExportBusPort)
+  lazy val nBusPorts = p(NBusPorts)
   lazy val exportMMIO = p(ExportMMIOPort)
 }
 
@@ -69,7 +69,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
-    val bus = if (exportBus) Some(new ClientUncachedTileLinkIO()(innerParams).flip) else None
+    val bus = Vec(nBusPorts, new ClientUncachedTileLinkIO()(innerParams)).flip
     val mmio = if (exportMMIO) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debug = new DebugBusIO()(p).flip
@@ -81,7 +81,7 @@ class Uncore(implicit val p: Parameters) extends Module
   outmemsys.io.incoherent foreach (_ := false)
   outmemsys.io.tiles_uncached <> io.tiles_uncached
   outmemsys.io.tiles_cached <> io.tiles_cached
-  if (exportBus) { outmemsys.io.bus.get <> io.bus.get }
+  outmemsys.io.bus <> io.bus
   io.mem <> outmemsys.io.mem
 
   buildMMIONetwork(p.alterPartial({case TLId => "L2toMMIO"}))
@@ -147,7 +147,7 @@ abstract class OuterMemorySystem(implicit val p: Parameters)
   val io = new Bundle {
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
-    val bus = if (exportBus) Some(new ClientUncachedTileLinkIO()(innerParams).flip) else None
+    val bus = Vec(nBusPorts, new ClientUncachedTileLinkIO()(innerParams)).flip
     val incoherent = Vec(nCachedTilePorts, Bool()).asInput
     val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
     val mmio = new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "L2toMMIO"}))
@@ -232,7 +232,7 @@ abstract class Coreplex(implicit val p: Parameters) extends Module
     with HasCoreplexParameters {
   class CoreplexIO(implicit val p: Parameters) extends Bundle {
     val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
-    val bus = if (p(ExportBusPort)) Some(new ClientUncachedTileLinkIO()(innerParams).flip) else None
+    val bus = Vec(nBusPorts, new ClientUncachedTileLinkIO()(innerParams)).flip
     val mmio = if(p(ExportMMIOPort)) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debug = new DebugBusIO()(p).flip
@@ -273,7 +273,7 @@ class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   uncore.io.interrupts <> io.interrupts
   uncore.io.debug <> io.debug
-  if (exportBus) { uncore.io.bus.get <> io.bus.get }
+  uncore.io.bus <> io.bus
   if (exportMMIO) { io.mmio.get <> uncore.io.mmio.get }
   io.mem <> uncore.io.mem
 }

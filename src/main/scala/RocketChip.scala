@@ -57,7 +57,6 @@ trait HasTopLevelParameters {
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
-  lazy val exportBus = p(ExportBusPort)
   lazy val exportMMIO = p(ExportMMIOPort)
 }
 
@@ -135,7 +134,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   if (exportMMIO) { periphery.io.mmio_in.get <> coreplex.io.mmio.get }
   periphery.io.mem_in <> coreplex.io.mem
-  if (exportBus) { coreplex.io.bus.get <> periphery.io.bus_out.get }
+  coreplex.io.bus <> periphery.io.bus_out
 
   coreplex.io.debug <>
     (if (p(AsyncDebugBus))
@@ -179,7 +178,7 @@ class Periphery(implicit val p: Parameters) extends Module
     with HasTopLevelParameters {
   val io = new Bundle {
     val mem_in  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams)).flip
-    val bus_out = if (exportBus) Some(new ClientUncachedTileLinkIO()(innerParams)) else None
+    val bus_out = Vec(p(NBusPorts), new ClientUncachedTileLinkIO()(innerParams))
     val mmio_in = if (exportMMIO) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams).flip) else None
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)
     val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
@@ -191,12 +190,14 @@ class Periphery(implicit val p: Parameters) extends Module
     val extra = p(ExtraTopPorts)(p)
   }
 
-  io.bus_out.map { tl_out =>
+  require(io.bus_out.size <= 1)
+
+  if (io.bus_out.size > 0) {
     val conv = Module(new TileLinkIONastiIOConverter)
     val arb = Module(new NastiArbiter(p(NExtBusAXIChannels)))
     arb.io.master <> io.bus_axi
     conv.io.nasti <> conv.io.tl
-    tl_out <> conv.io.tl
+    io.bus_out.head <> conv.io.tl
   }
 
   def connectExternalMMIO(ports: Seq[ClientUncachedTileLinkIO])(implicit p: Parameters) {

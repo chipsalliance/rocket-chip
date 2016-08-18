@@ -160,7 +160,7 @@ class BaseCoreplexConfig extends Config (
             else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
-          nCachelessClients = (if (site(ExportBusPort)) 1 else 0) + site(NUncachedTileLinkPorts),
+          nCachelessClients = site(NBusPorts) + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
               site(NMSHRs) + 1 /* IOMSHR */,

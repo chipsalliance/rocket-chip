@@ -8,7 +8,7 @@ import cde.Parameters
 
 class UnitTestCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
   require(!exportMMIO)
-  require(!exportBus)
+  require(nBusPorts == 0)
   require(nMemChannels == 0)
 
   io.debug.req.ready := Bool(false)

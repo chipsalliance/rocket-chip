@@ -14,7 +14,7 @@ class DirectGroundTestCoreplex(topParams: Parameters) extends Coreplex()(topPara
   io.debug.resp.valid := Bool(false)
 
   require(!exportMMIO)
-  require(!exportBus)
+  require(nBusPorts == 0)
   require(nMemChannels == 1)
   require(nTiles == 1)
 
