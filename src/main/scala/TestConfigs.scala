@@ -37,6 +37,54 @@ class WithUnitTest extends Config(
     case _ => throw new CDEMatchError
   })
 
+class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
+
+class WithGroundTest extends Config(
+  (pname, site, here) => pname match {
+    case BuildCoreplex => (p: Parameters) => Module(new GroundTestCoreplex(p))
+    case TLKey("L1toL2") => {
+      val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
+      TileLinkParameters(
+        coherencePolicy = (
+          if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
+          else new MESICoherence(site(L2DirectoryRepresentation))),
+        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
+        nCachingClients = site(NCachedTileLinkPorts),
+        nCachelessClients = site(NExternalClients) + site(NUncachedTileLinkPorts),
+        maxClientXacts = ((site(NMSHRs) + 1) +:
+                           site(GroundTestKey).map(_.maxXacts))
+                             .reduce(max(_, _)),
+        maxClientsPerPort = 1,
+        maxManagerXacts = site(NAcquireTransactors) + 2,
+        dataBeats = 8,
+        dataBits = site(CacheBlockBytes)*8)
+    }
+    case BuildTiles => {
+      val groundtest = if (site(XLen) == 64)
+        DefaultTestSuites.groundtest64
+      else
+        DefaultTestSuites.groundtest32
+      TestGeneration.addSuite(groundtest("p"))
+      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
+      (0 until site(NTiles)).map { i =>
+        val tileSettings = site(GroundTestKey)(i)
+        (r: Bool, p: Parameters) => {
+          Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
+            case TLId => "L1toL2"
+            case GroundTestId => i
+            case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
+            case NUncachedTileLinkPorts => tileSettings.uncached
+          })))
+        }
+      }
+    }
+    case UseFPU => false
+    case UseAtomics => false
+    case UseCompressed => false
+    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
+    case _ => throw new CDEMatchError
+  })
+
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
 
 class ComparatorConfig extends Config(
@@ -77,8 +125,6 @@ class FancyNastiConverterTestConfig extends Config(
   new WithNCores(2) ++ new WithNastiConverterTest ++
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
   new WithL2Cache ++ new GroundTestConfig)
-
-class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
 
 class TraceGenConfig extends Config(
   new WithNCores(2) ++ new WithTraceGen ++ new GroundTestConfig)
@@ -129,48 +175,30 @@ class DirectMemtestFPGAConfig extends Config(
 class DirectComparatorFPGAConfig extends Config(
   new FPGAConfig ++ new DirectComparatorConfig)
 
-class WithGroundTest extends Config(
+class WithBusMasterTest extends Config(
   (pname, site, here) => pname match {
-    case BuildCoreplex => (p: Parameters) => Module(new GroundTestCoreplex(p))
-    case TLKey("L1toL2") => {
-      val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
-      TileLinkParameters(
-        coherencePolicy = (
-          if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
-          else new MESICoherence(site(L2DirectoryRepresentation))),
-        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-        nCachingClients = site(NCachedTileLinkPorts),
-        nCachelessClients = site(NUncachedTileLinkPorts),
-        maxClientXacts = ((site(NMSHRs) + 1) +:
-                           site(GroundTestKey).map(_.maxXacts))
-                             .reduce(max(_, _)),
-        maxClientsPerPort = 1,
-        maxManagerXacts = site(NAcquireTransactors) + 2,
-        dataBeats = 8,
-        dataBits = site(CacheBlockBytes)*8)
+    case GroundTestKey => Seq.fill(site(NTiles)) {
+      GroundTestTileSettings(uncached = 1)
     }
-    case BuildTiles => {
-      val groundtest = if (site(XLen) == 64)
-        DefaultTestSuites.groundtest64
-      else
-        DefaultTestSuites.groundtest32
-      TestGeneration.addSuite(groundtest("p"))
-      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-      (0 until site(NTiles)).map { i =>
-        val tileSettings = site(GroundTestKey)(i)
-        (r: Bool, p: Parameters) => {
-          Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
-            case TLId => "L1toL2"
-            case GroundTestId => i
-            case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
-            case NUncachedTileLinkPorts => tileSettings.uncached
-          })))
+    case BuildGroundTest =>
+      (p: Parameters) => Module(new BusMasterTest()(p))
+    case ExtraDevices => {
+      class BusMasterDevice extends Device {
+        def hasClientPort = true
+        def hasMMIOPort = true
+        def builder(
+            mmioPort: Option[ClientUncachedTileLinkIO],
+            clientPort: Option[ClientUncachedTileLinkIO],
+            extra: Bundle, p: Parameters) {
+          val busmaster = Module(new ExampleBusMaster()(p))
+          busmaster.io.mmio <> mmioPort.get
+          clientPort.get <> busmaster.io.mem
         }
+        override def addrMapEntry =
+          AddrMapEntry("busmaster", MemSize(4096, MemAttr(AddrMapProt.RW)))
       }
+      Seq(new BusMasterDevice)
     }
-    case UseFPU => false
-    case UseAtomics => false
-    case UseCompressed => false
-    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
-    case _ => throw new CDEMatchError
   })
+
+class BusMasterTestConfig extends Config(new WithBusMasterTest ++ new GroundTestConfig)

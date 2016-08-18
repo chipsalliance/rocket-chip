@@ -9,6 +9,7 @@ import uncore.tilelink._
 import uncore.devices._
 import uncore.util._
 import uncore.converters._
+import uncore.coherence.{InnerTLId, OuterTLId}
 import rocket._
 import coreplex._
 
@@ -240,7 +241,12 @@ class Periphery(implicit val p: Parameters) extends Module
         Some(io.clients_out(client_ind - 1))
       } else None
 
-      device.builder(mmioPort, clientPort, io.extra, p)
+      val buildParams = p.alterPartial({
+        case InnerTLId => "L2toMMIO"
+        case OuterTLId => "L1toL2"
+      })
+
+      device.builder(mmioPort, clientPort, io.extra, buildParams)
     }
 
     val ext = p(ExtMMIOPorts).map(
