@@ -9,6 +9,7 @@ import scala.math._
 import cde.{Parameters, Field}
 import uncore.agents.PseudoLRU
 import uncore.coherence._
+import uncore.util._
 
 case object NTLBEntries extends Field[Int]
 

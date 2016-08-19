@@ -7,6 +7,7 @@ import Instructions._
 import Util._
 import FPConstants._
 import uncore.constants.MemoryOpConstants._
+import uncore.util._
 import cde.{Parameters, Field}
 
 case object SFMALatency extends Field[Int]

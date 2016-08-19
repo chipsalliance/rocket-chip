@@ -3,7 +3,7 @@
 package rocket
 
 import Chisel._
-import uncore._
+import uncore.util._
 import scala.math._
 import cde.{Parameters, Field}
 
@@ -28,26 +28,6 @@ object Util {
 
   implicit def booleanToIntConv(x: Boolean) = new AnyRef {
     def toInt: Int = if (x) 1 else 0
-  }
-
-  implicit class SeqToAugmentedSeq[T <: Data](val x: Seq[T]) extends AnyVal {
-    def apply(idx: UInt): T = {
-      if (x.size == 1) {
-        x.head
-      } else {
-        val half = 1 << (log2Ceil(x.size) - 1)
-        val newIdx = idx & (half - 1)
-        Mux(idx >= UInt(half), x.drop(half)(newIdx), x.take(half)(newIdx))
-      }
-    }
-
-    def asUInt(): UInt = Cat(x.map(_.asUInt).reverse)
-  }
-
-  implicit class UIntIsOneOf(val x: UInt) extends AnyVal {
-    def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).reduce(_||_)
-
-    def isOneOf(u1: UInt, u2: UInt*): Bool = isOneOf(u1 +: u2.toSeq)
   }
 }
 
