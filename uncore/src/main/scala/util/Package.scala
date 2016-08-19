@@ -2,7 +2,7 @@ package uncore
 
 import Chisel._
 
-package object Util {
+package object util {
   implicit class UIntIsOneOf(val x: UInt) extends AnyVal {
     def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).reduce(_||_)
   

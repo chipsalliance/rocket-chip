@@ -4,7 +4,7 @@ package uncore.tilelink
 import Chisel._
 import junctions._
 import uncore.coherence.CoherencePolicy
-import uncore.Util._
+import uncore.util._
 import scala.math.max
 import uncore.constants._
 import cde.{Parameters, Field}

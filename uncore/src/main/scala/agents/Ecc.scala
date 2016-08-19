@@ -3,7 +3,7 @@
 package uncore.agents
 
 import Chisel._
-import uncore.Util._
+import uncore.util._
 
 abstract class Decoding
 {

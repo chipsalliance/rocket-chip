@@ -6,7 +6,7 @@ import Chisel._
 import uncore.coherence._
 import uncore.tilelink._
 import uncore.util._
-import uncore.Util._
+import uncore.util._
 import junctions._
 import cde.{Field, Parameters}
 import scala.math.max

@@ -8,7 +8,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.converters._
 import uncore.coherence._
-import uncore.Util._
+import uncore.util._
 
 case object NReleaseTransactors extends Field[Int]
 case object NProbeTransactors extends Field[Int]

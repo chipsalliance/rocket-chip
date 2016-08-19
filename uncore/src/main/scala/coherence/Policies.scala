@@ -5,7 +5,7 @@ package uncore.coherence
 import Chisel._
 import uncore.tilelink._
 import uncore.constants._
-import uncore.Util._
+import uncore.util._
 
 /** The entire CoherencePolicy API consists of the following three traits:
   * HasCustomTileLinkMessageTypes, used to define custom messages

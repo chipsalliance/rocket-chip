@@ -4,7 +4,7 @@ import Chisel._
 import uncore.tilelink._
 import uncore.agents._
 import uncore.coherence.{InnerTLId, OuterTLId}
-import uncore.Util._
+import uncore.util._
 import junctions.HasAddrMapParameters
 import cde.Parameters
 
