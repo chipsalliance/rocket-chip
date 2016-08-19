@@ -6,7 +6,6 @@ import Chisel._
 import cde.{Parameters, Field}
 import rocket.Util._
 import junctions._
-import uncore.devices.{IncludeJtagDTM} 
 
 class TestHarness(implicit p: Parameters) extends Module {
   val io = new Bundle {
@@ -53,16 +52,20 @@ class TestHarness(implicit p: Parameters) extends Module {
     dut.io.jtag.get.TRST := reset 
     jtag_vpi.io.enable := ~reset
     jtag_vpi.io.init_done := ~reset
+
+    // Success is determined by the gdbserver
+    // which is controlling this simulation.
     io.success := Bool(false)
   }
   else {
     val dtm = Module(new SimDTM)
     dut.io.debug.get <> dtm.io.debug
 
-    // Todo: enable the usage of different clocks.
-
+    // Todo: enable the usage of different clocks
+    // to test the synchronizer more aggressively.
     val dtm_clock = clock
     val dtm_reset = reset
+
     dtm.io.clk := dtm_clock
     dtm.io.reset := dtm_reset
     if (dut.io.debug_clk.isDefined)

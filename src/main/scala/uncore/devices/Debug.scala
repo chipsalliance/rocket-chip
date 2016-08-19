@@ -8,7 +8,7 @@ import uncore.util._
 import junctions._
 import cde.{Parameters, Config, Field}
 
-// *****************************************r
+// *****************************************
 // Constants which are interesting even
 // outside of this module
 // *****************************************
@@ -264,7 +264,6 @@ class DefaultDebugModuleConfig (val ncomponents : Int, val xlen:Int)
       nNDResetCycles = 1)
 
 case object DMKey extends Field[DebugModuleConfig]
-case object IncludeJtagDTM extends Field[Boolean]
 
 // *****************************************
 // Module Interfaces
