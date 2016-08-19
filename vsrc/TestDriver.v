@@ -5,7 +5,7 @@ module TestDriver;
   reg clk   = 1'b0;
   reg reset = 1'b1;
 
-  always #`CLOCK_PERIOD clk = ~clk;
+  always #(`CLOCK_PERIOD/2.0) clk = ~clk;
   initial #777.7 reset = 0;
 
   // Read input arguments and initialize
@@ -45,6 +45,14 @@ module TestDriver;
   integer stderr = 32'h80000002;
   always @(posedge clk)
   begin
+`ifdef GATE_LEVEL
+    if (verbose)
+    begin
+      $fdisplay(stderr, "C: %10d", trace_count);
+    end
+`endif
+
+    trace_count = trace_count + 1;
     if (!reset)
     begin
       if (max_cycles > 0 && trace_count > max_cycles)
@@ -68,17 +76,6 @@ module TestDriver;
         $finish;
       end
     end
-  end
-
-  always @(posedge clk)
-  begin
-    trace_count = trace_count + 1;
-`ifdef GATE_LEVEL
-    if (verbose)
-    begin
-      $fdisplay(stderr, "C: %10d", trace_count-1);
-    end
-`endif
   end
 
   TestHarness testHarness(
