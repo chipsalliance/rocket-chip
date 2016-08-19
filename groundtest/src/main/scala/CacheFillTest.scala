@@ -4,6 +4,7 @@ import Chisel._
 import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
+import uncore.util._
 import cde.{Parameters, Field}
 
 class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
@@ -13,7 +14,7 @@ class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
   val s_start :: s_prefetch :: s_retrieve :: s_finished :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_start)
 
-  val active = state === s_prefetch || state === s_retrieve
+  val active = state.isOneOf(s_prefetch, s_retrieve)
 
   val xact_pending = Reg(init = UInt(0, tlMaxClientXacts))
   val xact_id = PriorityEncoder(~xact_pending)

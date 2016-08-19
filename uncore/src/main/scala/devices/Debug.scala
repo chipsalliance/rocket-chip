@@ -4,6 +4,7 @@ package uncore.devices
 
 import Chisel._
 import uncore.tilelink._
+import uncore.util._
 import junctions._
 import cde.{Parameters, Config, Field}
 
@@ -901,7 +902,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   when (sbAddr(11, 8) === UInt(4)) {                                 //0x400-0x4FF Debug RAM
     sbRdData  := sbRamRdData
     sbRamRdEn := sbRdEn
-  }.elsewhen (sbAddr(11,8) === UInt(8) || sbAddr(11,8) === UInt(9)){ //0x800-0x9FF Debug ROM
+  }.elsewhen (sbAddr(11,8).isOneOf(UInt(8), UInt(9))){ //0x800-0x9FF Debug ROM
     if (cfg.hasDebugRom) {
       sbRdData := sbRomRdData
     } else {

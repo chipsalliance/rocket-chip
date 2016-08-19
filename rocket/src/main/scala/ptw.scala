@@ -130,7 +130,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   pte_wdata.a := true
   pte_wdata.d := r_req.store
   
-  io.mem.req.valid     := state === s_req || state === s_set_dirty
+  io.mem.req.valid     := state.isOneOf(s_req, s_set_dirty)
   io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := Mux(state === s_set_dirty, M_XA_OR, M_XRD)
   io.mem.req.bits.typ  := log2Ceil(xLen/8)

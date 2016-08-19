@@ -74,7 +74,7 @@ class HastiRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p) {
     (0 until max_size).map(sz => (UInt(sz) -> UInt((1 << (1 << sz)) - 1))))
   val wmask = (wmask_lut << waddr(max_size - 1, 0))(hastiDataBytes - 1, 0)
 
-  val is_trans = io.hsel && (io.htrans === HTRANS_NONSEQ || io.htrans === HTRANS_SEQ)
+  val is_trans = io.hsel && io.htrans.isOneOf(HTRANS_NONSEQ, HTRANS_SEQ)
   val raddr = io.haddr >> UInt(max_size)
   val ren = is_trans && !io.hwrite
   val bypass = Reg(init = Bool(false))

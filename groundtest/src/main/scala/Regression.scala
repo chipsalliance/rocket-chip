@@ -4,6 +4,7 @@ import Chisel._
 import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
+import uncore.util._
 import junctions.{ParameterizedBundle, HasAddrMapParameters, Timer}
 import rocket.HellaCacheIO
 import cde.{Parameters, Field}
@@ -159,7 +160,7 @@ class NoAllocPutHitRegression(implicit p: Parameters) extends Regression()(p) {
     client_xact_id = UInt(2),
     addr_block = addr_block)
 
-  io.mem.acquire.valid := (state === s_prefetch) || (state === s_get) || (state === s_put)
+  io.mem.acquire.valid := state.isOneOf(s_prefetch, s_get, s_put)
   io.mem.acquire.bits := MuxCase(get_acq, Seq(
     (state === s_prefetch) -> prefetch_acq,
     (state === s_put) -> put_acq))
@@ -235,11 +236,11 @@ class MixedAllocPutRegression(implicit p: Parameters) extends Regression()(p) {
     addr_block = test_block(get_acq_id),
     addr_beat = test_beat(get_acq_id))
 
-  io.mem.acquire.valid := (state === s_pf_send) || (state === s_put_send) || (state === s_get_send)
+  io.mem.acquire.valid := state.isOneOf(s_pf_send, s_put_send, s_get_send)
   io.mem.acquire.bits := MuxLookup(state, pf_acquire, Seq(
     s_put_send -> put_acquire,
     s_get_send -> get_acquire))
-  io.mem.grant.ready := (state === s_pf_wait) || (state === s_put_wait) || (state === s_get_wait)
+  io.mem.grant.ready := state.isOneOf(s_pf_wait, s_put_wait, s_get_wait)
 
   when (state === s_idle && io.start) { state := s_pf_send }
   when (state === s_pf_send && io.mem.acquire.ready) { state := s_pf_wait }
@@ -321,9 +322,9 @@ class WriteMaskedPutBlockRegression(implicit p: Parameters) extends Regression()
     client_xact_id = UInt(0),
     addr_block = UInt(memStartBlock + 6) + stage)
 
-  io.mem.acquire.valid := (state === s_put_send || state === s_get_send)
+  io.mem.acquire.valid := state.isOneOf(s_put_send, s_get_send)
   io.mem.acquire.bits := Mux(state === s_get_send, get_acq, put_acq)
-  io.mem.grant.ready := (state === s_put_ack || state === s_get_ack)
+  io.mem.grant.ready := state.isOneOf(s_put_ack, s_get_ack)
 
   val (get_cnt, get_done) = Counter(
     io.mem.grant.fire() && gnt.hasData(), tlDataBeats)
@@ -491,7 +492,7 @@ class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
   val s_idle :: s_write :: s_read :: s_done :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
 
-  io.cache.req.valid := sending && (state === s_write || state === s_read)
+  io.cache.req.valid := sending && state.isOneOf(s_write, s_read)
   io.cache.req.bits.addr := Cat(addr_blocks(req_idx), UInt(0, blockOffset))
   io.cache.req.bits.typ := UInt(log2Ceil(64 / 8))
   io.cache.req.bits.cmd := Mux(state === s_write, M_XWR, M_XRD)
@@ -544,7 +545,7 @@ class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p
 
   val (ack_cnt, all_acked) = Counter(io.mem.grant.fire(), 2)
 
-  io.mem.acquire.valid := (state === s_put) || (state === s_putblock)
+  io.mem.acquire.valid := state.isOneOf(s_put, s_putblock)
   io.mem.acquire.bits := Mux(state === s_put, put_acquire, put_block_acquire)
   io.mem.grant.ready := (state === s_wait)
 

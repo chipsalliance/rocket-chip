@@ -282,12 +282,6 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(UInt(), 9)
   val state = Reg(init=s_invalid)
 
-  def stateIsOneOf(check_states: Seq[UInt]): Bool =
-    check_states.map(state === _).reduce(_ || _)
-
-  def stateIsOneOf(st1: UInt, st2: UInt*): Bool =
-    stateIsOneOf(st1 +: st2)
-
   val new_coh_state = Reg(init=ClientMetadata.onReset)
   val req = Reg(new MSHRReqInternal())
   val req_idx = req.addr(untagBits-1,blockOffBits)
@@ -306,14 +300,14 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val (refill_cnt, refill_count_done) = Counter(io.mem_grant.valid && gnt_multi_data, refillCycles)
   val refill_done = io.mem_grant.valid && (!gnt_multi_data || refill_count_done)
   val sec_rdy = idx_match &&
-                  (stateIsOneOf(states_before_refill) ||
-                    (stateIsOneOf(s_refill_req, s_refill_resp) &&
+                  (state.isOneOf(states_before_refill) ||
+                    (state.isOneOf(s_refill_req, s_refill_resp) &&
                       !cmd_requires_second_acquire && !refill_done))
 
   val rpq = Module(new Queue(new ReplayInternal, p(ReplayQueueDepth)))
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && !isPrefetch(io.req_bits.cmd)
   rpq.io.enq.bits := io.req_bits
-  rpq.io.deq.ready := io.replay.ready && state === s_drain_rpq || state === s_invalid
+  rpq.io.deq.ready := (io.replay.ready && state === s_drain_rpq) || state === s_invalid
 
   val coh_on_grant = req.old_meta.coh.onGrant(
                           incoming = io.mem_grant.bits,
@@ -373,7 +367,7 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val fq = Module(new FinishQueue(1))
   val g = io.mem_grant.bits
-  val can_finish = state === s_invalid || state === s_refill_req
+  val can_finish = state.isOneOf(s_invalid, s_refill_req)
   fq.io.enq.valid := io.mem_grant.valid && g.requiresAck() && refill_done
   fq.io.enq.bits := g.makeFinish()
   io.mem_finish.valid := fq.io.deq.valid && can_finish
@@ -390,9 +384,9 @@ class MSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val meta_hazard = Reg(init=UInt(0,2))
   when (meta_hazard =/= UInt(0)) { meta_hazard := meta_hazard + 1 }
   when (io.meta_write.fire()) { meta_hazard := 1 }
-  io.probe_rdy := !idx_match || (!stateIsOneOf(states_before_refill) && meta_hazard === 0) 
+  io.probe_rdy := !idx_match || (!state.isOneOf(states_before_refill) && meta_hazard === 0) 
 
-  io.meta_write.valid := state === s_meta_write_req || state === s_meta_clear
+  io.meta_write.valid := state.isOneOf(s_meta_write_req, s_meta_clear)
   io.meta_write.bits.idx := req_idx
   io.meta_write.bits.data.coh := Mux(state === s_meta_clear,
                                       req.old_meta.coh.onCacheControl(M_FLUSH),

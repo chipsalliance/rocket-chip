@@ -349,7 +349,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val cpu_wen = cpu_ren && io.rw.cmd =/= CSR.R && priv_sufficient
   val wen = cpu_wen && !read_only
 
-  val wdata = (Mux((io.rw.cmd === CSR.S || io.rw.cmd === CSR.C), io.rw.rdata, UInt(0)) |
+  val wdata = (Mux(io.rw.cmd.isOneOf(CSR.S, CSR.C), io.rw.rdata, UInt(0)) |
                Mux(io.rw.cmd =/= CSR.C, io.rw.wdata, UInt(0))) &
               ~Mux(io.rw.cmd === CSR.C, io.rw.wdata, UInt(0))
 

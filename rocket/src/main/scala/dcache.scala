@@ -88,7 +88,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val release_state = Reg(init=s_ready)
   val pstore1_valid = Wire(Bool())
   val pstore2_valid = Reg(Bool())
-  val inWriteback = release_state === s_voluntary_writeback || release_state === s_probe_rep_dirty
+  val inWriteback = release_state.isOneOf(s_voluntary_writeback, s_probe_rep_dirty)
   val releaseWay = Wire(UInt())
   io.cpu.req.ready := (release_state === s_ready) && !grant_wait && !s1_nack
 
@@ -345,14 +345,14 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     }
   }
   when (releaseDone) { release_state := s_ready }
-  when (release_state === s_probe_rep_miss || release_state === s_probe_rep_clean) {
+  when (release_state.isOneOf(s_probe_rep_miss, s_probe_rep_clean)) {
     io.mem.release.valid := true
   }
-  when (release_state === s_probe_rep_clean || release_state === s_probe_rep_dirty) {
+  when (release_state.isOneOf(s_probe_rep_clean, s_probe_rep_dirty)) {
     io.mem.release.bits := probeResponseMessage
     when (releaseDone) { release_state := s_probe_write_meta }
   }
-  when (release_state === s_voluntary_writeback || release_state === s_voluntary_write_meta) {
+  when (release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)) {
     io.mem.release.bits := voluntaryReleaseMessage
     newCoh := voluntaryNewCoh
     releaseWay := s2_victim_way
@@ -371,7 +371,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   dataArb.io.in(2).bits.addr := Cat(io.mem.release.bits.addr_block, releaseDataBeat(log2Up(refillCycles)-1,0)) << rowOffBits
   dataArb.io.in(2).bits.way_en := ~UInt(0, nWays)
 
-  metaWriteArb.io.in(2).valid := (release_state === s_voluntary_write_meta || release_state === s_probe_write_meta)
+  metaWriteArb.io.in(2).valid := release_state.isOneOf(s_voluntary_write_meta, s_probe_write_meta)
   metaWriteArb.io.in(2).bits.way_en := releaseWay
   metaWriteArb.io.in(2).bits.idx := io.mem.release.bits.full_addr()(idxMSB, idxLSB)
   metaWriteArb.io.in(2).bits.data.coh := newCoh

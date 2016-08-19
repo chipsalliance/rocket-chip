@@ -4,6 +4,7 @@ import Chisel._
 import junctions._
 import uncore.tilelink._
 import uncore.constants._
+import uncore.util._
 import cde.Parameters
 
 abstract class Driver(implicit p: Parameters) extends TLModule()(p) {
@@ -167,7 +168,7 @@ class PutSweepDriver(val n: Int)(implicit p: Parameters) extends Driver()(p) {
   val put_data = Fill(dataRep, put_cnt)(tlDataBits - 1, 0)
   val get_data = Fill(dataRep, get_cnt)(tlDataBits - 1, 0)
 
-  io.mem.acquire.valid := (state === s_put_req) || (state === s_get_req)
+  io.mem.acquire.valid := state.isOneOf(s_put_req, s_get_req)
   io.mem.acquire.bits := Mux(state === s_put_req,
     Put(
       client_xact_id = UInt(0),
@@ -178,7 +179,7 @@ class PutSweepDriver(val n: Int)(implicit p: Parameters) extends Driver()(p) {
       client_xact_id = UInt(0),
       addr_block = get_block,
       addr_beat = get_beat))
-  io.mem.grant.ready := (state === s_put_resp) || (state === s_get_resp)
+  io.mem.grant.ready := state.isOneOf(s_put_resp, s_get_resp)
 
   when (state === s_idle && io.start) { state := s_put_req }
   when (state === s_put_req && io.mem.acquire.ready) { state := s_put_resp }
@@ -239,7 +240,7 @@ class PutMaskDriver(minBytes: Int = 1)(implicit p: Parameters) extends Driver()(
   }
 
   io.finished := (state === s_done)
-  io.mem.acquire.valid := (state === s_put_req) || (state === s_get_req)
+  io.mem.acquire.valid := state.isOneOf(s_put_req, s_get_req)
   io.mem.acquire.bits := Mux(state === s_put_req,
     Put(
       client_xact_id = UInt(0),
@@ -251,7 +252,7 @@ class PutMaskDriver(minBytes: Int = 1)(implicit p: Parameters) extends Driver()(
       client_xact_id = UInt(0),
       addr_block = UInt(0),
       addr_beat = UInt(0)))
-  io.mem.grant.ready := (state === s_put_resp) || (state === s_get_resp)
+  io.mem.grant.ready := state.isOneOf(s_put_resp, s_get_resp)
 
   assert(!io.mem.grant.valid || state =/= s_get_resp ||
          io.mem.grant.bits.data === expected,
@@ -295,9 +296,9 @@ class PutBlockSweepDriver(val n: Int)(implicit p: Parameters)
     addr_block = get_cnt)
 
   io.finished := (state === s_done)
-  io.mem.acquire.valid := (state === s_put_req) || (state === s_get_req)
+  io.mem.acquire.valid := state.isOneOf(s_put_req, s_get_req)
   io.mem.acquire.bits := Mux(state === s_put_req, put_acquire, get_acquire)
-  io.mem.grant.ready := (state === s_put_resp) || (state === s_get_resp)
+  io.mem.grant.ready := state.isOneOf(s_put_resp, s_get_resp)
 
   assert(!io.mem.grant.valid || state =/= s_get_resp ||
          io.mem.grant.bits.data === get_data,
