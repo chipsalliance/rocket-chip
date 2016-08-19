@@ -16,3 +16,6 @@
 [submodule "firrtl"]
 	path = firrtl
 	url = https://github.com/ucb-bar/firrtl.git
+[submodule "openocd"]
+	path = openocd
+	url = http://github.com/sifive/openocd.git

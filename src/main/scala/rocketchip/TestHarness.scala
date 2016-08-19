@@ -6,6 +6,7 @@ import Chisel._
 import cde.{Parameters, Field}
 import rocket.Util._
 import junctions._
+import uncore.devices.{IncludeJtagDTM} 
 
 class TestHarness(implicit p: Parameters) extends Module {
   val io = new Bundle {
@@ -26,9 +27,6 @@ class TestHarness(implicit p: Parameters) extends Module {
   require(dut.io.mmio_axi.isEmpty)
   require(dut.io.mmio_ahb.isEmpty)
   require(dut.io.mmio_tl.isEmpty)
-  require(dut.io.debug_clk.isEmpty)
-  require(dut.io.debug_rst.isEmpty)
-  require(dut.io.debug_rst.isEmpty)
   require(dut.io.extra.elements.isEmpty)
 
   for (int <- dut.io.interrupts)
@@ -41,14 +39,42 @@ class TestHarness(implicit p: Parameters) extends Module {
       Module(new SimAXIMem(memSize / dut.io.mem_axi.size)).io.axi <> axi
   }
 
-  val dtm = Module(new SimDTM)
-  dut.io.debug <> dtm.io.debug
-  dtm.io.clk := clock
-  dtm.io.reset := reset
-  io.success := dut.io.success.getOrElse(dtm.io.exit === 1)
-  when (dtm.io.exit >= 2) {
-    printf("*** FAILED *** (exit code = %d)\n", dtm.io.exit >> 1)
-    stop(1)
+  if (p(IncludeJtagDTM)) {
+    val jtag_vpi = Module (new JtagVpi)
+    dut.io.jtag.get <> jtag_vpi.io.jtag
+
+    // To be proper,
+    // TRST should really be synchronized
+    // with TCK. But this is a fairly
+    // accurate representation of how
+    // HW may drive this signal.
+    // Neither OpenOCD nor JtagVPI drive TRST.
+
+    dut.io.jtag.get.TRST := reset 
+    jtag_vpi.io.enable := ~reset
+    jtag_vpi.io.init_done := ~reset
+    io.success := Bool(false)
+  }
+  else {
+    val dtm = Module(new SimDTM)
+    dut.io.debug.get <> dtm.io.debug
+
+    // Todo: enable the usage of different clocks.
+
+    val dtm_clock = clock
+    val dtm_reset = reset
+    dtm.io.clk := dtm_clock
+    dtm.io.reset := dtm_reset
+    if (dut.io.debug_clk.isDefined)
+      dut.io.debug_clk.get := dtm_clock
+    if (dut.io.debug_rst.isDefined)
+      dut.io.debug_rst.get := dtm_reset
+
+    io.success := dut.io.success.getOrElse(dtm.io.exit === 1)
+    when (dtm.io.exit >= 2) {
+      printf("*** FAILED *** (exit code = %d)\n", dtm.io.exit >> 1)
+      stop(1)
+    }
   }
 }
 
@@ -112,5 +138,15 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
     val reset = Bool(INPUT)
     val debug = new uncore.devices.DebugBusIO
     val exit = UInt(OUTPUT, 32)
+  }
+}
+
+
+class JtagVpi(implicit val p: Parameters) extends BlackBox {
+
+  val io = new Bundle {
+    val jtag = new JtagIO(false)
+    val enable = Bool(INPUT)
+    val init_done = Bool(INPUT)
   }
 }

@@ -122,6 +122,7 @@ class BasePlatformConfig extends Config (
       case BuildCoreplex => (p: Parameters) => Module(new DefaultCoreplex(p))
       case NExtInterrupts => 2
       case AsyncDebugBus => false
+      case IncludeJtagDTM => false
       case AsyncMMIOChannels => false
       case ExtraDevices => Nil
       case ExtraTopPorts => (p: Parameters) => new Bundle
@@ -277,4 +278,18 @@ class WithTestRAM extends Config(
       }
       Seq(new TestRAMDevice)
     }
-  })
+  }
+)
+
+class WithAsyncDebug extends Config (
+  (pname, site, here) => pname match {
+     case AsyncDebugBus => true
+  }
+)
+
+
+class WithJtagDTM extends Config (
+  (pname, site, here) => pname match {
+     case IncludeJtagDTM => true
+  }
+)
