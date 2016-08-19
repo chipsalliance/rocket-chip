@@ -166,67 +166,45 @@ to stress-test both the core and uncore portions of the design.
 
 In addition to submodules, which are tracked as different git repositories,
 the rocket-chip Chisel code base is factored into a number of Scala packages. 
-Here is a brief description
-of what can be found in each package:
+Here is a brief description of what can be found in each package:
 
 * **rocket**
-([https://github.com/ucb-bar/rocket](https://github.com/ucb-bar/rocket)):
-The rocket repository holds the actual source code of the Rocket core.
+The rocket package holds the actual source code of the Rocket core.
 Note that the L1 blocking I$ and the L1 non-blocking D$ are considered
 part of the core, and hence we keep the L1 cache source code in this
 repository. This repository is not meant to stand alone; it needs to be
 included in a chip repository (e.g.  rocket-chip) that instantiates the
 core within a memory system and connects it to the outside world.
 * **uncore**
-([https://github.com/ucb-bar/uncore](https://github.com/ucb-bar/uncore)):
-This repository implements the uncore logic, such as the coherence hub
+This package implements the uncore logic, such as the L2 coherence hub
 (the agent that keeps multiple L1 D$ coherent). The definition of the
 coherent interfaces between tiles ("tilelink") and the debug interface
 also live in this repository.
 * **junctions**
-([https://github.com/ucb-bar/junctions](https://github.com/ucb-bar/junctions)):
-This repository contains code and
+This package contains code and
 converters for various bus protocols and interfaces. 
 * **groundtest**
-([https://github.com/ucb-bar/groundtest](https://github.com/ucb-bar/groundtest)):
-This repository contains code which can test the uncore by generating randomized
+This package contains code which can test the uncore by generating randomized
 instruction streams. It replaces the rocket processor with an instruction
 stream generator to stress-test the uncore portions of the design.
+* **coreplex**
+This package pieces together the parts of a working coreplex, including
+the rocket tiles, L1-to-L2 network, L2 coherence agents, and internal devices
+like the debug unit and boot ROM.
+* **rocketchip**
+The top-level package instantiates the coreplex and drops in any
+external-facing devices. It also includes clock-crossers and converters
+from TileLink to external bus protocols (like AXI or AHB).
 
 ### <a name="what_toplevel"></a>The Top Level Module
 
-Next, take a look at rocket-chip's src/main/scala directory.
+Take a look at the src/main/scala/rocketchip directory.
 This directory has the Chisel source files including the top level
-RocketChip.scala, which
-instantiates both a Rocket core and the uncore logic, and then glues
-them together. Here's a brief overview of source files found in the
-rocket-chip repository:
-
-* **RocketChip.scala**: Top-level source file (Top is the top-level
-module name), which instantiates a Rocket core, uncore logic, and glues
-them together.
-* **Network.scala**: This source file holds the crossbar network used in
-the uncore for multi-core implementations.
-* **Configs.scala**: This holds all the rocket-chip parameters.
-Probably this file is the most important file for external users. We
-will revisit this topic in the next section "How should I use the Rocket
-chip generator?", and will also post a more detailed explanation of the
-parameter infrastructure in the near future.
-* **Backends.scala**: An example of how the Chisel compiler's VLSI
-backend can be extended to route a pin named "init" to all SRAM blocks
-used in the design.  This separation cleans up the source RTL of the
-design, since we don't need to add all the vendor-specific stuff in the
-Chisel source code, yet still can correctly hook up our particular
-SRAMs. The transformation is just a "compiler pass" in the Chisel
-backend that happens as the compiler translates the Chisel source code
-down to Verilog. Pretty neat huh?
-* **Vlsi.scala**: This file is pretty specific to our tapeouts. It
-implements logic to interface with an arbitrary number of slow
-single-ended digital I/Os when implementing a test chip.
+RocketChip.scala.
 
 Take a look at the top-level I/O pins. Open up
-src/main/scala/RocketChip.scala, and search for TopIO. You will read the
-following:
+src/main/scala/rocketchip/RocketChip.scala, and search for TopIO.
+You will read the following:
 
     /** Top-level io for the chip */
     class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
@@ -259,13 +237,6 @@ on the chip but outside of the rocket-chip boundary. Depending on the
 configuration of the design, these may be visible as AXI or AHB.
 * **Interrupts interface (interrupts)**: This interface is used to
 deliver external interrupts to the processor core.
-
-Of course, there's a lot more in the submodules, but
-this should be enough to get you started with the Rocket chip
-generator. We will keep documenting more about our designs in the
-respective README of each submodules, release notes, and even blog
-posts. In the mean time, please post questions to the hw-dev mailing
-list.
 
 ## <a name="how"></a> How should I use the Rocket chip generator?
 
