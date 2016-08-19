@@ -8,6 +8,7 @@ cache:
   directories:
     $HOME/.ivy2
     regression/install
+    emulator/verilator/install
 
 # packages needed to build riscv-tools
 addons:
