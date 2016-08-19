@@ -19,10 +19,60 @@ abstract class TLBundleBase(val params: TLBundleParameters) extends Bundle
   }
 }
 
+object TLMessages 
+{
+  //                                  A    B    C    D    E
+  val Get            = UInt(0) //     .    .
+  val PutFullData    = UInt(1) //     .    .
+  val PutPartialData = UInt(2) //     .    .
+  val AtomicData     = UInt(3) //     .    .
+  val Hint           = UInt(4) //     .    .
+  val AccessAck      = UInt(0) //               .    .
+  val AccessAckData  = UInt(1) //               .    .
+  val Acquire        = UInt(5) //     .
+  val Probe          = UInt(5) //          .
+  val ProbeAck       = UInt(2) //               .
+  val ProbeAckData   = UInt(3) //               .
+  val Release        = UInt(4) //               .
+  val ReleaseData    = UInt(5) //               .
+//val PutThroughData = UInt(6) //               .              // future extension
+  val ReleaseAck     = UInt(2) //                    .
+  val Grant          = UInt(3) //                    .
+  val GrantData      = UInt(4) //                    .
+  val GrantAck       = UInt(0) //                         .
+}
+
+object TLPermissions
+{
+  // Cap types (Grant = new permissions, Probe = permisions <= target)
+  val toT = UInt(0)
+  val toB = UInt(1)
+  val toN = UInt(2)
+
+  // Grow types (Acquire = permissions >= target)
+  val NtoB = UInt(0)
+  val NtoT = UInt(1)
+  val BtoT = UInt(2)
+
+  // Shrink types (ProbeAck, Release)
+  val TtoB = UInt(0)
+  val TtoN = UInt(1)
+  val BtoN = UInt(2)
+
+  // Report types (ProbeAck)
+  val TtoT = UInt(3)
+  val BtoB = UInt(4)
+  val NtoN = UInt(5)
+}
+
+object TLAtomics
+{
+}
+
 class TLBundleA(params: TLBundleParameters) extends TLBundleBase(params)
 {
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 3) // amo_opcode || perms(req)
+  val param   = UInt(width = 4) // amo_opcode || perms || hint
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits)  // from
   val address = UInt(width = params.addressBits) // to
@@ -33,7 +83,7 @@ class TLBundleA(params: TLBundleParameters) extends TLBundleBase(params)
 class TLBundleB(params: TLBundleParameters) extends TLBundleBase(params)
 {
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 3) // amo_opcode || perms(req)
+  val param   = UInt(width = 4)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits)  // to
   val address = UInt(width = params.addressBits) // from
@@ -44,8 +94,9 @@ class TLBundleB(params: TLBundleParameters) extends TLBundleBase(params)
 class TLBundleC(params: TLBundleParameters) extends TLBundleBase(params)
 {
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 3) // perms(from=>to)
+  val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
+  val source  = UInt(width = params.sourceBits)  // from
   val address = UInt(width = params.addressBits) // to
   val data    = UInt(width = params.dataBits)
   val error   = Bool()
@@ -54,7 +105,7 @@ class TLBundleC(params: TLBundleParameters) extends TLBundleBase(params)
 class TLBundleD(params: TLBundleParameters) extends TLBundleBase(params)
 {
   val opcode = UInt(width = 3)
-  val param  = UInt(width = 3) // perms(to)
+  val param  = UInt(width = 2)
   val size   = UInt(width = params.sizeBits)
   val source = UInt(width = params.sourceBits) // to
   val sink   = UInt(width = params.sinkBits)   // from
