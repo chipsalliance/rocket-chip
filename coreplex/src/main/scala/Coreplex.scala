@@ -61,7 +61,7 @@ trait HasCoreplexParameters {
   *
   * Usually this is clocked and/or place-and-routed separately from the Tiles.
   */
-class Uncore(resetSignal:Bool = null)(implicit val p: Parameters) extends Module(_reset = resetSignal)
+class Uncore(implicit val p: Parameters) extends Module
     with HasCoreplexParameters {
 
   val io = new Bundle {
@@ -73,14 +73,13 @@ class Uncore(resetSignal:Bool = null)(implicit val p: Parameters) extends Module
     val mmio = if (exportMMIO) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debug = new DebugBusIO()(p).flip
-    val core_clk = Vec(p(NTiles) - 1, Clock()).asInput
-    val oms_clk = Clock().asInput
+    val oms_clk = Clock(INPUT)
+    val oms_reset = Bool(INPUT)
   }
 
-  val oms_reset = ResetSync(reset, io.oms_clk) // TODOHurricane - oms_reset should come from a control register
   val outmemsys = if (nCachedTilePorts + nUncachedTilePorts > 0)
-    Module(new DefaultOuterMemorySystem(clockSignal = io.oms_clk, resetSignal = oms_reset)) // NoC, LLC and SerDes
-  else Module(new DummyOuterMemorySystem)
+    Module(new DefaultOuterMemorySystem(clockSignal = io.oms_clk, resetSignal = io.oms_reset)) // NoC, LLC and SerDes
+  else Module(new DummyOuterMemorySystem(clockSignal = io.oms_clk, resetSignal = io.oms_reset))
   outmemsys.io.incoherent foreach (_ := false)
   outmemsys.io.tiles_uncached <> io.tiles_uncached
   outmemsys.io.tiles_cached <> io.tiles_cached
@@ -158,7 +157,7 @@ abstract class OuterMemorySystem(clockSignal: Clock = null, resetSignal: Bool = 
 }
 
 /** Use in place of OuterMemorySystem if there are no clients to connect. */
-class DummyOuterMemorySystem(clockSignal: Clock = null, resetSignal: Bool = null)(implicit val p: Parameters)
+class DummyOuterMemorySystem(clockSignal: Clock = null, resetSignal: Bool = null)(implicit p: Parameters)
     extends OuterMemorySystem(clockSignal, resetSignal) with HasCoreplexParameters {
   require(nCachedTilePorts + nUncachedTilePorts == 0)
   require(io.bus.isEmpty)
@@ -175,7 +174,7 @@ class DummyOuterMemorySystem(clockSignal: Clock = null, resetSignal: Bool = null
 /** The whole outer memory hierarchy, including a NoC, some kind of coherence
   * manager agent, and a converter from TileLink to MemIO.
   */ 
-class DefaultOuterMemorySystem(clockSignal: Clock = null, resetSignal: Bool = null)(implicit val p: Parameters)
+class DefaultOuterMemorySystem(clockSignal: Clock = null, resetSignal: Bool = null)(implicit p: Parameters)
     extends OuterMemorySystem(clockSignal, resetSignal) with HasCoreplexParameters {
   // Create a simple L1toL2 NoC between the tiles and the banks of outer memory
   // Cached ports are first in client list, making sharerToClientId just an indentity function
@@ -243,6 +242,9 @@ abstract class Coreplex(implicit val p: Parameters) extends Module
     val debug = new DebugBusIO()(p).flip
     val extra = p(ExtraCoreplexPorts)(p)
     val success: Option[Bool] = if (hasSuccessFlag) Some(Bool(OUTPUT)) else None
+    val core_clk = Vec(p(NTiles) - 1, Clock(INPUT))
+    val oms_clk = Clock(INPUT)
+    val oms_reset = Bool(INPUT)
   }
 
   def hasSuccessFlag: Boolean = false
@@ -280,6 +282,7 @@ class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
   uncore.io.interrupts <> io.interrupts
   uncore.io.oms_clk := io.oms_clk
+  uncore.io.oms_reset := io.oms_reset
 
   uncore.io.debug <> io.debug
   if (exportBus) { uncore.io.bus.get <> io.bus.get }
@@ -290,4 +293,19 @@ class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
 class GroundTestCoreplex(topParams: Parameters) extends DefaultCoreplex(topParams) {
   override def hasSuccessFlag = true
   io.success.get := tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
+}
+
+class ResetSync(c: Clock, lat: Int = 2) extends Module(_clock = c) {
+  val io = new Bundle {
+    val reset = Bool(INPUT)
+    val reset_sync = Bool(OUTPUT)
+  }
+  io.reset_sync := ShiftRegister(io.reset,lat)
+}
+object ResetSync {
+  def apply(r: Bool, c: Clock): Bool =  {
+    val sync = Module(new ResetSync(c,2))
+    sync.io.reset := r
+    sync.io.reset_sync
+  }
 }

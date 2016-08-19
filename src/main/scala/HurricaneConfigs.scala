@@ -12,6 +12,7 @@ import rocket.Util._
 import groundtest._
 import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
+import coreplex._
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError, Field}
 import hwacha._

@@ -73,12 +73,9 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem_clk = if (p(AsyncMemChannels)) Some(Vec(nMemChannels, Clock(INPUT))) else None
   val mem_rst = if (p(AsyncMemChannels)) Some(Vec(nMemChannels, Bool (INPUT))) else None
-  val mem_axi = Vec(nMemAXIChannels, new NastiIO)
+  val mem_axi = if (p(NarrowIF)) Vec(0, new NastiIO) else Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
   val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
-  val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
-  val core_clk = Vec(p(NTiles) - 1, Clock(INPUT))
-  val oms_clk = Clock(INPUT)
   val bus_clk = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Clock(INPUT))) else None
   val bus_rst = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Bool (INPUT))) else None
   val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
@@ -91,6 +88,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val debug_rst = if (p(AsyncDebugBus)) Some(Bool(INPUT)) else None
   val debug = new DebugBusIO()(p).flip
   val extra = p(ExtraTopPorts)(p)
+  val mem_narrow = if (p(NarrowIF)) Some(new NarrowIO(p(NarrowWidth))) else None
 }
 
 object TopUtils {
@@ -133,6 +131,13 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   }
   io.success zip coreplex.io.success map { case (x, y) => x := y }
 
+  // Downstream, these should come from the ClockTop blackbox
+  val oms_clk = clock
+  val oms_reset = ResetSync(reset, oms_clk) // TODOHurricane - oms_reset should come from a control register
+  coreplex.io.oms_clk := clock
+  coreplex.io.oms_reset := oms_reset
+  coreplex.io.core_clk.map(_ := clock)
+
   if (exportMMIO) { periphery.io.mmio_in.get <> coreplex.io.mmio.get }
   periphery.io.mem_in <> coreplex.io.mem
   if (exportBus) { coreplex.io.bus.get <> periphery.io.bus_out.get }
@@ -159,10 +164,17 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   io.mmio_ahb <> periphery.io.mmio_ahb
   io.mmio_tl <> periphery.io.mmio_tl
 
-  io.mem_axi <>
-    (if (p(AsyncMemChannels))
-      asyncAxiTo(io.mem_clk.get, io.mem_rst.get, periphery.io.mem_axi)
-    else periphery.io.mem_axi)
+  if (p(NarrowIF)) {
+    require(nMemAXIChannels == 1)
+    val ser = Module(new NastiSerializer(w = p(NarrowWidth), divide = 8))
+      //TODOHurricane - divide as SCR
+    io.mem_narrow.get <> ser.io.narrow
+    ser.io.nasti <> periphery.io.mem_axi(0)
+  } else
+    io.mem_axi <>
+      (if (p(AsyncMemChannels))
+        asyncAxiTo(io.mem_clk.get, io.mem_rst.get, periphery.io.mem_axi)
+      else periphery.io.mem_axi)
   io.mem_ahb <> periphery.io.mem_ahb
   io.mem_tl <> periphery.io.mem_tl
 

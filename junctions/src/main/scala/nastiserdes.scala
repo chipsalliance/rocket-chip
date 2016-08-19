@@ -1,20 +1,11 @@
 /// See LICENSE for license details.
 
-package rocketchip
+package junctions
 
 import Chisel._
 import scala.math.max
 import scala.collection.mutable.ArraySeq
 import cde.{Parameters, Field}
-import junctions._
-import uncore.tilelink._
-import uncore.coherence._
-import uncore.agents._
-import uncore.devices._
-import uncore.util._
-import uncore.converters._
-import rocket._
-import rocket.Util._
 
 class NarrowIO(val w: Int) extends Bundle {
   val chipToWorld = Decoupled(UInt(width = w))
@@ -23,30 +14,6 @@ class NarrowIO(val w: Int) extends Bundle {
   val chipToWorld_sync = Bool(OUTPUT)
   val worldToChip_sync = Bool(OUTPUT)
   override def cloneType = new NarrowIO(w).asInstanceOf[this.type]
-}
-
-class ChipIO(implicit p: Parameters) extends BasicTopIO()(p) {
-  val mem_narrow = new NarrowIO(p(NarrowWidth))
-  val debug = new DebugBusIO()(p).flip // TODO - this should become JTAG
-  // TODO - add clock inputs and wire them into ClockTop and then top level
-}
-
-class ChipTop(topParams: Parameters) extends Module with HasTopLevelParameters {
-  implicit val p = topParams
-  val io = new ChipIO
-
-  require(nMemAXIChannels == 1)
-  
-  val rocketChip = Module(new Top(p))
-  val ser = Module(new NastiSerializer(w = p(NarrowWidth), divide = 8))
-
-  rocketChip.io.interrupts.map(_ := Bool(false))
-  rocketChip.io.debug <> io.debug
-  io.mem_narrow <> ser.io.narrow
-  ser.io.nasti <> rocketChip.io.mem_axi(0)
-
-  rocketChip.io.oms_clk := clock
-  rocketChip.io.core_clk.map(_ := clock)
 }
 
 class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) extends NastiModule {
@@ -195,12 +162,9 @@ class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) exten
   }
 }
 
-class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelParameters {
-  implicit val p = topParams
-  val w = p(NarrowWidth)
-
+class NastiDeserializer(val w: Int)(implicit p: Parameters) extends NastiModule{
   val io = new Bundle {
-    val mem_axi_0 = new NastiIO
+    val mem_axi = new NastiIO
     val narrow = (new NarrowIO(w)).flip
   }
 
@@ -211,7 +175,7 @@ class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelPa
   val fall_edge = div_clk_reg & ~div_clk
   val addr_update = RegNext(fall_edge)
 
-  val writePorts = Seq(io.mem_axi_0.b, io.mem_axi_0.r)
+  val writePorts = Seq(io.mem_axi.b, io.mem_axi.r)
   val wBits = writePorts.map(_.bits.asUInt)
   val wWidth = wBits.map(_.getWidth)
   val wBeats = wWidth.map(x => (math.ceil(x.toFloat / w)).toInt)
@@ -233,7 +197,7 @@ class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelPa
     wReady(i) := Bool(false)
   }
 
-  val readPorts = Seq(io.mem_axi_0.aw, io.mem_axi_0.w, io.mem_axi_0.ar)
+  val readPorts = Seq(io.mem_axi.aw, io.mem_axi.w, io.mem_axi.ar)
   val rBits = readPorts.map(_.bits.asUInt)
   val rWidth = rBits.map(_.getWidth)
   val rBeats = rWidth.map(x => (math.ceil(x.toFloat / w)).toInt)
@@ -348,20 +312,5 @@ class NastiDeserializer(topParams: Parameters) extends Module with HasTopLevelPa
         radvance := Bool(false)
       }
     }
-  }
-}
-
-class ResetSync(c: Clock, lat: Int = 2) extends Module(_clock = c) {
-  val io = new Bundle {
-    val reset = Bool(INPUT)
-    val reset_sync = Bool(OUTPUT)
-  }
-  io.reset_sync := ShiftRegister(io.reset,lat)
-}
-object ResetSync {
-  def apply(r: Bool, c: Clock): Bool =  {
-    val sync = Module(new ResetSync(c,2))
-    sync.io.reset := r
-    sync.io.reset_sync
   }
 }

@@ -31,14 +31,19 @@ class TestHarness(implicit p: Parameters) extends Module {
   require(dut.io.debug_rst.isEmpty)
   require(dut.io.extra.elements.isEmpty)
 
-  for (int <- dut.io.interrupts)
-    int := false
-
   if (dut.io.mem_axi.nonEmpty) {
     val memSize = p(GlobalAddrMap)("mem").size
     require(memSize % dut.io.mem_axi.size == 0)
     for (axi <- dut.io.mem_axi)
       Module(new SimAXIMem(memSize / dut.io.mem_axi.size)).io.axi <> axi
+  }
+
+  if (p(NarrowIF)) {
+    val memSize = p(GlobalAddrMap)("mem").size
+    val dessert = Module(new NastiDeserializer(w=p(NarrowWidth)))
+    dessert.io.narrow <> dut.io.mem_narrow.get
+    val sim_axi = Module(new SimAXIMem(memSize))
+    sim_axi.io.axi <> dessert.io.mem_axi
   }
 
   val dtm = Module(new SimDTM)
