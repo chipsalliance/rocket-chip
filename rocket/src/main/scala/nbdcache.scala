@@ -139,10 +139,15 @@ class L1Metadata(implicit p: Parameters) extends Metadata()(p) with HasL1HellaCa
 class Replay(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData
 class ReplayInternal(cfg: DCacheConfig)(implicit p: Parameters) extends HellaCacheReqInternal()(p) {
   val sdq_id = UInt(width = log2Up(cfg.nSDQ))
+
+  override def cloneType = new ReplayInternal(cfg)(p).asInstanceOf[this.type]
 }
 
 class MSHRReq(implicit p: Parameters) extends Replay()(p) with HasMissInfo
-class MSHRReqInternal(cfg: DCacheConfig)(implicit p: Parameters) extends ReplayInternal(cfg)(p) with HasMissInfo
+class MSHRReqInternal(cfg: DCacheConfig)(implicit p: Parameters)
+    extends ReplayInternal(cfg)(p) with HasMissInfo {
+  override def cloneType = new MSHRReqInternal(cfg)(p).asInstanceOf[this.type]
+}
 
 class ProbeInternal(implicit p: Parameters) extends Probe()(p) with HasClientTransactionId
 
