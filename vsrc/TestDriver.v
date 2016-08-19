@@ -5,7 +5,7 @@ module TestDriver;
   reg clk   = 1'b0;
   reg reset = 1'b1;
 
-  always #`CLOCK_PERIOD clk = ~clk;
+  always #(`CLOCK_PERIOD/2.0) clk = ~clk;
   initial #777.7 reset = 0;
 
   // Read input arguments and initialize
