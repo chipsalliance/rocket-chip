@@ -61,6 +61,8 @@ case class TransferSizes(min: Int, max: Int)
 object TransferSizes {
   def apply(x: Int) = new TransferSizes(x)
   val none = new TransferSizes(0)
+
+  implicit def asBool(x: TransferSizes) = !x.none
 }
 
 // AddressSets specify the mask of bits consumed by the manager
@@ -91,13 +93,13 @@ case class TLManagerParameters(
   address:            Seq[AddressSet],
   sinkId:             IdRange       = IdRange(0, 1),
   regionType:         RegionType.T  = RegionType.UNCACHEABLE,
-  // Supports both Acquire+Release of these sizes
+  // Supports both Acquire+Release+Finish of these sizes
   supportsAcquire:    TransferSizes = TransferSizes.none,
   supportsAtomic:     TransferSizes = TransferSizes.none,
   supportsGet:        TransferSizes = TransferSizes.none,
   supportsPutFull:    TransferSizes = TransferSizes.none,
   supportsPutPartial: TransferSizes = TransferSizes.none,
-  supportsHints:      Boolean       = false,
+  supportsHint:       Boolean       = false,
   // If fifoId=Some, all messages sent to the same fifoId are delivered in FIFO order
   fifoId:             Option[Int]   = None)
 {
@@ -108,6 +110,7 @@ case class TLManagerParameters(
     require (supportsAcquire.none || a.alignment1 >= supportsAcquire.max-1)
   })
 
+  // Largest support transfer of all types
   val maxTransfer = List(
     supportsAcquire.max,
     supportsAtomic.max,
@@ -128,44 +131,106 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
     })})
   })
 
+  // Bounds on required sizes
   def endSinkId   = managers.map(_.sinkId.end).max
   def maxAddress  = managers.map(_.address.map(_.max).max).max
-  def maxGet      = managers.map(_.supportsGet.max).max
   def maxTransfer = managers.map(_.maxTransfer).max
+  
+  // Operation sizes supported by all outward Managers
+  val allSupportAcquire    = managers.map(_.supportsAcquire)   .reduce(_ intersect _)
+  val allSupportAtomic     = managers.map(_.supportsAtomic)    .reduce(_ intersect _)
+  val allSupportGet        = managers.map(_.supportsGet)       .reduce(_ intersect _)
+  val allSupportPutFull    = managers.map(_.supportsPutFull)   .reduce(_ intersect _)
+  val allSupportPutPartial = managers.map(_.supportsPutPartial).reduce(_ intersect _)
+  val allSupportHint       = managers.map(_.supportsHint)      .reduce(_    &&     _)
 
-  // These return Option[TLSinkParameters] for your convenience
-  def findById(x: Int) = managers.find(_.sinkId.contains(x))
-  def findByAddress(x: BigInt) = managers.find(_.address.exists(_.contains(x)))
+  // These return Option[TLManagerParameters] for your convenience
+  def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
+  def findById(id: Int) = managers.find(_.sinkId.contains(id))
 
-  //def buildCacheInfo(): UInt => Chilse(RegionType) // UInt = address, not sink_id
-  //def buildAtomicInfo(): UInt => Bool
+  // Synthesizable lookup methods
+  def find(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
+  def findById(id: UInt) = Vec(managers.map(_.sinkId.contains(id)))
+  
+  // Does this Port manage this ID/address?
+  def contains(address: UInt) = find(address).reduce(_ || _)
+  def containsById(id: UInt) = findById(id).reduce(_ || _)
+  
+  private def safety_helper(member: TLManagerParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
+    (find(address) zip managers.map(member(_).containsLg(lgSize)))
+    .map { case (m, s) => m && s } reduce (_ || _)
+  }
+
+  // Check for support of a given operation at a specific address
+  val supportsAcquire    = safety_helper(_.supportsAcquire)    _
+  val supportsAtomic     = safety_helper(_.supportsAtomic)     _
+  val supportsGet        = safety_helper(_.supportsGet)        _
+  val supportsPutFull    = safety_helper(_.supportsPutFull)    _
+  val supportsPutPartial = safety_helper(_.supportsPutPartial) _
+  def supportsHint(address: UInt) = {
+    (find(address) zip managers.map(_.supportsHint))
+    .map { case (m, b) => m && Bool(b) } reduce (_ || _)
+  }
 }
 
 case class TLClientParameters(
   sourceId:            IdRange       = IdRange(0,1),
   // Supports both Probe+Grant of these sizes
   supportsProbe:       TransferSizes = TransferSizes.none,
-  supportsAtomics:     TransferSizes = TransferSizes.none,
+  supportsAtomic:      TransferSizes = TransferSizes.none,
   supportsGet:         TransferSizes = TransferSizes.none,
   supportsPutFull:     TransferSizes = TransferSizes.none,
   supportsPutPartial:  TransferSizes = TransferSizes.none,
-  supportsHints:       Boolean       = false)
+  supportsHint:        Boolean       = false)
 {
   val maxTransfer = List(
     supportsProbe.max,
-    supportsAtomics.max,
+    supportsAtomic.max,
     supportsGet.max,
     supportsPutFull.max,
     supportsPutPartial.max).max
 }
 
 case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
+  // Require disjoint ranges for Ids
+  clients.combinations(2).foreach({ case Seq(x,y) =>
+    require (!x.sourceId.overlaps(y.sourceId))
+  })
+
+  // Bounds on required sizes
   def endSourceId = clients.map(_.sourceId.end).max
   def maxTransfer = clients.map(_.maxTransfer).max
-//  def nSources: Int = sourceView.map(_.sourceIds.count).sum
-//  def nCaches: Int = sourceView.map(s => if(s.supportsProbe) 1 else 0).sum
-  //def makeSourceToCache() = ... 
-  //def makeCacheToStartSource() = ...
+
+  // Operation sizes supported by all inward Clients
+  val allSupportProbe      = clients.map(_.supportsProbe)     .reduce(_ intersect _)
+  val allSupportAtomic     = clients.map(_.supportsAtomic)    .reduce(_ intersect _)
+  val allSupportGet        = clients.map(_.supportsGet)       .reduce(_ intersect _)
+  val allSupportPutFull    = clients.map(_.supportsPutFull)   .reduce(_ intersect _)
+  val allSupportPutPartial = clients.map(_.supportsPutPartial).reduce(_ intersect _)
+  val allSupportHint       = clients.map(_.supportsHint)      .reduce(_    &&     _)
+
+  // These return Option[TLClientParameters] for your convenience
+  def find(id: Int) = clients.find(_.sourceId.contains(id))
+  
+  // Synthesizable lookup methods
+  def find(id: UInt) = Vec(clients.map(_.sourceId.contains(id)))
+  def contains(id: UInt) = find(id).reduce(_ || _)
+  
+  private def safety_helper(member: TLClientParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
+    (find(address) zip clients.map(member(_).containsLg(lgSize)))
+    .map { case (m, s) => m && s } reduce (_ || _)
+  }
+
+  // Check for support of a given operation at a specific id
+  val supportsProbe      = safety_helper(_.supportsProbe)      _
+  val supportsAtomic     = safety_helper(_.supportsAtomic)     _
+  val supportsGet        = safety_helper(_.supportsGet)        _
+  val supportsPutFull    = safety_helper(_.supportsPutFull)    _
+  val supportsPutPartial = safety_helper(_.supportsPutPartial) _
+  def supportsHint(address: UInt) = {
+    (find(address) zip clients.map(_.supportsHint))
+    .map { case (m, b) => m && Bool(b) } reduce (_ || _)
+  }
 }
 
 case class TLBundleParameters(
