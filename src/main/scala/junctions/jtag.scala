@@ -10,7 +10,7 @@ class JtagIO(drvTdo : Boolean = false) extends Bundle {
   val TDO = Bool(INPUT)
   val TRST = Bool(OUTPUT)
 
-  val DRV_TDO = if (drvTdo) Some(Bool(OUTPUT)) else None
+  val DRV_TDO = if (drvTdo) Some(Bool(INPUT)) else None
   override def cloneType = new JtagIO(drvTdo).asInstanceOf[this.type]
 
 }
