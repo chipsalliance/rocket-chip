@@ -25,12 +25,13 @@ object TLMessages
   val Get            = UInt(0) //     .    .
   val PutFullData    = UInt(1) //     .    .
   val PutPartialData = UInt(2) //     .    .
-  val AtomicData     = UInt(3) //     .    .
-  val Hint           = UInt(4) //     .    .
+  val ArithmeticData = UInt(3) //     .    .
+  val LogicalData    = UInt(4) //     .    .
+  val Hint           = UInt(5) //     .    .
   val AccessAck      = UInt(0) //               .    .
   val AccessAckData  = UInt(1) //               .    .
-  val Acquire        = UInt(5) //     .
-  val Probe          = UInt(5) //          .
+  val Acquire        = UInt(6) //     .
+  val Probe          = UInt(6) //          .
   val ProbeAck       = UInt(2) //               .
   val ProbeAckData   = UInt(3) //               .
   val Release        = UInt(4) //               .
@@ -72,7 +73,7 @@ object TLAtomics
 class TLBundleA(params: TLBundleParameters) extends TLBundleBase(params)
 {
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 4) // amo_opcode || perms || hint
+  val param   = UInt(width = 3) // amo_opcode || perms || hint
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits)  // from
   val address = UInt(width = params.addressBits) // to
@@ -83,7 +84,7 @@ class TLBundleA(params: TLBundleParameters) extends TLBundleBase(params)
 class TLBundleB(params: TLBundleParameters) extends TLBundleBase(params)
 {
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 4)
+  val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits)  // to
   val address = UInt(width = params.addressBits) // from
