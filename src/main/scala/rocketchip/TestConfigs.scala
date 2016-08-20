@@ -11,6 +11,7 @@ import uncore.unittests._
 import junctions._
 import junctions.unittests._
 import scala.collection.mutable.LinkedHashSet
+import scala.collection.immutable.HashMap
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 import scala.math.max
 import coreplex._
@@ -183,21 +184,20 @@ class WithBusMasterTest extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new BusMasterTest()(p))
     case ExtraDevices => {
-      class BusMasterDevice extends Device {
-        def hasClientPort = true
-        def hasMMIOPort = true
+      class BusMasterDevice extends DeviceBlock {
+        def nClientPorts = 1
+        def addrMapEntries = Seq(
+          AddrMapEntry("busmaster", MemSize(4096, MemAttr(AddrMapProt.RW))))
         def builder(
-            mmioPort: Option[ClientUncachedTileLinkIO],
-            clientPort: Option[ClientUncachedTileLinkIO],
+            mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
+            clientPorts: Seq[ClientUncachedTileLinkIO],
             extra: Bundle, p: Parameters) {
           val busmaster = Module(new ExampleBusMaster()(p))
-          busmaster.io.mmio <> mmioPort.get
-          clientPort.get <> busmaster.io.mem
+          busmaster.io.mmio <> mmioPorts("busmaster")
+          clientPorts.head <> busmaster.io.mem
         }
-        override def addrMapEntry =
-          AddrMapEntry("busmaster", MemSize(4096, MemAttr(AddrMapProt.RW)))
       }
-      Seq(new BusMasterDevice)
+      new BusMasterDevice
     }
     case _ => throw new CDEMatchError
   })
