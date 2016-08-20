@@ -95,7 +95,8 @@ case class TLManagerParameters(
   regionType:         RegionType.T  = RegionType.UNCACHEABLE,
   // Supports both Acquire+Release+Finish of these sizes
   supportsAcquire:    TransferSizes = TransferSizes.none,
-  supportsAtomic:     TransferSizes = TransferSizes.none,
+  supportsArithmetic: TransferSizes = TransferSizes.none,
+  supportsLogical:    TransferSizes = TransferSizes.none,
   supportsGet:        TransferSizes = TransferSizes.none,
   supportsPutFull:    TransferSizes = TransferSizes.none,
   supportsPutPartial: TransferSizes = TransferSizes.none,
@@ -113,7 +114,8 @@ case class TLManagerParameters(
   // Largest support transfer of all types
   val maxTransfer = List(
     supportsAcquire.max,
-    supportsAtomic.max,
+    supportsArithmetic.max,
+    supportsLogical.max,
     supportsGet.max,
     supportsPutFull.max,
     supportsPutPartial.max).max
@@ -138,7 +140,8 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   
   // Operation sizes supported by all outward Managers
   val allSupportAcquire    = managers.map(_.supportsAcquire)   .reduce(_ intersect _)
-  val allSupportAtomic     = managers.map(_.supportsAtomic)    .reduce(_ intersect _)
+  val allSupportArithmetic = managers.map(_.supportsArithmetic).reduce(_ intersect _)
+  val allSupportLogical    = managers.map(_.supportsLogical)   .reduce(_ intersect _)
   val allSupportGet        = managers.map(_.supportsGet)       .reduce(_ intersect _)
   val allSupportPutFull    = managers.map(_.supportsPutFull)   .reduce(_ intersect _)
   val allSupportPutPartial = managers.map(_.supportsPutPartial).reduce(_ intersect _)
@@ -163,7 +166,8 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
 
   // Check for support of a given operation at a specific address
   val supportsAcquire    = safety_helper(_.supportsAcquire)    _
-  val supportsAtomic     = safety_helper(_.supportsAtomic)     _
+  val supportsArithmetic = safety_helper(_.supportsArithmetic) _
+  val supportsLogical    = safety_helper(_.supportsLogical)    _
   val supportsGet        = safety_helper(_.supportsGet)        _
   val supportsPutFull    = safety_helper(_.supportsPutFull)    _
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
@@ -177,7 +181,8 @@ case class TLClientParameters(
   sourceId:            IdRange       = IdRange(0,1),
   // Supports both Probe+Grant of these sizes
   supportsProbe:       TransferSizes = TransferSizes.none,
-  supportsAtomic:      TransferSizes = TransferSizes.none,
+  supportsArithmetic:  TransferSizes = TransferSizes.none,
+  supportsLogical:     TransferSizes = TransferSizes.none,
   supportsGet:         TransferSizes = TransferSizes.none,
   supportsPutFull:     TransferSizes = TransferSizes.none,
   supportsPutPartial:  TransferSizes = TransferSizes.none,
@@ -185,7 +190,8 @@ case class TLClientParameters(
 {
   val maxTransfer = List(
     supportsProbe.max,
-    supportsAtomic.max,
+    supportsArithmetic.max,
+    supportsLogical.max,
     supportsGet.max,
     supportsPutFull.max,
     supportsPutPartial.max).max
@@ -203,7 +209,8 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
 
   // Operation sizes supported by all inward Clients
   val allSupportProbe      = clients.map(_.supportsProbe)     .reduce(_ intersect _)
-  val allSupportAtomic     = clients.map(_.supportsAtomic)    .reduce(_ intersect _)
+  val allSupportArithmetic = clients.map(_.supportsArithmetic).reduce(_ intersect _)
+  val allSupportLogical    = clients.map(_.supportsLogical)   .reduce(_ intersect _)
   val allSupportGet        = clients.map(_.supportsGet)       .reduce(_ intersect _)
   val allSupportPutFull    = clients.map(_.supportsPutFull)   .reduce(_ intersect _)
   val allSupportPutPartial = clients.map(_.supportsPutPartial).reduce(_ intersect _)
@@ -223,7 +230,8 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
 
   // Check for support of a given operation at a specific id
   val supportsProbe      = safety_helper(_.supportsProbe)      _
-  val supportsAtomic     = safety_helper(_.supportsAtomic)     _
+  val supportsArithmetic = safety_helper(_.supportsArithmetic) _
+  val supportsLogical    = safety_helper(_.supportsLogical)    _
   val supportsGet        = safety_helper(_.supportsGet)        _
   val supportsPutFull    = safety_helper(_.supportsPutFull)    _
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
