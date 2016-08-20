@@ -36,7 +36,7 @@ case class IdRange(start: Int, end: Int)
   def shift(x: Int) = IdRange(start+x, end+x)
 }
 
-// An potentially empty inclusive range of 2-powers [min, max]
+// An potentially empty inclusive range of 2-powers [min, max] (in bytes)
 case class TransferSizes(min: Int, max: Int)
 {
   def this(x: Int) = this(x, x)
@@ -269,10 +269,19 @@ case class TLEdgeParameters(
   client:  TLClientPortParameters,
   manager: TLManagerPortParameters)
 {
+  val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
+  val maxLgSize = log2Up(maxTransfer)
+
   val bundle = TLBundleParameters(
     addressBits = log2Up(manager.maxAddress + 1) - log2Up(manager.beatBytes),
     dataBits    = manager.beatBytes * 8,
     sourceBits  = log2Up(client.endSourceId),
     sinkBits    = log2Up(manager.endSinkId),
-    sizeBits    = log2Up(log2Up(max(client.maxTransfer, manager.maxTransfer))+1))
+    sizeBits    = log2Up(maxLgSize+1))
+
+  def addressMask(lgSize: UInt) = Vec.tabulate(maxLgSize) { UInt(_) < lgSize } .toBits.asUInt
+  def isAligned(address: UInt, lgSize: UInt) = (address & addressMask(lgSize)) === UInt(0)
+
+// !!! wrong:
+  def fullMask(address: UInt, lgSize: UInt) = UInt(0)
 }
