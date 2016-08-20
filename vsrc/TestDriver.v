@@ -39,6 +39,11 @@ module TestDriver;
 `endif
   end
 
+`ifdef TESTBENCH_IN_UVM
+  // UVM library has its own way to manage end-of-simulation.
+  // A UVM-based testbench will raise an objection, watch this signal until this goes 1, then drop the objection.
+  reg finish_request = 1'b0;
+`endif
   reg [255:0] reason = "";
   reg failure = 1'b0;
   wire success;
@@ -73,7 +78,11 @@ module TestDriver;
         if (verbose)
           $fdisplay(stderr, "Completed after %d simulation cycles", trace_count);
         `VCDPLUSCLOSE
+`ifdef TESTBENCH_IN_UVM
+        finish_request = 1;
+`else
         $finish;
+`endif
       end
     end
   end
