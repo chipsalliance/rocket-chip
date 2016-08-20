@@ -20,10 +20,8 @@ class TestHarness(implicit p: Parameters) extends Module {
   require(dut.io.mem_tl.isEmpty)
   require(dut.io.bus_clk.isEmpty)
   require(dut.io.bus_rst.isEmpty)
-  require(dut.io.bus_axi.isEmpty)
   require(dut.io.mmio_clk.isEmpty)
   require(dut.io.mmio_rst.isEmpty)
-  require(dut.io.mmio_axi.isEmpty)
   require(dut.io.mmio_ahb.isEmpty)
   require(dut.io.mmio_tl.isEmpty)
   require(dut.io.debug_clk.isEmpty)
@@ -39,6 +37,19 @@ class TestHarness(implicit p: Parameters) extends Module {
     require(memSize % dut.io.mem_axi.size == 0)
     for (axi <- dut.io.mem_axi)
       Module(new SimAXIMem(memSize / dut.io.mem_axi.size)).io.axi <> axi
+  }
+
+  for (bus_axi <- dut.io.bus_axi) {
+    bus_axi.ar.valid := Bool(false)
+    bus_axi.aw.valid := Bool(false)
+    bus_axi.w.valid  := Bool(false)
+    bus_axi.r.ready  := Bool(false)
+    bus_axi.b.ready  := Bool(false)
+  }
+
+  for (mmio_axi <- dut.io.mmio_axi) {
+    val slave = Module(new NastiErrorSlave)
+    slave.io <> mmio_axi
   }
 
   val dtm = Module(new SimDTM)

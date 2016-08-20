@@ -198,7 +198,7 @@ class Periphery(implicit val p: Parameters) extends Module
     val conv = Module(new TileLinkIONastiIOConverter)
     val arb = Module(new NastiArbiter(io.bus_axi.size))
     arb.io.master <> io.bus_axi
-    conv.io.nasti <> conv.io.tl
+    conv.io.nasti <> arb.io.slave
     io.clients_out.head <> conv.io.tl
   }
 
@@ -239,6 +239,7 @@ class Periphery(implicit val p: Parameters) extends Module
       deviceMMIO += (entry.name -> mmioNetwork.port(entry.name))
 
     val deviceClients = if (io.bus_axi.size > 0) io.clients_out.tail else io.clients_out
+    require(deviceClients.size == extraDevices.nClientPorts)
 
     val buildParams = p.alterPartial({
       case InnerTLId => "L2toMMIO" // Device MMIO port
