@@ -34,7 +34,6 @@ class TLEdgeOut(
     c.source  := fromSource
     c.address := toAddress
     c.data    := UInt(0)
-    c.error   := Bool(false)
     (legal, c)
   }
 
@@ -48,7 +47,6 @@ class TLEdgeOut(
     c.source  := fromSource
     c.address := toAddress
     c.data    := data
-    c.error   := Bool(false)
     (legal, c)
   }
 
@@ -60,7 +58,6 @@ class TLEdgeOut(
     c.source  := UInt(0)
     c.address := toAddress
     c.data    := UInt(0)
-    c.error   := Bool(false)
     c
   }
 
@@ -72,7 +69,6 @@ class TLEdgeOut(
     c.source  := UInt(0)
     c.address := toAddress
     c.data    := data
-    c.error   := Bool(false)
     c
   }
 
@@ -167,7 +163,7 @@ class TLEdgeOut(
     (legal, a)
   }
 
-  def AccessAck(toAddress: UInt, lgSize: UInt, error: Bool = Bool(false)) = {
+  def AccessAck(toAddress: UInt, lgSize: UInt) = {
     val c = new TLBundleC(bundle)
     c.opcode  := TLMessages.AccessAck
     c.param   := UInt(0)
@@ -175,7 +171,17 @@ class TLEdgeOut(
     c.source  := UInt(0)
     c.address := toAddress
     c.data    := UInt(0)
-    c.error   := error
+    c
+  }
+
+  def AccessAckError(toAddress: UInt, lgSize: UInt) = {
+    val c = new TLBundleC(bundle)
+    c.opcode  := TLMessages.AccessAckError
+    c.param   := UInt(0)
+    c.size    := lgSize
+    c.source  := UInt(0)
+    c.address := toAddress
+    c.data    := UInt(0)
     c
   }
 
@@ -187,7 +193,6 @@ class TLEdgeOut(
     c.source  := UInt(0)
     c.address := toAddress
     c.data    := data
-    c.error   := Bool(false)
     c
   }
 }
@@ -207,7 +212,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.wmask   := fullMask(fromAddress, lgSize)
+    b.wmask   := SInt(-1).asUInt
     b.data    := UInt(0)
     (legal, b)
   }
@@ -220,7 +225,6 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := fromSink
     d.data   := UInt(0)
-    d.error  := Bool(false)
     d
   }
 
@@ -232,7 +236,6 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := fromSink
     d.data   := data
-    d.error  := Bool(false)
     d
   }
 
@@ -244,7 +247,6 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := UInt(0)
     d.data   := UInt(0)
-    d.error  := Bool(false)
     d
   }
 
@@ -333,7 +335,7 @@ class TLEdgeIn(
     (legal, b)
   }
 
-  def AccessAck(toSource: UInt, lgSize: UInt, error: Bool = Bool(false)) = {
+  def AccessAck(toSource: UInt, lgSize: UInt) = {
     val d = new TLBundleD(bundle)
     d.opcode := TLMessages.AccessAck
     d.param  := UInt(0)
@@ -341,7 +343,17 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := UInt(0)
     d.data   := UInt(0)
-    d.error  := error
+    d
+  }
+
+  def AccessAckError(toSource: UInt, lgSize: UInt) = {
+    val d = new TLBundleD(bundle)
+    d.opcode := TLMessages.AccessAckError
+    d.param  := UInt(0)
+    d.size   := lgSize
+    d.source := toSource
+    d.sink   := UInt(0)
+    d.data   := UInt(0)
     d
   }
 
@@ -353,7 +365,6 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := UInt(0)
     d.data   := data
-    d.error  := Bool(false)
     d
   }
 }
