@@ -147,6 +147,15 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   val allSupportPutPartial = managers.map(_.supportsPutPartial).reduce(_ intersect _)
   val allSupportHint       = managers.map(_.supportsHint)      .reduce(_    &&     _)
 
+  // Operation supported by at least one outward Managers
+  val anySupportAcquire    = managers.map(!_.supportsAcquire.none)   .reduce(_ || _)
+  val anySupportArithmetic = managers.map(!_.supportsArithmetic.none).reduce(_ || _)
+  val anySupportLogical    = managers.map(!_.supportsLogical.none)   .reduce(_ || _)
+  val anySupportGet        = managers.map(!_.supportsGet.none)       .reduce(_ || _)
+  val anySupportPutFull    = managers.map(!_.supportsPutFull.none)   .reduce(_ || _)
+  val anySupportPutPartial = managers.map(!_.supportsPutPartial.none).reduce(_ || _)
+  val anySupportHint       = managers.map( _.supportsHint)           .reduce(_ || _)
+
   // These return Option[TLManagerParameters] for your convenience
   def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
   def findById(id: Int) = managers.find(_.sinkId.contains(id))
@@ -215,6 +224,15 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
   val allSupportPutFull    = clients.map(_.supportsPutFull)   .reduce(_ intersect _)
   val allSupportPutPartial = clients.map(_.supportsPutPartial).reduce(_ intersect _)
   val allSupportHint       = clients.map(_.supportsHint)      .reduce(_    &&     _)
+
+  // Operation is supported by at least one client
+  val anySupportProbe      = clients.map(!_.supportsProbe.none)     .reduce(_ || _)
+  val anySupportArithmetic = clients.map(!_.supportsArithmetic.none).reduce(_ || _)
+  val anySupportLogical    = clients.map(!_.supportsLogical.none)   .reduce(_ || _)
+  val anySupportGet        = clients.map(!_.supportsGet.none)       .reduce(_ || _)
+  val anySupportPutFull    = clients.map(!_.supportsPutFull.none)   .reduce(_ || _)
+  val anySupportPutPartial = clients.map(!_.supportsPutPartial.none).reduce(_ || _)
+  val anySupportHint       = clients.map( _.supportsHint)           .reduce(_ || _)
 
   // These return Option[TLClientParameters] for your convenience
   def find(id: Int) = clients.find(_.sourceId.contains(id))
