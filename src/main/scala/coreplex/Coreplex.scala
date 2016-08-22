@@ -193,7 +193,9 @@ class DefaultOuterMemorySystem(implicit p: Parameters) extends OuterMemorySystem
     case InnerTLId => "L1toL2"
     case OuterTLId => "L2toMMIO"
   })))
-  io.mmio <> mmioManager.io.outer
+
+  io.mmio.acquire <> Queue(mmioManager.io.outer.acquire, 1)
+  mmioManager.io.outer.grant <> Queue(io.mmio.grant, 1)
 
   // Wire the tiles to the TileLink client ports of the L1toL2 network,
   // and coherence manager(s) to the other side
