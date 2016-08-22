@@ -30,17 +30,23 @@ object TLMessages
   val Hint           = UInt(5) //     .    .
   val AccessAck      = UInt(0) //               .    .
   val AccessAckData  = UInt(1) //               .    .
+  val AccessAckError = UInt(2) //               .    .
   val Acquire        = UInt(6) //     .
   val Probe          = UInt(6) //          .
-  val ProbeAck       = UInt(2) //               .
-  val ProbeAckData   = UInt(3) //               .
-  val Release        = UInt(4) //               .
-  val ReleaseData    = UInt(5) //               .
-//val PutThroughData = UInt(6) //               .              // future extension
-  val ReleaseAck     = UInt(2) //                    .
-  val Grant          = UInt(3) //                    .
-  val GrantData      = UInt(4) //                    .
+  val ProbeAck       = UInt(3) //               .
+  val ProbeAckData   = UInt(4) //               .
+  val Release        = UInt(5) //               .
+  val ReleaseData    = UInt(6) //               .
+//val PutThroughData = UInt(7) //               .              // future extension
+  val ReleaseAck     = UInt(3) //                    .
+  val Grant          = UInt(4) //                    .
+  val GrantData      = UInt(5) //                    .
   val GrantAck       = UInt(0) //                         .
+ 
+  def isA(x: UInt) = x <= Acquire
+  def isB(x: UInt) = x <= Probe
+  def isC(x: UInt) = x <= ReleaseData
+  def isD(x: UInt) = x <= GrantData
 }
 
 object TLPermissions
@@ -49,25 +55,34 @@ object TLPermissions
   val toT = UInt(0)
   val toB = UInt(1)
   val toN = UInt(2)
+  def isCap(x: UInt) = x <= toN
 
   // Grow types (Acquire = permissions >= target)
   val NtoB = UInt(0)
   val NtoT = UInt(1)
   val BtoT = UInt(2)
+  def isGrow(x: UInt) = x <= BtoT
 
   // Shrink types (ProbeAck, Release)
   val TtoB = UInt(0)
   val TtoN = UInt(1)
   val BtoN = UInt(2)
+  def isShrink(x: UInt) = x <= BtoN
 
   // Report types (ProbeAck)
   val TtoT = UInt(3)
   val BtoB = UInt(4)
   val NtoN = UInt(5)
+  def isReport(x: UInt) = x <= NtoN
 }
 
 object TLAtomics
 {
+  // Arithmetic types
+  def isArithmetic(x: UInt) = Bool(true)
+
+  // Logical types
+  def isLogical(x: UInt) = Bool(true)
 }
 
 class TLBundleA(params: TLBundleParameters) extends TLBundleBase(params)
@@ -100,7 +115,6 @@ class TLBundleC(params: TLBundleParameters) extends TLBundleBase(params)
   val source  = UInt(width = params.sourceBits)  // from
   val address = UInt(width = params.addressBits) // to
   val data    = UInt(width = params.dataBits)
-  val error   = Bool()
 }
 
 class TLBundleD(params: TLBundleParameters) extends TLBundleBase(params)
@@ -111,7 +125,6 @@ class TLBundleD(params: TLBundleParameters) extends TLBundleBase(params)
   val source = UInt(width = params.sourceBits) // to
   val sink   = UInt(width = params.sinkBits)   // from
   val data   = UInt(width = params.dataBits)
-  val error  = Bool()
 }
 
 class TLBundleE(params: TLBundleParameters) extends TLBundleBase(params)
