@@ -11,16 +11,13 @@ class TLEdgeOut(
 {
   // Transfers
   def Acquire(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
-    // !!! Monitor: lgSize >= beatBytes
-    // !!! Monitor: check address alignment
-    // !!! Monitor: check param values
     val legal = manager.supportsAcquire(toAddress, lgSize)
     val a = new TLBundleA(bundle)
     a.opcode  := TLMessages.Acquire
     a.param   := growPermissions
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress >> log2Up(manager.beatBytes)
+    a.address := toAddress
     a.wmask   := SInt(-1).asUInt
     a.data    := UInt(0)
     (legal, a)
@@ -33,7 +30,7 @@ class TLEdgeOut(
     c.param   := shrinkPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.address := toAddress >> log2Up(manager.beatBytes)
+    c.address := toAddress
     c.data    := UInt(0)
     c.error   := Bool(false)
     (legal, c)
@@ -46,7 +43,7 @@ class TLEdgeOut(
     c.param   := shrinkPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.address := toAddress >> log2Up(manager.beatBytes)
+    c.address := toAddress
     c.data    := data
     c.error   := Bool(false)
     (legal, c)
@@ -58,7 +55,7 @@ class TLEdgeOut(
     c.param   := reportPermissions
     c.size    := lgSize
     c.source  := UInt(0)
-    c.address := toAddress >> log2Up(manager.beatBytes)
+    c.address := toAddress
     c.data    := UInt(0)
     c.error   := Bool(false)
     c
@@ -70,7 +67,7 @@ class TLEdgeOut(
     c.param   := reportPermissions
     c.size    := lgSize
     c.source  := UInt(0)
-    c.address := toAddress >> log2Up(manager.beatBytes)
+    c.address := toAddress
     c.data    := data
     c.error   := Bool(false)
     c
@@ -90,7 +87,7 @@ class TLEdgeOut(
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress >> log2Up(manager.beatBytes)
+    a.address := toAddress
     a.wmask   := fullMask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
@@ -103,21 +100,20 @@ class TLEdgeOut(
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress >> log2Up(manager.beatBytes)
+    a.address := toAddress
     a.wmask   := fullMask(toAddress, lgSize)
     a.data    := data
     (legal, a)
   }
 
   def Put(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, wmask: UInt) = {
-    // !!! Monitor: check that wmask is contained in lgSize
     val legal = manager.supportsPutPartial(toAddress, lgSize)
     val a = new TLBundleA(bundle)
     a.opcode  := TLMessages.PutPartialData
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress >> log2Up(manager.beatBytes)
+    a.address := toAddress
     a.wmask   := wmask
     a.data    := data
     (legal, a)
@@ -130,7 +126,7 @@ class TLEdgeOut(
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress >> log2Up(manager.beatBytes)
+    a.address := toAddress
     a.wmask   := fullMask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -143,7 +139,7 @@ class TLEdgeOut(
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress >> log2Up(manager.beatBytes)
+    a.address := toAddress
     a.wmask   := fullMask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -156,7 +152,7 @@ class TLEdgeOut(
     a.param   := param
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress >> log2Up(manager.beatBytes)
+    a.address := toAddress
     a.wmask   := fullMask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
@@ -168,7 +164,7 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := UInt(0)
-    c.address := toAddress >> log2Up(manager.beatBytes)
+    c.address := toAddress
     c.data    := UInt(0)
     c.error   := error
     c
@@ -180,7 +176,7 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := UInt(0)
-    c.address := toAddress >> log2Up(manager.beatBytes)
+    c.address := toAddress
     c.data    := data
     c.error   := Bool(false)
     c
@@ -200,7 +196,7 @@ class TLEdgeIn(
     b.param   := capPermissions
     b.size    := lgSize
     b.source  := toSource
-    b.address := fromAddress >> log2Up(manager.beatBytes)
+    b.address := fromAddress
     b.wmask   := fullMask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
@@ -250,7 +246,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.address := fromAddress >> log2Up(manager.beatBytes)
+    b.address := fromAddress
     b.wmask   := fullMask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
@@ -263,7 +259,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.address := fromAddress >> log2Up(manager.beatBytes)
+    b.address := fromAddress
     b.wmask   := fullMask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -276,7 +272,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.address := fromAddress >> log2Up(manager.beatBytes)
+    b.address := fromAddress
     b.wmask   := wmask
     b.data    := data
     (legal, b)
@@ -289,7 +285,7 @@ class TLEdgeIn(
     b.param   := atomic
     b.size    := lgSize
     b.source  := toSource
-    b.address := fromAddress >> log2Up(manager.beatBytes)
+    b.address := fromAddress
     b.wmask   := fullMask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -302,7 +298,7 @@ class TLEdgeIn(
     b.param   := atomic
     b.size    := lgSize
     b.source  := toSource
-    b.address := fromAddress >> log2Up(manager.beatBytes)
+    b.address := fromAddress
     b.wmask   := fullMask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -315,12 +311,11 @@ class TLEdgeIn(
     b.param   := param
     b.size    := lgSize
     b.source  := toSource
-    b.address := fromAddress >> log2Up(manager.beatBytes)
+    b.address := fromAddress
     b.wmask   := fullMask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
   }
-
 
   def AccessAck(toSource: UInt, lgSize: UInt, error: Bool = Bool(false)) = {
     val d = new TLBundleD(bundle)

@@ -272,16 +272,39 @@ case class TLEdgeParameters(
   val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
   val maxLgSize = log2Up(maxTransfer)
 
+  // Sanity check the link...
+  require (maxTransfer >= manager.beatBytes)
+
   val bundle = TLBundleParameters(
-    addressBits = log2Up(manager.maxAddress + 1) - log2Up(manager.beatBytes),
+    addressBits = log2Up(manager.maxAddress + 1),
     dataBits    = manager.beatBytes * 8,
     sourceBits  = log2Up(client.endSourceId),
     sinkBits    = log2Up(manager.endSinkId),
     sizeBits    = log2Up(maxLgSize+1))
 
-  def addressMask(lgSize: UInt) = Vec.tabulate(maxLgSize) { UInt(_) < lgSize } .toBits.asUInt
-  def isAligned(address: UInt, lgSize: UInt) = (address & addressMask(lgSize)) === UInt(0)
+  def isAligned(address: UInt, lgSize: UInt) =
+    if (maxLgSize == 0) Bool(true) else {
+      val mask = Vec.tabulate(maxLgSize) { UInt(_) < lgSize }
+      address & mask.toBits.asUInt === UInt(0)
+    }
 
-// !!! wrong:
-  def fullMask(address: UInt, lgSize: UInt) = UInt(0)
+  // This gets used everywhere, so make the smallest circuit possible ...
+  def fullMask(address: UInt, lgSize: UInt) = {
+    val lgBytes = log2Ceil(manager.beatBytes)
+    def helper(i: Int): Seq[(Bool, Bool)] = {
+      if (i == 0) {
+        Seq((lgSize >= UInt(lgBytes), Bool(true)))
+      } else {
+        val sub = helper(i-1)
+        val size = lgSize === UInt(lgBytes - i)
+        Seq.tabulate (1 << i) { j =>
+          val (sub_acc, sub_eq) = sub(j/2)
+          val eq = sub_eq && address(lgBytes - i) === Bool(j % 2 == 1)
+          val acc = sub_acc || (size && eq)
+          (acc, eq)
+        }
+      }
+    }
+    Vec(helper(lgBytes).map(_._1)).toBits.asUInt
+  }
 }
