@@ -315,9 +315,11 @@ case class TLEdgeParameters(
       } else {
         val sub = helper(i-1)
         val size = lgSize === UInt(lgBytes - i)
+        val bit = address(lgBytes - i)
+        val nbit = !bit
         Seq.tabulate (1 << i) { j =>
           val (sub_acc, sub_eq) = sub(j/2)
-          val eq = sub_eq && address(lgBytes - i) === Bool(j % 2 == 1)
+          val eq = sub_eq && (if (j % 2 == 1) bit else nbit)
           val acc = sub_acc || (size && eq)
           (acc, eq)
         }
