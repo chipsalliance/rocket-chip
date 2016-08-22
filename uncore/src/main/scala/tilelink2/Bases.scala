@@ -29,6 +29,7 @@ abstract class TLFactory
       }
     }
     bindings.foreach { case (x, i, y, j, s) =>
+      TLMonitor.legalize(y.bundleOut(j), y.edgesOut(j), x.bundleIn(i), x.edgesIn(i), s)
       x.bundleIn(i).<>(y.bundleOut(j))(s)
     }
   }

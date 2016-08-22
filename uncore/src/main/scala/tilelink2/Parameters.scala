@@ -73,7 +73,7 @@ case class AddressSet(mask: BigInt, base: Option[BigInt] = None)
   require (base == None || (base.get & mask) == 0)
 
   def contains(x: BigInt) = ((x ^ base.get) & ~mask) == 0
-  def contains(x: UInt) = ((x ^ UInt(base.get)) & UInt(~mask)) === UInt(0)
+  def contains(x: UInt) = ((x ^ UInt(base.get)) & ~UInt(mask)) === UInt(0)
 
   // overlap iff bitwise: both care (~mask0 & ~mask1) => both equal (base0=base1)
   // if base = None, it will be auto-assigned and thus not overlap anything
@@ -241,8 +241,8 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
   def find(id: UInt) = Vec(clients.map(_.sourceId.contains(id)))
   def contains(id: UInt) = find(id).reduce(_ || _)
   
-  private def safety_helper(member: TLClientParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
-    (find(address) zip clients.map(member(_).containsLg(lgSize)))
+  private def safety_helper(member: TLClientParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
+    (find(id) zip clients.map(member(_).containsLg(lgSize)))
     .map { case (m, s) => m && s } reduce (_ || _)
   }
 
@@ -253,8 +253,8 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
   val supportsGet        = safety_helper(_.supportsGet)        _
   val supportsPutFull    = safety_helper(_.supportsPutFull)    _
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
-  def supportsHint(address: UInt) = {
-    (find(address) zip clients.map(_.supportsHint))
+  def supportsHint(id: UInt) = {
+    (find(id) zip clients.map(_.supportsHint))
     .map { case (m, b) => m && Bool(b) } reduce (_ || _)
   }
 }
@@ -303,7 +303,7 @@ case class TLEdgeParameters(
   def isAligned(address: UInt, lgSize: UInt) =
     if (maxLgSize == 0) Bool(true) else {
       val mask = Vec.tabulate(maxLgSize) { UInt(_) < lgSize }
-      address & mask.toBits.asUInt === UInt(0)
+      (address & mask.toBits.asUInt) === UInt(0)
     }
 
   // This gets used everywhere, so make the smallest circuit possible ...
