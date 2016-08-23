@@ -12,6 +12,7 @@ import uncore.converters._
 import coreplex._
 import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
+import scala.collection.immutable.HashMap
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
@@ -93,13 +94,7 @@ class BasePlatformConfig extends Config (
         res append  "  };\n"
       }
       res append  "};\n"
-      for (device <- site(ExtraDevices)) {
-        if (device.hasMMIOPort) {
-          val deviceName = device.addrMapEntry.name
-          val deviceRegion = addrMap("io:ext:" + deviceName)
-          res.append(device.makeConfigString(deviceRegion))
-        }
-      }
+      res append (site(ExtraDevices).makeConfigString(addrMap))
       res append '\u0000'
       res.toString.getBytes
     }
@@ -124,22 +119,19 @@ class BasePlatformConfig extends Config (
       case AsyncDebugBus => false
       case IncludeJtagDTM => false
       case AsyncMMIOChannels => false
-      case ExtraDevices => Nil
+      case ExtraDevices => new EmptyDeviceBlock
       case ExtraTopPorts => (p: Parameters) => new Bundle
       case ExtMMIOPorts => Nil
       case ExtIOAddrMapEntries =>
-        site(ExtraDevices)
-          .filter(_.hasMMIOPort)
-          .map(_.addrMapEntry) ++
-        site(ExtMMIOPorts)
+        site(ExtraDevices).addrMapEntries ++ site(ExtMMIOPorts)
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0
-      case ExportMMIOPort => (site(ExtraDevices).filter(_.hasMMIOPort).size + site(ExtMMIOPorts).size) > 0
+      case ExportMMIOPort => site(ExtraDevices).addrMapEntries.size > 0
       case AsyncBusChannels => false
       case NExtBusAXIChannels => 0
-      case NExternalClients => (if (site(NExtBusAXIChannels) > 1) 1 else 0) +
-                                site(ExtraDevices).filter(_.hasClientPort).size
+      case NExternalClients => (if (site(NExtBusAXIChannels) > 0) 1 else 0) +
+                                site(ExtraDevices).nClientPorts
       case ConnectExtraPorts =>
         (out: Bundle, in: Bundle, p: Parameters) => out <> in
 
@@ -262,21 +254,20 @@ class TinyConfig extends Config(
 class WithTestRAM extends Config(
   (pname, site, here) => pname match {
     case ExtraDevices => {
-      class TestRAMDevice extends Device {
+      class TestRAMDevice extends DeviceBlock {
         val ramSize = 0x1000
-        def hasClientPort = false
-        def hasMMIOPort = true
+        def nClientPorts = 0
+        def addrMapEntries = Seq(
+          AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW))))
         def builder(
-            mmioPort: Option[ClientUncachedTileLinkIO],
-            clientPort: Option[ClientUncachedTileLinkIO],
+            mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
+            clientPorts: Seq[ClientUncachedTileLinkIO],
             extra: Bundle, p: Parameters) {
           val testram = Module(new TileLinkTestRAM(ramSize)(p))
-          testram.io <> mmioPort.get
+          testram.io <> mmioPorts("testram")
         }
-        override def addrMapEntry =
-          AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW)))
       }
-      Seq(new TestRAMDevice)
+      new TestRAMDevice
     }
   }
 )
