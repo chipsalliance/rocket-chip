@@ -22,10 +22,13 @@ class PRCIInterrupts extends Bundle {
 class PRCITileIO(implicit p: Parameters) extends Bundle {
   val reset = Bool(OUTPUT)
   val id = UInt(OUTPUT, log2Up(p(NTiles)))
-  val interrupts = new PRCIInterrupts {
-    val mtip = Bool()
-    val msip = Bool()
-  }.asOutput
+  val interrupts = {
+    val result = new PRCIInterrupts {
+      val mtip = Bool()
+      val msip = Bool()
+    }
+    result.asOutput
+  }
 
   override def cloneType: this.type = new PRCITileIO().asInstanceOf[this.type]
 }
