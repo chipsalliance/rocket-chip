@@ -91,7 +91,6 @@ class TestHarness(implicit p: Parameters) extends Module {
     slave.io <> mmio_axi
   }
 
-  }
 }
 
 class SimAXIMem(size: BigInt)(implicit p: Parameters) extends Module {
