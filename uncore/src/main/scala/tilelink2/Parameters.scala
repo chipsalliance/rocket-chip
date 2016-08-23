@@ -31,7 +31,11 @@ case class IdRange(start: Int, end: Int)
   // contains => overlaps (because empty is forbidden)
 
   def contains(x: Int)  = start <= x && x < end
-  def contains(x: UInt) = UInt(start) <= x && x < UInt(end) // !!! special-case =
+  def contains(x: UInt) =
+    if (start+1 == end) { UInt(start) === x }
+    else if (((end-1) & ~start) == end-start-1)
+    { ((UInt(start) ^ x) & ~UInt(end-start-1)) === UInt(0) }
+    else { UInt(start) <= x && x < UInt(end) }
 
   def shift(x: Int) = IdRange(start+x, end+x)
 }
@@ -49,7 +53,10 @@ case class TransferSizes(min: Int, max: Int)
   def none = min == 0
   def contains(x: Int) = isPow2(x) && min <= x && x <= max
   def containsLg(x: Int) = contains(1 << x)
-  def containsLg(x: UInt) = if (none) Bool(false) else { UInt(log2Ceil(min)) <= x && x <= UInt(log2Ceil(max)) } // !!! special-case =
+  def containsLg(x: UInt) =
+    if (none) Bool(false)
+    else if (min == max) { UInt(log2Ceil(min)) === x }
+    else { UInt(log2Ceil(min)) <= x && x <= UInt(log2Ceil(max)) }
 
   def contains(x: TransferSizes) = x.none || (min <= x.min && x.max <= max)
   
@@ -299,32 +306,4 @@ case class TLEdgeParameters(
     sourceBits  = log2Up(client.endSourceId),
     sinkBits    = log2Up(manager.endSinkId),
     sizeBits    = log2Up(maxLgSize+1))
-
-  def isAligned(address: UInt, lgSize: UInt) =
-    if (maxLgSize == 0) Bool(true) else {
-      val mask = Vec.tabulate(maxLgSize) { UInt(_) < lgSize }
-      (address & mask.toBits.asUInt) === UInt(0)
-    }
-
-  // This gets used everywhere, so make the smallest circuit possible ...
-  def fullMask(address: UInt, lgSize: UInt) = {
-    val lgBytes = log2Ceil(manager.beatBytes)
-    def helper(i: Int): Seq[(Bool, Bool)] = {
-      if (i == 0) {
-        Seq((lgSize >= UInt(lgBytes), Bool(true)))
-      } else {
-        val sub = helper(i-1)
-        val size = lgSize === UInt(lgBytes - i)
-        val bit = address(lgBytes - i)
-        val nbit = !bit
-        Seq.tabulate (1 << i) { j =>
-          val (sub_acc, sub_eq) = sub(j/2)
-          val eq = sub_eq && (if (j % 2 == 1) bit else nbit)
-          val acc = sub_acc || (size && eq)
-          (acc, eq)
-        }
-      }
-    }
-    Vec(helper(lgBytes).map(_._1)).toBits.asUInt
-  }
 }

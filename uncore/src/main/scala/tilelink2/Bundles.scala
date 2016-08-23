@@ -19,28 +19,32 @@ abstract class TLBundleBase(val params: TLBundleParameters) extends Bundle
   }
 }
 
+// common combos in lazy policy:
+//   Put + Acquire
+//   Release + AccessAck
+
 object TLMessages 
 {
   //                                  A    B    C    D    E
-  val Get            = UInt(0) //     .    .
-  val PutFullData    = UInt(1) //     .    .
-  val PutPartialData = UInt(2) //     .    .
-  val ArithmeticData = UInt(3) //     .    .
-  val LogicalData    = UInt(4) //     .    .
+  val PutFullData    = UInt(0) //     .    .
+  val PutPartialData = UInt(1) //     .    .
+  val ArithmeticData = UInt(2) //     .    .
+  val LogicalData    = UInt(3) //     .    .
+  val Get            = UInt(4) //     .    .
   val Hint           = UInt(5) //     .    .
   val AccessAck      = UInt(0) //               .    .
   val AccessAckData  = UInt(1) //               .    .
-  val AccessAckError = UInt(2) //               .    .
+  val AccessAckError = UInt(6) //               .    .
   val Acquire        = UInt(6) //     .
   val Probe          = UInt(6) //          .
-  val ProbeAck       = UInt(3) //               .
-  val ProbeAckData   = UInt(4) //               .
-  val Release        = UInt(5) //               .
-  val ReleaseData    = UInt(6) //               .
-//val PutThroughData = UInt(7) //               .              // future extension
-  val ReleaseAck     = UInt(3) //                    .
-  val Grant          = UInt(4) //                    .
-  val GrantData      = UInt(5) //                    .
+  val ProbeAck       = UInt(2) //               .
+  val ProbeAckData   = UInt(3) //               .
+  val Release        = UInt(4) //               .
+  val ReleaseData    = UInt(5) //               .
+//val PutThroughData = UInt(7) //               .              // future extension ?
+  val Grant          = UInt(2) //                    .
+  val GrantData      = UInt(3) //                    .
+  val ReleaseAck     = UInt(4) //                    .
   val GrantAck       = UInt(0) //                         .
  
   def isA(x: UInt) = x <= Acquire
@@ -85,7 +89,28 @@ object TLAtomics
   def isLogical(x: UInt) = Bool(true)
 }
 
-class TLBundleA(params: TLBundleParameters) extends TLBundleBase(params)
+trait HasTLOpcode
+{
+  // The data field in this message has value
+  def hasData(x: Int=0): Bool
+  // This message requires a response
+  def hasFollowUp(x: Int=0): Bool
+  // The size field of the opcode
+  def size(x: Int=0): UInt
+}
+
+trait HasTLData extends HasTLOpcode
+{
+  def data(x: Int=0): UInt
+  def wmask(x: Int=0): UInt
+}
+
+// !!! trait HasTLSource|Sink|Address
+// !!! trait param: from and to perms
+
+class TLBundleA(params: TLBundleParameters)
+  extends TLBundleBase(params)
+  with HasTLData
 {
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3) // amo_opcode || perms || hint
@@ -94,9 +119,21 @@ class TLBundleA(params: TLBundleParameters) extends TLBundleBase(params)
   val address = UInt(width = params.addressBits) // to
   val wmask   = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
+
+  def hasData(x: Int=0) = !opcode(2)
+//    opcode === TLMessages.PutFullData    ||
+//    opcode === TLMessages.PutPartialData ||
+//    opcode === TLMessages.ArithmeticData ||
+//    opcode === TLMessages.LogicalData
+  def hasFollowUp(x: Int=0) = Bool(true)
+  def size(x: Int=0) = size
+  def data(x: Int=0) = data
+  def wmask(x: Int=0) = wmask
 }
 
-class TLBundleB(params: TLBundleParameters) extends TLBundleBase(params)
+class TLBundleB(params: TLBundleParameters)
+  extends TLBundleBase(params)
+  with HasTLData
 {
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3)
@@ -105,9 +142,17 @@ class TLBundleB(params: TLBundleParameters) extends TLBundleBase(params)
   val address = UInt(width = params.addressBits) // from
   val wmask   = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
+
+  def hasData(x: Int=0) = !opcode(2)
+  def hasFollowUp(x: Int=0) = Bool(true)
+  def size(x: Int=0) = size
+  def data(x: Int=0) = data
+  def wmask(x: Int=0) = wmask
 }
 
-class TLBundleC(params: TLBundleParameters) extends TLBundleBase(params)
+class TLBundleC(params: TLBundleParameters)
+  extends TLBundleBase(params)
+  with HasTLData
 {
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3)
@@ -115,9 +160,22 @@ class TLBundleC(params: TLBundleParameters) extends TLBundleBase(params)
   val source  = UInt(width = params.sourceBits)  // from
   val address = UInt(width = params.addressBits) // to
   val data    = UInt(width = params.dataBits)
+
+  def hasData(x: Int=0) = opcode(0)
+//    opcode === TLMessages.AccessAckData ||
+//    opcode === TLMessages.ProbeAckData  ||
+//    opcode === TLMessages.ReleaseData
+  def hasFollowUp(x: Int=0) = opcode(2) && !opcode(1)
+//    opcode === TLMessages.Release ||
+//    opcode === TLMessages.ReleaseData
+  def size(x: Int=0) = size
+  def data(x: Int=0) = data
+  def wmask(x: Int=0) = SInt(-1, width = params.dataBits/8).asUInt
 }
 
-class TLBundleD(params: TLBundleParameters) extends TLBundleBase(params)
+class TLBundleD(params: TLBundleParameters)
+  extends TLBundleBase(params)
+  with HasTLData
 {
   val opcode = UInt(width = 3)
   val param  = UInt(width = 2)
@@ -125,11 +183,27 @@ class TLBundleD(params: TLBundleParameters) extends TLBundleBase(params)
   val source = UInt(width = params.sourceBits) // to
   val sink   = UInt(width = params.sinkBits)   // from
   val data   = UInt(width = params.dataBits)
+
+  def hasData(x: Int=0) = opcode(0)
+//    opcode === TLMessages.AccessAckData ||
+//    opcode === TLMessages.GrantData
+  def hasFollowUp(x: Int=0) = !opcode(2) && opcode(1)
+//    opcode === TLMessages.Grant     ||
+//    opcode === TLMessages.GrantData
+  def size(x: Int=0) = size
+  def data(x: Int=0) = data
+  def wmask(x: Int=0) = SInt(-1, width = params.dataBits/8).asUInt
 }
 
-class TLBundleE(params: TLBundleParameters) extends TLBundleBase(params)
+class TLBundleE(params: TLBundleParameters)
+  extends TLBundleBase(params)
+  with HasTLOpcode
 {
   val sink = UInt(width = params.sourceBits) // to
+
+  def hasData(x: Int=0) = Bool(false)
+  def hasFollowUp(x: Int=0) = Bool(false)
+  def size(x: Int=0) = UInt(log2Up(params.dataBits/8))
 }
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
