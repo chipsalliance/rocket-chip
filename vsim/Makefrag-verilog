@@ -13,9 +13,11 @@ $(generated_dir)/%.v $(generated_dir)/%.conf : $(generated_dir)/%.fir $(FIRRTL_J
 	mkdir -p $(dir $@)
 	$(FIRRTL) -i $< -o $@ -X verilog --replSeqMem -c:$(MODEL):-o:$(generated_dir)/$(MODEL).$(CONFIG).conf
 
-$(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v : $(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).conf $(mem_gen)
+$(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v : $(generated_dir)/$(MODEL).$(CONFIG).conf $(mem_gen)
 	cd $(generated_dir) && \
-	$(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $@
+	rm -f $@ && \
+	$(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $@.tmp && \
+	mv $@.tmp $@
 
 $(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(MODEL).$(CONFIG).prm
 	echo "\`ifndef CONST_VH" > $@
