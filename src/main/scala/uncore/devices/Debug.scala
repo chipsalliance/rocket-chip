@@ -265,7 +265,6 @@ class DefaultDebugModuleConfig (val ncomponents : Int, val xlen:Int)
 
 case object DMKey extends Field[DebugModuleConfig]
 
-
 // *****************************************
 // Module Interfaces
 // 
@@ -277,8 +276,8 @@ case object DMKey extends Field[DebugModuleConfig]
 
 class DebugBusReq(addrBits : Int) extends Bundle {
   val addr = UInt(width = addrBits)
-  val op   = UInt(width = DbBusConsts.dbOpSize)
   val data = UInt(width = DbBusConsts.dbDataSize)
+  val op   = UInt(width = DbBusConsts.dbOpSize)
 
   override def cloneType = new DebugBusReq(addrBits).asInstanceOf[this.type]
 }
@@ -287,8 +286,9 @@ class DebugBusReq(addrBits : Int) extends Bundle {
 /** Structure to define the contents of a Debug Bus Response
   */
 class DebugBusResp( ) extends Bundle {
-  val resp = UInt(width = DbBusConsts.dbRespSize)
   val data = UInt(width = DbBusConsts.dbDataSize)
+  val resp = UInt(width = DbBusConsts.dbRespSize)
+
 }
 
 /** Structure to define the top-level DebugBus interface 
@@ -999,3 +999,5 @@ object AsyncDebugBusTo { // OutsideClockDomain
     sink
   }
 }
+
+
