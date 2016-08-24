@@ -11,8 +11,9 @@ object RegionType {
   case object CACHED      extends T
   case object TRACKED     extends T
   case object UNCACHED    extends T
-  case object UNCACHEABLE extends T
-  val cases = Seq(CACHED, TRACKED, UNCACHED, UNCACHEABLE)
+  case object PUT_EFFECTS extends T
+  case object GET_EFFECTS extends T // GET_EFFECTS => PUT_EFFECTS
+  val cases = Seq(CACHED, TRACKED, UNCACHED, PUT_EFFECTS, GET_EFFECTS)
 }
 
 // A non-empty half-open range; [start, end)
@@ -99,7 +100,7 @@ case class AddressSet(mask: BigInt, base: Option[BigInt] = None)
 case class TLManagerParameters(
   address:            Seq[AddressSet],
   sinkId:             IdRange       = IdRange(0, 1),
-  regionType:         RegionType.T  = RegionType.UNCACHEABLE,
+  regionType:         RegionType.T  = RegionType.GET_EFFECTS,
   // Supports both Acquire+Release+Finish of these sizes
   supportsAcquire:    TransferSizes = TransferSizes.none,
   supportsArithmetic: TransferSizes = TransferSizes.none,
