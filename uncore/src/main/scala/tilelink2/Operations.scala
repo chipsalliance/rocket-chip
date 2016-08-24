@@ -43,7 +43,7 @@ class TLEdge(
     val cutoff = log2Ceil(manager.beatBytes)
     val small = size <= UInt(cutoff)
     val decode = Vec.tabulate (1+maxLgSize-cutoff) { i => UInt(i + cutoff) === size }
-    Mux(!hasData || small, UInt(1), decode)
+    Mux(!hasData || small, UInt(1), decode.toBits.asUInt)
   }
 }
 
