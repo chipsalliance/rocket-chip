@@ -214,3 +214,8 @@ class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
   val d = Decoupled(new TLBundleD(params)).flip
   val e = Decoupled(new TLBundleE(params))
 }
+
+object TLBundle
+{
+  def apply(params: TLBundleParameters) = new TLBundle(params)
+}
