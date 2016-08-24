@@ -19,7 +19,6 @@ object RegionType {
 case class IdRange(start: Int, end: Int)
 {
   require (start >= 0)
-  require (end >= 0)
   require (start < end) // not empty
 
   // This is a strict partial ordering
@@ -38,6 +37,7 @@ case class IdRange(start: Int, end: Int)
     else { UInt(start) <= x && x < UInt(end) }
 
   def shift(x: Int) = IdRange(start+x, end+x)
+  def size = end - start
 }
 
 // An potentially empty inclusive range of 2-powers [min, max] (in bytes)
