@@ -23,12 +23,14 @@ abstract class DeviceBlock {
    *    Use the names specified in addrMapEntries to get
    *    the mmio port for each device.
    * @param clientPorts All the client ports available for the devices
+   * @param interrupts External interrupts from Periphery to Coreplex 
    * @param extra The extra top-level IO bundle
    * @param p The CDE parameters for the devices
    */
   def builder(
     mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
     clientPorts: Seq[ClientUncachedTileLinkIO],
+    interrupts : Seq[Bool],
     extra: Bundle, p: Parameters): Unit
 
   /**
@@ -53,7 +55,8 @@ class EmptyDeviceBlock extends DeviceBlock {
   def addrMapEntries = Seq.empty
 
   def builder(
-      mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
-      clientPorts: Seq[ClientUncachedTileLinkIO],
-      extra: Bundle, p: Parameters) {}
+    mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
+    clientPorts: Seq[ClientUncachedTileLinkIO],
+    interrupts : Seq[Bool], 
+    extra: Bundle, p: Parameters) {}
 }
