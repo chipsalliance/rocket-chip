@@ -1,0 +1,2 @@
+$send_result_to_server call=send_result_to_server
+$check_for_command call=check_for_command
