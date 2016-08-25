@@ -755,13 +755,13 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       val rway_en = io.read.bits.way_en(w+rowWords-1,w)
       val resp = Wire(Vec(rowWords, Bits(width = encRowBits)))
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
-      for (p <- 0 until resp.size) {
+      for (i <- 0 until resp.size) {
         val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
-        when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
-          val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(p+1)-1,encDataBits*p))
+        when (wway_en.orR && io.write.valid && io.write.bits.wmask(i)) {
+          val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
           array.write(waddr, data, wway_en.toBools)
         }
-        resp(p) := array.read(raddr, rway_en.orR && io.read.valid).asUInt
+        resp(i) := array.read(raddr, rway_en.orR && io.read.valid).asUInt
       }
       for (dw <- 0 until rowWords) {
         val r = Vec(resp.map(_(encDataBits*(dw+1)-1,encDataBits*dw)))
