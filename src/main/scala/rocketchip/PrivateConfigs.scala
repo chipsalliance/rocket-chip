@@ -15,6 +15,13 @@ class HwachaFPGAConfig extends Config(new DefaultHwachaConfig ++ new DefaultL2FP
 class EOS24Config extends Config(new WithNBanksPerMemChannel(4) ++ new WithL2Capacity(256) ++ new HwachaConfig)
 class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)
 
+class With2L2AcquireXacts extends Config(
+  (pname,site,here) => pname match {
+    case NAcquireTransactors => 2
+    case _ => throw new CDEMatchError
+  }
+)
+
 class With5L2AcquireXacts extends Config(
   (pname,site,here) => pname match {
     case NAcquireTransactors => 4
@@ -36,6 +43,12 @@ class With16L2AcquireXacts extends Config(
   }
 )
 
+class With1Lane extends Config(
+  (pname,site,here) => pname match {
+    case HwachaNLanes => 1
+    case _ => throw new CDEMatchError
+  }
+)
 
 class With2Lanes extends Config(
   (pname,site,here) => pname match {

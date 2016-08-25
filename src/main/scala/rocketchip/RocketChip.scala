@@ -195,7 +195,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
       asyncAxiFrom(io.bus_clk.get, io.bus_rst.get, io.bus_axi)
     else io.bus_axi)
 
-  coreplex.io.interrupts <> io.interrupts
+  coreplex.io.interrupts.map(_ := Bool(false))
 
   io.extra <> periphery.io.extra
   p(ConnectExtraPorts)(io.extra, coreplex.io.extra, p)

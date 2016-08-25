@@ -28,9 +28,9 @@ class MultiplierIO(dataBits: Int, tagBits: Int) extends Bundle {
 }
 
 case class MulDivConfig(
-  mulUnroll: Int = 1,
-  mulEarlyOut: Boolean = false,
-  divEarlyOut: Boolean = false
+  mulUnroll: Int = 8,
+  mulEarlyOut: Boolean = true,
+  divEarlyOut: Boolean = true
 )
 
 class MulDiv(cfg: MulDivConfig, width: Int, nXpr: Int = 32) extends Module {

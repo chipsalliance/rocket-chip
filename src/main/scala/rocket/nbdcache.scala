@@ -755,13 +755,14 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       val rway_en = io.read.bits.way_en(w+rowWords-1,w)
       val resp = Wire(Vec(rowWords, Bits(width = encRowBits)))
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
-      for (p <- 0 until resp.size) {
+      for (ptr <- 0 until resp.size) {
         val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
-        when (wway_en.orR && io.write.valid && io.write.bits.wmask(p)) {
-          val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(p+1)-1,encDataBits*p))
+        array.suggestName(p(CacheName) + "_data_array")
+        when (wway_en.orR && io.write.valid && io.write.bits.wmask(ptr)) {
+          val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(ptr+1)-1,encDataBits*ptr))
           array.write(waddr, data, wway_en.toBools)
         }
-        resp(p) := array.read(raddr, rway_en.orR && io.read.valid).asUInt
+        resp(ptr) := array.read(raddr, rway_en.orR && io.read.valid).asUInt
       }
       for (dw <- 0 until rowWords) {
         val r = Vec(resp.map(_(encDataBits*(dw+1)-1,encDataBits*dw)))
@@ -774,6 +775,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   } else {
     for (w <- 0 until nWays) {
       val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
+      array.suggestName(p(CacheName) + "_data_array")
       when (io.write.bits.way_en(w) && io.write.valid) {
         val data = Vec.tabulate(rowWords)(i => io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
         array.write(waddr, data, io.write.bits.wmask.toBools)

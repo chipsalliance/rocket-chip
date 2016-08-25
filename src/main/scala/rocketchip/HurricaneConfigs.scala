@@ -39,26 +39,14 @@ class PMUConfig extends Config(
           Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
             case NUncachedTileLinkPorts => 1
-            case UseFPU => false
-            case MulUnroll => 1
-            case DivEarlyOut => false  
+            case FPUKey => None
             case NTLBEntries => 4
             case BtbKey => BtbParameters(nEntries = 0)
-            case StoreDataQueueDepth => 2
-            case ReplayQueueDepth => 2
-            case NAcquireTransactors => 2
-            // TODO - are these actually getting set to make the core tiny?
-            case "L1I" => {
-              case NSets => 64
-              case NWays => 1
-            }:PartialFunction[Any, Any]
-            case "L1D" => {
-              case NSets => 64
-              case NWays => 1
-            }:PartialFunction[Any, Any]
-            case NMSHRs => 0
+            case DCacheKey => DCacheConfig(nSDQ = 2, nRPQ = 2, nMSHRs = 0)
+            case MulDivKey => Some(MulDivConfig(mulUnroll = 1, mulEarlyOut = false, divEarlyOut = false))
+            case NSets => 64
+            case NWays => 1
             case BuildRoCC => Nil
-            // TODO - Anything else we should do to make the core smaller?
           })))
         }
       }
@@ -78,5 +66,4 @@ class DefaultNarrowConfig extends Config(new NarrowIFConfig ++ new DefaultConfig
 
 class HurricaneUpstreamConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new With2Lanes ++ new With9L2AcquireXacts ++ new WithL2Capacity(512) ++ new WithNBanksPerMemChannel(4) ++ new Process28nmConfig ++ new NarrowIFConfig ++ new HwachaConfig)
 
-class HurricaneUpstreamTinyConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new WithL2Capacity(64) ++ new Process28nmConfig ++ new HwachaConfig ++ new NarrowIFConfig ++ new WithSmallCores)
-
+class HurricaneUpstreamTinyConfig extends Config(new WithoutConfPrec ++ new WithSmallPredRF ++ new With1Lane ++ new With2L2AcquireXacts ++ new WithL2Capacity(64) ++ new WithNBanksPerMemChannel(1) ++ new HurricaneUpstreamConfig)

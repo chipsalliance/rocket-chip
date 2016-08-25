@@ -169,6 +169,7 @@ class MetadataArray[T <: Metadata](onReset: () => T)(implicit p: Parameters) ext
     }
   } else {
     val tag_arr = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
+    tag_arr.suggestName(p(CacheName) + "_tag_array")
     when (rst || io.write.valid) {
       tag_arr.write(waddr, Vec.fill(nWays)(wdata), wmask)
     }
@@ -433,6 +434,7 @@ class L2DataArray(delay: Int)(implicit p: Parameters) extends L2HellaCacheModule
   val io = new L2DataRWIO().flip
 
   val array = SeqMem(nWays*nSets*refillCycles, Vec(rowBits/8, Bits(width=8)))
+  array.suggestName(p(CacheName) + "_data_array")
   val ren = !io.write.valid && io.read.valid
   val raddr = Cat(OHToUInt(io.read.bits.way_en), io.read.bits.addr_idx, io.read.bits.addr_beat)
   val waddr = Cat(OHToUInt(io.write.bits.way_en), io.write.bits.addr_idx, io.write.bits.addr_beat)

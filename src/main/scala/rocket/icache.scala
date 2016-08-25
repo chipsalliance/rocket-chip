@@ -79,6 +79,7 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
   val repl_way = if (isDM) UInt(0) else LFSR16(s1_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
   val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = entagbits)))
+  tag_array.suggestName(p(CacheName) + "_tag_array")
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   when (refill_done) {
     val tag = code.encode(refill_tag)
@@ -113,6 +114,7 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
 
   for (i <- 0 until nWays) {
     val data_array = SeqMem(nSets * refillCycles, Bits(width = code.width(rowBits)))
+    data_array.suggestName(p(CacheName) + "_data_array")
     val wen = narrow_grant.valid && repl_way === UInt(i)
     when (wen) {
       val e_d = code.encode(narrow_grant.bits.data)
