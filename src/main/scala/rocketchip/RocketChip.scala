@@ -88,9 +88,10 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
   val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
-  val debug_clk = if (p(AsyncDebugBus)) Some(Clock(INPUT)) else None
-  val debug_rst = if (p(AsyncDebugBus)) Some(Bool(INPUT)) else None
-  val debug = new DebugBusIO()(p).flip
+  val debug_clk = if (p(AsyncDebugBus) & !p(IncludeJtagDTM)) Some(Clock(INPUT)) else None
+  val debug_rst = if (p(AsyncDebugBus) & !p(IncludeJtagDTM)) Some(Bool(INPUT)) else None
+  val debug =     if (!p(IncludeJtagDTM)) Some(new DebugBusIO()(p).flip) else None
+  val jtag  =     if ( p(IncludeJtagDTM)) Some(new JtagIO(true).flip) else None
   val extra = p(ExtraTopPorts)(p)
 }
 
@@ -138,10 +139,18 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   periphery.io.mem_in <> coreplex.io.mem
   coreplex.io.ext_clients <> periphery.io.clients_out
 
-  coreplex.io.debug <>
+  if (p(IncludeJtagDTM)) {
+    // JtagDTMWithSync  is a wrapper which
+    // handles the synchronization as well.
+    val jtag_dtm = Module (new JtagDTMWithSync()(p))
+    jtag_dtm.io.jtag  <> io.jtag.get
+    coreplex.io.debug <> jtag_dtm.io.debug
+  } else {
+    coreplex.io.debug <>
     (if (p(AsyncDebugBus))
-      AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug)
-    else io.debug)
+      AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
+    else io.debug.get)
+  }
 
   def asyncAxiTo(clocks: Seq[Clock], resets: Seq[Bool], inner_axis: Seq[NastiIO]): Seq[NastiIO] =
     (clocks, resets, inner_axis).zipped.map {

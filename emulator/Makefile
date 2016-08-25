@@ -35,7 +35,7 @@ test:
 # Run assembly tests and benchmarks
 #--------------------------------------------------------------------
 
-ifneq ($(MAKECMDGOALS),clean)
+ifneq ($(filter run% %.run %.out %.vpd %.vcd,$(MAKECMDGOALS)),)
 -include $(generated_dir)/$(MODEL).$(CONFIG).d
 endif
 
