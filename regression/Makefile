@@ -49,6 +49,13 @@ CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtes
 	UnitTestConfig
 endif
 
+ifeq ($(SUITE), JtagDtmSuite)
+CONFIGS_32=WithJtagDTM_DefaultRV32Config
+CONFIGS_64=WithJtagDTM_DefaultConfig
+CONFIGS += $(CONFIGS_32)
+CONFIGS += $(CONFIGS_64)
+endif
+
 # These are the named regression targets.  While it's expected you run them in
 # this order, since there's dependencies for everything it doesn't actually
 # matter.  They're here to make running the various targets from the
@@ -182,3 +189,57 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 	mkdir -p $(dir $@)
 	$(MAKE) -C $(abspath $(TOP))/torture cnight RTL_CONFIG=$* RISCV=$(abspath $(RISCV)) PATH="$(abspath $(RISCV)/bin:$(PATH))" OPTIONS="-C $(abspath $(TOP)/torture/config/$(TORTURE_CONFIG).config) -p $(abspath $(TORTURE_SAVE_DIR)) -m 30 -t 10"
 	date > $@
+
+
+# Targets for JTAG DTM full-chain simulation
+
+OPENOCD_HEAD ?= riscv
+OPENOCD_INSTALL ?= $(abspath $(TOP))/openocd-install
+OPENOCD_VERSION = $(shell git ls-remote http://github.com/sifive/openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
+OPENOCD_DIR = $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/
+
+$(OPENOCD_DIR)/bin/openocd:
+	rm -rf openocd
+	git clone http://github.com/sifive/openocd.git 
+	cd openocd ; \
+	git checkout $(OPENOCD_VERSION) ; \
+	./bootstrap ; \
+	./configure --enable-jtag-vpi --prefix=$(OPENOCD_INSTALL)_$(OPENOCD_VERSION) ; \
+	make ; \
+	make install
+
+install_openocd: $(OPENOCD_DIR)/bin/openocd
+
+# If this is defined empty, then all tests would run.
+# Running a list of tests is not supported.
+JTAG_DTM_TEST ?= SimpleRegisterTest.test_s0
+
+stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
+	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+	--run $(abspath $(TOP))/vsim/simv-TestHarness-$* \
+	--cmd="$(OPENOCD_DIR)/bin/openocd \
+	--s $(OPENOCD_DIR)/share/openocd/scripts" \
+	--freedom-e300-sim \
+	$(JTAG_DTM_TEST)
+	date > $@
+
+stamps/%/jtag-dtm-64-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
+	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+	--run $(abspath $(TOP))/vsim/simv-TestHarness-$* \
+	--cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd \
+	--s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
+	--freedom-u500-sim \
+	$(JTAG_DTM_TEST)
+	date > $@
+
+JTAG_DTM_32_TEST_STAMPS=$(foreach config,$(CONFIGS_32),stamps/$(config)/jtag-dtm-32-$(JTAG_DTM_TEST).stamp)
+JTAG_DTM_64_TEST_STAMPS=$(foreach config,$(CONFIGS_64),stamps/$(config)/jtag-dtm-64-$(JTAG_DTM_TEST).stamp)
+
+jtag-dtm-tests-32 : $(JTAG_DTM_32_TEST_STAMPS)
+jtag-dtm-tests-64 : $(JTAG_DTM_64_TEST_STAMPS)
+
+# Targets for JTAG DTM full-chain simulation
+jtag-dtm-regression: jtag-dtm-tests-32 jtag-dtm-tests-64
+
+
+
