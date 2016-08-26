@@ -89,20 +89,26 @@ object TLAtomics
   def isLogical(x: UInt) = Bool(true)
 }
 
+class Bogus
+object Bogus
+{
+  def apply() = new Bogus
+}
+
 trait HasTLOpcode
 {
   // The data field in this message has value
-  def hasData(x: Int=0): Bool
+  def hasData(x: Bogus = Bogus()): Bool
   // This message requires a response
-  def hasFollowUp(x: Int=0): Bool
+  def hasFollowUp(x: Bogus = Bogus()): Bool
   // The size field of the opcode
-  def size(x: Int=0): UInt
+  def size(x: Bogus = Bogus()): UInt
 }
 
 trait HasTLData extends HasTLOpcode
 {
-  def data(x: Int=0): UInt
-  def wmask(x: Int=0): UInt
+  def data(x: Bogus = Bogus()): UInt
+  def wmask(x: Bogus = Bogus()): UInt
 }
 
 // !!! trait HasTLSource|Sink|Address
@@ -120,15 +126,15 @@ class TLBundleA(params: TLBundleParameters)
   val wmask   = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
 
-  def hasData(x: Int=0) = !opcode(2)
+  def hasData(x: Bogus = Bogus()) = !opcode(2)
 //    opcode === TLMessages.PutFullData    ||
 //    opcode === TLMessages.PutPartialData ||
 //    opcode === TLMessages.ArithmeticData ||
 //    opcode === TLMessages.LogicalData
-  def hasFollowUp(x: Int=0) = Bool(true)
-  def size(x: Int=0) = size
-  def data(x: Int=0) = data
-  def wmask(x: Int=0) = wmask
+  def hasFollowUp(x: Bogus = Bogus()) = Bool(true)
+  def size(x: Bogus = Bogus()) = size
+  def data(x: Bogus = Bogus()) = data
+  def wmask(x: Bogus = Bogus()) = wmask
 }
 
 class TLBundleB(params: TLBundleParameters)
@@ -143,11 +149,11 @@ class TLBundleB(params: TLBundleParameters)
   val wmask   = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
 
-  def hasData(x: Int=0) = !opcode(2)
-  def hasFollowUp(x: Int=0) = Bool(true)
-  def size(x: Int=0) = size
-  def data(x: Int=0) = data
-  def wmask(x: Int=0) = wmask
+  def hasData(x: Bogus = Bogus()) = !opcode(2)
+  def hasFollowUp(x: Bogus = Bogus()) = Bool(true)
+  def size(x: Bogus = Bogus()) = size
+  def data(x: Bogus = Bogus()) = data
+  def wmask(x: Bogus = Bogus()) = wmask
 }
 
 class TLBundleC(params: TLBundleParameters)
@@ -161,16 +167,16 @@ class TLBundleC(params: TLBundleParameters)
   val address = UInt(width = params.addressBits) // to
   val data    = UInt(width = params.dataBits)
 
-  def hasData(x: Int=0) = opcode(0)
+  def hasData(x: Bogus = Bogus()) = opcode(0)
 //    opcode === TLMessages.AccessAckData ||
 //    opcode === TLMessages.ProbeAckData  ||
 //    opcode === TLMessages.ReleaseData
-  def hasFollowUp(x: Int=0) = opcode(2) && !opcode(1)
+  def hasFollowUp(x: Bogus = Bogus()) = opcode(2) && !opcode(1)
 //    opcode === TLMessages.Release ||
 //    opcode === TLMessages.ReleaseData
-  def size(x: Int=0) = size
-  def data(x: Int=0) = data
-  def wmask(x: Int=0) = SInt(-1, width = params.dataBits/8).asUInt
+  def size(x: Bogus = Bogus()) = size
+  def data(x: Bogus = Bogus()) = data
+  def wmask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
 }
 
 class TLBundleD(params: TLBundleParameters)
@@ -184,15 +190,15 @@ class TLBundleD(params: TLBundleParameters)
   val sink   = UInt(width = params.sinkBits)   // from
   val data   = UInt(width = params.dataBits)
 
-  def hasData(x: Int=0) = opcode(0)
+  def hasData(x: Bogus = Bogus()) = opcode(0)
 //    opcode === TLMessages.AccessAckData ||
 //    opcode === TLMessages.GrantData
-  def hasFollowUp(x: Int=0) = !opcode(2) && opcode(1)
+  def hasFollowUp(x: Bogus = Bogus()) = !opcode(2) && opcode(1)
 //    opcode === TLMessages.Grant     ||
 //    opcode === TLMessages.GrantData
-  def size(x: Int=0) = size
-  def data(x: Int=0) = data
-  def wmask(x: Int=0) = SInt(-1, width = params.dataBits/8).asUInt
+  def size(x: Bogus = Bogus()) = size
+  def data(x: Bogus = Bogus()) = data
+  def wmask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
 }
 
 class TLBundleE(params: TLBundleParameters)
@@ -201,9 +207,9 @@ class TLBundleE(params: TLBundleParameters)
 {
   val sink = UInt(width = params.sourceBits) // to
 
-  def hasData(x: Int=0) = Bool(false)
-  def hasFollowUp(x: Int=0) = Bool(false)
-  def size(x: Int=0) = UInt(log2Up(params.dataBits/8))
+  def hasData(x: Bogus = Bogus()) = Bool(false)
+  def hasFollowUp(x: Bogus = Bogus()) = Bool(false)
+  def size(x: Bogus = Bogus()) = UInt(log2Up(params.dataBits/8))
 }
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
