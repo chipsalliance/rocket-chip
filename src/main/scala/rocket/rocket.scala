@@ -43,6 +43,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val usingRoCC = !p(BuildRoCC).isEmpty
   val fastLoadWord = p(FastLoadWord)
   val fastLoadByte = p(FastLoadByte)
+  val nBreakpoints = p(NBreakpoints)
 
   val retireWidth = p(RetireWidth)
   val fetchWidth = p(FetchWidth)
@@ -245,7 +246,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val id_do_fence = id_rocc_busy && id_ctrl.fence ||
     id_mem_busy && (id_ctrl.amo && id_amo_aq || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc) || id_csr_en)
 
-  val bpu = Module(new BreakpointUnit)
+  val bpu = Module(new BreakpointUnit(nBreakpoints))
   bpu.io.status := csr.io.status
   bpu.io.bp := csr.io.bp
   bpu.io.pc := ibuf.io.pc
@@ -254,6 +255,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val id_xcpt_if = ibuf.io.inst(0).bits.pf0 || ibuf.io.inst(0).bits.pf1
   val (id_xcpt, id_cause) = checkExceptions(List(
     (csr.io.interrupt, csr.io.interrupt_cause),
+    (bpu.io.debug_if,  UInt(CSR.debugTriggerCause)),
     (bpu.io.xcpt_if,   UInt(Causes.breakpoint)),
     (id_xcpt_if,       UInt(Causes.fault_fetch)),
     (id_illegal_insn,  UInt(Causes.illegal_instruction))))
@@ -408,7 +410,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   val mem_breakpoint = (mem_reg_load && bpu.io.xcpt_ld) || (mem_reg_store && bpu.io.xcpt_st)
+  val mem_debug_breakpoint = (mem_reg_load && bpu.io.debug_ld) || (mem_reg_store && bpu.io.debug_st)
   val (mem_new_xcpt, mem_new_cause) = checkExceptions(List(
+    (mem_debug_breakpoint,               UInt(CSR.debugTriggerCause)),
     (mem_breakpoint,                     UInt(Causes.breakpoint)),
     (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch)),
     (mem_ctrl.mem && io.dmem.xcpt.ma.st, UInt(Causes.misaligned_store)),

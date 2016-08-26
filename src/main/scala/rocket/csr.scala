@@ -41,7 +41,7 @@ class DCSR extends Bundle {
   val xdebugver = UInt(width = 2)
   val ndreset = Bool()
   val fullreset = Bool()
-  val hwbpcount = UInt(width = 12)
+  val zero3 = UInt(width = 12)
   val ebreakm = Bool()
   val ebreakh = Bool()
   val ebreaks = Bool()
@@ -101,6 +101,11 @@ object CSR
   val R = UInt(5,SZ)
 
   val ADDRSZ = 12
+  val debugIntCause = new MIP().getWidth
+  val debugTriggerCause = {
+    require(debugIntCause >= Causes.all.max)
+    debugIntCause
+  }
 }
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle {
@@ -133,7 +138,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val rocc = new RoCCInterface().flip
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
-  val bp = Vec(p(NBreakpoints), new BP).asOutput
+  val bp = Vec(nBreakpoints, new BP).asOutput
 }
 
 class CSRFile(implicit p: Parameters) extends CoreModule()(p)
@@ -155,12 +160,12 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   val (supported_interrupts, delegable_interrupts) = {
     val sup = Wire(init=new MIP().fromBits(0))
-    sup.ssip := Bool(p(UseVM))
+    sup.ssip := Bool(usingVM)
     sup.msip := true
-    sup.stip := Bool(p(UseVM))
+    sup.stip := Bool(usingVM)
     sup.mtip := true
     sup.meip := true
-    sup.seip := Bool(p(UseVM))
+    sup.seip := Bool(usingVM)
     sup.rocc := usingRoCC
 
     val del = Wire(init=sup)
@@ -189,8 +194,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   assert(!io.singleStep || io.retire <= UInt(1))
   assert(!reg_singleStepped || io.retire === UInt(0))
 
-  val reg_tdrselect = Reg(new TDRSelect)
-  val reg_bp = Reg(Vec(1 << log2Up(p(NBreakpoints)), new BP))
+  val reg_tselect = Reg(UInt(width = log2Up(nBreakpoints)))
+  val reg_bp = Reg(Vec(1 << log2Up(nBreakpoints), new BP))
 
   val reg_mie = Reg(init=UInt(0, xLen))
   val reg_mideleg = Reg(init=UInt(0, xLen))
@@ -228,13 +233,12 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val interruptCause = interruptMSB + PriorityEncoder(all_interrupts)
   io.interrupt := all_interrupts.orR && !io.singleStep || reg_singleStepped
   io.interrupt_cause := interruptCause
-  io.bp := reg_bp take p(NBreakpoints)
+  io.bp := reg_bp take nBreakpoints
 
-  val debugIntCause = reg_mip.getWidth
   // debug interrupts are only masked by being in debug mode
   when (Bool(usingDebug) && reg_dcsr.debugint && !reg_debug) {
     io.interrupt := true
-    io.interrupt_cause := interruptMSB + debugIntCause
+    io.interrupt_cause := interruptMSB + CSR.debugIntCause
   }
 
   val system_insn = io.rw.cmd === CSR.I
@@ -251,9 +255,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val read_mstatus = io.status.asUInt()(xLen-1,0)
 
   val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
-    CSRs.tdrselect -> reg_tdrselect.asUInt,
-    CSRs.tdrdata1 -> reg_bp(reg_tdrselect.tdrindex).control.asUInt,
-    CSRs.tdrdata2 -> reg_bp(reg_tdrselect.tdrindex).address,
+    CSRs.tselect -> reg_tselect,
+    CSRs.tdata1 -> reg_bp(reg_tselect).control.asUInt,
+    CSRs.tdata2 -> reg_bp(reg_tselect).address.sextTo(xLen),
     CSRs.mimpid -> UInt(0),
     CSRs.marchid -> UInt(0),
     CSRs.mvendorid -> UInt(0),
@@ -276,11 +280,14 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mcause -> reg_mcause,
     CSRs.mhartid -> io.prci.id)
 
-  if (usingDebug) {
-    read_mapping += CSRs.dcsr -> reg_dcsr.asUInt
-    read_mapping += CSRs.dpc -> reg_dpc.asUInt
-    read_mapping += CSRs.dscratch -> reg_dscratch.asUInt
-  }
+  val debug_csrs = collection.mutable.LinkedHashMap[Int,Bits](
+    CSRs.dcsr -> reg_dcsr.asUInt,
+    CSRs.dpc -> reg_dpc.asUInt,
+    CSRs.dscratch -> reg_dscratch.asUInt
+  )
+
+  if (usingDebug)
+    read_mapping ++= debug_csrs
 
   if (usingFPU) {
     read_mapping += CSRs.fflags -> reg_fflags
@@ -337,14 +344,17 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
 
   val decoded_addr = read_mapping map { case (k, v) => k -> (io.rw.addr === k) }
-
   val addr_valid = decoded_addr.values.reduce(_||_)
   val fp_csr =
     if (usingFPU) decoded_addr(CSRs.fflags) || decoded_addr(CSRs.frm) || decoded_addr(CSRs.fcsr)
     else Bool(false)
-  val csr_debug = Bool(usingDebug) && io.rw.addr(5)
-  val csr_addr_priv = Cat(io.rw.addr(6,5).andR, io.rw.addr(9,8))
-  val priv_sufficient = Cat(reg_debug, reg_mstatus.prv) >= csr_addr_priv
+  val csr_addr_priv = io.rw.addr(9,8)
+
+  val debug_csr_mask = 0x090 // only debug CSRs have address bits 7 and 4 set
+  require((read_mapping -- debug_csrs.keys).keys.forall(x => (x & debug_csr_mask) != debug_csr_mask))
+  require(debug_csrs.keys.forall(x => (x & debug_csr_mask) == debug_csr_mask))
+  val csr_debug = Bool(usingDebug) && (io.rw.addr & debug_csr_mask) === debug_csr_mask
+  val priv_sufficient = reg_debug || (!csr_debug && reg_mstatus.prv >= csr_addr_priv)
   val read_only = io.rw.addr(11,10).andR
   val cpu_wen = cpu_ren && io.rw.cmd =/= CSR.R && priv_sufficient
   val wen = cpu_wen && !read_only
@@ -374,13 +384,14 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     Mux(insn_call, reg_mstatus.prv + Causes.user_ecall,
     Mux[UInt](insn_break, Causes.breakpoint, Causes.illegal_instruction)))
   val cause_lsbs = cause(log2Up(xLen)-1,0)
-  val causeIsDebugInt = cause(xLen-1) && cause_lsbs === debugIntCause
-  val causeIsDebugBreak = cause === Causes.breakpoint && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
-  val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugBreak || reg_debug)
-  val delegate = Bool(p(UseVM)) && reg_mstatus.prv < PRV.M && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
+  val causeIsDebugInt = cause(xLen-1) && cause_lsbs === CSR.debugIntCause
+  val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause
+  val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
+  val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugTrigger || causeIsDebugBreak || reg_debug)
+  val delegate = Bool(usingVM) && reg_mstatus.prv < PRV.M && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
   val debugTVec = Mux(reg_debug, UInt(0x808), UInt(0x800))
   val tvec = Mux(trapToDebug, debugTVec, Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec))
-  val epc = Mux(csr_debug, reg_dpc, Mux(Bool(p(UseVM)) && !csr_addr_priv(1), reg_sepc, reg_mepc))
+  val epc = Mux(csr_debug, reg_dpc, Mux(Bool(usingVM) && !csr_addr_priv(1), reg_sepc, reg_mepc))
   io.fatc := insn_sfence_vm
   io.evec := Mux(exception, tvec, epc)
   io.ptbr := reg_sptbr
@@ -403,7 +414,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     when (trapToDebug) {
       reg_debug := true
       reg_dpc := epc
-      reg_dcsr.cause := Mux(reg_singleStepped, UInt(4), Mux(causeIsDebugInt, UInt(3), UInt(1)))
+      reg_dcsr.cause := Mux(reg_singleStepped, 4, Mux(causeIsDebugInt, 3, Mux[UInt](causeIsDebugTrigger, 2, 1)))
       reg_dcsr.prv := trimPrivilege(reg_mstatus.prv)
     }.elsewhen (delegate) {
       reg_sepc := epc
@@ -425,7 +436,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
 
   when (insn_ret) {
-    when (Bool(p(UseVM)) && !csr_addr_priv(1)) {
+    when (Bool(usingVM) && !csr_addr_priv(1)) {
       when (reg_mstatus.spp.toBool) { reg_mstatus.sie := reg_mstatus.spie }
       reg_mstatus.spie := false
       reg_mstatus.spp := PRV.U
@@ -537,45 +548,48 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata & delegable_interrupts }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata & delegable_exceptions }
     }
-    if (p(NBreakpoints) > 0) {
-      val newTDR = new TDRSelect().fromBits(wdata)
-      when (decoded_addr(CSRs.tdrselect)) { reg_tdrselect.tdrindex := newTDR.tdrindex }
+    if (nBreakpoints > 0) {
+      when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }
 
-      when (reg_tdrselect.tdrmode || reg_debug) {
-        when (decoded_addr(CSRs.tdrdata1)) {
+      val bp = reg_bp(reg_tselect)
+      when (!bp.control.dmode || reg_debug) {
+        when (decoded_addr(CSRs.tdata1)) {
           val newBPC = new BPControl().fromBits(wdata)
-          reg_bp(reg_tdrselect.tdrindex).control := newBPC
-          reg_bp(reg_tdrselect.tdrindex).control.bpmatch := newBPC.bpmatch & 2 /* exact/NAPOT only */
+          val dMode = newBPC.dmode && reg_debug
+          bp.control := newBPC
+          bp.control.dmode := dMode
+          bp.control.action := dMode && newBPC.action
         }
-        when (decoded_addr(CSRs.tdrdata2)) { reg_bp(reg_tdrselect.tdrindex).address := wdata }
+        when (decoded_addr(CSRs.tdata2)) { bp.address := wdata }
       }
     }
   }
 
   reg_mip := io.prci.interrupts
   reg_dcsr.debugint := io.prci.interrupts.debug
-  reg_dcsr.hwbpcount := UInt(p(NBreakpoints))
 
   reg_sptbr.asid := 0
-  reg_tdrselect.reserved := 0
-  reg_tdrselect.tdrmode := true // TODO support D-mode breakpoint theft
-  if (reg_bp.isEmpty) reg_tdrselect.tdrindex := 0
+  if (nBreakpoints <= 1) reg_tselect := 0
+  if (nBreakpoints >= 1)
+    reg_bp(nBreakpoints-1).control.chain := false
   for (bpc <- reg_bp map {_.control}) {
-    bpc.tdrtype := bpc.tdrType
-    bpc.bpamaskmax := bpc.bpaMaskMax
+    bpc.ttype := bpc.tType
+    bpc.maskmax := bpc.maskMax
     bpc.reserved := 0
-    bpc.bpaction := 0
+    bpc.zero := 0
     bpc.h := false
     if (!usingVM) bpc.s := false
     if (!usingUser) bpc.u := false
     if (!usingVM && !usingUser) bpc.m := true
     when (reset) {
+      bpc.action := false
+      bpc.dmode := false
       bpc.r := false
       bpc.w := false
       bpc.x := false
     }
   }
-  for (bp <- reg_bp drop p(NBreakpoints))
+  for (bp <- reg_bp drop nBreakpoints)
     bp := new BP().fromBits(0)
 
   def legalizePrivilege(priv: UInt): UInt =
