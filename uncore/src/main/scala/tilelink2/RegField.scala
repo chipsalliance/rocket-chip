@@ -5,6 +5,10 @@ package uncore.tilelink2
 import Chisel._
 
 case class RegField(width: Int, read: RegField.ReadFn, write: RegField.WriteFn)
+{
+  require (width > 0)
+}
+
 object RegField
 {
   type ReadFn = Bool => (Bool, UInt)
