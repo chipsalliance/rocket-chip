@@ -77,7 +77,7 @@ object TransferSizes {
 // The base address used by the crossbar for routing
 case class AddressSet(mask: BigInt, base: Option[BigInt] = None)
 {
-  // Forbid empty sets
+  // Forbid misaligned base address (and empty sets)
   require (base == None || (base.get & mask) == 0)
 
   def contains(x: BigInt) = ((x ^ base.get) & ~mask) == 0
@@ -95,6 +95,9 @@ case class AddressSet(mask: BigInt, base: Option[BigInt] = None)
   // 1 less than the number of bytes to which the manager should be aligned
   def alignment1 = ((mask + 1) & ~mask) - 1
   def max = base.get | mask
+
+  // A strided slave has serves discontiguous ranges
+  def strided = alignment1 != mask
 }
 
 case class TLManagerParameters(
@@ -109,7 +112,7 @@ case class TLManagerParameters(
   supportsPutFull:    TransferSizes = TransferSizes.none,
   supportsPutPartial: TransferSizes = TransferSizes.none,
   supportsHint:       Boolean       = false,
-  // If fifoId=Some, all messages sent to the same fifoId are delivered in FIFO order
+  // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
   fifoId:             Option[Int]   = None)
 {
   address.combinations(2).foreach({ case Seq(x,y) =>
