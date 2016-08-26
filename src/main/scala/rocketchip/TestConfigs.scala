@@ -196,7 +196,6 @@ class WithBusMasterTest extends Config(
           val busmaster = Module(new ExampleBusMaster()(p))
           busmaster.io.mmio <> mmioPorts("busmaster")
           clientPorts.head <> busmaster.io.mem
-          interrupts.foreach(x => x := Bool(false))
         }
       }
       new BusMasterDevice

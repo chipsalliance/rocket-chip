@@ -116,7 +116,7 @@ class BasePlatformConfig extends Config (
       }
       case BuildCoreplex => (p: Parameters) => Module(new DefaultCoreplex(p))
       case NExtTopInterrupts => 2
-      case NExtPeripheryInterrupts => 0
+      case NExtPeripheryInterrupts => site(ExtraDevices).nInterrupts
       // Note that PLIC asserts that this is > 0.
       case NExtInterrupts => site(NExtTopInterrupts) + site(NExtPeripheryInterrupts)
       case AsyncDebugBus => false
@@ -269,7 +269,6 @@ class WithTestRAM extends Config(
           extra: Bundle, p: Parameters) {
           val testram = Module(new TileLinkTestRAM(ramSize)(p))
           testram.io <> mmioPorts("testram")
-          interrupts.foreach(x => x := Bool(false))
         }
       }
       new TestRAMDevice

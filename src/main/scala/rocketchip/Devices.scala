@@ -14,6 +14,10 @@ abstract class DeviceBlock {
   def nClientPorts: Int
   /** Address map entries for all of the devices */
   def addrMapEntries: Seq[AddrMapEntry]
+  /**
+   * The total number of interrupt signals coming 
+   *  from all the devices                       */
+  def nInterrupts : Int = 0
 
   /**
    * The function that elaborates all the extra devices and connects them
@@ -48,6 +52,8 @@ abstract class DeviceBlock {
        "}\n"
     }.mkString
   }
+
+
 }
 
 class EmptyDeviceBlock extends DeviceBlock {
