@@ -11,13 +11,11 @@ verilog_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).v
 
 $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).prm $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "run $(PROJECT) $(MODEL) $(CONFIG) --targetDir $(generated_dir)"
-	mv $(generated_dir)/$(MODEL).fir $(generated_dir)/$(MODEL).$(CONFIG).fir
+	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(MODEL) $(PROJECT) $(CONFIG)"
 
 $(generated_dir_debug)/%.$(CONFIG).fir $(generated_dir_debug)/%.$(CONFIG).prm $(generated_dir_debug)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "run $(PROJECT) $(MODEL) $(CONFIG) --targetDir $(generated_dir_debug)"
-	mv $(generated_dir_debug)/$(MODEL).fir $(generated_dir_debug)/$(MODEL).$(CONFIG).fir
+	cd $(base_dir) && $(SBT) "run $(generated_dir_debug) $(PROJECT) $(MODEL) $(PROJECT) $(CONFIG)"
 
 %.v: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)

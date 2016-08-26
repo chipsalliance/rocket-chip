@@ -66,7 +66,7 @@ object TestGeneration {
   
   def addSuites(s: Seq[RocketTestSuite]) { s.foreach(addSuite) }
 
-  def generateMakefrag(topModuleName: String, configClassName: String) {
+  def generateMakefrag: String = {
     def gen(kind: String, s: Seq[RocketTestSuite]) = {
       if(s.length > 0) {
         val envs = s.groupBy(_.envName)
@@ -93,18 +93,13 @@ run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets)
       } else { "\n" }
     }
 
-    val f = createOutputFile(s"$topModuleName.$configClassName.d")
-    f.write(
-      List(
-        gen("asm", asmSuites.values.toSeq),
-        gen("bmark", bmarkSuites.values.toSeq),
-        gen("regression", regressionSuites.values.toSeq)
-      ).mkString("\n"))
-    f.close
+    List(
+      gen("asm", asmSuites.values.toSeq),
+      gen("bmark", bmarkSuites.values.toSeq),
+      gen("regression", regressionSuites.values.toSeq)
+    ).mkString("\n")
   }
 
-  def createOutputFile(name: String) =
-    new java.io.FileWriter(s"${Driver.targetDir}/$name")
 }
 
 object DefaultTestSuites {
