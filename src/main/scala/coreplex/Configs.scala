@@ -116,7 +116,7 @@ class BaseCoreplexConfig extends Config (
       case FastLoadByte => false
       case XLen => 64
       case FPUKey => Some(FPUConfig())
-      case MulDivKey => Some(MulDivConfig())
+      case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = true, divEarlyOut = true))
       case UseAtomics => true
       case UseCompressed => true
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
@@ -343,6 +343,7 @@ class WithBlockingL1 extends Config (
 
 class WithSmallCores extends Config (
     topDefinitions = { (pname,site,here) => pname match {
+      case MulDivKey => Some(MulDivConfig())
       case FPUKey => None
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 0)
