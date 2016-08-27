@@ -112,6 +112,8 @@ class BaseCoreplexConfig extends Config (
       case UseUser => true
       case UseDebug => true
       case NBreakpoints => 1
+      case NPerfCounters => 0
+      case NPerfEvents => 0
       case FastLoadWord => true
       case FastLoadByte => false
       case XLen => 64

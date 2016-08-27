@@ -4,6 +4,7 @@ package rocket
 
 import Chisel._
 import Util._
+import uncore.util._
 import Instructions._
 import cde.{Parameters, Field}
 import uncore.devices._
@@ -106,6 +107,14 @@ object CSR
     require(debugIntCause >= Causes.all.max)
     debugIntCause
   }
+
+  val firstCtr = CSRs.cycle
+  val firstHPM = 3
+  val firstHPC = CSRs.cycle + firstHPM
+  val firstHPE = CSRs.mucounteren + firstHPM
+  val firstMHPC = CSRs.mcycle + firstHPM
+  val nHPM = 29
+  val nCtr = firstHPM + nHPM
 }
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle {
@@ -139,6 +148,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
   val bp = Vec(nBreakpoints, new BP).asOutput
+  val events = Vec(nPerfEvents, Bool()).asInput
 }
 
 class CSRFile(implicit p: Parameters) extends CoreModule()(p)
@@ -197,15 +207,18 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_tselect = Reg(UInt(width = log2Up(nBreakpoints)))
   val reg_bp = Reg(Vec(1 << log2Up(nBreakpoints), new BP))
 
-  val reg_mie = Reg(init=UInt(0, xLen))
-  val reg_mideleg = Reg(init=UInt(0, xLen))
-  val reg_medeleg = Reg(init=UInt(0, xLen))
+  val reg_mie = Reg(UInt(width = xLen))
+  val reg_mideleg = Reg(UInt(width = xLen))
+  val reg_medeleg = Reg(UInt(width = xLen))
   val reg_mip = Reg(new MIP)
   val reg_mepc = Reg(UInt(width = vaddrBitsExtended))
   val reg_mcause = Reg(Bits(width = xLen))
   val reg_mbadaddr = Reg(UInt(width = vaddrBitsExtended))
   val reg_mscratch = Reg(Bits(width = xLen))
   val reg_mtvec = Reg(init=UInt(p(MtvecInit), paddrBits min xLen))
+  val reg_mucounteren = Reg(UInt(width = 32))
+  val reg_mscounteren = Reg(UInt(width = 32))
+  val delegable_counters = (BigInt(1) << (nPerfCounters + CSR.firstHPM)) - 1
 
   val reg_sepc = Reg(UInt(width = vaddrBitsExtended))
   val reg_scause = Reg(Bits(width = xLen))
@@ -219,7 +232,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_frm = Reg(UInt(width = 3))
 
   val reg_instret = WideCounter(64, io.retire)
-  val reg_cycle: UInt = if (enableCommitLog) { reg_instret } else { WideCounter(64) }
+  val reg_cycle = if (enableCommitLog) reg_instret else WideCounter(64)
+  val reg_hpmevent = Seq.fill(nPerfCounters)(if (nPerfEvents > 1) Reg(UInt(width = log2Ceil(nPerfEvents))) else UInt(0))
+  val reg_hpmcounter = reg_hpmevent.map(e => WideCounter(64, ((UInt(0) +: io.events): Seq[UInt])(e)))
 
   val mip = Wire(init=reg_mip)
   mip.rocc := io.rocc.interrupt
@@ -243,6 +258,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   val system_insn = io.rw.cmd === CSR.I
   val cpu_ren = io.rw.cmd =/= CSR.N && !system_insn
+  val cpu_wen = cpu_ren && io.rw.cmd =/= CSR.R
 
   val isa_string = "IM" +
     (if (usingVM) "S" else "") +
@@ -263,10 +279,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mvendorid -> UInt(0),
     CSRs.mcycle -> reg_cycle,
     CSRs.minstret -> reg_instret,
-    CSRs.mucounteren -> UInt(0),
-    CSRs.mutime_delta -> UInt(0),
-    CSRs.mucycle_delta -> UInt(0),
-    CSRs.muinstret_delta -> UInt(0),
     CSRs.misa -> UInt(isa),
     CSRs.mstatus -> read_mstatus,
     CSRs.mtvec -> reg_mtvec,
@@ -280,19 +292,27 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mcause -> reg_mcause,
     CSRs.mhartid -> io.prci.id)
 
-  val debug_csrs = collection.mutable.LinkedHashMap[Int,Bits](
+  val debug_csrs = collection.immutable.ListMap(
     CSRs.dcsr -> reg_dcsr.asUInt,
     CSRs.dpc -> reg_dpc.asUInt,
-    CSRs.dscratch -> reg_dscratch.asUInt
-  )
+    CSRs.dscratch -> reg_dscratch.asUInt)
+
+  val fp_csrs = collection.immutable.ListMap(
+    CSRs.fflags -> reg_fflags,
+    CSRs.frm -> reg_frm,
+    CSRs.fcsr -> Cat(reg_frm, reg_fflags))
 
   if (usingDebug)
     read_mapping ++= debug_csrs
 
-  if (usingFPU) {
-    read_mapping += CSRs.fflags -> reg_fflags
-    read_mapping += CSRs.frm -> reg_frm
-    read_mapping += CSRs.fcsr -> Cat(reg_frm, reg_fflags)
+  if (usingFPU)
+    read_mapping ++= fp_csrs
+
+  for (((e, c), i) <- (reg_hpmevent.padTo(CSR.nHPM, UInt(0))
+                       zip reg_hpmcounter.map(x => x: UInt).padTo(CSR.nHPM, UInt(0))) zipWithIndex) {
+    read_mapping += (i + CSR.firstHPE) -> e // mhpmeventN
+    read_mapping += (i + CSR.firstMHPC) -> c // mhpmcounterN
+    if (usingUser) read_mapping += (i + CSR.firstHPC) -> c // hpmcounterN
   }
 
   if (usingVM) {
@@ -317,22 +337,21 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     read_mapping += CSRs.sptbr -> reg_sptbr.asUInt
     read_mapping += CSRs.sepc -> reg_sepc.sextTo(xLen)
     read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
-    read_mapping += CSRs.mscounteren -> UInt(0)
-    read_mapping += CSRs.mstime_delta -> UInt(0)
-    read_mapping += CSRs.mscycle_delta -> UInt(0)
-    read_mapping += CSRs.msinstret_delta -> UInt(0)
+    read_mapping += CSRs.mscounteren -> reg_mscounteren
+  }
+
+  if (usingUser) {
+    read_mapping += CSRs.mucounteren -> reg_mucounteren
+    read_mapping += CSRs.cycle -> reg_cycle
+    read_mapping += CSRs.instret -> reg_instret
   }
 
   if (xLen == 32) {
     read_mapping += CSRs.mcycleh -> (reg_cycle >> 32)
     read_mapping += CSRs.minstreth -> (reg_instret >> 32)
-    read_mapping += CSRs.mutime_deltah -> UInt(0)
-    read_mapping += CSRs.mucycle_deltah -> UInt(0)
-    read_mapping += CSRs.muinstret_deltah -> UInt(0)
-    if (usingVM) {
-      read_mapping += CSRs.mstime_deltah -> UInt(0)
-      read_mapping += CSRs.mscycle_deltah -> UInt(0)
-      read_mapping += CSRs.msinstret_deltah -> UInt(0)
+    if (usingUser) {
+      read_mapping += CSRs.cycleh -> (reg_cycle >> 32)
+      read_mapping += CSRs.instreth -> (reg_instret >> 32)
     }
   }
 
@@ -345,9 +364,11 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   val decoded_addr = read_mapping map { case (k, v) => k -> (io.rw.addr === k) }
   val addr_valid = decoded_addr.values.reduce(_||_)
-  val fp_csr =
-    if (usingFPU) decoded_addr(CSRs.fflags) || decoded_addr(CSRs.frm) || decoded_addr(CSRs.fcsr)
-    else Bool(false)
+  val fp_csr = if (usingFPU) decoded_addr.filterKeys(fp_csrs contains _ ).values reduce(_||_) else Bool(false)
+  val hpm_csr = if (usingUser) io.rw.addr >= CSR.firstCtr && io.rw.addr < CSR.firstCtr + CSR.nCtr else Bool(false)
+  val hpm_en = reg_debug || reg_mstatus.prv === PRV.M ||
+    (reg_mstatus.prv === PRV.S && reg_mscounteren(io.rw.addr(log2Ceil(CSR.nCtr)-1, 0))) ||
+    (reg_mstatus.prv === PRV.U && reg_mucounteren(io.rw.addr(log2Ceil(CSR.nCtr)-1, 0)))
   val csr_addr_priv = io.rw.addr(9,8)
 
   val debug_csr_mask = 0x090 // only debug CSRs have address bits 7 and 4 set
@@ -356,8 +377,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val csr_debug = Bool(usingDebug) && (io.rw.addr & debug_csr_mask) === debug_csr_mask
   val priv_sufficient = reg_debug || (!csr_debug && reg_mstatus.prv >= csr_addr_priv)
   val read_only = io.rw.addr(11,10).andR
-  val cpu_wen = cpu_ren && io.rw.cmd =/= CSR.R && priv_sufficient
-  val wen = cpu_wen && !read_only
+  val wen = cpu_wen && priv_sufficient && !read_only
 
   val wdata = (Mux(io.rw.cmd.isOneOf(CSR.S, CSR.C), io.rw.rdata, UInt(0)) |
                Mux(io.rw.cmd =/= CSR.C, io.rw.wdata, UInt(0))) &
@@ -372,7 +392,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val insn_wfi = do_system_insn && opcode(5)
 
   io.csr_xcpt := (cpu_wen && read_only) ||
-    (cpu_ren && (!priv_sufficient || !addr_valid || fp_csr && !io.status.fs.orR)) ||
+    (cpu_ren && (!priv_sufficient || !addr_valid || (hpm_csr && !hpm_en) || (fp_csr && !io.status.fs.orR))) ||
     (system_insn && !priv_sufficient) ||
     insn_call || insn_break
 
@@ -506,6 +526,15 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata >> 2 << 2 }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
+
+    for (((e, c), i) <- (reg_hpmevent zip reg_hpmcounter) zipWithIndex) {
+      writeCounter(i + CSR.firstMHPC, c, wdata)
+      if (nPerfEvents > 1)
+        when (decoded_addr(i + CSR.firstHPE)) { e := wdata }
+    }
+    writeCounter(CSRs.mcycle, reg_cycle, wdata)
+    writeCounter(CSRs.minstret, reg_instret, wdata)
+
     if (usingFPU) {
       when (decoded_addr(CSRs.fflags)) { reg_fflags := wdata }
       when (decoded_addr(CSRs.frm))    { reg_frm := wdata }
@@ -547,6 +576,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       when (decoded_addr(CSRs.sbadaddr)) { reg_sbadaddr := wdata(vaddrBitsExtended-1,0) }
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata & delegable_interrupts }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata & delegable_exceptions }
+      when (decoded_addr(CSRs.mscounteren)) { reg_mscounteren := wdata & delegable_counters }
+    }
+    if (usingUser) {
+      when (decoded_addr(CSRs.mucounteren)) { reg_mucounteren := wdata & delegable_counters }
     }
     if (nBreakpoints > 0) {
       when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }
@@ -600,4 +633,14 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   def trimPrivilege(priv: UInt): UInt =
     if (usingVM) priv
     else legalizePrivilege(priv)
+
+  def writeCounter(lo: Int, ctr: WideCounter, wdata: UInt) = {
+    if (xLen == 32) {
+      val hi = lo + CSRs.mcycleh - CSRs.mcycle
+      when (decoded_addr(lo)) { ctr := Cat(ctr(63, 32), wdata) }
+      when (decoded_addr(hi)) { ctr := Cat(wdata, ctr(31, 0)) }
+    } else {
+      when (decoded_addr(lo)) { ctr := wdata }
+    }
+  }
 }

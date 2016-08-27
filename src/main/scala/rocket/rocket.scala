@@ -28,6 +28,8 @@ case object MtvecWritable extends Field[Boolean]
 case object MtvecInit extends Field[BigInt]
 case object ResetVector extends Field[BigInt]
 case object NBreakpoints extends Field[Int]
+case object NPerfCounters extends Field[Int]
+case object NPerfEvents extends Field[Int]
 
 trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
@@ -44,6 +46,8 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val fastLoadWord = p(FastLoadWord)
   val fastLoadByte = p(FastLoadByte)
   val nBreakpoints = p(NBreakpoints)
+  val nPerfCounters = p(NPerfCounters)
+  val nPerfEvents = p(NPerfEvents)
 
   val retireWidth = p(RetireWidth)
   val fetchWidth = p(FetchWidth)
