@@ -30,6 +30,6 @@ all: $(simv)
 debug: $(simv_debug)
 
 clean:
-	rm -rf $(junk) simv* csrc *.key DVE* *.h *.a *.daidir $(generated_dir)
+	rm -rf $(junk) simv* csrc *.key DVE* *.h *.a *.daidir $(generated_dir) urgReport
 
 .PHONY: default all debug clean
