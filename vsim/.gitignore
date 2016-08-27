@@ -13,6 +13,5 @@ timestamp
 *.ucli
 *.a
 *.vcd
-dramsim2_ini
 generated-src
 output
