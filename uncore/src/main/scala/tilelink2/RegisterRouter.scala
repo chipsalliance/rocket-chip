@@ -4,7 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 
-class TLRegisterNode(address: AddressSet, beatBytes: Int = 4)
+class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatBytes: Int = 4)
   extends TLManagerNode(beatBytes, TLManagerParameters(
     address            = Seq(address),
     supportsGet        = TransferSizes(1, beatBytes),
@@ -17,87 +17,51 @@ class TLRegisterNode(address: AddressSet, beatBytes: Int = 4)
   // Calling this method causes the matching TL2 bundle to be
   // configured to route all requests to the listed RegFields.
   def regmap(mapping: RegField.Map*) = {
-    val regmap = mapping.toList
-    require (!regmap.isEmpty)
+    val a = bundleIn(0).a
+    val d = bundleIn(0).d
+    val edge = edgesIn(0)
+ 
+    val params = RegFieldParams(log2Up(address.mask+1), beatBytes, edge.bundle.sourceBits + edge.bundle.sizeBits)
+    val in = Wire(Decoupled(new RegFieldInput(params)))
+    in.bits.read  := a.bits.opcode === TLMessages.Get
+    in.bits.index := a.bits.address >> log2Ceil(beatBytes)
+    in.bits.data  := a.bits.data
+    in.bits.mask  := a.bits.wmask
+    in.bits.extra := Cat(a.bits.source, a.bits.size)
 
-    // Flatten the regmap into (Reg:Int, Offset:Int, field:RegField)
-    val flat = regmap.map { case (reg, fields) => 
-      val offsets = fields.scanLeft(0)(_ + _.width).init
-      (offsets zip fields) map { case (o, f) => (reg, o, f) }
-    }.flatten
-
-    // Confirm that no register is too big
-    require (flat.map(_._2).max <= beatBytes*8)
+    // Invoke the register map builder
+    val (endIndex, out) = RegFieldHelper(beatBytes, concurrency, in, mapping:_*)
 
     // All registers must fit inside the device address space
-    val maxIndex = regmap.map(_._1).max
-    require (address.mask >= maxIndex*beatBytes)
+    require (address.mask >= (endIndex-1)*beatBytes)
 
-    // Which register is touched?
-    val alignBits = log2Ceil(beatBytes)
-    val addressBits = log2Up(maxIndex+1)
-    val a = bundleIn(0).a // Must apply Queue !!! (so no change once started)
-    val d = bundleIn(0).d
-    val regIdx = a.bits.address(addressBits+alignBits-1, alignBits)
-    val regSel = UIntToOH(regIdx)
+    // No flow control needed
+    in.valid  := a.valid
+    a.ready   := in.ready
+    d.valid   := out.valid
+    out.ready := d.ready
 
-    // What is the access?
-    val opcode = a.bits.opcode
-    val read  = a.valid && opcode === TLMessages.Get
-    val write = a.valid && (opcode === TLMessages.PutFullData || opcode === TLMessages.PutPartialData)
-    val wmaskWide = Vec.tabulate(beatBytes*8) { i => a.bits.wmask(i/8) } .toBits.asUInt
-    val dataIn = a.bits.data & wmaskWide // zero undefined bits
-
-    // The output values for each register
-    val dataOutAcc = Array.tabulate(maxIndex+1) { _ => UInt(0) }
-    // The ready state for read and write
-    val rReadyAcc = Array.tabulate(maxIndex+1) { _ => Bool(true) }
-    val wReadyAcc = Array.tabulate(maxIndex+1) { _ => Bool(true) }
-
-    // Apply all the field methods
-    flat.foreach { case (reg, low, field) =>
-      val high = low + field.width - 1
-      val rfire = wmaskWide(high, low).orR()
-      val wfire = wmaskWide(high, low).andR()
-      val sel = regSel(reg)
-      val ren = read  && sel && rfire
-      val wen = write && sel && wfire
-      val (rReady, rResult) = field.read(ren)
-      val wReady = field.write(wen, dataIn(high, low))
-      dataOutAcc(reg) = dataOutAcc(reg) | (rResult << low)
-      rReadyAcc(reg) = rReadyAcc(reg) && (!rfire || rReady)
-      wReadyAcc(reg) = wReadyAcc(reg) && (!wfire || wReady)
-    }
-
-    // Create the output data signal
-    val dataOut = Vec(dataOutAcc)(regIdx)
-    val rReady = Vec(rReadyAcc)(regIdx)
-    val wReady = Vec(wReadyAcc)(regIdx)
-
-    val ready = (read && rReady) || (write && wReady)
-    a.ready := ready && d.ready
-    d.valid := a.valid && ready
-
-    val edge = edgesIn(0)
-    d.bits := edge.AccessAck(a.bits.source, a.bits.size)
+    val sizeBits = edge.bundle.sizeBits
+    d.bits := edge.AccessAck(out.bits.extra >> sizeBits, out.bits.extra(sizeBits-1, 0))
     // avoid a Mux on the data bus by manually overriding two fields
-    d.bits.data := dataOut
-    d.bits.opcode := Mux(opcode === TLMessages.Get, TLMessages.AccessAck, TLMessages.AccessAckData)
+    d.bits.data := out.bits.data
+    d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
   }
 }
 
 object TLRegisterNode
 {
-  def apply(address: AddressSet, beatBytes: Int = 4) = new TLRegisterNode(address, beatBytes)
+  def apply(address: AddressSet, concurrency: Option[Int] = None, beatBytes: Int = 4) =
+    new TLRegisterNode(address, concurrency, beatBytes)
 }
 
 // These convenience methods below combine to make it possible to create a TL2 
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
 
-abstract class TLRegFactory(address: AddressSet, beatBytes: Int) extends TLFactory
+abstract class TLRegFactory(address: AddressSet, concurrency: Option[Int], beatBytes: Int) extends TLFactory
 {
-  val node = TLRegisterNode(address, beatBytes)
+  val node = TLRegisterNode(address, concurrency, beatBytes)
 }
 
 class TLRegBundle[P](val params: P, val tl_in: Vec[TLBundle]) extends Bundle
@@ -110,10 +74,10 @@ class TLRegModule[P, B <: Bundle](val params: P, bundleBuilder: => B, factory: T
 }
 
 class TLRegisterRouter[B <: Bundle, M <: TLModule]
-   (address: Option[BigInt] = None, size: BigInt = 4096, beatBytes: Int = 4)
+   (address: Option[BigInt] = None, size: BigInt = 4096, concurrency: Option[Int] = None, beatBytes: Int = 4)
    (bundleBuilder: Vec[TLBundle] => B)
    (moduleBuilder: (=> B, TLRegFactory) => M)
-  extends TLRegFactory(AddressSet(size-1, address), beatBytes)
+  extends TLRegFactory(AddressSet(size-1, address), concurrency, beatBytes)
 {
   require (size % 4096 == 0) // devices should be 4K aligned
   require (isPow2(size))
