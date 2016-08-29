@@ -93,7 +93,7 @@ class BaseCoreplexConfig extends Config (
           else ((if (site(UseVM)) rv32i else rv32pi), rv32u)
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuite(if (site(UseVM)) benchmarks else emptyBmarks)
+        TestGeneration.addSuite(benchmarks)
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
