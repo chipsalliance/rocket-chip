@@ -8,6 +8,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.devices._
 import uncore.util._
+import rocket.Util._
 import uncore.converters._
 import uncore.coherence.{InnerTLId, OuterTLId}
 import rocket._
@@ -79,24 +80,24 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
     with HasTopLevelParameters
 
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
-  val mem_clk = if (p(AsyncMemChannels)) Some(Vec(nMemChannels, Clock(INPUT))) else None
-  val mem_rst = if (p(AsyncMemChannels)) Some(Vec(nMemChannels, Bool (INPUT))) else None
+  val mem_clk = p(AsyncMemChannels).option(Vec(nMemChannels, Clock(INPUT)))
+  val mem_rst = p(AsyncMemChannels).option(Vec(nMemChannels, Bool (INPUT)))
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
   val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
   val interrupts = Vec(p(NExtTopInterrupts), Bool()).asInput
-  val bus_clk = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Clock(INPUT))) else None
-  val bus_rst = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Bool (INPUT))) else None
+  val bus_clk = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Clock(INPUT)))
+  val bus_rst = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Bool (INPUT)))
   val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
-  val mmio_clk = if (p(AsyncMMIOChannels)) Some(Vec(p(NExtMMIOAXIChannels), Clock(INPUT))) else None
-  val mmio_rst = if (p(AsyncMMIOChannels)) Some(Vec(p(NExtMMIOAXIChannels), Bool (INPUT))) else None
+  val mmio_clk = p(AsyncMMIOChannels).option(Vec(p(NExtMMIOAXIChannels), Clock(INPUT)))
+  val mmio_rst = p(AsyncMMIOChannels).option(Vec(p(NExtMMIOAXIChannels), Bool (INPUT)))
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
   val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
-  val debug_clk = if (p(AsyncDebugBus) & !p(IncludeJtagDTM)) Some(Clock(INPUT)) else None
-  val debug_rst = if (p(AsyncDebugBus) & !p(IncludeJtagDTM)) Some(Bool(INPUT)) else None
-  val debug =     if (!p(IncludeJtagDTM)) Some(new DebugBusIO()(p).flip) else None
-  val jtag  =     if ( p(IncludeJtagDTM)) Some(new JtagIO(true).flip) else None
+  val debug_clk = (p(AsyncDebugBus) && !p(IncludeJtagDTM)).option(Clock(INPUT))
+  val debug_rst = (p(AsyncDebugBus) && !p(IncludeJtagDTM)).option(Bool(INPUT))
+  val debug =     (!p(IncludeJtagDTM)).option(new DebugBusIO()(p).flip)
+  val jtag  =      p(IncludeJtagDTM).option(new JtagIO(true).flip)
   val extra = p(ExtraTopPorts)(p)
 }
 
@@ -136,7 +137,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   val periphery = Module(new Periphery()(innerParams))
 
   val io = new TopIO {
-    val success = if (coreplex.hasSuccessFlag) Some(Bool(OUTPUT)) else None
+    val success = coreplex.hasSuccessFlag.option(Bool(OUTPUT))
   }
   io.success zip coreplex.io.success map { case (x, y) => x := y }
 
@@ -201,7 +202,7 @@ class Periphery(implicit val p: Parameters) extends Module
   val io = new Bundle {
     val mem_in  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams)).flip
     val clients_out = Vec(p(NExternalClients), new ClientUncachedTileLinkIO()(innerParams))
-    val mmio_in = if (exportMMIO) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams).flip) else None
+    val mmio_in = exportMMIO.option(new ClientUncachedTileLinkIO()(outermostMMIOParams).flip)
     val mem_axi = Vec(nMemAXIChannels, new NastiIO)
     val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
     val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))

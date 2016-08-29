@@ -70,7 +70,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
     val ext_uncached = Vec(nExtClients, new ClientUncachedTileLinkIO()(innerParams)).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
-    val mmio = if (exportMMIO) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
+    val mmio = exportMMIO.option(new ClientUncachedTileLinkIO()(outermostMMIOParams))
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debug = new DebugBusIO()(p).flip
   }
@@ -234,11 +234,11 @@ abstract class Coreplex(implicit val p: Parameters) extends Module
   class CoreplexIO(implicit val p: Parameters) extends Bundle {
     val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
     val ext_clients = Vec(nExtClients, new ClientUncachedTileLinkIO()(innerParams)).flip
-    val mmio = if(p(ExportMMIOPort)) Some(new ClientUncachedTileLinkIO()(outermostMMIOParams)) else None
+    val mmio = p(ExportMMIOPort).option(new ClientUncachedTileLinkIO()(outermostMMIOParams))
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debug = new DebugBusIO()(p).flip
     val extra = p(ExtraCoreplexPorts)(p)
-    val success: Option[Bool] = if (hasSuccessFlag) Some(Bool(OUTPUT)) else None
+    val success: Option[Bool] = hasSuccessFlag.option(Bool(OUTPUT))
   }
 
   def hasSuccessFlag: Boolean = false
