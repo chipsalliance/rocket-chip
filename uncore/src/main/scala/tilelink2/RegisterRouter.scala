@@ -102,16 +102,17 @@ abstract class TLRegFactory(address: AddressSet, beatBytes: Int) extends TLFacto
 
 class TLRegBundle[P](val params: P, val tl_in: Vec[TLBundle]) extends Bundle
 
-class TLRegModule[P, B <: Bundle](val params: P, val io: B, factory: TLRegFactory)
+class TLRegModule[P, B <: Bundle](val params: P, bundleBuilder: => B, factory: TLRegFactory)
   extends TLModule(factory) with HasRegMap
 {
+  val io = bundleBuilder
   def regmap(mapping: RegField.Map*) = factory.node.regmap(mapping:_*)
 }
 
 class TLRegisterRouter[B <: Bundle, M <: TLModule]
    (address: Option[BigInt] = None, size: BigInt = 4096, beatBytes: Int = 4)
    (bundleBuilder: Vec[TLBundle] => B)
-   (moduleBuilder: (B, TLRegFactory) => M)
+   (moduleBuilder: (=> B, TLRegFactory) => M)
   extends TLRegFactory(AddressSet(size-1, address), beatBytes)
 {
   require (size % 4096 == 0) // devices should be 4K aligned
