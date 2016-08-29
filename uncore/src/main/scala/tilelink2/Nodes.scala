@@ -48,8 +48,8 @@ class TLBaseNode(
   lazy val edgesOut = clientPorts.map  { n => new TLEdgeOut(clientParams.get, n.managerParams.get) }
   lazy val edgesIn  = managerPorts.map { n => new TLEdgeIn (n.clientParams.get, managerParams.get) }
   
-  lazy val bundleOut = Vec(edgesOut.size, TLBundle(edgesOut.map(_.bundle).reduce(_.union(_))))
-  lazy val bundleIn  = Vec(edgesIn .size, TLBundle(edgesIn .map(_.bundle).reduce(_.union(_)))).flip
+  lazy val bundleOut = { require (!edgesOut.isEmpty); Vec(edgesOut.size, TLBundle(edgesOut.map(_.bundle).reduce(_.union(_)))) }
+  lazy val bundleIn  = { require (!edgesIn .isEmpty); Vec(edgesIn .size, TLBundle(edgesIn .map(_.bundle).reduce(_.union(_)))).flip }
 }
 
 class TLClientNode(
