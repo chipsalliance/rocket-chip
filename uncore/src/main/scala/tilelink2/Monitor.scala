@@ -13,7 +13,7 @@ object TLMonitor
     // Reuse these subexpressions to save some firrtl lines
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
-    val wmask = edge.fullMask(bundle.address, bundle.size)
+    val mask = edge.fullMask(bundle.address, bundle.size)
 
     when (bundle.opcode === TLMessages.Acquire) {
       assert (edge.manager.supportsAcquire(bundle.address, bundle.size), "'A' channel carries Acquire type unsupported by manager")(sourceInfo)
@@ -21,7 +21,7 @@ object TLMonitor
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'A' channel Acquire smaller than a beat")(sourceInfo)
       assert (is_aligned, "'A' channel Acquire address not aligned to size")(sourceInfo)
       assert (TLPermissions.isGrow(bundle.param), "'A' channel Acquire carries invalid grow param")(sourceInfo)
-      assert (bundle.wmask === SInt(-1).asUInt, "'A' channel Acquire contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === SInt(-1).asUInt, "'A' channel Acquire contains invalid mask")(sourceInfo)
     }
 
     when (bundle.opcode === TLMessages.Get) {
@@ -29,7 +29,7 @@ object TLMonitor
       assert (source_ok, "'A' channel Get carries invalid source ID")(sourceInfo)
       assert (is_aligned, "'A' channel Get address not aligned to size")(sourceInfo)
       assert (bundle.param === UInt(0), "'A' channel Get carries invalid param")(sourceInfo)
-      assert (bundle.wmask === wmask, "'A' channel Get contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'A' channel Get contains invalid mask")(sourceInfo)
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
@@ -37,7 +37,7 @@ object TLMonitor
       assert (source_ok, "'A' channel PutFull carries invalid source ID")(sourceInfo)
       assert (is_aligned, "'A' channel PutFull address not aligned to size")(sourceInfo)
       assert (bundle.param === UInt(0), "'A' channel PutFull carries invalid param")(sourceInfo)
-      assert (bundle.wmask === wmask, "'A' channel PutFull contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'A' channel PutFull contains invalid mask")(sourceInfo)
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
@@ -45,7 +45,7 @@ object TLMonitor
       assert (source_ok, "'A' channel PutPartial carries invalid source ID")(sourceInfo)
       assert (is_aligned, "'A' channel PutPartial address not aligned to size")(sourceInfo)
       assert (bundle.param === UInt(0), "'A' channel PutPartial carries invalid param")(sourceInfo)
-      assert ((bundle.wmask & ~wmask) === UInt(0), "'A' channel PutPartial contains invalid wmask")(sourceInfo)
+      assert ((bundle.mask & ~mask) === UInt(0), "'A' channel PutPartial contains invalid mask")(sourceInfo)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
@@ -53,7 +53,7 @@ object TLMonitor
       assert (source_ok, "'A' channel Arithmetic carries invalid source ID")(sourceInfo)
       assert (is_aligned, "'A' channel Arithmetic address not aligned to size")(sourceInfo)
       assert (TLAtomics.isArithmetic(bundle.param), "'A' channel Arithmetic carries invalid opcode param")(sourceInfo)
-      assert (bundle.wmask === wmask, "'A' channel Arithmetic contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'A' channel Arithmetic contains invalid mask")(sourceInfo)
     }
     
     when (bundle.opcode === TLMessages.LogicalData) {
@@ -61,14 +61,14 @@ object TLMonitor
       assert (source_ok, "'A' channel Logical carries invalid source ID")(sourceInfo)
       assert (is_aligned, "'A' channel Logical address not aligned to size")(sourceInfo)
       assert (TLAtomics.isLogical(bundle.param), "'A' channel Logical carries invalid opcode param")(sourceInfo)
-      assert (bundle.wmask === wmask, "'A' channel Logical contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'A' channel Logical contains invalid mask")(sourceInfo)
     }
     
     when (bundle.opcode === TLMessages.Hint) {
       assert (edge.manager.supportsHint(bundle.address), "'A' channel carries Hint type unsupported by manager")(sourceInfo)
       assert (source_ok, "'A' channel Hint carries invalid source ID")(sourceInfo)
       assert (is_aligned, "'A' channel Hint address not aligned to size")(sourceInfo)
-      assert (bundle.wmask === wmask, "'A' channel Hint contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'A' channel Hint contains invalid mask")(sourceInfo)
     }
   }
 
@@ -78,7 +78,7 @@ object TLMonitor
     // Reuse these subexpressions to save some firrtl lines
     val address_ok = edge.manager.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
-    val wmask = edge.fullMask(bundle.address, bundle.size)
+    val mask = edge.fullMask(bundle.address, bundle.size)
 
     when (bundle.opcode === TLMessages.Probe) {
       assert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client")(sourceInfo)
@@ -86,7 +86,7 @@ object TLMonitor
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'B' channel Probe smaller than a beat")(sourceInfo)
       assert (is_aligned, "'B' channel Probe address not aligned to size")(sourceInfo)
       assert (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param")(sourceInfo)
-      assert (bundle.wmask === SInt(-1).asUInt, "'B' channel Probe contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === SInt(-1).asUInt, "'B' channel Probe contains invalid mask")(sourceInfo)
     }
 
     when (bundle.opcode === TLMessages.Get) {
@@ -94,7 +94,7 @@ object TLMonitor
       assert (address_ok, "'B' channel Get carries unmanaged address")(sourceInfo)
       assert (is_aligned, "'B' channel Get address not aligned to size")(sourceInfo)
       assert (bundle.param === UInt(0), "'B' channel Get carries invalid param")(sourceInfo)
-      assert (bundle.wmask === wmask, "'A' channel Get contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'A' channel Get contains invalid mask")(sourceInfo)
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
@@ -102,7 +102,7 @@ object TLMonitor
       assert (address_ok, "'B' channel PutFull carries unmanaged address")(sourceInfo)
       assert (is_aligned, "'B' channel PutFull address not aligned to size")(sourceInfo)
       assert (bundle.param === UInt(0), "'B' channel PutFull carries invalid param")(sourceInfo)
-      assert (bundle.wmask === wmask, "'B' channel PutFull contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'B' channel PutFull contains invalid mask")(sourceInfo)
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
@@ -110,7 +110,7 @@ object TLMonitor
       assert (address_ok, "'B' channel PutPartial carries unmanaged address")(sourceInfo)
       assert (is_aligned, "'B' channel PutPartial address not aligned to size")(sourceInfo)
       assert (bundle.param === UInt(0), "'B' channel PutPartial carries invalid param")(sourceInfo)
-      assert ((bundle.wmask & ~wmask) === UInt(0), "'B' channel PutPartial contains invalid wmask")(sourceInfo)
+      assert ((bundle.mask & ~mask) === UInt(0), "'B' channel PutPartial contains invalid mask")(sourceInfo)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
@@ -118,7 +118,7 @@ object TLMonitor
       assert (address_ok, "'B' channel Arithmetic carries unmanaged address")(sourceInfo)
       assert (is_aligned, "'B' channel Arithmetic address not aligned to size")(sourceInfo)
       assert (TLAtomics.isArithmetic(bundle.param), "'B' channel Arithmetic carries invalid opcode param")(sourceInfo)
-      assert (bundle.wmask === wmask, "'B' channel Arithmetic contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'B' channel Arithmetic contains invalid mask")(sourceInfo)
     }
     
     when (bundle.opcode === TLMessages.LogicalData) {
@@ -126,14 +126,14 @@ object TLMonitor
       assert (address_ok, "'B' channel Logical carries unmanaged address")(sourceInfo)
       assert (is_aligned, "'B' channel Logical address not aligned to size")(sourceInfo)
       assert (TLAtomics.isLogical(bundle.param), "'B' channel Logical carries invalid opcode param")(sourceInfo)
-      assert (bundle.wmask === wmask, "'B' channel Logical contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'B' channel Logical contains invalid mask")(sourceInfo)
     }
     
     when (bundle.opcode === TLMessages.Hint) {
       assert (edge.client.supportsHint(bundle.source), "'B' channel carries Hint type unsupported by client")(sourceInfo)
       assert (address_ok, "'B' channel Hint carries unmanaged address")(sourceInfo)
       assert (is_aligned, "'B' channel Hint address not aligned to size")(sourceInfo)
-      assert (bundle.wmask === wmask, "'B' channel Hint contains invalid wmask")(sourceInfo)
+      assert (bundle.mask === mask, "'B' channel Hint contains invalid mask")(sourceInfo)
     }
   }
 

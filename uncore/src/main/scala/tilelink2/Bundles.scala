@@ -119,7 +119,7 @@ trait HasTLOpcode
 trait HasTLData extends HasTLOpcode
 {
   def data(x: Bogus = Bogus()): UInt
-  def wmask(x: Bogus = Bogus()): UInt
+  def mask(x: Bogus = Bogus()): UInt
 }
 
 class TLBundleA(params: TLBundleParameters)
@@ -131,7 +131,7 @@ class TLBundleA(params: TLBundleParameters)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits)  // from
   val address = UInt(width = params.addressBits) // to
-  val wmask   = UInt(width = params.dataBits/8)
+  val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
 
   def hasData(x: Bogus = Bogus()) = !opcode(2)
@@ -142,7 +142,7 @@ class TLBundleA(params: TLBundleParameters)
   def hasFollowUp(x: Bogus = Bogus()) = Bool(true)
   def size(x: Bogus = Bogus()) = size
   def data(x: Bogus = Bogus()) = data
-  def wmask(x: Bogus = Bogus()) = wmask
+  def mask(x: Bogus = Bogus()) = mask
 }
 
 class TLBundleB(params: TLBundleParameters)
@@ -154,14 +154,14 @@ class TLBundleB(params: TLBundleParameters)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits)  // to
   val address = UInt(width = params.addressBits) // from
-  val wmask   = UInt(width = params.dataBits/8)
+  val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
 
   def hasData(x: Bogus = Bogus()) = !opcode(2)
   def hasFollowUp(x: Bogus = Bogus()) = Bool(true)
   def size(x: Bogus = Bogus()) = size
   def data(x: Bogus = Bogus()) = data
-  def wmask(x: Bogus = Bogus()) = wmask
+  def mask(x: Bogus = Bogus()) = mask
 }
 
 class TLBundleC(params: TLBundleParameters)
@@ -185,7 +185,7 @@ class TLBundleC(params: TLBundleParameters)
 //    opcode === TLMessages.ReleaseData
   def size(x: Bogus = Bogus()) = size
   def data(x: Bogus = Bogus()) = data
-  def wmask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
+  def mask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
 }
 
 class TLBundleD(params: TLBundleParameters)
@@ -208,7 +208,7 @@ class TLBundleD(params: TLBundleParameters)
 //    opcode === TLMessages.GrantData
   def size(x: Bogus = Bogus()) = size
   def data(x: Bogus = Bogus()) = data
-  def wmask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
+  def mask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
 }
 
 class TLBundleE(params: TLBundleParameters)

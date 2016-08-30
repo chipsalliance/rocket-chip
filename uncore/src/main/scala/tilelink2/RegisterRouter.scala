@@ -26,7 +26,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     in.bits.read  := a.bits.opcode === TLMessages.Get
     in.bits.index := a.bits.address >> log2Ceil(beatBytes)
     in.bits.data  := a.bits.data
-    in.bits.mask  := a.bits.wmask
+    in.bits.mask  := a.bits.mask
     in.bits.extra := Cat(a.bits.source, a.bits.size)
 
     // Invoke the register map builder
