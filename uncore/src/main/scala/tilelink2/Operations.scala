@@ -62,7 +62,7 @@ class TLEdgeOut(
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.wmask   := SInt(-1).asUInt
+    a.mask    := SInt(-1).asUInt
     a.data    := UInt(0)
     (legal, a)
   }
@@ -135,7 +135,7 @@ class TLEdgeOut(
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.wmask   := fullMask(toAddress, lgSize)
+    a.mask    := fullMask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
   }
@@ -149,12 +149,12 @@ class TLEdgeOut(
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.wmask   := fullMask(toAddress, lgSize)
+    a.mask    := fullMask(toAddress, lgSize)
     a.data    := data
     (legal, a)
   }
 
-  def Put(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, wmask: UInt) = {
+  def Put(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, mask : UInt) = {
     require (manager.anySupportPutPartial)
     val legal = manager.supportsPutPartial(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
@@ -163,7 +163,7 @@ class TLEdgeOut(
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.wmask   := wmask
+    a.mask    := mask
     a.data    := data
     (legal, a)
   }
@@ -177,7 +177,7 @@ class TLEdgeOut(
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.wmask   := fullMask(toAddress, lgSize)
+    a.mask    := fullMask(toAddress, lgSize)
     a.data    := data
     (legal, a)
   }
@@ -191,7 +191,7 @@ class TLEdgeOut(
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.wmask   := fullMask(toAddress, lgSize)
+    a.mask    := fullMask(toAddress, lgSize)
     a.data    := data
     (legal, a)
   }
@@ -205,7 +205,7 @@ class TLEdgeOut(
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.wmask   := fullMask(toAddress, lgSize)
+    a.mask    := fullMask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
   }
@@ -264,7 +264,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.wmask   := SInt(-1).asUInt
+    b.mask    := SInt(-1).asUInt
     b.data    := UInt(0)
     (legal, b)
   }
@@ -317,7 +317,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.wmask   := fullMask(fromAddress, lgSize)
+    b.mask    := fullMask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
   }
@@ -331,12 +331,12 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.wmask   := fullMask(fromAddress, lgSize)
+    b.mask    := fullMask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
   }
 
-  def Put(fromAddress: UInt, toSource: UInt, lgSize: UInt, data: UInt, wmask: UInt) = {
+  def Put(fromAddress: UInt, toSource: UInt, lgSize: UInt, data: UInt, mask : UInt) = {
     require (client.anySupportPutPartial)
     val legal = client.supportsPutPartial(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
@@ -345,7 +345,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.wmask   := wmask
+    b.mask    := mask
     b.data    := data
     (legal, b)
   }
@@ -359,7 +359,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.wmask   := fullMask(fromAddress, lgSize)
+    b.mask    := fullMask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
   }
@@ -373,7 +373,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.wmask   := fullMask(fromAddress, lgSize)
+    b.mask    := fullMask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
   }
@@ -387,7 +387,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.wmask   := fullMask(fromAddress, lgSize)
+    b.mask    := fullMask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
   }

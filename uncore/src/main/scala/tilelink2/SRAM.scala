@@ -59,7 +59,7 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends TLSimpleFactory
       when (read) {
         rdata := mem.read(memAddress)
       } .otherwise {
-        mem.write(memAddress, wdata, in.a.bits.wmask.toBools)
+        mem.write(memAddress, wdata, in.a.bits.mask.toBools)
       }
     }
   })
