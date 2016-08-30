@@ -50,6 +50,7 @@ case class TransferSizes(min: Int, max: Int)
   require (min != 0 || max == 0)
   require (max == 0 || isPow2(max))
   require (min == 0 || isPow2(min))
+  require (max <= TransferSizes.maxAllowed)
 
   def none = min == 0
   def contains(x: Int) = isPow2(x) && min <= x && x <= max
@@ -69,6 +70,7 @@ case class TransferSizes(min: Int, max: Int)
 object TransferSizes {
   def apply(x: Int) = new TransferSizes(x)
   val none = new TransferSizes(0)
+  val maxAllowed = 4096 // transfers larger than 4kB are forbidden in TL2
 
   implicit def asBool(x: TransferSizes) = !x.none
 }
