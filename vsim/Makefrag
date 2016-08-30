@@ -15,10 +15,6 @@ sim_vsrcs = \
 	$(base_dir)/vsrc/SimDTM.v \
 	$(bb_vsrcs)
 
-ifeq ($(PLATFORM),Narrow)
-sim_vsrcs += $(generated_dir)/NastiDeserializer.$(CONFIG).v
-endif
-
 # C sources
 
 sim_csrcs = \
