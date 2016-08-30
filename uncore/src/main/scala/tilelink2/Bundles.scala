@@ -85,10 +85,19 @@ object TLPermissions
 object TLAtomics
 {
   // Arithmetic types
-  def isArithmetic(x: UInt) = Bool(true)
+  val MIN  = UInt(0)
+  val MAX  = UInt(1)
+  val MINU = UInt(2)
+  val MAXU = UInt(3)
+  val ADD  = UInt(4)
+  def isArithmetic(x: UInt) = x <= ADD
 
   // Logical types
-  def isLogical(x: UInt) = Bool(true)
+  val XOR  = UInt(0)
+  val OR   = UInt(1)
+  val AND  = UInt(2)
+  val SWAP = UInt(3)
+  def isLogical(x: UInt) = x <= SWAP
 }
 
 class Bogus
