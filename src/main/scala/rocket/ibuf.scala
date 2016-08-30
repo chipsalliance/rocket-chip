@@ -21,7 +21,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
   val io = new Bundle {
     val imem = Decoupled(new FrontendResp).flip
     val kill = Bool(INPUT)
-    val pc = UInt(width = vaddrBitsExtended)
+    val pc = UInt(OUTPUT, vaddrBitsExtended)
     val btb_resp = new BTBResp().asOutput
     val inst = Vec(retireWidth, Decoupled(new Instruction))
   }

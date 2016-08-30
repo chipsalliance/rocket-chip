@@ -424,7 +424,7 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends CoreModule()(p) {
   val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
   val req_valid = ex_reg_valid || io.cp_req.valid
   val ex_reg_inst = RegEnable(io.inst, io.valid)
-  val ex_cp_valid = io.cp_req.valid && !ex_reg_valid
+  val ex_cp_valid = io.cp_req.fire()
   val mem_reg_valid = Reg(next=ex_reg_valid && !io.killx || ex_cp_valid, init=Bool(false))
   val mem_reg_inst = RegEnable(ex_reg_inst, ex_reg_valid)
   val mem_cp_valid = Reg(next=ex_cp_valid, init=Bool(false))
@@ -441,7 +441,7 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends CoreModule()(p) {
   io.cp_resp.bits.data := UInt(0)
 
   val id_ctrl = fp_decoder.io.sigs
-  val ex_ctrl = Mux(ex_reg_valid, RegEnable(id_ctrl, io.valid), cp_ctrl)
+  val ex_ctrl = Mux(ex_cp_valid, cp_ctrl, RegEnable(id_ctrl, io.valid))
   val mem_ctrl = RegEnable(ex_ctrl, req_valid)
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
@@ -477,20 +477,22 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends CoreModule()(p) {
     }
     when (id_ctrl.ren3) { ex_ra3 := io.inst(31,27) }
   }
-  val ex_rs1::ex_rs2::ex_rs3::Nil = Seq(ex_ra1, ex_ra2, ex_ra3).map(regfile(_))
   val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), io.fcsr_rm, ex_reg_inst(14,12))
-
-  val cp_rs1 = io.cp_req.bits.in1
-  val cp_rs2 = Mux(io.cp_req.bits.swap23, io.cp_req.bits.in3, io.cp_req.bits.in2)
-  val cp_rs3 = Mux(io.cp_req.bits.swap23, io.cp_req.bits.in2, io.cp_req.bits.in3)
 
   val req = Wire(new FPInput)
   req := ex_ctrl
-  req.rm := Mux(ex_reg_valid, ex_rm, io.cp_req.bits.rm)
-  req.in1 := Mux(ex_reg_valid, ex_rs1, cp_rs1)
-  req.in2 := Mux(ex_reg_valid, ex_rs2, cp_rs2)
-  req.in3 := Mux(ex_reg_valid, ex_rs3, cp_rs3)
-  req.typ := Mux(ex_reg_valid, ex_reg_inst(21,20), io.cp_req.bits.typ)
+  req.rm := ex_rm
+  req.in1 := regfile(ex_ra1)
+  req.in2 := regfile(ex_ra2)
+  req.in3 := regfile(ex_ra3)
+  req.typ := ex_reg_inst(21,20)
+  when (ex_cp_valid) {
+    req := io.cp_req.bits
+    when (io.cp_req.bits.swap23) {
+      req.in2 := io.cp_req.bits.in3
+      req.in3 := io.cp_req.bits.in2
+    }
+  }
 
   val sfma = Module(new FPUFMAPipe(cfg.sfmaLatency, 8, 24))
   sfma.io.in.valid := req_valid && ex_ctrl.fma && ex_ctrl.single
@@ -513,7 +515,7 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends CoreModule()(p) {
   val ifpu = Module(new IntToFP(3))
   ifpu.io.in.valid := req_valid && ex_ctrl.fromint
   ifpu.io.in.bits := req
-  ifpu.io.in.bits.in1 := Mux(ex_reg_valid, io.fromint_data, cp_rs1)
+  ifpu.io.in.bits.in1 := Mux(ex_cp_valid, io.cp_req.bits.in1, io.fromint_data)
 
   val fpmu = Module(new FPToFP(2))
   fpmu.io.in.valid := req_valid && ex_ctrl.fastpipe

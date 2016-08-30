@@ -4,79 +4,80 @@ package rocket
 
 import Chisel._
 import Util._
+import uncore.util._
 import cde.Parameters
 
-class TDRSelect(implicit p: Parameters) extends CoreBundle()(p) {
-  val tdrmode = Bool()
-  val reserved = UInt(width = xLen - 1 - log2Up(nTDR))
-  val tdrindex = UInt(width = log2Up(nTDR))
-
-  def nTDR = p(NBreakpoints)
-}
-
 class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
-  val tdrtype = UInt(width = 4)
-  val bpamaskmax = UInt(width = 5)
-  val reserved = UInt(width = xLen-28)
-  val bpaction = UInt(width = 8)
-  val bpmatch = UInt(width = 4)
+  val ttype = UInt(width = 4)
+  val dmode = Bool()
+  val maskmax = UInt(width = 6)
+  val reserved = UInt(width = xLen-24)
+  val action = Bool()
+  val chain = Bool()
+  val zero = UInt(width = 2)
+  val tmatch = UInt(width = 2)
   val m = Bool()
   val h = Bool()
   val s = Bool()
   val u = Bool()
-  val r = Bool()
-  val w = Bool()
   val x = Bool()
+  val w = Bool()
+  val r = Bool()
 
-  def tdrType = 1
-  def bpaMaskMax = 4
-  def enabled(mstatus: MStatus) = Cat(m, h, s, u)(mstatus.prv)
+  def tType = 2
+  def maskMax = 4
+  def enabled(mstatus: MStatus) = !mstatus.debug && Cat(m, h, s, u)(mstatus.prv)
 }
 
 class BP(implicit p: Parameters) extends CoreBundle()(p) {
   val control = new BPControl
   val address = UInt(width = vaddrBits)
 
-  def mask(dummy: Int = 0) = {
-    var mask: UInt = control.bpmatch(1)
-    for (i <- 1 until control.bpaMaskMax)
-      mask = Cat(mask(i-1) && address(i-1), mask)
-    mask
-  }
+  def mask(dummy: Int = 0) =
+    (0 until control.maskMax-1).scanLeft(control.tmatch(0))((m, i) => m && address(i)).asUInt
 
   def pow2AddressMatch(x: UInt) =
     (~x | mask()) === (~address | mask())
+
+  def rangeAddressMatch(x: UInt) =
+    (x >= address) ^ control.tmatch(0)
+
+  def addressMatch(x: UInt) =
+    Mux(control.tmatch(1), rangeAddressMatch(x), pow2AddressMatch(x))
 }
 
-class BreakpointUnit(implicit p: Parameters) extends CoreModule()(p) {
+class BreakpointUnit(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val status = new MStatus().asInput
-    val bp = Vec(p(NBreakpoints), new BP).asInput
+    val bp = Vec(n, new BP).asInput
     val pc = UInt(INPUT, vaddrBits)
     val ea = UInt(INPUT, vaddrBits)
     val xcpt_if = Bool(OUTPUT)
     val xcpt_ld = Bool(OUTPUT)
     val xcpt_st = Bool(OUTPUT)
+    val debug_if = Bool(OUTPUT)
+    val debug_ld = Bool(OUTPUT)
+    val debug_st = Bool(OUTPUT)
   }
 
   io.xcpt_if := false
   io.xcpt_ld := false
   io.xcpt_st := false
+  io.debug_if := false
+  io.debug_ld := false
+  io.debug_st := false
 
-  for (bp <- io.bp) {
-    when (bp.control.enabled(io.status)) {
-      when (bp.pow2AddressMatch(io.pc) && bp.control.x) { io.xcpt_if := true }
-      when (bp.pow2AddressMatch(io.ea) && bp.control.r) { io.xcpt_ld := true }
-      when (bp.pow2AddressMatch(io.ea) && bp.control.w) { io.xcpt_st := true }
-    }
-  }
+  io.bp.foldLeft((Bool(true), Bool(true), Bool(true))) { case ((ri, wi, xi), bp) =>
+    val en = bp.control.enabled(io.status)
+    val r = en && ri && bp.control.r && bp.addressMatch(io.ea)
+    val w = en && wi && bp.control.w && bp.addressMatch(io.ea)
+    val x = en && xi && bp.control.x && bp.addressMatch(io.pc)
+    val end = !bp.control.chain
 
-  if (!io.bp.isEmpty) for ((bpl, bph) <- io.bp zip io.bp.tail) {
-    def matches(x: UInt) = !(x < bpl.address) && x < bph.address
-    when (bph.control.enabled(io.status) && bph.control.bpmatch === 1) {
-      when (matches(io.pc) && bph.control.x) { io.xcpt_if := true }
-      when (matches(io.ea) && bph.control.r) { io.xcpt_ld := true }
-      when (matches(io.ea) && bph.control.w) { io.xcpt_st := true }
-    }
+    when (end && r) { io.xcpt_ld := !bp.control.action; io.debug_ld := bp.control.action }
+    when (end && w) { io.xcpt_st := !bp.control.action; io.debug_st := bp.control.action }
+    when (end && x) { io.xcpt_if := !bp.control.action; io.debug_if := bp.control.action }
+
+    (end || r, end || w, end || x)
   }
 }
