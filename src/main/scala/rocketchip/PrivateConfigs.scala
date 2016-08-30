@@ -15,38 +15,16 @@ class HwachaFPGAConfig extends Config(new DefaultHwachaConfig ++ new DefaultL2FP
 class EOS24Config extends Config(new WithNBanksPerMemChannel(4) ++ new WithL2Capacity(256) ++ new HwachaConfig)
 class EOS24FPGAConfig extends Config(new FPGAConfig ++ new EOS24Config)
 
-class With5L2AcquireXacts extends Config(
+class WithNL2AcquireXacts(n: Int) extends Config(
   (pname,site,here) => pname match {
-    case NAcquireTransactors => 4
+    case NAcquireTransactors => n
     case _ => throw new CDEMatchError
   }
 )
 
-class With9L2AcquireXacts extends Config(
+class WithNLanes(n: Int) extends Config(
   (pname,site,here) => pname match {
-    case NAcquireTransactors => 9
-    case _ => throw new CDEMatchError
-  }
-)
-
-class With16L2AcquireXacts extends Config(
-  (pname,site,here) => pname match {
-    case NAcquireTransactors => 16
-    case _ => throw new CDEMatchError
-  }
-)
-
-
-class With2Lanes extends Config(
-  (pname,site,here) => pname match {
-    case HwachaNLanes => 2
-    case _ => throw new CDEMatchError
-  }
-)
-
-class With4Lanes extends Config(
-  (pname,site,here) => pname match {
-    case HwachaNLanes => 4
+    case HwachaNLanes => n
     case _ => throw new CDEMatchError
   }
 )
@@ -82,7 +60,7 @@ class WithSmallPredRF extends Config(
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
-  new With5L2AcquireXacts ++ new WithL2Capacity(256) ++ new With32BtbEntires ++ new HwachaConfig)
+  new WithNL2AcquireXacts(4) ++ new WithL2Capacity(256) ++ new With32BtbEntires ++ new HwachaConfig)
 {
   override val knobValues:Any=>Any = {
     case "HWACHA_NSRAMRF_ENTRIES" => 256
@@ -98,20 +76,20 @@ class ISCA2016Config extends Config(
   }
 }
 
-class ISCA2016L2Config extends Config(new With2Lanes ++ new ISCA2016Config)
-class ISCA2016L4Config extends Config(new With4Lanes ++ new ISCA2016Config)
+class ISCA2016L2Config extends Config(new WithNLanes(2) ++ new ISCA2016Config)
+class ISCA2016L4Config extends Config(new WithNLanes(4) ++ new ISCA2016Config)
 
-class ISCA2016HOVB4Config extends Config(new With9L2AcquireXacts ++ new WithNBanksPerMemChannel(2) ++ new ISCA2016Config)
+class ISCA2016HOVB4Config extends Config(new WithNL2AcquireXacts(9) ++ new WithNBanksPerMemChannel(2) ++ new ISCA2016Config)
 class ISCA2016HOVB8Config extends Config(new ISCA2016Config)
 class ISCA2016LOVB4Config extends Config(new WithoutConfPrec ++ new ISCA2016HOVB4Config)
 class ISCA2016LOVB8Config extends Config(new WithoutConfPrec ++ new ISCA2016HOVB8Config)
 
-class ISCA2016HOVL2B4Config extends Config(new With2Lanes ++ new ISCA2016HOVB4Config)
-class ISCA2016HOVL2B8Config extends Config(new With2Lanes ++ new ISCA2016HOVB8Config)
-class ISCA2016LOVL2B4Config extends Config(new With2Lanes ++ new ISCA2016LOVB4Config)
-class ISCA2016LOVL2B8Config extends Config(new With2Lanes ++ new ISCA2016LOVB8Config)
+class ISCA2016HOVL2B4Config extends Config(new WithNLanes(2) ++ new ISCA2016HOVB4Config)
+class ISCA2016HOVL2B8Config extends Config(new WithNLanes(2) ++ new ISCA2016HOVB8Config)
+class ISCA2016LOVL2B4Config extends Config(new WithNLanes(2) ++ new ISCA2016LOVB4Config)
+class ISCA2016LOVL2B8Config extends Config(new WithNLanes(2) ++ new ISCA2016LOVB8Config)
 
-class ISCA2016HOVL4B4Config extends Config(new With4Lanes ++ new ISCA2016HOVB4Config)
-class ISCA2016HOVL4B8Config extends Config(new With4Lanes ++ new ISCA2016HOVB8Config)
-class ISCA2016LOVL4B4Config extends Config(new With4Lanes ++ new ISCA2016LOVB4Config)
-class ISCA2016LOVL4B8Config extends Config(new With4Lanes ++ new ISCA2016LOVB8Config)
+class ISCA2016HOVL4B4Config extends Config(new WithNLanes(4) ++ new ISCA2016HOVB4Config)
+class ISCA2016HOVL4B8Config extends Config(new WithNLanes(4) ++ new ISCA2016HOVB8Config)
+class ISCA2016LOVL4B4Config extends Config(new WithNLanes(4) ++ new ISCA2016LOVB4Config)
+class ISCA2016LOVL4B8Config extends Config(new WithNLanes(4) ++ new ISCA2016LOVB8Config)
