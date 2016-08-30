@@ -150,6 +150,7 @@ object TLMonitor
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ProbeAck smaller than a beat")(sourceInfo)
       assert (is_aligned, "'C' channel ProbeAck address not aligned to size")(sourceInfo)
       assert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAck carries invalid report param")(sourceInfo)
+      assert (!bundle.error, "'C' channel Probe carries an error")(sourceInfo)
     }
     
     when (bundle.opcode === TLMessages.ProbeAckData) {
@@ -158,6 +159,7 @@ object TLMonitor
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ProbeAckData smaller than a beat")(sourceInfo)
       assert (is_aligned, "'C' channel ProbeAckData address not aligned to size")(sourceInfo)
       assert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAckData carries invalid report param")(sourceInfo)
+      assert (!bundle.error, "'C' channel ProbeData carries an error")(sourceInfo)
     }
     
     when (bundle.opcode === TLMessages.Release) {
@@ -166,6 +168,7 @@ object TLMonitor
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel Release smaller than a beat")(sourceInfo)
       assert (is_aligned, "'C' channel Release address not aligned to size")(sourceInfo)
       assert (TLPermissions.isShrink(bundle.param), "'C' channel Release carries invalid shrink param")(sourceInfo)
+      assert (!bundle.error, "'C' channel Release carries an error")(sourceInfo)
     }
     
     when (bundle.opcode === TLMessages.ReleaseData) {
@@ -174,6 +177,7 @@ object TLMonitor
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ReleaseData smaller than a beat")(sourceInfo)
       assert (is_aligned, "'C' channel ReleaseData address not aligned to size")(sourceInfo)
       assert (TLPermissions.isShrink(bundle.param), "'C' channel ReleaseData carries invalid shrink param")(sourceInfo)
+      assert (!bundle.error, "'C' channel ReleaseData carries an error")(sourceInfo)
     }
     
     when (bundle.opcode === TLMessages.AccessAck) {
@@ -195,6 +199,7 @@ object TLMonitor
       // source is ignored
       assert (is_aligned, "'C' channel HintAck address not aligned to size")(sourceInfo)
       assert (bundle.param === UInt(0), "'C' channel HintAck carries invalid param")(sourceInfo)
+      assert (!bundle.error, "'C' channel HintAck carries an error")(sourceInfo)
     }
   }
 
@@ -209,6 +214,7 @@ object TLMonitor
       // sink is ignored
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'D' channel ReleaseAck smaller than a beat")(sourceInfo)
       assert (bundle.param === UInt(0), "'D' channel ReleaseeAck carries invalid param")(sourceInfo)
+      assert (!bundle.error, "'D' channel ReleaseAck carries an error")(sourceInfo)
     }
     
     when (bundle.opcode === TLMessages.Grant) {
@@ -244,6 +250,7 @@ object TLMonitor
       // sink is ignored
       // size is ignored
       assert (bundle.param === UInt(0), "'D' channel HintAck carries invalid param")(sourceInfo)
+      assert (!bundle.error, "'D' channel HintAck carries an error")(sourceInfo)
     }
   }
 
