@@ -59,7 +59,7 @@ object TLRegisterNode
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
 
-abstract class TLRegFactory(address: AddressSet, concurrency: Option[Int], beatBytes: Int) extends TLFactory
+abstract class TLRegFactory(address: AddressSet, concurrency: Option[Int], beatBytes: Int) extends TLSimpleFactory
 {
   val node = TLRegisterNode(address, concurrency, beatBytes)
 }

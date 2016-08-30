@@ -4,7 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 
-class TLRAM(address: AddressSet, beatBytes: Int = 4) extends TLFactory
+class TLRAM(address: AddressSet, beatBytes: Int = 4) extends TLSimpleFactory
 {
   val node = TLManagerNode(beatBytes, TLManagerParameters(
     address            = List(address),

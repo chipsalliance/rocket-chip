@@ -13,7 +13,7 @@ object TLXbar
   }
 }
 
-class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extends TLFactory
+class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extends TLSimpleFactory
 {
   def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId))
   def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
