@@ -115,7 +115,10 @@ class BasePlatformConfig extends Config (
           idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
       }
       case BuildCoreplex => (p: Parameters) => Module(new DefaultCoreplex(p))
-      case NExtInterrupts => 2
+      case NExtTopInterrupts => 2
+      case NExtPeripheryInterrupts => site(ExtraDevices).nInterrupts
+      // Note that PLIC asserts that this is > 0.
+      case NExtInterrupts => site(NExtTopInterrupts) + site(NExtPeripheryInterrupts)
       case AsyncDebugBus => false
       case IncludeJtagDTM => false
       case AsyncMMIOChannels => false
@@ -260,9 +263,10 @@ class WithTestRAM extends Config(
         def addrMapEntries = Seq(
           AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW))))
         def builder(
-            mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
-            clientPorts: Seq[ClientUncachedTileLinkIO],
-            extra: Bundle, p: Parameters) {
+          mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
+          clientPorts: Seq[ClientUncachedTileLinkIO],
+          interrupts: Seq[Bool],
+          extra: Bundle, p: Parameters) {
           val testram = Module(new TileLinkTestRAM(ramSize)(p))
           testram.io <> mmioPorts("testram")
         }

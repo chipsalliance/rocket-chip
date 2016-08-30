@@ -93,7 +93,7 @@ class BaseCoreplexConfig extends Config (
           else ((if (site(UseVM)) rv32i else rv32pi), rv32u)
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuite(if (site(UseVM)) benchmarks else emptyBmarks)
+        TestGeneration.addSuite(benchmarks)
         List.fill(site(NTiles)){ (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
@@ -112,11 +112,13 @@ class BaseCoreplexConfig extends Config (
       case UseUser => true
       case UseDebug => true
       case NBreakpoints => 1
+      case NPerfCounters => 0
+      case NPerfEvents => 0
       case FastLoadWord => true
       case FastLoadByte => false
       case XLen => 64
       case FPUKey => Some(FPUConfig())
-      case MulDivKey => Some(MulDivConfig())
+      case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = true, divEarlyOut = true))
       case UseAtomics => true
       case UseCompressed => true
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
@@ -343,6 +345,7 @@ class WithBlockingL1 extends Config (
 
 class WithSmallCores extends Config (
     topDefinitions = { (pname,site,here) => pname match {
+      case MulDivKey => Some(MulDivConfig())
       case FPUKey => None
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 0)

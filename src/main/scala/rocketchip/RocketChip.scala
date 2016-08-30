@@ -47,6 +47,11 @@ case object BuildCoreplex extends Field[Parameters => Coreplex]
 case object ConnectExtraPorts extends Field[(Bundle, Bundle, Parameters) => Unit]
 /** Specifies the size of external memory */
 case object ExtMemSize extends Field[Long]
+/** Specifies the actual sorce of External Interrupts as Top and Periphery.
+  *  NExtInterrupts = NExtTopInterrupts + NExtPeripheryInterrupts 
+  **/
+case object NExtTopInterrupts extends Field[Int]
+case object NExtPeripheryInterrupts extends Field[Int]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasTopLevelParameters {
@@ -79,7 +84,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
   val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
-  val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
+  val interrupts = Vec(p(NExtTopInterrupts), Bool()).asInput
   val bus_clk = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Clock(INPUT))) else None
   val bus_rst = if (p(AsyncBusChannels)) Some(Vec(p(NExtBusAXIChannels), Bool (INPUT))) else None
   val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
@@ -181,7 +186,11 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
       asyncAxiFrom(io.bus_clk.get, io.bus_rst.get, io.bus_axi)
     else io.bus_axi)
 
-  coreplex.io.interrupts <> io.interrupts
+  // This places the Periphery Interrupts at Bits [0...]
+  // Top-level interrupts are at the higher Bits.
+  // This may have some implications for prioritization of the interrupts,
+  // but PLIC could do some internal swizzling in the future.
+  coreplex.io.interrupts <> (periphery.io.interrupts ++ io.interrupts)
 
   io.extra <> periphery.io.extra
   p(ConnectExtraPorts)(io.extra, coreplex.io.extra, p)
@@ -200,6 +209,7 @@ class Periphery(implicit val p: Parameters) extends Module
     val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
     val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
     val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
+    val interrupts = Vec(p(NExtPeripheryInterrupts), Bool()).asOutput
     val extra = p(ExtraTopPorts)(p)
   }
 
@@ -255,7 +265,8 @@ class Periphery(implicit val p: Parameters) extends Module
       case OuterTLId => "L1toL2"   // Device client port
     })
 
-    extraDevices.builder(deviceMMIO.result(), deviceClients, io.extra, buildParams)
+    extraDevices.builder(deviceMMIO.result(), deviceClients,
+                         io.interrupts, io.extra, buildParams)
 
     val ext = p(ExtMMIOPorts).map(
       port => TileLinkWidthAdapter(mmioNetwork.port(port.name), "MMIO_Outermost"))
