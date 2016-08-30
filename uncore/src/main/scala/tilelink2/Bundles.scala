@@ -4,20 +4,22 @@ package uncore.tilelink2
 
 import Chisel._
 
-abstract class TLBundleBase(val params: TLBundleParameters) extends Bundle
+abstract class GenericParameterizedBundle[T <: Object](val params: T) extends Bundle
 {
   override def cloneType = {
     try {
       this.getClass.getConstructors.head.newInstance(params).asInstanceOf[this.type]
     } catch {
       case e: java.lang.IllegalArgumentException =>
-        throwException("Unable to use TLBundleBase.cloneType on " +
+        throwException("Unable to use GenericParameterizedBundle.cloneType on " +
                        this.getClass + ", probably because " + this.getClass +
                        "() takes more than one argument.  Consider overriding " +
                        "cloneType() on " + this.getClass, e)
     }
   }
 }
+
+abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameterizedBundle(params)
 
 // common combos in lazy policy:
 //   Put + Acquire
