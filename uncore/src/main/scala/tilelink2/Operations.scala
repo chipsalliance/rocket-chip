@@ -12,7 +12,7 @@ class TLEdge(
   def isAligned(address: UInt, lgSize: UInt) =
     if (maxLgSize == 0) Bool(true) else {
       val mask = Vec.tabulate(maxLgSize) { UInt(_) < lgSize }
-      (address & mask.toBits.asUInt) === UInt(0)
+      (address & Cat(mask.reverse)) === UInt(0)
     }
 
   // This gets used everywhere, so make the smallest circuit possible ...
@@ -34,7 +34,7 @@ class TLEdge(
         }
       }
     }
-    Vec(helper(lgBytes).map(_._1)).toBits.asUInt
+    Cat(helper(lgBytes).map(_._1).reverse)
   }
 
   def numBeats(bundle: HasTLOpcode) = {
@@ -43,7 +43,7 @@ class TLEdge(
     val cutoff = log2Ceil(manager.beatBytes)
     val small = size <= UInt(cutoff)
     val decode = Vec.tabulate (1+maxLgSize-cutoff) { i => UInt(i + cutoff) === size }
-    Mux(!hasData || small, UInt(1), decode.toBits.asUInt)
+    Mux(!hasData || small, UInt(1), Cat(decode.reverse))
   }
 }
 
@@ -77,6 +77,7 @@ class TLEdgeOut(
     c.source  := fromSource
     c.address := toAddress
     c.data    := UInt(0)
+    c.error   := Bool(false)
     (legal, c)
   }
 
@@ -90,6 +91,7 @@ class TLEdgeOut(
     c.source  := fromSource
     c.address := toAddress
     c.data    := data
+    c.error   := Bool(false)
     (legal, c)
   }
 
@@ -101,6 +103,7 @@ class TLEdgeOut(
     c.source  := UInt(0)
     c.address := toAddress
     c.data    := UInt(0)
+    c.error   := Bool(false)
     c
   }
 
@@ -112,6 +115,7 @@ class TLEdgeOut(
     c.source  := UInt(0)
     c.address := toAddress
     c.data    := data
+    c.error   := Bool(false)
     c
   }
 
@@ -206,7 +210,8 @@ class TLEdgeOut(
     (legal, a)
   }
 
-  def AccessAck(toAddress: UInt, lgSize: UInt) = {
+  def AccessAck(toAddress: UInt, lgSize: UInt): TLBundleC = AccessAck(toAddress, lgSize, Bool(false))
+  def AccessAck(toAddress: UInt, lgSize: UInt, error: Bool) = {
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.AccessAck
     c.param   := UInt(0)
@@ -214,21 +219,12 @@ class TLEdgeOut(
     c.source  := UInt(0)
     c.address := toAddress
     c.data    := UInt(0)
+    c.error   := error
     c
   }
 
-  def AccessAckError(toAddress: UInt, lgSize: UInt) = {
-    val c = Wire(new TLBundleC(bundle))
-    c.opcode  := TLMessages.AccessAckError
-    c.param   := UInt(0)
-    c.size    := lgSize
-    c.source  := UInt(0)
-    c.address := toAddress
-    c.data    := UInt(0)
-    c
-  }
-
-  def AccessAck(toAddress: UInt, lgSize: UInt, data: UInt) = {
+  def AccessAck(toAddress: UInt, lgSize: UInt, data: UInt): TLBundleC = AccessAck(toAddress, lgSize, data, Bool(false))
+  def AccessAck(toAddress: UInt, lgSize: UInt, data: UInt, error: Bool) = {
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.AccessAckData
     c.param   := UInt(0)
@@ -236,6 +232,19 @@ class TLEdgeOut(
     c.source  := UInt(0)
     c.address := toAddress
     c.data    := data
+    c.error   := error
+    c
+  }
+
+  def HintAck(toAddress: UInt, lgSize: UInt) = {
+    val c = Wire(new TLBundleC(bundle))
+    c.opcode  := TLMessages.HintAck
+    c.param   := UInt(0)
+    c.size    := lgSize
+    c.source  := UInt(0)
+    c.address := toAddress
+    c.data    := UInt(0)
+    c.error   := Bool(false)
     c
   }
 }
@@ -260,7 +269,8 @@ class TLEdgeIn(
     (legal, b)
   }
 
-  def Grant(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt) = {
+  def Grant(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt): TLBundleD = Grant(fromSink, toSource, lgSize, capPermissions, Bool(false))
+  def Grant(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, error: Bool) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode := TLMessages.Grant
     d.param  := capPermissions
@@ -268,10 +278,12 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := fromSink
     d.data   := UInt(0)
+    d.error  := error
     d
   }
 
-  def GrantData(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, data: UInt) = {
+  def Grant(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, data: UInt): TLBundleD = Grant(fromSink, toSource, lgSize, capPermissions, data, Bool(false))
+  def Grant(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, data: UInt, error: Bool) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode := TLMessages.GrantData
     d.param  := capPermissions
@@ -279,6 +291,7 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := fromSink
     d.data   := data
+    d.error  := error
     d
   }
 
@@ -290,6 +303,7 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := UInt(0)
     d.data   := UInt(0)
+    d.error  := Bool(false)
     d
   }
 
@@ -378,7 +392,8 @@ class TLEdgeIn(
     (legal, b)
   }
 
-  def AccessAck(toSource: UInt, lgSize: UInt) = {
+  def AccessAck(toSource: UInt, lgSize: UInt): TLBundleD = AccessAck(toSource, lgSize, Bool(false))
+  def AccessAck(toSource: UInt, lgSize: UInt, error: Bool) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode := TLMessages.AccessAck
     d.param  := UInt(0)
@@ -386,21 +401,12 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := UInt(0)
     d.data   := UInt(0)
+    d.error  := error
     d
   }
 
-  def AccessAckError(toSource: UInt, lgSize: UInt) = {
-    val d = Wire(new TLBundleD(bundle))
-    d.opcode := TLMessages.AccessAckError
-    d.param  := UInt(0)
-    d.size   := lgSize
-    d.source := toSource
-    d.sink   := UInt(0)
-    d.data   := UInt(0)
-    d
-  }
-
-  def AccessAck(toSource: UInt, lgSize: UInt, data: UInt) = {
+  def AccessAck(toSource: UInt, lgSize: UInt, data: UInt): TLBundleD = AccessAck(toSource, lgSize, data, Bool(false))
+  def AccessAck(toSource: UInt, lgSize: UInt, data: UInt, error: Bool) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode := TLMessages.AccessAckData
     d.param  := UInt(0)
@@ -408,6 +414,19 @@ class TLEdgeIn(
     d.source := toSource
     d.sink   := UInt(0)
     d.data   := data
+    d.error  := error
+    d
+  }
+
+  def HintAck(toSource: UInt, lgSize: UInt) = {
+    val d = Wire(new TLBundleD(bundle))
+    d.opcode := TLMessages.HintAck
+    d.param  := UInt(0)
+    d.size   := lgSize
+    d.source := toSource
+    d.sink   := UInt(0)
+    d.data   := UInt(0)
+    d.error  := Bool(false)
     d
   }
 }
