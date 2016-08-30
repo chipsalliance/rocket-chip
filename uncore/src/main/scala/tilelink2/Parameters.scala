@@ -136,6 +136,7 @@ case class TLManagerParameters(
 
 case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes: Int)
 {
+  require (!managers.isEmpty)
   require (isPow2(beatBytes))
 
   // Require disjoint ranges for Ids and addresses
@@ -182,8 +183,10 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   def containsById(id: UInt) = findById(id).reduce(_ || _)
   
   private def safety_helper(member: TLManagerParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
-    (find(address) zip managers.map(member(_).containsLg(lgSize)))
-    .map { case (m, s) => m && s } reduce (_ || _)
+    val allSame = managers.map(member(_) == member(managers(0))).reduce(_ && _)
+    if (allSame) member(managers(0)).containsLg(lgSize) else {
+      Mux1H(find(address), managers.map(member(_).containsLg(lgSize)))
+    }
   }
 
   // Check for support of a given operation at a specific address
@@ -194,8 +197,9 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   val supportsPutFull    = safety_helper(_.supportsPutFull)    _
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
   def supportsHint(address: UInt) = {
-    (find(address) zip managers.map(_.supportsHint))
-    .map { case (m, b) => m && Bool(b) } reduce (_ || _)
+    if (allSupportHint) Bool(true) else {
+      Mux1H(find(address), managers.map(m => Bool(m.supportsHint)))
+    }
   }
 }
 
@@ -220,6 +224,8 @@ case class TLClientParameters(
 }
 
 case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
+  require (!clients.isEmpty)
+
   // Require disjoint ranges for Ids
   clients.combinations(2).foreach({ case Seq(x,y) =>
     require (!x.sourceId.overlaps(y.sourceId))
@@ -255,8 +261,10 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
   def contains(id: UInt) = find(id).reduce(_ || _)
   
   private def safety_helper(member: TLClientParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
-    (find(id) zip clients.map(member(_).containsLg(lgSize)))
-    .map { case (m, s) => m && s } reduce (_ || _)
+    val allSame = clients.map(member(_) == member(clients(0))).reduce(_ && _)
+    if (allSame) member(clients(0)).containsLg(lgSize) else {
+      Mux1H(find(id), clients.map(member(_).containsLg(lgSize)))
+    }
   }
 
   // Check for support of a given operation at a specific id
@@ -267,8 +275,9 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
   val supportsPutFull    = safety_helper(_.supportsPutFull)    _
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
   def supportsHint(id: UInt) = {
-    (find(id) zip clients.map(_.supportsHint))
-    .map { case (m, b) => m && Bool(b) } reduce (_ || _)
+    if (allSupportHint) Bool(true) else {
+      Mux1H(find(id), clients.map(c => Bool(c.supportsHint)))
+    }
   }
 }
 
