@@ -28,24 +28,24 @@ abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameter
 object TLMessages 
 {
   //                                  A    B    C    D    E
-  val PutFullData    = UInt(0) //     .    .
-  val PutPartialData = UInt(1) //     .    .
-  val ArithmeticData = UInt(2) //     .    .
-  val LogicalData    = UInt(3) //     .    .
-  val Get            = UInt(4) //     .    .
-  val Hint           = UInt(5) //     .    .
-  val Acquire        = UInt(6) //     .
-  val Probe          = UInt(6) //          .
+  val PutFullData    = UInt(0) //     .    .                   => AccessAck
+  val PutPartialData = UInt(1) //     .    .                   => AccessAck
+  val ArithmeticData = UInt(2) //     .    .                   => AccessAckData
+  val LogicalData    = UInt(3) //     .    .                   => AccessAckData
+  val Get            = UInt(4) //     .    .                   => AccessAckData
+  val Hint           = UInt(5) //     .    .                   => HintAck
+  val Acquire        = UInt(6) //     .                        => Grant[Data]
+  val Probe          = UInt(6) //          .                   => ProbeAck[Data]
   val AccessAck      = UInt(0) //               .    .
   val AccessAckData  = UInt(1) //               .    .
   val HintAck        = UInt(2) //               .    .
 //val PutThroughData = UInt(3) //               .              // future extension ?
   val ProbeAck       = UInt(4) //               .
   val ProbeAckData   = UInt(5) //               .
-  val Release        = UInt(6) //               .
-  val ReleaseData    = UInt(7) //               .
-  val Grant          = UInt(4) //                    .
-  val GrantData      = UInt(5) //                    .
+  val Release        = UInt(6) //               .              => ReleaseAck
+  val ReleaseData    = UInt(7) //               .              => ReleaseAck
+  val Grant          = UInt(4) //                    .         => GrantAck
+  val GrantData      = UInt(5) //                    .         => GrantAck
   val ReleaseAck     = UInt(6) //                    .
   val GrantAck       = UInt(0) //                         .
  
