@@ -130,7 +130,7 @@ class BasePlatformConfig extends Config (
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0
-      case ExportMMIOPort => site(ExtraDevices).addrMapEntries.size > 0
+      case ExportMMIOPort => site(ExtIOAddrMapEntries).size > 0
       case AsyncBusChannels => false
       case NExtBusAXIChannels => 0
       case NExternalClients => (if (site(NExtBusAXIChannels) > 0) 1 else 0) +
