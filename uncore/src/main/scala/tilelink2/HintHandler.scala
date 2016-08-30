@@ -45,5 +45,10 @@ class TLHintHandler(passthrough: Boolean = true) extends TLSimpleFactory
     out.b.ready := Mux(bypassC, out.c.ready && !in.c.valid, in.b.ready)
     in.b.valid  := out.b.valid && !bypassC
     in.b.bits   := out.b.bits
+
+    // Pass E through unchanged
+    out.e.valid := in.e.valid
+    in.e.ready := out.e.ready
+    out.e.bits := in.e.bits
   })
 }
