@@ -39,6 +39,12 @@ abstract class TLFactory
   }
 }
 
+// Use this if you have only one node => makes factory adapters possible
+abstract class TLSimpleFactory extends TLFactory
+{
+  def node: TLBaseNode
+}
+
 abstract class TLModule(factory: TLFactory) extends Module
 {
   override def desiredName = factory.getClass.getName.split('.').last
