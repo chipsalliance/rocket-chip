@@ -183,18 +183,18 @@ object TLMonitor
       assert (bundle.param === UInt(0), "'C' channel AccessAck carries invalid param")(sourceInfo)
     }
     
-    when (bundle.opcode === TLMessages.AccessAckError) {
-      assert (address_ok, "'C' channel AccessAckError carries unmanaged address")(sourceInfo)
-      // source is ignored
-      assert (is_aligned, "'C' channel AccessAckError address not aligned to size")(sourceInfo)
-      assert (bundle.param === UInt(0), "'C' channel AccessAckError carries invalid param")(sourceInfo)
-    }
-    
     when (bundle.opcode === TLMessages.AccessAckData) {
       assert (address_ok, "'C' channel AccessAckData carries unmanaged address")(sourceInfo)
       // source is ignored
       assert (is_aligned, "'C' channel AccessAckData address not aligned to size")(sourceInfo)
       assert (bundle.param === UInt(0), "'C' channel AccessAckData carries invalid param")(sourceInfo)
+    }
+    
+    when (bundle.opcode === TLMessages.HintAck) {
+      assert (address_ok, "'C' channel HintAck carries unmanaged address")(sourceInfo)
+      // source is ignored
+      assert (is_aligned, "'C' channel HintAck address not aligned to size")(sourceInfo)
+      assert (bundle.param === UInt(0), "'C' channel HintAck carries invalid param")(sourceInfo)
     }
   }
 
@@ -232,18 +232,18 @@ object TLMonitor
       assert (bundle.param === UInt(0), "'D' channel AccessAck carries invalid param")(sourceInfo)
     }
     
-    when (bundle.opcode === TLMessages.AccessAckError) {
-      assert (source_ok, "'D' channel AccessAckError carries invalid source ID")(sourceInfo)
-      // sink is ignored
-      // size is ignored
-      assert (bundle.param === UInt(0), "'D' channel AccessAckError carries invalid param")(sourceInfo)
-    }
-    
     when (bundle.opcode === TLMessages.AccessAckData) {
       assert (source_ok, "'D' channel AccessAckData carries invalid source ID")(sourceInfo)
       // sink is ignored
       // size is ignored
       assert (bundle.param === UInt(0), "'D' channel AccessAckData carries invalid param")(sourceInfo)
+    }
+    
+    when (bundle.opcode === TLMessages.HintAck) {
+      assert (source_ok, "'D' channel HintAck carries invalid source ID")(sourceInfo)
+      // sink is ignored
+      // size is ignored
+      assert (bundle.param === UInt(0), "'D' channel HintAck carries invalid param")(sourceInfo)
     }
   }
 

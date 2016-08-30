@@ -34,25 +34,25 @@ object TLMessages
   val LogicalData    = UInt(3) //     .    .
   val Get            = UInt(4) //     .    .
   val Hint           = UInt(5) //     .    .
-  val AccessAck      = UInt(0) //               .    .
-  val AccessAckData  = UInt(1) //               .    .
-  val AccessAckError = UInt(6) //               .    .
   val Acquire        = UInt(6) //     .
   val Probe          = UInt(6) //          .
-  val ProbeAck       = UInt(2) //               .
-  val ProbeAckData   = UInt(3) //               .
-  val Release        = UInt(4) //               .
-  val ReleaseData    = UInt(5) //               .
-//val PutThroughData = UInt(7) //               .              // future extension ?
-  val Grant          = UInt(2) //                    .
-  val GrantData      = UInt(3) //                    .
-  val ReleaseAck     = UInt(4) //                    .
+  val AccessAck      = UInt(0) //               .    .
+  val AccessAckData  = UInt(1) //               .    .
+  val HintAck        = UInt(2) //               .    .
+//val PutThroughData = UInt(3) //               .              // future extension ?
+  val ProbeAck       = UInt(4) //               .
+  val ProbeAckData   = UInt(5) //               .
+  val Release        = UInt(6) //               .
+  val ReleaseData    = UInt(7) //               .
+  val Grant          = UInt(4) //                    .
+  val GrantData      = UInt(5) //                    .
+  val ReleaseAck     = UInt(6) //                    .
   val GrantAck       = UInt(0) //                         .
  
   def isA(x: UInt) = x <= Acquire
   def isB(x: UInt) = x <= Probe
   def isC(x: UInt) = x <= ReleaseData
-  def isD(x: UInt) = x <= GrantData
+  def isD(x: UInt) = x <= ReleaseAck
 }
 
 object TLPermissions
@@ -122,9 +122,6 @@ trait HasTLData extends HasTLOpcode
   def wmask(x: Bogus = Bogus()): UInt
 }
 
-// !!! trait HasTLSource|Sink|Address
-// !!! trait param: from and to perms
-
 class TLBundleA(params: TLBundleParameters)
   extends TLBundleBase(params)
   with HasTLData
@@ -177,12 +174,13 @@ class TLBundleC(params: TLBundleParameters)
   val source  = UInt(width = params.sourceBits)  // from
   val address = UInt(width = params.addressBits) // to
   val data    = UInt(width = params.dataBits)
+  val error   = Bool() // AccessAck[Data]
 
   def hasData(x: Bogus = Bogus()) = opcode(0)
 //    opcode === TLMessages.AccessAckData ||
 //    opcode === TLMessages.ProbeAckData  ||
 //    opcode === TLMessages.ReleaseData
-  def hasFollowUp(x: Bogus = Bogus()) = opcode(2) && !opcode(1)
+  def hasFollowUp(x: Bogus = Bogus()) = opcode(2) && opcode(1)
 //    opcode === TLMessages.Release ||
 //    opcode === TLMessages.ReleaseData
   def size(x: Bogus = Bogus()) = size
@@ -200,11 +198,12 @@ class TLBundleD(params: TLBundleParameters)
   val source = UInt(width = params.sourceBits) // to
   val sink   = UInt(width = params.sinkBits)   // from
   val data   = UInt(width = params.dataBits)
+  val error  = Bool() // AccessAck[Data], Grant[Data]
 
   def hasData(x: Bogus = Bogus()) = opcode(0)
 //    opcode === TLMessages.AccessAckData ||
 //    opcode === TLMessages.GrantData
-  def hasFollowUp(x: Bogus = Bogus()) = !opcode(2) && opcode(1)
+  def hasFollowUp(x: Bogus = Bogus()) = opcode(2) && !opcode(1)
 //    opcode === TLMessages.Grant     ||
 //    opcode === TLMessages.GrantData
   def size(x: Bogus = Bogus()) = size
