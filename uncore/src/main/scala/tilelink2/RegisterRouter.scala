@@ -64,7 +64,7 @@ abstract class TLRegFactory(address: AddressSet, concurrency: Option[Int], beatB
   val node = TLRegisterNode(address, concurrency, beatBytes)
 }
 
-class TLRegBundle[P](val params: P, val tl_in: Vec[TLBundle]) extends Bundle
+class TLRegBundle[P](val params: P, val in: Vec[TLBundle]) extends Bundle
 
 class TLRegModule[P, B <: Bundle](val params: P, bundleBuilder: => B, factory: TLRegFactory)
   extends TLModule(factory) with HasRegMap
