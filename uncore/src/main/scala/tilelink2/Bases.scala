@@ -29,12 +29,14 @@ abstract class TLFactory
       }
     }
     bindings.foreach { case (x, i, y, j, s) =>
-      TLMonitor.legalize(y.bundleOut(j), y.edgesOut(j), x.bundleIn(i), x.edgesIn(i), s)
-      x.bundleIn(i).<>(y.bundleOut(j))(s)
+      val in  = x.connectIn(i)
+      val out = y.connectOut(j)
+      TLMonitor.legalize(out, y.edgesOut(j), in, x.edgesIn(i), s)
+      in.<>(out)(s)
       val mask = ~UInt(x.edgesIn(i).manager.beatBytes - 1)
-      x.bundleIn (i).a.bits.address.:=(mask & y.bundleOut(j).a.bits.address)(s)
-      y.bundleOut(j).b.bits.address.:=(mask & x.bundleIn (i).b.bits.address)(s)
-      x.bundleIn (i).c.bits.address.:=(mask & y.bundleOut(j).c.bits.address)(s)
+      in .a.bits.address.:=(mask & out.a.bits.address)(s)
+      out.b.bits.address.:=(mask & in .b.bits.address)(s)
+      in .c.bits.address.:=(mask & out.c.bits.address)(s)
     }
   }
 }
