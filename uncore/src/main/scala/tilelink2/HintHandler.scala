@@ -72,3 +72,14 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     out.e.bits := in.e.bits
   })
 }
+
+object TLHintHandler
+{
+  // applied to the TL source node; connect (TLHintHandler(x.node) -> y.node)
+  def apply(x: TLBaseNode, supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit lazyModule: LazyModule): TLBaseNode = {
+    val hints = new TLHintHandler(supportManagers, supportClients, passthrough)
+    lazyModule.addChild(hints)
+    lazyModule.connect(x -> hints.node)
+    hints.node
+  }
+}

@@ -9,6 +9,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 abstract class LazyModule
 {
   private val bindings = ListBuffer[() => Unit]()
+  private val extraChildren = ListBuffer[LazyModule]()
 
   // Use as: connect(source -> sink, source2 -> sink2, ...)
   def connect[PO, PI, EO, EI, B <: Bundle](edges: (BaseNode[PO, PI, EO, EI, B], BaseNode[PO, PI, EO, EI, B])*)(implicit sourceInfo: SourceInfo) = {
@@ -25,13 +26,18 @@ abstract class LazyModule
       if (m.getParameterTypes.isEmpty && 
           !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
           !(m.getName contains '$') &&
+          !(m.getName == "lazyModule") &&
           classOf[LazyModule].isAssignableFrom(m.getReturnType)) {
         // ... and force their lazy module members to exist
         m.invoke(this).asInstanceOf[LazyModule].module
       }
     }
+    extraChildren.foreach { _.module }
     bindings.foreach { f => f () }
   }
+
+  implicit val lazyModule = this
+  def addChild(x: LazyModule) = extraChildren += x
 }
 
 abstract class LazyModuleImp(outer: LazyModule) extends Module
