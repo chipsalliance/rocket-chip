@@ -58,6 +58,7 @@ class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
 abstract class RoCC(implicit p: Parameters) extends CoreModule()(p) {
   val io = new RoCCInterface
   io.mem.req.bits.phys := Bool(true) // don't perform address translation
+  io.mem.invalidate_lr := Bool(false) // don't mess with LR/SC
 }
 
 class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
