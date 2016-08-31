@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import scala.collection.mutable.ListBuffer
+import chisel3.internal.sourceinfo.SourceInfo
 
 class TLBaseNode(
   private val clientFn:  Option[Seq[TLClientPortParameters]  => TLClientPortParameters],
@@ -28,18 +29,6 @@ class TLBaseNode(
   private var clientRealized  = false
   private var managerRealized = false
 
-  protected[tilelink2] def edge(x: TLBaseNode) = {
-    require (!noManagers)
-    require (!managerRealized)
-    require (!x.noClients)
-    require (!x.clientRealized)
-    val i = accManagerPorts.size
-    val j = x.accClientPorts.size
-    accManagerPorts += x
-    x.accClientPorts += this
-    (i, j)
-  }
-
   private lazy val clientPorts  = { clientRealized  = true; require (numClientPorts.contains(accClientPorts.size));   accClientPorts.result() }
   private lazy val managerPorts = { managerRealized = true; require (numManagerPorts.contains(accManagerPorts.size)); accManagerPorts.result() }
   private lazy val clientParams  : Option[TLClientPortParameters]  = clientFn.map(_(managerPorts.map(_.clientParams.get)))
@@ -53,6 +42,27 @@ class TLBaseNode(
 
   def connectOut = bundleOut
   def connectIn = bundleIn
+
+  protected[tilelink2] def edge(x: TLBaseNode)(implicit sourceInfo: SourceInfo) = {
+    require (!noManagers)
+    require (!managerRealized)
+    require (!x.noClients)
+    require (!x.clientRealized)
+    val i = accManagerPorts.size
+    val j = x.accClientPorts.size
+    accManagerPorts += x
+    x.accClientPorts += this
+    () => {
+      val in = connectIn(i)
+      val out = x.connectOut(j)
+      TLMonitor.legalize(out, x.edgesOut(j), in, edgesIn(i), sourceInfo)
+      in <> out
+      val mask = ~UInt(edgesIn(i).manager.beatBytes - 1)
+      in .a.bits.address := (mask & out.a.bits.address)
+      out.b.bits.address := (mask & in .b.bits.address)
+      in .c.bits.address := (mask & out.c.bits.address)
+    }
+  }
 }
 
 class TLClientNode(

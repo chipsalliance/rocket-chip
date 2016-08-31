@@ -8,11 +8,10 @@ import chisel3.internal.sourceinfo.SourceInfo
 
 abstract class LazyModule
 {
-  private val bindings = ListBuffer[(TLBaseNode, Int, TLBaseNode, Int, SourceInfo)]()
+  private val bindings = ListBuffer[() => Unit]()
 
   def tl(manager: TLBaseNode, client: TLBaseNode)(implicit sourceInfo: SourceInfo) = {
-    val (i, j) = manager.edge(client)
-    bindings += ((manager, i, client, j, sourceInfo))
+    bindings += manager.edge(client)
   }
 
   def module: LazyModuleImp
@@ -28,16 +27,7 @@ abstract class LazyModule
         m.invoke(this).asInstanceOf[LazyModule].module
       }
     }
-    bindings.foreach { case (x, i, y, j, s) =>
-      val in  = x.connectIn(i)
-      val out = y.connectOut(j)
-      TLMonitor.legalize(out, y.edgesOut(j), in, x.edgesIn(i), s)
-      in.<>(out)(s)
-      val mask = ~UInt(x.edgesIn(i).manager.beatBytes - 1)
-      in .a.bits.address.:=(mask & out.a.bits.address)(s)
-      out.b.bits.address.:=(mask & in .b.bits.address)(s)
-      in .c.bits.address.:=(mask & out.c.bits.address)(s)
-    }
+    bindings.foreach { f => f () }
   }
 }
 
