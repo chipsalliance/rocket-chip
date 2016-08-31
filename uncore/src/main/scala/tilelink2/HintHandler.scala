@@ -5,13 +5,13 @@ package uncore.tilelink2
 import Chisel._
 
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough
-class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true) extends TLSimpleFactory
+class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true) extends LazyModule
 {
   val node = TLAdapterNode(
     clientFn  = { case Seq(c) => if (supportClients)  c.copy(clients  = c.clients .map(_.copy(supportsHint = true))) else c },
     managerFn = { case Seq(m) => if (supportManagers) m.copy(managers = m.managers.map(_.copy(supportsHint = true))) else m })
 
-  lazy val module = Module(new TLModule(this) {
+  lazy val module = Module(new LazyModuleImp(this) {
     val io = new Bundle {
       val in  = node.bundleIn
       val out = node.bundleOut

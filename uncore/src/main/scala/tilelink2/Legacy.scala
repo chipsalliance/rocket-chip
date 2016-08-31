@@ -7,14 +7,14 @@ import cde.Parameters
 import uncore.tilelink._
 import uncore.constants._
 
-class TLLegacy(implicit val p: Parameters) extends TLSimpleFactory with HasTileLinkParameters
+class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkParameters
 {
   val outer_p = p
   // TL legacy clients don't support anything fancy
   val node = TLClientNode(TLClientParameters(
     sourceId = IdRange(0, 1 << tlClientXactIdBits)))
 
-  lazy val module = Module(new TLModule(this) with HasTileLinkParameters {
+  lazy val module = Module(new LazyModuleImp(this) with HasTileLinkParameters {
     val p = outer_p
     val io = new Bundle {
       val legacy = new ClientUncachedTileLinkIO()(p).flip
