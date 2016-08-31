@@ -29,6 +29,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   }
 }
 
+case class TLIdentityNode() extends IdentityNode(TLImp)
 case class TLOutputNode() extends OutputNode(TLImp)
 case class TLInputNode() extends InputNode(TLImp)
 

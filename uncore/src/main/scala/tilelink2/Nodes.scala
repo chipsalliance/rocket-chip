@@ -72,15 +72,16 @@ class BaseNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(
   }
 }
 
-class OutputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
+class IdentityNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
   extends BaseNode(imp)(Some{case Seq(x) => x}, Some{case Seq(x) => x}, 1 to 1, 1 to 1)
+
+class OutputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
 {
   override def connectOut = bundleOut
   override def connectIn  = bundleOut
 }
 
-class InputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
-  extends BaseNode(imp)(Some{case Seq(x) => x}, Some{case Seq(x) => x}, 1 to 1, 1 to 1)
+class InputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
 {
   override def connectOut = bundleIn
   override def connectIn  = bundleIn
