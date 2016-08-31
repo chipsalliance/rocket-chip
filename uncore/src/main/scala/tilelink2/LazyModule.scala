@@ -10,8 +10,11 @@ abstract class LazyModule
 {
   private val bindings = ListBuffer[() => Unit]()
 
-  def tl(manager: TLBaseNode, client: TLBaseNode)(implicit sourceInfo: SourceInfo) = {
-    bindings += manager.edge(client)
+  // Use as: connect(source -> sink, source2 -> sink2, ...)
+  def connect(edges: (TLBaseNode, TLBaseNode)*)(implicit sourceInfo: SourceInfo) = {
+    edges.foreach { case (source, sink) =>
+      bindings += sink.edge(source)
+    }
   }
 
   def module: LazyModuleImp
