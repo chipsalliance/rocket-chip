@@ -20,36 +20,36 @@ abstract class NodeImp[PO, PI, EO, EI, B <: Bundle]
 }
 
 class BaseNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(
-  private val clientFn:  Option[Seq[PO] => PO],
-  private val managerFn: Option[Seq[PI] => PI],
-  private val numClientPorts:  Range.Inclusive,
-  private val numManagerPorts: Range.Inclusive)
+  private val oFn: Option[Seq[PO] => PO],
+  private val iFn: Option[Seq[PI] => PI],
+  private val numPO: Range.Inclusive,
+  private val numPI: Range.Inclusive)
 {
   // At least 0 ports must be supported
-  require (!numClientPorts.isEmpty)
-  require (!numManagerPorts.isEmpty)
-  require (numClientPorts.start >= 0)
-  require (numManagerPorts.start >= 0)
+  require (!numPO.isEmpty)
+  require (!numPI.isEmpty)
+  require (numPO.start >= 0)
+  require (numPI.start >= 0)
 
-  val noClients  = numClientPorts.size  == 1 && numClientPorts.contains(0)
-  val noManagers = numManagerPorts.size == 1 && numManagerPorts.contains(0)
+  val noOs = numPO.size == 1 && numPO.contains(0)
+  val noIs = numPI.size == 1 && numPI.contains(0)
 
-  require (noClients  || clientFn.isDefined)
-  require (noManagers || managerFn.isDefined)
+  require (noOs || oFn.isDefined)
+  require (noIs || iFn.isDefined)
 
-  private val accClientPorts  = ListBuffer[BaseNode[PO, PI, EO, EI, B]]()
-  private val accManagerPorts = ListBuffer[BaseNode[PO, PI, EO, EI, B]]()
-  private var clientRealized  = false
-  private var managerRealized = false
+  private val accPO = ListBuffer[BaseNode[PO, PI, EO, EI, B]]()
+  private val accPI = ListBuffer[BaseNode[PO, PI, EO, EI, B]]()
+  private var oRealized  = false
+  private var iRealized = false
 
-  private lazy val clientPorts  = { clientRealized  = true; require (numClientPorts.contains(accClientPorts.size));   accClientPorts.result() }
-  private lazy val managerPorts = { managerRealized = true; require (numManagerPorts.contains(accManagerPorts.size)); accManagerPorts.result() }
-  private lazy val clientParams  : Option[PO] = clientFn.map(_(managerPorts.map(_.clientParams.get)))
-  private lazy val managerParams : Option[PI] = managerFn.map(_(clientPorts.map(_.managerParams.get)))
+  private lazy val oPorts = { oRealized = true; require (numPO.contains(accPO.size)); accPO.result() }
+  private lazy val iPorts = { iRealized = true; require (numPI.contains(accPI.size)); accPI.result() }
+  private lazy val oParams : Option[PO] = oFn.map(_(iPorts.map(_.oParams.get)))
+  private lazy val iParams : Option[PI] = iFn.map(_(oPorts.map(_.iParams.get)))
 
-  lazy val edgesOut = clientPorts.map  { n => imp.edgeO(clientParams.get, n.managerParams.get) }
-  lazy val edgesIn  = managerPorts.map { n => imp.edgeI(n.clientParams.get, managerParams.get) }
-  
+  lazy val edgesOut = oPorts.map { n => imp.edgeO(oParams.get, n.iParams.get) }
+  lazy val edgesIn  = iPorts.map { n => imp.edgeI(n.oParams.get, iParams.get) }
+
   lazy val bundleOut = imp.bundleO(edgesOut)
   lazy val bundleIn  = imp.bundleI(edgesIn)
 
@@ -58,103 +58,50 @@ class BaseNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(
 
   // source.edge(sink)
   protected[tilelink2] def edge(x: BaseNode[PO, PI, EO, EI, B])(implicit sourceInfo: SourceInfo) = {
-    require (!noClients)
-    require (!clientRealized)
-    require (!x.noManagers)
-    require (!x.managerRealized)
-    val i = x.accManagerPorts.size
-    val o = accClientPorts.size
-    accClientPorts += x
-    x.accManagerPorts += this
+    require (!noOs)
+    require (!oRealized)
+    require (!x.noIs)
+    require (!x.iRealized)
+    val i = x.accPI.size
+    val o = accPO.size
+    accPO += x
+    x.accPI += this
     () => {
       imp.connect(connectOut(o), edgesOut(o), x.connectIn(i), x.edgesIn(i))
     }
   }
 }
 
-class TLClientNode(
-  params: TLClientParameters,
-  numPorts: Range.Inclusive = 1 to 1) extends BaseNode(TLImp)(
-    clientFn  = Some {case Seq() => TLClientPortParameters(Seq(params))},
-    managerFn = None,
-    numClientPorts  = numPorts,
-    numManagerPorts = 0 to 0)
-{
-  require(numPorts.end >= 1)
-}
-
-object TLClientNode
-{
-  def apply(
-    params: TLClientParameters,
-    numPorts: Range.Inclusive = 1 to 1) = new TLClientNode(params, numPorts)
-}
-
-class TLManagerNode(
-  beatBytes: Int,
-  params: TLManagerParameters, 
-  numPorts: Range.Inclusive = 1 to 1) extends BaseNode(TLImp)(
-    clientFn  = None,
-    managerFn = Some {case Seq() => TLManagerPortParameters(Seq(params), beatBytes)},
-    numClientPorts  = 0 to 0,
-    numManagerPorts = numPorts)
-{
-  require(numPorts.end >= 1)
-}
-
-object TLManagerNode
-{
-  def apply(
-    beatBytes: Int,
-    params: TLManagerParameters,
-    numPorts: Range.Inclusive = 1 to 1) = new TLManagerNode(beatBytes, params, numPorts)
-}
-
-class TLAdapterNode(
-  clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
-  managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters,
-  numClientPorts:  Range.Inclusive = 1 to 1,
-  numManagerPorts: Range.Inclusive = 1 to 1) extends BaseNode(TLImp)(
-    clientFn  = Some(clientFn),
-    managerFn = Some(managerFn),
-    numClientPorts  = numClientPorts,
-    numManagerPorts = numManagerPorts)
-
-object TLAdapterNode
-{
-  def apply(
-    clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
-    managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters,
-    numClientPorts:  Range.Inclusive = 1 to 1,
-    numManagerPorts: Range.Inclusive = 1 to 1) = new TLAdapterNode(clientFn, managerFn, numClientPorts, numManagerPorts)
-}
-
-class TLOutputNode extends BaseNode(TLImp)(
-    clientFn  = Some({case Seq(x) => x}),
-    managerFn = Some({case Seq(x) => x}),
-    numClientPorts  = 1 to 1,
-    numManagerPorts = 1 to 1)
+class OutputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
+  extends BaseNode(imp)(Some{case Seq(x) => x}, Some{case Seq(x) => x}, 1 to 1, 1 to 1)
 {
   override def connectOut = bundleOut
   override def connectIn  = bundleOut
 }
 
-object TLOutputNode
-{
-  def apply() = new TLOutputNode()
-}
-
-class TLInputNode extends BaseNode(TLImp)(
-    clientFn  = Some({case Seq(x) => x}),
-    managerFn = Some({case Seq(x) => x}),
-    numClientPorts  = 1 to 1,
-    numManagerPorts = 1 to 1)
+class InputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
+  extends BaseNode(imp)(Some{case Seq(x) => x}, Some{case Seq(x) => x}, 1 to 1, 1 to 1)
 {
   override def connectOut = bundleIn
   override def connectIn  = bundleIn
 }
 
-object TLInputNode
+class SourceNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(po: PO, num: Range.Inclusive = 1 to 1)
+  extends BaseNode(imp)(Some{case Seq() => po}, None, num, 0 to 0)
 {
-  def apply() = new TLInputNode()
+  require (num.end >= 1)
+}
+
+class SinkNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI, num: Range.Inclusive = 1 to 1)
+  extends BaseNode(imp)(None, Some{case Seq() => pi}, 0 to 0, num)
+{
+  require (num.end >= 1)
+}
+
+class InteriorNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
+  (oFn: Seq[PO] => PO, iFn: Seq[PI] => PI, numPO: Range.Inclusive, numPI: Range.Inclusive)
+  extends BaseNode(imp)(Some(oFn), Some(iFn), numPO, numPI)
+{
+  require (numPO.end >= 1)
+  require (numPI.end >= 1)
 }
