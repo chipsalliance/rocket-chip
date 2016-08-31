@@ -74,10 +74,10 @@ class TLRegModule[P, B <: Bundle](val params: P, bundleBuilder: => B, router: TL
 }
 
 class TLRegisterRouter[B <: Bundle, M <: LazyModuleImp]
-   (address: Option[BigInt] = None, size: BigInt = 4096, concurrency: Option[Int] = None, beatBytes: Int = 4)
+   (base: BigInt, size: BigInt = 4096, concurrency: Option[Int] = None, beatBytes: Int = 4)
    (bundleBuilder: Vec[TLBundle] => B)
    (moduleBuilder: (=> B, TLRegisterRouterBase) => M)
-  extends TLRegisterRouterBase(AddressSet(size-1, address), concurrency, beatBytes)
+  extends TLRegisterRouterBase(AddressSet(base, size-1), concurrency, beatBytes)
 {
   require (size % 4096 == 0) // devices should be 4K aligned
   require (isPow2(size))

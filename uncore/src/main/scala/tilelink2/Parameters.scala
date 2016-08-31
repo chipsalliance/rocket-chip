@@ -75,30 +75,28 @@ object TransferSizes {
   implicit def asBool(x: TransferSizes) = !x.none
 }
 
-// AddressSets specify the mask of bits consumed by the manager
-// The base address used by the crossbar for routing
-case class AddressSet(mask: BigInt, base: Option[BigInt] = None)
+// AddressSets specify the address space managed by the manager
+// Base is the base address, and mask are the bits consumed by the manager
+// e.g: base=0x200, mask=0xff describes a device managing 0x200-0x2ff
+// e.g: base=0x1000, mask=0xf0f decribes a device managing 0x1000-0x100f, 0x1100-0x110f, ...
+case class AddressSet(base: BigInt, mask: BigInt)
 {
   // Forbid misaligned base address (and empty sets)
-  require (base == None || (base.get & mask) == 0)
+  require ((base & mask) == 0)
 
-  def contains(x: BigInt) = ((x ^ base.get) & ~mask) == 0
-  def contains(x: UInt) = ((x ^ UInt(base.get)) & ~UInt(mask)) === UInt(0)
+  def contains(x: BigInt) = ((x ^ base) & ~mask) == 0
+  def contains(x: UInt) = ((x ^ UInt(base)) & ~UInt(mask)) === UInt(0)
 
   // overlap iff bitwise: both care (~mask0 & ~mask1) => both equal (base0=base1)
-  // if base = None, it will be auto-assigned and thus not overlap anything
-  def overlaps(x: AddressSet) = (base, x.base) match {
-    case (Some(tbase), Some(xbase)) => (~(mask | x.mask) & (tbase ^ xbase)) == 0
-    case _ => false
-  }
+  def overlaps(x: AddressSet) = (~(mask | x.mask) & (base ^ x.base)) == 0
 
   // contains iff bitwise: x.mask => mask && contains(x.base)
-  def contains(x: AddressSet) = ((x.mask | (base.get ^ x.base.get)) & ~mask) == 0
+  def contains(x: AddressSet) = ((x.mask | (base ^ x.base)) & ~mask) == 0
   // 1 less than the number of bytes to which the manager should be aligned
   def alignment1 = ((mask + 1) & ~mask) - 1
-  def max = base.get | mask
+  def max = base | mask
 
-  // A strided slave has serves discontiguous ranges
+  // A strided slave serves discontiguous ranges
   def strided = alignment1 != mask
 }
 

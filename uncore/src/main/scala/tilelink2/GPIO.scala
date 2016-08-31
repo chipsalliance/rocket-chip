@@ -4,7 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 
-case class GPIOParams(num: Int, address: Option[BigInt] = None)
+case class GPIOParams(num: Int, address: BigInt)
 
 trait GPIOBundle
 {
