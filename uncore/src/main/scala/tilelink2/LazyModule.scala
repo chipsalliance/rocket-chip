@@ -11,9 +11,9 @@ abstract class LazyModule
   private val bindings = ListBuffer[() => Unit]()
 
   // Use as: connect(source -> sink, source2 -> sink2, ...)
-  def connect(edges: (TLBaseNode, TLBaseNode)*)(implicit sourceInfo: SourceInfo) = {
+  def connect[PO, PI, EO, EI, B <: Bundle](edges: (BaseNode[PO, PI, EO, EI, B], BaseNode[PO, PI, EO, EI, B])*)(implicit sourceInfo: SourceInfo) = {
     edges.foreach { case (source, sink) =>
-      bindings += sink.edge(source)
+      bindings += (source edge sink)
     }
   }
 

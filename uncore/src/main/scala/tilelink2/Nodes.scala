@@ -6,9 +6,22 @@ import Chisel._
 import scala.collection.mutable.ListBuffer
 import chisel3.internal.sourceinfo.SourceInfo
 
-class TLBaseNode(
-  private val clientFn:  Option[Seq[TLClientPortParameters]  => TLClientPortParameters],
-  private val managerFn: Option[Seq[TLManagerPortParameters] => TLManagerPortParameters],
+// PI = PortInputParameters
+// PO = PortOutputParameters
+// EI = EdgeInput
+// EO = EdgeOutput
+abstract class NodeImp[PO, PI, EO, EI, B <: Bundle]
+{
+  def edgeO(po: PO, pi: PI): EO
+  def edgeI(po: PO, pi: PI): EI
+  def bundleO(eo: Seq[EO]): Vec[B]
+  def bundleI(ei: Seq[EI]): Vec[B]
+  def connect(bo: B, eo: EO, bi: B, ei: EI)(implicit sourceInfo: SourceInfo): Unit
+}
+
+class BaseNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(
+  private val clientFn:  Option[Seq[PO] => PO],
+  private val managerFn: Option[Seq[PI] => PI],
   private val numClientPorts:  Range.Inclusive,
   private val numManagerPorts: Range.Inclusive)
 {
@@ -24,50 +37,44 @@ class TLBaseNode(
   require (noClients  || clientFn.isDefined)
   require (noManagers || managerFn.isDefined)
 
-  private val accClientPorts  = ListBuffer[TLBaseNode]()
-  private val accManagerPorts = ListBuffer[TLBaseNode]()
+  private val accClientPorts  = ListBuffer[BaseNode[PO, PI, EO, EI, B]]()
+  private val accManagerPorts = ListBuffer[BaseNode[PO, PI, EO, EI, B]]()
   private var clientRealized  = false
   private var managerRealized = false
 
   private lazy val clientPorts  = { clientRealized  = true; require (numClientPorts.contains(accClientPorts.size));   accClientPorts.result() }
   private lazy val managerPorts = { managerRealized = true; require (numManagerPorts.contains(accManagerPorts.size)); accManagerPorts.result() }
-  private lazy val clientParams  : Option[TLClientPortParameters]  = clientFn.map(_(managerPorts.map(_.clientParams.get)))
-  private lazy val managerParams : Option[TLManagerPortParameters] = managerFn.map(_(clientPorts.map(_.managerParams.get)))
+  private lazy val clientParams  : Option[PO] = clientFn.map(_(managerPorts.map(_.clientParams.get)))
+  private lazy val managerParams : Option[PI] = managerFn.map(_(clientPorts.map(_.managerParams.get)))
 
-  lazy val edgesOut = clientPorts.map  { n => new TLEdgeOut(clientParams.get, n.managerParams.get) }
-  lazy val edgesIn  = managerPorts.map { n => new TLEdgeIn (n.clientParams.get, managerParams.get) }
+  lazy val edgesOut = clientPorts.map  { n => imp.edgeO(clientParams.get, n.managerParams.get) }
+  lazy val edgesIn  = managerPorts.map { n => imp.edgeI(n.clientParams.get, managerParams.get) }
   
-  lazy val bundleOut = { require (!edgesOut.isEmpty); Vec(edgesOut.size, TLBundle(edgesOut.map(_.bundle).reduce(_.union(_)))) }
-  lazy val bundleIn  = { require (!edgesIn .isEmpty); Vec(edgesIn .size, TLBundle(edgesIn .map(_.bundle).reduce(_.union(_)))).flip }
+  lazy val bundleOut = imp.bundleO(edgesOut)
+  lazy val bundleIn  = imp.bundleI(edgesIn)
 
   def connectOut = bundleOut
   def connectIn = bundleIn
 
-  protected[tilelink2] def edge(x: TLBaseNode)(implicit sourceInfo: SourceInfo) = {
-    require (!noManagers)
-    require (!managerRealized)
-    require (!x.noClients)
-    require (!x.clientRealized)
-    val i = accManagerPorts.size
-    val j = x.accClientPorts.size
-    accManagerPorts += x
-    x.accClientPorts += this
+  // source.edge(sink)
+  protected[tilelink2] def edge(x: BaseNode[PO, PI, EO, EI, B])(implicit sourceInfo: SourceInfo) = {
+    require (!noClients)
+    require (!clientRealized)
+    require (!x.noManagers)
+    require (!x.managerRealized)
+    val i = x.accManagerPorts.size
+    val o = accClientPorts.size
+    accClientPorts += x
+    x.accManagerPorts += this
     () => {
-      val in = connectIn(i)
-      val out = x.connectOut(j)
-      TLMonitor.legalize(out, x.edgesOut(j), in, edgesIn(i), sourceInfo)
-      in <> out
-      val mask = ~UInt(edgesIn(i).manager.beatBytes - 1)
-      in .a.bits.address := (mask & out.a.bits.address)
-      out.b.bits.address := (mask & in .b.bits.address)
-      in .c.bits.address := (mask & out.c.bits.address)
+      imp.connect(connectOut(o), edgesOut(o), x.connectIn(i), x.edgesIn(i))
     }
   }
 }
 
 class TLClientNode(
   params: TLClientParameters,
-  numPorts: Range.Inclusive = 1 to 1) extends TLBaseNode(
+  numPorts: Range.Inclusive = 1 to 1) extends BaseNode(TLImp)(
     clientFn  = Some {case Seq() => TLClientPortParameters(Seq(params))},
     managerFn = None,
     numClientPorts  = numPorts,
@@ -86,7 +93,7 @@ object TLClientNode
 class TLManagerNode(
   beatBytes: Int,
   params: TLManagerParameters, 
-  numPorts: Range.Inclusive = 1 to 1) extends TLBaseNode(
+  numPorts: Range.Inclusive = 1 to 1) extends BaseNode(TLImp)(
     clientFn  = None,
     managerFn = Some {case Seq() => TLManagerPortParameters(Seq(params), beatBytes)},
     numClientPorts  = 0 to 0,
@@ -107,7 +114,7 @@ class TLAdapterNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
   managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters,
   numClientPorts:  Range.Inclusive = 1 to 1,
-  numManagerPorts: Range.Inclusive = 1 to 1) extends TLBaseNode(
+  numManagerPorts: Range.Inclusive = 1 to 1) extends BaseNode(TLImp)(
     clientFn  = Some(clientFn),
     managerFn = Some(managerFn),
     numClientPorts  = numClientPorts,
@@ -122,7 +129,7 @@ object TLAdapterNode
     numManagerPorts: Range.Inclusive = 1 to 1) = new TLAdapterNode(clientFn, managerFn, numClientPorts, numManagerPorts)
 }
 
-class TLOutputNode extends TLBaseNode(
+class TLOutputNode extends BaseNode(TLImp)(
     clientFn  = Some({case Seq(x) => x}),
     managerFn = Some({case Seq(x) => x}),
     numClientPorts  = 1 to 1,
@@ -137,7 +144,7 @@ object TLOutputNode
   def apply() = new TLOutputNode()
 }
 
-class TLInputNode extends TLBaseNode(
+class TLInputNode extends BaseNode(TLImp)(
     clientFn  = Some({case Seq(x) => x}),
     managerFn = Some({case Seq(x) => x}),
     numClientPorts  = 1 to 1,
