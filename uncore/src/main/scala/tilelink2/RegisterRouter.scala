@@ -21,8 +21,8 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     val d = bundleIn(0).d
     val edge = edgesIn(0)
  
-    val params = RegFieldParams(log2Up(address.mask+1), beatBytes, edge.bundle.sourceBits + edge.bundle.sizeBits)
-    val in = Wire(Decoupled(new RegFieldInput(params)))
+    val params = RegMapperParams(log2Up(address.mask+1), beatBytes, edge.bundle.sourceBits + edge.bundle.sizeBits)
+    val in = Wire(Decoupled(new RegMapperInput(params)))
     in.bits.read  := a.bits.opcode === TLMessages.Get
     in.bits.index := a.bits.address >> log2Ceil(beatBytes)
     in.bits.data  := a.bits.data
@@ -30,7 +30,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     in.bits.extra := Cat(a.bits.source, a.bits.size)
 
     // Invoke the register map builder
-    val (endIndex, out) = RegFieldHelper(beatBytes, concurrency, in, mapping:_*)
+    val (endIndex, out) = RegMapper(beatBytes, concurrency, in, mapping:_*)
 
     // All registers must fit inside the device address space
     require (address.mask >= (endIndex-1)*beatBytes)
