@@ -59,25 +59,25 @@ object TLRegisterNode
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
 
-abstract class TLRegFactory(address: AddressSet, concurrency: Option[Int], beatBytes: Int) extends TLSimpleFactory
+abstract class TLRegisterRouterBase(address: AddressSet, concurrency: Option[Int], beatBytes: Int) extends LazyModule
 {
   val node = TLRegisterNode(address, concurrency, beatBytes)
 }
 
 class TLRegBundle[P](val params: P, val in: Vec[TLBundle]) extends Bundle
 
-class TLRegModule[P, B <: Bundle](val params: P, bundleBuilder: => B, factory: TLRegFactory)
-  extends TLModule(factory) with HasRegMap
+class TLRegModule[P, B <: Bundle](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
+  extends LazyModuleImp(router) with HasRegMap
 {
   val io = bundleBuilder
-  def regmap(mapping: RegField.Map*) = factory.node.regmap(mapping:_*)
+  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
-class TLRegisterRouter[B <: Bundle, M <: TLModule]
+class TLRegisterRouter[B <: Bundle, M <: LazyModuleImp]
    (address: Option[BigInt] = None, size: BigInt = 4096, concurrency: Option[Int] = None, beatBytes: Int = 4)
    (bundleBuilder: Vec[TLBundle] => B)
-   (moduleBuilder: (=> B, TLRegFactory) => M)
-  extends TLRegFactory(AddressSet(size-1, address), concurrency, beatBytes)
+   (moduleBuilder: (=> B, TLRegisterRouterBase) => M)
+  extends TLRegisterRouterBase(AddressSet(size-1, address), concurrency, beatBytes)
 {
   require (size % 4096 == 0) // devices should be 4K aligned
   require (isPow2(size))

@@ -6,7 +6,7 @@ import Chisel._
 import scala.collection.mutable.ListBuffer
 import chisel3.internal.sourceinfo.SourceInfo
 
-abstract class TLFactory
+abstract class LazyModule
 {
   private val bindings = ListBuffer[(TLBaseNode, Int, TLBaseNode, Int, SourceInfo)]()
 
@@ -15,17 +15,17 @@ abstract class TLFactory
     bindings += ((manager, i, client, j, sourceInfo))
   }
 
-  def module: TLModule
+  def module: LazyModuleImp
 
   protected[tilelink2] def instantiate() = {
-    // Find all TLFactory members of self
+    // Find all LazyModule members of self
     for (m <- getClass.getMethods) {
       if (m.getParameterTypes.isEmpty && 
           !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
           !(m.getName contains '$') &&
-          classOf[TLFactory].isAssignableFrom(m.getReturnType)) {
+          classOf[LazyModule].isAssignableFrom(m.getReturnType)) {
         // ... and force their lazy module members to exist
-        m.invoke(this).asInstanceOf[TLFactory].module
+        m.invoke(this).asInstanceOf[LazyModule].module
       }
     }
     bindings.foreach { case (x, i, y, j, s) =>
@@ -41,14 +41,8 @@ abstract class TLFactory
   }
 }
 
-// Use this if you have only one node => makes factory adapters possible
-abstract class TLSimpleFactory extends TLFactory
+abstract class LazyModuleImp(outer: LazyModule) extends Module
 {
-  def node: TLBaseNode
-}
-
-abstract class TLModule(factory: TLFactory) extends Module
-{
-  override def desiredName = factory.getClass.getName.split('.').last
-  factory.instantiate()
+  override def desiredName = outer.getClass.getName.split('.').last
+  outer.instantiate()
 }

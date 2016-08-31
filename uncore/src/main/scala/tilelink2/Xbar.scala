@@ -13,7 +13,7 @@ object TLXbar
   }
 }
 
-class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extends TLSimpleFactory
+class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extends LazyModule
 {
   def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId))
   def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
@@ -65,7 +65,7 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
       TLManagerPortParameters(managers, seq(0).beatBytes)
     })
 
-  lazy val module = Module(new TLModule(this) {
+  lazy val module = Module(new LazyModuleImp(this) {
     val io = new Bundle {
       val in  = node.bundleIn
       val out = node.bundleOut

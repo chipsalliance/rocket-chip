@@ -4,7 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 
-class TLRAM(address: AddressSet, beatBytes: Int = 4) extends TLSimpleFactory
+class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
 {
   val node = TLManagerNode(beatBytes, TLManagerParameters(
     address            = List(address),
@@ -17,7 +17,7 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends TLSimpleFactory
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
 
-  lazy val module = Module(new TLModule(this) {
+  lazy val module = Module(new LazyModuleImp(this) {
     val io = new Bundle {
       val in = node.bundleIn
     }
