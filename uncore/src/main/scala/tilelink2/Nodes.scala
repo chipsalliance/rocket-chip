@@ -50,6 +50,9 @@ class TLBaseNode(
   
   lazy val bundleOut = { require (!edgesOut.isEmpty); Vec(edgesOut.size, TLBundle(edgesOut.map(_.bundle).reduce(_.union(_)))) }
   lazy val bundleIn  = { require (!edgesIn .isEmpty); Vec(edgesIn .size, TLBundle(edgesIn .map(_.bundle).reduce(_.union(_)))).flip }
+
+  def connectOut = bundleOut
+  def connectIn = bundleIn
 }
 
 class TLClientNode(
@@ -109,13 +112,32 @@ object TLAdapterNode
     numManagerPorts: Range.Inclusive = 1 to 1) = new TLAdapterNode(clientFn, managerFn, numClientPorts, numManagerPorts)
 }
 
-class TLIDNode extends TLBaseNode(
+class TLOutputNode extends TLBaseNode(
     clientFn  = Some({case Seq(x) => x}),
     managerFn = Some({case Seq(x) => x}),
     numClientPorts  = 1 to 1,
     numManagerPorts = 1 to 1)
-
-object TLIDNode
 {
-  def apply() = new TLIDNode()
+  override def connectOut = bundleOut
+  override def connectIn  = bundleOut
+}
+
+object TLOutputNode
+{
+  def apply() = new TLOutputNode()
+}
+
+class TLInputNode extends TLBaseNode(
+    clientFn  = Some({case Seq(x) => x}),
+    managerFn = Some({case Seq(x) => x}),
+    numClientPorts  = 1 to 1,
+    numManagerPorts = 1 to 1)
+{
+  override def connectOut = bundleIn
+  override def connectIn  = bundleIn
+}
+
+object TLInputNode
+{
+  def apply() = new TLInputNode()
 }
