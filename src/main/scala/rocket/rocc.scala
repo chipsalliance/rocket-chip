@@ -121,7 +121,6 @@ class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
   io.mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
   io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
-  io.mem.invalidate_lr := false
 
   io.autl.acquire.valid := false
   io.autl.grant.ready := false
@@ -168,7 +167,6 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
-  io.mem.invalidate_lr := Bool(false)
   io.autl.acquire.valid := Bool(false)
   io.autl.grant.ready := Bool(false)
 }
@@ -250,7 +248,6 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
-  io.mem.invalidate_lr := Bool(false)
 }
 
 class OpcodeSet(val opcodes: Seq[UInt]) {
