@@ -7,7 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 
 object TLMonitor
 {
-  def legalizeA(bundle: TLBundleA, edge: TLEdgeOut, sourceInfo: SourceInfo) = {
+  def legalizeFormatA(bundle: TLBundleA, edge: TLEdgeOut, sourceInfo: SourceInfo) = {
     assert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode")(sourceInfo)
     
     // Reuse these subexpressions to save some firrtl lines
@@ -72,7 +72,7 @@ object TLMonitor
     }
   }
 
-  def legalizeB(bundle: TLBundleB, edge: TLEdgeIn, sourceInfo: SourceInfo) = {
+  def legalizeFormatB(bundle: TLBundleB, edge: TLEdgeIn, sourceInfo: SourceInfo) = {
     assert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode")(sourceInfo)
 
     // Reuse these subexpressions to save some firrtl lines
@@ -137,7 +137,7 @@ object TLMonitor
     }
   }
 
-  def legalizeC(bundle: TLBundleC, edge: TLEdgeOut, sourceInfo: SourceInfo) = {
+  def legalizeFormatC(bundle: TLBundleC, edge: TLEdgeOut, sourceInfo: SourceInfo) = {
     assert (TLMessages.isC(bundle.opcode), "'C' channel has invalid opcode")(sourceInfo)
     
     val source_ok = edge.client.contains(bundle.source)
@@ -203,7 +203,7 @@ object TLMonitor
     }
   }
 
-  def legalizeD(bundle: TLBundleD, edge: TLEdgeIn, sourceInfo: SourceInfo) = {
+  def legalizeFormatD(bundle: TLBundleD, edge: TLEdgeIn, sourceInfo: SourceInfo) = {
     assert (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode")(sourceInfo)
     
     val source_ok = edge.client.contains(bundle.source)
@@ -254,15 +254,135 @@ object TLMonitor
     }
   }
 
-  def legalizeE(bundle: TLBundleE, edge: TLEdgeOut, sourceInfo: SourceInfo) = {
+  def legalizeFormatE(bundle: TLBundleE, edge: TLEdgeOut, sourceInfo: SourceInfo) = {
     assert (edge.manager.containsById(bundle.sink), "'E' channels carries invalid sink ID")(sourceInfo)
   }
   
+  def legalizeFormat(bundleOut: TLBundle, edgeOut: TLEdgeOut, bundleIn: TLBundle, edgeIn: TLEdgeIn, sourceInfo: SourceInfo) = {
+    when (bundleOut.a.valid) { legalizeFormatA(bundleOut.a.bits, edgeOut, sourceInfo) }
+    when (bundleIn .b.valid) { legalizeFormatB(bundleIn .b.bits, edgeIn,  sourceInfo) }
+    when (bundleOut.c.valid) { legalizeFormatC(bundleOut.c.bits, edgeOut, sourceInfo) }
+    when (bundleIn .d.valid) { legalizeFormatD(bundleIn .d.bits, edgeIn,  sourceInfo) }
+    when (bundleOut.e.valid) { legalizeFormatE(bundleOut.e.bits, edgeOut, sourceInfo) }
+  }
+  
+  def legalizeMultibeatA(a: DecoupledIO[TLBundleA], edge: TLEdgeOut, sourceInfo: SourceInfo) = {
+    val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val opcode  = Reg(UInt())
+    val param   = Reg(UInt())
+    val size    = Reg(UInt())
+    val source  = Reg(UInt())
+    val address = Reg(UInt())
+    when (a.valid && counter =/= UInt(0)) {
+      assert (a.bits.opcode === opcode, "'A' channel opcode changed within multibeat operation")(sourceInfo)
+      assert (a.bits.param  === param,  "'A' channel param changed within multibeat operation")(sourceInfo)
+      assert (a.bits.size   === size,   "'A' channel size changed within multibeat operation")(sourceInfo)
+      assert (a.bits.source === source, "'A' channel source changed within multibeat operation")(sourceInfo)
+      assert (a.bits.address=== address,"'A' channel address changed with multibeat operation")(sourceInfo)
+    }
+    when (a.fire()) {
+      counter := counter - UInt(1)
+      when (counter === UInt(0)) {
+        counter := edge.numBeats(a.bits) - UInt(1)
+        opcode  := a.bits.opcode
+        param   := a.bits.param
+        size    := a.bits.size
+        source  := a.bits.source
+        address := a.bits.address
+      }
+    }
+  }
+  
+  def legalizeMultibeatB(b: DecoupledIO[TLBundleB], edge: TLEdgeIn, sourceInfo: SourceInfo) = {
+    val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val opcode  = Reg(UInt())
+    val param   = Reg(UInt())
+    val size    = Reg(UInt())
+    val source  = Reg(UInt())
+    val address = Reg(UInt())
+    when (b.valid && counter =/= UInt(0)) {
+      assert (b.bits.opcode === opcode, "'B' channel opcode changed within multibeat operation")(sourceInfo)
+      assert (b.bits.param  === param,  "'B' channel param changed within multibeat operation")(sourceInfo)
+      assert (b.bits.size   === size,   "'B' channel size changed within multibeat operation")(sourceInfo)
+      assert (b.bits.source === source, "'B' channel source changed within multibeat operation")(sourceInfo)
+      assert (b.bits.address=== address,"'B' channel address changed with multibeat operation")(sourceInfo)
+    }
+    when (b.fire()) {
+      counter := counter - UInt(1)
+      when (counter === UInt(0)) {
+        counter := edge.numBeats(b.bits) - UInt(1)
+        opcode  := b.bits.opcode
+        param   := b.bits.param
+        size    := b.bits.size
+        source  := b.bits.source
+        address := b.bits.address
+      }
+    }
+  }
+  
+  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdgeOut, sourceInfo: SourceInfo) = {
+    val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val opcode  = Reg(UInt())
+    val param   = Reg(UInt())
+    val size    = Reg(UInt())
+    val source  = Reg(UInt())
+    val address = Reg(UInt())
+    when (c.valid && counter =/= UInt(0)) {
+      assert (c.bits.opcode === opcode, "'C' channel opcode changed within multibeat operation")(sourceInfo)
+      assert (c.bits.param  === param,  "'C' channel param changed within multibeat operation")(sourceInfo)
+      assert (c.bits.size   === size,   "'C' channel size changed within multibeat operation")(sourceInfo)
+      assert (c.bits.source === source, "'C' channel source changed within multibeat operation")(sourceInfo)
+      assert (c.bits.address=== address,"'C' channel address changed with multibeat operation")(sourceInfo)
+    }
+    when (c.fire()) {
+      counter := counter - UInt(1)
+      when (counter === UInt(0)) {
+        counter := edge.numBeats(c.bits) - UInt(1)
+        opcode  := c.bits.opcode
+        param   := c.bits.param
+        size    := c.bits.size
+        source  := c.bits.source
+        address := c.bits.address
+      }
+    }
+  }
+  
+  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdgeIn, sourceInfo: SourceInfo) = {
+    val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val opcode  = Reg(UInt())
+    val param   = Reg(UInt())
+    val size    = Reg(UInt())
+    val source  = Reg(UInt())
+    val sink    = Reg(UInt())
+    when (d.valid && counter =/= UInt(0)) {
+      assert (d.bits.opcode === opcode, "'D' channel opcode changed within multibeat operation")(sourceInfo)
+      assert (d.bits.param  === param,  "'D' channel param changed within multibeat operation")(sourceInfo)
+      assert (d.bits.size   === size,   "'D' channel size changed within multibeat operation")(sourceInfo)
+      assert (d.bits.source === source, "'D' channel source changed within multibeat operation")(sourceInfo)
+      assert (d.bits.sink   === sink,   "'D' channel sink changed with multibeat operation")(sourceInfo)
+    }
+    when (d.fire()) {
+      counter := counter - UInt(1)
+      when (counter === UInt(0)) {
+        counter := edge.numBeats(d.bits) - UInt(1)
+        opcode  := d.bits.opcode
+        param   := d.bits.param
+        size    := d.bits.size
+        source  := d.bits.source
+        sink    := d.bits.sink
+      }
+    }
+  }
+  
+  def legalizeMultibeat(bundleOut: TLBundle, edgeOut: TLEdgeOut, bundleIn: TLBundle, edgeIn: TLEdgeIn, sourceInfo: SourceInfo) = {
+    legalizeMultibeatA(bundleOut.a, edgeOut, sourceInfo)
+    legalizeMultibeatB(bundleOut.b, edgeIn,  sourceInfo)
+    legalizeMultibeatC(bundleOut.c, edgeOut, sourceInfo)
+    legalizeMultibeatD(bundleOut.d, edgeIn,  sourceInfo)
+  }
+  
   def legalize(bundleOut: TLBundle, edgeOut: TLEdgeOut, bundleIn: TLBundle, edgeIn: TLEdgeIn, sourceInfo: SourceInfo) = {
-    when (bundleOut.a.valid) { legalizeA(bundleOut.a.bits, edgeOut, sourceInfo) }
-    when (bundleIn .b.valid) { legalizeB(bundleIn .b.bits, edgeIn,  sourceInfo) }
-    when (bundleOut.c.valid) { legalizeC(bundleOut.c.bits, edgeOut, sourceInfo) }
-    when (bundleIn .d.valid) { legalizeD(bundleIn .d.bits, edgeIn,  sourceInfo) }
-    when (bundleOut.e.valid) { legalizeE(bundleOut.e.bits, edgeOut, sourceInfo) }
+    legalizeFormat(bundleOut, edgeOut, bundleIn, edgeIn, sourceInfo)
+    legalizeMultibeat(bundleOut, edgeOut, bundleIn, edgeIn, sourceInfo)
   }
 }

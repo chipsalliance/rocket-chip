@@ -126,11 +126,13 @@ class TLBundleA(params: TLBundleParameters)
   extends TLBundleBase(params)
   with HasTLData
 {
+  // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3) // amo_opcode || perms || hint
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits)  // from
   val address = UInt(width = params.addressBits) // to
+  // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
 
@@ -149,11 +151,13 @@ class TLBundleB(params: TLBundleParameters)
   extends TLBundleBase(params)
   with HasTLData
 {
+  // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits)  // to
   val address = UInt(width = params.addressBits) // from
+  // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
 
@@ -168,11 +172,13 @@ class TLBundleC(params: TLBundleParameters)
   extends TLBundleBase(params)
   with HasTLData
 {
+  // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits)  // from
   val address = UInt(width = params.addressBits) // to
+  // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val error   = Bool() // AccessAck[Data]
 
@@ -192,11 +198,13 @@ class TLBundleD(params: TLBundleParameters)
   extends TLBundleBase(params)
   with HasTLData
 {
+  // fixed fields during multibeat:
   val opcode = UInt(width = 3)
   val param  = UInt(width = 2)
   val size   = UInt(width = params.sizeBits)
   val source = UInt(width = params.sourceBits) // to
   val sink   = UInt(width = params.sinkBits)   // from
+  // variable fields during multibeat:
   val data   = UInt(width = params.dataBits)
   val error  = Bool() // AccessAck[Data], Grant[Data]
 
