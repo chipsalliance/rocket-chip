@@ -5,6 +5,7 @@ endif
 
 MODEL ?= TestHarness
 PROJECT := rocketchip
+CFG_PROJECT := $(PROJECT)
 CXX ?= g++
 CXXFLAGS := -O1
 
