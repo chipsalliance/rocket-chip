@@ -47,7 +47,7 @@ case class TransferSizes(min: Int, max: Int)
   def this(x: Int) = this(x, x)
 
   require (min <= max)
-  require (min != 0 || max == 0)
+  require (min >= 0 && max >= 0)
   require (max == 0 || isPow2(max))
   require (min == 0 || isPow2(min))
   require (max <= TransferSizes.maxAllowed)
@@ -175,6 +175,8 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   // Synthesizable lookup methods
   def find(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
   def findById(id: UInt) = Vec(managers.map(_.sinkId.contains(id)))
+
+  // !!! need a cheaper version of find, where we assume a valid address match exists
   
   // Does this Port manage this ID/address?
   def contains(address: UInt) = find(address).reduce(_ || _)
