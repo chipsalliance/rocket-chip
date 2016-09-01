@@ -22,6 +22,10 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     val edgeIn  = node.edgesIn(0)
     val edgeOut = node.edgesOut(0)
 
+    // Don't add support for clients if there is no BCE channel
+    val bce = edgeOut.manager.anySupportAcquire && edgeIn.client.anySupportProbe
+    require (!supportClients || bce)
+
     if (supportManagers) {
       val handleA = if (passthrough) !edgeOut.manager.supportsHint(in.a.bits.address) else Bool(true)
       val bypassD = handleA && in.a.bits.opcode === TLMessages.Hint
@@ -56,7 +60,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       out.b.ready := Mux(bypassC, out.c.ready && !in.c.valid, in.b.ready)
       in.b.valid  := out.b.valid && !bypassC
       in.b.bits   := out.b.bits
-    } else {
+    } else if (bce) {
       in.b.valid := out.b.valid
       out.b.ready := in.b.ready
       in.b.bits := out.b.bits
@@ -66,10 +70,12 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       out.c.bits := in.c.bits
     }
 
-    // Pass E through unchanged
-    out.e.valid := in.e.valid
-    in.e.ready := out.e.ready
-    out.e.bits := in.e.bits
+    if (bce) {
+      // Pass E through unchanged
+      out.e.valid := in.e.valid
+      in.e.ready := out.e.ready
+      out.e.bits := in.e.bits
+    }
   })
 }
 
