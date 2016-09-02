@@ -12,8 +12,9 @@ class TLEdge(
 {
   def isAligned(address: UInt, lgSize: UInt) =
     if (maxLgSize == 0) Bool(true) else {
-      val mask = Vec.tabulate(maxLgSize) { UInt(_) < lgSize }
-      (address & Cat(mask.reverse)) === UInt(0)
+      val ones = UInt((1 << maxLgSize) - 1)
+      val mask = (ones << lgSize)(maxLgSize*2-1, maxLgSize)
+      (address & mask) === UInt(0)
     }
 
   // This gets used everywhere, so make the smallest circuit possible ...
@@ -43,8 +44,8 @@ class TLEdge(
     val size = bundle.size()
     val cutoff = log2Ceil(manager.beatBytes)
     val small = size <= UInt(cutoff)
-    val decode = Vec.tabulate (1+maxLgSize-cutoff) { i => UInt(i + cutoff) === size }
-    Mux(!hasData || small, UInt(1), Cat(decode.reverse))
+    val decode = UIntToOH(size, maxLgSize+1) >> cutoff
+    Mux(!hasData || small, UInt(1), decode)
   }
 }
 
