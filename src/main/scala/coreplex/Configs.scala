@@ -27,7 +27,7 @@ class BaseCoreplexConfig extends Config (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
-    lazy val innerDataBits = 64
+    lazy val innerDataBits = site(XLen)
     lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
     pname match {
       //Memory Parameters
