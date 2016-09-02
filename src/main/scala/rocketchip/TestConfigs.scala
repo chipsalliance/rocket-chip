@@ -72,7 +72,7 @@ class WithGroundTest extends Config(
         (r: Bool, p: Parameters) => {
           Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
-            case GroundTestId => i
+            case TileId => i
             case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
             case NUncachedTileLinkPorts => tileSettings.uncached
           })))

@@ -158,10 +158,9 @@ class WithPCIeMockupTest extends Config(
       maxRequests = 128,
       startAddress = site(GlobalAddrMap)("mem").start)
     case BuildGroundTest =>
-      (p: Parameters) => {
-        val id = p(GroundTestId)
-        if (id == 0) Module(new GeneratorTest()(p))
-        else Module(new NastiConverterTest()(p))
+      (p: Parameters) => p(TileId) match {
+        case 0 => Module(new GeneratorTest()(p))
+        case 1 => Module(new NastiConverterTest()(p))
       }
     case _ => throw new CDEMatchError
   })

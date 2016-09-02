@@ -12,6 +12,7 @@ import cde.{Parameters, Field}
 case object BuildRoCC extends Field[Seq[RoccParameters]]
 case object NCachedTileLinkPorts extends Field[Int]
 case object NUncachedTileLinkPorts extends Field[Int]
+case object TileId extends Field[Int]
 
 case class RoccParameters(
   opcodes: OpcodeSet,

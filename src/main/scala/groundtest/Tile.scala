@@ -13,7 +13,6 @@ case object BuildGroundTest extends Field[Parameters => GroundTest]
 case class GroundTestTileSettings(
   uncached: Int = 0, cached: Int = 0, ptw: Int = 0, maxXacts: Int = 1)
 case object GroundTestKey extends Field[Seq[GroundTestTileSettings]]
-case object GroundTestId extends Field[Int]
 
 trait HasGroundTestConstants {
   val timeoutCodeBits = 4
@@ -22,8 +21,7 @@ trait HasGroundTestConstants {
 
 trait HasGroundTestParameters extends HasAddrMapParameters {
   implicit val p: Parameters
-  val tileId = p(GroundTestId)
-  val tileSettings = p(GroundTestKey)(tileId)
+  val tileSettings = p(GroundTestKey)(p(TileId))
   val nUncached = tileSettings.uncached
   val nCached = tileSettings.cached
   val nPTW = tileSettings.ptw

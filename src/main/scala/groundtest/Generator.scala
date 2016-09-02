@@ -190,7 +190,7 @@ class HellaCacheGenerator(id: Int)
 class GeneratorTest(implicit p: Parameters)
     extends GroundTest()(p) with HasGeneratorParameters {
 
-  val idStart = p(GroundTestKey).take(tileId)
+  val idStart = p(GroundTestKey).take(p(TileId))
     .map(settings => settings.cached + settings.uncached)
     .foldLeft(0)(_ + _)
 
