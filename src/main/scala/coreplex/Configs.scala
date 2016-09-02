@@ -128,7 +128,6 @@ class BaseCoreplexConfig extends Config (
       case MtvecInit => BigInt(0x1010)
       case MtvecWritable => true
       //Uncore Paramters
-      case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
