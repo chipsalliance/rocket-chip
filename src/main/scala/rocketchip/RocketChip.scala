@@ -96,8 +96,8 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mmio_tl  = Vec(p(NExtMMIOTLChannels),  new ClientUncachedTileLinkIO()(outermostMMIOParams))
   val debug_clk = (p(AsyncDebugBus) && !p(IncludeJtagDTM)).option(Clock(INPUT))
   val debug_rst = (p(AsyncDebugBus) && !p(IncludeJtagDTM)).option(Bool(INPUT))
-  val debug =     (!p(IncludeJtagDTM)).option(new DebugBusIO()(p).flip)
-  val jtag  =      p(IncludeJtagDTM).option(new JtagIO(true).flip)
+  val debug = (!p(IncludeJtagDTM)).option(new DebugBusIO()(p).flip)
+  val jtag = p(IncludeJtagDTM).option(new JTAGIO(true).flip)
   val extra = p(ExtraTopPorts)(p)
 }
 
