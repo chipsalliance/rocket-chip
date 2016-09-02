@@ -21,7 +21,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
 
   def connect(bo: TLBundle, eo: TLEdgeOut, bi: TLBundle, ei: TLEdgeIn)(implicit sourceInfo: SourceInfo): Unit = {
     require (eo.asInstanceOf[TLEdgeParameters] == ei.asInstanceOf[TLEdgeParameters])
-    TLMonitor.legalize(bo, eo, bi, ei, sourceInfo)
+    TLMonitor.legalize(bo, eo, bi, ei)
     bi <> bo
     val mask = ~UInt(ei.manager.beatBytes - 1)
     bi.a.bits.address := (mask & bo.a.bits.address)
