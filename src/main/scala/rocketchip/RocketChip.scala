@@ -54,7 +54,7 @@ case object ExtMemSize extends Field[Long]
 case object NExtTopInterrupts extends Field[Int]
 case object NExtPeripheryInterrupts extends Field[Int]
 /** Source of  RTC. First bundle is TopIO.extra, Second bundle is periphery.io.extra  **/
-case object RTC extends Field[(Parameters, Bundle, Bundle) => Bool]
+case object RTCTick extends Field[(Parameters, Bundle, Bundle) => Bool]
 case object RTCPeriod extends Field[Int]
 
 
@@ -199,11 +199,12 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   io.extra <> periphery.io.extra
 
-  coreplex.io.rtcTick := p(RTC)(p, io.extra, periphery.io.extra)
+  coreplex.io.rtcTick := p(RTCTick)(p, io.extra, periphery.io.extra)
 
   p(ConnectExtraPorts)(io.extra, coreplex.io.extra, p)
 
 }
+
 
 class Periphery(implicit val p: Parameters) extends Module
     with HasTopLevelParameters {
