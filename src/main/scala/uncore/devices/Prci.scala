@@ -3,10 +3,11 @@
 package uncore.devices
 
 import Chisel._
-import Chisel.ImplicitConversions._
+import rocket.Util._
 import junctions._
 import junctions.NastiConstants._
 import uncore.tilelink._
+import uncore.util._
 import cde.{Parameters, Field}
 
 /** Number of tiles */
@@ -72,11 +73,11 @@ class PRCI(implicit val p: Parameters) extends Module
 
   when (addr(log2Floor(PRCI.time))) {
     require(log2Floor(PRCI.timecmp(p(NTiles)-1)) < log2Floor(PRCI.time))
-    rdata := load(Vec(time + UInt(0)), acq.bits)
+    rdata := store(Seq(time), acq.bits, io.tl.grant.fire())
   }.elsewhen (addr >= PRCI.timecmp(0)) {
-    rdata := store(timecmp, acq.bits)
+    rdata := store(timecmp, acq.bits, io.tl.grant.fire())
   }.otherwise {
-    rdata := store(ipi, acq.bits) & Fill(tlDataBits/32, UInt(1, 32))
+    rdata := store(ipi, acq.bits, io.tl.grant.fire()) & Fill(tlDataBits/32, UInt(1, 32))
   }
 
   for ((tile, i) <- io.tiles zipWithIndex) {
@@ -87,40 +88,40 @@ class PRCI(implicit val p: Parameters) extends Module
   }
 
   // TODO generalize these to help other TL slaves
-  def load(v: Vec[UInt], acq: Acquire): UInt = {
+  def load(v: Seq[UInt], acq: Acquire): UInt = {
     val w = v.head.getWidth
     val a = acq.full_addr()
     require(isPow2(w) && w >= 8)
     if (w > tlDataBits) {
-      (v(a(log2Up(w/8*v.size)-1,log2Up(w/8))) >> a(log2Up(w/8)-1,log2Up(tlDataBytes)))(tlDataBits-1,0)
+      (v(a.extract(log2Ceil(w/8*v.size)-1,log2Ceil(w/8))) >> a.extract(log2Ceil(w/8)-1,log2Ceil(tlDataBytes)))(tlDataBits-1,0)
     } else {
-      val row = for (i <- 0 until v.size by tlDataBits/w)
+      val row: Seq[UInt] = for (i <- 0 until v.size by tlDataBits/w)
         yield Cat(v.slice(i, i + tlDataBits/w).reverse)
       if (row.size == 1) row.head
-      else Vec(row)(a(log2Up(w/8*v.size)-1,log2Up(tlDataBytes)))
+      else row(a(log2Ceil(w/8*v.size)-1,log2Ceil(tlDataBytes)))
     }
   }
 
-  def store(v: Vec[UInt], acq: Acquire): UInt = {
+  def store(v: Seq[UInt], acq: Acquire, en: Bool): UInt = {
     val w = v.head.getWidth
     require(isPow2(w) && w >= 8)
     val a = acq.full_addr()
     val rdata = load(v, acq)
     val wdata = (acq.data & acq.full_wmask()) | (rdata & ~acq.full_wmask())
-    if (w <= tlDataBits) {
-      val word =
-        if (tlDataBits/w >= v.size) UInt(0)
-        else a(log2Up(w/8*v.size)-1,log2Up(tlDataBytes))
-      for (i <- 0 until v.size) {
-        when (acq.isBuiltInType(Acquire.putType) && word === i/(tlDataBits/w)) {
+    when (en && acq.isBuiltInType(Acquire.putType)) {
+      if (w <= tlDataBits) {
+        val word =
+          if (tlDataBits/w >= v.size) UInt(0)
+          else a(log2Up(w/8*v.size)-1,log2Up(tlDataBytes))
+        for (i <- 0 until v.size) when (word === i/(tlDataBits/w)) {
           val base = i % (tlDataBits/w)
           v(i) := wdata >> (w * (i % (tlDataBits/w)))
         }
+      } else {
+        val i = a.extract(log2Ceil(w/8*v.size)-1,log2Ceil(w/8))
+        val mask = FillInterleaved(tlDataBits, UIntToOH(a.extract(log2Ceil(w/8)-1,log2Ceil(tlDataBytes))))
+        v(i) := (wdata & mask) | (v(i) & ~mask)
       }
-    } else {
-      val i = a(log2Up(w/8*v.size)-1,log2Up(w/8))
-      val mask = FillInterleaved(tlDataBits, UIntToOH(a(log2Up(w/8)-1,log2Up(tlDataBytes))))
-      v(i) := (wdata & mask) | (v(i) & ~mask)
     }
     rdata
   }
