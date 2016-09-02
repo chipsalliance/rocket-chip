@@ -11,7 +11,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     clientFn  = { case Seq(c) => if (supportClients)  c.copy(clients  = c.clients .map(_.copy(supportsHint = true))) else c },
     managerFn = { case Seq(m) => if (supportManagers) m.copy(managers = m.managers.map(_.copy(supportsHint = true))) else m })
 
-  lazy val module = Module(new LazyModuleImp(this) {
+  lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val in  = node.bundleIn
       val out = node.bundleOut
@@ -76,15 +76,14 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       in.e.ready := out.e.ready
       out.e.bits := in.e.bits
     }
-  })
+  }
 }
 
 object TLHintHandler
 {
   // applied to the TL source node; connect (TLHintHandler(x.node) -> y.node)
   def apply(x: TLBaseNode, supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit lazyModule: LazyModule): TLBaseNode = {
-    val hints = new TLHintHandler(supportManagers, supportClients, passthrough)
-    lazyModule.addChild(hints)
+    val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
     lazyModule.connect(x -> hints.node)
     hints.node
   }

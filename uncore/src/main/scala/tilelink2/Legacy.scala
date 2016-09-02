@@ -14,7 +14,7 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
   val node = TLClientNode(TLClientParameters(
     sourceId = IdRange(0, 1 << tlClientXactIdBits)))
 
-  lazy val module = Module(new LazyModuleImp(this) with HasTileLinkParameters {
+  lazy val module = new LazyModuleImp(this) with HasTileLinkParameters {
     val p = outer_p
     val io = new Bundle {
       val legacy = new ClientUncachedTileLinkIO()(p).flip
@@ -103,5 +103,5 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     grant.manager_xact_id := out.d.bits.sink
     grant.data            := out.d.bits.data
     grant.addr_beat       := beatCounter
-  })
+  }
 }

@@ -8,7 +8,7 @@ class TLBuffer(entries: Int = 2, pipe: Boolean = false) extends LazyModule
 {
   val node = TLIdentityNode()
 
-  lazy val module = Module(new LazyModuleImp(this) {
+  lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val in  = node.bundleIn
       val out = node.bundleOut
@@ -26,15 +26,14 @@ class TLBuffer(entries: Int = 2, pipe: Boolean = false) extends LazyModule
       out.c <> Queue(in .c, entries, pipe)
       out.e <> Queue(out.e, entries, pipe)
     }
-  })
+  }
 }
 
 object TLBuffer
 {
   // applied to the TL source node; connect (TLBuffer(x.node) -> y.node)
   def apply(x: TLBaseNode, entries: Int = 2, pipe: Boolean = false)(implicit lazyModule: LazyModule): TLBaseNode = {
-    val buffer = new TLBuffer(entries, pipe)
-    lazyModule.addChild(buffer)
+    val buffer = LazyModule(new TLBuffer(entries, pipe))
     lazyModule.connect(x -> buffer.node)
     buffer.node
   }

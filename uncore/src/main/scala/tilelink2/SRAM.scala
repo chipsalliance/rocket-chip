@@ -17,7 +17,7 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
 
-  lazy val module = Module(new LazyModuleImp(this) {
+  lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val in = node.bundleIn
     }
@@ -62,5 +62,5 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
         mem.write(memAddress, wdata, in.a.bits.mask.toBools)
       }
     }
-  })
+  }
 }

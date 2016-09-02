@@ -65,7 +65,7 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
       TLManagerPortParameters(managers, seq(0).beatBytes)
     })
 
-  lazy val module = Module(new LazyModuleImp(this) {
+  lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val in  = node.bundleIn
       val out = node.bundleOut
@@ -207,5 +207,5 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
 
       muxState
     }
-  })
+  }
 }
