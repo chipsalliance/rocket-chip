@@ -5,6 +5,7 @@ package rocket
 import Chisel._
 import uncore.tilelink._
 import uncore.agents._
+import uncore.converters._
 import uncore.devices._
 import Util._
 import cde.{Parameters, Field}
@@ -31,6 +32,7 @@ abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
     val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
     val prci = new PRCITileIO().flip
+    val slave = (p(DataScratchpadSize) > 0).option(new ClientUncachedTileLinkIO().flip)
   }
 
   val io = new TileIO
@@ -119,6 +121,12 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
     ptw.io.requestor <> ptwPorts
     ptw.io.mem +=: dcPorts
     core.io.ptw <> ptw.io.dpath
+  }
+
+  io.slave foreach { case slavePort =>
+    val adapter = Module(new ScratchpadSlavePort()(dcacheParams))
+    adapter.io.tl <> TileLinkFragmenter(slavePort)
+    adapter.io.dmem +=: dcPorts
   }
 
   require(dcPorts.size == core.dcacheArbPorts)

@@ -5,6 +5,7 @@ package rocketchip
 import Chisel._
 import junctions._
 import rocket._
+import rocket.Util._
 import uncore.agents._
 import uncore.tilelink._
 import uncore.devices._
@@ -26,6 +27,11 @@ class BasePlatformConfig extends Config (
       entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
+      if (site(DataScratchpadSize) > 0) { // TODO heterogeneous tiles
+        require(site(NTiles) == 1) // TODO relax this
+        require(site(NMemoryChannels) == 0) // TODO allow both scratchpad & DRAM
+        entries += AddrMapEntry("dmem0", MemRange(0x80000000L, site[Int](DataScratchpadSize), MemAttr(AddrMapProt.RWX)))
+      }
       new AddrMap(entries)
     }
     lazy val externalAddrMap = new AddrMap(
@@ -38,13 +44,11 @@ class BasePlatformConfig extends Config (
 
       val intern = AddrMapEntry("int", internalIOAddrMap)
       val extern = AddrMapEntry("ext", externalAddrMap)
-      val ioMap = if (site(ExportMMIOPort)) AddrMap(intern, extern) else AddrMap(intern)
+      val io = AddrMapEntry("io", AddrMap((intern +: site(ExportMMIOPort).option(extern).toSeq):_*))
+      val mem = AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true)))
+      val addrMap = AddrMap((io +: (site(NMemoryChannels) > 0).option(mem).toSeq):_*)
 
-      val addrMap = AddrMap(
-        AddrMapEntry("io", ioMap),
-        AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true))))
-
-      Dump("MEM_BASE", addrMap("mem").start)
+      Dump("MEM_BASE", memBase)
       addrMap
     }
     def makeConfigString() = {
@@ -62,15 +66,17 @@ class BasePlatformConfig extends Config (
       res append  "rtc {\n"
       res append s"  addr 0x${(prciAddr + PRCI.time).toString(16)};\n"
       res append  "};\n"
-      res append  "ram {\n"
-      res append  "  0 {\n"
-      res append s"    addr 0x${addrMap("mem").start.toString(16)};\n"
-      res append s"    size 0x${addrMap("mem").size.toString(16)};\n"
-      res append  "  };\n"
-      res append  "};\n"
-      res append  "core {\n"
-      for (i <- 0 until site(NTiles)) {
-        val isa = s"rv${site(XLen)}im${if (site(UseAtomics)) "a" else ""}${if (site(FPUKey).nonEmpty) "fd" else ""}"
+      if (addrMap contains "mem") {
+        res append  "ram {\n"
+        res append  "  0 {\n"
+        res append s"    addr 0x${addrMap("mem").start.toString(16)};\n"
+        res append s"    size 0x${addrMap("mem").size.toString(16)};\n"
+        res append  "  };\n"
+        res append  "};\n"
+        res append  "core {\n"
+      }
+      for (i <- 0 until site(NTiles)) { // TODO heterogeneous tiles
+        val isa = s"rv${site(XLen)}i${site(MulDivKey).map(x=>"m").mkString}${if (site(UseAtomics)) "a" else ""}${if (site(FPUKey).nonEmpty) "fd" else ""}"
         res append s"  $i {\n"
         res append  "    0 {\n"
         res append s"      isa $isa;\n"
@@ -204,6 +210,8 @@ class WithTL extends Config(
     case NExtMMIOTLChannels  => 1
   })
 
+class WithScratchpads extends Config(new WithNMemoryChannels(0) ++ new WithDataScratchpad(16384))
+
 class DefaultFPGASmallConfig extends Config(new WithSmallCores ++ new DefaultFPGAConfig)
 class DefaultSmallConfig extends Config(new WithSmallCores ++ new BaseConfig)
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultSmallConfig)
@@ -253,6 +261,7 @@ class DualCoreConfig extends Config(
   new WithNCores(2) ++ new WithL2Cache ++ new BaseConfig)
 
 class TinyConfig extends Config(
+  new WithScratchpads ++
   new WithRV32 ++ new WithSmallCores ++
   new WithStatelessBridge ++ new BaseConfig)
 

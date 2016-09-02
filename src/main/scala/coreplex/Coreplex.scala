@@ -66,6 +66,7 @@ class Uncore(implicit val p: Parameters) extends Module
     val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
     val tiles_cached = Vec(nCachedTilePorts, new ClientTileLinkIO).flip
     val tiles_uncached = Vec(nUncachedTilePorts, new ClientUncachedTileLinkIO).flip
+    val tiles_slave = Vec(nTiles, new ClientUncachedTileLinkIO)
     val ext_uncached = Vec(nExtClients, new ClientUncachedTileLinkIO()(innerParams)).flip
     val prci = Vec(nTiles, new PRCITileIO).asOutput
     val mmio = exportMMIO.option(new ClientUncachedTileLinkIO()(outermostMMIOParams))
@@ -92,7 +93,8 @@ class Uncore(implicit val p: Parameters) extends Module
     rom.order(ByteOrder.LITTLE_ENDIAN)
 
     // for now, have the reset vector jump straight to memory
-    val resetToMemDist = p(GlobalAddrMap)("mem").start - p(ResetVector)
+    val memBase = (if (p(GlobalAddrMap) contains "mem") p(GlobalAddrMap)("mem") else p(GlobalAddrMap)("io:int:dmem0")).start
+    val resetToMemDist = memBase - p(ResetVector)
     require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
     val configStringAddr = p(ResetVector).toInt + rom.capacity
 
@@ -134,6 +136,10 @@ class Uncore(implicit val p: Parameters) extends Module
       io.prci(i).reset := reset
     }
 
+    val tileSlavePorts = (0 until nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)
+    for ((t, m) <- io.tiles_slave zip (tileSlavePorts map (mmioNetwork port _)))
+      t <> ClientUncachedTileLinkEnqueuer(m, 1)
+
     val bootROM = Module(new ROMSlave(makeBootROM()))
     bootROM.io <> mmioNetwork.port("int:bootrom")
 
@@ -174,11 +180,9 @@ class DefaultOuterMemorySystem(implicit p: Parameters) extends OuterMemorySystem
   // Cached ports are first in client list, making sharerToClientId just an indentity function
   // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
   def sharerToClientId(sharerId: UInt) = sharerId
-  def addrToBank(addr: UInt): UInt = {
+  def addrToBank(addr: UInt): UInt = if (nBanks == 0) UInt(0) else {
     val isMemory = p(GlobalAddrMap).isInRegion("mem", addr << log2Up(p(CacheBlockBytes)))
-    Mux(isMemory,
-      if (nBanks > 1) addr(lsb + log2Up(nBanks) - 1, lsb) else UInt(0),
-      UInt(nBanks))
+    Mux(isMemory, addr.extract(lsb + log2Ceil(nBanks) - 1, lsb), UInt(nBanks))
   }
   val preBuffering = TileLinkDepths(1,1,2,2,0)
   val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering))
@@ -274,6 +278,7 @@ class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
   // Connect the uncore to the tile memory ports, HostIO and MemIO
   uncore.io.tiles_cached <> tileList.map(_.io.cached).flatten
   uncore.io.tiles_uncached <> tileList.map(_.io.uncached).flatten
+  (tileList.map(_.io.slave).flatten zip uncore.io.tiles_slave) foreach { case (x, y) => x <> y }
   uncore.io.interrupts <> io.interrupts
   uncore.io.debug <> io.debug
   uncore.io.ext_uncached <> io.ext_clients

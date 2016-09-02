@@ -63,6 +63,7 @@ class BaseCoreplexConfig extends Config (
       case BtbKey => BtbParameters()
       //L1DataCache
       case DCacheKey => DCacheConfig(nMSHRs = site(Knob("L1D_MSHRS")))
+      case DataScratchpadSize => 0
       //L2 Memory System Params
       case AmoAluOperandBits => site(XLen)
       case NAcquireTransactors => 7
@@ -239,6 +240,13 @@ class WithNBanksPerMemChannel(n: Int) extends Config(
     case _ => throw new CDEMatchError
   })
 
+class WithDataScratchpad(n: Int) extends Config(
+  (pname,site,here) => pname match {
+    case DataScratchpadSize => n
+    case NSets if site(CacheName) == "L1D" => n / site(CacheBlockBytes)
+    case _ => throw new CDEMatchError
+  })
+
 class WithL2Cache extends Config(
   (pname,site,here) => pname match {
     case "L2_CAPACITY_IN_KB" => Knob("L2_CAPACITY_IN_KB")
@@ -330,6 +338,7 @@ class WithRV32 extends Config(
       "rv32mi-p-csr",
       "rv32ui-p-sh",
       "rv32ui-p-lh",
+      "rv32uc-p-rvc",
       "rv32mi-p-sbreak",
       "rv32ui-p-sll")
     case _ => throw new CDEMatchError

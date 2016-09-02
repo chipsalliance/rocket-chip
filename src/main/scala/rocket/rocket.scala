@@ -30,6 +30,7 @@ case object ResetVector extends Field[BigInt]
 case object NBreakpoints extends Field[Int]
 case object NPerfCounters extends Field[Int]
 case object NPerfEvents extends Field[Int]
+case object DataScratchpadSize extends Field[Int]
 
 trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
@@ -48,6 +49,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val nBreakpoints = p(NBreakpoints)
   val nPerfCounters = p(NPerfCounters)
   val nPerfEvents = p(NPerfEvents)
+  val usingDataScratchpad = p(DataScratchpadSize) > 0
 
   val retireWidth = p(RetireWidth)
   val fetchWidth = p(FetchWidth)
@@ -55,7 +57,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen
   val coreDataBytes = coreDataBits/8
-  val dcacheArbPorts = 1 + (if (usingVM) 1 else 0) + p(BuildRoCC).size
+  val dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size
   val coreDCacheReqTagBits = 6
   val dcacheReqTagBits = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
 
