@@ -114,7 +114,7 @@ class BasePlatformConfig extends Config (
           addrBits = Dump("MEM_ADDR_BITS", site(PAddrBits)),
           idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
       }
-      case BuildCoreplex => (p: Parameters) => Module(new DefaultCoreplex(p))
+      case BuildCoreplex => (c: Clock, r: Bool, p: Parameters) => Module(new DefaultCoreplex(c,r)(p))
       case NExtInterrupts => 2
       case AsyncDebugBus => false
       case IncludeJtagDTM => false

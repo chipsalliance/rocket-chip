@@ -45,8 +45,8 @@ trait HasNastiParameters {
     UInt(128) -> UInt(7)))
 }
 
-abstract class NastiModule(implicit val p: Parameters) extends Module
-  with HasNastiParameters
+abstract class NastiModule(clockSignal: Clock = null, resetSignal: Bool = null)
+  (implicit val p: Parameters) extends Module(Option(clockSignal), Option(resetSignal)) with HasNastiParameters
 abstract class NastiBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasNastiParameters
 

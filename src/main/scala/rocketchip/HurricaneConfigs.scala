@@ -44,7 +44,8 @@ class PMUConfig extends Config(
             case BtbKey => BtbParameters(nEntries = 0)
             case DCacheKey => DCacheConfig(nSDQ = 2, nRPQ = 2, nMSHRs = 0)
             case MulDivKey => Some(MulDivConfig(mulUnroll = 1, mulEarlyOut = false, divEarlyOut = false))
-            case NSets => 64
+            // [ben] This is a hack - we'd really prefer to set these per cache ID
+            case NSets => 16
             case NWays => 1
             case BuildRoCC => Nil
           })))

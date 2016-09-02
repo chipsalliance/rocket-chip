@@ -16,7 +16,8 @@ class NarrowIO(val w: Int) extends Bundle {
   override def cloneType = new NarrowIO(w).asInstanceOf[this.type]
 }
 
-class NastiSerializer(val w: Int, val divide: Int)(implicit p: Parameters) extends NastiModule {
+class NastiSerializer(w: Int, divide: Int, clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit p: Parameters) extends NastiModule(clockSignal, resetSignal) {
   val io = new Bundle {
     val nasti = (new NastiIO).flip
     val narrow = new NarrowIO(w)

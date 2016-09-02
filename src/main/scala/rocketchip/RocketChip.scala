@@ -42,7 +42,7 @@ case object AsyncMMIOChannels extends Field[Boolean]
 case object ExtMMIOPorts extends Field[Seq[AddrMapEntry]]
 case object ExtIOAddrMapEntries extends Field[Seq[AddrMapEntry]]
 /** Function for building Coreplex */
-case object BuildCoreplex extends Field[Parameters => Coreplex]
+case object BuildCoreplex extends Field[(Clock, Bool, Parameters) => Coreplex]
 /** Function for connecting coreplex extra ports to top-level extra ports */
 case object ConnectExtraPorts extends Field[(Bundle, Bundle, Parameters) => Unit]
 /** Specifies the size of external memory */
@@ -127,20 +127,28 @@ object TopUtils {
 class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   implicit val p = topParams
 
-  val coreplex = p(BuildCoreplex)(p)
-  val periphery = Module(new Periphery()(innerParams))
+  val uncore_clk = Wire(Clock())
+  val oms_clk = Wire(Clock())
+  val core_clks = Wire(Vec(p(NTiles)-1,Clock())) // TODOHurricane - what if DefaultConfig?
+  
+  val uncore_reset = ResetSync(reset, uncore_clk)
+  val oms_reset = ResetSync(reset, oms_clk) // TODOHurricane - oms_reset should come from a control register
+
+  val coreplex = p(BuildCoreplex)(uncore_clk, uncore_reset, p)
+  val periphery = Module(new Periphery(uncore_clk, uncore_reset)(innerParams))
 
   val io = new TopIO {
     val success = if (coreplex.hasSuccessFlag) Some(Bool(OUTPUT)) else None
   }
   io.success zip coreplex.io.success map { case (x, y) => x := y }
 
-  // Downstream, these should come from the ClockTop blackbox
-  val oms_clk = clock
-  val oms_reset = ResetSync(reset, oms_clk) // TODOHurricane - oms_reset should come from a control register
-  coreplex.io.oms_clk := clock
+  uncore_clk := clock
+  oms_clk := clock
+  core_clks.map { _ := clock }
+
+  coreplex.io.oms_clk := oms_clk
   coreplex.io.oms_reset := oms_reset
-  coreplex.io.core_clk.map(_ := clock)
+  coreplex.io.core_clk zip core_clks map { case(c,gen) => c := gen }
 
   if (exportMMIO) { periphery.io.mmio_in.get <> coreplex.io.mmio.get }
   periphery.io.mem_in <> coreplex.io.mem
@@ -149,7 +157,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   if (p(IncludeJtagDTM)) {
     // JtagDTMWithSync  is a wrapper which
     // handles the synchronization as well.
-    val jtag_dtm = Module (new JtagDTMWithSync()(p))
+    val jtag_dtm = Module (new JtagDTMWithSync(uncore_clk, uncore_reset)(p))
     jtag_dtm.io.jtag  <> io.jtag.get
     coreplex.io.debug <> jtag_dtm.io.debug
   } else {
@@ -178,8 +186,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   if (p(NarrowIF)) {
     require(nMemAXIChannels == 1)
-    val ser = Module(new NastiSerializer(w = p(NarrowWidth), divide = 8))
-      //TODOHurricane - divide as SCR
+    val ser = Module(new NastiSerializer(w = p(NarrowWidth), divide = 8, uncore_clk, uncore_reset)) //TODOHurricane - divide as SCR
     io.mem_narrow.get <> ser.io.narrow
     ser.io.nasti <> periphery.io.mem_axi(0)
   } else
@@ -201,8 +208,8 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   p(ConnectExtraPorts)(io.extra, coreplex.io.extra, p)
 }
 
-class Periphery(implicit val p: Parameters) extends Module
-    with HasTopLevelParameters {
+class Periphery(clockSignal: Clock = null, resetSignal: Bool = null)(implicit val p: Parameters)
+    extends Module(Option(clockSignal), Option(resetSignal)) with HasTopLevelParameters {
   val io = new Bundle {
     val mem_in  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams)).flip
     val clients_out = Vec(p(NExternalClients), new ClientUncachedTileLinkIO()(innerParams))

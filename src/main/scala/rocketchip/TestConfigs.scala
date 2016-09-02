@@ -26,7 +26,7 @@ class WithUnitTest extends Config(
         DefaultTestSuites.groundtest32
       TestGeneration.addSuite(groundtest("p"))
       TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-      (p: Parameters) => Module(new UnitTestCoreplex(p))
+      (c: Clock, r: Bool, p: Parameters) => Module(new UnitTestCoreplex(p))
     }
     case UnitTests => (testParams: Parameters) =>
       JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams)
@@ -42,7 +42,7 @@ class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
 
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
-    case BuildCoreplex => (p: Parameters) => Module(new GroundTestCoreplex(p))
+    case BuildCoreplex => (c: Clock, r: Bool, p: Parameters) => Module(new GroundTestCoreplex()(p))
     case TLKey("L1toL2") => {
       val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
       TileLinkParameters(
@@ -151,7 +151,7 @@ class PCIeMockupTestConfig extends Config(
 class WithDirectGroundTest extends Config(
   (pname, site, here) => pname match {
     case ExportGroundTestStatus => true
-    case BuildCoreplex => (p: Parameters) => Module(new DirectGroundTestCoreplex(p))
+    case BuildCoreplex => (c: Clock, r: Bool, p: Parameters) => Module(new DirectGroundTestCoreplex(p))
     case ExtraCoreplexPorts => (p: Parameters) =>
       if (p(ExportGroundTestStatus)) new GroundTestStatus else new Bundle
     case ExtraTopPorts => (p: Parameters) =>

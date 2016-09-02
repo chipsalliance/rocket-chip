@@ -233,8 +233,8 @@ class DefaultOuterMemorySystem(clockSignal: Clock = null, resetSignal: Bool = nu
   io.mem <> mem_ic.io.out
 }
 
-abstract class Coreplex(implicit val p: Parameters) extends Module
-    with HasCoreplexParameters {
+abstract class Coreplex(clockSignal: Clock = null, resetSignal: Bool = null)(implicit val p: Parameters)
+    extends Module(Option(clockSignal), Option(resetSignal)) with HasCoreplexParameters {
   class CoreplexIO(implicit val p: Parameters) extends Bundle {
     val mem  = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
     val ext_clients = Vec(nExtClients, new ClientUncachedTileLinkIO()(innerParams)).flip
@@ -252,7 +252,8 @@ abstract class Coreplex(implicit val p: Parameters) extends Module
   val io = new CoreplexIO
 }
 
-class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
+class DefaultCoreplex(clockSignal: Clock = null, resetSignal: Bool = null)(topParams: Parameters)
+    extends Coreplex(clockSignal, resetSignal)(topParams) {
   // Build an Uncore and a set of Tiles
   val tileResets = Wire(Vec(nTiles, Bool()))
   val tileList = p(BuildTiles).zip(tileResets).zipWithIndex.map {
@@ -291,7 +292,8 @@ class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
   io.mem <> uncore.io.mem
 }
 
-class GroundTestCoreplex(topParams: Parameters) extends DefaultCoreplex(topParams) {
+class GroundTestCoreplex(clockSignal: Clock = null, resetSignal: Bool = null)(topParams: Parameters)
+    extends DefaultCoreplex(clockSignal, resetSignal)(topParams) {
   override def hasSuccessFlag = true
   io.success.get := tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
 }

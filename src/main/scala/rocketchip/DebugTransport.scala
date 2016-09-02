@@ -33,7 +33,8 @@ case object IncludeJtagDTM extends Field[Boolean]
  * 
  */
 
-class JtagDTMWithSync(implicit val p: Parameters) extends Module {
+class JtagDTMWithSync(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit val p: Parameters) extends Module(Option(clockSignal), Option(resetSignal)) {
 
   // IO <-> [Chisel Sync?] <-> [DebugBusIO<->UInt] <-> [Black Box Sync?] <-> DTM Black Box
 
