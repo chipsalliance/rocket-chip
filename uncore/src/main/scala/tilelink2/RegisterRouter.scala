@@ -83,5 +83,5 @@ class TLRegisterRouter[B <: Bundle, M <: LazyModuleImp]
   require (isPow2(size))
   require (size >= 4096)
 
-  lazy val module = Module(moduleBuilder(bundleBuilder(node.bundleIn), this))
+  lazy val module = moduleBuilder(bundleBuilder(node.bundleIn), this)
 }

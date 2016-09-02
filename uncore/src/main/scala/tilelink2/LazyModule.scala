@@ -3,45 +3,58 @@
 package uncore.tilelink2
 
 import Chisel._
-import scala.collection.mutable.ListBuffer
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.internal.sourceinfo._
 
 abstract class LazyModule
 {
-  private val bindings = ListBuffer[() => Unit]()
-  private val extraChildren = ListBuffer[LazyModule]()
+  protected[tilelink2] var bindings = List[() => Unit]()
+  protected[tilelink2] var children = List[LazyModule]()
+  protected[tilelink2] var info: SourceInfo = UnlocatableSourceInfo
+  protected[tilelink2] val parent = LazyModule.stack.headOption
+
+  LazyModule.stack = this :: LazyModule.stack
+  parent.foreach(p => p.children = this :: p.children)
 
   // Use as: connect(source -> sink, source2 -> sink2, ...)
   def connect[PO, PI, EO, EI, B <: Bundle](edges: (BaseNode[PO, PI, EO, EI, B], BaseNode[PO, PI, EO, EI, B])*)(implicit sourceInfo: SourceInfo) = {
     edges.foreach { case (source, sink) =>
-      bindings += (source edge sink)
+      bindings = (source edge sink) :: bindings
     }
   }
 
   def module: LazyModuleImp
+  implicit val lazyModule = this
 
   protected[tilelink2] def instantiate() = {
-    // Find all LazyModule members of self
-    for (m <- getClass.getMethods) {
-      if (m.getParameterTypes.isEmpty && 
-          !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
-          !(m.getName contains '$') &&
-          !(m.getName == "lazyModule") &&
-          classOf[LazyModule].isAssignableFrom(m.getReturnType)) {
-        // ... and force their lazy module members to exist
-        m.invoke(this).asInstanceOf[LazyModule].module
-      }
+    children.reverse.foreach { c => 
+      // !!! fix chisel3 so we can pass the desired sourceInfo
+      // implicit val sourceInfo = c.module.outer.info
+      Module(c.module)
     }
-    extraChildren.foreach { _.module }
-    bindings.foreach { f => f () }
+    bindings.reverse.foreach { f => f () }
   }
-
-  implicit val lazyModule = this
-  def addChild(x: LazyModule) = extraChildren += x
 }
 
-abstract class LazyModuleImp(outer: LazyModule) extends Module
+object LazyModule
 {
+  protected[tilelink2] var stack = List[LazyModule]()
+
+  def apply[T <: LazyModule](bc: T)(implicit sourceInfo: SourceInfo): T = {
+    // Make sure the user put LazyModule around modules in the correct order
+    // If this require fails, probably some grandchild was missing a LazyModule
+    // ... or you applied LazyModule twice
+    require (!stack.isEmpty && (stack.head eq bc))
+    stack = stack.tail
+    bc.info = sourceInfo
+    bc
+  }
+}
+
+abstract class LazyModuleImp(val outer: LazyModule) extends Module
+{
+  // .module had better not be accessed while LazyModules are still being built!
+  require (LazyModule.stack.isEmpty)
+
   override def desiredName = outer.getClass.getName.split('.').last
   outer.instantiate()
 }
