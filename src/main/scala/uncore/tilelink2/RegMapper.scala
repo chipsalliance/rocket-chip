@@ -85,7 +85,7 @@ object RegMapper
       val (reg, low, field) = flat(i)
       val high = low + field.width - 1
       // Confirm that no register is too big
-      require (high <= 8*bytes)
+      require (high < 8*bytes)
       val rimask = frontMask(high, low).orR()
       val wimask = frontMask(high, low).andR()
       val romask = backMask(high, low).orR()
