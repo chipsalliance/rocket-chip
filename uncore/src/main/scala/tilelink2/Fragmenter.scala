@@ -134,15 +134,6 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val in = io.in(0)
     val out = io.out(0)
 
-    // Do there exist A messages with Data? (we don't count Arithmetic, because it is never fragmented)
-    val aDataYes = manager.anySupportLogical || manager.anySupportPutFull || manager.anySupportPutPartial
-    // Do there exist A messages without Data?
-    val aDataNo  = manager.anySupportGet || manager.anySupportHint
-    // Do there eixst D messages with Data?
-    val dDataYes = manager.anySupportGet || manager.anySupportLogical
-    // Do there exist D messages without Data?
-    val dDataNo  = manager.anySupportPutFull || manager.anySupportPutPartial || manager.anySupportHint
-
     val counterBits = log2Up(maxSize/beatBytes)
     val maxDownSize = if (alwaysMin) minSize else manager.maxTransfer
 
@@ -156,10 +147,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val dFirst = acknum === UInt(0)
     val dsizeOH  = UIntToOH (out.d.bits.size, log2Ceil(maxDownSize)+1)
     val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Ceil(maxDownSize))
-
-    // It is important to optimize this to a constant if we know certain operaitons
-    // will never exist. This allows synthesis to eliminate the Muxes.
-    val dHasData = if (!dDataYes) Bool(false) else if (!dDataNo) Bool(true) else out.d.bits.hasData()
+    val dHasData = node.edgesOut(0).hasData(out.d.bits)
 
     // calculate new acknum
     val acknum_fragment = dFragnum << log2Ceil(minSize/beatBytes)
@@ -222,9 +210,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val aFrag = Mux(aOrig > limit, limit, aOrig)
     val aOrigOH1 = UIntToOH1(aOrig, log2Ceil(maxSize))
     val aFragOH1 = UIntToOH1(aFrag, log2Ceil(maxDownSize))
-
-    // Statically optimize the case where hasData is a constant
-    val aHasData = if (!aDataYes) Bool(false) else if (!aDataNo) Bool(true) else out.a.bits.hasData()
+    val aHasData = node.edgesIn(0).hasData(in.a.bits)
     val aMask = Mux(aHasData, UInt(0), aFragOH1)
 
     val gennum = RegInit(UInt(0, width = counterBits))

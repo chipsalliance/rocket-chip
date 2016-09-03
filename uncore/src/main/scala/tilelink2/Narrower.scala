@@ -32,7 +32,7 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
       val maskSlices = Vec.tabulate (ratio) { i => in.mask()((i+1)*outerBeatBytes  -1, i*outerBeatBytes)   }
       val filter = Reg(UInt(width = ratio), init = SInt(-1, width = ratio).asUInt)
       val mask = maskSlices.map(_.orR)
-      val hasData = in.hasData()
+      val hasData = edge.hasData(in)
 
       // decoded_size = 1111 (for smallest), 0101, 0001 (for largest)
       val sizeOH1 = UIntToOH1(in.size(), log2Ceil(innerBeatBytes)) >> log2Ceil(outerBeatBytes)
@@ -46,9 +46,12 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
         when (!hasData) { filter := SInt(-1, width = ratio).asUInt }
       }
 
-      val select = Cat(mask.reverse) & new_filter
-      // !!! if never data
-      (last, Mux1H(select, dataSlices), Mux1H(select, maskSlices))
+      if (edge.staticHasData(in) == Some(false)) {
+        (Bool(true), UInt(0), UInt(0))
+      } else {
+        val select = Cat(mask.reverse) & new_filter
+        (last, Mux1H(select, dataSlices), Mux1H(select, maskSlices))
+      }
     }
 
     def merge(in: HasTLData, fire: Bool): (Bool, UInt) = {
@@ -57,7 +60,7 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
       val data = rdata << outerBeatBytes*8 | in.data()
       val first = count === UInt(0)
       val limit = UIntToOH1(in.size(), log2Ceil(innerBeatBytes)) >> log2Ceil(outerBeatBytes)
-      val last = count === limit || !in.hasData()
+      val last = count === limit || !edge.hasData(in)
       val cases = Vec.tabulate (log2Ceil(ratio)+1) { i => 
         val pow = 1 << i
         Fill(1 << (ratio-i), data((pow+1)*outerBeatBytes*8-1, pow*outerBeatBytes*8))
@@ -69,8 +72,11 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
         when (last) { count := UInt(0) }
       }
 
-      // !!! if never data
-      (last, Mux1H(limit, cases))
+      if (edge.staticHasData(in) == Some(false)) {
+        (Bool(true), UInt(0))
+      } else {
+        (last, Mux1H(limit, cases))
+      }
     }
 
     val in = io.in(0)
