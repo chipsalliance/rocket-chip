@@ -25,16 +25,12 @@ object RegReadFn
       val (ovalid, data) = x(oready)
       (Bool(true), ovalid, data)
     })
+  // read from a DecoupledIO (only safe if there is a consistent source of data)
+  implicit def apply(x: DecoupledIO[UInt]):RegReadFn = RegReadFn(ready => { x.ready := ready; (x.valid, x.bits) })
   // read from a register
-  implicit def apply(x: UInt) =
-    new RegReadFn(true, { case (_, _) =>
-      (Bool(true), Bool(true), x)
-    })
+  implicit def apply(x: UInt):RegReadFn = RegReadFn(ready => (Bool(true), x))
   // noop
-  implicit def apply(x: Unit) =
-    new RegReadFn(true, { case (_, _) =>
-      (Bool(true), Bool(true), UInt(0))
-    })
+  implicit def apply(x: Unit):RegReadFn = RegReadFn(UInt(0))
 }
 
 case class RegWriteFn private(combinational: Boolean, fn: (Bool, Bool, UInt) => (Bool, Bool))
@@ -58,17 +54,12 @@ object RegWriteFn
     new RegWriteFn(true, { case (_, oready, data) =>
       (Bool(true), x(oready, data))
     })
+  // write to a DecoupledIO (only safe if there is a consistent sink draining data)
+  implicit def apply(x: DecoupledIO[UInt]): RegWriteFn = RegWriteFn((valid, data) => { x.valid := valid; x.bits := data; x.ready })
   // updates a register
-  implicit def apply(x: UInt) =
-    new RegWriteFn(true, { case (_, oready, data) =>
-      when (oready) { x := data }
-      (Bool(true), Bool(true))
-    })
+  implicit def apply(x: UInt): RegWriteFn = RegWriteFn((valid, data) => { when (valid) { x := data }; Bool(true) })
   // noop
-  implicit def apply(x: Unit) =
-    new RegWriteFn(true, { case (_, _, _) =>
-      (Bool(true), Bool(true))
-    })
+  implicit def apply(x: Unit): RegWriteFn = RegWriteFn((valid, data) => { Bool(true) })
 }
 
 case class RegField(width: Int, read: RegReadFn, write: RegWriteFn)
