@@ -92,7 +92,7 @@ object RegMapper
       val womask = backMask(high, low).andR()
       val data = if (field.write.combinational) back.bits.data else front.bits.data
       val (f_riready, f_rovalid, f_data) = field.read.fn(rivalid(i) && rimask, roready(i) && romask)
-      val (f_wiready, f_wovalid) = field.write.fn(wivalid(i) && wimask, woready(i) && womask, data)
+      val (f_wiready, f_wovalid) = field.write.fn(wivalid(i) && wimask, woready(i) && womask, data(high, low))
       riready(i) := f_riready || !rimask
       wiready(i) := f_wiready || !wimask
       rovalid(i) := f_rovalid || !romask
@@ -101,7 +101,7 @@ object RegMapper
       wifire(reg) = wiready(i) +: wifire(reg)
       rofire(reg) = rovalid(i) +: rofire(reg)
       wofire(reg) = wovalid(i) +: wofire(reg)
-      dataOut(reg) = dataOut(reg) | (f_data << low)
+      dataOut(reg) = dataOut(reg) | ((f_data  << low) & (~UInt(0, width = high+1)))
     }
 
     // Is the selected register ready?
