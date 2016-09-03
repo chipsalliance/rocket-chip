@@ -31,6 +31,11 @@ object RegMapper
     val regmap = mapping.toList
     require (!regmap.isEmpty)
 
+    // Ensure no register appears twice
+    regmap.combinations(2).foreach { case Seq((reg1, _), (reg2, _)) =>
+      require (reg1 != reg2)
+    }
+
     // Flatten the regmap into (Reg:Int, Offset:Int, field:RegField)
     val flat = regmap.map { case (reg, fields) =>
       val offsets = fields.scanLeft(0)(_ + _.width).init
