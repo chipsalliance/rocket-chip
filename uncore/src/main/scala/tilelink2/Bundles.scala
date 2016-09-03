@@ -106,12 +106,24 @@ object Bogus
   def apply() = new Bogus
 }
 
+object ChannelType {
+  sealed trait T
+  case object A extends T
+  case object B extends T
+  case object C extends T
+  case object D extends T
+  case object E extends T
+  val cases = Seq(A, B, C, D, E)
+}
+
 trait HasTLOpcode
 {
   // The data field in this message has value
   def hasData(x: Bogus = Bogus()): Bool
   // This message requires a response
   def hasFollowUp(x: Bogus = Bogus()): Bool
+  // What channel type is this?
+  def channelType(x: Bogus = Bogus()): ChannelType.T
   // The size field of the opcode
   def size(x: Bogus = Bogus()): UInt
 }
@@ -142,6 +154,7 @@ class TLBundleA(params: TLBundleParameters)
 //    opcode === TLMessages.ArithmeticData ||
 //    opcode === TLMessages.LogicalData
   def hasFollowUp(x: Bogus = Bogus()) = Bool(true)
+  def channelType(x: Bogus = Bogus()) = ChannelType.A
   def size(x: Bogus = Bogus()) = size
   def data(x: Bogus = Bogus()) = data
   def mask(x: Bogus = Bogus()) = mask
@@ -163,6 +176,7 @@ class TLBundleB(params: TLBundleParameters)
 
   def hasData(x: Bogus = Bogus()) = !opcode(2)
   def hasFollowUp(x: Bogus = Bogus()) = Bool(true)
+  def channelType(x: Bogus = Bogus()) = ChannelType.B
   def size(x: Bogus = Bogus()) = size
   def data(x: Bogus = Bogus()) = data
   def mask(x: Bogus = Bogus()) = mask
@@ -189,6 +203,7 @@ class TLBundleC(params: TLBundleParameters)
   def hasFollowUp(x: Bogus = Bogus()) = opcode(2) && opcode(1)
 //    opcode === TLMessages.Release ||
 //    opcode === TLMessages.ReleaseData
+  def channelType(x: Bogus = Bogus()) = ChannelType.C
   def size(x: Bogus = Bogus()) = size
   def data(x: Bogus = Bogus()) = data
   def mask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
@@ -214,6 +229,7 @@ class TLBundleD(params: TLBundleParameters)
   def hasFollowUp(x: Bogus = Bogus()) = opcode(2) && !opcode(1)
 //    opcode === TLMessages.Grant     ||
 //    opcode === TLMessages.GrantData
+  def channelType(x: Bogus = Bogus()) = ChannelType.D
   def size(x: Bogus = Bogus()) = size
   def data(x: Bogus = Bogus()) = data
   def mask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
@@ -227,6 +243,7 @@ class TLBundleE(params: TLBundleParameters)
 
   def hasData(x: Bogus = Bogus()) = Bool(false)
   def hasFollowUp(x: Bogus = Bogus()) = Bool(false)
+  def channelType(x: Bogus = Bogus()) = ChannelType.E
   def size(x: Bogus = Bogus()) = UInt(log2Up(params.dataBits/8))
 }
 
