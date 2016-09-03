@@ -39,8 +39,47 @@ class TLEdge(
     Cat(helper(lgBytes).map(_._1).reverse)
   }
 
+  def staticHasData(bundle: HasTLOpcode): Option[Boolean] = {
+    bundle.channelType() match {
+      case ChannelType.A => {
+        // Do there exist A messages with Data?
+        val aDataYes = manager.anySupportArithmetic || manager.anySupportLogical || manager.anySupportPutFull || manager.anySupportPutPartial
+        // Do there exist A messages without Data?
+        val aDataNo  = manager.anySupportAcquire || manager.anySupportGet || manager.anySupportHint
+        // Statically optimize the case where hasData is a constant
+        if (!aDataYes) Some(false) else if (!aDataNo) Some(true) else None
+      }
+      case ChannelType.B => {
+        // Do there exist B messages with Data?
+        val bDataYes = client.anySupportArithmetic || client.anySupportLogical || client.anySupportPutFull || client.anySupportPutPartial
+        // Do there exist B messages without Data?
+        val bDataNo  = client.anySupportProbe || client.anySupportGet || client.anySupportHint
+        // Statically optimize the case where hasData is a constant
+        if (!bDataYes) Some(false) else if (!bDataNo) Some(true) else None
+      }
+      case ChannelType.C => {
+        // Do there eixst C messages with Data?
+        val cDataYes = client.anySupportGet || client.anySupportArithmetic || client.anySupportLogical || client.anySupportProbe
+        // Do there exist C messages without Data?
+        val cDataNo  = client.anySupportPutFull || client.anySupportPutPartial || client.anySupportHint || client.anySupportProbe
+        if (!cDataYes) Some(false) else if (!cDataNo) Some(true) else None
+      }
+      case ChannelType.D => {
+        // Do there eixst D messages with Data?
+        val dDataYes = manager.anySupportGet || manager.anySupportArithmetic || manager.anySupportLogical || manager.anySupportAcquire
+        // Do there exist D messages without Data?
+        val dDataNo  = manager.anySupportPutFull || manager.anySupportPutPartial || manager.anySupportHint || manager.anySupportAcquire
+        if (!dDataYes) Some(false) else if (!dDataNo) Some(true) else None
+      }
+      case ChannelType.E => Some(false)
+    }
+  }
+
+  def hasData(bundle: HasTLOpcode): Bool =
+    staticHasData(bundle).map(Bool(_)).getOrElse(bundle.hasData())
+
   def numBeats(bundle: HasTLOpcode) = {
-    val hasData = bundle.hasData()
+    val hasData = this.hasData(bundle)
     val size = bundle.size()
     val cutoff = log2Ceil(manager.beatBytes)
     val small = size <= UInt(cutoff)
