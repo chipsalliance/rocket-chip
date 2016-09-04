@@ -76,10 +76,79 @@ class TileLinkRAMTest(implicit val p: Parameters)
   io.finished := driver.io.finished
 }
 
+class TileLinkSwitcherTest(implicit val p: Parameters)
+    extends UnitTest with HasTileLinkParameters {
+
+  def addrToRoute(addr: UInt): UInt = {
+    val lsb = tlByteAddrBits + tlBeatAddrBits
+    UIntToOH(addr(lsb, lsb))
+  }
+
+  val driver = Module(new DriverSet(
+    (driverParams: Parameters) => {
+      implicit val p = driverParams
+      Seq(
+        Module(new PutSweepDriver(depth)),
+        Module(new PutMaskDriver),
+        Module(new PutAtomicDriver),
+        Module(new PutBlockSweepDriver(depth / tlDataBeats)),
+        Module(new PrefetchDriver),
+        Module(new GetMultiWidthDriver))
+    }))
+  driver.io.start := io.start
+  io.finished := driver.io.finished
+
+  val depth = 2 * tlDataBeats
+  val testrams = Seq.fill(2) { Module(new TileLinkTestRAM(depth)) }
+  val interconnect = Module(new TileLinkMemoryInterconnect(1, 2))
+  val switcher = Module(new ClientUncachedTileLinkIOSwitcher(2, 2))
+  val router = Module(new ClientUncachedTileLinkIORouter(2, addrToRoute _))
+  router.io.in <> driver.io.mem
+  switcher.io.in <> router.io.out
+  interconnect.io.in <> switcher.io.out
+  for ((ram, i) <- testrams.zipWithIndex) {
+    ram.io <> interconnect.io.out(i)
+  }
+  // swapsies
+  switcher.io.select(0) := UInt(1)
+  switcher.io.select(1) := UInt(0)
+}
+
+class TileLinkSerdesTest(implicit val p: Parameters)
+    extends UnitTest with HasTileLinkParameters {
+  val serdesWidth = 8
+
+  val driver = Module(new DriverSet(
+    (driverParams: Parameters) => {
+      implicit val p = driverParams
+      Seq(
+        Module(new PutSweepDriver(depth)),
+        Module(new PutMaskDriver),
+        Module(new PutAtomicDriver),
+        Module(new PutBlockSweepDriver(depth / tlDataBeats)),
+        Module(new PrefetchDriver),
+        Module(new GetMultiWidthDriver))
+    }))
+  driver.io.start := io.start
+  io.finished := driver.io.finished
+
+  val depth = 2 * tlDataBeats
+  val testram = Module(new TileLinkTestRAM(depth))
+
+  val serdes = Module(new ClientTileLinkIOSerdes(serdesWidth))
+  val desser = Module(new ClientTileLinkIODesser(serdesWidth))
+  serdes.io.tl <> TileLinkIOWrapper(driver.io.mem)
+  desser.io.serial.in <> serdes.io.serial.out
+  serdes.io.serial.in <> desser.io.serial.out
+  testram.io <> TileLinkIOUnwrapper(desser.io.tl)
+}
+
 object UncoreUnitTests {
   def apply(implicit p: Parameters): Seq[UnitTest] =
     Seq(
       Module(new SmiConverterTest),
       Module(new ROMSlaveTest),
-      Module(new TileLinkRAMTest))
+      Module(new TileLinkRAMTest),
+      Module(new TileLinkSwitcherTest),
+      Module(new TileLinkSerdesTest))
 }
