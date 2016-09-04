@@ -68,7 +68,7 @@ object HellaQueue {
 
 /** A generalized locking RR arbiter that addresses the limitations of the
  *  version in the Chisel standard library */
-abstract class JunctionsAbstractLockingArbiter[T <: Data](typ: T, arbN: Int)
+abstract class JunctionsAbstractLockingArbiter[T <: Data](typ: T, arbN: Int, rr: Boolean = false)
     extends Module {
 
   val io = new Bundle {
@@ -86,9 +86,13 @@ abstract class JunctionsAbstractLockingArbiter[T <: Data](typ: T, arbN: Int)
   val lockIdx = Reg(init = UInt(0, log2Up(arbN)))
   val locked = Reg(init = Bool(false))
 
-  val choice = PriorityMux(
-    rotateLeft(Vec(io.in.map(_.valid)), lockIdx + UInt(1)),
-    rotateLeft(Vec((0 until arbN).map(UInt(_))), lockIdx + UInt(1)))
+  val choice = if (rr) {
+    PriorityMux(
+      rotateLeft(Vec(io.in.map(_.valid)), lockIdx + UInt(1)),
+      rotateLeft(Vec((0 until arbN).map(UInt(_))), lockIdx + UInt(1)))
+  } else {
+    PriorityEncoder(io.in.map(_.valid))
+  }
 
   val chosen = Mux(locked, lockIdx, choice)
 
@@ -103,10 +107,11 @@ abstract class JunctionsAbstractLockingArbiter[T <: Data](typ: T, arbN: Int)
 /** This locking arbiter determines when it is safe to unlock
  *  by peeking at the data */
 class JunctionsPeekingArbiter[T <: Data](
-    typ: T, arbN: Int,
-    canUnlock: T => Bool,
-    needsLock: Option[T => Bool] = None)
-    extends JunctionsAbstractLockingArbiter(typ, arbN) {
+      typ: T, arbN: Int,
+      canUnlock: T => Bool,
+      needsLock: Option[T => Bool] = None,
+      rr: Boolean = false)
+    extends JunctionsAbstractLockingArbiter(typ, arbN, rr) {
 
   def realNeedsLock(data: T): Bool =
     needsLock.map(_(data)).getOrElse(Bool(true))
@@ -125,9 +130,10 @@ class JunctionsPeekingArbiter[T <: Data](
 
 /** This arbiter determines when it is safe to unlock by counting transactions */
 class JunctionsCountingArbiter[T <: Data](
-    typ: T, arbN: Int, count: Int,
-    val needsLock: Option[T => Bool] = None)
-    extends JunctionsAbstractLockingArbiter(typ, arbN) {
+      typ: T, arbN: Int, count: Int,
+      val needsLock: Option[T => Bool] = None,
+      rr: Boolean = false)
+    extends JunctionsAbstractLockingArbiter(typ, arbN, rr) {
 
   def realNeedsLock(data: T): Bool =
     needsLock.map(_(data)).getOrElse(Bool(true))
