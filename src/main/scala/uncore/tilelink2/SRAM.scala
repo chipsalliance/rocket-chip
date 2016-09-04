@@ -62,5 +62,10 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
         mem.write(memAddress, wdata, in.a.bits.mask.toBools)
       }
     }
+
+    // Tie off unused channels
+    in.b.valid := Bool(false)
+    in.c.ready := Bool(true)
+    in.e.ready := Bool(true)
   }
 }

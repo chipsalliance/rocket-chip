@@ -108,6 +108,13 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
       in.e.ready := out.e.ready
       out.e.valid := in.e.valid
       out.e.bits := in.e.bits
+    } else {
+      in.b.valid := Bool(false)
+      in.c.ready := Bool(true)
+      in.e.ready := Bool(true)
+      out.b.ready := Bool(true)
+      out.c.valid := Bool(false)
+      out.e.valid := Bool(false)
     }
   }
 }

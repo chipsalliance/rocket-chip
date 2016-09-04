@@ -46,6 +46,11 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     // avoid a Mux on the data bus by manually overriding two fields
     d.bits.data := out.bits.data
     d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
+
+    // Tie off unused channels
+    bundleIn(0).b.valid := Bool(false)
+    bundleIn(0).c.ready := Bool(true)
+    bundleIn(0).e.ready := Bool(true)
   }
 }
 
