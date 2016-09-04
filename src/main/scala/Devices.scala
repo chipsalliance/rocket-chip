@@ -12,9 +12,9 @@ abstract class Device {
   def builder(port: ClientUncachedTileLinkIO, extra: Bundle, p: Parameters): Unit
   def addrMapEntry: AddrMapEntry
   def makeConfigString(region: MemRegion): String = {
-    s"  ${addrMapEntry.name} {\n" +
-    s"    addr 0x${region.start.toString(16)};\n" +
-    s"    size 0x${region.size.toString(16)}; \n" +
-     "  }\n"
+    s"${addrMapEntry.name} {\n" +
+    s"  addr 0x${region.start.toString(16)};\n" +
+    s"  size 0x${region.size.toString(16)}; \n" +
+     "}\n"
   }
 }

@@ -5,6 +5,7 @@ package rocketchip
 import Chisel._
 import cde.Parameters
 import uncore.devices.{DbBusConsts, DMKey}
+import coreplex._
 
 object TestBenchGeneration {
   def generateVerilogFragment(

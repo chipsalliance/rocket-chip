@@ -28,7 +28,7 @@ CHISEL_ARGS := --W0W --minimumCompatibility 3.0.0 --backend $(BACKEND) --configN
 endif
 
 src_path = src/main/scala
-default_submodules = . junctions uncore hardfloat rocket groundtest context-dependent-environments
+default_submodules = . junctions uncore hardfloat rocket groundtest coreplex context-dependent-environments
 chisel_srcs = $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(wildcard $(base_dir)/$(submodule)/$(src_path)/*.scala))
 chisel_srcs += $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(wildcard $(base_dir)/$(submodule)/$(src_path)/*/*.scala))
 
@@ -83,3 +83,6 @@ $(consts_header_debug): $(params_file_debug)
 	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
 	echo "#define TBFRAG \"$(MODEL).$(CONFIG).tb.cpp\"" >> $@
 	echo "#endif // __CONST_H__" >> $@
+
+clean-run-output:
+	rm -f $(output_dir)/{*.out,*.run,*.vpd}

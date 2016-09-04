@@ -72,12 +72,7 @@ And to run the assembly tests on the C simulator and generate waveforms:
     $ make -jN run-asm-tests-debug
     $ make -jN run-bmark-tests-debug
 
-To generate FPGA-synthesizable verilog (output will be in `fsim/generated-src`):
-
-    $ cd fsim
-    $ make verilog
-
-Similarly, to generate VLSI-synthesizable verilog (output will be in `vsim/generated-src`):
+To generate FPGA- or VLSI-synthesizable verilog (output will be in `vsim/generated-src`):
 
     $ cd vsim
     $ make verilog
@@ -384,7 +379,7 @@ writeback stage. At cycle 485, there isn't a valid instruction in the
 writeback stage, perhaps, because of a instruction cache miss at PC
 0x2140.
 
-### <a name="fpga"></a> 2) Mapping a Rocket core down to an FPGA
+### <a name="fpga"></a> 2) Mapping a Rocket core to an FPGA
 
 We use Synopsys VCS for Verilog simulation. We acknowledge that using a
 proprietary Verilog simulation tool for an open-source project is not
@@ -395,14 +390,13 @@ Verilog simulator. In the meantime, you can use the C++ emulator to
 generate vcd waveforms, which you can view with an open-source waveform
 viewer such as GTKWave.
 
-So assuming you have a working Rocket chip, you can generate Verilog for
-the FPGA tools with the following commands:
+You can generate synthesizable Verilog with the following commands:
 
-    $ cd $ROCKETCHIP/fsim
-    $ make verilog
+    $ cd $ROCKETCHIP/vsim
+    $ make verilog CONFIG=DefaultFPGAConfig
 
 The Verilog used for the FPGA tools will be generated in
-fsim/generated-src. Please proceed further with the directions shown in
+vsim/generated-src. Please proceed further with the directions shown in
 the [README](https://github.com/ucb-bar/fpga-zynq/blob/master/README.md)
 of the fpga-zynq repository.
 
@@ -410,11 +404,11 @@ However, if you have access to VCS, you will be able to run assembly
 tests and benchmarks with the following commands (again assuming you
 have N cores on your host machine):
 
-    $ cd $ROCKETCHIP/fsim
-    $ make -jN run
+    $ cd $ROCKETCHIP/vsim
+    $ make -jN run CONFIG=DefaultFPGAConfig
 
 The generated output looks similar to those generated from the emulator.
-Look into fsim/output/\*.out for the output of the executed assembly
+Look into vsim/output/\*.out for the output of the executed assembly
 tests and benchmarks.
 
 ### <a name="vlsi"></a> 3) Pushing a Rocket core through the VLSI tools
@@ -485,9 +479,8 @@ Towards the end, you can also find that ExampleSmallConfig inherits all
 parameters from BaseConfig but overrides the same parameters of
 SmallConfig.
 
-Now take a look at fsim/Makefile and vsim/Makefile. Search for the
-CONFIG variable. DefaultFPGAConfig is used for the FPGA build, while
-DefaultConfig is used for the VLSI build. You can also change the
+Now take a look at vsim/Makefile. Search for the CONFIG variable.
+By default, it is set to DefaultConfig.  You can also change the
 CONFIG variable on the make command line:
 
     $ cd $ROCKETCHIP/vsim

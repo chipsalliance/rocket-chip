@@ -82,7 +82,7 @@ class ComparatorSource(implicit val p: Parameters) extends Module
   val raw_operand_size = NoiseMaker(2, inc) | UInt(0, M_SZ)
   val max_operand_size = UInt(log2Up(tlDataBytes))
   val get_operand_size = Mux(raw_operand_size > max_operand_size, max_operand_size, raw_operand_size)
-  val atomic_operand_size = Mux(NoiseMaker(1, inc)(0), MT_W, MT_D)
+  val atomic_operand_size = UInt(2) + NoiseMaker(1, inc) // word or dword
   
   // Generate random, but valid addr_bytes
   val raw_addr_byte = NoiseMaker(tlByteAddrBits, inc)

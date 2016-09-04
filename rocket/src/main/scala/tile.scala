@@ -9,7 +9,6 @@ import uncore.devices._
 import Util._
 import cde.{Parameters, Field}
 
-case object CoreName extends Field[String]
 case object BuildRoCC extends Field[Seq[RoccParameters]]
 case object NCachedTileLinkPorts extends Field[Int]
 case object NUncachedTileLinkPorts extends Field[Int]
@@ -42,10 +41,8 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
   val nRocc = buildRocc.size
   val nFPUPorts = buildRocc.filter(_.useFPU).size
 
-  val core = Module(new Rocket()(p.alterPartial({ case CoreName => "Rocket" })))
-  val icache = Module(new Frontend()(p.alterPartial({
-    case CacheName => "L1I"
-    case CoreName => "Rocket" })))
+  val core = Module(new Rocket)
+  val icache = Module(new Frontend()(p.alterPartial({ case CacheName => "L1I" })))
   val dcache =
     if (p(NMSHRs) == 0) Module(new DCache()(dcacheParams)).io
     else Module(new HellaCache()(dcacheParams)).io
@@ -138,6 +135,7 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
     core.io.ptw <> ptw.io.dpath
   }
 
+  require(dcPorts.size == core.dcacheArbPorts)
   val dcArb = Module(new HellaCacheArbiter(dcPorts.size)(dcacheParams))
   dcArb.io.requestor <> dcPorts
   dcache.cpu <> dcArb.io.mem

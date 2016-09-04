@@ -26,8 +26,8 @@ trait HasGeneratorParameters extends HasGroundTestParameters {
 
   val genWordBits = 32
   val genWordBytes = genWordBits / 8
-  val wordOffset = log2Up(genWordBytes)
-  val wordSize = MT_WU
+  val wordOffset = log2Ceil(genWordBytes)
+  val wordSize = UInt(log2Ceil(genWordBytes))
 
   require(startAddress % BigInt(genWordBytes) == 0)
 }
