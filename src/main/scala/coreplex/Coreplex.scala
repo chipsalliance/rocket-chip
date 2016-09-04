@@ -42,8 +42,6 @@ case object ExtraCoreplexPorts extends Field[Parameters => Bundle]
 trait HasCoreplexParameters {
   implicit val p: Parameters
   lazy val nTiles = p(NTiles)
-  lazy val nCachedTilePorts = p(NCachedTileLinkPorts)
-  lazy val nUncachedTilePorts = p(NUncachedTileLinkPorts)
   lazy val nMemChannels = p(NMemoryChannels)
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
   lazy val nBanks = nMemChannels*nBanksPerMemChannel
@@ -83,11 +81,11 @@ class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
 
   printConfigString
   buildUncore(p.alterPartial({
-      case HastiId => "TL"
-      case TLId => "L1toL2"
-      case NCachedTileLinkPorts => nCachedPorts
-      case NUncachedTileLinkPorts => nUncachedPorts
-    }))
+    case HastiId => "TL"
+    case TLId => "L1toL2"
+    case NCachedTileLinkPorts => nCachedPorts
+    case NUncachedTileLinkPorts => nUncachedPorts
+  }))
 
   def printConfigString(implicit p: Parameters) = {
     println("Generated Address Map")
@@ -115,7 +113,7 @@ class DefaultCoreplex(topParams: Parameters) extends Coreplex()(topParams) {
 
     // Create point(s) of coherence serialization
     val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}
-    managerEndpoints.foreach { _.incoherent := Vec.fill(nCachedTilePorts)(Bool(false)) }
+    managerEndpoints.flatMap(_.incoherent).foreach(_ := Bool(false))
 
     val mmioManager = Module(new MMIOTileLinkManager()(p.alterPartial({
         case TLId => "L1toL2"
