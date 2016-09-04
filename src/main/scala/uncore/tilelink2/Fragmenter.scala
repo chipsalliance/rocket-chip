@@ -227,6 +227,14 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     out.a.bits := in.a.bits
     out.a.bits.source := Cat(in.a.bits.source, aFragnum)
     out.a.bits.size := aFrag
+
+    // Tie off unused channels
+    in.b.valid := Bool(false)
+    in.c.ready := Bool(true)
+    in.e.ready := Bool(true)
+    out.b.ready := Bool(true)
+    out.c.valid := Bool(false)
+    out.e.valid := Bool(false)
   }
 }
 

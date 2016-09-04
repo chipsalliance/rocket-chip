@@ -25,6 +25,13 @@ class TLBuffer(entries: Int = 2, pipe: Boolean = false) extends LazyModule
       in .b <> Queue(out.b, entries, pipe)
       out.c <> Queue(in .c, entries, pipe)
       out.e <> Queue(out.e, entries, pipe)
+    } else {
+      in.b.valid := Bool(false)
+      in.c.ready := Bool(true)
+      in.e.ready := Bool(true)
+      out.b.ready := Bool(true)
+      out.c.valid := Bool(false)
+      out.e.valid := Bool(false)
     }
   }
 }

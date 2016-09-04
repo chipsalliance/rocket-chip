@@ -103,5 +103,10 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     grant.manager_xact_id := out.d.bits.sink
     grant.data            := out.d.bits.data
     grant.addr_beat       := beatCounter
+
+    // Tie off unused channels
+    out.b.ready := Bool(true)
+    out.c.valid := Bool(false)
+    out.e.valid := Bool(false)
   }
 }
