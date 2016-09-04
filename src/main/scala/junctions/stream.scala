@@ -148,19 +148,22 @@ object StreamUtils {
     a.in <> b.out
     b.in <> a.out
   }
+  def roundUp(n: Int, d: Int) = ((n - 1) / d + 1) * d
 }
 
-trait Serializable {
-  def nbits: Int
+class SerialIO(w: Int) extends Bundle {
+  val out = Decoupled(UInt(width = w))
+  val in = Decoupled(UInt(width = w)).flip
+  override def cloneType = new SerialIO(w).asInstanceOf[this.type]
 }
 
-class Serializer[T <: Data with Serializable](w: Int, typ: T) extends Module {
+class Serializer[T <: Data](w: Int, typ: T) extends Module {
   val io = new Bundle {
     val in = Decoupled(typ).flip
     val out = Decoupled(Bits(width = w))
   }
 
-  val narrower = Module(new StreamNarrower(typ.nbits, w))
+  val narrower = Module(new StreamNarrower(StreamUtils.roundUp(typ.getWidth, w), w))
   narrower.io.in.bits.data := io.in.bits.asUInt
   narrower.io.in.bits.last := Bool(true)
   narrower.io.in.valid := io.in.valid
@@ -170,18 +173,18 @@ class Serializer[T <: Data with Serializable](w: Int, typ: T) extends Module {
   narrower.io.out.ready := io.out.ready
 }
 
-class Deserializer[T <: Data with Serializable](w: Int, typ: T) extends Module {
+class Deserializer[T <: Data](w: Int, typ: T) extends Module {
   val io = new Bundle {
     val in = Decoupled(Bits(width = w)).flip
     val out = Decoupled(typ)
   }
 
-  val expander = Module(new StreamExpander(w, typ.nbits))
+  val expander = Module(new StreamExpander(w, StreamUtils.roundUp(typ.getWidth, w)))
   expander.io.in.valid := io.in.valid
   expander.io.in.bits.data := io.in.bits
   expander.io.in.bits.last := Bool(true)
   io.in.ready := expander.io.in.ready
   io.out.valid := expander.io.out.valid
-  io.out.bits := typ.cloneType.fromBits(expander.io.out.bits.data)
+  io.out.bits := typ.fromBits(expander.io.out.bits.data)
   expander.io.out.ready := io.out.ready
 }

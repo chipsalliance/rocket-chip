@@ -312,75 +312,137 @@ class TileLinkMemoryInterconnect(
   }
 }
 
-/** Allows users to switch between various memory configurations.  Note that
-  * this is a dangerous operation: not only does switching the select input to
-  * this module violate TileLink, it also causes the memory of the machine to
-  * become garbled.  It's expected that select only changes at boot time, as
-  * part of the memory controller configuration. */
-class TileLinkMemorySelectorIO(val nBanks: Int, val maxMemChannels: Int, nConfigs: Int)
-                           (implicit p: Parameters)
-                           extends TileLinkInterconnectIO(nBanks, maxMemChannels) {
-  val select  = UInt(INPUT, width = log2Up(nConfigs))
-  override def cloneType =
-    new TileLinkMemorySelectorIO(nBanks, maxMemChannels, nConfigs).asInstanceOf[this.type]
+trait SwitchesTileLinkChannels {
+  def connectWhen[T <: Data](sel: Bool, out: DecoupledIO[T], in: DecoupledIO[T]) {
+    when (sel) {
+      out.valid := in.valid
+      in.ready := out.ready
+      out.bits := in.bits
+    }
+  }
+
+  def connectWhen(sel: Bool, out: ClientUncachedTileLinkIO, in: ClientUncachedTileLinkIO) {
+    connectWhen(sel, out.acquire, in.acquire)
+    connectWhen(sel, in.grant, out.grant)
+  }
+
+  def connectWhen(sel: Bool, out: ClientTileLinkIO, in: ClientTileLinkIO) {
+    connectWhen(sel, out.acquire, in.acquire)
+    connectWhen(sel, out.release, in.release)
+    connectWhen(sel, out.finish, in.finish)
+    connectWhen(sel, in.probe, out.probe)
+    connectWhen(sel, in.grant, out.grant)
+  }
+
+  def disconnectIn[T <: Data](in: DecoupledIO[T]) {
+    in.ready := Bool(false)
+  }
+
+  def disconnectOut[T <: Data](out: DecoupledIO[T]) {
+    out.valid := Bool(false)
+    out.bits := out.bits.fromBits(UInt(0))
+  }
+
+  def disconnectIn(in: ClientTileLinkIO) {
+    disconnectIn(in.acquire)
+    disconnectIn(in.release)
+    disconnectIn(in.finish)
+    disconnectOut(in.probe)
+    disconnectOut(in.grant)
+  }
+
+  def disconnectOut(out: ClientTileLinkIO) {
+    disconnectOut(out.acquire)
+    disconnectOut(out.release)
+    disconnectOut(out.finish)
+    disconnectIn(out.probe)
+    disconnectIn(out.grant)
+  }
+
+  def disconnectIn(in: ClientUncachedTileLinkIO) {
+    disconnectIn(in.acquire)
+    disconnectOut(in.grant)
+  }
+
+  def disconnectOut(out: ClientUncachedTileLinkIO) {
+    disconnectOut(out.acquire)
+    disconnectIn(out.grant)
+  }
 }
 
-class TileLinkMemorySelector(nBanks: Int, maxMemChannels: Int, configs: Seq[Int])
-                         (implicit p: Parameters)
-                         extends TileLinkInterconnect()(p) {
-  val nInner = nBanks
-  val nOuter = maxMemChannels
-  val nConfigs = configs.size
-
-  override lazy val io = new TileLinkMemorySelectorIO(nBanks, maxMemChannels, nConfigs)
-
-  def muxOnSelect[T <: Data](up: DecoupledIO[T], dn: DecoupledIO[T], active: Bool): Unit = {
-    when (active) { dn.bits  := up.bits  }
-    when (active) { up.ready := dn.ready }
-    when (active) { dn.valid := up.valid }
+/** Route the input interfaces to the output interfaces
+ *  based on the settings in select.
+ *  If bit i of element j of select is high,
+ *  bank i will be routed to channel j.
+ *  It is not safe to change select when the selector is taking traffic.
+ *  Only certain configurations are valid.
+ *  Each bank must be routed to exactly one channel. */
+class ClientTileLinkIOSwitcher(nBanks: Int, nMemChannels: Int)
+                              (implicit p: Parameters)
+                              extends TLModule()(p)
+                              with SwitchesTileLinkChannels {
+  val io = new Bundle {
+    val select = Vec(nBanks, UInt(INPUT, log2Up(nMemChannels)))
+    val in = Vec(nBanks, new ClientTileLinkIO).flip
+    val out = Vec(nMemChannels, new ClientTileLinkIO)
   }
 
-  def muxOnSelect(up: ClientUncachedTileLinkIO, dn: ClientUncachedTileLinkIO, active: Bool): Unit = {
-    muxOnSelect(up.acquire, dn.acquire, active)
-    muxOnSelect(dn.grant, up.grant, active)
-  }
-
-  def muxOnSelect(up: Vec[ClientUncachedTileLinkIO], dn: Vec[ClientUncachedTileLinkIO], active: Bool) : Unit = {
-    for (i <- 0 until up.size)
-      muxOnSelect(up(i), dn(i), active)
-  }
-
-  /* Disconnects a vector of TileLink ports, which involves setting them to
-   * invalid.  Due to Chisel reasons, we need to also set the bits to 0 (since
-   * there can't be any unconnected inputs). */
-  def disconnectOuter(outer: Vec[ClientUncachedTileLinkIO]) = {
-    outer.foreach{ m =>
-      m.acquire.valid := Bool(false)
-      m.acquire.bits := m.acquire.bits.fromBits(UInt(0))
-      m.grant.ready := Bool(false)
+  def connectWhen(sels: Seq[Bool], outs: Seq[ClientTileLinkIO], ins: Seq[ClientTileLinkIO]) {
+    for ((sel, out, in) <- (sels, outs, ins).zipped) {
+      connectWhen(sel, out, in)
     }
   }
 
-  def disconnectInner(inner: Vec[ClientUncachedTileLinkIO]) = {
-    inner.foreach { m =>
-      m.grant.valid := Bool(false)
-      m.grant.bits := m.grant.bits.fromBits(UInt(0))
-      m.acquire.ready := Bool(false)
+  def disconnectIn(ins: Seq[ClientTileLinkIO]) {
+    for (in <- ins) { disconnectIn(in) }
+  }
+
+  def disconnectOut(outs: Seq[ClientTileLinkIO]) {
+    for (out <- outs) { disconnectOut(out) }
+  }
+
+  disconnectIn(io.in)
+
+  for ((out, i) <- io.out.zipWithIndex) {
+    val selects = Seq.tabulate(nBanks)(j => io.select(j) === UInt(i))
+    val arb = Module(new ClientTileLinkIOArbiter(nBanks))
+    disconnectOut(arb.io.in)
+    connectWhen(selects, arb.io.in, io.in)
+    out <> arb.io.out
+  }
+}
+
+class ClientUncachedTileLinkIOSwitcher(nBanks: Int, nMemChannels: Int)
+                                      (implicit p: Parameters)
+                                      extends TLModule()(p)
+                                      with SwitchesTileLinkChannels {
+  val io = new Bundle {
+    val select = Vec(nBanks, UInt(INPUT, log2Up(nMemChannels)))
+    val in = Vec(nBanks, new ClientUncachedTileLinkIO).flip
+    val out = Vec(nMemChannels, new ClientUncachedTileLinkIO)
+  }
+
+  def connectWhen(sels: Seq[Bool], outs: Seq[ClientUncachedTileLinkIO], ins: Seq[ClientUncachedTileLinkIO]) {
+    for ((sel, out, in) <- (sels, outs, ins).zipped) {
+      connectWhen(sel, out, in)
     }
   }
 
-  /* Provides default wires on all our outputs. */
-  disconnectOuter(io.out)
-  disconnectInner(io.in)
+  def disconnectIn(ins: Seq[ClientUncachedTileLinkIO]) {
+    for (in <- ins) { disconnectIn(in) }
+  }
 
-  /* Constructs interconnects for each of the layouts suggested by the
-   * configuration and switches between them based on the select input. */
-  configs.zipWithIndex.foreach{ case (nChannels, select) =>
-    val nBanksPerChannel = nBanks / nChannels
-    val ic = Module(new TileLinkMemoryInterconnect(nBanksPerChannel, nChannels))
-    disconnectInner(ic.io.out)
-    disconnectOuter(ic.io.in)
-    muxOnSelect(io.in, ic.io.in, io.select === UInt(select))
-    muxOnSelect(ic.io.out, io.out, io.select === UInt(select))
+  def disconnectOut(outs: Seq[ClientUncachedTileLinkIO]) {
+    for (out <- outs) { disconnectOut(out) }
+  }
+
+  disconnectIn(io.in)
+
+  for ((out, i) <- io.out.zipWithIndex) {
+    val selects = Seq.tabulate(nBanks)(j => io.select(j) === UInt(i))
+    val arb = Module(new ClientUncachedTileLinkIOArbiter(nBanks))
+    disconnectOut(arb.io.in)
+    connectWhen(selects, arb.io.in, io.in)
+    out <> arb.io.out
   }
 }
