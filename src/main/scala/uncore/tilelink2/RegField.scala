@@ -10,16 +10,17 @@ object RegReadFn
   // (ivalid: Bool, oready: Bool) => (iready: Bool, ovalid: Bool, data: UInt)
   // iready may combinationally depend on oready
   // all other combinational dependencies forbidden (e.g. ovalid <= ivalid)
+  // iready must eventually go high without requiring ivalid to go high
+  // ovalid must eventually go high without requiring oready to go high
   // effects must become visible on the cycle after ovalid && oready
   implicit def apply(x: (Bool, Bool) => (Bool, Bool, UInt)) =
     new RegReadFn(false, x)
   // (ready: Bool) => (valid: Bool, data: UInt)
   // valid must not combinationally depend on ready
+  // valid must eventually go high without requiring ready to go high
+  // => this means that reading cannot trigger creation of the output data
+  //    if you need this, use the more general i&o ready-valid method above
   // effects must become visible on the cycle after valid && ready
-  // ready is only guaranteed to stay high if fed by an Irrevocable (eg: TL2 or concurrency > 0)
-  // ... which is irrelevant if you can service the read immediately
-  // ... if irrevocable, you may start reading on rising ready and raise valid when done
-  // ... otherwise, use the more general in&out ready-valid method above
   implicit def apply(x: Bool => (Bool, UInt)) =
     new RegReadFn(true, { case (_, oready) =>
       val (ovalid, data) = x(oready)
@@ -39,16 +40,15 @@ object RegWriteFn
   // (ivalid: Bool, oready: Bool, data: UInt) => (iready: Bool, ovalid: Bool)
   // iready may combinationally depend on both oready and data
   // all other combinational dependencies forbidden (e.g. ovalid <= ivalid)
+  // iready must eventually go high without requiring ivalid to go high
+  // ovalid must eventually go high without requiring oready to go high
   // effects must become visible on the cycle after ovalid && oready
   implicit def apply(x: (Bool, Bool, UInt) => (Bool, Bool)) =
     new RegWriteFn(false, x)
   // (valid: Bool, data: UInt) => (ready: Bool)
   // ready may combinationally depend on data (but not valid)
+  // ready must eventually go high without requiring valid to go high
   // effects must become visible on the cycle after valid && ready
-  // valid is only guaranteed to stay high if fed by an Irrevocable (eg: TL2 or concurrency > 0)
-  // ... which is irrelevant if you can service the write immediately
-  // ... if irrevocable, you may start writing on rising valid and raise ready when done
-  // ... otherwise, use the more general in&out ready-valid method above
   implicit def apply(x: (Bool, UInt) => Bool) =
     // combinational => data valid on oready
     new RegWriteFn(true, { case (_, oready, data) =>
