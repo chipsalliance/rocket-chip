@@ -139,7 +139,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxDownSize = if (alwaysMin) minSize else manager.maxTransfer
 
     def OH1ToUInt(x: UInt) = OHToUInt((x << 1 | UInt(1)) ^ x)
-    def UIntToOH1(x: UInt, width: Int) = (UInt((1 << width) - 1) << x)(width*2-1, width)
+    def UIntToOH1(x: UInt, width: Int) = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
 
     // First, handle the return path
     val acknum = RegInit(UInt(0, width = counterBits))

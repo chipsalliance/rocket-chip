@@ -26,7 +26,7 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
     val ratio = innerBeatBytes / outerBeatBytes
     val bce = edge.manager.anySupportAcquire && edge.client.anySupportProbe
 
-    def UIntToOH1(x: UInt, width: Int) = (UInt((1 << width) - 1) << x)(width*2-1, width)
+    def UIntToOH1(x: UInt, width: Int) = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
     def trailingZeros(x: Int) = if (x > 0) Some(log2Ceil(x & -x)) else None
 
     def split(in: HasTLData, fire: Bool): (Bool, UInt, UInt) = {
@@ -96,7 +96,7 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
     out.a.bits.mask := amask
 
     val (dlast, ddata) = merge(out.d.bits, out.d.fire())
-    out.d.ready := in.d.ready
+    out.d.ready := in.d.ready || !dlast
     in.d.valid := out.d.valid && dlast
     in.d.bits := out.d.bits
     in.d.bits.data := ddata

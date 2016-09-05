@@ -12,8 +12,7 @@ class TLEdge(
 {
   def isAligned(address: UInt, lgSize: UInt) =
     if (maxLgSize == 0) Bool(true) else {
-      val ones = UInt((1 << maxLgSize) - 1)
-      val mask = (ones << lgSize)(maxLgSize*2-1, maxLgSize)
+      val mask = ~(SInt(-1, width=maxLgSize).asUInt << lgSize)(maxLgSize-1, 0)
       (address & mask) === UInt(0)
     }
 
