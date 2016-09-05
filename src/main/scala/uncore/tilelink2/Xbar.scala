@@ -108,7 +108,7 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
 
     // The crossbar cross-connection state; defined later
     val grantedAIO = Wire(Vec(in .size, Vec(out.size, Bool())))
-    val grantedBOI = Wire(Vec(out.size, Vec( in.size, Bool())))
+    val grantedBOI = Wire(Vec(out.size, Vec(in .size, Bool())))
     val grantedCIO = Wire(Vec(in .size, Vec(out.size, Bool())))
     val grantedDOI = Wire(Vec(out.size, Vec(in .size, Bool())))
     val grantedEIO = Wire(Vec(in .size, Vec(out.size, Bool())))
@@ -148,7 +148,7 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
     val requestAIO = Vec(in.map  { i => Vec(node.edgesOut.map  { o => i.a.valid && o.manager.contains(i.a.bits.address) }) })
     val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.b.valid && i        .contains(o.b.bits.source)  }) })
     val requestCIO = Vec(in.map  { i => Vec(node.edgesOut.map  { o => i.c.valid && o.manager.contains(i.c.bits.address) }) })
-    val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.d.valid && i        .contains(o.b.bits.source)  }) })
+    val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.d.valid && i        .contains(o.d.bits.source)  }) })
     val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => i.e.valid && o        .contains(i.e.bits.sink)    }) })
 
     val beatsA = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.a.bits) })
@@ -191,8 +191,15 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
       // Apply policy to select which requester wins
       val winners = Vec(policy(requests, idle))
 
+      // Winners must be a subset of requests
+      assert ((winners zip requests).map { case (w,r) => !w || r } .reduce(_ && _))
+      // There must be only one winner
+      val prefixOR = winners.scanLeft(Bool(false))(_ || _).init
+      assert ((prefixOR zip winners).map { case (p,w) => !p || !w }.reduce(_ && _))
+
       // Supposing we take the winner as input, how many beats must be sent?
-      val initBeats = Mux1H(winners, beats)
+      val maskedBeats = (winners zip beats).map { case (w,b) => Mux(w, b, UInt(0)) }
+      val initBeats = maskedBeats.reduceLeft(_ | _) // no winner => 0 beats
       // What is the counter state before progress?
       val todoBeats = Mux(idle, initBeats, beatsLeft)
       // Apply progress and register the result
