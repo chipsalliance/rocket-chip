@@ -20,7 +20,7 @@ object TLMonitor
     // Reuse these subexpressions to save some firrtl lines
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
-    val mask = edge.fullMask(bundle.address, bundle.size)
+    val mask = edge.fullMask(bundle.address | edge.lowAddress(bundle.mask), bundle.size)
 
     when (bundle.opcode === TLMessages.Acquire) {
       assert (edge.manager.supportsAcquire(bundle.address, bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
@@ -86,7 +86,7 @@ object TLMonitor
     // Reuse these subexpressions to save some firrtl lines
     val address_ok = edge.manager.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
-    val mask = edge.fullMask(bundle.address, bundle.size)
+    val mask = edge.fullMask(bundle.address | edge.lowAddress(bundle.mask), bundle.size)
 
     when (bundle.opcode === TLMessages.Probe) {
       assert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
