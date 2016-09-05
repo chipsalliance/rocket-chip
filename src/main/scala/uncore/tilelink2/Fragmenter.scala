@@ -167,7 +167,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     // Swallow up non-data ack fragments
     val drop = (out.d.bits.opcode === TLMessages.AccessAck) && (dFragnum =/= UInt(0))
     out.d.ready := in.d.ready || drop
-    in.d.valid  := out.d.valid && drop
+    in.d.valid  := out.d.valid && !drop
     in.d.bits   := out.d.bits // pass most stuff unchanged
     in.d.bits.source := out.d.bits.source >> fragmentBits
     in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
@@ -220,12 +220,13 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val new_gennum = ~(~old_gennum1 | (aMask >> log2Ceil(beatBytes))) // ~(~x|y) is width safe
     val aFragnum = ~(~(old_gennum1 >> log2Ceil(minSize/beatBytes)) | (aFragOH1 >> log2Ceil(minSize)))
 
-    when (out.d.fire()) { gennum := new_gennum }
+    when (out.a.fire()) { gennum := new_gennum }
 
     val delay = !aHasData && aFragnum =/= UInt(0)
     out.a.valid := in.a.valid
     in.a.ready := out.a.ready && !delay
     out.a.bits := in.a.bits
+    out.a.bits.address := in.a.bits.address | (~aFragnum << log2Ceil(minSize) & aOrigOH1)
     out.a.bits.source := Cat(in.a.bits.source, aFragnum)
     out.a.bits.size := aFrag
 
