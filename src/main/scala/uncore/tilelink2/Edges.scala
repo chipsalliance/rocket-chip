@@ -20,12 +20,13 @@ class TLEdge(
   // This gets used everywhere, so make the smallest circuit possible ...
   def fullMask(address: UInt, lgSize: UInt) = {
     val lgBytes = log2Ceil(manager.beatBytes)
+    val sizeOH = UIntToOH(lgSize, lgBytes)
     def helper(i: Int): Seq[(Bool, Bool)] = {
       if (i == 0) {
         Seq((lgSize >= UInt(lgBytes), Bool(true)))
       } else {
         val sub = helper(i-1)
-        val size = lgSize === UInt(lgBytes - i)
+        val size = sizeOH(lgBytes - i)
         val bit = address(lgBytes - i)
         val nbit = !bit
         Seq.tabulate (1 << i) { j =>
@@ -37,6 +38,23 @@ class TLEdge(
       }
     }
     Cat(helper(lgBytes).map(_._1).reverse)
+  }
+
+  def lowAddress(mask: UInt) = {
+    // Almost OHToUInt, but any bit in low => use low address
+    def helper(mask: UInt, width: Int): UInt = {
+      if (width <= 1) {
+        UInt(0)
+      } else if (width == 2) {
+        ~mask(0, 0)
+      } else {
+        val mid = 1 << (log2Up(width)-1)
+        val hi = mask(width-1, mid)
+        val lo = mask(mid-1, 0)
+        Cat(!lo.orR, helper(hi | lo, mid))
+      }
+    }
+    helper(mask, bundle.dataBits/8)
   }
 
   def staticHasData(bundle: HasTLOpcode): Option[Boolean] = {
