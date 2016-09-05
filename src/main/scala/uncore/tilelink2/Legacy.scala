@@ -82,7 +82,7 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     // Get rid of some unneeded muxes
     out.a.bits.source  := source
     out.a.bits.data    := data
-    out.a.bits.address := address & ~addressMask
+    out.a.bits.address := ~(~address | addressMask)
 
     // TL legacy does not support bus errors
     assert (!out.d.bits.error)
