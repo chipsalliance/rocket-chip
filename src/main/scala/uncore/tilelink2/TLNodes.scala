@@ -23,10 +23,10 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     require (eo.asInstanceOf[TLEdgeParameters] == ei.asInstanceOf[TLEdgeParameters])
     TLMonitor.legalize(bo, eo, bi, ei)
     bi <> bo
-    val mask = ~UInt(ei.manager.beatBytes - 1)
-    bi.a.bits.address := (mask & bo.a.bits.address)
-    bo.b.bits.address := (mask & bi.b.bits.address)
-    bi.c.bits.address := (mask & bo.c.bits.address)
+    val mask = UInt(ei.manager.beatBytes - 1)
+    bi.a.bits.address := ~(mask | ~bo.a.bits.address)
+    bo.b.bits.address := ~(mask | ~bi.b.bits.address)
+    bi.c.bits.address := ~(mask | ~bo.c.bits.address)
   }
 }
 

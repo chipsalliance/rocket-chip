@@ -33,8 +33,8 @@ case class IdRange(start: Int, end: Int)
   def contains(x: Int)  = start <= x && x < end
   def contains(x: UInt) =
     if (start+1 == end) { UInt(start) === x }
-    else if (((end-1) & ~start) == end-start-1)
-    { ((UInt(start) ^ x) & ~UInt(end-start-1)) === UInt(0) }
+    else if (isPow2(end-start) && ((end | start) & (end-start-1)) == 0)
+    { ~(~(UInt(start) ^ x) | UInt(end-start-1)) === UInt(0) }
     else { UInt(start) <= x && x < UInt(end) }
 
   def shift(x: Int) = IdRange(start+x, end+x)
@@ -84,8 +84,8 @@ case class AddressSet(base: BigInt, mask: BigInt)
   // Forbid misaligned base address (and empty sets)
   require ((base & mask) == 0)
 
-  def contains(x: BigInt) = ((x ^ base) & ~mask) == 0
-  def contains(x: UInt) = ((x ^ UInt(base)) & ~UInt(mask)) === UInt(0)
+  def contains(x: BigInt) = ~(~(x ^ base) | mask) == 0
+  def contains(x: UInt) = ~(~(x ^ UInt(base)) | UInt(mask)) === UInt(0)
 
   // overlap iff bitwise: both care (~mask0 & ~mask1) => both equal (base0=base1)
   def overlaps(x: AddressSet) = (~(mask | x.mask) & (base ^ x.base)) == 0
