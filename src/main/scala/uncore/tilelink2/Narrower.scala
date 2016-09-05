@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import scala.math.{min,max}
 
 // innBeatBytes => the bus width after the adapter
 class TLNarrower(innerBeatBytes: Int) extends LazyModule
@@ -62,10 +63,6 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
       val first = count === UInt(0)
       val limit = UIntToOH1(in.size(), log2Ceil(innerBeatBytes)) >> log2Ceil(outerBeatBytes)
       val last = count === limit || !edge.hasData(in)
-      val cases = Vec.tabulate (log2Ceil(ratio)+1) { i => 
-        val pow = 1 << i
-        Fill(1 << (ratio-i), data((pow+1)*outerBeatBytes*8-1, pow*outerBeatBytes*8))
-      }
 
       when (fire) {
         rdata := data
@@ -73,10 +70,18 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
         when (last) { count := UInt(0) }
       }
 
+      val cases = Seq.tabulate(log2Ceil(ratio)+1) { i =>
+        val pow = 1 << i
+        Fill(1 << (log2Ceil(ratio)-i), data(pow*outerBeatBytes*8-1, 0))
+      }
+      val mux = Vec.tabulate(log2Ceil(edge.maxTransfer)+1) { lgSize =>
+        cases(min(max(lgSize - log2Ceil(outerBeatBytes), 0), log2Ceil(ratio)))
+      }
+
       if (edge.staticHasData(in) == Some(false)) {
         (Bool(true), UInt(0))
       } else {
-        (last, Mux1H(limit, cases))
+        (last, mux(in.size()))
       }
     }
 
