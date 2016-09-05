@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import chisel3.internal.sourceinfo.SourceInfo
 import scala.math.{min,max}
 
 // minSize: minimum size of transfers supported by all outward managers
@@ -241,7 +242,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 object TLFragmenter
 {
   // applied to the TL source node; connect (TLFragmenter(x.node, 256, 4) -> y.node)
-  def apply(x: TLBaseNode, minSize: Int, maxSize: Int, alwaysMin: Boolean = false)(implicit lazyModule: LazyModule): TLBaseNode = {
+  def apply(x: TLBaseNode, minSize: Int, maxSize: Int, alwaysMin: Boolean = false)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
     val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin))
     lazyModule.connect(x -> fragmenter.node)
     fragmenter.node

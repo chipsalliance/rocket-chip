@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import chisel3.internal.sourceinfo.SourceInfo
 
 // innBeatBytes => the bus width after the adapter
 class TLNarrower(innerBeatBytes: Int) extends LazyModule
@@ -122,7 +123,7 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
 object TLNarrower
 {
   // applied to the TL source node; connect (Narrower(x.node, 16) -> y.node)
-  def apply(x: TLBaseNode, innerBeatBytes: Int)(implicit lazyModule: LazyModule): TLBaseNode = {
+  def apply(x: TLBaseNode, innerBeatBytes: Int)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
     val narrower = LazyModule(new TLNarrower(innerBeatBytes))
     lazyModule.connect(x -> narrower.node)
     narrower.node
