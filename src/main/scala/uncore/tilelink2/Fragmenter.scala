@@ -17,7 +17,6 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
   require (isPow2 (maxSize))
   require (isPow2 (minSize))
   require (minSize < maxSize)
-  require (maxSize <= TransferSizes.maxAllowed)
 
   val fragmentBits = log2Ceil(maxSize / minSize)
 
