@@ -10,7 +10,7 @@ DISASM_EXTENSION = --extension=hwacha
 CXX ?= g++
 CXXFLAGS := -O1
 
-SBT ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
+SBT ?= java -Xmx8G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
 
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar

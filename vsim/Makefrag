@@ -35,7 +35,7 @@ verilog: $(sim_vsrcs)
 
 VCS = vcs -full64
 
-VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1ns/10ps -quiet \
+VCS_OPTS = -notice -line +lint=all,noVCDE,noUI -error=PCWM-L -timescale=1ns/10ps -quiet \
 	+rad +v2k +vcs+lic+wait \
 	+vc+list -CC "-I$(VCS_HOME)/include" \
 	-CC "-I$(RISCV)/include" \
