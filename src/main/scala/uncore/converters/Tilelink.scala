@@ -44,6 +44,7 @@ class ClientTileLinkIOWrapper(implicit p: Parameters) extends TLModule()(p) {
   io.in.grant <> io.out.grant
   io.out.probe.ready := Bool(true)
   io.out.release.valid := Bool(false)
+  io.out.finish.valid := Bool(false)
 }
 
 class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
@@ -144,6 +145,15 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
   io.out.grant.ready := io.in.grant.ready
 
   io.in.probe.valid := Bool(false)
+  io.in.finish.ready := Bool(false)
+}
+
+object TileLinkIOUnwrapper {
+  def apply(in: ClientTileLinkIO)(implicit p: Parameters): ClientUncachedTileLinkIO = {
+    val unwrapper = Module(new ClientTileLinkIOUnwrapper)
+    unwrapper.io.in <> in
+    unwrapper.io.out
+  }
 }
 
 object TileLinkWidthAdapter {

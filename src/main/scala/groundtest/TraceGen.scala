@@ -613,7 +613,7 @@ class GroundTestTraceGenerator(implicit p: Parameters)
   require(io.mem.size <= 1)
   require(io.cache.size == 1)
 
-  val traceGen = Module(new TraceGenerator(p(GroundTestId)))
+  val traceGen = Module(new TraceGenerator(p(TileId)))
   io.cache.head <> traceGen.io.mem
 
   if (io.mem.size == 1) {

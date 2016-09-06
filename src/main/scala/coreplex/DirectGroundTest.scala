@@ -2,6 +2,7 @@ package coreplex
 
 import Chisel._
 import cde.{Parameters, Field}
+import rocket.TileId
 import groundtest._
 import uncore.tilelink._
 import uncore.agents._
@@ -19,7 +20,7 @@ class DirectGroundTestCoreplex(topParams: Parameters) extends Coreplex()(topPara
   require(nTiles == 1)
 
   val test = p(BuildGroundTest)(outermostParams.alterPartial({
-    case GroundTestId => 0
+    case TileId => 0
     case CacheName => "L1D"
   }))
   require(test.io.cache.size == 0)

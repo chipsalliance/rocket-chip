@@ -13,7 +13,6 @@ case object BuildGroundTest extends Field[Parameters => GroundTest]
 case class GroundTestTileSettings(
   uncached: Int = 0, cached: Int = 0, ptw: Int = 0, maxXacts: Int = 1)
 case object GroundTestKey extends Field[Seq[GroundTestTileSettings]]
-case object GroundTestId extends Field[Int]
 
 trait HasGroundTestConstants {
   val timeoutCodeBits = 4
@@ -22,8 +21,7 @@ trait HasGroundTestConstants {
 
 trait HasGroundTestParameters extends HasAddrMapParameters {
   implicit val p: Parameters
-  val tileId = p(GroundTestId)
-  val tileSettings = p(GroundTestKey)(tileId)
+  val tileSettings = p(GroundTestKey)(p(TileId))
   val nUncached = tileSettings.uncached
   val nCached = tileSettings.cached
   val nPTW = tileSettings.ptw
@@ -69,6 +67,11 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     requestor.resp.bits := s2_resp
     requestor.status.vm := UInt("b01000")
     requestor.status.prv := UInt(PRV.S)
+    requestor.status.debug := Bool(false)
+    requestor.status.mprv  := Bool(true)
+    requestor.status.mpp := UInt(0)
+    requestor.ptbr.asid := UInt(0)
+    requestor.ptbr.ppn := UInt(0)
     requestor.invalidate := Bool(false)
   }
 }

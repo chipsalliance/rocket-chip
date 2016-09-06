@@ -59,7 +59,6 @@ object JunctionsUnitTests {
   def apply(implicit p: Parameters): Seq[UnitTest] =
     Seq(
       Module(new MultiWidthFifoTest),
-      Module(new AtosConverterTest),
       Module(new NastiMemoryDemuxTest),
       Module(new HastiTest))
 }

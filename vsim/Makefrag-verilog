@@ -7,8 +7,7 @@
 
 $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)/%.prm: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "run $(PROJECT) $(notdir $*) $(CONFIG) $(CHISEL_ARGS) --configDump --noInlineMem"
-	mv $(generated_dir)/$(MODEL).fir $(generated_dir)/$(MODEL).$(CONFIG).fir
+	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(notdir $*) $(CFG_PROJECT) $(CONFIG)"
 
 $(generated_dir)/%.v: $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)

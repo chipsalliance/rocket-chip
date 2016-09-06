@@ -21,7 +21,7 @@ TB ?= TestDriver
 
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag
-ifneq ($(MAKECMDGOALS),clean)
+ifneq ($(filter run% %.run %.out %.vpd %.vcd,$(MAKECMDGOALS)),)
 -include $(generated_dir)/$(MODEL).$(CONFIG).d
 endif
 include $(base_dir)/vsim/Makefrag-verilog

@@ -6,6 +6,7 @@ import cde.Parameters
 
 /** Struct for describing per-channel queue depths */
 case class TileLinkDepths(acq: Int, prb: Int, rel: Int, gnt: Int, fin: Int)
+case class UncachedTileLinkDepths(acq: Int, gnt: Int)
 
 /** Optionally enqueues each [[uncore.TileLinkChannel]] individually */
 class TileLinkEnqueuer(depths: TileLinkDepths)(implicit p: Parameters) extends Module {
@@ -52,5 +53,26 @@ object ClientTileLinkEnqueuer {
   }
   def apply(in: ClientTileLinkIO, depth: Int)(implicit p: Parameters): ClientTileLinkIO = {
     apply(in, TileLinkDepths(depth, depth, depth, depth, depth))
+  }
+}
+
+class ClientUncachedTileLinkEnqueuer(depths: UncachedTileLinkDepths)(implicit p: Parameters) extends Module {
+  val io = new Bundle {
+    val inner = new ClientUncachedTileLinkIO().flip
+    val outer = new ClientUncachedTileLinkIO
+  }
+
+  io.outer.acquire <> (if(depths.acq > 0) Queue(io.inner.acquire, depths.acq) else io.inner.acquire)
+  io.inner.grant   <> (if(depths.gnt > 0) Queue(io.outer.grant,   depths.gnt) else io.outer.grant)
+}
+
+object ClientUncachedTileLinkEnqueuer {
+  def apply(in: ClientUncachedTileLinkIO, depths: UncachedTileLinkDepths)(implicit p: Parameters): ClientUncachedTileLinkIO = {
+    val t = Module(new ClientUncachedTileLinkEnqueuer(depths))
+    t.io.inner <> in
+    t.io.outer
+  }
+  def apply(in: ClientUncachedTileLinkIO, depth: Int)(implicit p: Parameters): ClientUncachedTileLinkIO = {
+    apply(in, UncachedTileLinkDepths(depth, depth))
   }
 }

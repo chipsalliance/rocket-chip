@@ -39,7 +39,7 @@ class JtagDTMWithSync(implicit val p: Parameters) extends Module {
 
   val io = new Bundle {
 
-    val jtag = new JtagIO(true).flip()
+    val jtag = new JTAGIO(true).flip()
     val debug = new DebugBusIO()(p)
 
   }
@@ -105,7 +105,7 @@ class JtagDTMWithSync(implicit val p: Parameters) extends Module {
 class DebugTransportModuleJtag(reqSize : Int, respSize : Int)(implicit val p: Parameters)  extends BlackBox {
 
   val io = new Bundle {
-    val jtag = new JtagIO(true).flip()
+    val jtag = new JTAGIO(true).flip()
 
     val dtm_req = new DecoupledIO(UInt(width = reqSize))
 

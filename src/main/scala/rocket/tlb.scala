@@ -175,19 +175,40 @@ class DecoupledTLB(implicit p: Parameters) extends Module {
     val ptw = new TLBPTWIO
   }
 
-  val reqq = Queue(io.req)
+  val req = Reg(new TLBReq)
+  val resp = Reg(new TLBResp)
   val tlb = Module(new TLB)
 
-  val resp_helper = DecoupledHelper(
-    reqq.valid, tlb.io.req.ready, io.resp.ready)
-  val tlb_miss = tlb.io.resp.miss
+  val s_idle :: s_tlb_req :: s_tlb_resp :: s_done :: Nil = Enum(Bits(), 4)
+  val state = Reg(init = s_idle)
 
-  tlb.io.req.valid := resp_helper.fire(tlb.io.req.ready)
-  tlb.io.req.bits := reqq.bits
-  reqq.ready := resp_helper.fire(reqq.valid, !tlb_miss)
+  when (io.req.fire()) {
+    req := io.req.bits
+    state := s_tlb_req
+  }
 
-  io.resp.valid := resp_helper.fire(io.resp.ready, !tlb_miss)
-  io.resp.bits := tlb.io.resp
+  when (tlb.io.req.fire()) {
+    state := s_tlb_resp
+  }
+
+  when (state === s_tlb_resp) {
+    when (tlb.io.resp.miss) {
+      state := s_tlb_req
+    } .otherwise {
+      resp := tlb.io.resp
+      state := s_done
+    }
+  }
+
+  when (io.resp.fire()) { state := s_idle }
+
+  io.req.ready := state === s_idle
+
+  tlb.io.req.valid := state === s_tlb_req
+  tlb.io.req.bits := req
+
+  io.resp.valid := state === s_done
+  io.resp.bits := resp
 
   io.ptw <> tlb.io.ptw
 }
