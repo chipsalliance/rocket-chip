@@ -24,14 +24,27 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     // TL legacy is dumb. All managers must support it's accesses.
     val edge = node.edgesOut(0)
     require (edge.manager.beatBytes == tlDataBytes)
-    require (edge.manager.allSupportGet       .contains(TransferSizes(tlDataBytes)))
-    require (edge.manager.allSupportGet       .contains(TransferSizes(tlDataBeats * tlDataBytes)))
-    require (edge.manager.allSupportPutPartial.contains(TransferSizes(tlDataBytes)))
-    require (edge.manager.allSupportPutPartial.contains(TransferSizes(tlDataBeats * tlDataBytes)))
-    require (edge.manager.allSupportArithmetic.contains(TransferSizes(4, tlDataBytes)))
-    require (edge.manager.allSupportLogical   .contains(TransferSizes(4, tlDataBytes)))
-    require (edge.manager.allSupportHint)
-    // TL legacy will not generate PutFull, Acquire
+    edge.manager.managers.foreach { m =>
+      // If a slave supports read at all, it must support all TL Legacy requires
+      if (m.supportsGet) {
+        require (m.supportsGet.contains(TransferSizes(tlDataBytes)))
+        require (m.supportsGet.contains(TransferSizes(tlDataBeats * tlDataBytes)))
+      }
+      // Likewise, any put support must mean full put support
+      if (m.supportsPutPartial) {
+        require (m.supportsPutPartial.contains(TransferSizes(tlDataBytes)))
+        require (m.supportsPutPartial.contains(TransferSizes(tlDataBeats * tlDataBytes)))
+      }
+      // Any atomic support => must support 32-bit up to beat size of all types
+      if (m.supportsArithmetic || m.supportsLogical) {
+        require (m.supportsArithmetic.contains(TransferSizes(4, tlDataBytes)))
+        require (m.supportsLogical   .contains(TransferSizes(4, tlDataBytes)))
+      }
+      // We straight-up require hints
+      require (edge.manager.allSupportHint)
+    }
+    // TL legacy will not generate PutFull
+    // During conversion from TL Legacy, we won't support Acquire
 
     // Must be able to fit TL2 sink_id into TL legacy
     require ((1 << tlManagerXactIdBits) >= edge.manager.endSinkId)
