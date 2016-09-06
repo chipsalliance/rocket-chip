@@ -59,20 +59,21 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
     def merge(in: HasTLData, fire: Bool): (Bool, UInt) = {
       val count = RegInit(UInt(0, width = log2Ceil(ratio)))
       val rdata = Reg(UInt(width = (ratio-1)*outerBeatBytes*8))
-      val data = rdata << outerBeatBytes*8 | in.data()
+      val data = Cat(in.data(), rdata)
       val first = count === UInt(0)
       val limit = UIntToOH1(in.size(), log2Ceil(innerBeatBytes)) >> log2Ceil(outerBeatBytes)
       val last = count === limit || !edge.hasData(in)
 
       when (fire) {
-        rdata := data
+        rdata := data >> outerBeatBytes*8
         count := count + UInt(1)
         when (last) { count := UInt(0) }
       }
 
       val cases = Seq.tabulate(log2Ceil(ratio)+1) { i =>
-        val pow = 1 << i
-        Fill(1 << (log2Ceil(ratio)-i), data(pow*outerBeatBytes*8-1, 0))
+        val high = innerBeatBytes*8
+        val take = (1 << i)*outerBeatBytes*8
+        Fill(1 << (log2Ceil(ratio)-i), data(high-1, high-take))
       }
       val mux = Vec.tabulate(log2Ceil(edge.maxTransfer)+1) { lgSize =>
         cases(min(max(lgSize - log2Ceil(outerBeatBytes), 0), log2Ceil(ratio)))
