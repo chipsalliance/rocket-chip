@@ -26,7 +26,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
   }
   def shrinkTransfer(x: TransferSizes) =
     if (!alwaysMin) x else
-    if (x.min <= minSize) TransferSizes(x.min, minSize) else
+    if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max)) else
     TransferSizes.none
   def mapManager(m: TLManagerParameters) = m.copy(
     supportsAcquire    = TransferSizes.none, // this adapter breaks acquires

@@ -50,6 +50,7 @@ case class TransferSizes(min: Int, max: Int)
   require (min >= 0 && max >= 0)
   require (max == 0 || isPow2(max))
   require (min == 0 || isPow2(min))
+  require (max == 0 || min != 0) // 0 is forbidden unless (0,0)
 
   def none = min == 0
   def contains(x: Int) = isPow2(x) && min <= x && x <= max
