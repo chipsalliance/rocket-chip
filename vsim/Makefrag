@@ -10,6 +10,7 @@ bb_vsrcs = $(base_dir)/vsrc/DebugTransportModuleJtag.v \
 
 sim_vsrcs = \
 	$(generated_dir)/$(MODEL).$(CONFIG).v \
+	$(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v \
 	$(generated_dir)/consts.$(CONFIG).vh \
 	$(base_dir)/vsrc/$(TB).v \
 	$(base_dir)/vsrc/SimDTM.v \

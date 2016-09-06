@@ -9,9 +9,13 @@ $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(notdir $*) $(CFG_PROJECT) $(CONFIG)"
 
-$(generated_dir)/%.v: $(generated_dir)/%.fir $(FIRRTL_JAR)
+$(generated_dir)/%.v $(generated_dir)/%.conf : $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) -i $< -o $@ -X verilog
+	$(FIRRTL) -i $< -o $@ -X verilog --replSeqMem -c:$(MODEL):-o:$(generated_dir)/$(MODEL).$(CONFIG).conf
+
+$(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v : $(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).conf $(mem_gen)
+	cd $(generated_dir) && \
+	$(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $@
 
 $(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(MODEL).$(CONFIG).prm
 	echo "\`ifndef CONST_VH" > $@
