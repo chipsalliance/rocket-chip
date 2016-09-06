@@ -7,15 +7,17 @@ import cde.Parameters
 import uncore.tilelink._
 import uncore.constants._
 
+// Instantiate 'val p' before HasTileLinkParameters tries to use it
+abstract class LegacyLazyModuleImp(module: LazyModule)(implicit val p: Parameters)
+  extends LazyModuleImp(module) with HasTileLinkParameters
+
 class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkParameters
 {
-  val outer_p = p
   // TL legacy clients don't support anything fancy
   val node = TLClientNode(TLClientParameters(
     sourceId = IdRange(0, 1 << tlClientXactIdBits)))
 
-  lazy val module = new LazyModuleImp(this) with HasTileLinkParameters {
-    val p = outer_p
+  lazy val module = new LegacyLazyModuleImp(this) {
     val io = new Bundle {
       val legacy = new ClientUncachedTileLinkIO()(p).flip
       val out = node.bundleOut
@@ -63,14 +65,9 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     val beat  = UInt(log2Ceil(tlDataBytes))
     val block = UInt(log2Ceil(tlDataBytes*tlDataBeats))
 
-    out.a.bits := MuxLookup(io.legacy.acquire.bits.a_type, new TLBundleA(edge.bundle), Array(
-      Acquire.getType         -> edge.Get (source, address, beat) ._2,
-      Acquire.getBlockType    -> edge.Get (source, address, block)._2,
-      Acquire.putType         -> edge.Put (source, address, beat,  data, wmask)._2,
-      Acquire.putBlockType    -> edge.Put (source, address, block, data, wmask)._2,
-      Acquire.getPrefetchType -> edge.Hint(source, address, block, UInt(0))._2,
-      Acquire.putPrefetchType -> edge.Hint(source, address, block, UInt(1))._2,
-      Acquire.putAtomicType   -> MuxLookup(io.legacy.acquire.bits.op_code(), new TLBundleA(edge.bundle), Array(
+    // Only create atomic messages if TL2 managers support them
+    val atomics = if (edge.manager.anySupportLogical) {
+      MuxLookup(io.legacy.acquire.bits.op_code(), Wire(new TLBundleA(edge.bundle)), Array(
         MemoryOpConstants.M_XA_SWAP -> edge.Logical(source, address, beat, data, TLAtomics.SWAP)._2,
         MemoryOpConstants.M_XA_XOR  -> edge.Logical(source, address, beat, data, TLAtomics.XOR) ._2,
         MemoryOpConstants.M_XA_OR   -> edge.Logical(source, address, beat, data, TLAtomics.OR)  ._2,
@@ -79,7 +76,19 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
         MemoryOpConstants.M_XA_MIN  -> edge.Arithmetic(source, address, beat, data, TLAtomics.MIN)._2,
         MemoryOpConstants.M_XA_MAX  -> edge.Arithmetic(source, address, beat, data, TLAtomics.MAX)._2,
         MemoryOpConstants.M_XA_MINU -> edge.Arithmetic(source, address, beat, data, TLAtomics.MINU)._2,
-        MemoryOpConstants.M_XA_MAXU -> edge.Arithmetic(source, address, beat, data, TLAtomics.MAXU)._2))))
+        MemoryOpConstants.M_XA_MAXU -> edge.Arithmetic(source, address, beat, data, TLAtomics.MAXU)._2))
+    } else {
+      Wire(new TLBundleA(edge.bundle))
+    }
+
+    out.a.bits := MuxLookup(io.legacy.acquire.bits.a_type, Wire(new TLBundleA(edge.bundle)), Array(
+      Acquire.getType         -> edge.Get (source, address, beat) ._2,
+      Acquire.getBlockType    -> edge.Get (source, address, block)._2,
+      Acquire.putType         -> edge.Put (source, address, beat,  data, wmask)._2,
+      Acquire.putBlockType    -> edge.Put (source, address, block, data, wmask)._2,
+      Acquire.getPrefetchType -> edge.Hint(source, address, block, UInt(0))._2,
+      Acquire.putPrefetchType -> edge.Hint(source, address, block, UInt(1))._2,
+      Acquire.putAtomicType   -> atomics))
 
     val beatMask  = UInt(tlDataBytes-1)
     val blockMask = UInt(tlDataBytes*tlDataBeats-1)
