@@ -351,7 +351,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     if (usingFPU) decoded_addr(CSRs.fflags) || decoded_addr(CSRs.frm) || decoded_addr(CSRs.fcsr)
     else Bool(false)
   val csr_debug = Bool(usingDebug) && io.rw.addr(5)
-  val csr_addr_priv = Cat(io.rw.addr(6,5).andR, io.rw.addr(9,8))
+  //val csr_addr_priv = Cat(io.rw.addr(6,5).andR, io.rw.addr(9,8))
+  val csr_addr_priv = io.rw.addr(9,8)
   val priv_sufficient = Cat(reg_debug, reg_mstatus.prv) >= csr_addr_priv
   val read_only = io.rw.addr(11,10).andR
   val cpu_wen = cpu_ren && io.rw.cmd =/= CSR.R && priv_sufficient

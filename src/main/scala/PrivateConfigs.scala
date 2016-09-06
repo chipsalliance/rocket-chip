@@ -6,6 +6,7 @@ import uncore.coherence._
 import uncore.agents._
 import uncore.devices._
 import uncore.converters._
+import coreplex._
 import rocket._
 import boom._
 import DefaultTestSuites._
