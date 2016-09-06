@@ -73,8 +73,8 @@ class BasePlatformConfig extends Config (
         res append s"    size 0x${addrMap("mem").size.toString(16)};\n"
         res append  "  };\n"
         res append  "};\n"
-        res append  "core {\n"
       }
+      res append  "core {\n"
       for (i <- 0 until site(NTiles)) { // TODO heterogeneous tiles
         val isa = s"rv${site(XLen)}i${site(MulDivKey).map(x=>"m").mkString}${if (site(UseAtomics)) "a" else ""}${if (site(FPUKey).nonEmpty) "fd" else ""}"
         res append s"  $i {\n"
@@ -95,7 +95,7 @@ class BasePlatformConfig extends Config (
           res append s"         claim 0x${(plicAddr + plicInfo.claimAddr(i, 'S')).toString(16)};\n"
           res append s"        };\n"
         }
-        res append s"      };\n"
+        res append  "      };\n"
         res append  "    };\n"
         res append  "  };\n"
       }
