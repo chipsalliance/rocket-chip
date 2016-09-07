@@ -1,13 +1,13 @@
 package junctions
 import Chisel._
 
-class Crossing[T <: Data](gen: T, enq_sync: Boolean, deq_sync: Boolean) extends Bundle {
+class Crossing[T <: Data](gen: T) extends Bundle {
     val enq = Decoupled(gen).flip()
     val deq = Decoupled(gen)
-    val enq_clock = if (enq_sync) Some(Clock(INPUT)) else None
-    val deq_clock = if (deq_sync) Some(Clock(INPUT)) else None
-    val enq_reset = if (enq_sync) Some(Bool(INPUT))  else None
-    val deq_reset = if (deq_sync) Some(Bool(INPUT))  else None
+    val enq_clock = Clock(INPUT)
+    val deq_clock = Clock(INPUT)
+    val enq_reset = Bool(INPUT)
+    val deq_reset = Bool(INPUT)
 }
 
 // Output is 1 for one cycle after any edge of 'in'
@@ -87,11 +87,11 @@ class AsyncHandshakeSink[T <: Data](gen: T, sync: Int, clock: Clock, reset: Bool
 }
 
 class AsyncHandshake[T <: Data](gen: T, sync: Int = 2) extends Module {
-  val io = new Crossing(gen, true, true)
+  val io = new Crossing(gen)
   require (sync >= 2)
 
-  val source = Module(new AsyncHandshakeSource(gen, sync, io.enq_clock.get, io.enq_reset.get))
-  val sink   = Module(new AsyncHandshakeSink  (gen, sync, io.deq_clock.get, io.deq_reset.get))
+  val source = Module(new AsyncHandshakeSource(gen, sync, io.enq_clock, io.enq_reset))
+  val sink   = Module(new AsyncHandshakeSink  (gen, sync, io.deq_clock, io.deq_reset))
 
   source.io.enq <> io.enq
   io.deq <> sink.io.deq
@@ -101,50 +101,38 @@ class AsyncHandshake[T <: Data](gen: T, sync: Int = 2) extends Module {
   source.io.pop := sink.io.pop
 }
 
-class AsyncDecoupledTo[T <: Data](gen: T, depth: Int = 0, sync: Int = 2) extends Module {
-  val io = new Crossing(gen, false, true)
+class AsyncScope extends Module { val io = new Bundle }
+object AsyncScope { def apply() = Module(new AsyncScope) }
 
-  // !!! if depth == 0 { use Handshake } else { use AsyncFIFO }
-  val crossing = Module(new AsyncHandshake(gen, sync)).io
-  crossing.enq_clock.get := clock
-  crossing.enq_reset.get := reset
-  crossing.enq <> io.enq
-  crossing.deq_clock.get := io.deq_clock.get
-  crossing.deq_reset.get := io.deq_reset.get
-  io.deq <> crossing.deq
-}
-
-object AsyncDecoupledTo {
-  // source is in our clock domain, output is in the 'to' clock domain
-  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: DecoupledIO[T], depth: Int = 0, sync: Int = 2): DecoupledIO[T] = {
-    val to = Module(new AsyncDecoupledTo(source.bits, depth, sync))
-    to.io.deq_clock.get := to_clock
-    to.io.deq_reset.get := to_reset
-    to.io.enq <> source
-    to.io.deq
+object AsyncDecoupledCrossing
+{
+  // takes from_source from the 'from' clock domain and puts it into the 'to' clock domain
+  def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: DecoupledIO[T], to_clock: Clock, to_reset: Bool, depth: Int = 3, sync: Int = 2): DecoupledIO[T] = {
+    // !!! if depth == 0 { use Handshake } else { use AsyncFIFO }
+    val crossing = Module(new AsyncHandshake(from_source.bits, sync)).io
+    crossing.enq_clock := from_clock
+    crossing.enq_reset := from_reset
+    crossing.enq       <> from_source
+    crossing.deq_clock := to_clock
+    crossing.deq_reset := to_reset
+    crossing.deq
   }
 }
 
-class AsyncDecoupledFrom[T <: Data](gen: T, depth: Int = 0, sync: Int = 2) extends Module {
-  val io = new Crossing(gen, true, false)
-
-  // !!! if depth == 0 { use Handshake } else { use AsyncFIFO }
-  val crossing = Module(new AsyncHandshake(gen, sync)).io
-  crossing.enq_clock.get := io.enq_clock.get
-  crossing.enq_reset.get := io.enq_reset.get
-  crossing.enq <> io.enq
-  crossing.deq_clock.get := clock
-  crossing.deq_reset.get := reset
-  io.deq <> crossing.deq
+object AsyncDecoupledTo
+{
+  // takes source from your clock domain and puts it into the 'to' clock domain
+  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: DecoupledIO[T], depth: Int = 3, sync: Int = 2): DecoupledIO[T] = {
+    val scope = AsyncScope()
+    AsyncDecoupledCrossing(scope.clock, scope.reset, source, to_clock, to_reset, depth, sync)
+  }
 }
 
-object AsyncDecoupledFrom {
-  // source is in the 'from' clock domain, output is in our clock domain
-  def apply[T <: Data](from_clock: Clock, from_reset: Bool, source: DecoupledIO[T], depth: Int = 0, sync: Int = 2): DecoupledIO[T] = {
-    val from = Module(new AsyncDecoupledFrom(source.bits, depth, sync))
-    from.io.enq_clock.get := from_clock
-    from.io.enq_reset.get := from_reset
-    from.io.enq <> source
-    from.io.deq
+object AsyncDecoupledFrom
+{
+  // takes from_source from the 'from' clock domain and puts it into your clock domain
+  def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: DecoupledIO[T], depth: Int = 3, sync: Int = 2): DecoupledIO[T] = {
+    val scope = AsyncScope()
+    AsyncDecoupledCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
   }
 }
