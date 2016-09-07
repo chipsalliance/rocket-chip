@@ -219,7 +219,7 @@ class WithScratchpads extends Config(new WithNMemoryChannels(0) ++ new WithDataS
 
 class DefaultFPGASmallConfig extends Config(new WithSmallCores ++ new DefaultFPGAConfig)
 class DefaultSmallConfig extends Config(new WithSmallCores ++ new BaseConfig)
-class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultSmallConfig)
+class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class DualBankConfig extends Config(
   new WithNBanksPerMemChannel(2) ++ new BaseConfig)

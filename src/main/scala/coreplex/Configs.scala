@@ -335,8 +335,6 @@ class WithNL2Ways(n: Int) extends Config(
 class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
-    case UseVM => false
-    case UseUser => false
     case FPUKey => Some(FPUConfig(divSqrt = false))
     case RegressionTestNames => LinkedHashSet(
       "rv32mi-p-ma_addr",
@@ -358,14 +356,16 @@ class WithBlockingL1 extends Config (
 )
 
 class WithSmallCores extends Config (
-    topDefinitions = { (pname,site,here) => pname match {
-      case MulDivKey => Some(MulDivConfig())
-      case FPUKey => None
-      case NTLBEntries => 4
-      case BtbKey => BtbParameters(nEntries = 0)
-      case NAcquireTransactors => 2
-      case _ => throw new CDEMatchError
-    }},
+  topDefinitions = { (pname,site,here) => pname match {
+    case MulDivKey => Some(MulDivConfig())
+    case FPUKey => None
+    case UseVM => false
+    case UseUser => false
+    case NTLBEntries => 4
+    case BtbKey => BtbParameters(nEntries = 0)
+    case NAcquireTransactors => 2
+    case _ => throw new CDEMatchError
+  }},
   knobValues = {
     case "L1D_SETS" => 64
     case "L1D_WAYS" => 1
