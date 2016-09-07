@@ -76,7 +76,14 @@ class BasePlatformConfig extends Config (
       }
       res append  "core {\n"
       for (i <- 0 until site(NTiles)) { // TODO heterogeneous tiles
-        val isa = s"rv${site(XLen)}i${site(MulDivKey).map(x=>"m").mkString}${if (site(UseAtomics)) "a" else ""}${if (site(FPUKey).nonEmpty) "fd" else ""}"
+        val isa = {
+          val m = if (site(MulDivKey).nonEmpty) "m" else ""
+          val a = if (site(UseAtomics)) "a" else ""
+          val f = if (site(FPUKey).nonEmpty) "f" else ""
+          val d = if (site(FPUKey).nonEmpty && site(XLen) > 32) "d" else ""
+          val s = if (site(UseVM)) "s" else ""
+          s"rv${site(XLen)}i$m$a$f$d$s"
+        }
         res append s"  $i {\n"
         res append  "    0 {\n"
         res append s"      isa $isa;\n"
@@ -260,7 +267,7 @@ class DualCoreConfig extends Config(
 
 class TinyConfig extends Config(
   new WithScratchpads ++
-  new WithRV32 ++ new WithSmallCores ++
+  new WithSmallCores ++ new WithRV32 ++
   new WithStatelessBridge ++ new BaseConfig)
 
 class WithTestRAM extends Config(
