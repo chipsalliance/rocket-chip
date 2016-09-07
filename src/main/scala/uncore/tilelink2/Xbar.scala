@@ -145,11 +145,11 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
       in(i).e.ready := Mux1C(grantedEIO(i), out.map(_.e.ready))
     }
 
-    val requestAIO = Vec(in.map  { i => Vec(node.edgesOut.map  { o => i.a.valid && o.manager.contains(i.a.bits.address) }) })
-    val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.b.valid && i        .contains(o.b.bits.source)  }) })
-    val requestCIO = Vec(in.map  { i => Vec(node.edgesOut.map  { o => i.c.valid && o.manager.contains(i.c.bits.address) }) })
-    val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.d.valid && i        .contains(o.d.bits.source)  }) })
-    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => i.e.valid && o        .contains(i.e.bits.sink)    }) })
+    val requestAIO = Vec(in.map  { i => Vec(node.edgesOut.map  { o => i.a.valid && o.manager.contains(o.address(i.a.bits)) }) })
+    val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.b.valid && i        .contains(o.b.bits.source)     }) })
+    val requestCIO = Vec(in.map  { i => Vec(node.edgesOut.map  { o => i.c.valid && o.manager.contains(o.address(i.c.bits)) }) })
+    val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.d.valid && i        .contains(o.d.bits.source)     }) })
+    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => i.e.valid && o        .contains(i.e.bits.sink)       }) })
 
     val beatsA = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.a.bits) })
     val beatsB = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.b.bits) })

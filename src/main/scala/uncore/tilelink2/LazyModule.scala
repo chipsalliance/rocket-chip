@@ -50,7 +50,7 @@ object LazyModule
   }
 }
 
-abstract class LazyModuleImp(val outer: LazyModule) extends Module
+abstract class LazyModuleImp(outer: LazyModule) extends Module
 {
   // .module had better not be accessed while LazyModules are still being built!
   require (LazyModule.stack.isEmpty)

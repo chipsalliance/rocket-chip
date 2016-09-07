@@ -57,7 +57,9 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     }
 
     // All managers must share a common FIFO domain (responses might end up interleaved)
-    val manager   = node.edgesOut(0).manager
+    val edgeOut   = node.edgesOut(0)
+    val edgeIn    = node.edgesIn(0)
+    val manager   = edgeOut.manager
     val managers  = manager.managers
     val beatBytes = manager.beatBytes
     val fifoId = managers(0).fifoId
@@ -137,9 +139,6 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val counterBits = log2Up(maxSize/beatBytes)
     val maxDownSize = if (alwaysMin) minSize else manager.maxTransfer
 
-    def OH1ToUInt(x: UInt) = OHToUInt((x << 1 | UInt(1)) ^ x)
-    def UIntToOH1(x: UInt, width: Int) = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
-
     // First, handle the return path
     val acknum = RegInit(UInt(0, width = counterBits))
     val dOrig = Reg(UInt())
@@ -147,7 +146,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val dFirst = acknum === UInt(0)
     val dsizeOH  = UIntToOH (out.d.bits.size, log2Ceil(maxDownSize)+1)
     val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Ceil(maxDownSize))
-    val dHasData = node.edgesOut(0).hasData(out.d.bits)
+    val dHasData = edgeOut.hasData(out.d.bits)
 
     // calculate new acknum
     val acknum_fragment = dFragnum << log2Ceil(minSize/beatBytes)
@@ -189,7 +188,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgHints       = maxHints      .map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
 
     // If this is infront of a single manager, these become constants
-    val find = manager.find(in.a.bits.address)
+    val find = manager.find(edgeIn.address(in.a.bits))
     val maxLgArithmetic  = Mux1H(find, maxLgArithmetics)
     val maxLgLogical     = Mux1H(find, maxLgLogicals)
     val maxLgGet         = Mux1H(find, maxLgGets)
@@ -225,7 +224,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     out.a.valid := in.a.valid
     in.a.ready := out.a.ready && !delay
     out.a.bits := in.a.bits
-    out.a.bits.address := in.a.bits.address | (~aFragnum << log2Ceil(minSize) & aOrigOH1)
+    out.a.bits.addr_hi := in.a.bits.addr_hi | (~aFragnum << log2Ceil(minSize/beatBytes) & aOrigOH1 >> log2Ceil(beatBytes))
     out.a.bits.source := Cat(in.a.bits.source, aFragnum)
     out.a.bits.size := aFrag
 
