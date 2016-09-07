@@ -61,7 +61,7 @@ abstract class Coreplex(implicit val p: Parameters) extends Module
     val mmio = p(ExportMMIOPort).option(new ClientUncachedTileLinkIO()(outermostMMIOParams))
     val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
     val debug = new DebugBusIO()(p).flip
-    val rtcTick = new Bool(INPUT)
+    val rtcTick = Bool(INPUT)
     val extra = p(ExtraCoreplexPorts)(p)
     val success: Option[Bool] = hasSuccessFlag.option(Bool(OUTPUT))
   }
