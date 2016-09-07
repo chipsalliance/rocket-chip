@@ -1,0 +1,103 @@
+// See LICENSE for license details.
+
+package uncore.tilelink2
+
+import Chisel._
+
+class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatBytes: Int = 4)
+  extends TLManagerNode(beatBytes, TLManagerParameters(
+    address            = Seq(address),
+    supportsGet        = TransferSizes(1, beatBytes),
+    supportsPutPartial = TransferSizes(1, beatBytes),
+    supportsPutFull    = TransferSizes(1, beatBytes),
+    fifoId             = Some(0))) // requests are handled in order
+{
+  require (!address.strided)
+
+  // Calling this method causes the matching TL2 bundle to be
+  // configured to route all requests to the listed RegFields.
+  def regmap(mapping: RegField.Map*) = {
+    val a = bundleIn(0).a
+    val d = bundleIn(0).d
+    val edge = edgesIn(0)
+
+    // Please forgive me ...
+    val baseEnd = 0
+    val (sizeEnd,   sizeOff)   = (edge.bundle.sizeBits   + baseEnd, baseEnd)
+    val (sourceEnd, sourceOff) = (edge.bundle.sourceBits + sizeEnd, sizeEnd)
+    val (addrLoEnd, addrLoOff) = (log2Ceil(beatBytes)    + sourceEnd, sourceEnd)
+
+    val params = RegMapperParams(log2Up(address.mask+1), beatBytes, addrLoEnd)
+    val in = Wire(Decoupled(new RegMapperInput(params)))
+    in.bits.read  := a.bits.opcode === TLMessages.Get
+    in.bits.index := a.bits.addr_hi
+    in.bits.data  := a.bits.data
+    in.bits.mask  := a.bits.mask
+    in.bits.extra := Cat(edge.addr_lo(a.bits), a.bits.source, a.bits.size)
+
+    // Invoke the register map builder
+    val (endIndex, out) = RegMapper(beatBytes, concurrency, in, mapping:_*)
+
+    // All registers must fit inside the device address space
+    require (address.mask >= (endIndex-1)*beatBytes)
+
+    // No flow control needed
+    in.valid  := a.valid
+    a.ready   := in.ready
+    d.valid   := out.valid
+    out.ready := d.ready
+
+    // We must restore the size and addr_lo to enable width adapters to work
+    d.bits := edge.AccessAck(
+      fromAddress = out.bits.extra(addrLoEnd-1, addrLoOff),
+      fromSink    = UInt(0), // our unique sink id
+      toSource    = out.bits.extra(sourceEnd-1, sourceOff),
+      lgSize      = out.bits.extra(sizeEnd-1, sizeOff))
+
+    // avoid a Mux on the data bus by manually overriding two fields
+    d.bits.data := out.bits.data
+    d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
+
+    // Tie off unused channels
+    bundleIn(0).b.valid := Bool(false)
+    bundleIn(0).c.ready := Bool(true)
+    bundleIn(0).e.ready := Bool(true)
+  }
+}
+
+object TLRegisterNode
+{
+  def apply(address: AddressSet, concurrency: Option[Int] = None, beatBytes: Int = 4) =
+    new TLRegisterNode(address, concurrency, beatBytes)
+}
+
+// These convenience methods below combine to make it possible to create a TL2 
+// register mapped device from a totally abstract register mapped device.
+// See GPIO.scala in this directory for an example
+
+abstract class TLRegisterRouterBase(address: AddressSet, concurrency: Option[Int], beatBytes: Int) extends LazyModule
+{
+  val node = TLRegisterNode(address, concurrency, beatBytes)
+}
+
+class TLRegBundle[P](val params: P, val in: Vec[TLBundle]) extends Bundle
+
+class TLRegModule[P, B <: Bundle](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
+  extends LazyModuleImp(router) with HasRegMap
+{
+  val io = bundleBuilder
+  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
+}
+
+class TLRegisterRouter[B <: Bundle, M <: LazyModuleImp]
+   (base: BigInt, size: BigInt = 4096, concurrency: Option[Int] = None, beatBytes: Int = 4)
+   (bundleBuilder: Vec[TLBundle] => B)
+   (moduleBuilder: (=> B, TLRegisterRouterBase) => M)
+  extends TLRegisterRouterBase(AddressSet(base, size-1), concurrency, beatBytes)
+{
+  require (size % 4096 == 0) // devices should be 4K aligned
+  require (isPow2(size))
+  require (size >= 4096)
+
+  lazy val module = moduleBuilder(bundleBuilder(node.bundleIn), this)
+}
