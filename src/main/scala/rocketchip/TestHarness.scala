@@ -6,6 +6,7 @@ import Chisel._
 import cde.{Parameters, Field}
 import rocket.Util._
 import junctions._
+import testchipip._
 
 class TestHarness(implicit p: Parameters) extends Module {
   val io = new Bundle {
@@ -38,10 +39,11 @@ class TestHarness(implicit p: Parameters) extends Module {
 
   if (p(NarrowIF)) {
     val memSize = p(GlobalAddrMap)("mem").size
-    val dessert = Module(new NastiDeserializer(w=p(NarrowWidth)))
-    dessert.io.narrow <> dut.io.mem_narrow.get
+    // TODOHurricane [ben] My intent for the new serdes is below, but it throws a compilation error
+    //val dessert = Module(new ClientUncachedTileLinkIODesser(p(NarrowWidth))(p))
+    //dessert.io.serial <> dut.io.mem_narrow.get
     val sim_axi = Module(new SimAXIMem(memSize))
-    sim_axi.io.axi <> dessert.io.mem_axi
+    // HurricaneTODO - should we convert TL to AXI here, or is there a "SimTLMem"?
   }
 
   if (!p(IncludeJtagDTM)) {

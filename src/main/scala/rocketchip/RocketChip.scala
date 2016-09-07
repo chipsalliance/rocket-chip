@@ -14,6 +14,7 @@ import uncore.coherence.{InnerTLId, OuterTLId}
 import rocket._
 import coreplex._
 import scala.collection.immutable.HashMap
+import testchipip._
 
 /** Top-level parameters of RocketChip, values set in e.g. PublicConfigs.scala */
 
@@ -103,7 +104,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val debug = (!p(IncludeJtagDTM)).option(new DebugBusIO()(p).flip)
   val jtag = p(IncludeJtagDTM).option(new JTAGIO(true).flip)
   val extra = p(ExtraTopPorts)(p)
-  val mem_narrow = if (p(NarrowIF)) Some(new NarrowIO(p(NarrowWidth))) else None
+  val mem_narrow = if (p(NarrowIF)) Some(new SerialIO(p(NarrowWidth))) else None //TODOHurricane - this should be NarrowIO, not SerialIO
 }
 
 object TopUtils {
@@ -140,7 +141,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   val uncore_clk = Wire(Clock())
   val oms_clk = Wire(Clock())
-  val core_clks = Wire(Vec(p(NTiles)-1,Clock())) // TODOHurricane - what if DefaultConfig?
+  val core_clks = Wire(Vec(p(NTiles)-1,Clock()))
 
   val uncore_reset = ResetSync(reset, uncore_clk)
   val oms_reset = ResetSync(reset, oms_clk) // TODOHurricane - oms_reset should come from a control register
@@ -162,8 +163,11 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   coreplex.io.core_clk zip core_clks map { case(c,gen) => c := gen }
 
   if (exportMMIO) { periphery.io.mmio_in.get <> coreplex.io.mmio.get }
-  periphery.io.mem_in <> coreplex.io.mem
-  coreplex.io.ext_clients <> periphery.io.clients_out
+
+  if (p(NarrowIF)) { } else {
+    periphery.io.mem_in <> coreplex.io.mem
+    coreplex.io.ext_clients <> periphery.io.clients_out
+  }
 
   if (p(IncludeJtagDTM)) {
     // JtagDTMWithSync  is a wrapper which
@@ -196,10 +200,16 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   io.mmio_tl <> periphery.io.mmio_tl
 
   if (p(NarrowIF)) {
-    require(nMemAXIChannels == 1)
-    val ser = Module(new NastiSerializer(w = p(NarrowWidth), divide = 8, uncore_clk, uncore_reset)) //TODOHurricane - divide as SCR
-    io.mem_narrow.get <> ser.io.narrow
-    ser.io.nasti <> periphery.io.mem_axi(0)
+    // TODOHurricane [ben] My intent for the switcher is below, but it throws a compilation error
+
+    //// TODOHurricane - implement the TL master/slave combined version
+    //val switcher = Module(new ClientTileLinkIOSwitcher(nMemChannels*p(NBanksPerMemoryChannel),nMemChannels+1)(p))
+    //switcher.io.in <> coreplex.io.mem
+    //val ser = (0 until nMemChannels+1) map { _ => Module(new ClientUncachedTileLinkIOSerdes(p(NarrowWidth))(p)) }
+    //switcher.io.out zip ser map { case (sw,ser) => ser.io.tl <> sw }
+    //io.mem_narrow.get <> ser(0).io.serial // TODOHurricane - this should be NarrowIO, not SerialIO
+    //// TODOHurricane - wire up the HBWIF lanes
+    //switcher.io.select map { _ := UInt(1) } // TODOHurricane - this hardcodes all banks to route to channel 0 - should be configurable via SCR
   } else
     io.mem_axi <>
       (if (p(AsyncMemChannels))
