@@ -5,7 +5,7 @@ endif
 
 MODEL ?= TestHarness
 PROJECT := rocketchip
-export ROCKETCHIP_ADDONS ?= hwacha
+export ROCKETCHIP_ADDONS ?= hwacha testchipip dma
 DISASM_EXTENSION = --extension=hwacha
 CFG_PROJECT := $(PROJECT)
 CXX ?= g++

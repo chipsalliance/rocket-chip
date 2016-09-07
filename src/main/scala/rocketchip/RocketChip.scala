@@ -89,6 +89,7 @@ class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
   val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
+  val interrupts = Vec(p(NExtTopInterrupts), Bool()).asInput
   val bus_clk = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Clock(INPUT)))
   val bus_rst = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Bool (INPUT)))
   val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
@@ -140,7 +141,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   val uncore_clk = Wire(Clock())
   val oms_clk = Wire(Clock())
   val core_clks = Wire(Vec(p(NTiles)-1,Clock())) // TODOHurricane - what if DefaultConfig?
-  
+
   val uncore_reset = ResetSync(reset, uncore_clk)
   val oms_reset = ResetSync(reset, oms_clk) // TODOHurricane - oms_reset should come from a control register
 
@@ -216,8 +217,7 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   // Top-level interrupts are at the higher Bits.
   // This may have some implications for prioritization of the interrupts,
   // but PLIC could do some internal swizzling in the future.
-  val fake_top_interrupts = Wire(Vec(p(NExtTopInterrupts), Bool(false)))
-  coreplex.io.interrupts <> (periphery.io.interrupts ++ fake_top_interrupts)
+  coreplex.io.interrupts <> (periphery.io.interrupts ++ io.interrupts)
 
   io.extra <> periphery.io.extra
 

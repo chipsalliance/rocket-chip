@@ -61,6 +61,7 @@ class NarrowIFConfig extends Config(
   topDefinitions = (pname,site,here) => pname match {
     case NarrowIF => true
     case NarrowWidth => Dump("NARROW_IF_WIDTH", 8)
+    case NExtTopInterrupts => 1
     case _ => throw new CDEMatchError
     }
   )
