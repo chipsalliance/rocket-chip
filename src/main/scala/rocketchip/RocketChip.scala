@@ -41,7 +41,6 @@ case object AsyncMemChannels extends Field[Boolean]
 case object AsyncMMIOChannels extends Field[Boolean]
 /** External address map settings */
 case object ExtMMIOPorts extends Field[Seq[AddrMapEntry]]
-case object ExtIOAddrMapEntries extends Field[Seq[AddrMapEntry]]
 /** Function for building Coreplex */
 case object BuildCoreplex extends Field[Parameters => Coreplex]
 /** Function for connecting coreplex extra ports to top-level extra ports */
