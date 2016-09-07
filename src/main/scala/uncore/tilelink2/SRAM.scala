@@ -24,10 +24,10 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
 
     def bigBits(x: BigInt, tail: List[Boolean] = List.empty[Boolean]): List[Boolean] =
       if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
-    val mask = bigBits(address.mask - (beatBytes-1))
+    val mask = bigBits(address.mask >> log2Ceil(beatBytes))
 
     val in = io.in(0)
-    val addrBits = (mask zip in.a.bits.address.toBools).filter(_._1).map(_._2)
+    val addrBits = (mask zip in.a.bits.addr_hi.toBools).filter(_._1).map(_._2)
     val memAddress = Cat(addrBits.reverse)
     val mem = SeqMem(1 << addrBits.size, Vec(beatBytes, Bits(width = 8)))
 
@@ -35,6 +35,7 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
     val d_read = Reg(Bool())
     val d_size = Reg(UInt())
     val d_source = Reg(UInt())
+    val d_addr = Reg(UInt())
     val d_data = Wire(UInt())
 
     // Flow control
@@ -43,7 +44,8 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
     in.d.valid := d_full
     in.a.ready := in.d.ready || !d_full
 
-    in.d.bits := node.edgesIn(0).AccessAck(d_source, d_size)
+    val edge = node.edgesIn(0)
+    in.d.bits := edge.AccessAck(d_addr, UInt(0), d_source, d_size)
     // avoid data-bus Mux
     in.d.bits.data := d_data
     in.d.bits.opcode := Mux(d_read, TLMessages.AccessAckData, TLMessages.AccessAck)
@@ -56,6 +58,7 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
       d_read   := read
       d_size   := in.a.bits.size
       d_source := in.a.bits.source
+      d_addr   := edge.addr_lo(in.a.bits)
       when (read) {
         rdata := mem.read(memAddress)
       } .otherwise {

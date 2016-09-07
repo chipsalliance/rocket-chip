@@ -28,13 +28,13 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     require (!supportClients || bce)
 
     if (supportManagers) {
-      val handleA = if (passthrough) !edgeOut.manager.supportsHint(in.a.bits.address) else Bool(true)
+      val handleA = if (passthrough) !edgeOut.manager.supportsHint(edgeIn.address(in.a.bits)) else Bool(true)
       val bypassD = handleA && in.a.bits.opcode === TLMessages.Hint
 
       // Prioritize existing D traffic over HintAck
       in.d.valid  := out.d.valid || (bypassD && in.a.valid)
       out.d.ready := in.d.ready
-      in.d.bits   := Mux(out.d.valid, out.d.bits, edgeIn.HintAck(in.a.bits.source, in.a.bits.size))
+      in.d.bits   := Mux(out.d.valid, out.d.bits, edgeIn.HintAck(in.a.bits))
 
       in.a.ready  := Mux(bypassD, in.d.ready && !out.d.valid, out.a.ready)
       out.a.valid := in.a.valid && !bypassD
@@ -56,7 +56,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       // Prioritize existing C traffic over HintAck
       out.c.valid := in.c.valid || (bypassC && in.b.valid)
       in.c.ready  := out.c.ready
-      out.c.bits  := Mux(in.c.valid, in.c.bits, edgeOut.HintAck(out.b.bits.address, out.b.bits.size))
+      out.c.bits  := Mux(in.c.valid, in.c.bits, edgeOut.HintAck(out.b.bits))
 
       out.b.ready := Mux(bypassC, out.c.ready && !in.c.valid, in.b.ready)
       in.b.valid  := out.b.valid && !bypassC

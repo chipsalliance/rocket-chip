@@ -20,14 +20,20 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     val a = bundleIn(0).a
     val d = bundleIn(0).d
     val edge = edgesIn(0)
- 
-    val params = RegMapperParams(log2Up(address.mask+1), beatBytes, edge.bundle.sourceBits + edge.bundle.sizeBits)
+
+    // Please forgive me ...
+    val baseEnd = 0
+    val (sizeEnd,   sizeOff)   = (edge.bundle.sizeBits   + baseEnd, baseEnd)
+    val (sourceEnd, sourceOff) = (edge.bundle.sourceBits + sizeEnd, sizeEnd)
+    val (addrLoEnd, addrLoOff) = (log2Ceil(beatBytes)    + sourceEnd, sourceEnd)
+
+    val params = RegMapperParams(log2Up(address.mask+1), beatBytes, addrLoEnd)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     in.bits.read  := a.bits.opcode === TLMessages.Get
-    in.bits.index := a.bits.address >> log2Ceil(beatBytes)
+    in.bits.index := a.bits.addr_hi
     in.bits.data  := a.bits.data
     in.bits.mask  := a.bits.mask
-    in.bits.extra := Cat(a.bits.source, a.bits.size)
+    in.bits.extra := Cat(edge.addr_lo(a.bits), a.bits.source, a.bits.size)
 
     // Invoke the register map builder
     val (endIndex, out) = RegMapper(beatBytes, concurrency, in, mapping:_*)
@@ -41,8 +47,13 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     d.valid   := out.valid
     out.ready := d.ready
 
-    val sizeBits = edge.bundle.sizeBits
-    d.bits := edge.AccessAck(out.bits.extra >> sizeBits, out.bits.extra(sizeBits-1, 0))
+    // We must restore the size and addr_lo to enable width adapters to work
+    d.bits := edge.AccessAck(
+      fromAddress = out.bits.extra(addrLoEnd-1, addrLoOff),
+      fromSink    = UInt(0), // our unique sink id
+      toSource    = out.bits.extra(sourceEnd-1, sourceOff),
+      lgSize      = out.bits.extra(sizeEnd-1, sizeOff))
+
     // avoid a Mux on the data bus by manually overriding two fields
     d.bits.data := out.bits.data
     d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)

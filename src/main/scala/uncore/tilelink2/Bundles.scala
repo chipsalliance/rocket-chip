@@ -100,151 +100,72 @@ object TLAtomics
   def isLogical(x: UInt) = x <= SWAP
 }
 
-class Bogus
-object Bogus
-{
-  def apply() = new Bogus
-}
+sealed trait TLChannel
+sealed trait TLDataChannel extends TLChannel
+sealed trait TLAddrChannel extends TLDataChannel
 
-object ChannelType {
-  sealed trait T
-  case object A extends T
-  case object B extends T
-  case object C extends T
-  case object D extends T
-  case object E extends T
-  val cases = Seq(A, B, C, D, E)
-}
-
-trait HasTLOpcode
-{
-  // The data field in this message has value
-  def hasData(x: Bogus = Bogus()): Bool
-  // This message requires a response
-  def hasFollowUp(x: Bogus = Bogus()): Bool
-  // What channel type is this?
-  def channelType(x: Bogus = Bogus()): ChannelType.T
-  // The size field of the opcode
-  def size(x: Bogus = Bogus()): UInt
-}
-
-trait HasTLData extends HasTLOpcode
-{
-  def data(x: Bogus = Bogus()): UInt
-  def mask(x: Bogus = Bogus()): UInt
-}
-
-class TLBundleA(params: TLBundleParameters)
-  extends TLBundleBase(params)
-  with HasTLData
+final class TLBundleA(params: TLBundleParameters)
+  extends TLBundleBase(params) with TLAddrChannel
 {
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3) // amo_opcode || perms || hint
   val size    = UInt(width = params.sizeBits)
-  val source  = UInt(width = params.sourceBits)  // from
-  val address = UInt(width = params.addressBits) // to
+  val source  = UInt(width = params.sourceBits) // from
+  val addr_hi = UInt(width = params.addrHiBits) // to
   // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
-
-  def hasData(x: Bogus = Bogus()) = !opcode(2)
-//    opcode === TLMessages.PutFullData    ||
-//    opcode === TLMessages.PutPartialData ||
-//    opcode === TLMessages.ArithmeticData ||
-//    opcode === TLMessages.LogicalData
-  def hasFollowUp(x: Bogus = Bogus()) = Bool(true)
-  def channelType(x: Bogus = Bogus()) = ChannelType.A
-  def size(x: Bogus = Bogus()) = size
-  def data(x: Bogus = Bogus()) = data
-  def mask(x: Bogus = Bogus()) = mask
 }
 
-class TLBundleB(params: TLBundleParameters)
-  extends TLBundleBase(params)
-  with HasTLData
+final class TLBundleB(params: TLBundleParameters)
+  extends TLBundleBase(params) with TLAddrChannel
 {
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
-  val source  = UInt(width = params.sourceBits)  // to
-  val address = UInt(width = params.addressBits) // from
+  val source  = UInt(width = params.sourceBits) // to
+  val addr_hi = UInt(width = params.addrHiBits) // from
   // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
-
-  def hasData(x: Bogus = Bogus()) = !opcode(2)
-  def hasFollowUp(x: Bogus = Bogus()) = Bool(true)
-  def channelType(x: Bogus = Bogus()) = ChannelType.B
-  def size(x: Bogus = Bogus()) = size
-  def data(x: Bogus = Bogus()) = data
-  def mask(x: Bogus = Bogus()) = mask
 }
 
-class TLBundleC(params: TLBundleParameters)
-  extends TLBundleBase(params)
-  with HasTLData
+final class TLBundleC(params: TLBundleParameters)
+  extends TLBundleBase(params) with TLAddrChannel
 {
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
-  val source  = UInt(width = params.sourceBits)  // from
-  val address = UInt(width = params.addressBits) // to
+  val source  = UInt(width = params.sourceBits) // from
+  val addr_hi = UInt(width = params.addrHiBits) // to
+  val addr_lo = UInt(width = params.addrLoBits) // instead of mask
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val error   = Bool() // AccessAck[Data]
-
-  def hasData(x: Bogus = Bogus()) = opcode(0)
-//    opcode === TLMessages.AccessAckData ||
-//    opcode === TLMessages.ProbeAckData  ||
-//    opcode === TLMessages.ReleaseData
-  def hasFollowUp(x: Bogus = Bogus()) = opcode(2) && opcode(1)
-//    opcode === TLMessages.Release ||
-//    opcode === TLMessages.ReleaseData
-  def channelType(x: Bogus = Bogus()) = ChannelType.C
-  def size(x: Bogus = Bogus()) = size
-  def data(x: Bogus = Bogus()) = data
-  def mask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
 }
 
-class TLBundleD(params: TLBundleParameters)
-  extends TLBundleBase(params)
-  with HasTLData
+final class TLBundleD(params: TLBundleParameters)
+  extends TLBundleBase(params) with TLDataChannel
 {
   // fixed fields during multibeat:
-  val opcode = UInt(width = 3)
-  val param  = UInt(width = 2)
-  val size   = UInt(width = params.sizeBits)
-  val source = UInt(width = params.sourceBits) // to
-  val sink   = UInt(width = params.sinkBits)   // from
+  val opcode  = UInt(width = 3)
+  val param   = UInt(width = 2)
+  val size    = UInt(width = params.sizeBits)
+  val source  = UInt(width = params.sourceBits) // to
+  val sink    = UInt(width = params.sinkBits)   // from
+  val addr_lo = UInt(width = params.addrLoBits) // instead of mask
   // variable fields during multibeat:
-  val data   = UInt(width = params.dataBits)
-  val error  = Bool() // AccessAck[Data], Grant[Data]
-
-  def hasData(x: Bogus = Bogus()) = opcode(0)
-//    opcode === TLMessages.AccessAckData ||
-//    opcode === TLMessages.GrantData
-  def hasFollowUp(x: Bogus = Bogus()) = opcode(2) && !opcode(1)
-//    opcode === TLMessages.Grant     ||
-//    opcode === TLMessages.GrantData
-  def channelType(x: Bogus = Bogus()) = ChannelType.D
-  def size(x: Bogus = Bogus()) = size
-  def data(x: Bogus = Bogus()) = data
-  def mask(x: Bogus = Bogus()) = SInt(-1, width = params.dataBits/8).asUInt
+  val data    = UInt(width = params.dataBits)
+  val error   = Bool() // AccessAck[Data], Grant[Data]
 }
 
-class TLBundleE(params: TLBundleParameters)
-  extends TLBundleBase(params)
-  with HasTLOpcode
+final class TLBundleE(params: TLBundleParameters)
+  extends TLBundleBase(params) with TLChannel
 {
   val sink = UInt(width = params.sourceBits) // to
-
-  def hasData(x: Bogus = Bogus()) = Bool(false)
-  def hasFollowUp(x: Bogus = Bogus()) = Bool(false)
-  def channelType(x: Bogus = Bogus()) = ChannelType.E
-  def size(x: Bogus = Bogus()) = UInt(log2Up(params.dataBits/8))
 }
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
