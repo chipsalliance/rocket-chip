@@ -199,16 +199,19 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
   io.mmio_tl <> periphery.io.mmio_tl
 
   if (p(NarrowIF)) {
-    // TODOHurricane [ben] My intent for the switcher is below, but it throws a compilation error
-
-    //// TODOHurricane - implement the TL master/slave combined version
-    //val switcher = Module(new ClientTileLinkIOSwitcher(nMemChannels*p(NBanksPerMemoryChannel),nMemChannels+1)(p))
-    //switcher.io.in <> coreplex.io.mem
-    //val ser = (0 until nMemChannels+1) map { _ => Module(new ClientUncachedTileLinkIOSerdes(p(NarrowWidth))(p)) }
-    //switcher.io.out zip ser map { case (sw,ser) => ser.io.tl <> sw }
-    //io.mem_narrow.get <> ser(0).io.serial // TODOHurricane - this should be NarrowIO, not SerialIO
-    //// TODOHurricane - wire up the HBWIF lanes
-    //switcher.io.select map { _ := UInt(1) } // TODOHurricane - this hardcodes all banks to route to channel 0 - should be configurable via SCR
+    // TODOHurricane - implement the TL master/slave combined version
+    val nBanks = nMemChannels*p(NBanksPerMemoryChannel)
+    val switcher = Module(new ClientUncachedTileLinkIOSwitcher(nBanks, nMemChannels+1, uncore_clk, uncore_reset)
+        (p.alterPartial({case TLId => "Outermost"})))
+    switcher.io.in <> coreplex.io.mem
+    val ser = (0 until nMemChannels+1) map { _ => 
+      Module(new ClientUncachedTileLinkIOSerdes(p(NarrowWidth), uncore_clk, uncore_reset)(p.alterPartial({case TLId => "Outermost"})))
+    }
+    switcher.io.out zip ser map { case (sw,ser) => ser.io.tl <> sw }
+    // io.mem_narrow.get <> ser(0).io.serial // TODOHurricane - Howie says to wire in and out separately for SerialIO
+    // TODOHurricane - wire up the HBWIF lanes
+    // switcher.io.select(0) := ... // TODOHurricane - Need to hardcode all banks to route to channel 0, but it's unclear how to do this.
+                                    // Eventually this should be configurable via SCR
   } else
     io.mem_axi <>
       (if (p(AsyncMemChannels))

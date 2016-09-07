@@ -88,8 +88,8 @@ trait HasTileLinkParameters {
   val amoAluOperandBytes = amoAluOperandBits/8
 }
 
-abstract class TLModule(implicit val p: Parameters) extends Module
-  with HasTileLinkParameters
+abstract class TLModule(clockSignal: Clock = null, resetSignal: Bool = null)(implicit val p: Parameters)
+  extends Module(Option(clockSignal), Option(resetSignal)) with HasTileLinkParameters
 abstract class TLBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
   with HasTileLinkParameters
 

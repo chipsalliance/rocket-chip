@@ -6,6 +6,8 @@ import Chisel._
 import cde.{Parameters, Field}
 import rocket.Util._
 import junctions._
+import uncore.tilelink._
+import uncore.converters._
 import testchipip._
 
 class TestHarness(implicit p: Parameters) extends Module {
@@ -40,8 +42,8 @@ class TestHarness(implicit p: Parameters) extends Module {
   if (p(NarrowIF)) {
     val memSize = p(GlobalAddrMap)("mem").size
     // TODOHurricane [ben] My intent for the new serdes is below, but it throws a compilation error
-    //val dessert = Module(new ClientUncachedTileLinkIODesser(p(NarrowWidth))(p))
-    //dessert.io.serial <> dut.io.mem_narrow.get
+    val dessert = Module(new ClientUncachedTileLinkIODesser(p(NarrowWidth))(p.alterPartial({case TLId => "Outermost"})))
+    //dessert.io.serial <> dut.io.mem_narrow.get // TODOHurricane - Howie says to wire in and out separately for SerialIO (throws GenderCheck errors)
     val sim_axi = Module(new SimAXIMem(memSize))
     // HurricaneTODO - should we convert TL to AXI here, or is there a "SimTLMem"?
   }
