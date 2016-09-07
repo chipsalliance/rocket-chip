@@ -51,7 +51,7 @@ case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriori
   def claimOffset = 4
   def priorityBytes = 4
 
-  require(nDevices > 0 && nDevices <= maxDevices)
+  require(nDevices <= maxDevices)
   require(nHarts > 0 && nHarts <= maxHarts)
   require(nPriorities >= 0 && nPriorities <= nDevices)
 }
@@ -117,7 +117,7 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
   val rdata = Wire(init = UInt(0, tlDataBits))
   val masked_wdata = (acq.bits.data & acq.bits.full_wmask()) | (rdata & ~acq.bits.full_wmask())
 
-  when (addr >= cfg.hartBase) {
+  if (cfg.nDevices > 0) when (addr >= cfg.hartBase) {
     val word =
       if (tlDataBytes > cfg.claimOffset) UInt(0)
       else addr(log2Up(cfg.claimOffset),log2Up(tlDataBytes))
