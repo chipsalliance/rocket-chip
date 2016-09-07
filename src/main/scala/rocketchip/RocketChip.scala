@@ -86,9 +86,9 @@ class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
 class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
   val mem_clk = p(AsyncMemChannels).option(Vec(nMemChannels, Clock(INPUT)))
   val mem_rst = p(AsyncMemChannels).option(Vec(nMemChannels, Bool (INPUT)))
-  val mem_axi = Vec(nMemAXIChannels, new NastiIO)
+  val mem_axi = if (p(NarrowIF)) Vec(0, new NastiIO) else Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
-  val mem_tl  = Vec(nMemTLChannels,  new ClientUncachedTileLinkIO()(outermostParams))
+  val mem_tl  = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(outermostParams))
   val interrupts = Vec(p(NExtTopInterrupts), Bool()).asInput
   val bus_clk = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Clock(INPUT)))
   val bus_rst = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Bool (INPUT)))
