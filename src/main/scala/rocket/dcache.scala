@@ -239,7 +239,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   metaWriteArb.io.in(0).valid := (s2_valid_hit && s2_update_meta) || (s2_victimize && !s2_victim_dirty)
   metaWriteArb.io.in(0).bits.way_en := s2_victim_way
   metaWriteArb.io.in(0).bits.idx := s2_req.addr(idxMSB, idxLSB)
-  metaWriteArb.io.in(0).bits.data.coh := Mux(s2_hit, s2_new_hit_state, ClientMetadata.onReset)
+  metaWriteArb.io.in(0).bits.data.coh := Mux(s2_valid_hit, s2_new_hit_state, ClientMetadata.onReset)
   metaWriteArb.io.in(0).bits.data.tag := s2_req.addr(paddrBits-1, untagBits)
 
   // acquire
@@ -345,7 +345,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val newCoh = Wire(init = probeNewCoh)
   releaseWay := s2_probe_way
   when (s2_victimize && s2_victim_dirty) {
-    assert(!s2_hit_state.isValid())
+    assert(!(s2_valid && s2_hit_state.isValid()))
     release_state := s_voluntary_writeback
     probe_bits.addr_block := Cat(s2_victim_tag, s2_req.addr(idxMSB, idxLSB))
   }
