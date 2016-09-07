@@ -35,6 +35,7 @@ case object DataScratchpadSize extends Field[Int]
 trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
   val xLen = p(XLen)
+  val fLen = xLen // TODO relax this
 
   val usingVM = p(UseVM)
   val usingUser = p(UseUser) || usingVM
@@ -151,6 +152,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:
     (if (usingAtomics) new ADecode +: (xLen > 32).option(new A64Decode).toSeq else Nil) ++:
     (if (usingFPU) new FDecode +: (xLen > 32).option(new F64Decode).toSeq else Nil) ++:
+    (if (usingFPU && xLen > 32) Seq(new DDecode, new D64Decode) else Nil) ++:
     (usingRoCC.option(new RoCCDecode)) ++:
     ((xLen > 32).option(new I64Decode)) ++:
     (usingVM.option(new SDecode)) ++:

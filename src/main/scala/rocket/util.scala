@@ -30,8 +30,16 @@ object Util {
     def toInt: Int = if (x) 1 else 0
 
     // this one's snagged from scalaz
-    def option[T](z: T): Option[T] = if (x) Some(z) else None
+    def option[T](z: => T): Option[T] = if (x) Some(z) else None
   }
+}
+
+object MuxT {
+  def apply[T <: Data, U <: Data](cond: Bool, con: (T, U), alt: (T, U)): (T, U) =
+    (Mux(cond, con._1, alt._1), Mux(cond, con._2, alt._2))
+
+  def apply[T <: Data, U <: Data, W <: Data](cond: Bool, con: (T, U, W), alt: (T, U, W)): (T, U, W) =
+    (Mux(cond, con._1, alt._1), Mux(cond, con._2, alt._2), Mux(cond, con._3, alt._3))
 }
 
 import Util._

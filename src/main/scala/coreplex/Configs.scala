@@ -79,12 +79,16 @@ class BaseCoreplexConfig extends Config (
       case BuildTiles => {
         val env = if(site(UseVM)) List("p","v") else List("p")
         site(FPUKey) foreach { case cfg =>
-          TestGeneration.addSuite(rv32udBenchmarks)
-          TestGeneration.addSuites(env.map(rv64ufNoDiv))
-          TestGeneration.addSuites(env.map(rv64udNoDiv))
-          if (cfg.divSqrt) {
-            TestGeneration.addSuites(env.map(rv64uf))
-            TestGeneration.addSuites(env.map(rv64ud))
+          if (site(XLen) == 32) {
+            TestGeneration.addSuites(env.map(rv32ufNoDiv))
+          } else {
+            TestGeneration.addSuite(rv32udBenchmarks)
+            TestGeneration.addSuites(env.map(rv64ufNoDiv))
+            TestGeneration.addSuites(env.map(rv64udNoDiv))
+            if (cfg.divSqrt) {
+              TestGeneration.addSuites(env.map(rv64uf))
+              TestGeneration.addSuites(env.map(rv64ud))
+            }
           }
         }
         if (site(UseAtomics)) TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64ua else rv32ua))
@@ -329,10 +333,7 @@ class WithNL2Ways(n: Int) extends Config(
 class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
-    case UseVM => false
-    case UseUser => false
-    case UseAtomics => false
-    case FPUKey => None
+    case FPUKey => Some(FPUConfig(divSqrt = false))
     case RegressionTestNames => LinkedHashSet(
       "rv32mi-p-ma_addr",
       "rv32mi-p-csr",
@@ -353,14 +354,16 @@ class WithBlockingL1 extends Config (
 )
 
 class WithSmallCores extends Config (
-    topDefinitions = { (pname,site,here) => pname match {
-      case MulDivKey => Some(MulDivConfig())
-      case FPUKey => None
-      case NTLBEntries => 4
-      case BtbKey => BtbParameters(nEntries = 0)
-      case NAcquireTransactors => 2
-      case _ => throw new CDEMatchError
-    }},
+  topDefinitions = { (pname,site,here) => pname match {
+    case MulDivKey => Some(MulDivConfig())
+    case FPUKey => None
+    case UseVM => false
+    case UseUser => false
+    case NTLBEntries => 4
+    case BtbKey => BtbParameters(nEntries = 0)
+    case NAcquireTransactors => 2
+    case _ => throw new CDEMatchError
+  }},
   knobValues = {
     case "L1D_SETS" => 64
     case "L1D_WAYS" => 1

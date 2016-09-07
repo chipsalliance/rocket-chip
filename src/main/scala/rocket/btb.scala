@@ -11,7 +11,7 @@ import uncore.util._
 case object BtbKey extends Field[BtbParameters]
 
 case class BtbParameters(
-  nEntries: Int = 62,
+  nEntries: Int = 40,
   nRAS: Int = 2,
   updatesOutOfOrder: Boolean = false)
 
