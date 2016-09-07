@@ -79,12 +79,16 @@ class BaseCoreplexConfig extends Config (
       case BuildTiles => {
         val env = if(site(UseVM)) List("p","v") else List("p")
         site(FPUKey) foreach { case cfg =>
-          TestGeneration.addSuite(rv32udBenchmarks)
-          TestGeneration.addSuites(env.map(rv64ufNoDiv))
-          TestGeneration.addSuites(env.map(rv64udNoDiv))
-          if (cfg.divSqrt) {
-            TestGeneration.addSuites(env.map(rv64uf))
-            TestGeneration.addSuites(env.map(rv64ud))
+          if (site(XLen) == 32) {
+            TestGeneration.addSuites(env.map(rv32ufNoDiv))
+          } else {
+            TestGeneration.addSuite(rv32udBenchmarks)
+            TestGeneration.addSuites(env.map(rv64ufNoDiv))
+            TestGeneration.addSuites(env.map(rv64udNoDiv))
+            if (cfg.divSqrt) {
+              TestGeneration.addSuites(env.map(rv64uf))
+              TestGeneration.addSuites(env.map(rv64ud))
+            }
           }
         }
         if (site(UseAtomics)) TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64ua else rv32ua))
@@ -333,8 +337,7 @@ class WithRV32 extends Config(
     case XLen => 32
     case UseVM => false
     case UseUser => false
-    case UseAtomics => false
-    case FPUKey => None
+    case FPUKey => Some(FPUConfig(divSqrt = false))
     case RegressionTestNames => LinkedHashSet(
       "rv32mi-p-ma_addr",
       "rv32mi-p-csr",

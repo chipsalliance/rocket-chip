@@ -148,6 +148,8 @@ object DefaultTestSuites {
   val rv64uf = new AssemblyTestSuite("rv64uf", rv64ufNames)(_)
   val rv64ufNoDiv = new AssemblyTestSuite("rv64uf", rv64ufNames - "fdiv")(_)
 
+  val rv32ufNoDiv = new AssemblyTestSuite("rv32uf", rv64ufNames - "fdiv")(_)
+
   val rv64udNames = rv64ufNames + "structural"
   val rv64ud = new AssemblyTestSuite("rv64ud", rv64udNames)(_)
   val rv64udNoDiv = new AssemblyTestSuite("rv64ud", rv64udNames - "fdiv")(_)
