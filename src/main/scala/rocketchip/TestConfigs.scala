@@ -72,7 +72,7 @@ class WithGroundTest extends Config(
         (r: Bool, p: Parameters) => {
           Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
             case TLId => "L1toL2"
-            case GroundTestId => i
+            case TileId => i
             case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
             case NUncachedTileLinkPorts => tileSettings.uncached
           })))
@@ -189,9 +189,10 @@ class WithBusMasterTest extends Config(
         def addrMapEntries = Seq(
           AddrMapEntry("busmaster", MemSize(4096, MemAttr(AddrMapProt.RW))))
         def builder(
-            mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
-            clientPorts: Seq[ClientUncachedTileLinkIO],
-            extra: Bundle, p: Parameters) {
+          mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
+          clientPorts: Seq[ClientUncachedTileLinkIO],
+          interrupts : Seq[Bool], 
+          extra: Bundle, p: Parameters) {
           val busmaster = Module(new ExampleBusMaster()(p))
           busmaster.io.mmio <> mmioPorts("busmaster")
           clientPorts.head <> busmaster.io.mem

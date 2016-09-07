@@ -39,8 +39,9 @@ trait HasCoherenceAgentParameters {
   require(outerDataBeats == innerDataBeats) //TODO: fix all xact_data Vecs to remove this requirement
 }
 
-abstract class CoherenceAgentModule(implicit val p: Parameters) extends Module
-  with HasCoherenceAgentParameters
+abstract class CoherenceAgentModule(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit val p: Parameters) extends Module(Option(clockSignal), Option(resetSignal))
+    with HasCoherenceAgentParameters
 abstract class CoherenceAgentBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
    with HasCoherenceAgentParameters
 
@@ -128,7 +129,8 @@ class ManagerTLIO(implicit p: Parameters) extends CoherenceAgentBundle()(p)
   with HasInnerTLIO
   with HasUncachedOuterTLIO
 
-abstract class CoherenceAgent(implicit p: Parameters) extends CoherenceAgentModule()(p) {
+abstract class CoherenceAgent(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit p: Parameters) extends CoherenceAgentModule(clockSignal, resetSignal)(p) {
   def innerTL: ManagerTileLinkIO
   def outerTL: ClientTileLinkIO
   def incoherent: Vec[Bool]
@@ -146,7 +148,8 @@ class HierarchicalTLIO(implicit p: Parameters) extends CoherenceAgentBundle()(p)
   with HasInnerTLIO
   with HasCachedOuterTLIO
 
-abstract class HierarchicalCoherenceAgent(implicit p: Parameters) extends CoherenceAgent()(p)
+abstract class HierarchicalCoherenceAgent(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit p: Parameters) extends CoherenceAgent(clockSignal, resetSignal)(p)
     with HasCoherenceAgentWiringHelpers {
   val io = new HierarchicalTLIO
   def innerTL = io.inner

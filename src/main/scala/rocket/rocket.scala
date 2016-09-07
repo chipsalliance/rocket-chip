@@ -28,6 +28,9 @@ case object MtvecWritable extends Field[Boolean]
 case object MtvecInit extends Field[BigInt]
 case object ResetVector extends Field[BigInt]
 case object NBreakpoints extends Field[Int]
+case object NPerfCounters extends Field[Int]
+case object NPerfEvents extends Field[Int]
+case object DataScratchpadSize extends Field[Int]
 
 trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
@@ -43,6 +46,10 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val usingRoCC = !p(BuildRoCC).isEmpty
   val fastLoadWord = p(FastLoadWord)
   val fastLoadByte = p(FastLoadByte)
+  val nBreakpoints = p(NBreakpoints)
+  val nPerfCounters = p(NPerfCounters)
+  val nPerfEvents = p(NPerfEvents)
+  val usingDataScratchpad = p(DataScratchpadSize) > 0
 
   val retireWidth = p(RetireWidth)
   val fetchWidth = p(FetchWidth)
@@ -50,7 +57,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen
   val coreDataBytes = coreDataBits/8
-  val dcacheArbPorts = 1 + (if (usingVM) 1 else 0) + p(BuildRoCC).size
+  val dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size
   val coreDCacheReqTagBits = 6
   val dcacheReqTagBits = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
 
@@ -66,6 +73,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
   val nCustomMrwCsrs = p(NCustomMRWCSRs)
   val nCores = p(NTiles)
+  val tileId = p(TileId)
 
   // fetchWidth doubled, but coreInstBytes halved, for RVC
   val decodeWidth = fetchWidth / (if (usingCompressed) 2 else 1)
@@ -140,13 +148,13 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   val decode_table = {
-    (if (usingMulDiv) new MDecode +: (if (xLen > 32) Seq(new M64Decode) else Nil) else Nil) ++:
-    (if (usingAtomics) new ADecode +: (if (xLen > 32) Seq(new A64Decode) else Nil) else Nil) ++:
-    (if (usingFPU) new FDecode +: (if (xLen > 32) Seq(new F64Decode) else Nil) else Nil) ++:
-    (if (usingRoCC) Some(new RoCCDecode) else None) ++:
-    (if (xLen > 32) Some(new I64Decode) else None) ++:
-    (if (usingVM) Some(new SDecode) else None) ++:
-    (if (usingDebug) Some(new DebugDecode) else None) ++:
+    (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:
+    (if (usingAtomics) new ADecode +: (xLen > 32).option(new A64Decode).toSeq else Nil) ++:
+    (if (usingFPU) new FDecode +: (xLen > 32).option(new F64Decode).toSeq else Nil) ++:
+    (usingRoCC.option(new RoCCDecode)) ++:
+    ((xLen > 32).option(new I64Decode)) ++:
+    (usingVM.option(new SDecode)) ++:
+    (usingDebug.option(new DebugDecode)) ++:
     Seq(new IDecode)
   } flatMap(_.table)
 
@@ -245,7 +253,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val id_do_fence = id_rocc_busy && id_ctrl.fence ||
     id_mem_busy && (id_ctrl.amo && id_amo_aq || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc) || id_csr_en)
 
-  val bpu = Module(new BreakpointUnit)
+  val bpu = Module(new BreakpointUnit(nBreakpoints))
   bpu.io.status := csr.io.status
   bpu.io.bp := csr.io.bp
   bpu.io.pc := ibuf.io.pc
@@ -254,6 +262,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val id_xcpt_if = ibuf.io.inst(0).bits.pf0 || ibuf.io.inst(0).bits.pf1
   val (id_xcpt, id_cause) = checkExceptions(List(
     (csr.io.interrupt, csr.io.interrupt_cause),
+    (bpu.io.debug_if,  UInt(CSR.debugTriggerCause)),
     (bpu.io.xcpt_if,   UInt(Causes.breakpoint)),
     (id_xcpt_if,       UInt(Causes.fault_fetch)),
     (id_illegal_insn,  UInt(Causes.illegal_instruction))))
@@ -408,7 +417,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   val mem_breakpoint = (mem_reg_load && bpu.io.xcpt_ld) || (mem_reg_store && bpu.io.xcpt_st)
+  val mem_debug_breakpoint = (mem_reg_load && bpu.io.debug_ld) || (mem_reg_store && bpu.io.debug_st)
   val (mem_new_xcpt, mem_new_cause) = checkExceptions(List(
+    (mem_debug_breakpoint,               UInt(CSR.debugTriggerCause)),
     (mem_breakpoint,                     UInt(Causes.breakpoint)),
     (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch)),
     (mem_ctrl.mem && io.dmem.xcpt.ma.st, UInt(Causes.misaligned_store)),

@@ -449,8 +449,8 @@ class L2DataArray(delay: Int)(implicit p: Parameters) extends L2HellaCacheModule
   io.write.ready := Bool(true)
 }
 
-class L2HellaCacheBank(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p)
-    with HasOuterCacheParameters {
+class L2HellaCacheBank(clockSignal: Clock = null, resetSignal: Bool = null)(implicit p: Parameters)
+    extends HierarchicalCoherenceAgent(clockSignal, resetSignal)(p) with HasOuterCacheParameters {
   require(isPow2(nSets))
   require(isPow2(nWays)) 
 

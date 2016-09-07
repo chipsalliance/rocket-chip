@@ -4,6 +4,7 @@ import Chisel._
 import uncore.tilelink._
 import uncore.converters._
 import junctions._
+import rocket.TileId
 import cde.Parameters
 
 class NastiGenerator(id: Int)(implicit val p: Parameters) extends Module
@@ -107,7 +108,7 @@ class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)
     with HasNastiParameters {
   require(tileSettings.uncached == 1 && tileSettings.cached == 0)
 
-  val genId = p(GroundTestKey).take(tileId)
+  val genId = p(GroundTestKey).take(p(TileId))
     .map(settings => settings.cached + settings.uncached)
     .foldLeft(0)(_ + _)
 

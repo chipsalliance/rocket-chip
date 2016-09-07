@@ -55,11 +55,8 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   // tags
   val replacer = p(Replacer)()
   def onReset = L1Metadata(UInt(0), ClientMetadata.onReset)
-  val meta = Module(new MetadataArray(onReset _))
   val metaReadArb = Module(new Arbiter(new MetaReadReq, 3))
   val metaWriteArb = Module(new Arbiter(new L1MetaWriteReq, 3))
-  meta.io.read <> metaReadArb.io.out
-  meta.io.write <> metaWriteArb.io.out
 
   // data
   val data = Module(new DCacheDataArray)
@@ -117,13 +114,28 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val s1_paddr = Cat(tlb.io.resp.ppn, s1_req.addr(pgIdxBits-1,0))
   val s1_tag = Mux(s1_probe, probe_bits.addr_block >> idxBits, s1_paddr(paddrBits-1, untagBits))
-  val s1_hit_way = meta.io.resp.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
-  val s1_hit_state = ClientMetadata.onReset.fromBits(
-    meta.io.resp.map(r => Mux(r.tag === s1_tag, r.coh.asUInt, UInt(0)))
-    .reduce (_|_))
+  val s1_victim_way = Wire(init = replacer.way)
+  val (s1_hit_way, s1_hit_state, s1_victim_meta) =
+    if (usingDataScratchpad) {
+      require(nWays == 1)
+      metaWriteArb.io.out.ready := true
+      metaReadArb.io.out.ready := !metaWriteArb.io.out.valid
+      val inScratchpad = addrMap(s"io:int:dmem${tileId}").containsAddress(s1_paddr)
+      val hitState = Mux(inScratchpad, ClientMetadata.onReset.onHit(M_XWR), ClientMetadata.onReset)
+      (inScratchpad, hitState, L1Metadata(UInt(0), ClientMetadata.onReset))
+    } else {
+      val meta = Module(new MetadataArray(onReset _))
+      meta.io.read <> metaReadArb.io.out
+      meta.io.write <> metaWriteArb.io.out
+      val s1_meta = meta.io.resp
+      val s1_hit_way = s1_meta.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
+      val s1_hit_state = ClientMetadata.onReset.fromBits(
+        s1_meta.map(r => Mux(r.tag === s1_tag, r.coh.asUInt, UInt(0)))
+        .reduce (_|_))
+      (s1_hit_way, s1_hit_state, s1_meta(s1_victim_way))
+    }
   val s1_data_way = Mux(inWriteback, releaseWay, s1_hit_way)
   val s1_data = Mux1H(s1_data_way, data.io.resp) // retime into s2 if critical
-  val s1_victim_way = Wire(init = replacer.way)
 
   val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
@@ -134,7 +146,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   when (s1_valid_not_nacked || s1_flush_valid) {
     s2_req := s1_req
     s2_req.addr := s1_paddr
-    s2_uncached := !tlb.io.resp.cacheable
+    s2_uncached := !tlb.io.resp.cacheable || Bool(usingDataScratchpad)
   }
   val s2_read = isRead(s2_req.cmd)
   val s2_write = isWrite(s2_req.cmd)
@@ -152,8 +164,8 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s2_victimize = s2_valid_cached_miss || s2_flush_valid
   val s2_valid_uncached = s2_valid_miss && s2_uncached
   val s2_victim_way = Mux(s2_hit_state.isValid() && !s2_flush_valid, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
-  val s2_victim_tag = RegEnable(meta.io.resp(s1_victim_way).tag, s1_valid_not_nacked || s1_flush_valid)
-  val s2_victim_state = Mux(s2_hit_state.isValid() && !s2_flush_valid, s2_hit_state, RegEnable(meta.io.resp(s1_victim_way).coh, s1_valid_not_nacked || s1_flush_valid))
+  val s2_victim_tag = RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid)
+  val s2_victim_state = Mux(s2_hit_state.isValid() && !s2_flush_valid, s2_hit_state, RegEnable(s1_victim_meta.coh, s1_valid_not_nacked || s1_flush_valid))
   val s2_victim_valid = s2_victim_state.isValid()
   val s2_victim_dirty = s2_victim_state.requiresVoluntaryWriteback()
   val s2_new_hit_state = s2_hit_state.onHit(s2_req.cmd)
@@ -262,7 +274,8 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.mem.acquire.valid := ((s2_valid_cached_miss && !s2_victim_dirty) || s2_valid_uncached) && fq.io.enq.ready
   io.mem.acquire.bits := cachedGetMessage
   when (s2_uncached) {
-    assert(!s2_valid_masked || !s2_hit_state.isValid(), "cache hit on uncached access")
+    if (!usingDataScratchpad)
+      assert(!s2_valid_masked || !s2_hit_state.isValid(), "cache hit on uncached access")
     io.mem.acquire.bits := uncachedGetMessage
     when (s2_write) {
       io.mem.acquire.bits := uncachedPutMessage
@@ -420,7 +433,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val flushed = Reg(init=Bool(true))
   val flushing = Reg(init=Bool(false))
   val flushCounter = Counter(nSets * nWays)
-  when (io.mem.acquire.fire()) { flushed := false }
+  when (io.mem.acquire.fire() && !s2_uncached) { flushed := false }
   when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
     io.cpu.s2_nack := !flushed
     when (!flushed) {
@@ -442,4 +455,62 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       flushing := false
     }
   }
+}
+
+class ScratchpadSlavePort(implicit p: Parameters) extends CoreModule()(p) {
+  val io = new Bundle {
+    val tl = new ClientUncachedTileLinkIO().flip
+    val dmem = new HellaCacheIO
+  }
+
+  val s_ready :: s_wait :: s_replay :: s_grant :: Nil = Enum(UInt(), 4)
+  val state = Reg(init = s_ready)
+  when (io.dmem.resp.valid) { state := s_grant }
+  when (io.tl.grant.fire()) { state := s_ready }
+  when (io.dmem.s2_nack) { state := s_replay }
+  when (io.dmem.req.fire()) { state := s_wait }
+
+  val acq = Reg(io.tl.acquire.bits)
+  when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data }
+  when (io.tl.acquire.fire()) { acq := io.tl.acquire.bits }
+
+  val isRead = acq.isBuiltInType(Acquire.getType)
+  val isWrite = acq.isBuiltInType(Acquire.putType)
+  assert(state === s_ready || isRead || isWrite)
+  require(coreDataBits == acq.tlDataBits)
+  require(usingDataScratchpad)
+
+  def formCacheReq(acq: Acquire) = {
+    val req = Wire(new HellaCacheReq)
+    // treat all loads as full words, so bytes appear in correct lane
+    req.typ := Mux(isRead, log2Ceil(acq.tlDataBytes), acq.op_size())
+    req.cmd := acq.op_code()
+    req.addr := Mux(isRead, ~(~acq.full_addr() | (acq.tlDataBytes-1)), acq.full_addr())
+    req.tag := UInt(0)
+    req
+  }
+
+  val ready = state === s_ready || io.tl.grant.fire()
+  io.dmem.req.valid := (io.tl.acquire.valid && ready) || state === s_replay
+  io.tl.acquire.ready := io.dmem.req.ready && ready
+  io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, io.tl.acquire.bits))
+  // this blows.  the TL data is already in the correct byte lane, but the D$
+  // expects right-justified store data, so that it can steer the bytes.
+  io.dmem.s1_data := new LoadGen(acq.op_size(), Bool(false), acq.addr_byte(), acq.data, Bool(false), acq.tlDataBytes).data
+  io.dmem.s1_kill := false
+  io.dmem.invalidate_lr := false
+
+  // place AMO data in correct word lane
+  val minAMOBytes = 4
+  val grantData = Mux(io.dmem.resp.valid, io.dmem.resp.bits.data, acq.data)
+  val alignedGrantData = Mux(acq.op_size() <= log2Ceil(minAMOBytes), Fill(coreDataBytes/minAMOBytes, grantData(8*minAMOBytes-1, 0)), grantData)
+
+  io.tl.grant.valid := io.dmem.resp.valid || state === s_grant
+  io.tl.grant.bits := Grant(
+    is_builtin_type = Bool(true),
+    g_type = acq.getBuiltInGrantType(),
+    client_xact_id = acq.client_xact_id,
+    manager_xact_id = UInt(0),
+    addr_beat = acq.addr_beat,
+    data = alignedGrantData)
 }

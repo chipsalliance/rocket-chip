@@ -2,8 +2,7 @@ package junctions
 import Chisel._
 import cde.{Parameters}
 
-class JtagIO(drvTdo : Boolean = false) extends Bundle {
-
+class JTAGIO(drvTdo: Boolean = false) extends Bundle {
   val TCK = Clock(OUTPUT)
   val TMS = Bool(OUTPUT)
   val TDI = Bool(OUTPUT)
@@ -11,6 +10,5 @@ class JtagIO(drvTdo : Boolean = false) extends Bundle {
   val TRST = Bool(OUTPUT)
 
   val DRV_TDO = if (drvTdo) Some(Bool(INPUT)) else None
-  override def cloneType = new JtagIO(drvTdo).asInstanceOf[this.type]
-
+  override def cloneType = new JTAGIO(drvTdo).asInstanceOf[this.type]
 }

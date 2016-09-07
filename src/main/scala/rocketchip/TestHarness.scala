@@ -41,46 +41,17 @@ class TestHarness(implicit p: Parameters) extends Module {
     sim_axi.io.axi <> dessert.io.mem_axi
   }
 
-  if (p(IncludeJtagDTM)) {
-    val jtag_vpi = Module (new JtagVpi)
-    dut.io.jtag.get <> jtag_vpi.io.jtag
-
-    // To be proper,
-    // TRST should really be synchronized
-    // with TCK. But this is a fairly
-    // accurate representation of how
-    // HW may drive this signal.
-    // Neither OpenOCD nor JtagVPI drive TRST.
-
-    dut.io.jtag.get.TRST := reset 
-    jtag_vpi.io.enable := ~reset
-    jtag_vpi.io.init_done := ~reset
-
-    // Success is determined by the gdbserver
-    // which is controlling this simulation.
-    io.success := Bool(false)
-  }
-  else {
-    val dtm = Module(new SimDTM)
-    dut.io.debug.get <> dtm.io.debug
-
+  if (!p(IncludeJtagDTM)) {
     // Todo: enable the usage of different clocks
     // to test the synchronizer more aggressively.
     val dtm_clock = clock
     val dtm_reset = reset
-
-    dtm.io.clk := dtm_clock
-    dtm.io.reset := dtm_reset
-    if (dut.io.debug_clk.isDefined)
-      dut.io.debug_clk.get := dtm_clock
-    if (dut.io.debug_rst.isDefined)
-      dut.io.debug_rst.get := dtm_reset
-
-    io.success := dut.io.success.getOrElse(dtm.io.exit === 1)
-    when (dtm.io.exit >= 2) {
-      printf("*** FAILED *** (exit code = %d)\n", dtm.io.exit >> 1)
-      stop(1)
-    }
+    if (dut.io.debug_clk.isDefined) dut.io.debug_clk.get := dtm_clock
+    if (dut.io.debug_rst.isDefined) dut.io.debug_rst.get := dtm_reset
+    val dtm = Module(new SimDTM).connect(dtm_clock, dtm_reset, dut.io.debug.get,
+      dut.io.success, io.success)
+  } else {
+    val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, reset, io.success)
   }
 
   for (bus_axi <- dut.io.bus_axi) {
@@ -159,14 +130,44 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
     val debug = new uncore.devices.DebugBusIO
     val exit = UInt(OUTPUT, 32)
   }
+
+  def connect(tbclk: Clock, tbreset: Bool, dutio: uncore.devices.DebugBusIO,
+      dutsuccess: Option[Bool], tbsuccess: Bool) = {
+    io.clk := tbclk
+    io.reset := tbreset
+    dutio <> io.debug
+
+    tbsuccess := dutsuccess.getOrElse(io.exit === 1)
+    when (io.exit >= 2) {
+      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1)
+      stop(1)
+    }
+  }
 }
 
-
-class JtagVpi(implicit val p: Parameters) extends BlackBox {
-
+class JTAGVPI(implicit val p: Parameters) extends BlackBox {
   val io = new Bundle {
-    val jtag = new JtagIO(false)
+    val jtag = new JTAGIO(false)
     val enable = Bool(INPUT)
     val init_done = Bool(INPUT)
+  }
+
+  def connect(dutio: JTAGIO, tbreset: Bool, tbsuccess: Bool) = {
+    dutio <> io.jtag
+
+    // To be proper,
+    // TRST should really be synchronized
+    // with TCK. But this is a fairly
+    // accurate representation of how
+    // HW may drive this signal.
+    // Neither OpenOCD nor JtagVPI drive TRST.
+
+    dutio.TRST := tbreset
+    io.enable := ~tbreset
+    io.init_done := ~tbreset
+
+    // Success is determined by the gdbserver
+    // which is controlling this simulation.
+    tbsuccess := Bool(false)
   }
 }

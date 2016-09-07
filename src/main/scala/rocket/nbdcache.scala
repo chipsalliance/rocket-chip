@@ -755,14 +755,14 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       val rway_en = io.read.bits.way_en(w+rowWords-1,w)
       val resp = Wire(Vec(rowWords, Bits(width = encRowBits)))
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
-      for (ptr <- 0 until resp.size) {
+      for (i <- 0 until resp.size) {
         val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
         array.suggestName(p(CacheName) + "_data_array")
-        when (wway_en.orR && io.write.valid && io.write.bits.wmask(ptr)) {
-          val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(ptr+1)-1,encDataBits*ptr))
+        when (wway_en.orR && io.write.valid && io.write.bits.wmask(i)) {
+          val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
           array.write(waddr, data, wway_en.toBools)
         }
-        resp(ptr) := array.read(raddr, rway_en.orR && io.read.valid).asUInt
+        resp(i) := array.read(raddr, rway_en.orR && io.read.valid).asUInt
       }
       for (dw <- 0 until rowWords) {
         val r = Vec(resp.map(_(encDataBits*(dw+1)-1,encDataBits*dw)))
@@ -1223,7 +1223,6 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
 
   io.cache.invalidate_lr := io.requestor.invalidate_lr
   io.cache.req <> req_arb.io.out
-  io.cache.req.bits.phys := Bool(true)
   io.cache.s1_kill := io.cache.s2_nack
   io.cache.s1_data := RegEnable(req_arb.io.out.bits.data, s0_req_fire)
 

@@ -27,7 +27,7 @@ class BaseCoreplexConfig extends Config (
   topDefinitions = { (pname,site,here) => 
     type PF = PartialFunction[Any,Any]
     def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
-    lazy val innerDataBits = 64
+    lazy val innerDataBits = site(XLen)
     lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
     pname match {
       //Memory Parameters
@@ -63,12 +63,13 @@ class BaseCoreplexConfig extends Config (
       case BtbKey => BtbParameters()
       //L1DataCache
       case DCacheKey => DCacheConfig(nMSHRs = site(Knob("L1D_MSHRS")))
+      case DataScratchpadSize => 0
       //L2 Memory System Params
       case AmoAluOperandBits => site(XLen)
       case NAcquireTransactors => 7
       case L2StoreDataQueueDepth => 1
       case L2DirectoryRepresentation => new NullRepresentation(site(NTiles))
-      case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
+      case BuildL2CoherenceManager => (id: Int, p: Parameters, c: Clock, r: Bool) =>
         Module(new L2BroadcastHub()(p.alterPartial({
           case InnerTLId => "L1toL2"
           case OuterTLId => "L2toMC" })))
@@ -93,9 +94,10 @@ class BaseCoreplexConfig extends Config (
           else ((if (site(UseVM)) rv32i else rv32pi), rv32u)
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuite(if (site(UseVM)) benchmarks else emptyBmarks)
-        List.fill(site(NTiles)){ (c: Clock, r: Bool, p: Parameters) =>
+        TestGeneration.addSuite(benchmarks)
+        List.tabulate(site(NTiles)){ i => (c: Clock, r: Bool, p: Parameters) =>
           Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({
+            case TileId => i
             case TLId => "L1toL2"
             case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)
           })))
@@ -112,11 +114,13 @@ class BaseCoreplexConfig extends Config (
       case UseUser => true
       case UseDebug => true
       case NBreakpoints => 1
+      case NPerfCounters => 0
+      case NPerfEvents => 0
       case FastLoadWord => true
       case FastLoadByte => false
       case XLen => 64
       case FPUKey => Some(FPUConfig())
-      case MulDivKey => Some(MulDivConfig())
+      case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = true, divEarlyOut = true))
       case UseAtomics => true
       case UseCompressed => true
       case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
@@ -126,7 +130,6 @@ class BaseCoreplexConfig extends Config (
       case MtvecInit => BigInt(0x1010)
       case MtvecWritable => true
       //Uncore Paramters
-      case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
@@ -239,6 +242,13 @@ class WithNBanksPerMemChannel(n: Int) extends Config(
     case _ => throw new CDEMatchError
   })
 
+class WithDataScratchpad(n: Int) extends Config(
+  (pname,site,here) => pname match {
+    case DataScratchpadSize => n
+    case NSets if site(CacheName) == "L1D" => n / site(CacheBlockBytes)
+    case _ => throw new CDEMatchError
+  })
+
 class WithL2Cache extends Config(
   (pname,site,here) => pname match {
     case "L2_CAPACITY_IN_KB" => Knob("L2_CAPACITY_IN_KB")
@@ -255,8 +265,8 @@ class WithL2Cache extends Config(
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new L2HellaCacheBank()(p.alterPartial({
+    case BuildL2CoherenceManager => (id: Int, p: Parameters, c: Clock, r: Bool) =>
+      Module(new L2HellaCacheBank(clockSignal = c, resetSignal = r)(p.alterPartial({
         case CacheId => id
         case CacheName => "L2Bank"
         case InnerTLId => "L1toL2"
@@ -269,7 +279,7 @@ class WithL2Cache extends Config(
 
 class WithBufferlessBroadcastHub extends Config(
   (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
+    case BuildL2CoherenceManager => (id: Int, p: Parameters, c: Clock, r: Bool) =>
       Module(new BufferlessBroadcastHub()(p.alterPartial({
         case InnerTLId => "L1toL2"
         case OuterTLId => "L2toMC" })))
@@ -289,7 +299,7 @@ class WithBufferlessBroadcastHub extends Config(
  */
 class WithStatelessBridge extends Config (
   topDefinitions = (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
+    case BuildL2CoherenceManager => (id: Int, p: Parameters, c: Clock, r: Bool) =>
       Module(new ManagerToClientStatelessBridge()(p.alterPartial({
         case InnerTLId => "L1toL2"
         case OuterTLId => "L2toMC" })))
@@ -330,6 +340,7 @@ class WithRV32 extends Config(
       "rv32mi-p-csr",
       "rv32ui-p-sh",
       "rv32ui-p-lh",
+      "rv32uc-p-rvc",
       "rv32mi-p-sbreak",
       "rv32ui-p-sll")
     case _ => throw new CDEMatchError
@@ -345,6 +356,7 @@ class WithBlockingL1 extends Config (
 
 class WithSmallCores extends Config (
     topDefinitions = { (pname,site,here) => pname match {
+      case MulDivKey => Some(MulDivConfig())
       case FPUKey => None
       case NTLBEntries => 4
       case BtbKey => BtbParameters(nEntries = 0)

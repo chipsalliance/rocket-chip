@@ -29,14 +29,16 @@ class PMUConfig extends Config(
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuite(if (site(UseVM)) benchmarks else emptyBmarks)
-        val tileList = List.fill(site(NTiles)-1){ (c: Clock, r: Bool, p: Parameters) =>
+        val tileList = List.tabulate(site(NTiles)-1){ i => (c: Clock, r: Bool, p: Parameters) =>
           Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({
+            case TileId => i
             case TLId => "L1toL2"
             case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)
           })))
         }
         tileList :+ { (c: Clock, r: Bool, p: Parameters) =>
           Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({
+            case TileId => site(NTiles)-1
             case TLId => "L1toL2"
             case NUncachedTileLinkPorts => 1
             case FPUKey => None
@@ -65,6 +67,6 @@ class NarrowIFConfig extends Config(
 
 class DefaultNarrowConfig extends Config(new NarrowIFConfig ++ new DefaultConfig)
 
-class HurricaneUpstreamConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new With2Lanes ++ new With9L2AcquireXacts ++ new WithL2Capacity(512) ++ new WithNBanksPerMemChannel(4) ++ new Process28nmConfig ++ new NarrowIFConfig ++ new HwachaConfig)
+class HurricaneUpstreamConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new WithNLanes(2) ++ new WithNL2AcquireXacts(9) ++ new WithL2Capacity(512) ++ new WithNBanksPerMemChannel(4) ++ new Process28nmConfig ++ new NarrowIFConfig ++ new HwachaConfig)
 
-class HurricaneUpstreamTinyConfig extends Config(new WithoutConfPrec ++ new WithSmallPredRF ++ new With1Lane ++ new With2L2AcquireXacts ++ new WithL2Capacity(64) ++ new WithNBanksPerMemChannel(1) ++ new HurricaneUpstreamConfig)
+class HurricaneUpstreamTinyConfig extends Config(new WithoutConfPrec ++ new WithSmallPredRF ++ new WithNLanes(2)++ new WithNL2AcquireXacts(1) ++ new WithL2Capacity(64) ++ new WithNBanksPerMemChannel(1) ++ new HurricaneUpstreamConfig)

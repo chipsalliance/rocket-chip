@@ -7,10 +7,11 @@ MODEL ?= TestHarness
 PROJECT := rocketchip
 export ROCKETCHIP_ADDONS ?= hwacha
 DISASM_EXTENSION = --extension=hwacha
+CFG_PROJECT := $(PROJECT)
 CXX ?= g++
 CXXFLAGS := -O1
 
-SBT ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
+SBT ?= java -Xmx8G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
 
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar

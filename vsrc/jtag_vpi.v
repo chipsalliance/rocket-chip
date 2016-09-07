@@ -36,7 +36,7 @@
 `define CMD_SCAN_CHAIN_FLIP_TMS	3
 `define CMD_STOP_SIMU		4
 
-module JtagVpi
+module JTAGVPI
 #(	parameter DEBUG_INFO = 0,
 	parameter TP = 1,
 	parameter TCK_HALF_PERIOD = 2,// 50, // Clock half period (Clock period = 100 ns => 10 MHz)
