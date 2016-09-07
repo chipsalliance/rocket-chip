@@ -120,7 +120,7 @@ def gen_mem(name, width, depth, mask_gran, mask_seg, ports):
   decl.append('`ifdef RANDOMIZE')
   decl.append('  integer initvar;')
   decl.append('  initial begin')
-  decl.append('    #0.002;')
+  decl.append('    #0.002 begin end')
   decl.append('    for (initvar = 0; initvar < %d; initvar = initvar+1)' % depth)
   decl.append('      ram[initvar] = {%d {$random}};' % ((width-1)/32+1))
   for idx in range(nr):
