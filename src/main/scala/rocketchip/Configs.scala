@@ -35,7 +35,7 @@ class BasePlatformConfig extends Config (
       new AddrMap(entries)
     }
     lazy val externalAddrMap = new AddrMap(
-      site(ExtIOAddrMapEntries),
+      site(ExtraDevices).addrMapEntries ++ site(ExtMMIOPorts),
       start = BigInt("50000000", 16),
       collapse = true)
     lazy val globalAddrMap = {
@@ -73,10 +73,17 @@ class BasePlatformConfig extends Config (
         res append s"    size 0x${addrMap("mem").size.toString(16)};\n"
         res append  "  };\n"
         res append  "};\n"
-        res append  "core {\n"
       }
+      res append  "core {\n"
       for (i <- 0 until site(NTiles)) { // TODO heterogeneous tiles
-        val isa = s"rv${site(XLen)}i${site(MulDivKey).map(x=>"m").mkString}${if (site(UseAtomics)) "a" else ""}${if (site(FPUKey).nonEmpty) "fd" else ""}"
+        val isa = {
+          val m = if (site(MulDivKey).nonEmpty) "m" else ""
+          val a = if (site(UseAtomics)) "a" else ""
+          val f = if (site(FPUKey).nonEmpty) "f" else ""
+          val d = if (site(FPUKey).nonEmpty && site(XLen) > 32) "d" else ""
+          val s = if (site(UseVM)) "s" else ""
+          s"rv${site(XLen)}i$m$a$f$d$s"
+        }
         res append s"  $i {\n"
         res append  "    0 {\n"
         res append s"      isa $isa;\n"
@@ -95,7 +102,7 @@ class BasePlatformConfig extends Config (
           res append s"         claim 0x${(plicAddr + plicInfo.claimAddr(i, 'S')).toString(16)};\n"
           res append s"        };\n"
         }
-        res append s"      };\n"
+        res append  "      };\n"
         res append  "    };\n"
         res append  "  };\n"
       }
@@ -131,12 +138,10 @@ class BasePlatformConfig extends Config (
       case ExtraDevices => new EmptyDeviceBlock
       case ExtraTopPorts => (p: Parameters) => new Bundle
       case ExtMMIOPorts => Nil
-      case ExtIOAddrMapEntries =>
-        site(ExtraDevices).addrMapEntries ++ site(ExtMMIOPorts)
       case NExtMMIOAXIChannels => 0
       case NExtMMIOAHBChannels => 0
       case NExtMMIOTLChannels  => 0
-      case ExportMMIOPort => site(ExtIOAddrMapEntries).size > 0
+      case ExportMMIOPort => !externalAddrMap.isEmpty
       case AsyncBusChannels => false
       case NExtBusAXIChannels => 0
       case NExternalClients => (if (site(NExtBusAXIChannels) > 0) 1 else 0) +
@@ -262,7 +267,7 @@ class DualCoreConfig extends Config(
 
 class TinyConfig extends Config(
   new WithScratchpads ++
-  new WithRV32 ++ new WithSmallCores ++
+  new WithSmallCores ++ new WithRV32 ++
   new WithStatelessBridge ++ new BaseConfig)
 
 class WithTestRAM extends Config(
