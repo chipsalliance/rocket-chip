@@ -10,7 +10,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 // PO = PortOutputParameters
 // EI = EdgeInput
 // EO = EdgeOutput
-abstract class NodeImp[PO, PI, EO, EI, B <: Bundle]
+abstract class NodeImp[PO, PI, EO, EI, B <: Data]
 {
   def edgeO(po: PO, pi: PI): EO
   def edgeI(po: PO, pi: PI): EI
@@ -19,7 +19,7 @@ abstract class NodeImp[PO, PI, EO, EI, B <: Bundle]
   def connect(bo: B, eo: EO, bi: B, ei: EI)(implicit sourceInfo: SourceInfo): Unit
 }
 
-class BaseNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(
+class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
   private val oFn: Option[Seq[PO] => PO],
   private val iFn: Option[Seq[PI] => PI],
   private val numPO: Range.Inclusive,
@@ -72,34 +72,34 @@ class BaseNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(
   }
 }
 
-class IdentityNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
+class IdentityNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])
   extends BaseNode(imp)(Some{case Seq(x) => x}, Some{case Seq(x) => x}, 1 to 1, 1 to 1)
 
-class OutputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
+class OutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
 {
   override def connectOut = bundleOut
   override def connectIn  = bundleOut
 }
 
-class InputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
+class InputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
 {
   override def connectOut = bundleIn
   override def connectIn  = bundleIn
 }
 
-class SourceNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(po: PO, num: Range.Inclusive = 1 to 1)
+class SourceNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: PO, num: Range.Inclusive = 1 to 1)
   extends BaseNode(imp)(Some{case Seq() => po}, None, num, 0 to 0)
 {
   require (num.end >= 1)
 }
 
-class SinkNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI, num: Range.Inclusive = 1 to 1)
+class SinkNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI, num: Range.Inclusive = 1 to 1)
   extends BaseNode(imp)(None, Some{case Seq() => pi}, 0 to 0, num)
 {
   require (num.end >= 1)
 }
 
-class InteriorNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
+class InteriorNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])
   (oFn: Seq[PO] => PO, iFn: Seq[PI] => PI, numPO: Range.Inclusive, numPI: Range.Inclusive)
   extends BaseNode(imp)(Some(oFn), Some(iFn), numPO, numPI)
 {
