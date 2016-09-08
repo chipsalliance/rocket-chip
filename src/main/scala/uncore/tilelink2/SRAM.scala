@@ -59,12 +59,13 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
       d_size   := in.a.bits.size
       d_source := in.a.bits.source
       d_addr   := edge.addr_lo(in.a.bits)
-      when (read) {
-        rdata := mem.read(memAddress)
-      } .otherwise {
-        mem.write(memAddress, wdata, in.a.bits.mask.toBools)
-      }
     }
+
+    // exactly this pattern is required to get a RWM memory
+    when (in.a.fire() && !read) {
+      mem.write(memAddress, wdata, in.a.bits.mask.toBools)
+    }
+    rdata := mem.read(memAddress, in.a.fire() && read)
 
     // Tie off unused channels
     in.b.valid := Bool(false)

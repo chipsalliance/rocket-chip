@@ -100,7 +100,7 @@ object TLAtomics
   def isLogical(x: UInt) = x <= SWAP
 }
 
-sealed trait TLChannel
+sealed trait TLChannel extends TLBundleBase
 sealed trait TLDataChannel extends TLChannel
 sealed trait TLAddrChannel extends TLDataChannel
 
