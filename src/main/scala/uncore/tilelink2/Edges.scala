@@ -27,7 +27,7 @@ class TLEdge(
   // This gets used everywhere, so make the smallest circuit possible ...
   def mask(addr_lo: UInt, lgSize: UInt): UInt = {
     val lgBytes = log2Ceil(manager.beatBytes)
-    val sizeOH = UIntToOH(lgSize, lgBytes)
+    val sizeOH = UIntToOH(lgSize, log2Up(manager.beatBytes))
     def helper(i: Int): Seq[(Bool, Bool)] = {
       if (i == 0) {
         Seq((lgSize >= UInt(lgBytes), Bool(true)))
