@@ -7,7 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import scala.math.{min,max}
 
 // innBeatBytes => the new client-facing bus width
-class TLNarrower(innerBeatBytes: Int) extends LazyModule
+class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
 {
   val node = TLAdapterNode(
     clientFn  = { case Seq(c) => c },
@@ -169,12 +169,12 @@ class TLNarrower(innerBeatBytes: Int) extends LazyModule
   }
 }
 
-object TLNarrower
+object TLWidthWidget
 {
-  // applied to the TL source node; connect (Narrower(x.node, 16) -> y.node)
+  // applied to the TL source node; connect (WidthWidget(x.node, 16) -> y.node)
   def apply(x: TLBaseNode, innerBeatBytes: Int)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
-    val narrower = LazyModule(new TLNarrower(innerBeatBytes))
-    lazyModule.connect(x -> narrower.node)
-    narrower.node
+    val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
+    lazyModule.connect(x -> widget.node)
+    widget.node
   }
 }
