@@ -153,4 +153,8 @@ class AddrMap(
     }
     new AddrMapProt().fromBits(protForRegion.reduce(_|_))
   }
+
+  override def containsAddress(x: UInt) = {
+    flatten.map(_.region.containsAddress(x)).reduce(_||_)
+  }
 }
