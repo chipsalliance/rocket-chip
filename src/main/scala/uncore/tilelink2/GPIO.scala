@@ -16,14 +16,22 @@ trait GPIOModule extends HasRegMap
 {
   val params: GPIOParams
   val io: GPIOBundle
+  val interrupts: Vec[Bool]
 
   val state = RegInit(UInt(0))
-  io.gpio := state
+  val pending = RegInit(UInt(0xf, width = 4))
 
-  regmap(0 -> Seq(RegField(params.num, state)))
+  io.gpio := state
+  interrupts := pending.toBools
+
+  regmap(
+    0 -> Seq(
+      RegField(params.num, state)),
+    1 -> Seq(
+      RegField.w1ToClear(4, pending, state)))
 }
 
 // Create a concrete TL2 version of the abstract GPIO slave
-class TLGPIO(p: GPIOParams) extends TLRegisterRouter(p.address)(
+class TLGPIO(p: GPIOParams) extends TLRegisterRouter(p.address, 4)(
   new TLRegBundle(p, _)    with GPIOBundle)(
   new TLRegModule(p, _, _) with GPIOModule)

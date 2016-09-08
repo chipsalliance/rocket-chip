@@ -86,6 +86,7 @@ object RegField
 trait HasRegMap
 {
   def regmap(mapping: RegField.Map*): Unit
+  val interrupts: Vec[Bool]
 }
 
 // See GPIO.scala for an example of how to use regmap
