@@ -11,7 +11,7 @@ class TestHarness(implicit p: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
-  val dut = Module(new Top(p))
+  val dut = uncore.tilelink2.LazyModule(new ExampleTop(p)).module
 
   // This test harness isn't especially flexible yet
   require(dut.io.mem_clk.isEmpty)
@@ -24,7 +24,6 @@ class TestHarness(implicit p: Parameters) extends Module {
   require(dut.io.mmio_rst.isEmpty)
   require(dut.io.mmio_ahb.isEmpty)
   require(dut.io.mmio_tl.isEmpty)
-  require(dut.io.extra.elements.isEmpty)
 
   for (int <- dut.io.interrupts)
     int := false
