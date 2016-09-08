@@ -19,11 +19,20 @@ abstract class NodeImp[PO, PI, EO, EI, B <: Data]
   def connect(bo: B, eo: EO, bi: B, ei: EI)(implicit sourceInfo: SourceInfo): Unit
 }
 
+class RootNode
+{
+  // You cannot create a Node outside a LazyModule!
+  require (!LazyModule.stack.isEmpty)
+
+  val lazyModule = LazyModule.stack.head
+  lazyModule.nodes = this :: lazyModule.nodes
+}
+
 class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
   private val oFn: Option[Seq[PO] => PO],
   private val iFn: Option[Seq[PI] => PI],
   private val numPO: Range.Inclusive,
-  private val numPI: Range.Inclusive)
+  private val numPI: Range.Inclusive) extends RootNode
 {
   // At least 0 ports must be supported
   require (!numPO.isEmpty)
@@ -42,8 +51,12 @@ class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
   private var oRealized  = false
   private var iRealized = false
 
-  private lazy val oPorts = { oRealized = true; require (numPO.contains(accPO.size)); accPO.result() }
-  private lazy val iPorts = { iRealized = true; require (numPI.contains(accPI.size)); accPI.result() }
+  def name = lazyModule.name + "." + getClass.getName.split('.').last
+  private def reqO() = require(numPO.contains(accPO.size), s"${name} has ${accPO.size} outputs, expected ${numPO}${lazyModule.line}")
+  private def reqI() = require(numPI.contains(accPI.size), s"${name} has ${accPI.size} inputs, expected ${numPI}${lazyModule.line}")
+
+  private lazy val oPorts = { oRealized = true; reqO(); accPO.result() }
+  private lazy val iPorts = { iRealized = true; reqI(); accPI.result() }
   private lazy val oParams : Option[PO] = oFn.map(_(iPorts.map(_.oParams.get)))
   private lazy val iParams : Option[PI] = iFn.map(_(oPorts.map(_.iParams.get)))
 
