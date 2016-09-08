@@ -3,12 +3,13 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.internal.sourceinfo._
+import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 
 abstract class LazyModule
 {
   protected[tilelink2] var bindings = List[() => Unit]()
   protected[tilelink2] var children = List[LazyModule]()
+  protected[tilelink2] var nodes = List[RootNode]()
   protected[tilelink2] var info: SourceInfo = UnlocatableSourceInfo
   protected[tilelink2] val parent = LazyModule.stack.headOption
 
@@ -20,6 +21,12 @@ abstract class LazyModule
     edges.foreach { case (source, sink) =>
       bindings = (source edge sink) :: bindings
     }
+  }
+
+  def name = getClass.getName.split('.').last
+  def line = info match {
+    case SourceLine(filename, line, col) => s" ($filename:$line:$col)"
+    case _ => ""
   }
 
   def module: LazyModuleImp
@@ -55,6 +62,6 @@ abstract class LazyModuleImp(outer: LazyModule) extends Module
   // .module had better not be accessed while LazyModules are still being built!
   require (LazyModule.stack.isEmpty)
 
-  override def desiredName = outer.getClass.getName.split('.').last
+  override def desiredName = outer.name
   outer.instantiate()
 }
