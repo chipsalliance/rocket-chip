@@ -16,7 +16,7 @@ abstract class LazyModule
   parent.foreach(p => p.children = this :: p.children)
 
   // Use as: connect(source -> sink, source2 -> sink2, ...)
-  def connect[PO, PI, EO, EI, B <: Bundle](edges: (BaseNode[PO, PI, EO, EI, B], BaseNode[PO, PI, EO, EI, B])*)(implicit sourceInfo: SourceInfo) = {
+  def connect[PO, PI, EO, EI, B <: Data](edges: (BaseNode[PO, PI, EO, EI, B], BaseNode[PO, PI, EO, EI, B])*)(implicit sourceInfo: SourceInfo) = {
     edges.foreach { case (source, sink) =>
       bindings = (source edge sink) :: bindings
     }
