@@ -7,12 +7,30 @@ import scala.collection.mutable.ListBuffer
 import scala.math.max
 import chisel3.internal.sourceinfo.SourceInfo
 
-case class IntSourceParameters(device: String, num: Int)
+// A potentially empty half-open range; [start, end)
+case class IntRange(start: Int, end: Int)
+{
+  require (start >= 0)
+  require (start <= end)
+  def size = end - start
+  def overlaps(x: IntRange) = start < x.end && x.start < end
+  def offset(x: Int) = IntRange(x+start, x+end)
+}
+object IntRange
+{
+  implicit def apply(end: Int): IntRange = apply(0, end)
+}
+
+case class IntSourceParameters(device: String, range: IntRange)
 
 case class IntSinkPortParameters()
 case class IntSourcePortParameters(sources: Seq[IntSourceParameters])
 {
-  val num = sources.map(_.num).sum
+  val num = sources.map(_.range.size).sum
+  // The interrupts mapping must not overlap
+  sources.map(_.range).combinations(2).foreach { case Seq(a, b) => require (!a.overlaps(b)) }
+  // The interrupts must perfectly cover the range
+  require (sources.map(_.range.end).max == num)
 }
 case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters)
 
@@ -57,8 +75,12 @@ class IntXbar extends LazyModule
   val intnode = IntAdapterNode(
     numSourcePorts = 1 to 1, // does it make sense to have more than one interrupt sink?
     numSinkPorts   = 1 to 128,
-    sourceFn       = { seq => IntSourcePortParameters(seq.map(_.sources).flatten) },
-    sinkFn         = { _ => IntSinkPortParameters() })
+    sinkFn         = { _ => IntSinkPortParameters() },
+    sourceFn       = { seq =>
+      IntSourcePortParameters((seq zip seq.map(_.num).scanLeft(0)(_+_).init).map {
+        case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
+      }.flatten)
+    })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
