@@ -49,7 +49,9 @@ verilator/verilator-$(VERILATOR_VERSION).tar.gz:
 
 # Run Verilator to produce a fast binary to emulate this circuit.
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
-VERILATOR_FLAGS := --top-module $(MODEL) +define+PRINTF_COND=\$$c\(\"verbose\"\) --assert \
+VERILATOR_FLAGS := --top-module $(MODEL) \
+  +define+PRINTF_COND=\$$c\(\"verbose\",\"\&\&\"\,\"done_reset\"\) \
+  +define+STOP_COND=\$$c\(\"done_reset\"\) --assert \
 	-Wno-STMTDLY --x-assign unique \
   -I$(base_dir)/vsrc \
   -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -include $(base_dir)/csrc/verilator.h"
