@@ -171,10 +171,10 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
 
 object TLWidthWidget
 {
-  // applied to the TL source node; connect (WidthWidget(x.node, 16) -> y.node)
-  def apply(x: TLBaseNode, innerBeatBytes: Int)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
+  // applied to the TL source node; y.node := WidthWidget(x.node, 16)
+  def apply(x: TLBaseNode, innerBeatBytes: Int)(implicit sourceInfo: SourceInfo): TLBaseNode = {
     val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
-    lazyModule.connect(x -> widget.node)
+    widget.node := x
     widget.node
   }
 }
