@@ -76,20 +76,21 @@ class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
   def connectOut = bundleOut
   def connectIn = bundleIn
 
-  // source.edge(sink)
-  protected[tilelink2] def edge(x: BaseNode[PO, PI, EO, EI, B])(implicit sourceInfo: SourceInfo) = {
+  protected[tilelink2] def := (y: BaseNode[PO, PI, EO, EI, B])(implicit sourceInfo: SourceInfo) = {
+    val x = this // x := y
     val info = sourceLine(sourceInfo, " at ", "")
-    require (!noOs, s"${name}${lazyModule.line} was incorrectly connected as a source" + info)
-    require (!oRealized, s"${name}${lazyModule.line} was incorrectly connected as a source after it's .module was used" + info)
+    require (!LazyModule.stack.isEmpty, s"${y.name} cannot be connected to ${x.name} outside of LazyModule scope" + info)
+    require (!y.noOs, s"${y.name}${y.lazyModule.line} was incorrectly connected as a source" + info)
+    require (!y.oRealized, s"${y.name}${y.lazyModule.line} was incorrectly connected as a source after it's .module was used" + info)
     require (!x.noIs, s"${x.name}${x.lazyModule.line} was incorrectly connected as a sink" + info)
     require (!x.iRealized, s"${x.name}${x.lazyModule.line} was incorrectly connected as a sink after it's .module was used" + info)
     val i = x.accPI.size
-    val o = accPO.size
-    accPO += ((i, x))
-    x.accPI += ((o, this))
-    () => {
-      imp.connect(connectOut(o), edgesOut(o), x.connectIn(i), x.edgesIn(i))
-    }
+    val o = y.accPO.size
+    y.accPO += ((i, x))
+    x.accPI += ((o, y))
+    LazyModule.stack.head.bindings = (() => {
+      imp.connect(y.connectOut(o), y.edgesOut(o), x.connectIn(i), x.edgesIn(i))
+    }) :: LazyModule.stack.head.bindings
   }
 }
 

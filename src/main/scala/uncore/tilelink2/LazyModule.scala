@@ -18,16 +18,13 @@ abstract class LazyModule
 
   // Use as: connect(source -> sink, source2 -> sink2, ...)
   def connect[PO, PI, EO, EI, B <: Data](edges: (BaseNode[PO, PI, EO, EI, B], BaseNode[PO, PI, EO, EI, B])*)(implicit sourceInfo: SourceInfo) = {
-    edges.foreach { case (source, sink) =>
-      bindings = (source edge sink) :: bindings
-    }
+    edges.foreach { case (source, sink) => sink := source }
   }
 
   def name = getClass.getName.split('.').last
   def line = sourceLine(info)
 
   def module: LazyModuleImp
-  implicit val lazyModule = this
 
   protected[tilelink2] def instantiate() = {
     children.reverse.foreach { c => 
