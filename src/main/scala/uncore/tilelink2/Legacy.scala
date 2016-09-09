@@ -107,7 +107,7 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     out.a.bits.addr_hi := ~(~address | addressMask) >> log2Ceil(tlDataBytes)
 
     // TL legacy does not support bus errors
-    assert (!out.d.bits.error)
+    assert (!out.d.valid || !out.d.bits.error)
 
     // Recreate the beat address counter
     val beatCounter = RegInit(UInt(0, width = tlBeatAddrBits))
