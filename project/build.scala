@@ -16,15 +16,10 @@ object BuildSettings extends Build {
     libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
   )
 
-  lazy val chisel = project in file("chisel" + sys.env.getOrElse("CHISEL_VERSION", 3))
+  lazy val chisel = project in file("chisel3")
   lazy val cde        = project in file("context-dependent-environments")
   lazy val hardfloat  = project.dependsOn(chisel)
-  lazy val junctions  = project.dependsOn(chisel, cde)
-  lazy val uncore     = project.dependsOn(junctions)
-  lazy val rocket     = project.dependsOn(hardfloat, uncore)
-  lazy val groundtest = project.dependsOn(rocket)
-  lazy val coreplex   = project.dependsOn(groundtest)
-  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(coreplex)
+  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(chisel, cde, hardfloat)
 
   lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
   lazy val make = inputKey[Unit]("trigger backend-specific makefile command")

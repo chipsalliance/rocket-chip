@@ -8,12 +8,8 @@ regression: vsim-regression emulator-regression
 vsim-regression: vsim-torture
 emulator-regression: emulator-torture
 
-ifeq ($(TORTURE_CONFIG),)
-$(error Set TORTURE_CONFIG to the torture configuration to run)
-endif
-
-# The version of Chisel to use
-CHISEL_VERSION ?= 2
+# The torture configuration to use
+TORTURE_CONFIG ?= default
 
 # The top-level directory that contains rocket-chip
 TOP ?= ..
@@ -57,6 +53,13 @@ CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtes
 	UnitTestConfig
 endif
 
+ifeq ($(SUITE), JtagDtmSuite)
+CONFIGS_32=WithJtagDTM_DefaultRV32Config
+CONFIGS_64=WithJtagDTM_DefaultConfig
+CONFIGS += $(CONFIGS_32)
+CONFIGS += $(CONFIGS_64)
+endif
+
 # These are the named regression targets.  While it's expected you run them in
 # this order, since there's dependencies for everything it doesn't actually
 # matter.  They're here to make running the various targets from the
@@ -94,7 +97,7 @@ vsim-bmark-tests: $(VSIM_BMARK_TEST_STAMPS)
 vsim-regression-tests: $(VSIM_REGRESSION_TEST_STAMPS)
 vsim-torture: $(VSIM_TORTURE_STAMPS)
 
-submodule_names = chisel2 chisel3 context-dependent-environments dramsim2 firrtl groundtest hardfloat junctions rocket torture uncore $(ROCKETCHIP_ADDONS)
+submodule_names = chisel3 context-dependent-environments firrtl torture hardfloat $(ROCKETCHIP_ADDONS)
 
 # Checks out all the rocket-chip submodules
 stamps/other-submodules.stamp:
@@ -118,65 +121,65 @@ $(RISCV)/install.stamp:
 # Builds the various simulators
 stamps/%/emulator-verilog.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) verilog
 	date > $@
 
 stamps/%/emulator-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV))
 	date > $@
 
 stamps/%/emulator-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) debug
 	date > $@
 
 stamps/%/vsim-verilog.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) verilog
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) verilog
 	date > $@
 
 stamps/%/vsim-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION)
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV))
 	date > $@
 
 stamps/%/vsim-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) debug
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) debug
 	date > $@
 
 # Runs tests on one of the simulators
 stamps/%/emulator-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) run-asm-tests-fast
 	date > $@
 
 stamps/%/emulator-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) run-bmark-tests-fast
 	date > $@
 
 stamps/%/emulator-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) clean-run-output
-	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-regression-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) clean-run-output
+	$(MAKE) -C $(abspath $(TOP))/emulator CONFIG=$* RISCV=$(abspath $(RISCV)) run-regression-tests-fast
 	date > $@
 
 stamps/%/vsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-asm-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) run-asm-tests-fast
 	date > $@
 
 stamps/%/vsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-bmark-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) run-bmark-tests-fast
 	date > $@
 
 stamps/%/vsim-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) clean-run-output
-	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) CHISEL_VERSION=$(CHISEL_VERSION) run-regression-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) clean-run-output
+	$(MAKE) -C $(abspath $(TOP))/vsim CONFIG=$* RISCV=$(abspath $(RISCV)) run-regression-tests-fast
 	date > $@
 
 # The torture tests run subtly differently on the different targets, so they
@@ -190,3 +193,57 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 	mkdir -p $(dir $@)
 	$(MAKE) -C $(abspath $(TOP))/torture cnight RTL_CONFIG=$* RISCV=$(abspath $(RISCV)) PATH="$(abspath $(RISCV)/bin:$(PATH))" OPTIONS="-C $(abspath $(TOP)/torture/config/$(TORTURE_CONFIG).config) -p $(abspath $(TORTURE_SAVE_DIR)) -m 30 -t 10"
 	date > $@
+
+
+# Targets for JTAG DTM full-chain simulation
+
+OPENOCD_HEAD ?= riscv
+OPENOCD_INSTALL ?= $(abspath $(TOP))/openocd-install
+OPENOCD_VERSION = $(shell git ls-remote http://github.com/sifive/openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
+OPENOCD_DIR = $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/
+
+$(OPENOCD_DIR)/bin/openocd:
+	rm -rf openocd
+	git clone http://github.com/sifive/openocd.git 
+	cd openocd ; \
+	git checkout $(OPENOCD_VERSION) ; \
+	./bootstrap ; \
+	./configure --enable-jtag-vpi --prefix=$(OPENOCD_INSTALL)_$(OPENOCD_VERSION) ; \
+	make ; \
+	make install
+
+install_openocd: $(OPENOCD_DIR)/bin/openocd
+
+# If this is defined empty, then all tests would run.
+# Running a list of tests is not supported.
+JTAG_DTM_TEST ?= SimpleRegisterTest.test_s0
+
+stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
+	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+	--run $(abspath $(TOP))/vsim/simv-TestHarness-$* \
+	--cmd="$(OPENOCD_DIR)/bin/openocd \
+	--s $(OPENOCD_DIR)/share/openocd/scripts" \
+	--freedom-e300-sim \
+	$(JTAG_DTM_TEST)
+	date > $@
+
+stamps/%/jtag-dtm-64-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
+	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+	--run $(abspath $(TOP))/vsim/simv-TestHarness-$* \
+	--cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd \
+	--s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
+	--freedom-u500-sim \
+	$(JTAG_DTM_TEST)
+	date > $@
+
+JTAG_DTM_32_TEST_STAMPS=$(foreach config,$(CONFIGS_32),stamps/$(config)/jtag-dtm-32-$(JTAG_DTM_TEST).stamp)
+JTAG_DTM_64_TEST_STAMPS=$(foreach config,$(CONFIGS_64),stamps/$(config)/jtag-dtm-64-$(JTAG_DTM_TEST).stamp)
+
+jtag-dtm-tests-32 : $(JTAG_DTM_32_TEST_STAMPS)
+jtag-dtm-tests-64 : $(JTAG_DTM_64_TEST_STAMPS)
+
+# Targets for JTAG DTM full-chain simulation
+jtag-dtm-regression: jtag-dtm-tests-32 jtag-dtm-tests-64
+
+
+

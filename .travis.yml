@@ -8,6 +8,7 @@ cache:
   directories:
     $HOME/.ivy2
     regression/install
+    emulator/verilator
 
 # packages needed to build riscv-tools
 addons:
@@ -32,9 +33,9 @@ addons:
 
 env:
   matrix:
-    - SUITE=RocketSuite     CHISEL_VERSION=3
-    - SUITE=BOOMSuite       CHISEL_VERSION=3
-    - SUITE=GroundtestSuite CHISEL_VERSION=3
+    - SUITE=RocketSuite
+    - SUITE=GroundtestSuite
+    - SUITE=BOOMSuite
 
 # blacklist private branches
 branches:
@@ -47,8 +48,8 @@ before_install:
   - export CXX=g++-4.8 CC=gcc-4.8
 
 script:
-  - make emulator-ndebug -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
-  - make emulator-regression-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default CHISEL_VERSION=$CHISEL_VERSION
+  - make emulator-ndebug -C regression SUITE=$SUITE TORTURE_CONFIG=default
+  - make emulator-regression-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default
 
 before_cache:
   - ls -tr regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf

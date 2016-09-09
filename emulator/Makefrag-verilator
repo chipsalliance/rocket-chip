@@ -11,13 +11,11 @@ verilog_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).v
 
 $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).prm $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "run $(PROJECT) $(MODEL) $(CONFIG) --targetDir $(generated_dir)"
-	mv $(generated_dir)/$(MODEL).fir $(generated_dir)/$(MODEL).$(CONFIG).fir
+	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
 $(generated_dir_debug)/%.$(CONFIG).fir $(generated_dir_debug)/%.$(CONFIG).prm $(generated_dir_debug)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "run $(PROJECT) $(MODEL) $(CONFIG) --targetDir $(generated_dir_debug)"
-	mv $(generated_dir_debug)/$(MODEL).fir $(generated_dir_debug)/$(MODEL).$(CONFIG).fir
+	cd $(base_dir) && $(SBT) "run $(generated_dir_debug) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
 %.v: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
@@ -53,6 +51,7 @@ verilator/verilator-$(VERILATOR_VERSION).tar.gz:
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
 VERILATOR_FLAGS := --top-module $(MODEL) +define+PRINTF_COND=\$$c\(\"verbose\"\) --assert \
 	-Wno-STMTDLY --x-assign unique \
+  -I$(base_dir)/vsrc \
   -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -include $(base_dir)/csrc/verilator.h"
 cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
 headers = $(wildcard $(base_dir)/csrc/*.h)
@@ -60,14 +59,14 @@ headers = $(wildcard $(base_dir)/csrc/*.h)
 model_header = $(generated_dir)/$(MODEL).$(CONFIG)/V$(MODEL).h
 model_header_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG)/V$(MODEL).h
 
-$(emu): $(verilog) $(cppfiles) $(headers) libdramsim.a $(consts_header) $(INSTALLED_VERILATOR)
+$(emu): $(verilog) $(cppfiles) $(headers) $(consts_header) $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir)/$(MODEL).$(CONFIG)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir)/$(MODEL).$(CONFIG) \
 	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
 	-CFLAGS "-I$(generated_dir) -include $(model_header) -include $(consts_header)"
 	$(MAKE) -C $(generated_dir)/$(MODEL).$(CONFIG) -f V$(MODEL).mk
 
-$(emu_debug): $(verilog_debug) $(cppfiles) $(headers) libdramsim.a $(consts_header_debug) $(generated_dir)/$(MODEL).$(CONFIG).d $(INSTALLED_VERILATOR)
+$(emu_debug): $(verilog_debug) $(cppfiles) $(headers) $(consts_header_debug) $(generated_dir)/$(MODEL).$(CONFIG).d $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir_debug)/$(MODEL).$(CONFIG)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir_debug)/$(MODEL).$(CONFIG)  --trace \
 	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
