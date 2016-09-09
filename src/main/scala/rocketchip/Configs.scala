@@ -74,6 +74,7 @@ class BasePlatformConfig extends Config(
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
         case BuildExampleTop =>
           (p: Parameters) => uncore.tilelink2.LazyModule(new ExampleTop(p))
+        case SimMemLatency => 0
         case _ => throw new CDEMatchError
       }
     }
