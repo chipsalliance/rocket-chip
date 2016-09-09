@@ -15,6 +15,7 @@
 extern dtm_t* dtm;
 static uint64_t trace_count = 0;
 bool verbose;
+bool done_reset;
 
 void handle_sigterm(int sig)
 {
@@ -82,12 +83,14 @@ int main(int argc, char** argv)
 
   // reset for several cycles to handle pipelined reset
   for (int i = 0; i < 10; i++) {
+    done_reset = false;
     tile->reset = 1;
     tile->clk = 0;
     tile->eval();
     tile->clk = 1;
     tile->eval();
     tile->reset = 0;
+    done_reset = true;
   }
 
   while (!dtm->done() && !tile->io_success && trace_count < max_cycles) {
