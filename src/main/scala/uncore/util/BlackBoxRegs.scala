@@ -3,7 +3,6 @@ package uncore.util
 import Chisel._
 
 import cde.{Parameters}
-import junctions.{ParameterizedBundle}
 
 /** This black-boxes an Async Reset
   * Reg.
@@ -47,7 +46,7 @@ class AsyncResetReg  extends BlackBox {
 }
 
 
-class SimpleRegIO(val w: Int)(implicit val p: Parameters) extends ParameterizedBundle()(p){
+class SimpleRegIO(val w: Int) extends Bundle{
 
   val d = UInt(INPUT, width = w)
   val q = UInt(OUTPUT, width = w)
@@ -56,9 +55,9 @@ class SimpleRegIO(val w: Int)(implicit val p: Parameters) extends ParameterizedB
 
 }
 
-class AsyncResetRegVec(val w: Int, val init: Int)(implicit val p: Parameters) extends Module {
+class AsyncResetRegVec(val w: Int, val init: Int) extends Module {
 
-  val io = new SimpleRegIO(w)(p)
+  val io = new SimpleRegIO(w)
 
   val bb_q = Wire(UInt(width = w))
   val bb_d = Wire(UInt(width = w))
