@@ -12,8 +12,8 @@ import cde.{Parameters, Field}
 
 case class FPUConfig(
   divSqrt: Boolean = true,
-  sfmaLatency: Int = 2,
-  dfmaLatency: Int = 3
+  sfmaLatency: Int = 3,
+  dfmaLatency: Int = 4
 )
 
 object FPConstants

@@ -15,6 +15,7 @@
 extern dtm_t* dtm;
 static uint64_t trace_count = 0;
 bool verbose;
+bool done_reset;
 
 void handle_sigterm(int sig)
 {
@@ -89,6 +90,7 @@ int main(int argc, char** argv)
     tile->eval();
     tile->reset = 0;
   }
+  done_reset = true;
 
   while (!dtm->done() && !tile->io_success && trace_count < max_cycles) {
     tile->clk = 0;
