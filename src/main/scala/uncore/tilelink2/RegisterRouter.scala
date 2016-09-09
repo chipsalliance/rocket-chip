@@ -75,29 +75,39 @@ object TLRegisterNode
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
 
-abstract class TLRegisterRouterBase(address: AddressSet, concurrency: Option[Int], beatBytes: Int) extends LazyModule
+abstract class TLRegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Option[Int], beatBytes: Int) extends LazyModule
 {
   val node = TLRegisterNode(address, concurrency, beatBytes)
+  val intnode = IntSourceNode(name + s" @ ${address.base}", interrupts)
 }
 
-class TLRegBundle[P](val params: P, val in: Vec[TLBundle]) extends Bundle
+case class TLRegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[TLBundle])
 
-class TLRegModule[P, B <: Bundle](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
+class TLRegBundleBase(arg: TLRegBundleArg) extends Bundle
+{
+  val interrupts = arg.interrupts
+  val in = arg.in
+}
+
+class TLRegBundle[P](val params: P, arg: TLRegBundleArg) extends TLRegBundleBase(arg)
+
+class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
 {
   val io = bundleBuilder
+  val interrupts = if (io.interrupts.isEmpty) Vec(0, Bool()) else io.interrupts(0)
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
-class TLRegisterRouter[B <: Bundle, M <: LazyModuleImp]
-   (base: BigInt, size: BigInt = 4096, concurrency: Option[Int] = None, beatBytes: Int = 4)
-   (bundleBuilder: Vec[TLBundle] => B)
+class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp]
+   (base: BigInt, interrupts: Int = 0, size: BigInt = 4096, concurrency: Option[Int] = None, beatBytes: Int = 4)
+   (bundleBuilder: TLRegBundleArg => B)
    (moduleBuilder: (=> B, TLRegisterRouterBase) => M)
-  extends TLRegisterRouterBase(AddressSet(base, size-1), concurrency, beatBytes)
+  extends TLRegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes)
 {
   require (size % 4096 == 0) // devices should be 4K aligned
   require (isPow2(size))
   require (size >= 4096)
 
-  lazy val module = moduleBuilder(bundleBuilder(node.bundleIn), this)
+  lazy val module = moduleBuilder(bundleBuilder(TLRegBundleArg(intnode.bundleOut, node.bundleIn)), this)
 }
