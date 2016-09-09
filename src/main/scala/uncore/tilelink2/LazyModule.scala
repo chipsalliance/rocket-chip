@@ -24,10 +24,7 @@ abstract class LazyModule
   }
 
   def name = getClass.getName.split('.').last
-  def line = info match {
-    case SourceLine(filename, line, col) => s" ($filename:$line:$col)"
-    case _ => ""
-  }
+  def line = sourceLine(info)
 
   def module: LazyModuleImp
   implicit val lazyModule = this
@@ -50,7 +47,8 @@ object LazyModule
     // Make sure the user put LazyModule around modules in the correct order
     // If this require fails, probably some grandchild was missing a LazyModule
     // ... or you applied LazyModule twice
-    require (!stack.isEmpty && (stack.head eq bc))
+    require (!stack.isEmpty, s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}")
+    require (stack.head eq bc, s"LazyModule() applied to ${bc.name} before ${stack.head.name} ${sourceLine(sourceInfo)}")
     stack = stack.tail
     bc.info = sourceInfo
     bc
@@ -60,7 +58,7 @@ object LazyModule
 abstract class LazyModuleImp(outer: LazyModule) extends Module
 {
   // .module had better not be accessed while LazyModules are still being built!
-  require (LazyModule.stack.isEmpty)
+  require (LazyModule.stack.isEmpty, s"${outer.name}.module was constructed before LazyModule() was run on ${LazyModule.stack.head.name}")
 
   override def desiredName = outer.name
   outer.instantiate()
