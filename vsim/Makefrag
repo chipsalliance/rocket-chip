@@ -6,7 +6,8 @@
 
 bb_vsrcs = $(base_dir)/vsrc/DebugTransportModuleJtag.v \
 	$(base_dir)/vsrc/jtag_vpi.v \
-	$(base_dir)/vsrc/AsyncMailbox.v
+	$(base_dir)/vsrc/AsyncMailbox.v \
+	$(base_dir)/vsrc/AsyncResetReg.v
 
 sim_vsrcs = \
 	$(generated_dir)/$(MODEL).$(CONFIG).v \

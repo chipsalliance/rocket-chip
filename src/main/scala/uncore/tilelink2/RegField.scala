@@ -4,6 +4,8 @@ package uncore.tilelink2
 
 import Chisel._
 
+import uncore.util.{SimpleRegIO}
+
 case class RegReadFn private(combinational: Boolean, fn: (Bool, Bool) => (Bool, Bool, UInt))
 object RegReadFn
 {
@@ -81,6 +83,15 @@ object RegField
   // Setting takes priority over clearing.
   def w1ToClear(n: Int, reg: UInt, set: UInt): RegField =
     RegField(n, reg, RegWriteFn((valid, data) => { reg := ~(~reg | Mux(valid, data, UInt(0))) | set; Bool(true) }))
+
+  // This RegField wraps an explicit register
+  // (e.g. Black-Boxed Register) to create a R/W register.
+  def rwReg(n: Int, bb: SimpleRegIO) : RegField =
+    RegField(n, bb.q, RegWriteFn((valid, data) => {
+      bb.en := valid
+      bb.d := data
+      Bool(true)
+    }))
 }
 
 trait HasRegMap
