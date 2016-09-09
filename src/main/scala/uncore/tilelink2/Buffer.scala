@@ -14,25 +14,23 @@ class TLBuffer(entries: Int = 2, pipe: Boolean = false) extends LazyModule
       val in  = node.bundleIn
       val out = node.bundleOut
     }
-
-    val in  = io.in(0)
-    val out = io.out(0)
-
-    out.a <> Queue(in .a, entries, pipe)
-    in .d <> Queue(out.d, entries, pipe)
     
-    val edge = node.edgesOut(0) // same as edgeIn(0)
-    if (edge.manager.anySupportAcquire && edge.client.anySupportProbe) {
-      in .b <> Queue(out.b, entries, pipe)
-      out.c <> Queue(in .c, entries, pipe)
-      out.e <> Queue(out.e, entries, pipe)
-    } else {
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
+    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+      out.a <> Queue(in .a, entries, pipe)
+      in .d <> Queue(out.d, entries, pipe)
+
+      if (edgeOut.manager.anySupportAcquire && edgeOut.client.anySupportProbe) {
+        in .b <> Queue(out.b, entries, pipe)
+        out.c <> Queue(in .c, entries, pipe)
+        out.e <> Queue(out.e, entries, pipe)
+      } else {
+        in.b.valid := Bool(false)
+        in.c.ready := Bool(true)
+        in.e.ready := Bool(true)
+        out.b.ready := Bool(true)
+        out.c.valid := Bool(false)
+        out.e.valid := Bool(false)
+      }
     }
   }
 }
