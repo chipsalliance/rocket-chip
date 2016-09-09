@@ -240,10 +240,10 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 
 object TLFragmenter
 {
-  // applied to the TL source node; connect (TLFragmenter(x.node, 256, 4) -> y.node)
-  def apply(x: TLBaseNode, minSize: Int, maxSize: Int, alwaysMin: Boolean = false)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
+  // applied to the TL source node; y.node := TLFragmenter(x.node, 256, 4)
+  def apply(x: TLBaseNode, minSize: Int, maxSize: Int, alwaysMin: Boolean = false)(implicit sourceInfo: SourceInfo): TLBaseNode = {
     val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin))
-    lazyModule.connect(x -> fragmenter.node)
+    fragmenter.node := x
     fragmenter.node
   }
 }
