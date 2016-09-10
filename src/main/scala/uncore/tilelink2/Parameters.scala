@@ -117,9 +117,7 @@ case class TLManagerParameters(
   address.combinations(2).foreach({ case Seq(x,y) =>
     require (!x.overlaps(y))
   })
-  address.foreach({ case a =>
-    require (supportsAcquire.none || a.alignment1 >= supportsAcquire.max-1)
-  })
+  require (supportsPutFull.contains(supportsPutPartial))
 
   // Largest support transfer of all types
   val maxTransfer = List(
@@ -218,6 +216,8 @@ case class TLClientParameters(
   supportsPutPartial:  TransferSizes = TransferSizes.none,
   supportsHint:        Boolean       = false)
 {
+  require (supportsPutFull.contains(supportsPutPartial))
+
   val maxTransfer = List(
     supportsProbe.max,
     supportsArithmetic.max,
