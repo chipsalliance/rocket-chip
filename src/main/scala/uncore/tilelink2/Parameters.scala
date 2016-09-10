@@ -322,7 +322,7 @@ case class TLEdgeParameters(
   require (maxTransfer >= manager.beatBytes)
 
   val bundle = TLBundleParameters(
-    addrHiBits  = log2Up(manager.maxAddress + 1) - log2Up(manager.beatBytes),
+    addrHiBits  = log2Up(manager.maxAddress + 1) - log2Ceil(manager.beatBytes),
     dataBits    = manager.beatBytes * 8,
     sourceBits  = log2Up(client.endSourceId),
     sinkBits    = log2Up(manager.endSinkId),
