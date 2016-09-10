@@ -4,12 +4,14 @@ import Chisel._
 import junctions._
 import cde.{Field, Parameters}
 
-abstract class UnitTest extends Module {
+trait HasUnitTestIO {
   val io = new Bundle {
     val finished = Bool(OUTPUT)
     val start = Bool(INPUT)
   }
+}
 
+abstract class UnitTest extends Module with HasUnitTestIO {
   when (io.start) {
     printf(s"Started UnitTest ${this.getClass.getSimpleName}\n")
   }
