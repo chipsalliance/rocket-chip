@@ -192,7 +192,17 @@ class TLEdge(
         val cutoff = log2Ceil(manager.beatBytes)
         val small = if (manager.maxTransfer <= manager.beatBytes) Bool(true) else size <= UInt(cutoff)
         val decode = UIntToOH(size, maxLgSize+1) >> cutoff
-        Mux(!hasData || small, UInt(1), decode)
+        Mux(hasData, decode | small.asUInt, UInt(1))
+      }
+    }
+  }
+
+  def numBeats1(x: TLChannel): UInt = {
+    x match {
+      case _: TLBundleE => UInt(0)
+      case bundle: TLDataChannel => {
+        val decode = UIntToOH1(size(bundle), maxLgSize) >> log2Ceil(manager.beatBytes)
+        Mux(hasData(bundle), decode, UInt(0))
       }
     }
   }
