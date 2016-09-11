@@ -15,7 +15,8 @@ class TLRAMModel extends LazyModule
       val out = node.bundleOut
     }
 
-    require (io.out.size == 1) // !!! support multiple clients
+    // !!! support multiple clients via clock division
+    require (io.out.size == 1)
 
     val in = io.in(0)
     val out = io.out(0)
@@ -64,6 +65,7 @@ class TLRAMModel extends LazyModule
       val opcode  = UInt(width = 3)
     }
 
+    // Infer as simple dual port BRAM/M10k with write-first/new-data semantics (bypass needed)
     val shadow = Seq.fill(beatBytes) { Mem(endAddressHi, new ByteMonitor) }
     val inc_bytes = Seq.fill(beatBytes) { Mem(endAddressHi, UInt(width = countBits)) }
     val dec_bytes = Seq.fill(beatBytes) { Mem(endAddressHi, UInt(width = countBits)) }
@@ -76,8 +78,18 @@ class TLRAMModel extends LazyModule
     val inc_trees_wen = Wire(init = Fill(decTrees, wipe))
     val dec_trees_wen = Wire(init = Fill(decTrees, wipe))
 
-    // Don't care on power-up !!! Mem ?
-    val flight = Reg(Vec(endSourceId, new FlightMonitor))
+    // This requires either distributed memory or registers (no register on either input or output)
+    val flight = Mem(endSourceId, new FlightMonitor)
+
+    // We want to cross flight data from A to D in the same cycle (for combinational TL2 devices)
+    val a_flight = Wire(new FlightMonitor)
+    a_flight.base   := edge.address(in.a.bits)
+    a_flight.size   := edge.size(in.a.bits)
+    a_flight.opcode := in.a.bits.opcode
+
+    flight.write(in.a.bits.source, a_flight)
+    val bypass = in.a.valid && in.a.bits.source === out.d.bits.source
+    val d_flight = RegNext(Mux(bypass, a_flight, flight.read(out.d.bits.source)))
 
     // Process A access requests
     val a = Reg(next = in.a.bits)
@@ -92,12 +104,6 @@ class TLRAMModel extends LazyModule
     val a_base = edge.address(a)
     val a_mask = edge.mask(a_base, a_size)
 
-    // What is the request?
-    val a_flight = Wire(new FlightMonitor)
-    a_flight.base   := a_base
-    a_flight.size   := a_size
-    a_flight.opcode := a.opcode
-
     // Grab the concurrency state we need
     val a_inc_bytes = inc_bytes.map(_.read(a_addr_hi))
     val a_dec_bytes = dec_bytes.map(_.read(a_addr_hi))
@@ -110,7 +116,6 @@ class TLRAMModel extends LazyModule
 
     when (a_fire) {
       // Record the request so we can handle it's response
-      flight(a.source) := a_flight
       a_counter := Mux(a_first, a_beats1, a_counter1)
 
       // !!! atomics
@@ -165,7 +170,6 @@ class TLRAMModel extends LazyModule
     val d = RegNext(out.d.bits)
     val d_fire = Reg(next = out.d.fire(), init = Bool(false))
     val d_bypass = a_fire && d.source === a.source
-    val d_flight = Mux(d_bypass, a_flight, flight(d.source))
     val d_beats1 = edge.numBeats1(d)
     val d_size = edge.size(d)
     val d_sizeOH = UIntToOH(d_size)
@@ -173,7 +177,7 @@ class TLRAMModel extends LazyModule
     val d_counter1 = d_counter - UInt(1)
     val d_first = d_counter === UInt(0)
     val d_last  = d_counter === UInt(1) || d_beats1 === UInt(0)
-    val d_base = d_flight.base // !!! not a register => can't be absorbed
+    val d_base = d_flight.base
     val d_addr_hi = d_base >> shift | (d_beats1 & ~d_counter1)
     val d_mask = edge.mask(d_base, d_size)
 
