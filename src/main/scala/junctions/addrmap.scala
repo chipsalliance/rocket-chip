@@ -7,13 +7,12 @@ import cde.{Parameters, Field}
 import scala.collection.mutable.HashMap
 
 case object PAddrBits extends Field[Int]
-case object GlobalAddrMap extends Field[AddrMap]
 
 trait HasAddrMapParameters {
   implicit val p: Parameters
 
   val paddrBits = p(PAddrBits)
-  val addrMap = p(GlobalAddrMap)
+  def addrMap = p(rocketchip.GlobalAddrMap).get
 }
 
 case class MemAttr(prot: Int, cacheable: Boolean = false)
