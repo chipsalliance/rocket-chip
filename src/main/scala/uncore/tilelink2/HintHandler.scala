@@ -90,10 +90,10 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
 
 object TLHintHandler
 {
-  // applied to the TL source node; connect (TLHintHandler(x.node) -> y.node)
-  def apply(x: TLBaseNode, supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
+  // applied to the TL source node; y.node := TLHintHandler(x.node)
+  def apply(x: TLBaseNode, supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit sourceInfo: SourceInfo): TLBaseNode = {
     val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
-    lazyModule.connect(x -> hints.node)
+    hints.node := x
     hints.node
   }
 }

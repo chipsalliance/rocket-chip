@@ -39,10 +39,10 @@ class TLBuffer(entries: Int = 2, pipe: Boolean = false) extends LazyModule
 
 object TLBuffer
 {
-  // applied to the TL source node; connect (TLBuffer(x.node) -> y.node)
-  def apply(x: TLBaseNode, entries: Int = 2, pipe: Boolean = false)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
+  // applied to the TL source node; y.node := TLBuffer(x.node)
+  def apply(x: TLBaseNode, entries: Int = 2, pipe: Boolean = false)(implicit sourceInfo: SourceInfo): TLBaseNode = {
     val buffer = LazyModule(new TLBuffer(entries, pipe))
-    lazyModule.connect(x -> buffer.node)
+    buffer.node := x
     buffer.node
   }
 }

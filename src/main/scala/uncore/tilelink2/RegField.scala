@@ -4,6 +4,8 @@ package uncore.tilelink2
 
 import Chisel._
 
+import uncore.util.{SimpleRegIO}
+
 case class RegReadFn private(combinational: Boolean, fn: (Bool, Bool) => (Bool, Bool, UInt))
 object RegReadFn
 {
@@ -56,7 +58,7 @@ object RegWriteFn
     })
   // write to a DecoupledIO (only safe if there is a consistent sink draining data)
   implicit def apply(x: DecoupledIO[UInt]): RegWriteFn = RegWriteFn((valid, data) => { x.valid := valid; x.bits := data; x.ready })
-  // updates a register
+  // updates a register (or adds a mux to a wire)
   implicit def apply(x: UInt): RegWriteFn = RegWriteFn((valid, data) => { when (valid) { x := data }; Bool(true) })
   // noop
   implicit def apply(x: Unit): RegWriteFn = RegWriteFn((valid, data) => { Bool(true) })
@@ -73,13 +75,29 @@ object RegField
   type Map = (Int, Seq[RegField])
   def apply(n: Int)            : RegField = apply(n, (), ())
   def apply(n: Int, rw: UInt)  : RegField = apply(n, rw, rw)
-  def R(n: Int, r: RegReadFn)  : RegField = apply(n, r, ())
-  def W(n: Int, w: RegWriteFn) : RegField = apply(n, (), w)
+  def r(n: Int, r: RegReadFn)  : RegField = apply(n, r, ())
+  def w(n: Int, w: RegWriteFn) : RegField = apply(n, (), w)
+
+  // This RegField allows 'set' to set bits in 'reg'.
+  // and to clear bits when the bus writes bits of value 1.
+  // Setting takes priority over clearing.
+  def w1ToClear(n: Int, reg: UInt, set: UInt): RegField =
+    RegField(n, reg, RegWriteFn((valid, data) => { reg := ~(~reg | Mux(valid, data, UInt(0))) | set; Bool(true) }))
+
+  // This RegField wraps an explicit register
+  // (e.g. Black-Boxed Register) to create a R/W register.
+  def rwReg(n: Int, bb: SimpleRegIO) : RegField =
+    RegField(n, bb.q, RegWriteFn((valid, data) => {
+      bb.en := valid
+      bb.d := data
+      Bool(true)
+    }))
 }
 
 trait HasRegMap
 {
   def regmap(mapping: RegField.Map*): Unit
+  val interrupts: Vec[Bool]
 }
 
 // See GPIO.scala for an example of how to use regmap

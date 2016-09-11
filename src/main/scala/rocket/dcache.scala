@@ -173,9 +173,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   when (s2_valid && (!s2_valid_hit || s2_update_meta)) { s1_nack := true }
 
   // exceptions
-  val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).misaligned
-  io.cpu.xcpt.ma.ld := s1_read && misaligned
-  io.cpu.xcpt.ma.st := s1_write && misaligned
+  val s1_storegen = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes)
+  io.cpu.xcpt.ma.ld := s1_read && s1_storegen.misaligned
+  io.cpu.xcpt.ma.st := s1_write && s1_storegen.misaligned
   io.cpu.xcpt.pf.ld := s1_read && tlb.io.resp.xcpt_ld
   io.cpu.xcpt.pf.st := s1_write && tlb.io.resp.xcpt_st
 
@@ -232,8 +232,8 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   // store->load RAW hazard detection
   val s1_idx = s1_req.addr(idxMSB, wordOffBits)
   val s1_raw_hazard = s1_read &&
-    ((pstore1_valid && pstore1_addr(idxMSB, wordOffBits) === s1_idx) ||
-     (pstore2_valid && pstore2_addr(idxMSB, wordOffBits) === s1_idx))
+    ((pstore1_valid && pstore1_addr(idxMSB, wordOffBits) === s1_idx && (pstore1_storegen.mask & s1_storegen.mask).orR) ||
+     (pstore2_valid && pstore2_addr(idxMSB, wordOffBits) === s1_idx && (pstore2_storegen_mask & s1_storegen.mask).orR))
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   metaWriteArb.io.in(0).valid := (s2_valid_hit && s2_update_meta) || (s2_victimize && !s2_victim_dirty)

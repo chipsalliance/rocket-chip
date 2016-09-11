@@ -100,7 +100,7 @@ object TLAtomics
   def isLogical(x: UInt) = x <= SWAP
 }
 
-sealed trait TLChannel
+sealed trait TLChannel extends TLBundleBase
 sealed trait TLDataChannel extends TLChannel
 sealed trait TLAddrChannel extends TLDataChannel
 
@@ -165,7 +165,7 @@ final class TLBundleD(params: TLBundleParameters)
 final class TLBundleE(params: TLBundleParameters)
   extends TLBundleBase(params) with TLChannel
 {
-  val sink = UInt(width = params.sourceBits) // to
+  val sink = UInt(width = params.sinkBits) // to
 }
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
