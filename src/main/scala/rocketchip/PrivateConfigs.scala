@@ -51,8 +51,8 @@ class SmallBOOMConfig  extends Config(new WithSmallBOOMs  ++ new WithAllBooms ++
 class MediumBOOMConfig extends Config(new WithMediumBOOMs ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultL2Config)
 class MegaBOOMConfig   extends Config(new WithMegaBOOMs   ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultL2Config)
 
-class BOOMConfig extends Config(new WithMediumBOOMs ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new WithL2Capacity(1024) ++ new DefaultL2Config)
-class BOOML1Config extends  Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new BaseConfig)
-class BOOMFPGAConfig extends Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultFPGAConfig)
-class BOOML2FPGAConfig extends Config(new WithAllBooms ++ new DefaultBOOMConfig ++ new WithL2Capacity(1024) ++ new WithL2Cache ++ new DefaultFPGAConfig)
+class BOOMConfig extends Config(new WithNPerfCounters(6) ++ new WithMediumBOOMs ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new WithL2Capacity(1024) ++ new DefaultL2Config)
+class BOOML1Config extends  Config(new WithNPerfCounters(4) ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new BaseConfig)
+class BOOMFPGAConfig   extends Config(new WithNPerfCounters(29) ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new DefaultFPGAConfig)
+class BOOML2FPGAConfig extends Config(new WithNPerfCounters(29) ++ new WithAllBooms ++ new DefaultBOOMConfig ++ new WithL2Capacity(1024) ++ new WithL2Cache ++ new DefaultFPGAConfig)
 

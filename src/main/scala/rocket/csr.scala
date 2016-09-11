@@ -148,7 +148,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
   val bp = Vec(nBreakpoints, new BP).asOutput
-  val events = Vec(nPerfEvents, Bool()).asInput
+  val events = Vec(nPerfEvents, UInt(INPUT, log2Up(1+retireWidth)))
 }
 
 class CSRFile(implicit p: Parameters) extends CoreModule()(p)

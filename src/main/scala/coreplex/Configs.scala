@@ -118,8 +118,8 @@ class BaseCoreplexConfig extends Config (
       case UseUser => true
       case UseDebug => true
       case NBreakpoints => 1
-      case NPerfCounters => 0
-      case NPerfEvents => 0
+      case NPerfCounters => 29 // hack, to allow us to re-use the same user-level program to read out all 29 counters.
+      case NPerfEvents => 29 // 3
       case FastLoadWord => true
       case FastLoadByte => false
       case XLen => 64

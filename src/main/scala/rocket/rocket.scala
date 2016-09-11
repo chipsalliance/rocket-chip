@@ -677,6 +677,15 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
          wb_reg_inst, wb_reg_inst)
   }
 
+  if (nPerfEvents >= 3) {
+    println ("HPM enabled: " + nPerfEvents + " events supported.")
+    csr.io.events.map(_ := UInt(0))
+    csr.io.events(0) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch
+    csr.io.events(1) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && mem_wrong_npc
+    csr.io.events(2) := wb_valid && csr.io.status.prv === PRV.U
+  }
+
+
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
 
