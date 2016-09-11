@@ -37,17 +37,10 @@ case object AsyncMemChannels extends Field[Boolean]
 case object AsyncMMIOChannels extends Field[Boolean]
 /** External address map settings */
 case object ExtMMIOPorts extends Field[Seq[AddrMapEntry]]
-/** Function for building Coreplex */
-case object BuildCoreplex extends Field[Parameters => Coreplex]
-/** Function for connecting coreplex extra ports to top-level extra ports */
-case object ConnectExtraPorts extends Field[(Bundle, Bundle, Parameters) => Unit]
 /** Specifies the size of external memory */
 case object ExtMemSize extends Field[Long]
-/** Specifies the actual sorce of External Interrupts as Top and Periphery.
-  *  NExtInterrupts = NExtTopInterrupts + NExtPeripheryInterrupts
-  **/
+/** Specifies the number of external interrupts */
 case object NExtTopInterrupts extends Field[Int]
-case object NExtPeripheryInterrupts extends Field[Int]
 /** Source of RTC. First bundle is TopIO.extra, Second bundle is periphery.io.extra  **/
 case object RTCPeriod extends Field[Int]
 
@@ -122,29 +115,30 @@ trait PeripheryDebugModule {
 
 /////
 
-trait PeripheryInterrupt extends LazyModule {
+trait PeripheryExtInterrupts extends LazyModule {
   implicit val p: Parameters
+  val pInterrupts: RangeManager
+
+  pInterrupts.add("ext", p(NExtTopInterrupts))
 }
 
-trait PeripheryInterruptBundle {
+trait PeripheryExtInterruptsBundle {
   implicit val p: Parameters
   val interrupts = Vec(p(NExtTopInterrupts), Bool()).asInput
 }
 
-trait PeripheryInterruptModule {
+trait PeripheryExtInterruptsModule {
   implicit val p: Parameters
-  val outer: PeripheryInterrupt
-  val io: PeripheryInterruptBundle
+  val outer: PeripheryExtInterrupts
+  val io: PeripheryExtInterruptsBundle
   val coreplex: Coreplex
 
-  val interrupts_periphery = Vec(p(NExtPeripheryInterrupts), Bool())
-  var interrupts_cnt = 0
-
-  // This places the Periphery Interrupts at Bits [0...]
-  // External interrupts are at the higher Bits.
-  // This may have some implications for prioritization of the interrupts,
-  // but PLIC could do some internal swizzling in the future.
-  coreplex.io.interrupts <> (interrupts_periphery ++ io.interrupts)
+  {
+    val r = outer.pInterrupts.range("ext")
+    ((r._1 until r._2) zipWithIndex) foreach { case (c, i) =>
+      coreplex.io.interrupts(c) := io.interrupts(i)
+    }
+  }
 }
 
 /////
@@ -169,7 +163,7 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   val coreplex: Coreplex
 
   // Abuse the fact that zip takes the shorter of the two lists
-  ((io.mem_axi zip coreplex.io.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
+  ((io.mem_axi zip coreplex.io.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
     val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
     axi_sync.ar.bits.cache := UInt("b0011")
     axi_sync.aw.bits.cache := UInt("b0011")
@@ -179,11 +173,11 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
     )
   }
 
-  (io.mem_ahb zip coreplex.io.mem) foreach { case (ahb, mem) =>
+  (io.mem_ahb zip coreplex.io.master.mem) foreach { case (ahb, mem) =>
     ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)(outermostParams)
   }
 
-  (io.mem_tl zip coreplex.io.mem) foreach { case (tl, mem) =>
+  (io.mem_tl zip coreplex.io.master.mem) foreach { case (tl, mem) =>
     tl <> ClientUncachedTileLinkEnqueuer(mem, 2)(outermostParams)
   }
 }
@@ -245,6 +239,9 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
 
 trait PeripherySlave extends LazyModule {
   implicit val p: Parameters
+  val pBusMasters: RangeManager
+
+  if (p(NExtBusAXIChannels) > 0) pBusMasters.add("ext", 1) // NExtBusAXIChannels are arbitrated into one TL port
 }
 
 trait PeripherySlaveBundle extends HasPeripheryParameters {
@@ -270,7 +267,65 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
     }
     val conv = Module(new TileLinkIONastiIOConverter()(innerParams))
     conv.io.nasti <> arb.io.slave
-    coreplex.io.ext_clients.head <> conv.io.tl
-    require(p(NExternalClients) == 1, "external devices can't slave ports. wait for tilelink2!")
+
+    val r = outer.pBusMasters.range("ext")
+    require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
+    coreplex.io.slave(r._1) <> conv.io.tl
+  }
+}
+
+/////
+
+trait PeripheryTestRAM extends LazyModule {
+  implicit val p: Parameters
+  val pDevices: ResourceManager[AddrMapEntry]
+
+  val ramSize = 0x1000
+  pDevices.add(AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW))))
+}
+
+trait PeripheryTestRAMBundle {
+  implicit val p: Parameters
+}
+
+trait PeripheryTestRAMModule extends HasPeripheryParameters {
+  implicit val p: Parameters
+  val outer: PeripheryTestRAM
+  val io: PeripheryTestRAMBundle
+  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
+
+  val testram = Module(new TileLinkTestRAM(outer.ramSize)(innerMMIOParams))
+  testram.io <> mmioNetwork.get.port("testram")
+}
+
+/////
+
+trait PeripheryTestBusMaster extends LazyModule {
+  implicit val p: Parameters
+  val pBusMasters: RangeManager
+  val pDevices: ResourceManager[AddrMapEntry]
+
+  pBusMasters.add("busmaster", 1)
+  pDevices.add(AddrMapEntry("busmaster", MemSize(4096, MemAttr(AddrMapProt.RW))))
+}
+
+trait PeripheryTestBusMasterBundle {
+  implicit val p: Parameters
+}
+
+trait PeripheryTestBusMasterModule {
+  implicit val p: Parameters
+  val outer: PeripheryTestBusMaster
+  val io: PeripheryTestBusMasterBundle
+  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
+  val coreplex: Coreplex
+
+  val busmaster = Module(new groundtest.ExampleBusMaster()(p))
+  busmaster.io.mmio <> mmioNetwork.get.port("busmaster")
+
+  {
+    val r = outer.pBusMasters.range("busmaster")
+    require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
+    coreplex.io.slave(r._1) <> busmaster.io.mem
   }
 }

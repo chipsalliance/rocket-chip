@@ -11,6 +11,7 @@ import uncore.devices._
 import uncore.converters._
 import rocket._
 import rocket.Util._
+import rocketchip.{GlobalAddrMap, NCoreplexExtClients}
 import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import DefaultTestSuites._
@@ -127,7 +128,6 @@ class BaseCoreplexConfig extends Config (
       case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = true, divEarlyOut = true))
       case UseAtomics => true
       case UseCompressed => true
-      case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case NCustomMRWCSRs => 0
       case ResetVector => BigInt(0x1000)
@@ -145,7 +145,7 @@ class BaseCoreplexConfig extends Config (
             else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
-          nCachelessClients = site(NExternalClients) + site(NUncachedTileLinkPorts),
+          nCachelessClients = site(NCoreplexExtClients).get + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
               site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
@@ -177,7 +177,7 @@ class BaseCoreplexConfig extends Config (
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = site(GlobalAddrMap).subMap("io").numSlaves,
+          nManagers = site(GlobalAddrMap).get.subMap("io").numSlaves,
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 4,
@@ -196,7 +196,6 @@ class BaseCoreplexConfig extends Config (
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case EnableL2Logging => false
-      case ExtraCoreplexPorts => (p: Parameters) => new Bundle
       case RegressionTestNames => LinkedHashSet(
         "rv64ud-v-fcvt",
         "rv64ud-p-fdiv",

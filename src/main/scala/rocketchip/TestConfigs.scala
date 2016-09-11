@@ -26,7 +26,7 @@ class WithUnitTest extends Config(
         DefaultTestSuites.groundtest32
       TestGeneration.addSuite(groundtest("p"))
       TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-      (p: Parameters) => Module(new UnitTestCoreplex(p))
+      (p: Parameters, c: CoreplexConfig) => Module(new UnitTestCoreplex(p, c))
     }
     case UnitTests => (testParams: Parameters) =>
       JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams)
@@ -42,7 +42,8 @@ class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
 
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
-    case BuildCoreplex => (p: Parameters) => Module(new GroundTestCoreplex(p))
+    case BuildCoreplex =>
+      (p: Parameters, c: CoreplexConfig) => Module(new GroundTestCoreplex(p, c))
     case TLKey("L1toL2") => {
       val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
       TileLinkParameters(
@@ -51,7 +52,7 @@ class WithGroundTest extends Config(
           else new MESICoherence(site(L2DirectoryRepresentation))),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = site(NCachedTileLinkPorts),
-        nCachelessClients = site(NExternalClients) + site(NUncachedTileLinkPorts),
+        nCachelessClients = site(NCoreplexExtClients).get + site(NUncachedTileLinkPorts),
         maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
                            site(GroundTestKey).map(_.maxXacts))
                              .reduce(max(_, _)),
@@ -79,6 +80,8 @@ class WithGroundTest extends Config(
         }
       }
     }
+    case BuildExampleTop =>
+      (p: Parameters) => uncore.tilelink2.LazyModule(new ExampleTopWithTestRAM(p))
     case FPUKey => None
     case UseAtomics => false
     case UseCompressed => false
@@ -89,7 +92,7 @@ class WithGroundTest extends Config(
 class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
 
 class ComparatorConfig extends Config(
-  new WithTestRAM ++ new WithComparator ++ new GroundTestConfig)
+  new WithComparator ++ new GroundTestConfig)
 class ComparatorL2Config extends Config(
   new WithAtomics ++ new WithPrefetches ++
   new WithL2Cache ++ new ComparatorConfig)
@@ -147,60 +150,3 @@ class MIF32BitMemtestConfig extends Config(
 
 class PCIeMockupTestConfig extends Config(
   new WithPCIeMockupTest ++ new GroundTestConfig)
-
-class WithDirectGroundTest extends Config(
-  (pname, site, here) => pname match {
-    case ExportGroundTestStatus => true
-    case BuildCoreplex => (p: Parameters) => Module(new DirectGroundTestCoreplex(p))
-    case ExtraCoreplexPorts => (p: Parameters) =>
-      if (p(ExportGroundTestStatus)) new GroundTestStatus else new Bundle
-    case ExtraTopPorts => (p: Parameters) =>
-      if (p(ExportGroundTestStatus)) new GroundTestStatus else new Bundle
-    case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
-      maxClientXacts = site(GroundTestKey)(0).maxXacts,
-      maxClientsPerPort = site(NBanksPerMemoryChannel),
-      dataBeats = site(MIFDataBeats))
-    case NBanksPerMemoryChannel => site(GroundTestKey)(0).uncached
-    case _ => throw new CDEMatchError
-  })
-
-class DirectGroundTestConfig extends Config(
-  new WithDirectGroundTest ++ new GroundTestConfig)
-class DirectMemtestConfig extends Config(
-  new WithDirectMemtest ++ new DirectGroundTestConfig)
-class DirectComparatorConfig extends Config(
-  new WithDirectComparator ++ new DirectGroundTestConfig)
-
-class DirectMemtestFPGAConfig extends Config(
-  new FPGAConfig ++ new DirectMemtestConfig)
-class DirectComparatorFPGAConfig extends Config(
-  new FPGAConfig ++ new DirectComparatorConfig)
-
-class WithBusMasterTest extends Config(
-  (pname, site, here) => pname match {
-    case GroundTestKey => Seq.fill(site(NTiles)) {
-      GroundTestTileSettings(uncached = 1)
-    }
-    case BuildGroundTest =>
-      (p: Parameters) => Module(new BusMasterTest()(p))
-    case ExtraDevices => {
-      class BusMasterDevice extends DeviceBlock {
-        def nClientPorts = 1
-        def addrMapEntries = Seq(
-          AddrMapEntry("busmaster", MemSize(4096, MemAttr(AddrMapProt.RW))))
-        def builder(
-          mmioPorts: HashMap[String, ClientUncachedTileLinkIO],
-          clientPorts: Seq[ClientUncachedTileLinkIO],
-          interrupts : Seq[Bool], 
-          extra: Bundle, p: Parameters) {
-          val busmaster = Module(new ExampleBusMaster()(p))
-          busmaster.io.mmio <> mmioPorts("busmaster")
-          clientPorts.head <> busmaster.io.mem
-        }
-      }
-      new BusMasterDevice
-    }
-    case _ => throw new CDEMatchError
-  })
-
-class BusMasterTestConfig extends Config(new WithBusMasterTest ++ new GroundTestConfig)
