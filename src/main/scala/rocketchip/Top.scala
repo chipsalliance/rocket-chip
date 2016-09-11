@@ -40,9 +40,12 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
     hasExtMMIOPort = !(outer.pDevices.get.isEmpty && p(ExtMMIOPorts).isEmpty)
   )
 
+  def genGlobalAddrMap = GenerateGlobalAddrMap(p, outer.pDevices.get)
+  def genConfigString = GenerateConfigString(p, c, outer.pDevices.get)
+
   p(NCoreplexExtClients).assign(outer.pBusMasters.sum)
-  p(GlobalAddrMap).assign(GenerateGlobalAddrMap(p, outer.pDevices.get))
-  p(ConfigString).assign(GenerateConfigString(p, c, outer.pDevices.get))
+  p(GlobalAddrMap).assign(genGlobalAddrMap)
+  p(ConfigString).assign(genConfigString)
 
   println("Generated Address Map")
   for (entry <- p(GlobalAddrMap).get.flatten) {
