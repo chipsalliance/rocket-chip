@@ -7,11 +7,13 @@ import cde.{Parameters, Field}
 import rocket.Util._
 import junctions._
 
-class TestHarness(implicit p: Parameters) extends Module {
+case object BuildExampleTop extends Field[Parameters => ExampleTop]
+
+class TestHarness(implicit val p: Parameters) extends Module with HasAddrMapParameters {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
-  val dut = Module(new Top(p))
+  val dut = p(BuildExampleTop)(p).module
 
   // This test harness isn't especially flexible yet
   require(dut.io.mem_clk.isEmpty)
@@ -24,13 +26,12 @@ class TestHarness(implicit p: Parameters) extends Module {
   require(dut.io.mmio_rst.isEmpty)
   require(dut.io.mmio_ahb.isEmpty)
   require(dut.io.mmio_tl.isEmpty)
-  require(dut.io.extra.elements.isEmpty)
 
   for (int <- dut.io.interrupts)
     int := false
 
   if (dut.io.mem_axi.nonEmpty) {
-    val memSize = p(GlobalAddrMap)("mem").size
+    val memSize = addrMap("mem").size
     require(memSize % dut.io.mem_axi.size == 0)
     for (axi <- dut.io.mem_axi)
       Module(new SimAXIMem(memSize / dut.io.mem_axi.size)).io.axi <> axi
