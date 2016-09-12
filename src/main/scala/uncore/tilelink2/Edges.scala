@@ -47,7 +47,9 @@ class TLEdge(
     Cat(helper(lgBytes).map(_._1).reverse)
   }
 
-  def addr_lo(mask: UInt): UInt = {
+  // !!! make sure to align addr_lo for PutPartials with 0 masks
+  def addr_lo(mask: UInt, lgSize: UInt): UInt = {
+    val sizeOH1 = UIntToOH1(lgSize, log2Up(manager.beatBytes))
     // Almost OHToUInt, but bits set => bits not set
     def helper(mask: UInt, width: Int): UInt = {
       if (width <= 1) {
@@ -61,7 +63,11 @@ class TLEdge(
         Cat(!lo.orR, helper(hi | lo, mid))
       }
     }
-    helper(mask, bundle.dataBits/8)
+    helper(mask, bundle.dataBits/8) & ~sizeOH1
+  }
+
+  def full_mask(imask: UInt, lgSize: UInt): UInt = {
+    mask(addr_lo(imask, lgSize), lgSize)
   }
 
   def staticHasData(bundle: TLChannel): Option[Boolean] = {
@@ -167,10 +173,19 @@ class TLEdge(
 
   def addr_lo(x: TLDataChannel): UInt = {
     x match {
-      case a: TLBundleA => addr_lo(a.mask)
-      case b: TLBundleB => addr_lo(b.mask)
+      case a: TLBundleA => addr_lo(a.mask, a.size)
+      case b: TLBundleB => addr_lo(b.mask, b.size)
       case c: TLBundleC => c.addr_lo
       case d: TLBundleD => d.addr_lo
+    }
+  }
+
+  def full_mask(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => full_mask(a.mask, a.size)
+      case b: TLBundleB => full_mask(b.mask, b.size)
+      case c: TLBundleC => mask(c.addr_lo, c.size)
+      case d: TLBundleD => mask(d.addr_lo, d.size)
     }
   }
 
@@ -600,6 +615,7 @@ class TLEdgeIn(
     d
   }
 
+  // !!! buggy! deduce sink from address
   def HintAck(a: TLBundleA, sink: UInt = UInt(0)): TLBundleD = HintAck(address(a), sink, a.source, a.size)
   def HintAck(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt) = {
     val d = Wire(new TLBundleD(bundle))
