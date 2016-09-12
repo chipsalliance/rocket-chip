@@ -26,6 +26,10 @@ case object BuildL2CoherenceManager extends Field[(Int, Parameters) => Coherence
 case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
 /** The file to read the BootROM contents from */
 case object BootROMFile extends Field[String]
+/** Whether Coreplex should instantiate BootROM (or rely on Periphery)*/
+case object CoreplexBootROM extends Field[Boolean]
+/** Whether Coreplex should instantiate PRCI (or rely on Periphery)*/
+case object CoreplexPRCI extends Field[Boolean]
 
 trait HasCoreplexParameters {
   implicit val p: Parameters
@@ -170,29 +174,33 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     debugModule.io.tl <> mmioNetwork.port("int:debug")
     debugModule.io.db <> io.debug
 
-    val prci = Module(new PRCI)
-    prci.io.tl <> mmioNetwork.port("int:prci")
-    prci.io.rtcTick := io.rtcTick
+    if (p(CoreplexPRCI)) {
+      val prci = Module(new PRCI)
+      prci.io.tl <> mmioNetwork.port("int:prci")
+      prci.io.rtcTick := io.rtcTick
 
-    (prci.io.tiles, tileResets, tileList).zipped.foreach {
-      case (prci, rst, tile) =>
-        rst := reset
-        tile.io.prci <> prci
+      (prci.io.tiles, tileResets, tileList).zipped.foreach {
+        case (prci, rst, tile) =>
+          rst := reset
+          tile.io.prci <> prci
+      }
+
+      for (i <- 0 until tc.nTiles) {
+        prci.io.interrupts(i).meip := plic.io.harts(plic.cfg.context(i, 'M'))
+        if (p(UseVM))
+          prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
+        prci.io.interrupts(i).debug := debugModule.io.debugInterrupts(i)
+      }
     }
 
-    for (i <- 0 until tc.nTiles) {
-      prci.io.interrupts(i).meip := plic.io.harts(plic.cfg.context(i, 'M'))
-      if (p(UseVM))
-        prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
-      prci.io.interrupts(i).debug := debugModule.io.debugInterrupts(i)
+    if (p(CoreplexBootROM)) {
+      val bootROM = Module(new ROMSlave(makeBootROM()))
+      bootROM.io <> mmioNetwork.port("int:bootrom")
     }
 
     val tileSlavePorts = (0 until tc.nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)
     for ((t, m) <- (tileList.map(_.io.slave).flatten) zip (tileSlavePorts map (mmioNetwork port _)))
       t <> ClientUncachedTileLinkEnqueuer(m, 1)
-
-    val bootROM = Module(new ROMSlave(makeBootROM()))
-    bootROM.io <> mmioNetwork.port("int:bootrom")
 
     io.master.mmio.foreach { _ <> mmioNetwork.port("ext") }
   }
