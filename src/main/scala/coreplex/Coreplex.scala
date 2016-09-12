@@ -14,8 +14,6 @@ import rocket.Util._
 import java.nio.{ByteBuffer,ByteOrder}
 import java.nio.file.{Files, Paths}
 
-/** Function for building Coreplex */
-case object BuildCoreplex extends Field[(Parameters, CoreplexConfig) => Coreplex]
 /** Number of memory channels */
 case object NMemoryChannels extends Field[Int]
 /** Number of banks per memory channel */
@@ -31,9 +29,7 @@ case object BootROMFile extends Field[String]
 
 trait HasCoreplexParameters {
   implicit val p: Parameters
-  lazy val nMemChannels = p(NMemoryChannels)
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
-  lazy val nBanks = nMemChannels*nBanksPerMemChannel
   lazy val lsb = p(BankIdLSB)
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
@@ -46,6 +42,7 @@ case class CoreplexConfig(
     nTiles: Int,
     nExtInterrupts: Int,
     nSlaves: Int,
+    nMemChannels: Int,
     hasSupervisor: Boolean,
     hasExtMMIOPort: Boolean)
 {
@@ -56,7 +53,7 @@ abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConf
     with HasCoreplexParameters {
   class CoreplexIO(implicit val p: Parameters, implicit val c: CoreplexConfig) extends Bundle {
     val master = new Bundle {
-      val mem = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
+      val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
       val mmio = c.hasExtMMIOPort.option(new ClientUncachedTileLinkIO()(outermostMMIOParams))
     }
     val slave = Vec(c.nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
@@ -78,6 +75,7 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
   }
   val nCachedPorts = tileList.map(tile => tile.io.cached.size).reduce(_ + _)
   val nUncachedPorts = tileList.map(tile => tile.io.uncached.size).reduce(_ + _)
+  val nBanks = tc.nMemChannels * nBanksPerMemChannel
 
   // Build an uncore backing the Tiles
   buildUncore(p.alterPartial({
@@ -116,7 +114,7 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
 
     // Create a converter between TileLinkIO and MemIO for each channel
-    val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, nMemChannels)(outermostParams))
+    val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, tc.nMemChannels)(outermostParams))
 
     val outerTLParams = p.alterPartial({ case TLId => "L2toMC" })
     val backendBuffering = TileLinkDepths(0,0,0,0,0)
