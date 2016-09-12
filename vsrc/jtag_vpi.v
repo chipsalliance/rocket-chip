@@ -76,10 +76,6 @@ reg [31:0]	data_in;
 
 integer		debug;
 
-assign		tms_o = tms;
-assign		tck_o = tck;
-assign		tdi_o = tdi;
-
 initial
 begin
 	tck		<= #TP 1'b0;
