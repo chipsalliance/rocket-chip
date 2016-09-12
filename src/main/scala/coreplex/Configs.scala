@@ -70,10 +70,11 @@ class BaseCoreplexConfig extends Config (
       case NAcquireTransactors => 7
       case L2StoreDataQueueDepth => 1
       case L2DirectoryRepresentation => new NullRepresentation(site(NTiles))
-      case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-        Module(new L2BroadcastHub()(p.alterPartial({
-          case InnerTLId => "L1toL2"
-          case OuterTLId => "L2toMC" })))
+      case BuildL2CoherenceManager =>
+        (clock: Clock, reset: Bool, id: Int, p: Parameters) =>
+          Module(new L2BroadcastHub()(p.alterPartial({
+            case InnerTLId => "L1toL2"
+            case OuterTLId => "L2toMC" })))
       case NCachedTileLinkPorts => 1
       case NUncachedTileLinkPorts => 1
       //Tile Constants
@@ -267,12 +268,13 @@ class WithL2Cache extends Config(
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new L2HellaCacheBank()(p.alterPartial({
-        case CacheId => id
-        case CacheName => "L2Bank"
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMC"})))
+    case BuildL2CoherenceManager =>
+      (clock: Clock, reset: Bool, id: Int, p: Parameters) =>
+        Module(new L2HellaCacheBank(clock, reset)(p.alterPartial({
+          case CacheId => id
+          case CacheName => "L2Bank"
+          case InnerTLId => "L1toL2"
+          case OuterTLId => "L2toMC"})))
     case L2Replacer => () => new SeqRandom(site(NWays))
     case _ => throw new CDEMatchError
   },
@@ -281,10 +283,11 @@ class WithL2Cache extends Config(
 
 class WithBufferlessBroadcastHub extends Config(
   (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new BufferlessBroadcastHub()(p.alterPartial({
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMC" })))
+    case BuildL2CoherenceManager =>
+      (clock: Clock, reset: Bool, id: Int, p: Parameters) =>
+        Module(new BufferlessBroadcastHub(clock, reset)(p.alterPartial({
+          case InnerTLId => "L1toL2"
+          case OuterTLId => "L2toMC" })))
   })
 
 /**
@@ -301,10 +304,11 @@ class WithBufferlessBroadcastHub extends Config(
  */
 class WithStatelessBridge extends Config (
   topDefinitions = (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new ManagerToClientStatelessBridge()(p.alterPartial({
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMC" })))
+    case BuildL2CoherenceManager =>
+      (c: Clock, r: Bool, id: Int, p: Parameters) =>
+        Module(new ManagerToClientStatelessBridge(c, r)(p.alterPartial({
+          case InnerTLId => "L1toL2"
+          case OuterTLId => "L2toMC" })))
   },
   knobValues = {
     case "L1D_MSHRS" => 0

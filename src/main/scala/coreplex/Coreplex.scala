@@ -21,7 +21,7 @@ case object NBanksPerMemoryChannel extends Field[Int]
 /** Least significant bit of address used for bank partitioning */
 case object BankIdLSB extends Field[Int]
 /** Function for building some kind of coherence manager agent */
-case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
+case object BuildL2CoherenceManager extends Field[(Clock, Bool, Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
 case object BuildTiles extends Field[Seq[(Clock, Bool, Parameters) => Tile]]
 /** The file to read the BootROM contents from */
@@ -98,7 +98,7 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering))
 
     // Create point(s) of coherence serialization
-    val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}
+    val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(clock, reset, id, p)}
     managerEndpoints.flatMap(_.incoherent).foreach(_ := Bool(false))
 
     val mmioManager = Module(new MMIOTileLinkManager()(p.alterPartial({

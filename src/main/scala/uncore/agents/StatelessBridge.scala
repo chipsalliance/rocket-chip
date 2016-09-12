@@ -30,7 +30,8 @@ import cde.{Parameters, Field, Config}
   * writes (e.g. Hwacha and other RoCC accelerators), DO NOT USE THIS BRIDGE.
   */
 
-class ManagerToClientStatelessBridge(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p) {
+class ManagerToClientStatelessBridge(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit p: Parameters) extends HierarchicalCoherenceAgent(clockSignal, resetSignal)(p) {
   val icid = io.inner.tlClientIdBits
   val ixid = io.inner.tlClientXactIdBits
   val oxid = io.outer.tlClientXactIdBits

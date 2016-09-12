@@ -9,7 +9,8 @@ import uncore.constants._
 import cde.Parameters
 
 
-class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p) {
+class BufferlessBroadcastHub(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit p: Parameters) extends HierarchicalCoherenceAgent(clockSignal, resetSignal)(p) {
 
   // Create TSHRs for outstanding transactions
   val irelTrackerList =

@@ -9,7 +9,8 @@ import uncore.constants._
 import uncore.util._
 import cde.Parameters
 
-class L2BroadcastHub(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p) {
+class L2BroadcastHub(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit p: Parameters) extends HierarchicalCoherenceAgent(clockSignal, resetSignal)(p) {
 
   // Create TSHRs for outstanding transactions
   val irelTrackerList =
