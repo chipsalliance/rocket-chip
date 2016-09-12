@@ -632,7 +632,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.dmem.invalidate_lr := wb_xcpt
   io.dmem.s1_data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
   io.dmem.s1_kill := killm_common || mem_breakpoint
-  when (mem_xcpt && !io.dmem.s1_kill) {
+  when (mem_ctrl.mem && mem_xcpt && !io.dmem.s1_kill) {
     assert(io.dmem.xcpt.asUInt.orR) // make sure s1_kill is exhaustive
   }
 
