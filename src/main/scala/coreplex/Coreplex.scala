@@ -3,6 +3,7 @@ package coreplex
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
+import junctions.unittests.UnitTestSuite
 import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
@@ -49,7 +50,9 @@ case class CoreplexConfig(
   val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, 0)
 }
 
-abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConfig) extends Module
+abstract class Coreplex(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit val p: Parameters, implicit val c: CoreplexConfig)
+    extends Module(Option(clockSignal), Option(resetSignal))
     with HasCoreplexParameters {
   class CoreplexIO(implicit val p: Parameters, implicit val c: CoreplexConfig) extends Bundle {
     val master = new Bundle {
@@ -67,7 +70,9 @@ abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConf
   val io = new CoreplexIO
 }
 
-class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp, tc) {
+class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig,
+    clockSignal: Clock = null, resetSignal: Bool = null)
+    extends Coreplex(clockSignal, resetSignal)(tp, tc) {
   // Build a set of Tiles
   val tileResets = Wire(Vec(tc.nTiles, Bool()))
   val tileList = p(BuildTiles).zip(tileResets).map {
@@ -198,7 +203,26 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
   }
 }
 
-class GroundTestCoreplex(tp: Parameters, tc: CoreplexConfig) extends DefaultCoreplex(tp, tc) {
+class GroundTestCoreplex(tp: Parameters, tc: CoreplexConfig,
+    clockSignal: Clock = null, resetSignal: Bool = null)
+    extends DefaultCoreplex(tp, tc, clockSignal, resetSignal) {
   override def hasSuccessFlag = true
   io.success.get := tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
+}
+
+class UnitTestCoreplex(tp: Parameters, tc: CoreplexConfig,
+    clockSignal: Clock = null, resetSignal: Bool = null)
+    extends Coreplex(clockSignal, resetSignal)(tp, tc) {
+  require(!tc.hasExtMMIOPort)
+  require(tc.nSlaves == 0)
+  require(tc.nMemChannels == 0)
+
+  io.debug.req.ready := Bool(false)
+  io.debug.resp.valid := Bool(false)
+
+  val l1params = p.alterPartial({ case TLId => "L1toL2" })
+  val tests = Module(new UnitTestSuite()(l1params))
+
+  override def hasSuccessFlag = true
+  io.success.get := tests.io.finished
 }

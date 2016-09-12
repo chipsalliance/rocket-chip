@@ -17,7 +17,7 @@ case object GlobalAddrMap extends Field[GlobalVariable[AddrMap]]
 case object ConfigString extends Field[GlobalVariable[String]]
 case object NCoreplexExtClients extends Field[GlobalVariable[Int]]
 /** Function for building Coreplex */
-case object BuildCoreplex extends Field[(Parameters, CoreplexConfig) => Coreplex]
+case object BuildCoreplex extends Field[(Parameters, CoreplexConfig, Clock, Bool) => Coreplex]
 
 /** Base Top with no Periphery */
 abstract class BaseTop(val p: Parameters) extends LazyModule {
@@ -61,7 +61,7 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
   println("Generated Configuration String")
   println(p(ConfigString).get)
 
-  val coreplex = p(BuildCoreplex)(p, c)
+  val coreplex = p(BuildCoreplex)(p, c, clock, reset)
   val io: B = b(coreplex)
 
   io.success zip coreplex.io.success map { case (x, y) => x := y }
