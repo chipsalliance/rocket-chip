@@ -53,7 +53,6 @@ object TLMonitor
       assert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'A' channel PutPartial carries invalid param" + extra)
       assert ((bundle.mask & ~mask) === UInt(0), "'A' channel PutPartial contains invalid mask" + extra)
-      assert (bundle.mask =/= UInt(0), "'A' channel PutPartial has a zero mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
@@ -119,7 +118,6 @@ object TLMonitor
       assert (is_aligned, "'B' channel PutPartial address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'B' channel PutPartial carries invalid param" + extra)
       assert ((bundle.mask & ~mask) === UInt(0), "'B' channel PutPartial contains invalid mask" + extra)
-      assert (bundle.mask =/= UInt(0), "'B' channel PutPartial has a zero mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
