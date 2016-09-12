@@ -23,7 +23,7 @@ case object BankIdLSB extends Field[Int]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
-case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
+case object BuildTiles extends Field[Seq[(Clock, Bool, Parameters) => Tile]]
 /** The file to read the BootROM contents from */
 case object BootROMFile extends Field[String]
 
@@ -71,7 +71,7 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
   // Build a set of Tiles
   val tileResets = Wire(Vec(tc.nTiles, Bool()))
   val tileList = p(BuildTiles).zip(tileResets).map {
-    case (tile, rst) => tile(rst, p)
+    case (tile, rst) => tile(clock, rst, p)
   }
   val nCachedPorts = tileList.map(tile => tile.io.cached.size).reduce(_ + _)
   val nUncachedPorts = tileList.map(tile => tile.io.uncached.size).reduce(_ + _)

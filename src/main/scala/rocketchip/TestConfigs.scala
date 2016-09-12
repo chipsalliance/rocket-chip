@@ -70,13 +70,14 @@ class WithGroundTest extends Config(
       TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
       (0 until site(NTiles)).map { i =>
         val tileSettings = site(GroundTestKey)(i)
-        (r: Bool, p: Parameters) => {
-          Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
-            case TLId => "L1toL2"
-            case TileId => i
-            case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
-            case NUncachedTileLinkPorts => tileSettings.uncached
-          })))
+        (c: Clock, r: Bool, p: Parameters) => {
+          Module(new GroundTestTile(clockSignal = c, resetSignal = r)
+            (p.alterPartial({
+              case TLId => "L1toL2"
+              case TileId => i
+              case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
+              case NUncachedTileLinkPorts => tileSettings.uncached
+            })))
         }
       }
     }
