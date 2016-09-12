@@ -241,8 +241,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val id_csr_flush = id_system_insn || (id_csr_en && !id_csr_ren && !DecodeLogic(id_csr_addr, safe_csrs.map(UInt(_)), (legal_csrs -- safe_csrs).toList.map(UInt(_))))
 
   val id_illegal_insn = !id_ctrl.legal ||
-    id_ctrl.fp && !csr.io.status.fs.orR ||
-    id_ctrl.rocc && !csr.io.status.xs.orR
+    id_ctrl.div && !csr.io.status.isa('m'-'a') ||
+    id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
+    id_ctrl.fp && !(csr.io.status.fs.orR && csr.io.status.isa('f'-'a')) ||
+    id_ctrl.dp && !csr.io.status.isa('d'-'a') ||
+    ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
+    id_ctrl.rocc && !(csr.io.status.xs.orR && csr.io.status.isa('x'-'a'))
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
   val id_amo_aq = id_inst(0)(26)
   val id_amo_rl = id_inst(0)(25)
@@ -385,7 +389,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     Mux(mem_reg_rvc, SInt(2), SInt(4))))
   val mem_npc = (Mux(mem_ctrl.jalr, encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).asSInt, mem_br_target) & SInt(-2)).asUInt
   val mem_wrong_npc = Mux(ex_pc_valid, mem_npc =/= ex_reg_pc, Mux(ibuf.io.inst(0).valid, mem_npc =/= ibuf.io.pc, Bool(true)))
-  val mem_npc_misaligned = if (usingCompressed) Bool(false) else mem_npc(1)
+  val mem_npc_misaligned = !csr.io.status.isa('c'-'a') && mem_npc(1)
   val mem_int_wdata = Mux(!mem_reg_xcpt && (mem_ctrl.jalr ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.asSInt).asUInt
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal
