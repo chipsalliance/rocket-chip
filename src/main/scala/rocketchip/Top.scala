@@ -16,6 +16,8 @@ import coreplex._
 case object GlobalAddrMap extends Field[GlobalVariable[AddrMap]]
 case object ConfigString extends Field[GlobalVariable[String]]
 case object NCoreplexExtClients extends Field[GlobalVariable[Int]]
+/** Function for building Coreplex */
+case object BuildCoreplex extends Field[(Parameters, CoreplexConfig) => Coreplex]
 
 /** Base Top with no Periphery */
 abstract class BaseTop(val p: Parameters) extends LazyModule {
@@ -36,6 +38,7 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
     nTiles = p(NTiles),
     nExtInterrupts = outer.pInterrupts.sum,
     nSlaves = outer.pBusMasters.sum,
+    nMemChannels = p(NMemoryChannels),
     hasSupervisor = p(UseVM),
     hasExtMMIOPort = !(outer.pDevices.get.isEmpty && p(ExtMMIOPorts).isEmpty)
   )

@@ -9,7 +9,7 @@ import cde.Parameters
 class UnitTestCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp, tc) {
   require(!tc.hasExtMMIOPort)
   require(tc.nSlaves == 0)
-  require(nMemChannels == 0)
+  require(tc.nMemChannels == 0)
 
   io.debug.req.ready := Bool(false)
   io.debug.resp.valid := Bool(false)
