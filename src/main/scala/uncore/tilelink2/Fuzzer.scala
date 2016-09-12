@@ -5,6 +5,33 @@ import Chisel._
 import chisel3.util.LFSR16
 import junctions.unittests._
 
+class IDMapGenerator(numIds: Int) extends Module {
+  val w = log2Up(numIds)
+  val io = new Bundle {
+    val free = Decoupled(UInt(width = w)).flip
+    val alloc = Decoupled(UInt(width = w))
+  }
+
+  // True indicates that the id is available
+  val bitmap = RegInit(Vec.fill(numIds){Bool(true)})
+
+  io.free.ready := Bool(true)
+  assert(!io.free.valid || !bitmap(io.free.bits)) // No double freeing
+
+  val mask = bitmap.scanLeft(Bool(false))(_||_).init
+  val select = mask zip bitmap map { case(m,b) => !m && b }
+  io.alloc.bits := OHToUInt(select)
+  io.alloc.valid := bitmap.reduce(_||_)
+
+  when (io.alloc.fire()) {
+    bitmap(io.alloc.bits) := Bool(false)
+  }
+
+  when (io.free.fire()) {
+    bitmap(io.free.bits) := Bool(true)
+  }
+}
+
 object LFSR64
 { 
   private var counter = 0 
@@ -31,16 +58,9 @@ object NoiseMaker
   }
 }
 
-object MaskMaker
-{ 
-  def apply(wide: Int, bits: UInt): UInt = 
-    Vec.tabulate(wide) {UInt(_) < bits} .asUInt
-}
-
-
-class TLFuzzer(nOperations: Int) extends LazyModule
+class TLFuzzer(nOperations: Int, inFlight: Int = 32) extends LazyModule
 {
-  val node = TLClientNode(TLClientParameters())
+  val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -50,33 +70,61 @@ class TLFuzzer(nOperations: Int) extends LazyModule
 
     val out = io.out(0)
     val edge = node.edgesOut(0)
+    val endAddress   = edge.manager.maxAddress + 1
+    val maxTransfer  = edge.manager.maxTransfer
+    val beatBytes    = edge.manager.beatBytes
+    val maxLgBeats   = log2Up(maxTransfer/beatBytes)
+    val addressBits  = log2Up(endAddress)
+    val sizeBits     = edge.bundle.sizeBits
+    val dataBits     = edge.bundle.dataBits
 
-    val idx = Reg(init = UInt(nOperations-1, log2Up(nOperations)))
-    val finished = RegInit(Bool(false))
-    val valid    = RegInit(Bool(false))
-    valid := Bool(true)
-    io.finished  := finished
+    // Progress through operations
+    val num_reqs = Reg(init = UInt(nOperations-1, log2Up(nOperations)))
+    val num_resps = Reg(init = UInt(nOperations-1, log2Up(nOperations)))
+    io.finished  := num_resps =/= UInt(0)
 
-    val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    // Progress within each operation
+    val a = out.a.bits
+    val a_beats1 = edge.numBeats1(a)
+    val a_counter = RegInit(UInt(0, width = maxLgBeats))
+    val a_counter1 = a_counter - UInt(1)
+    val a_first = a_counter === UInt(0)
+    val a_last  = a_counter === UInt(1) || a_beats1 === UInt(0)
+    val req_done = out.a.fire() && a_last
+
+    val d = out.d.bits
+    val d_beats1 = edge.numBeats1(d)
+    val d_counter = RegInit(UInt(0, width = maxLgBeats))
+    val d_counter1 = d_counter - UInt(1)
+    val d_first = d_counter === UInt(0)
+    val d_last  = d_counter === UInt(1) || d_beats1 === UInt(0)
+    val resp_done = out.d.fire() && d_last
+
+    // Source ID generation
+    val idMap = Module(new IDMapGenerator(inFlight))
+    val alloc = Queue.irrevocable(idMap.io.alloc, 1, pipe = true)
+    val src = alloc.bits
+    alloc.ready := req_done
+    idMap.io.free.valid := resp_done
+    idMap.io.free.bits := out.d.bits.source
+
+    // Increment random number generation for the following subfields
     val inc = Wire(Bool())
-
-    val addrBits = log2Up(edge.manager.maxAddress + 1)
-    val amo_size  = UInt(2) + NoiseMaker(1, inc) // word or dword
-    val size      = NoiseMaker(edge.bundle.sizeBits, inc)
-    val addr_mask = MaskMaker(addrBits, size)
-    val addr      = NoiseMaker(addrBits, inc) & ~addr_mask
-    val wmask     = NoiseMaker(edge.manager.beatBytes, inc)
-    val data      = NoiseMaker(edge.bundle.dataBits, inc)
+    val inc_beat = Wire(Bool())
     val arth_op   = NoiseMaker(3, inc)
     val log_op    = NoiseMaker(2, inc) 
-    val src = UInt(0)
+    val amo_size  = UInt(2) + NoiseMaker(1, inc) // word or dword
+    val size      = NoiseMaker(sizeBits, inc)
+    val addr      = NoiseMaker(addressBits, inc) & ~UIntToOH1(size, addressBits)
+    val mask      = NoiseMaker(beatBytes, inc_beat) & edge.mask(addr, size)
+    val data      = NoiseMaker(dataBits, inc_beat)
 
     val (glegal,  gbits)  = edge.Get(src, addr, size)
     val (pflegal, pfbits) = if(edge.manager.anySupportPutFull) { 
                               edge.Put(src, addr, size, data)
                             } else { (glegal, gbits) }
     val (pplegal, ppbits) = if(edge.manager.anySupportPutPartial) {
-                              edge.Put(src, addr, size, data, wmask)
+                              edge.Put(src, addr, size, data, mask)
                             } else { (glegal, gbits) }
     val (alegal,  abits)  = if(edge.manager.anySupportArithmetic) {
                               edge.Arithmetic(src, addr, size, data, arth_op)
@@ -106,33 +154,38 @@ class TLFuzzer(nOperations: Int) extends LazyModule
       UInt("b100") -> lbits,
       UInt("b101") -> hbits))
 
-    out.a.valid := legal
+    out.a.valid := legal && alloc.valid && num_reqs =/= UInt(0)
     out.a.bits  := bits
     out.b.ready := Bool(true)
     out.c.valid := Bool(false)
     out.d.ready := Bool(true)
     out.e.valid := Bool(false)
 
-    inc := !legal || (out.a.fire() && counter === UInt(0))
+    inc := !legal || req_done
+    inc_beat := !legal || out.a.fire()
+
     when (out.a.fire()) {
-      counter := counter - UInt(1)
-      when (counter === UInt(0)) {
-        counter := edge.numBeats(out.a.bits) - UInt(1)
-	idx := idx - UInt(1)
-      }
-      when (idx === UInt(0)) { finished := Bool(true) }
+      a_counter := Mux(a_first, a_beats1, a_counter1)
+      when(a_last) { num_reqs := num_reqs - UInt(1) }
+    }
+
+    when (out.d.fire()) {
+      d_counter := Mux(d_first, d_beats1, d_counter1)
+      when(d_last) { num_resps := num_resps - UInt(1) }
     }
   }
 }
 
 class TLFuzzRAM extends LazyModule
 {
+  val model = LazyModule(new TLRAMModel)
   val ram  = LazyModule(new TLRAM(AddressSet(0, 0xfff)))
   val xbar = LazyModule(new TLXbar)
   val fuzz = LazyModule(new TLFuzzer(1000))
 
-  connect(TLWidthWidget(TLHintHandler(fuzz.node), 16) -> xbar.node)
-  connect(TLFragmenter(TLBuffer(xbar.node), 4, 256) -> ram.node)
+  model.node := fuzz.node
+  xbar.node := TLWidthWidget(model.node, 16)
+  ram.node := TLHintHandler(TLFragmenter(TLBuffer(xbar.node), 4, 256))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
@@ -140,6 +193,6 @@ class TLFuzzRAM extends LazyModule
 }
 
 class TLFuzzRAMTest extends UnitTest {
-  val dut = LazyModule(new TLFuzzRAM).module
+  val dut = Module(LazyModule(new TLFuzzRAM).module)
   io.finished := dut.io.finished
 }
