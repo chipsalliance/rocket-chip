@@ -163,7 +163,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     }
 
     // Swallow up non-data ack fragments
-    val drop = (out.d.bits.opcode === TLMessages.AccessAck) && (dFragnum =/= UInt(0))
+    val drop = !dHasData && (dFragnum =/= UInt(0))
     out.d.ready := in.d.ready || drop
     in.d.valid  := out.d.valid && !drop
     in.d.bits   := out.d.bits // pass most stuff unchanged
