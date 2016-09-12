@@ -55,13 +55,17 @@ class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
   override def cloneType = new RoCCInterface().asInstanceOf[this.type]
 }
 
-abstract class RoCC(implicit p: Parameters) extends CoreModule()(p) {
+abstract class RoCC(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit val p: Parameters) extends Module(Option(clockSignal), Option(resetSignal))
+    with HasCoreParameters {
   val io = new RoCCInterface
   io.mem.req.bits.phys := Bool(true) // don't perform address translation
   io.mem.invalidate_lr := Bool(false) // don't mess with LR/SC
 }
 
-class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
+class AccumulatorExample(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit p: Parameters) extends RoCC(clockSignal, resetSignal)(p) {
+  val n = 4
   val regfile = Mem(n, UInt(width = xLen))
   val busy = Reg(init = Vec.fill(n){Bool(false)})
 
@@ -126,7 +130,8 @@ class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
   io.autl.grant.ready := false
 }
 
-class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
+class TranslatorExample(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit p: Parameters) extends RoCC(clockSignal, resetSignal)(p) {
   val req_addr = Reg(UInt(width = coreMaxAddrBits))
   val req_rd = Reg(io.resp.bits.rd)
   val req_offset = req_addr(pgIdxBits - 1, 0)
@@ -171,7 +176,8 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
   io.autl.grant.ready := Bool(false)
 }
 
-class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
+class CharacterCountExample(clockSignal: Clock = null, resetSignal: Bool = null)
+    (implicit p: Parameters) extends RoCC(clockSignal, resetSignal)(p)
     with HasTileLinkParameters {
 
   private val blockOffset = tlBeatAddrBits + tlByteAddrBits

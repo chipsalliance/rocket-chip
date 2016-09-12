@@ -17,7 +17,7 @@ case object TileId extends Field[Int]
 
 case class RoccParameters(
   opcodes: OpcodeSet,
-  generator: Parameters => RoCC,
+  generator: (Clock, Bool, Parameters) => RoCC,
   nMemChannels: Int = 0,
   nPTWPorts : Int = 0,
   useFPU: Boolean = false)
@@ -69,7 +69,7 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
     cmdRouter.io.in <> core.io.rocc.cmd
 
     val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
-      val rocc = accelParams.generator(p.alterPartial({
+      val rocc = accelParams.generator(clock, reset, p.alterPartial({
         case RoccNMemChannels => accelParams.nMemChannels
         case RoccNPTWPorts => accelParams.nPTWPorts
       }))

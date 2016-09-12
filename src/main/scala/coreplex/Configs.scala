@@ -383,14 +383,14 @@ class WithRoccExample extends Config(
     case BuildRoCC => Seq(
       RoccParameters(
         opcodes = OpcodeSet.custom0,
-        generator = (p: Parameters) => Module(new AccumulatorExample()(p))),
+        generator = (clock: Clock, reset: Bool, p: Parameters) => Module(new AccumulatorExample(clock, reset)(p))),
       RoccParameters(
         opcodes = OpcodeSet.custom1,
-        generator = (p: Parameters) => Module(new TranslatorExample()(p)),
+        generator = (clock: Clock, reset: Bool, p: Parameters) => Module(new TranslatorExample(clock, reset)(p)),
         nPTWPorts = 1),
       RoccParameters(
         opcodes = OpcodeSet.custom2,
-        generator = (p: Parameters) => Module(new CharacterCountExample()(p))))
+        generator = (clock: Clock, reset: Bool, p: Parameters) => Module(new CharacterCountExample(clock, reset)(p))))
 
     case RoccMaxTaggedMemXacts => 1
     case _ => throw new CDEMatchError
