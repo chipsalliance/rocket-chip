@@ -57,6 +57,13 @@ class WithSmallPredRF extends Config(
   }
 )
 
+class WithDecoupledRoCC extends Config(
+  (pname,site,here) => pname match {
+    case DecoupledRoCC => true
+    case _ => throw new CDEMatchError
+  }
+)
+
 class ISCA2016Config extends Config(
   new Process28nmConfig ++
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
@@ -93,3 +100,5 @@ class ISCA2016HOVL4B4Config extends Config(new WithNLanes(4) ++ new ISCA2016HOVB
 class ISCA2016HOVL4B8Config extends Config(new WithNLanes(4) ++ new ISCA2016HOVB8Config)
 class ISCA2016LOVL4B4Config extends Config(new WithNLanes(4) ++ new ISCA2016LOVB4Config)
 class ISCA2016LOVL4B8Config extends Config(new WithNLanes(4) ++ new ISCA2016LOVB8Config)
+
+class DecoupledISCA2016Config extends Config(new WithDecoupledRoCC ++ new ISCA2016Config)
