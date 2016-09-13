@@ -17,6 +17,12 @@ object RegReadFn
   // effects must become visible on the cycle after ovalid && oready
   implicit def apply(x: (Bool, Bool) => (Bool, Bool, UInt)) =
     new RegReadFn(false, x)
+  implicit def apply(x: RegisterReadIO[UInt]): RegReadFn =
+    RegReadFn((ivalid, oready) => {
+      x.request.valid := ivalid
+      x.response.ready := oready
+      (x.request.ready, x.response.valid, x.response.bits)
+    })
   // (ready: Bool) => (valid: Bool, data: UInt)
   // valid must not combinationally depend on ready
   // valid must eventually go high without requiring ready to go high
@@ -47,6 +53,13 @@ object RegWriteFn
   // effects must become visible on the cycle after ovalid && oready
   implicit def apply(x: (Bool, Bool, UInt) => (Bool, Bool)) =
     new RegWriteFn(false, x)
+  implicit def apply(x: RegisterWriteIO[UInt]): RegWriteFn =
+    RegWriteFn((ivalid, oready, data) => {
+      x.request.valid := ivalid
+      x.request.bits := data
+      x.response.ready := oready
+      (x.request.ready, x.response.valid)
+    })
   // (valid: Bool, data: UInt) => (ready: Bool)
   // ready may combinationally depend on data (but not valid)
   // ready must eventually go high without requiring valid to go high
