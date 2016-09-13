@@ -28,13 +28,14 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     require (!supportClients || bce)
 
     if (supportManagers) {
-      val handleA = if (passthrough) !edgeOut.manager.supportsHint(edgeIn.address(in.a.bits), edgeIn.size(in.a.bits)) else Bool(true)
+      val address = edgeIn.address(in.a.bits)
+      val handleA = if (passthrough) !edgeOut.manager.supportsHint(address, edgeIn.size(in.a.bits)) else Bool(true)
       val bypassD = handleA && in.a.bits.opcode === TLMessages.Hint
 
       // Prioritize existing D traffic over HintAck
       in.d.valid  := out.d.valid || (bypassD && in.a.valid)
       out.d.ready := in.d.ready
-      in.d.bits   := Mux(out.d.valid, out.d.bits, edgeIn.HintAck(in.a.bits))
+      in.d.bits   := Mux(out.d.valid, out.d.bits, edgeIn.HintAck(in.a.bits, edgeOut.manager.findId(address)))
 
       in.a.ready  := Mux(bypassD, in.d.ready && !out.d.valid, out.a.ready)
       out.a.valid := in.a.valid && !bypassD

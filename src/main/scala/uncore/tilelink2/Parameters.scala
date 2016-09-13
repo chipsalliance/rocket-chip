@@ -177,13 +177,14 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   // Synthesizable lookup methods
   def find(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
   def findById(id: UInt) = Vec(managers.map(_.sinkId.contains(id)))
+  def findId(address: UInt) = Mux1H(find(address), managers.map(m => UInt(m.sinkId.start)))
 
   // !!! need a cheaper version of find, where we assume a valid address match exists
   
   // Does this Port manage this ID/address?
   def contains(address: UInt) = find(address).reduce(_ || _)
   def containsById(id: UInt) = findById(id).reduce(_ || _)
-  
+
   private def safety_helper(member: TLManagerParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
     val allSame = managers.map(member(_) == member(managers(0))).reduce(_ && _)
     if (allSame) member(managers(0)).containsLg(lgSize) else {
@@ -255,11 +256,11 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
 
   // These return Option[TLClientParameters] for your convenience
   def find(id: Int) = clients.find(_.sourceId.contains(id))
-  
+
   // Synthesizable lookup methods
   def find(id: UInt) = Vec(clients.map(_.sourceId.contains(id)))
   def contains(id: UInt) = find(id).reduce(_ || _)
-  
+
   private def safety_helper(member: TLClientParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
     val allSame = clients.map(member(_) == member(clients(0))).reduce(_ && _)
     if (allSame) member(clients(0)).containsLg(lgSize) else {

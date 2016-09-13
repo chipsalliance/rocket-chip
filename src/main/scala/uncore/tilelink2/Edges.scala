@@ -615,8 +615,7 @@ class TLEdgeIn(
     d
   }
 
-  // !!! buggy! deduce sink from address
-  def HintAck(a: TLBundleA, sink: UInt = UInt(0)): TLBundleD = HintAck(address(a), sink, a.source, a.size)
+  def HintAck(a: TLBundleA, fromSink: UInt): TLBundleD = HintAck(address(a), fromSink, a.source, a.size)
   def HintAck(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.HintAck
