@@ -81,7 +81,7 @@ class TLFuzzer(nOperations: Int, inFlight: Int = 32) extends LazyModule
     // Progress through operations
     val num_reqs = Reg(init = UInt(nOperations-1, log2Up(nOperations)))
     val num_resps = Reg(init = UInt(nOperations-1, log2Up(nOperations)))
-    io.finished  := num_resps =/= UInt(0)
+    io.finished  := num_resps === UInt(0)
 
     // Progress within each operation
     val a = out.a.bits
