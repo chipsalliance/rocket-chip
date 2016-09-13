@@ -179,7 +179,7 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   }
 
   (io.mem_tl zip coreplex.io.master.mem) foreach { case (tl, mem) =>
-    tl <> ClientUncachedTileLinkEnqueuer(mem, 2)(outermostParams)
+    tl <> TileLinkEnqueuer(mem, 2)(outermostParams)
   }
 }
 
@@ -229,7 +229,7 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
       io.mmio_ahb(idx) <> PeripheryUtils.convertTLtoAHB(mmio_ports(i), atomics = true)(outermostMMIOParams)
     } else if (mmio_tl_start <= i && i < mmio_tl_end) {
       val idx = i-mmio_tl_start
-      io.mmio_tl(idx) <> ClientUncachedTileLinkEnqueuer(mmio_ports(i), 2)(outermostMMIOParams)
+      io.mmio_tl(idx) <> TileLinkEnqueuer(mmio_ports(i), 2)(outermostMMIOParams)
     } else {
       require(false, "Unconnected external MMIO port")
     }

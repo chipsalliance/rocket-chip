@@ -117,13 +117,13 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     val backendBuffering = TileLinkDepths(0,0,0,0,0)
     for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
       val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
-      unwrap.io.in <> ClientTileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
+      unwrap.io.in <> TileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
       TileLinkWidthAdapter(icPort, unwrap.io.out)
     }
 
     io.master.mem <> mem_ic.io.out
 
-    buildMMIONetwork(ClientUncachedTileLinkEnqueuer(mmioManager.io.outer, 1))(
+    buildMMIONetwork(TileLinkEnqueuer(mmioManager.io.outer, 1))(
         p.alterPartial({case TLId => "L2toMMIO"}))
   }
 
@@ -157,7 +157,7 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
 
     val tileSlavePorts = (0 until tc.nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)
     for ((t, m) <- (tileList.map(_.io.slave).flatten) zip (tileSlavePorts map (mmioNetwork port _)))
-      t <> ClientUncachedTileLinkEnqueuer(m, 1)
+      t <> TileLinkEnqueuer(m, 1)
 
     io.master.mmio.foreach { _ <> mmioNetwork.port("ext") }
   }
