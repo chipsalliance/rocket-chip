@@ -34,7 +34,8 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsLogical    = expandTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet),
     supportsPutFull    = expandTransfer(m.supportsPutFull),
-    supportsPutPartial = expandTransfer(m.supportsPutPartial))
+    supportsPutPartial = expandTransfer(m.supportsPutPartial),
+    supportsHint       = expandTransfer(m.supportsHint))
   def mapClient(c: TLClientParameters) = c.copy(
     sourceId = IdRange(c.sourceId.start << fragmentBits, c.sourceId.end << fragmentBits),
     // since we break Acquires, none of these work either:
