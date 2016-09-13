@@ -994,7 +994,7 @@ object AsyncDebugBusCrossing {
 
 object AsyncDebugBusFrom { // OutsideClockDomain
   // takes from_source from the 'from' clock domain and puts it into your clock domain
-  def apply(from_clock: Clock, from_reset: Bool, from_source: DebugBusIO, depth: Int = 0, sync: Int = 2): DebugBusIO = {
+  def apply(from_clock: Clock, from_reset: Bool, from_source: DebugBusIO, depth: Int = 1, sync: Int = 3): DebugBusIO = {
     val scope = AsyncScope()
     AsyncDebugBusCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
   }
@@ -1002,7 +1002,7 @@ object AsyncDebugBusFrom { // OutsideClockDomain
 
 object AsyncDebugBusTo { // OutsideClockDomain
   // takes source from your clock domain and puts it into the 'to' clock domain
-  def apply(to_clock: Clock, to_reset: Bool, source: DebugBusIO, depth: Int = 0, sync: Int = 2): DebugBusIO = {
+  def apply(to_clock: Clock, to_reset: Bool, source: DebugBusIO, depth: Int = 1, sync: Int = 3): DebugBusIO = {
     val scope = AsyncScope()
     AsyncDebugBusCrossing(scope.clock, scope.reset, source, to_clock, to_reset, depth, sync)
   }

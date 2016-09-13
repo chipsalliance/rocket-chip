@@ -708,7 +708,7 @@ class NastiMemoryDemux(nRoutes: Int)(implicit p: Parameters) extends NastiModule
 
 object AsyncNastiCrossing {
   // takes from_source from the 'from' clock domain to the 'to' clock domain
-  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, to_clock: Clock, to_reset: Bool, depth: Int = 3, sync: Int = 2) = {
+  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, to_clock: Clock, to_reset: Bool, depth: Int = 8, sync: Int = 3) = {
     val to_sink = Wire(new NastiIO()(from_source.p))
 
     to_sink.aw <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.aw, to_clock, to_reset, depth, sync)
@@ -723,7 +723,7 @@ object AsyncNastiCrossing {
 
 object AsyncNastiTo {
   // takes source from your clock domain and puts it into the 'to' clock domain
-  def apply(to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2): NastiIO = {
+  def apply(to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 8, sync: Int = 3): NastiIO = {
     val scope = AsyncScope()
     AsyncNastiCrossing(scope.clock, scope.reset, source, to_clock, to_reset, depth, sync)
   }
@@ -731,7 +731,7 @@ object AsyncNastiTo {
 
 object AsyncNastiFrom {
   // takes from_source from the 'from' clock domain and puts it into your clock domain
-  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, depth: Int = 3, sync: Int = 2): NastiIO = {
+  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, depth: Int = 8, sync: Int = 3): NastiIO = {
     val scope = AsyncScope()
     AsyncNastiCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
   }
