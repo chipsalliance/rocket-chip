@@ -125,8 +125,8 @@ module DebugTransportModuleJtag (
 
    assign idcode  = {JTAG_VERSION, JTAG_PART_NUM, JTAG_MANUF_ID, 1'h1};
 
-   wire [3:0]                           debugAddrBits = DEBUG_ADDR_BITS;
-   wire [3:0]                           debugVersion = DEBUG_VERSION;
+   wire [3:0]                           debugAddrBits = DEBUG_ADDR_BITS[3:0];
+   wire [3:0]                           debugVersion = DEBUG_VERSION[3:0];
    
    assign dtminfo = {24'b0, debugAddrBits, debugVersion};
    
