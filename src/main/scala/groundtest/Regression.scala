@@ -5,7 +5,8 @@ import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
 import uncore.util._
-import junctions.{ParameterizedBundle, HasAddrMapParameters, Timer}
+import junctions.{ParameterizedBundle, HasAddrMapParameters}
+import util.Timer
 import rocket.HellaCacheIO
 import cde.{Parameters, Field}
 

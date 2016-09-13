@@ -2,6 +2,7 @@ package junctions
 
 import Chisel._
 import cde.{Parameters, Field}
+import unittest.UnitTest
 
 object HastiConstants
 {
@@ -546,4 +547,17 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   io.hrdata := outdata.asUInt
   io.hready := ready
   io.hresp  := HRESP_OKAY
+}
+
+class HastiTest(implicit p: Parameters) extends UnitTest {
+  val sram = Module(new HastiTestSRAM(8))
+  val bus = Module(new HastiBus(Seq(a => Bool(true))))
+  val conv = Module(new HastiMasterIONastiIOConverter)
+  val driver = Module(new NastiDriver(32, 8, 2))
+
+  bus.io.slaves(0) <> sram.io
+  bus.io.master <> conv.io.hasti
+  conv.io.nasti <> driver.io.nasti
+  io.finished := driver.io.finished
+  driver.io.start := io.start
 }

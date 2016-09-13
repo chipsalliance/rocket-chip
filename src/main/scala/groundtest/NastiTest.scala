@@ -4,6 +4,7 @@ import Chisel._
 import uncore.tilelink._
 import uncore.converters._
 import junctions._
+import util.Timer
 import rocket.TileId
 import cde.Parameters
 

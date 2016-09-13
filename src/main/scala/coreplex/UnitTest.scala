@@ -1,7 +1,7 @@
 package coreplex
 
 import Chisel._
-import junctions.unittests.UnitTestSuite
+import unittest.UnitTestSuite
 import rocket.Tile
 import uncore.tilelink.TLId
 import cde.Parameters

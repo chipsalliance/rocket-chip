@@ -22,6 +22,7 @@ import uncore.constants._
 import uncore.devices.NTiles
 import junctions._
 import rocket._
+import util.{Timer, DynamicTimer}
 import scala.util.Random
 import cde.{Parameters, Field}
 

@@ -2,35 +2,6 @@ package groundtest
 
 import Chisel._
 
-// =============
-// Dynamic timer
-// =============
-
-// Timer with a dynamically-settable period.
-
-class DynamicTimer(w: Int) extends Module {
-  val io = new Bundle {
-    val start   = Bool(INPUT)
-    val period  = UInt(INPUT, w)
-    val stop    = Bool(INPUT)
-    val timeout = Bool(OUTPUT)
-  }
-
-  val countdown = Reg(init = UInt(0, w))
-  val active = Reg(init = Bool(false))
-
-  when (io.start) {
-    countdown := io.period
-    active := Bool(true)
-  } .elsewhen (io.stop || countdown === UInt(0)) {
-    active := Bool(false)
-  } .elsewhen (active) {
-    countdown := countdown - UInt(1)
-  }
-
-  io.timeout := countdown === UInt(0) && active
-}
-
 // ============
 // LCG16 module
 // ============

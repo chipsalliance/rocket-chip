@@ -1,6 +1,7 @@
 package uncore.devices
 
 import Chisel._
+import unittest.UnitTest
 import junctions._
 import uncore.tilelink._
 import uncore.util._
@@ -39,6 +40,26 @@ class ROMSlave(contents: Seq[Byte])(implicit val p: Parameters) extends Module
     manager_xact_id = UInt(0),
     addr_beat = addr_beat,
     data = rdata)
+}
+
+class ROMSlaveTest(implicit p: Parameters) extends UnitTest {
+  implicit val testName = "ROMSlaveTest"
+  val romdata = Seq(
+    BigInt("01234567deadbeef", 16),
+    BigInt("ab32fee8d00dfeed", 16))
+  val rombytes = romdata.map(_.toByteArray.reverse).flatten
+  val rom = Module(new ROMSlave(rombytes))
+  val driver = Module(new DriverSet(
+    (driverParams: Parameters) => {
+      implicit val p = driverParams
+      Seq(
+        Module(new GetMultiWidthDriver),
+        Module(new GetSweepDriver(romdata)),
+        Module(new GetBlockSweepDriver(romdata)))
+    }))
+  rom.io <> driver.io.mem
+  driver.io.start := io.start
+  io.finished := driver.io.finished
 }
 
 class NastiROM(contents: Seq[Byte])(implicit p: Parameters) extends Module {

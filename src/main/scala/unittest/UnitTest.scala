@@ -1,8 +1,8 @@
-package junctions.unittests
+package unittest
 
 import Chisel._
-import junctions._
 import cde.{Field, Parameters}
+import util.Timer
 
 trait HasUnitTestIO {
   val io = new Bundle {
@@ -55,12 +55,4 @@ class UnitTestSuite(implicit p: Parameters) extends Module {
   io.finished := (state === s_done)
 
   assert(!timer.io.timeout.valid, "UnitTest timed out")
-}
-
-object JunctionsUnitTests {
-  def apply(implicit p: Parameters): Seq[UnitTest] =
-    Seq(
-      Module(new MultiWidthFifoTest),
-      Module(new NastiMemoryDemuxTest),
-      Module(new HastiTest))
 }

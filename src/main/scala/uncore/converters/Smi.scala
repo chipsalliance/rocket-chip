@@ -30,3 +30,30 @@ class SmiIOTileLinkIOConverter(val dataWidth: Int, val addrWidth: Int)
   decoupledNastiConnect(nasti2smi.io.nasti, tl2nasti.io.nasti)
   io.smi <> nasti2smi.io.smi
 }
+
+class SmiConverterTest(implicit val p: Parameters) extends unittest.UnitTest
+    with HasTileLinkParameters {
+  val outermostParams = p.alterPartial({ case TLId => "Outermost" })
+
+  val smiWidth = 32
+  val smiDepth = 64
+  val tlDepth = (smiWidth * smiDepth) / tlDataBits
+
+  val smimem = Module(new SmiMem(smiWidth, smiDepth))
+  val conv = Module(new SmiIOTileLinkIOConverter(
+    smiWidth, log2Up(smiDepth))(outermostParams))
+  val driver = Module(new DriverSet(
+    (driverParams: Parameters) => {
+      implicit val p = driverParams
+      Seq(
+        Module(new PutSweepDriver(tlDepth)),
+        Module(new PutMaskDriver(smiWidth / 8)),
+        Module(new PutBlockSweepDriver(tlDepth / tlDataBeats)),
+        Module(new GetMultiWidthDriver))
+    })(outermostParams))
+
+  conv.io.tl <> driver.io.mem
+  smimem.io <> conv.io.smi
+  driver.io.start := io.start
+  io.finished := driver.io.finished
+}

@@ -8,9 +8,8 @@ import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
 import uncore.devices.NTiles
-import uncore.unittests._
+import unittest._
 import junctions._
-import junctions.unittests._
 import scala.collection.mutable.LinkedHashSet
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 import scala.math.max

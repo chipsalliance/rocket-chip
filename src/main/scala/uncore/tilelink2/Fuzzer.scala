@@ -3,7 +3,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.util.LFSR16
-import junctions.unittests._
+import unittest._
 
 class IDMapGenerator(numIds: Int) extends Module {
   val w = log2Up(numIds)
