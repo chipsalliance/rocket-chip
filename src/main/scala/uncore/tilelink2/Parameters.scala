@@ -179,6 +179,10 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   def findById(id: UInt) = Vec(managers.map(_.sinkId.contains(id)))
   def findId(address: UInt) = Mux1H(find(address), managers.map(m => UInt(m.sinkId.start)))
 
+  // Note: returns the actual fifoId + 1 or 0 if None
+  def findFifoId(address: UInt) = Mux1H(find(address), managers.map(m => UInt(m.fifoId.map(_+1).getOrElse(0))))
+  def hasFifoId(address: UInt) = Mux1H(find(address), managers.map(m => Bool(m.fifoId.isDefined)))
+
   // !!! need a cheaper version of find, where we assume a valid address match exists
   
   // Does this Port manage this ID/address?
