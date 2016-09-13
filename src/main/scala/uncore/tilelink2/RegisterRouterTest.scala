@@ -9,7 +9,7 @@ object LFSR16Seed
   def apply(seed: Int): UInt =
   {
     val width = 16
-    val lfsr = Reg(init=UInt(seed, width))
+    val lfsr = Reg(init=UInt((seed*0x7231) % 65536, width))
     lfsr := Cat(lfsr(0)^lfsr(2)^lfsr(3)^lfsr(5), lfsr(width-1,1))
     lfsr
   }
@@ -39,12 +39,11 @@ class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => B
 
 object RRTestCombinational
 {
-  private var seed = 0
+  private var seed = 42
   def always: Bool => Bool = _ => Bool(true)
   def random: Bool => Bool = {
     seed = seed + 1
-    val lfsr = LFSR16Seed(seed)
-    _ => lfsr(0)
+    _ => LFSR16Seed(seed)(0)
   }
   def delay(x: Int): Bool => Bool = { fire =>
     val reg = RegInit(UInt(0, width = log2Ceil(x+1)))
@@ -96,32 +95,40 @@ class RRTestRequest(val bits: Int,
 
 object RRTestRequest
 {
-  private var seed = 0
+  private var seed = 1231
   def pipe(x: Int): (Bool, Bool, UInt) => (Bool, Bool, UInt) = { (ivalid, oready, idata) =>
     val full = RegInit(Vec.fill(x)(Bool(false)))
-    val ready = Wire(Vec.fill(x)(Bool()))
-    val data = Reg(Vec.fill(x)(UInt(width = idata.getWidth)))
+    val ready = Wire(Vec(x, Bool()))
+    val data = Reg(Vec(x, UInt(width = idata.getWidth)))
     // Construct a classic bubble-filling pipeline
-    ready(x) := oready || !full(x)
+    ready(x-1) := oready || !full(x-1)
     when (ready(0)) { data(0) := idata }
+    when (ready(0)) { full(0) := ivalid }
     ((ready.init zip ready.tail) zip full.init) foreach { case ((self, next), full) =>
       self := next || !full
     }
     ((data.init zip data.tail) zip ready.tail) foreach { case ((prev, self), ready) =>
       when (ready) { self := prev }
     }
-    (ready(0), full(x), Mux(full(x) && oready, data(x), UInt(0)))
+    ((full.init zip full.tail) zip ready.tail) foreach { case ((prev, self), ready) =>
+      when (ready) { self := prev }
+    }
+    (ready(0), full(x-1), data(x-1))
   }
   def busy: (Bool, Bool, UInt) => (Bool, Bool, UInt) = {
     seed = seed + 1
-    val lfsr = LFSR16Seed(seed)
     (ivalid, oready, idata) => {
+      val lfsr = LFSR16Seed(seed)
       val busy = RegInit(Bool(false))
+      val data = Reg(UInt(width = idata.getWidth))
       val progress = lfsr(0)
       when (progress) {
         busy := Mux(busy, !oready, ivalid)
       }
-      (progress && !busy, progress && busy, idata)
+      val iready = progress && !busy
+      val ovalid = progress && busy
+      when (ivalid && iready) { data := idata }
+      (iready, ovalid, data)
     }
   }
   def request(bits: Int,
@@ -140,3 +147,76 @@ object RRTestRequest
         (request.io.wiready, request.io.wovalid) })
   }
 }
+
+object RRTest0Map
+{
+  import RRTestCombinational._
+
+  def aa(bits: Int) = combo(bits, always, always)
+  def ar(bits: Int) = combo(bits, always, random)
+  def ad(bits: Int) = combo(bits, always, delay(11))
+  def ae(bits: Int) = combo(bits, always, delay(5))
+  def ra(bits: Int) = combo(bits, random, always)
+  def rr(bits: Int) = combo(bits, random, random)
+  def rd(bits: Int) = combo(bits, random, delay(11))
+  def re(bits: Int) = combo(bits, random, delay(5))
+  def da(bits: Int) = combo(bits, delay(5), always)
+  def dr(bits: Int) = combo(bits, delay(5), random)
+  def dd(bits: Int) = combo(bits, delay(5), delay(5))
+  def de(bits: Int) = combo(bits, delay(5), delay(11))
+  def ea(bits: Int) = combo(bits, delay(11), always)
+  def er(bits: Int) = combo(bits, delay(11), random)
+  def ed(bits: Int) = combo(bits, delay(11), delay(5))
+  def ee(bits: Int) = combo(bits, delay(11), delay(11))
+
+  // All fields must respect byte alignment, or else it won't behave like an SRAM
+  val map = Seq(
+    0 -> Seq(aa(8), ar(8), ad(8), ae(8)),
+    1 -> Seq(ra(8), rr(8), rd(8), re(8)),
+    2 -> Seq(da(8), dr(8), dd(8), de(8)),
+    3 -> Seq(ea(8), er(8), ed(8), ee(8)),
+    4 -> Seq(aa(3), ar(5), ad(1), ae(7), ra(2), rr(6), rd(4), re(4)),
+    5 -> Seq(da(3), dr(5), dd(1), de(7), ea(2), er(6), ed(4), ee(4)),
+    6 -> Seq(aa(8), rr(8), dd(8), ee(8)),
+    7 -> Seq(ar(8), rd(8), de(8), ea(8)))
+}
+
+object RRTest1Map
+{
+  import RRTestRequest._
+
+  def pp(bits: Int) = request(bits, pipe(3), pipe(3))
+  def pb(bits: Int) = request(bits, pipe(3), busy)
+  def bp(bits: Int) = request(bits, busy, pipe(3))
+  def bb(bits: Int) = request(bits, busy, busy)
+
+  val map = RRTest0Map.map.take(6) ++ Seq(
+    6 -> Seq(pp(8), pb(8), bp(8), bb(8)),
+    7 -> Seq(pp(3), pb(5), bp(1), bb(7), pb(5), bp(3), pp(4), bb(4)))
+}
+
+trait RRTest0Bundle
+{
+}
+
+trait RRTest0Module extends HasRegMap
+{
+  regmap(RRTest0Map.map:_*)
+}
+
+class RRTest0(address: BigInt) extends TLRegisterRouter(address, 0, 32, Some(0), 4)(
+  new TLRegBundle((), _)    with RRTest0Bundle)(
+  new TLRegModule((), _, _) with RRTest0Module)
+
+trait RRTest1Bundle
+{
+}
+
+trait RRTest1Module extends HasRegMap
+{
+  regmap(RRTest1Map.map:_*)
+}
+
+class RRTest1(address: BigInt) extends TLRegisterRouter(address, 0, 32, Some(6), 4)(
+  new TLRegBundle((), _)    with RRTest1Bundle)(
+  new TLRegModule((), _, _) with RRTest1Module)

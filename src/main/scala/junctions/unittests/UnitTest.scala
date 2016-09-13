@@ -39,7 +39,7 @@ class UnitTestSuite(implicit p: Parameters) extends Module {
     state := Mux(test_idx === UInt(tests.size - 1), s_done, s_start)
   }
 
-  val timer = Module(new Timer(50000, tests.size))
+  val timer = Module(new Timer(100000, tests.size))
   timer.io.start.valid := Bool(false)
   timer.io.stop.valid := Bool(false)
 

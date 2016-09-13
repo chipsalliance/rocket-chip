@@ -223,7 +223,7 @@ class TLRAMModel extends LazyModule
             when (!shadow.valid) {
               printf("G 0x%x := undefined\n", d_addr_hi << shift | UInt(i))
             } .otherwise {
-              printf("G 0x%x := 0x%x\n", d_addr_hi << shift | UInt(i), shadow.value)
+              printf("G 0x%x := 0x%x\n", d_addr_hi << shift | UInt(i), got)
               assert (shadow.value === got)
             }
           }
