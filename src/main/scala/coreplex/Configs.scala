@@ -123,6 +123,7 @@ class BaseCoreplexConfig extends Config (
       case NPerfEvents => 0
       case FastLoadWord => true
       case FastLoadByte => false
+      case FastJAL => false
       case XLen => 64
       case FPUKey => Some(FPUConfig())
       case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = (site(XLen) > 32), divEarlyOut = true))

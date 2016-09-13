@@ -22,6 +22,7 @@ case object UseAtomics extends Field[Boolean]
 case object UseCompressed extends Field[Boolean]
 case object FastLoadWord extends Field[Boolean]
 case object FastLoadByte extends Field[Boolean]
+case object FastJAL extends Field[Boolean]
 case object CoreInstBits extends Field[Int]
 case object NCustomMRWCSRs extends Field[Int]
 case object MtvecWritable extends Field[Boolean]
@@ -47,6 +48,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val usingRoCC = !p(BuildRoCC).isEmpty
   val fastLoadWord = p(FastLoadWord)
   val fastLoadByte = p(FastLoadByte)
+  val fastJAL = p(FastJAL)
   val nBreakpoints = p(NBreakpoints)
   val nPerfCounters = p(NPerfCounters)
   val nPerfEvents = p(NPerfEvents)
@@ -205,8 +207,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val wb_reg_rs2 = Reg(Bits())
   val take_pc_wb = Wire(Bool())
 
+  val take_pc_id = Wire(Bool())
   val take_pc_mem_wb = take_pc_wb || take_pc_mem
-  val take_pc = take_pc_mem_wb
+  val take_pc = take_pc_mem_wb || take_pc_id
 
   // decode stage
   val ibuf = Module(new IBuf)
@@ -228,6 +231,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val rf = new RegFile(31, xLen)
   val id_rs = id_raddr.map(rf.read _)
   val ctrl_killd = Wire(Bool())
+  val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
+  take_pc_id := Bool(fastJAL) && !ctrl_killd && id_ctrl.jal
 
   val csr = Module(new CSRFile)
   val id_csr_en = id_ctrl.csr =/= CSR.N
@@ -385,14 +390,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val mem_br_taken = mem_reg_wdata(0)
   val mem_br_target = mem_reg_pc.asSInt +
     Mux(mem_ctrl.branch && mem_br_taken, ImmGen(IMM_SB, mem_reg_inst),
-    Mux(mem_ctrl.jal, ImmGen(IMM_UJ, mem_reg_inst),
+    Mux(Bool(!fastJAL) && mem_ctrl.jal, ImmGen(IMM_UJ, mem_reg_inst),
     Mux(mem_reg_rvc, SInt(2), SInt(4))))
   val mem_npc = (Mux(mem_ctrl.jalr, encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).asSInt, mem_br_target) & SInt(-2)).asUInt
   val mem_wrong_npc = Mux(ex_pc_valid, mem_npc =/= ex_reg_pc, Mux(ibuf.io.inst(0).valid, mem_npc =/= ibuf.io.pc, Bool(true)))
   val mem_npc_misaligned = !csr.io.status.isa('c'-'a') && mem_npc(1)
   val mem_int_wdata = Mux(!mem_reg_xcpt && (mem_ctrl.jalr ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.asSInt).asUInt
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
-  val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal
+  val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || (Bool(!fastJAL) && mem_ctrl.jal)
   val mem_misprediction =
     if (p(BtbKey).nEntries == 0) mem_cfi_taken
     else mem_wrong_npc
@@ -576,20 +581,21 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
     id_do_fence ||
     csr.io.csr_stall
-  ctrl_killd := !ibuf.io.inst(0).valid || ibuf.io.inst(0).bits.replay || take_pc || ctrl_stalld || csr.io.interrupt
+  ctrl_killd := !ibuf.io.inst(0).valid || ibuf.io.inst(0).bits.replay || take_pc_mem_wb || ctrl_stalld || csr.io.interrupt
 
   io.imem.req.valid := take_pc
   io.imem.req.bits.speculative := !take_pc_wb
   io.imem.req.bits.pc :=
-    Mux(wb_xcpt || csr.io.eret, csr.io.evec, // exception or [m|s]ret
-    Mux(replay_wb,              wb_reg_pc,   // replay
-                                mem_npc))    // mispredicted branch
+    Mux(wb_xcpt || csr.io.eret,        csr.io.evec, // exception or [m|s]ret
+    Mux(replay_wb,                     wb_reg_pc,   // replay
+    Mux(take_pc_mem || Bool(!fastJAL), mem_npc,     // branch misprediction
+                                       id_npc)))    // JAL
   io.imem.flush_icache := wb_reg_valid && wb_ctrl.fence_i && !io.dmem.s2_nack
   io.imem.flush_tlb := csr.io.fatc
 
   ibuf.io.inst(0).ready := !ctrl_stalld || csr.io.interrupt
 
-  io.imem.btb_update.valid := (mem_reg_replay && mem_reg_btb_hit) || (mem_reg_valid && !take_pc_wb && (mem_cfi_taken || !mem_cfi) && mem_wrong_npc)
+  io.imem.btb_update.valid := (mem_reg_replay && mem_reg_btb_hit) || (mem_reg_valid && !take_pc_wb && (((mem_cfi_taken || !mem_cfi) && mem_wrong_npc) || (Bool(fastJAL) && mem_ctrl.jal && !mem_reg_btb_hit)))
   io.imem.btb_update.bits.isValid := !mem_reg_replay && mem_cfi
   io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
   io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && mem_reg_inst(19,15) === BitPat("b00??1")
