@@ -27,7 +27,11 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     val bce = edgeOut.manager.anySupportAcquire && edgeIn.client.anySupportProbe
     require (!supportClients || bce)
 
-    if (supportManagers) {
+    // Does it even make sense to add the HintHandler?
+    val smartClients = edgeIn.client.clients.map(_.supportsHint.max == edgeIn.client.maxTransfer).reduce(_&&_)
+    val smartManagers = edgeOut.manager.managers.map(_.supportsHint.max == edgeOut.manager.maxTransfer).reduce(_&&_)
+
+    if (supportManagers && !smartManagers) {
       val address = edgeIn.address(in.a.bits)
       val handleA = if (passthrough) !edgeOut.manager.supportsHint(address, edgeIn.size(in.a.bits)) else Bool(true)
       val bypassD = handleA && in.a.bits.opcode === TLMessages.Hint
@@ -50,7 +54,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       in.d.bits := out.d.bits
     }
 
-    if (supportClients) {
+    if (supportClients && !smartClients) {
       val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source, edgeOut.size(out.b.bits)) else Bool(true)
       val bypassC = handleB && out.b.bits.opcode === TLMessages.Hint
 
