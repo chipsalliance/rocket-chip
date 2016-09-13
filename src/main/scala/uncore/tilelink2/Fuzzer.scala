@@ -50,15 +50,39 @@ object LFSR64
   }
 }
 
-object NoiseMaker
+trait HasNoiseMakerIO
 {
-  def apply(wide: Int, increment: Bool = Bool(true)): UInt = {
-    val lfsrs = Seq.fill((wide+63)/64) { LFSR64(increment) }
-    Cat(lfsrs)(wide-1,0)
+  val io = new Bundle {
+    val inc = Bool(INPUT)
+    val random = UInt(OUTPUT)
   }
 }
 
-class TLFuzzer(nOperations: Int, inFlight: Int = 32) extends LazyModule
+class LFSRNoiseMaker(wide: Int) extends Module with HasNoiseMakerIO
+{
+  val lfsrs = Seq.fill((wide+63)/64) { LFSR64(io.inc) }
+  io.random := Cat(lfsrs)(wide-1,0)
+}
+
+object LFSRNoiseMaker {
+  def apply(wide: Int, increment: Bool = Bool(true)): UInt = {
+    val nm = Module(new LFSRNoiseMaker(wide))
+    nm.io.inc := increment
+    nm.io.random
+  }
+}
+
+/** TLFuzzer drives test traffic over TL2 links. It generates a sequence of randomized
+  * requests, and issues legal ones into the DUT. TODO: Currently the fuzzer only generates
+  * memory operations, not permissions transfers.
+  * @param nOperations is the total number of operations that the fuzzer must complete for the test to pass
+  * @param inFlight is the number of operations that can be in-flight to the DUT concurrently
+  * @param noiseMaker is a function that supplies a random UInt of a given width every time inc is true
+  */
+class TLFuzzer(
+    nOperations: Int,
+    inFlight: Int = 32,
+    noiseMaker: (Int, Bool) => UInt = LFSRNoiseMaker.apply _) extends LazyModule
 {
   val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
 
@@ -70,6 +94,8 @@ class TLFuzzer(nOperations: Int, inFlight: Int = 32) extends LazyModule
 
     val out = io.out(0)
     val edge = node.edgesOut(0)
+
+    // Extract useful parameters from the TL edge
     val endAddress   = edge.manager.maxAddress + 1
     val maxTransfer  = edge.manager.maxTransfer
     val beatBytes    = edge.manager.beatBytes
@@ -111,14 +137,15 @@ class TLFuzzer(nOperations: Int, inFlight: Int = 32) extends LazyModule
     // Increment random number generation for the following subfields
     val inc = Wire(Bool())
     val inc_beat = Wire(Bool())
-    val arth_op   = NoiseMaker(3, inc)
-    val log_op    = NoiseMaker(2, inc) 
-    val amo_size  = UInt(2) + NoiseMaker(1, inc) // word or dword
-    val size      = NoiseMaker(sizeBits, inc)
-    val addr      = NoiseMaker(addressBits, inc) & ~UIntToOH1(size, addressBits)
-    val mask      = NoiseMaker(beatBytes, inc_beat) & edge.mask(addr, size)
-    val data      = NoiseMaker(dataBits, inc_beat)
+    val arth_op   = noiseMaker(3, inc)
+    val log_op    = noiseMaker(2, inc)
+    val amo_size  = UInt(2) + noiseMaker(1, inc) // word or dword
+    val size      = noiseMaker(sizeBits, inc)
+    val addr      = noiseMaker(addressBits, inc) & ~UIntToOH1(size, addressBits)
+    val mask      = noiseMaker(beatBytes, inc_beat) & edge.mask(addr, size)
+    val data      = noiseMaker(dataBits, inc_beat)
 
+    // Actually generate specific TL messages when it is legal to do so
     val (glegal,  gbits)  = edge.Get(src, addr, size)
     val (pflegal, pfbits) = if(edge.manager.anySupportPutFull) { 
                               edge.Put(src, addr, size, data)
@@ -136,7 +163,8 @@ class TLFuzzer(nOperations: Int, inFlight: Int = 32) extends LazyModule
                               edge.Hint(src, addr, size, UInt(0))
                             } else { (glegal, gbits) }
 
-    val a_type_sel  = NoiseMaker(3, inc)
+    // Pick a specific message to try to send
+    val a_type_sel  = noiseMaker(3, inc)
 
     val legal = MuxLookup(a_type_sel, glegal, Seq(
       UInt("b000") -> glegal,
@@ -154,6 +182,7 @@ class TLFuzzer(nOperations: Int, inFlight: Int = 32) extends LazyModule
       UInt("b100") -> lbits,
       UInt("b101") -> hbits))
 
+    // Wire both the used and un-used channel signals
     out.a.valid := legal && alloc.valid && num_reqs =/= UInt(0)
     out.a.bits  := bits
     out.b.ready := Bool(true)
@@ -161,6 +190,7 @@ class TLFuzzer(nOperations: Int, inFlight: Int = 32) extends LazyModule
     out.d.ready := Bool(true)
     out.e.valid := Bool(false)
 
+    // Increment the various progress-tracking states
     inc := !legal || req_done
     inc_beat := !legal || out.a.fire()
 
