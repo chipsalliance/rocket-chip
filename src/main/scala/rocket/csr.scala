@@ -61,6 +61,14 @@ class DCSR extends Bundle {
   val prv = UInt(width = PRV.SZ)
 }
 
+class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
+  val debug = Bool()
+  val mtip = Bool()
+  val msip = Bool()
+  val meip = Bool()
+  val seip = usingVM.option(Bool())
+}
+
 class MIP extends Bundle {
   val rocc = Bool()
   val meip = Bool()
@@ -121,7 +129,8 @@ object CSR
 }
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle {
-  val prci = new PRCITileIO().flip
+  val interrupts = new TileInterrupts().asInput
+  val hartid = UInt(INPUT, xLen)
   val rw = new Bundle {
     val addr = UInt(INPUT, CSR.ADDRSZ)
     val cmd = Bits(INPUT, CSR.SZ)
@@ -297,7 +306,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     CSRs.mepc -> reg_mepc.sextTo(xLen),
     CSRs.mbadaddr -> reg_mbadaddr.sextTo(xLen),
     CSRs.mcause -> reg_mcause,
-    CSRs.mhartid -> io.prci.id)
+    CSRs.mhartid -> io.hartid)
 
   val debug_csrs = collection.immutable.ListMap(
     CSRs.dcsr -> reg_dcsr.asUInt,
@@ -611,8 +620,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }
   }
 
-  reg_mip := io.prci.interrupts
-  reg_dcsr.debugint := io.prci.interrupts.debug
+  reg_mip := io.interrupts
+  reg_dcsr.debugint := io.interrupts.debug
 
   reg_sptbr.asid := 0
   if (nBreakpoints <= 1) reg_tselect := 0

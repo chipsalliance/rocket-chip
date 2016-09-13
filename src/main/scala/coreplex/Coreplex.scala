@@ -174,17 +174,14 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     prci.io.tl <> mmioNetwork.port("int:prci")
     prci.io.rtcTick := io.rtcTick
 
-    (prci.io.tiles, tileResets, tileList).zipped.foreach {
-      case (prci, rst, tile) =>
-        rst := reset
-        tile.io.prci <> prci
-    }
-
-    for (i <- 0 until tc.nTiles) {
-      prci.io.interrupts(i).meip := plic.io.harts(plic.cfg.context(i, 'M'))
-      if (p(UseVM))
-        prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
-      prci.io.interrupts(i).debug := debugModule.io.debugInterrupts(i)
+    // connect coreplex-internal interrupts to tiles
+    for (((tile, tileReset), i) <- (tileList zip tileResets) zipWithIndex) {
+      tileReset := prci.io.tiles(i).reset
+      tile.io.interrupts := prci.io.tiles(i).interrupts
+      tile.io.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
+      tile.io.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
+      tile.io.interrupts.debug := debugModule.io.debugInterrupts(i)
+      tile.io.hartid := i
     }
 
     val tileSlavePorts = (0 until tc.nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)
