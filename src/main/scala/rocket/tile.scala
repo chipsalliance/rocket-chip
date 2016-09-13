@@ -31,7 +31,8 @@ abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
   class TileIO extends Bundle {
     val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
     val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
-    val prci = new PRCITileIO().flip
+    val hartid = UInt(INPUT, p(XLen))
+    val interrupts = new TileInterrupts().asInput
     val slave = (p(DataScratchpadSize) > 0).option(new ClientUncachedTileLinkIO().flip)
   }
 
@@ -54,7 +55,8 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
   val uncachedArbPorts = collection.mutable.ArrayBuffer(icache.io.mem)
   val uncachedPorts = collection.mutable.ArrayBuffer[ClientUncachedTileLinkIO]()
   val cachedPorts = collection.mutable.ArrayBuffer(dcache.mem)
-  core.io.prci <> io.prci
+  core.io.interrupts := io.interrupts
+  core.io.hartid := io.hartid
   icache.io.cpu <> core.io.imem
 
   val fpuOpt = p(FPUKey).map(cfg => Module(new FPU(cfg)))
