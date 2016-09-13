@@ -105,9 +105,8 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp]
    (moduleBuilder: (=> B, TLRegisterRouterBase) => M)
   extends TLRegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes)
 {
-  require (size % 4096 == 0) // devices should be 4K aligned
   require (isPow2(size))
-  require (size >= 4096)
+  // require (size >= 4096) ... not absolutely required, but highly recommended
 
   lazy val module = moduleBuilder(bundleBuilder(TLRegBundleArg(intnode.bundleOut, node.bundleIn)), this)
 }

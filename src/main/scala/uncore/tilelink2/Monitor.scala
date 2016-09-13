@@ -20,7 +20,7 @@ object TLMonitor
     // Reuse these subexpressions to save some firrtl lines
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isHiAligned(bundle.addr_hi, bundle.size)
-    val mask = edge.mask(edge.addr_lo(bundle.mask), bundle.size)
+    val mask = edge.full_mask(bundle)
 
     when (bundle.opcode === TLMessages.Acquire) {
       assert (edge.manager.supportsAcquire(edge.address(bundle), bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
@@ -53,7 +53,6 @@ object TLMonitor
       assert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'A' channel PutPartial carries invalid param" + extra)
       assert ((bundle.mask & ~mask) === UInt(0), "'A' channel PutPartial contains invalid mask" + extra)
-      assert (bundle.mask =/= UInt(0), "'A' channel PutPartial has a zero mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
@@ -73,7 +72,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      assert (edge.manager.supportsHint(edge.address(bundle)), "'A' channel carries Hint type unsupported by manager" + extra)
+      assert (edge.manager.supportsHint(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
       assert (source_ok, "'A' channel Hint carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
       assert (bundle.mask === mask, "'A' channel Hint contains invalid mask" + extra)
@@ -86,7 +85,7 @@ object TLMonitor
     // Reuse these subexpressions to save some firrtl lines
     val address_ok = edge.manager.contains(bundle.source)
     val is_aligned = edge.isHiAligned(bundle.addr_hi, bundle.size)
-    val mask = edge.mask(edge.addr_lo(bundle.mask), bundle.size)
+    val mask = edge.full_mask(bundle)
 
     when (bundle.opcode === TLMessages.Probe) {
       assert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
@@ -119,7 +118,6 @@ object TLMonitor
       assert (is_aligned, "'B' channel PutPartial address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'B' channel PutPartial carries invalid param" + extra)
       assert ((bundle.mask & ~mask) === UInt(0), "'B' channel PutPartial contains invalid mask" + extra)
-      assert (bundle.mask =/= UInt(0), "'B' channel PutPartial has a zero mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
@@ -139,7 +137,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      assert (edge.client.supportsHint(bundle.source), "'B' channel carries Hint type unsupported by client" + extra)
+      assert (edge.client.supportsHint(bundle.source, bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
       assert (address_ok, "'B' channel Hint carries unmanaged address" + extra)
       assert (is_aligned, "'B' channel Hint address not aligned to size" + extra)
       assert (bundle.mask === mask, "'B' channel Hint contains invalid mask" + extra)

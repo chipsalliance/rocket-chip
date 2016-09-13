@@ -81,5 +81,6 @@ object UncoreUnitTests {
     Seq(
       Module(new SmiConverterTest),
       Module(new ROMSlaveTest),
-      Module(new TileLinkRAMTest))
+      Module(new TileLinkRAMTest),
+      Module(new uncore.tilelink2.TLFuzzRAMTest))
 }

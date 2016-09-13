@@ -4,12 +4,14 @@ import Chisel._
 import junctions._
 import cde.{Field, Parameters}
 
-abstract class UnitTest extends Module {
+trait HasUnitTestIO {
   val io = new Bundle {
     val finished = Bool(OUTPUT)
     val start = Bool(INPUT)
   }
+}
 
+abstract class UnitTest extends Module with HasUnitTestIO {
   when (io.start) {
     printf(s"Started UnitTest ${this.getClass.getSimpleName}\n")
   }
@@ -37,7 +39,7 @@ class UnitTestSuite(implicit p: Parameters) extends Module {
     state := Mux(test_idx === UInt(tests.size - 1), s_done, s_start)
   }
 
-  val timer = Module(new Timer(1000, tests.size))
+  val timer = Module(new Timer(100000, tests.size))
   timer.io.start.valid := Bool(false)
   timer.io.stop.valid := Bool(false)
 
