@@ -1,13 +1,19 @@
 package junctions
 import Chisel._
 
-class Crossing[T <: Data](gen: T) extends Bundle {
-    val enq = Decoupled(gen).flip()
-    val deq = Decoupled(gen)
-    val enq_clock = Clock(INPUT)
-    val deq_clock = Clock(INPUT)
-    val enq_reset = Bool(INPUT)
-    val deq_reset = Bool(INPUT)
+class CrossingIO[T <: Data](gen: T) extends Bundle {
+  // Enqueue clock domain
+  val enq_clock = Clock(INPUT)
+  val enq_reset = Bool(INPUT) // synchronously deasserted wrt. enq_clock
+  val enq = Decoupled(gen).flip()
+  // Dequeue clock domain
+  val deq_clock = Clock(INPUT)
+  val deq_reset = Bool(INPUT) // synchronously deasserted wrt. deq_clock
+  val deq = Decoupled(gen)
+}
+
+abstract class Crossing[T <: Data] extends Module {
+  val io: CrossingIO[T]
 }
 
 // Output is 1 for one cycle after any edge of 'in'
@@ -86,8 +92,8 @@ class AsyncHandshakeSink[T <: Data](gen: T, sync: Int, clock: Clock, reset: Bool
   }
 }
 
-class AsyncHandshake[T <: Data](gen: T, sync: Int = 2) extends Module {
-  val io = new Crossing(gen)
+class AsyncHandshake[T <: Data](gen: T, sync: Int = 2) extends Crossing[T] {
+  val io = new CrossingIO(gen)
   require (sync >= 2)
 
   val source = Module(new AsyncHandshakeSource(gen, sync, io.enq_clock, io.enq_reset))

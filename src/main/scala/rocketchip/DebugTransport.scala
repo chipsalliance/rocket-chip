@@ -121,5 +121,5 @@ class AsyncMailbox extends BlackBox {
   // this mailbox just has a fixed width of 64 bits, which is enough
   // for our specific purpose here.
 
-  val io = new Crossing(UInt(width=64))
+  val io = new CrossingIO(UInt(width=64))
 }
