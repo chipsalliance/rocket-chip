@@ -378,7 +378,7 @@ class TLEdgeOut(
 
   def Hint(fromSource: UInt, toAddress: UInt, lgSize: UInt, param: UInt) = {
     require (manager.anySupportHint)
-    val legal = manager.supportsHint(toAddress)
+    val legal = manager.supportsHint(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Hint
     a.param   := param
@@ -571,7 +571,7 @@ class TLEdgeIn(
 
   def Hint(fromAddress: UInt, toSource: UInt, lgSize: UInt, param: UInt) = {
     require (client.anySupportHint)
-    val legal = client.supportsHint(toSource)
+    val legal = client.supportsHint(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.Hint
     b.param   := param

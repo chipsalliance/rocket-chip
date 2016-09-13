@@ -9,8 +9,8 @@ import chisel3.internal.sourceinfo.SourceInfo
 class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true) extends LazyModule
 {
   val node = TLAdapterNode(
-    clientFn  = { case Seq(c) => if (supportClients)  c.copy(clients  = c.clients .map(_.copy(supportsHint = true))) else c },
-    managerFn = { case Seq(m) => if (supportManagers) m.copy(managers = m.managers.map(_.copy(supportsHint = true))) else m })
+    clientFn  = { case Seq(c) => if (!supportClients)  c else c.copy(clients  = c.clients .map(_.copy(supportsHint = TransferSizes(1, c.maxTransfer)))) },
+    managerFn = { case Seq(m) => if (!supportManagers) m else m.copy(managers = m.managers.map(_.copy(supportsHint = TransferSizes(1, m.maxTransfer)))) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -28,7 +28,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     require (!supportClients || bce)
 
     if (supportManagers) {
-      val handleA = if (passthrough) !edgeOut.manager.supportsHint(edgeIn.address(in.a.bits)) else Bool(true)
+      val handleA = if (passthrough) !edgeOut.manager.supportsHint(edgeIn.address(in.a.bits), edgeIn.size(in.a.bits)) else Bool(true)
       val bypassD = handleA && in.a.bits.opcode === TLMessages.Hint
 
       // Prioritize existing D traffic over HintAck
@@ -50,7 +50,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     }
 
     if (supportClients) {
-      val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source) else Bool(true)
+      val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source, edgeOut.size(out.b.bits)) else Bool(true)
       val bypassC = handleB && out.b.bits.opcode === TLMessages.Hint
 
       // Prioritize existing C traffic over HintAck

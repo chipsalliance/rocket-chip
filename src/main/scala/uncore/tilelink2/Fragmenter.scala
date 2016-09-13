@@ -44,7 +44,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsGet        = TransferSizes.none,
     supportsPutFull    = TransferSizes.none,
     supportsPutPartial = TransferSizes.none,
-    supportsHint       = false)
+    supportsHint       = TransferSizes.none)
 
   val node = TLAdapterNode(
     clientFn  = { case Seq(c) => c.copy(clients = c.clients.map(mapClient)) },

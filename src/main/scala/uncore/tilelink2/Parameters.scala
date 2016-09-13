@@ -110,7 +110,7 @@ case class TLManagerParameters(
   supportsGet:        TransferSizes = TransferSizes.none,
   supportsPutFull:    TransferSizes = TransferSizes.none,
   supportsPutPartial: TransferSizes = TransferSizes.none,
-  supportsHint:       Boolean       = false,
+  supportsHint:       TransferSizes = TransferSizes.none,
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
   fifoId:             Option[Int]   = None)
 {
@@ -159,7 +159,7 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   val allSupportGet        = managers.map(_.supportsGet)       .reduce(_ intersect _)
   val allSupportPutFull    = managers.map(_.supportsPutFull)   .reduce(_ intersect _)
   val allSupportPutPartial = managers.map(_.supportsPutPartial).reduce(_ intersect _)
-  val allSupportHint       = managers.map(_.supportsHint)      .reduce(_    &&     _)
+  val allSupportHint       = managers.map(_.supportsHint)      .reduce(_ intersect _)
 
   // Operation supported by at least one outward Managers
   val anySupportAcquire    = managers.map(!_.supportsAcquire.none)   .reduce(_ || _)
@@ -168,7 +168,7 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   val anySupportGet        = managers.map(!_.supportsGet.none)       .reduce(_ || _)
   val anySupportPutFull    = managers.map(!_.supportsPutFull.none)   .reduce(_ || _)
   val anySupportPutPartial = managers.map(!_.supportsPutPartial.none).reduce(_ || _)
-  val anySupportHint       = managers.map( _.supportsHint)           .reduce(_ || _)
+  val anySupportHint       = managers.map(!_.supportsHint.none)      .reduce(_ || _)
 
   // These return Option[TLManagerParameters] for your convenience
   def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
@@ -198,11 +198,7 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   val supportsGet        = safety_helper(_.supportsGet)        _
   val supportsPutFull    = safety_helper(_.supportsPutFull)    _
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
-  def supportsHint(address: UInt) = {
-    if (allSupportHint) Bool(true) else {
-      Mux1H(find(address), managers.map(m => Bool(m.supportsHint)))
-    }
-  }
+  val supportsHint       = safety_helper(_.supportsHint)       _
 }
 
 case class TLClientParameters(
@@ -214,7 +210,7 @@ case class TLClientParameters(
   supportsGet:         TransferSizes = TransferSizes.none,
   supportsPutFull:     TransferSizes = TransferSizes.none,
   supportsPutPartial:  TransferSizes = TransferSizes.none,
-  supportsHint:        Boolean       = false)
+  supportsHint:        TransferSizes = TransferSizes.none)
 {
   require (supportsPutFull.contains(supportsPutPartial))
 
@@ -246,7 +242,7 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
   val allSupportGet        = clients.map(_.supportsGet)       .reduce(_ intersect _)
   val allSupportPutFull    = clients.map(_.supportsPutFull)   .reduce(_ intersect _)
   val allSupportPutPartial = clients.map(_.supportsPutPartial).reduce(_ intersect _)
-  val allSupportHint       = clients.map(_.supportsHint)      .reduce(_    &&     _)
+  val allSupportHint       = clients.map(_.supportsHint)      .reduce(_ intersect _)
 
   // Operation is supported by at least one client
   val anySupportProbe      = clients.map(!_.supportsProbe.none)     .reduce(_ || _)
@@ -255,7 +251,7 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
   val anySupportGet        = clients.map(!_.supportsGet.none)       .reduce(_ || _)
   val anySupportPutFull    = clients.map(!_.supportsPutFull.none)   .reduce(_ || _)
   val anySupportPutPartial = clients.map(!_.supportsPutPartial.none).reduce(_ || _)
-  val anySupportHint       = clients.map( _.supportsHint)           .reduce(_ || _)
+  val anySupportHint       = clients.map(!_.supportsHint.none)      .reduce(_ || _)
 
   // These return Option[TLClientParameters] for your convenience
   def find(id: Int) = clients.find(_.sourceId.contains(id))
@@ -278,11 +274,7 @@ case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
   val supportsGet        = safety_helper(_.supportsGet)        _
   val supportsPutFull    = safety_helper(_.supportsPutFull)    _
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
-  def supportsHint(id: UInt) = {
-    if (allSupportHint) Bool(true) else {
-      Mux1H(find(id), clients.map(c => Bool(c.supportsHint)))
-    }
-  }
+  val supportsHint       = safety_helper(_.supportsHint)       _
 }
 
 case class TLBundleParameters(

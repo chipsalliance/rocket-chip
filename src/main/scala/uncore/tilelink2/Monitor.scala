@@ -72,7 +72,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      assert (edge.manager.supportsHint(edge.address(bundle)), "'A' channel carries Hint type unsupported by manager" + extra)
+      assert (edge.manager.supportsHint(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
       assert (source_ok, "'A' channel Hint carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
       assert (bundle.mask === mask, "'A' channel Hint contains invalid mask" + extra)
@@ -137,7 +137,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      assert (edge.client.supportsHint(bundle.source), "'B' channel carries Hint type unsupported by client" + extra)
+      assert (edge.client.supportsHint(bundle.source, bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
       assert (address_ok, "'B' channel Hint carries unmanaged address" + extra)
       assert (is_aligned, "'B' channel Hint address not aligned to size" + extra)
       assert (bundle.mask === mask, "'B' channel Hint contains invalid mask" + extra)
