@@ -82,5 +82,5 @@ object RocketChipGenerator extends Generator {
   writeOutputFile(td, s"$longName.prm", ParameterDump.getDump) // Parameters flagged with Dump()
   writeOutputFile(td, s"${names.configs}.knb", world.getKnobs) // Knobs for DSE
   writeOutputFile(td, s"${names.configs}.cst", world.getConstraints) // Constraints for DSE
-  writeOutputFile(td, s"${names.configs}.cfg", params(ConfigString).toString) // String for software
+  writeOutputFile(td, s"${names.configs}.cfg", params(ConfigString).get) // String for software
 }

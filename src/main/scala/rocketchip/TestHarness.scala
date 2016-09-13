@@ -7,11 +7,14 @@ import cde.{Parameters, Field}
 import rocket.Util._
 import junctions._
 
-class TestHarness(implicit p: Parameters) extends Module {
+case object BuildExampleTop extends Field[Parameters => ExampleTop]
+case object SimMemLatency extends Field[Int]
+
+class TestHarness(implicit val p: Parameters) extends Module with HasAddrMapParameters {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
-  val dut = Module(new Top(p))
+  val dut = p(BuildExampleTop)(p).module
 
   // This test harness isn't especially flexible yet
   require(dut.io.mem_clk.isEmpty)
@@ -24,16 +27,21 @@ class TestHarness(implicit p: Parameters) extends Module {
   require(dut.io.mmio_rst.isEmpty)
   require(dut.io.mmio_ahb.isEmpty)
   require(dut.io.mmio_tl.isEmpty)
-  require(dut.io.extra.elements.isEmpty)
 
   for (int <- dut.io.interrupts)
     int := false
 
   if (dut.io.mem_axi.nonEmpty) {
-    val memSize = p(GlobalAddrMap)("mem").size
+    val memSize = addrMap("mem").size
     require(memSize % dut.io.mem_axi.size == 0)
-    for (axi <- dut.io.mem_axi)
-      Module(new SimAXIMem(memSize / dut.io.mem_axi.size)).io.axi <> axi
+    for (axi <- dut.io.mem_axi) {
+      val mem = Module(new SimAXIMem(memSize / dut.io.mem_axi.size))
+      mem.io.axi.ar <> axi.ar
+      mem.io.axi.aw <> axi.aw
+      mem.io.axi.w  <> axi.w
+      axi.r <> LatencyPipe(mem.io.axi.r, p(SimMemLatency))
+      axi.b <> LatencyPipe(mem.io.axi.b, p(SimMemLatency))
+    }
   }
 
   if (!p(IncludeJtagDTM)) {
@@ -64,7 +72,7 @@ class TestHarness(implicit p: Parameters) extends Module {
 
 }
 
-class SimAXIMem(size: BigInt)(implicit p: Parameters) extends Module {
+class SimAXIMem(size: BigInt)(implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
     val axi = new NastiIO().flip
   }
@@ -81,8 +89,8 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends Module {
   }
 
   val w = io.axi.w.bits
-  require((size * 8) % w.data.getWidth == 0)
-  val depth = (size * 8) / w.data.getWidth
+  require((size * 8) % nastiXDataBits == 0)
+  val depth = (size * 8) / nastiXDataBits
   val mem = Mem(depth.toInt, w.data)
 
   val wValid = Reg(init = Bool(false))
@@ -101,7 +109,7 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends Module {
       bValid := true
     }
 
-    def row = mem((aw.addr >> log2Ceil(w.data.getWidth/8))(log2Ceil(depth)-1, 0))
+    def row = mem((aw.addr >> log2Ceil(nastiXDataBits/8))(log2Ceil(depth)-1, 0))
     val mask = FillInterleaved(8, w.strb)
     val newData = mask & w.data | ~mask & row
     row := newData
@@ -113,7 +121,7 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends Module {
 
   io.axi.r.valid := rValid
   io.axi.r.bits.id := ar.id
-  io.axi.r.bits.data := mem((ar.addr >> log2Ceil(w.data.getWidth/8))(log2Ceil(depth)-1, 0))
+  io.axi.r.bits.data := mem((ar.addr >> log2Ceil(nastiXDataBits/8))(log2Ceil(depth)-1, 0))
   io.axi.r.bits.resp := UInt(0)
   io.axi.r.bits.last := ar.len === UInt(0)
 }
@@ -165,4 +173,12 @@ class JTAGVPI(implicit val p: Parameters) extends BlackBox {
     // which is controlling this simulation.
     tbsuccess := Bool(false)
   }
+}
+
+object LatencyPipe {
+  def doN[T](n: Int, func: T => T, in: T): T =
+    (0 until n).foldLeft(in)((last, _) => func(last))
+
+  def apply[T <: Data](in: DecoupledIO[T], latency: Int): DecoupledIO[T] =
+    doN(latency, (last: DecoupledIO[T]) => Queue(last, 1, pipe=true), in)
 }
