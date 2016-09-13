@@ -36,12 +36,17 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       val handleA = if (passthrough) !edgeOut.manager.supportsHint(address, edgeIn.size(in.a.bits)) else Bool(true)
       val bypassD = handleA && in.a.bits.opcode === TLMessages.Hint
 
-      // Prioritize existing D traffic over HintAck
-      in.d.valid  := out.d.valid || (bypassD && in.a.valid)
+      // Prioritize existing D traffic over HintAck (and finish multibeat xfers)
+      val beats1 = edgeOut.numBeats1(out.d.bits)
+      val counter = RegInit(UInt(0, width = log2Up(edgeOut.manager.maxTransfer/edgeOut.manager.beatBytes)))
+      val first = counter === UInt(0)
+      when (out.d.fire()) { counter := Mux(first, beats1, counter - UInt(1)) }
+
+      in.d.valid  := out.d.valid || (bypassD && in.a.valid && first)
       out.d.ready := in.d.ready
       in.d.bits   := Mux(out.d.valid, out.d.bits, edgeIn.HintAck(in.a.bits, edgeOut.manager.findId(address)))
 
-      in.a.ready  := Mux(bypassD, in.d.ready && !out.d.valid, out.a.ready)
+      in.a.ready  := Mux(bypassD, in.d.ready && first && !out.d.valid, out.a.ready)
       out.a.valid := in.a.valid && !bypassD
       out.a.bits  := in.a.bits
     } else {
@@ -58,12 +63,17 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source, edgeOut.size(out.b.bits)) else Bool(true)
       val bypassC = handleB && out.b.bits.opcode === TLMessages.Hint
 
-      // Prioritize existing C traffic over HintAck
-      out.c.valid := in.c.valid || (bypassC && in.b.valid)
+      // Prioritize existing C traffic over HintAck (and finish multibeat xfers)
+      val beats1 = edgeIn.numBeats1(in.c.bits)
+      val counter = RegInit(UInt(0, width = log2Up(edgeIn.client.maxTransfer/edgeIn.manager.beatBytes)))
+      val first = counter === UInt(0)
+      when (in.c.fire()) { counter := Mux(first, beats1, counter - UInt(1)) }
+
+      out.c.valid := in.c.valid || (bypassC && in.b.valid && first)
       in.c.ready  := out.c.ready
       out.c.bits  := Mux(in.c.valid, in.c.bits, edgeOut.HintAck(out.b.bits))
 
-      out.b.ready := Mux(bypassC, out.c.ready && !in.c.valid, in.b.ready)
+      out.b.ready := Mux(bypassC, out.c.ready && first && !in.c.valid, in.b.ready)
       in.b.valid  := out.b.valid && !bypassC
       in.b.bits   := out.b.bits
     } else if (bce) {

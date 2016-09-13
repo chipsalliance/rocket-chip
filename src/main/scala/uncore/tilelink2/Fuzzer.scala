@@ -184,8 +184,8 @@ class TLFuzzRAM extends LazyModule
   val fuzz = LazyModule(new TLFuzzer(1000))
 
   model.node := fuzz.node
-  xbar.node := TLWidthWidget(model.node, 16)
-  ram.node := TLHintHandler(TLFragmenter(TLBuffer(xbar.node), 4, 256))
+  xbar.node := TLWidthWidget(TLHintHandler(model.node), 16)
+  ram.node := TLFragmenter(TLBuffer(xbar.node), 4, 256)
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
