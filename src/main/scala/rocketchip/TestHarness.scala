@@ -6,6 +6,7 @@ import Chisel._
 import cde.{Parameters, Field}
 import rocket.Util._
 import junctions._
+import junctions.NastiConstants._
 
 case object BuildExampleTop extends Field[Parameters => ExampleTop]
 case object SimMemLatency extends Field[Int]
@@ -117,12 +118,12 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends NastiModule()(p) {
 
   io.axi.b.valid := bValid
   io.axi.b.bits.id := aw.id
-  io.axi.b.bits.resp := UInt(0)
+  io.axi.b.bits.resp := RESP_OKAY
 
   io.axi.r.valid := rValid
   io.axi.r.bits.id := ar.id
   io.axi.r.bits.data := mem((ar.addr >> log2Ceil(nastiXDataBits/8))(log2Ceil(depth)-1, 0))
-  io.axi.r.bits.resp := UInt(0)
+  io.axi.r.bits.resp := RESP_OKAY
   io.axi.r.bits.last := ar.len === UInt(0)
 }
 

@@ -5,6 +5,7 @@ package rocketchip
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
+import junctions.NastiConstants._
 import uncore.tilelink._
 import uncore.tilelink2.{LazyModule, LazyModuleImp}
 import uncore.converters._
@@ -165,8 +166,8 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   // Abuse the fact that zip takes the shorter of the two lists
   ((io.mem_axi zip coreplex.io.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
     val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
-    axi_sync.ar.bits.cache := UInt("b0011")
-    axi_sync.aw.bits.cache := UInt("b0011")
+    axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
+    axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi <> (
       if (!p(AsyncMemChannels)) axi_sync
       else AsyncNastiTo(io.mem_clk.get(idx), io.mem_rst.get(idx), axi_sync)
