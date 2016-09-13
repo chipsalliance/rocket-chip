@@ -55,16 +55,16 @@ class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
   override def cloneType = new RoCCInterface().asInstanceOf[this.type]
 }
 
-abstract class RoCC(clockSignal: Clock = null, resetSignal: Bool = null)
-    (implicit val p: Parameters) extends Module(Option(clockSignal), Option(resetSignal))
+abstract class RoCC(_clock: Clock = null, _reset: Bool = null)
+    (implicit val p: Parameters) extends Module(Option(_clock), Option(_reset))
     with HasCoreParameters {
   val io = new RoCCInterface
   io.mem.req.bits.phys := Bool(true) // don't perform address translation
   io.mem.invalidate_lr := Bool(false) // don't mess with LR/SC
 }
 
-class AccumulatorExample(clockSignal: Clock = null, resetSignal: Bool = null)
-    (implicit p: Parameters) extends RoCC(clockSignal, resetSignal)(p) {
+class AccumulatorExample(_clock: Clock = null, _reset: Bool = null)
+    (implicit p: Parameters) extends RoCC(_clock, _reset)(p) {
   val n = 4
   val regfile = Mem(n, UInt(width = xLen))
   val busy = Reg(init = Vec.fill(n){Bool(false)})
@@ -130,8 +130,8 @@ class AccumulatorExample(clockSignal: Clock = null, resetSignal: Bool = null)
   io.autl.grant.ready := false
 }
 
-class TranslatorExample(clockSignal: Clock = null, resetSignal: Bool = null)
-    (implicit p: Parameters) extends RoCC(clockSignal, resetSignal)(p) {
+class TranslatorExample(_clock: Clock = null, _reset: Bool = null)
+    (implicit p: Parameters) extends RoCC(_clock, _reset)(p) {
   val req_addr = Reg(UInt(width = coreMaxAddrBits))
   val req_rd = Reg(io.resp.bits.rd)
   val req_offset = req_addr(pgIdxBits - 1, 0)
@@ -176,8 +176,8 @@ class TranslatorExample(clockSignal: Clock = null, resetSignal: Bool = null)
   io.autl.grant.ready := Bool(false)
 }
 
-class CharacterCountExample(clockSignal: Clock = null, resetSignal: Bool = null)
-    (implicit p: Parameters) extends RoCC(clockSignal, resetSignal)(p)
+class CharacterCountExample(_clock: Clock = null, _reset: Bool = null)
+    (implicit p: Parameters) extends RoCC(_clock, _reset)(p)
     with HasTileLinkParameters {
 
   private val blockOffset = tlBeatAddrBits + tlByteAddrBits

@@ -101,8 +101,8 @@ class BaseCoreplexConfig extends Config (
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuite(benchmarks)
-        List.tabulate(site(NTiles)){ i => (c: Clock, r: Bool, p: Parameters) =>
-          Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({
+        List.tabulate(site(NTiles)){ i => (clock: Clock, reset: Bool, p: Parameters) =>
+          Module(new RocketTile(_clock = clock, _reset = reset)(p.alterPartial({
             case TileId => i
             case TLId => "L1toL2"
             case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)

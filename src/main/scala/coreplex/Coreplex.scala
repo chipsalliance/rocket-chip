@@ -50,10 +50,9 @@ case class CoreplexConfig(
   val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, 0)
 }
 
-abstract class Coreplex(clockSignal: Clock = null, resetSignal: Bool = null)
+abstract class Coreplex(_clock: Clock = null, _reset: Bool = null)
     (implicit val p: Parameters, implicit val c: CoreplexConfig)
-    extends Module(Option(clockSignal), Option(resetSignal))
-    with HasCoreplexParameters {
+    extends Module(Option(_clock), Option(_reset)) with HasCoreplexParameters {
   class CoreplexIO(implicit val p: Parameters, implicit val c: CoreplexConfig) extends Bundle {
     val master = new Bundle {
       val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
@@ -70,9 +69,8 @@ abstract class Coreplex(clockSignal: Clock = null, resetSignal: Bool = null)
   val io = new CoreplexIO
 }
 
-class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig,
-    clockSignal: Clock = null, resetSignal: Bool = null)
-    extends Coreplex(clockSignal, resetSignal)(tp, tc) {
+class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig, _clock: Clock = null, _reset: Bool = null)
+    extends Coreplex(_clock, _reset)(tp, tc) {
   // Build a set of Tiles
   val tileResets = Wire(Vec(tc.nTiles, Bool()))
   val tileList = p(BuildTiles).zip(tileResets).map {
@@ -203,16 +201,14 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig,
   }
 }
 
-class GroundTestCoreplex(tp: Parameters, tc: CoreplexConfig,
-    clockSignal: Clock = null, resetSignal: Bool = null)
-    extends DefaultCoreplex(tp, tc, clockSignal, resetSignal) {
+class GroundTestCoreplex(tp: Parameters, tc: CoreplexConfig, _clock: Clock = null, _reset: Bool = null)
+    extends DefaultCoreplex(tp, tc, _clock, _reset) {
   override def hasSuccessFlag = true
   io.success.get := tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
 }
 
-class UnitTestCoreplex(tp: Parameters, tc: CoreplexConfig,
-    clockSignal: Clock = null, resetSignal: Bool = null)
-    extends Coreplex(clockSignal, resetSignal)(tp, tc) {
+class UnitTestCoreplex(tp: Parameters, tc: CoreplexConfig, _clock: Clock = null, _reset: Bool = null)
+    extends Coreplex(_clock, _reset)(tp, tc) {
   require(!tc.hasExtMMIOPort)
   require(tc.nSlaves == 0)
   require(tc.nMemChannels == 0)

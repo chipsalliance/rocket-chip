@@ -22,8 +22,8 @@ case class RoccParameters(
   nPTWPorts : Int = 0,
   useFPU: Boolean = false)
 
-abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
-    (implicit p: Parameters) extends Module(Option(clockSignal), Option(resetSignal)) {
+abstract class Tile(_clock: Clock = null, _reset: Bool = null)
+    (implicit p: Parameters) extends Module(Option(_clock), Option(_reset)) {
   val nCachedTileLinkPorts = p(NCachedTileLinkPorts)
   val nUncachedTileLinkPorts = p(NUncachedTileLinkPorts)
   val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
@@ -38,8 +38,8 @@ abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
   val io = new TileIO
 }
 
-class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
-    (implicit p: Parameters) extends Tile(clockSignal, resetSignal)(p) {
+class RocketTile(_clock: Clock = null, _reset: Bool = null)
+    (implicit p: Parameters) extends Tile(_clock, _reset)(p) {
   val buildRocc = p(BuildRoCC)
   val usingRocc = !buildRocc.isEmpty
   val nRocc = buildRocc.size
