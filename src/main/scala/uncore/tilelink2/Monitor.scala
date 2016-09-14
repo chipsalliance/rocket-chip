@@ -378,7 +378,7 @@ object TLMonitor
       assert (d.bits.size   === size,   "'D' channel size changed within multibeat operation" + extra)
       assert (d.bits.source === source, "'D' channel source changed within multibeat operation" + extra)
       assert (d.bits.sink   === sink,   "'D' channel sink changed with multibeat operation" + extra)
-      assert (d.bits.addr_lo=== addr_lo,"'C' channel addr_lo changed with multibeat operation" + extra)
+      assert (d.bits.addr_lo=== addr_lo,"'D' channel addr_lo changed with multibeat operation" + extra)
     }
     when (d.fire()) {
       counter := counter - UInt(1)
