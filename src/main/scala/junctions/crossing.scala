@@ -125,3 +125,56 @@ object ClockToSignal {
     c2s.io.signal_out
   }
 }
+
+/** 
+ * This helper object synchronizes a level-sensitive signal from one
+ * clock domain to another. 
+ *
+ * If you use this helper for multi-bit signals, be aware that the individual
+ * bits may not change in the destination clock domain on the same cycle.
+ * You should not use this for multi-bit signals if the source does not
+ * remain stable for a relatively long time or if the destination uses the
+ * value in such a way that depends on it being glitch-free.
+ */
+object LevelSyncCrossing {
+  class SynchronizerBackend[T <: Data](typ: T, sync: Int, _clock: Clock) extends Module(Some(_clock)) {
+    val io = new Bundle {
+      val in = typ.asInput
+      val out = typ.asOutput
+    }
+
+    io.out := ShiftRegister(io.in, sync)
+  }
+
+  class SynchronizerFrontend[T <: Data](typ: T, _clock: Clock) extends Module(Some(_clock)) {
+    val io = new Bundle {
+      val in = typ.asInput
+      val out = typ.asOutput
+    }
+
+    io.out := RegNext(io.in)
+  }
+
+  def apply[T <: Data](from_clock: Clock, to_clock: Clock, in: T, sync: Int = 2): T = {
+    val front = Module(new SynchronizerFrontend(in, from_clock))
+    val back = Module(new SynchronizerBackend(in, sync, to_clock))
+
+    front.io.in := in
+    back.io.in := front.io.out
+    back.io.out
+  }
+}
+
+object LevelSyncTo {
+  def apply[T <: Data](to_clock: Clock, in: T, sync: Int = 2): T = {
+    val scope = AsyncScope()
+    LevelSyncCrossing(scope.clock, to_clock, in, sync)
+  }
+}
+
+object LevelSyncFrom {
+  def apply[T <: Data](from_clock: Clock, in: T, sync: Int = 2): T = {
+    val scope = AsyncScope()
+    LevelSyncCrossing(from_clock, scope.clock, in, sync)
+  }
+}

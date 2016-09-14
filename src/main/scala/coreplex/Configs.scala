@@ -109,6 +109,7 @@ class BaseCoreplexConfig extends Config (
         }
       }
       case BuildRoCC => Nil
+      case CoreplexMultiClock => CoreplexClockConfig(false, false)
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
       //Rocket Core Constants

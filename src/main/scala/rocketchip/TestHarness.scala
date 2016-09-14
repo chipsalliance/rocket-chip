@@ -72,6 +72,9 @@ class TestHarness(q: Parameters) extends Module {
     slave.io <> mmio_axi
   }
 
+  dut.io.clocks.l2Clock.foreach { _ := clock }
+  dut.io.clocks.l2Reset.foreach { _ := reset }
+  dut.io.clocks.tileClocks.toSeq.flatten.foreach { _ := clock }
 }
 
 class SimAXIMem(size: BigInt)(implicit p: Parameters) extends NastiModule()(p) {
