@@ -13,21 +13,11 @@ import cde.{Parameters, Field}
 /** Number of tiles */
 case object NTiles extends Field[Int]
 
-class PRCIInterrupts extends Bundle {
-  val meip = Bool()
-  val seip = Bool()
-  val debug = Bool()
-}
-
 class PRCITileIO(implicit p: Parameters) extends Bundle {
   val reset = Bool(OUTPUT)
-  val id = UInt(OUTPUT, log2Up(p(NTiles)))
-  val interrupts = {
-    val result = new PRCIInterrupts {
-      val mtip = Bool()
-      val msip = Bool()
-    }
-    result.asOutput
+  val interrupts = new Bundle {
+    val mtip = Bool()
+    val msip = Bool()
   }
 
   override def cloneType: this.type = new PRCITileIO().asInstanceOf[this.type]
@@ -47,7 +37,6 @@ class PRCI(implicit val p: Parameters) extends Module
     with HasTileLinkParameters
     with HasAddrMapParameters {
   val io = new Bundle {
-    val interrupts = Vec(p(NTiles), new PRCIInterrupts).asInput
     val tl = new ClientUncachedTileLinkIO().flip
     val tiles = Vec(p(NTiles), new PRCITileIO)
     val rtcTick = Bool(INPUT)
@@ -84,10 +73,9 @@ class PRCI(implicit val p: Parameters) extends Module
   }
 
   for ((tile, i) <- io.tiles zipWithIndex) {
-    tile.interrupts := io.interrupts(i)
     tile.interrupts.msip := ipi(i)(0)
     tile.interrupts.mtip := time >= timecmp(i)
-    tile.id := UInt(i)
+    tile.reset := reset
   }
 
   // TODO generalize these to help other TL slaves
