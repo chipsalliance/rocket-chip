@@ -54,7 +54,6 @@ object GenerateGlobalAddrMap {
       entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
       entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
-      entries += AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW)))
       if (p(DataScratchpadSize) > 0) { // TODO heterogeneous tiles
         require(p(NTiles) == 1) // TODO relax this
         require(p(NMemoryChannels) == 0) // TODO allow both scratchpad & DRAM
@@ -84,7 +83,7 @@ object GenerateConfigString {
   def apply(p: Parameters, c: CoreplexConfig, pDevicesEntries: Seq[AddrMapEntry]) = {
     val addrMap = p(GlobalAddrMap).get
     val plicAddr = addrMap("io:int:plic").start
-    val prciAddr = addrMap("io:int:prci").start
+    val prciAddr = addrMap("io:ext:prci").start
     val xLen = p(XLen)
     val res = new StringBuilder
     res append  "plic {\n"

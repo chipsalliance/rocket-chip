@@ -66,7 +66,6 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
   val io: B = b(coreplex)
 
   io.success zip coreplex.io.success map { case (x, y) => x := y }
-  coreplex.io.rtcTick := Counter(p(RTCPeriod)).inc()
 
   val mmioNetwork = c.hasExtMMIOPort.option(
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).get.subMap("io:ext"))(
@@ -76,17 +75,17 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
 
 /** Example Top with Periphery */
 class ExampleTop(p: Parameters) extends BaseTop(p)
-    with PeripheryDebug with PeripheryExtInterrupts
+    with PeripheryDebug with PeripheryExtInterrupts with PeripheryAON
     with PeripheryMasterMem with PeripheryMasterMMIO with PeripherySlave {
   override lazy val module = Module(new ExampleTopModule(p, this, new ExampleTopBundle(p, _)))
 }
 
 class ExampleTopBundle(p: Parameters, c: Coreplex) extends BaseTopBundle(p, c)
-    with PeripheryDebugBundle with PeripheryExtInterruptsBundle
+    with PeripheryDebugBundle with PeripheryExtInterruptsBundle with PeripheryAONBundle
     with PeripheryMasterMemBundle with PeripheryMasterMMIOBundle with PeripherySlaveBundle
 
 class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, l: L, b: Coreplex => B) extends BaseTopModule(p, l, b)
-    with PeripheryDebugModule with PeripheryExtInterruptsModule
+    with PeripheryDebugModule with PeripheryExtInterruptsModule with PeripheryAONModule
     with PeripheryMasterMemModule with PeripheryMasterMMIOModule with PeripherySlaveModule
 
 /** Example Top with TestRAM */
