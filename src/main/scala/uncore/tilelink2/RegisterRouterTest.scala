@@ -212,9 +212,37 @@ trait RRTest1Bundle
 {
 }
 
-trait RRTest1Module extends HasRegMap
+trait RRTest1Module extends Module with HasRegMap
 {
-  regmap(RRTest1Map.map:_*)
+  val clocks = Module(new ClockDivider)
+  clocks.io.clock_in := clock
+  clocks.io.reset_in := reset
+
+  def x(bits: Int) = {
+    val field = UInt(width = bits)
+
+    val readCross = Module(new RegisterReadCrossing(field))
+    readCross.io.master_clock := clock
+    readCross.io.master_reset := reset
+    readCross.io.master_allow := Bool(true)
+    readCross.io.slave_clock := clocks.io.clock_out
+    readCross.io.slave_reset := clocks.io.reset_out
+    readCross.io.slave_allow := Bool(true)
+
+    val writeCross = Module(new RegisterWriteCrossing(field))
+    writeCross.io.master_clock := clock
+    writeCross.io.master_reset := reset
+    writeCross.io.master_allow := Bool(true)
+    writeCross.io.slave_clock := clocks.io.clock_out
+    writeCross.io.slave_reset := clocks.io.reset_out
+    writeCross.io.slave_allow := Bool(true)
+
+    readCross.io.slave_register := writeCross.io.slave_register
+    RegField(bits, readCross.io.master_port, writeCross.io.master_port)
+  }
+
+  val map = RRTest1Map.map.drop(1) ++ Seq(0 -> Seq(x(8), x(8), x(8), x(8)))
+  regmap(map:_*)
 }
 
 class RRTest1(address: BigInt) extends TLRegisterRouter(address, 0, 32, Some(6), 4)(

@@ -86,19 +86,19 @@ class JtagDTMWithSync(implicit val p: Parameters) extends Module {
   } else {
     val req_sync  = Module (new AsyncMailbox())
     val resp_sync = Module (new AsyncMailbox())
-    req_sync.io.enq             := jtag_dtm.io.dtm_req
-    req_sync.io.enq_clock.get   := io.jtag.TCK
-    req_sync.io.enq_reset.get   := io.jtag.TRST
-    req_sync.io.deq_clock.get   := clock
-    req_sync.io.deq_reset.get   := reset
-    dtm_req                     := req_sync.io.deq
+    req_sync.io.enq         := jtag_dtm.io.dtm_req
+    req_sync.io.enq_clock   := io.jtag.TCK
+    req_sync.io.enq_reset   := io.jtag.TRST
+    req_sync.io.deq_clock   := clock
+    req_sync.io.deq_reset   := reset
+    dtm_req                 := req_sync.io.deq
 
-    jtag_dtm.io.dtm_resp        := resp_sync.io.deq
-    resp_sync.io.deq_clock.get  := io.jtag.TCK
-    resp_sync.io.deq_reset.get  := io.jtag.TRST
-    resp_sync.io.enq_clock.get  := clock
-    resp_sync.io.enq_reset.get  := reset
-    resp_sync.io.enq            := dtm_resp
+    jtag_dtm.io.dtm_resp    := resp_sync.io.deq
+    resp_sync.io.deq_clock  := io.jtag.TCK
+    resp_sync.io.deq_reset  := io.jtag.TRST
+    resp_sync.io.enq_clock  := clock
+    resp_sync.io.enq_reset  := reset
+    resp_sync.io.enq        := dtm_resp
   }
 }
 
@@ -121,6 +121,5 @@ class AsyncMailbox extends BlackBox {
   // this mailbox just has a fixed width of 64 bits, which is enough
   // for our specific purpose here.
 
-  val io = new Crossing(UInt(width=64), true, true)
-
+  val io = new CrossingIO(UInt(width=64))
 }

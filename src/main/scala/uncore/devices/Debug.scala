@@ -982,22 +982,28 @@ class DebugModule ()(implicit val p:cde.Parameters)
 
 }
 
+object AsyncDebugBusCrossing {
+  // takes from_source from the 'from' clock domain to the 'to' clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: DebugBusIO, to_clock: Clock, to_reset: Bool, depth: Int = 3, sync: Int = 2) = {
+    val to_sink = Wire(new DebugBusIO()(from_source.p))
+    to_sink.req <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.req, to_clock, to_reset, depth, sync)
+    from_source.resp <> AsyncDecoupledCrossing(to_clock, to_reset, to_sink.resp, from_clock, from_reset, depth, sync)
+    to_sink // is now to_source
+  }
+}
+
 object AsyncDebugBusFrom { // OutsideClockDomain
-  def apply(from_clock: Clock, from_reset: Bool, source: DebugBusIO, depth: Int = 0, sync: Int = 2)(implicit p: Parameters): DebugBusIO = {
-    val sink = Wire(new DebugBusIO)
-    sink.req <> AsyncDecoupledFrom(from_clock, from_reset, source.req)
-    source.resp <> AsyncDecoupledTo(from_clock, from_reset, sink.resp)
-    sink
+  // takes from_source from the 'from' clock domain and puts it into your clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: DebugBusIO, depth: Int = 1, sync: Int = 3): DebugBusIO = {
+    val scope = AsyncScope()
+    AsyncDebugBusCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
   }
 }
 
 object AsyncDebugBusTo { // OutsideClockDomain
-  def apply(to_clock: Clock, to_reset: Bool, source: DebugBusIO, depth: Int = 0, sync: Int = 2)(implicit p: Parameters): DebugBusIO = {
-    val sink = Wire(new DebugBusIO)
-    sink.req <> AsyncDecoupledTo(to_clock, to_reset, source.req)
-    source.resp <> AsyncDecoupledFrom(to_clock, to_reset, sink.resp)
-    sink
+  // takes source from your clock domain and puts it into the 'to' clock domain
+  def apply(to_clock: Clock, to_reset: Bool, source: DebugBusIO, depth: Int = 1, sync: Int = 3): DebugBusIO = {
+    val scope = AsyncScope()
+    AsyncDebugBusCrossing(scope.clock, scope.reset, source, to_clock, to_reset, depth, sync)
   }
 }
-
-

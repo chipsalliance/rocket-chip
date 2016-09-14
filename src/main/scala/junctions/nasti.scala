@@ -706,32 +706,33 @@ class NastiMemoryDemux(nRoutes: Int)(implicit p: Parameters) extends NastiModule
   }
 }
 
+object AsyncNastiCrossing {
+  // takes from_source from the 'from' clock domain to the 'to' clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, to_clock: Clock, to_reset: Bool, depth: Int = 8, sync: Int = 3) = {
+    val to_sink = Wire(new NastiIO()(from_source.p))
+
+    to_sink.aw <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.aw, to_clock, to_reset, depth, sync)
+    to_sink.ar <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.ar, to_clock, to_reset, depth, sync)
+    to_sink.w  <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.w,  to_clock, to_reset, depth, sync)
+    from_source.b <> AsyncDecoupledCrossing(to_clock, to_reset, to_sink.b, from_clock, from_reset, depth, sync)
+    from_source.r <> AsyncDecoupledCrossing(to_clock, to_reset, to_sink.r, from_clock, from_reset, depth, sync)
+
+    to_sink // is now to_source
+  }
+}
+
 object AsyncNastiTo {
-  // source(master) is in our clock domain, output is in the 'to' clock domain
-  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
-    val sink = Wire(new NastiIO)
-
-    sink.aw <> AsyncDecoupledTo(to_clock, to_reset, source.aw, depth, sync)
-    sink.ar <> AsyncDecoupledTo(to_clock, to_reset, source.ar, depth, sync)
-    sink.w  <> AsyncDecoupledTo(to_clock, to_reset, source.w,  depth, sync)
-    source.b <> AsyncDecoupledFrom(to_clock, to_reset, sink.b, depth, sync)
-    source.r <> AsyncDecoupledFrom(to_clock, to_reset, sink.r, depth, sync)
-
-    sink
+  // takes source from your clock domain and puts it into the 'to' clock domain
+  def apply(to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 8, sync: Int = 3): NastiIO = {
+    val scope = AsyncScope()
+    AsyncNastiCrossing(scope.clock, scope.reset, source, to_clock, to_reset, depth, sync)
   }
 }
 
 object AsyncNastiFrom {
-  // source(master) is in the 'from' clock domain, output is in our clock domain
-  def apply[T <: Data](from_clock: Clock, from_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
-    val sink = Wire(new NastiIO)
-
-    sink.aw <> AsyncDecoupledFrom(from_clock, from_reset, source.aw, depth, sync)
-    sink.ar <> AsyncDecoupledFrom(from_clock, from_reset, source.ar, depth, sync)
-    sink.w  <> AsyncDecoupledFrom(from_clock, from_reset, source.w,  depth, sync)
-    source.b <> AsyncDecoupledTo(from_clock, from_reset, sink.b, depth, sync)
-    source.r <> AsyncDecoupledTo(from_clock, from_reset, sink.r, depth, sync)
-
-    sink
+  // takes from_source from the 'from' clock domain and puts it into your clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, depth: Int = 8, sync: Int = 3): NastiIO = {
+    val scope = AsyncScope()
+    AsyncNastiCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
   }
 }

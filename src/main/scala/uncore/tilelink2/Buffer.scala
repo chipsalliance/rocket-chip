@@ -22,7 +22,7 @@ class TLBuffer(entries: Int = 2, pipe: Boolean = false) extends LazyModule
       if (edgeOut.manager.anySupportAcquire && edgeOut.client.anySupportProbe) {
         in .b <> Queue(out.b, entries, pipe)
         out.c <> Queue(in .c, entries, pipe)
-        out.e <> Queue(out.e, entries, pipe)
+        out.e <> Queue(in .e, entries, pipe)
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)
