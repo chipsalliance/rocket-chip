@@ -276,6 +276,32 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
 
 /////
 
+/** Always-ON block */
+trait PeripheryAON extends LazyModule {
+  implicit val p: Parameters
+  val pDevices: ResourceManager[AddrMapEntry]
+
+  pDevices.add(AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW))))
+}
+
+trait PeripheryAONBundle {
+  implicit val p: Parameters
+}
+
+trait PeripheryAONModule extends HasPeripheryParameters {
+  implicit val p: Parameters
+  val outer: PeripheryAON
+  val io: PeripheryAONBundle
+  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
+  val coreplex: Coreplex
+
+  val prci = Module(new PRCI()(innerMMIOParams))
+  prci.io.tl <> mmioNetwork.get.port("prci")
+  coreplex.io.prci <> prci.io.tiles
+}
+
+/////
+
 trait PeripheryTestRAM extends LazyModule {
   implicit val p: Parameters
   val pDevices: ResourceManager[AddrMapEntry]
