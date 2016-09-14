@@ -9,6 +9,9 @@ import rocket._
 import rocket.Util._
 import coreplex._
 
+import java.nio.file.{Files, Paths}
+import java.nio.{ByteBuffer, ByteOrder}
+
 class RangeManager {
   private var finalized = false
   private val l = collection.mutable.HashMap[String, Int]()
@@ -52,7 +55,6 @@ object GenerateGlobalAddrMap {
     lazy val intIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
       entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
-      entries += AddrMapEntry("bootrom", MemSize(4096, MemAttr(AddrMapProt.RX)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       if (p(DataScratchpadSize) > 0) { // TODO heterogeneous tiles
         require(p(NTiles) == 1) // TODO relax this
@@ -144,5 +146,28 @@ object GenerateConfigString {
     }
     res append '\u0000'
     res.toString
+  }
+}
+
+object GenerateBootROM {
+  def apply(p: Parameters) = {
+    val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
+    val rom = ByteBuffer.wrap(romdata)
+
+    rom.order(ByteOrder.LITTLE_ENDIAN)
+
+    // for now, have the reset vector jump straight to memory
+    val memBase = (
+      if (p(GlobalAddrMap).get contains "mem") p(GlobalAddrMap).get("mem")
+      else p(GlobalAddrMap).get("io:int:dmem0")
+    ).start
+    val resetToMemDist = memBase - p(ResetVector)
+    require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
+    val configStringAddr = p(ResetVector).toInt + rom.capacity
+
+    require(rom.getInt(12) == 0,
+      "Config string address position should not be occupied by code")
+    rom.putInt(12, configStringAddr)
+    rom.array() ++ (p(ConfigString).get.getBytes.toSeq)
   }
 }
