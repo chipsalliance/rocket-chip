@@ -189,6 +189,8 @@ class BaseCoreplexConfig extends Config (
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
 
       case BootROMFile => "./bootrom/bootrom.img"
+      case CoreplexBootROM => true
+      case CoreplexPRCI => true
       case NTiles => Knob("NTILES")
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
       case BankIdLSB => 0
