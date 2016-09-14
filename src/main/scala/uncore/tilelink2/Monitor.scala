@@ -14,7 +14,7 @@ object TLMonitor
     }
   }
 
-  def legalizeFormatA(bundle: TLBundleA, edge: TLEdgeOut)(implicit sourceInfo: SourceInfo) = {
+  def legalizeFormatA(bundle: TLBundleA, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     assert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode" + extra)
 
     // Reuse these subexpressions to save some firrtl lines
@@ -79,7 +79,7 @@ object TLMonitor
     }
   }
 
-  def legalizeFormatB(bundle: TLBundleB, edge: TLEdgeIn)(implicit sourceInfo: SourceInfo) = {
+  def legalizeFormatB(bundle: TLBundleB, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     assert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
 
     // Reuse these subexpressions to save some firrtl lines
@@ -144,7 +144,7 @@ object TLMonitor
     }
   }
 
-  def legalizeFormatC(bundle: TLBundleC, edge: TLEdgeOut)(implicit sourceInfo: SourceInfo) = {
+  def legalizeFormatC(bundle: TLBundleC, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     assert (TLMessages.isC(bundle.opcode), "'C' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
@@ -210,7 +210,7 @@ object TLMonitor
     }
   }
 
-  def legalizeFormatD(bundle: TLBundleD, edge: TLEdgeIn)(implicit sourceInfo: SourceInfo) = {
+  def legalizeFormatD(bundle: TLBundleD, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     assert (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
@@ -268,19 +268,19 @@ object TLMonitor
     }
   }
 
-  def legalizeFormatE(bundle: TLBundleE, edge: TLEdgeOut)(implicit sourceInfo: SourceInfo) = {
+  def legalizeFormatE(bundle: TLBundleE, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     assert (edge.manager.containsById(bundle.sink), "'E' channels carries invalid sink ID" + extra)
   }
 
-  def legalizeFormat(bundleOut: TLBundle, edgeOut: TLEdgeOut, bundleIn: TLBundle, edgeIn: TLEdgeIn)(implicit sourceInfo: SourceInfo) = {
-    when (bundleOut.a.valid) { legalizeFormatA(bundleOut.a.bits, edgeOut) }
-    when (bundleIn .b.valid) { legalizeFormatB(bundleIn .b.bits, edgeIn)  }
-    when (bundleOut.c.valid) { legalizeFormatC(bundleOut.c.bits, edgeOut) }
-    when (bundleIn .d.valid) { legalizeFormatD(bundleIn .d.bits, edgeIn)  }
-    when (bundleOut.e.valid) { legalizeFormatE(bundleOut.e.bits, edgeOut) }
+  def legalizeFormat(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
+    when (bundle.a.valid) { legalizeFormatA(bundle.a.bits, edge) }
+    when (bundle.b.valid) { legalizeFormatB(bundle.b.bits, edge) }
+    when (bundle.c.valid) { legalizeFormatC(bundle.c.bits, edge) }
+    when (bundle.d.valid) { legalizeFormatD(bundle.d.bits, edge) }
+    when (bundle.e.valid) { legalizeFormatE(bundle.e.bits, edge) }
   }
 
-  def legalizeMultibeatA(a: DecoupledIO[TLBundleA], edge: TLEdgeOut)(implicit sourceInfo: SourceInfo) = {
+  def legalizeMultibeatA(a: DecoupledIO[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -307,7 +307,7 @@ object TLMonitor
     }
   }
 
-  def legalizeMultibeatB(b: DecoupledIO[TLBundleB], edge: TLEdgeIn)(implicit sourceInfo: SourceInfo) = {
+  def legalizeMultibeatB(b: DecoupledIO[TLBundleB], edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -334,7 +334,7 @@ object TLMonitor
     }
   }
 
-  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdgeOut)(implicit sourceInfo: SourceInfo) = {
+  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -364,7 +364,7 @@ object TLMonitor
     }
   }
 
-  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdgeIn)(implicit sourceInfo: SourceInfo) = {
+  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -394,16 +394,16 @@ object TLMonitor
     }
   }
 
-  def legalizeMultibeat(bundleOut: TLBundle, edgeOut: TLEdgeOut, bundleIn: TLBundle, edgeIn: TLEdgeIn)(implicit sourceInfo: SourceInfo) = {
-    legalizeMultibeatA(bundleOut.a, edgeOut)
-    legalizeMultibeatB(bundleOut.b, edgeIn)
-    legalizeMultibeatC(bundleOut.c, edgeOut)
-    legalizeMultibeatD(bundleOut.d, edgeIn)
+  def legalizeMultibeat(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
+    legalizeMultibeatA(bundle.a, edge)
+    legalizeMultibeatB(bundle.b, edge)
+    legalizeMultibeatC(bundle.c, edge)
+    legalizeMultibeatD(bundle.d, edge)
   }
 
-  def legalize(bundleOut: TLBundle, edgeOut: TLEdgeOut, bundleIn: TLBundle, edgeIn: TLEdgeIn)(implicit sourceInfo: SourceInfo) = {
-    legalizeFormat   (bundleOut, edgeOut, bundleIn, edgeIn)
-    legalizeMultibeat(bundleOut, edgeOut, bundleIn, edgeIn)
+  def legalize(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
+    legalizeFormat   (bundle, edge)
+    legalizeMultibeat(bundle, edge)
     // !!! validate source uniqueness
   }
 }
