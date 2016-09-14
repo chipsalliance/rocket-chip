@@ -49,12 +49,13 @@ bootrom_img = $(base_dir)/bootrom/bootrom.img
 # Constants Header Files
 #---------------------------------------------------------------------
 
+# sed uses -E (instead of -r) for BSD support
 params_file = $(generated_dir)/$(MODEL).$(CONFIG).prm
 consts_header = $(generated_dir)/consts.$(CONFIG).h
 $(consts_header): $(params_file)
 	echo "#ifndef __CONST_H__" > $@
 	echo "#define __CONST_H__" >> $@
-	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
+	sed -E 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
 	echo "#endif // __CONST_H__" >> $@
 
 params_file_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).prm
@@ -62,7 +63,7 @@ consts_header_debug = $(generated_dir_debug)/consts.$(CONFIG).h
 $(consts_header_debug): $(params_file_debug)
 	echo "#ifndef __CONST_H__" > $@
 	echo "#define __CONST_H__" >> $@
-	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
+	sed -E 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
 	echo "#endif // __CONST_H__" >> $@
 
 clean-run-output:
