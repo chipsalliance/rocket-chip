@@ -48,6 +48,7 @@ class RegisterWriteCrossingIO[T <: Data](gen: T) extends Bundle {
   val slave_reset    = Bool(INPUT)
   val slave_allow    = Bool(INPUT) // honour requests from the master
   val slave_register = gen.asOutput
+  val slave_valid    = Bool(OUTPUT) // is high on 1st cycle slave_register has a new value
 }
 
 class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
@@ -65,6 +66,7 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 
   crossing.io.enq.bits := io.master_port.request.bits
   io.slave_register := crossing.io.deq.bits
+  io.slave_valid    := crossing.io.deq.valid
 
   // If the slave is not operational, just drop the write.
   val progress = crossing.io.enq.ready || !io.master_allow
