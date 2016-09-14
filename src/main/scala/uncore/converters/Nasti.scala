@@ -2,6 +2,7 @@ package uncore.converters
 
 import Chisel._
 import junctions._
+import util.{ReorderQueue, DecoupledHelper}
 import uncore.tilelink._
 import uncore.constants._
 import cde.Parameters

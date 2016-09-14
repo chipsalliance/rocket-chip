@@ -5,7 +5,7 @@ package rocket
 import Chisel._
 import Util._
 import cde.{Parameters, Field}
-import junctions._
+import util.ParameterizedBundle
 
 class Instruction(implicit val p: Parameters) extends ParameterizedBundle with HasCoreParameters {
   val pf0 = Bool() // page fault on first half of instruction

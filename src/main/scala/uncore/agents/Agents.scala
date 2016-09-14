@@ -4,7 +4,8 @@ package uncore.agents
 
 import Chisel._
 import cde.{Parameters, Field}
-import junctions._
+import junctions.PAddrBits
+import util.ParameterizedBundle
 import uncore.tilelink._
 import uncore.converters._
 import uncore.coherence._
@@ -41,7 +42,7 @@ trait HasCoherenceAgentParameters {
 
 abstract class CoherenceAgentModule(implicit val p: Parameters) extends Module
   with HasCoherenceAgentParameters
-abstract class CoherenceAgentBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
+abstract class CoherenceAgentBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
    with HasCoherenceAgentParameters
 
 trait HasCoherenceAgentWiringHelpers {

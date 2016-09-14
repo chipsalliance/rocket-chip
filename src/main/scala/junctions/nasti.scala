@@ -4,6 +4,7 @@ package junctions
 import Chisel._
 import scala.math.max
 import scala.collection.mutable.ArraySeq
+import util.{ParameterizedBundle, HellaPeekingArbiter}
 import cde.{Parameters, Field}
 
 case object NastiKey extends Field[NastiParameters]
@@ -449,7 +450,7 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
   io.master.w.ready := w_ready || err_slave.io.w.ready
 
   val b_arb = Module(new RRArbiter(new NastiWriteResponseChannel, nSlaves + 1))
-  val r_arb = Module(new JunctionsPeekingArbiter(
+  val r_arb = Module(new HellaPeekingArbiter(
     new NastiReadDataChannel, nSlaves + 1,
     // we can unlock if it's the last beat
     (r: NastiReadDataChannel) => r.last))

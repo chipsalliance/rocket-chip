@@ -3,6 +3,7 @@ package junctions
 import Chisel._
 import cde.{Parameters, Field}
 import unittest.UnitTest
+import util.ParameterizedBundle
 
 object HastiConstants
 {

@@ -3,9 +3,10 @@
 package uncore.devices
 
 import Chisel._
+import junctions._
 import uncore.tilelink._
 import uncore.util._
-import junctions._
+import util.ParameterizedBundle
 import cde.{Parameters, Config, Field}
 
 // *****************************************

@@ -4,7 +4,8 @@ package uncore.agents
 
 import Chisel._
 import scala.reflect.ClassTag
-import junctions._
+import junctions.PAddrBits
+import util.ParameterizedBundle
 import uncore.util.AMOALU
 import uncore.coherence._
 import uncore.tilelink._

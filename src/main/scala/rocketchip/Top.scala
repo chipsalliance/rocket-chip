@@ -8,6 +8,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.tilelink2.{LazyModule, LazyModuleImp}
 import uncore.devices._
+import util.ParameterizedBundle
 import rocket._
 import rocket.Util._
 import coreplex._

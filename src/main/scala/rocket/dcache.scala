@@ -127,11 +127,11 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       meta.io.read <> metaReadArb.io.out
       meta.io.write <> metaWriteArb.io.out
       val s1_meta = meta.io.resp
-      val s1_hit_way = s1_meta.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
-      val s1_hit_state = ClientMetadata.onReset.fromBits(
+      val s1_meta_hit_way = s1_meta.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
+      val s1_meta_hit_state = ClientMetadata.onReset.fromBits(
         s1_meta.map(r => Mux(r.tag === s1_tag, r.coh.asUInt, UInt(0)))
         .reduce (_|_))
-      (s1_hit_way, s1_hit_state, s1_meta(s1_victim_way))
+      (s1_meta_hit_way, s1_meta_hit_state, s1_meta(s1_victim_way))
     }
   val s1_data_way = Mux(inWriteback, releaseWay, s1_hit_way)
   val s1_data = Mux1H(s1_data_way, data.io.resp) // retime into s2 if critical
