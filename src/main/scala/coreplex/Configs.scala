@@ -70,10 +70,11 @@ class BaseCoreplexConfig extends Config (
       case NAcquireTransactors => 7
       case L2StoreDataQueueDepth => 1
       case L2DirectoryRepresentation => new NullRepresentation(site(NTiles))
-      case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-        Module(new L2BroadcastHub()(p.alterPartial({
-          case InnerTLId => "L1toL2"
-          case OuterTLId => "L2toMC" })))
+      case BuildL2CoherenceManager =>
+        (clock: Clock, reset: Bool, id: Int, p: Parameters) =>
+          Module(new L2BroadcastHub()(p.alterPartial({
+            case InnerTLId => "L1toL2"
+            case OuterTLId => "L2toMC" })))
       case NCachedTileLinkPorts => 1
       case NUncachedTileLinkPorts => 1
       //Tile Constants
@@ -100,8 +101,8 @@ class BaseCoreplexConfig extends Config (
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuite(benchmarks)
-        List.tabulate(site(NTiles)){ i => (r: Bool, p: Parameters) =>
-          Module(new RocketTile(resetSignal = r)(p.alterPartial({
+        List.tabulate(site(NTiles)){ i => (clock: Clock, reset: Bool, p: Parameters) =>
+          Module(new RocketTile(_clock = clock, _reset = reset)(p.alterPartial({
             case TileId => i
             case TLId => "L1toL2"
             case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)
@@ -267,12 +268,13 @@ class WithL2Cache extends Config(
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new L2HellaCacheBank()(p.alterPartial({
-        case CacheId => id
-        case CacheName => "L2Bank"
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMC"})))
+    case BuildL2CoherenceManager =>
+      (clock: Clock, reset: Bool, id: Int, p: Parameters) =>
+        Module(new L2HellaCacheBank(clock, reset)(p.alterPartial({
+          case CacheId => id
+          case CacheName => "L2Bank"
+          case InnerTLId => "L1toL2"
+          case OuterTLId => "L2toMC"})))
     case L2Replacer => () => new SeqRandom(site(NWays))
     case _ => throw new CDEMatchError
   },
@@ -281,10 +283,11 @@ class WithL2Cache extends Config(
 
 class WithBufferlessBroadcastHub extends Config(
   (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new BufferlessBroadcastHub()(p.alterPartial({
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMC" })))
+    case BuildL2CoherenceManager =>
+      (clock: Clock, reset: Bool, id: Int, p: Parameters) =>
+        Module(new BufferlessBroadcastHub(clock, reset)(p.alterPartial({
+          case InnerTLId => "L1toL2"
+          case OuterTLId => "L2toMC" })))
   })
 
 /**
@@ -301,10 +304,11 @@ class WithBufferlessBroadcastHub extends Config(
  */
 class WithStatelessBridge extends Config (
   topDefinitions = (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new ManagerToClientStatelessBridge()(p.alterPartial({
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMC" })))
+    case BuildL2CoherenceManager =>
+      (c: Clock, r: Bool, id: Int, p: Parameters) =>
+        Module(new ManagerToClientStatelessBridge(c, r)(p.alterPartial({
+          case InnerTLId => "L1toL2"
+          case OuterTLId => "L2toMC" })))
   },
   knobValues = {
     case "L1D_MSHRS" => 0
@@ -379,14 +383,14 @@ class WithRoccExample extends Config(
     case BuildRoCC => Seq(
       RoccParameters(
         opcodes = OpcodeSet.custom0,
-        generator = (p: Parameters) => Module(new AccumulatorExample()(p))),
+        generator = (clock: Clock, reset: Bool, p: Parameters) => Module(new AccumulatorExample(clock, reset)(p))),
       RoccParameters(
         opcodes = OpcodeSet.custom1,
-        generator = (p: Parameters) => Module(new TranslatorExample()(p)),
+        generator = (clock: Clock, reset: Bool, p: Parameters) => Module(new TranslatorExample(clock, reset)(p)),
         nPTWPorts = 1),
       RoccParameters(
         opcodes = OpcodeSet.custom2,
-        generator = (p: Parameters) => Module(new CharacterCountExample()(p))))
+        generator = (clock: Clock, reset: Bool, p: Parameters) => Module(new CharacterCountExample(clock, reset)(p))))
 
     case RoccMaxTaggedMemXacts => 1
     case _ => throw new CDEMatchError

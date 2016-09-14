@@ -128,13 +128,16 @@ class ManagerTLIO(implicit p: Parameters) extends CoherenceAgentBundle()(p)
   with HasInnerTLIO
   with HasUncachedOuterTLIO
 
-abstract class CoherenceAgent(implicit p: Parameters) extends CoherenceAgentModule()(p) {
+abstract class CoherenceAgent(_clock: Clock = null, _reset: Bool = null)
+    (implicit val p: Parameters) extends Module(Option(_clock), Option(_reset))
+    with HasCoherenceAgentParameters {
   def innerTL: ManagerTileLinkIO
   def outerTL: ClientTileLinkIO
   def incoherent: Vec[Bool]
 }
 
-abstract class ManagerCoherenceAgent(implicit p: Parameters) extends CoherenceAgent()(p)
+abstract class ManagerCoherenceAgent(_clock: Clock = null, _reset: Bool = null)
+    (implicit p: Parameters) extends CoherenceAgent(_clock, _reset)(p)
     with HasCoherenceAgentWiringHelpers {
   val io = new ManagerTLIO
   def innerTL = io.inner
@@ -146,7 +149,8 @@ class HierarchicalTLIO(implicit p: Parameters) extends CoherenceAgentBundle()(p)
   with HasInnerTLIO
   with HasCachedOuterTLIO
 
-abstract class HierarchicalCoherenceAgent(implicit p: Parameters) extends CoherenceAgent()(p)
+abstract class HierarchicalCoherenceAgent(_clock: Clock = null, _reset: Bool = null)
+    (implicit p: Parameters) extends CoherenceAgent(_clock, _reset)(p)
     with HasCoherenceAgentWiringHelpers {
   val io = new HierarchicalTLIO
   def innerTL = io.inner

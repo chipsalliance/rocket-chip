@@ -3,6 +3,7 @@ package coreplex
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
+import junctions.unittests.UnitTestSuite
 import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
@@ -21,9 +22,9 @@ case object NBanksPerMemoryChannel extends Field[Int]
 /** Least significant bit of address used for bank partitioning */
 case object BankIdLSB extends Field[Int]
 /** Function for building some kind of coherence manager agent */
-case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
+case object BuildL2CoherenceManager extends Field[(Clock, Bool, Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
-case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
+case object BuildTiles extends Field[Seq[(Clock, Bool, Parameters) => Tile]]
 /** The file to read the BootROM contents from */
 case object BootROMFile extends Field[String]
 
@@ -49,8 +50,9 @@ case class CoreplexConfig(
   val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, 0)
 }
 
-abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConfig) extends Module
-    with HasCoreplexParameters {
+abstract class Coreplex(_clock: Clock = null, _reset: Bool = null)
+    (implicit val p: Parameters, implicit val c: CoreplexConfig)
+    extends Module(Option(_clock), Option(_reset)) with HasCoreplexParameters {
   class CoreplexIO(implicit val p: Parameters, implicit val c: CoreplexConfig) extends Bundle {
     val master = new Bundle {
       val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
@@ -67,11 +69,12 @@ abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConf
   val io = new CoreplexIO
 }
 
-class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp, tc) {
+class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig, _clock: Clock = null, _reset: Bool = null)
+    extends Coreplex(_clock, _reset)(tp, tc) {
   // Build a set of Tiles
   val tileResets = Wire(Vec(tc.nTiles, Bool()))
   val tileList = p(BuildTiles).zip(tileResets).map {
-    case (tile, rst) => tile(rst, p)
+    case (tile, rst) => tile(clock, rst, p)
   }
   val nCachedPorts = tileList.map(tile => tile.io.cached.size).reduce(_ + _)
   val nUncachedPorts = tileList.map(tile => tile.io.uncached.size).reduce(_ + _)
@@ -98,7 +101,7 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering))
 
     // Create point(s) of coherence serialization
-    val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}
+    val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(clock, reset, id, p)}
     managerEndpoints.flatMap(_.incoherent).foreach(_ := Bool(false))
 
     val mmioManager = Module(new MMIOTileLinkManager()(p.alterPartial({
@@ -198,7 +201,24 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
   }
 }
 
-class GroundTestCoreplex(tp: Parameters, tc: CoreplexConfig) extends DefaultCoreplex(tp, tc) {
+class GroundTestCoreplex(tp: Parameters, tc: CoreplexConfig, _clock: Clock = null, _reset: Bool = null)
+    extends DefaultCoreplex(tp, tc, _clock, _reset) {
   override def hasSuccessFlag = true
   io.success.get := tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
+}
+
+class UnitTestCoreplex(tp: Parameters, tc: CoreplexConfig, _clock: Clock = null, _reset: Bool = null)
+    extends Coreplex(_clock, _reset)(tp, tc) {
+  require(!tc.hasExtMMIOPort)
+  require(tc.nSlaves == 0)
+  require(tc.nMemChannels == 0)
+
+  io.debug.req.ready := Bool(false)
+  io.debug.resp.valid := Bool(false)
+
+  val l1params = p.alterPartial({ case TLId => "L1toL2" })
+  val tests = Module(new UnitTestSuite()(l1params))
+
+  override def hasSuccessFlag = true
+  io.success.get := tests.io.finished
 }

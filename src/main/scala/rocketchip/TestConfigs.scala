@@ -26,7 +26,8 @@ class WithUnitTest extends Config(
         DefaultTestSuites.groundtest32
       TestGeneration.addSuite(groundtest("p"))
       TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-      (p: Parameters, c: CoreplexConfig) => Module(new UnitTestCoreplex(p, c))
+      (p: Parameters, c: CoreplexConfig, clock: Clock, reset: Bool) =>
+        Module(new UnitTestCoreplex(p, c, clock, reset))
     }
     case UnitTests => (testParams: Parameters) =>
       JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams)
@@ -43,7 +44,8 @@ class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
     case BuildCoreplex =>
-      (p: Parameters, c: CoreplexConfig) => Module(new GroundTestCoreplex(p, c))
+      (p: Parameters, c: CoreplexConfig, clock: Clock, reset: Bool) =>
+        Module(new GroundTestCoreplex(p, c, clock, reset))
     case TLKey("L1toL2") => {
       val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
       TileLinkParameters(
@@ -70,13 +72,14 @@ class WithGroundTest extends Config(
       TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
       (0 until site(NTiles)).map { i =>
         val tileSettings = site(GroundTestKey)(i)
-        (r: Bool, p: Parameters) => {
-          Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
-            case TLId => "L1toL2"
-            case TileId => i
-            case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
-            case NUncachedTileLinkPorts => tileSettings.uncached
-          })))
+        (clock: Clock, reset: Bool, p: Parameters) => {
+          Module(new GroundTestTile(_clock = clock, _reset = reset)
+            (p.alterPartial({
+              case TLId => "L1toL2"
+              case TileId => i
+              case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
+              case NUncachedTileLinkPorts => tileSettings.uncached
+            })))
         }
       }
     }

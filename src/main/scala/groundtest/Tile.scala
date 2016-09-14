@@ -95,10 +95,8 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestTile(resetSignal: Bool)
-                    (implicit val p: Parameters)
-                    extends Tile(resetSignal = resetSignal)(p)
-                    with HasGroundTestParameters {
+class GroundTestTile(_clock: Clock = null, _reset: Bool = null)(implicit val p: Parameters)
+    extends Tile(_clock, _reset)(p) with HasGroundTestParameters {
 
   override val io = new TileIO {
     val success = Bool(OUTPUT)

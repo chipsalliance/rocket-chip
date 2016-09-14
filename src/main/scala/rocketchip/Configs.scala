@@ -43,7 +43,8 @@ class BasePlatformConfig extends Config(
             idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
         }
         case BuildCoreplex =>
-          (p: Parameters, c: CoreplexConfig) => Module(new DefaultCoreplex(p, c))
+          (p: Parameters, c: CoreplexConfig, clock: Clock, reset: Bool) =>
+            Module(new DefaultCoreplex(p, c, clock, reset))
         case NExtTopInterrupts => 2
         // Note that PLIC asserts that this is > 0.
         case AsyncDebugBus => false
