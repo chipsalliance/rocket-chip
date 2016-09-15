@@ -6,9 +6,8 @@
 .SECONDARY: $(generated_dir)/$(MODEL).$(CONFIG).fir
 
 firrtl: $(generated_dir)/$(MODEL).$(CONFIG).fir
-verilog: $(generated_dir)/$(MODEL).$(CONFIG).v
 
-.PHONY: firrtl verilog
+.PHONY: firrtl
 
 $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)/%.prm: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
