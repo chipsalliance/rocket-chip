@@ -14,7 +14,6 @@ object JunctionsUnitTests {
 object UncoreUnitTests {
   def apply(implicit p: Parameters): Seq[UnitTest] =
     Seq(
-      Module(new uncore.converters.SmiConverterTest),
       Module(new uncore.devices.ROMSlaveTest),
       Module(new uncore.devices.TileLinkRAMTest),
       Module(new uncore.tilelink2.TLFuzzRAMTest))
