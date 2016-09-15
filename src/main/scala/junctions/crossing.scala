@@ -1,5 +1,7 @@
 package junctions
+
 import Chisel._
+import chisel3.util.{DecoupledIO, Decoupled, Irrevocable, IrrevocableIO, ReadyValidIO}
 
 class CrossingIO[T <: Data](gen: T) extends Bundle {
   // Enqueue clock domain
@@ -22,7 +24,7 @@ object AsyncScope { def apply() = Module(new AsyncScope) }
 object AsyncDecoupledCrossing
 {
   // takes from_source from the 'from' clock domain and puts it into the 'to' clock domain
-  def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: DecoupledIO[T], to_clock: Clock, to_reset: Bool, depth: Int = 8, sync: Int = 3): DecoupledIO[T] = {
+  def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: ReadyValidIO[T], to_clock: Clock, to_reset: Bool, depth: Int = 8, sync: Int = 3): DecoupledIO[T] = {
     val crossing = Module(new AsyncQueue(from_source.bits, depth, sync)).io
     crossing.enq_clock := from_clock
     crossing.enq_reset := from_reset
@@ -36,7 +38,7 @@ object AsyncDecoupledCrossing
 object AsyncDecoupledTo
 {
   // takes source from your clock domain and puts it into the 'to' clock domain
-  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: DecoupledIO[T], depth: Int = 8, sync: Int = 3): DecoupledIO[T] = {
+  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: ReadyValidIO[T], depth: Int = 8, sync: Int = 3): DecoupledIO[T] = {
     val scope = AsyncScope()
     AsyncDecoupledCrossing(scope.clock, scope.reset, source, to_clock, to_reset, depth, sync)
   }
@@ -45,8 +47,41 @@ object AsyncDecoupledTo
 object AsyncDecoupledFrom
 {
   // takes from_source from the 'from' clock domain and puts it into your clock domain
-  def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: DecoupledIO[T], depth: Int = 8, sync: Int = 3): DecoupledIO[T] = {
+  def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: ReadyValidIO[T], depth: Int = 8, sync: Int = 3): DecoupledIO[T] = {
     val scope = AsyncScope()
     AsyncDecoupledCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
+  }
+}
+
+object PostQueueIrrevocablize
+{
+  def apply[T <: Data](deq: DecoupledIO[T]): IrrevocableIO[T] = {
+    val irr = Wire(new IrrevocableIO(deq.bits))
+    irr.bits := deq.bits
+    irr.valid := deq.valid
+    deq.ready := irr.ready
+    irr
+  }
+}
+
+object AsyncIrrevocableCrossing {
+  def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: ReadyValidIO[T], to_clock: Clock, to_reset: Bool, depth: Int = 8, sync: Int = 3): IrrevocableIO[T] = {
+    PostQueueIrrevocablize(AsyncDecoupledCrossing(from_clock, from_reset, from_source, to_clock, to_reset, depth, sync))
+  }
+}
+
+object AsyncIrrevocableTo
+{
+  // takes source from your clock domain and puts it into the 'to' clock domain
+  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: ReadyValidIO[T], depth: Int = 8, sync: Int = 3): IrrevocableIO[T] = {
+    PostQueueIrrevocablize(AsyncDecoupledTo(to_clock, to_reset, source, depth, sync))
+  }
+}
+
+object AsyncIrrevocableFrom
+{
+  // takes from_source from the 'from' clock domain and puts it into your clock domain
+  def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: ReadyValidIO[T], depth: Int = 8, sync: Int = 3): IrrevocableIO[T] = {
+    PostQueueIrrevocablize(AsyncDecoupledFrom(from_clock, from_reset, from_source, depth, sync))
   }
 }
