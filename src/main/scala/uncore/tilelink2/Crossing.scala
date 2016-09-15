@@ -22,13 +22,13 @@ class TLAsyncCrossing(depth: Int = 8, sync: Int = 3) extends LazyModule
 
     // Transfer all TL2 bundles from/to the same domains
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
-      out.a <> AsyncDecoupledCrossing(io.in_clock, io.in_reset, in.a, io.out_clock, io.out_reset, depth, sync)
-      in.d <> AsyncDecoupledCrossing(io.out_clock, io.out_reset, out.d, io.in_clock, io.in_reset, depth, sync)
+      out.a <> AsyncIrrevocableCrossing(io.in_clock, io.in_reset, in.a, io.out_clock, io.out_reset, depth, sync)
+      in.d <> AsyncIrrevocableCrossing(io.out_clock, io.out_reset, out.d, io.in_clock, io.in_reset, depth, sync)
 
       if (edgeOut.manager.anySupportAcquire && edgeOut.client.anySupportProbe) {
-        in.b <> AsyncDecoupledCrossing(io.out_clock, io.out_reset, out.b, io.in_clock, io.in_reset, depth, sync)
-        out.c <> AsyncDecoupledCrossing(io.in_clock, io.in_reset, in.c, io.out_clock, io.out_reset, depth, sync)
-        out.e <> AsyncDecoupledCrossing(io.in_clock, io.in_reset, in.e, io.out_clock, io.out_reset, depth, sync)
+        in.b <> AsyncIrrevocableCrossing(io.out_clock, io.out_reset, out.b, io.in_clock, io.in_reset, depth, sync)
+        out.c <> AsyncIrrevocableCrossing(io.in_clock, io.in_reset, in.c, io.out_clock, io.out_reset, depth, sync)
+        out.e <> AsyncIrrevocableCrossing(io.in_clock, io.in_reset, in.e, io.out_clock, io.out_reset, depth, sync)
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)

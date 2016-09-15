@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import chisel3.util.{Irrevocable, IrrevocableIO}
 
 // A bus agnostic register interface to a register-based device
 
@@ -46,8 +47,8 @@ object RegMapper
     val endIndex = 1 << log2Ceil(regmap.map(_._1).max+1)
     val params = RegMapperParams(log2Up(endIndex), bytes, in.bits.params.extraBits)
 
-    val out = Wire(Decoupled(new RegMapperOutput(params)))
-    val front = Wire(Decoupled(new RegMapperInput(params)))
+    val out = Wire(Irrevocable(new RegMapperOutput(params)))
+    val front = Wire(Irrevocable(new RegMapperInput(params)))
     front.bits := in.bits
 
     // Must this device pipeline the control channel?
