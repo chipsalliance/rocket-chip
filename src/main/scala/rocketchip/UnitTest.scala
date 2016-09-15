@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package rocketchip
+package rocketchip.utest
 
 import scala.collection.mutable.LinkedHashSet
 
@@ -31,7 +31,7 @@ class WithUnitTest extends Config(
 
 class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
 
-class UnitTestHarness(implicit val p: Parameters) extends Module {
+class TestHarness(implicit val p: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
