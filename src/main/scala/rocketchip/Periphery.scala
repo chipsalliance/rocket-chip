@@ -303,6 +303,29 @@ trait PeripheryAONModule extends HasPeripheryParameters {
 
 /////
 
+trait PeripheryBootROM extends LazyModule {
+  implicit val p: Parameters
+  val pDevices: ResourceManager[AddrMapEntry]
+
+  pDevices.add(AddrMapEntry("bootrom", MemRange(0x1000, 4096, MemAttr(AddrMapProt.RX))))
+}
+
+trait PeripheryBootROMBundle {
+  implicit val p: Parameters
+}
+
+trait PeripheryBootROMModule extends HasPeripheryParameters {
+  implicit val p: Parameters
+  val outer: PeripheryBootROM
+  val io: PeripheryBootROMBundle
+  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
+
+  val bootROM = Module(new ROMSlave(GenerateBootROM(p))(innerMMIOParams))
+  bootROM.io <> mmioNetwork.get.port("bootrom")
+}
+
+/////
+
 trait PeripheryTestRAM extends LazyModule {
   implicit val p: Parameters
   val pDevices: ResourceManager[AddrMapEntry]
