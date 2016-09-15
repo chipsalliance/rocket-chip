@@ -100,7 +100,7 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
 }
 
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp]
-   (base: BigInt, interrupts: Int = 0, size: BigInt = 4096, concurrency: Option[Int] = None, beatBytes: Int = 4)
+   (val base: BigInt, val interrupts: Int = 0, val size: BigInt = 4096, val concurrency: Option[Int] = None, val beatBytes: Int = 4)
    (bundleBuilder: TLRegBundleArg => B)
    (moduleBuilder: (=> B, TLRegisterRouterBase) => M)
   extends TLRegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes)
