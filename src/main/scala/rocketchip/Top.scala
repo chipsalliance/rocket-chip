@@ -54,7 +54,7 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
 }
 
 class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBundle()(p) {
-  val success = c.hasSuccessFlag.option(Bool(OUTPUT))
+  val success = Bool(OUTPUT)
 }
 
 class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L, b: Coreplex => B) extends LazyModuleImp(l) {
@@ -62,8 +62,6 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
 
   val coreplex = p(BuildCoreplex)(p, outer.c)
   val io: B = b(coreplex)
-
-  io.success zip coreplex.io.success map { case (x, y) => x := y }
 
   val mmioNetwork =
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:ext"))(
@@ -87,6 +85,8 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
   println("Generated Configuration String")
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
+
+  io.success := coreplex.io.success
 }
 
 /** Example Top with Periphery */
