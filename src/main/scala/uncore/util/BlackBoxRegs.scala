@@ -45,7 +45,6 @@ class AsyncResetReg  extends BlackBox {
 
 }
 
-
 class SimpleRegIO(val w: Int) extends Bundle{
 
   val d = UInt(INPUT, width = w)
@@ -55,29 +54,48 @@ class SimpleRegIO(val w: Int) extends Bundle{
 
 }
 
-class AsyncResetRegVec(val w: Int, val init: Int) extends Module {
+class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
 
   val io = new SimpleRegIO(w)
 
-  val bb_q = Wire(UInt(width = w))
-  val bb_d = Wire(UInt(width = w))
-
-  val init_val = Wire(UInt(width = w))
-  init_val := UInt(init, width = w)
+  val bb_d = Mux(io.en, io.d, io.q)
 
   val async_regs = List.fill(w)(Module (new AsyncResetReg))
 
-  bb_q := (async_regs.map(_.io.q)).asUInt()
-  bb_d := Mux(io.en , io.d , bb_q)
+  io.q := async_regs.map(_.io.q).asUInt
 
-  io.q := bb_q
-
-  
   for ((reg, idx) <- async_regs.zipWithIndex) {
     reg.io.clk := clock
     reg.io.rst := reset
-    reg.io.init := init_val(idx)
+    reg.io.init := Bool(((init >> idx) & 1) == 1)
     reg.io.d := bb_d(idx)
   }
 
+}
+
+object AsyncResetReg {
+  def apply(d: Bool, clk: Clock, rst: Bool, init: Bool): Bool = {
+    val reg = Module(new AsyncResetReg)
+    reg.io.d := d
+    reg.io.clk := clk
+    reg.io.rst := rst
+    reg.io.init := init
+    reg.io.q
+  }
+
+  def apply(d: Bool, clk: Clock, rst: Bool): Bool = apply(d, clk, rst, Bool(false))
+
+  def apply(updateData: UInt, resetData: BigInt, enable: Bool): UInt = {
+    val w = updateData.getWidth max resetData.bitLength
+    val reg = Module(new AsyncResetRegVec(w, resetData))
+    reg.io.d := updateData
+    reg.io.en := enable
+    reg.io.q
+  }
+
+  def apply(updateData: UInt, resetData: BigInt): UInt = apply(updateData, resetData, Bool(true))
+
+  def apply(updateData: UInt, enable: Bool): UInt = apply(updateData, BigInt(0), enable)
+
+  def apply(updateData: UInt): UInt = apply(updateData, BigInt(0), Bool(true))
 }
