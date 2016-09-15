@@ -29,7 +29,7 @@ abstract class BaseTop(val p: Parameters) extends LazyModule {
 }
 
 class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBundle()(p) {
-  val success = c.hasSuccessFlag.option(Bool(OUTPUT))
+  val success = Bool(OUTPUT)
 }
 
 class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L, b: Coreplex => B) extends LazyModuleImp(l) {
@@ -65,7 +65,7 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
   val coreplex = p(BuildCoreplex)(p, c)
   val io: B = b(coreplex)
 
-  io.success zip coreplex.io.success map { case (x, y) => x := y }
+  io.success := coreplex.io.success
 
   val mmioNetwork = c.hasExtMMIOPort.option(
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).get.subMap("io:ext"))(

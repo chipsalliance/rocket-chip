@@ -57,14 +57,16 @@ abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConf
     val interrupts = Vec(c.nExtInterrupts, Bool()).asInput
     val debug = new DebugBusIO()(p).flip
     val prci = Vec(c.nTiles, new PRCITileIO).flip
-    val success: Option[Bool] = hasSuccessFlag.option(Bool(OUTPUT))
+    val success = Bool(OUTPUT)
   }
 
-  def hasSuccessFlag: Boolean = false
   val io = new CoreplexIO
 }
 
 class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp, tc) {
+  // Coreplex doesn't know when to stop running
+  io.success := Bool(false)
+
   // Build a set of Tiles
   val tileResets = Wire(Vec(tc.nTiles, Bool()))
   val tileList = p(BuildTiles).zip(tileResets).map {
@@ -164,6 +166,5 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
 }
 
 class GroundTestCoreplex(tp: Parameters, tc: CoreplexConfig) extends DefaultCoreplex(tp, tc) {
-  override def hasSuccessFlag = true
-  io.success.get := tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
+  io.success := tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
 }
