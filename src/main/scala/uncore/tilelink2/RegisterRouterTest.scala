@@ -133,7 +133,7 @@ object RRTestRequest
       val ovalid = progress && busy
       when (progress) {
         busy := Mux(busy, !oready, ivalid)
-        progress := !oready
+        progress := Mux(busy, !oready, !ivalid)
       } .otherwise {
         progress := lfsr(0)
       }
