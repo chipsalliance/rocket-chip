@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import chisel3.util.Irrevocable
 
 abstract class GenericParameterizedBundle[T <: Object](val params: T) extends Bundle
 {
@@ -100,13 +101,16 @@ object TLAtomics
   def isLogical(x: UInt) = x <= SWAP
 }
 
-sealed trait TLChannel extends TLBundleBase
+sealed trait TLChannel extends TLBundleBase {
+  val channelName: String
+}
 sealed trait TLDataChannel extends TLChannel
 sealed trait TLAddrChannel extends TLDataChannel
 
 final class TLBundleA(params: TLBundleParameters)
   extends TLBundleBase(params) with TLAddrChannel
 {
+  val channelName = "'A' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3) // amo_opcode || perms || hint
@@ -121,6 +125,7 @@ final class TLBundleA(params: TLBundleParameters)
 final class TLBundleB(params: TLBundleParameters)
   extends TLBundleBase(params) with TLAddrChannel
 {
+  val channelName = "'B' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3)
@@ -135,6 +140,7 @@ final class TLBundleB(params: TLBundleParameters)
 final class TLBundleC(params: TLBundleParameters)
   extends TLBundleBase(params) with TLAddrChannel
 {
+  val channelName = "'C' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 3)
@@ -150,6 +156,7 @@ final class TLBundleC(params: TLBundleParameters)
 final class TLBundleD(params: TLBundleParameters)
   extends TLBundleBase(params) with TLDataChannel
 {
+  val channelName = "'D' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
   val param   = UInt(width = 2)
@@ -165,16 +172,17 @@ final class TLBundleD(params: TLBundleParameters)
 final class TLBundleE(params: TLBundleParameters)
   extends TLBundleBase(params) with TLChannel
 {
+  val channelName = "'E' channel"
   val sink = UInt(width = params.sinkBits) // to
 }
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
 {
-  val a = Decoupled(new TLBundleA(params))
-  val b = Decoupled(new TLBundleB(params)).flip
-  val c = Decoupled(new TLBundleC(params))
-  val d = Decoupled(new TLBundleD(params)).flip
-  val e = Decoupled(new TLBundleE(params))
+  val a = Irrevocable(new TLBundleA(params))
+  val b = Irrevocable(new TLBundleB(params)).flip
+  val c = Irrevocable(new TLBundleC(params))
+  val d = Irrevocable(new TLBundleD(params)).flip
+  val e = Irrevocable(new TLBundleE(params))
 }
 
 object TLBundle

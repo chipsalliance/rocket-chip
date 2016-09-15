@@ -33,18 +33,24 @@ class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => B
   io.rvalid := rvalid(rfire)
   io.wready := wready(wfire)
 
-  io.rdata := Mux(rfire, reg, UInt(0))
+  io.rdata := reg
   when (wfire) { reg := io.wdata }
 }
 
 object RRTestCombinational
 {
   private var seed = 42
+
   def always: Bool => Bool = _ => Bool(true)
-  def random: Bool => Bool = {
+
+  def random: Bool => Bool = { fire =>
     seed = seed + 1
-    _ => LFSR16Seed(seed)(0)
+    val lfsr = LFSR16Seed(seed)
+    val reg = RegInit(Bool(true))
+    reg := Mux(reg, !fire, lfsr(0) && lfsr(1))
+    reg
   }
+
   def delay(x: Int): Bool => Bool = { fire =>
     val reg = RegInit(UInt(0, width = log2Ceil(x+1)))
     val ready = reg === UInt(0)
@@ -89,7 +95,7 @@ class RRTestRequest(val bits: Int,
   val rofire = io.roready && rovalid
   val wofire = io.woready && wovalid
 
-  io.rdata := Mux(rofire, reg, UInt(0))
+  io.rdata := reg
   when (wofire) { reg := wdata }
 }
 
@@ -115,22 +121,27 @@ object RRTestRequest
     }
     (ready(0), full(x-1), data(x-1))
   }
+
   def busy: (Bool, Bool, UInt) => (Bool, Bool, UInt) = {
     seed = seed + 1
     (ivalid, oready, idata) => {
       val lfsr = LFSR16Seed(seed)
       val busy = RegInit(Bool(false))
       val data = Reg(UInt(width = idata.getWidth))
-      val progress = lfsr(0)
-      when (progress) {
-        busy := Mux(busy, !oready, ivalid)
-      }
+      val progress = RegInit(Bool(false))
       val iready = progress && !busy
       val ovalid = progress && busy
+      when (progress) {
+        busy := Mux(busy, !oready, ivalid)
+        progress := Mux(busy, !oready, !ivalid)
+      } .otherwise {
+        progress := lfsr(0)
+      }
       when (ivalid && iready) { data := idata }
       (iready, ovalid, data)
     }
   }
+
   def request(bits: Int,
     rflow: (Bool, Bool, UInt) => (Bool, Bool, UInt),
     wflow: (Bool, Bool, UInt) => (Bool, Bool, UInt)): RegField = {

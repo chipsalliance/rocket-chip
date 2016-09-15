@@ -3,7 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
-
+import chisel3.util.{Irrevocable, IrrevocableIO}
 import uncore.util.{SimpleRegIO}
 
 case class RegReadFn private(combinational: Boolean, fn: (Bool, Bool) => (Bool, Bool, UInt))
@@ -34,8 +34,8 @@ object RegReadFn
       val (ovalid, data) = x(oready)
       (Bool(true), ovalid, data)
     })
-  // read from a DecoupledIO (only safe if there is a consistent source of data)
-  implicit def apply(x: DecoupledIO[UInt]):RegReadFn = RegReadFn(ready => { x.ready := ready; (x.valid, x.bits) })
+  // read from a IrrevocableIO (only safe if there is a consistent source of data)
+  implicit def apply(x: IrrevocableIO[UInt]):RegReadFn = RegReadFn(ready => { x.ready := ready; (x.valid, x.bits) })
   // read from a register
   implicit def apply(x: UInt):RegReadFn = RegReadFn(ready => (Bool(true), x))
   // noop
@@ -69,8 +69,8 @@ object RegWriteFn
     new RegWriteFn(true, { case (_, oready, data) =>
       (Bool(true), x(oready, data))
     })
-  // write to a DecoupledIO (only safe if there is a consistent sink draining data)
-  implicit def apply(x: DecoupledIO[UInt]): RegWriteFn = RegWriteFn((valid, data) => { x.valid := valid; x.bits := data; x.ready })
+  // write to a IrrevocableIO (only safe if there is a consistent sink draining data)
+  implicit def apply(x: IrrevocableIO[UInt]): RegWriteFn = RegWriteFn((valid, data) => { x.valid := valid; x.bits := data; x.ready })
   // updates a register (or adds a mux to a wire)
   implicit def apply(x: UInt): RegWriteFn = RegWriteFn((valid, data) => { when (valid) { x := data }; Bool(true) })
   // noop

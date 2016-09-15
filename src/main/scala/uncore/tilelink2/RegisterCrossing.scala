@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import chisel3.util.{Irrevocable, IrrevocableIO}
 import junctions._
 import uncore.util.{AsyncResetRegVec}
 
@@ -25,8 +26,8 @@ class BusyRegisterCrossing(clock: Clock, reset: Bool)
 
 // RegField should support connecting to one of these
 class RegisterWriteIO[T <: Data](gen: T) extends Bundle {
-  val request  = Decoupled(gen).flip()
-  val response = Decoupled(Bool()) // ignore .bits
+  val request  = Irrevocable(gen).flip()
+  val response = Irrevocable(Bool()) // ignore .bits
 }
 
 // To turn on/off a domain:
@@ -85,8 +86,8 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 
 // RegField should support connecting to one of these
 class RegisterReadIO[T <: Data](gen: T) extends Bundle {
-  val request  = Decoupled(Bool()).flip() // ignore .bits
-  val response = Decoupled(gen)
+  val request  = Irrevocable(Bool()).flip() // ignore .bits
+  val response = Irrevocable(gen)
 }
 
 class RegisterReadCrossingIO[T <: Data](gen: T) extends Bundle {
