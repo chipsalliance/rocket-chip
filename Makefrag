@@ -4,8 +4,8 @@ $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
 MODEL ?= TestHarness
-PROJECT := rocketchip
-CFG_PROJECT := $(PROJECT)
+PROJECT ?= rocketchip
+CFG_PROJECT ?= $(PROJECT)
 CXX ?= g++
 CXXFLAGS := -O1
 
