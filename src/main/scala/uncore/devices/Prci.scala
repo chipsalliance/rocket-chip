@@ -6,7 +6,7 @@ import Chisel._
 import rocket.Util._
 import junctions._
 import junctions.NastiConstants._
-import uncore.tilelink._
+import uncore.tilelink2._
 import uncore.util._
 import cde.{Parameters, Field}
 
@@ -32,45 +32,28 @@ object PRCI {
   def size = 0xc000
 }
 
-/** Power, Reset, Clock, Interrupt */
-class PRCI(implicit val p: Parameters) extends Module
-    with HasTileLinkParameters
-    with HasAddrMapParameters {
-  val io = new Bundle {
-    val tl = new ClientUncachedTileLinkIO().flip
-    val tiles = Vec(p(NTiles), new PRCITileIO)
-    val rtcTick = Bool(INPUT)
-  }
+case class PRCIConfig(address: BigInt = 0x44000000, beatBytes: Int = 4)
+
+trait MixPRCIParameters {
+  val params: (PRCIConfig, Parameters)
+  val c = params._1
+  implicit val p = params._2
+}
+
+trait PRCIBundle extends Bundle with MixPRCIParameters {
+  val tiles = Vec(p(NTiles), new PRCITileIO)
+  val rtcTick = Bool(INPUT)
+}
+
+trait PRCIModule extends Module with HasRegMap with MixPRCIParameters {
+  val io: PRCIBundle
 
   val timeWidth = 64
-  val timecmp = Reg(Vec(p(NTiles), UInt(width = timeWidth)))
   val time = Reg(init=UInt(0, timeWidth))
   when (io.rtcTick) { time := time + UInt(1) }
 
-  val ipi = Reg(init=Vec.fill(p(NTiles))(UInt(0, 32)))
-
-  val acq = Queue(io.tl.acquire, 1)
-  val addr = acq.bits.full_addr()(log2Ceil(PRCI.size)-1,0)
-  val read = acq.bits.isBuiltInType(Acquire.getType)
-  val rdata = Wire(init=UInt(0))
-  io.tl.grant.valid := acq.valid
-  acq.ready := io.tl.grant.ready
-  io.tl.grant.bits := Grant(
-    is_builtin_type = Bool(true),
-    g_type = acq.bits.getBuiltInGrantType(),
-    client_xact_id = acq.bits.client_xact_id,
-    manager_xact_id = UInt(0),
-    addr_beat = UInt(0),
-    data = rdata)
-
-  when (addr(log2Floor(PRCI.time))) {
-    require(log2Floor(PRCI.timecmp(p(NTiles)-1)) < log2Floor(PRCI.time))
-    rdata := store(Seq(time), acq.bits, io.tl.grant.fire())
-  }.elsewhen (addr >= PRCI.timecmp(0)) {
-    rdata := store(timecmp, acq.bits, io.tl.grant.fire())
-  }.otherwise {
-    rdata := store(ipi, acq.bits, io.tl.grant.fire()) & Fill(tlDataBits/32, UInt(1, 32))
-  }
+  val timecmp = Seq.fill(p(NTiles)) { Reg(UInt(width = timeWidth)) }
+  val ipi     = Seq.fill(p(NTiles)) { RegInit(UInt(0, width = 1)) }
 
   for ((tile, i) <- io.tiles zipWithIndex) {
     tile.interrupts.msip := ipi(i)(0)
@@ -78,42 +61,28 @@ class PRCI(implicit val p: Parameters) extends Module
     tile.reset := reset
   }
 
-  // TODO generalize these to help other TL slaves
-  def load(v: Seq[UInt], acq: Acquire): UInt = {
-    val w = v.head.getWidth
-    val a = acq.full_addr()
-    require(isPow2(w) && w >= 8)
-    if (w > tlDataBits) {
-      (v(a.extract(log2Ceil(w/8*v.size)-1,log2Ceil(w/8))) >> a.extract(log2Ceil(w/8)-1,log2Ceil(tlDataBytes)))(tlDataBits-1,0)
-    } else {
-      val row: Seq[UInt] = for (i <- 0 until v.size by tlDataBits/w)
-        yield Cat(v.slice(i, i + tlDataBits/w).reverse)
-      if (row.size == 1) row.head
-      else row(a(log2Ceil(w/8*v.size)-1,log2Ceil(tlDataBytes)))
-    }
-  }
+  /* 0000 msip hart 0
+   * 0004 msip hart 1
+   * 4000 mtimecmp hart 0 lo
+   * 4004 mtimecmp hart 0 hi
+   * 4008 mtimecmp hart 1 lo
+   * 400c mtimecmp hart 1 hi
+   * bff8 mtime lo
+   * bffc mtime hi
+   */
 
-  def store(v: Seq[UInt], acq: Acquire, en: Bool): UInt = {
-    val w = v.head.getWidth
-    require(isPow2(w) && w >= 8)
-    val a = acq.full_addr()
-    val rdata = load(v, acq)
-    val wdata = (acq.data & acq.full_wmask()) | (rdata & ~acq.full_wmask())
-    when (en && acq.isBuiltInType(Acquire.putType)) {
-      if (w <= tlDataBits) {
-        val word =
-          if (tlDataBits/w >= v.size) UInt(0)
-          else a(log2Up(w/8*v.size)-1,log2Up(tlDataBytes))
-        for (i <- 0 until v.size) when (word === i/(tlDataBits/w)) {
-          val base = i % (tlDataBits/w)
-          v(i) := wdata >> (w * (i % (tlDataBits/w)))
-        }
-      } else {
-        val i = a.extract(log2Ceil(w/8*v.size)-1,log2Ceil(w/8))
-        val mask = FillInterleaved(tlDataBits, UIntToOH(a.extract(log2Ceil(w/8)-1,log2Ceil(tlDataBytes))))
-        v(i) := (wdata & mask) | (v(i) & ~mask)
-      }
-    }
-    rdata
-  }
+  val timecmp_regs = timecmp.zipWithIndex.map { case (reg, i) =>
+    RegField.bytes(reg, PRCI.timecmp(i)/c.beatBytes, c.beatBytes)
+  }.flatten
+  val time_reg = RegField.bytes(time, PRCI.time/c.beatBytes, c.beatBytes)
+  val ipi_regs = ipi.zipWithIndex.map { case (reg, i) => (i -> Seq(RegField(1, reg))) }
+
+  regmap((timecmp_regs ++ time_reg ++ ipi_regs):_*)
 }
+
+/** Power, Reset, Clock, Interrupt */
+// Magic TL2 Incantation to create a TL2 Slave
+class PRCI(c: PRCIConfig = PRCIConfig())(implicit val p: Parameters)
+  extends TLRegisterRouter(c.address, 0, 0x10000, None, c.beatBytes)(
+  new TLRegBundle((c, p), _)    with PRCIBundle)(
+  new TLRegModule((c, p), _, _) with PRCIModule)

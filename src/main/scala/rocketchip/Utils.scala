@@ -64,10 +64,8 @@ object GenerateGlobalAddrMap {
       new AddrMap(entries)
     }
 
-    lazy val extIOAddrMap = new AddrMap(
-      pDevicesEntries ++ p(ExtMMIOPorts),
-      start = BigInt("50000000", 16),
-      collapse = true)
+    lazy val tl2AddrMap = new AddrMap(pDevicesEntries, collapse = true)
+    lazy val extIOAddrMap = new AddrMap(AddrMapEntry("TL2", tl2AddrMap) +: p(ExtMMIOPorts), collapse = true)
 
     val memBase = 0x80000000L
     val memSize = p(ExtMemSize)
@@ -85,7 +83,7 @@ object GenerateConfigString {
   def apply(p: Parameters, c: CoreplexConfig, pDevicesEntries: Seq[AddrMapEntry]) = {
     val addrMap = p(GlobalAddrMap).get
     val plicAddr = addrMap("io:int:plic").start
-    val prciAddr = addrMap("io:ext:prci").start
+    val prciAddr = addrMap("io:ext:TL2:prci").start
     val xLen = p(XLen)
     val res = new StringBuilder
     res append  "plic {\n"
@@ -138,7 +136,7 @@ object GenerateConfigString {
     }
     res append  "};\n"
     pDevicesEntries foreach { entry =>
-      val region = addrMap("io:ext:" + entry.name)
+      val region = addrMap("io:ext:TL2:" + entry.name)
       res append s"${entry.name} {\n"
       res append s"  addr 0x${region.start.toString(16)};\n"
       res append s"  size 0x${region.size.toString(16)}; \n"

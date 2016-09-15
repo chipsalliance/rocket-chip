@@ -7,7 +7,7 @@ import cde.{Parameters, Field}
 import junctions._
 import junctions.NastiConstants._
 import uncore.tilelink._
-import uncore.tilelink2.{LazyModule, LazyModuleImp}
+import uncore.tilelink2._
 import uncore.converters._
 import uncore.devices._
 import uncore.util._
@@ -202,10 +202,10 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryMasterMMIO
   val io: PeripheryMasterMMIOBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
+  val mmioNetwork: TileLinkRecursiveInterconnect
 
   val mmio_ports = p(ExtMMIOPorts) map { port =>
-    TileLinkWidthAdapter(mmioNetwork.get.port(port.name), "MMIO_Outermost")
+    TileLinkWidthAdapter(mmioNetwork.port(port.name), "MMIO_Outermost")
   }
 
   val mmio_axi_start = 0
@@ -278,11 +278,16 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
 /////
 
 /** Always-ON block */
-trait PeripheryAON extends LazyModule {
+trait PeripheryAON extends LazyModule with HasPeripheryParameters {
   implicit val p: Parameters
-  val pDevices: ResourceManager[AddrMapEntry]
+  val peripheryBus: TLXbar
 
-  pDevices.add(AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW))))
+  val prci = LazyModule(new PRCI()(innerMMIOParams))
+  prci.node := TLFragmenter(peripheryBus.node, 4, 256)
+
+  // TL1 legacy
+  val pDevices: ResourceManager[AddrMapEntry]
+  pDevices.add(AddrMapEntry("prci", MemRange(prci.base, prci.size, MemAttr(AddrMapProt.RW))))
 }
 
 trait PeripheryAONBundle {
@@ -293,21 +298,23 @@ trait PeripheryAONModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryAON
   val io: PeripheryAONBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
   val coreplex: Coreplex
 
-  val prci = Module(new PRCI()(innerMMIOParams))
-  prci.io.rtcTick := Counter(p(RTCPeriod)).inc()
-  prci.io.tl <> mmioNetwork.get.port("prci")
-  coreplex.io.prci <> prci.io.tiles
+  outer.prci.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
+  coreplex.io.prci <> outer.prci.module.io.tiles
 }
 
 /////
 
 trait PeripheryBootROM extends LazyModule {
   implicit val p: Parameters
-  val pDevices: ResourceManager[AddrMapEntry]
+  val peripheryBus: TLXbar
 
+  val rom = LazyModule(new TLROM(0x1000, 0x1000, GenerateBootROM(p)))
+  rom.node := TLFragmenter(peripheryBus.node, 4, 256)
+
+  // TL1 legacy address map
+  val pDevices: ResourceManager[AddrMapEntry]
   pDevices.add(AddrMapEntry("bootrom", MemRange(0x1000, 4096, MemAttr(AddrMapProt.RX))))
 }
 
@@ -319,20 +326,23 @@ trait PeripheryBootROMModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryBootROM
   val io: PeripheryBootROMBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
-
-  val bootROM = Module(new ROMSlave(GenerateBootROM(p))(innerMMIOParams))
-  bootROM.io <> mmioNetwork.get.port("bootrom")
 }
 
 /////
 
 trait PeripheryTestRAM extends LazyModule {
   implicit val p: Parameters
-  val pDevices: ResourceManager[AddrMapEntry]
+  val peripheryBus: TLXbar
 
+  val ramBase = 0x52000000
   val ramSize = 0x1000
-  pDevices.add(AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW))))
+
+  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1)))
+  sram.node := TLFragmenter(peripheryBus.node, 4, 256)
+
+  // TL1 legacy address map
+  val pDevices: ResourceManager[AddrMapEntry]
+  pDevices.add(AddrMapEntry("testram", MemRange(ramBase, ramSize, MemAttr(AddrMapProt.RW))))
 }
 
 trait PeripheryTestRAMBundle {
@@ -342,22 +352,16 @@ trait PeripheryTestRAMBundle {
 trait PeripheryTestRAMModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryTestRAM
-  val io: PeripheryTestRAMBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
-
-  val testram = Module(new TileLinkTestRAM(outer.ramSize)(innerMMIOParams))
-  testram.io <> mmioNetwork.get.port("testram")
 }
 
 /////
 
 trait PeripheryTestBusMaster extends LazyModule {
   implicit val p: Parameters
-  val pBusMasters: RangeManager
-  val pDevices: ResourceManager[AddrMapEntry]
+  val peripheryBus: TLXbar
 
-  pBusMasters.add("busmaster", 1)
-  pDevices.add(AddrMapEntry("busmaster", MemSize(4096, MemAttr(AddrMapProt.RW))))
+  val fuzzer = LazyModule(new TLFuzzer(5000))
+  peripheryBus.node := fuzzer.node
 }
 
 trait PeripheryTestBusMasterBundle {
@@ -367,16 +371,4 @@ trait PeripheryTestBusMasterBundle {
 trait PeripheryTestBusMasterModule {
   implicit val p: Parameters
   val outer: PeripheryTestBusMaster
-  val io: PeripheryTestBusMasterBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
-  val coreplex: Coreplex
-
-  val busmaster = Module(new groundtest.ExampleBusMaster()(p))
-  busmaster.io.mmio <> mmioNetwork.get.port("busmaster")
-
-  {
-    val r = outer.pBusMasters.range("busmaster")
-    require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
-    coreplex.io.slave(r._1) <> busmaster.io.mem
-  }
 }

@@ -177,7 +177,7 @@ class BaseCoreplexConfig extends Config (
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = site(GlobalAddrMap).get.subMap("io").numSlaves,
+          nManagers = 1,
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 4,

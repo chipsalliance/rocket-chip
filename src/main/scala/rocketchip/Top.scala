@@ -6,7 +6,7 @@ import Chisel._
 import cde.{Parameters, Field}
 import junctions._
 import uncore.tilelink._
-import uncore.tilelink2.{LazyModule, LazyModuleImp}
+import uncore.tilelink2._
 import uncore.devices._
 import util.ParameterizedBundle
 import rocket._
@@ -26,6 +26,10 @@ abstract class BaseTop(val p: Parameters) extends LazyModule {
   val pInterrupts = new RangeManager
   val pBusMasters = new RangeManager
   val pDevices = new ResourceManager[AddrMapEntry]
+  val peripheryBus = LazyModule(new TLXbar)
+  val legacy = LazyModule(new TLLegacy()(p.alterPartial({ case TLId => "L2toMMIO" })))
+
+  peripheryBus.node := TLBuffer(TLWidthWidget(TLHintHandler(legacy.node), legacy.tlDataBytes))
 }
 
 class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBundle()(p) {
@@ -41,7 +45,7 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
     nSlaves = outer.pBusMasters.sum,
     nMemChannels = p(NMemoryChannels),
     hasSupervisor = p(UseVM),
-    hasExtMMIOPort = !(outer.pDevices.get.isEmpty && p(ExtMMIOPorts).isEmpty)
+    hasExtMMIOPort = true
   )
 
   def genGlobalAddrMap = GenerateGlobalAddrMap(p, outer.pDevices.get)
@@ -67,10 +71,11 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
 
   io.success zip coreplex.io.success map { case (x, y) => x := y }
 
-  val mmioNetwork = c.hasExtMMIOPort.option(
+  val mmioNetwork =
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).get.subMap("io:ext"))(
-      p.alterPartial({ case TLId => "L2toMMIO" }))))
-  mmioNetwork.foreach { _.io.in.head <> coreplex.io.master.mmio.get }
+      p.alterPartial({ case TLId => "L2toMMIO" })))
+  mmioNetwork.io.in.head <> coreplex.io.master.mmio.get
+  outer.legacy.module.io.legacy <> mmioNetwork.port("TL2")
 }
 
 /** Example Top with Periphery */
