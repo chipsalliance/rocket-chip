@@ -105,6 +105,23 @@ object RegField
       bb.d := data
       Bool(true)
     }))
+
+  // Split a large register into a sequence of byte fields
+  // The bytes can be individually written, as they are one byte per field
+  def bytes(x: UInt, base: Int = 0, beatBytes: Int = 4): Seq[RegField.Map] = {
+    require (x.getWidth % 8 == 0)
+    Seq.tabulate(x.getWidth/8) { i =>
+      RegField(8, x(8*(i+1)-1, 8*i), RegWriteFn { (valid, data) =>
+        when (valid) {
+          val mask = ~UInt(BigInt(0xff) << 8*i, width = x.getWidth)
+          x := (x & mask) | (data & UInt(0xff)) << 8*i
+        }
+        Bool(true)
+      })
+    }.grouped(beatBytes).toSeq.zipWithIndex.map { case (reg, i) =>
+      (i+base, reg)
+    }
+  }
 }
 
 trait HasRegMap
