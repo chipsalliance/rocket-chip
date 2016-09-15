@@ -5,6 +5,7 @@ package rocketchip
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
+import junctions.NastiConstants._
 import uncore.tilelink._
 import uncore.tilelink2.{LazyModule, LazyModuleImp}
 import uncore.converters._
@@ -165,8 +166,8 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   // Abuse the fact that zip takes the shorter of the two lists
   ((io.mem_axi zip coreplex.io.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
     val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
-    axi_sync.ar.bits.cache := UInt("b0011")
-    axi_sync.aw.bits.cache := UInt("b0011")
+    axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
+    axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi <> (
       if (!p(AsyncMemChannels)) axi_sync
       else AsyncNastiTo(io.mem_clk.get(idx), io.mem_rst.get(idx), axi_sync)
@@ -178,7 +179,7 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   }
 
   (io.mem_tl zip coreplex.io.master.mem) foreach { case (tl, mem) =>
-    tl <> ClientUncachedTileLinkEnqueuer(mem, 2)(outermostParams)
+    tl <> TileLinkEnqueuer(mem, 2)(outermostParams)
   }
 }
 
@@ -228,7 +229,7 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
       io.mmio_ahb(idx) <> PeripheryUtils.convertTLtoAHB(mmio_ports(i), atomics = true)(outermostMMIOParams)
     } else if (mmio_tl_start <= i && i < mmio_tl_end) {
       val idx = i-mmio_tl_start
-      io.mmio_tl(idx) <> ClientUncachedTileLinkEnqueuer(mmio_ports(i), 2)(outermostMMIOParams)
+      io.mmio_tl(idx) <> TileLinkEnqueuer(mmio_ports(i), 2)(outermostMMIOParams)
     } else {
       require(false, "Unconnected external MMIO port")
     }
@@ -299,6 +300,29 @@ trait PeripheryAONModule extends HasPeripheryParameters {
   prci.io.rtcTick := Counter(p(RTCPeriod)).inc()
   prci.io.tl <> mmioNetwork.get.port("prci")
   coreplex.io.prci <> prci.io.tiles
+}
+
+/////
+
+trait PeripheryBootROM extends LazyModule {
+  implicit val p: Parameters
+  val pDevices: ResourceManager[AddrMapEntry]
+
+  pDevices.add(AddrMapEntry("bootrom", MemRange(0x1000, 4096, MemAttr(AddrMapProt.RX))))
+}
+
+trait PeripheryBootROMBundle {
+  implicit val p: Parameters
+}
+
+trait PeripheryBootROMModule extends HasPeripheryParameters {
+  implicit val p: Parameters
+  val outer: PeripheryBootROM
+  val io: PeripheryBootROMBundle
+  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
+
+  val bootROM = Module(new ROMSlave(GenerateBootROM(p))(innerMMIOParams))
+  bootROM.io <> mmioNetwork.get.port("bootrom")
 }
 
 /////

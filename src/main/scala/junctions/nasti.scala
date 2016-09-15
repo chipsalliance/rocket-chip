@@ -135,6 +135,17 @@ object NastiConstants {
   val RESP_EXOKAY = UInt("b01")
   val RESP_SLVERR = UInt("b10")
   val RESP_DECERR = UInt("b11")
+
+  val CACHE_DEVICE_NOBUF = UInt("b0000")
+  val CACHE_DEVICE_BUF   = UInt("b0001")
+  val CACHE_NORMAL_NOCACHE_NOBUF = UInt("b0010")
+  val CACHE_NORMAL_NOCACHE_BUF   = UInt("b0011")
+
+  def AXPROT(instruction: Bool, nonsecure: Bool, privileged: Bool): UInt =
+    Cat(instruction, nonsecure, privileged)
+
+  def AXPROT(instruction: Boolean, nonsecure: Boolean, privileged: Boolean): UInt =
+    AXPROT(Bool(instruction), Bool(nonsecure), Bool(privileged))
 }
 
 import NastiConstants._
@@ -150,8 +161,8 @@ object NastiWriteAddressChannel {
     aw.size := size
     aw.burst := burst
     aw.lock := Bool(false)
-    aw.cache := UInt("b0000")
-    aw.prot := UInt("b000")
+    aw.cache := CACHE_DEVICE_NOBUF
+    aw.prot := AXPROT(false, false, false)
     aw.qos := UInt("b0000")
     aw.region := UInt("b0000")
     aw.user := UInt(0)
@@ -170,8 +181,8 @@ object NastiReadAddressChannel {
     ar.size := size
     ar.burst := burst
     ar.lock := Bool(false)
-    ar.cache := UInt(0)
-    ar.prot := UInt(0)
+    ar.cache := CACHE_DEVICE_NOBUF
+    ar.prot := AXPROT(false, false, false)
     ar.qos := UInt(0)
     ar.region := UInt(0)
     ar.user := UInt(0)
@@ -255,7 +266,7 @@ class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) e
 
   io.nasti.b.valid := id_q.io.deq.valid && b_ok
   io.nasti.b.bits.id := id_q.io.deq.bits
-  io.nasti.b.bits.resp := UInt(0)
+  io.nasti.b.bits.resp := RESP_OKAY
 
   io.nasti.w.ready := io.mem.req_data.ready
   io.mem.req_data.valid := io.nasti.w.valid
@@ -266,7 +277,7 @@ class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) e
   io.nasti.r.bits.data := io.mem.resp.bits.data
   io.nasti.r.bits.last := mif_wrap_out
   io.nasti.r.bits.id := io.mem.resp.bits.tag
-  io.nasti.r.bits.resp := UInt(0)
+  io.nasti.r.bits.resp := RESP_OKAY
   io.mem.resp.ready := io.nasti.r.ready
 }
 
@@ -389,7 +400,7 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
   io.aw.ready := b_queue.io.enq.ready && !draining
   io.b.valid := b_queue.io.deq.valid && !draining
   io.b.bits.id := b_queue.io.deq.bits
-  io.b.bits.resp := Bits("b11")
+  io.b.bits.resp := RESP_DECERR
   b_queue.io.deq.ready := io.b.ready && !draining
 }
 

@@ -6,6 +6,7 @@ import Chisel._
 import cde.{Parameters, Field}
 import rocket.Util._
 import junctions._
+import junctions.NastiConstants._
 
 case object BuildExampleTop extends Field[Parameters => ExampleTop]
 case object SimMemLatency extends Field[Int]
@@ -117,12 +118,12 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends NastiModule()(p) {
 
   io.axi.b.valid := bValid
   io.axi.b.bits.id := aw.id
-  io.axi.b.bits.resp := UInt(0)
+  io.axi.b.bits.resp := RESP_OKAY
 
   io.axi.r.valid := rValid
   io.axi.r.bits.id := ar.id
   io.axi.r.bits.data := mem((ar.addr >> log2Ceil(nastiXDataBits/8))(log2Ceil(depth)-1, 0))
-  io.axi.r.bits.resp := UInt(0)
+  io.axi.r.bits.resp := RESP_OKAY
   io.axi.r.bits.last := ar.len === UInt(0)
 }
 
@@ -175,10 +176,22 @@ class JTAGVPI(implicit val p: Parameters) extends BlackBox {
   }
 }
 
-object LatencyPipe {
+class LatencyPipe[T <: Data](typ: T, latency: Int) extends Module {
+  val io = new Bundle {
+    val in = Decoupled(typ).flip
+    val out = Decoupled(typ)
+  }
+
   def doN[T](n: Int, func: T => T, in: T): T =
     (0 until n).foldLeft(in)((last, _) => func(last))
 
-  def apply[T <: Data](in: DecoupledIO[T], latency: Int): DecoupledIO[T] =
-    doN(latency, (last: DecoupledIO[T]) => Queue(last, 1, pipe=true), in)
+  io.out <> doN(latency, (last: DecoupledIO[T]) => Queue(last, 1, pipe=true), io.in)
+}
+
+object LatencyPipe {
+  def apply[T <: Data](in: DecoupledIO[T], latency: Int): DecoupledIO[T] = {
+    val pipe = Module(new LatencyPipe(in.bits, latency))
+    pipe.io.in <> in
+    pipe.io.out
+  }
 }

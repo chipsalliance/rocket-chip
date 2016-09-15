@@ -11,8 +11,6 @@ import uncore.util._
 import uncore.converters._
 import rocket._
 import rocket.Util._
-import java.nio.{ByteBuffer,ByteOrder}
-import java.nio.file.{Files, Paths}
 
 /** Number of memory channels */
 case object NMemoryChannels extends Field[Int]
@@ -34,7 +32,6 @@ trait HasCoreplexParameters {
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
-  lazy val configString = p(rocketchip.ConfigString).get
   lazy val globalAddrMap = p(rocketchip.GlobalAddrMap).get
 }
 
@@ -120,37 +117,15 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     val backendBuffering = TileLinkDepths(0,0,0,0,0)
     for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
       val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
-      unwrap.io.in <> ClientTileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
+      unwrap.io.in <> TileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
       TileLinkWidthAdapter(icPort, unwrap.io.out)
     }
 
     io.master.mem <> mem_ic.io.out
 
-    buildMMIONetwork(ClientUncachedTileLinkEnqueuer(mmioManager.io.outer, 1))(
+    buildMMIONetwork(TileLinkEnqueuer(mmioManager.io.outer, 1))(
         p.alterPartial({case TLId => "L2toMMIO"}))
   }
-
-  def makeBootROM()(implicit p: Parameters) = {
-    val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
-    val rom = ByteBuffer.wrap(romdata)
-
-    rom.order(ByteOrder.LITTLE_ENDIAN)
-
-    // for now, have the reset vector jump straight to memory
-    val memBase = (
-      if (globalAddrMap contains "mem") globalAddrMap("mem")
-      else globalAddrMap("io:int:dmem0")
-    ).start
-    val resetToMemDist = memBase - p(ResetVector)
-    require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
-    val configStringAddr = p(ResetVector).toInt + rom.capacity
-
-    require(rom.getInt(12) == 0,
-      "Config string address position should not be occupied by code")
-    rom.putInt(12, configStringAddr)
-    rom.array() ++ (configString.getBytes.toSeq)
-  }
-
 
   def buildMMIONetwork(mmio: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
     val ioAddrMap = globalAddrMap.subMap("io")
@@ -182,10 +157,7 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
 
     val tileSlavePorts = (0 until tc.nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)
     for ((t, m) <- (tileList.map(_.io.slave).flatten) zip (tileSlavePorts map (mmioNetwork port _)))
-      t <> ClientUncachedTileLinkEnqueuer(m, 1)
-
-    val bootROM = Module(new ROMSlave(makeBootROM()))
-    bootROM.io <> mmioNetwork.port("int:bootrom")
+      t <> TileLinkEnqueuer(m, 1)
 
     io.master.mmio.foreach { _ <> mmioNetwork.port("ext") }
   }

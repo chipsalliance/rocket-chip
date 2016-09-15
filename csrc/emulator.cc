@@ -65,7 +65,7 @@ int main(int argc, char** argv)
   srand48(random_seed);
 
   Verilated::randReset(2);
-  VTestHarness *tile = new VTestHarness;
+  MODEL *tile = new MODEL;
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals

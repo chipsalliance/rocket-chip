@@ -30,6 +30,23 @@ object TileLinkEnqueuer {
   def apply(in: TileLinkIO, depth: Int)(implicit p: Parameters): TileLinkIO = {
     apply(in, TileLinkDepths(depth, depth, depth, depth, depth))
   }
+
+  def apply(in: ClientTileLinkIO, depths: TileLinkDepths)(implicit p: Parameters): ClientTileLinkIO = {
+    val t = Module(new ClientTileLinkEnqueuer(depths))
+    t.io.inner <> in
+    t.io.outer
+  }
+  def apply(in: ClientTileLinkIO, depth: Int)(implicit p: Parameters): ClientTileLinkIO = {
+    apply(in, TileLinkDepths(depth, depth, depth, depth, depth))
+  }
+  def apply(in: ClientUncachedTileLinkIO, depths: UncachedTileLinkDepths)(implicit p: Parameters): ClientUncachedTileLinkIO = {
+    val t = Module(new ClientUncachedTileLinkEnqueuer(depths))
+    t.io.inner <> in
+    t.io.outer
+  }
+  def apply(in: ClientUncachedTileLinkIO, depth: Int)(implicit p: Parameters): ClientUncachedTileLinkIO = {
+    apply(in, UncachedTileLinkDepths(depth, depth))
+  }
 }
 
 class ClientTileLinkEnqueuer(depths: TileLinkDepths)(implicit p: Parameters) extends Module {
@@ -45,17 +62,6 @@ class ClientTileLinkEnqueuer(depths: TileLinkDepths)(implicit p: Parameters) ext
   io.outer.finish  <> (if(depths.fin > 0) Queue(io.inner.finish,  depths.fin) else io.inner.finish)
 }
 
-object ClientTileLinkEnqueuer {
-  def apply(in: ClientTileLinkIO, depths: TileLinkDepths)(implicit p: Parameters): ClientTileLinkIO = {
-    val t = Module(new ClientTileLinkEnqueuer(depths))
-    t.io.inner <> in
-    t.io.outer
-  }
-  def apply(in: ClientTileLinkIO, depth: Int)(implicit p: Parameters): ClientTileLinkIO = {
-    apply(in, TileLinkDepths(depth, depth, depth, depth, depth))
-  }
-}
-
 class ClientUncachedTileLinkEnqueuer(depths: UncachedTileLinkDepths)(implicit p: Parameters) extends Module {
   val io = new Bundle {
     val inner = new ClientUncachedTileLinkIO().flip
@@ -64,15 +70,4 @@ class ClientUncachedTileLinkEnqueuer(depths: UncachedTileLinkDepths)(implicit p:
 
   io.outer.acquire <> (if(depths.acq > 0) Queue(io.inner.acquire, depths.acq) else io.inner.acquire)
   io.inner.grant   <> (if(depths.gnt > 0) Queue(io.outer.grant,   depths.gnt) else io.outer.grant)
-}
-
-object ClientUncachedTileLinkEnqueuer {
-  def apply(in: ClientUncachedTileLinkIO, depths: UncachedTileLinkDepths)(implicit p: Parameters): ClientUncachedTileLinkIO = {
-    val t = Module(new ClientUncachedTileLinkEnqueuer(depths))
-    t.io.inner <> in
-    t.io.outer
-  }
-  def apply(in: ClientUncachedTileLinkIO, depth: Int)(implicit p: Parameters): ClientUncachedTileLinkIO = {
-    apply(in, UncachedTileLinkDepths(depth, depth))
-  }
 }
