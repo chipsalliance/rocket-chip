@@ -63,7 +63,7 @@ case class TransferSizes(min: Int, max: Int)
   def contains(x: TransferSizes) = x.none || (min <= x.min && x.max <= max)
   
   def intersect(x: TransferSizes) =
-    if (x.max < min || min < x.max) TransferSizes.none
+    if (x.max < min || max < x.min) TransferSizes.none
     else TransferSizes(scala.math.max(min, x.min), scala.math.min(max, x.max))
 }
 
@@ -101,8 +101,10 @@ case class AddressSet(base: BigInt, mask: BigInt)
 
 case class TLManagerParameters(
   address:            Seq[AddressSet],
-  sinkId:             IdRange       = IdRange(0, 1),
-  regionType:         RegionType.T  = RegionType.GET_EFFECTS,
+  sinkId:             IdRange         = IdRange(0, 1),
+  regionType:         RegionType.T    = RegionType.GET_EFFECTS,
+  executable:         Boolean         = false, // processor can execute from this memory
+  nodePath:           Seq[TLBaseNode] = Seq(),
   // Supports both Acquire+Release+Finish of these sizes
   supportsAcquire:    TransferSizes = TransferSizes.none,
   supportsArithmetic: TransferSizes = TransferSizes.none,
@@ -207,7 +209,8 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
 }
 
 case class TLClientParameters(
-  sourceId:            IdRange       = IdRange(0,1),
+  sourceId:            IdRange         = IdRange(0,1),
+  nodePath:            Seq[TLBaseNode] = Seq(),
   // Supports both Probe+Grant of these sizes
   supportsProbe:       TransferSizes = TransferSizes.none,
   supportsArithmetic:  TransferSizes = TransferSizes.none,
