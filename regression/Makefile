@@ -44,14 +44,14 @@ CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
-PROJECT=rocketchip
+PROJECT=groundtest
 CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
 	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
 	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
-PROJECT=rocketchip.utest
+PROJECT=unittest
 CONFIGS=UnitTestConfig
 endif
 

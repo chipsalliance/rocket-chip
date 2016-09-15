@@ -1,11 +1,11 @@
 // See LICENSE for license details.
 
-package rocketchip.utest
+package unittest
 
 import scala.collection.mutable.LinkedHashSet
 
 import Chisel._
-import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
+import cde.{Parameters, Config, Knob, CDEMatchError}
 import util.{ParameterizedBundle}
 import rocket._
 import uncore.tilelink._
