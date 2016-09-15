@@ -49,7 +49,7 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     // During conversion from TL Legacy, we won't support Acquire
 
     // Must be able to fit TL2 sink_id into TL legacy
-    require ((1 << tlManagerXactIdBits) >= edge.manager.endSinkId)
+    require ((1 << tlManagerXactIdBits) >= edge.manager.endSinkId || !edge.manager.anySupportAcquire)
 
     val out = io.out(0)
     out.a.valid := io.legacy.acquire.valid
