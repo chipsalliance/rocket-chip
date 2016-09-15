@@ -78,7 +78,7 @@ object TransferSizes {
 // Base is the base address, and mask are the bits consumed by the manager
 // e.g: base=0x200, mask=0xff describes a device managing 0x200-0x2ff
 // e.g: base=0x1000, mask=0xf0f decribes a device managing 0x1000-0x100f, 0x1100-0x110f, ...
-case class AddressSet(base: BigInt, mask: BigInt)
+case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
 {
   // Forbid misaligned base address (and empty sets)
   require ((base & mask) == 0)
@@ -97,6 +97,16 @@ case class AddressSet(base: BigInt, mask: BigInt)
 
   // A strided slave serves discontiguous ranges
   def strided = alignment1 != mask
+
+  // AddressSets have one natural Ordering (the containment order)
+  def compare(x: AddressSet) = {
+    val primary   = (this.base - x.base).signum // smallest address first
+    val secondary = (x.mask - this.mask).signum // largest mask first
+    if (primary != 0) primary else secondary
+  }
+
+  // We always want to see things in hex
+  override def toString() = "AddressSet(0x%x, 0x%x)".format(base, mask)
 }
 
 case class TLManagerParameters(
@@ -185,6 +195,7 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   def findFifoId(address: UInt) = Mux1H(find(address), managers.map(m => UInt(m.fifoId.map(_+1).getOrElse(0))))
   def hasFifoId(address: UInt) = Mux1H(find(address), managers.map(m => Bool(m.fifoId.isDefined)))
 
+  lazy val addressMask = AddressDecoder(managers.map(_.address))
   // !!! need a cheaper version of find, where we assume a valid address match exists
   
   // Does this Port manage this ID/address?
