@@ -23,7 +23,7 @@ class WithComparator extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new ComparatorCore()(p))
     case ComparatorKey => ComparatorParameters(
-      targets    = Seq("mem", "io:ext:testram").map(name =>
+      targets    = Seq("mem", "io:ext:TL2:testram").map(name =>
                     site(GlobalAddrMap)(name).start.longValue),
       width      = 8,
       operations = 1000,
