@@ -51,7 +51,6 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	$(RISCV)/lib/libfesvr.so \
 	-sverilog \
 	+incdir+$(generated_dir) \
-	+define+MODEL=$(MODEL) \
 	+define+CLOCK_PERIOD=1.0 $(sim_vsrcs) $(sim_csrcs) \
 	+define+PRINTF_COND=$(TB).printf_cond \
 	+define+STOP_COND=!$(TB).reset \

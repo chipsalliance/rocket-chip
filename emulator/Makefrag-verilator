@@ -54,7 +54,7 @@ VERILATOR_FLAGS := --top-module $(MODEL) \
   +define+STOP_COND=\$$c\(\"done_reset\"\) --assert \
 	-Wno-STMTDLY --x-assign unique \
   -I$(base_dir)/vsrc \
-  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -include $(base_dir)/csrc/verilator.h -DMODEL=V$(MODEL)"
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -include $(base_dir)/csrc/verilator.h"
 cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
 headers = $(wildcard $(base_dir)/csrc/*.h)
 
