@@ -83,6 +83,7 @@ object AsyncIrrevocableFrom
   // takes from_source from the 'from' clock domain and puts it into your clock domain
   def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: ReadyValidIO[T], depth: Int = 8, sync: Int = 3): IrrevocableIO[T] = {
     PostQueueIrrevocablize(AsyncDecoupledFrom(from_clock, from_reset, from_source, depth, sync))
+  }
 }
 
 /**  Because Chisel/FIRRTL does not allow us
