@@ -521,10 +521,8 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   // In case we are stalled, we need to hold the read data
   val d_rdata = holdUnless(mem.read(a_address, read), RegNext(read))
   // Whenever the port is not needed for reading, execute pending writes
-  when (!read) {
-    when (p_valid) { mem.write(p_address, p_wdata, p_mask.toBools) }
-    p_valid := Bool(false)
-  }
+  when (!read && p_valid) { mem.write(p_address, p_wdata, p_mask.toBools) }
+  when (!read) { p_valid := Bool(false) }
   
   // Record the request for later?
   when (ready && a_request && a_write) {

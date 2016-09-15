@@ -98,14 +98,14 @@ int main(int argc, char** argv)
 #if VM_TRACE
     bool dump = tfp && trace_count >= start;
     if (dump)
-      tfp->dump(trace_count * 2);
+      tfp->dump(static_cast<vluint64_t>(trace_count * 2));
 #endif
 
     tile->clk = 1;
     tile->eval();
 #if VM_TRACE
     if (dump)
-      tfp->dump(trace_count * 2 + 1);
+      tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
 #endif
     trace_count++;
   }

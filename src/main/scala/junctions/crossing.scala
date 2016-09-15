@@ -83,5 +83,44 @@ object AsyncIrrevocableFrom
   // takes from_source from the 'from' clock domain and puts it into your clock domain
   def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: ReadyValidIO[T], depth: Int = 8, sync: Int = 3): IrrevocableIO[T] = {
     PostQueueIrrevocablize(AsyncDecoupledFrom(from_clock, from_reset, from_source, depth, sync))
+}
+
+/**  Because Chisel/FIRRTL does not allow us
+  *  to directly assign clocks from Signals,
+  *  we need this black box module.
+  *  This may even be useful because some back-end
+  *  flows like to have this sort of transition
+  *  flagged with a special cell or module anyway.
+  */
+
+class SignalToClock extends BlackBox {
+  val io = new Bundle {
+    val signal_in = Bool(INPUT)
+    val clock_out = Clock(OUTPUT)
+  }
+
+  //  io.clock_out := io.signal_in
+}
+
+object SignalToClock {
+  def apply(signal: Bool): Clock = {
+    val s2c = Module(new SignalToClock)
+    s2c.io.signal_in := signal
+    s2c.io.clock_out
+  }
+}
+
+class ClockToSignal extends BlackBox {
+  val io = new Bundle {
+    val clock_in = Clock(INPUT)
+    val signal_out = Bool(OUTPUT)
+  }
+}
+
+object ClockToSignal {
+  def apply(clk: Clock): Bool = {
+    val c2s = Module(new ClockToSignal)
+    c2s.io.clock_in := clk
+    c2s.io.signal_out
   }
 }

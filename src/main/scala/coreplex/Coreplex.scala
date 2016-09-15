@@ -59,7 +59,7 @@ abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConf
     val slave = Vec(c.nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
     val interrupts = Vec(c.nExtInterrupts, Bool()).asInput
     val debug = new DebugBusIO()(p).flip
-    val rtcTick = Bool(INPUT)
+    val prci = Vec(c.nTiles, new PRCITileIO).flip
     val success: Option[Bool] = hasSuccessFlag.option(Bool(OUTPUT))
   }
 
@@ -170,21 +170,14 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     debugModule.io.tl <> mmioNetwork.port("int:debug")
     debugModule.io.db <> io.debug
 
-    val prci = Module(new PRCI)
-    prci.io.tl <> mmioNetwork.port("int:prci")
-    prci.io.rtcTick := io.rtcTick
-
-    (prci.io.tiles, tileResets, tileList).zipped.foreach {
-      case (prci, rst, tile) =>
-        rst := reset
-        tile.io.prci <> prci
-    }
-
-    for (i <- 0 until tc.nTiles) {
-      prci.io.interrupts(i).meip := plic.io.harts(plic.cfg.context(i, 'M'))
-      if (p(UseVM))
-        prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
-      prci.io.interrupts(i).debug := debugModule.io.debugInterrupts(i)
+    // connect coreplex-internal interrupts to tiles
+    for (((tile, tileReset), i) <- (tileList zip tileResets) zipWithIndex) {
+      tileReset := io.prci(i).reset
+      tile.io.interrupts := io.prci(i).interrupts
+      tile.io.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
+      tile.io.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
+      tile.io.interrupts.debug := debugModule.io.debugInterrupts(i)
+      tile.io.hartid := i
     }
 
     val tileSlavePorts = (0 until tc.nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)

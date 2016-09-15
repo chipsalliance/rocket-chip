@@ -5,6 +5,7 @@ package uncore.tilelink2
 import Chisel._
 import chisel3.util.{Irrevocable, IrrevocableIO}
 import junctions._
+import uncore.util.{AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing(clock: Clock, reset: Bool)
@@ -130,4 +131,57 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   io.master_port.request.ready  := progress && !reg.io.busy
   crossing.io.deq.ready := io.master_port.request.valid && !reg.io.busy
   crossing.io.enq.valid := Bool(true)
+}
+
+/** Wrapper to create an
+  *  asynchronously reset
+  *  slave register which
+  *  can be both read
+  *  and written using
+  *  crossing FIFOs.
+  */
+
+object AsyncRWSlaveRegField {
+
+  def apply(slave_clock: Clock,
+    slave_reset: Bool,
+    width:  Int,
+    init: Int,
+    master_allow: Bool = Bool(true),
+    slave_allow: Bool = Bool(true)
+  ): (UInt, RegField) = {
+
+    val async_slave_reg = Module(new AsyncResetRegVec(width, init))
+    async_slave_reg.reset := slave_reset
+    async_slave_reg.clock := slave_clock
+
+    val wr_crossing = Module (new RegisterWriteCrossing(UInt(width = width)))
+
+    val scope = Module (new AsyncScope())
+
+    wr_crossing.io.master_clock := scope.clock
+    wr_crossing.io.master_reset := scope.reset
+    wr_crossing.io.master_allow := master_allow
+    wr_crossing.io.slave_clock  := slave_clock
+    wr_crossing.io.slave_reset  := slave_reset
+    wr_crossing.io.slave_allow  := slave_allow
+
+    async_slave_reg.io.en := wr_crossing.io.slave_valid
+    async_slave_reg.io.d  := wr_crossing.io.slave_register
+
+    val rd_crossing = Module (new RegisterReadCrossing(UInt(width = width )))
+
+    rd_crossing.io.master_clock := scope.clock
+    rd_crossing.io.master_reset := scope.reset
+    rd_crossing.io.master_allow := master_allow
+    rd_crossing.io.slave_clock  := slave_clock
+    rd_crossing.io.slave_reset  := slave_reset
+    rd_crossing.io.slave_allow  := slave_allow
+
+    rd_crossing.io.slave_register := async_slave_reg.io.q
+
+    (async_slave_reg.io.q, RegField(width, rd_crossing.io.master_port, wr_crossing.io.master_port))
+
+  }
+
 }
