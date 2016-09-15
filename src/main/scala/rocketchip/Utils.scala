@@ -81,7 +81,7 @@ object GenerateGlobalAddrMap {
 
 object GenerateConfigString {
   def apply(p: Parameters, c: CoreplexConfig, pDevicesEntries: Seq[AddrMapEntry]) = {
-    val addrMap = p(GlobalAddrMap).get
+    val addrMap = p(GlobalAddrMap)
     val plicAddr = addrMap("io:int:plic").start
     val prciAddr = addrMap("io:ext:TL2:prci").start
     val xLen = p(XLen)
@@ -156,8 +156,8 @@ object GenerateBootROM {
 
     // for now, have the reset vector jump straight to memory
     val memBase = (
-      if (p(GlobalAddrMap).get contains "mem") p(GlobalAddrMap).get("mem")
-      else p(GlobalAddrMap).get("io:int:dmem0")
+      if (p(GlobalAddrMap) contains "mem") p(GlobalAddrMap)("mem")
+      else p(GlobalAddrMap)("io:int:dmem0")
     ).start
     val resetToMemDist = memBase - p(ResetVector)
     require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
@@ -166,6 +166,6 @@ object GenerateBootROM {
     require(rom.getInt(12) == 0,
       "Config string address position should not be occupied by code")
     rom.putInt(12, configStringAddr)
-    rom.array() ++ (p(ConfigString).get.getBytes.toSeq)
+    rom.array() ++ (p(ConfigString).getBytes.toSeq)
   }
 }

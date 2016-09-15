@@ -146,7 +146,7 @@ class BaseCoreplexConfig extends Config (
             else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
-          nCachelessClients = site(NCoreplexExtClients).get + site(NUncachedTileLinkPorts),
+          nCachelessClients = site(NCoreplexExtClients) + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
               site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
