@@ -78,6 +78,8 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
         MemoryOpConstants.M_XA_MINU -> edge.Arithmetic(source, address, beat, data, TLAtomics.MINU)._2,
         MemoryOpConstants.M_XA_MAXU -> edge.Arithmetic(source, address, beat, data, TLAtomics.MAXU)._2))
     } else {
+      // If no managers support atomics, assert fail if TL1 asks for them
+      assert (!io.legacy.acquire.valid || io.legacy.acquire.bits.a_type =/= Acquire.putAtomicType)
       Wire(new TLBundleA(edge.bundle))
     }
 
