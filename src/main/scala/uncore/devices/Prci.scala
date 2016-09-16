@@ -8,6 +8,7 @@ import junctions._
 import junctions.NastiConstants._
 import uncore.tilelink2._
 import uncore.util._
+import scala.math.{min,max}
 import cde.{Parameters, Field}
 
 /** Number of tiles */
@@ -32,7 +33,7 @@ object PRCI {
   def size = 0xc000
 }
 
-case class PRCIConfig(address: BigInt = 0x44000000, beatBytes: Int = 4)
+case class PRCIConfig(beatBytes: Int, address: BigInt = 0x44000000)
 
 trait MixPRCIParameters {
   val params: (PRCIConfig, Parameters)
@@ -49,7 +50,7 @@ trait PRCIModule extends Module with HasRegMap with MixPRCIParameters {
   val io: PRCIBundle
 
   val timeWidth = 64
-  val time = Reg(init=UInt(0, timeWidth))
+  val time = Reg(init=UInt(0, width = timeWidth))
   when (io.rtcTick) { time := time + UInt(1) }
 
   val timecmp = Seq.fill(p(NTiles)) { Reg(UInt(width = timeWidth)) }
@@ -71,18 +72,30 @@ trait PRCIModule extends Module with HasRegMap with MixPRCIParameters {
    * bffc mtime hi
    */
 
+  // laying out IPI fields suck...
+  // bytes=1 -> pad to  7, step 4, group 1
+  // bytes=2 -> pad to 15, step 2, group 1
+  // bytes=4 -> pad to 31, step 1, group 1
+  // bytes=8 -> pad to 31, step 1, group 2
+  // bytes=16-> pad to 31, step 1, group 4
+  val pad = min(c.beatBytes*8,32) - 1
+  val step = max(1, 4/c.beatBytes)
+  val group = max(1, c.beatBytes/4)
+  val ipi_regs = ipi.map { reg => Seq(RegField(1, reg), RegField(pad)) }.flatten.grouped(group*2).
+                   zipWithIndex.map { case (fields, i) => (i*step -> fields) }
+
+  // Just split up time fields by bytes
   val timecmp_regs = timecmp.zipWithIndex.map { case (reg, i) =>
     RegField.bytes(reg, PRCI.timecmp(i)/c.beatBytes, c.beatBytes)
   }.flatten
   val time_reg = RegField.bytes(time, PRCI.time/c.beatBytes, c.beatBytes)
-  val ipi_regs = ipi.zipWithIndex.map { case (reg, i) => (i -> Seq(RegField(1, reg))) }
 
   regmap((timecmp_regs ++ time_reg ++ ipi_regs):_*)
 }
 
 /** Power, Reset, Clock, Interrupt */
 // Magic TL2 Incantation to create a TL2 Slave
-class PRCI(c: PRCIConfig = PRCIConfig())(implicit val p: Parameters)
-  extends TLRegisterRouter(c.address, 0, 0x10000, None, c.beatBytes)(
+class PRCI(c: PRCIConfig)(implicit val p: Parameters)
+  extends TLRegisterRouter(c.address, 0, 0x10000, None, c.beatBytes, false)(
   new TLRegBundle((c, p), _)    with PRCIBundle)(
   new TLRegModule((c, p), _, _) with PRCIModule)

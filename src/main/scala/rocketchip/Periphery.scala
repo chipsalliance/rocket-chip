@@ -12,6 +12,8 @@ import uncore.converters._
 import uncore.devices._
 import uncore.util._
 import rocket.Util._
+import rocket.XLen
+import scala.math.max
 import coreplex._
 
 /** Options for memory bus interface */
@@ -282,8 +284,11 @@ trait PeripheryAON extends LazyModule with HasPeripheryParameters {
   implicit val p: Parameters
   val peripheryBus: TLXbar
 
-  val prci = LazyModule(new PRCI()(innerMMIOParams))
-  prci.node := TLFragmenter(peripheryBus.node, 4, 256)
+  // PRCI must be at least XLen in size for atomicity
+  val beatBytes = max(innerMMIOParams(XLen)/8, 4)
+  val prci = LazyModule(new PRCI(PRCIConfig(beatBytes))(innerMMIOParams))
+  // The periphery bus is 32-bit, so we may need to adapt PRCI's width
+  prci.node := TLFragmenter(TLWidthWidget(peripheryBus.node, 4), beatBytes, 256)
 
   // TL1 legacy
   val pDevices: ResourceManager[AddrMapEntry]
