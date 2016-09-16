@@ -1,6 +1,6 @@
 
 
-/** This black-boxes an Async Set
+/** This black-boxes an Async Reset
   * Reg.
   *  
   * Because Chisel doesn't support
@@ -20,13 +20,8 @@
   *  @param q Data Output
   *  @param clk Clock Input
   *  @param rst Reset Input
+  *  @param en Write Enable Input
   *  
-  *  @param init Value to write at Reset. 
-  *  This is a constant, 
-  *  but this construction
-  *  will likely make backend flows
-  *  and lint tools unhappy.
-  * 
   */
 
 module AsyncResetReg (

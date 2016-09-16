@@ -43,5 +43,5 @@ module AsyncSetReg (
    end
    
 
-endmodule // AsyncResetReg
+endmodule // AsyncSetReg
 
