@@ -113,18 +113,11 @@ object FirrtlVerilogCompiler {
   val repl_seq_mem_id     = TransID(-2)
 }
 
-class FirrtlVerilogCompiler extends firrtl.Compiler {
-   def transforms(writer: Writer): Seq[Transform] = Seq(
-      new Chisel3ToHighFirrtl(),
-      new IRToWorkingIR(),
-      new ResolveAndCheck(),
-      new HighFirrtlToMiddleFirrtl(),
+class FirrtlVerilogCompiler extends RocketChipPassManager {
+  override def operateMiddle(): Seq[Transform] = Seq(
       new passes.InferReadWrite(FirrtlVerilogCompiler.infer_read_write_id),
-      new passes.ReplSeqMem(FirrtlVerilogCompiler.repl_seq_mem_id),
-      new MiddleFirrtlToLowFirrtl(),
-      new passes.InlineInstances(TransID(0)),
-      new EmitVerilogFromLowFirrtl(writer)
-   )
+      new passes.ReplSeqMem(FirrtlVerilogCompiler.repl_seq_mem_id)
+    )
 }
 
 object RocketChipGenerator extends Generator {
