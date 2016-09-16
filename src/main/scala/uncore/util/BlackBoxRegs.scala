@@ -55,12 +55,11 @@ class SimpleRegIO(val w: Int) extends Bundle{
 
 }
 
-class AsyncResetRegVec(val w: Int, val init: Int) extends Module {
+class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
 
   val io = new SimpleRegIO(w)
 
-  val bb_q = Wire(UInt(width = w))
-  val bb_d = Wire(UInt(width = w))
+  val bb_d = Mux(io.en, io.d, io.q)
 
   val async_regs: List[AbstractBBReg] = List.tabulate(w)(
     i => Module (
@@ -70,20 +69,42 @@ class AsyncResetRegVec(val w: Int, val init: Int) extends Module {
         new AsyncResetReg)
   )
 
-  bb_q := (async_regs.map(_.io.q)).asUInt()
+  io.q := async_regs.map(_.io.q).asUInt
 
-  io.q := bb_q
-
-  // This mux is not strictly necessary,
-  // but makes this work if the underlying black
-  // boxes were not enable flops.
-  bb_d := Mux(io.en , io.d , bb_q)
-  
   for ((reg, idx) <- async_regs.zipWithIndex) {
     reg.io.clk := clock
     reg.io.rst := reset
-    reg.io.en  := io.en
     reg.io.d   := bb_d(idx)
+    reg.io.en  := io.en
   }
 
+}
+
+object AsyncResetReg {
+  def apply(d: Bool, clk: Clock, rst: Bool, init: Boolean): Bool = {
+    val reg: AbstractBBReg =
+      if (init) Module (new AsyncSetReg)
+      else Module(new AsyncResetReg)
+    reg.io.d := d
+    reg.io.clk := clk
+    reg.io.rst := rst
+    reg.io.en  := Bool(true)
+    reg.io.q
+  }
+
+  def apply(d: Bool, clk: Clock, rst: Bool): Bool = apply(d, clk, rst, false)
+
+  def apply(updateData: UInt, resetData: BigInt, enable: Bool): UInt = {
+    val w = updateData.getWidth max resetData.bitLength
+    val reg = Module(new AsyncResetRegVec(w, resetData))
+    reg.io.d := updateData
+    reg.io.en := enable
+    reg.io.q
+  }
+
+  def apply(updateData: UInt, resetData: BigInt): UInt = apply(updateData, resetData, enable=Bool(true))
+
+  def apply(updateData: UInt, enable: Bool): UInt = apply(updateData, resetData=BigInt(0), enable)
+
+  def apply(updateData: UInt): UInt = apply(updateData, resetData=BigInt(0), enable=Bool(true))
 }
