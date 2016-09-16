@@ -26,6 +26,7 @@ class WithUnitTest extends Config(
       JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams)
     }
     case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
+    case SynTopName => None
     case _ => throw new CDEMatchError
   })
 

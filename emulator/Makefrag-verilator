@@ -8,16 +8,16 @@ mem_gen = $(VLSI_MEM_GEN)
 firrtl = $(generated_dir)/$(MODEL).$(CONFIG).fir
 firrtl_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).fir
 mems = $(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v
-verilog = $(generated_dir)/$(MODEL).$(CONFIG).v $(mems)
-verilog_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).v $(mems)
+verilog = $(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).TestHarness.v $(mems)
+verilog_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).v $(generated_dir_debug)/$(MODEL).$(CONFIG).TestHarness.v $(mems)
 
 .SECONDARY: $(firrtl) $(firrtl_debug) $(verilog) $(verilog_debug)
 
-$(generated_dir)/%.$(CONFIG).v $(generated_dir)/%.$(CONFIG).conf $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).prm $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.$(CONFIG).v $(generated_dir)/%.$(CONFIG).TestHarness.v $(generated_dir)/%.$(CONFIG).conf $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).prm $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
-$(generated_dir_debug)%.$(CONFIG).v $(generated_dir_debug)%.$(CONFIG).conf $(generated_dir_debug)/%.$(CONFIG).fir $(generated_dir_debug)/%.$(CONFIG).prm $(generated_dir_debug)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
+$(generated_dir_debug)/%.$(CONFIG).v $(generated_dir_debug)/%.$(CONFIG).TestHarness.v $(generated_dir_debug)%.$(CONFIG).conf $(generated_dir_debug)/%.$(CONFIG).fir $(generated_dir_debug)/%.$(CONFIG).prm $(generated_dir_debug)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(generated_dir_debug) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 

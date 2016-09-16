@@ -9,7 +9,7 @@ firrtl: $(generated_dir)/$(MODEL).$(CONFIG).fir
 
 .PHONY: firrtl
 
-$(generated_dir)/%.$(CONFIG).v $(generated_dir)/%.$(CONFIG).conf $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)/%.$(CONFIG).prm: $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.$(CONFIG).v $(generated_dir)/%.$(CONFIG).TestHarness.v $(generated_dir)/%.$(CONFIG).conf $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)/%.$(CONFIG).prm: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(notdir $*) $(CFG_PROJECT) $(CONFIG)"
 
