@@ -92,20 +92,39 @@ trait Generator extends App with HasGeneratorUtilities {
     firrtl.Driver.compile(
       s"${names.targetDir}/$longName.fir",
       s"${names.targetDir}/$longName.v",
-      new VerilogCompiler,
+      new FirrtlVerilogCompiler,
       Parser.UseInfo,
-      Annotations.AnnotationMap(Seq(
+      AnnotationMap(Seq(
         passes.InferReadWriteAnnotation(
           s"${names.topModuleClass}",
-          Annotations.TransID(-1)
+          FirrtlVerilogCompiler.infer_read_write_id
         ),
         passes.ReplSeqMemAnnotation(
           s"-c:${names.topModuleClass}:-o:${names.targetDir}/$longName.conf",
-          Annotations.TransID(-2)
+          FirrtlVerilogCompiler.repl_seq_mem_id
         )
       ))
     )
   }
+}
+
+object FirrtlVerilogCompiler {
+  val infer_read_write_id = TransID(-1)
+  val repl_seq_mem_id     = TransID(-2)
+}
+
+class FirrtlVerilogCompiler extends firrtl.Compiler {
+   def transforms(writer: Writer): Seq[Transform] = Seq(
+      new Chisel3ToHighFirrtl(),
+      new IRToWorkingIR(),
+      new ResolveAndCheck(),
+      new HighFirrtlToMiddleFirrtl(),
+      new passes.InferReadWrite(FirrtlVerilogCompiler.infer_read_write_id),
+      new passes.ReplSeqMem(FirrtlVerilogCompiler.repl_seq_mem_id),
+      new MiddleFirrtlToLowFirrtl(),
+      new passes.InlineInstances(TransID(0)),
+      new EmitVerilogFromLowFirrtl(writer)
+   )
 }
 
 object RocketChipGenerator extends Generator {
