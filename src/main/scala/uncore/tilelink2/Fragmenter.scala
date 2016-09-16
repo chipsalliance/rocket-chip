@@ -146,7 +146,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val dFragnum = out.d.bits.source(fragmentBits-1, 0)
     val dFirst = acknum === UInt(0)
     val dsizeOH  = UIntToOH (out.d.bits.size, log2Ceil(maxDownSize)+1)
-    val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Ceil(maxDownSize))
+    val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Up(maxDownSize))
     val dHasData = edgeOut.hasData(out.d.bits)
 
     // calculate new acknum
@@ -209,7 +209,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val aOrig = in.a.bits.size
     val aFrag = Mux(aOrig > limit, limit, aOrig)
     val aOrigOH1 = UIntToOH1(aOrig, log2Ceil(maxSize))
-    val aFragOH1 = UIntToOH1(aFrag, log2Ceil(maxDownSize))
+    val aFragOH1 = UIntToOH1(aFrag, log2Up(maxDownSize))
     val aHasData = node.edgesIn(0).hasData(in.a.bits)
     val aMask = Mux(aHasData, UInt(0), aFragOH1)
 

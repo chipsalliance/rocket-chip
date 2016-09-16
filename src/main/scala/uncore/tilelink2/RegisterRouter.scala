@@ -25,7 +25,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     val baseEnd = 0
     val (sizeEnd,   sizeOff)   = (edge.bundle.sizeBits   + baseEnd, baseEnd)
     val (sourceEnd, sourceOff) = (edge.bundle.sourceBits + sizeEnd, sizeEnd)
-    val (addrLoEnd, addrLoOff) = (log2Ceil(beatBytes)    + sourceEnd, sourceEnd)
+    val (addrLoEnd, addrLoOff) = (log2Up(beatBytes)      + sourceEnd, sourceEnd)
 
     val params = RegMapperParams(log2Up(address.mask+1), beatBytes, addrLoEnd)
     val in = Wire(Decoupled(new RegMapperInput(params)))
