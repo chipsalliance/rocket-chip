@@ -11,8 +11,6 @@ import uncore.util._
 import uncore.converters._
 import rocket._
 import rocket.Util._
-import java.nio.{ByteBuffer,ByteOrder}
-import java.nio.file.{Files, Paths}
 
 /** Number of memory channels */
 case object NMemoryChannels extends Field[Int]
@@ -34,7 +32,6 @@ trait HasCoreplexParameters {
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
-  lazy val configString = p(rocketchip.ConfigString).get
   lazy val globalAddrMap = p(rocketchip.GlobalAddrMap).get
 }
 
@@ -59,7 +56,7 @@ abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConf
     val slave = Vec(c.nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
     val interrupts = Vec(c.nExtInterrupts, Bool()).asInput
     val debug = new DebugBusIO()(p).flip
-    val rtcTick = Bool(INPUT)
+    val prci = Vec(c.nTiles, new PRCITileIO).flip
     val success: Option[Bool] = hasSuccessFlag.option(Bool(OUTPUT))
   }
 
@@ -120,37 +117,15 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     val backendBuffering = TileLinkDepths(0,0,0,0,0)
     for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
       val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
-      unwrap.io.in <> ClientTileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
+      unwrap.io.in <> TileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
       TileLinkWidthAdapter(icPort, unwrap.io.out)
     }
 
     io.master.mem <> mem_ic.io.out
 
-    buildMMIONetwork(ClientUncachedTileLinkEnqueuer(mmioManager.io.outer, 1))(
+    buildMMIONetwork(TileLinkEnqueuer(mmioManager.io.outer, 1))(
         p.alterPartial({case TLId => "L2toMMIO"}))
   }
-
-  def makeBootROM()(implicit p: Parameters) = {
-    val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
-    val rom = ByteBuffer.wrap(romdata)
-
-    rom.order(ByteOrder.LITTLE_ENDIAN)
-
-    // for now, have the reset vector jump straight to memory
-    val memBase = (
-      if (globalAddrMap contains "mem") globalAddrMap("mem")
-      else globalAddrMap("io:int:dmem0")
-    ).start
-    val resetToMemDist = memBase - p(ResetVector)
-    require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
-    val configStringAddr = p(ResetVector).toInt + rom.capacity
-
-    require(rom.getInt(12) == 0,
-      "Config string address position should not be occupied by code")
-    rom.putInt(12, configStringAddr)
-    rom.array() ++ (configString.getBytes.toSeq)
-  }
-
 
   def buildMMIONetwork(mmio: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
     val ioAddrMap = globalAddrMap.subMap("io")
@@ -170,29 +145,19 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
     debugModule.io.tl <> mmioNetwork.port("int:debug")
     debugModule.io.db <> io.debug
 
-    val prci = Module(new PRCI)
-    prci.io.tl <> mmioNetwork.port("int:prci")
-    prci.io.rtcTick := io.rtcTick
-
-    (prci.io.tiles, tileResets, tileList).zipped.foreach {
-      case (prci, rst, tile) =>
-        rst := reset
-        tile.io.prci <> prci
-    }
-
-    for (i <- 0 until tc.nTiles) {
-      prci.io.interrupts(i).meip := plic.io.harts(plic.cfg.context(i, 'M'))
-      if (p(UseVM))
-        prci.io.interrupts(i).seip := plic.io.harts(plic.cfg.context(i, 'S'))
-      prci.io.interrupts(i).debug := debugModule.io.debugInterrupts(i)
+    // connect coreplex-internal interrupts to tiles
+    for (((tile, tileReset), i) <- (tileList zip tileResets) zipWithIndex) {
+      tileReset := io.prci(i).reset
+      tile.io.interrupts := io.prci(i).interrupts
+      tile.io.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
+      tile.io.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
+      tile.io.interrupts.debug := debugModule.io.debugInterrupts(i)
+      tile.io.hartid := i
     }
 
     val tileSlavePorts = (0 until tc.nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)
     for ((t, m) <- (tileList.map(_.io.slave).flatten) zip (tileSlavePorts map (mmioNetwork port _)))
-      t <> ClientUncachedTileLinkEnqueuer(m, 1)
-
-    val bootROM = Module(new ROMSlave(makeBootROM()))
-    bootROM.io <> mmioNetwork.port("int:bootrom")
+      t <> TileLinkEnqueuer(m, 1)
 
     io.master.mmio.foreach { _ <> mmioNetwork.port("ext") }
   }

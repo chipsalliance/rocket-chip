@@ -1,8 +1,6 @@
-package junctions.unittests
+package junctions
 
 import Chisel._
-import junctions._
-import junctions.NastiConstants._
 import cde.Parameters
 
 class NastiDemuxDriver(n: Int)(implicit p: Parameters) extends Module {
@@ -93,7 +91,7 @@ class NastiDemuxSlave(implicit p: Parameters) extends NastiModule()(p) {
   io.r.bits := NastiReadDataChannel(id = id, data = value)
 }
 
-class NastiMemoryDemuxTest(implicit p: Parameters) extends UnitTest {
+class NastiMemoryDemuxTest(implicit p: Parameters) extends unittest.UnitTest {
   val nSlaves = 4
 
   val driver = Module(new NastiDemuxDriver(nSlaves))

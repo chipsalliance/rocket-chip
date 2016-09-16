@@ -3,11 +3,11 @@
 package rocket
 
 import Chisel._
-import junctions._
 import cde.{Parameters, Field}
 import Util._
 import uncore.util._
 import uncore.agents.PseudoLRU
+import util.ParameterizedBundle
 
 case object BtbKey extends Field[BtbParameters]
 

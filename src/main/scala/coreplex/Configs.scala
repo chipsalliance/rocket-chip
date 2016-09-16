@@ -191,7 +191,7 @@ class BaseCoreplexConfig extends Config (
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
 
       case BootROMFile => "./bootrom/bootrom.img"
-      case NTiles => Knob("NTILES")
+      case NTiles => 1
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
@@ -226,7 +226,6 @@ class BaseCoreplexConfig extends Config (
       case _ => throw new CDEMatchError
   }},
   knobValues = {
-    case "NTILES" => 1
     case "NBANKS_PER_MEM_CHANNEL" => 1
     case "L1D_MSHRS" => 2
     case "L1D_SETS" => 64
@@ -238,7 +237,9 @@ class BaseCoreplexConfig extends Config (
 )
 
 class WithNCores(n: Int) extends Config(
-  knobValues = { case"NTILES" => n; case _ => throw new CDEMatchError })
+  (pname,site,here) => pname match {
+    case NTiles => n
+  })
 
 class WithNBanksPerMemChannel(n: Int) extends Config(
   knobValues = {

@@ -6,6 +6,7 @@ import uncore.devices.NTiles
 import uncore.constants._
 import junctions._
 import rocket._
+import util.Timer
 import scala.util.Random
 import cde.{Parameters, Field}
 

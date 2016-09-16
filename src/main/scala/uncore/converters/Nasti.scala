@@ -2,6 +2,8 @@ package uncore.converters
 
 import Chisel._
 import junctions._
+import util.{ReorderQueue, DecoupledHelper}
+import junctions.NastiConstants._
 import uncore.tilelink._
 import uncore.constants._
 import cde.Parameters
@@ -233,8 +235,8 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     data = Bits(0))
   assert(!gnt_arb.io.in(1).valid || put_id_mapper.io.resp.matches, "NASTI tag error")
 
-  assert(!io.nasti.r.valid || io.nasti.r.bits.resp === UInt(0), "NASTI read error")
-  assert(!io.nasti.b.valid || io.nasti.b.bits.resp === UInt(0), "NASTI write error")
+  assert(!io.nasti.r.valid || io.nasti.r.bits.resp === RESP_OKAY, "NASTI read error")
+  assert(!io.nasti.b.valid || io.nasti.b.bits.resp === RESP_OKAY, "NASTI write error")
 }
 
 class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)

@@ -7,7 +7,7 @@ import uncore.coherence._
 import uncore.tilelink._
 import uncore.util._
 import uncore.util._
-import junctions._
+import util.ParameterizedBundle
 import cde.{Field, Parameters}
 import scala.math.max
 

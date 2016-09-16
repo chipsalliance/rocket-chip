@@ -7,38 +7,13 @@ import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
 import uncore.devices.NTiles
-import uncore.unittests._
 import junctions._
-import junctions.unittests._
 import scala.collection.mutable.LinkedHashSet
 import scala.collection.immutable.HashMap
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 import scala.math.max
 import coreplex._
 import ConfigUtils._
-
-class WithUnitTest extends Config(
-  (pname, site, here) => pname match {
-    case BuildCoreplex => {
-      val groundtest = if (site(XLen) == 64)
-        DefaultTestSuites.groundtest64
-      else
-        DefaultTestSuites.groundtest32
-      TestGeneration.addSuite(groundtest("p"))
-      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-      (p: Parameters, c: CoreplexConfig) => Module(new UnitTestCoreplex(p, c))
-    }
-    case UnitTests => (testParams: Parameters) =>
-      JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams)
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", 0)
-    case FPUKey => None
-    case UseAtomics => false
-    case UseCompressed => false
-    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
-    case _ => throw new CDEMatchError
-  })
-
-class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
 
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {

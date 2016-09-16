@@ -1,7 +1,8 @@
 package uncore.converters
 
 import Chisel._
-import junctions._
+import util.{ReorderQueue, DecoupledHelper}
+import junctions.PAddrBits
 import uncore.tilelink._
 import uncore.util._
 import uncore.constants._

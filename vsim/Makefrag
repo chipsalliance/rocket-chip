@@ -7,7 +7,10 @@
 bb_vsrcs = $(base_dir)/vsrc/DebugTransportModuleJtag.v \
 	$(base_dir)/vsrc/jtag_vpi.v \
 	$(base_dir)/vsrc/AsyncMailbox.v \
-	$(base_dir)/vsrc/AsyncResetReg.v
+	$(base_dir)/vsrc/AsyncResetReg.v \
+	$(base_dir)/vsrc/ClockDivider.v \
+	$(base_dir)/vsrc/ClockToSignal.v \
+	$(base_dir)/vsrc/SignalToClock.v \
 
 sim_vsrcs = \
 	$(generated_dir)/$(MODEL).$(CONFIG).v \
@@ -47,6 +50,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noUI -error=PCWM-L -timescale=1ns/10ps
 	$(RISCV)/lib/libfesvr.so \
 	-sverilog \
 	+incdir+$(generated_dir) \
+	+define+MODEL=$(MODEL) \
 	+define+CLOCK_PERIOD=1.0 $(sim_vsrcs) $(sim_csrcs) \
 	+define+PRINTF_COND=$(TB).printf_cond \
 	+define+STOP_COND=!$(TB).reset \

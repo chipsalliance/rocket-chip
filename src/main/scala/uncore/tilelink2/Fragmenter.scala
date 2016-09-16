@@ -34,7 +34,8 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsLogical    = expandTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet),
     supportsPutFull    = expandTransfer(m.supportsPutFull),
-    supportsPutPartial = expandTransfer(m.supportsPutPartial))
+    supportsPutPartial = expandTransfer(m.supportsPutPartial),
+    supportsHint       = expandTransfer(m.supportsHint))
   def mapClient(c: TLClientParameters) = c.copy(
     sourceId = IdRange(c.sourceId.start << fragmentBits, c.sourceId.end << fragmentBits),
     // since we break Acquires, none of these work either:
@@ -44,7 +45,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsGet        = TransferSizes.none,
     supportsPutFull    = TransferSizes.none,
     supportsPutPartial = TransferSizes.none,
-    supportsHint       = false)
+    supportsHint       = TransferSizes.none)
 
   val node = TLAdapterNode(
     clientFn  = { case Seq(c) => c.copy(clients = c.clients.map(mapClient)) },
@@ -163,7 +164,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     }
 
     // Swallow up non-data ack fragments
-    val drop = (out.d.bits.opcode === TLMessages.AccessAck) && (dFragnum =/= UInt(0))
+    val drop = !dHasData && (dFragnum =/= UInt(0))
     out.d.ready := in.d.ready || drop
     in.d.valid  := out.d.valid && !drop
     in.d.bits   := out.d.bits // pass most stuff unchanged

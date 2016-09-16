@@ -1,8 +1,6 @@
-package junctions.unittests
+package junctions
 
 import Chisel._
-import junctions._
-import junctions.NastiConstants._
 import cde.Parameters
 
 class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
@@ -75,17 +73,4 @@ class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
 
   assert(!io.nasti.r.valid || read_data === expected_data,
     s"NastiDriver got wrong data")
-}
-
-class HastiTest(implicit p: Parameters) extends UnitTest {
-  val sram = Module(new HastiTestSRAM(8))
-  val bus = Module(new HastiBus(Seq(a => Bool(true))))
-  val conv = Module(new HastiMasterIONastiIOConverter)
-  val driver = Module(new NastiDriver(32, 8, 2))
-
-  bus.io.slaves(0) <> sram.io
-  bus.io.master <> conv.io.hasti
-  conv.io.nasti <> driver.io.nasti
-  io.finished := driver.io.finished
-  driver.io.start := io.start
 }
