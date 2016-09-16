@@ -146,6 +146,7 @@ class WithTraceGen extends Config(
   knobValues = {
     case "L1D_SETS" => 16
     case "L1D_WAYS" => 1
+    case _ => throw new CDEMatchError
   })
 
 class WithPCIeMockupTest extends Config(

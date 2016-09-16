@@ -152,6 +152,7 @@ class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
 class WithMIFDataBits(n: Int) extends Config(
   (pname, site, here) => pname match {
     case MIFDataBits => Dump("MIF_DATA_BITS", n)
+    case _ => throw new CDEMatchError
   })
 
 class MIF128BitConfig extends Config(
@@ -182,12 +183,14 @@ class TinyConfig extends Config(
 
 class WithAsyncDebug extends Config (
   (pname, site, here) => pname match {
-     case AsyncDebugBus => true
+    case AsyncDebugBus => true
+    case _ => throw new CDEMatchError
   }
 )
 
 class WithJtagDTM extends Config (
   (pname, site, here) => pname match {
-     case IncludeJtagDTM => true
+    case IncludeJtagDTM => true
+    case _ => throw new CDEMatchError
   }
 )
