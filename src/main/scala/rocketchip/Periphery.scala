@@ -279,34 +279,34 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
 
 /////
 
-/** Always-ON block */
-trait PeripheryAON extends LazyModule with HasPeripheryParameters {
+trait PeripheryCoreplexLocalInterrupter extends LazyModule with HasPeripheryParameters {
   implicit val p: Parameters
   val peripheryBus: TLXbar
 
-  // PRCI must be at least XLen in size for atomicity
-  val beatBytes = max(innerMMIOParams(XLen)/8, 4)
-  val prci = LazyModule(new PRCI(PRCIConfig(beatBytes))(innerMMIOParams))
-  // The periphery bus is 32-bit, so we may need to adapt PRCI's width
-  prci.node := TLFragmenter(TLWidthWidget(peripheryBus.node, 4), beatBytes, 256)
+  // CoreplexLocalInterrupter must be at least 64b if XLen >= 64
+  val beatBytes = (innerMMIOParams(XLen) min 64) / 8
+  val clintConfig = CoreplexLocalInterrupterConfig(beatBytes)
+  val clint = LazyModule(new CoreplexLocalInterrupter(clintConfig)(innerMMIOParams))
+  // The periphery bus is 32-bit, so we may need to adapt its width to XLen
+  clint.node := TLFragmenter(TLWidthWidget(peripheryBus.node, 4), beatBytes, 256)
 
   // TL1 legacy
   val pDevices: ResourceManager[AddrMapEntry]
-  pDevices.add(AddrMapEntry("prci", MemRange(prci.base, prci.size, MemAttr(AddrMapProt.RW))))
+  pDevices.add(AddrMapEntry("clint", MemRange(clintConfig.address, clintConfig.size, MemAttr(AddrMapProt.RW))))
 }
 
-trait PeripheryAONBundle {
+trait PeripheryCoreplexLocalInterrupterBundle {
   implicit val p: Parameters
 }
 
-trait PeripheryAONModule extends HasPeripheryParameters {
+trait PeripheryCoreplexLocalInterrupterModule extends HasPeripheryParameters {
   implicit val p: Parameters
-  val outer: PeripheryAON
-  val io: PeripheryAONBundle
+  val outer: PeripheryCoreplexLocalInterrupter
+  val io: PeripheryCoreplexLocalInterrupterBundle
   val coreplex: Coreplex
 
-  outer.prci.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
-  coreplex.io.prci <> outer.prci.module.io.tiles
+  outer.clint.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
+  coreplex.io.clint <> outer.clint.module.io.tiles
 }
 
 /////

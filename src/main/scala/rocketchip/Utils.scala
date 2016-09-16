@@ -83,7 +83,7 @@ object GenerateConfigString {
   def apply(p: Parameters, c: CoreplexConfig, pDevicesEntries: Seq[AddrMapEntry]) = {
     val addrMap = p(GlobalAddrMap)
     val plicAddr = addrMap("io:int:plic").start
-    val prciAddr = addrMap("io:ext:TL2:prci").start
+    val clint = CoreplexLocalInterrupterConfig(0, addrMap("io:ext:TL2:clint").start)
     val xLen = p(XLen)
     val res = new StringBuilder
     res append  "plic {\n"
@@ -92,7 +92,7 @@ object GenerateConfigString {
     res append s"  ndevs ${c.plicKey.nDevices};\n"
     res append  "};\n"
     res append  "rtc {\n"
-    res append s"  addr 0x${(prciAddr + PRCI.time).toString(16)};\n"
+    res append s"  addr 0x${clint.timeAddress.toString(16)};\n"
     res append  "};\n"
     if (addrMap contains "mem") {
       res append  "ram {\n"
@@ -115,8 +115,8 @@ object GenerateConfigString {
       res append s"  $i {\n"
       res append  "    0 {\n"
       res append s"      isa $isa;\n"
-      res append s"      timecmp 0x${(prciAddr + PRCI.timecmp(i)).toString(16)};\n"
-      res append s"      ipi 0x${(prciAddr + PRCI.msip(i)).toString(16)};\n"
+      res append s"      timecmp 0x${clint.timecmpAddress(i).toString(16)};\n"
+      res append s"      ipi 0x${clint.msipAddress(i).toString(16)};\n"
       res append s"      plic {\n"
       res append s"        m {\n"
       res append s"         ie 0x${(plicAddr + c.plicKey.enableAddr(i, 'M')).toString(16)};\n"

@@ -84,17 +84,17 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
 
 /** Example Top with Periphery */
 class ExampleTop(q: Parameters) extends BaseTop(q)
-    with PeripheryBootROM with PeripheryDebug with PeripheryExtInterrupts with PeripheryAON
+    with PeripheryBootROM with PeripheryDebug with PeripheryExtInterrupts with PeripheryCoreplexLocalInterrupter
     with PeripheryMasterMem with PeripheryMasterMMIO with PeripherySlave {
   override lazy val module = Module(new ExampleTopModule(p, this, new ExampleTopBundle(p, _)))
 }
 
 class ExampleTopBundle(p: Parameters, c: Coreplex) extends BaseTopBundle(p, c)
-    with PeripheryBootROMBundle with PeripheryDebugBundle with PeripheryExtInterruptsBundle with PeripheryAONBundle
+    with PeripheryBootROMBundle with PeripheryDebugBundle with PeripheryExtInterruptsBundle with PeripheryCoreplexLocalInterrupterBundle
     with PeripheryMasterMemBundle with PeripheryMasterMMIOBundle with PeripherySlaveBundle
 
 class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, l: L, b: Coreplex => B) extends BaseTopModule(p, l, b)
-    with PeripheryBootROMModule with PeripheryDebugModule with PeripheryExtInterruptsModule with PeripheryAONModule
+    with PeripheryBootROMModule with PeripheryDebugModule with PeripheryExtInterruptsModule with PeripheryCoreplexLocalInterrupterModule
     with PeripheryMasterMemModule with PeripheryMasterMMIOModule with PeripherySlaveModule
 
 /** Example Top with TestRAM */
