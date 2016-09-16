@@ -20,30 +20,26 @@
   *  @param q Data Output
   *  @param clk Clock Input
   *  @param rst Reset Input
-  *  
-  *  @param init Value to write at Reset. 
-  *  This is a constant, 
-  *  but this construction
-  *  will likely make backend flows
-  *  and lint tools unhappy.
+  *  @param en Write Enable Input
   * 
   */
 
-module AsyncResetReg (
+module AsyncSetReg (
                       input      d,
                       output reg q,
-                      input      en,
-
+                      input en,
+                    
                       input      clk,
                       input      rst);
    
    always @(posedge clk or posedge rst) begin
 
       if (rst) begin
-         q <= 1'b0;
+         q <= 1'b1;
       end else if (en) begin
          q <= d;
       end
+   
    end
    
 
