@@ -28,11 +28,22 @@ object AddressDecoder
         require (!a.overlaps(b)) // it must be possible to disambiguate ports!
       } }
     }
+
     val maxBits = log2Ceil(ports.map(_.map(_.max).max).max + 1)
     val bits = (0 until maxBits).map(BigInt(1) << _).toSeq
     val selected = recurse(Seq(ports.map(_.sorted).sorted(portOrder)), bits)
-    selected.reduceLeft(_ | _)
-    // port validation via mask expansion
+    val output = selected.reduceLeft(_ | _)
+
+    // Modify the AddressSets to allow the new wider match functions
+    val widePorts = ports.map { _.map { _.widen(~output) } }
+    // Verify that it remains possible to disambiguate all ports
+    widePorts.combinations(2).foreach { case Seq(x, y) =>
+      x.foreach { a => y.foreach { b =>
+        require (!a.overlaps(b))
+      } }
+    }
+
+    output
   }
 
   // A simpler version that works for a Seq[Int]

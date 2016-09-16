@@ -98,6 +98,9 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   // A strided slave serves discontiguous ranges
   def strided = alignment1 != mask
 
+  // Widen the match function to ignore all bits in imask
+  def widen(imask: BigInt) = AddressSet(base & ~imask, mask | imask)
+
   // AddressSets have one natural Ordering (the containment order)
   def compare(x: AddressSet) = {
     val primary   = (this.base - x.base).signum // smallest address first
