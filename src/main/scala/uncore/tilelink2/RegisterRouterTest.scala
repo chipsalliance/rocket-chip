@@ -28,11 +28,13 @@ class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => B
 
   val reg = Reg(UInt(width = bits))
 
-  io.rvalid := rvalid(io.rready)
-  io.wready := wready(io.wvalid)
+  val rvalid_s = rvalid(io.rready)
+  val wready_s = wready(io.wvalid)
+  io.rvalid := rvalid_s
+  io.wready := wready_s
 
   io.rdata := reg
-  when (io.wvalid && io.wready) { reg := io.wdata }
+  when (io.wvalid && wready_s) { reg := io.wdata }
 }
 
 object RRTestCombinational
