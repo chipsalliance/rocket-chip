@@ -32,7 +32,7 @@ trait HasCoreplexParameters {
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
-  lazy val globalAddrMap = p(rocketchip.GlobalAddrMap).get
+  lazy val globalAddrMap = p(rocketchip.GlobalAddrMap)
 }
 
 case class CoreplexConfig(

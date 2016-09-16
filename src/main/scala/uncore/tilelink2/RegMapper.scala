@@ -28,8 +28,8 @@ class RegMapperOutput(params: RegMapperParams) extends GenericParameterizedBundl
 object RegMapper
 {
   // Create a generic register-based device
-  def apply(bytes: Int, concurrency: Option[Int], in: DecoupledIO[RegMapperInput], mapping: RegField.Map*) = {
-    val regmap = mapping.toList
+  def apply(bytes: Int, concurrency: Option[Int], undefZero: Boolean, in: DecoupledIO[RegMapperInput], mapping: RegField.Map*) = {
+    val regmap = mapping.toList.filter(!_._2.isEmpty)
     require (!regmap.isEmpty)
 
     // Ensure no register appears twice
@@ -37,15 +37,31 @@ object RegMapper
       require (reg1 != reg2)
     }
 
-    // Flatten the regmap into (Reg:Int, Offset:Int, field:RegField)
-    val flat = regmap.map { case (reg, fields) =>
-      val offsets = fields.scanLeft(0)(_ + _.width).init
-      (offsets zip fields) map { case (o, f) => (reg, o, f) }
-    }.flatten
-    require (!flat.isEmpty)
+    // Convert to and from Bits
+    def toBits(x: Int, tail: List[Boolean] = List.empty): List[Boolean] =
+      if (x == 0) tail.reverse else toBits(x >> 1, ((x & 1) == 1) :: tail)
+    def ofBits(bits: List[Boolean]) = bits.foldRight(0){ case (x,y) => (if (x) 1 else 0) | y << 1 }
 
+    // Find the minimal mask that can decide the register map
+    val mask = AddressDecoder(regmap.map(_._1))
+    val maskFilter = toBits(mask)
+    val maskBits = maskFilter.filter(x => x).size
+
+    // Calculate size and indexes into the register map
     val endIndex = 1 << log2Ceil(regmap.map(_._1).max+1)
     val params = RegMapperParams(log2Up(endIndex), bytes, in.bits.params.extraBits)
+    val regSize = 1 << maskBits
+    def regIndexI(x: Int) = ofBits((maskFilter zip toBits(x)).filter(_._1).map(_._2))
+    def regIndexU(x: UInt) = if (maskBits == 0) UInt(0) else
+      Cat((maskFilter zip x.toBools).filter(_._1).map(_._2).reverse)
+
+    // Flatten the regmap into (RegIndex:Int, Offset:Int, field:RegField)
+    val flat = regmap.map { case (reg, fields) =>
+      val offsets = fields.scanLeft(0)(_ + _.width).init
+      val index = regIndexI(reg)
+      // println("mapping 0x%x -> 0x%x for 0x%x/%d".format(reg, index, mask, maskBits))
+      (offsets zip fields) map { case (o, f) => (index, o, f) }
+    }.flatten
 
     val out = Wire(Irrevocable(new RegMapperOutput(params)))
     val front = Wire(Irrevocable(new RegMapperInput(params)))
@@ -69,13 +85,13 @@ object RegMapper
     val woready = Wire(Vec(flat.size, Bool()))
 
     // Per-register list of all control signals needed for data to flow
-    val rifire = Array.tabulate(endIndex) { i => Seq(Bool(true)) }
-    val wifire = Array.tabulate(endIndex) { i => Seq(Bool(true)) }
-    val rofire = Array.tabulate(endIndex) { i => Seq(Bool(true)) }
-    val wofire = Array.tabulate(endIndex) { i => Seq(Bool(true)) }
+    val rifire = Array.tabulate(regSize) { i => Seq(Bool(true)) }
+    val wifire = Array.tabulate(regSize) { i => Seq(Bool(true)) }
+    val rofire = Array.tabulate(regSize) { i => Seq(Bool(true)) }
+    val wofire = Array.tabulate(regSize) { i => Seq(Bool(true)) }
 
     // The output values for each register
-    val dataOut = Array.tabulate(endIndex) { _ => UInt(0) }
+    val dataOut = Array.tabulate(regSize) { _ => UInt(0) }
 
     // Which bits are touched?
     val frontMask = FillInterleaved(8, front.bits.mask)
@@ -110,8 +126,10 @@ object RegMapper
     val wifireMux = Vec(wifire.map(_.reduce(_ && _)))
     val rofireMux = Vec(rofire.map(_.reduce(_ && _)))
     val wofireMux = Vec(wofire.map(_.reduce(_ && _)))
-    val iready = Mux(front.bits.read, rifireMux(front.bits.index), wifireMux(front.bits.index))
-    val oready = Mux(back .bits.read, rofireMux(back .bits.index), wofireMux(back .bits.index))
+    val iindex = regIndexU(front.bits.index)
+    val oindex = regIndexU(back .bits.index)
+    val iready = Mux(front.bits.read, rifireMux(iindex), wifireMux(iindex))
+    val oready = Mux(back .bits.read, rofireMux(oindex), wofireMux(oindex))
 
     // Connect the pipeline
     in.ready    := front.ready && iready
@@ -120,11 +138,11 @@ object RegMapper
     out.valid   := back.valid  && oready
 
     // Which register is touched?
-    val frontSel = UIntToOH(front.bits.index)
-    val backSel  = UIntToOH(back.bits.index)
+    val frontSel = UIntToOH(iindex)
+    val backSel  = UIntToOH(oindex)
 
     // Include the per-register one-hot selected criteria
-    for (reg <- 0 until endIndex) {
+    for (reg <- 0 until regSize) {
       rifire(reg) = (in.valid && front.ready &&  front.bits.read && frontSel(reg)) +: rifire(reg)
       wifire(reg) = (in.valid && front.ready && !front.bits.read && frontSel(reg)) +: wifire(reg)
       rofire(reg) = (back.valid && out.ready &&  back .bits.read && backSel (reg)) +: rofire(reg)
@@ -141,7 +159,7 @@ object RegMapper
     }
 
     out.bits.read  := back.bits.read
-    out.bits.data  := Vec(dataOut)(back.bits.index)
+    out.bits.data  := Vec(dataOut)(oindex)
     out.bits.extra := back.bits.extra
 
     (endIndex, out)

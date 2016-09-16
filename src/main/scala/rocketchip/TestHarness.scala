@@ -11,11 +11,12 @@ import junctions.NastiConstants._
 case object BuildExampleTop extends Field[Parameters => ExampleTop]
 case object SimMemLatency extends Field[Int]
 
-class TestHarness(implicit val p: Parameters) extends Module with HasAddrMapParameters {
+class TestHarness(q: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
-  val dut = p(BuildExampleTop)(p).module
+  val dut = q(BuildExampleTop)(q).module
+  implicit val p = dut.p
 
   // This test harness isn't especially flexible yet
   require(dut.io.mem_clk.isEmpty)
@@ -33,7 +34,7 @@ class TestHarness(implicit val p: Parameters) extends Module with HasAddrMapPara
     int := false
 
   if (dut.io.mem_axi.nonEmpty) {
-    val memSize = addrMap("mem").size
+    val memSize = p(GlobalAddrMap)("mem").size
     require(memSize % dut.io.mem_axi.size == 0)
     for (axi <- dut.io.mem_axi) {
       val mem = Module(new SimAXIMem(memSize / dut.io.mem_axi.size))
