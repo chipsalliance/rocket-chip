@@ -3,6 +3,7 @@ import Keys._
 import complete._
 import complete.DefaultParsers._
 import xerial.sbt.Pack._
+import sbtassembly.AssemblyPlugin.autoImport._
 
 object BuildSettings extends Build {
 
@@ -18,8 +19,9 @@ object BuildSettings extends Build {
 
   lazy val chisel = project in file("chisel3")
   lazy val cde        = project in file("context-dependent-environments")
+  lazy val firrtl     = project in file("firrtl")
   lazy val hardfloat  = project.dependsOn(chisel)
-  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(chisel, cde, hardfloat)
+  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(chisel, cde, hardfloat, firrtl)
 
   lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
   lazy val make = inputKey[Unit]("trigger backend-specific makefile command")

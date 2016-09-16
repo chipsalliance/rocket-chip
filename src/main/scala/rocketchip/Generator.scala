@@ -6,7 +6,9 @@ import Chisel._
 import scala.collection.mutable.{LinkedHashSet,LinkedHashMap}
 import cde._
 import coreplex._
-import java.io.{File, FileWriter}
+import firrtl._
+import firrtl.Annotations._
+import java.io.{File, FileWriter, Writer}
 
 case class ParsedInputNames(
     targetDir: String,
@@ -44,7 +46,7 @@ trait HasGeneratorUtilities {
         .newInstance(params)
         .asInstanceOf[Module]
 
-    Driver.elaborate(gen)
+    chisel3.Driver.elaborate(gen)
   }
 
   def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
@@ -86,10 +88,27 @@ trait Generator extends App with HasGeneratorUtilities {
     writeOutputFile(td, s"${names.configs}.knb", world.getKnobs) // Knobs for DSE
     writeOutputFile(td, s"${names.configs}.cst", world.getConstraints) // Constraints for DSE
     ConfigStringOutput.contents.foreach(c => writeOutputFile(td, s"${names.configs}.cfg", c)) // String for software
+
+    firrtl.Driver.compile(
+      s"${names.targetDir}/$longName.fir",
+      s"${names.targetDir}/$longName.v",
+      new VerilogCompiler,
+      Parser.UseInfo,
+      Annotations.AnnotationMap(Seq(
+        passes.InferReadWriteAnnotation(
+          s"${names.topModuleClass}",
+          Annotations.TransID(-1)
+        ),
+        passes.ReplSeqMemAnnotation(
+          s"-c:${names.topModuleClass}:-o:${names.targetDir}/$longName.conf",
+          Annotations.TransID(-2)
+        )
+      ))
+    )
   }
 }
 
 object RocketChipGenerator extends Generator {
-  Driver.dumpFirrtl(circuit, Some(new File(td, s"$longName.fir"))) // FIRRTL
+  chisel3.Driver.dumpFirrtl(circuit, Some(new File(td, s"$longName.fir"))) // FIRRTL
   writeOutputFiles()
 }
