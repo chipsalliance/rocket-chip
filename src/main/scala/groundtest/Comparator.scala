@@ -338,7 +338,7 @@ class ComparatorSink(implicit val p: Parameters) extends Module
 
     assert (g.is_builtin_type, "grant not builtin")
     assert (base.g_type === g.g_type, "g_type mismatch")
-    assert (base.addr_beat === g.addr_beat || !g.hasData(), "addr_beat mismatch")
+    assert (base.addr_beat === g.addr_beat || !g.hasMultibeatData(), "addr_beat mismatch")
     assert (base.data === g.data || !g.hasData(), "data mismatch")
 
     assert_conds.zipWithIndex.foreach { case (cond, i) =>
