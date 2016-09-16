@@ -2,8 +2,8 @@
 
 package uncore.tilelink2
 
-import Chisel._
-import chisel3.util.{Irrevocable, IrrevocableIO}
+import chisel3._
+import chisel3.util._
 
 // A bus agnostic register interface to a register-based device
 
@@ -36,6 +36,23 @@ object RegMapper
     regmap.combinations(2).foreach { case Seq((reg1, _), (reg2, _)) =>
       require (reg1 != reg2)
     }
+    // Don't be an asshole...
+    regmap.foreach { reg => require (reg._1 >= 0) }
+    // Make sure registers fit
+    val inParams = in.bits.params
+    val inBits = inParams.indexBits
+    assert (regmap.map(_._1).max < (1 << inBits))
+
+    val out = Wire(Irrevocable(new RegMapperOutput(inParams)))
+    val front = Wire(Irrevocable(new RegMapperInput(inParams)))
+    front.bits := in.bits
+
+    // Must this device pipeline the control channel?
+    val pipelined = regmap.map(_._2.map(_.pipelined)).flatten.reduce(_ || _)
+    val depth = concurrency.getOrElse(if (pipelined) 1 else 0)
+    require (depth >= 0)
+    require (!pipelined || depth > 0)
+    val back = if (depth > 0) Queue(front, depth, pipe = depth == 1) else front
 
     // Convert to and from Bits
     def toBits(x: Int, tail: List[Boolean] = List.empty): List[Boolean] =
@@ -44,35 +61,32 @@ object RegMapper
 
     // Find the minimal mask that can decide the register map
     val mask = AddressDecoder(regmap.map(_._1))
+    val maskMatch = ~UInt(mask, width = inBits)
     val maskFilter = toBits(mask)
     val maskBits = maskFilter.filter(x => x).size
 
     // Calculate size and indexes into the register map
-    val endIndex = 1 << log2Ceil(regmap.map(_._1).max+1)
-    val params = RegMapperParams(log2Up(endIndex), bytes, in.bits.params.extraBits)
     val regSize = 1 << maskBits
     def regIndexI(x: Int) = ofBits((maskFilter zip toBits(x)).filter(_._1).map(_._2))
     def regIndexU(x: UInt) = if (maskBits == 0) UInt(0) else
       Cat((maskFilter zip x.toBools).filter(_._1).map(_._2).reverse)
 
+    // Protection flag for undefined registers
+    val iRightReg = Array.fill(regSize) { Bool(true) }
+    val oRightReg = Array.fill(regSize) { Bool(true) }
+
     // Flatten the regmap into (RegIndex:Int, Offset:Int, field:RegField)
     val flat = regmap.map { case (reg, fields) =>
       val offsets = fields.scanLeft(0)(_ + _.width).init
       val index = regIndexI(reg)
+      val uint = UInt(reg, width = inBits)
+      if (undefZero) {
+        iRightReg(index) = ((front.bits.index ^ uint) & maskMatch) === UInt(0)
+        oRightReg(index) = ((back .bits.index ^ uint) & maskMatch) === UInt(0)
+      }
       // println("mapping 0x%x -> 0x%x for 0x%x/%d".format(reg, index, mask, maskBits))
       (offsets zip fields) map { case (o, f) => (index, o, f) }
     }.flatten
-
-    val out = Wire(Irrevocable(new RegMapperOutput(params)))
-    val front = Wire(Irrevocable(new RegMapperInput(params)))
-    front.bits := in.bits
-
-    // Must this device pipeline the control channel?
-    val pipelined = flat.map(_._3.pipelined).reduce(_ || _)
-    val depth = concurrency.getOrElse(if (pipelined) 1 else 0)
-    require (depth >= 0)
-    require (!pipelined || depth > 0)
-    val back = if (depth > 0) Queue(front, depth, pipe = depth == 1) else front
 
     // Forward declaration of all flow control signals
     val rivalid = Wire(Vec(flat.size, Bool()))
@@ -122,10 +136,10 @@ object RegMapper
     }
 
     // Is the selected register ready?
-    val rifireMux = Vec(rifire.map(_.reduce(_ && _)))
-    val wifireMux = Vec(wifire.map(_.reduce(_ && _)))
-    val rofireMux = Vec(rofire.map(_.reduce(_ && _)))
-    val wofireMux = Vec(wofire.map(_.reduce(_ && _)))
+    val rifireMux = Vec(rifire.zipWithIndex.map { case (seq, i) => !iRightReg(i) || seq.reduce(_ && _)})
+    val wifireMux = Vec(wifire.zipWithIndex.map { case (seq, i) => !iRightReg(i) || seq.reduce(_ && _)})
+    val rofireMux = Vec(rofire.zipWithIndex.map { case (seq, i) => !oRightReg(i) || seq.reduce(_ && _)})
+    val wofireMux = Vec(wofire.zipWithIndex.map { case (seq, i) => !oRightReg(i) || seq.reduce(_ && _)})
     val iindex = regIndexU(front.bits.index)
     val oindex = regIndexU(back .bits.index)
     val iready = Mux(front.bits.read, rifireMux(iindex), wifireMux(iindex))
@@ -138,8 +152,8 @@ object RegMapper
     out.valid   := back.valid  && oready
 
     // Which register is touched?
-    val frontSel = UIntToOH(iindex)
-    val backSel  = UIntToOH(oindex)
+    val frontSel = UIntToOH(iindex) & Cat(iRightReg.reverse)
+    val backSel  = UIntToOH(oindex) & Cat(oRightReg.reverse)
 
     // Include the per-register one-hot selected criteria
     for (reg <- 0 until regSize) {
@@ -159,9 +173,9 @@ object RegMapper
     }
 
     out.bits.read  := back.bits.read
-    out.bits.data  := Vec(dataOut)(oindex)
+    out.bits.data  := Mux(Vec(oRightReg)(oindex), Vec(dataOut)(oindex), UInt(0))
     out.bits.extra := back.bits.extra
 
-    (endIndex, out)
+    out
   }
 }
