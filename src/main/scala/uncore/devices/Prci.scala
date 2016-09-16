@@ -62,6 +62,11 @@ trait PRCIModule extends Module with HasRegMap with MixPRCIParameters {
     tile.reset := reset
   }
 
+  def pad = RegField(8) // each use is a new field
+  val ipi_fields = ipi.map(r => Seq(RegField(1, r), RegField(7), pad, pad, pad)).flatten
+  val timecmp_fields = timecmp.map(RegField.bytes(_)).flatten
+  val time_fields = Seq.fill(PRCI.time%c.beatBytes)(pad) ++ RegField.bytes(time)
+
   /* 0000 msip hart 0
    * 0004 msip hart 1
    * 4000 mtimecmp hart 0 lo
@@ -71,26 +76,14 @@ trait PRCIModule extends Module with HasRegMap with MixPRCIParameters {
    * bff8 mtime lo
    * bffc mtime hi
    */
+  val ipi_base     = 0
+  val timecmp_base = PRCI.timecmp(0) / c.beatBytes
+  val time_base    = PRCI.time       / c.beatBytes
 
-  // laying out IPI fields suck...
-  // bytes=1 -> pad to  7, step 4, group 1
-  // bytes=2 -> pad to 15, step 2, group 1
-  // bytes=4 -> pad to 31, step 1, group 1
-  // bytes=8 -> pad to 31, step 1, group 2
-  // bytes=16-> pad to 31, step 1, group 4
-  val pad = min(c.beatBytes*8,32) - 1
-  val step = max(1, 4/c.beatBytes)
-  val group = max(1, c.beatBytes/4)
-  val ipi_regs = ipi.map { reg => Seq(RegField(1, reg), RegField(pad)) }.flatten.grouped(group*2).
-                   zipWithIndex.map { case (fields, i) => (i*step -> fields) }
-
-  // Just split up time fields by bytes
-  val timecmp_regs = timecmp.zipWithIndex.map { case (reg, i) =>
-    RegField.bytes(reg, PRCI.timecmp(i)/c.beatBytes, c.beatBytes)
-  }.flatten
-  val time_reg = RegField.bytes(time, PRCI.time/c.beatBytes, c.beatBytes)
-
-  regmap((timecmp_regs ++ time_reg ++ ipi_regs):_*)
+  regmap((
+    RegField.split(ipi_fields,     ipi_base,     c.beatBytes) ++
+    RegField.split(timecmp_fields, timecmp_base, c.beatBytes) ++
+    RegField.split(time_fields,    time_base,    c.beatBytes)):_*)
 }
 
 /** Power, Reset, Clock, Interrupt */
