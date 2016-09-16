@@ -41,8 +41,7 @@ class BasePlatformConfig extends Config(
         }
         case BuildCoreplex =>
           (p: Parameters, c: CoreplexConfig) => Module(new DefaultCoreplex(p, c))
-        case NExtTopInterrupts => 2
-        // Note that PLIC asserts that this is > 0.
+        case NExtTopInterrupts => 0
         case AsyncDebugBus => false
         case IncludeJtagDTM => false
         case AsyncMMIOChannels => false
