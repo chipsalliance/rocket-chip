@@ -127,7 +127,8 @@ case class TLManagerParameters(
   supportsPutPartial: TransferSizes = TransferSizes.none,
   supportsHint:       TransferSizes = TransferSizes.none,
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-  fifoId:             Option[Int]   = None)
+  fifoId:             Option[Int]   = None,
+  customDTS:          Option[String]= None)
 {
   address.combinations(2).foreach({ case Seq(x,y) =>
     require (!x.overlaps(y))
@@ -142,6 +143,18 @@ case class TLManagerParameters(
     supportsGet.max,
     supportsPutFull.max,
     supportsPutPartial.max).max
+
+  // Generate the config string (in future device tree)
+  lazy val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+  lazy val dts = customDTS.getOrElse {
+    val header = s"${name} {\n"
+    val middle = address.map { a =>
+      require (!a.strided) // Config String does not support this
+      "  addr 0x%x;\n  size 0x%x;\n".format(a.base, a.mask+1)
+    }
+    val footer = "}\n"
+    header + middle.reduce(_ + _) + footer
+  }
 
   // The device had better not support a transfer larger than it's alignment
   address.foreach({ case a =>
