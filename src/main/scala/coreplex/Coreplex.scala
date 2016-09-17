@@ -29,7 +29,11 @@ trait HasCoreplexParameters {
   implicit val p: Parameters
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
   lazy val lsb = p(BankIdLSB)
+  lazy val nTileCached = p(NCachedTileLinkPorts)
+  lazy val nTileUncached = p(NUncachedTileLinkPorts)
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
+  lazy val outerParams = p.alterPartial({ case TLId => "L2toMC" })
+  lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
   lazy val globalAddrMap = p(rocketchip.GlobalAddrMap)
@@ -46,123 +50,199 @@ case class CoreplexConfig(
   val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, 0)
 }
 
-abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConfig) extends Module
-    with HasCoreplexParameters {
-  class CoreplexIO(implicit val p: Parameters, implicit val c: CoreplexConfig) extends Bundle {
-    val master = new Bundle {
-      val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
-      val mmio = c.hasExtMMIOPort.option(new ClientUncachedTileLinkIO()(outermostMMIOParams))
-    }
+class CoreplexIO(implicit val p: Parameters, implicit val c: CoreplexConfig)
+    extends Bundle with HasCoreplexParameters {
+  val master = new Bundle {
+    val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
+    val mmio = c.hasExtMMIOPort.option(new ClientUncachedTileLinkIO()(outermostMMIOParams))
+  }
+  val slave = Vec(c.nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
+  val interrupts = Vec(c.nExtInterrupts, Bool()).asInput
+  val debug = new DebugBusIO()(p).flip
+  val clint = Vec(c.nTiles, new CoreplexLocalInterrupts).asInput
+  val success = Bool(OUTPUT)
+
+  override def cloneType = new CoreplexIO()(p, c).asInstanceOf[this.type]
+}
+
+abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConfig)
+    extends Module with HasCoreplexParameters {
+  val io: CoreplexIO
+}
+
+class L2Block(c: CoreplexConfig)(implicit val p: Parameters)
+    extends Module with HasCoreplexParameters {
+  val io = new Bundle {
+    val tiles_cached = Vec(nTileCached, new ClientTileLinkIO()(innerParams)).flip
+    val tiles_uncached = Vec(nTileUncached, new ClientUncachedTileLinkIO()(innerParams)).flip
     val slave = Vec(c.nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
+    val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
+    val mmio = new ClientUncachedTileLinkIO()(outerMMIOParams)
+  }
+
+  val nBanks = c.nMemChannels * nBanksPerMemChannel
+
+  // Create a simple L1toL2 NoC between the tiles and the banks of outer memory
+  // Cached ports are first in client list, making sharerToClientId just an indentity function
+  // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
+  def sharerToClientId(sharerId: UInt) = sharerId
+  def addrToBank(addr: UInt): UInt = if (nBanks == 0) UInt(0) else {
+    val isMemory = globalAddrMap.isInRegion("mem", addr << log2Up(p(CacheBlockBytes)))
+    Mux(isMemory, addr.extract(lsb + log2Ceil(nBanks) - 1, lsb), UInt(nBanks))
+  }
+  val preBuffering = TileLinkDepths(1,1,2,2,0)
+  val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering))
+
+  // Create point(s) of coherence serialization
+  val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}
+  managerEndpoints.flatMap(_.incoherent).foreach(_ := Bool(false))
+
+  val mmioManager = Module(new MMIOTileLinkManager()(p.alterPartial({
+      case TLId => "L1toL2"
+      case InnerTLId => "L1toL2"
+      case OuterTLId => "L2toMMIO"
+    })))
+
+  // Wire the tiles to the TileLink client ports of the L1toL2 network,
+  // and coherence manager(s) to the other side
+  l1tol2net.io.clients_cached <> io.tiles_cached
+  l1tol2net.io.clients_uncached <> io.tiles_uncached ++ io.slave
+  l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
+
+  // Create a converter between TileLinkIO and MemIO for each channel
+  val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, c.nMemChannels)(outermostParams))
+
+  val backendBuffering = TileLinkDepths(0,0,0,0,0)
+  for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
+    val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerParams))
+    unwrap.io.in <> TileLinkEnqueuer(bank.outerTL, backendBuffering)(outerParams)
+    TileLinkWidthAdapter(icPort, unwrap.io.out)
+  }
+
+  io.mem <> mem_ic.io.out
+  io.mmio <> mmioManager.io.outer
+}
+
+class MMIOBlock(nTileSlaves: Int, c: CoreplexConfig)(implicit val p: Parameters)
+    extends Module with HasCoreplexParameters {
+  val io = new Bundle {
+    val slave = new ClientUncachedTileLinkIO()(outerMMIOParams).flip
+    val master = c.hasExtMMIOPort.option(
+      new ClientUncachedTileLinkIO()(outermostMMIOParams))
     val interrupts = Vec(c.nExtInterrupts, Bool()).asInput
     val debug = new DebugBusIO()(p).flip
     val clint = Vec(c.nTiles, new CoreplexLocalInterrupts).asInput
-    val success = Bool(OUTPUT)
+    val tileInterrupts = Vec(c.nTiles, new TileInterrupts).asOutput
+    val tileResets = Vec(c.nTiles, Bool(OUTPUT))
+    val tileSlaves = Vec(nTileSlaves, new ClientUncachedTileLinkIO()(innerParams))
   }
 
-  val io = new CoreplexIO
+  val ioAddrMap = globalAddrMap.subMap("io")
+
+  val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap))
+  mmioNetwork.io.in.head <> io.slave
+
+  val plic = Module(new PLIC(c.plicKey))
+  plic.io.tl <> mmioNetwork.port("int:plic")
+  for (i <- 0 until io.interrupts.size) {
+    val gateway = Module(new LevelGateway)
+    gateway.io.interrupt := io.interrupts(i)
+    plic.io.devices(i) <> gateway.io.plic
+  }
+
+  val debugModule = Module(new DebugModule)
+  debugModule.io.tl <> mmioNetwork.port("int:debug")
+  debugModule.io.db <> io.debug
+
+  // connect coreplex-internal interrupts to tiles
+  for (((int, rst), i) <- (io.tileInterrupts zip io.tileResets) zipWithIndex) {
+    rst := reset // TODO should tiles be reset separately from coreplex?
+    int := io.clint(i)
+    int.meip := plic.io.harts(plic.cfg.context(i, 'M'))
+    int.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
+    int.debug := debugModule.io.debugInterrupts(i)
+  }
+
+  (0 until c.nTiles)
+    .map(i => s"int:dmem$i")
+    .filter(ioAddrMap contains _)
+    .map(name => mmioNetwork.port(name))
+    .zip(io.tileSlaves)
+    .foreach { case (m, t) => t <> m }
+
+  io.master.foreach { _ <> mmioNetwork.port("ext") }
 }
 
-class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp, tc) {
-  // Coreplex doesn't know when to stop running
-  io.success := Bool(false)
+abstract class BaseCoreplex(tp: Parameters, tc: CoreplexConfig)
+    extends Coreplex()(tp, tc) {
 
+  def buildTiles(clocks: Seq[Clock], resets: Seq[Bool]): Seq[Tile] = {
+    (p(BuildTiles).zipWithIndex, clocks, resets).zipped.map {
+      case ((tileBuilder, i), clk, rst) =>
+        val tile = tileBuilder(rst, p)
+        tile.clock := clk
+        tile.io.hartid := UInt(i)
+        tile
+    }
+  }
+
+  def buildL2Block(_clock: Clock, _reset: Bool,
+                   nCachedPorts: Int, nUncachedPorts: Int): L2Block = {
+    val l2block = Module(new L2Block(c)(p.alterPartial({
+      case TLId => "L1toL2"
+      case NCachedTileLinkPorts => nCachedPorts
+      case NUncachedTileLinkPorts => nUncachedPorts
+    })))
+    l2block.clock := _clock
+    l2block.reset := _reset
+    l2block
+  }
+
+  def buildMMIONetwork(nTileSlaves: Int): MMIOBlock = {
+    val mmioBlock = Module(new MMIOBlock(nTileSlaves, c)(p.alterPartial({
+      case TileId => 0 // It's annoying, but TileInterrupts requires this
+      case TLId => "L2toMMIO"
+    })))
+    io.master.mmio.map { _ <> mmioBlock.io.master.get }
+    mmioBlock.io.debug <> io.debug
+    mmioBlock.io.interrupts <> io.interrupts
+    mmioBlock.io.clint <> io.clint
+    mmioBlock
+  }
+}
+
+class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends BaseCoreplex(tp, tc) {
+  val io = new CoreplexIO
   // Build a set of Tiles
   val tileResets = Wire(Vec(tc.nTiles, Bool()))
-  val tileList = p(BuildTiles).zip(tileResets).map {
-    case (tile, rst) => tile(rst, p)
-  }
-  val nCachedPorts = tileList.map(tile => tile.io.cached.size).reduce(_ + _)
-  val nUncachedPorts = tileList.map(tile => tile.io.uncached.size).reduce(_ + _)
-  val nBanks = tc.nMemChannels * nBanksPerMemChannel
+  val tileList = buildTiles(Seq.fill(tc.nTiles){clock}, tileResets)
+  val tileCachedPorts = tileList.flatMap(tile => tile.io.cached)
+  val tileUncachedPorts = tileList.flatMap(tile => tile.io.uncached)
 
-  // Build an uncore backing the Tiles
-  buildUncore(p.alterPartial({
-    case HastiId => "TL"
-    case TLId => "L1toL2"
-    case NCachedTileLinkPorts => nCachedPorts
-    case NUncachedTileLinkPorts => nUncachedPorts
-  }))
+  val l2block = buildL2Block(clock, reset,
+    tileCachedPorts.size, tileUncachedPorts.size)
+  l2block.io.tiles_cached <> tileCachedPorts
+  l2block.io.tiles_uncached <> tileUncachedPorts
+  l2block.io.slave <> io.slave
+  io.master.mem <> l2block.io.mem
 
-  def buildUncore(implicit p: Parameters) = {
-    // Create a simple L1toL2 NoC between the tiles and the banks of outer memory
-    // Cached ports are first in client list, making sharerToClientId just an indentity function
-    // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
-    def sharerToClientId(sharerId: UInt) = sharerId
-    def addrToBank(addr: UInt): UInt = if (nBanks == 0) UInt(0) else {
-      val isMemory = globalAddrMap.isInRegion("mem", addr << log2Up(p(CacheBlockBytes)))
-      Mux(isMemory, addr.extract(lsb + log2Ceil(nBanks) - 1, lsb), UInt(nBanks))
-    }
-    val preBuffering = TileLinkDepths(1,1,2,2,0)
-    val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering))
+  val nTileSlaves = tileList.flatMap(_.io.slave).size
+  val mmioBlock = buildMMIONetwork(nTileSlaves)
 
-    // Create point(s) of coherence serialization
-    val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}
-    managerEndpoints.flatMap(_.incoherent).foreach(_ := Bool(false))
+  mmioBlock.io.slave <> TileLinkEnqueuer(l2block.io.mmio, 1)(outerMMIOParams)
 
-    val mmioManager = Module(new MMIOTileLinkManager()(p.alterPartial({
-        case TLId => "L1toL2"
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMMIO"
-      })))
-
-    // Wire the tiles to the TileLink client ports of the L1toL2 network,
-    // and coherence manager(s) to the other side
-    l1tol2net.io.clients_cached <> tileList.map(_.io.cached).flatten
-    l1tol2net.io.clients_uncached <> tileList.map(_.io.uncached).flatten ++ io.slave
-    l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
-
-    // Create a converter between TileLinkIO and MemIO for each channel
-    val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, tc.nMemChannels)(outermostParams))
-
-    val outerTLParams = p.alterPartial({ case TLId => "L2toMC" })
-    val backendBuffering = TileLinkDepths(0,0,0,0,0)
-    for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
-      val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
-      unwrap.io.in <> TileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
-      TileLinkWidthAdapter(icPort, unwrap.io.out)
-    }
-
-    io.master.mem <> mem_ic.io.out
-
-    buildMMIONetwork(TileLinkEnqueuer(mmioManager.io.outer, 1))(
-        p.alterPartial({case TLId => "L2toMMIO"}))
+  tileList.flatMap(_.io.slave).zip(mmioBlock.io.tileSlaves).map {
+    case (tileSlave, mmioSlave) =>
+      tileSlave <> TileLinkEnqueuer(mmioSlave, 1)(innerParams)
   }
 
-  def buildMMIONetwork(mmio: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
-    val ioAddrMap = globalAddrMap.subMap("io")
-
-    val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap))
-    mmioNetwork.io.in.head <> mmio
-
-    val plic = Module(new PLIC(c.plicKey))
-    plic.io.tl <> mmioNetwork.port("int:plic")
-    for (i <- 0 until io.interrupts.size) {
-      val gateway = Module(new LevelGateway)
-      gateway.io.interrupt := io.interrupts(i)
-      plic.io.devices(i) <> gateway.io.plic
-    }
-
-    val debugModule = Module(new DebugModule)
-    debugModule.io.tl <> mmioNetwork.port("int:debug")
-    debugModule.io.db <> io.debug
-
-    // connect coreplex-internal interrupts to tiles
-    for (((tile, tileReset), i) <- (tileList zip tileResets) zipWithIndex) {
-      tileReset := reset // TODO should tiles be reset separately from coreplex?
-      tile.io.interrupts := io.clint(i)
-      tile.io.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
-      tile.io.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
-      tile.io.interrupts.debug := debugModule.io.debugInterrupts(i)
-      tile.io.hartid := i
-    }
-
-    val tileSlavePorts = (0 until tc.nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)
-    for ((t, m) <- (tileList.map(_.io.slave).flatten) zip (tileSlavePorts map (mmioNetwork port _)))
-      t <> TileLinkEnqueuer(m, 1)
-
-    io.master.mmio.foreach { _ <> mmioNetwork.port("ext") }
+  tileList.zip(mmioBlock.io.tileInterrupts).map {
+    case (tile, int) => tile.io.interrupts := int
   }
+
+  tileResets := mmioBlock.io.tileResets
+
+  io.success := Bool(false)
 }
 
 class GroundTestCoreplex(tp: Parameters, tc: CoreplexConfig) extends DefaultCoreplex(tp, tc) {
