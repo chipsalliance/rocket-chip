@@ -87,3 +87,6 @@ class CoreplexLocalInterrupter(c: CoreplexLocalInterrupterConfig)(implicit val p
   extends TLRegisterRouter(c.address, 0, c.size, None, c.beatBytes, false)(
   new TLRegBundle((c, p), _)    with CoreplexLocalInterrupterBundle)(
   new TLRegModule((c, p), _, _) with CoreplexLocalInterrupterModule)
+{
+  override def name = "clint" // defaul is "CoreplexLocalInterrupter"
+}

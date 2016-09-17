@@ -289,10 +289,6 @@ trait PeripheryCoreplexLocalInterrupter extends LazyModule with HasPeripheryPara
   val clint = LazyModule(new CoreplexLocalInterrupter(clintConfig)(innerMMIOParams))
   // The periphery bus is 32-bit, so we may need to adapt its width to XLen
   clint.node := TLFragmenter(TLWidthWidget(peripheryBus.node, 4), beatBytes, 256)
-
-  // TL1 legacy
-  val pDevices: ResourceManager[AddrMapEntry]
-  pDevices.add(AddrMapEntry("clint", MemRange(clintConfig.address, clintConfig.size, MemAttr(AddrMapProt.RW))))
 }
 
 trait PeripheryCoreplexLocalInterrupterBundle {
@@ -315,12 +311,8 @@ trait PeripheryBootROM extends LazyModule {
   implicit val p: Parameters
   val peripheryBus: TLXbar
 
-  val rom = LazyModule(new TLROM(0x1000, 0x1000, GenerateBootROM(p)))
+  val rom = LazyModule(new TLROM(0x1000, 0x1000, GenerateBootROM(p)) { override def name = "bootrom" })
   rom.node := TLFragmenter(peripheryBus.node, 4, 256)
-
-  // TL1 legacy address map
-  val pDevices: ResourceManager[AddrMapEntry]
-  pDevices.add(AddrMapEntry("bootrom", MemRange(0x1000, 4096, MemAttr(AddrMapProt.RX))))
 }
 
 trait PeripheryBootROMBundle {
@@ -342,12 +334,8 @@ trait PeripheryTestRAM extends LazyModule {
   val ramBase = 0x52000000
   val ramSize = 0x1000
 
-  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1)))
+  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1)) { override def name = "testram" })
   sram.node := TLFragmenter(peripheryBus.node, 4, 256)
-
-  // TL1 legacy address map
-  val pDevices: ResourceManager[AddrMapEntry]
-  pDevices.add(AddrMapEntry("testram", MemRange(ramBase, ramSize, MemAttr(AddrMapProt.RW))))
 }
 
 trait PeripheryTestRAMBundle {
