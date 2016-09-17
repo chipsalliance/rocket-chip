@@ -66,10 +66,16 @@ object GenerateGlobalAddrMap {
     }
 
     lazy val tl2Devices = peripheryManagers.map { manager =>
+      val cacheable = manager.regionType match {
+        case RegionType.CACHED   => true
+        case RegionType.TRACKED  => true
+        case RegionType.UNCACHED => true
+        case _ => false
+      }
       val attr = MemAttr(
         (if (manager.supportsGet)     AddrMapProt.R else 0) |
         (if (manager.supportsPutFull) AddrMapProt.W else 0) |
-        (if (manager.executable)      AddrMapProt.X else 0))
+        (if (manager.executable)      AddrMapProt.X else 0), cacheable)
       val multi = manager.address.size > 1
       manager.address.zipWithIndex.map { case (address, i) =>
         require (!address.strided) // TL1 can't do this
