@@ -75,7 +75,7 @@ object TLRegisterNode
 abstract class TLRegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Option[Int], beatBytes: Int, undefZero: Boolean) extends LazyModule
 {
   val node = TLRegisterNode(address, concurrency, beatBytes, undefZero)
-  val intnode = IntSourceNode(name + s" @ ${address.base}", interrupts)
+  val intnode = IntSourceNode(interrupts)
 }
 
 case class TLRegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[TLBundle])

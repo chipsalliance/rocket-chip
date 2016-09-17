@@ -21,9 +21,19 @@ object IntRange
   implicit def apply(end: Int): IntRange = apply(0, end)
 }
 
-case class IntSourceParameters(device: String, range: IntRange)
+case class IntSourceParameters(
+  range:    IntRange,
+  nodePath: Seq[IntBaseNode] = Seq())
+{
+  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+}
 
-case class IntSinkPortParameters()
+case class IntSinkParameters(
+  nodePath: Seq[IntBaseNode] = Seq())
+{
+  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+}
+
 case class IntSourcePortParameters(sources: Seq[IntSourceParameters])
 {
   val num = sources.map(_.range.size).sum
@@ -32,6 +42,9 @@ case class IntSourcePortParameters(sources: Seq[IntSourceParameters])
   // The interrupts must perfectly cover the range
   require (sources.map(_.range.end).max == num)
 }
+
+case class IntSinkPortParameters(sinks: Seq[IntSinkParameters])
+
 case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters)
 
 object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, IntEdge, Vec[Bool]]
@@ -52,16 +65,21 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
     // Cannot use bulk connect, because the widths could differ
     (bo zip bi) foreach { case (o, i) => i := o }
   }
+
+  override def mixO(po: IntSourcePortParameters, node: IntBaseNode): IntSourcePortParameters =
+   po.copy(sources = po.sources.map  { s => s.copy (nodePath = node +: s.nodePath) })
+  override def mixI(pi: IntSinkPortParameters,  node: IntBaseNode): IntSinkPortParameters =
+   pi.copy(sinks   = pi.sinks.map    { s => s.copy (nodePath = node +: s.nodePath) })
 }
 
 case class IntIdentityNode() extends IdentityNode(IntImp)
 case class IntOutputNode() extends OutputNode(IntImp)
 case class IntInputNode() extends InputNode(IntImp)
 
-case class IntSourceNode(device: String, num: Int) extends SourceNode(IntImp)(
-  IntSourcePortParameters(Seq(IntSourceParameters(device, num))),
-  (if (num == 0) 0 else 1) to 1)
-case class IntSinkNode() extends SinkNode(IntImp)(IntSinkPortParameters())
+case class IntSourceNode(num: Int) extends SourceNode(IntImp)(
+  IntSourcePortParameters(Seq(IntSourceParameters(num))), (if (num == 0) 0 else 1) to 1)
+case class IntSinkNode() extends SinkNode(IntImp)(
+  IntSinkPortParameters(Seq(IntSinkParameters())))
 
 case class IntAdapterNode(
   sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
@@ -75,7 +93,7 @@ class IntXbar extends LazyModule
   val intnode = IntAdapterNode(
     numSourcePorts = 1 to 1, // does it make sense to have more than one interrupt sink?
     numSinkPorts   = 1 to 128,
-    sinkFn         = { _ => IntSinkPortParameters() },
+    sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     sourceFn       = { seq =>
       IntSourcePortParameters((seq zip seq.map(_.num).scanLeft(0)(_+_).init).map {
         case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
