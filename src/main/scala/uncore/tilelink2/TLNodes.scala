@@ -24,6 +24,11 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     TLMonitor.legalize(bo, eo)
     bi <> bo
   }
+
+  override def mixO(po: TLClientPortParameters,  node: TLBaseNode): TLClientPortParameters  =
+   po.copy(clients  = po.clients.map  { c => c.copy (nodePath = node +: c.nodePath) })
+  override def mixI(pi: TLManagerPortParameters, node: TLBaseNode): TLManagerPortParameters =
+   pi.copy(managers = pi.managers.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
 case class TLIdentityNode() extends IdentityNode(TLImp)
