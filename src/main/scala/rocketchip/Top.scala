@@ -76,7 +76,12 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
     val name = entry.name
     val start = entry.region.start
     val end = entry.region.start + entry.region.size - 1
-    println(f"\t$name%s $start%x - $end%x")
+    val prot = entry.region.attr.prot
+    val protStr = (if ((prot & AddrMapProt.R) > 0) "R" else "") +
+                  (if ((prot & AddrMapProt.W) > 0) "W" else "") +
+                  (if ((prot & AddrMapProt.X) > 0) "X" else "")
+    val cacheable = if (entry.region.attr.cacheable) " [C]" else ""
+    println(f"\t$name%s $start%x - $end%x, $protStr$cacheable")
   }
 
   println("Generated Configuration String")

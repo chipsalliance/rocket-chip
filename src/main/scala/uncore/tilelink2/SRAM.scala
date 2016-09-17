@@ -4,12 +4,12 @@ package uncore.tilelink2
 
 import Chisel._
 
-class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
+class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
 {
   val node = TLManagerNode(beatBytes, TLManagerParameters(
     address            = List(address),
     regionType         = RegionType.UNCACHED,
-    executable         = true,
+    executable         = executable,
     supportsGet        = TransferSizes(1, beatBytes),
     supportsPutPartial = TransferSizes(1, beatBytes),
     supportsPutFull    = TransferSizes(1, beatBytes),
