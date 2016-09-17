@@ -334,7 +334,7 @@ trait PeripheryTestRAM extends LazyModule {
   val ramBase = 0x52000000
   val ramSize = 0x1000
 
-  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1)))
+  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1)) { override def name = "testram" })
   sram.node := TLFragmenter(peripheryBus.node, 4, 256)
 }
 
