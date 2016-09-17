@@ -70,10 +70,11 @@ object GenerateGlobalAddrMap {
         (if (manager.supportsGet)     AddrMapProt.R else 0) |
         (if (manager.supportsPutFull) AddrMapProt.W else 0) |
         (if (manager.executable)      AddrMapProt.X else 0))
-      val name = manager.nodePath.last.lazyModule.name // !!!
+      val multi = manager.address.size > 1
       manager.address.zipWithIndex.map { case (address, i) =>
         require (!address.strided) // TL1 can't do this
-        AddrMapEntry(s"${name}", MemRange(address.base, address.mask+1, attr))
+        val name = manager.name + (if (multi) ".%d".format(i) else "")
+        AddrMapEntry(name, MemRange(address.base, address.mask+1, attr))
       }
     }.flatten
 
