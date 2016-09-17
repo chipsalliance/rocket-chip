@@ -69,7 +69,6 @@ object GenerateGlobalAddrMap {
       val cacheable = manager.regionType match {
         case RegionType.CACHED   => true
         case RegionType.TRACKED  => true
-        case RegionType.UNCACHED => true
         case _ => false
       }
       val attr = MemAttr(
