@@ -77,7 +77,7 @@ object GenerateGlobalAddrMap {
         (if (manager.executable)      AddrMapProt.X else 0), cacheable)
       val multi = manager.address.size > 1
       manager.address.zipWithIndex.map { case (address, i) =>
-        require (!address.strided) // TL1 can't do this
+        require (address.contiguous) // TL1 needs this
         val name = manager.name + (if (multi) ".%d".format(i) else "")
         AddrMapEntry(name, MemRange(address.base, address.mask+1, attr))
       }

@@ -95,10 +95,8 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
 
   // The number of bytes to which the manager must be aligned
   def alignment = ((mask + 1) & ~mask)
-
   // Is this a contiguous memory range
   def contiguous = alignment == mask+1
-  def strided = alignment != mask+1
 
   def finite = mask >= 0
   def max = { require (finite); base | mask }
@@ -162,7 +160,7 @@ case class TLManagerParameters(
   lazy val dts = customDTS.getOrElse {
     val header = s"${name} {\n"
     val middle = address.map { a =>
-      require (!a.strided) // Config String does not support this
+      require (a.contiguous) // Config String is not so flexible
       "  addr 0x%x;\n  size 0x%x;\n".format(a.base, a.mask+1)
     }
     val footer = "}\n"

@@ -12,7 +12,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     supportsPutFull    = TransferSizes(1, beatBytes),
     fifoId             = Some(0))) // requests are handled in order
 {
-  require (!address.strided)
+  require (address.contiguous)
 
   // Calling this method causes the matching TL2 bundle to be
   // configured to route all requests to the listed RegFields.
