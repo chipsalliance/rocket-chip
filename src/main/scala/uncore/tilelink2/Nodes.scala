@@ -76,7 +76,7 @@ class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
   def connectOut = bundleOut
   def connectIn = bundleIn
 
-  protected[tilelink2] def := (y: BaseNode[PO, PI, EO, EI, B])(implicit sourceInfo: SourceInfo) = {
+  def := (y: BaseNode[PO, PI, EO, EI, B])(implicit sourceInfo: SourceInfo) = {
     val x = this // x := y
     val info = sourceLine(sourceInfo, " at ", "")
     require (!LazyModule.stack.isEmpty, s"${y.name} cannot be connected to ${x.name} outside of LazyModule scope" + info)

@@ -1,6 +1,6 @@
 
 
-/** This black-boxes an Async Reset
+/** This black-boxes an Async Set
   * Reg.
   *  
   * Because Chisel doesn't support
@@ -21,26 +21,27 @@
   *  @param clk Clock Input
   *  @param rst Reset Input
   *  @param en Write Enable Input
-  *  
+  * 
   */
 
-module AsyncResetReg (
+module AsyncSetReg (
                       input      d,
                       output reg q,
-                      input      en,
-
+                      input en,
+                    
                       input      clk,
                       input      rst);
    
    always @(posedge clk or posedge rst) begin
 
       if (rst) begin
-         q <= 1'b0;
+         q <= 1'b1;
       end else if (en) begin
          q <= d;
       end
+   
    end
    
 
-endmodule // AsyncResetReg
+endmodule // AsyncSetReg
 

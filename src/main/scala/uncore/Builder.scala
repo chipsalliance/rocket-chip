@@ -1,7 +1,7 @@
 package uncore
 
 import Chisel._
-import cde.{Config, Parameters, ParameterDump, Knob, Dump}
+import cde.{Config, Parameters, ParameterDump, Knob, Dump, CDEMatchError}
 import junctions.PAddrBits
 import uncore.tilelink._
 import uncore.agents._
@@ -85,6 +85,7 @@ class DefaultL2Config extends Config (
       case ECCCode => None
       case AmoAluOperandBits => 64
       case SplitMetadata => false
+      case _ => throw new CDEMatchError
  //     case XLen => 128
   }},
   knobValues = {
@@ -93,22 +94,24 @@ class DefaultL2Config extends Config (
     case "NTILES" => 2
     case "N_CACHED_TILES" => 2
     case "L2_CAPACITY_IN_KB" => 256
+    case _ => throw new CDEMatchError
   }
 )
 
 class WithPLRU extends Config(
   (pname, site, here) => pname match {
     case L2Replacer => () => new SeqPLRU(site(NSets), site(NWays))
+    case _ => throw new CDEMatchError
   })
 
 class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
-class With1L2Ways extends Config(knobValues = { case "L2_WAYS" => 1 })
-class With2L2Ways extends Config(knobValues = { case "L2_WAYS" => 2 })
-class With4L2Ways extends Config(knobValues = { case "L2_WAYS" => 4 })
+class With1L2Ways extends Config(knobValues = { case "L2_WAYS" => 1; case _ => throw new CDEMatchError })
+class With2L2Ways extends Config(knobValues = { case "L2_WAYS" => 2; case _ => throw new CDEMatchError })
+class With4L2Ways extends Config(knobValues = { case "L2_WAYS" => 4; case _ => throw new CDEMatchError })
 
-class With1Cached extends Config(knobValues = { case "N_CACHED_TILES" => 1 })
-class With2Cached extends Config(knobValues = { case "N_CACHED_TILES" => 2 })
+class With1Cached extends Config(knobValues = { case "N_CACHED_TILES" => 1; case _ => throw new CDEMatchError })
+class With2Cached extends Config(knobValues = { case "N_CACHED_TILES" => 2; case _ => throw new CDEMatchError })
 
 
 class W1Cached1WaysConfig extends Config(new With1L2Ways ++ new With1Cached ++ new DefaultL2Config)

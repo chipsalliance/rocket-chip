@@ -92,7 +92,7 @@ class WithGroundTest extends Config(
           else new MESICoherence(site(L2DirectoryRepresentation))),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = site(NCachedTileLinkPorts),
-        nCachelessClients = site(NCoreplexExtClients).get + site(NUncachedTileLinkPorts),
+        nCachelessClients = site(NCoreplexExtClients) + site(NUncachedTileLinkPorts),
         maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
                            site(GroundTestKey).map(_.maxXacts))
                              .reduce(max(_, _)),
@@ -137,11 +137,11 @@ class WithComparator extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new ComparatorCore()(p))
     case ComparatorKey => ComparatorParameters(
-      targets    = Seq("mem", "io:ext:testram").map(name =>
-                    site(GlobalAddrMap).get(name).start.longValue),
+      targets    = Seq("mem", "io:ext:TL2:testram").map(name =>
+                    site(GlobalAddrMap)(name).start.longValue),
       width      = 8,
       operations = 1000,
-      atomics    = site(UseAtomics),
+      atomics    = false, // !!! re-enable soon: site(UseAtomics),
       prefetches = site("COMPARATOR_PREFETCHES"))
     case FPUConfig => None
     case UseAtomics => false
@@ -168,7 +168,7 @@ class WithMemtest extends Config(
     }
     case GeneratorKey => GeneratorParameters(
       maxRequests = 128,
-      startAddress = site(GlobalAddrMap).get("mem").start)
+      startAddress = site(GlobalAddrMap)("mem").start)
     case BuildGroundTest =>
       (p: Parameters) => Module(new GeneratorTest()(p))
     case _ => throw new CDEMatchError
@@ -228,7 +228,7 @@ class WithNastiConverterTest extends Config(
     }
     case GeneratorKey => GeneratorParameters(
       maxRequests = 128,
-      startAddress = site(GlobalAddrMap).get("mem").start)
+      startAddress = site(GlobalAddrMap)("mem").start)
     case BuildGroundTest =>
       (p: Parameters) => Module(new NastiConverterTest()(p))
     case _ => throw new CDEMatchError
@@ -248,7 +248,7 @@ class WithTraceGen extends Config(
       val nSets = 32 // L2 NSets
       val nWays = 1
       val blockOffset = site(CacheBlockOffsetBits)
-      val baseAddr = site(GlobalAddrMap).get("mem").start
+      val baseAddr = site(GlobalAddrMap)("mem").start
       val nBeats = site(MIFDataBeats)
       List.tabulate(4 * nWays) { i =>
         Seq.tabulate(nBeats) { j => (j * 8) + ((i * nSets) << blockOffset) }
@@ -260,6 +260,7 @@ class WithTraceGen extends Config(
   knobValues = {
     case "L1D_SETS" => 16
     case "L1D_WAYS" => 1
+    case _ => throw new CDEMatchError
   })
 
 class WithPCIeMockupTest extends Config(
@@ -270,7 +271,7 @@ class WithPCIeMockupTest extends Config(
       GroundTestTileSettings(1))
     case GeneratorKey => GeneratorParameters(
       maxRequests = 128,
-      startAddress = site(GlobalAddrMap).get("mem").start)
+      startAddress = site(GlobalAddrMap)("mem").start)
     case BuildGroundTest =>
       (p: Parameters) => p(TileId) match {
         case 0 => Module(new GeneratorTest()(p))
@@ -304,7 +305,7 @@ class WithDirectComparator extends Config(
       targets    = Seq(0L, 0x100L),
       width      = 8,
       operations = 1000,
-      atomics    = site(UseAtomics),
+      atomics    = false, // !!! re-enable soon: site(UseAtomics),
       prefetches = site("COMPARATOR_PREFETCHES"))
     case FPUConfig => None
     case UseAtomics => false

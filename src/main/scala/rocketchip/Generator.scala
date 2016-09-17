@@ -56,6 +56,10 @@ trait HasGeneratorUtilities {
   }
 }
 
+object ConfigStringOutput {
+  var contents: Option[String] = None
+}
+
 trait Generator extends App with HasGeneratorUtilities {
   lazy val names = {
     require(args.size == 5, "Usage: sbt> " + 
@@ -67,20 +71,25 @@ trait Generator extends App with HasGeneratorUtilities {
       configProject = args(3),
       configs = args(4))
   }
+
+  lazy val td = names.targetDir
   lazy val config = getConfig(names)
   lazy val world = config.toInstance
   lazy val params = Parameters.root(world)
   lazy val circuit = elaborate(names, params)
+  lazy val longName = names.topModuleClass + "." + names.configs
+
+  def writeOutputFiles() {
+    TestGeneration.addSuite(new RegressionTestSuite(params(RegressionTestNames)))
+    writeOutputFile(td, s"$longName.d", TestGeneration.generateMakefrag) // Coreplex-specific test suites
+    writeOutputFile(td, s"$longName.prm", ParameterDump.getDump) // Parameters flagged with Dump()
+    writeOutputFile(td, s"${names.configs}.knb", world.getKnobs) // Knobs for DSE
+    writeOutputFile(td, s"${names.configs}.cst", world.getConstraints) // Constraints for DSE
+    ConfigStringOutput.contents.foreach(c => writeOutputFile(td, s"${names.configs}.cfg", c)) // String for software
+  }
 }
 
 object RocketChipGenerator extends Generator {
-  val longName = names.topModuleClass + "." + names.configs
-  val td = names.targetDir
   Driver.dumpFirrtl(circuit, Some(new File(td, s"$longName.fir"))) // FIRRTL
-  TestGeneration.addSuite(new RegressionTestSuite(params(RegressionTestNames)))
-  writeOutputFile(td, s"$longName.d", TestGeneration.generateMakefrag) // Coreplex-specific test suites
-  writeOutputFile(td, s"$longName.prm", ParameterDump.getDump) // Parameters flagged with Dump()
-  writeOutputFile(td, s"${names.configs}.knb", world.getKnobs) // Knobs for DSE
-  writeOutputFile(td, s"${names.configs}.cst", world.getConstraints) // Constraints for DSE
-  writeOutputFile(td, s"${names.configs}.cfg", params(ConfigString).get) // String for software
+  writeOutputFiles()
 }

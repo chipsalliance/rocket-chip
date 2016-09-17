@@ -4,7 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 
-class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatBytes: Int = 4)
+class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatBytes: Int = 4, undefZero: Boolean = true)
   extends TLManagerNode(beatBytes, TLManagerParameters(
     address            = Seq(address),
     supportsGet        = TransferSizes(1, beatBytes),
@@ -25,7 +25,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     val baseEnd = 0
     val (sizeEnd,   sizeOff)   = (edge.bundle.sizeBits   + baseEnd, baseEnd)
     val (sourceEnd, sourceOff) = (edge.bundle.sourceBits + sizeEnd, sizeEnd)
-    val (addrLoEnd, addrLoOff) = (log2Ceil(beatBytes)    + sourceEnd, sourceEnd)
+    val (addrLoEnd, addrLoOff) = (log2Up(beatBytes)      + sourceEnd, sourceEnd)
 
     val params = RegMapperParams(log2Up(address.mask+1), beatBytes, addrLoEnd)
     val in = Wire(Decoupled(new RegMapperInput(params)))
@@ -36,7 +36,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     in.bits.extra := Cat(edge.addr_lo(a.bits), a.bits.source, a.bits.size)
 
     // Invoke the register map builder
-    val (endIndex, out) = RegMapper(beatBytes, concurrency, in, mapping:_*)
+    val (endIndex, out) = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
 
     // All registers must fit inside the device address space
     require (address.mask >= (endIndex-1)*beatBytes)
@@ -67,17 +67,17 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
 
 object TLRegisterNode
 {
-  def apply(address: AddressSet, concurrency: Option[Int] = None, beatBytes: Int = 4) =
-    new TLRegisterNode(address, concurrency, beatBytes)
+  def apply(address: AddressSet, concurrency: Option[Int] = None, beatBytes: Int = 4, undefZero: Boolean = true) =
+    new TLRegisterNode(address, concurrency, beatBytes, undefZero)
 }
 
 // These convenience methods below combine to make it possible to create a TL2 
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
 
-abstract class TLRegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Option[Int], beatBytes: Int) extends LazyModule
+abstract class TLRegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Option[Int], beatBytes: Int, undefZero: Boolean) extends LazyModule
 {
-  val node = TLRegisterNode(address, concurrency, beatBytes)
+  val node = TLRegisterNode(address, concurrency, beatBytes, undefZero)
   val intnode = IntSourceNode(name + s" @ ${address.base}", interrupts)
 }
 
@@ -100,10 +100,10 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
 }
 
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp]
-   (base: BigInt, interrupts: Int = 0, size: BigInt = 4096, concurrency: Option[Int] = None, beatBytes: Int = 4)
+   (val base: BigInt, val interrupts: Int = 0, val size: BigInt = 4096, val concurrency: Option[Int] = None, val beatBytes: Int = 4, undefZero: Boolean = true)
    (bundleBuilder: TLRegBundleArg => B)
    (moduleBuilder: (=> B, TLRegisterRouterBase) => M)
-  extends TLRegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes)
+  extends TLRegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes, undefZero)
 {
   require (isPow2(size))
   // require (size >= 4096) ... not absolutely required, but highly recommended

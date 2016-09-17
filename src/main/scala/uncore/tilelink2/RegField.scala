@@ -105,6 +105,28 @@ object RegField
       bb.d := data
       Bool(true)
     }))
+
+  // Split a large register into a sequence of byte fields
+  // The bytes can be individually written, as they are one byte per field
+  def bytes(x: UInt): Seq[RegField] = {
+    require (x.getWidth % 8 == 0)
+    val bytes = Seq.tabulate(x.getWidth/8) { i => x(8*(i+1)-1, 8*i) }
+    val wires = bytes.map { b => Wire(init = b) }
+    x := Cat(wires.reverse)
+    Seq.tabulate(x.getWidth/8) { i =>
+      RegField(8, bytes(i), RegWriteFn { (valid, data) =>
+        when (valid) { wires(i) := data }
+        Bool(true)
+      })
+    }
+  }
+
+  // Divide a long sequence of RegFields into a maximum sized registers
+  // Your input RegFields may not cross a beatBytes boundary!
+  def split(fields: Seq[RegField], base: Int, beatBytes: Int = 4): Seq[RegField.Map] = {
+    val offsets = fields.map(_.width).scanLeft(0)(_ + _).init
+    (offsets zip fields).groupBy(_._1 / (beatBytes*8)).toList.map(r => (r._1 + base, r._2.map(_._2)))
+  }
 }
 
 trait HasRegMap

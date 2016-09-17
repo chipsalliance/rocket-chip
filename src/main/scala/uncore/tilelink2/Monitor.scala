@@ -406,7 +406,7 @@ object TLMonitor
     val last_v = RegNext(irr.valid, Bool(false))
     val last_r = RegNext(irr.ready, Bool(false))
     val last_b = RegNext(irr.bits)
-    val bits_changed = irr.bits.toBits === last_b.toBits
+    val bits_changed = irr.bits.asUInt === last_b.asUInt
 
     when (last_v && !last_r) {
       assert(irr.valid,    s"${irr.bits.channelName} had contents that were revoked by the supplier (valid lowered)" + extra)
