@@ -119,7 +119,7 @@ class TLRAMModel extends LazyModule
     val a_addr_hi = a.addr_hi | (a_beats1 & ~a_counter1)
     val a_base = edge.address(a)
     val a_mask = edge.mask(a_base, a_size)
-    val a_fifo = edge.manager.hasFifoId(a_base)
+    val a_fifo = edge.manager.hasFifoIdFast(a_base)
 
     // Grab the concurrency state we need
     val a_inc_bytes = inc_bytes.map(_.read(a_addr_hi))
@@ -203,7 +203,7 @@ class TLRAMModel extends LazyModule
     val d_base = d_flight.base
     val d_addr_hi = d_base >> shift | (d_beats1 & ~d_counter1)
     val d_mask = edge.mask(d_base, d_size)
-    val d_fifo = edge.manager.hasFifoId(d_flight.base)
+    val d_fifo = edge.manager.hasFifoIdFast(d_flight.base)
 
     // Grab the concurrency state we need
     val d_inc_bytes = inc_bytes.map(_.read(d_addr_hi))
@@ -222,7 +222,8 @@ class TLRAMModel extends LazyModule
 
       // Check the response is correct
       assert (d_size === d_flight.size)
-      assert (edge.manager.findId(d_flight.base) === d.sink)
+      assert (edge.manager.findIdStartFast(d_flight.base) <= d.sink)
+      assert (edge.manager.findIdEndFast  (d_flight.base) > d.sink)
       // addr_lo is allowed to differ
 
       when (d_flight.opcode === TLMessages.Hint) {

@@ -12,7 +12,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Option[Int] = None, beatB
     supportsPutFull    = TransferSizes(1, beatBytes),
     fifoId             = Some(0))) // requests are handled in order
 {
-  require (!address.strided)
+  require (address.contiguous)
 
   // Calling this method causes the matching TL2 bundle to be
   // configured to route all requests to the listed RegFields.
@@ -75,7 +75,7 @@ object TLRegisterNode
 abstract class TLRegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Option[Int], beatBytes: Int, undefZero: Boolean) extends LazyModule
 {
   val node = TLRegisterNode(address, concurrency, beatBytes, undefZero)
-  val intnode = IntSourceNode(name + s" @ ${address.base}", interrupts)
+  val intnode = IntSourceNode(interrupts)
 }
 
 case class TLRegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[TLBundle])

@@ -163,10 +163,12 @@ class TLFuzzer(
                               edge.Hint(src, addr, size, UInt(0))
                             } else { (glegal, gbits) }
 
+    val legal_dest = edge.manager.containsSafe(addr)
+
     // Pick a specific message to try to send
     val a_type_sel  = noiseMaker(3, inc)
 
-    val legal = MuxLookup(a_type_sel, glegal, Seq(
+    val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
       UInt("b000") -> glegal,
       UInt("b001") -> pflegal,
       UInt("b010") -> pplegal,
@@ -218,14 +220,18 @@ class ClockDivider extends BlackBox {
 class TLFuzzRAM extends LazyModule
 {
   val model = LazyModule(new TLRAMModel)
-  val ram  = LazyModule(new TLRAM(AddressSet(0, 0x3ff)))
+  val ram  = LazyModule(new TLRAM(AddressSet(0x800, 0x7ff)))
+  val ram2 = LazyModule(new TLRAM(AddressSet(0, 0x3ff), beatBytes = 16))
   val gpio = LazyModule(new RRTest1(0x400))
   val xbar = LazyModule(new TLXbar)
+  val xbar2= LazyModule(new TLXbar)
   val fuzz = LazyModule(new TLFuzzer(5000))
   val cross = LazyModule(new TLAsyncCrossing)
 
   model.node := fuzz.node
-  xbar.node := TLWidthWidget(TLHintHandler(model.node), 16)
+  xbar2.node := model.node
+  ram2.node := TLFragmenter(xbar2.node, 16, 256)
+  xbar.node := TLWidthWidget(TLHintHandler(xbar2.node), 16)
   cross.node := TLFragmenter(TLBuffer(xbar.node), 4, 256)
   ram.node := cross.node
   gpio.node := TLFragmenter(TLBuffer(xbar.node), 4, 32)

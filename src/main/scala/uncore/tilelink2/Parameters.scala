@@ -82,26 +82,29 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
 {
   // Forbid misaligned base address (and empty sets)
   require ((base & mask) == 0)
+  require (base >= 0) // TL2 address widths are not fixed => negative is ambiguous
+  // We do allow negative mask (=> ignore all high bits)
 
-  def contains(x: BigInt) = ~(~(x ^ base) | mask) == 0
-  def contains(x: UInt) = ~(~(x ^ UInt(base)) | UInt(mask)) === UInt(0)
+  def contains(x: BigInt) = ((x ^ base) & ~mask) == 0
+  def contains(x: UInt) = ((x ^ UInt(base)).zext() & SInt(~mask)) === SInt(0)
 
   // overlap iff bitwise: both care (~mask0 & ~mask1) => both equal (base0=base1)
   def overlaps(x: AddressSet) = (~(mask | x.mask) & (base ^ x.base)) == 0
-
   // contains iff bitwise: x.mask => mask && contains(x.base)
   def contains(x: AddressSet) = ((x.mask | (base ^ x.base)) & ~mask) == 0
-  // 1 less than the number of bytes to which the manager should be aligned
-  def alignment1 = ((mask + 1) & ~mask) - 1
-  def max = base | mask
 
-  // A strided slave serves discontiguous ranges
-  def strided = alignment1 != mask
+  // The number of bytes to which the manager must be aligned
+  def alignment = ((mask + 1) & ~mask)
+  // Is this a contiguous memory range
+  def contiguous = alignment == mask+1
+
+  def finite = mask >= 0
+  def max = { require (finite); base | mask }
 
   // Widen the match function to ignore all bits in imask
   def widen(imask: BigInt) = AddressSet(base & ~imask, mask | imask)
 
-  // AddressSets have one natural Ordering (the containment order)
+  // AddressSets have one natural Ordering (the containment order, if contiguous)
   def compare(x: AddressSet) = {
     val primary   = (this.base - x.base).signum // smallest address first
     val secondary = (x.mask - this.mask).signum // largest mask first
@@ -109,7 +112,13 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   }
 
   // We always want to see things in hex
-  override def toString() = "AddressSet(0x%x, 0x%x)".format(base, mask)
+  override def toString() = {
+    if (mask >= 0) {
+      "AddressSet(0x%x, 0x%x)".format(base, mask)
+    } else {
+      "AddressSet(0x%x, ~0x%x)".format(base, ~mask)
+    }
+  }
 }
 
 case class TLManagerParameters(
@@ -130,6 +139,7 @@ case class TLManagerParameters(
   fifoId:             Option[Int]   = None,
   customDTS:          Option[String]= None)
 {
+  address.foreach { a => require (a.finite) }
   address.combinations(2).foreach({ case Seq(x,y) =>
     require (!x.overlaps(y))
   })
@@ -144,12 +154,13 @@ case class TLManagerParameters(
     supportsPutFull.max,
     supportsPutPartial.max).max
 
+  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+
   // Generate the config string (in future device tree)
-  lazy val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   lazy val dts = customDTS.getOrElse {
     val header = s"${name} {\n"
     val middle = address.map { a =>
-      require (!a.strided) // Config String does not support this
+      require (a.contiguous) // Config String is not so flexible
       "  addr 0x%x;\n  size 0x%x;\n".format(a.base, a.mask+1)
     }
     val footer = "}\n"
@@ -158,7 +169,7 @@ case class TLManagerParameters(
 
   // The device had better not support a transfer larger than it's alignment
   address.foreach({ case a =>
-    require (a.alignment1 >= maxTransfer-1)
+    require (a.alignment >= maxTransfer)
   })
 }
 
@@ -198,41 +209,59 @@ case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes
   val anySupportPutPartial = managers.map(!_.supportsPutPartial.none).reduce(_ || _)
   val anySupportHint       = managers.map(!_.supportsHint.none)      .reduce(_ || _)
 
+  // Which bits suffice to distinguish between all managers
+  lazy val routingMask = AddressDecoder(managers.map(_.address))
+
   // These return Option[TLManagerParameters] for your convenience
   def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
   def findById(id: Int) = managers.find(_.sinkId.contains(id))
 
   // Synthesizable lookup methods
-  def find(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
   def findById(id: UInt) = Vec(managers.map(_.sinkId.contains(id)))
-  def findId(address: UInt) = Mux1H(find(address), managers.map(m => UInt(m.sinkId.start)))
+  def findIdStartSafe(address: UInt) = Mux1H(findSafe(address), managers.map(m => UInt(m.sinkId.start)))
+  def findIdStartFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.sinkId.start)))
+  def findIdEndSafe(address: UInt) = Mux1H(findSafe(address), managers.map(m => UInt(m.sinkId.end)))
+  def findIdEndFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.sinkId.end)))
+
+  // The safe version will check the entire address
+  def findSafe(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
+  // The fast version assumes the address is valid
+  def findFast(address: UInt) = Vec(managers.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
 
   // Note: returns the actual fifoId + 1 or 0 if None
-  def findFifoId(address: UInt) = Mux1H(find(address), managers.map(m => UInt(m.fifoId.map(_+1).getOrElse(0))))
-  def hasFifoId(address: UInt) = Mux1H(find(address), managers.map(m => Bool(m.fifoId.isDefined)))
+  def findFifoIdSafe(address: UInt) = Mux1H(findSafe(address), managers.map(m => UInt(m.fifoId.map(_+1).getOrElse(0))))
+  def findFifoIdFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.fifoId.map(_+1).getOrElse(0))))
+  def hasFifoIdSafe(address: UInt) = Mux1H(findSafe(address), managers.map(m => Bool(m.fifoId.isDefined)))
+  def hasFifoIdFast(address: UInt) = Mux1H(findFast(address), managers.map(m => Bool(m.fifoId.isDefined)))
 
-  lazy val addressMask = AddressDecoder(managers.map(_.address))
-  // !!! need a cheaper version of find, where we assume a valid address match exists
-  
   // Does this Port manage this ID/address?
-  def contains(address: UInt) = find(address).reduce(_ || _)
+  def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
+  // containsFast would be useless; it could always be true
   def containsById(id: UInt) = findById(id).reduce(_ || _)
 
-  private def safety_helper(member: TLManagerParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
+  private def safety_helper(member: TLManagerParameters => TransferSizes, select: UInt => Vec[Bool])(address: UInt, lgSize: UInt) = {
     val allSame = managers.map(member(_) == member(managers(0))).reduce(_ && _)
     if (allSame) member(managers(0)).containsLg(lgSize) else {
-      Mux1H(find(address), managers.map(member(_).containsLg(lgSize)))
+      Mux1H(select(address), managers.map(member(_).containsLg(lgSize)))
     }
   }
 
   // Check for support of a given operation at a specific address
-  val supportsAcquire    = safety_helper(_.supportsAcquire)    _
-  val supportsArithmetic = safety_helper(_.supportsArithmetic) _
-  val supportsLogical    = safety_helper(_.supportsLogical)    _
-  val supportsGet        = safety_helper(_.supportsGet)        _
-  val supportsPutFull    = safety_helper(_.supportsPutFull)    _
-  val supportsPutPartial = safety_helper(_.supportsPutPartial) _
-  val supportsHint       = safety_helper(_.supportsHint)       _
+  val supportsAcquireSafe    = safety_helper(_.supportsAcquire,    findSafe) _
+  val supportsArithmeticSafe = safety_helper(_.supportsArithmetic, findSafe) _
+  val supportsLogicalSafe    = safety_helper(_.supportsLogical,    findSafe) _
+  val supportsGetSafe        = safety_helper(_.supportsGet,        findSafe) _
+  val supportsPutFullSafe    = safety_helper(_.supportsPutFull,    findSafe) _
+  val supportsPutPartialSafe = safety_helper(_.supportsPutPartial, findSafe) _
+  val supportsHintSafe       = safety_helper(_.supportsHint,       findSafe) _
+
+  val supportsAcquireFast    = safety_helper(_.supportsAcquire,    findFast) _
+  val supportsArithmeticFast = safety_helper(_.supportsArithmetic, findFast) _
+  val supportsLogicalFast    = safety_helper(_.supportsLogical,    findFast) _
+  val supportsGetFast        = safety_helper(_.supportsGet,        findFast) _
+  val supportsPutFullFast    = safety_helper(_.supportsPutFull,    findFast) _
+  val supportsPutPartialFast = safety_helper(_.supportsPutPartial, findFast) _
+  val supportsHintFast       = safety_helper(_.supportsHint,       findFast) _
 }
 
 case class TLClientParameters(
@@ -256,6 +285,8 @@ case class TLClientParameters(
     supportsGet.max,
     supportsPutFull.max,
     supportsPutPartial.max).max
+
+  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
 
 case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
