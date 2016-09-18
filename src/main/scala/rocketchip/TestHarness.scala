@@ -7,6 +7,7 @@ import cde.{Parameters, Field}
 import rocket.Util._
 import junctions._
 import junctions.NastiConstants._
+import coreplex.MultiClockIO
 
 case object BuildExampleTop extends Field[Parameters => ExampleTop]
 case object SimMemLatency extends Field[Int]
@@ -72,6 +73,12 @@ class TestHarness(q: Parameters) extends Module {
     slave.io <> mmio_axi
   }
 
+  dut.io.elements.get("clocks").map {
+    case (clocks: MultiClockIO) =>
+      clocks.l2Clock := clock
+      clocks.l2Reset := reset
+      clocks.tileClocks.map(_ := clock)
+  }
 }
 
 class SimAXIMem(size: BigInt)(implicit p: Parameters) extends NastiModule()(p) {

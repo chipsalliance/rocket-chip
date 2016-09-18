@@ -226,18 +226,83 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends BaseCoreplex(t
   l2block.io.slave <> io.slave
   io.master.mem <> l2block.io.mem
 
-  val nTileSlaves = tileList.flatMap(_.io.slave).size
-  val mmioBlock = buildMMIONetwork(nTileSlaves)
+  val tileSlaves = tileList.flatMap(_.io.slave)
+  val mmioBlock = buildMMIONetwork(tileSlaves.size)
 
   mmioBlock.io.slave <> TileLinkEnqueuer(l2block.io.mmio, 1)(outerMMIOParams)
 
-  tileList.flatMap(_.io.slave).zip(mmioBlock.io.tileSlaves).map {
+  tileSlaves.zip(mmioBlock.io.tileSlaves).map {
     case (tileSlave, mmioSlave) =>
       tileSlave <> TileLinkEnqueuer(mmioSlave, 1)(innerParams)
   }
 
   tileList.zip(mmioBlock.io.tileInterrupts).map {
     case (tile, int) => tile.io.interrupts := int
+  }
+
+  tileResets := mmioBlock.io.tileResets
+
+  io.success := Bool(false)
+}
+
+class MultiClockIO(nTiles: Int) extends Bundle {
+  val l2Clock = Clock()
+  val l2Reset = Bool()
+  val tileClocks = Vec(nTiles, Clock())
+
+  override def cloneType = new MultiClockIO(nTiles).asInstanceOf[this.type]
+}
+
+class MultiClockCoreplex(tp: Parameters, tc: CoreplexConfig)
+    extends BaseCoreplex(tp, tc) {
+  val io = new CoreplexIO()(p, c) {
+    val clocks = new MultiClockIO(c.nTiles).asInput
+  }
+
+  val tileResets = Wire(Vec(tc.nTiles, Bool()))
+  val tileList = buildTiles(
+    io.clocks.tileClocks,
+    io.clocks.tileClocks.zip(tileResets).map {
+      case (clk, rst) => LevelSyncTo(clk, rst)
+    })
+  val nCachedPorts = tileList.map(_.io.cached.size).foldLeft(0)(_ + _)
+  val nUncachedPorts = tileList.map(_.io.uncached.size).foldLeft(0)(_ + _)
+
+  val l2block = buildL2Block(io.clocks.l2Clock, io.clocks.l2Reset,
+                  nCachedPorts, nUncachedPorts)
+
+  l2block.io.tiles_cached <> tileList.flatMap { tile =>
+    tile.io.cached.map(AsyncClientTileLinkCrossing(
+      tile.clock, tile.reset, _,
+      l2block.clock, l2block.reset))
+  }
+
+  l2block.io.tiles_uncached <> tileList.flatMap { tile =>
+    tile.io.uncached.map(AsyncClientUncachedTileLinkCrossing(
+      tile.clock, tile.reset, _,
+      l2block.clock, l2block.reset))
+  }
+
+  l2block.io.slave <> io.slave.map(
+    AsyncClientUncachedTileLinkTo(l2block.clock, l2block.reset, _))
+
+  io.master.mem <> l2block.io.mem.map(
+    AsyncClientUncachedTileLinkFrom(l2block.clock, l2block.reset, _))
+
+  // We need to associate the clock and reset with each slave for the clock-crossing
+  val tileSlaves = tileList.flatMap(tile => tile.io.slave.map((_, tile.clock, tile.reset)))
+  val mmioBlock = buildMMIONetwork(tileSlaves.size)
+
+  mmioBlock.io.slave <> AsyncClientUncachedTileLinkFrom(
+    l2block.clock, l2block.reset, l2block.io.mmio)
+
+  tileSlaves.zip(mmioBlock.io.tileSlaves).map {
+    case ((tileSlave, clk, rst), mmioSlave) =>
+      tileSlave <> AsyncClientUncachedTileLinkTo(clk, rst, mmioSlave)
+  }
+
+  tileList.zip(mmioBlock.io.tileInterrupts).map {
+    case (tile, int) => tile.io.interrupts := LevelSyncTo(tile.clock, int)
   }
 
   tileResets := mmioBlock.io.tileResets

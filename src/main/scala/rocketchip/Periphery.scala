@@ -371,3 +371,25 @@ trait PeripheryTestBusMasterModule {
   implicit val p: Parameters
   val outer: PeripheryTestBusMaster
 }
+
+/////
+
+trait PeripheryMultiClock extends LazyModule {
+  implicit val p: Parameters
+}
+
+trait PeripheryMultiClockBundle {
+  implicit val p: Parameters
+
+  val clocks = new MultiClockIO(p(NTiles)).asInput
+}
+
+trait PeripheryMultiClockModule {
+  implicit val p: Parameters
+
+  val outer: PeripheryMultiClock
+  val io: PeripheryMultiClockBundle
+  val coreplex: Coreplex
+
+  coreplex.io.elements.get("clocks").get := io.clocks
+}

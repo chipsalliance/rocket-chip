@@ -115,3 +115,17 @@ class ExampleTopWithTestRAMBundle(p: Parameters, c: Coreplex) extends ExampleTop
 
 class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle](p: Parameters, l: L, b: Coreplex => B) extends ExampleTopModule(p, l, b)
     with PeripheryTestRAMModule
+
+class MultiClockExampleTop(q: Parameters) extends ExampleTop(q)
+    with PeripheryMultiClock {
+  override lazy val module = Module(
+    new MultiClockExampleTopModule(p, this,
+      new MultiClockExampleTopBundle(p, _)))
+}
+
+class MultiClockExampleTopBundle(p: Parameters, c: Coreplex)
+  extends ExampleTopBundle(p, c) with PeripheryMultiClockBundle
+
+class MultiClockExampleTopModule[+L <: MultiClockExampleTop, +B <: MultiClockExampleTopBundle]
+  (p: Parameters, l: L, b: Coreplex => B)
+  extends ExampleTopModule(p, l, b) with PeripheryMultiClockModule
