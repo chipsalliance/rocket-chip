@@ -6,7 +6,12 @@ import Chisel._
 import scala.collection.mutable.{LinkedHashSet,LinkedHashMap}
 import cde._
 import coreplex._
-import java.io.{File, FileWriter}
+import firrtl._
+import firrtl.Annotations._
+import firrtl.passes.Pass
+import java.io.{File, FileWriter, Writer, PrintWriter}
+
+case object SynTopName extends Field[Option[String]]
 
 case class ParsedInputNames(
     targetDir: String,
@@ -44,7 +49,7 @@ trait HasGeneratorUtilities {
         .newInstance(params)
         .asInstanceOf[Module]
 
-    Driver.elaborate(gen)
+    chisel3.Driver.elaborate(gen)
   }
 
   def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
@@ -86,10 +91,80 @@ trait Generator extends App with HasGeneratorUtilities {
     writeOutputFile(td, s"${names.configs}.knb", world.getKnobs) // Knobs for DSE
     writeOutputFile(td, s"${names.configs}.cst", world.getConstraints) // Constraints for DSE
     ConfigStringOutput.contents.foreach(c => writeOutputFile(td, s"${names.configs}.cfg", c)) // String for software
+
+    params(SynTopName) match {
+      case Some(synTopName) => {
+        firrtl.Driver.compile(
+          s"${names.targetDir}/$longName.fir",
+          s"${names.targetDir}/$longName.TestHarness.v",
+          new EmitHarnessVerilog(synTopName),
+          Parser.UseInfo
+        )
+
+        firrtl.Driver.compile(
+          s"${names.targetDir}/$longName.fir",
+          s"${names.targetDir}/$longName.v",
+          new EmitTopVerilog(synTopName),
+          Parser.UseInfo,
+          AnnotationMap(Seq(
+            passes.InferReadWriteAnnotation(
+              s"${names.topModuleClass}",
+              FirrtlVerilogCompiler.infer_read_write_id
+            ),
+            passes.ReplSeqMemAnnotation(
+              s"-c:${synTopName}:-o:${names.targetDir}/$longName.conf",
+              FirrtlVerilogCompiler.repl_seq_mem_id
+            )
+          ))
+        )
+      }
+
+    case None => {
+      firrtl.Driver.compile(
+          s"${names.targetDir}/$longName.fir",
+          s"${names.targetDir}/$longName.v",
+          new RocketChipPassManager,
+          Parser.UseInfo
+        )
+      }
+
+      new PrintWriter(new File(s"${names.targetDir}/$longName.TestHarness.v")).close
+      new PrintWriter(new File(s"${names.targetDir}/$longName.conf")).close
+    }
   }
 }
 
+object FirrtlVerilogCompiler {
+  val infer_read_write_id = TransID(-1)
+  val repl_seq_mem_id     = TransID(-2)
+}
+
+class EmitTopVerilog(topName: String) extends RocketChipPassManager {
+  override def operateHigh() = Seq(
+    new ReParentCircuit(topName)
+  )
+
+  override def operateMiddle() = Seq(
+      new passes.InferReadWrite(FirrtlVerilogCompiler.infer_read_write_id),
+      new passes.ReplSeqMem(FirrtlVerilogCompiler.repl_seq_mem_id)
+    )
+
+  override def operateLow() = Seq(
+      new RemoveUnusedModules
+    )
+}
+
+class EmitHarnessVerilog(topName: String) extends RocketChipPassManager {
+  override def operateHigh() = Seq(
+      new ConvertToExtMod( (m: firrtl.ir.Module) => m.name == topName )
+    )
+
+  override def operateLow() = Seq(
+      new RemoveUnusedModules
+    )
+}
+
 object RocketChipGenerator extends Generator {
-  Driver.dumpFirrtl(circuit, Some(new File(td, s"$longName.fir"))) // FIRRTL
+  chisel3.Driver.dumpFirrtl(circuit, Some(new File(td, s"$longName.fir"))) // FIRRTL
   writeOutputFiles()
 }

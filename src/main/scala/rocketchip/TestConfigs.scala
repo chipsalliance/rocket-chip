@@ -61,6 +61,7 @@ class WithGroundTest extends Config(
     case UseAtomics => false
     case UseCompressed => false
     case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
+    case SynTopName => None
     case _ => throw new CDEMatchError
   })
 

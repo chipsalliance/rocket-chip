@@ -2,24 +2,30 @@
 # Verilator Generation 
 #--------------------------------------------------------------------
 
+VLSI_MEM_GEN ?= $(base_dir)/vsim/vlsi_mem_gen
+mem_gen = $(VLSI_MEM_GEN)
+
 firrtl = $(generated_dir)/$(MODEL).$(CONFIG).fir
 firrtl_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).fir
-verilog = $(generated_dir)/$(MODEL).$(CONFIG).v
-verilog_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).v
+mems = $(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v
+verilog = $(generated_dir)/$(MODEL).$(CONFIG).v $(generated_dir)/$(MODEL).$(CONFIG).TestHarness.v $(mems)
+verilog_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).v $(generated_dir_debug)/$(MODEL).$(CONFIG).TestHarness.v $(mems)
 
 .SECONDARY: $(firrtl) $(firrtl_debug) $(verilog) $(verilog_debug)
 
-$(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).prm $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.$(CONFIG).v $(generated_dir)/%.$(CONFIG).TestHarness.v $(generated_dir)/%.$(CONFIG).conf $(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).prm $(generated_dir)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
-$(generated_dir_debug)/%.$(CONFIG).fir $(generated_dir_debug)/%.$(CONFIG).prm $(generated_dir_debug)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
+$(generated_dir_debug)/%.$(CONFIG).v $(generated_dir_debug)/%.$(CONFIG).TestHarness.v $(generated_dir_debug)%.$(CONFIG).conf $(generated_dir_debug)/%.$(CONFIG).fir $(generated_dir_debug)/%.$(CONFIG).prm $(generated_dir_debug)/%.$(CONFIG).d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(generated_dir_debug) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
-%.v: %.fir $(FIRRTL_JAR)
-	mkdir -p $(dir $@)
-	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $@ -X verilog
+$(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v : $(generated_dir)/$(MODEL).$(CONFIG).conf $(mem_gen)
+	cd $(generated_dir) && \
+	rm -f $@ && \
+	$(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $@.tmp && \
+	mv $@.tmp $@
 
 # Build and install our own Verilator, to work around versionining issues.
 VERILATOR_VERSION=3.884
@@ -64,13 +70,13 @@ model_header_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG)/V$(MODEL).h
 $(emu): $(verilog) $(cppfiles) $(headers) $(consts_header) $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir)/$(MODEL).$(CONFIG)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir)/$(MODEL).$(CONFIG) \
-	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
+	-o $(abspath $(sim_dir))/$@ $(filter %.v,$^) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
 	-CFLAGS "-I$(generated_dir) -include $(model_header) -include $(consts_header)"
 	$(MAKE) -C $(generated_dir)/$(MODEL).$(CONFIG) -f V$(MODEL).mk
 
 $(emu_debug): $(verilog_debug) $(cppfiles) $(headers) $(consts_header_debug) $(generated_dir)/$(MODEL).$(CONFIG).d $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir_debug)/$(MODEL).$(CONFIG)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir_debug)/$(MODEL).$(CONFIG)  --trace \
-	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
+	-o $(abspath $(sim_dir))/$@ $(filter %.v,$^) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
 	-CFLAGS "-I$(generated_dir_debug) -include $(model_header_debug) -include $(consts_header_debug)"
 	$(MAKE) -C $(generated_dir_debug)/$(MODEL).$(CONFIG) -f V$(MODEL).mk
