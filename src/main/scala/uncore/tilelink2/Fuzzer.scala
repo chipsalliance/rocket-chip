@@ -163,10 +163,12 @@ class TLFuzzer(
                               edge.Hint(src, addr, size, UInt(0))
                             } else { (glegal, gbits) }
 
+    val legal_dest = edge.manager.containsSafe(addr)
+
     // Pick a specific message to try to send
     val a_type_sel  = noiseMaker(3, inc)
 
-    val legal = MuxLookup(a_type_sel, glegal, Seq(
+    val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
       UInt("b000") -> glegal,
       UInt("b001") -> pflegal,
       UInt("b010") -> pplegal,
