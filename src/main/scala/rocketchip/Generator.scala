@@ -77,7 +77,7 @@ trait Generator extends App with HasGeneratorUtilities {
   lazy val world = config.toInstance
   lazy val params = Parameters.root(world)
   lazy val circuit = elaborate(names, params)
-  lazy val longName = names.topModuleClass + "." + names.configs
+  lazy val longName = names.topProject + "." + names.configs
 
   def writeOutputFiles() {
     TestGeneration.addSuite(new RegressionTestSuite(params(RegressionTestNames)))

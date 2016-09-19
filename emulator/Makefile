@@ -6,9 +6,6 @@ generated_dir_debug = $(abspath ./generated-src-debug)
 sim_dir = .
 output_dir = $(sim_dir)/output
 
-BACKEND = c
-CONFIG ?= DefaultConfig
-
 include $(base_dir)/Makefrag
 
 CXXSRCS := emulator SimDTM
@@ -36,7 +33,7 @@ test:
 #--------------------------------------------------------------------
 
 ifneq ($(filter run% %.run %.out %.vpd %.vcd,$(MAKECMDGOALS)),)
--include $(generated_dir)/$(MODEL).$(CONFIG).d
+-include $(generated_dir)/$(long_name).d
 endif
 
 $(output_dir)/%.run: $(output_dir)/% $(emu)

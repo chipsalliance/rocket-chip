@@ -3,27 +3,27 @@
 #--------------------------------------------------------------------
 # If I don't mark these as .SECONDARY then make will delete these internal
 # files.
-.SECONDARY: $(generated_dir)/$(MODEL).$(CONFIG).fir
+.SECONDARY: $(generated_dir)/$(long_name).fir
 
-firrtl: $(generated_dir)/$(MODEL).$(CONFIG).fir
+firrtl: $(generated_dir)/$(long_name).fir
 
 .PHONY: firrtl
 
-$(generated_dir)/%.$(CONFIG).fir $(generated_dir)/%.$(CONFIG).d $(generated_dir)/%.prm: $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.fir $(generated_dir)/%.d $(generated_dir)/%.prm: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(notdir $*) $(CFG_PROJECT) $(CONFIG)"
+	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
-$(generated_dir)/%.v $(generated_dir)/%.conf : $(generated_dir)/%.fir $(FIRRTL_JAR)
+$(generated_dir)/$(long_name).v $(generated_dir)/$(long_name).conf : $(firrtl) $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) -i $< -o $@ -X verilog --inferRW $(MODEL) --replSeqMem -c:$(MODEL):-o:$(generated_dir)/$(MODEL).$(CONFIG).conf
+	$(FIRRTL) -i $< -o $@ -X verilog --inferRW $(MODEL) --replSeqMem -c:$(MODEL):-o:$(generated_dir)/$(long_name).conf
 
-$(generated_dir)/$(MODEL).$(CONFIG).behav_srams.v : $(generated_dir)/$(MODEL).$(CONFIG).conf $(mem_gen)
+$(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(mem_gen)
 	cd $(generated_dir) && \
 	rm -f $@ && \
-	$(mem_gen) $(generated_dir)/$(MODEL).$(CONFIG).conf >> $@.tmp && \
+	$(mem_gen) $(generated_dir)/$(long_name).conf >> $@.tmp && \
 	mv $@.tmp $@
 
-$(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(MODEL).$(CONFIG).prm
+$(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(long_name).prm
 	echo "\`ifndef CONST_VH" > $@
 	echo "\`define CONST_VH" >> $@
 	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/`define \1 \2/' $(patsubst %.v,%.prm,$<) >> $@
