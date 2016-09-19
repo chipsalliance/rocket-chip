@@ -58,6 +58,7 @@ abstract class Coreplex(implicit val p: Parameters, implicit val c: CoreplexConf
     val debug = new DebugBusIO()(p).flip
     val clint = Vec(c.nTiles, new CoreplexLocalInterrupts).asInput
     val success: Option[Bool] = hasSuccessFlag.option(Bool(OUTPUT))
+    val resetVector = UInt(INPUT, p(XLen))
   }
 
   def hasSuccessFlag: Boolean = false
@@ -153,6 +154,7 @@ class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends Coreplex()(tp,
       tile.io.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
       tile.io.interrupts.debug := debugModule.io.debugInterrupts(i)
       tile.io.hartid := i
+      tile.io.resetVector := io.resetVector
     }
 
     val tileSlavePorts = (0 until tc.nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)

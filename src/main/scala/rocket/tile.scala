@@ -34,6 +34,7 @@ abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
     val hartid = UInt(INPUT, p(XLen))
     val interrupts = new TileInterrupts().asInput
     val slave = (p(DataScratchpadSize) > 0).option(new ClientUncachedTileLinkIO().flip)
+    val resetVector = UInt(INPUT, p(XLen))
   }
 
   val io = new TileIO
@@ -58,6 +59,7 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
   core.io.interrupts := io.interrupts
   core.io.hartid := io.hartid
   icache.io.cpu <> core.io.imem
+  icache.io.resetVector := io.resetVector
 
   val fpuOpt = p(FPUKey).map(cfg => Module(new FPU(cfg)))
   fpuOpt.foreach(fpu => core.io.fpu <> fpu.io)
