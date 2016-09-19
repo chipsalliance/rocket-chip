@@ -209,40 +209,104 @@ abstract class BaseCoreplex(tp: Parameters, tc: CoreplexConfig)
     mmioBlock.io.clint <> io.clint
     mmioBlock
   }
+
+  def getTileClocks: Seq[Clock]
+  def getL2Clock: Clock
+  def getL2Reset: Bool
+
+  def tlCachedCrossing(cached: ClientTileLinkIO,
+    fromClock: Clock, fromReset: Bool,
+    toClock: Clock, toReset: Bool): ClientTileLinkIO
+  def tlUncachedCrossing(uncached: ClientUncachedTileLinkIO,
+    fromClock: Clock, fromReset: Bool,
+    toClock: Clock, toReset: Bool): ClientUncachedTileLinkIO
+  def tlUncachedTo(uncached: ClientUncachedTileLinkIO,
+    toClock: Clock, toReset: Bool): ClientUncachedTileLinkIO
+  def tlUncachedFrom(uncached: ClientUncachedTileLinkIO,
+    fromClock: Clock, fromReset: Bool): ClientUncachedTileLinkIO
+  def tileInterruptsTo(
+    int: TileInterrupts, toClock: Clock, toReset: Bool): TileInterrupts
+  def tileResetTo(rst: Bool, toClock: Clock): Bool
+
+  def getSuccess(tiles: Seq[Tile]): Bool = Bool(false)
+
+  def elaborate() {
+    val baseTileResets = Wire(Vec(tc.nTiles, Bool()))
+    val tileClocks = getTileClocks
+    val tileResets = tileClocks.zip(baseTileResets).map {
+      case (clk, rst) => tileResetTo(rst, clk)
+    }
+    val tileList = buildTiles(tileClocks, tileResets)
+    val tileCachedPorts = tileList.flatMap(tile =>
+        tile.io.cached.map((_, tile.clock, tile.reset)))
+    val tileUncachedPorts = tileList.flatMap(tile =>
+        tile.io.uncached.map((_, tile.clock, tile.reset)))
+
+    val l2block = buildL2Block(getL2Clock, getL2Reset,
+      tileCachedPorts.size, tileUncachedPorts.size)
+
+    l2block.io.tiles_cached <> tileCachedPorts.map {
+      case (cached, clk, rst) =>
+        tlCachedCrossing(cached, clk, rst, l2block.clock, l2block.reset)
+    }
+
+    l2block.io.tiles_uncached <> tileUncachedPorts.map {
+      case (uncached, clk, rst) =>
+        tlUncachedCrossing(uncached, clk, rst, l2block.clock, l2block.reset)
+    }
+
+    l2block.io.slave <> io.slave.map(tlUncachedTo(_, l2block.clock, l2block.reset))
+    io.master.mem <> l2block.io.mem.map(tlUncachedFrom(_, l2block.clock, l2block.reset))
+
+    val tileSlaves = tileList.flatMap(tile => tile.io.slave.map((_, tile.clock, tile.reset)))
+    val mmioBlock = buildMMIONetwork(tileSlaves.size)
+
+    mmioBlock.io.slave <> tlUncachedFrom(l2block.io.mmio, l2block.clock, l2block.reset)
+
+    baseTileResets := mmioBlock.io.tileResets
+
+    tileSlaves.zip(mmioBlock.io.tileSlaves).map {
+      case ((tileSlave, clk, rst), mmioSlave) =>
+        tileSlave <> tlUncachedTo(mmioSlave, clk, rst)
+    }
+
+    tileList.zip(mmioBlock.io.tileInterrupts).map {
+      case (tile, int) => tile.io.interrupts := tileInterruptsTo(int, tile.clock, tile.reset)
+    }
+
+    io.success := getSuccess(tileList)
+  }
 }
 
 class DefaultCoreplex(tp: Parameters, tc: CoreplexConfig) extends BaseCoreplex(tp, tc) {
   val io = new CoreplexIO
-  // Build a set of Tiles
-  val tileResets = Wire(Vec(tc.nTiles, Bool()))
-  val tileList = buildTiles(Seq.fill(tc.nTiles){clock}, tileResets)
-  val tileCachedPorts = tileList.flatMap(tile => tile.io.cached)
-  val tileUncachedPorts = tileList.flatMap(tile => tile.io.uncached)
 
-  val l2block = buildL2Block(clock, reset,
-    tileCachedPorts.size, tileUncachedPorts.size)
-  l2block.io.tiles_cached <> tileCachedPorts
-  l2block.io.tiles_uncached <> tileUncachedPorts
-  l2block.io.slave <> io.slave
-  io.master.mem <> l2block.io.mem
+  def getTileClocks: Seq[Clock] = Seq.fill(c.nTiles) { clock }
+  def getL2Clock: Clock = clock
+  def getL2Reset: Bool = reset
 
-  val tileSlaves = tileList.flatMap(_.io.slave)
-  val mmioBlock = buildMMIONetwork(tileSlaves.size)
+  def tlCachedCrossing(cached: ClientTileLinkIO,
+    fromClock: Clock, fromReset: Bool,
+    toClock: Clock, toReset: Bool): ClientTileLinkIO = cached
 
-  mmioBlock.io.slave <> TileLinkEnqueuer(l2block.io.mmio, 1)(outerMMIOParams)
+  def tlUncachedCrossing(uncached: ClientUncachedTileLinkIO,
+    fromClock: Clock, fromReset: Bool,
+    toClock: Clock, toReset: Bool): ClientUncachedTileLinkIO = uncached
 
-  tileSlaves.zip(mmioBlock.io.tileSlaves).map {
-    case (tileSlave, mmioSlave) =>
-      tileSlave <> TileLinkEnqueuer(mmioSlave, 1)(innerParams)
-  }
+  def tlUncachedTo(uncached: ClientUncachedTileLinkIO,
+      toClock: Clock, toReset: Bool): ClientUncachedTileLinkIO =
+    TileLinkEnqueuer(uncached, 1)(uncached.p)
 
-  tileList.zip(mmioBlock.io.tileInterrupts).map {
-    case (tile, int) => tile.io.interrupts := int
-  }
+  def tlUncachedFrom(uncached: ClientUncachedTileLinkIO,
+      fromClock: Clock, fromReset: Bool): ClientUncachedTileLinkIO =
+    TileLinkEnqueuer(uncached, 1)(uncached.p)
 
-  tileResets := mmioBlock.io.tileResets
+  def tileInterruptsTo(
+    int: TileInterrupts, toClock: Clock, toReset: Bool): TileInterrupts = int
 
-  io.success := Bool(false)
+  def tileResetTo(rst: Bool, toClock: Clock): Bool = rst
+
+  elaborate()
 }
 
 class MultiClockIO(nTiles: Int) extends Bundle {
@@ -259,57 +323,38 @@ class MultiClockCoreplex(tp: Parameters, tc: CoreplexConfig)
     val clocks = new MultiClockIO(c.nTiles).asInput
   }
 
-  val tileResets = Wire(Vec(tc.nTiles, Bool()))
-  val tileList = buildTiles(
-    io.clocks.tileClocks,
-    io.clocks.tileClocks.zip(tileResets).map {
-      case (clk, rst) => LevelSyncTo(clk, rst)
-    })
-  val nCachedPorts = tileList.map(_.io.cached.size).foldLeft(0)(_ + _)
-  val nUncachedPorts = tileList.map(_.io.uncached.size).foldLeft(0)(_ + _)
+  def getTileClocks: Seq[Clock] = io.clocks.tileClocks
+  def getL2Clock: Clock = io.clocks.l2Clock
+  def getL2Reset: Bool = io.clocks.l2Reset
 
-  val l2block = buildL2Block(io.clocks.l2Clock, io.clocks.l2Reset,
-                  nCachedPorts, nUncachedPorts)
+  def tlCachedCrossing(cached: ClientTileLinkIO,
+      fromClock: Clock, fromReset: Bool,
+      toClock: Clock, toReset: Bool): ClientTileLinkIO =
+    AsyncClientTileLinkCrossing(fromClock, fromReset, cached, toClock, toReset)
 
-  l2block.io.tiles_cached <> tileList.flatMap { tile =>
-    tile.io.cached.map(AsyncClientTileLinkCrossing(
-      tile.clock, tile.reset, _,
-      l2block.clock, l2block.reset))
-  }
+  def tlUncachedCrossing(uncached: ClientUncachedTileLinkIO,
+      fromClock: Clock, fromReset: Bool,
+      toClock: Clock, toReset: Bool): ClientUncachedTileLinkIO =
+    AsyncClientUncachedTileLinkCrossing(fromClock, fromReset, uncached, toClock, toReset)
 
-  l2block.io.tiles_uncached <> tileList.flatMap { tile =>
-    tile.io.uncached.map(AsyncClientUncachedTileLinkCrossing(
-      tile.clock, tile.reset, _,
-      l2block.clock, l2block.reset))
-  }
+  def tlUncachedTo(uncached: ClientUncachedTileLinkIO,
+      toClock: Clock, toReset: Bool): ClientUncachedTileLinkIO =
+    AsyncClientUncachedTileLinkTo(toClock, toReset, uncached)
 
-  l2block.io.slave <> io.slave.map(
-    AsyncClientUncachedTileLinkTo(l2block.clock, l2block.reset, _))
+  def tlUncachedFrom(uncached: ClientUncachedTileLinkIO,
+      fromClock: Clock, fromReset: Bool): ClientUncachedTileLinkIO =
+    AsyncClientUncachedTileLinkFrom(fromClock, fromReset, uncached)
 
-  io.master.mem <> l2block.io.mem.map(
-    AsyncClientUncachedTileLinkFrom(l2block.clock, l2block.reset, _))
+  def tileInterruptsTo(
+      int: TileInterrupts, toClock: Clock, toReset: Bool): TileInterrupts =
+    LevelSyncTo(toClock, int)
 
-  // We need to associate the clock and reset with each slave for the clock-crossing
-  val tileSlaves = tileList.flatMap(tile => tile.io.slave.map((_, tile.clock, tile.reset)))
-  val mmioBlock = buildMMIONetwork(tileSlaves.size)
+  def tileResetTo(rst: Bool, toClock: Clock): Bool = LevelSyncTo(toClock, rst)
 
-  mmioBlock.io.slave <> AsyncClientUncachedTileLinkFrom(
-    l2block.clock, l2block.reset, l2block.io.mmio)
-
-  tileSlaves.zip(mmioBlock.io.tileSlaves).map {
-    case ((tileSlave, clk, rst), mmioSlave) =>
-      tileSlave <> AsyncClientUncachedTileLinkTo(clk, rst, mmioSlave)
-  }
-
-  tileList.zip(mmioBlock.io.tileInterrupts).map {
-    case (tile, int) => tile.io.interrupts := LevelSyncTo(tile.clock, int)
-  }
-
-  tileResets := mmioBlock.io.tileResets
-
-  io.success := Bool(false)
+  elaborate()
 }
 
 class GroundTestCoreplex(tp: Parameters, tc: CoreplexConfig) extends DefaultCoreplex(tp, tc) {
-  io.success := tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
+  override def getSuccess(tileList: Seq[Tile]): Bool =
+    tileList.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
 }
