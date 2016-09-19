@@ -137,11 +137,18 @@ case class WideCounter(width: Int, inc: UInt = UInt(1), reset: Boolean = true)
 
   private val large = if (isWide) {
     val r = if (reset) Reg(init=UInt(0, width - smallWidth)) else Reg(UInt(width = width - smallWidth))
-    when (nextSmall(smallWidth)) { r := r + UInt(1) }
+    when (nextSmall(smallWidth)) { r := r +& UInt(1) }
     r
   } else null
 
   val value = if (isWide) Cat(large, small) else small
+  lazy val carryOut = {
+    val lo = (small ^ nextSmall) >> 1
+    if (!isWide) lo else {
+      val hi = Mux(nextSmall(smallWidth), large ^ (large +& UInt(1)), UInt(0)) >> 1
+      Cat(hi, lo)
+    }
+  }
 
   def := (x: UInt) = {
     small := x
