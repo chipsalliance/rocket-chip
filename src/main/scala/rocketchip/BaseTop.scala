@@ -61,8 +61,6 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
   val coreplex = p(BuildCoreplex)(p, outer.c)
   val io: B = b(coreplex)
 
-  io.success := coreplex.io.success
-
   val mmioNetwork =
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:ext"))(
       p.alterPartial({ case TLId => "L2toMMIO" })))
@@ -80,4 +78,6 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
   println("Generated Configuration String")
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
+
+  io.success := coreplex.io.success
 }
