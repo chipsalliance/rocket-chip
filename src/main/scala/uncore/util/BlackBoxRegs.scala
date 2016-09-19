@@ -5,12 +5,16 @@ import Chisel._
 import cde.{Parameters}
 
 /** This black-boxes an Async Reset
-  * Reg.
+  *  (or Set)
+  * Register.
   *  
   * Because Chisel doesn't support
   * parameterized black boxes, 
   * we unfortunately have to 
   * instantiate a number of these.
+  *  
+  *  We also have to hard-code the set/
+  *  reset behavior.
   *  
   *  Do not confuse an asynchronous
   *  reset signal with an asynchronously
@@ -22,29 +26,25 @@ import cde.{Parameters}
   *  @param q Data Output
   *  @param clk Clock Input
   *  @param rst Reset Input
+  *  @param en Write Enable Input
   *  
-  *  @param init Value to write at Reset. 
-  *  This is a constant, 
-  *  but this construction
-  *  will likely make backend flows
-  *  and lint tools unhappy.
-  * 
   */
 
-class AsyncResetReg  extends BlackBox {
+abstract class AbstractBBReg extends BlackBox {
 
   val io = new Bundle {
     val d = Bool(INPUT)
     val q = Bool(OUTPUT)
+    val en = Bool(INPUT)
 
     val clk = Clock(INPUT)
     val rst = Bool(INPUT)
-
-    val init = Bool(INPUT)
   }
 
 }
 
+class AsyncResetReg  extends AbstractBBReg
+class AsyncSetReg extends AbstractBBReg
 
 class SimpleRegIO(val w: Int) extends Bundle{
 
@@ -55,29 +55,56 @@ class SimpleRegIO(val w: Int) extends Bundle{
 
 }
 
-class AsyncResetRegVec(val w: Int, val init: Int) extends Module {
+class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
 
   val io = new SimpleRegIO(w)
 
-  val bb_q = Wire(UInt(width = w))
-  val bb_d = Wire(UInt(width = w))
+  val bb_d = Mux(io.en, io.d, io.q)
 
-  val init_val = Wire(UInt(width = w))
-  init_val := UInt(init, width = w)
+  val async_regs: List[AbstractBBReg] = List.tabulate(w)(
+    i => Module (
+      if (((init >> i) % 2) > 0)
+        new AsyncSetReg
+      else
+        new AsyncResetReg)
+  )
 
-  val async_regs = List.fill(w)(Module (new AsyncResetReg))
+  io.q := async_regs.map(_.io.q).asUInt
 
-  bb_q := (async_regs.map(_.io.q)).asUInt()
-  bb_d := Mux(io.en , io.d , bb_q)
-
-  io.q := bb_q
-
-  
   for ((reg, idx) <- async_regs.zipWithIndex) {
     reg.io.clk := clock
     reg.io.rst := reset
-    reg.io.init := init_val(idx)
-    reg.io.d := bb_d(idx)
+    reg.io.d   := bb_d(idx)
+    reg.io.en  := io.en
   }
 
+}
+
+object AsyncResetReg {
+  def apply(d: Bool, clk: Clock, rst: Bool, init: Boolean): Bool = {
+    val reg: AbstractBBReg =
+      if (init) Module (new AsyncSetReg)
+      else Module(new AsyncResetReg)
+    reg.io.d := d
+    reg.io.clk := clk
+    reg.io.rst := rst
+    reg.io.en  := Bool(true)
+    reg.io.q
+  }
+
+  def apply(d: Bool, clk: Clock, rst: Bool): Bool = apply(d, clk, rst, false)
+
+  def apply(updateData: UInt, resetData: BigInt, enable: Bool): UInt = {
+    val w = updateData.getWidth max resetData.bitLength
+    val reg = Module(new AsyncResetRegVec(w, resetData))
+    reg.io.d := updateData
+    reg.io.en := enable
+    reg.io.q
+  }
+
+  def apply(updateData: UInt, resetData: BigInt): UInt = apply(updateData, resetData, enable=Bool(true))
+
+  def apply(updateData: UInt, enable: Bool): UInt = apply(updateData, resetData=BigInt(0), enable)
+
+  def apply(updateData: UInt): UInt = apply(updateData, resetData=BigInt(0), enable=Bool(true))
 }

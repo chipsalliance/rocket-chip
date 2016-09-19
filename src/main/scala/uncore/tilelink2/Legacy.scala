@@ -49,7 +49,7 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     // During conversion from TL Legacy, we won't support Acquire
 
     // Must be able to fit TL2 sink_id into TL legacy
-    require ((1 << tlManagerXactIdBits) >= edge.manager.endSinkId)
+    require ((1 << tlManagerXactIdBits) >= edge.manager.endSinkId || !edge.manager.anySupportAcquire)
 
     val out = io.out(0)
     out.a.valid := io.legacy.acquire.valid
@@ -78,6 +78,8 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
         MemoryOpConstants.M_XA_MINU -> edge.Arithmetic(source, address, beat, data, TLAtomics.MINU)._2,
         MemoryOpConstants.M_XA_MAXU -> edge.Arithmetic(source, address, beat, data, TLAtomics.MAXU)._2))
     } else {
+      // If no managers support atomics, assert fail if TL1 asks for them
+      assert (!io.legacy.acquire.valid || io.legacy.acquire.bits.a_type =/= Acquire.putAtomicType)
       Wire(new TLBundleA(edge.bundle))
     }
 
