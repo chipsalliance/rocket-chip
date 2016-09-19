@@ -1,21 +1,20 @@
 #--------------------------------------------------------------------
 # Verilog Generation
 #--------------------------------------------------------------------
+firrtl = $(generated_dir)/$(long_name).fir
+verilog = $(generated_dir)/$(long_name).v
+
 # If I don't mark these as .SECONDARY then make will delete these internal
 # files.
-.SECONDARY: $(generated_dir)/$(long_name).fir
+.SECONDARY: $(firrtl) $(verilog)
 
-firrtl: $(generated_dir)/$(long_name).fir
-
-.PHONY: firrtl
-
-$(generated_dir)/%.fir $(generated_dir)/%.d $(generated_dir)/%.prm: $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.fir $(generated_dir)/%.prm $(generated_dir)/%.d: $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
 $(generated_dir)/$(long_name).v $(generated_dir)/$(long_name).conf : $(firrtl) $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) -i $< -o $@ -X verilog --inferRW $(MODEL) --replSeqMem -c:$(MODEL):-o:$(generated_dir)/$(long_name).conf
+	$(FIRRTL) -i $< -o $(generated_dir)/$(long_name).v -X verilog --inferRW $(MODEL) --replSeqMem -c:$(MODEL):-o:$(generated_dir)/$(long_name).conf
 
 $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(mem_gen)
 	cd $(generated_dir) && \
