@@ -53,11 +53,11 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   peripheryBus.node := TLBuffer(TLWidthWidget(TLHintHandler(legacy.node), legacy.tlDataBytes))
 }
 
-class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBundle()(p) {
+abstract class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBundle()(p) {
   val success = c.hasSuccessFlag.option(Bool(OUTPUT))
 }
 
-class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L, b: Coreplex => B) extends LazyModuleImp(l) {
+abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L, b: Coreplex => B) extends LazyModuleImp(l) {
   val outer: L = l
 
   val coreplex = p(BuildCoreplex)(p, outer.c)
