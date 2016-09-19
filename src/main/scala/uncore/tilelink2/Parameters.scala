@@ -289,7 +289,10 @@ case class TLClientParameters(
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
 
-case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
+case class TLClientPortParameters(
+  clients:       Seq[TLClientParameters],
+  unsafeAtomics: Boolean = false) // Atomics are executed as get+put
+{
   require (!clients.isEmpty)
 
   // Require disjoint ranges for Ids
