@@ -27,6 +27,10 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   val pBusMasters = new RangeManager
   val pDevices = new ResourceManager[AddrMapEntry]
 
+  // Add a peripheral bus
+  val peripheryBus = LazyModule(new TLXbar)
+  lazy val peripheryManagers = peripheryBus.node.edgesIn(0).manager.managers
+
   lazy val c = CoreplexConfig(
     nTiles = q(NTiles),
     nExtInterrupts = pInterrupts.sum,
@@ -36,16 +40,14 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
     hasExtMMIOPort = true
   )
 
-  lazy val genGlobalAddrMap = GenerateGlobalAddrMap(q, pDevices.get)
+  lazy val genGlobalAddrMap = GenerateGlobalAddrMap(q, pDevices.get, peripheryManagers)
   private val qWithMap = q.alterPartial({case GlobalAddrMap => genGlobalAddrMap})
 
-  lazy val genConfigString = GenerateConfigString(qWithMap, c, pDevices.get)
+  lazy val genConfigString = GenerateConfigString(qWithMap, c, pDevices.get, peripheryManagers)
   implicit val p = qWithMap.alterPartial({
     case ConfigString => genConfigString
     case NCoreplexExtClients => pBusMasters.sum})
 
-  // Add a peripheral bus
-  val peripheryBus = LazyModule(new TLXbar)
   val legacy = LazyModule(new TLLegacy()(p.alterPartial({ case TLId => "L2toMMIO" })))
 
   peripheryBus.node := TLBuffer(TLWidthWidget(TLHintHandler(legacy.node), legacy.tlDataBytes))
@@ -55,7 +57,7 @@ class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBun
   val success = Bool(OUTPUT)
 }
 
-class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L, b: Coreplex => B) extends LazyModuleImp(l) {
+abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L, b: Coreplex => B) extends LazyModuleImp(l) {
   val outer: L = l
 
   val coreplex = p(BuildCoreplex)(p, outer.c)
@@ -72,7 +74,12 @@ class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L,
     val name = entry.name
     val start = entry.region.start
     val end = entry.region.start + entry.region.size - 1
-    println(f"\t$name%s $start%x - $end%x")
+    val prot = entry.region.attr.prot
+    val protStr = (if ((prot & AddrMapProt.R) > 0) "R" else "") +
+                  (if ((prot & AddrMapProt.W) > 0) "W" else "") +
+                  (if ((prot & AddrMapProt.X) > 0) "X" else "")
+    val cacheable = if (entry.region.attr.cacheable) " [C]" else ""
+    println(f"\t$name%s $start%x - $end%x, $protStr$cacheable")
   }
 
   println("Generated Configuration String")

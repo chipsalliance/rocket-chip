@@ -231,7 +231,7 @@ class TLEdgeOut(
   // Transfers
   def Acquire(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
     require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquire(toAddress, lgSize)
+    val legal = manager.supportsAcquireFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Acquire
     a.param   := growPermissions
@@ -245,7 +245,7 @@ class TLEdgeOut(
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt) = {
     require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquire(toAddress, lgSize)
+    val legal = manager.supportsAcquireFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.Release
     c.param   := shrinkPermissions
@@ -260,7 +260,7 @@ class TLEdgeOut(
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt, data: UInt) = {
     require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquire(toAddress, lgSize)
+    val legal = manager.supportsAcquireFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ReleaseData
     c.param   := shrinkPermissions
@@ -308,7 +308,7 @@ class TLEdgeOut(
   // Accesses
   def Get(fromSource: UInt, toAddress: UInt, lgSize: UInt) = {
     require (manager.anySupportGet)
-    val legal = manager.supportsGet(toAddress, lgSize)
+    val legal = manager.supportsGetFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Get
     a.param   := UInt(0)
@@ -322,7 +322,7 @@ class TLEdgeOut(
 
   def Put(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt) = {
     require (manager.anySupportPutFull)
-    val legal = manager.supportsPutFull(toAddress, lgSize)
+    val legal = manager.supportsPutFullFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.PutFullData
     a.param   := UInt(0)
@@ -336,7 +336,7 @@ class TLEdgeOut(
 
   def Put(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, mask : UInt) = {
     require (manager.anySupportPutPartial)
-    val legal = manager.supportsPutPartial(toAddress, lgSize)
+    val legal = manager.supportsPutPartialFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.PutPartialData
     a.param   := UInt(0)
@@ -350,7 +350,7 @@ class TLEdgeOut(
 
   def Arithmetic(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, atomic: UInt) = {
     require (manager.anySupportArithmetic)
-    val legal = manager.supportsArithmetic(toAddress, lgSize)
+    val legal = manager.supportsArithmeticFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.ArithmeticData
     a.param   := atomic
@@ -364,7 +364,7 @@ class TLEdgeOut(
 
   def Logical(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, atomic: UInt) = {
     require (manager.anySupportLogical)
-    val legal = manager.supportsLogical(toAddress, lgSize)
+    val legal = manager.supportsLogicalFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.LogicalData
     a.param   := atomic
@@ -378,7 +378,7 @@ class TLEdgeOut(
 
   def Hint(fromSource: UInt, toAddress: UInt, lgSize: UInt, param: UInt) = {
     require (manager.anySupportHint)
-    val legal = manager.supportsHint(toAddress, lgSize)
+    val legal = manager.supportsHintFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Hint
     a.param   := param
@@ -445,7 +445,7 @@ class TLEdgeIn(
   // Transfers
   def Probe(fromAddress: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt) = {
     require (client.anySupportProbe)
-    val legal = client.supportsProbe(fromAddress, lgSize)
+    val legal = client.supportsProbe(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.Probe
     b.param   := capPermissions

@@ -45,7 +45,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
 
       // Who wants what?
       val address = edgeIn.address(in.a.bits)
-      val handleA = if (passthrough) !edgeOut.manager.supportsHint(address, edgeIn.size(in.a.bits)) else Bool(true)
+      val handleA = if (passthrough) !edgeOut.manager.supportsHintFast(address, edgeIn.size(in.a.bits)) else Bool(true)
       val hintBitsAtA = handleA && in.a.bits.opcode === TLMessages.Hint
       val hintWantsD = in.a.valid && hintBitsAtA
       val outerWantsD = out.d.valid
@@ -57,7 +57,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       assert (!hintHoldsD || hintWantsD)
 
       in.d.valid  := Mux(hintWinsD, hintWantsD, outerWantsD)
-      in.d.bits   := Mux(hintWinsD, edgeIn.HintAck(in.a.bits, edgeOut.manager.findId(address)), out.d.bits)
+      in.d.bits   := Mux(hintWinsD, edgeIn.HintAck(in.a.bits, edgeOut.manager.findIdStartFast(address)), out.d.bits)
       out.d.ready := in.d.ready && !hintHoldsD
 
       in.a.ready  := Mux(hintBitsAtA, hintWinsD && in.d.ready, out.a.ready)

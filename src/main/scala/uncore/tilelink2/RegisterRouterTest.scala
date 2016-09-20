@@ -26,15 +26,15 @@ class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => B
     val wdata  = UInt(INPUT, width = bits)
   }
 
-  val rfire = io.rvalid && io.rready
-  val wfire = io.wvalid && io.wready
   val reg = Reg(UInt(width = bits))
 
-  io.rvalid := rvalid(rfire)
-  io.wready := wready(wfire)
+  val rvalid_s = rvalid(io.rready)
+  val wready_s = wready(io.wvalid)
+  io.rvalid := rvalid_s
+  io.wready := wready_s
 
   io.rdata := reg
-  when (wfire) { reg := io.wdata }
+  when (io.wvalid && wready_s) { reg := io.wdata }
 }
 
 object RRTestCombinational
@@ -43,19 +43,19 @@ object RRTestCombinational
 
   def always: Bool => Bool = _ => Bool(true)
 
-  def random: Bool => Bool = { fire =>
+  def random: Bool => Bool = { ready =>
     seed = seed + 1
     val lfsr = LFSR16Seed(seed)
-    val reg = RegInit(Bool(true))
-    reg := Mux(reg, !fire, lfsr(0) && lfsr(1))
-    reg
+    val valid = RegInit(Bool(true))
+    valid := Mux(valid, !ready, lfsr(0) && lfsr(1))
+    valid
   }
 
-  def delay(x: Int): Bool => Bool = { fire =>
+  def delay(x: Int): Bool => Bool = { ready =>
     val reg = RegInit(UInt(0, width = log2Ceil(x+1)))
-    val ready = reg === UInt(0)
-    reg := Mux(fire, UInt(x), Mux(ready, UInt(0), reg - UInt(1)))
-    ready
+    val valid = reg === UInt(0)
+    reg := Mux(ready && valid, UInt(x), Mux(valid, UInt(0), reg - UInt(1)))
+    valid
   }
 
   def combo(bits: Int, rvalid: Bool => Bool, wready: Bool => Bool): RegField = {

@@ -189,7 +189,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgHints       = maxHints      .map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
 
     // If this is infront of a single manager, these become constants
-    val find = manager.find(edgeIn.address(in.a.bits))
+    val find = manager.findFast(edgeIn.address(in.a.bits))
     val maxLgArithmetic  = Mux1H(find, maxLgArithmetics)
     val maxLgLogical     = Mux1H(find, maxLgLogicals)
     val maxLgGet         = Mux1H(find, maxLgGets)

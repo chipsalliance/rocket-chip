@@ -127,21 +127,28 @@ object Split
 }
 
 // a counter that clock gates most of its MSBs using the LSB carry-out
-case class WideCounter(width: Int, inc: UInt = UInt(1))
+case class WideCounter(width: Int, inc: UInt = UInt(1), reset: Boolean = true)
 {
   private val isWide = width > 2*inc.getWidth
   private val smallWidth = if (isWide) inc.getWidth max log2Up(width) else width
-  private val small = Reg(init=UInt(0, smallWidth))
+  private val small = if (reset) Reg(init=UInt(0, smallWidth)) else Reg(UInt(width = smallWidth))
   private val nextSmall = small +& inc
   small := nextSmall
 
   private val large = if (isWide) {
-    val r = Reg(init=UInt(0, width - smallWidth))
-    when (nextSmall(smallWidth)) { r := r + UInt(1) }
+    val r = if (reset) Reg(init=UInt(0, width - smallWidth)) else Reg(UInt(width = width - smallWidth))
+    when (nextSmall(smallWidth)) { r := r +& UInt(1) }
     r
   } else null
 
   val value = if (isWide) Cat(large, small) else small
+  lazy val carryOut = {
+    val lo = (small ^ nextSmall) >> 1
+    if (!isWide) lo else {
+      val hi = Mux(nextSmall(smallWidth), large ^ (large +& UInt(1)), UInt(0)) >> 1
+      Cat(hi, lo)
+    }
+  }
 
   def := (x: UInt) = {
     small := x

@@ -24,7 +24,7 @@ object TLMonitor
     val mask = edge.full_mask(bundle)
 
     when (bundle.opcode === TLMessages.Acquire) {
-      assert (edge.manager.supportsAcquire(edge.address(bundle), bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
+      assert (edge.manager.supportsAcquireSafe(edge.address(bundle), bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
       assert (source_ok, "'A' channel Acquire carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'A' channel Acquire smaller than a beat" + extra)
       assert (is_aligned, "'A' channel Acquire address not aligned to size" + extra)
@@ -33,7 +33,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      assert (edge.manager.supportsGet(edge.address(bundle), bundle.size), "'A' channel carries Get type unsupported by manager" + extra)
+      assert (edge.manager.supportsGetSafe(edge.address(bundle), bundle.size), "'A' channel carries Get type unsupported by manager" + extra)
       assert (source_ok, "'A' channel Get carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Get address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'A' channel Get carries invalid param" + extra)
@@ -41,7 +41,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      assert (edge.manager.supportsPutFull(edge.address(bundle), bundle.size), "'A' channel carries PutFull type unsupported by manager" + extra)
+      assert (edge.manager.supportsPutFullSafe(edge.address(bundle), bundle.size), "'A' channel carries PutFull type unsupported by manager" + extra)
       assert (source_ok, "'A' channel PutFull carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel PutFull address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'A' channel PutFull carries invalid param" + extra)
@@ -49,7 +49,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      assert (edge.manager.supportsPutPartial(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type unsupported by manager" + extra)
+      assert (edge.manager.supportsPutPartialSafe(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type unsupported by manager" + extra)
       assert (source_ok, "'A' channel PutPartial carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'A' channel PutPartial carries invalid param" + extra)
@@ -57,7 +57,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      assert (edge.manager.supportsArithmetic(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type unsupported by manager" + extra)
+      assert (edge.manager.supportsArithmeticSafe(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type unsupported by manager" + extra)
       assert (source_ok, "'A' channel Arithmetic carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Arithmetic address not aligned to size" + extra)
       assert (TLAtomics.isArithmetic(bundle.param), "'A' channel Arithmetic carries invalid opcode param" + extra)
@@ -65,7 +65,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      assert (edge.manager.supportsLogical(edge.address(bundle), bundle.size), "'A' channel carries Logical type unsupported by manager" + extra)
+      assert (edge.manager.supportsLogicalSafe(edge.address(bundle), bundle.size), "'A' channel carries Logical type unsupported by manager" + extra)
       assert (source_ok, "'A' channel Logical carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Logical address not aligned to size" + extra)
       assert (TLAtomics.isLogical(bundle.param), "'A' channel Logical carries invalid opcode param" + extra)
@@ -73,7 +73,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      assert (edge.manager.supportsHint(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
+      assert (edge.manager.supportsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
       assert (source_ok, "'A' channel Hint carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
       assert (bundle.mask === mask, "'A' channel Hint contains invalid mask" + extra)
@@ -84,7 +84,7 @@ object TLMonitor
     assert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
 
     // Reuse these subexpressions to save some firrtl lines
-    val address_ok = edge.manager.contains(bundle.source)
+    val address_ok = edge.manager.containsSafe(edge.address(bundle))
     val is_aligned = edge.isHiAligned(bundle.addr_hi, bundle.size)
     val mask = edge.full_mask(bundle)
 
@@ -150,7 +150,7 @@ object TLMonitor
 
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isHiAligned(bundle.addr_hi, bundle.size) && edge.isLoAligned(bundle.addr_lo, bundle.size)
-    val address_ok = edge.manager.contains(bundle.source)
+    val address_ok = edge.manager.containsSafe(edge.address(bundle))
 
     when (bundle.opcode === TLMessages.ProbeAck) {
       assert (address_ok, "'C' channel ProbeAck carries unmanaged address" + extra)
@@ -171,7 +171,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.Release) {
-      assert (edge.manager.supportsAcquire(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      assert (edge.manager.supportsAcquireSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
       assert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel Release smaller than a beat" + extra)
       assert (is_aligned, "'C' channel Release address not aligned to size" + extra)
@@ -180,7 +180,7 @@ object TLMonitor
     }
 
     when (bundle.opcode === TLMessages.ReleaseData) {
-      assert (edge.manager.supportsAcquire(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      assert (edge.manager.supportsAcquireSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
       assert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ReleaseData smaller than a beat" + extra)
       assert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
