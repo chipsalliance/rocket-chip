@@ -227,7 +227,11 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_mcause = Reg(Bits(width = xLen))
   val reg_mbadaddr = Reg(UInt(width = vaddrBitsExtended))
   val reg_mscratch = Reg(Bits(width = xLen))
-  val reg_mtvec = Reg(init=UInt(p(MtvecInit), paddrBits min xLen))
+  val mtvecWidth = paddrBits min xLen
+  val reg_mtvec = p(MtvecInit) match {
+    case Some(addr) => Reg(init=UInt(addr, mtvecWidth))
+    case None => Reg(UInt(width = mtvecWidth))
+  }
   val reg_mucounteren = Reg(UInt(width = 32))
   val reg_mscounteren = Reg(UInt(width = 32))
   val delegable_counters = (BigInt(1) << (nPerfCounters + CSR.firstHPM)) - 1

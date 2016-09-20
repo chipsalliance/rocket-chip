@@ -60,6 +60,7 @@ class CoreplexIO(implicit val p: Parameters, implicit val c: CoreplexConfig)
   val interrupts = Vec(c.nExtInterrupts, Bool()).asInput
   val debug = new DebugBusIO()(p).flip
   val clint = Vec(c.nTiles, new CoreplexLocalInterrupts).asInput
+  val resetVector = UInt(INPUT, p(XLen))
   val success = Bool(OUTPUT)
 
   override def cloneType = new CoreplexIO()(p, c).asInstanceOf[this.type]
@@ -182,6 +183,7 @@ abstract class BaseCoreplex(tp: Parameters, tc: CoreplexConfig)
         val tile = tileBuilder(rst, p)
         tile.clock := clk
         tile.io.hartid := UInt(i)
+        tile.io.resetVector := io.resetVector
         tile
     }
   }
@@ -270,8 +272,8 @@ abstract class BaseCoreplex(tp: Parameters, tc: CoreplexConfig)
         tileSlave <> tlUncachedTo(mmioSlave, clk, rst)
     }
 
-    tileList.zip(mmioBlock.io.tileInterrupts).map {
-      case (tile, int) => tile.io.interrupts := tileInterruptsTo(int, tile.clock, tile.reset)
+    tileList.zip(mmioBlock.io.tileInterrupts).map { case (tile, int) =>
+      tile.io.interrupts := tileInterruptsTo(int, tile.clock, tile.reset)
     }
 
     io.success := getSuccess(tileList)

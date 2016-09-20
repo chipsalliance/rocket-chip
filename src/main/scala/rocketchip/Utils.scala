@@ -168,21 +168,14 @@ object GenerateConfigString {
 }
 
 object GenerateBootROM {
-  def apply(p: Parameters) = {
+  def apply(p: Parameters, address: BigInt) = {
     val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
     val rom = ByteBuffer.wrap(romdata)
 
     rom.order(ByteOrder.LITTLE_ENDIAN)
 
-    // for now, have the reset vector jump straight to memory
-    val memBase = (
-      if (p(GlobalAddrMap) contains "mem") p(GlobalAddrMap)("mem")
-      else p(GlobalAddrMap)("io:int:dmem0")
-    ).start
-    val resetToMemDist = memBase - p(ResetVector)
-    require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
-    val configStringAddr = p(ResetVector).toInt + rom.capacity
-
+    require(address == address.toInt)
+    val configStringAddr = address.toInt + rom.capacity
     require(rom.getInt(12) == 0,
       "Config string address position should not be occupied by code")
     rom.putInt(12, configStringAddr)

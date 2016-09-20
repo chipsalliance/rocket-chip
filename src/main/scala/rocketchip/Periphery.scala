@@ -317,7 +317,9 @@ trait PeripheryBootROM extends LazyModule {
   implicit val p: Parameters
   val peripheryBus: TLXbar
 
-  val rom = LazyModule(new TLROM(0x1000, 0x1000, GenerateBootROM(p)) { override def name = "bootrom" })
+  val address = 0x1000
+  val size = 0x1000
+  val rom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address)) { override def name = "bootrom" })
   rom.node := TLFragmenter(peripheryBus.node, 4, 256)
 }
 
@@ -392,4 +394,11 @@ trait PeripheryMultiClockModule {
   val coreplex: Coreplex
 
   coreplex.io.elements.get("clocks").get := io.clocks
+}
+
+/////
+
+trait HardwiredResetVector {
+  val coreplex: Coreplex
+  coreplex.io.resetVector := UInt(0x1000) // boot ROM
 }
