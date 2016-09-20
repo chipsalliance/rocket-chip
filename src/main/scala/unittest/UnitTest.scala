@@ -18,6 +18,7 @@ abstract class UnitTest extends Module with HasUnitTestIO {
 }
 
 case object UnitTests extends Field[Parameters => Seq[UnitTest]]
+case object UnitTestTimeout extends Field[Int]
 
 class UnitTestSuite(implicit p: Parameters) extends Module {
   val io = new Bundle {
@@ -39,7 +40,7 @@ class UnitTestSuite(implicit p: Parameters) extends Module {
     state := Mux(test_idx === UInt(tests.size - 1), s_done, s_start)
   }
 
-  val timer = Module(new Timer(500000, tests.size))
+  val timer = Module(new Timer(p(UnitTestTimeout), tests.size))
   timer.io.start.valid := Bool(false)
   timer.io.stop.valid := Bool(false)
 

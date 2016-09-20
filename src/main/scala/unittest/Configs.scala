@@ -9,15 +9,36 @@ import cde.{Parameters, Config, CDEMatchError}
 import coreplex._
 import rocketchip._
 
-class WithUnitTest extends Config(
+class WithJunctionsUnitTests extends Config(
   (pname, site, here) => pname match {
-    case UnitTests => (testParams: Parameters) => {
+    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
+    case UnitTests => (p: Parameters) => {
       TestGeneration.addSuite(DefaultTestSuites.groundtest64("p")) // TODO why
       TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-      JunctionsUnitTests(testParams) ++ UncoreUnitTests(testParams) // TODO refactor
+      Seq(
+        Module(new junctions.MultiWidthFifoTest),
+        Module(new junctions.NastiMemoryDemuxTest()(p)),
+        Module(new junctions.HastiTest()(p)))
     }
-    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
+    case UnitTestTimeout => 50000
     case _ => throw new CDEMatchError
   })
 
-class UnitTestConfig extends Config(new WithUnitTest ++ new BaseConfig)
+class WithUncoreUnitTests extends Config(
+  (pname, site, here) => pname match {
+    case NCoreplexExtClients => 0
+    case uncore.tilelink.TLId => "L1toL2"
+    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
+    case UnitTests => (p: Parameters) => {
+      TestGeneration.addSuite(DefaultTestSuites.groundtest64("p")) // TODO why
+      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
+      Seq(
+        Module(new uncore.devices.ROMSlaveTest()(p)),
+        Module(new uncore.devices.TileLinkRAMTest()(p)),
+        Module(new uncore.tilelink2.TLFuzzRAMTest))
+    }
+    case UnitTestTimeout => 500000
+    case _ => throw new CDEMatchError
+  })
+
+class UnitTestConfig extends Config(new WithUncoreUnitTests ++ new WithJunctionsUnitTests ++ new BaseConfig)
