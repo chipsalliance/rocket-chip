@@ -41,8 +41,7 @@ class BasePlatformConfig extends Config(
         }
         case BuildCoreplex =>
           (p: Parameters, c: CoreplexConfig) => Module(new DefaultCoreplex(p, c))
-        case NExtTopInterrupts => 2
-        // Note that PLIC asserts that this is > 0.
+        case NExtTopInterrupts => 0
         case AsyncDebugBus => false
         case IncludeJtagDTM => false
         case AsyncMMIOChannels => false
@@ -188,3 +187,14 @@ class WithJtagDTM extends Config (
     case _ => throw new CDEMatchError
   }
 )
+
+class WithMultiClock extends Config(
+  (pname, site, here) => pname match {
+    case BuildExampleTop => (p: Parameters) =>
+      LazyModule(new MultiClockExampleTop(p))
+    case BuildCoreplex => (p: Parameters, c: CoreplexConfig) =>
+      Module(new MultiClockCoreplex(p, c))
+    case _ => throw new CDEMatchError
+  })
+
+class MultiClockConfig extends Config(new WithMultiClock ++ new BaseConfig)

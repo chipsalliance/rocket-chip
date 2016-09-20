@@ -54,7 +54,7 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
 }
 
 abstract class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBundle()(p) {
-  val success = c.hasSuccessFlag.option(Bool(OUTPUT))
+  val success = Bool(OUTPUT)
 }
 
 abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L, b: Coreplex => B) extends LazyModuleImp(l) {
@@ -62,8 +62,6 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Paramete
 
   val coreplex = p(BuildCoreplex)(p, outer.c)
   val io: B = b(coreplex)
-
-  io.success zip coreplex.io.success map { case (x, y) => x := y }
 
   val mmioNetwork =
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:ext"))(
@@ -87,6 +85,8 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Paramete
   println("Generated Configuration String")
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
+
+  io.success := coreplex.io.success
 }
 
 /** Example Top with Periphery */
@@ -116,3 +116,17 @@ class ExampleTopWithTestRAMBundle(p: Parameters, c: Coreplex) extends ExampleTop
 
 class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle](p: Parameters, l: L, b: Coreplex => B) extends ExampleTopModule(p, l, b)
     with PeripheryTestRAMModule
+
+class MultiClockExampleTop(q: Parameters) extends ExampleTop(q)
+    with PeripheryMultiClock {
+  override lazy val module = Module(
+    new MultiClockExampleTopModule(p, this,
+      new MultiClockExampleTopBundle(p, _)))
+}
+
+class MultiClockExampleTopBundle(p: Parameters, c: Coreplex)
+  extends ExampleTopBundle(p, c) with PeripheryMultiClockBundle
+
+class MultiClockExampleTopModule[+L <: MultiClockExampleTop, +B <: MultiClockExampleTopBundle]
+  (p: Parameters, l: L, b: Coreplex => B)
+  extends ExampleTopModule(p, l, b) with PeripheryMultiClockModule

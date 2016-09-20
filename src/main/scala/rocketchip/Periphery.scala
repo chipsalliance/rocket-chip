@@ -166,7 +166,7 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   val coreplex: Coreplex
 
   // Abuse the fact that zip takes the shorter of the two lists
-  ((io.mem_axi zip coreplex.io.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
+  (io.mem_axi zip coreplex.io.master.mem).zipWithIndex.foreach { case ((axi, mem), idx) =>
     val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
     axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
@@ -180,8 +180,11 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
     ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)(outermostParams)
   }
 
-  (io.mem_tl zip coreplex.io.master.mem) foreach { case (tl, mem) =>
-    tl <> TileLinkEnqueuer(mem, 2)(outermostParams)
+  (io.mem_tl zip coreplex.io.master.mem).zipWithIndex.foreach { case ((tl, mem), idx) =>
+    val tl_sync = TileLinkEnqueuer(mem, 2)(outermostParams)
+    tl <> (
+      if (!p(AsyncMemChannels)) tl_sync
+      else AsyncClientUncachedTileLinkTo(io.mem_clk.get(idx), io.mem_rst.get(idx), tl_sync))
   }
 }
 
@@ -231,7 +234,10 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
       io.mmio_ahb(idx) <> PeripheryUtils.convertTLtoAHB(mmio_ports(i), atomics = true)(outermostMMIOParams)
     } else if (mmio_tl_start <= i && i < mmio_tl_end) {
       val idx = i-mmio_tl_start
-      io.mmio_tl(idx) <> TileLinkEnqueuer(mmio_ports(i), 2)(outermostMMIOParams)
+      val tl_sync = TileLinkEnqueuer(mmio_ports(i), 2)(outermostMMIOParams)
+      io.mmio_tl(idx) <> (
+        if (!p(AsyncMMIOChannels)) tl_sync
+        else AsyncClientUncachedTileLinkTo(io.mmio_clk.get(idx), io.mmio_rst.get(idx), tl_sync))
     } else {
       require(false, "Unconnected external MMIO port")
     }
@@ -366,6 +372,28 @@ trait PeripheryTestBusMasterBundle {
 trait PeripheryTestBusMasterModule {
   implicit val p: Parameters
   val outer: PeripheryTestBusMaster
+}
+
+/////
+
+trait PeripheryMultiClock extends LazyModule {
+  implicit val p: Parameters
+}
+
+trait PeripheryMultiClockBundle {
+  implicit val p: Parameters
+
+  val clocks = new MultiClockIO(p(NTiles)).asInput
+}
+
+trait PeripheryMultiClockModule {
+  implicit val p: Parameters
+
+  val outer: PeripheryMultiClock
+  val io: PeripheryMultiClockBundle
+  val coreplex: Coreplex
+
+  coreplex.io.elements.get("clocks").get := io.clocks
 }
 
 /////
