@@ -46,21 +46,24 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
   val io: CoreplexLocalInterrupterBundle
 
   val timeWidth = 64
-  val time = Reg(init=UInt(0, width = timeWidth))
-  when (io.rtcTick) { time := time + UInt(1) }
+  val regWidth = 32
+  // demand atomic accesses for RV64
+  require(c.beatBytes == (p(rocket.XLen) min timeWidth)/8)
 
-  val timecmp = Seq.fill(p(NTiles)) { Reg(UInt(width = timeWidth)) }
-  val ipi     = Seq.fill(p(NTiles)) { RegInit(UInt(0, width = 1)) }
+  val time = Seq.fill(timeWidth/regWidth)(Reg(init=UInt(0, width = regWidth)))
+  when (io.rtcTick) {
+    val newTime = time.asUInt + 1
+    for ((reg, i) <- time zip (0 until timeWidth by regWidth))
+      reg := newTime >> i
+  }
+
+  val timecmp = Seq.fill(p(NTiles)) { Seq.fill(timeWidth/regWidth)(Reg(UInt(width = regWidth))) }
+  val ipi = Seq.fill(p(NTiles)) { RegInit(UInt(0, width = 1)) }
 
   for ((tile, i) <- io.tiles zipWithIndex) {
     tile.msip := ipi(i)(0)
-    tile.mtip := time >= timecmp(i)
+    tile.mtip := time.asUInt >= timecmp(i).asUInt
   }
-
-  def pad = RegField(8) // each use is a new field
-  val ipi_fields = ipi.map(r => Seq(RegField(1, r), RegField(7), pad, pad, pad)).flatten
-  val timecmp_fields = timecmp.map(RegField.bytes(_)).flatten
-  val time_fields = Seq.fill(c.timeOffset % c.beatBytes)(pad) ++ RegField.bytes(time)
 
   /* 0000 msip hart 0
    * 0004 msip hart 1
@@ -76,9 +79,11 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
   val time_base    = c.timeOffset / c.beatBytes
 
   regmap((
-    RegField.split(ipi_fields,     ipi_base,     c.beatBytes) ++
-    RegField.split(timecmp_fields, timecmp_base, c.beatBytes) ++
-    RegField.split(time_fields,    time_base,    c.beatBytes)):_*)
+    RegField.split(makeRegFields(ipi),             ipi_base,     c.beatBytes) ++
+    RegField.split(makeRegFields(timecmp.flatten), timecmp_base, c.beatBytes) ++
+    RegField.split(makeRegFields(time),            time_base,    c.beatBytes)):_*)
+
+  def makeRegFields(s: Seq[UInt]) = s.map(r => RegField(regWidth, r))
 }
 
 /** Power, Reset, Clock, Interrupt */
