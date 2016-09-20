@@ -35,6 +35,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
     val cpu = new FrontendIO().flip
     val ptw = new TLBPTWIO()
     val mem = new ClientUncachedTileLinkIO
+    val resetVector = UInt(INPUT, vaddrBitsExtended)
   }
 
   val icache = Module(new ICache(latency = 2))
@@ -45,7 +46,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   val s1_speculative = Reg(Bool())
   val s1_same_block = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
-  val s2_pc = Reg(init=UInt(p(ResetVector)))
+  val s2_pc = Reg(init=io.resetVector)
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_xcpt_if = Reg(init=Bool(false))
