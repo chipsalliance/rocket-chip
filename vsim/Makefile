@@ -17,13 +17,12 @@ sim_dir = .
 output_dir = $(sim_dir)/output
 
 BACKEND ?= v
-CONFIG ?= DefaultConfig
 TB ?= TestDriver
 
 include $(base_dir)/Makefrag
 include $(sim_dir)/Makefrag
 ifneq ($(filter run% %.run %.out %.vpd %.vcd,$(MAKECMDGOALS)),)
--include $(generated_dir)/$(MODEL).$(CONFIG).d
+-include $(generated_dir)/$(long_name).d
 endif
 include $(base_dir)/vsim/Makefrag-verilog
 

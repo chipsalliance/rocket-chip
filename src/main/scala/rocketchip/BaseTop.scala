@@ -53,8 +53,8 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   peripheryBus.node := TLBuffer(TLWidthWidget(TLHintHandler(legacy.node), legacy.tlDataBytes))
 }
 
-abstract class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBundle()(p) {
-  val success = c.hasSuccessFlag.option(Bool(OUTPUT))
+class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBundle()(p) {
+  val success = Bool(OUTPUT)
 }
 
 abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L, b: Coreplex => B) extends LazyModuleImp(l) {
@@ -62,8 +62,6 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Paramete
 
   val coreplex = p(BuildCoreplex)(p, outer.c)
   val io: B = b(coreplex)
-
-  io.success zip coreplex.io.success map { case (x, y) => x := y }
 
   val mmioNetwork =
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:ext"))(
@@ -87,32 +85,6 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Paramete
   println("Generated Configuration String")
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
+
+  io.success := coreplex.io.success
 }
-
-/** Example Top with Periphery */
-class ExampleTop(q: Parameters) extends BaseTop(q)
-    with PeripheryBootROM with PeripheryDebug with PeripheryExtInterrupts with PeripheryCoreplexLocalInterrupter
-    with PeripheryMasterMem with PeripheryMasterMMIO with PeripherySlave {
-  override lazy val module = Module(new ExampleTopModule(p, this, new ExampleTopBundle(p, _)))
-}
-
-class ExampleTopBundle(p: Parameters, c: Coreplex) extends BaseTopBundle(p, c)
-    with PeripheryBootROMBundle with PeripheryDebugBundle with PeripheryExtInterruptsBundle with PeripheryCoreplexLocalInterrupterBundle
-    with PeripheryMasterMemBundle with PeripheryMasterMMIOBundle with PeripherySlaveBundle
-
-class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, l: L, b: Coreplex => B) extends BaseTopModule(p, l, b)
-    with PeripheryBootROMModule with PeripheryDebugModule with PeripheryExtInterruptsModule with PeripheryCoreplexLocalInterrupterModule
-    with PeripheryMasterMemModule with PeripheryMasterMMIOModule with PeripherySlaveModule
-    with HardwiredResetVector
-
-/** Example Top with TestRAM */
-class ExampleTopWithTestRAM(q: Parameters) extends ExampleTop(q)
-    with PeripheryTestRAM {
-  override lazy val module = Module(new ExampleTopWithTestRAMModule(p, this, new ExampleTopWithTestRAMBundle(p, _)))
-}
-
-class ExampleTopWithTestRAMBundle(p: Parameters, c: Coreplex) extends ExampleTopBundle(p, c)
-    with PeripheryTestRAMBundle
-
-class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle](p: Parameters, l: L, b: Coreplex => B) extends ExampleTopModule(p, l, b)
-    with PeripheryTestRAMModule

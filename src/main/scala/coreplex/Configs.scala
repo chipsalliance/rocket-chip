@@ -11,18 +11,11 @@ import uncore.devices._
 import uncore.converters._
 import rocket._
 import rocket.Util._
+import util.ConfigUtils._
 import rocketchip.{GlobalAddrMap, NCoreplexExtClients}
-import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
-
-object ConfigUtils {
-  def max_int(values: Int*): Int = {
-    values.reduce((a, b) => max(a, b))
-  }
-}
-import ConfigUtils._
 
 class BaseCoreplexConfig extends Config (
   topDefinitions = { (pname,site,here) => 
