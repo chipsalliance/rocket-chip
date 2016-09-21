@@ -422,10 +422,40 @@ object TLMonitor
     legalizeIrrevocable(bundle.e, edge)
   }
 
+  def legalizeSourceUnique(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+    val inflight = RegInit(Vec.fill(edge.client.endSourceId)(Bool(false)))
+
+    val a_counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val a_beats1 = edge.numBeats1(bundle.a.bits)
+    val a_first = a_counter === UInt(0)
+    val a_last = a_counter === UInt(1) || a_beats1 === UInt(0)
+
+    val d_counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val d_beats1 = edge.numBeats1(bundle.d.bits)
+    val d_first = d_counter === UInt(0)
+    val d_last = d_counter === UInt(1) || d_beats1 === UInt(0)
+
+    val bypass = bundle.a.bits.source === bundle.d.bits.source
+    val a_bypass = bypass && bundle.d.valid && d_last
+    val d_bypass = bypass && bundle.a.valid && a_last
+
+    when (bundle.a.fire()) {
+      a_counter := Mux(a_first, a_beats1, a_counter - UInt(1))
+      when (a_last) { inflight(bundle.a.bits.source) := Bool(true) }
+      assert(a_bypass || !inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
+    }
+
+    when (bundle.d.fire() && bundle.d.bits.opcode =/= TLMessages.ReleaseAck) {
+      d_counter := Mux(d_first, d_beats1, d_counter - UInt(1))
+      when (d_last) { inflight(bundle.d.bits.source) := Bool(false) }
+      assert(d_bypass || inflight(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
+    }
+  }
+
   def legalize(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     legalizeFormat     (bundle, edge)
     legalizeMultibeat  (bundle, edge)
     legalizeIrrevocable(bundle, edge)
-    // !!! validate source uniqueness
+    legalizeSourceUnique(bundle, edge)
   }
 }
