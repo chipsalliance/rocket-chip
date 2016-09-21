@@ -18,17 +18,14 @@ class Timer(initCount: Int, maxInflight: Int) extends Module {
   val countdown = Reg(UInt(width = log2Up(initCount)))
   val active = inflight.reduce(_ || _)
 
-  when (active) {
-    countdown := countdown - UInt(1)
-  }
+  when (active) { countdown := countdown - UInt(1) }
 
   when (io.start.valid) {
     inflight(io.start.bits) := Bool(true)
     countdown := UInt(initCount - 1)
   }
-  when (io.stop.valid) {
-    inflight(io.stop.bits) := Bool(false)
-  }
+
+  when (io.stop.valid) { inflight(io.stop.bits) := Bool(false) }
 
   io.timeout.valid := countdown === UInt(0) && active
   io.timeout.bits := PriorityEncoder(inflight)
@@ -50,17 +47,14 @@ class SimpleTimer(initCount: Int) extends Module {
   val countdown = Reg(UInt(width = log2Up(initCount)))
   val active = Reg(Bool())
 
-  when (active) {
-    countdown := countdown - UInt(1)
-  }
+  when (active) { countdown := countdown - UInt(1) }
 
   when (io.start) {
     active := Bool(true)
     countdown := UInt(initCount - 1)
   }
-  when (io.stop) {
-    active := Bool(false)
-  }
+
+  when (io.stop) { active := Bool(false) }
 
   io.timeout := countdown === UInt(0) && active
 }
