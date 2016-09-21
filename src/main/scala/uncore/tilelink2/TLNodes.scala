@@ -19,10 +19,13 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_)))).flip
   }
 
-  def connect(bo: TLBundle, eo: TLEdgeOut, bi: TLBundle, ei: TLEdgeIn)(implicit sourceInfo: SourceInfo): Unit = {
-    require (eo.asInstanceOf[TLEdgeParameters] == ei.asInstanceOf[TLEdgeParameters])
-    // TLMonitor.legalize(bo, eo)
-    bi <> bo
+  def connect(bo: => TLBundle, eo: => TLEdgeOut, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    val monitor = LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => eo, sourceInfo))
+    (Some(monitor), () => {
+      require (eo.asInstanceOf[TLEdgeParameters] == ei.asInstanceOf[TLEdgeParameters])
+      bi <> bo
+      monitor.module.io.in := TLBundleSnoop(bo)
+    })
   }
 
   override def mixO(po: TLClientPortParameters,  node: TLBaseNode): TLClientPortParameters  =
