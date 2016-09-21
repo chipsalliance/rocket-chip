@@ -88,6 +88,6 @@ class DefaultNarrowConfig extends Config(new NarrowIFConfig ++ new DefaultConfig
 
 class HurricaneUpstreamConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new WithNLanes(2) ++ new WithNL2AcquireXacts(9) ++ new WithL2Capacity(512) ++ new WithNBanksPerMemChannel(1) ++ new WithNMemoryChannels(8) ++ new Process28nmConfig ++ new NarrowIFConfig ++ new WithJtagDTM ++ new HwachaConfig)
 
-class HurricaneUpstreamTinyConfig extends Config(new WithoutConfPrec ++ new WithSmallPredRF ++ new WithNLanes(2)++ new WithNL2AcquireXacts(1) ++ new WithL2Capacity(64) ++ new HurricaneUpstreamConfig)
+class HurricaneUpstreamTinyConfig extends Config(new WithoutConfPrec ++ new WithSmallPredRF ++ new WithNLanes(2)++ new WithNL2AcquireXacts(3) ++ new WithL2Capacity(64) ++ new HurricaneUpstreamConfig)
 
 class HurricaneUpstreamConfigNoJtag extends Config(new NoJtagDTM ++ new HurricaneUpstreamConfig)

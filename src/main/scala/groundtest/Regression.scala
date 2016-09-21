@@ -5,7 +5,8 @@ import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
 import uncore.util._
-import junctions.{ParameterizedBundle, HasAddrMapParameters, Timer}
+import junctions.HasAddrMapParameters
+import util.{ParameterizedBundle, Timer}
 import rocket.HellaCacheIO
 import cde.{Parameters, Field}
 
@@ -71,7 +72,7 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
   io.mem.grant.ready := Bool(true)
 
   io.cache.req.valid := !get_sent && started
-  io.cache.req.bits.addr := UInt(addrMap("io:int:bootrom").start)
+  io.cache.req.bits.addr := UInt(addrMap("io:ext:bootrom").start)
   io.cache.req.bits.typ := UInt(log2Ceil(32 / 8))
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)

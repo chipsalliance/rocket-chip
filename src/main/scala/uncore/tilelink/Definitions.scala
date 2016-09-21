@@ -90,7 +90,7 @@ trait HasTileLinkParameters {
 
 abstract class TLModule(clockSignal: Clock = null, resetSignal: Bool = null)(implicit val p: Parameters)
   extends Module(Option(clockSignal), Option(resetSignal)) with HasTileLinkParameters
-abstract class TLBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
+abstract class TLBundle(implicit val p: Parameters) extends util.ParameterizedBundle()(p)
   with HasTileLinkParameters
 
 /** Base trait for all TileLink channels */

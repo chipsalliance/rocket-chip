@@ -7,13 +7,12 @@ import cde.{Parameters, Field}
 import scala.collection.mutable.HashMap
 
 case object PAddrBits extends Field[Int]
-case object GlobalAddrMap extends Field[AddrMap]
 
 trait HasAddrMapParameters {
   implicit val p: Parameters
 
   val paddrBits = p(PAddrBits)
-  val addrMap = p(GlobalAddrMap)
+  def addrMap = p(rocketchip.GlobalAddrMap).get
 }
 
 case class MemAttr(prot: Int, cacheable: Boolean = false)
@@ -152,5 +151,9 @@ class AddrMap(
         UInt(entry.region.attr.prot, AddrMapProt.SZ), UInt(0))
     }
     new AddrMapProt().fromBits(protForRegion.reduce(_|_))
+  }
+
+  override def containsAddress(x: UInt) = {
+    flatten.map(_.region.containsAddress(x)).reduce(_||_)
   }
 }

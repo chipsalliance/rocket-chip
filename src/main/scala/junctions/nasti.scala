@@ -4,6 +4,7 @@ package junctions
 import Chisel._
 import scala.math.max
 import scala.collection.mutable.ArraySeq
+import util.{ParameterizedBundle, HellaPeekingArbiter}
 import cde.{Parameters, Field}
 
 case object NastiKey extends Field[NastiParameters]
@@ -134,6 +135,17 @@ object NastiConstants {
   val RESP_EXOKAY = UInt("b01")
   val RESP_SLVERR = UInt("b10")
   val RESP_DECERR = UInt("b11")
+
+  val CACHE_DEVICE_NOBUF = UInt("b0000")
+  val CACHE_DEVICE_BUF   = UInt("b0001")
+  val CACHE_NORMAL_NOCACHE_NOBUF = UInt("b0010")
+  val CACHE_NORMAL_NOCACHE_BUF   = UInt("b0011")
+
+  def AXPROT(instruction: Bool, nonsecure: Bool, privileged: Bool): UInt =
+    Cat(instruction, nonsecure, privileged)
+
+  def AXPROT(instruction: Boolean, nonsecure: Boolean, privileged: Boolean): UInt =
+    AXPROT(Bool(instruction), Bool(nonsecure), Bool(privileged))
 }
 
 import NastiConstants._
@@ -149,8 +161,8 @@ object NastiWriteAddressChannel {
     aw.size := size
     aw.burst := burst
     aw.lock := Bool(false)
-    aw.cache := UInt("b0000")
-    aw.prot := UInt("b000")
+    aw.cache := CACHE_DEVICE_NOBUF
+    aw.prot := AXPROT(false, false, false)
     aw.qos := UInt("b0000")
     aw.region := UInt("b0000")
     aw.user := UInt(0)
@@ -169,8 +181,8 @@ object NastiReadAddressChannel {
     ar.size := size
     ar.burst := burst
     ar.lock := Bool(false)
-    ar.cache := UInt(0)
-    ar.prot := UInt(0)
+    ar.cache := CACHE_DEVICE_NOBUF
+    ar.prot := AXPROT(false, false, false)
     ar.qos := UInt(0)
     ar.region := UInt(0)
     ar.user := UInt(0)
@@ -254,7 +266,7 @@ class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) e
 
   io.nasti.b.valid := id_q.io.deq.valid && b_ok
   io.nasti.b.bits.id := id_q.io.deq.bits
-  io.nasti.b.bits.resp := UInt(0)
+  io.nasti.b.bits.resp := RESP_OKAY
 
   io.nasti.w.ready := io.mem.req_data.ready
   io.mem.req_data.valid := io.nasti.w.valid
@@ -265,7 +277,7 @@ class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) e
   io.nasti.r.bits.data := io.mem.resp.bits.data
   io.nasti.r.bits.last := mif_wrap_out
   io.nasti.r.bits.id := io.mem.resp.bits.tag
-  io.nasti.r.bits.resp := UInt(0)
+  io.nasti.r.bits.resp := RESP_OKAY
   io.mem.resp.ready := io.nasti.r.ready
 }
 
@@ -388,7 +400,7 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
   io.aw.ready := b_queue.io.enq.ready && !draining
   io.b.valid := b_queue.io.deq.valid && !draining
   io.b.bits.id := b_queue.io.deq.bits
-  io.b.bits.resp := Bits("b11")
+  io.b.bits.resp := RESP_DECERR
   b_queue.io.deq.ready := io.b.ready && !draining
 }
 
@@ -449,7 +461,7 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
   io.master.w.ready := w_ready || err_slave.io.w.ready
 
   val b_arb = Module(new RRArbiter(new NastiWriteResponseChannel, nSlaves + 1))
-  val r_arb = Module(new JunctionsPeekingArbiter(
+  val r_arb = Module(new HellaPeekingArbiter(
     new NastiReadDataChannel, nSlaves + 1,
     // we can unlock if it's the last beat
     (r: NastiReadDataChannel) => r.last))
@@ -706,32 +718,33 @@ class NastiMemoryDemux(nRoutes: Int)(implicit p: Parameters) extends NastiModule
   }
 }
 
+object AsyncNastiCrossing {
+  // takes from_source from the 'from' clock domain to the 'to' clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, to_clock: Clock, to_reset: Bool, depth: Int = 8, sync: Int = 3) = {
+    val to_sink = Wire(new NastiIO()(from_source.p))
+
+    to_sink.aw <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.aw, to_clock, to_reset, depth, sync)
+    to_sink.ar <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.ar, to_clock, to_reset, depth, sync)
+    to_sink.w  <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.w,  to_clock, to_reset, depth, sync)
+    from_source.b <> AsyncDecoupledCrossing(to_clock, to_reset, to_sink.b, from_clock, from_reset, depth, sync)
+    from_source.r <> AsyncDecoupledCrossing(to_clock, to_reset, to_sink.r, from_clock, from_reset, depth, sync)
+
+    to_sink // is now to_source
+  }
+}
+
 object AsyncNastiTo {
-  // source(master) is in our clock domain, output is in the 'to' clock domain
-  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
-    val sink = Wire(new NastiIO)
-
-    sink.aw <> AsyncDecoupledTo(to_clock, to_reset, source.aw, depth, sync)
-    sink.ar <> AsyncDecoupledTo(to_clock, to_reset, source.ar, depth, sync)
-    sink.w  <> AsyncDecoupledTo(to_clock, to_reset, source.w,  depth, sync)
-    source.b <> AsyncDecoupledFrom(to_clock, to_reset, sink.b, depth, sync)
-    source.r <> AsyncDecoupledFrom(to_clock, to_reset, sink.r, depth, sync)
-
-    sink
+  // takes source from your clock domain and puts it into the 'to' clock domain
+  def apply(to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 8, sync: Int = 3): NastiIO = {
+    val scope = AsyncScope()
+    AsyncNastiCrossing(scope.clock, scope.reset, source, to_clock, to_reset, depth, sync)
   }
 }
 
 object AsyncNastiFrom {
-  // source(master) is in the 'from' clock domain, output is in our clock domain
-  def apply[T <: Data](from_clock: Clock, from_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
-    val sink = Wire(new NastiIO)
-
-    sink.aw <> AsyncDecoupledFrom(from_clock, from_reset, source.aw, depth, sync)
-    sink.ar <> AsyncDecoupledFrom(from_clock, from_reset, source.ar, depth, sync)
-    sink.w  <> AsyncDecoupledFrom(from_clock, from_reset, source.w,  depth, sync)
-    source.b <> AsyncDecoupledTo(from_clock, from_reset, sink.b, depth, sync)
-    source.r <> AsyncDecoupledTo(from_clock, from_reset, sink.r, depth, sync)
-
-    sink
+  // takes from_source from the 'from' clock domain and puts it into your clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, depth: Int = 8, sync: Int = 3): NastiIO = {
+    val scope = AsyncScope()
+    AsyncNastiCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
   }
 }

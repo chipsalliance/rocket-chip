@@ -128,11 +128,11 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       meta.io.read <> metaReadArb.io.out
       meta.io.write <> metaWriteArb.io.out
       val s1_meta = meta.io.resp
-      val s1_hit_way = s1_meta.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
-      val s1_hit_state = ClientMetadata.onReset.fromBits(
+      val s1_meta_hit_way = s1_meta.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
+      val s1_meta_hit_state = ClientMetadata.onReset.fromBits(
         s1_meta.map(r => Mux(r.tag === s1_tag, r.coh.asUInt, UInt(0)))
         .reduce (_|_))
-      (s1_hit_way, s1_hit_state, s1_meta(s1_victim_way))
+      (s1_meta_hit_way, s1_meta_hit_state, s1_meta(s1_victim_way))
     }
   val s1_data_way = Mux(inWriteback, releaseWay, s1_hit_way)
   val s1_data = Mux1H(s1_data_way, data.io.resp) // retime into s2 if critical
@@ -174,9 +174,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   when (s2_valid && (!s2_valid_hit || s2_update_meta)) { s1_nack := true }
 
   // exceptions
-  val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).misaligned
-  io.cpu.xcpt.ma.ld := s1_read && misaligned
-  io.cpu.xcpt.ma.st := s1_write && misaligned
+  val s1_storegen = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes)
+  io.cpu.xcpt.ma.ld := s1_read && s1_storegen.misaligned
+  io.cpu.xcpt.ma.st := s1_write && s1_storegen.misaligned
   io.cpu.xcpt.pf.ld := s1_read && tlb.io.resp.xcpt_ld
   io.cpu.xcpt.pf.st := s1_write && tlb.io.resp.xcpt_st
 
@@ -233,8 +233,8 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   // store->load RAW hazard detection
   val s1_idx = s1_req.addr(idxMSB, wordOffBits)
   val s1_raw_hazard = s1_read &&
-    ((pstore1_valid && pstore1_addr(idxMSB, wordOffBits) === s1_idx) ||
-     (pstore2_valid && pstore2_addr(idxMSB, wordOffBits) === s1_idx))
+    ((pstore1_valid && pstore1_addr(idxMSB, wordOffBits) === s1_idx && (pstore1_storegen.mask & s1_storegen.mask).orR) ||
+     (pstore2_valid && pstore2_addr(idxMSB, wordOffBits) === s1_idx && (pstore2_storegen_mask & s1_storegen.mask).orR))
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   metaWriteArb.io.in(0).valid := (s2_valid_hit && s2_update_meta) || (s2_victimize && !s2_victim_dirty)

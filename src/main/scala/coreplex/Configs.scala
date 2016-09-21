@@ -11,6 +11,7 @@ import uncore.devices._
 import uncore.converters._
 import rocket._
 import rocket.Util._
+import rocketchip.{GlobalAddrMap, NCoreplexExtClients}
 import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import DefaultTestSuites._
@@ -122,12 +123,12 @@ class BaseCoreplexConfig extends Config (
       case NPerfEvents => 0
       case FastLoadWord => true
       case FastLoadByte => false
+      case FastJAL => false
       case XLen => 64
       case FPUKey => Some(FPUConfig())
-      case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = true, divEarlyOut = true))
+      case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = (site(XLen) > 32), divEarlyOut = true))
       case UseAtomics => true
       case UseCompressed => true
-      case PLICKey => PLICConfig(site(NTiles), site(UseVM), site(NExtInterrupts), 0)
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case NCustomMRWCSRs => 0
       case ResetVector => BigInt(0x1000)
@@ -145,7 +146,7 @@ class BaseCoreplexConfig extends Config (
             else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
-          nCachelessClients = site(NExternalClients) + site(NUncachedTileLinkPorts),
+          nCachelessClients = site(NCoreplexExtClients).get + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
               site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
@@ -177,7 +178,7 @@ class BaseCoreplexConfig extends Config (
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = site(GlobalAddrMap).subMap("io").numSlaves,
+          nManagers = site(GlobalAddrMap).get.subMap("io").numSlaves,
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 4,
@@ -190,13 +191,12 @@ class BaseCoreplexConfig extends Config (
       case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
 
       case BootROMFile => "./bootrom/bootrom.img"
-      case NTiles => Knob("NTILES")
+      case NTiles => 1
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
       case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case EnableL2Logging => false
-      case ExtraCoreplexPorts => (p: Parameters) => new Bundle
       case RegressionTestNames => LinkedHashSet(
         "rv64ud-v-fcvt",
         "rv64ud-p-fdiv",
@@ -226,7 +226,6 @@ class BaseCoreplexConfig extends Config (
       case _ => throw new CDEMatchError
   }},
   knobValues = {
-    case "NTILES" => 1
     case "NBANKS_PER_MEM_CHANNEL" => 1
     case "L1D_MSHRS" => 2
     case "L1D_SETS" => 64
@@ -238,7 +237,9 @@ class BaseCoreplexConfig extends Config (
 )
 
 class WithNCores(n: Int) extends Config(
-  knobValues = { case"NTILES" => n; case _ => throw new CDEMatchError })
+  (pname,site,here) => pname match {
+    case NTiles => n
+  })
 
 class WithNBanksPerMemChannel(n: Int) extends Config(
   knobValues = {
@@ -335,8 +336,6 @@ class WithNL2Ways(n: Int) extends Config(
 class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
-    case UseVM => false
-    case UseUser => false
     case FPUKey => Some(FPUConfig(divSqrt = false))
     case RegressionTestNames => LinkedHashSet(
       "rv32mi-p-ma_addr",
@@ -358,14 +357,16 @@ class WithBlockingL1 extends Config (
 )
 
 class WithSmallCores extends Config (
-    topDefinitions = { (pname,site,here) => pname match {
-      case MulDivKey => Some(MulDivConfig())
-      case FPUKey => None
-      case NTLBEntries => 4
-      case BtbKey => BtbParameters(nEntries = 0)
-      case NAcquireTransactors => 2
-      case _ => throw new CDEMatchError
-    }},
+  topDefinitions = { (pname,site,here) => pname match {
+    case MulDivKey => Some(MulDivConfig())
+    case FPUKey => None
+    case UseVM => false
+    case UseUser => false
+    case NTLBEntries => 4
+    case BtbKey => BtbParameters(nEntries = 0)
+    case NAcquireTransactors => 2
+    case _ => throw new CDEMatchError
+  }},
   knobValues = {
     case "L1D_SETS" => 64
     case "L1D_WAYS" => 1

@@ -2,6 +2,8 @@ package junctions
 
 import Chisel._
 import cde.{Parameters, Field}
+import unittest.UnitTest
+import util.ParameterizedBundle
 
 object HastiConstants
 {
@@ -519,10 +521,8 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   // In case we are stalled, we need to hold the read data
   val d_rdata = holdUnless(mem.read(a_address, read), RegNext(read))
   // Whenever the port is not needed for reading, execute pending writes
-  when (!read) {
-    when (p_valid) { mem.write(p_address, p_wdata, p_mask.toBools) }
-    p_valid := Bool(false)
-  }
+  when (!read && p_valid) { mem.write(p_address, p_wdata, p_mask.toBools) }
+  when (!read) { p_valid := Bool(false) }
   
   // Record the request for later?
   when (ready && a_request && a_write) {
@@ -546,4 +546,17 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   io.hrdata := outdata.asUInt
   io.hready := ready
   io.hresp  := HRESP_OKAY
+}
+
+class HastiTest(implicit p: Parameters) extends UnitTest {
+  val sram = Module(new HastiTestSRAM(8))
+  val bus = Module(new HastiBus(Seq(a => Bool(true))))
+  val conv = Module(new HastiMasterIONastiIOConverter)
+  val driver = Module(new NastiDriver(32, 8, 2))
+
+  bus.io.slaves(0) <> sram.io
+  bus.io.master <> conv.io.hasti
+  conv.io.nasti <> driver.io.nasti
+  io.finished := driver.io.finished
+  driver.io.start := io.start
 }

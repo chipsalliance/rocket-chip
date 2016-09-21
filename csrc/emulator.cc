@@ -15,6 +15,7 @@
 extern dtm_t* dtm;
 static uint64_t trace_count = 0;
 bool verbose;
+bool done_reset;
 
 void handle_sigterm(int sig)
 {
@@ -64,7 +65,7 @@ int main(int argc, char** argv)
   srand48(random_seed);
 
   Verilated::randReset(2);
-  VTestHarness *tile = new VTestHarness;
+  MODEL *tile = new MODEL;
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals
@@ -89,6 +90,7 @@ int main(int argc, char** argv)
     tile->eval();
     tile->reset = 0;
   }
+  done_reset = true;
 
   while (!dtm->done() && !tile->io_success && trace_count < max_cycles) {
     tile->clk = 0;
@@ -96,14 +98,14 @@ int main(int argc, char** argv)
 #if VM_TRACE
     bool dump = tfp && trace_count >= start;
     if (dump)
-      tfp->dump(trace_count * 2);
+      tfp->dump(static_cast<vluint64_t>(trace_count * 2));
 #endif
 
     tile->clk = 1;
     tile->eval();
 #if VM_TRACE
     if (dump)
-      tfp->dump(trace_count * 2 + 1);
+      tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
 #endif
     trace_count++;
   }

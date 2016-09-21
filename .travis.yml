@@ -35,6 +35,7 @@ env:
   matrix:
     - SUITE=RocketSuite
     - SUITE=GroundtestSuite
+    - SUITE=UnittestSuite
 
 # blacklist private branches
 branches:

@@ -45,7 +45,7 @@ class NastiIOStreamIOConverter(w: Int)(implicit p: Parameters) extends Module {
   io.nasti.ar.ready := !reading
   io.nasti.r.valid := reading && io.stream.in.valid
   io.nasti.r.bits := io.stream.in.bits
-  io.nasti.r.bits.resp := UInt(0)
+  io.nasti.r.bits.resp := RESP_OKAY
   io.nasti.r.bits.id := read_id
   io.stream.in.ready := reading && io.nasti.r.ready
 
@@ -72,7 +72,7 @@ class NastiIOStreamIOConverter(w: Int)(implicit p: Parameters) extends Module {
   io.stream.out.valid := writing && io.nasti.w.valid
   io.stream.out.bits := io.nasti.w.bits
   io.nasti.b.valid := write_resp
-  io.nasti.b.bits.resp := UInt(0)
+  io.nasti.b.bits.resp := RESP_OKAY
   io.nasti.b.bits.id := write_id
 
   when (io.nasti.aw.fire()) {

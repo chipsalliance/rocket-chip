@@ -22,6 +22,7 @@ import uncore.constants._
 import uncore.devices.NTiles
 import junctions._
 import rocket._
+import util.{Timer, DynamicTimer}
 import scala.util.Random
 import cde.{Parameters, Field}
 
@@ -176,6 +177,7 @@ class TagMan(val logNumTags : Int) extends Module {
 
 class TraceGenerator(id: Int)
     (implicit p: Parameters) extends L1HellaCacheModule()(p)
+                                with HasAddrMapParameters
                                 with HasTraceGenParams {
   val io = new Bundle {
     val finished = Bool(OUTPUT)
@@ -197,8 +199,7 @@ class TraceGenerator(id: Int)
   // Address bag, shared by all cores, taken from module parameters.
   // In addition, there is a per-core random selection of extra addresses.
 
-  val addrHashMap = p(GlobalAddrMap)
-  val baseAddr = addrHashMap("mem").start + 0x01000000
+  val baseAddr = addrMap("mem").start + 0x01000000
 
   val bagOfAddrs = addressBag.map(x => UInt(x, numBitsInWord))
 

@@ -4,7 +4,7 @@ package rocket
 
 import Chisel._
 import cde.{Parameters, Field}
-import junctions.{ParameterizedBundle, DecoupledHelper}
+import util.{ParameterizedBundle, DecoupledHelper}
 
 class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 {

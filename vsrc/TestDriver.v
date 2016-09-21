@@ -87,7 +87,7 @@ module TestDriver;
     end
   end
 
-  TestHarness testHarness(
+  `MODEL testHarness(
     .clk(clk),
     .reset(reset),
     .io_success(success)
