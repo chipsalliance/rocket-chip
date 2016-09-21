@@ -6,7 +6,7 @@ import uncore.constants._
 import uncore.agents._
 import uncore.util._
 import junctions.HasAddrMapParameters
-import util.{ParameterizedBundle, Timer}
+import util.{ParameterizedBundle, SimpleTimer}
 import rocket.HellaCacheIO
 import cde.{Parameters, Field}
 
@@ -760,7 +760,7 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   }
   when (start) { start := Bool(false) }
 
-  val timeout = Timer(5000, start, cur_finished)
+  val timeout = SimpleTimer(5000, start, cur_finished)
   assert(!timeout, "Regression timed out")
 
   io.status.finished := all_done

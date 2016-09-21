@@ -81,7 +81,6 @@ class ROMSlave(contents: Seq[Byte])(implicit val p: Parameters) extends Module
 }
 
 class ROMSlaveTest(implicit p: Parameters) extends UnitTest {
-  implicit val testName = "ROMSlaveTest"
   val romdata = Seq(
     BigInt("01234567deadbeef", 16),
     BigInt("ab32fee8d00dfeed", 16))

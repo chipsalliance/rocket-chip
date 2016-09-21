@@ -20,7 +20,6 @@ class WithJunctionsUnitTests extends Config(
         Module(new junctions.NastiMemoryDemuxTest()(p)),
         Module(new junctions.HastiTest()(p)))
     }
-    case UnitTestTimeout => 50000
     case _ => throw new CDEMatchError
   })
 
@@ -37,7 +36,6 @@ class WithUncoreUnitTests extends Config(
         Module(new uncore.devices.TileLinkRAMTest()(p)),
         Module(new uncore.tilelink2.TLFuzzRAMTest))
     }
-    case UnitTestTimeout => 500000
     case _ => throw new CDEMatchError
   })
 
