@@ -138,7 +138,8 @@ class TLFuzzer(
     // Increment random number generation for the following subfields
     val inc = Wire(Bool())
     val inc_beat = Wire(Bool())
-    val arth_op   = noiseMaker(3, inc)
+    val arth_op_3 = noiseMaker(3, inc)
+    val arth_op   = Mux(arth_op_3 > UInt(4), UInt(4), arth_op_3)
     val log_op    = noiseMaker(2, inc)
     val amo_size  = UInt(2) + noiseMaker(1, inc) // word or dword
     val size      = noiseMaker(sizeBits, inc)
