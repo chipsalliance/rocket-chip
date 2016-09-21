@@ -4,9 +4,8 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
-import chisel3.util.{Irrevocable, IrrevocableIO}
 
-object TLMonitor
+class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: SourceInfo) extends LazyModule
 {
   def extra(implicit sourceInfo: SourceInfo) = {
     sourceInfo match {
@@ -273,7 +272,7 @@ object TLMonitor
     assert (edge.manager.containsById(bundle.sink), "'E' channels carries invalid sink ID" + extra)
   }
 
-  def legalizeFormat(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
+  def legalizeFormat(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     when (bundle.a.valid) { legalizeFormatA(bundle.a.bits, edge) }
     when (bundle.b.valid) { legalizeFormatB(bundle.b.bits, edge) }
     when (bundle.c.valid) { legalizeFormatC(bundle.c.bits, edge) }
@@ -281,7 +280,7 @@ object TLMonitor
     when (bundle.e.valid) { legalizeFormatE(bundle.e.bits, edge) }
   }
 
-  def legalizeMultibeatA(a: IrrevocableIO[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatA(a: IrrevocableSnoop[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -308,7 +307,7 @@ object TLMonitor
     }
   }
 
-  def legalizeMultibeatB(b: IrrevocableIO[TLBundleB], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatB(b: IrrevocableSnoop[TLBundleB], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -335,7 +334,7 @@ object TLMonitor
     }
   }
 
-  def legalizeMultibeatC(c: IrrevocableIO[TLBundleC], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatC(c: IrrevocableSnoop[TLBundleC], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -365,7 +364,7 @@ object TLMonitor
     }
   }
 
-  def legalizeMultibeatD(d: IrrevocableIO[TLBundleD], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatD(d: IrrevocableSnoop[TLBundleD], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -395,14 +394,14 @@ object TLMonitor
     }
   }
 
-  def legalizeMultibeat(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeat(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     legalizeMultibeatA(bundle.a, edge)
     legalizeMultibeatB(bundle.b, edge)
     legalizeMultibeatC(bundle.c, edge)
     legalizeMultibeatD(bundle.d, edge)
   }
 
-  def legalizeIrrevocable(irr: IrrevocableIO[TLChannel], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeIrrevocable(irr: IrrevocableSnoop[TLChannel], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val last_v = RegNext(irr.valid, Bool(false))
     val last_r = RegNext(irr.ready, Bool(false))
     val last_b = RegNext(irr.bits)
@@ -414,7 +413,7 @@ object TLMonitor
     }
   }
 
-  def legalizeIrrevocable(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeIrrevocable(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     legalizeIrrevocable(bundle.a, edge)
     legalizeIrrevocable(bundle.b, edge)
     legalizeIrrevocable(bundle.c, edge)
@@ -422,7 +421,7 @@ object TLMonitor
     legalizeIrrevocable(bundle.e, edge)
   }
 
-  def legalizeSourceUnique(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val inflight = RegInit(Vec.fill(edge.client.endSourceId)(Bool(false)))
 
     val a_counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
@@ -452,10 +451,18 @@ object TLMonitor
     }
   }
 
-  def legalize(bundle: TLBundle, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalize(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     legalizeFormat     (bundle, edge)
     legalizeMultibeat  (bundle, edge)
     legalizeIrrevocable(bundle, edge)
     legalizeSourceUnique(bundle, edge)
+  }
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val in = gen().asInput
+    }
+
+    legalize(io.in, edge())(sourceInfo)
   }
 }
