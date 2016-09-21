@@ -101,7 +101,7 @@ class GroundTestTile(resetSignal: Bool)
                     extends Tile(resetSignal = resetSignal)(p)
                     with HasGroundTestParameters {
 
-  override val io = new TileIO {
+  override val io = new TileIO(bc) {
     val success = Bool(OUTPUT)
   }
 

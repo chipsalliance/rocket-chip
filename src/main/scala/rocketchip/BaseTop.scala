@@ -18,7 +18,7 @@ case object GlobalAddrMap extends Field[AddrMap]
 case object ConfigString extends Field[String]
 case object NCoreplexExtClients extends Field[Int]
 /** Function for building Coreplex */
-case object BuildCoreplex extends Field[(Parameters, CoreplexConfig) => Coreplex]
+case object BuildCoreplex extends Field[(CoreplexConfig, Parameters) => BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]]
 
 /** Base Top with no Periphery */
 abstract class BaseTop(q: Parameters) extends LazyModule {
@@ -53,20 +53,22 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   peripheryBus.node := TLBuffer(TLWidthWidget(TLHintHandler(legacy.node), legacy.tlDataBytes))
 }
 
-class BaseTopBundle(val p: Parameters, val c: Coreplex) extends ParameterizedBundle()(p) {
+abstract class BaseTopBundle(val p: Parameters) extends Bundle {
   val success = Bool(OUTPUT)
 }
 
-abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Parameters, l: L, b: Coreplex => B) extends LazyModuleImp(l) {
+abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
+    val p: Parameters, l: L, b: => B) extends LazyModuleImp(l) {
   val outer: L = l
+  val io: B = b
 
-  val coreplex = p(BuildCoreplex)(p, outer.c)
-  val io: B = b(coreplex)
+  val coreplex = p(BuildCoreplex)(outer.c, p)
+  val coreplexIO = coreplex.io
 
   val mmioNetwork =
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:ext"))(
       p.alterPartial({ case TLId => "L2toMMIO" })))
-  mmioNetwork.io.in.head <> coreplex.io.master.mmio.get
+  mmioNetwork.io.in.head <> coreplexIO.master.mmio.get
   outer.legacy.module.io.legacy <> mmioNetwork.port("TL2")
 
   println("Generated Address Map")
@@ -86,5 +88,5 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](val p: Paramete
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
 
-  io.success := coreplex.io.success
+  io.success := coreplexIO.success
 }
