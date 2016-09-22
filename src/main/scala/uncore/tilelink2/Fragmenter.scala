@@ -47,9 +47,10 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsPutPartial = TransferSizes.none,
     supportsHint       = TransferSizes.none)
 
+  // Because the Fragmenter stalls inner A while serving outer, it can wipe away inner latency
   val node = TLAdapterNode(
     clientFn  = { case Seq(c) => c.copy(clients = c.clients.map(mapClient)) },
-    managerFn = { case Seq(m) => m.copy(managers = m.managers.map(mapManager)) })
+    managerFn = { case Seq(m) => m.copy(managers = m.managers.map(mapManager), minLatency = 0) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
