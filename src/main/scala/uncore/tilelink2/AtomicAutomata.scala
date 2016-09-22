@@ -64,12 +64,6 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
     val AMO  = UInt(2) // AccessDataAck sent up D  waiting for A availability
     val ACK  = UInt(1) // Put sent down A          waiting for PutAck from D
 
-    class CAMEntry extends Bundle {
-      val state = UInt(width = 2)
-      val fifoId = UInt(width = log2Up(domainsNeedingHelp.size))
-      val bits  = new TLBundleA(in.a.bits.params)
-    }
-
     def helper(select: Seq[Bool], x: Seq[TransferSizes], lgSize: UInt) =
       if (!passthrough) Bool(false) else
       if (x.map(_ == x(0)).reduce(_ && _)) x(0).containsLg(lgSize) else
@@ -83,6 +77,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       class CAM_A extends Bundle {
         val bits    = new TLBundleA(out.a.bits.params)
         val fifoId  = UInt(width = log2Up(domainsNeedingHelp.size))
+        val lut     = UInt(width = 4)
       }
       class CAM_D extends Bundle {
         val data = UInt(width = out.a.bits.params.dataBits)
@@ -112,8 +107,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       val a_cam_any_put = cam_amo.reduce(_ || _)
       val a_cam_por_put = cam_amo.scanLeft(Bool(false))(_||_).init
       val a_cam_sel_put = (cam_amo zip a_cam_por_put) map { case (a, b) => a && !b }
-      val a_cam_adata = PriorityMux(cam_amo, cam_a.map(_.bits))
-      val a_cam_ddata = PriorityMux(cam_amo, cam_d.map(_.data))
+      val a_cam_a = PriorityMux(cam_amo, cam_a)
+      val a_cam_d = PriorityMux(cam_amo, cam_d)
 
       // Does the A request conflict with an inflight AMO?
       val a_fifoId  = Mux1H(a_select, camFifoIds)
@@ -124,8 +119,19 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       val a_cam_por_free = cam_free.scanLeft(Bool(false))(_||_).init
       val a_cam_sel_free = (cam_free zip a_cam_por_free) map { case (a,b) => a && !b }
 
-      // !!! perform the AMO op
-      val amo_data = a_cam_adata.data + a_cam_ddata
+      // Logical AMO
+      val lut = Vec(a_cam_a.lut.toBools)
+      val indexes = (a_cam_a.bits.data.toBools zip a_cam_d.data.toBools) map { case (a,d) => a.asUInt << 1 | d.asUInt }
+      val logic_out = Cat(indexes.map(x => lut(x).asUInt).reverse)
+
+      // Arithmetic AMO
+      val arith_out = a_cam_a.bits.data + a_cam_d.data
+
+      // AMO result data
+      val amo_data =
+        if (!logical)    arith_out else
+        if (!arithmetic) logic_out else
+        Mux(a_cam_a.bits.opcode(0), logic_out, arith_out)
 
       // Potentially mutate the message from inner
       val source_i = Wire(in.a)
@@ -141,7 +147,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       // Potentially take the message from the CAM
       val source_c = Wire(in.a)
       source_c.valid := a_cam_any_put
-      source_c.bits := edgeOut.Put(a_cam_adata.source, edgeIn.address(a_cam_adata), a_cam_adata.size, amo_data)._2
+      source_c.bits := edgeOut.Put(a_cam_a.bits.source, edgeIn.address(a_cam_a.bits), a_cam_a.bits.size, amo_data)._2
 
       // Finishing an AMO from the CAM has highest priority
       TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (UInt(1), source_c), (edgeOut.numBeats(in.a.bits), source_i))
@@ -152,6 +158,11 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
           when (en) {
             r.fifoId := a_fifoId
             r.bits   := in.a.bits
+            r.lut    := MuxLookup(in.a.bits.param(1, 0), UInt(0, width = 4), Array(
+              TLAtomics.AND  -> UInt(0x8),
+              TLAtomics.OR   -> UInt(0xe),
+              TLAtomics.XOR  -> UInt(0x6),
+              TLAtomics.SWAP -> UInt(0xc)))
           }
         }
         (a_cam_sel_free zip cam_s) foreach { case (en, r) =>
