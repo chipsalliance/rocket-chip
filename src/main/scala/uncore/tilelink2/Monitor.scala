@@ -422,7 +422,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val inflight = RegInit(Vec.fill(edge.client.endSourceId)(Bool(false)))
+    val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
     val a_counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
     val a_beats1 = edge.numBeats1(bundle.a.bits)
@@ -442,17 +442,21 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
       assert(!bypass || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
+    val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))
     when (bundle.a.fire()) {
       a_counter := Mux(a_first, a_beats1, a_counter - UInt(1))
-      when (a_last) { inflight(bundle.a.bits.source) := Bool(true) }
+      when (a_last) { a_set := UIntToOH(bundle.a.bits.source) }
       assert(a_bypass || !inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
+    val d_clr = Wire(init = UInt(0, width = edge.client.endSourceId))
     when (bundle.d.fire() && bundle.d.bits.opcode =/= TLMessages.ReleaseAck) {
       d_counter := Mux(d_first, d_beats1, d_counter - UInt(1))
-      when (d_last) { inflight(bundle.d.bits.source) := Bool(false) }
+      when (d_last) { d_clr := UIntToOH(bundle.d.bits.source) }
       assert(d_bypass || inflight(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
     }
+
+    inflight := (inflight | a_set) & ~d_clr
   }
 
   def legalize(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
