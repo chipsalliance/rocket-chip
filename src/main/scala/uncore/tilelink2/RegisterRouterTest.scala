@@ -216,7 +216,7 @@ trait RRTest0Module extends HasRegMap
   regmap(RRTest0Map.map:_*)
 }
 
-class RRTest0(address: BigInt) extends TLRegisterRouter(address, 0, 32, Some(0), 4)(
+class RRTest0(address: BigInt) extends TLRegisterRouter(address, 0, 32, 0, 4)(
   new TLRegBundle((), _)    with RRTest0Bundle)(
   new TLRegModule((), _, _) with RRTest0Module)
 
@@ -255,6 +255,6 @@ trait RRTest1Module extends Module with HasRegMap
   regmap(map:_*)
 }
 
-class RRTest1(address: BigInt) extends TLRegisterRouter(address, 0, 32, Some(6), 4)(
+class RRTest1(address: BigInt) extends TLRegisterRouter(address, 0, 32, 6, 4)(
   new TLRegBundle((), _)    with RRTest1Bundle)(
   new TLRegModule((), _, _) with RRTest1Module)
