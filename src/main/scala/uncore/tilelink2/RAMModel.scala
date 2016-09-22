@@ -135,7 +135,6 @@ class TLRAMModel extends LazyModule
       // Record the request so we can handle it's response
       a_counter := Mux(a_first, a_beats1, a_counter1)
 
-      // !!! atomics
       assert (a.opcode =/= TLMessages.Acquire)
 
       // Mark the operation as valid
@@ -149,19 +148,24 @@ class TLRAMModel extends LazyModule
         inc_trees_wen := a_sizeOH >> (shift+1)
       }
 
-      when (a.opcode === TLMessages.PutFullData || a.opcode === TLMessages.PutPartialData) {
+      when (a.opcode === TLMessages.PutFullData || a.opcode === TLMessages.PutPartialData ||
+            a.opcode === TLMessages.ArithmeticData || a.opcode === TLMessages.LogicalData) {
         shadow_wen := a.mask
         for (i <- 0 until beatBytes) {
           val busy = a_inc(i) - a_dec(i) - (!a_first).asUInt
           val byte = a.data(8*(i+1)-1, 8*i)
           when (a.mask(i)) {
-            printf("P 0x%x := 0x%x #%d\n", a_addr_hi << shift | UInt(i), byte, busy)
+            when (a.opcode === TLMessages.PutFullData) { printf("PF") }
+            when (a.opcode === TLMessages.PutPartialData) { printf("PP") }
+            when (a.opcode === TLMessages.ArithmeticData) { printf("A ") }
+            when (a.opcode === TLMessages.LogicalData) { printf("L ") }
+            printf(" 0x%x := 0x%x #%d %x\n", a_addr_hi << shift | UInt(i), byte, busy, a.param)
           }
         }
       }
 
       when (a.opcode === TLMessages.Get) {
-        printf("G 0x%x - 0%x\n", a_base, a_base | UIntToOH1(a_size, addressBits))
+        printf("G  0x%x - 0%x\n", a_base, a_base | UIntToOH1(a_size, addressBits))
       }
     }
 
@@ -169,7 +173,9 @@ class TLRAMModel extends LazyModule
     for (i <- 0 until beatBytes) {
       val data = Wire(new ByteMonitor)
       val busy = a_inc(i) =/= a_dec(i) + (!a_first).asUInt
-      data.valid := Mux(wipe, Bool(false), !busy || a_fifo)
+      val amo = a.opcode === TLMessages.ArithmeticData || a.opcode === TLMessages.LogicalData
+      data.valid := Mux(wipe, Bool(false), (!busy || a_fifo) && !amo)
+      // !!! calculate the AMO?
       data.value := a.data(8*(i+1)-1, 8*i)
       when (shadow_wen(i)) {
         shadow(i).write(a_waddr, data)
@@ -250,26 +256,30 @@ class TLRAMModel extends LazyModule
 
       when (d_flight.opcode === TLMessages.PutFullData || d_flight.opcode === TLMessages.PutPartialData) {
         assert (d.opcode === TLMessages.AccessAck)
-        printf("p 0x%x - 0x%x\n", d_base, d_base | UIntToOH1(d_size, addressBits))
+        when (d_flight.opcode === TLMessages.PutFullData) { printf("pf") }
+        when (d_flight.opcode === TLMessages.PutPartialData) { printf("pp") }
+        printf(" 0x%x - 0x%x\n", d_base, d_base | UIntToOH1(d_size, addressBits))
       }
 
-      // !!! atomics
-
-      when (d_flight.opcode === TLMessages.Get) {
+      when (d_flight.opcode === TLMessages.Get || d_flight.opcode === TLMessages.ArithmeticData || d_flight.opcode === TLMessages.LogicalData) {
         assert (d.opcode === TLMessages.AccessAckData)
         for (i <- 0 until beatBytes) {
           val got = d.data(8*(i+1)-1, 8*i)
           val shadow = Wire(init = d_shadow(i))
           when (d_mask(i)) {
             val d_addr = d_addr_hi << shift | UInt(i)
+            when (d_flight.opcode === TLMessages.Get) { printf("g ") }
+            when (d_flight.opcode === TLMessages.ArithmeticData) { printf("a ") }
+            when (d_flight.opcode === TLMessages.LogicalData) { printf("l ") }
+            printf(" 0x%x := 0x%x", d_addr, got)
             when (!shadow.valid) {
-              printf("g 0x%x := undefined (uninitialized or prior overlapping puts)\n", d_addr)
+              printf(", undefined (uninitialized or prior overlapping puts)\n")
             } .elsewhen (d_inc(i) =/= d_dec(i)) {
-              printf("g 0x%x := undefined (concurrent incomplete puts #%d)\n", d_addr, d_inc(i) - d_dec(i))
+              printf(", undefined (concurrent incomplete puts #%d)\n", d_inc(i) - d_dec(i))
             } .elsewhen (!d_fifo && !d_valid) {
-              printf("g 0x%x := undefined (concurrent completed put)\n", d_addr)
+              printf(", undefined (concurrent completed put)\n")
             } .otherwise {
-              printf("g 0x%x := 0x%x\n", d_addr, got)
+              printf("\n")
               assert (shadow.value === got)
             }
           }
