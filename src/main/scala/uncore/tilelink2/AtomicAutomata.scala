@@ -109,6 +109,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       val a_cam_sel_put = (cam_amo zip a_cam_por_put) map { case (a, b) => a && !b }
       val a_cam_a = PriorityMux(cam_amo, cam_a)
       val a_cam_d = PriorityMux(cam_amo, cam_d)
+      val a_a = a_cam_a.bits.data
+      val a_d = a_cam_d.data
 
       // Does the A request conflict with an inflight AMO?
       val a_fifoId  = Mux1H(a_select, camFifoIds)
@@ -121,11 +123,29 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 
       // Logical AMO
       val lut = Vec(a_cam_a.lut.toBools)
-      val indexes = (a_cam_a.bits.data.toBools zip a_cam_d.data.toBools) map { case (a,d) => a.asUInt << 1 | d.asUInt }
+      val indexes = (a_a.toBools zip a_d.toBools) map { case (a,d) => a.asUInt << 1 | d.asUInt }
       val logic_out = Cat(indexes.map(x => lut(x).asUInt).reverse)
 
       // Arithmetic AMO
-      val arith_out = a_cam_a.bits.data + a_cam_d.data
+      val unsigned = a_cam_a.bits.param(1)
+      val take_max = a_cam_a.bits.param(0)
+      val adder = a_cam_a.bits.param(2)
+      val mask = FillInterleaved(8, a_cam_a.bits.mask)
+      val signBit = ~(~mask | (mask >> 1))
+      val sign_a = a_a & signBit
+      val sign_d = a_d & signBit
+      val signext_a = Vec(sign_a.toBools.scanLeft(Bool(false))(_||_).init).asUInt
+      val signext_d = Vec(sign_d.toBools.scanLeft(Bool(false))(_||_).init).asUInt
+      // NOTE: sign-extension does not change the relative ordering in EITHER unsigned or signed arithmetic
+      val a_a_ext = (a_a & mask) | signext_a
+      val a_d_ext = (a_d & mask) | signext_d
+      val a_d_inv = Mux(adder, a_d_ext, ~a_d_ext)
+      val adder_out = a_a_ext + a_d_inv
+      val h = 8*edgeOut.manager.beatBytes-1 // now sign-extended; use biggest bit
+      val a_bigger_uneq = unsigned === a_a_ext(h) // result if high bits are unequal
+      val a_bigger = Mux(a_a_ext(h) === a_d_ext(h), !adder_out(h), a_bigger_uneq)
+      val pick_a = take_max === a_bigger
+      val arith_out = Mux(adder, adder_out, Mux(pick_a, a_a, a_d))
 
       // AMO result data
       val amo_data =
