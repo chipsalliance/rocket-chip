@@ -3,7 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
-import scala.math.max
+import scala.math.{min,max}
 
 class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true)
   extends TLManagerNode(beatBytes, TLManagerParameters(
@@ -12,7 +12,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int =
     supportsPutPartial = TransferSizes(1, beatBytes),
     supportsPutFull    = TransferSizes(1, beatBytes),
     fifoId             = Some(0)), // requests are handled in order
-    minLatency         = max(concurrency, 1)) // the Queue adds at least one cycle
+    minLatency         = min(concurrency, 1)) // the Queue adds at least one cycle
 {
   require (address.contiguous)
 
