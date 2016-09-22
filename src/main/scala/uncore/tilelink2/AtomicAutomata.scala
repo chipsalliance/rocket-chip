@@ -174,7 +174,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       val d_cam_sel_raw = cam_a.map(_.bits.source === in.d.bits.source)
       val d_cam_sel_match = (d_cam_sel_raw zip cam_dmatch) map { case (a,b) => a&&b }
       val d_cam_data = Mux1H(d_cam_sel_match, cam_d.map(_.data))
-      val d_cam_sel_bypass = out.d.bits.source === in.a.bits.source && in.a.valid && out.d.valid && !a_isSupported
+      val d_cam_sel_bypass = if (edgeOut.manager.minLatency > 0) Bool(false) else
+                             out.d.bits.source === in.a.bits.source && in.a.valid && out.d.valid && !a_isSupported
       val d_cam_sel = (a_cam_sel_free zip d_cam_sel_match) map { case (a,d) => Mux(d_cam_sel_bypass, a, d) }
       val d_cam_sel_any = d_cam_sel_bypass || d_cam_sel_match.reduce(_ || _)
       val d_ackd = out.d.bits.opcode === TLMessages.AccessAckData
