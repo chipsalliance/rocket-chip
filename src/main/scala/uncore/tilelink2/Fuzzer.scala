@@ -222,7 +222,7 @@ class TLFuzzRAM extends LazyModule
   val cross = LazyModule(new TLAsyncCrossing)
 
   model.node := fuzz.node
-  xbar2.node := model.node
+  xbar2.node := TLAtomicAutomata()(model.node)
   ram2.node := TLFragmenter(xbar2.node, 16, 256)
   xbar.node := TLWidthWidget(TLHintHandler(xbar2.node), 16)
   cross.node := TLFragmenter(TLBuffer(xbar.node), 4, 256)
