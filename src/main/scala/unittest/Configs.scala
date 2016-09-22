@@ -4,8 +4,8 @@ package unittest
 
 import Chisel._
 import cde.{Parameters, Config, CDEMatchError}
-import coreplex._
-import rocketchip._
+import coreplex.{TestGeneration, DefaultTestSuites}
+import rocketchip.BaseConfig
 
 class WithJunctionsUnitTests extends Config(
   (pname, site, here) => pname match {
@@ -22,7 +22,7 @@ class WithJunctionsUnitTests extends Config(
 
 class WithUncoreUnitTests extends Config(
   (pname, site, here) => pname match {
-    case NCoreplexExtClients => 0
+    case rocketchip.NCoreplexExtClients => 0
     case uncore.tilelink.TLId => "L1toL2"
     case UnitTests => (p: Parameters) => {
       TestGeneration.addSuite(DefaultTestSuites.groundtest64("p")) // TODO why
