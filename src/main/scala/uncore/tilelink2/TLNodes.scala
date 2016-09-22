@@ -41,8 +41,8 @@ case class TLInputNode() extends InputNode(TLImp)
 case class TLClientNode(params: TLClientParameters, numPorts: Range.Inclusive = 1 to 1)
   extends SourceNode(TLImp)(TLClientPortParameters(Seq(params)), numPorts)
 
-case class TLManagerNode(beatBytes: Int, params: TLManagerParameters, numPorts: Range.Inclusive = 1 to 1)
-  extends SinkNode(TLImp)(TLManagerPortParameters(Seq(params), beatBytes), numPorts)
+case class TLManagerNode(beatBytes: Int, params: TLManagerParameters, numPorts: Range.Inclusive = 1 to 1, minLatency: Int = 0)
+  extends SinkNode(TLImp)(TLManagerPortParameters(Seq(params), beatBytes, minLatency), numPorts)
 
 case class TLAdapterNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,

@@ -47,22 +47,28 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
     clientFn  = { seq =>
       // An unsafe atomic port can not be combined with any other!
       require (!seq.exists(_.unsafeAtomics) || seq.size == 1)
-      seq(0).copy(clients = (mapInputIds(seq) zip seq) flatMap { case (range, port) =>
-        port.clients map { client => client.copy(
-          sourceId = client.sourceId.shift(range.start)
-        )}
-      })
+      seq(0).copy(
+        minLatency = seq.map(_.minLatency).min,
+        clients = (mapInputIds(seq) zip seq) flatMap { case (range, port) =>
+          port.clients map { client => client.copy(
+            sourceId = client.sourceId.shift(range.start)
+          )}
+        }
+      )
     },
     managerFn = { seq =>
       val fifoIdFactory = relabeler()
-      seq(0).copy(managers = (mapOutputIds(seq) zip seq) flatMap { case (range, port) =>
-        require (port.beatBytes == seq(0).beatBytes)
-        val fifoIdMapper = fifoIdFactory()
-        port.managers map { manager => manager.copy(
-          sinkId = manager.sinkId.shift(range.start),
-          fifoId = manager.fifoId.map(fifoIdMapper(_))
-        )}
-      })
+      seq(0).copy(
+        minLatency = seq.map(_.minLatency).min,
+        managers = (mapOutputIds(seq) zip seq) flatMap { case (range, port) =>
+          require (port.beatBytes == seq(0).beatBytes)
+          val fifoIdMapper = fifoIdFactory()
+          port.managers map { manager => manager.copy(
+            sinkId = manager.sinkId.shift(range.start),
+            fifoId = manager.fifoId.map(fifoIdMapper(_))
+          )}
+        }
+      )
     })
 
   lazy val module = new LazyModuleImp(this) {
