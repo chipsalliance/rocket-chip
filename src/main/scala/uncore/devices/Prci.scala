@@ -89,7 +89,7 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
 /** Power, Reset, Clock, Interrupt */
 // Magic TL2 Incantation to create a TL2 Slave
 class CoreplexLocalInterrupter(c: CoreplexLocalInterrupterConfig)(implicit val p: Parameters)
-  extends TLRegisterRouter(c.address, 0, c.size, None, c.beatBytes, false)(
+  extends TLRegisterRouter(c.address, 0, c.size, 0, c.beatBytes, false)(
   new TLRegBundle((c, p), _)    with CoreplexLocalInterrupterBundle)(
   new TLRegModule((c, p), _, _) with CoreplexLocalInterrupterModule)
 {

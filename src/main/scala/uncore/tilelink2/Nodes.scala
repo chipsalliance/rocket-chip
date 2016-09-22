@@ -16,7 +16,7 @@ abstract class NodeImp[PO, PI, EO, EI, B <: Data]
   def edgeI(po: PO, pi: PI): EI
   def bundleO(eo: Seq[EO]): Vec[B]
   def bundleI(ei: Seq[EI]): Vec[B]
-  def connect(bo: B, eo: EO, bi: B, ei: EI)(implicit sourceInfo: SourceInfo): Unit
+  def connect(bo: => B, eo: => EO, bi: => B, ei: => EI)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit)
   // If you want to track parameters as they flow through nodes, overload these:
   def mixO(po: PO, node: BaseNode[PO, PI, EO, EI, B]): PO = po
   def mixI(pi: PI, node: BaseNode[PO, PI, EO, EI, B]): PI = pi
@@ -79,7 +79,7 @@ class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
   def connectOut = bundleOut
   def connectIn = bundleIn
 
-  def := (y: BaseNode[PO, PI, EO, EI, B])(implicit sourceInfo: SourceInfo) = {
+  def := (y: BaseNode[PO, PI, EO, EI, B])(implicit sourceInfo: SourceInfo): Option[LazyModule] = {
     val x = this // x := y
     val info = sourceLine(sourceInfo, " at ", "")
     require (!LazyModule.stack.isEmpty, s"${y.name} cannot be connected to ${x.name} outside of LazyModule scope" + info)
@@ -91,9 +91,9 @@ class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
     val o = y.accPO.size
     y.accPO += ((i, x))
     x.accPI += ((o, y))
-    LazyModule.stack.head.bindings = (() => {
-      imp.connect(y.connectOut(o), y.edgesOut(o), x.connectIn(i), x.edgesIn(i))
-    }) :: LazyModule.stack.head.bindings
+    val (out, binding) = imp.connect(y.connectOut(o), y.edgesOut(o), x.connectIn(i), x.edgesIn(i))
+    LazyModule.stack.head.bindings = binding :: LazyModule.stack.head.bindings
+    out
   }
 }
 
