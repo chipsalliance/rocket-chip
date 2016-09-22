@@ -1,11 +1,11 @@
 // See LICENSE for license details.
 
-package groundtest
+package unittest
 
 import Chisel._
 import util.Generator
 
-object GroundtestGenerator extends Generator
+object UnitTestGenerator extends Generator
 {
   val longName = names.topModuleProject + "." + names.configs
   generateFirrtl

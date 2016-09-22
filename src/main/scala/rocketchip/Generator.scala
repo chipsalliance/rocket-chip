@@ -7,7 +7,7 @@ import rocket.{XLen, UseVM, UseAtomics, UseCompressed, FPUKey}
 import util.Generator
 import scala.collection.mutable.LinkedHashSet
 
-/** An example Generator */
+/** A Generator for platforms containing Rocket Coreplexes */
 object RocketChipGenerator extends Generator
 {
   val rv64RegrTestNames = LinkedHashSet(

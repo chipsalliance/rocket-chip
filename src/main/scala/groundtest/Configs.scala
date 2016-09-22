@@ -100,12 +100,6 @@ class WithGroundTest extends Config(
         dataBits = site(CacheBlockBytes)*8)
     }
     case BuildTiles => {
-      val groundtest = if (site(XLen) == 64)
-        DefaultTestSuites.groundtest64
-      else
-        DefaultTestSuites.groundtest32
-      TestGeneration.addSuite(groundtest("p"))
-      TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
       (0 until site(NTiles)).map { i =>
         val tileSettings = site(GroundTestKey)(i)
         (r: Bool, p: Parameters) => {
@@ -163,7 +157,7 @@ class WithMemtest extends Config(
     case GroundTestKey => Seq.fill(site(NTiles)) {
       GroundTestTileSettings(1, 1)
     }
-    case GeneratorKey => GeneratorParameters(
+    case GeneratorKey => TrafficGeneratorParameters(
       maxRequests = 128,
       startAddress = site(GlobalAddrMap)("mem").start)
     case BuildGroundTest =>
@@ -223,7 +217,7 @@ class WithNastiConverterTest extends Config(
     case GroundTestKey => Seq.fill(site(NTiles)) {
       GroundTestTileSettings(uncached = 1)
     }
-    case GeneratorKey => GeneratorParameters(
+    case GeneratorKey => TrafficGeneratorParameters(
       maxRequests = 128,
       startAddress = site(GlobalAddrMap)("mem").start)
     case BuildGroundTest =>
@@ -238,7 +232,7 @@ class WithTraceGen extends Config(
     }
     case BuildGroundTest =>
       (p: Parameters) => Module(new GroundTestTraceGenerator()(p))
-    case GeneratorKey => GeneratorParameters(
+    case GeneratorKey => TrafficGeneratorParameters(
       maxRequests = 256,
       startAddress = 0)
     case AddressBag => {
@@ -266,7 +260,7 @@ class WithPCIeMockupTest extends Config(
     case GroundTestKey => Seq(
       GroundTestTileSettings(1, 1),
       GroundTestTileSettings(1))
-    case GeneratorKey => GeneratorParameters(
+    case GeneratorKey => TrafficGeneratorParameters(
       maxRequests = 128,
       startAddress = site(GlobalAddrMap)("mem").start)
     case BuildGroundTest =>
@@ -282,7 +276,7 @@ class WithDirectMemtest extends Config(
     val nGens = 8
     pname match {
       case GroundTestKey => Seq(GroundTestTileSettings(uncached = nGens))
-      case GeneratorKey => GeneratorParameters(
+      case GeneratorKey => TrafficGeneratorParameters(
         maxRequests = 1024,
         startAddress = 0)
       case BuildGroundTest =>

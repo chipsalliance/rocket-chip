@@ -12,7 +12,7 @@ class NastiGenerator(id: Int)(implicit val p: Parameters) extends Module
     with HasNastiParameters
     with HasMIFParameters
     with HasAddrMapParameters
-    with HasGeneratorParameters {
+    with HasTrafficGeneratorParameters {
 
   val io = new Bundle {
     val status = new GroundTestStatus
