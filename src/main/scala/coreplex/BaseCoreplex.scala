@@ -41,8 +41,7 @@ case class CoreplexConfig(
     nExtInterrupts: Int,
     nSlaves: Int,
     nMemChannels: Int,
-    hasSupervisor: Boolean,
-    hasExtMMIOPort: Boolean)
+    hasSupervisor: Boolean)
 {
   val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, 0)
 }
@@ -52,23 +51,20 @@ abstract class BaseCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends L
 abstract class BaseCoreplexBundle(val c: CoreplexConfig)(implicit val p: Parameters) extends Bundle with HasCoreplexParameters {
   val master = new Bundle {
     val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
-    val mmio = c.hasExtMMIOPort.option(new ClientUncachedTileLinkIO()(outermostMMIOParams))
+    val mmio = new ClientUncachedTileLinkIO()(outermostMMIOParams)
   }
   val slave = Vec(c.nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
   val interrupts = Vec(c.nExtInterrupts, Bool()).asInput
   val debug = new DebugBusIO()(p).flip
   val clint = Vec(c.nTiles, new CoreplexLocalInterrupts).asInput
-  val success = Bool(OUTPUT)
   val resetVector = UInt(INPUT, p(XLen))
+  val success = Bool(OUTPUT) // used for testing
 }
 
 abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     c: CoreplexConfig, l: L, b: => B)(implicit val p: Parameters) extends LazyModuleImp(l) with HasCoreplexParameters {
   val outer: L = l
   val io: B = b
-
-  // Coreplex doesn't know when to stop running
-  io.success := Bool(false)
 
   // Build a set of Tiles
   val tiles = p(BuildTiles) map { _(reset, p) }
@@ -162,6 +158,9 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     for ((t, m) <- (uncoreTileIOs.map(_.slave).flatten) zip (tileSlavePorts map (cBus port _)))
       t <> m
 
-    io.master.mmio.foreach { _ <> cBus.port("pbus") }
+    io.master.mmio <> cBus.port("pbus")
   }
+
+  // Coreplex doesn't know when to stop running
+  io.success := Bool(false)
 }

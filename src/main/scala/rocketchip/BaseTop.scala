@@ -36,8 +36,7 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
     nExtInterrupts = pInterrupts.sum,
     nSlaves = pBusMasters.sum,
     nMemChannels = q(NMemoryChannels),
-    hasSupervisor = q(UseVM),
-    hasExtMMIOPort = true
+    hasSupervisor = q(UseVM)
   )
 
   lazy val genGlobalAddrMap = GenerateGlobalAddrMap(q, pDevices.get, peripheryManagers)
@@ -68,7 +67,7 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
   val pBus =
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:pbus"))(
       p.alterPartial({ case TLId => "L2toMMIO" })))
-  pBus.io.in.head <> coreplexIO.master.mmio.get
+  pBus.io.in.head <> coreplexIO.master.mmio
   outer.legacy.module.io.legacy <> pBus.port("TL2")
 
   println("Generated Address Map")
