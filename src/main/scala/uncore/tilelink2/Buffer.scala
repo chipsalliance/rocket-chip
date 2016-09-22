@@ -4,10 +4,20 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import scala.math.max
 
-class TLBuffer(entries: Int = 2, pipe: Boolean = false) extends LazyModule
+// pipe is only used if a queue has depth = 1
+class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe: Boolean = true) extends LazyModule
 {
-  val node = TLIdentityNode()
+  require (a >= 0)
+  require (b >= 0)
+  require (c >= 0)
+  require (d >= 0)
+  require (e >= 0)
+
+  val node = TLAdapterNode(
+    clientFn  = { seq => seq(0).copy(minLatency = seq(0).minLatency + max(1,b) + max(1,c)) },
+    managerFn = { seq => seq(0).copy(minLatency = seq(0).minLatency + max(1,a) + max(1,d)) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -16,13 +26,13 @@ class TLBuffer(entries: Int = 2, pipe: Boolean = false) extends LazyModule
     }
     
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
-      out.a <> Queue(in .a, entries, pipe)
-      in .d <> Queue(out.d, entries, pipe)
+      if (a>0) { out.a <> Queue(in .a, a, pipe && a<2) } else { out.a <> in.a }
+      if (d>0) { in .d <> Queue(out.d, d, pipe && d<2) } else { in.d <> out.d }
 
       if (edgeOut.manager.anySupportAcquire && edgeOut.client.anySupportProbe) {
-        in .b <> Queue(out.b, entries, pipe)
-        out.c <> Queue(in .c, entries, pipe)
-        out.e <> Queue(in .e, entries, pipe)
+        if (b>0) { in .b <> Queue(out.b, b, pipe && b<2) } else { in.b <> out.b }
+        if (c>0) { out.c <> Queue(in .c, c, pipe && c<2) } else { out.c <> in.c }
+        if (e>0) { out.e <> Queue(in .e, e, pipe && e<2) } else { out.e <> in.e }
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)
@@ -38,8 +48,13 @@ class TLBuffer(entries: Int = 2, pipe: Boolean = false) extends LazyModule
 object TLBuffer
 {
   // applied to the TL source node; y.node := TLBuffer(x.node)
-  def apply(x: TLBaseNode, entries: Int = 2, pipe: Boolean = false)(implicit sourceInfo: SourceInfo): TLBaseNode = {
-    val buffer = LazyModule(new TLBuffer(entries, pipe))
+  def apply(x: TLBaseNode)                                  (implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, 2)
+  def apply(x: TLBaseNode, entries: Int)                    (implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, entries, true)
+  def apply(x: TLBaseNode, entries: Int, pipe: Boolean)     (implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, entries, entries, pipe)
+  def apply(x: TLBaseNode, ace: Int, bd: Int)               (implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, ace, bd, true)
+  def apply(x: TLBaseNode, ace: Int, bd: Int, pipe: Boolean)(implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, ace, bd, ace, bd, ace, pipe)
+  def apply(x: TLBaseNode, a: Int, b: Int, c: Int, d: Int, e: Int, pipe: Boolean = true)(implicit sourceInfo: SourceInfo): TLBaseNode = {
+    val buffer = LazyModule(new TLBuffer(a, b, c, d, e, pipe))
     buffer.node := x
     buffer.node
   }
