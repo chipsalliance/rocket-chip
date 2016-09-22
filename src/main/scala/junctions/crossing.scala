@@ -85,3 +85,50 @@ object AsyncIrrevocableFrom
     PostQueueIrrevocablize(AsyncDecoupledFrom(from_clock, from_reset, from_source, depth, sync))
   }
 }
+
+/**
+ * This helper object synchronizes a level-sensitive signal from one
+ * clock domain to another.
+ */
+object LevelSyncCrossing {
+  class SynchronizerBackend(sync: Int, _clock: Clock) extends Module(Some(_clock)) {
+    val io = new Bundle {
+      val in = Bool(INPUT)
+      val out = Bool(OUTPUT)
+    }
+
+    io.out := ShiftRegister(io.in, sync)
+  }
+
+  class SynchronizerFrontend(_clock: Clock) extends Module(Some(_clock)) {
+    val io = new Bundle {
+      val in = Bool(INPUT)
+      val out = Bool(OUTPUT)
+    }
+
+    io.out := RegNext(io.in)
+  }
+
+  def apply(from_clock: Clock, to_clock: Clock, in: Bool, sync: Int = 2): Bool = {
+    val front = Module(new SynchronizerFrontend(from_clock))
+    val back = Module(new SynchronizerBackend(sync, to_clock))
+
+    front.io.in := in
+    back.io.in := front.io.out
+    back.io.out
+  }
+}
+
+object LevelSyncTo {
+  def apply(to_clock: Clock, in: Bool, sync: Int = 2): Bool = {
+    val scope = AsyncScope()
+    LevelSyncCrossing(scope.clock, to_clock, in, sync)
+  }
+}
+
+object LevelSyncFrom {
+  def apply(from_clock: Clock, in: Bool, sync: Int = 2): Bool = {
+    val scope = AsyncScope()
+    LevelSyncCrossing(from_clock, scope.clock, in, sync)
+  }
+}

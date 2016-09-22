@@ -81,7 +81,7 @@ class PCIeMockupTestConfig extends Config(
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
     case BuildCoreplex =>
-      (p: Parameters, c: CoreplexConfig) => Module(new GroundTestCoreplex(p, c))
+      (c: CoreplexConfig, p: Parameters) => uncore.tilelink2.LazyModule(new GroundTestCoreplex(c)(p)).module
     case TLKey("L1toL2") => {
       val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
       TileLinkParameters(
@@ -128,7 +128,7 @@ class WithComparator extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new ComparatorCore()(p))
     case ComparatorKey => ComparatorParameters(
-      targets    = Seq("mem", "io:ext:TL2:testram").map(name =>
+      targets    = Seq("mem", "io:pbus:TL2:testram").map(name =>
                     site(GlobalAddrMap)(name).start.longValue),
       width      = 8,
       operations = 1000,

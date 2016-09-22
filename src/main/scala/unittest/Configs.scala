@@ -32,4 +32,3 @@ class WithUncoreUnitTests extends Config(
 )
 
 class UncoreUnitTestConfig extends Config(new WithUncoreUnitTests ++ new BaseConfig)
-

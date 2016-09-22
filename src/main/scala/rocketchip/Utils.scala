@@ -53,7 +53,7 @@ class GlobalVariable[T] {
 
 object GenerateGlobalAddrMap {
   def apply(p: Parameters, pDevicesEntries: Seq[AddrMapEntry], peripheryManagers: Seq[TLManagerParameters]) = {
-    lazy val intIOAddrMap: AddrMap = {
+    lazy val cBusIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
       entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
@@ -84,15 +84,15 @@ object GenerateGlobalAddrMap {
     }.flatten
 
     lazy val tl2AddrMap = new AddrMap(tl2Devices, collapse = true)
-    lazy val extIOAddrMap = new AddrMap(AddrMapEntry("TL2", tl2AddrMap) +: (p(ExtMMIOPorts) ++ pDevicesEntries), collapse = true)
+    lazy val pBusIOAddrMap = new AddrMap(AddrMapEntry("TL2", tl2AddrMap) +: (p(ExtMMIOPorts) ++ pDevicesEntries), collapse = true)
 
     val memBase = 0x80000000L
     val memSize = p(ExtMemSize)
     Dump("MEM_BASE", memBase)
 
-    val intern = AddrMapEntry("int", intIOAddrMap)
-    val extern = AddrMapEntry("ext", extIOAddrMap)
-    val io = AddrMapEntry("io", AddrMap((intern +: (!extIOAddrMap.isEmpty).option(extern).toSeq):_*))
+    val cBus = AddrMapEntry("cbus", cBusIOAddrMap)
+    val pBus = AddrMapEntry("pbus", pBusIOAddrMap)
+    val io = AddrMapEntry("io", AddrMap((cBus +: (!pBusIOAddrMap.isEmpty).option(pBus).toSeq):_*))
     val mem = AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true)))
     AddrMap((io +: (p(NMemoryChannels) > 0).option(mem).toSeq):_*)
   }
@@ -101,8 +101,8 @@ object GenerateGlobalAddrMap {
 object GenerateConfigString {
   def apply(p: Parameters, c: CoreplexConfig, pDevicesEntries: Seq[AddrMapEntry], peripheryManagers: Seq[TLManagerParameters]) = {
     val addrMap = p(GlobalAddrMap)
-    val plicAddr = addrMap("io:int:plic").start
-    val clint = CoreplexLocalInterrupterConfig(0, addrMap("io:ext:TL2:clint").start)
+    val plicAddr = addrMap("io:cbus:plic").start
+    val clint = CoreplexLocalInterrupterConfig(0, addrMap("io:pbus:TL2:clint").start)
     val xLen = p(XLen)
     val res = new StringBuilder
     res append  "plic {\n"
@@ -155,7 +155,7 @@ object GenerateConfigString {
     }
     res append  "};\n"
     pDevicesEntries foreach { entry =>
-      val region = addrMap("io:ext:" + entry.name)
+      val region = addrMap("io:pbus:" + entry.name)
       res append s"${entry.name} {\n"
       res append s"  addr 0x${region.start.toString(16)};\n"
       res append s"  size 0x${region.size.toString(16)}; \n"
