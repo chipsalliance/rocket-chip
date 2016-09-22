@@ -438,6 +438,10 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     val a_bypass = bypass && bundle.d.valid && d_last
     val d_bypass = bypass && bundle.a.valid && a_last
 
+    if (edge.manager.minLatency > 0) {
+      assert(!bypass || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+    }
+
     when (bundle.a.fire()) {
       a_counter := Mux(a_first, a_beats1, a_counter - UInt(1))
       when (a_last) { inflight(bundle.a.bits.source) := Bool(true) }
