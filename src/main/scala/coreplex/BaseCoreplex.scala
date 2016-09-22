@@ -133,11 +133,11 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
   def buildMMIONetwork(mmio: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
     val ioAddrMap = globalAddrMap.subMap("io")
 
-    val mmioNetwork = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap))
-    mmioNetwork.io.in.head <> mmio
+    val cBus = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap))
+    cBus.io.in.head <> mmio
 
     val plic = Module(new PLIC(c.plicKey))
-    plic.io.tl <> mmioNetwork.port("int:plic")
+    plic.io.tl <> cBus.port("cbus:plic")
     for (i <- 0 until io.interrupts.size) {
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := io.interrupts(i)
@@ -145,7 +145,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     }
 
     val debugModule = Module(new DebugModule)
-    debugModule.io.tl <> mmioNetwork.port("int:debug")
+    debugModule.io.tl <> cBus.port("cbus:debug")
     debugModule.io.db <> io.debug
 
     // connect coreplex-internal interrupts to tiles
@@ -158,10 +158,10 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
       tile.resetVector := io.resetVector
     }
 
-    val tileSlavePorts = (0 until c.nTiles) map (i => s"int:dmem$i") filter (ioAddrMap contains _)
-    for ((t, m) <- (uncoreTileIOs.map(_.slave).flatten) zip (tileSlavePorts map (mmioNetwork port _)))
+    val tileSlavePorts = (0 until c.nTiles) map (i => s"cbus:dmem$i") filter (ioAddrMap contains _)
+    for ((t, m) <- (uncoreTileIOs.map(_.slave).flatten) zip (tileSlavePorts map (cBus port _)))
       t <> m
 
-    io.master.mmio.foreach { _ <> mmioNetwork.port("ext") }
+    io.master.mmio.foreach { _ <> cBus.port("pbus") }
   }
 }

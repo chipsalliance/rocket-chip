@@ -204,10 +204,10 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryMasterMMIO
   val io: PeripheryMasterMMIOBundle
-  val mmioNetwork: TileLinkRecursiveInterconnect
+  val pBus: TileLinkRecursiveInterconnect
 
   val mmio_ports = p(ExtMMIOPorts) map { port =>
-    TileLinkWidthAdapter(mmioNetwork.port(port.name), "MMIO_Outermost")
+    TileLinkWidthAdapter(pBus.port(port.name), "MMIO_Outermost")
   }
 
   val mmio_axi_start = 0
