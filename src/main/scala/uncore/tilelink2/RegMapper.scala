@@ -28,7 +28,7 @@ class RegMapperOutput(params: RegMapperParams) extends GenericParameterizedBundl
 object RegMapper
 {
   // Create a generic register-based device
-  def apply(bytes: Int, concurrency: Option[Int], undefZero: Boolean, in: DecoupledIO[RegMapperInput], mapping: RegField.Map*) = {
+  def apply(bytes: Int, concurrency: Int, undefZero: Boolean, in: DecoupledIO[RegMapperInput], mapping: RegField.Map*) = {
     val regmap = mapping.toList.filter(!_._2.isEmpty)
     require (!regmap.isEmpty)
 
@@ -49,9 +49,9 @@ object RegMapper
 
     // Must this device pipeline the control channel?
     val pipelined = regmap.map(_._2.map(_.pipelined)).flatten.reduce(_ || _)
-    val depth = concurrency.getOrElse(if (pipelined) 1 else 0)
+    val depth = concurrency
     require (depth >= 0)
-    require (!pipelined || depth > 0)
+    require (!pipelined || depth > 0, "Register-based device with request/response handshaking needs concurrency > 0")
     val back = if (depth > 0) Queue(front, depth, pipe = depth == 1) else front
 
     // Convert to and from Bits

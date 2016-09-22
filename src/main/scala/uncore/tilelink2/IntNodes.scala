@@ -60,10 +60,12 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
     Vec(ei.size, Vec(ei.map(_.source.num).max, Bool())).flip
   }
 
-  def connect(bo: Vec[Bool], eo: IntEdge, bi: Vec[Bool], ei: IntEdge)(implicit sourceInfo: SourceInfo): Unit = {
-    require (eo == ei)
-    // Cannot use bulk connect, because the widths could differ
-    (bo zip bi) foreach { case (o, i) => i := o }
+  def connect(bo: => Vec[Bool], eo: => IntEdge, bi: => Vec[Bool], ei: => IntEdge)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    (None, () => {
+      require (eo == ei)
+      // Cannot use bulk connect, because the widths could differ
+      (bo zip bi) foreach { case (o, i) => i := o }
+    })
   }
 
   override def mixO(po: IntSourcePortParameters, node: IntBaseNode): IntSourcePortParameters =

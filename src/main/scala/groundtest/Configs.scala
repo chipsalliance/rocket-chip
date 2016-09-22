@@ -141,7 +141,7 @@ class WithComparator extends Config(
                     site(GlobalAddrMap)(name).start.longValue),
       width      = 8,
       operations = 1000,
-      atomics    = false, // !!! re-enable soon: site(UseAtomics),
+      atomics    = site(UseAtomics),
       prefetches = site("COMPARATOR_PREFETCHES"))
     case FPUConfig => None
     case UseAtomics => false
@@ -305,7 +305,7 @@ class WithDirectComparator extends Config(
       targets    = Seq(0L, 0x100L),
       width      = 8,
       operations = 1000,
-      atomics    = false, // !!! re-enable soon: site(UseAtomics),
+      atomics    = site(UseAtomics),
       prefetches = site("COMPARATOR_PREFETCHES"))
     case FPUConfig => None
     case UseAtomics => false

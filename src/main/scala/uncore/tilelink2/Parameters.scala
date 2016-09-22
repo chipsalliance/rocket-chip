@@ -173,10 +173,14 @@ case class TLManagerParameters(
   })
 }
 
-case class TLManagerPortParameters(managers: Seq[TLManagerParameters], beatBytes: Int)
+case class TLManagerPortParameters(
+  managers:   Seq[TLManagerParameters],
+  beatBytes:  Int,
+  minLatency: Int = 0)
 {
   require (!managers.isEmpty)
   require (isPow2(beatBytes))
+  require (minLatency >= 0)
 
   // Require disjoint ranges for Ids and addresses
   managers.combinations(2).foreach({ case Seq(x,y) =>
@@ -289,8 +293,13 @@ case class TLClientParameters(
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
 
-case class TLClientPortParameters(clients: Seq[TLClientParameters]) {
+case class TLClientPortParameters(
+  clients:       Seq[TLClientParameters],
+  unsafeAtomics: Boolean = false,
+  minLatency:    Int = 0) // Atomics are executed as get+put
+{
   require (!clients.isEmpty)
+  require (minLatency >= 0)
 
   // Require disjoint ranges for Ids
   clients.combinations(2).foreach({ case Seq(x,y) =>

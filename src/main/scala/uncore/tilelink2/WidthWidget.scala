@@ -10,9 +10,10 @@ import scala.math.{min,max}
 // innBeatBytes => the new client-facing bus width
 class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
 {
+  // Because we stall the request while sending beats, atomics can overlap => minLatency=0
   val node = TLAdapterNode(
-    clientFn  = { case Seq(c) => c },
-    managerFn = { case Seq(m) => m.copy(beatBytes = innerBeatBytes) })
+    clientFn  = { case Seq(c) => c.copy(minLatency = 0) },
+    managerFn = { case Seq(m) => m.copy(minLatency = 0, beatBytes = innerBeatBytes) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
