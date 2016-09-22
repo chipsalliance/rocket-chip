@@ -9,7 +9,7 @@ module TestDriver;
   reg clock = 1'b0;
   reg reset = 1'b1;
 
-  always #(`CLOCK_PERIOD/2.0) clk = ~clk;
+  always #(`CLOCK_PERIOD/2.0) clock = ~clock;
   initial #(`RESET_DELAY) reset = 0;
 
   // Read input arguments and initialize
