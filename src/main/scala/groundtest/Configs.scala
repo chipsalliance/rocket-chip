@@ -7,8 +7,6 @@ import uncore.coherence._
 import uncore.agents._
 import uncore.devices.NTiles
 import junctions._
-import scala.collection.mutable.LinkedHashSet
-import scala.collection.immutable.HashMap
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 import scala.math.max
 import coreplex._
@@ -125,7 +123,6 @@ class WithGroundTest extends Config(
     case FPUKey => None
     case UseAtomics => false
     case UseCompressed => false
-    case RegressionTestNames => LinkedHashSet("rv64ui-p-simple")
     case _ => throw new CDEMatchError
   })
 
