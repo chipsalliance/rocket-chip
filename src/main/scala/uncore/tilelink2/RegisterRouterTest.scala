@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import util.Pow2ClockDivider
 
 object LFSR16Seed
 {
@@ -225,9 +226,7 @@ trait RRTest1Bundle
 
 trait RRTest1Module extends Module with HasRegMap
 {
-  val clocks = Module(new ClockDivider)
-  clocks.io.clock_in := clock
-  clocks.io.reset_in := reset
+  val clocks = Module(new Pow2ClockDivider(2))
 
   def x(bits: Int) = {
     val field = UInt(width = bits)
@@ -237,7 +236,7 @@ trait RRTest1Module extends Module with HasRegMap
     readCross.io.master_reset := reset
     readCross.io.master_allow := Bool(true)
     readCross.io.slave_clock := clocks.io.clock_out
-    readCross.io.slave_reset := clocks.io.reset_out
+    readCross.io.slave_reset := reset
     readCross.io.slave_allow := Bool(true)
 
     val writeCross = Module(new RegisterWriteCrossing(field))
@@ -245,7 +244,7 @@ trait RRTest1Module extends Module with HasRegMap
     writeCross.io.master_reset := reset
     writeCross.io.master_allow := Bool(true)
     writeCross.io.slave_clock := clocks.io.clock_out
-    writeCross.io.slave_reset := clocks.io.reset_out
+    writeCross.io.slave_reset := reset
     writeCross.io.slave_allow := Bool(true)
 
     readCross.io.slave_register := writeCross.io.slave_register
