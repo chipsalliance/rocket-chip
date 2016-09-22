@@ -36,6 +36,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
     val edgeIn  = node.edgesIn(0)
     val edgeOut = node.edgesOut(0)
     val managers = edgeOut.manager.managers
+    val beatBytes = edgeOut.manager.beatBytes
 
     // To which managers are we adding atomic support?
     val ourSupport = TransferSizes(1, edgeOut.manager.beatBytes)
@@ -122,26 +123,29 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       val a_cam_sel_free = (cam_free zip a_cam_por_free) map { case (a,b) => a && !b }
 
       // Logical AMO
-      val lut = Vec(a_cam_a.lut.toBools)
-      val indexes = (a_a.toBools zip a_d.toBools) map { case (a,d) => a.asUInt << 1 | d.asUInt }
-      val logic_out = Cat(indexes.map(x => lut(x).asUInt).reverse)
+      val indexes = Seq.tabulate(beatBytes*8) { i => Cat(a_a(i,i), a_d(i,i)) }
+      val logic_out = Cat(indexes.map(x => a_cam_a.lut(x).asUInt).reverse)
 
       // Arithmetic AMO
       val unsigned = a_cam_a.bits.param(1)
       val take_max = a_cam_a.bits.param(0)
       val adder = a_cam_a.bits.param(2)
-      val mask = FillInterleaved(8, a_cam_a.bits.mask)
-      val signBit = ~(~mask | (mask >> 1))
-      val sign_a = a_a & signBit
-      val sign_d = a_d & signBit
-      val signext_a = Vec(sign_a.toBools.scanLeft(Bool(false))(_||_).init).asUInt
-      val signext_d = Vec(sign_d.toBools.scanLeft(Bool(false))(_||_).init).asUInt
+      val mask = a_cam_a.bits.mask
+      val signSel = ~(~mask | (mask >> 1))
+      val signbits_a = Cat(Seq.tabulate(beatBytes) { i => a_a(8*i+7,8*i+7) } .reverse)
+      val signbits_d = Cat(Seq.tabulate(beatBytes) { i => a_d(8*i+7,8*i+7) } .reverse)
+      // Move the selected sign bit into the first byte position it will extend
+      val signbit_a = ((signbits_a & signSel) << 1)(beatBytes-1, 0)
+      val signbit_d = ((signbits_d & signSel) << 1)(beatBytes-1, 0)
+      val signext_a = FillInterleaved(8, highOR(signbit_a))
+      val signext_d = FillInterleaved(8, highOR(signbit_d))
       // NOTE: sign-extension does not change the relative ordering in EITHER unsigned or signed arithmetic
-      val a_a_ext = (a_a & mask) | signext_a
-      val a_d_ext = (a_d & mask) | signext_d
+      val wide_mask = FillInterleaved(8, mask)
+      val a_a_ext = (a_a & wide_mask) | signext_a
+      val a_d_ext = (a_d & wide_mask) | signext_d
       val a_d_inv = Mux(adder, a_d_ext, ~a_d_ext)
       val adder_out = a_a_ext + a_d_inv
-      val h = 8*edgeOut.manager.beatBytes-1 // now sign-extended; use biggest bit
+      val h = 8*beatBytes-1 // now sign-extended; use biggest bit
       val a_bigger_uneq = unsigned === a_a_ext(h) // result if high bits are unequal
       val a_bigger = Mux(a_a_ext(h) === a_d_ext(h), !adder_out(h), a_bigger_uneq)
       val pick_a = take_max === a_bigger

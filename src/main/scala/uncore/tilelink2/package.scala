@@ -13,7 +13,7 @@ package object tilelink2
   def highOR(x: UInt) = {
     val w = x.getWidth
     def helper(s: Int, x: UInt): UInt =
-      if (s >= w) x else helper(s+s, x | x << s)
+      if (s >= w) x else helper(s+s, x | (x << s)(w-1,0))
     helper(1, x)
   }
 
