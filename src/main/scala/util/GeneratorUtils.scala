@@ -60,7 +60,7 @@ trait HasGeneratorUtilities {
 
 
 /** Standardized command line interface for Scala entry point */
-trait Generator extends App with HasGeneratorUtilities {
+trait GeneratorApp extends App with HasGeneratorUtilities {
   lazy val names: ParsedInputNames = {
     require(args.size == 5, "Usage: sbt> " + 
       "run TargetDir TopModuleProjectName TopModuleName " +

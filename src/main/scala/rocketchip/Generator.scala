@@ -2,14 +2,12 @@
 
 package rocketchip
 
-import Chisel._
 import rocket.{XLen, UseVM, UseAtomics, UseCompressed, FPUKey}
-import util.Generator
 import scala.collection.mutable.LinkedHashSet
 
 /** A Generator for platforms containing Rocket Coreplexes */
-object RocketChipGenerator extends Generator
-{
+object Generator extends util.GeneratorApp {
+
   val rv64RegrTestNames = LinkedHashSet(
         "rv64ud-v-fcvt",
         "rv64ud-p-fdiv",

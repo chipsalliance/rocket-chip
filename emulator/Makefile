@@ -23,10 +23,7 @@ debug: $(emu_debug)
 clean:
 	rm -rf *.o *.a emulator-* $(generated_dir) $(generated_dir_debug) DVEfiles $(output_dir)
 
-test:
-	cd $(base_dir) && $(SBT) "~make $(CURDIR) run-fast $(CHISEL_ARGS)"
-
-.PHONY: default all debug clean test
+.PHONY: default all debug clean
 
 #--------------------------------------------------------------------
 # Run assembly tests and benchmarks
