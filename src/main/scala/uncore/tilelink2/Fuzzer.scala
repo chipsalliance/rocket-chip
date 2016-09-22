@@ -14,23 +14,22 @@ class IDMapGenerator(numIds: Int) extends Module {
   }
 
   // True indicates that the id is available
-  val bitmap = RegInit(Vec.fill(numIds){Bool(true)})
+  val bitmap = RegInit(UInt((BigInt(1) << numIds) -  1, width = numIds))
 
   io.free.ready := Bool(true)
-  assert(!io.free.valid || !bitmap(io.free.bits)) // No double freeing
+  assert (!io.free.valid || !bitmap(io.free.bits)) // No double freeing
 
-  val mask = bitmap.scanLeft(Bool(false))(_||_).init
-  val select = mask zip bitmap map { case(m,b) => !m && b }
+  val select = ~(highOR(bitmap) << 1) & bitmap
   io.alloc.bits := OHToUInt(select)
-  io.alloc.valid := bitmap.reduce(_||_)
+  io.alloc.valid := bitmap.orR()
 
-  when (io.alloc.fire()) {
-    bitmap(io.alloc.bits) := Bool(false)
-  }
+  val clr = Wire(init = UInt(0, width = numIds))
+  when (io.alloc.fire()) { clr := UIntToOH(io.alloc.bits) }
 
-  when (io.free.fire()) {
-    bitmap(io.free.bits) := Bool(true)
-  }
+  val set = Wire(init = UInt(0, width = numIds))
+  when (io.free.fire()) { set := UIntToOH(io.free.bits) }
+
+  bitmap := (bitmap & ~clr) | set
 }
 
 object LFSR64
