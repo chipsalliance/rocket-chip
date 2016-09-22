@@ -6,7 +6,7 @@
 
 module TestDriver;
 
-  reg clk   = 1'b0;
+  reg clock = 1'b0;
   reg reset = 1'b1;
 
   always #(`CLOCK_PERIOD/2.0) clk = ~clk;
@@ -52,7 +52,7 @@ module TestDriver;
   reg failure = 1'b0;
   wire success;
   integer stderr = 32'h80000002;
-  always @(posedge clk)
+  always @(posedge clock)
   begin
 `ifdef GATE_LEVEL
     if (verbose)
@@ -92,7 +92,7 @@ module TestDriver;
   end
 
   TestHarness testHarness(
-    .clk(clk),
+    .clock(clock),
     .reset(reset),
     .io_success(success)
   );

@@ -101,16 +101,16 @@ trait PeripheryDebugModule {
   implicit val p: Parameters
   val outer: PeripheryDebug
   val io: PeripheryDebugBundle
-  val coreplex: Coreplex
+  val coreplexIO: BaseCoreplexBundle
 
   if (p(IncludeJtagDTM)) {
     // JtagDTMWithSync is a wrapper which
     // handles the synchronization as well.
     val dtm = Module (new JtagDTMWithSync()(p))
     dtm.io.jtag <> io.jtag.get
-    coreplex.io.debug <> dtm.io.debug
+    coreplexIO.debug <> dtm.io.debug
   } else {
-    coreplex.io.debug <>
+    coreplexIO.debug <>
       (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
       else io.debug.get)
   }
@@ -134,12 +134,12 @@ trait PeripheryExtInterruptsModule {
   implicit val p: Parameters
   val outer: PeripheryExtInterrupts
   val io: PeripheryExtInterruptsBundle
-  val coreplex: Coreplex
+  val coreplexIO: BaseCoreplexBundle
 
   {
     val r = outer.pInterrupts.range("ext")
     ((r._1 until r._2) zipWithIndex) foreach { case (c, i) =>
-      coreplex.io.interrupts(c) := io.interrupts(i)
+      coreplexIO.interrupts(c) := io.interrupts(i)
     }
   }
 }
@@ -163,10 +163,10 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryMasterMem
   val io: PeripheryMasterMemBundle
-  val coreplex: Coreplex
+  val coreplexIO: BaseCoreplexBundle
 
   // Abuse the fact that zip takes the shorter of the two lists
-  ((io.mem_axi zip coreplex.io.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
+  ((io.mem_axi zip coreplexIO.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
     val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
     axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
@@ -176,11 +176,11 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
     )
   }
 
-  (io.mem_ahb zip coreplex.io.master.mem) foreach { case (ahb, mem) =>
+  (io.mem_ahb zip coreplexIO.master.mem) foreach { case (ahb, mem) =>
     ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)(outermostParams)
   }
 
-  (io.mem_tl zip coreplex.io.master.mem) foreach { case (tl, mem) =>
+  (io.mem_tl zip coreplexIO.master.mem) foreach { case (tl, mem) =>
     tl <> TileLinkEnqueuer(mem, 2)(outermostParams)
   }
 }
@@ -258,7 +258,7 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripherySlave
   val io: PeripherySlaveBundle
-  val coreplex: Coreplex
+  val coreplexIO: BaseCoreplexBundle
 
   if (p(NExtBusAXIChannels) > 0) {
     val arb = Module(new NastiArbiter(p(NExtBusAXIChannels)))
@@ -273,7 +273,7 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
 
     val r = outer.pBusMasters.range("ext")
     require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
-    coreplex.io.slave(r._1) <> conv.io.tl
+    coreplexIO.slave(r._1) <> conv.io.tl
   }
 }
 
@@ -299,10 +299,10 @@ trait PeripheryCoreplexLocalInterrupterModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryCoreplexLocalInterrupter
   val io: PeripheryCoreplexLocalInterrupterBundle
-  val coreplex: Coreplex
+  val coreplexIO: BaseCoreplexBundle
 
   outer.clint.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
-  coreplex.io.clint <> outer.clint.module.io.tiles
+  coreplexIO.clint <> outer.clint.module.io.tiles
 }
 
 /////
@@ -371,6 +371,6 @@ trait PeripheryTestBusMasterModule {
 /////
 
 trait HardwiredResetVector {
-  val coreplex: Coreplex
-  coreplex.io.resetVector := UInt(0x1000) // boot ROM
+  val coreplexIO: BaseCoreplexBundle
+  coreplexIO.resetVector := UInt(0x1000) // boot ROM
 }

@@ -6,7 +6,7 @@ import uncore.devices.NTiles
 import uncore.constants._
 import junctions._
 import rocket._
-import util.Timer
+import util.SimpleTimer
 import scala.util.Random
 import cde.{Parameters, Field}
 
@@ -59,7 +59,7 @@ class UncachedTileLinkGenerator(id: Int)
   when (io.mem.grant.fire()) { sending := Bool(true) }
   when (req_wrap) { state := Mux(state === s_put, s_get, s_finished) }
 
-  val timeout = Timer(genTimeout, io.mem.acquire.fire(), io.mem.grant.fire())
+  val timeout = SimpleTimer(genTimeout, io.mem.acquire.fire(), io.mem.grant.fire())
   assert(!timeout, s"Uncached generator ${id} timed out waiting for grant")
 
   io.status.finished := (state === s_finished)
@@ -132,7 +132,7 @@ class HellaCacheGenerator(id: Int)
     val status = new GroundTestStatus
   }
 
-  val timeout = Timer(genTimeout, io.mem.req.fire(), io.mem.resp.valid)
+  val timeout = SimpleTimer(genTimeout, io.mem.req.fire(), io.mem.resp.valid)
   assert(!timeout, s"Cached generator ${id} timed out waiting for response")
   io.status.timeout.valid := timeout
   io.status.timeout.bits := UInt(id)

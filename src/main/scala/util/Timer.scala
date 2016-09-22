@@ -18,17 +18,14 @@ class Timer(initCount: Int, maxInflight: Int) extends Module {
   val countdown = Reg(UInt(width = log2Up(initCount)))
   val active = inflight.reduce(_ || _)
 
-  when (active) {
-    countdown := countdown - UInt(1)
-  }
+  when (active) { countdown := countdown - UInt(1) }
 
   when (io.start.valid) {
     inflight(io.start.bits) := Bool(true)
     countdown := UInt(initCount - 1)
   }
-  when (io.stop.valid) {
-    inflight(io.stop.bits) := Bool(false)
-  }
+
+  when (io.stop.valid) { inflight(io.stop.bits) := Bool(false) }
 
   io.timeout.valid := countdown === UInt(0) && active
   io.timeout.bits := PriorityEncoder(inflight)
@@ -37,18 +34,41 @@ class Timer(initCount: Int, maxInflight: Int) extends Module {
          "Timer stop for transaction that's not inflight")
 }
 
-object Timer {
+/** Simplified Timer with a statically-specified period.
+  * Can be stopped repeatedly, even when not active.
+  */
+class SimpleTimer(initCount: Int) extends Module {
+  val io = new Bundle {
+    val start = Bool(INPUT)
+    val stop = Bool(INPUT)
+    val timeout = Bool(OUTPUT)
+  }
+
+  val countdown = Reg(UInt(width = log2Up(initCount)))
+  val active = Reg(Bool())
+
+  when (active) { countdown := countdown - UInt(1) }
+
+  when (io.start) {
+    active := Bool(true)
+    countdown := UInt(initCount - 1)
+  }
+
+  when (io.stop) { active := Bool(false) }
+
+  io.timeout := countdown === UInt(0) && active
+}
+
+object SimpleTimer {
   def apply(initCount: Int, start: Bool, stop: Bool): Bool = {
-    val timer = Module(new Timer(initCount, 1))
-    timer.io.start.valid := start
-    timer.io.start.bits  := UInt(0)
-    timer.io.stop.valid  := stop
-    timer.io.stop.bits   := UInt(0)
-    timer.io.timeout.valid
+    val timer = Module(new SimpleTimer(initCount))
+    timer.io.start := start
+    timer.io.stop  := stop
+    timer.io.timeout
   }
 }
 
-/** Timer with a statically-specified period.  */
+/** Timer with a dynamically-specified period.  */
 class DynamicTimer(w: Int) extends Module {
   val io = new Bundle {
     val start   = Bool(INPUT)
@@ -71,4 +91,3 @@ class DynamicTimer(w: Int) extends Module {
 
   io.timeout := countdown === UInt(0) && active
 }
-

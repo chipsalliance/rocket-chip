@@ -254,7 +254,7 @@ class TLFuzzRAM extends LazyModule
   }
 }
 
-class TLFuzzRAMTest extends UnitTest {
+class TLFuzzRAMTest extends UnitTest(500000) {
   val dut = Module(LazyModule(new TLFuzzRAM).module)
   io.finished := dut.io.finished
 }
