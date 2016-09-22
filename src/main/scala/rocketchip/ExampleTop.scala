@@ -62,8 +62,8 @@ class ExampleMultiClockTopBundle(p: Parameters) extends ExampleTopBundle(p)
 class ExampleMultiClockTopModule[+L <: ExampleMultiClockTop, +B <: ExampleMultiClockTopBundle](p: Parameters, l: L, b: => B) extends ExampleTopModule(p, l, b) {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
-  multiClockCoreplexIO.trcs foreach { trc =>
-    trc.clock := clock
-    trc.reset := reset
+  multiClockCoreplexIO.tcrs foreach { tcr =>
+    tcr.clock := clock
+    tcr.reset := reset
   }
 }

@@ -40,7 +40,7 @@ class DefaultCoreplexModule[+L <: DefaultCoreplex, +B <: DefaultCoreplexBundle](
 
 trait TileClockResetBundle {
   val c: CoreplexConfig
-  val trcs = Vec(c.nTiles, new Bundle {
+  val tcrs = Vec(c.nTiles, new Bundle {
     val clock = Clock(INPUT)
     val reset = Bool(INPUT)
   })
@@ -51,21 +51,21 @@ trait AsyncConnection {
   val tiles: Seq[Tile]
   val uncoreTileIOs: Seq[TileIO]
 
-  (tiles, uncoreTileIOs, io.trcs).zipped foreach { case (tile, uncore, trc) =>
-    tile.clock := trc.clock
-    tile.reset := trc.reset
+  (tiles, uncoreTileIOs, io.tcrs).zipped foreach { case (tile, uncore, tcr) =>
+    tile.clock := tcr.clock
+    tile.reset := tcr.reset
 
-    (uncore.cached zip tile.io.cached) foreach { case (u, t) => u <> AsyncTileLinkFrom(trc.clock, trc.reset, t) }
-    (uncore.uncached zip tile.io.uncached) foreach { case (u, t) => u <> AsyncUTileLinkFrom(trc.clock, trc.reset, t) }
-    tile.io.slave.foreach { _ <> AsyncUTileLinkTo(trc.clock, trc.reset, uncore.slave.get)}
+    (uncore.cached zip tile.io.cached) foreach { case (u, t) => u <> AsyncTileLinkFrom(tcr.clock, tcr.reset, t) }
+    (uncore.uncached zip tile.io.uncached) foreach { case (u, t) => u <> AsyncUTileLinkFrom(tcr.clock, tcr.reset, t) }
+    tile.io.slave.foreach { _ <> AsyncUTileLinkTo(tcr.clock, tcr.reset, uncore.slave.get)}
 
     val ti = tile.io.interrupts
     val ui = uncore.interrupts
-    ti.debug := LevelSyncTo(trc.clock, ui.debug)
-    ti.mtip := LevelSyncTo(trc.clock, ui.mtip)
-    ti.msip := LevelSyncTo(trc.clock, ui.msip)
-    ti.meip := LevelSyncTo(trc.clock, ui.meip)
-    ti.seip.foreach { _ := LevelSyncTo(trc.clock, ui.seip.get) }
+    ti.debug := LevelSyncTo(tcr.clock, ui.debug)
+    ti.mtip := LevelSyncTo(tcr.clock, ui.mtip)
+    ti.msip := LevelSyncTo(tcr.clock, ui.msip)
+    ti.meip := LevelSyncTo(tcr.clock, ui.meip)
+    ti.seip.foreach { _ := LevelSyncTo(tcr.clock, ui.seip.get) }
 
     tile.io.hartid := uncore.hartid
     tile.io.resetVector := uncore.resetVector
