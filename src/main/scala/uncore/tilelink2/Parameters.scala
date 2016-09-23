@@ -383,7 +383,7 @@ case class TLEdgeParameters(
   manager: TLManagerPortParameters)
 {
   val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
-  val maxLgSize = log2Up(maxTransfer)
+  val maxLgSize = log2Ceil(maxTransfer)
 
   // Sanity check the link...
   require (maxTransfer >= manager.beatBytes)
