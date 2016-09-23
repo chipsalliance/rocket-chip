@@ -2,20 +2,20 @@
 
 package junctions
 import Chisel._
+import uncore.util.{AsyncResetRegVec, AsyncResetReg}
 
 object GrayCounter {
   def apply(bits: Int, increment: Bool = Bool(true)): UInt = {
-    val binary = Module (new AsyncRegVec(w=bits, 0))//RegInit(UInt(0, width = bits))
-    val incremented = binary.io.q + increment.asUInt()
-    binary.io.d := incremented
-    binary.io.en := Bool(true)
+    val incremented = Wire(UInt(width=bits))
+    val binary = AsyncResetReg(incremented, 0, Bool(true))
+    incremented := binary + increment.asUInt()
     incremented ^ (incremented >> UInt(1))
   }
 }
 
 object AsyncGrayCounter {
   def apply(in: UInt, sync: Int): UInt = {
-    val syncv = Vec.fill(sync)(new AsyncResetRegVec(w = in.getWidth, 0))//RegInit(Vec.fill(sync){UInt(0, width = in.getWidth)})
+    val syncv = List.fill(sync)(Module (new AsyncResetRegVec(w = in.getWidth, 0)))
     syncv.last.io.d := in
       (syncv.init zip syncv.tail).foreach { case (sink, source) => {
         sink.io.d := source.io.q
@@ -45,15 +45,11 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, clockIn: Clock,
 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
   when (io.enq.fire() && !reset) { mem(index) := io.enq.bits }
-  val ready_reg = Module(neq AsyncResetRegVec(1, 0))
-  ready_reg.io.d := ready
-  ready_reg.io.en := Bool(true)
-  io.enq.ready := ready_reg.io.q
+  val ready_reg = AsyncResetReg(ready, 0)
+  io.enq.ready := ready_reg
 
-  val widx_reg = Module (new AsyncResetRegVec(bits + 1, 0))
-  widx_reg.io.d := widx
-  widx_reg.io.en := Bool(true)
-  io.widx := widx_reg.io.q
+  val widx_reg = AsyncResetReg(widx, 0)
+  io.widx := widx_reg
 
   io.mem := mem
 }
@@ -81,15 +77,11 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, clockIn: Clock, r
   val index = if (depth == 1) UInt(0) else ridx(bits-1, 0) ^ (ridx(bits, bits) << (bits-1))
   io.deq.bits  := RegEnable(io.mem(index), valid && !reset) // This does NOT need to be reset.
 
-  val deq_reg = Module (new AsyncResetRegVec(1, 0))
-  deq_reg.io.d := valid
-  deq_reg.io.en := Bool(true)
-  io.deq.valid := deq_reg.io.q //RegNext(valid, Bool(false))
+  val deq_reg = AsyncResetReg(valid, 0)
+  io.deq.valid := deq_reg
 
-  val ridx_reg = Module (new AsyncResetRegVec(bits + 1, 0))
-  ridx_reg.io.d := ridx
-  ridx_reg.io.en := Bool(true)
-  io.ridx := ridx_reg.io.q //RegNext(ridx, UInt(0))
+  val ridx_reg = AsyncResetReg(ridx, 0)
+  io.ridx := ridx_reg
 }
 
 class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Crossing[T] {
