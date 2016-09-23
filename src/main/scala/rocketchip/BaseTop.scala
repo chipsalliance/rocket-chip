@@ -8,7 +8,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.devices._
-import util.ParameterizedBundle
+import util.{ParameterizedBundle, ConfigStringOutput}
 import rocket._
 import rocket.Util._
 import coreplex._
