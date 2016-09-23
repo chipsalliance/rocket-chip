@@ -383,3 +383,21 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
   io.tl.grant.ready := Mux(tl_b_grant(io.tl.grant.bits),
     io.nasti.b.ready, io.nasti.r.ready)
 }
+
+class NastiConverterTest(implicit p: Parameters) extends unittest.UnitTest {
+  val driver = Module(new junctions.NastiDriver(32, 4, 2))
+  val frag = Module(new junctions.NastiFragmenter)
+  val conv = Module(new TileLinkIONastiIOConverter)
+  val ram = Module(new uncore.devices.TileLinkTestRAM(8))
+
+  driver.io.start := io.start
+  io.finished := driver.io.finished
+
+  frag.io.in <> driver.io.nasti
+  conv.io.nasti.ar <> frag.io.out.ar
+  conv.io.nasti.aw <> Queue(frag.io.out.aw)
+  conv.io.nasti.w  <> Queue(frag.io.out.w)
+  frag.io.out.b <> conv.io.nasti.b
+  frag.io.out.r <> conv.io.nasti.r
+  ram.io <> conv.io.tl
+}

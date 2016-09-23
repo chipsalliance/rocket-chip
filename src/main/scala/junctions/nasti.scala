@@ -529,3 +529,114 @@ object AsyncNastiFrom {
     AsyncNastiCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
   }
 }
+
+class NastiFragmenter(implicit p: Parameters) extends NastiModule()(p) {
+  val io = new Bundle {
+    val in = (new NastiIO).flip
+    val out = new NastiIO
+  }
+
+  val nXacts = 1 << nastiXIdBits
+  val busy = Reg(init = UInt(0, nXacts))
+  val len = Reg(Vec(nXacts, UInt(width = nastiXLenBits)))
+
+  val writeInflight = Reg(init = Bool(false))
+  val writeId = Reg(UInt(width = nastiXIdBits))
+  val writeAddr = Reg(UInt(width = nastiXAddrBits))
+  val writeSize = Reg(UInt(width = nastiXSizeBits))
+
+  when (io.in.aw.fire()) {
+    len(io.in.aw.bits.id) := io.in.aw.bits.len
+    writeSize := io.in.aw.bits.size
+    writeInflight := Bool(true)
+    writeId := io.in.aw.bits.id
+    writeAddr := io.in.aw.bits.addr
+  }
+
+  when (io.in.w.fire()) {
+    writeAddr := writeAddr + (UInt(1) << writeSize)
+    when (io.in.w.bits.last) { writeInflight := Bool(false) }
+  }
+
+  val writeHelper = DecoupledHelper(
+    io.in.w.valid,
+    io.out.aw.ready,
+    io.out.w.ready)
+
+  io.out.aw.valid := writeHelper.fire(io.out.aw.ready, writeInflight)
+  io.out.aw.bits := NastiWriteAddressChannel(
+    id = writeId,
+    addr = writeAddr,
+    len = UInt(0),
+    size = writeSize)
+
+  io.out.w.valid := writeHelper.fire(io.out.w.ready, writeInflight)
+  io.out.w.bits := NastiWriteDataChannel(
+    data = io.in.w.bits.data,
+    strb = Some(io.in.w.bits.strb),
+    last = Bool(true),
+    id = writeId)
+
+  io.in.w.ready := writeHelper.fire(io.in.w.valid, writeInflight)
+  io.in.aw.ready := !writeInflight && !busy(io.in.aw.bits.id)
+
+  val bid = io.out.b.bits.id
+
+  when (io.out.b.fire()) {
+    len(bid) := len(bid) - UInt(1)
+  }
+
+  io.in.b.valid := io.out.b.valid && len(bid) === UInt(0)
+  io.in.b.bits := io.out.b.bits
+  io.out.b.ready := len(bid) =/= UInt(0) || io.in.b.ready
+
+  val readInflight = Reg(init = Bool(false))
+  val readId = Reg(UInt(width = nastiXIdBits))
+  val readAddr = Reg(UInt(width = nastiXAddrBits))
+  val readLen = Reg(UInt(width = nastiXLenBits))
+  val readSize = Reg(UInt(width = nastiXSizeBits))
+
+  when (io.in.ar.fire()) {
+    len(io.in.ar.bits.id) := io.in.ar.bits.len
+    readId := io.in.ar.bits.id
+    readAddr := io.in.ar.bits.addr
+    readLen := io.in.ar.bits.len
+    readSize := io.in.ar.bits.size
+    readInflight := Bool(true)
+  }
+
+  io.out.ar.valid := readInflight
+  io.out.ar.bits := NastiReadAddressChannel(
+    id = readId,
+    addr = readAddr,
+    len = UInt(0),
+    size = readSize)
+
+  when (io.out.ar.fire()) {
+    when (readLen === UInt(0)) { readInflight := Bool(false) }
+    readLen := readLen - UInt(1)
+    readAddr := readAddr + (UInt(1) << readSize)
+  }
+
+  io.in.ar.ready := !readInflight && !busy(io.in.ar.bits.id)
+
+  val rid = io.out.r.bits.id
+
+  when (io.out.r.fire()) {
+    len(rid) := len(rid) - UInt(1)
+  }
+
+  io.in.r.valid := io.out.r.valid
+  io.out.r.ready := io.in.r.ready
+  io.in.r.bits := NastiReadDataChannel(
+    id = io.out.r.bits.id,
+    resp = io.out.r.bits.resp,
+    data = io.out.r.bits.data,
+    last = len(rid) === UInt(0))
+
+  busy := (busy |
+    Mux(io.in.ar.fire(), UIntToOH(io.in.ar.bits.id), UInt(0)) |
+    Mux(io.in.aw.fire(), UIntToOH(io.in.aw.bits.id), UInt(0))) &
+    ~Mux(io.in.r.fire() && io.in.r.bits.last, UIntToOH(io.in.r.bits.id), UInt(0)) &
+    ~Mux(io.in.b.fire(), UIntToOH(io.in.b.bits.id), UInt(0))
+}
