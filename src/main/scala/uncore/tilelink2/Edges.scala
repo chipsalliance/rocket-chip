@@ -216,8 +216,12 @@ class TLEdge(
     x match {
       case _: TLBundleE => UInt(0)
       case bundle: TLDataChannel => {
-        val decode = UIntToOH1(size(bundle), maxLgSize) >> log2Ceil(manager.beatBytes)
-        Mux(hasData(bundle), decode, UInt(0))
+        if (maxLgSize == 0) {
+          UInt(0)
+        } else {
+          val decode = UIntToOH1(size(bundle), maxLgSize) >> log2Ceil(manager.beatBytes)
+          Mux(hasData(bundle), decode, UInt(0))
+        }
       }
     }
   }
