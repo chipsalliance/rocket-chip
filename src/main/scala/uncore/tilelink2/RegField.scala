@@ -109,13 +109,6 @@ object RegField
       bb.d := data
       Bool(true)
     }))
-
-  // Divide a long sequence of RegFields into a maximum sized registers
-  // Your input RegFields may not cross a beatBytes boundary!
-  def split(fields: Seq[RegField], base: Int, beatBytes: Int = 4): Seq[RegField.Map] = {
-    val offsets = fields.map(_.width).scanLeft(0)(_ + _).init
-    (offsets zip fields).groupBy(_._1 / (beatBytes*8)).toList.map(r => (r._1 + base, r._2.map(_._2)))
-  }
 }
 
 trait HasRegMap
