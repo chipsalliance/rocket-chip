@@ -10,6 +10,7 @@ import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.converters._
 import uncore.devices._
+import uncore.agents._
 import uncore.util._
 import rocket.Util._
 import rocket.XLen
@@ -46,6 +47,9 @@ case object ExtMemSize extends Field[Long]
 case object NExtTopInterrupts extends Field[Int]
 /** Source of RTC. First bundle is TopIO.extra, Second bundle is periphery.io.extra  **/
 case object RTCPeriod extends Field[Int]
+/* Specifies the periphery bus configuration */
+case class PeripheryBusConfig(arithAMO: Boolean, beatBytes: Int = 4)
+case object PeripheryBusKey extends Field[PeripheryBusConfig]
 
 object PeripheryUtils {
   def addQueueAXI(source: NastiIO)(implicit p: Parameters) = {
@@ -81,6 +85,8 @@ trait HasPeripheryParameters {
   lazy val innerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
+  lazy val peripheryBusConfig = p(PeripheryBusKey)
+  lazy val cacheBlockBytes = p(CacheBlockBytes)
 }
 
 /////
@@ -284,11 +290,11 @@ trait PeripheryCoreplexLocalInterrupter extends LazyModule with HasPeripheryPara
   val peripheryBus: TLXbar
 
   // CoreplexLocalInterrupter must be at least 64b if XLen >= 64
-  val beatBytes = (innerMMIOParams(XLen) min 64) / 8
+  val beatBytes = max((innerMMIOParams(XLen) min 64) / 8, peripheryBusConfig.beatBytes)
   val clintConfig = CoreplexLocalInterrupterConfig(beatBytes)
   val clint = LazyModule(new CoreplexLocalInterrupter(clintConfig)(innerMMIOParams))
   // The periphery bus is 32-bit, so we may need to adapt its width to XLen
-  clint.node := TLFragmenter(beatBytes, 256)(TLWidthWidget(4)(peripheryBus.node))
+  clint.node := TLFragmenter(beatBytes, cacheBlockBytes)(TLWidthWidget(peripheryBusConfig.beatBytes)(peripheryBus.node))
 }
 
 trait PeripheryCoreplexLocalInterrupterBundle {
@@ -307,14 +313,15 @@ trait PeripheryCoreplexLocalInterrupterModule extends HasPeripheryParameters {
 
 /////
 
-trait PeripheryBootROM extends LazyModule {
+trait PeripheryBootROM extends LazyModule with HasPeripheryParameters {
   implicit val p: Parameters
   val peripheryBus: TLXbar
 
   val address = 0x1000
   val size = 0x1000
-  val rom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address)) { override def name = "bootrom" })
-  rom.node := TLFragmenter(4, 256)(peripheryBus.node)
+  val rom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address), true, peripheryBusConfig.beatBytes)
+                       { override def name = "bootrom" })
+  rom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }
 
 trait PeripheryBootROMBundle {
@@ -329,15 +336,16 @@ trait PeripheryBootROMModule extends HasPeripheryParameters {
 
 /////
 
-trait PeripheryTestRAM extends LazyModule {
+trait PeripheryTestRAM extends LazyModule with HasPeripheryParameters {
   implicit val p: Parameters
   val peripheryBus: TLXbar
 
   val ramBase = 0x52000000
   val ramSize = 0x1000
 
-  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1)) { override def name = "testram" })
-  sram.node := TLFragmenter(4, 256)(peripheryBus.node)
+  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1), true, peripheryBusConfig.beatBytes)
+                        { override def name = "testram" })
+  sram.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }
 
 trait PeripheryTestRAMBundle {
