@@ -12,8 +12,8 @@ CXXSRCS := emulator SimDTM
 CXXFLAGS := $(CXXFLAGS) -std=c++11 -I$(RISCV)/include -I$(base_dir)/csrc
 LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L$(abspath $(sim_dir)) -lfesvr -lpthread
 
-emu = emulator-$(MODEL)-$(CONFIG)
-emu_debug = emulator-$(MODEL)-$(CONFIG)-debug
+emu = emulator-$(PROJECT)-$(CONFIG)
+emu_debug = emulator-$(PROJECT)-$(CONFIG)-debug
 
 include $(sim_dir)/Makefrag-verilator
 
