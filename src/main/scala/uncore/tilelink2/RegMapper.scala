@@ -29,26 +29,35 @@ object RegMapper
 {
   // Create a generic register-based device
   def apply(bytes: Int, concurrency: Int, undefZero: Boolean, in: DecoupledIO[RegMapperInput], mapping: RegField.Map*) = {
-    val regmap = mapping.toList.filter(!_._2.isEmpty)
-    require (!regmap.isEmpty)
-
-    // Ensure no register appears twice
-    regmap.combinations(2).foreach { case Seq((reg1, _), (reg2, _)) =>
-      require (reg1 != reg2)
-    }
+    val bytemap = mapping.toList
     // Don't be an asshole...
-    regmap.foreach { reg => require (reg._1 >= 0) }
+    bytemap.foreach { byte => require (byte._1 >= 0) }
+
+    // Transform all fields into bit offsets Seq[(bit, field)]
+    val bitmap = bytemap.map { case (byte, fields) =>
+      val bits = fields.scanLeft(byte * 8)(_ + _.width).init
+      bits zip fields
+    }.flatten.sortBy(_._1)
+
+    // Detect overlaps
+    (bitmap.init zip bitmap.tail) foreach { case ((lbit, lfield), (rbit, rfield)) =>
+      require (lbit + lfield.width <= rbit, s"Register map overlaps at bit ${rbit}.")
+    }
+
+    // Group those fields into bus words Map[word, List[(bit, field)]]
+    val wordmap = bitmap.groupBy(_._1 / (8*bytes))
+
     // Make sure registers fit
     val inParams = in.bits.params
     val inBits = inParams.indexBits
-    assert (regmap.map(_._1).max < (1 << inBits))
+    assert (wordmap.keySet.max < (1 << inBits), "Register map does not fit in device")
 
     val out = Wire(Irrevocable(new RegMapperOutput(inParams)))
     val front = Wire(Irrevocable(new RegMapperInput(inParams)))
     front.bits := in.bits
 
     // Must this device pipeline the control channel?
-    val pipelined = regmap.map(_._2.map(_.pipelined)).flatten.reduce(_ || _)
+    val pipelined = wordmap.values.map(_.map(_._2.pipelined)).flatten.reduce(_ || _)
     val depth = concurrency
     require (depth >= 0)
     require (!pipelined || depth > 0, "Register-based device with request/response handshaking needs concurrency > 0")
@@ -60,7 +69,7 @@ object RegMapper
     def ofBits(bits: List[Boolean]) = bits.foldRight(0){ case (x,y) => (if (x) 1 else 0) | y << 1 }
 
     // Find the minimal mask that can decide the register map
-    val mask = AddressDecoder(regmap.map(_._1))
+    val mask = AddressDecoder(wordmap.keySet.toList)
     val maskMatch = ~UInt(mask, width = inBits)
     val maskFilter = toBits(mask)
     val maskBits = maskFilter.filter(x => x).size
@@ -75,17 +84,22 @@ object RegMapper
     val iRightReg = Array.fill(regSize) { Bool(true) }
     val oRightReg = Array.fill(regSize) { Bool(true) }
 
-    // Flatten the regmap into (RegIndex:Int, Offset:Int, field:RegField)
-    val flat = regmap.map { case (reg, fields) =>
-      val offsets = fields.scanLeft(0)(_ + _.width).init
-      val index = regIndexI(reg)
-      val uint = UInt(reg, width = inBits)
+    // Transform the wordmap into minimal decoded indexes, Seq[(index, bit, field)]
+    val flat = wordmap.toList.map { case (word, fields) =>
+      val index = regIndexI(word)
+      val uint = UInt(word, width = inBits)
       if (undefZero) {
         iRightReg(index) = ((front.bits.index ^ uint) & maskMatch) === UInt(0)
         oRightReg(index) = ((back .bits.index ^ uint) & maskMatch) === UInt(0)
       }
-      // println("mapping 0x%x -> 0x%x for 0x%x/%d".format(reg, index, mask, maskBits))
-      (offsets zip fields) map { case (o, f) => (index, o, f) }
+      // Confirm that no field spans a word boundary
+      fields foreach { case (bit, field) =>
+        val off = bit - 8*bytes*word
+        // println(s"Reg ${word}: [${off}, ${off+field.width})")
+        require (off + field.width <= bytes * 8, s"Field at word ${word}*(${bytes}B) has bits [${off}, ${off+field.width}), which exceeds word limit.")
+      }
+      // println("mapping 0x%x -> 0x%x for 0x%x/%d".format(word, index, mask, maskBits))
+      fields.map { case (bit, field) => (index, bit-8*bytes*word, field) }
     }.flatten
 
     // Forward declaration of all flow control signals

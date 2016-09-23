@@ -183,14 +183,14 @@ object RRTest0Map
 
   // All fields must respect byte alignment, or else it won't behave like an SRAM
   val map = Seq(
-    0 -> Seq(aa(8), ar(8), ad(8), ae(8)),
-    1 -> Seq(ra(8), rr(8), rd(8), re(8)),
-    2 -> Seq(da(8), dr(8), dd(8), de(8)),
-    3 -> Seq(ea(8), er(8), ed(8), ee(8)),
-    4 -> Seq(aa(3), ar(5), ad(1), ae(7), ra(2), rr(6), rd(4), re(4)),
-    5 -> Seq(da(3), dr(5), dd(1), de(7), ea(2), er(6), ed(4), ee(4)),
-    6 -> Seq(aa(8), rr(8), dd(8), ee(8)),
-    7 -> Seq(ar(8), rd(8), de(8), ea(8)))
+    0  -> Seq(aa(8), ar(8), ad(8), ae(8)),
+    4  -> Seq(ra(8), rr(8), rd(8), re(8)),
+    8  -> Seq(da(8), dr(8), dd(8), de(8)),
+    12 -> Seq(ea(8), er(8), ed(8), ee(8)),
+    16 -> Seq(aa(3), ar(5), ad(1), ae(7), ra(2), rr(6), rd(4), re(4)),
+    20 -> Seq(da(3), dr(5), dd(1), de(7), ea(2), er(6), ed(4), ee(4)),
+    24 -> Seq(aa(8), rr(8), dd(8), ee(8)),
+    28 -> Seq(ar(8), rd(8), de(8), ea(8)))
 }
 
 object RRTest1Map
@@ -203,8 +203,8 @@ object RRTest1Map
   def bb(bits: Int) = request(bits, busy, busy)
 
   val map = RRTest0Map.map.take(6) ++ Seq(
-    6 -> Seq(pp(8), pb(8), bp(8), bb(8)),
-    7 -> Seq(pp(3), pb(5), bp(1), bb(7), pb(5), bp(3), pp(4), bb(4)))
+    24 -> Seq(pp(8), pb(8), bp(8), bb(8)),
+    28 -> Seq(pp(3), pb(5), bp(1), bb(7), pb(5), bp(3), pp(4), bb(4)))
 }
 
 trait RRTest0Bundle

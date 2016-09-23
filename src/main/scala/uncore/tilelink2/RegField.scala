@@ -85,7 +85,9 @@ case class RegField(width: Int, read: RegReadFn, write: RegWriteFn)
 
 object RegField
 {
+  // Byte address => sequence of bitfields, lowest index => lowest address
   type Map = (Int, Seq[RegField])
+
   def apply(n: Int)            : RegField = apply(n, (), ())
   def apply(n: Int, rw: UInt)  : RegField = apply(n, rw, rw)
   def r(n: Int, r: RegReadFn)  : RegField = apply(n, r, ())
