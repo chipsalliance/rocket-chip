@@ -42,6 +42,7 @@ class BasePlatformConfig extends Config(
         case BuildCoreplex =>
           (c: CoreplexConfig, p: Parameters) => uncore.tilelink2.LazyModule(new DefaultCoreplex(c)(p)).module
         case NExtTopInterrupts => 2
+        case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 4)
         // Note that PLIC asserts that this is > 0.
         case AsyncDebugBus => false
         case IncludeJtagDTM => false

@@ -49,7 +49,12 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
 
   val legacy = LazyModule(new TLLegacy()(p.alterPartial({ case TLId => "L2toMMIO" })))
 
-  peripheryBus.node := TLWidthWidget(legacy.tlDataBytes)(TLBuffer()(TLAtomicAutomata()(TLHintHandler()(legacy.node))))
+  peripheryBus.node :=
+    TLWidthWidget(legacy.tlDataBytes)(
+    TLBuffer()(
+    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
+    TLHintHandler()(
+    legacy.node))))
 }
 
 abstract class BaseTopBundle(val p: Parameters) extends Bundle {
