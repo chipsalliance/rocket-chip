@@ -246,19 +246,7 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
     val tl = new ClientUncachedTileLinkIO
   }
 
-  val (s_idle :: s_put :: Nil) = Enum(Bits(), 2)
-  val state = Reg(init = s_idle)
-
   private val blockOffset = tlByteAddrBits + tlBeatAddrBits
-
-  val aw_req = Reg(new NastiWriteAddressChannel)
-  val w_tl_id = Reg(io.tl.acquire.bits.client_xact_id)
-
-  def is_singlebeat(chan: NastiAddressChannel): Bool =
-    chan.len === UInt(0)
-
-  def is_multibeat(chan: NastiAddressChannel): Bool =
-    chan.len === UInt(tlDataBeats - 1) && chan.size === UInt(log2Up(tlDataBytes))
 
   def nasti_addr_block(chan: NastiAddressChannel): UInt =
     chan.addr(nastiXAddrBits - 1, blockOffset)
@@ -278,89 +266,63 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
     w.strb & (size_mask(aw.size) << addr_byte)
   }
 
-  def tl_last(gnt: GrantMetadata): Bool =
-    !gnt.hasMultibeatData() || gnt.addr_beat === UInt(tlDataBeats - 1)
-
   def tl_b_grant(gnt: GrantMetadata): Bool =
     gnt.g_type === Grant.putAckType
 
-  assert(!io.nasti.ar.valid ||
-    is_singlebeat(io.nasti.ar.bits) || is_multibeat(io.nasti.ar.bits),
-    "NASTI read transaction cannot convert to TileLInk")
+  assert(!io.nasti.ar.valid || io.nasti.ar.bits.len === UInt(0),
+    "NASTI -> TL converter cannot handle multibeat read transactions")
 
-  assert(!io.nasti.aw.valid ||
-    is_singlebeat(io.nasti.aw.bits) || is_multibeat(io.nasti.aw.bits),
-    "NASTI write transaction cannot convert to TileLInk")
+  assert(!io.nasti.aw.valid || io.nasti.aw.bits.len === UInt(0),
+    "NASTI -> TL converter cannot handle multibeat write transactions")
 
-  val put_count = Reg(init = UInt(0, tlBeatAddrBits))
   val get_id_mapper = Module(new IdMapper(nastiXIdBits, tlClientXactIdBits, true))
   val put_id_mapper = Module(new IdMapper(nastiXIdBits, tlClientXactIdBits, true))
 
-  when (io.nasti.aw.fire()) {
-    aw_req := io.nasti.aw.bits
-    w_tl_id := put_id_mapper.io.req.out_id
-    state := s_put
-  }
+  val get_acquire = Get(
+    client_xact_id = get_id_mapper.io.req.out_id,
+    addr_block = nasti_addr_block(io.nasti.ar.bits),
+    addr_beat = nasti_addr_beat(io.nasti.ar.bits),
+    addr_byte = nasti_addr_byte(io.nasti.ar.bits),
+    operand_size = io.nasti.ar.bits.size,
+    alloc = Bool(false))
 
-  when (io.nasti.w.fire()) {
-    put_count := put_count + UInt(1)
-    when (io.nasti.w.bits.last) {
-      put_count := UInt(0)
-      state := s_idle
-    }
-  }
-
-  val get_acquire = Mux(is_multibeat(io.nasti.ar.bits),
-    GetBlock(
-      client_xact_id = get_id_mapper.io.req.out_id,
-      addr_block = nasti_addr_block(io.nasti.ar.bits)),
-    Get(
-      client_xact_id = get_id_mapper.io.req.out_id,
-      addr_block = nasti_addr_block(io.nasti.ar.bits),
-      addr_beat = nasti_addr_beat(io.nasti.ar.bits),
-      addr_byte = nasti_addr_byte(io.nasti.ar.bits),
-      operand_size = io.nasti.ar.bits.size,
-      alloc = Bool(false)))
-
-  val put_acquire = Mux(is_multibeat(aw_req),
-    PutBlock(
-      client_xact_id = w_tl_id,
-      addr_block = nasti_addr_block(aw_req),
-      addr_beat = put_count,
-      data = io.nasti.w.bits.data,
-      wmask = Some(io.nasti.w.bits.strb)),
-    Put(
-      client_xact_id = w_tl_id,
-      addr_block = nasti_addr_block(aw_req),
-      addr_beat = nasti_addr_beat(aw_req),
-      data = io.nasti.w.bits.data,
-      wmask = Some(nasti_wmask(aw_req, io.nasti.w.bits))))
+  val put_acquire = Put(
+    client_xact_id = put_id_mapper.io.req.out_id,
+    addr_block = nasti_addr_block(io.nasti.aw.bits),
+    addr_beat = nasti_addr_beat(io.nasti.aw.bits),
+    data = io.nasti.w.bits.data,
+    wmask = Some(nasti_wmask(io.nasti.aw.bits, io.nasti.w.bits)))
 
   val get_helper = DecoupledHelper(
     io.nasti.ar.valid,
     get_id_mapper.io.req.ready,
     io.tl.acquire.ready)
 
-  get_id_mapper.io.req.valid := get_helper.fire(
-    get_id_mapper.io.req.ready, state === s_idle)
+  val put_helper = DecoupledHelper(
+    io.nasti.aw.valid,
+    io.nasti.w.valid,
+    put_id_mapper.io.req.ready,
+    io.tl.acquire.ready)
+
+  get_id_mapper.io.req.valid := get_helper.fire(get_id_mapper.io.req.ready)
   get_id_mapper.io.req.in_id := io.nasti.ar.bits.id
   get_id_mapper.io.resp.out_id := io.tl.grant.bits.client_xact_id
-  get_id_mapper.io.resp.valid := io.nasti.r.fire() && io.nasti.r.bits.last
+  get_id_mapper.io.resp.valid := io.nasti.r.fire()
 
-  val aw_ok = (state === s_idle && !io.nasti.ar.valid)
+  val aw_ok = !io.nasti.ar.valid
 
-  put_id_mapper.io.req.valid := aw_ok && io.nasti.aw.valid
+  put_id_mapper.io.req.valid := put_helper.fire(put_id_mapper.io.req.ready, aw_ok)
   put_id_mapper.io.req.in_id := io.nasti.aw.bits.id
   put_id_mapper.io.resp.out_id := io.tl.grant.bits.client_xact_id
   put_id_mapper.io.resp.valid := io.nasti.b.fire()
 
-  io.tl.acquire.bits := Mux(state === s_put, put_acquire, get_acquire)
-  io.tl.acquire.valid := get_helper.fire(io.tl.acquire.ready, state === s_idle) ||
-                         (state === s_put && io.nasti.w.valid)
+  io.tl.acquire.bits := Mux(io.nasti.ar.valid, get_acquire, put_acquire)
+  io.tl.acquire.valid := get_helper.fire(io.tl.acquire.ready) ||
+                         put_helper.fire(io.tl.acquire.ready, aw_ok)
 
-  io.nasti.ar.ready := get_helper.fire(io.nasti.ar.valid, state === s_idle)
-  io.nasti.aw.ready := aw_ok && put_id_mapper.io.req.ready
-  io.nasti.w.ready  := (state === s_put && io.tl.acquire.ready)
+  io.nasti.ar.ready := get_helper.fire(io.nasti.ar.valid)
+  io.nasti.aw.ready := put_helper.fire(io.nasti.aw.valid, aw_ok)
+  io.nasti.w.ready  := put_helper.fire(io.nasti.w.valid, aw_ok)
 
   val nXacts = tlMaxClientXacts * tlMaxClientsPerPort
 
@@ -374,8 +336,7 @@ class TileLinkIONastiIOConverter(implicit p: Parameters) extends TLModule()(p)
   io.nasti.r.valid := io.tl.grant.valid && !tl_b_grant(io.tl.grant.bits)
   io.nasti.r.bits := NastiReadDataChannel(
     id = get_id_mapper.io.resp.in_id,
-    data = io.tl.grant.bits.data,
-    last = tl_last(io.tl.grant.bits))
+    data = io.tl.grant.bits.data)
 
   assert(!io.nasti.r.valid || get_id_mapper.io.resp.matches,
     "Get ID does not match")
