@@ -30,7 +30,7 @@
 
 START_SEED=${START_SEED-0}
 NUM_TESTS=${NUM_TESTS-100}
-EMU=${EMU-emulator-Top-TraceGenConfig}
+EMU=${EMU-emulator-groundtest-TraceGenConfig}
 TRACE_GEN=${TRACE_GEN-tracegen.py}
 TO_AXE=${TO_AXE-toaxe.py}
 AXE=${AXE-axe}
