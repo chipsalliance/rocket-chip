@@ -10,13 +10,13 @@ import cde.Parameters
 
 /** Utilities for safely wrapping a *UncachedTileLink by pinning probe.ready and release.valid low */
 object TileLinkIOWrapper {
-  def apply(tl: ClientUncachedTileLinkIO)(implicit p: Parameters): ClientTileLinkIO = {
-    val conv = Module(new ClientTileLinkIOWrapper)
+  def apply(tl: ClientUncachedTileLinkIO): ClientTileLinkIO = {
+    val conv = Module(new ClientTileLinkIOWrapper()(tl.p))
     conv.io.in <> tl
     conv.io.out
   }
-  def apply(tl: UncachedTileLinkIO)(implicit p: Parameters): TileLinkIO = {
-    val conv = Module(new TileLinkIOWrapper)
+  def apply(tl: UncachedTileLinkIO): TileLinkIO = {
+    val conv = Module(new TileLinkIOWrapper()(tl.p))
     conv.io.in <> tl
     conv.io.out
   }
@@ -150,29 +150,31 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
 }
 
 object TileLinkIOUnwrapper {
-  def apply(in: ClientTileLinkIO)(implicit p: Parameters): ClientUncachedTileLinkIO = {
-    val unwrapper = Module(new ClientTileLinkIOUnwrapper)
+  def apply(in: ClientTileLinkIO): ClientUncachedTileLinkIO = {
+    val unwrapper = Module(new ClientTileLinkIOUnwrapper()(in.p))
     unwrapper.io.in <> in
     unwrapper.io.out
   }
 }
 
 object TileLinkWidthAdapter {
-  def apply(in: ClientUncachedTileLinkIO, outerId: String)(implicit p: Parameters) = {
-    val outerDataBits = p(TLKey(outerId)).dataBitsPerBeat
+  def apply(in: ClientUncachedTileLinkIO, outerParams: Parameters) = {
+    val outerTLId = outerParams(TLId)
+    val outerDataBits = outerParams(TLKey(outerTLId)).dataBitsPerBeat
+    implicit val p = outerParams
     if (outerDataBits > in.tlDataBits) {
-      val widener = Module(new TileLinkIOWidener(in.p(TLId), outerId))
+      val widener = Module(new TileLinkIOWidener(in.p(TLId), outerTLId))
       widener.io.in <> in
       widener.io.out
     } else if (outerDataBits < in.tlDataBits) {
-      val narrower = Module(new TileLinkIONarrower(in.p(TLId), outerId))
+      val narrower = Module(new TileLinkIONarrower(in.p(TLId), outerTLId))
       narrower.io.in <> in
       narrower.io.out
     } else { in }
   }
-  def apply(out: ClientUncachedTileLinkIO, in: ClientUncachedTileLinkIO)(implicit p: Parameters): Unit = {
+  def apply(out: ClientUncachedTileLinkIO, in: ClientUncachedTileLinkIO): Unit = {
     require(out.tlDataBits * out.tlDataBeats == in.tlDataBits * in.tlDataBeats)
-    out <> apply(in, out.p(TLId))
+    out <> apply(in, out.p)
   }
 }
 
@@ -684,8 +686,8 @@ class TileLinkFragmenter(depth: Int = 1)(implicit p: Parameters) extends TLModul
 
 object TileLinkFragmenter {
   // Pass the source/client to fragment
-  def apply(source: ClientUncachedTileLinkIO, depth: Int = 1)(implicit p: Parameters): ClientUncachedTileLinkIO = {
-    val fragmenter = Module(new TileLinkFragmenter(depth))
+  def apply(source: ClientUncachedTileLinkIO, depth: Int = 1): ClientUncachedTileLinkIO = {
+    val fragmenter = Module(new TileLinkFragmenter(depth)(source.p))
     fragmenter.io.in <> source
     fragmenter.io.out
   }

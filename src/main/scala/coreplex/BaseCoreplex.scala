@@ -115,9 +115,9 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     val outerTLParams = p.alterPartial({ case TLId => "L2toMC" })
     val backendBuffering = TileLinkDepths(0,0,0,0,0)
     for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
-      val unwrap = Module(new ClientTileLinkIOUnwrapper()(outerTLParams))
-      unwrap.io.in <> TileLinkEnqueuer(bank.outerTL, backendBuffering)(outerTLParams)
-      TileLinkWidthAdapter(icPort, unwrap.io.out)
+      val enqueued = TileLinkEnqueuer(bank.outerTL, backendBuffering)
+      val unwrapped = TileLinkIOUnwrapper(enqueued)
+      TileLinkWidthAdapter(icPort, unwrapped)
     }
 
     io.master.mem <> mem_ic.io.out

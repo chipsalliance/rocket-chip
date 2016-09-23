@@ -22,29 +22,29 @@ class TileLinkEnqueuer(depths: TileLinkDepths)(implicit p: Parameters) extends M
 }
 
 object TileLinkEnqueuer {
-  def apply(in: TileLinkIO, depths: TileLinkDepths)(implicit p: Parameters): TileLinkIO = {
-    val t = Module(new TileLinkEnqueuer(depths))
+  def apply(in: TileLinkIO, depths: TileLinkDepths): TileLinkIO = {
+    val t = Module(new TileLinkEnqueuer(depths)(in.p))
     t.io.client <> in
     t.io.manager
   }
-  def apply(in: TileLinkIO, depth: Int)(implicit p: Parameters): TileLinkIO = {
+  def apply(in: TileLinkIO, depth: Int): TileLinkIO = {
     apply(in, TileLinkDepths(depth, depth, depth, depth, depth))
   }
 
-  def apply(in: ClientTileLinkIO, depths: TileLinkDepths)(implicit p: Parameters): ClientTileLinkIO = {
-    val t = Module(new ClientTileLinkEnqueuer(depths))
+  def apply(in: ClientTileLinkIO, depths: TileLinkDepths): ClientTileLinkIO = {
+    val t = Module(new ClientTileLinkEnqueuer(depths)(in.p))
     t.io.inner <> in
     t.io.outer
   }
-  def apply(in: ClientTileLinkIO, depth: Int)(implicit p: Parameters): ClientTileLinkIO = {
+  def apply(in: ClientTileLinkIO, depth: Int): ClientTileLinkIO = {
     apply(in, TileLinkDepths(depth, depth, depth, depth, depth))
   }
-  def apply(in: ClientUncachedTileLinkIO, depths: UncachedTileLinkDepths)(implicit p: Parameters): ClientUncachedTileLinkIO = {
-    val t = Module(new ClientUncachedTileLinkEnqueuer(depths))
+  def apply(in: ClientUncachedTileLinkIO, depths: UncachedTileLinkDepths): ClientUncachedTileLinkIO = {
+    val t = Module(new ClientUncachedTileLinkEnqueuer(depths)(in.p))
     t.io.inner <> in
     t.io.outer
   }
-  def apply(in: ClientUncachedTileLinkIO, depth: Int)(implicit p: Parameters): ClientUncachedTileLinkIO = {
+  def apply(in: ClientUncachedTileLinkIO, depth: Int): ClientUncachedTileLinkIO = {
     apply(in, UncachedTileLinkDepths(depth, depth))
   }
 }

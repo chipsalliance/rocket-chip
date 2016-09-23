@@ -52,8 +52,8 @@ case class PeripheryBusConfig(arithAMO: Boolean, beatBytes: Int = 4)
 case object PeripheryBusKey extends Field[PeripheryBusConfig]
 
 object PeripheryUtils {
-  def addQueueAXI(source: NastiIO)(implicit p: Parameters) = {
-    val sink = Wire(new NastiIO)
+  def addQueueAXI(source: NastiIO) = {
+    val sink = Wire(source)
     sink.ar  <> Queue(source.ar, 1)
     sink.aw  <> Queue(source.aw, 1)
     sink.w   <> Queue(source.w)
@@ -61,13 +61,13 @@ object PeripheryUtils {
     source.b <> Queue(sink.b, 1)
     sink
   }
-  def convertTLtoAXI(tl: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
-    val bridge = Module(new NastiIOTileLinkIOConverter())
+  def convertTLtoAXI(tl: ClientUncachedTileLinkIO) = {
+    val bridge = Module(new NastiIOTileLinkIOConverter()(tl.p))
     bridge.io.tl <> tl
     addQueueAXI(bridge.io.nasti)
   }
-  def convertTLtoAHB(tl: ClientUncachedTileLinkIO, atomics: Boolean)(implicit p: Parameters) = {
-    val bridge = Module(new AHBBridge(atomics))
+  def convertTLtoAHB(tl: ClientUncachedTileLinkIO, atomics: Boolean) = {
+    val bridge = Module(new AHBBridge(atomics)(tl.p))
     bridge.io.tl <> tl
     bridge.io.ahb
   }
@@ -173,7 +173,7 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
 
   // Abuse the fact that zip takes the shorter of the two lists
   ((io.mem_axi zip coreplexIO.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
-    val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
+    val axi_sync = PeripheryUtils.convertTLtoAXI(mem)
     axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi <> (
@@ -183,11 +183,11 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   }
 
   (io.mem_ahb zip coreplexIO.master.mem) foreach { case (ahb, mem) =>
-    ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)(outermostParams)
+    ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)
   }
 
   (io.mem_tl zip coreplexIO.master.mem) foreach { case (tl, mem) =>
-    tl <> TileLinkEnqueuer(mem, 2)(outermostParams)
+    tl <> TileLinkEnqueuer(mem, 2)
   }
 }
 
@@ -213,7 +213,7 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   val pBus: TileLinkRecursiveInterconnect
 
   val mmio_ports = p(ExtMMIOPorts) map { port =>
-    TileLinkWidthAdapter(pBus.port(port.name), "MMIO_Outermost")
+    TileLinkWidthAdapter(pBus.port(port.name), innerMMIOParams)
   }
 
   val mmio_axi_start = 0
@@ -227,17 +227,17 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   for (i <- 0 until mmio_ports.size) {
     if (mmio_axi_start <= i && i < mmio_axi_end) {
       val idx = i-mmio_axi_start
-      val axi_sync = PeripheryUtils.convertTLtoAXI(mmio_ports(i))(outermostMMIOParams)
+      val axi_sync = PeripheryUtils.convertTLtoAXI(mmio_ports(i))
       io.mmio_axi(idx) <> (
         if (!p(AsyncMMIOChannels)) axi_sync
         else AsyncNastiTo(io.mmio_clk.get(idx), io.mmio_rst.get(idx), axi_sync)
       )
     } else if (mmio_ahb_start <= i && i < mmio_ahb_end) {
       val idx = i-mmio_ahb_start
-      io.mmio_ahb(idx) <> PeripheryUtils.convertTLtoAHB(mmio_ports(i), atomics = true)(outermostMMIOParams)
+      io.mmio_ahb(idx) <> PeripheryUtils.convertTLtoAHB(mmio_ports(i), atomics = true)
     } else if (mmio_tl_start <= i && i < mmio_tl_end) {
       val idx = i-mmio_tl_start
-      io.mmio_tl(idx) <> TileLinkEnqueuer(mmio_ports(i), 2)(outermostMMIOParams)
+      io.mmio_tl(idx) <> TileLinkEnqueuer(mmio_ports(i), 2)
     } else {
       require(false, "Unconnected external MMIO port")
     }
