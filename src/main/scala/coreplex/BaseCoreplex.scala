@@ -32,7 +32,7 @@ trait HasCoreplexParameters {
   lazy val lsb = p(BankIdLSB)
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
-  lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
+  lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
   lazy val globalAddrMap = p(rocketchip.GlobalAddrMap)
 }
 
@@ -51,7 +51,7 @@ abstract class BaseCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends L
 abstract class BaseCoreplexBundle(val c: CoreplexConfig)(implicit val p: Parameters) extends Bundle with HasCoreplexParameters {
   val master = new Bundle {
     val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outermostParams))
-    val mmio = new ClientUncachedTileLinkIO()(outermostMMIOParams)
+    val mmio = new ClientUncachedTileLinkIO()(outerMMIOParams)
   }
   val slave = Vec(c.nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
   val interrupts = Vec(c.nExtInterrupts, Bool()).asInput
@@ -122,8 +122,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
 
     io.master.mem <> mem_ic.io.out
 
-    buildMMIONetwork(TileLinkEnqueuer(mmioManager.io.outer, 1))(
-        p.alterPartial({case TLId => "L2toMMIO"}))
+    buildMMIONetwork(TileLinkEnqueuer(mmioManager.io.outer, 1))(outerMMIOParams)
   }
 
   def buildMMIONetwork(mmio: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
