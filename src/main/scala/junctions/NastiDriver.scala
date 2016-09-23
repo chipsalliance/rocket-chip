@@ -3,7 +3,7 @@ package junctions
 import Chisel._
 import cde.Parameters
 
-class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
+class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int, startAddr: Long = 0)
     (implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
     val nasti = new NastiIO
@@ -13,12 +13,13 @@ class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
 
   val dataBytes = dataWidth / 8
   val nastiDataBytes = nastiXDataBits / 8
+  val dataPerBeat = nastiDataBytes / dataBytes
 
   val (write_cnt, write_done) = Counter(io.nasti.w.fire(), burstLen)
   val (read_cnt, read_done) = Counter(io.nasti.r.fire(), burstLen)
   val (req_cnt, reqs_done) = Counter(read_done, nBursts)
 
-  val req_addr = Cat(req_cnt, UInt(0, log2Up(burstLen * dataBytes)))
+  val req_addr = UInt(startAddr) + Cat(req_cnt, UInt(0, log2Up(burstLen * dataBytes)))
 
   val write_data    = UInt(0x10000000L, dataWidth) | Cat(req_cnt, write_cnt)
   val expected_data = UInt(0x10000000L, dataWidth) | Cat(req_cnt, read_cnt)
@@ -36,9 +37,19 @@ class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
     size = UInt(log2Up(dataBytes)),
     len = UInt(burstLen - 1))
 
+  val byteMask = if (dataBytes == nastiDataBytes) {
+    Fill(nastiDataBytes, UInt(1, 1))
+  } else {
+    val writeAddr = req_addr + (write_cnt << UInt(log2Up(dataBytes)))
+    val indexInBeat = writeAddr(log2Up(nastiDataBytes) - 1, log2Up(dataBytes))
+    FillInterleaved(dataBytes,
+      Seq.tabulate(dataPerBeat)(i => indexInBeat === UInt(i)))
+  }
+
   io.nasti.w.valid := (state === s_write_data)
   io.nasti.w.bits := NastiWriteDataChannel(
-    data = Cat(write_data, write_data),
+    data = Fill(dataPerBeat, write_data),
+    strb = Some(byteMask),
     last = (write_cnt === UInt(burstLen - 1)))
 
   io.nasti.b.ready := (state === s_write_resp)
