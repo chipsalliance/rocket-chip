@@ -77,7 +77,7 @@ object RegWriteFn
   implicit def apply(x: Unit): RegWriteFn = RegWriteFn((valid, data) => { Bool(true) })
 }
 
-case class RegField(width: Int, read: RegReadFn, write: RegWriteFn)
+case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, name: String, description: String)
 {
   require (width > 0)
   def pipelined = !read.combinational || !write.combinational
@@ -88,10 +88,12 @@ object RegField
   // Byte address => sequence of bitfields, lowest index => lowest address
   type Map = (Int, Seq[RegField])
 
-  def apply(n: Int)            : RegField = apply(n, (), ())
-  def apply(n: Int, rw: UInt)  : RegField = apply(n, rw, rw)
-  def r(n: Int, r: RegReadFn)  : RegField = apply(n, r, ())
-  def w(n: Int, w: RegWriteFn) : RegField = apply(n, (), w)
+  def apply(n: Int)                                                         : RegField = apply(n, (), (), "", "")
+  def apply(n: Int, r: RegReadFn, w: RegWriteFn)                            : RegField = apply(n, r, w,   "", "")
+  def apply(n: Int, rw: UInt)                                               : RegField = apply(n, rw, rw, "", "")
+  def apply(n: Int, rw: UInt, name: String, description: String)            : RegField = apply(n, rw, rw, name, description)
+  def r(n: Int, r: RegReadFn,  name: String = "", description: String = "") : RegField = apply(n, r,  (), name, description)
+  def w(n: Int, w: RegWriteFn, name: String = "", description: String = "") : RegField = apply(n, (), w,  name, description)
 
   // This RegField allows 'set' to set bits in 'reg'.
   // and to clear bits when the bus writes bits of value 1.
