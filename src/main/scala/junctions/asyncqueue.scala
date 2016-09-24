@@ -17,6 +17,7 @@ object AsyncGrayCounter {
   def apply(in: UInt, sync: Int): UInt = {
     val syncv = List.fill(sync)(Module (new AsyncResetRegVec(w = in.getWidth, 0)))
     syncv.last.io.d := in
+    syncv.last.io.en := Bool(true)
       (syncv.init zip syncv.tail).foreach { case (sink, source) => {
         sink.io.d := source.io.q
         sink.io.en := Bool(true)
