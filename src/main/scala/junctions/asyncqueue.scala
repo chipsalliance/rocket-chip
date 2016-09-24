@@ -76,7 +76,10 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, clockIn: Clock, r
   // On an FPGA, only one input changes at a time => mem updates don't cause glitches
   // The register only latches when the selected valued is not being written
   val index = if (depth == 1) UInt(0) else ridx(bits-1, 0) ^ (ridx(bits, bits) << (bits-1))
-  io.deq.bits  := RegEnable(io.mem(index), valid && !reset) // This does NOT need to be reset.
+  // This register does not NEED to be reset, as its contents will not
+  // be considered unless deq_reg is true.
+  io.deq.bits  := RegEnable(io.mem(index), valid) 
+    
 
   val deq_reg = AsyncResetReg(valid, 0)
   io.deq.valid := deq_reg
