@@ -7,7 +7,7 @@ import uncore.util.{AsyncResetRegVec, AsyncResetReg}
 object GrayCounter {
   def apply(bits: Int, increment: Bool = Bool(true)): UInt = {
     val incremented = Wire(UInt(width=bits))
-    val binary = AsyncResetReg(incremented, 0, Bool(true))
+    val binary = AsyncResetReg(incremented, 0)
     incremented := binary + increment.asUInt()
     incremented ^ (incremented >> UInt(1))
   }
@@ -77,15 +77,12 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, clockIn: Clock, r
   // The register only latches when the selected valued is not being written
   val index = if (depth == 1) UInt(0) else ridx(bits-1, 0) ^ (ridx(bits, bits) << (bits-1))
   // This register does not NEED to be reset, as its contents will not
-  // be considered unless deq_reg is true.
+  // be considered unless the asynchronously reset deq valid register is set.
   io.deq.bits  := RegEnable(io.mem(index), valid) 
     
+  io.deq.valid := AsyncResetReg(valid, 0)
 
-  val deq_reg = AsyncResetReg(valid, 0)
-  io.deq.valid := deq_reg
-
-  val ridx_reg = AsyncResetReg(ridx, 0)
-  io.ridx := ridx_reg
+  io.ridx := AsyncResetReg(ridx, 0)
 }
 
 class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Crossing[T] {
