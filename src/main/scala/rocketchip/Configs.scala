@@ -20,9 +20,6 @@ import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
 class BasePlatformConfig extends Config(
   topDefinitions = {
-    val configString = new GlobalVariable[String]
-    val globalAddrMap = new GlobalVariable[AddrMap]
-    val nCoreplexExtClients = new GlobalVariable[Int]
     (pname,site,here) =>  {
       type PF = PartialFunction[Any,Any]
       def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
@@ -43,7 +40,7 @@ class BasePlatformConfig extends Config(
             idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
         }
         case BuildCoreplex =>
-          (p: Parameters, c: CoreplexConfig) => Module(new DefaultCoreplex()(p, c))
+          (c: CoreplexConfig, p: Parameters) => uncore.tilelink2.LazyModule(new DefaultCoreplex(c)(p)).module
         case NExtTopInterrupts => 2
         // Note that PLIC asserts that this is > 0.
         case AsyncDebugBus => false
@@ -55,7 +52,6 @@ class BasePlatformConfig extends Config(
         case NExtMMIOTLChannels  => 0
         case AsyncBusChannels => false
         case NExtBusAXIChannels => 0
-        case NCoreplexExtClients => nCoreplexExtClients
         case HastiId => "Ext"
         case HastiKey("TL") =>
           HastiParameters(
@@ -69,8 +65,6 @@ class BasePlatformConfig extends Config(
         case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
         case TMemoryChannels => BusType.AXI
         case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
-        case ConfigString => configString
-        case GlobalAddrMap => globalAddrMap
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
         case BuildExampleTop =>
           (p: Parameters) => uncore.tilelink2.LazyModule(new ExampleTop(p))
@@ -195,3 +189,16 @@ class WithJtagDTM extends Config (
     case _ => throw new CDEMatchError
   }
 )
+
+class WithMultiClock extends Config(
+  (pname, site, here) => pname match {
+    case BuildCoreplex => (c: CoreplexConfig, p: Parameters) =>
+      LazyModule(new MultiClockCoreplex(c)(p)).module
+    case BuildExampleTop => (p: Parameters) =>
+      LazyModule(new ExampleMultiClockTop(p))
+    case _ => throw new CDEMatchError
+  }
+)
+
+class MultiClockConfig extends Config(
+  new WithMultiClock ++ new BaseConfig)

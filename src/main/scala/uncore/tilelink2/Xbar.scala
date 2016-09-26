@@ -45,24 +45,30 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
     numClientPorts  = 1 to 32,
     numManagerPorts = 1 to 32,
     clientFn  = { seq =>
-      val clients = (mapInputIds(seq) zip seq) flatMap { case (range, port) =>
-        port.clients map { client => client.copy(
-          sourceId = client.sourceId.shift(range.start)
-        )}
-      }
-      TLClientPortParameters(clients)
+      // An unsafe atomic port can not be combined with any other!
+      require (!seq.exists(_.unsafeAtomics) || seq.size == 1)
+      seq(0).copy(
+        minLatency = seq.map(_.minLatency).min,
+        clients = (mapInputIds(seq) zip seq) flatMap { case (range, port) =>
+          port.clients map { client => client.copy(
+            sourceId = client.sourceId.shift(range.start)
+          )}
+        }
+      )
     },
     managerFn = { seq =>
       val fifoIdFactory = relabeler()
-      val managers = (mapOutputIds(seq) zip seq) flatMap { case (range, port) =>
-        require (port.beatBytes == seq(0).beatBytes)
-        val fifoIdMapper = fifoIdFactory()
-        port.managers map { manager => manager.copy(
-          sinkId = manager.sinkId.shift(range.start),
-          fifoId = manager.fifoId.map(fifoIdMapper(_))
-        )}
-      }
-      TLManagerPortParameters(managers, seq(0).beatBytes)
+      seq(0).copy(
+        minLatency = seq.map(_.minLatency).min,
+        managers = (mapOutputIds(seq) zip seq) flatMap { case (range, port) =>
+          require (port.beatBytes == seq(0).beatBytes)
+          val fifoIdMapper = fifoIdFactory()
+          port.managers map { manager => manager.copy(
+            sinkId = manager.sinkId.shift(range.start),
+            fifoId = manager.fifoId.map(fifoIdMapper(_))
+          )}
+        }
+      )
     })
 
   lazy val module = new LazyModuleImp(this) {
@@ -74,6 +80,23 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
     // Grab the port ID mapping
     val inputIdRanges = mapInputIds(node.edgesIn.map(_.client))
     val outputIdRanges = mapOutputIds(node.edgesOut.map(_.manager))
+
+    // Find a good mask for address decoding
+    val port_addrs = node.edgesOut.map(_.manager.managers.map(_.address).flatten)
+    val routingMask = AddressDecoder(port_addrs)
+    val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
+    val outputPorts = route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _))
+
+    // Print the mapping
+    if (false) {
+      println("Xbar mapping:")
+      route_addrs.foreach { p =>
+        print(" ")
+        p.foreach { a => print(s" ${a}") }
+        println("")
+      }
+      println("--")
+    }
 
     // We need an intermediate size of bundle with the widest possible identifiers
     val wide_bundle = io.in(0).params.union(io.out(0).params)
@@ -145,11 +168,15 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
       in(i).e.ready := Mux1C(grantedEIO(i), out.map(_.e.ready))
     }
 
-    val requestAIO = Vec(in.map  { i => Vec(node.edgesOut.map  { o => i.a.valid && o.manager.contains(o.address(i.a.bits)) }) })
-    val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.b.valid && i        .contains(o.b.bits.source)     }) })
-    val requestCIO = Vec(in.map  { i => Vec(node.edgesOut.map  { o => i.c.valid && o.manager.contains(o.address(i.c.bits)) }) })
-    val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.d.valid && i        .contains(o.d.bits.source)     }) })
-    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => i.e.valid && o        .contains(i.e.bits.sink)       }) })
+    val addressA = (in zip node.edgesIn) map { case (i, e) => (i.a.valid, e.address(i.a.bits)) }
+    val addressC = (in zip node.edgesIn) map { case (i, e) => (i.c.valid, e.address(i.c.bits)) }
+
+    val requestAIO = Vec(addressA.map { i => Vec(outputPorts.map { o => i._1 && o(i._2) }) })
+    val requestCIO = Vec(addressC.map { i => Vec(outputPorts.map { o => i._1 && o(i._2) }) })
+
+    val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.b.valid && i.contains(o.b.bits.source) }) })
+    val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.d.valid && i.contains(o.d.bits.source) }) })
+    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => i.e.valid && o.contains(i.e.bits.sink)   }) })
 
     val beatsA = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.a.bits) })
     val beatsB = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.b.bits) })

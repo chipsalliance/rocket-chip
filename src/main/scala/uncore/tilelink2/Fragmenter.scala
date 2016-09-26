@@ -47,9 +47,10 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsPutPartial = TransferSizes.none,
     supportsHint       = TransferSizes.none)
 
+  // Because the Fragmenter stalls inner A while serving outer, it can wipe away inner latency
   val node = TLAdapterNode(
     clientFn  = { case Seq(c) => c.copy(clients = c.clients.map(mapClient)) },
-    managerFn = { case Seq(m) => m.copy(managers = m.managers.map(mapManager)) })
+    managerFn = { case Seq(m) => m.copy(managers = m.managers.map(mapManager), minLatency = 0) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -146,7 +147,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val dFragnum = out.d.bits.source(fragmentBits-1, 0)
     val dFirst = acknum === UInt(0)
     val dsizeOH  = UIntToOH (out.d.bits.size, log2Ceil(maxDownSize)+1)
-    val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Ceil(maxDownSize))
+    val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Up(maxDownSize))
     val dHasData = edgeOut.hasData(out.d.bits)
 
     // calculate new acknum
@@ -168,6 +169,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     out.d.ready := in.d.ready || drop
     in.d.valid  := out.d.valid && !drop
     in.d.bits   := out.d.bits // pass most stuff unchanged
+    in.d.bits.addr_lo := out.d.bits.addr_lo & ~dsizeOH1
     in.d.bits.source := out.d.bits.source >> fragmentBits
     in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
 
@@ -189,7 +191,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgHints       = maxHints      .map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
 
     // If this is infront of a single manager, these become constants
-    val find = manager.find(edgeIn.address(in.a.bits))
+    val find = manager.findFast(edgeIn.address(in.a.bits))
     val maxLgArithmetic  = Mux1H(find, maxLgArithmetics)
     val maxLgLogical     = Mux1H(find, maxLgLogicals)
     val maxLgGet         = Mux1H(find, maxLgGets)
@@ -209,7 +211,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val aOrig = in.a.bits.size
     val aFrag = Mux(aOrig > limit, limit, aOrig)
     val aOrigOH1 = UIntToOH1(aOrig, log2Ceil(maxSize))
-    val aFragOH1 = UIntToOH1(aFrag, log2Ceil(maxDownSize))
+    val aFragOH1 = UIntToOH1(aFrag, log2Up(maxDownSize))
     val aHasData = node.edgesIn(0).hasData(in.a.bits)
     val aMask = Mux(aHasData, UInt(0), aFragOH1)
 

@@ -5,6 +5,7 @@ package rocketchip
 import Chisel._
 import cde.{Parameters, Field}
 import rocket.Util._
+import util.LatencyPipe
 import junctions._
 import junctions.NastiConstants._
 import testchipip._
@@ -13,11 +14,12 @@ import uncore.tilelink._
 case object BuildExampleTop extends Field[Parameters => ExampleTop]
 case object SimMemLatency extends Field[Int]
 
-class TestHarness(implicit val p: Parameters) extends Module with HasAddrMapParameters {
+class TestHarness(q: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
-  val dut = p(BuildExampleTop)(p).module
+  val dut = q(BuildExampleTop)(q).module
+  implicit val p = dut.p
 
   // This test harness isn't especially flexible yet
   require(dut.io.mem_clk.isEmpty)
@@ -35,7 +37,7 @@ class TestHarness(implicit val p: Parameters) extends Module with HasAddrMapPara
     int := false
 
   if (dut.io.mem_axi.nonEmpty) {
-    val memSize = addrMap("mem").size
+    val memSize = p(GlobalAddrMap)("mem").size
     require(memSize % dut.io.mem_axi.size == 0)
     for (axi <- dut.io.mem_axi) {
       val mem = Module(new SimAXIMem(memSize / dut.io.mem_axi.size))
@@ -48,7 +50,7 @@ class TestHarness(implicit val p: Parameters) extends Module with HasAddrMapPara
   }
 
   if (p(NarrowIF)) {
-    val memSize = addrMap("mem").size
+    val memSize = p(GlobalAddrMap)("mem").size
     val dessert = Module(new ClientUncachedTileLinkIODesser(p(NarrowWidth))(p.alterPartial({case TLId => "Outermost"})))
     //dessert.io.serial <> dut.io.mem_narrow.get // TODOHurricane - Howie says to wire in and out separately for SerialIO (throws GenderCheck errors)
     val sim_axi = Module(new SimAXIMem(memSize))
@@ -146,12 +148,12 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
   }
 
   def connect(tbclk: Clock, tbreset: Bool, dutio: uncore.devices.DebugBusIO,
-      dutsuccess: Option[Bool], tbsuccess: Bool) = {
+      dutsuccess: Bool, tbsuccess: Bool) = {
     io.clk := tbclk
     io.reset := tbreset
     dutio <> io.debug
 
-    tbsuccess := dutsuccess.getOrElse(io.exit === 1)
+    tbsuccess := dutsuccess || io.exit === 1
     when (io.exit >= 2) {
       printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1)
       stop(1)
@@ -183,25 +185,5 @@ class JTAGVPI(implicit val p: Parameters) extends BlackBox {
     // Success is determined by the gdbserver
     // which is controlling this simulation.
     tbsuccess := Bool(false)
-  }
-}
-
-class LatencyPipe[T <: Data](typ: T, latency: Int) extends Module {
-  val io = new Bundle {
-    val in = Decoupled(typ).flip
-    val out = Decoupled(typ)
-  }
-
-  def doN[T](n: Int, func: T => T, in: T): T =
-    (0 until n).foldLeft(in)((last, _) => func(last))
-
-  io.out <> doN(latency, (last: DecoupledIO[T]) => Queue(last, 1, pipe=true), io.in)
-}
-
-object LatencyPipe {
-  def apply[T <: Data](in: DecoupledIO[T], latency: Int): DecoupledIO[T] = {
-    val pipe = Module(new LatencyPipe(in.bits, latency))
-    pipe.io.in <> in
-    pipe.io.out
   }
 }

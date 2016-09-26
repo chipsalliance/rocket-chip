@@ -41,15 +41,15 @@ class PMUConfig extends Config(
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuite(benchmarks)
-        val tileList = List.tabulate(site(NTiles)-1){ i => (c: Clock, r: Bool, p: Parameters) =>
-          Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({
+        val tileList = List.tabulate(site(NTiles)-1){ i => (r: Bool, p: Parameters) =>
+          Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TileId => i
             case TLId => "L1toL2"
             case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)
           })))
         }
-        tileList :+ { (c: Clock, r: Bool, p: Parameters) =>
-          Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({
+        tileList :+ { (r: Bool, p: Parameters) =>
+          Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TileId => site(NTiles)-1
             case TLId => "L1toL2"
             case NUncachedTileLinkPorts => 1

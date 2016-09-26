@@ -86,42 +86,49 @@ object AsyncIrrevocableFrom
   }
 }
 
-/**  Because Chisel/FIRRTL does not allow us
-  *  to directly assign clocks from Signals,
-  *  we need this black box module.
-  *  This may even be useful because some back-end
-  *  flows like to have this sort of transition
-  *  flagged with a special cell or module anyway.
-  */
+/**
+ * This helper object synchronizes a level-sensitive signal from one
+ * clock domain to another.
+ */
+object LevelSyncCrossing {
+  class SynchronizerBackend(sync: Int, _clock: Clock) extends Module(Some(_clock)) {
+    val io = new Bundle {
+      val in = Bool(INPUT)
+      val out = Bool(OUTPUT)
+    }
 
-class SignalToClock extends BlackBox {
-  val io = new Bundle {
-    val signal_in = Bool(INPUT)
-    val clock_out = Clock(OUTPUT)
+    io.out := ShiftRegister(io.in, sync)
   }
 
-  //  io.clock_out := io.signal_in
-}
+  class SynchronizerFrontend(_clock: Clock) extends Module(Some(_clock)) {
+    val io = new Bundle {
+      val in = Bool(INPUT)
+      val out = Bool(OUTPUT)
+    }
 
-object SignalToClock {
-  def apply(signal: Bool): Clock = {
-    val s2c = Module(new SignalToClock)
-    s2c.io.signal_in := signal
-    s2c.io.clock_out
+    io.out := RegNext(io.in)
+  }
+
+  def apply(from_clock: Clock, to_clock: Clock, in: Bool, sync: Int = 2): Bool = {
+    val front = Module(new SynchronizerFrontend(from_clock))
+    val back = Module(new SynchronizerBackend(sync, to_clock))
+
+    front.io.in := in
+    back.io.in := front.io.out
+    back.io.out
   }
 }
 
-class ClockToSignal extends BlackBox {
-  val io = new Bundle {
-    val clock_in = Clock(INPUT)
-    val signal_out = Bool(OUTPUT)
+object LevelSyncTo {
+  def apply(to_clock: Clock, in: Bool, sync: Int = 2): Bool = {
+    val scope = AsyncScope()
+    LevelSyncCrossing(scope.clock, to_clock, in, sync)
   }
 }
 
-object ClockToSignal {
-  def apply(clk: Clock): Bool = {
-    val c2s = Module(new ClockToSignal)
-    c2s.io.clock_in := clk
-    c2s.io.signal_out
+object LevelSyncFrom {
+  def apply(from_clock: Clock, in: Bool, sync: Int = 2): Bool = {
+    val scope = AsyncScope()
+    LevelSyncCrossing(from_clock, scope.clock, in, sync)
   }
 }

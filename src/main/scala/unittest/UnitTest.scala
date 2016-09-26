@@ -2,7 +2,7 @@ package unittest
 
 import Chisel._
 import cde.{Field, Parameters}
-import util.Timer
+import util.SimpleTimer
 
 trait HasUnitTestIO {
   val io = new Bundle {
@@ -11,10 +11,13 @@ trait HasUnitTestIO {
   }
 }
 
-abstract class UnitTest extends Module with HasUnitTestIO {
-  when (io.start) {
-    printf(s"Started UnitTest ${this.getClass.getSimpleName}\n")
-  }
+abstract class UnitTest(val timeout: Int = 4096) extends Module with HasUnitTestIO {
+  val testName = this.getClass.getSimpleName
+
+  when (io.start) { printf(s"Started UnitTest $testName\n") }
+
+  val timed_out = SimpleTimer(timeout, io.start, io.finished)
+  assert(!timed_out, s"UnitTest $testName timed out")
 }
 
 case object UnitTests extends Field[Parameters => Seq[UnitTest]]
@@ -26,33 +29,14 @@ class UnitTestSuite(implicit p: Parameters) extends Module {
 
   val tests = p(UnitTests)(p)
 
-  val s_idle :: s_start :: s_wait :: s_done :: Nil = Enum(Bits(), 4)
+  val s_idle :: s_start :: s_busy :: s_done :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
-  val test_idx = Reg(init = UInt(0, log2Up(tests.size)))
-  val test_finished = Vec(tests.map(_.io.finished))
+  val tests_finished = Vec(tests.map(_.io.finished)).reduce(_&&_)
 
-  when (state === s_idle) { state := s_start }
-  when (state === s_start) { state := s_wait }
-  when (state === s_wait && test_finished(test_idx)) {
-    state := s_start
-    test_idx := test_idx + UInt(1)
-    state := Mux(test_idx === UInt(tests.size - 1), s_done, s_start)
-  }
-
-  val timer = Module(new Timer(500000, tests.size))
-  timer.io.start.valid := Bool(false)
-  timer.io.stop.valid := Bool(false)
-
-  tests.zipWithIndex.foreach { case (mod, i) =>
-    mod.io.start := (state === s_start) && test_idx === UInt(i)
-    when (test_idx === UInt(i)) {
-      timer.io.start.valid := mod.io.start
-      timer.io.start.bits := UInt(i)
-      timer.io.stop.valid := mod.io.finished
-      timer.io.stop.bits := UInt(i)
-    }
-  }
+  tests.foreach { _.io.start := (state === s_start) }
   io.finished := (state === s_done)
 
-  assert(!timer.io.timeout.valid, "UnitTest timed out")
+  when (state === s_idle) { state := s_start }
+  when (state === s_start) { state := s_busy }
+  when (state === s_busy && tests_finished) { state := s_done }
 }

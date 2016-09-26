@@ -39,22 +39,19 @@ $(error Set SUITE to the regression suite you want to run)
 endif
 
 ifeq ($(SUITE),RocketSuite)
-MODEL=TestHarness
 PROJECT=rocketchip
 CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
-MODEL=TestHarness
-PROJECT=rocketchip
+PROJECT=groundtest
 CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
 	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
 	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
-MODEL=UnitTestHarness
-PROJECT=rocketchip
+PROJECT=unittest
 CONFIGS=UnitTestConfig
 endif
 
@@ -126,65 +123,65 @@ $(RISCV)/install.stamp:
 # Builds the various simulators
 stamps/%/emulator-verilog.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) verilog
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) verilog
 	date > $@
 
 stamps/%/emulator-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV))
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV))
 	date > $@
 
 stamps/%/emulator-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) debug
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) debug
 	date > $@
 
 stamps/%/vsim-verilog.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) verilog
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) verilog
 	date > $@
 
 stamps/%/vsim-ndebug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV))
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV))
 	date > $@
 
 stamps/%/vsim-debug.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) debug
+	+flock -x $(dir $@)/chisel-lock $(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) debug
 	date > $@
 
 # Runs tests on one of the simulators
 stamps/%/emulator-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) run-asm-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) run-asm-tests-fast
 	date > $@
 
 stamps/%/emulator-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) run-bmark-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) run-bmark-tests-fast
 	date > $@
 
 stamps/%/emulator-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) clean-run-output
-	$(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) run-regression-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) clean-run-output
+	$(MAKE) -C $(abspath $(TOP))/emulator PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) run-regression-tests-fast
 	date > $@
 
 stamps/%/vsim-asm-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) run-asm-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) run-asm-tests-fast
 	date > $@
 
 stamps/%/vsim-bmark-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) run-bmark-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) run-bmark-tests-fast
 	date > $@
 
 stamps/%/vsim-regression-tests.stamp: stamps/other-submodules.stamp $(RISCV)/install.stamp
 	mkdir -p $(dir $@)
-	$(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) clean-run-output
-	$(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) MODEL=$(MODEL) CONFIG=$* RISCV=$(abspath $(RISCV)) run-regression-tests-fast
+	$(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) clean-run-output
+	$(MAKE) -C $(abspath $(TOP))/vsim PROJECT=$(PROJECT) CONFIG=$* RISCV=$(abspath $(RISCV)) run-regression-tests-fast
 	date > $@
 
 # The torture tests run subtly differently on the different targets, so they

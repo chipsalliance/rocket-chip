@@ -11,18 +11,11 @@ import uncore.devices._
 import uncore.converters._
 import rocket._
 import rocket.Util._
+import util.ConfigUtils._
 import rocketchip.{GlobalAddrMap, NCoreplexExtClients}
-import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
-
-object ConfigUtils {
-  def max_int(values: Int*): Int = {
-    values.reduce((a, b) => max(a, b))
-  }
-}
-import ConfigUtils._
 
 class BaseCoreplexConfig extends Config (
   topDefinitions = { (pname,site,here) => 
@@ -70,7 +63,7 @@ class BaseCoreplexConfig extends Config (
       case NAcquireTransactors => 7
       case L2StoreDataQueueDepth => 1
       case L2DirectoryRepresentation => new NullRepresentation(site(NTiles))
-      case BuildL2CoherenceManager => (id: Int, p: Parameters, c: Clock, r: Bool) =>
+      case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
         Module(new L2BroadcastHub()(p.alterPartial({
           case InnerTLId => "L1toL2"
           case OuterTLId => "L2toMC" })))
@@ -100,8 +93,8 @@ class BaseCoreplexConfig extends Config (
         TestGeneration.addSuites(rvi.map(_("p")))
         TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
         TestGeneration.addSuite(benchmarks)
-        List.tabulate(site(NTiles)){ i => (c: Clock, r: Bool, p: Parameters) =>
-          Module(new RocketTile(clockSignal = c, resetSignal = r)(p.alterPartial({
+        List.tabulate(site(NTiles)){ i => (r: Bool, p: Parameters) =>
+          Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TileId => i
             case TLId => "L1toL2"
             case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)
@@ -131,8 +124,7 @@ class BaseCoreplexConfig extends Config (
       case UseCompressed => true
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case NCustomMRWCSRs => 0
-      case ResetVector => BigInt(0x1000)
-      case MtvecInit => BigInt(0x1010)
+      case MtvecInit => None
       case MtvecWritable => true
       //Uncore Paramters
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
@@ -146,7 +138,7 @@ class BaseCoreplexConfig extends Config (
             else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
-          nCachelessClients = site(NCoreplexExtClients).get + site(NUncachedTileLinkPorts),
+          nCachelessClients = site(NCoreplexExtClients) + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
               site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
@@ -178,7 +170,7 @@ class BaseCoreplexConfig extends Config (
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = site(GlobalAddrMap).get.subMap("io").numSlaves,
+          nManagers = 1,
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 4,
@@ -270,8 +262,8 @@ class WithL2Cache extends Config(
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
-    case BuildL2CoherenceManager => (id: Int, p: Parameters, c: Clock, r: Bool) =>
-      Module(new L2HellaCacheBank(clockSignal = c, resetSignal = r)(p.alterPartial({
+    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
+      Module(new L2HellaCacheBank()(p.alterPartial({
         case CacheId => id
         case CacheName => "L2Bank"
         case InnerTLId => "L1toL2"
@@ -284,7 +276,7 @@ class WithL2Cache extends Config(
 
 class WithBufferlessBroadcastHub extends Config(
   (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters, c: Clock, r: Bool) =>
+    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
       Module(new BufferlessBroadcastHub()(p.alterPartial({
         case InnerTLId => "L1toL2"
         case OuterTLId => "L2toMC" })))
@@ -304,7 +296,7 @@ class WithBufferlessBroadcastHub extends Config(
  */
 class WithStatelessBridge extends Config (
   topDefinitions = (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters, c: Clock, r: Bool) =>
+    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
       Module(new ManagerToClientStatelessBridge()(p.alterPartial({
         case InnerTLId => "L1toL2"
         case OuterTLId => "L2toMC" })))

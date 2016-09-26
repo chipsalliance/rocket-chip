@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import util.Pow2ClockDivider
 
 object LFSR16Seed
 {
@@ -26,15 +27,15 @@ class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => B
     val wdata  = UInt(INPUT, width = bits)
   }
 
-  val rfire = io.rvalid && io.rready
-  val wfire = io.wvalid && io.wready
   val reg = Reg(UInt(width = bits))
 
-  io.rvalid := rvalid(rfire)
-  io.wready := wready(wfire)
+  val rvalid_s = rvalid(io.rready)
+  val wready_s = wready(io.wvalid)
+  io.rvalid := rvalid_s
+  io.wready := wready_s
 
   io.rdata := reg
-  when (wfire) { reg := io.wdata }
+  when (io.wvalid && wready_s) { reg := io.wdata }
 }
 
 object RRTestCombinational
@@ -43,19 +44,19 @@ object RRTestCombinational
 
   def always: Bool => Bool = _ => Bool(true)
 
-  def random: Bool => Bool = { fire =>
+  def random: Bool => Bool = { ready =>
     seed = seed + 1
     val lfsr = LFSR16Seed(seed)
-    val reg = RegInit(Bool(true))
-    reg := Mux(reg, !fire, lfsr(0) && lfsr(1))
-    reg
+    val valid = RegInit(Bool(true))
+    valid := Mux(valid, !ready, lfsr(0) && lfsr(1))
+    valid
   }
 
-  def delay(x: Int): Bool => Bool = { fire =>
+  def delay(x: Int): Bool => Bool = { ready =>
     val reg = RegInit(UInt(0, width = log2Ceil(x+1)))
-    val ready = reg === UInt(0)
-    reg := Mux(fire, UInt(x), Mux(ready, UInt(0), reg - UInt(1)))
-    ready
+    val valid = reg === UInt(0)
+    reg := Mux(ready && valid, UInt(x), Mux(valid, UInt(0), reg - UInt(1)))
+    valid
   }
 
   def combo(bits: Int, rvalid: Bool => Bool, wready: Bool => Bool): RegField = {
@@ -215,7 +216,7 @@ trait RRTest0Module extends HasRegMap
   regmap(RRTest0Map.map:_*)
 }
 
-class RRTest0(address: BigInt) extends TLRegisterRouter(address, 0, 32, Some(0), 4)(
+class RRTest0(address: BigInt) extends TLRegisterRouter(address, 0, 32, 0, 4)(
   new TLRegBundle((), _)    with RRTest0Bundle)(
   new TLRegModule((), _, _) with RRTest0Module)
 
@@ -225,9 +226,7 @@ trait RRTest1Bundle
 
 trait RRTest1Module extends Module with HasRegMap
 {
-  val clocks = Module(new ClockDivider)
-  clocks.io.clock_in := clock
-  clocks.io.reset_in := reset
+  val clocks = Module(new Pow2ClockDivider(2))
 
   def x(bits: Int) = {
     val field = UInt(width = bits)
@@ -237,7 +236,7 @@ trait RRTest1Module extends Module with HasRegMap
     readCross.io.master_reset := reset
     readCross.io.master_allow := Bool(true)
     readCross.io.slave_clock := clocks.io.clock_out
-    readCross.io.slave_reset := clocks.io.reset_out
+    readCross.io.slave_reset := reset
     readCross.io.slave_allow := Bool(true)
 
     val writeCross = Module(new RegisterWriteCrossing(field))
@@ -245,7 +244,7 @@ trait RRTest1Module extends Module with HasRegMap
     writeCross.io.master_reset := reset
     writeCross.io.master_allow := Bool(true)
     writeCross.io.slave_clock := clocks.io.clock_out
-    writeCross.io.slave_reset := clocks.io.reset_out
+    writeCross.io.slave_reset := reset
     writeCross.io.slave_allow := Bool(true)
 
     readCross.io.slave_register := writeCross.io.slave_register
@@ -256,6 +255,6 @@ trait RRTest1Module extends Module with HasRegMap
   regmap(map:_*)
 }
 
-class RRTest1(address: BigInt) extends TLRegisterRouter(address, 0, 32, Some(6), 4)(
+class RRTest1(address: BigInt) extends TLRegisterRouter(address, 0, 32, 6, 4)(
   new TLRegBundle((), _)    with RRTest1Bundle)(
   new TLRegModule((), _, _) with RRTest1Module)

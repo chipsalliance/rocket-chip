@@ -65,7 +65,7 @@ int main(int argc, char** argv)
   srand48(random_seed);
 
   Verilated::randReset(2);
-  MODEL *tile = new MODEL;
+  VTestHarness *tile = new VTestHarness;
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals
@@ -84,16 +84,16 @@ int main(int argc, char** argv)
   // reset for several cycles to handle pipelined reset
   for (int i = 0; i < 10; i++) {
     tile->reset = 1;
-    tile->clk = 0;
+    tile->clock = 0;
     tile->eval();
-    tile->clk = 1;
+    tile->clock = 1;
     tile->eval();
     tile->reset = 0;
   }
   done_reset = true;
 
   while (!dtm->done() && !tile->io_success && trace_count < max_cycles) {
-    tile->clk = 0;
+    tile->clock = 0;
     tile->eval();
 #if VM_TRACE
     bool dump = tfp && trace_count >= start;
@@ -101,7 +101,7 @@ int main(int argc, char** argv)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2));
 #endif
 
-    tile->clk = 1;
+    tile->clock = 1;
     tile->eval();
 #if VM_TRACE
     if (dump)

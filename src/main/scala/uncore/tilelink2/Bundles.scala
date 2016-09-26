@@ -2,8 +2,8 @@
 
 package uncore.tilelink2
 
-import Chisel._
-import chisel3.util.Irrevocable
+import chisel3._
+import chisel3.util._
 
 abstract class GenericParameterizedBundle[T <: Object](val params: T) extends Bundle
 {
@@ -12,7 +12,7 @@ abstract class GenericParameterizedBundle[T <: Object](val params: T) extends Bu
       this.getClass.getConstructors.head.newInstance(params).asInstanceOf[this.type]
     } catch {
       case e: java.lang.IllegalArgumentException =>
-        throwException("Unable to use GenericParameterizedBundle.cloneType on " +
+        throw new Exception("Unable to use GenericParameterizedBundle.cloneType on " +
                        this.getClass + ", probably because " + this.getClass +
                        "() takes more than one argument.  Consider overriding " +
                        "cloneType() on " + this.getClass, e)
@@ -188,4 +188,47 @@ class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
 object TLBundle
 {
   def apply(params: TLBundleParameters) = new TLBundle(params)
+}
+
+class IrrevocableSnoop[+T <: Data](gen: T) extends Bundle
+{
+  val ready = Bool()
+  val valid = Bool()
+  val bits = gen.asOutput
+
+  def fire(dummy: Int = 0) = ready && valid
+  override def cloneType: this.type = new IrrevocableSnoop(gen).asInstanceOf[this.type]
+}
+
+object IrrevocableSnoop
+{
+  def apply[T <: Data](i: IrrevocableIO[T]) = {
+    val out = Wire(new IrrevocableSnoop(i.bits))
+    out.ready := i.ready
+    out.valid := i.valid
+    out.bits  := i.bits
+    out
+  }
+}
+
+class TLBundleSnoop(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  val a = new IrrevocableSnoop(new TLBundleA(params))
+  val b = new IrrevocableSnoop(new TLBundleB(params))
+  val c = new IrrevocableSnoop(new TLBundleC(params))
+  val d = new IrrevocableSnoop(new TLBundleD(params))
+  val e = new IrrevocableSnoop(new TLBundleE(params))
+}
+
+object TLBundleSnoop
+{
+  def apply(x: TLBundle) = {
+    val out = Wire(new TLBundleSnoop(x.params))
+    out.a := IrrevocableSnoop(x.a)
+    out.b := IrrevocableSnoop(x.b)
+    out.c := IrrevocableSnoop(x.c)
+    out.d := IrrevocableSnoop(x.d)
+    out.e := IrrevocableSnoop(x.e)
+    out
+  }
 }

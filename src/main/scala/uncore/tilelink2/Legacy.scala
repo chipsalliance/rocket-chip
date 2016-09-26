@@ -49,7 +49,7 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     // During conversion from TL Legacy, we won't support Acquire
 
     // Must be able to fit TL2 sink_id into TL legacy
-    require ((1 << tlManagerXactIdBits) >= edge.manager.endSinkId)
+    require ((1 << tlManagerXactIdBits) >= edge.manager.endSinkId || !edge.manager.anySupportAcquire)
 
     val out = io.out(0)
     out.a.valid := io.legacy.acquire.valid
@@ -67,17 +67,20 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
 
     // Only create atomic messages if TL2 managers support them
     val atomics = if (edge.manager.anySupportLogical) {
+      val size = io.legacy.acquire.bits.op_size()
       MuxLookup(io.legacy.acquire.bits.op_code(), Wire(new TLBundleA(edge.bundle)), Array(
-        MemoryOpConstants.M_XA_SWAP -> edge.Logical(source, address, beat, data, TLAtomics.SWAP)._2,
-        MemoryOpConstants.M_XA_XOR  -> edge.Logical(source, address, beat, data, TLAtomics.XOR) ._2,
-        MemoryOpConstants.M_XA_OR   -> edge.Logical(source, address, beat, data, TLAtomics.OR)  ._2,
-        MemoryOpConstants.M_XA_AND  -> edge.Logical(source, address, beat, data, TLAtomics.AND) ._2,
-        MemoryOpConstants.M_XA_ADD  -> edge.Arithmetic(source, address, beat, data, TLAtomics.ADD)._2,
-        MemoryOpConstants.M_XA_MIN  -> edge.Arithmetic(source, address, beat, data, TLAtomics.MIN)._2,
-        MemoryOpConstants.M_XA_MAX  -> edge.Arithmetic(source, address, beat, data, TLAtomics.MAX)._2,
-        MemoryOpConstants.M_XA_MINU -> edge.Arithmetic(source, address, beat, data, TLAtomics.MINU)._2,
-        MemoryOpConstants.M_XA_MAXU -> edge.Arithmetic(source, address, beat, data, TLAtomics.MAXU)._2))
+        MemoryOpConstants.M_XA_SWAP -> edge.Logical(source, address, size, data, TLAtomics.SWAP)._2,
+        MemoryOpConstants.M_XA_XOR  -> edge.Logical(source, address, size, data, TLAtomics.XOR) ._2,
+        MemoryOpConstants.M_XA_OR   -> edge.Logical(source, address, size, data, TLAtomics.OR)  ._2,
+        MemoryOpConstants.M_XA_AND  -> edge.Logical(source, address, size, data, TLAtomics.AND) ._2,
+        MemoryOpConstants.M_XA_ADD  -> edge.Arithmetic(source, address, size, data, TLAtomics.ADD)._2,
+        MemoryOpConstants.M_XA_MIN  -> edge.Arithmetic(source, address, size, data, TLAtomics.MIN)._2,
+        MemoryOpConstants.M_XA_MAX  -> edge.Arithmetic(source, address, size, data, TLAtomics.MAX)._2,
+        MemoryOpConstants.M_XA_MINU -> edge.Arithmetic(source, address, size, data, TLAtomics.MINU)._2,
+        MemoryOpConstants.M_XA_MAXU -> edge.Arithmetic(source, address, size, data, TLAtomics.MAXU)._2))
     } else {
+      // If no managers support atomics, assert fail if TL1 asks for them
+      assert (!io.legacy.acquire.valid || io.legacy.acquire.bits.a_type =/= Acquire.putAtomicType)
       Wire(new TLBundleA(edge.bundle))
     }
 
@@ -118,7 +121,7 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     val grant = io.legacy.grant.bits
     grant.g_type := MuxLookup(out.d.bits.opcode, Grant.prefetchAckType, Array(
       TLMessages.AccessAck     -> Grant.putAckType,
-      TLMessages.AccessAckData -> Mux(out.d.bits.size === beat, Grant.getDataBeatType, Grant.getDataBlockType),
+      TLMessages.AccessAckData -> Mux(out.d.bits.size === block, Grant.getDataBlockType, Grant.getDataBeatType),
       TLMessages.HintAck       -> Grant.prefetchAckType))
     grant.is_builtin_type := Bool(true)
     grant.client_xact_id  := out.d.bits.source
