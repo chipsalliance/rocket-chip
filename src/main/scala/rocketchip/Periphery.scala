@@ -82,7 +82,7 @@ trait HasPeripheryParameters {
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
-  lazy val innerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
+  lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
   lazy val peripheryBusConfig = p(PeripheryBusKey)
@@ -213,7 +213,7 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   val pBus: TileLinkRecursiveInterconnect
 
   val mmio_ports = p(ExtMMIOPorts) map { port =>
-    TileLinkWidthAdapter(pBus.port(port.name), innerMMIOParams)
+    TileLinkWidthAdapter(pBus.port(port.name), outerMMIOParams)
   }
 
   val mmio_axi_start = 0
@@ -290,9 +290,9 @@ trait PeripheryCoreplexLocalInterrupter extends LazyModule with HasPeripheryPara
   val peripheryBus: TLXbar
 
   // CoreplexLocalInterrupter must be at least 64b if XLen >= 64
-  val beatBytes = max((innerMMIOParams(XLen) min 64) / 8, peripheryBusConfig.beatBytes)
+  val beatBytes = max((outerMMIOParams(XLen) min 64) / 8, peripheryBusConfig.beatBytes)
   val clintConfig = CoreplexLocalInterrupterConfig(beatBytes)
-  val clint = LazyModule(new CoreplexLocalInterrupter(clintConfig)(innerMMIOParams))
+  val clint = LazyModule(new CoreplexLocalInterrupter(clintConfig)(outerMMIOParams))
   // The periphery bus is 32-bit, so we may need to adapt its width to XLen
   clint.node := TLFragmenter(beatBytes, cacheBlockBytes)(TLWidthWidget(peripheryBusConfig.beatBytes)(peripheryBus.node))
 }
