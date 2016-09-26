@@ -79,5 +79,6 @@ object Generator extends util.GeneratorApp {
   generateTestSuiteMakefrags
   generateDSEConstraints
   generateConfigString
+  generateGraphML
   generateParameterDump
 }

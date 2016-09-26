@@ -8,7 +8,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.devices._
-import util.{ParameterizedBundle, ConfigStringOutput}
+import util.{ParameterizedBundle, ConfigStringOutput, GraphMLOutput}
 import rocket._
 import rocket.Util._
 import coreplex._
@@ -91,6 +91,7 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
   println("Generated Configuration String")
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
+  GraphMLOutput.contents = Some(outer.graphML)
 
   io.success := coreplexIO.success
 }
