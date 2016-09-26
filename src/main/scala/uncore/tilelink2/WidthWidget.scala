@@ -32,11 +32,12 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val mask = Cat(edgeIn.mask(in.bits), rmask)
       val size = edgeIn.size(in.bits)
       val hasData = edgeIn.hasData(in.bits)
-      val addr_lo = in.bits match {
+      val addr_all = in.bits match {
         case x: TLAddrChannel => edgeIn.address(x)
         case _ => UInt(0)
       }
-      val addr = addr_lo >> log2Ceil(outBytes)
+      val addr_hi = edgeOut.addr_hi(addr_all)
+      val addr_lo = edgeOut.addr_lo(addr_all)
 
       val count = RegInit(UInt(0, width = log2Ceil(ratio)))
       val first = count === UInt(0)
@@ -72,9 +73,9 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       edgeOut.data(out.bits) := dataOut
 
       out.bits match {
-        case a: TLBundleA => a.addr_hi := addr; a.mask := maskOut
-        case b: TLBundleB => b.addr_hi := addr; b.mask := maskOut
-        case c: TLBundleC => c.addr_hi := addr; c.addr_lo := addr_lo
+        case a: TLBundleA => a.addr_hi := addr_hi; a.mask := maskOut
+        case b: TLBundleB => b.addr_hi := addr_hi; b.mask := maskOut
+        case c: TLBundleC => c.addr_hi := addr_hi; c.addr_lo := addr_lo
         case d: TLBundleD => ()
           // addr_lo gets padded with 0s on D channel, the only lossy transform in this core
           // this should be safe, because we only care about addr_log on D to determine which
