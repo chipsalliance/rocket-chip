@@ -60,7 +60,7 @@ object GenerateGlobalAddrMap {
       if (p(DataScratchpadSize) > 0) { // TODO heterogeneous tiles
         require(p(NTiles) == 1) // TODO relax this
         require(p(NMemoryChannels) == 0) // TODO allow both scratchpad & DRAM
-        entries += AddrMapEntry("dmem0", MemRange(0x80000000L, BigInt(p(DataScratchpadSize)), MemAttr(AddrMapProt.RWX)))
+        entries += AddrMapEntry("dmem0", MemRange(BigInt(p(ExtMemBase)), BigInt(p(DataScratchpadSize)), MemAttr(AddrMapProt.RWX)))
       }
       new AddrMap(entries)
     }
@@ -86,9 +86,8 @@ object GenerateGlobalAddrMap {
     lazy val tl2AddrMap = new AddrMap(tl2Devices, collapse = true)
     lazy val pBusIOAddrMap = new AddrMap(AddrMapEntry("TL2", tl2AddrMap) +: (p(ExtMMIOPorts) ++ pDevicesEntries), collapse = true)
 
-    val memBase = 0x80000000L
+    val memBase = p(ExtMemBase)
     val memSize = p(ExtMemSize)
-    Dump("MEM_BASE", memBase)
 
     val cBus = AddrMapEntry("cbus", cBusIOAddrMap)
     val pBus = AddrMapEntry("pbus", pBusIOAddrMap)

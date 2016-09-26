@@ -41,6 +41,8 @@ case object AsyncMemChannels extends Field[Boolean]
 case object AsyncMMIOChannels extends Field[Boolean]
 /** External address map settings */
 case object ExtMMIOPorts extends Field[Seq[AddrMapEntry]]
+/** Specifies the base address of external memory */
+case object ExtMemBase extends Field[Long]
 /** Specifies the size of external memory */
 case object ExtMemSize extends Field[Long]
 /** Specifies the number of external interrupts */
