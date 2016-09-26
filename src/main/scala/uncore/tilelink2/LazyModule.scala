@@ -34,11 +34,49 @@ abstract class LazyModule
     }
     bindings.reverse.foreach { f => f () }
   }
+
+  def omitGraphML = nodes.isEmpty && children.isEmpty
+  lazy val graphML: String = parent.map(_.graphML).getOrElse {
+    val buf = new StringBuilder
+    buf ++= "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+    buf ++= "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:y=\"http://www.yworks.com/xml/graphml\">\n"
+    buf ++= "  <key for=\"node\" id=\"d1\" yfiles.type=\"nodegraphics\"/>\n"
+    buf ++= "  <graph id=\"G\" edgedefault=\"directed\">\n"
+    nodesGraphML(buf, "    ")
+    edgesGraphML(buf, "    ")
+    buf ++= "  </graph>\n"
+    buf ++= "</graphml>\n"
+    buf.toString
+  }
+
+  private val index = { LazyModule.index = LazyModule.index + 1; LazyModule.index }
+
+  private def nodesGraphML(buf: StringBuilder, pad: String) {
+    buf ++= s"""${pad}<node id=\"${index}\">\n"""
+    buf ++= s"""${pad}  <data key=\"d1\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">${name}</y:NodeLabel></y:ShapeNode></data>\n"""
+    buf ++= s"""${pad}  <graph id=\"${index}::\" edgedefault=\"directed\">\n"""
+    nodes.filter(!_.omitGraphML).foreach { n =>
+      buf ++= s"""${pad}    <node id=\"${index}::${n.index}\"/>\n"""
+    }
+    children.filter(!_.omitGraphML).foreach { _.nodesGraphML(buf, pad + "    ") }
+    buf ++= s"""${pad}  </graph>\n"""
+    buf ++= s"""${pad}</node>\n"""
+  }
+  private def edgesGraphML(buf: StringBuilder, pad: String) {
+    nodes.filter(!_.omitGraphML) foreach { n => n.outputs.filter(!_.omitGraphML).foreach { o =>
+      buf ++= pad
+      buf ++= "<edge"
+      buf ++= s""" source=\"${index}::${n.index}\""""
+      buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\"/>\n"""
+    } }
+    children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
+  }
 }
 
 object LazyModule
 {
   protected[tilelink2] var stack = List[LazyModule]()
+  private var index = 0
 
   def apply[T <: LazyModule](bc: T)(implicit sourceInfo: SourceInfo): T = {
     // Make sure the user put LazyModule around modules in the correct order
