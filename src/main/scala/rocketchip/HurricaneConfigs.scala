@@ -3,6 +3,7 @@ package rocketchip
 import Chisel._
 import junctions._
 import uncore.tilelink._
+import uncore.tilelink2._
 import uncore.coherence._
 import uncore.agents._
 import uncore.devices._
@@ -80,14 +81,45 @@ class NarrowIFConfig extends Config(
 
 class NoJtagDTM extends Config (
   (pname, site, here) => pname match {
-     case IncludeJtagDTM => false
+    case IncludeJtagDTM => false
+    case _ => throw new CDEMatchError
+  }
+)
+
+class WithHTop extends Config (
+  (pname, site, here) => pname match {
+    case BuildCoreplex => (c: CoreplexConfig, p: Parameters) =>
+      LazyModule(new MultiClockCoreplex(c)(p)).module
+    case BuildHTop => (p: Parameters) =>
+      LazyModule(new HTop(p))
+    case _ => throw new CDEMatchError
   }
 )
 
 class DefaultNarrowConfig extends Config(new NarrowIFConfig ++ new DefaultConfig)
 
-class HurricaneUpstreamConfig extends Config(new WithNCores(2) ++ new PMUConfig ++ new WithNLanes(2) ++ new WithNL2AcquireXacts(9) ++ new WithL2Capacity(512) ++ new WithNBanksPerMemChannel(1) ++ new WithNMemoryChannels(8) ++ new Process28nmConfig ++ new NarrowIFConfig ++ new WithJtagDTM ++ new HwachaConfig)
+class HurricaneUpstreamConfig extends Config (
+  new WithNCores(2) ++
+  new PMUConfig ++
+  new WithNLanes(2) ++
+  new WithNL2AcquireXacts(9) ++
+  new WithL2Capacity(512) ++
+  new WithNBanksPerMemChannel(1) ++
+  new WithNMemoryChannels(8) ++
+  new Process28nmConfig ++
+  new WithHTop ++
+  new NarrowIFConfig ++
+  new WithJtagDTM ++
+  new HwachaConfig
+)
 
-class HurricaneUpstreamTinyConfig extends Config(new WithoutConfPrec ++ new WithSmallPredRF ++ new WithNLanes(2)++ new WithNL2AcquireXacts(3) ++ new WithL2Capacity(64) ++ new HurricaneUpstreamConfig)
+class HurricaneUpstreamTinyConfig extends Config (
+  new WithoutConfPrec ++
+  new WithSmallPredRF ++
+  new WithNLanes(2) ++
+  new WithNL2AcquireXacts(3) ++
+  new WithL2Capacity(64) ++
+  new HurricaneUpstreamConfig
+)
 
 class HurricaneUpstreamConfigNoJtag extends Config(new NoJtagDTM ++ new HurricaneUpstreamConfig)
