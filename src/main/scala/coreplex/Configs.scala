@@ -11,18 +11,11 @@ import uncore.devices._
 import uncore.converters._
 import rocket._
 import rocket.Util._
+import util.ConfigUtils._
 import rocketchip.{GlobalAddrMap, NCoreplexExtClients}
-import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
-
-object ConfigUtils {
-  def max_int(values: Int*): Int = {
-    values.reduce((a, b) => max(a, b))
-  }
-}
-import ConfigUtils._
 
 class BaseCoreplexConfig extends Config (
   topDefinitions = { (pname,site,here) => 
@@ -131,8 +124,7 @@ class BaseCoreplexConfig extends Config (
       case UseCompressed => true
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case NCustomMRWCSRs => 0
-      case ResetVector => BigInt(0x1000)
-      case MtvecInit => BigInt(0x1010)
+      case MtvecInit => None
       case MtvecWritable => true
       //Uncore Paramters
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
@@ -146,7 +138,7 @@ class BaseCoreplexConfig extends Config (
             else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = site(NCachedTileLinkPorts),
-          nCachelessClients = site(NCoreplexExtClients).get + site(NUncachedTileLinkPorts),
+          nCachelessClients = site(NCoreplexExtClients) + site(NUncachedTileLinkPorts),
           maxClientXacts = max_int(
               // L1 cache
               site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
@@ -178,7 +170,7 @@ class BaseCoreplexConfig extends Config (
         TileLinkParameters(
           coherencePolicy = new MICoherence(
             new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = site(GlobalAddrMap).get.subMap("io").numSlaves,
+          nManagers = 1,
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 4,

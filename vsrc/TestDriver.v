@@ -1,12 +1,16 @@
 // See LICENSE for license details.
 
+`ifndef RESET_DELAY
+ `define RESET_DELAY 777.7
+`endif
+
 module TestDriver;
 
-  reg clk   = 1'b0;
+  reg clock = 1'b0;
   reg reset = 1'b1;
 
-  always #(`CLOCK_PERIOD/2.0) clk = ~clk;
-  initial #777.7 reset = 0;
+  always #(`CLOCK_PERIOD/2.0) clock = ~clock;
+  initial #(`RESET_DELAY) reset = 0;
 
   // Read input arguments and initialize
   reg verbose = 1'b0;
@@ -48,7 +52,7 @@ module TestDriver;
   reg failure = 1'b0;
   wire success;
   integer stderr = 32'h80000002;
-  always @(posedge clk)
+  always @(posedge clock)
   begin
 `ifdef GATE_LEVEL
     if (verbose)
@@ -87,8 +91,8 @@ module TestDriver;
     end
   end
 
-  `MODEL testHarness(
-    .clk(clk),
+  TestHarness testHarness(
+    .clock(clock),
     .reset(reset),
     .io_success(success)
   );

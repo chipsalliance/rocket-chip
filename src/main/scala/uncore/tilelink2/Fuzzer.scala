@@ -4,6 +4,7 @@ package uncore.tilelink2
 import Chisel._
 import chisel3.util.LFSR16
 import unittest._
+import util.Pow2ClockDivider
 
 class IDMapGenerator(numIds: Int) extends Module {
   val w = log2Up(numIds)
@@ -13,23 +14,22 @@ class IDMapGenerator(numIds: Int) extends Module {
   }
 
   // True indicates that the id is available
-  val bitmap = RegInit(Vec.fill(numIds){Bool(true)})
+  val bitmap = RegInit(UInt((BigInt(1) << numIds) -  1, width = numIds))
 
   io.free.ready := Bool(true)
-  assert(!io.free.valid || !bitmap(io.free.bits)) // No double freeing
+  assert (!io.free.valid || !bitmap(io.free.bits)) // No double freeing
 
-  val mask = bitmap.scanLeft(Bool(false))(_||_).init
-  val select = mask zip bitmap map { case(m,b) => !m && b }
+  val select = ~(highOR(bitmap) << 1) & bitmap
   io.alloc.bits := OHToUInt(select)
-  io.alloc.valid := bitmap.reduce(_||_)
+  io.alloc.valid := bitmap.orR()
 
-  when (io.alloc.fire()) {
-    bitmap(io.alloc.bits) := Bool(false)
-  }
+  val clr = Wire(init = UInt(0, width = numIds))
+  when (io.alloc.fire()) { clr := UIntToOH(io.alloc.bits) }
 
-  when (io.free.fire()) {
-    bitmap(io.free.bits) := Bool(true)
-  }
+  val set = Wire(init = UInt(0, width = numIds))
+  when (io.free.fire()) { set := UIntToOH(io.free.bits) }
+
+  bitmap := (bitmap & ~clr) | set
 }
 
 object LFSR64
@@ -137,7 +137,8 @@ class TLFuzzer(
     // Increment random number generation for the following subfields
     val inc = Wire(Bool())
     val inc_beat = Wire(Bool())
-    val arth_op   = noiseMaker(3, inc)
+    val arth_op_3 = noiseMaker(3, inc)
+    val arth_op   = Mux(arth_op_3 > UInt(4), UInt(4), arth_op_3)
     val log_op    = noiseMaker(2, inc)
     val amo_size  = UInt(2) + noiseMaker(1, inc) // word or dword
     val size      = noiseMaker(sizeBits, inc)
@@ -163,10 +164,12 @@ class TLFuzzer(
                               edge.Hint(src, addr, size, UInt(0))
                             } else { (glegal, gbits) }
 
+    val legal_dest = edge.manager.containsSafe(addr)
+
     // Pick a specific message to try to send
     val a_type_sel  = noiseMaker(3, inc)
 
-    val legal = MuxLookup(a_type_sel, glegal, Seq(
+    val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
       UInt("b000") -> glegal,
       UInt("b001") -> pflegal,
       UInt("b010") -> pplegal,
@@ -206,49 +209,47 @@ class TLFuzzer(
   }
 }
 
-class ClockDivider extends BlackBox {
-  val io = new Bundle {
-    val clock_in  = Clock(INPUT)
-    val reset_in  = Bool(INPUT)
-    val clock_out = Clock(OUTPUT)
-    val reset_out = Bool(OUTPUT)
-  }
-}
-
 class TLFuzzRAM extends LazyModule
 {
   val model = LazyModule(new TLRAMModel)
-  val ram  = LazyModule(new TLRAM(AddressSet(0, 0x3ff)))
+  val ram  = LazyModule(new TLRAM(AddressSet(0x800, 0x7ff)))
+  val ram2 = LazyModule(new TLRAM(AddressSet(0, 0x3ff), beatBytes = 16))
   val gpio = LazyModule(new RRTest1(0x400))
   val xbar = LazyModule(new TLXbar)
+  val xbar2= LazyModule(new TLXbar)
   val fuzz = LazyModule(new TLFuzzer(5000))
   val cross = LazyModule(new TLAsyncCrossing)
 
   model.node := fuzz.node
-  xbar.node := TLWidthWidget(TLHintHandler(model.node), 16)
+  xbar2.node := TLAtomicAutomata()(model.node)
+  ram2.node := TLFragmenter(xbar2.node, 16, 256)
+  xbar.node := TLWidthWidget(TLHintHandler(xbar2.node), 16)
   cross.node := TLFragmenter(TLBuffer(xbar.node), 4, 256)
-  ram.node := cross.node
+  val monitor = (ram.node := cross.node)
   gpio.node := TLFragmenter(TLBuffer(xbar.node), 4, 32)
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
 
     // Shove the RAM into another clock domain
-    val clocks = Module(new ClockDivider)
+    val clocks = Module(new Pow2ClockDivider(2))
     ram.module.clock := clocks.io.clock_out
-    ram.module.reset := clocks.io.reset_out
-    clocks.io.clock_in := clock
-    clocks.io.reset_in := reset
 
     // ... and safely cross TL2 into it
     cross.module.io.in_clock := clock
     cross.module.io.in_reset := reset
     cross.module.io.out_clock := clocks.io.clock_out
-    cross.module.io.out_reset := clocks.io.reset_out
+    cross.module.io.out_reset := reset
+
+    // Push the Monitor into the right clock domain
+    monitor.foreach { m =>
+      m.module.clock := clocks.io.clock_out
+      m.module.reset := reset
+    }
   }
 }
 
-class TLFuzzRAMTest extends UnitTest {
+class TLFuzzRAMTest extends UnitTest(500000) {
   val dut = Module(LazyModule(new TLFuzzRAM).module)
   io.finished := dut.io.finished
 }

@@ -8,6 +8,7 @@ import uncore.devices._
 import rocket._
 import rocket.Util._
 import coreplex._
+import uncore.tilelink2._
 
 import java.nio.file.{Files, Paths}
 import java.nio.{ByteBuffer, ByteOrder}
@@ -51,8 +52,8 @@ class GlobalVariable[T] {
 }
 
 object GenerateGlobalAddrMap {
-  def apply(p: Parameters, pDevicesEntries: Seq[AddrMapEntry]) = {
-    lazy val intIOAddrMap: AddrMap = {
+  def apply(p: Parameters, pDevicesEntries: Seq[AddrMapEntry], peripheryManagers: Seq[TLManagerParameters]) = {
+    lazy val cBusIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
       entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
       entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
@@ -64,28 +65,44 @@ object GenerateGlobalAddrMap {
       new AddrMap(entries)
     }
 
-    lazy val extIOAddrMap = new AddrMap(
-      pDevicesEntries ++ p(ExtMMIOPorts),
-      start = BigInt("50000000", 16),
-      collapse = true)
+    lazy val tl2Devices = peripheryManagers.map { manager =>
+      val cacheable = manager.regionType match {
+        case RegionType.CACHED   => true
+        case RegionType.TRACKED  => true
+        case _ => false
+      }
+      val attr = MemAttr(
+        (if (manager.supportsGet)     AddrMapProt.R else 0) |
+        (if (manager.supportsPutFull) AddrMapProt.W else 0) |
+        (if (manager.executable)      AddrMapProt.X else 0), cacheable)
+      val multi = manager.address.size > 1
+      manager.address.zipWithIndex.map { case (address, i) =>
+        require (address.contiguous) // TL1 needs this
+        val name = manager.name + (if (multi) ".%d".format(i) else "")
+        AddrMapEntry(name, MemRange(address.base, address.mask+1, attr))
+      }
+    }.flatten
+
+    lazy val tl2AddrMap = new AddrMap(tl2Devices, collapse = true)
+    lazy val pBusIOAddrMap = new AddrMap(AddrMapEntry("TL2", tl2AddrMap) +: (p(ExtMMIOPorts) ++ pDevicesEntries), collapse = true)
 
     val memBase = 0x80000000L
     val memSize = p(ExtMemSize)
     Dump("MEM_BASE", memBase)
 
-    val intern = AddrMapEntry("int", intIOAddrMap)
-    val extern = AddrMapEntry("ext", extIOAddrMap)
-    val io = AddrMapEntry("io", AddrMap((intern +: (!extIOAddrMap.isEmpty).option(extern).toSeq):_*))
+    val cBus = AddrMapEntry("cbus", cBusIOAddrMap)
+    val pBus = AddrMapEntry("pbus", pBusIOAddrMap)
+    val io = AddrMapEntry("io", AddrMap((cBus +: (!pBusIOAddrMap.isEmpty).option(pBus).toSeq):_*))
     val mem = AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true)))
     AddrMap((io +: (p(NMemoryChannels) > 0).option(mem).toSeq):_*)
   }
 }
 
 object GenerateConfigString {
-  def apply(p: Parameters, c: CoreplexConfig, pDevicesEntries: Seq[AddrMapEntry]) = {
-    val addrMap = p(GlobalAddrMap).get
-    val plicAddr = addrMap("io:int:plic").start
-    val prciAddr = addrMap("io:ext:prci").start
+  def apply(p: Parameters, c: CoreplexConfig, pDevicesEntries: Seq[AddrMapEntry], peripheryManagers: Seq[TLManagerParameters]) = {
+    val addrMap = p(GlobalAddrMap)
+    val plicAddr = addrMap("io:cbus:plic").start
+    val clint = CoreplexLocalInterrupterConfig(0, addrMap("io:pbus:TL2:clint").start)
     val xLen = p(XLen)
     val res = new StringBuilder
     res append  "plic {\n"
@@ -94,7 +111,7 @@ object GenerateConfigString {
     res append s"  ndevs ${c.plicKey.nDevices};\n"
     res append  "};\n"
     res append  "rtc {\n"
-    res append s"  addr 0x${(prciAddr + PRCI.time).toString(16)};\n"
+    res append s"  addr 0x${clint.timeAddress.toString(16)};\n"
     res append  "};\n"
     if (addrMap contains "mem") {
       res append  "ram {\n"
@@ -117,8 +134,8 @@ object GenerateConfigString {
       res append s"  $i {\n"
       res append  "    0 {\n"
       res append s"      isa $isa;\n"
-      res append s"      timecmp 0x${(prciAddr + PRCI.timecmp(i)).toString(16)};\n"
-      res append s"      ipi 0x${(prciAddr + PRCI.msip(i)).toString(16)};\n"
+      res append s"      timecmp 0x${clint.timecmpAddress(i).toString(16)};\n"
+      res append s"      ipi 0x${clint.msipAddress(i).toString(16)};\n"
       res append s"      plic {\n"
       res append s"        m {\n"
       res append s"         ie 0x${(plicAddr + c.plicKey.enableAddr(i, 'M')).toString(16)};\n"
@@ -138,36 +155,30 @@ object GenerateConfigString {
     }
     res append  "};\n"
     pDevicesEntries foreach { entry =>
-      val region = addrMap("io:ext:" + entry.name)
+      val region = addrMap("io:pbus:" + entry.name)
       res append s"${entry.name} {\n"
       res append s"  addr 0x${region.start.toString(16)};\n"
       res append s"  size 0x${region.size.toString(16)}; \n"
       res append  "}\n"
     }
+    peripheryManagers.foreach { manager => res append manager.dts }
     res append '\u0000'
     res.toString
   }
 }
 
 object GenerateBootROM {
-  def apply(p: Parameters) = {
+  def apply(p: Parameters, address: BigInt) = {
     val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
     val rom = ByteBuffer.wrap(romdata)
 
     rom.order(ByteOrder.LITTLE_ENDIAN)
 
-    // for now, have the reset vector jump straight to memory
-    val memBase = (
-      if (p(GlobalAddrMap).get contains "mem") p(GlobalAddrMap).get("mem")
-      else p(GlobalAddrMap).get("io:int:dmem0")
-    ).start
-    val resetToMemDist = memBase - p(ResetVector)
-    require(resetToMemDist == (resetToMemDist.toInt >> 12 << 12))
-    val configStringAddr = p(ResetVector).toInt + rom.capacity
-
+    require(address == address.toInt)
+    val configStringAddr = address.toInt + rom.capacity
     require(rom.getInt(12) == 0,
       "Config string address position should not be occupied by code")
     rom.putInt(12, configStringAddr)
-    rom.array() ++ (p(ConfigString).get.getBytes.toSeq)
+    rom.array() ++ (p(ConfigString).getBytes.toSeq)
   }
 }

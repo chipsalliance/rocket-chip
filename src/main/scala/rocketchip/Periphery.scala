@@ -7,11 +7,13 @@ import cde.{Parameters, Field}
 import junctions._
 import junctions.NastiConstants._
 import uncore.tilelink._
-import uncore.tilelink2.{LazyModule, LazyModuleImp}
+import uncore.tilelink2._
 import uncore.converters._
 import uncore.devices._
 import uncore.util._
 import rocket.Util._
+import rocket.XLen
+import scala.math.max
 import coreplex._
 
 /** Options for memory bus interface */
@@ -99,16 +101,16 @@ trait PeripheryDebugModule {
   implicit val p: Parameters
   val outer: PeripheryDebug
   val io: PeripheryDebugBundle
-  val coreplex: Coreplex
+  val coreplexIO: BaseCoreplexBundle
 
   if (p(IncludeJtagDTM)) {
     // JtagDTMWithSync is a wrapper which
     // handles the synchronization as well.
     val dtm = Module (new JtagDTMWithSync()(p))
     dtm.io.jtag <> io.jtag.get
-    coreplex.io.debug <> dtm.io.debug
+    coreplexIO.debug <> dtm.io.debug
   } else {
-    coreplex.io.debug <>
+    coreplexIO.debug <>
       (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
       else io.debug.get)
   }
@@ -132,12 +134,12 @@ trait PeripheryExtInterruptsModule {
   implicit val p: Parameters
   val outer: PeripheryExtInterrupts
   val io: PeripheryExtInterruptsBundle
-  val coreplex: Coreplex
+  val coreplexIO: BaseCoreplexBundle
 
   {
     val r = outer.pInterrupts.range("ext")
     ((r._1 until r._2) zipWithIndex) foreach { case (c, i) =>
-      coreplex.io.interrupts(c) := io.interrupts(i)
+      coreplexIO.interrupts(c) := io.interrupts(i)
     }
   }
 }
@@ -161,10 +163,10 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryMasterMem
   val io: PeripheryMasterMemBundle
-  val coreplex: Coreplex
+  val coreplexIO: BaseCoreplexBundle
 
   // Abuse the fact that zip takes the shorter of the two lists
-  ((io.mem_axi zip coreplex.io.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
+  ((io.mem_axi zip coreplexIO.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
     val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
     axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
@@ -174,11 +176,11 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
     )
   }
 
-  (io.mem_ahb zip coreplex.io.master.mem) foreach { case (ahb, mem) =>
+  (io.mem_ahb zip coreplexIO.master.mem) foreach { case (ahb, mem) =>
     ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)(outermostParams)
   }
 
-  (io.mem_tl zip coreplex.io.master.mem) foreach { case (tl, mem) =>
+  (io.mem_tl zip coreplexIO.master.mem) foreach { case (tl, mem) =>
     tl <> TileLinkEnqueuer(mem, 2)(outermostParams)
   }
 }
@@ -202,10 +204,10 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryMasterMMIO
   val io: PeripheryMasterMMIOBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
+  val pBus: TileLinkRecursiveInterconnect
 
   val mmio_ports = p(ExtMMIOPorts) map { port =>
-    TileLinkWidthAdapter(mmioNetwork.get.port(port.name), "MMIO_Outermost")
+    TileLinkWidthAdapter(pBus.port(port.name), "MMIO_Outermost")
   }
 
   val mmio_axi_start = 0
@@ -256,7 +258,7 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripherySlave
   val io: PeripherySlaveBundle
-  val coreplex: Coreplex
+  val coreplexIO: BaseCoreplexBundle
 
   if (p(NExtBusAXIChannels) > 0) {
     val arb = Module(new NastiArbiter(p(NExtBusAXIChannels)))
@@ -271,44 +273,48 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
 
     val r = outer.pBusMasters.range("ext")
     require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
-    coreplex.io.slave(r._1) <> conv.io.tl
+    coreplexIO.slave(r._1) <> conv.io.tl
   }
 }
 
 /////
 
-/** Always-ON block */
-trait PeripheryAON extends LazyModule {
+trait PeripheryCoreplexLocalInterrupter extends LazyModule with HasPeripheryParameters {
   implicit val p: Parameters
-  val pDevices: ResourceManager[AddrMapEntry]
+  val peripheryBus: TLXbar
 
-  pDevices.add(AddrMapEntry("prci", MemSize(0x4000000, MemAttr(AddrMapProt.RW))))
+  // CoreplexLocalInterrupter must be at least 64b if XLen >= 64
+  val beatBytes = (innerMMIOParams(XLen) min 64) / 8
+  val clintConfig = CoreplexLocalInterrupterConfig(beatBytes)
+  val clint = LazyModule(new CoreplexLocalInterrupter(clintConfig)(innerMMIOParams))
+  // The periphery bus is 32-bit, so we may need to adapt its width to XLen
+  clint.node := TLFragmenter(TLWidthWidget(peripheryBus.node, 4), beatBytes, 256)
 }
 
-trait PeripheryAONBundle {
+trait PeripheryCoreplexLocalInterrupterBundle {
   implicit val p: Parameters
 }
 
-trait PeripheryAONModule extends HasPeripheryParameters {
+trait PeripheryCoreplexLocalInterrupterModule extends HasPeripheryParameters {
   implicit val p: Parameters
-  val outer: PeripheryAON
-  val io: PeripheryAONBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
-  val coreplex: Coreplex
+  val outer: PeripheryCoreplexLocalInterrupter
+  val io: PeripheryCoreplexLocalInterrupterBundle
+  val coreplexIO: BaseCoreplexBundle
 
-  val prci = Module(new PRCI()(innerMMIOParams))
-  prci.io.rtcTick := Counter(p(RTCPeriod)).inc()
-  prci.io.tl <> mmioNetwork.get.port("prci")
-  coreplex.io.prci <> prci.io.tiles
+  outer.clint.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
+  coreplexIO.clint <> outer.clint.module.io.tiles
 }
 
 /////
 
 trait PeripheryBootROM extends LazyModule {
   implicit val p: Parameters
-  val pDevices: ResourceManager[AddrMapEntry]
+  val peripheryBus: TLXbar
 
-  pDevices.add(AddrMapEntry("bootrom", MemRange(0x1000, 4096, MemAttr(AddrMapProt.RX))))
+  val address = 0x1000
+  val size = 0x1000
+  val rom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address)) { override def name = "bootrom" })
+  rom.node := TLFragmenter(peripheryBus.node, 4, 256)
 }
 
 trait PeripheryBootROMBundle {
@@ -319,20 +325,19 @@ trait PeripheryBootROMModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryBootROM
   val io: PeripheryBootROMBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
-
-  val bootROM = Module(new ROMSlave(GenerateBootROM(p))(innerMMIOParams))
-  bootROM.io <> mmioNetwork.get.port("bootrom")
 }
 
 /////
 
 trait PeripheryTestRAM extends LazyModule {
   implicit val p: Parameters
-  val pDevices: ResourceManager[AddrMapEntry]
+  val peripheryBus: TLXbar
 
+  val ramBase = 0x52000000
   val ramSize = 0x1000
-  pDevices.add(AddrMapEntry("testram", MemSize(ramSize, MemAttr(AddrMapProt.RW))))
+
+  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1)) { override def name = "testram" })
+  sram.node := TLFragmenter(peripheryBus.node, 4, 256)
 }
 
 trait PeripheryTestRAMBundle {
@@ -342,22 +347,16 @@ trait PeripheryTestRAMBundle {
 trait PeripheryTestRAMModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryTestRAM
-  val io: PeripheryTestRAMBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
-
-  val testram = Module(new TileLinkTestRAM(outer.ramSize)(innerMMIOParams))
-  testram.io <> mmioNetwork.get.port("testram")
 }
 
 /////
 
 trait PeripheryTestBusMaster extends LazyModule {
   implicit val p: Parameters
-  val pBusMasters: RangeManager
-  val pDevices: ResourceManager[AddrMapEntry]
+  val peripheryBus: TLXbar
 
-  pBusMasters.add("busmaster", 1)
-  pDevices.add(AddrMapEntry("busmaster", MemSize(4096, MemAttr(AddrMapProt.RW))))
+  val fuzzer = LazyModule(new TLFuzzer(5000))
+  peripheryBus.node := fuzzer.node
 }
 
 trait PeripheryTestBusMasterBundle {
@@ -367,16 +366,11 @@ trait PeripheryTestBusMasterBundle {
 trait PeripheryTestBusMasterModule {
   implicit val p: Parameters
   val outer: PeripheryTestBusMaster
-  val io: PeripheryTestBusMasterBundle
-  val mmioNetwork: Option[TileLinkRecursiveInterconnect]
-  val coreplex: Coreplex
+}
 
-  val busmaster = Module(new groundtest.ExampleBusMaster()(p))
-  busmaster.io.mmio <> mmioNetwork.get.port("busmaster")
+/////
 
-  {
-    val r = outer.pBusMasters.range("busmaster")
-    require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
-    coreplex.io.slave(r._1) <> busmaster.io.mem
-  }
+trait HardwiredResetVector {
+  val coreplexIO: BaseCoreplexBundle
+  coreplexIO.resetVector := UInt(0x1000) // boot ROM
 }

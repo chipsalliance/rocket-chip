@@ -4,8 +4,46 @@ import Chisel._
 import unittest.UnitTest
 import junctions._
 import uncore.tilelink._
+import uncore.tilelink2._
 import uncore.util._
 import cde.{Parameters, Field}
+
+class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
+{
+  val node = TLManagerNode(beatBytes, TLManagerParameters(
+    address     = List(AddressSet(base, size-1)),
+    regionType  = RegionType.UNCACHED,
+    executable  = executable,
+    supportsGet = TransferSizes(1, beatBytes),
+    fifoId      = Some(0)))
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val in = node.bundleIn
+    }
+
+    val contents = contentsDelayed
+    require (contents.size <= size)
+
+    val in = io.in(0)
+    val edge = node.edgesIn(0)
+
+    val words = (contents ++ Seq.fill(size-contents.size)(0.toByte)).grouped(beatBytes).toSeq
+    val bigs = words.map(_.foldRight(BigInt(0)){ case (x,y) => (x.toInt & 0xff) | y << 8})
+    val rom = Vec(bigs.map(x => UInt(x, width = 8*beatBytes)))
+
+    in.d.valid := in.a.valid
+    in.a.ready := in.d.ready
+
+    val index = in.a.bits.addr_hi(log2Ceil(size/beatBytes)-1,0)
+    in.d.bits := edge.AccessAck(in.a.bits, UInt(0), rom(index))
+
+    // Tie off unused channels
+    in.b.valid := Bool(false)
+    in.c.ready := Bool(true)
+    in.e.ready := Bool(true)
+  }
+}
 
 class ROMSlave(contents: Seq[Byte])(implicit val p: Parameters) extends Module
     with HasTileLinkParameters
@@ -43,7 +81,6 @@ class ROMSlave(contents: Seq[Byte])(implicit val p: Parameters) extends Module
 }
 
 class ROMSlaveTest(implicit p: Parameters) extends UnitTest {
-  implicit val testName = "ROMSlaveTest"
   val romdata = Seq(
     BigInt("01234567deadbeef", 16),
     BigInt("ab32fee8d00dfeed", 16))

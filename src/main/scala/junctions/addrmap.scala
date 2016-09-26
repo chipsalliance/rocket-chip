@@ -12,7 +12,7 @@ trait HasAddrMapParameters {
   implicit val p: Parameters
 
   val paddrBits = p(PAddrBits)
-  def addrMap = p(rocketchip.GlobalAddrMap).get
+  def addrMap = p(rocketchip.GlobalAddrMap)
 }
 
 case class MemAttr(prot: Int, cacheable: Boolean = false)
@@ -125,7 +125,7 @@ class AddrMap(
       val brEnd = br.start + br.size
       val abOverlaps = ar.start < brEnd && br.start < arEnd
       require(!abOverlaps,
-        "region $an@0x${ar.start.toString(16)} overlaps region $bn@0x${br.start.toString(16)}")
+        s"region $an@0x${ar.start.toString(16)} overlaps region $bn@0x${br.start.toString(16)}")
   }
 
   def toRange: MemRange = MemRange(start, size, attr)
