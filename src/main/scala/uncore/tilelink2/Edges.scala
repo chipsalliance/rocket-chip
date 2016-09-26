@@ -171,15 +171,6 @@ class TLEdge(
     }
   }
 
-  def addr_lo(x: TLDataChannel): UInt = {
-    x match {
-      case a: TLBundleA => addr_lo(a.mask, a.size)
-      case b: TLBundleB => addr_lo(b.mask, b.size)
-      case c: TLBundleC => c.addr_lo
-      case d: TLBundleD => d.addr_lo
-    }
-  }
-
   def full_mask(x: TLDataChannel): UInt = {
     x match {
       case a: TLBundleA => full_mask(a.mask, a.size)
@@ -189,13 +180,34 @@ class TLEdge(
     }
   }
 
-  def address(x: TLAddrChannel): UInt = {
-    val hi = x match {
+  def addr_lo(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => addr_lo(a.mask, a.size)
+      case b: TLBundleB => addr_lo(b.mask, b.size)
+      case c: TLBundleC => c.addr_lo
+      case d: TLBundleD => d.addr_lo
+    }
+  }
+
+  def addr_hi(x: TLAddrChannel): UInt = {
+    x match {
       case a: TLBundleA => a.addr_hi
       case b: TLBundleB => b.addr_hi
       case c: TLBundleC => c.addr_hi
     }
+  }
+
+  def address(x: TLAddrChannel): UInt = {
+    val hi = addr_hi(x)
     if (manager.beatBytes == 1) hi else Cat(hi, addr_lo(x))
+  }
+
+  def addr_lo(x: UInt): UInt = {
+    if (manager.beatBytes == 1) UInt(0) else x(log2Ceil(manager.beatBytes)-1, 0)
+  }
+
+  def addr_hi(x: UInt): UInt = {
+    x >> log2Ceil(manager.beatBytes)
   }
 
   def numBeats(x: TLChannel): UInt = {
