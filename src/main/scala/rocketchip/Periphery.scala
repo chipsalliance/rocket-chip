@@ -107,16 +107,16 @@ trait PeripheryDebugModule {
   implicit val p: Parameters
   val outer: PeripheryDebug
   val io: PeripheryDebugBundle
-  val coreplexIO: BaseCoreplexBundle
+  val coreplexDebug: DebugBusIO
 
   if (p(IncludeJtagDTM)) {
     // JtagDTMWithSync is a wrapper which
     // handles the synchronization as well.
     val dtm = Module (new JtagDTMWithSync()(p))
     dtm.io.jtag <> io.jtag.get
-    coreplexIO.debug <> dtm.io.debug
+    coreplexDebug <> dtm.io.debug
   } else {
-    coreplexIO.debug <>
+    coreplexDebug <>
       (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
       else io.debug.get)
   }
@@ -169,10 +169,10 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryMasterMem
   val io: PeripheryMasterMemBundle
-  val coreplexIO: BaseCoreplexBundle
+  val coreplexMem: Vec[ClientUncachedTileLinkIO]
 
   // Abuse the fact that zip takes the shorter of the two lists
-  ((io.mem_axi zip coreplexIO.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
+  ((io.mem_axi zip coreplexMem) zipWithIndex) foreach { case ((axi, mem), idx) =>
     val axi_sync = PeripheryUtils.convertTLtoAXI(mem)
     axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
@@ -182,11 +182,11 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
     )
   }
 
-  (io.mem_ahb zip coreplexIO.master.mem) foreach { case (ahb, mem) =>
+  (io.mem_ahb zip coreplexMem) foreach { case (ahb, mem) =>
     ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)
   }
 
-  (io.mem_tl zip coreplexIO.master.mem) foreach { case (tl, mem) =>
+  (io.mem_tl zip coreplexMem) foreach { case (tl, mem) =>
     tl <> TileLinkEnqueuer(mem, 2)
   }
 }
@@ -264,7 +264,7 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripherySlave
   val io: PeripherySlaveBundle
-  val coreplexIO: BaseCoreplexBundle
+  val coreplexSlave: Vec[ClientUncachedTileLinkIO]
 
   if (p(NExtBusAXIChannels) > 0) {
     val arb = Module(new NastiArbiter(p(NExtBusAXIChannels)))
@@ -279,7 +279,7 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
 
     val r = outer.pBusMasters.range("ext")
     require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
-    coreplexIO.slave(r._1) <> conv.io.tl
+    coreplexSlave(r._1) <> conv.io.tl
   }
 }
 
@@ -305,10 +305,10 @@ trait PeripheryCoreplexLocalInterrupterModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryCoreplexLocalInterrupter
   val io: PeripheryCoreplexLocalInterrupterBundle
-  val coreplexIO: BaseCoreplexBundle
+  val coreplexLocalInt: Vec[CoreplexLocalInterrupts]
 
   outer.clint.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
-  coreplexIO.clint <> outer.clint.module.io.tiles
+  coreplexLocalInt <> outer.clint.module.io.tiles
 }
 
 /////
@@ -381,4 +381,93 @@ trait PeripheryTestBusMasterModule {
 trait HardwiredResetVector {
   val coreplexIO: BaseCoreplexBundle
   coreplexIO.resetVector := UInt(0x1000) // boot ROM
+}
+
+//////
+
+trait DirectDebugConnection {
+  val coreplexDebug: DebugBusIO
+  val coreplexIO: BaseCoreplexBundle
+
+  coreplexIO.debug <> coreplexDebug
+}
+
+trait AsyncDebugConnection {
+  val coreplexDebug: DebugBusIO
+  val coreplexIO: BaseCoreplexBundle
+  val coreplexClock: Clock
+  val coreplexReset: Bool
+
+  coreplexIO.debug <> AsyncDebugBusTo(coreplexClock, coreplexReset, coreplexDebug)
+}
+
+trait DirectCoreplexLocalInterruptConnection {
+  val coreplexLocalInt: Vec[CoreplexLocalInterrupts]
+  val coreplexIO: BaseCoreplexBundle
+
+  coreplexIO.clint <> coreplexLocalInt
+}
+
+trait AsyncCoreplexLocalInterruptConnection {
+  val coreplexLocalInt: Vec[CoreplexLocalInterrupts]
+  val coreplexIO: BaseCoreplexBundle
+  val tileClocks: Seq[Clock]
+
+  (coreplexIO.clint, coreplexLocalInt, tileClocks).zipped.foreach {
+    case (cclint, clint, clk) =>
+      cclint.mtip := LevelSyncTo(clk, clint.mtip)
+      cclint.msip := LevelSyncTo(clk, clint.msip)
+  }
+}
+
+trait DirectMemoryConnection {
+  val coreplexMem: Vec[ClientUncachedTileLinkIO]
+  val coreplexIO: BaseCoreplexBundle
+
+  coreplexMem <> coreplexIO.master.mem
+}
+
+trait AsyncMemoryConnection {
+  val coreplexMem: Vec[ClientUncachedTileLinkIO]
+  val coreplexIO: BaseCoreplexBundle
+  val coreplexClock: Clock
+  val coreplexReset: Bool
+
+  coreplexMem.zip(coreplexIO.master.mem).foreach { case (mem, cmem) =>
+    mem <> AsyncUTileLinkFrom(coreplexClock, coreplexReset, cmem)
+  }
+}
+
+trait DirectMMIOConnection {
+  val coreplexMMIO: ClientUncachedTileLinkIO
+  val coreplexIO: BaseCoreplexBundle
+
+  coreplexMMIO <> coreplexIO.master.mmio
+}
+
+trait AsyncMMIOConnection {
+  val coreplexMMIO: ClientUncachedTileLinkIO
+  val coreplexIO: BaseCoreplexBundle
+  val coreplexClock: Clock
+  val coreplexReset: Bool
+
+  coreplexMMIO <> AsyncUTileLinkFrom(coreplexClock, coreplexReset, coreplexIO.master.mmio)
+}
+
+trait DirectSlaveConnection {
+  val coreplexSlave: Vec[ClientUncachedTileLinkIO]
+  val coreplexIO: BaseCoreplexBundle
+
+  coreplexIO.slave <> coreplexSlave
+}
+
+trait AsyncSlaveConnection {
+  val coreplexSlave: Vec[ClientUncachedTileLinkIO]
+  val coreplexIO: BaseCoreplexBundle
+  val coreplexClock: Clock
+  val coreplexReset: Bool
+
+  coreplexIO.slave.zip(coreplexSlave).foreach { case (cslave, slave) =>
+    cslave <> AsyncUTileLinkTo(coreplexClock, coreplexReset, slave)
+  }
 }

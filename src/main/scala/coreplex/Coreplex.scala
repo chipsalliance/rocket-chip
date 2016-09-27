@@ -61,9 +61,10 @@ trait AsyncConnection {
 
     val ti = tile.io.interrupts
     val ui = uncore.interrupts
+    // These two are already synchronized outside the coreplex
+    ti.mtip := ui.mtip
+    ti.msip := ui.msip
     ti.debug := LevelSyncTo(tcr.clock, ui.debug)
-    ti.mtip := LevelSyncTo(tcr.clock, ui.mtip)
-    ti.msip := LevelSyncTo(tcr.clock, ui.msip)
     ti.meip := LevelSyncTo(tcr.clock, ui.meip)
     ti.seip.foreach { _ := LevelSyncTo(tcr.clock, ui.seip.get) }
 
