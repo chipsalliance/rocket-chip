@@ -67,7 +67,7 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
   val io: B = b
 
   val coreplex = p(BuildCoreplex)(outer.c, p)
-  val coreplexIO = coreplex.io
+  val coreplexIO = Wire(coreplex.io)
 
   val pBus =
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:pbus"))(
@@ -94,4 +94,11 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
   GraphMLOutput.contents = Some(outer.graphML)
 
   io.success := coreplexIO.success
+}
+
+trait DirectConnection {
+  val coreplexIO: BaseCoreplexBundle
+  val coreplex: BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]
+
+  coreplexIO <> coreplex.io
 }
