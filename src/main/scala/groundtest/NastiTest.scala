@@ -115,7 +115,7 @@ class NastiConverterTest(implicit p: Parameters) extends GroundTest()(p)
 
   val test = Module(new NastiGenerator(genId))
   val converter = Module(new TileLinkIONastiIOConverter()(
-    p.alterPartial { case TLId => "Outermost" }))
+    p.alterPartial { case TLId => "MCtoEdge" }))
 
   converter.io.nasti <> test.io.mem
   TileLinkWidthAdapter(io.mem.head, converter.io.tl)

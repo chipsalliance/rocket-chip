@@ -31,7 +31,7 @@ trait HasCoreplexParameters {
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
   lazy val lsb = p(BankIdLSB)
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
-  lazy val outerParams = p.alterPartial({ case TLId => "L2toMC" })
+  lazy val outerMemParams = p.alterPartial({ case TLId => "L2toMC" })
   lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
   lazy val globalAddrMap = p(rocketchip.GlobalAddrMap)
 }
@@ -50,7 +50,7 @@ abstract class BaseCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends L
 
 abstract class BaseCoreplexBundle(val c: CoreplexConfig)(implicit val p: Parameters) extends Bundle with HasCoreplexParameters {
   val master = new Bundle {
-    val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outerParams))
+    val mem = Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outerMemParams))
     val mmio = new ClientUncachedTileLinkIO()(outerMMIOParams)
   }
   val slave = Vec(c.nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
@@ -112,7 +112,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
 
     // Create a converter between TileLinkIO and MemIO for each channel
-    val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, c.nMemChannels)(outerParams))
+    val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, c.nMemChannels)(outerMemParams))
 
     val backendBuffering = TileLinkDepths(0,0,0,0,0)
     for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
