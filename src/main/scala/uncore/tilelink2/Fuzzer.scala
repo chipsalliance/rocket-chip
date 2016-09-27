@@ -2,7 +2,6 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.LFSR16
 import unittest._
 import util.Pow2ClockDivider
 
