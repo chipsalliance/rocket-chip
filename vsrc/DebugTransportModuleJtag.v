@@ -156,7 +156,7 @@ module DebugTransportModuleJtag (
    //busy, dtm_resp* is only valid during CAPTURE_DR,
    //      so these signals should only be used at that time.
    // This assumes there is only one transaction in flight at a time.
-   assign busy = (busyReg & ~dtm_resp_valid); // | stickyBusyReg;
+   assign busy = (busyReg & ~dtm_resp_valid); // stickyBusyReg;
    // This is needed especially for the first request.
    assign nonzeroResp = (dtm_resp_valid ? |{dtm_resp_bits[DEBUG_OP_BITS-1:0]} : 1'b0);
    //stickyNonzeroRespReg;
