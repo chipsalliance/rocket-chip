@@ -65,7 +65,8 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       }
 
       val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else dataMux(size)
-      val maskOut = maskMux(size) & edgeOut.mask(addr_lo, size)
+      val maskFull = edgeOut.mask(addr_lo, size)
+      val maskOut = Mux(hasData, maskMux(size) & maskFull, maskFull)
 
       in.ready := out.ready || !last
       out.valid := in.valid && last
