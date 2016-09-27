@@ -28,3 +28,6 @@
 [submodule "testchipip"]
 	path = testchipip
 	url = git@github.com:ucb-bar/testchipip.git
+[submodule "hbwif"]
+	path = hbwif
+	url = git@github.com:ucb-bar/hbwif

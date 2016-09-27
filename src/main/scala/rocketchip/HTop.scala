@@ -10,7 +10,9 @@ import testchipip._
 import coreplex._
 import uncore.tilelink2._
 import uncore.tilelink._
+import uncore.agents._
 import junctions._
+import hbwif._
 
 case object BuildHTop extends Field[Parameters => HTop]
 
@@ -19,7 +21,7 @@ class HTop(q: Parameters) extends BaseTop(q)
     with PeripheryBootROM // TODOHurricane: Is this neccessary for non-standalone boot
     with PeripheryDebug
     with PeripheryCoreplexLocalInterrupter
-    with PeripheryMasterMem
+    with HurricaneIF
     with PeripheryMasterMMIO
     with PeripherySlave { //TODOHurricane: Do we need this?/What is it for?
   override lazy val module = Module(new HTopModule(p, this, new HTopBundle(p)))
@@ -29,13 +31,20 @@ class HTopBundle(p: Parameters) extends BaseTopBundle(p)
     with PeripheryBootROMBundle
     with PeripheryDebugBundle
     with PeripheryCoreplexLocalInterrupterBundle
-    with PeripheryMasterMemBundle
+    with HurricaneIFBundle
     with PeripheryMasterMMIOBundle
     with PeripherySlaveBundle
 //TODOHurricane: add DRAM I/Os here
 
 class HTopModule[+L <: HTop, +B <: HTopBundle]
-    (p: Parameters, l: L, b: => B) extends BaseTopModule(p, l, b) {
+    (p: Parameters, l: L, b: => B) extends BaseTopModule(p, l, b)
+    with PeripheryBootROMModule
+    with PeripheryDebugModule
+    with PeripheryCoreplexLocalInterrupterModule
+    with HurricaneIFModule
+    with PeripheryMasterMMIOModule
+    with PeripherySlaveModule
+    with HardwiredResetVector {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
   coreplex.clock := clock
@@ -48,7 +57,6 @@ class HTopModule[+L <: HTop, +B <: HTopBundle]
   multiClockCoreplexIO.extcr.reset := reset
 }
 
-
 class HTestHarness(q: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
@@ -57,10 +65,6 @@ class HTestHarness(q: Parameters) extends Module {
   implicit val p = dut.p
 
   // This test harness isn't especially flexible yet
-  require(dut.io.mem_clk.isEmpty)
-  require(dut.io.mem_rst.isEmpty)
-  require(dut.io.mem_ahb.isEmpty)
-  require(dut.io.mem_tl.isEmpty)
   require(dut.io.bus_clk.isEmpty)
   require(dut.io.bus_rst.isEmpty)
   require(dut.io.mmio_clk.isEmpty)
@@ -68,26 +72,11 @@ class HTestHarness(q: Parameters) extends Module {
   require(dut.io.mmio_ahb.isEmpty)
   require(dut.io.mmio_tl.isEmpty)
 
-  if (dut.io.mem_axi.nonEmpty) {
-    val memSize = p(GlobalAddrMap)("mem").size
-    require(memSize % dut.io.mem_axi.size == 0)
-    for (axi <- dut.io.mem_axi) {
-      val mem = Module(new SimAXIMem(memSize / dut.io.mem_axi.size))
-      mem.io.axi.ar <> axi.ar
-      mem.io.axi.aw <> axi.aw
-      mem.io.axi.w  <> axi.w
-      axi.r <> LatencyPipe(mem.io.axi.r, p(SimMemLatency))
-      axi.b <> LatencyPipe(mem.io.axi.b, p(SimMemLatency))
-    }
-  }
-
-  if (p(NarrowIF)) {
-    val memSize = p(GlobalAddrMap)("mem").size
-    val dessert = Module(new ClientUncachedTileLinkIODesser(p(NarrowWidth))(p.alterPartial({case TLId => "Outermost"})))
-    //dessert.io.serial <> dut.io.mem_narrow.get // TODOHurricane - Howie says to wire in and out separately for SerialIO (throws GenderCheck errors)
-    val sim_axi = Module(new SimAXIMem(memSize))
-    // HurricaneTODO - should we convert TL to AXI here, or is there a "SimTLMem"?
-  }
+  val memSize = p(GlobalAddrMap)("mem").size
+  val dessert = Module(new ClientUncachedTileLinkIODesser(p(NarrowWidth))(p.alterPartial({case TLId => "Outermost"})))
+  //dessert.io.serial <> dut.io.mem_narrow.get // TODOHurricane - Howie says to wire in and out separately for SerialIO (throws GenderCheck errors)
+  val sim_axi = Module(new SimAXIMem(memSize))
+  // HurricaneTODO - should we convert TL to AXI here, or is there a "SimTLMem"?
 
   if (!p(IncludeJtagDTM)) {
     // Todo: enable the usage of different clocks
@@ -117,4 +106,43 @@ class HTestHarness(q: Parameters) extends Module {
 
 }
 
+/////
 
+trait HurricaneIF extends LazyModule {
+  implicit val p: Parameters
+}
+
+trait HurricaneIFBundle extends HasPeripheryParameters {
+  implicit val p: Parameters
+  val narrowIO = new SerialIO(p(NarrowWidth)) //TODOHurricane - this should be NarrowIO, not SerialIO
+}
+
+trait HurricaneIFModule extends HasPeripheryParameters {
+  implicit val p: Parameters
+  val numLanes = p(HbwifKey).numLanes
+
+  val outer: HurricaneIF
+  val io: HurricaneIFBundle
+  val coreplexIO: BaseCoreplexBundle
+  val hbwifIO: Vec[ClientUncachedTileLinkIO] = Wire(Vec(numLanes,
+    new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "Outermost"}))))
+  // TODOHurricane - implement the TL master/slave combined version
+  require(p(NAcquireTransactors) > 2 || numLanes < 8)
+  // TODOHurricane - why doesn't the switcher handle this gracefully
+  val nBanks = nMemChannels*p(NBanksPerMemoryChannel)
+  val switcher = Module(new ClientUncachedTileLinkIOSwitcher(nBanks, numLanes+1)
+      (p.alterPartial({case TLId => "Outermost"})))
+  switcher.io.in <> coreplexIO.master.mem
+  val lbwif = Module(new ClientUncachedTileLinkIOSerdes(p(NarrowWidth))(p.alterPartial({case TLId => "Outermost"})))
+
+  lbwif.io.tl <> switcher.io.out(0)
+  io.narrowIO <> lbwif.io.serial
+
+  val ser = (0 until numLanes) map { i =>
+    hbwifIO(i) <> switcher.io.out(i+1)
+  }
+  // io.mem_narrow.get <> ser(0).io.serial // TODOHurricane - Howie says to wire in and out separately for SerialIO
+  // TODOHurricane - wire up the HBWIF lanes
+  // switcher.io.select(0) := ... // TODOHurricane - Need to hardcode all banks to route to channel 0, but it's unclear how to do this.
+                                  // Eventually this should be configurable via SCR
+}

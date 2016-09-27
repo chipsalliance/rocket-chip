@@ -17,8 +17,8 @@ import coreplex._
 import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError, Field}
 import hwacha._
+import hbwif._
 
-case object NarrowIF extends Field[Bool]
 case object NarrowWidth extends Field[Int]
 
 class PMUConfig extends Config(
@@ -70,15 +70,6 @@ class PMUConfig extends Config(
   }
 )
 
-class NarrowIFConfig extends Config(
-  topDefinitions = (pname,site,here) => pname match {
-    case NarrowIF => true
-    case NarrowWidth => Dump("NARROW_IF_WIDTH", 8)
-    case NExtTopInterrupts => 1
-    case _ => throw new CDEMatchError
-  }
-)
-
 class NoJtagDTM extends Config (
   (pname, site, here) => pname match {
     case IncludeJtagDTM => false
@@ -88,6 +79,7 @@ class NoJtagDTM extends Config (
 
 class WithHTop extends Config (
   (pname, site, here) => pname match {
+    case NarrowWidth => Dump("NARROW_IF_WIDTH", 8)
     case BuildCoreplex => (c: CoreplexConfig, p: Parameters) =>
       LazyModule(new MultiClockCoreplex(c)(p)).module
     case BuildHTop => (p: Parameters) =>
@@ -96,7 +88,14 @@ class WithHTop extends Config (
   }
 )
 
-class DefaultNarrowConfig extends Config(new NarrowIFConfig ++ new DefaultConfig)
+class WithEmptyHbwif extends Config (
+  (pname, site, here) => pname match {
+    case HbwifKey => HbwifParameters(numLanes = 0)
+    case _ => throw new CDEMatchError
+  }
+)
+
+class DefaultHTopConfig extends Config(new WithEmptyHbwif ++ new WithHTop ++ new DefaultConfig)
 
 class HurricaneUpstreamConfig extends Config (
   new WithNCores(2) ++
@@ -107,8 +106,8 @@ class HurricaneUpstreamConfig extends Config (
   new WithNBanksPerMemChannel(1) ++
   new WithNMemoryChannels(8) ++
   new Process28nmConfig ++
+  new DefaultHbwifConfig ++
   new WithHTop ++
-  new NarrowIFConfig ++
   new WithJtagDTM ++
   new HwachaConfig
 )

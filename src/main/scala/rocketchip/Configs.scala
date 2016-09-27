@@ -69,7 +69,6 @@ class BasePlatformConfig extends Config(
         case BuildExampleTop =>
           (p: Parameters) => uncore.tilelink2.LazyModule(new ExampleTop(p))
         case SimMemLatency => 0
-        case NarrowIF => false
         case _ => throw new CDEMatchError
       }
     }

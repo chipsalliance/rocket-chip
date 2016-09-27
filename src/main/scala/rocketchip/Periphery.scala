@@ -10,13 +10,11 @@ import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.converters._
 import uncore.devices._
-import uncore.agents._
 import uncore.util._
 import rocket.Util._
 import rocket.XLen
 import scala.math.max
 import coreplex._
-import testchipip._
 
 /** Options for memory bus interface */
 object BusType {
@@ -156,10 +154,9 @@ trait PeripheryMasterMemBundle extends HasPeripheryParameters {
   implicit val p: Parameters
   val mem_clk = p(AsyncMemChannels).option(Vec(nMemChannels, Clock(INPUT)))
   val mem_rst = p(AsyncMemChannels).option(Vec(nMemChannels, Bool (INPUT)))
-  val mem_axi = if (p(NarrowIF)) Vec(0, new NastiIO) else Vec(nMemAXIChannels, new NastiIO)
+  val mem_axi = Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
   val mem_tl = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(outermostParams))
-  val mem_narrow = if (p(NarrowIF)) Some(new SerialIO(p(NarrowWidth))) else None //TODOHurricane - this should be NarrowIO, not SerialIO
 }
 
 trait PeripheryMasterMemModule extends HasPeripheryParameters {
@@ -168,33 +165,15 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   val io: PeripheryMasterMemBundle
   val coreplexIO: BaseCoreplexBundle
 
-  if (p(NarrowIF)) {
-    // TODOHurricane - implement the TL master/slave combined version
-    require(p(NAcquireTransactors) > 2 || nMemChannels < 8)
-    // TODOHurricane - why doesn't the switcher handle this gracefully
-    val nBanks = nMemChannels*p(NBanksPerMemoryChannel)
-    val switcher = Module(new ClientUncachedTileLinkIOSwitcher(nBanks, nMemChannels+1)
-        (p.alterPartial({case TLId => "Outermost"})))
-    switcher.io.in <> coreplexIO.master.mem
-    val ser = (0 until nMemChannels+1) map { _ =>
-      Module(new ClientUncachedTileLinkIOSerdes(p(NarrowWidth))(p.alterPartial({case TLId => "Outermost"})))
-    }
-    switcher.io.out zip ser map { case (sw,ser) => ser.io.tl <> sw }
-    // io.mem_narrow.get <> ser(0).io.serial // TODOHurricane - Howie says to wire in and out separately for SerialIO
-    // TODOHurricane - wire up the HBWIF lanes
-    // switcher.io.select(0) := ... // TODOHurricane - Need to hardcode all banks to route to channel 0, but it's unclear how to do this.
-                                    // Eventually this should be configurable via SCR
-  } else {
-    // Abuse the fact that zip takes the shorter of the two lists
-    ((io.mem_axi zip coreplexIO.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
-      val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
-      axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
-      axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
-      axi <> (
-        if (!p(AsyncMemChannels)) axi_sync
-        else AsyncNastiTo(io.mem_clk.get(idx), io.mem_rst.get(idx), axi_sync)
-      )
-    }
+  // Abuse the fact that zip takes the shorter of the two lists
+  ((io.mem_axi zip coreplexIO.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
+    val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
+    axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
+    axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
+    axi <> (
+      if (!p(AsyncMemChannels)) axi_sync
+      else AsyncNastiTo(io.mem_clk.get(idx), io.mem_rst.get(idx), axi_sync)
+    )
   }
 
   (io.mem_ahb zip coreplexIO.master.mem) foreach { case (ahb, mem) =>

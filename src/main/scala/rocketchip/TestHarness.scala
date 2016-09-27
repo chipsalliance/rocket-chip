@@ -49,14 +49,6 @@ class TestHarness(q: Parameters) extends Module {
     }
   }
 
-  if (p(NarrowIF)) {
-    val memSize = p(GlobalAddrMap)("mem").size
-    val dessert = Module(new ClientUncachedTileLinkIODesser(p(NarrowWidth))(p.alterPartial({case TLId => "Outermost"})))
-    //dessert.io.serial <> dut.io.mem_narrow.get // TODOHurricane - Howie says to wire in and out separately for SerialIO (throws GenderCheck errors)
-    val sim_axi = Module(new SimAXIMem(memSize))
-    // HurricaneTODO - should we convert TL to AXI here, or is there a "SimTLMem"?
-  }
-
   if (!p(IncludeJtagDTM)) {
     // Todo: enable the usage of different clocks
     // to test the synchronizer more aggressively.

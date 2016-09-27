@@ -5,7 +5,7 @@ endif
 
 MODEL ?= TestHarness
 PROJECT ?= rocketchip
-export ROCKETCHIP_ADDONS ?= hwacha testchipip dma
+export ROCKETCHIP_ADDONS ?= hwacha testchipip dma hbwif
 DISASM_EXTENSION = --extension=hwacha
 CFG_PROJECT ?= $(PROJECT)
 CONFIG ?= DefaultConfig
