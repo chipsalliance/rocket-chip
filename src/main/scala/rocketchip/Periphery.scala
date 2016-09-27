@@ -82,6 +82,7 @@ trait HasPeripheryParameters {
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
+  lazy val outerParams = p.alterPartial({ case TLId => "L2toMC" })
   lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
   lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
   lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
@@ -171,8 +172,10 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   val io: PeripheryMasterMemBundle
   val coreplexIO: BaseCoreplexBundle
 
+  val edgeMem = coreplexIO.master.mem.map(TileLinkWidthAdapter(_, outermostParams))
+
   // Abuse the fact that zip takes the shorter of the two lists
-  ((io.mem_axi zip coreplexIO.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
+  ((io.mem_axi zip edgeMem) zipWithIndex) foreach { case ((axi, mem), idx) =>
     val axi_sync = PeripheryUtils.convertTLtoAXI(mem)
     axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
@@ -182,11 +185,11 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
     )
   }
 
-  (io.mem_ahb zip coreplexIO.master.mem) foreach { case (ahb, mem) =>
+  (io.mem_ahb zip edgeMem) foreach { case (ahb, mem) =>
     ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)
   }
 
-  (io.mem_tl zip coreplexIO.master.mem) foreach { case (tl, mem) =>
+  (io.mem_tl zip edgeMem) foreach { case (tl, mem) =>
     tl <> TileLinkEnqueuer(mem, 2)
   }
 }
