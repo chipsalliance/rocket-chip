@@ -33,8 +33,8 @@ class RegisterWriteIO[T <: Data](gen: T) extends Bundle {
 // To turn on/off a domain:
 //  1. lower allow on the other side
 //  2. wait for inflight traffic to resolve
-//  3. turn off the domain
-//  4. assert reset in the domain
+//  3. assert reset in the domain
+//  4. turn off the domain
 //  5. turn on the domain
 //  6. deassert reset in the domain
 //  7. raise allow on the other side
@@ -62,9 +62,9 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   // If the enq side is reset, at worst deq.bits is reassigned from mem(0), which stays fixed.
   // If the deq side is reset, at worst the master rewrites mem(0) once, deq.bits stays fixed.
   crossing.io.enq_clock := io.master_clock
-  crossing.io.enq_reset := io.master_reset || !io.master_allow
+  crossing.io.enq_reset := io.master_reset
   crossing.io.deq_clock := io.slave_clock
-  crossing.io.deq_reset := io.slave_reset || !io.slave_allow
+  crossing.io.deq_reset := io.slave_reset
 
   crossing.io.enq.bits := io.master_port.request.bits
   io.slave_register := crossing.io.deq.bits
@@ -112,9 +112,9 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   // If the enq side is reset, at worst deq.bits is reassigned from mem(0), which stays fixed.
   // If the deq side is reset, at worst the slave rewrites mem(0) once, deq.bits stays fixed.
   crossing.io.enq_clock := io.slave_clock
-  crossing.io.enq_reset := io.slave_reset || !io.slave_allow
+  crossing.io.enq_reset := io.slave_reset
   crossing.io.deq_clock := io.master_clock
-  crossing.io.deq_reset := io.master_reset || !io.master_allow
+  crossing.io.deq_reset := io.master_reset
 
   crossing.io.enq.bits := io.slave_register
   io.master_port.response.bits := crossing.io.deq.bits
@@ -134,11 +134,12 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 }
 
 /** Wrapper to create an
-  *  asynchronously reset
-  *  slave register which
-  *  can be both read
-  *  and written using
-  *  crossing FIFOs.
+  *  asynchronously reset slave register which can be 
+  *  both read and written 
+  *  using crossing FIFOs.
+  *  The reset and allow assertion & de-assertion 
+  *  should be synchronous to their respective 
+  *  domains. 
   */
 
 object AsyncRWSlaveRegField {
@@ -181,7 +182,5 @@ object AsyncRWSlaveRegField {
     rd_crossing.io.slave_register := async_slave_reg.io.q
 
     (async_slave_reg.io.q, RegField(width, rd_crossing.io.master_port, wr_crossing.io.master_port))
-
   }
-
 }
