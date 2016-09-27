@@ -39,9 +39,9 @@ class BasePlatformConfig extends Config(
             addrBits = Dump("MEM_ADDR_BITS", site(PAddrBits)),
             idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
         }
-        case TLKey("Outermost") =>
+        case TLKey("MCtoEdge") =>
           site(TLKey("L2toMC")).copy(dataBeats = site(MIFDataBeats))
-        case TLKey("MMIO_Outermost") =>
+        case TLKey("MMIOtoEdge") =>
           site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
         case BuildCoreplex =>
           (c: CoreplexConfig, p: Parameters) => uncore.tilelink2.LazyModule(new DefaultCoreplex(c)(p)).module

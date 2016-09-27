@@ -82,10 +82,9 @@ trait HasPeripheryParameters {
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
-  lazy val outerParams = p.alterPartial({ case TLId => "L2toMC" })
   lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
-  lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
-  lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
+  lazy val edgeMemParams = p.alterPartial({ case TLId => "MCtoEdge" })
+  lazy val edgeMMIOParams = p.alterPartial({ case TLId => "MMIOtoEdge" })
   lazy val peripheryBusConfig = p(PeripheryBusKey)
   lazy val cacheBlockBytes = p(CacheBlockBytes)
 }
@@ -163,7 +162,7 @@ trait PeripheryMasterMemBundle extends HasPeripheryParameters {
   val mem_rst = p(AsyncMemChannels).option(Vec(nMemChannels, Bool (INPUT)))
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
-  val mem_tl = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(outermostParams))
+  val mem_tl = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(edgeMemParams))
 }
 
 trait PeripheryMasterMemModule extends HasPeripheryParameters {
@@ -172,7 +171,7 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   val io: PeripheryMasterMemBundle
   val coreplexIO: BaseCoreplexBundle
 
-  val edgeMem = coreplexIO.master.mem.map(TileLinkWidthAdapter(_, outermostParams))
+  val edgeMem = coreplexIO.master.mem.map(TileLinkWidthAdapter(_, edgeMemParams))
 
   // Abuse the fact that zip takes the shorter of the two lists
   ((io.mem_axi zip edgeMem) zipWithIndex) foreach { case ((axi, mem), idx) =>
@@ -206,7 +205,7 @@ trait PeripheryMasterMMIOBundle extends HasPeripheryParameters {
   val mmio_rst = p(AsyncMMIOChannels).option(Vec(p(NExtMMIOAXIChannels), Bool (INPUT)))
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
-  val mmio_tl = Vec(p(NExtMMIOTLChannels), new ClientUncachedTileLinkIO()(outermostMMIOParams))
+  val mmio_tl = Vec(p(NExtMMIOTLChannels), new ClientUncachedTileLinkIO()(edgeMMIOParams))
 }
 
 trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
@@ -216,7 +215,7 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   val pBus: TileLinkRecursiveInterconnect
 
   val mmio_ports = p(ExtMMIOPorts) map { port =>
-    TileLinkWidthAdapter(pBus.port(port.name), outermostMMIOParams)
+    TileLinkWidthAdapter(pBus.port(port.name), edgeMMIOParams)
   }
 
   val mmio_axi_start = 0
