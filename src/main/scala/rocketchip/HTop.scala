@@ -22,6 +22,7 @@ class HTop(q: Parameters) extends BaseTop(q)
     with PeripheryDebug
     with PeripheryCoreplexLocalInterrupter
     with HurricaneIF
+    with Hbwif
     with PeripheryMasterMMIO
     with PeripherySlave { //TODOHurricane: Do we need this?/What is it for?
   override lazy val module = Module(new HTopModule(p, this, new HTopBundle(p)))
@@ -32,6 +33,7 @@ class HTopBundle(p: Parameters) extends BaseTopBundle(p)
     with PeripheryDebugBundle
     with PeripheryCoreplexLocalInterrupterBundle
     with HurricaneIFBundle
+    with HbwifBundle
     with PeripheryMasterMMIOBundle
     with PeripherySlaveBundle
 //TODOHurricane: add DRAM I/Os here
@@ -42,19 +44,32 @@ class HTopModule[+L <: HTop, +B <: HTopBundle]
     with PeripheryDebugModule
     with PeripheryCoreplexLocalInterrupterModule
     with HurricaneIFModule
+    with HbwifFastClockModule
+    with HbwifModule
     with PeripheryMasterMMIOModule
     with PeripherySlaveModule
     with HardwiredResetVector {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
   coreplex.clock := clock
+  coreplex.reset := ResetSync(reset, coreplex.clock)
 
-  multiClockCoreplexIO.tcrs foreach { tcr =>
+  multiClockCoreplexIO.tcrs.dropRight(1) foreach { tcr =>
     tcr.clock := clock
-    tcr.reset := reset
+    tcr.reset := ResetSync(reset, tcr.clock)
   }
+  //TODOHurricane: if we can't assign to toplevel clock assign to tcr.last
   multiClockCoreplexIO.extcr.clock := clock
   multiClockCoreplexIO.extcr.reset := reset
+
+  // Hbwif connections
+  hbwifFastClock := clock
+}
+/////
+
+trait HbwifFastClockModule {
+  implicit val p: Parameters
+  val hbwifFastClock: Clock = Wire(Clock())
 }
 
 class HTestHarness(q: Parameters) extends Module {

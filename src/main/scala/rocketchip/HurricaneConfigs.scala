@@ -88,14 +88,16 @@ class WithHTop extends Config (
   }
 )
 
-class WithEmptyHbwif extends Config (
+class WithTinyHbwif extends Config (
   (pname, site, here) => pname match {
-    case HbwifKey => HbwifParameters(numLanes = 0)
+    case HbwifKey => HbwifParameters(numLanes = 1)
+    case BertKey => BertParameters()
+    case TransceiverKey => TransceiverParameters()
     case _ => throw new CDEMatchError
   }
 )
 
-class DefaultHTopConfig extends Config(new WithEmptyHbwif ++ new WithHTop ++ new DefaultConfig)
+class DefaultHTopConfig extends Config(new WithTinyHbwif ++ new WithHTop ++ new DefaultConfig)
 
 class HurricaneUpstreamConfig extends Config (
   new WithNCores(2) ++
