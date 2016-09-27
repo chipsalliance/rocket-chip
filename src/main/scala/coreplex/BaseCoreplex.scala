@@ -59,6 +59,8 @@ abstract class BaseCoreplexBundle(val c: CoreplexConfig)(implicit val p: Paramet
   val clint = Vec(c.nTiles, new CoreplexLocalInterrupts).asInput
   val resetVector = UInt(INPUT, p(XLen))
   val success = Bool(OUTPUT) // used for testing
+
+  override def cloneType = this.getClass.getConstructors.head.newInstance(c, p).asInstanceOf[this.type]
 }
 
 abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](

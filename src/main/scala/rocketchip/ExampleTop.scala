@@ -38,6 +38,7 @@ class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, 
     with PeripheryMasterMMIOModule
     with PeripherySlaveModule
     with HardwiredResetVector
+    with DirectConnection
 
 /** Example Top with TestRAM */
 class ExampleTopWithTestRAM(q: Parameters) extends ExampleTop(q)
@@ -50,20 +51,3 @@ class ExampleTopWithTestRAMBundle(p: Parameters) extends ExampleTopBundle(p)
 
 class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle](p: Parameters, l: L, b: => B) extends ExampleTopModule(p, l, b)
     with PeripheryTestRAMModule
-
-/** Example Top with Multi Clock */
-class ExampleMultiClockTop(q: Parameters) extends ExampleTop(q)
-    with PeripheryTestRAM {
-  override lazy val module = Module(new ExampleMultiClockTopModule(p, this, new ExampleMultiClockTopBundle(p)))
-}
-
-class ExampleMultiClockTopBundle(p: Parameters) extends ExampleTopBundle(p)
-
-class ExampleMultiClockTopModule[+L <: ExampleMultiClockTop, +B <: ExampleMultiClockTopBundle](p: Parameters, l: L, b: => B) extends ExampleTopModule(p, l, b) {
-  val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
-
-  multiClockCoreplexIO.tcrs foreach { tcr =>
-    tcr.clock := clock
-    tcr.reset := reset
-  }
-}
