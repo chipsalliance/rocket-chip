@@ -2,8 +2,8 @@
 
 package uncore.tilelink2
 
-import chisel3._
-import chisel3.util._
+import Chisel._
+import chisel3.util.{Irrevocable, IrrevocableIO}
 
 // A bus agnostic register interface to a register-based device
 
