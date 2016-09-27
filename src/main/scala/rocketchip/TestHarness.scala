@@ -9,7 +9,7 @@ import util.LatencyPipe
 import junctions._
 import junctions.NastiConstants._
 
-case object BuildExampleTop extends Field[Parameters => ExampleTop]
+case object BuildExampleTop extends Field[Parameters => BaseExampleTop]
 case object SimMemLatency extends Field[Int]
 
 class TestHarness(q: Parameters) extends Module {
@@ -17,6 +17,7 @@ class TestHarness(q: Parameters) extends Module {
     val success = Bool(OUTPUT)
   }
   val dut = q(BuildExampleTop)(q).module
+    .asInstanceOf[BaseExampleTopModule[BaseExampleTop, BaseExampleTopBundle]]
   implicit val p = dut.p
 
   // This test harness isn't especially flexible yet
