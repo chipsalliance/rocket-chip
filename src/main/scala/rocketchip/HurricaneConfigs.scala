@@ -20,6 +20,7 @@ import hwacha._
 import hbwif._
 
 case object NarrowWidth extends Field[Int]
+case object HSCRFileSize extends Field[Int]
 
 class PMUConfig extends Config(
   topDefinitions = (pname,site,here) => pname match {
@@ -80,6 +81,7 @@ class NoJtagDTM extends Config (
 class WithHTop extends Config (
   (pname, site, here) => pname match {
     case NarrowWidth => Dump("NARROW_IF_WIDTH", 8)
+    case HSCRFileSize => 1 << 12//rocket.HasCoreParameters.pgIdxBits
     case BuildCoreplex => (c: CoreplexConfig, p: Parameters) =>
       LazyModule(new MultiClockCoreplex(c)(p)).module
     case BuildHTop => (p: Parameters) =>

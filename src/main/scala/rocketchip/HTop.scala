@@ -22,6 +22,7 @@ class HTop(q: Parameters) extends BaseTop(q)
     with PeripheryDebug
     with PeripheryCoreplexLocalInterrupter
     with HurricaneIF
+    with HurricaneExtraTopLevel
     with Hbwif
     with PeripheryMasterMMIO
     with PeripherySlave { //TODOHurricane: Do we need this?/What is it for?
@@ -44,7 +45,7 @@ class HTopModule[+L <: HTop, +B <: HTopBundle]
     with PeripheryDebugModule
     with PeripheryCoreplexLocalInterrupterModule
     with HurricaneIFModule
-    with HbwifFastClockModule
+    with HurricaneExtraTopLevelModule
     with HbwifModule
     with PeripheryMasterMMIOModule
     with PeripherySlaveModule
@@ -52,24 +53,38 @@ class HTopModule[+L <: HTop, +B <: HTopBundle]
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
   coreplex.clock := clock
-  coreplex.reset := ResetSync(reset, coreplex.clock)
+  coreplex.reset := ResetSync(topLevelSCRBuilder.control("coreplex_reset", UInt(1))(0).toBool, coreplex.clock)
 
-  multiClockCoreplexIO.tcrs.dropRight(1) foreach { tcr =>
+  multiClockCoreplexIO.tcrs.dropRight(1).zipWithIndex foreach { case (tcr, i) =>
     tcr.clock := clock
-    tcr.reset := ResetSync(reset, tcr.clock)
+    tcr.reset := ResetSync(topLevelSCRBuilder.control(s"core_${i}_reset", UInt(1))(0).toBool, tcr.clock)
   }
+  multiClockCoreplexIO.tcrs.last.reset := topLevelSCRBuilder.control(s"pmu_reset", UInt(1))(0).toBool
+
   //TODOHurricane: if we can't assign to toplevel clock assign to tcr.last
   multiClockCoreplexIO.extcr.clock := clock
   multiClockCoreplexIO.extcr.reset := reset
 
   // Hbwif connections
   hbwifFastClock := clock
+
+  //SCR file generation
+  val scrTL = topLevelSCRBuilder.generate(outermostMMIOParams)
+
+  scrTL <> pBus.port("HSCRFile")
 }
 /////
+trait HurricaneExtraTopLevel extends LazyModule {
+  implicit val p: Parameters
+  val pDevices: ResourceManager[AddrMapEntry]
 
-trait HbwifFastClockModule {
+  pDevices.add(AddrMapEntry(s"HSCRFile", MemSize(BigInt(p(HSCRFileSize)), MemAttr(AddrMapProt.RW))))
+}
+
+trait HurricaneExtraTopLevelModule {
   implicit val p: Parameters
   val hbwifFastClock: Clock = Wire(Clock())
+  val topLevelSCRBuilder: SCRBuilder = new SCRBuilder
 }
 
 class HTestHarness(q: Parameters) extends Module {
