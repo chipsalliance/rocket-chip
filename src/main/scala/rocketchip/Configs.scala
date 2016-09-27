@@ -189,3 +189,16 @@ class WithJtagDTM extends Config (
     case _ => throw new CDEMatchError
   }
 )
+
+class WithMultiClock extends Config(
+  (pname, site, here) => pname match {
+    case BuildCoreplex => (c: CoreplexConfig, p: Parameters) =>
+      LazyModule(new MultiClockCoreplex(c)(p)).module
+    case BuildExampleTop => (p: Parameters) =>
+      LazyModule(new ExampleMultiClockTop(p))
+    case _ => throw new CDEMatchError
+  }
+)
+
+class MultiClockConfig extends Config(
+  new WithMultiClock ++ new BaseConfig)
