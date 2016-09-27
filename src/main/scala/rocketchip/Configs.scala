@@ -195,3 +195,15 @@ class WithJtagDTM extends Config (
     case _ => throw new CDEMatchError
   }
 )
+
+class WithNoPeripheryArithAMO extends Config (
+  (pname, site, here) => pname match {
+    case PeripheryBusKey => PeripheryBusConfig(arithAMO = false, beatBytes = 4)
+  }
+)
+
+class With64BitPeriphery extends Config (
+  (pname, site, here) => pname match {
+    case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 8)
+  }
+)
