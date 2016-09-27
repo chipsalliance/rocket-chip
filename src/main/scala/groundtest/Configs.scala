@@ -58,15 +58,15 @@ class TraceGenL2Config extends Config(
   new WithNL2Ways(1) ++ new WithL2Capacity(32 * 64 / 1024) ++
   new WithL2Cache ++ new TraceGenConfig)
 
-class MIF128BitComparatorConfig extends Config(
-  new WithMIFDataBits(128) ++ new ComparatorConfig)
-class MIF128BitMemtestConfig extends Config(
-  new WithMIFDataBits(128) ++ new MemtestConfig)
+class Edge128BitComparatorConfig extends Config(
+  new WithEdgeDataBits(128) ++ new ComparatorConfig)
+class Edge128BitMemtestConfig extends Config(
+  new WithEdgeDataBits(128) ++ new MemtestConfig)
 
-class MIF32BitComparatorConfig extends Config(
-  new WithMIFDataBits(32) ++ new ComparatorConfig)
-class MIF32BitMemtestConfig extends Config(
-  new WithMIFDataBits(32) ++ new MemtestConfig)
+class Edge32BitComparatorConfig extends Config(
+  new WithEdgeDataBits(32) ++ new ComparatorL2Config)
+class Edge32BitMemtestConfig extends Config(
+  new WithEdgeDataBits(32) ++ new MemtestConfig)
 
 /* Composable Configs to set individual parameters */
 class WithGroundTest extends Config(
@@ -75,6 +75,7 @@ class WithGroundTest extends Config(
       (c: CoreplexConfig, p: Parameters) => uncore.tilelink2.LazyModule(new GroundTestCoreplex(c)(p)).module
     case TLKey("L1toL2") => {
       val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
+      val dataBeats = (8 * site(CacheBlockBytes)) / site(XLen)
       TileLinkParameters(
         coherencePolicy = (
           if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
@@ -87,7 +88,7 @@ class WithGroundTest extends Config(
                              .reduce(max(_, _)),
         maxClientsPerPort = 1,
         maxManagerXacts = site(NAcquireTransactors) + 2,
-        dataBeats = 8,
+        dataBeats = dataBeats,
         dataBits = site(CacheBlockBytes)*8)
     }
     case BuildTiles => {
@@ -217,7 +218,7 @@ class WithTraceGen extends Config(
       val nSets = 32 // L2 NSets
       val nWays = 1
       val blockOffset = site(CacheBlockOffsetBits)
-      val nBeats = site(MIFDataBeats)
+      val nBeats = site(TLKey("L1toL2")).dataBeats
       List.tabulate(4 * nWays) { i =>
         Seq.tabulate(nBeats) { j => BigInt((j * 8) + ((i * nSets) << blockOffset)) }
       }.flatten

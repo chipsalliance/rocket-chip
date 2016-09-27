@@ -227,60 +227,6 @@ object NastiWriteResponseChannel {
   }
 }
 
-class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) extends MIFModule
-    with HasNastiParameters {
-  val io = new Bundle {
-    val nasti = (new NastiIO).flip
-    val mem = new MemIO
-  }
-
-  require(mifDataBits == nastiXDataBits, "Data sizes between LLC and MC don't agree")
-  val (mif_cnt_out, mif_wrap_out) = Counter(io.mem.resp.fire(), mifDataBeats)
-
-  assert(!io.nasti.aw.valid || io.nasti.aw.bits.size === UInt(log2Up(mifDataBits/8)),
-    "Nasti data size does not match MemIO data size")
-  assert(!io.nasti.ar.valid || io.nasti.ar.bits.size === UInt(log2Up(mifDataBits/8)),
-    "Nasti data size does not match MemIO data size")
-  assert(!io.nasti.aw.valid || io.nasti.aw.bits.len === UInt(mifDataBeats - 1),
-    "Nasti length does not match number of MemIO beats")
-  assert(!io.nasti.ar.valid || io.nasti.ar.bits.len === UInt(mifDataBeats - 1),
-    "Nasti length does not match number of MemIO beats")
-
-  // according to the spec, we can't send b until the last transfer on w
-  val b_ok = Reg(init = Bool(true))
-  when (io.nasti.aw.fire()) { b_ok := Bool(false) }
-  when (io.nasti.w.fire() && io.nasti.w.bits.last) { b_ok := Bool(true) }
-
-  val id_q = Module(new Queue(UInt(width = nastiWIdBits), 2))
-  id_q.io.enq.valid := io.nasti.aw.valid && io.mem.req_cmd.ready
-  id_q.io.enq.bits := io.nasti.aw.bits.id
-  id_q.io.deq.ready := io.nasti.b.ready && b_ok
-
-  io.mem.req_cmd.bits.addr := Mux(io.nasti.aw.valid, io.nasti.aw.bits.addr, io.nasti.ar.bits.addr) >>
-                                UInt(cacheBlockOffsetBits)
-  io.mem.req_cmd.bits.tag := Mux(io.nasti.aw.valid, io.nasti.aw.bits.id, io.nasti.ar.bits.id)
-  io.mem.req_cmd.bits.rw := io.nasti.aw.valid
-  io.mem.req_cmd.valid := (io.nasti.aw.valid && id_q.io.enq.ready) || io.nasti.ar.valid
-  io.nasti.ar.ready := io.mem.req_cmd.ready && !io.nasti.aw.valid
-  io.nasti.aw.ready := io.mem.req_cmd.ready && id_q.io.enq.ready
-
-  io.nasti.b.valid := id_q.io.deq.valid && b_ok
-  io.nasti.b.bits.id := id_q.io.deq.bits
-  io.nasti.b.bits.resp := RESP_OKAY
-
-  io.nasti.w.ready := io.mem.req_data.ready
-  io.mem.req_data.valid := io.nasti.w.valid
-  io.mem.req_data.bits.data := io.nasti.w.bits.data
-  assert(!io.nasti.w.valid || io.nasti.w.bits.strb.andR, "MemIO must write full cache line")
-
-  io.nasti.r.valid := io.mem.resp.valid
-  io.nasti.r.bits.data := io.mem.resp.bits.data
-  io.nasti.r.bits.last := mif_wrap_out
-  io.nasti.r.bits.id := io.mem.resp.bits.tag
-  io.nasti.r.bits.resp := RESP_OKAY
-  io.mem.resp.ready := io.nasti.r.ready
-}
-
 class NastiArbiterIO(arbN: Int)(implicit p: Parameters) extends Bundle {
   val master = Vec(arbN, new NastiIO).flip
   val slave = new NastiIO

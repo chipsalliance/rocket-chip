@@ -111,7 +111,6 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     l1tol2net.io.clients_uncached <> uncoreTileIOs.map(_.uncached).flatten ++ io.slave
     l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
 
-    // Create a converter between TileLinkIO and MemIO for each channel
     val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, c.nMemChannels)(outerMemParams))
 
     val backendBuffering = TileLinkDepths(0,0,0,0,0)

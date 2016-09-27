@@ -51,6 +51,10 @@ case object RTCPeriod extends Field[Int]
 case class PeripheryBusConfig(arithAMO: Boolean, beatBytes: Int = 4)
 case object PeripheryBusKey extends Field[PeripheryBusConfig]
 
+/* Specifies the data and id width at the chip boundary */
+case object EdgeDataBits extends Field[Int]
+case object EdgeIDBits extends Field[Int]
+
 object PeripheryUtils {
   def addQueueAXI(source: NastiIO) = {
     val sink = Wire(source)
