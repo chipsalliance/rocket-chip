@@ -9,7 +9,7 @@ module DebugTransportModuleJtag (
                                  jtag_TCK,
                                  jtag_TMS,
                                  jtag_TRST,
-                                 
+                             
                                  jtag_DRV_TDO,
 
                                  dtm_req_valid,
@@ -27,15 +27,22 @@ module DebugTransportModuleJtag (
    parameter DEBUG_DATA_BITS  = 34;
    parameter DEBUG_ADDR_BITS = 5; // Spec allows values are 5-7 
    parameter DEBUG_OP_BITS = 2; // OP and RESP are the same size.
-      
+
    parameter JTAG_VERSION  = 4'h1;
    parameter JTAG_PART_NUM = 16'h0E31; // E31
    parameter JTAG_MANUF_ID = 11'h489;  // As Assigned by JEDEC
-   
+
+   // Number of cycles which must remain in IDLE
+   // The software should handle even if the
+   // answer is actually higher than this, or
+   // the software may choose to ignore it entirely
+   // and just check for busy.
+   parameter DBUS_IDLE_CYCLES = 3'h5;
+
    localparam IR_BITS = 5;
 
    localparam DEBUG_VERSION = 0;
-
+   
    // JTAG State Machine
    localparam TEST_LOGIC_RESET  = 4'h0;
    localparam RUN_TEST_IDLE     = 4'h1;
@@ -78,16 +85,15 @@ module DebugTransportModuleJtag (
    input                                jtag_TMS;
    input                                jtag_TRST;
 
-   
    // To allow tri-state outside of this block.
    output reg                           jtag_DRV_TDO;
 
    // RISC-V Core Side
-   
+
    output                               dtm_req_valid;
    input                                dtm_req_ready;
    output [DBUS_REQ_BITS - 1 :0]        dtm_req_bits;
-   
+
    input                                dtm_resp_valid;
    output                               dtm_resp_ready;
    input [DBUS_RESP_BITS - 1 : 0]        dtm_resp_bits;
@@ -110,9 +116,11 @@ module DebugTransportModuleJtag (
    reg                                  doDbusReadReg;
 
    reg                                  busyReg;
+   reg                                  stickyBusyReg;
+   reg                                  stickyNonzeroRespReg;
+      
    reg                                  skipOpReg; // Skip op because we're busy.
    reg                                  downgradeOpReg; // Downgrade op because prev. op failed.
-   
 
    wire                                 busy;
    wire                                 nonzeroResp;
@@ -127,15 +135,31 @@ module DebugTransportModuleJtag (
 
    wire [3:0]                           debugAddrBits = DEBUG_ADDR_BITS[3:0];
    wire [3:0]                           debugVersion = DEBUG_VERSION[3:0];
+
+   wire [1:0]                           dbusStatus;
+   wire [2:0]                           dbusIdleCycles;
+
+   wire                                 dbusReset;
    
-   assign dtminfo = {24'b0, debugAddrBits, debugVersion};
+   assign dbusIdleCycles = DBUS_IDLE_CYCLES;
+   assign dbusStatus = {stickyNonzeroRespReg, stickyNonzeroRespReg | stickyBusyReg};
+   assign dbusReset = shiftReg[16];
+
+   assign dtminfo = {15'b0,
+                     1'b0, // dbusreset goes here but is write-only
+                     3'b0, 
+                     dbusIdleCycles, 
+                     dbusStatus, 
+                     debugAddrBits, 
+                     debugVersion};
    
    //busy, dtm_resp* is only valid during CAPTURE_DR,
    //      so these signals should only be used at that time.
    // This assumes there is only one transaction in flight at a time.
-   assign busy = busyReg & ~dtm_resp_valid;
+   assign busy = (busyReg & ~dtm_resp_valid); // | stickyBusyReg;
    // This is needed especially for the first request.
-   assign nonzeroResp = dtm_resp_valid ? |{dtm_resp_bits[DEBUG_OP_BITS-1:0]} : 1'b0;
+   assign nonzeroResp = (dtm_resp_valid ? |{dtm_resp_bits[DEBUG_OP_BITS-1:0]} : 1'b0);
+   //stickyNonzeroRespReg;
    
    // Interface to DM.
    // Note that this means dtm_resp_bits must only be used during CAPTURE_DR.
@@ -158,7 +182,7 @@ module DebugTransportModuleJtag (
    // Sequential Logic
 
    // JTAG STATE MACHINE
-   
+
    always @(posedge jtag_TCK or posedge jtag_TRST) begin
       if (jtag_TRST) begin
          jtagStateReg <= TEST_LOGIC_RESET;
@@ -239,17 +263,30 @@ module DebugTransportModuleJtag (
    // during every CAPTURE_DR, and use the result in UPDATE_DR.
    always @(posedge jtag_TCK or posedge jtag_TRST) begin
       if (jtag_TRST) begin
-         skipOpReg      <= 1'b0;
-         downgradeOpReg <= 1'b0;
+         skipOpReg            <= 1'b0;
+         downgradeOpReg       <= 1'b0;
+         stickyBusyReg        <= 1'b0;
+         stickyNonzeroRespReg <= 1'b0;
       end else if (irReg == REG_DEBUG_ACCESS) begin
          case(jtagStateReg)
            CAPTURE_DR: begin
               skipOpReg      <= busy;
               downgradeOpReg <= (~busy & nonzeroResp);
+              stickyBusyReg  <= busy;
+              stickyNonzeroRespReg <= nonzeroResp;
            end
            UPDATE_DR: begin
               skipOpReg      <= 1'b0;
               downgradeOpReg <= 1'b0;
+           end
+         endcase // case (jtagStateReg)
+      end else if (irReg == REG_DTM_INFO) begin
+         case(jtagStateReg)
+           UPDATE_DR: begin
+              if (dbusReset) begin
+                 stickyNonzeroRespReg <= 1'b0;
+                 stickyBusyReg        <= 1'b0;
+              end
            end
          endcase // case (jtagStateReg)
       end
