@@ -239,11 +239,10 @@ class WithTraceGen extends Config(
       val nSets = 32 // L2 NSets
       val nWays = 1
       val blockOffset = site(CacheBlockOffsetBits)
-      val baseAddr = site(GlobalAddrMap)("mem").start
       val nBeats = site(MIFDataBeats)
       List.tabulate(4 * nWays) { i =>
-        Seq.tabulate(nBeats) { j => (j * 8) + ((i * nSets) << blockOffset) }
-      }.flatten.map(addr => baseAddr + BigInt(addr))
+        Seq.tabulate(nBeats) { j => BigInt((j * 8) + ((i * nSets) << blockOffset)) }
+      }.flatten
     }
     case UseAtomics => true
     case _ => throw new CDEMatchError

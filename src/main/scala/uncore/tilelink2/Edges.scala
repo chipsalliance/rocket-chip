@@ -171,15 +171,6 @@ class TLEdge(
     }
   }
 
-  def addr_lo(x: TLDataChannel): UInt = {
-    x match {
-      case a: TLBundleA => addr_lo(a.mask, a.size)
-      case b: TLBundleB => addr_lo(b.mask, b.size)
-      case c: TLBundleC => c.addr_lo
-      case d: TLBundleD => d.addr_lo
-    }
-  }
-
   def full_mask(x: TLDataChannel): UInt = {
     x match {
       case a: TLBundleA => full_mask(a.mask, a.size)
@@ -189,13 +180,34 @@ class TLEdge(
     }
   }
 
-  def address(x: TLAddrChannel): UInt = {
-    val hi = x match {
+  def addr_lo(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => addr_lo(a.mask, a.size)
+      case b: TLBundleB => addr_lo(b.mask, b.size)
+      case c: TLBundleC => c.addr_lo
+      case d: TLBundleD => d.addr_lo
+    }
+  }
+
+  def addr_hi(x: TLAddrChannel): UInt = {
+    x match {
       case a: TLBundleA => a.addr_hi
       case b: TLBundleB => b.addr_hi
       case c: TLBundleC => c.addr_hi
     }
+  }
+
+  def address(x: TLAddrChannel): UInt = {
+    val hi = addr_hi(x)
     if (manager.beatBytes == 1) hi else Cat(hi, addr_lo(x))
+  }
+
+  def addr_lo(x: UInt): UInt = {
+    if (manager.beatBytes == 1) UInt(0) else x(log2Ceil(manager.beatBytes)-1, 0)
+  }
+
+  def addr_hi(x: UInt): UInt = {
+    x >> log2Ceil(manager.beatBytes)
   }
 
   def numBeats(x: TLChannel): UInt = {
@@ -241,7 +253,7 @@ class TLEdgeOut(
     a.param   := growPermissions
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := SInt(-1).asUInt
     a.data    := UInt(0)
     (legal, a)
@@ -255,8 +267,8 @@ class TLEdgeOut(
     c.param   := shrinkPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := UInt(0)
     c.error   := Bool(false)
     (legal, c)
@@ -270,8 +282,8 @@ class TLEdgeOut(
     c.param   := shrinkPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := data
     c.error   := Bool(false)
     (legal, c)
@@ -283,8 +295,8 @@ class TLEdgeOut(
     c.param   := reportPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := UInt(0)
     c.error   := Bool(false)
     c
@@ -296,8 +308,8 @@ class TLEdgeOut(
     c.param   := reportPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := data
     c.error   := Bool(false)
     c
@@ -318,7 +330,7 @@ class TLEdgeOut(
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
@@ -332,7 +344,7 @@ class TLEdgeOut(
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -346,7 +358,7 @@ class TLEdgeOut(
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask
     a.data    := data
     (legal, a)
@@ -360,7 +372,7 @@ class TLEdgeOut(
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -374,7 +386,7 @@ class TLEdgeOut(
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -388,7 +400,7 @@ class TLEdgeOut(
     a.param   := param
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
@@ -403,8 +415,8 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := UInt(0)
     c.error   := error
     c
@@ -419,8 +431,8 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := data
     c.error   := error
     c
@@ -433,8 +445,8 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := UInt(0)
     c.error   := Bool(false)
     c
@@ -455,7 +467,7 @@ class TLEdgeIn(
     b.param   := capPermissions
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := SInt(-1).asUInt
     b.data    := UInt(0)
     (legal, b)
@@ -469,7 +481,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := UInt(0)
     d.error   := error
     d
@@ -483,7 +495,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := data
     d.error   := error
     d
@@ -496,7 +508,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := UInt(0)
     d.error   := Bool(false)
     d
@@ -511,7 +523,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
@@ -525,7 +537,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -539,7 +551,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask
     b.data    := data
     (legal, b)
@@ -553,7 +565,7 @@ class TLEdgeIn(
     b.param   := atomic
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -567,7 +579,7 @@ class TLEdgeIn(
     b.param   := atomic
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -581,7 +593,7 @@ class TLEdgeIn(
     b.param   := param
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
@@ -597,7 +609,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := UInt(0)
     d.error   := error
     d
@@ -613,7 +625,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := data
     d.error   := error
     d
@@ -627,7 +639,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := UInt(0)
     d.error   := Bool(false)
     d
