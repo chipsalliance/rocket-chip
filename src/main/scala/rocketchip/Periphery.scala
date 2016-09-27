@@ -81,8 +81,8 @@ trait HasPeripheryParameters {
   lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
-  lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
+  lazy val edgeSlaveParams = p.alterPartial({ case TLId => "EdgetoSlave" })
   lazy val edgeMemParams = p.alterPartial({ case TLId => "MCtoEdge" })
   lazy val edgeMMIOParams = p.alterPartial({ case TLId => "MMIOtoEdge" })
   lazy val peripheryBusConfig = p(PeripheryBusKey)
@@ -276,12 +276,12 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
         else AsyncNastiFrom(io.bus_clk.get(idx), io.bus_rst.get(idx), bus)
       )
     }
-    val conv = Module(new TileLinkIONastiIOConverter()(innerParams))
+    val conv = Module(new TileLinkIONastiIOConverter()(edgeSlaveParams))
     conv.io.nasti <> arb.io.slave
 
-    val r = outer.pBusMasters.range("ext")
-    require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
-    coreplexIO.slave(r._1) <> conv.io.tl
+    val (r_start, r_end) = outer.pBusMasters.range("ext")
+    require(r_end - r_start == 1, "RangeManager should return 1 slot")
+    TileLinkWidthAdapter(coreplexIO.slave(r_start), conv.io.tl)
   }
 }
 
