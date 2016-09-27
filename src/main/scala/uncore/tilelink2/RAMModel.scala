@@ -3,7 +3,6 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.LFSR16
 
 // We detect concurrent puts that put memory into an undefined state.
 // put0, put0Ack, put1, put1Ack => ok: defined
