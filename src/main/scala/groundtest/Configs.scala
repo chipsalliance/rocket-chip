@@ -50,12 +50,6 @@ class BufferlessRegressionTestConfig extends Config(
 class CacheRegressionTestConfig extends Config(
   new WithCacheRegressionTest ++ new WithL2Cache ++ new GroundTestConfig)
 
-class NastiConverterTestConfig extends Config(new WithNastiConverterTest ++ new GroundTestConfig)
-class FancyNastiConverterTestConfig extends Config(
-  new WithNCores(2) ++ new WithNastiConverterTest ++
-  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
-  new WithL2Cache ++ new GroundTestConfig)
-
 class TraceGenConfig extends Config(
   new WithNCores(2) ++ new WithTraceGen ++ new GroundTestConfig)
 class TraceGenBufferlessConfig extends Config(
@@ -73,9 +67,6 @@ class MIF32BitComparatorConfig extends Config(
   new WithMIFDataBits(32) ++ new ComparatorConfig)
 class MIF32BitMemtestConfig extends Config(
   new WithMIFDataBits(32) ++ new MemtestConfig)
-
-class PCIeMockupTestConfig extends Config(
-  new WithPCIeMockupTest ++ new GroundTestConfig)
 
 /* Composable Configs to set individual parameters */
 class WithGroundTest extends Config(
@@ -212,19 +203,6 @@ class WithCacheRegressionTest extends Config(
     case _ => throw new CDEMatchError
   })
 
-class WithNastiConverterTest extends Config(
-  (pname, site, here) => pname match {
-    case GroundTestKey => Seq.fill(site(NTiles)) {
-      GroundTestTileSettings(uncached = 1)
-    }
-    case GeneratorKey => TrafficGeneratorParameters(
-      maxRequests = 128,
-      startAddress = site(GlobalAddrMap)("mem").start)
-    case BuildGroundTest =>
-      (p: Parameters) => Module(new NastiConverterTest()(p))
-    case _ => throw new CDEMatchError
-  })
-
 class WithTraceGen extends Config(
   topDefinitions = (pname, site, here) => pname match {
     case GroundTestKey => Seq.fill(site(NTiles)) {
@@ -250,55 +228,5 @@ class WithTraceGen extends Config(
   knobValues = {
     case "L1D_SETS" => 16
     case "L1D_WAYS" => 1
-    case _ => throw new CDEMatchError
-  })
-
-class WithPCIeMockupTest extends Config(
-  (pname, site, here) => pname match {
-    case NTiles => 2
-    case GroundTestKey => Seq(
-      GroundTestTileSettings(1, 1),
-      GroundTestTileSettings(1))
-    case GeneratorKey => TrafficGeneratorParameters(
-      maxRequests = 128,
-      startAddress = site(GlobalAddrMap)("mem").start)
-    case BuildGroundTest =>
-      (p: Parameters) => p(TileId) match {
-        case 0 => Module(new GeneratorTest()(p))
-        case 1 => Module(new NastiConverterTest()(p))
-      }
-    case _ => throw new CDEMatchError
-  })
-
-class WithDirectMemtest extends Config(
-  (pname, site, here) => {
-    val nGens = 8
-    pname match {
-      case GroundTestKey => Seq(GroundTestTileSettings(uncached = nGens))
-      case GeneratorKey => TrafficGeneratorParameters(
-        maxRequests = 1024,
-        startAddress = 0)
-      case BuildGroundTest =>
-        (p: Parameters) => Module(new GeneratorTest()(p))
-      case _ => throw new CDEMatchError
-    }
-  })
-
-class WithDirectComparator extends Config(
-  (pname, site, here) => pname match {
-    case GroundTestKey => Seq.fill(site(NTiles)) {
-      GroundTestTileSettings(uncached = site(ComparatorKey).targets.size)
-    }
-    case BuildGroundTest =>
-      (p: Parameters) => Module(new ComparatorCore()(p))
-    case ComparatorKey => ComparatorParameters(
-      targets    = Seq(0L, 0x100L),
-      width      = 8,
-      operations = 1000,
-      atomics    = site(UseAtomics),
-      prefetches = site("COMPARATOR_PREFETCHES"))
-    case FPUConfig => None
-    case UseAtomics => false
-    case "COMPARATOR_PREFETCHES" => false
     case _ => throw new CDEMatchError
   })
