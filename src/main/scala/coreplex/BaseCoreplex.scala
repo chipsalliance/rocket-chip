@@ -11,7 +11,7 @@ import uncore.devices._
 import uncore.util._
 import uncore.converters._
 import rocket._
-import rocket.Util._
+import util._
 
 /** Number of memory channels */
 case object NMemoryChannels extends Field[Int]

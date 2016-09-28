@@ -4,8 +4,7 @@ package rocketchip
 
 import Chisel._
 import cde.{Parameters, Field}
-import rocket.Util._
-import util.LatencyPipe
+import util._
 import junctions._
 import junctions.NastiConstants._
 

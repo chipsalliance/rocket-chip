@@ -1,4 +1,4 @@
-package junctions
+package util
 
 import Chisel._
 import chisel3.util.{DecoupledIO, Decoupled, Irrevocable, IrrevocableIO, ReadyValidIO}

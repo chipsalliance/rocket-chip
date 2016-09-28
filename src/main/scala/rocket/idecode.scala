@@ -7,7 +7,7 @@ import Instructions._
 import uncore.constants.MemoryOpConstants._
 import ALU._
 import cde.Parameters
-import Util._
+import util._
 
 abstract trait DecodeConstants extends HasCoreParameters
 {

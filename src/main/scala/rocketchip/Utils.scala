@@ -6,9 +6,9 @@ import cde.{Parameters, Dump}
 import junctions._
 import uncore.devices._
 import rocket._
-import rocket.Util._
 import coreplex._
 import uncore.tilelink2._
+import util._
 
 import java.nio.file.{Files, Paths}
 import java.nio.{ByteBuffer, ByteOrder}

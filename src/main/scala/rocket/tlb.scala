@@ -3,13 +3,12 @@
 package rocket
 
 import Chisel._
-import Util._
+import util._
 import junctions._
 import scala.math._
 import cde.{Parameters, Field}
 import uncore.agents.PseudoLRU
 import uncore.coherence._
-import uncore.util._
 
 case object PgLevels extends Field[Int]
 case object ASIdBits extends Field[Int]

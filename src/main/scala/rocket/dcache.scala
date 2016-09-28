@@ -7,10 +7,10 @@ import junctions._
 import uncore.tilelink._
 import uncore.agents._
 import uncore.coherence._
-import uncore.util._
 import uncore.constants._
+import uncore.util._
+import util._
 import cde.{Parameters, Field}
-import Util._
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val addr = Bits(width = untagBits)

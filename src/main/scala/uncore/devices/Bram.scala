@@ -6,6 +6,7 @@ import unittest.UnitTest
 import junctions._
 import uncore.tilelink._
 import uncore.util._
+import util._
 import HastiConstants._
 
 class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module

@@ -7,7 +7,7 @@ import uncore.tilelink._
 import uncore.agents._
 import uncore.converters._
 import uncore.devices._
-import Util._
+import util._
 import cde.{Parameters, Field}
 
 case object BuildRoCC extends Field[Seq[RoccParameters]]

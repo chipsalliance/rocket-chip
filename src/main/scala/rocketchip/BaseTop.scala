@@ -8,9 +8,8 @@ import junctions._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.devices._
-import util.{ParameterizedBundle, ConfigStringOutput, GraphMLOutput}
+import util._
 import rocket._
-import rocket.Util._
 import coreplex._
 
 // the following parameters will be refactored properly with TL2

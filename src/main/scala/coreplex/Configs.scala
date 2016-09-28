@@ -10,7 +10,7 @@ import uncore.agents._
 import uncore.devices._
 import uncore.converters._
 import rocket._
-import rocket.Util._
+import util._
 import util.ConfigUtils._
 import rocketchip.{GlobalAddrMap, NCoreplexExtClients}
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}

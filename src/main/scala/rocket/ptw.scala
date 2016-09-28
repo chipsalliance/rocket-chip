@@ -5,8 +5,7 @@ package rocket
 import Chisel._
 import uncore.agents._
 import uncore.constants._
-import Util._
-import uncore.util._
+import util._
 import cde.{Parameters, Field}
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {

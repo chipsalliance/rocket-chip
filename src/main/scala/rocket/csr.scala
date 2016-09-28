@@ -3,12 +3,10 @@
 package rocket
 
 import Chisel._
-import Util._
-import uncore.util._
 import Instructions._
 import cde.{Parameters, Field}
 import uncore.devices._
-import uncore.util._
+import util._
 import junctions.AddrMap
 
 class MStatus extends Bundle {

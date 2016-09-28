@@ -3,8 +3,7 @@
 package rocket
 
 import Chisel._
-import Util._
-import uncore.util._
+import util._
 import cde.Parameters
 
 class BPControl(implicit p: Parameters) extends CoreBundle()(p) {

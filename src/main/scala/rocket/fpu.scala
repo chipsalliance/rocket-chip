@@ -4,10 +4,9 @@ package rocket
 
 import Chisel._
 import Instructions._
-import Util._
+import util._
 import FPConstants._
 import uncore.constants.MemoryOpConstants._
-import uncore.util._
 import cde.{Parameters, Field}
 
 case class FPUConfig(

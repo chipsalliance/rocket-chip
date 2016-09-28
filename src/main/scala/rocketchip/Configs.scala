@@ -5,12 +5,12 @@ package rocketchip
 import Chisel._
 import junctions._
 import rocket._
-import rocket.Util._
 import uncore.agents._
 import uncore.tilelink._
 import uncore.tilelink2.{LazyModule}
 import uncore.devices._
 import uncore.converters._
+import util._
 import coreplex._
 import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
