@@ -75,6 +75,8 @@ class AddrMap(
     var prot = 0
     var cacheable = true
     for (AddrMapEntry(name, r) <- entriesIn) {
+      require (!mapping.contains(name))
+
       if (r.start != 0) {
         base = r.start
       } else {

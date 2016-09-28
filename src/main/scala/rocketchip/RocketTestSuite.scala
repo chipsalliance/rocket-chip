@@ -1,12 +1,9 @@
 // See LICENSE for license details.
 
-package coreplex
+package rocketchip
 
 import Chisel._
-import scala.collection.mutable.{LinkedHashSet,LinkedHashMap}
-import cde.{Parameters, ParameterDump, Config, Field, CDEMatchError}
-
-case object RegressionTestNames extends Field[LinkedHashSet[String]]
+import scala.collection.mutable.{LinkedHashSet, LinkedHashMap}
 
 abstract class RocketTestSuite {
   val dir: String
@@ -178,6 +175,8 @@ object DefaultTestSuites {
 
   val emptyBmarks = new BenchmarkTestSuite("empty",
     "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet.empty)
+
+  val singleRegression = new RegressionTestSuite(LinkedHashSet("rv64ui-p-simple"))
 
   val mtBmarks = new BenchmarkTestSuite("mt", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/mt",
     LinkedHashSet(((0 to 4).map("vvadd"+_) ++

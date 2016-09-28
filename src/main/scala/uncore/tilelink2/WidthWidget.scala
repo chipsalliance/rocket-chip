@@ -32,11 +32,12 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val mask = Cat(edgeIn.mask(in.bits), rmask)
       val size = edgeIn.size(in.bits)
       val hasData = edgeIn.hasData(in.bits)
-      val addr_lo = in.bits match {
+      val addr_all = in.bits match {
         case x: TLAddrChannel => edgeIn.address(x)
         case _ => UInt(0)
       }
-      val addr = addr_lo >> log2Ceil(outBytes)
+      val addr_hi = edgeOut.addr_hi(addr_all)
+      val addr_lo = edgeOut.addr_lo(addr_all)
 
       val count = RegInit(UInt(0, width = log2Ceil(ratio)))
       val first = count === UInt(0)
@@ -64,7 +65,8 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       }
 
       val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else dataMux(size)
-      val maskOut = maskMux(size) & edgeOut.mask(addr_lo, size)
+      val maskFull = edgeOut.mask(addr_lo, size)
+      val maskOut = Mux(hasData, maskMux(size) & maskFull, maskFull)
 
       in.ready := out.ready || !last
       out.valid := in.valid && last
@@ -72,9 +74,9 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       edgeOut.data(out.bits) := dataOut
 
       out.bits match {
-        case a: TLBundleA => a.addr_hi := addr; a.mask := maskOut
-        case b: TLBundleB => b.addr_hi := addr; b.mask := maskOut
-        case c: TLBundleC => c.addr_hi := addr; c.addr_lo := addr_lo
+        case a: TLBundleA => a.addr_hi := addr_hi; a.mask := maskOut
+        case b: TLBundleB => b.addr_hi := addr_hi; b.mask := maskOut
+        case c: TLBundleC => c.addr_hi := addr_hi; c.addr_lo := addr_lo
         case d: TLBundleD => ()
           // addr_lo gets padded with 0s on D channel, the only lossy transform in this core
           // this should be safe, because we only care about addr_log on D to determine which
@@ -174,7 +176,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
 object TLWidthWidget
 {
   // applied to the TL source node; y.node := WidthWidget(x.node, 16)
-  def apply(x: TLBaseNode, innerBeatBytes: Int)(implicit sourceInfo: SourceInfo): TLBaseNode = {
+  def apply(innerBeatBytes: Int)(x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = {
     val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
     widget.node := x
     widget.node

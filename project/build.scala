@@ -32,7 +32,7 @@ object BuildSettings extends Build {
       a.split(" ")
     },
     unmanagedSourceDirectories in Compile ++= addons.value.map(baseDirectory.value / _ / "src/main/scala"),
-    mainClass in (Compile, run) := Some("rocketchip.RocketChipGenerator"),
+    mainClass in (Compile, run) := Some("rocketchip.Generator"),
     make := {
       val jobs = java.lang.Runtime.getRuntime.availableProcessors
       val (makeDir, target) = setMake.parsed

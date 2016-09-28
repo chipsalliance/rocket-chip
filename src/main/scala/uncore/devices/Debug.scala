@@ -985,7 +985,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
 
 object AsyncDebugBusCrossing {
   // takes from_source from the 'from' clock domain to the 'to' clock domain
-  def apply(from_clock: Clock, from_reset: Bool, from_source: DebugBusIO, to_clock: Clock, to_reset: Bool, depth: Int = 3, sync: Int = 2) = {
+  def apply(from_clock: Clock, from_reset: Bool, from_source: DebugBusIO, to_clock: Clock, to_reset: Bool, depth: Int = 1, sync: Int = 3) = {
     val to_sink = Wire(new DebugBusIO()(from_source.p))
     to_sink.req <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.req, to_clock, to_reset, depth, sync)
     from_source.resp <> AsyncDecoupledCrossing(to_clock, to_reset, to_sink.resp, from_clock, from_reset, depth, sync)

@@ -27,7 +27,7 @@ trait ExampleModule extends HasRegMap
   regmap(
     0 -> Seq(
       RegField(params.num, state)),
-    1 -> Seq(
+    4 -> Seq(
       RegField.w1ToClear(4, pending, state)))
 }
 
