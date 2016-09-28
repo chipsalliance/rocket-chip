@@ -391,6 +391,7 @@ case class TLBundleParameters(
   require (isPow2(dataBits))
 
   val addrLoBits = log2Up(dataBits/8)
+  val addressBits = addrHiBits + log2Ceil(dataBits/8)
 
   def union(x: TLBundleParameters) =
     TLBundleParameters(

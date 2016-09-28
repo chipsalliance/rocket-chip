@@ -38,11 +38,22 @@ case class TLIdentityNode() extends IdentityNode(TLImp)
 case class TLOutputNode() extends OutputNode(TLImp)
 case class TLInputNode() extends InputNode(TLImp)
 
-case class TLClientNode(params: TLClientParameters, numPorts: Range.Inclusive = 1 to 1)
-  extends SourceNode(TLImp)(TLClientPortParameters(Seq(params)), numPorts)
+case class TLClientNode(portParams: TLClientPortParameters, numPorts: Range.Inclusive = 1 to 1)
+  extends SourceNode(TLImp)(portParams, numPorts)
+case class TLManagerNode(portParams: TLManagerPortParameters, numPorts: Range.Inclusive = 1 to 1)
+  extends SinkNode(TLImp)(portParams, numPorts)
 
-case class TLManagerNode(beatBytes: Int, params: TLManagerParameters, numPorts: Range.Inclusive = 1 to 1, minLatency: Int = 0)
-  extends SinkNode(TLImp)(TLManagerPortParameters(Seq(params), beatBytes, minLatency), numPorts)
+object TLClientNode
+{
+  def apply(params: TLClientParameters) =
+    new TLClientNode(TLClientPortParameters(Seq(params)), 1 to 1)
+}
+
+object TLManagerNode
+{
+  def apply(beatBytes: Int, params: TLManagerParameters) =
+    new TLManagerNode(TLManagerPortParameters(Seq(params), beatBytes, 0), 1 to 1)
+}
 
 case class TLAdapterNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
