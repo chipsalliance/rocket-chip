@@ -182,3 +182,27 @@ object TLWidthWidget
     widget.node
   }
 }
+
+/** Synthesizeable unit tests */
+import unittest._
+
+class TLRAMWidthWidget(first: Int, second: Int) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
+
+  model.node := fuzz.node
+  ram.node := TLFragmenter(4, 256)(
+                if (first == second ) { TLWidthWidget(first)(model.node) }
+                else {
+                  TLWidthWidget(second)(
+                    TLWidthWidget(first)(model.node))})
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMWidthWidgetTest(little: Int, big: Int) extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMWidthWidget(little,big)).module).io.finished
+}
