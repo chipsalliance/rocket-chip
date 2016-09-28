@@ -50,3 +50,25 @@ case class TLAdapterNode(
   numClientPorts:  Range.Inclusive = 1 to 1,
   numManagerPorts: Range.Inclusive = 1 to 1)
   extends InteriorNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
+
+/** Synthesizeable unit tests */
+import unittest._
+
+class TLInputNodeTest extends UnitTest(500000) {
+  class Acceptor extends LazyModule {
+    val node = TLInputNode()
+    val tlram = LazyModule(new TLRAM(AddressSet(0x54321000, 0xfff)))
+    tlram.node := node
+
+    lazy val module = new LazyModuleImp(this) {
+      val io = new Bundle {
+        val in = node.bundleIn
+      }
+    }
+  }
+
+  val fuzzer = LazyModule(new TLFuzzer(5000))
+  LazyModule(new Acceptor).node := TLFragmenter(4, 64)(fuzzer.node)
+
+  io.finished := Module(fuzzer.module).io.finished
+}

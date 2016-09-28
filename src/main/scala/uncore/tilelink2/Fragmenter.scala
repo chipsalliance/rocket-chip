@@ -250,3 +250,24 @@ object TLFragmenter
     fragmenter.node
   }
 }
+
+/** Synthesizeable unit tests */
+import unittest._
+
+class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
+
+  model.node := fuzz.node
+  ram.node := TLFragmenter(ramBeatBytes, maxSize)(model.node)
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMFragmenterTest(ramBeatBytes: Int, maxSize: Int) extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMFragmenter(ramBeatBytes,maxSize)).module).io.finished
+}
+
