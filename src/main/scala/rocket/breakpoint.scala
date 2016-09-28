@@ -4,6 +4,7 @@ package rocket
 
 import Chisel._
 import util._
+import Chisel.ImplicitConversions._
 import cde.Parameters
 
 class BPControl(implicit p: Parameters) extends CoreBundle()(p) {

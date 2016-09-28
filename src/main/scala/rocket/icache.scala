@@ -5,6 +5,7 @@ import uncore.agents._
 import uncore.tilelink._
 import uncore.util._
 import util._
+import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
 
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {

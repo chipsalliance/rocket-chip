@@ -5,6 +5,7 @@ package rocket
 import Chisel._
 import Instructions._
 import util._
+import Chisel.ImplicitConversions._
 import FPConstants._
 import uncore.constants.MemoryOpConstants._
 import cde.{Parameters, Field}

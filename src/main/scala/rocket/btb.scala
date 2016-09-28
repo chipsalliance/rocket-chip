@@ -5,6 +5,7 @@ package rocket
 import Chisel._
 import cde.{Parameters, Field}
 import util._
+import Chisel.ImplicitConversions._
 import uncore.agents.PseudoLRU
 
 case object BtbKey extends Field[BtbParameters]

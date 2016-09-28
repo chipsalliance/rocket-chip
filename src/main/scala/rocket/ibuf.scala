@@ -4,6 +4,7 @@ package rocket
 
 import Chisel._
 import util._
+import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
 
 class Instruction(implicit val p: Parameters) extends ParameterizedBundle with HasCoreParameters {

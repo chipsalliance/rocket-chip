@@ -4,6 +4,7 @@ package rocket
 
 import Chisel._
 import util._
+import Chisel.ImplicitConversions._
 import junctions._
 import scala.math._
 import cde.{Parameters, Field}

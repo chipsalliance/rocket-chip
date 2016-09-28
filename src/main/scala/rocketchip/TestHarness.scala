@@ -4,9 +4,9 @@ package rocketchip
 
 import Chisel._
 import cde.{Parameters, Field}
-import util._
 import junctions._
 import junctions.NastiConstants._
+import util.LatencyPipe
 
 case object BuildExampleTop extends Field[Parameters => ExampleTop]
 case object SimMemLatency extends Field[Int]
@@ -31,7 +31,7 @@ class TestHarness(q: Parameters) extends Module {
   require(dut.io.mmio_tl.isEmpty)
 
   for (int <- dut.io.interrupts)
-    int := false
+    int := Bool(false)
 
   if (dut.io.mem_axi.nonEmpty) {
     val memSize = p(GlobalAddrMap)("mem").size
@@ -82,12 +82,12 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends NastiModule()(p) {
   val rValid = Reg(init = Bool(false))
   val ar = RegEnable(io.axi.ar.bits, io.axi.ar.fire())
   io.axi.ar.ready := !rValid
-  when (io.axi.ar.fire()) { rValid := true }
+  when (io.axi.ar.fire()) { rValid := Bool(true) }
   when (io.axi.r.fire()) {
     assert(ar.burst === NastiConstants.BURST_INCR)
     ar.addr := ar.addr + (UInt(1) << ar.size)
-    ar.len := ar.len - 1
-    when (ar.len === UInt(0)) { rValid := false }
+    ar.len := ar.len - UInt(1)
+    when (ar.len === UInt(0)) { rValid := Bool(false) }
   }
 
   val w = io.axi.w.bits
@@ -100,15 +100,15 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends NastiModule()(p) {
   val aw = RegEnable(io.axi.aw.bits, io.axi.aw.fire())
   io.axi.aw.ready := !wValid && !bValid
   io.axi.w.ready := wValid
-  when (io.axi.b.fire()) { bValid := false }
-  when (io.axi.aw.fire()) { wValid := true }
+  when (io.axi.b.fire()) { bValid := Bool(false) }
+  when (io.axi.aw.fire()) { wValid := Bool(true) }
   when (io.axi.w.fire()) {
     assert(aw.burst === NastiConstants.BURST_INCR)
     aw.addr := aw.addr + (UInt(1) << aw.size)
-    aw.len := aw.len - 1
+    aw.len := aw.len - UInt(1)
     when (aw.len === UInt(0)) {
-      wValid := false
-      bValid := true
+      wValid := Bool(false)
+      bValid := Bool(true)
     }
 
     def row = mem((aw.addr >> log2Ceil(nastiXDataBits/8))(log2Ceil(depth)-1, 0))
@@ -142,9 +142,9 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
     io.reset := tbreset
     dutio <> io.debug
 
-    tbsuccess := dutsuccess || io.exit === 1
-    when (io.exit >= 2) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1)
+    tbsuccess := dutsuccess || io.exit === UInt(1)
+    when (io.exit >= UInt(2)) {
+      printf("*** FAILED *** (exit code = %d)\n", io.exit >> UInt(1))
       stop(1)
     }
   }

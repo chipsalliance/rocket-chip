@@ -148,7 +148,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
       tile.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
       tile.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
       tile.interrupts.debug := debugModule.io.debugInterrupts(i)
-      tile.hartid := i
+      tile.hartid := UInt(i)
       tile.resetVector := io.resetVector
     }
 

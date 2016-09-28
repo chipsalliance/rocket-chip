@@ -8,6 +8,7 @@ import uncore.constants.MemoryOpConstants._
 import ALU._
 import cde.Parameters
 import util._
+import Chisel.ImplicitConversions._
 
 abstract trait DecodeConstants extends HasCoreParameters
 {
