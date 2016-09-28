@@ -10,8 +10,7 @@ class GroundTestCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends Base
 
 class GroundTestCoreplexBundle(c: CoreplexConfig)(implicit p: Parameters) extends BaseCoreplexBundle(c)(p)
 
-class GroundTestCoreplexModule[+L <: GroundTestCoreplex, +B <: GroundTestCoreplexBundle]
-    (c: CoreplexConfig, l: L, b: => B)(implicit p: Parameters)
-    extends BaseCoreplexModule(c, l, b)(p) with DirectConnection {
+class GroundTestCoreplexModule[+L <: GroundTestCoreplex, +B <: GroundTestCoreplexBundle](
+    c: CoreplexConfig, l: L, b: => B)(implicit p: Parameters) extends BaseCoreplexModule(c, l, b)(p) with DirectConnection {
   io.success := tiles.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
 }

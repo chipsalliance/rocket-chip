@@ -7,7 +7,6 @@ import cde.{Parameters, Field}
 import junctions._
 import coreplex._
 import rocketchip._
-import util.Pow2ClockDivider
 
 /** Example Top with Periphery */
 class ExampleTop(q: Parameters) extends BaseTop(q)
@@ -60,18 +59,11 @@ class ExampleMultiClockTop(q: Parameters) extends ExampleTop(q)
 
 class ExampleMultiClockTopBundle(p: Parameters) extends ExampleTopBundle(p)
 
-class ExampleMultiClockTopModule[+L <: ExampleMultiClockTop, +B <: ExampleMultiClockTopBundle]
-    (p: Parameters, l: L, b: => B) extends ExampleTopModule(p, l, b) {
+class ExampleMultiClockTopModule[+L <: ExampleMultiClockTop, +B <: ExampleMultiClockTopBundle](p: Parameters, l: L, b: => B) extends ExampleTopModule(p, l, b) {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
-  val coreplexDivider = Module(new Pow2ClockDivider(2))
-  coreplex.clock := coreplexDivider.io.clock_out
-
   multiClockCoreplexIO.tcrs foreach { tcr =>
-    val tileDivider = Module(new Pow2ClockDivider(1))
-    tcr.clock := tileDivider.io.clock_out
+    tcr.clock := clock
     tcr.reset := reset
   }
-  multiClockCoreplexIO.extcr.clock := clock
-  multiClockCoreplexIO.extcr.reset := reset
 }

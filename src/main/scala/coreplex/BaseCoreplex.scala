@@ -74,11 +74,6 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
   val nUncachedPorts = tiles.map(tile => tile.io.uncached.size).reduce(_ + _)
   val nBanks = c.nMemChannels * nBanksPerMemChannel
 
-  val uncoreExtMem = Wire(Vec(c.nMemChannels, new ClientUncachedTileLinkIO()(outermostParams)))
-  val uncoreExtMMIO = Wire(new ClientUncachedTileLinkIO()(outermostMMIOParams))
-  val uncoreExtSlave = Wire(Vec(c.nSlaves, new ClientUncachedTileLinkIO()(innerParams)))
-  val uncoreExtDebug = Wire(new DebugBusIO)
-
   // Build an uncore backing the Tiles
   buildUncore(p.alterPartial({
     case HastiId => "TL"
@@ -111,7 +106,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     // Wire the tiles to the TileLink client ports of the L1toL2 network,
     // and coherence manager(s) to the other side
     l1tol2net.io.clients_cached <> uncoreTileIOs.map(_.cached).flatten
-    l1tol2net.io.clients_uncached <> uncoreTileIOs.map(_.uncached).flatten ++ uncoreExtSlave
+    l1tol2net.io.clients_uncached <> uncoreTileIOs.map(_.uncached).flatten ++ io.slave
     l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
 
     // Create a converter between TileLinkIO and MemIO for each channel
@@ -125,7 +120,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
       TileLinkWidthAdapter(icPort, unwrap.io.out)
     }
 
-    uncoreExtMem <> mem_ic.io.out
+    io.master.mem <> mem_ic.io.out
 
     buildMMIONetwork(TileLinkEnqueuer(mmioManager.io.outer, 1))(
         p.alterPartial({case TLId => "L2toMMIO"}))
@@ -147,7 +142,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
 
     val debugModule = Module(new DebugModule)
     debugModule.io.tl <> cBus.port("cbus:debug")
-    debugModule.io.db <> uncoreExtDebug
+    debugModule.io.db <> io.debug
 
     // connect coreplex-internal interrupts to tiles
     for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
@@ -163,7 +158,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     for ((t, m) <- (uncoreTileIOs.map(_.slave).flatten) zip (tileSlavePorts map (cBus port _)))
       t <> m
 
-    uncoreExtMMIO <> cBus.port("pbus")
+    io.master.mmio <> cBus.port("pbus")
   }
 
   // Coreplex doesn't know when to stop running
