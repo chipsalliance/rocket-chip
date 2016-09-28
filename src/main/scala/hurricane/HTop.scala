@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package rocketchip
+package hurricane 
 
 import Chisel._
 import cde.{Parameters, Field}
@@ -13,19 +13,18 @@ import uncore.tilelink._
 import uncore.agents._
 import junctions._
 import hbwif._
+import rocketchip._
 
 case object BuildHTop extends Field[Parameters => HUpTop]
 
-/* Hurricane Chisel Top */
+/* Hurricane Upstream Chisel Top */
 class HUpTop(q: Parameters) extends BaseTop(q)
     with PeripheryBootROM
     with PeripheryDebug
     with PeripheryCoreplexLocalInterrupter
-    with HurricaneIF
     with HurricaneExtraTopLevel
-    with Hbwif
-    with PeripheryMasterMMIO
-    with PeripherySlave { //TODOHurricane: Do we need this?/What is it for?
+    with HurricaneIF
+    with Hbwif {
   override lazy val module = Module(new HUpTopModule(p, this, new HUpTopBundle(p)))
 }
 
@@ -35,8 +34,6 @@ class HUpTopBundle(p: Parameters) extends BaseTopBundle(p)
     with PeripheryCoreplexLocalInterrupterBundle
     with HurricaneIFBundle
     with HbwifBundle
-    with PeripheryMasterMMIOBundle
-    with PeripherySlaveBundle
 //TODOHurricane: add DRAM I/Os here
 
 class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
@@ -44,11 +41,9 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     with PeripheryBootROMModule
     with PeripheryDebugModule
     with PeripheryCoreplexLocalInterrupterModule
-    with HurricaneIFModule
     with HurricaneExtraTopLevelModule
+    with HurricaneIFModule
     with HbwifModule
-    with PeripheryMasterMMIOModule
-    with PeripherySlaveModule
     with HardwiredResetVector {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
@@ -64,10 +59,6 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 
   // Hbwif connections
   hbwifFastClock := clock
-
-  //SCR file generation
-  val scrTL = topLevelSCRBuilder.generate(outermostMMIOParams)
-  scrTL <> pBus.port("HSCRFile")
 }
 
 /////
@@ -79,21 +70,33 @@ trait HurricaneExtraTopLevel extends LazyModule {
   pDevices.add(AddrMapEntry(s"HSCRFile", MemSize(BigInt(p(HSCRFileSize)), MemAttr(AddrMapProt.RW))))
 }
 
-trait HurricaneExtraTopLevelModule {
+trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val hbwifFastClock: Clock = Wire(Clock())
   val topLevelSCRBuilder: SCRBuilder = new SCRBuilder
+  val pBus: TileLinkRecursiveInterconnect
+  
+  //SCR file generation
+  //val scrTL = topLevelSCRBuilder.generate(outermostMMIOParams) TODO
+  val scrArb = Module(new ClientUncachedTileLinkIOArbiter(2)(outermostMMIOParams))
+  scrArb.io.in(0) <> pBus.port("HSCRFile")
+  val lbscrTL = scrArb.io.in(1)
+  //scrTL <> scrArb.io.out TODO
 }
 
 /////
 
 trait HurricaneIF extends LazyModule {
   implicit val p: Parameters
+  val pBusMasters: RangeManager
+
+  pBusMasters.add("lbwif", 1)
 }
 
 trait HurricaneIFBundle extends HasPeripheryParameters {
   implicit val p: Parameters
-  val narrowIO = new SerialIO(p(NarrowWidth)) //TODOHurricane - this should be NarrowIO, not SerialIO
+  val serial = new SerialIO(p(NarrowWidth))
+  val host_clock = Bool(OUTPUT)
 }
 
 trait HurricaneIFModule extends HasPeripheryParameters {
@@ -103,25 +106,36 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   val outer: HurricaneIF
   val io: HurricaneIFBundle
   val coreplexIO: BaseCoreplexBundle
+  val lbscrTL: ClientUncachedTileLinkIO
   val hbwifIO: Vec[ClientUncachedTileLinkIO] = Wire(Vec(numLanes,
-    new ClientUncachedTileLinkIO()(p.alterPartial({case TLId => "Outermost"}))))
-  // TODOHurricane - implement the TL master/slave combined version
+    new ClientUncachedTileLinkIO()(outermostMMIOParams)))
   require(p(NAcquireTransactors) > 2 || numLanes < 8)
-  // TODOHurricane - why doesn't the switcher handle this gracefully
   val nBanks = nMemChannels*p(NBanksPerMemoryChannel)
   val switcher = Module(new ClientUncachedTileLinkIOSwitcher(nBanks, numLanes+1)
-      (p.alterPartial({case TLId => "Outermost"})))
+      (outermostMMIOParams))
   switcher.io.in <> coreplexIO.master.mem
-  val lbwif = Module(new ClientUncachedTileLinkIOSerdes(p(NarrowWidth))(p.alterPartial({case TLId => "Outermost"})))
+  val lbwif = Module(new ClientUncachedTileLinkIOBidirectionalSerdes(p(NarrowWidth))(outermostMMIOParams))
 
-  lbwif.io.tl <> switcher.io.out(0)
-  io.narrowIO <> lbwif.io.serial
+  def scrRouteSel(addr: UInt) = UIntToOH(p(GlobalAddrMap).isInRegion("io:pbus:HSCRFile",addr))
+  val scr_router = Module(new ClientUncachedTileLinkIORouter(2,scrRouteSel)(outermostMMIOParams))
+  val (r_start, r_end) = outer.pBusMasters.range("lbwif")
+
+  lbwif.io.tl_manager <> switcher.io.out(0)
+  scr_router.io.in <> lbwif.io.tl_client
+  lbscrTL <> scr_router.io.out(1)
+  coreplexIO.slave(r_start) <> scr_router.io.out(0)
+
+  val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide))(UInt(width=p(NarrowWidth))))
+
+  lbwif.io.serial.in <> slowio_module.io.in_fast
+  slowio_module.io.out_fast <> lbwif.io.serial.out
+  slowio_module.io.in_slow <> io.serial.in
+  io.serial.out <> slowio_module.io.out_slow
+  io.host_clock := slowio_module.io.clk_slow
+  // TODOHurricane - wire slowio divider to SCRs
 
   val ser = (0 until numLanes) map { i =>
     hbwifIO(i) <> switcher.io.out(i+1)
   }
-  // io.mem_narrow.get <> ser(0).io.serial // TODOHurricane - Howie says to wire in and out separately for SerialIO
-  // TODOHurricane - wire up the HBWIF lanes
-  // switcher.io.select(0) := ... // TODOHurricane - Need to hardcode all banks to route to channel 0, but it's unclear how to do this.
-                                  // Eventually this should be configurable via SCR
+  // TODOHurricane - make the switcher configurable via SCR
 }

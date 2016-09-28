@@ -1,4 +1,4 @@
-package rocketchip
+package hurricane
 
 import Chisel._
 import junctions._
@@ -18,9 +18,11 @@ import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError, Field}
 import hwacha._
 import hbwif._
+import rocketchip._
 
 case object NarrowWidth extends Field[Int]
 case object HSCRFileSize extends Field[Int]
+case object SlowIOMaxDivide extends Field[Int]
 
 class PMUConfig extends Config(
   topDefinitions = (pname,site,here) => pname match {
@@ -81,6 +83,7 @@ class NoJtagDTM extends Config (
 class WithHUpTop extends Config (
   (pname, site, here) => pname match {
     case NarrowWidth => Dump("NARROW_IF_WIDTH", 8)
+    case SlowIOMaxDivide => 1024
     case HSCRFileSize => 1 << 12//rocket.HasCoreParameters.pgIdxBits
     case BuildCoreplex => (c: CoreplexConfig, p: Parameters) =>
       LazyModule(new MultiClockCoreplex(c)(p)).module
@@ -93,13 +96,11 @@ class WithHUpTop extends Config (
 class WithTinyHbwif extends Config (
   (pname, site, here) => pname match {
     case HbwifKey => HbwifParameters(numLanes = 1)
-    case BertKey => BertParameters()
-    case TransceiverKey => TransceiverParameters()
     case _ => throw new CDEMatchError
   }
 )
 
-class DefaultHUpTopConfig extends Config(new WithTinyHbwif ++ new WithHUpTop ++ new DefaultConfig)
+class DefaultHUpTopConfig extends Config(new WithTinyHbwif ++ new ExampleHbwifConfig ++ new WithHUpTop ++ new DefaultConfig)
 
 class HurricaneUpstreamConfig extends Config (
   new WithNCores(2) ++

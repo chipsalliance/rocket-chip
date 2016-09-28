@@ -10,13 +10,17 @@ bb_vsrcs = $(base_dir)/vsrc/DebugTransportModuleJtag.v \
 	$(base_dir)/vsrc/AsyncResetReg.v \
 	$(base_dir)/vsrc/AsyncSetReg.v \
 
+hbwif_vscrs = $(base_dir)/hbwif/verilog/example_reference_generator.v \
+	$(base_dir)/hbwif/verilog/example_transceiver.v \
+
 sim_vsrcs = \
 	$(generated_dir)/$(long_name).v \
 	$(generated_dir)/$(long_name).behav_srams.v \
 	$(generated_dir)/consts.$(CONFIG).vh \
 	$(base_dir)/vsrc/$(TB).v \
 	$(base_dir)/vsrc/SimDTM.v \
-	$(bb_vsrcs)
+	$(bb_vsrcs) \
+	$(hbwif_vsrcs) \
 
 # C sources
 
