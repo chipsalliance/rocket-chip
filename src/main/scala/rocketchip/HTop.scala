@@ -18,7 +18,7 @@ case object BuildHTop extends Field[Parameters => HUpTop]
 
 /* Hurricane Chisel Top */
 class HUpTop(q: Parameters) extends BaseTop(q)
-    with PeripheryBootROM // TODOHurricane: Is this neccessary for non-standalone boot
+    with PeripheryBootROM
     with PeripheryDebug
     with PeripheryCoreplexLocalInterrupter
     with HurricaneIF
@@ -54,14 +54,11 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 
   coreplex.clock := clock
   coreplex.reset := ResetSync(topLevelSCRBuilder.control("coreplex_reset", UInt(1))(0).toBool, coreplex.clock)
-
   multiClockCoreplexIO.tcrs.dropRight(1).zipWithIndex foreach { case (tcr, i) =>
     tcr.clock := clock
     tcr.reset := ResetSync(topLevelSCRBuilder.control(s"core_${i}_reset", UInt(1))(0).toBool, tcr.clock)
   }
   multiClockCoreplexIO.tcrs.last.reset := topLevelSCRBuilder.control(s"pmu_reset", UInt(1))(0).toBool
-
-  //TODOHurricane: if we can't assign to toplevel clock assign to tcr.last
   multiClockCoreplexIO.extcr.clock := clock
   multiClockCoreplexIO.extcr.reset := reset
 
@@ -70,10 +67,11 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 
   //SCR file generation
   val scrTL = topLevelSCRBuilder.generate(outermostMMIOParams)
-
   scrTL <> pBus.port("HSCRFile")
 }
+
 /////
+
 trait HurricaneExtraTopLevel extends LazyModule {
   implicit val p: Parameters
   val pDevices: ResourceManager[AddrMapEntry]
@@ -85,55 +83,6 @@ trait HurricaneExtraTopLevelModule {
   implicit val p: Parameters
   val hbwifFastClock: Clock = Wire(Clock())
   val topLevelSCRBuilder: SCRBuilder = new SCRBuilder
-}
-
-class HUpTestHarness(q: Parameters) extends Module {
-  val io = new Bundle {
-    val success = Bool(OUTPUT)
-  }
-  val dut = q(BuildHTop)(q).module
-  implicit val p = dut.p
-
-  // This test harness isn't especially flexible yet
-  require(dut.io.bus_clk.isEmpty)
-  require(dut.io.bus_rst.isEmpty)
-  require(dut.io.mmio_clk.isEmpty)
-  require(dut.io.mmio_rst.isEmpty)
-  require(dut.io.mmio_ahb.isEmpty)
-  require(dut.io.mmio_tl.isEmpty)
-
-  val memSize = p(GlobalAddrMap)("mem").size
-  val dessert = Module(new ClientUncachedTileLinkIODesser(p(NarrowWidth))(p.alterPartial({case TLId => "Outermost"})))
-  //dessert.io.serial <> dut.io.mem_narrow.get // TODOHurricane - Howie says to wire in and out separately for SerialIO (throws GenderCheck errors)
-  val sim_axi = Module(new SimAXIMem(memSize))
-  // HurricaneTODO - should we convert TL to AXI here, or is there a "SimTLMem"?
-
-  if (!p(IncludeJtagDTM)) {
-    // Todo: enable the usage of different clocks
-    // to test the synchronizer more aggressively.
-    val dtm_clock = clock
-    val dtm_reset = reset
-    if (dut.io.debug_clk.isDefined) dut.io.debug_clk.get := dtm_clock
-    if (dut.io.debug_rst.isDefined) dut.io.debug_rst.get := dtm_reset
-    val dtm = Module(new SimDTM).connect(dtm_clock, dtm_reset, dut.io.debug.get,
-      dut.io.success, io.success)
-  } else {
-    val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, reset, io.success)
-  }
-
-  for (bus_axi <- dut.io.bus_axi) {
-    bus_axi.ar.valid := Bool(false)
-    bus_axi.aw.valid := Bool(false)
-    bus_axi.w.valid  := Bool(false)
-    bus_axi.r.ready  := Bool(false)
-    bus_axi.b.ready  := Bool(false)
-  }
-
-  for (mmio_axi <- dut.io.mmio_axi) {
-    val slave = Module(new NastiErrorSlave)
-    slave.io <> mmio_axi
-  }
-
 }
 
 /////
