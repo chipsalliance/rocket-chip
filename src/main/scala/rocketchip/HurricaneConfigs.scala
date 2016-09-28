@@ -78,14 +78,14 @@ class NoJtagDTM extends Config (
   }
 )
 
-class WithHTop extends Config (
+class WithHUpTop extends Config (
   (pname, site, here) => pname match {
     case NarrowWidth => Dump("NARROW_IF_WIDTH", 8)
     case HSCRFileSize => 1 << 12//rocket.HasCoreParameters.pgIdxBits
     case BuildCoreplex => (c: CoreplexConfig, p: Parameters) =>
       LazyModule(new MultiClockCoreplex(c)(p)).module
     case BuildHTop => (p: Parameters) =>
-      LazyModule(new HTop(p))
+      LazyModule(new HUpTop(p))
     case _ => throw new CDEMatchError
   }
 )
@@ -99,7 +99,7 @@ class WithTinyHbwif extends Config (
   }
 )
 
-class DefaultHTopConfig extends Config(new WithTinyHbwif ++ new WithHTop ++ new DefaultConfig)
+class DefaultHUpTopConfig extends Config(new WithTinyHbwif ++ new WithHUpTop ++ new DefaultConfig)
 
 class HurricaneUpstreamConfig extends Config (
   new WithNCores(2) ++
@@ -111,7 +111,7 @@ class HurricaneUpstreamConfig extends Config (
   new WithNMemoryChannels(8) ++
   new Process28nmConfig ++
   new DefaultHbwifConfig ++
-  new WithHTop ++
+  new WithHUpTop ++
   new WithJtagDTM ++
   new HwachaConfig
 )

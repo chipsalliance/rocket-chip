@@ -14,10 +14,10 @@ import uncore.agents._
 import junctions._
 import hbwif._
 
-case object BuildHTop extends Field[Parameters => HTop]
+case object BuildHTop extends Field[Parameters => HUpTop]
 
 /* Hurricane Chisel Top */
-class HTop(q: Parameters) extends BaseTop(q)
+class HUpTop(q: Parameters) extends BaseTop(q)
     with PeripheryBootROM // TODOHurricane: Is this neccessary for non-standalone boot
     with PeripheryDebug
     with PeripheryCoreplexLocalInterrupter
@@ -26,10 +26,10 @@ class HTop(q: Parameters) extends BaseTop(q)
     with Hbwif
     with PeripheryMasterMMIO
     with PeripherySlave { //TODOHurricane: Do we need this?/What is it for?
-  override lazy val module = Module(new HTopModule(p, this, new HTopBundle(p)))
+  override lazy val module = Module(new HUpTopModule(p, this, new HUpTopBundle(p)))
 }
 
-class HTopBundle(p: Parameters) extends BaseTopBundle(p)
+class HUpTopBundle(p: Parameters) extends BaseTopBundle(p)
     with PeripheryBootROMBundle
     with PeripheryDebugBundle
     with PeripheryCoreplexLocalInterrupterBundle
@@ -39,7 +39,7 @@ class HTopBundle(p: Parameters) extends BaseTopBundle(p)
     with PeripherySlaveBundle
 //TODOHurricane: add DRAM I/Os here
 
-class HTopModule[+L <: HTop, +B <: HTopBundle]
+class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     (p: Parameters, l: L, b: => B) extends BaseTopModule(p, l, b)
     with PeripheryBootROMModule
     with PeripheryDebugModule
@@ -87,7 +87,7 @@ trait HurricaneExtraTopLevelModule {
   val topLevelSCRBuilder: SCRBuilder = new SCRBuilder
 }
 
-class HTestHarness(q: Parameters) extends Module {
+class HUpTestHarness(q: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
