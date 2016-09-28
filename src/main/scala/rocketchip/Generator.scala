@@ -118,7 +118,7 @@ object ConfigStringOutput {
 /** An example Generator */
 object RocketChipGenerator extends Generator
 {
-  val longName = names.topModuleProject + "." + names.configs
+  val longName = names.topModuleClass + "." + names.configs
   generateFirrtl
   generateTestSuiteMakefrags
   generateDSEConstraints
