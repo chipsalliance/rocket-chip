@@ -132,15 +132,11 @@ class BaseCoreplexConfig extends Config (
           nManagers = 1,
           nCachingClients = site(NBanksPerMemoryChannel),
           nCachelessClients = 0,
-          maxClientXacts = 1,
-          maxClientsPerPort = site(NAcquireTransactors) + 2,
+          maxClientXacts = site(NAcquireTransactors) + 2,
+          maxClientsPerPort = site(NBanksPerMemoryChannel),
           maxManagerXacts = 1,
           dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes)*8)
-      case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
-        maxClientXacts = site(NAcquireTransactors) + 2,
-        maxClientsPerPort = site(NBanksPerMemoryChannel),
-        dataBeats = site(MIFDataBeats))
       case TLKey("L2toMMIO") => {
         TileLinkParameters(
           coherencePolicy = new MICoherence(
@@ -154,7 +150,6 @@ class BaseCoreplexConfig extends Config (
           dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes) * 8)
       }
-      case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
 
       case BootROMFile => "./bootrom/bootrom.img"
       case NTiles => 1

@@ -51,6 +51,10 @@ case object RTCPeriod extends Field[Int]
 case class PeripheryBusConfig(arithAMO: Boolean, beatBytes: Int = 4)
 case object PeripheryBusKey extends Field[PeripheryBusConfig]
 
+/* Specifies the data and id width at the chip boundary */
+case object EdgeDataBits extends Field[Int]
+case object EdgeIDBits extends Field[Int]
+
 object PeripheryUtils {
   def addQueueAXI(source: NastiIO) = {
     val sink = Wire(source)
@@ -81,10 +85,10 @@ trait HasPeripheryParameters {
   lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
-  lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
-  lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
-  lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
+  lazy val edgeSlaveParams = p.alterPartial({ case TLId => "EdgetoSlave" })
+  lazy val edgeMemParams = p.alterPartial({ case TLId => "MCtoEdge" })
+  lazy val edgeMMIOParams = p.alterPartial({ case TLId => "MMIOtoEdge" })
   lazy val peripheryBusConfig = p(PeripheryBusKey)
   lazy val cacheBlockBytes = p(CacheBlockBytes)
 }
@@ -162,7 +166,7 @@ trait PeripheryMasterMemBundle extends HasPeripheryParameters {
   val mem_rst = p(AsyncMemChannels).option(Vec(nMemChannels, Bool (INPUT)))
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
-  val mem_tl = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(outermostParams))
+  val mem_tl = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(edgeMemParams))
 }
 
 trait PeripheryMasterMemModule extends HasPeripheryParameters {
@@ -171,8 +175,10 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   val io: PeripheryMasterMemBundle
   val coreplexIO: BaseCoreplexBundle
 
+  val edgeMem = coreplexIO.master.mem.map(TileLinkWidthAdapter(_, edgeMemParams))
+
   // Abuse the fact that zip takes the shorter of the two lists
-  ((io.mem_axi zip coreplexIO.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
+  ((io.mem_axi zip edgeMem) zipWithIndex) foreach { case ((axi, mem), idx) =>
     val axi_sync = PeripheryUtils.convertTLtoAXI(mem)
     axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
@@ -182,11 +188,11 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
     )
   }
 
-  (io.mem_ahb zip coreplexIO.master.mem) foreach { case (ahb, mem) =>
+  (io.mem_ahb zip edgeMem) foreach { case (ahb, mem) =>
     ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)
   }
 
-  (io.mem_tl zip coreplexIO.master.mem) foreach { case (tl, mem) =>
+  (io.mem_tl zip edgeMem) foreach { case (tl, mem) =>
     tl <> TileLinkEnqueuer(mem, 2)
   }
 }
@@ -203,7 +209,7 @@ trait PeripheryMasterMMIOBundle extends HasPeripheryParameters {
   val mmio_rst = p(AsyncMMIOChannels).option(Vec(p(NExtMMIOAXIChannels), Bool (INPUT)))
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
-  val mmio_tl = Vec(p(NExtMMIOTLChannels), new ClientUncachedTileLinkIO()(outermostMMIOParams))
+  val mmio_tl = Vec(p(NExtMMIOTLChannels), new ClientUncachedTileLinkIO()(edgeMMIOParams))
 }
 
 trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
@@ -213,7 +219,7 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   val pBus: TileLinkRecursiveInterconnect
 
   val mmio_ports = p(ExtMMIOPorts) map { port =>
-    TileLinkWidthAdapter(pBus.port(port.name), outerMMIOParams)
+    TileLinkWidthAdapter(pBus.port(port.name), edgeMMIOParams)
   }
 
   val mmio_axi_start = 0
@@ -274,12 +280,12 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
         else AsyncNastiFrom(io.bus_clk.get(idx), io.bus_rst.get(idx), bus)
       )
     }
-    val conv = Module(new TileLinkIONastiIOConverter()(innerParams))
+    val conv = Module(new TileLinkIONastiIOConverter()(edgeSlaveParams))
     conv.io.nasti <> arb.io.slave
 
-    val r = outer.pBusMasters.range("ext")
-    require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
-    coreplexIO.slave(r._1) <> conv.io.tl
+    val (r_start, r_end) = outer.pBusMasters.range("ext")
+    require(r_end - r_start == 1, "RangeManager should return 1 slot")
+    TileLinkWidthAdapter(coreplexIO.slave(r_start), conv.io.tl)
   }
 }
 

@@ -182,7 +182,7 @@ object RRTest0Map
   def ee(bits: Int) = combo(bits, delay(11), delay(11))
 
   // All fields must respect byte alignment, or else it won't behave like an SRAM
-  val map = Seq(
+  def map = Seq(
     0  -> Seq(aa(8), ar(8), ad(8), ae(8)),
     4  -> Seq(ra(8), rr(8), rd(8), re(8)),
     8  -> Seq(da(8), dr(8), dd(8), de(8)),
@@ -202,7 +202,7 @@ object RRTest1Map
   def bp(bits: Int) = request(bits, busy, pipe(3))
   def bb(bits: Int) = request(bits, busy, busy)
 
-  val map = RRTest0Map.map.take(6) ++ Seq(
+  def map = RRTest0Map.map.take(6) ++ Seq(
     24 -> Seq(pp(8), pb(8), bp(8), bb(8)),
     28 -> Seq(pp(3), pb(5), bp(1), bb(7), pb(5), bp(3), pp(4), bb(4)))
 }

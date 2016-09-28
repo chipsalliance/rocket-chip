@@ -12,7 +12,6 @@ class WithJunctionsUnitTests extends Config(
     case rocket.XLen => 64
     case UnitTests => (p: Parameters) => Seq(
       Module(new junctions.MultiWidthFifoTest),
-      Module(new junctions.NastiMemoryDemuxTest()(p)),
       Module(new junctions.HastiTest()(p)))
     case _ => throw new CDEMatchError
   })
