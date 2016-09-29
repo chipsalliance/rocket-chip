@@ -476,16 +476,23 @@ class DebugModule ()(implicit val p:cde.Parameters)
   val ramWrEn   = Wire(Bool())
 
   val dbRamAddr   = Wire(UInt(width=dbRamAddrWidth))
+  val dbRamAddrValid   = Wire(Bool())
   val dbRamRdData = Wire (UInt(width=dbRamDataWidth))
   val dbRamWrData = Wire(UInt(width=dbRamDataWidth))
   val dbRamWrEn   = Wire(Bool())
   val dbRamRdEn   = Wire(Bool())
+  val dbRamWrEnFinal   = Wire(Bool())
+  val dbRamRdEnFinal   = Wire(Bool())
 
   val sbRamAddr   = Wire(UInt(width=sbRamAddrWidth))
+  val sbRamAddrValid = Wire(Bool())
   val sbRamRdData = Wire (UInt(width=sbRamDataWidth))
   val sbRamWrData = Wire(UInt(width=sbRamDataWidth))
   val sbRamWrEn   = Wire(Bool())
   val sbRamRdEn   = Wire(Bool())
+  val sbRamWrEnFinal   = Wire(Bool())
+  val sbRamRdEnFinal   = Wire(Bool())
+
 
   val sbRomRdData       = Wire(UInt(width=tlDataBits))
   val sbRomAddrOffset   = log2Up(tlDataBits/8)
@@ -625,8 +632,18 @@ class DebugModule ()(implicit val p:cde.Parameters)
   //                                  0x40 - 0x6F Not Implemented
   dbRamAddr   := dbReq.addr( dbRamAddrWidth-1 , 0)
   dbRamWrData := dbReq.data
+  dbRamAddrValid := Bool(true)
+  if (dbRamAddrWidth < 4){
+    dbRamAddrValid := (dbReq.addr(3, dbRamAddrWidth) === UInt(0))
+  }
+
   sbRamAddr   := sbAddr(sbRamAddrWidth + sbRamAddrOffset - 1, sbRamAddrOffset)   
   sbRamWrData := sbWrData
+  sbRamAddrValid := Bool(true)
+  // From Specification: Debug RAM is 0x400 - 0x4FF
+  if ((sbRamAddrWidth + sbRamAddrOffset) < 8){
+    sbRamAddrValid := (sbAddr(7, sbRamAddrWidth + sbRamAddrOffset) === UInt(0))
+  }
 
   require (dbRamAddrWidth >= ramAddrWidth)    // SB accesses less than 32 bits Not Implemented.
   val dbRamWrMask = Wire(init=Vec.fill(1 << (dbRamAddrWidth - ramAddrWidth)){Fill(dbRamDataWidth, UInt(1, width=1))})
@@ -662,7 +679,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   ramRdData := ramMem(ramAddr)
   when (ramWrEn) { ramMem(ramAddr) := ramWrData }
 
-  ramWrEn := sbRamWrEn | dbRamWrEn
+  ramWrEn := sbRamWrEnFinal | dbRamWrEnFinal
   
   //--------------------------------------------------------------
   // Debug Bus Access
@@ -681,11 +698,15 @@ class DebugModule ()(implicit val p:cde.Parameters)
   CONTROLWrData := new CONTROLFields().fromBits(dbReq.data)
   RAMWrData     := new RAMFields().fromBits(dbReq.data)
 
-  dbRamWrEn  := Bool(false)
-  CONTROLWrEn := Bool(false)
-  when ((dbReq.addr >> 4) === Bits(0)) {                   // 0x00 - 0x0F Debug RAM
+  dbRamWrEn       := Bool(false)
+  dbRamWrEnFinal  := Bool(false)
+  CONTROLWrEn     := Bool(false)
+  when ((dbReq.addr >> 4) === Bits(0)) {  // 0x00 - 0x0F Debug RAM
     dbRamWrEn := dbWrEn
-   }.elsewhen (dbReq.addr === DMCONTROL) {
+    when (dbRamAddrValid) {
+      dbRamWrEnFinal := dbWrEn
+    }
+  }.elsewhen (dbReq.addr === DMCONTROL) {
     CONTROLWrEn  := dbWrEn
   }.otherwise {
     //Other registers/RAM are Not Implemented.
@@ -740,10 +761,14 @@ class DebugModule ()(implicit val p:cde.Parameters)
     }
   }
 
-  dbRamRdEn := Bool(false)
-  when ((dbReq.addr >> 4) === Bits(0)) {       // 0x00 - 0x0F Debug RAM
-    dbRdData  := RAMRdData.asUInt
+  dbRamRdEn      := Bool(false)
+  dbRamRdEnFinal := Bool(false)
+  when ((dbReq.addr >> 4) === Bits(0)) { // 0x00 - 0x0F Debug RAM
     dbRamRdEn := dbRdEn
+    when (dbRamAddrValid) {
+      dbRdData  := RAMRdData.asUInt
+      dbRamRdEnFinal := dbRdEn
+    }
   }.elsewhen (dbReq.addr === DMCONTROL) {
     dbRdData := CONTROLRdData.asUInt
   }.elsewhen (dbReq.addr === DMINFO) {
@@ -850,6 +875,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   // SB Access Write Decoder
 
   sbRamWrEn  := Bool(false)
+  sbRamWrEnFinal := Bool(false)
   SETHALTNOTWrEn := Bool(false)
   CLEARDEBINTWrEn := Bool(false)
 
@@ -859,6 +885,10 @@ class DebugModule ()(implicit val p:cde.Parameters)
     when (sbAddr(11, 8)   === UInt(4)){ // 0x400-0x4ff is Debug RAM
       sbRamWrEn := sbWrEn
       sbRamRdEn := sbRdEn
+      when (sbRamAddrValid) {
+        sbRamWrEnFinal := sbWrEn
+        sbRamRdEnFinal := sbRdEn
+      }
     }.elsewhen (sbAddr === SETHALTNOT){
       SETHALTNOTWrEn := sbWrEn
     }.elsewhen (sbAddr === CLEARDEBINT){
@@ -881,6 +911,10 @@ class DebugModule ()(implicit val p:cde.Parameters)
     when (sbAddr(11,8) === UInt(4)){ //0x400-0x4ff is Debug RAM
       sbRamWrEn := sbWrEn
       sbRamRdEn := sbRdEn
+      when (sbRamAddrValid){
+        sbRamWrEnFinal := sbWrEn
+        sbRamRdEnFinal := sbRdEn
+      }
     }
 
     SETHALTNOTWrEn := sbAddr(sbAddrWidth - 1, sbWrSelTop + 1) === SETHALTNOT(sbAddrWidth-1, sbWrSelTop + 1) &&
@@ -897,12 +931,15 @@ class DebugModule ()(implicit val p:cde.Parameters)
   // SB Access Read Mux
  
   sbRdData := UInt(0)
-  sbRamRdEn := Bool(false)
+  sbRamRdEn      := Bool(false)
+  sbRamRdEnFinal := Bool(false)
 
-  dbRamRdEn := Bool(false)
   when (sbAddr(11, 8) === UInt(4)) {                                 //0x400-0x4FF Debug RAM
-    sbRdData  := sbRamRdData
     sbRamRdEn := sbRdEn
+    when (sbRamAddrValid) {
+      sbRdData  := sbRamRdData
+      sbRamRdEnFinal := sbRdEn
+    }
   }.elsewhen (sbAddr(11,8).isOneOf(UInt(8), UInt(9))){ //0x800-0x9FF Debug ROM
     if (cfg.hasDebugRom) {
       sbRdData := sbRomRdData
