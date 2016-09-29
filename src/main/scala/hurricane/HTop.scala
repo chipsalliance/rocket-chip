@@ -87,8 +87,8 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
   val outer: HurricaneExtraTopLevel
 
   //SCR file generation
-  val scr = outer.topLevelSCRBuilder.generate(edgeMMIOParams)
-  val scrArb = Module(new ClientUncachedTileLinkIOArbiter(2)(edgeMMIOParams))
+  val scr = outer.topLevelSCRBuilder.generate(outerMMIOParams)
+  val scrArb = Module(new ClientUncachedTileLinkIOArbiter(2)(outerMMIOParams))
   scrArb.io.in(0) <> pBus.port("HSCRFile")
   val lbscrTL = scrArb.io.in(1)
   scr.io.tl <> scrArb.io.out
@@ -118,13 +118,13 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   val coreplexIO: BaseCoreplexBundle
   val lbscrTL: ClientUncachedTileLinkIO
   val scr: SCRFile
-  val hbwifIO = Wire(Vec(numLanes, new ClientUncachedTileLinkIO()(edgeMMIOParams)))
+  val hbwifIO = Wire(Vec(numLanes, new ClientUncachedTileLinkIO()(outerMMIOParams)))
 
   val lbwifWidth = p(NarrowWidth)
   val lbwifParams = p.alterPartial({ case TLId => "LBWIF" })
   val switcherParams = p.alterPartial({ case TLId => "Switcher" })
 
-  val unmapper = Module(new ChannelAddressUnmapper(nMemChannels)(edgeMemParams))
+  val unmapper = Module(new ChannelAddressUnmapper(nMemChannels)(switcherParams))
   val switcher = Module(new ClientUncachedTileLinkIOSwitcher(
     nMemChannels, numLanes+1)(switcherParams))
   val lbwif = Module(
@@ -134,7 +134,7 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   switcher.io.in <> unmapper.io.out
 
   def scrRouteSel(addr: UInt) = UIntToOH(p(GlobalAddrMap).isInRegion("io:pbus:HSCRFile",addr))
-  val scr_router = Module(new ClientUncachedTileLinkIORouter(2,scrRouteSel)(edgeMMIOParams))
+  val scr_router = Module(new ClientUncachedTileLinkIORouter(2,scrRouteSel)(outerMMIOParams))
   val (r_start, r_end) = outer.pBusMasters.range("lbwif")
 
   lbwif.io.tl_manager <> switcher.io.out(0)
@@ -142,7 +142,7 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   lbscrTL <> scr_router.io.out(1)
   coreplexIO.slave(r_start) <> scr_router.io.out(0)
 
-  val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide))(UInt(width=p(NarrowWidth))))
+  val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide))(UInt(width=lbwifWidth)))
 
   lbwif.io.serial.in <> slowio_module.io.in_fast
   slowio_module.io.out_fast <> lbwif.io.serial.out
