@@ -52,7 +52,7 @@ endif
 
 ifeq ($(SUITE),UnittestSuite)
 PROJECT=unittest
-CONFIGS=JunctionsUnitTestConfig UncoreUnitTestConfig
+CONFIGS=JunctionsUnitTestConfig UncoreUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig TLXbarUnitTestConfig
 endif
 
 ifeq ($(SUITE), JtagDtmSuite)

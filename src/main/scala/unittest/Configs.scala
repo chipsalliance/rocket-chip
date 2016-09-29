@@ -32,32 +32,39 @@ class WithUncoreUnitTests extends Config(
 
 class UncoreUnitTestConfig extends Config(new WithUncoreUnitTests ++ new BaseConfig)
 
-class WithTL2UnitTests extends Config(
+class WithTLSimpleUnitTests extends Config(
   (pname, site, here) => pname match {
     case UnitTests => (p: Parameters) => {
       Seq(
-        //Module(new uncore.tilelink2.TLRAMSimpleTest(1)),
-        //Module(new uncore.tilelink2.TLRAMSimpleTest(4)),
-        //Module(new uncore.tilelink2.TLRAMSimpleTest(16)),
-        Module(new uncore.tilelink2.TLRAMFragmenterTest(4, 256)),
-        Module(new uncore.tilelink2.TLRAMFragmenterTest(16, 64)),
-        Module(new uncore.tilelink2.TLRAMFragmenterTest(4, 16)),
+        Module(new uncore.tilelink2.TLRAMSimpleTest(1)),
+        Module(new uncore.tilelink2.TLRAMSimpleTest(4)),
+        Module(new uncore.tilelink2.TLRAMSimpleTest(16)),
+        Module(new uncore.tilelink2.TLRR0Test),
+        Module(new uncore.tilelink2.TLRR1Test),
+        Module(new uncore.tilelink2.TLRAMCrossingTest) ) }
+    case _ => throw new CDEMatchError })
+
+class WithTLWidthUnitTests extends Config(
+  (pname, site, here) => pname match {
+    case UnitTests => (p: Parameters) => { Seq(
+        Module(new uncore.tilelink2.TLRAMFragmenterTest( 4, 256)),
+        Module(new uncore.tilelink2.TLRAMFragmenterTest(16,  64)),
+        Module(new uncore.tilelink2.TLRAMFragmenterTest( 4,  16)),
+        Module(new uncore.tilelink2.TLRAMWidthWidgetTest( 1,  1)),
+        Module(new uncore.tilelink2.TLRAMWidthWidgetTest( 4, 64)),
+        Module(new uncore.tilelink2.TLRAMWidthWidgetTest(64,  4)) ) }
+    case _ => throw new CDEMatchError })
+
+class WithTLXbarUnitTests extends Config(
+  (pname, site, here) => pname match {
+    case UnitTests => (p: Parameters) => { Seq(
         Module(new uncore.tilelink2.TLRAMXbarTest(1)),
         Module(new uncore.tilelink2.TLRAMXbarTest(2)),
         Module(new uncore.tilelink2.TLRAMXbarTest(8)),
         //Module(new uncore.tilelink2.TLMulticlientXbarTest(4,4)),
-        //Module(new uncore.tilelink2.TLMulticlientXbarTest(1,4)),
-        Module(new uncore.tilelink2.TLRAMWidthWidgetTest(1,1)),
-        Module(new uncore.tilelink2.TLRAMWidthWidgetTest(4,4)),
-        Module(new uncore.tilelink2.TLRAMWidthWidgetTest(16,16)),
-        Module(new uncore.tilelink2.TLRAMWidthWidgetTest(4,64)),
-        Module(new uncore.tilelink2.TLRAMWidthWidgetTest(64,4)),
-        Module(new uncore.tilelink2.TLRR0Test),
-        Module(new uncore.tilelink2.TLRR1Test),
-        Module(new uncore.tilelink2.TLRAMCrossingTest)
-      )
-    }
-    case _ => throw new CDEMatchError
-  })
+        Module(new uncore.tilelink2.TLMulticlientXbarTest(1,4)) ) }
+    case _ => throw new CDEMatchError })
 
-class TL2UnitTestConfig extends Config(new WithTL2UnitTests ++ new BasePlatformConfig)
+class TLSimpleUnitTestConfig extends Config(new WithTLSimpleUnitTests ++ new BasePlatformConfig)
+class TLWidthUnitTestConfig extends Config(new WithTLWidthUnitTests ++ new BasePlatformConfig)
+class TLXbarUnitTestConfig extends Config(new WithTLXbarUnitTests ++ new BasePlatformConfig)
