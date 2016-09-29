@@ -100,7 +100,7 @@ class BaseCoreplexConfig extends Config (
       case UseCompressed => true
       case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
       case NCustomMRWCSRs => 0
-      case MtvecInit => None
+      case MtvecInit => Some(BigInt(0))
       case MtvecWritable => true
       //Uncore Paramters
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
