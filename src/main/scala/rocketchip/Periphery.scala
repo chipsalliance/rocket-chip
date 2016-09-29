@@ -10,6 +10,7 @@ import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.converters._
 import uncore.devices._
+import uncore.agents._
 import uncore.util._
 import rocket.Util._
 import rocket.XLen
@@ -46,10 +47,17 @@ case object ExtMemSize extends Field[Long]
 case object NExtTopInterrupts extends Field[Int]
 /** Source of RTC. First bundle is TopIO.extra, Second bundle is periphery.io.extra  **/
 case object RTCPeriod extends Field[Int]
+/* Specifies the periphery bus configuration */
+case class PeripheryBusConfig(arithAMO: Boolean, beatBytes: Int = 4)
+case object PeripheryBusKey extends Field[PeripheryBusConfig]
+
+/* Specifies the data and id width at the chip boundary */
+case object EdgeDataBits extends Field[Int]
+case object EdgeIDBits extends Field[Int]
 
 object PeripheryUtils {
-  def addQueueAXI(source: NastiIO)(implicit p: Parameters) = {
-    val sink = Wire(new NastiIO)
+  def addQueueAXI(source: NastiIO) = {
+    val sink = Wire(source)
     sink.ar  <> Queue(source.ar, 1)
     sink.aw  <> Queue(source.aw, 1)
     sink.w   <> Queue(source.w)
@@ -57,13 +65,13 @@ object PeripheryUtils {
     source.b <> Queue(sink.b, 1)
     sink
   }
-  def convertTLtoAXI(tl: ClientUncachedTileLinkIO)(implicit p: Parameters) = {
-    val bridge = Module(new NastiIOTileLinkIOConverter())
+  def convertTLtoAXI(tl: ClientUncachedTileLinkIO) = {
+    val bridge = Module(new NastiIOTileLinkIOConverter()(tl.p))
     bridge.io.tl <> tl
     addQueueAXI(bridge.io.nasti)
   }
-  def convertTLtoAHB(tl: ClientUncachedTileLinkIO, atomics: Boolean)(implicit p: Parameters) = {
-    val bridge = Module(new AHBBridge(atomics))
+  def convertTLtoAHB(tl: ClientUncachedTileLinkIO, atomics: Boolean) = {
+    val bridge = Module(new AHBBridge(atomics)(tl.p))
     bridge.io.tl <> tl
     bridge.io.ahb
   }
@@ -77,10 +85,12 @@ trait HasPeripheryParameters {
   lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
-  lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
-  lazy val innerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
-  lazy val outermostParams = p.alterPartial({ case TLId => "Outermost" })
-  lazy val outermostMMIOParams = p.alterPartial({ case TLId => "MMIO_Outermost" })
+  lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
+  lazy val edgeSlaveParams = p.alterPartial({ case TLId => "EdgetoSlave" })
+  lazy val edgeMemParams = p.alterPartial({ case TLId => "MCtoEdge" })
+  lazy val edgeMMIOParams = p.alterPartial({ case TLId => "MMIOtoEdge" })
+  lazy val peripheryBusConfig = p(PeripheryBusKey)
+  lazy val cacheBlockBytes = p(CacheBlockBytes)
 }
 
 /////
@@ -156,7 +166,7 @@ trait PeripheryMasterMemBundle extends HasPeripheryParameters {
   val mem_rst = p(AsyncMemChannels).option(Vec(nMemChannels, Bool (INPUT)))
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
   val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
-  val mem_tl = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(outermostParams))
+  val mem_tl = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(edgeMemParams))
 }
 
 trait PeripheryMasterMemModule extends HasPeripheryParameters {
@@ -165,9 +175,11 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   val io: PeripheryMasterMemBundle
   val coreplexIO: BaseCoreplexBundle
 
+  val edgeMem = coreplexIO.master.mem.map(TileLinkWidthAdapter(_, edgeMemParams))
+
   // Abuse the fact that zip takes the shorter of the two lists
-  ((io.mem_axi zip coreplexIO.master.mem) zipWithIndex) foreach { case ((axi, mem), idx) =>
-    val axi_sync = PeripheryUtils.convertTLtoAXI(mem)(outermostParams)
+  ((io.mem_axi zip edgeMem) zipWithIndex) foreach { case ((axi, mem), idx) =>
+    val axi_sync = PeripheryUtils.convertTLtoAXI(mem)
     axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
     axi <> (
@@ -176,12 +188,12 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
     )
   }
 
-  (io.mem_ahb zip coreplexIO.master.mem) foreach { case (ahb, mem) =>
-    ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)(outermostParams)
+  (io.mem_ahb zip edgeMem) foreach { case (ahb, mem) =>
+    ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)
   }
 
-  (io.mem_tl zip coreplexIO.master.mem) foreach { case (tl, mem) =>
-    tl <> TileLinkEnqueuer(mem, 2)(outermostParams)
+  (io.mem_tl zip edgeMem) foreach { case (tl, mem) =>
+    tl <> TileLinkEnqueuer(mem, 2)
   }
 }
 
@@ -197,7 +209,7 @@ trait PeripheryMasterMMIOBundle extends HasPeripheryParameters {
   val mmio_rst = p(AsyncMMIOChannels).option(Vec(p(NExtMMIOAXIChannels), Bool (INPUT)))
   val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
   val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
-  val mmio_tl = Vec(p(NExtMMIOTLChannels), new ClientUncachedTileLinkIO()(outermostMMIOParams))
+  val mmio_tl = Vec(p(NExtMMIOTLChannels), new ClientUncachedTileLinkIO()(edgeMMIOParams))
 }
 
 trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
@@ -207,7 +219,7 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   val pBus: TileLinkRecursiveInterconnect
 
   val mmio_ports = p(ExtMMIOPorts) map { port =>
-    TileLinkWidthAdapter(pBus.port(port.name), "MMIO_Outermost")
+    TileLinkWidthAdapter(pBus.port(port.name), edgeMMIOParams)
   }
 
   val mmio_axi_start = 0
@@ -221,17 +233,17 @@ trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
   for (i <- 0 until mmio_ports.size) {
     if (mmio_axi_start <= i && i < mmio_axi_end) {
       val idx = i-mmio_axi_start
-      val axi_sync = PeripheryUtils.convertTLtoAXI(mmio_ports(i))(outermostMMIOParams)
+      val axi_sync = PeripheryUtils.convertTLtoAXI(mmio_ports(i))
       io.mmio_axi(idx) <> (
         if (!p(AsyncMMIOChannels)) axi_sync
         else AsyncNastiTo(io.mmio_clk.get(idx), io.mmio_rst.get(idx), axi_sync)
       )
     } else if (mmio_ahb_start <= i && i < mmio_ahb_end) {
       val idx = i-mmio_ahb_start
-      io.mmio_ahb(idx) <> PeripheryUtils.convertTLtoAHB(mmio_ports(i), atomics = true)(outermostMMIOParams)
+      io.mmio_ahb(idx) <> PeripheryUtils.convertTLtoAHB(mmio_ports(i), atomics = true)
     } else if (mmio_tl_start <= i && i < mmio_tl_end) {
       val idx = i-mmio_tl_start
-      io.mmio_tl(idx) <> TileLinkEnqueuer(mmio_ports(i), 2)(outermostMMIOParams)
+      io.mmio_tl(idx) <> TileLinkEnqueuer(mmio_ports(i), 2)
     } else {
       require(false, "Unconnected external MMIO port")
     }
@@ -268,12 +280,12 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
         else AsyncNastiFrom(io.bus_clk.get(idx), io.bus_rst.get(idx), bus)
       )
     }
-    val conv = Module(new TileLinkIONastiIOConverter()(innerParams))
+    val conv = Module(new TileLinkIONastiIOConverter()(edgeSlaveParams))
     conv.io.nasti <> arb.io.slave
 
-    val r = outer.pBusMasters.range("ext")
-    require(r._2 - r._1 == 1, "RangeManager should return 1 slot")
-    coreplexIO.slave(r._1) <> conv.io.tl
+    val (r_start, r_end) = outer.pBusMasters.range("ext")
+    require(r_end - r_start == 1, "RangeManager should return 1 slot")
+    TileLinkWidthAdapter(coreplexIO.slave(r_start), conv.io.tl)
   }
 }
 
@@ -284,11 +296,11 @@ trait PeripheryCoreplexLocalInterrupter extends LazyModule with HasPeripheryPara
   val peripheryBus: TLXbar
 
   // CoreplexLocalInterrupter must be at least 64b if XLen >= 64
-  val beatBytes = (innerMMIOParams(XLen) min 64) / 8
+  val beatBytes = max((outerMMIOParams(XLen) min 64) / 8, peripheryBusConfig.beatBytes)
   val clintConfig = CoreplexLocalInterrupterConfig(beatBytes)
-  val clint = LazyModule(new CoreplexLocalInterrupter(clintConfig)(innerMMIOParams))
+  val clint = LazyModule(new CoreplexLocalInterrupter(clintConfig)(outerMMIOParams))
   // The periphery bus is 32-bit, so we may need to adapt its width to XLen
-  clint.node := TLFragmenter(TLWidthWidget(peripheryBus.node, 4), beatBytes, 256)
+  clint.node := TLFragmenter(beatBytes, cacheBlockBytes)(TLWidthWidget(peripheryBusConfig.beatBytes)(peripheryBus.node))
 }
 
 trait PeripheryCoreplexLocalInterrupterBundle {
@@ -307,14 +319,15 @@ trait PeripheryCoreplexLocalInterrupterModule extends HasPeripheryParameters {
 
 /////
 
-trait PeripheryBootROM extends LazyModule {
+trait PeripheryBootROM extends LazyModule with HasPeripheryParameters {
   implicit val p: Parameters
   val peripheryBus: TLXbar
 
   val address = 0x1000
   val size = 0x1000
-  val rom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address)) { override def name = "bootrom" })
-  rom.node := TLFragmenter(peripheryBus.node, 4, 256)
+  val rom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address), true, peripheryBusConfig.beatBytes)
+                       { override def name = "bootrom" })
+  rom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }
 
 trait PeripheryBootROMBundle {
@@ -329,15 +342,16 @@ trait PeripheryBootROMModule extends HasPeripheryParameters {
 
 /////
 
-trait PeripheryTestRAM extends LazyModule {
+trait PeripheryTestRAM extends LazyModule with HasPeripheryParameters {
   implicit val p: Parameters
   val peripheryBus: TLXbar
 
   val ramBase = 0x52000000
   val ramSize = 0x1000
 
-  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1)) { override def name = "testram" })
-  sram.node := TLFragmenter(peripheryBus.node, 4, 256)
+  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1), true, peripheryBusConfig.beatBytes)
+                        { override def name = "testram" })
+  sram.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }
 
 trait PeripheryTestRAMBundle {

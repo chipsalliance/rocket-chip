@@ -22,13 +22,21 @@ abstract class NodeImp[PO, PI, EO, EI, B <: Data]
   def mixI(pi: PI, node: BaseNode[PO, PI, EO, EI, B]): PI = pi
 }
 
-class RootNode
+abstract class RootNode
 {
   // You cannot create a Node outside a LazyModule!
   require (!LazyModule.stack.isEmpty)
 
   val lazyModule = LazyModule.stack.head
+  val index = lazyModule.nodes.size
   lazyModule.nodes = this :: lazyModule.nodes
+
+  def name = lazyModule.name + "." + getClass.getName.split('.').last
+  def colour = "blue"
+  def omitGraphML = outputs.isEmpty && inputs.isEmpty
+
+  protected[tilelink2] def outputs: Seq[RootNode]
+  protected[tilelink2] def inputs:  Seq[RootNode]
 }
 
 class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
@@ -38,7 +46,6 @@ class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
   private val numPI: Range.Inclusive) extends RootNode
 {
   // At least 0 ports must be supported
-  def name = lazyModule.name + "." + getClass.getName.split('.').last
   require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
   require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
   require (numPO.start >= 0, s"${name} accepts a negative number of outputs${lazyModule.line}")
@@ -58,6 +65,9 @@ class BaseNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(
 
   private lazy val oPorts = { oRealized = true; reqO(); accPO.result() }
   private lazy val iPorts = { iRealized = true; reqI(); accPI.result() }
+
+  protected[tilelink2] def outputs = oPorts.map(_._2)
+  protected[tilelink2] def inputs  = iPorts.map(_._2)
 
   private lazy val oParams : Seq[PO] = {
     val o = oFn(oPorts.size, iPorts.map{ case (i, n) => n.oParams(i) })

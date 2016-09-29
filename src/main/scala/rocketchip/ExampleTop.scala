@@ -7,7 +7,6 @@ import cde.{Parameters, Field}
 import junctions._
 import coreplex._
 import rocketchip._
-import util.Pow2ClockDivider
 
 /** Example Top with Periphery */
 class ExampleTop(q: Parameters) extends BaseTop(q)
@@ -39,6 +38,7 @@ class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, 
     with PeripheryMasterMMIOModule
     with PeripherySlaveModule
     with HardwiredResetVector
+    with DirectConnection
 
 /** Example Top with TestRAM */
 class ExampleTopWithTestRAM(q: Parameters) extends ExampleTop(q)
@@ -51,27 +51,3 @@ class ExampleTopWithTestRAMBundle(p: Parameters) extends ExampleTopBundle(p)
 
 class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle](p: Parameters, l: L, b: => B) extends ExampleTopModule(p, l, b)
     with PeripheryTestRAMModule
-
-/** Example Top with Multi Clock */
-class ExampleMultiClockTop(q: Parameters) extends ExampleTop(q)
-    with PeripheryTestRAM {
-  override lazy val module = Module(new ExampleMultiClockTopModule(p, this, new ExampleMultiClockTopBundle(p)))
-}
-
-class ExampleMultiClockTopBundle(p: Parameters) extends ExampleTopBundle(p)
-
-class ExampleMultiClockTopModule[+L <: ExampleMultiClockTop, +B <: ExampleMultiClockTopBundle]
-    (p: Parameters, l: L, b: => B) extends ExampleTopModule(p, l, b) {
-  val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
-
-  val coreplexDivider = Module(new Pow2ClockDivider(2))
-  coreplex.clock := coreplexDivider.io.clock_out
-
-  multiClockCoreplexIO.tcrs foreach { tcr =>
-    val tileDivider = Module(new Pow2ClockDivider(1))
-    tcr.clock := tileDivider.io.clock_out
-    tcr.reset := reset
-  }
-  multiClockCoreplexIO.extcr.clock := clock
-  multiClockCoreplexIO.extcr.reset := reset
-}

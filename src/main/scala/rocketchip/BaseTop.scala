@@ -8,7 +8,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.devices._
-import util.ParameterizedBundle
+import util.{ParameterizedBundle, ConfigStringOutput, GraphMLOutput}
 import rocket._
 import rocket.Util._
 import coreplex._
@@ -49,7 +49,12 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
 
   val legacy = LazyModule(new TLLegacy()(p.alterPartial({ case TLId => "L2toMMIO" })))
 
-  peripheryBus.node := TLWidthWidget(TLBuffer(TLAtomicAutomata()(TLHintHandler(legacy.node))), legacy.tlDataBytes)
+  peripheryBus.node :=
+    TLWidthWidget(legacy.tlDataBytes)(
+    TLBuffer()(
+    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
+    TLHintHandler()(
+    legacy.node))))
 }
 
 abstract class BaseTopBundle(val p: Parameters) extends Bundle {
@@ -62,7 +67,7 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
   val io: B = b
 
   val coreplex = p(BuildCoreplex)(outer.c, p)
-  val coreplexIO = coreplex.io
+  val coreplexIO = Wire(coreplex.io)
 
   val pBus =
     Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:pbus"))(
@@ -86,6 +91,14 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
   println("Generated Configuration String")
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
+  GraphMLOutput.contents = Some(outer.graphML)
 
   io.success := coreplexIO.success
+}
+
+trait DirectConnection {
+  val coreplexIO: BaseCoreplexBundle
+  val coreplex: BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]
+
+  coreplexIO <> coreplex.io
 }

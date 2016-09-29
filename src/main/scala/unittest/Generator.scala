@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package groundtest
+package unittest
 
 object Generator extends util.GeneratorApp {
   val longName = names.topModuleProject + "." + names.configs

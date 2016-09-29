@@ -2,126 +2,83 @@
 
 package rocketchip
 
-import Chisel._
-import scala.collection.mutable.{LinkedHashSet,LinkedHashMap}
-import cde._
-import coreplex._
-import java.io.{File, FileWriter}
+import rocket.{XLen, UseVM, UseAtomics, UseCompressed, FPUKey}
+import scala.collection.mutable.LinkedHashSet
 
-/** Representation of the information this Generator needs to collect from external sources. */
-case class ParsedInputNames(
-    targetDir: String,
-    topModuleProject: String,
-    topModuleClass: String,
-    configProject: String,
-    configs: String) {
-  val configClasses: Seq[String] = configs.split('_')
-  val fullConfigClasses: Seq[String] = configClasses.map(configProject + "." + _)
-  val fullTopModuleClass: String = topModuleProject + "." + topModuleClass
-}
+/** A Generator for platforms containing Rocket Coreplexes */
+object Generator extends util.GeneratorApp {
 
-/** Common utilities we supply to all Generators. In particular, supplies the
-  * canonical ways of building various JVM elaboration-time structures.
-  */
-trait HasGeneratorUtilities {
-  def getConfig(names: ParsedInputNames): Config = {
-    names.fullConfigClasses.foldRight(new Config()) { case (currentName, config) =>
-      val currentConfig = try {
-        Class.forName(currentName).newInstance.asInstanceOf[Config]
-      } catch {
-        case e: java.lang.ClassNotFoundException =>
-          throwException(s"""Unable to find part "$currentName" from "${names.configs}", did you misspell it?""", e)
+  val rv64RegrTestNames = LinkedHashSet(
+        "rv64ud-v-fcvt",
+        "rv64ud-p-fdiv",
+        "rv64ud-v-fadd",
+        "rv64uf-v-fadd",
+        "rv64um-v-mul",
+        "rv64mi-p-breakpoint",
+        "rv64uc-v-rvc",
+        "rv64ud-v-structural",
+        "rv64si-p-wfi",
+        "rv64um-v-divw",
+        "rv64ua-v-lrsc",
+        "rv64ui-v-fence_i",
+        "rv64ud-v-fcvt_w",
+        "rv64uf-v-fmin",
+        "rv64ui-v-sb",
+        "rv64ua-v-amomax_d",
+        "rv64ud-v-move",
+        "rv64ud-v-fclass",
+        "rv64ua-v-amoand_d",
+        "rv64ua-v-amoxor_d",
+        "rv64si-p-sbreak",
+        "rv64ud-v-fmadd",
+        "rv64uf-v-ldst",
+        "rv64um-v-mulh",
+        "rv64si-p-dirty")
+
+  val rv32RegrTestNames = LinkedHashSet(
+      "rv32mi-p-ma_addr",
+      "rv32mi-p-csr",
+      "rv32ui-p-sh",
+      "rv32ui-p-lh",
+      "rv32uc-p-rvc",
+      "rv32mi-p-sbreak",
+      "rv32ui-p-sll")
+
+  override def addTestSuites {
+    import DefaultTestSuites._
+    val xlen = params(XLen)
+    val vm = params(UseVM)
+    val env = if (vm) List("p","v") else List("p")
+    params(FPUKey) foreach { case cfg =>
+      if (xlen == 32) {
+        TestGeneration.addSuites(env.map(rv32ufNoDiv))
+      } else {
+        TestGeneration.addSuite(rv32udBenchmarks)
+        TestGeneration.addSuites(env.map(rv64ufNoDiv))
+        TestGeneration.addSuites(env.map(rv64udNoDiv))
+        if (cfg.divSqrt) {
+          TestGeneration.addSuites(env.map(rv64uf))
+          TestGeneration.addSuites(env.map(rv64ud))
+        }
       }
-      currentConfig ++ config
     }
+    if (params(UseAtomics))    TestGeneration.addSuites(env.map(if (xlen == 64) rv64ua else rv32ua))
+    if (params(UseCompressed)) TestGeneration.addSuites(env.map(if (xlen == 64) rv64uc else rv32uc))
+    val (rvi, rvu) =
+      if (xlen == 64) ((if (vm) rv64i else rv64pi), rv64u)
+      else            ((if (vm) rv32i else rv32pi), rv32u)
+
+    TestGeneration.addSuites(rvi.map(_("p")))
+    TestGeneration.addSuites((if (vm) List("v") else List()).flatMap(env => rvu.map(_(env))))
+    TestGeneration.addSuite(benchmarks)
+    TestGeneration.addSuite(new RegressionTestSuite(if (xlen == 64) rv64RegrTestNames else rv32RegrTestNames))
   }
 
-  def getParameters(names: ParsedInputNames): Parameters = getParameters(getConfig(names))
-
-  def getParameters(config: Config): Parameters = Parameters.root(config.toInstance)
-
-  import chisel3.internal.firrtl.Circuit
-  def elaborate(names: ParsedInputNames, params: Parameters): Circuit = {
-    val gen = () =>
-      Class.forName(names.fullTopModuleClass)
-        .getConstructor(classOf[cde.Parameters])
-        .newInstance(params)
-        .asInstanceOf[Module]
-
-    Driver.elaborate(gen)
-  }
-
-  def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
-    val f = new File(targetDir, fname) 
-    val fw = new FileWriter(f)
-    fw.write(contents)
-    fw.close
-    f
-  }
-}
-
-
-/** Standardized command line interface for Scala entry point */
-trait Generator extends App with HasGeneratorUtilities {
-  lazy val names: ParsedInputNames = {
-    require(args.size == 5, "Usage: sbt> " + 
-      "run TargetDir TopModuleProjectName TopModuleName ConfigProjectName ConfigNameString")
-    ParsedInputNames(
-      targetDir = args(0),
-      topModuleProject = args(1),
-      topModuleClass = args(2),
-      configProject = args(3),
-      configs = args(4))
-  }
-
-  // Canonical ways of building various JVM elaboration-time structures
-  lazy val td = names.targetDir
-  lazy val config = getConfig(names)
-  lazy val world = config.toInstance
-  lazy val params = Parameters.root(world)
-  lazy val circuit = elaborate(names, params)
-
-  val longName: String // Exhaustive name used to interface with external build tool targets
-
-  /** Output FIRRTL, which an external compiler can turn into Verilog. */
-  def generateFirrtl {
-    Driver.dumpFirrtl(circuit, Some(new File(td, s"$longName.fir"))) // FIRRTL
-  }
-
-  /** Output software test Makefrags, which provide targets for integration testing. */
-  def generateTestSuiteMakefrags {
-    TestGeneration.addSuite(new RegressionTestSuite(params(RegressionTestNames)))
-    writeOutputFile(td, s"$longName.d", TestGeneration.generateMakefrag) // Coreplex-specific test suites
-  }
-
-  /** Output Design Space Exploration knobs and constraints. */
-  def generateDSEConstraints {
-    writeOutputFile(td, s"${names.configs}.knb", world.getKnobs) // Knobs for DSE
-    writeOutputFile(td, s"${names.configs}.cst", world.getConstraints) // Constraints for DSE
-  }
-
-  /** Output a global Parameter dump, which an external script can turn into Verilog headers. */
-  def generateParameterDump {
-    writeOutputFile(td, s"$longName.prm", ParameterDump.getDump) // Parameters flagged with Dump()
-  }
-
-  /** Output a global ConfigString, for use by the RISC-V software ecosystem. */
-  def generateConfigString {
-    ConfigStringOutput.contents.foreach(c => writeOutputFile(td, s"${names.configs}.cfg", c)) // String for software
-  }
-}
-
-object ConfigStringOutput {
-  var contents: Option[String] = None
-}
-
-/** An example Generator */
-object RocketChipGenerator extends Generator
-{
   val longName = names.topModuleClass + "." + names.configs
   generateFirrtl
   generateTestSuiteMakefrags
   generateDSEConstraints
   generateConfigString
+  generateGraphML
   generateParameterDump
 }

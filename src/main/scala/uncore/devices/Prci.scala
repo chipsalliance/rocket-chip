@@ -48,7 +48,7 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
   val timeWidth = 64
   val regWidth = 32
   // demand atomic accesses for RV64
-  require(c.beatBytes == (p(rocket.XLen) min timeWidth)/8)
+  require(c.beatBytes >= (p(rocket.XLen) min timeWidth)/8)
 
   val time = Seq.fill(timeWidth/regWidth)(Reg(init=UInt(0, width = regWidth)))
   when (io.rtcTick) {
@@ -74,14 +74,11 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
    * bff8 mtime lo
    * bffc mtime hi
    */
-  val ipi_base     = 0
-  val timecmp_base = c.timecmpOffset(0) / c.beatBytes
-  val time_base    = c.timeOffset / c.beatBytes
 
-  regmap((
-    RegField.split(makeRegFields(ipi),             ipi_base,     c.beatBytes) ++
-    RegField.split(makeRegFields(timecmp.flatten), timecmp_base, c.beatBytes) ++
-    RegField.split(makeRegFields(time),            time_base,    c.beatBytes)):_*)
+  regmap(
+    0                  -> makeRegFields(ipi),
+    c.timecmpOffset(0) -> makeRegFields(timecmp.flatten),
+    c.timeOffset       -> makeRegFields(time))
 
   def makeRegFields(s: Seq[UInt]) = s.map(r => RegField(regWidth, r))
 }

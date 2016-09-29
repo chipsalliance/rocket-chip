@@ -3,17 +3,9 @@
 package uncore.tilelink2
 
 import Chisel._
+import chisel3.util.IrrevocableIO
 
-object TLXbar
-{
-  def lowestIndex(requests: Vec[Bool], execute: Bool) = {
-    // lowest-index first is stateless; ignore execute
-    val ors = Vec(requests.scanLeft(Bool(false))(_ || _).init) // prefix-OR
-    Vec((ors zip requests) map { case (o, r) => !o && r })
-  }
-}
-
-class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extends LazyModule
+class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends LazyModule
 {
   def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId))
   def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
@@ -103,7 +95,6 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
 
     // Handle size = 1 gracefully (Chisel3 empty range is broken)
     def trim(id: UInt, size: Int) = if (size <= 1) UInt(0) else id(log2Ceil(size)-1, 0)
-    def transpose(x: Seq[Seq[Bool]]) = Vec.tabulate(x(0).size) { i => Vec.tabulate(x.size) { j => x(j)(i) } }
 
     // Transform input bundle sources (sinks use global namespace on both sides)
     val in = Wire(Vec(io.in.size, TLBundle(wide_bundle)))
@@ -129,117 +120,61 @@ class TLXbar(policy: (Vec[Bool], Bool) => Seq[Bool] = TLXbar.lowestIndex) extend
       io.out(i).e.bits.sink := trim(out(i).e.bits.sink, r.size)
     }
 
-    // The crossbar cross-connection state; defined later
-    val grantedAIO = Wire(Vec(in .size, Vec(out.size, Bool())))
-    val grantedBOI = Wire(Vec(out.size, Vec(in .size, Bool())))
-    val grantedCIO = Wire(Vec(in .size, Vec(out.size, Bool())))
-    val grantedDOI = Wire(Vec(out.size, Vec(in .size, Bool())))
-    val grantedEIO = Wire(Vec(in .size, Vec(out.size, Bool())))
+    val addressA = (in zip node.edgesIn) map { case (i, e) => e.address(i.a.bits) }
+    val addressC = (in zip node.edgesIn) map { case (i, e) => e.address(i.c.bits) }
 
-    val grantedAOI = transpose(grantedAIO)
-    val grantedBIO = transpose(grantedBOI)
-    val grantedCOI = transpose(grantedCIO)
-    val grantedDIO = transpose(grantedDOI)
-    val grantedEOI = transpose(grantedEIO)
+    val requestAIO = Vec(addressA.map { i => Vec(outputPorts.map { o => o(i) }) })
+    val requestCIO = Vec(addressC.map { i => Vec(outputPorts.map { o => o(i) }) })
+    val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.b.bits.source) }) })
+    val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.d.bits.source) }) })
+    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => o.contains(i.e.bits.sink)   }) })
 
-    // Mux1H passes a single-source through unmasked. That's bad for control.
-    def Mux1C(sel: Seq[Bool], ctl: Seq[Bool]) = (sel zip ctl).map{ case (a,b) => a && b }.reduce(_ || _)
-
-    // Mux clients to managers
-    for (o <- 0 until out.size) {
-      out(o).a.valid := Mux1C(grantedAOI(o), in.map(_.a.valid))
-      out(o).a.bits  := Mux1H(grantedAOI(o), in.map(_.a.bits))
-      out(o).b.ready := Mux1C(grantedBOI(o), in.map(_.b.ready))
-      out(o).c.valid := Mux1C(grantedCOI(o), in.map(_.c.valid))
-      out(o).c.bits  := Mux1H(grantedCOI(o), in.map(_.c.bits))
-      out(o).d.ready := Mux1C(grantedDOI(o), in.map(_.d.ready))
-      out(o).e.valid := Mux1C(grantedEOI(o), in.map(_.e.valid))
-      out(o).e.bits  := Mux1H(grantedEOI(o), in.map(_.e.bits))
-    }
-
-    // Mux managers to clients
-    for (i <- 0 until in.size) {
-      in(i).a.ready := Mux1C(grantedAIO(i), out.map(_.a.ready))
-      in(i).b.valid := Mux1C(grantedBIO(i), out.map(_.b.valid))
-      in(i).b.bits  := Mux1H(grantedBIO(i), out.map(_.b.bits))
-      in(i).c.ready := Mux1C(grantedCIO(i), out.map(_.c.ready))
-      in(i).d.valid := Mux1C(grantedDIO(i), out.map(_.d.valid))
-      in(i).d.bits  := Mux1H(grantedDIO(i), out.map(_.d.bits))
-      in(i).e.ready := Mux1C(grantedEIO(i), out.map(_.e.ready))
-    }
-
-    val addressA = (in zip node.edgesIn) map { case (i, e) => (i.a.valid, e.address(i.a.bits)) }
-    val addressC = (in zip node.edgesIn) map { case (i, e) => (i.c.valid, e.address(i.c.bits)) }
-
-    val requestAIO = Vec(addressA.map { i => Vec(outputPorts.map { o => i._1 && o(i._2) }) })
-    val requestCIO = Vec(addressC.map { i => Vec(outputPorts.map { o => i._1 && o(i._2) }) })
-
-    val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.b.valid && i.contains(o.b.bits.source) }) })
-    val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => o.d.valid && i.contains(o.d.bits.source) }) })
-    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => i.e.valid && o.contains(i.e.bits.sink)   }) })
-
-    val beatsA = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.a.bits) })
-    val beatsB = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.b.bits) })
-    val beatsC = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.c.bits) })
-    val beatsD = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.d.bits) })
-    val beatsE = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.e.bits) })
+    val beatsAI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.a.bits) })
+    val beatsBO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.b.bits) })
+    val beatsCI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.c.bits) })
+    val beatsDO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.d.bits) })
+    val beatsEI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.e.bits) })
 
     // Which pairs support support transfers
-    val maskIO = Vec.tabulate(in.size) { i => Vec.tabulate(out.size) { o => 
-      Bool(node.edgesIn(i).client.anySupportProbe && node.edgesOut(o).manager.anySupportAcquire)
-    } }
-    val maskOI = transpose(maskIO)
+    def transpose[T](x: Seq[Seq[T]]) = Seq.tabulate(x(0).size) { i => Seq.tabulate(x.size) { j => x(j)(i) } }
+    def filter[T](data: Seq[T], mask: Seq[Boolean]) = (data zip mask).filter(_._2).map(_._1)
 
-    // Mask out BCE channel connections (to be optimized away) for transfer-incapable pairings
-    def mask(a: Seq[Seq[Bool]], b: Seq[Seq[Bool]]) = 
-      Vec((a zip b) map { case (x, y) => Vec((x zip y) map { case (a, b) => a && b }) })
-
-    grantedAIO :=      arbitrate(     requestAIO,          beatsA, out.map(_.a.fire()))
-    grantedBOI := mask(arbitrate(mask(requestBOI, maskOI), beatsB, in .map(_.b.fire())), maskOI)
-    grantedCIO := mask(arbitrate(mask(requestCIO, maskIO), beatsC, out.map(_.c.fire())), maskIO)
-    grantedDOI :=      arbitrate(     requestDOI,          beatsD, in .map(_.d.fire()))
-    grantedEIO := mask(arbitrate(mask(requestEIO, maskIO), beatsE, out.map(_.e.fire())), maskIO)
-
-    def arbitrate(request: Seq[Seq[Bool]], beats: Seq[UInt], progress: Seq[Bool]) = {
-      request foreach { row => require (row.size == progress.size) } // consistent # of resources
-      request foreach { resources => // only one resource is requested
-        val prefixOR = resources.scanLeft(Bool(false))(_ || _).init
-        assert (!(prefixOR zip resources).map{case (a, b) => a && b}.reduce(_ || _))
+    // Replicate an input port to each output port
+    def fanout[T <: TLChannel](input: IrrevocableIO[T], select: Seq[Bool]) = {
+      val filtered = Wire(Vec(select.size, input))
+      for (i <- 0 until select.size) {
+        filtered(i).bits := input.bits
+        filtered(i).valid := input.valid && select(i)
       }
-      transpose((transpose(request) zip progress).map { case (r,p) => arbitrate1(r, beats, p) })
+      input.ready := Mux1H(select, filtered.map(_.ready))
+      filtered
     }
 
-    def arbitrate1(requests: Vec[Bool], beats: Seq[UInt], progress: Bool) = {
-      require (requests.size == beats.size) // consistent # of requesters
+    // Fanout the input sources to the output sinks
+    val portsAOI = transpose((in  zip requestAIO) map { case (i, r) => fanout(i.a, r) })
+    val portsBIO = transpose((out zip requestBOI) map { case (o, r) => fanout(o.b, r) })
+    val portsCOI = transpose((in  zip requestCIO) map { case (i, r) => fanout(i.c, r) })
+    val portsDIO = transpose((out zip requestDOI) map { case (o, r) => fanout(o.d, r) })
+    val portsEOI = transpose((in  zip requestEIO) map { case (i, r) => fanout(i.e, r) })
 
-      val beatsLeft = RegInit(UInt(0))
-      val idle = beatsLeft === UInt(0)
+    // Arbitrate amongst the sources
+    for (o <- 0 until out.size) {
+      val allowI = Seq.tabulate(in.size) { i =>
+        node.edgesIn(i).client.anySupportProbe &&
+        node.edgesOut(o).manager.anySupportAcquire
+      }
+      TLArbiter(policy)(out(o).a,       (beatsAI zip portsAOI(o)        ):_*)
+      TLArbiter(policy)(out(o).c, filter(beatsCI zip portsCOI(o), allowI):_*)
+      TLArbiter(policy)(out(o).e, filter(beatsEI zip portsEOI(o), allowI):_*)
+    }
 
-      // Apply policy to select which requester wins
-      val winners = Vec(policy(requests, idle))
-
-      // Winners must be a subset of requests
-      assert ((winners zip requests).map { case (w,r) => !w || r } .reduce(_ && _))
-      // There must be only one winner
-      val prefixOR = winners.scanLeft(Bool(false))(_ || _).init
-      assert ((prefixOR zip winners).map { case (p,w) => !p || !w }.reduce(_ && _))
-
-      // Supposing we take the winner as input, how many beats must be sent?
-      val maskedBeats = (winners zip beats).map { case (w,b) => Mux(w, b, UInt(0)) }
-      val initBeats = maskedBeats.reduceLeft(_ | _) // no winner => 0 beats
-      // What is the counter state before progress?
-      val todoBeats = Mux(idle, initBeats, beatsLeft)
-      // Apply progress and register the result
-      beatsLeft := todoBeats - progress.asUInt
-      assert (!progress || todoBeats =/= UInt(0)) // underflow should be impossible
-
-      // The previous arbitration state of the resource
-      val state = RegInit(Vec.fill(requests.size)(Bool(false)))
-      // Only take a new value while idle
-      val muxState = Mux(idle, winners, state)
-      state := muxState
-
-      muxState
+    for (i <- 0 until in.size) {
+      val allowO = Seq.tabulate(out.size) { o =>
+        node.edgesIn(i).client.anySupportProbe &&
+        node.edgesOut(o).manager.anySupportAcquire
+      }
+      TLArbiter(policy)(in(i).b, filter(beatsBO zip portsBIO(i), allowO):_*)
+      TLArbiter(policy)(in(i).d,       (beatsDO zip portsDIO(i)        ):_*)
     }
   }
 }

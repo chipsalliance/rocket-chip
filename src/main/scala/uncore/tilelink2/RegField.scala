@@ -77,7 +77,7 @@ object RegWriteFn
   implicit def apply(x: Unit): RegWriteFn = RegWriteFn((valid, data) => { Bool(true) })
 }
 
-case class RegField(width: Int, read: RegReadFn, write: RegWriteFn)
+case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, name: String, description: String)
 {
   require (width > 0)
   def pipelined = !read.combinational || !write.combinational
@@ -85,11 +85,15 @@ case class RegField(width: Int, read: RegReadFn, write: RegWriteFn)
 
 object RegField
 {
+  // Byte address => sequence of bitfields, lowest index => lowest address
   type Map = (Int, Seq[RegField])
-  def apply(n: Int)            : RegField = apply(n, (), ())
-  def apply(n: Int, rw: UInt)  : RegField = apply(n, rw, rw)
-  def r(n: Int, r: RegReadFn)  : RegField = apply(n, r, ())
-  def w(n: Int, w: RegWriteFn) : RegField = apply(n, (), w)
+
+  def apply(n: Int)                                                         : RegField = apply(n, (), (), "", "")
+  def apply(n: Int, r: RegReadFn, w: RegWriteFn)                            : RegField = apply(n, r, w,   "", "")
+  def apply(n: Int, rw: UInt)                                               : RegField = apply(n, rw, rw, "", "")
+  def apply(n: Int, rw: UInt, name: String, description: String)            : RegField = apply(n, rw, rw, name, description)
+  def r(n: Int, r: RegReadFn,  name: String = "", description: String = "") : RegField = apply(n, r,  (), name, description)
+  def w(n: Int, w: RegWriteFn, name: String = "", description: String = "") : RegField = apply(n, (), w,  name, description)
 
   // This RegField allows 'set' to set bits in 'reg'.
   // and to clear bits when the bus writes bits of value 1.
@@ -105,28 +109,6 @@ object RegField
       bb.d := data
       Bool(true)
     }))
-
-  // Split a large register into a sequence of byte fields
-  // The bytes can be individually written, as they are one byte per field
-  def bytes(x: UInt): Seq[RegField] = {
-    require (x.getWidth % 8 == 0)
-    val bytes = Seq.tabulate(x.getWidth/8) { i => x(8*(i+1)-1, 8*i) }
-    val wires = bytes.map { b => Wire(init = b) }
-    x := Cat(wires.reverse)
-    Seq.tabulate(x.getWidth/8) { i =>
-      RegField(8, bytes(i), RegWriteFn { (valid, data) =>
-        when (valid) { wires(i) := data }
-        Bool(true)
-      })
-    }
-  }
-
-  // Divide a long sequence of RegFields into a maximum sized registers
-  // Your input RegFields may not cross a beatBytes boundary!
-  def split(fields: Seq[RegField], base: Int, beatBytes: Int = 4): Seq[RegField.Map] = {
-    val offsets = fields.map(_.width).scanLeft(0)(_ + _).init
-    (offsets zip fields).groupBy(_._1 / (beatBytes*8)).toList.map(r => (r._1 + base, r._2.map(_._2)))
-  }
 }
 
 trait HasRegMap

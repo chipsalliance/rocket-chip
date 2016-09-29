@@ -48,12 +48,12 @@ class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe:
 object TLBuffer
 {
   // applied to the TL source node; y.node := TLBuffer(x.node)
-  def apply(x: TLBaseNode)                                  (implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, 2)
-  def apply(x: TLBaseNode, entries: Int)                    (implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, entries, true)
-  def apply(x: TLBaseNode, entries: Int, pipe: Boolean)     (implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, entries, entries, pipe)
-  def apply(x: TLBaseNode, ace: Int, bd: Int)               (implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, ace, bd, true)
-  def apply(x: TLBaseNode, ace: Int, bd: Int, pipe: Boolean)(implicit sourceInfo: SourceInfo): TLBaseNode = apply(x, ace, bd, ace, bd, ace, pipe)
-  def apply(x: TLBaseNode, a: Int, b: Int, c: Int, d: Int, e: Int, pipe: Boolean = true)(implicit sourceInfo: SourceInfo): TLBaseNode = {
+  def apply()                                (x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = apply(2)(x)
+  def apply(entries: Int)                    (x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = apply(entries, true)(x)
+  def apply(entries: Int, pipe: Boolean)     (x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = apply(entries, entries, pipe)(x)
+  def apply(ace: Int, bd: Int)               (x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = apply(ace, bd, true)(x)
+  def apply(ace: Int, bd: Int, pipe: Boolean)(x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = apply(ace, bd, ace, bd, ace, pipe)(x)
+  def apply(a: Int, b: Int, c: Int, d: Int, e: Int, pipe: Boolean = true)(x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = {
     val buffer = LazyModule(new TLBuffer(a, b, c, d, e, pipe))
     buffer.node := x
     buffer.node

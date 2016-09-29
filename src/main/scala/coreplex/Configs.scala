@@ -13,8 +13,6 @@ import rocket._
 import rocket.Util._
 import util.ConfigUtils._
 import rocketchip.{GlobalAddrMap, NCoreplexExtClients}
-import scala.collection.mutable.{LinkedHashSet, ListBuffer}
-import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
 class BaseCoreplexConfig extends Config (
@@ -71,28 +69,6 @@ class BaseCoreplexConfig extends Config (
       case NUncachedTileLinkPorts => 1
       //Tile Constants
       case BuildTiles => {
-        val env = if(site(UseVM)) List("p","v") else List("p")
-        site(FPUKey) foreach { case cfg =>
-          if (site(XLen) == 32) {
-            TestGeneration.addSuites(env.map(rv32ufNoDiv))
-          } else {
-            TestGeneration.addSuite(rv32udBenchmarks)
-            TestGeneration.addSuites(env.map(rv64ufNoDiv))
-            TestGeneration.addSuites(env.map(rv64udNoDiv))
-            if (cfg.divSqrt) {
-              TestGeneration.addSuites(env.map(rv64uf))
-              TestGeneration.addSuites(env.map(rv64ud))
-            }
-          }
-        }
-        if (site(UseAtomics)) TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64ua else rv32ua))
-        if (site(UseCompressed)) TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64uc else rv32uc))
-        val (rvi, rvu) =
-          if (site(XLen) == 64) ((if (site(UseVM)) rv64i else rv64pi), rv64u)
-          else ((if (site(UseVM)) rv32i else rv32pi), rv32u)
-        TestGeneration.addSuites(rvi.map(_("p")))
-        TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuite(benchmarks)
         List.tabulate(site(NTiles)){ i => (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TileId => i
@@ -156,16 +132,12 @@ class BaseCoreplexConfig extends Config (
           nManagers = 1,
           nCachingClients = site(NBanksPerMemoryChannel),
           nCachelessClients = 0,
-          maxClientXacts = 1,
-          maxClientsPerPort = site(NAcquireTransactors) + 2,
+          maxClientXacts = site(NAcquireTransactors) + 2,
+          maxClientsPerPort = site(NBanksPerMemoryChannel),
           maxManagerXacts = 1,
           dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes)*8)
       case TLKey("L2toMC") => site(TLKey("DefaultL2toMC")).copy()
-      case TLKey("Outermost") => site(TLKey("L2toMC")).copy(
-        maxClientXacts = site(NAcquireTransactors) + 2,
-        maxClientsPerPort = site(NBanksPerMemoryChannel),
-        dataBeats = site(MIFDataBeats))
       case TLKey("DefaultL2toMMIO") => {
         TileLinkParameters(
           coherencePolicy = new MICoherence(
@@ -180,7 +152,6 @@ class BaseCoreplexConfig extends Config (
           dataBits = site(CacheBlockBytes) * 8)
       }
       case TLKey("L2toMMIO") => site(TLKey("DefaultL2toMMIO")).copy()
-      case TLKey("MMIO_Outermost") => site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
 
       case BootROMFile => "./bootrom/bootrom.img"
       case NTiles => 1
@@ -189,32 +160,6 @@ class BaseCoreplexConfig extends Config (
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case EnableL2Logging => false
-      case RegressionTestNames => LinkedHashSet(
-        "rv64ud-v-fcvt",
-        "rv64ud-p-fdiv",
-        "rv64ud-v-fadd",
-        "rv64uf-v-fadd",
-        "rv64um-v-mul",
-        "rv64mi-p-breakpoint",
-        "rv64uc-v-rvc",
-        "rv64ud-v-structural",
-        "rv64si-p-wfi",
-        "rv64um-v-divw",
-        "rv64ua-v-lrsc",
-        "rv64ui-v-fence_i",
-        "rv64ud-v-fcvt_w",
-        "rv64uf-v-fmin",
-        "rv64ui-v-sb",
-        "rv64ua-v-amomax_d",
-        "rv64ud-v-move",
-        "rv64ud-v-fclass",
-        "rv64ua-v-amoand_d",
-        "rv64ua-v-amoxor_d",
-        "rv64si-p-sbreak",
-        "rv64ud-v-fmadd",
-        "rv64uf-v-ldst",
-        "rv64um-v-mulh",
-        "rv64si-p-dirty")
       case _ => throw new CDEMatchError
   }},
   knobValues = {
@@ -329,14 +274,6 @@ class WithRV32 extends Config(
   (pname,site,here) => pname match {
     case XLen => 32
     case FPUKey => Some(FPUConfig(divSqrt = false))
-    case RegressionTestNames => LinkedHashSet(
-      "rv32mi-p-ma_addr",
-      "rv32mi-p-csr",
-      "rv32ui-p-sh",
-      "rv32ui-p-lh",
-      "rv32uc-p-rvc",
-      "rv32mi-p-sbreak",
-      "rv32ui-p-sll")
     case _ => throw new CDEMatchError
   }
 )
