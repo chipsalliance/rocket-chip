@@ -11,6 +11,7 @@ import coreplex._
 import uncore.tilelink2._
 import uncore.tilelink._
 import uncore.agents._
+import uncore.devices.NTiles
 import junctions._
 import hbwif._
 import rocketchip._
@@ -25,6 +26,11 @@ class HUpTop(q: Parameters) extends BaseTop(q)
     with HurricaneExtraTopLevel
     with HurricaneIF
     with Hbwif {
+  topLevelSCRBuilder.addControl("coreplex_reset", UInt(1))
+  for (i <- 0 until p(NTiles) - 1) {
+    topLevelSCRBuilder.addControl(s"core_${i}_reset", UInt(1))
+  }
+  topLevelSCRBuilder.addControl("pmu_reset", UInt(1))
   override lazy val module = Module(new HUpTopModule(p, this, new HUpTopBundle(p)))
 }
 
@@ -48,12 +54,13 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
   coreplex.clock := clock
-  coreplex.reset := ResetSync(topLevelSCRBuilder.control("coreplex_reset", UInt(1))(0).toBool, coreplex.clock)
+  coreplex.reset := ResetSync(scr.control("coreplex_reset")(0).toBool, coreplex.clock)
+
   multiClockCoreplexIO.tcrs.dropRight(1).zipWithIndex foreach { case (tcr, i) =>
     tcr.clock := clock
-    tcr.reset := ResetSync(topLevelSCRBuilder.control(s"core_${i}_reset", UInt(1))(0).toBool, tcr.clock)
+    tcr.reset := ResetSync(scr.control(s"core_${i}_reset")(0).toBool, tcr.clock)
   }
-  multiClockCoreplexIO.tcrs.last.reset := topLevelSCRBuilder.control(s"pmu_reset", UInt(1))(0).toBool
+  multiClockCoreplexIO.tcrs.last.reset := scr.control(s"pmu_reset")(0).toBool
 
   // Hbwif connections
   hbwifFastClock := clock
@@ -64,6 +71,7 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 trait HurricaneExtraTopLevel extends LazyModule {
   implicit val p: Parameters
   val pDevices: ResourceManager[AddrMapEntry]
+  val topLevelSCRBuilder: SCRBuilder = new SCRBuilder
 
   pDevices.add(AddrMapEntry(s"HSCRFile", MemSize(BigInt(p(HSCRFileSize)), MemAttr(AddrMapProt.RW))))
 }
@@ -71,15 +79,15 @@ trait HurricaneExtraTopLevel extends LazyModule {
 trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val hbwifFastClock: Clock = Wire(Clock())
-  val topLevelSCRBuilder: SCRBuilder = new SCRBuilder
   val pBus: TileLinkRecursiveInterconnect
-  
+  val outer: HurricaneExtraTopLevel
+
   //SCR file generation
-  //val scrTL = topLevelSCRBuilder.generate(outermostMMIOParams) TODO
+  val scr = outer.topLevelSCRBuilder.generate(edgeMMIOParams)
   val scrArb = Module(new ClientUncachedTileLinkIOArbiter(2)(edgeMMIOParams))
   scrArb.io.in(0) <> pBus.port("HSCRFile")
   val lbscrTL = scrArb.io.in(1)
-  //scrTL <> scrArb.io.out TODO
+  scr.io.tl <> scrArb.io.out
 }
 
 /////
