@@ -71,13 +71,26 @@ class WithHUpTop extends Config (
       LazyModule(new MultiClockCoreplex(c)(p)).module
     case BuildHTop => (p: Parameters) =>
       LazyModule(new HUpTop(p))
+    // Need to pick the key with the larger client_xact_id
+    case TLKey("LBWIF") => {
+      val memKey = site(TLKey("Switcher"))
+      val mmioKey = site(TLKey("MMIOtoEdge"))
+      val memIdSize = memKey.maxClientXacts * memKey.maxClientsPerPort
+      val mmioIdSize = mmioKey.maxClientXacts * mmioKey.maxClientsPerPort
+      if (memIdSize > mmioIdSize) memKey else mmioKey
+    }
+    case TLKey("Switcher") => {
+      site(TLKey("MCtoEdge")).copy(
+        maxClientXacts = site(NAcquireTransactors) + 2,
+        maxClientsPerPort = site(NBanksPerMemoryChannel) * site(NMemoryChannels))
+    }
     case _ => throw new CDEMatchError
   }
 )
 
 class WithTinyHbwif extends Config (
   (pname, site, here) => pname match {
-    case HbwifKey => HbwifParameters(numLanes = 1)
+    case HbwifKey => HbwifParameters(numLanes = site(NMemoryChannels))
     case _ => throw new CDEMatchError
   }
 )

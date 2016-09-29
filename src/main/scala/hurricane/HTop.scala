@@ -113,14 +113,20 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   val io: HurricaneIFBundle
   val coreplexIO: BaseCoreplexBundle
   val lbscrTL: ClientUncachedTileLinkIO
-  val hbwifIO: Vec[ClientUncachedTileLinkIO] = Wire(Vec(numLanes,
-    new ClientUncachedTileLinkIO()(edgeMMIOParams)))
-  require(p(NAcquireTransactors) > 2 || numLanes < 8)
-  val nBanks = nMemChannels*p(NBanksPerMemoryChannel)
-  val switcher = Module(new ClientUncachedTileLinkIOSwitcher(nBanks, numLanes+1)
-      (edgeMemParams))
-  switcher.io.in <> coreplexIO.master.mem
-  val lbwif = Module(new ClientUncachedTileLinkIOBidirectionalSerdes(p(NarrowWidth))(edgeMMIOParams))
+  val hbwifIO = Wire(Vec(numLanes, new ClientUncachedTileLinkIO()(edgeMMIOParams)))
+
+  val lbwifWidth = p(NarrowWidth)
+  val lbwifParams = p.alterPartial({ case TLId => "LBWIF" })
+  val switcherParams = p.alterPartial({ case TLId => "Switcher" })
+
+  val unmapper = Module(new ChannelAddressUnmapper(nMemChannels)(edgeMemParams))
+  val switcher = Module(new ClientUncachedTileLinkIOSwitcher(
+    nMemChannels, numLanes+1)(switcherParams))
+  val lbwif = Module(
+    new ClientUncachedTileLinkIOBidirectionalSerdes(lbwifWidth)(lbwifParams))
+
+  unmapper.io.in <> coreplexIO.master.mem
+  switcher.io.in <> unmapper.io.out
 
   def scrRouteSel(addr: UInt) = UIntToOH(p(GlobalAddrMap).isInRegion("io:pbus:HSCRFile",addr))
   val scr_router = Module(new ClientUncachedTileLinkIORouter(2,scrRouteSel)(edgeMMIOParams))
