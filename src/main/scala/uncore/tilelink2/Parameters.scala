@@ -149,7 +149,7 @@ case class TLManagerParameters(
   sinkId:             IdRange       = IdRange(0, 1),
   regionType:         RegionType.T  = RegionType.GET_EFFECTS,
   executable:         Boolean       = false, // processor can execute from this memory
-  nodePath:           Seq[RootNode] = Seq(),
+  nodePath:           Seq[BaseNode] = Seq(),
   // Supports both Acquire+Release+Finish of these sizes
   supportsAcquire:    TransferSizes = TransferSizes.none,
   supportsArithmetic: TransferSizes = TransferSizes.none,
@@ -293,7 +293,7 @@ case class TLManagerPortParameters(
 
 case class TLClientParameters(
   sourceId:            IdRange       = IdRange(0,1),
-  nodePath:            Seq[RootNode] = Seq(),
+  nodePath:            Seq[BaseNode] = Seq(),
   // Supports both Probe+Grant of these sizes
   supportsProbe:       TransferSizes = TransferSizes.none,
   supportsArithmetic:  TransferSizes = TransferSizes.none,

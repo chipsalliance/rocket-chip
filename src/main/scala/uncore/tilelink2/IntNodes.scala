@@ -23,13 +23,13 @@ object IntRange
 
 case class IntSourceParameters(
   range:    IntRange,
-  nodePath: Seq[RootNode] = Seq())
+  nodePath: Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
 
 case class IntSinkParameters(
-  nodePath: Seq[RootNode] = Seq())
+  nodePath: Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }

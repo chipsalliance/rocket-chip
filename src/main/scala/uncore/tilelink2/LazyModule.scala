@@ -9,7 +9,7 @@ abstract class LazyModule
 {
   protected[tilelink2] var bindings = List[() => Unit]()
   protected[tilelink2] var children = List[LazyModule]()
-  protected[tilelink2] var nodes = List[RootNode]()
+  protected[tilelink2] var nodes = List[BaseNode]()
   protected[tilelink2] var info: SourceInfo = UnlocatableSourceInfo
   protected[tilelink2] val parent = LazyModule.stack.headOption
 

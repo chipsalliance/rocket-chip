@@ -32,7 +32,7 @@ trait OutwardNodeImp[DO, UO, EO, BO <: Data]
 abstract class NodeImp[D, U, EO, EI, B <: Data]
   extends Object with InwardNodeImp[D, U, EI, B] with OutwardNodeImp[D, U, EO, B]
 
-abstract class RootNode
+abstract class BaseNode
 {
   // You cannot create a Node outside a LazyModule!
   require (!LazyModule.stack.isEmpty)
@@ -45,11 +45,11 @@ abstract class RootNode
   def colour = "blue"
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
 
-  protected[tilelink2] def outputs: Seq[RootNode]
-  protected[tilelink2] def inputs:  Seq[RootNode]
+  protected[tilelink2] def outputs: Seq[BaseNode]
+  protected[tilelink2] def inputs:  Seq[BaseNode]
 }
 
-trait InwardNode[DI, UI, BI <: Data] extends RootNode
+trait InwardNode[DI, UI, BI <: Data] extends BaseNode
 {
   protected[tilelink2] val numPI: Range.Inclusive
   require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
@@ -74,7 +74,7 @@ trait InwardNode[DI, UI, BI <: Data] extends RootNode
   protected[tilelink2] def iConnect: Vec[BI]
 }
 
-trait OutwardNode[DO, UO, BO <: Data] extends RootNode
+trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
 {
   protected[tilelink2] val numPO: Range.Inclusive
   require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
@@ -106,7 +106,7 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   private val uFn: (Int, Seq[UO]) => Seq[UI],
   protected[tilelink2] val numPO: Range.Inclusive,
   protected[tilelink2] val numPI: Range.Inclusive)
-  extends RootNode with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
+  extends BaseNode with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
   // meta-data for printing the node graph
   protected[tilelink2] def outputs = oPorts.map(_._2)
