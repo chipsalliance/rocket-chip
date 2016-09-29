@@ -8,8 +8,8 @@ import chisel3.internal.sourceinfo.SourceInfo
 
 object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
 {
-  def edgeO(po: TLClientPortParameters, pi: TLManagerPortParameters): TLEdgeOut = new TLEdgeOut(po, pi)
-  def edgeI(po: TLClientPortParameters, pi: TLManagerPortParameters): TLEdgeIn  = new TLEdgeIn(po, pi)
+  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeOut = new TLEdgeOut(pd, pu)
+  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeIn  = new TLEdgeIn(pd, pu)
   def bundleO(eo: Seq[TLEdgeOut]): Vec[TLBundle] = {
     require (!eo.isEmpty)
     Vec(eo.size, TLBundle(eo.map(_.bundle).reduce(_.union(_))))
@@ -19,19 +19,18 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_)))).flip
   }
 
-  def connect(bo: => TLBundle, eo: => TLEdgeOut, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    val monitor = LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => eo, sourceInfo))
+  def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    val monitor = LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo))
     (Some(monitor), () => {
-      require (eo.asInstanceOf[TLEdgeParameters] == ei.asInstanceOf[TLEdgeParameters])
       bi <> bo
       monitor.module.io.in := TLBundleSnoop(bo)
     })
   }
 
-  override def mixO(po: TLClientPortParameters,  node: TLBaseNode): TLClientPortParameters  =
-   po.copy(clients  = po.clients.map  { c => c.copy (nodePath = node +: c.nodePath) })
-  override def mixI(pi: TLManagerPortParameters, node: TLBaseNode): TLManagerPortParameters =
-   pi.copy(managers = pi.managers.map { m => m.copy (nodePath = node +: m.nodePath) })
+  override def mixO(pd: TLClientPortParameters, node: OutwardNode[TLClientPortParameters, TLManagerPortParameters, TLBundle]): TLClientPortParameters  =
+   pd.copy(clients  = pd.clients.map  { c => c.copy (nodePath = node +: c.nodePath) })
+  override def mixI(pu: TLManagerPortParameters, node: InwardNode[TLClientPortParameters, TLManagerPortParameters, TLBundle]): TLManagerPortParameters =
+   pu.copy(managers = pu.managers.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
 case class TLIdentityNode() extends IdentityNode(TLImp)
