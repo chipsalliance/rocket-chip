@@ -88,7 +88,10 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
     println(f"\t$name%s $start%x - $end%x, $protStr$cacheable")
   }
 
-  println("Generated Configuration String")
+  println("\nGenerated Interrupt Vector")
+  outer.pInterrupts.print
+
+  println("\nGenerated Configuration String")
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
   GraphMLOutput.contents = Some(outer.graphML)
