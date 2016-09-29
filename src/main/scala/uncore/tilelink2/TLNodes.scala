@@ -71,3 +71,42 @@ class TLInputNodeTest extends UnitTest(500000) {
 
   io.finished := Module(fuzzer.module).io.finished
 }
+
+object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncEdgeParameters, TLAsyncBundle]
+{
+  def edgeO(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
+  def edgeI(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
+  def bundleO(eo: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = {
+    require (eo.size == 1)
+    Vec(eo.size, new TLAsyncBundle(eo(0).bundle))
+  }
+  def bundleI(ei: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = {
+    require (ei.size == 1)
+    Vec(ei.size, new TLAsyncBundle(ei(0).bundle)).flip
+  }
+
+  def connect(bo: => TLAsyncBundle, bi: => TLAsyncBundle, ei: => TLAsyncEdgeParameters)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    (None, () => { bi <> bo })
+  }
+
+  override def mixO(pd: TLAsyncClientPortParameters, node: OutwardNode[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]): TLAsyncClientPortParameters  =
+   pd.copy(base = pd.base.copy(clients  = pd.base.clients.map  { c => c.copy (nodePath = node +: c.nodePath) }))
+  override def mixI(pu: TLAsyncManagerPortParameters, node: InwardNode[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]): TLAsyncManagerPortParameters =
+   pu.copy(base = pu.base.copy(managers = pu.base.managers.map { m => m.copy (nodePath = node +: m.nodePath) }))
+}
+
+case class TLAsyncIdentityNode() extends IdentityNode(TLAsyncImp)
+case class TLAsyncOutputNode() extends OutputNode(TLAsyncImp)
+case class TLAsyncInputNode() extends InputNode(TLAsyncImp)
+
+case class TLAsyncSourceNode() extends MixedNode(TLImp, TLAsyncImp)(
+  dFn = { case (1, s) => s.map(TLAsyncClientPortParameters(_)) },
+  uFn = { case (1, s) => s.map(_.base) },
+  numPO = 1 to 1,
+  numPI = 1 to 1)
+
+case class TLAsyncSinkNode(depth: Int) extends MixedNode(TLAsyncImp, TLImp)(
+  dFn = { case (1, s) => s.map(_.base) },
+  uFn = { case (1, s) => s.map(TLAsyncManagerPortParameters(depth, _)) },
+  numPO = 1 to 1,
+  numPI = 1 to 1)

@@ -190,7 +190,7 @@ object TLBundle
   def apply(params: TLBundleParameters) = new TLBundle(params)
 }
 
-class IrrevocableSnoop[+T <: Data](gen: T) extends Bundle
+final class IrrevocableSnoop[+T <: Data](gen: T) extends Bundle
 {
   val ready = Bool()
   val valid = Bool()
@@ -231,4 +231,24 @@ object TLBundleSnoop
     out.e := IrrevocableSnoop(x.e)
     out
   }
+}
+
+final class AsyncBundle[T <: Data](depth: Int, gen: T) extends Bundle
+{
+  require (isPow2(depth))
+  val ridx = UInt(width = log2Up(depth)+1).flip
+  val widx = UInt(width = log2Up(depth)+1)
+  val mem  = Vec(depth, gen)
+  override def cloneType: this.type = new AsyncBundle(depth, gen).asInstanceOf[this.type]
+}
+
+class TLAsyncBundleBase(params: TLAsyncBundleParameters) extends GenericParameterizedBundle(params)
+
+class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(params)
+{
+  val a = new AsyncBundle(params.depth, new TLBundleA(params.base))
+  val b = new AsyncBundle(params.depth, new TLBundleB(params.base)).flip
+  val c = new AsyncBundle(params.depth, new TLBundleC(params.base))
+  val d = new AsyncBundle(params.depth, new TLBundleD(params.base)).flip
+  val e = new AsyncBundle(params.depth, new TLBundleE(params.base))
 }
