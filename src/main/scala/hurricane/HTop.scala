@@ -31,6 +31,10 @@ class HUpTop(q: Parameters) extends BaseTop(q)
     topLevelSCRBuilder.addControl(s"core_${i}_reset", UInt(1))
   }
   topLevelSCRBuilder.addControl("pmu_reset", UInt(1))
+  topLevelSCRBuilder.addControl("slow_clock_divide", UInt(0))
+  for (i <- 0 until p(NMemoryChannels)) {
+    topLevelSCRBuilder.addControl(s"switcher_channel_$i", UInt(0))
+  }
   override lazy val module = Module(new HUpTopModule(p, this, new HUpTopBundle(p)))
 }
 
@@ -113,6 +117,7 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   val io: HurricaneIFBundle
   val coreplexIO: BaseCoreplexBundle
   val lbscrTL: ClientUncachedTileLinkIO
+  val scr: SCRFile
   val hbwifIO = Wire(Vec(numLanes, new ClientUncachedTileLinkIO()(edgeMMIOParams)))
 
   val lbwifWidth = p(NarrowWidth)
@@ -144,10 +149,15 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   slowio_module.io.in_slow <> io.serial.in
   io.serial.out <> slowio_module.io.out_slow
   io.host_clock := slowio_module.io.clk_slow
-  // TODOHurricane - wire slowio divider to SCRs
+  slowio_module.io.set_divisor.bits := scr.control("slow_clock_divide")(31,0)
+  slowio_module.io.set_divisor.valid := scr.control("slow_clock_divide")(32)
 
   val ser = (0 until numLanes) map { i =>
     hbwifIO(i) <> switcher.io.out(i+1)
   }
-  // TODOHurricane - make the switcher configurable via SCR
+
+  // TODOHurricane - I thought each bank got its own control signal, not each mem channel??
+  for (i <- 0 until nMemChannels) {
+    switcher.io.select(i) := scr.control(s"switcher_channel_$i")(log2Up(nMemChannels),0)
+  }
 }
