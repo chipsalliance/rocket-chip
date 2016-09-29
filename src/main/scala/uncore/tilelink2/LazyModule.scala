@@ -16,11 +16,6 @@ abstract class LazyModule
   LazyModule.stack = this :: LazyModule.stack
   parent.foreach(p => p.children = this :: p.children)
 
-  // Use as: connect(source -> sink, source2 -> sink2, ...)
-  def connect[PO, PI, EO, EI, B <: Data](edges: (BaseNode[PO, PI, EO, EI, B], BaseNode[PO, PI, EO, EI, B])*)(implicit sourceInfo: SourceInfo) = {
-    edges.foreach { case (source, sink) => sink := source }
-  }
-
   def name = getClass.getName.split('.').last
   def line = sourceLine(info)
 
