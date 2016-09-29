@@ -3,11 +3,11 @@
 package uncore.devices
 
 import Chisel._
-import rocket.Util._
 import junctions._
 import junctions.NastiConstants._
 import uncore.tilelink2._
 import uncore.util._
+import util._
 import scala.math.{min,max}
 import cde.{Parameters, Field}
 
@@ -52,7 +52,7 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
 
   val time = Seq.fill(timeWidth/regWidth)(Reg(init=UInt(0, width = regWidth)))
   when (io.rtcTick) {
-    val newTime = time.asUInt + 1
+    val newTime = time.asUInt + UInt(1)
     for ((reg, i) <- time zip (0 until timeWidth by regWidth))
       reg := newTime >> i
   }

@@ -4,6 +4,7 @@ import Chisel._
 import junctions._
 import uncore.constants._
 import uncore.util._
+import util._
 import cde.Parameters
 
 abstract class Driver(implicit p: Parameters) extends TLModule()(p) {

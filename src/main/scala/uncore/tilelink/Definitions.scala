@@ -4,9 +4,9 @@ package uncore.tilelink
 import Chisel._
 import junctions._
 import uncore.coherence.CoherencePolicy
-import uncore.util._
-import scala.math.max
 import uncore.constants._
+import util._
+import scala.math.max
 import cde.{Parameters, Field}
 
 case object CacheBlockOffsetBits extends Field[Int]

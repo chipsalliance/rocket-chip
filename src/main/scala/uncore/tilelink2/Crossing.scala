@@ -4,7 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import junctions._
+import util._
 
 class TLAsyncCrossing(depth: Int = 8, sync: Int = 3) extends LazyModule
 {

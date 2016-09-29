@@ -1,8 +1,7 @@
 // See LICENSE for license details.
 
-package junctions
+package util
 import Chisel._
-import uncore.util.{AsyncResetRegVec, AsyncResetReg}
 
 object GrayCounter {
   def apply(bits: Int, increment: Bool = Bool(true)): UInt = {
@@ -18,10 +17,9 @@ object AsyncGrayCounter {
     val syncv = List.fill(sync)(Module (new AsyncResetRegVec(w = in.getWidth, 0)))
     syncv.last.io.d := in
     syncv.last.io.en := Bool(true)
-      (syncv.init zip syncv.tail).foreach { case (sink, source) => {
+      (syncv.init zip syncv.tail).foreach { case (sink, source) =>
         sink.io.d := source.io.q
         sink.io.en := Bool(true)
-      }
       }
     syncv(0).io.d
   }

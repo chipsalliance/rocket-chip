@@ -7,8 +7,8 @@ import uncore.devices._
 import uncore.agents.CacheName
 import uncore.constants._
 import junctions.HasAddrMapParameters
-import util.ParameterizedBundle
-import Util._
+import util._
+import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
 
 case object XLen extends Field[Int]

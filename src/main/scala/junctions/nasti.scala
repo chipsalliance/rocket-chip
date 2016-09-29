@@ -4,7 +4,7 @@ package junctions
 import Chisel._
 import scala.math.max
 import scala.collection.mutable.ArraySeq
-import util.{ParameterizedBundle, HellaPeekingArbiter}
+import util._
 import cde.{Parameters, Field}
 
 case object NastiKey extends Field[NastiParameters]

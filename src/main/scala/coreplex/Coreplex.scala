@@ -5,6 +5,7 @@ import cde.{Parameters, Field}
 import junctions._
 import uncore.tilelink._
 import uncore.util._
+import util._
 import rocket._
 
 trait DirectConnection {

@@ -3,6 +3,7 @@ package rocketchip
 import Chisel._
 import uncore.devices.{DebugBusIO, AsyncDebugBusTo, AsyncDebugBusFrom, DebugBusReq, DebugBusResp, DMKey}
 import junctions._
+import util._
 import cde.{Parameters, Field}
 
 case object IncludeJtagDTM extends Field[Boolean]
