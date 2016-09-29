@@ -23,11 +23,12 @@ class TestHarness(q: Parameters) extends Module {
   val dut = q(BuildHTop)(q).module
   implicit val p = dut.p
 
+  val edgeMemParams = p.alterPartial({case TLId => "MCtoEdge"})
   val memSize = p(GlobalAddrMap)("mem").size
   val memDepth = memSize / (p(EdgeDataBits) / 8)
   // HurricaneTODO - slow IO receiver
-  val dessert = Module(new ClientUncachedTileLinkIOBidirectionalSerdes(p(NarrowWidth))(p.alterPartial({case TLId => "MCtoEdge"})))
-  val sim_tl_mem = Module(new TileLinkTestRAM(memDepth.toInt))
+  val dessert = Module(new ClientUncachedTileLinkIOBidirectionalSerdes(p(NarrowWidth))(edgeMemParams))
+  val sim_tl_mem = Module(new TileLinkTestRAM(memDepth.toInt)(edgeMemParams))
   sim_tl_mem.io <> dessert.io.tl_client
   // dessert.io.tl_manager <> ...
 
