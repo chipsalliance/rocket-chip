@@ -148,7 +148,7 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 }
 
-class BaseNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
+class SimpleNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   oFn: (Int, Seq[D]) => Seq[D],
   iFn: (Int, Seq[U]) => Seq[U],
   numPO: Range.Inclusive,
@@ -156,7 +156,7 @@ class BaseNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
     extends MixedNode[D, U, EI, B, D, U, EO, B](imp, imp)(oFn, iFn, numPO, numPI)
 
 class IdentityNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])
-  extends BaseNode(imp)({case (_, s) => s}, {case (_, s) => s}, 0 to 999, 0 to 999)
+  extends SimpleNode(imp)({case (_, s) => s}, {case (_, s) => s}, 0 to 999, 0 to 999)
 
 class OutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
 {
@@ -171,20 +171,20 @@ class InputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B]) exte
 }
 
 class SourceNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: PO, num: Range.Inclusive = 1 to 1)
-  extends BaseNode(imp)({case (n, Seq()) => Seq.fill(n)(po)}, {case (0, _) => Seq()}, num, 0 to 0)
+  extends SimpleNode(imp)({case (n, Seq()) => Seq.fill(n)(po)}, {case (0, _) => Seq()}, num, 0 to 0)
 {
   require (num.end >= 1, s"${name} is a source which does not accept outputs${lazyModule.line}")
 }
 
 class SinkNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI, num: Range.Inclusive = 1 to 1)
-  extends BaseNode(imp)({case (0, _) => Seq()}, {case (n, Seq()) => Seq.fill(n)(pi)}, 0 to 0, num)
+  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (n, Seq()) => Seq.fill(n)(pi)}, 0 to 0, num)
 {
   require (num.end >= 1, s"${name} is a sink which does not accept inputs${lazyModule.line}")
 }
 
 class InteriorNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])
   (oFn: Seq[PO] => PO, iFn: Seq[PI] => PI, numPO: Range.Inclusive, numPI: Range.Inclusive)
-  extends BaseNode(imp)({case (n,s) => Seq.fill(n)(oFn(s))}, {case (n,s) => Seq.fill(n)(iFn(s))}, numPO, numPI)
+  extends SimpleNode(imp)({case (n,s) => Seq.fill(n)(oFn(s))}, {case (n,s) => Seq.fill(n)(iFn(s))}, numPO, numPI)
 {
   require (numPO.end >= 1, s"${name} is an adapter which does not accept outputs${lazyModule.line}")
   require (numPI.end >= 1, s"${name} is an adapter which does not accept inputs${lazyModule.line}")
