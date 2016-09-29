@@ -14,7 +14,7 @@ import groundtest._
 import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import coreplex._
-import DefaultTestSuites._
+import rocketchip.DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError, Field}
 import hwacha._
 import hbwif._
@@ -27,24 +27,6 @@ case object SlowIOMaxDivide extends Field[Int]
 class PMUConfig extends Config(
   topDefinitions = (pname,site,here) => pname match {
     case BuildTiles => {
-        val env = if(site(UseVM)) List("p","v") else List("p")
-        site(FPUKey) foreach { case cfg =>
-          TestGeneration.addSuite(rv32udBenchmarks)
-          TestGeneration.addSuites(env.map(rv64ufNoDiv))
-          TestGeneration.addSuites(env.map(rv64udNoDiv))
-          if (cfg.divSqrt) {
-            TestGeneration.addSuites(env.map(rv64uf))
-            TestGeneration.addSuites(env.map(rv64ud))
-          }
-        }
-        if (site(UseAtomics)) TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64ua else rv32ua))
-        if (site(UseCompressed)) TestGeneration.addSuites(env.map(if (site(XLen) == 64) rv64uc else rv32uc))
-        val (rvi, rvu) =
-          if (site(XLen) == 64) ((if (site(UseVM)) rv64i else rv64pi), rv64u)
-          else ((if (site(UseVM)) rv32i else rv32pi), rv32u)
-        TestGeneration.addSuites(rvi.map(_("p")))
-        TestGeneration.addSuites((if(site(UseVM)) List("v") else List()).flatMap(env => rvu.map(_(env))))
-        TestGeneration.addSuite(benchmarks)
         val tileList = List.tabulate(site(NTiles)-1){ i => (r: Bool, p: Parameters) =>
           Module(new RocketTile(resetSignal = r)(p.alterPartial({
             case TileId => i
@@ -111,7 +93,7 @@ class HurricaneUpstreamConfig extends Config (
   new WithNBanksPerMemChannel(1) ++
   new WithNMemoryChannels(8) ++
   new Process28nmConfig ++
-  new DefaultHbwifConfig ++
+  new ExampleHbwifConfig ++
   new WithHUpTop ++
   new WithJtagDTM ++
   new HwachaConfig

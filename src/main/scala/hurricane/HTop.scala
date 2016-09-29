@@ -54,8 +54,6 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     tcr.reset := ResetSync(topLevelSCRBuilder.control(s"core_${i}_reset", UInt(1))(0).toBool, tcr.clock)
   }
   multiClockCoreplexIO.tcrs.last.reset := topLevelSCRBuilder.control(s"pmu_reset", UInt(1))(0).toBool
-  multiClockCoreplexIO.extcr.clock := clock
-  multiClockCoreplexIO.extcr.reset := reset
 
   // Hbwif connections
   hbwifFastClock := clock
@@ -78,7 +76,7 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
   
   //SCR file generation
   //val scrTL = topLevelSCRBuilder.generate(outermostMMIOParams) TODO
-  val scrArb = Module(new ClientUncachedTileLinkIOArbiter(2)(outermostMMIOParams))
+  val scrArb = Module(new ClientUncachedTileLinkIOArbiter(2)(edgeMMIOParams))
   scrArb.io.in(0) <> pBus.port("HSCRFile")
   val lbscrTL = scrArb.io.in(1)
   //scrTL <> scrArb.io.out TODO
@@ -108,16 +106,16 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   val coreplexIO: BaseCoreplexBundle
   val lbscrTL: ClientUncachedTileLinkIO
   val hbwifIO: Vec[ClientUncachedTileLinkIO] = Wire(Vec(numLanes,
-    new ClientUncachedTileLinkIO()(outermostMMIOParams)))
+    new ClientUncachedTileLinkIO()(edgeMMIOParams)))
   require(p(NAcquireTransactors) > 2 || numLanes < 8)
   val nBanks = nMemChannels*p(NBanksPerMemoryChannel)
   val switcher = Module(new ClientUncachedTileLinkIOSwitcher(nBanks, numLanes+1)
-      (outermostMMIOParams))
+      (edgeMemParams))
   switcher.io.in <> coreplexIO.master.mem
-  val lbwif = Module(new ClientUncachedTileLinkIOBidirectionalSerdes(p(NarrowWidth))(outermostMMIOParams))
+  val lbwif = Module(new ClientUncachedTileLinkIOBidirectionalSerdes(p(NarrowWidth))(edgeMMIOParams))
 
   def scrRouteSel(addr: UInt) = UIntToOH(p(GlobalAddrMap).isInRegion("io:pbus:HSCRFile",addr))
-  val scr_router = Module(new ClientUncachedTileLinkIORouter(2,scrRouteSel)(outermostMMIOParams))
+  val scr_router = Module(new ClientUncachedTileLinkIORouter(2,scrRouteSel)(edgeMMIOParams))
   val (r_start, r_end) = outer.pBusMasters.range("lbwif")
 
   lbwif.io.tl_manager <> switcher.io.out(0)
