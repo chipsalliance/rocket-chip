@@ -40,3 +40,41 @@ class TLAsyncCrossing(depth: Int = 8, sync: Int = 3) extends LazyModule
     }
   }
 }
+
+/** Synthesizeable unit tests */
+import unittest._
+
+class TLRAMCrossing extends LazyModule {
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val cross = LazyModule(new TLAsyncCrossing)
+
+  model.node := fuzz.node
+  cross.node := TLFragmenter(4, 256)(model.node)
+  val monitor = (ram.node := cross.node)
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+
+    // Shove the RAM into another clock domain
+    val clocks = Module(new util.Pow2ClockDivider(2))
+    ram.module.clock := clocks.io.clock_out
+
+    // ... and safely cross TL2 into it
+    cross.module.io.in_clock := clock
+    cross.module.io.in_reset := reset
+    cross.module.io.out_clock := clocks.io.clock_out
+    cross.module.io.out_reset := reset
+
+    // Push the Monitor into the right clock domain
+    monitor.foreach { m =>
+      m.module.clock := clocks.io.clock_out
+      m.module.reset := reset
+    }
+  }
+}
+
+class TLRAMCrossingTest extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMCrossing).module).io.finished
+}
