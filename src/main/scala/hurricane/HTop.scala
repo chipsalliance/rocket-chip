@@ -88,6 +88,8 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
 
   //SCR file generation
   val scr = outer.topLevelSCRBuilder.generate(outerMMIOParams)
+  SCRHeaderOutput.contents = Some(outer.topLevelSCRBuilder.makeHeader("HSCR"))
+
   val scrArb = Module(new ClientUncachedTileLinkIOArbiter(2)(outerMMIOParams))
   scrArb.io.in(0) <> pBus.port("HSCRFile")
   val lbscrTL = scrArb.io.in(1)
