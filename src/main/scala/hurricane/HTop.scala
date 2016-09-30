@@ -25,6 +25,9 @@ class HUpTop(q: Parameters) extends BaseTop(q)
     with HurricaneExtraTopLevel
     with HurricaneIF
     with Hbwif {
+  pDevices.add(AddrMapEntry("scrbus", new AddrMap(
+    scrDevices.get, start = BigInt(0x60000000L), collapse=true)))
+
   topLevelSCRBuilder.addControl("coreplex_reset", UInt(1))
   for (i <- 0 until p(NTiles) - 1) {
     topLevelSCRBuilder.addControl(s"core_${i}_reset", UInt(1))
@@ -73,26 +76,29 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 
 trait HurricaneExtraTopLevel extends LazyModule {
   implicit val p: Parameters
-  val pDevices: ResourceManager[AddrMapEntry]
-  val topLevelSCRBuilder: SCRBuilder = new SCRBuilder
+  val scrDevices = new ResourceManager[AddrMapEntry]
+  val topLevelSCRBuilder = new SCRBuilder
 
-  pDevices.add(AddrMapEntry(s"HSCRFile", MemSize(BigInt(p(HSCRFileSize)), MemAttr(AddrMapProt.RW))))
+  scrDevices.add(AddrMapEntry("HSCRFile", MemSize(BigInt(p(HSCRFileSize)), MemAttr(AddrMapProt.RW))))
 }
 
 trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val hbwifFastClock: Clock = Wire(Clock())
-  val pBus: TileLinkRecursiveInterconnect
   val outer: HurricaneExtraTopLevel
+  val pBus: TileLinkRecursiveInterconnect
+
+  val scrBus = Module(new TileLinkRecursiveInterconnect(
+    2, p(GlobalAddrMap).subMap("io:pbus:scrbus"))(
+      p.alterPartial({ case TLId => "MMIOtoSCR" })))
 
   //SCR file generation
   val scr = outer.topLevelSCRBuilder.generate(outerMMIOParams)
   SCRHeaderOutput.contents = Some(outer.topLevelSCRBuilder.makeHeader("HSCR"))
 
-  val scrArb = Module(new ClientUncachedTileLinkIOArbiter(2)(outerMMIOParams))
-  scrArb.io.in(0) <> pBus.port("HSCRFile")
-  val lbscrTL = scrArb.io.in(1)
-  scr.io.tl <> scrArb.io.out
+  scr.io.tl <> scrBus.port("HSCRFile")
+  scrBus.io.in(0) <> pBus.port("scrbus")
+  val lbscrTL = scrBus.io.in(1)
 }
 
 /////
@@ -134,8 +140,11 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   unmapper.io.in <> coreplexIO.master.mem
   switcher.io.in <> unmapper.io.out
 
-  def scrRouteSel(addr: UInt) = UIntToOH(p(GlobalAddrMap).isInRegion("io:pbus:HSCRFile",addr))
-  val scr_router = Module(new ClientUncachedTileLinkIORouter(2,scrRouteSel)(outerMMIOParams))
+  def scrRouteSel(addr: UInt) =
+    UIntToOH(p(GlobalAddrMap).isInRegion("io:pbus:scrbus",addr))
+
+  val scr_router = Module(new ClientUncachedTileLinkIORouter(
+    2, scrRouteSel)(outerMMIOParams))
   val (r_start, r_end) = outer.pBusMasters.range("lbwif")
 
   lbwif.io.tl_manager <> switcher.io.out(0)
