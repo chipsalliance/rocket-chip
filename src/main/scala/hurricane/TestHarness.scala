@@ -27,9 +27,12 @@ class TestHarness(q: Parameters) extends Module {
   val memSize = p(GlobalAddrMap)("mem").size
   val memBytes = p(TLKey(memParams(TLId))).dataBitsPerBeat / 8
   val memDepth = memSize / memBytes
-  // HurricaneTODO - slow IO receiver
-  val dessert = Module(new ClientUncachedTileLinkIOBidirectionalSerdes(p(NarrowWidth))(memParams))
   val sim_tl_mem = Module(new TileLinkTestRAM(memDepth.toInt)(memParams))
+  val dessert = Module(new ClientUncachedTileLinkIOBidirectionalSerdes(p(NarrowWidth))(memParams))
+
+  val host_clock = dut.io.host_clock.asClock
+  dessert.io.serial.in <> AsyncDecoupledFrom(host_clock, reset, dut.io.serial.out)
+  dut.io.serial.in <> AsyncDecoupledTo(host_clock, reset, dessert.io.serial.out)
   sim_tl_mem.io <> dessert.io.tl_client
   // dessert.io.tl_manager <> ...
 
