@@ -146,10 +146,10 @@ object AddressSet
 
 case class TLManagerParameters(
   address:            Seq[AddressSet],
-  sinkId:             IdRange         = IdRange(0, 1),
-  regionType:         RegionType.T    = RegionType.GET_EFFECTS,
-  executable:         Boolean         = false, // processor can execute from this memory
-  nodePath:           Seq[TLBaseNode] = Seq(),
+  sinkId:             IdRange       = IdRange(0, 1),
+  regionType:         RegionType.T  = RegionType.GET_EFFECTS,
+  executable:         Boolean       = false, // processor can execute from this memory
+  nodePath:           Seq[BaseNode] = Seq(),
   // Supports both Acquire+Release+Finish of these sizes
   supportsAcquire:    TransferSizes = TransferSizes.none,
   supportsArithmetic: TransferSizes = TransferSizes.none,
@@ -292,8 +292,8 @@ case class TLManagerPortParameters(
 }
 
 case class TLClientParameters(
-  sourceId:            IdRange         = IdRange(0,1),
-  nodePath:            Seq[TLBaseNode] = Seq(),
+  sourceId:            IdRange       = IdRange(0,1),
+  nodePath:            Seq[BaseNode] = Seq(),
   // Supports both Probe+Grant of these sizes
   supportsProbe:       TransferSizes = TransferSizes.none,
   supportsArithmetic:  TransferSizes = TransferSizes.none,
@@ -401,6 +401,17 @@ case class TLBundleParameters(
       max(sizeBits,    x.sizeBits))
 }
 
+object TLBundleParameters
+{
+  def apply(client: TLClientPortParameters, manager: TLManagerPortParameters) =
+    new TLBundleParameters(
+      addrHiBits  = log2Up(manager.maxAddress + 1) - log2Ceil(manager.beatBytes),
+      dataBits    = manager.beatBytes * 8,
+      sourceBits  = log2Up(client.endSourceId),
+      sinkBits    = log2Up(manager.endSinkId),
+      sizeBits    = log2Up(log2Ceil(max(client.maxTransfer, manager.maxTransfer))+1))
+}
+
 case class TLEdgeParameters(
   client:  TLClientPortParameters,
   manager: TLManagerPortParameters)
@@ -411,10 +422,13 @@ case class TLEdgeParameters(
   // Sanity check the link...
   require (maxTransfer >= manager.beatBytes)
 
-  val bundle = TLBundleParameters(
-    addrHiBits  = log2Up(manager.maxAddress + 1) - log2Ceil(manager.beatBytes),
-    dataBits    = manager.beatBytes * 8,
-    sourceBits  = log2Up(client.endSourceId),
-    sinkBits    = log2Up(manager.endSinkId),
-    sizeBits    = log2Up(maxLgSize+1))
+  val bundle = TLBundleParameters(client, manager)
+}
+
+case class TLAsyncManagerPortParameters(depth: Int, base: TLManagerPortParameters) { require (isPow2(depth)) }
+case class TLAsyncClientPortParameters(base: TLClientPortParameters)
+case class TLAsyncBundleParameters(depth: Int, base: TLBundleParameters) { require (isPow2(depth)) }
+case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters)
+{
+  val bundle = TLAsyncBundleParameters(manager.depth, TLBundleParameters(client.base, manager.base))
 }

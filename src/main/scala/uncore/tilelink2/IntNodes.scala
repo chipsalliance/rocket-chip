@@ -23,13 +23,13 @@ object IntRange
 
 case class IntSourceParameters(
   range:    IntRange,
-  nodePath: Seq[IntBaseNode] = Seq())
+  nodePath: Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
 
 case class IntSinkParameters(
-  nodePath: Seq[IntBaseNode] = Seq())
+  nodePath: Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
@@ -49,8 +49,8 @@ case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters)
 
 object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, IntEdge, Vec[Bool]]
 {
-  def edgeO(po: IntSourcePortParameters, pi: IntSinkPortParameters): IntEdge = IntEdge(po, pi)
-  def edgeI(po: IntSourcePortParameters, pi: IntSinkPortParameters): IntEdge = IntEdge(po, pi)
+  def edgeO(pd: IntSourcePortParameters, pu: IntSinkPortParameters): IntEdge = IntEdge(pd, pu)
+  def edgeI(pd: IntSourcePortParameters, pu: IntSinkPortParameters): IntEdge = IntEdge(pd, pu)
   def bundleO(eo: Seq[IntEdge]): Vec[Vec[Bool]] = {
     if (eo.isEmpty) Vec(0, Vec(0, Bool())) else
     Vec(eo.size, Vec(eo.map(_.source.num).max, Bool()))
@@ -60,18 +60,17 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
     Vec(ei.size, Vec(ei.map(_.source.num).max, Bool())).flip
   }
 
-  def connect(bo: => Vec[Bool], eo: => IntEdge, bi: => Vec[Bool], ei: => IntEdge)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+  def connect(bo: => Vec[Bool], bi: => Vec[Bool], ei: => IntEdge)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => {
-      require (eo == ei)
       // Cannot use bulk connect, because the widths could differ
       (bo zip bi) foreach { case (o, i) => i := o }
     })
   }
 
-  override def mixO(po: IntSourcePortParameters, node: IntBaseNode): IntSourcePortParameters =
-   po.copy(sources = po.sources.map  { s => s.copy (nodePath = node +: s.nodePath) })
-  override def mixI(pi: IntSinkPortParameters,  node: IntBaseNode): IntSinkPortParameters =
-   pi.copy(sinks   = pi.sinks.map    { s => s.copy (nodePath = node +: s.nodePath) })
+  override def mixO(pd: IntSourcePortParameters, node: OutwardNode[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]): IntSourcePortParameters =
+   pd.copy(sources = pd.sources.map  { s => s.copy (nodePath = node +: s.nodePath) })
+  override def mixI(pu: IntSinkPortParameters, node: InwardNode[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]): IntSinkPortParameters =
+   pu.copy(sinks   = pu.sinks.map    { s => s.copy (nodePath = node +: s.nodePath) })
 }
 
 case class IntIdentityNode() extends IdentityNode(IntImp)
