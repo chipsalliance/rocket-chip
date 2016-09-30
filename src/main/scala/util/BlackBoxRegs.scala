@@ -59,8 +59,6 @@ class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
 
   val io = new SimpleRegIO(w)
 
-  val bb_d = Mux(io.en, io.d, io.q)
-
   val async_regs: List[AbstractBBReg] = List.tabulate(w)(
     i => Module (
       if (((init >> i) % 2) > 0)
@@ -74,14 +72,17 @@ class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
   for ((reg, idx) <- async_regs.zipWithIndex) {
     reg.io.clk := clock
     reg.io.rst := reset
-    reg.io.d   := bb_d(idx)
+    reg.io.d   := io.d(idx)
     reg.io.en  := io.en
+    reg.suggestName(s"reg_$idx")
   }
 
 }
 
 object AsyncResetReg {
-  def apply(d: Bool, clk: Clock, rst: Bool, init: Boolean): Bool = {
+
+  // Create Single Registers
+  def apply(d: Bool, clk: Clock, rst: Bool, init: Boolean, name: Option[String]): Bool = {
     val reg: AbstractBBReg =
       if (init) Module (new AsyncSetReg)
       else Module(new AsyncResetReg)
@@ -89,22 +90,33 @@ object AsyncResetReg {
     reg.io.clk := clk
     reg.io.rst := rst
     reg.io.en  := Bool(true)
+    name.foreach(reg.suggestName(_))
     reg.io.q
   }
 
-  def apply(d: Bool, clk: Clock, rst: Bool): Bool = apply(d, clk, rst, false)
+  def apply(d: Bool, clk: Clock, rst: Bool): Bool = apply(d, clk, rst, false, None)
+  def apply(d: Bool, clk: Clock, rst: Bool, name: String): Bool = apply(d, clk, rst, false, Some(name))
 
-  def apply(updateData: UInt, resetData: BigInt, enable: Bool): UInt = {
+  // Create Vectors of Registers
+  def apply(updateData: UInt, resetData: BigInt, enable: Bool, name: Option[String] = None): UInt = {
     val w = updateData.getWidth max resetData.bitLength
     val reg = Module(new AsyncResetRegVec(w, resetData))
+    name.foreach(reg.suggestName(_))
     reg.io.d := updateData
     reg.io.en := enable
     reg.io.q
   }
+  def apply(updateData: UInt, resetData: BigInt, enable: Bool, name: String): UInt = apply(updateData,
+    resetData, enable, Some(name))
+
 
   def apply(updateData: UInt, resetData: BigInt): UInt = apply(updateData, resetData, enable=Bool(true))
+  def apply(updateData: UInt, resetData: BigInt, name: String): UInt = apply(updateData, resetData, enable=Bool(true), Some(name))
 
   def apply(updateData: UInt, enable: Bool): UInt = apply(updateData, resetData=BigInt(0), enable)
+  def apply(updateData: UInt, enable: Bool, name: String): UInt = apply(updateData, resetData=BigInt(0), enable, Some(name))
 
   def apply(updateData: UInt): UInt = apply(updateData, resetData=BigInt(0), enable=Bool(true))
+  def apply(updateData: UInt, name:String): UInt = apply(updateData, resetData=BigInt(0), enable=Bool(true), Some(name))
+
 }
