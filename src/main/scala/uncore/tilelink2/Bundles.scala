@@ -3,7 +3,8 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.{Irrevocable, IrrevocableIO}
+import chisel3.util.{Irrevocable, IrrevocableIO, ReadyValidIO}
+import util.{AsyncQueueSource, AsyncQueueSink}
 
 abstract class GenericParameterizedBundle[T <: Object](val params: T) extends Bundle
 {
@@ -233,13 +234,43 @@ object TLBundleSnoop
   }
 }
 
-final class AsyncBundle[T <: Data](depth: Int, gen: T) extends Bundle
+final class AsyncBundle[T <: Data](val depth: Int, gen: T) extends Bundle
 {
   require (isPow2(depth))
   val ridx = UInt(width = log2Up(depth)+1).flip
   val widx = UInt(width = log2Up(depth)+1)
   val mem  = Vec(depth, gen)
   override def cloneType: this.type = new AsyncBundle(depth, gen).asInstanceOf[this.type]
+}
+
+object FromAsyncBundle
+{
+  def apply[T <: Data](x: AsyncBundle[T], sync: Int = 3): IrrevocableIO[T] = {
+    val sink = Module(new AsyncQueueSink(x.mem(0), x.depth, sync))
+    x.ridx := sink.io.ridx
+    sink.io.widx := x.widx
+    sink.io.mem  := x.mem
+    val out = Wire(Irrevocable(x.mem(0)))
+    out.valid := sink.io.deq.valid
+    out.bits := sink.io.deq.bits
+    sink.io.deq.ready := out.ready
+    out
+  }
+}
+
+object ToAsyncBundle
+{
+  def apply[T <: Data](x: ReadyValidIO[T], depth: Int = 8, sync: Int = 3): AsyncBundle[T] = {
+    val source = Module(new AsyncQueueSource(x.bits, depth, sync))
+    source.io.enq.valid := x.valid
+    source.io.enq.bits := x.bits
+    x.ready := source.io.enq.ready
+    val out = Wire(new AsyncBundle(depth, x.bits))
+    source.io.ridx := out.ridx
+    out.mem := source.io.mem
+    out.widx := source.io.widx
+    out
+  }
 }
 
 class TLAsyncBundleBase(params: TLAsyncBundleParameters) extends GenericParameterizedBundle(params)
