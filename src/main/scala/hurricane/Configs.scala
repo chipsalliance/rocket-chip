@@ -9,7 +9,6 @@ import uncore.agents._
 import uncore.devices._
 import uncore.converters._
 import rocket._
-import rocket.Util._
 import groundtest._
 import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}

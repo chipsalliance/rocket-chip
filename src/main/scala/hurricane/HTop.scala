@@ -4,7 +4,6 @@ package hurricane
 
 import Chisel._
 import cde.{Parameters, Field}
-import rocket.Util._
 import util._
 import testchipip._
 import coreplex._
@@ -151,8 +150,9 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   slowio_module.io.in_slow <> io.serial.in
   io.serial.out <> slowio_module.io.out_slow
   io.host_clock := slowio_module.io.clk_slow
-  slowio_module.io.set_divisor.bits := scr.control("slow_clock_divide")(31,0)
-  slowio_module.io.set_divisor.valid := scr.control("slow_clock_divide")(32)
+
+  slowio_module.io.divisor := scr.control("slow_clock_divide")(31,0)
+  slowio_module.io.hold := scr.control("slow_clock_divide")(63, 32)
 
   val ser = (0 until numLanes) map { i =>
     hbwifIO(i) <> switcher.io.out(i+1)

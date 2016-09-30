@@ -4,7 +4,6 @@ package hurricane
 
 import Chisel._
 import cde.{Parameters, Field}
-import rocket.Util._
 import util._
 import testchipip._
 import coreplex._
@@ -12,6 +11,7 @@ import uncore.tilelink2._
 import uncore.tilelink._
 import uncore.agents._
 import uncore.devices._
+import uncore.util._
 import junctions._
 import hbwif._
 import rocketchip._
