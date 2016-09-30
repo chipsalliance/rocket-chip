@@ -147,15 +147,18 @@ object AsyncRWSlaveRegField {
     slave_reset: Bool,
     width:  Int,
     init: Int,
+    name: Option[String] = None,
     master_allow: Bool = Bool(true),
     slave_allow: Bool = Bool(true)
   ): (UInt, RegField) = {
 
     val async_slave_reg = Module(new AsyncResetRegVec(width, init))
+    if (name.isDefined) {async_slave_reg.suggestName(name.get)}
     async_slave_reg.reset := slave_reset
     async_slave_reg.clock := slave_clock
 
     val wr_crossing = Module (new RegisterWriteCrossing(UInt(width = width)))
+    if (name.isDefined){wr_crossing.suggestName(s"${name.get}_wcrossing")}
 
     val scope = Module (new AsyncScope())
 
@@ -170,6 +173,7 @@ object AsyncRWSlaveRegField {
     async_slave_reg.io.d  := wr_crossing.io.slave_register
 
     val rd_crossing = Module (new RegisterReadCrossing(UInt(width = width )))
+    if (name.isDefined){rd_crossing.suggestName(s"${name.get}_rcrossing")}
 
     rd_crossing.io.master_clock := scope.clock
     rd_crossing.io.master_reset := scope.reset
