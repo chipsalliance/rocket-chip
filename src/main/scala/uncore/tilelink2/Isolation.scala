@@ -5,7 +5,7 @@ package uncore.tilelink2
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 
-class TLIsolation(f: UInt => UInt) extends LazyModule
+class TLIsolation(f: (Bool, UInt) => UInt) extends LazyModule
 {
   val node = TLAsyncIdentityNode()
 
@@ -13,9 +13,10 @@ class TLIsolation(f: UInt => UInt) extends LazyModule
     val io = new Bundle {
       val in  = node.bundleIn
       val out = node.bundleOut
+      val iso = Bool(INPUT)
     }
 
-    def ISO[T <: Data](x: T): T = x.fromBits(f(x.asUInt))
+    def ISO[T <: Data](x: T): T = x.fromBits(f(io.iso, x.asUInt))
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
 
@@ -52,9 +53,9 @@ object TLIsolation
 {
   // applied to the TL source node; y.node := TLIsolation()(x.node)
   // f should insert an isolation gate between the input UInt and its result
-  def apply(f: UInt => UInt)(x: TLAsyncOutwardNode)(implicit sourceInfo: SourceInfo): TLAsyncOutwardNode = {
+  def apply(f: (Bool, UInt) => UInt)(x: TLAsyncOutwardNode)(implicit sourceInfo: SourceInfo): (TLAsyncOutwardNode, () => Bool) = {
     val iso = LazyModule(new TLIsolation(f))
     iso.node := x
-    iso.node
+    (iso.node, () => iso.module.io.iso)
   }
 }
