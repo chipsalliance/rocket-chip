@@ -77,7 +77,9 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
   val refill_done = state === s_refill && refill_wrap
   narrow_grant.ready := Bool(true)
 
-  val repl_way = if (isDM) UInt(0) else LFSR16(s1_miss)(log2Up(nWays)-1,0)
+  // TODO make replacement policy configurable once Parameters are refactored
+  val replacer = new PseudoLRU(nWays)
+  val repl_way = replacer.replace
   val entagbits = code.width(tagBits)
   val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = entagbits)))
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
@@ -123,15 +125,20 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
     s1_dout(i) := data_array.read(s0_raddr, !wen && s0_valid)
   }
 
+  // update replacement policy on hit
+  val s2_hit = RegEnable(s1_hit, !stall)
+  val s2_tag_hit = RegEnable(s1_tag_hit, !stall)
+  val s2_dout = RegEnable(s1_dout, !stall)
+  when (s2_hit && !stall) {
+    replacer.access(OHToUInt(s2_tag_hit))
+  }
+
   // output signals
   latency match {
     case 1 =>
       io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
       io.resp.valid := s1_hit
     case 2 =>
-      val s2_hit = RegEnable(s1_hit, !stall)
-      val s2_tag_hit = RegEnable(s1_tag_hit, !stall)
-      val s2_dout = RegEnable(s1_dout, !stall)
       io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
       io.resp.valid := s2_hit
   }
