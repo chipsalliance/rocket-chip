@@ -277,7 +277,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 object TLAtomicAutomata
 {
   // applied to the TL source node; y.node := TLAtomicAutomata(x.node)
-  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = {
+  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
     val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough))
     atomics.node := x
     atomics.node
