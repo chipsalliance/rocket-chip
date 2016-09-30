@@ -90,7 +90,7 @@ object AsyncResetReg {
     reg.io.clk := clk
     reg.io.rst := rst
     reg.io.en  := Bool(true)
-    if (name.isDefined) reg.suggestName(name.get)
+    name.foreach(reg.suggestName(_))
     reg.io.q
   }
 
@@ -101,7 +101,7 @@ object AsyncResetReg {
   def apply(updateData: UInt, resetData: BigInt, enable: Bool, name: Option[String] = None): UInt = {
     val w = updateData.getWidth max resetData.bitLength
     val reg = Module(new AsyncResetRegVec(w, resetData))
-    if (name.isDefined) {reg.suggestName(name.get)}
+    name.foreach(reg.suggestName(_))
     reg.io.d := updateData
     reg.io.en := enable
     reg.io.q
