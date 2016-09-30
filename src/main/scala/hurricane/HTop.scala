@@ -158,7 +158,6 @@ trait HurricaneIFModule extends HasPeripheryParameters {
     hbwifIO(i) <> switcher.io.out(i+1)
   }
 
-  // TODOHurricane - I thought each bank got its own control signal, not each mem channel??
   for (i <- 0 until nMemChannels) {
     switcher.io.select(i) := scr.control(s"switcher_channel_$i")(log2Up(nMemChannels),0)
   }
