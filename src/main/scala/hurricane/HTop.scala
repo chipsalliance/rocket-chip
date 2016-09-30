@@ -125,9 +125,14 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   val lbwifParams = p.alterPartial({ case TLId => "LBWIF" })
   val switcherParams = p.alterPartial({ case TLId => "Switcher" })
 
+  val allowedRoutes =
+    // LBWIF can take any of the input channels
+    (0 until nMemChannels) +:
+    // Each HBWIF can only take a single input channel
+    Seq.tabulate(nMemChannels)(Seq(_))
   val unmapper = Module(new ChannelAddressUnmapper(nMemChannels)(switcherParams))
   val switcher = Module(new ClientUncachedTileLinkIOSwitcher(
-    nMemChannels, numLanes+1)(switcherParams))
+    nMemChannels, numLanes+1, Some(allowedRoutes))(switcherParams))
   val lbwif = Module(
     new ClientUncachedTileLinkIOBidirectionalSerdes(lbwifWidth)(lbwifParams))
 
