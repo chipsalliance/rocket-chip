@@ -4,7 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.util.{Irrevocable, IrrevocableIO}
-import uncore.util.{SimpleRegIO}
+import util.{SimpleRegIO}
 
 case class RegReadFn private(combinational: Boolean, fn: (Bool, Bool) => (Bool, Bool, UInt))
 object RegReadFn

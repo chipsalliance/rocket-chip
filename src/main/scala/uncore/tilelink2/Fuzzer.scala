@@ -2,8 +2,6 @@
 package uncore.tilelink2
 
 import Chisel._
-import unittest._
-import util.Pow2ClockDivider
 
 class IDMapGenerator(numIds: Int) extends Module {
   val w = log2Up(numIds)
@@ -208,6 +206,9 @@ class TLFuzzer(
   }
 }
 
+/** Synthesizeable integration test */
+import unittest._
+
 class TLFuzzRAM extends LazyModule
 {
   val model = LazyModule(new TLRAMModel)
@@ -223,15 +224,15 @@ class TLFuzzRAM extends LazyModule
   xbar2.node := TLAtomicAutomata()(model.node)
   ram2.node := TLFragmenter(16, 256)(xbar2.node)
   xbar.node := TLWidthWidget(16)(TLHintHandler()(xbar2.node))
-  cross.node := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
-  val monitor = (ram.node := cross.node)
+  cross.nodeIn := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
+  val monitor = (ram.node := cross.nodeOut)
   gpio.node := TLFragmenter(4, 32)(TLBuffer()(xbar.node))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
 
     // Shove the RAM into another clock domain
-    val clocks = Module(new Pow2ClockDivider(2))
+    val clocks = Module(new util.Pow2ClockDivider(2))
     ram.module.clock := clocks.io.clock_out
 
     // ... and safely cross TL2 into it

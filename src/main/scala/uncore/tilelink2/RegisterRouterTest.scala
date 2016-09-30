@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import unittest._
 import util.Pow2ClockDivider
 
 object LFSR16Seed
@@ -258,3 +259,34 @@ trait RRTest1Module extends Module with HasRegMap
 class RRTest1(address: BigInt) extends TLRegisterRouter(address, 0, 32, 6, 4)(
   new TLRegBundle((), _)    with RRTest1Bundle)(
   new TLRegModule((), _, _) with RRTest1Module)
+
+class FuzzRRTest0 extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val rrtr = LazyModule(new RRTest0(0x400))
+
+  rrtr.node := TLFragmenter(4, 32)(TLBuffer()(fuzz.node))
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRR0Test extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new FuzzRRTest0).module).io.finished
+}
+
+class FuzzRRTest1 extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val rrtr = LazyModule(new RRTest1(0x400))
+
+  rrtr.node := TLFragmenter(4, 32)(TLBuffer()(fuzz.node))
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRR1Test extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new FuzzRRTest1).module).io.finished
+}
+

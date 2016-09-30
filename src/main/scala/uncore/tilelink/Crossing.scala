@@ -1,7 +1,7 @@
 package uncore.tilelink
 
 import Chisel._
-import junctions._
+import util._
 
 object AsyncClientUncachedTileLinkCrossing {
   def apply(from_clock: Clock, from_reset: Bool, from_source: ClientUncachedTileLinkIO, to_clock: Clock, to_reset: Bool, depth: Int = 8, sync: Int = 3): ClientUncachedTileLinkIO = {

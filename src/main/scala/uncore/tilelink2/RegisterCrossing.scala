@@ -4,8 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.util.{Irrevocable, IrrevocableIO}
-import junctions._
-import uncore.util.{AsyncResetRegVec}
+import util.{AsyncResetRegVec, AsyncQueue, AsyncScope}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing(clock: Clock, reset: Bool)

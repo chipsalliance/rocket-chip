@@ -43,7 +43,7 @@ class TLRAMModel extends LazyModule
     val endAddressHi = (endAddress / beatBytes).intValue
     val maxLgBeats   = log2Up(maxTransfer/beatBytes)
     val shift        = log2Ceil(beatBytes)
-    val decTrees     = log2Ceil(maxTransfer/beatBytes)
+    val decTrees     = log2Up(maxTransfer/beatBytes)
     val addressBits  = log2Up(endAddress)
     val countBits    = log2Up(endSourceId)
     val sizeBits     = edge.bundle.sizeBits

@@ -1,4 +1,4 @@
-package uncore.util
+package util
 
 import Chisel._
 

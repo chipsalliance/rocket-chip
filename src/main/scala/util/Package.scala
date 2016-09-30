@@ -1,5 +1,3 @@
-package uncore
-
 import Chisel._
 
 package object util {
@@ -21,5 +19,26 @@ package object util {
     }
 
     def asUInt(): UInt = Cat(x.map(_.asUInt).reverse)
+  }
+
+  implicit def uintToBitPat(x: UInt): BitPat = BitPat(x)
+  implicit def wcToUInt(c: WideCounter): UInt = c.value
+
+  implicit class UIntToAugmentedUInt(val x: UInt) extends AnyVal {
+    def sextTo(n: Int): UInt =
+      if (x.getWidth == n) x
+      else Cat(Fill(n - x.getWidth, x(x.getWidth-1)), x)
+
+    def extract(hi: Int, lo: Int): UInt = {
+      if (hi == lo-1) UInt(0)
+      else x(hi, lo)
+    }
+  }
+
+  implicit class BooleanToAugmentedBoolean(val x: Boolean) extends AnyVal {
+    def toInt: Int = if (x) 1 else 0
+
+    // this one's snagged from scalaz
+    def option[T](z: => T): Option[T] = if (x) Some(z) else None
   }
 }
