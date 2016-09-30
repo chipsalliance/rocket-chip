@@ -71,6 +71,26 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3) extends LazyModule
   }
 }
 
+object TLAsyncCrossingSource
+{
+  // applied to the TL source node; y.node := TLAsyncCrossingSource()(x.node)
+  def apply(sync: Int = 3)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLAsyncOutwardNode = {
+    val source = LazyModule(new TLAsyncCrossingSource(sync))
+    source.node := x
+    source.node
+  }
+}
+
+object TLAsyncCrossingSink
+{
+  // applied to the TL source node; y.node := TLAsyncCrossingSink()(x.node)
+  def apply(depth: Int = 8, sync: Int = 3)(x: TLAsyncOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
+    val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
+    sink.node := x
+    sink.node
+  }
+}
+
 class TLAsyncCrossing(depth: Int = 8, sync: Int = 3) extends LazyModule
 {
   val nodeIn = TLInputNode()
