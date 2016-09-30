@@ -82,37 +82,44 @@ class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
   def way = logic.way
 }
 
-class PseudoLRU(n: Int)
-{
-  require(isPow2(n))
-  val state_reg = Reg(Bits(width = n))
-  def access(way: UInt) {
-    state_reg := get_next_state(state_reg,way)
-  }
-  def get_next_state(state: UInt, way: UInt) = {
-    var next_state = state
-    var idx = UInt(1,1)
-    for (i <- log2Up(n)-1 to 0 by -1) {
+object PseudoLRU {
+  def nextState(state: UInt, way: UInt, n: Int): UInt = if (n == 1) UInt(0) else {
+    var nextState = state
+    var idx = UInt(1, 1)
+    for (i <- log2Ceil(n) - 1 to 0 by -1) {
       val bit = way(i)
-      next_state = next_state.bitSet(idx, !bit)
+      nextState = nextState.bitSet(idx, !bit)
       idx = Cat(idx, bit)
     }
-    next_state
+    nextState
   }
-  def replace = get_replace_way(state_reg)
-  def get_replace_way(state: Bits) = {
-    var idx = UInt(1,1)
-    for (i <- 0 until log2Up(n))
+
+  def replaceWay(state: UInt, n: Int): UInt = if (n == 1) UInt(0) else {
+    var idx = UInt(1, 1)
+    for (i <- 0 until log2Ceil(n) - 1)
       idx = Cat(idx, state(idx))
-    idx(log2Up(n)-1,0)
+    state(idx)
   }
+
+  def apply(n: Int): PseudoLRU = new PseudoLRU(n)
+}
+
+class PseudoLRU(n: Int) {
+  require(isPow2(n))
+
+  private val state = Reg(UInt(width = n))
+
+  def replace: UInt = PseudoLRU.replaceWay(state, n)
+
+  def access(way: UInt): Unit =
+    state := PseudoLRU.nextState(state, way, n)
 }
 
 class SeqPLRU(n_sets: Int, n_ways: Int) extends SeqReplacementPolicy {
   val state = SeqMem(n_sets, Bits(width = n_ways-1))
   val logic = new PseudoLRU(n_ways)
   val current_state = Wire(Bits())
-  val plru_way = logic.get_replace_way(current_state)
+  val plru_way = PseudoLRU.replaceWay(current_state, n_ways)
   val next_state = Wire(Bits())
 
   def access(set: UInt) = {
@@ -121,7 +128,7 @@ class SeqPLRU(n_sets: Int, n_ways: Int) extends SeqReplacementPolicy {
 
   def update(valid: Bool, hit: Bool, set: UInt, way: UInt) = {
     val update_way = Mux(hit, way, plru_way)
-    next_state := logic.get_next_state(current_state, update_way)
+    next_state := PseudoLRU.nextState(current_state, update_way, n_ways)
     when (valid) { state.write(set, next_state(n_ways-1,1)) }
   }
 
