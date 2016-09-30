@@ -2,7 +2,8 @@ package rocket
 
 import Chisel._
 import uncore.tilelink._
-import Util._
+import util._
+import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {

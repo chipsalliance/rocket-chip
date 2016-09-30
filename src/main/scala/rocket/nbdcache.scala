@@ -6,11 +6,11 @@ import Chisel._
 import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
-import uncore.util._
 import uncore.constants._
-import util.{ParameterizedBundle, DecoupledHelper}
+import uncore.util._
+import util._
+import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
-import Util._
 
 case class DCacheConfig(
   nMSHRs: Int = 1,

@@ -5,11 +5,11 @@ package uncore.agents
 import Chisel._
 import cde.{Parameters, Field}
 import junctions.PAddrBits
-import util.ParameterizedBundle
 import uncore.tilelink._
 import uncore.converters._
 import uncore.coherence._
 import uncore.util._
+import util._
 
 case object NReleaseTransactors extends Field[Int]
 case object NProbeTransactors extends Field[Int]

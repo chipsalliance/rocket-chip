@@ -1,8 +1,7 @@
 // See LICENSE for license details.
 
-package junctions
+package util
 import Chisel._
-import uncore.util.{AsyncResetRegVec, AsyncResetReg}
 
 object GrayCounter {
   def apply(bits: Int, increment: Bool = Bool(true)): UInt = {
@@ -18,17 +17,15 @@ object AsyncGrayCounter {
     val syncv = List.fill(sync)(Module (new AsyncResetRegVec(w = in.getWidth, 0)))
     syncv.last.io.d := in
     syncv.last.io.en := Bool(true)
-      (syncv.init zip syncv.tail).foreach { case (sink, source) => {
+      (syncv.init zip syncv.tail).foreach { case (sink, source) =>
         sink.io.d := source.io.q
         sink.io.en := Bool(true)
-      }
       }
     syncv(0).io.d
   }
 }
 
-class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, clockIn: Clock, resetIn: Bool)
-    extends Module(_clock = clockIn, _reset = resetIn) {
+class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   val bits = log2Ceil(depth)
   val io = new Bundle {
     // These come from the source domain
@@ -55,8 +52,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, clockIn: Clock,
   io.mem := mem
 }
 
-class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, clockIn: Clock, resetIn: Bool)
-    extends Module(_clock = clockIn, _reset = resetIn) {
+class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   val bits = log2Ceil(depth)
   val io = new Bundle {
     // These come from the sink domain
@@ -90,8 +86,13 @@ class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Cross
   require (depth > 0 && isPow2(depth))
 
   val io = new CrossingIO(gen)
-  val source = Module(new AsyncQueueSource(gen, depth, sync, io.enq_clock, io.enq_reset))
-  val sink   = Module(new AsyncQueueSink  (gen, depth, sync, io.deq_clock, io.deq_reset))
+  val source = Module(new AsyncQueueSource(gen, depth, sync))
+  val sink   = Module(new AsyncQueueSink  (gen, depth, sync))
+
+  source.clock := io.enq_clock
+  source.reset := io.enq_reset
+  sink.clock := io.deq_clock
+  sink.reset := io.deq_reset
 
   source.io.enq <> io.enq
   io.deq <> sink.io.deq

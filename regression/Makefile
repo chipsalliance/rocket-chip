@@ -52,7 +52,7 @@ endif
 
 ifeq ($(SUITE),UnittestSuite)
 PROJECT=unittest
-CONFIGS=JunctionsUnitTestConfig UncoreUnitTestConfig
+CONFIGS=JunctionsUnitTestConfig UncoreUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig TLXbarUnitTestConfig
 endif
 
 ifeq ($(SUITE), JtagDtmSuite)
@@ -222,8 +222,8 @@ JTAG_DTM_TEST ?= SimpleRegisterTest.test_s0
 
 stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
 	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
-	--run $(abspath $(TOP))/vsim/simv-$(PROJECT)-$* \
-	--cmd="$(OPENOCD_DIR)/bin/openocd \
+	--run "$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*" \
+	--cmd="$(OPENOCD_DIR)/bin/openocd -d \
 	--s $(OPENOCD_DIR)/share/openocd/scripts" \
 	--freedom-e300-sim \
 	$(JTAG_DTM_TEST)
@@ -232,7 +232,7 @@ stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebu
 stamps/%/jtag-dtm-64-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
 	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
 	--run $(abspath $(TOP))/vsim/simv-$(PROJECT)-$* \
-	--cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd \
+	--cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd -d \
 	--s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
 	--freedom-u500-sim \
 	$(JTAG_DTM_TEST)

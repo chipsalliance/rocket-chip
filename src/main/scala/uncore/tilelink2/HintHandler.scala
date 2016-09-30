@@ -135,9 +135,31 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
 object TLHintHandler
 {
   // applied to the TL source node; y.node := TLHintHandler(x.node)
-  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = {
+  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
     val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
     hints.node := x
     hints.node
   }
+}
+
+/** Synthesizeable unit tests */
+import unittest._
+
+//TODO ensure handler will pass through hints to clients that can handle them themselves
+
+class TLRAMHintHandler() extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
+
+  model.node := fuzz.node
+  ram.node := TLFragmenter(4, 256)(TLHintHandler()(model.node))
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMHintHandlerTest extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMHintHandler).module).io.finished
 }

@@ -277,9 +277,31 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 object TLAtomicAutomata
 {
   // applied to the TL source node; y.node := TLAtomicAutomata(x.node)
-  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = {
+  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
     val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough))
     atomics.node := x
     atomics.node
   }
+}
+
+/** Synthesizeable unit tests */
+import unittest._
+
+//TODO ensure handler will pass through operations to clients that can handle them themselves
+
+class TLRAMAtomicAutomata() extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
+
+  model.node := fuzz.node
+  ram.node := TLFragmenter(4, 256)(TLAtomicAutomata()(model.node))
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMAtomicAutomataTest extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMAtomicAutomata).module).io.finished
 }

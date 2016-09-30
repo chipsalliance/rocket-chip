@@ -11,20 +11,15 @@ class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
     val in_fast = Decoupled(data)
     val in_slow = Decoupled(data).flip
     val clk_slow = Bool(OUTPUT)
-    val set_divisor = Valid(Bits(width = 32)).flip
-    val divisor = Bits(OUTPUT, 32)
+
+    val divisor = UInt(INPUT, log2Up(divisor_max))
+    val hold = UInt(INPUT, log2Up(divisor_max))
   }
 
   require(divisor_max >= 8 && divisor_max <= 65536 && isPow2(divisor_max))
+
   val divisor = Reg(init=UInt(divisor_max-1))
-  val d_shadow = Reg(init=UInt(divisor_max-1))
   val hold = Reg(init=UInt(divisor_max/4-1))
-  val h_shadow = Reg(init=UInt(divisor_max/4-1))
-  when (io.set_divisor.valid) {
-    d_shadow := io.set_divisor.bits(log2Up(divisor_max)-1, 0)
-    h_shadow := io.set_divisor.bits(log2Up(divisor_max)-1+16, 16)
-  }
-  io.divisor := (hold << 16) | divisor
 
   val count = Reg{UInt(width = log2Up(divisor_max))}
   val myclock = Reg{Bool()}
@@ -35,8 +30,8 @@ class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
   val held = count === (divisor >> 1) + hold
 
   when (falling) {
-    divisor := d_shadow
-    hold := h_shadow
+    divisor := io.divisor
+    hold := io.hold
     count := UInt(0)
     myclock := Bool(false)
   }
