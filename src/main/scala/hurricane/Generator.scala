@@ -1,6 +1,7 @@
 // See LICENSE for license details.
 
 package hurricane
+import testchipip.SCRHeaderOutput
 
 object Generator extends util.GeneratorApp {
   val longName = names.topModuleClass + "." + names.configs
@@ -10,10 +11,6 @@ object Generator extends util.GeneratorApp {
   generateSCRHeader
 
   def generateSCRHeader {
-    SCRHeaderOutput.contents.foreach(c => writeOutputFile(td, s"${names.configs}.scr.h", c))
+    writeOutputFile(td, s"${names.configs}.scr.h", SCRHeaderOutput.contents.mkString("\n"))
   }
-}
-
-object SCRHeaderOutput {
-  var contents: Option[String] = None
 }

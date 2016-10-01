@@ -77,7 +77,7 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 trait HurricaneExtraTopLevel extends LazyModule {
   implicit val p: Parameters
   val scrDevices = new ResourceManager[AddrMapEntry]
-  val topLevelSCRBuilder = new SCRBuilder
+  val topLevelSCRBuilder = new SCRBuilder("SCRTop")
 
   scrDevices.add(AddrMapEntry("HSCRFile", MemSize(BigInt(p(HSCRFileSize)), MemAttr(AddrMapProt.RW))))
 }
@@ -94,7 +94,6 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
 
   //SCR file generation
   val scr = outer.topLevelSCRBuilder.generate(outerMMIOParams)
-  SCRHeaderOutput.contents = Some(outer.topLevelSCRBuilder.makeHeader("HSCR"))
 
   scr.io.tl <> scrBus.port("HSCRFile")
   scrBus.io.in(0) <> pBus.port("scrbus")
