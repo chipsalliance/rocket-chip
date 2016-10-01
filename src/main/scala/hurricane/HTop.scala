@@ -11,6 +11,8 @@ import uncore.tilelink2._
 import uncore.tilelink._
 import uncore.agents._
 import uncore.devices.NTiles
+import uncore.converters.TileLinkWidthAdapter
+import uncore.util.TileLinkEnqueuer
 import junctions._
 import hbwif._
 import rocketchip._
@@ -88,15 +90,16 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
   val outer: HurricaneExtraTopLevel
   val pBus: TileLinkRecursiveInterconnect
 
+  val scrParams = p.alterPartial({ case TLId => "MMIOtoSCR" })
+
   val scrBus = Module(new TileLinkRecursiveInterconnect(
-    2, p(GlobalAddrMap).subMap("io:pbus:scrbus"))(
-      p.alterPartial({ case TLId => "MMIOtoSCR" })))
+    2, p(GlobalAddrMap).subMap("io:pbus:scrbus"))(scrParams))
 
   //SCR file generation
-  val scr = outer.topLevelSCRBuilder.generate(outerMMIOParams)
-
+  val scr = outer.topLevelSCRBuilder.generate(scrParams)
   scr.io.tl <> scrBus.port("HSCRFile")
-  scrBus.io.in(0) <> pBus.port("scrbus")
+  val pBusPort = TileLinkEnqueuer(pBus.port("scrbus"), 1)
+  TileLinkWidthAdapter(scrBus.io.in(0), pBusPort)
   val lbscrTL = scrBus.io.in(1)
 }
 
@@ -139,17 +142,17 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   unmapper.io.in <> coreplexIO.master.mem
   switcher.io.in <> unmapper.io.out
 
-  def scrRouteSel(addr: UInt) =
+  def lbwifRouteSel(addr: UInt) =
     UIntToOH(p(GlobalAddrMap).isInRegion("io:pbus:scrbus",addr))
 
-  val scr_router = Module(new ClientUncachedTileLinkIORouter(
-    2, scrRouteSel)(outerMMIOParams))
+  val lbwif_router = Module(new ClientUncachedTileLinkIORouter(
+    2, lbwifRouteSel)(lbwifParams))
   val (r_start, r_end) = outer.pBusMasters.range("lbwif")
 
   lbwif.io.tl_manager <> switcher.io.out(0)
-  scr_router.io.in <> lbwif.io.tl_client
-  lbscrTL <> scr_router.io.out(1)
-  coreplexIO.slave(r_start) <> scr_router.io.out(0)
+  lbwif_router.io.in <> lbwif.io.tl_client
+  TileLinkWidthAdapter(lbscrTL, lbwif_router.io.out(1))
+  coreplexIO.slave(r_start) <> lbwif_router.io.out(0)
 
   val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide))(UInt(width=lbwifWidth)))
 

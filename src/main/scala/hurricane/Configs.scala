@@ -73,7 +73,7 @@ class WithHUpTop extends Config (
     // Need to pick the key with the larger client_xact_id
     case TLKey("LBWIF") => {
       val memKey = site(TLKey("Switcher"))
-      val mmioKey = site(TLKey("MMIOtoSCR"))
+      val mmioKey = site(TLKey("MMIOtoSCR")).copy(dataBeats = memKey.dataBeats)
       val memIdSize = memKey.maxClientXacts * memKey.maxClientsPerPort
       val mmioIdSize = mmioKey.maxClientXacts * mmioKey.maxClientsPerPort
       if (memIdSize > mmioIdSize) memKey else mmioKey
@@ -82,8 +82,13 @@ class WithHUpTop extends Config (
       site(TLKey("L2toMC")).copy(
         maxClientXacts = site(NAcquireTransactors) + 2,
         maxClientsPerPort = site(NBanksPerMemoryChannel) * site(NMemoryChannels))
-    case TLKey("MMIOtoSCR") =>
-      site(TLKey("L2toMMIO")).copy(maxClientsPerPort = 2)
+    case TLKey("MMIOtoSCR") => {
+      val scrDataBits = 64
+      val scrDataBeats = (8 * site(CacheBlockBytes)) / scrDataBits
+      site(TLKey("L2toMMIO")).copy(
+        maxClientsPerPort = 2,
+        dataBeats = scrDataBeats)
+    }
     case _ => throw new CDEMatchError
   }
 )
