@@ -33,6 +33,7 @@ class HUpTop(q: Parameters) extends BaseTop(q)
   topLevelSCRBuilder.addControl("coreplex_reset", UInt(1))
   for (i <- 0 until p(NTiles) - 1) {
     topLevelSCRBuilder.addControl(s"core_${i}_reset", UInt(1))
+    topLevelSCRBuilder.addControl(s"core_${i}_rocc_reset", UInt(1))
   }
   topLevelSCRBuilder.addControl("pmu_reset", UInt(1))
   topLevelSCRBuilder.addControl("slow_clock_divide", UInt(0))
@@ -67,6 +68,8 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
   multiClockCoreplexIO.tcrs.dropRight(1).zipWithIndex foreach { case (tcr, i) =>
     tcr.clock := clock
     tcr.reset := ResetSync(scr.control(s"core_${i}_reset")(0).toBool, tcr.clock)
+    tcr.roccClock := clock
+    tcr.roccReset := ResetSync(scr.control(s"core_${i}_rocc_reset")(0).toBool, tcr.roccClock)
   }
   multiClockCoreplexIO.tcrs.last.reset := scr.control(s"pmu_reset")(0).toBool
 

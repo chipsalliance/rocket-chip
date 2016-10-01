@@ -44,6 +44,8 @@ trait TileClockResetBundle {
   val tcrs = Vec(c.nTiles, new Bundle {
     val clock = Clock(INPUT)
     val reset = Bool(INPUT)
+    val roccClock = Clock(INPUT)
+    val roccReset = Bool(INPUT)
   })
 }
 
@@ -55,9 +57,14 @@ trait AsyncConnection {
   (tiles, uncoreTileIOs, io.tcrs).zipped foreach { case (tile, uncore, tcr) =>
     tile.clock := tcr.clock
     tile.reset := tcr.reset
+    tile.io.roccClock := tcr.roccClock
+    tile.io.roccReset := tcr.roccReset
 
     (uncore.cached zip tile.io.cached) foreach { case (u, t) => u <> AsyncTileLinkFrom(tcr.clock, tcr.reset, t) }
-    (uncore.uncached zip tile.io.uncached) foreach { case (u, t) => u <> AsyncUTileLinkFrom(tcr.clock, tcr.reset, t) }
+    //rocket's uncached port
+    uncore.uncached.head <> AsyncUTileLinkFrom(tcr.clock, tcr.reset, tile.io.uncached.head)
+    //rocc's uncached ports
+    (uncore.uncached.drop(1) zip tile.io.uncached.drop(1)) foreach { case (u, t) => u <> AsyncUTileLinkFrom(tcr.roccClock, tcr.roccReset, t) }
     tile.io.slave.foreach { _ <> AsyncUTileLinkTo(tcr.clock, tcr.reset, uncore.slave.get)}
 
     val ti = tile.io.interrupts

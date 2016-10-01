@@ -70,6 +70,8 @@ class WithHUpTop extends Config (
       LazyModule(new MultiClockCoreplex(c)(p)).module
     case BuildHTop => (p: Parameters) =>
       LazyModule(new HUpTop(p))
+    case DecoupledRoCC => true
+    case RoCCQueueDepth => 2
     // Need to pick the key with the larger client_xact_id
     case TLKey("LBWIF") => {
       val memKey = site(TLKey("Switcher"))

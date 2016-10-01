@@ -17,7 +17,7 @@ case object TileId extends Field[Int]
 
 case class RoccParameters(
   opcodes: OpcodeSet,
-  generator: Parameters => RoCC,
+  generator: (Parameters) => RoCC,
   nMemChannels: Int = 0,
   nPTWPorts : Int = 0,
   useFPU: Boolean = false)
@@ -35,6 +35,8 @@ class TileIO(c: TileBundleConfig)(implicit p: Parameters) extends Bundle {
   val interrupts = new TileInterrupts().asInput
   val slave = c.hasSlavePort.option(new ClientUncachedTileLinkIO().flip)
   val resetVector = UInt(INPUT, c.xLen)
+  val roccClock = Clock(INPUT)
+  val roccReset = Bool(INPUT)
 
   override def cloneType = new TileIO(c).asInstanceOf[this.type]
 }
@@ -90,6 +92,8 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
         case RoccNMemChannels => accelParams.nMemChannels
         case RoccNPTWPorts => accelParams.nPTWPorts
       }))
+      rocc.clock := io.roccClock
+      rocc.reset := io.roccReset
       val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
       rocc.io.cmd <> cmdRouter.io.out(i)
       rocc.io.exception := core.io.rocc.exception
