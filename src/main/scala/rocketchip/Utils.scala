@@ -56,7 +56,7 @@ object GenerateGlobalAddrMap {
     lazy val cBusIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
       entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
-      entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("plic", MemRange(0x0C000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       if (p(DataScratchpadSize) > 0) { // TODO heterogeneous tiles
         require(p(NTiles) == 1) // TODO relax this
         require(p(NMemoryChannels) == 0) // TODO allow both scratchpad & DRAM
