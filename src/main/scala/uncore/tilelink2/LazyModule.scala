@@ -48,7 +48,7 @@ abstract class LazyModule
 
   private def nodesGraphML(buf: StringBuilder, pad: String) {
     buf ++= s"""${pad}<node id=\"${index}\">\n"""
-    buf ++= s"""${pad}  <data key=\"d1\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">${name}</y:NodeLabel></y:ShapeNode></data>\n"""
+    buf ++= s"""${pad}  <data key=\"d1\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" fontSize=\"10\" borderDistance=\"1.0\" rotationAngle=\"270.0\">${module.name}</y:NodeLabel></y:ShapeNode></data>\n"""
     buf ++= s"""${pad}  <graph id=\"${index}::\" edgedefault=\"directed\">\n"""
     nodes.filter(!_.omitGraphML).foreach { n =>
       buf ++= s"""${pad}    <node id=\"${index}::${n.index}\"/>\n"""
