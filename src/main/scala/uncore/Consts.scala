@@ -30,10 +30,19 @@ trait MemoryOpConstants {
   val M_PRODUCE = UInt("b10001") // write back dirty data and cede W permissions
   val M_CLEAN   = UInt("b10011") // write back dirty data and retain R/W permissions
 
-  def isAMO(cmd: UInt) = cmd(3) || cmd === M_XA_SWAP
-  def isPrefetch(cmd: UInt) = cmd === M_PFR || cmd === M_PFW
-  def isRead(cmd: UInt) = cmd === M_XRD || cmd === M_XLR || cmd === M_XSC || isAMO(cmd)
-  def isWrite(cmd: UInt) = cmd === M_XWR || cmd === M_XSC || isAMO(cmd)
-  def isWriteIntent(cmd: UInt) = isWrite(cmd) || cmd === M_PFW || cmd === M_XLR
+  def isAMO(cmd: UInt) = (cmd(3).suggestName("cmd3Wire") ||
+    (cmd === M_XA_SWAP).suggestName("mXaSwapWire")).suggestName("isAMOWire")
+  def isPrefetch(cmd: UInt) = ((cmd === M_PFR).suggestName("pfrWire") ||
+    (cmd === M_PFW).suggestName("pfwWire")).suggestName("isPrefetchWire")
+  def isRead(cmd: UInt) = (((cmd === M_XRD).suggestName("xrdWire") ||
+    (cmd === M_XLR).suggestName("xlrWire")).suggestName("xrdXlrWire") ||
+    ((cmd === M_XSC).suggestName("xscWire") ||
+    isAMO(cmd).suggestName("isAMOWire")).suggestName("xscAMOWire")).suggestName("isReadWire")
+  def isWrite(cmd: UInt) = (((cmd === M_XWR).suggestName("xwrWire") ||
+    (cmd === M_XSC).suggestName("xscWire")).suggestName("xwrXscWire") ||
+    isAMO(cmd).suggestName("isAMOWire")).suggestName("isWriteWire")
+  def isWriteIntent(cmd: UInt) = ((isWrite(cmd).suggestName("isWriteWire") ||
+    (cmd === M_PFW).suggestName("pfwWire")).suggestName("writePfwWrite") ||
+    (cmd === M_XLR).suggestName("xlrWire")).suggestName("isWriteIntent")
 }
 
