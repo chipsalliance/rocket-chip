@@ -54,6 +54,8 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
     TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
     TLHintHandler()(
     legacy.node))))
+
+  TopModule.contents = Some(this)
 }
 
 abstract class BaseTopBundle(val p: Parameters) extends Bundle {
@@ -93,7 +95,6 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
   println("\nGenerated Configuration String")
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
-  GraphMLOutput.contents = Some(outer.graphML)
 
   io.success := coreplexIO.success
 }
