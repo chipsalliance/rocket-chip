@@ -30,8 +30,8 @@ trait MemoryOpConstants {
   val M_PRODUCE = UInt("b10001") // write back dirty data and cede W permissions
   val M_CLEAN   = UInt("b10011") // write back dirty data and retain R/W permissions
 
-  def isAMO(cmd: UInt) = cmd(3) || cmd === M_XA_SWAP
-  def isPrefetch(cmd: UInt) = cmd === M_PFR || cmd === M_PFW
+  def isAMO(cmd: UInt) = (cmd(3).suggestName("cmd3Wire") || (cmd === M_XA_SWAP).suggestName("xaSwapWire")).suggestName("isAMOWire")
+  def isPrefetch(cmd: UInt) = ((cmd === M_PFR).suggestName("pfrWire") || (cmd === M_PFW).suggestName("pfwWire")).suggestName("isPrefetchAMO")
   def isRead(cmd: UInt) = cmd === M_XRD || cmd === M_XLR || cmd === M_XSC || isAMO(cmd)
   def isWrite(cmd: UInt) = cmd === M_XWR || cmd === M_XSC || isAMO(cmd)
   def isWriteIntent(cmd: UInt) = isWrite(cmd) || cmd === M_PFW || cmd === M_XLR
