@@ -19,6 +19,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_)))).flip
   }
 
+  def colour = "#000000" // black
   def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     val monitor = LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo))
     (Some(monitor), () => {
@@ -85,6 +86,7 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
     Vec(ei.size, new TLAsyncBundle(ei(0).bundle)).flip
   }
 
+  def colour = "#ff0000" // red
   def connect(bo: => TLAsyncBundle, bi: => TLAsyncBundle, ei: => TLAsyncEdgeParameters)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => { bi <> bo })
   }
