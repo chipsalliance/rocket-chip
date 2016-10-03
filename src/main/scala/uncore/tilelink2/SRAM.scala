@@ -3,18 +3,21 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
 
 class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
 {
-  val node = TLManagerNode(beatBytes, TLManagerParameters(
-    address            = List(address),
-    regionType         = RegionType.UNCACHED,
-    executable         = executable,
-    supportsGet        = TransferSizes(1, beatBytes),
-    supportsPutPartial = TransferSizes(1, beatBytes),
-    supportsPutFull    = TransferSizes(1, beatBytes),
-    fifoId             = Some(0)), // requests are handled in order
-    minLatency         = 1) // no bypass needed for this device
+  val node = TLManagerNode(TLManagerPortParameters(
+    Seq(TLManagerParameters(
+      address            = List(address),
+      regionType         = RegionType.UNCACHED,
+      executable         = executable,
+      supportsGet        = TransferSizes(1, beatBytes),
+      supportsPutPartial = TransferSizes(1, beatBytes),
+      supportsPutFull    = TransferSizes(1, beatBytes),
+      fifoId             = Some(0))), // requests are handled in order
+    beatBytes  = beatBytes,
+    minLatency = 1)) // no bypass needed for this device
 
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)

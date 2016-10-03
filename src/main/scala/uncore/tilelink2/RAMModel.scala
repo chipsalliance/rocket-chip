@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
 
 // We detect concurrent puts that put memory into an undefined state.
 // put0, put0Ack, put1, put1Ack => ok: defined

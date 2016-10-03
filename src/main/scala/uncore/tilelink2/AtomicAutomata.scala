@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy._
 import scala.math.{min,max}
 
 // Ensures that all downstream RW managers support Atomic operationss.

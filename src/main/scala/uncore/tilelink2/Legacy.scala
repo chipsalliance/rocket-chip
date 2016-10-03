@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
 import cde.Parameters
 import uncore.tilelink._
 import uncore.constants._

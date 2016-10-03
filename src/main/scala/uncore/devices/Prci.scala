@@ -5,6 +5,7 @@ package uncore.devices
 import Chisel._
 import junctions._
 import junctions.NastiConstants._
+import regmapper._
 import uncore.tilelink2._
 import uncore.util._
 import util._

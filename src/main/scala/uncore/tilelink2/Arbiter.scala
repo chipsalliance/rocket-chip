@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.util.IrrevocableIO
+import diplomacy._
 
 object TLArbiter
 {

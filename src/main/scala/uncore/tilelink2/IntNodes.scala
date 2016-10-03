@@ -3,9 +3,10 @@
 package uncore.tilelink2
 
 import Chisel._
+import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy._
 import scala.collection.mutable.ListBuffer
 import scala.math.max
-import chisel3.internal.sourceinfo.SourceInfo
 
 // A potentially empty half-open range; [start, end)
 case class IntRange(start: Int, end: Int)

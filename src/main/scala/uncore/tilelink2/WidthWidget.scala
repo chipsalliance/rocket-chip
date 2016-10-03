@@ -5,6 +5,7 @@ package uncore.tilelink2
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.util.{Irrevocable, IrrevocableIO}
+import diplomacy._
 import scala.math.{min,max}
 
 // innBeatBytes => the new client-facing bus width

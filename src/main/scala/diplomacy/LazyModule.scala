@@ -1,17 +1,17 @@
 // See LICENSE for license details.
 
-package uncore.tilelink2
+package diplomacy
 
 import Chisel._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 
 abstract class LazyModule
 {
-  protected[tilelink2] var bindings = List[() => Unit]()
-  protected[tilelink2] var children = List[LazyModule]()
-  protected[tilelink2] var nodes = List[BaseNode]()
-  protected[tilelink2] var info: SourceInfo = UnlocatableSourceInfo
-  protected[tilelink2] val parent = LazyModule.stack.headOption
+  protected[diplomacy] var bindings = List[() => Unit]()
+  protected[diplomacy] var children = List[LazyModule]()
+  protected[diplomacy] var nodes = List[BaseNode]()
+  protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
+  protected[diplomacy] val parent = LazyModule.stack.headOption
 
   LazyModule.stack = this :: LazyModule.stack
   parent.foreach(p => p.children = this :: p.children)
@@ -21,7 +21,7 @@ abstract class LazyModule
 
   def module: LazyModuleImp
 
-  protected[tilelink2] def instantiate() = {
+  protected[diplomacy] def instantiate() = {
     children.reverse.foreach { c => 
       // !!! fix chisel3 so we can pass the desired sourceInfo
       // implicit val sourceInfo = c.module.outer.info
@@ -71,7 +71,7 @@ abstract class LazyModule
 
 object LazyModule
 {
-  protected[tilelink2] var stack = List[LazyModule]()
+  protected[diplomacy] var stack = List[LazyModule]()
   private var index = 0
 
   def apply[T <: LazyModule](bc: T)(implicit sourceInfo: SourceInfo): T = {
