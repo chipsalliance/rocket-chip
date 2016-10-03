@@ -35,7 +35,8 @@ abstract class LazyModule
     val buf = new StringBuilder
     buf ++= "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
     buf ++= "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:y=\"http://www.yworks.com/xml/graphml\">\n"
-    buf ++= "  <key for=\"node\" id=\"d1\" yfiles.type=\"nodegraphics\"/>\n"
+    buf ++= "  <key for=\"node\" id=\"n\" yfiles.type=\"nodegraphics\"/>\n"
+    buf ++= "  <key for=\"edge\" id=\"e\" yfiles.type=\"edgegraphics\"/>\n"
     buf ++= "  <graph id=\"G\" edgedefault=\"directed\">\n"
     nodesGraphML(buf, "    ")
     edgesGraphML(buf, "    ")
@@ -48,7 +49,7 @@ abstract class LazyModule
 
   private def nodesGraphML(buf: StringBuilder, pad: String) {
     buf ++= s"""${pad}<node id=\"${index}\">\n"""
-    buf ++= s"""${pad}  <data key=\"d1\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" fontSize=\"10\" borderDistance=\"1.0\" rotationAngle=\"270.0\">${module.name}</y:NodeLabel></y:ShapeNode></data>\n"""
+    buf ++= s"""${pad}  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" fontSize=\"10\" borderDistance=\"1.0\" rotationAngle=\"270.0\">${module.name}</y:NodeLabel></y:ShapeNode></data>\n"""
     buf ++= s"""${pad}  <graph id=\"${index}::\" edgedefault=\"directed\">\n"""
     nodes.filter(!_.omitGraphML).foreach { n =>
       buf ++= s"""${pad}    <node id=\"${index}::${n.index}\"/>\n"""
@@ -62,7 +63,7 @@ abstract class LazyModule
       buf ++= pad
       buf ++= "<edge"
       buf ++= s""" source=\"${index}::${n.index}\""""
-      buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\"/>\n"""
+      buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\"><data key=\"e\"><y:PolyLineEdge><y:Arrows source=\"none\" target=\"standard\"/><y:LineStyle color=\"${o.colour}\" type=\"line\" width=\"1.0\"/></y:PolyLineEdge></data></edge>\n"""
     } }
     children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
   }

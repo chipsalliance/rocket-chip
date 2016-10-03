@@ -15,6 +15,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def edgeI(pd: DI, pu: UI): EI
   def bundleI(ei: Seq[EI]): Vec[BI]
   def mixI(pu: UI, node: InwardNode[DI, UI, BI]): UI = pu
+  def colour: String
   def connect(bo: => BI, bi: => BI, e: => EI)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit)
 }
 
@@ -42,11 +43,11 @@ abstract class BaseNode
   lazyModule.nodes = this :: lazyModule.nodes
 
   def name = lazyModule.name + "." + getClass.getName.split('.').last
-  def colour = "blue"
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
 
   protected[tilelink2] def outputs: Seq[BaseNode]
   protected[tilelink2] def inputs:  Seq[BaseNode]
+  protected[tilelink2] def colour:  String
 }
 
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode
@@ -109,6 +110,7 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   extends BaseNode with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
   // meta-data for printing the node graph
+  protected[tilelink2] def colour  = inner.colour
   protected[tilelink2] def outputs = oPorts.map(_._2)
   protected[tilelink2] def inputs  = iPorts.map(_._2)
 
