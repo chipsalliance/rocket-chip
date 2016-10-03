@@ -2,6 +2,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
 
 class IDMapGenerator(numIds: Int) extends Module {
   val w = log2Up(numIds)

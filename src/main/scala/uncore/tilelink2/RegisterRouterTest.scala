@@ -3,8 +3,10 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
+import regmapper._
 import unittest._
-import util.Pow2ClockDivider
+import util.{Pow2ClockDivider}
 
 object LFSR16Seed
 {

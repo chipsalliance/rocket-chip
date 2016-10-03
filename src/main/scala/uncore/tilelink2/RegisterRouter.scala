@@ -3,6 +3,8 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
+import regmapper._
 import scala.math.{min,max}
 
 class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true)

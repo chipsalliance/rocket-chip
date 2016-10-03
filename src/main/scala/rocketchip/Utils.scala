@@ -4,6 +4,7 @@ package rocketchip
 
 import cde.{Parameters, Dump}
 import junctions._
+import diplomacy._
 import uncore.devices._
 import rocket._
 import coreplex._

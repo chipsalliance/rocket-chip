@@ -1,8 +1,10 @@
 // See LICENSE for license details.
 
-package uncore.tilelink2
+package regmapper
 
 import Chisel._
+import diplomacy._
+import util.{GenericParameterizedBundle}
 
 // A bus agnostic register interface to a register-based device
 

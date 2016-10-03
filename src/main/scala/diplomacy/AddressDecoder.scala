@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package uncore.tilelink2
+package diplomacy
 
 import Chisel._
 import scala.math.{max,min}

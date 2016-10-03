@@ -1,10 +1,10 @@
 // See LICENSE for license details.
 
-package uncore.tilelink2
+package regmapper
 
 import Chisel._
 import chisel3.util.{Irrevocable}
-import util.{AsyncResetRegVec, AsyncQueue, AsyncScope}
+import util.{AsyncQueue,AsyncScope,AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing(clock: Clock, reset: Bool)

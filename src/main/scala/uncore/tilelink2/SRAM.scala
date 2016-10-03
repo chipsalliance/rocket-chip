@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
 
 class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
 {

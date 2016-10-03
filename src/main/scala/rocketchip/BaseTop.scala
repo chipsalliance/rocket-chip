@@ -5,6 +5,7 @@ package rocketchip
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
+import diplomacy._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.devices._

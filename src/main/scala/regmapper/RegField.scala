@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package uncore.tilelink2
+package regmapper
 
 import Chisel._
 import chisel3.util.{ReadyValidIO}

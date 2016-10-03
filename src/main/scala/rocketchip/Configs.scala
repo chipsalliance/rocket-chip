@@ -5,9 +5,9 @@ package rocketchip
 import Chisel._
 import junctions._
 import rocket._
+import diplomacy._
 import uncore.agents._
 import uncore.tilelink._
-import uncore.tilelink2.{LazyModule}
 import uncore.devices._
 import uncore.converters._
 import util._
@@ -40,7 +40,7 @@ class BasePlatformConfig extends Config(
         case TLKey("MMIOtoEdge") =>
           site(TLKey("L2toMMIO")).copy(dataBeats = edgeDataBeats)
         case BuildCoreplex =>
-          (c: CoreplexConfig, p: Parameters) => uncore.tilelink2.LazyModule(new DefaultCoreplex(c)(p)).module
+          (c: CoreplexConfig, p: Parameters) => LazyModule(new DefaultCoreplex(c)(p)).module
         case NExtTopInterrupts => 2
         case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 4)
         // Note that PLIC asserts that this is > 0.
@@ -68,7 +68,7 @@ class BasePlatformConfig extends Config(
         case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
         case BuildExampleTop =>
-          (p: Parameters) => uncore.tilelink2.LazyModule(new ExampleTop(p))
+          (p: Parameters) => LazyModule(new ExampleTop(p))
         case SimMemLatency => 0
         case _ => throw new CDEMatchError
       }

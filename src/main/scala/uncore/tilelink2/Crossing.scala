@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy._
 import util._
 
 class TLAsyncCrossingSource(sync: Int = 3) extends LazyModule

@@ -4,8 +4,8 @@ package util
 
 import Chisel._
 import cde._
+import diplomacy.LazyModule
 import java.io.{File, FileWriter}
-import uncore.tilelink2.LazyModule
 
 /** Representation of the information this Generator needs to collect from external sources. */
 case class ParsedInputNames(
