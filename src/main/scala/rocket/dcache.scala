@@ -197,7 +197,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     lrscAddr := s2_req.addr >> blockOffBits
   }
   when (lrscValid) { lrscCount := lrscCount - 1 }
-  when ((s2_valid_hit && s2_sc) || io.cpu.invalidate_lr) { lrscCount := 0 }
+  when ((s2_valid_masked && lrscValid) || io.cpu.invalidate_lr) { lrscCount := 0 }
 
   // pending store buffer
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
