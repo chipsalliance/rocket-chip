@@ -1,9 +1,9 @@
 package hurricane
 
 import Chisel._
+import diplomacy.LazyModule
 import junctions._
 import uncore.tilelink._
-import uncore.tilelink2._
 import uncore.coherence._
 import uncore.agents._
 import uncore.devices._

@@ -7,7 +7,7 @@ import cde.{Parameters, Field}
 import util._
 import testchipip._
 import coreplex._
-import uncore.tilelink2._
+import diplomacy.LazyModule
 import uncore.tilelink._
 import uncore.agents._
 import uncore.devices.NTiles
