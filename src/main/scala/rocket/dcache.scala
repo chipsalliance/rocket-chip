@@ -474,7 +474,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
     io.cpu.s2_nack := !flushed
     when (!flushed) {
-      flushing := !release_ack_wait
+      flushing := !release_ack_wait && !uncachedInFlight.asUInt.orR
     }
   }
   s1_flush_valid := metaReadArb.io.in(0).fire() && !s1_flush_valid && !s2_flush_valid && release_state === s_ready && !release_ack_wait
