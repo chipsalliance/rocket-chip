@@ -77,7 +77,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
       s2_pc := s1_pc
       s2_speculative := s1_speculative
       s2_cacheable := tlb.io.resp.cacheable
-      s2_xcpt_if := tlb.io.resp.xcpt_if
+      s2_xcpt_if := tlb.io.resp.xcpt_if && !tlb.io.resp.miss
     }
   }
   when (io.cpu.req.valid) {
