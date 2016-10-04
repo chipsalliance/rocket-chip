@@ -5,6 +5,7 @@ package uncore.devices
 import Chisel._
 import junctions._
 import junctions.NastiConstants._
+import regmapper._
 import uncore.tilelink2._
 import uncore.util._
 import util._
@@ -19,7 +20,7 @@ class CoreplexLocalInterrupts extends Bundle {
   val msip = Bool()
 }
 
-case class CoreplexLocalInterrupterConfig(beatBytes: Int, address: BigInt = 0x44000000) {
+case class CoreplexLocalInterrupterConfig(beatBytes: Int, address: BigInt = 0x02000000) {
   def msipOffset(hart: Int) = hart * msipBytes
   def msipAddress(hart: Int) = address + msipOffset(hart)
   def timecmpOffset(hart: Int) = 0x4000 + hart * timecmpBytes

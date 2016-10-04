@@ -1,10 +1,10 @@
 // See LICENSE for license details.
 
-package uncore.tilelink2
+package regmapper
 
 import Chisel._
-import chisel3.util.{Irrevocable, IrrevocableIO}
-import util.{AsyncResetRegVec, AsyncQueue, AsyncScope}
+import chisel3.util.{Irrevocable}
+import util.{AsyncQueue,AsyncScope,AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing(clock: Clock, reset: Bool)
@@ -25,7 +25,7 @@ class BusyRegisterCrossing(clock: Clock, reset: Bool)
 
 // RegField should support connecting to one of these
 class RegisterWriteIO[T <: Data](gen: T) extends Bundle {
-  val request  = Irrevocable(gen).flip()
+  val request  = Decoupled(gen).flip()
   val response = Irrevocable(Bool()) // ignore .bits
 }
 
@@ -85,7 +85,7 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 
 // RegField should support connecting to one of these
 class RegisterReadIO[T <: Data](gen: T) extends Bundle {
-  val request  = Irrevocable(Bool()).flip() // ignore .bits
+  val request  = Decoupled(Bool()).flip() // ignore .bits
   val response = Irrevocable(gen)
 }
 
@@ -147,15 +147,18 @@ object AsyncRWSlaveRegField {
     slave_reset: Bool,
     width:  Int,
     init: Int,
+    name: Option[String] = None,
     master_allow: Bool = Bool(true),
     slave_allow: Bool = Bool(true)
   ): (UInt, RegField) = {
 
     val async_slave_reg = Module(new AsyncResetRegVec(width, init))
+    name.foreach(async_slave_reg.suggestName(_))
     async_slave_reg.reset := slave_reset
     async_slave_reg.clock := slave_clock
 
     val wr_crossing = Module (new RegisterWriteCrossing(UInt(width = width)))
+    name.foreach(n => wr_crossing.suggestName(s"${n}_wcrossing"))
 
     val scope = Module (new AsyncScope())
 
@@ -170,6 +173,7 @@ object AsyncRWSlaveRegField {
     async_slave_reg.io.d  := wr_crossing.io.slave_register
 
     val rd_crossing = Module (new RegisterReadCrossing(UInt(width = width )))
+    name.foreach(n => rd_crossing.suggestName(s"${n}_rcrossing"))
 
     rd_crossing.io.master_clock := scope.clock
     rd_crossing.io.master_reset := scope.reset

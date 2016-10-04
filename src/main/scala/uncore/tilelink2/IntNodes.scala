@@ -3,9 +3,10 @@
 package uncore.tilelink2
 
 import Chisel._
+import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy._
 import scala.collection.mutable.ListBuffer
 import scala.math.max
-import chisel3.internal.sourceinfo.SourceInfo
 
 // A potentially empty half-open range; [start, end)
 case class IntRange(start: Int, end: Int)
@@ -60,6 +61,7 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
     Vec(ei.size, Vec(ei.map(_.source.num).max, Bool())).flip
   }
 
+  def colour = "#0000ff" // blue
   def connect(bo: => Vec[Bool], bi: => Vec[Bool], ei: => IntEdge)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => {
       // Cannot use bulk connect, because the widths could differ

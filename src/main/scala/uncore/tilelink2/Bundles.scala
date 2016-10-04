@@ -4,22 +4,8 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.util.{Irrevocable, IrrevocableIO, ReadyValidIO}
-import util.{AsyncQueueSource, AsyncQueueSink}
-
-abstract class GenericParameterizedBundle[T <: Object](val params: T) extends Bundle
-{
-  override def cloneType = {
-    try {
-      this.getClass.getConstructors.head.newInstance(params).asInstanceOf[this.type]
-    } catch {
-      case e: java.lang.IllegalArgumentException =>
-        throw new Exception("Unable to use GenericParameterizedBundle.cloneType on " +
-                       this.getClass + ", probably because " + this.getClass +
-                       "() takes more than one argument.  Consider overriding " +
-                       "cloneType() on " + this.getClass, e)
-    }
-  }
-}
+import diplomacy._
+import util.{AsyncQueueSource, AsyncQueueSink, GenericParameterizedBundle}
 
 abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameterizedBundle(params)
 

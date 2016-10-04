@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import regmapper._
 
 case class ExampleParams(num: Int, address: BigInt)
 
